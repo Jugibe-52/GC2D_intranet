@@ -1,15 +1,15 @@
 ###################################################################################################
-##               Dictionary of parameters: https://github.com/cchandre/Guiding-Center            ##
+##               Dictionary of parameters: https://github.com/cchandre/GC2D_intranet             ##
 ###################################################################################################
 
 A = 0.7
 
-Ntraj = 50
-Tf = 500
+Ntraj = 500
+Tf = 50
 TimeStep = 1e-1  # recommended value: 5e-3
 init = 'fixed'
 solve_method = 'symp'
-ode_solver = 'BM6'
+ode_solver = 'BM4'
 omega = 10
 
 SaveData = True

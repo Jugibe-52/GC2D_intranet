@@ -1,7 +1,7 @@
 #
 # BSD 2-Clause License
 #
-# Copyright (c) 2021, Cristel Chandre
+# Copyright (c) 2023, Cristel Chandre
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -89,7 +89,7 @@ class GC2Dt:
 		exp_xy = xp.exp(1j * (self.nm[0][..., xp.newaxis] * x[xp.newaxis, xp.newaxis] + self.nm[1][..., xp.newaxis] * y[xp.newaxis, xp.newaxis] - t[xp.newaxis, xp.newaxis]))
 		return xp.sum(self.fft_phi_[..., xp.newaxis] * exp_xy[xp.newaxis], (1, 2)).real
 	
-	def chi_e(self, h:float, y) -> xp.ndarray:
+	def chi_e(self, h:float, y:xp.ndarray) -> xp.ndarray:
 		y_ = xp.split(y, 6)
 		dphidt, dphidx, dphidy = self.derivs_e(y_[1], y_[4], y_[0])
 		y_[2] -= h * dphidy
