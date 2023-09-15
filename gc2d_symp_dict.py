@@ -6,16 +6,16 @@ A = 0.7
 
 Ntraj = 500
 Tf = 50
-TimeStep = 1e-1  # recommended value: 5e-3
+TimeStep = 1e-1  # recommended value: 5e-2 for interp, 1e-1 for symp
 init = 'fixed'
 solve_method = 'symp'
-ode_solver = 'BM4'
+ode_solver = 'Verlet'
 omega = 10
 
 SaveData = True
 
 M = 25
-N = 2**12
+N = 2**10
 
 ###################################################################################################
 ##                              DO NOT EDIT BELOW                                                ##

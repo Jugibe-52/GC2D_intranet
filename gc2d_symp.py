@@ -85,6 +85,15 @@ class GC2Dt:
 		dk = (fields[2] * xp.exp(-1j * t)).real
 		return xp.concatenate((xp.ones_like(vars[0]), dy_gc, dk), axis=None)
 	
+	def chi(self, h:float, y:xp.ndarray) -> xp.ndarray:
+		y_ = xp.split(y, 4)
+		for n in range(self.M+1):
+			for m in range(self.M+1):
+				cnm = h * self.phic[n, m] * xp.cos(n * y_[1] + m * y_[2] + self.phases[n, m] - y_[0])
+				y_[1] -= m * cnm 
+				y_[2] += n * cnm
+				y_[3] += cnm
+	
 	def derivs_e(self, x:xp.ndarray, y:xp.ndarray, t:xp.ndarray) -> xp.ndarray:
 		exp_xy = xp.exp(1j * (self.nm[0][..., xp.newaxis] * x[xp.newaxis, xp.newaxis] + self.nm[1][..., xp.newaxis] * y[xp.newaxis, xp.newaxis] - t[xp.newaxis, xp.newaxis]))
 		return xp.sum(self.fft_phi_[..., xp.newaxis] * exp_xy[xp.newaxis], (1, 2)).real
