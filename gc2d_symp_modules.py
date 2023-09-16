@@ -32,7 +32,9 @@ import time
 from datetime import date
 
 def run_method(case):
-	print(f"\033[92m   Integration of {case.__str__()} using {'symplectic integrator' ({case.ode_solver}) if case.solve_method=='symp' else 'linear interpolation'} \033[00m")
+	if case.solve_method == 'symp':
+		method = f'symplectic integrator ({case.ode_solver})'
+	print(f"\033[92m   Integration of {case.__str__()} using {method if case.solve_method=='symp' else 'linear interpolation'} \033[00m")
 	t_eval = 2 * xp.pi * xp.arange(0, case.Tf + 1)
 	if case.init == 'random':
 		y0 = 2 * xp.pi * xp.random.rand(2 * case.Ntraj)
