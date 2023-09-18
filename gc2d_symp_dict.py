@@ -8,8 +8,8 @@ Ntraj = 5
 Tf = 50
 TimeStep = 1e-1  # recommended value: 5e-2 for interp, 1e-1 for symp
 init = 'fixed'
-solve_method = 'symp'
-ode_solver = 'Verlet'
+solve_method = 'symp' # 'interp', 'symp' or 'symp_ext'
+ode_solver = 'BM4'
 omega = 10
 
 SaveData = True

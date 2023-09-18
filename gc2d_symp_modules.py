@@ -48,6 +48,8 @@ def run_method(case):
 	if case.solve_method == 'interp':
 		sol = solve_ivp(case.eqn_interp, (0, t_eval.max()), y0, t_eval=t_eval, max_step=case.TimeStep, atol=1, rtol=1)
 	elif case.solve_method == 'symp':
+		sol = case.integr(t_eval, y0)
+	elif case.solve_method == 'symp_ext':
 		sol = case.integr_e(t_eval, y0)
 	print(f'\033[90m        Computation finished in {int(time.time() - start)} seconds \033[00m')
 	energy = case.compute_energy(sol.y)

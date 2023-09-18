@@ -50,7 +50,6 @@ class GC2Dt:
 		if self.solve_method not in SCHEMES:
 			raise ValueError(f"The chosen numerical scheme must be one of {SCHEMES}.")
 		self.DictParams = dictparams
-		self.TimeStep = 2 * xp.pi / xp.floor(2 * xp.pi / self.TimeStep)
 		xp.random.seed(27)
 		self.phases = 2 * xp.pi * xp.random.random((self.M, self.M))
 		self.nm = xp.meshgrid(xp.arange(self.M+1), xp.arange(self.M+1), indexing='ij')
@@ -87,12 +86,28 @@ class GC2Dt:
 	
 	def chi(self, h:float, y:xp.ndarray) -> xp.ndarray:
 		y_ = xp.split(y, 4)
-		for n in range(self.M+1):
-			for m in range(self.M+1):
-				cnm = h * self.phic[n, m] * xp.cos(n * y_[1] + m * y_[2] + self.phases[n, m] - y_[0])
+		for n in range(1, self.M + 1):
+			for m in range(1, self.M + 1):
+				cnm = h * (self.phic[n, m] * xp.exp(1j * (n * y_[1] + m * y_[2] - y_[0]))).real
 				y_[1] -= m * cnm 
 				y_[2] += n * cnm
 				y_[3] += cnm
+		y_[0] += h
+		return xp.concatenate([y_[_] for _ in range(4)], axis=None)
+	
+	def chi_star(self, h:float, y:xp.ndarray) -> xp.ndarray:
+		y_ = xp.split(y, 4)
+		y_[0] += h
+		for m in range(self.M, 0, -1):
+			for n in range(self.M, 0, -1):
+				cnm = h * (self.phic[n, m] * xp.exp(1j * (n * y_[1] + m * y_[2] - y_[0]))).real
+				y_[1] -= m * cnm 
+				y_[2] += n * cnm
+				y_[3] += cnm
+		return xp.concatenate([y_[_] for _ in range(4)], axis=None)
+	
+	def integr(self, tspan, y:xp.ndarray) -> xp.ndarray:
+		return self.integrator(self.TimeStep).integrate(self.chi, self.chi_star, y, tspan)
 	
 	def derivs_e(self, x:xp.ndarray, y:xp.ndarray, t:xp.ndarray) -> xp.ndarray:
 		exp_xy = xp.exp(1j * (self.nm[0][..., xp.newaxis] * x[xp.newaxis, xp.newaxis] + self.nm[1][..., xp.newaxis] * y[xp.newaxis, xp.newaxis] - t[xp.newaxis, xp.newaxis]))
@@ -134,7 +149,8 @@ class GC2Dt:
 		y_[0], y_[3] = y_e[0], y_e[-1] / 2
 		y_[1] = (y_e[1] + y_e[2]) / 2
 		y_[2] = (y_e[3] + y_e[4]) / 2
-		return OdeSolution(t=tspan, y=xp.concatenate([y_[_] for _ in range(4)], axis=0))
+		sol.y = xp.concatenate([y_[_] for _ in range(4)], axis=0)
+		return sol
 
 	def compute_energy(self, sol) -> xp.ndarray:
 		y = xp.split(sol, 4)
