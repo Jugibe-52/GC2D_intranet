@@ -35,7 +35,7 @@ from pyhamsys import SymplecticIntegrator, OdeSolution
 def main() -> None:
 	run_method(GC2Dt(dictparams))
 
-SCHEMES = ['interp', 'symp']
+SCHEMES = ['interp', 'symp', 'symp_ext']
 
 class GC2Dt:
 	def __repr__(self) -> str:
@@ -68,7 +68,7 @@ class GC2Dt:
 			stack = self.derivs(self.phi)
 			stack = (*stack, self.pad(self.phi))
 			self.Dphi = xp.moveaxis(xp.stack(stack), 0, -1)
-		elif self.solve_method == 'symp':
+		elif self.solve_method.startswith('symp'):
 			self.integrator = lambda step: SymplecticIntegrator(self.ode_solver, step)
 			self.fft_phi_ = xp.asarray([-self.phic, self.nm[0] * self.phic, self.nm[1] * self.phic])
 			self.rotation_e = lambda h: (xp.array([[1, 1, 0, 0], [1, 1, 0, 0], [0, 0, 1, 1], [0, 0, 1, 1]])\
@@ -98,8 +98,8 @@ class GC2Dt:
 	def chi_star(self, h:float, y:xp.ndarray) -> xp.ndarray:
 		y_ = xp.split(y, 4)
 		y_[0] += h
-		for m in range(self.M, 0, -1):
-			for n in range(self.M, 0, -1):
+		for n in range(self.M, 0, -1):
+			for m in range(self.M, 0, -1):
 				cnm = h * (self.phic[n, m] * xp.exp(1j * (n * y_[1] + m * y_[2] - y_[0]))).real
 				y_[1] -= m * cnm 
 				y_[2] += n * cnm
