@@ -129,8 +129,8 @@ class GC2Dt:
 		
 	def chi_e_star(self, h:float, y:xp.ndarray) -> xp.ndarray:
 		y_ = xp.split(y, 6)
-		y_[1:5] = xp.einsum('ij,j...->i...', self.rotation_e(h), xp.asarray(y_[1:5]))
 		y_[0] += h
+		y_[1:5] = xp.einsum('ij,j...->i...', self.rotation_e(h), xp.asarray(y_[1:5]))
 		dphidt, dphidx, dphidy = self.derivs_e(y_[2], y_[3], y_[0])
 		y_[1] -= h * dphidy
 		y_[4] += h * dphidx
