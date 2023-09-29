@@ -93,10 +93,10 @@ class GC2Dt:
 				y_ += n * cnm
 		return xp.concatenate((x_, y_), axis=None)
 	
-	def fun(self, t:float, y:xp.ndarray) -> xp.ndarray:
+	def eqn_symp(self, t:float, y:xp.ndarray) -> xp.ndarray:
 		x_, y_ = xp.split(y, 2)
 		exp_xy = xp.exp(1j * (self.nm[0][..., xp.newaxis] * x_[xp.newaxis, xp.newaxis] + self.nm[1][..., xp.newaxis] * y_[xp.newaxis, xp.newaxis] - t))
-		return xp.sum(self.fft_phi_[..., xp.newaxis] * exp_xy[xp.newaxis], (1, 2)).real
+		return (xp.sum(self.fft_phi_[..., xp.newaxis] * exp_xy[xp.newaxis], (1, 2)).real).reshape(y.shape)
 
 if __name__ == '__main__':
 	main()

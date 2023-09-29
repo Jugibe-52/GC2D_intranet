@@ -46,11 +46,11 @@ def run_method(case):
 		case.Ntraj = int(xp.sqrt(case.Ntraj))**2
 	start = time.time()
 	if case.solve_method == 'interp':
-		sol = solve_ivp(case.eqn_interp, (0, t_eval.max()), y0, t_eval=t_eval, max_step=case.TimeStep, atol=1, rtol=1)
+		sol = solve_ivp(case.eqn_interp, (0, t_eval.max()), y0, max_step=case.TimeStep, t_eval=t_eval, atol=1, rtol=1)
 	elif case.solve_method == 'symp':
 		sol = solve_ivp_symp(case.chi, case.chi_star, (0, t_eval.max()), y0, step=case.TimeStep, t_eval=t_eval, method=case.ode_solver)
 	elif case.solve_method == 'symp_ext':
-		sol = solve_ivp_sympext(case.eqn, (0, t_eval.max()), y0, step=case.TimeStep, t_eval=t_eval, method=case.ode_solver)
+		sol = solve_ivp_sympext(case.eqn_symp, (0, t_eval.max()), y0, step=case.TimeStep, t_eval=t_eval, method=case.ode_solver)
 	print(f'\033[90m        Computation finished in {int(time.time() - start)} seconds \033[00m')
 	save_data(case, sol.y, 'sol_' + case.solve_method)
 

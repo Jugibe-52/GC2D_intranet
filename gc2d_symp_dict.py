@@ -4,11 +4,11 @@
 
 A = 0.7
 
-Ntraj = 5
-Tf = 150
+Ntraj = 50
+Tf = 500
 TimeStep = 1e-1  # recommended value: 5e-2 for interp, 1e-1 for symp
 init = 'fixed'
-solve_method = 'symp' # 'interp', 'symp' (slow) or 'symp_ext'
+solve_method = 'symp_ext' # 'interp', 'symp' (slow) or 'symp_ext'
 ode_solver = 'BM4'
 
 SaveData = True
