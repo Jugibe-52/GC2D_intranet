@@ -5,12 +5,11 @@
 A = 0.7
 
 Ntraj = 5
-Tf = 50
-TimeStep = 3e-1  # recommended value: 5e-2 for interp, 1e-1 for symp
+Tf = 150
+TimeStep = 1e-1  # recommended value: 5e-2 for interp, 1e-1 for symp
 init = 'fixed'
 solve_method = 'symp' # 'interp', 'symp' (slow) or 'symp_ext'
 ode_solver = 'BM4'
-omega = 10
 
 SaveData = True
 
@@ -27,7 +26,6 @@ dictparams = {
 	'init': init,
     'solve_method': solve_method,
     'ode_solver': ode_solver,
-    'omega': omega,
 	'TimeStep': TimeStep,
 	'SaveData': SaveData,
 	'M': M,

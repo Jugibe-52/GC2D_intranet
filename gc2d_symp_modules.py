@@ -28,6 +28,7 @@
 import numpy as xp
 from scipy.integrate import solve_ivp
 from scipy.io import savemat
+from pyhamsys import solve_ivp_symp, solve_ivp_sympext
 import time
 from datetime import date
 
@@ -43,23 +44,19 @@ def run_method(case):
 		y_mat = xp.meshgrid(y_vec, y_vec)
 		y0 = xp.concatenate((y_mat[0], y_mat[1]), axis=None)
 		case.Ntraj = int(xp.sqrt(case.Ntraj))**2
-	y0 = xp.concatenate((xp.zeros(case.Ntraj), y0, xp.zeros(case.Ntraj)), axis=None)
 	start = time.time()
 	if case.solve_method == 'interp':
 		sol = solve_ivp(case.eqn_interp, (0, t_eval.max()), y0, t_eval=t_eval, max_step=case.TimeStep, atol=1, rtol=1)
 	elif case.solve_method == 'symp':
-		sol = case.integr(t_eval, y0)
+		sol = solve_ivp_symp(case.chi, case.chi_star, (0, t_eval.max()), y0, step=case.TimeStep, t_eval=t_eval, method=case.ode_solver)
 	elif case.solve_method == 'symp_ext':
-		sol = case.integr_e(t_eval, y0)
+		sol = solve_ivp_sympext(case.eqn, (0, t_eval.max()), y0, step=case.TimeStep, t_eval=t_eval, method=case.ode_solver)
 	print(f'\033[90m        Computation finished in {int(time.time() - start)} seconds \033[00m')
-	energy = case.compute_energy(sol.y)
-	err_energy = xp.abs(energy - energy[:, 0][:, xp.newaxis])
-	print(f'\033[90m           with error in energy = {xp.max(err_energy)}')
 	save_data(case, sol.y, 'sol_' + case.solve_method)
 
 def save_data(case, data, filestr, info=[]):
 	if case.SaveData:
-		x, y = xp.split(data, 4)[1:3]
+		x, y = xp.split(data, 2)
 		mdic = case.DictParams.copy()
 		mdic.update({'x': x, 'y': y, 'info': info})
 		mdic.update({'date': date.today().strftime(" %B %d, %Y\n"), 'author': 'cristel.chandre@cnrs.fr'})

@@ -30,7 +30,7 @@ from numpy.fft import fft2, ifft2, fftfreq
 from scipy.interpolate import interpn
 from gc2d_symp_modules import run_method
 from gc2d_symp_dict import dictparams
-from pyhamsys import SymplecticIntegrator, OdeSolution
+from pyhamsys import SymplecticIntegrator, solve_ivp_symp, solve_ivp_sympext
 
 def main() -> None:
 	run_method(GC2Dt(dictparams))
@@ -66,96 +66,37 @@ class GC2Dt:
 			self.pad = lambda psi: xp.pad(psi, ((0, 1),), mode='wrap')
 			self.derivs = lambda psi: [self.pad(ifft2(1j * nminterp[_] * fft2(psi))) for _ in range(2)]
 			stack = self.derivs(self.phi)
-			stack = (*stack, self.pad(self.phi))
 			self.Dphi = xp.moveaxis(xp.stack(stack), 0, -1)
 		elif self.solve_method.startswith('symp'):
-			self.integrator = lambda step: SymplecticIntegrator(self.ode_solver, step)
-			self.fft_phi_ = xp.asarray([-self.phic, self.nm[0] * self.phic, self.nm[1] * self.phic])
-			self.rotation_e = lambda h: (xp.array([[1, 1, 0, 0], [1, 1, 0, 0], [0, 0, 1, 1], [0, 0, 1, 1]])\
-			  + xp.cos(2 * self.omega * h) * xp.array([[1, -1, 0, 0], [-1, 1, 0, 0], [0, 0, 1, -1], [0, 0, -1, 1]])\
-			  + xp.sin(2 * self.omega * h) * xp.array([[0, 0, -1, 1], [0, 0, 1, -1], [1, -1, 0, 0], [-1, 1, 0, 0]])) / 2
+			self.fft_phi_ = xp.asarray([-self.nm[1] * self.phic, self.nm[0] * self.phic])
 		
 	def eqn_interp(self, t:float, y:xp.ndarray) -> xp.ndarray:
-		vars = xp.split(y, 4)
-		r = xp.moveaxis(xp.asarray(vars[1:3]) % (2 * xp.pi), 0, -1)
+		r = xp.moveaxis(xp.asarray(xp.split(y, 2)) % (2 * xp.pi), 0, -1)
 		fields = xp.moveaxis(interpn(self.xy_, self.Dphi, r), 0, 1)
-		dphidx, dphidy = fields[:2]
-		dy_gc = xp.concatenate((-(dphidy * xp.exp(-1j * t)).imag, (dphidx * xp.exp(-1j * t)).imag), axis=None)
-		dk = (fields[2] * xp.exp(-1j * t)).real
-		return xp.concatenate((xp.ones_like(vars[0]), dy_gc, dk), axis=None)
+		return xp.concatenate((-(fields[1] * xp.exp(-1j * t)).imag, (fields[0] * xp.exp(-1j * t)).imag), axis=None)
 	
-	def chi(self, h:float, y:xp.ndarray) -> xp.ndarray:
-		y_ = xp.split(y, 4)
+	def chi(self, h:float, t:float, y:xp.ndarray) -> xp.ndarray:
+		x_, y_ = xp.split(y, 2)
 		for n in range(1, self.M + 1):
 			for m in range(1, self.M + 1):
-				cnm = h * (self.phic[n, m] * xp.exp(1j * (n * y_[1] + m * y_[2] - y_[0]))).real
-				y_[1] -= m * cnm 
-				y_[2] += n * cnm
-				y_[3] += cnm
-		y_[0] += h
-		return xp.concatenate([y_[_] for _ in range(4)], axis=None)
+				cnm = h * (self.phic[n, m] * xp.exp(1j * (n * x_ + m * y_ - t))).real
+				x_ -= m * cnm 
+				y_ += n * cnm
+		return xp.concatenate((x_, y_), axis=None)
 	
-	def chi_star(self, h:float, y:xp.ndarray) -> xp.ndarray:
-		y_ = xp.split(y, 4)
-		y_[0] += h
+	def chi_star(self, h:float, t:float, y:xp.ndarray) -> xp.ndarray:
+		x_, y_ = xp.split(y, 2)
 		for n in range(self.M, 0, -1):
 			for m in range(self.M, 0, -1):
-				cnm = h * (self.phic[n, m] * xp.exp(1j * (n * y_[1] + m * y_[2] - y_[0]))).real
-				y_[1] -= m * cnm 
-				y_[2] += n * cnm
-				y_[3] += cnm
-		return xp.concatenate([y_[_] for _ in range(4)], axis=None)
+				cnm = h * (self.phic[n, m] * xp.exp(1j * (n * x_ + m * y_ - t))).real
+				x_ -= m * cnm 
+				y_ += n * cnm
+		return xp.concatenate((x_, y_), axis=None)
 	
-	def integr(self, tspan, y:xp.ndarray) -> xp.ndarray:
-		return self.integrator(self.TimeStep).integrate(self.chi, self.chi_star, y, tspan)
-	
-	def derivs_e(self, x:xp.ndarray, y:xp.ndarray, t:xp.ndarray) -> xp.ndarray:
-		exp_xy = xp.exp(1j * (self.nm[0][..., xp.newaxis] * x[xp.newaxis, xp.newaxis] + self.nm[1][..., xp.newaxis] * y[xp.newaxis, xp.newaxis] - t[xp.newaxis, xp.newaxis]))
+	def fun(self, t:float, y:xp.ndarray) -> xp.ndarray:
+		x_, y_ = xp.split(y, 2)
+		exp_xy = xp.exp(1j * (self.nm[0][..., xp.newaxis] * x_[xp.newaxis, xp.newaxis] + self.nm[1][..., xp.newaxis] * y_[xp.newaxis, xp.newaxis] - t))
 		return xp.sum(self.fft_phi_[..., xp.newaxis] * exp_xy[xp.newaxis], (1, 2)).real
-	
-	def chi_e(self, h:float, y:xp.ndarray) -> xp.ndarray:
-		y_ = xp.split(y, 6)
-		dphidt, dphidx, dphidy = self.derivs_e(y_[1], y_[4], y_[0])
-		y_[2] -= h * dphidy
-		y_[3] += h * dphidx
-		y_[-1] -= h * dphidt
-		dphidt, dphidx, dphidy = self.derivs_e(y_[2], y_[3], y_[0])
-		y_[1] -= h * dphidy
-		y_[4] += h * dphidx
-		y_[-1] -= h * dphidt
-		y_[1:5] = xp.einsum('ij,j...->i...', self.rotation_e(h), xp.asarray(y_[1:5]))
-		y_[0] += h 
-		return xp.concatenate([y_[_] for _ in range(6)], axis=None)
-		
-	def chi_e_star(self, h:float, y:xp.ndarray) -> xp.ndarray:
-		y_ = xp.split(y, 6)
-		y_[0] += h
-		y_[1:5] = xp.einsum('ij,j...->i...', self.rotation_e(h), xp.asarray(y_[1:5]))
-		dphidt, dphidx, dphidy = self.derivs_e(y_[2], y_[3], y_[0])
-		y_[1] -= h * dphidy
-		y_[4] += h * dphidx
-		y_[-1] -= h * dphidt
-		dphidt, dphidx, dphidy = self.derivs_e(y_[1], y_[4], y_[0])
-		y_[2] -= h * dphidy
-		y_[3] += h * dphidx
-		y_[-1] -= h * dphidt
-		return xp.concatenate([y_[_] for _ in range(6)], axis=None) 
-
-	def integr_e(self, tspan, y:xp.ndarray) -> xp.ndarray:
-		y_ = xp.split(y, 4)
-		y_e = xp.concatenate((y_[0], y_[1], y_[1], y_[2], y_[2], y_[3]), axis=None)
-		sol = self.integrator(self.TimeStep).integrate(self.chi_e, self.chi_e_star, y_e, tspan)
-		y_e = xp.split(sol.y, 6, axis=0)
-		y_[0], y_[3] = y_e[0], y_e[-1] / 2
-		y_[1] = (y_e[1] + y_e[2]) / 2
-		y_[2] = (y_e[3] + y_e[4]) / 2
-		sol.y = xp.concatenate([y_[_] for _ in range(4)], axis=0)
-		return sol
-
-	def compute_energy(self, sol) -> xp.ndarray:
-		y = xp.split(sol, 4)
-		exp_xy = xp.exp(1j * (self.nm[0][..., xp.newaxis, xp.newaxis] * y[1][xp.newaxis, xp.newaxis] + self.nm[1][..., xp.newaxis, xp.newaxis] * y[2][xp.newaxis, xp.newaxis] - y[0][xp.newaxis, xp.newaxis]))
-		return y[-1] + xp.sum(self.phic[..., xp.newaxis, xp.newaxis] * exp_xy, (0, 1)).imag
 
 if __name__ == '__main__':
 	main()
