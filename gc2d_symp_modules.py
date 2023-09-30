@@ -44,6 +44,8 @@ def run_method(case):
 		y_mat = xp.meshgrid(y_vec, y_vec)
 		y0 = xp.concatenate((y_mat[0], y_mat[1]), axis=None)
 		case.Ntraj = int(xp.sqrt(case.Ntraj))**2
+	if case.CheckEnergy:
+		y0 = xp.concatenate((y0, xp.zeros(case.Ntraj)), axis=None)
 	start = time.time()
 	if case.solve_method == 'interp':
 		sol = solve_ivp(case.eqn_interp, (0, t_eval.max()), y0, max_step=case.TimeStep, t_eval=t_eval, atol=1, rtol=1)
@@ -52,6 +54,10 @@ def run_method(case):
 	elif case.solve_method == 'symp_ext':
 		sol = solve_ivp_sympext(case.eqn_symp, (0, t_eval.max()), y0, step=case.TimeStep, t_eval=t_eval, method=case.ode_solver)
 	print(f'\033[90m        Computation finished in {int(time.time() - start)} seconds \033[00m')
+	if case.CheckEnergy:
+		energy = case.compute_energy(sol)
+		err_energy = xp.abs(energy - energy[:, 0][:, xp.newaxis])
+		print(f'\033[90m           with error in energy = {xp.max(err_energy)}')
 	save_data(case, sol.y, 'sol_' + case.solve_method)
 
 def save_data(case, data, filestr, info=[]):

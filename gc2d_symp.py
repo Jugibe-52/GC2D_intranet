@@ -66,37 +66,56 @@ class GC2Dt:
 			self.pad = lambda psi: xp.pad(psi, ((0, 1),), mode='wrap')
 			self.derivs = lambda psi: [self.pad(ifft2(1j * nminterp[_] * fft2(psi))) for _ in range(2)]
 			stack = self.derivs(self.phi)
+			if self.CheckEnergy:
+				stack = (*stack, self.pad(self.phi))
 			self.Dphi = xp.moveaxis(xp.stack(stack), 0, -1)
 		elif self.solve_method.startswith('symp'):
-			self.fft_phi_ = xp.asarray([-self.nm[1] * self.phic, self.nm[0] * self.phic])
+			if self.CheckEnergy:
+				self.fft_phi_ = xp.asarray([-self.nm[1] * self.phic, self.nm[0] * self.phic, self.phic])
+			else:
+				self.fft_phi_ = xp.asarray([-self.nm[1] * self.phic, self.nm[0] * self.phic])	
 		
 	def eqn_interp(self, t:float, y:xp.ndarray) -> xp.ndarray:
-		r = xp.moveaxis(xp.asarray(xp.split(y, 2)) % (2 * xp.pi), 0, -1)
+		vars = xp.split(y, 2 + self.CheckEnergy)
+		r = xp.moveaxis(xp.asarray(vars[0:2]) % (2 * xp.pi), 0, -1)
 		fields = xp.moveaxis(interpn(self.xy_, self.Dphi, r), 0, 1)
-		return xp.concatenate((-(fields[1] * xp.exp(-1j * t)).imag, (fields[0] * xp.exp(-1j * t)).imag), axis=None)
+		dy_gc = xp.concatenate((-(fields[1] * xp.exp(-1j * t)).imag, (fields[0] * xp.exp(-1j * t)).imag), axis=None)
+		if self.CheckEnergy:
+			dk = (fields[2] * xp.exp(-1j * t)).real
+			return xp.concatenate((dy_gc, dk), axis=None)
+		return dy_gc
 	
 	def chi(self, h:float, t:float, y:xp.ndarray) -> xp.ndarray:
-		x_, y_ = xp.split(y, 2)
+		y_ = xp.split(y, 2 + self.CheckEnergy)
 		for n in range(1, self.M + 1):
 			for m in range(1, self.M + 1):
-				cnm = h * (self.phic[n, m] * xp.exp(1j * (n * x_ + m * y_ - t))).real
-				x_ -= m * cnm 
-				y_ += n * cnm
-		return xp.concatenate((x_, y_), axis=None)
+				cnm = h * (self.phic[n, m] * xp.exp(1j * (n * y_[0] + m * y_[1] - t))).real
+				y_[0] -= m * cnm 
+				y_[1] += n * cnm
+				if self.CheckEnergy:
+					y_[2] += cnm
+		return xp.concatenate([y_[_] for _ in range(2 + self.CheckEnergy)], axis=None)
 	
 	def chi_star(self, h:float, t:float, y:xp.ndarray) -> xp.ndarray:
-		x_, y_ = xp.split(y, 2)
+		y_ = xp.split(y, 2 + self.CheckEnergy)
 		for n in range(self.M, 0, -1):
 			for m in range(self.M, 0, -1):
-				cnm = h * (self.phic[n, m] * xp.exp(1j * (n * x_ + m * y_ - t))).real
-				x_ -= m * cnm 
-				y_ += n * cnm
-		return xp.concatenate((x_, y_), axis=None)
+				cnm = h * (self.phic[n, m] * xp.exp(1j * (n * y_[0] + m * y_[1] - t))).real
+				y_[0] -= m * cnm 
+				y_[1] += n * cnm
+				if self.CheckEnergy:
+					y_[2] += cnm
+		return xp.concatenate([y_[_] for _ in range(2 + self.CheckEnergy)], axis=None)
 	
 	def eqn_symp(self, t:float, y:xp.ndarray) -> xp.ndarray:
-		x_, y_ = xp.split(y, 2)
-		exp_xy = xp.exp(1j * (self.nm[0][..., xp.newaxis] * x_[xp.newaxis, xp.newaxis] + self.nm[1][..., xp.newaxis] * y_[xp.newaxis, xp.newaxis] - t))
+		y_ = xp.split(y, 2 + self.CheckEnergy)
+		exp_xy = xp.exp(1j * (self.nm[0][..., xp.newaxis] * y_[0][xp.newaxis, xp.newaxis] + self.nm[1][..., xp.newaxis] * y_[1][xp.newaxis, xp.newaxis] - t))
 		return (xp.sum(self.fft_phi_[..., xp.newaxis] * exp_xy[xp.newaxis], (1, 2)).real).reshape(y.shape)
+	
+	def compute_energy(self, sol) -> xp.ndarray:
+		x, y, k = xp.split(sol.y, 3)
+		exp_xy = xp.exp(1j * (self.nm[0][..., xp.newaxis, xp.newaxis] * x[xp.newaxis, xp.newaxis] + self.nm[1][..., xp.newaxis, xp.newaxis] * y[xp.newaxis, xp.newaxis] - sol.t[xp.newaxis, xp.newaxis, xp.newaxis]))
+		return k + xp.sum(self.phic[..., xp.newaxis, xp.newaxis] * exp_xy, (0, 1)).imag
 
 if __name__ == '__main__':
 	main()
