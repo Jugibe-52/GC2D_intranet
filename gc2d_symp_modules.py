@@ -62,9 +62,11 @@ def run_method(case):
 
 def save_data(case, data, filestr, info=[]):
 	if case.SaveData:
-		x, y = xp.split(data, 2)
+		y = xp.split(data, 2 + case.CheckEnergy)
 		mdic = case.DictParams.copy()
-		mdic.update({'x': x, 'y': y, 'info': info})
+		mdic.update({'x': y[0], 'y': y[1], 'info': info})
+		if case.CheckEnergy:
+			mdic.update({'k': y[2]})
 		mdic.update({'date': date.today().strftime(" %B %d, %Y\n"), 'author': 'cristel.chandre@cnrs.fr'})
 		savemat(filestr + '.mat', mdic)
 		print(f'\033[90m        Results saved in {filestr}.mat \033[00m')
