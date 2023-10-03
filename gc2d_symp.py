@@ -108,7 +108,7 @@ class GC2Dt:
 		return xp.concatenate([y_[_] for _ in range(2 + self.CheckEnergy)], axis=None)
 	
 	def eqn_symp(self, t:float, y:xp.ndarray) -> xp.ndarray:
-		y_ = xp.split(y, 2)
+		y_ = xp.split(y, 2 + self.CheckEnergy)
 		exp_xy = xp.exp(1j * (self.nm[0][..., xp.newaxis] * y_[0][xp.newaxis, xp.newaxis] + self.nm[1][..., xp.newaxis] * y_[1][xp.newaxis, xp.newaxis] - t))
 		return (xp.sum(self.fft_phi_[..., xp.newaxis] * exp_xy[xp.newaxis], (1, 2)).real).reshape(y.shape)
 	

@@ -52,7 +52,8 @@ def run_method(case):
 	elif case.solve_method == 'symp':
 		sol = solve_ivp_symp(case.chi, case.chi_star, (0, t_eval.max()), y0, step=case.TimeStep, t_eval=t_eval, method=case.ode_solver)
 	elif case.solve_method == 'symp_ext':
-		sol = solve_ivp_sympext(case.eqn_symp, (0, t_eval.max()), y0, step=case.TimeStep, t_eval=t_eval, method=case.ode_solver)
+		check_trajs = None if not case.CheckEnergy else case.Ntraj
+		sol = solve_ivp_sympext(case.eqn_symp, (0, t_eval.max()), y0, step=case.TimeStep, t_eval=t_eval, method=case.ode_solver, check_trajs=check_trajs)
 	print(f'\033[90m        Computation finished in {int(time.time() - start)} seconds \033[00m')
 	if case.CheckEnergy:
 		energy = case.compute_energy(sol)
