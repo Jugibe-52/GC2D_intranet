@@ -70,10 +70,7 @@ class GC2Dt:
 				stack = (*stack, self.pad(self.phi))
 			self.Dphi = xp.moveaxis(xp.stack(stack), 0, -1)
 		elif self.solve_method.startswith('symp'):
-			if self.CheckEnergy:
-				self.fft_phi_ = xp.asarray([-self.nm[1] * self.phic, self.nm[0] * self.phic, self.phic])
-			else:
-				self.fft_phi_ = xp.asarray([-self.nm[1] * self.phic, self.nm[0] * self.phic])	
+			self.fft_phi_ = xp.asarray([-self.nm[1] * self.phic, self.nm[0] * self.phic])	
 		
 	def eqn_interp(self, t:float, y:xp.ndarray) -> xp.ndarray:
 		vars = xp.split(y, 2 + self.CheckEnergy)
@@ -107,10 +104,15 @@ class GC2Dt:
 					y_[2] += cnm
 		return xp.concatenate([y_[_] for _ in range(2 + self.CheckEnergy)], axis=None)
 	
-	def eqn_symp(self, t:float, y:xp.ndarray) -> xp.ndarray:
-		y_ = xp.split(y, 2 + self.CheckEnergy)
+	def eqn_xy(self, t:float, y:xp.ndarray) -> xp.ndarray:
+		y_ = xp.split(y, 2)
 		exp_xy = xp.exp(1j * (self.nm[0][..., xp.newaxis] * y_[0][xp.newaxis, xp.newaxis] + self.nm[1][..., xp.newaxis] * y_[1][xp.newaxis, xp.newaxis] - t))
 		return (xp.sum(self.fft_phi_[..., xp.newaxis] * exp_xy[xp.newaxis], (1, 2)).real).reshape(y.shape)
+	
+	def eqn_k(self, t:float, y:xp.ndarray) -> xp.ndarray:
+		y_ = xp.split(y, 2)
+		exp_xy = xp.exp(1j * (self.nm[0][..., xp.newaxis] * y_[0][xp.newaxis, xp.newaxis] + self.nm[1][..., xp.newaxis] * y_[1][xp.newaxis, xp.newaxis] - t))
+		return (xp.sum(self.phic[..., xp.newaxis] * exp_xy, (0, 1)).real).reshape(y.shape)
 	
 	def compute_energy(self, sol) -> xp.ndarray:
 		x, y, k = xp.split(sol.y, 3)

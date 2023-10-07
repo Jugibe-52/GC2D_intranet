@@ -28,7 +28,7 @@
 import numpy as xp
 from scipy.integrate import solve_ivp
 from scipy.io import savemat
-from pyhamsys import solve_ivp_symp, solve_ivp_sympext
+from pyhamsys import HamSys, solve_ivp_symp, solve_ivp_sympext
 import time
 from datetime import date
 
@@ -44,16 +44,19 @@ def run_method(case):
 		y_mat = xp.meshgrid(y_vec, y_vec)
 		y0 = xp.concatenate((y_mat[0], y_mat[1]), axis=None)
 		case.Ntraj = int(xp.sqrt(case.Ntraj))**2
-	if case.CheckEnergy:
-		y0 = xp.concatenate((y0, xp.zeros(case.Ntraj)), axis=None)
 	start = time.time()
 	if case.solve_method == 'interp':
+		if case.CheckEnergy:
+			y0 = xp.concatenate((y0, xp.zeros(case.Ntraj)), axis=None)
 		sol = solve_ivp(case.eqn_interp, (0, t_eval.max()), y0, max_step=case.TimeStep, t_eval=t_eval, atol=1, rtol=1)
 	elif case.solve_method == 'symp':
+		if case.CheckEnergy:
+			y0 = xp.concatenate((y0, xp.zeros(case.Ntraj)), axis=None)
 		sol = solve_ivp_symp(case.chi, case.chi_star, (0, t_eval.max()), y0, step=case.TimeStep, t_eval=t_eval, method=case.ode_solver)
 	elif case.solve_method == 'symp_ext':
-		check_trajs = None if not case.CheckEnergy else case.Ntraj
-		sol = solve_ivp_sympext(case.eqn_symp, (0, t_eval.max()), y0, step=case.TimeStep, t_eval=t_eval, method=case.ode_solver, check_trajs=check_trajs)
+		hs = HamSys(ndof=1.5, check_energy=case.CheckEnergy)
+		hs.vector_field, hs.vector_field_k = case.eqn_xy, case.eqn_k
+		sol = solve_ivp_sympext(hs, (0, t_eval.max()), y0, step=case.TimeStep, t_eval=t_eval, method=case.ode_solver)
 	print(f'\033[90m        Computation finished in {int(time.time() - start)} seconds \033[00m')
 	if case.CheckEnergy:
 		energy = case.compute_energy(sol)
