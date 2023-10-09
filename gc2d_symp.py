@@ -105,11 +105,6 @@ class GC2Dt:
 					y_[2] += cnm
 		return xp.concatenate([y_[_] for _ in range(2 + self.CheckEnergy)], axis=None)
 	
-	def V(self, x, y, t):
-		amps = lambda n, m: self.A / (n**2 + m**2)**1.5 if n**2 + m**2 <= self.M**2 else 0
-		n, m = sp.symbols('n m', cls=sp.Idx)
-		return sp.summation(self.A / (n**2 + m**2)**1.5 * sp.sin(n * x + m * y - t), (n, 1, self.M), (m, 1, self.M)).doit()
-	
 	def eqn_xy(self, t:float, y:xp.ndarray) -> xp.ndarray:
 		y_ = xp.split(y, 2)
 		exp_xy = xp.exp(1j * (self.nm[0][..., xp.newaxis] * y_[0][xp.newaxis, xp.newaxis] + self.nm[1][..., xp.newaxis] * y_[1][xp.newaxis, xp.newaxis] - t))
