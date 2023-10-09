@@ -26,11 +26,12 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import numpy as xp
+import sympy as sp
 from numpy.fft import fft2, ifft2, fftfreq
 from scipy.interpolate import interpn
 from gc2d_symp_modules import run_method
 from gc2d_symp_dict import dictparams
-from pyhamsys import SymplecticIntegrator, solve_ivp_symp, solve_ivp_sympext
+from pyhamsys import solve_ivp_symp, solve_ivp_sympext
 
 def main() -> None:
 	run_method(GC2Dt(dictparams))
@@ -104,6 +105,11 @@ class GC2Dt:
 					y_[2] += cnm
 		return xp.concatenate([y_[_] for _ in range(2 + self.CheckEnergy)], axis=None)
 	
+	def V(self, x, y, t):
+		amps = lambda n, m: self.A / (n**2 + m**2)**1.5 if n**2 + m**2 <= self.M**2 else 0
+		n, m = sp.symbols('n m', cls=sp.Idx)
+		return sp.summation(self.A / (n**2 + m**2)**1.5 * sp.sin(n * x + m * y - t), (n, 1, self.M), (m, 1, self.M)).doit()
+	
 	def eqn_xy(self, t:float, y:xp.ndarray) -> xp.ndarray:
 		y_ = xp.split(y, 2)
 		exp_xy = xp.exp(1j * (self.nm[0][..., xp.newaxis] * y_[0][xp.newaxis, xp.newaxis] + self.nm[1][..., xp.newaxis] * y_[1][xp.newaxis, xp.newaxis] - t))
@@ -112,7 +118,7 @@ class GC2Dt:
 	def eqn_k(self, t:float, y:xp.ndarray) -> xp.ndarray:
 		y_ = xp.split(y, 2)
 		exp_xy = xp.exp(1j * (self.nm[0][..., xp.newaxis] * y_[0][xp.newaxis, xp.newaxis] + self.nm[1][..., xp.newaxis] * y_[1][xp.newaxis, xp.newaxis] - t))
-		return (xp.sum(self.phic[..., xp.newaxis] * exp_xy, (0, 1)).real).reshape(y.shape)
+		return xp.sum(self.phic[..., xp.newaxis] * exp_xy, (0, 1)).real
 	
 	def compute_energy(self, sol) -> xp.ndarray:
 		x, y, k = xp.split(sol.y, 3)

@@ -55,7 +55,8 @@ def run_method(case):
 		sol = solve_ivp_symp(case.chi, case.chi_star, (0, t_eval.max()), y0, step=case.TimeStep, t_eval=t_eval, method=case.ode_solver)
 	elif case.solve_method == 'symp_ext':
 		hs = HamSys(ndof=1.5, check_energy=case.CheckEnergy)
-		hs.vector_field, hs.vector_field_k = case.eqn_xy, case.eqn_k
+		#hs.vector_field, hs.vector_field_k = case.eqn_xy, case.eqn_k
+		hs.vector_field, hs.vector_field_k = hs.compute_vector_field(case.V)
 		sol = solve_ivp_sympext(hs, (0, t_eval.max()), y0, step=case.TimeStep, t_eval=t_eval, method=case.ode_solver)
 	print(f'\033[90m        Computation finished in {int(time.time() - start)} seconds \033[00m')
 	if case.CheckEnergy:
