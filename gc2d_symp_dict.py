@@ -8,14 +8,12 @@ Ntraj = 5
 Tf = 50
 TimeStep = 1e-1  # recommended value: 5e-2 for interp, 1e-1 for symp
 init = 'fixed'
-solve_method = 'symp_ext' # 'interp', 'symp' (slow) or 'symp_ext'
 ode_solver = 'BM4'
 
-SaveData = True
+SaveData = False
 CheckEnergy = True
 
 M = 25
-N = 2**10
 
 ###################################################################################################
 ##                              DO NOT EDIT BELOW                                                ##
@@ -25,11 +23,9 @@ dictparams = {
 	'Ntraj': Ntraj,
 	'Tf': Tf,
 	'init': init,
-    'solve_method': solve_method,
     'ode_solver': ode_solver,
 	'TimeStep': TimeStep,
 	'SaveData': SaveData,
     'CheckEnergy': CheckEnergy,
-	'M': M,
-	'N': N}
+	'M': M}
 ###################################################################################################
