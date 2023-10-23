@@ -26,6 +26,7 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import numpy as xp
+from scipy.special import jv
 from gc2d_symp_modules import run_method
 from gc2d_symp_dict import dictparams
 
@@ -50,6 +51,8 @@ class GC2Dt:
 		self.phic[1:, 1:] = (self.A / (self.nm[0][1:, 1:]**2 + self.nm[1][1:, 1:]**2)**1.5).astype(xp.complex128) * xp.exp(1j * self.phases)
 		sqrt_nm = xp.sqrt(self.nm[0]**2 + self.nm[1]**2)
 		self.phic[sqrt_nm > self.M] = 0
+		flr1_coeff = jv(0, self.rho * sqrt_nm)
+		self.phic *= flr1_coeff
 		self.fft_phi_ = xp.asarray([-self.nm[1] * self.phic, self.nm[0] * self.phic])	
 
 	def initial_conditions(self, type:str='fixed'):
