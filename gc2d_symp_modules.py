@@ -55,7 +55,7 @@ def save_data(case, sol, filestr:str, info=[]):
 		x, y = xp.split(sol.y, 2)
 		mdic = case.DictParams.copy()
 		mdic.update({'t': sol.t, 'x': x, 'y': y, 'info': info})
-		if case.CheckEnergy:
+		if case.CheckEnergy and case.traj_type == 'gc':
 			mdic.update({'k': sol.k})
 		mdic.update({'date': datetime.now().strftime(" %B %d, %Y\n"), 'author': 'cristel.chandre@cnrs.fr'})
 		savemat(filestr + '.mat', mdic)
