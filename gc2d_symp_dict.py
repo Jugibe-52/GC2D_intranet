@@ -6,7 +6,7 @@ import numpy as xp
 
 A = 0.7
 rho = xp.linspace(0.1, 0.3, 2)
-eta = 0.001
+eta = xp.linspace(-0.2, 0.3, 2)
 
 traj_type = 'gc' # 'gc' (guiding centers) or 'fo' (full orbits) 
 Ntraj = 5
@@ -23,14 +23,16 @@ M = 25
 ###################################################################################################
 ##                              DO NOT EDIT BELOW                                                ##
 ###################################################################################################
+val_params = xp.meshgrid(A, rho, eta, indexing='ij')
+num_dict = len(val_params[0].flatten())
 
-dict_list = [[] for _ in range(len(rho))]
+dict_list = [{'traj_type': traj_type} for _ in range(num_dict)]
 
-for _, rho_ in enumerate(rho):
-	dict_list[_] = {
-		'A': A,
-		'rho': rho_,
-		'eta': eta,
+for _, dict in enumerate(dict_list):
+	dict.update({
+		'A': val_params[0].flatten()[_],
+		'rho': val_params[1].flatten()[_],
+		'eta': val_params[2].flatten()[_],
 		'traj_type': traj_type,
 		'Ntraj': Ntraj,
 		'Tf': Tf,
@@ -39,5 +41,5 @@ for _, rho_ in enumerate(rho):
 		'SaveData': SaveData,
 		'CheckEnergy': CheckEnergy,
 		'M': M,
-		'ode_solver': 'BM4'}
+		'ode_solver': 'BM4'})
 ###################################################################################################

@@ -72,6 +72,7 @@ class GC2Dt(HamSys):
 			flr1_coeff = jv(0, self.rho * sqrt_nm)
 			self.phic *= flr1_coeff
 			flr2_coeff = -sqrt_nm * jv(1, self.rho * sqrt_nm) / self.rho
+
 		self.fft_phi_ = xp.asarray([-self.nm[1] * self.phic, self.nm[0] * self.phic])	
 
 	def initial_conditions(self, type:str='fixed') -> xp.ndarray:
