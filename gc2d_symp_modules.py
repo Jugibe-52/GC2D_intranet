@@ -27,23 +27,28 @@
 
 import numpy as xp
 from scipy.io import savemat
-from pyhamsys import HamSys, solve_ivp_sympext
+from pyhamsys import HamSys, solve_ivp_sympext, solve_ivp_symp
 import time
-from datetime import date
+from datetime import datetime
 
 def run_method(case):
 	print(f"\033[92m   Integration of {case.__str__()} \033[00m")
 	start = time.time()
-	hs = HamSys(ndof=1.5)
-	hs.y_dot, hs.k_dot = case.xy_dot, case.k_dot
-	hs.hamiltonian = case.potential
 	y0 = case.initial_conditions(type=case.init)
 	t_eval = 2 * xp.pi * xp.arange(0, case.Tf + 1)
-	sol = solve_ivp_sympext(hs, (0, t_eval.max()), y0, step=case.TimeStep, t_eval=t_eval, method=case.ode_solver, check_energy=case.CheckEnergy)
+	if case.traj_type == 'gc':
+		hs = HamSys(ndof=1.5)
+		hs.y_dot, hs.k_dot = case.xy_dot, case.k_dot
+		hs.hamiltonian = case.potential
+		sol = solve_ivp_sympext(hs, (0, t_eval.max()), y0, step=case.TimeStep, t_eval=t_eval, method=case.ode_solver, check_energy=case.CheckEnergy)
+	elif case.traj_type == 'fo':
+		sol = solve_ivp_symp(case.chi_fo, case.chi_star_fo, (0, t_eval.max()), y0, step=case.TimeStep, t_eval=t_eval, method=case.ode_solver)
+		if case.CheckEnergy:
+			sol.err = case.hamiltonian_fo(sol)
 	print(f'\033[90m        Computation finished in {int(time.time() - start)} seconds \033[00m')
 	if case.CheckEnergy:
 		print(f'\033[90m           with error in energy = {sol.err}')
-	save_data(case, sol, 'data')
+	save_data(case, sol, 'data' + datetime.now().strftime("%Y%m%d_%H%M%S"))
 
 def save_data(case, sol, filestr:str, info=[]):
 	if case.SaveData:
@@ -52,6 +57,6 @@ def save_data(case, sol, filestr:str, info=[]):
 		mdic.update({'t': sol.t, 'x': x, 'y': y, 'info': info})
 		if case.CheckEnergy:
 			mdic.update({'k': sol.k})
-		mdic.update({'date': date.today().strftime(" %B %d, %Y\n"), 'author': 'cristel.chandre@cnrs.fr'})
+		mdic.update({'date': datetime.now().strftime(" %B %d, %Y\n"), 'author': 'cristel.chandre@cnrs.fr'})
 		savemat(filestr + '.mat', mdic)
 		print(f'\033[90m        Results saved in {filestr}.mat \033[00m')

@@ -27,11 +27,28 @@
 
 import numpy as xp
 from scipy.special import jv
+import multiprocessing
 from gc2d_symp_modules import run_method
-from gc2d_symp_dict import dictparams
+from gc2d_symp_dict import dict_list, Parallelization
+
+def run_case(dict) -> None:
+	case = GC2Dt(dict)
+	run_method(case)
 
 def main() -> None:
-	run_method(GC2Dt(dictparams))
+	if Parallelization == 'all':
+		num_cores = multiprocessing.cpu_count()
+	else:
+		num_cores = min(multiprocessing.cpu_count(), Parallelization)
+	if num_cores >= 2:
+		pool = multiprocessing.Pool(num_cores)
+		pool.map(run_case, dict_list)
+	else:
+		for dict in dict_list:
+			run_case(dict)
+
+def real_imag(z):
+	return z.real, z.imag
 
 class GC2Dt:
 	def __repr__(self) -> str:
@@ -43,7 +60,7 @@ class GC2Dt:
 	def __init__(self, dict_: dict) -> None:
 		for key in dict_:
 			setattr(self, key, dict_[key])
-		self.DictParams = dictparams
+		self.DictParams = dict_
 		xp.random.seed(27)
 		self.phases = 2 * xp.pi * xp.random.random((self.M, self.M))
 		self.nm = xp.meshgrid(xp.arange(self.M+1), xp.arange(self.M+1), indexing='ij')
@@ -51,18 +68,25 @@ class GC2Dt:
 		self.phic[1:, 1:] = (self.A / (self.nm[0][1:, 1:]**2 + self.nm[1][1:, 1:]**2)**1.5).astype(xp.complex128) * xp.exp(1j * self.phases)
 		sqrt_nm = xp.sqrt(self.nm[0]**2 + self.nm[1]**2)
 		self.phic[sqrt_nm > self.M] = 0
-		flr1_coeff = jv(0, self.rho * sqrt_nm)
-		self.phic *= flr1_coeff
+		if self.traj_type == 'gc':
+			flr1_coeff = jv(0, self.rho * sqrt_nm)
+			self.phic *= flr1_coeff
 		self.fft_phi_ = xp.asarray([-self.nm[1] * self.phic, self.nm[0] * self.phic])	
 
 	def initial_conditions(self, type:str='fixed'):
 		if type == 'random':
-			return 2 * xp.pi * xp.random.rand(2 * self.Ntraj)
+			y0 = 2 * xp.pi * xp.random.rand(2 * self.Ntraj)
 		elif type == 'fixed':
 			self.Ntraj = int(xp.sqrt(self.Ntraj))**2
 			y_vec = xp.linspace(0, 2 * xp.pi, int(xp.sqrt(self.Ntraj)), endpoint=False)
 			y_mat = xp.meshgrid(y_vec, y_vec)
-			return xp.concatenate((y_mat[0], y_mat[1]), axis=None)
+			y0 = xp.concatenate((y_mat[0], y_mat[1]), axis=None)
+		if self.traj_type == 'fo':
+			phi_perp = 2 * xp.pi * xp.random.rand(self.Ntraj)
+			y0 = xp.concatenate((y0, xp.cos(phi_perp), xp.sin(phi_perp)), axis=None)
+			if self.CheckEnergy:
+				y0 = xp.concatenate((y0, xp.zeros(self.Ntraj)), axis=None)
+		return y0
 
 	def xy_dot(self, t:float, y:xp.ndarray) -> xp.ndarray:
 		y_ = xp.split(y, 2)
@@ -78,6 +102,42 @@ class GC2Dt:
 		y_ = xp.split(y, 2)
 		exp_xy = xp.exp(1j * (self.nm[0][..., xp.newaxis, xp.newaxis] * y_[0][xp.newaxis, xp.newaxis] + self.nm[1][..., xp.newaxis, xp.newaxis] * y_[1][xp.newaxis, xp.newaxis] - t[xp.newaxis, xp.newaxis]))
 		return xp.sum(self.phic[..., xp.newaxis, xp.newaxis] * exp_xy, (0, 1)).imag
+	
+	def chi_fo(self, h:float, t:float, y:xp.ndarray) -> xp.ndarray:
+		if self.CheckEnergy:
+			x_, y_, vx, vy, k = xp.split(y, 5)
+		else:
+			x_, y_, vx, vy = xp.split(y, 4)
+		exp_ = xp.exp(-1j * h / (2 * self.eta))
+		x_, y_ = real_imag(x_ + 1j * y_ + 1j * self.rho * xp.sign(self.eta) * (exp_ - 1) * (vx + 1j * vy)) 
+		vx, vy = real_imag(exp_ * (vx + 1j * vy))
+		pot = xp.split(self.xy_dot(t, xp.concatenate((x_, y_), axis=None)), 2)
+		vx, vy = real_imag(vx + 1j * vy + h * 1j * (pot[0] + 1j * pot[1]) * xp.sign(self.eta) / self.rho)
+		if not self.CheckEnergy:
+			return xp.concatenate((x_, y_, vx, vy), axis=None)
+		k += h * xp.sign(self.eta) / self.rho * self.k_dot(t, xp.concatenate((x_, y_), axis=None)) 
+		return xp.concatenate((x_, y_, vx, vy, k), axis=None)
+	
+	def chi_star_fo(self, h:float, t:float, y:xp.ndarray) -> xp.ndarray:
+		if self.CheckEnergy:
+			x_, y_, vx, vy, k = xp.split(y, 5)
+		else:
+			x_, y_, vx, vy = xp.split(y, 4)
+		pot = xp.split(self.xy_dot(t, xp.concatenate((x_, y_), axis=None)), 2)
+		vx, vy = real_imag(vx + 1j * vy + h * 1j * (pot[0] + 1j * pot[1]) * xp.sign(self.eta) / self.rho)
+		if self.CheckEnergy:
+			k += h * xp.sign(self.eta) / self.rho * self.k_dot(t, xp.concatenate((x_, y_), axis=None))
+		exp_ = xp.exp(-1j * h / (2 * self.eta))
+		x_, y_ = real_imag(x_ + 1j * y_ + 1j * self.rho * xp.sign(self.eta) * (exp_ - 1) * (vx + 1j * vy)) 
+		vx, vy = real_imag(exp_ * (vx + 1j * vy))
+		if not self.CheckEnergy:
+			return xp.concatenate((x_, y_, vx, vy), axis=None)
+		return xp.concatenate((x_, y_, vx, vy, k), axis=None)
+	
+	def hamiltonian_fo(self, sol, maxerror:bool=True):
+		x, y, vx, vy, k = xp.split(sol.y, 5)
+		val_h = self.rho / (4 * xp.abs(self.eta)) * (vx**2 + vy**2) + self.potential(sol.t[xp.newaxis], xp.concatenate((x, y), axis=0)) * xp.sign(self.eta) / self.rho + k
+		return xp.max(xp.abs(val_h - val_h[:, 0][:, xp.newaxis])) if maxerror else val_h
 
 if __name__ == '__main__':
 	main()
