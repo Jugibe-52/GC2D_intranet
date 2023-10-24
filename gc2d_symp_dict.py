@@ -5,10 +5,10 @@
 import numpy as xp
 
 A = 0.7
-rho = xp.linspace(0.1, 0.3, 1)
+rho = xp.linspace(0.1, 0.3, 2)
 eta = 0.001
 
-traj_type = 'fo' # 'gc' (guiding centers) or 'fo' (full orbits) 
+traj_type = 'gc' # 'gc' (guiding centers) or 'fo' (full orbits) 
 Ntraj = 5
 Tf = 50
 TimeStep = 1e-1  # recommended value: 5e-2 for interp, 1e-1 for symp
@@ -16,7 +16,7 @@ init = 'fixed'
 
 SaveData = False
 CheckEnergy = True
-Parallelization = 1
+Parallelization = 2
 
 M = 25
 
@@ -24,7 +24,7 @@ M = 25
 ##                              DO NOT EDIT BELOW                                                ##
 ###################################################################################################
 
-dict_list = [ [] for _ in range(len(rho)) ]
+dict_list = [[] for _ in range(len(rho))]
 
 for _, rho_ in enumerate(rho):
 	dict_list[_] = {

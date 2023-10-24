@@ -27,29 +27,26 @@
 
 import numpy as xp
 from scipy.special import jv
-import multiprocessing
+import multiprocess
 from datetime import datetime
 from scipy.io import savemat
 from gc2d_symp_modules import run_method
 from gc2d_symp_dict import dict_list, Parallelization
 from pyhamsys import OdeSolution, HamSys
 
-def run(dict_:dict) -> None:
-	run_method(GC2Dt(dict_))
-
 def main() -> None:
 	if Parallelization == 'all':
-		num_cores = multiprocessing.cpu_count()
+		num_cores = multiprocess.cpu_count()
 	else:
-		num_cores = min(multiprocessing.cpu_count(), Parallelization)
+		num_cores = min(multiprocess.cpu_count(), Parallelization)
 	if num_cores >= 2:
-		pool = multiprocessing.Pool(num_cores)
-		pool.map(run, dict_list)
+		pool = multiprocess.Pool(num_cores)
+		pool.map(lambda dict_: run_method(GC2Dt(dict_)), dict_list)
 	else:
 		for dict_ in dict_list:
-			run(dict_)
+			run_method(GC2Dt(dict_))
 
-def real_imag(z:xp.ndarray) -> tuple[xp.ndarray, xp.ndarray]:
+def real_imag(z:xp.ndarray):
 	return z.real, z.imag
 
 class GC2Dt(HamSys):
@@ -122,7 +119,7 @@ class GC2Dt(HamSys):
 		exp_ = xp.exp(-1j * h / (2 * self.eta))
 		x_, y_ = real_imag(x_ + 1j * y_ + 1j * self.rho * xp.sign(self.eta) * (exp_ - 1) * (vx + 1j * vy)) 
 		vx, vy = real_imag(exp_ * (vx + 1j * vy))
-		pot = xp.split(self.xy_dot(t, xp.concatenate((x_, y_), axis=None)), 2)
+		pot = xp.split(self.y_dot(t, xp.concatenate((x_, y_), axis=None)), 2)
 		vx, vy = real_imag(vx + 1j * vy + h * 1j * (pot[0] + 1j * pot[1]) * xp.sign(self.eta) / self.rho)
 		if not self.CheckEnergy:
 			return xp.concatenate((x_, y_, vx, vy), axis=None)
@@ -134,7 +131,7 @@ class GC2Dt(HamSys):
 			x_, y_, vx, vy, k = xp.split(y, 5)
 		else:
 			x_, y_, vx, vy = xp.split(y, 4)
-		pot = xp.split(self.xy_dot(t, xp.concatenate((x_, y_), axis=None)), 2)
+		pot = xp.split(self.y_dot(t, xp.concatenate((x_, y_), axis=None)), 2)
 		vx, vy = real_imag(vx + 1j * vy + h * 1j * (pot[0] + 1j * pot[1]) * xp.sign(self.eta) / self.rho)
 		if self.CheckEnergy:
 			k += h * xp.sign(self.eta) / self.rho * self.k_dot(t, xp.concatenate((x_, y_), axis=None))
