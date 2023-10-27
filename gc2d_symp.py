@@ -65,7 +65,7 @@ class GC2Dt(HamSys):
 		self.phases = 2 * xp.pi * xp.random.random((self.M, self.M))
 		self.nm = xp.meshgrid(xp.arange(self.M+1), xp.arange(self.M+1), indexing='ij')
 		self.phic = xp.zeros((self.M+1, self.M+1), dtype=xp.complex128)
-		self.phic[1:, 1:] = (self.A / (self.nm[0][1:, 1:]**2 + self.nm[1][1:, 1:]**2)**1.5).astype(xp.complex128) * xp.exp(1j * self.phases)
+		self.phic[1:, 1:] = self.A / (self.nm[0][1:, 1:]**2 + self.nm[1][1:, 1:]**2)**1.5 * xp.exp(1j * self.phases)
 		sqrt_nm = xp.sqrt(self.nm[0]**2 + self.nm[1]**2)
 		self.phic[sqrt_nm > self.M] = 0
 		if self.traj_type == 'gc':
@@ -91,19 +91,16 @@ class GC2Dt(HamSys):
 		return y0
 
 	def y_dot(self, t:float, y:xp.ndarray) -> xp.ndarray:
-		y_ = xp.split(y, 2)
-		exp_xy = xp.exp(1j * (self.nm[0][..., xp.newaxis] * y_[0][xp.newaxis, xp.newaxis] + self.nm[1][..., xp.newaxis] * y_[1][xp.newaxis, xp.newaxis] - t))
-		return (xp.sum(self.fft_phi_[..., xp.newaxis] * exp_xy[xp.newaxis], (1, 2)).real).reshape(y.shape)
+		exp_xy = xp.exp(1j * (xp.einsum('ijk,i...->jk...', self.nm, xp.split(y, 2)) - t))
+		return (xp.einsum('ijk,jk...->i...', self.fft_phi_, exp_xy).real).reshape(y.shape)
 	
 	def k_dot(self, t:float, y:xp.ndarray) -> xp.ndarray:
-		y_ = xp.split(y, 2)
-		exp_xy = xp.exp(1j * (self.nm[0][..., xp.newaxis] * y_[0][xp.newaxis, xp.newaxis] + self.nm[1][..., xp.newaxis] * y_[1][xp.newaxis, xp.newaxis] - t))
-		return xp.sum(self.phic[..., xp.newaxis] * exp_xy, (0, 1)).real
+		exp_xy = xp.exp(1j * (xp.einsum('ijk,i...->jk...', self.nm, xp.split(y, 2)) - t))
+		return xp.einsum('jk,jk...->...', self.phic, exp_xy).real
 	
 	def potential(self, t:xp.ndarray, y:xp.ndarray) -> xp.ndarray:
-		y_ = xp.split(y, 2)
-		exp_xy = xp.exp(1j * (self.nm[0][..., xp.newaxis, xp.newaxis] * y_[0][xp.newaxis, xp.newaxis] + self.nm[1][..., xp.newaxis, xp.newaxis] * y_[1][xp.newaxis, xp.newaxis] - t[xp.newaxis, xp.newaxis]))
-		return xp.sum(self.phic[..., xp.newaxis, xp.newaxis] * exp_xy, (0, 1)).imag
+		exp_xy = xp.exp(1j * (xp.einsum('ijk,i...->jk...', self.nm, xp.split(y, 2)) - t))
+		return xp.einsum('jk,jk...->...', self.phic, exp_xy).imag
 	
 	def hamiltonian(self, t:xp.ndarray, y:xp.ndarray) -> xp.ndarray:
 		if self.traj_type == 'gc':
