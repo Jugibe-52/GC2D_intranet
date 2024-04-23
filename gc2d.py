@@ -135,5 +135,14 @@ def run_method(self):
 		file.writelines(' '.join([f'{_:.6f}' for _ in vec_data]) + '\n')
 		file.close()
 
+	if self.Method.startswith('rotation'):
+		alltraj = Trajectory(sol, 'all', self.DictParams)
+		omega = alltraj.compute_rotation(lambda x, y: xp.cos(x))
+		fig, ax = plt.subplots(1, 1)
+		ax.set_xlabel('$i$')
+		ax.set_ylabel('$\omega$')
+		ax.plot(omega)
+		plt.pause(0.5)
+
 if __name__ == '__main__':
 	main()

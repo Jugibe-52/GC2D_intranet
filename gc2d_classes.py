@@ -89,6 +89,8 @@ class GC2Dt(HamSys):
 			y_vec = xp.linspace(0, 2 * xp.pi, int(xp.sqrt(self.Ntraj)), endpoint=False)
 			y_mat = xp.meshgrid(y_vec, y_vec)
 			y0 = xp.concatenate((y_mat[0], y_mat[1]), axis=None)
+		elif type == 'selected':
+			y0 = xp.concatenate((self.x0, self.y0), axis=None)
 		if self.Method.endswith('fo'):
 			phi_perp = 2 * xp.pi * xp.random.rand(self.Ntraj)
 			y0 = xp.concatenate((y0, xp.cos(phi_perp), xp.sin(phi_perp)), axis=None)
@@ -162,11 +164,12 @@ class Trajectory(GC2Dt):
 	
 	type_dict = {'trapped': 0, 'diffusive': 1, 'ballistic': 2}
 	color_dict = {'trapped': '#0072bd', 'diffusive': '#EDB120', 'ballistic': '#D95319'}
+	omega = lambda t : xp.exp(-1 / (t * (1 - t)))
 
 	def __init__(self, sol:OdeSolution, ttype, dict_) -> None:
 		super().__init__(dict_)
-		self.type = ttype
-		ntype = [type(self).type_dict[_] for _ in xp.atleast_1d(ttype)]
+		self.type = ['trapped', 'diffusive', 'ballistic'] if ttype == 'all' else ttype
+		ntype = [type(self).type_dict[_] for _ in xp.atleast_1d(self.type)]
 		x, y = xp.split(sol.y, self.dim)[:2]
 		xgc, ygc = x, y if self.Method.endswith('gc') else self.fo2gc(sol.y)
 		vec = xp.ones(xgc[:, 0].shape)
@@ -217,3 +220,9 @@ class Trajectory(GC2Dt):
 				print(f'\033[90m        Figure saved in {filestr}{self.extension} \033[00m')
 			plt.pause(0.5)
 		return diff_data, interp_data
+	
+	def compute_rotation(self, h:xp.ufunc) -> xp.ndarray:
+		x = h(xp.atleast_2d(self.xgc), xp.atleast_2d(self.ygc))
+		nt = x[0, :].size
+		omega = type(self).omega(xp.arange(1, nt) / nt)
+		return xp.sum(x[:, 1:] * omega[xp.newaxis, :], axis=1) / xp.sum(omega)

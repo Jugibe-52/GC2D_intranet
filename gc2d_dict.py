@@ -7,16 +7,18 @@ import numpy as xp
 A = 0.7
 rho = 0.1
 
-Method = 'poincare_gc'
+Method = 'rotation_gc'
 Ntraj = 50
-Tf = 1500
+Tf = 500
 
-TwoStepIntegration = True
+TwoStepIntegration = False
 threshold = 4
 Tmid = 200
 
 TimeStep = 1e-1 
-init = 'fixed'
+init = 'selected'
+x0 = xp.linspace(0, 2 * xp.pi, Ntraj)
+y0 = xp.pi * xp.ones(Ntraj)
 ode_solver='BM4'
 
 PlotResults = True
@@ -39,6 +41,12 @@ val_params = xp.meshgrid(A, rho, indexing='ij')
 num_dict = len(val_params[0].flatten())
 
 dict_list = [{'Method': Method} for _ in range(num_dict)]
+
+if init == 'selected':
+	for _, dict in enumerate(dict_list):
+		dict.update({
+			'x0': x0,
+			'y0': y0})
 
 for _, dict in enumerate(dict_list):
 	dict.update({
