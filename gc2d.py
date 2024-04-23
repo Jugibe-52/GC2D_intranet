@@ -142,7 +142,7 @@ def run_method(self):
 			fig, ax = plt.subplots(1, 1)
 			ax.set_xlabel('$i$')
 			ax.set_ylabel('$\omega$')
-			ax.plot(omega)
+			ax.plot(omega, '.', markersize=3)
 			plt.pause(0.5)
 		data = [self.x0, self.y0, omega]
 		info = 'Rotation numbers'

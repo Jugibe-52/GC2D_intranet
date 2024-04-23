@@ -7,18 +7,18 @@ import numpy as xp
 A = 0.7
 rho = 0.1
 
-Method = 'rotation_gc'
+Method = 'poincare_gc'
 Ntraj = 50
 Tf = 500
 
-TwoStepIntegration = False
+TwoStepIntegration = True
 threshold = 4
 Tmid = 200
 
 TimeStep = 1e-1 
 init = 'selected'
-x0 = xp.linspace(0, 2 * xp.pi, Ntraj)
-y0 = xp.pi * xp.ones(Ntraj)
+x0 = xp.linspace(0.5, 1, Ntraj)
+y0 = 4.5 * xp.ones(Ntraj)
 ode_solver='BM4'
 
 PlotResults = True
@@ -47,6 +47,9 @@ if init == 'selected':
 		dict.update({
 			'x0': x0,
 			'y0': y0})
+if TwoStepIntegration:
+	for _, dict in enumerate(dict_list):
+		dict.update({'Tmid': Tmid})
 
 for _, dict in enumerate(dict_list):
 	dict.update({
@@ -58,7 +61,6 @@ for _, dict in enumerate(dict_list):
 		'Ntraj': Ntraj,
 		'Tf': Tf,
 		'TwoStepIntegration' : TwoStepIntegration,
-		'Tmid' : Tmid,
 		'init': init,
 		'TimeStep': TimeStep,
 		'SaveData': SaveData,

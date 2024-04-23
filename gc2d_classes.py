@@ -42,7 +42,7 @@ def real_imag(z:xp.ndarray):
 def glue_sol(sol1:OdeSolution, sol2:OdeSolution, check_energy=False) -> OdeSolution:
 	sol2.t = xp.concatenate((sol1.t, sol2.t[1:]), axis=None)
 	if hasattr(sol1, 'k'):
-		sol2.k = xp.concatenate((sol1.k, sol2.k[1:]), axis=-1)
+		sol2.k = xp.concatenate((sol1.k, sol2.k[:, 1:]), axis=-1)
 	if hasattr(sol1, 'err'):
 		sol2.err = max([sol1.err, sol2.err])
 	sol2.y = xp.concatenate((sol1.y, sol2.y[:, 1:]), axis=-1)
@@ -190,6 +190,8 @@ class Trajectory(GC2Dt):
 		delta = xp.asarray([el.ptp(axis=1) for el in [xgc, ygc]])
 		vec = xp.ones(xgc[:, 0].shape)
 		vec[xp.sqrt(xp.sum(delta**2, axis=0)) <= self.threshold] = 0
+		if self.CheckEnergy:
+			sol.k = sol.k[vec!=0, :]
 		vec = xp.tile(vec, self.dim)
 		sol.y = sol.y[vec!=0, :]
 		return sol
