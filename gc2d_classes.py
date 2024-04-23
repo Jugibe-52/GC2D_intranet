@@ -183,7 +183,7 @@ class Trajectory(GC2Dt):
 		vec = xp.tile(vec, self.dim)
 		self.sol = sol.y[xp.any([vec==_ for _ in ntype], axis=0), :]
 		self.size = len(self.x[:, 0])
-		self.color = [type(self).color_dict[_] for _ in xp.atleast_1d(ttype)][0]
+		self.color = [type(self).color_dict[_] for _ in xp.atleast_1d(self.type)][0]
 
 	def remove_trapped(self, sol:OdeSolution) -> OdeSolution: 
 		xgc, ygc = xp.split(sol.y, self.dim)[:2] if self.Method.endswith('gc') else self.fo2gc(sol.y)
