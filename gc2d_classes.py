@@ -28,13 +28,10 @@
 import numpy as xp
 import matplotlib.pyplot as plt
 from scipy.special import jv
-from scipy.optimize import curve_fit
 from scipy.stats import linregress
-from sklearn.metrics import r2_score
 from scipy.io import savemat
 from pyhamsys import OdeSolution, HamSys
 from datetime import date
-
 
 def real_imag(z:xp.ndarray):
 	return z.real, z.imag
