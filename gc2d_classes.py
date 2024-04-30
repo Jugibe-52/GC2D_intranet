@@ -165,6 +165,7 @@ class Trajectory(GC2Dt):
 	type_dict = {'trapped': 0, 'diffusive': 1, 'ballistic': 2}
 	color_dict = {'trapped': '#0072bd', 'diffusive': '#EDB120', 'ballistic': '#D95319'}
 	omega = lambda t : xp.exp(-1 / (t * (1 - t)))
+	func_fit = lambda t, a, b: (a * t)**b
 
 	def __init__(self, sol:OdeSolution, ttype, dict_) -> None:
 		super().__init__(dict_)
@@ -175,9 +176,11 @@ class Trajectory(GC2Dt):
 		vec = xp.ones(xgc[:, 0].shape)
 		delta = xp.asarray([el.ptp(axis=1) for el in [xgc, ygc]])
 		vec[xp.sqrt(xp.sum(delta**2, axis=0)) <= self.threshold] = 0
-		untrapped = xp.sqrt(xp.sum(delta, axis=0)) > self.threshold
-		vec[xp.all((delta[0] / delta[1] > self.threshold, untrapped), axis=0)] = 2
-		vec[xp.all((delta[1] / delta[0] > self.threshold, untrapped), axis=0)] = 2
+		for _ in range(len(vec)):
+			if vec[_]:
+				b = self.compute_b(xgc[_, :], ygc[_, :])
+				if b >= self.thresh_b:
+					vec[_] = 2
 		indx = xp.any([vec==_ for _ in ntype], axis=0)
 		self.t, self.x, self.y, self.xgc, self.ygc  = sol.t, x[indx, :], y[indx, :], xgc[indx, :], ygc[indx,:]
 		vec = xp.tile(vec, self.dim)
@@ -195,6 +198,14 @@ class Trajectory(GC2Dt):
 		vec = xp.tile(vec, self.dim)
 		sol.y = sol.y[vec!=0, :]
 		return sol
+	
+	def compute_b(self, t:xp.ndarray, x:xp.ndarray, y:xp.ndarray) -> xp.float64:
+		nt = self.x.size
+		r2 = xp.zeros(nt)
+		for _ in range(nt):
+			r2[_] = ((x[_:] - x[:-_ if _ else None])**2 + (y[_:] - y[:-_ if _ else None])**2)
+		t_win, r2_win = t[nt//8:7*nt//8], r2[nt//8:7*nt//8]
+		return curve_fit(type(self).func_fit, t_win, r2_win, bounds=((0, 0.25), (xp.inf, 3)))[0][1]
 	
 	def compute_diffdata(self):
 		nt = self.x[0, :].size

@@ -13,6 +13,7 @@ Tf = 500
 
 TwoStepIntegration = True
 threshold = 4
+thresh_b = 1.2
 Tmid = 200
 
 TimeStep = 1e-1 
@@ -56,7 +57,8 @@ for _, dict in enumerate(dict_list):
 		'A': val_params[0].flatten()[_],
 		'rho': val_params[1].flatten()[_],
 		'modulo': modulo,
-		'threshold' : threshold,
+		'threshold': threshold,
+		'thresh_b': thresh_b, 
 		'grid': grid,
 		'Ntraj': Ntraj,
 		'Tf': Tf,
