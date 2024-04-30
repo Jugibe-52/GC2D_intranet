@@ -178,8 +178,7 @@ class Trajectory(GC2Dt):
 		vec[xp.sqrt(xp.sum(delta**2, axis=0)) <= self.threshold] = 0
 		for _ in range(len(vec)):
 			if vec[_]:
-				b = self.compute_b(xgc[_, :], ygc[_, :])
-				if b >= self.thresh_b:
+				if self.compute_b(sol.t, xgc[_, :], ygc[_, :]) >= self.thresh_b:
 					vec[_] = 2
 		indx = xp.any([vec==_ for _ in ntype], axis=0)
 		self.t, self.x, self.y, self.xgc, self.ygc  = sol.t, x[indx, :], y[indx, :], xgc[indx, :], ygc[indx,:]
@@ -200,12 +199,11 @@ class Trajectory(GC2Dt):
 		return sol
 	
 	def compute_b(self, t:xp.ndarray, x:xp.ndarray, y:xp.ndarray) -> xp.float64:
-		nt = self.x.size
+		nt = x.size
 		r2 = xp.zeros(nt)
 		for _ in range(nt):
 			r2[_] = ((x[_:] - x[:-_ if _ else None])**2 + (y[_:] - y[:-_ if _ else None])**2)
-		t_win, r2_win = t[nt//8:7*nt//8], r2[nt//8:7*nt//8]
-		return curve_fit(type(self).func_fit, t_win, r2_win, bounds=((0, 0.25), (xp.inf, 3)))[0][1]
+		return linregress(xp.log(t[nt//8:7*nt//8]), xp.log(r2[nt//8:7*nt//8])).slope
 	
 	def compute_diffdata(self):
 		nt = self.x[0, :].size
