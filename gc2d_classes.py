@@ -198,7 +198,7 @@ class Trajectory(GC2Dt):
 		r2 = xp.zeros(nt)
 		for _ in range(nt):
 			if x.ndim == 1:
-				r2[_] = ((x[_:] - x[:-_ if _ else None])**2 + (y[_:] - y[:-_ if _ else None])**2)
+				r2[_] = ((x[_:] - x[:-_ if _ else None])**2 + (y[_:] - y[:-_ if _ else None])**2).mean()
 			else:
 				r2[_] = ((x[:, _:] - x[:, :-_ if _ else None])**2 + (y[:, _:] - y[:, :-_ if _ else None])**2).mean()
 		t_win, r2_win = t[nt//8:7*nt//8], r2[nt//8:7*nt//8]
