@@ -123,15 +123,15 @@ def run_method(self):
 		print(f'\033[96m          trap ({trapped.size}) \033[00m')
 		for traj in [diffusive, ballistic]:
 			if traj.size:
-				diff_data, interp_data = traj.compute_diffdata()
-				print("\033[96m          {} ({}) : D = ({:.6f}; {:.6f}; {:.6f})  /  interp = ({:.6f}; {:.6f}; {:.6f})".format(traj.type, traj.size, *diff_data, *interp_data))
-				vec_data.extend([traj.size / self.Ntraj, *diff_data, *interp_data])
+				diff_data = traj.compute_diffdata()
+				print("\033[96m          {} ({}) : interp = ({:.6f}; {:.6f}; {:.6f})".format(traj.type, traj.size, *diff_data))
+				vec_data.extend([traj.size / self.Ntraj, *diff_data])
 			else:
-				vec_data.extend([0, 0, 0, 0, 0, 0, 0])
+				vec_data.extend([0, 0, 0, 0])
 		file = open(f'{type(self).__name__}_{self.Method}.txt', 'a')
 		if os.path.getsize(file.name) == 0:
-			file.writelines('%  diffusion laws: r^2 = D t + int   and   r^2 = (a t)^b \n')
-			file.writelines('%  A        rho      eta   trapped  diffusive    D       int     R2       a        b        R2      ballistic     D       int      R2      a        b      R2' + '\n')
+			file.writelines('%  diffusion laws: r^2 = (a t)^b \n')
+			file.writelines('%  A        rho      eta   trapped  diffusive    a        b        R2      ballistic     a        b      R2' + '\n')
 		file.writelines(' '.join([f'{_:.6f}' for _ in vec_data]) + '\n')
 		file.close()
 

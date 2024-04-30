@@ -165,7 +165,6 @@ class Trajectory(GC2Dt):
 	type_dict = {'trapped': 0, 'diffusive': 1, 'ballistic': 2}
 	color_dict = {'trapped': '#0072bd', 'diffusive': '#EDB120', 'ballistic': '#D95319'}
 	omega = lambda t : xp.exp(-1 / (t * (1 - t)))
-	func_fit = lambda t, a, b: (a * t)**b
 
 	def __init__(self, sol:OdeSolution, ttype, dict_) -> None:
 		super().__init__(dict_)
@@ -178,8 +177,7 @@ class Trajectory(GC2Dt):
 		vec[xp.sqrt(xp.sum(delta**2, axis=0)) <= self.threshold] = 0
 		for _ in range(len(vec)):
 			if vec[_]:
-				if self.compute_b(sol.t, xgc[_, :], ygc[_, :]) >= self.thresh_b:
-					vec[_] = 2
+				vec[_] = 2 if self.compute_b(sol.t, xgc[_, :], ygc[_, :]) >= self.thresh_b else 1
 		indx = xp.any([vec==_ for _ in ntype], axis=0)
 		self.t, self.x, self.y, self.xgc, self.ygc  = sol.t, x[indx, :], y[indx, :], xgc[indx, :], ygc[indx,:]
 		vec = xp.tile(vec, self.dim)
@@ -199,7 +197,7 @@ class Trajectory(GC2Dt):
 		return sol
 	
 	def compute_b(self, t:xp.ndarray, x:xp.ndarray, y:xp.ndarray) -> xp.float64:
-		nt = x.size
+		nt = t.size
 		r2 = xp.zeros(nt)
 		for _ in range(nt):
 			r2[_] = ((x[_:] - x[:-_ if _ else None])**2 + (y[_:] - y[:-_ if _ else None])**2)
@@ -211,26 +209,21 @@ class Trajectory(GC2Dt):
 		for _ in range(nt):
 			r2[_] = ((self.xgc[:, _:] - self.xgc[:, :-_ if _ else None])**2 + (self.ygc[:, _:] - self.ygc[:, :-_ if _ else None])**2).mean()
 		t_win, r2_win = self.t[nt//8:7*nt//8], r2[nt//8:7*nt//8]
-		res = linregress(t_win, r2_win)
-		diff_data = [res.slope, res.intercept, res.rvalue**2]
-		func_fit = lambda t, a, b: (a * t)**b
-		popt = curve_fit(func_fit, t_win, r2_win, bounds=((0, 0.25), (xp.inf, 3)))[0]
-		r2_fit = func_fit(t_win, *popt)
-		interp_data = [*popt, r2_score(r2_win, r2_fit)]
+		res = linregress(xp.log(t_win), xp.log(r2_win))
 		if self.PlotResults:
 			fig, ax = plt.subplots(1, 1)
-			ax.set_xlabel('$t$')
-			ax.set_ylabel('$r^2$')
+			ax.set_xlabel('ln $t$')
+			ax.set_ylabel('ln $r^2$')
 			color = self.get_color(self.color)[0]
-			plt.plot(self.t, r2, ':', color=color, lw=1)
-			plt.plot(t_win, r2_win, '-', color=color, lw=2)
-			plt.plot(t_win, r2_fit, '-.', color=color, lw=2)
+			plt.plot(xp.log(self.t), xp.log(r2), ':', color=color, lw=1)
+			plt.plot(xp.log(t_win), xp.log(r2_win), '-', color=color, lw=2)
+			plt.plot(xp.log(t_win), res.slope * xp.log(t_win) + res.intercept, '-.', color=color, lw=2)
 			if self.SaveData:
 				filestr = f'{type(self).__name__}_A{self.A:.2f}_RHO{self.rho:.4f}'.replace('.', '')
 				fig.savefig(filestr + self.extension, dpi=self.dpi)
 				print(f'\033[90m        Figure saved in {filestr}{self.extension} \033[00m')
 			plt.pause(0.5)
-		return diff_data, interp_data
+		return [res.slope, xp.exp(res.intercept / res.slope), res.rvalue**2]
 	
 	def compute_rotation(self, h:xp.ufunc) -> xp.ndarray:
 		x = h(xp.atleast_2d(self.xgc), xp.atleast_2d(self.ygc))
