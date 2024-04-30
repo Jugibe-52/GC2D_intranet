@@ -174,7 +174,7 @@ class Trajectory(GC2Dt):
 		vec[xp.sqrt(xp.sum(delta**2, axis=0)) <= self.threshold] = 0
 		for _ in range(len(vec)):
 			if vec[_]:
-				vec[_] = 2 if self.compute_b(sol.t, xgc[_, :], ygc[_, :]) >= self.thresh_b else 1
+				vec[_] = 2 if self.compute_diffdata(sol.t, xgc[_, :], ygc[_, :]) >= self.thresh_b else 1
 		indx = xp.any([vec==_ for _ in ntype], axis=0)
 		self.t, self.x, self.y, self.xgc, self.ygc  = sol.t, x[indx, :], y[indx, :], xgc[indx, :], ygc[indx,:]
 		vec = xp.tile(vec, self.dim)
