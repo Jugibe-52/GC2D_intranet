@@ -196,7 +196,7 @@ class Trajectory(GC2Dt):
 		sol.y = sol.y[vec!=0, :]
 		return sol
 	
-	def compute_data(self):
+	def compute_diffdata(self):
 		nt = self.x[0, :].size
 		r2 = xp.zeros(nt)
 		for _ in range(nt):

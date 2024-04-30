@@ -123,7 +123,7 @@ def run_method(self):
 		print(f'\033[96m          trap ({trapped.size}) \033[00m')
 		for traj in [diffusive, ballistic]:
 			if traj.size:
-				diff_data, interp_data = traj.compute_data(traj)
+				diff_data, interp_data = traj.compute_diffdata()
 				print("\033[96m          {} ({}) : D = ({:.6f}; {:.6f}; {:.6f})  /  interp = ({:.6f}; {:.6f}; {:.6f})".format(traj.type, traj.size, *diff_data, *interp_data))
 				vec_data.extend([traj.size / self.Ntraj, *diff_data, *interp_data])
 			else:
