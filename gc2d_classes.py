@@ -193,26 +193,22 @@ class Trajectory(GC2Dt):
 		sol.y = sol.y[vec!=0, :]
 		return sol
 	
-	def compute_b(self, t:xp.ndarray, x:xp.ndarray, y:xp.ndarray) -> xp.float64:
+	def compute_diffdata(self, t:xp.ndarray, x:xp.ndarray, y:xp.ndarray, full_output:bool=False) -> xp.float64:
 		nt = t.size
 		r2 = xp.zeros(nt)
 		for _ in range(nt):
-			r2[_] = ((x[_:] - x[:-_ if _ else None])**2 + (y[_:] - y[:-_ if _ else None])**2)
-		return linregress(xp.log(t[nt//8:7*nt//8]), xp.log(r2[nt//8:7*nt//8])).slope
-	
-	def compute_diffdata(self):
-		nt = self.x[0, :].size
-		r2 = xp.zeros(nt)
-		for _ in range(nt):
-			r2[_] = ((self.xgc[:, _:] - self.xgc[:, :-_ if _ else None])**2 + (self.ygc[:, _:] - self.ygc[:, :-_ if _ else None])**2).mean()
-		t_win, r2_win = self.t[nt//8:7*nt//8], r2[nt//8:7*nt//8]
+			if x.ndim == 1:
+				r2[_] = ((x[_:] - x[:-_ if _ else None])**2 + (y[_:] - y[:-_ if _ else None])**2)
+			else:
+				r2[_] = ((x[:, _:] - x[:, :-_ if _ else None])**2 + (y[:, _:] - y[:, :-_ if _ else None])**2).mean()
+		t_win, r2_win = t[nt//8:7*nt//8], r2[nt//8:7*nt//8]
 		res = linregress(xp.log(t_win), xp.log(r2_win))
 		if self.PlotResults:
 			fig, ax = plt.subplots(1, 1)
 			ax.set_xlabel('ln $t$')
 			ax.set_ylabel('ln $r^2$')
 			color = self.get_color(self.color)[0]
-			plt.plot(xp.log(self.t), xp.log(r2), ':', color=color, lw=1)
+			plt.plot(xp.log(t), xp.log(r2), ':', color=color, lw=1)
 			plt.plot(xp.log(t_win), xp.log(r2_win), '-', color=color, lw=2)
 			plt.plot(xp.log(t_win), res.slope * xp.log(t_win) + res.intercept, '-.', color=color, lw=2)
 			if self.SaveData:
@@ -220,7 +216,9 @@ class Trajectory(GC2Dt):
 				fig.savefig(filestr + self.extension, dpi=self.dpi)
 				print(f'\033[90m        Figure saved in {filestr}{self.extension} \033[00m')
 			plt.pause(0.5)
-		return [res.slope, xp.exp(res.intercept / res.slope), res.rvalue**2]
+		if full_output:
+			return [res.slope, xp.exp(res.intercept / res.slope), res.rvalue**2]
+		return res.slope
 	
 	def compute_rotation(self, h:xp.ufunc) -> xp.ndarray:
 		x = h(xp.atleast_2d(self.xgc), xp.atleast_2d(self.ygc))
