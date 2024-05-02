@@ -137,7 +137,7 @@ def run_method(self):
 
 	if self.Method.startswith('rotation'):
 		alltraj = Trajectory(sol, 'all', self.DictParams)
-		omega = alltraj.compute_rotation(lambda x, y: xp.cos(x))
+		omega = alltraj.compute_rotation(lambda x, y: xp.cos(x + y))
 		if self.PlotResults:
 			fig, ax = plt.subplots(1, 1)
 			ax.set_xlabel('$i$')
