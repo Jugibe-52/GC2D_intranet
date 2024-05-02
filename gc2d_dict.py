@@ -12,9 +12,9 @@ Ntraj = 50
 Tf = 500
 
 TwoStepIntegration = True
+Tmid = 200
 threshold = 4
 thresh_b = 1.2
-Tmid = 200
 
 TimeStep = 1e-1 
 init = 'selected'
