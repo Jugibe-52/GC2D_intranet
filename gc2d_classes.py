@@ -224,4 +224,15 @@ class Trajectory(GC2Dt):
 		x = h(xp.atleast_2d(self.xgc), xp.atleast_2d(self.ygc))
 		nt = x[0, :].size
 		omega = type(self).omega(xp.arange(1, nt) / nt)
-		return xp.sum(x[:, 1:] * omega[xp.newaxis, :], axis=1) / xp.sum(omega)
+		rotation_numb = xp.sum(x[:, 1:] * omega[xp.newaxis, :], axis=1) / xp.sum(omega)
+		if self.PlotResults:
+			fig, ax = plt.subplots(1, 1)
+			ax.set_xlabel('$n$')
+			ax.set_ylabel('$\omega$')
+			ax.plot(rotation_numb, '.', markersize=3)
+			if self.SaveData:
+				filestr = f'{type(self).__name__}_A{self.A:.2f}_RHO{self.rho:.4f}'.replace('.', '')
+				fig.savefig(filestr + self.extension, dpi=self.dpi)
+				print(f'\033[90m        Figure saved in {filestr}{self.extension} \033[00m')
+			plt.pause(0.5)
+		return rotation_numb
