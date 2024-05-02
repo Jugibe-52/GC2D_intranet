@@ -31,12 +31,13 @@ from scipy.special import jv
 from scipy.stats import linregress
 from scipy.io import savemat
 from pyhamsys import OdeSolution, HamSys
+from typing import list
 from datetime import date
 
 def real_imag(z:xp.ndarray):
 	return z.real, z.imag
 
-def glue_sol(sol1:OdeSolution, sol2:OdeSolution, check_energy=False) -> OdeSolution:
+def glue_sol(sol1:OdeSolution, sol2:OdeSolution) -> OdeSolution:
 	sol2.t = xp.concatenate((sol1.t, sol2.t[1:]), axis=None)
 	if hasattr(sol1, 'k'):
 		sol2.k = xp.concatenate((sol1.k, sol2.k[:, 1:]), axis=-1)
@@ -45,7 +46,7 @@ def glue_sol(sol1:OdeSolution, sol2:OdeSolution, check_energy=False) -> OdeSolut
 	sol2.y = xp.concatenate((sol1.y, sol2.y[:, 1:]), axis=-1)
 	return sol2
 
-def save_data(self, data, filestr, info=[]):
+def save_data(self, data, filestr:str, info=[]) -> None:
 	if self.SaveData:
 		mdic = self.DictParams.copy()
 		mdic.update({'data': data, 'info': info})
@@ -114,7 +115,7 @@ class GC2Dt(HamSys):
 			x_, y_, vx, vy = xp.split(y, 4)
 			return self.rho / (4 * xp.abs(self.eta)) * (vx**2 + vy**2) + self.potential(t, xp.concatenate((x_, y_), axis=0)) * xp.sign(self.eta) / self.rho
 		
-	def fo2gc(self, y, order:int=1) -> xp.ndarray:
+	def fo2gc(self, y:xp.ndarray, order:int=1) -> xp.ndarray:
 		if self.Method.endswith('gc'):
 			raise ValueError(f'Already in guiding-center variables')
 		x, y, vx, vy = xp.split(y, self.dim)
@@ -163,7 +164,7 @@ class Trajectory(GC2Dt):
 	color_dict = {'trapped': '#0072bd', 'diffusive': '#EDB120', 'ballistic': '#D95319'}
 	omega = lambda t : xp.exp(-1 / (t * (1 - t)))
 
-	def __init__(self, sol:OdeSolution, ttype, dict_) -> None:
+	def __init__(self, sol:OdeSolution, ttype:str | list[str], dict_:dict) -> None:
 		super().__init__(dict_)
 		self.type = ['trapped', 'diffusive', 'ballistic'] if ttype == 'all' else ttype
 		ntype = [type(self).type_dict[_] for _ in xp.atleast_1d(self.type)]
@@ -193,7 +194,7 @@ class Trajectory(GC2Dt):
 		sol.y = sol.y[vec!=0, :]
 		return sol
 	
-	def compute_diffdata(self, t:xp.ndarray, x:xp.ndarray, y:xp.ndarray, full_output:bool=False) -> xp.float64:
+	def compute_diffdata(self, t:xp.ndarray, x:xp.ndarray, y:xp.ndarray, full_output:bool=False) -> xp.float64 | list[xp.float64]:
 		nt = t.size
 		r2 = xp.zeros(nt)
 		for _ in range(nt):
