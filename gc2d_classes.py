@@ -26,12 +26,13 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import numpy as xp
+from numpy.fft import fft2, ifft2
 import matplotlib.pyplot as plt
 from scipy.special import jv
 from scipy.stats import linregress
 from scipy.io import savemat
 from pyhamsys import OdeSolution, HamSys
-from typing import list
+from typing import List, Union
 from datetime import date
 
 def real_imag(z:xp.ndarray):
@@ -74,9 +75,14 @@ class GC2Dt(HamSys):
 		self.phic[1:, 1:] = self.A / (self.nm[0][1:, 1:]**2 + self.nm[1][1:, 1:]**2)**1.5 * xp.exp(1j * self.phases)
 		sqrt_nm = xp.sqrt(self.nm[0]**2 + self.nm[1]**2)
 		self.phic[sqrt_nm > self.M] = 0
+		phir = fft2(ifft2(self.phic).imag)
+		phi = ifft2(self.phic) * ((2 * self.M + 1)**2)
 		if self.Method.endswith('gc'):
 			flr1_coeff = jv(0, self.rho * sqrt_nm)
+			flr2_coeff = -sqrt_nm * jv(1, self.rho * sqrt_nm) / self.rho
+			phi = ifft2(self.phic) * ((2 * self.M + 1)**2)
 			self.phic *= flr1_coeff
+			
 		self.fft_phi_ = xp.asarray([-self.nm[1] * self.phic, self.nm[0] * self.phic])	
 
 	def initial_conditions(self, type:str='fixed') -> xp.ndarray:
@@ -164,7 +170,7 @@ class Trajectory(GC2Dt):
 	color_dict = {'trapped': '#0072bd', 'diffusive': '#EDB120', 'ballistic': '#D95319'}
 	omega = lambda t : xp.exp(-1 / (t * (1 - t)))
 
-	def __init__(self, sol:OdeSolution, ttype:str | list[str], dict_:dict) -> None:
+	def __init__(self, sol:OdeSolution, ttype:Union[str, List[str]], dict_:dict) -> None:
 		super().__init__(dict_)
 		self.type = ['trapped', 'diffusive', 'ballistic'] if ttype == 'all' else ttype
 		ntype = [type(self).type_dict[_] for _ in xp.atleast_1d(self.type)]
@@ -194,7 +200,7 @@ class Trajectory(GC2Dt):
 		sol.y = sol.y[vec!=0, :]
 		return sol
 	
-	def compute_diffdata(self, t:xp.ndarray, x:xp.ndarray, y:xp.ndarray, full_output:bool=False) -> xp.float64 | list[xp.float64]:
+	def compute_diffdata(self, t:xp.ndarray, x:xp.ndarray, y:xp.ndarray, full_output:bool=False) -> Union[xp.float64, List[xp.float64]]:
 		nt = t.size
 		r2 = xp.zeros(nt)
 		for _ in range(nt):

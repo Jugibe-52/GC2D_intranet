@@ -80,7 +80,7 @@ def run_method(self):
 		untrapped = Trajectory(sol, ['diffusive', 'ballistic'], self.DictParams)
 		y0_ = untrapped.sol[:, -1]
 		print(f'\033[90m        Continuing with the integration of {untrapped.size} untrapped particles... \033[00m')
-		sol = glue_sol(trapped.remove_trapped(sol), _integr(t_eval[self.Tmid:], y0_), check_energy=self.CheckEnergy)
+		sol = glue_sol(trapped.remove_trapped(sol), _integr(t_eval[self.Tmid:], y0_))
 	diffusive = Trajectory(sol, 'diffusive', self.DictParams)
 	ballistic = Trajectory(sol, 'ballistic', self.DictParams)
 
