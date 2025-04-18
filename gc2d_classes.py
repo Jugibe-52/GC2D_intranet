@@ -68,19 +68,17 @@ class GC2Dt(HamSys):
 			setattr(self, key, dict_[key])
 		self.dim = 2 if self.Method.endswith('gc') else 4
 		self.DictParams = dict_
-		xp.random.seed(27)
-		self.phases = 2 * xp.pi * xp.random.random((self.M, self.M))
-		self.nm = xp.meshgrid(xp.arange(self.M+1), xp.arange(self.M+1), indexing='ij')
-		self.phic = xp.zeros((self.M+1, self.M+1), dtype=xp.complex128)
-		self.phic[1:, 1:] = self.A / (self.nm[0][1:, 1:]**2 + self.nm[1][1:, 1:]**2)**1.5 * xp.exp(1j * self.phases)
-		sqrt_nm = xp.sqrt(self.nm[0]**2 + self.nm[1]**2)
-		self.phic[sqrt_nm > self.M] = 0
-		phir = fft2(ifft2(self.phic).imag)
-		phi = ifft2(self.phic) * ((2 * self.M + 1)**2)
+		if not hasattr(self, 'potential'):
+			xp.random.seed(27)
+			self.phases = 2 * xp.pi * xp.random.random((self.M, self.M))
+			self.nm = xp.meshgrid(xp.arange(self.M+1), xp.arange(self.M+1), indexing='ij')
+			self.phic = xp.zeros((self.M+1, self.M+1), dtype=xp.complex128)
+			self.phic[1:, 1:] = self.A / (self.nm[0][1:, 1:]**2 + self.nm[1][1:, 1:]**2)**1.5 * xp.exp(1j * self.phases)
+			sqrt_nm = xp.sqrt(self.nm[0]**2 + self.nm[1]**2)
+			self.phic[sqrt_nm > self.M] = 0
+			self.phi_grid = ifft2(self.phic) * ((2 * self.M + 1)**2)
 		if self.Method.endswith('gc'):
 			flr1_coeff = jv(0, self.rho * sqrt_nm)
-			flr2_coeff = -sqrt_nm * jv(1, self.rho * sqrt_nm) / self.rho
-			phi = ifft2(self.phic) * ((2 * self.M + 1)**2)
 			self.phic *= flr1_coeff
 			
 		self.fft_phi_ = xp.asarray([-self.nm[1] * self.phic, self.nm[0] * self.phic])	
