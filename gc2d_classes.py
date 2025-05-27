@@ -145,7 +145,7 @@ class GC2Ds(HamSys):
         
 	def y_dot(self, t, z):
 		x, y = xp.split(z, 2)
-		dv_dx, dv_dy = xp.zeros_like(x), xp.zeros_like(y)
+		dv_dx, dv_dy = xp.zeros_like(x, dtype=xp.complex128), xp.zeros_like(y, dtype=xp.complex128)
 		if self.period is None:
 			ind = (x >= self.x[0]) & (x <= self.x[-1]) & (y >= self.y[0]) & (y <= self.y[-1])
 		else:
