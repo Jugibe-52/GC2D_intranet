@@ -129,6 +129,7 @@ class GC2Ds(HamSys):
 			x0, y0 = xp.meshgrid(x0, y0, indexing='ij')
 			z0 = xp.concatenate((x0.flatten(), y0.flatten()), axis=None)
 		if self.traj_type == 'fo':
+			xp.random.seed(int(time.time()))
 			phi_perp = 2 * xp.pi * xp.random.rand(n_traj)
 			z0 = xp.concatenate((z0, xp.cos(phi_perp), xp.sin(phi_perp)), axis=None)
 			if self.CheckEnergy:
