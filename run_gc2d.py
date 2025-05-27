@@ -22,7 +22,7 @@ traj = {"type": traj_type, "rho": rho, "eta": eta}
 hs = GC2Ds(potential, traj)
 z0 = hs.initial_conditions(Ntraj, type="random")
 
-t_eval = 2 * xp.pi * xp.arange(t_max)
+t_eval = potential.t_period * xp.arange(t_max)
 sol = hs.integrate(z0, t_eval, timestep=1e-1)
 
 # Plot of the Poincaré section

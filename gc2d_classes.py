@@ -58,11 +58,12 @@ def save_data(self, data, filestr:str, info=[]) -> None:
 		print(f'\033[90m        Results saved in {filestr}.mat \033[00m')
 
 class Potential:
-     def __init__(self, x, y, vals, period=None, omega=1):
-          self.potential = vals
-          self.x, self.y = x, y
-          self.period = period
-          self.omega = omega
+	def __init__(self, x, y, vals, period=None, omega=1):
+		self.potential = vals
+		self.x, self.y = x, y
+		self.period = period
+		self.omega = omega
+		self.t_period = 2 * xp.pi / omega
 
 def mock_potential(A, M, nx, ny):
     x = xp.linspace(0, 2 * xp.pi, nx, endpoint=False)
