@@ -78,131 +78,131 @@ def mock_potential(A, M, nx, ny):
     return Potential(x, y, xp.einsum('nm,nm...->...', fft_phic, exp_xy), period=2 * xp.pi, omega=1)
 
 class GC2Ds(HamSys):
-    def __str__(self) -> str:
-        return f'2D Guiding Center ({self.__class__.__name__}) for turbulent potentials'
-    
-    def __init__(self, potential, traj, k=3, SaveData=False):
-        super().__init__(ndof=1.5 if traj["type"]=='gc' else 2.5)
-        self.traj_type = traj["type"]
-        self.rho = traj["rho"] if "rho" in traj else 0
-        self.eta = traj["eta"] if "eta" in traj else 0
-        self.CheckEnergy = traj["CheckEnergy"] if "CheckEnergy" in traj else False
-        self.SaveData = SaveData
-        self.x, self.y, self.potential = potential.x, potential.y, potential.potential
-        self.period, self.omega = potential.period, potential.omega
+	def __str__(self) -> str:
+		return f'2D Guiding Center ({self.__class__.__name__}) for turbulent potentials'
+		
+	def __init__(self, potential, traj, k=3, SaveData=False):
+		super().__init__(ndof=1.5 if traj["type"]=='gc' else 2.5)
+		self.traj_type = traj["type"]
+		self.rho = traj["rho"] if "rho" in traj else 0
+		self.eta = traj["eta"] if "eta" in traj else 0
+		self.CheckEnergy = traj["CheckEnergy"] if "CheckEnergy" in traj else False
+		self.SaveData = SaveData
+		self.x, self.y, self.potential = potential.x, potential.y, potential.potential
+		self.period, self.omega = potential.period, potential.omega
 		dx, dy = self.x[1] - self.x[0], self.y[1] - self.y[0]
 		x = xp.pad(self.x, (k, k), mode='linear_ramp', end_values=(self.x[0] - k * dx, self.x[-1] + k * dx))
 		y = xp.pad(self.y, (k, k), mode='linear_ramp', end_values=(self.y[0] - k * dy, self.y[-1] + k * dy))
-        if self.period is not None:
-            potential = xp.pad(self.potential, ((k, k), (k, k)), mode='wrap')
+		if self.period is not None:
+			potential = xp.pad(self.potential, ((k, k), (k, k)), mode='wrap')
 		else:
 			potential = xp.pad(self.potential, ((k, k), (k, k)), mode='constant', constant_values=0)
 		self.spline_real = RectBivariateSpline(x, y, potential.real, kx=k, ky=k)
-        self.spline_imag = RectBivariateSpline(x, y, potential.imag, kx=k, ky=k) 
+		self.spline_imag = RectBivariateSpline(x, y, potential.imag, kx=k, ky=k) 
 
-    def interpolator(self, xi, yi, dx=0, dy=0):
-        if self.period is not None:
-            xi = ((xp.asarray(xi) - self.x[0]) % self.period) + self.x[0]
-            yi = ((xp.asarray(yi) - self.y[0]) % self.period) + self.y[0]
-        return self.spline_real.ev(xi, yi, dx=dx, dy=dy) + 1j * self.spline_imag.ev(xi, yi, dx=dx, dy=dy)
+	def interpolator(self, xi, yi, dx=0, dy=0):
+		if self.period is not None:
+			xi = ((xp.asarray(xi) - self.x[0]) % self.period) + self.x[0]
+			yi = ((xp.asarray(yi) - self.y[0]) % self.period) + self.y[0]
+		return self.spline_real.ev(xi, yi, dx=dx, dy=dy) + 1j * self.spline_imag.ev(xi, yi, dx=dx, dy=dy)
 
-    def compute_gyroaverage(self, rho):
-        nx, ny = self.potential.shape
-        dx, dy = self.x[1] - self.x[0], self.y[1] - self.y[0]
-        fft_potential = xp.fft.fft2(self.potential)
-        kx, ky = xp.fft.fftfreq(nx, d=dx) * 2 * xp.pi, xp.fft.fftfreq(ny, d=dy) * 2 * xp.pi
-        kx_, ky_ = xp.meshgrid(kx, ky, indexing='ij')
-        return  xp.fft.ifft2(fft_potential * jv(0, rho * xp.sqrt(kx_**2 + ky_**2)))
+	def compute_gyroaverage(self, rho):
+		nx, ny = self.potential.shape
+		dx, dy = self.x[1] - self.x[0], self.y[1] - self.y[0]
+		fft_potential = xp.fft.fft2(self.potential)
+		kx, ky = xp.fft.fftfreq(nx, d=dx) * 2 * xp.pi, xp.fft.fftfreq(ny, d=dy) * 2 * xp.pi
+		kx_, ky_ = xp.meshgrid(kx, ky, indexing='ij')
+		return  xp.fft.ifft2(fft_potential * jv(0, rho * xp.sqrt(kx_**2 + ky_**2)))
 
-    def initial_conditions(self, n_traj, x=None, y=None, type='fixed'):
-        x, y = self.x if x is None else x, self.y if y is None else y
-        if type == 'random':
-            x0 = (x[-1] - x[0]) * xp.random.rand(n_traj) + x[0]
-            y0 = (y[-1] - y[0]) * xp.random.rand(n_traj) + y[0]
-            z0 = xp.concatenate((x0, y0), axis=None)
-        elif type == 'fixed':
-            n_traj = int(xp.sqrt(n_traj))**2
-            x0 = xp.linspace(x[0], x[-1], int(xp.sqrt(n_traj)), endpoint=False)
-            y0 = xp.linspace(y[0], y[-1], int(xp.sqrt(n_traj)), endpoint=False)
-            x0, y0 = xp.meshgrid(x0, y0, indexing='ij')
-            z0 = xp.concatenate((x0.flatten(), y0.flatten()), axis=None)
-        if self.traj_type == 'fo':
-            phi_perp = 2 * xp.pi * xp.random.rand(n_traj)
-            z0 = xp.concatenate((z0, xp.cos(phi_perp), xp.sin(phi_perp)), axis=None)
-            if self.CheckEnergy:
-                z0 = xp.concatenate((z0, xp.zeros(n_traj)), axis=None)
-        return z0
+	def initial_conditions(self, n_traj, x=None, y=None, type='fixed'):
+		x, y = self.x if x is None else x, self.y if y is None else y
+		if type == 'random':
+			x0 = (x[-1] - x[0]) * xp.random.rand(n_traj) + x[0]
+			y0 = (y[-1] - y[0]) * xp.random.rand(n_traj) + y[0]
+			z0 = xp.concatenate((x0, y0), axis=None)
+		elif type == 'fixed':
+			n_traj = int(xp.sqrt(n_traj))**2
+			x0 = xp.linspace(x[0], x[-1], int(xp.sqrt(n_traj)), endpoint=False)
+			y0 = xp.linspace(y[0], y[-1], int(xp.sqrt(n_traj)), endpoint=False)
+			x0, y0 = xp.meshgrid(x0, y0, indexing='ij')
+			z0 = xp.concatenate((x0.flatten(), y0.flatten()), axis=None)
+		if self.traj_type == 'fo':
+			phi_perp = 2 * xp.pi * xp.random.rand(n_traj)
+			z0 = xp.concatenate((z0, xp.cos(phi_perp), xp.sin(phi_perp)), axis=None)
+			if self.CheckEnergy:
+				z0 = xp.concatenate((z0, xp.zeros(n_traj)), axis=None)
+		return z0
 
-    def hamiltonian(self, t, z):
-        if self.traj_type == 'gc':
-            x, y = xp.split(z, 2)
-            phi_c = self.interpolator(x, y)
-            return (phi_c * xp.exp(-1j * self.omega * t)).imag
-        elif self.traj_type == 'fo':
-            x, y, vx, vy = xp.split(z, 4)
-            phi_c = self.interpolator(x, y)
-            return self.rho / (4 * xp.abs(self.eta)) * (vx**2 + vy**2) + (phi_c * xp.exp(-1j * self.omega * t)).imag * xp.sign(self.eta) / self.rho
+	def hamiltonian(self, t, z):
+		if self.traj_type == 'gc':
+			x, y = xp.split(z, 2)
+			phi_c = self.interpolator(x, y)
+			return (phi_c * xp.exp(-1j * self.omega * t)).imag
+		elif self.traj_type == 'fo':
+			x, y, vx, vy = xp.split(z, 4)
+			phi_c = self.interpolator(x, y)
+			return self.rho / (4 * xp.abs(self.eta)) * (vx**2 + vy**2) + (phi_c * xp.exp(-1j * self.omega * t)).imag * xp.sign(self.eta) / self.rho
         
-    def y_dot(self, t, z):
-        x, y = xp.split(z, 2)
+	def y_dot(self, t, z):
+		x, y = xp.split(z, 2)
 		dv_dx, dv_dy = xp.zeros_like(x), xp.zeros_like(y)
 		if self.period is None:
 			ind = (x >= self.x[0]) & (x <= self.x[-1]) & (y >= self.y[0]) & (y <= self.y[-1])
 		else:
 			ind = xp.arange(len(x))
 		phase = xp.exp(-1j * self.omega * t)
-        dv_dx[ind] = self.interpolator(x[ind], y[ind], dx=1, dy=0) * phase
-        dv_dy[ind] = self.interpolator(x[ind], y[ind], dx=0, dy=1) * phase
+		dv_dx[ind] = self.interpolator(x[ind], y[ind], dx=1, dy=0) * phase
+		dv_dy[ind] = self.interpolator(x[ind], y[ind], dx=0, dy=1) * phase
 		return  xp.asarray([-dv_dy.imag, dv_dx.imag]).flatten()
     
-    def k_dot(self, t, z):
-        x, y = xp.split(z, 2)
-        phi_c = self.interpolator(x, y)
-        return (phi_c * xp.exp(-1j * self.omega * t)).real
+	def k_dot(self, t, z):
+		x, y = xp.split(z, 2)
+		phi_c = self.interpolator(x, y)
+		return (phi_c * xp.exp(-1j * self.omega * t)).real
         
-    def chi(self, h, t, z):
-        if self.CheckEnergy:
-            x, y, vx, vy, k = xp.split(z, 5)
-        else:
-            x, y, vx, vy = xp.split(z, 4)
-        exp_ = xp.exp(-1j * h / (2 * self.eta))
-        x, y = real_imag(x + 1j * y + 1j * self.rho * xp.sign(self.eta) * (exp_ - 1) * (vx + 1j * vy)) 
-        vx, vy = real_imag(exp_ * (vx + 1j * vy))
-        pot = xp.split(self.y_dot(t, xp.concatenate((x, y), axis=None)), 2)
-        vx, vy = real_imag(vx + 1j * vy + h * 1j * (pot[0] + 1j * pot[1]) * xp.sign(self.eta) / self.rho)
-        if not self.CheckEnergy:
-            return xp.concatenate((x, y, vx, vy), axis=None)
-        k += h * xp.sign(self.eta) / self.rho * self.k_dot(t, xp.concatenate((x, y), axis=None)) 
-        return xp.concatenate((x, y, vx, vy, k), axis=None)
+	def chi(self, h, t, z):
+		if self.CheckEnergy:
+			x, y, vx, vy, k = xp.split(z, 5)
+		else:
+			x, y, vx, vy = xp.split(z, 4)
+		exp_ = xp.exp(-1j * h / (2 * self.eta))
+		x, y = real_imag(x + 1j * y + 1j * self.rho * xp.sign(self.eta) * (exp_ - 1) * (vx + 1j * vy)) 
+		vx, vy = real_imag(exp_ * (vx + 1j * vy))
+		pot = xp.split(self.y_dot(t, xp.concatenate((x, y), axis=None)), 2)
+		vx, vy = real_imag(vx + 1j * vy + h * 1j * (pot[0] + 1j * pot[1]) * xp.sign(self.eta) / self.rho)
+		if not self.CheckEnergy:
+			return xp.concatenate((x, y, vx, vy), axis=None)
+		k += h * xp.sign(self.eta) / self.rho * self.k_dot(t, xp.concatenate((x, y), axis=None)) 
+		return xp.concatenate((x, y, vx, vy, k), axis=None)
 	
-    def chi_star(self, h, t, z):
-        if self.CheckEnergy:
-            x, y, vx, vy, k = xp.split(z, 5)
-        else:
-            x, y, vx, vy = xp.split(z, 4)
-        pot = xp.split(self.y_dot(t, xp.concatenate((x, y), axis=None)), 2)
-        vx, vy = real_imag(vx + 1j * vy + h * 1j * (pot[0] + 1j * pot[1]) * xp.sign(self.eta) / self.rho)
-        if self.CheckEnergy:
-            k += h * xp.sign(self.eta) / self.rho * self.k_dot(t, xp.concatenate((x, y), axis=None))
-        exp_ = xp.exp(-1j * h / (2 * self.eta))
-        x, y = real_imag(x + 1j * y + 1j * self.rho * xp.sign(self.eta) * (exp_ - 1) * (vx + 1j * vy)) 
-        vx, vy = real_imag(exp_ * (vx + 1j * vy))
-        if not self.CheckEnergy:
-            return xp.concatenate((x, y, vx, vy), axis=None)
-        return xp.concatenate((x, y, vx, vy, k), axis=None)
+	def chi_star(self, h, t, z):
+		if self.CheckEnergy:
+			x, y, vx, vy, k = xp.split(z, 5)
+		else:
+			x, y, vx, vy = xp.split(z, 4)
+		pot = xp.split(self.y_dot(t, xp.concatenate((x, y), axis=None)), 2)
+		vx, vy = real_imag(vx + 1j * vy + h * 1j * (pot[0] + 1j * pot[1]) * xp.sign(self.eta) / self.rho)
+		if self.CheckEnergy:
+			k += h * xp.sign(self.eta) / self.rho * self.k_dot(t, xp.concatenate((x, y), axis=None))
+		exp_ = xp.exp(-1j * h / (2 * self.eta))
+		x, y = real_imag(x + 1j * y + 1j * self.rho * xp.sign(self.eta) * (exp_ - 1) * (vx + 1j * vy)) 
+		vx, vy = real_imag(exp_ * (vx + 1j * vy))
+		if not self.CheckEnergy:
+			return xp.concatenate((x, y, vx, vy), axis=None)
+		return xp.concatenate((x, y, vx, vy, k), axis=None)
     
-    def integrate(self, z0, t_eval, timestep, solver="BM4"):
-        print(f"\033[92m   Integration of {self.__str__()} \033[00m")
-        start = time.time()
-        if self.traj_type == 'gc':
-            sol = solve_ivp_sympext(self, (t_eval[0], t_eval[-1]), z0, step=timestep, t_eval=t_eval, method=solver, check_energy=self.CheckEnergy)
-        elif self.traj_type == 'fo':
-            sol = solve_ivp_symp(self.chi, self.chi_star, (t_eval[0], t_eval[-1]), z0, step=timestep, t_eval=t_eval, method=solver)
-            sol = self.rectify_sol(sol, check_energy=self.CheckEnergy)
-        print(f'\033[90m        Computation finished in {int(time.time() - start)} seconds \033[00m')
-        if self.CheckEnergy:
-            print(f'\033[90m           with error in energy = {sol.err}')
-        return sol
+	def integrate(self, z0, t_eval, timestep, solver="BM4"):
+		print(f"\033[92m   Integration of {self.__str__()} \033[00m")
+		start = time.time()
+		if self.traj_type == 'gc':
+			sol = solve_ivp_sympext(self, (t_eval[0], t_eval[-1]), z0, step=timestep, t_eval=t_eval, method=solver, check_energy=self.CheckEnergy)
+		elif self.traj_type == 'fo':
+			sol = solve_ivp_symp(self.chi, self.chi_star, (t_eval[0], t_eval[-1]), z0, step=timestep, t_eval=t_eval, method=solver)
+			sol = self.rectify_sol(sol, check_energy=self.CheckEnergy)
+		print(f'\033[90m        Computation finished in {int(time.time() - start)} seconds \033[00m')
+		if self.CheckEnergy:
+			print(f'\033[90m           with error in energy = {sol.err}')
+		return sol
 
 class GC2Dt(HamSys):
 	def __repr__(self) -> str:

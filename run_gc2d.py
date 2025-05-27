@@ -7,13 +7,11 @@ import matplotlib.pyplot as plt
 from gc2d_classes import mock_potential, Potential, GC2Ds
 
 # potential
-# M = 25
-# A = 0.6
-# Nx, Ny = 64, 64
-# potential = mock_potential(A, M, Nx, Ny)
-valz = ...
+M = 25
+A = 0.6
+Nx, Ny = 64, 64
 omega = 1
-potential = Potential(xp.linspace(2, 4, 32), xp.linspace(-5, 5, 10), valz, period=None, omega=omega)
+potential = mock_potential(A, M, Nx, Ny)
 
 # parameters
 rho, eta = 0, 0
@@ -22,7 +20,7 @@ t_max = 1500
 traj_type = "gc" # 'gc' (guiding centers) or 'fo' (full orbits) 
 
 traj = {"type": traj_type, "rho": rho, "eta": eta}
-hs = GC2Ds(potential, traj)
+hs = GC2Ds(potential, traj, omega=omega)
 z0 = hs.initial_conditions(Ntraj, type="random")
 
 t_eval = 2 * xp.pi * xp.arange(t_max) / omega
