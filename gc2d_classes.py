@@ -118,6 +118,7 @@ class GC2Ds(HamSys):
 	def initial_conditions(self, n_traj, x=None, y=None, type='fixed'):
 		x, y = self.x if x is None else x, self.y if y is None else y
 		if type == 'random':
+			xp.random.seed(int(time.time()))
 			x0 = (x[-1] - x[0]) * xp.random.rand(n_traj) + x[0]
 			y0 = (y[-1] - y[0]) * xp.random.rand(n_traj) + y[0]
 			z0 = xp.concatenate((x0, y0), axis=None)
