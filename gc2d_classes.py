@@ -90,11 +90,14 @@ class GC2Ds(HamSys):
         self.SaveData = SaveData
         self.x, self.y, self.potential = potential.x, potential.y, potential.potential
         self.period, self.omega = potential.period, potential.omega
+		dx, dy = self.x[1] - self.x[0], self.y[1] - self.y[0]
+		x = xp.pad(self.x, (k, k), mode='linear_ramp', end_values=(self.x[0] - k * dx, self.x[-1] + k * dx))
+		y = xp.pad(self.y, (k, k), mode='linear_ramp', end_values=(self.y[0] - k * dy, self.y[-1] + k * dy))
         if self.period is not None:
-            x = xp.r_[self.x[-k:] - self.period, self.x, self.x[:k] + self.period]
-            y = xp.r_[self.y[-k:] - self.period, self.y, self.y[:k] + self.period]
             potential = xp.pad(self.potential, ((k, k), (k, k)), mode='wrap')
-        self.spline_real = RectBivariateSpline(x, y, potential.real, kx=k, ky=k)
+		else:
+			potential = xp.pad(self.potential, ((k, k), (k, k)), mode='constant', constant_values=0)
+		self.spline_real = RectBivariateSpline(x, y, potential.real, kx=k, ky=k)
         self.spline_imag = RectBivariateSpline(x, y, potential.imag, kx=k, ky=k) 
 
     def interpolator(self, xi, yi, dx=0, dy=0):
@@ -142,9 +145,15 @@ class GC2Ds(HamSys):
         
     def y_dot(self, t, z):
         x, y = xp.split(z, 2)
-        dv_dx = (self.interpolator(x, y, dx=1, dy=0) * xp.exp(-1j * self.omega * t)).imag
-        dv_dy = (self.interpolator(x, y, dx=0, dy=1) * xp.exp(-1j * self.omega * t)).imag
-        return  xp.asarray([-dv_dy, dv_dx]).flatten()
+		dv_dx, dv_dy = xp.zeros_like(x), xp.zeros_like(y)
+		if self.period is None:
+			ind = (x >= self.x[0]) & (x <= self.x[-1]) & (y >= self.y[0]) & (y <= self.y[-1])
+		else:
+			ind = xp.arange(len(x))
+		phase = xp.exp(-1j * self.omega * t)
+        dv_dx[ind] = self.interpolator(x[ind], y[ind], dx=1, dy=0) * phase
+        dv_dy[ind] = self.interpolator(x[ind], y[ind], dx=0, dy=1) * phase
+		return  xp.asarray([-dv_dy.imag, dv_dx.imag]).flatten()
     
     def k_dot(self, t, z):
         x, y = xp.split(z, 2)
