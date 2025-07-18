@@ -51,7 +51,7 @@ def glue_sol(sol1:OdeSolution, sol2:OdeSolution) -> OdeSolution:
 
 def save_data(self, data, filestr:str, info=[]) -> None:
 	if self.SaveData:
-		mdic = {'x': self.x, 'y': self.y, 'potential': self.potential, 't_period': self.t_period, 'xy_period': self.xy_period}
+		mdic = {'x': self.x, 'y': self.y, 'potential': self.potential, 'xy_period': self.xy_period}
 		mdic.update({'data': data, 'info': info})
 		mdic.update({'date': date.today().strftime(" %B %d, %Y\n"), 'author': 'cristel.chandre@cnrs.fr'})
 		savemat(filestr + '.mat', mdic)
@@ -66,19 +66,20 @@ def extract_potential(filename):
 		potential = xp.array(f['PHI_filtered_FT'])
 		sum_xy = xp.sum(potential, axis=(1, 2))
 		i_omega = xp.flatnonzero(sum_xy)[0]
-		omega = freqs[i_omega] * 2 * xp.pi
-		values = xp.array(f['PHI_filtered_FT'][i_omega,:,:])
-	return Potential(x, y, values, omega=omega)
+		omega = 2 * xp.pi * freqs[i_omega]
+		values = xp.array(f['PHI_filtered_FT'][i_omega,:,:]) / omega
+		print(xp.max(xp.abs(values)))
+	return Potential(x, y, values)
 
 class Potential:
-	def __init__(self, x, y, values, xy_period=None, omega=1):
+	def __init__(self, x, y, values, xy_period=None):
 		self.values = values
 		self.nx, self.ny = values.shape
 		self.x, self.y = x, y
+		self.xmin, self.xmax = self.x.min(), self.x.max()
+		self.ymin, self.ymax = self.y.min(), self.y.max()
 		self.dx, self.dy = x[1] - x[0], y[1] - y[0]
 		self.xy_period = xy_period
-		self.omega = omega
-		self.t_period = 2 * xp.pi / omega
 
 	def gyroaverage(self, rho):
 		fft_potential = fft2(self.values)
@@ -92,7 +93,7 @@ class Potential:
 		return xi, yi
 	
 	def isinside(self, x, y):
-		return (x >= self.x[0]) & (x <= self.x[-1]) & (y >= self.y[0]) & (y <= self.y[-1])
+		return (x > self.x[0]) & (x < self.x[-1]) & (y > self.y[0]) & (y < self.y[-1])
 
 def mock_potential(A, M, nx, ny):
     x = xp.linspace(0, 2 * xp.pi, nx, endpoint=False)
@@ -105,7 +106,7 @@ def mock_potential(A, M, nx, ny):
     fft_phic[1:, 1:] = A / (nm[0][1:, 1:]**2 + nm[1][1:, 1:]**2)**1.5 * xp.exp(1j * phases)
     fft_phic[xp.sqrt(nm[0]**2 + nm[1]**2) > M] = 0
     exp_xy = xp.exp(1j * (nm[0][:, :, None, None] * X[None, None, :, :] + nm[1][:, :, None, None] * Y[None, None, :, :]))
-    return Potential(x, y, xp.einsum('nm,nm...->...', fft_phic, exp_xy), xy_period=2 * xp.pi, omega=1)
+    return Potential(x, y, xp.einsum('nm,nm...->...', fft_phic, exp_xy), xy_period=2 * xp.pi)
 
 class GC2D(HamSys):
 	def __str__(self) -> str:
@@ -154,20 +155,20 @@ class GC2D(HamSys):
 			xp.random.seed(int(time.time()))
 			phi_perp = 2 * xp.pi * xp.random.rand(n_traj)
 			z0 = xp.concatenate((z0, xp.cos(phi_perp), xp.sin(phi_perp)), axis=None)
-		if self.CheckEnergy:
-			z0 = xp.concatenate((z0, xp.zeros(n_traj)), axis=None)
+			if self.CheckEnergy:
+				z0 = xp.concatenate((z0, xp.zeros(n_traj)), axis=None)
 		return z0
 
 	def hamiltonian(self, t, z):
 		if self.traj["type"] == 'gc':
 			x, y = xp.split(z, 2)
 			phi_c = self.interpolator(x, y)
-			return (phi_c * xp.exp(-1j * self.potential.omega * t)).imag
+			return (phi_c * xp.exp(-1j * t)).imag
 		elif self.traj["type"] == 'fo':
 			x, y, vx, vy = xp.split(z, 4)
 			phi_c = self.interpolator(x, y)
 			return self.rho / (4 * xp.abs(self.eta)) * (vx**2 + vy**2)\
-				  + (phi_c * xp.exp(-1j * self.potential.omega * t)).imag * xp.sign(self.eta) / self.rho
+				  + (phi_c * xp.exp(-1j * t)).imag * xp.sign(self.eta) / self.rho
         
 	def y_dot(self, t, z):
 		x, y = xp.split(z, 2)
@@ -176,16 +177,16 @@ class GC2D(HamSys):
 			ind = self.potential.isinside(x, y)
 		else:
 			ind = xp.arange(len(x))
-		phase = xp.exp(-1j * self.potential.omega * t)
+		phase = xp.exp(-1j * t)
 		dv_dx[ind] = self.interpolator(x[ind], y[ind], dx=1, dy=0) * phase
 		dv_dy[ind] = self.interpolator(x[ind], y[ind], dx=0, dy=1) * phase
-		return  xp.asarray([-dv_dy.imag, dv_dx.imag]).flatten()
+		return xp.asarray([-dv_dy.imag, dv_dx.imag]).flatten()
     
 	def k_dot(self, t, z):
 		phi_c = self.interpolator(*xp.split(z, 2))
-		return (phi_c * xp.exp(-1j * self.potential.omega * t)).real
+		return (phi_c * xp.exp(-1j * t)).real
         
-	def chi(self, h, t, z):
+	def chi_fo(self, h, t, z):
 		if self.CheckEnergy:
 			x, y, vx, vy, k = xp.split(z, 5)
 		else:
@@ -200,7 +201,7 @@ class GC2D(HamSys):
 		k += h * xp.sign(self.eta) / self.rho * self.k_dot(t, xp.concatenate((x, y), axis=None)) 
 		return xp.concatenate((x, y, vx, vy, k), axis=None)
 	
-	def chi_star(self, h, t, z):
+	def chi_star_fo(self, h, t, z):
 		if self.CheckEnergy:
 			x, y, vx, vy, k = xp.split(z, 5)
 		else:
@@ -228,7 +229,7 @@ class GC2D(HamSys):
 		if self.traj["type"] == 'gc':
 			sol = solve_ivp_sympext(self, (t_eval[0], t_eval[-1]), z0, step=timestep, t_eval=t_eval, method=solver, check_energy=self.CheckEnergy)
 		elif self.traj["type"] == 'fo':
-			sol = solve_ivp_symp(self.chi, self.chi_star, (t_eval[0], t_eval[-1]), z0, step=timestep, t_eval=t_eval, method=solver)
+			sol = solve_ivp_symp(self.chi_fo, self.chi_star_fo, (t_eval[0], t_eval[-1]), z0, step=timestep, t_eval=t_eval, method=solver)
 			sol = self.rectify_sol(sol, check_energy=self.CheckEnergy)
 		print(f'\033[90m        Computation finished in {int(time.time() - start)} seconds \033[00m')
 		if self.CheckEnergy:
@@ -242,8 +243,8 @@ class GC2D(HamSys):
 		plt.plot(x, y, '.', color='blue')
 		plt.xlabel('x')
 		plt.ylabel('y')
-		plt.xlim(xp.amin(self.potential.x), xp.amax(self.potential.x))
-		plt.ylim(xp.amin(self.potential.y), xp.amax(self.potential.y))
+		plt.xlim(self.potential.xmin, self.potential.xmax)
+		plt.ylim(self.potential.ymin, self.potential.ymax)
 		plt.show()
 
 class Trajectory(GC2D):
