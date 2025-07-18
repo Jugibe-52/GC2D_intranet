@@ -57,6 +57,19 @@ def save_data(self, data, filestr:str, info=[]) -> None:
 		savemat(filestr + '.mat', mdic)
 		print(f'\033[90m        Results saved in {filestr}.mat \033[00m')
 
+def extract_potential(filename):
+	import h5py
+	with h5py.File(filename, 'r') as f:
+		x = xp.array(f['Rcells'][:])
+		y = xp.array(f['Zcells'][:])
+		freqs = xp.array(f['freqs'][:])
+		potential = xp.array(f['PHI_filtered_FT'])
+		sum_xy = xp.sum(potential, axis=(1, 2))
+		i_omega = xp.flatnonzero(sum_xy)[0]
+		omega = freqs[i_omega] * 2 * xp.pi
+		values = xp.array(f['PHI_filtered_FT'][i_omega,:,:])
+	return Potential(x, y, values, omega=omega)
+
 class Potential:
 	def __init__(self, x, y, values, xy_period=None, omega=1):
 		self.values = values
@@ -115,7 +128,7 @@ class GC2D(HamSys):
 		if potential.xy_period is not None:
 			potential = xp.pad(potential.values, ((k, k), (k, k)), mode='wrap')
 		else:
-			potential = xp.pad(self.potential, ((k, k), (k, k)), mode='constant', constant_values=0)
+			potential = xp.pad(self.potential.values, ((k, k), (k, k)), mode='constant', constant_values=0)
 		self.spline_real = RectBivariateSpline(x, y, potential.real, kx=k, ky=k)
 		self.spline_imag = RectBivariateSpline(x, y, potential.imag, kx=k, ky=k) 
 
@@ -229,6 +242,8 @@ class GC2D(HamSys):
 		plt.plot(x, y, '.', color='blue')
 		plt.xlabel('x')
 		plt.ylabel('y')
+		plt.xlim(xp.amin(self.potential.x), xp.amax(self.potential.x))
+		plt.ylim(xp.amin(self.potential.y), xp.amax(self.potential.y))
 		plt.show()
 
 class Trajectory(GC2D):
