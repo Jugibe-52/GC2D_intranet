@@ -154,8 +154,8 @@ class GC2D(HamSys):
 			xp.random.seed(int(time.time()))
 			phi_perp = 2 * xp.pi * xp.random.rand(n_traj)
 			z0 = xp.concatenate((z0, xp.cos(phi_perp), xp.sin(phi_perp)), axis=None)
-			if self.CheckEnergy:
-				z0 = xp.concatenate((z0, xp.zeros(n_traj)), axis=None)
+		if self.CheckEnergy:
+			z0 = xp.concatenate((z0, xp.zeros(n_traj)), axis=None)
 		return z0
 
 	def hamiltonian(self, t, z):
