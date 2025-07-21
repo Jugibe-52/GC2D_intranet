@@ -68,17 +68,25 @@ def extract_potential(filename):
 		i_omega = xp.flatnonzero(sum_xy)[0]
 		omega = 2 * xp.pi * freqs[i_omega]
 		values = xp.array(f['PHI_filtered_FT'][i_omega,:,:]) / omega
-		print(xp.max(xp.abs(values)))
 	return Potential(x, y, values)
 
 class Potential:
-	def __init__(self, x, y, values, xy_period=None):
+	def __init__(self, x, y, values, xy_period=None, tol=1e-10):
+		if x.ndim != 1:
+			raise ValueError("`x` must be 1-dimensional.")
+		if y.ndim != 1:
+			raise ValueError("`y` must be 1-dimensional.")
+		diff_x, diff_y = xp.diff(x), xp.diff(y)
+		if xp.any(diff_x <= 0) or xp.any(diff_y <= 0):
+			raise ValueError("Values in `x` or `y` are not properly sorted.")
+		if xp.all(xp.abs(diff_x - diff_x[0]) > tol) or xp.all(xp.abs(diff_y - diff_y[0]) > tol):
+			raise ValueError("Values in `x` or `y` are not uniformly spaced.")
 		self.values = values
 		self.nx, self.ny = values.shape
 		self.x, self.y = x, y
 		self.xmin, self.xmax = self.x.min(), self.x.max()
 		self.ymin, self.ymax = self.y.min(), self.y.max()
-		self.dx, self.dy = x[1] - x[0], y[1] - y[0]
+		self.dx, self.dy = diff_x[0], diff_y[0]
 		self.xy_period = xy_period
 
 	def gyroaverage(self, rho):
@@ -88,12 +96,12 @@ class Potential:
 		return  ifft2(fft_potential * jv(0, 2 * xp.pi * rho * xp.sqrt(kx_**2 + ky_**2)))
 	
 	def wrap(self, xi, yi):
-		xi = ((xp.asarray(xi) - self.x[0]) % self.xy_period) + self.x[0]
-		yi = ((xp.asarray(yi) - self.y[0]) % self.xy_period) + self.y[0]
+		xi = ((xp.asarray(xi) - self.xmin) % self.xy_period) + self.xmin
+		yi = ((xp.asarray(yi) - self.ymin) % self.xy_period) + self.ymin
 		return xi, yi
 	
 	def isinside(self, x, y):
-		return (x > self.x[0]) & (x < self.x[-1]) & (y > self.y[0]) & (y < self.y[-1])
+		return (x > self.xmin) & (x < self.xmax) & (y > self.ymin) & (y < self.ymax)
 
 def mock_potential(A, M, nx, ny):
     x = xp.linspace(0, 2 * xp.pi, nx, endpoint=False)
@@ -123,9 +131,9 @@ class GC2D(HamSys):
 			potential.values = potential.gyroaverage(self.rho)
 		self.potential = potential
 		x = xp.pad(potential.x, (k, k), mode='linear_ramp',\
-			 end_values=(potential.x[0] - k * potential.dx, potential.x[-1] + k * potential.dx))
+			 end_values=(potential.xmin - k * potential.dx, potential.xmax + k * potential.dx))
 		y = xp.pad(potential.y, (k, k), mode='linear_ramp', \
-			 end_values=(potential.y[0] - k * potential.dy, potential.y[-1] + k * potential.dy))
+			 end_values=(potential.ymin - k * potential.dy, potential.ymax + k * potential.dy))
 		if potential.xy_period is not None:
 			potential = xp.pad(potential.values, ((k, k), (k, k)), mode='wrap')
 		else:
@@ -134,9 +142,15 @@ class GC2D(HamSys):
 		self.spline_imag = RectBivariateSpline(x, y, potential.imag, kx=k, ky=k) 
 
 	def interpolator(self, xi, yi, dx=0, dy=0):
+		interp_pot = xp.zeros_like(xi, dtype=xp.complex128)
 		if self.potential.xy_period is not None:
 			xi, yi = self.potential.wrap(xi, yi)
-		return self.spline_real.ev(xi, yi, dx=dx, dy=dy) + 1j * self.spline_imag.ev(xi, yi, dx=dx, dy=dy)
+			ind = xp.arange(len(xi))
+		else:
+			ind = self.potential.isinside(xi, yi)
+		interp_pot[ind] = self.spline_real.ev(xi[ind], yi[ind], dx=dx, dy=dy) + \
+							1j * self.spline_imag.ev(xi[ind], yi[ind], dx=dx, dy=dy)
+		return interp_pot
 
 	def initial_conditions(self, n_traj, x=None, y=None, type='fixed'):
 		x, y = self.potential.x if x is None else x, self.potential.y if y is None else y
@@ -161,9 +175,7 @@ class GC2D(HamSys):
 
 	def hamiltonian(self, t, z):
 		if self.traj["type"] == 'gc':
-			x, y = xp.split(z, 2)
-			phi_c = self.interpolator(x, y)
-			return (phi_c * xp.exp(-1j * t)).imag
+			return (self.interpolator(*xp.split(z, 2)) * xp.exp(-1j * t)).imag
 		elif self.traj["type"] == 'fo':
 			x, y, vx, vy = xp.split(z, 4)
 			phi_c = self.interpolator(x, y)
@@ -172,19 +184,13 @@ class GC2D(HamSys):
         
 	def y_dot(self, t, z):
 		x, y = xp.split(z, 2)
-		dv_dx, dv_dy = xp.zeros_like(x, dtype=xp.complex128), xp.zeros_like(y, dtype=xp.complex128)
-		if self.potential.xy_period is None:
-			ind = self.potential.isinside(x, y)
-		else:
-			ind = xp.arange(len(x))
 		phase = xp.exp(-1j * t)
-		dv_dx[ind] = self.interpolator(x[ind], y[ind], dx=1, dy=0) * phase
-		dv_dy[ind] = self.interpolator(x[ind], y[ind], dx=0, dy=1) * phase
+		dv_dx = self.interpolator(x, y, dx=1, dy=0) * phase
+		dv_dy = self.interpolator(x, y, dx=0, dy=1) * phase
 		return xp.asarray([-dv_dy.imag, dv_dx.imag]).flatten()
     
 	def k_dot(self, t, z):
-		phi_c = self.interpolator(*xp.split(z, 2))
-		return (phi_c * xp.exp(-1j * t)).real
+		return (self.interpolator(*xp.split(z, 2)) * xp.exp(-1j * t)).real
         
 	def chi_fo(self, h, t, z):
 		if self.CheckEnergy:
