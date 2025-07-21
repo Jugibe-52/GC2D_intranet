@@ -272,11 +272,11 @@ class GC2D(HamSys):
 		theta, rho = xp.pi + xp.angle(v), self.rho * xp.abs(v)
 		return x - rho * xp.cos(theta), y + rho * xp.sin(theta)
     
-	def integrate(self, z0, t_eval, timestep, solver="BM4"):
+	def integrate(self, z0, t_eval, timestep, solver="BM4", omega=10):
 		print(f"\033[92m   Integration of {self.__str__()} \033[00m")
 		start = time.time()
 		if self.traj["type"] == 'gc':
-			sol = solve_ivp_sympext(self, (t_eval[0], t_eval[-1]), z0, step=timestep, t_eval=t_eval, method=solver, check_energy=self.CheckEnergy, omega=10)
+			sol = solve_ivp_sympext(self, (t_eval[0], t_eval[-1]), z0, step=timestep, t_eval=t_eval, method=solver, check_energy=self.CheckEnergy, omega=omega)
 			#sol = solve_ivp(self.y_dot, (t_eval[0], t_eval[-1]), z0, atol=1e-8, rtol=1e-8, t_eval=t_eval, method='RK45')
 		elif self.traj["type"] == 'fo':
 			sol = solve_ivp_symp(self.chi_fo, self.chi_star_fo, (t_eval[0], t_eval[-1]), z0, step=timestep, t_eval=t_eval, method=solver)
