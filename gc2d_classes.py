@@ -28,7 +28,9 @@
 import numpy as xp
 from numpy.fft import fft2, ifft2, fftfreq
 import matplotlib.pyplot as plt
+import matplotlib.colors as mcolors
 from scipy.interpolate import RectBivariateSpline
+from scipy.integrate import solve_ivp
 from scipy.special import jv
 from scipy.stats import linregress
 from scipy.io import savemat
@@ -57,7 +59,7 @@ def save_data(self, data, filestr:str, info=[]) -> None:
 		savemat(filestr + '.mat', mdic)
 		print(f'\033[90m        Results saved in {filestr}.mat \033[00m')
 
-def extract_potential(filename):
+def extract_potential(filename, nx=None, ny=None):
 	import h5py
 	with h5py.File(filename, 'r') as f:
 		x = xp.array(f['Rcells'][:])
@@ -68,10 +70,10 @@ def extract_potential(filename):
 		i_omega = xp.flatnonzero(sum_xy)[0]
 		omega = 2 * xp.pi * freqs[i_omega]
 		values = xp.array(f['PHI_filtered_FT'][i_omega,:,:]) / omega
-	return Potential(x, y, values)
+	return Potential(x, y, values, nx=nx, ny=ny)
 
 class Potential:
-	def __init__(self, x, y, values, xy_period=None, tol=1e-10):
+	def __init__(self, x, y, values, nx=None, ny=None, xy_period=None, tol=1e-10):
 		if x.ndim != 1:
 			raise ValueError("`x` must be 1-dimensional.")
 		if y.ndim != 1:
@@ -81,12 +83,19 @@ class Potential:
 			raise ValueError("Values in `x` or `y` are not properly sorted.")
 		if xp.all(xp.abs(diff_x - diff_x[0]) > tol) or xp.all(xp.abs(diff_y - diff_y[0]) > tol):
 			raise ValueError("Values in `x` or `y` are not uniformly spaced.")
-		self.values = values
-		self.nx, self.ny = values.shape
-		self.x, self.y = x, y
-		self.xmin, self.xmax = self.x.min(), self.x.max()
-		self.ymin, self.ymax = self.y.min(), self.y.max()
-		self.dx, self.dy = diff_x[0], diff_y[0]
+		self.xmin, self.xmax = x.min(), x.max()
+		self.ymin, self.ymax = y.min(), y.max()
+		if nx is None or ny is None:
+			self.nx, self.ny = values.shape
+			self.x, self.y, self.values = x, y, values
+		else:
+			self.nx, self.ny = nx, ny
+			self.x = xp.linspace(self.xmin, self.xmax, nx)
+			self.y = xp.linspace(self.ymin, self.ymax, ny)
+			spline_real = RectBivariateSpline(x, y, values.real, kx=3, ky=3)
+			spline_imag = RectBivariateSpline(x, y, values.imag, kx=3, ky=3)
+			self.values = spline_real(self.x, self.y) + 1j * spline_imag(self.x, self.y)
+		self.dx, self.dy = self.x[1] - self.x[0], self.y[1] - self.y[0]
 		self.xy_period = xy_period
 
 	def gyroaverage(self, rho):
@@ -101,7 +110,7 @@ class Potential:
 		return xi, yi
 	
 	def isinside(self, x, y):
-		return (x > self.xmin) * (x < self.xmax) * (y > self.ymin) * (y < self.ymax)
+		return (x > self.xmin) & (x < self.xmax) & (y > self.ymin) & (y < self.ymax)
 
 def mock_potential(A, M, nx, ny):
     x = xp.linspace(0, 2 * xp.pi, nx, endpoint=False)
@@ -121,7 +130,7 @@ class GC2D(HamSys):
 		return f'2D Guiding Center ({self.__class__.__name__}) for turbulent potentials'
 		
 	def __init__(self, potential, traj, k=3, SaveData=False):
-		super().__init__(ndof=1.5 if traj["type"]=='gc' else 2.5)
+		super().__init__(ndof=1.5 if traj["type"]=='gc' else 2.5, btype='pq')
 		self.traj = traj
 		self.rho = traj["rho"] if "rho" in traj else 0
 		self.eta = traj["eta"] if "eta" in traj else 0
@@ -151,6 +160,40 @@ class GC2D(HamSys):
 		interp_pot[ind] = self.spline_real.ev(xi[ind], yi[ind], dx=dx, dy=dy) + \
 							1j * self.spline_imag.ev(xi[ind], yi[ind], dx=dx, dy=dy)
 		return interp_pot
+	
+	def plot_potential(self, dx=0, dy=0, nx=512, ny=512):
+
+		def white_centered_cmap(vmin, vmax):
+			norm = mcolors.TwoSlopeNorm(vmin=vmin, vcenter=0.0, vmax=vmax)
+			cmap = plt.get_cmap('RdBu_r')
+			return cmap, norm
+		
+		xi = xp.linspace(self.potential.xmin, self.potential.xmax, nx)
+		yi = xp.linspace(self.potential.ymin, self.potential.ymax, ny)
+		X, Y = xp.meshgrid(xi, yi, indexing='ij')
+		Z = self.interpolator(X.flatten(), Y.flatten(), dx=dx, dy=dy).reshape(X.shape)
+
+		vmin_real, vmax_real = Z.real.min(), Z.real.max()
+		vmin_imag, vmax_imag = Z.imag.min(), Z.imag.max()
+
+		fig, axs = plt.subplots(1, 2, figsize=(12, 5))
+		cmap_real, norm_real = white_centered_cmap(vmin_real, vmax_real)
+
+		c1 = axs[0].pcolormesh(X, Y, Z.real, shading='auto', cmap=cmap_real, norm=norm_real)
+		axs[0].set_title(f'Real part of (dx={dx}, dy={dy}) potential')
+		axs[0].set_xlabel('x')
+		axs[0].set_ylabel('y')
+		fig.colorbar(c1, ax=axs[0])
+
+		cmap_imag, norm_imag = white_centered_cmap(vmin_imag, vmax_imag)
+		c2 = axs[1].pcolormesh(X, Y, Z.imag, shading='auto', cmap=cmap_imag, norm=norm_imag)
+		axs[1].set_title(f'Imaginary part of (dx={dx}, dy={dy}) potential')
+		axs[1].set_xlabel('x')
+		axs[1].set_ylabel('y')
+		fig.colorbar(c2, ax=axs[1])
+
+		plt.tight_layout()
+		plt.show()
 
 	def initial_conditions(self, n_traj, x=None, y=None, type='fixed'):
 		x, y = self.potential.x if x is None else x, self.potential.y if y is None else y
@@ -175,22 +218,22 @@ class GC2D(HamSys):
 
 	def hamiltonian(self, t, z):
 		if self.traj["type"] == 'gc':
-			return (self.interpolator(*xp.split(z, 2)) * xp.exp(-1j * t)).imag
-		elif self.traj["type"] == 'fo':
+			return xp.sum((self.interpolator(*xp.split(z, 2)) * xp.exp(-1j * t)).imag)
+		elif self.traj["type"] == 'fo': 
 			x, y, vx, vy = xp.split(z, 4)
 			phi_c = self.interpolator(x, y)
-			return self.rho / (4 * xp.abs(self.eta)) * (vx**2 + vy**2)\
-				  + (phi_c * xp.exp(-1j * t)).imag * xp.sign(self.eta) / self.rho
+			return xp.sum(self.rho / (4 * xp.abs(self.eta)) * (vx**2 + vy**2)\
+				  + (phi_c * xp.exp(-1j * t)).imag * xp.sign(self.eta) / self.rho, axis=0)
         
 	def y_dot(self, t, z):
 		x, y = xp.split(z, 2)
 		phase = xp.exp(-1j * t)
 		dv_dx = self.interpolator(x, y, dx=1, dy=0) * phase
 		dv_dy = self.interpolator(x, y, dx=0, dy=1) * phase
-		return xp.asarray([-dv_dy.imag, dv_dx.imag]).flatten()
+		return xp.concatenate((-dv_dy.imag, dv_dx.imag), axis=None)
     
 	def k_dot(self, t, z):
-		return (self.interpolator(*xp.split(z, 2)) * xp.exp(-1j * t)).real
+		return xp.sum((self.interpolator(*xp.split(z, 2)) * xp.exp(-1j * t)).real)
         
 	def chi_fo(self, h, t, z):
 		if self.CheckEnergy:
@@ -233,12 +276,13 @@ class GC2D(HamSys):
 		print(f"\033[92m   Integration of {self.__str__()} \033[00m")
 		start = time.time()
 		if self.traj["type"] == 'gc':
-			sol = solve_ivp_sympext(self, (t_eval[0], t_eval[-1]), z0, step=timestep, t_eval=t_eval, method=solver, check_energy=self.CheckEnergy)
+			sol = solve_ivp_sympext(self, (t_eval[0], t_eval[-1]), z0, step=timestep, t_eval=t_eval, method=solver, check_energy=self.CheckEnergy, omega=10)
+			#sol = solve_ivp(self.y_dot, (t_eval[0], t_eval[-1]), z0, atol=1e-8, rtol=1e-8, t_eval=t_eval, method='RK45')
 		elif self.traj["type"] == 'fo':
 			sol = solve_ivp_symp(self.chi_fo, self.chi_star_fo, (t_eval[0], t_eval[-1]), z0, step=timestep, t_eval=t_eval, method=solver)
 			sol = self.rectify_sol(sol, check_energy=self.CheckEnergy)
 		print(f'\033[90m        Computation finished in {int(time.time() - start)} seconds \033[00m')
-		if self.CheckEnergy:
+		if self.CheckEnergy and hasattr(sol, 'err'):
 			print(f'\033[90m           with error in energy = {sol.err}')
 		return sol
 	
