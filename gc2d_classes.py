@@ -101,7 +101,7 @@ class Potential:
 		return xi, yi
 	
 	def isinside(self, x, y):
-		return (x > self.xmin) & (x < self.xmax) & (y > self.ymin) & (y < self.ymax)
+		return (x > self.xmin) * (x < self.xmax) * (y > self.ymin) * (y < self.ymax)
 
 def mock_potential(A, M, nx, ny):
     x = xp.linspace(0, 2 * xp.pi, nx, endpoint=False)
@@ -249,8 +249,8 @@ class GC2D(HamSys):
 		plt.plot(x, y, '.', color='blue')
 		plt.xlabel('x')
 		plt.ylabel('y')
-		plt.xlim(self.potential.xmin, self.potential.xmax)
-		plt.ylim(self.potential.ymin, self.potential.ymax)
+		#plt.xlim(self.potential.xmin, self.potential.xmax)
+		#plt.ylim(self.potential.ymin, self.potential.ymax)
 		plt.show()
 
 class Trajectory(GC2D):
