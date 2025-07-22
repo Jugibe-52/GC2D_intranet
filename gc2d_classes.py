@@ -29,12 +29,13 @@ import numpy as xp
 from numpy.fft import fft2, ifft2, fftfreq
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
+from scipy.integrate._ivp.ivp import METHODS as IVP_METHODS
 from scipy.interpolate import RectBivariateSpline
 from scipy.integrate import solve_ivp
 from scipy.special import jv
 from scipy.stats import linregress
 from scipy.io import savemat
-from pyhamsys import OdeSolution, HamSys, solve_ivp_symp, solve_ivp_sympext
+from pyhamsys import METHODS, OdeSolution, HamSys, solve_ivp_symp, solve_ivp_sympext
 from typing import List, Union
 from datetime import date
 import time
@@ -226,11 +227,20 @@ class GC2D(HamSys):
 				  + (phi_c * xp.exp(-1j * t)).imag * xp.sign(self.eta) / self.rho, axis=0)
         
 	def y_dot(self, t, z):
-		x, y = xp.split(z, 2)
-		phase = xp.exp(-1j * t)
-		dv_dx = self.interpolator(x, y, dx=1, dy=0) * phase
-		dv_dy = self.interpolator(x, y, dx=0, dy=1) * phase
-		return xp.concatenate((-dv_dy.imag, dv_dx.imag), axis=None)
+		if self.traj["type"] == 'gc':
+			x, y = xp.split(z, 2)
+			phase = xp.exp(-1j * t)
+			dv_dx = self.interpolator(x, y, dx=1, dy=0) * phase
+			dv_dy = self.interpolator(x, y, dx=0, dy=1) * phase
+			return xp.concatenate((-dv_dy.imag, dv_dx.imag), axis=None)
+		elif self.traj["type"] == 'fo':
+			x, y, vx, vy = xp.split(z, 4)
+			vx *= self.rho / (2 * xp.abs(self.eta))
+			vy *= self.rho / (2 * xp.abs(self.eta))
+			phase = xp.exp(-1j * t)
+			dphi_dx = (self.interpolator(x, y, dx=1, dy=0) * phase).imag * xp.sign(self.eta) / self.rho
+			dphi_dy = (self.interpolator(x, y, dx=0, dy=1) * phase).imag * xp.sign(self.eta) / self.rho
+			return xp.concatenate((vx, vy, -dphi_dx.imag, -dphi_dy.imag), axis=None)
     
 	def k_dot(self, t, z):
 		return xp.sum((self.interpolator(*xp.split(z, 2)) * xp.exp(-1j * t)).real)
@@ -272,15 +282,24 @@ class GC2D(HamSys):
 		theta, rho = xp.pi + xp.angle(v), self.rho * xp.abs(v)
 		return x - rho * xp.cos(theta), y + rho * xp.sin(theta)
     
-	def integrate(self, z0, t_eval, timestep, solver="BM4", omega=10):
+	def integrate(self, z0, t_eval, timestep, solver="BM4", omega=10, tol=1e-8):
 		print(f"\033[92m   Integration of {self.__str__()} \033[00m")
 		start = time.time()
 		if self.traj["type"] == 'gc':
-			sol = solve_ivp_sympext(self, (t_eval[0], t_eval[-1]), z0, step=timestep, t_eval=t_eval, method=solver, check_energy=self.CheckEnergy, omega=omega)
-			#sol = solve_ivp(self.y_dot, (t_eval[0], t_eval[-1]), z0, atol=1e-8, rtol=1e-8, t_eval=t_eval, method='RK45')
+			if solver in IVP_METHODS:
+				sol = solve_ivp(self.y_dot, (t_eval[0], t_eval[-1]), z0, t_eval=t_eval, method=solver, atol=tol, rtol=tol)
+			elif solver in METHODS:
+				sol = solve_ivp_sympext(self, (t_eval[0], t_eval[-1]), z0, step=timestep, t_eval=t_eval, method=solver, check_energy=self.CheckEnergy, omega=omega)
+			else:
+				raise ValueError(f"Solver {solver} is not recognized.")
 		elif self.traj["type"] == 'fo':
-			sol = solve_ivp_symp(self.chi_fo, self.chi_star_fo, (t_eval[0], t_eval[-1]), z0, step=timestep, t_eval=t_eval, method=solver)
-			sol = self.rectify_sol(sol, check_energy=self.CheckEnergy)
+			if solver in IVP_METHODS:
+				sol = solve_ivp(self.y_dot, (t_eval[0], t_eval[-1]), z0, t_eval=t_eval, method=solver, atol=tol, rtol=tol)
+			elif solver in METHODS:
+				sol = solve_ivp_symp(self.chi_fo, self.chi_star_fo, (t_eval[0], t_eval[-1]), z0, step=timestep, t_eval=t_eval, method=solver)
+				sol = self.rectify_sol(sol, check_energy=self.CheckEnergy)
+			else:
+				raise ValueError(f"Solver {solver} is not recognized.")
 		print(f'\033[90m        Computation finished in {int(time.time() - start)} seconds \033[00m')
 		if self.CheckEnergy and hasattr(sol, 'err'):
 			print(f'\033[90m           with error in energy = {sol.err}')
