@@ -75,6 +75,7 @@ def extract_potential(filename, nx=None, ny=None):
 
 class Potential:
 	def __init__(self, x, y, values, nx=None, ny=None, xy_period=None, tol=1e-10):
+		x, y = xp.asarray(x), xp.asarray(y)
 		if x.ndim != 1:
 			raise ValueError("`x` must be 1-dimensional.")
 		if y.ndim != 1:
@@ -87,7 +88,7 @@ class Potential:
 		self.xmin, self.xmax = x.min(), x.max()
 		self.ymin, self.ymax = y.min(), y.max()
 		self.x = x if nx is None else xp.linspace(self.xmin, self.xmax, nx)
-		self.y = y if ny is None else xp.linspace(self.ymin, self.ymax, ny)	
+		self.y = y if ny is None else xp.linspace(self.ymin, self.ymax, ny)
 		self.nx, self.ny = self.x.size, self.y.size
 		if nx is None and ny is None:
 			self.values = values
