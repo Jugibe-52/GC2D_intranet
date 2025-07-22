@@ -86,13 +86,12 @@ class Potential:
 			raise ValueError("Values in `x` or `y` are not uniformly spaced.")
 		self.xmin, self.xmax = x.min(), x.max()
 		self.ymin, self.ymax = y.min(), y.max()
-		if nx is None or ny is None:
-			self.nx, self.ny = values.shape
-			self.x, self.y, self.values = x, y, values
+		self.x = x if nx is None else xp.linspace(self.xmin, self.xmax, nx)
+		self.y = y if ny is None else xp.linspace(self.ymin, self.ymax, ny)	
+		self.nx, self.ny = self.x.size, self.y.size
+		if nx is None and ny is None:
+			self.values = values
 		else:
-			self.nx, self.ny = nx, ny
-			self.x = xp.linspace(self.xmin, self.xmax, nx)
-			self.y = xp.linspace(self.ymin, self.ymax, ny)
 			spline_real = RectBivariateSpline(x, y, values.real, kx=3, ky=3)
 			spline_imag = RectBivariateSpline(x, y, values.imag, kx=3, ky=3)
 			self.values = spline_real(self.x, self.y) + 1j * spline_imag(self.x, self.y)
