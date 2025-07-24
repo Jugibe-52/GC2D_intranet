@@ -74,8 +74,8 @@ def extract_potential(filename, nx=None, ny=None):
 	return Potential(x, y, values, nx=nx, ny=ny)
 
 class Potential:
-	def __init__(self, x, y, values, nx=None, ny=None, xy_period=None, tol=1e-10):
-		x, y = xp.asarray(x), xp.asarray(y)
+	def __init__(self, x, y, values, nx=None, ny=None, xy_period=None, tol=1e-10, k=3):
+		x, y, values = xp.asarray(x), xp.asarray(y), xp.asarray(values)
 		if x.ndim != 1:
 			raise ValueError("`x` must be 1-dimensional.")
 		if y.ndim != 1:
@@ -93,8 +93,8 @@ class Potential:
 		if nx is None and ny is None:
 			self.values = values
 		else:
-			spline_real = RectBivariateSpline(x, y, values.real, kx=3, ky=3)
-			spline_imag = RectBivariateSpline(x, y, values.imag, kx=3, ky=3)
+			spline_real = RectBivariateSpline(x, y, values.real, kx=k, ky=k)
+			spline_imag = RectBivariateSpline(x, y, values.imag, kx=k, ky=k)
 			self.values = spline_real(self.x, self.y) + 1j * spline_imag(self.x, self.y)
 		self.dx, self.dy = self.x[1] - self.x[0], self.y[1] - self.y[0]
 		self.xy_period = xy_period
@@ -112,7 +112,7 @@ class Potential:
 	
 	def isinside(self, x, y):
 		return (x > self.xmin) & (x < self.xmax) & (y > self.ymin) & (y < self.ymax)
-
+	
 def mock_potential(A, M, nx, ny):
     x = xp.linspace(0, 2 * xp.pi, nx, endpoint=False)
     y = xp.linspace(0, 2 * xp.pi, ny, endpoint=False)
@@ -151,7 +151,7 @@ class GC2D(HamSys):
 		self.spline_real = RectBivariateSpline(x, y, potential.real, kx=k, ky=k)
 		self.spline_imag = RectBivariateSpline(x, y, potential.imag, kx=k, ky=k) 
 
-	def interpolator(self, xi, yi, dx=0, dy=0):
+	def phic_interp(self, xi, yi, dx=0, dy=0):
 		interp_pot = xp.zeros_like(xi, dtype=xp.complex128)
 		if self.potential.xy_period is not None:
 			xi, yi = self.potential.wrap(xi, yi)
@@ -172,7 +172,7 @@ class GC2D(HamSys):
 		xi = xp.linspace(self.potential.xmin, self.potential.xmax, nx)
 		yi = xp.linspace(self.potential.ymin, self.potential.ymax, ny)
 		X, Y = xp.meshgrid(xi, yi, indexing='ij')
-		Z = self.interpolator(X.flatten(), Y.flatten(), dx=dx, dy=dy).reshape(X.shape)
+		Z = self.phic_interp(X.flatten(), Y.flatten(), dx=dx, dy=dy).reshape(X.shape)
 
 		vmin_real, vmax_real = Z.real.min(), Z.real.max()
 		vmin_imag, vmax_imag = Z.imag.min(), Z.imag.max()
@@ -219,10 +219,10 @@ class GC2D(HamSys):
 
 	def hamiltonian(self, t, z):
 		if self.traj["type"] == 'gc':
-			return xp.sum((self.interpolator(*xp.split(z, 2)) * xp.exp(-1j * t)).imag)
+			return xp.sum((self.phic_interp(*xp.split(z, 2)) * xp.exp(-1j * t)).imag, axis=0)
 		elif self.traj["type"] == 'fo': 
 			x, y, vx, vy = xp.split(z, 4)
-			phi_c = self.interpolator(x, y)
+			phi_c = self.phic_interp(x, y)
 			return xp.sum(self.rho / (4 * xp.abs(self.eta)) * (vx**2 + vy**2)\
 				  + (phi_c * xp.exp(-1j * t)).imag * xp.sign(self.eta) / self.rho, axis=0)
         
@@ -230,20 +230,20 @@ class GC2D(HamSys):
 		if self.traj["type"] == 'gc':
 			x, y = xp.split(z, 2)
 			phase = xp.exp(-1j * t)
-			dv_dx = self.interpolator(x, y, dx=1, dy=0) * phase
-			dv_dy = self.interpolator(x, y, dx=0, dy=1) * phase
+			dv_dx = self.phic_interp(x, y, dx=1, dy=0) * phase
+			dv_dy = self.phic_interp(x, y, dx=0, dy=1) * phase
 			return xp.concatenate((-dv_dy.imag, dv_dx.imag), axis=None)
 		elif self.traj["type"] == 'fo':
 			x, y, vx, vy = xp.split(z, 4)
 			vx *= self.rho / (2 * xp.abs(self.eta))
 			vy *= self.rho / (2 * xp.abs(self.eta))
 			phase = xp.exp(-1j * t)
-			dphi_dx = (self.interpolator(x, y, dx=1, dy=0) * phase).imag * xp.sign(self.eta) / self.rho
-			dphi_dy = (self.interpolator(x, y, dx=0, dy=1) * phase).imag * xp.sign(self.eta) / self.rho
+			dphi_dx = (self.phic_interp(x, y, dx=1, dy=0) * phase).imag * xp.sign(self.eta) / self.rho
+			dphi_dy = (self.phic_interp(x, y, dx=0, dy=1) * phase).imag * xp.sign(self.eta) / self.rho
 			return xp.concatenate((vx, vy, -dphi_dx.imag, -dphi_dy.imag), axis=None)
     
 	def k_dot(self, t, z):
-		return xp.sum((self.interpolator(*xp.split(z, 2)) * xp.exp(-1j * t)).real)
+		return xp.sum((self.phic_interp(*xp.split(z, 2)) * xp.exp(-1j * t)).real)
         
 	def chi_fo(self, h, t, z):
 		if self.CheckEnergy:
@@ -312,8 +312,8 @@ class GC2D(HamSys):
 		plt.plot(x, y, '.', color='blue')
 		plt.xlabel('x')
 		plt.ylabel('y')
-		#plt.xlim(self.potential.xmin, self.potential.xmax)
-		#plt.ylim(self.potential.ymin, self.potential.ymax)
+		plt.xlim(self.potential.xmin, self.potential.xmax)
+		plt.ylim(self.potential.ymin, self.potential.ymax)
 		plt.show()
 
 class Trajectory(GC2D):
