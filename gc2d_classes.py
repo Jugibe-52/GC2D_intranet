@@ -230,16 +230,16 @@ class GC2D(HamSys):
 		if self.traj["type"] == 'gc':
 			x, y = xp.split(z, 2)
 			phase = xp.exp(-1j * t)
-			dv_dx = self.phic_interp(x, y, dx=1, dy=0) * phase
-			dv_dy = self.phic_interp(x, y, dx=0, dy=1) * phase
+			dv_dx = self.phic_interp(x, y, dx=1) * phase
+			dv_dy = self.phic_interp(x, y, dy=1) * phase
 			return xp.concatenate((-dv_dy.imag, dv_dx.imag), axis=None)
 		elif self.traj["type"] == 'fo':
 			x, y, vx, vy = xp.split(z, 4)
 			vx *= self.rho / (2 * xp.abs(self.eta))
 			vy *= self.rho / (2 * xp.abs(self.eta))
 			phase = xp.exp(-1j * t)
-			dphi_dx = (self.phic_interp(x, y, dx=1, dy=0) * phase).imag * xp.sign(self.eta) / self.rho
-			dphi_dy = (self.phic_interp(x, y, dx=0, dy=1) * phase).imag * xp.sign(self.eta) / self.rho
+			dphi_dx = (self.phic_interp(x, y, dx=1) * phase).imag * xp.sign(self.eta) / self.rho
+			dphi_dy = (self.phic_interp(x, y, dy=1) * phase).imag * xp.sign(self.eta) / self.rho
 			return xp.concatenate((vx, vy, -dphi_dx.imag, -dphi_dy.imag), axis=None)
     
 	def k_dot(self, t, z):
