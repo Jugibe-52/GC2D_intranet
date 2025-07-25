@@ -150,6 +150,10 @@ class GC2D(HamSys):
 			potential = xp.pad(self.potential.values, ((k, k), (k, k)), mode='constant', constant_values=0)
 		self.spline_real = RectBivariateSpline(x, y, potential.real, kx=k, ky=k)
 		self.spline_imag = RectBivariateSpline(x, y, potential.imag, kx=k, ky=k) 
+		if self.traj["type"] == 'fo':
+			self.v_fo = self.rho / (2 * xp.abs(self.eta))
+			self.phi_fo = xp.sign(self.eta) / self.rho
+			self.omlar = 1 / (2 * self.eta)
 
 	def phic_interp(self, xi, yi, dx=0, dy=0):
 		interp_pot = xp.zeros_like(xi, dtype=xp.complex128)
@@ -234,11 +238,10 @@ class GC2D(HamSys):
 		if self.traj["type"] == 'gc':
 			return xp.concatenate((-dphi_dy, dphi_dx), axis=None)
 		elif self.traj["type"] == 'fo':
-			v = xp.split(z, 2)[1] * self.rho / (2 * xp.abs(self.eta))
-			dphi_dx *= xp.sign(self.eta) / self.rho
-			dphi_dy *= xp.sign(self.eta) / self.rho
-			return xp.concatenate((v, -dphi_dx, -dphi_dy), axis=None)
-		
+			vx, vy = xp.split(xp.split(z, 2)[1], 2)
+			return xp.concatenate((vx * self.v_fo, vy * self.v_fo, -dphi_dx * self.phi_fo\
+						   + vy * self.omlar, -dphi_dy * self.phi_fo - vx * self.omlar), axis=None)
+
 	def y_dot_ext(self, t, z):
 		if self.CheckEnergy:
 			return xp.concatenate((self.y_dot(t, z[:-1]), self.k_dot(t, z[:-1])), axis=None)
@@ -247,36 +250,37 @@ class GC2D(HamSys):
 	def k_dot(self, t, z):
 		x, y = xp.split(z if self.traj["type"] == 'gc' else xp.split(z, 2)[0], 2)
 		phi = xp.sum((self.phic_interp(x, y) * xp.exp(-1j * t)).real)
-		if self.traj["type"] == 'gc':
-			return phi
-		elif self.traj["type"] == 'fo':
-			return phi * self.rho / (2 * xp.abs(self.eta))
+		if self.traj["type"] == 'fo':
+			phi *= -self.phi_fo
+		return phi
 
 	def chi_fo(self, h, t, z):
 		if self.CheckEnergy:
-			x, y, vx, vy, k = xp.split(z, 5)
+			x, y, vx, vy = xp.split(z[:-1], 4)
+			k = z[-1]
 		else:
 			x, y, vx, vy = xp.split(z, 4)
-		exp_ = xp.exp(-1j * h / (2 * self.eta))
+		exp_ = xp.exp(-1j * h * self.omlar)
 		x, y = real_imag(x + 1j * y + 1j * self.rho * xp.sign(self.eta) * (exp_ - 1) * (vx + 1j * vy)) 
 		vx, vy = real_imag(exp_ * (vx + 1j * vy))
 		pot = xp.split(self.y_dot(t, xp.concatenate((x, y), axis=None)), 2)
-		vx, vy = real_imag(vx + 1j * vy + h * 1j * (pot[0] + 1j * pot[1]) * xp.sign(self.eta) / self.rho)
+		vx, vy = real_imag(vx + 1j * vy + h * 1j * (pot[0] + 1j * pot[1]) * self.phi_fo)
 		if not self.CheckEnergy:
 			return xp.concatenate((x, y, vx, vy), axis=None)
-		k += h * xp.sign(self.eta) / self.rho * self.k_dot(t, xp.concatenate((x, y), axis=None)) 
+		k += h * self.phi_fo * self.k_dot(t, xp.concatenate((x, y), axis=None)) 
 		return xp.concatenate((x, y, vx, vy, k), axis=None)
 	
 	def chi_star_fo(self, h, t, z):
 		if self.CheckEnergy:
-			x, y, vx, vy, k = xp.split(z, 5)
+			x, y, vx, vy = xp.split(z[:-1], 5)
+			k = z[-1]
 		else:
 			x, y, vx, vy = xp.split(z, 4)
 		pot = xp.split(self.y_dot(t, xp.concatenate((x, y), axis=None)), 2)
-		vx, vy = real_imag(vx + 1j * vy + h * 1j * (pot[0] + 1j * pot[1]) * xp.sign(self.eta) / self.rho)
+		vx, vy = real_imag(vx + 1j * vy + h * 1j * (pot[0] + 1j * pot[1]) * self.phi_fo)
 		if self.CheckEnergy:
-			k += h * xp.sign(self.eta) / self.rho * self.k_dot(t, xp.concatenate((x, y), axis=None))
-		exp_ = xp.exp(-1j * h / (2 * self.eta))
+			k += h * self.phi_fo * self.k_dot(t, xp.concatenate((x, y), axis=None))
+		exp_ = xp.exp(-1j * h * self.omlar)
 		x, y = real_imag(x + 1j * y + 1j * self.rho * xp.sign(self.eta) * (exp_ - 1) * (vx + 1j * vy)) 
 		vx, vy = real_imag(exp_ * (vx + 1j * vy))
 		if not self.CheckEnergy:
@@ -310,7 +314,7 @@ class GC2D(HamSys):
 		return sol
 	
 	def plot_sol(self, sol, wrap=False): 
-		x, y = xp.split(sol.y, 2)
+		x, y = xp.split(sol.y if self.traj["type"] == 'gc' else xp.split(sol.y, 2)[0], 2)
 		if wrap:
 			x, y = self.potential.wrap(x, y)
 		plt.plot(x, y, '.', color='blue')
