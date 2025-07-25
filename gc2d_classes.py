@@ -227,24 +227,31 @@ class GC2D(HamSys):
 				  + (phi_c * xp.exp(-1j * t)).imag * xp.sign(self.eta) / self.rho, axis=0)
         
 	def y_dot(self, t, z):
+		phase = xp.exp(-1j * t)
+		x, y = xp.split(z if self.traj["type"] == 'gc' else xp.split(z, 2)[0], 2)
+		dphi_dx = (self.phic_interp(x, y, dx=1) * phase).imag
+		dphi_dy = (self.phic_interp(x, y, dy=1) * phase).imag
 		if self.traj["type"] == 'gc':
-			x, y = xp.split(z, 2)
-			phase = xp.exp(-1j * t)
-			dv_dx = self.phic_interp(x, y, dx=1) * phase
-			dv_dy = self.phic_interp(x, y, dy=1) * phase
-			return xp.concatenate((-dv_dy.imag, dv_dx.imag), axis=None)
+			return xp.concatenate((-dphi_dy, dphi_dx), axis=None)
 		elif self.traj["type"] == 'fo':
-			x, y, vx, vy = xp.split(z, 4)
-			vx *= self.rho / (2 * xp.abs(self.eta))
-			vy *= self.rho / (2 * xp.abs(self.eta))
-			phase = xp.exp(-1j * t)
-			dphi_dx = (self.phic_interp(x, y, dx=1) * phase).imag * xp.sign(self.eta) / self.rho
-			dphi_dy = (self.phic_interp(x, y, dy=1) * phase).imag * xp.sign(self.eta) / self.rho
-			return xp.concatenate((vx, vy, -dphi_dx.imag, -dphi_dy.imag), axis=None)
+			v = xp.split(z, 2)[1] * self.rho / (2 * xp.abs(self.eta))
+			dphi_dx *= xp.sign(self.eta) / self.rho
+			dphi_dy *= xp.sign(self.eta) / self.rho
+			return xp.concatenate((v, -dphi_dx, -dphi_dy), axis=None)
+		
+	def y_dot_ext(self, t, z):
+		if self.CheckEnergy:
+			return xp.concatenate((self.y_dot(t, z[:-1]), self.k_dot(t, z[:-1])), axis=None)
+		return self.y_dot(t, z)
     
 	def k_dot(self, t, z):
-		return xp.sum((self.phic_interp(*xp.split(z, 2)) * xp.exp(-1j * t)).real)
-        
+		x, y = xp.split(z if self.traj["type"] == 'gc' else xp.split(z, 2)[0], 2)
+		phi = xp.sum((self.phic_interp(x, y) * xp.exp(-1j * t)).real)
+		if self.traj["type"] == 'gc':
+			return phi
+		elif self.traj["type"] == 'fo':
+			return phi * self.rho / (2 * xp.abs(self.eta))
+
 	def chi_fo(self, h, t, z):
 		if self.CheckEnergy:
 			x, y, vx, vy, k = xp.split(z, 5)
@@ -285,21 +292,18 @@ class GC2D(HamSys):
 	def integrate(self, z0, t_eval, timestep, solver="BM4", omega=10, tol=1e-8):
 		print(f"\033[92m   Integration of {self.__str__()} \033[00m")
 		start = time.time()
-		if self.traj["type"] == 'gc':
-			if solver in IVP_METHODS:
-				sol = solve_ivp(self.y_dot, (t_eval[0], t_eval[-1]), z0, t_eval=t_eval, method=solver, atol=tol, rtol=tol)
-			elif solver in METHODS:
-				sol = solve_ivp_sympext(self, (t_eval[0], t_eval[-1]), z0, step=timestep, t_eval=t_eval, method=solver, check_energy=self.CheckEnergy, omega=omega)
-			else:
-				raise ValueError(f"Solver {solver} is not recognized.")
-		elif self.traj["type"] == 'fo':
-			if solver in IVP_METHODS:
-				sol = solve_ivp(self.y_dot, (t_eval[0], t_eval[-1]), z0, t_eval=t_eval, method=solver, atol=tol, rtol=tol)
-			elif solver in METHODS:
+		if solver not in METHODS and solver not in IVP_METHODS:
+			raise ValueError(f"Solver {solver} is not recognized.")
+		if solver in IVP_METHODS and self.CheckEnergy:
+			z0 = xp.append(z0, 0)
+		if solver in IVP_METHODS:
+			sol = solve_ivp(self.y_dot_ext, (t_eval[0], t_eval[-1]), z0, t_eval=t_eval, method=solver, atol=tol, rtol=tol)
+		else:
+			if self.traj["type"] == 'fo':
 				sol = solve_ivp_symp(self.chi_fo, self.chi_star_fo, (t_eval[0], t_eval[-1]), z0, step=timestep, t_eval=t_eval, method=solver)
-				sol = self.rectify_sol(sol, check_energy=self.CheckEnergy)
-			else:
-				raise ValueError(f"Solver {solver} is not recognized.")
+			elif self.traj["type"] == 'gc':
+				sol = solve_ivp_sympext(self, (t_eval[0], t_eval[-1]), z0, step=timestep, t_eval=t_eval, method=solver, check_energy=self.CheckEnergy, omega=omega)
+		sol = self.rectify_sol(sol, check_energy=self.CheckEnergy)
 		print(f'\033[90m        Computation finished in {int(time.time() - start)} seconds \033[00m')
 		if self.CheckEnergy and hasattr(sol, 'err'):
 			print(f'\033[90m           with error in energy = {sol.err}')
