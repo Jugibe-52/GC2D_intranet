@@ -43,15 +43,6 @@ import time
 def real_imag(z:xp.ndarray):
 	return z.real, z.imag
 
-def glue_sol(sol1:OdeSolution, sol2:OdeSolution) -> OdeSolution:
-	sol2.t = xp.concatenate((sol1.t, sol2.t[1:]), axis=None)
-	if hasattr(sol1, 'k'):
-		sol2.k = xp.concatenate((sol1.k, sol2.k[:, 1:]), axis=-1)
-	if hasattr(sol1, 'err'):
-		sol2.err = max([sol1.err, sol2.err])
-	sol2.y = xp.concatenate((sol1.y, sol2.y[:, 1:]), axis=-1)
-	return sol2
-
 def save_data(self, data, filestr:str, info=[]) -> None:
 	if self.SaveData:
 		mdic = {'x': self.x, 'y': self.y, 'potential': self.potential, 'xy_period': self.xy_period}
@@ -136,6 +127,9 @@ class GC2D(HamSys):
 		self.rho = traj["rho"] if "rho" in traj else 0
 		self.eta = traj["eta"] if "eta" in traj else 0
 		self.CheckEnergy = traj["CheckEnergy"] if "CheckEnergy" in traj else False
+		self.Lyapunov = traj["Lyapunov"] if "Lyapunov" in traj else False
+		if self.Lyapunov:
+			self.CheckEnergy = False
 		self.SaveData = SaveData
 		if self.rho != 0:
 			potential.values = potential.gyroaverage(self.rho)
@@ -246,7 +240,22 @@ class GC2D(HamSys):
 		if self.CheckEnergy:
 			return xp.concatenate((self.y_dot(t, z[:-1]), self.k_dot(t, z[:-1])), axis=None)
 		return self.y_dot(t, z)
-    
+	
+	def y_dot_lyap(self, t, z):
+		if self.traj["type"] == 'fo':
+			raise NotImplementedError("Lyapunov exponents are not implemented for full orbits.")
+		x, y, J11, J12, J21, J22 = xp.split(z, 6)
+		z_dot = self.y_dot(t, xp.concatenate((x, y), axis=None))
+		phase = xp.exp(-1j * t)
+		d2phi_dx2 = (self.phic_interp(x, y, dx=2) * phase).imag
+		d2phi_dxdy = (self.phic_interp(x, y, dx=1, dy=1) * phase).imag
+		d2phi_dy2 = (self.phic_interp(x, y, dy=2) * phase).imag
+		J11_dot = -J11 * d2phi_dxdy - J21 * d2phi_dy2
+		J12_dot = -J12 * d2phi_dxdy - J22 * d2phi_dy2
+		J21_dot = J11 * d2phi_dx2 + J21 * d2phi_dxdy
+		J22_dot = J12 * d2phi_dx2 + J22 * d2phi_dxdy
+		return xp.concatenate((z_dot, J11_dot, J12_dot, J21_dot, J22_dot), axis=None)
+
 	def k_dot(self, t, z):
 		x, y = xp.split(z if self.traj["type"] == 'gc' else xp.split(z, 2)[0], 2)
 		phi = xp.sum((self.phic_interp(x, y) * xp.exp(-1j * t)).real)
@@ -293,24 +302,43 @@ class GC2D(HamSys):
 		theta, rho = xp.pi + xp.angle(v), self.rho * xp.abs(v)
 		return x - rho * xp.cos(theta), y + rho * xp.sin(theta)
     
-	def integrate(self, z0, t_eval, timestep, solver="BM4", omega=10, tol=1e-8):
-		print(f"\033[92m   Integration of {self.__str__()} \033[00m")
+	def integrate(self, z0, t_eval, timestep, solver="BM4", omega=10, tol=1e-8, display=True):
+		if display:
+			print(f"\033[92m   Integration of {self.__str__()} \033[00m")
 		start = time.time()
 		if solver not in METHODS and solver not in IVP_METHODS:
 			raise ValueError(f"Solver {solver} is not recognized.")
+		if self.Lyapunov and solver not in IVP_METHODS:
+			raise ValueError(f"Lyapunov exponents can only be computed with IVP methods, not {solver}.") 
 		if solver in IVP_METHODS and self.CheckEnergy:
 			z0 = xp.append(z0, 0)
 		if solver in IVP_METHODS:
-			sol = solve_ivp(self.y_dot_ext, (t_eval[0], t_eval[-1]), z0, t_eval=t_eval, method=solver, atol=tol, rtol=tol)
+			if self.Lyapunov:
+				n = len(z0) // 2
+				z0 = xp.concatenate((z0, xp.ones(n), xp.zeros(n), xp.zeros(n), xp.ones(n)), axis=None)
+				sol = solve_ivp(self.y_dot_lyap, (t_eval[0], t_eval[-1]), z0, t_eval=t_eval, method=solver, atol=tol, rtol=tol)
+			else:
+				sol = solve_ivp(self.y_dot_ext, (t_eval[0], t_eval[-1]), z0, t_eval=t_eval, method=solver, atol=tol, rtol=tol)
+			sol = self.rectify_sol(sol, check_energy=self.CheckEnergy)
 		else:
 			if self.traj["type"] == 'fo':
 				sol = solve_ivp_symp(self.chi_fo, self.chi_star_fo, (t_eval[0], t_eval[-1]), z0, step=timestep, t_eval=t_eval, method=solver)
+				sol = self.rectify_sol(sol, check_energy=self.CheckEnergy)
 			elif self.traj["type"] == 'gc':
 				sol = solve_ivp_sympext(self, (t_eval[0], t_eval[-1]), z0, step=timestep, t_eval=t_eval, method=solver, check_energy=self.CheckEnergy, omega=omega)
-		sol = self.rectify_sol(sol, check_energy=self.CheckEnergy)
-		print(f'\033[90m        Computation finished in {int(time.time() - start)} seconds \033[00m')
-		if self.CheckEnergy and hasattr(sol, 'err'):
-			print(f'\033[90m           with error in energy = {sol.err}')
+		if self.Lyapunov:
+			x, y, J11, J12, J21, J22 = xp.split(sol.y, 6, axis=0)
+			sol.y = xp.concatenate((x, y), axis=0)
+			J = xp.concatenate((J11[:, -1], J12[:, -1], J21[:, -1], J22[:, -1]), axis=None) 
+			J = xp.rollaxis(J.reshape(2, 2, len(x)), -1)
+			lambda_1, lambda_2 = xp.empty(len(x), dtype=xp.complex128), xp.empty(len(x), dtype=xp.complex128)
+			for i in range(len(x)):
+				lambda_1[i], lambda_2[i] = xp.linalg.eigvals(J[i])
+				print(lambda_1[i], lambda_2[i])
+		if display:
+			print(f'\033[90m        Computation finished in {int(time.time() - start)} seconds \033[00m')
+			if self.CheckEnergy and hasattr(sol, 'err'):
+				print(f'\033[90m           with error in energy = {sol.err}')
 		return sol
 	
 	def plot_sol(self, sol, wrap=False): 
