@@ -308,17 +308,10 @@ class GC2D(HamSys):
 		start = time.time()
 		if solver not in METHODS and solver not in IVP_METHODS:
 			raise ValueError(f"Solver {solver} is not recognized.")
-		if self.Lyapunov and solver not in IVP_METHODS:
-			raise ValueError(f"Lyapunov exponents can only be computed with IVP methods, not {solver}.") 
 		if solver in IVP_METHODS and self.CheckEnergy:
 			z0 = xp.append(z0, 0)
 		if solver in IVP_METHODS:
-			if self.Lyapunov:
-				n = len(z0) // 2
-				z0 = xp.concatenate((z0, xp.ones(n), xp.zeros(n), xp.zeros(n), xp.ones(n)), axis=None)
-				sol = solve_ivp(self.y_dot_lyap, (t_eval[0], t_eval[-1]), z0, t_eval=t_eval, method=solver, atol=tol, rtol=tol)
-			else:
-				sol = solve_ivp(self.y_dot_ext, (t_eval[0], t_eval[-1]), z0, t_eval=t_eval, method=solver, atol=tol, rtol=tol)
+			sol = solve_ivp(self.y_dot_ext, (t_eval[0], t_eval[-1]), z0, t_eval=t_eval, method=solver, atol=tol, rtol=tol)
 			sol = self.rectify_sol(sol, check_energy=self.CheckEnergy)
 		else:
 			if self.traj["type"] == 'fo':
@@ -326,20 +319,31 @@ class GC2D(HamSys):
 				sol = self.rectify_sol(sol, check_energy=self.CheckEnergy)
 			elif self.traj["type"] == 'gc':
 				sol = solve_ivp_sympext(self, (t_eval[0], t_eval[-1]), z0, step=timestep, t_eval=t_eval, method=solver, check_energy=self.CheckEnergy, omega=omega)
-		if self.Lyapunov:
-			x, y, J11, J12, J21, J22 = xp.split(sol.y, 6, axis=0)
-			sol.y = xp.concatenate((x, y), axis=0)
-			J = xp.concatenate((J11[:, -1], J12[:, -1], J21[:, -1], J22[:, -1]), axis=None) 
-			J = xp.rollaxis(J.reshape(2, 2, len(x)), -1)
-			lambda_1, lambda_2 = xp.empty(len(x), dtype=xp.complex128), xp.empty(len(x), dtype=xp.complex128)
-			for i in range(len(x)):
-				lambda_1[i], lambda_2[i] = xp.linalg.eigvals(J[i])
-				print(lambda_1[i], lambda_2[i])
 		if display:
 			print(f'\033[90m        Computation finished in {int(time.time() - start)} seconds \033[00m')
 			if self.CheckEnergy and hasattr(sol, 'err'):
 				print(f'\033[90m           with error in energy = {sol.err}')
 		return sol
+	
+	def compute_lyapunov(self, tf, z0, reortho_dt, tol=1e-8, solver='RK45'):
+		if solver not in IVP_METHODS:
+			raise ValueError(f"Solver {solver} is not recognized for Lyapunov exponent computation.")
+		start = time.time()
+		n = len(z0) // 2
+		lyap_sum = xp.zeros((2, n), dtype=xp.float64)
+		t, z = 0, xp.concatenate((z0, xp.ones(n), xp.zeros(n), xp.zeros(n), xp.ones(n)), axis=None)
+		for _ in range(int(tf / reortho_dt)):
+			sol = solve_ivp(self.y_dot_lyap, (t, t + reortho_dt), z, method=solver, t_eval=[t + reortho_dt], atol=tol, rtol=tol)
+			z, Q = sol.y[:2 * n, -1], xp.moveaxis(sol.y[2 * n:, -1].reshape((2, 2, n)), -1, 0)
+			for i in range(n):
+				q, r = xp.linalg.qr(Q[i])
+				lyap_sum[:, i] += xp.log(xp.abs(xp.diag(r)))
+				Q[i] = q
+			t += reortho_dt
+			z = xp.concatenate((z, xp.moveaxis(Q, 0, -1)), axis=None)
+		print(f'\033[90m        Computation finished in {int(time.time() - start)} seconds \033[00m')
+		lyap_sort = xp.sort(lyap_sum / tf)
+		return lyap_sort
 	
 	def plot_sol(self, sol, wrap=False): 
 		x, y = xp.split(sol.y if self.traj["type"] == 'gc' else xp.split(sol.y, 2)[0], 2)
