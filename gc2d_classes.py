@@ -80,15 +80,13 @@ class Potential:
 		self.ymin, self.ymax = y.min(), y.max()
 		self.x = x if nx is None else xp.linspace(self.xmin, self.xmax, nx)
 		self.y = y if ny is None else xp.linspace(self.ymin, self.ymax, ny)
+		self.dx, self.dy = self.x[1] - self.x[0], self.y[1] - self.y[0]
+		self.xy_period = xy_period
 		self.nx, self.ny = self.x.size, self.y.size
 		if nx is None and ny is None:
 			self.values = values
 		else:
-			spline_real = RectBivariateSpline(x, y, values.real, kx=k, ky=k)
-			spline_imag = RectBivariateSpline(x, y, values.imag, kx=k, ky=k)
-			self.values = spline_real(self.x, self.y) + 1j * spline_imag(self.x, self.y)
-		self.dx, self.dy = self.x[1] - self.x[0], self.y[1] - self.y[0]
-		self.xy_period = xy_period
+			self.values = self.interp_potential(output="values", k=k)
 
 	def gyroaverage(self, rho):
 		fft_potential = fft2(self.values)
@@ -100,6 +98,22 @@ class Potential:
 		xi = ((xp.asarray(xi) - self.xmin) % self.xy_period) + self.xmin
 		yi = ((xp.asarray(yi) - self.ymin) % self.xy_period) + self.ymin
 		return xi, yi
+	
+	def interp_potential(self, output="interpolator", k=3):
+		x = xp.pad(self.x, (k, k), mode='linear_ramp', end_values=(self.xmin - k * self.dx, self.xmax + k * self.dx))
+		y = xp.pad(self.y, (k, k), mode='linear_ramp', end_values=(self.ymin - k * self.dy, self.ymax + k * self.dy))
+		if self.xy_period is not None:
+			values = xp.pad(self.values, ((k, k), (k, k)), mode='wrap')
+		else:
+			values = xp.pad(self.values, ((k, k), (k, k)), mode='constant', constant_values=0)
+		interp_real, interp_imag = RectBivariateSpline(x, y, values.real, kx=k, ky=k), RectBivariateSpline(x, y, values.imag, kx=k, ky=k)
+		if output == "interpolator":
+			return interp_real, interp_imag
+		elif output == "values":
+			values = interp_real(x, y) + 1j * interp_imag(x, y)
+			return values[k:-k, k:-k]
+		else:
+			raise ValueError("Output must be 'interpolator' or 'values'.")
 	
 	def isinside(self, x, y):
 		return (x > self.xmin) & (x < self.xmax) & (y > self.ymin) & (y < self.ymax)
@@ -126,6 +140,8 @@ class GC2D(HamSys):
 		self.traj = traj
 		self.rho = traj["rho"] if "rho" in traj else 0
 		self.eta = traj["eta"] if "eta" in traj else 0
+		if min(k * potential.dx, k * potential.dy) < self.rho:
+			raise ValueError(f"Interpolation order {k} is too low for rho = {self.rho}. Increase k or decrease rho.")
 		self.CheckEnergy = traj["CheckEnergy"] if "CheckEnergy" in traj else False
 		self.Lyapunov = traj["Lyapunov"] if "Lyapunov" in traj else False
 		if self.Lyapunov:
@@ -134,16 +150,7 @@ class GC2D(HamSys):
 		if self.rho != 0:
 			potential.values = potential.gyroaverage(self.rho)
 		self.potential = potential
-		x = xp.pad(potential.x, (k, k), mode='linear_ramp',\
-			 end_values=(potential.xmin - k * potential.dx, potential.xmax + k * potential.dx))
-		y = xp.pad(potential.y, (k, k), mode='linear_ramp', \
-			 end_values=(potential.ymin - k * potential.dy, potential.ymax + k * potential.dy))
-		if potential.xy_period is not None:
-			potential = xp.pad(potential.values, ((k, k), (k, k)), mode='wrap')
-		else:
-			potential = xp.pad(self.potential.values, ((k, k), (k, k)), mode='constant', constant_values=0)
-		self.spline_real = RectBivariateSpline(x, y, potential.real, kx=k, ky=k)
-		self.spline_imag = RectBivariateSpline(x, y, potential.imag, kx=k, ky=k) 
+		self.spline_real, self.spline_imag = self.potential.interp_potential(output="interpolator", k=k)
 		if self.traj["type"] == 'fo':
 			self.v_fo = self.rho / (2 * xp.abs(self.eta))
 			self.phi_fo = xp.sign(self.eta) / self.rho
