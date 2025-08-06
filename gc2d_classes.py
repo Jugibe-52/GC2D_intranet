@@ -29,6 +29,7 @@ import numpy as xp
 from numpy.fft import fft2, ifft2, fftfreq
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
+from matplotlib.colors import LogNorm
 from scipy.integrate._ivp.ivp import METHODS as IVP_METHODS
 from scipy.interpolate import RectBivariateSpline
 from scipy.integrate import solve_ivp
@@ -71,6 +72,8 @@ class Potential:
 			raise ValueError("`x` must be 1-dimensional.")
 		if y.ndim != 1:
 			raise ValueError("`y` must be 1-dimensional.")
+		if values.shape != (len(x), len(y)):
+			raise ValueError("Shape of `values` must match the lengths of `x` and `y`.")
 		diff_x, diff_y = xp.diff(x), xp.diff(y)
 		if xp.any(diff_x <= 0) or xp.any(diff_y <= 0):
 			raise ValueError("Values in `x` or `y` are not properly sorted.")
@@ -100,18 +103,19 @@ class Potential:
 		return xi, yi
 	
 	def interp_potential(self, output="interpolator", k=3):
-		x = xp.pad(self.x, (k, k), mode='linear_ramp', end_values=(self.xmin - k * self.dx, self.xmax + k * self.dx))
-		y = xp.pad(self.y, (k, k), mode='linear_ramp', end_values=(self.ymin - k * self.dy, self.ymax + k * self.dy))
+		kl, kr = k + 1, k + 2 if  self.xy_period is not None else k + 1
+		x = xp.pad(self.x, (kl, kr), mode='linear_ramp', end_values=(self.xmin - kl * self.dx, self.xmax + kr * self.dx))
+		y = xp.pad(self.y, (kl, kr), mode='linear_ramp', end_values=(self.ymin - kl * self.dy, self.ymax + kr * self.dy))
 		if self.xy_period is not None:
-			values = xp.pad(self.values, ((k, k), (k, k)), mode='wrap')
+			values = xp.pad(self.values, ((kl, kr), (kl, kr)), mode='wrap')
 		else:
-			values = xp.pad(self.values, ((k, k), (k, k)), mode='constant', constant_values=0)
+			values = xp.pad(self.values, ((kl, kr), (kl, kr)), mode='constant', constant_values=0)
 		interp_real, interp_imag = RectBivariateSpline(x, y, values.real, kx=k, ky=k), RectBivariateSpline(x, y, values.imag, kx=k, ky=k)
 		if output == "interpolator":
 			return interp_real, interp_imag
 		elif output == "values":
 			values = interp_real(x, y) + 1j * interp_imag(x, y)
-			return values[k:-k, k:-k]
+			return values[kl:-kr, kl:-kr]
 		else:
 			raise ValueError("Output must be 'interpolator' or 'values'.")
 	
@@ -174,29 +178,34 @@ class GC2D(HamSys):
 			cmap = plt.get_cmap('RdBu_r')
 			return cmap, norm
 		
-		xi = xp.linspace(self.potential.xmin, self.potential.xmax, nx)
-		yi = xp.linspace(self.potential.ymin, self.potential.ymax, ny)
+		xi = xp.linspace(self.potential.xmin, self.potential.xmax + self.potential.dx, nx, endpoint=False)
+		yi = xp.linspace(self.potential.ymin, self.potential.ymax + self.potential.dy, ny, endpoint=False)
 		X, Y = xp.meshgrid(xi, yi, indexing='ij')
-		Z = self.phic_interp(X.flatten(), Y.flatten(), dx=dx, dy=dy).reshape(X.shape)
+		Z = self.phic_interp(X.flatten(), Y.flatten(), dx=dx, dy=dy).real.reshape(X.shape)
+
+		fftZ = xp.fft.fftshift(xp.abs(fft2(Z))**2)
+		fig, ax = plt.subplots(1, 1, figsize=(5, 5))
+		c1 = ax.pcolormesh(fftZ.T, norm=LogNorm(), cmap='viridis', shading='auto')
+		fig.colorbar(c1, ax=ax)
 
 		vmin_real, vmax_real = Z.real.min(), Z.real.max()
 		vmin_imag, vmax_imag = Z.imag.min(), Z.imag.max()
 
-		fig, axs = plt.subplots(1, 2, figsize=(12, 5))
-		cmap_real, norm_real = white_centered_cmap(vmin_real, vmax_real)
+		# fig, axs = plt.subplots(1, 2, figsize=(12, 5))
+		# cmap_real, norm_real = white_centered_cmap(vmin_real, vmax_real)
 
-		c1 = axs[0].pcolormesh(X, Y, Z.real, shading='auto', cmap=cmap_real, norm=norm_real)
-		axs[0].set_title(f'Real part of (dx={dx}, dy={dy}) potential')
-		axs[0].set_xlabel('x')
-		axs[0].set_ylabel('y')
-		fig.colorbar(c1, ax=axs[0])
+		# c1 = axs[0].pcolormesh(X, Y, Z.real, shading='auto', cmap=cmap_real, norm=norm_real)
+		# axs[0].set_title(f'Real part of (dx={dx}, dy={dy}) potential')
+		# axs[0].set_xlabel('x')
+		# axs[0].set_ylabel('y')
+		# fig.colorbar(c1, ax=axs[0])
 
-		cmap_imag, norm_imag = white_centered_cmap(vmin_imag, vmax_imag)
-		c2 = axs[1].pcolormesh(X, Y, Z.imag, shading='auto', cmap=cmap_imag, norm=norm_imag)
-		axs[1].set_title(f'Imaginary part of (dx={dx}, dy={dy}) potential')
-		axs[1].set_xlabel('x')
-		axs[1].set_ylabel('y')
-		fig.colorbar(c2, ax=axs[1])
+		# cmap_imag, norm_imag = white_centered_cmap(vmin_imag, vmax_imag)
+		# c2 = axs[1].pcolormesh(X, Y, Z.imag, shading='auto', cmap=cmap_imag, norm=norm_imag)
+		# axs[1].set_title(f'Imaginary part of (dx={dx}, dy={dy}) potential')
+		# axs[1].set_xlabel('x')
+		# axs[1].set_ylabel('y')
+		# fig.colorbar(c2, ax=axs[1])
 
 		plt.tight_layout()
 		plt.show()
