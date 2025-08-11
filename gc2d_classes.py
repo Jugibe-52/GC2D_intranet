@@ -175,38 +175,33 @@ class GC2D(HamSys):
 
 		def white_centered_cmap(vmin, vmax):
 			norm = mcolors.TwoSlopeNorm(vmin=vmin, vcenter=0.0, vmax=vmax)
-			cmap = plt.get_cmap('RdBu_r')
-			return cmap, norm
+			return plt.get_cmap('RdBu_r'), norm
 		
-		xi = xp.linspace(self.potential.xmin, self.potential.xmax + self.potential.dx, nx, endpoint=False)
-		yi = xp.linspace(self.potential.ymin, self.potential.ymax + self.potential.dy, ny, endpoint=False)
-		X, Y = xp.meshgrid(xi, yi, indexing='ij')
-		Z = self.phic_interp(X.flatten(), Y.flatten(), dx=dx, dy=dy).real.reshape(X.shape)
-
-		fftZ = xp.fft.fftshift(xp.abs(fft2(Z))**2)
-		fig, ax = plt.subplots(1, 1, figsize=(5, 5))
-		c1 = ax.pcolormesh(fftZ.T, norm=LogNorm(), cmap='viridis', shading='auto')
-		fig.colorbar(c1, ax=ax)
+		x = xp.linspace(self.potential.xmin, self.potential.xmax + self.potential.dx, nx, endpoint=False)
+		y = xp.linspace(self.potential.ymin, self.potential.ymax + self.potential.dy, ny, endpoint=False)
+		Z = self.spline_real(x, y, dx=dx, dy=dy) + 1j * self.spline_imag(x, y, dx=dx, dy=dy)
+		
+		# fftZ = xp.fft.fftshift(xp.abs(fft2(Z))**2)
+		# fig, ax = plt.subplots(1, 1, figsize=(5, 5))
+		# c1 = ax.pcolormesh(fftZ.T, norm=LogNorm(), cmap='viridis', shading='auto')
+		# fig.colorbar(c1, ax=ax)
 
 		vmin_real, vmax_real = Z.real.min(), Z.real.max()
 		vmin_imag, vmax_imag = Z.imag.min(), Z.imag.max()
 
-		# fig, axs = plt.subplots(1, 2, figsize=(12, 5))
-		# cmap_real, norm_real = white_centered_cmap(vmin_real, vmax_real)
-
-		# c1 = axs[0].pcolormesh(X, Y, Z.real, shading='auto', cmap=cmap_real, norm=norm_real)
-		# axs[0].set_title(f'Real part of (dx={dx}, dy={dy}) potential')
-		# axs[0].set_xlabel('x')
-		# axs[0].set_ylabel('y')
-		# fig.colorbar(c1, ax=axs[0])
-
-		# cmap_imag, norm_imag = white_centered_cmap(vmin_imag, vmax_imag)
-		# c2 = axs[1].pcolormesh(X, Y, Z.imag, shading='auto', cmap=cmap_imag, norm=norm_imag)
-		# axs[1].set_title(f'Imaginary part of (dx={dx}, dy={dy}) potential')
-		# axs[1].set_xlabel('x')
-		# axs[1].set_ylabel('y')
-		# fig.colorbar(c2, ax=axs[1])
-
+		fig, axs = plt.subplots(1, 2, figsize=(12, 5))
+		cmap_real, norm_real = white_centered_cmap(vmin_real, vmax_real)
+		c1 = axs[0].pcolormesh(x, y, Z.real.T, shading='auto', cmap=cmap_real, norm=norm_real)
+		axs[0].set_title(f'Real part of (dx={dx}, dy={dy}) potential')
+		axs[0].set_xlabel('x')
+		axs[0].set_ylabel('y')
+		fig.colorbar(c1, ax=axs[0])
+		cmap_imag, norm_imag = white_centered_cmap(vmin_imag, vmax_imag)
+		c2 = axs[1].pcolormesh(x, y, Z.imag.T, shading='auto', cmap=cmap_imag, norm=norm_imag)
+		axs[1].set_title(f'Imaginary part of (dx={dx}, dy={dy}) potential')
+		axs[1].set_xlabel('x')
+		axs[1].set_ylabel('y')
+		fig.colorbar(c2, ax=axs[1])
 		plt.tight_layout()
 		plt.show()
 
@@ -338,7 +333,7 @@ class GC2D(HamSys):
 		if display:
 			print(f'\033[90m        Computation finished in {int(time.time() - start)} seconds \033[00m')
 			if self.CheckEnergy and hasattr(sol, 'err'):
-				print(f'\033[90m           with error in energy = {sol.err}')
+				print(f'\033[90m           with error in energy = {sol.err / (len(z0) // 2)}')
 		return sol
 	
 	def compute_lyapunov(self, tf, z0, reortho_dt, tol=1e-8, solver='RK45'):
