@@ -14,7 +14,12 @@ M = 25
 Ntraj = 20
 n_max = 500
 
-n_data = 200
+n_data = 8
+n_process = 4
+
+default_time_step = 1e-1
+default_omega = 10
+solver = 'BM4'  
 
 parameters = {"A": A, "M": M, "CheckEnergy": True, "Lyapunov": False}
 hs = GC2Ds(parameters)
@@ -30,25 +35,29 @@ t_eval = 2 * xp.pi * xp.arange(n_max)
 #hs.plot_sol(sol, wrap=True)
 #hs.plot_sol(sol)
 
+parameters.update({"Ntraj": Ntraj, "n_max": n_max, "solver": solver})
+
 mode = 'omega'
 
 if mode == 'omega':
     param_list = xp.logspace(-1, 2, n_data)  
+    parameters.update({"mode": mode, "omega": param_list, "timestep": default_time_step})
 elif mode == 'step':
     param_list = xp.logspace(-2, 0, n_data)[::-1]  
+    parameters.update({"mode": mode, "omega": default_omega, "timestep": param_list})
 else:
     raise ValueError("Mode must be 'omega' or 'step'")
 
 def run_one(param):
-    step = param if mode == 'step' else 1e-1
-    om = param if mode == 'omega' else 10 
-    sol = hs.integrate(z0, t_eval, timestep=step, omega=om, display=False)
+    step = param if mode == 'step' else default_time_step
+    om = param if mode == 'omega' else default_omega 
+    sol = hs.integrate(z0, t_eval, timestep=step, omega=om, display=False, solver=solver)
     print(f"{mode} = {param:.3e}   error = {sol.err / Ntraj}  dist_copy = {sol.dist_copy}")
     return (param, sol.err / Ntraj, sol.dist_copy)
 
 if __name__ == '__main__':
-    with mp.Pool(processes=mp.cpu_count()) as pool:
+    with mp.Pool(processes=n_process) as pool:
         results = pool.map(run_one, param_list)
 
     sorted_results = sorted(results, key=lambda pair: pair[0])
-    hs.save_data(sorted_results, info=mode)
+    hs.save_data(sorted_results, params=parameters)

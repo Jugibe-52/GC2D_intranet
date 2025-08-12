@@ -1,7 +1,7 @@
 #
 # BSD 2-Clause License
 #
-# Copyright (c) 2023, Cristel Chandre
+# Copyright (c) 2025, Cristel Chandre
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -159,10 +159,9 @@ class GC2Ds(HamSys):
 			plt.ylim(0, 2 * xp.pi)
 		plt.show()
 
-	def save_data(self, data, info):
-		mdic = {'A': self.A, 'M': self.M}
-		mdic.update({'omega': data, 'info': info})
-		mdic.update({'date': datetime.now().strftime(" %B %d, %Y\n"), 'author': 'cristel.chandre@cnrs.fr'})
-		filename = 'data_' + datetime.now().strftime("%Y%m%d_%H%M%S") + '.mat'
-		savemat(filename, mdic)
+	def save_data(self, data, params):
+		params.update({'data': data})
+		params.update({'date': datetime.now().strftime(" %B %d, %Y\n"), 'author': 'cristel.chandre@cnrs.fr'})
+		filename = params["mode"] + '_' + datetime.now().strftime("%Y%m%d_%H%M%S") + '.mat'
+		savemat(filename, params)
 		print(f'\033[90m        Results saved in {filename} \033[00m')
