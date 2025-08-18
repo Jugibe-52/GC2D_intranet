@@ -1,0 +1,58 @@
+###################################################################################################
+##                      Parameters: https://github.com/cchandre/GC2D_intranet                    ##
+###################################################################################################
+
+import numpy as xp
+import matplotlib.pyplot as plt
+import multiprocessing as mp
+from gc2ds_classes import GC2Ds
+
+# potential
+A = 0.6
+M = 25
+
+# parameters
+Ntraj = 20
+n_max = 500
+
+n_process = 4
+
+time_step = 1e-2
+omega = 3 
+
+parameters = {"A": A, "M": M}
+hs = GC2Ds(parameters)
+
+t_eval = 2 * xp.pi * xp.arange(n_max)
+
+parameters.update({"Ntraj": Ntraj, "n_max": n_max})
+
+seeds = xp.random.SeedSequence().spawn(Ntraj)
+
+def run_one(seed=None):
+    z0 = hs.initial_conditions(type="random", seed=seed)
+    sol = hs.integrate(z0, t_eval, timestep=time_step, omega=omega, display=False)
+    print(f"dist_copy = {sol.dist_copy}")
+    return (sol.y, sol.dist_copy)
+
+if __name__ == "__main__":
+
+    with mp.Pool(processes=n_process) as pool:
+        results = pool.map(run_one, seeds)
+            
+    all_x = []
+    all_y = []
+    all_colors = []
+
+    for i, (y, dist_copy) in enumerate(results):
+        x_vals, y_vals = y[0] % (2 * xp.pi), y[1] % (2 * xp.pi)
+        all_x.extend(x_vals)
+        all_y.extend(y_vals)
+        all_colors.extend([dist_copy] * len(x_vals))
+
+    sc = plt.scatter(all_x, all_y, c=all_colors, cmap="viridis", s=5)
+    plt.colorbar(sc, label="dist_copy")
+    plt.xlabel("x")
+    plt.ylabel("y")
+    plt.title("y vs x colored by dist_copy")
+    plt.show()

@@ -30,6 +30,7 @@ from scipy.integrate._ivp.ivp import METHODS as IVP_METHODS
 from scipy.integrate import solve_ivp
 from pyhamsys import METHODS, HamSys, solve_ivp_sympext
 import matplotlib.pyplot as plt
+import os
 import time
 from datetime import datetime
 from scipy.io import savemat
@@ -53,16 +54,17 @@ class GC2Ds(HamSys):
 		sqrt_nm = xp.sqrt(self.nm[0]**2 + self.nm[1]**2)
 		self.phic[sqrt_nm > self.M] = 0
 		self.dphic = xp.asarray([-self.nm[1] * self.phic, self.nm[0] * self.phic])	
-		if params["Lyapunov"]:
+		if self.Lyapunov:
 			self.d2phic = xp.asarray([-self.nm[0]**2 * self.phic, -self.nm[0] * self.nm[1] * self.phic,\
 							  -self.nm[1]**2 * self.phic])
 
-	def initial_conditions(self, n_traj, x=None, y=None, type='fixed'):
+	def initial_conditions(self, n_traj=1, x=None, y=None, type='fixed', seed=None):
 		x, y = (0, 2 * xp.pi) if x is None else x, (0, 2 * xp.pi) if y is None else y
 		if type == 'random':
-			xp.random.seed(int(time.time()))
-			x0 = (x[-1] - x[0]) * xp.random.rand(n_traj) + x[0]
-			y0 = (y[-1] - y[0]) * xp.random.rand(n_traj) + y[0]
+			seed = seed if seed is not None else int(time.time()) + os.getpid()
+			rng = xp.random.default_rng(seed)
+			x0 = (x[-1] - x[0]) * rng.random(n_traj) + x[0]
+			y0 = (y[-1] - y[0]) * rng.random(n_traj) + y[0]
 			z0 = xp.concatenate((x0, y0), axis=None)
 		elif type == 'fixed':
 			n_traj = int(xp.sqrt(n_traj))**2
