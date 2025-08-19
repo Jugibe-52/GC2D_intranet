@@ -44,9 +44,10 @@ class GC2Ds(HamSys):
 		self.A, self.M = params["A"], params["M"]
 		self.CheckEnergy = params["CheckEnergy"] if "CheckEnergy" in params else False
 		self.Lyapunov = params["Lyapunov"] if "Lyapunov" in params else False
+		seed = params["seed"] if "seed" in params else 27
 		if self.Lyapunov:
 			self.CheckEnergy = False
-		xp.random.seed(27)
+		xp.random.seed(seed)
 		self.phases = 2 * xp.pi * xp.random.random((self.M, self.M))
 		self.nm = xp.meshgrid(xp.arange(self.M+1), xp.arange(self.M+1), indexing='ij')
 		self.phic = xp.zeros((self.M+1, self.M+1), dtype=xp.complex128)
