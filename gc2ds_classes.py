@@ -109,18 +109,19 @@ class GC2Ds(HamSys):
 	def integrate(self, z0, t_eval, timestep, solver="BM4", omega=10, tol=1e-8, display=True):
 		if display:
 			print(f"\033[92m   Integration of {self.__str__()} \033[00m")
-		start = time.time()
 		if solver not in METHODS and solver not in IVP_METHODS:
 			raise ValueError(f"Solver {solver} is not recognized.")
 		if solver in IVP_METHODS and self.CheckEnergy:
 			z0 = xp.append(z0, 0)
+		start = time.process_time()
 		if solver in IVP_METHODS:
 			sol = solve_ivp(self.y_dot_ext, (t_eval[0], t_eval[-1]), z0, t_eval=t_eval, method=solver, atol=tol, rtol=tol)
 			sol = self.rectify_sol(sol, check_energy=self.CheckEnergy)
 		else:
 			sol = solve_ivp_sympext(self, (t_eval[0], t_eval[-1]), z0, step=timestep, t_eval=t_eval, method=solver, check_energy=self.CheckEnergy, omega=omega)
+		sol.cpu_time = time.process_time() - start
 		if display:
-			print(f'\033[90m        Computation finished in {int(time.time() - start)} seconds \033[00m')
+			print(f'\033[90m        Computation finished in {int(sol.cpu_time)} seconds \033[00m')
 			if self.CheckEnergy and hasattr(sol, 'err'):
 				print(f'\033[90m           with error in energy = {sol.err / (len(z0) // 2)}')
 			if solver in METHODS:
