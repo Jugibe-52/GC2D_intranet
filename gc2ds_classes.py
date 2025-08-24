@@ -28,7 +28,7 @@
 import numpy as xp
 from scipy.integrate._ivp.ivp import METHODS as IVP_METHODS
 from scipy.integrate import solve_ivp
-from pyhamsys import METHODS, HamSys, solve_ivp_sympext
+from pyhamsys import HamSys
 import matplotlib.pyplot as plt
 import os
 import time
@@ -83,11 +83,6 @@ class GC2Ds(HamSys):
 		exp_xy = xp.exp(1j * (xp.einsum('ijk,i...->jk...', self.nm, xp.split(z, 2)) - t))
 		return xp.sum(xp.einsum('jk,jk...->...', self.phic, exp_xy).real)
 	
-	def y_dot_ext(self, t, z):
-		if self.CheckEnergy:
-			return xp.concatenate((self.y_dot(t, z[:-1]), self.k_dot(t, z[:-1])), axis=None)
-		return self.y_dot(t, z)
-	
 	def y_dot_lyap(self, t, z):
 		x, y, J11, J12, J21, J22 = xp.split(z, 6)
 		z_dot = self.y_dot(t, xp.concatenate((x, y), axis=None))
@@ -106,31 +101,10 @@ class GC2Ds(HamSys):
 	def hamiltonian(self, t, y):
 		return xp.sum(self.potential(t, y))
 	
-	def integrate(self, z0, t_eval, timestep, solver="BM4", omega=10, tol=1e-8, display=True):
-		if display:
-			print(f"\033[92m   Integration of {self.__str__()} \033[00m")
-		if solver not in METHODS and solver not in IVP_METHODS:
-			raise ValueError(f"Solver {solver} is not recognized.")
-		if solver in IVP_METHODS and self.CheckEnergy:
-			z0 = xp.append(z0, 0)
-		start = time.process_time()
-		if solver in IVP_METHODS:
-			sol = solve_ivp(self.y_dot_ext, (t_eval[0], t_eval[-1]), z0, t_eval=t_eval, method=solver, atol=tol, rtol=tol)
-			sol = self.rectify_sol(sol, check_energy=self.CheckEnergy)
-		else:
-			sol = solve_ivp_sympext(self, (t_eval[0], t_eval[-1]), z0, step=timestep, t_eval=t_eval, method=solver, check_energy=self.CheckEnergy, omega=omega)
-		sol.cpu_time = time.process_time() - start
-		if display:
-			print(f'\033[90m        Computation finished in {int(sol.cpu_time)} seconds \033[00m')
-			if self.CheckEnergy and hasattr(sol, 'err'):
-				print(f'\033[90m           with error in energy = {sol.err / (len(z0) // 2)}')
-			if solver in METHODS:
-				print(f'\033[90m           with distance in copies = {sol.dist_copy}\033[00m')
-		return sol
-	
 	def compute_lyapunov(self, tf, z0, reortho_dt, tol=1e-8, solver='RK45'):
 		if solver not in IVP_METHODS:
-			raise ValueError(f"Solver {solver} is not recognized for Lyapunov exponent computation.")
+			raise ValueError(f"Solver {solver} is not recognized for Lyapunov exponent computation."
+							 f"Available solvers are {IVP_METHODS}.")
 		start = time.time()
 		n = len(z0) // 2
 		lyap_sum = xp.zeros((2, n), dtype=xp.float64)
