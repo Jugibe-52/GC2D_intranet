@@ -54,7 +54,7 @@ class GC2Ds(HamSys):
 		self.phic[1:, 1:] = self.A / (self.nm[0][1:, 1:]**2 + self.nm[1][1:, 1:]**2)**1.5 * xp.exp(1j * self.phases)
 		sqrt_nm = xp.sqrt(self.nm[0]**2 + self.nm[1]**2)
 		self.phic[sqrt_nm > self.M] = 0
-		self.dphic = xp.asarray([-self.nm[1] * self.phic, self.nm[0] * self.phic])	
+		self.d1phic = xp.asarray([-self.nm[1] * self.phic, self.nm[0] * self.phic])	
 		if self.Lyapunov:
 			self.d2phic = xp.asarray([-self.nm[0]**2 * self.phic, -self.nm[0] * self.nm[1] * self.phic,\
 							  -self.nm[1]**2 * self.phic])
@@ -77,11 +77,18 @@ class GC2Ds(HamSys):
 	
 	def y_dot(self, t, z):
 		exp_xy = xp.exp(1j * (xp.einsum('ijk,i...->jk...', self.nm, xp.split(z, 2)) - t))
-		return (xp.einsum('ijk,jk...->i...', self.dphic, exp_xy).real).reshape(z.shape)
+		return (xp.einsum('ijk,jk...->i...', self.d1phic, exp_xy).real).reshape(z.shape)
 	
 	def k_dot(self, t, z):
 		exp_xy = xp.exp(1j * (xp.einsum('ijk,i...->jk...', self.nm, xp.split(z, 2)) - t))
 		return xp.sum(xp.einsum('jk,jk...->...', self.phic, exp_xy).real)
+	
+	def potential(self, t, y):
+		exp_xy = xp.exp(1j * (xp.einsum('ijk,i...->jk...', self.nm, xp.split(y, 2)) - t))
+		return xp.einsum('jk,jk...->...', self.phic, exp_xy).imag
+	
+	def hamiltonian(self, t, y):
+		return xp.sum(self.potential(t, y))
 	
 	def y_dot_lyap(self, t, z):
 		x, y, J11, J12, J21, J22 = xp.split(z, 6)
@@ -93,13 +100,6 @@ class GC2Ds(HamSys):
 		J21_dot = J11 * d2phi[0] + J21 * d2phi[1]
 		J22_dot = J12 * d2phi[0] + J22 * d2phi[1]
 		return xp.concatenate((z_dot, J11_dot, J12_dot, J21_dot, J22_dot), axis=None)
-	
-	def potential(self, t, y):
-		exp_xy = xp.exp(1j * (xp.einsum('ijk,i...->jk...', self.nm, xp.split(y, 2)) - t))
-		return xp.einsum('jk,jk...->...', self.phic, exp_xy).imag
-	
-	def hamiltonian(self, t, y):
-		return xp.sum(self.potential(t, y))
 	
 	def compute_lyapunov(self, tf, z0, reortho_dt, tol=1e-8, solver='RK45'):
 		if solver not in IVP_METHODS:
