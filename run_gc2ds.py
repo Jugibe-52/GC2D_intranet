@@ -27,12 +27,11 @@ z0 = hs.initial_conditions(Ntraj, type="random")
 
 t_eval = 2 * xp.pi * xp.arange(n_max)
 
-
 #lyap = hs.compute_lyapunov(2 * xp.pi * n_max, z0, reortho_dt=1, tol=1e-10, solver='RK45')
 #print(lyap)
 
 # Plot of the Poincaré section
-#sol = hs.integrate(z0, t_eval, timestep=5e-2, solver='BM4')
+#sol = hs.integrate(z0, t_eval, timestep=5e-2, solver='BM4', extension=True)
 #hs.plot_sol(sol, wrap=True)
 #hs.plot_sol(sol)
 
