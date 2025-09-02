@@ -42,11 +42,7 @@ class GC2Ds(HamSys):
 	def __init__(self, params) -> None:
 		super().__init__(ndof=1.5)
 		self.A, self.M = params["A"], params["M"]
-		self.CheckEnergy = params["CheckEnergy"] if "CheckEnergy" in params else False
-		self.Lyapunov = params["Lyapunov"] if "Lyapunov" in params else False
 		seed = params["seed"] if "seed" in params else 27
-		if self.Lyapunov:
-			self.CheckEnergy = False
 		xp.random.seed(seed)
 		self.phases = 2 * xp.pi * xp.random.random((self.M, self.M))
 		self.nm = xp.meshgrid(xp.arange(self.M+1), xp.arange(self.M+1), indexing='ij')
@@ -55,8 +51,7 @@ class GC2Ds(HamSys):
 		sqrt_nm = xp.sqrt(self.nm[0]**2 + self.nm[1]**2)
 		self.phic[sqrt_nm > self.M] = 0
 		self.d1phic = xp.asarray([-self.nm[1] * self.phic, self.nm[0] * self.phic])	
-		if self.Lyapunov:
-			self.d2phic = xp.asarray([-self.nm[0]**2 * self.phic, -self.nm[0] * self.nm[1] * self.phic,\
+		self.d2phic = xp.asarray([-self.nm[0]**2 * self.phic, -self.nm[0] * self.nm[1] * self.phic,\
 							  -self.nm[1]**2 * self.phic])
 
 	def initial_conditions(self, n_traj=1, x=None, y=None, type='fixed', seed=None):

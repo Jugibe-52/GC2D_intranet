@@ -11,17 +11,17 @@ A = 0.6
 M = 25
 
 # parameters
-Ntraj = 20
-n_max = 500
+Ntraj = 50
+n_max = 50
 
-n_data = 8
-n_process = 4
+n_data = 100
+n_process = 100
 
-default_time_step = 1e-1
+default_time_step = 2e-1
 default_omega = 10
 solver = 'BM4'  
 
-parameters = {"A": A, "M": M, "CheckEnergy": True, "Lyapunov": False}
+parameters = {"A": A, "M": M}
 hs = GC2Ds(parameters)
 z0 = hs.initial_conditions(Ntraj, type="random")
 
@@ -37,10 +37,10 @@ t_eval = 2 * xp.pi * xp.arange(n_max)
 
 parameters.update({"Ntraj": Ntraj, "n_max": n_max, "solver": solver})
 
-mode = 'omega'
+mode = 'step'
 
 if mode == 'omega':
-    param_list = xp.logspace(-1, 2, n_data)  
+    param_list = xp.logspace(-2, 2, n_data)  
     parameters.update({"mode": mode, "omega": param_list, "timestep": default_time_step})
 elif mode == 'step':
     param_list = xp.logspace(-2, 0, n_data)[::-1]  
@@ -51,9 +51,9 @@ else:
 def run_one(param):
     step = param if mode == 'step' else default_time_step
     om = param if mode == 'omega' else default_omega 
-    sol = hs.integrate(z0, t_eval, timestep=step, omega=om, display=False, solver=solver)
-    print(f"{mode} = {param:.3e}   error = {sol.err / Ntraj}  dist_copy = {sol.dist_copy}")
-    return (param, sol.err / Ntraj, sol.dist_copy)
+    sol = hs.integrate(z0, t_eval, timestep=step, omega=om, display=False, solver=solver, extension=True, check_energy=True)
+    print(f"{mode} = {param:.3e}   error = {sol.err / Ntraj}  dist_copy = {sol.dist_copy}  CPU_time = {int(sol.cpu_time)}s")
+    return (sol.step, sol.err / Ntraj, sol.dist_copy, sol.cpu_time)
 
 if __name__ == '__main__':
     with mp.Pool(processes=n_process) as pool:
