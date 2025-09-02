@@ -246,11 +246,6 @@ class GC2D(HamSys):
 			vx, vy = xp.split(xp.split(z, 2)[1], 2)
 			return xp.concatenate((vx * self.v_fo, vy * self.v_fo, -dphi_dx * self.phi_fo\
 						   + vy * self.omlar, -dphi_dy * self.phi_fo - vx * self.omlar), axis=None)
-
-	def y_dot_ext(self, t, z):
-		if self.CheckEnergy:
-			return xp.concatenate((self.y_dot(t, z[:-1]), self.k_dot(t, z[:-1])), axis=None)
-		return self.y_dot(t, z)
 	
 	def y_dot_lyap(self, t, z):
 		if self.traj["type"] == 'fo':
@@ -274,7 +269,7 @@ class GC2D(HamSys):
 			phi *= -self.phi_fo
 		return phi
 
-	def chi_fo(self, h, t, z):
+	def chi(self, h, t, z):
 		if self.CheckEnergy:
 			x, y, vx, vy = xp.split(z[:-1], 4)
 			k = z[-1]
@@ -290,7 +285,7 @@ class GC2D(HamSys):
 		k += h * self.phi_fo * self.k_dot(t, xp.concatenate((x, y), axis=None)) 
 		return xp.concatenate((x, y, vx, vy, k), axis=None)
 	
-	def chi_star_fo(self, h, t, z):
+	def chi_star(self, h, t, z):
 		if self.CheckEnergy:
 			x, y, vx, vy = xp.split(z[:-1], 5)
 			k = z[-1]
@@ -312,29 +307,6 @@ class GC2D(HamSys):
 		v = vy + 1j * vx
 		theta, rho = xp.pi + xp.angle(v), self.rho * xp.abs(v)
 		return x - rho * xp.cos(theta), y + rho * xp.sin(theta)
-    
-	def integrate(self, z0, t_eval, timestep, solver="BM4", omega=10, tol=1e-8, display=True):
-		if display:
-			print(f"\033[92m   Integration of {self.__str__()} \033[00m")
-		start = time.time()
-		if solver not in METHODS and solver not in IVP_METHODS:
-			raise ValueError(f"Solver {solver} is not recognized.")
-		if solver in IVP_METHODS and self.CheckEnergy:
-			z0 = xp.append(z0, 0)
-		if solver in IVP_METHODS:
-			sol = solve_ivp(self.y_dot_ext, (t_eval[0], t_eval[-1]), z0, t_eval=t_eval, method=solver, atol=tol, rtol=tol)
-			sol = self.rectify_sol(sol, check_energy=self.CheckEnergy)
-		else:
-			if self.traj["type"] == 'fo':
-				sol = solve_ivp_symp(self.chi_fo, self.chi_star_fo, (t_eval[0], t_eval[-1]), z0, step=timestep, t_eval=t_eval, method=solver)
-				sol = self.rectify_sol(sol, check_energy=self.CheckEnergy)
-			elif self.traj["type"] == 'gc':
-				sol = solve_ivp_sympext(self, (t_eval[0], t_eval[-1]), z0, step=timestep, t_eval=t_eval, method=solver, check_energy=self.CheckEnergy, omega=omega)
-		if display:
-			print(f'\033[90m        Computation finished in {int(time.time() - start)} seconds \033[00m')
-			if self.CheckEnergy and hasattr(sol, 'err'):
-				print(f'\033[90m           with error in energy = {sol.err / (len(z0) // 2)}')
-		return sol
 	
 	def compute_lyapunov(self, tf, z0, reortho_dt, tol=1e-8, solver='RK45'):
 		if solver not in IVP_METHODS:
