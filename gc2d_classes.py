@@ -38,7 +38,7 @@ import time
 def real_imag(z):
 	return z.real, z.imag
 
-def extract_potential(filename, nx=None, ny=None):
+def extract_potential(filename, A=1, nx=None, ny=None):
 	import h5py
 	with h5py.File(filename, 'r') as f:
 		x = np.asarray(f['Rcells'][:])
@@ -51,7 +51,7 @@ def extract_potential(filename, nx=None, ny=None):
 			raise ValueError("No nonzero frequency mode found in potential data.")
 		i_omega = nonzero_indices[0]
 		omega = 2 * np.pi * freqs[i_omega]
-		values = potential[i_omega, :, :] / omega
+		values = A * potential[i_omega, :, :] / omega
 	return Potential(x, y, values, nx=nx, ny=ny)
 
 class Potential:
@@ -149,7 +149,7 @@ class GC2D(HamSys):
 
 	def phic_interp(self, xi, yi, dx=0, dy=0):
 		interp_pot = np.zeros_like(xi, dtype=np.complex128)
-		if self.potential.xy_period is not None:
+		if self.potential.xy_period:
 			xi, yi = self.potential.wrap(xi, yi)
 			ind = np.arange(len(xi))
 		else:
@@ -294,7 +294,7 @@ class GC2D(HamSys):
 		x, y = np.split(sol.y if self.traj["type"] == 'gc' else np.split(sol.y, 2)[0], 2)
 		if wrap:
 			x, y = self.potential.wrap(x, y)
-		plt.plot(x, y, '.', color='blue')
+		plt.plot(x.T, y.T, '.')
 		plt.xlabel('x')
 		plt.ylabel('y')
 		plt.xlim(self.potential.xmin, self.potential.xmax)
