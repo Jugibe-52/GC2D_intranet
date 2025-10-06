@@ -7,8 +7,8 @@ from gc2d_classes import mock_potential, extract_potential, GC2D
 from pathlib import Path
 
 # potential
-Nx, Ny =128, 128
-A = 0.01
+Nx, Ny = 128, 128
+A = 0.67
 
 # M = 25
 # potential = mock_potential(A, M, Nx, Ny)
@@ -36,5 +36,5 @@ t_eval = 2 * xp.pi * xp.arange(n_max)
 
 # Poincaré section
 sol = hs.integrate(z0, t_eval, solver='BM4', timestep=5e-2, omega=10, diss=5,\
-                    extension=True if traj_type == 'gc' else False, check_energy=True)
+                   extension=True if traj_type == 'gc' else False, check_energy=True)
 hs.plot_sol(sol, wrap=False)
