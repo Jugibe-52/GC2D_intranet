@@ -30,27 +30,17 @@ from numpy.fft import fft2, ifft2, fftfreq
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 from matplotlib.colors import LogNorm
-from scipy.integrate._ivp.ivp import METHODS as IVP_METHODS
 from scipy.interpolate import RectBivariateSpline
 from scipy.integrate import solve_ivp
 from scipy.special import jv
 from scipy.stats import linregress
-from scipy.io import savemat
-from pyhamsys import METHODS, OdeSolution, HamSys, solve_ivp_symp, solve_ivp_sympext
+from pyhamsys import OdeSolution, HamSys
 from typing import List, Union
 from datetime import date
 import time
 
 def real_imag(z:xp.ndarray):
 	return z.real, z.imag
-
-def save_data(self, data, filestr:str, info=[]) -> None:
-	if self.SaveData:
-		mdic = {'x': self.x, 'y': self.y, 'potential': self.potential, 'xy_period': self.xy_period}
-		mdic.update({'data': data, 'info': info})
-		mdic.update({'date': date.today().strftime(" %B %d, %Y\n"), 'author': 'cristel.chandre@cnrs.fr'})
-		savemat(filestr + '.mat', mdic)
-		print(f'\033[90m        Results saved in {filestr}.mat \033[00m')
 
 def extract_potential(filename, nx=None, ny=None):
 	import h5py
@@ -60,9 +50,12 @@ def extract_potential(filename, nx=None, ny=None):
 		freqs = xp.array(f['freqs'][:])
 		potential = xp.array(f['PHI_filtered_FT'])
 		sum_xy = xp.sum(potential, axis=(1, 2))
-		i_omega = xp.flatnonzero(sum_xy)[0]
+		nonzero_indices = xp.flatnonzero(sum_xy)
+		if nonzero_indices.size == 0:
+			raise ValueError("No nonzero frequency mode found in potential data.")
+		i_omega = nonzero_indices[0]
 		omega = 2 * xp.pi * freqs[i_omega]
-		values = xp.array(f['PHI_filtered_FT'][i_omega,:,:]) / omega
+		values = potential[i_omega, :, :] / omega
 	return Potential(x, y, values, nx=nx, ny=ny)
 
 class Potential:
@@ -79,17 +72,17 @@ class Potential:
 			raise ValueError("Values in `x` or `y` are not properly sorted.")
 		if xp.all(xp.abs(diff_x - diff_x[0]) > tol) or xp.all(xp.abs(diff_y - diff_y[0]) > tol):
 			raise ValueError("Values in `x` or `y` are not uniformly spaced.")
-		self.xmin, self.xmax = x.min(), x.max()
-		self.ymin, self.ymax = y.min(), y.max()
-		self.x = x if nx is None else xp.linspace(self.xmin, self.xmax, nx)
-		self.y = y if ny is None else xp.linspace(self.ymin, self.ymax, ny)
-		self.dx, self.dy = self.x[1] - self.x[0], self.y[1] - self.y[0]
 		self.xy_period = xy_period
-		self.nx, self.ny = self.x.size, self.y.size
-		if nx is None and ny is None:
-			self.values = values
+		if nx is not None or ny is not None:
+			xi = xp.linspace(x.min(), x.max(), nx)
+			yi = xp.linspace(y.min(), y.max(), ny)
+			values_ = self.interp_potential(xi, yi, x, y, values, k=k, xy_period=xy_period)
 		else:
-			self.values = self.interp_potential(output="values", k=k)
+			xi, yi, values_ = x, y, values
+		self.x, self.y, self.values = xi, yi, values_
+		self.dx, self.dy = self.x[1] - self.x[0], self.y[1] - self.y[0]
+		self.xmin, self.xmax, self.ymin, self.ymax = self.x.min(), self.x.max(), self.y.min(), self.y.max()
+		self.nx, self.ny = self.x.size, self.y.size
 
 	def gyroaverage(self, rho):
 		fft_potential = fft2(self.values)
@@ -98,26 +91,27 @@ class Potential:
 		return  ifft2(fft_potential * jv(0, 2 * xp.pi * rho * xp.sqrt(kx_**2 + ky_**2)))
 	
 	def wrap(self, xi, yi):
+		if self.xy_period is None:
+			return xi, yi
 		xi = ((xp.asarray(xi) - self.xmin) % self.xy_period) + self.xmin
 		yi = ((xp.asarray(yi) - self.ymin) % self.xy_period) + self.ymin
 		return xi, yi
 	
-	def interp_potential(self, output="interpolator", k=3):
-		kl, kr = k + 1, k + 2 if  self.xy_period is not None else k + 1
-		x = xp.pad(self.x, (kl, kr), mode='linear_ramp', end_values=(self.xmin - kl * self.dx, self.xmax + kr * self.dx))
-		y = xp.pad(self.y, (kl, kr), mode='linear_ramp', end_values=(self.ymin - kl * self.dy, self.ymax + kr * self.dy))
-		if self.xy_period is not None:
-			values = xp.pad(self.values, ((kl, kr), (kl, kr)), mode='wrap')
+	def potential_interpolator(self, x, y, values, k=3, xy_period=None):
+		kl, kr = k + 1, k + 2 if  xy_period is not None else k + 1
+		xmin, xmax, ymin, ymax = x.min(), x.max(), y.min(), y.max()
+		dx, dy = x[1] - x[0], y[1] - y[0]
+		x = xp.pad(x, (kl, kr), mode='linear_ramp', end_values=(xmin - kl * dx, xmax + kr * dx))
+		y = xp.pad(y, (kl, kr), mode='linear_ramp', end_values=(ymin - kl * dy, ymax + kr * dy))
+		if xy_period is not None:
+			values = xp.pad(values, ((kl, kr), (kl, kr)), mode='wrap')
 		else:
-			values = xp.pad(self.values, ((kl, kr), (kl, kr)), mode='constant', constant_values=0)
-		interp_real, interp_imag = RectBivariateSpline(x, y, values.real, kx=k, ky=k), RectBivariateSpline(x, y, values.imag, kx=k, ky=k)
-		if output == "interpolator":
-			return interp_real, interp_imag
-		elif output == "values":
-			values = interp_real(x, y) + 1j * interp_imag(x, y)
-			return values[kl:-kr, kl:-kr]
-		else:
-			raise ValueError("Output must be 'interpolator' or 'values'.")
+			values = xp.pad(values, ((kl, kr), (kl, kr)), mode='constant', constant_values=0)
+		return RectBivariateSpline(x, y, values.real, kx=k, ky=k), RectBivariateSpline(x, y, values.imag, kx=k, ky=k)
+	
+	def interp_potential(self, xi, yi, x, y, values, k=3, xy_period=None):
+		interp_real, interp_imag = self.potential_interpolator(x, y, values, k=k, xy_period=xy_period)
+		return interp_real(xi, yi) + 1j * interp_imag(xi, yi)
 	
 	def isinside(self, x, y):
 		return (x > self.xmin) & (x < self.xmax) & (y > self.ymin) & (y < self.ymax)
@@ -139,7 +133,7 @@ class GC2D(HamSys):
 	def __str__(self) -> str:
 		return f'2D Guiding Center ({self.__class__.__name__}) for turbulent potentials'
 		
-	def __init__(self, potential, traj, k=3, SaveData=False):
+	def __init__(self, potential, traj, k=3):
 		super().__init__(ndof=1.5 if traj["type"]=='gc' else 2.5, btype='pq')
 		self.traj = traj
 		self.rho = traj["rho"] if "rho" in traj else 0
@@ -150,11 +144,10 @@ class GC2D(HamSys):
 		self.Lyapunov = traj["Lyapunov"] if "Lyapunov" in traj else False
 		if self.Lyapunov:
 			self.CheckEnergy = False
-		self.SaveData = SaveData
 		if self.rho != 0:
 			potential.values = potential.gyroaverage(self.rho)
 		self.potential = potential
-		self.spline_real, self.spline_imag = self.potential.interp_potential(output="interpolator", k=k)
+		self.spline_real, self.spline_imag = potential.potential_interpolator(potential.x, potential.y, potential.values, k=k, xy_period=potential.xy_period)
 		if self.traj["type"] == 'fo':
 			self.v_fo = self.rho / (2 * xp.abs(self.eta))
 			self.phi_fo = xp.sign(self.eta) / self.rho
@@ -308,26 +301,6 @@ class GC2D(HamSys):
 		theta, rho = xp.pi + xp.angle(v), self.rho * xp.abs(v)
 		return x - rho * xp.cos(theta), y + rho * xp.sin(theta)
 	
-	def compute_lyapunov(self, tf, z0, reortho_dt, tol=1e-8, solver='RK45'):
-		if solver not in IVP_METHODS:
-			raise ValueError(f"Solver {solver} is not recognized for Lyapunov exponent computation.")
-		start = time.time()
-		n = len(z0) // 2
-		lyap_sum = xp.zeros((2, n), dtype=xp.float64)
-		t, z = 0, xp.concatenate((z0, xp.ones(n), xp.zeros(n), xp.zeros(n), xp.ones(n)), axis=None)
-		for _ in range(int(tf / reortho_dt)):
-			sol = solve_ivp(self.y_dot_lyap, (t, t + reortho_dt), z, method=solver, t_eval=[t + reortho_dt], atol=tol, rtol=tol)
-			z, Q = sol.y[:2 * n, -1], xp.moveaxis(sol.y[2 * n:, -1].reshape((2, 2, n)), -1, 0)
-			for i in range(n):
-				q, r = xp.linalg.qr(Q[i])
-				lyap_sum[:, i] += xp.log(xp.abs(xp.diag(r)))
-				Q[i] = q
-			t += reortho_dt
-			z = xp.concatenate((z, xp.moveaxis(Q, 0, -1)), axis=None)
-		print(f'\033[90m        Computation finished in {int(time.time() - start)} seconds \033[00m')
-		lyap_sort = xp.sort(lyap_sum / tf)
-		return lyap_sort
-	
 	def plot_sol(self, sol, wrap=False): 
 		x, y = xp.split(sol.y if self.traj["type"] == 'gc' else xp.split(sol.y, 2)[0], 2)
 		if wrap:
@@ -408,8 +381,8 @@ class Trajectory(GC2D):
 		rotation_numb = xp.sum(x[:, 1:] * omega[xp.newaxis, :], axis=1) / xp.sum(omega)
 		if plot:
 			fig, ax = plt.subplots(1, 1)
-			ax.set_xlabel('$n$')
-			ax.set_ylabel('$\omega$')
+			ax.set_xlabel(r'$n$')
+			ax.set_ylabel(r'$\omega$')
 			ax.plot(rotation_numb, '.', markersize=3)
 			if save:
 				fig.savefig(filename + extension, dpi=self.dpi)
