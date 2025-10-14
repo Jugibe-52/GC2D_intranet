@@ -43,16 +43,13 @@ def extract_potential(filename, A=1, nx=None, ny=None):
 	with h5py.File(filename, 'r') as f:
 		x = np.asarray(f['Rcells'][:])
 		y = np.asarray(f['Zcells'][:])
-		freqs = np.asarray(f['freqs'][:])
-		potential = np.asarray(f['PHI_filtered_FT'])
-		sum_xy = np.sum(potential, axis=(1, 2))
-		nonzero_indices = np.flatnonzero(sum_xy)
-		if nonzero_indices.size == 0:
-			raise ValueError("No nonzero frequency mode found in potential data.")
-		i_omega = nonzero_indices[0]
-		omega = 2 * np.pi * freqs[i_omega]
-		values = A * potential[i_omega, :, :] / omega
-	return Potential(x, y, values, nx=nx, ny=ny)
+		freq = f['freq']
+		meanvalue = np.asarray(f['meanvalue'][:])
+		fluctuation = np.asarray(f['fluctuation'][:])
+		omega = 2 * np.pi * freq
+		fluctuation *= A / omega
+		meanvalue *= A / omega
+	return Potential(x, y, meanvalue, fluctuation, nx=nx, ny=ny)
 
 class Potential:
 	def __init__(self, x, y, values, nx=None, ny=None, xy_period=None, k=3):
