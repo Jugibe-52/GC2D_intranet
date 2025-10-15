@@ -44,69 +44,85 @@ def extract_potential(filename, A=1, nx=None, ny=None):
 		x = np.asarray(f['Rcells'][:])
 		y = np.asarray(f['Zcells'][:])
 		freq = f['freq']
-		meanvalue = np.asarray(f['meanvalue'][:])
-		fluctuation = np.asarray(f['fluctuation'][:])
+		meanvalue = np.asarray(f['meanvalue'][:], dtype=np.float64)
+		fluctuation = np.asarray(f['fluctuation'][:], dtype=np.complex128)
 		omega = 2 * np.pi * freq
 		fluctuation *= A / omega
 		meanvalue *= A / omega
-	return Potential(x, y, meanvalue, fluctuation, nx=nx, ny=ny)
+	return Potential(x, y, [meanvalue, fluctuation], freqs=[0, 1], nx=nx, ny=ny)
 
 class Potential:
-	def __init__(self, x, y, values, nx=None, ny=None, xy_period=None, k=3):
-		x, y, values = np.asarray(x), np.asarray(y), np.asarray(values)
+	def __init__(self, x, y, fields, freqs=1, nx=None, ny=None, xy_period=None, k=3):
+		x, y, fields = np.asarray(x), np.asarray(y), [np.asarray(field) for field in fields]
 		if x.ndim != 1:
 			raise ValueError("`x` must be 1-dimensional.")
 		if y.ndim != 1:
 			raise ValueError("`y` must be 1-dimensional.")
-		if values.shape != (len(x), len(y)):
-			raise ValueError("Shape of `values` must match the lengths of `x` and `y`.")
+		if fields[0].shape != (len(x), len(y)):
+			raise ValueError("Shape of `fields` must match the lengths of `x` and `y`.")
 		diff_x, diff_y = np.diff(x), np.diff(y)
 		if np.any(diff_x <= 0) or np.any(diff_y <= 0):
 			raise ValueError("Values in `x` or `y` are not properly sorted.")
 		if not np.allclose(diff_x, diff_x[0]) or not np.allclose(diff_y, diff_y[0]):
 			raise ValueError("Values in `x` or `y` are not uniformly spaced.")
+		self.freqs = np.atleast_1d(freqs)
 		self.xy_period = xy_period
+		self.k = k
 		if nx is not None or ny is not None:
 			xi = np.linspace(x.min(), x.max(), nx)
 			yi = np.linspace(y.min(), y.max(), ny)
-			values_ = self.interp_potential(xi, yi, x, y, values, k=k, xy_period=xy_period)
+			fields_ = self.interp_potential(xi, yi)
 		else:
-			xi, yi, values_ = x, y, values
-		self.x, self.y, self.values = xi, yi, values_
+			xi, yi, fields_ = x, y, fields
+		self.x, self.y, self.fields = xi, yi, fields_
 		self.dx, self.dy = self.x[1] - self.x[0], self.y[1] - self.y[0]
 		self.xmin, self.xmax, self.ymin, self.ymax = self.x.min(), self.x.max(), self.y.min(), self.y.max()
 		self.nx, self.ny = self.x.size, self.y.size
 
 	def gyroaverage(self, rho):
-		fft_potential = fft2(self.values)
 		kx, ky = fftfreq(self.nx, d=self.dx), fftfreq(self.ny, d=self.dy)
 		kx_, ky_ = np.meshgrid(kx, ky, indexing='ij')
-		return  ifft2(fft_potential * jv(0, 2 * np.pi * rho * np.sqrt(kx_**2 + ky_**2)))
-	
-	def wrap(self, xi, yi):
+		vec_fields = []
+		for field, freq in zip(self.fields, self.freqs):
+			gyro_field = ifft2(fft2(field) * jv(0, 2 * np.pi * rho * np.sqrt(kx_**2 + ky_**2))) 
+			if freq == 0:
+				gyro_field = gyro_field.real
+			vec_fields += [gyro_field]
+		return vec_fields
+
+	def wrap_or_clip(self, xi, yi):
 		if self.xy_period is None:
-			return xi, yi
-		xi = ((np.asarray(xi) - self.xmin) % self.xy_period) + self.xmin
-		yi = ((np.asarray(yi) - self.ymin) % self.xy_period) + self.ymin
+			xi = np.clip(xi, self.xmin, self.xmax)
+			yi = np.clip(yi, self.ymin, self.ymax)
+		else:
+			xi = ((np.asarray(xi) - self.xmin) % self.xy_period) + self.xmin
+			yi = ((np.asarray(yi) - self.ymin) % self.xy_period) + self.ymin
 		return xi, yi
 	
-	def potential_interpolator(self, x, y, values, k=3, xy_period=None):
-		kl, kr = k + 1, k + 2 if  xy_period is not None else k + 1
-		xmin, xmax, ymin, ymax = x.min(), x.max(), y.min(), y.max()
-		dx, dy = x[1] - x[0], y[1] - y[0]
-		x_ = np.pad(x, (kl, kr), mode='linear_ramp', end_values=(xmin - kl * dx, xmax + kr * dx))
-		y_ = np.pad(y, (kl, kr), mode='linear_ramp', end_values=(ymin - kl * dy, ymax + kr * dy))
-		if xy_period:
-			values_ = np.pad(values, ((kl, kr), (kl, kr)), mode='wrap')
+	def potential_interpolator(self, fields, freqs):
+		kl, kr = self.k + 1, self.k + 2 if  self.xy_period is not None else self.k + 1
+		x_ = np.pad(self.x, (kl, kr), mode='linear_ramp', end_values=(self.xmin - kl * self.dx, self.xmax + kr * self.dx))
+		y_ = np.pad(self.y, (kl, kr), mode='linear_ramp', end_values=(self.ymin - kl * self.dy, self.ymax + kr * self.dy))
+		if self.xy_period:
+			fields_ = [np.pad(field, ((kl, kr), (kl, kr)), mode='wrap') for field in fields]
 		else:
-			values_ = np.pad(values, ((kl, kr), (kl, kr)), mode='constant', constant_values=0)
-		return RectBivariateSpline(x_, y_, values_.real, kx=k, ky=k), \
-			RectBivariateSpline(x_, y_, values_.imag, kx=k, ky=k)
-	
-	def interp_potential(self, xi, yi, x, y, values, k=3, xy_period=None):
-		interp_real, interp_imag = self.potential_interpolator(x, y, values, k=k, xy_period=xy_period)
-		return interp_real(xi, yi) + 1j * interp_imag(xi, yi)
-	
+			fields_ = [np.pad(field, ((kl, kr), (kl, kr)), mode='constant', constant_values=0) for field in fields]
+		vec_splines =[]
+		for field, freq in zip(fields_, freqs):
+			if freq == 0:
+				vec_splines.append((RectBivariateSpline(x_, y_, field, kx=self.k, ky=self.k), None))
+			else:
+				interp_real = RectBivariateSpline(x_, y_, field.real, kx=self.k, ky=self.k)
+				interp_imag = RectBivariateSpline(x_, y_, field.imag, kx=self.k, ky=self.k)
+				vec_splines.append((interp_real, interp_imag))
+		return vec_splines
+
+	def interp_potential(self, xi, yi, interpolators):
+		vec_interp = []
+		for (interp_real, interp_imag) in interpolators:
+			vec_interp.append([interp_real(xi, yi) + 1j * interp_imag(xi, yi)] if interp_imag is not None else [interp_real(xi, yi)])
+		return vec_interp
+
 	def isinside(self, x, y):
 		return (x > self.xmin) & (x < self.xmax) & (y > self.ymin) & (y < self.ymax)
 	
@@ -121,7 +137,7 @@ def mock_potential(A, M, nx, ny, seed=27):
     fft_phic[1:, 1:] = A / (nm[0][1:, 1:]**2 + nm[1][1:, 1:]**2)**1.5 * np.exp(1j * phases)
     fft_phic[np.sqrt(nm[0]**2 + nm[1]**2) > M] = 0
     exp_xy = np.exp(1j * (nm[0][:, :, None, None] * X[None, None, :, :] + nm[1][:, :, None, None] * Y[None, None, :, :]))
-    return Potential(x, y, np.einsum('nm,nm...->...', fft_phic, exp_xy), xy_period=2 * np.pi)
+    return Potential(x, y, [np.einsum('nm,nm...->...', fft_phic, exp_xy)], freqs=1, xy_period=2 * np.pi)
 
 class GC2D(HamSys):
 	def __str__(self) -> str:
@@ -136,26 +152,19 @@ class GC2D(HamSys):
 			raise ValueError(f"Interpolation order {k} is too low for rho = {self.rho}. Increase k or decrease rho.")
 		self.CheckEnergy = traj["CheckEnergy"] if "CheckEnergy" in traj else False
 		if self.rho != 0:
-			potential.values = potential.gyroaverage(self.rho)
+			potential.fields = potential.gyroaverage(self.rho)
 		self.potential = potential
-		self.spline_real, self.spline_imag = potential.potential_interpolator(potential.x, potential.y, potential.values, k=k, xy_period=potential.xy_period)
+		self.interpolators = potential.potential_interpolator(potential.fields, potential.freqs)
 		if self.traj["type"] == 'fo':
 			self.v_fo = self.rho / (2 * np.abs(self.eta))
 			self.phi_fo = np.sign(self.eta) / self.rho
 			self.omlar = 1 / (2 * self.eta)
 
 	def phic_interp(self, xi, yi, dx=0, dy=0):
-		interp_pot = np.zeros_like(xi, dtype=np.complex128)
-		if self.potential.xy_period:
-			xi, yi = self.potential.wrap(xi, yi)
-			ind = np.arange(len(xi))
-		else:
-			ind = self.potential.isinside(xi, yi)
-		interp_pot[ind] = self.spline_real.ev(xi[ind], yi[ind], dx=dx, dy=dy) + \
-							1j * self.spline_imag.ev(xi[ind], yi[ind], dx=dx, dy=dy)
-		return interp_pot
+		xi, yi = self.potential.wrap_or_clip(xi, yi)
+		return np.asarray([interp_real.ev(xi, yi, dx=dx, dy=dy) + 1j * interp_imag.ev(xi, yi, dx=dx, dy=dy) if interp_imag is not None else interp_real.ev(xi, yi, dx=dx, dy=dy) for (interp_real, interp_imag) in self.interpolators])
 	
-	def plot_potential(self, dx=0, dy=0, nx=512, ny=512):
+	def plot_potential(self, ind, dx=0, dy=0, nx=512, ny=512):
 
 		def white_centered_cmap(vmin, vmax):
 			norm = mcolors.TwoSlopeNorm(vmin=vmin, vcenter=0.0, vmax=vmax)
@@ -163,21 +172,33 @@ class GC2D(HamSys):
 		
 		x = np.linspace(self.potential.xmin, self.potential.xmax + self.potential.dx, nx, endpoint=False)
 		y = np.linspace(self.potential.ymin, self.potential.ymax + self.potential.dy, ny, endpoint=False)
-		Z = self.spline_real(x, y, dx=dx, dy=dy) + 1j * self.spline_imag(x, y, dx=dx, dy=dy)
+		spline_real, spline_imag = self.interpolators[ind]
+		Z = spline_real(x, y, dx=dx, dy=dy) + 1j * spline_imag(x, y, dx=dx, dy=dy) if spline_imag is not None else spline_real(x, y, dx=dx, dy=dy)
 
+		if spline_imag is None:
+			vmin, vmax = Z.min(), Z.max()
+			cmap, norm = white_centered_cmap(vmin, vmax)
+			plt.figure(figsize=(6, 5))
+			c = plt.pcolormesh(x, y, Z.T, shading='auto', cmap=cmap, norm=norm)
+			plt.title(f'Potential (dx={dx}, dy={dy}) (freq={self.potential.freqs[ind]})')
+			plt.xlabel('x')
+			plt.ylabel('y')
+			plt.colorbar(c)
+			plt.tight_layout()
+			plt.show()
+			return
 		vmin_real, vmax_real = Z.real.min(), Z.real.max()
 		vmin_imag, vmax_imag = Z.imag.min(), Z.imag.max()
-
 		fig, axs = plt.subplots(1, 2, figsize=(12, 5))
 		cmap_real, norm_real = white_centered_cmap(vmin_real, vmax_real)
 		c1 = axs[0].pcolormesh(x, y, Z.real.T, shading='auto', cmap=cmap_real, norm=norm_real)
-		axs[0].set_title(f'Real part of (dx={dx}, dy={dy}) potential')
+		axs[0].set_title(f'Real part of (dx={dx}, dy={dy}) potential (freq={self.potential.freqs[ind]})')
 		axs[0].set_xlabel('x')
 		axs[0].set_ylabel('y')
 		fig.colorbar(c1, ax=axs[0])
 		cmap_imag, norm_imag = white_centered_cmap(vmin_imag, vmax_imag)
 		c2 = axs[1].pcolormesh(x, y, Z.imag.T, shading='auto', cmap=cmap_imag, norm=norm_imag)
-		axs[1].set_title(f'Imaginary part of (dx={dx}, dy={dy}) potential')
+		axs[1].set_title(f'Imaginary part of (dx={dx}, dy={dy}) potential (freq={self.potential.freqs[ind]})')
 		axs[1].set_xlabel('x')
 		axs[1].set_ylabel('y')
 		fig.colorbar(c2, ax=axs[1])
@@ -207,7 +228,7 @@ class GC2D(HamSys):
 
 	def hamiltonian(self, t, z):
 		if self.traj["type"] == 'gc':
-			return np.sum((self.phic_interp(*np.split(z, 2)) * np.exp(-1j * t)).imag, axis=0)
+			return np.sum((self.phic_interp(*np.split(z, 2)) * np.exp(-1j * self.freq * t)).real, axis=(0, 1))
 		elif self.traj["type"] == 'fo': 
 			x, y, vx, vy = np.split(z, 4)
 			phi_c = self.phic_interp(x, y)
@@ -215,10 +236,10 @@ class GC2D(HamSys):
 				  + (phi_c * np.exp(-1j * t)).imag * np.sign(self.eta) / self.rho, axis=0)
         
 	def y_dot(self, t, z):
-		phase = np.exp(-1j * t)
+		phases = np.exp(-1j * self.freqs *t)
 		x, y = np.split(z if self.traj["type"] == 'gc' else np.split(z, 2)[0], 2)
-		dphi_dx = (self.phic_interp(x, y, dx=1) * phase).imag
-		dphi_dy = (self.phic_interp(x, y, dy=1) * phase).imag
+		dphi_dx = (self.phic_interp(x, y, dx=1) * phases).real
+		dphi_dy = (self.phic_interp(x, y, dy=1) * phases).real
 		if self.traj["type"] == 'gc':
 			return np.concatenate((-dphi_dy, dphi_dx), axis=None)
 		elif self.traj["type"] == 'fo':
