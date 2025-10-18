@@ -8,14 +8,14 @@ from pathlib import Path
 
 # potential
 Nx, Ny = 128, 128
-A = 0.67
+B = 1.5
 
 # M = 25
 # potential = mock_potential(A, M, Nx, Ny)
 
 path = Path("/Users/cchandre/Desktop")
 filename = path / 'PHI_filtered.h5'
-potential = extract_potential(filename, A=A, nx=Nx, ny=Ny)
+potential = extract_potential(filename, B=B, nx=Nx, ny=Ny)
 
 # parameters
 rho, eta = 0, 0
