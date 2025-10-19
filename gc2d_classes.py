@@ -52,9 +52,7 @@ def extract_potential(filename, B=1, nx=None, ny=None):
 		fields = np.delete(fields, index, axis=0)
 	fields = np.asarray(fields, dtype=np.complex128).reshape((-1, len(x), len(y)))
 	omega = 2 * np.pi * freqs[0]
-	meanvalue = meanvalue / (omega * B)
-	fields = fields / (omega * B)
-	return Potential(x, y, [meanvalue, fields], freqs / omega, nx=nx, ny=ny)
+	return Potential(x, y, [meanvalue / (omega * B), fields / (omega * B)], freqs / omega, nx=nx, ny=ny)
 
 class Potential:
 	def __init__(self, x, y, fields, freqs, nx=None, ny=None, xy_period=None, k=3):
