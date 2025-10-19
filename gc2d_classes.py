@@ -31,7 +31,6 @@ import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 from scipy.interpolate import RectBivariateSpline
 from scipy.special import jv
-from scipy.stats import linregress
 from pyhamsys import HamSys
 import time
 
@@ -186,14 +185,11 @@ class GC2D(HamSys, Potential):
 		return xi, yi
 	
 	def plot_potential(self, dx=0, dy=0, nx=512, ny=512):
-
 		def white_centered_cmap(vmin, vmax):
 			norm = mcolors.TwoSlopeNorm(vmin=vmin, vcenter=0.0, vmax=vmax)
 			return plt.get_cmap('RdBu_r'), norm
-		
 		x = np.linspace(self.xmin, self.xmax + self.dx, nx, endpoint=False)
 		y = np.linspace(self.ymin, self.ymax + self.dy, ny, endpoint=False)
-
 		if self.fields[0]:
 			Z = self.interpolators[0](x, y, dx=dx, dy=dy)
 			vmin, vmax = Z.min(), Z.max()
@@ -265,16 +261,15 @@ class GC2D(HamSys, Potential):
 			vx, vy = self.get_velocities(z)
 			return np.sum(self.rho / (4 * np.abs(self.eta)) * (vx**2 + vy**2) + phi_t * np.sign(self.eta) / self.rho)
         
-	def y_dot(self, t, z):
+	def y_dot(self, t, z, output='full'):
 		x, y = self.get_positions(z)
-		dphidx_c = self.phic_interp(x, y, dx=1)
-		dphidy_c = self.phic_interp(x, y, dy=1)
+		dphidx_c, dphidy_c = self.phic_interp(x, y, dx=1), self.phic_interp(x, y, dy=1)
 		dphidx_t, dphidy_t = dphidx_c[0], dphidy_c[0]
 		for fluct_x, fluct_y, freq in zip(dphidx_c[1], dphidy_c[1], self.freqs):
-			phases = np.exp(1j * freq * t)
-			dphidx_t += 2 * (fluct_x * phases).real
-			dphidy_t += 2 * (fluct_y * phases).real
-		if self.traj["type"] == 'gc':
+			phases = 2 * np.exp(1j * freq * t)
+			dphidx_t += (fluct_x * phases).real
+			dphidy_t += (fluct_y * phases).real
+		if self.traj["type"] == 'gc' or output == 'reduced':
 			return np.concatenate((-dphidy_t, dphidx_t), axis=None)
 		elif self.traj["type"] == 'fo':
 			vx, vy = self.get_velocities(z)
@@ -283,23 +278,37 @@ class GC2D(HamSys, Potential):
 
 	def y_dot_lyap(self, t, z):
 		if self.traj["type"] == 'fo':
-			raise NotImplementedError("Lyapunov exponents are not implemented for full orbits.")
-		x, y, J11, J12, J21, J22 = np.split(z, 6)
-		z_dot = self.y_dot(t, np.concatenate((x, y), axis=None))
+			x, y, vx, vy, *J = np.split(z, 20)
+			z = np.concatenate((x, y, vx, vy), axis=None)
+			J = np.array(J).reshape((4, 4, -1))
+		if self.traj["type"] == 'gc':
+			x, y, *J = np.split(z, 6)
+			z = np.concatenate((x, y), axis=None)
+			J = np.array(J).reshape((2, 2, -1))
+		z_dot = self.y_dot(t, z)
 		d2phidx2_c = self.phic_interp(x, y, dx=2) 
 		d2phidxdy_c = self.phic_interp(x, y, dx=1, dy=1)
 		d2phidy2_c = self.phic_interp(x, y, dy=2)
 		d2phidx2_t, d2phidxdy_t, d2phidy2_t = d2phidx2_c[0], d2phidxdy_c[0], d2phidy2_c[0]
 		for fluct_xx, fluct_xy, fluct_yy, freq in zip(d2phidx2_c[1], d2phidxdy_c[1], d2phidy2_c[1], self.freqs):
-			phase = np.exp(1j * freq * t)
-			d2phidx2_t += 2 * (fluct_xx * phase).real
-			d2phidxdy_t += 2 * (fluct_xy * phase).real
-			d2phidy2_t += 2 * (fluct_yy * phase).real
-		J11_dot = -J11 * d2phidxdy_t - J21 * d2phidy2_t
-		J12_dot = -J12 * d2phidxdy_t - J22 * d2phidy2_t
-		J21_dot = J11 * d2phidx2_t + J21 * d2phidxdy_t
-		J22_dot = J12 * d2phidx2_t + J22 * d2phidxdy_t
-		return np.concatenate((z_dot, J11_dot, J12_dot, J21_dot, J22_dot), axis=None)
+			phase = 2 * np.exp(1j * freq * t)
+			d2phidx2_t += (fluct_xx * phase).real
+			d2phidxdy_t += (fluct_xy * phase).real
+			d2phidy2_t += (fluct_yy * phase).real
+		A = np.zeros_like(J)
+		if self.traj["type"] == 'fo':
+			d2phidx2_c *= -self.phi_fo
+			d2phidxdy_c *= -self.phi_fo
+			d2phidy2_c *= -self.phi_fo
+			A[0, 2, :], A[1, 3, :] = self.v_fo * np.ones_like(x), self.v_fo * np.ones_like(x)
+			A[2, 3, :], A[3, 2, :] = self.omlar * np.ones_like(x), -self.omlar * np.ones_like(x)
+			A[2, 0, :], A[2, 1, :] = d2phidx2_t, d2phidxdy_t
+			A[3, 0, :], A[3, 1, :] = d2phidxdy_t, d2phidy2_t
+		if self.traj["type"] == 'gc':
+			A[0, 0, :], A[0, 1, :] = -d2phidxdy_t, -d2phidy2_t
+			A[1, 0, :], A[1, 1, :] = d2phidx2_t, d2phidxdy_t
+		J_dot = np.einsum('ijm,jkm->ikm', A, J)
+		return np.concatenate((z_dot, J_dot.reshape(-1)), axis=None)
 
 	def k_dot(self, t, z):
 		x, y = self.get_positions(z)
@@ -320,7 +329,7 @@ class GC2D(HamSys, Potential):
 		exp_ = np.exp(-1j * h * self.omlar)
 		x, y = real_imag(x + 1j * y + 1j * self.rho * np.sign(self.eta) * (exp_ - 1) * (vx + 1j * vy)) 
 		vx, vy = real_imag(exp_ * (vx + 1j * vy))
-		pot = np.split(self.y_dot(t, np.concatenate((x, y), axis=None)), 2)
+		pot = np.split(self.y_dot(t, np.concatenate((x, y), axis=None), output='reduced'), 2)
 		vx, vy = real_imag(vx + 1j * vy + h * 1j * (pot[0] + 1j * pot[1]) * self.phi_fo)
 		if not self.CheckEnergy:
 			return np.concatenate((x, y, vx, vy), axis=None)
@@ -333,7 +342,7 @@ class GC2D(HamSys, Potential):
 			k = z[-1]
 		else:
 			x, y, vx, vy = np.split(z, 4)
-		pot = np.split(self.y_dot(t, np.concatenate((x, y), axis=None)), 2)
+		pot = np.split(self.y_dot(t, np.concatenate((x, y), axis=None), output='reduced'), 2)
 		vx, vy = real_imag(vx + 1j * vy + h * 1j * (pot[0] + 1j * pot[1]) * self.phi_fo)
 		if self.CheckEnergy:
 			k += h * self.phi_fo * self.k_dot(t, np.concatenate((x, y), axis=None))
@@ -361,81 +370,3 @@ class GC2D(HamSys, Potential):
 			plt.xlim(self.xmin, self.xmax)
 			plt.ylim(self.ymin, self.ymax)
 		plt.show()
-
-class Trajectory(GC2D):
-	
-	type_dict = {'trapped': 0, 'diffusive': 1, 'ballistic': 2}
-	color_dict = {'trapped': '#0072bd', 'diffusive': '#EDB120', 'ballistic': '#D95319'}
-	omega = lambda t : np.exp(-1 / (t * (1 - t)))
-
-	def __init__(self, sol, ttype, dict_):
-		super().__init__(dict_)
-		self.type = ['trapped', 'diffusive', 'ballistic'] if ttype == 'all' else ttype
-		ntype = [type(self).type_dict[_] for _ in np.atleast_1d(self.type)]
-		x, y = np.split(sol.y, self.dim)[:2]
-		xgc, ygc = x, y if self.Method.endswith('gc') else self.fo2gc(sol.y)
-		vec = np.ones(xgc[:, 0].shape)
-		delta = np.asarray([el.ptp(axis=1) for el in [xgc, ygc]])
-		vec[np.sqrt(np.sum(delta**2, axis=0)) <= self.threshold] = 0
-		for _ in range(len(vec)):
-			if vec[_]:
-				vec[_] = 2 if self.compute_diffdata(sol.t, xgc[_, :], ygc[_, :]) >= self.thresh_b else 1
-		indx = np.any([vec==_ for _ in ntype], axis=0)
-		self.t, self.x, self.y, self.xgc, self.ygc  = sol.t, x[indx, :], y[indx, :], xgc[indx, :], ygc[indx,:]
-		vec = np.tile(vec, self.dim)
-		self.sol = sol.y[np.any([vec==_ for _ in ntype], axis=0), :]
-		self.size = len(self.x[:, 0])
-		self.color = [type(self).color_dict[_] for _ in np.atleast_1d(self.type)][0]
-	
-	def remove_trapped(self, sol): 
-		xgc, ygc = np.split(sol.y, self.dim)[:2] if self.Method.endswith('gc') else self.fo2gc(sol.y)
-		delta = np.asarray([el.ptp(axis=1) for el in [xgc, ygc]])
-		vec = np.ones(xgc[:, 0].shape)
-		vec[np.sqrt(np.sum(delta**2, axis=0)) <= self.threshold] = 0
-		if self.CheckEnergy:
-			sol.k = sol.k[vec!=0, :]
-		vec = np.tile(vec, self.dim)
-		sol.y = sol.y[vec!=0, :]
-		return sol
-	
-	def compute_diffdata(self, t, x, y, full_output=False, plot=False, save=False, filename=None, extension='.jpg'):
-		nt = t.size
-		r2 = np.zeros(nt)
-		for _ in range(nt):
-			if x.ndim == 1:
-				r2[_] = ((x[_:] - x[:-_ if _ else None])**2 + (y[_:] - y[:-_ if _ else None])**2).mean()
-			else:
-				r2[_] = ((x[:, _:] - x[:, :-_ if _ else None])**2 + (y[:, _:] - y[:, :-_ if _ else None])**2).mean()
-		t_win, r2_win = t[nt//8:7*nt//8], r2[nt//8:7*nt//8]
-		res = linregress(np.log(t_win), np.log(r2_win))
-		if plot:
-			fig, ax = plt.subplots(1, 1)
-			ax.set_xlabel('ln $t$')
-			ax.set_ylabel('ln $r^2$')
-			color = self.get_color(self.color)[0]
-			plt.plot(np.log(t), np.log(r2), ':', color=color, lw=1)
-			plt.plot(np.log(t_win), np.log(r2_win), '-', color=color, lw=2)
-			plt.plot(np.log(t_win), res.slope * np.log(t_win) + res.intercept, '-.', color=color, lw=2)
-			if save:
-				fig.savefig(filename + extension, dpi=self.dpi)
-				print(f'\033[90m        Figure saved in {filename + extension} \033[00m')
-			plt.pause(0.5)
-		if full_output:
-			return [res.slope, np.exp(res.intercept / res.slope), res.rvalue**2]
-		return res.slope
-	
-	def compute_rotation(self, h, plot=False, save=False, filename=None, extension='.jpg'):
-		x = h(np.atleast_2d(self.xgc), np.atleast_2d(self.ygc))
-		nt = x[0, :].size
-		omega = type(self).omega(np.arange(1, nt) / nt)
-		rotation_numb = np.sum(x[:, 1:] * omega[np.newaxis, :], axis=1) / np.sum(omega)
-		if plot:
-			fig, ax = plt.subplots(1, 1)
-			ax.set_xlabel(r'$n$')
-			ax.set_ylabel(r'$\omega$')
-			ax.plot(rotation_numb, '.', markersize=3)
-			if save:
-				fig.savefig(filename + extension, dpi=self.dpi)
-				print(f'\033[90m        Figure saved in {filename + extension} \033[00m')
-			plt.pause(0.5)
-		return rotation_numb
