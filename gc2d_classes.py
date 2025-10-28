@@ -42,7 +42,7 @@ def extract_potential(filename, B=1, nx=None, ny=None):
 	with h5py.File(filename, 'r') as f:
 		x = np.asarray(f['Rcells'][:])
 		y = np.asarray(f['Zcells'][:])
-		freqs = np.asarray(f['freqs'])
+		freqs = np.atleast_1d(f['freqs'])
 		fields = np.asarray(f['fields'][:])
 	meanvalue = 0
 	index = np.where(freqs == 0)[0]
