@@ -44,15 +44,19 @@ def extract_potential(filename, B=1, nx=None, ny=None):
 		y = np.asarray(f['Zcells'][:])
 		freqs = np.atleast_1d(f['freqs'])
 		fields = np.asarray(f['fields'][:])
-	meanvalue = 0
+	meanvalue, fluctuations = None, None
 	index = np.where(freqs == 0)[0]
 	if index.size > 0:
 		meanvalue = fields[index[0]].real
 		freqs = np.delete(freqs, index)
 		fields = np.delete(fields, index, axis=0)
-	fields = np.asarray(fields, dtype=np.complex128).reshape((-1, len(x), len(y)))
-	omega = 2 * np.pi * freqs[0]
-	return Potential(x, y, [meanvalue / (omega * B), fields / (omega * B)], freqs / omega, nx=nx, ny=ny)
+	if freqs.size > 0:
+		omega = 2 * np.pi * freqs[0]
+		fluctuations = np.asarray(fields, dtype=np.complex128).reshape((-1, len(x), len(y))) / (omega * B)
+		freqs = freqs / omega
+	if meanvalue is not None and fluctuations is not None:
+		meanvalue = meanvalue / (omega * B)
+	return Potential(x, y, [meanvalue, fluctuations], freqs, nx=nx, ny=ny)
 
 class Potential:
 	def __init__(self, x, y, fields, freqs, nx=None, ny=None, xy_period=None, k=3):
@@ -88,9 +92,9 @@ class Potential:
 		kx, ky = fftfreq(self.nx, d=self.dx), fftfreq(self.ny, d=self.dy)
 		kx_, ky_ = np.meshgrid(kx, ky, indexing='ij')
 		meanvalue, fluctuations = 0, 0
-		if fields[0]:
+		if fields[0] is not None:
 			meanvalue = ifft2(fft2(fields[0]) * jv(0, 2 * np.pi * rho * np.sqrt(kx_**2 + ky_**2))).real
-		if fields[1]:
+		if fields[1] is not None:
 			fluctuations = []
 			for field in fields[1]:
 				gyro_field = ifft2(fft2(field) * jv(0, 2 * np.pi * rho * np.sqrt(kx_**2 + ky_**2))) 
@@ -105,10 +109,10 @@ class Potential:
 		y_ = np.pad(y, (kl, kr), mode='linear_ramp', end_values=(ymin - kl * dy, ymax + kr * dy))
 		kwargs = {'mode': 'wrap'} if self.xy_period else {'mode': 'constant', 'constant_values': 0}
 		meanvalue, fluctuations = 0, 0
-		if fields[0]:
+		if fields[0] is not None:
 			fields_ = np.pad(fields[0], ((kl, kr), (kl, kr)), **kwargs)
 			meanvalue = RectBivariateSpline(x_, y_, fields_, kx=self.k, ky=self.k)
-		if fields[1]:
+		if fields[1] is not None:
 			fields_ = [np.pad(field, ((kl, kr), (kl, kr)), **kwargs) for field in fields[1]]
 			fluctuations = []
 			for field in fields_:
@@ -184,13 +188,22 @@ class GC2D(HamSys, Potential):
 	
 	def plot_potential(self, dx=0, dy=0, nx=512, ny=512):
 		def white_centered_cmap(vmin, vmax):
+			if vmin >= 0:
+				cmap = plt.get_cmap('Reds')
+				norm = mcolors.Normalize(vmin=vmin, vmax=vmax)
+				return cmap, norm
+			if vmax <= 0:
+				cmap = plt.get_cmap('Blues_r')
+				norm = mcolors.Normalize(vmin=vmin, vmax=vmax)
+				return cmap, norm
 			norm = mcolors.TwoSlopeNorm(vmin=vmin, vcenter=0.0, vmax=vmax)
 			return plt.get_cmap('RdBu_r'), norm
 		x = np.linspace(self.xmin, self.xmax + self.dx, nx, endpoint=False)
 		y = np.linspace(self.ymin, self.ymax + self.dy, ny, endpoint=False)
-		if self.fields[0]:
+		if self.fields[0] is not None:
 			Z = self.interpolators[0](x, y, dx=dx, dy=dy)
 			vmin, vmax = Z.min(), Z.max()
+			print(vmin, vmax)
 			cmap, norm = white_centered_cmap(vmin, vmax)
 			plt.figure(figsize=(6, 5))
 			c = plt.pcolormesh(x, y, Z.T, shading='auto', cmap=cmap, norm=norm)
@@ -199,7 +212,7 @@ class GC2D(HamSys, Potential):
 			plt.ylabel('y')
 			plt.colorbar(c)
 			plt.tight_layout()
-		if self.fields[1]:
+		if self.fields[1] is not None:
 			for interpolator, freq in zip(self.interpolators[1], self.freqs):
 				Zr, Zi = interpolator[0](x, y, dx=dx, dy=dy), interpolator[1](x, y, dx=dx, dy=dy)
 				vmin_real, vmax_real = Zr.min(), Zr.max()
