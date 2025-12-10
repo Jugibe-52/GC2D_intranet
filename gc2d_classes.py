@@ -169,9 +169,9 @@ class GC2D(HamSys, Potential):
 	def phic_interp(self, xi, yi, dx=0, dy=0):
 		xi, yi = self.wrap_or_clip(xi, yi)
 		meanvalue, fluctuations = 0, 0
-		if self.fields[0]:
+		if self.fields[0] is not None:
 			meanvalue = self.interpolators[0].ev(xi, yi, dx=dx, dy=dy)
-		if self.fields[1]:
+		if self.fields[1] is not None:
 			fluctuations = []
 			for (interp_real, interp_imag) in self.interpolators[1]:
 				fluctuations.append(interp_real.ev(xi, yi, dx=dx, dy=dy) + 1j * interp_imag.ev(xi, yi, dx=dx, dy=dy))
