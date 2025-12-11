@@ -47,7 +47,7 @@ def extract_potential(filename, B=1, indx=None, nx=None, ny=None):
 	if indx is not None:
 		freqs = freqs[indx]
 		fields = fields[indx]
-	meanvalue, fluctuations = None, None
+	meanvalue, fluctuations, omega = None, None, None
 	index = np.where(freqs == 0)[0]
 	if index.size > 0:
 		meanvalue = fields[index[0]].real
@@ -57,7 +57,7 @@ def extract_potential(filename, B=1, indx=None, nx=None, ny=None):
 		omega = 2 * np.pi * freqs[0]
 		fluctuations = np.asarray(fields, dtype=np.complex128).reshape((-1, len(x), len(y))) / (omega * B)
 		freqs = freqs / omega
-	if meanvalue is not None and fluctuations is not None:
+	if meanvalue is not None and omega is not None:
 		meanvalue = meanvalue / (omega * B)
 	return Potential(x, y, [meanvalue, fluctuations], freqs, nx=nx, ny=ny)
 
