@@ -37,13 +37,16 @@ import time
 def real_imag(z):
 	return z.real, z.imag
 
-def extract_potential(filename, B=1, nx=None, ny=None):
+def extract_potential(filename, B=1, indx=None, nx=None, ny=None):
 	import h5py
 	with h5py.File(filename, 'r') as f:
 		x = np.asarray(f['Rcells'][:])
 		y = np.asarray(f['Zcells'][:])
 		freqs = np.atleast_1d(f['freqs'])
 		fields = np.asarray(f['fields'][:])
+	if indx is not None:
+		freqs = freqs[indx]
+		fields = fields[indx]
 	meanvalue, fluctuations = None, None
 	index = np.where(freqs == 0)[0]
 	if index.size > 0:
