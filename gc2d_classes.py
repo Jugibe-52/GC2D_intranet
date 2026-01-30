@@ -44,27 +44,34 @@ def extract_potential(filename, B=1, indx=None, nx=None, ny=None):
 		y = np.asarray(f['Zcells'][()])
 		freqs = np.atleast_1d(f['freqs'][()])
 		fields = np.asarray(f['fields'][()])
+	if indx is None:
+		indx = np.arange(len(freqs))
+	else:
+		indx = np.array(indx, dtype=int)
 	expected_shape = (len(freqs), len(y), len(x))
 	if fields.shape != expected_shape:
 		raise ValueError(f"Shape of `fields` in {filename} is {fields.shape}, but expected {expected_shape}.")
-	if indx is not None:
-		indx = list(indx)
-		freqs = freqs[indx]
-		fields = np.atleast_3d(fields[indx])
 	if np.any(freqs < 0):
 		idx_neg = np.where(freqs < 0)[0]
 		freqs = np.delete(freqs, idx_neg)
 		fields = np.delete(fields, idx_neg, axis=0)
-	mean_value, fluctuations, omega = None, None, None
-	zero_mask = np.isclose(freqs, 0, atol=1e-10)
+	zero_mask = np.isclose(freqs, 0, atol=1e-5)
+	mean_value = None
 	if np.any(zero_mask):
 		idx_zero = np.where(zero_mask)[0]
-		mean_value = fields[idx_zero[0]].real
+		mean_value = fields[idx_zero[0]].real if 0 in indx else None
+		indx = indx[indx != 0] - 1
 		freqs = np.delete(freqs, idx_zero)
 		fields = np.delete(fields, idx_zero, axis=0)
+	amplitudes = np.linalg.norm(fields, ord='fro', axis=(1, 2))
+	sort_indices = np.argsort(amplitudes)[::-1]
+	freqs = freqs[sort_indices]
+	fields = fields[sort_indices]
+	freqs = freqs[indx]
+	fields = np.atleast_3d(fields[indx])
+	fluctuations, omega = None, None
 	if freqs.size > 0:
-		indx_max = np.argmax(np.linalg.norm(fields, ord='fro', axis=(1, 2)))
-		omega = 2 * np.pi * freqs[indx_max]
+		omega = 2 * np.pi * freqs[0]
 		scaling_factor = omega * B
 		fluctuations = fields.astype(np.complex128).reshape(-1, len(x), len(y))
 		fluctuations /= scaling_factor
