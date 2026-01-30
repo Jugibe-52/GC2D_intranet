@@ -104,15 +104,15 @@ class Potential:
 	def gyroaverage(self, rho, fields):
 		kx, ky = fftfreq(self.nx, d=self.dx), fftfreq(self.ny, d=self.dy)
 		kx_, ky_ = np.meshgrid(kx, ky, indexing='ij')
-		meanvalue, fluctuations = 0, 0
+		mean_value, fluctuations = None, None
 		if fields[0] is not None:
-			meanvalue = ifft2(fft2(fields[0]) * jv(0, 2 * np.pi * rho * np.sqrt(kx_**2 + ky_**2))).real
+			mean_value = ifft2(fft2(fields[0]) * jv(0, 2 * np.pi * rho * np.sqrt(kx_**2 + ky_**2))).real
 		if fields[1] is not None:
 			fluctuations = []
 			for field in fields[1]:
 				gyro_field = ifft2(fft2(field) * jv(0, 2 * np.pi * rho * np.sqrt(kx_**2 + ky_**2))) 
 				fluctuations.append(gyro_field)
-		return [meanvalue, fluctuations]
+		return [mean_value, fluctuations]
 
 	def interpolate(self, x, y, fields):
 		kl, kr = self.k + 1, self.k + 2 if  self.xy_period is not None else self.k + 1
@@ -121,10 +121,10 @@ class Potential:
 		x_ = np.pad(x, (kl, kr), mode='linear_ramp', end_values=(xmin - kl * dx, xmax + kr * dx))
 		y_ = np.pad(y, (kl, kr), mode='linear_ramp', end_values=(ymin - kl * dy, ymax + kr * dy))
 		kwargs = {'mode': 'wrap'} if self.xy_period else {'mode': 'constant', 'constant_values': 0}
-		meanvalue, fluctuations = None, None
+		mean_value, fluctuations = None, None
 		if fields[0] is not None:
 			fields_ = np.pad(fields[0], ((kl, kr), (kl, kr)), **kwargs)
-			meanvalue = RectBivariateSpline(x_, y_, fields_, kx=self.k, ky=self.k)
+			mean_value = RectBivariateSpline(x_, y_, fields_, kx=self.k, ky=self.k)
 		if fields[1] is not None:
 			fields_ = [np.pad(field, ((kl, kr), (kl, kr)), **kwargs) for field in fields[1]]
 			fluctuations = []
@@ -132,17 +132,17 @@ class Potential:
 				interp_real = RectBivariateSpline(x_, y_, field.real, kx=self.k, ky=self.k)
 				interp_imag = RectBivariateSpline(x_, y_, field.imag, kx=self.k, ky=self.k)
 				fluctuations.append((interp_real, interp_imag))
-		return [meanvalue, fluctuations]
+		return [mean_value, fluctuations]
 
 	def interp_fields(self, xi, yi, interpolators):
-		meanvalue, fluctuations = None, None
+		mean_value, fluctuations = None, None
 		if interpolators[0]:
-			meanvalue = interpolators[0](xi, yi)
+			mean_value = interpolators[0](xi, yi)
 		if interpolators[1]:
 			fluctuations = []
 			for (interp_real, interp_imag) in interpolators[1]:
 				fluctuations.append(interp_real(xi, yi) + 1j * interp_imag(xi, yi))
-		return [meanvalue, fluctuations]
+		return [mean_value, fluctuations]
 	
 def mock_potential(A, M, nx, ny, seed=27):
     x = np.linspace(0, 2 * np.pi, nx, endpoint=False)
@@ -181,14 +181,14 @@ class GC2D(HamSys, Potential):
 
 	def phic_interp(self, xi, yi, dx=0, dy=0):
 		xi, yi = self.wrap_or_clip(xi, yi)
-		meanvalue, fluctuations = None, None
+		mean_value, fluctuations = None, None
 		if self.fields[0] is not None:
-			meanvalue = self.interpolators[0].ev(xi, yi, dx=dx, dy=dy)
+			mean_value = self.interpolators[0].ev(xi, yi, dx=dx, dy=dy)
 		if self.fields[1] is not None:
 			fluctuations = []
 			for (interp_real, interp_imag) in self.interpolators[1]:
 				fluctuations.append(interp_real.ev(xi, yi, dx=dx, dy=dy) + 1j * interp_imag.ev(xi, yi, dx=dx, dy=dy))
-		return [meanvalue, fluctuations]
+		return [mean_value, fluctuations]
 
 	def wrap_or_clip(self, xi, yi):
 		if self.xy_period is None:
@@ -216,7 +216,6 @@ class GC2D(HamSys, Potential):
 		if self.fields[0] is not None:
 			Z = self.interpolators[0](x, y, dx=dx, dy=dy)
 			vmin, vmax = Z.min(), Z.max()
-			print(vmin, vmax)
 			cmap, norm = white_centered_cmap(vmin, vmax)
 			plt.figure(figsize=(6, 5))
 			c = plt.pcolormesh(x, y, Z.T, shading='auto', cmap=cmap, norm=norm)
@@ -276,7 +275,7 @@ class GC2D(HamSys, Potential):
 	def hamiltonian(self, t, z):
 		x, y = self.get_positions(z)
 		phi_c = self.phic_interp(x, y)
-		phi_t = np.sum(phi_c[0])
+		phi_t = np.sum(phi_c[0]) if phi_c[0] is not None else 0
 		if phi_c[1] is not None:
 			for fluct in phi_c[1]:
 				phi_t += 2 * np.sum((fluct * np.exp(1j * self.freqs[np.newaxis] * t)).real)
@@ -289,7 +288,7 @@ class GC2D(HamSys, Potential):
 	def y_dot(self, t, z, output='full'):
 		x, y = self.get_positions(z)
 		dphidx_c, dphidy_c = self.phic_interp(x, y, dx=1), self.phic_interp(x, y, dy=1)
-		dphidx_t, dphidy_t = (dphidx_c[0], dphidy_c[0]) if dphidx_c[1] is not None else (np.zeros_like(x), np.zeros_like(y))
+		dphidx_t, dphidy_t = (dphidx_c[0], dphidy_c[0]) if dphidx_c[0] is not None else (np.zeros_like(x), np.zeros_like(y))
 		if dphidx_c[1] is not None:
 			for fluct_x, fluct_y, freq in zip(dphidx_c[1], dphidy_c[1], self.freqs):
 				phases = 2.0 * np.exp(1j * freq * t)
