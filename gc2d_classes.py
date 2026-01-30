@@ -121,7 +121,7 @@ class Potential:
 		x_ = np.pad(x, (kl, kr), mode='linear_ramp', end_values=(xmin - kl * dx, xmax + kr * dx))
 		y_ = np.pad(y, (kl, kr), mode='linear_ramp', end_values=(ymin - kl * dy, ymax + kr * dy))
 		kwargs = {'mode': 'wrap'} if self.xy_period else {'mode': 'constant', 'constant_values': 0}
-		meanvalue, fluctuations = 0, 0
+		meanvalue, fluctuations = None, None
 		if fields[0] is not None:
 			fields_ = np.pad(fields[0], ((kl, kr), (kl, kr)), **kwargs)
 			meanvalue = RectBivariateSpline(x_, y_, fields_, kx=self.k, ky=self.k)
@@ -135,7 +135,7 @@ class Potential:
 		return [meanvalue, fluctuations]
 
 	def interp_fields(self, xi, yi, interpolators):
-		meanvalue, fluctuations = 0, 0
+		meanvalue, fluctuations = None, None
 		if interpolators[0]:
 			meanvalue = interpolators[0](xi, yi)
 		if interpolators[1]:
@@ -155,7 +155,7 @@ def mock_potential(A, M, nx, ny, seed=27):
     fft_phic[1:, 1:] = A / (nm[0][1:, 1:]**2 + nm[1][1:, 1:]**2)**1.5 * np.exp(1j * phases)
     fft_phic[np.sqrt(nm[0]**2 + nm[1]**2) > M] = 0
     exp_xy = np.exp(1j * (nm[0][:, :, None, None] * X[None, None, :, :] + nm[1][:, :, None, None] * Y[None, None, :, :]))
-    return Potential(x, y, [0, [np.einsum('nm,nm...->...', fft_phic, exp_xy)]], freqs=[-1], xy_period=2 * np.pi)
+    return Potential(x, y, [None, [np.einsum('nm,nm...->...', fft_phic, exp_xy)]], freqs=[-1], xy_period=2 * np.pi)
 
 class GC2D(HamSys, Potential):
 	def __str__(self) -> str:
@@ -181,7 +181,7 @@ class GC2D(HamSys, Potential):
 
 	def phic_interp(self, xi, yi, dx=0, dy=0):
 		xi, yi = self.wrap_or_clip(xi, yi)
-		meanvalue, fluctuations = 0, 0
+		meanvalue, fluctuations = None, None
 		if self.fields[0] is not None:
 			meanvalue = self.interpolators[0].ev(xi, yi, dx=dx, dy=dy)
 		if self.fields[1] is not None:
@@ -277,8 +277,9 @@ class GC2D(HamSys, Potential):
 		x, y = self.get_positions(z)
 		phi_c = self.phic_interp(x, y)
 		phi_t = np.sum(phi_c[0])
-		for fluct in phi_c[1]:
-			phi_t += 2 * np.sum((fluct * np.exp(1j * self.freqs[np.newaxis] * t)).real)
+		if phi_c[1] is not None:
+			for fluct in phi_c[1]:
+				phi_t += 2 * np.sum((fluct * np.exp(1j * self.freqs[np.newaxis] * t)).real)
 		if self.traj["type"] == 'gc':
 			return phi_t
 		elif self.traj["type"] == 'fo': 
@@ -288,11 +289,12 @@ class GC2D(HamSys, Potential):
 	def y_dot(self, t, z, output='full'):
 		x, y = self.get_positions(z)
 		dphidx_c, dphidy_c = self.phic_interp(x, y, dx=1), self.phic_interp(x, y, dy=1)
-		dphidx_t, dphidy_t = dphidx_c[0], dphidy_c[0]
-		for fluct_x, fluct_y, freq in zip(dphidx_c[1], dphidy_c[1], self.freqs):
-			phases = 2.0 * np.exp(1j * freq * t)
-			dphidx_t += (fluct_x * phases).real
-			dphidy_t += (fluct_y * phases).real
+		dphidx_t, dphidy_t = (dphidx_c[0], dphidy_c[0]) if dphidx_c[1] is not None else (np.zeros_like(x), np.zeros_like(y))
+		if dphidx_c[1] is not None:
+			for fluct_x, fluct_y, freq in zip(dphidx_c[1], dphidy_c[1], self.freqs):
+				phases = 2.0 * np.exp(1j * freq * t)
+				dphidx_t += (fluct_x * phases).real
+				dphidy_t += (fluct_y * phases).real
 		if self.traj["type"] == 'gc' or output == 'reduced':
 			return np.concatenate((-dphidy_t, dphidx_t), axis=None)
 		elif self.traj["type"] == 'fo':
@@ -313,17 +315,18 @@ class GC2D(HamSys, Potential):
 		d2phidx2_c = self.phic_interp(x, y, dx=2) 
 		d2phidxdy_c = self.phic_interp(x, y, dx=1, dy=1)
 		d2phidy2_c = self.phic_interp(x, y, dy=2)
-		d2phidx2_t, d2phidxdy_t, d2phidy2_t = d2phidx2_c[0], d2phidxdy_c[0], d2phidy2_c[0]
-		for fluct_xx, fluct_xy, fluct_yy, freq in zip(d2phidx2_c[1], d2phidxdy_c[1], d2phidy2_c[1], self.freqs):
-			phase = 2 * np.exp(1j * freq * t)
-			d2phidx2_t += (fluct_xx * phase).real
-			d2phidxdy_t += (fluct_xy * phase).real
-			d2phidy2_t += (fluct_yy * phase).real
+		d2phidx2_t, d2phidxdy_t, d2phidy2_t = d2phidx2_c[0], d2phidxdy_c[0], d2phidy2_c[0] if d2phidx2_c[0] is not None else (np.zeros_like(x), np.zeros_like(y), np.zeros_like(y))
+		if d2phidx2_c[1] is not None:
+			for fluct_xx, fluct_xy, fluct_yy, freq in zip(d2phidx2_c[1], d2phidxdy_c[1], d2phidy2_c[1], self.freqs):
+				phase = 2 * np.exp(1j * freq * t)
+				d2phidx2_t += (fluct_xx * phase).real
+				d2phidxdy_t += (fluct_xy * phase).real
+				d2phidy2_t += (fluct_yy * phase).real
 		A = np.zeros_like(J)
 		if self.traj["type"] == 'fo':
-			d2phidx2_c *= -self.phi_fo
-			d2phidxdy_c *= -self.phi_fo
-			d2phidy2_c *= -self.phi_fo
+			d2phidx2_t *= -self.phi_fo
+			d2phidxdy_t *= -self.phi_fo
+			d2phidy2_t *= -self.phi_fo
 			A[0, 2, :], A[1, 3, :] = self.v_fo * np.ones_like(x), self.v_fo * np.ones_like(x)
 			A[2, 3, :], A[3, 2, :] = self.omlar * np.ones_like(x), -self.omlar * np.ones_like(x)
 			A[2, 0, :], A[2, 1, :] = d2phidx2_t, d2phidxdy_t
@@ -338,8 +341,9 @@ class GC2D(HamSys, Potential):
 		x, y = self.get_positions(z)
 		phi_c = self.phic_interp(x, y)
 		dphidt_t = 0
-		for fluct, freq in zip(phi_c[1], self.freqs):
-			dphidt_t += 2 * freq * np.sum((fluct * np.exp(1j * freq * t)).imag)
+		if phi_c[1] is not None:
+			for fluct, freq in zip(phi_c[1], self.freqs):
+				dphidt_t += 2 * freq * np.sum((fluct * np.exp(1j * freq * t)).imag)
 		if self.traj["type"] == 'fo':
 			dphidt_t *= -self.phi_fo
 		return dphidt_t
