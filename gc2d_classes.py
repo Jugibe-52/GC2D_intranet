@@ -48,6 +48,7 @@ def extract_potential(filename, B=1, indx=None, nx=None, ny=None):
 	if fields.shape != expected_shape:
 		raise ValueError(f"Shape of `fields` in {filename} is {fields.shape}, but expected {expected_shape}.")
 	if indx is not None:
+		indx = list(indx)
 		freqs = freqs[indx]
 		fields = fields[indx]
 	if np.any(freqs < 0):

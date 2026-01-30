@@ -15,7 +15,7 @@ B = 2
 
 path = Path("/Users/c.chandre/Desktop")
 filename = path / 'PHI.h5'
-indx = (0, 1)
+indx = [0, 1]
 potential = extract_potential(filename, B=B, indx=indx, nx=Nx, ny=Ny)
 
 # parameters
