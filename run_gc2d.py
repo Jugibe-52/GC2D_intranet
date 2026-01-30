@@ -36,6 +36,6 @@ t_eval = 2 * np.pi * np.arange(n_max)
 # print(lyap)
 
 # Poincaré section
-sol = hs.integrate(z0, t_eval, solver='BM4', timestep=2e-2, omega=10, diss=5,\
+sol = hs.integrate(z0, t_eval, solver='BM4', timestep=2e-2,\
                    extension=True if traj_type == 'gc' else False, check_energy=True)
 hs.plot_sol(sol, wrap=True)
