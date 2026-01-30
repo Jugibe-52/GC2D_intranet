@@ -87,8 +87,6 @@ class Potential:
 			raise ValueError("Values in `x` or `y` are not uniformly spaced.")
 		if not len(fields) == 2:
 			raise ValueError("`fields` must be a list of two elements: [meanvalue, fluctuations].")
-		if np.asarray(fields[1]).shape != (len(freqs), len(x), len(y)):
-			raise ValueError("Shape of `fluctuations`, e.g., `fields[1]`, does not match the lengths of `freqs`, `x`, and `y`.")
 		self.xy_period = xy_period
 		self.k = k
 		if nx is not None or ny is not None:
