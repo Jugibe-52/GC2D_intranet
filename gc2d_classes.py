@@ -50,7 +50,7 @@ def extract_potential(filename, B=1, indx=None, nx=None, ny=None):
 	if indx is not None:
 		indx = list(indx)
 		freqs = freqs[indx]
-		fields = fields[indx]
+		fields = np.atleast_3d(fields[indx])
 	if np.any(freqs < 0):
 		idx_neg = np.where(freqs < 0)[0]
 		freqs = np.delete(freqs, idx_neg)
