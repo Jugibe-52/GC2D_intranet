@@ -60,8 +60,8 @@ def extract_potential(filename, B=1, indx=None, nx=None, ny=None):
 		fluctuations = fields.astype(np.complex128).reshape(-1, len(x), len(y))
 		fluctuations /= scaling_factor
 		freqs = freqs / omega
-	if mean_value is not None:
-		mean_value /= scaling_factor
+		if mean_value is not None:
+			mean_value /= scaling_factor
 	return Potential(x, y, [mean_value, fluctuations], freqs, nx=nx, ny=ny)
 
 class Potential:
