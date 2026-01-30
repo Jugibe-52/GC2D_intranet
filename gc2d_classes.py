@@ -31,6 +31,7 @@ import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 from scipy.interpolate import RectBivariateSpline
 from scipy.special import jv
+import h5py
 from pyhamsys import HamSys
 import time
 
@@ -38,28 +39,30 @@ def real_imag(z):
 	return z.real, z.imag
 
 def extract_potential(filename, B=1, indx=None, nx=None, ny=None):
-	import h5py
 	with h5py.File(filename, 'r') as f:
-		x = np.asarray(f['Rcells'][:])
-		y = np.asarray(f['Zcells'][:])
-		freqs = np.atleast_1d(f['freqs'])
-		fields = np.asarray(f['fields'][:])
+		x = np.asarray(f['Rcells'][()])
+		y = np.asarray(f['Zcells'][()])
+		freqs = np.atleast_1d(f['freqs'][()])
+		fields = np.asarray(f['fields'][()])
 	if indx is not None:
 		freqs = freqs[indx]
 		fields = fields[indx]
-	meanvalue, fluctuations, omega = None, None, None
-	index = np.where(freqs == 0)[0]
-	if index.size > 0:
-		meanvalue = fields[index[0]].real
-		freqs = np.delete(freqs, index)
-		fields = np.delete(fields, index, axis=0)
+	mean_value, fluctuations, omega = None, None, None
+	zero_mask = (freqs == 0)
+	if np.any(zero_mask):
+		idx_zero = np.where(zero_mask)[0][0]
+		mean_value = fields[idx_zero].real
+		freqs = np.delete(freqs, idx_zero)
+		fields = np.delete(fields, idx_zero, axis=0)
 	if freqs.size > 0:
 		omega = 2 * np.pi * freqs[0]
-		fluctuations = np.asarray(fields, dtype=np.complex128).reshape((-1, len(x), len(y))) / (omega * B)
+		scaling_factor = omega * B
+		fluctuations = fields.astype(np.complex128).reshape(-1, len(x), len(y))
+		fluctuations /= scaling_factor
 		freqs = freqs / omega
-	if meanvalue is not None and omega is not None:
-		meanvalue = meanvalue / (omega * B)
-	return Potential(x, y, [meanvalue, fluctuations], freqs, nx=nx, ny=ny)
+	if mean_value is not None:
+		mean_value /= scaling_factor
+	return Potential(x, y, [mean_value, fluctuations], freqs, nx=nx, ny=ny)
 
 class Potential:
 	def __init__(self, x, y, fields, freqs, nx=None, ny=None, xy_period=None, k=3):
