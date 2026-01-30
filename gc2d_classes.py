@@ -66,18 +66,15 @@ def extract_potential(filename, B=1, indx=None, nx=None, ny=None):
 	amplitudes = np.linalg.norm(fields, ord='fro', axis=(1, 2))
 	sort_indices = np.argsort(amplitudes)[::-1]
 	freqs = freqs[sort_indices]
+	omega = 2 * np.pi * freqs[0]
+	scaling_factor = omega * B
+	fields /= scaling_factor
 	fields = fields[sort_indices]
 	freqs = freqs[indx]
 	fields = np.atleast_3d(fields[indx])
-	fluctuations, omega = None, None
-	if freqs.size > 0:
-		omega = 2 * np.pi * freqs[0]
-		scaling_factor = omega * B
-		fluctuations = fields.astype(np.complex128).reshape(-1, len(x), len(y))
-		fluctuations /= scaling_factor
-		freqs = freqs / omega
-		if mean_value is not None:
-			mean_value /= scaling_factor
+	fluctuations = fields.astype(np.complex128).reshape(-1, len(x), len(y)) if freqs.size > 0 else None
+	if mean_value is not None:
+		mean_value /= scaling_factor
 	return Potential(x, y, [mean_value, fluctuations], freqs, nx=nx, ny=ny)
 
 class Potential:
@@ -95,7 +92,7 @@ class Potential:
 		if not len(fields) == 2:
 			raise ValueError("`fields` must be a list of two elements: [meanvalue, fluctuations].")
 		self.xy_period = xy_period
-		self.k = k
+		self.kinterp = k
 		if nx is not None or ny is not None:
 			xi = np.linspace(x.min(), x.max(), nx)
 			yi = np.linspace(y.min(), y.max(), ny)
@@ -122,7 +119,7 @@ class Potential:
 		return [mean_value, fluctuations]
 
 	def interpolate(self, x, y, fields):
-		kl, kr = self.k + 1, self.k + 2 if  self.xy_period is not None else self.k + 1
+		kl, kr = self.kinterp + 1, self.kinterp + 2 if  self.xy_period is not None else self.kinterp + 1
 		dx, dy = x[1] - x[0], y[1] - y[0]
 		xmin, xmax, ymin, ymax = x.min(), x.max(), y.min(), y.max()
 		x_ = np.pad(x, (kl, kr), mode='linear_ramp', end_values=(xmin - kl * dx, xmax + kr * dx))
@@ -131,13 +128,13 @@ class Potential:
 		mean_value, fluctuations = None, None
 		if fields[0] is not None:
 			fields_ = np.pad(fields[0], ((kl, kr), (kl, kr)), **kwargs)
-			mean_value = RectBivariateSpline(x_, y_, fields_, kx=self.k, ky=self.k)
+			mean_value = RectBivariateSpline(x_, y_, fields_, kx=self.kinterp, ky=self.kinterp)
 		if fields[1] is not None:
 			fields_ = [np.pad(field, ((kl, kr), (kl, kr)), **kwargs) for field in fields[1]]
 			fluctuations = []
 			for field in fields_:
-				interp_real = RectBivariateSpline(x_, y_, field.real, kx=self.k, ky=self.k)
-				interp_imag = RectBivariateSpline(x_, y_, field.imag, kx=self.k, ky=self.k)
+				interp_real = RectBivariateSpline(x_, y_, field.real, kx=self.kinterp, ky=self.kinterp)
+				interp_imag = RectBivariateSpline(x_, y_, field.imag, kx=self.kinterp, ky=self.kinterp)
 				fluctuations.append((interp_real, interp_imag))
 		return [mean_value, fluctuations]
 
