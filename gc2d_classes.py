@@ -277,8 +277,8 @@ class GC2D(HamSys, Potential):
 		phi_c = self.phic_interp(x, y)
 		phi_t = np.sum(phi_c[0]) if phi_c[0] is not None else 0
 		if phi_c[1] is not None:
-			for fluct in phi_c[1]:
-				phi_t += 2 * np.sum((fluct * np.exp(1j * self.freqs[np.newaxis] * t)).real)
+			for fluct, freq in zip(phi_c[1], self.freqs):
+				phi_t += 2 * np.sum((fluct * np.exp(1j * freq * t)).real)
 		if self.traj["type"] == 'gc':
 			return phi_t
 		elif self.traj["type"] == 'fo': 
