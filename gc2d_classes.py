@@ -44,9 +44,14 @@ def extract_potential(filename, B=1, indx=None, nx=None, ny=None):
 		y = np.asarray(f['Zcells'][()])
 		freqs = np.atleast_1d(f['freqs'][()])
 		fields = np.asarray(f['fields'][()])
+	expected_shape = (len(freqs), len(y), len(x))
+	if fields.shape != expected_shape:
+		raise ValueError(f"Shape of `fields` in {filename} is {fields.shape}, but expected {expected_shape}.")
 	if indx is not None:
 		freqs = freqs[indx]
 		fields = fields[indx]
+	if np.any(freqs <= 0):
+		raise ValueError("Frequencies must be positive.")
 	mean_value, fluctuations, omega = None, None, None
 	zero_mask = (freqs == 0)
 	if np.any(zero_mask):
@@ -55,7 +60,8 @@ def extract_potential(filename, B=1, indx=None, nx=None, ny=None):
 		freqs = np.delete(freqs, idx_zero)
 		fields = np.delete(fields, idx_zero, axis=0)
 	if freqs.size > 0:
-		omega = 2 * np.pi * freqs[0]
+		indx_max = np.argmax(np.linalg.norm(fields, ord='fro', axis=(1, 2)))
+		omega = 2 * np.pi * freqs[indx_max]
 		scaling_factor = omega * B
 		fluctuations = fields.astype(np.complex128).reshape(-1, len(x), len(y))
 		fluctuations /= scaling_factor
@@ -283,7 +289,7 @@ class GC2D(HamSys, Potential):
 		dphidx_c, dphidy_c = self.phic_interp(x, y, dx=1), self.phic_interp(x, y, dy=1)
 		dphidx_t, dphidy_t = dphidx_c[0], dphidy_c[0]
 		for fluct_x, fluct_y, freq in zip(dphidx_c[1], dphidy_c[1], self.freqs):
-			phases = 2 * np.exp(1j * freq * t)
+			phases = 2.0 * np.exp(1j * freq * t)
 			dphidx_t += (fluct_x * phases).real
 			dphidy_t += (fluct_y * phases).real
 		if self.traj["type"] == 'gc' or output == 'reduced':
