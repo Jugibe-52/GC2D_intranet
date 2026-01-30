@@ -50,13 +50,15 @@ def extract_potential(filename, B=1, indx=None, nx=None, ny=None):
 	if indx is not None:
 		freqs = freqs[indx]
 		fields = fields[indx]
-	if np.any(freqs <= 0):
-		raise ValueError("Frequencies must be positive.")
+	if np.any(freqs < 0):
+		idx_neg = np.where(freqs < 0)[0]
+		freqs = np.delete(freqs, idx_neg)
+		fields = np.delete(fields, idx_neg, axis=0)
 	mean_value, fluctuations, omega = None, None, None
-	zero_mask = (freqs == 0)
+	zero_mask = np.isclose(freqs, 0, atol=1e-10)
 	if np.any(zero_mask):
-		idx_zero = np.where(zero_mask)[0][0]
-		mean_value = fields[idx_zero].real
+		idx_zero = np.where(zero_mask)[0]
+		mean_value = fields[idx_zero[0]].real
 		freqs = np.delete(freqs, idx_zero)
 		fields = np.delete(fields, idx_zero, axis=0)
 	if freqs.size > 0:
