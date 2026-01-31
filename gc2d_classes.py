@@ -43,7 +43,7 @@ def extract_potential(filename, B=1, indx=None, nx=None, ny=None):
 		x = np.asarray(f['Rcells'][()])
 		y = np.asarray(f['Zcells'][()])
 		freqs = np.atleast_1d(f['freqs'][()])
-		fields = np.asarray(f['fields'][()])
+		fields = np.atleast_3d(f['fields'][()])
 	if indx is None:
 		indx = np.arange(len(freqs))
 	else:
@@ -63,7 +63,7 @@ def extract_potential(filename, B=1, indx=None, nx=None, ny=None):
 		indx = indx[indx != 0] - 1
 		freqs = np.delete(freqs, idx_zero)
 		fields = np.delete(fields, idx_zero, axis=0)
-	amplitudes = np.linalg.norm(fields, ord='fro', axis=(1, 2))
+	amplitudes = np.ptp(fields, axis=(1, 2))
 	sort_indices = np.argsort(amplitudes)[::-1]
 	freqs = freqs[sort_indices]
 	omega = 2 * np.pi * freqs[0]
