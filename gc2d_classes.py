@@ -172,7 +172,6 @@ class GC2D(HamSys, Potential):
 		self.eta = traj["eta"] if "eta" in traj else 0
 		if min(k * potential.dx, k * potential.dy) < self.rho:
 			raise ValueError(f"Interpolation order {k} is too low for rho = {self.rho}. Increase k or decrease rho.")
-		self.CheckEnergy = traj["CheckEnergy"] if "CheckEnergy" in traj else False
 		for key, value in vars(potential).items():
 			setattr(self, key, value)
 		if self.rho != 0:
@@ -266,8 +265,6 @@ class GC2D(HamSys, Potential):
 			np.random.seed(int(time.time()))
 			phi_perp = 2 * np.pi * np.random.rand(n_traj)
 			z0 = np.concatenate((z0, np.cos(phi_perp), np.sin(phi_perp)), axis=None)
-			if self.CheckEnergy:
-				z0 = np.concatenate((z0, np.zeros(n_traj)), axis=None)
 		return z0
 	
 	def get_positions(self, z):
@@ -352,37 +349,22 @@ class GC2D(HamSys, Potential):
 		return dphidt_t
 
 	def chi(self, h, t, z):
-		if self.CheckEnergy:
-			x, y, vx, vy = np.split(z[:-1], 4)
-			k = z[-1]
-		else:
-			x, y, vx, vy = np.split(z, 4)
+		x, y, vx, vy = np.split(z, 4)
 		exp_ = np.exp(-1j * h * self.omlar)
 		x, y = real_imag(x + 1j * y + 1j * self.rho * np.sign(self.eta) * (exp_ - 1) * (vx + 1j * vy)) 
 		vx, vy = real_imag(exp_ * (vx + 1j * vy))
 		pot = np.split(self.y_dot(t, np.concatenate((x, y), axis=None), output='reduced'), 2)
 		vx, vy = real_imag(vx + 1j * vy + h * 1j * (pot[0] + 1j * pot[1]) * self.phi_fo)
-		if not self.CheckEnergy:
-			return np.concatenate((x, y, vx, vy), axis=None)
-		k += h * self.phi_fo * self.k_dot(t, np.concatenate((x, y), axis=None)) 
-		return np.concatenate((x, y, vx, vy, k), axis=None)
+		return np.concatenate((x, y, vx, vy), axis=None)
 	
 	def chi_star(self, h, t, z):
-		if self.CheckEnergy:
-			x, y, vx, vy = np.split(z[:-1], 5)
-			k = z[-1]
-		else:
-			x, y, vx, vy = np.split(z, 4)
+		x, y, vx, vy = np.split(z, 4)
 		pot = np.split(self.y_dot(t, np.concatenate((x, y), axis=None), output='reduced'), 2)
 		vx, vy = real_imag(vx + 1j * vy + h * 1j * (pot[0] + 1j * pot[1]) * self.phi_fo)
-		if self.CheckEnergy:
-			k += h * self.phi_fo * self.k_dot(t, np.concatenate((x, y), axis=None))
 		exp_ = np.exp(-1j * h * self.omlar)
 		x, y = real_imag(x + 1j * y + 1j * self.rho * np.sign(self.eta) * (exp_ - 1) * (vx + 1j * vy)) 
 		vx, vy = real_imag(exp_ * (vx + 1j * vy))
-		if not self.CheckEnergy:
-			return np.concatenate((x, y, vx, vy), axis=None)
-		return np.concatenate((x, y, vx, vy, k), axis=None)
+		return np.concatenate((x, y, vx, vy), axis=None)
 	
 	def fo2gc(self, z):
 		x, y, vx, vy = np.split(z, 4)

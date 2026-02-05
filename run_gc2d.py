@@ -5,6 +5,7 @@
 import numpy as np
 from gc2d_classes import mock_potential, extract_potential, GC2D
 from pathlib import Path
+from phamsys import Parameters
 
 # potential
 Nx, Ny = 128, 128
@@ -24,7 +25,9 @@ Ntraj = 20
 n_max = 50
 traj_type = "gc" # 'gc' (guiding centers) or 'fo' (full orbits) 
 
-traj = {"type": traj_type, "rho": rho, "eta": eta, "CheckEnergy": True}
+params = Parameters(solver='BM4', step=2e-2, extension=True if traj_type == 'gc' else False, check_energy=True)
+
+traj = {"type": traj_type, "rho": rho, "eta": eta}
 hs = GC2D(potential, traj, k=5)
 z0 = hs.initial_conditions(Ntraj, type="random")
 
@@ -36,6 +39,5 @@ t_eval = 2 * np.pi * np.arange(n_max)
 # print(lyap)
 
 # Poincaré section
-sol = hs.integrate(z0, t_eval, solver='BM4', timestep=2e-2,\
-                   extension=True if traj_type == 'gc' else False, check_energy=True)
+sol = hs.integrate(z0, t_eval, params=params)
 hs.plot_sol(sol, wrap=True)
