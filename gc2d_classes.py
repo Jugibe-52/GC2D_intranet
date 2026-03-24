@@ -372,11 +372,11 @@ class GC2D(HamSys, Potential):
 		theta, rho = np.pi + np.angle(v), self.rho * np.abs(v)
 		return x - rho * np.cos(theta), y + rho * np.sin(theta)
 	
-	def plot_sol(self, sol, wrap=False): 
+	def plot_sol(self, sol, wrap=False, **kwargs): 
 		x, y = self.get_positions(sol.y)
 		if wrap:
 			x, y = self.wrap_or_clip(x, y)
-		plt.plot(x.T, y.T, '.')
+		plt.plot(x.T, y.T, '.', **kwargs)
 		plt.xlabel('x')
 		plt.ylabel('y')
 		if wrap:
