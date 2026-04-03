@@ -372,14 +372,16 @@ class GC2D(HamSys, Potential):
 		theta, rho = np.pi + np.angle(v), self.rho * np.abs(v)
 		return x - rho * np.cos(theta), y + rho * np.sin(theta)
 	
-	def plot_sol(self, sol, wrap=False, **kwargs): 
+	def plot_sol(self, sol, wrap=False, xlim=None, ylim=None, **kwargs): 
 		x, y = self.get_positions(sol.y)
+		xmin, xmax = xlim or (self.xmin, self.xmax)
+		ymin, ymax = ylim or (self.ymin, self.ymax) 
 		if wrap:
 			x, y = self.wrap_or_clip(x, y)
 		plt.plot(x.T, y.T, '.', **kwargs)
 		plt.xlabel('x')
 		plt.ylabel('y')
 		if wrap:
-			plt.xlim(self.xmin, self.xmax)
-			plt.ylim(self.ymin, self.ymax)
+			plt.xlim(xmin, xmax)
+			plt.ylim(ymin, ymax)
 		plt.show()
