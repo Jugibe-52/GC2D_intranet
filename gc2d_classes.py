@@ -44,13 +44,13 @@ def extract_potential(filename, B=1, indx=None, nx=None, ny=None):
 		y = np.asarray(f['Zcells'][()])
 		freqs = np.atleast_1d(f['freqs'][()])
 		fields = np.atleast_3d(f['fields'][()])
-	if indx is None:
-		indx = np.arange(len(freqs))
-	else:
-		indx = np.array(indx, dtype=int)
 	expected_shape = (len(freqs), len(y), len(x))
 	if fields.shape != expected_shape:
 		raise ValueError(f"Shape of `fields` in {filename} is {fields.shape}, but expected {expected_shape}.")
+	if indx is None:
+		indx = np.arange(len(freqs))
+	else:
+		indx = np.atleast_1d(indx).astype(int)
 	if np.any(freqs < 0):
 		idx_neg = np.where(freqs < 0)[0]
 		freqs = np.delete(freqs, idx_neg)
@@ -58,23 +58,29 @@ def extract_potential(filename, B=1, indx=None, nx=None, ny=None):
 	zero_mask = np.isclose(freqs, 0, atol=1e-5)
 	mean_value = None
 	if np.any(zero_mask):
-		idx_zero = np.where(zero_mask)[0]
-		mean_value = fields[idx_zero[0]].real if 0 in indx else None
-		indx = indx[indx != 0] - 1
+		idx_zero = np.where(zero_mask)[0][0]
+		if 0 in indx:
+			mean_value = fields[idx_zero].real
 		freqs = np.delete(freqs, idx_zero)
 		fields = np.delete(fields, idx_zero, axis=0)
+		indx = indx[indx != 0] - 1
 	amplitudes = np.ptp(fields, axis=(1, 2))
 	sort_indices = np.argsort(amplitudes)[::-1]
 	freqs = freqs[sort_indices]
-	omega = 2 * np.pi * freqs[0]
-	scaling_factor = omega * B
-	fields /= scaling_factor
 	fields = fields[sort_indices]
-	freqs = freqs[indx]
-	fields = np.atleast_3d(fields[indx])
-	fluctuations = fields.astype(np.complex128).reshape(-1, len(x), len(y)) if freqs.size > 0 else None
-	if mean_value is not None:
-		mean_value /= scaling_factor
+	if len(freqs) > 0:
+		omega = 2 * np.pi * freqs[0]
+		scaling_factor = omega * B
+		fields /= scaling_factor
+		if mean_value is not None:
+			mean_value /= scaling_factor
+	indx = indx[indx < len(freqs)]
+	freqs_final = freqs[indx]
+	fields_final = fields[indx]
+	if freqs_final.size > 0:
+		fluctuations = fields_final.astype(np.complex128)
+	else:
+		fluctuations = None
 	return Potential(x, y, [mean_value, fluctuations], freqs, nx=nx, ny=ny)
 
 class Potential:
