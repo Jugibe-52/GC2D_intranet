@@ -31,6 +31,7 @@ import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 from scipy.interpolate import RectBivariateSpline
 from scipy.special import jv
+from scipy import ndimage
 import h5py
 from pyhamsys import HamSys
 import time
@@ -38,7 +39,7 @@ import time
 def real_imag(z):
 	return z.real, z.imag
 
-def extract_potential(filename, B=1, indx=None, nx=None, ny=None):
+def extract_potential(filename, B=1, indx=None, nx=None, ny=None, denoising=False):
 	with h5py.File(filename, 'r') as f:
 		x = np.asarray(f['Rcells'][()])
 		y = np.asarray(f['Zcells'][()])
@@ -81,6 +82,10 @@ def extract_potential(filename, B=1, indx=None, nx=None, ny=None):
 		fluctuations = fields_final.astype(np.complex128)
 	else:
 		fluctuations = None
+	if denoising and fluctuations is not None:
+		fluctuations = np.array([ndimage.gaussian_filter(fluct.real, sigma=1) + 1j * ndimage.gaussian_filter(fluct.imag, sigma=1) for fluct in fluctuations])
+	if denoising and mean_value is not None:
+		mean_value = ndimage.gaussian_filter(mean_value, sigma=1)
 	return Potential(x, y, [mean_value, fluctuations], freqs, nx=nx, ny=ny)
 
 class Potential:
