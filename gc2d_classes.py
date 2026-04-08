@@ -48,38 +48,41 @@ def extract_potential(filename, B=1, indx=None, nx=None, ny=None, denoising=Fals
 	expected_shape = (len(freqs), len(y), len(x))
 	if fields.shape != expected_shape:
 		raise ValueError(f"Shape of `fields` in {filename} is {fields.shape}, but expected {expected_shape}.")
-	if indx is None:
-		indx = np.arange(len(freqs))
-	else:
-		indx = np.atleast_1d(indx).astype(int)
+	zero_mask = np.isclose(freqs, 0, atol=1e-5)
+	if zero_mask.any():
+		mean_value = None
+		idx_zero = np.where(zero_mask)[0]
+		if idx_zero.size > 0:
+			mean_value = fields[idx_zero[0]].real
+		freqs = np.delete(freqs, idx_zero)
+		fluctuations = np.delete(fields, idx_zero, axis=0)
 	if np.any(freqs < 0):
 		idx_neg = np.where(freqs < 0)[0]
 		freqs = np.delete(freqs, idx_neg)
-		fields = np.delete(fields, idx_neg, axis=0)
-	zero_mask = np.isclose(freqs, 0, atol=1e-5)
-	mean_value = None
-	if np.any(zero_mask):
-		idx_zero = np.where(zero_mask)[0][0]
-		if 0 in indx:
-			mean_value = fields[idx_zero].real
-		freqs = np.delete(freqs, idx_zero)
-		fields = np.delete(fields, idx_zero, axis=0)
-		indx = indx[indx != 0] - 1
-	amplitudes = np.ptp(fields, axis=(1, 2))
+		fluctuations = np.delete(fluctuations, idx_neg, axis=0)
+	if indx is None:
+		indx = np.arange(len(freqs) + 1)
+	else:
+		indx = np.atleast_1d(indx).astype(int)
+		if indx.min() < 0 or indx.max() > len(freqs):
+			raise ValueError(f"Indices must be in range [0, {len(freqs)}]")
+	mean_value = mean_value if 0 in indx else None
+	amplitudes = np.ptp(fluctuations, axis=(1, 2))
 	sort_indices = np.argsort(amplitudes)[::-1]
 	freqs = freqs[sort_indices]
-	fields = fields[sort_indices]
+	fluctuations = fluctuations[sort_indices]
 	if len(freqs) > 0:
 		omega = 2 * np.pi * freqs[0]
 		scaling_factor = omega * B
-		fields /= scaling_factor
+		if fluctuations.size > 0:
+			fluctuations /= scaling_factor
 		if mean_value is not None:
 			mean_value /= scaling_factor
-	indx = indx[indx < len(freqs)]
-	freqs_final = freqs[indx]
-	fields_final = fields[indx]
-	if freqs_final.size > 0:
-		fluctuations = fields_final.astype(np.complex128)
+	indx = indx[indx != 0] - 1
+	freqs = freqs[indx]
+	fluctuations = fluctuations[indx]
+	if freqs.size > 0:
+		fluctuations = fluctuations.astype(np.complex128)
 	else:
 		fluctuations = None
 	if denoising and fluctuations is not None:
