@@ -39,7 +39,7 @@ import time
 def real_imag(z):
 	return z.real, z.imag
 
-def extract_potential(filename, B=1, indx=None, nx=None, ny=None, denoising=False):
+def extract_potential(filename, B=1, indx=None, nx=None, ny=None, denoising=False, sigma=1):
 	with h5py.File(filename, 'r') as f:
 		x = np.asarray(f['Rcells'][()])
 		y = np.asarray(f['Zcells'][()])
@@ -60,13 +60,6 @@ def extract_potential(filename, B=1, indx=None, nx=None, ny=None, denoising=Fals
 		idx_neg = np.where(freqs < 0)[0]
 		freqs = np.delete(freqs, idx_neg)
 		fluctuations = np.delete(fluctuations, idx_neg, axis=0)
-	if indx is None:
-		indx = np.arange(len(freqs) + 1)
-	else:
-		indx = np.atleast_1d(indx).astype(int)
-		if indx.min() < 0 or indx.max() > len(freqs):
-			raise ValueError(f"Indices must be in range [0, {len(freqs)}]")
-	mean_value = mean_value if 0 in indx else None
 	amplitudes = np.ptp(fluctuations, axis=(1, 2))
 	sort_indices = np.argsort(amplitudes)[::-1]
 	freqs = freqs[sort_indices]
@@ -78,6 +71,13 @@ def extract_potential(filename, B=1, indx=None, nx=None, ny=None, denoising=Fals
 			fluctuations /= scaling_factor
 		if mean_value is not None:
 			mean_value /= scaling_factor
+	if indx is None:
+		indx = np.arange(len(freqs) + 1)
+	else:
+		indx = np.atleast_1d(indx).astype(int)
+		if indx.min() < 0 or indx.max() > len(freqs):
+			raise ValueError(f"Indices must be in range [0, {len(freqs)}]")
+	mean_value = mean_value if 0 in indx else None
 	indx = indx[indx != 0] - 1
 	freqs = freqs[indx]
 	fluctuations = fluctuations[indx]
@@ -86,9 +86,9 @@ def extract_potential(filename, B=1, indx=None, nx=None, ny=None, denoising=Fals
 	else:
 		fluctuations = None
 	if denoising and fluctuations is not None:
-		fluctuations = np.array([ndimage.gaussian_filter(fluct.real, sigma=1) + 1j * ndimage.gaussian_filter(fluct.imag, sigma=1) for fluct in fluctuations])
+		fluctuations = np.array([ndimage.gaussian_filter(fluct.real, sigma=sigma) + 1j * ndimage.gaussian_filter(fluct.imag, sigma=sigma) for fluct in fluctuations])
 	if denoising and mean_value is not None:
-		mean_value = ndimage.gaussian_filter(mean_value, sigma=1)
+		mean_value = ndimage.gaussian_filter(mean_value, sigma=sigma)
 	return Potential(x, y, [mean_value, fluctuations], freqs, nx=nx, ny=ny)
 
 class Potential:
