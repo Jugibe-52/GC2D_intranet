@@ -1,6 +1,6 @@
 # GC2D_intranet
 
-Once [`gc2d_dict.py`](https://github.com/cchandre/Guiding-Center/blob/main/gc2d_dict.py) has been edited with the relevant parameters, run the file as 
+Once [`src/gc2d_core/gc2d_dict.py`](src/gc2d_core/gc2d_dict.py) has been edited with the relevant parameters, run the file as
 ```sh
 python3 gc2d.py
 ```

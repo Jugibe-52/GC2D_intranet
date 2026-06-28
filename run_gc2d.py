@@ -5,12 +5,14 @@
 import numpy as np
 import os
 from pathlib import Path
+import sys
 
 os.environ.setdefault("MPLCONFIGDIR", ".matplotlib")
+sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
 
 from pyhamsys import solve_ivp_symp, solve_ivp_sympext
 
-from gc2d_classes import GC2D, extract_potential, mock_potential
+from gc2d_core.gc2d_classes import GC2D, extract_potential, mock_potential
 
 
 def main() -> None:

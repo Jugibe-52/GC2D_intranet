@@ -6,14 +6,17 @@
 #
 
 import os
+import sys
+from pathlib import Path
 
 os.environ.setdefault("MPLCONFIGDIR", ".matplotlib")
+sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
 
 import matplotlib.pyplot as plt
 import multiprocess
 
-from gc2d_dict import Parallelization, dict_list
-from gc2d_notebook import run_case, to_symp_params
+from gc2d_core.gc2d_dict import Parallelization, dict_list
+from gc2d_core.gc2d_notebook import run_case, to_symp_params
 
 
 def _run_case(params: dict):
