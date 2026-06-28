@@ -1,5 +1,18 @@
 # GC2D_intranet
 
+The canonical Python modules live under [`src/gc2d_core`](src/gc2d_core). The root-level
+scripts are entry points: [`gc2d.py`](gc2d.py) for parameter-dictionary runs and
+[`run_gc2d.py`](run_gc2d.py) for the standalone showcase.
+
+For imports outside those scripts, install the package in editable mode:
+```sh
+python3 -m pip install -e .
+```
+To install the editable package plus notebook/demo tools, use:
+```sh
+python3 -m pip install -r requirements.txt
+```
+
 Once [`src/gc2d_core/gc2d_dict.py`](src/gc2d_core/gc2d_dict.py) has been edited with the relevant parameters, run the file as
 ```sh
 python3 gc2d.py
