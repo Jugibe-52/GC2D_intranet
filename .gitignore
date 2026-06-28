@@ -2,3 +2,7 @@
 *.mat
 *.pyc
 *.pyc
+.venv/
+__pycache__/
+.matplotlib/
+.ipynb_checkpoints/

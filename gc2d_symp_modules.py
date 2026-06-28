@@ -26,6 +26,9 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import numpy as xp
+import os
+os.environ.setdefault("MPLCONFIGDIR", ".matplotlib")
+import matplotlib.pyplot as plt
 from pyhamsys import solve_ivp_sympext, solve_ivp_symp
 import time
 
@@ -43,3 +46,25 @@ def run_method(self):
 	if self.CheckEnergy:
 		print(f'\033[90m           with error in energy = {sol.err}')
 	self.save_data(sol)
+	if getattr(self, 'Method', '').startswith('poincare') and getattr(self, 'PlotResults', False):
+		fig, ax = plt.subplots(1, 1)
+		if self.traj_type == 'gc':
+			x, y = xp.split(sol.y, 2)
+		else:
+			x, y = xp.split(sol.y, 4)[:2]
+		if getattr(self, 'modulo', False):
+			x, y = x % (2 * xp.pi), y % (2 * xp.pi)
+			ax.set_xlim(0, 2 * xp.pi)
+			ax.set_ylim(0, 2 * xp.pi)
+		ax.plot(x, y, '.', markersize=3 if self.traj_type == 'gc' else 1, markeredgecolor='none')
+		ax.set_xlabel('$x$')
+		ax.set_ylabel('$y$')
+		ax.set_aspect('equal')
+		if self.SaveData:
+			extension = getattr(self, 'extension', '.png')
+			basename = f'{type(self).__name__}_A{self.A:.2f}_RHO{self.rho:.4f}'.replace('.', '')
+			filename = f'{basename}{extension}'
+			fig.savefig(filename, dpi=getattr(self, 'dpi', 200))
+			print(f'\033[90m        Figure saved in {filename} \033[00m')
+		if 'agg' not in plt.get_backend().lower():
+			plt.pause(0.5)

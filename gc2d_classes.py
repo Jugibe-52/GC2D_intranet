@@ -26,7 +26,9 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import numpy as np
+import os
 from numpy.fft import fft2, ifft2, fftfreq
+os.environ.setdefault("MPLCONFIGDIR", ".matplotlib")
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 from scipy.interpolate import RectBivariateSpline
@@ -48,9 +50,10 @@ def extract_potential(filename, B=1, indx=None, nx=None, ny=None, denoising=Fals
 	expected_shape = (len(freqs), len(y), len(x))
 	if fields.shape != expected_shape:
 		raise ValueError(f"Shape of `fields` in {filename} is {fields.shape}, but expected {expected_shape}.")
+	mean_value = None
+	fluctuations = fields
 	zero_mask = np.isclose(freqs, 0, atol=1e-5)
 	if zero_mask.any():
-		mean_value = None
 		idx_zero = np.where(zero_mask)[0]
 		if idx_zero.size > 0:
 			mean_value = fields[idx_zero[0]].real
@@ -180,7 +183,7 @@ class GC2D(HamSys, Potential):
 		return f'2D Guiding Center ({self.__class__.__name__}) for turbulent potentials'
 		
 	def __init__(self, potential, traj, k=3):
-		super().__init__(ndof=1.5 if traj["type"]=='gc' else 2.5, btype='pq')
+		super().__init__(ndof=1.5 if traj["type"]=='gc' else 2.5)
 		self.traj = traj
 		self.rho = traj["rho"] if "rho" in traj else 0
 		self.eta = traj["eta"] if "eta" in traj else 0
@@ -275,6 +278,8 @@ class GC2D(HamSys, Potential):
 			y0 = np.linspace(y[0], y[-1], int(np.sqrt(n_traj)), endpoint=False)
 			x0, y0 = np.meshgrid(x0, y0, indexing='ij')
 			z0 = np.concatenate((x0.flatten(), y0.flatten()), axis=None)
+		else:
+			raise ValueError("`type` must be either 'random' or 'fixed'.")
 		if self.traj["type"] == 'fo':
 			np.random.seed(int(time.time()))
 			phi_perp = 2 * np.pi * np.random.rand(n_traj)
@@ -329,7 +334,10 @@ class GC2D(HamSys, Potential):
 		d2phidx2_c = self.phic_interp(x, y, dx=2) 
 		d2phidxdy_c = self.phic_interp(x, y, dx=1, dy=1)
 		d2phidy2_c = self.phic_interp(x, y, dy=2)
-		d2phidx2_t, d2phidxdy_t, d2phidy2_t = d2phidx2_c[0], d2phidxdy_c[0], d2phidy2_c[0] if d2phidx2_c[0] is not None else (np.zeros_like(x), np.zeros_like(y), np.zeros_like(y))
+		if d2phidx2_c[0] is not None:
+			d2phidx2_t, d2phidxdy_t, d2phidy2_t = d2phidx2_c[0], d2phidxdy_c[0], d2phidy2_c[0]
+		else:
+			d2phidx2_t, d2phidxdy_t, d2phidy2_t = np.zeros_like(x), np.zeros_like(y), np.zeros_like(y)
 		if d2phidx2_c[1] is not None:
 			for fluct_xx, fluct_xy, fluct_yy, freq in zip(d2phidx2_c[1], d2phidxdy_c[1], d2phidy2_c[1], self.freqs):
 				phase = 2 * np.exp(1j * freq * t)

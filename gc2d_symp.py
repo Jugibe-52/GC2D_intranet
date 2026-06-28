@@ -26,6 +26,8 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import numpy as xp
+import os
+os.environ.setdefault("MPLCONFIGDIR", ".matplotlib")
 from scipy.special import jv
 import multiprocess
 from datetime import datetime
@@ -71,7 +73,6 @@ class GC2Dt(HamSys):
 		if self.traj_type == 'gc':
 			flr1_coeff = jv(0, self.rho * sqrt_nm)
 			self.phic *= flr1_coeff
-			flr2_coeff = -sqrt_nm * jv(1, self.rho * sqrt_nm) / self.rho
 
 		self.fft_phi_ = xp.asarray([-self.nm[1] * self.phic, self.nm[0] * self.phic])	
 
@@ -83,6 +84,15 @@ class GC2Dt(HamSys):
 			y_vec = xp.linspace(0, 2 * xp.pi, int(xp.sqrt(self.Ntraj)), endpoint=False)
 			y_mat = xp.meshgrid(y_vec, y_vec)
 			y0 = xp.concatenate((y_mat[0], y_mat[1]), axis=None)
+		elif type == 'selected':
+			x0 = xp.asarray(self.x0)
+			y0_selected = xp.asarray(self.y0)
+			if x0.shape != y0_selected.shape:
+				raise ValueError("`x0` and `y0` must have the same shape when init='selected'.")
+			self.Ntraj = x0.size
+			y0 = xp.concatenate((x0.ravel(), y0_selected.ravel()), axis=None)
+		else:
+			raise ValueError("`type` must be 'random', 'fixed' or 'selected'.")
 		if self.traj_type == 'fo':
 			phi_perp = 2 * xp.pi * xp.random.rand(self.Ntraj)
 			y0 = xp.concatenate((y0, xp.cos(phi_perp), xp.sin(phi_perp)), axis=None)
@@ -145,7 +155,10 @@ class GC2Dt(HamSys):
 			if self.traj_type == 'gc':
 				x, y = xp.split(sol.y, 2)
 			elif self.traj_type == 'fo':
-				x, y, vx, vy = xp.split(sol.y, 5)
+				if self.CheckEnergy:
+					x, y, vx, vy, _ = xp.split(sol.y, 5)
+				else:
+					x, y, vx, vy = xp.split(sol.y, 4)
 			mdic = self.DictParams.copy()
 			mdic.update({'t': sol.t, 'x': x, 'y': y})
 			if self.traj_type == 'fo':
