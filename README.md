@@ -13,6 +13,12 @@ To install the editable package plus notebook/demo tools, use:
 python3 -m pip install -r requirements.txt
 ```
 
+Logging is enabled by default for the root scripts. Use `GC2D_LOG_LEVEL` to change
+verbosity and `GC2D_LOG_FILE` to also write logs to a file:
+```sh
+GC2D_LOG_LEVEL=DEBUG GC2D_LOG_FILE=logs/gc2d.log python3 gc2d.py
+```
+
 Once [`src/gc2d_core/gc2d_dict.py`](src/gc2d_core/gc2d_dict.py) has been edited with the relevant parameters, run the file as
 ```sh
 python3 gc2d.py

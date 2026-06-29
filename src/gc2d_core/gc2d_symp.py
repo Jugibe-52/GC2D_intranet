@@ -27,6 +27,7 @@
 
 import numpy as xp
 import os
+import logging
 os.environ.setdefault("MPLCONFIGDIR", ".matplotlib")
 from scipy.special import jv
 import multiprocess
@@ -34,19 +35,25 @@ from datetime import datetime
 from scipy.io import savemat
 from .gc2d_symp_modules import run_method
 from .gc2d_symp_dict import dict_list, Parallelization
+from .logging_config import configure_logging
 from pyhamsys import OdeSolution, HamSys
 
+logger = logging.getLogger(__name__)
+
 def main() -> None:
+	configure_logging()
 	if Parallelization == 'all':
 		num_cores = multiprocess.cpu_count()
 	else:
 		num_cores = min(multiprocess.cpu_count(), Parallelization)
+	logger.info("Prepared %d case(s); parallelization=%s; workers=%d", len(dict_list), Parallelization, num_cores)
 	if num_cores >= 2:
 		pool = multiprocess.Pool(num_cores)
 		pool.map(lambda dict_: run_method(GC2Dt(dict_)), dict_list)
 	else:
 		for dict_ in dict_list:
 			run_method(GC2Dt(dict_))
+	logger.info("All cases finished")
 
 def real_imag(z:xp.ndarray):
 	return z.real, z.imag
@@ -168,7 +175,7 @@ class GC2Dt(HamSys):
 			mdic.update({'date': datetime.now().strftime(" %B %d, %Y\n"), 'author': 'cristel.chandre@cnrs.fr'})
 			filename = 'data_' + self.traj_type + '_' + datetime.now().strftime("%Y%m%d_%H%M%S") + '.mat'
 			savemat(filename, mdic)
-			print(f'\033[90m        Results saved in {filename} \033[00m')
+			logger.info("Results saved in %s", filename)
 
 if __name__ == '__main__':
 	main()

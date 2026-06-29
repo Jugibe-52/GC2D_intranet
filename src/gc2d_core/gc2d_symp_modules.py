@@ -27,26 +27,34 @@
 
 import numpy as xp
 import os
+import logging
 os.environ.setdefault("MPLCONFIGDIR", ".matplotlib")
 import matplotlib.pyplot as plt
 from pyhamsys import solve_ivp_sympext, solve_ivp_symp
 import time
 
+from .logging_config import simulation_label
+
+logger = logging.getLogger(__name__)
+
 def run_method(self):
-	print(f"\033[92m   Integration of {self.__str__()} \033[00m")
+	logger.info("Starting case: %s", simulation_label(self.DictParams))
 	start = time.time()
 	y0 = self.initial_conditions(type=self.init)
+	logger.info("Initial conditions ready: shape=%s init=%s", y0.shape, self.init)
 	t_eval = 2 * xp.pi * xp.arange(0, self.Tf + 1)
+	logger.info("Starting integration: solver=%s step=%s samples=%d", self.ode_solver, self.TimeStep, len(t_eval))
 	if self.traj_type == 'gc':
 		sol = solve_ivp_sympext(self, (0, t_eval.max()), y0, step=self.TimeStep, t_eval=t_eval, method=self.ode_solver, check_energy=self.CheckEnergy)
 	elif self.traj_type == 'fo':
 		sol = solve_ivp_symp(self.chi, self.chi_star, (0, t_eval.max()), y0, step=self.TimeStep, t_eval=t_eval, method=self.ode_solver)
 		sol = self.rectify_sol(sol, check_energy=self.CheckEnergy)
-	print(f'\033[90m        Computation finished in {int(time.time() - start)} seconds \033[00m')
+	logger.info("Finished case in %.2f seconds: %s", time.time() - start, simulation_label(self.DictParams))
 	if self.CheckEnergy:
-		print(f'\033[90m           with error in energy = {sol.err}')
+		logger.info("Energy error: %s", sol.err)
 	self.save_data(sol)
 	if getattr(self, 'Method', '').startswith('poincare') and getattr(self, 'PlotResults', False):
+		logger.info("Plotting Poincare section: traj=%s modulo=%s", self.traj_type, getattr(self, 'modulo', False))
 		fig, ax = plt.subplots(1, 1)
 		if self.traj_type == 'gc':
 			x, y = xp.split(sol.y, 2)
@@ -65,6 +73,6 @@ def run_method(self):
 			basename = f'{type(self).__name__}_A{self.A:.2f}_RHO{self.rho:.4f}'.replace('.', '')
 			filename = f'{basename}{extension}'
 			fig.savefig(filename, dpi=getattr(self, 'dpi', 200))
-			print(f'\033[90m        Figure saved in {filename} \033[00m')
+			logger.info("Figure saved in %s", filename)
 		if 'agg' not in plt.get_backend().lower():
 			plt.pause(0.5)

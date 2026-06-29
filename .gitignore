@@ -6,3 +6,5 @@
 __pycache__/
 .matplotlib/
 .ipynb_checkpoints/
+logs/
+*.log
