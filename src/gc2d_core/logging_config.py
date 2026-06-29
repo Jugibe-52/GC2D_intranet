@@ -6,6 +6,7 @@ import logging
 import os
 import sys
 from pathlib import Path
+from typing import Any
 
 DEFAULT_LOG_FORMAT = "%(asctime)s | %(levelname)-8s | %(processName)s | %(name)s | %(message)s"
 DEFAULT_DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
@@ -19,7 +20,11 @@ def configure_logging(level: str | None = None, log_file: str | Path | None = No
 	- GC2D_LOG_FILE: optional path for a file log.
 	"""
 	level_name = (level or os.environ.get("GC2D_LOG_LEVEL") or "INFO").upper()
-	log_level = getattr(logging, level_name, logging.INFO)
+	log_level = getattr(logging, level_name, None)
+	if log_level is None:
+		print(f"Invalid GC2D log level {level_name!r}; falling back to INFO.", file=sys.stderr)
+		level_name = "INFO"
+		log_level = logging.INFO
 	file_path = log_file or os.environ.get("GC2D_LOG_FILE")
 
 	handlers: list[logging.Handler] = [logging.StreamHandler(sys.stdout)]
@@ -35,9 +40,10 @@ def configure_logging(level: str | None = None, log_file: str | Path | None = No
 		handlers=handlers,
 		force=True,
 	)
+	logging.getLogger(__name__).debug("Logging configured: level=%s file=%s", level_name, file_path or "stdout only")
 
 
-def simulation_label(params: dict) -> str:
+def simulation_label(params: dict[str, Any]) -> str:
 	"""Return a compact label for log messages about one parameter set."""
 	return (
 		f"method={params.get('Method', 'unknown')} "

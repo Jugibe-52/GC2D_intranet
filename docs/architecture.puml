@@ -1,0 +1,109 @@
+@startuml GC2D_architecture
+title GC2D Program Architecture
+
+skinparam componentStyle rectangle
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam defaultTextAlignment center
+skinparam ArrowColor #4A5568
+skinparam ComponentBorderColor #2D3748
+skinparam ComponentBackgroundColor #F7FAFC
+skinparam PackageBorderColor #718096
+skinparam PackageBackgroundColor #EDF2F7
+skinparam DatabaseBorderColor #2D3748
+skinparam DatabaseBackgroundColor #EBF8FF
+skinparam ArtifactBorderColor #2D3748
+skinparam ArtifactBackgroundColor #FFFFF0
+
+actor "User" as user
+
+package "Entry points" {
+  component "gc2d.py\nmain batch runner" as gc2d
+  component "run_gc2d.py\nstandalone showcase" as run_gc2d
+  component "notebooks/\ngc2d_notebook_demo.ipynb" as notebook
+}
+
+package "Configuration" {
+  component "gc2d_dict.py\nMethod, Ntraj, Tf,\nA, rho, plotting, saving" as gc2d_dict
+  component "gc2d_symp_dict.py\nlegacy symplectic\nparameter grid" as symp_dict
+}
+
+package "gc2d_core package" {
+  component "logging_config.py\nconfigure_logging()\nsimulation_label()" as logging_config
+
+  component "gc2d_notebook.py\nrun_case()\nintegrate_case()\nplot_poincare()" as notebook_api
+
+  component "gc2d_symp.py\nGC2Dt\nFourier turbulent model" as gc2dt
+
+  component "gc2d_symp_modules.py\nrun_method()\nlegacy execution flow" as symp_modules
+
+  component "gc2d_classes.py\nPotential\nGC2D\nHDF5/mock potential flow" as gc2d_classes
+}
+
+package "External libraries" {
+  component "pyhamsys\nsolve_ivp_sympext()\nsolve_ivp_symp()\nHamSys" as pyhamsys
+  component "multiprocess\nPool / cpu_count" as multiprocess
+  component "NumPy / SciPy\nFFT, Bessel, interpolation,\nMATLAB export" as scientific_stack
+  component "Matplotlib\nfigures and interactive plots" as matplotlib
+  component "h5py\nPHI.h5 input" as h5py
+}
+
+database "Input data\nPHI.h5" as phi_h5
+
+artifact "Runtime outputs\n.mat data files\n.png/.pdf/.svg figures\nstdout/file logs" as outputs
+
+user --> gc2d : python3 gc2d.py
+user --> run_gc2d : python3 run_gc2d.py
+user --> notebook : open notebook
+
+gc2d --> gc2d_dict : reads dict_list\nand Parallelization
+gc2d --> logging_config : configures logging
+gc2d --> multiprocess : parallel case map
+gc2d --> notebook_api : run_case(params)
+gc2d --> matplotlib : show plots
+
+notebook --> notebook_api : imports reusable API
+notebook --> gc2d_dict : optional base params
+
+notebook_api --> logging_config : labels and logs
+notebook_api --> gc2dt : builds GC2Dt(params)
+notebook_api --> pyhamsys : integrates gc / fo trajectories
+notebook_api --> matplotlib : Poincare plots
+notebook_api --> outputs : figures via plot_poincare()
+
+gc2dt --> pyhamsys : extends HamSys\nuses OdeSolution contract
+gc2dt --> scientific_stack : Fourier potential,\nBessel FLR correction,\nsavemat()
+gc2dt --> outputs : save_data()
+
+gc2dt ..> symp_modules : legacy runner creates\nGC2Dt per params
+symp_modules --> pyhamsys : integrates trajectories
+symp_modules --> matplotlib : optional Poincare plot
+symp_modules --> outputs : saved data / figures
+symp_modules --> logging_config : logs progress
+
+symp_dict --> gc2dt : legacy main()\nparameter grid
+
+run_gc2d --> logging_config : configures logging
+run_gc2d --> gc2d_classes : extract_potential()\nmock_potential()\nGC2D()
+run_gc2d --> pyhamsys : integrates showcase
+run_gc2d --> matplotlib : plot_sol()
+
+phi_h5 --> h5py
+h5py --> gc2d_classes : loaded by extract_potential()
+gc2d_classes --> scientific_stack : interpolation,\ngyroaverage, derivatives
+gc2d_classes --> pyhamsys : extends HamSys
+gc2d_classes --> matplotlib : potential / trajectory plots
+gc2d_classes --> outputs : showcase figures
+
+legend right
+  Main production path:
+  gc2d.py -> gc2d_dict.py -> gc2d_notebook.py -> GC2Dt -> pyhamsys -> outputs
+
+  Standalone data-potential path:
+  run_gc2d.py -> gc2d_classes.py -> pyhamsys -> plots
+
+  Legacy package entry:
+  gc2d_symp.py -> gc2d_symp_dict.py -> gc2d_symp_modules.py
+endlegend
+
+@enduml

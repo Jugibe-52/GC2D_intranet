@@ -8,6 +8,7 @@
 import os
 import sys
 from pathlib import Path
+from typing import Any
 
 os.environ.setdefault("MPLCONFIGDIR", ".matplotlib")
 sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
@@ -24,7 +25,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-def _run_case(params: dict):
+def _run_case(params: dict[str, Any]) -> None:
 	logger.info("Starting case: %s", simulation_label(params))
 	result = run_case(params, plot=params.get('PlotResults', False))
 	logger.info("Finished case in %.2f seconds: %s", result.elapsed, simulation_label(params))

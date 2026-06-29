@@ -27,7 +27,9 @@
 
 import numpy as np
 import os
+from pathlib import Path
 from numpy.fft import fft2, ifft2, fftfreq
+from typing import Any, Literal, Sequence
 os.environ.setdefault("MPLCONFIGDIR", ".matplotlib")
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
@@ -38,10 +40,24 @@ import h5py
 from pyhamsys import HamSys
 import time
 
-def real_imag(z):
+Array = np.ndarray
+FieldList = list[Array | list[Array] | None]
+InterpolatorList = list[Any]
+
+
+def real_imag(z: Array) -> tuple[Array, Array]:
 	return z.real, z.imag
 
-def extract_potential(filename, B=1, indx=None, nx=None, ny=None, denoising=False, sigma=1):
+
+def extract_potential(
+	filename: str | Path,
+	B: float = 1,
+	indx: Sequence[int] | Array | None = None,
+	nx: int | None = None,
+	ny: int | None = None,
+	denoising: bool = False,
+	sigma: float = 1,
+) -> "Potential":
 	with h5py.File(filename, 'r') as f:
 		x = np.asarray(f['Rcells'][()])
 		y = np.asarray(f['Zcells'][()])
@@ -95,7 +111,17 @@ def extract_potential(filename, B=1, indx=None, nx=None, ny=None, denoising=Fals
 	return Potential(x, y, [mean_value, fluctuations], freqs, nx=nx, ny=ny)
 
 class Potential:
-	def __init__(self, x, y, fields, freqs, nx=None, ny=None, xy_period=None, k=3):
+	def __init__(
+		self,
+		x: Array,
+		y: Array,
+		fields: FieldList,
+		freqs: Sequence[float] | Array,
+		nx: int | None = None,
+		ny: int | None = None,
+		xy_period: float | None = None,
+		k: int = 3,
+	) -> None:
 		self.freqs = np.atleast_1d(freqs)
 		if x.ndim != 1:
 			raise ValueError("`x` must be 1-dimensional.")
@@ -122,7 +148,7 @@ class Potential:
 		self.xmin, self.xmax, self.ymin, self.ymax = self.x.min(), self.x.max(), self.y.min(), self.y.max()
 		self.nx, self.ny = self.x.size, self.y.size
 
-	def gyroaverage(self, rho, fields):
+	def gyroaverage(self, rho: float, fields: FieldList) -> FieldList:
 		kx, ky = fftfreq(self.nx, d=self.dx), fftfreq(self.ny, d=self.dy)
 		kx_, ky_ = np.meshgrid(kx, ky, indexing='ij')
 		mean_value, fluctuations = None, None
@@ -135,7 +161,7 @@ class Potential:
 				fluctuations.append(gyro_field)
 		return [mean_value, fluctuations]
 
-	def interpolate(self, x, y, fields):
+	def interpolate(self, x: Array, y: Array, fields: FieldList) -> InterpolatorList:
 		kl, kr = self.kinterp + 1, self.kinterp + 2 if  self.xy_period is not None else self.kinterp + 1
 		dx, dy = x[1] - x[0], y[1] - y[0]
 		xmin, xmax, ymin, ymax = x.min(), x.max(), y.min(), y.max()
@@ -155,7 +181,7 @@ class Potential:
 				fluctuations.append((interp_real, interp_imag))
 		return [mean_value, fluctuations]
 
-	def interp_fields(self, xi, yi, interpolators):
+	def interp_fields(self, xi: Array, yi: Array, interpolators: InterpolatorList) -> FieldList:
 		mean_value, fluctuations = None, None
 		if interpolators[0]:
 			mean_value = interpolators[0](xi, yi)
@@ -165,7 +191,7 @@ class Potential:
 				fluctuations.append(interp_real(xi, yi) + 1j * interp_imag(xi, yi))
 		return [mean_value, fluctuations]
 	
-def mock_potential(A, M, nx, ny, seed=27):
+def mock_potential(A: float, M: int, nx: int, ny: int, seed: int = 27) -> Potential:
     x = np.linspace(0, 2 * np.pi, nx, endpoint=False)
     y = np.linspace(0, 2 * np.pi, ny, endpoint=False)
     X, Y = np.meshgrid(x, y, indexing='ij')
@@ -182,7 +208,7 @@ class GC2D(HamSys, Potential):
 	def __str__(self) -> str:
 		return f'2D Guiding Center ({self.__class__.__name__}) for turbulent potentials'
 		
-	def __init__(self, potential, traj, k=3):
+	def __init__(self, potential: Potential, traj: dict[str, Any], k: int = 3) -> None:
 		super().__init__(ndof=1.5 if traj["type"]=='gc' else 2.5)
 		self.traj = traj
 		self.rho = traj["rho"] if "rho" in traj else 0
@@ -199,7 +225,7 @@ class GC2D(HamSys, Potential):
 			self.phi_fo = np.sign(self.eta) / self.rho
 			self.omlar = 1 / (2 * self.eta)
 
-	def phic_interp(self, xi, yi, dx=0, dy=0):
+	def phic_interp(self, xi: Array, yi: Array, dx: int = 0, dy: int = 0) -> FieldList:
 		xi, yi = self.wrap_or_clip(xi, yi)
 		mean_value, fluctuations = None, None
 		if self.fields[0] is not None:
@@ -210,7 +236,7 @@ class GC2D(HamSys, Potential):
 				fluctuations.append(interp_real.ev(xi, yi, dx=dx, dy=dy) + 1j * interp_imag.ev(xi, yi, dx=dx, dy=dy))
 		return [mean_value, fluctuations]
 
-	def wrap_or_clip(self, xi, yi):
+	def wrap_or_clip(self, xi: Array, yi: Array) -> tuple[Array, Array]:
 		if self.xy_period is None:
 			xi = np.clip(xi, self.xmin, self.xmax)
 			yi = np.clip(yi, self.ymin, self.ymax)
@@ -219,8 +245,8 @@ class GC2D(HamSys, Potential):
 			yi = ((np.asarray(yi) - self.ymin) % self.xy_period) + self.ymin
 		return xi, yi
 	
-	def plot_potential(self, dx=0, dy=0, nx=512, ny=512):
-		def white_centered_cmap(vmin, vmax):
+	def plot_potential(self, dx: int = 0, dy: int = 0, nx: int = 512, ny: int = 512) -> None:
+		def white_centered_cmap(vmin: float, vmax: float) -> tuple[Any, Any]:
 			if vmin >= 0:
 				cmap = plt.get_cmap('Reds')
 				norm = mcolors.Normalize(vmin=vmin, vmax=vmax)
@@ -265,7 +291,13 @@ class GC2D(HamSys, Potential):
 				plt.tight_layout()
 		plt.show()
 
-	def initial_conditions(self, n_traj, x=None, y=None, type='fixed'):
+	def initial_conditions(
+		self,
+		n_traj: int,
+		x: Array | None = None,
+		y: Array | None = None,
+		type: Literal['random', 'fixed'] = 'fixed',
+	) -> Array:
 		x, y = self.x if x is None else x, self.y if y is None else y
 		if type == 'random':
 			np.random.seed(int(time.time()))
@@ -286,13 +318,13 @@ class GC2D(HamSys, Potential):
 			z0 = np.concatenate((z0, np.cos(phi_perp), np.sin(phi_perp)), axis=None)
 		return z0
 	
-	def get_positions(self, z):
+	def get_positions(self, z: Array) -> list[Array]:
 		return np.split(z if self.traj["type"] == 'gc' else np.split(z, 2)[0], 2)
 	
-	def get_velocities(self, z):
+	def get_velocities(self, z: Array) -> list[Array] | None:
 		return None if self.traj["type"] == 'gc' else np.split(np.split(z, 2)[1], 2)
 
-	def hamiltonian(self, t, z):
+	def hamiltonian(self, t: float, z: Array) -> float | Array | None:
 		x, y = self.get_positions(z)
 		phi_c = self.phic_interp(x, y)
 		phi_t = np.sum(phi_c[0]) if phi_c[0] is not None else 0
@@ -305,7 +337,7 @@ class GC2D(HamSys, Potential):
 			vx, vy = self.get_velocities(z)
 			return np.sum(self.rho / (4 * np.abs(self.eta)) * (vx**2 + vy**2) + phi_t * np.sign(self.eta) / self.rho)
         
-	def y_dot(self, t, z, output='full'):
+	def y_dot(self, t: float, z: Array, output: Literal['full', 'reduced'] = 'full') -> Array | None:
 		x, y = self.get_positions(z)
 		dphidx_c, dphidy_c = self.phic_interp(x, y, dx=1), self.phic_interp(x, y, dy=1)
 		dphidx_t, dphidy_t = (dphidx_c[0], dphidy_c[0]) if dphidx_c[0] is not None else (np.zeros_like(x), np.zeros_like(y))
@@ -321,7 +353,7 @@ class GC2D(HamSys, Potential):
 			return np.concatenate((vx * self.v_fo, vy * self.v_fo, -dphidx_t * self.phi_fo\
 						   + vy * self.omlar, -dphidy_t * self.phi_fo - vx * self.omlar), axis=None)
 
-	def y_dot_lyap(self, t, z):
+	def y_dot_lyap(self, t: float, z: Array) -> Array:
 		if self.traj["type"] == 'fo':
 			x, y, vx, vy, *J = np.split(z, 20)
 			z = np.concatenate((x, y, vx, vy), axis=None)
@@ -359,7 +391,7 @@ class GC2D(HamSys, Potential):
 		J_dot = np.einsum('ijm,jkm->ikm', A, J)
 		return np.concatenate((z_dot, J_dot.reshape(-1)), axis=None)
 
-	def k_dot(self, t, z):
+	def k_dot(self, t: float, z: Array) -> float | Array:
 		x, y = self.get_positions(z)
 		phi_c = self.phic_interp(x, y)
 		dphidt_t = 0
@@ -370,7 +402,7 @@ class GC2D(HamSys, Potential):
 			dphidt_t *= -self.phi_fo
 		return dphidt_t
 
-	def chi(self, h, t, z):
+	def chi(self, h: float, t: float, z: Array) -> Array:
 		x, y, vx, vy = np.split(z, 4)
 		exp_ = np.exp(-1j * h * self.omlar)
 		x, y = real_imag(x + 1j * y + 1j * self.rho * np.sign(self.eta) * (exp_ - 1) * (vx + 1j * vy)) 
@@ -379,7 +411,7 @@ class GC2D(HamSys, Potential):
 		vx, vy = real_imag(vx + 1j * vy + h * 1j * (pot[0] + 1j * pot[1]) * self.phi_fo)
 		return np.concatenate((x, y, vx, vy), axis=None)
 	
-	def chi_star(self, h, t, z):
+	def chi_star(self, h: float, t: float, z: Array) -> Array:
 		x, y, vx, vy = np.split(z, 4)
 		pot = np.split(self.y_dot(t, np.concatenate((x, y), axis=None), output='reduced'), 2)
 		vx, vy = real_imag(vx + 1j * vy + h * 1j * (pot[0] + 1j * pot[1]) * self.phi_fo)
@@ -388,13 +420,20 @@ class GC2D(HamSys, Potential):
 		vx, vy = real_imag(exp_ * (vx + 1j * vy))
 		return np.concatenate((x, y, vx, vy), axis=None)
 	
-	def fo2gc(self, z):
+	def fo2gc(self, z: Array) -> tuple[Array, Array]:
 		x, y, vx, vy = np.split(z, 4)
 		v = vy + 1j * vx
 		theta, rho = np.pi + np.angle(v), self.rho * np.abs(v)
 		return x - rho * np.cos(theta), y + rho * np.sin(theta)
 	
-	def plot_sol(self, sol, wrap=False, xlim=None, ylim=None, **kwargs): 
+	def plot_sol(
+		self,
+		sol: Any,
+		wrap: bool = False,
+		xlim: tuple[float, float] | None = None,
+		ylim: tuple[float, float] | None = None,
+		**kwargs: Any,
+	) -> None:
 		x, y = self.get_positions(sol.y)
 		xmin, xmax = xlim or (self.xmin, self.xmax)
 		ymin, ymax = ylim or (self.ymin, self.ymax) 

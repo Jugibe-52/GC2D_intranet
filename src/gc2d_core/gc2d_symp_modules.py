@@ -28,6 +28,7 @@
 import numpy as xp
 import os
 import logging
+from typing import Any
 os.environ.setdefault("MPLCONFIGDIR", ".matplotlib")
 import matplotlib.pyplot as plt
 from pyhamsys import solve_ivp_sympext, solve_ivp_symp
@@ -37,7 +38,7 @@ from .logging_config import simulation_label
 
 logger = logging.getLogger(__name__)
 
-def run_method(self):
+def run_method(self: Any) -> None:
 	logger.info("Starting case: %s", simulation_label(self.DictParams))
 	start = time.time()
 	y0 = self.initial_conditions(type=self.init)

@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 import sys
 import time
+from typing import Any
 
 os.environ.setdefault("MPLCONFIGDIR", ".matplotlib")
 sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
@@ -44,7 +45,7 @@ def main() -> None:
 	n_max = 50
 	traj_type = "gc" # 'gc' (guiding centers) or 'fo' (full orbits)
 
-	traj = {"type": traj_type, "rho": rho, "eta": eta}
+	traj: dict[str, Any] = {"type": traj_type, "rho": rho, "eta": eta}
 	hs = GC2D(potential, traj, k=5)
 	z0 = hs.initial_conditions(Ntraj, type="random")
 	logger.info("Generated initial conditions: traj_type=%s Ntraj=%d shape=%s", traj_type, Ntraj, z0.shape)

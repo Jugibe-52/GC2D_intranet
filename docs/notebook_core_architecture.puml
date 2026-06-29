@@ -1,0 +1,110 @@
+@startuml GC2D_notebook_core_architecture
+title Notebook Execution and gc2d_core Package Architecture
+
+skinparam componentStyle rectangle
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam defaultTextAlignment center
+skinparam ArrowColor #4A5568
+skinparam ComponentBorderColor #2D3748
+skinparam ComponentBackgroundColor #F7FAFC
+skinparam PackageBorderColor #718096
+skinparam PackageBackgroundColor #EDF2F7
+skinparam ArtifactBorderColor #2D3748
+skinparam ArtifactBackgroundColor #FFFFF0
+
+actor "Notebook user" as user
+
+package "Notebook layer" {
+  component "notebooks/\ngc2d_notebook_demo.ipynb" as notebook
+  component "Parameter cells\nbase dict + overrides" as params_cells
+  component "Plot cells\nPoincare / diagnostics" as plot_cells
+}
+
+package "gc2d_core public notebook API" {
+  component "gc2d_notebook.py" as notebook_api
+  component "make_params(base, **overrides)" as make_params
+  component "to_symp_params(params)" as to_symp_params
+  component "run_case(params, plot=True)" as run_case
+  component "integrate_case(params)" as integrate_case
+  component "plot_poincare(result)" as plot_poincare
+  component "SimulationResult\nsystem, sol, elapsed,\nfig, ax" as result
+}
+
+package "gc2d_core numerical model" {
+  component "gc2d_symp.py\nGC2Dt" as gc2dt
+  component "initial_conditions()" as initial_conditions
+  component "Hamiltonian methods\ny_dot(), k_dot(),\npotential(), hamiltonian()" as hamiltonian_methods
+  component "Full-orbit splitting\nchi(), chi_star()" as splitting_methods
+  component "save_data(sol)" as save_data
+}
+
+package "gc2d_core support" {
+  component "gc2d_dict.py\noptional base configuration" as gc2d_dict
+  component "logging_config.py\nsimulation_label()" as logging_config
+}
+
+package "External runtime" {
+  component "pyhamsys\nsolve_ivp_sympext()" as solve_gc
+  component "pyhamsys\nsolve_ivp_symp()" as solve_fo
+  component "NumPy / SciPy\narrays, Bessel J0,\nMATLAB export" as scientific_stack
+  component "Matplotlib\naxes, figures, display" as matplotlib
+}
+
+artifact "Notebook outputs\ninline figures\nSimulationResult object\noptional .mat files" as outputs
+
+user --> notebook : runs cells
+notebook --> params_cells : edits parameters
+notebook --> plot_cells : inspects results
+
+params_cells --> gc2d_dict : may import defaults
+params_cells --> make_params : creates case dict
+params_cells --> to_symp_params : normalizes traj_type\nand eta
+
+notebook --> run_case : simple path
+notebook --> integrate_case : manual integration path
+notebook --> plot_poincare : manual plotting path
+
+notebook_api --> logging_config : labels integration logs
+notebook_api --> result : returns structured result
+
+make_params --> to_symp_params : validates parameters
+run_case --> integrate_case : executes simulation
+run_case --> plot_poincare : optional plot for\nMethod=poincare_*
+
+integrate_case --> to_symp_params : normalizes input
+integrate_case --> gc2dt : GC2Dt(params)
+integrate_case --> initial_conditions : builds y0
+integrate_case --> solve_gc : if traj_type='gc'
+integrate_case --> solve_fo : if traj_type='fo'
+integrate_case --> result : stores system, sol,\nelapsed time
+
+gc2dt --> hamiltonian_methods : guiding-center dynamics
+gc2dt --> splitting_methods : full-orbit dynamics
+gc2dt --> scientific_stack : Fourier turbulent potential,\nFLR correction, savemat()
+
+solve_gc --> gc2dt : calls HamSys interface
+solve_fo --> splitting_methods : calls chi / chi_star
+solve_fo --> gc2dt : rectify_sol(check_energy)
+
+plot_poincare --> result : reads sol.y and system
+plot_poincare --> matplotlib : creates or reuses axes
+plot_cells --> matplotlib : displays figures
+
+save_data --> outputs : optional .mat export
+plot_poincare --> outputs : inline figure handles
+result --> outputs : returned to notebook
+
+note right of integrate_case
+  Integration branch:
+  - gc: solve_ivp_sympext(system, ...)
+  - fo: solve_ivp_symp(system.chi, system.chi_star, ...)
+        then system.rectify_sol(...)
+end note
+
+note bottom of result
+  SimulationResult is the notebook-friendly boundary:
+  it keeps numerical state, timing, and plot handles together.
+end note
+
+@enduml
