@@ -8,6 +8,7 @@ os.environ.setdefault("MPLCONFIGDIR", ".matplotlib")
 
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib.ticker import FormatStrFormatter, MultipleLocator
 from pyhamsys import solve_ivp_symp, solve_ivp_sympext
 
 from .gc2d_symp import GC2Dt
@@ -23,6 +24,83 @@ class SimulationResult:
 	elapsed: float
 	fig: Any = None
 	ax: Any = None
+
+	def _get_xy_trayectorys(self) -> tuple[np.ndarray, np.ndarray]:
+		n_traj = int(self.system.Ntraj)
+		if n_traj <= 0:
+			raise ValueError(f"Invalid number of trajectories: Ntraj={self.system.Ntraj!r}.")
+		if self.sol.y.shape[0] < 2 * n_traj:
+			raise ValueError(
+				f"Solution has shape {self.sol.y.shape}, expected at least "
+				f"{2 * n_traj} rows for {n_traj} trajectories."
+			)
+
+		x = self.sol.y[:n_traj]
+		y = self.sol.y[n_traj:2 * n_traj]
+		return x, y
+
+	def get_plot_trayectorys(self, modulo: bool | None = None) -> tuple[np.ndarray, np.ndarray]:
+		x, y = self._get_xy_trayectorys()
+		use_modulo = getattr(self.system, 'modulo', False) if modulo is None else modulo
+		if use_modulo:
+			x, y = x % (2 * np.pi), y % (2 * np.pi)
+		return x, y
+
+	def get_trayectorys(self, modulo: bool | None = None) -> np.ndarray:
+		x, y = self.get_plot_trayectorys(modulo=modulo)
+		return np.stack((x, y), axis=-1)
+
+	def get_initials_conditions(self, modulo: bool | None = None) -> np.ndarray:
+		return self.get_trayectorys(modulo=modulo)[:, 0, :]
+
+	def plot_poincare(
+		self,
+		modulo: bool | None = None,
+		ax: Any = None,
+		grid: bool | None = None,
+		decimal_grid: bool = False,
+		grid_step: float = 0.5,
+		**plot_kwargs: Any,
+	) -> tuple[Any, Any]:
+		system = self.system
+		logger.info("Plotting Poincare section: traj=%s modulo=%s", system.traj_type, getattr(system, 'modulo', False) if modulo is None else modulo)
+		if ax is None:
+			fig, ax = plt.subplots(1, 1, figsize=(6, 6))
+		else:
+			fig = ax.figure
+		x, y = self.get_plot_trayectorys(modulo=modulo)
+		use_modulo = getattr(system, 'modulo', False) if modulo is None else modulo
+		if use_modulo:
+			ax.set_xlim(0, 2 * np.pi)
+			ax.set_ylim(0, 2 * np.pi)
+			if not decimal_grid:
+				ax.set_xticks([0, np.pi, 2 * np.pi])
+				ax.set_yticks([0, np.pi, 2 * np.pi])
+				ax.set_xticklabels(['0', r'$\pi$', r'$2\pi$'])
+				ax.set_yticklabels(['0', r'$\pi$', r'$2\pi$'])
+		default_kwargs = {'markersize': 3 if system.traj_type == 'gc' else 1, 'markeredgecolor': 'none'}
+		default_kwargs.update(plot_kwargs)
+		ax.plot(x, y, '.', **default_kwargs)
+		use_grid = getattr(system, 'grid', False) if grid is None else grid
+		if decimal_grid:
+			if grid_step <= 0:
+				raise ValueError(f"`grid_step` must be positive, got {grid_step!r}.")
+			step_text = f"{grid_step:.10f}".rstrip('0').rstrip('.')
+			decimals = len(step_text.rsplit('.', 1)[1]) if '.' in step_text else 0
+			decimals = max(decimals, 1)
+			ax.xaxis.set_major_locator(MultipleLocator(grid_step))
+			ax.yaxis.set_major_locator(MultipleLocator(grid_step))
+			ax.xaxis.set_major_formatter(FormatStrFormatter(f'%.{decimals}f'))
+			ax.yaxis.set_major_formatter(FormatStrFormatter(f'%.{decimals}f'))
+			use_grid = True
+		if use_grid:
+			ax.grid(True, which='major', linewidth=0.5, alpha=0.35)
+		ax.set_xlabel('$x$')
+		ax.set_ylabel('$y$')
+		ax.set_aspect('equal')
+		self.fig = fig
+		self.ax = ax
+		return fig, ax
 
 
 def to_symp_params(params: dict[str, Any]) -> dict[str, Any]:
@@ -115,36 +193,19 @@ def plot_poincare(
 	result: SimulationResult,
 	modulo: bool | None = None,
 	ax: Any = None,
+	grid: bool | None = None,
+	decimal_grid: bool = False,
+	grid_step: float = 0.5,
 	**plot_kwargs: Any,
 ) -> tuple[Any, Any]:
-	system, sol = result.system, result.sol
-	logger.info("Plotting Poincare section: traj=%s modulo=%s", system.traj_type, getattr(system, 'modulo', False) if modulo is None else modulo)
-	if ax is None:
-		fig, ax = plt.subplots(1, 1, figsize=(6, 6))
-	else:
-		fig = ax.figure
-	if system.traj_type == 'gc':
-		x, y = np.split(sol.y, 2)
-	else:
-		x, y = np.split(sol.y, 4)[:2]
-	use_modulo = getattr(system, 'modulo', False) if modulo is None else modulo
-	if use_modulo:
-		x, y = x % (2 * np.pi), y % (2 * np.pi)
-		ax.set_xlim(0, 2 * np.pi)
-		ax.set_ylim(0, 2 * np.pi)
-		ax.set_xticks([0, np.pi, 2 * np.pi])
-		ax.set_yticks([0, np.pi, 2 * np.pi])
-		ax.set_xticklabels(['0', r'$\pi$', r'$2\pi$'])
-		ax.set_yticklabels(['0', r'$\pi$', r'$2\pi$'])
-	default_kwargs = {'markersize': 3 if system.traj_type == 'gc' else 1, 'markeredgecolor': 'none'}
-	default_kwargs.update(plot_kwargs)
-	ax.plot(x, y, '.', **default_kwargs)
-	ax.set_xlabel('$x$')
-	ax.set_ylabel('$y$')
-	ax.set_aspect('equal')
-	result.fig = fig
-	result.ax = ax
-	return fig, ax
+	return result.plot_poincare(
+		modulo=modulo,
+		ax=ax,
+		grid=grid,
+		decimal_grid=decimal_grid,
+		grid_step=grid_step,
+		**plot_kwargs,
+	)
 
 
 def run_case(case: GC2Dt | dict[str, Any], plot: bool = True) -> SimulationResult:
@@ -152,7 +213,7 @@ def run_case(case: GC2Dt | dict[str, Any], plot: bool = True) -> SimulationResul
 	result = integrate_case(case)
 	method = getattr(result.system, 'Method', result.system.DictParams.get('Method', ''))
 	if plot and method.startswith('poincare'):
-		plot_poincare(result)
+		result.plot_poincare()
 	elif plot:
 		logger.debug("Skipping automatic plot for Method=%s", method)
 	return result
