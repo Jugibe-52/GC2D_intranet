@@ -24,9 +24,10 @@ package "Notebook layer" {
 package "gc2d_core public notebook API" {
   component "gc2d_notebook.py" as notebook_api
   component "make_params(base, **overrides)" as make_params
+  component "make_system(params)" as make_system
   component "to_symp_params(params)" as to_symp_params
-  component "run_case(params, plot=True)" as run_case
-  component "integrate_case(params)" as integrate_case
+  component "run_case(system, plot=True)" as run_case
+  component "integrate_case(system)" as integrate_case
   component "plot_poincare(result)" as plot_poincare
   component "SimulationResult\nsystem, sol, elapsed,\nfig, ax" as result
 }
@@ -59,7 +60,7 @@ notebook --> plot_cells : inspects results
 
 params_cells --> gc2d_dict : may import defaults
 params_cells --> make_params : creates case dict
-params_cells --> to_symp_params : normalizes traj_type\nand eta
+params_cells --> make_system : creates GC2Dt system
 
 notebook --> run_case : simple path
 notebook --> integrate_case : manual integration path
@@ -69,11 +70,11 @@ notebook_api --> logging_config : labels integration logs
 notebook_api --> result : returns structured result
 
 make_params --> to_symp_params : validates parameters
+make_system --> to_symp_params : normalizes traj_type\nand eta
+make_system --> gc2dt : GC2Dt(params)
 run_case --> integrate_case : executes simulation
 run_case --> plot_poincare : optional plot for\nMethod=poincare_*
 
-integrate_case --> to_symp_params : normalizes input
-integrate_case --> gc2dt : GC2Dt(params)
 integrate_case --> initial_conditions : builds y0
 integrate_case --> solve_gc : if traj_type='gc'
 integrate_case --> solve_fo : if traj_type='fo'

@@ -31,7 +31,7 @@ package "Configuration" {
 package "gc2d_core package" {
   component "logging_config.py\nconfigure_logging()\nsimulation_label()" as logging_config
 
-  component "gc2d_notebook.py\nrun_case()\nintegrate_case()\nplot_poincare()" as notebook_api
+  component "gc2d_notebook.py\nmake_system()\nrun_case()\nintegrate_case()\nplot_poincare()" as notebook_api
 
   component "gc2d_symp.py\nGC2Dt\nFourier turbulent model" as gc2dt
 
@@ -59,14 +59,14 @@ user --> notebook : open notebook
 gc2d --> gc2d_dict : reads dict_list\nand Parallelization
 gc2d --> logging_config : configures logging
 gc2d --> multiprocess : parallel case map
-gc2d --> notebook_api : run_case(params)
+gc2d --> notebook_api : run_case(params)\ncompatibility path
 gc2d --> matplotlib : show plots
 
-notebook --> notebook_api : imports reusable API
+notebook --> notebook_api : make_system(params)\nrun_case(system)
 notebook --> gc2d_dict : optional base params
 
 notebook_api --> logging_config : labels and logs
-notebook_api --> gc2dt : builds GC2Dt(params)
+notebook_api --> gc2dt : make_system builds\nGC2Dt(params)
 notebook_api --> pyhamsys : integrates gc / fo trajectories
 notebook_api --> matplotlib : Poincare plots
 notebook_api --> outputs : figures via plot_poincare()

@@ -56,16 +56,26 @@ def make_params(base: dict[str, Any], **overrides: Any) -> dict[str, Any]:
 	return params
 
 
-def integrate_case(params: dict[str, Any]) -> SimulationResult:
+def make_system(params: dict[str, Any]) -> GC2Dt:
 	params = to_symp_params(params)
 	logger.info("Building system: %s", simulation_label(params))
-	system = GC2Dt(params)
+	return GC2Dt(params)
+
+
+def _ensure_system(case: GC2Dt | dict[str, Any]) -> GC2Dt:
+	if isinstance(case, GC2Dt):
+		return case
+	return make_system(case)
+
+
+def integrate_case(case: GC2Dt | dict[str, Any]) -> SimulationResult:
+	system = _ensure_system(case)
 	y0 = system.initial_conditions(type=system.init)
 	logger.info("Initial conditions ready: shape=%s init=%s", y0.shape, system.init)
 	t_eval = 2 * np.pi * np.arange(0, system.Tf + 1)
 	logger.info(
 		"Starting integration: %s solver=%s step=%s samples=%d",
-		simulation_label(params),
+		simulation_label(system.DictParams),
 		system.ode_solver,
 		system.TimeStep,
 		len(t_eval),
@@ -95,7 +105,7 @@ def integrate_case(params: dict[str, Any]) -> SimulationResult:
 		)
 		sol = system.rectify_sol(sol, check_energy=system.CheckEnergy)
 	elapsed = time.time() - start
-	logger.info("Integration finished in %.2f seconds: %s solution_shape=%s", elapsed, simulation_label(params), sol.y.shape)
+	logger.info("Integration finished in %.2f seconds: %s solution_shape=%s", elapsed, simulation_label(system.DictParams), sol.y.shape)
 	if system.CheckEnergy:
 		logger.info("Energy error: %s", sol.err)
 	return SimulationResult(system=system, sol=sol, elapsed=elapsed)
@@ -137,11 +147,12 @@ def plot_poincare(
 	return fig, ax
 
 
-def run_case(params: dict[str, Any], plot: bool = True) -> SimulationResult:
+def run_case(case: GC2Dt | dict[str, Any], plot: bool = True) -> SimulationResult:
 	logger.info("Running notebook case: plot=%s", plot)
-	result = integrate_case(params)
-	if plot and params.get('Method', '').startswith('poincare'):
+	result = integrate_case(case)
+	method = getattr(result.system, 'Method', result.system.DictParams.get('Method', ''))
+	if plot and method.startswith('poincare'):
 		plot_poincare(result)
 	elif plot:
-		logger.debug("Skipping automatic plot for Method=%s", params.get('Method'))
+		logger.debug("Skipping automatic plot for Method=%s", method)
 	return result

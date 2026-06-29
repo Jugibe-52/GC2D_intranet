@@ -1,10 +1,10 @@
 # `make_params`
 
-`make_params` is a notebook-oriented helper function, not a class. It builds a simulation parameter dictionary by copying a base dictionary and applying keyword overrides. The returned dictionary is ready to pass to `run_case()` or `integrate_case()`.
+`make_params` is a notebook-oriented helper function, not a class. It builds a simulation parameter dictionary by copying a base dictionary and applying keyword overrides. The returned dictionary is ready to pass to `make_system()`, which creates the `GC2Dt` system that notebooks pass to `run_case()` or `integrate_case()`.
 
 ```python
 from gc2d_core.gc2d_dict import dict_list
-from gc2d_core.gc2d_notebook import make_params, run_case
+from gc2d_core.gc2d_notebook import make_params, make_system, run_case
 
 params = make_params(
     dict_list[0],
@@ -19,7 +19,8 @@ params = make_params(
     CheckEnergy=True,
 )
 
-result = run_case(params, plot=True)
+system = make_system(params)
+result = run_case(system, plot=True)
 ```
 
 ## Function Signature
@@ -84,7 +85,7 @@ When `init="selected"` and `x0`/`y0` come from `base`, `make_params()` trims the
 
 | Parameter | Type | Meaning |
 | --- | --- | --- |
-| `PlotResults` | `bool` | Whether the root-script workflow should plot results. In notebooks, `run_case(params, plot=True)` controls automatic plotting. |
+| `PlotResults` | `bool` | Whether the root-script workflow should plot results. In notebooks, `run_case(system, plot=True)` controls automatic plotting. |
 | `modulo` | `bool` | If true, Poincare plots display positions modulo `2*pi`. |
 | `grid` | `bool` | Plot grid option from the base configuration. |
 | `darkmode` | `bool` | Plot style option from the base configuration. |
@@ -106,7 +107,9 @@ params = make_params(
     TimeStep=0.1,
     SaveData=False,
 )
+
+system = make_system(params)
+result = run_case(system, plot=True)
 ```
 
 This keeps the full project defaults in `gc2d_dict.py`, while the notebook documents only the parameters that are intentionally changed for the interactive run.
-
