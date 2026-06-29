@@ -28,7 +28,7 @@
 import numpy as xp
 import os
 import logging
-from typing import Any
+from typing import Any, Literal
 os.environ.setdefault("MPLCONFIGDIR", ".matplotlib")
 from scipy.special import jv
 import multiprocess
@@ -96,6 +96,55 @@ class GC2Dt(HamSys):
 		self.fft_phi_ = xp.asarray([-self.nm[1] * self.phic, self.nm[0] * self.phic])	
 		active_modes = int(xp.count_nonzero(self.phic))
 		logger.info("GC2Dt initialized with %d active Fourier modes", active_modes)
+
+	def fft_phi_grid(self, t: float = 0.0, n: int = 64) -> tuple[xp.ndarray, xp.ndarray, xp.ndarray, xp.ndarray]:
+		x = xp.linspace(0, 2 * xp.pi, n, endpoint=False)
+		y = xp.linspace(0, 2 * xp.pi, n, endpoint=False)
+		X, Y = xp.meshgrid(x, y, indexing='ij')
+		state = xp.concatenate((X.ravel(), Y.ravel()))
+		vx, vy = xp.split(self.y_dot(t, state), 2)
+		return X, Y, vx.reshape(n, n), vy.reshape(n, n)
+
+	def plot_fft_phi(
+		self,
+		t: float = 0.0,
+		n: int = 40,
+		kind: Literal['quiver', 'stream', 'magnitude'] = 'quiver',
+		ax: Any = None,
+		show_magnitude: bool = True,
+		density: float = 1.5,
+		**kwargs: Any,
+	) -> tuple[Any, Any]:
+		import matplotlib.pyplot as plt
+
+		if kind not in {'quiver', 'stream', 'magnitude'}:
+			raise ValueError("`kind` must be 'quiver', 'stream' or 'magnitude'.")
+		X, Y, vx, vy = self.fft_phi_grid(t=t, n=n)
+		speed = xp.sqrt(vx**2 + vy**2)
+		if ax is None:
+			fig, ax = plt.subplots(1, 1, figsize=(6, 6))
+		else:
+			fig = ax.figure
+		if show_magnitude or kind == 'magnitude':
+			mesh = ax.pcolormesh(X.T, Y.T, speed.T, shading='auto', cmap=kwargs.pop('cmap', 'viridis'))
+			fig.colorbar(mesh, ax=ax, label=r'$|\dot{x}, \dot{y}|$')
+		if kind == 'quiver':
+			default_kwargs = {'pivot': 'mid', 'scale': None}
+			default_kwargs.update(kwargs)
+			ax.quiver(X.T, Y.T, vx.T, vy.T, **default_kwargs)
+		elif kind == 'stream':
+			default_kwargs = {'color': 'white' if show_magnitude else None}
+			default_kwargs.update(kwargs)
+			if default_kwargs['color'] is None:
+				default_kwargs.pop('color')
+			ax.streamplot(X[:, 0], Y[0, :], vx.T, vy.T, density=density, **default_kwargs)
+		ax.set_xlabel('$x$')
+		ax.set_ylabel('$y$')
+		ax.set_title(r'Field from $\mathrm{fft\_phi\_}$')
+		ax.set_aspect('equal')
+		ax.set_xlim(0, 2 * xp.pi)
+		ax.set_ylim(0, 2 * xp.pi)
+		return fig, ax
 
 	def initial_conditions(self, type: str = 'fixed') -> xp.ndarray:
 		original_ntraj = self.Ntraj
