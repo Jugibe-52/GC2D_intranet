@@ -1,5 +1,5 @@
-@startuml GC2D_potential_execution_flow
-title Ejecucion run_gc2d.py - modelo GC2D con Potential
+@startuml PotentialSystem_potential_execution_flow
+title Ejecucion run_potential.py - modelo PotentialSystem con Potential
 
 skinparam componentStyle rectangle
 skinparam shadowing false
@@ -9,12 +9,12 @@ skinparam defaultTextAlignment center
 actor "Usuario terminal" as user
 
 package "Entry point" {
-  component "run_gc2d.py\nparse_args()\nmain()" as cli
+  component "run_potential.py\nparse_args()\nmain()" as cli
 }
 
 package "Configuracion" {
-  component "conf/<group>/<version>/run_gc2d.json" as json
-  component "config.py\nload_run_gc2d_config()\nPotentialConfig\nRunGC2DConfig" as config
+  component "conf/<group>/<version>/potential.json" as json
+  component "config.py\nload_potential_config()\nPotentialConfig\nPotentialRunConfig" as config
 }
 
 package "Workflows" {
@@ -24,7 +24,7 @@ package "Workflows" {
 
 package "Modelo" {
   component "classes/potential.py\nPotential" as potential
-  component "classes/gc2d.py\nGC2D" as gc2d
+  component "classes/potential_system.py\nPotentialSystem" as fourier_cli
 }
 
 package "Librerias externas" {
@@ -37,8 +37,8 @@ package "Librerias externas" {
 database "PHI.h5\nopcional" as hdf5
 artifact "figuras / logs" as outputs
 
-user --> cli : python run_gc2d.py
-cli --> config : load_run_gc2d_config(args)
+user --> cli : python run_potential.py
+cli --> config : load_potential_config(args)
 config --> json : lee JSON
 
 config --> potentials : PotentialConfig.build()
@@ -47,13 +47,13 @@ h5py --> hdf5 : lee Rcells, Zcells,\nfreqs, fields
 potentials --> potential : crea Potential
 potentials --> scipy : mock / denoising
 
-config --> gc2d : RunGC2DConfig.build_system()
-gc2d --> potential : copia campos,\ngyroaverage,\ninterpoladores
+config --> fourier_cli : PotentialRunConfig.build_system()
+fourier_cli --> potential : copia campos,\ngyroaverage,\ninterpoladores
 
-cli --> gc2d : initial_conditions()
+cli --> fourier_cli : initial_conditions()
 cli --> pyhamsys : traj_type='gc'\nsolve_ivp_sympext(hs,...)
 cli --> pyhamsys : traj_type='fo'\nsolve_ivp_symp(hs.chi, hs.chi_star,...)
-pyhamsys --> gc2d : y_dot(), hamiltonian(),\nchi(), chi_star()
+pyhamsys --> fourier_cli : y_dot(), hamiltonian(),\nchi(), chi_star()
 
 cli --> plotting : si plot=True\nplot_sol(hs, sol)
 plotting --> mpl

@@ -1,17 +1,17 @@
-# Ejecucion `gc2d.py`: modelo Fourier `GC2Dt`
+# Ejecucion `run_fourier.py`: modelo Fourier `FourierSystem`
 
-Esta ejecucion esta pensada para correr casos por lotes desde terminal. Usa el modelo Fourier sintetico `GC2Dt`, definido en `src/classes/gc2dt.py`, y los workflows publicos de `src/gc2d_workflows.py`.
+Esta ejecucion esta pensada para correr casos por lotes desde terminal. Usa el modelo Fourier sintetico `FourierSystem`, definido en `src/classes/fourier_system.py`, y los workflows publicos de `src/workflows_api.py`.
 
 ## Entrada principal
 
 ```bash
-python gc2d.py
+python run_fourier.py
 ```
 
 Tambien puede recibir configuracion explicita:
 
 ```bash
-python gc2d.py --config-group test --config-version v_1
+python run_fourier.py --config-group test --config-version v_1
 ```
 
 ## Configuracion
@@ -19,13 +19,13 @@ python gc2d.py --config-group test --config-version v_1
 El script carga perfiles desde:
 
 ```text
-conf/<group>/<version>/gc2d.json
+conf/<group>/<version>/fourier.json
 ```
 
 La funcion responsable es:
 
 ```python
-load_gc2dt_config(...)
+load_fourier_config(...)
 ```
 
 El objeto de configuracion devuelve una lista de casos con:
@@ -34,25 +34,25 @@ El objeto de configuracion devuelve una lista de casos con:
 config.cases()
 ```
 
-Cada caso es un diccionario de parametros para construir un `GC2Dt`.
+Cada caso es un diccionario de parametros para construir un `FourierSystem`.
 
 ## Flujo
 
-1. `gc2d.py` configura imports, logging y argumentos CLI.
-2. Carga el JSON con `load_gc2dt_config`.
+1. `run_fourier.py` configura imports, logging y argumentos CLI.
+2. Carga el JSON con `load_fourier_config`.
 3. Expande la lista de casos.
 4. Decide si ejecuta en paralelo con `multiprocess`.
 5. Para cada caso llama a `run_case(params, plot=...)`.
-6. `run_case` construye o recibe un `GC2Dt`.
+6. `run_case` construye o recibe un `FourierSystem`.
 7. `integrate_case` genera condiciones iniciales e integra.
 8. Si `SaveData=True`, `save_data(system, sol)` escribe un `.mat`.
 9. Al final, `plt.show()` muestra figuras pendientes.
 
 ## Modulos principales
 
-- `gc2d.py`: entry point de terminal para ejecucion por lotes.
+- `run_fourier.py`: entry point de terminal para ejecucion por lotes.
 - `src/config.py`: carga y expansion de configuracion.
-- `src/classes/gc2dt.py`: modelo Fourier `GC2Dt`.
+- `src/classes/fourier_system.py`: modelo Fourier `FourierSystem`.
 - `src/workflows/params.py`: normalizacion y construccion del sistema.
 - `src/workflows/integration.py`: integracion `gc`/`fo`.
 - `src/workflows/cases.py`: workflow de alto nivel `run_case`.
@@ -61,10 +61,10 @@ Cada caso es un diccionario de parametros para construir un `GC2Dt`.
 
 ## Diferencia con notebook
 
-En notebook no conviene usar `gc2d.py` directamente. La API reutilizable es:
+En notebook no conviene usar `run_fourier.py` directamente. La API reutilizable es:
 
 ```python
-from gc2d_workflows import make_system, run_case, integrate_case, plot_poincare
+from workflows_api import make_system, run_case, integrate_case, plot_poincare
 ```
 
-`gc2d.py` existe para ejecucion batch fuera de notebook.
+`run_fourier.py` existe para ejecucion batch fuera de notebook.

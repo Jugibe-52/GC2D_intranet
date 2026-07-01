@@ -3,8 +3,8 @@ import logging
 
 import multiprocess
 
-from classes.gc2dt import GC2Dt
-from config import DEFAULT_CONFIG_VERSION, load_gc2dt_config
+from classes.fourier_system import FourierSystem
+from config import DEFAULT_CONFIG_VERSION, load_fourier_config
 from config_logging import configure_logging
 from workflows.symplectic_legacy import run_method
 
@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 
 def parse_args() -> argparse.Namespace:
-	parser = argparse.ArgumentParser(description="Run the legacy GC2Dt symplectic workflow from JSON.")
+	parser = argparse.ArgumentParser(description="Run the legacy FourierSystem symplectic workflow from JSON.")
 	parser.add_argument("--config", help="Path to the JSON configuration file.")
 	parser.add_argument("--config-group", default="assay", choices=("test", "assay"), help="Configuration group under conf/.")
 	parser.add_argument("--config-version", default=DEFAULT_CONFIG_VERSION, help="Configuration folder version under conf/<group>/, e.g. v_1.")
@@ -21,13 +21,13 @@ def parse_args() -> argparse.Namespace:
 
 
 def _run_legacy_case(params: dict) -> None:
-	run_method(GC2Dt(params))
+	run_method(FourierSystem(params))
 
 
 def main() -> None:
 	args = parse_args()
 	configure_logging()
-	config = load_gc2dt_config(
+	config = load_fourier_config(
 		args.config,
 		version=args.version,
 		config_group=args.config_group,

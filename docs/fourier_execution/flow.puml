@@ -1,5 +1,5 @@
-@startuml GC2Dt_execution_flow
-title Ejecucion gc2d.py - modelo Fourier GC2Dt
+@startuml FourierSystem_execution_flow
+title Ejecucion run_fourier.py - modelo Fourier FourierSystem
 
 skinparam componentStyle rectangle
 skinparam shadowing false
@@ -9,16 +9,16 @@ skinparam defaultTextAlignment center
 actor "Usuario terminal" as user
 
 package "Entry point" {
-  component "gc2d.py\nparse_args()\nmain()" as cli
+  component "run_fourier.py\nparse_args()\nmain()" as cli
 }
 
 package "Configuracion" {
-  component "conf/<group>/<version>/gc2d.json" as json
-  component "config.py\nload_gc2dt_config()\nGC2DtConfig.cases()" as config
+  component "conf/<group>/<version>/fourier.json" as json
+  component "config.py\nload_fourier_config()\nFourierConfig.cases()" as config
 }
 
 package "Workflows" {
-  component "gc2d_workflows.py\nAPI publica" as api
+  component "workflows_api.py\nAPI publica" as api
   component "workflows/params.py\nmake_system()\nto_symp_params()" as params
   component "workflows/cases.py\nrun_case()" as cases
   component "workflows/integration.py\nintegrate_case()" as integration
@@ -27,7 +27,7 @@ package "Workflows" {
 }
 
 package "Modelo" {
-  component "classes/gc2dt.py\nGC2Dt" as gc2dt
+  component "classes/fourier_system.py\nFourierSystem" as fourier_system
 }
 
 package "Librerias externas" {
@@ -38,8 +38,8 @@ package "Librerias externas" {
 
 artifact "outputs\n.mat / figuras / logs" as outputs
 
-user --> cli : python gc2d.py
-cli --> config : load_gc2dt_config(args)
+user --> cli : python run_fourier.py
+cli --> config : load_fourier_config(args)
 config --> json : lee JSON
 config --> cli : params_list
 
@@ -48,12 +48,12 @@ cli --> api : run_case(params)
 api --> cases
 cases --> integration
 integration --> params : ensure_system()
-params --> gc2dt : GC2Dt(params)
-integration --> gc2dt : initial_conditions()
+params --> fourier_system : FourierSystem(params)
+integration --> fourier_system : initial_conditions()
 
 integration --> pyhamsys : traj_type='gc'\nsolve_ivp_sympext(system,...)
 integration --> pyhamsys : traj_type='fo'\nsolve_ivp_symp(chi, chi_star,...)
-pyhamsys --> gc2dt : y_dot(), k_dot(),\nhamiltonian(), chi()
+pyhamsys --> fourier_system : y_dot(), k_dot(),\nhamiltonian(), chi()
 
 cases --> plotting : si plot y Method=poincare*
 cli --> export : save_data(system, sol)

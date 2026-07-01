@@ -5,8 +5,8 @@ import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
 import numpy as np
 
-from classes.gc2d import GC2D
-from classes.gc2dt import GC2Dt
+from classes.potential_system import PotentialSystem
+from classes.fourier_system import FourierSystem
 from classes.simulation_result import SimulationResult
 
 logger = logging.getLogger(__name__)
@@ -44,7 +44,7 @@ def _white_centered_cmap(vmin: float, vmax: float) -> tuple[Any, Any]:
 	return plt.get_cmap('RdBu_r'), norm
 
 
-def plot_potential(system: GC2D, dx: int = 0, dy: int = 0, nx: int = 512, ny: int = 512) -> None:
+def plot_potential(system: PotentialSystem, dx: int = 0, dy: int = 0, nx: int = 512, ny: int = 512) -> None:
 	x = np.linspace(system.xmin, system.xmax + system.dx, nx, endpoint=False)
 	y = np.linspace(system.ymin, system.ymax + system.dy, ny, endpoint=False)
 	if system.fields[0] is not None:
@@ -81,7 +81,7 @@ def plot_potential(system: GC2D, dx: int = 0, dy: int = 0, nx: int = 512, ny: in
 
 
 def plot_sol(
-	system: GC2D,
+	system: PotentialSystem,
 	sol: Any,
 	wrap: bool = False,
 	xlim: tuple[float, float] | None = None,
@@ -102,7 +102,7 @@ def plot_sol(
 	plt.show()
 
 
-def fft_phi_grid(system: GC2Dt, t: float = 0.0, n: int = 64) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+def fft_phi_grid(system: FourierSystem, t: float = 0.0, n: int = 64) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
 	x = np.linspace(0, 2 * np.pi, n, endpoint=False)
 	y = np.linspace(0, 2 * np.pi, n, endpoint=False)
 	X, Y = np.meshgrid(x, y, indexing='ij')
@@ -112,7 +112,7 @@ def fft_phi_grid(system: GC2Dt, t: float = 0.0, n: int = 64) -> tuple[np.ndarray
 
 
 def plot_fft_phi(
-	system: GC2Dt,
+	system: FourierSystem,
 	t: float = 0.0,
 	n: int = 40,
 	kind: Literal['quiver', 'stream', 'magnitude'] = 'quiver',
@@ -151,7 +151,7 @@ def plot_fft_phi(
 	return fig, ax
 
 
-def plot_symplectic_poincare(system: GC2Dt, sol: Any) -> tuple[Any, Any]:
+def plot_symplectic_poincare(system: FourierSystem, sol: Any) -> tuple[Any, Any]:
 	logger.info("Plotting Poincare section: traj=%s modulo=%s", system.traj_type, getattr(system, 'modulo', False))
 	fig, ax = plt.subplots(1, 1)
 	if system.traj_type == 'gc':

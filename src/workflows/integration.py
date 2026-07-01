@@ -5,7 +5,7 @@ from typing import Any
 import numpy as np
 from pyhamsys import solve_ivp_symp, solve_ivp_sympext
 
-from classes.gc2dt import GC2Dt
+from classes.fourier_system import FourierSystem
 from classes.simulation_result import SimulationResult
 from config_logging import simulation_label
 from workflows.params import ensure_system
@@ -16,7 +16,7 @@ GREEN = "\033[32m"
 RESET = "\033[0m"
 
 
-def integrate_case(case: GC2Dt | dict[str, Any]) -> SimulationResult:
+def integrate_case(case: FourierSystem | dict[str, Any]) -> SimulationResult:
 	system = ensure_system(case)
 	y0 = system.initial_conditions(type=system.init)
 	logger.info("Initial conditions ready: shape=%s init=%s", y0.shape, system.init)

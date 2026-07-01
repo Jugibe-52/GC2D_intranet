@@ -7,14 +7,14 @@ import numpy as np
 from matplotlib.ticker import FormatStrFormatter, MultipleLocator
 
 if TYPE_CHECKING:
-	from classes.gc2dt import GC2Dt
+	from classes.fourier_system import FourierSystem
 
 logger = logging.getLogger(__name__)
 
 
 @dataclass
 class SimulationResult:
-	system: "GC2Dt"
+	system: "FourierSystem"
 	sol: Any
 	elapsed: float
 	fig: Any = None

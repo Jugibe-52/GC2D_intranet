@@ -1,5 +1,5 @@
-@startuml GC2D_architecture
-title GC2D Program Architecture
+@startuml PotentialSystem_architecture
+title Guiding-center Program Architecture
 
 skinparam componentStyle rectangle
 skinparam shadowing false
@@ -18,27 +18,27 @@ skinparam ArtifactBackgroundColor #FFFFF0
 actor "User" as user
 
 package "Entry points" {
-  component "gc2d.py\nmain batch runner" as gc2d
-  component "run_gc2d.py\nstandalone showcase" as run_gc2d
-  component "notebooks/\ngc2d_workflows_demo.ipynb" as notebook
+  component "run_fourier.py\nmain batch runner" as fourier_cli
+  component "run_potential.py\nstandalone showcase" as potential_cli
+  component "notebooks/\nworkflows_demo.ipynb" as notebook
 }
 
 package "Configuration" {
-  component "conf/<group>/<version>/gc2d.json\nMethod, Ntraj, Tf,\nA, rho, plotting, saving" as gc2d_json
+  component "conf/<group>/<version>/fourier.json\nMethod, Ntraj, Tf,\nA, rho, plotting, saving" as fourier_json
 }
 
 package "src modules" {
   component "config_logging.py\nconfigure_logging()\nsimulation_label()" as config_logging
 
-  component "gc2d_workflows.py\nmake_system()\nrun_case()\nintegrate_case()\nplot_poincare()\nsave_data()\nextract_potential()" as notebook_api
+  component "workflows_api.py\nmake_system()\nrun_case()\nintegrate_case()\nplot_poincare()\nsave_data()\nextract_potential()" as notebook_api
 
-  component "classes/gc2dt.py\nGC2Dt\nFourier turbulent model" as gc2dt
+  component "classes/fourier_system.py\nFourierSystem\nFourier turbulent model" as fourier_system
 
   component "workflows/symplectic_legacy.py\nrun_method()\nlegacy execution flow" as symp_modules
 
   component "workflows/symplectic_cli.py\nparse_args()\nmain()" as symp_cli
 
-  component "classes/\ngc2d.py + potential.py\nGC2D / Potential" as classes
+  component "classes/\npotential_system.py + potential.py\nPotentialSystem / Potential" as classes
 }
 
 package "External libraries" {
@@ -53,40 +53,40 @@ database "Input data\nPHI.h5" as phi_h5
 
 artifact "Runtime outputs\n.mat data files\n.png/.pdf/.svg figures\nstdout/file logs" as outputs
 
-user --> gc2d : python3 gc2d.py
-user --> run_gc2d : python3 run_gc2d.py
+user --> fourier_cli : python3 run_fourier.py
+user --> potential_cli : python3 run_potential.py
 user --> notebook : open notebook
 
-gc2d --> gc2d_json : reads cases\nand parallelization
-gc2d --> config_logging : configures logging
-gc2d --> multiprocess : parallel case map
-gc2d --> notebook_api : run_case(params)\ncompatibility path
-gc2d --> matplotlib : show plots
+fourier_cli --> fourier_json : reads cases\nand parallelization
+fourier_cli --> config_logging : configures logging
+fourier_cli --> multiprocess : parallel case map
+fourier_cli --> notebook_api : run_case(params)\ncompatibility path
+fourier_cli --> matplotlib : show plots
 
 notebook --> notebook_api : make_system(params)\nrun_case(system)
-notebook --> gc2d_json : optional base params
+notebook --> fourier_json : optional base params
 
 notebook_api --> config_logging : labels and logs
-notebook_api --> gc2dt : make_system builds\nGC2Dt(params)
+notebook_api --> fourier_system : make_system builds\nFourierSystem(params)
 notebook_api --> pyhamsys : integrates gc / fo trajectories
 notebook_api --> matplotlib : Poincare plots
 notebook_api --> outputs : figures via plot_poincare()
 
-gc2dt --> pyhamsys : extends HamSys\nuses OdeSolution contract
-gc2dt --> scientific_stack : Fourier potential,\nBessel FLR correction
+fourier_system --> pyhamsys : extends HamSys\nuses OdeSolution contract
+fourier_system --> scientific_stack : Fourier potential,\nBessel FLR correction
 notebook_api --> outputs : save_data()
 
-symp_cli --> symp_modules : creates GC2Dt\nper params
+symp_cli --> symp_modules : creates FourierSystem\nper params
 symp_modules --> pyhamsys : integrates trajectories
 symp_modules --> matplotlib : optional Poincare plot
 symp_modules --> outputs : saved data / figures
 symp_modules --> config_logging : logs progress
 
-run_gc2d --> config_logging : configures logging
-run_gc2d --> notebook_api : extract_potential()\nmock_potential()\nplot_sol()
-run_gc2d --> classes : GC2D()
-run_gc2d --> pyhamsys : integrates showcase
-run_gc2d --> matplotlib : plotting workflows
+potential_cli --> config_logging : configures logging
+potential_cli --> notebook_api : extract_potential()\nmock_potential()\nplot_sol()
+potential_cli --> classes : PotentialSystem()
+potential_cli --> pyhamsys : integrates showcase
+potential_cli --> matplotlib : plotting workflows
 
 phi_h5 --> h5py
 h5py --> notebook_api : loaded by extract_potential()
@@ -97,13 +97,13 @@ notebook_api --> outputs : showcase figures
 
 legend right
   Main production path:
-  gc2d.py -> config.py -> gc2d_workflows.py -> GC2Dt -> pyhamsys -> outputs
+  run_fourier.py -> config.py -> workflows_api.py -> FourierSystem -> pyhamsys -> outputs
 
   Standalone data-potential path:
-  run_gc2d.py -> gc2d_workflows.py -> classes/ -> pyhamsys -> plots
+  run_potential.py -> workflows_api.py -> classes/ -> pyhamsys -> plots
 
   Legacy package entry:
-  gc2d_symp.py -> workflows/symplectic_cli.py -> workflows/symplectic_legacy.py
+  symplectic.py -> workflows/symplectic_cli.py -> workflows/symplectic_legacy.py
 endlegend
 
 @enduml

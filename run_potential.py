@@ -1,5 +1,5 @@
 ###################################################################################################
-##                      Parameters: https://github.com/cchandre/GC2D_intranet                    ##
+##                      Parameters: https://github.com/cchandre/guiding_center_intranet                    ##
 ###################################################################################################
 
 import argparse
@@ -14,9 +14,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
 
 from pyhamsys import solve_ivp_symp, solve_ivp_sympext
 
-from config import DEFAULT_CONFIG_GROUP, DEFAULT_CONFIG_VERSION, load_run_gc2d_config
+from config import DEFAULT_CONFIG_GROUP, DEFAULT_CONFIG_VERSION, load_potential_config
 from config_logging import configure_logging
-from gc2d_workflows import plot_sol
+from workflows_api import plot_sol
 
 import logging
 
@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 
 def parse_args() -> argparse.Namespace:
-	parser = argparse.ArgumentParser(description="Run the GC2D HDF5/mock potential showcase from JSON.")
+	parser = argparse.ArgumentParser(description="Run the PotentialSystem HDF5/mock potential showcase from JSON.")
 	parser.add_argument("--config", help="Path to the JSON configuration file.")
 	parser.add_argument("--config-group", default=DEFAULT_CONFIG_GROUP, choices=("test", "assay"), help="Configuration group under conf/.")
 	parser.add_argument("--config-version", default=DEFAULT_CONFIG_VERSION, help="Configuration folder version under conf/<group>/, e.g. v_1.")
@@ -35,7 +35,7 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
 	args = parse_args()
 	configure_logging()
-	config = load_run_gc2d_config(
+	config = load_potential_config(
 		args.config,
 		version=args.version,
 		config_group=args.config_group,

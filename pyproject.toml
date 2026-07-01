@@ -3,9 +3,9 @@ requires = ["setuptools>=69"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "gc2d-intranet"
+name = "guiding-center-intranet"
 version = "0.1.0"
-description = "GC2D simulation tools"
+description = "Guiding-center simulation tools"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
@@ -24,9 +24,9 @@ package-dir = {"" = "src"}
 packages = ["classes", "workflows"]
 py-modules = [
 	"config",
-	"gc2d_classes",
-	"gc2d_workflows",
-	"gc2d_symp",
-	"gc2d_symp_modules",
+	"classes_api",
+	"workflows_api",
+	"symplectic",
+	"symplectic_modules",
 	"config_logging",
 ]

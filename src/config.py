@@ -1,4 +1,4 @@
-"""JSON configuration loading for GC2D entry points."""
+"""JSON configuration loading for simulation entry points."""
 
 from __future__ import annotations
 
@@ -10,15 +10,15 @@ from typing import Any
 
 import numpy as np
 
-from classes import GC2D, Potential
+from classes import PotentialSystem, Potential
 from workflows.potentials import extract_potential, mock_potential
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 CONF_DIR = PROJECT_ROOT / "conf"
 DEFAULT_CONFIG_GROUP = "test"
 DEFAULT_CONFIG_VERSION = "v_1"
-DEFAULT_GC2D_CONFIG = CONF_DIR / DEFAULT_CONFIG_GROUP / DEFAULT_CONFIG_VERSION / "gc2d.json"
-DEFAULT_RUN_GC2D_CONFIG = CONF_DIR / DEFAULT_CONFIG_GROUP / DEFAULT_CONFIG_VERSION / "run_gc2d.json"
+DEFAULT_FOURIER_CONFIG = CONF_DIR / DEFAULT_CONFIG_GROUP / DEFAULT_CONFIG_VERSION / "fourier.json"
+DEFAULT_POTENTIAL_CONFIG = CONF_DIR / DEFAULT_CONFIG_GROUP / DEFAULT_CONFIG_VERSION / "potential.json"
 
 
 class ConfigError(ValueError):
@@ -111,8 +111,8 @@ def _normalize_symplectic_params(params: dict[str, Any]) -> dict[str, Any]:
 
 
 @dataclass(frozen=True)
-class GC2DtConfig:
-	"""Batch configuration for the Fourier/symplectic GC2Dt runner."""
+class FourierConfig:
+	"""Batch configuration for the Fourier/symplectic FourierSystem runner."""
 
 	version: str
 	defaults: dict[str, Any]
@@ -173,7 +173,7 @@ class PotentialConfig:
 
 
 @dataclass(frozen=True)
-class RunGC2DConfig:
+class PotentialRunConfig:
 	"""Configuration for the HDF5/mock potential runner."""
 
 	version: str
@@ -181,14 +181,14 @@ class RunGC2DConfig:
 	trajectory: dict[str, Any]
 	integration: dict[str, Any]
 
-	def build_system(self) -> GC2D:
+	def build_system(self) -> PotentialSystem:
 		potential = self.potential.build()
 		traj = {
 			"type": self.trajectory.get("type", "gc"),
 			"rho": self.trajectory.get("rho", 0),
 			"eta": self.trajectory.get("eta", 0),
 		}
-		return GC2D(potential, traj, k=self.trajectory.get("k", 3))
+		return PotentialSystem(potential, traj, k=self.trajectory.get("k", 3))
 
 	def initial_condition_count(self) -> int:
 		return int(self.trajectory.get("Ntraj", 20))
@@ -197,13 +197,13 @@ class RunGC2DConfig:
 		return str(self.trajectory.get("init", "fixed"))
 
 
-def load_gc2dt_config(
+def load_fourier_config(
 	path: str | Path | None = None,
 	version: str | None = None,
 	config_group: str = DEFAULT_CONFIG_GROUP,
 	config_version: str = DEFAULT_CONFIG_VERSION,
-) -> GC2DtConfig:
-	path = Path(path) if path is not None else config_path("gc2d.json", config_group, config_version)
+) -> FourierConfig:
+	path = Path(path) if path is not None else config_path("fourier.json", config_group, config_version)
 	selected, payload = _version_payload(_read_json(path), version, path)
 	defaults = payload.get("defaults", {})
 	if not isinstance(defaults, dict):
@@ -214,7 +214,7 @@ def load_gc2dt_config(
 	cases = payload.get("cases", [])
 	if not isinstance(cases, list) or not all(isinstance(case, dict) for case in cases):
 		raise ConfigError(f"'cases' in {path}:{selected} must be a list of objects.")
-	return GC2DtConfig(
+	return FourierConfig(
 		version=selected,
 		defaults=defaults,
 		sweep={key: _as_list(value) for key, value in sweep.items()},
@@ -223,13 +223,13 @@ def load_gc2dt_config(
 	)
 
 
-def load_run_gc2d_config(
+def load_potential_config(
 	path: str | Path | None = None,
 	version: str | None = None,
 	config_group: str = DEFAULT_CONFIG_GROUP,
 	config_version: str = DEFAULT_CONFIG_VERSION,
-) -> RunGC2DConfig:
-	path = Path(path) if path is not None else config_path("run_gc2d.json", config_group, config_version)
+) -> PotentialRunConfig:
+	path = Path(path) if path is not None else config_path("potential.json", config_group, config_version)
 	selected, payload = _version_payload(_read_json(path), version, path)
 	potential_payload = payload.get("potential", {})
 	if not isinstance(potential_payload, dict):
@@ -250,7 +250,7 @@ def load_run_gc2d_config(
 	integration = payload.get("integration", {})
 	if not isinstance(trajectory, dict) or not isinstance(integration, dict):
 		raise ConfigError(f"'trajectory' and 'integration' in {path}:{selected} must be objects.")
-	return RunGC2DConfig(
+	return PotentialRunConfig(
 		version=selected,
 		potential=potential,
 		trajectory=trajectory,

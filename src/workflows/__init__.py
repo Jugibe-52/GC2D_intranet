@@ -1,4 +1,4 @@
-"""Reusable simulation workflows for GC2D notebooks and scripts."""
+"""Reusable simulation workflows for PotentialSystem notebooks and scripts."""
 
 __all__ = [
 	"extract_potential",

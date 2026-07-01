@@ -1,13 +1,13 @@
-"""Compatibility exports for the old gc2d_classes module."""
+"""Compatibility exports for legacy class imports."""
 
-from classes import GC2D, Potential
+from classes import PotentialSystem, Potential
 from classes.potential import Array, FieldList, InterpolatorList, real_imag
 from workflows.potentials import extract_potential, mock_potential
 
 __all__ = [
 	"Array",
 	"FieldList",
-	"GC2D",
+	"PotentialSystem",
 	"InterpolatorList",
 	"Potential",
 	"extract_potential",

@@ -35,7 +35,7 @@ from pyhamsys import HamSys
 
 from .potential import Array, FieldList, Potential, real_imag
 
-class GC2D(HamSys, Potential):
+class PotentialSystem(HamSys, Potential):
 	def __str__(self) -> str:
 		return f'2D Guiding Center ({self.__class__.__name__}) for turbulent potentials'
 		

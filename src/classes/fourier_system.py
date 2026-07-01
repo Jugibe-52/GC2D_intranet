@@ -12,7 +12,7 @@ def real_imag(z: xp.ndarray) -> tuple[xp.ndarray, xp.ndarray]:
 	return z.real, z.imag
 
 
-class GC2Dt(HamSys):
+class FourierSystem(HamSys):
 	def __repr__(self) -> str:
 		return "{self.__class__.__name__}({self.DictParams})".format(self=self)
 
@@ -25,7 +25,7 @@ class GC2Dt(HamSys):
 			setattr(self, key, dict_[key])
 		self.DictParams = dict_
 		logger.info(
-			"Initializing GC2Dt: traj=%s M=%s A=%s rho=%s eta=%s Ntraj=%s Tf=%s",
+			"Initializing FourierSystem: traj=%s M=%s A=%s rho=%s eta=%s Ntraj=%s Tf=%s",
 			self.traj_type,
 			self.M,
 			self.A,
@@ -48,7 +48,7 @@ class GC2Dt(HamSys):
 
 		self.fft_phi_ = xp.asarray([-self.nm[1] * self.phic, self.nm[0] * self.phic])	
 		active_modes = int(xp.count_nonzero(self.phic))
-		logger.info("GC2Dt initialized with %d active Fourier modes", active_modes)
+		logger.info("FourierSystem initialized with %d active Fourier modes", active_modes)
 
 	def initial_conditions(self, type: str = 'fixed') -> xp.ndarray:
 		original_ntraj = self.Ntraj

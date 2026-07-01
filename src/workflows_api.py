@@ -1,4 +1,4 @@
-"""Public API for reusable GC2D workflows."""
+"""Public API for reusable simulation workflows."""
 
 from workflows.cases import run_case
 from workflows.export import save_data

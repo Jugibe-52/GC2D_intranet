@@ -1,8 +1,8 @@
-# GC2D_intranet
+# guiding_center_intranet
 
 The canonical Python modules live under [`src`](src). The root-level
-scripts are entry points: [`gc2d.py`](gc2d.py) for parameter-dictionary runs and
-[`run_gc2d.py`](run_gc2d.py) for the standalone showcase.
+scripts are entry points: [`run_fourier.py`](run_fourier.py) for parameter-dictionary runs and
+[`run_potential.py`](run_potential.py) for the standalone showcase.
 
 For imports outside those scripts, install the package in editable mode:
 ```sh
@@ -13,45 +13,45 @@ To install the editable package plus notebook/demo tools, use:
 python3 -m pip install -r requirements.txt
 ```
 
-Logging is enabled by default for the root scripts. Use `GC2D_LOG_LEVEL` to change
-verbosity and `GC2D_LOG_FILE` to also write logs to a file:
+Logging is enabled by default for the root scripts. Use `SIM_LOG_LEVEL` to change
+verbosity and `SIM_LOG_FILE` to also write logs to a file:
 ```sh
-GC2D_LOG_LEVEL=DEBUG GC2D_LOG_FILE=logs/gc2d.log python3 gc2d.py
+SIM_LOG_LEVEL=DEBUG SIM_LOG_FILE=logs/simulation.log python3 run_fourier.py
 ```
 
 Simulation parameters are now read from JSON files in [`conf`](conf). The
 configuration tree is split into `test` for development runs and `assay` for
 experiments. Each group contains version folders such as `v_1`, and each version
-contains `gc2d.json` and `run_gc2d.json`.
+contains `fourier.json` and `potential.json`.
 
-The main batch runner uses `conf/test/v_1/gc2d.json` by default:
+The main batch runner uses `conf/test/v_1/fourier.json` by default:
 ```sh
-python3 gc2d.py
+python3 run_fourier.py
 ```
 Select another profile from the same JSON file with:
 ```sh
-python3 gc2d.py --version notebook_demo
+python3 run_fourier.py --version notebook_demo
 ```
 Select an experiment configuration folder with:
 ```sh
-python3 gc2d.py --config-group assay --config-version v_1
+python3 run_fourier.py --config-group assay --config-version v_1
 ```
 or pass an explicit config file:
 ```sh
-python3 gc2d.py --config conf/assay/v_1/gc2d.json --version symplectic_grid
+python3 run_fourier.py --config conf/assay/v_1/fourier.json --version symplectic_grid
 ```
 For background runs:
 ```sh
-nohup python3 -u gc2d.py &>gc2d.out < /dev/null &
+nohup python3 -u run_fourier.py &>fourier.out < /dev/null &
 ```
 
-The standalone HDF5/mock-potential showcase reads `conf/test/v_1/run_gc2d.json`
+The standalone HDF5/mock-potential showcase reads `conf/test/v_1/potential.json`
 by default:
 ```sh
-python3 run_gc2d.py
+python3 run_potential.py
 ```
 
-The list of Python packages and their version are specified in [`requirements.txt`](https://github.com/cchandre/GC2D_intranet/blob/main/requirements.txt)
+The list of Python packages and their version are specified in [`requirements.txt`](https://github.com/cchandre/guiding_center_intranet/blob/main/requirements.txt)
 ___
 ##  JSON configuration
 

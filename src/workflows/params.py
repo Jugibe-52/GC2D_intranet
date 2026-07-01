@@ -3,7 +3,7 @@ from typing import Any
 
 import numpy as np
 
-from classes.gc2dt import GC2Dt
+from classes.fourier_system import FourierSystem
 from config_logging import simulation_label
 
 logger = logging.getLogger(__name__)
@@ -40,13 +40,13 @@ def make_params(base: dict[str, Any], **overrides: Any) -> dict[str, Any]:
 	return params
 
 
-def make_system(params: dict[str, Any]) -> GC2Dt:
+def make_system(params: dict[str, Any]) -> FourierSystem:
 	params = to_symp_params(params)
 	logger.info("Building system: %s", simulation_label(params))
-	return GC2Dt(params)
+	return FourierSystem(params)
 
 
-def ensure_system(case: GC2Dt | dict[str, Any]) -> GC2Dt:
-	if isinstance(case, GC2Dt):
+def ensure_system(case: FourierSystem | dict[str, Any]) -> FourierSystem:
+	if isinstance(case, FourierSystem):
 		return case
 	return make_system(case)

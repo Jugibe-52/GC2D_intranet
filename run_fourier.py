@@ -17,9 +17,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
 import matplotlib.pyplot as plt
 import multiprocess
 
-from config import DEFAULT_CONFIG_GROUP, DEFAULT_CONFIG_VERSION, load_gc2dt_config
+from config import DEFAULT_CONFIG_GROUP, DEFAULT_CONFIG_VERSION, load_fourier_config
 from config_logging import configure_logging, simulation_label
-from gc2d_workflows import run_case, save_data
+from workflows_api import run_case, save_data
 
 import logging
 
@@ -36,7 +36,7 @@ def _run_case(params: dict[str, Any]) -> None:
 
 
 def parse_args() -> argparse.Namespace:
-	parser = argparse.ArgumentParser(description="Run GC2D cases from a JSON configuration.")
+	parser = argparse.ArgumentParser(description="Run PotentialSystem cases from a JSON configuration.")
 	parser.add_argument("--config", help="Path to the JSON configuration file.")
 	parser.add_argument("--config-group", default=DEFAULT_CONFIG_GROUP, choices=("test", "assay"), help="Configuration group under conf/.")
 	parser.add_argument("--config-version", default=DEFAULT_CONFIG_VERSION, help="Configuration folder version under conf/<group>/, e.g. v_1.")
@@ -47,7 +47,7 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
 	args = parse_args()
 	configure_logging()
-	config = load_gc2dt_config(
+	config = load_fourier_config(
 		args.config,
 		version=args.version,
 		config_group=args.config_group,

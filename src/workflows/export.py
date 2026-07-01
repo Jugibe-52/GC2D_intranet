@@ -5,12 +5,12 @@ import numpy as np
 from pyhamsys import OdeSolution
 from scipy.io import savemat
 
-from classes.gc2dt import GC2Dt
+from classes.fourier_system import FourierSystem
 
 logger = logging.getLogger(__name__)
 
 
-def save_data(system: GC2Dt, sol: OdeSolution) -> None:
+def save_data(system: FourierSystem, sol: OdeSolution) -> None:
 	if not system.SaveData:
 		logger.debug("SaveData disabled; skipping MATLAB export")
 		return

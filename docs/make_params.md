@@ -1,12 +1,12 @@
 # `make_params`
 
-`make_params` is a notebook-oriented helper function, not a class. It builds a simulation parameter dictionary by copying a base dictionary and applying keyword overrides. The returned dictionary is ready to pass to `make_system()`, which creates the `GC2Dt` system that notebooks pass to `run_case()` or `integrate_case()`.
+`make_params` is a notebook-oriented helper function, not a class. It builds a simulation parameter dictionary by copying a base dictionary and applying keyword overrides. The returned dictionary is ready to pass to `make_system()`, which creates the `FourierSystem` system that notebooks pass to `run_case()` or `integrate_case()`.
 
 ```python
-from config import load_gc2dt_config
-from gc2d_workflows import make_params, make_system, run_case
+from config import load_fourier_config
+from workflows_api import make_params, make_system, run_case
 
-config = load_gc2dt_config(config_group="test", config_version="v_1")
+config = load_fourier_config(config_group="test", config_version="v_1")
 base_params = config.cases()[0]
 
 params = make_params(
@@ -36,7 +36,7 @@ def make_params(base: dict, **overrides) -> dict:
 
 `base`
 
-The starting parameter dictionary. In notebooks this is usually one case from `load_gc2dt_config(...).cases()`.
+The starting parameter dictionary. In notebooks this is usually one case from `load_fourier_config(...).cases()`.
 
 `**overrides`
 
@@ -102,7 +102,7 @@ When `init="selected"` and `x0`/`y0` come from `base`, `make_params()` trims the
 Use `make_params()` to keep notebook runs small and reproducible:
 
 ```python
-config = load_gc2dt_config(config_group="test", config_version="v_1")
+config = load_fourier_config(config_group="test", config_version="v_1")
 base_params = config.cases()[0]
 
 params = make_params(

@@ -1,4 +1,4 @@
-"""Logging helpers for GC2D command-line runs."""
+"""Logging helpers for command-line runs."""
 
 from __future__ import annotations
 
@@ -16,16 +16,16 @@ def configure_logging(level: str | None = None, log_file: str | Path | None = No
 	"""Configure root logging once for scripts.
 
 	Environment overrides:
-	- GC2D_LOG_LEVEL: DEBUG, INFO, WARNING, ERROR.
-	- GC2D_LOG_FILE: optional path for a file log.
+	- SIM_LOG_LEVEL: DEBUG, INFO, WARNING, ERROR.
+	- SIM_LOG_FILE: optional path for a file log.
 	"""
-	level_name = (level or os.environ.get("GC2D_LOG_LEVEL") or "INFO").upper()
+	level_name = (level or os.environ.get("SIM_LOG_LEVEL") or "INFO").upper()
 	log_level = getattr(logging, level_name, None)
 	if log_level is None:
-		print(f"Invalid GC2D log level {level_name!r}; falling back to INFO.", file=sys.stderr)
+		print(f"Invalid simulation log level {level_name!r}; falling back to INFO.", file=sys.stderr)
 		level_name = "INFO"
 		log_level = logging.INFO
-	file_path = log_file or os.environ.get("GC2D_LOG_FILE")
+	file_path = log_file or os.environ.get("SIM_LOG_FILE")
 
 	handlers: list[logging.Handler] = [logging.StreamHandler(sys.stdout)]
 	if file_path:
