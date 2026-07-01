@@ -16,6 +16,9 @@ from .logging_config import simulation_label
 
 logger = logging.getLogger(__name__)
 
+GREEN = "\033[32m"
+RESET = "\033[0m"
+
 
 @dataclass
 class SimulationResult:
@@ -70,10 +73,11 @@ class SimulationResult:
 			fig = ax.figure
 		x, y = self.get_plot_trayectorys(modulo=modulo)
 		use_modulo = getattr(system, 'modulo', False) if modulo is None else modulo
-		if use_modulo:
+		use_grid = getattr(system, 'grid', False) if grid is None else grid
+		if use_modulo or use_grid or decimal_grid:
 			ax.set_xlim(0, 2 * np.pi)
 			ax.set_ylim(0, 2 * np.pi)
-			if not decimal_grid:
+			if use_modulo and not decimal_grid:
 				ax.set_xticks([0, np.pi, 2 * np.pi])
 				ax.set_yticks([0, np.pi, 2 * np.pi])
 				ax.set_xticklabels(['0', r'$\pi$', r'$2\pi$'])
@@ -81,7 +85,6 @@ class SimulationResult:
 		default_kwargs = {'markersize': 3 if system.traj_type == 'gc' else 1, 'markeredgecolor': 'none'}
 		default_kwargs.update(plot_kwargs)
 		ax.plot(x, y, '.', **default_kwargs)
-		use_grid = getattr(system, 'grid', False) if grid is None else grid
 		if decimal_grid:
 			if grid_step <= 0:
 				raise ValueError(f"`grid_step` must be positive, got {grid_step!r}.")
@@ -160,7 +163,19 @@ def integrate_case(case: GC2Dt | dict[str, Any]) -> SimulationResult:
 	)
 	start = time.time()
 	if system.traj_type == 'gc':
-		logger.info("Using guiding-center integrator: solve_ivp_sympext")
+		logger.info("%sUsing guiding-center integrator: solve_ivp_sympext%s", GREEN, RESET)
+		logger.info(
+			"%ssolve_ivp_sympext parameters: t_span=%s y0_shape=%s step=%s "
+			"t_eval_shape=%s method=%s check_energy=%s%s",
+			GREEN,
+			(0, t_eval.max()),
+			y0.shape,
+			system.TimeStep,
+			t_eval.shape,
+			system.ode_solver,
+			system.CheckEnergy,
+			RESET,
+		)
 		sol = solve_ivp_sympext(
 			system,
 			(0, t_eval.max()),
