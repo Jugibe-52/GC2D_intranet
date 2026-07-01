@@ -1,5 +1,5 @@
 @startuml GC2D_notebook_core_architecture
-title Notebook Execution and gc2d_core Package Architecture
+title Notebook Execution and Core modules Package Architecture
 
 skinparam componentStyle rectangle
 skinparam shadowing false
@@ -16,13 +16,13 @@ skinparam ArtifactBackgroundColor #FFFFF0
 actor "Notebook user" as user
 
 package "Notebook layer" {
-  component "notebooks/\ngc2d_notebook_demo.ipynb" as notebook
+  component "notebooks/\ngc2d_workflows_demo.ipynb" as notebook
   component "Parameter cells\nbase dict + overrides" as params_cells
   component "Plot cells\nPoincare / diagnostics" as plot_cells
 }
 
-package "gc2d_core public notebook API" {
-  component "gc2d_notebook.py" as notebook_api
+package "src public notebook API" {
+  component "gc2d_workflows.py" as notebook_api
   component "make_params(base, **overrides)" as make_params
   component "make_system(params)" as make_system
   component "to_symp_params(params)" as to_symp_params
@@ -32,17 +32,20 @@ package "gc2d_core public notebook API" {
   component "SimulationResult\nsystem, sol, elapsed,\nfig, ax" as result
 }
 
-package "gc2d_core numerical model" {
-  component "gc2d_symp.py\nGC2Dt" as gc2dt
+package "src numerical model" {
+  component "classes/gc2dt.py\nGC2Dt" as gc2dt
   component "initial_conditions()" as initial_conditions
   component "Hamiltonian methods\ny_dot(), k_dot(),\npotential(), hamiltonian()" as hamiltonian_methods
   component "Full-orbit splitting\nchi(), chi_star()" as splitting_methods
-  component "save_data(sol)" as save_data
 }
 
-package "gc2d_core support" {
+package "src workflows" {
+  component "workflows/export.py\nsave_data(system, sol)" as save_data
+}
+
+package "src support" {
   component "conf/test/v_1/gc2d.json\noptional base configuration" as gc2d_json
-  component "logging_config.py\nsimulation_label()" as logging_config
+  component "config_logging.py\nsimulation_label()" as config_logging
 }
 
 package "External runtime" {
@@ -66,7 +69,7 @@ notebook --> run_case : simple path
 notebook --> integrate_case : manual integration path
 notebook --> plot_poincare : manual plotting path
 
-notebook_api --> logging_config : labels integration logs
+notebook_api --> config_logging : labels integration logs
 notebook_api --> result : returns structured result
 
 make_params --> to_symp_params : validates parameters
@@ -82,7 +85,7 @@ integrate_case --> result : stores system, sol,\nelapsed time
 
 gc2dt --> hamiltonian_methods : guiding-center dynamics
 gc2dt --> splitting_methods : full-orbit dynamics
-gc2dt --> scientific_stack : Fourier turbulent potential,\nFLR correction, savemat()
+gc2dt --> scientific_stack : Fourier turbulent potential,\nFLR correction
 
 solve_gc --> gc2dt : calls HamSys interface
 solve_fo --> splitting_methods : calls chi / chi_star

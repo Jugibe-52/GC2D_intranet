@@ -10,9 +10,10 @@ from typing import Any
 
 import numpy as np
 
-from .gc2d_classes import GC2D, Potential, extract_potential, mock_potential
+from classes import GC2D, Potential
+from workflows.potentials import extract_potential, mock_potential
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 CONF_DIR = PROJECT_ROOT / "conf"
 DEFAULT_CONFIG_GROUP = "test"
 DEFAULT_CONFIG_VERSION = "v_1"

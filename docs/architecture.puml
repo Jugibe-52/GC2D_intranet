@@ -20,23 +20,25 @@ actor "User" as user
 package "Entry points" {
   component "gc2d.py\nmain batch runner" as gc2d
   component "run_gc2d.py\nstandalone showcase" as run_gc2d
-  component "notebooks/\ngc2d_notebook_demo.ipynb" as notebook
+  component "notebooks/\ngc2d_workflows_demo.ipynb" as notebook
 }
 
 package "Configuration" {
   component "conf/<group>/<version>/gc2d.json\nMethod, Ntraj, Tf,\nA, rho, plotting, saving" as gc2d_json
 }
 
-package "gc2d_core package" {
-  component "logging_config.py\nconfigure_logging()\nsimulation_label()" as logging_config
+package "src modules" {
+  component "config_logging.py\nconfigure_logging()\nsimulation_label()" as config_logging
 
-  component "gc2d_notebook.py\nmake_system()\nrun_case()\nintegrate_case()\nplot_poincare()" as notebook_api
+  component "gc2d_workflows.py\nmake_system()\nrun_case()\nintegrate_case()\nplot_poincare()\nsave_data()\nextract_potential()" as notebook_api
 
-  component "gc2d_symp.py\nGC2Dt\nFourier turbulent model" as gc2dt
+  component "classes/gc2dt.py\nGC2Dt\nFourier turbulent model" as gc2dt
 
-  component "gc2d_symp_modules.py\nrun_method()\nlegacy execution flow" as symp_modules
+  component "workflows/symplectic_legacy.py\nrun_method()\nlegacy execution flow" as symp_modules
 
-  component "gc2d_classes.py\nPotential\nGC2D\nHDF5/mock potential flow" as gc2d_classes
+  component "workflows/symplectic_cli.py\nparse_args()\nmain()" as symp_cli
+
+  component "classes/\ngc2d.py + potential.py\nGC2D / Potential" as classes
 }
 
 package "External libraries" {
@@ -56,7 +58,7 @@ user --> run_gc2d : python3 run_gc2d.py
 user --> notebook : open notebook
 
 gc2d --> gc2d_json : reads cases\nand parallelization
-gc2d --> logging_config : configures logging
+gc2d --> config_logging : configures logging
 gc2d --> multiprocess : parallel case map
 gc2d --> notebook_api : run_case(params)\ncompatibility path
 gc2d --> matplotlib : show plots
@@ -64,43 +66,44 @@ gc2d --> matplotlib : show plots
 notebook --> notebook_api : make_system(params)\nrun_case(system)
 notebook --> gc2d_json : optional base params
 
-notebook_api --> logging_config : labels and logs
+notebook_api --> config_logging : labels and logs
 notebook_api --> gc2dt : make_system builds\nGC2Dt(params)
 notebook_api --> pyhamsys : integrates gc / fo trajectories
 notebook_api --> matplotlib : Poincare plots
 notebook_api --> outputs : figures via plot_poincare()
 
 gc2dt --> pyhamsys : extends HamSys\nuses OdeSolution contract
-gc2dt --> scientific_stack : Fourier potential,\nBessel FLR correction,\nsavemat()
-gc2dt --> outputs : save_data()
+gc2dt --> scientific_stack : Fourier potential,\nBessel FLR correction
+notebook_api --> outputs : save_data()
 
-gc2dt ..> symp_modules : legacy runner creates\nGC2Dt per params
+symp_cli --> symp_modules : creates GC2Dt\nper params
 symp_modules --> pyhamsys : integrates trajectories
 symp_modules --> matplotlib : optional Poincare plot
 symp_modules --> outputs : saved data / figures
-symp_modules --> logging_config : logs progress
+symp_modules --> config_logging : logs progress
 
-run_gc2d --> logging_config : configures logging
-run_gc2d --> gc2d_classes : extract_potential()\nmock_potential()\nGC2D()
+run_gc2d --> config_logging : configures logging
+run_gc2d --> notebook_api : extract_potential()\nmock_potential()\nplot_sol()
+run_gc2d --> classes : GC2D()
 run_gc2d --> pyhamsys : integrates showcase
-run_gc2d --> matplotlib : plot_sol()
+run_gc2d --> matplotlib : plotting workflows
 
 phi_h5 --> h5py
-h5py --> gc2d_classes : loaded by extract_potential()
-gc2d_classes --> scientific_stack : interpolation,\ngyroaverage, derivatives
-gc2d_classes --> pyhamsys : extends HamSys
-gc2d_classes --> matplotlib : potential / trajectory plots
-gc2d_classes --> outputs : showcase figures
+h5py --> notebook_api : loaded by extract_potential()
+classes --> scientific_stack : interpolation,\ngyroaverage, derivatives
+classes --> pyhamsys : extends HamSys
+notebook_api --> matplotlib : potential / trajectory plots
+notebook_api --> outputs : showcase figures
 
 legend right
   Main production path:
-  gc2d.py -> config.py -> gc2d_notebook.py -> GC2Dt -> pyhamsys -> outputs
+  gc2d.py -> config.py -> gc2d_workflows.py -> GC2Dt -> pyhamsys -> outputs
 
   Standalone data-potential path:
-  run_gc2d.py -> gc2d_classes.py -> pyhamsys -> plots
+  run_gc2d.py -> gc2d_workflows.py -> classes/ -> pyhamsys -> plots
 
   Legacy package entry:
-  gc2d_symp.py -> config.py -> gc2d_symp_modules.py
+  gc2d_symp.py -> workflows/symplectic_cli.py -> workflows/symplectic_legacy.py
 endlegend
 
 @enduml

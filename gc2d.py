@@ -17,9 +17,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
 import matplotlib.pyplot as plt
 import multiprocess
 
-from gc2d_core.config import DEFAULT_CONFIG_GROUP, DEFAULT_CONFIG_VERSION, load_gc2dt_config
-from gc2d_core.logging_config import configure_logging, simulation_label
-from gc2d_core.gc2d_notebook import run_case
+from config import DEFAULT_CONFIG_GROUP, DEFAULT_CONFIG_VERSION, load_gc2dt_config
+from config_logging import configure_logging, simulation_label
+from gc2d_workflows import run_case, save_data
 
 import logging
 
@@ -32,7 +32,7 @@ def _run_case(params: dict[str, Any]) -> None:
 	logger.info("Finished case in %.2f seconds: %s", result.elapsed, simulation_label(params))
 	if result.system.CheckEnergy:
 		logger.info("Energy error: %s", result.sol.err)
-	result.system.save_data(result.sol)
+	save_data(result.system, result.sol)
 
 
 def parse_args() -> argparse.Namespace:

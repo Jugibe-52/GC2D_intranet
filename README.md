@@ -1,6 +1,6 @@
 # GC2D_intranet
 
-The canonical Python modules live under [`src/gc2d_core`](src/gc2d_core). The root-level
+The canonical Python modules live under [`src`](src). The root-level
 scripts are entry points: [`gc2d.py`](gc2d.py) for parameter-dictionary runs and
 [`run_gc2d.py`](run_gc2d.py) for the standalone showcase.
 

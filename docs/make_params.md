@@ -3,8 +3,8 @@
 `make_params` is a notebook-oriented helper function, not a class. It builds a simulation parameter dictionary by copying a base dictionary and applying keyword overrides. The returned dictionary is ready to pass to `make_system()`, which creates the `GC2Dt` system that notebooks pass to `run_case()` or `integrate_case()`.
 
 ```python
-from gc2d_core.config import load_gc2dt_config
-from gc2d_core.gc2d_notebook import make_params, make_system, run_case
+from config import load_gc2dt_config
+from gc2d_workflows import make_params, make_system, run_case
 
 config = load_gc2dt_config(config_group="test", config_version="v_1")
 base_params = config.cases()[0]
@@ -94,7 +94,7 @@ When `init="selected"` and `x0`/`y0` come from `base`, `make_params()` trims the
 | `darkmode` | `bool` | Plot style option from the base configuration. |
 | `extension` | `str` | Figure extension used by saving paths, for example `".pdf"` or `".png"`. |
 | `dpi` | `int` | Figure resolution for saved plots. |
-| `SaveData` | `bool` | If true, `GC2Dt.save_data()` writes a MATLAB `.mat` file. |
+| `SaveData` | `bool` | If true, `save_data(system, sol)` writes a MATLAB `.mat` file. |
 | `CheckEnergy` | `bool` | If true, the integration includes energy checking where supported. |
 
 ## Notebook Usage Pattern

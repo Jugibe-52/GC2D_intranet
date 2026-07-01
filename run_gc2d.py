@@ -14,8 +14,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
 
 from pyhamsys import solve_ivp_symp, solve_ivp_sympext
 
-from gc2d_core.config import DEFAULT_CONFIG_GROUP, DEFAULT_CONFIG_VERSION, load_run_gc2d_config
-from gc2d_core.logging_config import configure_logging
+from config import DEFAULT_CONFIG_GROUP, DEFAULT_CONFIG_VERSION, load_run_gc2d_config
+from config_logging import configure_logging
+from gc2d_workflows import plot_sol
 
 import logging
 
@@ -54,7 +55,7 @@ def main() -> None:
 		z0.shape,
 	)
 
-	# hs.plot_potential()
+	# plot_potential(hs)
 
 	integration = config.integration
 	n_max = int(integration.get("n_max", 50))
@@ -79,7 +80,7 @@ def main() -> None:
 		logger.info("Energy error: %s", sol.err)
 	if integration.get("plot", True):
 		logger.info("Plotting solution")
-		hs.plot_sol(sol, wrap=integration.get("wrap", True))
+		plot_sol(hs, sol, wrap=integration.get("wrap", True))
 
 
 if __name__ == '__main__':

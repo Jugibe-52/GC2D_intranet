@@ -6,6 +6,10 @@ Esta carpeta convierte el contenido matemático del artículo en una base de tra
 
 ## Archivos
 
+- `gc2dt_execution/README.md`: explica la ejecucion `gc2d.py` con el modelo Fourier `GC2Dt`.
+- `gc2dt_execution/flow.puml`: diagrama de flujo de `gc2d.py`.
+- `gc2d_potential_execution/README.md`: explica la ejecucion `run_gc2d.py` con `GC2D + Potential`.
+- `gc2d_potential_execution/flow.puml`: diagrama de flujo de `run_gc2d.py`.
 - `article_summary.md`: resumen matemático-físico del artículo y resultados que habría que reproducir.
 - `math_model.md`: ecuaciones, variables, parámetros, operadores y magnitudes matemáticas principales.
 - `numerical_model.md`: especificación computacional: estructuras de datos, funciones, algoritmos y esquema de integración.
@@ -47,4 +51,3 @@ Cada fórmula debe tener tres representaciones:
 ```text
 fórmula del artículo -> función Python -> test físico/numérico
 ```
-

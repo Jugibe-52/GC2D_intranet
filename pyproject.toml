@@ -19,5 +19,14 @@ dependencies = [
 	"sympy==1.14.0",
 ]
 
-[tool.setuptools.packages.find]
-where = ["src"]
+[tool.setuptools]
+package-dir = {"" = "src"}
+packages = ["classes", "workflows"]
+py-modules = [
+	"config",
+	"gc2d_classes",
+	"gc2d_workflows",
+	"gc2d_symp",
+	"gc2d_symp_modules",
+	"config_logging",
+]

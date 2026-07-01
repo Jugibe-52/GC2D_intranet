@@ -1,5 +1,5 @@
 @startuml GC2D_run_case_flow
-title run_case Execution Flow in gc2d_core.gc2d_notebook
+title run_case Execution Flow in gc2d_workflows
 
 skinparam shadowing false
 skinparam defaultTextAlignment center
@@ -141,8 +141,8 @@ stop
 
 legend right
   Main code locations:
-  - src/gc2d_core/gc2d_notebook.py
-  - src/gc2d_core/gc2d_symp.py
+  - src/gc2d_workflows.py
+  - src/classes/gc2dt.py
 
   Returned object:
   SimulationResult(system, sol, elapsed, fig, ax)
