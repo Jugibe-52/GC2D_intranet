@@ -1,0 +1,123 @@
+{
+	"schema_version": 1,
+	"active_version": "notebook_demo",
+	"versions": {
+		"default": {
+			"parallelization": 1,
+			"pyhamsys": {
+				"TimeStep": 0.1,
+				"ode_solver": "BM4",
+				"CheckEnergy": false
+			},
+			"output": {
+				"plot": false,
+				"data": false,
+				"extension": ".png",
+				"dpi": 200
+			},
+			"defaults": {
+				"Method": "poincare_gc",
+				"Ntraj": 50,
+				"Tf": 500,
+				"init": "selected",
+				"x0": {
+					"linspace": [
+						0.5,
+						1.0,
+						"Ntraj"
+					]
+				},
+				"y0": {
+					"constant": 4.5,
+					"num": "Ntraj"
+				},
+				"modulo": true,
+				"grid": false,
+				"M": 25
+			},
+			"sweep": {
+				"A": [
+					0.7
+				],
+				"rho": [
+					0.1
+				]
+			}
+		},
+		"notebook_demo": {
+			"parallelization": 1,
+			"pyhamsys": {
+				"TimeStep": 0.1,
+				"ode_solver": "BM4",
+				"CheckEnergy": true
+			},
+			"output": {
+				"plot": true,
+				"data": true,
+				"extension": ".png",
+				"dpi": 200
+			},
+			"defaults": {
+				"Method": "poincare_gc",
+				"Ntraj": 12,
+				"Tf": 3,
+				"init": "selected",
+				"x0": {
+					"linspace": [
+						0.5,
+						1.0,
+						12
+					]
+				},
+				"y0": {
+					"constant": 4.5,
+					"num": 12
+				},
+				"modulo": true,
+				"grid": false,
+				"M": 6
+			},
+			"sweep": {
+				"A": [
+					0.7
+				],
+				"rho": [
+					0.1
+				]
+			}
+		},
+		"symplectic_grid": {
+			"parallelization": 1,
+			"pyhamsys": {
+				"TimeStep": 0.1,
+				"ode_solver": "BM4",
+				"CheckEnergy": true
+			},
+			"output": {
+				"plot": false,
+				"data": false,
+				"extension": ".png",
+				"dpi": 200
+			},
+			"defaults": {
+				"Method": "poincare_gc",
+				"traj_type": "gc",
+				"Ntraj": 5,
+				"Tf": 3,
+				"init": "fixed",
+				"M": 6
+			},
+			"sweep": {
+				"A": [
+					0.7
+				],
+				"rho": [
+					0.1
+				],
+				"eta": [
+					0.1
+				]
+			}
+		}
+	}
+}

@@ -16,6 +16,7 @@ from pyhamsys import solve_ivp_symp, solve_ivp_sympext
 
 from config import DEFAULT_CONFIG_GROUP, DEFAULT_CONFIG_VERSION, load_potential_config
 from config_logging import configure_logging
+from workflows.export import save_figure, save_potential_data
 from workflows_api import plot_sol
 
 import logging
@@ -25,9 +26,10 @@ logger = logging.getLogger(__name__)
 
 def parse_args() -> argparse.Namespace:
 	parser = argparse.ArgumentParser(description="Run the PotentialSystem HDF5/mock potential showcase from configuration.")
-	parser.add_argument("--config", help="Path to the Python or JSON configuration file.")
+	parser.add_argument("--config", help="Path to the JSON configuration file.")
+	parser.add_argument("--config-surface", default="terminal", choices=("terminal", "notebook"), help="Configuration surface under conf/.")
 	parser.add_argument("--config-group", default=DEFAULT_CONFIG_GROUP, choices=("test", "assay"), help="Configuration group under conf/.")
-	parser.add_argument("--config-version", default=DEFAULT_CONFIG_VERSION, help="Configuration file version under conf/potential/<group>/, e.g. v_1.")
+	parser.add_argument("--config-version", default=DEFAULT_CONFIG_VERSION, help="Configuration file version under conf/<surface>/potential/<group>/, e.g. v_1.")
 	parser.add_argument("--version", help="Profile inside the configuration file.")
 	return parser.parse_args()
 
@@ -38,6 +40,7 @@ def main() -> None:
 	config = load_potential_config(
 		args.config,
 		version=args.version,
+		config_surface=args.config_surface,
 		config_group=args.config_group,
 		config_version=args.config_version,
 	)
@@ -83,9 +86,19 @@ def main() -> None:
 	logger.info("Finished integration in %.2f seconds; solution shape=%s", time.time() - start, sol.y.shape)
 	if hasattr(sol, "err"):
 		logger.info("Energy error: %s", sol.err)
+	if output.get("data", False):
+		save_potential_data(sol, config.output_dir or ".", config.output_name or config.version)
 	if output.get("plot", True):
 		logger.info("Plotting solution")
-		plot_sol(hs, sol, wrap=output.get("wrap", True))
+		fig, _ = plot_sol(hs, sol, wrap=output.get("wrap", True))
+		if config.output_dir is not None:
+			save_figure(
+				fig,
+				config.output_dir,
+				config.output_name or config.version,
+				extension=output.get("extension", ".png"),
+				dpi=int(output.get("dpi", 200)),
+			)
 
 
 if __name__ == '__main__':

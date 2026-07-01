@@ -4,16 +4,21 @@ from pathlib import Path
 
 import numpy as np
 from pyhamsys import OdeSolution
-from scipy.io import savemat
 
 from classes.fourier_system import FourierSystem
 
 logger = logging.getLogger(__name__)
 
 
+def timestamped_output_path(output_dir: str | Path, output_name: str, extension: str) -> Path:
+	output_path = Path(output_dir)
+	output_path.mkdir(parents=True, exist_ok=True)
+	return output_path / f'{output_name}_{datetime.now().strftime("%Y%m%d_%H%M%S")}{extension}'
+
+
 def save_data(system: FourierSystem, sol: OdeSolution) -> None:
-	if not system.SaveData:
-		logger.debug("SaveData disabled; skipping MATLAB export")
+	if not getattr(system, "SaveData", False):
+		logger.debug("SaveData disabled; skipping NumPy export")
 		return
 	output_dir = Path(getattr(system, "output_dir", "."))
 	output_dir.mkdir(parents=True, exist_ok=True)
@@ -25,14 +30,34 @@ def save_data(system: FourierSystem, sol: OdeSolution) -> None:
 			x, y, vx, vy, _ = np.split(sol.y, 5)
 		else:
 			x, y, vx, vy = np.split(sol.y, 4)
-	mdic = system.DictParams.copy()
-	mdic.update({'t': sol.t, 'x': x, 'y': y})
+	payload = system.DictParams.copy()
+	payload.update({'t': sol.t, 'x': x, 'y': y})
 	if system.traj_type == 'fo':
-		mdic.update({'vx': vx, 'vy': vy})
+		payload.update({'vx': vx, 'vy': vy})
 	if system.CheckEnergy:
-		mdic.update({'k': sol.k})
-	mdic.update({'date': datetime.now().strftime(" %B %d, %Y\n"), 'author': 'cristel.chandre@cnrs.fr'})
+		payload.update({'k': sol.k})
+	payload.update({'date': datetime.now().strftime("%B %d, %Y"), 'author': 'cristel.chandre@cnrs.fr'})
 	output_name = getattr(system, "output_name", "notebook")
-	filename = output_dir / f'{output_name}_{datetime.now().strftime("%Y%m%d_%H%M%S")}.mat'
-	savemat(filename, mdic)
+	filename = timestamped_output_path(output_dir, output_name, ".npz")
+	np.savez_compressed(filename, **payload)
 	logger.info("Results saved in %s", filename)
+
+
+def save_potential_data(sol: OdeSolution, output_dir: str | Path, output_name: str) -> Path:
+	"""Save a PotentialSystem solution in NumPy format."""
+	filename = timestamped_output_path(output_dir, output_name, ".npz")
+	payload = {"t": sol.t, "y": sol.y}
+	if hasattr(sol, "err"):
+		payload["err"] = sol.err
+	if hasattr(sol, "k"):
+		payload["k"] = sol.k
+	np.savez_compressed(filename, **payload)
+	logger.info("Potential results saved in %s", filename)
+	return filename
+
+
+def save_figure(fig: object, output_dir: str | Path, output_name: str, extension: str = ".png", dpi: int = 200) -> Path:
+	filename = timestamped_output_path(output_dir, output_name, extension)
+	fig.savefig(filename, dpi=dpi)
+	logger.info("Figure saved in %s", filename)
+	return filename

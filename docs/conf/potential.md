@@ -1,6 +1,6 @@
-# `conf/potential/<group>/v_x.py`
+# `conf/<notebook|terminal>/potential/<group>/v_x.json`
 
-`conf/potential/<group>/v_x.py` configura la ejecucion de `run_potential.py`, basada en el flujo:
+`conf/<notebook|terminal>/potential/<group>/v_x.json` configura el flujo:
 
 ```text
 Potential -> PotentialSystem -> pyhamsys
@@ -14,8 +14,8 @@ from config import load_potential_config
 
 ## Estructura general
 
-```python
-CONFIG = {
+```json
+{
     "schema_version": 1,
     "active_version": "default",
     "versions": {
@@ -24,9 +24,9 @@ CONFIG = {
             "trajectory": {},
             "integration": {},
             "pyhamsys": {},
-            "output": {},
-        },
-    },
+            "output": {}
+        }
+    }
 }
 ```
 
@@ -116,13 +116,19 @@ Este bloque agrupa solo parametros pasados a `pyhamsys`.
 | Campo | Tipo | Descripcion |
 |---|---:|---|
 | `wrap` | `bool` | Si es `true`, `plot_sol` envuelve posiciones al dominio periodico. |
-| `plot` | `bool` | Si es `true`, `run_potential.py` llama a `plot_sol`. |
+| `plot` | `bool` | Si es `true`, `run_potential.py` llama a `plot_sol` y guarda la figura en `outputs/...`. |
+| `data` | `bool` | Si es `true`, guarda la solucion en formato `.npz` con `t`, `y` y, si existen, `err` y `k`. |
+| `extension` | `str` | Extension de la figura guardada, por ejemplo `.png` o `.pdf`. |
+| `dpi` | `int` | Resolucion usada al guardar la figura. |
+
+El bloque `output` tambien puede existir en configuraciones de notebook. En ese caso permite decidir si una ejecucion programatica basada en esa configuracion debe persistir figura o datos.
 
 La carpeta de salida se deriva automaticamente de la ruta de configuracion:
 
 ```text
-conf/potential/test/v_1.py -> outputs/potential/test/v_1/
-conf/potential/assay/v_1.py -> outputs/potential/assay/v_1/
+conf/notebook/potential/test/v_1.json -> outputs/notebook/potential/test/v_1/
+conf/terminal/potential/test/v_1.json -> outputs/terminal/potential/test/v_1/
+conf/terminal/potential/assay/v_1.json -> outputs/terminal/potential/assay/v_1/
 ```
 
 ## Relacion con HDF5

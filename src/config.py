@@ -6,7 +6,6 @@ from dataclasses import dataclass, field
 from itertools import product
 import json
 from pathlib import Path
-import runpy
 from typing import Any
 
 import numpy as np
@@ -17,10 +16,11 @@ from workflows.potentials import extract_potential, mock_potential
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 CONF_DIR = PROJECT_ROOT / "conf"
 OUTPUTS_DIR = PROJECT_ROOT / "outputs"
+DEFAULT_CONFIG_SURFACE = "notebook"
 DEFAULT_CONFIG_GROUP = "test"
 DEFAULT_CONFIG_VERSION = "v_1"
-DEFAULT_FOURIER_CONFIG = CONF_DIR / "fourier" / DEFAULT_CONFIG_GROUP / f"{DEFAULT_CONFIG_VERSION}.py"
-DEFAULT_POTENTIAL_CONFIG = CONF_DIR / "potential" / DEFAULT_CONFIG_GROUP / f"{DEFAULT_CONFIG_VERSION}.py"
+DEFAULT_FOURIER_CONFIG = CONF_DIR / DEFAULT_CONFIG_SURFACE / "fourier" / DEFAULT_CONFIG_GROUP / f"{DEFAULT_CONFIG_VERSION}.json"
+DEFAULT_POTENTIAL_CONFIG = CONF_DIR / DEFAULT_CONFIG_SURFACE / "potential" / DEFAULT_CONFIG_GROUP / f"{DEFAULT_CONFIG_VERSION}.json"
 PYHAMSYS_PARAM_KEYS = {"TimeStep", "ode_solver", "CheckEnergy"}
 OUTPUT_PARAM_KEYS = {"plot", "wrap"}
 
@@ -31,15 +31,19 @@ class ConfigError(ValueError):
 
 def config_path(
 	name: str,
+	config_surface: str = DEFAULT_CONFIG_SURFACE,
 	config_group: str = DEFAULT_CONFIG_GROUP,
 	config_version: str = DEFAULT_CONFIG_VERSION,
 ) -> Path:
 	"""Return the default path for one config family."""
 	kind = Path(name).stem
 	if kind in {"fourier", "potential"}:
-		new_path = CONF_DIR / kind / config_group / f"{config_version}.py"
+		new_path = CONF_DIR / config_surface / kind / config_group / f"{config_version}.json"
 		if new_path.exists():
 			return new_path
+		legacy_family_path = CONF_DIR / kind / config_group / f"{config_version}.json"
+		if legacy_family_path.exists():
+			return legacy_family_path
 		return CONF_DIR / config_group / config_version / f"{kind}.json"
 	return CONF_DIR / config_group / config_version / name
 
@@ -54,6 +58,9 @@ def output_path_for_config(path: str | Path) -> Path:
 	parts = relative.parts
 	if len(parts) < 3:
 		return OUTPUTS_DIR / relative.with_suffix("")
+	if parts[0] in {"notebook", "terminal"}:
+		surface, kind, config_group, filename = parts[0], parts[1], parts[2], parts[-1]
+		return OUTPUTS_DIR / surface / kind / config_group / Path(filename).stem
 	if parts[0] in {"fourier", "potential"}:
 		kind, config_group, filename = parts[0], parts[1], parts[-1]
 		return OUTPUTS_DIR / kind / config_group / Path(filename).stem
@@ -75,21 +82,10 @@ def _read_json(path: str | Path) -> dict[str, Any]:
 	return data
 
 
-def _read_py_config(path: str | Path) -> dict[str, Any]:
-	path = Path(path)
-	namespace = runpy.run_path(str(path))
-	data = namespace.get("CONFIG")
-	if not isinstance(data, dict):
-		raise ConfigError(f"Python configuration {path} must define a CONFIG dictionary.")
-	return data
-
-
 def _read_config(path: str | Path) -> dict[str, Any]:
 	path = Path(path)
 	if path.suffix == ".json":
 		return _read_json(path)
-	if path.suffix == ".py":
-		return _read_py_config(path)
 	raise ConfigError(f"Unsupported configuration format {path.suffix!r} in {path}.")
 
 
@@ -181,6 +177,22 @@ def _normalize_symplectic_params(params: dict[str, Any]) -> dict[str, Any]:
 	params.setdefault("eta", params.get("rho", 0))
 	if params["traj_type"] == "fo" and params["eta"] == 0:
 		raise ConfigError("Full-orbit integrations require a non-zero 'eta' parameter.")
+	return params
+
+
+def _apply_fourier_output(defaults: dict[str, Any], output: dict[str, Any], path: Path, selected: str) -> dict[str, Any]:
+	"""Translate structured output options to the legacy FourierSystem flags."""
+	if not isinstance(output, dict):
+		raise ConfigError(f"'output' in {path}:{selected} must be an object.")
+	params = defaults.copy()
+	if "plot" in output:
+		params["PlotResults"] = output["plot"]
+		params["SavePlot"] = output["plot"]
+	if "data" in output:
+		params["SaveData"] = output["data"]
+	for key in ("extension", "dpi"):
+		if key in output:
+			params[key] = output[key]
 	return params
 
 
@@ -294,14 +306,16 @@ class PotentialRunConfig:
 def load_fourier_config(
 	path: str | Path | None = None,
 	version: str | None = None,
+	config_surface: str = DEFAULT_CONFIG_SURFACE,
 	config_group: str = DEFAULT_CONFIG_GROUP,
 	config_version: str = DEFAULT_CONFIG_VERSION,
 ) -> FourierConfig:
-	path = Path(path) if path is not None else config_path("fourier", config_group, config_version)
+	path = Path(path) if path is not None else config_path("fourier", config_surface, config_group, config_version)
 	selected, payload = _version_payload(_read_config(path), version, path)
 	defaults = payload.get("defaults", {})
 	if not isinstance(defaults, dict):
 		raise ConfigError(f"'defaults' in {path}:{selected} must be an object.")
+	defaults = _apply_fourier_output(defaults, payload.get("output", {}), path, selected)
 	defaults, legacy_pyhamsys = _split_keys(defaults, PYHAMSYS_PARAM_KEYS)
 	pyhamsys = payload.get("pyhamsys", {})
 	if not isinstance(pyhamsys, dict):
@@ -327,10 +341,11 @@ def load_fourier_config(
 def load_potential_config(
 	path: str | Path | None = None,
 	version: str | None = None,
+	config_surface: str = DEFAULT_CONFIG_SURFACE,
 	config_group: str = DEFAULT_CONFIG_GROUP,
 	config_version: str = DEFAULT_CONFIG_VERSION,
 ) -> PotentialRunConfig:
-	path = Path(path) if path is not None else config_path("potential", config_group, config_version)
+	path = Path(path) if path is not None else config_path("potential", config_surface, config_group, config_version)
 	selected, payload = _version_payload(_read_config(path), version, path)
 	potential_payload = payload.get("potential", {})
 	if not isinstance(potential_payload, dict):

@@ -1,6 +1,9 @@
-# `conf/fourier/<group>/v_x.py`
+# `conf/<notebook|terminal>/fourier/<group>/v_x.json`
 
-`conf/fourier/<group>/v_x.py` configura la ejecucion de `run_fourier.py`, basada en el modelo `FourierSystem`.
+`conf/<notebook|terminal>/fourier/<group>/v_x.json` configura casos basados en el modelo `FourierSystem`.
+
+- `conf/notebook/...`: configuracion reducida para uso interactivo con `workflows_api`; el bloque `output.data` controla si `run_case()` guarda datos.
+- `conf/terminal/...`: configuracion completa para `run_fourier.py` y ejecuciones batch.
 
 El loader correspondiente es:
 
@@ -10,19 +13,20 @@ from config import load_fourier_config
 
 ## Estructura general
 
-```python
-CONFIG = {
+```json
+{
     "schema_version": 1,
     "active_version": "default",
     "versions": {
         "default": {
             "parallelization": 1,
             "pyhamsys": {},
+            "output": {},
             "defaults": {},
             "sweep": {},
-            "cases": [],
-        },
-    },
+            "cases": []
+        }
+    }
 }
 ```
 
@@ -38,11 +42,14 @@ CONFIG = {
 
 | Campo | Tipo | Descripcion |
 |---|---:|---|
-| `parallelization` | `int` o `"all"` | Numero de procesos para `run_fourier.py`. `"all"` usa todos los cores disponibles. |
+| `parallelization` | `int` o `"all"` | Solo terminal. Numero de procesos para `run_fourier.py`. `"all"` usa todos los cores disponibles. |
 | `pyhamsys` | `object` | Parametros enviados al integrador de `pyhamsys`. |
+| `output` | `object` | Controla si se generan/guardan figuras y datos en `outputs/...`. |
 | `defaults` | `object` | Parametros base compartidos por los casos del perfil. |
 | `sweep` | `object` | Barrido de parametros. Se genera el producto cartesiano de sus listas. |
 | `cases` | `list[object]` | Casos explicitos. Si existe y no esta vacio, tiene prioridad sobre `sweep`. |
+
+En `notebook`, se omiten los campos que solo consume el runner de terminal (`parallelization`) y perfiles legacy como `symplectic_grid`.
 
 ## Bloque `pyhamsys`
 
@@ -111,23 +118,33 @@ Comportamiento:
 - Si `traj_type="fo"`, se añaden velocidades perpendiculares aleatorias.
 - Si `traj_type="fo"` y `CheckEnergy=True`, se añade una variable energetica `k`.
 
-## Plot y salida
+## Bloque `output`
+
+| Campo | Tipo | Descripcion |
+|---|---:|---|
+| `plot` | `bool` | Si es `true`, genera la figura Poincare y la guarda en la carpeta `outputs/...` derivada de la configuracion. |
+| `data` | `bool` | Si es `true`, `run_case()`/`run_fourier.py` guardan un `.npz` comprimido con `t`, `x`, `y` y, si aplica, `k`, `vx`, `vy`. Si es `false`, no se guardan datos. |
+| `extension` | `str` | Extension de la figura guardada, por ejemplo `.png` o `.pdf`. |
+| `dpi` | `int` | Resolucion usada al guardar la figura. |
+
+`config.py` traduce este bloque a los flags internos que todavia esperan algunos workflows (`PlotResults`, `SavePlot`, `SaveData`, `extension`, `dpi`).
+
+## Plot y salida por caso
 
 | Campo | Tipo | Usado por | Descripcion |
 |---|---:|---|---|
-| `PlotResults` | `bool` | `run_fourier.py`, `run_case` | Si es `true`, `run_case` grafica automaticamente cuando `Method` empieza por `poincare`. |
 | `modulo` | `bool` | `SimulationResult.plot_poincare` | Si es `true`, representa `x` e `y` modulo `2*pi`. |
 | `grid` | `bool` | `SimulationResult.plot_poincare` | Activa rejilla en la figura Poincare. |
-| `SaveData` | `bool` | `save_data` | Si es `true`, guarda un `.mat` con `t`, `x`, `y` y, si aplica, `k`, `vx`, `vy`. |
 
 La carpeta de salida no se define en la configuracion: se deriva automaticamente de la ruta de configuracion. Por ejemplo:
 
 ```text
-conf/fourier/test/v_1.py -> outputs/fourier/test/v_1/
-conf/fourier/assay/v_1.py -> outputs/fourier/assay/v_1/
+conf/notebook/fourier/test/v_1.json -> outputs/notebook/fourier/test/v_1/
+conf/terminal/fourier/test/v_1.json -> outputs/terminal/fourier/test/v_1/
+conf/terminal/fourier/assay/v_1.json -> outputs/terminal/fourier/assay/v_1/
 ```
 
-Los archivos guardados usan el perfil como prefijo compacto y una fecha. Por ejemplo, el perfil `notebook_demo` genera nombres como `notebook_YYYYmmdd_HHMMSS.mat`.
+Los archivos guardados usan el perfil como prefijo compacto y una fecha. Por ejemplo, el perfil `notebook_demo` genera nombres como `notebook_YYYYmmdd_HHMMSS.npz`.
 
 ## Parametros heredados o reservados
 
@@ -140,5 +157,6 @@ Estos campos aparecen en algunos perfiles, pero no controlan el flujo actual `ru
 | `threshold` | Heredado/reservado para clasificar trayectorias. |
 | `thresh_b` | Heredado/reservado para diagnosticos de transporte. |
 | `darkmode` | No se usa en el plotting actual. |
-| `extension` | Usado por plotting legacy, no por `SimulationResult.plot_poincare`. |
-| `dpi` | Usado por plotting legacy, no por `SimulationResult.plot_poincare`. |
+| `PlotResults` | Compatibilidad interna; usar `output.plot`. |
+| `SavePlot` | Compatibilidad interna; usar `output.plot`. |
+| `SaveData` | Compatibilidad interna; usar `output.data`. |

@@ -19,7 +19,7 @@ python run_potential.py --config-group test --config-version v_1
 El script carga perfiles desde:
 
 ```text
-conf/potential/<group>/<version>.py
+conf/terminal/potential/<group>/<version>.json
 ```
 
 La funcion responsable es:

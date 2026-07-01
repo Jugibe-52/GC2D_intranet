@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 
 def _run_case(params: dict[str, Any]) -> None:
 	logger.info("Starting case: %s", simulation_label(params))
-	result = run_case(params, plot=params.get('PlotResults', False))
+	result = run_case(params, plot=params.get('PlotResults', False), save=False)
 	logger.info("Finished case in %.2f seconds: %s", result.elapsed, simulation_label(params))
 	if result.system.CheckEnergy:
 		logger.info("Energy error: %s", result.sol.err)
@@ -36,10 +36,11 @@ def _run_case(params: dict[str, Any]) -> None:
 
 
 def parse_args() -> argparse.Namespace:
-	parser = argparse.ArgumentParser(description="Run FourierSystem cases from a Python configuration.")
-	parser.add_argument("--config", help="Path to the Python or JSON configuration file.")
+	parser = argparse.ArgumentParser(description="Run FourierSystem cases from a JSON configuration.")
+	parser.add_argument("--config", help="Path to the JSON configuration file.")
+	parser.add_argument("--config-surface", default="terminal", choices=("terminal", "notebook"), help="Configuration surface under conf/.")
 	parser.add_argument("--config-group", default=DEFAULT_CONFIG_GROUP, choices=("test", "assay"), help="Configuration group under conf/.")
-	parser.add_argument("--config-version", default=DEFAULT_CONFIG_VERSION, help="Configuration file version under conf/fourier/<group>/, e.g. v_1.")
+	parser.add_argument("--config-version", default=DEFAULT_CONFIG_VERSION, help="Configuration file version under conf/<surface>/fourier/<group>/, e.g. v_1.")
 	parser.add_argument("--version", help="Profile inside the configuration file.")
 	return parser.parse_args()
 
@@ -50,6 +51,7 @@ def main() -> None:
 	config = load_fourier_config(
 		args.config,
 		version=args.version,
+		config_surface=args.config_surface,
 		config_group=args.config_group,
 		config_version=args.config_version,
 	)

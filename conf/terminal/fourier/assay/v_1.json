@@ -1,0 +1,88 @@
+{
+	"schema_version": 1,
+	"active_version": "default",
+	"versions": {
+		"default": {
+			"parallelization": 1,
+			"pyhamsys": {
+				"TimeStep": 0.1,
+				"ode_solver": "BM4",
+				"CheckEnergy": false
+			},
+			"output": {
+				"plot": true,
+				"data": false,
+				"extension": ".pdf",
+				"dpi": 200
+			},
+			"defaults": {
+				"Method": "poincare_gc",
+				"Ntraj": 50,
+				"Tf": 500,
+				"TwoStepIntegration": true,
+				"Tmid": 200,
+				"threshold": 4,
+				"thresh_b": 1.2,
+				"init": "selected",
+				"x0": {
+					"linspace": [
+						0.5,
+						1.0,
+						"Ntraj"
+					]
+				},
+				"y0": {
+					"constant": 4.5,
+					"num": "Ntraj"
+				},
+				"modulo": true,
+				"grid": false,
+				"darkmode": true,
+				"M": 25
+			},
+			"sweep": {
+				"A": [
+					0.7
+				],
+				"rho": [
+					0.1
+				]
+			}
+		},
+		"symplectic_grid": {
+			"parallelization": 2,
+			"pyhamsys": {
+				"TimeStep": 0.1,
+				"ode_solver": "BM4",
+				"CheckEnergy": true
+			},
+			"output": {
+				"plot": false,
+				"data": false,
+				"extension": ".png",
+				"dpi": 200
+			},
+			"defaults": {
+				"Method": "poincare_gc",
+				"traj_type": "gc",
+				"Ntraj": 5,
+				"Tf": 50,
+				"init": "fixed",
+				"M": 25
+			},
+			"sweep": {
+				"A": [
+					0.7
+				],
+				"rho": [
+					0.1,
+					0.3
+				],
+				"eta": [
+					-0.2,
+					0.3
+				]
+			}
+		}
+	}
+}

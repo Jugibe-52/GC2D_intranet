@@ -13,7 +13,7 @@ package "Entry point" {
 }
 
 package "Configuracion" {
-  component "conf/fourier/<group>/<version>.py" as json
+  component "conf/terminal/fourier/<group>/<version>.json" as json
   component "config.py\nload_fourier_config()\nFourierConfig.cases()" as config
 }
 
@@ -36,7 +36,7 @@ package "Librerias externas" {
   component "Matplotlib\nplt.show()" as mpl
 }
 
-artifact "outputs\n.mat / figuras / logs" as outputs
+artifact "outputs\n.npz / figuras / logs" as outputs
 
 user --> cli : python run_fourier.py
 cli --> config : load_fourier_config(args)
@@ -57,7 +57,7 @@ pyhamsys --> fourier_system : y_dot(), k_dot(),\nhamiltonian(), chi()
 
 cases --> plotting : si plot y Method=poincare*
 cli --> export : save_data(system, sol)
-export --> outputs : .mat si SaveData=True
+export --> outputs : .npz si SaveData=True
 plotting --> outputs : figuras
 cli --> mpl : plt.show()
 

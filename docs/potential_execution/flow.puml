@@ -13,7 +13,7 @@ package "Entry point" {
 }
 
 package "Configuracion" {
-  component "conf/potential/<group>/<version>.py" as json
+  component "conf/terminal/potential/<group>/<version>.json" as json
   component "config.py\nload_potential_config()\nPotentialConfig\nPotentialRunConfig" as config
 }
 

@@ -19,21 +19,23 @@ verbosity and `SIM_LOG_FILE` to also write logs to a file:
 SIM_LOG_LEVEL=DEBUG SIM_LOG_FILE=logs/simulation.log python3 run_fourier.py
 ```
 
-Simulation parameters are read from Python configuration files in [`conf`](conf).
-The configuration tree is split first by execution family, then by group, then by
-version file:
+Simulation parameters are read from JSON configuration files in [`conf`](conf).
+The configuration tree is split first by execution surface, then by execution
+family, then by group, then by version file:
 
 ```text
 conf/
-  fourier/
-    test/v_1.py
-    assay/v_1.py
-  potential/
-    test/v_1.py
-    assay/v_1.py
+  notebook/
+    fourier/test/v_1.json
+    potential/test/v_1.json
+  terminal/
+    fourier/test/v_1.json
+    fourier/assay/v_1.json
+    potential/test/v_1.json
+    potential/assay/v_1.json
 ```
 
-The main batch runner uses `conf/fourier/test/v_1.py` by default:
+The main batch runner uses `conf/terminal/fourier/test/v_1.json` by default:
 ```sh
 python3 run_fourier.py
 ```
@@ -47,14 +49,14 @@ python3 run_fourier.py --config-group assay --config-version v_1
 ```
 or pass an explicit config file:
 ```sh
-python3 run_fourier.py --config conf/fourier/assay/v_1.py --version symplectic_grid
+python3 run_fourier.py --config conf/terminal/fourier/assay/v_1.json --version symplectic_grid
 ```
 For background runs:
 ```sh
 nohup python3 -u run_fourier.py &>fourier.out < /dev/null &
 ```
 
-The standalone HDF5/mock-potential showcase reads `conf/potential/test/v_1.py`
+The standalone HDF5/mock-potential showcase reads `conf/terminal/potential/test/v_1.json`
 by default:
 ```sh
 python3 run_potential.py
@@ -88,7 +90,7 @@ ___
 ####
 - *pyhamsys.TimeStep*: float; time step used by the integrator (recommended: 10<sup>-1</sup> for guiding centers and 5x10<sup>-3</sup> for full orbits)
 - *pyhamsys.ode_solver*: string; indicates the symplectic integration scheme to be used (see [pyHamSys](https://pypi.org/project/pyhamsys/))
-- *pyhamsys.CheckEnergy*: boolean; if True, the autonomous system is integrated, and the output (`.mat` file) includes the total energy (only if *SaveData*=True)
+- *pyhamsys.CheckEnergy*: boolean; if True, the autonomous system is integrated, and the output (`.npz` file) includes the total energy (only if *SaveData*=True)
 ####
 - *PlotResults*: boolean; if True, the results are plotted right after the computation
 - *modulo*: boolean; if True, *x* and *y* are represented modulo 2&pi; (only for Method='poincare' and PlotResults=True)
@@ -97,14 +99,14 @@ ___
 - *fig_extension*: string; e.g., '.png', '.pdf', '.svg'; format of the figures to be saved
 - *dpi*: integer; number of dots per inches for figures
 ####
-- *SaveData*: boolean; if True, the results are saved in a `.mat` file; Poincaré sections and diffusion plots *r*<sup>2</sup>(*t*) are saved as *fig_extension* files; NB: the diffusion data are saved in a `.txt` file regardless of the value of *SaveData*
+- *SaveData*: boolean; if True, the results are saved in a `.npz` file; Poincaré sections and diffusion plots *r*<sup>2</sup>(*t*) are saved as *fig_extension* files; NB: the diffusion data are saved in a `.txt` file regardless of the value of *SaveData*
 - *Parallelization*: configured as `parallelization`; use an integer core count or `"all"`
 ####
 - *M*: integer; number of modes (default = 25 for 'turbulent') 
 
-Each Python configuration defines a `CONFIG` dictionary:
-```python
-CONFIG = {
+Each JSON configuration has this structure:
+```json
+{
 	"schema_version": 1,
 	"active_version": "default",
 	"versions": {
@@ -112,15 +114,18 @@ CONFIG = {
 			"parallelization": 1,
 			"pyhamsys": {},
 			"defaults": {},
-			"sweep": {},
-		},
-	},
+			"sweep": {}
+		}
+	}
 }
 ```
 `pyhamsys` contains the parameters sent directly to the pyHamSys integrator.
 `defaults` defines shared parameters, and `sweep` defines parameter values that
 are expanded into cases. A version can also provide `cases`, a list of explicit
 parameter overrides.
+
+Notebook configs are intentionally smaller: they omit terminal runner settings
+such as `parallelization`, `PlotResults`, and `SaveData`.
 
 ---
 Reference: 

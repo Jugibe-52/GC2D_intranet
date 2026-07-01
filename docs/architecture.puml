@@ -24,7 +24,7 @@ package "Entry points" {
 }
 
 package "Configuration" {
-  component "conf/fourier/<group>/<version>.py\nMethod, Ntraj, Tf,\nA, rho, plotting, saving" as fourier_config
+  component "conf/<surface>/fourier/<group>/<version>.json\nMethod, Ntraj, Tf,\nA, rho, plotting, saving" as fourier_config
 }
 
 package "src modules" {
@@ -44,14 +44,14 @@ package "src modules" {
 package "External libraries" {
   component "pyhamsys\nsolve_ivp_sympext()\nsolve_ivp_symp()\nHamSys" as pyhamsys
   component "multiprocess\nPool / cpu_count" as multiprocess
-  component "NumPy / SciPy\nFFT, Bessel, interpolation,\nMATLAB export" as scientific_stack
+  component "NumPy / SciPy\nFFT, Bessel, interpolation,\nNumPy export" as scientific_stack
   component "Matplotlib\nfigures and interactive plots" as matplotlib
   component "h5py\nPHI.h5 input" as h5py
 }
 
 database "Input data\nPHI.h5" as phi_h5
 
-artifact "Runtime outputs\n.mat data files\n.png/.pdf/.svg figures\nstdout/file logs" as outputs
+artifact "Runtime outputs\n.npz data files\n.png/.pdf/.svg figures\nstdout/file logs" as outputs
 
 user --> fourier_cli : python3 run_fourier.py
 user --> potential_cli : python3 run_potential.py

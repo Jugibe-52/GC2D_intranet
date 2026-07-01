@@ -24,7 +24,7 @@ note right
   config = load_fourier_config(...)
   params = make_params(config.cases()[0], ...)
   system = make_system(params)
-  result = run_case(system, plot=True)
+  result = run_case(system, plot=True, save=True)
 end note
 
 :system = make_system(params);
@@ -48,7 +48,7 @@ partition "make_system(params)" {
   }
 }
 
-:run_case(system, plot=True);
+:run_case(system, plot=True, save=True);
 :logger.info("Running notebook case");
 
 :integrate_case(system);

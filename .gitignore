@@ -9,7 +9,11 @@ __pycache__/
 logs/
 *.log
 outputs/
-!conf/fourier/test/
-!conf/fourier/test/*.py
-!conf/potential/test/
-!conf/potential/test/*.py
+!conf/notebook/fourier/test/
+!conf/notebook/fourier/test/*.json
+!conf/notebook/potential/test/
+!conf/notebook/potential/test/*.json
+!conf/terminal/fourier/test/
+!conf/terminal/fourier/test/*.json
+!conf/terminal/potential/test/
+!conf/terminal/potential/test/*.json

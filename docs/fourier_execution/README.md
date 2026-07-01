@@ -19,7 +19,7 @@ python run_fourier.py --config-group test --config-version v_1
 El script carga perfiles desde:
 
 ```text
-conf/fourier/<group>/<version>.py
+conf/terminal/fourier/<group>/<version>.json
 ```
 
 La funcion responsable es:
@@ -42,10 +42,10 @@ Cada caso es un diccionario de parametros para construir un `FourierSystem`.
 2. Carga la configuracion con `load_fourier_config`.
 3. Expande la lista de casos.
 4. Decide si ejecuta en paralelo con `multiprocess`.
-5. Para cada caso llama a `run_case(params, plot=...)`.
+5. Para cada caso llama a `run_case(params, plot=..., save=False)`.
 6. `run_case` construye o recibe un `FourierSystem`.
 7. `integrate_case` genera condiciones iniciales e integra.
-8. Si `SaveData=True`, `save_data(system, sol)` escribe un `.mat`.
+8. Si `SaveData=True`, `save_data(system, sol)` escribe un `.npz` una sola vez desde el runner.
 9. Al final, `plt.show()` muestra figuras pendientes.
 
 ## Modulos principales
@@ -56,7 +56,7 @@ Cada caso es un diccionario de parametros para construir un `FourierSystem`.
 - `src/workflows/params.py`: normalizacion y construccion del sistema.
 - `src/workflows/integration.py`: integracion `gc`/`fo`.
 - `src/workflows/cases.py`: workflow de alto nivel `run_case`.
-- `src/workflows/export.py`: exportacion `.mat`.
+- `src/workflows/export.py`: exportacion `.npz`.
 - `src/workflows/plotting.py`: graficos Poincare y diagnosticos.
 
 ## Diferencia con notebook
@@ -68,3 +68,4 @@ from workflows_api import make_system, run_case, integrate_case, plot_poincare
 ```
 
 `run_fourier.py` existe para ejecucion batch fuera de notebook.
+En notebook, `run_case(..., save=True)` respeta `output.data` de `conf/notebook/...`.

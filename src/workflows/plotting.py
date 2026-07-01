@@ -89,19 +89,21 @@ def plot_sol(
 	xlim: tuple[float, float] | None = None,
 	ylim: tuple[float, float] | None = None,
 	**kwargs: Any,
-) -> None:
+) -> tuple[Any, Any]:
 	x, y = system.get_positions(sol.y)
 	xmin, xmax = xlim or (system.xmin, system.xmax)
 	ymin, ymax = ylim or (system.ymin, system.ymax)
 	if wrap:
 		x, y = system.wrap_or_clip(x, y)
-	plt.plot(x.T, y.T, '.', **kwargs)
-	plt.xlabel('x')
-	plt.ylabel('y')
+	fig, ax = plt.subplots(1, 1)
+	ax.plot(x.T, y.T, '.', **kwargs)
+	ax.set_xlabel('x')
+	ax.set_ylabel('y')
 	if wrap:
-		plt.xlim(xmin, xmax)
-		plt.ylim(ymin, ymax)
+		ax.set_xlim(xmin, xmax)
+		ax.set_ylim(ymin, ymax)
 	plt.show()
+	return fig, ax
 
 
 def fft_phi_grid(system: FourierSystem, t: float = 0.0, n: int = 64) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
@@ -170,7 +172,7 @@ def plot_symplectic_poincare(system: FourierSystem, sol: Any) -> tuple[Any, Any]
 	ax.set_xlabel('$x$')
 	ax.set_ylabel('$y$')
 	ax.set_aspect('equal')
-	if system.SaveData:
+	if getattr(system, "SavePlot", getattr(system, "SaveData", False)):
 		extension = getattr(system, 'extension', '.png')
 		output_dir = Path(getattr(system, "output_dir", "."))
 		output_dir.mkdir(parents=True, exist_ok=True)
