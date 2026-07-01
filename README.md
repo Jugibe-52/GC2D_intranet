@@ -73,11 +73,13 @@ ___
 - *threshold*: float; value used to discriminate between trapped and untrapped trajectories (recommended: 4)
 - *thresh_b*: float; value of *b* used to discriminate between diffusive and ballistic trajectories (according to the law *r*<sup>2</sup>(t) = (*a* *t*)<sup>b</sup>)
 ####
-- *TimeStep*: float; time step used by the integrator (recommended: 10<sup>-1</sup> for guiding centers and 5x10<sup>-3</sup> for full orbits)
 - *init*: string; 'random', 'fixed' or 'selected; method to generate initial conditions; if 'selected', *x0* and *y0* need to be provided
 - *x0*: numpy array; values of the initial *x* if *init*='selected'
 - *y0*: numpy array; values of the initial *y* if *init*='selected'
-- *ode_solver*: string; indicates the symplectic integration scheme to be used (see [pyHamSys](https://pypi.org/project/pyhamsys/))
+####
+- *pyhamsys.TimeStep*: float; time step used by the integrator (recommended: 10<sup>-1</sup> for guiding centers and 5x10<sup>-3</sup> for full orbits)
+- *pyhamsys.ode_solver*: string; indicates the symplectic integration scheme to be used (see [pyHamSys](https://pypi.org/project/pyhamsys/))
+- *pyhamsys.CheckEnergy*: boolean; if True, the autonomous system is integrated, and the output (`.mat` file) includes the total energy (only if *SaveData*=True)
 ####
 - *PlotResults*: boolean; if True, the results are plotted right after the computation
 - *modulo*: boolean; if True, *x* and *y* are represented modulo 2&pi; (only for Method='poincare' and PlotResults=True)
@@ -87,7 +89,6 @@ ___
 - *dpi*: integer; number of dots per inches for figures
 ####
 - *SaveData*: boolean; if True, the results are saved in a `.mat` file; Poincaré sections and diffusion plots *r*<sup>2</sup>(*t*) are saved as *fig_extension* files; NB: the diffusion data are saved in a `.txt` file regardless of the value of *SaveData*
-- *CheckEnergy*: boolean; if True, the autonomous system is integrated, and the output (`.mat` file) includes the total energy (only if *SaveData*=True)
 - *Parallelization*: configured as `parallelization` in JSON; use an integer core count or `"all"`
 ####
 - *M*: integer; number of modes (default = 25 for 'turbulent') 
@@ -100,12 +101,14 @@ Each JSON configuration has this structure:
 	"versions": {
 		"default": {
 			"parallelization": 1,
+			"pyhamsys": {},
 			"defaults": {},
 			"sweep": {}
 		}
 	}
 }
 ```
+`pyhamsys` contains the parameters sent directly to the pyHamSys integrator.
 `defaults` defines shared parameters, and `sweep` defines parameter values that
 are expanded into cases. A version can also provide `cases`, a list of explicit
 parameter overrides.

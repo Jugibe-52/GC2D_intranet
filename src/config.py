@@ -19,6 +19,8 @@ DEFAULT_CONFIG_GROUP = "test"
 DEFAULT_CONFIG_VERSION = "v_1"
 DEFAULT_FOURIER_CONFIG = CONF_DIR / DEFAULT_CONFIG_GROUP / DEFAULT_CONFIG_VERSION / "fourier.json"
 DEFAULT_POTENTIAL_CONFIG = CONF_DIR / DEFAULT_CONFIG_GROUP / DEFAULT_CONFIG_VERSION / "potential.json"
+PYHAMSYS_PARAM_KEYS = {"TimeStep", "ode_solver", "CheckEnergy"}
+OUTPUT_PARAM_KEYS = {"plot", "wrap"}
 
 
 class ConfigError(ValueError):
@@ -97,6 +99,30 @@ def _as_list(value: Any) -> list[Any]:
 	return [value]
 
 
+def _split_keys(params: dict[str, Any], keys: set[str]) -> tuple[dict[str, Any], dict[str, Any]]:
+	remaining = params.copy()
+	extracted = {}
+	for key in keys:
+		if key in remaining:
+			extracted[key] = remaining.pop(key)
+	return remaining, extracted
+
+
+def _merge_config_block(
+	base: dict[str, Any],
+	override: dict[str, Any],
+	block_name: str,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+	merged = base.copy()
+	block = override.get(block_name, {})
+	if block and not isinstance(block, dict):
+		raise ConfigError(f"'{block_name}' overrides must be objects.")
+	for key, value in override.items():
+		if key != block_name:
+			merged[key] = value
+	return merged, block.copy()
+
+
 def _normalize_symplectic_params(params: dict[str, Any]) -> dict[str, Any]:
 	params = params.copy()
 	method = params.get("Method")
@@ -116,22 +142,29 @@ class FourierConfig:
 
 	version: str
 	defaults: dict[str, Any]
+	pyhamsys: dict[str, Any] = field(default_factory=dict)
 	sweep: dict[str, list[Any]] = field(default_factory=dict)
 	case_overrides: list[dict[str, Any]] = field(default_factory=list)
 	parallelization: int | str = 1
 
 	def cases(self) -> list[dict[str, Any]]:
 		if self.case_overrides:
-			raw_cases = [self.defaults | override for override in self.case_overrides]
+			raw_cases = []
+			for override in self.case_overrides:
+				case, case_pyhamsys = _merge_config_block(self.defaults, override, "pyhamsys")
+				case, legacy_pyhamsys = _split_keys(case, PYHAMSYS_PARAM_KEYS)
+				raw_cases.append(case | self.pyhamsys | legacy_pyhamsys | case_pyhamsys)
 		elif self.sweep:
 			keys = list(self.sweep)
 			raw_cases = []
 			for values in product(*[_as_list(self.sweep[key]) for key in keys]):
 				case = self.defaults.copy()
 				case.update(dict(zip(keys, values, strict=True)))
-				raw_cases.append(case)
+				case, legacy_pyhamsys = _split_keys(case, PYHAMSYS_PARAM_KEYS)
+				raw_cases.append(case | self.pyhamsys | legacy_pyhamsys)
 		else:
-			raw_cases = [self.defaults.copy()]
+			case, legacy_pyhamsys = _split_keys(self.defaults, PYHAMSYS_PARAM_KEYS)
+			raw_cases = [case | self.pyhamsys | legacy_pyhamsys]
 		return [_normalize_symplectic_params(_expand_params(case)) for case in raw_cases]
 
 
@@ -180,6 +213,8 @@ class PotentialRunConfig:
 	potential: PotentialConfig
 	trajectory: dict[str, Any]
 	integration: dict[str, Any]
+	pyhamsys: dict[str, Any] = field(default_factory=dict)
+	output: dict[str, Any] = field(default_factory=dict)
 
 	def build_system(self) -> PotentialSystem:
 		potential = self.potential.build()
@@ -208,6 +243,10 @@ def load_fourier_config(
 	defaults = payload.get("defaults", {})
 	if not isinstance(defaults, dict):
 		raise ConfigError(f"'defaults' in {path}:{selected} must be an object.")
+	defaults, legacy_pyhamsys = _split_keys(defaults, PYHAMSYS_PARAM_KEYS)
+	pyhamsys = payload.get("pyhamsys", {})
+	if not isinstance(pyhamsys, dict):
+		raise ConfigError(f"'pyhamsys' in {path}:{selected} must be an object.")
 	sweep = payload.get("sweep", {})
 	if not isinstance(sweep, dict):
 		raise ConfigError(f"'sweep' in {path}:{selected} must be an object.")
@@ -217,6 +256,7 @@ def load_fourier_config(
 	return FourierConfig(
 		version=selected,
 		defaults=defaults,
+		pyhamsys=legacy_pyhamsys | pyhamsys,
 		sweep={key: _as_list(value) for key, value in sweep.items()},
 		case_overrides=cases,
 		parallelization=payload.get("parallelization", 1),
@@ -248,11 +288,17 @@ def load_potential_config(
 	)
 	trajectory = payload.get("trajectory", {})
 	integration = payload.get("integration", {})
-	if not isinstance(trajectory, dict) or not isinstance(integration, dict):
-		raise ConfigError(f"'trajectory' and 'integration' in {path}:{selected} must be objects.")
+	pyhamsys = payload.get("pyhamsys", {})
+	output = payload.get("output", {})
+	if not all(isinstance(block, dict) for block in (trajectory, integration, pyhamsys, output)):
+		raise ConfigError(f"'trajectory', 'integration', 'pyhamsys' and 'output' in {path}:{selected} must be objects.")
+	integration, legacy_pyhamsys = _split_keys(integration, PYHAMSYS_PARAM_KEYS)
+	integration, legacy_output = _split_keys(integration, OUTPUT_PARAM_KEYS)
 	return PotentialRunConfig(
 		version=selected,
 		potential=potential,
 		trajectory=trajectory,
 		integration=integration,
+		pyhamsys=legacy_pyhamsys | pyhamsys,
+		output=legacy_output | output,
 	)

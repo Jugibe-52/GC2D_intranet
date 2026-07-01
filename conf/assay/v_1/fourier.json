@@ -4,6 +4,11 @@
 	"versions": {
 		"default": {
 			"parallelization": 1,
+			"pyhamsys": {
+				"TimeStep": 0.1,
+				"ode_solver": "BM4",
+				"CheckEnergy": false
+			},
 			"defaults": {
 				"Method": "poincare_gc",
 				"Ntraj": 50,
@@ -12,7 +17,6 @@
 				"Tmid": 200,
 				"threshold": 4,
 				"thresh_b": 1.2,
-				"TimeStep": 0.1,
 				"init": "selected",
 				"x0": {
 					"linspace": [0.5, 1.0, "Ntraj"]
@@ -21,7 +25,6 @@
 					"constant": 4.5,
 					"num": "Ntraj"
 				},
-				"ode_solver": "BM4",
 				"PlotResults": true,
 				"modulo": true,
 				"grid": false,
@@ -29,7 +32,6 @@
 				"extension": ".pdf",
 				"dpi": 200,
 				"SaveData": false,
-				"CheckEnergy": false,
 				"M": 25
 			},
 			"sweep": {
@@ -39,17 +41,19 @@
 		},
 		"symplectic_grid": {
 			"parallelization": 2,
+			"pyhamsys": {
+				"TimeStep": 0.1,
+				"ode_solver": "BM4",
+				"CheckEnergy": true
+			},
 			"defaults": {
 				"Method": "poincare_gc",
 				"traj_type": "gc",
 				"Ntraj": 5,
 				"Tf": 50,
-				"TimeStep": 0.1,
 				"init": "fixed",
 				"SaveData": false,
-				"CheckEnergy": true,
-				"M": 25,
-				"ode_solver": "BM4"
+				"M": 25
 			},
 			"sweep": {
 				"A": [0.7],

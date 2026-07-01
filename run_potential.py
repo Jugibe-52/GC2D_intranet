@@ -58,10 +58,12 @@ def main() -> None:
 	# plot_potential(hs)
 
 	integration = config.integration
+	pyhamsys_config = config.pyhamsys
+	output = config.output
 	n_max = int(integration.get("n_max", 50))
-	time_step = float(integration.get("TimeStep", 2e-2))
-	ode_solver = integration.get("ode_solver", "BM4")
-	check_energy = bool(integration.get("CheckEnergy", True))
+	time_step = float(pyhamsys_config.get("TimeStep", 2e-2))
+	ode_solver = pyhamsys_config.get("ode_solver", "BM4")
+	check_energy = bool(pyhamsys_config.get("CheckEnergy", True))
 	t_eval = 2 * np.pi * np.arange(n_max)
 
 	# lyap = hs.compute_lyapunov(2 * np.pi * n_max, z0, reortho_dt=1, tol=1e-10, solver='RK45')
@@ -78,9 +80,9 @@ def main() -> None:
 	logger.info("Finished integration in %.2f seconds; solution shape=%s", time.time() - start, sol.y.shape)
 	if hasattr(sol, "err"):
 		logger.info("Energy error: %s", sol.err)
-	if integration.get("plot", True):
+	if output.get("plot", True):
 		logger.info("Plotting solution")
-		plot_sol(hs, sol, wrap=integration.get("wrap", True))
+		plot_sol(hs, sol, wrap=output.get("wrap", True))
 
 
 if __name__ == '__main__':

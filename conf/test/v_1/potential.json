@@ -23,10 +23,14 @@
 				"init": "random"
 			},
 			"integration": {
-				"n_max": 5,
+				"n_max": 5
+			},
+			"pyhamsys": {
 				"TimeStep": 0.02,
 				"ode_solver": "BM4",
-				"CheckEnergy": true,
+				"CheckEnergy": true
+			},
+			"output": {
 				"wrap": true,
 				"plot": false
 			}
