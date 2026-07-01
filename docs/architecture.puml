@@ -25,7 +25,6 @@ package "Entry points" {
 
 package "Configuration" {
   component "conf/<group>/<version>/gc2d.json\nMethod, Ntraj, Tf,\nA, rho, plotting, saving" as gc2d_json
-  component "gc2d_symp_dict.py\nlegacy symplectic\nparameter grid" as symp_dict
 }
 
 package "gc2d_core package" {
@@ -81,8 +80,6 @@ symp_modules --> matplotlib : optional Poincare plot
 symp_modules --> outputs : saved data / figures
 symp_modules --> logging_config : logs progress
 
-symp_dict --> gc2dt : legacy main()\nparameter grid
-
 run_gc2d --> logging_config : configures logging
 run_gc2d --> gc2d_classes : extract_potential()\nmock_potential()\nGC2D()
 run_gc2d --> pyhamsys : integrates showcase
@@ -103,7 +100,7 @@ legend right
   run_gc2d.py -> gc2d_classes.py -> pyhamsys -> plots
 
   Legacy package entry:
-  gc2d_symp.py -> gc2d_symp_dict.py -> gc2d_symp_modules.py
+  gc2d_symp.py -> config.py -> gc2d_symp_modules.py
 endlegend
 
 @enduml

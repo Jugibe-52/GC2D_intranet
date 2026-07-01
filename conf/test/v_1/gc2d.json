@@ -75,6 +75,7 @@
 		"symplectic_grid": {
 			"parallelization": 1,
 			"defaults": {
+				"Method": "poincare_gc",
 				"traj_type": "gc",
 				"Ntraj": 5,
 				"Tf": 3,
