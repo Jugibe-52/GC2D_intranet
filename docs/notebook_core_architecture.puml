@@ -41,7 +41,7 @@ package "gc2d_core numerical model" {
 }
 
 package "gc2d_core support" {
-  component "gc2d_dict.py\noptional base configuration" as gc2d_dict
+  component "conf/test/v_1/gc2d.json\noptional base configuration" as gc2d_json
   component "logging_config.py\nsimulation_label()" as logging_config
 }
 
@@ -58,7 +58,7 @@ user --> notebook : runs cells
 notebook --> params_cells : edits parameters
 notebook --> plot_cells : inspects results
 
-params_cells --> gc2d_dict : may import defaults
+params_cells --> gc2d_json : may load defaults
 params_cells --> make_params : creates case dict
 params_cells --> make_system : creates GC2Dt system
 

@@ -35,7 +35,7 @@ import multiprocess
 from datetime import datetime
 from scipy.io import savemat
 from .gc2d_symp_modules import run_method
-from .gc2d_symp_dict import dict_list, Parallelization
+from .config import load_gc2dt_config
 from .logging_config import configure_logging
 from pyhamsys import OdeSolution, HamSys
 
@@ -43,11 +43,14 @@ logger = logging.getLogger(__name__)
 
 def main() -> None:
 	configure_logging()
-	if Parallelization == 'all':
+	config = load_gc2dt_config(config_group="assay", config_version="v_1", version="symplectic_grid")
+	dict_list = config.cases()
+	parallelization = config.parallelization
+	if parallelization == 'all':
 		num_cores = multiprocess.cpu_count()
 	else:
-		num_cores = min(multiprocess.cpu_count(), Parallelization)
-	logger.info("Prepared %d case(s); parallelization=%s; workers=%d", len(dict_list), Parallelization, num_cores)
+		num_cores = min(multiprocess.cpu_count(), int(parallelization))
+	logger.info("Prepared %d case(s); parallelization=%s; workers=%d", len(dict_list), parallelization, num_cores)
 	if num_cores >= 2:
 		pool = multiprocess.Pool(num_cores)
 		pool.map(lambda dict_: run_method(GC2Dt(dict_)), dict_list)

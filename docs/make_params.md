@@ -3,11 +3,14 @@
 `make_params` is a notebook-oriented helper function, not a class. It builds a simulation parameter dictionary by copying a base dictionary and applying keyword overrides. The returned dictionary is ready to pass to `make_system()`, which creates the `GC2Dt` system that notebooks pass to `run_case()` or `integrate_case()`.
 
 ```python
-from gc2d_core.gc2d_dict import dict_list
+from gc2d_core.config import load_gc2dt_config
 from gc2d_core.gc2d_notebook import make_params, make_system, run_case
 
+config = load_gc2dt_config(config_group="test", config_version="v_1")
+base_params = config.cases()[0]
+
 params = make_params(
-    dict_list[0],
+    base_params,
     Tf=3,
     Tmid=1,
     Ntraj=12,
@@ -33,7 +36,7 @@ def make_params(base: dict, **overrides) -> dict:
 
 `base`
 
-The starting parameter dictionary. In notebooks this is usually one entry from `gc2d_core.gc2d_dict.dict_list`, for example `dict_list[0]`.
+The starting parameter dictionary. In notebooks this is usually one case from `load_gc2dt_config(...).cases()`.
 
 `**overrides`
 
@@ -99,8 +102,11 @@ When `init="selected"` and `x0`/`y0` come from `base`, `make_params()` trims the
 Use `make_params()` to keep notebook runs small and reproducible:
 
 ```python
+config = load_gc2dt_config(config_group="test", config_version="v_1")
+base_params = config.cases()[0]
+
 params = make_params(
-    dict_list[0],
+    base_params,
     Tf=3,
     Ntraj=12,
     M=6,
@@ -112,4 +118,4 @@ system = make_system(params)
 result = run_case(system, plot=True)
 ```
 
-This keeps the full project defaults in `gc2d_dict.py`, while the notebook documents only the parameters that are intentionally changed for the interactive run.
+This keeps the full project defaults in JSON configuration files, while the notebook documents only the parameters that are intentionally changed for the interactive run.

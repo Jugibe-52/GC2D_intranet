@@ -1,0 +1,39 @@
+{
+	"schema_version": 1,
+	"active_version": "default",
+	"versions": {
+		"default": {
+			"potential": {
+				"type": "hdf5_or_mock",
+				"path": "/Users/c.chandre/Desktop/PHI.h5",
+				"B": 2,
+				"indx": [0, 1],
+				"nx": 128,
+				"ny": 128,
+				"denoising": false,
+				"sigma": 1,
+				"mock": {
+					"A": 0.5,
+					"M": 25,
+					"seed": 27
+				}
+			},
+			"trajectory": {
+				"type": "gc",
+				"rho": 0,
+				"eta": 0,
+				"k": 5,
+				"Ntraj": 20,
+				"init": "random"
+			},
+			"integration": {
+				"n_max": 50,
+				"TimeStep": 0.02,
+				"ode_solver": "BM4",
+				"CheckEnergy": true,
+				"wrap": true,
+				"plot": true
+			}
+		}
+	}
+}

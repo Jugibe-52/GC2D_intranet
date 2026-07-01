@@ -24,7 +24,7 @@ package "Entry points" {
 }
 
 package "Configuration" {
-  component "gc2d_dict.py\nMethod, Ntraj, Tf,\nA, rho, plotting, saving" as gc2d_dict
+  component "conf/<group>/<version>/gc2d.json\nMethod, Ntraj, Tf,\nA, rho, plotting, saving" as gc2d_json
   component "gc2d_symp_dict.py\nlegacy symplectic\nparameter grid" as symp_dict
 }
 
@@ -56,14 +56,14 @@ user --> gc2d : python3 gc2d.py
 user --> run_gc2d : python3 run_gc2d.py
 user --> notebook : open notebook
 
-gc2d --> gc2d_dict : reads dict_list\nand Parallelization
+gc2d --> gc2d_json : reads cases\nand parallelization
 gc2d --> logging_config : configures logging
 gc2d --> multiprocess : parallel case map
 gc2d --> notebook_api : run_case(params)\ncompatibility path
 gc2d --> matplotlib : show plots
 
 notebook --> notebook_api : make_system(params)\nrun_case(system)
-notebook --> gc2d_dict : optional base params
+notebook --> gc2d_json : optional base params
 
 notebook_api --> logging_config : labels and logs
 notebook_api --> gc2dt : make_system builds\nGC2Dt(params)
@@ -97,7 +97,7 @@ gc2d_classes --> outputs : showcase figures
 
 legend right
   Main production path:
-  gc2d.py -> gc2d_dict.py -> gc2d_notebook.py -> GC2Dt -> pyhamsys -> outputs
+  gc2d.py -> config.py -> gc2d_notebook.py -> GC2Dt -> pyhamsys -> outputs
 
   Standalone data-potential path:
   run_gc2d.py -> gc2d_classes.py -> pyhamsys -> plots

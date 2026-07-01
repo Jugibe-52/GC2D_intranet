@@ -19,17 +19,41 @@ verbosity and `GC2D_LOG_FILE` to also write logs to a file:
 GC2D_LOG_LEVEL=DEBUG GC2D_LOG_FILE=logs/gc2d.log python3 gc2d.py
 ```
 
-Once [`src/gc2d_core/gc2d_dict.py`](src/gc2d_core/gc2d_dict.py) has been edited with the relevant parameters, run the file as
+Simulation parameters are now read from JSON files in [`conf`](conf). The
+configuration tree is split into `test` for development runs and `assay` for
+experiments. Each group contains version folders such as `v_1`, and each version
+contains `gc2d.json` and `run_gc2d.json`.
+
+The main batch runner uses `conf/test/v_1/gc2d.json` by default:
 ```sh
 python3 gc2d.py
 ```
-or 
+Select another profile from the same JSON file with:
+```sh
+python3 gc2d.py --version notebook_demo
+```
+Select an experiment configuration folder with:
+```sh
+python3 gc2d.py --config-group assay --config-version v_1
+```
+or pass an explicit config file:
+```sh
+python3 gc2d.py --config conf/assay/v_1/gc2d.json --version symplectic_grid
+```
+For background runs:
 ```sh
 nohup python3 -u gc2d.py &>gc2d.out < /dev/null &
 ```
+
+The standalone HDF5/mock-potential showcase reads `conf/test/v_1/run_gc2d.json`
+by default:
+```sh
+python3 run_gc2d.py
+```
+
 The list of Python packages and their version are specified in [`requirements.txt`](https://github.com/cchandre/GC2D_intranet/blob/main/requirements.txt)
 ___
-##  Parameter dictionary
+##  JSON configuration
 
 - *Method*: string
   - 'diffusion_fo': computes the diffusion coefficients for the full orbits
@@ -64,9 +88,27 @@ ___
 ####
 - *SaveData*: boolean; if True, the results are saved in a `.mat` file; Poincaré sections and diffusion plots *r*<sup>2</sup>(*t*) are saved as *fig_extension* files; NB: the diffusion data are saved in a `.txt` file regardless of the value of *SaveData*
 - *CheckEnergy*: boolean; if True, the autonomous system is integrated, and the output (`.mat` file) includes the total energy (only if *SaveData*=True)
-- *Parallelization*: tuple (boolean, int); True for parallelization, int is the number of cores to be used or int='all' to use all available cores
+- *Parallelization*: configured as `parallelization` in JSON; use an integer core count or `"all"`
 ####
 - *M*: integer; number of modes (default = 25 for 'turbulent') 
+
+Each JSON configuration has this structure:
+```json
+{
+	"schema_version": 1,
+	"active_version": "default",
+	"versions": {
+		"default": {
+			"parallelization": 1,
+			"defaults": {},
+			"sweep": {}
+		}
+	}
+}
+```
+`defaults` defines shared parameters, and `sweep` defines parameter values that
+are expanded into cases. A version can also provide `cases`, a list of explicit
+parameter overrides.
 
 ---
 Reference: 
