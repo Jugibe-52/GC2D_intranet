@@ -19,16 +19,16 @@ import multiprocess
 
 from config import DEFAULT_CONFIG_GROUP, DEFAULT_CONFIG_VERSION, load_fourier_config
 from config_logging import configure_logging, simulation_label
-from workflows_api import run_case, save_data
+from workflows_api import run_workflow, save_data
 
 import logging
 
 logger = logging.getLogger(__name__)
 
 
-def _run_case(params: dict[str, Any]) -> None:
+def _run_workflow(params: dict[str, Any]) -> None:
 	logger.info("Starting case: %s", simulation_label(params))
-	result = run_case(params, plot=params.get('PlotResults', False), save=False)
+	result = run_workflow(params, plot=params.get('PlotResults', False), save=False)
 	logger.info("Finished case in %.2f seconds: %s", result.elapsed, simulation_label(params))
 	if result.system.CheckEnergy:
 		logger.info("Energy error: %s", result.sol.err)
@@ -74,10 +74,10 @@ def main() -> None:
 	)
 	if num_cores >= 2:
 		with multiprocess.Pool(num_cores) as pool:
-			pool.map(_run_case, params_list)
+			pool.map(_run_workflow, params_list)
 	else:
 		for params in params_list:
-			_run_case(params)
+			_run_workflow(params)
 	logger.info("All cases finished")
 	plt.show()
 

@@ -30,7 +30,7 @@ package "Configuration" {
 package "src modules" {
   component "config_logging.py\nconfigure_logging()\nsimulation_label()" as config_logging
 
-  component "workflows_api.py\nmake_system()\nrun_case()\nintegrate_case()\nplot_poincare()\nsave_data()\nextract_potential()" as notebook_api
+  component "workflows_api.py\nmake_system()\nrun_workflow()\nintegrate_case()\nplot_poincare()\nsave_data()\nextract_potential()" as notebook_api
 
   component "classes/fourier_system.py\nFourierSystem\nFourier turbulent model" as fourier_system
 
@@ -60,10 +60,10 @@ user --> notebook : open notebook
 fourier_cli --> fourier_config : reads cases\nand parallelization
 fourier_cli --> config_logging : configures logging
 fourier_cli --> multiprocess : parallel case map
-fourier_cli --> notebook_api : run_case(params)\ncompatibility path
+fourier_cli --> notebook_api : run_workflow(params)\ncompatibility path
 fourier_cli --> matplotlib : show plots
 
-notebook --> notebook_api : make_system(params)\nrun_case(system)
+notebook --> notebook_api : make_system(params)\nrun_workflow(system)
 notebook --> fourier_config : optional base params
 
 notebook_api --> config_logging : labels and logs

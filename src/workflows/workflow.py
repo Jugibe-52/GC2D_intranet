@@ -9,7 +9,7 @@ from workflows.integration import integrate_case
 logger = logging.getLogger(__name__)
 
 
-def run_case(case: FourierSystem | dict[str, Any], plot: bool = True, save: bool = True) -> SimulationResult:
+def run_workflow(case: FourierSystem | dict[str, Any], plot: bool = True, save: bool = True) -> SimulationResult:
 	logger.info("Running notebook case: plot=%s save=%s", plot, save)
 	result = integrate_case(case)
 	method = getattr(result.system, 'Method', result.system.DictParams.get('Method', ''))

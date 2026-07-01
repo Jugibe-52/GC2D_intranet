@@ -1,6 +1,6 @@
 """Public API for reusable simulation workflows."""
 
-from workflows.cases import run_case
+from workflows.workflow import run_workflow
 from workflows.export import save_data
 from workflows.integration import integrate_case
 from workflows.params import make_params, make_system, to_symp_params
@@ -20,7 +20,7 @@ __all__ = [
 	"plot_potential",
 	"plot_sol",
 	"plot_symplectic_poincare",
-	"run_case",
+	"run_workflow",
 	"run_method",
 	"save_data",
 	"to_symp_params",

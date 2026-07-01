@@ -1,5 +1,5 @@
-@startuml PotentialSystem_run_case_flow
-title run_case Execution Flow in workflows_api
+@startuml PotentialSystem_run_workflow_flow
+title run_workflow Execution Flow in workflows_api
 
 skinparam shadowing false
 skinparam defaultTextAlignment center
@@ -24,7 +24,7 @@ note right
   config = load_fourier_config(...)
   params = make_params(config.cases()[0], ...)
   system = make_system(params)
-  result = run_case(system, plot=True, save=True)
+  result = run_workflow(system, plot=True, save=True)
 end note
 
 :system = make_system(params);
@@ -48,7 +48,7 @@ partition "make_system(params)" {
   }
 }
 
-:run_case(system, plot=True, save=True);
+:run_workflow(system, plot=True, save=True);
 :logger.info("Running notebook case");
 
 :integrate_case(system);

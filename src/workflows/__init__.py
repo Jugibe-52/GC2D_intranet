@@ -12,7 +12,7 @@ __all__ = [
 	"plot_potential",
 	"plot_sol",
 	"plot_symplectic_poincare",
-	"run_case",
+	"run_workflow",
 	"run_method",
 	"save_data",
 	"to_symp_params",
@@ -47,10 +47,10 @@ def __getattr__(name: str):
 		from .params import make_params, make_system, to_symp_params
 
 		return {"make_params": make_params, "make_system": make_system, "to_symp_params": to_symp_params}[name]
-	if name == "run_case":
-		from .cases import run_case
+	if name == "run_workflow":
+		from .workflow import run_workflow
 
-		return run_case
+		return run_workflow
 	if name == "run_method":
 		from .symplectic_legacy import run_method
 

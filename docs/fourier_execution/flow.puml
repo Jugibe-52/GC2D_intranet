@@ -20,7 +20,7 @@ package "Configuracion" {
 package "Workflows" {
   component "workflows_api.py\nAPI publica" as api
   component "workflows/params.py\nmake_system()\nto_symp_params()" as params
-  component "workflows/cases.py\nrun_case()" as cases
+  component "workflows/workflow.py\nrun_workflow()" as workflow
   component "workflows/integration.py\nintegrate_case()" as integration
   component "workflows/export.py\nsave_data()" as export
   component "workflows/plotting.py\nplot_poincare()" as plotting
@@ -44,9 +44,9 @@ config --> json : lee CONFIG
 config --> cli : params_list
 
 cli --> mp : opcional\nparaleliza casos
-cli --> api : run_case(params)
-api --> cases
-cases --> integration
+cli --> api : run_workflow(params)
+api --> workflow
+workflow --> integration
 integration --> params : ensure_system()
 params --> fourier_system : FourierSystem(params)
 integration --> fourier_system : initial_conditions()
@@ -55,7 +55,7 @@ integration --> pyhamsys : traj_type='gc'\nsolve_ivp_sympext(system,...)
 integration --> pyhamsys : traj_type='fo'\nsolve_ivp_symp(chi, chi_star,...)
 pyhamsys --> fourier_system : y_dot(), k_dot(),\nhamiltonian(), chi()
 
-cases --> plotting : si plot y Method=poincare*
+workflow --> plotting : si plot y Method=poincare*
 cli --> export : save_data(system, sol)
 export --> outputs : .npz si SaveData=True
 plotting --> outputs : figuras

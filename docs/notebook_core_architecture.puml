@@ -26,7 +26,7 @@ package "src public notebook API" {
   component "make_params(base, **overrides)" as make_params
   component "make_system(params)" as make_system
   component "to_symp_params(params)" as to_symp_params
-  component "run_case(system, plot=True, save=True)" as run_case
+  component "run_workflow(system, plot=True, save=True)" as run_workflow
   component "integrate_case(system)" as integrate_case
   component "plot_poincare(result)" as plot_poincare
   component "SimulationResult\nsystem, sol, elapsed,\nfig, ax" as result
@@ -65,7 +65,7 @@ params_cells --> fourier_config : may load defaults
 params_cells --> make_params : creates case dict
 params_cells --> make_system : creates FourierSystem system
 
-notebook --> run_case : simple path
+notebook --> run_workflow : simple path
 notebook --> integrate_case : manual integration path
 notebook --> plot_poincare : manual plotting path
 
@@ -75,8 +75,8 @@ notebook_api --> result : returns structured result
 make_params --> to_symp_params : validates parameters
 make_system --> to_symp_params : normalizes traj_type\nand eta
 make_system --> fourier_system : FourierSystem(params)
-run_case --> integrate_case : executes simulation
-run_case --> plot_poincare : optional plot for\nMethod=poincare_*
+run_workflow --> integrate_case : executes simulation
+run_workflow --> plot_poincare : optional plot for\nMethod=poincare_*
 
 integrate_case --> initial_conditions : builds y0
 integrate_case --> solve_gc : if traj_type='gc'

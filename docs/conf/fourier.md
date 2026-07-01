@@ -2,7 +2,7 @@
 
 `conf/<notebook|terminal>/fourier/<group>/v_x.json` configura casos basados en el modelo `FourierSystem`.
 
-- `conf/notebook/...`: configuracion reducida para uso interactivo con `workflows_api`; el bloque `output.data` controla si `run_case()` guarda datos.
+- `conf/notebook/...`: configuracion reducida para uso interactivo con `workflows_api`; el bloque `output.data` controla si `run_workflow()` guarda datos.
 - `conf/terminal/...`: configuracion completa para `run_fourier.py` y ejecuciones batch.
 
 El loader correspondiente es:
@@ -88,7 +88,7 @@ Genera `np.full(num, constant)`.
 
 | Campo | Tipo | Usado por | Descripcion |
 |---|---:|---|---|
-| `Method` | `str` | `to_symp_params`, `run_case` | Nombre del metodo. Si `traj_type` no existe, se infiere del sufijo final: `poincare_gc` -> `gc`. |
+| `Method` | `str` | `to_symp_params`, `run_workflow` | Nombre del metodo. Si `traj_type` no existe, se infiere del sufijo final: `poincare_gc` -> `gc`. |
 | `traj_type` | `"gc"` o `"fo"` | `FourierSystem`, integracion | Tipo de trayectoria. Si falta, se infiere desde `Method`. |
 | `A` | `float` | `FourierSystem` | Amplitud de los coeficientes Fourier del potencial. Normalmente se define en `sweep`. |
 | `M` | `int` | `FourierSystem` | Numero maximo de modos Fourier. Modos con `sqrt(n^2 + m^2) > M` se anulan. |
@@ -123,7 +123,7 @@ Comportamiento:
 | Campo | Tipo | Descripcion |
 |---|---:|---|
 | `plot` | `bool` | Si es `true`, genera la figura Poincare y la guarda en la carpeta `outputs/...` derivada de la configuracion. |
-| `data` | `bool` | Si es `true`, `run_case()`/`run_fourier.py` guardan un `.npz` comprimido con `t`, `x`, `y` y, si aplica, `k`, `vx`, `vy`. Si es `false`, no se guardan datos. |
+| `data` | `bool` | Si es `true`, `run_workflow()`/`run_fourier.py` guardan un `.npz` comprimido con `t`, `x`, `y` y, si aplica, `k`, `vx`, `vy`. Si es `false`, no se guardan datos. |
 | `extension` | `str` | Extension de la figura guardada, por ejemplo `.png` o `.pdf`. |
 | `dpi` | `int` | Resolucion usada al guardar la figura. |
 
@@ -148,7 +148,7 @@ Los archivos guardados usan el perfil como prefijo compacto y una fecha. Por eje
 
 ## Parametros heredados o reservados
 
-Estos campos aparecen en algunos perfiles, pero no controlan el flujo actual `run_fourier.py -> run_case -> integrate_case`:
+Estos campos aparecen en algunos perfiles, pero no controlan el flujo actual `run_fourier.py -> run_workflow -> integrate_case`:
 
 | Campo | Estado |
 |---|---|
