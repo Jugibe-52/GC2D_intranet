@@ -16,7 +16,7 @@ GREEN = "\033[32m"
 RESET = "\033[0m"
 
 
-def integrate_case(case: FourierSystem | dict[str, Any]) -> SimulationResult:
+def integrate_simulation(case: FourierSystem | dict[str, Any]) -> SimulationResult:
 	system = ensure_system(case)
 	y0 = system.initial_conditions(type=system.init)
 	logger.info("Initial conditions ready: shape=%s init=%s", y0.shape, system.init)

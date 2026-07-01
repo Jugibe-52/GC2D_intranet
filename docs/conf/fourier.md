@@ -100,7 +100,7 @@ Genera `np.full(num, constant)`.
 | Campo | Tipo | Usado por | Descripcion |
 |---|---:|---|---|
 | `Ntraj` | `int` | `initial_conditions` | Numero de trayectorias. Con `init="fixed"` se ajusta al cuadrado perfecto inferior. |
-| `Tf` | `int` | `integrate_case` | Numero de periodos. Se evalua en `2*pi*arange(0, Tf + 1)`. |
+| `Tf` | `int` | `integrate_simulation` | Numero de periodos. Se evalua en `2*pi*arange(0, Tf + 1)`. |
 
 ## Condiciones iniciales
 
@@ -148,7 +148,7 @@ Los archivos guardados usan el perfil como prefijo compacto y una fecha. Por eje
 
 ## Parametros heredados o reservados
 
-Estos campos aparecen en algunos perfiles, pero no controlan el flujo actual `run_fourier.py -> run_workflow -> integrate_case`:
+Estos campos aparecen en algunos perfiles, pero no controlan el flujo actual `run_fourier.py -> run_workflow -> integrate_simulation`:
 
 | Campo | Estado |
 |---|---|

@@ -51,9 +51,9 @@ partition "make_system(params)" {
 :run_workflow(system, plot=True, save=True);
 :logger.info("Running notebook case");
 
-:integrate_case(system);
+:integrate_simulation(system);
 
-partition "integrate_case(system)" {
+partition "integrate_simulation(system)" {
   :y0 = system.initial_conditions(type=system.init);
 
   partition "initial_conditions()" {

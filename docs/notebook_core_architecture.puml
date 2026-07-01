@@ -27,7 +27,7 @@ package "src public notebook API" {
   component "make_system(params)" as make_system
   component "to_symp_params(params)" as to_symp_params
   component "run_workflow(system, plot=True, save=True)" as run_workflow
-  component "integrate_case(system)" as integrate_case
+  component "integrate_simulation(system)" as integrate_simulation
   component "plot_poincare(result)" as plot_poincare
   component "SimulationResult\nsystem, sol, elapsed,\nfig, ax" as result
 }
@@ -66,7 +66,7 @@ params_cells --> make_params : creates case dict
 params_cells --> make_system : creates FourierSystem system
 
 notebook --> run_workflow : simple path
-notebook --> integrate_case : manual integration path
+notebook --> integrate_simulation : manual integration path
 notebook --> plot_poincare : manual plotting path
 
 notebook_api --> config_logging : labels integration logs
@@ -75,13 +75,13 @@ notebook_api --> result : returns structured result
 make_params --> to_symp_params : validates parameters
 make_system --> to_symp_params : normalizes traj_type\nand eta
 make_system --> fourier_system : FourierSystem(params)
-run_workflow --> integrate_case : executes simulation
+run_workflow --> integrate_simulation : executes simulation
 run_workflow --> plot_poincare : optional plot for\nMethod=poincare_*
 
-integrate_case --> initial_conditions : builds y0
-integrate_case --> solve_gc : if traj_type='gc'
-integrate_case --> solve_fo : if traj_type='fo'
-integrate_case --> result : stores system, sol,\nelapsed time
+integrate_simulation --> initial_conditions : builds y0
+integrate_simulation --> solve_gc : if traj_type='gc'
+integrate_simulation --> solve_fo : if traj_type='fo'
+integrate_simulation --> result : stores system, sol,\nelapsed time
 
 fourier_system --> hamiltonian_methods : guiding-center dynamics
 fourier_system --> splitting_methods : full-orbit dynamics
@@ -99,7 +99,7 @@ save_data --> outputs : optional .npz export
 plot_poincare --> outputs : inline figure handles
 result --> outputs : returned to notebook
 
-note right of integrate_case
+note right of integrate_simulation
   Integration branch:
   - gc: solve_ivp_sympext(system, ...)
   - fo: solve_ivp_symp(system.chi, system.chi_star, ...)

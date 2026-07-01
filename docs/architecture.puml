@@ -30,7 +30,7 @@ package "Configuration" {
 package "src modules" {
   component "config_logging.py\nconfigure_logging()\nsimulation_label()" as config_logging
 
-  component "workflows_api.py\nmake_system()\nrun_workflow()\nintegrate_case()\nplot_poincare()\nsave_data()\nextract_potential()" as notebook_api
+  component "workflows_api.py\nmake_system()\nrun_workflow()\nintegrate_simulation()\nplot_poincare()\nsave_data()\nextract_potential()" as notebook_api
 
   component "classes/fourier_system.py\nFourierSystem\nFourier turbulent model" as fourier_system
 

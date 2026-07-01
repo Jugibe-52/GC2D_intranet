@@ -44,7 +44,7 @@ Cada caso es un diccionario de parametros para construir un `FourierSystem`.
 4. Decide si ejecuta en paralelo con `multiprocess`.
 5. Para cada caso llama a `run_workflow(params, plot=..., save=False)`.
 6. `run_workflow` construye o recibe un `FourierSystem`.
-7. `integrate_case` genera condiciones iniciales e integra.
+7. `integrate_simulation` genera condiciones iniciales e integra.
 8. Si `SaveData=True`, `save_data(system, sol)` escribe un `.npz` una sola vez desde el runner.
 9. Al final, `plt.show()` muestra figuras pendientes.
 
@@ -64,7 +64,7 @@ Cada caso es un diccionario de parametros para construir un `FourierSystem`.
 En notebook no conviene usar `run_fourier.py` directamente. La API reutilizable es:
 
 ```python
-from workflows_api import make_system, run_workflow, integrate_case, plot_poincare
+from workflows_api import make_system, run_workflow, integrate_simulation, plot_poincare
 ```
 
 `run_fourier.py` existe para ejecucion batch fuera de notebook.

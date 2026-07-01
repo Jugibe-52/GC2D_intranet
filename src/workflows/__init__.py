@@ -3,7 +3,7 @@
 __all__ = [
 	"extract_potential",
 	"fft_phi_grid",
-	"integrate_case",
+	"integrate_simulation",
 	"make_params",
 	"make_system",
 	"mock_potential",
@@ -39,10 +39,10 @@ def __getattr__(name: str):
 		from .export import save_data
 
 		return save_data
-	if name == "integrate_case":
-		from .integration import integrate_case
+	if name == "integrate_simulation":
+		from .integration import integrate_simulation
 
-		return integrate_case
+		return integrate_simulation
 	if name in {"make_params", "make_system", "to_symp_params"}:
 		from .params import make_params, make_system, to_symp_params
 
