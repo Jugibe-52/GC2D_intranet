@@ -36,11 +36,11 @@ def _run_case(params: dict[str, Any]) -> None:
 
 
 def parse_args() -> argparse.Namespace:
-	parser = argparse.ArgumentParser(description="Run PotentialSystem cases from a JSON configuration.")
-	parser.add_argument("--config", help="Path to the JSON configuration file.")
+	parser = argparse.ArgumentParser(description="Run FourierSystem cases from a Python configuration.")
+	parser.add_argument("--config", help="Path to the Python or JSON configuration file.")
 	parser.add_argument("--config-group", default=DEFAULT_CONFIG_GROUP, choices=("test", "assay"), help="Configuration group under conf/.")
-	parser.add_argument("--config-version", default=DEFAULT_CONFIG_VERSION, help="Configuration folder version under conf/<group>/, e.g. v_1.")
-	parser.add_argument("--version", help="Profile inside the JSON file.")
+	parser.add_argument("--config-version", default=DEFAULT_CONFIG_VERSION, help="Configuration file version under conf/fourier/<group>/, e.g. v_1.")
+	parser.add_argument("--version", help="Profile inside the configuration file.")
 	return parser.parse_args()
 
 
@@ -53,6 +53,9 @@ def main() -> None:
 		config_group=args.config_group,
 		config_version=args.config_version,
 	)
+	if config.output_dir is not None:
+		config.output_dir.mkdir(parents=True, exist_ok=True)
+		logger.info("Output directory: %s", config.output_dir)
 	parallelization = config.parallelization
 	if parallelization == 'all':
 		num_cores = multiprocess.cpu_count()

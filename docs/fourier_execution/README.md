@@ -19,7 +19,7 @@ python run_fourier.py --config-group test --config-version v_1
 El script carga perfiles desde:
 
 ```text
-conf/<group>/<version>/fourier.json
+conf/fourier/<group>/<version>.py
 ```
 
 La funcion responsable es:
@@ -39,7 +39,7 @@ Cada caso es un diccionario de parametros para construir un `FourierSystem`.
 ## Flujo
 
 1. `run_fourier.py` configura imports, logging y argumentos CLI.
-2. Carga el JSON con `load_fourier_config`.
+2. Carga la configuracion con `load_fourier_config`.
 3. Expande la lista de casos.
 4. Decide si ejecuta en paralelo con `multiprocess`.
 5. Para cada caso llama a `run_case(params, plot=...)`.

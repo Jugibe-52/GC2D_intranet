@@ -19,7 +19,7 @@ python run_potential.py --config-group test --config-version v_1
 El script carga perfiles desde:
 
 ```text
-conf/<group>/<version>/potential.json
+conf/potential/<group>/<version>.py
 ```
 
 La funcion responsable es:
@@ -43,7 +43,7 @@ Potential -> PotentialSystem
 ## Flujo
 
 1. `run_potential.py` configura imports, logging y argumentos CLI.
-2. Carga el JSON con `load_potential_config`.
+2. Carga la configuracion con `load_potential_config`.
 3. `PotentialConfig.build()` carga un HDF5 con `extract_potential` o genera uno con `mock_potential`.
 4. `PotentialRunConfig.build_system()` construye `PotentialSystem(potential, traj, k=...)`.
 5. Genera condiciones iniciales con `hs.initial_conditions(...)`.
@@ -55,7 +55,7 @@ Potential -> PotentialSystem
 ## Modulos principales
 
 - `run_potential.py`: entry point de terminal para el flujo `PotentialSystem + Potential`.
-- `src/config.py`: carga de `potential.json`, `PotentialConfig` y `PotentialRunConfig`.
+- `src/config.py`: carga de configuracion, `PotentialConfig` y `PotentialRunConfig`.
 - `src/classes/potential.py`: clase `Potential`, interpolacion y gyroaverage.
 - `src/classes/potential_system.py`: clase `PotentialSystem` y dinamica del sistema.
 - `src/workflows/potentials.py`: `extract_potential`, `mock_potential`.

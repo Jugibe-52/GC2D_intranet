@@ -24,11 +24,11 @@ logger = logging.getLogger(__name__)
 
 
 def parse_args() -> argparse.Namespace:
-	parser = argparse.ArgumentParser(description="Run the PotentialSystem HDF5/mock potential showcase from JSON.")
-	parser.add_argument("--config", help="Path to the JSON configuration file.")
+	parser = argparse.ArgumentParser(description="Run the PotentialSystem HDF5/mock potential showcase from configuration.")
+	parser.add_argument("--config", help="Path to the Python or JSON configuration file.")
 	parser.add_argument("--config-group", default=DEFAULT_CONFIG_GROUP, choices=("test", "assay"), help="Configuration group under conf/.")
-	parser.add_argument("--config-version", default=DEFAULT_CONFIG_VERSION, help="Configuration folder version under conf/<group>/, e.g. v_1.")
-	parser.add_argument("--version", help="Profile inside the JSON file.")
+	parser.add_argument("--config-version", default=DEFAULT_CONFIG_VERSION, help="Configuration file version under conf/potential/<group>/, e.g. v_1.")
+	parser.add_argument("--version", help="Profile inside the configuration file.")
 	return parser.parse_args()
 
 
@@ -41,6 +41,9 @@ def main() -> None:
 		config_group=args.config_group,
 		config_version=args.config_version,
 	)
+	if config.output_dir is not None:
+		config.output_dir.mkdir(parents=True, exist_ok=True)
+		logger.info("Output directory: %s", config.output_dir)
 	hs = config.build_system()
 	n_traj = config.initial_condition_count()
 	init = config.initial_condition_type()

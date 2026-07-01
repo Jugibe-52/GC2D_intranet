@@ -1,5 +1,6 @@
 import logging
 from datetime import datetime
+from pathlib import Path
 
 import numpy as np
 from pyhamsys import OdeSolution
@@ -14,6 +15,8 @@ def save_data(system: FourierSystem, sol: OdeSolution) -> None:
 	if not system.SaveData:
 		logger.debug("SaveData disabled; skipping MATLAB export")
 		return
+	output_dir = Path(getattr(system, "output_dir", "."))
+	output_dir.mkdir(parents=True, exist_ok=True)
 	logger.info("Saving simulation data: traj=%s samples=%d", system.traj_type, sol.t.size)
 	if system.traj_type == 'gc':
 		x, y = np.split(sol.y, 2)
@@ -29,6 +32,7 @@ def save_data(system: FourierSystem, sol: OdeSolution) -> None:
 	if system.CheckEnergy:
 		mdic.update({'k': sol.k})
 	mdic.update({'date': datetime.now().strftime(" %B %d, %Y\n"), 'author': 'cristel.chandre@cnrs.fr'})
-	filename = 'data_' + system.traj_type + '_' + datetime.now().strftime("%Y%m%d_%H%M%S") + '.mat'
+	output_name = getattr(system, "output_name", "notebook")
+	filename = output_dir / f'{output_name}_{datetime.now().strftime("%Y%m%d_%H%M%S")}.mat'
 	savemat(filename, mdic)
 	logger.info("Results saved in %s", filename)

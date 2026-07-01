@@ -1,4 +1,4 @@
-"""JSON configuration loading for simulation entry points."""
+"""Configuration loading for simulation entry points."""
 
 from __future__ import annotations
 
@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from itertools import product
 import json
 from pathlib import Path
+import runpy
 from typing import Any
 
 import numpy as np
@@ -15,16 +16,17 @@ from workflows.potentials import extract_potential, mock_potential
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 CONF_DIR = PROJECT_ROOT / "conf"
+OUTPUTS_DIR = PROJECT_ROOT / "outputs"
 DEFAULT_CONFIG_GROUP = "test"
 DEFAULT_CONFIG_VERSION = "v_1"
-DEFAULT_FOURIER_CONFIG = CONF_DIR / DEFAULT_CONFIG_GROUP / DEFAULT_CONFIG_VERSION / "fourier.json"
-DEFAULT_POTENTIAL_CONFIG = CONF_DIR / DEFAULT_CONFIG_GROUP / DEFAULT_CONFIG_VERSION / "potential.json"
+DEFAULT_FOURIER_CONFIG = CONF_DIR / "fourier" / DEFAULT_CONFIG_GROUP / f"{DEFAULT_CONFIG_VERSION}.py"
+DEFAULT_POTENTIAL_CONFIG = CONF_DIR / "potential" / DEFAULT_CONFIG_GROUP / f"{DEFAULT_CONFIG_VERSION}.py"
 PYHAMSYS_PARAM_KEYS = {"TimeStep", "ode_solver", "CheckEnergy"}
 OUTPUT_PARAM_KEYS = {"plot", "wrap"}
 
 
 class ConfigError(ValueError):
-	"""Raised when a JSON configuration file is invalid."""
+	"""Raised when a configuration file is invalid."""
 
 
 def config_path(
@@ -32,8 +34,36 @@ def config_path(
 	config_group: str = DEFAULT_CONFIG_GROUP,
 	config_version: str = DEFAULT_CONFIG_VERSION,
 ) -> Path:
-	"""Return the path to one config file under conf/<group>/<version>/."""
+	"""Return the default path for one config family."""
+	kind = Path(name).stem
+	if kind in {"fourier", "potential"}:
+		new_path = CONF_DIR / kind / config_group / f"{config_version}.py"
+		if new_path.exists():
+			return new_path
+		return CONF_DIR / config_group / config_version / f"{kind}.json"
 	return CONF_DIR / config_group / config_version / name
+
+
+def output_path_for_config(path: str | Path) -> Path:
+	"""Return the output folder that mirrors one configuration path."""
+	path = Path(path).resolve()
+	try:
+		relative = path.relative_to(CONF_DIR)
+	except ValueError:
+		return OUTPUTS_DIR / path.stem / "custom"
+	parts = relative.parts
+	if len(parts) < 3:
+		return OUTPUTS_DIR / relative.with_suffix("")
+	if parts[0] in {"fourier", "potential"}:
+		kind, config_group, filename = parts[0], parts[1], parts[-1]
+		return OUTPUTS_DIR / kind / config_group / Path(filename).stem
+	config_group, config_version, filename = parts[0], parts[1], parts[-1]
+	return OUTPUTS_DIR / Path(filename).stem / config_group / config_version
+
+
+def output_name_for_version(version: str) -> str:
+	"""Return a compact filename prefix for one configuration profile."""
+	return version.split("_", 1)[0]
 
 
 def _read_json(path: str | Path) -> dict[str, Any]:
@@ -43,6 +73,24 @@ def _read_json(path: str | Path) -> dict[str, Any]:
 	if not isinstance(data, dict):
 		raise ConfigError(f"Configuration root in {path} must be a JSON object.")
 	return data
+
+
+def _read_py_config(path: str | Path) -> dict[str, Any]:
+	path = Path(path)
+	namespace = runpy.run_path(str(path))
+	data = namespace.get("CONFIG")
+	if not isinstance(data, dict):
+		raise ConfigError(f"Python configuration {path} must define a CONFIG dictionary.")
+	return data
+
+
+def _read_config(path: str | Path) -> dict[str, Any]:
+	path = Path(path)
+	if path.suffix == ".json":
+		return _read_json(path)
+	if path.suffix == ".py":
+		return _read_py_config(path)
+	raise ConfigError(f"Unsupported configuration format {path.suffix!r} in {path}.")
 
 
 def _version_payload(data: dict[str, Any], version: str | None, path: Path) -> tuple[str, dict[str, Any]]:
@@ -146,6 +194,8 @@ class FourierConfig:
 	sweep: dict[str, list[Any]] = field(default_factory=dict)
 	case_overrides: list[dict[str, Any]] = field(default_factory=list)
 	parallelization: int | str = 1
+	output_dir: Path | None = None
+	output_name: str | None = None
 
 	def cases(self) -> list[dict[str, Any]]:
 		if self.case_overrides:
@@ -165,7 +215,14 @@ class FourierConfig:
 		else:
 			case, legacy_pyhamsys = _split_keys(self.defaults, PYHAMSYS_PARAM_KEYS)
 			raw_cases = [case | self.pyhamsys | legacy_pyhamsys]
-		return [_normalize_symplectic_params(_expand_params(case)) for case in raw_cases]
+		cases = [_normalize_symplectic_params(_expand_params(case)) for case in raw_cases]
+		if self.output_dir is not None:
+			for case in cases:
+				case["output_dir"] = str(self.output_dir)
+		if self.output_name is not None:
+			for case in cases:
+				case["output_name"] = self.output_name
+		return cases
 
 
 @dataclass(frozen=True)
@@ -215,6 +272,8 @@ class PotentialRunConfig:
 	integration: dict[str, Any]
 	pyhamsys: dict[str, Any] = field(default_factory=dict)
 	output: dict[str, Any] = field(default_factory=dict)
+	output_dir: Path | None = None
+	output_name: str | None = None
 
 	def build_system(self) -> PotentialSystem:
 		potential = self.potential.build()
@@ -238,8 +297,8 @@ def load_fourier_config(
 	config_group: str = DEFAULT_CONFIG_GROUP,
 	config_version: str = DEFAULT_CONFIG_VERSION,
 ) -> FourierConfig:
-	path = Path(path) if path is not None else config_path("fourier.json", config_group, config_version)
-	selected, payload = _version_payload(_read_json(path), version, path)
+	path = Path(path) if path is not None else config_path("fourier", config_group, config_version)
+	selected, payload = _version_payload(_read_config(path), version, path)
 	defaults = payload.get("defaults", {})
 	if not isinstance(defaults, dict):
 		raise ConfigError(f"'defaults' in {path}:{selected} must be an object.")
@@ -260,6 +319,8 @@ def load_fourier_config(
 		sweep={key: _as_list(value) for key, value in sweep.items()},
 		case_overrides=cases,
 		parallelization=payload.get("parallelization", 1),
+		output_dir=output_path_for_config(path),
+		output_name=payload.get("output_name", output_name_for_version(selected)),
 	)
 
 
@@ -269,8 +330,8 @@ def load_potential_config(
 	config_group: str = DEFAULT_CONFIG_GROUP,
 	config_version: str = DEFAULT_CONFIG_VERSION,
 ) -> PotentialRunConfig:
-	path = Path(path) if path is not None else config_path("potential.json", config_group, config_version)
-	selected, payload = _version_payload(_read_json(path), version, path)
+	path = Path(path) if path is not None else config_path("potential", config_group, config_version)
+	selected, payload = _version_payload(_read_config(path), version, path)
 	potential_payload = payload.get("potential", {})
 	if not isinstance(potential_payload, dict):
 		raise ConfigError(f"'potential' in {path}:{selected} must be an object.")
@@ -301,4 +362,6 @@ def load_potential_config(
 		integration=integration,
 		pyhamsys=legacy_pyhamsys | pyhamsys,
 		output=legacy_output | output,
+		output_dir=output_path_for_config(path),
+		output_name=payload.get("output_name", output_name_for_version(selected)),
 	)

@@ -1,6 +1,6 @@
-# `potential.json`
+# `conf/potential/<group>/v_x.py`
 
-`potential.json` configura la ejecucion de `run_potential.py`, basada en el flujo:
+`conf/potential/<group>/v_x.py` configura la ejecucion de `run_potential.py`, basada en el flujo:
 
 ```text
 Potential -> PotentialSystem -> pyhamsys
@@ -14,19 +14,19 @@ from config import load_potential_config
 
 ## Estructura general
 
-```json
-{
-  "schema_version": 1,
-  "active_version": "default",
-  "versions": {
-    "default": {
-      "potential": {},
-      "trajectory": {},
-      "integration": {},
-      "pyhamsys": {},
-      "output": {}
-    }
-  }
+```python
+CONFIG = {
+    "schema_version": 1,
+    "active_version": "default",
+    "versions": {
+        "default": {
+            "potential": {},
+            "trajectory": {},
+            "integration": {},
+            "pyhamsys": {},
+            "output": {},
+        },
+    },
 }
 ```
 
@@ -117,6 +117,13 @@ Este bloque agrupa solo parametros pasados a `pyhamsys`.
 |---|---:|---|
 | `wrap` | `bool` | Si es `true`, `plot_sol` envuelve posiciones al dominio periodico. |
 | `plot` | `bool` | Si es `true`, `run_potential.py` llama a `plot_sol`. |
+
+La carpeta de salida se deriva automaticamente de la ruta de configuracion:
+
+```text
+conf/potential/test/v_1.py -> outputs/potential/test/v_1/
+conf/potential/assay/v_1.py -> outputs/potential/assay/v_1/
+```
 
 ## Relacion con HDF5
 

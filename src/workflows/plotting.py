@@ -1,5 +1,7 @@
 import logging
+from datetime import datetime
 from typing import Any, Literal
+from pathlib import Path
 
 import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
@@ -170,8 +172,10 @@ def plot_symplectic_poincare(system: FourierSystem, sol: Any) -> tuple[Any, Any]
 	ax.set_aspect('equal')
 	if system.SaveData:
 		extension = getattr(system, 'extension', '.png')
-		basename = f'{type(system).__name__}_A{system.A:.2f}_RHO{system.rho:.4f}'.replace('.', '')
-		filename = f'{basename}{extension}'
+		output_dir = Path(getattr(system, "output_dir", "."))
+		output_dir.mkdir(parents=True, exist_ok=True)
+		output_name = getattr(system, "output_name", "notebook")
+		filename = output_dir / f'{output_name}_{datetime.now().strftime("%Y%m%d_%H%M%S")}{extension}'
 		fig.savefig(filename, dpi=getattr(system, 'dpi', 200))
 		logger.info("Figure saved in %s", filename)
 	if 'agg' not in plt.get_backend().lower():

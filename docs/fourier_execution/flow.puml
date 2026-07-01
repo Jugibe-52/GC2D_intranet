@@ -13,7 +13,7 @@ package "Entry point" {
 }
 
 package "Configuracion" {
-  component "conf/<group>/<version>/fourier.json" as json
+  component "conf/fourier/<group>/<version>.py" as json
   component "config.py\nload_fourier_config()\nFourierConfig.cases()" as config
 }
 
@@ -40,7 +40,7 @@ artifact "outputs\n.mat / figuras / logs" as outputs
 
 user --> cli : python run_fourier.py
 cli --> config : load_fourier_config(args)
-config --> json : lee JSON
+config --> json : lee CONFIG
 config --> cli : params_list
 
 cli --> mp : opcional\nparaleliza casos

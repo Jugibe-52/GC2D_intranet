@@ -13,7 +13,7 @@ package "Entry point" {
 }
 
 package "Configuracion" {
-  component "conf/<group>/<version>/potential.json" as json
+  component "conf/potential/<group>/<version>.py" as json
   component "config.py\nload_potential_config()\nPotentialConfig\nPotentialRunConfig" as config
 }
 
@@ -39,7 +39,7 @@ artifact "figuras / logs" as outputs
 
 user --> cli : python run_potential.py
 cli --> config : load_potential_config(args)
-config --> json : lee JSON
+config --> json : lee CONFIG
 
 config --> potentials : PotentialConfig.build()
 potentials --> h5py : si type=hdf5

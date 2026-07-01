@@ -12,11 +12,11 @@ logger = logging.getLogger(__name__)
 
 
 def parse_args() -> argparse.Namespace:
-	parser = argparse.ArgumentParser(description="Run the legacy FourierSystem symplectic workflow from JSON.")
-	parser.add_argument("--config", help="Path to the JSON configuration file.")
+	parser = argparse.ArgumentParser(description="Run the legacy FourierSystem symplectic workflow from configuration.")
+	parser.add_argument("--config", help="Path to the Python or JSON configuration file.")
 	parser.add_argument("--config-group", default="assay", choices=("test", "assay"), help="Configuration group under conf/.")
-	parser.add_argument("--config-version", default=DEFAULT_CONFIG_VERSION, help="Configuration folder version under conf/<group>/, e.g. v_1.")
-	parser.add_argument("--version", default="symplectic_grid", help="Profile inside the JSON file.")
+	parser.add_argument("--config-version", default=DEFAULT_CONFIG_VERSION, help="Configuration file version under conf/fourier/<group>/, e.g. v_1.")
+	parser.add_argument("--version", default="symplectic_grid", help="Profile inside the configuration file.")
 	return parser.parse_args()
 
 

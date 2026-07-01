@@ -19,16 +19,25 @@ verbosity and `SIM_LOG_FILE` to also write logs to a file:
 SIM_LOG_LEVEL=DEBUG SIM_LOG_FILE=logs/simulation.log python3 run_fourier.py
 ```
 
-Simulation parameters are now read from JSON files in [`conf`](conf). The
-configuration tree is split into `test` for development runs and `assay` for
-experiments. Each group contains version folders such as `v_1`, and each version
-contains `fourier.json` and `potential.json`.
+Simulation parameters are read from Python configuration files in [`conf`](conf).
+The configuration tree is split first by execution family, then by group, then by
+version file:
 
-The main batch runner uses `conf/test/v_1/fourier.json` by default:
+```text
+conf/
+  fourier/
+    test/v_1.py
+    assay/v_1.py
+  potential/
+    test/v_1.py
+    assay/v_1.py
+```
+
+The main batch runner uses `conf/fourier/test/v_1.py` by default:
 ```sh
 python3 run_fourier.py
 ```
-Select another profile from the same JSON file with:
+Select another profile from the same configuration file with:
 ```sh
 python3 run_fourier.py --version notebook_demo
 ```
@@ -38,14 +47,14 @@ python3 run_fourier.py --config-group assay --config-version v_1
 ```
 or pass an explicit config file:
 ```sh
-python3 run_fourier.py --config conf/assay/v_1/fourier.json --version symplectic_grid
+python3 run_fourier.py --config conf/fourier/assay/v_1.py --version symplectic_grid
 ```
 For background runs:
 ```sh
 nohup python3 -u run_fourier.py &>fourier.out < /dev/null &
 ```
 
-The standalone HDF5/mock-potential showcase reads `conf/test/v_1/potential.json`
+The standalone HDF5/mock-potential showcase reads `conf/potential/test/v_1.py`
 by default:
 ```sh
 python3 run_potential.py
@@ -53,7 +62,7 @@ python3 run_potential.py
 
 The list of Python packages and their version are specified in [`requirements.txt`](https://github.com/cchandre/guiding_center_intranet/blob/main/requirements.txt)
 ___
-##  JSON configuration
+##  Configuration
 
 - *Method*: string
   - 'diffusion_fo': computes the diffusion coefficients for the full orbits
@@ -89,13 +98,13 @@ ___
 - *dpi*: integer; number of dots per inches for figures
 ####
 - *SaveData*: boolean; if True, the results are saved in a `.mat` file; Poincaré sections and diffusion plots *r*<sup>2</sup>(*t*) are saved as *fig_extension* files; NB: the diffusion data are saved in a `.txt` file regardless of the value of *SaveData*
-- *Parallelization*: configured as `parallelization` in JSON; use an integer core count or `"all"`
+- *Parallelization*: configured as `parallelization`; use an integer core count or `"all"`
 ####
 - *M*: integer; number of modes (default = 25 for 'turbulent') 
 
-Each JSON configuration has this structure:
-```json
-{
+Each Python configuration defines a `CONFIG` dictionary:
+```python
+CONFIG = {
 	"schema_version": 1,
 	"active_version": "default",
 	"versions": {
@@ -103,9 +112,9 @@ Each JSON configuration has this structure:
 			"parallelization": 1,
 			"pyhamsys": {},
 			"defaults": {},
-			"sweep": {}
-		}
-	}
+			"sweep": {},
+		},
+	},
 }
 ```
 `pyhamsys` contains the parameters sent directly to the pyHamSys integrator.

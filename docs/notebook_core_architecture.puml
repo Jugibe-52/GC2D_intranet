@@ -44,7 +44,7 @@ package "src workflows" {
 }
 
 package "src support" {
-  component "conf/test/v_1/fourier.json\noptional base configuration" as fourier_json
+  component "conf/fourier/test/v_1.py\noptional base configuration" as fourier_config
   component "config_logging.py\nsimulation_label()" as config_logging
 }
 
@@ -61,7 +61,7 @@ user --> notebook : runs cells
 notebook --> params_cells : edits parameters
 notebook --> plot_cells : inspects results
 
-params_cells --> fourier_json : may load defaults
+params_cells --> fourier_config : may load defaults
 params_cells --> make_params : creates case dict
 params_cells --> make_system : creates FourierSystem system
 

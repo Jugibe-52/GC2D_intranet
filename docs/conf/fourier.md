@@ -1,6 +1,6 @@
-# `fourier.json`
+# `conf/fourier/<group>/v_x.py`
 
-`fourier.json` configura la ejecucion de `run_fourier.py`, basada en el modelo `FourierSystem`.
+`conf/fourier/<group>/v_x.py` configura la ejecucion de `run_fourier.py`, basada en el modelo `FourierSystem`.
 
 El loader correspondiente es:
 
@@ -10,19 +10,19 @@ from config import load_fourier_config
 
 ## Estructura general
 
-```json
-{
-  "schema_version": 1,
-  "active_version": "default",
-  "versions": {
-    "default": {
-      "parallelization": 1,
-      "pyhamsys": {},
-      "defaults": {},
-      "sweep": {},
-      "cases": []
-    }
-  }
+```python
+CONFIG = {
+    "schema_version": 1,
+    "active_version": "default",
+    "versions": {
+        "default": {
+            "parallelization": 1,
+            "pyhamsys": {},
+            "defaults": {},
+            "sweep": {},
+            "cases": [],
+        },
+    },
 }
 ```
 
@@ -119,6 +119,15 @@ Comportamiento:
 | `modulo` | `bool` | `SimulationResult.plot_poincare` | Si es `true`, representa `x` e `y` modulo `2*pi`. |
 | `grid` | `bool` | `SimulationResult.plot_poincare` | Activa rejilla en la figura Poincare. |
 | `SaveData` | `bool` | `save_data` | Si es `true`, guarda un `.mat` con `t`, `x`, `y` y, si aplica, `k`, `vx`, `vy`. |
+
+La carpeta de salida no se define en la configuracion: se deriva automaticamente de la ruta de configuracion. Por ejemplo:
+
+```text
+conf/fourier/test/v_1.py -> outputs/fourier/test/v_1/
+conf/fourier/assay/v_1.py -> outputs/fourier/assay/v_1/
+```
+
+Los archivos guardados usan el perfil como prefijo compacto y una fecha. Por ejemplo, el perfil `notebook_demo` genera nombres como `notebook_YYYYmmdd_HHMMSS.mat`.
 
 ## Parametros heredados o reservados
 

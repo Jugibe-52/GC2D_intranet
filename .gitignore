@@ -8,3 +8,8 @@ __pycache__/
 .ipynb_checkpoints/
 logs/
 *.log
+outputs/
+!conf/fourier/test/
+!conf/fourier/test/*.py
+!conf/potential/test/
+!conf/potential/test/*.py
