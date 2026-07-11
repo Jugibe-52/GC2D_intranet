@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 from typing import Sequence
 
@@ -6,6 +7,9 @@ import numpy as np
 from scipy import ndimage
 
 from classes.potential import Array, Potential
+
+
+logger = logging.getLogger(__name__)
 
 
 def extract_potential(
@@ -79,6 +83,15 @@ def extract_potential(
 
 
 def mock_potential(A: float, M: int, nx: int, ny: int, seed: int = 27, k: int = 3) -> Potential:
+	logger.info(
+		"Generating mock potential: A=%g M=%d grid=%dx%d seed=%d interpolation_order=%d",
+		A,
+		M,
+		nx,
+		ny,
+		seed,
+		k,
+	)
 	x = np.linspace(0, 2 * np.pi, nx, endpoint=False)
 	y = np.linspace(0, 2 * np.pi, ny, endpoint=False)
 	X, Y = np.meshgrid(x, y, indexing='ij')
@@ -89,4 +102,13 @@ def mock_potential(A: float, M: int, nx: int, ny: int, seed: int = 27, k: int = 
 	fft_phic[1:, 1:] = A / (nm[0][1:, 1:]**2 + nm[1][1:, 1:]**2)**1.5 * np.exp(1j * phases)
 	fft_phic[np.sqrt(nm[0]**2 + nm[1]**2) > M] = 0
 	exp_xy = np.exp(1j * (nm[0][:, :, None, None] * X[None, None, :, :] + nm[1][:, :, None, None] * Y[None, None, :, :]))
-	return Potential(x, y, [None, [np.einsum('nm,nm...->...', fft_phic, exp_xy)]], freqs=[-1], xy_period=2 * np.pi, k=k)
+	potential = Potential(
+		x,
+		y,
+		[None, [np.einsum('nm,nm...->...', fft_phic, exp_xy)]],
+		freqs=[-1],
+		xy_period=2 * np.pi,
+		k=k,
+	)
+	logger.info("Mock potential ready: modes=%d spatial_period=%g", len(potential.freqs), potential.xy_period)
+	return potential

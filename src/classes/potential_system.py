@@ -34,58 +34,45 @@ import numpy as np
 from pyhamsys import HamSys
 
 from contracts import TrajectoryParams
-from .potential import Array, FieldList, Potential, real_imag
+from .potential import Array, Potential, real_imag
 
-class PotentialSystem(HamSys, Potential):
+class PotentialSystem(Potential, HamSys):
+	"""Particle dynamics over an independent, optionally gyroaveraged Potential."""
+
 	def __str__(self) -> str:
 		return f'2D Guiding Center ({self.__class__.__name__}) for turbulent potentials'
 		
 	def __init__(self, potential: Potential, traj: TrajectoryParams) -> None:
 		HamSys.__init__(self, ndof=1.5 if traj["type"]=='gc' else 2.5)
-		self.traj = traj
-		self.rho = traj["rho"] if "rho" in traj else 0
-		self.eta = traj["eta"] if "eta" in traj else 0
+		self.traj = traj.copy()
+		self.rho = self.traj.get("rho", 0)
+		self.eta = self.traj.get("eta", 0)
 		if min(potential.kinterp * potential.dx, potential.kinterp * potential.dy) < self.rho:
 			raise ValueError(
 				f"Interpolation order {potential.kinterp} is too low for rho = {self.rho}. "
 				"Increase k or decrease rho."
 			)
-		for key, value in vars(potential).items():
-			setattr(self, key, value)
+		mean_value, fluctuations = potential.fields
+		fields = (
+			None if mean_value is None else mean_value.copy(),
+			None if fluctuations is None else [field.copy() for field in fluctuations],
+		)
 		if self.rho != 0:
-			self.fields = self.gyroaverage(self.rho, self.fields)
-		self.interpolators = self._build_interpolators(self.x, self.y, self.fields)
+			fields = potential.gyroaverage(self.rho, fields)
+		Potential.__init__(
+			self,
+			x=potential.x.copy(),
+			y=potential.y.copy(),
+			fields=fields,
+			freqs=potential.freqs.copy(),
+			xy_period=potential.xy_period,
+			k=potential.kinterp,
+		)
 		if self.traj["type"] == 'fo':
 			self.v_fo = self.rho / (2 * np.abs(self.eta))
 			self.phi_fo = np.sign(self.eta) / self.rho
 			self.omlar = 1 / (2 * self.eta)
 
-	def phic_interp(self, xi: Array, yi: Array, dx: int = 0, dy: int = 0) -> FieldList:
-		xi, yi = self.wrap_or_clip(xi, yi)
-		mean_value, fluctuations = None, None
-		if self.fields[0] is not None:
-			mean_interpolator = self.interpolators[0]
-			if mean_interpolator is None:
-				raise RuntimeError("Mean field exists without its interpolator.")
-			mean_value = np.asarray(mean_interpolator.ev(xi, yi, dx=dx, dy=dy))
-		if self.fields[1] is not None:
-			fluctuation_interpolators = self.interpolators[1]
-			if fluctuation_interpolators is None:
-				raise RuntimeError("Fluctuation fields exist without interpolators.")
-			fluctuations = []
-			for (interp_real, interp_imag) in fluctuation_interpolators:
-				fluctuations.append(interp_real.ev(xi, yi, dx=dx, dy=dy) + 1j * interp_imag.ev(xi, yi, dx=dx, dy=dy))
-		return mean_value, fluctuations
-
-	def wrap_or_clip(self, xi: Array, yi: Array) -> tuple[Array, Array]:
-		if self.xy_period is None:
-			xi = np.clip(xi, self.xmin, self.xmax)
-			yi = np.clip(yi, self.ymin, self.ymax)
-		else:
-			xi = ((np.asarray(xi) - self.xmin) % self.xy_period) + self.xmin
-			yi = ((np.asarray(yi) - self.ymin) % self.xy_period) + self.ymin
-		return xi, yi
-	
 	def initial_conditions(
 		self,
 		n_traj: int,
@@ -125,11 +112,7 @@ class PotentialSystem(HamSys, Potential):
 
 	def hamiltonian(self, t: float, z: Array) -> float | Array:
 		x, y = self.get_positions(z)
-		phi_c = self.phic_interp(x, y)
-		phi_t = float(np.sum(phi_c[0])) if phi_c[0] is not None else 0.0
-		if phi_c[1] is not None:
-			for fluct, freq in zip(phi_c[1], self.freqs):
-				phi_t += float(2 * np.sum((fluct * np.exp(1j * freq * t)).real))
+		phi_t = float(np.sum(self.field_at_time(t, x, y)))
 		if self.traj["type"] == 'gc':
 			return phi_t
 		else:
@@ -141,20 +124,8 @@ class PotentialSystem(HamSys, Potential):
 
 	def y_dot(self, t: float, z: Array, output: Literal['full', 'reduced'] = 'full') -> Array:
 		x, y = self.get_positions(z)
-		dphidx_c, dphidy_c = self.phic_interp(x, y, dx=1), self.phic_interp(x, y, dy=1)
-		if dphidx_c[0] is not None:
-			if dphidy_c[0] is None:
-				raise RuntimeError("Inconsistent mean-field derivatives.")
-			dphidx_t, dphidy_t = dphidx_c[0], dphidy_c[0]
-		else:
-			dphidx_t, dphidy_t = np.zeros_like(x), np.zeros_like(y)
-		if dphidx_c[1] is not None:
-			if dphidy_c[1] is None:
-				raise RuntimeError("Inconsistent fluctuation derivatives.")
-			for fluct_x, fluct_y, freq in zip(dphidx_c[1], dphidy_c[1], self.freqs):
-				phases = 2.0 * np.exp(1j * freq * t)
-				dphidx_t += (fluct_x * phases).real
-				dphidy_t += (fluct_y * phases).real
+		dphidx_t = self.field_at_time(t, x, y, dx=1)
+		dphidy_t = self.field_at_time(t, x, y, dy=1)
 		if self.traj["type"] == 'gc' or output == 'reduced':
 			return np.concatenate((-dphidy_t, dphidx_t), axis=None)
 		else:
@@ -175,23 +146,9 @@ class PotentialSystem(HamSys, Potential):
 			z = np.concatenate((x, y), axis=None)
 			jacobian = np.array(jacobian_parts).reshape((2, 2, -1))
 		z_dot = self.y_dot(t, z)
-		d2phidx2_c = self.phic_interp(x, y, dx=2) 
-		d2phidxdy_c = self.phic_interp(x, y, dx=1, dy=1)
-		d2phidy2_c = self.phic_interp(x, y, dy=2)
-		if d2phidx2_c[0] is not None:
-			if d2phidxdy_c[0] is None or d2phidy2_c[0] is None:
-				raise RuntimeError("Inconsistent second derivatives for the mean field.")
-			d2phidx2_t, d2phidxdy_t, d2phidy2_t = d2phidx2_c[0], d2phidxdy_c[0], d2phidy2_c[0]
-		else:
-			d2phidx2_t, d2phidxdy_t, d2phidy2_t = np.zeros_like(x), np.zeros_like(y), np.zeros_like(y)
-		if d2phidx2_c[1] is not None:
-			if d2phidxdy_c[1] is None or d2phidy2_c[1] is None:
-				raise RuntimeError("Inconsistent second derivatives for fluctuations.")
-			for fluct_xx, fluct_xy, fluct_yy, freq in zip(d2phidx2_c[1], d2phidxdy_c[1], d2phidy2_c[1], self.freqs):
-				phase = 2 * np.exp(1j * freq * t)
-				d2phidx2_t += (fluct_xx * phase).real
-				d2phidxdy_t += (fluct_xy * phase).real
-				d2phidy2_t += (fluct_yy * phase).real
+		d2phidx2_t = self.field_at_time(t, x, y, dx=2)
+		d2phidxdy_t = self.field_at_time(t, x, y, dx=1, dy=1)
+		d2phidy2_t = self.field_at_time(t, x, y, dy=2)
 		A = np.zeros_like(jacobian)
 		if self.traj["type"] == 'fo':
 			d2phidx2_t *= -self.phi_fo
@@ -209,11 +166,7 @@ class PotentialSystem(HamSys, Potential):
 
 	def k_dot(self, t: float, z: Array) -> float | Array:
 		x, y = self.get_positions(z)
-		phi_c = self.phic_interp(x, y)
-		dphidt_t = 0.0
-		if phi_c[1] is not None:
-			for fluct, freq in zip(phi_c[1], self.freqs):
-				dphidt_t += float(2 * freq * np.sum((fluct * np.exp(1j * freq * t)).imag))
+		dphidt_t = -float(np.sum(self.field_at_time(t, x, y, dt=1)))
 		if self.traj["type"] == 'fo':
 			dphidt_t *= -self.phi_fo
 		return dphidt_t

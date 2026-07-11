@@ -25,15 +25,23 @@
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-import numpy as np
+import logging
 import os
+import numpy as np
 from numpy.fft import fft2, ifft2, fftfreq
-from typing import Sequence, TypeAlias
+from typing import Any, Sequence, TypeAlias
 os.environ.setdefault("MPLCONFIGDIR", ".matplotlib")
+import matplotlib.colors as mcolors
+import matplotlib.pyplot as plt
+from matplotlib.animation import FuncAnimation
+from matplotlib.axes import Axes
+from matplotlib.figure import Figure
 from scipy.interpolate import RectBivariateSpline
 from scipy.special import jv
 
 from contracts import Array
+
+logger = logging.getLogger(__name__)
 
 FieldList: TypeAlias = tuple[Array | None, list[Array] | None]
 FieldInput: TypeAlias = Sequence[Array | Sequence[Array] | None]
@@ -114,6 +122,7 @@ class Potential:
 		self.dx, self.dy = self.x[1] - self.x[0], self.y[1] - self.y[0]
 		self.xmin, self.xmax, self.ymin, self.ymax = self.x.min(), self.x.max(), self.y.min(), self.y.max()
 		self.nx, self.ny = self.x.size, self.y.size
+		self.interpolators = self._build_interpolators(self.x, self.y, self.fields)
 
 	def gyroaverage(self, rho: float, fields: FieldList) -> FieldList:
 		kx, ky = fftfreq(self.nx, d=self.dx), fftfreq(self.ny, d=self.dy)
@@ -165,3 +174,297 @@ class Potential:
 			for (interp_real, interp_imag) in interpolators[1]:
 				fluctuations.append(interp_real(xi, yi) + 1j * interp_imag(xi, yi))
 		return mean_value, fluctuations
+
+	def wrap_or_clip(self, xi: Array, yi: Array) -> tuple[Array, Array]:
+		"""Apply this potential's boundary policy to evaluation coordinates."""
+		if self.xy_period is None:
+			xi = np.clip(xi, self.xmin, self.xmax)
+			yi = np.clip(yi, self.ymin, self.ymax)
+		else:
+			xi = ((np.asarray(xi) - self.xmin) % self.xy_period) + self.xmin
+			yi = ((np.asarray(yi) - self.ymin) % self.xy_period) + self.ymin
+		return np.asarray(xi), np.asarray(yi)
+
+	def phic_interp(self, xi: Array, yi: Array, dx: int = 0, dy: int = 0) -> FieldList:
+		"""Evaluate the complex field coefficients or their spatial derivatives."""
+		xi, yi = self.wrap_or_clip(xi, yi)
+		mean_value, fluctuations = None, None
+		if self.fields[0] is not None:
+			mean_interpolator = self.interpolators[0]
+			if mean_interpolator is None:
+				raise RuntimeError("Mean field exists without its interpolator.")
+			mean_value = np.asarray(mean_interpolator.ev(xi, yi, dx=dx, dy=dy))
+		if self.fields[1] is not None:
+			fluctuation_interpolators = self.interpolators[1]
+			if fluctuation_interpolators is None:
+				raise RuntimeError("Fluctuation fields exist without interpolators.")
+			fluctuations = [
+				interp_real.ev(xi, yi, dx=dx, dy=dy)
+				+ 1j * interp_imag.ev(xi, yi, dx=dx, dy=dy)
+				for interp_real, interp_imag in fluctuation_interpolators
+			]
+		return mean_value, fluctuations
+
+	def field_at_time(
+		self,
+		t: float,
+		x: Array | None = None,
+		y: Array | None = None,
+		*,
+		dx: int = 0,
+		dy: int = 0,
+		dt: int = 0,
+	) -> Array:
+		"""Reconstruct the real potential or one of its derivatives at time ``t``.
+
+		Without ``x`` and ``y``, the field is evaluated on the stored grid. Spatial
+		derivatives require coordinates and use the configured spline interpolators.
+		``dt=1`` returns the first temporal derivative.
+		"""
+		if (x is None) != (y is None):
+			raise ValueError("`x` and `y` must be provided together.")
+		if dt not in (0, 1):
+			raise ValueError("`dt` must be 0 or 1.")
+		if x is None:
+			if dx != 0 or dy != 0:
+				raise ValueError("Spatial derivatives require `x` and `y` coordinates.")
+			coefficients = self.fields
+		else:
+			coefficients = self.phic_interp(x, y, dx=dx, dy=dy)
+
+		mean_value, fluctuations = coefficients
+		if mean_value is not None:
+			field = np.zeros_like(mean_value, dtype=float) if dt else np.asarray(mean_value, dtype=float).copy()
+		elif fluctuations:
+			field = np.zeros_like(fluctuations[0].real, dtype=float)
+		else:
+			raise ValueError("The potential has no fields to evaluate.")
+		if fluctuations is not None:
+			for fluctuation, freq in zip(fluctuations, self.freqs):
+				phase = np.exp(1j * freq * t)
+				if dt == 1:
+					phase *= 1j * freq
+				field += 2.0 * (fluctuation * phase).real
+		return field
+
+	def plot(
+		self,
+		*,
+		contours: int | Sequence[float] | None = 12,
+		cmap: str = 'RdBu_r',
+		show_quadrature: bool = False,
+		show: bool = True,
+		**pcolormesh_kwargs: Any,
+	) -> list[tuple[Figure, np.ndarray]]:
+		"""Plot the mean potential and, optionally, each mode's quadrature."""
+		return _plot_potential(
+			self,
+			contours=contours,
+			cmap=cmap,
+			show_quadrature=show_quadrature,
+			show=show,
+			**pcolormesh_kwargs,
+		)
+
+	def animate(
+		self,
+		*,
+		t_max: float = 2 * np.pi,
+		frames: int = 120,
+		interval: int = 50,
+		cmap: str = 'RdBu_r',
+		repeat: bool = True,
+		**pcolormesh_kwargs: Any,
+	) -> FuncAnimation:
+		"""Animate the total physical potential reconstructed in time."""
+		return _animate_potential(
+			self,
+			t_max=t_max,
+			frames=frames,
+			interval=interval,
+			cmap=cmap,
+			repeat=repeat,
+			**pcolormesh_kwargs,
+		)
+
+
+def _field_norm(field: Array) -> mcolors.Normalize:
+	"""Return a colour normalization centred at zero whenever possible."""
+	vmin, vmax = float(np.nanmin(field)), float(np.nanmax(field))
+	if vmin < 0 < vmax:
+		return mcolors.TwoSlopeNorm(vmin=vmin, vcenter=0.0, vmax=vmax)
+	if np.isclose(vmin, vmax):
+		delta = abs(vmin) * 0.01 or 1.0
+		return mcolors.Normalize(vmin=vmin - delta, vmax=vmax + delta)
+	return mcolors.Normalize(vmin=vmin, vmax=vmax)
+
+
+def _animate_potential(
+	potential: Potential,
+	*,
+	t_max: float = 2 * np.pi,
+	frames: int = 120,
+	interval: int = 50,
+	cmap: str = 'RdBu_r',
+	repeat: bool = True,
+	**pcolormesh_kwargs: Any,
+) -> FuncAnimation:
+	"""Implement :meth:`Potential.animate` outside the data model."""
+	if frames < 2:
+		raise ValueError('`frames` must be at least 2.')
+	if t_max <= 0:
+		raise ValueError('`t_max` must be positive.')
+	if potential.fields[0] is None and potential.fields[1] is None:
+		raise ValueError('The potential has no fields to animate.')
+
+	times = np.linspace(0.0, t_max, frames, endpoint=False)
+	first_field = potential.field_at_time(times[0])
+	vmin, vmax = float(np.nanmin(first_field)), float(np.nanmax(first_field))
+	for t in times[1:]:
+		field = potential.field_at_time(t)
+		vmin = min(vmin, float(np.nanmin(field)))
+		vmax = max(vmax, float(np.nanmax(field)))
+	if vmin < 0 < vmax:
+		norm: mcolors.Normalize = mcolors.TwoSlopeNorm(vmin=vmin, vcenter=0.0, vmax=vmax)
+	elif np.isclose(vmin, vmax):
+		delta = abs(vmin) * 0.01 or 1.0
+		norm = mcolors.Normalize(vmin=vmin - delta, vmax=vmax + delta)
+	else:
+		norm = mcolors.Normalize(vmin=vmin, vmax=vmax)
+
+	fig, ax = plt.subplots(figsize=(6, 5), constrained_layout=True)
+	mesh = ax.pcolormesh(
+		potential.x,
+		potential.y,
+		first_field.T,
+		shading='auto',
+		cmap=cmap,
+		norm=norm,
+		**pcolormesh_kwargs,
+	)
+	fig.colorbar(mesh, ax=ax, label=r'$\phi$')
+	ax.set(xlabel='x', ylabel='y', aspect='equal')
+	is_effective = bool(getattr(potential, 'rho', 0))
+	name = 'Effective guiding-center potential' if is_effective else 'Potential'
+
+	def update(index: int) -> tuple[Any, ...]:
+		mesh.set_array(potential.field_at_time(times[index]).T)
+		ax.set_title(f'{name}, t={times[index]:.3f}')
+		return mesh, ax.title
+
+	animation = FuncAnimation(
+		fig,
+		update,
+		frames=frames,
+		interval=interval,
+		blit=False,
+		repeat=repeat,
+	)
+	update(0)
+	plt.close(fig)
+	return animation
+
+
+def _draw_field(
+	ax: Axes,
+	x: Array,
+	y: Array,
+	field: Array,
+	*,
+	title: str,
+	contours: int | Sequence[float] | None,
+	cmap: str,
+	pcolormesh_kwargs: dict[str, Any],
+) -> None:
+	"""Draw one scalar field using the common potential plot style."""
+	mesh = ax.pcolormesh(
+		x,
+		y,
+		field.T,
+		shading='auto',
+		cmap=cmap,
+		norm=_field_norm(field),
+		**pcolormesh_kwargs,
+	)
+	if contours is not None:
+		ax.contour(x, y, field.T, levels=contours, colors='k', linewidths=0.45, alpha=0.55)
+	ax.figure.colorbar(mesh, ax=ax)
+	ax.set(title=title, xlabel='x', ylabel='y', aspect='equal')
+
+
+def _plot_potential(
+	potential: Potential,
+	*,
+	contours: int | Sequence[float] | None = 12,
+	cmap: str = 'RdBu_r',
+	show_quadrature: bool = False,
+	show: bool = True,
+	**pcolormesh_kwargs: Any,
+) -> list[tuple[Figure, np.ndarray]]:
+	"""Implement :meth:`Potential.plot` without coupling plotting to the model."""
+	plots: list[tuple[Figure, np.ndarray]] = []
+	mean_value, fluctuations = potential.fields
+	rho = float(getattr(potential, 'rho', 0.0))
+	logger.info(
+		"Plotting potential: mean_field=%s, modes=%d, quadrature=%s, gyroaveraged=%s, rho=%g",
+		mean_value is not None,
+		0 if fluctuations is None else len(fluctuations),
+		show_quadrature,
+		rho != 0.0,
+		rho,
+	)
+	if mean_value is not None:
+		logger.info("Plotting attribute fields[0] as the time-independent mean potential phi_0.")
+		fig, ax = plt.subplots(figsize=(6, 5), constrained_layout=True)
+		_draw_field(
+			ax,
+			potential.x,
+			potential.y,
+			mean_value,
+			title=r'Mean potential $\phi_0$',
+			contours=contours,
+			cmap=cmap,
+			pcolormesh_kwargs=pcolormesh_kwargs,
+		)
+		plots.append((fig, np.asarray([ax], dtype=object)))
+	if fluctuations is not None:
+		for index, (field, freq) in enumerate(zip(fluctuations, potential.freqs)):
+			logger.info(
+				"Plotting attribute fields[1][%d] at omega=%g as phi(t=0)=2*Re(phi_c)%s.",
+				index,
+				freq,
+				" with quadrature 2*Im(phi_c)" if show_quadrature else "",
+			)
+			fig, axes = plt.subplots(
+				1, 2 if show_quadrature else 1,
+				figsize=(12 if show_quadrature else 6, 5),
+				constrained_layout=True,
+			)
+			axes_array = np.atleast_1d(axes)
+			_draw_field(
+				axes_array[0],
+				potential.x,
+				potential.y,
+				2.0 * field.real,
+				title=rf'$\phi(t=0)=2\operatorname{{Re}}(\phi_c)$, $\omega={freq:g}$',
+				contours=contours,
+				cmap=cmap,
+				pcolormesh_kwargs=pcolormesh_kwargs,
+			)
+			if show_quadrature:
+				_draw_field(
+					axes_array[1],
+					potential.x,
+					potential.y,
+					2.0 * field.imag,
+					title=rf'$2\operatorname{{Im}}(\phi_c)$ (quadrature), $\omega={freq:g}$',
+					contours=contours,
+					cmap=cmap,
+					pcolormesh_kwargs=pcolormesh_kwargs,
+				)
+			plots.append((fig, axes_array))
+	if not plots:
+		raise ValueError('The potential has no fields to plot.')
+	if show:
+		plt.show()
+	return plots
