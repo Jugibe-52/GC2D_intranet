@@ -390,7 +390,8 @@ class PotentialSystem(Potential, HamSys):
 		self,
 		solution: Any,
 		*,
-		frames: int = 120,
+		frames: int | None = None,
+		frame_stride: int = 1,
 		interval: int = 50,
 		step: int = 4,
 		cmap: str = 'RdBu_r',
@@ -400,7 +401,9 @@ class PotentialSystem(Potential, HamSys):
 		"""Animate :math:`\\psi`, its electric field, and one or more trajectories.
 
 		``solution`` must expose the ``t`` and ``y`` arrays returned by the
-		integrator.  Trajectories are wrapped onto the plotted periodic domain.
+		integrator. ``frame_stride`` keeps one stored frame every n samples while
+		preserving the first and last times. Trajectories are wrapped onto the
+		plotted periodic domain.
 		"""
 		self._validate_step(step)
 		times_all = np.asarray(solution.t, dtype=float)
@@ -409,9 +412,16 @@ class PotentialSystem(Potential, HamSys):
 			raise ValueError('`solution` must provide t with shape (n_times,) and y with shape (n_state, n_times).')
 		if times_all.size < 2:
 			raise ValueError('`solution` must contain at least two time samples.')
-		if frames < 2:
+		if frames is not None and frames < 2:
 			raise ValueError('`frames` must be at least 2.')
-		frame_indices = np.linspace(0, times_all.size - 1, min(frames, times_all.size), dtype=int)
+		if not isinstance(frame_stride, (int, np.integer)) or frame_stride < 1:
+			raise ValueError('`frame_stride` must be a positive integer.')
+		frame_indices = np.arange(0, times_all.size, frame_stride, dtype=int)
+		if frame_indices[-1] != times_all.size - 1:
+			frame_indices = np.append(frame_indices, times_all.size - 1)
+		if frames is not None and frames < frame_indices.size:
+			selected = np.linspace(0, frame_indices.size - 1, frames, dtype=int)
+			frame_indices = frame_indices[np.unique(selected)]
 		times = times_all[frame_indices]
 		x_all, y_all = self.get_positions(states_all)
 		x_all, y_all = self.wrap_or_clip(x_all, y_all)
