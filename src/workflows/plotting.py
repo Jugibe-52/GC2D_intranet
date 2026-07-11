@@ -1,11 +1,15 @@
 import logging
 from datetime import datetime
-from typing import Any, Literal
+from typing import Any, Literal, cast
 from pathlib import Path
 
 import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib.axes import Axes
+from matplotlib.colors import Colormap, Normalize
+from matplotlib.figure import Figure
+from pyhamsys import OdeSolution
 
 from classes.potential_system import PotentialSystem
 from classes.fourier_system import FourierSystem
@@ -17,12 +21,12 @@ logger = logging.getLogger(__name__)
 def plot_poincare(
 	result: SimulationResult,
 	modulo: bool | None = None,
-	ax: Any = None,
+	ax: Axes | None = None,
 	grid: bool | None = None,
 	decimal_grid: bool = False,
 	grid_step: float = 0.5,
 	**plot_kwargs: Any,
-) -> tuple[Any, Any]:
+) -> tuple[Figure, Axes]:
 	return result.plot_poincare(
 		modulo=modulo,
 		ax=ax,
@@ -33,7 +37,7 @@ def plot_poincare(
 	)
 
 
-def _white_centered_cmap(vmin: float, vmax: float) -> tuple[Any, Any]:
+def _white_centered_cmap(vmin: float, vmax: float) -> tuple[Colormap, Normalize]:
 	if vmin >= 0:
 		cmap = plt.get_cmap('Reds')
 		norm = mcolors.Normalize(vmin=vmin, vmax=vmax)
@@ -50,7 +54,10 @@ def plot_potential(system: PotentialSystem, dx: int = 0, dy: int = 0, nx: int = 
 	x = np.linspace(system.xmin, system.xmax + system.dx, nx, endpoint=False)
 	y = np.linspace(system.ymin, system.ymax + system.dy, ny, endpoint=False)
 	if system.fields[0] is not None:
-		Z = system.interpolators[0](x, y, dx=dx, dy=dy)
+		mean_interpolator = system.interpolators[0]
+		if mean_interpolator is None:
+			raise RuntimeError("Mean field exists without its interpolator.")
+		Z = mean_interpolator(x, y, dx=dx, dy=dy)
 		vmin, vmax = Z.min(), Z.max()
 		cmap, norm = _white_centered_cmap(vmin, vmax)
 		plt.figure(figsize=(6, 5))
@@ -61,7 +68,10 @@ def plot_potential(system: PotentialSystem, dx: int = 0, dy: int = 0, nx: int = 
 		plt.colorbar(c)
 		plt.tight_layout()
 	if system.fields[1] is not None:
-		for interpolator, freq in zip(system.interpolators[1], system.freqs):
+		fluctuation_interpolators = system.interpolators[1]
+		if fluctuation_interpolators is None:
+			raise RuntimeError("Fluctuation fields exist without interpolators.")
+		for interpolator, freq in zip(fluctuation_interpolators, system.freqs):
 			Zr, Zi = interpolator[0](x, y, dx=dx, dy=dy), interpolator[1](x, y, dx=dx, dy=dy)
 			vmin_real, vmax_real = Zr.min(), Zr.max()
 			vmin_imag, vmax_imag = Zi.min(), Zi.max()
@@ -84,12 +94,12 @@ def plot_potential(system: PotentialSystem, dx: int = 0, dy: int = 0, nx: int = 
 
 def plot_sol(
 	system: PotentialSystem,
-	sol: Any,
+	sol: OdeSolution,
 	wrap: bool = False,
 	xlim: tuple[float, float] | None = None,
 	ylim: tuple[float, float] | None = None,
 	**kwargs: Any,
-) -> tuple[Any, Any]:
+) -> tuple[Figure, Axes]:
 	x, y = system.get_positions(sol.y)
 	xmin, xmax = xlim or (system.xmin, system.xmax)
 	ymin, ymax = ylim or (system.ymin, system.ymax)
@@ -120,11 +130,11 @@ def plot_fft_phi(
 	t: float = 0.0,
 	n: int = 40,
 	kind: Literal['quiver', 'stream', 'magnitude'] = 'quiver',
-	ax: Any = None,
+	ax: Axes | None = None,
 	show_magnitude: bool = True,
 	density: float = 1.5,
 	**kwargs: Any,
-) -> tuple[Any, Any]:
+) -> tuple[Figure, Axes]:
 	if kind not in {'quiver', 'stream', 'magnitude'}:
 		raise ValueError("`kind` must be 'quiver', 'stream' or 'magnitude'.")
 	X, Y, vx, vy = fft_phi_grid(system, t=t, n=n)
@@ -132,12 +142,12 @@ def plot_fft_phi(
 	if ax is None:
 		fig, ax = plt.subplots(1, 1, figsize=(6, 6))
 	else:
-		fig = ax.figure
+		fig = cast(Figure, ax.figure)
 	if show_magnitude or kind == 'magnitude':
 		mesh = ax.pcolormesh(X.T, Y.T, speed.T, shading='auto', cmap=kwargs.pop('cmap', 'viridis'))
 		fig.colorbar(mesh, ax=ax, label=r'$|\dot{x}, \dot{y}|$')
 	if kind == 'quiver':
-		default_kwargs = {'pivot': 'mid', 'scale': None}
+		default_kwargs: dict[str, Any] = {'pivot': 'mid', 'scale': None}
 		default_kwargs.update(kwargs)
 		ax.quiver(X.T, Y.T, vx.T, vy.T, **default_kwargs)
 	elif kind == 'stream':
@@ -155,7 +165,7 @@ def plot_fft_phi(
 	return fig, ax
 
 
-def plot_symplectic_poincare(system: FourierSystem, sol: Any) -> tuple[Any, Any]:
+def plot_symplectic_poincare(system: FourierSystem, sol: OdeSolution) -> tuple[Figure, Axes]:
 	logger.info("Plotting Poincare section: traj=%s modulo=%s", system.traj_type, getattr(system, 'modulo', False))
 	fig, ax = plt.subplots(1, 1)
 	if system.traj_type == 'gc':

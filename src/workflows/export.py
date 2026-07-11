@@ -1,8 +1,10 @@
 import logging
 from datetime import datetime
 from pathlib import Path
+from typing import Any, cast
 
 import numpy as np
+from matplotlib.figure import Figure
 from pyhamsys import OdeSolution
 
 from classes.fourier_system import FourierSystem
@@ -30,7 +32,7 @@ def save_data(system: FourierSystem, sol: OdeSolution) -> None:
 			x, y, vx, vy, _ = np.split(sol.y, 5)
 		else:
 			x, y, vx, vy = np.split(sol.y, 4)
-	payload = system.DictParams.copy()
+	payload: dict[str, object] = dict(system.DictParams)
 	payload.update({'t': sol.t, 'x': x, 'y': y})
 	if system.traj_type == 'fo':
 		payload.update({'vx': vx, 'vy': vy})
@@ -39,24 +41,24 @@ def save_data(system: FourierSystem, sol: OdeSolution) -> None:
 	payload.update({'date': datetime.now().strftime("%B %d, %Y"), 'author': 'cristel.chandre@cnrs.fr'})
 	output_name = getattr(system, "output_name", "notebook")
 	filename = timestamped_output_path(output_dir, output_name, ".npz")
-	np.savez_compressed(filename, **payload)
+	np.savez_compressed(filename, **cast(dict[str, Any], payload))
 	logger.info("Results saved in %s", filename)
 
 
 def save_potential_data(sol: OdeSolution, output_dir: str | Path, output_name: str) -> Path:
 	"""Save a PotentialSystem solution in NumPy format."""
 	filename = timestamped_output_path(output_dir, output_name, ".npz")
-	payload = {"t": sol.t, "y": sol.y}
+	payload: dict[str, object] = {"t": sol.t, "y": sol.y}
 	if hasattr(sol, "err"):
 		payload["err"] = sol.err
 	if hasattr(sol, "k"):
 		payload["k"] = sol.k
-	np.savez_compressed(filename, **payload)
+	np.savez_compressed(filename, **cast(dict[str, Any], payload))
 	logger.info("Potential results saved in %s", filename)
 	return filename
 
 
-def save_figure(fig: object, output_dir: str | Path, output_name: str, extension: str = ".png", dpi: int = 200) -> Path:
+def save_figure(fig: Figure, output_dir: str | Path, output_name: str, extension: str = ".png", dpi: int = 200) -> Path:
 	filename = timestamped_output_path(output_dir, output_name, extension)
 	fig.savefig(filename, dpi=dpi)
 	logger.info("Figure saved in %s", filename)

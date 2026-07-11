@@ -1,5 +1,7 @@
 """Reusable simulation workflows for PotentialSystem notebooks and scripts."""
 
+from typing import Any
+
 __all__ = [
 	"extract_potential",
 	"fft_phi_grid",
@@ -19,7 +21,7 @@ __all__ = [
 ]
 
 
-def __getattr__(name: str):
+def __getattr__(name: str) -> Any:
 	if name in {"extract_potential", "mock_potential"}:
 		from .potentials import extract_potential, mock_potential
 

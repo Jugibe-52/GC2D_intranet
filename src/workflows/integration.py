@@ -1,6 +1,6 @@
 import logging
 import time
-from typing import Any
+from collections.abc import Mapping
 
 import numpy as np
 from pyhamsys import solve_ivp_symp, solve_ivp_sympext
@@ -16,7 +16,7 @@ GREEN = "\033[32m"
 RESET = "\033[0m"
 
 
-def integrate_simulation(case: FourierSystem | dict[str, Any]) -> SimulationResult:
+def integrate_simulation(case: FourierSystem | Mapping[str, object]) -> SimulationResult:
 	system = ensure_system(case)
 	y0 = system.initial_conditions(type=system.init)
 	logger.info("Initial conditions ready: shape=%s init=%s", y0.shape, system.init)

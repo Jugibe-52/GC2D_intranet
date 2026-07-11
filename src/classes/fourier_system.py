@@ -1,9 +1,10 @@
 import logging
-from typing import Any
 
 import numpy as xp
 from pyhamsys import HamSys
 from scipy.special import jv
+
+from contracts import FourierParams, InitialConditionKind, TrajectoryKind
 
 logger = logging.getLogger(__name__)
 
@@ -13,17 +14,55 @@ def real_imag(z: xp.ndarray) -> tuple[xp.ndarray, xp.ndarray]:
 
 
 class FourierSystem(HamSys):
+	traj_type: TrajectoryKind
+	M: int
+	A: float
+	rho: float
+	eta: float
+	Ntraj: int
+	Tf: int
+	TimeStep: float
+	ode_solver: str
+	CheckEnergy: bool
+	init: InitialConditionKind
+
 	def __repr__(self) -> str:
 		return "{self.__class__.__name__}({self.DictParams})".format(self=self)
 
 	def __str__(self) -> str:
 		return f'2D Guiding Center ({self.__class__.__name__}) for turbulent potentials'
 
-	def __init__(self, dict_: dict[str, Any]) -> None:
+	def __init__(self, dict_: FourierParams) -> None:
 		super().__init__(ndof=1.5 if dict_['traj_type']=='gc' else 2.5)
-		for key in dict_:
-			setattr(self, key, dict_[key])
-		self.DictParams = dict_
+		self.DictParams: FourierParams = dict_.copy()
+		self.traj_type = dict_['traj_type']
+		self.M = dict_['M']
+		self.A = dict_['A']
+		self.rho = dict_['rho']
+		self.eta = dict_['eta']
+		self.Ntraj = dict_['Ntraj']
+		self.Tf = dict_['Tf']
+		self.TimeStep = dict_['TimeStep']
+		self.ode_solver = dict_['ode_solver']
+		self.CheckEnergy = dict_['CheckEnergy']
+		self.init = dict_['init']
+		self.Method = dict_.get('Method', f'poincare_{self.traj_type}')
+		self.TwoStepIntegration = dict_.get('TwoStepIntegration', False)
+		self.Tmid = dict_.get('Tmid', 0)
+		self.threshold = dict_.get('threshold', 4.0)
+		self.thresh_b = dict_.get('thresh_b', 1.5)
+		self.x0 = xp.asarray(dict_.get('x0', xp.empty(0)))
+		self.y0 = xp.asarray(dict_.get('y0', xp.empty(0)))
+		self.modulo = dict_.get('modulo', False)
+		self.grid = dict_.get('grid', False)
+		self.darkmode = dict_.get('darkmode', False)
+		self.PlotResults = dict_.get('PlotResults', False)
+		self.SavePlot = dict_.get('SavePlot', False)
+		self.SaveData = dict_.get('SaveData', False)
+		self.extension = dict_.get('extension', '.png')
+		self.dpi = dict_.get('dpi', 200)
+		self.output_dir = dict_.get('output_dir', '.')
+		self.output_name = dict_.get('output_name', 'notebook')
 		logger.info(
 			"Initializing FourierSystem: traj=%s M=%s A=%s rho=%s eta=%s Ntraj=%s Tf=%s",
 			self.traj_type,
@@ -50,7 +89,7 @@ class FourierSystem(HamSys):
 		active_modes = int(xp.count_nonzero(self.phic))
 		logger.info("FourierSystem initialized with %d active Fourier modes", active_modes)
 
-	def initial_conditions(self, type: str = 'fixed') -> xp.ndarray:
+	def initial_conditions(self, type: InitialConditionKind = 'fixed') -> xp.ndarray:
 		original_ntraj = self.Ntraj
 		logger.info("Generating initial conditions: type=%s traj=%s Ntraj=%s", type, self.traj_type, self.Ntraj)
 		if type == 'random':
@@ -83,22 +122,21 @@ class FourierSystem(HamSys):
 
 	def y_dot(self, t: float, y: xp.ndarray) -> xp.ndarray:
 		exp_xy = xp.exp(1j * (xp.einsum('ijk,i...->jk...', self.nm, xp.split(y, 2)) - t))
-		return (xp.einsum('ijk,jk...->i...', self.fft_phi_, exp_xy).real).reshape(y.shape)
+		return xp.asarray(xp.einsum('ijk,jk...->i...', self.fft_phi_, exp_xy).real).reshape(y.shape)
 	
 	def k_dot(self, t: float, y: xp.ndarray) -> xp.ndarray:
 		exp_xy = xp.exp(1j * (xp.einsum('ijk,i...->jk...', self.nm, xp.split(y, 2)) - t))
-		return xp.einsum('jk,jk...->...', self.phic, exp_xy).real
+		return xp.asarray(xp.einsum('jk,jk...->...', self.phic, exp_xy).real)
 	
-	def potential(self, t: xp.ndarray, y: xp.ndarray) -> xp.ndarray:
+	def potential(self, t: float | xp.ndarray, y: xp.ndarray) -> xp.ndarray:
 		exp_xy = xp.exp(1j * (xp.einsum('ijk,i...->jk...', self.nm, xp.split(y, 2)) - t))
-		return xp.einsum('jk,jk...->...', self.phic, exp_xy).imag
+		return xp.asarray(xp.einsum('jk,jk...->...', self.phic, exp_xy).imag)
 	
-	def hamiltonian(self, t: xp.ndarray, y: xp.ndarray) -> xp.ndarray | None:
+	def hamiltonian(self, t: float | xp.ndarray, y: xp.ndarray) -> xp.ndarray:
 		if self.traj_type == 'gc':
 			return self.potential(t, y)
-		elif self.traj_type == 'fo':
-			x_, y_, vx, vy = xp.split(y, 4)
-			return self.rho / (4 * xp.abs(self.eta)) * (vx**2 + vy**2) + self.potential(t, xp.concatenate((x_, y_), axis=0)) * xp.sign(self.eta) / self.rho
+		x_, y_, vx, vy = xp.split(y, 4)
+		return xp.asarray(self.rho / (4 * xp.abs(self.eta)) * (vx**2 + vy**2) + self.potential(t, xp.concatenate((x_, y_), axis=0)) * xp.sign(self.eta) / self.rho)
 	
 	def chi(self, h: float, t: float, y: xp.ndarray) -> xp.ndarray:
 		if self.CheckEnergy:

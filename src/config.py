@@ -6,11 +6,23 @@ from dataclasses import dataclass, field
 from itertools import product
 import json
 from pathlib import Path
-from typing import Any
+from typing import Literal, cast
 
 import numpy as np
 
 from classes import PotentialSystem, Potential
+from contracts import (
+	FourierParams,
+	MockPotentialParams,
+	OutputParams,
+	ParameterMap,
+	PotentialIntegrationParams,
+	PotentialSourceKind,
+	PotentialTrajectoryParams,
+	PyHamSysParams,
+	TrajectoryKind,
+	TrajectoryParams,
+)
 from workflows.potentials import extract_potential, mock_potential
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -73,23 +85,23 @@ def output_name_for_version(version: str) -> str:
 	return version.split("_", 1)[0]
 
 
-def _read_json(path: str | Path) -> dict[str, Any]:
+def _read_json(path: str | Path) -> ParameterMap:
 	path = Path(path)
 	with path.open("r", encoding="utf-8") as file:
-		data = json.load(file)
+		data: object = json.load(file)
 	if not isinstance(data, dict):
 		raise ConfigError(f"Configuration root in {path} must be a JSON object.")
-	return data
+	return cast(ParameterMap, data)
 
 
-def _read_config(path: str | Path) -> dict[str, Any]:
+def _read_config(path: str | Path) -> ParameterMap:
 	path = Path(path)
 	if path.suffix == ".json":
 		return _read_json(path)
 	raise ConfigError(f"Unsupported configuration format {path.suffix!r} in {path}.")
 
 
-def _version_payload(data: dict[str, Any], version: str | None, path: Path) -> tuple[str, dict[str, Any]]:
+def _version_payload(data: ParameterMap, version: str | None, path: Path) -> tuple[str, ParameterMap]:
 	if data.get("schema_version") != 1:
 		raise ConfigError(f"{path} must declare schema_version=1.")
 	versions = data.get("versions")
@@ -104,18 +116,38 @@ def _version_payload(data: dict[str, Any], version: str | None, path: Path) -> t
 	payload = versions[selected]
 	if not isinstance(payload, dict):
 		raise ConfigError(f"Version {selected!r} in {path} must be a JSON object.")
-	return selected, payload
+	if not isinstance(selected, str):
+		raise ConfigError(f"Selected version in {path} must be a string.")
+	return selected, cast(ParameterMap, payload)
 
 
-def _lookup_num(value: Any, params: dict[str, Any]) -> int:
+def _lookup_num(value: object, params: ParameterMap) -> int:
 	if isinstance(value, str):
 		if value not in params:
 			raise ConfigError(f"Cannot resolve size reference {value!r}; key is missing.")
 		value = params[value]
+	if not isinstance(value, (int, float, np.integer)):
+		raise ConfigError(f"Expected an integer size, got {value!r}.")
 	return int(value)
 
 
-def _expand_value(value: Any, params: dict[str, Any]) -> Any:
+def _as_int(value: object, name: str) -> int:
+	if isinstance(value, (int, float, np.integer, np.floating, str)):
+		return int(value)
+	raise ConfigError(f"`{name}` must be an integer, got {value!r}.")
+
+
+def _as_float(value: object, name: str) -> float:
+	if isinstance(value, (int, float, np.integer, np.floating, str)):
+		return float(value)
+	raise ConfigError(f"`{name}` must be numeric, got {value!r}.")
+
+
+def _optional_int(value: object, name: str) -> int | None:
+	return None if value is None else _as_int(value, name)
+
+
+def _expand_value(value: object, params: ParameterMap) -> object:
 	if isinstance(value, dict):
 		if "linspace" in value:
 			args = value["linspace"]
@@ -130,20 +162,20 @@ def _expand_value(value: Any, params: dict[str, Any]) -> Any:
 	return value
 
 
-def _expand_params(params: dict[str, Any]) -> dict[str, Any]:
+def _expand_params(params: ParameterMap) -> ParameterMap:
 	expanded = params.copy()
 	for key, value in list(expanded.items()):
 		expanded[key] = _expand_value(value, expanded)
 	return expanded
 
 
-def _as_list(value: Any) -> list[Any]:
+def _as_list(value: object) -> list[object]:
 	if isinstance(value, list):
 		return value
 	return [value]
 
 
-def _split_keys(params: dict[str, Any], keys: set[str]) -> tuple[dict[str, Any], dict[str, Any]]:
+def _split_keys(params: ParameterMap, keys: set[str]) -> tuple[ParameterMap, ParameterMap]:
 	remaining = params.copy()
 	extracted = {}
 	for key in keys:
@@ -153,13 +185,13 @@ def _split_keys(params: dict[str, Any], keys: set[str]) -> tuple[dict[str, Any],
 
 
 def _merge_config_block(
-	base: dict[str, Any],
-	override: dict[str, Any],
+	base: ParameterMap,
+	override: ParameterMap,
 	block_name: str,
-) -> tuple[dict[str, Any], dict[str, Any]]:
+) -> tuple[ParameterMap, ParameterMap]:
 	merged = base.copy()
 	block = override.get(block_name, {})
-	if block and not isinstance(block, dict):
+	if not isinstance(block, dict):
 		raise ConfigError(f"'{block_name}' overrides must be objects.")
 	for key, value in override.items():
 		if key != block_name:
@@ -167,20 +199,16 @@ def _merge_config_block(
 	return merged, block.copy()
 
 
-def _normalize_symplectic_params(params: dict[str, Any]) -> dict[str, Any]:
-	params = params.copy()
-	method = params.get("Method")
-	if "traj_type" not in params:
-		params["traj_type"] = method.rsplit("_", 1)[-1] if isinstance(method, str) else "gc"
-	if params["traj_type"] not in {"gc", "fo"}:
-		raise ConfigError(f"Invalid traj_type={params['traj_type']!r}; expected 'gc' or 'fo'.")
-	params.setdefault("eta", params.get("rho", 0))
-	if params["traj_type"] == "fo" and params["eta"] == 0:
-		raise ConfigError("Full-orbit integrations require a non-zero 'eta' parameter.")
-	return params
+def _normalize_symplectic_params(params: ParameterMap) -> FourierParams:
+	from workflows.params import to_symp_params
+
+	try:
+		return to_symp_params(params)
+	except (TypeError, ValueError) as exc:
+		raise ConfigError(str(exc)) from exc
 
 
-def _apply_fourier_output(defaults: dict[str, Any], output: dict[str, Any], path: Path, selected: str) -> dict[str, Any]:
+def _apply_fourier_output(defaults: ParameterMap, output: object, path: Path, selected: str) -> ParameterMap:
 	"""Translate structured output options to the legacy FourierSystem flags."""
 	if not isinstance(output, dict):
 		raise ConfigError(f"'output' in {path}:{selected} must be an object.")
@@ -201,15 +229,15 @@ class FourierConfig:
 	"""Batch configuration for the Fourier/symplectic FourierSystem runner."""
 
 	version: str
-	defaults: dict[str, Any]
-	pyhamsys: dict[str, Any] = field(default_factory=dict)
-	sweep: dict[str, list[Any]] = field(default_factory=dict)
-	case_overrides: list[dict[str, Any]] = field(default_factory=list)
+	defaults: ParameterMap
+	pyhamsys: ParameterMap = field(default_factory=dict)
+	sweep: dict[str, list[object]] = field(default_factory=dict)
+	case_overrides: list[ParameterMap] = field(default_factory=list)
 	parallelization: int | str = 1
 	output_dir: Path | None = None
 	output_name: str | None = None
 
-	def cases(self) -> list[dict[str, Any]]:
+	def cases(self) -> list[FourierParams]:
 		if self.case_overrides:
 			raw_cases = []
 			for override in self.case_overrides:
@@ -227,19 +255,19 @@ class FourierConfig:
 		else:
 			case, legacy_pyhamsys = _split_keys(self.defaults, PYHAMSYS_PARAM_KEYS)
 			raw_cases = [case | self.pyhamsys | legacy_pyhamsys]
-		cases = [_normalize_symplectic_params(_expand_params(case)) for case in raw_cases]
+		normalized_cases = [_normalize_symplectic_params(_expand_params(case)) for case in raw_cases]
 		if self.output_dir is not None:
-			for case in cases:
-				case["output_dir"] = str(self.output_dir)
+			for normalized_case in normalized_cases:
+				normalized_case["output_dir"] = str(self.output_dir)
 		if self.output_name is not None:
-			for case in cases:
-				case["output_name"] = self.output_name
-		return cases
+			for normalized_case in normalized_cases:
+				normalized_case["output_name"] = self.output_name
+		return normalized_cases
 
 
 @dataclass(frozen=True)
 class PotentialConfig:
-	type: str
+	type: PotentialSourceKind
 	path: Path | None = None
 	B: float = 1
 	indx: list[int] | None = None
@@ -248,7 +276,7 @@ class PotentialConfig:
 	denoising: bool = False
 	sigma: float = 1
 	k: int = 3
-	mock: dict[str, Any] = field(default_factory=dict)
+	mock: MockPotentialParams = field(default_factory=lambda: cast(MockPotentialParams, {}))
 
 	def build(self) -> Potential:
 		if self.type not in {"hdf5", "mock", "hdf5_or_mock"}:
@@ -283,16 +311,16 @@ class PotentialRunConfig:
 
 	version: str
 	potential: PotentialConfig
-	trajectory: dict[str, Any]
-	integration: dict[str, Any]
-	pyhamsys: dict[str, Any] = field(default_factory=dict)
-	output: dict[str, Any] = field(default_factory=dict)
+	trajectory: PotentialTrajectoryParams
+	integration: PotentialIntegrationParams
+	pyhamsys: PyHamSysParams = field(default_factory=lambda: cast(PyHamSysParams, {}))
+	output: OutputParams = field(default_factory=lambda: cast(OutputParams, {}))
 	output_dir: Path | None = None
 	output_name: str | None = None
 
 	def build_system(self) -> PotentialSystem:
 		potential = self.potential.build()
-		traj = {
+		traj: TrajectoryParams = {
 			"type": self.trajectory.get("type", "gc"),
 			"rho": self.trajectory.get("rho", 0),
 			"eta": self.trajectory.get("eta", 0),
@@ -302,8 +330,8 @@ class PotentialRunConfig:
 	def initial_condition_count(self) -> int:
 		return int(self.trajectory.get("Ntraj", 20))
 
-	def initial_condition_type(self) -> str:
-		return str(self.trajectory.get("init", "fixed"))
+	def initial_condition_type(self) -> Literal["random", "fixed"]:
+		return self.trajectory.get("init", "fixed")
 
 
 def load_fourier_config(
@@ -318,7 +346,7 @@ def load_fourier_config(
 	defaults = payload.get("defaults", {})
 	if not isinstance(defaults, dict):
 		raise ConfigError(f"'defaults' in {path}:{selected} must be an object.")
-	defaults = _apply_fourier_output(defaults, payload.get("output", {}), path, selected)
+	defaults = _apply_fourier_output(cast(ParameterMap, defaults), payload.get("output", {}), path, selected)
 	defaults, legacy_pyhamsys = _split_keys(defaults, PYHAMSYS_PARAM_KEYS)
 	pyhamsys = payload.get("pyhamsys", {})
 	if not isinstance(pyhamsys, dict):
@@ -329,15 +357,21 @@ def load_fourier_config(
 	cases = payload.get("cases", [])
 	if not isinstance(cases, list) or not all(isinstance(case, dict) for case in cases):
 		raise ConfigError(f"'cases' in {path}:{selected} must be a list of objects.")
+	parallelization = payload.get("parallelization", 1)
+	if not isinstance(parallelization, (int, str)):
+		raise ConfigError("`parallelization` must be an integer or 'all'.")
+	output_name = payload.get("output_name", output_name_for_version(selected))
+	if output_name is not None and not isinstance(output_name, str):
+		raise ConfigError("`output_name` must be a string.")
 	return FourierConfig(
 		version=selected,
 		defaults=defaults,
-		pyhamsys=legacy_pyhamsys | pyhamsys,
+		pyhamsys=legacy_pyhamsys | cast(ParameterMap, pyhamsys),
 		sweep={key: _as_list(value) for key, value in sweep.items()},
-		case_overrides=cases,
-		parallelization=payload.get("parallelization", 1),
+		case_overrides=cast(list[ParameterMap], cases),
+		parallelization=parallelization,
 		output_dir=output_path_for_config(path),
-		output_name=payload.get("output_name", output_name_for_version(selected)),
+		output_name=output_name,
 	)
 
 
@@ -354,17 +388,33 @@ def load_potential_config(
 	if not isinstance(potential_payload, dict):
 		raise ConfigError(f"'potential' in {path}:{selected} must be an object.")
 	potential_path = potential_payload.get("path")
+	potential_type = potential_payload.get("type", "mock")
+	if potential_type not in {"hdf5", "mock", "hdf5_or_mock"}:
+		raise ConfigError(f"Invalid potential type {potential_type!r}.")
+	raw_mock = potential_payload.get("mock", {})
+	if not isinstance(raw_mock, dict):
+		raise ConfigError("`potential.mock` must be an object.")
+	mock: MockPotentialParams = {
+		"A": _as_float(raw_mock.get("A", 1 / _as_float(potential_payload.get("B", 1), "potential.B")), "potential.mock.A"),
+		"M": _as_int(raw_mock.get("M", 25), "potential.mock.M"),
+		"nx": _as_int(raw_mock.get("nx", 128), "potential.mock.nx"),
+		"ny": _as_int(raw_mock.get("ny", 128), "potential.mock.ny"),
+		"seed": _as_int(raw_mock.get("seed", 27), "potential.mock.seed"),
+	}
+	raw_indices = potential_payload.get("indx")
+	if raw_indices is not None and not isinstance(raw_indices, list):
+		raise ConfigError("`potential.indx` must be a list of integers.")
 	potential = PotentialConfig(
-		type=potential_payload.get("type", "mock"),
+		type=cast(PotentialSourceKind, potential_type),
 		path=Path(potential_path).expanduser() if potential_path else None,
-		B=potential_payload.get("B", 1),
-		indx=potential_payload.get("indx"),
-		nx=potential_payload.get("nx"),
-		ny=potential_payload.get("ny"),
-		k=potential_payload.get("k", 3),
-		denoising=potential_payload.get("denoising", False),
-		sigma=potential_payload.get("sigma", 1),
-		mock=potential_payload.get("mock", {}),
+		B=_as_float(potential_payload.get("B", 1), "potential.B"),
+		indx=None if raw_indices is None else [_as_int(item, "potential.indx") for item in raw_indices],
+		nx=_optional_int(potential_payload.get("nx"), "potential.nx"),
+		ny=_optional_int(potential_payload.get("ny"), "potential.ny"),
+		k=_as_int(potential_payload.get("k", 3), "potential.k"),
+		denoising=bool(potential_payload.get("denoising", False)),
+		sigma=_as_float(potential_payload.get("sigma", 1), "potential.sigma"),
+		mock=mock,
 	)
 	trajectory = payload.get("trajectory", {})
 	integration = payload.get("integration", {})
@@ -372,15 +422,35 @@ def load_potential_config(
 	output = payload.get("output", {})
 	if not all(isinstance(block, dict) for block in (trajectory, integration, pyhamsys, output)):
 		raise ConfigError(f"'trajectory', 'integration', 'pyhamsys' and 'output' in {path}:{selected} must be objects.")
+	trajectory = cast(ParameterMap, trajectory)
+	integration = cast(ParameterMap, integration)
+	pyhamsys = cast(ParameterMap, pyhamsys)
+	output = cast(ParameterMap, output)
 	integration, legacy_pyhamsys = _split_keys(integration, PYHAMSYS_PARAM_KEYS)
 	integration, legacy_output = _split_keys(integration, OUTPUT_PARAM_KEYS)
+	trajectory_type = trajectory.get("type", "gc")
+	if trajectory_type not in {"gc", "fo"}:
+		raise ConfigError(f"Invalid trajectory type {trajectory_type!r}.")
+	init_value = trajectory.get("init", "fixed")
+	if init_value not in {"random", "fixed"}:
+		raise ConfigError(f"Invalid potential initial-condition type {init_value!r}.")
+	typed_trajectory: PotentialTrajectoryParams = {
+		"type": cast(TrajectoryKind, trajectory_type),
+		"rho": _as_float(trajectory.get("rho", 0), "trajectory.rho"),
+		"eta": _as_float(trajectory.get("eta", 0), "trajectory.eta"),
+		"Ntraj": _as_int(trajectory.get("Ntraj", 20), "trajectory.Ntraj"),
+		"init": cast(Literal['random', 'fixed'], init_value),
+	}
+	output_name = payload.get("output_name", output_name_for_version(selected))
+	if output_name is not None and not isinstance(output_name, str):
+		raise ConfigError("`output_name` must be a string.")
 	return PotentialRunConfig(
 		version=selected,
 		potential=potential,
-		trajectory=trajectory,
-		integration=integration,
-		pyhamsys=legacy_pyhamsys | pyhamsys,
-		output=legacy_output | output,
+		trajectory=typed_trajectory,
+		integration=cast(PotentialIntegrationParams, integration),
+		pyhamsys=cast(PyHamSysParams, legacy_pyhamsys | pyhamsys),
+		output=cast(OutputParams, legacy_output | output),
 		output_dir=output_path_for_config(path),
-		output_name=payload.get("output_name", output_name_for_version(selected)),
+		output_name=output_name,
 	)

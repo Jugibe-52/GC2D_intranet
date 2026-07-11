@@ -27,20 +27,21 @@
 
 import time
 import os
-from typing import Any, Literal
+from typing import Literal
 
 os.environ.setdefault("MPLCONFIGDIR", ".matplotlib")
 import numpy as np
 from pyhamsys import HamSys
 
+from contracts import TrajectoryParams
 from .potential import Array, FieldList, Potential, real_imag
 
 class PotentialSystem(HamSys, Potential):
 	def __str__(self) -> str:
 		return f'2D Guiding Center ({self.__class__.__name__}) for turbulent potentials'
 		
-	def __init__(self, potential: Potential, traj: dict[str, Any]) -> None:
-		super().__init__(ndof=1.5 if traj["type"]=='gc' else 2.5)
+	def __init__(self, potential: Potential, traj: TrajectoryParams) -> None:
+		HamSys.__init__(self, ndof=1.5 if traj["type"]=='gc' else 2.5)
 		self.traj = traj
 		self.rho = traj["rho"] if "rho" in traj else 0
 		self.eta = traj["eta"] if "eta" in traj else 0
@@ -63,12 +64,18 @@ class PotentialSystem(HamSys, Potential):
 		xi, yi = self.wrap_or_clip(xi, yi)
 		mean_value, fluctuations = None, None
 		if self.fields[0] is not None:
-			mean_value = self.interpolators[0].ev(xi, yi, dx=dx, dy=dy)
+			mean_interpolator = self.interpolators[0]
+			if mean_interpolator is None:
+				raise RuntimeError("Mean field exists without its interpolator.")
+			mean_value = np.asarray(mean_interpolator.ev(xi, yi, dx=dx, dy=dy))
 		if self.fields[1] is not None:
+			fluctuation_interpolators = self.interpolators[1]
+			if fluctuation_interpolators is None:
+				raise RuntimeError("Fluctuation fields exist without interpolators.")
 			fluctuations = []
-			for (interp_real, interp_imag) in self.interpolators[1]:
+			for (interp_real, interp_imag) in fluctuation_interpolators:
 				fluctuations.append(interp_real.ev(xi, yi, dx=dx, dy=dy) + 1j * interp_imag.ev(xi, yi, dx=dx, dy=dy))
-		return [mean_value, fluctuations]
+		return mean_value, fluctuations
 
 	def wrap_or_clip(self, xi: Array, yi: Array) -> tuple[Array, Array]:
 		if self.xy_period is None:
@@ -104,67 +111,88 @@ class PotentialSystem(HamSys, Potential):
 			np.random.seed(int(time.time()))
 			phi_perp = 2 * np.pi * np.random.rand(n_traj)
 			z0 = np.concatenate((z0, np.cos(phi_perp), np.sin(phi_perp)), axis=None)
-		return z0
+		return np.asarray(z0)
 	
-	def get_positions(self, z: Array) -> list[Array]:
-		return np.split(z if self.traj["type"] == 'gc' else np.split(z, 2)[0], 2)
+	def get_positions(self, z: Array) -> tuple[Array, Array]:
+		x, y = np.split(z if self.traj["type"] == 'gc' else np.split(z, 2)[0], 2)
+		return x, y
 	
-	def get_velocities(self, z: Array) -> list[Array] | None:
-		return None if self.traj["type"] == 'gc' else np.split(np.split(z, 2)[1], 2)
+	def get_velocities(self, z: Array) -> tuple[Array, Array] | None:
+		if self.traj["type"] == 'gc':
+			return None
+		vx, vy = np.split(np.split(z, 2)[1], 2)
+		return vx, vy
 
-	def hamiltonian(self, t: float, z: Array) -> float | Array | None:
+	def hamiltonian(self, t: float, z: Array) -> float | Array:
 		x, y = self.get_positions(z)
 		phi_c = self.phic_interp(x, y)
-		phi_t = np.sum(phi_c[0]) if phi_c[0] is not None else 0
+		phi_t = float(np.sum(phi_c[0])) if phi_c[0] is not None else 0.0
 		if phi_c[1] is not None:
 			for fluct, freq in zip(phi_c[1], self.freqs):
-				phi_t += 2 * np.sum((fluct * np.exp(1j * freq * t)).real)
+				phi_t += float(2 * np.sum((fluct * np.exp(1j * freq * t)).real))
 		if self.traj["type"] == 'gc':
 			return phi_t
-		elif self.traj["type"] == 'fo': 
-			vx, vy = self.get_velocities(z)
-			return np.sum(self.rho / (4 * np.abs(self.eta)) * (vx**2 + vy**2) + phi_t * np.sign(self.eta) / self.rho)
-        
-	def y_dot(self, t: float, z: Array, output: Literal['full', 'reduced'] = 'full') -> Array | None:
+		else:
+			velocities = self.get_velocities(z)
+			if velocities is None:
+				raise RuntimeError("Full-orbit velocities are unavailable.")
+			vx, vy = velocities
+			return float(np.sum(self.rho / (4 * np.abs(self.eta)) * (vx**2 + vy**2) + phi_t * np.sign(self.eta) / self.rho))
+
+	def y_dot(self, t: float, z: Array, output: Literal['full', 'reduced'] = 'full') -> Array:
 		x, y = self.get_positions(z)
 		dphidx_c, dphidy_c = self.phic_interp(x, y, dx=1), self.phic_interp(x, y, dy=1)
-		dphidx_t, dphidy_t = (dphidx_c[0], dphidy_c[0]) if dphidx_c[0] is not None else (np.zeros_like(x), np.zeros_like(y))
+		if dphidx_c[0] is not None:
+			if dphidy_c[0] is None:
+				raise RuntimeError("Inconsistent mean-field derivatives.")
+			dphidx_t, dphidy_t = dphidx_c[0], dphidy_c[0]
+		else:
+			dphidx_t, dphidy_t = np.zeros_like(x), np.zeros_like(y)
 		if dphidx_c[1] is not None:
+			if dphidy_c[1] is None:
+				raise RuntimeError("Inconsistent fluctuation derivatives.")
 			for fluct_x, fluct_y, freq in zip(dphidx_c[1], dphidy_c[1], self.freqs):
 				phases = 2.0 * np.exp(1j * freq * t)
 				dphidx_t += (fluct_x * phases).real
 				dphidy_t += (fluct_y * phases).real
 		if self.traj["type"] == 'gc' or output == 'reduced':
 			return np.concatenate((-dphidy_t, dphidx_t), axis=None)
-		elif self.traj["type"] == 'fo':
-			vx, vy = self.get_velocities(z)
+		else:
+			velocities = self.get_velocities(z)
+			if velocities is None:
+				raise RuntimeError("Full-orbit velocities are unavailable.")
+			vx, vy = velocities
 			return np.concatenate((vx * self.v_fo, vy * self.v_fo, -dphidx_t * self.phi_fo\
 						   + vy * self.omlar, -dphidy_t * self.phi_fo - vx * self.omlar), axis=None)
 
 	def y_dot_lyap(self, t: float, z: Array) -> Array:
 		if self.traj["type"] == 'fo':
-			x, y, vx, vy, *J = np.split(z, 20)
+			x, y, vx, vy, *jacobian_parts = np.split(z, 20)
 			z = np.concatenate((x, y, vx, vy), axis=None)
-			J = np.array(J).reshape((4, 4, -1))
-		if self.traj["type"] == 'gc':
-			x, y, *J = np.split(z, 6)
+			jacobian = np.array(jacobian_parts).reshape((4, 4, -1))
+		else:
+			x, y, *jacobian_parts = np.split(z, 6)
 			z = np.concatenate((x, y), axis=None)
-			J = np.array(J).reshape((2, 2, -1))
+			jacobian = np.array(jacobian_parts).reshape((2, 2, -1))
 		z_dot = self.y_dot(t, z)
 		d2phidx2_c = self.phic_interp(x, y, dx=2) 
 		d2phidxdy_c = self.phic_interp(x, y, dx=1, dy=1)
 		d2phidy2_c = self.phic_interp(x, y, dy=2)
 		if d2phidx2_c[0] is not None:
+			if d2phidxdy_c[0] is None or d2phidy2_c[0] is None:
+				raise RuntimeError("Inconsistent second derivatives for the mean field.")
 			d2phidx2_t, d2phidxdy_t, d2phidy2_t = d2phidx2_c[0], d2phidxdy_c[0], d2phidy2_c[0]
 		else:
 			d2phidx2_t, d2phidxdy_t, d2phidy2_t = np.zeros_like(x), np.zeros_like(y), np.zeros_like(y)
 		if d2phidx2_c[1] is not None:
+			if d2phidxdy_c[1] is None or d2phidy2_c[1] is None:
+				raise RuntimeError("Inconsistent second derivatives for fluctuations.")
 			for fluct_xx, fluct_xy, fluct_yy, freq in zip(d2phidx2_c[1], d2phidxdy_c[1], d2phidy2_c[1], self.freqs):
 				phase = 2 * np.exp(1j * freq * t)
 				d2phidx2_t += (fluct_xx * phase).real
 				d2phidxdy_t += (fluct_xy * phase).real
 				d2phidy2_t += (fluct_yy * phase).real
-		A = np.zeros_like(J)
+		A = np.zeros_like(jacobian)
 		if self.traj["type"] == 'fo':
 			d2phidx2_t *= -self.phi_fo
 			d2phidxdy_t *= -self.phi_fo
@@ -176,16 +204,16 @@ class PotentialSystem(HamSys, Potential):
 		if self.traj["type"] == 'gc':
 			A[0, 0, :], A[0, 1, :] = -d2phidxdy_t, -d2phidy2_t
 			A[1, 0, :], A[1, 1, :] = d2phidx2_t, d2phidxdy_t
-		J_dot = np.einsum('ijm,jkm->ikm', A, J)
+		J_dot = np.einsum('ijm,jkm->ikm', A, jacobian)
 		return np.concatenate((z_dot, J_dot.reshape(-1)), axis=None)
 
 	def k_dot(self, t: float, z: Array) -> float | Array:
 		x, y = self.get_positions(z)
 		phi_c = self.phic_interp(x, y)
-		dphidt_t = 0
+		dphidt_t = 0.0
 		if phi_c[1] is not None:
 			for fluct, freq in zip(phi_c[1], self.freqs):
-				dphidt_t += 2 * freq * np.sum((fluct * np.exp(1j * freq * t)).imag)
+				dphidt_t += float(2 * freq * np.sum((fluct * np.exp(1j * freq * t)).imag))
 		if self.traj["type"] == 'fo':
 			dphidt_t *= -self.phi_fo
 		return dphidt_t

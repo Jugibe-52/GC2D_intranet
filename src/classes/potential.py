@@ -28,18 +28,37 @@
 import numpy as np
 import os
 from numpy.fft import fft2, ifft2, fftfreq
-from typing import Any, Sequence
+from typing import Sequence, TypeAlias
 os.environ.setdefault("MPLCONFIGDIR", ".matplotlib")
 from scipy.interpolate import RectBivariateSpline
 from scipy.special import jv
 
-Array = np.ndarray
-FieldList = list[Array | list[Array] | None]
-InterpolatorList = list[Any]
+from contracts import Array
+
+FieldList: TypeAlias = tuple[Array | None, list[Array] | None]
+FieldInput: TypeAlias = Sequence[Array | Sequence[Array] | None]
+ComplexInterpolator: TypeAlias = tuple[RectBivariateSpline, RectBivariateSpline]
+InterpolatorList: TypeAlias = tuple[RectBivariateSpline | None, list[ComplexInterpolator] | None]
 
 
 def real_imag(z: Array) -> tuple[Array, Array]:
 	return z.real, z.imag
+
+
+def normalize_fields(fields: FieldInput) -> FieldList:
+	"""Validate and normalize the heterogeneous public field input."""
+	if len(fields) != 2:
+		raise ValueError("`fields` must contain [mean_value, fluctuations].")
+	mean_value, raw_fluctuations = fields
+	if mean_value is not None and not isinstance(mean_value, np.ndarray):
+		raise TypeError("The mean field must be a NumPy array or None.")
+	if raw_fluctuations is None:
+		fluctuations = None
+	elif isinstance(raw_fluctuations, np.ndarray):
+		fluctuations = [np.asarray(field) for field in raw_fluctuations]
+	else:
+		fluctuations = [np.asarray(field) for field in raw_fluctuations]
+	return mean_value, fluctuations
 
 
 class Potential:
@@ -47,7 +66,7 @@ class Potential:
 		self,
 		x: Array,
 		y: Array,
-		fields: FieldList,
+		fields: FieldInput,
 		freqs: Sequence[float] | Array,
 		nx: int | None = None,
 		ny: int | None = None,
@@ -64,17 +83,33 @@ class Potential:
 			raise ValueError("Values in `x` or `y` are not properly sorted.")
 		if not np.allclose(diff_x, diff_x[0]) or not np.allclose(diff_y, diff_y[0]):
 			raise ValueError("Values in `x` or `y` are not uniformly spaced.")
-		if not len(fields) == 2:
-			raise ValueError("`fields` must be a list of two elements: [meanvalue, fluctuations].")
+		fields_ = normalize_fields(fields)
+		expected_shape = (x.size, y.size)
+		if fields_[0] is not None and fields_[0].shape != expected_shape:
+			raise ValueError(f"Mean field has shape {fields_[0].shape}, expected {expected_shape}.")
+		if fields_[1] is not None:
+			for index, field in enumerate(fields_[1]):
+				if field.shape != expected_shape:
+					raise ValueError(f"Fluctuation {index} has shape {field.shape}, expected {expected_shape}.")
+			if len(fields_[1]) != self.freqs.size:
+				raise ValueError(
+					f"Received {len(fields_[1])} fluctuations for {self.freqs.size} frequencies."
+				)
 		self.xy_period = xy_period
 		self.kinterp = k
+		if not 1 <= k <= 5:
+			raise ValueError("`k` must be between 1 and 5 for RectBivariateSpline.")
 		if nx is not None or ny is not None:
-			xi = np.linspace(x.min(), x.max(), nx)
-			yi = np.linspace(y.min(), y.max(), ny)
-			interpolators = self._build_interpolators(x, y, fields)
+			target_nx = x.size if nx is None else nx
+			target_ny = y.size if ny is None else ny
+			if target_nx < 2 or target_ny < 2:
+				raise ValueError("`nx` and `ny` must be at least 2.")
+			xi = np.linspace(x.min(), x.max(), target_nx)
+			yi = np.linspace(y.min(), y.max(), target_ny)
+			interpolators = self._build_interpolators(x, y, fields_)
 			fields = self.resample_fields(xi, yi, interpolators)
 		else:
-			xi, yi = x, y
+			xi, yi, fields = x, y, fields_
 		self.x, self.y, self.fields = xi, yi, fields
 		self.dx, self.dy = self.x[1] - self.x[0], self.y[1] - self.y[0]
 		self.xmin, self.xmax, self.ymin, self.ymax = self.x.min(), self.x.max(), self.y.min(), self.y.max()
@@ -91,7 +126,7 @@ class Potential:
 			for field in fields[1]:
 				gyro_field = ifft2(fft2(field) * jv(0, 2 * np.pi * rho * np.sqrt(kx_**2 + ky_**2))) 
 				fluctuations.append(gyro_field)
-		return [mean_value, fluctuations]
+		return mean_value, fluctuations
 
 	def _interpolation_grid(self, x: Array, y: Array) -> tuple[Array, Array, tuple[int, int]]:
 		kl, kr = self.kinterp + 1, self.kinterp + 2 if  self.xy_period is not None else self.kinterp + 1
@@ -110,23 +145,23 @@ class Potential:
 		x_, y_, padding = self._interpolation_grid(x, y)
 		mean_value, fluctuations = None, None
 		if fields[0] is not None:
-			fields_ = self._pad_field(fields[0], padding)
-			mean_value = RectBivariateSpline(x_, y_, fields_, kx=self.kinterp, ky=self.kinterp)
+			padded_mean = self._pad_field(fields[0], padding)
+			mean_value = RectBivariateSpline(x_, y_, padded_mean, kx=self.kinterp, ky=self.kinterp)
 		if fields[1] is not None:
-			fields_ = [self._pad_field(field, padding) for field in fields[1]]
+			padded_fluctuations = [self._pad_field(field, padding) for field in fields[1]]
 			fluctuations = []
-			for field in fields_:
+			for field in padded_fluctuations:
 				interp_real = RectBivariateSpline(x_, y_, field.real, kx=self.kinterp, ky=self.kinterp)
 				interp_imag = RectBivariateSpline(x_, y_, field.imag, kx=self.kinterp, ky=self.kinterp)
 				fluctuations.append((interp_real, interp_imag))
-		return [mean_value, fluctuations]
+		return mean_value, fluctuations
 
 	def resample_fields(self, xi: Array, yi: Array, interpolators: InterpolatorList) -> FieldList:
 		mean_value, fluctuations = None, None
-		if interpolators[0]:
+		if interpolators[0] is not None:
 			mean_value = interpolators[0](xi, yi)
-		if interpolators[1]:
+		if interpolators[1] is not None:
 			fluctuations = []
 			for (interp_real, interp_imag) in interpolators[1]:
 				fluctuations.append(interp_real(xi, yi) + 1j * interp_imag(xi, yi))
-		return [mean_value, fluctuations]
+		return mean_value, fluctuations

@@ -1,18 +1,18 @@
 import logging
 import time
-from typing import Any
 
 import numpy as np
 from pyhamsys import solve_ivp_symp, solve_ivp_sympext
 
 from config_logging import simulation_label
+from classes.fourier_system import FourierSystem
 from workflows.export import save_data
 from workflows.plotting import plot_symplectic_poincare
 
 logger = logging.getLogger(__name__)
 
 
-def run_method(system: Any) -> None:
+def run_method(system: FourierSystem) -> None:
 	logger.info("Starting case: %s", simulation_label(system.DictParams))
 	start = time.time()
 	y0 = system.initial_conditions(type=system.init)

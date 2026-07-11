@@ -1,5 +1,5 @@
 import logging
-from typing import Any
+from collections.abc import Mapping
 
 from classes.fourier_system import FourierSystem
 from classes.simulation_result import SimulationResult
@@ -9,7 +9,7 @@ from workflows.integration import integrate_simulation
 logger = logging.getLogger(__name__)
 
 
-def run_workflow(case: FourierSystem | dict[str, Any], plot: bool = True, save: bool = True) -> SimulationResult:
+def run_workflow(case: FourierSystem | Mapping[str, object], plot: bool = True, save: bool = True) -> SimulationResult:
 	logger.info("Running notebook case: plot=%s save=%s", plot, save)
 	result = integrate_simulation(case)
 	method = getattr(result.system, 'Method', result.system.DictParams.get('Method', ''))

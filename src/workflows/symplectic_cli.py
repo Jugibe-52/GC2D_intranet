@@ -6,6 +6,7 @@ import multiprocess
 from classes.fourier_system import FourierSystem
 from config import DEFAULT_CONFIG_VERSION, load_fourier_config
 from config_logging import configure_logging
+from contracts import FourierParams
 from workflows.symplectic_legacy import run_method
 
 logger = logging.getLogger(__name__)
@@ -21,7 +22,7 @@ def parse_args() -> argparse.Namespace:
 	return parser.parse_args()
 
 
-def _run_legacy_case(params: dict) -> None:
+def _run_legacy_case(params: FourierParams) -> None:
 	run_method(FourierSystem(params))
 
 

@@ -1,10 +1,13 @@
 import logging
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib.axes import Axes
+from matplotlib.figure import Figure
 from matplotlib.ticker import FormatStrFormatter, MultipleLocator
+from pyhamsys import OdeSolution
 
 if TYPE_CHECKING:
 	from classes.fourier_system import FourierSystem
@@ -15,10 +18,10 @@ logger = logging.getLogger(__name__)
 @dataclass
 class SimulationResult:
 	system: "FourierSystem"
-	sol: Any
+	sol: OdeSolution
 	elapsed: float
-	fig: Any = None
-	ax: Any = None
+	fig: Figure | None = None
+	ax: Axes | None = None
 
 	def _get_xy_trayectorys(self) -> tuple[np.ndarray, np.ndarray]:
 		n_traj = int(self.system.Ntraj)
@@ -51,12 +54,12 @@ class SimulationResult:
 	def plot_poincare(
 		self,
 		modulo: bool | None = None,
-		ax: Any = None,
+		ax: Axes | None = None,
 		grid: bool | None = None,
 		decimal_grid: bool = False,
 		grid_step: float = 0.5,
 		**plot_kwargs: Any,
-	) -> tuple[Any, Any]:
+	) -> tuple[Figure, Axes]:
 		system = self.system
 		logger.info(
 			"Plotting Poincare section: traj=%s modulo=%s",
@@ -66,7 +69,7 @@ class SimulationResult:
 		if ax is None:
 			fig, ax = plt.subplots(1, 1, figsize=(6, 6))
 		else:
-			fig = ax.figure
+			fig = cast(Figure, ax.figure)
 		x, y = self.get_plot_trayectorys(modulo=modulo)
 		use_modulo = getattr(system, 'modulo', False) if modulo is None else modulo
 		use_grid = getattr(system, 'grid', False) if grid is None else grid
@@ -78,7 +81,10 @@ class SimulationResult:
 				ax.set_yticks([0, np.pi, 2 * np.pi])
 				ax.set_xticklabels(['0', r'$\pi$', r'$2\pi$'])
 				ax.set_yticklabels(['0', r'$\pi$', r'$2\pi$'])
-		default_kwargs = {'markersize': 3 if system.traj_type == 'gc' else 1, 'markeredgecolor': 'none'}
+		default_kwargs: dict[str, Any] = {
+			'markersize': 3 if system.traj_type == 'gc' else 1,
+			'markeredgecolor': 'none',
+		}
 		default_kwargs.update(plot_kwargs)
 		ax.plot(x, y, '.', **default_kwargs)
 		if decimal_grid:

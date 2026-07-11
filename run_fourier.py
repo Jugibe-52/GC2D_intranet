@@ -8,7 +8,6 @@
 import os
 import sys
 from pathlib import Path
-from typing import Any
 import argparse
 
 os.environ.setdefault("MPLCONFIGDIR", ".matplotlib")
@@ -19,6 +18,7 @@ import multiprocess
 
 from config import DEFAULT_CONFIG_GROUP, DEFAULT_CONFIG_VERSION, load_fourier_config
 from config_logging import configure_logging, simulation_label
+from contracts import FourierParams
 from workflows_api import run_workflow, save_data
 
 import logging
@@ -26,7 +26,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-def _run_workflow(params: dict[str, Any]) -> None:
+def _run_workflow(params: FourierParams) -> None:
 	logger.info("Starting case: %s", simulation_label(params))
 	result = run_workflow(params, plot=params.get('PlotResults', False), save=False)
 	logger.info("Finished case in %.2f seconds: %s", result.elapsed, simulation_label(params))

@@ -6,7 +6,7 @@ import logging
 import os
 import sys
 from pathlib import Path
-from typing import Any
+from collections.abc import Mapping
 
 DEFAULT_LOG_FORMAT = "%(asctime)s | %(levelname)-8s | %(processName)s | %(name)s | %(message)s"
 DEFAULT_DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
@@ -43,7 +43,7 @@ def configure_logging(level: str | None = None, log_file: str | Path | None = No
 	logging.getLogger(__name__).debug("Logging configured: level=%s file=%s", level_name, file_path or "stdout only")
 
 
-def simulation_label(params: dict[str, Any]) -> str:
+def simulation_label(params: Mapping[str, object]) -> str:
 	"""Return a compact label for log messages about one parameter set."""
 	return (
 		f"method={params.get('Method', 'unknown')} "

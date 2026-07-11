@@ -26,28 +26,31 @@ def extract_potential(
 	expected_shape = (len(freqs), len(y), len(x))
 	if fields.shape != expected_shape:
 		raise ValueError(f"Shape of `fields` in {filename} is {fields.shape}, but expected {expected_shape}.")
+	# HDF5 stores every plane as (y, x), while RectBivariateSpline expects
+	# the field axes in the same order as its coordinate arguments: (x, y).
+	fields = np.transpose(fields, (0, 2, 1))
 	mean_value = None
-	fluctuations = fields
+	fluctuation_array = fields
 	zero_mask = np.isclose(freqs, 0, atol=1e-5)
 	if zero_mask.any():
 		idx_zero = np.where(zero_mask)[0]
 		if idx_zero.size > 0:
 			mean_value = fields[idx_zero[0]].real
 		freqs = np.delete(freqs, idx_zero)
-		fluctuations = np.delete(fields, idx_zero, axis=0)
+		fluctuation_array = np.delete(fields, idx_zero, axis=0)
 	if np.any(freqs < 0):
 		idx_neg = np.where(freqs < 0)[0]
 		freqs = np.delete(freqs, idx_neg)
-		fluctuations = np.delete(fluctuations, idx_neg, axis=0)
-	amplitudes = np.ptp(fluctuations, axis=(1, 2))
+		fluctuation_array = np.delete(fluctuation_array, idx_neg, axis=0)
+	amplitudes = np.ptp(fluctuation_array, axis=(1, 2))
 	sort_indices = np.argsort(amplitudes)[::-1]
 	freqs = freqs[sort_indices]
-	fluctuations = fluctuations[sort_indices]
+	fluctuation_array = fluctuation_array[sort_indices]
 	if len(freqs) > 0:
 		omega = 2 * np.pi * freqs[0]
 		scaling_factor = omega * B
-		if fluctuations.size > 0:
-			fluctuations /= scaling_factor
+		if fluctuation_array.size > 0:
+			fluctuation_array /= scaling_factor
 		if mean_value is not None:
 			mean_value /= scaling_factor
 	if indx is None:
@@ -59,9 +62,9 @@ def extract_potential(
 	mean_value = mean_value if 0 in indx else None
 	indx = indx[indx != 0] - 1
 	freqs = freqs[indx]
-	fluctuations = fluctuations[indx]
+	fluctuation_array = fluctuation_array[indx]
 	if freqs.size > 0:
-		fluctuations = fluctuations.astype(np.complex128)
+		fluctuations: Array | None = fluctuation_array.astype(np.complex128)
 	else:
 		fluctuations = None
 	if denoising and fluctuations is not None:
