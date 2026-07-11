@@ -124,6 +124,20 @@ class Potential:
 		self.nx, self.ny = self.x.size, self.y.size
 		self.interpolators = self._build_interpolators(self.x, self.y, self.fields)
 
+	def __str__(self) -> str:
+		"""Return a compact summary suitable for notebooks and logs."""
+		mean_value, fluctuations = self.fields
+		frequencies = np.array2string(self.freqs, precision=5, threshold=8, edgeitems=3)
+		boundary = f'periodic (period={self.xy_period:g})' if self.xy_period is not None else 'zero-padded'
+		return (
+			'Potential(\n'
+			f'  grid={self.nx} x {self.ny}, dx={self.dx:g}, dy={self.dy:g},\n'
+			f'  x=[{self.xmin:g}, {self.xmax:g}], y=[{self.ymin:g}, {self.ymax:g}],\n'
+			f'  mean_field={mean_value is not None}, modes={0 if fluctuations is None else len(fluctuations)},\n'
+			f'  freqs={frequencies}, interpolation_order={self.kinterp}, boundary={boundary}\n'
+			')'
+		)
+
 	def gyroaverage(self, rho: float, fields: FieldList) -> FieldList:
 		kx, ky = fftfreq(self.nx, d=self.dx), fftfreq(self.ny, d=self.dy)
 		kx_, ky_ = np.meshgrid(kx, ky, indexing='ij')
@@ -274,6 +288,7 @@ class Potential:
 		interval: int = 50,
 		cmap: str = 'RdBu_r',
 		repeat: bool = True,
+		title: str | None = None,
 		**pcolormesh_kwargs: Any,
 	) -> FuncAnimation:
 		"""Animate the total physical potential reconstructed in time."""
@@ -284,6 +299,7 @@ class Potential:
 			interval=interval,
 			cmap=cmap,
 			repeat=repeat,
+			title=title,
 			**pcolormesh_kwargs,
 		)
 
@@ -307,6 +323,7 @@ def _animate_potential(
 	interval: int = 50,
 	cmap: str = 'RdBu_r',
 	repeat: bool = True,
+	title: str | None = None,
 	**pcolormesh_kwargs: Any,
 ) -> FuncAnimation:
 	"""Implement :meth:`Potential.animate` outside the data model."""
@@ -344,8 +361,11 @@ def _animate_potential(
 	)
 	fig.colorbar(mesh, ax=ax, label=r'$\phi$')
 	ax.set(xlabel='x', ylabel='y', aspect='equal')
-	is_effective = bool(getattr(potential, 'rho', 0))
-	name = 'Effective guiding-center potential' if is_effective else 'Potential'
+	if title is None:
+		is_effective = bool(getattr(potential, 'rho', 0))
+		name = 'Effective guiding-center potential' if is_effective else 'Potential'
+	else:
+		name = title
 
 	def update(index: int) -> tuple[Any, ...]:
 		mesh.set_array(potential.field_at_time(times[index]).T)

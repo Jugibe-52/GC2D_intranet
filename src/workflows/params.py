@@ -35,7 +35,10 @@ def to_symp_params(raw_params: Mapping[str, object]) -> FourierParams:
 	if traj_type not in {'gc', 'fo'}:
 		raise ValueError(f"Cannot infer trajectory type from Method={method!r}.")
 	params['traj_type'] = traj_type
-	params.setdefault('eta', params.get('rho', 0))
+	# eta controls the higher-order effective-potential correction.  It is
+	# independent of the Larmor radius rho, so omitted GC configurations start
+	# with the leading-order (eta = 0) model.
+	params.setdefault('eta', 0)
 	if traj_type == 'fo' and params['eta'] == 0:
 		raise ValueError("Full-orbit integrations require a non-zero `eta` parameter.")
 	params.setdefault('init', 'fixed')
