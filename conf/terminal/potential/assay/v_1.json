@@ -13,6 +13,7 @@
 				],
 				"nx": 128,
 				"ny": 128,
+				"k": 5,
 				"denoising": false,
 				"sigma": 1,
 				"mock": {
@@ -25,7 +26,6 @@
 				"type": "gc",
 				"rho": 0,
 				"eta": 0,
-				"k": 5,
 				"Ntraj": 20,
 				"init": "random"
 			},

@@ -247,6 +247,7 @@ class PotentialConfig:
 	ny: int | None = None
 	denoising: bool = False
 	sigma: float = 1
+	k: int = 3
 	mock: dict[str, Any] = field(default_factory=dict)
 
 	def build(self) -> Potential:
@@ -261,6 +262,7 @@ class PotentialConfig:
 				ny=self.ny,
 				denoising=self.denoising,
 				sigma=self.sigma,
+				k=self.k,
 			)
 		if self.type == "hdf5":
 			raise ConfigError(f"Potential file {self.path} does not exist.")
@@ -271,6 +273,7 @@ class PotentialConfig:
 			self.nx or mock.get("nx", 128),
 			self.ny or mock.get("ny", 128),
 			seed=mock.get("seed", 27),
+			k=self.k,
 		)
 
 
@@ -294,7 +297,7 @@ class PotentialRunConfig:
 			"rho": self.trajectory.get("rho", 0),
 			"eta": self.trajectory.get("eta", 0),
 		}
-		return PotentialSystem(potential, traj, k=self.trajectory.get("k", 3))
+		return PotentialSystem(potential, traj)
 
 	def initial_condition_count(self) -> int:
 		return int(self.trajectory.get("Ntraj", 20))
@@ -358,6 +361,7 @@ def load_potential_config(
 		indx=potential_payload.get("indx"),
 		nx=potential_payload.get("nx"),
 		ny=potential_payload.get("ny"),
+		k=potential_payload.get("k", 3),
 		denoising=potential_payload.get("denoising", False),
 		sigma=potential_payload.get("sigma", 1),
 		mock=potential_payload.get("mock", {}),

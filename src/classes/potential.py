@@ -71,8 +71,8 @@ class Potential:
 		if nx is not None or ny is not None:
 			xi = np.linspace(x.min(), x.max(), nx)
 			yi = np.linspace(y.min(), y.max(), ny)
-			interpolators = self.interpolate(x, y, fields)
-			fields = self.interp_fields(xi, yi, interpolators)
+			interpolators = self._build_interpolators(x, y, fields)
+			fields = self.resample_fields(xi, yi, interpolators)
 		else:
 			xi, yi = x, y
 		self.x, self.y, self.fields = xi, yi, fields
@@ -93,19 +93,27 @@ class Potential:
 				fluctuations.append(gyro_field)
 		return [mean_value, fluctuations]
 
-	def interpolate(self, x: Array, y: Array, fields: FieldList) -> InterpolatorList:
+	def _interpolation_grid(self, x: Array, y: Array) -> tuple[Array, Array, tuple[int, int]]:
 		kl, kr = self.kinterp + 1, self.kinterp + 2 if  self.xy_period is not None else self.kinterp + 1
 		dx, dy = x[1] - x[0], y[1] - y[0]
 		xmin, xmax, ymin, ymax = x.min(), x.max(), y.min(), y.max()
 		x_ = np.pad(x, (kl, kr), mode='linear_ramp', end_values=(xmin - kl * dx, xmax + kr * dx))
 		y_ = np.pad(y, (kl, kr), mode='linear_ramp', end_values=(ymin - kl * dy, ymax + kr * dy))
+		return x_, y_, (kl, kr)
+
+	def _pad_field(self, field: Array, padding: tuple[int, int]) -> Array:
 		kwargs = {'mode': 'wrap'} if self.xy_period else {'mode': 'constant', 'constant_values': 0}
+		return np.pad(field, (padding, padding), **kwargs)
+
+	def _build_interpolators(self, x: Array, y: Array, fields: FieldList) -> InterpolatorList:
+		"""Build spline interpolators using this potential's boundary policy."""
+		x_, y_, padding = self._interpolation_grid(x, y)
 		mean_value, fluctuations = None, None
 		if fields[0] is not None:
-			fields_ = np.pad(fields[0], ((kl, kr), (kl, kr)), **kwargs)
+			fields_ = self._pad_field(fields[0], padding)
 			mean_value = RectBivariateSpline(x_, y_, fields_, kx=self.kinterp, ky=self.kinterp)
 		if fields[1] is not None:
-			fields_ = [np.pad(field, ((kl, kr), (kl, kr)), **kwargs) for field in fields[1]]
+			fields_ = [self._pad_field(field, padding) for field in fields[1]]
 			fluctuations = []
 			for field in fields_:
 				interp_real = RectBivariateSpline(x_, y_, field.real, kx=self.kinterp, ky=self.kinterp)
@@ -113,7 +121,7 @@ class Potential:
 				fluctuations.append((interp_real, interp_imag))
 		return [mean_value, fluctuations]
 
-	def interp_fields(self, xi: Array, yi: Array, interpolators: InterpolatorList) -> FieldList:
+	def resample_fields(self, xi: Array, yi: Array, interpolators: InterpolatorList) -> FieldList:
 		mean_value, fluctuations = None, None
 		if interpolators[0]:
 			mean_value = interpolators[0](xi, yi)

@@ -16,6 +16,7 @@ def extract_potential(
 	ny: int | None = None,
 	denoising: bool = False,
 	sigma: float = 1,
+	k: int = 3,
 ) -> Potential:
 	with h5py.File(filename, 'r') as f:
 		x = np.asarray(f['Rcells'][()])
@@ -71,10 +72,10 @@ def extract_potential(
 		])
 	if denoising and mean_value is not None:
 		mean_value = ndimage.gaussian_filter(mean_value, sigma=sigma)
-	return Potential(x, y, [mean_value, fluctuations], freqs, nx=nx, ny=ny)
+	return Potential(x, y, [mean_value, fluctuations], freqs, nx=nx, ny=ny, k=k)
 
 
-def mock_potential(A: float, M: int, nx: int, ny: int, seed: int = 27) -> Potential:
+def mock_potential(A: float, M: int, nx: int, ny: int, seed: int = 27, k: int = 3) -> Potential:
 	x = np.linspace(0, 2 * np.pi, nx, endpoint=False)
 	y = np.linspace(0, 2 * np.pi, ny, endpoint=False)
 	X, Y = np.meshgrid(x, y, indexing='ij')
@@ -85,4 +86,4 @@ def mock_potential(A: float, M: int, nx: int, ny: int, seed: int = 27) -> Potent
 	fft_phic[1:, 1:] = A / (nm[0][1:, 1:]**2 + nm[1][1:, 1:]**2)**1.5 * np.exp(1j * phases)
 	fft_phic[np.sqrt(nm[0]**2 + nm[1]**2) > M] = 0
 	exp_xy = np.exp(1j * (nm[0][:, :, None, None] * X[None, None, :, :] + nm[1][:, :, None, None] * Y[None, None, :, :]))
-	return Potential(x, y, [None, [np.einsum('nm,nm...->...', fft_phic, exp_xy)]], freqs=[-1], xy_period=2 * np.pi)
+	return Potential(x, y, [None, [np.einsum('nm,nm...->...', fft_phic, exp_xy)]], freqs=[-1], xy_period=2 * np.pi, k=k)

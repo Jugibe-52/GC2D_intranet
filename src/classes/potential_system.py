@@ -39,18 +39,21 @@ class PotentialSystem(HamSys, Potential):
 	def __str__(self) -> str:
 		return f'2D Guiding Center ({self.__class__.__name__}) for turbulent potentials'
 		
-	def __init__(self, potential: Potential, traj: dict[str, Any], k: int = 3) -> None:
+	def __init__(self, potential: Potential, traj: dict[str, Any]) -> None:
 		super().__init__(ndof=1.5 if traj["type"]=='gc' else 2.5)
 		self.traj = traj
 		self.rho = traj["rho"] if "rho" in traj else 0
 		self.eta = traj["eta"] if "eta" in traj else 0
-		if min(k * potential.dx, k * potential.dy) < self.rho:
-			raise ValueError(f"Interpolation order {k} is too low for rho = {self.rho}. Increase k or decrease rho.")
+		if min(potential.kinterp * potential.dx, potential.kinterp * potential.dy) < self.rho:
+			raise ValueError(
+				f"Interpolation order {potential.kinterp} is too low for rho = {self.rho}. "
+				"Increase k or decrease rho."
+			)
 		for key, value in vars(potential).items():
 			setattr(self, key, value)
 		if self.rho != 0:
 			self.fields = self.gyroaverage(self.rho, self.fields)
-		self.interpolators = self.interpolate(self.x, self.y, self.fields)
+		self.interpolators = self._build_interpolators(self.x, self.y, self.fields)
 		if self.traj["type"] == 'fo':
 			self.v_fo = self.rho / (2 * np.abs(self.eta))
 			self.phi_fo = np.sign(self.eta) / self.rho

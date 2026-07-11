@@ -45,7 +45,7 @@ Potential -> PotentialSystem
 1. `run_potential.py` configura imports, logging y argumentos CLI.
 2. Carga la configuracion con `load_potential_config`.
 3. `PotentialConfig.build()` carga un HDF5 con `extract_potential` o genera uno con `mock_potential`.
-4. `PotentialRunConfig.build_system()` construye `PotentialSystem(potential, traj, k=...)`.
+4. `PotentialRunConfig.build_system()` construye `PotentialSystem(potential, traj)`; el orden de interpolacion `k` pertenece a `potential`.
 5. Genera condiciones iniciales con `hs.initial_conditions(...)`.
 6. Integra:
    - `traj_type == "gc"` usa `solve_ivp_sympext(hs, ...)`.
