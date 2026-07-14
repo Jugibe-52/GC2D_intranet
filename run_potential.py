@@ -70,7 +70,8 @@ def main() -> None:
 	time_step = float(pyhamsys_config.get("TimeStep", 2e-2))
 	ode_solver = pyhamsys_config.get("ode_solver", "BM4")
 	check_energy = bool(pyhamsys_config.get("CheckEnergy", True))
-	t_eval = 2 * np.pi * np.arange(n_max)
+	save_step = 2 * np.pi
+	t_final = save_step * (n_max - 1)
 
 	# lyap = hs.compute_lyapunov(2 * np.pi * n_max, z0, reortho_dt=1, tol=1e-10, solver='RK45')
 	# print(lyap)
@@ -79,9 +80,9 @@ def main() -> None:
 	logger.info("Starting integration: n_max=%d time_step=%s solver=%s", n_max, time_step, ode_solver)
 	start = time.time()
 	if traj_type == "gc":
-		sol = solve_ivp_sympext(hs, (t_eval.min(), t_eval.max()), z0, step=time_step, t_eval=t_eval, method=ode_solver, check_energy=check_energy)
+		sol = solve_ivp_sympext(hs, (0, t_final), z0, step=time_step, save_step=save_step, method=ode_solver, check_energy=check_energy)
 	else:
-		sol = solve_ivp_symp(hs.chi, hs.chi_star, (t_eval.min(), t_eval.max()), z0, step=time_step, t_eval=t_eval, method=ode_solver)
+		sol = solve_ivp_symp(hs.chi, hs.chi_star, (0, t_final), z0, step=time_step, save_step=save_step, method=ode_solver)
 		sol = hs.rectify_sol(sol, check_energy=check_energy)
 	logger.info("Finished integration in %.2f seconds; solution shape=%s", time.time() - start, sol.y.shape)
 	if hasattr(sol, "err"):

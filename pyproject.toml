@@ -12,7 +12,6 @@ dependencies = [
 	"numpy==1.26.4",
 	"matplotlib==3.10.9",
 	"scipy==1.17.1",
-	"pyhamsys==0.31",
 	"h5py==3.16.0",
 	"multiprocess==0.70.19",
 	"scikit-learn==1.8.0",
@@ -21,7 +20,7 @@ dependencies = [
 
 [tool.setuptools]
 package-dir = {"" = "src"}
-packages = ["classes", "workflows"]
+packages = ["classes", "workflows", "pyhamsys"]
 py-modules = [
 	"config",
 	"classes_api",

@@ -20,35 +20,37 @@ def integrate_simulation(case: FourierSystem | Mapping[str, object]) -> Simulati
 	system = ensure_system(case)
 	y0 = system.initial_conditions(type=system.init)
 	logger.info("Initial conditions ready: shape=%s init=%s", y0.shape, system.init)
-	t_eval = 2 * np.pi * np.arange(0, system.Tf + 1)
+	save_step = 2 * np.pi
+	t_final = save_step * system.Tf
+	sample_count = system.Tf + 1
 	logger.info(
 		"Starting integration: %s solver=%s step=%s samples=%d",
 		simulation_label(system.DictParams),
 		system.ode_solver,
 		system.TimeStep,
-		len(t_eval),
+		sample_count,
 	)
 	start = time.time()
 	if system.traj_type == 'gc':
 		logger.info("%sUsing guiding-center integrator: solve_ivp_sympext%s", GREEN, RESET)
 		logger.info(
 			"%ssolve_ivp_sympext parameters: t_span=%s y0_shape=%s step=%s "
-			"t_eval_shape=%s method=%s check_energy=%s%s",
+			"save_step=%s method=%s check_energy=%s%s",
 			GREEN,
-			(0, t_eval.max()),
+			(0, t_final),
 			y0.shape,
 			system.TimeStep,
-			t_eval.shape,
+			save_step,
 			system.ode_solver,
 			system.CheckEnergy,
 			RESET,
 		)
 		sol = solve_ivp_sympext(
 			system,
-			(0, t_eval.max()),
+			(0, t_final),
 			y0,
 			step=system.TimeStep,
-			t_eval=t_eval,
+			save_step=save_step,
 			method=system.ode_solver,
 			check_energy=system.CheckEnergy,
 		)
@@ -57,10 +59,10 @@ def integrate_simulation(case: FourierSystem | Mapping[str, object]) -> Simulati
 		sol = solve_ivp_symp(
 			system.chi,
 			system.chi_star,
-			(0, t_eval.max()),
+			(0, t_final),
 			y0,
 			step=system.TimeStep,
-			t_eval=t_eval,
+			save_step=save_step,
 			method=system.ode_solver,
 		)
 		sol = system.rectify_sol(sol, check_energy=system.CheckEnergy)

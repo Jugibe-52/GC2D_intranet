@@ -17,15 +17,16 @@ def run_method(system: FourierSystem) -> None:
 	start = time.time()
 	y0 = system.initial_conditions(type=system.init)
 	logger.info("Initial conditions ready: shape=%s init=%s", y0.shape, system.init)
-	t_eval = 2 * np.pi * np.arange(0, system.Tf + 1)
-	logger.info("Starting integration: solver=%s step=%s samples=%d", system.ode_solver, system.TimeStep, len(t_eval))
+	save_step = 2 * np.pi
+	t_final = save_step * system.Tf
+	logger.info("Starting integration: solver=%s step=%s samples=%d", system.ode_solver, system.TimeStep, system.Tf + 1)
 	if system.traj_type == 'gc':
 		sol = solve_ivp_sympext(
 			system,
-			(0, t_eval.max()),
+			(0, t_final),
 			y0,
 			step=system.TimeStep,
-			t_eval=t_eval,
+			save_step=save_step,
 			method=system.ode_solver,
 			check_energy=system.CheckEnergy,
 		)
@@ -33,10 +34,10 @@ def run_method(system: FourierSystem) -> None:
 		sol = solve_ivp_symp(
 			system.chi,
 			system.chi_star,
-			(0, t_eval.max()),
+			(0, t_final),
 			y0,
 			step=system.TimeStep,
-			t_eval=t_eval,
+			save_step=save_step,
 			method=system.ode_solver,
 		)
 		sol = system.rectify_sol(sol, check_energy=system.CheckEnergy)

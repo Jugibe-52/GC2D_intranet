@@ -57,7 +57,7 @@ Este bloque separa lo que controla directamente la llamada a `pyhamsys` del rest
 
 | Campo | Tipo | Usado por | Descripcion |
 |---|---:|---|---|
-| `TimeStep` | `float` | `solve_ivp_sympext`, `solve_ivp_symp` | Paso temporal enviado como `step`. |
+| `TimeStep` | `float` | `solve_ivp_sympext`, `solve_ivp_symp` | Paso interno maximo enviado como `step`; la cadencia de guardado se configura por separado con `save_step=2*pi`. |
 | `ode_solver` | `str` | `solve_ivp_sympext`, `solve_ivp_symp` | Metodo simplectico enviado como `method`, por ejemplo `"BM4"`. |
 | `CheckEnergy` | `bool` | `solve_ivp_sympext`, `rectify_sol` | Activa la comprobacion energetica/autonomizacion cuando aplica. |
 
