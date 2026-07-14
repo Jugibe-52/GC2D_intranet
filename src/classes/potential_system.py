@@ -25,8 +25,9 @@
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-import time
 import os
+import logging
+import time
 from typing import Any, Literal, Sequence
 
 os.environ.setdefault("MPLCONFIGDIR", ".matplotlib")
@@ -40,6 +41,8 @@ from pyhamsys import HamSys
 
 from contracts import TrajectoryParams
 from .potential import Array, Potential, real_imag
+
+logger = logging.getLogger(__name__)
 
 class PotentialSystem(Potential, HamSys):
 	"""Particle dynamics over an independent, optionally gyroaveraged Potential."""
@@ -159,6 +162,29 @@ class PotentialSystem(Potential, HamSys):
 		"""Evaluate the physical, ungyroaveraged potential :math:`\\phi`."""
 		return self._phi.field_at_time(t, x, y, dx=dx, dy=dy, dt=dt)
 
+	def electric_field(
+		self,
+		t: float,
+		x: Array | None = None,
+		y: Array | None = None,
+		*,
+		effective: bool = True,
+	) -> tuple[Array, Array]:
+		"""Evaluate :math:`\\mathbf{E}=-\\nabla\\psi` or :math:`-\\nabla\\phi` and log it."""
+		if x is None and y is None:
+			x, y = np.meshgrid(self.x, self.y, indexing='ij')
+		elif x is None or y is None:
+			raise ValueError("`x` and `y` must be provided together.")
+		potential = self.psi if effective else self.phi
+		field_name = "generalized (psi)" if effective else "physical (phi)"
+		logger.debug(
+			"Calculating %s electric field at t=%g (position shape=%s)",
+			field_name,
+			t,
+			np.shape(x),
+		)
+		return -potential(t, x, y, dx=1), -potential(t, x, y, dy=1)
+
 	@staticmethod
 	def _comparison_norm(*fields: Array) -> mcolors.Normalize:
 		"""Return one colour normalization shared by phi and psi plots."""
@@ -220,8 +246,8 @@ class PotentialSystem(Potential, HamSys):
 		phi_t, psi_t = self.phi(t), self.psi(t)
 		X, Y = np.meshgrid(self.x, self.y, indexing='ij')
 		fields = (
-			(-self.phi(t, X, Y, dx=1), -self.phi(t, X, Y, dy=1)),
-			(-self.psi(t, X, Y, dx=1), -self.psi(t, X, Y, dy=1)),
+			self.electric_field(t, X, Y, effective=False),
+			self.electric_field(t, X, Y),
 		)
 		max_magnitude = max(float(np.nanmax(np.hypot(Ex, Ey))) for Ex, Ey in fields)
 		scale = None if np.isclose(max_magnitude, 0.0) else max_magnitude / (2 * min(self.dx, self.dy))
@@ -302,8 +328,8 @@ class PotentialSystem(Potential, HamSys):
 		times = np.linspace(0.0, t_max, frames, endpoint=False)
 		X, Y = np.meshgrid(self.x, self.y, indexing='ij')
 		phi_fields, psi_fields = [self.phi(t) for t in times], [self.psi(t) for t in times]
-		phi_electric = [(-self.phi(t, X, Y, dx=1), -self.phi(t, X, Y, dy=1)) for t in times]
-		psi_electric = [(-self.psi(t, X, Y, dx=1), -self.psi(t, X, Y, dy=1)) for t in times]
+		phi_electric = [self.electric_field(t, X, Y, effective=False) for t in times]
+		psi_electric = [self.electric_field(t, X, Y) for t in times]
 		max_magnitude = max(
 			float(np.nanmax(np.hypot(Ex, Ey)))
 			for fields in (phi_electric, psi_electric)
@@ -360,7 +386,7 @@ class PotentialSystem(Potential, HamSys):
 		times = np.linspace(0.0, t_max, frames, endpoint=False)
 		X, Y = np.meshgrid(self.x, self.y, indexing='ij')
 		psi_fields = [self.psi(t) for t in times]
-		electric_fields = [(-self.psi(t, X, Y, dx=1), -self.psi(t, X, Y, dy=1)) for t in times]
+		electric_fields = [self.electric_field(t, X, Y) for t in times]
 		max_magnitude = max(float(np.nanmax(np.hypot(Ex, Ey))) for Ex, Ey in electric_fields)
 		scale = None if np.isclose(max_magnitude, 0.0) else max_magnitude / (2 * min(self.dx, self.dy))
 		norm = self._comparison_norm(*psi_fields)
@@ -416,6 +442,13 @@ class PotentialSystem(Potential, HamSys):
 			raise ValueError('`frames` must be at least 2.')
 		if not isinstance(frame_stride, (int, np.integer)) or frame_stride < 1:
 			raise ValueError('`frame_stride` must be a positive integer.')
+		logger.info(
+			"Preparing trajectory animation: solution_shape=%s samples=%d time_range=[%g, %g]",
+			states_all.shape,
+			times_all.size,
+			times_all[0],
+			times_all[-1],
+		)
 		frame_indices = np.arange(0, times_all.size, frame_stride, dtype=int)
 		if frame_indices[-1] != times_all.size - 1:
 			frame_indices = np.append(frame_indices, times_all.size - 1)
@@ -425,6 +458,17 @@ class PotentialSystem(Potential, HamSys):
 		times = times_all[frame_indices]
 		x_all, y_all = self.get_positions(states_all)
 		x_all, y_all = self.wrap_or_clip(x_all, y_all)
+		logger.info(
+			"Animation data selected: trajectories=%d frames=%d stride=%d "
+			"x_range=[%g, %g] y_range=[%g, %g]",
+			x_all.shape[0],
+			times.size,
+			frame_stride,
+			float(np.nanmin(x_all)),
+			float(np.nanmax(x_all)),
+			float(np.nanmin(y_all)),
+			float(np.nanmax(y_all)),
+		)
 		line_x, line_y = x_all.copy(), y_all.copy()
 		if self.xy_period is not None:
 			crosses_boundary = (
@@ -436,8 +480,35 @@ class PotentialSystem(Potential, HamSys):
 			line_x[:, 1:][crosses_boundary] = np.nan
 			line_y[:, 1:][crosses_boundary] = np.nan
 		X, Y = np.meshgrid(self.x, self.y, indexing='ij')
+		logger.info(
+			"Field source used by the animation: psi is evaluated from PotentialSystem.psi(t) "
+			"(the effective/gyroaveraged potential stored in the system), not from solution.y; "
+			"E=(Ex, Ey) is calculated by PotentialSystem.electric_field(t, X, Y) as "
+			"(-dpsi/dx, -dpsi/dy). Evaluations use solution.t[frame_indices] on the system "
+			"grid X,Y with shape=%s, x_range=[%g, %g], y_range=[%g, %g]; "
+			"the quiver displays every %d grid points",
+			X.shape,
+			float(self.x[0]),
+			float(self.x[-1]),
+			float(self.y[0]),
+			float(self.y[-1]),
+			step,
+		)
 		psi_fields = [self.psi(t) for t in times]
-		electric_fields = [(-self.psi(t, X, Y, dx=1), -self.psi(t, X, Y, dy=1)) for t in times]
+		electric_fields = [self.electric_field(t, X, Y) for t in times]
+		n_trajectories = x_all.shape[0]
+		x_rows = f"0:{n_trajectories}"
+		y_rows = f"{n_trajectories}:{2 * n_trajectories}"
+		logger.info(
+			"Solution values used by the animation: frame_indices=%s; solution.t[frame_indices]=%s; "
+			"solution.y[%s, frame_indices] -> x=%s; solution.y[%s, frame_indices] -> y=%s",
+			np.array2string(frame_indices),
+			np.array2string(times, precision=6),
+			x_rows,
+			np.array2string(states_all[:n_trajectories, frame_indices], precision=6),
+			y_rows,
+			np.array2string(states_all[n_trajectories:2 * n_trajectories, frame_indices], precision=6),
+		)
 		max_magnitude = max(float(np.nanmax(np.hypot(Ex, Ey))) for Ex, Ey in electric_fields)
 		scale = None if np.isclose(max_magnitude, 0.0) else max_magnitude / (2 * min(self.dx, self.dy))
 		norm = self._comparison_norm(*psi_fields)
@@ -469,6 +540,13 @@ class PotentialSystem(Potential, HamSys):
 		update(0)
 		animation = FuncAnimation(fig, update, frames=times.size, interval=interval, blit=False, repeat=repeat)
 		plt.close(fig)
+		logger.info(
+			"Trajectory animation ready in memory: frames=%d interval_ms=%d repeat=%s; "
+			"render or save the returned FuncAnimation to produce the output",
+			times.size,
+			interval,
+			repeat,
+		)
 		return animation
 
 	def plot_psi(
@@ -545,20 +623,18 @@ class PotentialSystem(Potential, HamSys):
 	def y_dot(self, t: float, z: Array, output: Literal['full', 'reduced'] = 'full') -> Array:
 		x, y = self.get_positions(z)
 		if self.traj["type"] == 'gc':
-			dpsidx_t = self.psi(t, x, y, dx=1)
-			dpsidy_t = self.psi(t, x, y, dy=1)
-			return np.concatenate((-dpsidy_t, dpsidx_t), axis=None)
-		dphidx_t = self.field_at_time(t, x, y, dx=1)
-		dphidy_t = self.field_at_time(t, x, y, dy=1)
+			ex_t, ey_t = self.electric_field(t, x, y)
+			return np.concatenate((ey_t, -ex_t), axis=None)
+		ex_t, ey_t = self.electric_field(t, x, y, effective=False)
 		if output == 'reduced':
-			return np.concatenate((-dphidy_t, dphidx_t), axis=None)
+			return np.concatenate((ey_t, -ex_t), axis=None)
 		else:
 			velocities = self.get_velocities(z)
 			if velocities is None:
 				raise RuntimeError("Full-orbit velocities are unavailable.")
 			vx, vy = velocities
-			return np.concatenate((vx * self.v_fo, vy * self.v_fo, -dphidx_t * self.phi_fo\
-						   + vy * self.omlar, -dphidy_t * self.phi_fo - vx * self.omlar), axis=None)
+			return np.concatenate((vx * self.v_fo, vy * self.v_fo, ex_t * self.phi_fo\
+						   + vy * self.omlar, ey_t * self.phi_fo - vx * self.omlar), axis=None)
 
 	def y_dot_lyap(self, t: float, z: Array) -> Array:
 		if self.traj["type"] == 'fo':
