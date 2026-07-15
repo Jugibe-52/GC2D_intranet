@@ -4,6 +4,7 @@
 """Extended-phase-space symplectic solver."""
 
 from functools import lru_cache
+import sys
 from typing import Union
 
 import numpy as xp
@@ -11,7 +12,13 @@ from numpy.typing import ArrayLike
 
 from ..solution import OdeSolution
 from ..system import HamSys
-from ._common import StepCallback
+from ._common import (
+	StepCallback,
+	_build_integration_targets,
+	_build_output_times,
+	_step_count,
+	_validate_solver_inputs,
+)
 from .symplectic import solve_ivp_symp
 
 
@@ -29,18 +36,52 @@ _COUPLING_SIN = xp.array(
 )
 
 
+class _ProgressBar:
+	"""Small dependency-free progress bar for long integrations."""
+
+	def __init__(self, total: int, every: int = 100) -> None:
+		self.total = max(total, 1)
+		self.every = every
+		self.steps = 0
+		self._closed = False
+
+	def update(self, t: float, _y: xp.ndarray) -> None:
+		self.steps += 1
+		if self.steps % self.every and self.steps < self.total:
+			return
+		fraction = min(self.steps / self.total, 1.0)
+		width = 30
+		filled = int(width * fraction)
+		bar = "=" * filled
+		if filled < width:
+			bar += ">" + " " * (width - filled - 1)
+		print(
+			f"\rsolve_ivp_sympext [{bar}] {fraction:6.1%} "
+			f"({self.steps}/{self.total} steps, t={t:.6g})",
+			end="",
+			file=sys.stderr,
+			flush=True,
+		)
+
+	def close(self) -> None:
+		if not self._closed:
+			print(file=sys.stderr, flush=True)
+			self._closed = True
+
+
 def solve_ivp_sympext(
 	hs: HamSys,
-	t_span: ArrayLike,
 	y0: ArrayLike,
 	step: float,
+	t_span: ArrayLike = (0, 6.283185307179586),
 	t_eval: Union[ArrayLike, None] = None,
 	method: str = 'BM4',
 	omega: float = 10,
 	command: Union[StepCallback, None] = None,
 	check_energy: bool = False,
 	*,
-	save_step: Union[float, None] = None,
+	save_step: Union[float, None] = 6.283185307179586/240,
+	progress: bool = False,
 ) -> OdeSolution:
 	"""
 	Solve an initial value problem for a Hamiltonian system using an explicit
@@ -96,6 +137,9 @@ def solve_ivp_sympext(
 		Function to be run at each step size.
 	check_energy : bool, optional
 		If True, computes the total energy. Default is False.
+	progress : bool, optional
+		If True, displays a dynamic progress bar on stderr, refreshed every
+		100 internal steps. Default is False.
 
 	Returns
 	-------
@@ -167,17 +211,39 @@ def solve_ivp_sympext(
 	y_ = xp.tile(initial_state, 2)
 	if check_energy_:
 		y_ = xp.concatenate((y_, xp.zeros(len(initial_state)//(2*hs._ndof) )), axis=None)
-	sol = solve_ivp_symp(
-		_chi_ext,
-		_chi_ext_star,
-		t_span,
-		y_,
-		method=method,
-		step=step,
-		save_step=save_step,
-		t_eval=t_eval,
-		command=command,
-	)
+	progress_bar = None
+	progress_command = command
+	if progress:
+		inputs = _validate_solver_inputs(t_span, y_, step, save_step, t_eval)
+		output_times = _build_output_times(inputs)
+		targets = _build_integration_targets(output_times, inputs.tf)
+		total_steps = sum(
+			_step_count(float(target - start), inputs.max_step)
+			for start, target in zip(targets[:-1], targets[1:])
+			if target != start
+		)
+		progress_bar = _ProgressBar(total_steps)
+
+		def progress_command(t: float, state: xp.ndarray) -> None:
+			progress_bar.update(t, state)
+			if command is not None:
+				command(t, state)
+
+	try:
+		sol = solve_ivp_symp(
+			_chi_ext,
+			_chi_ext_star,
+			t_span,
+			y_,
+			method=method,
+			step=step,
+			save_step=save_step,
+			t_eval=t_eval,
+			command=progress_command,
+		)
+	finally:
+		if progress_bar is not None:
+			progress_bar.close()
 	y_ = hs._split(sol.y, by_var=True, check_energy=check_energy_)
 	sol.y = xp.concatenate(((y_[0] + y_[2]) / 2, (y_[1] + y_[3]) / 2), axis=0)
 	if check_energy_:
@@ -185,4 +251,3 @@ def solve_ivp_sympext(
 	if check_energy:
 		sol.err = hs.compute_energy(sol)
 	return sol
-

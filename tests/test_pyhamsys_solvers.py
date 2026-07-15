@@ -1,8 +1,12 @@
 import unittest
+from types import SimpleNamespace
+from typing import cast
 
 import numpy as np
+from matplotlib.animation import FuncAnimation
 from numpy.typing import ArrayLike
 
+from classes import Potential, PotentialSystem
 from pyhamsys import HamSys, OdeSolution, solve_ivp_symp, solve_ivp_sympext
 from pyhamsys.solvers import _step_count
 
@@ -256,6 +260,188 @@ class SolveIvpSympTests(unittest.TestCase):
 
         np.testing.assert_array_equal(sol.t, [0.05, 0.1])
         self.assertEqual(sol.y.shape, (2, 2))
+
+
+class PotentialSystemAreaTests(unittest.TestCase):
+    @staticmethod
+    def make_system(*, periodic: bool = False) -> PotentialSystem:
+        period = 2 * np.pi
+        coordinates = np.linspace(0.0, period, 8, endpoint=not periodic)
+        potential = Potential(
+            coordinates,
+            coordinates,
+            [np.zeros((8, 8)), None],
+            freqs=[],
+            xy_period=period if periodic else None,
+            k=3,
+        )
+        return PotentialSystem(potential, {'type': 'gc', 'rho': 0.0, 'eta': 0.0})
+
+    def test_square_initial_conditions_are_centred_and_counter_clockwise(self) -> None:
+        system = self.make_system()
+
+        initial = system.guiding_center_square_initial_conditions(side=1.0)
+        x, y = system.get_positions(initial)
+
+        centre_x = (system.xmin + system.xmax) / 2
+        centre_y = (system.ymin + system.ymax) / 2
+        np.testing.assert_allclose(x, [centre_x, centre_x + 1, centre_x + 1, centre_x])
+        np.testing.assert_allclose(y, [centre_y, centre_y, centre_y + 1, centre_y + 1])
+
+    def test_hamiltonian_preserves_trajectory_and_time_axes(self) -> None:
+        coordinates = np.linspace(0.0, 2 * np.pi, 8)
+        system = PotentialSystem(
+            Potential(
+                coordinates,
+                coordinates,
+                [np.ones((8, 8)), None],
+                freqs=[],
+                k=3,
+            ),
+            {'type': 'gc', 'rho': 0.0, 'eta': 0.0},
+        )
+        states = np.array([
+            [1.0, 1.2, 1.4],
+            [2.0, 2.2, 2.4],
+            [3.0, 3.2, 3.4],
+            [4.0, 4.2, 4.4],
+        ])
+
+        energy = system.hamiltonian(np.array([0.0, 0.5, 1.0]), states)
+
+        self.assertEqual(energy.shape, (2, 3))
+
+    def test_area_element_is_preserved_by_shear(self) -> None:
+        system = self.make_system()
+        solution = SimpleNamespace(
+            t=np.array([0.0, 0.5, 1.0]),
+            y=np.array([
+                [1.0, 1.0, 1.0],
+                [1.1, 1.1, 1.1],
+                [1.0, 1.1, 1.2],
+                [1.0, 1.0, 1.0],
+                [1.0, 1.0, 1.0],
+                [1.2, 1.2, 1.2],
+            ]),
+        )
+
+        area = system.guiding_center_area_element(solution)
+
+        np.testing.assert_allclose(area, 0.02)
+
+    def test_area_element_uses_minimum_periodic_displacement(self) -> None:
+        system = self.make_system(periodic=True)
+        self.assertIsNotNone(system.xy_period)
+        period = cast(float, system.xy_period)
+        solution = SimpleNamespace(
+            t=np.array([0.0, 1.0]),
+            y=np.array([
+                [period - 0.05, period - 0.05],
+                [0.05, 0.05],
+                [period - 0.05, period - 0.05],
+                [period - 0.05, period - 0.05],
+                [period - 0.05, period - 0.05],
+                [0.15, 0.15],
+            ]),
+        )
+
+        area = system.guiding_center_area_element(solution)
+
+        np.testing.assert_allclose(area, 0.02)
+
+    def test_polygon_area_is_preserved_by_shear(self) -> None:
+        system = self.make_system()
+        solution = SimpleNamespace(
+            t=np.array([0.0, 0.5, 1.0]),
+            y=np.array([
+                [1.0, 1.0, 1.0],
+                [2.0, 2.0, 2.0],
+                [2.0, 2.25, 2.5],
+                [1.0, 1.25, 1.5],
+                [1.0, 1.0, 1.0],
+                [1.0, 1.0, 1.0],
+                [2.0, 2.0, 2.0],
+                [2.0, 2.0, 2.0],
+            ]),
+        )
+
+        area = system.guiding_center_polygon_area(solution)
+
+        np.testing.assert_allclose(area, 1.0)
+
+    def test_square_boundary_can_use_more_than_four_points(self) -> None:
+        system = self.make_system()
+
+        initial = system.guiding_center_square_initial_conditions(
+            side=1.0,
+            lower_left=(1.0, 1.0),
+            points_per_side=3,
+        )
+        x, _ = system.get_positions(initial)
+
+        self.assertEqual(x.size, 12)
+
+    def test_area_animation_is_created(self) -> None:
+        system = self.make_system()
+        solution = SimpleNamespace(
+            t=np.array([0.0, 0.5, 1.0]),
+            y=np.array([
+                [1.0, 1.0, 1.0],
+                [1.1, 1.1, 1.1],
+                [1.0, 1.1, 1.2],
+                [1.0, 1.0, 1.0],
+                [1.0, 1.0, 1.0],
+                [1.2, 1.2, 1.2],
+            ]),
+        )
+
+        animation = system.animate_electric_psi_area_conservation(
+            solution,
+            frame_stride=2,
+            step=1,
+            repeat=False,
+        )
+        setattr(animation, '_draw_was_started', True)
+
+        self.assertIsInstance(animation, FuncAnimation)
+
+    def test_polygon_area_animation_is_created(self) -> None:
+        system = self.make_system()
+        initial = system.guiding_center_square_initial_conditions(
+            side=1.0,
+            lower_left=(1.0, 1.0),
+            points_per_side=2,
+        )
+        solution = SimpleNamespace(
+            t=np.array([0.0, 1.0]),
+            y=np.column_stack((initial, initial)),
+        )
+
+        animation = system.animate_electric_psi_area_conservation(
+            solution,
+            step=1,
+            repeat=False,
+        )
+        setattr(animation, '_draw_was_started', True)
+
+        self.assertIsInstance(animation, FuncAnimation)
+
+    def test_area_animation_rejects_zero_initial_area(self) -> None:
+        system = self.make_system()
+        solution = SimpleNamespace(
+            t=np.array([0.0, 1.0]),
+            y=np.array([
+                [1.0, 1.0],
+                [1.1, 1.1],
+                [1.2, 1.2],
+                [1.0, 1.0],
+                [1.0, 1.0],
+                [1.0, 1.0],
+            ]),
+        )
+
+        with self.assertRaisesRegex(ValueError, 'must be non-zero'):
+            system.animate_electric_psi_area_conservation(solution)
 
 
 if __name__ == "__main__":
