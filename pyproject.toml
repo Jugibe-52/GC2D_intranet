@@ -20,7 +20,7 @@ dependencies = [
 
 [tool.setuptools]
 package-dir = {"" = "src"}
-packages = ["classes", "workflows", "pyhamsys"]
+packages = ["classes", "workflows", "pyhamsys", "pyhamsys.solvers"]
 py-modules = [
 	"config",
 	"classes_api",
