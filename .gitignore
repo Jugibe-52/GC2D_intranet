@@ -1,4 +1,5 @@
 *test*
+notebooks/*
 !notebooks/experiments/
 !notebooks/experiments/**
 *.mat
