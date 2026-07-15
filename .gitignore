@@ -1,4 +1,6 @@
 *test*
+!notebooks/experiments/
+!notebooks/experiments/**
 *.mat
 *.pyc
 *.pyc
