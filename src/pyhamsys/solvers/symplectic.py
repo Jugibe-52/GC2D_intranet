@@ -27,19 +27,15 @@ def solve_ivp_symp(
     t_span: ArrayLike,
     y0: ArrayLike,
     step: float,
-    t_eval: Union[ArrayLike, None] = None,
     method: str = "BM4",
     command: Union[StepCallback, None] = None,
     *,
-    save_step: Union[float, None] = None,
+    n_save_step: int = 241,
 ) -> OdeSolution:
     """Solve a Hamiltonian initial-value problem by symplectic splitting.
 
-    ``step`` is the maximum internal step size. ``save_step`` defines a regular
-    storage cadence independent from integration accuracy. If ``t_eval`` is
-    supplied instead, the solver lands exactly on each requested time and
-    stores only those states. ``save_step`` and ``t_eval`` are mutually
-    exclusive. Without either one, every internal step is stored.
+    ``step`` is the maximum internal step size. ``n_save_step`` stores exactly
+    that many uniformly distributed states, including both ends of ``t_span``.
 
     ``chi`` and ``chi_star`` receive ``(h, t, y)`` and must return a state with
     the same shape as ``y``. The optional ``command`` callback runs after each
@@ -56,7 +52,7 @@ def solve_ivp_symp(
     if command is not None and not callable(command):
         raise TypeError("`command` must be callable or None.")
 
-    inputs = _validate_solver_inputs(t_span, y0, step, save_step, t_eval)
+    inputs = _validate_solver_inputs(t_span, y0, step, n_save_step)
     output_times = _build_output_times(inputs)
     integration_targets = _build_integration_targets(output_times, inputs.tf)
     integrator = SymplecticIntegrator(method)
@@ -110,4 +106,3 @@ def solve_ivp_symp(
         max_step=largest_step,
         n_steps=n_steps,
     )
-

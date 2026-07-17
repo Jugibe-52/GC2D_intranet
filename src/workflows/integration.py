@@ -20,8 +20,8 @@ def integrate_simulation(case: FourierSystem | Mapping[str, object]) -> Simulati
 	system = ensure_system(case)
 	y0 = system.initial_conditions(type=system.init)
 	logger.info("Initial conditions ready: shape=%s init=%s", y0.shape, system.init)
-	save_step = 2 * np.pi
-	t_final = save_step * system.Tf
+	period = 2 * np.pi
+	t_final = period * system.Tf
 	sample_count = system.Tf + 1
 	logger.info(
 		"Starting integration: %s solver=%s step=%s samples=%d",
@@ -35,22 +35,22 @@ def integrate_simulation(case: FourierSystem | Mapping[str, object]) -> Simulati
 		logger.info("%sUsing guiding-center integrator: solve_ivp_sympext%s", GREEN, RESET)
 		logger.info(
 			"%ssolve_ivp_sympext parameters: t_span=%s y0_shape=%s step=%s "
-			"save_step=%s method=%s check_energy=%s%s",
+			"n_save_step=%s method=%s check_energy=%s%s",
 			GREEN,
 			(0, t_final),
 			y0.shape,
 			system.TimeStep,
-			save_step,
+			sample_count,
 			system.ode_solver,
 			system.CheckEnergy,
 			RESET,
 		)
 		sol = solve_ivp_sympext(
 			system,
-			(0, t_final),
 			y0,
 			step=system.TimeStep,
-			save_step=save_step,
+			t_span=(0, t_final),
+			n_save_step=sample_count,
 			method=system.ode_solver,
 			check_energy=system.CheckEnergy,
 		)
@@ -62,7 +62,7 @@ def integrate_simulation(case: FourierSystem | Mapping[str, object]) -> Simulati
 			(0, t_final),
 			y0,
 			step=system.TimeStep,
-			save_step=save_step,
+			n_save_step=sample_count,
 			method=system.ode_solver,
 		)
 		sol = system.rectify_sol(sol, check_energy=system.CheckEnergy)

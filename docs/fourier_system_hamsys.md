@@ -73,10 +73,10 @@ Se usa para `traj_type="gc"`:
 ```python
 sol = solve_ivp_sympext(
     system,
-    (0, 2 * np.pi * system.Tf),
     y0,
     step=system.TimeStep,
-    save_step=2 * np.pi,
+    t_span=(0, 2 * np.pi * system.Tf),
+    n_save_step=system.Tf + 1,
     method=system.ode_solver,
     check_energy=system.CheckEnergy,
 )
@@ -101,7 +101,7 @@ sol = solve_ivp_symp(
     (0, 2 * np.pi * system.Tf),
     y0,
     step=system.TimeStep,
-    save_step=2 * np.pi,
+    n_save_step=system.Tf + 1,
     method=system.ode_solver,
 )
 sol = system.rectify_sol(sol, check_energy=system.CheckEnergy)
@@ -114,11 +114,11 @@ Aqui no se pasa el objeto completo, sino dos mapas de flujo:
 
 Estos mapas aplican los subflujos exactos que componen el esquema simplectico.
 
-En ambos integradores, `step` controla el paso interno maximo y `save_step`
-controla por separado la cadencia de los estados almacenados. Para las
-secciones de Poincare del proyecto se guarda un estado cada periodo `2*pi`.
-Como alternativa, `t_eval` permite solicitar tiempos explicitos y es
-mutuamente excluyente con `save_step`.
+En ambos integradores, `step` controla el paso interno maximo y
+`n_save_step` fija el numero de estados almacenados. Esos estados se
+distribuyen uniformemente, incluidos los extremos, desde el inicio hasta el
+final de `t_span`. Para las secciones de Poincare del proyecto se usan
+`system.Tf + 1` muestras en `2*pi * system.Tf`.
 
 ## `FourierSystem`
 

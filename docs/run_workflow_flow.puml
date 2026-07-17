@@ -79,11 +79,12 @@ partition "integrate_simulation(system)" {
     endif
   }
 
-  :t_eval = 2*pi*arange(0, Tf + 1);
+  :t_span = (0, 2*pi*Tf);
+  :n_save_step = Tf + 1;
   :start timer;
 
   if (system.traj_type == "gc"?) then (gc)
-    :solve_ivp_sympext(\n system,\n (0, t_eval.max()),\n y0,\n step=TimeStep,\n t_eval=t_eval,\n method=ode_solver,\n check_energy=CheckEnergy\n);
+    :solve_ivp_sympext(\n system,\n y0,\n step=TimeStep,\n t_span=t_span,\n n_save_step=n_save_step,\n method=ode_solver,\n check_energy=CheckEnergy\n);
     note right
       pyhamsys calls the HamSys interface
       implemented by FourierSystem:
@@ -91,7 +92,7 @@ partition "integrate_simulation(system)" {
       hamiltonian()
     end note
   else (fo)
-    :solve_ivp_symp(\n system.chi,\n system.chi_star,\n (0, t_eval.max()),\n y0,\n step=TimeStep,\n t_eval=t_eval,\n method=ode_solver\n);
+    :solve_ivp_symp(\n system.chi,\n system.chi_star,\n t_span,\n y0,\n step=TimeStep,\n n_save_step=n_save_step,\n method=ode_solver\n);
     :system.rectify_sol(sol,\n check_energy=CheckEnergy);
     note right
       Full-orbit integration uses

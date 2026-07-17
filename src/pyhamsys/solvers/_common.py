@@ -21,16 +21,14 @@ class _SolverInputs:
     tf: float
     state: xp.ndarray
     max_step: float
-    save_step: Union[float, None]
-    t_eval: Union[xp.ndarray, None]
+    n_save_step: int
 
 
 def _validate_solver_inputs(
     t_span: ArrayLike,
     y0: ArrayLike,
     step: float,
-    save_step: Union[float, None],
-    t_eval: Union[ArrayLike, None],
+    n_save_step: int,
 ) -> _SolverInputs:
     """Normalize solver inputs and reject invalid integration domains."""
     try:
@@ -59,48 +57,19 @@ def _validate_solver_inputs(
     if not xp.all(xp.isfinite(state)):
         raise ValueError("`y0` must contain only finite values.")
 
-    normalized_save_step: Union[float, None] = None
-    if save_step is not None:
-        if t_eval is not None:
-            raise ValueError("`save_step` and `t_eval` are mutually exclusive.")
-        try:
-            normalized_save_step = float(save_step)
-        except (TypeError, ValueError) as exc:
-            raise ValueError("`save_step` must be a positive finite number.") from exc
-        if not xp.isfinite(normalized_save_step) or normalized_save_step <= 0:
-            raise ValueError("`save_step` must be a positive finite number.")
-
-    if t_eval is None:
-        return _SolverInputs(
-            t0=t0,
-            tf=tf,
-            state=state,
-            max_step=max_step,
-            save_step=normalized_save_step,
-            t_eval=None,
-        )
-
-    try:
-        eval_times = xp.asarray(t_eval, dtype=float)
-    except (TypeError, ValueError) as exc:
-        raise ValueError("`t_eval` must be a one-dimensional sequence of finite times.") from exc
-    if eval_times.ndim != 1:
-        raise ValueError("`t_eval` must be 1-dimensional.")
-    if eval_times.size == 0:
-        raise ValueError("`t_eval` must contain at least one time.")
-    if not xp.all(xp.isfinite(eval_times)):
-        raise ValueError("`t_eval` must contain only finite times.")
-    if xp.any(eval_times < t0) or xp.any(eval_times > tf):
-        raise ValueError("Values in `t_eval` are not within `t_span`.")
-    if xp.any(xp.diff(eval_times) <= 0):
-        raise ValueError("Values in `t_eval` are not properly sorted.")
+    if not isinstance(n_save_step, (int, xp.integer)) or isinstance(n_save_step, bool):
+        raise ValueError("`n_save_step` must be a positive integer.")
+    normalized_n_save_step = int(n_save_step)
+    if normalized_n_save_step < 1:
+        raise ValueError("`n_save_step` must be a positive integer.")
+    if t0 != tf and normalized_n_save_step < 2:
+        raise ValueError("`n_save_step` must be at least 2 for a non-empty time interval.")
     return _SolverInputs(
         t0=t0,
         tf=tf,
         state=state,
         max_step=max_step,
-        save_step=None,
-        t_eval=eval_times,
+        n_save_step=normalized_n_save_step,
     )
 
 
@@ -112,34 +81,9 @@ def _step_count(duration: float, max_step: float) -> int:
     return max(1, math.ceil(math.nextafter(ratio, -math.inf)))
 
 
-def _regular_output_times(t0: float, tf: float, interval: float) -> xp.ndarray:
-    """Return a regular grid including both endpoints."""
-    if t0 == tf:
-        return xp.asarray([t0], dtype=float)
-
-    duration = tf - t0
-    regular_count = int(math.floor(duration / interval))
-    times = t0 + xp.arange(regular_count + 1, dtype=float) * interval
-    endpoint_tolerance = max(
-        math.ulp(tf),
-        math.ulp(float(times[-1])),
-        math.ulp(interval),
-    )
-    if math.isclose(float(times[-1]), tf, rel_tol=0.0, abs_tol=endpoint_tolerance):
-        times[-1] = tf
-    elif times[-1] < tf:
-        times = xp.append(times, tf)
-    else:
-        times[-1] = tf
-    return times
-
-
 def _build_output_times(inputs: _SolverInputs) -> xp.ndarray:
-    """Create exact output times for automatic or user-supplied sampling."""
-    if inputs.t_eval is not None:
-        return inputs.t_eval.copy()
-    interval = inputs.save_step or inputs.max_step
-    return _regular_output_times(inputs.t0, inputs.tf, interval)
+    """Create uniformly distributed output times including both endpoints."""
+    return xp.asarray(xp.linspace(inputs.t0, inputs.tf, inputs.n_save_step))
 
 
 def _build_integration_targets(output_times: xp.ndarray, tf: float) -> xp.ndarray:
@@ -197,4 +141,3 @@ def _integrate_to_target(
         if command is not None:
             command(t, y)
     return target, y, internal_step, count
-

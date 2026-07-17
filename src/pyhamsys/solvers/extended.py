@@ -34,8 +34,6 @@ _COUPLING_SIN = xp.array(
     [[0, -1, 0, 1], [1, 0, -1, 0], [0, 1, 0, -1], [-1, 0, 1, 0]],
     dtype=float,
 )
-
-
 class _ProgressBar:
 	"""Small dependency-free progress bar for long integrations."""
 
@@ -74,13 +72,12 @@ def solve_ivp_sympext(
 	y0: ArrayLike,
 	step: float,
 	t_span: ArrayLike = (0, 6.283185307179586),
-	t_eval: Union[ArrayLike, None] = None,
 	method: str = 'BM4',
 	omega: float = 10,
 	command: Union[StepCallback, None] = None,
 	check_energy: bool = False,
 	*,
-	save_step: Union[float, None] = 6.283185307179586/240,
+	n_save_step: int = 241,
 	progress: bool = False,
 ) -> OdeSolution:
 	"""
@@ -122,12 +119,9 @@ def solve_ivp_sympext(
 		initial momenta.
 	step : float
 		Maximum internal step size.
-	save_step : float or None, optional
-		Regular interval between stored states. Mutually exclusive with `t_eval`.
-	t_eval : array_like or None, optional
-		Times at which to store the computed solution. They must be strictly
-		increasing and lie within `t_span`. If None (default), use points
-		selected by the solver.
+	n_save_step : int, optional
+		Exact number of uniformly distributed stored states, including both ends
+		of `t_span`.
 	method : string, optional
         Integration methods are listed on https://pypi.org/project/pyhamsys/
 		'BM4' is the default.
@@ -214,7 +208,7 @@ def solve_ivp_sympext(
 	progress_bar = None
 	progress_command = command
 	if progress:
-		inputs = _validate_solver_inputs(t_span, y_, step, save_step, t_eval)
+		inputs = _validate_solver_inputs(t_span, y_, step, n_save_step)
 		output_times = _build_output_times(inputs)
 		targets = _build_integration_targets(output_times, inputs.tf)
 		total_steps = sum(
@@ -237,8 +231,7 @@ def solve_ivp_sympext(
 			y_,
 			method=method,
 			step=step,
-			save_step=save_step,
-			t_eval=t_eval,
+			n_save_step=n_save_step,
 			command=progress_command,
 		)
 	finally:
