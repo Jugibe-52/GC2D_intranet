@@ -69,6 +69,66 @@ def normalize_fields(fields: FieldInput) -> FieldList:
 	return mean_value, fluctuations
 
 
+def _interpolation_grid(
+	x: Array,
+	y: Array,
+	*,
+	kinterp: int,
+	xy_period: float | None,
+) -> tuple[Array, Array, tuple[int, int]]:
+	"""Extend a grid with the padding required by ``RectBivariateSpline``."""
+	kl = kinterp + 1
+	kr = kinterp + 2 if xy_period is not None else kinterp + 1
+	dx, dy = x[1] - x[0], y[1] - y[0]
+	xmin, xmax, ymin, ymax = x.min(), x.max(), y.min(), y.max()
+	x_ = np.pad(x, (kl, kr), mode='linear_ramp', end_values=(xmin - kl * dx, xmax + kr * dx))
+	y_ = np.pad(y, (kl, kr), mode='linear_ramp', end_values=(ymin - kl * dy, ymax + kr * dy))
+	return x_, y_, (kl, kr)
+
+
+def _pad_field(field: Array, padding: tuple[int, int], *, xy_period: float | None) -> Array:
+	"""Pad a field periodically or with zeros according to the boundary policy."""
+	kwargs = {'mode': 'wrap'} if xy_period is not None else {'mode': 'constant', 'constant_values': 0}
+	return np.pad(field, (padding, padding), **kwargs)
+
+
+def _build_interpolators(
+	x: Array,
+	y: Array,
+	fields: FieldList,
+	*,
+	kinterp: int,
+	xy_period: float | None,
+) -> InterpolatorList:
+	"""Build spline interpolators for a field set and its boundary policy."""
+	x_, y_, padding = _interpolation_grid(x, y, kinterp=kinterp, xy_period=xy_period)
+	mean_value, fluctuations = None, None
+	if fields[0] is not None:
+		padded_mean = _pad_field(fields[0], padding, xy_period=xy_period)
+		mean_value = RectBivariateSpline(x_, y_, padded_mean, kx=kinterp, ky=kinterp)
+	if fields[1] is not None:
+		padded_fluctuations = [_pad_field(field, padding, xy_period=xy_period) for field in fields[1]]
+		fluctuations = []
+		for field in padded_fluctuations:
+			interp_real = RectBivariateSpline(x_, y_, field.real, kx=kinterp, ky=kinterp)
+			interp_imag = RectBivariateSpline(x_, y_, field.imag, kx=kinterp, ky=kinterp)
+			fluctuations.append((interp_real, interp_imag))
+	return mean_value, fluctuations
+
+
+def _resample_fields(xi: Array, yi: Array, interpolators: InterpolatorList) -> FieldList:
+	"""Evaluate a field set's interpolators on a new grid."""
+	mean_value, fluctuations = None, None
+	if interpolators[0] is not None:
+		mean_value = np.asarray(interpolators[0](xi, yi))
+	if interpolators[1] is not None:
+		fluctuations = [
+			np.asarray(interp_real(xi, yi) + 1j * interp_imag(xi, yi))
+			for interp_real, interp_imag in interpolators[1]
+		]
+	return mean_value, fluctuations
+
+
 class Potential:
 	def __init__(
 		self,
@@ -81,18 +141,19 @@ class Potential:
 		xy_period: float | None = None,
 		k: int = 3,
 	) -> None:
-		self.freqs = np.atleast_1d(freqs)
+		self.freqs: Array = np.asarray(np.atleast_1d(freqs), dtype=float)
 		if x.ndim != 1:
 			raise ValueError("`x` must be 1-dimensional.")
 		if y.ndim != 1:
 			raise ValueError("`y` must be 1-dimensional.")
-		diff_x, diff_y = np.diff(x), np.diff(y)
+		diff_x: Array = np.diff(x)
+		diff_y: Array = np.diff(y)
 		if np.any(diff_x <= 0) or np.any(diff_y <= 0):
 			raise ValueError("Values in `x` or `y` are not properly sorted.")
 		if not np.allclose(diff_x, diff_x[0]) or not np.allclose(diff_y, diff_y[0]):
 			raise ValueError("Values in `x` or `y` are not uniformly spaced.")
-		fields_ = normalize_fields(fields)
-		expected_shape = (x.size, y.size)
+		fields_: FieldList = normalize_fields(fields)
+		expected_shape: tuple[int, int] = (x.size, y.size)
 		if fields_[0] is not None and fields_[0].shape != expected_shape:
 			raise ValueError(f"Mean field has shape {fields_[0].shape}, expected {expected_shape}.")
 		if fields_[1] is not None:
@@ -103,26 +164,48 @@ class Potential:
 				raise ValueError(
 					f"Received {len(fields_[1])} fluctuations for {self.freqs.size} frequencies."
 				)
-		self.xy_period = xy_period
-		self.kinterp = k
+		self.xy_period: float | None = xy_period
+		self.kinterp: int = k
 		if not 1 <= k <= 5:
 			raise ValueError("`k` must be between 1 and 5 for RectBivariateSpline.")
+		xi: Array
+		yi: Array
+		processed_fields: FieldList
 		if nx is not None or ny is not None:
-			target_nx = x.size if nx is None else nx
-			target_ny = y.size if ny is None else ny
+			target_nx: int = x.size if nx is None else nx
+			target_ny: int = y.size if ny is None else ny
 			if target_nx < 2 or target_ny < 2:
 				raise ValueError("`nx` and `ny` must be at least 2.")
 			xi = np.linspace(x.min(), x.max(), target_nx)
 			yi = np.linspace(y.min(), y.max(), target_ny)
-			interpolators = self._build_interpolators(x, y, fields_)
-			fields = self.resample_fields(xi, yi, interpolators)
+			interpolators: InterpolatorList = _build_interpolators(
+				x,
+				y,
+				fields_,
+				kinterp=self.kinterp,
+				xy_period=self.xy_period,
+			)
+			processed_fields = _resample_fields(xi, yi, interpolators)
 		else:
-			xi, yi, fields = x, y, fields_
-		self.x, self.y, self.fields = xi, yi, fields
-		self.dx, self.dy = self.x[1] - self.x[0], self.y[1] - self.y[0]
-		self.xmin, self.xmax, self.ymin, self.ymax = self.x.min(), self.x.max(), self.y.min(), self.y.max()
-		self.nx, self.ny = self.x.size, self.y.size
-		self.interpolators = self._build_interpolators(self.x, self.y, self.fields)
+			xi, yi, processed_fields = x, y, fields_
+		self.x: Array = xi
+		self.y: Array = yi
+		self.fields: FieldList = processed_fields
+		self.dx: float = float(self.x[1] - self.x[0])
+		self.dy: float = float(self.y[1] - self.y[0])
+		self.xmin: float = float(self.x.min())
+		self.xmax: float = float(self.x.max())
+		self.ymin: float = float(self.y.min())
+		self.ymax: float = float(self.y.max())
+		self.nx: int = self.x.size
+		self.ny: int = self.y.size
+		self.interpolators: InterpolatorList = _build_interpolators(
+			self.x,
+			self.y,
+			self.fields,
+			kinterp=self.kinterp,
+			xy_period=self.xy_period,
+		)
 
 	def __str__(self) -> str:
 		"""Return a compact summary suitable for notebooks and logs."""
@@ -149,44 +232,6 @@ class Potential:
 			for field in fields[1]:
 				gyro_field = ifft2(fft2(field) * jv(0, 2 * np.pi * rho * np.sqrt(kx_**2 + ky_**2))) 
 				fluctuations.append(gyro_field)
-		return mean_value, fluctuations
-
-	def _interpolation_grid(self, x: Array, y: Array) -> tuple[Array, Array, tuple[int, int]]:
-		kl, kr = self.kinterp + 1, self.kinterp + 2 if  self.xy_period is not None else self.kinterp + 1
-		dx, dy = x[1] - x[0], y[1] - y[0]
-		xmin, xmax, ymin, ymax = x.min(), x.max(), y.min(), y.max()
-		x_ = np.pad(x, (kl, kr), mode='linear_ramp', end_values=(xmin - kl * dx, xmax + kr * dx))
-		y_ = np.pad(y, (kl, kr), mode='linear_ramp', end_values=(ymin - kl * dy, ymax + kr * dy))
-		return x_, y_, (kl, kr)
-
-	def _pad_field(self, field: Array, padding: tuple[int, int]) -> Array:
-		kwargs = {'mode': 'wrap'} if self.xy_period else {'mode': 'constant', 'constant_values': 0}
-		return np.pad(field, (padding, padding), **kwargs)
-
-	def _build_interpolators(self, x: Array, y: Array, fields: FieldList) -> InterpolatorList:
-		"""Build spline interpolators using this potential's boundary policy."""
-		x_, y_, padding = self._interpolation_grid(x, y)
-		mean_value, fluctuations = None, None
-		if fields[0] is not None:
-			padded_mean = self._pad_field(fields[0], padding)
-			mean_value = RectBivariateSpline(x_, y_, padded_mean, kx=self.kinterp, ky=self.kinterp)
-		if fields[1] is not None:
-			padded_fluctuations = [self._pad_field(field, padding) for field in fields[1]]
-			fluctuations = []
-			for field in padded_fluctuations:
-				interp_real = RectBivariateSpline(x_, y_, field.real, kx=self.kinterp, ky=self.kinterp)
-				interp_imag = RectBivariateSpline(x_, y_, field.imag, kx=self.kinterp, ky=self.kinterp)
-				fluctuations.append((interp_real, interp_imag))
-		return mean_value, fluctuations
-
-	def resample_fields(self, xi: Array, yi: Array, interpolators: InterpolatorList) -> FieldList:
-		mean_value, fluctuations = None, None
-		if interpolators[0] is not None:
-			mean_value = interpolators[0](xi, yi)
-		if interpolators[1] is not None:
-			fluctuations = []
-			for (interp_real, interp_imag) in interpolators[1]:
-				fluctuations.append(interp_real(xi, yi) + 1j * interp_imag(xi, yi))
 		return mean_value, fluctuations
 
 	def wrap_or_clip(self, xi: Array, yi: Array) -> tuple[Array, Array]:

@@ -82,7 +82,43 @@ def extract_potential(
 	return Potential(x, y, [mean_value, fluctuations], freqs, nx=nx, ny=ny, k=k)
 
 
+def _mock_grid(nx: int, ny: int) -> tuple[Array, Array]:
+	"""Create the periodic spatial grid used by a synthetic potential."""
+	period = 2 * np.pi
+	return (
+		np.linspace(0.0, period, nx, endpoint=False),
+		np.linspace(0.0, period, ny, endpoint=False),
+	)
+
+
+def _mock_spectrum(A: float, M: int, rng: np.random.Generator) -> Array:
+	"""Generate the truncated random Fourier spectrum of the mock field."""
+	modes_x, modes_y = np.meshgrid(np.arange(M + 1), np.arange(M + 1), indexing='ij')
+	spectrum = np.zeros((M + 1, M + 1), dtype=np.complex128)
+	phases = 2 * np.pi * rng.random((M, M))
+	spectrum[1:, 1:] = (
+		A / (modes_x[1:, 1:] ** 2 + modes_y[1:, 1:] ** 2) ** 1.5
+		* np.exp(1j * phases)
+	)
+	spectrum[np.hypot(modes_x, modes_y) > M] = 0
+	return spectrum
+
+
+def _reconstruct_periodic_mode(spectrum: Array, x: Array, y: Array) -> Array:
+	"""Evaluate a two-dimensional Fourier spectrum on a periodic grid."""
+	mode_x, mode_y = np.indices(spectrum.shape)
+	X, Y = np.meshgrid(x, y, indexing='ij')
+	phase = np.exp(
+		1j * (
+			mode_x[:, :, None, None] * X[None, None, :, :]
+			+ mode_y[:, :, None, None] * Y[None, None, :, :]
+		)
+	)
+	return np.asarray(np.einsum('nm,nm...->...', spectrum, phase))
+
+
 def mock_potential(A: float, M: int, nx: int, ny: int, seed: int = 27, k: int = 3) -> Potential:
+	"""Build a periodic synthetic potential from a seeded random spectrum."""
 	logger.info(
 		"Generating mock potential: A=%g M=%d grid=%dx%d seed=%d interpolation_order=%d",
 		A,
@@ -92,20 +128,13 @@ def mock_potential(A: float, M: int, nx: int, ny: int, seed: int = 27, k: int = 
 		seed,
 		k,
 	)
-	x = np.linspace(0, 2 * np.pi, nx, endpoint=False)
-	y = np.linspace(0, 2 * np.pi, ny, endpoint=False)
-	X, Y = np.meshgrid(x, y, indexing='ij')
-	np.random.seed(seed)
-	phases = 2 * np.pi * np.random.random((M, M))
-	nm = np.meshgrid(np.arange(M + 1), np.arange(M + 1), indexing='ij')
-	fft_phic = np.zeros((M + 1, M + 1), dtype=np.complex128)
-	fft_phic[1:, 1:] = A / (nm[0][1:, 1:]**2 + nm[1][1:, 1:]**2)**1.5 * np.exp(1j * phases)
-	fft_phic[np.sqrt(nm[0]**2 + nm[1]**2) > M] = 0
-	exp_xy = np.exp(1j * (nm[0][:, :, None, None] * X[None, None, :, :] + nm[1][:, :, None, None] * Y[None, None, :, :]))
+	x, y = _mock_grid(nx, ny)
+	spectrum = _mock_spectrum(A, M, np.random.default_rng(seed))
+	field = _reconstruct_periodic_mode(spectrum, x, y)
 	potential = Potential(
 		x,
 		y,
-		[None, [np.einsum('nm,nm...->...', fft_phic, exp_xy)]],
+		[None, [field]],
 		freqs=[-1],
 		xy_period=2 * np.pi,
 		k=k,
