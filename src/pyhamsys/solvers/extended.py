@@ -159,6 +159,15 @@ def solve_ivp_sympext(
 	"""
 	check_energy_ = check_energy and hs._time_dependent
 
+	if not hasattr(hs, 'y_dot'):
+		raise ValueError("The attribute 'y_dot' must be provided.")
+	if check_energy_ and not hasattr(hs, 'k_dot'):
+		raise ValueError("In order to check energy for a time-dependent system, the attribute 'k_dot' must be provided.")
+	initial_state = xp.asarray(y0)
+	y_ = xp.tile(initial_state, 2)
+	if check_energy_:
+		y_ = xp.concatenate((y_, xp.zeros(len(initial_state)//(2*hs._ndof) )), axis=None)
+
 	@lru_cache(maxsize=256)
 	def _coupling(h:float) -> xp.ndarray:
 		coupling: xp.ndarray = (
@@ -197,14 +206,6 @@ def solve_ivp_sympext(
 			y_[-1] += h * hs.k_dot(t, y_[0])
 		return xp.concatenate([_ for _ in y_], axis=None)
 
-	if not hasattr(hs, 'y_dot'):
-		raise ValueError("The attribute 'y_dot' must be provided.")
-	if check_energy_ and not hasattr(hs, 'k_dot'):
-		raise ValueError("In order to check energy for a time-dependent system, the attribute 'k_dot' must be provided.")
-	initial_state = xp.asarray(y0)
-	y_ = xp.tile(initial_state, 2)
-	if check_energy_:
-		y_ = xp.concatenate((y_, xp.zeros(len(initial_state)//(2*hs._ndof) )), axis=None)
 	progress_bar = None
 	progress_command = command
 	if progress:
