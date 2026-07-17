@@ -200,21 +200,41 @@ class Potential:
 		return np.asarray(xi), np.asarray(yi)
 
 	def phic_interp(self, xi: Array, yi: Array, dx: int = 0, dy: int = 0) -> FieldList:
-		"""Evaluate the complex field coefficients or their spatial derivatives."""
+		"""Evaluate the spatially interpolated potential coefficients.
+
+		The mean coefficient and each complex fluctuation are evaluated at the
+		paired coordinates ``(xi, yi)`` using the spline interpolators. Before
+		interpolation, coordinates are wrapped on periodic domains or clipped to
+		the grid limits otherwise. ``dx`` and ``dy`` select the derivative order
+		with respect to each spatial coordinate; both default to zero.
+
+		Returns
+		-------
+		FieldList
+			A pair ``(mean_value, fluctuations)`` with the same coordinate shape as
+			``xi`` and ``yi``. Missing mean or fluctuation components are returned
+			as ``None``.
+		"""
+		# Keep every evaluation point inside the domain expected by the splines.
 		xi, yi = self.wrap_or_clip(xi, yi)
-		mean_value, fluctuations = None, None
+		mean_value: Array | None = None
+		fluctuations: list[Array] | None = None
 		if self.fields[0] is not None:
+			# The mean field is real, so one spline evaluation is sufficient.
 			mean_interpolator = self.interpolators[0]
 			if mean_interpolator is None:
 				raise RuntimeError("Mean field exists without its interpolator.")
 			mean_value = np.asarray(mean_interpolator.ev(xi, yi, dx=dx, dy=dy))
 		if self.fields[1] is not None:
+			# Each Fourier coefficient uses separate real and imaginary splines.
 			fluctuation_interpolators = self.interpolators[1]
 			if fluctuation_interpolators is None:
 				raise RuntimeError("Fluctuation fields exist without interpolators.")
 			fluctuations = [
-				interp_real.ev(xi, yi, dx=dx, dy=dy)
-				+ 1j * interp_imag.ev(xi, yi, dx=dx, dy=dy)
+				np.asarray(
+					interp_real.ev(xi, yi, dx=dx, dy=dy)
+					+ 1j * interp_imag.ev(xi, yi, dx=dx, dy=dy)
+				)
 				for interp_real, interp_imag in fluctuation_interpolators
 			]
 		return mean_value, fluctuations
@@ -244,6 +264,7 @@ class Potential:
 				raise ValueError("Spatial derivatives require `x` and `y` coordinates.")
 			coefficients = self.fields
 		else:
+			assert y is not None
 			coefficients = self.phic_interp(x, y, dx=dx, dy=dy)
 
 		mean_value, fluctuations = coefficients
