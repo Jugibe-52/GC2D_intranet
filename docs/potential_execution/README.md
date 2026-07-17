@@ -52,6 +52,25 @@ Potential -> PotentialSystem
    - `traj_type == "fo"` usa `solve_ivp_symp(hs.chi, hs.chi_star, ...)`.
 7. Si `plot=True`, llama a `plot_sol(hs, sol, ...)`.
 
+## Diagnósticos de investigación
+
+`PotentialSystem` conserva la dinámica, la integración y la visualización de
+trayectorias. Los diagnósticos que estudian propiedades de los métodos
+numéricos se construyen aparte sobre un sistema ya creado:
+
+```python
+from classes import PotentialResearch
+
+research = PotentialResearch(system)
+z0 = research.guiding_center_square_initial_conditions(points_per_side=50)
+# solution = solve_ivp_sympext(system, z0, ...)
+area = research.guiding_center_polygon_area(solution)
+animation = research.animate_electric_psi_area_conservation(solution)
+```
+
+También se exporta `potential_researche` como alias de la clase para conservar
+el nombre solicitado en los notebooks de investigación.
+
 ## Secuencia de ejecución de `PotentialSystem.y_dot`
 
 En una integración de centro guía, `solve_ivp_sympext` llama repetidamente a
@@ -139,6 +158,7 @@ $$
 - `src/config.py`: carga de configuracion, `PotentialConfig` y `PotentialRunConfig`.
 - `src/classes/potential.py`: clase `Potential`, interpolacion y gyroaverage.
 - `src/classes/potential_system.py`: clase `PotentialSystem` y dinamica del sistema.
+- `src/classes/potential_researche.py`: clase `PotentialResearch` y diagnosticos numericos.
 - `src/workflows/potentials.py`: `extract_potential`, `mock_potential`.
 - `src/workflows/plotting.py`: `plot_sol`, `plot_potential`.
 
