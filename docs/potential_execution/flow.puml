@@ -20,6 +20,7 @@ package "Configuracion" {
 package "Workflows" {
   component "workflows/potentials.py\nextract_potential()\nmock_potential()" as potentials
   component "workflows/plotting.py\nplot_sol()\nplot_potential()" as plotting
+  component "workflows/initial_conditions.py\nmake_initial_conditions()" as initial_conditions
 }
 
 package "Modelo" {
@@ -54,7 +55,8 @@ trajectory_gc --|> trajectory
 trajectory_fc --|> trajectory
 trajectory --> potential : copia campos,\ngyroaverage,\ninterpoladores
 
-cli --> trajectory : initial_conditions()
+cli --> initial_conditions : make_initial_conditions(hs, ...)
+initial_conditions --> trajectory : grid y tipo de trayectoria
 cli --> pyhamsys : traj_type='gc'\nsolve_ivp_sympext(hs,...)
 cli --> pyhamsys : traj_type='fo'\nsolve_ivp_symp(hs.chi, hs.chi_star,...)
 pyhamsys --> trajectory_gc : y_dot(), hamiltonian()

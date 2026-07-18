@@ -35,10 +35,6 @@ class TrajectoryFC(Trajectory):
 		self.phi_fo = self.electric_scale
 		self.omlar = self.larmor_frequency
 
-	def _initial_state(self, x: Array, y: Array) -> Array:
-		gyro_angle = np.random.default_rng().uniform(0.0, 2 * np.pi, x.size)
-		return np.concatenate((x, y, np.cos(gyro_angle), np.sin(gyro_angle)))
-
 	def get_velocities(self, state: Array) -> tuple[Array, Array]:
 		_, _, vx, vy = self._split_state(state)
 		return vx, vy
@@ -75,24 +71,6 @@ class TrajectoryFC(Trajectory):
 			ex * self.electric_scale + vy * self.larmor_frequency,
 			ey * self.electric_scale - vx * self.larmor_frequency,
 		))
-
-	def y_dot_lyap(self, t: float, state: Array) -> Array:
-		x, y, vx, vy, *jacobian_parts = np.split(state, 20)
-		phase_state = np.concatenate((x, y, vx, vy))
-		jacobian = np.asarray(jacobian_parts).reshape((4, 4, -1))
-
-		d2phi_dx2 = -self.electric_scale * self.phi(t, x, y, dx=2)
-		d2phi_dxdy = -self.electric_scale * self.phi(t, x, y, dx=1, dy=1)
-		d2phi_dy2 = -self.electric_scale * self.phi(t, x, y, dy=2)
-		linearization = np.zeros_like(jacobian)
-		linearization[0, 2] = self.velocity_scale
-		linearization[1, 3] = self.velocity_scale
-		linearization[2, 3] = self.larmor_frequency
-		linearization[3, 2] = -self.larmor_frequency
-		linearization[2, 0], linearization[2, 1] = d2phi_dx2, d2phi_dxdy
-		linearization[3, 0], linearization[3, 1] = d2phi_dxdy, d2phi_dy2
-		jacobian_dot = np.einsum("ijm,jkm->ikm", linearization, jacobian)
-		return np.concatenate((self.y_dot(t, phase_state), jacobian_dot.reshape(-1)))
 
 	def k_dot(self, t: float, state: Array) -> float:  # type: ignore[override]
 		x, y = self.get_positions(state)

@@ -10,8 +10,10 @@ from classes import (
 	Trajectory,
 	TrajectoryFC,
 	TrajectoryGC,
+	TrajectoryResearch,
 	create_trajectory,
 	potential_researche,
+	trajectory_researche,
 )
 from classes.potential import Array, real_imag
 from workflows.potentials import extract_potential, mock_potential
@@ -22,7 +24,9 @@ __all__ = [
 	"Trajectory",
 	"TrajectoryFC",
 	"TrajectoryGC",
+	"TrajectoryResearch",
 	"create_trajectory",
+	"trajectory_researche",
 	"PotentialResearch",
 	"potential_researche",
 	"Potential",

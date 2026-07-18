@@ -6,6 +6,7 @@ __all__ = [
 	"extract_potential",
 	"fft_phi_grid",
 	"integrate_simulation",
+	"make_initial_conditions",
 	"make_params",
 	"make_system",
 	"mock_potential",
@@ -45,6 +46,10 @@ def __getattr__(name: str) -> Any:
 		from .integration import integrate_simulation
 
 		return integrate_simulation
+	if name == "make_initial_conditions":
+		from .initial_conditions import make_initial_conditions
+
+		return make_initial_conditions
 	if name in {"make_params", "make_system", "to_symp_params"}:
 		from .params import make_params, make_system, to_symp_params
 

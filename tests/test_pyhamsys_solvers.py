@@ -14,10 +14,12 @@ from classes import (
     Trajectory,
     TrajectoryFC,
     TrajectoryGC,
+    TrajectoryResearch,
     create_trajectory,
 )
 from pyhamsys import HamSys, OdeSolution, solve_ivp_symp, solve_ivp_sympext
 from pyhamsys.solvers import _step_count
+from workflows.initial_conditions import make_initial_conditions
 
 
 def identity_flow(h: float, t: float, y: np.ndarray) -> np.ndarray:
@@ -303,11 +305,39 @@ class TrajectoryHierarchyTests(unittest.TestCase):
             self.make_potential(),
             {'type': 'fo', 'rho': 0.1, 'eta': 0.2},
         )
-        initial = trajectory.initial_conditions(4)
+        initial = make_initial_conditions(trajectory, 4)
 
+        self.assertFalse(hasattr(trajectory, 'initial_conditions'))
         self.assertEqual(trajectory.y_dot(0.0, initial).shape, initial.shape)
         self.assertEqual(trajectory.chi(0.01, 0.0, initial).shape, initial.shape)
         self.assertEqual(trajectory.chi_star(0.01, 0.0, initial).shape, initial.shape)
+
+    def test_trajectory_research_calculates_guiding_center_tangent_dynamics(self) -> None:
+        trajectory = TrajectoryGC(
+            self.make_potential(),
+            {'type': 'gc', 'rho': 0.0, 'eta': 0.0},
+        )
+        state = np.concatenate((np.array([1.0, 2.0]), np.eye(2).reshape(-1)))
+
+        derivative = TrajectoryResearch(trajectory).y_dot_lyap(0.0, state)
+
+        self.assertEqual(derivative.shape, state.shape)
+        np.testing.assert_allclose(derivative[:2], trajectory.y_dot(0.0, state[:2]))
+
+    def test_trajectory_research_calculates_full_cyclotron_tangent_dynamics(self) -> None:
+        trajectory = TrajectoryFC(
+            self.make_potential(),
+            {'type': 'fo', 'rho': 0.1, 'eta': 0.2},
+        )
+        state = np.concatenate((
+            np.array([1.0, 2.0, 0.5, -0.5]),
+            np.eye(4).reshape(-1),
+        ))
+
+        derivative = TrajectoryResearch(trajectory).y_dot_lyap(0.0, state)
+
+        self.assertEqual(derivative.shape, state.shape)
+        np.testing.assert_allclose(derivative[:4], trajectory.y_dot(0.0, state[:4]))
 
 
 class TrajectoryGCAreaTests(unittest.TestCase):

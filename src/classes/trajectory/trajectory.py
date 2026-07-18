@@ -88,43 +88,6 @@ class Trajectory(HamSys, ABC):
 		r"""Spline order of the effective potential :math:`\psi`."""
 		return self.effective_potential.kinterp
 
-	def initial_conditions(
-		self,
-		n_traj: int,
-		x: Array | None = None,
-		y: Array | None = None,
-		type: Literal["random", "fixed"] = "fixed",
-	) -> Array:
-		"""Create an initial state for ``n_traj`` trajectories.
-
-		For ``fixed`` conditions, the requested count is rounded down to the
-		closest square so positions form a regular two-dimensional mesh.
-		"""
-		if not isinstance(n_traj, (int, np.integer)) or n_traj < 1:
-			raise ValueError("`n_traj` must be a positive integer.")
-		x_axis = self.grid.x if x is None else np.asarray(x)
-		y_axis = self.grid.y if y is None else np.asarray(y)
-		if x_axis.ndim != 1 or y_axis.ndim != 1 or x_axis.size < 2 or y_axis.size < 2:
-			raise ValueError("`x` and `y` must be one-dimensional axes with at least two values.")
-
-		if type == "random":
-			rng = np.random.default_rng()
-			x0 = rng.uniform(x_axis[0], x_axis[-1], n_traj)
-			y0 = rng.uniform(y_axis[0], y_axis[-1], n_traj)
-		elif type == "fixed":
-			points_per_axis = int(np.sqrt(n_traj))
-			x0 = np.linspace(x_axis[0], x_axis[-1], points_per_axis, endpoint=False)
-			y0 = np.linspace(y_axis[0], y_axis[-1], points_per_axis, endpoint=False)
-			x0, y0 = np.meshgrid(x0, y0, indexing="ij")
-			x0, y0 = x0.ravel(), y0.ravel()
-		else:
-			raise ValueError("`type` must be either 'random' or 'fixed'.")
-		return self._initial_state(np.asarray(x0), np.asarray(y0))
-
-	@abstractmethod
-	def _initial_state(self, x: Array, y: Array) -> Array:
-		"""Combine initial positions with model-specific state variables."""
-
 	def _split_state(self, state: Array) -> tuple[Array, ...]:
 		"""Split a state into equally sized model-specific components."""
 		state_array = np.asarray(state)
@@ -211,10 +174,6 @@ class Trajectory(HamSys, ABC):
 		output: Literal["full", "reduced"] = "full",
 	) -> Array:
 		"""Evaluate the equations of motion."""
-
-	@abstractmethod
-	def y_dot_lyap(self, t: float, state: Array) -> Array:
-		"""Evaluate state and tangent-map dynamics."""
 
 	@abstractmethod
 	def k_dot(self, t: float, state: Array) -> float | Array:  # type: ignore[override]

@@ -91,7 +91,7 @@ Este bloque selecciona la clase `TrajectoryGC` o `TrajectoryFC`.
 
 Notas:
 
-- `Trajectory.initial_conditions` acepta `random` y `fixed`.
+- `make_initial_conditions` acepta los metodos `random` y `fixed`.
 - En `fo`, se añaden velocidades perpendiculares aleatorias.
 - `TrajectoryFC` requiere que `rho` y `eta` sean distintos de cero.
 - Si `rho` es mayor que `k * dx` o `k * dy`, el constructor lanza error para evitar interpolacion insuficiente.

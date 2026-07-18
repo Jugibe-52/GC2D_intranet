@@ -18,6 +18,7 @@ from classes import TrajectoryFC
 from config import DEFAULT_CONFIG_GROUP, DEFAULT_CONFIG_VERSION, load_potential_config
 from config_logging import configure_logging
 from workflows.export import save_figure, save_potential_data
+from workflows.initial_conditions import make_initial_conditions
 from workflows_api import plot_sol
 
 import logging
@@ -51,7 +52,7 @@ def main() -> None:
 	hs = config.build_system()
 	n_traj = config.initial_condition_count()
 	init = config.initial_condition_type()
-	z0 = hs.initial_conditions(n_traj, type=init)
+	z0 = make_initial_conditions(hs, n_traj, method=init)
 	traj_type = hs.traj["type"]
 	logger.info(
 		"Generated initial conditions: version=%s traj_type=%s Ntraj=%d init=%s shape=%s",

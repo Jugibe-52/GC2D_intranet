@@ -48,7 +48,7 @@ Potential -> create_trajectory() -> TrajectoryGC | TrajectoryFC
 2. Carga la configuracion con `load_potential_config`.
 3. `PotentialConfig.build()` carga un HDF5 con `extract_potential` o genera uno con `mock_potential`.
 4. `PotentialRunConfig.build_system()` llama a `create_trajectory(potential, traj)`; el orden de interpolacion `k` pertenece a `potential`.
-5. Genera condiciones iniciales con `hs.initial_conditions(...)`.
+5. Genera condiciones iniciales con `make_initial_conditions(hs, ...)`.
 6. Integra:
    - `traj_type == "gc"` usa `solve_ivp_sympext(hs, ...)`.
    - `traj_type == "fo"` usa `solve_ivp_symp(hs.chi, hs.chi_star, ...)`.
@@ -164,7 +164,9 @@ $$
 - `src/classes/trajectory/trajectory.py`: clase base `Trajectory` y comportamiento comun.
 - `src/classes/trajectory/trajectory_gc.py`: dinamica `TrajectoryGC`.
 - `src/classes/trajectory/trajectory_fc.py`: dinamica `TrajectoryFC`.
+- `src/classes/trajectory/trajectory_research.py`: estabilidad y dinamica tangente `TrajectoryResearch`.
 - `src/classes/potential_researche.py`: visualizaciones y diagnosticos `PotentialResearch`.
+- `src/workflows/initial_conditions.py`: construccion de estados iniciales.
 - `src/workflows/potentials.py`: `extract_potential`, `mock_potential`.
 - `src/workflows/plotting.py`: `plot_sol`, `plot_potential`.
 

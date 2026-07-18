@@ -6,6 +6,7 @@ from ..potential import Potential
 from .trajectory import Trajectory
 from .trajectory_fc import TrajectoryFC
 from .trajectory_gc import TrajectoryGC
+from .trajectory_research import TrajectoryResearch, trajectory_researche
 
 
 def create_trajectory(potential: Potential, params: TrajectoryParams) -> Trajectory:
@@ -18,4 +19,11 @@ def create_trajectory(potential: Potential, params: TrajectoryParams) -> Traject
 	raise ValueError(f"Unsupported trajectory type: {trajectory_type!r}.")
 
 
-__all__ = ["Trajectory", "TrajectoryFC", "TrajectoryGC", "create_trajectory"]
+__all__ = [
+	"Trajectory",
+	"TrajectoryFC",
+	"TrajectoryGC",
+	"TrajectoryResearch",
+	"create_trajectory",
+	"trajectory_researche",
+]
