@@ -46,7 +46,7 @@ def save_data(system: FourierSystem, sol: OdeSolution) -> None:
 
 
 def save_potential_data(sol: OdeSolution, output_dir: str | Path, output_name: str) -> Path:
-	"""Save a PotentialSystem solution in NumPy format."""
+	"""Save a potential-trajectory solution in NumPy format."""
 	filename = timestamped_output_path(output_dir, output_name, ".npz")
 	payload: dict[str, object] = {"t": sol.t, "y": sol.y}
 	if hasattr(sol, "err"):

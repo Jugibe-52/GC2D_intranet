@@ -1,4 +1,7 @@
-"""Research diagnostics for numerical integrations of potential systems."""
+# Copyright (c) 2023, Cristel Chandre
+# SPDX-License-Identifier: BSD-2-Clause
+
+"""Research diagnostics and visualisations for potential trajectories."""
 
 import logging
 from typing import Any, Sequence
@@ -7,10 +10,12 @@ import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.animation import FuncAnimation
+from matplotlib.axes import Axes
+from matplotlib.figure import Figure
 from matplotlib.patches import FancyArrowPatch
 
 from .potential import Array
-from .potential_system import PotentialSystem
+from .trajectory import Trajectory
 
 logger = logging.getLogger(__name__)
 
@@ -18,14 +23,14 @@ logger = logging.getLogger(__name__)
 class PotentialResearch:
 	"""Analyse numerical-method properties without owning trajectory dynamics.
 
-	The object wraps an existing :class:`PotentialSystem`.  Simulations still
+	The object wraps an existing :class:`Trajectory`.  Simulations still
 	use that system directly; this class only prepares and visualises numerical
-	diagnostics such as guiding-centre area conservation.
+	diagnostics and potential fields.
 	"""
 
-	def __init__(self, system: PotentialSystem) -> None:
-		if not isinstance(system, PotentialSystem):
-			raise TypeError('`system` must be a PotentialSystem instance.')
+	def __init__(self, system: Trajectory) -> None:
+		if not isinstance(system, Trajectory):
+			raise TypeError('`system` must be a Trajectory instance.')
 		self.system = system
 
 	@staticmethod
@@ -44,6 +49,490 @@ class PotentialResearch:
 	def _validate_step(step: int) -> None:
 		if not isinstance(step, (int, np.integer)) or step < 1:
 			raise ValueError('`step` must be a positive integer.')
+
+	def plot_phi_psi(
+		self,
+		t: float = 0.0,
+		*,
+		contours: int | Sequence[float] | None = 12,
+		cmap: str = 'RdBu_r',
+		show: bool = True,
+		**pcolormesh_kwargs: Any,
+	) -> tuple[Figure, np.ndarray]:
+		"""Plot the physical potential phi beside the effective potential psi."""
+		system = self.system
+		phi, psi = system.phi(t), system.psi(t)
+		norm = self._comparison_norm(phi, psi)
+		fig, axes = plt.subplots(1, 2, figsize=(12, 5), constrained_layout=True)
+		for ax, field, label in zip(axes, (phi, psi), (r'$\phi$', r'$\psi$')):
+			mesh = ax.pcolormesh(
+				system.grid.x,
+				system.grid.y,
+				field.T,
+				shading='auto',
+				cmap=cmap,
+				norm=norm,
+				**pcolormesh_kwargs,
+			)
+			if contours is not None:
+				ax.contour(
+					system.grid.x,
+					system.grid.y,
+					field.T,
+					levels=contours,
+					colors='k',
+					linewidths=0.45,
+					alpha=0.55,
+				)
+			ax.set(xlabel='x', ylabel='y', title=rf'{label}, $t={t:.3f}$', aspect='equal')
+		fig.colorbar(mesh, ax=axes, label='potential')
+		if show:
+			plt.show()
+		return fig, axes
+
+	def plot_electric_phi_psi(
+		self,
+		t: float = 0.0,
+		*,
+		step: int = 4,
+		contours: int | Sequence[float] | None = 12,
+		cmap: str = 'RdBu_r',
+		show: bool = True,
+		**pcolormesh_kwargs: Any,
+	) -> tuple[Figure, np.ndarray]:
+		"""Plot phi and psi together with their electric fields."""
+		self._validate_step(step)
+		system = self.system
+		phi, psi = system.phi(t), system.psi(t)
+		x_mesh, y_mesh = np.meshgrid(system.grid.x, system.grid.y, indexing='ij')
+		electric_fields = (
+			system.electric_field(t, x_mesh, y_mesh, effective=False),
+			system.electric_field(t, x_mesh, y_mesh),
+		)
+		max_magnitude = max(float(np.nanmax(np.hypot(ex, ey))) for ex, ey in electric_fields)
+		scale = None if np.isclose(max_magnitude, 0.0) else max_magnitude / (2 * min(system.grid.dx, system.grid.dy))
+		norm = self._comparison_norm(phi, psi)
+		fig, axes = plt.subplots(1, 2, figsize=(12, 5), constrained_layout=True)
+		for ax, potential, (ex, ey), symbol in zip(
+			axes,
+			(phi, psi),
+			electric_fields,
+			(r'\phi', r'\psi'),
+		):
+			mesh = ax.pcolormesh(
+				system.grid.x,
+				system.grid.y,
+				potential.T,
+				shading='auto',
+				cmap=cmap,
+				norm=norm,
+				**pcolormesh_kwargs,
+			)
+			if contours is not None:
+				ax.contour(
+					system.grid.x,
+					system.grid.y,
+					potential.T,
+					levels=contours,
+					colors='k',
+					linewidths=0.45,
+					alpha=0.55,
+				)
+			ax.quiver(
+				x_mesh[::step, ::step],
+				y_mesh[::step, ::step],
+				ex[::step, ::step],
+				ey[::step, ::step],
+				color='black',
+				angles='xy',
+				scale_units='xy',
+				scale=scale,
+				width=0.003,
+			)
+			ax.set(
+				xlabel='x',
+				ylabel='y',
+				title=rf'${symbol}$ and $\mathbf{{E}}=-\nabla {symbol}$, $t={t:.3f}$',
+				aspect='equal',
+			)
+		fig.colorbar(mesh, ax=axes, label='potential')
+		if show:
+			plt.show()
+		return fig, axes
+
+	def plot_psi(
+		self,
+		t: float = 0.0,
+		*,
+		contours: int | Sequence[float] | None = 12,
+		cmap: str = 'RdBu_r',
+		show: bool = True,
+		**pcolormesh_kwargs: Any,
+	) -> tuple[Figure, Axes]:
+		"""Plot the complete effective potential psi at time ``t``."""
+		system = self.system
+		psi = system.psi(t)
+		norm = self._comparison_norm(psi)
+		fig, ax = plt.subplots(figsize=(6, 5), constrained_layout=True)
+		mesh = ax.pcolormesh(
+			system.grid.x,
+			system.grid.y,
+			psi.T,
+			shading='auto',
+			cmap=cmap,
+			norm=norm,
+			**pcolormesh_kwargs,
+		)
+		if contours is not None:
+			ax.contour(
+				system.grid.x,
+				system.grid.y,
+				psi.T,
+				levels=contours,
+				colors='k',
+				linewidths=0.45,
+				alpha=0.55,
+			)
+		fig.colorbar(mesh, ax=ax, label=r'$\psi$')
+		ax.set(xlabel='x', ylabel='y', title=rf'Effective potential $\psi$, $t={t:.3f}$', aspect='equal')
+		if show:
+			plt.show()
+		return fig, ax
+
+	def animate_phi_psi(
+		self,
+		*,
+		t_max: float = 2 * np.pi,
+		frames: int = 120,
+		interval: int = 50,
+		cmap: str = 'RdBu_r',
+		repeat: bool = True,
+		**pcolormesh_kwargs: Any,
+	) -> FuncAnimation:
+		"""Animate phi and psi side by side."""
+		if frames < 2:
+			raise ValueError('`frames` must be at least 2.')
+		if t_max <= 0:
+			raise ValueError('`t_max` must be positive.')
+		system = self.system
+		times = np.linspace(0.0, t_max, frames, endpoint=False)
+		phi_fields = [system.phi(t) for t in times]
+		psi_fields = [system.psi(t) for t in times]
+		norm = self._comparison_norm(*phi_fields, *psi_fields)
+		fig, axes = plt.subplots(1, 2, figsize=(12, 5), constrained_layout=True)
+		meshes = [
+			ax.pcolormesh(
+				system.grid.x,
+				system.grid.y,
+				field.T,
+				shading='auto',
+				cmap=cmap,
+				norm=norm,
+				**pcolormesh_kwargs,
+			)
+			for ax, field in zip(axes, (phi_fields[0], psi_fields[0]))
+		]
+		for ax in axes:
+			ax.set(xlabel='x', ylabel='y', aspect='equal')
+		fig.colorbar(meshes[0], ax=axes, label='potential')
+
+		def update(index: int) -> tuple[Any, ...]:
+			for mesh, field, ax, label in zip(
+				meshes,
+				(phi_fields[index], psi_fields[index]),
+				axes,
+				(r'$\phi$', r'$\psi$'),
+			):
+				mesh.set_array(field.T)
+				ax.set_title(rf'{label}, $t={times[index]:.3f}$')
+			return *meshes, *(ax.title for ax in axes)
+
+		update(0)
+		animation = FuncAnimation(fig, update, frames=frames, interval=interval, blit=False, repeat=repeat)
+		plt.close(fig)
+		return animation
+
+	def animate_psi(
+		self,
+		*,
+		t_max: float = 2 * np.pi,
+		frames: int = 120,
+		interval: int = 50,
+		cmap: str = 'RdBu_r',
+		repeat: bool = True,
+		**pcolormesh_kwargs: Any,
+	) -> FuncAnimation:
+		"""Animate the complete effective potential psi."""
+		return self.system.effective_potential.animate(
+			t_max=t_max,
+			frames=frames,
+			interval=interval,
+			cmap=cmap,
+			repeat=repeat,
+			title=r'Effective potential $\psi$',
+			**pcolormesh_kwargs,
+		)
+
+	def animate_electric_phi_psi(
+		self,
+		*,
+		t_max: float = 2 * np.pi,
+		frames: int = 120,
+		interval: int = 50,
+		step: int = 4,
+		cmap: str = 'RdBu_r',
+		repeat: bool = True,
+		**pcolormesh_kwargs: Any,
+	) -> FuncAnimation:
+		"""Animate phi, psi, and their corresponding electric fields."""
+		if frames < 2:
+			raise ValueError('`frames` must be at least 2.')
+		if t_max <= 0:
+			raise ValueError('`t_max` must be positive.')
+		self._validate_step(step)
+		system = self.system
+		times = np.linspace(0.0, t_max, frames, endpoint=False)
+		x_mesh, y_mesh = np.meshgrid(system.grid.x, system.grid.y, indexing='ij')
+		phi_fields = [system.phi(t) for t in times]
+		psi_fields = [system.psi(t) for t in times]
+		phi_electric = [system.electric_field(t, x_mesh, y_mesh, effective=False) for t in times]
+		psi_electric = [system.electric_field(t, x_mesh, y_mesh) for t in times]
+		max_magnitude = max(
+			float(np.nanmax(np.hypot(ex, ey)))
+			for fields in (phi_electric, psi_electric)
+			for ex, ey in fields
+		)
+		scale = None if np.isclose(max_magnitude, 0.0) else max_magnitude / (2 * min(system.grid.dx, system.grid.dy))
+		norm = self._comparison_norm(*phi_fields, *psi_fields)
+		fig, axes = plt.subplots(1, 2, figsize=(12, 5), constrained_layout=True)
+		meshes = [
+			ax.pcolormesh(
+				system.grid.x,
+				system.grid.y,
+				field.T,
+				shading='auto',
+				cmap=cmap,
+				norm=norm,
+				**pcolormesh_kwargs,
+			)
+			for ax, field in zip(axes, (phi_fields[0], psi_fields[0]))
+		]
+		quivers = [
+			ax.quiver(
+				x_mesh[::step, ::step],
+				y_mesh[::step, ::step],
+				ex[::step, ::step],
+				ey[::step, ::step],
+				color='black',
+				angles='xy',
+				scale_units='xy',
+				scale=scale,
+				width=0.003,
+			)
+			for ax, (ex, ey) in zip(axes, (phi_electric[0], psi_electric[0]))
+		]
+		for ax in axes:
+			ax.set(xlabel='x', ylabel='y', aspect='equal')
+		fig.colorbar(meshes[0], ax=axes, label='potential')
+
+		def update(index: int) -> tuple[Any, ...]:
+			for mesh, quiver, potential, (ex, ey), ax, symbol in zip(
+				meshes,
+				quivers,
+				(phi_fields[index], psi_fields[index]),
+				(phi_electric[index], psi_electric[index]),
+				axes,
+				(r'\phi', r'\psi'),
+			):
+				mesh.set_array(potential.T)
+				quiver.set_UVC(ex[::step, ::step], ey[::step, ::step])
+				ax.set_title(rf'${symbol}$ and $\mathbf{{E}}=-\nabla {symbol}$, $t={times[index]:.3f}$')
+			return *meshes, *quivers, *(ax.title for ax in axes)
+
+		update(0)
+		animation = FuncAnimation(fig, update, frames=frames, interval=interval, blit=False, repeat=repeat)
+		plt.close(fig)
+		return animation
+
+	def animate_electric_psi(
+		self,
+		*,
+		t_max: float = 2 * np.pi,
+		frames: int = 120,
+		interval: int = 50,
+		step: int = 4,
+		cmap: str = 'RdBu_r',
+		repeat: bool = True,
+		**pcolormesh_kwargs: Any,
+	) -> FuncAnimation:
+		"""Animate psi together with its electric field."""
+		if frames < 2:
+			raise ValueError('`frames` must be at least 2.')
+		if t_max <= 0:
+			raise ValueError('`t_max` must be positive.')
+		self._validate_step(step)
+		system = self.system
+		times = np.linspace(0.0, t_max, frames, endpoint=False)
+		x_mesh, y_mesh = np.meshgrid(system.grid.x, system.grid.y, indexing='ij')
+		psi_fields = [system.psi(t) for t in times]
+		electric_fields = [system.electric_field(t, x_mesh, y_mesh) for t in times]
+		max_magnitude = max(float(np.nanmax(np.hypot(ex, ey))) for ex, ey in electric_fields)
+		scale = None if np.isclose(max_magnitude, 0.0) else max_magnitude / (2 * min(system.grid.dx, system.grid.dy))
+		norm = self._comparison_norm(*psi_fields)
+		fig, ax = plt.subplots(figsize=(6, 5), constrained_layout=True)
+		mesh = ax.pcolormesh(
+			system.grid.x,
+			system.grid.y,
+			psi_fields[0].T,
+			shading='auto',
+			cmap=cmap,
+			norm=norm,
+			**pcolormesh_kwargs,
+		)
+		ex0, ey0 = electric_fields[0]
+		quiver = ax.quiver(
+			x_mesh[::step, ::step],
+			y_mesh[::step, ::step],
+			ex0[::step, ::step],
+			ey0[::step, ::step],
+			color='black',
+			angles='xy',
+			scale_units='xy',
+			scale=scale,
+			width=0.003,
+		)
+		fig.colorbar(mesh, ax=ax, label=r'$\psi$')
+		ax.set(xlabel='x', ylabel='y', aspect='equal')
+
+		def update(index: int) -> tuple[Any, ...]:
+			ex, ey = electric_fields[index]
+			mesh.set_array(psi_fields[index].T)
+			quiver.set_UVC(ex[::step, ::step], ey[::step, ::step])
+			ax.set_title(rf'$\psi$ and $\mathbf{{E}}=-\nabla\psi$, $t={times[index]:.3f}$')
+			return mesh, quiver, ax.title
+
+		update(0)
+		animation = FuncAnimation(fig, update, frames=frames, interval=interval, blit=False, repeat=repeat)
+		plt.close(fig)
+		return animation
+
+	def animate_electric_psi_trajectories(
+		self,
+		solution: Any,
+		*,
+		frames: int | None = None,
+		frame_stride: int = 1,
+		interval: int = 50,
+		step: int = 4,
+		cmap: str = 'RdBu_r',
+		repeat: bool = True,
+		**pcolormesh_kwargs: Any,
+	) -> FuncAnimation:
+		"""Animate trajectories over psi and its electric field."""
+		self._validate_step(step)
+		if not isinstance(frame_stride, (int, np.integer)) or frame_stride < 1:
+			raise ValueError('`frame_stride` must be a positive integer.')
+		if frames is not None and frames < 2:
+			raise ValueError('`frames` must be at least 2.')
+
+		times_all = np.asarray(solution.t, dtype=float)
+		states = np.asarray(solution.y)
+		if times_all.ndim != 1 or states.ndim != 2 or states.shape[1] != times_all.size:
+			raise ValueError('`solution` must provide t with shape (n_times,) and y with shape (n_state, n_times).')
+		if times_all.size < 2:
+			raise ValueError('`solution` must contain at least two time samples.')
+
+		frame_indices = np.arange(0, times_all.size, frame_stride, dtype=int)
+		if frame_indices[-1] != times_all.size - 1:
+			frame_indices = np.append(frame_indices, times_all.size - 1)
+		if frames is not None and frames < frame_indices.size:
+			selection = np.linspace(0, frame_indices.size - 1, frames, dtype=int)
+			frame_indices = frame_indices[np.unique(selection)]
+		times = times_all[frame_indices]
+
+		system = self.system
+		x_positions, y_positions = system.get_positions(states)
+		x_wrapped, y_wrapped = system.grid.wrap_or_clip(x_positions, y_positions)
+		x_lines, y_lines = x_wrapped.copy(), y_wrapped.copy()
+		if system.grid.period is not None:
+			crosses_boundary = (
+				(np.abs(np.diff(x_wrapped, axis=1)) > system.grid.period / 2)
+				| (np.abs(np.diff(y_wrapped, axis=1)) > system.grid.period / 2)
+			)
+			x_lines[:, 1:][crosses_boundary] = np.nan
+			y_lines[:, 1:][crosses_boundary] = np.nan
+
+		x_mesh, y_mesh = np.meshgrid(system.grid.x, system.grid.y, indexing='ij')
+		psi_fields = [system.psi(t) for t in times]
+		electric_fields = [system.electric_field(t, x_mesh, y_mesh) for t in times]
+		max_magnitude = max(float(np.nanmax(np.hypot(ex, ey))) for ex, ey in electric_fields)
+		scale = None if np.isclose(max_magnitude, 0.0) else max_magnitude / (2 * min(system.grid.dx, system.grid.dy))
+		norm = self._comparison_norm(*psi_fields)
+
+		fig, ax = plt.subplots(figsize=(6, 5), constrained_layout=True)
+		mesh = ax.pcolormesh(
+			system.grid.x,
+			system.grid.y,
+			psi_fields[0].T,
+			shading='auto',
+			cmap=cmap,
+			norm=norm,
+			**pcolormesh_kwargs,
+		)
+		ex0, ey0 = electric_fields[0]
+		quiver = ax.quiver(
+			x_mesh[::step, ::step],
+			y_mesh[::step, ::step],
+			ex0[::step, ::step],
+			ey0[::step, ::step],
+			color='black',
+			angles='xy',
+			scale_units='xy',
+			scale=scale,
+			width=0.003,
+		)
+		lines = [
+			ax.plot([], [], color='green', lw=1.5, label=f'trajectory {index + 1}')[0]
+			for index in range(x_wrapped.shape[0])
+		]
+		markers = [
+			ax.plot([], [], marker='o', color='green', markersize=4)[0]
+			for _ in range(x_wrapped.shape[0])
+		]
+		fig.colorbar(mesh, ax=ax, label=r'$\psi$')
+		if x_wrapped.shape[0] > 1:
+			ax.legend(loc='upper right')
+		ax.set(xlabel='x', ylabel='y', aspect='equal')
+
+		def update(index: int) -> tuple[Any, ...]:
+			current = int(frame_indices[index])
+			ex, ey = electric_fields[index]
+			mesh.set_array(psi_fields[index].T)
+			quiver.set_UVC(ex[::step, ::step], ey[::step, ::step])
+			for line, marker, x_path, y_path, x_display, y_display in zip(
+				lines,
+				markers,
+				x_wrapped,
+				y_wrapped,
+				x_lines,
+				y_lines,
+			):
+				line.set_data(x_display[:current + 1], y_display[:current + 1])
+				marker.set_data([x_path[current]], [y_path[current]])
+			ax.set_title(rf'$\psi$, $\mathbf{{E}}=-\nabla\psi$, $t={times[index]:.3f}$')
+			return mesh, quiver, *lines, *markers, ax.title
+
+		update(0)
+		animation = FuncAnimation(
+			fig,
+			update,
+			frames=times.size,
+			interval=interval,
+			blit=False,
+			repeat=repeat,
+		)
+		plt.close(fig)
+		return animation
 
 	def guiding_center_square_initial_conditions(
 		self,

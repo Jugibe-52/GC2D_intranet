@@ -1,4 +1,4 @@
-@startuml PotentialSystem_run_workflow_flow
+@startuml GC2D_run_workflow_flow
 title run_workflow Execution Flow in workflows_api
 
 skinparam shadowing false

@@ -1,14 +1,17 @@
 """Domain classes for guiding-center simulations."""
 
-from .potential_system import PotentialSystem
-from .potential_researche import PotentialResearch, potential_researche
 from .fourier_system import FourierSystem
 from .grid import Grid
 from .potential import Potential, PotentialFields, PotentialMode, Spline2D
+from .trajectory import Trajectory, TrajectoryFC, TrajectoryGC, create_trajectory
+from .potential_researche import PotentialResearch, potential_researche
 from .simulation_result import SimulationResult
 
 __all__ = [
-	"PotentialSystem",
+	"Trajectory",
+	"TrajectoryFC",
+	"TrajectoryGC",
+	"create_trajectory",
 	"PotentialResearch",
 	"potential_researche",
 	"FourierSystem",

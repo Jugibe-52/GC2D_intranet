@@ -14,6 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
 
 from pyhamsys import solve_ivp_symp, solve_ivp_sympext
 
+from classes import TrajectoryFC
 from config import DEFAULT_CONFIG_GROUP, DEFAULT_CONFIG_VERSION, load_potential_config
 from config_logging import configure_logging
 from workflows.export import save_figure, save_potential_data
@@ -25,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 
 def parse_args() -> argparse.Namespace:
-	parser = argparse.ArgumentParser(description="Run the PotentialSystem HDF5/mock potential showcase from configuration.")
+	parser = argparse.ArgumentParser(description="Run GC or FC trajectories over an HDF5/mock potential.")
 	parser.add_argument("--config", help="Path to the JSON configuration file.")
 	parser.add_argument("--config-surface", default="terminal", choices=("terminal", "notebook"), help="Configuration surface under conf/.")
 	parser.add_argument("--config-group", default=DEFAULT_CONFIG_GROUP, choices=("test", "assay"), help="Configuration group under conf/.")
@@ -81,9 +82,11 @@ def main() -> None:
 	start = time.time()
 	if traj_type == "gc":
 		sol = solve_ivp_sympext(hs, z0, step=time_step, t_span=(0, t_final), n_save_step=n_max, method=ode_solver, check_energy=check_energy)
-	else:
+	elif isinstance(hs, TrajectoryFC):
 		sol = solve_ivp_symp(hs.chi, hs.chi_star, (0, t_final), z0, step=time_step, n_save_step=n_max, method=ode_solver)
 		sol = hs.rectify_sol(sol, check_energy=check_energy)
+	else:
+		raise RuntimeError(f"Unsupported trajectory model: {type(hs).__name__}.")
 	logger.info("Finished integration in %.2f seconds; solution shape=%s", time.time() - start, sol.y.shape)
 	if hasattr(sol, "err"):
 		logger.info("Energy error: %s", sol.err)

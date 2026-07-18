@@ -6,8 +6,11 @@ from classes import (
 	PotentialFields,
 	PotentialMode,
 	PotentialResearch,
-	PotentialSystem,
 	Spline2D,
+	Trajectory,
+	TrajectoryFC,
+	TrajectoryGC,
+	create_trajectory,
 	potential_researche,
 )
 from classes.potential import Array, real_imag
@@ -16,7 +19,10 @@ from workflows.potentials import extract_potential, mock_potential
 __all__ = [
 	"Array",
 	"Grid",
-	"PotentialSystem",
+	"Trajectory",
+	"TrajectoryFC",
+	"TrajectoryGC",
+	"create_trajectory",
 	"PotentialResearch",
 	"potential_researche",
 	"Potential",

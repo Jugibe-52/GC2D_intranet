@@ -1,5 +1,5 @@
-@startuml PotentialSystem_potential_execution_flow
-title Ejecucion run_potential.py - modelo PotentialSystem con Potential
+@startuml Trajectory_potential_execution_flow
+title Ejecucion run_potential.py - trayectorias con Potential
 
 skinparam componentStyle rectangle
 skinparam shadowing false
@@ -24,7 +24,9 @@ package "Workflows" {
 
 package "Modelo" {
   component "classes/potential.py\nPotential" as potential
-  component "classes/potential_system.py\nPotentialSystem" as fourier_cli
+  component "classes/trajectory/trajectory.py\nTrajectory" as trajectory
+  component "trajectory_gc.py\nTrajectoryGC" as trajectory_gc
+  component "trajectory_fc.py\nTrajectoryFC" as trajectory_fc
 }
 
 package "Librerias externas" {
@@ -47,13 +49,16 @@ h5py --> hdf5 : lee Rcells, Zcells,\nfreqs, fields
 potentials --> potential : crea Potential
 potentials --> scipy : mock / denoising
 
-config --> fourier_cli : PotentialRunConfig.build_system()
-fourier_cli --> potential : copia campos,\ngyroaverage,\ninterpoladores
+config --> trajectory : create_trajectory()
+trajectory_gc --|> trajectory
+trajectory_fc --|> trajectory
+trajectory --> potential : copia campos,\ngyroaverage,\ninterpoladores
 
-cli --> fourier_cli : initial_conditions()
+cli --> trajectory : initial_conditions()
 cli --> pyhamsys : traj_type='gc'\nsolve_ivp_sympext(hs,...)
 cli --> pyhamsys : traj_type='fo'\nsolve_ivp_symp(hs.chi, hs.chi_star,...)
-pyhamsys --> fourier_cli : y_dot(), hamiltonian(),\nchi(), chi_star()
+pyhamsys --> trajectory_gc : y_dot(), hamiltonian()
+pyhamsys --> trajectory_fc : chi(), chi_star()
 
 cli --> plotting : si plot=True\nplot_sol(hs, sol)
 plotting --> mpl

@@ -3,7 +3,7 @@
 `conf/<notebook|terminal>/potential/<group>/v_x.json` configura el flujo:
 
 ```text
-Potential -> PotentialSystem -> pyhamsys
+Potential -> create_trajectory() -> TrajectoryGC | TrajectoryFC -> pyhamsys
 ```
 
 El loader correspondiente es:
@@ -50,6 +50,7 @@ Este bloque construye un `Potential`. Puede cargar datos HDF5 o generar un poten
 | `indx` | `list[int]` | indices | Seleccion de modos HDF5. `0` selecciona la media; indices positivos seleccionan fluctuaciones tras ordenar por amplitud. |
 | `nx` | `int` o `null` | resolucion | Resolucion final en `x`. Si existe, `Potential` reinterpola a esa malla. |
 | `ny` | `int` o `null` | resolucion | Resolucion final en `y`. Si existe, `Potential` reinterpola a esa malla. |
+| `k` | `int` | entero | Orden de interpolacion del potencial. Debe ser suficiente para `rho`. |
 | `denoising` | `bool` | `true`/`false` | Si es `true`, aplica filtro gaussiano a campos HDF5. |
 | `sigma` | `float` | positivo | Sigma del filtro gaussiano cuando `denoising=true`. |
 | `mock` | `object` | ver abajo | Parametros del potencial mock. |
@@ -78,21 +79,21 @@ A / (n^2 + m^2)^1.5
 
 ## Bloque `trajectory`
 
-Este bloque define la clase `PotentialSystem`.
+Este bloque selecciona la clase `TrajectoryGC` o `TrajectoryFC`.
 
 | Campo | Tipo | Valores | Descripcion |
 |---|---:|---|---|
 | `type` | `str` | `"gc"` o `"fo"` | Tipo de trayectoria: centro guia u orbita completa. |
 | `rho` | `float` | >= 0 | Radio de Larmor. Si no es cero, el sistema aplica `gyroaverage`. |
 | `eta` | `float` | numero | Parametro de orbita completa. |
-| `k` | `int` | entero | Orden de interpolacion pasado a `PotentialSystem`. Debe ser suficiente para `rho`. |
 | `Ntraj` | `int` | entero | Numero de trayectorias iniciales. |
-| `init` | `str` | `"random"` o `"fixed"` | Metodo de condiciones iniciales para `PotentialSystem`. |
+| `init` | `str` | `"random"` o `"fixed"` | Metodo de condiciones iniciales para la trayectoria. |
 
 Notas:
 
-- `PotentialSystem.initial_conditions` acepta `random` y `fixed`.
+- `Trajectory.initial_conditions` acepta `random` y `fixed`.
 - En `fo`, se añaden velocidades perpendiculares aleatorias.
+- `TrajectoryFC` requiere que `rho` y `eta` sean distintos de cero.
 - Si `rho` es mayor que `k * dx` o `k * dy`, el constructor lanza error para evitar interpolacion insuficiente.
 
 ## Bloque `integration`

@@ -6,7 +6,16 @@ import numpy as np
 from matplotlib.animation import FuncAnimation
 from numpy.typing import ArrayLike
 
-from classes import Grid, Potential, PotentialFields, PotentialSystem
+from classes import (
+    Grid,
+    Potential,
+    PotentialFields,
+    PotentialResearch,
+    Trajectory,
+    TrajectoryFC,
+    TrajectoryGC,
+    create_trajectory,
+)
 from pyhamsys import HamSys, OdeSolution, solve_ivp_symp, solve_ivp_sympext
 from pyhamsys.solvers import _step_count
 
@@ -262,9 +271,48 @@ class SolveIvpSympTests(unittest.TestCase):
         self.assertEqual(sol.y.shape, (2, 2))
 
 
-class PotentialSystemAreaTests(unittest.TestCase):
+class TrajectoryHierarchyTests(unittest.TestCase):
     @staticmethod
-    def make_system(*, periodic: bool = False) -> PotentialSystem:
+    def make_potential() -> Potential:
+        coordinates = np.linspace(0.0, 2 * np.pi, 16, endpoint=False)
+        return Potential(
+            Grid.from_axes(coordinates, coordinates, period=2 * np.pi),
+            PotentialFields(mean=np.zeros((16, 16))),
+            k=3,
+        )
+
+    def test_factory_selects_concrete_trajectory(self) -> None:
+        potential = self.make_potential()
+
+        gc = create_trajectory(potential, {'type': 'gc', 'rho': 0.0, 'eta': 0.0})
+        fc = create_trajectory(potential, {'type': 'fo', 'rho': 0.1, 'eta': 0.2})
+
+        self.assertIsInstance(gc, TrajectoryGC)
+        self.assertIsInstance(fc, TrajectoryFC)
+        self.assertIsInstance(gc, Trajectory)
+        self.assertIsInstance(fc, Trajectory)
+
+    def test_concrete_models_reject_the_wrong_trajectory_type(self) -> None:
+        potential = self.make_potential()
+
+        with self.assertRaisesRegex(ValueError, "requires trajectory type"):
+            TrajectoryGC(potential, {'type': 'fo', 'rho': 0.1, 'eta': 0.2})
+
+    def test_full_cyclotron_flows_preserve_state_shape(self) -> None:
+        trajectory = TrajectoryFC(
+            self.make_potential(),
+            {'type': 'fo', 'rho': 0.1, 'eta': 0.2},
+        )
+        initial = trajectory.initial_conditions(4)
+
+        self.assertEqual(trajectory.y_dot(0.0, initial).shape, initial.shape)
+        self.assertEqual(trajectory.chi(0.01, 0.0, initial).shape, initial.shape)
+        self.assertEqual(trajectory.chi_star(0.01, 0.0, initial).shape, initial.shape)
+
+
+class TrajectoryGCAreaTests(unittest.TestCase):
+    @staticmethod
+    def make_system(*, periodic: bool = False) -> TrajectoryGC:
         period = 2 * np.pi
         coordinates = np.linspace(0.0, period, 8, endpoint=not periodic)
         potential = Potential(
@@ -272,12 +320,13 @@ class PotentialSystemAreaTests(unittest.TestCase):
             PotentialFields(mean=np.zeros((8, 8))),
             k=3,
         )
-        return PotentialSystem(potential, {'type': 'gc', 'rho': 0.0, 'eta': 0.0})
+        return TrajectoryGC(potential, {'type': 'gc', 'rho': 0.0, 'eta': 0.0})
 
     def test_square_initial_conditions_are_centred_and_counter_clockwise(self) -> None:
         system = self.make_system()
+        research = PotentialResearch(system)
 
-        initial = system.guiding_center_square_initial_conditions(side=1.0)
+        initial = research.guiding_center_square_initial_conditions(side=1.0)
         x, y = system.get_positions(initial)
 
         centre_x = (system.grid.xmin + system.grid.xmax) / 2
@@ -287,7 +336,7 @@ class PotentialSystemAreaTests(unittest.TestCase):
 
     def test_hamiltonian_preserves_trajectory_and_time_axes(self) -> None:
         coordinates = np.linspace(0.0, 2 * np.pi, 8)
-        system = PotentialSystem(
+        system = TrajectoryGC(
             Potential(
                 Grid.from_axes(coordinates, coordinates),
                 PotentialFields(mean=np.ones((8, 8))),
@@ -308,6 +357,7 @@ class PotentialSystemAreaTests(unittest.TestCase):
 
     def test_area_element_is_preserved_by_shear(self) -> None:
         system = self.make_system()
+        research = PotentialResearch(system)
         solution = SimpleNamespace(
             t=np.array([0.0, 0.5, 1.0]),
             y=np.array([
@@ -320,12 +370,13 @@ class PotentialSystemAreaTests(unittest.TestCase):
             ]),
         )
 
-        area = system.guiding_center_area_element(solution)
+        area = research.guiding_center_area_element(solution)
 
         np.testing.assert_allclose(area, 0.02)
 
     def test_area_element_uses_minimum_periodic_displacement(self) -> None:
         system = self.make_system(periodic=True)
+        research = PotentialResearch(system)
         self.assertIsNotNone(system.grid.period)
         period = cast(float, system.grid.period)
         solution = SimpleNamespace(
@@ -340,12 +391,13 @@ class PotentialSystemAreaTests(unittest.TestCase):
             ]),
         )
 
-        area = system.guiding_center_area_element(solution)
+        area = research.guiding_center_area_element(solution)
 
         np.testing.assert_allclose(area, 0.02)
 
     def test_polygon_area_is_preserved_by_shear(self) -> None:
         system = self.make_system()
+        research = PotentialResearch(system)
         solution = SimpleNamespace(
             t=np.array([0.0, 0.5, 1.0]),
             y=np.array([
@@ -360,14 +412,15 @@ class PotentialSystemAreaTests(unittest.TestCase):
             ]),
         )
 
-        area = system.guiding_center_polygon_area(solution)
+        area = research.guiding_center_polygon_area(solution)
 
         np.testing.assert_allclose(area, 1.0)
 
     def test_square_boundary_can_use_more_than_four_points(self) -> None:
         system = self.make_system()
+        research = PotentialResearch(system)
 
-        initial = system.guiding_center_square_initial_conditions(
+        initial = research.guiding_center_square_initial_conditions(
             side=1.0,
             lower_left=(1.0, 1.0),
             points_per_side=3,
@@ -378,6 +431,7 @@ class PotentialSystemAreaTests(unittest.TestCase):
 
     def test_area_animation_is_created(self) -> None:
         system = self.make_system()
+        research = PotentialResearch(system)
         solution = SimpleNamespace(
             t=np.array([0.0, 0.5, 1.0]),
             y=np.array([
@@ -390,7 +444,7 @@ class PotentialSystemAreaTests(unittest.TestCase):
             ]),
         )
 
-        animation = system.animate_electric_psi_area_conservation(
+        animation = research.animate_electric_psi_area_conservation(
             solution,
             frame_stride=2,
             step=1,
@@ -402,7 +456,8 @@ class PotentialSystemAreaTests(unittest.TestCase):
 
     def test_polygon_area_animation_is_created(self) -> None:
         system = self.make_system()
-        initial = system.guiding_center_square_initial_conditions(
+        research = PotentialResearch(system)
+        initial = research.guiding_center_square_initial_conditions(
             side=1.0,
             lower_left=(1.0, 1.0),
             points_per_side=2,
@@ -412,7 +467,7 @@ class PotentialSystemAreaTests(unittest.TestCase):
             y=np.column_stack((initial, initial)),
         )
 
-        animation = system.animate_electric_psi_area_conservation(
+        animation = research.animate_electric_psi_area_conservation(
             solution,
             step=1,
             repeat=False,
@@ -423,6 +478,7 @@ class PotentialSystemAreaTests(unittest.TestCase):
 
     def test_area_animation_rejects_zero_initial_area(self) -> None:
         system = self.make_system()
+        research = PotentialResearch(system)
         solution = SimpleNamespace(
             t=np.array([0.0, 1.0]),
             y=np.array([
@@ -436,7 +492,7 @@ class PotentialSystemAreaTests(unittest.TestCase):
         )
 
         with self.assertRaisesRegex(ValueError, 'must be non-zero'):
-            system.animate_electric_psi_area_conservation(solution)
+            research.animate_electric_psi_area_conservation(solution)
 
 
 if __name__ == "__main__":

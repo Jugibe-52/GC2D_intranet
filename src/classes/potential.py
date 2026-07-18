@@ -600,7 +600,7 @@ class Potential:
 
 	def field_at_time(
 		self,
-		t: float,
+		t: float | Array,
 		x: Array | None = None,
 		y: Array | None = None,
 		*,

@@ -1,6 +1,8 @@
-# Ejecucion `run_potential.py`: modelo `PotentialSystem` con `Potential`
+# Ejecucion `run_potential.py`: trayectorias sobre `Potential`
 
-Esta ejecucion esta pensada para probar o correr el modelo `PotentialSystem` basado en potenciales discretos. El potencial puede venir de un archivo HDF5 o generarse como potencial mock.
+Esta ejecucion usa un potencial discreto con una de las dos dinamicas concretas:
+`TrajectoryGC` (centro guia) o `TrajectoryFC` (ciclotron completo). El potencial
+puede venir de un archivo HDF5 o generarse como potencial mock.
 
 ## Entrada principal
 
@@ -37,7 +39,7 @@ config.build_system()
 Ese metodo crea:
 
 ```text
-Potential -> PotentialSystem
+Potential -> create_trajectory() -> TrajectoryGC | TrajectoryFC
 ```
 
 ## Flujo
@@ -45,7 +47,7 @@ Potential -> PotentialSystem
 1. `run_potential.py` configura imports, logging y argumentos CLI.
 2. Carga la configuracion con `load_potential_config`.
 3. `PotentialConfig.build()` carga un HDF5 con `extract_potential` o genera uno con `mock_potential`.
-4. `PotentialRunConfig.build_system()` construye `PotentialSystem(potential, traj)`; el orden de interpolacion `k` pertenece a `potential`.
+4. `PotentialRunConfig.build_system()` llama a `create_trajectory(potential, traj)`; el orden de interpolacion `k` pertenece a `potential`.
 5. Genera condiciones iniciales con `hs.initial_conditions(...)`.
 6. Integra:
    - `traj_type == "gc"` usa `solve_ivp_sympext(hs, ...)`.
@@ -54,9 +56,9 @@ Potential -> PotentialSystem
 
 ## Diagnósticos de investigación
 
-`PotentialSystem` conserva la dinámica, la integración y la visualización de
-trayectorias. Los diagnósticos que estudian propiedades de los métodos
-numéricos se construyen aparte sobre un sistema ya creado:
+Las clases de trayectoria conservan solo el potencial y la dinamica. La
+visualizacion de campos y trayectorias, junto con los diagnosticos que estudian
+propiedades numericas, se construye aparte sobre una trayectoria ya creada:
 
 ```python
 from classes import PotentialResearch
@@ -66,12 +68,13 @@ z0 = research.guiding_center_square_initial_conditions(points_per_side=50)
 # solution = solve_ivp_sympext(system, z0, ...)
 area = research.guiding_center_polygon_area(solution)
 animation = research.animate_electric_psi_area_conservation(solution)
+# Otros ejemplos: research.plot_phi_psi(), research.animate_electric_psi(...)
 ```
 
 También se exporta `potential_researche` como alias de la clase para conservar
 el nombre solicitado en los notebooks de investigación.
 
-## Secuencia de ejecución de `PotentialSystem.y_dot`
+## Secuencia de ejecución de `TrajectoryGC.y_dot`
 
 En una integración de centro guía, `solve_ivp_sympext` llama repetidamente a
 `system.y_dot(t, z)` para obtener la derivada del estado en cada paso interno.
@@ -79,7 +82,7 @@ La cadena principal de llamadas es:
 
 ```text
 solve_ivp_sympext
-└── PotentialSystem.y_dot(t, z)
+└── TrajectoryGC.y_dot(t, z)
     ├── get_positions(z)
     ├── electric_field(t, x, y)
     │   ├── psi(t, x, y, dx=1) / psi(t, x, y, dy=1)
@@ -93,7 +96,7 @@ solve_ivp_sympext
 
 ### Centro guía (`gc`)
 
-Cuando `traj["type"] == "gc"`, la ejecución sigue estos pasos:
+`TrajectoryGC` sigue estos pasos:
 
 1. `get_positions(z)` interpreta el vector como
    `z = [x_1, ..., x_N, y_1, ..., y_N]` y devuelve por separado los bloques
@@ -135,7 +138,8 @@ a `y_dot` con nuevos valores de `t` y `z`.
 
 ### Órbita completa (`fo`)
 
-Cuando `traj["type"] == "fo"`, el estado se organiza como
+`TrajectoryFC` conserva el valor historico `traj["type"] == "fo"` en la
+configuracion. Su estado se organiza como
 `z = [x, y, vx, vy]` y `electric_field(..., effective=False)` calcula el campo
 físico no giro-promediado $\mathbf E=-\nabla\phi$.
 
@@ -154,11 +158,13 @@ $$
 
 ## Modulos principales
 
-- `run_potential.py`: entry point de terminal para el flujo `PotentialSystem + Potential`.
+- `run_potential.py`: entry point de terminal para el flujo de potenciales y trayectorias.
 - `src/config.py`: carga de configuracion, `PotentialConfig` y `PotentialRunConfig`.
 - `src/classes/potential.py`: clase `Potential`, interpolacion y gyroaverage.
-- `src/classes/potential_system.py`: clase `PotentialSystem` y dinamica del sistema.
-- `src/classes/potential_researche.py`: clase `PotentialResearch` y diagnosticos numericos.
+- `src/classes/trajectory/trajectory.py`: clase base `Trajectory` y comportamiento comun.
+- `src/classes/trajectory/trajectory_gc.py`: dinamica `TrajectoryGC`.
+- `src/classes/trajectory/trajectory_fc.py`: dinamica `TrajectoryFC`.
+- `src/classes/potential_researche.py`: visualizaciones y diagnosticos `PotentialResearch`.
 - `src/workflows/potentials.py`: `extract_potential`, `mock_potential`.
 - `src/workflows/plotting.py`: `plot_sol`, `plot_potential`.
 
@@ -167,7 +173,7 @@ $$
 `run_potential.py` usa potenciales discretos/interpolados:
 
 ```text
-Potential -> PotentialSystem -> pyhamsys
+Potential -> TrajectoryGC | TrajectoryFC -> pyhamsys
 ```
 
 `run_fourier.py` usa el modelo Fourier sintetico:

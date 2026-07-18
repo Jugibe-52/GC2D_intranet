@@ -1,4 +1,4 @@
-@startuml PotentialSystem_notebook_core_architecture
+@startuml GC2D_notebook_core_architecture
 title Notebook Execution and Core modules Package Architecture
 
 skinparam componentStyle rectangle

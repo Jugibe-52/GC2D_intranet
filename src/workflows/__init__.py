@@ -1,4 +1,4 @@
-"""Reusable simulation workflows for PotentialSystem notebooks and scripts."""
+"""Reusable simulation workflows for trajectory notebooks and scripts."""
 
 from typing import Any
 
