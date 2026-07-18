@@ -1,4 +1,6 @@
 *test*
+!tests/
+!tests/*.py
 notebooks/*
 !notebooks/experiments/
 !notebooks/experiments/**

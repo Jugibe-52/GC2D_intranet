@@ -6,7 +6,7 @@ import numpy as np
 from matplotlib.animation import FuncAnimation
 from numpy.typing import ArrayLike
 
-from classes import Potential, PotentialSystem
+from classes import Grid, Potential, PotentialSystem
 from pyhamsys import HamSys, OdeSolution, solve_ivp_symp, solve_ivp_sympext
 from pyhamsys.solvers import _step_count
 
@@ -268,11 +268,9 @@ class PotentialSystemAreaTests(unittest.TestCase):
         period = 2 * np.pi
         coordinates = np.linspace(0.0, period, 8, endpoint=not periodic)
         potential = Potential(
-            coordinates,
-            coordinates,
+            Grid(coordinates, coordinates, period=period if periodic else None),
             [np.zeros((8, 8)), None],
             freqs=[],
-            xy_period=period if periodic else None,
             k=3,
         )
         return PotentialSystem(potential, {'type': 'gc', 'rho': 0.0, 'eta': 0.0})
@@ -283,8 +281,8 @@ class PotentialSystemAreaTests(unittest.TestCase):
         initial = system.guiding_center_square_initial_conditions(side=1.0)
         x, y = system.get_positions(initial)
 
-        centre_x = (system.xmin + system.xmax) / 2
-        centre_y = (system.ymin + system.ymax) / 2
+        centre_x = (system.grid.xmin + system.grid.xmax) / 2
+        centre_y = (system.grid.ymin + system.grid.ymax) / 2
         np.testing.assert_allclose(x, [centre_x, centre_x + 1, centre_x + 1, centre_x])
         np.testing.assert_allclose(y, [centre_y, centre_y, centre_y + 1, centre_y + 1])
 
@@ -292,8 +290,7 @@ class PotentialSystemAreaTests(unittest.TestCase):
         coordinates = np.linspace(0.0, 2 * np.pi, 8)
         system = PotentialSystem(
             Potential(
-                coordinates,
-                coordinates,
+                Grid(coordinates, coordinates),
                 [np.ones((8, 8)), None],
                 freqs=[],
                 k=3,
@@ -331,8 +328,8 @@ class PotentialSystemAreaTests(unittest.TestCase):
 
     def test_area_element_uses_minimum_periodic_displacement(self) -> None:
         system = self.make_system(periodic=True)
-        self.assertIsNotNone(system.xy_period)
-        period = cast(float, system.xy_period)
+        self.assertIsNotNone(system.grid.period)
+        period = cast(float, system.grid.period)
         solution = SimpleNamespace(
             t=np.array([0.0, 1.0]),
             y=np.array([

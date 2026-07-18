@@ -51,8 +51,8 @@ def _white_centered_cmap(vmin: float, vmax: float) -> tuple[Colormap, Normalize]
 
 
 def plot_potential(system: PotentialSystem, dx: int = 0, dy: int = 0, nx: int = 512, ny: int = 512) -> None:
-	x = np.linspace(system.xmin, system.xmax + system.dx, nx, endpoint=False)
-	y = np.linspace(system.ymin, system.ymax + system.dy, ny, endpoint=False)
+	x = np.linspace(system.grid.xmin, system.grid.xmax + system.grid.dx, nx, endpoint=False)
+	y = np.linspace(system.grid.ymin, system.grid.ymax + system.grid.dy, ny, endpoint=False)
 	if system.fields[0] is not None:
 		mean_interpolator = system.interpolators[0]
 		if mean_interpolator is None:
@@ -101,10 +101,10 @@ def plot_sol(
 	**kwargs: Any,
 ) -> tuple[Figure, Axes]:
 	x, y = system.get_positions(sol.y)
-	xmin, xmax = xlim or (system.xmin, system.xmax)
-	ymin, ymax = ylim or (system.ymin, system.ymax)
+	xmin, xmax = xlim or (system.grid.xmin, system.grid.xmax)
+	ymin, ymax = ylim or (system.grid.ymin, system.grid.ymax)
 	if wrap:
-		x, y = system.wrap_or_clip(x, y)
+		x, y = system.grid.wrap_or_clip(x, y)
 	fig, ax = plt.subplots(1, 1)
 	ax.plot(x.T, y.T, '.', **kwargs)
 	ax.set_xlabel('x')

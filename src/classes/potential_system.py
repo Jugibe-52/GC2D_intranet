@@ -58,17 +58,15 @@ class PotentialSystem(Potential, HamSys):
 		# Keep an independent copy of the physical potential phi.  The inherited
 		# Potential instance below stores the effective GC potential psi instead.
 		self._phi = Potential(
-			x=potential.x.copy(),
-			y=potential.y.copy(),
+			grid=potential.grid,
 			fields=(
 				None if potential.fields[0] is None else potential.fields[0].copy(),
 				None if potential.fields[1] is None else [field.copy() for field in potential.fields[1]],
 			),
 			freqs=potential.freqs.copy(),
-			xy_period=potential.xy_period,
 			k=potential.kinterp,
 		)
-		if min(potential.kinterp * potential.dx, potential.kinterp * potential.dy) < self.rho:
+		if min(potential.kinterp * potential.grid.dx, potential.kinterp * potential.grid.dy) < self.rho:
 			raise ValueError(
 				f"Interpolation order {potential.kinterp} is too low for rho = {self.rho}. "
 				"Increase k or decrease rho."
@@ -82,11 +80,9 @@ class PotentialSystem(Potential, HamSys):
 			fields = potential.gyroaverage(self.rho, fields)
 		Potential.__init__(
 			self,
-			x=potential.x.copy(),
-			y=potential.y.copy(),
+			grid=potential.grid,
 			fields=fields,
 			freqs=potential.freqs.copy(),
-			xy_period=potential.xy_period,
 			k=potential.kinterp,
 		)
 		if self.traj["type"] == 'fo':
@@ -101,7 +97,7 @@ class PotentialSystem(Potential, HamSys):
 		y: Array | None = None,
 		type: Literal['random', 'fixed'] = 'fixed',
 	) -> Array:
-		x, y = self.x if x is None else x, self.y if y is None else y
+		x, y = self.grid.x if x is None else x, self.grid.y if y is None else y
 		if type == 'random':
 			np.random.seed(int(time.time()))
 			x0 = (x[-1] - x[0]) * np.random.rand(n_traj) + x[0]
@@ -172,7 +168,7 @@ class PotentialSystem(Potential, HamSys):
 	) -> tuple[Array, Array]:
 		"""Evaluate :math:`\\mathbf{E}=-\\nabla\\psi` or :math:`-\\nabla\\phi` and log it."""
 		if x is None and y is None:
-			x, y = np.meshgrid(self.x, self.y, indexing='ij')
+			x, y = np.meshgrid(self.grid.x, self.grid.y, indexing='ij')
 		elif x is None or y is None:
 			raise ValueError("`x` and `y` must be provided together.")
 		potential = self.psi if effective else self.phi
@@ -212,10 +208,10 @@ class PotentialSystem(Potential, HamSys):
 		fig, axes = plt.subplots(1, 2, figsize=(12, 5), constrained_layout=True)
 		for ax, field, label in zip(axes, (phi_t, psi_t), (r'$\phi$', r'$\psi$')):
 			mesh = ax.pcolormesh(
-				self.x, self.y, field.T, shading='auto', cmap=cmap, norm=norm, **pcolormesh_kwargs,
+				self.grid.x, self.grid.y, field.T, shading='auto', cmap=cmap, norm=norm, **pcolormesh_kwargs,
 			)
 			if contours is not None:
-				ax.contour(self.x, self.y, field.T, levels=contours, colors='k', linewidths=0.45, alpha=0.55)
+				ax.contour(self.grid.x, self.grid.y, field.T, levels=contours, colors='k', linewidths=0.45, alpha=0.55)
 			ax.set(xlabel='x', ylabel='y', title=rf'{label}, $t={t:.3f}$', aspect='equal')
 		fig.colorbar(mesh, ax=axes, label='potential')
 		if show:
@@ -244,21 +240,21 @@ class PotentialSystem(Potential, HamSys):
 		"""
 		self._validate_step(step)
 		phi_t, psi_t = self.phi(t), self.psi(t)
-		X, Y = np.meshgrid(self.x, self.y, indexing='ij')
+		X, Y = np.meshgrid(self.grid.x, self.grid.y, indexing='ij')
 		fields = (
 			self.electric_field(t, X, Y, effective=False),
 			self.electric_field(t, X, Y),
 		)
 		max_magnitude = max(float(np.nanmax(np.hypot(Ex, Ey))) for Ex, Ey in fields)
-		scale = None if np.isclose(max_magnitude, 0.0) else max_magnitude / (2 * min(self.dx, self.dy))
+		scale = None if np.isclose(max_magnitude, 0.0) else max_magnitude / (2 * min(self.grid.dx, self.grid.dy))
 		norm = self._comparison_norm(phi_t, psi_t)
 		fig, axes = plt.subplots(1, 2, figsize=(12, 5), constrained_layout=True)
 		for ax, potential, (Ex, Ey), symbol in zip(axes, (phi_t, psi_t), fields, (r'\phi', r'\psi')):
 			mesh = ax.pcolormesh(
-				self.x, self.y, potential.T, shading='auto', cmap=cmap, norm=norm, **pcolormesh_kwargs,
+				self.grid.x, self.grid.y, potential.T, shading='auto', cmap=cmap, norm=norm, **pcolormesh_kwargs,
 			)
 			if contours is not None:
-				ax.contour(self.x, self.y, potential.T, levels=contours, colors='k', linewidths=0.45, alpha=0.55)
+				ax.contour(self.grid.x, self.grid.y, potential.T, levels=contours, colors='k', linewidths=0.45, alpha=0.55)
 			ax.quiver(
 				X[::step, ::step], Y[::step, ::step], Ex[::step, ::step], Ey[::step, ::step],
 				color='black', angles='xy', scale_units='xy', scale=scale, width=0.003,
@@ -290,7 +286,7 @@ class PotentialSystem(Potential, HamSys):
 		norm = self._comparison_norm(*phi_fields, *psi_fields)
 		fig, axes = plt.subplots(1, 2, figsize=(12, 5), constrained_layout=True)
 		meshes = [
-			ax.pcolormesh(self.x, self.y, field.T, shading='auto', cmap=cmap, norm=norm, **pcolormesh_kwargs)
+			ax.pcolormesh(self.grid.x, self.grid.y, field.T, shading='auto', cmap=cmap, norm=norm, **pcolormesh_kwargs)
 			for ax, field in zip(axes, (phi_fields[0], psi_fields[0]))
 		]
 		for ax, label in zip(axes, (r'$\phi$', r'$\psi$')):
@@ -326,7 +322,7 @@ class PotentialSystem(Potential, HamSys):
 			raise ValueError('`t_max` must be positive.')
 		self._validate_step(step)
 		times = np.linspace(0.0, t_max, frames, endpoint=False)
-		X, Y = np.meshgrid(self.x, self.y, indexing='ij')
+		X, Y = np.meshgrid(self.grid.x, self.grid.y, indexing='ij')
 		phi_fields, psi_fields = [self.phi(t) for t in times], [self.psi(t) for t in times]
 		phi_electric = [self.electric_field(t, X, Y, effective=False) for t in times]
 		psi_electric = [self.electric_field(t, X, Y) for t in times]
@@ -335,11 +331,11 @@ class PotentialSystem(Potential, HamSys):
 			for fields in (phi_electric, psi_electric)
 			for Ex, Ey in fields
 		)
-		scale = None if np.isclose(max_magnitude, 0.0) else max_magnitude / (2 * min(self.dx, self.dy))
+		scale = None if np.isclose(max_magnitude, 0.0) else max_magnitude / (2 * min(self.grid.dx, self.grid.dy))
 		norm = self._comparison_norm(*phi_fields, *psi_fields)
 		fig, axes = plt.subplots(1, 2, figsize=(12, 5), constrained_layout=True)
 		meshes = [
-			ax.pcolormesh(self.x, self.y, field.T, shading='auto', cmap=cmap, norm=norm, **pcolormesh_kwargs)
+			ax.pcolormesh(self.grid.x, self.grid.y, field.T, shading='auto', cmap=cmap, norm=norm, **pcolormesh_kwargs)
 			for ax, field in zip(axes, (phi_fields[0], psi_fields[0]))
 		]
 		quivers = [
@@ -384,14 +380,14 @@ class PotentialSystem(Potential, HamSys):
 			raise ValueError('`t_max` must be positive.')
 		self._validate_step(step)
 		times = np.linspace(0.0, t_max, frames, endpoint=False)
-		X, Y = np.meshgrid(self.x, self.y, indexing='ij')
+		X, Y = np.meshgrid(self.grid.x, self.grid.y, indexing='ij')
 		psi_fields = [self.psi(t) for t in times]
 		electric_fields = [self.electric_field(t, X, Y) for t in times]
 		max_magnitude = max(float(np.nanmax(np.hypot(Ex, Ey))) for Ex, Ey in electric_fields)
-		scale = None if np.isclose(max_magnitude, 0.0) else max_magnitude / (2 * min(self.dx, self.dy))
+		scale = None if np.isclose(max_magnitude, 0.0) else max_magnitude / (2 * min(self.grid.dx, self.grid.dy))
 		norm = self._comparison_norm(*psi_fields)
 		fig, ax = plt.subplots(figsize=(6, 5), constrained_layout=True)
-		mesh = ax.pcolormesh(self.x, self.y, psi_fields[0].T, shading='auto', cmap=cmap, norm=norm, **pcolormesh_kwargs)
+		mesh = ax.pcolormesh(self.grid.x, self.grid.y, psi_fields[0].T, shading='auto', cmap=cmap, norm=norm, **pcolormesh_kwargs)
 		Ex0, Ey0 = electric_fields[0]
 		quiver = ax.quiver(
 			X[::step, ::step], Y[::step, ::step], Ex0[::step, ::step], Ey0[::step, ::step],
@@ -457,7 +453,7 @@ class PotentialSystem(Potential, HamSys):
 			frame_indices = frame_indices[np.unique(selected)]
 		times = times_all[frame_indices]
 		x_all, y_all = self.get_positions(states_all)
-		x_all, y_all = self.wrap_or_clip(x_all, y_all)
+		x_all, y_all = self.grid.wrap_or_clip(x_all, y_all)
 		logger.info(
 			"Animation data selected: trajectories=%d frames=%d stride=%d "
 			"x_range=[%g, %g] y_range=[%g, %g]",
@@ -470,16 +466,16 @@ class PotentialSystem(Potential, HamSys):
 			float(np.nanmax(y_all)),
 		)
 		line_x, line_y = x_all.copy(), y_all.copy()
-		if self.xy_period is not None:
+		if self.grid.period is not None:
 			crosses_boundary = (
-				(np.abs(np.diff(x_all, axis=1)) > self.xy_period / 2)
-				| (np.abs(np.diff(y_all, axis=1)) > self.xy_period / 2)
+				(np.abs(np.diff(x_all, axis=1)) > self.grid.period / 2)
+				| (np.abs(np.diff(y_all, axis=1)) > self.grid.period / 2)
 			)
 			# A NaN breaks a Matplotlib line.  It avoids drawing a false segment
 			# across the periodic square when a trajectory re-enters on the other side.
 			line_x[:, 1:][crosses_boundary] = np.nan
 			line_y[:, 1:][crosses_boundary] = np.nan
-		X, Y = np.meshgrid(self.x, self.y, indexing='ij')
+		X, Y = np.meshgrid(self.grid.x, self.grid.y, indexing='ij')
 		logger.info(
 			"Field source used by the animation: psi is evaluated from PotentialSystem.psi(t) "
 			"(the effective/gyroaveraged potential stored in the system), not from solution.y; "
@@ -488,10 +484,10 @@ class PotentialSystem(Potential, HamSys):
 			"grid X,Y with shape=%s, x_range=[%g, %g], y_range=[%g, %g]; "
 			"the quiver displays every %d grid points",
 			X.shape,
-			float(self.x[0]),
-			float(self.x[-1]),
-			float(self.y[0]),
-			float(self.y[-1]),
+			self.grid.xmin,
+			self.grid.xmax,
+			self.grid.ymin,
+			self.grid.ymax,
 			step,
 		)
 		psi_fields = [self.psi(t) for t in times]
@@ -510,10 +506,10 @@ class PotentialSystem(Potential, HamSys):
 			np.array2string(states_all[n_trajectories:2 * n_trajectories, frame_indices], precision=6),
 		)
 		max_magnitude = max(float(np.nanmax(np.hypot(Ex, Ey))) for Ex, Ey in electric_fields)
-		scale = None if np.isclose(max_magnitude, 0.0) else max_magnitude / (2 * min(self.dx, self.dy))
+		scale = None if np.isclose(max_magnitude, 0.0) else max_magnitude / (2 * min(self.grid.dx, self.grid.dy))
 		norm = self._comparison_norm(*psi_fields)
 		fig, ax = plt.subplots(figsize=(6, 5), constrained_layout=True)
-		mesh = ax.pcolormesh(self.x, self.y, psi_fields[0].T, shading='auto', cmap=cmap, norm=norm, **pcolormesh_kwargs)
+		mesh = ax.pcolormesh(self.grid.x, self.grid.y, psi_fields[0].T, shading='auto', cmap=cmap, norm=norm, **pcolormesh_kwargs)
 		Ex0, Ey0 = electric_fields[0]
 		quiver = ax.quiver(
 			X[::step, ::step], Y[::step, ::step], Ex0[::step, ::step], Ey0[::step, ::step],
@@ -571,8 +567,8 @@ class PotentialSystem(Potential, HamSys):
 			norm = mcolors.Normalize(vmin=vmin, vmax=vmax)
 		fig, ax = plt.subplots(figsize=(6, 5), constrained_layout=True)
 		mesh = ax.pcolormesh(
-			self.x,
-			self.y,
+			self.grid.x,
+			self.grid.y,
 			psi_t.T,
 			shading='auto',
 			cmap=cmap,
@@ -580,7 +576,7 @@ class PotentialSystem(Potential, HamSys):
 			**pcolormesh_kwargs,
 		)
 		if contours is not None:
-			ax.contour(self.x, self.y, psi_t.T, levels=contours, colors='k', linewidths=0.45, alpha=0.55)
+			ax.contour(self.grid.x, self.grid.y, psi_t.T, levels=contours, colors='k', linewidths=0.45, alpha=0.55)
 		fig.colorbar(mesh, ax=ax, label=r'$\psi$')
 		ax.set(xlabel='x', ylabel='y', title=rf'Effective potential $\psi$, $t={t:.3f}$', aspect='equal')
 		if show:

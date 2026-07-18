@@ -282,12 +282,12 @@ class PotentialConfig:
 		if self.type not in {"hdf5", "mock", "hdf5_or_mock"}:
 			raise ConfigError(f"Invalid potential type {self.type!r}.")
 		if self.type in {"hdf5", "hdf5_or_mock"} and self.path is not None and self.path.exists():
+			target_shape = None if self.nx is None and self.ny is None else (self.nx, self.ny)
 			return extract_potential(
 				self.path,
 				B=self.B,
 				indx=self.indx,
-				nx=self.nx,
-				ny=self.ny,
+				target_shape=target_shape,
 				denoising=self.denoising,
 				sigma=self.sigma,
 				k=self.k,

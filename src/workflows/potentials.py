@@ -6,6 +6,7 @@ import h5py
 import numpy as np
 from scipy import ndimage
 
+from classes.grid import Grid
 from classes.potential import Array, Potential
 
 
@@ -16,8 +17,7 @@ def extract_potential(
 	filename: str | Path,
 	B: float = 1,
 	indx: Sequence[int] | Array | None = None,
-	nx: int | None = None,
-	ny: int | None = None,
+	target_shape: tuple[int | None, int | None] | None = None,
 	denoising: bool = False,
 	sigma: float = 1,
 	k: int = 3,
@@ -79,15 +79,20 @@ def extract_potential(
 		])
 	if denoising and mean_value is not None:
 		mean_value = ndimage.gaussian_filter(mean_value, sigma=sigma)
-	return Potential(x, y, [mean_value, fluctuations], freqs, nx=nx, ny=ny, k=k)
+	grid = Grid(x, y)
+	potential = Potential(grid, [mean_value, fluctuations], freqs, k=k)
+	if target_shape is not None:
+		potential = potential.resample(grid.resized(*target_shape))
+	return potential
 
 
-def _mock_grid(nx: int, ny: int) -> tuple[Array, Array]:
+def _mock_grid(nx: int, ny: int) -> Grid:
 	"""Create the periodic spatial grid used by a synthetic potential."""
 	period = 2 * np.pi
-	return (
+	return Grid(
 		np.linspace(0.0, period, nx, endpoint=False),
 		np.linspace(0.0, period, ny, endpoint=False),
+		period=period,
 	)
 
 
@@ -128,16 +133,14 @@ def mock_potential(A: float, M: int, nx: int, ny: int, seed: int = 27, k: int = 
 		seed,
 		k,
 	)
-	x, y = _mock_grid(nx, ny)
+	grid = _mock_grid(nx, ny)
 	spectrum = _mock_spectrum(A, M, np.random.default_rng(seed))
-	field = _reconstruct_periodic_mode(spectrum, x, y)
+	field = _reconstruct_periodic_mode(spectrum, grid.x, grid.y)
 	potential = Potential(
-		x,
-		y,
+		grid,
 		[None, [field]],
 		freqs=[-1],
-		xy_period=2 * np.pi,
 		k=k,
 	)
-	logger.info("Mock potential ready: modes=%d spatial_period=%g", len(potential.freqs), potential.xy_period)
+	logger.info("Mock potential ready: modes=%d spatial_period=%g", len(potential.freqs), potential.grid.period)
 	return potential

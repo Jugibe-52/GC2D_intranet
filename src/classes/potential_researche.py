@@ -70,8 +70,8 @@ class PotentialResearch:
 		if not isinstance(points_per_side, (int, np.integer)) or points_per_side < 1:
 			raise ValueError('`points_per_side` must be a positive integer.')
 		if lower_left is None:
-			x0 = (float(self.system.xmin) + float(self.system.xmax)) / 2
-			y0 = (float(self.system.ymin) + float(self.system.ymax)) / 2
+			x0 = (self.system.grid.xmin + self.system.grid.xmax) / 2
+			y0 = (self.system.grid.ymin + self.system.grid.ymax) / 2
 		else:
 			if len(lower_left) != 2:
 				raise ValueError('`lower_left` must contain exactly two coordinates.')
@@ -102,9 +102,9 @@ class PotentialResearch:
 		"""Put consecutive periodic polygon vertices in one local image."""
 		x_unwrapped = np.asarray(x_vertices, dtype=float).copy()
 		y_unwrapped = np.asarray(y_vertices, dtype=float).copy()
-		if self.system.xy_period is None:
+		if self.system.grid.period is None:
 			return x_unwrapped, y_unwrapped
-		period = float(self.system.xy_period)
+		period = self.system.grid.period
 		for vertex in range(1, x_unwrapped.shape[0]):
 			delta_x = x_vertices[vertex] - x_vertices[vertex - 1]
 			delta_y = y_vertices[vertex] - y_vertices[vertex - 1]
@@ -153,8 +153,8 @@ class PotentialResearch:
 		dx_y = y_all[endpoint_x] - y_all[reference]
 		dy_x = x_all[endpoint_y] - x_all[reference]
 		dy_y = y_all[endpoint_y] - y_all[reference]
-		if self.system.xy_period is not None:
-			period = float(self.system.xy_period)
+		if self.system.grid.period is not None:
+			period = self.system.grid.period
 			dx_x -= period * np.round(dx_x / period)
 			dx_y -= period * np.round(dx_y / period)
 			dy_x -= period * np.round(dy_x / period)
@@ -269,12 +269,12 @@ class PotentialResearch:
 		times = times_all[frame_indices]
 
 		x_raw, y_raw = self.system.get_positions(states_all)
-		x_all, y_all = self.system.wrap_or_clip(x_raw, y_raw)
+		x_all, y_all = self.system.grid.wrap_or_clip(x_raw, y_raw)
 		line_x, line_y = x_all.copy(), y_all.copy()
-		if self.system.xy_period is not None:
+		if self.system.grid.period is not None:
 			crosses_boundary = (
-				(np.abs(np.diff(x_all, axis=1)) > self.system.xy_period / 2)
-				| (np.abs(np.diff(y_all, axis=1)) > self.system.xy_period / 2)
+				(np.abs(np.diff(x_all, axis=1)) > self.system.grid.period / 2)
+				| (np.abs(np.diff(y_all, axis=1)) > self.system.grid.period / 2)
 			)
 			line_x[:, 1:][crosses_boundary] = np.nan
 			line_y[:, 1:][crosses_boundary] = np.nan
@@ -287,8 +287,8 @@ class PotentialResearch:
 			for endpoint in indices[1:]:
 				delta_x = x_raw[endpoint] - x_raw[reference]
 				delta_y = y_raw[endpoint] - y_raw[reference]
-				if self.system.xy_period is not None:
-					period = float(self.system.xy_period)
+				if self.system.grid.period is not None:
+					period = self.system.grid.period
 					delta_x -= period * np.round(delta_x / period)
 					delta_y -= period * np.round(delta_y / period)
 				displacements.append((delta_x, delta_y))
@@ -301,17 +301,17 @@ class PotentialResearch:
 			polygon_x += x_all[reference] - polygon_x[0]
 			polygon_y += y_all[reference] - polygon_y[0]
 
-		X, Y = np.meshgrid(self.system.x, self.system.y, indexing='ij')
+		X, Y = np.meshgrid(self.system.grid.x, self.system.grid.y, indexing='ij')
 		psi_fields = [self.system.psi(t) for t in times]
 		electric_fields = [self.system.electric_field(t, X, Y) for t in times]
 		max_magnitude = max(float(np.nanmax(np.hypot(Ex, Ey))) for Ex, Ey in electric_fields)
-		scale = None if np.isclose(max_magnitude, 0.0) else max_magnitude / (2 * min(self.system.dx, self.system.dy))
+		scale = None if np.isclose(max_magnitude, 0.0) else max_magnitude / (2 * min(self.system.grid.dx, self.system.grid.dy))
 		norm = self._comparison_norm(*psi_fields)
 
 		fig, (ax_field, ax_area) = plt.subplots(1, 2, figsize=(12, 5), constrained_layout=True)
 		mesh = ax_field.pcolormesh(
-			self.system.x,
-			self.system.y,
+			self.system.grid.x,
+			self.system.grid.y,
 			psi_fields[0].T,
 			shading='auto',
 			cmap=cmap,
