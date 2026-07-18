@@ -31,8 +31,9 @@ import logging
 import os
 from dataclasses import dataclass
 import numpy as np
+import numpy.typing as npt
 from numpy.fft import fft2, ifft2, fftfreq
-from typing import Any, Sequence, TypeAlias
+from typing import Any, Sequence, TypeAlias, cast
 os.environ.setdefault("MPLCONFIGDIR", ".matplotlib")
 import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
@@ -47,18 +48,19 @@ from .grid import Grid
 
 logger = logging.getLogger(__name__)
 
-ComplexInterpolator: TypeAlias = tuple[RectBivariateSpline, RectBivariateSpline]
-
+RealArray: TypeAlias = npt.NDArray[np.float64]
+ComplexArray: TypeAlias = npt.NDArray[np.complex128]
+FieldArray: TypeAlias = RealArray | ComplexArray
 
 @dataclass(frozen=True, slots=True)
 class PotentialMode:
 	"""One complex spatial coefficient and its temporal frequency."""
 
-	coefficient: Array
+	coefficient: ComplexArray
 	frequency: float
 
 	def __post_init__(self) -> None:
-		coefficient = np.asarray(self.coefficient)
+		coefficient = cast(ComplexArray, np.asarray(self.coefficient, dtype=np.complex128))
 		frequency = float(self.frequency)
 		if not np.isfinite(frequency):
 			raise ValueError("A potential mode frequency must be finite.")
@@ -73,11 +75,16 @@ class PotentialMode:
 class PotentialFields:
 	"""Time-independent mean field and frequency-bearing complex modes."""
 
-	mean: Array | None = None
+	mean: RealArray | None = None
 	modes: tuple[PotentialMode, ...] = ()
 
 	def __post_init__(self) -> None:
-		mean = None if self.mean is None else np.asarray(self.mean)
+		mean: RealArray | None = None
+		if self.mean is not None:
+			raw_mean = np.asarray(self.mean)
+			if np.iscomplexobj(raw_mean) and not np.allclose(raw_mean.imag, 0.0):
+				raise ValueError("The mean potential field must be real-valued.")
+			mean = cast(RealArray, np.asarray(raw_mean.real, dtype=np.float64))
 		modes = tuple(self.modes)
 		if not all(isinstance(mode, PotentialMode) for mode in modes):
 			raise TypeError("`modes` must contain only PotentialMode instances.")
@@ -87,18 +94,23 @@ class PotentialFields:
 	@classmethod
 	def from_arrays(
 		cls,
-		mean: Array | None,
-		coefficients: Array | Sequence[Array] | None,
-		frequencies: Sequence[float] | Array,
+		mean: RealArray | None,
+		coefficients: FieldArray | Sequence[FieldArray] | None,
+		frequencies: Sequence[float] | RealArray,
 	) -> PotentialFields:
 		"""Adapt parallel arrays from storage formats into frequency-bearing modes."""
 		frequency_array = np.asarray(frequencies, dtype=float).reshape(-1)
 		if coefficients is None:
-			coefficient_arrays: tuple[Array, ...] = ()
+			coefficient_arrays: tuple[ComplexArray, ...] = ()
 		elif isinstance(coefficients, np.ndarray) and coefficients.ndim == 2:
-			coefficient_arrays = (coefficients,)
+			coefficient_arrays = (
+				cast(ComplexArray, np.asarray(coefficients, dtype=np.complex128)),
+			)
 		else:
-			coefficient_arrays = tuple(np.asarray(coefficient) for coefficient in coefficients)
+			coefficient_arrays = tuple(
+				cast(ComplexArray, np.asarray(coefficient, dtype=np.complex128))
+				for coefficient in coefficients
+			)
 		if len(coefficient_arrays) != frequency_array.size:
 			raise ValueError(
 				f"Received {len(coefficient_arrays)} mode coefficients for "
@@ -113,8 +125,8 @@ class PotentialFields:
 		)
 
 	@property
-	def frequencies(self) -> Array:
-		frequencies = np.asarray([mode.frequency for mode in self.modes], dtype=float)
+	def frequencies(self) -> RealArray:
+		frequencies = cast(RealArray, np.asarray([mode.frequency for mode in self.modes], dtype=np.float64))
 		frequencies.setflags(write=False)
 		return frequencies
 
@@ -129,18 +141,54 @@ class PotentialFields:
 class _SplineDomain:
 	"""Extended coordinate domain and field-padding policy for splines."""
 
-	x: Array
-	y: Array
+	x: RealArray
+	y: RealArray
 	padding: tuple[int, int]
 	periodic: bool
+
+
+@dataclass(frozen=True, slots=True)
+class Spline2D:
+	"""Real or complex two-dimensional spline with a uniform evaluation API."""
+
+	real: RectBivariateSpline
+	imag: RectBivariateSpline | None = None
+
+	def evaluate_points(
+		self,
+		x: Array,
+		y: Array,
+		*,
+		dx: int = 0,
+		dy: int = 0,
+	) -> FieldArray:
+		"""Evaluate at paired coordinates and optionally take derivatives."""
+		value = np.asarray(self.real.ev(x, y, dx=dx, dy=dy))
+		if self.imag is not None:
+			value = value + 1j * self.imag.ev(x, y, dx=dx, dy=dy)
+		return cast(FieldArray, np.asarray(value))
+
+	def evaluate_grid(
+		self,
+		x: Array,
+		y: Array,
+		*,
+		dx: int = 0,
+		dy: int = 0,
+	) -> FieldArray:
+		"""Evaluate on the Cartesian product of two coordinate axes."""
+		value = np.asarray(self.real(x, y, dx=dx, dy=dy))
+		if self.imag is not None:
+			value = value + 1j * self.imag(x, y, dx=dx, dy=dy)
+		return cast(FieldArray, np.asarray(value))
 
 
 @dataclass(frozen=True, slots=True)
 class PotentialInterpolators:
 	"""Spline interpolators aligned with a :class:`PotentialFields` object."""
 
-	mean: RectBivariateSpline | None = None
-	modes: tuple[ComplexInterpolator, ...] = ()
+	mean: Spline2D | None = None
+	modes: tuple[Spline2D, ...] = ()
 
 	@classmethod
 	def build(
@@ -150,21 +198,21 @@ class PotentialInterpolators:
 		*,
 		order: int,
 	) -> PotentialInterpolators:
-		"""Build the mean spline and one complex spline pair per mode."""
+		"""Prepare one shared domain, then build one spline per coefficient."""
 		domain = _prepare_spline_domain(grid, order=order)
 		mean = (
 			None
 			if fields.mean is None
-			else _build_real_spline(domain, fields.mean, order=order)
+			else _build_spline(domain, fields.mean, order=order)
 		)
 		modes = tuple(
-			_build_complex_spline(domain, mode.coefficient, order=order)
+			_build_spline(domain, mode.coefficient, order=order)
 			for mode in fields.modes
 		)
 		return cls(mean, modes)
 
 
-def real_imag(z: Array) -> tuple[Array, Array]:
+def real_imag(z: ComplexArray) -> tuple[RealArray, RealArray]:
 	return z.real, z.imag
 
 
@@ -179,56 +227,48 @@ def _prepare_spline_domain(grid: Grid, *, order: int) -> _SplineDomain:
 	periodic = grid.period is not None
 	padding = (margin, margin + int(periodic))
 	left, right = padding
-	x = np.pad(
+	x = cast(RealArray, np.pad(
 		grid.x,
 		padding,
 		mode='linear_ramp',
 		end_values=(grid.xmin - left * grid.dx, grid.xmax + right * grid.dx),
-	)
-	y = np.pad(
+	))
+	y = cast(RealArray, np.pad(
 		grid.y,
 		padding,
 		mode='linear_ramp',
 		end_values=(grid.ymin - left * grid.dy, grid.ymax + right * grid.dy),
-	)
+	))
 	return _SplineDomain(x, y, padding, periodic)
 
 
-def _pad_coefficient(domain: _SplineDomain, coefficient: Array) -> Array:
+def _pad_coefficient(domain: _SplineDomain, coefficient: FieldArray) -> FieldArray:
 	"""Extend a coefficient according to the domain's boundary policy."""
 	if domain.periodic:
-		return np.pad(coefficient, (domain.padding, domain.padding), mode='wrap')
-	return np.pad(
+		return cast(FieldArray, np.pad(coefficient, (domain.padding, domain.padding), mode='wrap'))
+	return cast(FieldArray, np.pad(
 		coefficient,
 		(domain.padding, domain.padding),
 		mode='constant',
 		constant_values=0,
-	)
+	))
 
 
-def _build_real_spline(
+def _build_spline(
 	domain: _SplineDomain,
-	coefficient: Array,
+	coefficient: FieldArray,
 	*,
 	order: int,
-) -> RectBivariateSpline:
-	"""Build one real-valued spline on the prepared domain."""
+) -> Spline2D:
+	"""Build one real or complex spline on the prepared domain."""
 	padded = _pad_coefficient(domain, coefficient)
-	return RectBivariateSpline(domain.x, domain.y, padded, kx=order, ky=order)
-
-
-def _build_complex_spline(
-	domain: _SplineDomain,
-	coefficient: Array,
-	*,
-	order: int,
-) -> ComplexInterpolator:
-	"""Build the real and imaginary splines for one complex mode."""
-	padded = _pad_coefficient(domain, coefficient)
-	return (
-		RectBivariateSpline(domain.x, domain.y, padded.real, kx=order, ky=order),
-		RectBivariateSpline(domain.x, domain.y, padded.imag, kx=order, ky=order),
+	real = RectBivariateSpline(domain.x, domain.y, padded.real, kx=order, ky=order)
+	imag = (
+		RectBivariateSpline(domain.x, domain.y, padded.imag, kx=order, ky=order)
+		if np.iscomplexobj(padded)
+		else None
 	)
+	return Spline2D(real, imag)
 
 
 def _resample_fields(
@@ -238,13 +278,17 @@ def _resample_fields(
 ) -> PotentialFields:
 	"""Evaluate a field set's interpolators on a new grid."""
 	x, y = grid.x, grid.y
-	mean = None if interpolators.mean is None else np.asarray(interpolators.mean(x, y))
+	mean = (
+		None
+		if interpolators.mean is None
+		else cast(RealArray, interpolators.mean.evaluate_grid(x, y))
+	)
 	modes = tuple(
 		PotentialMode(
-			np.asarray(interp_real(x, y) + 1j * interp_imag(x, y)),
+			cast(ComplexArray, interpolator.evaluate_grid(x, y)),
 			mode.frequency,
 		)
-		for mode, (interp_real, interp_imag) in zip(
+		for mode, interpolator in zip(
 			fields.modes,
 			interpolators.modes,
 			strict=True,
@@ -253,7 +297,7 @@ def _resample_fields(
 	return PotentialFields(mean, modes)
 
 
-def _field_norm(field: Array) -> mcolors.Normalize:
+def _field_norm(field: RealArray) -> mcolors.Normalize:
 	"""Return a colour normalization centred at zero whenever possible."""
 	vmin, vmax = float(np.nanmin(field)), float(np.nanmax(field))
 	if vmin < 0 < vmax:
@@ -338,7 +382,7 @@ def _draw_field(
 	ax: Axes,
 	x: Array,
 	y: Array,
-	field: Array,
+	field: RealArray,
 	*,
 	title: str,
 	contours: int | Sequence[float] | None,
@@ -452,8 +496,8 @@ class Potential:
 			raise TypeError("`grid` must be a Grid instance.")
 		if not isinstance(fields, PotentialFields):
 			raise TypeError("`fields` must be a PotentialFields instance.")
-		self.grid = grid
-		self.fields = fields
+		self.grid: Grid = grid
+		self.fields: PotentialFields = fields
 
 		# Ensure every spatial coefficient matches the grid.
 		if fields.mean is not None and fields.mean.shape != grid.shape:
@@ -470,7 +514,7 @@ class Potential:
 			raise ValueError("`k` must be between 1 and 5 for RectBivariateSpline.")
 
 		# Build the mean spline and each mode's real/imaginary spline pair.
-		self.interpolators = PotentialInterpolators.build(
+		self.interpolators: PotentialInterpolators = PotentialInterpolators.build(
 			self.grid,
 			self.fields,
 			order=self.kinterp,
@@ -496,22 +540,25 @@ class Potential:
 			')'
 		)
 
-	def gyroaverage(self, rho: float, fields: PotentialFields) -> PotentialFields:
+	def gyroaveraged(self, rho: float) -> Potential:
+		"""Return the effective potential averaged over Larmor circles of radius ``rho``."""
+		if rho < 0:
+			raise ValueError("`rho` must be non-negative.")
 		kx = fftfreq(self.grid.nx, d=self.grid.dx)
 		ky = fftfreq(self.grid.ny, d=self.grid.dy)
 		kx_, ky_ = np.meshgrid(kx, ky, indexing='ij')
 		gyro_factor = jv(0, 2 * np.pi * rho * np.sqrt(kx_**2 + ky_**2))
 		mean = None
-		if fields.mean is not None:
-			mean = ifft2(fft2(fields.mean) * gyro_factor).real
+		if self.fields.mean is not None:
+			mean = ifft2(fft2(self.fields.mean) * gyro_factor).real
 		modes = tuple(
 			PotentialMode(
 				ifft2(fft2(mode.coefficient) * gyro_factor),
 				mode.frequency,
 			)
-			for mode in fields.modes
+			for mode in self.fields.modes
 		)
-		return PotentialFields(mean, modes)
+		return Potential(self.grid, PotentialFields(mean, modes), k=self.kinterp)
 
 	def phic_interp(self, xi: Array, yi: Array, dx: int = 0, dy: int = 0) -> PotentialFields:
 		"""Evaluate the spatially interpolated potential coefficients.
@@ -529,22 +576,21 @@ class Potential:
 		"""
 		# Keep every evaluation point inside the domain expected by the splines.
 		xi, yi = self.grid.wrap_or_clip(xi, yi)
-		mean: Array | None = None
+		mean: RealArray | None = None
 		if self.fields.mean is not None:
-			# The mean field is real, so one spline evaluation is sufficient.
 			mean_interpolator = self.interpolators.mean
 			if mean_interpolator is None:
 				raise RuntimeError("Mean field exists without its interpolator.")
-			mean = np.asarray(mean_interpolator.ev(xi, yi, dx=dx, dy=dy))
+			mean = cast(
+				RealArray,
+				mean_interpolator.evaluate_points(xi, yi, dx=dx, dy=dy),
+			)
 		modes = tuple(
-			PotentialMode(
-				np.asarray(
-					interp_real.ev(xi, yi, dx=dx, dy=dy)
-					+ 1j * interp_imag.ev(xi, yi, dx=dx, dy=dy)
-				),
+		PotentialMode(
+			cast(ComplexArray, interpolator.evaluate_points(xi, yi, dx=dx, dy=dy)),
 				mode.frequency,
 			)
-			for mode, (interp_real, interp_imag) in zip(
+			for mode, interpolator in zip(
 				self.fields.modes,
 				self.interpolators.modes,
 				strict=True,
@@ -561,7 +607,7 @@ class Potential:
 		dx: int = 0,
 		dy: int = 0,
 		dt: int = 0,
-	) -> Array:
+	) -> RealArray:
 		"""Reconstruct the real potential or one of its derivatives at time ``t``.
 
 		Without ``x`` and ``y``, the field is evaluated on the stored grid. Spatial
@@ -594,7 +640,7 @@ class Potential:
 			if dt == 1:
 				phase *= 1j * mode.frequency
 			field += 2.0 * (mode.coefficient * phase).real
-		return field
+		return cast(RealArray, field)
 
 	def plot(
 		self,

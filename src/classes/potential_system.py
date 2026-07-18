@@ -40,24 +40,44 @@ from matplotlib.figure import Figure
 from pyhamsys import HamSys
 
 from contracts import TrajectoryParams
-from .potential import Array, Potential, real_imag
+from .grid import Grid
+from .potential import Array, Potential, PotentialFields, PotentialInterpolators, real_imag
 
 logger = logging.getLogger(__name__)
 
-class PotentialSystem(Potential, HamSys):
-	"""Particle dynamics over an independent, optionally gyroaveraged Potential."""
+class PotentialSystem(HamSys):
+	"""Particle dynamics over explicit physical and effective potentials."""
 
 	def __str__(self) -> str:
 		return f'2D Guiding Center ({self.__class__.__name__}) for turbulent potentials'
+
+	@property
+	def grid(self) -> Grid:
+		"""Grid shared by the physical potential :math:`\\phi` and effective :math:`\\psi`."""
+		return self.effective_potential.grid
+
+	@property
+	def fields(self) -> PotentialFields:
+		"""Fields of the effective guiding-center potential :math:`\\psi`."""
+		return self.effective_potential.fields
+
+	@property
+	def interpolators(self) -> PotentialInterpolators:
+		"""Interpolators of the effective guiding-center potential :math:`\\psi`."""
+		return self.effective_potential.interpolators
+
+	@property
+	def kinterp(self) -> int:
+		"""Spline order of the effective guiding-center potential :math:`\\psi`."""
+		return self.effective_potential.kinterp
 		
 	def __init__(self, potential: Potential, traj: TrajectoryParams) -> None:
 		HamSys.__init__(self, ndof=1.5 if traj["type"]=='gc' else 2.5)
 		self.traj = traj.copy()
 		self.rho = self.traj.get("rho", 0)
 		self.eta = self.traj.get("eta", 0)
-		# Keep an independent copy of the physical potential phi.  The inherited
-		# Potential instance below stores the effective GC potential psi instead.
-		self._phi = Potential(
+		# Keep phi and psi as named, independent objects so their roles are explicit.
+		self.physical_potential = Potential(
 			grid=potential.grid,
 			fields=potential.fields.copy(),
 			k=potential.kinterp,
@@ -67,14 +87,14 @@ class PotentialSystem(Potential, HamSys):
 				f"Interpolation order {potential.kinterp} is too low for rho = {self.rho}. "
 				"Increase k or decrease rho."
 			)
-		fields = potential.fields.copy()
-		if self.rho != 0:
-			fields = potential.gyroaverage(self.rho, fields)
-		Potential.__init__(
-			self,
-			grid=potential.grid,
-			fields=fields,
-			k=potential.kinterp,
+		self.effective_potential = (
+			self.physical_potential.gyroaveraged(self.rho)
+			if self.rho != 0
+			else Potential(
+				grid=potential.grid,
+				fields=potential.fields.copy(),
+				k=potential.kinterp,
+			)
 		)
 		if self.traj["type"] == 'fo':
 			self.v_fo = self.rho / (2 * np.abs(self.eta))
@@ -134,7 +154,7 @@ class PotentialSystem(Potential, HamSys):
 		separate name makes the GC equations explicit and leaves a single place
 		to add the eta-dependent corrections later.
 		"""
-		return self.field_at_time(t, x, y, dx=dx, dy=dy, dt=dt)
+		return self.effective_potential.field_at_time(t, x, y, dx=dx, dy=dy, dt=dt)
 
 	def phi(
 		self,
@@ -147,7 +167,20 @@ class PotentialSystem(Potential, HamSys):
 		dt: int = 0,
 	) -> Array:
 		"""Evaluate the physical, ungyroaveraged potential :math:`\\phi`."""
-		return self._phi.field_at_time(t, x, y, dx=dx, dy=dy, dt=dt)
+		return self.physical_potential.field_at_time(t, x, y, dx=dx, dy=dy, dt=dt)
+
+	def field_at_time(
+		self,
+		t: float,
+		x: Array | None = None,
+		y: Array | None = None,
+		*,
+		dx: int = 0,
+		dy: int = 0,
+		dt: int = 0,
+	) -> Array:
+		"""Evaluate :math:`\\psi`; retained as a convenience alias."""
+		return self.psi(t, x, y, dx=dx, dy=dy, dt=dt)
 
 	def electric_field(
 		self,
@@ -585,7 +618,7 @@ class PotentialSystem(Potential, HamSys):
 		**pcolormesh_kwargs: Any,
 	) -> FuncAnimation:
 		"""Animate the complete effective potential :math:`\\psi`."""
-		return self.animate(
+		return self.effective_potential.animate(
 			t_max=t_max,
 			frames=frames,
 			interval=interval,
@@ -641,9 +674,9 @@ class PotentialSystem(Potential, HamSys):
 			d2psidxdy_t = self.psi(t, x, y, dx=1, dy=1)
 			d2psidy2_t = self.psi(t, x, y, dy=2)
 		else:
-			d2phidx2_t = self.field_at_time(t, x, y, dx=2)
-			d2phidxdy_t = self.field_at_time(t, x, y, dx=1, dy=1)
-			d2phidy2_t = self.field_at_time(t, x, y, dy=2)
+			d2phidx2_t = self.phi(t, x, y, dx=2)
+			d2phidxdy_t = self.phi(t, x, y, dx=1, dy=1)
+			d2phidy2_t = self.phi(t, x, y, dy=2)
 		A = np.zeros_like(jacobian)
 		if self.traj["type"] == 'fo':
 			d2phidx2_t *= -self.phi_fo
@@ -663,7 +696,7 @@ class PotentialSystem(Potential, HamSys):
 		x, y = self.get_positions(z)
 		if self.traj["type"] == 'gc':
 			return -float(np.sum(self.psi(t, x, y, dt=1)))
-		dphidt_t = -float(np.sum(self.field_at_time(t, x, y, dt=1)))
+		dphidt_t = -float(np.sum(self.phi(t, x, y, dt=1)))
 		if self.traj["type"] == 'fo':
 			dphidt_t *= -self.phi_fo
 		return dphidt_t

@@ -57,7 +57,7 @@ def plot_potential(system: PotentialSystem, dx: int = 0, dy: int = 0, nx: int = 
 		mean_interpolator = system.interpolators.mean
 		if mean_interpolator is None:
 			raise RuntimeError("Mean field exists without its interpolator.")
-		Z = mean_interpolator(x, y, dx=dx, dy=dy)
+		Z = mean_interpolator.evaluate_grid(x, y, dx=dx, dy=dy)
 		vmin, vmax = Z.min(), Z.max()
 		cmap, norm = _white_centered_cmap(vmin, vmax)
 		plt.figure(figsize=(6, 5))
@@ -70,7 +70,8 @@ def plot_potential(system: PotentialSystem, dx: int = 0, dy: int = 0, nx: int = 
 	if system.fields.modes:
 		for interpolator, mode in zip(system.interpolators.modes, system.fields.modes, strict=True):
 			freq = mode.frequency
-			Zr, Zi = interpolator[0](x, y, dx=dx, dy=dy), interpolator[1](x, y, dx=dx, dy=dy)
+			Z = interpolator.evaluate_grid(x, y, dx=dx, dy=dy)
+			Zr, Zi = Z.real, Z.imag
 			vmin_real, vmax_real = Zr.min(), Zr.max()
 			vmin_imag, vmax_imag = Zi.min(), Zi.max()
 			fig, axs = plt.subplots(1, 2, figsize=(12, 5))
