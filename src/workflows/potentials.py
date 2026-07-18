@@ -7,7 +7,7 @@ import numpy as np
 from scipy import ndimage
 
 from classes.grid import Grid
-from classes.potential import Array, Potential
+from classes.potential import Array, Potential, PotentialFields, PotentialMode
 
 
 logger = logging.getLogger(__name__)
@@ -79,8 +79,12 @@ def extract_potential(
 		])
 	if denoising and mean_value is not None:
 		mean_value = ndimage.gaussian_filter(mean_value, sigma=sigma)
-	grid = Grid(x, y)
-	potential = Potential(grid, [mean_value, fluctuations], freqs, k=k)
+	grid = Grid.from_axes(x, y)
+	potential = Potential(
+		grid,
+		PotentialFields.from_arrays(mean_value, fluctuations, freqs),
+		k=k,
+	)
 	if target_shape is not None:
 		potential = potential.resample(grid.resized(*target_shape))
 	return potential
@@ -89,11 +93,7 @@ def extract_potential(
 def _mock_grid(nx: int, ny: int) -> Grid:
 	"""Create the periodic spatial grid used by a synthetic potential."""
 	period = 2 * np.pi
-	return Grid(
-		np.linspace(0.0, period, nx, endpoint=False),
-		np.linspace(0.0, period, ny, endpoint=False),
-		period=period,
-	)
+	return Grid.from_bounds(0.0, period, 0.0, period, nx, ny, periodic=True)
 
 
 def _mock_spectrum(A: float, M: int, rng: np.random.Generator) -> Array:
@@ -138,9 +138,8 @@ def mock_potential(A: float, M: int, nx: int, ny: int, seed: int = 27, k: int = 
 	field = _reconstruct_periodic_mode(spectrum, grid.x, grid.y)
 	potential = Potential(
 		grid,
-		[None, [field]],
-		freqs=[-1],
+		PotentialFields(modes=(PotentialMode(field, -1),)),
 		k=k,
 	)
-	logger.info("Mock potential ready: modes=%d spatial_period=%g", len(potential.freqs), potential.grid.period)
+	logger.info("Mock potential ready: modes=%d spatial_period=%g", len(potential.fields.modes), potential.grid.period)
 	return potential

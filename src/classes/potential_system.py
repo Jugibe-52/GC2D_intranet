@@ -59,11 +59,7 @@ class PotentialSystem(Potential, HamSys):
 		# Potential instance below stores the effective GC potential psi instead.
 		self._phi = Potential(
 			grid=potential.grid,
-			fields=(
-				None if potential.fields[0] is None else potential.fields[0].copy(),
-				None if potential.fields[1] is None else [field.copy() for field in potential.fields[1]],
-			),
-			freqs=potential.freqs.copy(),
+			fields=potential.fields.copy(),
 			k=potential.kinterp,
 		)
 		if min(potential.kinterp * potential.grid.dx, potential.kinterp * potential.grid.dy) < self.rho:
@@ -71,18 +67,13 @@ class PotentialSystem(Potential, HamSys):
 				f"Interpolation order {potential.kinterp} is too low for rho = {self.rho}. "
 				"Increase k or decrease rho."
 			)
-		mean_value, fluctuations = potential.fields
-		fields = (
-			None if mean_value is None else mean_value.copy(),
-			None if fluctuations is None else [field.copy() for field in fluctuations],
-		)
+		fields = potential.fields.copy()
 		if self.rho != 0:
 			fields = potential.gyroaverage(self.rho, fields)
 		Potential.__init__(
 			self,
 			grid=potential.grid,
 			fields=fields,
-			freqs=potential.freqs.copy(),
 			k=potential.kinterp,
 		)
 		if self.traj["type"] == 'fo':

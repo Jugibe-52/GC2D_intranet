@@ -53,8 +53,8 @@ def _white_centered_cmap(vmin: float, vmax: float) -> tuple[Colormap, Normalize]
 def plot_potential(system: PotentialSystem, dx: int = 0, dy: int = 0, nx: int = 512, ny: int = 512) -> None:
 	x = np.linspace(system.grid.xmin, system.grid.xmax + system.grid.dx, nx, endpoint=False)
 	y = np.linspace(system.grid.ymin, system.grid.ymax + system.grid.dy, ny, endpoint=False)
-	if system.fields[0] is not None:
-		mean_interpolator = system.interpolators[0]
+	if system.fields.mean is not None:
+		mean_interpolator = system.interpolators.mean
 		if mean_interpolator is None:
 			raise RuntimeError("Mean field exists without its interpolator.")
 		Z = mean_interpolator(x, y, dx=dx, dy=dy)
@@ -67,11 +67,9 @@ def plot_potential(system: PotentialSystem, dx: int = 0, dy: int = 0, nx: int = 
 		plt.ylabel('y')
 		plt.colorbar(c)
 		plt.tight_layout()
-	if system.fields[1] is not None:
-		fluctuation_interpolators = system.interpolators[1]
-		if fluctuation_interpolators is None:
-			raise RuntimeError("Fluctuation fields exist without interpolators.")
-		for interpolator, freq in zip(fluctuation_interpolators, system.freqs):
+	if system.fields.modes:
+		for interpolator, mode in zip(system.interpolators.modes, system.fields.modes, strict=True):
+			freq = mode.frequency
 			Zr, Zi = interpolator[0](x, y, dx=dx, dy=dy), interpolator[1](x, y, dx=dx, dy=dy)
 			vmin_real, vmax_real = Zr.min(), Zr.max()
 			vmin_imag, vmax_imag = Zi.min(), Zi.max()

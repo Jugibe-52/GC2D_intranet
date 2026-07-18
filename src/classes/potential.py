@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import logging
 import os
+from dataclasses import dataclass
 import numpy as np
 from numpy.fft import fft2, ifft2, fftfreq
 from typing import Any, Sequence, TypeAlias
@@ -46,97 +47,210 @@ from .grid import Grid
 
 logger = logging.getLogger(__name__)
 
-FieldList: TypeAlias = tuple[Array | None, list[Array] | None]
-FieldInput: TypeAlias = Sequence[Array | Sequence[Array] | None]
 ComplexInterpolator: TypeAlias = tuple[RectBivariateSpline, RectBivariateSpline]
-InterpolatorList: TypeAlias = tuple[RectBivariateSpline | None, list[ComplexInterpolator] | None]
+
+
+@dataclass(frozen=True, slots=True)
+class PotentialMode:
+	"""One complex spatial coefficient and its temporal frequency."""
+
+	coefficient: Array
+	frequency: float
+
+	def __post_init__(self) -> None:
+		coefficient = np.asarray(self.coefficient)
+		frequency = float(self.frequency)
+		if not np.isfinite(frequency):
+			raise ValueError("A potential mode frequency must be finite.")
+		object.__setattr__(self, "coefficient", coefficient)
+		object.__setattr__(self, "frequency", frequency)
+
+	def copy(self) -> PotentialMode:
+		return PotentialMode(self.coefficient.copy(), self.frequency)
+
+
+@dataclass(frozen=True, slots=True)
+class PotentialFields:
+	"""Time-independent mean field and frequency-bearing complex modes."""
+
+	mean: Array | None = None
+	modes: tuple[PotentialMode, ...] = ()
+
+	def __post_init__(self) -> None:
+		mean = None if self.mean is None else np.asarray(self.mean)
+		modes = tuple(self.modes)
+		if not all(isinstance(mode, PotentialMode) for mode in modes):
+			raise TypeError("`modes` must contain only PotentialMode instances.")
+		object.__setattr__(self, "mean", mean)
+		object.__setattr__(self, "modes", modes)
+
+	@classmethod
+	def from_arrays(
+		cls,
+		mean: Array | None,
+		coefficients: Array | Sequence[Array] | None,
+		frequencies: Sequence[float] | Array,
+	) -> PotentialFields:
+		"""Adapt parallel arrays from storage formats into frequency-bearing modes."""
+		frequency_array = np.asarray(frequencies, dtype=float).reshape(-1)
+		if coefficients is None:
+			coefficient_arrays: tuple[Array, ...] = ()
+		elif isinstance(coefficients, np.ndarray) and coefficients.ndim == 2:
+			coefficient_arrays = (coefficients,)
+		else:
+			coefficient_arrays = tuple(np.asarray(coefficient) for coefficient in coefficients)
+		if len(coefficient_arrays) != frequency_array.size:
+			raise ValueError(
+				f"Received {len(coefficient_arrays)} mode coefficients for "
+				f"{frequency_array.size} frequencies."
+			)
+		return cls(
+			mean=mean,
+			modes=tuple(
+				PotentialMode(coefficient, frequency)
+				for coefficient, frequency in zip(coefficient_arrays, frequency_array, strict=True)
+			),
+		)
+
+	@property
+	def frequencies(self) -> Array:
+		frequencies = np.asarray([mode.frequency for mode in self.modes], dtype=float)
+		frequencies.setflags(write=False)
+		return frequencies
+
+	def copy(self) -> PotentialFields:
+		return PotentialFields(
+			mean=None if self.mean is None else self.mean.copy(),
+			modes=tuple(mode.copy() for mode in self.modes),
+		)
+
+
+@dataclass(frozen=True, slots=True)
+class _SplineDomain:
+	"""Extended coordinate domain and field-padding policy for splines."""
+
+	x: Array
+	y: Array
+	padding: tuple[int, int]
+	periodic: bool
+
+
+@dataclass(frozen=True, slots=True)
+class PotentialInterpolators:
+	"""Spline interpolators aligned with a :class:`PotentialFields` object."""
+
+	mean: RectBivariateSpline | None = None
+	modes: tuple[ComplexInterpolator, ...] = ()
+
+	@classmethod
+	def build(
+		cls,
+		grid: Grid,
+		fields: PotentialFields,
+		*,
+		order: int,
+	) -> PotentialInterpolators:
+		"""Build the mean spline and one complex spline pair per mode."""
+		domain = _prepare_spline_domain(grid, order=order)
+		mean = (
+			None
+			if fields.mean is None
+			else _build_real_spline(domain, fields.mean, order=order)
+		)
+		modes = tuple(
+			_build_complex_spline(domain, mode.coefficient, order=order)
+			for mode in fields.modes
+		)
+		return cls(mean, modes)
 
 
 def real_imag(z: Array) -> tuple[Array, Array]:
 	return z.real, z.imag
 
 
-def normalize_fields(fields: FieldInput) -> FieldList:
-	"""Validate and normalize the heterogeneous public field input."""
-	if len(fields) != 2:
-		raise ValueError("`fields` must contain [mean_value, fluctuations].")
-	mean_value, raw_fluctuations = fields
-	if mean_value is not None and not isinstance(mean_value, np.ndarray):
-		raise TypeError("The mean field must be a NumPy array or None.")
-	if raw_fluctuations is None:
-		fluctuations = None
-	elif isinstance(raw_fluctuations, np.ndarray):
-		fluctuations = [np.asarray(field) for field in raw_fluctuations]
-	else:
-		fluctuations = [np.asarray(field) for field in raw_fluctuations]
-	return mean_value, fluctuations
+def _prepare_spline_domain(grid: Grid, *, order: int) -> _SplineDomain:
+	"""Extend both axes far enough to evaluate a spline at the boundaries.
 
-
-def _interpolation_grid(
-	grid: Grid,
-	*,
-	kinterp: int,
-) -> tuple[Array, Array, tuple[int, int]]:
-	"""Extend a grid with the padding required by ``RectBivariateSpline``."""
-	kl = kinterp + 1
-	kr = kinterp + 2 if grid.period is not None else kinterp + 1
-	x_ = np.pad(
+	The boundary policy reserves ``order + 1`` samples beyond each edge. Periodic
+	grids omit the duplicated endpoint, so their upper edge receives one additional
+	wrapped sample before the full spline margin.
+	"""
+	margin = order + 1
+	periodic = grid.period is not None
+	padding = (margin, margin + int(periodic))
+	left, right = padding
+	x = np.pad(
 		grid.x,
-		(kl, kr),
+		padding,
 		mode='linear_ramp',
-		end_values=(grid.xmin - kl * grid.dx, grid.xmax + kr * grid.dx),
+		end_values=(grid.xmin - left * grid.dx, grid.xmax + right * grid.dx),
 	)
-	y_ = np.pad(
+	y = np.pad(
 		grid.y,
-		(kl, kr),
+		padding,
 		mode='linear_ramp',
-		end_values=(grid.ymin - kl * grid.dy, grid.ymax + kr * grid.dy),
+		end_values=(grid.ymin - left * grid.dy, grid.ymax + right * grid.dy),
 	)
-	return x_, y_, (kl, kr)
+	return _SplineDomain(x, y, padding, periodic)
 
 
-def _pad_field(field: Array, padding: tuple[int, int], *, periodic: bool) -> Array:
-	"""Pad a field periodically or with zeros according to the boundary policy."""
-	kwargs = {'mode': 'wrap'} if periodic else {'mode': 'constant', 'constant_values': 0}
-	return np.pad(field, (padding, padding), **kwargs)
+def _pad_coefficient(domain: _SplineDomain, coefficient: Array) -> Array:
+	"""Extend a coefficient according to the domain's boundary policy."""
+	if domain.periodic:
+		return np.pad(coefficient, (domain.padding, domain.padding), mode='wrap')
+	return np.pad(
+		coefficient,
+		(domain.padding, domain.padding),
+		mode='constant',
+		constant_values=0,
+	)
 
 
-def _build_interpolators(
-	grid: Grid,
-	fields: FieldList,
+def _build_real_spline(
+	domain: _SplineDomain,
+	coefficient: Array,
 	*,
-	kinterp: int,
-) -> InterpolatorList:
-	"""Build spline interpolators for a field set and its boundary policy."""
-	x_, y_, padding = _interpolation_grid(grid, kinterp=kinterp)
-	mean_value, fluctuations = None, None
-	if fields[0] is not None:
-		padded_mean = _pad_field(fields[0], padding, periodic=grid.period is not None)
-		mean_value = RectBivariateSpline(x_, y_, padded_mean, kx=kinterp, ky=kinterp)
-	if fields[1] is not None:
-		padded_fluctuations = [
-			_pad_field(field, padding, periodic=grid.period is not None)
-			for field in fields[1]
-		]
-		fluctuations = []
-		for field in padded_fluctuations:
-			interp_real = RectBivariateSpline(x_, y_, field.real, kx=kinterp, ky=kinterp)
-			interp_imag = RectBivariateSpline(x_, y_, field.imag, kx=kinterp, ky=kinterp)
-			fluctuations.append((interp_real, interp_imag))
-	return mean_value, fluctuations
+	order: int,
+) -> RectBivariateSpline:
+	"""Build one real-valued spline on the prepared domain."""
+	padded = _pad_coefficient(domain, coefficient)
+	return RectBivariateSpline(domain.x, domain.y, padded, kx=order, ky=order)
 
 
-def _resample_fields(grid: Grid, interpolators: InterpolatorList) -> FieldList:
+def _build_complex_spline(
+	domain: _SplineDomain,
+	coefficient: Array,
+	*,
+	order: int,
+) -> ComplexInterpolator:
+	"""Build the real and imaginary splines for one complex mode."""
+	padded = _pad_coefficient(domain, coefficient)
+	return (
+		RectBivariateSpline(domain.x, domain.y, padded.real, kx=order, ky=order),
+		RectBivariateSpline(domain.x, domain.y, padded.imag, kx=order, ky=order),
+	)
+
+
+def _resample_fields(
+	grid: Grid,
+	fields: PotentialFields,
+	interpolators: PotentialInterpolators,
+) -> PotentialFields:
 	"""Evaluate a field set's interpolators on a new grid."""
-	mean_value, fluctuations = None, None
-	if interpolators[0] is not None:
-		mean_value = np.asarray(interpolators[0](grid.x, grid.y))
-	if interpolators[1] is not None:
-		fluctuations = [
-			np.asarray(interp_real(grid.x, grid.y) + 1j * interp_imag(grid.x, grid.y))
-			for interp_real, interp_imag in interpolators[1]
-		]
-	return mean_value, fluctuations
+	x, y = grid.x, grid.y
+	mean = None if interpolators.mean is None else np.asarray(interpolators.mean(x, y))
+	modes = tuple(
+		PotentialMode(
+			np.asarray(interp_real(x, y) + 1j * interp_imag(x, y)),
+			mode.frequency,
+		)
+		for mode, (interp_real, interp_imag) in zip(
+			fields.modes,
+			interpolators.modes,
+			strict=True,
+		)
+	)
+	return PotentialFields(mean, modes)
 
 
 def _field_norm(field: Array) -> mcolors.Normalize:
@@ -166,7 +280,7 @@ def _animate_potential(
 		raise ValueError('`frames` must be at least 2.')
 	if t_max <= 0:
 		raise ValueError('`t_max` must be positive.')
-	if potential.fields[0] is None and potential.fields[1] is None:
+	if potential.fields.mean is None and not potential.fields.modes:
 		raise ValueError('The potential has no fields to animate.')
 
 	times = np.linspace(0.0, t_max, frames, endpoint=False)
@@ -258,18 +372,19 @@ def _plot_potential(
 ) -> list[tuple[Figure, np.ndarray]]:
 	"""Implement :meth:`Potential.plot` without coupling plotting to the model."""
 	plots: list[tuple[Figure, np.ndarray]] = []
-	mean_value, fluctuations = potential.fields
+	mean_value = potential.fields.mean
+	modes = potential.fields.modes
 	rho = float(getattr(potential, 'rho', 0.0))
 	logger.info(
 		"Plotting potential: mean_field=%s, modes=%d, quadrature=%s, gyroaveraged=%s, rho=%g",
 		mean_value is not None,
-		0 if fluctuations is None else len(fluctuations),
+		len(modes),
 		show_quadrature,
 		rho != 0.0,
 		rho,
 	)
 	if mean_value is not None:
-		logger.info("Plotting attribute fields[0] as the time-independent mean potential phi_0.")
+		logger.info("Plotting fields.mean as the time-independent mean potential phi_0.")
 		fig, ax = plt.subplots(figsize=(6, 5), constrained_layout=True)
 		_draw_field(
 			ax,
@@ -282,42 +397,42 @@ def _plot_potential(
 			pcolormesh_kwargs=pcolormesh_kwargs,
 		)
 		plots.append((fig, np.asarray([ax], dtype=object)))
-	if fluctuations is not None:
-		for index, (field, freq) in enumerate(zip(fluctuations, potential.freqs)):
-			logger.info(
-				"Plotting attribute fields[1][%d] at omega=%g as phi(t=0)=2*Re(phi_c)%s.",
-				index,
-				freq,
-				" with quadrature 2*Im(phi_c)" if show_quadrature else "",
-			)
-			fig, axes = plt.subplots(
-				1, 2 if show_quadrature else 1,
-				figsize=(12 if show_quadrature else 6, 5),
-				constrained_layout=True,
-			)
-			axes_array = np.atleast_1d(axes)
+	for index, mode in enumerate(modes):
+		field, freq = mode.coefficient, mode.frequency
+		logger.info(
+			"Plotting fields.modes[%d] at omega=%g as phi(t=0)=2*Re(phi_c)%s.",
+			index,
+			freq,
+			" with quadrature 2*Im(phi_c)" if show_quadrature else "",
+		)
+		fig, axes = plt.subplots(
+			1, 2 if show_quadrature else 1,
+			figsize=(12 if show_quadrature else 6, 5),
+			constrained_layout=True,
+		)
+		axes_array = np.atleast_1d(axes)
+		_draw_field(
+			axes_array[0],
+			potential.grid.x,
+			potential.grid.y,
+			2.0 * field.real,
+			title=rf'$\phi(t=0)=2\operatorname{{Re}}(\phi_c)$, $\omega={freq:g}$',
+			contours=contours,
+			cmap=cmap,
+			pcolormesh_kwargs=pcolormesh_kwargs,
+		)
+		if show_quadrature:
 			_draw_field(
-				axes_array[0],
+				axes_array[1],
 				potential.grid.x,
 				potential.grid.y,
-				2.0 * field.real,
-				title=rf'$\phi(t=0)=2\operatorname{{Re}}(\phi_c)$, $\omega={freq:g}$',
+				2.0 * field.imag,
+				title=rf'$2\operatorname{{Im}}(\phi_c)$ (quadrature), $\omega={freq:g}$',
 				contours=contours,
 				cmap=cmap,
 				pcolormesh_kwargs=pcolormesh_kwargs,
 			)
-			if show_quadrature:
-				_draw_field(
-					axes_array[1],
-					potential.grid.x,
-					potential.grid.y,
-					2.0 * field.imag,
-					title=rf'$2\operatorname{{Im}}(\phi_c)$ (quadrature), $\omega={freq:g}$',
-					contours=contours,
-					cmap=cmap,
-					pcolormesh_kwargs=pcolormesh_kwargs,
-				)
-			plots.append((fig, axes_array))
+		plots.append((fig, axes_array))
 	if not plots:
 		raise ValueError('The potential has no fields to plot.')
 	if show:
@@ -329,29 +444,24 @@ class Potential:
 	def __init__(
 		self,
 		grid: Grid,  # Spatial grid and boundary policy.
-		fields: FieldInput,  # Mean field and complex fluctuation coefficients.
-		freqs: Sequence[float] | Array,  # Temporal frequency associated with each fluctuation.
+		fields: PotentialFields,  # Mean field and frequency-bearing complex modes.
 		k: int = 3,  # Order of the splines used for interpolation.
 	) -> None:
 		"""Validate the fields and prepare a potential for evaluation."""
 		if not isinstance(grid, Grid):
 			raise TypeError("`grid` must be a Grid instance.")
+		if not isinstance(fields, PotentialFields):
+			raise TypeError("`fields` must be a PotentialFields instance.")
 		self.grid = grid
+		self.fields = fields
 
-		# Normalize the mode frequencies into a one-dimensional floating-point array.
-		self.freqs: Array = np.asarray(np.atleast_1d(freqs), dtype=float)
-
-		# Normalize the field container and ensure every field matches the grid.
-		self.fields: FieldList = normalize_fields(fields)
-		if self.fields[0] is not None and self.fields[0].shape != grid.shape:
-			raise ValueError(f"Mean field has shape {self.fields[0].shape}, expected {grid.shape}.")
-		if self.fields[1] is not None:
-			for index, field in enumerate(self.fields[1]):
-				if field.shape != grid.shape:
-					raise ValueError(f"Fluctuation {index} has shape {field.shape}, expected {grid.shape}.")
-			if len(self.fields[1]) != self.freqs.size:
+		# Ensure every spatial coefficient matches the grid.
+		if fields.mean is not None and fields.mean.shape != grid.shape:
+			raise ValueError(f"Mean field has shape {fields.mean.shape}, expected {grid.shape}.")
+		for index, mode in enumerate(fields.modes):
+			if mode.coefficient.shape != grid.shape:
 				raise ValueError(
-					f"Received {len(self.fields[1])} fluctuations for {self.freqs.size} frequencies."
+					f"Mode {index} coefficient has shape {mode.coefficient.shape}, expected {grid.shape}."
 				)
 
 		# Validate the spline interpolation order.
@@ -359,49 +469,51 @@ class Potential:
 		if not 1 <= k <= 5:
 			raise ValueError("`k` must be between 1 and 5 for RectBivariateSpline.")
 
-		# Build the interpolators used by subsequent field evaluations.
-		self.interpolators: InterpolatorList = _build_interpolators(
+		# Build the mean spline and each mode's real/imaginary spline pair.
+		self.interpolators = PotentialInterpolators.build(
 			self.grid,
 			self.fields,
-			kinterp=self.kinterp,
+			order=self.kinterp,
 		)
 
 	def resample(self, grid: Grid) -> Potential:
 		"""Return this potential evaluated and rebuilt on ``grid``."""
 		if not isinstance(grid, Grid):
 			raise TypeError("`grid` must be a Grid instance.")
-		fields = _resample_fields(grid, self.interpolators)
-		return Potential(grid, fields, self.freqs.copy(), k=self.kinterp)
+		fields = _resample_fields(grid, self.fields, self.interpolators)
+		return Potential(grid, fields, k=self.kinterp)
 
 	def __str__(self) -> str:
 		"""Return a compact summary suitable for notebooks and logs."""
-		mean_value, fluctuations = self.fields
-		frequencies = np.array2string(self.freqs, precision=5, threshold=8, edgeitems=3)
+		frequencies = np.array2string(self.fields.frequencies, precision=5, threshold=8, edgeitems=3)
 		boundary = f'periodic (period={self.grid.period:g})' if self.grid.period is not None else 'zero-padded'
 		return (
 			'Potential(\n'
 			f'  grid={self.grid.nx} x {self.grid.ny}, dx={self.grid.dx:g}, dy={self.grid.dy:g},\n'
 			f'  x=[{self.grid.xmin:g}, {self.grid.xmax:g}], y=[{self.grid.ymin:g}, {self.grid.ymax:g}],\n'
-			f'  mean_field={mean_value is not None}, modes={0 if fluctuations is None else len(fluctuations)},\n'
+			f'  mean_field={self.fields.mean is not None}, modes={len(self.fields.modes)},\n'
 			f'  freqs={frequencies}, interpolation_order={self.kinterp}, boundary={boundary}\n'
 			')'
 		)
 
-	def gyroaverage(self, rho: float, fields: FieldList) -> FieldList:
+	def gyroaverage(self, rho: float, fields: PotentialFields) -> PotentialFields:
 		kx = fftfreq(self.grid.nx, d=self.grid.dx)
 		ky = fftfreq(self.grid.ny, d=self.grid.dy)
 		kx_, ky_ = np.meshgrid(kx, ky, indexing='ij')
-		mean_value, fluctuations = None, None
-		if fields[0] is not None:
-			mean_value = ifft2(fft2(fields[0]) * jv(0, 2 * np.pi * rho * np.sqrt(kx_**2 + ky_**2))).real
-		if fields[1] is not None:
-			fluctuations = []
-			for field in fields[1]:
-				gyro_field = ifft2(fft2(field) * jv(0, 2 * np.pi * rho * np.sqrt(kx_**2 + ky_**2)))
-				fluctuations.append(gyro_field)
-		return mean_value, fluctuations
+		gyro_factor = jv(0, 2 * np.pi * rho * np.sqrt(kx_**2 + ky_**2))
+		mean = None
+		if fields.mean is not None:
+			mean = ifft2(fft2(fields.mean) * gyro_factor).real
+		modes = tuple(
+			PotentialMode(
+				ifft2(fft2(mode.coefficient) * gyro_factor),
+				mode.frequency,
+			)
+			for mode in fields.modes
+		)
+		return PotentialFields(mean, modes)
 
-	def phic_interp(self, xi: Array, yi: Array, dx: int = 0, dy: int = 0) -> FieldList:
+	def phic_interp(self, xi: Array, yi: Array, dx: int = 0, dy: int = 0) -> PotentialFields:
 		"""Evaluate the spatially interpolated potential coefficients.
 
 		The mean coefficient and each complex fluctuation are evaluated at the
@@ -412,34 +524,33 @@ class Potential:
 
 		Returns
 		-------
-		FieldList
-			A pair ``(mean_value, fluctuations)`` with the same coordinate shape as
-			``xi`` and ``yi``. Missing mean or fluctuation components are returned
-			as ``None``.
+		PotentialFields
+			The interpolated mean and modes, preserving every mode's frequency.
 		"""
 		# Keep every evaluation point inside the domain expected by the splines.
 		xi, yi = self.grid.wrap_or_clip(xi, yi)
-		mean_value: Array | None = None
-		fluctuations: list[Array] | None = None
-		if self.fields[0] is not None:
+		mean: Array | None = None
+		if self.fields.mean is not None:
 			# The mean field is real, so one spline evaluation is sufficient.
-			mean_interpolator = self.interpolators[0]
+			mean_interpolator = self.interpolators.mean
 			if mean_interpolator is None:
 				raise RuntimeError("Mean field exists without its interpolator.")
-			mean_value = np.asarray(mean_interpolator.ev(xi, yi, dx=dx, dy=dy))
-		if self.fields[1] is not None:
-			# Each Fourier coefficient uses separate real and imaginary splines.
-			fluctuation_interpolators = self.interpolators[1]
-			if fluctuation_interpolators is None:
-				raise RuntimeError("Fluctuation fields exist without interpolators.")
-			fluctuations = [
+			mean = np.asarray(mean_interpolator.ev(xi, yi, dx=dx, dy=dy))
+		modes = tuple(
+			PotentialMode(
 				np.asarray(
 					interp_real.ev(xi, yi, dx=dx, dy=dy)
 					+ 1j * interp_imag.ev(xi, yi, dx=dx, dy=dy)
-				)
-				for interp_real, interp_imag in fluctuation_interpolators
-			]
-		return mean_value, fluctuations
+				),
+				mode.frequency,
+			)
+			for mode, (interp_real, interp_imag) in zip(
+				self.fields.modes,
+				self.interpolators.modes,
+				strict=True,
+			)
+		)
+		return PotentialFields(mean, modes)
 
 	def field_at_time(
 		self,
@@ -468,19 +579,21 @@ class Potential:
 		else:
 			assert y is not None
 			coefficients = self.phic_interp(x, y, dx=dx, dy=dy)
-		mean_value, fluctuations = coefficients
-		if mean_value is not None:
-			field = np.zeros_like(mean_value, dtype=float) if dt else np.asarray(mean_value, dtype=float).copy()
-		elif fluctuations:
-			field = np.zeros_like(fluctuations[0].real, dtype=float)
+		if coefficients.mean is not None:
+			field = (
+				np.zeros_like(coefficients.mean, dtype=float)
+				if dt
+				else np.asarray(coefficients.mean, dtype=float).copy()
+			)
+		elif coefficients.modes:
+			field = np.zeros_like(coefficients.modes[0].coefficient.real, dtype=float)
 		else:
 			raise ValueError("The potential has no fields to evaluate.")
-		if fluctuations is not None:
-			for fluctuation, freq in zip(fluctuations, self.freqs):
-				phase = np.exp(1j * freq * t)
-				if dt == 1:
-					phase *= 1j * freq
-				field += 2.0 * (fluctuation * phase).real
+		for mode in coefficients.modes:
+			phase = np.exp(1j * mode.frequency * t)
+			if dt == 1:
+				phase *= 1j * mode.frequency
+			field += 2.0 * (mode.coefficient * phase).real
 		return field
 
 	def plot(

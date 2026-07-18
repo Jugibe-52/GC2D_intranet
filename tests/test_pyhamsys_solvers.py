@@ -6,7 +6,7 @@ import numpy as np
 from matplotlib.animation import FuncAnimation
 from numpy.typing import ArrayLike
 
-from classes import Grid, Potential, PotentialSystem
+from classes import Grid, Potential, PotentialFields, PotentialSystem
 from pyhamsys import HamSys, OdeSolution, solve_ivp_symp, solve_ivp_sympext
 from pyhamsys.solvers import _step_count
 
@@ -268,9 +268,8 @@ class PotentialSystemAreaTests(unittest.TestCase):
         period = 2 * np.pi
         coordinates = np.linspace(0.0, period, 8, endpoint=not periodic)
         potential = Potential(
-            Grid(coordinates, coordinates, period=period if periodic else None),
-            [np.zeros((8, 8)), None],
-            freqs=[],
+            Grid.from_axes(coordinates, coordinates, period=period if periodic else None),
+            PotentialFields(mean=np.zeros((8, 8))),
             k=3,
         )
         return PotentialSystem(potential, {'type': 'gc', 'rho': 0.0, 'eta': 0.0})
@@ -290,9 +289,8 @@ class PotentialSystemAreaTests(unittest.TestCase):
         coordinates = np.linspace(0.0, 2 * np.pi, 8)
         system = PotentialSystem(
             Potential(
-                Grid(coordinates, coordinates),
-                [np.ones((8, 8)), None],
-                freqs=[],
+                Grid.from_axes(coordinates, coordinates),
+                PotentialFields(mean=np.ones((8, 8))),
                 k=3,
             ),
             {'type': 'gc', 'rho': 0.0, 'eta': 0.0},

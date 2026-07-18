@@ -11,37 +11,88 @@ from contracts import Array
 
 @dataclass(frozen=True, slots=True, eq=False)
 class Grid:
-	"""Validated two-dimensional Cartesian grid.
+	"""Validated regular two-dimensional Cartesian grid.
 
-	The coordinate axes are copied and made read-only so the dimensions, spacing,
-	and bounds cannot become inconsistent after construction. ``period`` applies
-	to both axes; ``None`` selects clipped, non-periodic boundaries.
+	The grid stores only the origin, spacing, and number of points of each axis.
+	Coordinate arrays are generated on demand. ``period`` applies to both axes;
+	``None`` selects clipped, non-periodic boundaries.
 	"""
 
-	x: Array
-	y: Array
+	x0: float
+	y0: float
+	dx: float
+	dy: float
+	nx: int
+	ny: int
 	period: float | None = None
 
 	def __post_init__(self) -> None:
-		x = self._validated_axis(self.x, "x")
-		y = self._validated_axis(self.y, "y")
+		for name in ("x0", "y0", "dx", "dy"):
+			value = float(getattr(self, name))
+			if not np.isfinite(value):
+				raise ValueError(f"`{name}` must be finite.")
+			object.__setattr__(self, name, value)
+		if self.dx <= 0 or self.dy <= 0:
+			raise ValueError("`dx` and `dy` must be positive.")
+
+		for name in ("nx", "ny"):
+			value = getattr(self, name)
+			if isinstance(value, (bool, np.bool_)) or not isinstance(value, (int, np.integer)):
+				raise TypeError(f"`{name}` must be an integer.")
+			if value < 2:
+				raise ValueError(f"`{name}` must be at least 2.")
+			object.__setattr__(self, name, int(value))
+
 		if self.period is not None:
 			period = float(self.period)
 			if not np.isfinite(period) or period <= 0:
 				raise ValueError("`period` must be a positive finite number.")
-			if not np.isclose(x.size * (x[1] - x[0]), period):
+			if not np.isclose(self.nx * self.dx, period):
 				raise ValueError("`period` must equal `nx * dx` for a periodic x-axis.")
-			if not np.isclose(y.size * (y[1] - y[0]), period):
+			if not np.isclose(self.ny * self.dy, period):
 				raise ValueError("`period` must equal `ny * dy` for a periodic y-axis.")
 			object.__setattr__(self, "period", period)
-		x.setflags(write=False)
-		y.setflags(write=False)
-		object.__setattr__(self, "x", x)
-		object.__setattr__(self, "y", y)
+
+	@classmethod
+	def from_axes(cls, x: Array, y: Array, *, period: float | None = None) -> Grid:
+		"""Build a parametric grid from regular coordinate arrays.
+
+		This is the input adapter for data formats such as HDF5 that store complete
+		coordinate axes. The axes are validated, then reduced to origin, spacing,
+		and size.
+		"""
+		x0, dx, nx = cls._axis_parameters(x, "x")
+		y0, dy, ny = cls._axis_parameters(y, "y")
+		return cls(x0=x0, y0=y0, dx=dx, dy=dy, nx=nx, ny=ny, period=period)
+
+	@classmethod
+	def from_bounds(
+		cls,
+		x_start: float,
+		x_stop: float,
+		y_start: float,
+		y_stop: float,
+		nx: int,
+		ny: int,
+		*,
+		periodic: bool = False,
+	) -> Grid:
+		"""Build a grid from spatial bounds and the number of points."""
+		if nx < 2 or ny < 2:
+			raise ValueError("`nx` and `ny` must be at least 2.")
+		x_span = float(x_stop) - float(x_start)
+		y_span = float(y_stop) - float(y_start)
+		if x_span <= 0 or y_span <= 0:
+			raise ValueError("Grid stop coordinates must be greater than start coordinates.")
+		if periodic:
+			if not np.isclose(x_span, y_span):
+				raise ValueError("Periodic x and y bounds must define the same period.")
+			return cls(x_start, y_start, x_span / nx, y_span / ny, nx, ny, period=x_span)
+		return cls(x_start, y_start, x_span / (nx - 1), y_span / (ny - 1), nx, ny)
 
 	@staticmethod
-	def _validated_axis(values: Array, name: str) -> Array:
-		axis = np.asarray(values, dtype=float).copy()
+	def _axis_parameters(values: Array, name: str) -> tuple[float, float, int]:
+		axis = np.asarray(values, dtype=float)
 		if axis.ndim != 1:
 			raise ValueError(f"`{name}` must be 1-dimensional.")
 		if axis.size < 2:
@@ -53,43 +104,41 @@ class Grid:
 			raise ValueError(f"Values in `{name}` must be strictly increasing.")
 		if not np.allclose(steps, steps[0]):
 			raise ValueError(f"Values in `{name}` must be uniformly spaced.")
+		return float(axis[0]), float(steps[0]), int(axis.size)
+
+	@staticmethod
+	def _axis(origin: float, spacing: float, size: int) -> Array:
+		axis = origin + spacing * np.arange(size, dtype=float)
+		axis.setflags(write=False)
 		return axis
+
+	@property
+	def x(self) -> Array:
+		return self._axis(self.x0, self.dx, self.nx)
+
+	@property
+	def y(self) -> Array:
+		return self._axis(self.y0, self.dy, self.ny)
 
 	@property
 	def shape(self) -> tuple[int, int]:
 		return self.nx, self.ny
 
 	@property
-	def nx(self) -> int:
-		return int(self.x.size)
-
-	@property
-	def ny(self) -> int:
-		return int(self.y.size)
-
-	@property
-	def dx(self) -> float:
-		return float(self.x[1] - self.x[0])
-
-	@property
-	def dy(self) -> float:
-		return float(self.y[1] - self.y[0])
-
-	@property
 	def xmin(self) -> float:
-		return float(self.x[0])
+		return self.x0
 
 	@property
 	def xmax(self) -> float:
-		return float(self.x[-1])
+		return self.x0 + (self.nx - 1) * self.dx
 
 	@property
 	def ymin(self) -> float:
-		return float(self.y[0])
+		return self.y0
 
 	@property
 	def ymax(self) -> float:
-		return float(self.y[-1])
+		return self.y0 + (self.ny - 1) * self.dy
 
 	def resized(self, nx: int | None = None, ny: int | None = None) -> Grid:
 		"""Return a grid with new axis sizes and the same spatial domain."""
@@ -97,13 +146,26 @@ class Grid:
 		target_ny = self.ny if ny is None else ny
 		if target_nx < 2 or target_ny < 2:
 			raise ValueError("`nx` and `ny` must be at least 2.")
-		if self.period is None:
-			x = np.linspace(self.xmin, self.xmax, target_nx)
-			y = np.linspace(self.ymin, self.ymax, target_ny)
-		else:
-			x = np.linspace(self.xmin, self.xmin + self.period, target_nx, endpoint=False)
-			y = np.linspace(self.ymin, self.ymin + self.period, target_ny, endpoint=False)
-		return Grid(x, y, period=self.period)
+		if target_nx == self.nx and target_ny == self.ny:
+			return self
+		if self.period is not None:
+			return Grid(
+				self.x0,
+				self.y0,
+				self.period / target_nx,
+				self.period / target_ny,
+				target_nx,
+				target_ny,
+				period=self.period,
+			)
+		return Grid(
+			self.x0,
+			self.y0,
+			(self.xmax - self.xmin) / (target_nx - 1),
+			(self.ymax - self.ymin) / (target_ny - 1),
+			target_nx,
+			target_ny,
+		)
 
 	def wrap_or_clip(self, x: Array, y: Array) -> tuple[Array, Array]:
 		"""Apply the grid boundary policy to paired evaluation coordinates."""
