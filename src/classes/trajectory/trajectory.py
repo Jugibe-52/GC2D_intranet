@@ -10,11 +10,21 @@ import numpy as np
 class Trajectory:
 	"""Particle parameters and an optional component-major initial state.
 
-	Subclasses define ``state_dimension`` and the meaning of each block.  The
-	leading axis always contains equally sized physical components, while any
-	trailing axes (for example, integration times) are preserved.
+	``state_dimension`` is the number of scalar components stored per particle;
+	concrete subclasses define the physical meaning and order of those blocks.
+	For ``N`` particles, a state has shape
+	``(state_dimension * N, *sample_axes)`` and each component returned by
+	:meth:`split` has shape ``(N, *sample_axes)``.  The optional ``sample_axes``
+	usually represent saved integration times and are never part of the particle
+	count.
+
+	``rho`` is the non-negative, normalized Larmor-circle radius shared by every
+	particle in the trajectory.  GC systems use it to gyroaverage the potential;
+	FC trajectories additionally use it in their dynamical scales.
 	"""
 
+	# Number of component blocks on the leading state axis.  Subclasses provide
+	# the value because GC and FC states carry different physical variables.
 	state_dimension: ClassVar[int]
 
 	def __init__(
@@ -23,11 +33,20 @@ class Trajectory:
 		*,
 		rho: float = 0.0,
 	) -> None:
-		"""Create a trajectory with an optional validated initial state."""
+		"""Create a trajectory with a common ``rho`` and optional flat state.
+
+		``state`` is the physical initial condition only, with shape
+		``(state_dimension * N,)``; time-series arrays belong to integration
+		results and are accepted by the layout helpers but not stored here.
+		"""
 		rho = float(rho)
 		if not np.isfinite(rho) or rho < 0:
 			raise ValueError("`rho` must be finite and non-negative.")
+		# ``rho`` is one model parameter for the whole ensemble, rather than a
+		# particle block inside the state vector.
 		self.rho = rho
+		# The private value owns the flat initial condition independently of any
+		# later solution array generated from it.
 		self._state: np.ndarray | None = None
 		if state is not None:
 			self.set_initial_state(state)
@@ -52,9 +71,9 @@ class Trajectory:
 	def split(self, state: np.ndarray) -> tuple[np.ndarray, ...]:
 		"""Split the leading axis into equally sized physical components.
 
-		A state vector has shape ``(state_dimension * particles,)``.  The same
-		operation accepts a solution array with trailing axes and leaves those
-		dimensions unchanged.
+		A single state has shape ``(state_dimension * N,)``.  A solution with
+		shape ``(state_dimension * N, *sample_axes)`` is split along axis zero,
+		leaving every component with shape ``(N, *sample_axes)``.
 		"""
 		value = np.asarray(state)
 		if value.ndim == 0 or value.shape[0] == 0 or value.shape[0] % self.state_dimension:
@@ -65,7 +84,11 @@ class Trajectory:
 		return tuple(np.split(value, self.state_dimension, axis=0))
 
 	def pack(self, *components: np.ndarray) -> np.ndarray:
-		"""Pack equally shaped physical components along the leading axis."""
+		"""Pack equally shaped ``(N, *sample_axes)`` component blocks.
+
+		The inverse of :meth:`split` concatenates components in the physical
+		order defined by the concrete trajectory type.
+		"""
 		if len(components) != self.state_dimension:
 			raise ValueError(
 				f"{self.__class__.__name__} requires {self.state_dimension} components."
@@ -78,13 +101,13 @@ class Trajectory:
 		return np.concatenate(values, axis=0)
 
 	def particle_count(self, state: np.ndarray) -> int:
-		"""Return the number of particles represented on the leading axis."""
+		"""Return ``N`` from the leading axis, ignoring all sample axes."""
 		value = np.asarray(state)
 		self.split(value)
 		return int(value.shape[0] // self.state_dimension)
 
 	def positions(self, state: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-		"""Return the ``x`` and ``y`` blocks of a state or time series."""
+		"""Return coordinate blocks ``x`` and ``y`` with matching shapes."""
 		x, y, *_ = self.split(state)
 		return x, y
 

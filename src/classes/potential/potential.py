@@ -28,7 +28,13 @@ from .grid import Grid
 
 @dataclass(frozen=True, slots=True)
 class _SplineDomain:
-	"""Coordinates and padding used by the periodic spline extension."""
+	"""Coordinates and padding used by the periodic spline extension.
+
+	``x`` and ``y`` are the extended one-dimensional coordinate axes.  The pair
+	``padding = (left, right)`` records how many wrapped samples surround each
+	original axis; the asymmetric right side also represents the omitted periodic
+	endpoint.
+	"""
 
 	x: np.ndarray
 	y: np.ndarray
@@ -37,7 +43,12 @@ class _SplineDomain:
 
 @dataclass(frozen=True, slots=True)
 class _Spline:
-	"""Real-valued splines that jointly interpolate a complex amplitude."""
+	"""Real-valued splines that jointly interpolate a complex amplitude.
+
+	``real`` and ``imag`` represent the corresponding components of the same
+	complex field ``C(x, y)`` and therefore share coordinates and derivative
+	conventions.
+	"""
 
 	real: RectBivariateSpline
 	imag: RectBivariateSpline
@@ -50,7 +61,7 @@ class _Spline:
 		dx: int = 0,
 		dy: int = 0,
 	) -> np.ndarray:
-		"""Evaluate the complex amplitude or one of its spatial derivatives."""
+		"""Evaluate ``C`` or its ``(dx, dy)`` derivative at paired coordinates."""
 		return np.asarray(
 			self.real.ev(x, y, dx=dx, dy=dy)
 			+ 1j * self.imag.ev(x, y, dx=dx, dy=dy)
@@ -58,7 +69,7 @@ class _Spline:
 
 
 def _spline_domain(grid: Grid, interpolation_order: int) -> _SplineDomain:
-	"""Extend the coordinate axes to support interpolation across boundaries."""
+	"""Extend both one-dimensional axes for a periodic spline of the given order."""
 	# The upper side includes the omitted periodic endpoint in addition to the
 	# interpolation margin.  The resulting coordinates remain strictly ordered,
 	# as required by ``RectBivariateSpline``.
@@ -85,7 +96,7 @@ def _build_spline(
 	coefficient: np.ndarray,
 	interpolation_order: int,
 ) -> _Spline:
-	"""Build a complex periodic interpolant from sampled coefficients."""
+	"""Build a complex periodic interpolant from ``(nx, ny)`` samples."""
 	domain = _spline_domain(grid, interpolation_order)
 	# Wrapping copies samples from the opposite edge, giving the spline local
 	# support across the seam instead of treating it as a physical boundary.
@@ -135,7 +146,12 @@ class Potential:
 	For a complex spatial amplitude ``C(x, y)``, the real physical field is
 	reconstructed as ``phi(t, x, y) = 2 Re[C(x, y) exp(-i t)]``.  Its magnitude
 	therefore controls the local oscillation amplitude and its argument controls
-	the local phase.
+	the local phase.  Time is normalized so this stored harmonic has angular
+	frequency one.
+
+	The coefficient is a complex array with shape ``grid.shape == (nx, ny)``:
+	the first axis is x and the second is y.  All spatial derivatives use that
+	same axis convention.
 	"""
 
 	def __init__(
@@ -145,7 +161,11 @@ class Potential:
 		*,
 		interpolation_order: int = 3,
 	) -> None:
-		"""Store validated samples and prepare their periodic interpolant."""
+		"""Store sampled ``C(x, y)`` and prepare its periodic interpolant.
+
+		``interpolation_order`` is the polynomial degree used independently on both
+		spatial axes.  It affects off-grid evaluations but not the stored samples.
+		"""
 		if not isinstance(grid, Grid):
 			raise TypeError("`grid` must be a Grid instance.")
 		field = np.asarray(coefficient, dtype=np.complex128)
@@ -185,7 +205,9 @@ class Potential:
 
 		``A`` controls the spectral amplitude and ``M`` the maximum radial
 		spatial wave number.  Each retained mode receives a reproducible random
-		phase and an amplitude that decays as ``|k|**-3``.
+		phase and an amplitude that decays as ``|k|**-3``.  ``nx`` and ``ny`` are
+		the numbers of physical-space samples; they determine the returned
+		coefficient shape, not the number of generated modes.
 		"""
 		A = float(A)
 		if not np.isfinite(A) or A < 0:
@@ -196,6 +218,8 @@ class Potential:
 			raise TypeError("`seed` must be an integer.")
 
 		grid = Grid.periodic(nx, ny)
+		# ``wave_x`` and ``wave_y`` index the non-negative integer wave numbers;
+		# their common shape is the spectral square ``(M + 1, M + 1)``.
 		wave_x, wave_y = np.meshgrid(
 			np.arange(M + 1),
 			np.arange(M + 1),
@@ -218,6 +242,8 @@ class Potential:
 		# explicit phase tensor keeps the construction independent of FFT layout.
 		mode_x, mode_y = np.indices(spectrum.shape)
 		x_mesh, y_mesh = np.meshgrid(grid.x, grid.y, indexing="ij")
+		# The first two axes enumerate modes and the last two enumerate physical
+		# grid points, giving ``phase`` shape ``(M + 1, M + 1, nx, ny)``.
 		phase = np.exp(
 			1j
 			* (
@@ -247,7 +273,9 @@ class Potential:
 		Coordinates are paired: ``x[i]`` is evaluated with ``y[i]``.  Omitting
 		them evaluates the field on the complete stored grid.  ``dx`` and ``dy``
 		select spatial derivative orders, while ``dt=1`` applies the first time
-		derivative of the harmonic phase.
+		derivative of the harmonic phase.  Scalar coordinates produce scalar-shaped
+		results; array coordinates and time follow NumPy broadcasting.  With no
+		coordinates, spatial axes ``(nx, ny)`` precede any axes contributed by time.
 		"""
 		if (x is None) != (y is None):
 			raise ValueError("`x` and `y` must be provided together.")
@@ -298,7 +326,11 @@ class Potential:
 		x: np.ndarray | None = None,
 		y: np.ndarray | None = None,
 	) -> tuple[np.ndarray, np.ndarray]:
-		"""Return the electric field ``E = -grad(phi)`` at paired coordinates."""
+		"""Return ``(E_x, E_y) = -grad(phi)`` at paired coordinates.
+
+		Both components have the broadcast result shape of ``t``, ``x`` and ``y``;
+		when coordinates are omitted they instead use the full ``(nx, ny)`` grid.
+		"""
 		if x is None and y is None:
 			x, y = np.meshgrid(self.grid.x, self.grid.y, indexing="ij")
 		elif x is None or y is None:
@@ -313,6 +345,8 @@ class Potential:
 
 		A circular average multiplies each Fourier mode by ``J_0(rho |k|)``.
 		This spectral form performs the average exactly for the sampled modes.
+		``rho`` uses the same length scale as the grid coordinates, making
+		``rho |k|`` dimensionless.
 		"""
 		rho = float(rho)
 		if not np.isfinite(rho) or rho < 0:
@@ -322,6 +356,8 @@ class Potential:
 		kx = fftfreq(self.grid.nx, d=self.grid.dx)
 		ky = fftfreq(self.grid.ny, d=self.grid.dy)
 		kx_mesh, ky_mesh = np.meshgrid(kx, ky, indexing="ij")
+		# ``factor`` has shape ``(nx, ny)`` and attenuates each discrete spatial
+		# Fourier coefficient without mixing modes.
 		factor = jv(0, 2 * np.pi * rho * np.hypot(kx_mesh, ky_mesh))
 		coefficient = ifft2(fft2(self._coefficient) * factor)
 		return Potential(
@@ -339,7 +375,7 @@ class Potential:
 		show: bool = True,
 		**pcolormesh_kwargs: Any,
 	) -> tuple[Figure, Axes]:
-		"""Plot the potential at one time, optionally with level contours."""
+		"""Plot the ``(nx, ny)`` potential field at one normalized time."""
 		field = self.evaluate(t)
 		fig, ax = plt.subplots(figsize=(6, 5), constrained_layout=True)
 		# Internally the field is indexed as (x, y), whereas Matplotlib expects
@@ -379,7 +415,12 @@ class Potential:
 		repeat: bool = True,
 		**pcolormesh_kwargs: Any,
 	) -> FuncAnimation:
-		"""Animate the potential and electric field from zero to ``t_max``."""
+		"""Animate the potential and electric field from zero to ``t_max``.
+
+		``frames`` samples normalized time uniformly.  Electric-field arrows use a
+		coarser spatial mesh when necessary; their components remain aligned with
+		the x and y axes of the potential grid.
+		"""
 		if not isinstance(frames, int) or isinstance(frames, bool) or frames < 2:
 			raise ValueError("`frames` must be an integer of at least 2.")
 		t_max = float(t_max)
@@ -389,6 +430,7 @@ class Potential:
 		# Excluding the endpoint avoids a duplicate first/last frame for the
 		# default full oscillation period.
 		times = np.linspace(0.0, t_max, frames, endpoint=False)
+		# Every entry in ``fields`` is an ``(nx, ny)`` scalar field for one frame.
 		fields = [self.evaluate(time) for time in times]
 		# Limit arrow density independently of grid resolution so the vector field
 		# remains legible and animation updates stay reasonably inexpensive.
@@ -398,6 +440,7 @@ class Potential:
 			self.grid.y[::quiver_stride],
 			indexing="ij",
 		)
+		# Each pair contains ``(E_x, E_y)`` on the decimated quiver grid.
 		electric_fields = [
 			self.electric_field(time, quiver_x, quiver_y) for time in times
 		]

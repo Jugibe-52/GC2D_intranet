@@ -12,9 +12,11 @@ from .gc import TrajectoryGC
 class Area(TrajectoryGC):
 	"""A counter-clockwise square or circular GC boundary.
 
-	The vertices omit a repeated closing point because polygon operations close
-	the last vertex back to the first implicitly.  Their regular GC layout
-	``[x, y]`` lets an ``Area`` be passed directly to :class:`SystemGC`.
+	The ``N`` particles of this trajectory represent ordered boundary vertices,
+	not samples of the interior.  Their state has the regular GC layout
+	``[x_1, ..., x_N, y_1, ..., y_N]``, so an ``Area`` can be passed directly to
+	:class:`SystemGC`.  The vertices omit a repeated closing point because
+	polygon operations close the last vertex back to the first implicitly.
 	"""
 
 	def __init__(
@@ -24,7 +26,11 @@ class Area(TrajectoryGC):
 		shape: Literal["square", "circle"],
 		rho: float = 0.0,
 	) -> None:
-		"""Create a closed boundary from at least three GC position samples."""
+		"""Create a closed boundary from at least three GC vertex positions.
+
+		``shape`` records which constructor produced the initial contour; the
+		integrated vertices may subsequently deform away from that geometry.
+		"""
 		if shape not in ("square", "circle"):
 			raise ValueError("`shape` must be 'square' or 'circle'.")
 		self.shape = shape
@@ -42,7 +48,12 @@ class Area(TrajectoryGC):
 		points_per_side: int = 1,
 		rho: float = 0.0,
 	) -> Area:
-		"""Sample a square counter-clockwise with equal density on every edge."""
+		"""Sample a square counter-clockwise with equal density on every edge.
+
+		``center`` locates the geometric centre, ``side`` is its full side
+		length, and ``points_per_side`` controls boundary resolution.  The final
+		state contains ``4 * points_per_side`` vertices.
+		"""
 		center_x, center_y = cls._validate_center(center)
 		side = cls._positive_finite(side, "side")
 		if (
@@ -52,6 +63,8 @@ class Area(TrajectoryGC):
 		):
 			raise ValueError("`points_per_side` must be a positive integer.")
 
+		# These four bounds describe the geometry; ``edge`` below is a local
+		# coordinate measured from the first corner of each oriented side.
 		half_side = side / 2
 		left = center_x - half_side
 		right = center_x + half_side
@@ -87,7 +100,11 @@ class Area(TrajectoryGC):
 		points: int = 128,
 		rho: float = 0.0,
 	) -> Area:
-		"""Sample a counter-clockwise circle without repeating its first point."""
+		"""Sample a counter-clockwise circle without repeating its first point.
+
+		``center`` and ``radius`` define the initial geometry, while ``points``
+		is the total number of boundary vertices rather than a density per arc.
+		"""
 		center_x, center_y = cls._validate_center(center)
 		radius = cls._positive_finite(radius, "radius")
 		if (
@@ -113,13 +130,17 @@ class Area(TrajectoryGC):
 		"""Calculate the signed polygon area for one state or a time series.
 
 		When ``period`` is provided, consecutive vertices are unwrapped with the
-		minimum-image convention before applying the shoelace formula.  A single
-		state returns a scalar array; trailing solution axes produce one area per
-		sample. Counter-clockwise contours have positive area.
+		minimum-image convention before applying the shoelace formula; ``period``
+		must therefore use the same coordinate normalization as ``x`` and ``y``.
+		A single state returns a scalar array.  An input with shape
+		``(2 * N, *sample_axes)`` returns an area array of shape ``sample_axes``.
+		Counter-clockwise contours have positive area.
 		"""
 		value = self._required_state() if state is None else np.asarray(state, dtype=float)
 		if not np.all(np.isfinite(value)):
 			raise ValueError("The area state must contain only finite values.")
+		# Here axis zero enumerates successive boundary vertices; any trailing
+		# axes are independent contour snapshots, commonly integration times.
 		x, y = self.positions(value)
 		if x.shape[0] < 3:
 			raise ValueError("An area boundary requires at least three points.")

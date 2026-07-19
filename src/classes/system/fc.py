@@ -13,7 +13,12 @@ from .system import System
 
 
 class SystemFC(System):
-	"""Full-cyclotron dynamics over the physical potential."""
+	"""Full-cyclotron dynamics over the physical potential.
+
+	The trajectory owns the component-major ``[x, y, vx, vy]`` layout and the
+	three scales derived from ``rho`` and ``eta``. Unlike GC dynamics, FC uses the
+	raw potential because the rapid cyclotron motion remains in the state itself.
+	"""
 
 	trajectory: TrajectoryFC
 
@@ -29,7 +34,11 @@ class SystemFC(System):
 		x: np.ndarray,
 		y: np.ndarray,
 	) -> tuple[np.ndarray, np.ndarray]:
-		"""Return the electric contribution to ``dvx/dt`` and ``dvy/dt``."""
+		"""Return the electric contributions to ``dvx/dt`` and ``dvy/dt``.
+
+		The returned arrays match the broadcast shape of ``x`` and ``y``. Their
+		signed normalization is carried by the trajectory's ``electric_scale``.
+		"""
 		ex, ey = self.potential.electric_field(t, x, y)
 		return (
 			self.trajectory.electric_scale * ex,
@@ -37,7 +46,7 @@ class SystemFC(System):
 		)
 
 	def vector_field(self, t: float, state: np.ndarray) -> np.ndarray:
-		"""Evaluate position and velocity derivatives for the FC state."""
+		"""Evaluate derivatives with the same ``[x, y, vx, vy]`` state layout."""
 		components = self.trajectory.split(state)
 		acceleration_x, acceleration_y = self.electric_acceleration(
 			t,
@@ -58,7 +67,11 @@ class SystemFC(System):
 		t: float | np.ndarray,
 		state: np.ndarray,
 	) -> np.ndarray:
-		"""Evaluate kinetic plus scaled electrostatic energy per particle."""
+		"""Evaluate kinetic plus scaled electrostatic energy per particle.
+
+		For a saved solution the returned array keeps particle and time axes, so
+		it can be combined directly with the extended momentum ``solution.k``.
+		"""
 		components = self.trajectory.split(state)
 		# The normalization of FC coordinates puts rho/(4|eta|) in front of
 		# squared velocity, while the same electric scale used in acceleration
@@ -75,7 +88,7 @@ class SystemFC(System):
 		t: float,
 		state: np.ndarray,
 	) -> np.ndarray:
-		"""Evaluate the derivative of momentum conjugate to time."""
+		"""Evaluate the per-particle derivative of momentum conjugate to time."""
 		components = self.trajectory.split(state)
 		return np.asarray(
 			-self.trajectory.electric_scale

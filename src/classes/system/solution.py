@@ -11,8 +11,14 @@ import numpy as np
 class Solution:
 	"""Saved integration output.
 
-	``y`` stores state components by row and saved times by column. ``k`` and
-	``err`` are populated only when generalized-energy tracking is requested.
+	``t`` has shape ``(n_save_step,)`` and contains the uniformly requested
+	output times. ``y`` has shape ``(physical_state_size, n_save_step)``: its
+	rows retain the trajectory's component-major layout and its columns are
+	instantaneous states. ``n_steps`` counts complete internal BM4 advances.
+
+	``k`` has one momentum-conjugate-to-time history per particle, with shape
+	``(particle_count, n_save_step)``, and ``err`` is the maximum absolute drift
+	of ``H + k``. Both remain ``None`` unless energy checking was requested.
 	"""
 
 	t: np.ndarray

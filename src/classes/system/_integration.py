@@ -19,10 +19,14 @@ from classes.trajectory.gc import GCState, TrajectoryGC
 from .solution import Solution
 
 
+# A split flow receives a (possibly signed) stage duration, the time at which
+# that subflow is evaluated, and a packed state. It must return the same layout.
 Flow = Callable[[float, float, np.ndarray], np.ndarray]
 
-# BM4 alternates a map and its adjoint. These palindromic coefficients cancel
-# the leading splitting errors while preserving a symmetric fourth-order map.
+# These dimensionless BM4 coefficients are signed fractions of one internal
+# step. The second half mirrors the first, producing twelve palindromic stages;
+# ``_BM4_ORDERS`` selects adjoint (1) and direct (0) subflows alternately. This
+# symmetry cancels the leading splitting errors and yields fourth-order accuracy.
 _BM4_HALF_STAGES = np.asarray(
 	[
 		0.0792036964311957,
@@ -37,9 +41,10 @@ _BM4_HALF_STAGES = np.asarray(
 _BM4_STAGES = np.concatenate((_BM4_HALF_STAGES, np.flip(_BM4_HALF_STAGES)))
 _BM4_ORDERS = np.tile(np.asarray([1, 0], dtype=int), _BM4_HALF_STAGES.size)
 
-# The GC integrator duplicates the physical state. These matrices describe a
-# linear rotation of both copies around their common diagonal, split into
-# constant, cosine, and sine terms for evaluation at any step size.
+# The GC integrator duplicates the physical state. These 4x4 matrices act on
+# coordinate blocks ordered as ``(x_first, y_first, x_second, y_second)`` and
+# rotate both copies around their common diagonal. Splitting the matrix into
+# constant, cosine, and sine terms makes it cheap to evaluate for any step size.
 _COUPLING_BASE = np.asarray(
 	[[1, 0, 1, 0], [0, 1, 0, 1], [1, 0, 1, 0], [0, 1, 0, 1]],
 	dtype=float,
@@ -100,7 +105,12 @@ class _FCSystem(_EnergySystem, Protocol):
 
 @dataclass(frozen=True, slots=True)
 class _GCExtendedState:
-	"""Two GC copies and the optional extended momentum used by BM4."""
+	"""Two GC copies and the optional extended momentum used by BM4.
+
+	``first`` and ``second`` both have leading size ``2 * particle_count`` in
+	component-major ``[x, y]`` order. ``momentum`` has one value per particle;
+	all three arrays may also carry matching trailing saved-time axes.
+	"""
 
 	first: np.ndarray
 	second: np.ndarray
@@ -115,7 +125,11 @@ class _GCExtendedState:
 		particle_count: int,
 		track_momentum: bool,
 	) -> _GCExtendedState:
-		"""Validate and split a packed state without duplicating its data."""
+		"""Split the leading packed axis into the two copies and momentum.
+
+		``physical_size`` is the flattened leading size of one GC copy, whereas
+		``particle_count`` is the size of each individual coordinate block.
+		"""
 		expected_size = 2 * physical_size + (particle_count if track_momentum else 0)
 		if value.ndim == 0 or value.shape[0] != expected_size:
 			raise ValueError("The GC extended flow changed the state shape.")
@@ -134,7 +148,12 @@ class _GCExtendedState:
 
 @dataclass(frozen=True, slots=True)
 class _FCExtendedState:
-	"""One physical FC state and the optional extended momentum used by BM4."""
+	"""One physical FC state and the optional extended momentum used by BM4.
+
+	The four blocks in ``physical`` each contain ``particle_count`` values in
+	``[x, y, vx, vy]`` order. ``momentum`` adds one conjugate-to-time value per
+	particle when the energy diagnostic is active. Trailing time axes are kept.
+	"""
 
 	physical: FCState
 	momentum: np.ndarray | None = None
@@ -149,7 +168,11 @@ class _FCExtendedState:
 		particle_count: int,
 		track_momentum: bool,
 	) -> _FCExtendedState:
-		"""Validate and split the FC state using its trajectory-owned layout."""
+		"""Validate and split the packed FC state along its leading axis.
+
+		``physical_size`` counts all four physical blocks; ``particle_count``
+		counts the entries in one block and therefore also in ``momentum``.
+		"""
 		expected_size = physical_size + (particle_count if track_momentum else 0)
 		if value.ndim == 0 or value.shape[0] != expected_size:
 			raise ValueError("The FC extended flow changed the state shape.")
@@ -168,7 +191,11 @@ class _FCExtendedState:
 
 
 class _Progress:
-	"""Small stderr progress indicator for long fixed-step integrations."""
+	"""Small stderr progress indicator for long fixed-step integrations.
+
+	``total`` and ``steps`` count complete BM4 steps, not the twelve internal
+	composition stages. ``every`` controls how often the display is refreshed.
+	"""
 
 	def __init__(self, label: str, total: int) -> None:
 		"""Prepare updates at approximately one-percent intervals."""
@@ -204,6 +231,7 @@ class _Progress:
 def _step_count(duration: float, maximum_step: float) -> int:
 	"""Return the fewest steps that do not exceed ``maximum_step``.
 
+	Both arguments are time increments in the simulation's time convention.
 	``nextafter`` prevents round-off just above an exact integer ratio from
 	introducing a redundant final step.
 	"""
@@ -217,7 +245,12 @@ def _validate_inputs(
 	step: float,
 	n_save_step: int,
 ) -> tuple[float, float, np.ndarray, float, np.ndarray]:
-	"""Validate public integration inputs and construct the saved time grid."""
+	"""Validate inputs and construct the one-dimensional saved-time grid.
+
+	``step`` is an upper bound for internal BM4 steps, while ``n_save_step`` is
+	the number of externally visible samples and includes both ends of
+	``t_span``. ``state`` is a flat component-major initial condition.
+	"""
 	span = np.asarray(t_span, dtype=float)
 	if span.shape != (2,) or not np.all(np.isfinite(span)) or span[0] >= span[1]:
 		raise ValueError("`t_span` must contain two finite, increasing times.")
@@ -266,7 +299,12 @@ def _advance(
 	state: np.ndarray,
 	step: float,
 ) -> tuple[float, np.ndarray]:
-	"""Apply one complete fourth-order BM4 composition."""
+	"""Apply one complete fourth-order BM4 composition.
+
+	``step`` is the complete internal advance; ``stage`` below is its signed
+	fraction for one direct or adjoint subflow. ``t`` follows every signed stage
+	so that time-dependent potentials are evaluated at the correct endpoint.
+	"""
 	for coefficient, order in zip(_BM4_STAGES, _BM4_ORDERS, strict=True):
 		stage = float(coefficient * step)
 		# The adjoint is evaluated at the incoming time and the direct map at
@@ -280,7 +318,7 @@ def _advance(
 
 
 def _planned_steps(times: np.ndarray, maximum_step: float) -> int:
-	"""Count internal steps ahead of time for progress reporting."""
+	"""Count complete BM4 steps across the saved-time grid for progress output."""
 	return sum(
 		_step_count(float(stop - start), maximum_step)
 		for start, stop in zip(times[:-1], times[1:], strict=True)
@@ -303,6 +341,8 @@ def _solve_composed(
 
 	Each saved interval is subdivided independently. This makes every requested
 	output time exact even when ``maximum_step`` does not divide the interval.
+	The returned ``y`` has shape ``(packed_state_size, n_save_step)`` and
+	``n_steps`` counts complete BM4 compositions rather than individual stages.
 	"""
 	t, _tf, value, maximum_step, times = _validate_inputs(
 		t_span,
@@ -310,6 +350,8 @@ def _solve_composed(
 		step,
 		n_save_step,
 	)
+	# Append the saved-time axis to the packed state; during stepping ``value``
+	# itself remains the one-dimensional instantaneous state.
 	result = np.empty(value.shape + (times.size,), dtype=value.dtype)
 	result[:, 0] = value
 	n_steps = 0
@@ -319,6 +361,8 @@ def _solve_composed(
 		for output_index, target in enumerate(times[1:], start=1):
 			duration = float(target) - t
 			count = _step_count(duration, maximum_step)
+			# This interval-local step reaches ``target`` exactly and is guaranteed
+			# not to exceed the public ``maximum_step`` bound.
 			internal_step = duration / count
 			segment_start = t
 			for index in range(count):
@@ -339,7 +383,9 @@ def _solve_composed(
 
 @lru_cache(maxsize=256)
 def _gc_coupling(step: float) -> np.ndarray:
-	"""Return the exact harmonic mixing matrix for the two GC copies."""
+	"""Return the 4x4 exact harmonic mixing matrix for the two GC copies."""
+	# This is an algorithmic binding frequency for the duplicated states, not
+	# the physical Larmor frequency owned by an FC trajectory.
 	frequency = 10.0
 	return np.asarray(
 		(
@@ -359,6 +405,8 @@ def _couple_gc_state(
 	"""Mix duplicated GC coordinates while leaving time momentum unchanged."""
 	first = trajectory.split(state.first)
 	second = trajectory.split(state.second)
+	# ``blocks`` has leading order (x_first, y_first, x_second, y_second); all
+	# particle and optional saved-time axes are vectorized by the ellipsis.
 	blocks = np.stack((*first, *second), axis=0)
 	coupled = np.asarray(np.einsum("ij,j...->i...", _gc_coupling(step), blocks))
 	return _GCExtendedState(
@@ -375,7 +423,11 @@ def _updated_momentum(
 	t: float,
 	physical_state: np.ndarray,
 ) -> np.ndarray | None:
-	"""Advance momentum conjugate to time when energy tracking is enabled."""
+	"""Advance the per-particle momentum conjugate to time.
+
+	``momentum`` and its derivative have shape ``(particle_count, ...)``; a
+	``None`` value means the optional generalized-energy diagnostic is disabled.
+	"""
 	if momentum is None:
 		return None
 	derivative: np.ndarray = np.asarray(
@@ -399,13 +451,18 @@ def solve_gc(
 	"""Integrate one GC physical state in doubled extended phase space.
 
 	The two copies make each triangular subflow explicit. Their average is
-	projected back to the physical state after the BM4 integration.
+	projected back to the physical state after the BM4 integration. The input is
+	a flat ``[x, y]`` state; the returned physical solution has shape
+	``(2 * particle_count, n_save_step)``.
 	"""
 	trajectory = system.trajectory
 	physical_state = np.asarray(state, dtype=float)
 	trajectory.split(physical_state)
+	# ``physical_size`` counts both coordinate blocks, whereas
+	# ``particle_count`` is the number of values in either x or y alone.
 	physical_size = physical_state.size
 	particle_count = trajectory.particle_count(physical_state)
+	# Momentum exists solely to diagnose conservation in extended phase space.
 	track_momentum = bool(check_energy)
 	extended = _GCExtendedState(
 		# Both copies start on the physical diagonal; coupling keeps them close
@@ -465,6 +522,8 @@ def solve_gc(
 		progress=progress,
 		label="SystemGC",
 	)
+	# Here ``unpack`` preserves the saved-time axis, so each copy has shape
+	# ``(physical_size, n_save_step)`` rather than being an instantaneous vector.
 	final_state = unpack(solution.y)
 	first = trajectory.split(final_state.first)
 	second = trajectory.split(final_state.second)
@@ -494,7 +553,9 @@ def _cyclotron_step(
 	"""Advance exactly under the field-free cyclotron sub-Hamiltonian.
 
 	Complex notation applies the velocity rotation and its analytically
-	integrated position displacement in one vectorized operation.
+	integrated position displacement in one vectorized operation. Thus ``x + i*y``
+	represents planar position and ``vx + i*vy`` planar velocity; ``rotation``
+	is the unit complex phase accumulated during ``step``.
 	"""
 	rotation = np.exp(-1j * step * trajectory.larmor_frequency)
 	x, y = _real_imaginary(
@@ -523,13 +584,18 @@ def solve_fc(
 	"""Integrate one FC physical state with direct and adjoint split flows.
 
 	The direct map applies cyclotron motion before the electric kick; its
-	adjoint reverses that order. BM4 composes both maps symmetrically.
+	adjoint reverses that order. BM4 composes both maps symmetrically. The input
+	is flat ``[x, y, vx, vy]`` and the returned solution has shape
+	``(4 * particle_count, n_save_step)``.
 	"""
 	trajectory = system.trajectory
 	physical_state = np.asarray(state, dtype=float)
 	physical = trajectory.split(physical_state)
+	# ``physical_size`` spans all four state blocks; ``particle_count`` is the
+	# common leading size of each individual position or velocity block.
 	physical_size = physical_state.size
 	particle_count = trajectory.particle_count(physical_state)
+	# The optional momentum extends each particle by one diagnostic variable.
 	track_momentum = bool(check_energy)
 	extended = _FCExtendedState(
 		physical=physical,
@@ -606,6 +672,7 @@ def solve_fc(
 		progress=progress,
 		label="SystemFC",
 	)
+	# Unpacking the saved result retains its final time axis in every FC block.
 	final_state = unpack(solution.y)
 	solution.y = trajectory.pack(*final_state.physical)
 	if final_state.momentum is not None:

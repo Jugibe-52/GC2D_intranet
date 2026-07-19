@@ -17,7 +17,12 @@ from .system import System
 
 
 class SystemGC(System):
-	"""Guiding-centre dynamics over a gyroaveraged potential."""
+	"""Guiding-centre dynamics over a gyroaveraged potential.
+
+	The trajectory state is component-major ``[x, y]``. Its ``rho`` determines
+	the fixed-radius gyroaverage stored as ``effective_potential``; all GC forces,
+	energies, and visualizations use that effective field rather than the raw one.
+	"""
 
 	trajectory: TrajectoryGC
 
@@ -31,7 +36,11 @@ class SystemGC(System):
 		self.effective_potential = potential.gyroaverage(trajectory.rho)
 
 	def vector_field(self, t: float, state: np.ndarray) -> np.ndarray:
-		"""Evaluate the GC drift at all positions in ``state``."""
+		"""Evaluate the GC drift at all positions in a flat ``[x, y]`` state.
+
+		``ex`` and ``ey`` have one value per represented particle, and the packed
+		result preserves exactly the input state's component-major shape.
+		"""
 		components = self.trajectory.split(state)
 		ex, ey = self.effective_potential.electric_field(
 			t,
@@ -46,7 +55,11 @@ class SystemGC(System):
 		t: float | np.ndarray,
 		state: np.ndarray,
 	) -> np.ndarray:
-		"""Evaluate the gyroaveraged Hamiltonian along every trajectory."""
+		"""Evaluate the gyroaveraged Hamiltonian per particle and saved time.
+
+		A scalar ``t`` normally accompanies a flat state; a time vector broadcasts
+		against a solution whose trailing axis stores those same saved times.
+		"""
 		components = self.trajectory.split(state)
 		return self.effective_potential.evaluate(t, components.x, components.y)
 
@@ -55,7 +68,7 @@ class SystemGC(System):
 		t: float,
 		state: np.ndarray,
 	) -> np.ndarray:
-		"""Evaluate the derivative of momentum conjugate to time."""
+		"""Evaluate the per-particle derivative of momentum conjugate to time."""
 		components = self.trajectory.split(state)
 		return -self.effective_potential.evaluate(
 			t,
@@ -77,7 +90,9 @@ class SystemGC(System):
 		"""Animate an Area over the effective field and its relative error.
 
 		The relative error is measured against the initial signed area and the
-		requested frames are sampled uniformly from the saved solution.
+		requested frames are sampled uniformly from the saved solution. ``frames``
+		limits displayed samples without reintegration, and ``interval`` is the
+		delay between displayed frames in milliseconds.
 		"""
 		if not isinstance(self.trajectory, Area):
 			raise TypeError("`animate_area` requires an Area trajectory.")

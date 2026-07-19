@@ -13,6 +13,12 @@ class Grid:
 
 	Periodic grids omit the duplicated upper endpoint.  That convention makes
 	the FFT and the interpolation use exactly the same independent samples.
+
+	``x0`` and ``y0`` locate the lower corner of the fundamental cell; ``dx``
+	and ``dy`` are its sampling intervals.  ``nx`` and ``ny`` count independent
+	samples along x and y, so every grid-shaped array follows the convention
+	``(nx, ny)``.  ``period`` is expressed in the same coordinate units and is
+	shared by both directions.
 	"""
 
 	x0: float
@@ -71,6 +77,7 @@ class Grid:
 
 	@staticmethod
 	def _axis(origin: float, spacing: float, size: int) -> np.ndarray:
+		"""Return one coordinate axis with shape ``(size,)`` and no endpoint."""
 		axis = origin + spacing * np.arange(size, dtype=float)
 		# Freezing the dataclass does not make returned arrays immutable by itself;
 		# read-only axes keep downstream code from altering sampled coordinates.
@@ -79,14 +86,17 @@ class Grid:
 
 	@property
 	def x(self) -> np.ndarray:
+		"""Sample coordinates on the x axis, with shape ``(nx,)``."""
 		return self._axis(self.x0, self.dx, self.nx)
 
 	@property
 	def y(self) -> np.ndarray:
+		"""Sample coordinates on the y axis, with shape ``(ny,)``."""
 		return self._axis(self.y0, self.dy, self.ny)
 
 	@property
 	def shape(self) -> tuple[int, int]:
+		"""Shape ``(nx, ny)`` expected for fields sampled on this grid."""
 		return self.nx, self.ny
 
 	@property
@@ -106,7 +116,12 @@ class Grid:
 		return self.y0 + (self.ny - 1) * self.dy
 
 	def normalize(self, x: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-		"""Wrap arbitrary coordinates into the half-open periodic domain."""
+		"""Wrap paired coordinates into the half-open fundamental cell.
+
+		The returned arrays preserve the respective shapes of ``x`` and ``y``;
+		the operation changes their representative modulo ``period``, not their
+		physical location on the periodic domain.
+		"""
 		x_array = np.asarray(x)
 		y_array = np.asarray(y)
 		return (

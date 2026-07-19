@@ -13,7 +13,12 @@ from .solution import Solution
 
 
 class System(ABC):
-	"""Hamiltonian dynamics created from independent domain entities."""
+	"""Hamiltonian dynamics created from independent domain entities.
+
+	``potential`` supplies the scalar field and its derivatives. ``trajectory``
+	defines both the physical parameters and the component-major state layout;
+	the system combines them into equations of motion and an integrator.
+	"""
 
 	def __init__(self, potential: Potential, trajectory: Trajectory) -> None:
 		"""Bind a physical potential to a compatible trajectory description."""
@@ -26,7 +31,7 @@ class System(ABC):
 
 	@abstractmethod
 	def vector_field(self, t: float, state: np.ndarray) -> np.ndarray:
-		"""Evaluate the equations of motion."""
+		"""Evaluate the equations of motion with the same shape as ``state``."""
 
 	@abstractmethod
 	def hamiltonian(
@@ -34,7 +39,7 @@ class System(ABC):
 		t: float | np.ndarray,
 		state: np.ndarray,
 	) -> np.ndarray:
-		"""Evaluate the Hamiltonian for every trajectory."""
+		"""Evaluate one Hamiltonian value per particle and optional saved time."""
 
 	@abstractmethod
 	def extended_momentum_derivative(
@@ -42,7 +47,7 @@ class System(ABC):
 		t: float,
 		state: np.ndarray,
 	) -> np.ndarray:
-		"""Return minus the explicit time derivative of the Hamiltonian."""
+		"""Return one conjugate-momentum derivative per represented particle."""
 
 	def simulate(
 		self,
@@ -56,7 +61,10 @@ class System(ABC):
 		"""Integrate the stored initial state with the fixed BM4 path.
 
 		``step`` bounds internal steps, whereas ``n_save_step`` controls only
-		the uniformly spaced states exposed in the returned solution.
+		the uniformly spaced states exposed in the returned solution. ``t_span``
+		contains the initial and final simulation times. ``check_energy`` augments
+		the state with momentum conjugate to time; ``progress`` affects only the
+		terminal display, never the numerical result.
 		"""
 		state = self.trajectory.state
 		if state is None:
@@ -74,13 +82,15 @@ class System(ABC):
 		"""Return the maximum drift of physical or generalized energy.
 
 		For a time-dependent Hamiltonian, ``k`` is the momentum conjugate to
-		time and makes ``H + k`` the conserved extended-system quantity.
+		time and makes ``H + k`` the conserved extended-system quantity. The
+		reduction compares every saved value with its particle's initial value and
+		returns the largest absolute drift across particles and time.
 		"""
 		energy = np.asarray(self.hamiltonian(solution.t, solution.y), dtype=float)
 		if solution.k is not None:
 			energy = energy + np.asarray(solution.k)
-		# A single trajectory omits the particle axis; insert it so the same
-		# reduction computes drift independently for every trajectory.
+		# ``energy`` is normally (particles, saved_times). A single particle may
+		# omit that first axis, so insert it before reducing each time series.
 		if energy.ndim == 1:
 			energy = energy[np.newaxis, :]
 		return float(np.max(np.abs(energy - energy[:, :1])))

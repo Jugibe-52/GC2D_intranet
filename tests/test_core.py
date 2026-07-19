@@ -10,7 +10,11 @@ from classes import Area, Potential, SystemFC, SystemGC, TrajectoryFC, Trajector
 
 
 def random_potential(*, interpolation_order: int = 3) -> Potential:
-	"""Return the small deterministic field shared by the fast tests."""
+	"""Return the small deterministic field shared by the fast tests.
+
+	``A`` fixes the spectral amplitude, ``M`` the radial wave-number cutoff and
+	``nx``/``ny`` the number of samples along each periodic spatial axis.
+	"""
 	return Potential.random(
 		A=0.08,
 		M=3,
@@ -70,6 +74,7 @@ class TrajectoryTests(unittest.TestCase):
 	"""Contracts for physical-state layouts and finite-area boundaries."""
 
 	def test_gc_state_layout_and_copy(self) -> None:
+		# A GC state is component-major: all particle x values precede all y values.
 		state = np.asarray([1.0, 2.0, 3.0, 4.0])
 		trajectory = TrajectoryGC(state, rho=0.2)
 		state[0] = -10.0
@@ -91,6 +96,7 @@ class TrajectoryTests(unittest.TestCase):
 		np.testing.assert_allclose(trajectory.state, [1.0, 2.0, 3.0, 4.0])
 
 	def test_fc_state_layout_and_scales(self) -> None:
+		# FC appends velocity blocks to the GC position blocks: [x, y, vx, vy].
 		state = np.asarray([1.0, 2.0, 3.0, 4.0, 0.5, 0.6, -0.5, -0.6])
 		trajectory = TrajectoryFC(state, rho=0.4, eta=-0.2)
 
@@ -117,6 +123,7 @@ class TrajectoryTests(unittest.TestCase):
 			trajectory.pack(x, y[:-1], vx, vy)
 
 	def test_area_constructors_and_area_calculation(self) -> None:
+		# This center makes the unit square cross both periodic cell boundaries.
 		square = Area.square(
 			center=(2 * np.pi - 0.25, 2 * np.pi - 0.25),
 			side=1.0,
@@ -148,6 +155,7 @@ class TrajectoryTests(unittest.TestCase):
 
 		circle_state = circle.state
 		assert circle_state is not None
+		# Columns are successive saved times; translation must not change the area.
 		time_series = np.column_stack((circle_state, circle_state + 0.1))
 		areas = circle.calculate_area(time_series)
 		self.assertEqual(areas.shape, (2,))
@@ -230,6 +238,7 @@ class SystemTests(unittest.TestCase):
 		trajectory.set_initial_state(np.asarray([1.0, 1.2]))
 		system = SystemGC(random_potential(), trajectory)
 
+		# ``step`` bounds the internal BM4 step; ``n_save_step`` fixes output samples.
 		solution = system.simulate(
 			step=0.01,
 			t_span=(0.0, 0.04),
