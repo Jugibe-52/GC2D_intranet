@@ -8,7 +8,6 @@ __pycache__/
 
 logs/
 *.log
-outputs/
 *.mat
 
 # Only development notebooks define the supported interactive API.
