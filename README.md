@@ -1,29 +1,133 @@
 # guiding_center_intranet
 
-The canonical Python modules live under [`src`](src). The root-level
-scripts are entry points: [`run_fourier.py`](run_fourier.py) for parameter-dictionary runs and
-[`run_potential.py`](run_potential.py) for the standalone showcase.
+Herramientas para simular centros guía y órbitas ciclotrónicas completas en
+potenciales electrostáticos bidimensionales.
 
-For imports outside those scripts, install the package in editable mode:
-```sh
+La arquitectura pública se basa en tres entidades independientes:
+
+~~~text
+Potential + Trajectory -> System -> SimulationResult
+~~~
+
+- Potential describe el campo electrostático y cómo evaluarlo.
+- Trajectory describe el modelo de partícula, sus parámetros y el estado inicial.
+- System combina ambas entidades, construye las ecuaciones e integra la simulación.
+
+No hay una capa pública independiente para el solver. Los integradores
+simplécticos forman parte de classes/system y System los selecciona
+internamente al ejecutar simulate(...).
+
+## Instalación
+
+El código Python está bajo src. Para instalarlo en modo editable:
+
+~~~sh
 python3 -m pip install -e .
-```
-To install the editable package plus notebook/demo tools, use:
-```sh
+~~~
+
+Para instalar también las herramientas de notebooks:
+
+~~~sh
 python3 -m pip install -r requirements.txt
-```
+~~~
 
-Logging is enabled by default for the root scripts. Use `SIM_LOG_LEVEL` to change
-verbosity and `SIM_LOG_FILE` to also write logs to a file:
-```sh
+## Entidades del dominio
+
+### Potential
+
+Potential es la clase abstracta común. Sus implementaciones son:
+
+- GridPotential: potencial definido sobre una malla, normalmente procedente de
+  HDF5 o de un campo sintético muestreado; utiliza interpolación espacial.
+- FourierPotential: potencial definido directamente mediante modos de Fourier;
+  conserva la evaluación espectral del modelo Fourier.
+
+Ambas implementaciones ofrecen la misma interfaz para evaluar el potencial y
+sus derivadas. El potencial físico no conoce la trayectoria ni decide si debe
+aplicarse un giro-promedio.
+
+### Trajectory
+
+Trajectory es independiente del potencial y de la integración. Las variantes
+son:
+
+- TrajectoryGC: centro guía, con estado físico organizado en bloques x, y.
+- TrajectoryFC: ciclotrón completo, con estado físico organizado en bloques
+  x, y, vx, vy.
+
+Los identificadores internos son gc y fc. El valor histórico fo solo se acepta
+como alias al leer configuraciones antiguas y se normaliza inmediatamente a fc.
+
+### System
+
+System recibe un Potential y una Trajectory:
+
+~~~python
+from classes import FourierPotential, TrajectoryGC, create_system
+
+potential = FourierPotential(...)
+trajectory = TrajectoryGC(...)
+system = create_system(potential, trajectory)
+
+solution = system.simulate(
+    t_span=(0.0, 20.0 * 3.141592653589793),
+    step=0.1,
+    n_save_step=11,
+    method="BM4",
+    check_energy=True,
+)
+~~~
+
+create_system(...) devuelve SystemGC o SystemFC según la trayectoria. La
+selección del método numérico queda encapsulada:
+
+- SystemGC usa la extensión de espacio de fases para el sistema no separable.
+- SystemFC usa los flujos adjuntos chi y chi_star de la composición simpléctica.
+
+La solución conserva los tiempos, los estados físicos y, cuando se solicita,
+la variable extendida y el error de energía.
+
+## Ejecución desde terminal
+
+Se mantienen dos superficies de entrada, diferenciadas por la fuente del
+potencial, pero ambas construyen las mismas tres entidades.
+
+Para un potencial de Fourier:
+
+~~~sh
+python3 run_fourier.py
+~~~
+
+Para un potencial de malla procedente de HDF5 o generado como mock:
+
+~~~sh
+python3 run_potential.py
+~~~
+
+Opciones comunes:
+
+~~~sh
+python3 run_fourier.py --config-group assay --config-version v_1
+python3 run_potential.py --config-group test --config-version v_1
+~~~
+
+También puede seleccionarse un perfil concreto:
+
+~~~sh
+python3 run_fourier.py --version symplectic_grid
+~~~
+
+El logging se controla con SIM_LOG_LEVEL y SIM_LOG_FILE:
+
+~~~sh
 SIM_LOG_LEVEL=DEBUG SIM_LOG_FILE=logs/simulation.log python3 run_fourier.py
-```
+~~~
 
-Simulation parameters are read from JSON configuration files in [`conf`](conf).
-The configuration tree is split first by execution surface, then by execution
-family, then by group, then by version file:
+## Configuración
 
-```text
+Los perfiles JSON se organizan por superficie, fuente, grupo y versión:
+
+~~~text
 conf/
   notebook/
     fourier/test/v_1.json
@@ -33,109 +137,74 @@ conf/
     fourier/assay/v_1.json
     potential/test/v_1.json
     potential/assay/v_1.json
-```
+~~~
 
-The main batch runner uses `conf/terminal/fourier/test/v_1.json` by default:
-```sh
-python3 run_fourier.py
-```
-Select another profile from the same configuration file with:
-```sh
-python3 run_fourier.py --version notebook_demo
-```
-Select an experiment configuration folder with:
-```sh
-python3 run_fourier.py --config-group assay --config-version v_1
-```
-or pass an explicit config file:
-```sh
-python3 run_fourier.py --config conf/terminal/fourier/assay/v_1.json --version symplectic_grid
-```
-For background runs:
-```sh
-nohup python3 -u run_fourier.py &>fourier.out < /dev/null &
-```
+Todos los perfiles se normalizan conceptualmente en potencial, trayectoria,
+solver y salida. La familia potential expresa esos bloques directamente:
 
-The standalone HDF5/mock-potential showcase reads `conf/terminal/potential/test/v_1.json`
-by default:
-```sh
-python3 run_potential.py
-```
-
-The list of Python packages and their version are specified in [`requirements.txt`](https://github.com/cchandre/guiding_center_intranet/blob/main/requirements.txt)
-___
-##  Configuration
-
-- *Method*: string
-  - 'diffusion_fo': computes the diffusion coefficients for the full orbits
-  - 'diffusion_gc': computes the diffusion coefficients for the guiding centers
-  - 'rotation_fo': computes the rotation numbers for the full orbits
-  - 'rotation_gc': computes the rotation numbers for the guiding centers 
-  - 'poincare_fo': plots the full orbits in the plane (*x*, *y*) for every period of the potential (stroboscopic plot)
-  - 'poincare_gc': plots the guiding-center trajectories in the plane (*x*, *y*) for every period of the potential (stroboscopic plot)
-- *Ntraj*: integer; number of trajectories to be integrated
-- *Tf*: integer; number of periods for the integration of the trajectories
-####
-- *A*: float or array of floats; amplitude(s) of the electrostatic potential [theory: *A*=&epsilon;<sub>&delta;</sub>/*B*]
-- *rho*: float or array of floats; value(s) of the Larmor radius; for full orbits, this value corresponds to the thermal Larmor radius
-####
-- *TwoStepIntegration*: boolean; if True, computes trajectories from 0 to 2&pi;*T*<sub>mid</sub>, removes the trapped trajectories, and continues integration from 2&pi;*T*<sub>mid</sub> to 2&pi;*T*<sub>f</sub>
-- *Tmid*: integer; number of periods for the integration of trajectories in the first step (if *TwoStepIntegration*=True)
-- *threshold*: float; value used to discriminate between trapped and untrapped trajectories (recommended: 4)
-- *thresh_b*: float; value of *b* used to discriminate between diffusive and ballistic trajectories (according to the law *r*<sup>2</sup>(t) = (*a* *t*)<sup>b</sup>)
-####
-- *init*: string; 'random', 'fixed' or 'selected; method to generate initial conditions; if 'selected', *x0* and *y0* need to be provided
-- *x0*: numpy array; values of the initial *x* if *init*='selected'
-- *y0*: numpy array; values of the initial *y* if *init*='selected'
-####
-- *pyhamsys.TimeStep*: float; time step used by the integrator (recommended: 10<sup>-1</sup> for guiding centers and 5x10<sup>-3</sup> for full orbits)
-- *pyhamsys.ode_solver*: string; indicates the symplectic integration scheme to be used (see [pyHamSys](https://pypi.org/project/pyhamsys/))
-- *pyhamsys.CheckEnergy*: boolean; if True, the autonomous system is integrated, and the output (`.npz` file) includes the total energy (only if *SaveData*=True)
-####
-- *PlotResults*: boolean; if True, the results are plotted right after the computation
-- *modulo*: boolean; if True, *x* and *y* are represented modulo 2&pi; (only for Method='poincare' and PlotResults=True)
-- *grid*: boolean; if True, show the grid lines on plots
-- *darkmode*: boolean; if True, plots are done in dark mode
-- *fig_extension*: string; e.g., '.png', '.pdf', '.svg'; format of the figures to be saved
-- *dpi*: integer; number of dots per inches for figures
-####
-- *SaveData*: boolean; if True, the results are saved in a `.npz` file; Poincaré sections and diffusion plots *r*<sup>2</sup>(*t*) are saved as *fig_extension* files; NB: the diffusion data are saved in a `.txt` file regardless of the value of *SaveData*
-- *Parallelization*: configured as `parallelization`; use an integer core count or `"all"`
-####
-- *M*: integer; number of modes (default = 25 for 'turbulent') 
-
-Each JSON configuration has this structure:
-```json
+~~~json
 {
-	"schema_version": 1,
-	"active_version": "default",
-	"versions": {
-		"default": {
-			"parallelization": 1,
-			"pyhamsys": {},
-			"defaults": {},
-			"sweep": {}
-		}
-	}
+  "schema_version": 1,
+  "active_version": "default",
+  "versions": {
+    "default": {
+      "potential": {},
+      "trajectory": {},
+      "solver": {},
+      "output": {}
+    }
+  }
 }
-```
-`pyhamsys` contains the parameters sent directly to the pyHamSys integrator.
-`defaults` defines shared parameters, and `sweep` defines parameter values that
-are expanded into cases. A version can also provide `cases`, a list of explicit
-parameter overrides.
+~~~
 
-Notebook configs are intentionally smaller: they omit terminal runner settings
-such as `parallelization`, `PlotResults`, and `SaveData`.
+La familia fourier conserva defaults, sweep y cases para generar lotes; el
+loader extrae de cada caso los parámetros de FourierPotential y Trajectory.
+En ambas familias, solver contiene exclusivamente los parámetros del
+integrador:
 
----
-Reference: 
-- M. Stanzani, F. Arlotti, G. Ciraolo, X. Garbet, C. Chandre, *Transition to super-diffusive transport in turbulent plasmas*, [arXiv:2309.02461](https://arxiv.org/abs/2309.02461)
-```bibtex
-@unpublished{stanzani2023,
-  title = {Transition to super-diffusive transport in turbulent plasmas},
-  author = {Stanzani, M. and Arlotti, F. and Ciraolo, G. and Garbet, X. and Chandre, C.},
-  year = {2023},
-  URL = {https://arxiv.org/abs/2309.02461}
-}
-```
-For more information: <cristel.chandre@cnrs.fr>
+- TimeStep: paso interno máximo.
+- ode_solver: composición simpléctica, por ejemplo BM4.
+- CheckEnergy: activa la comprobación de energía generalizada.
+
+El nombre solver expresa una capacidad interna de System; no hace referencia a
+una librería o paquete externo.
+
+La documentación detallada está en:
+
+- docs/conf/fourier.md
+- docs/conf/potential.md
+- docs/fourier_execution/README.md
+- docs/potential_execution/README.md
+- docs/system_architecture.md
+
+## Modelo físico y proceso numérico
+
+Para centro guía, SystemGC usa el potencial efectivo psi obtenido a partir del
+potencial físico phi y del radio de Larmor de TrajectoryGC. Conserva:
+
+~~~text
+z = [x, y]
+z_dot = [-dpsi/dy, dpsi/dx]
+H = psi
+~~~
+
+Para ciclotrón completo, SystemFC usa el potencial físico sin giro-promedio y
+conserva:
+
+~~~text
+z = [x, y, vx, vy]
+velocity_scale = rho / (2 * abs(eta))
+electric_scale = sign(eta) / rho
+larmor_frequency = 1 / (2 * eta)
+~~~
+
+La reorganización cambia responsabilidades y nombres, no las fórmulas, los
+coeficientes de los integradores ni el orden de los subflujos.
+
+## Referencia
+
+M. Stanzani, F. Arlotti, G. Ciraolo, X. Garbet y C. Chandre,
+Transition to super-diffusive transport in turbulent plasmas,
+arXiv:2309.02461.
+
+Para más información: cristel.chandre@cnrs.fr

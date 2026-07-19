@@ -4,7 +4,7 @@
 	"versions": {
 		"default": {
 			"parallelization": 1,
-			"pyhamsys": {
+			"solver": {
 				"TimeStep": 0.1,
 				"ode_solver": "BM4",
 				"CheckEnergy": false
@@ -51,7 +51,7 @@
 		},
 		"symplectic_grid": {
 			"parallelization": 2,
-			"pyhamsys": {
+			"solver": {
 				"TimeStep": 0.1,
 				"ode_solver": "BM4",
 				"CheckEnergy": true

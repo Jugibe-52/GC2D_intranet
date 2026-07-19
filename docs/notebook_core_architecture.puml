@@ -1,114 +1,81 @@
-@startuml GC2D_notebook_core_architecture
-title Notebook Execution and Core modules Package Architecture
+@startuml GC2D_notebook_architecture
+title Notebook API sobre Potential, Trajectory y System
 
 skinparam componentStyle rectangle
 skinparam shadowing false
 skinparam packageStyle rectangle
 skinparam defaultTextAlignment center
-skinparam ArrowColor #4A5568
-skinparam ComponentBorderColor #2D3748
-skinparam ComponentBackgroundColor #F7FAFC
-skinparam PackageBorderColor #718096
-skinparam PackageBackgroundColor #EDF2F7
-skinparam ArtifactBorderColor #2D3748
-skinparam ArtifactBackgroundColor #FFFFF0
 
 actor "Notebook user" as user
 
-package "Notebook layer" {
-  component "notebooks/\nworkflows_demo.ipynb" as notebook
-  component "Parameter cells\nbase dict + overrides" as params_cells
-  component "Plot cells\nPoincare / diagnostics" as plot_cells
+package "Notebook" {
+  component "parameter cells" as params
+  component "simulation cell" as simulation_cell
+  component "plot / diagnostics cells" as plot_cells
 }
 
-package "src public notebook API" {
-  component "workflows_api.py" as notebook_api
-  component "make_params(base, **overrides)" as make_params
-  component "make_system(params)" as make_system
-  component "to_symp_params(params)" as to_symp_params
-  component "run_workflow(system, plot=True, save=True)" as run_workflow
-  component "integrate_simulation(system)" as integrate_simulation
-  component "plot_poincare(result)" as plot_poincare
-  component "SimulationResult\nsystem, sol, elapsed,\nfig, ax" as result
+package "Public workflow API" {
+  component "load config" as load
+  component "make_potential()" as make_potential
+  component "make_trajectory()" as make_trajectory
+  component "create_system()" as create_system
+  component "run_workflow()" as workflow
 }
 
-package "src numerical model" {
-  component "classes/fourier_system.py\nFourierSystem" as fourier_system
-  component "initial_conditions()" as initial_conditions
-  component "Hamiltonian methods\ny_dot(), k_dot(),\npotential(), hamiltonian()" as hamiltonian_methods
-  component "Full-orbit splitting\nchi(), chi_star()" as splitting_methods
+package "Domain" {
+  component "Potential" as potential
+  component "GridPotential" as grid_potential
+  component "FourierPotential" as fourier_potential
+  component "Trajectory" as trajectory
+  component "TrajectoryGC" as trajectory_gc
+  component "TrajectoryFC" as trajectory_fc
+  component "System" as system
+  component "SystemGC" as system_gc
+  component "SystemFC" as system_fc
 }
 
-package "src workflows" {
-  component "workflows/export.py\nsave_data(system, sol)" as save_data
+package "Simulation" {
+  component "system.simulate()" as simulate
+  component "internal solver" as solver
+  component "SimulationResult" as result
 }
 
-package "src support" {
-  component "conf/notebook/fourier/test/v_1.json\noptional base configuration" as fourier_config
-  component "config_logging.py\nsimulation_label()" as config_logging
+package "Presentation" {
+  component "plotting" as plotting
+  component "optional export" as export
 }
 
-package "External runtime" {
-  component "pyhamsys\nsolve_ivp_sympext()" as solve_gc
-  component "pyhamsys\nsolve_ivp_symp()" as solve_fo
-  component "NumPy / SciPy\narrays, Bessel J0,\nNumPy export" as scientific_stack
-  component "Matplotlib\naxes, figures, display" as matplotlib
-}
+user --> params
+params --> load
+load --> make_potential
+load --> make_trajectory
+make_potential --> grid_potential
+make_potential --> fourier_potential
+grid_potential --|> potential
+fourier_potential --|> potential
+make_trajectory --> trajectory_gc
+make_trajectory --> trajectory_fc
+trajectory_gc --|> trajectory
+trajectory_fc --|> trajectory
+potential --> create_system
+trajectory --> create_system
+create_system --> system_gc
+create_system --> system_fc
+system_gc --|> system
+system_fc --|> system
 
-artifact "Notebook outputs\ninline figures\nSimulationResult object\noptional .npz files" as outputs
+simulation_cell --> workflow
+workflow --> simulate
+system --> simulate
+simulate --> solver
+solver --> result
+result --> plot_cells
+plot_cells --> plotting
+result --> export
 
-user --> notebook : runs cells
-notebook --> params_cells : edits parameters
-notebook --> plot_cells : inspects results
-
-params_cells --> fourier_config : may load defaults
-params_cells --> make_params : creates case dict
-params_cells --> make_system : creates FourierSystem system
-
-notebook --> run_workflow : simple path
-notebook --> integrate_simulation : manual integration path
-notebook --> plot_poincare : manual plotting path
-
-notebook_api --> config_logging : labels integration logs
-notebook_api --> result : returns structured result
-
-make_params --> to_symp_params : validates parameters
-make_system --> to_symp_params : normalizes traj_type\nand eta
-make_system --> fourier_system : FourierSystem(params)
-run_workflow --> integrate_simulation : executes simulation
-run_workflow --> plot_poincare : optional plot for\nMethod=poincare_*
-
-integrate_simulation --> initial_conditions : builds y0
-integrate_simulation --> solve_gc : if traj_type='gc'
-integrate_simulation --> solve_fo : if traj_type='fo'
-integrate_simulation --> result : stores system, sol,\nelapsed time
-
-fourier_system --> hamiltonian_methods : guiding-center dynamics
-fourier_system --> splitting_methods : full-orbit dynamics
-fourier_system --> scientific_stack : Fourier turbulent potential,\nFLR correction
-
-solve_gc --> fourier_system : calls HamSys interface
-solve_fo --> splitting_methods : calls chi / chi_star
-solve_fo --> fourier_system : rectify_sol(check_energy)
-
-plot_poincare --> result : reads sol.y and system
-plot_poincare --> matplotlib : creates or reuses axes
-plot_cells --> matplotlib : displays figures
-
-save_data --> outputs : optional .npz export
-plot_poincare --> outputs : inline figure handles
-result --> outputs : returned to notebook
-
-note right of integrate_simulation
-  Integration branch:
-  - gc: solve_ivp_sympext(system, ...)
-  - fo: solve_ivp_symp(system.chi, system.chi_star, ...)
-        then system.rectify_sol(...)
-end note
-
-note bottom of result
-  SimulationResult is the notebook-friendly boundary:
-  it keeps numerical state, timing, and plot handles together.
+note right of workflow
+  The workflow coordinates I/O.
+  Numerical branching stays in System.
 end note
 
 @enduml

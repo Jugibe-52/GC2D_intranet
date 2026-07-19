@@ -14,13 +14,17 @@ dependencies = [
 	"scipy==1.17.1",
 	"h5py==3.16.0",
 	"multiprocess==0.70.19",
-	"scikit-learn==1.8.0",
-	"sympy==1.14.0",
 ]
 
 [tool.setuptools]
 package-dir = {"" = "src"}
-packages = ["classes", "classes.potential", "workflows", "pyhamsys", "pyhamsys.solvers"]
+packages = [
+	"classes",
+	"classes.potential",
+	"classes.trajectory",
+	"classes.system",
+	"workflows",
+]
 py-modules = [
 	"config",
 	"classes_api",

@@ -1,4 +1,4 @@
-"""Compatibility exports for the old symplectic_modules module."""
+"""Small public facade for method-based simulation dispatch."""
 
 from workflows.symplectic_legacy import run_method
 

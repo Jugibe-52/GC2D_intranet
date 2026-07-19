@@ -32,7 +32,7 @@
 			"integration": {
 				"n_max": 50
 			},
-			"pyhamsys": {
+			"solver": {
 				"TimeStep": 0.02,
 				"ode_solver": "BM4",
 				"CheckEnergy": true

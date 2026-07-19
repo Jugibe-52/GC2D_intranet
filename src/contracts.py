@@ -11,7 +11,7 @@ import numpy.typing as npt
 # NumPy's shape parameter is not expressible in current stable typing. Keeping
 # the dtype open here still gives callers the ndarray API instead of bare Any.
 Array: TypeAlias = npt.NDArray[Any]
-TrajectoryKind: TypeAlias = Literal["gc", "fo"]
+TrajectoryKind: TypeAlias = Literal["gc", "fc"]
 InitialConditionKind: TypeAlias = Literal["random", "fixed", "selected"]
 PotentialSourceKind: TypeAlias = Literal["hdf5", "mock", "hdf5_or_mock"]
 
@@ -32,7 +32,7 @@ class PotentialTrajectoryParams(TrajectoryParams, total=False):
 
 
 class FourierParams(TypedDict):
-	"""Normalized parameters required to construct a :class:`FourierSystem`."""
+	"""Normalized parameters for a Fourier potential simulation case."""
 
 	traj_type: TrajectoryKind
 	M: int
@@ -76,7 +76,9 @@ class PotentialIntegrationParams(TypedDict, total=False):
 	n_max: int
 
 
-class PyHamSysParams(TypedDict, total=False):
+class SolverParams(TypedDict, total=False):
+	"""Parameters consumed by :meth:`classes.system.System.simulate`."""
+
 	TimeStep: float
 	ode_solver: str
 	CheckEnergy: bool

@@ -1,162 +1,139 @@
-# `conf/<notebook|terminal>/fourier/<group>/v_x.json`
+# Configuración de potenciales Fourier
 
-`conf/<notebook|terminal>/fourier/<group>/v_x.json` configura casos basados en el modelo `FourierSystem`.
+Los archivos conf/<notebook|terminal>/fourier/<group>/v_x.json describen lotes
+cuya fuente física es un FourierPotential.
 
-- `conf/notebook/...`: configuracion reducida para uso interactivo con `workflows_api`; el bloque `output.data` controla si `run_workflow()` guarda datos.
-- `conf/terminal/...`: configuracion completa para `run_fourier.py` y ejecuciones batch.
+El flujo construido para cada caso es:
 
-El loader correspondiente es:
+~~~text
+FourierPotential + (TrajectoryGC | TrajectoryFC)
+    -> create_system(...)
+    -> SystemGC | SystemFC
+    -> system.simulate(...)
+~~~
 
-```python
-from config import load_fourier_config
-```
+## Estructura
 
-## Estructura general
-
-```json
+~~~json
 {
-    "schema_version": 1,
-    "active_version": "default",
-    "versions": {
-        "default": {
-            "parallelization": 1,
-            "pyhamsys": {},
-            "output": {},
-            "defaults": {},
-            "sweep": {},
-            "cases": []
-        }
+  "schema_version": 1,
+  "active_version": "default",
+  "versions": {
+    "default": {
+      "parallelization": 1,
+      "solver": {
+        "TimeStep": 0.1,
+        "ode_solver": "BM4",
+        "CheckEnergy": true
+      },
+      "output": {
+        "plot": false,
+        "data": false,
+        "extension": ".png",
+        "dpi": 200
+      },
+      "defaults": {},
+      "sweep": {}
     }
+  }
 }
-```
+~~~
 
-## Campos de nivel superior
+schema_version debe ser 1. active_version selecciona el perfil predeterminado
+y versions contiene uno o varios perfiles.
 
-| Campo | Tipo | Descripcion |
+## Generación de casos
+
+defaults define los valores compartidos. sweep expande el producto cartesiano
+de listas de parámetros. Como alternativa, cases puede contener una lista de
+sobrescrituras explícitas.
+
+El runner puede usar parallelization como número máximo de procesos o como el
+valor all.
+
+## Construcción de FourierPotential
+
+Los parámetros físicos de la fuente Fourier son:
+
+| Campo | Tipo | Descripción |
 |---|---:|---|
-| `schema_version` | `int` | Version del esquema. El codigo exige `1`. |
-| `active_version` | `str` | Perfil usado si no se pasa `--version`. |
-| `versions` | `object` | Diccionario de perfiles. Cada clave es un nombre de perfil. |
+| A | float | Amplitud global del espectro. |
+| M | int | Número máximo de modos; se anulan los situados fuera del disco espectral. |
+| seed | int, opcional | Semilla de las fases; si se omite se conserva el valor reproducible del modelo. |
 
-## Perfil de `versions`
+FourierPotential evalúa directamente los modos y sus derivadas. No se convierte
+en un potencial interpolado, porque eso modificaría la evaluación espectral del
+modelo original.
 
-| Campo | Tipo | Descripcion |
+## Construcción de Trajectory
+
+| Campo | Tipo | Descripción |
 |---|---:|---|
-| `parallelization` | `int` o `"all"` | Solo terminal. Numero de procesos para `run_fourier.py`. `"all"` usa todos los cores disponibles. |
-| `pyhamsys` | `object` | Parametros enviados al integrador de `pyhamsys`. |
-| `output` | `object` | Controla si se generan/guardan figuras y datos en `outputs/...`. |
-| `defaults` | `object` | Parametros base compartidos por los casos del perfil. |
-| `sweep` | `object` | Barrido de parametros. Se genera el producto cartesiano de sus listas. |
-| `cases` | `list[object]` | Casos explicitos. Si existe y no esta vacio, tiene prioridad sobre `sweep`. |
+| traj_type | gc o fc | Selecciona TrajectoryGC o TrajectoryFC. |
+| rho | float | Radio de Larmor, no negativo. |
+| eta | float | Parámetro del modelo; debe ser distinto de cero para FC. |
+| Ntraj | int | Número solicitado de condiciones iniciales. |
+| init | random, fixed o selected | Estrategia de inicialización. |
+| x0, y0 | arrays | Posiciones usadas cuando init es selected. |
 
-En `notebook`, se omiten los campos que solo consume el runner de terminal (`parallelization`) y perfiles legacy como `symplectic_grid`.
+El alias histórico fo se acepta solo al cargar datos antiguos y se normaliza a
+fc. Todo objeto y toda rama interna usan gc o fc.
 
-## Bloque `pyhamsys`
+Method se conserva como opción de workflow. Si traj_type no está presente, el
+loader puede inferirlo del sufijo de valores históricos como poincare_gc o
+poincare_fo; el resultado se normaliza antes de construir Trajectory.
 
-Este bloque separa lo que controla directamente la llamada a `pyhamsys` del resto de la configuracion fisica, numerica y de salida.
+## Horizonte de simulación
 
-| Campo | Tipo | Usado por | Descripcion |
-|---|---:|---|---|
-| `TimeStep` | `float` | `solve_ivp_sympext`, `solve_ivp_symp` | Paso interno maximo enviado como `step`; los estados guardados se distribuyen uniformemente con `n_save_step=Tf+1`. |
-| `ode_solver` | `str` | `solve_ivp_sympext`, `solve_ivp_symp` | Metodo simplectico enviado como `method`, por ejemplo `"BM4"`. |
-| `CheckEnergy` | `bool` | `solve_ivp_sympext`, `rectify_sol` | Activa la comprobacion energetica/autonomizacion cuando aplica. |
+Tf es el número de periodos. El intervalo físico es:
 
-`config.py` fusiona estos campos en cada caso antes de construir `FourierSystem`, porque la clase todavia espera atributos planos como `system.TimeStep` y `system.CheckEnergy`.
+~~~text
+(0, 2*pi*Tf)
+~~~
 
-## Expansion de valores
+y se guardan Tf + 1 secciones uniformes, incluidos ambos extremos.
 
-`config.py` permite dos formas abreviadas:
+## Bloque solver
 
-```json
-"x0": {
-  "linspace": [0.5, 1.0, "Ntraj"]
-}
-```
+solver contiene únicamente opciones numéricas consumidas por
+system.simulate(...):
 
-Genera `np.linspace(start, stop, num)`. `num` puede ser un entero o el nombre de otro parametro.
+| Campo | Tipo | Argumento normalizado |
+|---|---:|---|
+| TimeStep | float positivo | step |
+| ode_solver | str | method |
+| CheckEnergy | bool | check_energy |
 
-```json
-"y0": {
-  "constant": 4.5,
-  "num": "Ntraj"
-}
-```
-
-Genera `np.full(num, constant)`.
-
-## Parametros del sistema Fourier
-
-| Campo | Tipo | Usado por | Descripcion |
-|---|---:|---|---|
-| `Method` | `str` | `to_symp_params`, `run_workflow` | Nombre del metodo. Si `traj_type` no existe, se infiere del sufijo final: `poincare_gc` -> `gc`. |
-| `traj_type` | `"gc"` o `"fo"` | `FourierSystem`, integracion | Tipo de trayectoria. Si falta, se infiere desde `Method`. |
-| `A` | `float` | `FourierSystem` | Amplitud de los coeficientes Fourier del potencial. Normalmente se define en `sweep`. |
-| `M` | `int` | `FourierSystem` | Numero maximo de modos Fourier. Modos con `sqrt(n^2 + m^2) > M` se anulan. |
-| `rho` | `float` | `FourierSystem` | Radio de Larmor. En `gc` se usa en la correccion FLR con Bessel `J0`. |
-| `eta` | `float` | `FourierSystem`, `chi`, `chi_star` | Parametro de orbita completa. Si falta, se rellena con `rho`. Para `fo` no puede ser cero. |
-
-## Parametros de integracion propios del flujo
-
-| Campo | Tipo | Usado por | Descripcion |
-|---|---:|---|---|
-| `Ntraj` | `int` | `initial_conditions` | Numero de trayectorias. Con `init="fixed"` se ajusta al cuadrado perfecto inferior. |
-| `Tf` | `int` | `integrate_simulation` | Numero de periodos. Se evalua en `2*pi*arange(0, Tf + 1)`. |
+Los nombres de las claves se mantienen para compatibilidad de configuración.
+El bloque ya no identifica un paquete externo: el solver forma parte de
+classes/system.
 
 ## Condiciones iniciales
 
-| Campo | Tipo | Usado por | Descripcion |
-|---|---:|---|---|
-| `init` | `"random"`, `"fixed"` o `"selected"` | `initial_conditions` | Estrategia de inicializacion. |
-| `x0` | array o expansion | `init="selected"` | Coordenadas iniciales `x`. Debe tener la misma forma que `y0`. |
-| `y0` | array o expansion | `init="selected"` | Coordenadas iniciales `y`. Debe tener la misma forma que `x0`. |
+- random genera posiciones uniformes en el dominio periódico.
+- fixed genera una malla cuadrada y puede ajustar Ntraj al cuadrado inferior.
+- selected usa x0 e y0, que deben tener la misma forma.
+- TrajectoryFC añade vx y vy a partir de una fase perpendicular.
 
-Comportamiento:
+La trayectoria define el layout del estado; System solo lo consume al simular.
 
-- `random`: genera `2*Ntraj` posiciones aleatorias en `[0, 2*pi)`.
-- `fixed`: genera una malla regular cuadrada.
-- `selected`: usa `x0` e `y0`.
-- Si `traj_type="fo"`, se añaden velocidades perpendiculares aleatorias.
-- Si `traj_type="fo"` y `CheckEnergy=True`, se añade una variable energetica `k`.
+## Bloque output
 
-## Bloque `output`
-
-| Campo | Tipo | Descripcion |
+| Campo | Tipo | Descripción |
 |---|---:|---|
-| `plot` | `bool` | Si es `true`, genera la figura Poincare y la guarda en la carpeta `outputs/...` derivada de la configuracion. |
-| `data` | `bool` | Si es `true`, `run_workflow()`/`run_fourier.py` guardan un `.npz` comprimido con `t`, `x`, `y` y, si aplica, `k`, `vx`, `vy`. Si es `false`, no se guardan datos. |
-| `extension` | `str` | Extension de la figura guardada, por ejemplo `.png` o `.pdf`. |
-| `dpi` | `int` | Resolucion usada al guardar la figura. |
+| plot | bool | Genera la figura configurada por el workflow. |
+| data | bool | Guarda el resultado en NPZ. |
+| extension | str | Extensión de la figura. |
+| dpi | int | Resolución de la figura. |
+| modulo | bool | Representa posiciones en el toro cuando corresponda. |
+| grid | bool | Activa la rejilla de la figura. |
 
-`config.py` traduce este bloque a los flags internos que todavia esperan algunos workflows (`PlotResults`, `SavePlot`, `SaveData`, `extension`, `dpi`).
+La carpeta de salida se deriva de la ruta del perfil, por ejemplo:
 
-## Plot y salida por caso
+~~~text
+conf/terminal/fourier/test/v_1.json
+-> outputs/terminal/fourier/test/v_1/
+~~~
 
-| Campo | Tipo | Usado por | Descripcion |
-|---|---:|---|---|
-| `modulo` | `bool` | `SimulationResult.plot_poincare` | Si es `true`, representa `x` e `y` modulo `2*pi`. |
-| `grid` | `bool` | `SimulationResult.plot_poincare` | Activa rejilla en la figura Poincare. |
-
-La carpeta de salida no se define en la configuracion: se deriva automaticamente de la ruta de configuracion. Por ejemplo:
-
-```text
-conf/notebook/fourier/test/v_1.json -> outputs/notebook/fourier/test/v_1/
-conf/terminal/fourier/test/v_1.json -> outputs/terminal/fourier/test/v_1/
-conf/terminal/fourier/assay/v_1.json -> outputs/terminal/fourier/assay/v_1/
-```
-
-Los archivos guardados usan el perfil como prefijo compacto y una fecha. Por ejemplo, el perfil `notebook_demo` genera nombres como `notebook_YYYYmmdd_HHMMSS.npz`.
-
-## Parametros heredados o reservados
-
-Estos campos aparecen en algunos perfiles, pero no controlan el flujo actual `run_fourier.py -> run_workflow -> integrate_simulation`:
-
-| Campo | Estado |
-|---|---|
-| `TwoStepIntegration` | Heredado/reservado para flujos de dos etapas. |
-| `Tmid` | Heredado/reservado para dos etapas. |
-| `threshold` | Heredado/reservado para clasificar trayectorias. |
-| `thresh_b` | Heredado/reservado para diagnosticos de transporte. |
-| `darkmode` | No se usa en el plotting actual. |
-| `PlotResults` | Compatibilidad interna; usar `output.plot`. |
-| `SavePlot` | Compatibilidad interna; usar `output.plot`. |
-| `SaveData` | Compatibilidad interna; usar `output.data`. |
+Los campos TwoStepIntegration, Tmid, threshold, thresh_b y darkmode son opciones
+de workflows experimentales; no forman parte de las tres entidades del dominio.

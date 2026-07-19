@@ -1,71 +1,96 @@
-# Ejecucion `run_fourier.py`: modelo Fourier `FourierSystem`
+# Ejecución de potenciales Fourier
 
-Esta ejecucion esta pensada para correr casos por lotes desde terminal. Usa el modelo Fourier sintetico `FourierSystem`, definido en `src/classes/fourier_system.py`, y los workflows publicos de `src/workflows_api.py`.
+run_fourier.py ejecuta perfiles por lotes cuya fuente de campo es
+FourierPotential. Ya no existe una clase que mezcle el espectro, la trayectoria
+y el integrador.
 
-## Entrada principal
+## Entrada
 
-```bash
-python run_fourier.py
-```
+~~~sh
+python3 run_fourier.py
+python3 run_fourier.py --version symplectic_grid
+python3 run_fourier.py --config-group assay --config-version v_1
+~~~
 
-Tambien puede recibir configuracion explicita:
+Los perfiles se leen de:
 
-```bash
-python run_fourier.py --config-group test --config-version v_1
-```
+~~~text
+conf/<terminal|notebook>/fourier/<group>/<version>.json
+~~~
 
-## Configuracion
+## Construcción de cada caso
 
-El script carga perfiles desde:
+Para cada combinación de defaults y sweep, la capa de configuración realiza
+conceptualmente:
 
-```text
-conf/terminal/fourier/<group>/<version>.json
-```
+~~~python
+potential = FourierPotential(...)
+trajectory = TrajectoryGC(...)  # o TrajectoryFC(...)
+system = create_system(potential, trajectory)
+result = system.simulate(...)
+~~~
 
-La funcion responsable es:
+FourierPotential conserva los coeficientes complejos, las fases reproducibles,
+el truncamiento espectral y la evaluación directa de derivadas.
 
-```python
-load_fourier_config(...)
-```
+Trajectory conserva rho, eta, el layout del estado y la estrategia de
+condiciones iniciales. No conoce el potencial.
 
-El objeto de configuracion devuelve una lista de casos con:
+create_system devuelve SystemGC o SystemFC y comprueba que la combinación es
+válida.
 
-```python
-config.cases()
-```
+## Flujo batch
 
-Cada caso es un diccionario de parametros para construir un `FourierSystem`.
+1. El runner carga el perfil y expande los casos.
+2. Cada caso construye un FourierPotential.
+3. El selector gc o fc construye la Trajectory correspondiente. fo se acepta
+   únicamente como alias de configuración antigua.
+4. create_system(potential, trajectory) compone las entidades.
+5. system.simulate(...) genera o recibe el estado inicial y ejecuta el motor
+   simpléctico interno.
+6. Se devuelve SimulationResult.
+7. El workflow representa o guarda el resultado según output.
+8. Los casos pueden distribuirse con multiprocess sin cambiar las entidades.
 
-## Flujo
+## Selección numérica
 
-1. `run_fourier.py` configura imports, logging y argumentos CLI.
-2. Carga la configuracion con `load_fourier_config`.
-3. Expande la lista de casos.
-4. Decide si ejecuta en paralelo con `multiprocess`.
-5. Para cada caso llama a `run_workflow(params, plot=..., save=False)`.
-6. `run_workflow` construye o recibe un `FourierSystem`.
-7. `integrate_simulation` genera condiciones iniciales e integra.
-8. Si `SaveData=True`, `save_data(system, sol)` escribe un `.npz` una sola vez desde el runner.
-9. Al final, `plt.show()` muestra figuras pendientes.
+El runner no bifurca por tipo de trayectoria. La decisión vive en System:
 
-## Modulos principales
+- SystemGC integra el campo no separable en espacio de fases extendido.
+- SystemFC integra mediante chi y chi_star y rectifica la solución extendida.
 
-- `run_fourier.py`: entry point de terminal para ejecucion por lotes.
-- `src/config.py`: carga y expansion de configuracion.
-- `src/classes/fourier_system.py`: modelo Fourier `FourierSystem`.
-- `src/workflows/params.py`: normalizacion y construccion del sistema.
-- `src/workflows/integration.py`: integracion `gc`/`fo`.
-- `src/workflows/workflow.py`: workflow de alto nivel `run_workflow`.
-- `src/workflows/export.py`: exportacion `.npz`.
-- `src/workflows/plotting.py`: graficos Poincare y diagnosticos.
+Los parámetros proceden del bloque solver:
 
-## Diferencia con notebook
+| Configuración | system.simulate |
+|---|---|
+| TimeStep | step |
+| ode_solver | method |
+| CheckEnergy | check_energy |
 
-En notebook no conviene usar `run_fourier.py` directamente. La API reutilizable es:
+Los coeficientes y el orden de los subflujos son los mismos que en el proceso
+numérico anterior; solo cambia su ubicación dentro de classes/system.
 
-```python
-from workflows_api import make_system, run_workflow, integrate_simulation, plot_poincare
-```
+## Resultados
 
-`run_fourier.py` existe para ejecucion batch fuera de notebook.
-En notebook, `run_workflow(..., save=True)` respeta `output.data` de `conf/notebook/...`.
+SimulationResult reúne:
+
+- el System que se simuló;
+- la solución física t, y;
+- la variable extendida k y el error energético, si se solicitaron;
+- el tiempo de ejecución;
+- los manejadores de figura cuando se representa el resultado.
+
+Plotting y exportación consultan system.trajectory para separar x, y y, en FC,
+vx y vy. No inspeccionan el nombre de una clase de potencial concreta.
+
+## Módulos conceptuales
+
+~~~text
+classes/potential/fourier.py    FourierPotential
+classes/trajectory/gc.py       TrajectoryGC
+classes/trajectory/fc.py       TrajectoryFC
+classes/system/gc.py           SystemGC
+classes/system/fc.py           SystemFC
+classes/system/                solver y resultado
+workflows/                     batch, plotting y exportación
+~~~

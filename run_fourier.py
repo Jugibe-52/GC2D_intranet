@@ -19,6 +19,7 @@ import multiprocess
 from config import DEFAULT_CONFIG_GROUP, DEFAULT_CONFIG_VERSION, load_fourier_config
 from config_logging import configure_logging, simulation_label
 from contracts import FourierParams
+from workflows.params import get_workflow_options
 from workflows_api import run_workflow, save_data
 
 import logging
@@ -30,13 +31,14 @@ def _run_workflow(params: FourierParams) -> None:
 	logger.info("Starting case: %s", simulation_label(params))
 	result = run_workflow(params, plot=params.get('PlotResults', False), save=False)
 	logger.info("Finished case in %.2f seconds: %s", result.elapsed, simulation_label(params))
-	if result.system.CheckEnergy:
-		logger.info("Energy error: %s", result.sol.err)
-	save_data(result.system, result.sol)
+	options = get_workflow_options(result.system)
+	if options.check_energy and hasattr(result.solution, "err"):
+		logger.info("Energy error: %s", result.solution.err)
+	save_data(result.system, result.solution)
 
 
 def parse_args() -> argparse.Namespace:
-	parser = argparse.ArgumentParser(description="Run FourierSystem cases from a JSON configuration.")
+	parser = argparse.ArgumentParser(description="Run Fourier potential cases from a JSON configuration.")
 	parser.add_argument("--config", help="Path to the JSON configuration file.")
 	parser.add_argument("--config-surface", default="terminal", choices=("terminal", "notebook"), help="Configuration surface under conf/.")
 	parser.add_argument("--config-group", default=DEFAULT_CONFIG_GROUP, choices=("test", "assay"), help="Configuration group under conf/.")

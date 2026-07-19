@@ -44,6 +44,7 @@ from scipy.interpolate import RectBivariateSpline
 from scipy.special import jv
 
 from contracts import Array
+from .base import Potential
 from .grid import Grid
 
 logger = logging.getLogger(__name__)
@@ -309,7 +310,7 @@ def _field_norm(field: RealArray) -> mcolors.Normalize:
 
 
 def _animate_potential(
-	potential: Potential,
+	potential: GridPotential,
 	*,
 	t_max: float = 2 * np.pi,
 	frames: int = 120,
@@ -406,7 +407,7 @@ def _draw_field(
 
 
 def _plot_potential(
-	potential: Potential,
+	potential: GridPotential,
 	*,
 	contours: int | Sequence[float] | None = 12,
 	cmap: str = 'RdBu_r',
@@ -484,7 +485,9 @@ def _plot_potential(
 	return plots
 
 
-class Potential:
+class GridPotential(Potential):
+	"""Potential represented by fields interpolated on a regular grid."""
+
 	def __init__(
 		self,
 		grid: Grid,  # Spatial grid and boundary policy.
@@ -520,19 +523,19 @@ class Potential:
 			order=self.kinterp,
 		)
 
-	def resample(self, grid: Grid) -> Potential:
+	def resample(self, grid: Grid) -> GridPotential:
 		"""Return this potential evaluated and rebuilt on ``grid``."""
 		if not isinstance(grid, Grid):
 			raise TypeError("`grid` must be a Grid instance.")
 		fields = _resample_fields(grid, self.fields, self.interpolators)
-		return Potential(grid, fields, k=self.kinterp)
+		return GridPotential(grid, fields, k=self.kinterp)
 
 	def __str__(self) -> str:
 		"""Return a compact summary suitable for notebooks and logs."""
 		frequencies = np.array2string(self.fields.frequencies, precision=5, threshold=8, edgeitems=3)
 		boundary = f'periodic (period={self.grid.period:g})' if self.grid.period is not None else 'zero-padded'
 		return (
-			'Potential(\n'
+			'GridPotential(\n'
 			f'  grid={self.grid.nx} x {self.grid.ny}, dx={self.grid.dx:g}, dy={self.grid.dy:g},\n'
 			f'  x=[{self.grid.xmin:g}, {self.grid.xmax:g}], y=[{self.grid.ymin:g}, {self.grid.ymax:g}],\n'
 			f'  mean_field={self.fields.mean is not None}, modes={len(self.fields.modes)},\n'
@@ -540,7 +543,7 @@ class Potential:
 			')'
 		)
 
-	def gyroaveraged(self, rho: float) -> Potential:
+	def gyroaveraged(self, rho: float) -> GridPotential:
 		"""Return the effective potential averaged over Larmor circles of radius ``rho``."""
 		if rho < 0:
 			raise ValueError("`rho` must be non-negative.")
@@ -558,7 +561,11 @@ class Potential:
 			)
 			for mode in self.fields.modes
 		)
-		return Potential(self.grid, PotentialFields(mean, modes), k=self.kinterp)
+		return GridPotential(self.grid, PotentialFields(mean, modes), k=self.kinterp)
+
+	def copy(self) -> GridPotential:
+		"""Return a deep copy without changing the interpolation representation."""
+		return GridPotential(self.grid, self.fields.copy(), k=self.kinterp)
 
 	def phic_interp(self, xi: Array, yi: Array, dx: int = 0, dy: int = 0) -> PotentialFields:
 		"""Evaluate the spatially interpolated potential coefficients.

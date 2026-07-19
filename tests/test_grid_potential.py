@@ -7,7 +7,7 @@ from tempfile import TemporaryDirectory
 import h5py
 import numpy as np
 
-from classes import Grid, Potential, PotentialFields, PotentialMode
+from classes import Grid, GridPotential, Potential, PotentialFields, PotentialMode
 from workflows.potentials import extract_potential
 
 
@@ -47,7 +47,7 @@ class GridTests(unittest.TestCase):
 		self.assertAlmostEqual(resized.ny * resized.dy, period)
 
 
-class PotentialGridTests(unittest.TestCase):
+class GridPotentialTests(unittest.TestCase):
 	def test_field_adapter_rejects_unpaired_frequencies(self) -> None:
 		with self.assertRaisesRegex(ValueError, "mode coefficients"):
 			PotentialFields.from_arrays(None, [np.zeros((4, 4))], [])
@@ -57,8 +57,9 @@ class PotentialGridTests(unittest.TestCase):
 		grid = Grid.from_bounds(0.0, period, 0.0, period, 12, 10, periodic=True)
 		X, Y = np.meshgrid(grid.x, grid.y, indexing="ij")
 		fields = PotentialFields(modes=(PotentialMode(np.sin(X) + 1j * np.cos(Y), 1.0),))
-		potential = Potential(grid, fields)
+		potential = GridPotential(grid, fields)
 
+		self.assertIsInstance(potential, Potential)
 		self.assertIs(potential.grid, grid)
 		self.assertFalse(hasattr(potential, "x"))
 		self.assertFalse(hasattr(potential, "nx"))
@@ -84,6 +85,7 @@ class PotentialGridTests(unittest.TestCase):
 
 			potential = extract_potential(filename, target_shape=(7, 6))
 
+		self.assertIsInstance(potential, GridPotential)
 		self.assertEqual(potential.grid.shape, (7, 6))
 		self.assertEqual(potential.grid.xmin, x[0])
 		self.assertEqual(potential.grid.xmax, x[-1])

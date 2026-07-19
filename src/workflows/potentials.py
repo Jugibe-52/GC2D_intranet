@@ -6,8 +6,8 @@ import h5py
 import numpy as np
 from scipy import ndimage
 
-from classes.potential.grid import Grid
-from classes.potential.potential import Array, Potential, PotentialFields, PotentialMode
+from classes import Grid, GridPotential, PotentialFields, PotentialMode
+from contracts import Array
 
 
 logger = logging.getLogger(__name__)
@@ -21,7 +21,7 @@ def extract_potential(
 	denoising: bool = False,
 	sigma: float = 1,
 	k: int = 3,
-) -> Potential:
+) -> GridPotential:
 	with h5py.File(filename, 'r') as f:
 		x = np.asarray(f['Rcells'][()])
 		y = np.asarray(f['Zcells'][()])
@@ -80,7 +80,7 @@ def extract_potential(
 	if denoising and mean_value is not None:
 		mean_value = ndimage.gaussian_filter(mean_value, sigma=sigma)
 	grid = Grid.from_axes(x, y)
-	potential = Potential(
+	potential = GridPotential(
 		grid,
 		PotentialFields.from_arrays(mean_value, fluctuations, freqs),
 		k=k,
@@ -122,7 +122,14 @@ def _reconstruct_periodic_mode(spectrum: Array, x: Array, y: Array) -> Array:
 	return np.asarray(np.einsum('nm,nm...->...', spectrum, phase))
 
 
-def mock_potential(A: float, M: int, nx: int, ny: int, seed: int = 27, k: int = 3) -> Potential:
+def mock_potential(
+	A: float,
+	M: int,
+	nx: int,
+	ny: int,
+	seed: int = 27,
+	k: int = 3,
+) -> GridPotential:
 	"""Build a periodic synthetic potential from a seeded random spectrum."""
 	logger.info(
 		"Generating mock potential: A=%g M=%d grid=%dx%d seed=%d interpolation_order=%d",
@@ -136,7 +143,7 @@ def mock_potential(A: float, M: int, nx: int, ny: int, seed: int = 27, k: int = 
 	grid = _mock_grid(nx, ny)
 	spectrum = _mock_spectrum(A, M, np.random.default_rng(seed))
 	field = _reconstruct_periodic_mode(spectrum, grid.x, grid.y)
-	potential = Potential(
+	potential = GridPotential(
 		grid,
 		PotentialFields(modes=(PotentialMode(field, -1),)),
 		k=k,

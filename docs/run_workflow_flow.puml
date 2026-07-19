@@ -1,5 +1,5 @@
-@startuml GC2D_run_workflow_flow
-title run_workflow Execution Flow in workflows_api
+@startuml GC2D_run_workflow
+title Flujo de run_workflow con entidades separadas
 
 skinparam shadowing false
 skinparam defaultTextAlignment center
@@ -8,145 +8,77 @@ skinparam activity {
   BorderColor #2D3748
   DiamondBackgroundColor #EBF8FF
   DiamondBorderColor #2B6CB0
-  StartColor #2F855A
-  EndColor #C53030
-}
-skinparam note {
-  BackgroundColor #FFFFF0
-  BorderColor #744210
 }
 
 start
 
-:Notebook or caller creates params;
-note right
-  Typical caller:
-  config = load_fourier_config(...)
-  params = make_params(config.cases()[0], ...)
-  system = make_system(params)
-  result = run_workflow(system, plot=True, save=True)
-end note
+:Recibir perfil o caso normalizado;
 
-:system = make_system(params);
-
-partition "make_system(params)" {
-  :params = to_symp_params(params);
-  :system = FourierSystem(params);
-
-  partition "FourierSystem(params)" {
-    :copy params into object attributes;
-    :build random Fourier phases;
-    :build phic Fourier coefficients;
-
-    if (traj_type == "gc"?) then (yes)
-      :apply FLR correction\nwith jv(0, rho * |n,m|);
-    else (no)
-      :keep full-orbit coefficients;
-    endif
-
-    :build fft_phi_ vector field;
-  }
-}
-
-:run_workflow(system, plot=True, save=True);
-:logger.info("Running notebook case");
-
-:integrate_simulation(system);
-
-partition "integrate_simulation(system)" {
-  :y0 = system.initial_conditions(type=system.init);
-
-  partition "initial_conditions()" {
-    if (init == "random"?) then (yes)
-      :sample random x/y positions;
-    elseif (init == "fixed"?) then (yes)
-      :adjust Ntraj to square grid;
-      :create meshgrid in [0, 2*pi);
-    elseif (init == "selected"?) then (yes)
-      :read x0/y0 arrays;
-      :validate matching shapes;
-      :flatten selected positions;
-    else (invalid)
-      :raise ValueError;
-      stop
-    endif
-
-    if (traj_type == "fo"?) then (yes)
-      :append perpendicular velocity\ncos(phi_perp), sin(phi_perp);
-      if (CheckEnergy?) then (yes)
-        :append zero energy variable k;
-      endif
-    endif
-  }
-
-  :t_span = (0, 2*pi*Tf);
-  :n_save_step = Tf + 1;
-  :start timer;
-
-  if (system.traj_type == "gc"?) then (gc)
-    :solve_ivp_sympext(\n system,\n y0,\n step=TimeStep,\n t_span=t_span,\n n_save_step=n_save_step,\n method=ode_solver,\n check_energy=CheckEnergy\n);
-    note right
-      pyhamsys calls the HamSys interface
-      implemented by FourierSystem:
-      y_dot(), k_dot(), potential(),
-      hamiltonian()
-    end note
-  else (fo)
-    :solve_ivp_symp(\n system.chi,\n system.chi_star,\n t_span,\n y0,\n step=TimeStep,\n n_save_step=n_save_step,\n method=ode_solver\n);
-    :system.rectify_sol(sol,\n check_energy=CheckEnergy);
-    note right
-      Full-orbit integration uses
-      the splitting maps:
-      chi() and chi_star()
-    end note
-  endif
-
-  :elapsed = time.time() - start;
-
-  if (system.CheckEnergy?) then (yes)
-    :logger.info("Energy error", sol.err);
-  endif
-
-  :return SimulationResult(\n system=system,\n sol=sol,\n elapsed=elapsed\n);
-}
-
-if (plot and Method startswith "poincare"?) then (yes)
-  :plot_poincare(result);
-
-  partition "plot_poincare(result)" {
-    :read system and sol from result;
-    if (system.traj_type == "gc"?) then (gc)
-      :x, y = split(sol.y, 2);
-    else (fo)
-      :x, y = first two blocks\nof split(sol.y, 4);
-    endif
-
-    if (modulo enabled?) then (yes)
-      :x, y = x % (2*pi), y % (2*pi);
-      :set axes limits and pi ticks;
-    endif
-
-    :ax.plot(x, y, ".");
-    :result.fig = fig;
-    :result.ax = ax;
-  }
-elseif (plot enabled but not poincare?) then (yes)
-  :logger.debug("Skipping automatic plot");
-else (plot disabled)
-  :no automatic plot;
+if (¿fuente Fourier?) then (sí)
+  :Construir FourierPotential;
+else (no)
+  :Construir GridPotential\n(HDF5 o mock);
 endif
 
-:return result;
+:Leer tipo de trayectoria;
 
+if (tipo legado fo?) then (sí)
+  :Normalizar fo a fc;
+endif
+
+if (tipo gc?) then (sí)
+  :Construir TrajectoryGC;
+else (fc)
+  :Construir TrajectoryFC;
+endif
+
+:system = create_system(potential, trajectory);
+
+partition "create_system" {
+  :Validar que Potential y Trajectory\ncumplen sus contratos;
+  if (TrajectoryGC?) then (sí)
+    :Crear SystemGC;
+    :Preparar potencial efectivo psi;
+  else (TrajectoryFC)
+    :Crear SystemFC;
+    :Conservar potencial físico phi;
+  endif
+}
+
+:Normalizar bloque solver:\nTimeStep -> step\node_solver -> method\nCheckEnergy -> check_energy;
+
+:result = system.simulate(...);
+
+partition "System.simulate" {
+  :Obtener o construir estado inicial\ndesde Trajectory;
+  :Validar t_span, step y muestras;
+
+  if (SystemGC?) then (GC)
+    :Integrar en espacio de fases extendido\ncon y_dot, k_dot y hamiltonian;
+  else (FC)
+    :Aumentar k si se comprueba energía;
+    :Integrar con chi y chi_star;
+    :Rectificar al estado físico;
+  endif
+
+  :Crear SimulationResult;
+}
+
+if (output.plot?) then (sí)
+  :Representar usando\nsystem.trajectory + result;
+endif
+
+if (output.data?) then (sí)
+  :Exportar t, estado físico\ny diagnósticos;
+endif
+
+:Devolver SimulationResult;
 stop
 
-legend right
-  Main code locations:
-  - src/workflows_api.py
-  - src/classes/fourier_system.py
-
-  Returned object:
-  SimulationResult(system, sol, elapsed, fig, ax)
-endlegend
+note right
+  Potential nunca posee Trajectory.
+  Trajectory nunca posee Potential.
+  Solo System conoce ambas entidades.
+end note
 
 @enduml

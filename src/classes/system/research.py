@@ -1,10 +1,10 @@
 # Copyright (c) 2023, Cristel Chandre
 # SPDX-License-Identifier: BSD-2-Clause
 
-"""Research diagnostics and visualisations for potential trajectories."""
+"""Research diagnostics for composed potential/trajectory systems."""
 
 import logging
-from typing import Any, Sequence
+from typing import Any, Sequence, cast
 
 import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
@@ -14,24 +14,84 @@ from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from matplotlib.patches import FancyArrowPatch
 
-from .potential import Array
-from .potential_hamsys import PotentialHamsys
+from contracts import Array
+
+from .fc import SystemFC
+from .gc import SystemGC
+from .system import System
 
 logger = logging.getLogger(__name__)
 
 
-class PotentialResearch:
-	"""Analyse numerical-method properties without owning trajectory dynamics.
+class SystemResearch:
+	"""Analyse numerical-method properties without owning domain dynamics.
 
-	The object wraps an existing :class:`PotentialHamsys`.  Simulations still
+	The object wraps an existing :class:`System`.  Simulations still
 	use that system directly; this class only prepares and visualises numerical
 	diagnostics and potential fields.
 	"""
 
-	def __init__(self, system: PotentialHamsys) -> None:
-		if not isinstance(system, PotentialHamsys):
-			raise TypeError('`system` must be a PotentialHamsys instance.')
+	def __init__(self, system: System) -> None:
+		if not isinstance(system, System):
+			raise TypeError('`system` must be a System instance.')
 		self.system = system
+
+	@staticmethod
+	def _split_augmented_state(
+		state: Array,
+		state_dimension: int,
+	) -> tuple[tuple[Array, ...], Array]:
+		"""Separate a phase-space state from its tangent-map matrix."""
+		state_array = np.asarray(state)
+		component_count = state_dimension + state_dimension**2
+		if state_array.ndim == 0 or state_array.shape[0] % component_count != 0:
+			raise ValueError(
+				f"The first state dimension must be divisible by {component_count} "
+				f"for a {state_dimension}-dimensional tangent map."
+			)
+		components = tuple(np.split(state_array, component_count, axis=0))
+		phase_state = components[:state_dimension]
+		jacobian = np.asarray(components[state_dimension:]).reshape(
+			(state_dimension, state_dimension, -1)
+		)
+		return phase_state, jacobian
+
+	def y_dot_lyap(self, t: float, state: Array) -> Array:
+		"""Return the trajectory and tangent-map derivatives."""
+		if isinstance(self.system, SystemGC):
+			return self._guiding_center_y_dot_lyap(t, state)
+		if isinstance(self.system, SystemFC):
+			return self._full_cyclotron_y_dot_lyap(t, state)
+		raise TypeError(f"Unsupported system class: {type(self.system).__name__}.")
+
+	def _guiding_center_y_dot_lyap(self, t: float, state: Array) -> Array:
+		(x, y), jacobian = self._split_augmented_state(state, state_dimension=2)
+		phase_state = np.concatenate((x, y))
+		d2psi_dx2 = self.system.psi(t, x, y, dx=2)
+		d2psi_dxdy = self.system.psi(t, x, y, dx=1, dy=1)
+		d2psi_dy2 = self.system.psi(t, x, y, dy=2)
+		linearization = np.zeros_like(jacobian)
+		linearization[0, 0], linearization[0, 1] = -d2psi_dxdy, -d2psi_dy2
+		linearization[1, 0], linearization[1, 1] = d2psi_dx2, d2psi_dxdy
+		jacobian_dot = np.einsum("ijm,jkm->ikm", linearization, jacobian)
+		return np.concatenate((self.system.vector_field(t, phase_state), jacobian_dot.reshape(-1)))
+
+	def _full_cyclotron_y_dot_lyap(self, t: float, state: Array) -> Array:
+		(x, y, vx, vy), jacobian = self._split_augmented_state(state, state_dimension=4)
+		phase_state = np.concatenate((x, y, vx, vy))
+		system = cast(SystemFC, self.system)
+		d2phi_dx2 = -system.electric_scale * system.phi(t, x, y, dx=2)
+		d2phi_dxdy = -system.electric_scale * system.phi(t, x, y, dx=1, dy=1)
+		d2phi_dy2 = -system.electric_scale * system.phi(t, x, y, dy=2)
+		linearization = np.zeros_like(jacobian)
+		linearization[0, 2] = system.velocity_scale
+		linearization[1, 3] = system.velocity_scale
+		linearization[2, 3] = system.larmor_frequency
+		linearization[3, 2] = -system.larmor_frequency
+		linearization[2, 0], linearization[2, 1] = d2phi_dx2, d2phi_dxdy
+		linearization[3, 0], linearization[3, 1] = d2phi_dxdy, d2phi_dy2
+		jacobian_dot = np.einsum("ijm,jkm->ikm", linearization, jacobian)
+		return np.concatenate((system.vector_field(t, phase_state), jacobian_dot.reshape(-1)))
 
 	@staticmethod
 	def _comparison_norm(*fields: Array) -> mcolors.Normalize:
@@ -263,7 +323,10 @@ class PotentialResearch:
 		**pcolormesh_kwargs: Any,
 	) -> FuncAnimation:
 		"""Animate the complete effective potential psi."""
-		return self.system.effective_potential.animate(
+		animate = getattr(self.system.effective_potential, "animate", None)
+		if not callable(animate):
+			raise TypeError("This potential representation does not provide animation support.")
+		return cast(FuncAnimation, animate(
 			t_max=t_max,
 			frames=frames,
 			interval=interval,
@@ -271,7 +334,7 @@ class PotentialResearch:
 			repeat=repeat,
 			title=r'Effective potential $\psi$',
 			**pcolormesh_kwargs,
-		)
+		))
 
 	def animate_electric_phi_psi(
 		self,
@@ -548,7 +611,7 @@ class PotentialResearch:
 		values sample every edge and give a better finite-area diagnostic after
 		the initially straight edges become curved.
 		"""
-		if self.system.traj["type"] != 'gc':
+		if self.system.trajectory.kind != 'gc':
 			raise ValueError('Square position-space initial conditions are available only for guiding-center trajectories.')
 		try:
 			side = float(side)
@@ -617,7 +680,7 @@ class PotentialResearch:
 		displacements use the minimum-image convention; the three trajectories
 		therefore need to remain close compared with half the spatial period.
 		"""
-		if self.system.traj["type"] != 'gc':
+		if self.system.trajectory.kind != 'gc':
 			raise ValueError('Position-space dX wedge dY conservation is defined here only for guiding-center trajectories.')
 		states = np.asarray(solution.y)
 		if states.ndim != 2:
@@ -656,7 +719,7 @@ class PotentialResearch:
 		trajectory_indices: Sequence[int] | None = None,
 	) -> Array:
 		"""Return the signed area enclosed by transported GC boundary points."""
-		if self.system.traj["type"] != 'gc':
+		if self.system.trajectory.kind != 'gc':
 			raise ValueError('Position-space polygon area is defined here only for guiding-center trajectories.')
 		states = np.asarray(solution.y)
 		if states.ndim != 2 or states.shape[0] % 2 != 0:
@@ -959,8 +1022,4 @@ class PotentialResearch:
 		)
 		return animation
 
-# Exact spelling requested by the research notebooks; PotentialResearch is the
-# conventional public class name.
-potential_researche = PotentialResearch
-
-__all__ = ['PotentialResearch', 'potential_researche']
+__all__ = ['SystemResearch']

@@ -1,37 +1,53 @@
-###################################################################################################
-##                      Parameters: https://github.com/cchandre/guiding_center_intranet                    ##
-###################################################################################################
+"""Run GC or FC trajectories over an HDF5 or mock GridPotential."""
+
+from __future__ import annotations
 
 import argparse
-import numpy as np
+import logging
 import os
 from pathlib import Path
 import sys
 import time
 
+import numpy as np
+
 os.environ.setdefault("MPLCONFIGDIR", ".matplotlib")
 sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
 
-from pyhamsys import solve_ivp_symp, solve_ivp_sympext
-
-from classes import PotentialHamsysFC
-from config import DEFAULT_CONFIG_GROUP, DEFAULT_CONFIG_VERSION, load_potential_config
-from config_logging import configure_logging
-from workflows.export import save_figure, save_potential_data
-from workflows.initial_conditions import make_initial_conditions
-from workflows_api import plot_sol
-
-import logging
+from config import (  # noqa: E402
+	DEFAULT_CONFIG_GROUP,
+	DEFAULT_CONFIG_VERSION,
+	load_potential_config,
+)
+from config_logging import configure_logging  # noqa: E402
+from workflows.export import save_figure, save_potential_data  # noqa: E402
+from workflows_api import plot_sol  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
 
 def parse_args() -> argparse.Namespace:
-	parser = argparse.ArgumentParser(description="Run GC or FC trajectories over an HDF5/mock potential.")
+	parser = argparse.ArgumentParser(
+		description="Run GC or FC trajectories over an HDF5/mock potential."
+	)
 	parser.add_argument("--config", help="Path to the JSON configuration file.")
-	parser.add_argument("--config-surface", default="terminal", choices=("terminal", "notebook"), help="Configuration surface under conf/.")
-	parser.add_argument("--config-group", default=DEFAULT_CONFIG_GROUP, choices=("test", "assay"), help="Configuration group under conf/.")
-	parser.add_argument("--config-version", default=DEFAULT_CONFIG_VERSION, help="Configuration file version under conf/<surface>/potential/<group>/, e.g. v_1.")
+	parser.add_argument(
+		"--config-surface",
+		default="terminal",
+		choices=("terminal", "notebook"),
+		help="Configuration surface under conf/.",
+	)
+	parser.add_argument(
+		"--config-group",
+		default=DEFAULT_CONFIG_GROUP,
+		choices=("test", "assay"),
+		help="Configuration group under conf/.",
+	)
+	parser.add_argument(
+		"--config-version",
+		default=DEFAULT_CONFIG_VERSION,
+		help="Configuration version under conf/<surface>/potential/<group>/.",
+	)
 	parser.add_argument("--version", help="Profile inside the configuration file.")
 	return parser.parse_args()
 
@@ -49,53 +65,62 @@ def main() -> None:
 	if config.output_dir is not None:
 		config.output_dir.mkdir(parents=True, exist_ok=True)
 		logger.info("Output directory: %s", config.output_dir)
-	hs = config.build_system()
-	n_traj = config.initial_condition_count()
-	init = config.initial_condition_type()
-	z0 = make_initial_conditions(hs, n_traj, method=init)
-	traj_type = hs.traj["type"]
+
+	system = config.build_system()
+	initial_state = system.initial_state()
 	logger.info(
-		"Generated initial conditions: version=%s traj_type=%s Ntraj=%d init=%s shape=%s",
+		"Generated initial conditions: version=%s trajectory=%s Ntraj=%d "
+		"init=%s shape=%s",
 		config.version,
-		traj_type,
-		n_traj,
-		init,
-		z0.shape,
+		system.kind,
+		system.trajectory.n_trajectories,
+		system.trajectory.initialization,
+		initial_state.shape,
 	)
 
-	# plot_potential(hs)
+	n_max = int(config.integration.get("n_max", 50))
+	time_step = float(config.solver.get("TimeStep", 2e-2))
+	solver_method = str(config.solver.get("ode_solver", "BM4"))
+	check_energy = bool(config.solver.get("CheckEnergy", True))
+	final_time = 2 * np.pi * (n_max - 1)
 
-	integration = config.integration
-	pyhamsys_config = config.pyhamsys
-	output = config.output
-	n_max = int(integration.get("n_max", 50))
-	time_step = float(pyhamsys_config.get("TimeStep", 2e-2))
-	ode_solver = pyhamsys_config.get("ode_solver", "BM4")
-	check_energy = bool(pyhamsys_config.get("CheckEnergy", True))
-	period = 2 * np.pi
-	t_final = period * (n_max - 1)
-
-	# lyap = hs.compute_lyapunov(2 * np.pi * n_max, z0, reortho_dt=1, tol=1e-10, solver='RK45')
-	# print(lyap)
-
-	# Poincare section
-	logger.info("Starting integration: n_max=%d time_step=%s solver=%s", n_max, time_step, ode_solver)
+	logger.info(
+		"Starting integration: n_max=%d time_step=%s solver=%s",
+		n_max,
+		time_step,
+		solver_method,
+	)
 	start = time.time()
-	if traj_type == "gc":
-		sol = solve_ivp_sympext(hs, z0, step=time_step, t_span=(0, t_final), n_save_step=n_max, method=ode_solver, check_energy=check_energy)
-	elif isinstance(hs, PotentialHamsysFC):
-		sol = solve_ivp_symp(hs.chi, hs.chi_star, (0, t_final), z0, step=time_step, n_save_step=n_max, method=ode_solver)
-		sol = hs.rectify_sol(sol, check_energy=check_energy)
-	else:
-		raise RuntimeError(f"Unsupported trajectory model: {type(hs).__name__}.")
-	logger.info("Finished integration in %.2f seconds; solution shape=%s", time.time() - start, sol.y.shape)
-	if hasattr(sol, "err"):
-		logger.info("Energy error: %s", sol.err)
+	solution = system.simulate(
+		initial_state,
+		t_span=(0.0, final_time),
+		step=time_step,
+		n_save_step=n_max,
+		method=solver_method,
+		check_energy=check_energy,
+	)
+	logger.info(
+		"Finished integration in %.2f seconds; solution shape=%s",
+		time.time() - start,
+		solution.y.shape,
+	)
+	if hasattr(solution, "err"):
+		logger.info("Energy error: %s", solution.err)
+
+	output = config.output
 	if output.get("data", False):
-		save_potential_data(sol, config.output_dir or ".", config.output_name or config.version)
+		save_potential_data(
+			solution,
+			config.output_dir or ".",
+			config.output_name or config.version,
+		)
 	if output.get("plot", True):
 		logger.info("Plotting solution")
-		fig, _ = plot_sol(hs, sol, wrap=output.get("wrap", True))
+		fig, _ = plot_sol(
+			system,
+			solution,
+			wrap=output.get("wrap", True),
+		)
 		if config.output_dir is not None:
 			save_figure(
 				fig,
@@ -106,5 +131,5 @@ def main() -> None:
 			)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
 	main()

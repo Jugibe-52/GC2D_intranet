@@ -1,37 +1,48 @@
-"""Domain classes for guiding-center simulations."""
+"""Public domain API built around Potential, Trajectory and System."""
 
-from .fourier_system import FourierSystem
-from .potential.grid import Grid
 from .potential import (
+	FourierPotential,
+	Grid,
+	GridPotential,
 	Potential,
 	PotentialFields,
-	PotentialHamsys,
-	PotentialHamsysFC,
-	PotentialHamsysGC,
-	PotentialHamsysResearch,
+	PotentialInterpolators,
 	PotentialMode,
-	PotentialResearch,
 	Spline2D,
-	create_potential_hamsys,
-	potential_hamsys_research,
-	potential_researche,
 )
-from .simulation_result import SimulationResult
+from .system import (
+	SimulationResult,
+	Solution,
+	System,
+	SystemFC,
+	SystemGC,
+	SystemResearch,
+	create_system,
+	solve_extended,
+	solve_symplectic,
+)
+from .trajectory import Trajectory, TrajectoryFC, TrajectoryGC, create_trajectory
 
 __all__ = [
-	"PotentialHamsys",
-	"PotentialHamsysFC",
-	"PotentialHamsysGC",
-	"PotentialHamsysResearch",
-	"create_potential_hamsys",
-	"potential_hamsys_research",
-	"PotentialResearch",
-	"potential_researche",
-	"FourierSystem",
+	"FourierPotential",
 	"Grid",
+	"GridPotential",
 	"Potential",
 	"PotentialFields",
+	"PotentialInterpolators",
 	"PotentialMode",
 	"Spline2D",
 	"SimulationResult",
+	"Solution",
+	"System",
+	"SystemFC",
+	"SystemGC",
+	"SystemResearch",
+	"Trajectory",
+	"TrajectoryFC",
+	"TrajectoryGC",
+	"create_system",
+	"create_trajectory",
+	"solve_extended",
+	"solve_symplectic",
 ]

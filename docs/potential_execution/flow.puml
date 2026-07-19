@@ -1,69 +1,71 @@
-@startuml Trajectory_potential_execution_flow
-title Ejecucion run_potential.py - trayectorias con Potential
+@startuml Grid_potential_execution_flow
+title Ejecución GridPotential basada en composición
 
 skinparam componentStyle rectangle
 skinparam shadowing false
 skinparam packageStyle rectangle
 skinparam defaultTextAlignment center
 
-actor "Usuario terminal" as user
+actor User
+database "PHI.h5" as hdf5
 
-package "Entry point" {
-  component "run_potential.py\nparse_args()\nmain()" as cli
+package "Entrada y configuración" {
+  component "run_potential.py" as cli
+  component "PotentialRunConfig" as config
+  component "solver block" as solver_config
 }
 
-package "Configuracion" {
-  component "conf/terminal/potential/<group>/<version>.json" as json
-  component "config.py\nload_potential_config()\nPotentialConfig\nPotentialRunConfig" as config
+package "classes/potential" {
+  component "Potential\nabstract" as potential
+  component "GridPotential" as grid_potential
+  component "Grid + fields + interpolators" as grid_data
 }
 
-package "Workflows" {
-  component "workflows/potentials.py\nextract_potential()\nmock_potential()" as potentials
-  component "workflows/plotting.py\nplot_sol()\nplot_potential()" as plotting
-  component "workflows/initial_conditions.py\nmake_initial_conditions()" as initial_conditions
+package "classes/trajectory" {
+  component "Trajectory\nabstract" as trajectory
+  component "TrajectoryGC" as gc_trajectory
+  component "TrajectoryFC" as fc_trajectory
 }
 
-package "Modelo" {
-  component "classes/potential.py\nPotential" as potential
-  component "classes/potential/potential_hamsys.py\nPotentialHamsys" as trajectory
-  component "potential_hamsys_gc.py\nPotentialHamsysGC" as trajectory_gc
-  component "potential_hamsys_fc.py\nPotentialHamsysFC" as trajectory_fc
+package "classes/system" {
+  component "create_system()" as factory
+  component "SystemGC" as gc_system
+  component "SystemFC" as fc_system
+  component "simulate()" as simulate
+  component "internal solver" as solver
+  component "SimulationResult" as result
 }
 
-package "Librerias externas" {
-  component "h5py\nPHI.h5" as h5py
-  component "NumPy / SciPy\nFFT, Bessel,\nRectBivariateSpline" as scipy
-  component "pyhamsys\nsolve_ivp_sympext()\nsolve_ivp_symp()" as pyhamsys
-  component "Matplotlib\nplots" as mpl
+package "Output workflows" {
+  component "plot" as plot
+  component "NPZ export" as export
 }
 
-database "PHI.h5\nopcional" as hdf5
-artifact "figuras / logs" as outputs
+User --> cli
+cli --> config
+hdf5 --> config : optional
+config --> grid_potential : HDF5 or mock
+grid_potential --|> potential
+grid_potential --> grid_data
+config --> gc_trajectory : gc
+config --> fc_trajectory : fc\nfo normalized
+gc_trajectory --|> trajectory
+fc_trajectory --|> trajectory
+potential --> factory
+trajectory --> factory
+factory --> gc_system
+factory --> fc_system
+gc_system --> simulate
+fc_system --> simulate
+solver_config --> simulate
+simulate --> solver
+solver --> result
+result --> plot
+result --> export
 
-user --> cli : python run_potential.py
-cli --> config : load_potential_config(args)
-config --> json : lee CONFIG
-
-config --> potentials : PotentialConfig.build()
-potentials --> h5py : si type=hdf5
-h5py --> hdf5 : lee Rcells, Zcells,\nfreqs, fields
-potentials --> potential : crea Potential
-potentials --> scipy : mock / denoising
-
-config --> trajectory : create_potential_hamsys()
-trajectory_gc --|> trajectory
-trajectory_fc --|> trajectory
-trajectory --> potential : copia campos,\ngyroaverage,\ninterpoladores
-
-cli --> initial_conditions : make_initial_conditions(hs, ...)
-initial_conditions --> trajectory : grid y tipo de trayectoria
-cli --> pyhamsys : traj_type='gc'\nsolve_ivp_sympext(hs,...)
-cli --> pyhamsys : traj_type='fo'\nsolve_ivp_symp(hs.chi, hs.chi_star,...)
-pyhamsys --> trajectory_gc : y_dot(), hamiltonian()
-pyhamsys --> trajectory_fc : chi(), chi_star()
-
-cli --> plotting : si plot=True\nplot_sol(hs, sol)
-plotting --> mpl
-mpl --> outputs
+note bottom of factory
+  Potential and Trajectory remain
+  separate, immutable collaborators.
+end note
 
 @enduml

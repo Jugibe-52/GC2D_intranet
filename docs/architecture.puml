@@ -1,5 +1,5 @@
 @startuml GC2D_architecture
-title Guiding-center Program Architecture
+title GC2D - Arquitectura de dominio
 
 skinparam componentStyle rectangle
 skinparam shadowing false
@@ -10,100 +10,101 @@ skinparam ComponentBorderColor #2D3748
 skinparam ComponentBackgroundColor #F7FAFC
 skinparam PackageBorderColor #718096
 skinparam PackageBackgroundColor #EDF2F7
-skinparam DatabaseBorderColor #2D3748
-skinparam DatabaseBackgroundColor #EBF8FF
-skinparam ArtifactBorderColor #2D3748
-skinparam ArtifactBackgroundColor #FFFFF0
 
-actor "User" as user
+actor User
 
 package "Entry points" {
-  component "run_fourier.py\nmain batch runner" as fourier_cli
-  component "run_potential.py\nstandalone showcase" as potential_cli
-  component "notebooks/\nworkflows_demo.ipynb" as notebook
+  component "run_fourier.py" as fourier_cli
+  component "run_potential.py" as potential_cli
+  component "notebooks" as notebooks
 }
 
 package "Configuration" {
-  component "conf/<surface>/fourier/<group>/<version>.json\nMethod, Ntraj, Tf,\nA, rho, plotting, saving" as fourier_config
+  component "FourierConfig" as fourier_config
+  component "PotentialRunConfig" as grid_config
+  component "solver options" as solver_config
 }
 
-package "src modules" {
-  component "config_logging.py\nconfigure_logging()\nsimulation_label()" as config_logging
-
-  component "workflows_api.py\nmake_system()\nrun_workflow()\nintegrate_simulation()\nplot_poincare()\nsave_data()\nextract_potential()" as notebook_api
-
-  component "classes/fourier_system.py\nFourierSystem\nFourier turbulent model" as fourier_system
-
-  component "workflows/symplectic_legacy.py\nrun_method()\nlegacy execution flow" as symp_modules
-
-  component "workflows/symplectic_cli.py\nparse_args()\nmain()" as symp_cli
-
-  component "classes/potential/\nPotential, PotentialHamsys, PotentialHamsysGC, PotentialHamsysFC" as classes
+package "classes/potential" {
+  component "Potential\nABC" as potential
+  component "FourierPotential" as fourier_potential
+  component "GridPotential" as grid_potential
+  component "Grid / fields /\ninterpolation" as potential_data
 }
 
-package "External libraries" {
-  component "pyhamsys\nsolve_ivp_sympext()\nsolve_ivp_symp()\nHamSys" as pyhamsys
-  component "multiprocess\nPool / cpu_count" as multiprocess
-  component "NumPy / SciPy\nFFT, Bessel, interpolation,\nNumPy export" as scientific_stack
-  component "Matplotlib\nfigures and interactive plots" as matplotlib
-  component "h5py\nPHI.h5 input" as h5py
+package "classes/trajectory" {
+  component "Trajectory\nABC" as trajectory
+  component "TrajectoryGC" as trajectory_gc
+  component "TrajectoryFC" as trajectory_fc
+  component "initial state +\nstate layout" as trajectory_state
 }
 
-database "Input data\nPHI.h5" as phi_h5
+package "classes/system" {
+  component "create_system(\npotential, trajectory)" as factory
+  component "System\nABC / shared contract" as system
+  component "SystemGC" as system_gc
+  component "SystemFC" as system_fc
+  component "internal symplectic\nintegration engine" as engine
+  component "SimulationResult" as result
+}
 
-artifact "Runtime outputs\n.npz data files\n.png/.pdf/.svg figures\nstdout/file logs" as outputs
+package "Workflows" {
+  component "configuration adapters" as adapters
+  component "plotting" as plotting
+  component "export" as export
+  component "batch execution" as batch
+}
 
-user --> fourier_cli : python3 run_fourier.py
-user --> potential_cli : python3 run_potential.py
-user --> notebook : open notebook
+database "HDF5 input" as hdf5
+artifact "NPZ / figures / logs" as outputs
 
-fourier_cli --> fourier_config : reads cases\nand parallelization
-fourier_cli --> config_logging : configures logging
-fourier_cli --> multiprocess : parallel case map
-fourier_cli --> notebook_api : run_workflow(params)\ncompatibility path
-fourier_cli --> matplotlib : show plots
+User --> fourier_cli
+User --> potential_cli
+User --> notebooks
+fourier_cli --> fourier_config
+potential_cli --> grid_config
+notebooks --> adapters
+fourier_config --> adapters
+grid_config --> adapters
+solver_config --> adapters
 
-notebook --> notebook_api : make_system(params)\nrun_workflow(system)
-notebook --> fourier_config : optional base params
+adapters --> fourier_potential
+adapters --> grid_potential
+fourier_potential --|> potential
+grid_potential --|> potential
+grid_potential --> potential_data
+hdf5 --> grid_potential
 
-notebook_api --> config_logging : labels and logs
-notebook_api --> fourier_system : make_system builds\nFourierSystem(params)
-notebook_api --> pyhamsys : integrates gc / fo trajectories
-notebook_api --> matplotlib : Poincare plots
-notebook_api --> outputs : figures via plot_poincare()
+adapters --> trajectory_gc
+adapters --> trajectory_fc
+trajectory_gc --|> trajectory
+trajectory_fc --|> trajectory
+trajectory --> trajectory_state
 
-fourier_system --> pyhamsys : extends HamSys\nuses OdeSolution contract
-fourier_system --> scientific_stack : Fourier potential,\nBessel FLR correction
-notebook_api --> outputs : save_data()
+potential --> factory
+trajectory --> factory
+factory --> system_gc
+factory --> system_fc
+system_gc --|> system
+system_fc --|> system
+system --> engine : simulate(...)
+engine --> result
 
-symp_cli --> symp_modules : creates FourierSystem\nper params
-symp_modules --> pyhamsys : integrates trajectories
-symp_modules --> matplotlib : optional Poincare plot
-symp_modules --> outputs : saved data / figures
-symp_modules --> config_logging : logs progress
+fourier_cli --> batch
+batch --> adapters
+result --> plotting
+result --> export
+plotting --> outputs
+export --> outputs
 
-potential_cli --> config_logging : configures logging
-potential_cli --> notebook_api : extract_potential()\nmock_potential()\nplot_sol()
-potential_cli --> classes : create_potential_hamsys()
-potential_cli --> pyhamsys : integrates showcase
-potential_cli --> matplotlib : plotting workflows
+note right of trajectory
+  Internal kinds: gc, fc
+  Legacy input alias: fo -> fc
+end note
 
-phi_h5 --> h5py
-h5py --> notebook_api : loaded by extract_potential()
-classes --> scientific_stack : interpolation,\ngyroaverage, derivatives
-classes --> pyhamsys : extends HamSys
-notebook_api --> matplotlib : potential / trajectory plots
-notebook_api --> outputs : showcase figures
-
-legend right
-  Main production path:
-  run_fourier.py -> config.py -> workflows_api.py -> FourierSystem -> pyhamsys -> outputs
-
-  Standalone data-potential path:
-  run_potential.py -> workflows_api.py -> classes/ -> pyhamsys -> plots
-
-  Legacy package entry:
-  symplectic.py -> workflows/symplectic_cli.py -> workflows/symplectic_legacy.py
-endlegend
+note bottom of engine
+  GC: extended phase-space method
+  FC: chi / chi_star composition
+end note
 
 @enduml

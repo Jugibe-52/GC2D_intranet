@@ -3,7 +3,7 @@
 	"active_version": "notebook_demo",
 	"versions": {
 		"notebook_demo": {
-			"pyhamsys": {
+			"solver": {
 				"TimeStep": 0.1,
 				"ode_solver": "BM4",
 				"CheckEnergy": true
