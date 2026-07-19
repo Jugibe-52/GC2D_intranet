@@ -26,10 +26,16 @@ def animate_gc_area(
 	repeat: bool,
 	pcolormesh_kwargs: dict[str, Any],
 ) -> FuncAnimation:
-	"""Render a transported area over a GC effective potential."""
+	"""Render a transported area and its relative conservation error.
+
+	The field and electric arrows share the left panel. The right panel follows
+	the signed change relative to the initial polygon area.
+	"""
 	times = np.asarray(solution.t, dtype=float)
 	states = np.asarray(solution.y, dtype=float)
 	initial_state = trajectory.state
+	# ``SystemGC.animate_area`` guarantees an Area with an initialized state;
+	# keeping the assertion here also narrows the type for static analysis.
 	assert initial_state is not None
 	if (
 		times.ndim != 1
@@ -65,26 +71,35 @@ def animate_gc_area(
 	initial_area = float(area_values[0])
 	if initial_area == 0.0:
 		raise ValueError("The initial area must be non-zero.")
+	# A positive denominator keeps magnitudes comparable without hiding the sign
+	# of the oriented-area change.
 	relative_error = (area_values - initial_area) / abs(initial_area)
 
 	frame_count = times.size if frames is None else min(int(frames), times.size)
 	frame_indices = np.linspace(0, times.size - 1, frame_count, dtype=int)
 	frame_times = times[frame_indices]
+	# Precomputing all displayed fields gives every frame the same color limits
+	# and keeps animation callbacks free of repeated spline evaluations.
 	fields = [potential.evaluate(time) for time in frame_times]
 	vmin = min(float(np.min(field)) for field in fields)
 	vmax = max(float(np.max(field)) for field in fields)
 	if vmin < 0 < vmax:
+		# A zero-centered diverging scale makes opposite potential signs visually
+		# comparable even when their extrema have different magnitudes.
 		norm: mcolors.Normalize = mcolors.TwoSlopeNorm(
 			vmin=vmin,
 			vcenter=0.0,
 			vmax=vmax,
 		)
 	elif np.isclose(vmin, vmax):
+		# Matplotlib needs a non-degenerate range for a spatially constant field.
 		delta = abs(vmin) * 0.01 or 1.0
 		norm = mcolors.Normalize(vmin=vmin - delta, vmax=vmax + delta)
 	else:
 		norm = mcolors.Normalize(vmin=vmin, vmax=vmax)
 
+	# Limit arrows to roughly twenty samples per axis: the scalar field retains
+	# full resolution while the vector overlay stays legible.
 	quiver_stride = max(1, int(np.ceil(max(potential.grid.shape) / 20)))
 	quiver_x, quiver_y = np.meshgrid(
 		potential.grid.x[::quiver_stride],
@@ -99,6 +114,8 @@ def animate_gc_area(
 		for field_x, field_y in electric_fields
 	)
 	arrow_length = 0.75 * quiver_stride * min(potential.grid.dx, potential.grid.dy)
+	# A global scale preserves relative arrow magnitudes across time. ``None``
+	# lets Matplotlib handle the special case of an identically zero field.
 	quiver_scale = (
 		None if np.isclose(max_magnitude, 0.0) else max_magnitude / arrow_length
 	)
@@ -144,6 +161,8 @@ def animate_gc_area(
 	error_min = float(np.min(relative_error))
 	error_max = float(np.max(relative_error))
 	error_span = error_max - error_min
+	# Pad both constant and varying traces so the line is never clipped against
+	# a degenerate y-axis.
 	error_padding = (
 		0.05 * error_span
 		if error_span > 0
@@ -164,12 +183,15 @@ def animate_gc_area(
 	ymin = potential.grid.ymin
 
 	def wrapped_contour(solution_index: int) -> tuple[np.ndarray, np.ndarray]:
+		"""Wrap one contour into the cell and break lines crossing its boundary."""
 		x = ((components.x[:, solution_index] - xmin) % period) + xmin
 		y = ((components.y[:, solution_index] - ymin) % period) + ymin
 		plot_x = [float(x[0])]
 		plot_y = [float(y[0])]
 		for vertex in range(x.size):
 			next_vertex = (vertex + 1) % x.size
+			# A wrapped edge can otherwise draw a long, artificial segment across
+			# the periodic cell. NaNs ask Matplotlib to lift the pen at that edge.
 			if (
 				abs(x[next_vertex] - x[vertex]) > period / 2
 				or abs(y[next_vertex] - y[vertex]) > period / 2
@@ -181,7 +203,10 @@ def animate_gc_area(
 		return np.asarray(plot_x), np.asarray(plot_y)
 
 	def update(index: int) -> tuple[Any, ...]:
+		"""Update every artist from the same saved-solution index."""
 		solution_index = int(frame_indices[index])
+		# pcolormesh expects its first displayed dimension along y, hence the
+		# transpose of fields stored with the project's (x, y) convention.
 		mesh.set_array(fields[index].T)
 		quiver.set_UVC(*electric_fields[index])
 		contour.set_data(*wrapped_contour(solution_index))

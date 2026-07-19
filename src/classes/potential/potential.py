@@ -1,7 +1,12 @@
 # Copyright (c) 2023, Cristel Chandre
 # SPDX-License-Identifier: BSD-2-Clause
 
-"""Electrostatic potential used by the development notebooks."""
+"""Periodic, time-dependent electrostatic potentials and their interpolation.
+
+The spatial information is stored as a complex amplitude on a regular grid.
+Keeping the harmonic time dependence separate makes spatial interpolation and
+gyroaveraging independent of the evaluation time.
+"""
 
 from __future__ import annotations
 
@@ -23,6 +28,8 @@ from .grid import Grid
 
 @dataclass(frozen=True, slots=True)
 class _SplineDomain:
+	"""Coordinates and padding used by the periodic spline extension."""
+
 	x: np.ndarray
 	y: np.ndarray
 	padding: tuple[int, int]
@@ -30,6 +37,8 @@ class _SplineDomain:
 
 @dataclass(frozen=True, slots=True)
 class _Spline:
+	"""Real-valued splines that jointly interpolate a complex amplitude."""
+
 	real: RectBivariateSpline
 	imag: RectBivariateSpline
 
@@ -41,6 +50,7 @@ class _Spline:
 		dx: int = 0,
 		dy: int = 0,
 	) -> np.ndarray:
+		"""Evaluate the complex amplitude or one of its spatial derivatives."""
 		return np.asarray(
 			self.real.ev(x, y, dx=dx, dy=dy)
 			+ 1j * self.imag.ev(x, y, dx=dx, dy=dy)
@@ -48,7 +58,10 @@ class _Spline:
 
 
 def _spline_domain(grid: Grid, interpolation_order: int) -> _SplineDomain:
-	"""Extend the grid so splines remain valid at both boundaries."""
+	"""Extend the coordinate axes to support interpolation across boundaries."""
+	# The upper side includes the omitted periodic endpoint in addition to the
+	# interpolation margin.  The resulting coordinates remain strictly ordered,
+	# as required by ``RectBivariateSpline``.
 	margin = interpolation_order + 1
 	padding = (margin, margin + 1)
 	left, right = padding
@@ -72,12 +85,17 @@ def _build_spline(
 	coefficient: np.ndarray,
 	interpolation_order: int,
 ) -> _Spline:
+	"""Build a complex periodic interpolant from sampled coefficients."""
 	domain = _spline_domain(grid, interpolation_order)
+	# Wrapping copies samples from the opposite edge, giving the spline local
+	# support across the seam instead of treating it as a physical boundary.
 	padded = np.pad(
 		coefficient,
 		(domain.padding, domain.padding),
 		mode="wrap",
 	)
+	# SciPy's bivariate spline is real-valued, so interpolate both components
+	# independently and recombine them only when evaluating the field.
 	return _Spline(
 		RectBivariateSpline(
 			domain.x,
@@ -97,22 +115,27 @@ def _build_spline(
 
 
 def _colour_scale(field: np.ndarray) -> mcolors.Normalize:
+	"""Choose a stable normalization that emphasizes the zero-potential level."""
 	vmin = float(np.nanmin(field))
 	vmax = float(np.nanmax(field))
+	# Diverging fields should assign the centre of the colour map exactly to zero.
 	if vmin < 0 < vmax:
 		return mcolors.TwoSlopeNorm(vmin=vmin, vcenter=0.0, vmax=vmax)
 	if np.isclose(vmin, vmax):
+		# Matplotlib cannot normalize a zero-width interval, so give constant
+		# fields a small visible range without changing their data.
 		delta = abs(vmin) * 0.01 or 1.0
 		return mcolors.Normalize(vmin=vmin - delta, vmax=vmax + delta)
 	return mcolors.Normalize(vmin=vmin, vmax=vmax)
 
 
 class Potential:
-	"""One time-dependent mode interpolated on a regular spatial grid.
+	"""One harmonic time mode interpolated on a regular periodic grid.
 
-	The physical field is reconstructed as
-	``2 * real(coefficient * exp(-1j * t))``.  The development notebooks create
-	this representation with :meth:`random`.
+	For a complex spatial amplitude ``C(x, y)``, the real physical field is
+	reconstructed as ``phi(t, x, y) = 2 Re[C(x, y) exp(-i t)]``.  Its magnitude
+	therefore controls the local oscillation amplitude and its argument controls
+	the local phase.
 	"""
 
 	def __init__(
@@ -122,6 +145,7 @@ class Potential:
 		*,
 		interpolation_order: int = 3,
 	) -> None:
+		"""Store validated samples and prepare their periodic interpolant."""
 		if not isinstance(grid, Grid):
 			raise TypeError("`grid` must be a Grid instance.")
 		field = np.asarray(coefficient, dtype=np.complex128)
@@ -159,7 +183,9 @@ class Potential:
 	) -> Potential:
 		"""Create the reproducible periodic potential used in the notebooks.
 
-		``A`` controls the amplitude and ``M`` the maximum spatial wave number.
+		``A`` controls the spectral amplitude and ``M`` the maximum radial
+		spatial wave number.  Each retained mode receives a reproducible random
+		phase and an amplitude that decays as ``|k|**-3``.
 		"""
 		A = float(A)
 		if not np.isfinite(A) or A < 0:
@@ -176,14 +202,20 @@ class Potential:
 			indexing="ij",
 		)
 		spectrum = np.zeros((M + 1, M + 1), dtype=np.complex128)
+		# Axis and constant modes remain zero; the fluctuating potential is built
+		# from modes with positive wave numbers in both spatial directions.
 		phases = 2 * np.pi * np.random.default_rng(int(seed)).random((M, M))
 		spectrum[1:, 1:] = (
 			A
 			/ (wave_x[1:, 1:] ** 2 + wave_y[1:, 1:] ** 2) ** 1.5
 			* np.exp(1j * phases)
 		)
+		# Apply a circular rather than square cut-off so ``M`` limits |k| without
+		# privileging diagonal modes.
 		spectrum[np.hypot(wave_x, wave_y) > M] = 0
 
+		# Evaluate the truncated Fourier sum on every physical grid point.  The
+		# explicit phase tensor keeps the construction independent of FFT layout.
 		mode_x, mode_y = np.indices(spectrum.shape)
 		x_mesh, y_mesh = np.meshgrid(grid.x, grid.y, indexing="ij")
 		phase = np.exp(
@@ -210,10 +242,12 @@ class Potential:
 		dy: int = 0,
 		dt: int = 0,
 	) -> np.ndarray:
-		"""Evaluate the potential or one of its derivatives.
+		"""Evaluate the real potential or one of its derivatives.
 
 		Coordinates are paired: ``x[i]`` is evaluated with ``y[i]``.  Omitting
-		them evaluates the field on the complete stored grid.
+		them evaluates the field on the complete stored grid.  ``dx`` and ``dy``
+		select spatial derivative orders, while ``dt=1`` applies the first time
+		derivative of the harmonic phase.
 		"""
 		if (x is None) != (y is None):
 			raise ValueError("`x` and `y` must be provided together.")
@@ -229,15 +263,21 @@ class Potential:
 
 		time = np.asarray(t)
 		if x is None:
+			# Raw samples are available directly, but their spatial derivatives are
+			# defined by the interpolant and therefore require explicit coordinates.
 			if dx or dy:
 				raise ValueError("Spatial derivatives require `x` and `y`.")
 			coefficient = self._coefficient
 			if time.ndim:
+				# Append singleton dimensions so a time array is broadcast after the
+				# two spatial grid dimensions.
 				coefficient = coefficient.reshape(
 					coefficient.shape + (1,) * time.ndim
 				)
 		else:
 			assert y is not None
+			# Normalization makes evaluations outside the base cell obey the same
+			# periodicity as the coefficients used to construct the spline.
 			x_values, y_values = self.grid.normalize(np.asarray(x), np.asarray(y))
 			coefficient = self._spline.evaluate(
 				x_values,
@@ -248,6 +288,7 @@ class Potential:
 
 		phase = np.exp(-1j * time)
 		if dt == 1:
+			# d exp(-it) / dt = -i exp(-it).
 			phase = phase * -1j
 		return np.asarray(2.0 * np.real(coefficient * phase), dtype=float)
 
@@ -257,7 +298,7 @@ class Potential:
 		x: np.ndarray | None = None,
 		y: np.ndarray | None = None,
 	) -> tuple[np.ndarray, np.ndarray]:
-		"""Return the electric field ``-gradient(potential)``."""
+		"""Return the electric field ``E = -grad(phi)`` at paired coordinates."""
 		if x is None and y is None:
 			x, y = np.meshgrid(self.grid.x, self.grid.y, indexing="ij")
 		elif x is None or y is None:
@@ -268,10 +309,16 @@ class Potential:
 		)
 
 	def gyroaverage(self, rho: float) -> Potential:
-		"""Return the Larmor-circle average at radius ``rho``."""
+		"""Return the Larmor-circle average at radius ``rho``.
+
+		A circular average multiplies each Fourier mode by ``J_0(rho |k|)``.
+		This spectral form performs the average exactly for the sampled modes.
+		"""
 		rho = float(rho)
 		if not np.isfinite(rho) or rho < 0:
 			raise ValueError("`rho` must be finite and non-negative.")
+		# ``fftfreq`` returns cycles per unit length; multiplying its norm by
+		# ``2*pi`` below converts it to the angular wave number used by J_0.
 		kx = fftfreq(self.grid.nx, d=self.grid.dx)
 		ky = fftfreq(self.grid.ny, d=self.grid.dy)
 		kx_mesh, ky_mesh = np.meshgrid(kx, ky, indexing="ij")
@@ -292,9 +339,11 @@ class Potential:
 		show: bool = True,
 		**pcolormesh_kwargs: Any,
 	) -> tuple[Figure, Axes]:
-		"""Plot the potential at one time."""
+		"""Plot the potential at one time, optionally with level contours."""
 		field = self.evaluate(t)
 		fig, ax = plt.subplots(figsize=(6, 5), constrained_layout=True)
+		# Internally the field is indexed as (x, y), whereas Matplotlib expects
+		# values arranged as (y, x) when passed one-dimensional coordinate axes.
 		mesh = ax.pcolormesh(
 			self.grid.x,
 			self.grid.y,
@@ -330,15 +379,19 @@ class Potential:
 		repeat: bool = True,
 		**pcolormesh_kwargs: Any,
 	) -> FuncAnimation:
-		"""Animate the potential from ``t=0`` to ``t=t_max``."""
+		"""Animate the potential and electric field from zero to ``t_max``."""
 		if not isinstance(frames, int) or isinstance(frames, bool) or frames < 2:
 			raise ValueError("`frames` must be an integer of at least 2.")
 		t_max = float(t_max)
 		if not np.isfinite(t_max) or t_max <= 0:
 			raise ValueError("`t_max` must be positive and finite.")
 
+		# Excluding the endpoint avoids a duplicate first/last frame for the
+		# default full oscillation period.
 		times = np.linspace(0.0, t_max, frames, endpoint=False)
 		fields = [self.evaluate(time) for time in times]
+		# Limit arrow density independently of grid resolution so the vector field
+		# remains legible and animation updates stay reasonably inexpensive.
 		quiver_stride = max(1, int(np.ceil(max(self.grid.shape) / 20)))
 		quiver_x, quiver_y = np.meshgrid(
 			self.grid.x[::quiver_stride],
@@ -348,6 +401,8 @@ class Potential:
 		electric_fields = [
 			self.electric_field(time, quiver_x, quiver_y) for time in times
 		]
+		# A shared range prevents apparent amplitude changes caused by rescaling
+		# the colour map independently at every frame.
 		vmin = min(float(np.min(field)) for field in fields)
 		vmax = max(float(np.max(field)) for field in fields)
 		if vmin < 0 < vmax:

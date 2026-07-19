@@ -18,6 +18,7 @@ class SystemFC(System):
 	trajectory: TrajectoryFC
 
 	def __init__(self, potential: Potential, trajectory: TrajectoryFC) -> None:
+		"""Construct a full-cyclotron system from compatible domain objects."""
 		if not isinstance(trajectory, TrajectoryFC):
 			raise TypeError("SystemFC requires a TrajectoryFC instance.")
 		super().__init__(potential, trajectory)
@@ -36,12 +37,15 @@ class SystemFC(System):
 		)
 
 	def vector_field(self, t: float, state: np.ndarray) -> np.ndarray:
+		"""Evaluate position and velocity derivatives for the FC state."""
 		components = self.trajectory.split(state)
 		acceleration_x, acceleration_y = self.electric_acceleration(
 			t,
 			components.x,
 			components.y,
 		)
+		# Position uses the model's normalized velocity scale. The cross terms
+		# rotate velocity at the signed Larmor frequency.
 		return self.trajectory.pack(
 			components.vx * self.trajectory.velocity_scale,
 			components.vy * self.trajectory.velocity_scale,
@@ -54,7 +58,11 @@ class SystemFC(System):
 		t: float | np.ndarray,
 		state: np.ndarray,
 	) -> np.ndarray:
+		"""Evaluate kinetic plus scaled electrostatic energy per particle."""
 		components = self.trajectory.split(state)
+		# The normalization of FC coordinates puts rho/(4|eta|) in front of
+		# squared velocity, while the same electric scale used in acceleration
+		# weights the potential energy.
 		kinetic_scale = self.trajectory.rho / (4 * abs(self.trajectory.eta))
 		return np.asarray(
 			kinetic_scale * (components.vx**2 + components.vy**2)
@@ -67,6 +75,7 @@ class SystemFC(System):
 		t: float,
 		state: np.ndarray,
 	) -> np.ndarray:
+		"""Evaluate the derivative of momentum conjugate to time."""
 		components = self.trajectory.split(state)
 		return np.asarray(
 			-self.trajectory.electric_scale
@@ -83,6 +92,7 @@ class SystemFC(System):
 		check_energy: bool,
 		progress: bool,
 	) -> Solution:
+		"""Delegate FC splitting and BM4 composition to the private integrator."""
 		return solve_fc(
 			self,
 			state,

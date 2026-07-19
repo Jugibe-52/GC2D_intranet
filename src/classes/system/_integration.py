@@ -21,6 +21,8 @@ from .solution import Solution
 
 Flow = Callable[[float, float, np.ndarray], np.ndarray]
 
+# BM4 alternates a map and its adjoint. These palindromic coefficients cancel
+# the leading splitting errors while preserving a symmetric fourth-order map.
 _BM4_HALF_STAGES = np.asarray(
 	[
 		0.0792036964311957,
@@ -35,6 +37,9 @@ _BM4_HALF_STAGES = np.asarray(
 _BM4_STAGES = np.concatenate((_BM4_HALF_STAGES, np.flip(_BM4_HALF_STAGES)))
 _BM4_ORDERS = np.tile(np.asarray([1, 0], dtype=int), _BM4_HALF_STAGES.size)
 
+# The GC integrator duplicates the physical state. These matrices describe a
+# linear rotation of both copies around their common diagonal, split into
+# constant, cosine, and sine terms for evaluation at any step size.
 _COUPLING_BASE = np.asarray(
 	[[1, 0, 1, 0], [0, 1, 0, 1], [1, 0, 1, 0], [0, 1, 0, 1]],
 	dtype=float,
@@ -50,11 +55,15 @@ _COUPLING_SIN = np.asarray(
 
 
 class _EnergySystem(Protocol):
+	"""Minimal interface required by the optional energy diagnostic."""
+
 	def _energy_error(self, solution: Solution) -> float:
 		"""Return the maximum generalized-energy drift."""
 
 
 class _GCSystem(_EnergySystem, Protocol):
+	"""Operations that the private GC integrator consumes from a system."""
+
 	trajectory: TrajectoryGC
 
 	def vector_field(self, t: float, state: np.ndarray) -> np.ndarray:
@@ -69,6 +78,8 @@ class _GCSystem(_EnergySystem, Protocol):
 
 
 class _FCSystem(_EnergySystem, Protocol):
+	"""Operations that the private FC integrator consumes from a system."""
+
 	trajectory: TrajectoryFC
 
 	def electric_acceleration(
@@ -104,6 +115,7 @@ class _GCExtendedState:
 		particle_count: int,
 		track_momentum: bool,
 	) -> _GCExtendedState:
+		"""Validate and split a packed state without duplicating its data."""
 		expected_size = 2 * physical_size + (particle_count if track_momentum else 0)
 		if value.ndim == 0 or value.shape[0] != expected_size:
 			raise ValueError("The GC extended flow changed the state shape.")
@@ -115,6 +127,7 @@ class _GCExtendedState:
 		)
 
 	def pack(self) -> np.ndarray:
+		"""Pack the two physical copies and optional momentum for a flow."""
 		parts = (self.first, self.second)
 		return np.concatenate(parts if self.momentum is None else (*parts, self.momentum))
 
@@ -136,6 +149,7 @@ class _FCExtendedState:
 		particle_count: int,
 		track_momentum: bool,
 	) -> _FCExtendedState:
+		"""Validate and split the FC state using its trajectory-owned layout."""
 		expected_size = physical_size + (particle_count if track_momentum else 0)
 		if value.ndim == 0 or value.shape[0] != expected_size:
 			raise ValueError("The FC extended flow changed the state shape.")
@@ -144,6 +158,7 @@ class _FCExtendedState:
 		return cls(physical=physical, momentum=momentum)
 
 	def pack(self, trajectory: TrajectoryFC) -> np.ndarray:
+		"""Restore the flat layout expected by the composition engine."""
 		physical = trajectory.pack(*self.physical)
 		return (
 			physical
@@ -153,13 +168,17 @@ class _FCExtendedState:
 
 
 class _Progress:
+	"""Small stderr progress indicator for long fixed-step integrations."""
+
 	def __init__(self, label: str, total: int) -> None:
+		"""Prepare updates at approximately one-percent intervals."""
 		self.label = label
 		self.total = max(total, 1)
 		self.every = max(self.total // 100, 1)
 		self.steps = 0
 
 	def update(self, t: float) -> None:
+		"""Advance the counter and occasionally redraw the same terminal line."""
 		self.steps += 1
 		if self.steps % self.every and self.steps < self.total:
 			return
@@ -178,10 +197,16 @@ class _Progress:
 		)
 
 	def close(self) -> None:
+		"""Finish the in-place progress line."""
 		print(file=sys.stderr, flush=True)
 
 
 def _step_count(duration: float, maximum_step: float) -> int:
+	"""Return the fewest steps that do not exceed ``maximum_step``.
+
+	``nextafter`` prevents round-off just above an exact integer ratio from
+	introducing a redundant final step.
+	"""
 	ratio = duration / maximum_step
 	return max(1, math.ceil(math.nextafter(ratio, -math.inf)))
 
@@ -192,10 +217,13 @@ def _validate_inputs(
 	step: float,
 	n_save_step: int,
 ) -> tuple[float, float, np.ndarray, float, np.ndarray]:
+	"""Validate public integration inputs and construct the saved time grid."""
 	span = np.asarray(t_span, dtype=float)
 	if span.shape != (2,) or not np.all(np.isfinite(span)) or span[0] >= span[1]:
 		raise ValueError("`t_span` must contain two finite, increasing times.")
 	maximum_step = float(step)
+	# Booleans are numeric in Python, but accepting them here would silently turn
+	# ``True`` into a physically meaningless unit step.
 	if (
 		isinstance(step, (bool, np.bool_))
 		or not np.isfinite(maximum_step)
@@ -209,6 +237,8 @@ def _validate_inputs(
 	):
 		raise ValueError("`n_save_step` must be an integer of at least 2.")
 	value = np.asarray(state, dtype=float)
+	# Every trajectory owns a flat physical layout. Higher dimensions are used
+	# only internally after saved states have been assembled over time.
 	if value.ndim != 1 or value.size == 0 or not np.all(np.isfinite(value)):
 		raise ValueError("The initial state must be a finite, non-empty vector.")
 	t0, tf = float(span[0]), float(span[1])
@@ -222,6 +252,7 @@ def _checked_flow(
 	t: float,
 	state: np.ndarray,
 ) -> np.ndarray:
+	"""Apply one flow while enforcing the integrator's shape invariant."""
 	result = np.asarray(flow(h, t, state))
 	if result.shape != state.shape:
 		raise ValueError("An integration flow changed the state shape.")
@@ -235,8 +266,11 @@ def _advance(
 	state: np.ndarray,
 	step: float,
 ) -> tuple[float, np.ndarray]:
+	"""Apply one complete fourth-order BM4 composition."""
 	for coefficient, order in zip(_BM4_STAGES, _BM4_ORDERS, strict=True):
 		stage = float(coefficient * step)
+		# The adjoint is evaluated at the incoming time and the direct map at
+		# the outgoing time so the non-autonomous composition remains symmetric.
 		if order == 0:
 			state = _checked_flow(flow, stage, t + stage, state)
 		else:
@@ -246,6 +280,7 @@ def _advance(
 
 
 def _planned_steps(times: np.ndarray, maximum_step: float) -> int:
+	"""Count internal steps ahead of time for progress reporting."""
 	return sum(
 		_step_count(float(stop - start), maximum_step)
 		for start, stop in zip(times[:-1], times[1:], strict=True)
@@ -264,6 +299,11 @@ def _solve_composed(
 	progress: bool,
 	label: str,
 ) -> Solution:
+	"""Integrate between requested output times with a composed fixed step.
+
+	Each saved interval is subdivided independently. This makes every requested
+	output time exact even when ``maximum_step`` does not divide the interval.
+	"""
 	t, _tf, value, maximum_step, times = _validate_inputs(
 		t_span,
 		state,
@@ -283,6 +323,8 @@ def _solve_composed(
 			segment_start = t
 			for index in range(count):
 				t, value = _advance(flow, adjoint_flow, t, value, internal_step)
+				# Reconstructing time from the segment origin avoids accumulating
+				# floating-point drift over many composition stages.
 				t = segment_start + (index + 1) * internal_step
 				n_steps += 1
 				if progress_bar is not None:
@@ -297,6 +339,7 @@ def _solve_composed(
 
 @lru_cache(maxsize=256)
 def _gc_coupling(step: float) -> np.ndarray:
+	"""Return the exact harmonic mixing matrix for the two GC copies."""
 	frequency = 10.0
 	return np.asarray(
 		(
@@ -313,6 +356,7 @@ def _couple_gc_state(
 	state: _GCExtendedState,
 	trajectory: TrajectoryGC,
 ) -> _GCExtendedState:
+	"""Mix duplicated GC coordinates while leaving time momentum unchanged."""
 	first = trajectory.split(state.first)
 	second = trajectory.split(state.second)
 	blocks = np.stack((*first, *second), axis=0)
@@ -331,6 +375,7 @@ def _updated_momentum(
 	t: float,
 	physical_state: np.ndarray,
 ) -> np.ndarray | None:
+	"""Advance momentum conjugate to time when energy tracking is enabled."""
 	if momentum is None:
 		return None
 	derivative: np.ndarray = np.asarray(
@@ -351,7 +396,11 @@ def solve_gc(
 	check_energy: bool,
 	progress: bool,
 ) -> Solution:
-	"""Integrate one GC physical state in doubled extended phase space."""
+	"""Integrate one GC physical state in doubled extended phase space.
+
+	The two copies make each triangular subflow explicit. Their average is
+	projected back to the physical state after the BM4 integration.
+	"""
 	trajectory = system.trajectory
 	physical_state = np.asarray(state, dtype=float)
 	trajectory.split(physical_state)
@@ -359,12 +408,15 @@ def solve_gc(
 	particle_count = trajectory.particle_count(physical_state)
 	track_momentum = bool(check_energy)
 	extended = _GCExtendedState(
+		# Both copies start on the physical diagonal; coupling keeps them close
+		# as the alternating explicit updates move them apart.
 		first=physical_state,
 		second=physical_state,
 		momentum=np.zeros(particle_count) if track_momentum else None,
 	)
 
 	def unpack(value: np.ndarray) -> _GCExtendedState:
+		"""Interpret a packed value produced by an internal GC flow."""
 		return _GCExtendedState.unpack(
 			value,
 			physical_size=physical_size,
@@ -373,13 +425,17 @@ def solve_gc(
 		)
 
 	def vector_field(t: float, value: np.ndarray) -> np.ndarray:
+		"""Evaluate and shape-check the physical GC vector field."""
 		derivative = np.asarray(system.vector_field(t, value))
 		if derivative.shape != value.shape:
 			raise ValueError("The GC vector field changed the physical state shape.")
 		return derivative
 
 	def flow(h: float, t: float, value: np.ndarray) -> np.ndarray:
+		"""Apply the explicit triangular GC map followed by copy coupling."""
 		current = unpack(value)
+		# Each copy supplies the frozen argument needed to update the other one
+		# explicitly; the same states determine the time-momentum increments.
 		second = current.second + h * vector_field(t, current.first)
 		momentum = _updated_momentum(system, current.momentum, h, t, current.first)
 		first = current.first + h * vector_field(t, second)
@@ -391,6 +447,7 @@ def solve_gc(
 		).pack()
 
 	def adjoint_flow(h: float, t: float, value: np.ndarray) -> np.ndarray:
+		"""Apply the reverse-ordered counterpart of the direct GC map."""
 		current = _couple_gc_state(h, unpack(value), trajectory)
 		first = current.first + h * vector_field(t, current.second)
 		momentum = _updated_momentum(system, current.momentum, h, t, current.second)
@@ -411,17 +468,21 @@ def solve_gc(
 	final_state = unpack(solution.y)
 	first = trajectory.split(final_state.first)
 	second = trajectory.split(final_state.second)
+	# Project the doubled coordinates back onto the physical diagonal.
 	solution.y = trajectory.pack(
 		(first.x + second.x) / 2,
 		(first.y + second.y) / 2,
 	)
 	if final_state.momentum is not None:
+		# The extended Hamiltonian contains one contribution from each physical
+		# copy, so its conjugate momentum is twice the physical value.
 		solution.k = final_state.momentum / 2
 		solution.err = system._energy_error(solution)
 	return solution
 
 
 def _real_imaginary(value: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+	"""Expose complex planar calculations again as real coordinate arrays."""
 	return np.asarray(value.real), np.asarray(value.imag)
 
 
@@ -430,6 +491,11 @@ def _cyclotron_step(
 	state: FCState,
 	step: float,
 ) -> FCState:
+	"""Advance exactly under the field-free cyclotron sub-Hamiltonian.
+
+	Complex notation applies the velocity rotation and its analytically
+	integrated position displacement in one vectorized operation.
+	"""
 	rotation = np.exp(-1j * step * trajectory.larmor_frequency)
 	x, y = _real_imaginary(
 		state.x
@@ -454,7 +520,11 @@ def solve_fc(
 	check_energy: bool,
 	progress: bool,
 ) -> Solution:
-	"""Integrate one FC physical state with private direct and adjoint flows."""
+	"""Integrate one FC physical state with direct and adjoint split flows.
+
+	The direct map applies cyclotron motion before the electric kick; its
+	adjoint reverses that order. BM4 composes both maps symmetrically.
+	"""
 	trajectory = system.trajectory
 	physical_state = np.asarray(state, dtype=float)
 	physical = trajectory.split(physical_state)
@@ -467,6 +537,7 @@ def solve_fc(
 	)
 
 	def unpack(value: np.ndarray) -> _FCExtendedState:
+		"""Interpret a packed value produced by an internal FC flow."""
 		return _FCExtendedState.unpack(
 			value,
 			trajectory=trajectory,
@@ -476,6 +547,7 @@ def solve_fc(
 		)
 
 	def flow(h: float, t: float, value: np.ndarray) -> np.ndarray:
+		"""Apply exact cyclotron motion followed by an electric kick."""
 		current = unpack(value)
 		physical = _cyclotron_step(trajectory, current.physical, h)
 		acceleration_x, acceleration_y = system.electric_acceleration(
@@ -500,6 +572,7 @@ def solve_fc(
 		return _FCExtendedState(physical, momentum).pack(trajectory)
 
 	def adjoint_flow(h: float, t: float, value: np.ndarray) -> np.ndarray:
+		"""Apply the electric kick before exact cyclotron motion."""
 		current = unpack(value)
 		acceleration_x, acceleration_y = system.electric_acceleration(
 			t,

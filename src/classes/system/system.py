@@ -16,6 +16,7 @@ class System(ABC):
 	"""Hamiltonian dynamics created from independent domain entities."""
 
 	def __init__(self, potential: Potential, trajectory: Trajectory) -> None:
+		"""Bind a physical potential to a compatible trajectory description."""
 		if not isinstance(potential, Potential):
 			raise TypeError("`potential` must be a Potential instance.")
 		if not isinstance(trajectory, Trajectory):
@@ -52,7 +53,11 @@ class System(ABC):
 		check_energy: bool = False,
 		progress: bool = False,
 	) -> Solution:
-		"""Integrate the trajectory with the fixed BM4 numerical path."""
+		"""Integrate the stored initial state with the fixed BM4 path.
+
+		``step`` bounds internal steps, whereas ``n_save_step`` controls only
+		the uniformly spaced states exposed in the returned solution.
+		"""
 		state = self.trajectory.state
 		if state is None:
 			raise ValueError("The trajectory has no initial state.")
@@ -66,10 +71,16 @@ class System(ABC):
 		)
 
 	def _energy_error(self, solution: Solution) -> float:
-		"""Return the maximum drift of physical or generalized energy."""
+		"""Return the maximum drift of physical or generalized energy.
+
+		For a time-dependent Hamiltonian, ``k`` is the momentum conjugate to
+		time and makes ``H + k`` the conserved extended-system quantity.
+		"""
 		energy = np.asarray(self.hamiltonian(solution.t, solution.y), dtype=float)
 		if solution.k is not None:
 			energy = energy + np.asarray(solution.k)
+		# A single trajectory omits the particle axis; insert it so the same
+		# reduction computes drift independently for every trajectory.
 		if energy.ndim == 1:
 			energy = energy[np.newaxis, :]
 		return float(np.max(np.abs(energy - energy[:, :1])))

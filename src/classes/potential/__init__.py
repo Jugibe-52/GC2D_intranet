@@ -1,4 +1,4 @@
-"""Potential entity."""
+"""Public interface for periodic electrostatic potentials."""
 
 from .potential import Potential
 

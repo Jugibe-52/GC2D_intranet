@@ -1,4 +1,4 @@
-"""Guiding-centre trajectories that delimit a finite area."""
+"""Closed guiding-centre boundaries and their enclosed signed area."""
 
 from __future__ import annotations
 
@@ -12,8 +12,9 @@ from .gc import TrajectoryGC
 class Area(TrajectoryGC):
 	"""A counter-clockwise square or circular GC boundary.
 
-	The boundary points use the regular GC block layout ``[x, y]``.  Therefore
-	an ``Area`` can be passed directly to :class:`SystemGC` as a trajectory.
+	The vertices omit a repeated closing point because polygon operations close
+	the last vertex back to the first implicitly.  Their regular GC layout
+	``[x, y]`` lets an ``Area`` be passed directly to :class:`SystemGC`.
 	"""
 
 	def __init__(
@@ -23,6 +24,7 @@ class Area(TrajectoryGC):
 		shape: Literal["square", "circle"],
 		rho: float = 0.0,
 	) -> None:
+		"""Create a closed boundary from at least three GC position samples."""
 		if shape not in ("square", "circle"):
 			raise ValueError("`shape` must be 'square' or 'circle'.")
 		self.shape = shape
@@ -40,7 +42,7 @@ class Area(TrajectoryGC):
 		points_per_side: int = 1,
 		rho: float = 0.0,
 	) -> Area:
-		"""Construct a counter-clockwise square boundary."""
+		"""Sample a square counter-clockwise with equal density on every edge."""
 		center_x, center_y = cls._validate_center(center)
 		side = cls._positive_finite(side, "side")
 		if (
@@ -55,6 +57,8 @@ class Area(TrajectoryGC):
 		right = center_x + half_side
 		bottom = center_y - half_side
 		top = center_y + half_side
+		# Omitting each edge endpoint prevents duplicate corners: the following
+		# edge supplies that corner, and polygon closure supplies the final one.
 		edge = np.linspace(0.0, side, int(points_per_side), endpoint=False)
 		x = np.concatenate(
 			(
@@ -83,7 +87,7 @@ class Area(TrajectoryGC):
 		points: int = 128,
 		rho: float = 0.0,
 	) -> Area:
-		"""Construct a counter-clockwise circular boundary."""
+		"""Sample a counter-clockwise circle without repeating its first point."""
 		center_x, center_y = cls._validate_center(center)
 		radius = cls._positive_finite(radius, "radius")
 		if (
@@ -93,6 +97,8 @@ class Area(TrajectoryGC):
 		):
 			raise ValueError("`points` must be an integer of at least 3.")
 
+		# The shoelace formula closes the polygon, so sampling 2π again would add
+		# a redundant copy of the vertex at angle zero.
 		angle = np.linspace(0.0, 2 * np.pi, int(points), endpoint=False)
 		x = center_x + radius * np.cos(angle)
 		y = center_y + radius * np.sin(angle)
@@ -107,7 +113,9 @@ class Area(TrajectoryGC):
 		"""Calculate the signed polygon area for one state or a time series.
 
 		When ``period`` is provided, consecutive vertices are unwrapped with the
-		minimum-image convention before applying the shoelace formula.
+		minimum-image convention before applying the shoelace formula.  A single
+		state returns a scalar array; trailing solution axes produce one area per
+		sample. Counter-clockwise contours have positive area.
 		"""
 		value = self._required_state() if state is None else np.asarray(state, dtype=float)
 		if not np.all(np.isfinite(value)):
@@ -115,11 +123,15 @@ class Area(TrajectoryGC):
 		x, y = self.positions(value)
 		if x.shape[0] < 3:
 			raise ValueError("An area boundary requires at least three points.")
+		# Periodic unwrapping edits coordinates in place.  Copies protect both the
+		# stored initial condition and integration results supplied by callers.
 		x = np.asarray(x, dtype=float).copy()
 		y = np.asarray(y, dtype=float).copy()
 
 		if period is not None:
 			period = self._positive_finite(period, "period")
+			# Reconstruct a locally continuous polygon independently at every time
+			# sample, choosing the nearest periodic image of each next vertex.
 			for vertex in range(1, x.shape[0]):
 				delta_x = x[vertex] - x[vertex - 1]
 				delta_y = y[vertex] - y[vertex - 1]
@@ -128,6 +140,8 @@ class Area(TrajectoryGC):
 				x[vertex] = x[vertex - 1] + delta_x
 				y[vertex] = y[vertex - 1] + delta_y
 
+		# The rolled arrays pair every vertex with its successor and implicitly
+		# include the closing edge from the final point to the first.
 		return np.asarray(
 			0.5
 			* np.sum(
@@ -137,12 +151,14 @@ class Area(TrajectoryGC):
 		)
 
 	def _required_state(self) -> np.ndarray:
+		"""Return the boundary state guaranteed by the required constructor input."""
 		state = self.state
 		assert state is not None
 		return state
 
 	@staticmethod
 	def _validate_center(center: tuple[float, float]) -> tuple[float, float]:
+		"""Normalize a finite two-dimensional centre."""
 		try:
 			center_x, center_y = center
 		except (TypeError, ValueError) as exc:
@@ -154,6 +170,7 @@ class Area(TrajectoryGC):
 
 	@staticmethod
 	def _positive_finite(value: float, name: str) -> float:
+		"""Normalize a scalar geometric parameter and enforce positivity."""
 		try:
 			result = float(value)
 		except (TypeError, ValueError) as exc:

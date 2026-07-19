@@ -1,4 +1,4 @@
-"""Regular spatial grid used by :mod:`classes.potential`."""
+"""Regular periodic grids used to sample electrostatic potentials."""
 
 from __future__ import annotations
 
@@ -9,10 +9,10 @@ import numpy as np
 
 @dataclass(frozen=True, slots=True)
 class Grid:
-	"""A validated two-dimensional grid.
+	"""A validated two-dimensional grid with a shared period on both axes.
 
 	Periodic grids omit the duplicated upper endpoint.  That convention makes
-	the FFT and the interpolation use exactly the same samples.
+	the FFT and the interpolation use exactly the same independent samples.
 	"""
 
 	x0: float
@@ -24,6 +24,7 @@ class Grid:
 	period: float
 
 	def __post_init__(self) -> None:
+		"""Validate and normalize the values stored by the frozen dataclass."""
 		for name in ("x0", "y0", "dx", "dy"):
 			value = float(getattr(self, name))
 			if not np.isfinite(value):
@@ -43,6 +44,8 @@ class Grid:
 		period = float(self.period)
 		if not np.isfinite(period) or period <= 0:
 			raise ValueError("`period` must be positive and finite.")
+		# A single period is used to wrap both coordinates, so each sampled axis
+		# must span that period once its omitted endpoint is restored.
 		if not np.isclose(self.nx * self.dx, period):
 			raise ValueError("A periodic grid requires `nx * dx == period`.")
 		if not np.isclose(self.ny * self.dy, period):
@@ -51,7 +54,11 @@ class Grid:
 
 	@classmethod
 	def periodic(cls, nx: int, ny: int, period: float = 2 * np.pi) -> Grid:
-		"""Create a square periodic domain starting at the origin."""
+		"""Create a periodic domain starting at the origin.
+
+		The returned axes contain ``nx`` and ``ny`` samples in ``[0, period)``;
+		the endpoint is deliberately omitted because it represents the origin.
+		"""
 		for size, name in ((nx, "nx"), (ny, "ny")):
 			if (
 				isinstance(size, (bool, np.bool_))
@@ -65,6 +72,8 @@ class Grid:
 	@staticmethod
 	def _axis(origin: float, spacing: float, size: int) -> np.ndarray:
 		axis = origin + spacing * np.arange(size, dtype=float)
+		# Freezing the dataclass does not make returned arrays immutable by itself;
+		# read-only axes keep downstream code from altering sampled coordinates.
 		axis.setflags(write=False)
 		return axis
 
@@ -97,7 +106,7 @@ class Grid:
 		return self.y0 + (self.ny - 1) * self.dy
 
 	def normalize(self, x: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-		"""Wrap coordinates into the periodic domain."""
+		"""Wrap arbitrary coordinates into the half-open periodic domain."""
 		x_array = np.asarray(x)
 		y_array = np.asarray(y)
 		return (

@@ -10,6 +10,7 @@ from classes import Area, Potential, SystemFC, SystemGC, TrajectoryFC, Trajector
 
 
 def random_potential(*, interpolation_order: int = 3) -> Potential:
+	"""Return the small deterministic field shared by the fast tests."""
 	return Potential.random(
 		A=0.08,
 		M=3,
@@ -21,6 +22,8 @@ def random_potential(*, interpolation_order: int = 3) -> Potential:
 
 
 class PotentialTests(unittest.TestCase):
+	"""Contracts for field construction, evaluation and interpolation."""
+
 	def test_random_is_deterministic_and_derivatives_are_finite(self) -> None:
 		first = random_potential()
 		second = random_potential()
@@ -64,6 +67,8 @@ class PotentialTests(unittest.TestCase):
 
 
 class TrajectoryTests(unittest.TestCase):
+	"""Contracts for physical-state layouts and finite-area boundaries."""
+
 	def test_gc_state_layout_and_copy(self) -> None:
 		state = np.asarray([1.0, 2.0, 3.0, 4.0])
 		trajectory = TrajectoryGC(state, rho=0.2)
@@ -125,6 +130,7 @@ class TrajectoryTests(unittest.TestCase):
 		square_state = square.state
 		assert square_state is not None
 		x, y = square.positions(square_state)
+		# Force every vertex back into the base cell to exercise periodic unwrapping.
 		wrapped = np.concatenate((x % (2 * np.pi), y % (2 * np.pi)))
 		self.assertAlmostEqual(
 			float(square.calculate_area(wrapped, period=2 * np.pi)),
@@ -133,6 +139,7 @@ class TrajectoryTests(unittest.TestCase):
 
 		circle = Area.circle(center=(1.0, 2.0), radius=0.5, points=128)
 		self.assertEqual(circle.shape, "circle")
+		# The sampled circle is a regular polygon, so its exact discrete area is used.
 		expected_polygon_area = 128 * 0.5**2 * np.sin(2 * np.pi / 128) / 2
 		self.assertAlmostEqual(
 			float(circle.calculate_area()),
@@ -160,6 +167,8 @@ class TrajectoryTests(unittest.TestCase):
 
 
 class SystemTests(unittest.TestCase):
+	"""Contracts for composition, BM4 integration and system visualizations."""
+
 	def test_gc_area_animation_tracks_relative_error(self) -> None:
 		area = Area.square(
 			center=(np.pi, np.pi),
@@ -177,6 +186,7 @@ class SystemTests(unittest.TestCase):
 		)
 
 		animation = system.animate_area(solution, frames=3, interval=20)
+		# Calling the frame callback checks synchronized artists without rendering HTML.
 		artists = animation._func(2)
 		self.assertEqual(len(artists), 6)
 		self.assertEqual(artists[1].__class__.__name__, "Quiver")
@@ -185,6 +195,7 @@ class SystemTests(unittest.TestCase):
 		np.testing.assert_allclose(artists[3].get_xdata(), solution.t)
 		np.testing.assert_allclose(artists[3].get_ydata(), expected_error)
 		self.assertIn("varepsilon_A", artists[5].get_text())
+		# Mark the test animation as consumed so Matplotlib does not emit a warning.
 		animation._draw_was_started = True
 
 		plain_trajectory = TrajectoryGC(np.asarray([1.0, 1.2]), rho=0.05)
@@ -229,6 +240,7 @@ class SystemTests(unittest.TestCase):
 
 		np.testing.assert_allclose(solution.t, np.linspace(0.0, 0.04, 5))
 		self.assertEqual(solution.y.shape, (2, 5))
+		# Extended momentum has one row per simulated particle.
 		self.assertEqual(np.asarray(solution.k).shape, (1, 5))
 		self.assertGreater(solution.n_steps, 0)
 		self.assertTrue(np.all(np.isfinite(np.asarray(solution.err))))
@@ -249,6 +261,7 @@ class SystemTests(unittest.TestCase):
 
 		np.testing.assert_allclose(solution.t, np.linspace(0.0, 0.04, 5))
 		self.assertEqual(solution.y.shape, (4, 5))
+		# Extended momentum is stripped from y and exposed separately as k.
 		self.assertEqual(np.asarray(solution.k).shape, (1, 5))
 		self.assertGreater(solution.n_steps, 0)
 		self.assertTrue(np.all(np.isfinite(np.asarray(solution.err))))

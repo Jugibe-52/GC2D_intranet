@@ -22,18 +22,23 @@ class SystemGC(System):
 	trajectory: TrajectoryGC
 
 	def __init__(self, potential: Potential, trajectory: TrajectoryGC) -> None:
+		"""Construct the GC system and precompute its effective potential."""
 		if not isinstance(trajectory, TrajectoryGC):
 			raise TypeError("SystemGC requires a TrajectoryGC instance.")
 		super().__init__(potential, trajectory)
+		# Gyroaveraging depends only on the fixed Larmor radius, so doing it once
+		# avoids rebuilding the effective field during every vector evaluation.
 		self.effective_potential = potential.gyroaverage(trajectory.rho)
 
 	def vector_field(self, t: float, state: np.ndarray) -> np.ndarray:
+		"""Evaluate the GC drift at all positions in ``state``."""
 		components = self.trajectory.split(state)
 		ex, ey = self.effective_potential.electric_field(
 			t,
 			components.x,
 			components.y,
 		)
+		# The GC Poisson structure rotates the electric field clockwise.
 		return self.trajectory.pack(ey, -ex)
 
 	def hamiltonian(
@@ -41,6 +46,7 @@ class SystemGC(System):
 		t: float | np.ndarray,
 		state: np.ndarray,
 	) -> np.ndarray:
+		"""Evaluate the gyroaveraged Hamiltonian along every trajectory."""
 		components = self.trajectory.split(state)
 		return self.effective_potential.evaluate(t, components.x, components.y)
 
@@ -49,6 +55,7 @@ class SystemGC(System):
 		t: float,
 		state: np.ndarray,
 	) -> np.ndarray:
+		"""Evaluate the derivative of momentum conjugate to time."""
 		components = self.trajectory.split(state)
 		return -self.effective_potential.evaluate(
 			t,
@@ -67,7 +74,11 @@ class SystemGC(System):
 		repeat: bool = True,
 		**pcolormesh_kwargs: Any,
 	) -> FuncAnimation:
-		"""Animate an area over the effective potential and its relative error."""
+		"""Animate an Area over the effective field and its relative error.
+
+		The relative error is measured against the initial signed area and the
+		requested frames are sampled uniformly from the saved solution.
+		"""
 		if not isinstance(self.trajectory, Area):
 			raise TypeError("`animate_area` requires an Area trajectory.")
 		if not isinstance(solution, Solution):
@@ -93,6 +104,7 @@ class SystemGC(System):
 		check_energy: bool,
 		progress: bool,
 	) -> Solution:
+		"""Delegate GC-specific state expansion and BM4 flows to the integrator."""
 		return solve_gc(
 			self,
 			state,
