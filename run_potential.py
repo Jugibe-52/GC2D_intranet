@@ -14,7 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
 
 from pyhamsys import solve_ivp_symp, solve_ivp_sympext
 
-from classes import TrajectoryFC
+from classes import PotentialHamsysFC
 from config import DEFAULT_CONFIG_GROUP, DEFAULT_CONFIG_VERSION, load_potential_config
 from config_logging import configure_logging
 from workflows.export import save_figure, save_potential_data
@@ -83,7 +83,7 @@ def main() -> None:
 	start = time.time()
 	if traj_type == "gc":
 		sol = solve_ivp_sympext(hs, z0, step=time_step, t_span=(0, t_final), n_save_step=n_max, method=ode_solver, check_energy=check_energy)
-	elif isinstance(hs, TrajectoryFC):
+	elif isinstance(hs, PotentialHamsysFC):
 		sol = solve_ivp_symp(hs.chi, hs.chi_star, (0, t_final), z0, step=time_step, n_save_step=n_max, method=ode_solver)
 		sol = hs.rectify_sol(sol, check_energy=check_energy)
 	else:

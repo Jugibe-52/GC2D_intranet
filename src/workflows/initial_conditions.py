@@ -4,12 +4,12 @@ from typing import Literal
 
 import numpy as np
 
-from classes.potential import Array
-from classes.trajectory import Trajectory
+from classes.potential import PotentialHamsys
+from classes.potential.potential import Array
 
 
 def make_initial_conditions(
-	trajectory: Trajectory,
+	potential_hamsys: PotentialHamsys,
 	n_traj: int,
 	*,
 	method: Literal["random", "fixed"] = "fixed",
@@ -17,19 +17,19 @@ def make_initial_conditions(
 	y: Array | None = None,
 	rng: np.random.Generator | None = None,
 ) -> Array:
-	"""Build an initial state compatible with ``trajectory``.
+	"""Build an initial state compatible with ``potential_hamsys``.
 
 	``random`` samples positions uniformly from the supplied axes. ``fixed``
 	builds the largest square mesh with no more than ``n_traj`` points. Full
 	cyclotron trajectories additionally receive unit perpendicular velocities
 	with random phase.
 	"""
-	if not isinstance(trajectory, Trajectory):
-		raise TypeError("`trajectory` must be a Trajectory instance.")
+	if not isinstance(potential_hamsys, PotentialHamsys):
+		raise TypeError("`potential_hamsys` must be a PotentialHamsys instance.")
 	if not isinstance(n_traj, (int, np.integer)) or isinstance(n_traj, bool) or n_traj < 1:
 		raise ValueError("`n_traj` must be a positive integer.")
-	x_axis = trajectory.grid.x if x is None else np.asarray(x)
-	y_axis = trajectory.grid.y if y is None else np.asarray(y)
+	x_axis = potential_hamsys.grid.x if x is None else np.asarray(x)
+	y_axis = potential_hamsys.grid.y if y is None else np.asarray(y)
 	if x_axis.ndim != 1 or y_axis.ndim != 1 or x_axis.size < 2 or y_axis.size < 2:
 		raise ValueError("`x` and `y` must be one-dimensional axes with at least two values.")
 
@@ -47,9 +47,9 @@ def make_initial_conditions(
 		raise ValueError("`method` must be either 'random' or 'fixed'.")
 
 	positions = np.concatenate((x0, y0))
-	if trajectory.kind == "gc":
+	if potential_hamsys.kind == "gc":
 		return positions
-	if trajectory.kind == "fo":
+	if potential_hamsys.kind == "fo":
 		gyro_angle = random.uniform(0.0, 2 * np.pi, x0.size)
 		return np.concatenate((positions, np.cos(gyro_angle), np.sin(gyro_angle)))
-	raise ValueError(f"Unsupported trajectory type: {trajectory.kind!r}.")
+	raise ValueError(f"Unsupported potential system type: {potential_hamsys.kind!r}.")

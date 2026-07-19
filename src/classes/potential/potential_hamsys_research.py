@@ -4,19 +4,19 @@ from __future__ import annotations
 
 import numpy as np
 
-from ..potential import Array
-from .trajectory import Trajectory
-from .trajectory_fc import TrajectoryFC
-from .trajectory_gc import TrajectoryGC
+from .potential import Array
+from .potential_hamsys import PotentialHamsys
+from .potential_hamsys_fc import PotentialHamsysFC
+from .potential_hamsys_gc import PotentialHamsysGC
 
 
-class TrajectoryResearch:
+class PotentialHamsysResearch:
 	"""Analyse the stability of an existing guiding-centre or full-cyclotron trajectory."""
 
-	def __init__(self, trajectory: Trajectory) -> None:
-		if not isinstance(trajectory, Trajectory):
-			raise TypeError("`trajectory` must be a Trajectory instance.")
-		self.trajectory = trajectory
+	def __init__(self, potential_hamsys: PotentialHamsys) -> None:
+		if not isinstance(potential_hamsys, PotentialHamsys):
+			raise TypeError("`potential_hamsys` must be a PotentialHamsys instance.")
+		self.potential_hamsys = potential_hamsys
 
 	@staticmethod
 	def _split_augmented_state(state: Array, state_dimension: int) -> tuple[tuple[Array, ...], Array]:
@@ -40,46 +40,46 @@ class TrajectoryResearch:
 		flattened tangent matrix :math:`J`.  This method returns
 		:math:`(\dot z, \dot J)` with :math:`\dot J = (\partial f/\partial z)J`.
 		"""
-		if isinstance(self.trajectory, TrajectoryGC):
+		if isinstance(self.potential_hamsys, PotentialHamsysGC):
 			return self._guiding_center_y_dot_lyap(t, state)
-		if isinstance(self.trajectory, TrajectoryFC):
+		if isinstance(self.potential_hamsys, PotentialHamsysFC):
 			return self._full_cyclotron_y_dot_lyap(t, state)
-		raise TypeError(f"Unsupported trajectory class: {type(self.trajectory).__name__}.")
+		raise TypeError(f"Unsupported potential system class: {type(self.potential_hamsys).__name__}.")
 
 	def _guiding_center_y_dot_lyap(self, t: float, state: Array) -> Array:
 		(x, y), jacobian = self._split_augmented_state(state, state_dimension=2)
-		trajectory = self.trajectory
+		potential_hamsys = self.potential_hamsys
 		phase_state = np.concatenate((x, y))
 
-		d2psi_dx2 = trajectory.psi(t, x, y, dx=2)
-		d2psi_dxdy = trajectory.psi(t, x, y, dx=1, dy=1)
-		d2psi_dy2 = trajectory.psi(t, x, y, dy=2)
+		d2psi_dx2 = potential_hamsys.psi(t, x, y, dx=2)
+		d2psi_dxdy = potential_hamsys.psi(t, x, y, dx=1, dy=1)
+		d2psi_dy2 = potential_hamsys.psi(t, x, y, dy=2)
 		linearization = np.zeros_like(jacobian)
 		linearization[0, 0], linearization[0, 1] = -d2psi_dxdy, -d2psi_dy2
 		linearization[1, 0], linearization[1, 1] = d2psi_dx2, d2psi_dxdy
 		jacobian_dot = np.einsum("ijm,jkm->ikm", linearization, jacobian)
-		return np.concatenate((trajectory.y_dot(t, phase_state), jacobian_dot.reshape(-1)))
+		return np.concatenate((potential_hamsys.y_dot(t, phase_state), jacobian_dot.reshape(-1)))
 
 	def _full_cyclotron_y_dot_lyap(self, t: float, state: Array) -> Array:
 		(x, y, vx, vy), jacobian = self._split_augmented_state(state, state_dimension=4)
-		trajectory = self.trajectory
+		potential_hamsys = self.potential_hamsys
 		phase_state = np.concatenate((x, y, vx, vy))
 
-		d2phi_dx2 = -trajectory.electric_scale * trajectory.phi(t, x, y, dx=2)
-		d2phi_dxdy = -trajectory.electric_scale * trajectory.phi(t, x, y, dx=1, dy=1)
-		d2phi_dy2 = -trajectory.electric_scale * trajectory.phi(t, x, y, dy=2)
+		d2phi_dx2 = -potential_hamsys.electric_scale * potential_hamsys.phi(t, x, y, dx=2)
+		d2phi_dxdy = -potential_hamsys.electric_scale * potential_hamsys.phi(t, x, y, dx=1, dy=1)
+		d2phi_dy2 = -potential_hamsys.electric_scale * potential_hamsys.phi(t, x, y, dy=2)
 		linearization = np.zeros_like(jacobian)
-		linearization[0, 2] = trajectory.velocity_scale
-		linearization[1, 3] = trajectory.velocity_scale
-		linearization[2, 3] = trajectory.larmor_frequency
-		linearization[3, 2] = -trajectory.larmor_frequency
+		linearization[0, 2] = potential_hamsys.velocity_scale
+		linearization[1, 3] = potential_hamsys.velocity_scale
+		linearization[2, 3] = potential_hamsys.larmor_frequency
+		linearization[3, 2] = -potential_hamsys.larmor_frequency
 		linearization[2, 0], linearization[2, 1] = d2phi_dx2, d2phi_dxdy
 		linearization[3, 0], linearization[3, 1] = d2phi_dxdy, d2phi_dy2
 		jacobian_dot = np.einsum("ijm,jkm->ikm", linearization, jacobian)
-		return np.concatenate((trajectory.y_dot(t, phase_state), jacobian_dot.reshape(-1)))
+		return np.concatenate((potential_hamsys.y_dot(t, phase_state), jacobian_dot.reshape(-1)))
 
 
 # Keep the spelling used by existing research helpers.
-trajectory_researche = TrajectoryResearch
+potential_hamsys_research = PotentialHamsysResearch
 
-__all__ = ["TrajectoryResearch", "trajectory_researche"]
+__all__ = ["PotentialHamsysResearch", "potential_hamsys_research"]

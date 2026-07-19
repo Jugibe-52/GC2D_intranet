@@ -11,11 +11,11 @@ from classes import (
     Potential,
     PotentialFields,
     PotentialResearch,
-    Trajectory,
-    TrajectoryFC,
-    TrajectoryGC,
-    TrajectoryResearch,
-    create_trajectory,
+    PotentialHamsys,
+    PotentialHamsysFC,
+    PotentialHamsysGC,
+    PotentialHamsysResearch,
+    create_potential_hamsys,
 )
 from pyhamsys import HamSys, OdeSolution, solve_ivp_symp, solve_ivp_sympext
 from pyhamsys.solvers import _step_count
@@ -273,7 +273,7 @@ class SolveIvpSympTests(unittest.TestCase):
         self.assertEqual(sol.y.shape, (2, 2))
 
 
-class TrajectoryHierarchyTests(unittest.TestCase):
+class PotentialHamsysHierarchyTests(unittest.TestCase):
     @staticmethod
     def make_potential() -> Potential:
         coordinates = np.linspace(0.0, 2 * np.pi, 16, endpoint=False)
@@ -286,22 +286,22 @@ class TrajectoryHierarchyTests(unittest.TestCase):
     def test_factory_selects_concrete_trajectory(self) -> None:
         potential = self.make_potential()
 
-        gc = create_trajectory(potential, {'type': 'gc', 'rho': 0.0, 'eta': 0.0})
-        fc = create_trajectory(potential, {'type': 'fo', 'rho': 0.1, 'eta': 0.2})
+        gc = create_potential_hamsys(potential, {'type': 'gc', 'rho': 0.0, 'eta': 0.0})
+        fc = create_potential_hamsys(potential, {'type': 'fo', 'rho': 0.1, 'eta': 0.2})
 
-        self.assertIsInstance(gc, TrajectoryGC)
-        self.assertIsInstance(fc, TrajectoryFC)
-        self.assertIsInstance(gc, Trajectory)
-        self.assertIsInstance(fc, Trajectory)
+        self.assertIsInstance(gc, PotentialHamsysGC)
+        self.assertIsInstance(fc, PotentialHamsysFC)
+        self.assertIsInstance(gc, PotentialHamsys)
+        self.assertIsInstance(fc, PotentialHamsys)
 
     def test_concrete_models_reject_the_wrong_trajectory_type(self) -> None:
         potential = self.make_potential()
 
         with self.assertRaisesRegex(ValueError, "requires trajectory type"):
-            TrajectoryGC(potential, {'type': 'fo', 'rho': 0.1, 'eta': 0.2})
+            PotentialHamsysGC(potential, {'type': 'fo', 'rho': 0.1, 'eta': 0.2})
 
     def test_full_cyclotron_flows_preserve_state_shape(self) -> None:
-        trajectory = TrajectoryFC(
+        trajectory = PotentialHamsysFC(
             self.make_potential(),
             {'type': 'fo', 'rho': 0.1, 'eta': 0.2},
         )
@@ -313,19 +313,19 @@ class TrajectoryHierarchyTests(unittest.TestCase):
         self.assertEqual(trajectory.chi_star(0.01, 0.0, initial).shape, initial.shape)
 
     def test_trajectory_research_calculates_guiding_center_tangent_dynamics(self) -> None:
-        trajectory = TrajectoryGC(
+        trajectory = PotentialHamsysGC(
             self.make_potential(),
             {'type': 'gc', 'rho': 0.0, 'eta': 0.0},
         )
         state = np.concatenate((np.array([1.0, 2.0]), np.eye(2).reshape(-1)))
 
-        derivative = TrajectoryResearch(trajectory).y_dot_lyap(0.0, state)
+        derivative = PotentialHamsysResearch(trajectory).y_dot_lyap(0.0, state)
 
         self.assertEqual(derivative.shape, state.shape)
         np.testing.assert_allclose(derivative[:2], trajectory.y_dot(0.0, state[:2]))
 
     def test_trajectory_research_calculates_full_cyclotron_tangent_dynamics(self) -> None:
-        trajectory = TrajectoryFC(
+        trajectory = PotentialHamsysFC(
             self.make_potential(),
             {'type': 'fo', 'rho': 0.1, 'eta': 0.2},
         )
@@ -334,15 +334,15 @@ class TrajectoryHierarchyTests(unittest.TestCase):
             np.eye(4).reshape(-1),
         ))
 
-        derivative = TrajectoryResearch(trajectory).y_dot_lyap(0.0, state)
+        derivative = PotentialHamsysResearch(trajectory).y_dot_lyap(0.0, state)
 
         self.assertEqual(derivative.shape, state.shape)
         np.testing.assert_allclose(derivative[:4], trajectory.y_dot(0.0, state[:4]))
 
 
-class TrajectoryGCAreaTests(unittest.TestCase):
+class PotentialHamsysGCAreaTests(unittest.TestCase):
     @staticmethod
-    def make_system(*, periodic: bool = False) -> TrajectoryGC:
+    def make_system(*, periodic: bool = False) -> PotentialHamsysGC:
         period = 2 * np.pi
         coordinates = np.linspace(0.0, period, 8, endpoint=not periodic)
         potential = Potential(
@@ -350,7 +350,7 @@ class TrajectoryGCAreaTests(unittest.TestCase):
             PotentialFields(mean=np.zeros((8, 8))),
             k=3,
         )
-        return TrajectoryGC(potential, {'type': 'gc', 'rho': 0.0, 'eta': 0.0})
+        return PotentialHamsysGC(potential, {'type': 'gc', 'rho': 0.0, 'eta': 0.0})
 
     def test_square_initial_conditions_are_centred_and_counter_clockwise(self) -> None:
         system = self.make_system()
@@ -366,7 +366,7 @@ class TrajectoryGCAreaTests(unittest.TestCase):
 
     def test_hamiltonian_preserves_trajectory_and_time_axes(self) -> None:
         coordinates = np.linspace(0.0, 2 * np.pi, 8)
-        system = TrajectoryGC(
+        system = PotentialHamsysGC(
             Potential(
                 Grid.from_axes(coordinates, coordinates),
                 PotentialFields(mean=np.ones((8, 8))),

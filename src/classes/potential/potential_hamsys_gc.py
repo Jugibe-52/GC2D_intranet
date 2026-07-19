@@ -6,11 +6,11 @@
 import numpy as np
 
 from contracts import TrajectoryParams
-from ..potential import Array, Potential
-from .trajectory import Trajectory
+from .potential import Array, Potential
+from .potential_hamsys import PotentialHamsys
 
 
-class TrajectoryGC(Trajectory):
+class PotentialHamsysGC(PotentialHamsys):
 	"""Guiding-centre dynamics with state ``[x, y]``."""
 
 	kind = "gc"

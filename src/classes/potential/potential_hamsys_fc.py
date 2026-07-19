@@ -8,11 +8,11 @@ from typing import Literal
 import numpy as np
 
 from contracts import TrajectoryParams
-from ..potential import Array, Potential, real_imag
-from .trajectory import Trajectory
+from .potential import Array, Potential, real_imag
+from .potential_hamsys import PotentialHamsys
 
 
-class TrajectoryFC(Trajectory):
+class PotentialHamsysFC(PotentialHamsys):
 	"""Full-cyclotron dynamics with state ``[x, y, vx, vy]``.
 
 	Configuration files retain the historical value ``type='fo'`` (full orbit),
@@ -25,7 +25,7 @@ class TrajectoryFC(Trajectory):
 	def __init__(self, potential: Potential, params: TrajectoryParams) -> None:
 		super().__init__(potential, params, ndof=2.5)
 		if self.rho == 0 or self.eta == 0:
-			raise ValueError("TrajectoryFC requires non-zero `rho` and `eta`.")
+			raise ValueError("PotentialHamsysFC requires non-zero `rho` and `eta`.")
 		self.velocity_scale = self.rho / (2 * abs(self.eta))
 		self.electric_scale = np.sign(self.eta) / self.rho
 		self.larmor_frequency = 1 / (2 * self.eta)

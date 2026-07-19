@@ -1,7 +1,7 @@
 # Copyright (c) 2023, Cristel Chandre
 # SPDX-License-Identifier: BSD-2-Clause
 
-"""Common behaviour for trajectories over interpolated potentials."""
+"""Common behaviour for systems over interpolated potentials."""
 
 from __future__ import annotations
 
@@ -12,12 +12,12 @@ import numpy as np
 from pyhamsys import HamSys
 
 from contracts import TrajectoryKind, TrajectoryParams
-from ..grid import Grid
-from ..potential import Array, Potential, PotentialFields, PotentialInterpolators
+from .grid import Grid
+from .potential import Array, Potential, PotentialFields, PotentialInterpolators
 
 
-class Trajectory(HamSys, ABC):
-	r"""Base class shared by guiding-centre and full-cyclotron trajectories.
+class PotentialHamsys(HamSys, ABC):
+	r"""Base class shared by guiding-centre and full-cyclotron potential systems.
 
 	The class owns the physical potential :math:`\phi`, builds the effective
 	gyroaveraged potential :math:`\psi`, and provides operations which do not

@@ -10,7 +10,7 @@ from typing import Literal, cast
 
 import numpy as np
 
-from classes import Potential, Trajectory, create_trajectory
+from classes import Potential, PotentialHamsys, create_potential_hamsys
 from contracts import (
 	FourierParams,
 	MockPotentialParams,
@@ -318,14 +318,14 @@ class PotentialRunConfig:
 	output_dir: Path | None = None
 	output_name: str | None = None
 
-	def build_system(self) -> Trajectory:
+	def build_system(self) -> PotentialHamsys:
 		potential = self.potential.build()
 		traj: TrajectoryParams = {
 			"type": self.trajectory.get("type", "gc"),
 			"rho": self.trajectory.get("rho", 0),
 			"eta": self.trajectory.get("eta", 0),
 		}
-		return create_trajectory(potential, traj)
+		return create_potential_hamsys(potential, traj)
 
 	def initial_condition_count(self) -> int:
 		return int(self.trajectory.get("Ntraj", 20))

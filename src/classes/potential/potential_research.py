@@ -15,7 +15,7 @@ from matplotlib.figure import Figure
 from matplotlib.patches import FancyArrowPatch
 
 from .potential import Array
-from .trajectory import Trajectory
+from .potential_hamsys import PotentialHamsys
 
 logger = logging.getLogger(__name__)
 
@@ -23,14 +23,14 @@ logger = logging.getLogger(__name__)
 class PotentialResearch:
 	"""Analyse numerical-method properties without owning trajectory dynamics.
 
-	The object wraps an existing :class:`Trajectory`.  Simulations still
+	The object wraps an existing :class:`PotentialHamsys`.  Simulations still
 	use that system directly; this class only prepares and visualises numerical
 	diagnostics and potential fields.
 	"""
 
-	def __init__(self, system: Trajectory) -> None:
-		if not isinstance(system, Trajectory):
-			raise TypeError('`system` must be a Trajectory instance.')
+	def __init__(self, system: PotentialHamsys) -> None:
+		if not isinstance(system, PotentialHamsys):
+			raise TypeError('`system` must be a PotentialHamsys instance.')
 		self.system = system
 
 	@staticmethod

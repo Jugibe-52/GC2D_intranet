@@ -13,7 +13,7 @@ from pyhamsys import OdeSolution
 
 from classes.fourier_system import FourierSystem
 from classes.simulation_result import SimulationResult
-from classes.trajectory import Trajectory
+from classes.potential import PotentialHamsys
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +50,7 @@ def _white_centered_cmap(vmin: float, vmax: float) -> tuple[Colormap, Normalize]
 	return plt.get_cmap('RdBu_r'), norm
 
 
-def plot_potential(system: Trajectory, dx: int = 0, dy: int = 0, nx: int = 512, ny: int = 512) -> None:
+def plot_potential(system: PotentialHamsys, dx: int = 0, dy: int = 0, nx: int = 512, ny: int = 512) -> None:
 	x = np.linspace(system.grid.xmin, system.grid.xmax + system.grid.dx, nx, endpoint=False)
 	y = np.linspace(system.grid.ymin, system.grid.ymax + system.grid.dy, ny, endpoint=False)
 	if system.fields.mean is not None:
@@ -92,7 +92,7 @@ def plot_potential(system: Trajectory, dx: int = 0, dy: int = 0, nx: int = 512, 
 
 
 def plot_sol(
-	system: Trajectory,
+	system: PotentialHamsys,
 	sol: OdeSolution,
 	wrap: bool = False,
 	xlim: tuple[float, float] | None = None,

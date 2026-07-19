@@ -3,7 +3,7 @@
 `conf/<notebook|terminal>/potential/<group>/v_x.json` configura el flujo:
 
 ```text
-Potential -> create_trajectory() -> TrajectoryGC | TrajectoryFC -> pyhamsys
+Potential -> create_potential_hamsys() -> PotentialHamsysGC | PotentialHamsysFC -> pyhamsys
 ```
 
 El loader correspondiente es:
@@ -79,7 +79,7 @@ A / (n^2 + m^2)^1.5
 
 ## Bloque `trajectory`
 
-Este bloque selecciona la clase `TrajectoryGC` o `TrajectoryFC`.
+Este bloque selecciona la clase `PotentialHamsysGC` o `PotentialHamsysFC`.
 
 | Campo | Tipo | Valores | Descripcion |
 |---|---:|---|---|
@@ -93,7 +93,7 @@ Notas:
 
 - `make_initial_conditions` acepta los metodos `random` y `fixed`.
 - En `fo`, se añaden velocidades perpendiculares aleatorias.
-- `TrajectoryFC` requiere que `rho` y `eta` sean distintos de cero.
+- `PotentialHamsysFC` requiere que `rho` y `eta` sean distintos de cero.
 - Si `rho` es mayor que `k * dx` o `k * dy`, el constructor lanza error para evitar interpolacion insuficiente.
 
 ## Bloque `integration`

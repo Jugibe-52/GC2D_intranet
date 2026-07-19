@@ -38,7 +38,7 @@ package "src modules" {
 
   component "workflows/symplectic_cli.py\nparse_args()\nmain()" as symp_cli
 
-  component "classes/trajectory/\nTrajectory, TrajectoryGC, TrajectoryFC\n+ Potential" as classes
+  component "classes/potential/\nPotential, PotentialHamsys, PotentialHamsysGC, PotentialHamsysFC" as classes
 }
 
 package "External libraries" {
@@ -84,7 +84,7 @@ symp_modules --> config_logging : logs progress
 
 potential_cli --> config_logging : configures logging
 potential_cli --> notebook_api : extract_potential()\nmock_potential()\nplot_sol()
-potential_cli --> classes : create_trajectory()
+potential_cli --> classes : create_potential_hamsys()
 potential_cli --> pyhamsys : integrates showcase
 potential_cli --> matplotlib : plotting workflows
 

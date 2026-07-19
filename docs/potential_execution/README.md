@@ -1,7 +1,7 @@
 # Ejecucion `run_potential.py`: trayectorias sobre `Potential`
 
 Esta ejecucion usa un potencial discreto con una de las dos dinamicas concretas:
-`TrajectoryGC` (centro guia) o `TrajectoryFC` (ciclotron completo). El potencial
+`PotentialHamsysGC` (centro guia) o `PotentialHamsysFC` (ciclotron completo). El potencial
 puede venir de un archivo HDF5 o generarse como potencial mock.
 
 ## Entrada principal
@@ -39,7 +39,7 @@ config.build_system()
 Ese metodo crea:
 
 ```text
-Potential -> create_trajectory() -> TrajectoryGC | TrajectoryFC
+Potential -> create_potential_hamsys() -> PotentialHamsysGC | PotentialHamsysFC
 ```
 
 ## Flujo
@@ -47,7 +47,7 @@ Potential -> create_trajectory() -> TrajectoryGC | TrajectoryFC
 1. `run_potential.py` configura imports, logging y argumentos CLI.
 2. Carga la configuracion con `load_potential_config`.
 3. `PotentialConfig.build()` carga un HDF5 con `extract_potential` o genera uno con `mock_potential`.
-4. `PotentialRunConfig.build_system()` llama a `create_trajectory(potential, traj)`; el orden de interpolacion `k` pertenece a `potential`.
+4. `PotentialRunConfig.build_system()` llama a `create_potential_hamsys(potential, traj)`; el orden de interpolacion `k` pertenece a `potential`.
 5. Genera condiciones iniciales con `make_initial_conditions(hs, ...)`.
 6. Integra:
    - `traj_type == "gc"` usa `solve_ivp_sympext(hs, ...)`.
@@ -74,7 +74,7 @@ animation = research.animate_electric_psi_area_conservation(solution)
 También se exporta `potential_researche` como alias de la clase para conservar
 el nombre solicitado en los notebooks de investigación.
 
-## Secuencia de ejecución de `TrajectoryGC.y_dot`
+## Secuencia de ejecución de `PotentialHamsysGC.y_dot`
 
 En una integración de centro guía, `solve_ivp_sympext` llama repetidamente a
 `system.y_dot(t, z)` para obtener la derivada del estado en cada paso interno.
@@ -82,7 +82,7 @@ La cadena principal de llamadas es:
 
 ```text
 solve_ivp_sympext
-└── TrajectoryGC.y_dot(t, z)
+└── PotentialHamsysGC.y_dot(t, z)
     ├── get_positions(z)
     ├── electric_field(t, x, y)
     │   ├── psi(t, x, y, dx=1) / psi(t, x, y, dy=1)
@@ -96,7 +96,7 @@ solve_ivp_sympext
 
 ### Centro guía (`gc`)
 
-`TrajectoryGC` sigue estos pasos:
+`PotentialHamsysGC` sigue estos pasos:
 
 1. `get_positions(z)` interpreta el vector como
    `z = [x_1, ..., x_N, y_1, ..., y_N]` y devuelve por separado los bloques
@@ -138,7 +138,7 @@ a `y_dot` con nuevos valores de `t` y `z`.
 
 ### Órbita completa (`fo`)
 
-`TrajectoryFC` conserva el valor historico `traj["type"] == "fo"` en la
+`PotentialHamsysFC` conserva el valor historico `traj["type"] == "fo"` en la
 configuracion. Su estado se organiza como
 `z = [x, y, vx, vy]` y `electric_field(..., effective=False)` calcula el campo
 físico no giro-promediado $\mathbf E=-\nabla\phi$.
@@ -160,12 +160,12 @@ $$
 
 - `run_potential.py`: entry point de terminal para el flujo de potenciales y trayectorias.
 - `src/config.py`: carga de configuracion, `PotentialConfig` y `PotentialRunConfig`.
-- `src/classes/potential.py`: clase `Potential`, interpolacion y gyroaverage.
-- `src/classes/trajectory/trajectory.py`: clase base `Trajectory` y comportamiento comun.
-- `src/classes/trajectory/trajectory_gc.py`: dinamica `TrajectoryGC`.
-- `src/classes/trajectory/trajectory_fc.py`: dinamica `TrajectoryFC`.
-- `src/classes/trajectory/trajectory_research.py`: estabilidad y dinamica tangente `TrajectoryResearch`.
-- `src/classes/potential_researche.py`: visualizaciones y diagnosticos `PotentialResearch`.
+- `src/classes/potential/potential.py`: clase `Potential`, interpolacion y gyroaverage.
+- `src/classes/potential/potential_hamsys.py`: clase base `PotentialHamsys` y comportamiento comun.
+- `src/classes/potential/potential_hamsys_gc.py`: dinamica `PotentialHamsysGC`.
+- `src/classes/potential/potential_hamsys_fc.py`: dinamica `PotentialHamsysFC`.
+- `src/classes/potential/potential_hamsys_research.py`: estabilidad y dinamica tangente `PotentialHamsysResearch`.
+- `src/classes/potential/potential_research.py`: visualizaciones y diagnosticos `PotentialResearch`.
 - `src/workflows/initial_conditions.py`: construccion de estados iniciales.
 - `src/workflows/potentials.py`: `extract_potential`, `mock_potential`.
 - `src/workflows/plotting.py`: `plot_sol`, `plot_potential`.
@@ -175,7 +175,7 @@ $$
 `run_potential.py` usa potenciales discretos/interpolados:
 
 ```text
-Potential -> TrajectoryGC | TrajectoryFC -> pyhamsys
+Potential -> PotentialHamsysGC | PotentialHamsysFC -> pyhamsys
 ```
 
 `run_fourier.py` usa el modelo Fourier sintetico:

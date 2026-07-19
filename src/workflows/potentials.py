@@ -6,8 +6,8 @@ import h5py
 import numpy as np
 from scipy import ndimage
 
-from classes.grid import Grid
-from classes.potential import Array, Potential, PotentialFields, PotentialMode
+from classes.potential.grid import Grid
+from classes.potential.potential import Array, Potential, PotentialFields, PotentialMode
 
 
 logger = logging.getLogger(__name__)
