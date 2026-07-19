@@ -113,15 +113,27 @@ FC: [x_1, ..., x_N, y_1, ..., y_N,
 Por ejemplo, dos estados GC se escriben así:
 
 ```python
-trajectory.set_initial_state(
-    np.array([x1, x2, y1, y2])
+trajectory = TrajectoryGC(rho=0.3)
+state = trajectory.pack(
+    np.array([x1, x2]),
+    np.array([y1, y2]),
 )
+trajectory.set_initial_state(state)
+
+components = trajectory.split(state)
+print(components.x, components.y)
+print(trajectory.particle_count(state))  # 2
 ```
 
 Las trayectorias aceptan el estado inicial en el constructor y también permiten
 reemplazarlo con `set_initial_state(...)`. Las geometrías reutilizables de
 contornos pertenecen a `Area`; otras condiciones específicas del experimento
 se preparan en el notebook.
+
+`TrajectoryGC.split(...)` devuelve componentes con nombre `x` e `y`;
+`TrajectoryFC.split(...)` añade `vx` y `vy`. El método `pack(...)` realiza la
+operación inversa. De esta forma, el formato físico del estado pertenece a la
+trayectoria y el integrador no necesita repetir su estructura.
 
 ## Áreas
 

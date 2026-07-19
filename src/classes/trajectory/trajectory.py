@@ -44,12 +44,31 @@ class Trajectory:
 	def split(self, state: np.ndarray) -> tuple[np.ndarray, ...]:
 		"""Split ``[component_1, ..., component_n]`` into equal blocks."""
 		value = np.asarray(state)
-		if value.ndim == 0 or value.shape[0] % self.state_dimension:
+		if value.ndim == 0 or value.shape[0] == 0 or value.shape[0] % self.state_dimension:
 			raise ValueError(
 				f"The first state dimension must be divisible by {self.state_dimension} "
 				f"for {self.__class__.__name__}."
 			)
 		return tuple(np.split(value, self.state_dimension, axis=0))
+
+	def pack(self, *components: np.ndarray) -> np.ndarray:
+		"""Pack equally shaped physical components into block layout."""
+		if len(components) != self.state_dimension:
+			raise ValueError(
+				f"{self.__class__.__name__} requires {self.state_dimension} components."
+			)
+		values = tuple(np.asarray(component) for component in components)
+		if not values or values[0].ndim == 0 or values[0].shape[0] == 0:
+			raise ValueError("State components must be non-empty arrays.")
+		if any(value.shape != values[0].shape for value in values[1:]):
+			raise ValueError("All state components must have the same shape.")
+		return np.concatenate(values, axis=0)
+
+	def particle_count(self, state: np.ndarray) -> int:
+		"""Return the number of particles represented by a state."""
+		value = np.asarray(state)
+		self.split(value)
+		return int(value.shape[0] // self.state_dimension)
 
 	def positions(self, state: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
 		"""Return the ``x`` and ``y`` blocks of a state or solution."""

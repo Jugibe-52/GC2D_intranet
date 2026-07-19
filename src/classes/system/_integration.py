@@ -5,12 +5,16 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from functools import lru_cache
 import math
 import sys
 from typing import Callable, Protocol
 
 import numpy as np
+
+from classes.trajectory.fc import FCState, TrajectoryFC
+from classes.trajectory.gc import GCState, TrajectoryGC
 
 from .solution import Solution
 
@@ -51,6 +55,8 @@ class _EnergySystem(Protocol):
 
 
 class _GCSystem(_EnergySystem, Protocol):
+	trajectory: TrajectoryGC
+
 	def vector_field(self, t: float, state: np.ndarray) -> np.ndarray:
 		"""Evaluate the guiding-centre equations."""
 
@@ -63,25 +69,87 @@ class _GCSystem(_EnergySystem, Protocol):
 
 
 class _FCSystem(_EnergySystem, Protocol):
-	def _flow(
-		self,
-		h: float,
-		t: float,
-		state: np.ndarray,
-		*,
-		check_energy: bool,
-	) -> np.ndarray:
-		"""Apply the direct FC split flow."""
+	trajectory: TrajectoryFC
 
-	def _adjoint_flow(
+	def electric_acceleration(
 		self,
-		h: float,
+		t: float,
+		x: np.ndarray,
+		y: np.ndarray,
+	) -> tuple[np.ndarray, np.ndarray]:
+		"""Evaluate the electric acceleration."""
+
+	def extended_momentum_derivative(
+		self,
 		t: float,
 		state: np.ndarray,
-		*,
-		check_energy: bool,
 	) -> np.ndarray:
-		"""Apply the adjoint FC split flow."""
+		"""Evaluate minus the explicit time derivative of the Hamiltonian."""
+
+
+@dataclass(frozen=True, slots=True)
+class _GCExtendedState:
+	"""Two GC copies and the optional extended momentum used by BM4."""
+
+	first: np.ndarray
+	second: np.ndarray
+	momentum: np.ndarray | None = None
+
+	@classmethod
+	def unpack(
+		cls,
+		value: np.ndarray,
+		*,
+		physical_size: int,
+		particle_count: int,
+		track_momentum: bool,
+	) -> _GCExtendedState:
+		expected_size = 2 * physical_size + (particle_count if track_momentum else 0)
+		if value.ndim == 0 or value.shape[0] != expected_size:
+			raise ValueError("The GC extended flow changed the state shape.")
+		momentum = value[2 * physical_size :] if track_momentum else None
+		return cls(
+			first=value[:physical_size],
+			second=value[physical_size : 2 * physical_size],
+			momentum=momentum,
+		)
+
+	def pack(self) -> np.ndarray:
+		parts = (self.first, self.second)
+		return np.concatenate(parts if self.momentum is None else (*parts, self.momentum))
+
+
+@dataclass(frozen=True, slots=True)
+class _FCExtendedState:
+	"""One physical FC state and the optional extended momentum used by BM4."""
+
+	physical: FCState
+	momentum: np.ndarray | None = None
+
+	@classmethod
+	def unpack(
+		cls,
+		value: np.ndarray,
+		*,
+		trajectory: TrajectoryFC,
+		physical_size: int,
+		particle_count: int,
+		track_momentum: bool,
+	) -> _FCExtendedState:
+		expected_size = physical_size + (particle_count if track_momentum else 0)
+		if value.ndim == 0 or value.shape[0] != expected_size:
+			raise ValueError("The FC extended flow changed the state shape.")
+		physical = trajectory.split(value[:physical_size])
+		momentum = value[physical_size:] if track_momentum else None
+		return cls(physical=physical, momentum=momentum)
+
+	def pack(self, trajectory: TrajectoryFC) -> np.ndarray:
+		physical = trajectory.pack(*self.physical)
+		return (
+			physical
+			if self.momentum is None
+			else np.concatenate((physical, self.momentum))
+		)
 
 
 class _Progress:
@@ -227,6 +295,52 @@ def _solve_composed(
 	return Solution(t=times, y=result, n_steps=n_steps)
 
 
+@lru_cache(maxsize=256)
+def _gc_coupling(step: float) -> np.ndarray:
+	frequency = 10.0
+	return np.asarray(
+		(
+			_COUPLING_BASE
+			+ np.cos(2 * frequency * step) * _COUPLING_COS
+			+ np.sin(2 * frequency * step) * _COUPLING_SIN
+		)
+		/ 2
+	)
+
+
+def _couple_gc_state(
+	step: float,
+	state: _GCExtendedState,
+	trajectory: TrajectoryGC,
+) -> _GCExtendedState:
+	first = trajectory.split(state.first)
+	second = trajectory.split(state.second)
+	blocks = np.stack((*first, *second), axis=0)
+	coupled = np.asarray(np.einsum("ij,j...->i...", _gc_coupling(step), blocks))
+	return _GCExtendedState(
+		first=trajectory.pack(coupled[0], coupled[1]),
+		second=trajectory.pack(coupled[2], coupled[3]),
+		momentum=state.momentum,
+	)
+
+
+def _updated_momentum(
+	system: _GCSystem | _FCSystem,
+	momentum: np.ndarray | None,
+	step: float,
+	t: float,
+	physical_state: np.ndarray,
+) -> np.ndarray | None:
+	if momentum is None:
+		return None
+	derivative: np.ndarray = np.asarray(
+		system.extended_momentum_derivative(t, physical_state)
+	)
+	if derivative.shape != momentum.shape:
+		raise ValueError("The extended-momentum derivative changed its shape.")
+	return np.asarray(momentum + step * derivative)
+
+
 def solve_gc(
 	system: _GCSystem,
 	state: np.ndarray,
@@ -237,35 +351,26 @@ def solve_gc(
 	check_energy: bool,
 	progress: bool,
 ) -> Solution:
-	"""Integrate one GC block state in doubled extended phase space."""
+	"""Integrate one GC physical state in doubled extended phase space."""
+	trajectory = system.trajectory
 	physical_state = np.asarray(state, dtype=float)
-	if physical_state.ndim != 1 or physical_state.size % 2:
-		raise ValueError("A GC state must contain equally sized x and y blocks.")
-	state_size = physical_state.size
-	trajectory_count = state_size // 2
+	trajectory.split(physical_state)
+	physical_size = physical_state.size
+	particle_count = trajectory.particle_count(physical_state)
 	track_momentum = bool(check_energy)
-	combined_state = np.concatenate((physical_state, physical_state))
-	if track_momentum:
-		combined_state = np.concatenate((combined_state, np.zeros(trajectory_count)))
-	expected_size = combined_state.size
+	extended = _GCExtendedState(
+		first=physical_state,
+		second=physical_state,
+		momentum=np.zeros(particle_count) if track_momentum else None,
+	)
 
-	def split_copies(value: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray | None]:
-		if value.shape[0] != expected_size:
-			raise ValueError("The GC extended flow changed the state shape.")
-		first = value[:state_size]
-		second = value[state_size : 2 * state_size]
-		momentum = value[2 * state_size :] if track_momentum else None
-		return first, second, momentum
-
-	def split_variables(value: np.ndarray) -> tuple[np.ndarray, ...]:
-		first, second, momentum = split_copies(value)
-		variables: tuple[np.ndarray, ...] = (
-			first[:trajectory_count],
-			first[trajectory_count:],
-			second[:trajectory_count],
-			second[trajectory_count:],
+	def unpack(value: np.ndarray) -> _GCExtendedState:
+		return _GCExtendedState.unpack(
+			value,
+			physical_size=physical_size,
+			particle_count=particle_count,
+			track_momentum=track_momentum,
 		)
-		return variables if momentum is None else (*variables, momentum)
 
 	def vector_field(t: float, value: np.ndarray) -> np.ndarray:
 		derivative = np.asarray(system.vector_field(t, value))
@@ -273,77 +378,70 @@ def solve_gc(
 			raise ValueError("The GC vector field changed the physical state shape.")
 		return derivative
 
-	def update_momentum(
-		momentum: np.ndarray | None,
-		h: float,
-		t: float,
-		value: np.ndarray,
-	) -> None:
-		if momentum is not None:
-			momentum += h * np.asarray(system.extended_momentum_derivative(t, value))
-
-	@lru_cache(maxsize=256)
-	def coupling(h: float) -> np.ndarray:
-		frequency = 10.0
-		return np.asarray(
-			(
-				_COUPLING_BASE
-				+ np.cos(2 * frequency * h) * _COUPLING_COS
-				+ np.sin(2 * frequency * h) * _COUPLING_SIN
-			)
-			/ 2
-		)
-
-	def coupled_state(h: float, blocks: tuple[np.ndarray, ...]) -> np.ndarray:
-		return np.asarray(
-			np.einsum("ij,j...->i...", coupling(h), np.stack(blocks, axis=0))
-		).flatten()
-
 	def flow(h: float, t: float, value: np.ndarray) -> np.ndarray:
-		first, second, momentum = split_copies(value)
-		second += h * vector_field(t, first)
-		update_momentum(momentum, h, t, first)
-		first += h * vector_field(t, second)
-		update_momentum(momentum, h, t, second)
-		result = coupled_state(h, tuple(np.split(np.concatenate((first, second)), 4)))
-		return result if momentum is None else np.concatenate((result, momentum))
+		current = unpack(value)
+		second = current.second + h * vector_field(t, current.first)
+		momentum = _updated_momentum(system, current.momentum, h, t, current.first)
+		first = current.first + h * vector_field(t, second)
+		momentum = _updated_momentum(system, momentum, h, t, second)
+		return _couple_gc_state(
+			h,
+			_GCExtendedState(first, second, momentum),
+			trajectory,
+		).pack()
 
 	def adjoint_flow(h: float, t: float, value: np.ndarray) -> np.ndarray:
-		variables = split_variables(value)
-		physical_variables = variables[:-1] if track_momentum else variables
-		result = coupled_state(h, physical_variables)
-		if track_momentum:
-			result = np.concatenate((result, variables[-1]))
-		first, second, momentum = split_copies(result)
-		first += h * vector_field(t, second)
-		update_momentum(momentum, h, t, second)
-		second += h * vector_field(t, first)
-		update_momentum(momentum, h, t, first)
-		parts = (first, second) if momentum is None else (first, second, momentum)
-		return np.concatenate(parts)
+		current = _couple_gc_state(h, unpack(value), trajectory)
+		first = current.first + h * vector_field(t, current.second)
+		momentum = _updated_momentum(system, current.momentum, h, t, current.second)
+		second = current.second + h * vector_field(t, first)
+		momentum = _updated_momentum(system, momentum, h, t, first)
+		return _GCExtendedState(first, second, momentum).pack()
 
 	solution = _solve_composed(
 		flow,
 		adjoint_flow,
 		t_span,
-		combined_state,
+		extended.pack(),
 		step,
 		n_save_step,
 		progress=progress,
 		label="SystemGC",
 	)
-	variables = split_variables(solution.y)
-	solution.y = np.concatenate(
-		(
-			(variables[0] + variables[2]) / 2,
-			(variables[1] + variables[3]) / 2,
-		),
-		axis=0,
+	final_state = unpack(solution.y)
+	first = trajectory.split(final_state.first)
+	second = trajectory.split(final_state.second)
+	solution.y = trajectory.pack(
+		(first.x + second.x) / 2,
+		(first.y + second.y) / 2,
 	)
-	if track_momentum:
-		solution.k = variables[-1] / 2
+	if final_state.momentum is not None:
+		solution.k = final_state.momentum / 2
 		solution.err = system._energy_error(solution)
 	return solution
+
+
+def _real_imaginary(value: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+	return np.asarray(value.real), np.asarray(value.imag)
+
+
+def _cyclotron_step(
+	trajectory: TrajectoryFC,
+	state: FCState,
+	step: float,
+) -> FCState:
+	rotation = np.exp(-1j * step * trajectory.larmor_frequency)
+	x, y = _real_imaginary(
+		state.x
+		+ 1j * state.y
+		+ 1j
+		* trajectory.rho
+		* np.sign(trajectory.eta)
+		* (rotation - 1)
+		* (state.vx + 1j * state.vy)
+	)
+	vx, vy = _real_imaginary(rotation * (state.vx + 1j * state.vy))
+	return FCState(x, y, vx, vy)
 
 
 def solve_fc(
@@ -356,39 +454,89 @@ def solve_fc(
 	check_energy: bool,
 	progress: bool,
 ) -> Solution:
-	"""Integrate one FC block state with its explicit split flows."""
+	"""Integrate one FC physical state with private direct and adjoint flows."""
+	trajectory = system.trajectory
 	physical_state = np.asarray(state, dtype=float)
-	if physical_state.ndim != 1 or physical_state.size % 4:
-		raise ValueError("An FC state must contain equally sized x, y, vx and vy blocks.")
-	trajectory_count = physical_state.size // 4
-	combined_state = physical_state
-	if check_energy:
-		combined_state = np.concatenate((physical_state, np.zeros(trajectory_count)))
+	physical = trajectory.split(physical_state)
+	physical_size = physical_state.size
+	particle_count = trajectory.particle_count(physical_state)
+	track_momentum = bool(check_energy)
+	extended = _FCExtendedState(
+		physical=physical,
+		momentum=np.zeros(particle_count) if track_momentum else None,
+	)
+
+	def unpack(value: np.ndarray) -> _FCExtendedState:
+		return _FCExtendedState.unpack(
+			value,
+			trajectory=trajectory,
+			physical_size=physical_size,
+			particle_count=particle_count,
+			track_momentum=track_momentum,
+		)
+
+	def flow(h: float, t: float, value: np.ndarray) -> np.ndarray:
+		current = unpack(value)
+		physical = _cyclotron_step(trajectory, current.physical, h)
+		acceleration_x, acceleration_y = system.electric_acceleration(
+			t,
+			physical.x,
+			physical.y,
+		)
+		physical = FCState(
+			physical.x,
+			physical.y,
+			physical.vx + h * acceleration_x,
+			physical.vy + h * acceleration_y,
+		)
+		physical_array = trajectory.pack(*physical)
+		momentum = _updated_momentum(
+			system,
+			current.momentum,
+			h,
+			t,
+			physical_array,
+		)
+		return _FCExtendedState(physical, momentum).pack(trajectory)
+
+	def adjoint_flow(h: float, t: float, value: np.ndarray) -> np.ndarray:
+		current = unpack(value)
+		acceleration_x, acceleration_y = system.electric_acceleration(
+			t,
+			current.physical.x,
+			current.physical.y,
+		)
+		physical = FCState(
+			current.physical.x,
+			current.physical.y,
+			current.physical.vx + h * acceleration_x,
+			current.physical.vy + h * acceleration_y,
+		)
+		physical_array = trajectory.pack(*physical)
+		momentum = _updated_momentum(
+			system,
+			current.momentum,
+			h,
+			t,
+			physical_array,
+		)
+		physical = _cyclotron_step(trajectory, physical, h)
+		return _FCExtendedState(physical, momentum).pack(trajectory)
 
 	solution = _solve_composed(
-		lambda h, t, value: system._flow(
-			h,
-			t,
-			value,
-			check_energy=check_energy,
-		),
-		lambda h, t, value: system._adjoint_flow(
-			h,
-			t,
-			value,
-			check_energy=check_energy,
-		),
+		flow,
+		adjoint_flow,
 		t_span,
-		combined_state,
+		extended.pack(trajectory),
 		step,
 		n_save_step,
 		progress=progress,
 		label="SystemFC",
 	)
-	if check_energy:
-		components = np.split(solution.y, 5, axis=0)
-		solution.y = np.concatenate(components[:4], axis=0)
-		solution.k = components[4]
+	final_state = unpack(solution.y)
+	solution.y = trajectory.pack(*final_state.physical)
+	if final_state.momentum is not None:
+		solution.k = final_state.momentum
 		solution.err = system._energy_error(solution)
 	return solution
 

@@ -2,9 +2,20 @@
 
 from __future__ import annotations
 
+from typing import NamedTuple
+
 import numpy as np
 
 from .trajectory import Trajectory
+
+
+class FCState(NamedTuple):
+	"""Named components of a full-cyclotron state."""
+
+	x: np.ndarray
+	y: np.ndarray
+	vx: np.ndarray
+	vy: np.ndarray
 
 
 class TrajectoryFC(Trajectory):
@@ -40,8 +51,13 @@ class TrajectoryFC(Trajectory):
 		return 1 / (2 * self.eta)
 
 	def velocities(self, state: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-		_, _, vx, vy = self.split(state)
-		return vx, vy
+		components = self.split(state)
+		return components.vx, components.vy
+
+	def split(self, state: np.ndarray) -> FCState:
+		"""Return the named ``x``, ``y``, ``vx`` and ``vy`` blocks."""
+		x, y, vx, vy = super().split(state)
+		return FCState(x, y, vx, vy)
 
 
-__all__ = ["TrajectoryFC"]
+__all__ = ["FCState", "TrajectoryFC"]

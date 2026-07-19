@@ -76,6 +76,11 @@ class TrajectoryTests(unittest.TestCase):
 		x, y = trajectory.positions(stored)
 		np.testing.assert_allclose(x, [1.0, 2.0])
 		np.testing.assert_allclose(y, [3.0, 4.0])
+		components = trajectory.split(stored)
+		np.testing.assert_allclose(components.x, x)
+		np.testing.assert_allclose(components.y, y)
+		np.testing.assert_allclose(trajectory.pack(*components), stored)
+		self.assertEqual(trajectory.particle_count(stored), 2)
 
 		stored[0] = -20.0
 		np.testing.assert_allclose(trajectory.state, [1.0, 2.0, 3.0, 4.0])
@@ -93,6 +98,18 @@ class TrajectoryTests(unittest.TestCase):
 		self.assertAlmostEqual(trajectory.velocity_scale, 1.0)
 		self.assertAlmostEqual(trajectory.electric_scale, -2.5)
 		self.assertAlmostEqual(trajectory.larmor_frequency, -2.5)
+		components = trajectory.split(state)
+		np.testing.assert_allclose(components.x, x)
+		np.testing.assert_allclose(components.y, y)
+		np.testing.assert_allclose(components.vx, vx)
+		np.testing.assert_allclose(components.vy, vy)
+		np.testing.assert_allclose(trajectory.pack(*components), state)
+		self.assertEqual(trajectory.particle_count(state), 2)
+
+		with self.assertRaises(ValueError):
+			trajectory.pack(x, y, vx)
+		with self.assertRaises(ValueError):
+			trajectory.pack(x, y[:-1], vx, vy)
 
 	def test_area_constructors_and_area_calculation(self) -> None:
 		square = Area.square(

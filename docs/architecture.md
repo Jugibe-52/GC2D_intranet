@@ -30,7 +30,10 @@ Contiene los parámetros de la partícula y su estado inicial:
 - `TrajectoryFC`: bloques `[x, y, vx, vy]`, `rho` y `eta`.
 
 El estado inicial puede asignarse en el constructor o posteriormente con
-`set_initial_state(...)`. Una trayectoria no conoce el potencial.
+`set_initial_state(...)`. `split(...)`, `pack(...)` y `particle_count(...)`
+centralizan el formato físico del estado. Los resultados de `split(...)` tienen
+componentes con nombre: `[x, y]` para GC y `[x, y, vx, vy]` para FC. Una
+trayectoria no conoce el potencial ni el algoritmo de integración.
 
 ### Area
 
@@ -45,7 +48,8 @@ una trayectoria GC también puede utilizarse directamente con `SystemGC`.
 Combina exactamente un `Potential` con una `Trajectory` compatible:
 
 - `SystemGC` construye el potencial efectivo y las ecuaciones de centro guía.
-- `SystemFC` construye las ecuaciones y los flujos de ciclotrón completo.
+- `SystemFC` construye las ecuaciones de ciclotrón completo y la aceleración
+  eléctrica que consume el integrador.
 
 Ambos sistemas exponen `hamiltonian(...)` y `simulate(...)`. La implementación
 numérica BM4 es privada: no constituye otra API ni puede seleccionarse desde el
@@ -55,6 +59,10 @@ Cuando contiene un `Area`, `SystemGC.animate_area(...)` combina la solución con
 el potencial efectivo y el campo eléctrico. La animación transporta el contorno
 y representa simultáneamente el error relativo
 `(A(t) - A(0)) / abs(A(0))`.
+
+La implementación gráfica vive en un módulo privado; `SystemGC` conserva el
+método público porque es quien dispone simultáneamente del potencial efectivo,
+la trayectoria y la solución.
 
 ### Solution
 
@@ -74,6 +82,15 @@ Potential       Trajectory
              |
           Solution
 ```
+
+El integrador mantiene estructuras privadas diferentes del estado físico:
+
+- GC usa dos copias del estado y un momento extendido opcional.
+- FC añade únicamente el momento extendido opcional.
+
+Estas estructuras, el acoplamiento GC y los flujos directo/adjunto FC pertenecen
+a `_integration`. Se construyen y descomponen mediante `Trajectory.split(...)`
+y `Trajectory.pack(...)`, sin duplicar el layout físico dentro de `System`.
 
 Las dependencias solo avanzan hacia la composición y la integración. No hay
 dependencias desde `Potential` hacia `Trajectory`, ni desde `Trajectory` hacia
