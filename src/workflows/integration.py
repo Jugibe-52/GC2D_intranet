@@ -22,7 +22,9 @@ def integrate_simulation(
 	"""Integrate a Fourier case exclusively through System.simulate."""
 	system = ensure_system(case)
 	options = get_workflow_options(system)
-	initial_state = system.initial_state()
+	initial_state = system.trajectory.state
+	if initial_state is None:
+		raise ValueError("Workflow received a System with an uninitialized Trajectory.")
 	logger.info(
 		"Initial conditions ready: shape=%s init=%s",
 		initial_state.shape,
@@ -40,7 +42,6 @@ def integrate_simulation(
 	)
 	start = time.time()
 	solution = system.simulate(
-		initial_state,
 		t_span=(0.0, final_time),
 		step=options.time_step,
 		n_save_step=sample_count,

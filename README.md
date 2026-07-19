@@ -64,9 +64,11 @@ System recibe un Potential y una Trajectory:
 
 ~~~python
 from classes import FourierPotential, TrajectoryGC, create_system
+from workflows import initialize_trajectory
 
 potential = FourierPotential(...)
 trajectory = TrajectoryGC(...)
+initialize_trajectory(trajectory, potential.grid)
 system = create_system(potential, trajectory)
 
 solution = system.simulate(

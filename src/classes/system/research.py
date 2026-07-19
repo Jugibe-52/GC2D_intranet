@@ -597,55 +597,6 @@ class SystemResearch:
 		plt.close(fig)
 		return animation
 
-	def guiding_center_square_initial_conditions(
-		self,
-		*,
-		side: float = 1.0,
-		lower_left: tuple[float, float] | None = None,
-		points_per_side: int = 1,
-	) -> Array:
-		"""Create counter-clockwise GC initial conditions on a square boundary.
-
-		By default the lower-left vertex is placed at the centre of the displayed
-		potential grid.  ``points_per_side=1`` returns the four vertices; larger
-		values sample every edge and give a better finite-area diagnostic after
-		the initially straight edges become curved.
-		"""
-		if self.system.trajectory.kind != 'gc':
-			raise ValueError('Square position-space initial conditions are available only for guiding-center trajectories.')
-		try:
-			side = float(side)
-		except (TypeError, ValueError) as exc:
-			raise ValueError('`side` must be a positive finite number.') from exc
-		if not np.isfinite(side) or side <= 0:
-			raise ValueError('`side` must be a positive finite number.')
-		if not isinstance(points_per_side, (int, np.integer)) or points_per_side < 1:
-			raise ValueError('`points_per_side` must be a positive integer.')
-		if lower_left is None:
-			x0 = (self.system.grid.xmin + self.system.grid.xmax) / 2
-			y0 = (self.system.grid.ymin + self.system.grid.ymax) / 2
-		else:
-			if len(lower_left) != 2:
-				raise ValueError('`lower_left` must contain exactly two coordinates.')
-			x0, y0 = map(float, lower_left)
-			if not np.isfinite(x0) or not np.isfinite(y0):
-				raise ValueError('`lower_left` must contain finite coordinates.')
-
-		edge = np.linspace(0.0, side, int(points_per_side), endpoint=False)
-		x_boundary = np.concatenate((
-			x0 + edge,
-			np.full_like(edge, x0 + side),
-			x0 + side - edge,
-			np.full_like(edge, x0),
-		))
-		y_boundary = np.concatenate((
-			np.full_like(edge, y0),
-			y0 + edge,
-			np.full_like(edge, y0 + side),
-			y0 + side - edge,
-		))
-		return np.concatenate((x_boundary, y_boundary))
-
 	def _unwrap_polygon_coordinates(
 		self,
 		x_vertices: Array,

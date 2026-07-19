@@ -6,12 +6,15 @@ from typing import Literal
 
 import numpy as np
 
-from classes import System
+from classes import Grid, Trajectory
 from contracts import Array
+
+from .trajectory_initialization import initialize_trajectory
 
 
 def make_initial_conditions(
-	system: System,
+	trajectory: Trajectory,
+	grid: Grid,
 	n_traj: int,
 	*,
 	method: Literal["random", "fixed"] = "fixed",
@@ -19,9 +22,7 @@ def make_initial_conditions(
 	y: Array | None = None,
 	rng: np.random.Generator | None = None,
 ) -> Array:
-	"""Delegate initial-state construction to the independent Trajectory entity."""
-	if not isinstance(system, System):
-		raise TypeError("system must be a System instance.")
+	"""Compatibility wrapper around trajectory-first initialization."""
 	if (
 		not isinstance(n_traj, (int, np.integer))
 		or isinstance(n_traj, (bool, np.bool_))
@@ -31,7 +32,9 @@ def make_initial_conditions(
 	if (x is None) != (y is None):
 		raise ValueError("x and y must be provided together.")
 	if x is None:
-		return system.initial_state(
+		return initialize_trajectory(
+			trajectory,
+			grid,
 			n_trajectories=int(n_traj),
 			initialization=method,
 			rng=rng,
@@ -47,13 +50,15 @@ def make_initial_conditions(
 		raise ValueError(
 			"x and y must be one-dimensional axes with at least two values."
 		)
-	return system.trajectory.initial_state(
+	state = trajectory.initial_state(
 		(float(x_axis[0]), float(x_axis[-1])),
 		(float(y_axis[0]), float(y_axis[-1])),
 		n_trajectories=int(n_traj),
 		initialization=method,
 		rng=rng,
 	)
+	trajectory.set_initial_state(state)
+	return state
 
 
 __all__ = ["make_initial_conditions"]

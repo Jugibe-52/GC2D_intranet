@@ -31,9 +31,11 @@ classes/
   system/
     System
     SystemGC
+    gc_solver.py
     SystemFC
+    fc_solver.py
     create_system
-    integración, solución y diagnósticos
+    utilidades comunes, solución y diagnósticos
 ~~~
 
 No existe una cuarta capa de dominio para el integrador. El motor numérico es
@@ -138,9 +140,11 @@ Ninguna comprobación interna debe ramificar por fo.
 
 ## System
 
-System recibe las dos entidades:
+Antes de componer el sistema, workflows inicializa la trayectoria usando solo
+el dominio espacial del potencial:
 
 ~~~python
+initialize_trajectory(trajectory, potential.grid)
 system = create_system(potential, trajectory)
 ~~~
 
@@ -158,6 +162,9 @@ operaciones que requieren ambas:
 - electric_field(...);
 - simulate(...).
 
+La clase base solo valida el estado común y delega en _integrate(...). No
+selecciona algoritmos mediante comprobaciones GC/FC.
+
 ### SystemGC
 
 SystemGC prepara dos vistas distintas:
@@ -166,13 +173,22 @@ SystemGC prepara dos vistas distintas:
 - effective_potential: psi, el campo que incorpora el giro-promedio.
 
 Las ecuaciones GC utilizan exclusivamente psi. El potencial físico no se
-sobrescribe.
+sobrescribe. SystemGC es además propietario de la integración extendida para
+el Hamiltoniano no separable. Su algoritmo vive en gc_solver.py y solo depende
+del contrato numérico que SystemGC implementa.
 
 ### SystemFC
 
 SystemFC utiliza phi sin giro-promedio. Contiene los mapas chi y chi_star que
-componen la integración explícita y puede convertir posiciones FC a centros
-guía para análisis.
+componen la integración explícita, ejecuta la composición simpléctica y
+postprocesa la variable energética k. La composición de esos mapas vive en
+fc_solver.py. También puede convertir posiciones FC a centros guía para
+análisis.
+
+gc_solver.py y fc_solver.py son detalles internos distintos. Comparten solo la
+planificación de pasos, validaciones y estructuras de solución que no contienen
+lógica física GC ni FC. solver.py conserva los exports históricos como fachada
+de compatibilidad, pero los sistemas concretos no dependen de ella.
 
 ## Simulación
 
@@ -180,7 +196,6 @@ La API de alto nivel es:
 
 ~~~python
 solution = system.simulate(
-    y0=None,
     t_span=(0.0, final_time),
     step=time_step,
     n_save_step=sample_count,
@@ -190,11 +205,11 @@ solution = system.simulate(
 )
 ~~~
 
-Si y0 es None, System pide a Trajectory que prepare un estado en el
-dominio de Potential. La trayectoria no almacena el potencial después de esa
-operación.
+System obtiene siempre el estado inicial ya preparado desde Trajectory. Si no
+existe, simulate falla con un error de precondición; nunca genera ni modifica
+condiciones iniciales implícitamente.
 
-simulate selecciona el algoritmo según la subclase de System. El llamador no
+simulate delega el algoritmo en la subclase concreta de System. El llamador no
 importa funciones de integración ni bifurca por kind.
 
 ## Solution y SimulationResult
@@ -225,6 +240,7 @@ JSON
   -> Potential config
   -> Trajectory config
   -> solver config
+  -> initialize_trajectory(trajectory, potential.grid)
   -> create_system(...)
   -> system.simulate(...)
 ~~~

@@ -30,7 +30,8 @@ package "classes/system" {
   component "System\nsimulate()" as system
   component "SystemGC" as gc_system
   component "SystemFC" as fc_system
-  component "internal symplectic solver" as solver
+  component "gc_solver" as gc_solver
+  component "fc_solver" as fc_solver
   component "SimulationResult" as result
 }
 
@@ -56,13 +57,10 @@ factory --> fc_system
 gc_system --|> system
 fc_system --|> system
 solver_config --> system
-system --> solver : simulate(...)
-solver --> result
+gc_system --> gc_solver : _integrate(...)
+fc_system --> fc_solver : _integrate(...)
+gc_solver --> result
+fc_solver --> result
 result --> output
-
-note bottom of solver
-  SystemGC: extended phase space
-  SystemFC: chi / chi_star
-end note
 
 @enduml

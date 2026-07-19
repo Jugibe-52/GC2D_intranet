@@ -24,6 +24,7 @@ La configuración produce tres pasos explícitos:
 ~~~python
 potential = GridPotential(...)
 trajectory = TrajectoryGC(...)  # o TrajectoryFC(...)
+initialize_trajectory(trajectory, potential.grid)
 system = create_system(potential, trajectory)
 ~~~
 
@@ -38,10 +39,10 @@ recibe ambos y es el único objeto que conoce las ecuaciones completas.
 3. Los datos se validan y se construye GridPotential.
 4. trajectory.type selecciona TrajectoryGC o TrajectoryFC. El alias fo se
    normaliza a fc antes de crear el objeto.
-5. create_system(potential, trajectory) devuelve SystemGC o SystemFC.
-6. system.simulate(...) prepara las condiciones iniciales si no se proporcionan
-   explícitamente y ejecuta la integración.
-7. SimulationResult se entrega a plotting y exportación.
+5. El workflow inicializa Trajectory usando potential.grid.
+6. create_system(potential, trajectory) devuelve SystemGC o SystemFC.
+7. system.simulate(...) integra el estado ya asignado a Trajectory.
+8. SimulationResult se entrega a plotting y exportación.
 
 El entry point no importa solvers concretos ni contiene una rama GC/FC.
 

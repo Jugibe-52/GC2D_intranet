@@ -2,6 +2,10 @@
 
 from workflows.export import save_data
 from workflows.integration import integrate_simulation
+from workflows.trajectory_initialization import (
+	initialize_guiding_center_square,
+	initialize_trajectory,
+)
 from workflows.params import (
 	WorkflowOptions,
 	ensure_system,
@@ -29,6 +33,8 @@ __all__ = [
 	"fft_phi_grid",
 	"get_workflow_options",
 	"integrate_simulation",
+	"initialize_guiding_center_square",
+	"initialize_trajectory",
 	"make_params",
 	"make_system",
 	"mock_potential",

@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+from typing import TYPE_CHECKING
+
 import numpy as np
 
 from contracts import Array
@@ -9,6 +12,9 @@ from classes.potential import Potential
 from classes.trajectory import TrajectoryFC
 
 from .system import System
+
+if TYPE_CHECKING:
+	from .solution import Solution
 
 
 def _real_imag(value: Array) -> tuple[Array, Array]:
@@ -143,6 +149,52 @@ class SystemFC(System):
 
 	def chi_star(self, h: float, t: float, state: Array) -> Array:
 		return self.adjoint_flow(h, t, state)
+
+	def _integrate(
+		self,
+		state: Array,
+		*,
+		t_span: tuple[float, float],
+		step: float,
+		t_eval: Array | None,
+		save_step: float | None,
+		n_save_step: int | None,
+		method: str,
+		check_energy: bool,
+		command: Callable[[float, Array], None] | None,
+		progress: bool,
+	) -> Solution:
+		"""Integrate FC by composing its explicit flow and adjoint flow."""
+		from .fc_solver import solve_symplectic
+
+		del progress  # The explicit FC path has no progress renderer.
+		n_trajectories = state.shape[0] // self.trajectory.state_dimension
+		integrator_state = state
+		if check_energy:
+			integrator_state = np.concatenate((state, np.zeros(n_trajectories)))
+		solution = solve_symplectic(
+			lambda h, t, value: self.flow(h, t, value, check_energy=check_energy),
+			lambda h, t, value: self.adjoint_flow(
+				h,
+				t,
+				value,
+				check_energy=check_energy,
+			),
+			t_span,
+			integrator_state,
+			step,
+			t_eval,
+			method,
+			command,
+			save_step=save_step,
+			n_save_step=n_save_step,
+		)
+		if check_energy:
+			components = np.split(solution.y, 5, axis=0)
+			solution.y = np.concatenate(components[:4], axis=0)
+			solution.k = components[4]
+			solution.err = self.compute_energy(solution)
+		return solution
 
 
 __all__ = ["SystemFC"]

@@ -36,7 +36,8 @@ package "Domain" {
 
 package "Simulation" {
   component "system.simulate()" as simulate
-  component "internal solver" as solver
+  component "gc_solver" as gc_solver
+  component "fc_solver" as fc_solver
   component "SimulationResult" as result
 }
 
@@ -67,8 +68,10 @@ system_fc --|> system
 simulation_cell --> workflow
 workflow --> simulate
 system --> simulate
-simulate --> solver
-solver --> result
+simulate --> gc_solver : SystemGC
+simulate --> fc_solver : SystemFC
+gc_solver --> result
+fc_solver --> result
 result --> plot_cells
 plot_cells --> plotting
 result --> export

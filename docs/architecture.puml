@@ -44,7 +44,8 @@ package "classes/system" {
   component "System\nABC / shared contract" as system
   component "SystemGC" as system_gc
   component "SystemFC" as system_fc
-  component "internal symplectic\nintegration engine" as engine
+  component "gc_solver\nextended phase space" as gc_engine
+  component "fc_solver\nflow composition" as fc_engine
   component "SimulationResult" as result
 }
 
@@ -87,8 +88,10 @@ factory --> system_gc
 factory --> system_fc
 system_gc --|> system
 system_fc --|> system
-system --> engine : simulate(...)
-engine --> result
+system_gc --> gc_engine : _integrate(...)
+system_fc --> fc_engine : _integrate(...)
+gc_engine --> result
+fc_engine --> result
 
 fourier_cli --> batch
 batch --> adapters
@@ -100,11 +103,6 @@ export --> outputs
 note right of trajectory
   Internal kinds: gc, fc
   Legacy input alias: fo -> fc
-end note
-
-note bottom of engine
-  GC: extended phase-space method
-  FC: chi / chi_star composition
 end note
 
 @enduml

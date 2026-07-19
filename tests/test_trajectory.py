@@ -43,6 +43,16 @@ class TrajectoryTests(unittest.TestCase):
 		self.assertTrue(np.all((-1.0 <= x) & (x < 3.0)))
 		self.assertTrue(np.all((2.0 <= y) & (y < 8.0)))
 
+	def test_assigned_initial_state_is_owned_and_copied(self) -> None:
+		trajectory = TrajectoryGC(n_trajectories=1)
+		state = np.array([0.1, 0.2])
+
+		trajectory.set_initial_state(state)
+		state[:] = 99.0
+
+		self.assertEqual(trajectory.n_trajectories, 1)
+		np.testing.assert_allclose(trajectory.state, [0.1, 0.2])
+
 	def test_selected_initialization_requires_matching_coordinates(self) -> None:
 		trajectory = TrajectoryGC(
 			n_trajectories=2,

@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+from typing import TYPE_CHECKING
+
 import numpy as np
 
 from contracts import Array
@@ -9,6 +12,9 @@ from classes.potential import GridPotential, Potential
 from classes.trajectory import TrajectoryGC
 
 from .system import System
+
+if TYPE_CHECKING:
+	from .solution import Solution
 
 
 class SystemGC(System):
@@ -46,6 +52,37 @@ class SystemGC(System):
 	def extended_momentum_derivative(self, t: float, state: Array) -> Array:
 		x, y = self.get_positions(state)
 		return np.asarray(-self.psi(t, x, y, dt=1))
+
+	def _integrate(
+		self,
+		state: Array,
+		*,
+		t_span: tuple[float, float],
+		step: float,
+		t_eval: Array | None,
+		save_step: float | None,
+		n_save_step: int | None,
+		method: str,
+		check_energy: bool,
+		command: Callable[[float, Array], None] | None,
+		progress: bool,
+	) -> Solution:
+		"""Integrate GC through the non-separable extended-phase-space path."""
+		from .gc_solver import solve_extended
+
+		return solve_extended(
+			self,
+			t_span,
+			state,
+			step,
+			t_eval,
+			method,
+			command=command,
+			check_energy=check_energy,
+			save_step=save_step,
+			n_save_step=n_save_step,
+			progress=progress,
+		)
 
 
 __all__ = ["SystemGC"]

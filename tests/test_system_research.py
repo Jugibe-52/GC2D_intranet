@@ -64,18 +64,6 @@ class GuidingCenterAreaTests(unittest.TestCase):
 		)
 		return cast(SystemGC, create_system(potential, TrajectoryGC()))
 
-	def test_square_initial_conditions_are_centred_and_counter_clockwise(self) -> None:
-		system = self.make_system()
-		research = SystemResearch(system)
-
-		initial = research.guiding_center_square_initial_conditions(side=1.0)
-		x, y = system.get_positions(initial)
-
-		centre_x = (system.grid.xmin + system.grid.xmax) / 2
-		centre_y = (system.grid.ymin + system.grid.ymax) / 2
-		np.testing.assert_allclose(x, [centre_x, centre_x + 1, centre_x + 1, centre_x])
-		np.testing.assert_allclose(y, [centre_y, centre_y, centre_y + 1, centre_y + 1])
-
 	def test_area_element_is_preserved_by_shear(self) -> None:
 		research = SystemResearch(self.make_system())
 		solution = SimpleNamespace(
@@ -133,17 +121,6 @@ class GuidingCenterAreaTests(unittest.TestCase):
 		area = research.guiding_center_polygon_area(solution)
 
 		np.testing.assert_allclose(area, 1.0)
-
-	def test_square_boundary_can_use_more_than_four_points(self) -> None:
-		system = self.make_system()
-		initial = SystemResearch(system).guiding_center_square_initial_conditions(
-			side=1.0,
-			lower_left=(1.0, 1.0),
-			points_per_side=3,
-		)
-		x, _ = system.get_positions(initial)
-
-		self.assertEqual(x.size, 12)
 
 	def test_area_animation_is_created(self) -> None:
 		research = SystemResearch(self.make_system())

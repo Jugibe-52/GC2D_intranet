@@ -26,6 +26,7 @@ conceptualmente:
 ~~~python
 potential = FourierPotential(...)
 trajectory = TrajectoryGC(...)  # o TrajectoryFC(...)
+initialize_trajectory(trajectory, potential.grid)
 system = create_system(potential, trajectory)
 result = system.simulate(...)
 ~~~
@@ -45,12 +46,12 @@ válida.
 2. Cada caso construye un FourierPotential.
 3. El selector gc o fc construye la Trajectory correspondiente. fo se acepta
    únicamente como alias de configuración antigua.
-4. create_system(potential, trajectory) compone las entidades.
-5. system.simulate(...) genera o recibe el estado inicial y ejecuta el motor
-   simpléctico interno.
-6. Se devuelve SimulationResult.
-7. El workflow representa o guarda el resultado según output.
-8. Los casos pueden distribuirse con multiprocess sin cambiar las entidades.
+4. El workflow inicializa Trajectory usando potential.grid.
+5. create_system(potential, trajectory) compone las entidades.
+6. system.simulate(...) integra el estado de Trajectory con el motor simpléctico.
+7. Se devuelve SimulationResult.
+8. El workflow representa o guarda el resultado según output.
+9. Los casos pueden distribuirse con multiprocess sin cambiar las entidades.
 
 ## Selección numérica
 

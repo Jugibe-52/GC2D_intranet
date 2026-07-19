@@ -128,20 +128,6 @@ class System(ABC):
 	def k_dot(self, t: float, state: Array) -> Array:
 		return self.extended_momentum_derivative(t, state)
 
-	def _spatial_bounds(self) -> tuple[tuple[float, float], tuple[float, float]]:
-		grid = self.grid
-		if grid.period is None:
-			return (grid.xmin, grid.xmax), (grid.ymin, grid.ymax)
-		return (
-			(grid.xmin, grid.xmin + grid.period),
-			(grid.ymin, grid.ymin + grid.period),
-		)
-
-	def initial_state(self, **overrides: Any) -> Array:
-		"""Generate an initial state using the trajectory's initialization policy."""
-		x_bounds, y_bounds = self._spatial_bounds()
-		return self.trajectory.initial_state(x_bounds, y_bounds, **overrides)
-
 	def compute_energy(self, solution: Solution, *, max_error: bool = True) -> Array:
 		"""Evaluate physical or extended energy along a solution."""
 		values = np.asarray(self.hamiltonian(solution.t[np.newaxis], solution.y))
@@ -156,7 +142,6 @@ class System(ABC):
 
 	def simulate(
 		self,
-		y0: Array | None = None,
 		*,
 		t_span: tuple[float, float] = (0.0, 2 * np.pi),
 		step: float,
@@ -168,55 +153,42 @@ class System(ABC):
 		command: Callable[[float, Array], None] | None = None,
 		progress: bool = False,
 	) -> Solution:
-		"""Integrate this system with the trajectory-appropriate symplectic path."""
-		from .solver import solve_extended, solve_symplectic
-
-		state = self.initial_state() if y0 is None else np.asarray(y0)
-		# Validate the physical layout before adding any solver-owned variables.
-		self.trajectory.split_state(state)
-		if isinstance(self.trajectory, TrajectoryGC):
-			return solve_extended(
-				self,
-				t_span,
-				state,
-				step,
-				t_eval,
-				method,
-				command=command,
-				check_energy=check_energy,
-				save_step=save_step,
-				n_save_step=n_save_step,
-				progress=progress,
+		"""Validate common state and delegate integration to the concrete system."""
+		state = self.trajectory.state
+		if state is None:
+			raise ValueError(
+				"Trajectory has no initial state. Initialize it before creating or "
+				"simulating the System."
 			)
-		if not isinstance(self.trajectory, TrajectoryFC):
-			raise TypeError(f"Unsupported system class: {type(self).__name__}.")
-		flow = getattr(self, "flow", None)
-		adjoint_flow = getattr(self, "adjoint_flow", None)
-		if not callable(flow) or not callable(adjoint_flow):
-			raise TypeError("A full-cyclotron system must provide flow and adjoint_flow.")
-
-		n_trajectories = state.shape[0] // self.trajectory.state_dimension
-		integrator_state = state
-		if check_energy:
-			integrator_state = np.concatenate((state, np.zeros(n_trajectories)))
-		solution = solve_symplectic(
-			lambda h, t, value: flow(h, t, value, check_energy=check_energy),
-			lambda h, t, value: adjoint_flow(h, t, value, check_energy=check_energy),
-			t_span,
-			integrator_state,
-			step,
-			t_eval,
-			method,
-			command,
+		return self._integrate(
+			state,
+			t_span=t_span,
+			step=step,
+			t_eval=t_eval,
 			save_step=save_step,
 			n_save_step=n_save_step,
+			method=method,
+			check_energy=check_energy,
+			command=command,
+			progress=progress,
 		)
-		if check_energy:
-			components = np.split(solution.y, 5, axis=0)
-			solution.y = np.concatenate(components[:4], axis=0)
-			solution.k = components[4]
-			solution.err = self.compute_energy(solution)
-		return solution
+
+	@abstractmethod
+	def _integrate(
+		self,
+		state: Array,
+		*,
+		t_span: tuple[float, float],
+		step: float,
+		t_eval: Array | None,
+		save_step: float | None,
+		n_save_step: int | None,
+		method: str,
+		check_energy: bool,
+		command: Callable[[float, Array], None] | None,
+		progress: bool,
+	) -> Solution:
+		"""Run the numerical path owned by the concrete GC or FC system."""
 
 
 def create_system(potential: Potential, trajectory: Trajectory) -> System:

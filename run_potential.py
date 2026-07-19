@@ -67,7 +67,9 @@ def main() -> None:
 		logger.info("Output directory: %s", config.output_dir)
 
 	system = config.build_system()
-	initial_state = system.initial_state()
+	initial_state = system.trajectory.state
+	if initial_state is None:
+		raise ValueError("Configured system has an uninitialized trajectory.")
 	logger.info(
 		"Generated initial conditions: version=%s trajectory=%s Ntraj=%d "
 		"init=%s shape=%s",
@@ -92,7 +94,6 @@ def main() -> None:
 	)
 	start = time.time()
 	solution = system.simulate(
-		initial_state,
 		t_span=(0.0, final_time),
 		step=time_step,
 		n_save_step=n_max,

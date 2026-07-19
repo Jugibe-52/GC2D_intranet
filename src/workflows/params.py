@@ -14,6 +14,8 @@ from classes import FourierPotential, System, create_system, create_trajectory
 from config_logging import simulation_label
 from contracts import FourierParams, ParameterMap, TrajectoryKind
 
+from .trajectory_initialization import initialize_trajectory
+
 logger = logging.getLogger(__name__)
 
 
@@ -170,6 +172,7 @@ def make_system(params: Mapping[str, object]) -> System:
 		y0=normalized.get("y0"),
 		seed=seed,
 	)
+	initialize_trajectory(trajectory, potential.grid)
 	system = create_system(potential, trajectory)
 	options = _workflow_options(normalized)
 	system.options = options

@@ -78,9 +78,9 @@ k_dot = -dH/dt
 
 ### Extensión de espacio de fases
 
-El integrador duplica internamente el estado, alterna evaluaciones del campo en
-las dos copias y aplica el acoplamiento armónico. Después promedia ambas copias
-para producir la solución física.
+El integrador de gc_solver.py duplica internamente el estado, alterna
+evaluaciones del campo en las dos copias y aplica el acoplamiento armónico.
+Después promedia ambas copias para producir la solución física.
 
 La integración:
 
@@ -136,7 +136,7 @@ SystemFC implementa dos mapas adjuntos:
 - chi aplica primero rotación y deriva espacial, después el impulso eléctrico;
 - chi_star aplica primero el impulso eléctrico, después rotación y deriva.
 
-La composición simpléctica alterna ambos mapas con los coeficientes del método.
+El motor de fc_solver.py alterna ambos mapas con los coeficientes del método.
 La simetría del orden es parte del algoritmo y no debe alterarse al reorganizar
 archivos.
 

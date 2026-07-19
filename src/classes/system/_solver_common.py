@@ -224,5 +224,5 @@ def planned_step_count(inputs: SolverInputs, targets: np.ndarray) -> int:
         duration = float(target) - start
         if duration > 0:
             total += step_count(duration, inputs.max_step)
-		start = float(target)
-	return total
+        start = float(target)
+    return total

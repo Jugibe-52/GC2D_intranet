@@ -2,8 +2,8 @@
 !tests/
 !tests/*.py
 notebooks/*
-!notebooks/experiments/
-!notebooks/experiments/**
+!notebooks/developement/
+!notebooks/developement/**
 *.mat
 *.pyc
 *.pyc

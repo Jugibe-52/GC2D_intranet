@@ -13,6 +13,7 @@ from classes import (
 	TrajectoryGC,
 	create_system,
 )
+from workflows import initialize_trajectory
 
 
 def single_mode_potential(*, coefficient: complex = 1.0) -> FourierPotential:
@@ -48,6 +49,13 @@ class SystemCompositionTests(unittest.TestCase):
 		self.assertIsInstance(system, SystemFC)
 		self.assertIs(system.potential, potential)
 		self.assertIs(system.trajectory, trajectory)
+
+	def test_gc_and_fc_own_distinct_numerical_paths(self) -> None:
+		self.assertIn("_integrate", SystemGC.__dict__)
+		self.assertIn("_integrate", SystemFC.__dict__)
+		self.assertNotEqual(SystemGC._integrate, SystemFC._integrate)
+		self.assertNotIn("flow", SystemGC.__dict__)
+		self.assertIn("flow", SystemFC.__dict__)
 
 	def test_concrete_systems_reject_the_wrong_trajectory(self) -> None:
 		potential = single_mode_potential()
@@ -121,11 +129,10 @@ class SystemEquationTests(unittest.TestCase):
 		self.assertEqual(energy.shape, (2, 3))
 
 	def test_fc_flows_preserve_physical_and_energy_state_shapes(self) -> None:
-		system = create_system(
-			single_mode_potential(),
-			TrajectoryFC(rho=0.2, eta=0.1, n_trajectories=4),
-		)
-		state = system.initial_state()
+		potential = single_mode_potential()
+		trajectory = TrajectoryFC(rho=0.2, eta=0.1, n_trajectories=4)
+		state = initialize_trajectory(trajectory, potential.grid)
+		system = create_system(potential, trajectory)
 		state_with_k = np.concatenate((state, np.zeros(4)))
 
 		self.assertEqual(system.flow(0.01, 0.0, state).shape, state.shape)
@@ -142,14 +149,12 @@ class SystemEquationTests(unittest.TestCase):
 
 class SystemSimulationTests(unittest.TestCase):
 	def test_gc_simulation_smoke_uses_extended_path(self) -> None:
-		system = create_system(
-			single_mode_potential(coefficient=0.0),
-			TrajectoryGC(n_trajectories=4, initialization="fixed"),
-		)
-		initial = system.initial_state()
+		potential = single_mode_potential(coefficient=0.0)
+		trajectory = TrajectoryGC(n_trajectories=4, initialization="fixed")
+		initial = initialize_trajectory(trajectory, potential.grid)
+		system = create_system(potential, trajectory)
 
 		solution = system.simulate(
-			initial,
 			t_span=(0.0, 0.04),
 			step=0.01,
 			n_save_step=3,
@@ -164,10 +169,7 @@ class SystemSimulationTests(unittest.TestCase):
 		self.assertTrue(np.isfinite(solution.err))
 
 	def test_fc_energy_simulation_keeps_4n_physical_rows_and_n_k_rows(self) -> None:
-		system = create_system(
-			single_mode_potential(),
-			TrajectoryFC(rho=0.2, eta=0.1, n_trajectories=2),
-		)
+		trajectory = TrajectoryFC(rho=0.2, eta=0.1, n_trajectories=2)
 		initial = np.array([
 			0.2,
 			0.7,
@@ -179,8 +181,10 @@ class SystemSimulationTests(unittest.TestCase):
 			0.75,
 		])
 
+		trajectory.set_initial_state(initial)
+		system = create_system(single_mode_potential(), trajectory)
+
 		solution = system.simulate(
-			initial,
 			t_span=(0.0, 0.04),
 			step=0.01,
 			n_save_step=3,
@@ -194,11 +198,25 @@ class SystemSimulationTests(unittest.TestCase):
 		self.assertTrue(np.all(np.isfinite(solution.k)))
 		self.assertTrue(np.isfinite(solution.err))
 
-	def test_simulate_can_generate_the_trajectory_initial_state(self) -> None:
+	def test_simulate_rejects_an_uninitialized_trajectory(self) -> None:
 		system = create_system(
 			single_mode_potential(coefficient=0.0),
 			TrajectoryGC(n_trajectories=4, initialization="fixed"),
 		)
+
+		with self.assertRaisesRegex(ValueError, "no initial state"):
+			system.simulate(
+				t_span=(0.0, 0.02),
+				step=0.01,
+				n_save_step=2,
+				method="Verlet",
+			)
+
+	def test_simulate_uses_the_state_owned_by_trajectory(self) -> None:
+		trajectory = TrajectoryGC(n_trajectories=2)
+		initial = np.array([0.2, 0.7, 0.4, 0.3])
+		trajectory.set_initial_state(initial)
+		system = create_system(single_mode_potential(coefficient=0.0), trajectory)
 
 		solution = system.simulate(
 			t_span=(0.0, 0.02),
@@ -207,8 +225,8 @@ class SystemSimulationTests(unittest.TestCase):
 			method="Verlet",
 		)
 
-		self.assertEqual(solution.y.shape, (8, 2))
-		np.testing.assert_allclose(solution.y[:, 0], solution.y[:, 1])
+		np.testing.assert_allclose(solution.y[:, 0], initial)
+		np.testing.assert_allclose(solution.y[:, 1], initial)
 
 
 if __name__ == "__main__":

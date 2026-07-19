@@ -49,6 +49,7 @@ class Trajectory(ABC):
 		self.x0 = None if x0 is None else np.asarray(x0, dtype=float)
 		self.y0 = None if y0 is None else np.asarray(y0, dtype=float)
 		self.seed = None if seed is None else int(seed)
+		self._state: Array | None = None
 
 	def __repr__(self) -> str:
 		return (
@@ -71,6 +72,31 @@ class Trajectory(ABC):
 	def get_positions(self, state: Array) -> tuple[Array, Array]:
 		x, y, *_ = self.split_state(state)
 		return x, y
+
+	@property
+	def state(self) -> Array | None:
+		"""The explicitly assigned initial state, if one has been provided."""
+		return None if self._state is None else self._state.copy()
+
+	def set_initial_state(self, state: Array) -> None:
+		"""Assign the state that the owning system will integrate.
+
+		The state belongs to the trajectory because it describes particles, not
+		the field nor the numerical method.  A copy is retained so callers can
+		reuse or mutate their input safely after assignment.
+		"""
+		state_array = np.asarray(state, dtype=float)
+		if state_array.ndim != 1:
+			raise ValueError("The initial state must be a one-dimensional block array.")
+		if not np.all(np.isfinite(state_array)):
+			raise ValueError("The initial state must contain only finite values.")
+		self.split_state(state_array)
+		self._state = state_array.copy()
+		self.n_trajectories = state_array.size // self.state_dimension
+
+	def clear_initial_state(self) -> None:
+		"""Return to the configured state-generation policy."""
+		self._state = None
 
 	@abstractmethod
 	def get_velocities(self, state: Array) -> tuple[Array, Array] | None:

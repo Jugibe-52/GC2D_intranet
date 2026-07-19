@@ -32,7 +32,8 @@ package "classes/system" {
   component "SystemGC" as gc_system
   component "SystemFC" as fc_system
   component "simulate()" as simulate
-  component "internal solver" as solver
+  component "gc_solver" as gc_solver
+  component "fc_solver" as fc_solver
   component "SimulationResult" as result
 }
 
@@ -58,8 +59,10 @@ factory --> fc_system
 gc_system --> simulate
 fc_system --> simulate
 solver_config --> simulate
-simulate --> solver
-solver --> result
+simulate --> gc_solver : SystemGC
+simulate --> fc_solver : SystemFC
+gc_solver --> result
+fc_solver --> result
 result --> plot
 result --> export
 

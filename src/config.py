@@ -23,6 +23,7 @@ from contracts import (
 	TrajectoryKind,
 )
 from workflows.potentials import extract_potential, mock_potential
+from workflows.trajectory_initialization import initialize_trajectory
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 CONF_DIR = PROJECT_ROOT / "conf"
@@ -366,7 +367,10 @@ class PotentialRunConfig:
 		)
 
 	def build_system(self) -> System:
-		return create_system(self.potential.build(), self.build_trajectory())
+		potential = self.potential.build()
+		trajectory = self.build_trajectory()
+		initialize_trajectory(trajectory, potential.grid)
+		return create_system(potential, trajectory)
 
 	def initial_condition_count(self) -> int:
 		return int(self.trajectory.get("Ntraj", 20))

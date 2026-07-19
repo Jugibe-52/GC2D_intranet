@@ -6,6 +6,8 @@ __all__ = [
 	"extract_potential",
 	"fft_phi_grid",
 	"integrate_simulation",
+	"initialize_guiding_center_square",
+	"initialize_trajectory",
 	"make_initial_conditions",
 	"make_params",
 	"make_system",
@@ -50,6 +52,13 @@ def __getattr__(name: str) -> Any:
 		from .initial_conditions import make_initial_conditions
 
 		return make_initial_conditions
+	if name in {"initialize_guiding_center_square", "initialize_trajectory"}:
+		from .trajectory_initialization import initialize_guiding_center_square, initialize_trajectory
+
+		return {
+			"initialize_guiding_center_square": initialize_guiding_center_square,
+			"initialize_trajectory": initialize_trajectory,
+		}[name]
 	if name in {"make_params", "make_system", "to_symp_params"}:
 		from .params import make_params, make_system, to_symp_params
 
