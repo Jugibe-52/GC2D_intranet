@@ -12,8 +12,6 @@ dependencies = [
 	"numpy==1.26.4",
 	"matplotlib==3.10.9",
 	"scipy==1.17.1",
-	"h5py==3.16.0",
-	"multiprocess==0.70.19",
 ]
 
 [tool.setuptools]
@@ -23,16 +21,6 @@ packages = [
 	"classes.potential",
 	"classes.trajectory",
 	"classes.system",
-	"workflows",
-]
-py-modules = [
-	"config",
-	"classes_api",
-	"workflows_api",
-	"symplectic",
-	"symplectic_modules",
-	"config_logging",
-	"contracts",
 ]
 
 [project.optional-dependencies]
@@ -40,7 +28,7 @@ dev = ["mypy>=1.10,<2"]
 
 [tool.mypy]
 python_version = "3.11"
-files = ["src", "run_fourier.py", "run_potential.py"]
+files = ["src"]
 check_untyped_defs = true
 disallow_untyped_defs = true
 no_implicit_optional = true

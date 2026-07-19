@@ -1,17 +1,21 @@
-# Copyright (c) 2023, Cristel Chandre
-# SPDX-License-Identifier: BSD-2-Clause
+"""Numerical result returned by a system simulation."""
 
-"""Result type returned by the Hamiltonian-system solvers."""
+from __future__ import annotations
 
-from scipy.optimize import OptimizeResult
+from dataclasses import dataclass
 
-
-class Solution(OptimizeResult):
-    """Attribute-accessible container for a sampled numerical solution."""
+import numpy as np
 
 
-# Compatibility name retained while callers migrate from the vendored solver.
-OdeSolution = Solution
+@dataclass(slots=True)
+class Solution:
+	"""Saved times, states, and optional energy diagnostics."""
+
+	t: np.ndarray
+	y: np.ndarray
+	n_steps: int
+	k: np.ndarray | None = None
+	err: float | None = None
 
 
-__all__ = ["OdeSolution", "Solution"]
+__all__ = ["Solution"]

@@ -1,212 +1,166 @@
-# guiding_center_intranet
+# GC2D
 
-Herramientas para simular centros guía y órbitas ciclotrónicas completas en
-potenciales electrostáticos bidimensionales.
+Código de investigación para estudiar trayectorias de partículas en un
+potencial electrostático bidimensional.
 
-La arquitectura pública se basa en tres entidades independientes:
+El proyecto se organiza alrededor de tres entidades:
 
-~~~text
-Potential + Trajectory -> System -> SimulationResult
-~~~
+```text
+Potential + Trajectory -> System -> Solution
+```
 
-- Potential describe el campo electrostático y cómo evaluarlo.
-- Trajectory describe el modelo de partícula, sus parámetros y el estado inicial.
-- System combina ambas entidades, construye las ecuaciones e integra la simulación.
+- `Potential` representa el campo físico sobre una rejilla periódica.
+- `TrajectoryGC` y `TrajectoryFC` describen el estado de una o varias
+  partículas.
+- `SystemGC` y `SystemFC` combinan un potencial con una trayectoria y realizan
+  la integración temporal.
 
-No hay una capa pública independiente para el solver. Los integradores
-simplécticos forman parte de classes/system y System los selecciona
-internamente al ejecutar simulate(...).
+Los notebooks de `notebooks/developement/` son los únicos puntos de entrada.
+No hay ejecutables de terminal, configuración externa ni una API de workflows.
 
 ## Instalación
 
-El código Python está bajo src. Para instalarlo en modo editable:
+Se requiere Python 3.11 o posterior.
 
-~~~sh
-python3 -m pip install -e .
-~~~
+```bash
+python -m pip install -r requirements.txt
+```
 
-Para instalar también las herramientas de notebooks:
+El paquete queda instalado en modo editable, por lo que los cambios en `src/`
+están disponibles inmediatamente en los notebooks.
 
-~~~sh
-python3 -m pip install -r requirements.txt
-~~~
+## Ejemplo GC
 
-## Entidades del dominio
+```python
+import numpy as np
 
-### Potential
+from classes import Potential, SystemGC, TrajectoryGC
 
-Potential es la clase abstracta común. Sus implementaciones son:
+potential = Potential.random(
+    A=0.7,
+    M=25,
+    nx=64,
+    ny=64,
+    seed=27,
+    interpolation_order=5,
+)
 
-- GridPotential: potencial definido sobre una malla, normalmente procedente de
-  HDF5 o de un campo sintético muestreado; utiliza interpolación espacial.
-- FourierPotential: potencial definido directamente mediante modos de Fourier;
-  conserva la evaluación espectral del modelo Fourier.
+x0 = potential.grid.xmin + potential.grid.period / 2
+y0 = potential.grid.ymin + potential.grid.period / 2
 
-Ambas implementaciones ofrecen la misma interfaz para evaluar el potencial y
-sus derivadas. El potencial físico no conoce la trayectoria ni decide si debe
-aplicarse un giro-promedio.
+trajectory = TrajectoryGC(rho=0.3)
+trajectory.set_initial_state(np.array([x0, y0]))
 
-### Trajectory
-
-Trajectory es independiente del potencial y de la integración. Las variantes
-son:
-
-- TrajectoryGC: centro guía, con estado físico organizado en bloques x, y.
-- TrajectoryFC: ciclotrón completo, con estado físico organizado en bloques
-  x, y, vx, vy.
-
-Los identificadores internos son gc y fc. El valor histórico fo solo se acepta
-como alias al leer configuraciones antiguas y se normaliza inmediatamente a fc.
-
-### System
-
-System recibe un Potential y una Trajectory:
-
-~~~python
-from classes import FourierPotential, TrajectoryGC, create_system
-from workflows import initialize_trajectory
-
-potential = FourierPotential(...)
-trajectory = TrajectoryGC(...)
-initialize_trajectory(trajectory, potential.grid)
-system = create_system(potential, trajectory)
-
+system = SystemGC(potential, trajectory)
 solution = system.simulate(
-    t_span=(0.0, 20.0 * 3.141592653589793),
-    step=0.1,
-    n_save_step=11,
-    method="BM4",
+    t_span=(0.0, 6 * np.pi),
+    step=0.001,
+    n_save_step=361,
+    check_energy=True,
+    progress=True,
+)
+```
+
+`SystemGC` integra el movimiento del centro guía sobre el potencial efectivo
+giro-promediado. El potencial físico original permanece en `potential`.
+
+## Ejemplo FC
+
+```python
+import numpy as np
+
+from classes import Potential, SystemFC, TrajectoryFC
+
+potential = Potential.random(
+    A=0.7,
+    M=25,
+    nx=64,
+    ny=64,
+    seed=27,
+    interpolation_order=5,
+)
+
+x0 = potential.grid.xmin + potential.grid.period / 2
+y0 = potential.grid.ymin + potential.grid.period / 2
+
+trajectory = TrajectoryFC(rho=0.3, eta=0.01)
+trajectory.set_initial_state(np.array([x0, y0, 1.0, 0.0]))
+
+system = SystemFC(potential, trajectory)
+solution = system.simulate(
+    t_span=(0.0, 2 * np.pi),
+    step=0.001,
+    n_save_step=101,
     check_energy=True,
 )
-~~~
+```
 
-create_system(...) devuelve SystemGC o SystemFC según la trayectoria. La
-selección del método numérico queda encapsulada:
+`SystemFC` integra la órbita ciclotrónica completa sobre el potencial físico.
 
-- SystemGC usa la extensión de espacio de fases para el sistema no separable.
-- SystemFC usa los flujos adjuntos chi y chi_star de la composición simpléctica.
+## Organización del estado
 
-La solución conserva los tiempos, los estados físicos y, cuando se solicita,
-la variable extendida y el error de energía.
+Los estados usan bloques, no valores intercalados. Para `N` trayectorias:
 
-## Ejecución desde terminal
+```text
+GC: [x_1, ..., x_N, y_1, ..., y_N]
+FC: [x_1, ..., x_N, y_1, ..., y_N,
+     vx_1, ..., vx_N, vy_1, ..., vy_N]
+```
 
-Se mantienen dos superficies de entrada, diferenciadas por la fuente del
-potencial, pero ambas construyen las mismas tres entidades.
+Por ejemplo, dos estados GC se escriben así:
 
-Para un potencial de Fourier:
+```python
+trajectory.set_initial_state(
+    np.array([x1, x2, y1, y2])
+)
+```
 
-~~~sh
-python3 run_fourier.py
-~~~
+La preparación de condiciones iniciales específicas de cada experimento se
+hace en el notebook. Las clases de trayectoria únicamente validan, almacenan y
+separan el estado.
 
-Para un potencial de malla procedente de HDF5 o generado como mock:
+## Integración y resultado
 
-~~~sh
-python3 run_potential.py
-~~~
+`System.simulate(...)` utiliza la composición simpléctica BM4. El método es
+fijo para mantener una sola ruta numérica comprensible.
 
-Opciones comunes:
+Los argumentos habituales son:
 
-~~~sh
-python3 run_fourier.py --config-group assay --config-version v_1
-python3 run_potential.py --config-group test --config-version v_1
-~~~
+- `t_span`: tiempo inicial y final.
+- `step`: paso interno máximo.
+- `n_save_step`: número de muestras que se guardan, incluidos los extremos.
+- `check_energy`: calcula la energía generalizada y su error.
+- `progress`: muestra el avance de integraciones GC largas.
 
-También puede seleccionarse un perfil concreto:
+La solución ofrece como mínimo:
 
-~~~sh
-python3 run_fourier.py --version symplectic_grid
-~~~
+- `solution.t`: tiempos guardados.
+- `solution.y`: estados, con una columna por tiempo.
+- `solution.n_steps`: número de pasos internos.
+- `solution.k`: momento extendido cuando se comprueba la energía.
+- `solution.err`: error energético máximo cuando se solicita.
 
-El logging se controla con SIM_LOG_LEVEL y SIM_LOG_FILE:
+El Hamiltoniano también puede evaluarse directamente:
 
-~~~sh
-SIM_LOG_LEVEL=DEBUG SIM_LOG_FILE=logs/simulation.log python3 run_fourier.py
-~~~
+```python
+energy = system.hamiltonian(solution.t, solution.y)
+```
 
-## Configuración
+## Potencial
 
-Los perfiles JSON se organizan por superficie, fuente, grupo y versión:
+`Potential.random(...)` genera el potencial periódico reproducible utilizado
+por los notebooks de desarrollo. El potencial permite:
 
-~~~text
-conf/
-  notebook/
-    fourier/test/v_1.json
-    potential/test/v_1.json
-  terminal/
-    fourier/test/v_1.json
-    fourier/assay/v_1.json
-    potential/test/v_1.json
-    potential/assay/v_1.json
-~~~
+- evaluar el campo y sus derivadas;
+- obtener el giro-promedio requerido por GC;
+- representar el campo con `potential.plot()`;
+- animarlo con `potential.animate(...)`.
 
-Todos los perfiles se normalizan conceptualmente en potencial, trayectoria,
-solver y salida. La familia potential expresa esos bloques directamente:
+## Notebooks de desarrollo
 
-~~~json
-{
-  "schema_version": 1,
-  "active_version": "default",
-  "versions": {
-    "default": {
-      "potential": {},
-      "trajectory": {},
-      "solver": {},
-      "output": {}
-    }
-  }
-}
-~~~
+- `test_generalized_energy_.ipynb`: convergencia y conservación de la energía
+  generalizada en GC, más una comprobación corta de FC.
+- `test_dX_dY.ipynb`: conservación del área de un contorno transportado en GC.
 
-La familia fourier conserva defaults, sweep y cases para generar lotes; el
-loader extrae de cada caso los parámetros de FourierPotential y Trajectory.
-En ambas familias, solver contiene exclusivamente los parámetros del
-integrador:
-
-- TimeStep: paso interno máximo.
-- ode_solver: composición simpléctica, por ejemplo BM4.
-- CheckEnergy: activa la comprobación de energía generalizada.
-
-El nombre solver expresa una capacidad interna de System; no hace referencia a
-una librería o paquete externo.
-
-La documentación detallada está en:
-
-- docs/conf/fourier.md
-- docs/conf/potential.md
-- docs/fourier_execution/README.md
-- docs/potential_execution/README.md
-- docs/system_architecture.md
-
-## Modelo físico y proceso numérico
-
-Para centro guía, SystemGC usa el potencial efectivo psi obtenido a partir del
-potencial físico phi y del radio de Larmor de TrajectoryGC. Conserva:
-
-~~~text
-z = [x, y]
-z_dot = [-dpsi/dy, dpsi/dx]
-H = psi
-~~~
-
-Para ciclotrón completo, SystemFC usa el potencial físico sin giro-promedio y
-conserva:
-
-~~~text
-z = [x, y, vx, vy]
-velocity_scale = rho / (2 * abs(eta))
-electric_scale = sign(eta) / rho
-larmor_frequency = 1 / (2 * eta)
-~~~
-
-La reorganización cambia responsabilidades y nombres, no las fórmulas, los
-coeficientes de los integradores ni el orden de los subflujos.
-
-## Referencia
-
-M. Stanzani, F. Arlotti, G. Ciraolo, X. Garbet y C. Chandre,
-Transition to super-diffusive transport in turbulent plasmas,
-arXiv:2309.02461.
-
-Para más información: cristel.chandre@cnrs.fr
+La estructura interna se resume en
+[`docs/architecture.md`](docs/architecture.md).
