@@ -12,14 +12,20 @@ class TrajectoryFC(Trajectory):
 
 	state_dimension = 4
 
-	def __init__(self, *, rho: float, eta: float) -> None:
-		super().__init__(rho=rho)
+	def __init__(
+		self,
+		state: np.ndarray | None = None,
+		*,
+		rho: float,
+		eta: float,
+	) -> None:
 		eta = float(eta)
 		if not np.isfinite(eta):
 			raise ValueError("`eta` must be finite.")
-		if self.rho == 0 or eta == 0:
+		if float(rho) == 0 or eta == 0:
 			raise ValueError("TrajectoryFC requires non-zero `rho` and `eta`.")
 		self.eta = eta
+		super().__init__(state, rho=rho)
 
 	@property
 	def velocity_scale(self) -> float:

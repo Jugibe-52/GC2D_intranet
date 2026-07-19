@@ -2,9 +2,10 @@
 
 from .potential import Potential
 from .system import SystemFC, SystemGC
-from .trajectory import TrajectoryFC, TrajectoryGC
+from .trajectory import Area, TrajectoryFC, TrajectoryGC
 
 __all__ = [
+	"Area",
 	"Potential",
 	"SystemFC",
 	"SystemGC",

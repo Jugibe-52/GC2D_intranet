@@ -3,7 +3,7 @@
 Código de investigación para estudiar trayectorias de partículas en un
 potencial electrostático bidimensional.
 
-El proyecto se organiza alrededor de tres entidades:
+El proyecto se organiza alrededor de cuatro entidades:
 
 ```text
 Potential + Trajectory -> System -> Solution
@@ -12,10 +12,11 @@ Potential + Trajectory -> System -> Solution
 - `Potential` representa el campo físico sobre una rejilla periódica.
 - `TrajectoryGC` y `TrajectoryFC` describen el estado de una o varias
   partículas.
+- `Area` especializa una trayectoria GC como contorno cuadrado o circular.
 - `SystemGC` y `SystemFC` combinan un potencial con una trayectoria y realizan
   la integración temporal.
 
-Los notebooks de `notebooks/developement/` son los únicos puntos de entrada.
+Los notebooks de `notebooks/developements/` son los únicos puntos de entrada.
 No hay ejecutables de terminal, configuración externa ni una API de workflows.
 
 ## Instalación
@@ -48,8 +49,7 @@ potential = Potential.random(
 x0 = potential.grid.xmin + potential.grid.period / 2
 y0 = potential.grid.ymin + potential.grid.period / 2
 
-trajectory = TrajectoryGC(rho=0.3)
-trajectory.set_initial_state(np.array([x0, y0]))
+trajectory = TrajectoryGC(np.array([x0, y0]), rho=0.3)
 
 system = SystemGC(potential, trajectory)
 solution = system.simulate(
@@ -83,8 +83,11 @@ potential = Potential.random(
 x0 = potential.grid.xmin + potential.grid.period / 2
 y0 = potential.grid.ymin + potential.grid.period / 2
 
-trajectory = TrajectoryFC(rho=0.3, eta=0.01)
-trajectory.set_initial_state(np.array([x0, y0, 1.0, 0.0]))
+trajectory = TrajectoryFC(
+    np.array([x0, y0, 1.0, 0.0]),
+    rho=0.3,
+    eta=0.01,
+)
 
 system = SystemFC(potential, trajectory)
 solution = system.simulate(
@@ -115,9 +118,48 @@ trajectory.set_initial_state(
 )
 ```
 
-La preparación de condiciones iniciales específicas de cada experimento se
-hace en el notebook. Las clases de trayectoria únicamente validan, almacenan y
-separan el estado.
+Las trayectorias aceptan el estado inicial en el constructor y también permiten
+reemplazarlo con `set_initial_state(...)`. Las geometrías reutilizables de
+contornos pertenecen a `Area`; otras condiciones específicas del experimento
+se preparan en el notebook.
+
+## Áreas
+
+`Area` es una trayectoria GC cuyos puntos delimitan un contorno orientado. Se
+puede construir como un cuadrado o un círculo y pasar directamente a
+`SystemGC`:
+
+```python
+from classes import Area
+
+area = Area.square(
+    center=(np.pi, np.pi),
+    side=1.0,
+    points_per_side=40,
+    rho=0.3,
+)
+system = SystemGC(potential, area)
+solution = system.simulate(step=0.005)
+
+transported_area = area.calculate_area(
+    solution.y,
+    period=potential.grid.period,
+)
+
+animation = system.animate_area(
+    solution,
+    frames=120,
+    interval=50,
+)
+```
+
+El constructor alternativo `Area.circle(...)` recibe `center`, `radius` y el
+número total de puntos del contorno. `calculate_area(...)` acepta tanto el
+estado inicial como una serie temporal completa y aplica la fórmula del cordón;
+con `period` también trata correctamente los cruces del borde periódico.
+`SystemGC.animate_area(...)` muestra el contorno sobre el potencial efectivo y
+su campo eléctrico, junto con
+`(A(t) - A(0)) / abs(A(0))` en un segundo panel.
 
 ## Integración y resultado
 

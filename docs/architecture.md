@@ -1,11 +1,13 @@
 # Arquitectura
 
-GC2D tiene tres entidades públicas y dos variantes dinámicas.
+GC2D tiene cuatro entidades públicas y dos variantes dinámicas.
 
 ```text
-                     +--> TrajectoryGC --> SystemGC --+
-Potential -----------|                                |--> Solution
-                     +--> TrajectoryFC --> SystemFC --+
+Area --> TrajectoryGC --+
+                        +--> SystemGC --+
+Potential --------------|               |--> Solution
+                        +--> SystemFC --+
+TrajectoryFC -----------+
 ```
 
 ## Responsabilidades
@@ -27,9 +29,16 @@ Contiene los parámetros de la partícula y su estado inicial:
 - `TrajectoryGC`: bloques `[x, y]` y radio de Larmor `rho`.
 - `TrajectoryFC`: bloques `[x, y, vx, vy]`, `rho` y `eta`.
 
-Una trayectoria no genera condiciones iniciales y no conoce el potencial. La
-preparación de puntos, cuadrados u otras geometrías pertenece al notebook que
-define el experimento.
+El estado inicial puede asignarse en el constructor o posteriormente con
+`set_initial_state(...)`. Una trayectoria no conoce el potencial.
+
+### Area
+
+`Area` hereda de `TrajectoryGC`: sus bloques `[x, y]` son puntos ordenados en
+sentido antihorario que delimitan un cuadrado o un círculo. Sus constructores
+`Area.square(...)` y `Area.circle(...)` generan el contorno, y
+`calculate_area(...)` calcula el área orientada inicial o transportada. Al ser
+una trayectoria GC también puede utilizarse directamente con `SystemGC`.
 
 ### System
 
@@ -41,6 +50,11 @@ Combina exactamente un `Potential` con una `Trajectory` compatible:
 Ambos sistemas exponen `hamiltonian(...)` y `simulate(...)`. La implementación
 numérica BM4 es privada: no constituye otra API ni puede seleccionarse desde el
 exterior.
+
+Cuando contiene un `Area`, `SystemGC.animate_area(...)` combina la solución con
+el potencial efectivo y el campo eléctrico. La animación transporta el contorno
+y representa simultáneamente el error relativo
+`(A(t) - A(0)) / abs(A(0))`.
 
 ### Solution
 
@@ -72,6 +86,7 @@ Los notebooks importan únicamente:
 ```python
 from classes import (
     Potential,
+    Area,
     SystemFC,
     SystemGC,
     TrajectoryFC,
@@ -80,5 +95,5 @@ from classes import (
 ```
 
 Los detalles de rejilla, interpolación y composición simpléctica permanecen
-internos. No existen factories, aliases de compatibilidad, workflows ni puntos
-de entrada de terminal.
+internos. No existen aliases de compatibilidad, workflows ni puntos de entrada
+de terminal.

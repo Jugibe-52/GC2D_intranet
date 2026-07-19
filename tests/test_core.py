@@ -6,7 +6,7 @@ import unittest
 
 import numpy as np
 
-from classes import Potential, SystemFC, SystemGC, TrajectoryFC, TrajectoryGC
+from classes import Area, Potential, SystemFC, SystemGC, TrajectoryFC, TrajectoryGC
 
 
 def random_potential(*, interpolation_order: int = 3) -> Potential:
@@ -65,9 +65,8 @@ class PotentialTests(unittest.TestCase):
 
 class TrajectoryTests(unittest.TestCase):
 	def test_gc_state_layout_and_copy(self) -> None:
-		trajectory = TrajectoryGC(rho=0.2)
 		state = np.asarray([1.0, 2.0, 3.0, 4.0])
-		trajectory.set_initial_state(state)
+		trajectory = TrajectoryGC(state, rho=0.2)
 		state[0] = -10.0
 
 		stored = trajectory.state
@@ -82,9 +81,8 @@ class TrajectoryTests(unittest.TestCase):
 		np.testing.assert_allclose(trajectory.state, [1.0, 2.0, 3.0, 4.0])
 
 	def test_fc_state_layout_and_scales(self) -> None:
-		trajectory = TrajectoryFC(rho=0.4, eta=-0.2)
 		state = np.asarray([1.0, 2.0, 3.0, 4.0, 0.5, 0.6, -0.5, -0.6])
-		trajectory.set_initial_state(state)
+		trajectory = TrajectoryFC(state, rho=0.4, eta=-0.2)
 
 		x, y = trajectory.positions(state)
 		vx, vy = trajectory.velocities(state)
@@ -96,8 +94,89 @@ class TrajectoryTests(unittest.TestCase):
 		self.assertAlmostEqual(trajectory.electric_scale, -2.5)
 		self.assertAlmostEqual(trajectory.larmor_frequency, -2.5)
 
+	def test_area_constructors_and_area_calculation(self) -> None:
+		square = Area.square(
+			center=(2 * np.pi - 0.25, 2 * np.pi - 0.25),
+			side=1.0,
+			points_per_side=4,
+			rho=0.2,
+		)
+		self.assertIsInstance(square, TrajectoryGC)
+		self.assertEqual(square.shape, "square")
+		self.assertAlmostEqual(float(square.calculate_area()), 1.0)
+
+		square_state = square.state
+		assert square_state is not None
+		x, y = square.positions(square_state)
+		wrapped = np.concatenate((x % (2 * np.pi), y % (2 * np.pi)))
+		self.assertAlmostEqual(
+			float(square.calculate_area(wrapped, period=2 * np.pi)),
+			1.0,
+		)
+
+		circle = Area.circle(center=(1.0, 2.0), radius=0.5, points=128)
+		self.assertEqual(circle.shape, "circle")
+		expected_polygon_area = 128 * 0.5**2 * np.sin(2 * np.pi / 128) / 2
+		self.assertAlmostEqual(
+			float(circle.calculate_area()),
+			expected_polygon_area,
+		)
+
+		circle_state = circle.state
+		assert circle_state is not None
+		time_series = np.column_stack((circle_state, circle_state + 0.1))
+		areas = circle.calculate_area(time_series)
+		self.assertEqual(areas.shape, (2,))
+		np.testing.assert_allclose(areas, expected_polygon_area)
+
+		system = SystemGC(random_potential(), square)
+		solution = system.simulate(
+			step=0.01,
+			t_span=(0.0, 0.02),
+			n_save_step=3,
+			check_energy=False,
+			progress=False,
+		)
+		transported_area = square.calculate_area(solution.y, period=2 * np.pi)
+		self.assertEqual(transported_area.shape, (3,))
+		self.assertTrue(np.all(np.isfinite(transported_area)))
+
 
 class SystemTests(unittest.TestCase):
+	def test_gc_area_animation_tracks_relative_error(self) -> None:
+		area = Area.square(
+			center=(np.pi, np.pi),
+			side=1.0,
+			points_per_side=4,
+			rho=0.05,
+		)
+		system = SystemGC(random_potential(), area)
+		solution = system.simulate(
+			step=0.01,
+			t_span=(0.0, 0.02),
+			n_save_step=3,
+			check_energy=False,
+			progress=False,
+		)
+
+		animation = system.animate_area(solution, frames=3, interval=20)
+		artists = animation._func(2)
+		self.assertEqual(len(artists), 6)
+		self.assertEqual(artists[1].__class__.__name__, "Quiver")
+		expected_area = area.calculate_area(solution.y, period=2 * np.pi)
+		expected_error = (expected_area - expected_area[0]) / abs(expected_area[0])
+		np.testing.assert_allclose(artists[3].get_xdata(), solution.t)
+		np.testing.assert_allclose(artists[3].get_ydata(), expected_error)
+		self.assertIn("varepsilon_A", artists[5].get_text())
+		animation._draw_was_started = True
+
+		plain_trajectory = TrajectoryGC(np.asarray([1.0, 1.2]), rho=0.05)
+		plain_system = SystemGC(random_potential(), plain_trajectory)
+		with self.assertRaises(TypeError):
+			plain_system.animate_area(solution)
+		with self.assertRaises(ValueError):
+			system.animate_area(solution, frames=1)
+
 	def test_simulate_requires_an_initial_state(self) -> None:
 		system = SystemGC(random_potential(), TrajectoryGC(rho=0.05))
 

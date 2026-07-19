@@ -8,16 +8,23 @@ import numpy as np
 
 
 class Trajectory:
-	"""Particle parameters and an explicitly assigned initial state."""
+	"""Particle parameters and an optional initial state."""
 
 	state_dimension: ClassVar[int]
 
-	def __init__(self, *, rho: float = 0.0) -> None:
+	def __init__(
+		self,
+		state: np.ndarray | None = None,
+		*,
+		rho: float = 0.0,
+	) -> None:
 		rho = float(rho)
 		if not np.isfinite(rho) or rho < 0:
 			raise ValueError("`rho` must be finite and non-negative.")
 		self.rho = rho
 		self._state: np.ndarray | None = None
+		if state is not None:
+			self.set_initial_state(state)
 
 	@property
 	def state(self) -> np.ndarray | None:

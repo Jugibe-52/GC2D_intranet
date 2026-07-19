@@ -339,6 +339,15 @@ class Potential:
 
 		times = np.linspace(0.0, t_max, frames, endpoint=False)
 		fields = [self.evaluate(time) for time in times]
+		quiver_stride = max(1, int(np.ceil(max(self.grid.shape) / 20)))
+		quiver_x, quiver_y = np.meshgrid(
+			self.grid.x[::quiver_stride],
+			self.grid.y[::quiver_stride],
+			indexing="ij",
+		)
+		electric_fields = [
+			self.electric_field(time, quiver_x, quiver_y) for time in times
+		]
 		vmin = min(float(np.min(field)) for field in fields)
 		vmax = max(float(np.max(field)) for field in fields)
 		if vmin < 0 < vmax:
@@ -361,12 +370,20 @@ class Potential:
 			**pcolormesh_kwargs,
 		)
 		fig.colorbar(mesh, ax=ax, label=r"$\phi$")
+		quiver = ax.quiver(
+			quiver_x,
+			quiver_y,
+			*electric_fields[0],
+			color="black",
+			width=0.003,
+		)
 		ax.set(xlabel="x", ylabel="y", aspect="equal")
 
 		def update(index: int) -> tuple[Any, ...]:
 			mesh.set_array(fields[index].T)
+			quiver.set_UVC(*electric_fields[index])
 			ax.set_title(rf"Potential, $t={times[index]:.3f}$")
-			return mesh, ax.title
+			return mesh, quiver, ax.title
 
 		update(0)
 		animation = FuncAnimation(
