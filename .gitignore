@@ -10,7 +10,8 @@ logs/
 *.log
 *.mat
 
-# Only development notebooks define the supported interactive API.
+# Development notebooks are local working files. Experiments are versioned as
+# research artifacts but are not part of the supported interactive API.
 notebooks/*
-!notebooks/developement/
-!notebooks/developement/**
+!notebooks/experiments/
+!notebooks/experiments/**
