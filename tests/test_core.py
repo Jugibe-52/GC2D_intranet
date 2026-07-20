@@ -216,6 +216,22 @@ class TrajectoryTests(unittest.TestCase):
 class SystemTests(unittest.TestCase):
 	"""Contracts for composition, BM4 integration and system visualizations."""
 
+	def test_gc_coupling_frequency_is_configurable_on_the_system(self) -> None:
+		trajectory = TrajectoryGC(np.asarray([1.0, 1.2]), rho=0.05)
+		default_system = SystemGC(random_potential(), trajectory)
+		configured_system = SystemGC(
+			random_potential(),
+			trajectory,
+			coupling_frequency=2.5,
+		)
+
+		self.assertAlmostEqual(default_system.coupling_frequency, np.pi / 8)
+		self.assertEqual(configured_system.coupling_frequency, 2.5)
+		with self.assertRaises(ValueError):
+			SystemGC(random_potential(), trajectory, coupling_frequency=0.0)
+		with self.assertRaises(ValueError):
+			SystemGC(random_potential(), trajectory, coupling_frequency=np.inf)
+
 	def test_gc_area_animation_tracks_relative_error(self) -> None:
 		area = Area.square(
 			center=(np.pi, np.pi),

@@ -26,11 +26,28 @@ class SystemGC(System):
 
 	trajectory: TrajectoryGC
 
-	def __init__(self, potential: Potential, trajectory: TrajectoryGC) -> None:
-		"""Construct the GC system and precompute its effective potential."""
+	def __init__(
+		self,
+		potential: Potential,
+		trajectory: TrajectoryGC,
+		*,
+		coupling_frequency: float = np.pi / 8,
+	) -> None:
+		"""Construct a GC system with a configurable copy-coupling frequency.
+
+		``coupling_frequency`` is the positive dimensionless angular frequency
+		that binds the two extended-phase-space GC copies.  It is numerical, not
+		a physical cyclotron frequency, and defaults to ``pi / 8``.
+		"""
 		if not isinstance(trajectory, TrajectoryGC):
 			raise TypeError("SystemGC requires a TrajectoryGC instance.")
+		coupling_frequency = float(coupling_frequency)
+		if not np.isfinite(coupling_frequency) or coupling_frequency <= 0:
+			raise ValueError("`coupling_frequency` must be finite and positive.")
 		super().__init__(potential, trajectory)
+		# This belongs to the numerical GC integrator, rather than to the
+		# trajectory, because it controls the extended-state copy binding.
+		self.coupling_frequency = coupling_frequency
 		# Gyroaveraging depends only on the fixed Larmor radius, so doing it once
 		# avoids rebuilding the effective field during every vector evaluation.
 		self.effective_potential = potential.gyroaverage(trajectory.rho)

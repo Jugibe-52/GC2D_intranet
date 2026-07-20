@@ -70,6 +70,7 @@ class _GCSystem(_EnergySystem, Protocol):
 	"""Operations that the private GC integrator consumes from a system."""
 
 	trajectory: TrajectoryGC
+	coupling_frequency: float
 
 	def vector_field(self, t: float, state: np.ndarray) -> np.ndarray:
 		"""Evaluate the guiding-centre equations."""
@@ -386,11 +387,10 @@ def _solve_composed(
 
 
 @lru_cache(maxsize=256)
-def _gc_coupling(step: float) -> np.ndarray:
+def _gc_coupling(step: float, frequency: float) -> np.ndarray:
 	"""Return the 4x4 exact harmonic mixing matrix for the two GC copies."""
 	# This is an algorithmic binding frequency for the duplicated states, not
 	# the physical Larmor frequency owned by an FC trajectory.
-	frequency = 10.0
 	return np.asarray(
 		(
 			_COUPLING_BASE
@@ -405,6 +405,7 @@ def _couple_gc_state(
 	step: float,
 	state: _GCExtendedState,
 	trajectory: TrajectoryGC,
+	coupling_frequency: float,
 ) -> _GCExtendedState:
 	"""Mix duplicated GC coordinates while leaving time momentum unchanged."""
 	first = trajectory.split(state.first)
@@ -412,7 +413,13 @@ def _couple_gc_state(
 	# ``blocks`` has leading order (x_first, y_first, x_second, y_second); all
 	# particle and optional saved-time axes are vectorized by the ellipsis.
 	blocks = np.stack((*first, *second), axis=0)
-	coupled = np.asarray(np.einsum("ij,j...->i...", _gc_coupling(step), blocks))
+	coupled = np.asarray(
+		np.einsum(
+			"ij,j...->i...",
+			_gc_coupling(step, coupling_frequency),
+			blocks,
+		)
+	)
 	return _GCExtendedState(
 		# Both slices already have explicit (component, particle, *sample) axes.
 		# Flattening them is normally a view and postpones the sole required copy
@@ -508,11 +515,17 @@ def solve_gc(
 			h,
 			_GCExtendedState(first, second, momentum),
 			trajectory,
+			system.coupling_frequency,
 		).pack()
 
 	def adjoint_flow(h: float, t: float, value: np.ndarray) -> np.ndarray:
 		"""Apply the reverse-ordered counterpart of the direct GC map."""
-		current = _couple_gc_state(h, unpack(value), trajectory)
+		current = _couple_gc_state(
+			h,
+			unpack(value),
+			trajectory,
+			system.coupling_frequency,
+		)
 		first = current.first + h * vector_field(t, current.second)
 		momentum = _updated_momentum(system, current.momentum, h, t, current.second)
 		second = current.second + h * vector_field(t, first)

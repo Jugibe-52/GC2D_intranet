@@ -55,7 +55,7 @@ trajectory = TrajectoryGC.from_components(
     rho=0.3,
 )
 
-system = SystemGC(potential, trajectory)
+system = SystemGC(potential, trajectory, coupling_frequency=2.0)
 solution = system.simulate(
     t_span=(0.0, 6 * np.pi),
     step=0.001,
@@ -67,6 +67,9 @@ solution = system.simulate(
 
 `SystemGC` integra el movimiento del centro guía sobre el potencial efectivo
 giro-promediado. El potencial físico original permanece en `potential`.
+`coupling_frequency` controla el acoplamiento numérico entre las dos copias
+internas del integrador GC; no representa una frecuencia física. Su valor por
+defecto es `pi / 8` y puede ajustarse al construir el sistema.
 
 ## Ejemplo FC
 
