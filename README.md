@@ -257,9 +257,11 @@ por los notebooks de desarrollo. El potencial permite:
 - `test_dX_dY.ipynb`: conservación del área de un contorno transportado en GC.
 - `study_gc_symplecticity.ipynb`: jacobianos de `flow` y `adjoint_flow`, defecto
   simpléctico y persistencia por bloques bajo `outputs/`.
+- `study_gc_projected_symplecticity_area.ipynb`: simplecticidad acumulada del
+  mapa físico proyectado, separación de las copias y evolución del área.
 
-Los diagnósticos específicos de esta última investigación viven en
-`research/symplecticity/`. Las salidas se organizan automáticamente como
+Los diagnósticos específicos de estas investigaciones viven en
+`research/symplecticity/` y `research/projection/`. Las salidas se organizan como
 `outputs/<carpeta del notebook>/<notebook>/<fecha>/` y no se versionan.
 
 La estructura interna se resume en
