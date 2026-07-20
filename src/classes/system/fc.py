@@ -55,7 +55,7 @@ class SystemFC(System):
 		)
 		# Position uses the model's normalized velocity scale. The cross terms
 		# rotate velocity at the signed Larmor frequency.
-		return self.trajectory.pack(
+		return self.trajectory.pack_components(
 			components.vx * self.trajectory.velocity_scale,
 			components.vy * self.trajectory.velocity_scale,
 			acceleration_x + components.vy * self.trajectory.larmor_frequency,

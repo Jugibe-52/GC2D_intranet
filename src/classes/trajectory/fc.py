@@ -55,6 +55,21 @@ class TrajectoryFC(Trajectory):
 		self.eta = eta
 		super().__init__(state, rho=rho)
 
+	@classmethod
+	def from_components(
+		cls,
+		*,
+		x: np.ndarray,
+		y: np.ndarray,
+		vx: np.ndarray,
+		vy: np.ndarray,
+		rho: float,
+		eta: float,
+	) -> TrajectoryFC:
+		"""Create an FC trajectory without exposing the packed state order."""
+		state = cls.pack_components(x, y, vx, vy)
+		return cls(state, rho=rho, eta=eta)
+
 	@property
 	def velocity_scale(self) -> float:
 		"""Return the factor mapping ``vx, vy`` to ``dx/dt, dy/dt``."""

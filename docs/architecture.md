@@ -30,7 +30,7 @@ Contiene los parámetros de la partícula y su estado inicial:
 - `TrajectoryFC`: bloques `[x, y, vx, vy]`, `rho` y `eta`.
 
 El estado inicial puede asignarse en el constructor o posteriormente con
-`set_initial_state(...)`. `split(...)`, `pack(...)` y `particle_count(...)`
+`set_initial_state(...)`. `split(...)`, `pack_components(...)` y `particle_count(...)`
 centralizan el formato físico del estado. Los resultados de `split(...)` tienen
 componentes con nombre: `[x, y]` para GC y `[x, y, vx, vy]` para FC. Una
 trayectoria no conoce el potencial ni el algoritmo de integración.
@@ -90,7 +90,22 @@ El integrador mantiene estructuras privadas diferentes del estado físico:
 
 Estas estructuras, el acoplamiento GC y los flujos directo/adjunto FC pertenecen
 a `_integration`. Se construyen y descomponen mediante `Trajectory.split(...)`
-y `Trajectory.pack(...)`, sin duplicar el layout físico dentro de `System`.
+y `Trajectory.pack_components(...)`, sin duplicar el layout físico dentro de
+`System`.
+
+La interfaz permite construir trayectorias con `from_components(...)`, por lo
+que los notebooks no necesitan conocer el orden plano. Dentro de los algoritmos,
+`Trajectory.as_blocks(...)` interpreta el estado como
+`(componentes, partículas, *muestras)` y `from_blocks(...)` recupera el formato
+plano. Ambas transformaciones son vistas cuando el layout de memoria lo permite.
+`Solution` conserva la trayectoria que produjo el resultado y
+`solution.components()` devuelve directamente sus bloques físicos con nombre.
+
+El orden por componentes mantiene contiguos todos los valores de una magnitud y
+favorece las evaluaciones vectorizadas del potencial. El vector plano se conserva
+como contrato estable del motor de composición; los flujos evitan reempaquetar
+una misma representación física y el acoplamiento GC aplana directamente los
+bloques que produce la operación matricial.
 
 Las dependencias solo avanzan hacia la composición y la integración. No hay
 dependencias desde `Potential` hacia `Trajectory`, ni desde `Trajectory` hacia

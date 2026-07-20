@@ -39,6 +39,18 @@ class TrajectoryGC(Trajectory):
 		"""Create a GC trajectory with normalized Larmor radius ``rho``."""
 		super().__init__(state, rho=rho)
 
+	@classmethod
+	def from_components(
+		cls,
+		*,
+		x: np.ndarray,
+		y: np.ndarray,
+		rho: float = 0.0,
+	) -> TrajectoryGC:
+		"""Create a GC trajectory without exposing the packed state order."""
+		state = cls.pack_components(x, y)
+		return cls(state, rho=rho)
+
 	def split(self, state: np.ndarray) -> GCState:
 		"""Return named ``x`` and ``y`` blocks, preserving sample axes."""
 		x, y = super().split(state)

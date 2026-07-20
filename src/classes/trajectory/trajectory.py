@@ -75,36 +75,81 @@ class Trajectory:
 		shape ``(state_dimension * N, *sample_axes)`` is split along axis zero,
 		leaving every component with shape ``(N, *sample_axes)``.
 		"""
+		blocks = self.as_blocks(state)
+		return tuple(blocks[index] for index in range(self.state_dimension))
+
+	def as_blocks(self, state: np.ndarray) -> np.ndarray:
+		"""Expose a packed state as ``(components, particles, *samples)``.
+
+		The returned array is a reshape view whenever NumPy can preserve the input
+		memory layout.  Making both physical axes explicit avoids repeating manual
+		block offsets inside numerical algorithms.
+		"""
 		value = np.asarray(state)
-		if value.ndim == 0 or value.shape[0] == 0 or value.shape[0] % self.state_dimension:
+		if (
+			value.ndim == 0
+			or value.shape[0] == 0
+			or value.shape[0] % self.state_dimension
+		):
 			raise ValueError(
 				f"The first state dimension must be divisible by {self.state_dimension} "
 				f"for {self.__class__.__name__}."
 			)
-		return tuple(np.split(value, self.state_dimension, axis=0))
+		particle_count = value.shape[0] // self.state_dimension
+		return value.reshape(
+			(self.state_dimension, particle_count, *value.shape[1:])
+		)
 
-	def pack(self, *components: np.ndarray) -> np.ndarray:
-		"""Pack equally shaped ``(N, *sample_axes)`` component blocks.
+	def from_blocks(self, blocks: np.ndarray) -> np.ndarray:
+		"""Flatten ``(components, particles, *samples)`` into state layout.
 
-		The inverse of :meth:`split` concatenates components in the physical
-		order defined by the concrete trajectory type.
+		This is the inverse view operation of :meth:`as_blocks`.  It is useful for
+		internal algorithms that already produce all component blocks in one array
+		and therefore need not concatenate them individually.
 		"""
-		if len(components) != self.state_dimension:
+		value = np.asarray(blocks)
+		if (
+			value.ndim < 2
+			or value.shape[0] != self.state_dimension
+			or value.shape[1] == 0
+		):
 			raise ValueError(
-				f"{self.__class__.__name__} requires {self.state_dimension} components."
+				f"Blocks for {self.__class__.__name__} must have shape "
+				f"({self.state_dimension}, N, *sample_axes) with N greater than zero."
+			)
+		return value.reshape(
+			(self.state_dimension * value.shape[1], *value.shape[2:])
+		)
+
+	@classmethod
+	def pack_components(cls, *components: np.ndarray) -> np.ndarray:
+		"""Pack named-constructor inputs without requiring a trajectory instance.
+
+		Every component has shape ``(N, *sample_axes)``. The concrete trajectory
+		class supplies their required count and physical order through
+		``state_dimension`` and the order in which callers pass the arrays.
+		"""
+		if len(components) != cls.state_dimension:
+			raise ValueError(
+				f"{cls.__name__} requires {cls.state_dimension} components."
 			)
 		values = tuple(np.asarray(component) for component in components)
 		if not values or values[0].ndim == 0 or values[0].shape[0] == 0:
 			raise ValueError("State components must be non-empty arrays.")
 		if any(value.shape != values[0].shape for value in values[1:]):
 			raise ValueError("All state components must have the same shape.")
-		return np.concatenate(values, axis=0)
+		# Stack once to make the component axis explicit, then flatten that axis and
+		# the particle axis through a view. This keeps packing as one allocation.
+		blocks = np.stack(values, axis=0)
+		return np.asarray(
+			blocks.reshape(
+				(cls.state_dimension * blocks.shape[1], *blocks.shape[2:])
+			)
+		)
 
 	def particle_count(self, state: np.ndarray) -> int:
 		"""Return ``N`` from the leading axis, ignoring all sample axes."""
-		value = np.asarray(state)
-		self.split(value)
-		return int(value.shape[0] // self.state_dimension)
+		return int(self.as_blocks(state).shape[1])
 
 	def positions(self, state: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
 		"""Return coordinate blocks ``x`` and ``y`` with matching shapes."""

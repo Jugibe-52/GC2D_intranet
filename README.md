@@ -49,7 +49,11 @@ potential = Potential.random(
 x0 = potential.grid.xmin + potential.grid.period / 2
 y0 = potential.grid.ymin + potential.grid.period / 2
 
-trajectory = TrajectoryGC(np.array([x0, y0]), rho=0.3)
+trajectory = TrajectoryGC.from_components(
+    x=np.array([x0]),
+    y=np.array([y0]),
+    rho=0.3,
+)
 
 system = SystemGC(potential, trajectory)
 solution = system.simulate(
@@ -83,8 +87,11 @@ potential = Potential.random(
 x0 = potential.grid.xmin + potential.grid.period / 2
 y0 = potential.grid.ymin + potential.grid.period / 2
 
-trajectory = TrajectoryFC(
-    np.array([x0, y0, 1.0, 0.0]),
+trajectory = TrajectoryFC.from_components(
+    x=np.array([x0]),
+    y=np.array([y0]),
+    vx=np.array([1.0]),
+    vy=np.array([0.0]),
     rho=0.3,
     eta=0.01,
 )
@@ -114,7 +121,7 @@ Por ejemplo, dos estados GC se escriben así:
 
 ```python
 trajectory = TrajectoryGC(rho=0.3)
-state = trajectory.pack(
+state = trajectory.pack_components(
     np.array([x1, x2]),
     np.array([y1, y2]),
 )
@@ -125,15 +132,34 @@ print(components.x, components.y)
 print(trajectory.particle_count(state))  # 2
 ```
 
+Para código de usuario se recomienda el constructor semántico, que evita
+depender de ese orden interno:
+
+```python
+trajectory = TrajectoryGC.from_components(
+    x=np.array([x1, x2]),
+    y=np.array([y1, y2]),
+    rho=0.3,
+)
+```
+
+`as_blocks(...)` expone una vista con forma
+`(componentes, partículas, *muestras)` y `from_blocks(...)` realiza la
+transformación inversa. El integrador usa estos ejes explícitos internamente,
+pero conserva el vector plano como formato estable de entrada y salida.
+`pack_components(...)` permite obtener ese vector directamente desde la clase;
+`from_components(...)` lo utiliza para construir la trayectoria en un solo paso.
+
 Las trayectorias aceptan el estado inicial en el constructor y también permiten
 reemplazarlo con `set_initial_state(...)`. Las geometrías reutilizables de
 contornos pertenecen a `Area`; otras condiciones específicas del experimento
 se preparan en el notebook.
 
 `TrajectoryGC.split(...)` devuelve componentes con nombre `x` e `y`;
-`TrajectoryFC.split(...)` añade `vx` y `vy`. El método `pack(...)` realiza la
-operación inversa. De esta forma, el formato físico del estado pertenece a la
-trayectoria y el integrador no necesita repetir su estructura.
+`TrajectoryFC.split(...)` añade `vx` y `vy`. El método de clase
+`pack_components(...)` realiza la operación inversa. De esta forma, el formato
+físico del estado pertenece a la trayectoria y el integrador no necesita repetir
+su estructura.
 
 ## Áreas
 
@@ -193,6 +219,15 @@ La solución ofrece como mínimo:
 - `solution.n_steps`: número de pasos internos.
 - `solution.k`: momento extendido cuando se comprueba la energía.
 - `solution.err`: error energético máximo cuando se solicita.
+- `solution.components()`: bloques físicos con nombre según la trayectoria.
+
+Por ejemplo:
+
+```python
+components = solution.components()
+x = components.x  # forma (partículas, tiempos)
+y = components.y
+```
 
 El Hamiltoniano también puede evaluarse directamente:
 

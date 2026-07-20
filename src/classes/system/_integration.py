@@ -182,7 +182,11 @@ class _FCExtendedState:
 
 	def pack(self, trajectory: TrajectoryFC) -> np.ndarray:
 		"""Restore the flat layout expected by the composition engine."""
-		physical = trajectory.pack(*self.physical)
+		physical = trajectory.pack_components(*self.physical)
+		return self.pack_array(physical)
+
+	def pack_array(self, physical: np.ndarray) -> np.ndarray:
+		"""Attach optional momentum to an already packed physical state."""
 		return (
 			physical
 			if self.momentum is None
@@ -410,8 +414,11 @@ def _couple_gc_state(
 	blocks = np.stack((*first, *second), axis=0)
 	coupled = np.asarray(np.einsum("ij,j...->i...", _gc_coupling(step), blocks))
 	return _GCExtendedState(
-		first=trajectory.pack(coupled[0], coupled[1]),
-		second=trajectory.pack(coupled[2], coupled[3]),
+		# Both slices already have explicit (component, particle, *sample) axes.
+		# Flattening them is normally a view and postpones the sole required copy
+		# until the extended state is packed for the composition engine.
+		first=trajectory.from_blocks(coupled[:2]),
+		second=trajectory.from_blocks(coupled[2:]),
 		momentum=state.momentum,
 	)
 
@@ -528,10 +535,11 @@ def solve_gc(
 	first = trajectory.split(final_state.first)
 	second = trajectory.split(final_state.second)
 	# Project the doubled coordinates back onto the physical diagonal.
-	solution.y = trajectory.pack(
+	solution.y = trajectory.pack_components(
 		(first.x + second.x) / 2,
 		(first.y + second.y) / 2,
 	)
+	solution.trajectory = trajectory
 	if final_state.momentum is not None:
 		# The extended Hamiltonian contains one contribution from each physical
 		# copy, so its conjugate momentum is twice the physical value.
@@ -627,7 +635,7 @@ def solve_fc(
 			physical.vx + h * acceleration_x,
 			physical.vy + h * acceleration_y,
 		)
-		physical_array = trajectory.pack(*physical)
+		physical_array = trajectory.pack_components(*physical)
 		momentum = _updated_momentum(
 			system,
 			current.momentum,
@@ -635,7 +643,7 @@ def solve_fc(
 			t,
 			physical_array,
 		)
-		return _FCExtendedState(physical, momentum).pack(trajectory)
+		return _FCExtendedState(physical, momentum).pack_array(physical_array)
 
 	def adjoint_flow(h: float, t: float, value: np.ndarray) -> np.ndarray:
 		"""Apply the electric kick before exact cyclotron motion."""
@@ -651,15 +659,22 @@ def solve_fc(
 			current.physical.vx + h * acceleration_x,
 			current.physical.vy + h * acceleration_y,
 		)
-		physical_array = trajectory.pack(*physical)
-		momentum = _updated_momentum(
-			system,
-			current.momentum,
-			h,
-			t,
-			physical_array,
-		)
+		momentum = current.momentum
+		if momentum is not None:
+			# This pre-cyclotron representation is needed only for the optional
+			# generalized-energy diagnostic. Avoid allocating it in the default path.
+			physical_array = trajectory.pack_components(*physical)
+			momentum = _updated_momentum(
+				system,
+				momentum,
+				h,
+				t,
+				physical_array,
+			)
 		physical = _cyclotron_step(trajectory, physical, h)
+		# The cyclotron map changes the physical arrays after the momentum update,
+		# so pack its result once; unlike the direct flow, the pre-map packed state
+		# cannot also be returned to the composition engine.
 		return _FCExtendedState(physical, momentum).pack(trajectory)
 
 	solution = _solve_composed(
@@ -674,7 +689,8 @@ def solve_fc(
 	)
 	# Unpacking the saved result retains its final time axis in every FC block.
 	final_state = unpack(solution.y)
-	solution.y = trajectory.pack(*final_state.physical)
+	solution.y = trajectory.pack_components(*final_state.physical)
+	solution.trajectory = trajectory
 	if final_state.momentum is not None:
 		solution.k = final_state.momentum
 		solution.err = system._energy_error(solution)

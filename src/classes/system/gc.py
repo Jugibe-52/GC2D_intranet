@@ -48,7 +48,7 @@ class SystemGC(System):
 			components.y,
 		)
 		# The GC Poisson structure rotates the electric field clockwise.
-		return self.trajectory.pack(ey, -ex)
+		return self.trajectory.pack_components(ey, -ex)
 
 	def hamiltonian(
 		self,

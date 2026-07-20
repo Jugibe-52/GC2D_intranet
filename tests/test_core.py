@@ -89,11 +89,50 @@ class TrajectoryTests(unittest.TestCase):
 		components = trajectory.split(stored)
 		np.testing.assert_allclose(components.x, x)
 		np.testing.assert_allclose(components.y, y)
-		np.testing.assert_allclose(trajectory.pack(*components), stored)
+		np.testing.assert_allclose(trajectory.pack_components(*components), stored)
 		self.assertEqual(trajectory.particle_count(stored), 2)
 
 		stored[0] = -20.0
 		np.testing.assert_allclose(trajectory.state, [1.0, 2.0, 3.0, 4.0])
+
+	def test_component_constructors_and_explicit_block_views(self) -> None:
+		"""Named constructors hide packing while block transforms remain views."""
+		x = np.asarray([1.0, 2.0])
+		y = np.asarray([3.0, 4.0])
+		np.testing.assert_allclose(
+			TrajectoryGC.pack_components(x, y),
+			[1.0, 2.0, 3.0, 4.0],
+		)
+		gc = TrajectoryGC.from_components(x=x, y=y, rho=0.2)
+		gc_state = gc.state
+		assert gc_state is not None
+		np.testing.assert_allclose(gc_state, [1.0, 2.0, 3.0, 4.0])
+
+		blocks = gc.as_blocks(gc_state)
+		self.assertEqual(blocks.shape, (2, 2))
+		self.assertTrue(np.shares_memory(blocks, gc_state))
+		flat = gc.from_blocks(blocks)
+		self.assertTrue(np.shares_memory(flat, blocks))
+		np.testing.assert_allclose(flat, gc_state)
+
+		fc = TrajectoryFC.from_components(
+			x=x,
+			y=y,
+			vx=np.asarray([0.5, 0.6]),
+			vy=np.asarray([-0.5, -0.6]),
+			rho=0.4,
+			eta=-0.2,
+		)
+		fc_state = fc.state
+		assert fc_state is not None
+		np.testing.assert_allclose(
+			fc_state,
+			[1.0, 2.0, 3.0, 4.0, 0.5, 0.6, -0.5, -0.6],
+		)
+		self.assertEqual(fc.as_blocks(fc_state).shape, (4, 2))
+
+		with self.assertRaises(ValueError):
+			TrajectoryGC.from_components(x=x, y=y[:-1], rho=0.2)
 
 	def test_fc_state_layout_and_scales(self) -> None:
 		# FC appends velocity blocks to the GC position blocks: [x, y, vx, vy].
@@ -114,13 +153,13 @@ class TrajectoryTests(unittest.TestCase):
 		np.testing.assert_allclose(components.y, y)
 		np.testing.assert_allclose(components.vx, vx)
 		np.testing.assert_allclose(components.vy, vy)
-		np.testing.assert_allclose(trajectory.pack(*components), state)
+		np.testing.assert_allclose(trajectory.pack_components(*components), state)
 		self.assertEqual(trajectory.particle_count(state), 2)
 
 		with self.assertRaises(ValueError):
-			trajectory.pack(x, y, vx)
+			trajectory.pack_components(x, y, vx)
 		with self.assertRaises(ValueError):
-			trajectory.pack(x, y[:-1], vx, vy)
+			trajectory.pack_components(x, y[:-1], vx, vy)
 
 	def test_area_constructors_and_area_calculation(self) -> None:
 		# This center makes the unit square cross both periodic cell boundaries.
@@ -254,6 +293,12 @@ class SystemTests(unittest.TestCase):
 		self.assertGreater(solution.n_steps, 0)
 		self.assertTrue(np.all(np.isfinite(np.asarray(solution.err))))
 		self.assertTrue(np.all(np.isfinite(system.hamiltonian(solution.t, solution.y))))
+		self.assertIs(solution.trajectory, trajectory)
+		components = solution.components()
+		self.assertEqual(components.x.shape, (1, 5))
+		self.assertEqual(components.y.shape, (1, 5))
+		with self.assertRaises(TypeError):
+			solution.components(TrajectoryFC(rho=0.2, eta=0.1))
 
 	def test_fc_bm4_simulation_tracks_generalized_energy(self) -> None:
 		trajectory = TrajectoryFC(rho=0.2, eta=0.1)
@@ -275,6 +320,10 @@ class SystemTests(unittest.TestCase):
 		self.assertGreater(solution.n_steps, 0)
 		self.assertTrue(np.all(np.isfinite(np.asarray(solution.err))))
 		self.assertTrue(np.all(np.isfinite(system.hamiltonian(solution.t, solution.y))))
+		self.assertIs(solution.trajectory, trajectory)
+		components = solution.components()
+		self.assertEqual(components.x.shape, (1, 5))
+		self.assertEqual(components.vx.shape, (1, 5))
 
 
 if __name__ == "__main__":

@@ -40,6 +40,19 @@ class Area(TrajectoryGC):
 			raise ValueError("An area boundary requires at least three points.")
 
 	@classmethod
+	def from_components(
+		cls,
+		*,
+		x: np.ndarray,
+		y: np.ndarray,
+		shape: Literal["square", "circle"] = "square",
+		rho: float = 0.0,
+	) -> Area:
+		"""Create a boundary from named coordinates and an optional shape label."""
+		state = cls.pack_components(x, y)
+		return cls(state, shape=shape, rho=rho)
+
+	@classmethod
 	def square(
 		cls,
 		*,
