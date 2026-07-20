@@ -10,6 +10,7 @@ from classes.potential import Potential
 from classes.trajectory.trajectory import Trajectory
 
 from .solution import Solution
+from .observation import StageObserver
 
 
 class System(ABC):
@@ -57,6 +58,7 @@ class System(ABC):
 		n_save_step: int = 361,
 		check_energy: bool = False,
 		progress: bool = False,
+		stage_observer: StageObserver | None = None,
 	) -> Solution:
 		"""Integrate the stored initial state with the fixed BM4 path.
 
@@ -64,7 +66,9 @@ class System(ABC):
 		the uniformly spaced states exposed in the returned solution. ``t_span``
 		contains the initial and final simulation times. ``check_energy`` augments
 		the state with momentum conjugate to time; ``progress`` affects only the
-		terminal display, never the numerical result.
+		terminal display, never the numerical result. ``stage_observer`` receives
+		independent diagnostic snapshots of every direct and adjoint BM4 stage; it is
+		intended for research instrumentation and is disabled by default.
 		"""
 		state = self.trajectory.state
 		if state is None:
@@ -76,6 +80,7 @@ class System(ABC):
 			n_save_step=n_save_step,
 			check_energy=check_energy,
 			progress=progress,
+			stage_observer=stage_observer,
 		)
 
 	def _energy_error(self, solution: Solution) -> float:
@@ -105,6 +110,7 @@ class System(ABC):
 		n_save_step: int,
 		check_energy: bool,
 		progress: bool,
+		stage_observer: StageObserver | None,
 	) -> Solution:
 		"""Run the concrete GC or FC integration path."""
 

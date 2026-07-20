@@ -8,6 +8,7 @@ from classes.potential import Potential
 from classes.trajectory import TrajectoryFC
 
 from ._integration import solve_fc
+from .observation import StageObserver
 from .solution import Solution
 from .system import System
 
@@ -104,6 +105,7 @@ class SystemFC(System):
 		n_save_step: int,
 		check_energy: bool,
 		progress: bool,
+		stage_observer: StageObserver | None,
 	) -> Solution:
 		"""Delegate FC splitting and BM4 composition to the private integrator."""
 		return solve_fc(
@@ -114,6 +116,7 @@ class SystemFC(System):
 			n_save_step=n_save_step,
 			check_energy=check_energy,
 			progress=progress,
+			stage_observer=stage_observer,
 		)
 
 

@@ -85,6 +85,20 @@ class Trajectory:
 		memory layout.  Making both physical axes explicit avoids repeating manual
 		block offsets inside numerical algorithms.
 		"""
+		value = self.validate_packed_state(state)
+		particle_count = value.shape[0] // self.state_dimension
+		return value.reshape(
+			(self.state_dimension, particle_count, *value.shape[1:])
+		)
+
+	def validate_packed_state(self, state: np.ndarray) -> np.ndarray:
+		"""Validate and return a component-major state array.
+
+		The leading axis must contain a non-zero whole number of physical
+		component blocks.  Block consumers call this indirectly through
+		:meth:`as_blocks`; integrators can call it when only layout validation is
+		required.
+		"""
 		value = np.asarray(state)
 		if (
 			value.ndim == 0
@@ -95,10 +109,7 @@ class Trajectory:
 				f"The first state dimension must be divisible by {self.state_dimension} "
 				f"for {self.__class__.__name__}."
 			)
-		particle_count = value.shape[0] // self.state_dimension
-		return value.reshape(
-			(self.state_dimension, particle_count, *value.shape[1:])
-		)
+		return value
 
 	def from_blocks(self, blocks: np.ndarray) -> np.ndarray:
 		"""Flatten ``(components, particles, *samples)`` into state layout.

@@ -6,7 +6,15 @@ import unittest
 
 import numpy as np
 
-from classes import Area, Potential, SystemFC, SystemGC, TrajectoryFC, TrajectoryGC
+from classes import (
+	Area,
+	IntegrationStage,
+	Potential,
+	SystemFC,
+	SystemGC,
+	TrajectoryFC,
+	TrajectoryGC,
+)
 
 
 def random_potential(*, interpolation_order: int = 3) -> Potential:
@@ -91,6 +99,9 @@ class TrajectoryTests(unittest.TestCase):
 		np.testing.assert_allclose(components.y, y)
 		np.testing.assert_allclose(trajectory.pack_components(*components), stored)
 		self.assertEqual(trajectory.particle_count(stored), 2)
+		self.assertIs(trajectory.validate_packed_state(stored), stored)
+		with self.assertRaises(ValueError):
+			trajectory.validate_packed_state(np.asarray([1.0, 2.0, 3.0]))
 
 		stored[0] = -20.0
 		np.testing.assert_allclose(trajectory.state, [1.0, 2.0, 3.0, 4.0])
@@ -237,6 +248,41 @@ class SystemTests(unittest.TestCase):
 			SystemGC(random_potential(), trajectory, coupling_frequency=-0.1)
 		with self.assertRaises(ValueError):
 			SystemGC(random_potential(), trajectory, coupling_frequency=np.inf)
+
+	def test_composition_stage_observer_receives_fixed_gc_maps(self) -> None:
+		"""Observers see twelve immutable stage snapshots per complete BM4 step."""
+		trajectory = TrajectoryGC(np.asarray([1.0, 1.2]), rho=0.05)
+		system = SystemGC(random_potential(), trajectory)
+		events: list[IntegrationStage] = []
+		solution = system.simulate(
+			step=0.01,
+			t_span=(0.0, 0.01),
+			n_save_step=2,
+			check_energy=False,
+			progress=False,
+			stage_observer=events.append,
+		)
+		reference = system.simulate(
+			step=0.01,
+			t_span=(0.0, 0.01),
+			n_save_step=2,
+			check_energy=False,
+			progress=False,
+		)
+
+		self.assertEqual(solution.n_steps, 1)
+		np.testing.assert_array_equal(solution.y, reference.y)
+		self.assertEqual(len(events), 12)
+		self.assertEqual([event.stage_index for event in events], list(range(12)))
+		self.assertEqual(events[0].flow_name, "adjoint_flow")
+		self.assertEqual(events[1].flow_name, "flow")
+		for event in events:
+			self.assertEqual(event.system_name, "SystemGC")
+			self.assertEqual(event.step_index, 0)
+			np.testing.assert_allclose(
+				event.map_state(event.state_before),
+				event.state_after,
+			)
 
 	def test_gc_area_animation_tracks_relative_error(self) -> None:
 		area = Area.square(

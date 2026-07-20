@@ -11,6 +11,7 @@ from classes.potential import Potential
 from classes.trajectory import Area, TrajectoryGC
 
 from ._integration import solve_gc
+from .observation import StageObserver
 from ._visualization import animate_gc_area
 from .solution import Solution
 from .system import System
@@ -135,6 +136,7 @@ class SystemGC(System):
 		n_save_step: int,
 		check_energy: bool,
 		progress: bool,
+		stage_observer: StageObserver | None,
 	) -> Solution:
 		"""Delegate GC-specific state expansion and BM4 flows to the integrator."""
 		return solve_gc(
@@ -145,6 +147,7 @@ class SystemGC(System):
 			n_save_step=n_save_step,
 			check_energy=check_energy,
 			progress=progress,
+			stage_observer=stage_observer,
 		)
 
 

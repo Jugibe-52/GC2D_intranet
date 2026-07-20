@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from functools import lru_cache
 import math
 import sys
-from typing import Callable, Protocol
+from typing import Callable, Literal, Protocol
 
 import numpy as np
 
@@ -17,6 +17,7 @@ from classes.trajectory.fc import FCState, TrajectoryFC
 from classes.trajectory.gc import GCState, TrajectoryGC
 
 from .solution import Solution
+from .observation import IntegrationStage, StageObserver
 
 
 # A split flow receives a (possibly signed) stage duration, the time at which
@@ -303,6 +304,10 @@ def _advance(
 	t: float,
 	state: np.ndarray,
 	step: float,
+	*,
+	step_index: int,
+	system_name: str,
+	stage_observer: StageObserver | None,
 ) -> tuple[float, np.ndarray]:
 	"""Apply one complete fourth-order BM4 composition.
 
@@ -310,14 +315,53 @@ def _advance(
 	fraction for one direct or adjoint subflow. ``t`` follows every signed stage
 	so that time-dependent potentials are evaluated at the correct endpoint.
 	"""
-	for coefficient, order in zip(_BM4_STAGES, _BM4_ORDERS, strict=True):
+	for stage_index, (coefficient, order) in enumerate(
+		zip(_BM4_STAGES, _BM4_ORDERS, strict=True)
+	):
 		stage = float(coefficient * step)
 		# The adjoint is evaluated at the incoming time and the direct map at
 		# the outgoing time so the non-autonomous composition remains symmetric.
 		if order == 0:
-			state = _checked_flow(flow, stage, t + stage, state)
+			selected_flow = flow
+			flow_name: Literal["flow", "adjoint_flow"] = "flow"
+			evaluation_time = t + stage
 		else:
-			state = _checked_flow(adjoint_flow, stage, t, state)
+			selected_flow = adjoint_flow
+			flow_name = "adjoint_flow"
+			evaluation_time = t
+
+		state_before = state
+		state = _checked_flow(selected_flow, stage, evaluation_time, state_before)
+		if stage_observer is not None:
+			def map_state(
+				candidate: np.ndarray,
+				_selected_flow: Flow = selected_flow,
+				_stage: float = stage,
+				_evaluation_time: float = evaluation_time,
+			) -> np.ndarray:
+				"""Evaluate this fixed stage on a diagnostic perturbation."""
+				return _checked_flow(
+					_selected_flow,
+					_stage,
+					_evaluation_time,
+					candidate,
+				)
+
+			# Snapshots prevent diagnostic code from mutating the live integration
+			# state. The fixed map remains callable for numerical differentiation.
+			stage_observer(
+				IntegrationStage(
+					system_name=system_name,
+					flow_name=flow_name,
+					step_index=step_index,
+					stage_index=stage_index,
+					time=evaluation_time,
+					duration=stage,
+					state_before=np.asarray(state_before).copy(),
+					state_after=np.asarray(state).copy(),
+					map_state=map_state,
+				)
+			)
 		t += stage
 	return t, state
 
@@ -341,6 +385,7 @@ def _solve_composed(
 	*,
 	progress: bool,
 	label: str,
+	stage_observer: StageObserver | None,
 ) -> Solution:
 	"""Integrate between requested output times with a composed fixed step.
 
@@ -371,7 +416,16 @@ def _solve_composed(
 			internal_step = duration / count
 			segment_start = t
 			for index in range(count):
-				t, value = _advance(flow, adjoint_flow, t, value, internal_step)
+				t, value = _advance(
+					flow,
+					adjoint_flow,
+					t,
+					value,
+					internal_step,
+					step_index=n_steps,
+					system_name=label,
+					stage_observer=stage_observer,
+				)
 				# Reconstructing time from the segment origin avoids accumulating
 				# floating-point drift over many composition stages.
 				t = segment_start + (index + 1) * internal_step
@@ -461,6 +515,7 @@ def solve_gc(
 	n_save_step: int,
 	check_energy: bool,
 	progress: bool,
+	stage_observer: StageObserver | None,
 ) -> Solution:
 	"""Integrate one GC physical state in doubled extended phase space.
 
@@ -471,7 +526,7 @@ def solve_gc(
 	"""
 	trajectory = system.trajectory
 	physical_state = np.asarray(state, dtype=float)
-	trajectory.split(physical_state)
+	physical_state = trajectory.validate_packed_state(physical_state)
 	# ``physical_size`` counts both coordinate blocks, whereas
 	# ``particle_count`` is the number of values in either x or y alone.
 	physical_size = physical_state.size
@@ -541,6 +596,7 @@ def solve_gc(
 		n_save_step,
 		progress=progress,
 		label="SystemGC",
+		stage_observer=stage_observer,
 	)
 	# Here ``unpack`` preserves the saved-time axis, so each copy has shape
 	# ``(physical_size, n_save_step)`` rather than being an instantaneous vector.
@@ -601,6 +657,7 @@ def solve_fc(
 	n_save_step: int,
 	check_energy: bool,
 	progress: bool,
+	stage_observer: StageObserver | None,
 ) -> Solution:
 	"""Integrate one FC physical state with direct and adjoint split flows.
 
@@ -699,6 +756,7 @@ def solve_fc(
 		n_save_step,
 		progress=progress,
 		label="SystemFC",
+		stage_observer=stage_observer,
 	)
 	# Unpacking the saved result retains its final time axis in every FC block.
 	final_state = unpack(solution.y)

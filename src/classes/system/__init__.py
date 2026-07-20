@@ -2,4 +2,6 @@
 
 from .fc import SystemFC
 from .gc import SystemGC
-__all__ = ["SystemFC", "SystemGC"]
+from .observation import IntegrationStage, StageObserver
+
+__all__ = ["IntegrationStage", "StageObserver", "SystemFC", "SystemGC"]

@@ -214,6 +214,8 @@ Los argumentos habituales son:
 - `n_save_step`: número de muestras que se guardan, incluidos los extremos.
 - `check_energy`: calcula la energía generalizada y su error.
 - `progress`: muestra el avance de integraciones GC largas.
+- `stage_observer`: callback opcional para instrumentar las doce etapas internas
+  de cada paso BM4 sin modificar el resultado numérico.
 
 La solución ofrece como mínimo:
 
@@ -253,6 +255,12 @@ por los notebooks de desarrollo. El potencial permite:
 - `test_generalized_energy_.ipynb`: convergencia y conservación de la energía
   generalizada en GC, más una comprobación corta de FC.
 - `test_dX_dY.ipynb`: conservación del área de un contorno transportado en GC.
+- `study_gc_symplecticity.ipynb`: jacobianos de `flow` y `adjoint_flow`, defecto
+  simpléctico y persistencia por bloques bajo `outputs/`.
+
+Los diagnósticos específicos de esta última investigación viven en
+`research/symplecticity/`. Las salidas se organizan automáticamente como
+`outputs/<carpeta del notebook>/<notebook>/<fecha>/` y no se versionan.
 
 La estructura interna se resume en
 [`docs/architecture.md`](docs/architecture.md).
