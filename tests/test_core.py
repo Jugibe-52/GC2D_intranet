@@ -227,8 +227,14 @@ class SystemTests(unittest.TestCase):
 
 		self.assertAlmostEqual(default_system.coupling_frequency, np.pi / 8)
 		self.assertEqual(configured_system.coupling_frequency, 2.5)
+		zero_frequency_system = SystemGC(
+			random_potential(),
+			trajectory,
+			coupling_frequency=0.0,
+		)
+		self.assertEqual(zero_frequency_system.coupling_frequency, 0.0)
 		with self.assertRaises(ValueError):
-			SystemGC(random_potential(), trajectory, coupling_frequency=0.0)
+			SystemGC(random_potential(), trajectory, coupling_frequency=-0.1)
 		with self.assertRaises(ValueError):
 			SystemGC(random_potential(), trajectory, coupling_frequency=np.inf)
 

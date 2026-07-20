@@ -35,15 +35,15 @@ class SystemGC(System):
 	) -> None:
 		"""Construct a GC system with a configurable copy-coupling frequency.
 
-		``coupling_frequency`` is the positive dimensionless angular frequency
+		``coupling_frequency`` is the non-negative dimensionless angular frequency
 		that binds the two extended-phase-space GC copies.  It is numerical, not
 		a physical cyclotron frequency, and defaults to ``pi / 8``.
 		"""
 		if not isinstance(trajectory, TrajectoryGC):
 			raise TypeError("SystemGC requires a TrajectoryGC instance.")
 		coupling_frequency = float(coupling_frequency)
-		if not np.isfinite(coupling_frequency) or coupling_frequency <= 0:
-			raise ValueError("`coupling_frequency` must be finite and positive.")
+		if not np.isfinite(coupling_frequency) or coupling_frequency < 0:
+			raise ValueError("`coupling_frequency` must be finite and non-negative.")
 		super().__init__(potential, trajectory)
 		# This belongs to the numerical GC integrator, rather than to the
 		# trajectory, because it controls the extended-state copy binding.
