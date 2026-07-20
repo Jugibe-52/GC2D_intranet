@@ -235,6 +235,17 @@ def animate_gc_area(
 			[times[solution_index]],
 			[relative_error[solution_index]],
 		)
+		# The right panel emphasizes both the instantaneous error and its worst
+		# excursion so far; this makes convergence loss visible while the contour
+		# deforms in the left panel.
+		running_max_error = float(
+			np.max(np.abs(relative_error[: solution_index + 1]))
+		)
+		ax_error.set_title(
+			"Evolución del error relativo del área\n"
+			+ rf"$\varepsilon_A={relative_error[solution_index]:.3e}$, "
+			+ rf"$\max_{{s\leq t}}|\varepsilon_A(s)|={running_max_error:.3e}$"
+		)
 		ax_field.set_title(
 			rf"Potencial efectivo GC, $t={times[solution_index]:.3f}$"
 			+ "\n"

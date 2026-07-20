@@ -259,6 +259,8 @@ por los notebooks de desarrollo. El potencial permite:
   simpléctico y persistencia por bloques bajo `outputs/`.
 - `study_gc_projected_symplecticity_area.ipynb`: simplecticidad acumulada del
   mapa físico proyectado, separación de las copias y evolución del área.
+- `study_gc_area_and_projected_symplecticity.ipynb`: estudio conjunto del
+  barrido de área de `test_dX_dY` y la simplecticidad del mapa proyectado.
 
 Los diagnósticos específicos de estas investigaciones viven en
 `research/symplecticity/` y `research/projection/`. Las salidas se organizan como

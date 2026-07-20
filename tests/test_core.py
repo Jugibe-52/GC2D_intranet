@@ -310,6 +310,7 @@ class SystemTests(unittest.TestCase):
 		np.testing.assert_allclose(artists[3].get_xdata(), solution.t)
 		np.testing.assert_allclose(artists[3].get_ydata(), expected_error)
 		self.assertIn("varepsilon_A", artists[5].get_text())
+		self.assertIn("max", animation._fig.axes[1].get_title())
 		# Mark the test animation as consumed so Matplotlib does not emit a warning.
 		animation._draw_was_started = True
 
