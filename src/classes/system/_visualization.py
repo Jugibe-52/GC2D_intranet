@@ -15,6 +15,69 @@ from classes.trajectory import Area
 from .solution import Solution
 
 
+def _validated_relative_diagnostics(
+	diagnostic_times: np.ndarray | None,
+	relative_symplecticity_errors: np.ndarray | None,
+	relative_copy_separations: np.ndarray | None,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray] | None:
+	"""Validate synchronized, non-negative projected-trajectory diagnostics."""
+	provided = (
+		diagnostic_times,
+		relative_symplecticity_errors,
+		relative_copy_separations,
+	)
+	if all(value is None for value in provided):
+		return None
+	if any(value is None for value in provided):
+		raise ValueError(
+			"`diagnostic_times`, `relative_symplecticity_errors` and "
+			"`relative_copy_separations` must be provided together."
+		)
+
+	# The None case was rejected above; these arrays contain one diagnostic sample
+	# per complete projected integration step, independent of solution saving.
+	assert diagnostic_times is not None
+	assert relative_symplecticity_errors is not None
+	assert relative_copy_separations is not None
+	times = np.asarray(diagnostic_times, dtype=float)
+	symplecticity_errors = np.asarray(relative_symplecticity_errors, dtype=float)
+	copy_separations = np.asarray(relative_copy_separations, dtype=float)
+	if (
+		times.ndim != 1
+		or times.size < 1
+		or symplecticity_errors.shape != times.shape
+		or copy_separations.shape != times.shape
+	):
+		raise ValueError(
+			"Projected diagnostics must be one-dimensional arrays of equal length."
+		)
+	if (
+		not np.all(np.isfinite(times))
+		or not np.all(np.isfinite(symplecticity_errors))
+		or not np.all(np.isfinite(copy_separations))
+		or np.any(np.diff(times) <= 0)
+	):
+		raise ValueError(
+			"Projected diagnostics must be finite and have strictly increasing times."
+		)
+	if np.any(symplecticity_errors < 0) or np.any(copy_separations < 0):
+		raise ValueError("Relative projected diagnostics must be non-negative.")
+	return times, symplecticity_errors, copy_separations
+
+
+def _positive_log_series(values: np.ndarray) -> tuple[np.ndarray, tuple[float, float]]:
+	"""Replace exact zeros for log display and return stable global limits."""
+	positive = values[values > 0]
+	if positive.size:
+		lower = max(float(np.min(positive)) / 2, float(np.finfo(float).tiny))
+		upper = max(float(np.max(positive)) * 2, lower * 10)
+	else:
+		# A fully exact diagnostic still needs a finite visible log-scale range.
+		lower = float(np.finfo(float).eps)
+		upper = 10 * lower
+	return np.maximum(values, lower), (lower, upper)
+
+
 def animate_gc_area(
 	potential: Potential,
 	trajectory: Area,
@@ -24,14 +87,19 @@ def animate_gc_area(
 	interval: int,
 	cmap: str,
 	repeat: bool,
+	diagnostic_times: np.ndarray | None,
+	relative_symplecticity_errors: np.ndarray | None,
+	relative_copy_separations: np.ndarray | None,
 	pcolormesh_kwargs: dict[str, Any],
 ) -> FuncAnimation:
-	"""Render a transported area and its relative conservation error.
+	"""Render a transported area and synchronized relative diagnostics.
 
 	The field and electric arrows share the left panel. The right panel follows
-	the signed change relative to the initial polygon area. ``frames`` is the
-	maximum number of displayed solution samples (all are used when it is
-	``None``), while ``interval`` is the display delay in milliseconds.
+	the signed change relative to the initial polygon area. When projected
+	diagnostics are supplied, two additional log panels follow the relative
+	symplecticity error and relative separation of the internal trajectories.
+	``frames`` is the maximum number of displayed solution samples (all are used
+	when it is ``None``), while ``interval`` is the display delay in milliseconds.
 	"""
 	# ``times`` indexes saved columns and ``states`` keeps the Area's [x, y]
 	# block layout: their expected shapes are (saved_times,) and (2N, saved_times).
@@ -70,6 +138,11 @@ def animate_gc_area(
 		or interval <= 0
 	):
 		raise ValueError("`interval` must be a positive integer.")
+	diagnostics = _validated_relative_diagnostics(
+		diagnostic_times,
+		relative_symplecticity_errors,
+		relative_copy_separations,
+	)
 
 	# These arrays contain one scalar diagnostic per saved time. Area is signed
 	# according to contour orientation; the denominator below is positive so the
@@ -132,12 +205,24 @@ def animate_gc_area(
 		None if np.isclose(max_magnitude, 0.0) else max_magnitude / arrow_length
 	)
 
-	fig, (ax_field, ax_error) = plt.subplots(
-		1,
-		2,
-		figsize=(12, 5),
-		constrained_layout=True,
-	)
+	if diagnostics is None:
+		fig, (ax_field, ax_error) = plt.subplots(
+			1,
+			2,
+			figsize=(12, 5),
+			constrained_layout=True,
+		)
+		ax_symplecticity = None
+		ax_separation = None
+	else:
+		# The field spans the full height while the three scalar histories share the
+		# right column. This keeps the transported contour spatially legible.
+		fig = plt.figure(figsize=(14, 9), constrained_layout=True)
+		grid = fig.add_gridspec(3, 2, width_ratios=(1.2, 1.0))
+		ax_field = fig.add_subplot(grid[:, 0])
+		ax_error = fig.add_subplot(grid[0, 1])
+		ax_symplecticity = fig.add_subplot(grid[1, 1])
+		ax_separation = fig.add_subplot(grid[2, 1])
 	mesh = ax_field.pcolormesh(
 		potential.grid.x,
 		potential.grid.y,
@@ -190,6 +275,58 @@ def animate_gc_area(
 		ylim=(error_min - error_padding, error_max + error_padding),
 	)
 	ax_error.grid(alpha=0.25)
+
+	symplecticity_line = None
+	symplecticity_marker = None
+	separation_line = None
+	separation_marker = None
+	diagnostic_plot_times = None
+	plot_symplecticity_errors = None
+	plot_copy_separations = None
+	if diagnostics is not None:
+		(
+			diagnostic_plot_times,
+			relative_symplecticity_values,
+			relative_copy_values,
+		) = diagnostics
+		plot_symplecticity_errors, symplecticity_limits = _positive_log_series(
+			relative_symplecticity_values
+		)
+		plot_copy_separations, separation_limits = _positive_log_series(
+			relative_copy_values
+		)
+		assert ax_symplecticity is not None
+		assert ax_separation is not None
+		symplecticity_line = ax_symplecticity.plot(
+			[], [], color="tab:purple", linewidth=1.6
+		)[0]
+		symplecticity_marker = ax_symplecticity.plot(
+			[], [], "o", color="black", markersize=5
+		)[0]
+		ax_symplecticity.set(
+			xlabel="t",
+			ylabel=r"$\|DG^T\Omega DG-\Omega\|_F/\|\Omega\|_F$",
+			title="Error simpléctico relativo de la trayectoria proyectada",
+			xlim=(float(times[0]), float(times[-1])),
+			ylim=symplecticity_limits,
+			yscale="log",
+		)
+		ax_symplecticity.grid(alpha=0.25)
+		separation_line = ax_separation.plot(
+			[], [], color="tab:blue", linewidth=1.6
+		)[0]
+		separation_marker = ax_separation.plot(
+			[], [], "o", color="black", markersize=5
+		)[0]
+		ax_separation.set(
+			xlabel="t",
+			ylabel=r"$\|z_1-z_2\|_2/\|(z_1+z_2)/2\|_2$",
+			title="Separación relativa de las trayectorias internas",
+			xlim=(float(times[0]), float(times[-1])),
+			ylim=separation_limits,
+			yscale="log",
+		)
+		ax_separation.grid(alpha=0.25)
 
 	# The component blocks each have shape (boundary_vertices, saved_times).
 	components = trajectory.split(states)
@@ -252,7 +389,77 @@ def animate_gc_area(
 			+ rf"$A={area_values[solution_index]:.6g}$, "
 			+ rf"$\varepsilon_A={relative_error[solution_index]:.3e}$"
 		)
-		return mesh, quiver, contour, error_line, error_marker, ax_field.title
+		artists: list[Any] = [
+			mesh,
+			quiver,
+			contour,
+			error_line,
+			error_marker,
+			ax_field.title,
+		]
+		if diagnostics is not None:
+			assert diagnostic_plot_times is not None
+			assert plot_symplecticity_errors is not None
+			assert plot_copy_separations is not None
+			assert symplecticity_line is not None
+			assert symplecticity_marker is not None
+			assert separation_line is not None
+			assert separation_marker is not None
+			assert ax_symplecticity is not None
+			assert ax_separation is not None
+			current_time = float(times[solution_index])
+			time_tolerance = 32 * np.finfo(float).eps * max(1.0, abs(current_time))
+			diagnostic_stop = int(
+				np.searchsorted(
+					diagnostic_plot_times,
+					current_time + time_tolerance,
+					side="right",
+				)
+			)
+			if diagnostic_stop:
+				symplecticity_line.set_data(
+					diagnostic_plot_times[:diagnostic_stop],
+					plot_symplecticity_errors[:diagnostic_stop],
+				)
+				symplecticity_marker.set_data(
+					[diagnostic_plot_times[diagnostic_stop - 1]],
+					[plot_symplecticity_errors[diagnostic_stop - 1]],
+				)
+				separation_line.set_data(
+					diagnostic_plot_times[:diagnostic_stop],
+					plot_copy_separations[:diagnostic_stop],
+				)
+				separation_marker.set_data(
+					[diagnostic_plot_times[diagnostic_stop - 1]],
+					[plot_copy_separations[diagnostic_stop - 1]],
+				)
+				relative_symplecticity_values = diagnostics[1]
+				relative_copy_values = diagnostics[2]
+				current_symplecticity = float(
+					relative_symplecticity_values[diagnostic_stop - 1]
+				)
+				current_separation = float(relative_copy_values[diagnostic_stop - 1])
+				ax_symplecticity.set_title(
+					"Error simpléctico relativo de la trayectoria proyectada\n"
+					+ rf"$\varepsilon_\Omega={current_symplecticity:.3e}$, "
+					+ rf"$\max={np.max(relative_symplecticity_values[:diagnostic_stop]):.3e}$"
+				)
+				ax_separation.set_title(
+					"Separación relativa de las trayectorias internas\n"
+					+ rf"$\delta_z={current_separation:.3e}$, "
+					+ rf"$\max={np.max(relative_copy_values[:diagnostic_stop]):.3e}$"
+				)
+			artists.extend(
+				[
+					symplecticity_line,
+					symplecticity_marker,
+					separation_line,
+					separation_marker,
+					ax_symplecticity.title,
+					ax_separation.title,
+				]
+			)
+		return tuple(artists)
 
 	update(0)
 	animation = FuncAnimation(

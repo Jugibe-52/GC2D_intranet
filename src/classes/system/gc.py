@@ -103,14 +103,19 @@ class SystemGC(System):
 		interval: int = 50,
 		cmap: str = "RdBu_r",
 		repeat: bool = True,
+		diagnostic_times: np.ndarray | None = None,
+		relative_symplecticity_errors: np.ndarray | None = None,
+		relative_copy_separations: np.ndarray | None = None,
 		**pcolormesh_kwargs: Any,
 	) -> FuncAnimation:
-		"""Animate an Area over the effective field and its relative error.
+		"""Animate an Area over the effective field and relative diagnostics.
 
 		The relative error is measured against the initial signed area and the
 		requested frames are sampled uniformly from the saved solution. ``frames``
 		limits displayed samples without reintegration, and ``interval`` is the
-		delay between displayed frames in milliseconds.
+		delay between displayed frames in milliseconds. Supplying the three
+		projected-diagnostic arrays adds synchronized panels for normalized
+		symplecticity error and normalized internal-copy separation.
 		"""
 		if not isinstance(self.trajectory, Area):
 			raise TypeError("`animate_area` requires an Area trajectory.")
@@ -124,6 +129,9 @@ class SystemGC(System):
 			interval=interval,
 			cmap=cmap,
 			repeat=repeat,
+			diagnostic_times=diagnostic_times,
+			relative_symplecticity_errors=relative_symplecticity_errors,
+			relative_copy_separations=relative_copy_separations,
 			pcolormesh_kwargs=pcolormesh_kwargs,
 		)
 

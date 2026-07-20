@@ -314,12 +314,37 @@ class SystemTests(unittest.TestCase):
 		# Mark the test animation as consumed so Matplotlib does not emit a warning.
 		animation._draw_was_started = True
 
+		diagnostic_times = np.asarray(solution.t)
+		relative_symplecticity_errors = np.asarray([0.0, 1e-12, 2e-12])
+		relative_copy_separations = np.asarray([0.0, 3e-13, 5e-13])
+		diagnostic_animation = system.animate_area(
+			solution,
+			frames=3,
+			interval=20,
+			diagnostic_times=diagnostic_times,
+			relative_symplecticity_errors=relative_symplecticity_errors,
+			relative_copy_separations=relative_copy_separations,
+		)
+		diagnostic_artists = diagnostic_animation._func(2)
+		self.assertEqual(len(diagnostic_artists), 12)
+		np.testing.assert_allclose(diagnostic_artists[6].get_xdata(), solution.t)
+		self.assertAlmostEqual(diagnostic_artists[6].get_ydata()[-1], 2e-12)
+		self.assertAlmostEqual(diagnostic_artists[8].get_ydata()[-1], 5e-13)
+		self.assertIn("max", diagnostic_artists[10].get_text())
+		self.assertIn("max", diagnostic_artists[11].get_text())
+		diagnostic_animation._draw_was_started = True
+
 		plain_trajectory = TrajectoryGC(np.asarray([1.0, 1.2]), rho=0.05)
 		plain_system = SystemGC(random_potential(), plain_trajectory)
 		with self.assertRaises(TypeError):
 			plain_system.animate_area(solution)
 		with self.assertRaises(ValueError):
 			system.animate_area(solution, frames=1)
+		with self.assertRaises(ValueError):
+			system.animate_area(
+				solution,
+				diagnostic_times=diagnostic_times,
+			)
 
 	def test_simulate_requires_an_initial_state(self) -> None:
 		system = SystemGC(random_potential(), TrajectoryGC(rho=0.05))
