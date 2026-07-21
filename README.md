@@ -1,36 +1,36 @@
 # GC2D
 
-Código de investigación para estudiar trayectorias de partículas en un
-potencial electrostático bidimensional.
+Research code for studying particle trajectories in a two-dimensional
+electrostatic potential.
 
-El proyecto se organiza alrededor de cuatro entidades:
+The project is organized around four entities:
 
 ```text
 Potential + Trajectory -> System -> Solution
 ```
 
-- `Potential` representa el campo físico sobre una rejilla periódica.
-- `TrajectoryGC` y `TrajectoryFC` describen el estado de una o varias
-  partículas.
-- `Area` especializa una trayectoria GC como contorno cuadrado o circular.
-- `SystemGC` y `SystemFC` combinan un potencial con una trayectoria y realizan
-  la integración temporal.
+- `Potential` represents the physical field on a periodic grid.
+- `TrajectoryGC` and `TrajectoryFC` describe the state of one or more
+  particles.
+- `Area` specializes a GC trajectory as a square or circular contour.
+- `SystemGC` and `SystemFC` combine a potential with a trajectory and perform
+  the time integration.
 
-Los notebooks de `notebooks/developements/` son los únicos puntos de entrada.
-No hay ejecutables de terminal, configuración externa ni una API de workflows.
+The notebooks in `notebooks/developements/` are the only entry points. There
+are no command-line executables, external configuration, or workflow API.
 
-## Instalación
+## Installation
 
-Se requiere Python 3.11 o posterior.
+Python 3.11 or later is required.
 
 ```bash
 python -m pip install -r requirements.txt
 ```
 
-El paquete queda instalado en modo editable, por lo que los cambios en `src/`
-están disponibles inmediatamente en los notebooks.
+The package is installed in editable mode, so changes in `src/` are immediately
+available to the notebooks.
 
-## Ejemplo GC
+## GC example
 
 ```python
 import numpy as np
@@ -59,19 +59,19 @@ system = SystemGC(potential, trajectory, coupling_frequency=2.0)
 solution = system.simulate(
     t_span=(0.0, 6 * np.pi),
     step=0.001,
-    n_save_step=361,
+    n_output_samples=361,
     check_energy=True,
     progress=True,
 )
 ```
 
-`SystemGC` integra el movimiento del centro guía sobre el potencial efectivo
-giro-promediado. El potencial físico original permanece en `potential`.
-`coupling_frequency` controla el acoplamiento numérico entre las dos copias
-internas del integrador GC; no representa una frecuencia física. Su valor por
-defecto es `pi / 8` y puede ajustarse al construir el sistema.
+`SystemGC` integrates guiding-center motion over the gyroaveraged effective
+potential. The original physical potential remains in `potential`.
+`coupling_frequency` controls the numerical coupling between the two internal
+copies in the GC integrator; it does not represent a physical frequency. Its
+default value is `pi / 8`, and it can be adjusted when the system is built.
 
-## Ejemplo FC
+## FC example
 
 ```python
 import numpy as np
@@ -103,16 +103,16 @@ system = SystemFC(potential, trajectory)
 solution = system.simulate(
     t_span=(0.0, 2 * np.pi),
     step=0.001,
-    n_save_step=101,
+    n_output_samples=101,
     check_energy=True,
 )
 ```
 
-`SystemFC` integra la órbita ciclotrónica completa sobre el potencial físico.
+`SystemFC` integrates the full cyclotron orbit over the physical potential.
 
-## Organización del estado
+## State organization
 
-Los estados usan bloques, no valores intercalados. Para `N` trayectorias:
+States use blocks rather than interleaved values. For `N` trajectories:
 
 ```text
 GC: [x_1, ..., x_N, y_1, ..., y_N]
@@ -120,7 +120,7 @@ FC: [x_1, ..., x_N, y_1, ..., y_N,
      vx_1, ..., vx_N, vy_1, ..., vy_N]
 ```
 
-Por ejemplo, dos estados GC se escriben así:
+For example, two GC states are written as follows:
 
 ```python
 trajectory = TrajectoryGC(rho=0.3)
@@ -135,8 +135,8 @@ print(components.x, components.y)
 print(trajectory.particle_count(state))  # 2
 ```
 
-Para código de usuario se recomienda el constructor semántico, que evita
-depender de ese orden interno:
+For user code, the semantic constructor is recommended because it avoids a
+dependency on that internal ordering:
 
 ```python
 trajectory = TrajectoryGC.from_components(
@@ -146,29 +146,27 @@ trajectory = TrajectoryGC.from_components(
 )
 ```
 
-`as_blocks(...)` expone una vista con forma
-`(componentes, partículas, *muestras)` y `from_blocks(...)` realiza la
-transformación inversa. El integrador usa estos ejes explícitos internamente,
-pero conserva el vector plano como formato estable de entrada y salida.
-`pack_components(...)` permite obtener ese vector directamente desde la clase;
-`from_components(...)` lo utiliza para construir la trayectoria en un solo paso.
+`as_blocks(...)` exposes a view with shape
+`(components, particles, *samples)`, and `from_blocks(...)` performs the inverse
+transformation. The integrator uses these explicit axes internally, while
+retaining the flat vector as the stable input and output format.
+`pack_components(...)` obtains that vector directly from the class;
+`from_components(...)` uses it to build the trajectory in a single step.
 
-Las trayectorias aceptan el estado inicial en el constructor y también permiten
-reemplazarlo con `set_initial_state(...)`. Las geometrías reutilizables de
-contornos pertenecen a `Area`; otras condiciones específicas del experimento
-se preparan en el notebook.
+Trajectories accept the initial state in the constructor and also allow it to
+be replaced with `set_initial_state(...)`. Reusable contour geometries belong
+to `Area`; other experiment-specific conditions are prepared in the notebook.
 
-`TrajectoryGC.split(...)` devuelve componentes con nombre `x` e `y`;
-`TrajectoryFC.split(...)` añade `vx` y `vy`. El método de clase
-`pack_components(...)` realiza la operación inversa. De esta forma, el formato
-físico del estado pertenece a la trayectoria y el integrador no necesita repetir
-su estructura.
+`TrajectoryGC.split(...)` returns components named `x` and `y`;
+`TrajectoryFC.split(...)` adds `vx` and `vy`. The `pack_components(...)` class
+method performs the inverse operation. This makes the physical state format the
+trajectory's responsibility, so the integrator does not need to duplicate its
+structure.
 
-## Áreas
+## Areas
 
-`Area` es una trayectoria GC cuyos puntos delimitan un contorno orientado. Se
-puede construir como un cuadrado o un círculo y pasar directamente a
-`SystemGC`:
+`Area` is a GC trajectory whose points delimit an oriented contour. It can be
+built as a square or circle and passed directly to `SystemGC`:
 
 ```python
 from classes import Area
@@ -194,77 +192,85 @@ animation = system.animate_area(
 )
 ```
 
-El constructor alternativo `Area.circle(...)` recibe `center`, `radius` y el
-número total de puntos del contorno. `calculate_area(...)` acepta tanto el
-estado inicial como una serie temporal completa y aplica la fórmula del cordón;
-con `period` también trata correctamente los cruces del borde periódico.
-`SystemGC.animate_area(...)` muestra el contorno sobre el potencial efectivo y
-su campo eléctrico, junto con
-`(A(t) - A(0)) / abs(A(0))` en un segundo panel.
+The alternative `Area.circle(...)` constructor takes `center`, `radius`, and the
+total number of points on the contour. `calculate_area(...)` accepts both the
+initial state and a complete time series and applies the shoelace formula; with
+`period`, it also handles crossings of the periodic boundary correctly.
+`SystemGC.animate_area(...)` displays the contour over the effective potential
+and its electric field, together with
+`(A(t) - A(0)) / abs(A(0))` in a second panel.
+`SystemGC.animate_area_comparison(...)` overlays several solutions saved at the
+same times and uses a consistent color for each solution across the contour,
+area error, and optional projected diagnostics.
 
-## Integración y resultado
+## Integration and results
 
-`System.simulate(...)` utiliza la composición simpléctica BM4. El método es
-fijo para mantener una sola ruta numérica comprensible.
+`System.simulate(...)` uses the symplectic BM4 composition. The method is fixed
+to maintain a single, understandable numerical path. Its uniform BM4 grid
+depends only on `t_span` and `step`; changing `n_output_samples` does not change
+that trajectory. Samples between BM4 nodes are obtained with independent
+shadow BM4 advances from the preceding node.
 
-Los argumentos habituales son:
+The usual arguments are:
 
-- `t_span`: tiempo inicial y final.
-- `step`: paso interno máximo.
-- `n_save_step`: número de muestras que se guardan, incluidos los extremos.
-- `check_energy`: calcula la energía generalizada y su error.
-- `progress`: muestra el avance de integraciones GC largas.
-- `stage_observer`: callback opcional para instrumentar las doce etapas internas
-  de cada paso BM4 sin modificar el resultado numérico.
+- `t_span`: initial and final time.
+- `step`: maximum internal step size.
+- `n_output_samples`: number of saved samples, including the endpoints.
+- `check_energy`: computes the generalized energy and its error.
+- `progress`: shows the progress of long GC integrations.
+- `stage_observer`: optional callback for instrumenting the twelve internal
+  stages of each BM4 step without changing the numerical result; shadow
+  output advances are excluded.
 
-La solución ofrece como mínimo:
+The solution provides at least:
 
-- `solution.t`: tiempos guardados.
-- `solution.y`: estados, con una columna por tiempo.
-- `solution.n_steps`: número de pasos internos.
-- `solution.k`: momento extendido cuando se comprueba la energía.
-- `solution.err`: error energético máximo cuando se solicita.
-- `solution.components()`: bloques físicos con nombre según la trayectoria.
+- `solution.t`: saved times.
+- `solution.y`: states, with one column per time.
+- `solution.n_steps`: number of complete BM4 steps.
+- `solution.k`: extended momentum when the energy is checked.
+- `solution.err`: maximum energy error when requested.
+- `solution.components()`: named physical blocks for the trajectory.
 
-Por ejemplo:
+For example:
 
 ```python
 components = solution.components()
-x = components.x  # forma (partículas, tiempos)
+x = components.x  # shape (particles, times)
 y = components.y
 ```
 
-El Hamiltoniano también puede evaluarse directamente:
+The Hamiltonian can also be evaluated directly:
 
 ```python
 energy = system.hamiltonian(solution.t, solution.y)
 ```
 
-## Potencial
+## Potential
 
-`Potential.random(...)` genera el potencial periódico reproducible utilizado
-por los notebooks de desarrollo. El potencial permite:
+`Potential.random(...)` generates the reproducible periodic potential used by
+the development notebooks. The potential supports:
 
-- evaluar el campo y sus derivadas;
-- obtener el giro-promedio requerido por GC;
-- representar el campo con `potential.plot()`;
-- animarlo con `potential.animate(...)`.
+- evaluating the field and its derivatives;
+- obtaining the gyroaverage required by GC;
+- plotting the field with `potential.plot()`;
+- animating it with `potential.animate(...)`.
 
-## Notebooks de desarrollo
+## Development notebooks
 
-- `test_generalized_energy_.ipynb`: convergencia y conservación de la energía
-  generalizada en GC, más una comprobación corta de FC.
-- `test_dX_dY.ipynb`: conservación del área de un contorno transportado en GC.
-- `study_gc_symplecticity.ipynb`: jacobianos de `flow` y `adjoint_flow`, defecto
-  simpléctico y persistencia por bloques bajo `outputs/`.
-- `study_gc_projected_symplecticity_area.ipynb`: simplecticidad acumulada del
-  mapa físico proyectado, separación de las copias y evolución del área.
-- `study_gc_area_and_projected_symplecticity.ipynb`: estudio conjunto del
-  barrido de área de `test_dX_dY` y la simplecticidad del mapa proyectado.
+- `test_generalized_energy_.ipynb`: convergence and conservation of generalized
+  energy in GC, plus a short FC check.
+- `test_dX_dY.ipynb`: area conservation of a contour transported in GC.
+- `study_gc_symplecticity.ipynb`: Jacobians of `flow` and `adjoint_flow`,
+  symplectic defect, and block persistence under `outputs/`.
+- `study_gc_projected_symplecticity_area.ipynb`: accumulated symplecticity of
+  the projected physical map, copy separation, and area evolution.
+- `study_gc_area_and_projected_symplecticity.ipynb`: animated comparison of a
+  16-point GC circle for three BM4 step sizes, tracking area, projected
+  symplecticity, and internal separation through `4*pi`.
 
-Los diagnósticos específicos de estas investigaciones viven en
-`research/symplecticity/` y `research/projection/`. Las salidas se organizan como
-`outputs/<carpeta del notebook>/<notebook>/<fecha>/` y no se versionan.
+The diagnostics specific to these studies live in `research/symplecticity/`
+and `research/projection/`. Outputs are organized as
+`outputs/<notebook folder>/<notebook>/<date>/` and are not versioned.
 
-La estructura interna se resume en
+The internal structure is summarized in
 [`docs/architecture.md`](docs/architecture.md).

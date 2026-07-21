@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import Any
 
 import matplotlib.colors as mcolors
@@ -15,11 +16,78 @@ from classes.trajectory import Area
 from .solution import Solution
 
 
+ProjectedDiagnostics = tuple[np.ndarray, np.ndarray, np.ndarray]
+
+
+def _validated_solution_series(
+	trajectory: Area,
+	solutions: Sequence[Solution],
+) -> tuple[np.ndarray, tuple[np.ndarray, ...]]:
+	"""Validate solutions sampled at common times for direct comparison."""
+	if not solutions:
+		raise ValueError("At least one solution is required for an area animation.")
+	initial_state = trajectory.state
+	assert initial_state is not None
+	reference_times: np.ndarray | None = None
+	state_series: list[np.ndarray] = []
+	for solution in solutions:
+		if not isinstance(solution, Solution):
+			raise TypeError("Every animated solution must be a Solution instance.")
+		times = np.asarray(solution.t, dtype=float)
+		states = np.asarray(solution.y, dtype=float)
+		if (
+			times.ndim != 1
+			or times.size < 2
+			or states.ndim != 2
+			or states.shape != (initial_state.size, times.size)
+		):
+			raise ValueError(
+				"Each solution must contain at least two times and matching Area states."
+			)
+		if (
+			not np.all(np.isfinite(times))
+			or not np.all(np.isfinite(states))
+			or np.any(np.diff(times) <= 0)
+		):
+			raise ValueError(
+				"Solutions must contain finite states and strictly increasing times."
+			)
+		if reference_times is None:
+			reference_times = times
+		else:
+			time_scale = max(1.0, float(np.max(np.abs(reference_times))))
+			tolerance = float(32 * np.finfo(float).eps * time_scale)
+			if times.shape != reference_times.shape or not np.allclose(
+				times,
+				reference_times,
+				rtol=0.0,
+				atol=tolerance,
+			):
+				raise ValueError(
+					"Compared solutions must be saved at the same times."
+				)
+		state_series.append(states)
+	assert reference_times is not None
+	return reference_times, tuple(state_series)
+
+
+def _validated_labels(labels: Sequence[str], series_count: int) -> tuple[str, ...]:
+	"""Require one distinct, non-empty display label per solution."""
+	values = tuple(labels)
+	if (
+		len(values) != series_count
+		or any(not isinstance(label, str) or not label.strip() for label in values)
+		or len(set(values)) != len(values)
+	):
+		raise ValueError("Each solution requires a distinct, non-empty label.")
+	return values
+
+
 def _validated_relative_diagnostics(
 	diagnostic_times: np.ndarray | None,
 	relative_symplecticity_errors: np.ndarray | None,
 	relative_copy_separations: np.ndarray | None,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray] | None:
+) -> ProjectedDiagnostics | None:
 	"""Validate synchronized, non-negative projected-trajectory diagnostics."""
 	provided = (
 		diagnostic_times,
@@ -33,9 +101,6 @@ def _validated_relative_diagnostics(
 			"`diagnostic_times`, `relative_symplecticity_errors` and "
 			"`relative_copy_separations` must be provided together."
 		)
-
-	# The None case was rejected above; these arrays contain one diagnostic sample
-	# per complete projected integration step, independent of solution saving.
 	assert diagnostic_times is not None
 	assert relative_symplecticity_errors is not None
 	assert relative_copy_separations is not None
@@ -65,67 +130,87 @@ def _validated_relative_diagnostics(
 	return times, symplecticity_errors, copy_separations
 
 
-def _positive_log_series(values: np.ndarray) -> tuple[np.ndarray, tuple[float, float]]:
-	"""Replace exact zeros for log display and return stable global limits."""
-	positive = values[values > 0]
+def _validated_diagnostic_series(
+	diagnostic_times: Sequence[np.ndarray | None],
+	relative_symplecticity_errors: Sequence[np.ndarray | None],
+	relative_copy_separations: Sequence[np.ndarray | None],
+	series_count: int,
+) -> tuple[ProjectedDiagnostics, ...] | None:
+	"""Validate either complete diagnostics for every series or none at all."""
+	if not (
+		len(diagnostic_times)
+		== len(relative_symplecticity_errors)
+		== len(relative_copy_separations)
+		== series_count
+	):
+		raise ValueError("Diagnostic sequences must match the number of solutions.")
+	validated = tuple(
+		_validated_relative_diagnostics(times, defects, separations)
+		for times, defects, separations in zip(
+			diagnostic_times,
+			relative_symplecticity_errors,
+			relative_copy_separations,
+			strict=True,
+		)
+	)
+	if all(item is None for item in validated):
+		return None
+	if any(item is None for item in validated):
+		raise ValueError("Projected diagnostics are required for every comparison.")
+	return tuple(item for item in validated if item is not None)
+
+
+def _positive_log_limits(values: Sequence[np.ndarray]) -> tuple[float, float]:
+	"""Return stable global log limits, including diagnostics that begin at zero."""
+	combined = np.concatenate(tuple(values))
+	positive = combined[combined > 0]
 	if positive.size:
 		lower = max(float(np.min(positive)) / 2, float(np.finfo(float).tiny))
 		upper = max(float(np.max(positive)) * 2, lower * 10)
 	else:
-		# A fully exact diagnostic still needs a finite visible log-scale range.
 		lower = float(np.finfo(float).eps)
 		upper = 10 * lower
-	return np.maximum(values, lower), (lower, upper)
+	return lower, upper
+
+
+def _linear_limits(values: Sequence[np.ndarray]) -> tuple[float, float]:
+	"""Return padded global limits for several signed linear diagnostics."""
+	lower = min(float(np.min(value)) for value in values)
+	upper = max(float(np.max(value)) for value in values)
+	span = upper - lower
+	padding = float(
+		0.05 * span
+		if span > 0
+		else 0.05 * abs(lower) or float(np.finfo(float).eps)
+	)
+	return lower - padding, upper + padding
 
 
 def animate_gc_area(
 	potential: Potential,
 	trajectory: Area,
-	solution: Solution,
+	solutions: Sequence[Solution],
 	*,
+	labels: Sequence[str],
 	frames: int | None,
 	interval: int,
 	cmap: str,
 	repeat: bool,
-	diagnostic_times: np.ndarray | None,
-	relative_symplecticity_errors: np.ndarray | None,
-	relative_copy_separations: np.ndarray | None,
+	diagnostic_times: Sequence[np.ndarray | None],
+	relative_symplecticity_errors: Sequence[np.ndarray | None],
+	relative_copy_separations: Sequence[np.ndarray | None],
 	pcolormesh_kwargs: dict[str, Any],
 ) -> FuncAnimation:
-	"""Render a transported area and synchronized relative diagnostics.
+	"""Render one or more transported areas and synchronized diagnostics.
 
-	The field and electric arrows share the left panel. The right panel follows
-	the signed change relative to the initial polygon area. When projected
-	diagnostics are supplied, two additional log panels follow the relative
-	symplecticity error and relative separation of the internal trajectories.
-	``frames`` is the maximum number of displayed solution samples (all are used
-	when it is ``None``), while ``interval`` is the display delay in milliseconds.
+	All compared solutions share saved times. Their contours and scalar histories
+	use a common color per integration step. Optional projected diagnostics add
+	logarithmic panels for normalized symplecticity error and normalized separation
+	of the two internal extended-phase-space trajectories.
 	"""
-	# ``times`` indexes saved columns and ``states`` keeps the Area's [x, y]
-	# block layout: their expected shapes are (saved_times,) and (2N, saved_times).
-	times = np.asarray(solution.t, dtype=float)
-	states = np.asarray(solution.y, dtype=float)
-	initial_state = trajectory.state
-	# ``SystemGC.animate_area`` guarantees an Area with an initialized state;
-	# keeping the assertion here also narrows the type for static analysis.
-	assert initial_state is not None
-	if (
-		times.ndim != 1
-		or times.size < 2
-		or states.ndim != 2
-		or states.shape != (initial_state.size, times.size)
-	):
-		raise ValueError(
-			"`solution` must contain at least two times and matching Area states."
-		)
-	if (
-		not np.all(np.isfinite(times))
-		or not np.all(np.isfinite(states))
-		or np.any(np.diff(times) <= 0)
-	):
-		raise ValueError(
-			"The solution must contain finite states and strictly increasing times."
-		)
+	times, state_series = _validated_solution_series(trajectory, solutions)
+	series_count = len(state_series)
+	series_labels = _validated_labels(labels, series_count)
 	if frames is not None and (
 		isinstance(frames, (bool, np.bool_))
 		or not isinstance(frames, (int, np.integer))
@@ -138,57 +223,55 @@ def animate_gc_area(
 		or interval <= 0
 	):
 		raise ValueError("`interval` must be a positive integer.")
-	diagnostics = _validated_relative_diagnostics(
+	diagnostics = _validated_diagnostic_series(
 		diagnostic_times,
 		relative_symplecticity_errors,
 		relative_copy_separations,
+		series_count,
 	)
 
-	# These arrays contain one scalar diagnostic per saved time. Area is signed
-	# according to contour orientation; the denominator below is positive so the
-	# relative error retains the direction of its change.
-	area_values = trajectory.calculate_area(states, period=potential.grid.period)
-	initial_area = float(area_values[0])
-	if initial_area == 0.0:
-		raise ValueError("The initial area must be non-zero.")
-	relative_error = (area_values - initial_area) / abs(initial_area)
+	# Each array has one signed polygon area per common saved time. Normalizing by
+	# the positive initial magnitude preserves the direction of each area change.
+	area_values = tuple(
+		trajectory.calculate_area(states, period=potential.grid.period)
+		for states in state_series
+	)
+	initial_areas = tuple(float(values[0]) for values in area_values)
+	if any(initial_area == 0.0 for initial_area in initial_areas):
+		raise ValueError("Every initial area must be non-zero.")
+	relative_area_errors = tuple(
+		(values - initial_area) / abs(initial_area)
+		for values, initial_area in zip(area_values, initial_areas, strict=True)
+	)
 
-	# ``frame_indices`` maps animation frames back to columns of the full saved
-	# solution; subsampling changes only the visualization, never the diagnostics.
+	# Subsampling changes only displayed frames. Every diagnostic retains its full
+	# temporal resolution and is revealed up to the current animation time.
 	frame_count = times.size if frames is None else min(int(frames), times.size)
 	frame_indices = np.linspace(0, times.size - 1, frame_count, dtype=int)
 	frame_times = times[frame_indices]
-	# Precomputing all displayed fields gives every frame the same color limits
-	# and keeps animation callbacks free of repeated spline evaluations. Every
-	# entry in ``fields`` has the potential grid's (nx, ny) convention.
 	fields = [potential.evaluate(time) for time in frame_times]
 	vmin = min(float(np.min(field)) for field in fields)
 	vmax = max(float(np.max(field)) for field in fields)
 	if vmin < 0 < vmax:
-		# A zero-centered diverging scale makes opposite potential signs visually
-		# comparable even when their extrema have different magnitudes.
 		norm: mcolors.Normalize = mcolors.TwoSlopeNorm(
 			vmin=vmin,
 			vcenter=0.0,
 			vmax=vmax,
 		)
 	elif np.isclose(vmin, vmax):
-		# Matplotlib needs a non-degenerate range for a spatially constant field.
 		delta = abs(vmin) * 0.01 or 1.0
 		norm = mcolors.Normalize(vmin=vmin - delta, vmax=vmax + delta)
 	else:
 		norm = mcolors.Normalize(vmin=vmin, vmax=vmax)
 
-	# Limit arrows to roughly twenty samples per axis: the scalar field retains
-	# full resolution while the vector overlay stays legible. ``quiver_x`` and
-	# ``quiver_y`` are the sparse physical coordinates where vectors are sampled.
+	# Roughly twenty arrows per axis retain field direction without hiding the
+	# compared contours. One global scale makes magnitudes comparable over time.
 	quiver_stride = max(1, int(np.ceil(max(potential.grid.shape) / 20)))
 	quiver_x, quiver_y = np.meshgrid(
 		potential.grid.x[::quiver_stride],
 		potential.grid.y[::quiver_stride],
 		indexing="ij",
 	)
-	# Each tuple is (Ex, Ey) on the sparse quiver grid for one displayed time.
 	electric_fields = [
 		potential.electric_field(time, quiver_x, quiver_y) for time in frame_times
 	]
@@ -196,17 +279,13 @@ def animate_gc_area(
 		float(np.max(np.hypot(field_x, field_y)))
 		for field_x, field_y in electric_fields
 	)
-	# ``arrow_length`` is a visual target based on the spacing between sampled
-	# arrows, not another physical field magnitude.
 	arrow_length = 0.75 * quiver_stride * min(potential.grid.dx, potential.grid.dy)
-	# A global scale preserves relative arrow magnitudes across time. ``None``
-	# lets Matplotlib handle the special case of an identically zero field.
 	quiver_scale = (
 		None if np.isclose(max_magnitude, 0.0) else max_magnitude / arrow_length
 	)
 
 	if diagnostics is None:
-		fig, (ax_field, ax_error) = plt.subplots(
+		fig, (ax_field, ax_area) = plt.subplots(
 			1,
 			2,
 			figsize=(12, 5),
@@ -215,14 +294,13 @@ def animate_gc_area(
 		ax_symplecticity = None
 		ax_separation = None
 	else:
-		# The field spans the full height while the three scalar histories share the
-		# right column. This keeps the transported contour spatially legible.
 		fig = plt.figure(figsize=(14, 9), constrained_layout=True)
 		grid = fig.add_gridspec(3, 2, width_ratios=(1.2, 1.0))
 		ax_field = fig.add_subplot(grid[:, 0])
-		ax_error = fig.add_subplot(grid[0, 1])
+		ax_area = fig.add_subplot(grid[0, 1])
 		ax_symplecticity = fig.add_subplot(grid[1, 1])
 		ax_separation = fig.add_subplot(grid[2, 1])
+
 	mesh = ax_field.pcolormesh(
 		potential.grid.x,
 		potential.grid.y,
@@ -243,7 +321,23 @@ def animate_gc_area(
 		scale=quiver_scale,
 		width=0.003,
 	)
-	contour = ax_field.plot([], [], color="lime", linewidth=2.0)[0]
+	comparison = series_count > 1
+	shared_colors = tuple(f"C{index}" for index in range(series_count))
+	contour_colors = shared_colors if comparison else ("lime",)
+	area_colors = shared_colors if comparison else ("tab:red",)
+	symplecticity_colors = shared_colors if comparison else ("tab:purple",)
+	separation_colors = shared_colors if comparison else ("tab:blue",)
+
+	contours = tuple(
+		ax_field.plot(
+			[],
+			[],
+			color=color,
+			linewidth=2.0,
+			label=label if comparison else None,
+		)[0]
+		for color, label in zip(contour_colors, series_labels, strict=True)
+	)
 	ax_field.set(
 		xlabel="x",
 		ylabel="y",
@@ -251,101 +345,158 @@ def animate_gc_area(
 		xlim=(potential.grid.xmin, potential.grid.xmin + potential.grid.period),
 		ylim=(potential.grid.ymin, potential.grid.ymin + potential.grid.period),
 	)
+	if comparison:
+		ax_field.legend(title="Integration step", loc="upper right")
 
-	error_line = ax_error.plot([], [], color="tab:red", linewidth=1.6)[0]
-	error_marker = ax_error.plot([], [], "o", color="black", markersize=5)[0]
-	ax_error.axhline(0.0, color="0.5", linestyle="--", linewidth=1)
-	# These extrema describe the entire diagnostic, including frames skipped by
-	# visual subsampling, so the error axis stays fixed throughout the animation.
-	error_min = float(np.min(relative_error))
-	error_max = float(np.max(relative_error))
-	error_span = error_max - error_min
-	# Pad both constant and varying traces so the line is never clipped against
-	# a degenerate y-axis.
-	error_padding = (
-		0.05 * error_span
-		if error_span > 0
-		else 0.05 * abs(error_min) or np.finfo(float).eps
+	area_lines = tuple(
+		ax_area.plot(
+			[],
+			[],
+			color=color,
+			linewidth=1.6,
+			label=label if comparison else None,
+		)[0]
+		for color, label in zip(area_colors, series_labels, strict=True)
 	)
-	ax_error.set(
+	area_markers = tuple(
+		ax_area.plot(
+			[],
+			[],
+			"o",
+			color=color if comparison else "black",
+			markeredgecolor="black",
+			markersize=5,
+		)[0]
+		for color in area_colors
+	)
+	ax_area.axhline(0.0, color="0.5", linestyle="--", linewidth=1)
+	ax_area.set(
 		xlabel="t",
 		ylabel=r"$\varepsilon_A(t)=(A(t)-A(0))/|A(0)|$",
-		title="Error relativo del área",
+		title="Relative area error evolution",
 		xlim=(float(times[0]), float(times[-1])),
-		ylim=(error_min - error_padding, error_max + error_padding),
+		ylim=_linear_limits(relative_area_errors),
 	)
-	ax_error.grid(alpha=0.25)
+	ax_area.grid(alpha=0.25)
+	if comparison:
+		ax_area.legend(loc="best", fontsize="small")
 
-	symplecticity_line = None
-	symplecticity_marker = None
-	separation_line = None
-	separation_marker = None
-	diagnostic_plot_times = None
-	plot_symplecticity_errors = None
-	plot_copy_separations = None
+	symplecticity_lines: tuple[Any, ...] = ()
+	symplecticity_markers: tuple[Any, ...] = ()
+	separation_lines: tuple[Any, ...] = ()
+	separation_markers: tuple[Any, ...] = ()
+	diagnostic_plot_times: tuple[np.ndarray, ...] | None = None
+	relative_symplecticity_values: tuple[np.ndarray, ...] | None = None
+	relative_copy_values: tuple[np.ndarray, ...] | None = None
+	plot_symplecticity_values: tuple[np.ndarray, ...] | None = None
+	plot_copy_values: tuple[np.ndarray, ...] | None = None
 	if diagnostics is not None:
-		(
-			diagnostic_plot_times,
-			relative_symplecticity_values,
-			relative_copy_values,
-		) = diagnostics
-		plot_symplecticity_errors, symplecticity_limits = _positive_log_series(
-			relative_symplecticity_values
+		diagnostic_plot_times = tuple(item[0] for item in diagnostics)
+		relative_symplecticity_values = tuple(item[1] for item in diagnostics)
+		relative_copy_values = tuple(item[2] for item in diagnostics)
+		symplecticity_limits = _positive_log_limits(relative_symplecticity_values)
+		separation_limits = _positive_log_limits(relative_copy_values)
+		plot_symplecticity_values = tuple(
+			np.maximum(values, symplecticity_limits[0])
+			for values in relative_symplecticity_values
 		)
-		plot_copy_separations, separation_limits = _positive_log_series(
-			relative_copy_values
+		plot_copy_values = tuple(
+			np.maximum(values, separation_limits[0])
+			for values in relative_copy_values
 		)
 		assert ax_symplecticity is not None
 		assert ax_separation is not None
-		symplecticity_line = ax_symplecticity.plot(
-			[], [], color="tab:purple", linewidth=1.6
-		)[0]
-		symplecticity_marker = ax_symplecticity.plot(
-			[], [], "o", color="black", markersize=5
-		)[0]
+		symplecticity_lines = tuple(
+			ax_symplecticity.plot(
+				[],
+				[],
+				color=color,
+				linewidth=1.6,
+				label=label if comparison else None,
+			)[0]
+			for color, label in zip(
+				symplecticity_colors,
+				series_labels,
+				strict=True,
+			)
+		)
+		symplecticity_markers = tuple(
+			ax_symplecticity.plot(
+				[],
+				[],
+				"o",
+				color=color if comparison else "black",
+				markeredgecolor="black",
+				markersize=5,
+			)[0]
+			for color in symplecticity_colors
+		)
 		ax_symplecticity.set(
 			xlabel="t",
 			ylabel=r"$\|DG^T\Omega DG-\Omega\|_F/\|\Omega\|_F$",
-			title="Error simpléctico relativo de la trayectoria proyectada",
+			title="Relative symplecticity error of projected trajectories",
 			xlim=(float(times[0]), float(times[-1])),
 			ylim=symplecticity_limits,
 			yscale="log",
 		)
 		ax_symplecticity.grid(alpha=0.25)
-		separation_line = ax_separation.plot(
-			[], [], color="tab:blue", linewidth=1.6
-		)[0]
-		separation_marker = ax_separation.plot(
-			[], [], "o", color="black", markersize=5
-		)[0]
+		separation_lines = tuple(
+			ax_separation.plot(
+				[],
+				[],
+				color=color,
+				linewidth=1.6,
+				label=label if comparison else None,
+			)[0]
+			for color, label in zip(
+				separation_colors,
+				series_labels,
+				strict=True,
+			)
+		)
+		separation_markers = tuple(
+			ax_separation.plot(
+				[],
+				[],
+				"o",
+				color=color if comparison else "black",
+				markeredgecolor="black",
+				markersize=5,
+			)[0]
+			for color in separation_colors
+		)
 		ax_separation.set(
 			xlabel="t",
 			ylabel=r"$\|z_1-z_2\|_2/\|(z_1+z_2)/2\|_2$",
-			title="Separación relativa de las trayectorias internas",
+			title="Relative separation of internal trajectories",
 			xlim=(float(times[0]), float(times[-1])),
 			ylim=separation_limits,
 			yscale="log",
 		)
 		ax_separation.grid(alpha=0.25)
+		if comparison:
+			ax_symplecticity.legend(loc="best", fontsize="small")
+			ax_separation.legend(loc="best", fontsize="small")
 
-	# The component blocks each have shape (boundary_vertices, saved_times).
-	components = trajectory.split(states)
-	# ``period``, ``xmin`` and ``ymin`` define the displayed periodic cell used
-	# to choose an image for each boundary vertex.
+	# Every component block has shape (boundary vertices, saved times). Periodic
+	# wrapping is applied independently so each numerical contour remains legible.
+	component_series = tuple(trajectory.split(states) for states in state_series)
 	period = potential.grid.period
 	xmin = potential.grid.xmin
 	ymin = potential.grid.ymin
 
-	def wrapped_contour(solution_index: int) -> tuple[np.ndarray, np.ndarray]:
-		"""Wrap one contour into the cell and break lines crossing its boundary."""
+	def wrapped_contour(
+		series_index: int,
+		solution_index: int,
+	) -> tuple[np.ndarray, np.ndarray]:
+		"""Wrap one contour and break artificial edges crossing the periodic cell."""
+		components = component_series[series_index]
 		x = ((components.x[:, solution_index] - xmin) % period) + xmin
 		y = ((components.y[:, solution_index] - ymin) % period) + ymin
 		plot_x = [float(x[0])]
 		plot_y = [float(y[0])]
 		for vertex in range(x.size):
 			next_vertex = (vertex + 1) % x.size
-			# A wrapped edge can otherwise draw a long, artificial segment across
-			# the periodic cell. NaNs ask Matplotlib to lift the pen at that edge.
 			if (
 				abs(x[next_vertex] - x[vertex]) > period / 2
 				or abs(y[next_vertex] - y[vertex]) > period / 2
@@ -357,108 +508,138 @@ def animate_gc_area(
 		return np.asarray(plot_x), np.asarray(plot_y)
 
 	def update(index: int) -> tuple[Any, ...]:
-		"""Update every artist from the same saved-solution index."""
+		"""Reveal every trajectory and diagnostic up to one common saved time."""
 		solution_index = int(frame_indices[index])
-		# pcolormesh expects its first displayed dimension along y, hence the
-		# transpose of fields stored with the project's (x, y) convention.
 		mesh.set_array(fields[index].T)
 		quiver.set_UVC(*electric_fields[index])
-		contour.set_data(*wrapped_contour(solution_index))
-		error_line.set_data(
-			times[: solution_index + 1],
-			relative_error[: solution_index + 1],
-		)
-		error_marker.set_data(
-			[times[solution_index]],
-			[relative_error[solution_index]],
-		)
-		# The right panel emphasizes both the instantaneous error and its worst
-		# excursion so far; this makes convergence loss visible while the contour
-		# deforms in the left panel.
-		running_max_error = float(
-			np.max(np.abs(relative_error[: solution_index + 1]))
-		)
-		ax_error.set_title(
-			"Evolución del error relativo del área\n"
-			+ rf"$\varepsilon_A={relative_error[solution_index]:.3e}$, "
-			+ rf"$\max_{{s\leq t}}|\varepsilon_A(s)|={running_max_error:.3e}$"
-		)
-		ax_field.set_title(
-			rf"Potencial efectivo GC, $t={times[solution_index]:.3f}$"
-			+ "\n"
-			+ rf"$A={area_values[solution_index]:.6g}$, "
-			+ rf"$\varepsilon_A={relative_error[solution_index]:.3e}$"
-		)
-		artists: list[Any] = [
-			mesh,
-			quiver,
-			contour,
-			error_line,
-			error_marker,
-			ax_field.title,
-		]
+		for series_index, contour in enumerate(contours):
+			contour.set_data(*wrapped_contour(series_index, solution_index))
+		for area_line, area_marker, relative_error in zip(
+			area_lines,
+			area_markers,
+			relative_area_errors,
+			strict=True,
+		):
+			area_line.set_data(
+				times[: solution_index + 1],
+				relative_error[: solution_index + 1],
+			)
+			area_marker.set_data(
+				[times[solution_index]],
+				[relative_error[solution_index]],
+			)
+		if comparison:
+			ax_field.set_title(
+				rf"GC contour comparison, $t={times[solution_index]:.3f}$"
+			)
+		else:
+			running_max_error = float(
+				np.max(np.abs(relative_area_errors[0][: solution_index + 1]))
+			)
+			ax_area.set_title(
+				"Relative area error evolution\n"
+				+ rf"$\varepsilon_A={relative_area_errors[0][solution_index]:.3e}$, "
+				+ rf"$\max_{{s\leq t}}|\varepsilon_A(s)|={running_max_error:.3e}$"
+			)
+			ax_field.set_title(
+				rf"Effective GC potential, $t={times[solution_index]:.3f}$"
+				+ "\n"
+				+ rf"$A={area_values[0][solution_index]:.6g}$, "
+				+ rf"$\varepsilon_A={relative_area_errors[0][solution_index]:.3e}$"
+			)
+
+		artists: list[Any] = [mesh, quiver, *contours]
+		for area_line, area_marker in zip(area_lines, area_markers, strict=True):
+			artists.extend((area_line, area_marker))
+		artists.append(ax_field.title)
 		if diagnostics is not None:
 			assert diagnostic_plot_times is not None
-			assert plot_symplecticity_errors is not None
-			assert plot_copy_separations is not None
-			assert symplecticity_line is not None
-			assert symplecticity_marker is not None
-			assert separation_line is not None
-			assert separation_marker is not None
+			assert relative_symplecticity_values is not None
+			assert relative_copy_values is not None
+			assert plot_symplecticity_values is not None
+			assert plot_copy_values is not None
 			assert ax_symplecticity is not None
 			assert ax_separation is not None
 			current_time = float(times[solution_index])
 			time_tolerance = 32 * np.finfo(float).eps * max(1.0, abs(current_time))
-			diagnostic_stop = int(
-				np.searchsorted(
-					diagnostic_plot_times,
-					current_time + time_tolerance,
-					side="right",
+			for series_index in range(series_count):
+				diagnostic_stop = int(
+					np.searchsorted(
+						diagnostic_plot_times[series_index],
+						current_time + time_tolerance,
+						side="right",
+					)
 				)
-			)
-			if diagnostic_stop:
-				symplecticity_line.set_data(
-					diagnostic_plot_times[:diagnostic_stop],
-					plot_symplecticity_errors[:diagnostic_stop],
-				)
-				symplecticity_marker.set_data(
-					[diagnostic_plot_times[diagnostic_stop - 1]],
-					[plot_symplecticity_errors[diagnostic_stop - 1]],
-				)
-				separation_line.set_data(
-					diagnostic_plot_times[:diagnostic_stop],
-					plot_copy_separations[:diagnostic_stop],
-				)
-				separation_marker.set_data(
-					[diagnostic_plot_times[diagnostic_stop - 1]],
-					[plot_copy_separations[diagnostic_stop - 1]],
-				)
-				relative_symplecticity_values = diagnostics[1]
-				relative_copy_values = diagnostics[2]
-				current_symplecticity = float(
-					relative_symplecticity_values[diagnostic_stop - 1]
-				)
-				current_separation = float(relative_copy_values[diagnostic_stop - 1])
-				ax_symplecticity.set_title(
-					"Error simpléctico relativo de la trayectoria proyectada\n"
-					+ rf"$\varepsilon_\Omega={current_symplecticity:.3e}$, "
-					+ rf"$\max={np.max(relative_symplecticity_values[:diagnostic_stop]):.3e}$"
-				)
-				ax_separation.set_title(
-					"Separación relativa de las trayectorias internas\n"
-					+ rf"$\delta_z={current_separation:.3e}$, "
-					+ rf"$\max={np.max(relative_copy_values[:diagnostic_stop]):.3e}$"
-				)
-			artists.extend(
-				[
-					symplecticity_line,
-					symplecticity_marker,
-					separation_line,
-					separation_marker,
-					ax_symplecticity.title,
-					ax_separation.title,
-				]
-			)
+				symplecticity_line = symplecticity_lines[series_index]
+				symplecticity_marker = symplecticity_markers[series_index]
+				separation_line = separation_lines[series_index]
+				separation_marker = separation_markers[series_index]
+				if diagnostic_stop:
+					symplecticity_line.set_data(
+						diagnostic_plot_times[series_index][:diagnostic_stop],
+						plot_symplecticity_values[series_index][:diagnostic_stop],
+					)
+					symplecticity_marker.set_data(
+						[
+							diagnostic_plot_times[series_index][
+								diagnostic_stop - 1
+							]
+						],
+						[
+							plot_symplecticity_values[series_index][
+								diagnostic_stop - 1
+							]
+						],
+					)
+					separation_line.set_data(
+						diagnostic_plot_times[series_index][:diagnostic_stop],
+						plot_copy_values[series_index][:diagnostic_stop],
+					)
+					separation_marker.set_data(
+						[
+							diagnostic_plot_times[series_index][
+								diagnostic_stop - 1
+							]
+						],
+						[
+							plot_copy_values[series_index][diagnostic_stop - 1]
+						],
+					)
+				else:
+					symplecticity_line.set_data([], [])
+					symplecticity_marker.set_data([], [])
+					separation_line.set_data([], [])
+					separation_marker.set_data([], [])
+				if not comparison and diagnostic_stop:
+					current_symplecticity = float(
+						relative_symplecticity_values[0][diagnostic_stop - 1]
+					)
+					current_separation = float(
+						relative_copy_values[0][diagnostic_stop - 1]
+					)
+					ax_symplecticity.set_title(
+						"Relative symplecticity error of the projected trajectory\n"
+						+ rf"$\varepsilon_\Omega={current_symplecticity:.3e}$, "
+						+ rf"$\max={np.max(relative_symplecticity_values[0][:diagnostic_stop]):.3e}$"
+					)
+					ax_separation.set_title(
+						"Relative separation of internal trajectories\n"
+						+ rf"$\delta_z={current_separation:.3e}$, "
+						+ rf"$\max={np.max(relative_copy_values[0][:diagnostic_stop]):.3e}$"
+					)
+			for line, marker in zip(
+				symplecticity_lines,
+				symplecticity_markers,
+				strict=True,
+			):
+				artists.extend((line, marker))
+			for line, marker in zip(
+				separation_lines,
+				separation_markers,
+				strict=True,
+			):
+				artists.extend((line, marker))
+			artists.extend((ax_symplecticity.title, ax_separation.title))
 		return tuple(artists)
 
 	update(0)

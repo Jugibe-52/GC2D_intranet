@@ -114,7 +114,7 @@ class ProjectionResearchTests(unittest.TestCase):
 				solution = system.simulate(
 					step=0.01,
 					t_span=(0.0, 0.01),
-					n_save_step=2,
+					n_output_samples=2,
 					check_energy=False,
 					progress=False,
 					stage_observer=observer,

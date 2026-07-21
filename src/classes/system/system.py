@@ -55,19 +55,21 @@ class System(ABC):
 		*,
 		step: float,
 		t_span: tuple[float, float] = (0.0, 2 * np.pi),
-		n_save_step: int = 361,
+		n_output_samples: int = 361,
 		check_energy: bool = False,
 		progress: bool = False,
 		stage_observer: StageObserver | None = None,
 	) -> Solution:
 		"""Integrate the stored initial state with the fixed BM4 path.
 
-		``step`` bounds internal steps, whereas ``n_save_step`` controls only
-		the uniformly spaced states exposed in the returned solution. ``t_span``
-		contains the initial and final simulation times. ``check_energy`` augments
-		the state with momentum conjugate to time; ``progress`` affects only the
-		terminal display, never the numerical result. ``stage_observer`` receives
-		independent diagnostic snapshots of every direct and adjoint BM4 stage; it is
+		``step`` bounds the uniform BM4 grid, whereas ``n_output_samples`` controls
+		only the uniformly spaced states exposed in the returned solution. Off-grid
+		outputs use independent shadow BM4 advances and do not alter the integration
+		trajectory. ``t_span`` contains the initial and final simulation times.
+		``check_energy`` augments the state with momentum conjugate to time;
+		``progress`` affects only the terminal display, never the numerical result.
+		``stage_observer`` receives independent diagnostic snapshots of every direct
+		and adjoint stage on the BM4 grid, excluding shadow output advances; it is
 		intended for research instrumentation and is disabled by default.
 		"""
 		state = self.trajectory.state
@@ -77,7 +79,7 @@ class System(ABC):
 			state,
 			step=step,
 			t_span=t_span,
-			n_save_step=n_save_step,
+			n_output_samples=n_output_samples,
 			check_energy=check_energy,
 			progress=progress,
 			stage_observer=stage_observer,
@@ -107,7 +109,7 @@ class System(ABC):
 		*,
 		step: float,
 		t_span: tuple[float, float],
-		n_save_step: int,
+		n_output_samples: int,
 		check_energy: bool,
 		progress: bool,
 		stage_observer: StageObserver | None,

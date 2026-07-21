@@ -215,7 +215,7 @@ class TrajectoryTests(unittest.TestCase):
 		solution = system.simulate(
 			step=0.01,
 			t_span=(0.0, 0.02),
-			n_save_step=3,
+			n_output_samples=3,
 			check_energy=False,
 			progress=False,
 		)
@@ -257,7 +257,7 @@ class SystemTests(unittest.TestCase):
 		solution = system.simulate(
 			step=0.01,
 			t_span=(0.0, 0.01),
-			n_save_step=2,
+			n_output_samples=2,
 			check_energy=False,
 			progress=False,
 			stage_observer=events.append,
@@ -265,7 +265,7 @@ class SystemTests(unittest.TestCase):
 		reference = system.simulate(
 			step=0.01,
 			t_span=(0.0, 0.01),
-			n_save_step=2,
+			n_output_samples=2,
 			check_energy=False,
 			progress=False,
 		)
@@ -284,6 +284,51 @@ class SystemTests(unittest.TestCase):
 				event.state_after,
 			)
 
+	def test_output_grid_uses_shadow_steps_without_changing_bm4_path(self) -> None:
+		"""Shared output times and the BM4 path are output-grid independent."""
+		gc_trajectory = TrajectoryGC(rho=0.05)
+		gc_trajectory.set_initial_state(np.asarray([1.0, 1.2]))
+		fc_trajectory = TrajectoryFC(rho=0.2, eta=0.1)
+		fc_trajectory.set_initial_state(np.asarray([1.0, 1.2, 0.4, -0.3]))
+		systems = (
+			SystemGC(random_potential(), gc_trajectory),
+			SystemFC(random_potential(), fc_trajectory),
+		)
+
+		for system in systems:
+			with self.subTest(system=type(system).__name__):
+				sparse = system.simulate(
+					step=0.02,
+					t_span=(0.0, 0.05),
+					n_output_samples=3,
+				)
+				dense = system.simulate(
+					step=0.02,
+					t_span=(0.0, 0.05),
+					n_output_samples=7,
+				)
+
+				# The BM4 grid has three equal steps in both runs. The common
+				# midpoint is a shadow sample because it is not a BM4 node.
+				self.assertEqual(sparse.n_steps, 3)
+				self.assertEqual(dense.n_steps, 3)
+				self.assertEqual(sparse.t[1], dense.t[3])
+				np.testing.assert_array_equal(sparse.y[:, 1], dense.y[:, 3])
+				np.testing.assert_array_equal(sparse.y[:, -1], dense.y[:, -1])
+
+		events: list[IntegrationStage] = []
+		observed = systems[0].simulate(
+			step=0.02,
+			t_span=(0.0, 0.05),
+			n_output_samples=11,
+			stage_observer=events.append,
+		)
+		# Ten requested intervals produce many shadow maps, but only the three
+		# BM4 steps emit the twelve diagnostic stages each.
+		self.assertEqual(observed.n_steps, 3)
+		self.assertEqual(len(events), 12 * observed.n_steps)
+		self.assertEqual(sorted({event.step_index for event in events}), [0, 1, 2])
+
 	def test_gc_area_animation_tracks_relative_error(self) -> None:
 		area = Area.square(
 			center=(np.pi, np.pi),
@@ -295,7 +340,7 @@ class SystemTests(unittest.TestCase):
 		solution = system.simulate(
 			step=0.01,
 			t_span=(0.0, 0.02),
-			n_save_step=3,
+			n_output_samples=3,
 			check_energy=False,
 			progress=False,
 		)
@@ -334,6 +379,48 @@ class SystemTests(unittest.TestCase):
 		self.assertIn("max", diagnostic_artists[11].get_text())
 		diagnostic_animation._draw_was_started = True
 
+		comparison_solutions = {
+			"dt=0.02": solution,
+			"dt=0.01": solution,
+			"dt=0.005": solution,
+		}
+		comparison_times = {
+			label: diagnostic_times for label in comparison_solutions
+		}
+		comparison_defects = {
+			label: relative_symplecticity_errors * (index + 1)
+			for index, label in enumerate(comparison_solutions)
+		}
+		comparison_separations = {
+			label: relative_copy_separations * (index + 1)
+			for index, label in enumerate(comparison_solutions)
+		}
+		comparison_animation = system.animate_area_comparison(
+			comparison_solutions,
+			diagnostic_times=comparison_times,
+			relative_symplecticity_errors=comparison_defects,
+			relative_copy_separations=comparison_separations,
+			frames=3,
+			interval=20,
+		)
+		comparison_artists = comparison_animation._func(2)
+		self.assertEqual(len(comparison_artists), 26)
+		# One color consistently identifies a step in every animated panel.
+		self.assertEqual(
+			comparison_artists[2].get_color(),
+			comparison_artists[5].get_color(),
+		)
+		self.assertEqual(
+			comparison_artists[2].get_color(),
+			comparison_artists[12].get_color(),
+		)
+		self.assertEqual(
+			comparison_artists[2].get_color(),
+			comparison_artists[18].get_color(),
+		)
+		np.testing.assert_allclose(comparison_artists[5].get_xdata(), solution.t)
+		comparison_animation._draw_was_started = True
+
 		plain_trajectory = TrajectoryGC(np.asarray([1.0, 1.2]), rho=0.05)
 		plain_system = SystemGC(random_potential(), plain_trajectory)
 		with self.assertRaises(TypeError):
@@ -345,6 +432,8 @@ class SystemTests(unittest.TestCase):
 				solution,
 				diagnostic_times=diagnostic_times,
 			)
+		with self.assertRaises(ValueError):
+			system.animate_area_comparison({"only": solution})
 
 	def test_simulate_requires_an_initial_state(self) -> None:
 		system = SystemGC(random_potential(), TrajectoryGC(rho=0.05))
@@ -353,7 +442,7 @@ class SystemTests(unittest.TestCase):
 			system.simulate(
 				step=0.01,
 				t_span=(0.0, 0.02),
-				n_save_step=3,
+				n_output_samples=3,
 				check_energy=False,
 			)
 
@@ -363,7 +452,7 @@ class SystemTests(unittest.TestCase):
 			SystemGC(random_potential(), trajectory).simulate(
 				step=0.01,
 				t_span=(1.0, 1.0),
-				n_save_step=3,
+				n_output_samples=3,
 			)
 
 	def test_gc_bm4_simulation_tracks_generalized_energy(self) -> None:
@@ -371,11 +460,11 @@ class SystemTests(unittest.TestCase):
 		trajectory.set_initial_state(np.asarray([1.0, 1.2]))
 		system = SystemGC(random_potential(), trajectory)
 
-		# ``step`` bounds the internal BM4 step; ``n_save_step`` fixes output samples.
+		# ``step`` bounds each BM4 cycle; ``n_output_samples`` fixes output samples.
 		solution = system.simulate(
 			step=0.01,
 			t_span=(0.0, 0.04),
-			n_save_step=5,
+			n_output_samples=5,
 			check_energy=True,
 			progress=False,
 		)
@@ -402,7 +491,7 @@ class SystemTests(unittest.TestCase):
 		solution = system.simulate(
 			step=0.01,
 			t_span=(0.0, 0.04),
-			n_save_step=5,
+			n_output_samples=5,
 			check_energy=True,
 			progress=False,
 		)

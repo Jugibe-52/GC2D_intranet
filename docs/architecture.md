@@ -1,6 +1,6 @@
-# Arquitectura
+# Architecture
 
-GC2D tiene cuatro entidades públicas y dos variantes dinámicas.
+GC2D has four public entities and two dynamical variants.
 
 ```text
 Area --> TrajectoryGC --+
@@ -10,67 +10,70 @@ Potential --------------|               |--> Solution
 TrajectoryFC -----------+
 ```
 
-## Responsabilidades
+## Responsibilities
 
 ### Potential
 
-Contiene la rejilla periódica y el campo electrostático. Evalúa el potencial y
-sus derivadas espaciales o temporales. También contiene las visualizaciones que
-usan los notebooks.
+Contains the periodic grid and the electrostatic field. It evaluates the
+potential and its spatial or temporal derivatives. It also contains the
+visualizations used by the notebooks.
 
-`Potential` no conoce partículas, estados ni integradores. `SystemGC` construye
-una versión giro-promediada para su dinámica efectiva; `SystemFC` usa el
-potencial físico directamente.
+`Potential` has no knowledge of particles, states, or integrators. `SystemGC`
+builds a gyroaveraged version for its effective dynamics; `SystemFC` uses the
+physical potential directly.
 
 ### Trajectory
 
-Contiene los parámetros de la partícula y su estado inicial:
+Contains the particle parameters and its initial state:
 
-- `TrajectoryGC`: bloques `[x, y]` y radio de Larmor `rho`.
-- `TrajectoryFC`: bloques `[x, y, vx, vy]`, `rho` y `eta`.
+- `TrajectoryGC`: `[x, y]` blocks and Larmor radius `rho`.
+- `TrajectoryFC`: `[x, y, vx, vy]` blocks, `rho`, and `eta`.
 
-El estado inicial puede asignarse en el constructor o posteriormente con
-`set_initial_state(...)`. `split(...)`, `pack_components(...)` y `particle_count(...)`
-centralizan el formato físico del estado. Los resultados de `split(...)` tienen
-componentes con nombre: `[x, y]` para GC y `[x, y, vx, vy]` para FC. Una
-trayectoria no conoce el potencial ni el algoritmo de integración.
+The initial state can be assigned in the constructor or later with
+`set_initial_state(...)`. `split(...)`, `pack_components(...)`, and
+`particle_count(...)` centralize the physical state format. The results of
+`split(...)` have named components: `[x, y]` for GC and `[x, y, vx, vy]` for FC.
+A trajectory has no knowledge of the potential or the integration algorithm.
 
 ### Area
 
-`Area` hereda de `TrajectoryGC`: sus bloques `[x, y]` son puntos ordenados en
-sentido antihorario que delimitan un cuadrado o un círculo. Sus constructores
-`Area.square(...)` y `Area.circle(...)` generan el contorno, y
-`calculate_area(...)` calcula el área orientada inicial o transportada. Al ser
-una trayectoria GC también puede utilizarse directamente con `SystemGC`.
+`Area` inherits from `TrajectoryGC`: its `[x, y]` blocks are points ordered
+counterclockwise that delimit a square or circle. Its `Area.square(...)` and
+`Area.circle(...)` constructors generate the contour, and `calculate_area(...)`
+computes the initial or transported oriented area. As a GC trajectory, it can
+also be used directly with `SystemGC`.
 
 ### System
 
-Combina exactamente un `Potential` con una `Trajectory` compatible:
+Combines exactly one `Potential` with a compatible `Trajectory`:
 
-- `SystemGC` construye el potencial efectivo y las ecuaciones de centro guía.
-- `SystemFC` construye las ecuaciones de ciclotrón completo y la aceleración
-  eléctrica que consume el integrador.
+- `SystemGC` builds the effective potential and guiding-center equations.
+- `SystemFC` builds the full-cyclotron equations and the electric acceleration
+  consumed by the integrator.
 
-Ambos sistemas exponen `hamiltonian(...)` y `simulate(...)`. La implementación
-numérica BM4 es privada: no constituye otra API ni puede seleccionarse desde el
-exterior.
+Both systems expose `hamiltonian(...)` and `simulate(...)`. The numerical BM4
+implementation is private: it does not constitute a separate API and cannot be
+selected externally. Its BM4 time grid depends only on `t_span` and `step`,
+while `n_output_samples` defines a separate output grid. An output between BM4
+nodes is computed by a shadow BM4 advance from the preceding integration state,
+without modifying the integration trajectory or notifying stage observers.
 
-Cuando contiene un `Area`, `SystemGC.animate_area(...)` combina la solución con
-el potencial efectivo y el campo eléctrico. La animación transporta el contorno
-y representa simultáneamente el error relativo
+When it contains an `Area`, `SystemGC.animate_area(...)` combines the solution
+with the effective potential and electric field. The animation transports the
+contour and simultaneously displays the relative error
 `(A(t) - A(0)) / abs(A(0))`.
 
-La implementación gráfica vive en un módulo privado; `SystemGC` conserva el
-método público porque es quien dispone simultáneamente del potencial efectivo,
-la trayectoria y la solución.
+The graphical implementation lives in a private module; `SystemGC` retains the
+public method because it has simultaneous access to the effective potential,
+trajectory, and solution.
 
 ### Solution
 
-Es el resultado de `simulate(...)`. Solo transporta tiempos, estados y
-diagnósticos de la integración. No decide cómo representar, guardar o analizar
-los resultados.
+This is the result of `simulate(...)`. It only carries integration times,
+states, and diagnostics. It does not decide how to display, save, or analyze
+the results.
 
-## Dependencias
+## Dependencies
 
 ```text
 Potential       Trajectory
@@ -78,42 +81,42 @@ Potential       Trajectory
       \           /
         System GC/FC
              |
-       integración BM4
+       BM4 integration
              |
           Solution
 ```
 
-El integrador mantiene estructuras privadas diferentes del estado físico:
+The integrator maintains private structures that differ from the physical state:
 
-- GC usa dos copias del estado y un momento extendido opcional.
-- FC añade únicamente el momento extendido opcional.
+- GC uses two copies of the state and an optional extended momentum.
+- FC only adds the optional extended momentum.
 
-Estas estructuras, el acoplamiento GC y los flujos directo/adjunto FC pertenecen
-a `_integration`. Se construyen y descomponen mediante `Trajectory.split(...)`
-y `Trajectory.pack_components(...)`, sin duplicar el layout físico dentro de
-`System`.
+These structures, GC coupling, and the forward/adjoint FC flows belong to
+`_integration`. They are assembled and disassembled through
+`Trajectory.split(...)` and `Trajectory.pack_components(...)`, without
+duplicating the physical layout inside `System`.
 
-La interfaz permite construir trayectorias con `from_components(...)`, por lo
-que los notebooks no necesitan conocer el orden plano. Dentro de los algoritmos,
-`Trajectory.as_blocks(...)` interpreta el estado como
-`(componentes, partículas, *muestras)` y `from_blocks(...)` recupera el formato
-plano. Ambas transformaciones son vistas cuando el layout de memoria lo permite.
-`Solution` conserva la trayectoria que produjo el resultado y
-`solution.components()` devuelve directamente sus bloques físicos con nombre.
+The interface supports building trajectories with `from_components(...)`, so
+the notebooks do not need to know the flat ordering. Within the algorithms,
+`Trajectory.as_blocks(...)` interprets the state as
+`(components, particles, *samples)`, and `from_blocks(...)` restores the flat
+format. Both transformations are views when the memory layout permits it.
+`Solution` retains the trajectory that produced the result, and
+`solution.components()` directly returns its named physical blocks.
 
-El orden por componentes mantiene contiguos todos los valores de una magnitud y
-favorece las evaluaciones vectorizadas del potencial. El vector plano se conserva
-como contrato estable del motor de composición; los flujos evitan reempaquetar
-una misma representación física y el acoplamiento GC aplana directamente los
-bloques que produce la operación matricial.
+Component-major ordering keeps all values of a quantity contiguous and favors
+vectorized potential evaluations. The flat vector is retained as the stable
+contract of the composition engine; the flows avoid repacking the same physical
+representation, and GC coupling directly flattens the blocks produced by the
+matrix operation.
 
-Las dependencias solo avanzan hacia la composición y la integración. No hay
-dependencias desde `Potential` hacia `Trajectory`, ni desde `Trajectory` hacia
+Dependencies only move toward composition and integration. There are no
+dependencies from `Potential` to `Trajectory` or from `Trajectory` to
 `Potential`.
 
-## Superficie pública
+## Public surface
 
-Los notebooks importan únicamente:
+The notebooks import only:
 
 ```python
 from classes import (
@@ -126,6 +129,5 @@ from classes import (
 )
 ```
 
-Los detalles de rejilla, interpolación y composición simpléctica permanecen
-internos. No existen aliases de compatibilidad, workflows ni puntos de entrada
-de terminal.
+Grid, interpolation, and symplectic-composition details remain internal. There
+are no compatibility aliases, workflows, or command-line entry points.

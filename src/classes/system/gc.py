@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Any
 
 import numpy as np
@@ -124,14 +125,82 @@ class SystemGC(System):
 		return animate_gc_area(
 			self.effective_potential,
 			self.trajectory,
-			solution,
+			(solution,),
+			labels=("trajectory",),
 			frames=frames,
 			interval=interval,
 			cmap=cmap,
 			repeat=repeat,
-			diagnostic_times=diagnostic_times,
-			relative_symplecticity_errors=relative_symplecticity_errors,
-			relative_copy_separations=relative_copy_separations,
+			diagnostic_times=(diagnostic_times,),
+			relative_symplecticity_errors=(relative_symplecticity_errors,),
+			relative_copy_separations=(relative_copy_separations,),
+			pcolormesh_kwargs=pcolormesh_kwargs,
+		)
+
+	def animate_area_comparison(
+		self,
+		solutions: Mapping[str, Solution],
+		*,
+		diagnostic_times: Mapping[str, np.ndarray] | None = None,
+		relative_symplecticity_errors: Mapping[str, np.ndarray] | None = None,
+		relative_copy_separations: Mapping[str, np.ndarray] | None = None,
+		frames: int | None = 120,
+		interval: int = 50,
+		cmap: str = "RdBu_r",
+		repeat: bool = True,
+		**pcolormesh_kwargs: Any,
+	) -> FuncAnimation:
+		"""Compare Area solutions and projected diagnostics in one animation.
+
+		Mapping keys are display labels and define plotting order. Every solution
+		must share saved times. When diagnostics are requested, all three mappings
+		must contain exactly the same keys as ``solutions``.
+		"""
+		if not isinstance(self.trajectory, Area):
+			raise TypeError("`animate_area_comparison` requires an Area trajectory.")
+		if not isinstance(solutions, Mapping) or len(solutions) < 2:
+			raise ValueError("`solutions` must map at least two labels to solutions.")
+		labels = tuple(solutions)
+		if any(not isinstance(solution, Solution) for solution in solutions.values()):
+			raise TypeError("Every compared value must be a Solution instance.")
+
+		diagnostic_mappings = (
+			diagnostic_times,
+			relative_symplecticity_errors,
+			relative_copy_separations,
+		)
+		if any(mapping is not None for mapping in diagnostic_mappings):
+			if any(mapping is None for mapping in diagnostic_mappings):
+				raise ValueError("All three diagnostic mappings must be provided.")
+			for mapping in diagnostic_mappings:
+				assert mapping is not None
+				if set(mapping) != set(labels):
+					raise ValueError(
+						"Diagnostic mappings must have the same keys as `solutions`."
+					)
+
+		def ordered(
+			mapping: Mapping[str, np.ndarray] | None,
+		) -> tuple[np.ndarray | None, ...]:
+			"""Align an optional diagnostic mapping with solution insertion order."""
+			if mapping is None:
+				return tuple(None for _label in labels)
+			return tuple(mapping[label] for label in labels)
+
+		return animate_gc_area(
+			self.effective_potential,
+			self.trajectory,
+			tuple(solutions.values()),
+			labels=labels,
+			frames=frames,
+			interval=interval,
+			cmap=cmap,
+			repeat=repeat,
+			diagnostic_times=ordered(diagnostic_times),
+			relative_symplecticity_errors=ordered(
+				relative_symplecticity_errors
+			),
+			relative_copy_separations=ordered(relative_copy_separations),
 			pcolormesh_kwargs=pcolormesh_kwargs,
 		)
 
@@ -141,7 +210,7 @@ class SystemGC(System):
 		*,
 		step: float,
 		t_span: tuple[float, float],
-		n_save_step: int,
+		n_output_samples: int,
 		check_energy: bool,
 		progress: bool,
 		stage_observer: StageObserver | None,
@@ -152,7 +221,7 @@ class SystemGC(System):
 			state,
 			step=step,
 			t_span=t_span,
-			n_save_step=n_save_step,
+			n_output_samples=n_output_samples,
 			check_energy=check_energy,
 			progress=progress,
 			stage_observer=stage_observer,

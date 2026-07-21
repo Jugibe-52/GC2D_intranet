@@ -234,14 +234,14 @@ class _Progress:
 		print(file=sys.stderr, flush=True)
 
 
-def _step_count(duration: float, maximum_step: float) -> int:
-	"""Return the fewest steps that do not exceed ``maximum_step``.
+def _step_count(duration: float, step: float) -> int:
+	"""Return the fewest BM4 cycles that do not exceed the requested ``step``.
 
 	Both arguments are time increments in the simulation's time convention.
 	``nextafter`` prevents round-off just above an exact integer ratio from
 	introducing a redundant final step.
 	"""
-	ratio = duration / maximum_step
+	ratio = duration / step
 	return max(1, math.ceil(math.nextafter(ratio, -math.inf)))
 
 
@@ -249,50 +249,50 @@ def _validate_inputs(
 	t_span: tuple[float, float],
 	state: np.ndarray,
 	step: float,
-	n_save_step: int,
+	n_output_samples: int,
 ) -> tuple[float, float, np.ndarray, float, np.ndarray]:
 	"""Validate inputs and construct the one-dimensional saved-time grid.
 
-	``step`` is an upper bound for internal BM4 steps, while ``n_save_step`` is
-	the number of externally visible samples and includes both ends of
-	``t_span``. ``state`` is a flat component-major initial condition.
+	``step`` bounds complete BM4 cycles, while ``n_output_samples`` is the number
+	of externally visible samples and includes both ends of ``t_span``. ``state``
+	is a flat component-major initial condition.
 	"""
 	span = np.asarray(t_span, dtype=float)
 	if span.shape != (2,) or not np.all(np.isfinite(span)) or span[0] >= span[1]:
 		raise ValueError("`t_span` must contain two finite, increasing times.")
-	maximum_step = float(step)
+	requested_step = float(step)
 	# Booleans are numeric in Python, but accepting them here would silently turn
 	# ``True`` into a physically meaningless unit step.
 	if (
 		isinstance(step, (bool, np.bool_))
-		or not np.isfinite(maximum_step)
-		or maximum_step <= 0
+		or not np.isfinite(requested_step)
+		or requested_step <= 0
 	):
 		raise ValueError("`step` must be positive and finite.")
 	if (
-		isinstance(n_save_step, (bool, np.bool_))
-		or not isinstance(n_save_step, (int, np.integer))
-		or n_save_step < 2
+		isinstance(n_output_samples, (bool, np.bool_))
+		or not isinstance(n_output_samples, (int, np.integer))
+		or n_output_samples < 2
 	):
-		raise ValueError("`n_save_step` must be an integer of at least 2.")
+		raise ValueError("`n_output_samples` must be an integer of at least 2.")
 	value = np.asarray(state, dtype=float)
 	# Every trajectory owns a flat physical layout. Higher dimensions are used
 	# only internally after saved states have been assembled over time.
 	if value.ndim != 1 or value.size == 0 or not np.all(np.isfinite(value)):
 		raise ValueError("The initial state must be a finite, non-empty vector.")
 	t0, tf = float(span[0]), float(span[1])
-	times = np.linspace(t0, tf, int(n_save_step), dtype=float)
-	return t0, tf, value, maximum_step, times
+	times = np.linspace(t0, tf, int(n_output_samples), dtype=float)
+	return t0, tf, value, requested_step, times
 
 
 def _checked_flow(
 	flow: Flow,
-	h: float,
+	stage_step: float,
 	t: float,
 	state: np.ndarray,
 ) -> np.ndarray:
 	"""Apply one flow while enforcing the integrator's shape invariant."""
-	result = np.asarray(flow(h, t, state))
+	result = np.asarray(flow(stage_step, t, state))
 	if result.shape != state.shape:
 		raise ValueError("An integration flow changed the state shape.")
 	return result
@@ -303,7 +303,7 @@ def _advance(
 	adjoint_flow: Flow,
 	t: float,
 	state: np.ndarray,
-	step: float,
+	bm4_step: float,
 	*,
 	step_index: int,
 	system_name: str,
@@ -311,38 +311,43 @@ def _advance(
 ) -> tuple[float, np.ndarray]:
 	"""Apply one complete fourth-order BM4 composition.
 
-	``step`` is the complete internal advance; ``stage`` below is its signed
-	fraction for one direct or adjoint subflow. ``t`` follows every signed stage
-	so that time-dependent potentials are evaluated at the correct endpoint.
+	``bm4_step`` is one complete composition cycle; ``stage_step`` is its signed
+	coefficient-weighted duration for one direct or adjoint subflow. ``t`` follows
+	every signed stage so time-dependent potentials use the correct endpoint.
 	"""
 	for stage_index, (coefficient, order) in enumerate(
 		zip(_BM4_STAGES, _BM4_ORDERS, strict=True)
 	):
-		stage = float(coefficient * step)
+		stage_step = float(coefficient * bm4_step)
 		# The adjoint is evaluated at the incoming time and the direct map at
 		# the outgoing time so the non-autonomous composition remains symmetric.
 		if order == 0:
 			selected_flow = flow
 			flow_name: Literal["flow", "adjoint_flow"] = "flow"
-			evaluation_time = t + stage
+			evaluation_time = t + stage_step
 		else:
 			selected_flow = adjoint_flow
 			flow_name = "adjoint_flow"
 			evaluation_time = t
 
 		state_before = state
-		state = _checked_flow(selected_flow, stage, evaluation_time, state_before)
+		state = _checked_flow(
+			selected_flow,
+			stage_step,
+			evaluation_time,
+			state_before,
+		)
 		if stage_observer is not None:
 			def map_state(
 				candidate: np.ndarray,
 				_selected_flow: Flow = selected_flow,
-				_stage: float = stage,
+				_stage_step: float = stage_step,
 				_evaluation_time: float = evaluation_time,
 			) -> np.ndarray:
 				"""Evaluate this fixed stage on a diagnostic perturbation."""
 				return _checked_flow(
 					_selected_flow,
-					_stage,
+					_stage_step,
 					_evaluation_time,
 					candidate,
 				)
@@ -356,23 +361,14 @@ def _advance(
 					step_index=step_index,
 					stage_index=stage_index,
 					time=evaluation_time,
-					duration=stage,
+					duration=stage_step,
 					state_before=np.asarray(state_before).copy(),
 					state_after=np.asarray(state).copy(),
 					map_state=map_state,
 				)
 			)
-		t += stage
+		t += stage_step
 	return t, state
-
-
-def _planned_steps(times: np.ndarray, maximum_step: float) -> int:
-	"""Count complete BM4 steps across the saved-time grid for progress output."""
-	return sum(
-		_step_count(float(stop - start), maximum_step)
-		for start, stop in zip(times[:-1], times[1:], strict=True)
-		if stop > start
-	)
 
 
 def _solve_composed(
@@ -381,82 +377,115 @@ def _solve_composed(
 	t_span: tuple[float, float],
 	state: np.ndarray,
 	step: float,
-	n_save_step: int,
+	n_output_samples: int,
 	*,
 	progress: bool,
 	label: str,
 	stage_observer: StageObserver | None,
 ) -> Solution:
-	"""Integrate between requested output times with a composed fixed step.
+	"""Integrate on a save-independent BM4 grid and sample requested times.
 
-	Each saved interval is subdivided independently. This makes every requested
-	output time exact even when ``maximum_step`` does not divide the interval.
-	The returned ``y`` has shape ``(packed_state_size, n_save_step)`` and
-	``n_steps`` counts complete BM4 compositions rather than individual stages.
+	The integration grid depends only on ``t_span`` and the public ``step``.
+	Requested output times inside a BM4 cycle are evaluated with a
+	``shadow_step`` from that cycle's initial state; shadow advances never alter
+	the integration state or notify its stage observer. The returned ``y`` has
+	shape ``(packed_state_size, n_output_samples)``, and ``n_steps`` counts only
+	BM4 cycles rather than shadow samples or individual stages.
 	"""
-	t, _tf, value, maximum_step, times = _validate_inputs(
+	t, tf, value, requested_step, times = _validate_inputs(
 		t_span,
 		state,
 		step,
-		n_save_step,
+		n_output_samples,
 	)
+	bm4_step_count = _step_count(tf - t, requested_step)
+	# A uniform BM4 step reaches ``tf`` exactly while respecting the public upper
+	# bound. Its value is independent of the requested output-time grid.
+	bm4_step = (tf - t) / bm4_step_count
 	# Append the saved-time axis to the packed state; during stepping ``value``
 	# itself remains the one-dimensional instantaneous state.
 	result = np.empty(value.shape + (times.size,), dtype=value.dtype)
 	result[:, 0] = value
-	n_steps = 0
-	progress_bar = _Progress(label, _planned_steps(times, maximum_step)) if progress else None
+	output_index = 1
+	t0 = t
+	time_tolerance = 16 * np.finfo(float).eps * max(1.0, abs(t0), abs(tf))
+	progress_bar = _Progress(label, bm4_step_count) if progress else None
 
 	try:
-		for output_index, target in enumerate(times[1:], start=1):
-			duration = float(target) - t
-			count = _step_count(duration, maximum_step)
-			# This interval-local step reaches ``target`` exactly and is guaranteed
-			# not to exceed the public ``maximum_step`` bound.
-			internal_step = duration / count
-			segment_start = t
-			for index in range(count):
-				t, value = _advance(
-					flow,
-					adjoint_flow,
-					t,
-					value,
-					internal_step,
-					step_index=n_steps,
-					system_name=label,
-					stage_observer=stage_observer,
-				)
-				# Reconstructing time from the segment origin avoids accumulating
-				# floating-point drift over many composition stages.
-				t = segment_start + (index + 1) * internal_step
-				n_steps += 1
-				if progress_bar is not None:
-					progress_bar.update(t)
-			result[:, output_index] = value
+		for step_index in range(bm4_step_count):
+			bm4_start = t0 + step_index * bm4_step
+			bm4_end = t0 + (step_index + 1) * bm4_step
+			# Shadow samples may share this base state. Copy it so even a custom
+			# in-place flow cannot make their values depend on evaluation order.
+			bm4_initial_value = np.asarray(value).copy()
+			_t_advanced, value = _advance(
+				flow,
+				adjoint_flow,
+				bm4_start,
+				value,
+				bm4_step,
+				step_index=step_index,
+				system_name=label,
+				stage_observer=stage_observer,
+			)
+			# Reconstruct time from the global origin rather than accumulating the
+			# signed BM4 stages in floating point.
+			t = bm4_end
+
+			while (
+				output_index < times.size
+				and float(times[output_index]) <= bm4_end + time_tolerance
+			):
+				target = float(times[output_index])
+				if abs(target - bm4_end) <= time_tolerance:
+					sample = value
+				elif abs(target - bm4_start) <= time_tolerance:
+					sample = bm4_initial_value
+				else:
+					# Starting every shadow from the same BM4 node prevents one
+					# output sample from changing any later integration state.
+					shadow_step = target - bm4_start
+					_shadow_time, sample = _advance(
+						flow,
+						adjoint_flow,
+						bm4_start,
+						bm4_initial_value.copy(),
+						shadow_step,
+						step_index=step_index,
+						system_name=label,
+						stage_observer=None,
+					)
+				result[:, output_index] = sample
+				output_index += 1
+
+			if progress_bar is not None:
+				progress_bar.update(t)
 	finally:
 		if progress_bar is not None:
 			progress_bar.close()
 
-	return Solution(t=times, y=result, n_steps=n_steps)
+	if output_index != times.size:
+		raise RuntimeError("The BM4 grid did not cover every output time.")
+	return Solution(t=times, y=result, n_steps=bm4_step_count)
 
 
 @lru_cache(maxsize=256)
-def _gc_coupling(step: float, frequency: float) -> np.ndarray:
+def _gc_coupling(stage_step: float, frequency: float) -> np.ndarray:
 	"""Return the 4x4 exact harmonic mixing matrix for the two GC copies."""
 	# This is an algorithmic binding frequency for the duplicated states, not
 	# the physical Larmor frequency owned by an FC trajectory.
 	return np.asarray(
 		(
 			_COUPLING_BASE
-			+ np.cos(2 * frequency * step) * _COUPLING_COS
-			+ np.sin(2 * frequency * step) * _COUPLING_SIN
+			+ np.cos(2 * frequency * stage_step) * _COUPLING_COS
+			+ np.sin(2 * frequency * stage_step) * _COUPLING_SIN
 		)
 		/ 2
 	)
 
 
 def _couple_gc_state(
-	step: float,
+	stage_step: float,
 	state: _GCExtendedState,
 	trajectory: TrajectoryGC,
 	coupling_frequency: float,
@@ -470,7 +499,7 @@ def _couple_gc_state(
 	coupled = np.asarray(
 		np.einsum(
 			"ij,j...->i...",
-			_gc_coupling(step, coupling_frequency),
+			_gc_coupling(stage_step, coupling_frequency),
 			blocks,
 		)
 	)
@@ -487,7 +516,7 @@ def _couple_gc_state(
 def _updated_momentum(
 	system: _GCSystem | _FCSystem,
 	momentum: np.ndarray | None,
-	step: float,
+	stage_step: float,
 	t: float,
 	physical_state: np.ndarray,
 ) -> np.ndarray | None:
@@ -503,7 +532,7 @@ def _updated_momentum(
 	)
 	if derivative.shape != momentum.shape:
 		raise ValueError("The extended-momentum derivative changed its shape.")
-	return np.asarray(momentum + step * derivative)
+	return np.asarray(momentum + stage_step * derivative)
 
 
 def solve_gc(
@@ -512,7 +541,7 @@ def solve_gc(
 	*,
 	t_span: tuple[float, float],
 	step: float,
-	n_save_step: int,
+	n_output_samples: int,
 	check_energy: bool,
 	progress: bool,
 	stage_observer: StageObserver | None,
@@ -522,7 +551,7 @@ def solve_gc(
 	The two copies make each triangular subflow explicit. Their average is
 	projected back to the physical state after the BM4 integration. The input is
 	a flat ``[x, y]`` state; the returned physical solution has shape
-	``(2 * particle_count, n_save_step)``.
+	``(2 * particle_count, n_output_samples)``.
 	"""
 	trajectory = system.trajectory
 	physical_state = np.asarray(state, dtype=float)
@@ -557,34 +586,46 @@ def solve_gc(
 			raise ValueError("The GC vector field changed the physical state shape.")
 		return derivative
 
-	def flow(h: float, t: float, value: np.ndarray) -> np.ndarray:
+	def flow(stage_step: float, t: float, value: np.ndarray) -> np.ndarray:
 		"""Apply the explicit triangular GC map followed by copy coupling."""
 		current = unpack(value)
 		# Each copy supplies the frozen argument needed to update the other one
 		# explicitly; the same states determine the time-momentum increments.
-		second = current.second + h * vector_field(t, current.first)
-		momentum = _updated_momentum(system, current.momentum, h, t, current.first)
-		first = current.first + h * vector_field(t, second)
-		momentum = _updated_momentum(system, momentum, h, t, second)
+		second = current.second + stage_step * vector_field(t, current.first)
+		momentum = _updated_momentum(
+			system,
+			current.momentum,
+			stage_step,
+			t,
+			current.first,
+		)
+		first = current.first + stage_step * vector_field(t, second)
+		momentum = _updated_momentum(system, momentum, stage_step, t, second)
 		return _couple_gc_state(
-			h,
+			stage_step,
 			_GCExtendedState(first, second, momentum),
 			trajectory,
 			system.coupling_frequency,
 		).pack()
 
-	def adjoint_flow(h: float, t: float, value: np.ndarray) -> np.ndarray:
+	def adjoint_flow(stage_step: float, t: float, value: np.ndarray) -> np.ndarray:
 		"""Apply the reverse-ordered counterpart of the direct GC map."""
 		current = _couple_gc_state(
-			h,
+			stage_step,
 			unpack(value),
 			trajectory,
 			system.coupling_frequency,
 		)
-		first = current.first + h * vector_field(t, current.second)
-		momentum = _updated_momentum(system, current.momentum, h, t, current.second)
-		second = current.second + h * vector_field(t, first)
-		momentum = _updated_momentum(system, momentum, h, t, first)
+		first = current.first + stage_step * vector_field(t, current.second)
+		momentum = _updated_momentum(
+			system,
+			current.momentum,
+			stage_step,
+			t,
+			current.second,
+		)
+		second = current.second + stage_step * vector_field(t, first)
+		momentum = _updated_momentum(system, momentum, stage_step, t, first)
 		return _GCExtendedState(first, second, momentum).pack()
 
 	solution = _solve_composed(
@@ -593,13 +634,13 @@ def solve_gc(
 		t_span,
 		extended.pack(),
 		step,
-		n_save_step,
+		n_output_samples,
 		progress=progress,
 		label="SystemGC",
 		stage_observer=stage_observer,
 	)
 	# Here ``unpack`` preserves the saved-time axis, so each copy has shape
-	# ``(physical_size, n_save_step)`` rather than being an instantaneous vector.
+	# ``(physical_size, n_output_samples)`` rather than being an instantaneous vector.
 	final_state = unpack(solution.y)
 	first = trajectory.split(final_state.first)
 	second = trajectory.split(final_state.second)
@@ -625,16 +666,16 @@ def _real_imaginary(value: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
 def _cyclotron_step(
 	trajectory: TrajectoryFC,
 	state: FCState,
-	step: float,
+	stage_step: float,
 ) -> FCState:
 	"""Advance exactly under the field-free cyclotron sub-Hamiltonian.
 
 	Complex notation applies the velocity rotation and its analytically
 	integrated position displacement in one vectorized operation. Thus ``x + i*y``
 	represents planar position and ``vx + i*vy`` planar velocity; ``rotation``
-	is the unit complex phase accumulated during ``step``.
+	is the unit complex phase accumulated during ``stage_step``.
 	"""
-	rotation = np.exp(-1j * step * trajectory.larmor_frequency)
+	rotation = np.exp(-1j * stage_step * trajectory.larmor_frequency)
 	x, y = _real_imaginary(
 		state.x
 		+ 1j * state.y
@@ -654,7 +695,7 @@ def solve_fc(
 	*,
 	t_span: tuple[float, float],
 	step: float,
-	n_save_step: int,
+	n_output_samples: int,
 	check_energy: bool,
 	progress: bool,
 	stage_observer: StageObserver | None,
@@ -664,7 +705,7 @@ def solve_fc(
 	The direct map applies cyclotron motion before the electric kick; its
 	adjoint reverses that order. BM4 composes both maps symmetrically. The input
 	is flat ``[x, y, vx, vy]`` and the returned solution has shape
-	``(4 * particle_count, n_save_step)``.
+	``(4 * particle_count, n_output_samples)``.
 	"""
 	trajectory = system.trajectory
 	physical_state = np.asarray(state, dtype=float)
@@ -690,10 +731,10 @@ def solve_fc(
 			track_momentum=track_momentum,
 		)
 
-	def flow(h: float, t: float, value: np.ndarray) -> np.ndarray:
+	def flow(stage_step: float, t: float, value: np.ndarray) -> np.ndarray:
 		"""Apply exact cyclotron motion followed by an electric kick."""
 		current = unpack(value)
-		physical = _cyclotron_step(trajectory, current.physical, h)
+		physical = _cyclotron_step(trajectory, current.physical, stage_step)
 		acceleration_x, acceleration_y = system.electric_acceleration(
 			t,
 			physical.x,
@@ -702,20 +743,20 @@ def solve_fc(
 		physical = FCState(
 			physical.x,
 			physical.y,
-			physical.vx + h * acceleration_x,
-			physical.vy + h * acceleration_y,
+			physical.vx + stage_step * acceleration_x,
+			physical.vy + stage_step * acceleration_y,
 		)
 		physical_array = trajectory.pack_components(*physical)
 		momentum = _updated_momentum(
 			system,
 			current.momentum,
-			h,
+			stage_step,
 			t,
 			physical_array,
 		)
 		return _FCExtendedState(physical, momentum).pack_array(physical_array)
 
-	def adjoint_flow(h: float, t: float, value: np.ndarray) -> np.ndarray:
+	def adjoint_flow(stage_step: float, t: float, value: np.ndarray) -> np.ndarray:
 		"""Apply the electric kick before exact cyclotron motion."""
 		current = unpack(value)
 		acceleration_x, acceleration_y = system.electric_acceleration(
@@ -726,8 +767,8 @@ def solve_fc(
 		physical = FCState(
 			current.physical.x,
 			current.physical.y,
-			current.physical.vx + h * acceleration_x,
-			current.physical.vy + h * acceleration_y,
+			current.physical.vx + stage_step * acceleration_x,
+			current.physical.vy + stage_step * acceleration_y,
 		)
 		momentum = current.momentum
 		if momentum is not None:
@@ -737,11 +778,11 @@ def solve_fc(
 			momentum = _updated_momentum(
 				system,
 				momentum,
-				h,
+				stage_step,
 				t,
 				physical_array,
 			)
-		physical = _cyclotron_step(trajectory, physical, h)
+		physical = _cyclotron_step(trajectory, physical, stage_step)
 		# The cyclotron map changes the physical arrays after the momentum update,
 		# so pack its result once; unlike the direct flow, the pre-map packed state
 		# cannot also be returned to the composition engine.
@@ -753,7 +794,7 @@ def solve_fc(
 		t_span,
 		extended.pack(trajectory),
 		step,
-		n_save_step,
+		n_output_samples,
 		progress=progress,
 		label="SystemFC",
 		stage_observer=stage_observer,
