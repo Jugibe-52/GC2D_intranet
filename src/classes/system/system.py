@@ -14,11 +14,12 @@ from .observation import StageObserver
 
 
 class System(ABC):
-	"""Hamiltonian dynamics created from independent domain entities.
+	"""Compatibility façade over explicit dynamics and numerical components.
 
 	``potential`` supplies the scalar field and its derivatives. ``trajectory``
-	defines both the physical parameters and the component-major state layout;
-	the system combines them into equations of motion and an integrator.
+	supplies the legacy initial configuration and component-major state layout.
+	Concrete subclasses expose the historical API while assembling independent
+	dynamics, formulation, request, and method objects for each simulation.
 	"""
 
 	def __init__(self, potential: Potential, trajectory: Trajectory) -> None:

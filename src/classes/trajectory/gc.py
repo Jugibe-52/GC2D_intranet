@@ -57,4 +57,9 @@ class TrajectoryGC(Trajectory):
 		return GCState(x, y)
 
 
-__all__ = ["GCState", "TrajectoryGC"]
+# Architecture-level spelling; kept as an alias so legacy configurations and
+# ``Area`` participate in the new protocols without an inheritance fork.
+GCInitialConfiguration = TrajectoryGC
+
+
+__all__ = ["GCInitialConfiguration", "GCState", "TrajectoryGC"]

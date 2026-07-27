@@ -8,10 +8,15 @@ from typing import Any
 import numpy as np
 from matplotlib.animation import FuncAnimation
 
+from classes.dynamics import GuidingCenterDynamics
 from classes.potential import Potential
+from classes.simulation.formulations import GCExtendedFormulation
+from classes.simulation.methods import BM4Composition
+from classes.simulation.problem import InitialValueProblem
+from classes.simulation.request import SimulationRequest
+from classes.simulation.runner import SimulationRunner
 from classes.trajectory import Area, TrajectoryGC
 
-from ._integration import solve_gc
 from .observation import StageObserver
 from ._visualization import animate_gc_area
 from .solution import Solution
@@ -27,6 +32,7 @@ class SystemGC(System):
 	"""
 
 	trajectory: TrajectoryGC
+	dynamics: GuidingCenterDynamics
 
 	def __init__(
 		self,
@@ -47,12 +53,11 @@ class SystemGC(System):
 		if not np.isfinite(coupling_frequency) or coupling_frequency < 0:
 			raise ValueError("`coupling_frequency` must be finite and non-negative.")
 		super().__init__(potential, trajectory)
-		# This belongs to the numerical GC integrator, rather than to the
-		# trajectory, because it controls the extended-state copy binding.
+		self.dynamics = GuidingCenterDynamics(potential, rho=trajectory.rho)
+		# Compatibility property: the formulation is now the real owner of this
+		# numerical parameter and receives it when a simulation is assembled.
 		self.coupling_frequency = coupling_frequency
-		# Gyroaveraging depends only on the fixed Larmor radius, so doing it once
-		# avoids rebuilding the effective field during every vector evaluation.
-		self.effective_potential = potential.gyroaverage(trajectory.rho)
+		self.effective_potential = self.dynamics.effective_potential
 
 	def vector_field(self, t: float, state: np.ndarray) -> np.ndarray:
 		"""Evaluate the GC drift at all positions in a flat ``[x, y]`` state.
@@ -60,14 +65,7 @@ class SystemGC(System):
 		``ex`` and ``ey`` have one value per represented particle, and the packed
 		result preserves exactly the input state's component-major shape.
 		"""
-		components = self.trajectory.split(state)
-		ex, ey = self.effective_potential.electric_field(
-			t,
-			components.x,
-			components.y,
-		)
-		# The GC Poisson structure rotates the electric field clockwise.
-		return self.trajectory.pack_components(ey, -ex)
+		return self.dynamics.vector_field(t, state)
 
 	def hamiltonian(
 		self,
@@ -79,8 +77,7 @@ class SystemGC(System):
 		A scalar ``t`` normally accompanies a flat state; a time vector broadcasts
 		against a solution whose trailing axis stores those same saved times.
 		"""
-		components = self.trajectory.split(state)
-		return self.effective_potential.evaluate(t, components.x, components.y)
+		return self.dynamics.hamiltonian(t, state)
 
 	def extended_momentum_derivative(
 		self,
@@ -88,13 +85,7 @@ class SystemGC(System):
 		state: np.ndarray,
 	) -> np.ndarray:
 		"""Evaluate the per-particle derivative of momentum conjugate to time."""
-		components = self.trajectory.split(state)
-		return -self.effective_potential.evaluate(
-			t,
-			components.x,
-			components.y,
-			dt=1,
-		)
+		return self.dynamics.extended_momentum_derivative(t, state)
 
 	def animate_area(
 		self,
@@ -215,17 +206,23 @@ class SystemGC(System):
 		progress: bool,
 		stage_observer: StageObserver | None,
 	) -> Solution:
-		"""Delegate GC-specific state expansion and BM4 flows to the integrator."""
-		return solve_gc(
-			self,
-			state,
-			step=step,
+		"""Assemble the legacy BM4 façade from independent architecture objects."""
+		stored_state = self.trajectory.state
+		if stored_state is None or not np.array_equal(stored_state, state):
+			raise ValueError("The supplied state must match the stored initial state.")
+		problem = InitialValueProblem(self.dynamics, self.trajectory)
+		request = SimulationRequest.uniform(
 			t_span=t_span,
-			n_output_samples=n_output_samples,
-			check_energy=check_energy,
+			max_step=step,
+			sample_count=n_output_samples,
+		)
+		method = BM4Composition(
+			GCExtendedFormulation(self.coupling_frequency),
+			track_energy=check_energy,
 			progress=progress,
 			stage_observer=stage_observer,
 		)
+		return SimulationRunner().simulate(problem, method, request)
 
 
 __all__ = ["SystemGC"]

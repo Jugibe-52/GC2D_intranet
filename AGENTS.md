@@ -7,6 +7,26 @@ explicitly asks for it.
 Experiment notebooks are versioned research artifacts and are outside the
 supported interactive API.
 
+# Notebook workflow policy
+
+Keep notebooks focused on the scientific definition and interpretation of an
+experiment. Parameters that affect reproducibility must remain explicit in the
+notebook, including potential parameters and seeds, initial-condition geometry,
+physical and numerical parameters, integration spans and steps, and sampling
+choices.
+
+Put reusable experiment composition in `src/workflows/`. This includes common
+potential and initial-condition construction, system assembly, parameter
+validation, repeated-run orchestration, diagnostic extraction and summaries,
+and notebook presentation helpers. Do not duplicate project-root discovery,
+`sys.path` mutation, observer lifecycle management, result-dictionary assembly,
+or reusable plotting/display helpers across notebooks.
+
+Keep generic geometry, dynamics, numerical methods, and result behavior in
+`src/classes/`; workflows should compose those APIs rather than reimplement
+them. A notebook-local helper is appropriate only when its behavior is unique
+to that study and would not provide a stable reusable workflow.
+
 # Project language
 
 Use English for all newly written or modified project content. This includes
@@ -16,6 +36,14 @@ outputs. Regenerate affected notebook figures and animations when they contain
 non-English labels. When editing existing non-English prose, translate it into
 English. Keep established identifiers stable unless a rename is explicitly
 requested; proper names and mathematical notation do not require translation.
+
+# Architecture diagram
+
+`docs/architecture.puml` is the authoritative architecture diagram. Review it
+with every code modification, and update it whenever a change affects the
+simulation architecture, public API, dependencies, numerical methods,
+formulations, dynamics, or result model. Do not leave the diagram inconsistent
+with the implemented code.
 
 # Git tracking policy
 

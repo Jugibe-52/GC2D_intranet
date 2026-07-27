@@ -56,6 +56,15 @@ class Trajectory:
 		"""Return a copy so callers cannot mutate the stored initial condition."""
 		return None if self._state is None else self._state.copy()
 
+	@property
+	def initial_state(self) -> np.ndarray | None:
+		"""Return the initial physical state through the architecture-level name.
+
+		``state`` remains the notebook-facing compatibility spelling.  Both
+		properties return independent copies of the same component-major vector.
+		"""
+		return self.state
+
 	def set_initial_state(self, state: np.ndarray) -> None:
 		"""Validate and store a one-dimensional component-major state."""
 		value = np.asarray(state, dtype=float)

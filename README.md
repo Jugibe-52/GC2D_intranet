@@ -3,7 +3,7 @@
 Research code for studying particle trajectories in a two-dimensional
 electrostatic potential.
 
-The project is organized around four entities:
+The established notebook API is organized around four entities:
 
 ```text
 Potential + Trajectory -> System -> Solution
@@ -16,8 +16,17 @@ Potential + Trajectory -> System -> Solution
 - `SystemGC` and `SystemFC` combine a potential with a trajectory and perform
   the time integration.
 
-The notebooks in `notebooks/developements/` are the only entry points. There
-are no command-line executables, external configuration, or workflow API.
+An explicit interoperable API also separates physical dynamics, initial
+configurations, numerical formulations, and methods:
+
+```text
+Dynamics + InitialConfiguration -> InitialValueProblem
+         + NumericalMethod      -> SimulationRunner -> Solution
+         + SimulationRequest
+```
+
+The notebooks in `notebooks/developements/` remain the primary examples. There
+are no command-line executables or external configuration files.
 
 ## Installation
 
@@ -29,6 +38,51 @@ python -m pip install -r requirements.txt
 
 The package is installed in editable mode, so changes in `src/` are immediately
 available to the notebooks.
+
+## Notebook workflows
+
+The `workflows` package keeps repeated initialization and experiment
+orchestration out of notebooks without hiding reproducibility parameters. For
+example, a centered area study starts with:
+
+```python
+from workflows import (
+    AreaComparisonConfig,
+    RandomPotentialConfig,
+    centered_circle,
+    pi_area_steps,
+    run_area_comparison,
+)
+
+potential_config = RandomPotentialConfig(
+    amplitude=0.7,
+    max_wave_number=25,
+    nx=64,
+    ny=64,
+    seed=27,
+    interpolation_order=5,
+)
+potential = potential_config.build()
+area = centered_circle(potential, radius=0.5, points=16, rho=0.3)
+config = AreaComparisonConfig(
+    steps=pi_area_steps(40, 80, 160),
+    t_span=(0.0, 4 * np.pi),
+    save_interval=np.pi / 8,
+    coupling_frequency=0.0,
+)
+result = run_area_comparison(
+    potential,
+    area,
+    notebook_path="notebooks/developements/area_study.ipynb",
+    config=config,
+    metadata=potential_config.metadata(),
+)
+```
+
+The notebook remains responsible for declaring potential, geometry,
+integration, and sampling parameters. Workflows construct centered initial
+conditions, assemble systems and observers, run repeated integrations, and
+prepare summaries and visualizations.
 
 ## GC example
 
@@ -110,6 +164,57 @@ solution = system.simulate(
 
 `SystemFC` integrates the full cyclotron orbit over the physical potential.
 
+## Explicit numerical composition
+
+New simulations can select a general method or a structure-preserving
+formulation without changing the physical dynamics:
+
+```python
+import numpy as np
+
+from classes import (
+    BM4Composition,
+    GCInitialConfiguration,
+    GCExtendedFormulation,
+    GuidingCenterDynamics,
+    InitialValueProblem,
+    RK4,
+    SimulationRequest,
+    simulate,
+)
+
+configuration = GCInitialConfiguration.from_components(
+    x=np.array([potential.grid.xmin + potential.grid.period / 2]),
+    y=np.array([potential.grid.ymin + potential.grid.period / 2]),
+    rho=0.3,
+)
+problem = InitialValueProblem(
+    GuidingCenterDynamics(potential, rho=configuration.rho),
+    configuration,
+)
+request = SimulationRequest.uniform(
+    t_span=(0.0, 6 * np.pi),
+    max_step=0.001,
+    sample_count=361,
+)
+
+rk4_solution = simulate(problem, RK4(), request)
+bm4_solution = simulate(
+    problem,
+    BM4Composition(
+        GCExtendedFormulation(coupling_frequency=2.0),
+        track_energy=True,
+    ),
+    request,
+)
+```
+
+`RK4` consumes any compatible vector field. `BM4Composition` consumes a
+direct/adjoint formulation; the current choices are
+`GCExtendedFormulation` and `FCSplitFormulation`. The architecture-level names
+`GCInitialConfiguration` and `FCInitialConfiguration` are available alongside
+the compatible legacy names `TrajectoryGC` and `TrajectoryFC`.
+
 ## State organization
 
 States use blocks rather than interleaved values. For `N` trajectories:
@@ -155,7 +260,8 @@ retaining the flat vector as the stable input and output format.
 
 Trajectories accept the initial state in the constructor and also allow it to
 be replaced with `set_initial_state(...)`. Reusable contour geometries belong
-to `Area`; other experiment-specific conditions are prepared in the notebook.
+to `Area`; common experiment composition belongs to `workflows`, while each
+notebook keeps the parameters that define its scientific study explicit.
 
 `TrajectoryGC.split(...)` returns components named `x` and `y`;
 `TrajectoryFC.split(...)` adds `vx` and `vy`. The `pack_components(...)` class
@@ -181,7 +287,7 @@ system = SystemGC(potential, area)
 solution = system.simulate(step=0.005)
 
 transported_area = area.calculate_area(
-    solution.y,
+    solution.states,
     period=potential.grid.period,
 )
 
@@ -205,11 +311,12 @@ area error, and optional projected diagnostics.
 
 ## Integration and results
 
-`System.simulate(...)` uses the symplectic BM4 composition. The method is fixed
-to maintain a single, understandable numerical path. Its uniform BM4 grid
-depends only on `t_span` and `step`; changing `n_output_samples` does not change
-that trajectory. Samples between BM4 nodes are obtained with independent
-shadow BM4 advances from the preceding node.
+The compatibility method `System.simulate(...)` uses the symplectic BM4
+composition. Its uniform BM4 grid depends only on `t_span` and `step`; changing
+`n_output_samples` does not change that trajectory. Samples between BM4 nodes
+are obtained with independent shadow BM4 advances from the preceding node.
+The explicit API can instead select `RK4` or construct `BM4Composition` with a
+compatible formulation.
 
 The usual arguments are:
 
@@ -222,16 +329,18 @@ The usual arguments are:
   stages of each BM4 step without changing the numerical result; shadow
   output advances are excluded.
 
-The solution provides at least:
+The canonical solution interface provides:
 
 - `solution.t`: saved times.
-- `solution.y`: states, with one column per time.
-- `solution.n_steps`: number of complete BM4 steps.
-- `solution.k`: extended momentum when the energy is checked.
-- `solution.err`: maximum energy error when requested.
+- `solution.states`: physical states, with one column per time.
+- `solution.source`: the initial configuration and state layout.
+- `solution.diagnostics`: named method and formulation diagnostics.
 - `solution.components()`: named physical blocks for the trajectory.
+- `solution.positions()`: the two position histories.
 
-For example:
+For compatibility, `solution.y` aliases `states`, `solution.trajectory` aliases
+`source`, and `solution.n_steps`, `solution.k`, and `solution.err` expose the
+corresponding diagnostics. For example:
 
 ```python
 components = solution.components()
@@ -242,7 +351,7 @@ y = components.y
 The Hamiltonian can also be evaluated directly:
 
 ```python
-energy = system.hamiltonian(solution.t, solution.y)
+energy = system.hamiltonian(solution.t, solution.states)
 ```
 
 ## Potential
@@ -255,22 +364,20 @@ the development notebooks. The potential supports:
 - plotting the field with `potential.plot()`;
 - animating it with `potential.animate(...)`.
 
-## Development notebooks
+## Notebooks
 
-- `test_generalized_energy_.ipynb`: convergence and conservation of generalized
-  energy in GC, plus a short FC check.
-- `test_dX_dY.ipynb`: area conservation of a contour transported in GC.
-- `study_gc_symplecticity.ipynb`: Jacobians of `flow` and `adjoint_flow`,
-  symplectic defect, and block persistence under `outputs/`.
-- `study_gc_projected_symplecticity_area.ipynb`: accumulated symplecticity of
-  the projected physical map, copy separation, and area evolution.
-- `study_gc_area_and_projected_symplecticity.ipynb`: animated comparison of a
-  16-point GC circle for three BM4 step sizes, tracking area, projected
-  symplecticity, and internal separation through `4*pi`.
+- `developements/gc_area_and_projected_symplecticity_1_dev.ipynb`: short or
+  full validation of the uncoupled projected-area workflow.
+- `experiments/gc_area_and_projected_symplecticity_1.ipynb`: three-step area
+  comparison with zero numerical copy coupling.
+- `experiments/gc_area_and_projected_symplecticity_2.ipynb`: the same
+  comparison with coupling frequency 10.
+- `experiments/generalized_energy.ipynb`: generalized-energy convergence over
+  four successively refined BM4 steps.
 
 The diagnostics specific to these studies live in `research/symplecticity/`
 and `research/projection/`. Outputs are organized as
 `outputs/<notebook folder>/<notebook>/<date>/` and are not versioned.
 
-The internal structure is summarized in
-[`docs/architecture.md`](docs/architecture.md).
+The implemented architecture is documented by the editable PlantUML diagram
+[`docs/architecture.puml`](docs/architecture.puml).

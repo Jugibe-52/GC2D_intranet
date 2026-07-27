@@ -15,12 +15,20 @@ dependencies = [
 ]
 
 [tool.setuptools]
-package-dir = {"" = "src"}
+package-dir = {"" = "src", research = "research"}
 packages = [
 	"classes",
+	"classes.dynamics",
 	"classes.potential",
+	"classes.simulation",
+	"classes.simulation.formulations",
+	"classes.simulation.methods",
 	"classes.trajectory",
 	"classes.system",
+	"research",
+	"research.projection",
+	"research.symplecticity",
+	"workflows",
 ]
 
 [project.optional-dependencies]

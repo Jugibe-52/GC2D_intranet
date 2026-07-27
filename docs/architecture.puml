@@ -1,0 +1,202 @@
+@startuml
+title GC2D Simulation Architecture
+
+skinparam componentStyle rectangle
+skinparam packageStyle rectangle
+skinparam shadowing false
+skinparam linetype ortho
+skinparam defaultTextAlignment center
+
+package "Physical dynamics" as Dynamics {
+  class Potential
+
+  interface DynamicalSystem {
+    + state_dimension: int
+    + vector_field(t, state): Array
+  }
+
+  interface HamiltonianSystem {
+    + hamiltonian(t, state): Array
+  }
+
+  interface ExtendedHamiltonianSystem {
+    + extended_momentum_derivative(t, state): Array
+  }
+
+  interface CyclotronSplitSystem {
+    + rho: float
+    + eta: float
+    + larmor_frequency: float
+    + electric_acceleration(t, x, y): (Array, Array)
+  }
+
+  class GuidingCenterDynamics {
+    + rho: float
+  }
+
+  class FullCyclotronDynamics {
+    + rho: float
+    + eta: float
+  }
+
+  HamiltonianSystem <|-- ExtendedHamiltonianSystem
+  DynamicalSystem <|-- CyclotronSplitSystem
+
+  DynamicalSystem <|.. GuidingCenterDynamics
+  ExtendedHamiltonianSystem <|.. GuidingCenterDynamics
+
+  DynamicalSystem <|.. FullCyclotronDynamics
+  ExtendedHamiltonianSystem <|.. FullCyclotronDynamics
+  CyclotronSplitSystem <|.. FullCyclotronDynamics
+
+  GuidingCenterDynamics o-- Potential
+  FullCyclotronDynamics o-- Potential
+}
+
+package "Initial configuration" as Initial {
+  interface InitialConfiguration {
+    + state_dimension: int
+    + initial_state: Array
+    + validate_packed_state(state): Array
+    + split(state): Components
+    + pack_components(components): Array
+    + particle_count(state): int
+    + positions(state): (Array, Array)
+  }
+
+  class GCInitialConfiguration
+  class FCInitialConfiguration
+
+  class Area {
+    + shape: AreaShape
+    + calculate_area(states, period=None): Array
+  }
+
+  InitialConfiguration <|.. GCInitialConfiguration
+  InitialConfiguration <|.. FCInitialConfiguration
+  GCInitialConfiguration <|-- Area
+
+  note bottom of GCInitialConfiguration
+    GCInitialConfiguration and
+    FCInitialConfiguration are the
+    architecture-level aliases of
+    TrajectoryGC and TrajectoryFC.
+  end note
+}
+
+class InitialValueProblem {
+  + dynamics: DynamicalSystem
+  + initial_configuration: InitialConfiguration
+}
+
+InitialValueProblem o-- DynamicalSystem
+InitialValueProblem o-- InitialConfiguration
+
+package "Numerical formulations" as Formulations {
+  interface DirectAdjointFormulation {
+    + prepare(problem, track_energy): PreparedMaps
+  }
+
+  class GCExtendedFormulation {
+    + coupling_frequency: float
+  }
+
+  class FCSplitFormulation
+
+  DirectAdjointFormulation <|.. GCExtendedFormulation
+  DirectAdjointFormulation <|.. FCSplitFormulation
+}
+
+note bottom of DirectAdjointFormulation
+  PreparedMaps is an internal, immutable
+  per-run value containing the initial
+  internal state, direct and adjoint maps,
+  and physical projection.
+end note
+
+GCExtendedFormulation ..> DynamicalSystem : requires vector field
+GCExtendedFormulation ..> GCInitialConfiguration : requires GC layout
+GCExtendedFormulation ..> ExtendedHamiltonianSystem : optional energy tracking
+FCSplitFormulation ..> CyclotronSplitSystem : requires FC split
+FCSplitFormulation ..> FCInitialConfiguration : requires FC layout
+FCSplitFormulation ..> ExtendedHamiltonianSystem : optional energy tracking
+
+package "Numerical methods" as Methods {
+  interface NumericalMethod {
+    + integrate(problem, request): IntegrationData
+  }
+
+  class RK4
+  class BM4Composition
+
+  NumericalMethod <|.. RK4
+  NumericalMethod <|.. BM4Composition
+}
+
+RK4 ..> DynamicalSystem : requires vector field
+BM4Composition o-- DirectAdjointFormulation : formulation
+
+package "Simulation" as Simulation {
+  class SimulationRequest {
+    + t_span: (float, float)
+    + max_step: float
+    + output_times: Array
+  }
+
+  class SimulationRunner {
+    + simulate(problem, method, request): Solution
+  }
+
+  class Solution {
+    + source: InitialConfiguration
+    + t: Array
+    + states: Array
+    + diagnostics: Mapping
+    + components(): Components
+    + positions(): (Array, Array)
+  }
+}
+
+SimulationRunner ..> InitialValueProblem
+SimulationRunner ..> NumericalMethod
+SimulationRunner ..> SimulationRequest
+SimulationRunner --> Solution : builds
+
+Solution o-- InitialConfiguration : source
+
+note right of Area
+  Area is a GC initial configuration
+  with additional geometric meaning.
+end note
+
+note right of Solution
+  Solution is the computed trajectory:
+  t provides the temporal dimension and
+  states[:, index] is the state at t[index].
+
+  Numerical diagnostics remain attached
+  without introducing more result classes.
+end note
+
+note bottom of NumericalMethod
+  IntegrationData is an internal value:
+  times, physical states, and diagnostics.
+  The runner converts it into Solution.
+end note
+
+note bottom of SimulationRunner
+  The runner assembles the problem,
+  numerical method, and request.
+  Specialized methods may own a formulation.
+end note
+
+legend bottom
+  |= Relation |= Meaning |
+  | <|.. | Implements an interface |
+  | <|-- | Inherits or specializes |
+  | ..> | Requires or adapts |
+  | o-- | Aggregates |
+  | --> | Uses or produces |
+endlegend
+
+@enduml

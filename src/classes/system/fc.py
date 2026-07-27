@@ -4,10 +4,15 @@ from __future__ import annotations
 
 import numpy as np
 
+from classes.dynamics import FullCyclotronDynamics
 from classes.potential import Potential
+from classes.simulation.formulations import FCSplitFormulation
+from classes.simulation.methods import BM4Composition
+from classes.simulation.problem import InitialValueProblem
+from classes.simulation.request import SimulationRequest
+from classes.simulation.runner import SimulationRunner
 from classes.trajectory import TrajectoryFC
 
-from ._integration import solve_fc
 from .observation import StageObserver
 from .solution import Solution
 from .system import System
@@ -16,18 +21,25 @@ from .system import System
 class SystemFC(System):
 	"""Full-cyclotron dynamics over the physical potential.
 
-	The trajectory owns the component-major ``[x, y, vx, vy]`` layout and the
-	three scales derived from ``rho`` and ``eta``. Unlike GC dynamics, FC uses the
-	raw potential because the rapid cyclotron motion remains in the state itself.
+	The trajectory supplies the component-major ``[x, y, vx, vy]`` initial
+	configuration. :class:`FullCyclotronDynamics` owns the physical parameters
+	and their derived scales. Unlike GC dynamics, FC uses the raw potential
+	because the rapid cyclotron motion remains in the state itself.
 	"""
 
 	trajectory: TrajectoryFC
+	dynamics: FullCyclotronDynamics
 
 	def __init__(self, potential: Potential, trajectory: TrajectoryFC) -> None:
 		"""Construct a full-cyclotron system from compatible domain objects."""
 		if not isinstance(trajectory, TrajectoryFC):
 			raise TypeError("SystemFC requires a TrajectoryFC instance.")
 		super().__init__(potential, trajectory)
+		self.dynamics = FullCyclotronDynamics(
+			potential,
+			rho=trajectory.rho,
+			eta=trajectory.eta,
+		)
 
 	def electric_acceleration(
 		self,
@@ -38,30 +50,13 @@ class SystemFC(System):
 		"""Return the electric contributions to ``dvx/dt`` and ``dvy/dt``.
 
 		The returned arrays match the broadcast shape of ``x`` and ``y``. Their
-		signed normalization is carried by the trajectory's ``electric_scale``.
+		signed normalization is carried by the explicit dynamics object.
 		"""
-		ex, ey = self.potential.electric_field(t, x, y)
-		return (
-			self.trajectory.electric_scale * ex,
-			self.trajectory.electric_scale * ey,
-		)
+		return self.dynamics.electric_acceleration(t, x, y)
 
 	def vector_field(self, t: float, state: np.ndarray) -> np.ndarray:
 		"""Evaluate derivatives with the same ``[x, y, vx, vy]`` state layout."""
-		components = self.trajectory.split(state)
-		acceleration_x, acceleration_y = self.electric_acceleration(
-			t,
-			components.x,
-			components.y,
-		)
-		# Position uses the model's normalized velocity scale. The cross terms
-		# rotate velocity at the signed Larmor frequency.
-		return self.trajectory.pack_components(
-			components.vx * self.trajectory.velocity_scale,
-			components.vy * self.trajectory.velocity_scale,
-			acceleration_x + components.vy * self.trajectory.larmor_frequency,
-			acceleration_y - components.vx * self.trajectory.larmor_frequency,
-		)
+		return self.dynamics.vector_field(t, state)
 
 	def hamiltonian(
 		self,
@@ -73,16 +68,7 @@ class SystemFC(System):
 		For a saved solution the returned array keeps particle and time axes, so
 		it can be combined directly with the extended momentum ``solution.k``.
 		"""
-		components = self.trajectory.split(state)
-		# The normalization of FC coordinates puts rho/(4|eta|) in front of
-		# squared velocity, while the same electric scale used in acceleration
-		# weights the potential energy.
-		kinetic_scale = self.trajectory.rho / (4 * abs(self.trajectory.eta))
-		return np.asarray(
-			kinetic_scale * (components.vx**2 + components.vy**2)
-			+ self.trajectory.electric_scale
-			* self.potential.evaluate(t, components.x, components.y)
-		)
+		return self.dynamics.hamiltonian(t, state)
 
 	def extended_momentum_derivative(
 		self,
@@ -90,11 +76,7 @@ class SystemFC(System):
 		state: np.ndarray,
 	) -> np.ndarray:
 		"""Evaluate the per-particle derivative of momentum conjugate to time."""
-		components = self.trajectory.split(state)
-		return np.asarray(
-			-self.trajectory.electric_scale
-			* self.potential.evaluate(t, components.x, components.y, dt=1)
-		)
+		return self.dynamics.extended_momentum_derivative(t, state)
 
 	def _integrate(
 		self,
@@ -107,17 +89,23 @@ class SystemFC(System):
 		progress: bool,
 		stage_observer: StageObserver | None,
 	) -> Solution:
-		"""Delegate FC splitting and BM4 composition to the private integrator."""
-		return solve_fc(
-			self,
-			state,
-			step=step,
+		"""Assemble the legacy BM4 façade from independent architecture objects."""
+		stored_state = self.trajectory.state
+		if stored_state is None or not np.array_equal(stored_state, state):
+			raise ValueError("The supplied state must match the stored initial state.")
+		problem = InitialValueProblem(self.dynamics, self.trajectory)
+		request = SimulationRequest.uniform(
 			t_span=t_span,
-			n_output_samples=n_output_samples,
-			check_energy=check_energy,
+			max_step=step,
+			sample_count=n_output_samples,
+		)
+		method = BM4Composition(
+			FCSplitFormulation(),
+			track_energy=check_energy,
 			progress=progress,
 			stage_observer=stage_observer,
 		)
+		return SimulationRunner().simulate(problem, method, request)
 
 
 __all__ = ["SystemFC"]

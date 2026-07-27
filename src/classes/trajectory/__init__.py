@@ -1,7 +1,15 @@
-"""Trajectory entity, its GC/FC variants and finite-area boundaries."""
+"""Initial configurations, legacy trajectory names, and area boundaries."""
 
 from .area import Area
-from .fc import FCState, TrajectoryFC
-from .gc import GCState, TrajectoryGC
+from .fc import FCInitialConfiguration, FCState, TrajectoryFC
+from .gc import GCInitialConfiguration, GCState, TrajectoryGC
 
-__all__ = ["Area", "FCState", "GCState", "TrajectoryFC", "TrajectoryGC"]
+__all__ = [
+	"Area",
+	"FCInitialConfiguration",
+	"FCState",
+	"GCInitialConfiguration",
+	"GCState",
+	"TrajectoryFC",
+	"TrajectoryGC",
+]

@@ -96,4 +96,8 @@ class TrajectoryFC(Trajectory):
 		return FCState(x, y, vx, vy)
 
 
-__all__ = ["FCState", "TrajectoryFC"]
+# Architecture-level spelling; the legacy name remains the same concrete type.
+FCInitialConfiguration = TrajectoryFC
+
+
+__all__ = ["FCInitialConfiguration", "FCState", "TrajectoryFC"]
