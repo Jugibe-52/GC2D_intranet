@@ -15,7 +15,6 @@ class FullCyclotronDynamics:
 	"""Full-cyclotron equations for fixed physical parameters."""
 
 	state_dimension: ClassVar[int] = 4
-	observer_name: ClassVar[str] = "SystemFC"
 
 	def __init__(self, potential: Potential, *, rho: float, eta: float) -> None:
 		"""Create FC dynamics with finite, non-zero ``rho`` and ``eta``."""

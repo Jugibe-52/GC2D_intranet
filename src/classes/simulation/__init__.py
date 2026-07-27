@@ -5,8 +5,10 @@ from .formulations import (
 	DirectAdjointFormulation,
 	FCSplitFormulation,
 	GCExtendedFormulation,
+	GCStageProjectedFormulation,
+	StageProjectedFormulation,
 )
-from .methods import BM4Composition, NumericalMethod, RK4
+from .methods import BM4Composition, NumericalMethod, ProjectedBM4Composition, RK4
 from .observation import IntegrationStage, StageObserver
 from .problem import InitialValueProblem
 from .request import SimulationRequest
@@ -18,14 +20,17 @@ __all__ = [
 	"DirectAdjointFormulation",
 	"FCSplitFormulation",
 	"GCExtendedFormulation",
+	"GCStageProjectedFormulation",
 	"InitialConfiguration",
 	"InitialValueProblem",
 	"IntegrationStage",
 	"NumericalMethod",
+	"ProjectedBM4Composition",
 	"RK4",
 	"SimulationRequest",
 	"SimulationRunner",
 	"Solution",
 	"StageObserver",
+	"StageProjectedFormulation",
 	"simulate",
 ]

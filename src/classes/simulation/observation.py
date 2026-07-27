@@ -19,9 +19,12 @@ class IntegrationStage:
 	internal state. ``map_state`` evaluates this exact stage—with its duration and
 	evaluation time already fixed—on another state of the same shape. Diagnostic
 	code can therefore differentiate a stage without duplicating integrator logic.
+	For a stage-projected method, every stage map includes that projection.
 	"""
 
-	system_name: str
+	dynamics_name: str
+	formulation_name: str
+	method_name: str
 	flow_name: Literal["flow", "adjoint_flow"]
 	step_index: int
 	stage_index: int

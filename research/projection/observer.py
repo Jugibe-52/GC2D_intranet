@@ -100,14 +100,17 @@ class ProjectedSymplecticityAreaObserver:
 	"""Propagate ``D(P Phi E)`` and observe a projected GC boundary.
 
 	``E`` embeds the physical initial state on the diagonal of the doubled phase
-	space, each numerical stage Jacobian advances that tangent, and ``P`` averages
-	the two copies after every complete twelve-stage BM4 step. The resulting square
-	Jacobian maps the initial physical boundary coordinates to their current
-	projection and can therefore be tested against the physical GC symplectic form.
+	space, each numerical stage Jacobian advances that tangent, and ``P`` reads
+	the physical mean after every complete twelve-stage BM4 step. For a
+	stage-projected method, each observed stage map already includes the
+	projection and diagonal re-embedding applied after that map. The resulting
+	square Jacobian maps the initial physical boundary coordinates to their
+	current projection and can therefore be tested against the physical GC
+	symplectic form.
 
 	All stage Jacobians must be evaluated to propagate the cumulative tangent.
 	``record_every`` reduces only persisted observations, not differentiation cost.
-	The observer requires ``check_energy=False`` and an :class:`Area` trajectory.
+	The observer requires ``track_energy=False`` and an :class:`Area` trajectory.
 	"""
 
 	def __init__(
@@ -206,8 +209,11 @@ class ProjectedSymplecticityAreaObserver:
 		"""Advance the cumulative tangent with one consecutive BM4 stage."""
 		if self._closed:
 			raise RuntimeError("This projected symplecticity observer is already closed.")
-		if stage.system_name != "SystemGC":
-			raise TypeError("ProjectedSymplecticityAreaObserver only supports SystemGC.")
+		if stage.dynamics_name != "GuidingCenterDynamics":
+			raise TypeError(
+				"ProjectedSymplecticityAreaObserver only supports "
+				"guiding-centre dynamics."
+			)
 		if (
 			stage.step_index != self._expected_step
 			or stage.stage_index != self._expected_stage
@@ -222,7 +228,9 @@ class ProjectedSymplecticityAreaObserver:
 			if not np.allclose(first, second, rtol=0.0, atol=1e-13):
 				raise ValueError("The initial extended GC state must lie on the diagonal.")
 			if not np.allclose(first, self.initial_state, rtol=0.0, atol=1e-13):
-				raise ValueError("The observed system and `area` must share the initial state.")
+				raise ValueError(
+					"The observed problem and `area` must share the initial state."
+				)
 			self._append_projection(
 				step_index=-1,
 				time=stage.time,
@@ -270,7 +278,7 @@ class ProjectedSymplecticityAreaObserver:
 		):
 			raise ValueError(
 				"Projected GC diagnostics require the finite 4N doubled state; "
-				"run with `check_energy=False`."
+				"run the method with `track_energy=False`."
 			)
 		return value
 

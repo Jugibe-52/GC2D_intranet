@@ -15,7 +15,6 @@ class GuidingCenterDynamics:
 	"""Guiding-centre equations over a fixed gyroaveraged potential."""
 
 	state_dimension: ClassVar[int] = 2
-	observer_name: ClassVar[str] = "SystemGC"
 
 	def __init__(self, potential: Potential, *, rho: float = 0.0) -> None:
 		"""Create physical GC dynamics for one normalized Larmor radius."""

@@ -18,6 +18,11 @@ from .initial_conditions import (
 	centered_square,
 	domain_center,
 )
+from .gc_visualization import (
+	animate_gc_area,
+	animate_gc_area_comparison,
+	animate_gc_area_solution,
+)
 from .notebooks import display_animation
 from .potentials import RandomPotentialConfig
 
@@ -28,6 +33,9 @@ __all__ = [
 	"GeneralizedEnergyConfig",
 	"GeneralizedEnergyResult",
 	"RandomPotentialConfig",
+	"animate_gc_area",
+	"animate_gc_area_comparison",
+	"animate_gc_area_solution",
 	"centered_circle",
 	"centered_gc_trajectory",
 	"centered_square",

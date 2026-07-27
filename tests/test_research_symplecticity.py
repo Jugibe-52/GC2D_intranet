@@ -65,7 +65,9 @@ class SymplecticityResearchTests(unittest.TestCase):
 				for stage_index in range(3):
 					observer(
 						IntegrationStage(
-							system_name="SystemGC",
+							dynamics_name="GuidingCenterDynamics",
+							formulation_name="GCExtendedFormulation",
+							method_name="BM4Composition",
 							flow_name=(
 								"flow" if stage_index % 2 else "adjoint_flow"
 							),
@@ -103,7 +105,9 @@ class SymplecticityResearchTests(unittest.TestCase):
 			) as next_observer:
 				next_observer(
 					IntegrationStage(
-						system_name="SystemGC",
+						dynamics_name="GuidingCenterDynamics",
+						formulation_name="GCExtendedFormulation",
+						method_name="BM4Composition",
 						flow_name="flow",
 						step_index=0,
 						stage_index=0,
@@ -138,6 +142,8 @@ class SymplecticityResearchTests(unittest.TestCase):
 				verbose=False,
 			)
 			base = {
+				"formulation_name": "GCExtendedFormulation",
+				"method_name": "BM4Composition",
 				"flow_name": "flow",
 				"step_index": 0,
 				"stage_index": 0,
@@ -149,7 +155,7 @@ class SymplecticityResearchTests(unittest.TestCase):
 			with self.assertRaises(TypeError):
 				observer(
 					IntegrationStage(
-						system_name="SystemFC",
+						dynamics_name="FullCyclotronDynamics",
 						state_before=state,
 						state_after=state,
 						**base,
@@ -159,7 +165,7 @@ class SymplecticityResearchTests(unittest.TestCase):
 			with self.assertRaises(ValueError):
 				observer(
 					IntegrationStage(
-						system_name="SystemGC",
+						dynamics_name="GuidingCenterDynamics",
 						state_before=energy_augmented,
 						state_after=energy_augmented,
 						**base,

@@ -19,7 +19,7 @@ class Trajectory:
 	count.
 
 	``rho`` is the non-negative, normalized Larmor-circle radius shared by every
-	particle in the trajectory.  GC systems use it to gyroaverage the potential;
+	particle in the trajectory. GC dynamics use it to gyroaverage the potential;
 	FC trajectories additionally use it in their dynamical scales.
 	"""
 

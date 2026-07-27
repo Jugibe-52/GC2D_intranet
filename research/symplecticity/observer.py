@@ -11,7 +11,7 @@ from typing import Any, Mapping
 
 import numpy as np
 
-from classes.system.observation import IntegrationStage, StateMap
+from classes.simulation.observation import IntegrationStage, StateMap
 
 from .paths import next_block_index, notebook_output_directory, validate_block_name
 
@@ -128,7 +128,7 @@ class SymplecticityObserver:
 	A selected complete BM4 step contributes all twelve direct/adjoint stages.
 	``sample_every`` selects complete steps, while ``chunk_size`` limits the number
 	of full matrices held in memory before a synchronized CSV/NPZ/JSON block is
-	written. This observer expects ``check_energy=False`` because the GC diagnostic
+	written. This observer expects ``track_energy=False`` because the GC diagnostic
 	form covers the two physical copies, not the optional momentum without its
 	explicit time coordinate.
 	"""
@@ -213,13 +213,15 @@ class SymplecticityObserver:
 			raise RuntimeError("This symplecticity observer is already closed.")
 		if stage.step_index % self.sample_every:
 			return
-		if stage.system_name != "SystemGC":
-			raise TypeError("SymplecticityObserver only supports SystemGC stages.")
+		if stage.dynamics_name != "GuidingCenterDynamics":
+			raise TypeError(
+				"SymplecticityObserver only supports guiding-centre dynamics."
+			)
 		state = np.asarray(stage.state_before, dtype=float)
 		if state.ndim != 1 or state.size != 4 * self.particle_count:
 			raise ValueError(
 				"GC symplecticity requires the 4N doubled physical state; "
-				"run the simulation with `check_energy=False`."
+				"run the method with `track_energy=False`."
 			)
 		jacobian = central_difference_jacobian(
 			stage.map_state,

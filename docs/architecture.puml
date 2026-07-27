@@ -97,14 +97,21 @@ package "Numerical formulations" as Formulations {
     + prepare(problem, track_energy): PreparedMaps
   }
 
+  interface StageProjectedFormulation {
+    + prepare(problem, track_energy): StageProjectedMaps
+  }
+
   class GCExtendedFormulation {
     + coupling_frequency: float
   }
 
+  class GCStageProjectedFormulation
   class FCSplitFormulation
 
+  DirectAdjointFormulation <|-- StageProjectedFormulation
   DirectAdjointFormulation <|.. GCExtendedFormulation
   DirectAdjointFormulation <|.. FCSplitFormulation
+  StageProjectedFormulation <|.. GCStageProjectedFormulation
 }
 
 note bottom of DirectAdjointFormulation
@@ -117,6 +124,9 @@ end note
 GCExtendedFormulation ..> DynamicalSystem : requires vector field
 GCExtendedFormulation ..> GCInitialConfiguration : requires GC layout
 GCExtendedFormulation ..> ExtendedHamiltonianSystem : optional energy tracking
+GCStageProjectedFormulation ..> DynamicalSystem : requires vector field
+GCStageProjectedFormulation ..> GCInitialConfiguration : requires GC layout
+GCStageProjectedFormulation ..> ExtendedHamiltonianSystem : optional energy tracking
 FCSplitFormulation ..> CyclotronSplitSystem : requires FC split
 FCSplitFormulation ..> FCInitialConfiguration : requires FC layout
 FCSplitFormulation ..> ExtendedHamiltonianSystem : optional energy tracking
@@ -128,13 +138,16 @@ package "Numerical methods" as Methods {
 
   class RK4
   class BM4Composition
+  class ProjectedBM4Composition
 
   NumericalMethod <|.. RK4
   NumericalMethod <|.. BM4Composition
+  BM4Composition <|-- ProjectedBM4Composition
 }
 
 RK4 ..> DynamicalSystem : requires vector field
 BM4Composition o-- DirectAdjointFormulation : formulation
+ProjectedBM4Composition o-- StageProjectedFormulation : formulation
 
 package "Simulation" as Simulation {
   class SimulationRequest {
@@ -145,6 +158,13 @@ package "Simulation" as Simulation {
 
   class SimulationRunner {
     + simulate(problem, method, request): Solution
+  }
+
+  class IntegrationStage {
+    + dynamics_name: str
+    + formulation_name: str
+    + method_name: str
+    + flow_name: str
   }
 
   class Solution {
@@ -184,11 +204,34 @@ note bottom of NumericalMethod
   The runner converts it into Solution.
 end note
 
+note bottom of ProjectedBM4Composition
+  After every direct or adjoint map,
+  the formulation averages both GC copies
+  and embeds that mean back on the diagonal:
+  twelve projections per complete BM4 step.
+  This non-invertible projection is a distinct
+  BM4-based method, not the coupled BM4 map.
+end note
+
 note bottom of SimulationRunner
-  The runner assembles the problem,
-  numerical method, and request.
+  The runner validates and executes the supplied
+  problem, numerical method, and request.
   Specialized methods may own a formulation.
 end note
+
+package "Reusable workflows" as Workflows {
+  class AreaComparison
+  class GeneralizedEnergyComparison
+  class GCAreaVisualization
+}
+
+AreaComparison ..> SimulationRunner
+AreaComparison ..> BM4Composition : coupled_bm4
+AreaComparison ..> ProjectedBM4Composition : stage_projected_bm4
+GeneralizedEnergyComparison ..> SimulationRunner
+GCAreaVisualization ..> Potential
+GCAreaVisualization ..> Area
+GCAreaVisualization ..> Solution
 
 legend bottom
   |= Relation |= Meaning |

@@ -8,7 +8,17 @@ import unittest
 
 import numpy as np
 
-from classes import Area, IntegrationStage, Potential, SystemGC
+from classes import (
+	Area,
+	BM4Composition,
+	GCExtendedFormulation,
+	GuidingCenterDynamics,
+	InitialValueProblem,
+	IntegrationStage,
+	Potential,
+	SimulationRequest,
+	simulate,
+)
 from research.projection import (
 	ProjectedSymplecticityAreaObserver,
 	gc_average_projection,
@@ -53,7 +63,9 @@ class ProjectionResearchTests(unittest.TestCase):
 				for stage_index in range(12):
 					observer(
 						IntegrationStage(
-							system_name="SystemGC",
+							dynamics_name="GuidingCenterDynamics",
+							formulation_name="GCExtendedFormulation",
+							method_name="BM4Composition",
 							flow_name=(
 								"adjoint_flow" if stage_index % 2 == 0 else "flow"
 							),
@@ -100,7 +112,10 @@ class ProjectionResearchTests(unittest.TestCase):
 			seed=27,
 			interpolation_order=3,
 		)
-		system = SystemGC(potential, area, coupling_frequency=0.0)
+		problem = InitialValueProblem(
+			GuidingCenterDynamics(potential, rho=area.rho),
+			area,
+		)
 
 		with tempfile.TemporaryDirectory(dir="/tmp") as temporary:
 			root = Path(temporary)
@@ -111,13 +126,17 @@ class ProjectionResearchTests(unittest.TestCase):
 				project_root=root,
 				verbose=False,
 			) as observer:
-				solution = system.simulate(
-					step=0.01,
-					t_span=(0.0, 0.01),
-					n_output_samples=2,
-					check_energy=False,
-					progress=False,
-					stage_observer=observer,
+				solution = simulate(
+					problem,
+					BM4Composition(
+						GCExtendedFormulation(coupling_frequency=0.0),
+						stage_observer=observer,
+					),
+					SimulationRequest.uniform(
+						t_span=(0.0, 0.01),
+						max_step=0.01,
+						sample_count=2,
+					),
 				)
 
 			final = observer.records[-1]

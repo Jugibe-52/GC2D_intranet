@@ -11,7 +11,17 @@ import numpy as np
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 
-from classes import Potential, Solution, SystemGC, TrajectoryGC
+from classes import (
+	BM4Composition,
+	GCExtendedFormulation,
+	GuidingCenterDynamics,
+	InitialValueProblem,
+	Potential,
+	SimulationRequest,
+	Solution,
+	TrajectoryGC,
+	simulate,
+)
 
 
 def _validated_steps(steps: tuple[float, ...]) -> tuple[float, ...]:
@@ -71,7 +81,7 @@ class GeneralizedEnergySummary:
 class GeneralizedEnergyResult:
 	"""Solutions and energy histories produced by a convergence comparison."""
 
-	system: SystemGC
+	dynamics: GuidingCenterDynamics
 	steps: tuple[float, ...]
 	solutions: Mapping[float, Solution]
 	generalized_energies: Mapping[float, np.ndarray]
@@ -153,28 +163,34 @@ def run_generalized_energy_comparison(
 			"The generalized-energy workflow requires exactly one initial GC state."
 		)
 
-	system = SystemGC(
-		potential,
+	dynamics = GuidingCenterDynamics(potential, rho=trajectory.rho)
+	problem = InitialValueProblem(
+		dynamics,
 		trajectory,
-		coupling_frequency=config.coupling_frequency,
 	)
 	solutions: dict[float, Solution] = {}
 	energies: dict[float, np.ndarray] = {}
 	relative_errors: dict[float, np.ndarray] = {}
 
 	for step in config.steps:
-		solution = system.simulate(
-			step=step,
+		request = SimulationRequest.uniform(
 			t_span=config.t_span,
-			n_output_samples=config.output_sample_count,
-			check_energy=True,
+			max_step=step,
+			sample_count=config.output_sample_count,
+		)
+		method = BM4Composition(
+			GCExtendedFormulation(
+				coupling_frequency=config.coupling_frequency,
+			),
+			track_energy=True,
 			progress=config.progress,
 		)
+		solution = simulate(problem, method, request)
 		extended_momentum = solution.diagnostics.get("extended_momentum")
 		if extended_momentum is None:
 			raise RuntimeError("Energy tracking did not return extended momentum.")
 		hamiltonian = np.asarray(
-			system.hamiltonian(solution.t, solution.states),
+			dynamics.hamiltonian(solution.t, solution.states),
 			dtype=float,
 		)[0]
 		generalized_energy = hamiltonian + np.asarray(
@@ -191,7 +207,7 @@ def run_generalized_energy_comparison(
 		relative_errors[step] = relative_error
 
 	return GeneralizedEnergyResult(
-		system=system,
+		dynamics=dynamics,
 		steps=config.steps,
 		solutions=MappingProxyType(solutions),
 		generalized_energies=MappingProxyType(energies),

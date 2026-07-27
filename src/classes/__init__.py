@@ -1,4 +1,4 @@
-"""Public physical, numerical, simulation, and compatibility APIs."""
+"""Public physical, numerical, and simulation APIs."""
 
 from .dynamics import (
 	CyclotronSplitSystem,
@@ -14,18 +14,20 @@ from .simulation import (
 	DirectAdjointFormulation,
 	FCSplitFormulation,
 	GCExtendedFormulation,
+	GCStageProjectedFormulation,
 	InitialConfiguration,
 	InitialValueProblem,
 	IntegrationStage,
 	NumericalMethod,
+	ProjectedBM4Composition,
 	RK4,
 	SimulationRequest,
 	SimulationRunner,
 	Solution,
 	StageObserver,
+	StageProjectedFormulation,
 	simulate,
 )
-from .system import SystemFC, SystemGC
 from .trajectory import (
 	Area,
 	FCInitialConfiguration,
@@ -46,6 +48,7 @@ __all__ = [
 	"FullCyclotronDynamics",
 	"GCInitialConfiguration",
 	"GCExtendedFormulation",
+	"GCStageProjectedFormulation",
 	"GuidingCenterDynamics",
 	"HamiltonianSystem",
 	"InitialConfiguration",
@@ -53,13 +56,13 @@ __all__ = [
 	"IntegrationStage",
 	"NumericalMethod",
 	"Potential",
+	"ProjectedBM4Composition",
 	"RK4",
 	"SimulationRequest",
 	"SimulationRunner",
 	"Solution",
 	"StageObserver",
-	"SystemFC",
-	"SystemGC",
+	"StageProjectedFormulation",
 	"TrajectoryFC",
 	"TrajectoryGC",
 	"simulate",

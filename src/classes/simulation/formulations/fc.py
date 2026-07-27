@@ -49,7 +49,7 @@ class _PreparedFC:
 	physical_size: int
 	particle_count: int
 	track_energy: bool
-	observer_label: str
+	dynamics_name: str
 	initial_internal_state: np.ndarray
 
 	def _unpack(self, value: np.ndarray) -> _FCExtendedState:
@@ -203,9 +203,7 @@ class FCSplitFormulation:
 			physical_size=physical.size,
 			particle_count=particle_count,
 			track_energy=bool(track_energy),
-			observer_label=str(
-				getattr(problem.dynamics, "observer_name", "FullCyclotronDynamics")
-			),
+			dynamics_name=type(problem.dynamics).__name__,
 			initial_internal_state=initial_internal_state,
 		)
 

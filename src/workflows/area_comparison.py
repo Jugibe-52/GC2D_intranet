@@ -6,16 +6,30 @@ from dataclasses import dataclass
 from pathlib import Path
 import re
 from types import MappingProxyType
-from typing import Any, Mapping
+from typing import Any, Literal, Mapping
 
 import numpy as np
 from matplotlib.animation import FuncAnimation
 
-from classes import Area, Potential, Solution, SystemGC
+from classes import (
+	Area,
+	BM4Composition,
+	GCExtendedFormulation,
+	GCStageProjectedFormulation,
+	GuidingCenterDynamics,
+	InitialValueProblem,
+	Potential,
+	ProjectedBM4Composition,
+	SimulationRequest,
+	Solution,
+	simulate,
+)
 from research.projection import (
 	ProjectedAreaRecord,
 	ProjectedSymplecticityAreaObserver,
 )
+
+from .gc_visualization import animate_gc_area_comparison
 
 
 _BLOCK_PREFIX = re.compile(r"^[A-Za-z0-9_-]+$")
@@ -81,12 +95,13 @@ def pi_area_steps(*denominators: int) -> tuple[AreaStep, ...]:
 
 @dataclass(frozen=True, slots=True)
 class AreaComparisonConfig:
-	"""Numerical and persistence parameters for a projected-area comparison."""
+	"""Numerical, method-selection and persistence parameters for an area study."""
 
 	steps: tuple[AreaStep, ...]
 	t_span: tuple[float, float]
 	save_interval: float
 	coupling_frequency: float = 0.0
+	method_kind: Literal["coupled_bm4", "stage_projected_bm4"] = "coupled_bm4"
 	chunk_size: int = 16
 	progress: bool = False
 	block_prefix: str = "circle_comparison"
@@ -122,6 +137,15 @@ class AreaComparisonConfig:
 		if not np.isfinite(frequency) or frequency < 0:
 			raise ValueError("`coupling_frequency` must be finite and non-negative.")
 		object.__setattr__(self, "coupling_frequency", frequency)
+		if self.method_kind not in {"coupled_bm4", "stage_projected_bm4"}:
+			raise ValueError(
+				"`method_kind` must be 'coupled_bm4' or 'stage_projected_bm4'."
+			)
+		if self.method_kind == "stage_projected_bm4" and frequency != 0.0:
+			raise ValueError(
+				"`stage_projected_bm4` does not support harmonic coupling. "
+				"Set `coupling_frequency` to zero."
+			)
 		object.__setattr__(
 			self,
 			"chunk_size",
@@ -160,7 +184,8 @@ class AreaSummary:
 class AreaComparisonResult:
 	"""Solutions, projected observations and presentation for one comparison."""
 
-	system: SystemGC
+	effective_potential: Potential
+	area: Area
 	steps: tuple[AreaStep, ...]
 	solutions: Mapping[str, Solution]
 	records: Mapping[str, tuple[ProjectedAreaRecord, ...]]
@@ -221,7 +246,7 @@ class AreaComparisonResult:
 		"""Print one compact diagnostic row per configured integration step."""
 		header = (
 			"step",
-			"BM4 steps",
+			"integration steps",
 			"max |area error|",
 			"max symplectic defect",
 			"max relative separation",
@@ -246,7 +271,9 @@ class AreaComparisonResult:
 		repeat: bool = True,
 	) -> FuncAnimation:
 		"""Build the synchronized contour and projected-diagnostic animation."""
-		return self.system.animate_area_comparison(
+		return animate_gc_area_comparison(
+			self.effective_potential,
+			self.area,
 			self.solutions,
 			diagnostic_times=self.diagnostic_times,
 			relative_symplecticity_errors=self.relative_symplecticity_errors,
@@ -266,7 +293,7 @@ def run_area_comparison(
 	project_root: str | Path | None = None,
 	metadata: Mapping[str, Any] | None = None,
 ) -> AreaComparisonResult:
-	"""Run all synchronized BM4 steps and persist projected observations."""
+	"""Run all configured GC methods and persist projected observations."""
 	if not isinstance(potential, Potential):
 		raise TypeError("`potential` must be a Potential instance.")
 	if not isinstance(area, Area):
@@ -274,11 +301,8 @@ def run_area_comparison(
 	if not isinstance(config, AreaComparisonConfig):
 		raise TypeError("`config` must be an AreaComparisonConfig instance.")
 
-	system = SystemGC(
-		potential,
-		area,
-		coupling_frequency=config.coupling_frequency,
-	)
+	dynamics = GuidingCenterDynamics(potential, rho=area.rho)
+	problem = InitialValueProblem(dynamics, area)
 	initial_state = area.initial_state
 	assert initial_state is not None
 	solutions: dict[str, Solution] = {}
@@ -290,6 +314,7 @@ def run_area_comparison(
 		"geometry": area.shape,
 		"particle_count": area.particle_count(initial_state),
 		"coupling_frequency": config.coupling_frequency,
+		"method_kind": config.method_kind,
 		"rho": area.rho,
 	}
 	for step in config.steps:
@@ -313,20 +338,33 @@ def run_area_comparison(
 				"integration_step": step.value,
 			},
 		) as observer:
-			solution = system.simulate(
-				step=step.value,
+			request = SimulationRequest.uniform(
 				t_span=config.t_span,
-				n_output_samples=config.output_sample_count,
-				check_energy=False,
-				progress=config.progress,
-				stage_observer=observer,
+				max_step=step.value,
+				sample_count=config.output_sample_count,
 			)
+			if config.method_kind == "coupled_bm4":
+				method = BM4Composition(
+					GCExtendedFormulation(
+						coupling_frequency=config.coupling_frequency,
+					),
+					progress=config.progress,
+					stage_observer=observer,
+				)
+			else:
+				method = ProjectedBM4Composition(
+					GCStageProjectedFormulation(),
+					progress=config.progress,
+					stage_observer=observer,
+				)
+			solution = simulate(problem, method, request)
 		solutions[step.label] = solution
 		records_by_label[step.label] = observer.records
 		output_directories[step.label] = observer.output_directory
 
 	return AreaComparisonResult(
-		system=system,
+		effective_potential=dynamics.effective_potential,
+		area=area,
 		steps=config.steps,
 		solutions=MappingProxyType(solutions),
 		records=MappingProxyType(records_by_label),

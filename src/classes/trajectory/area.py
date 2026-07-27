@@ -15,7 +15,8 @@ class Area(TrajectoryGC):
 	The ``N`` particles of this trajectory represent ordered boundary vertices,
 	not samples of the interior.  Their state has the regular GC layout
 	``[x_1, ..., x_N, y_1, ..., y_N]``, so an ``Area`` can be passed directly to
-	:class:`SystemGC`.  The vertices omit a repeated closing point because
+	a guiding-centre initial-value problem. The vertices omit a repeated closing
+	point because
 	polygon operations close the last vertex back to the first implicitly.
 	"""
 

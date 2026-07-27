@@ -24,7 +24,6 @@ packages = [
 	"classes.simulation.formulations",
 	"classes.simulation.methods",
 	"classes.trajectory",
-	"classes.system",
 	"research",
 	"research.projection",
 	"research.symplecticity",

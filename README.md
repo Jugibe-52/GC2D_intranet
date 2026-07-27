@@ -3,27 +3,21 @@
 Research code for studying particle trajectories in a two-dimensional
 electrostatic potential.
 
-The established notebook API is organized around four entities:
-
-```text
-Potential + Trajectory -> System -> Solution
-```
-
-- `Potential` represents the physical field on a periodic grid.
-- `TrajectoryGC` and `TrajectoryFC` describe the state of one or more
-  particles.
-- `Area` specializes a GC trajectory as a square or circular contour.
-- `SystemGC` and `SystemFC` combine a potential with a trajectory and perform
-  the time integration.
-
-An explicit interoperable API also separates physical dynamics, initial
-configurations, numerical formulations, and methods:
+The interoperable API separates physical dynamics, initial configurations,
+numerical formulations, and methods:
 
 ```text
 Dynamics + InitialConfiguration -> InitialValueProblem
          + NumericalMethod      -> SimulationRunner -> Solution
          + SimulationRequest
 ```
+
+- `Potential` represents the physical field on a periodic grid.
+- `GuidingCenterDynamics` and `FullCyclotronDynamics` define the equations.
+- `TrajectoryGC` and `TrajectoryFC` provide compatible initial configurations.
+- `Area` specializes a GC configuration as a square or circular contour.
+- `InitialValueProblem` binds dynamics to one initial configuration.
+- `NumericalMethod` implementations integrate that problem independently.
 
 The notebooks in `notebooks/developements/` remain the primary examples. There
 are no command-line executables or external configuration files.
@@ -79,9 +73,12 @@ result = run_area_comparison(
 )
 ```
 
+Set `method_kind="stage_projected_bm4"` with `coupling_frequency=0.0` to run
+the alternative that projects both GC copies after every direct or adjoint map.
+
 The notebook remains responsible for declaring potential, geometry,
 integration, and sampling parameters. Workflows construct centered initial
-conditions, assemble systems and observers, run repeated integrations, and
+conditions, assemble problems, methods and observers, run repeated integrations, and
 prepare summaries and visualizations.
 
 ## GC example
@@ -89,7 +86,16 @@ prepare summaries and visualizations.
 ```python
 import numpy as np
 
-from classes import Potential, SystemGC, TrajectoryGC
+from classes import (
+    BM4Composition,
+    GCExtendedFormulation,
+    GuidingCenterDynamics,
+    InitialValueProblem,
+    Potential,
+    SimulationRequest,
+    TrajectoryGC,
+    simulate,
+)
 
 potential = Potential.random(
     A=0.7,
@@ -109,28 +115,44 @@ trajectory = TrajectoryGC.from_components(
     rho=0.3,
 )
 
-system = SystemGC(potential, trajectory, coupling_frequency=2.0)
-solution = system.simulate(
+problem = InitialValueProblem(
+    GuidingCenterDynamics(potential, rho=trajectory.rho),
+    trajectory,
+)
+request = SimulationRequest.uniform(
     t_span=(0.0, 6 * np.pi),
-    step=0.001,
-    n_output_samples=361,
-    check_energy=True,
+    max_step=0.001,
+    sample_count=361,
+)
+method = BM4Composition(
+    GCExtendedFormulation(coupling_frequency=2.0),
+    track_energy=True,
     progress=True,
 )
+solution = simulate(problem, method, request)
 ```
 
-`SystemGC` integrates guiding-center motion over the gyroaveraged effective
-potential. The original physical potential remains in `potential`.
+`GuidingCenterDynamics` evaluates guiding-center motion over its gyroaveraged
+effective potential. The original physical potential remains in `potential`.
 `coupling_frequency` controls the numerical coupling between the two internal
-copies in the GC integrator; it does not represent a physical frequency. Its
-default value is `pi / 8`, and it can be adjusted when the system is built.
+copies in `GCExtendedFormulation`; it does not represent a physical frequency.
+Its default value is `pi / 8`.
 
 ## FC example
 
 ```python
 import numpy as np
 
-from classes import Potential, SystemFC, TrajectoryFC
+from classes import (
+    BM4Composition,
+    FCSplitFormulation,
+    FullCyclotronDynamics,
+    InitialValueProblem,
+    Potential,
+    SimulationRequest,
+    TrajectoryFC,
+    simulate,
+)
 
 potential = Potential.random(
     A=0.7,
@@ -153,16 +175,28 @@ trajectory = TrajectoryFC.from_components(
     eta=0.01,
 )
 
-system = SystemFC(potential, trajectory)
-solution = system.simulate(
+problem = InitialValueProblem(
+    FullCyclotronDynamics(
+        potential,
+        rho=trajectory.rho,
+        eta=trajectory.eta,
+    ),
+    trajectory,
+)
+request = SimulationRequest.uniform(
     t_span=(0.0, 2 * np.pi),
-    step=0.001,
-    n_output_samples=101,
-    check_energy=True,
+    max_step=0.001,
+    sample_count=101,
+)
+solution = simulate(
+    problem,
+    BM4Composition(FCSplitFormulation(), track_energy=True),
+    request,
 )
 ```
 
-`SystemFC` integrates the full cyclotron orbit over the physical potential.
+`FullCyclotronDynamics` describes the full cyclotron orbit over the physical
+potential, while `FCSplitFormulation` supplies its exact split maps to BM4.
 
 ## Explicit numerical composition
 
@@ -176,8 +210,10 @@ from classes import (
     BM4Composition,
     GCInitialConfiguration,
     GCExtendedFormulation,
+    GCStageProjectedFormulation,
     GuidingCenterDynamics,
     InitialValueProblem,
+    ProjectedBM4Composition,
     RK4,
     SimulationRequest,
     simulate,
@@ -207,11 +243,24 @@ bm4_solution = simulate(
     ),
     request,
 )
+projected_solution = simulate(
+    problem,
+    ProjectedBM4Composition(
+        GCStageProjectedFormulation(),
+        track_energy=True,
+    ),
+    request,
+)
 ```
 
 `RK4` consumes any compatible vector field. `BM4Composition` consumes a
 direct/adjoint formulation; the current choices are
-`GCExtendedFormulation` and `FCSplitFormulation`. The architecture-level names
+`GCExtendedFormulation` and `FCSplitFormulation`.
+`ProjectedBM4Composition` consumes `GCStageProjectedFormulation`, omits harmonic
+copy coupling, and re-embeds the mean of both GC copies after every direct or
+adjoint map, for twelve projections per complete BM4 step. This projection is
+not invertible, so this variant does not inherit the doubled-space
+symplecticity guarantee of the standard BM4 composition. The architecture-level names
 `GCInitialConfiguration` and `FCInitialConfiguration` are available alongside
 the compatible legacy names `TrajectoryGC` and `TrajectoryFC`.
 
@@ -271,11 +320,21 @@ structure.
 
 ## Areas
 
-`Area` is a GC trajectory whose points delimit an oriented contour. It can be
-built as a square or circle and passed directly to `SystemGC`:
+`Area` is a GC initial configuration whose points delimit an oriented contour.
+It can be built as a square or circle and integrated like any other GC
+configuration:
 
 ```python
-from classes import Area
+from classes import (
+    Area,
+    BM4Composition,
+    GCExtendedFormulation,
+    GuidingCenterDynamics,
+    InitialValueProblem,
+    SimulationRequest,
+    simulate,
+)
+from workflows import animate_gc_area_solution
 
 area = Area.square(
     center=(np.pi, np.pi),
@@ -283,15 +342,21 @@ area = Area.square(
     points_per_side=40,
     rho=0.3,
 )
-system = SystemGC(potential, area)
-solution = system.simulate(step=0.005)
+dynamics = GuidingCenterDynamics(potential, rho=area.rho)
+solution = simulate(
+    InitialValueProblem(dynamics, area),
+    BM4Composition(GCExtendedFormulation()),
+    SimulationRequest.uniform(max_step=0.005),
+)
 
 transported_area = area.calculate_area(
     solution.states,
     period=potential.grid.period,
 )
 
-animation = system.animate_area(
+animation = animate_gc_area_solution(
+    dynamics.effective_potential,
+    area,
     solution,
     frames=120,
     interval=50,
@@ -302,32 +367,24 @@ The alternative `Area.circle(...)` constructor takes `center`, `radius`, and the
 total number of points on the contour. `calculate_area(...)` accepts both the
 initial state and a complete time series and applies the shoelace formula; with
 `period`, it also handles crossings of the periodic boundary correctly.
-`SystemGC.animate_area(...)` displays the contour over the effective potential
-and its electric field, together with
+`animate_gc_area_solution(...)` displays the contour over the effective
+potential and its electric field, together with
 `(A(t) - A(0)) / abs(A(0))` in a second panel.
-`SystemGC.animate_area_comparison(...)` overlays several solutions saved at the
+`animate_gc_area_comparison(...)` overlays several solutions saved at the
 same times and uses a consistent color for each solution across the contour,
 area error, and optional projected diagnostics.
 
 ## Integration and results
 
-The compatibility method `System.simulate(...)` uses the symplectic BM4
-composition. Its uniform BM4 grid depends only on `t_span` and `step`; changing
-`n_output_samples` does not change that trajectory. Samples between BM4 nodes
-are obtained with independent shadow BM4 advances from the preceding node.
-The explicit API can instead select `RK4` or construct `BM4Composition` with a
-compatible formulation.
+`SimulationRequest` owns `t_span`, `max_step`, and the output times. Its
+`uniform(...)` constructor accepts `sample_count`, including both endpoints.
+Changing the output samples does not alter the uniform main integration grid.
+Off-grid outputs use independent shadow advances from the preceding node.
 
-The usual arguments are:
-
-- `t_span`: initial and final time.
-- `step`: maximum internal step size.
-- `n_output_samples`: number of saved samples, including the endpoints.
-- `check_energy`: computes the generalized energy and its error.
-- `progress`: shows the progress of long GC integrations.
-- `stage_observer`: optional callback for instrumenting the twelve internal
-  stages of each BM4 step without changing the numerical result; shadow
-  output advances are excluded.
+Method instances own numerical options. `track_energy=True` computes extended
+momentum and generalized-energy drift; `progress=True` enables terminal
+progress. BM4 methods also accept `stage_observer`, which instruments their
+twelve internal stages without observing shadow output advances.
 
 The canonical solution interface provides:
 
@@ -351,7 +408,7 @@ y = components.y
 The Hamiltonian can also be evaluated directly:
 
 ```python
-energy = system.hamiltonian(solution.t, solution.states)
+energy = problem.dynamics.hamiltonian(solution.t, solution.states)
 ```
 
 ## Potential

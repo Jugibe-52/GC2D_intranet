@@ -124,6 +124,45 @@ class AreaComparisonWorkflowTests(unittest.TestCase):
 				save_interval=0.1,
 			)
 
+	def test_stage_projected_area_comparison_has_no_copy_separation(self) -> None:
+		potential = small_potential_config().build()
+		area = centered_square(
+			potential,
+			side=0.5,
+			points_per_side=1,
+			rho=0.05,
+		)
+		config = AreaComparisonConfig(
+			steps=pi_area_steps(400, 800),
+			t_span=(0.0, np.pi / 100),
+			save_interval=np.pi / 100,
+			method_kind="stage_projected_bm4",
+			chunk_size=2,
+		)
+
+		with tempfile.TemporaryDirectory(dir="/tmp") as temporary:
+			root = Path(temporary)
+			result = run_area_comparison(
+				potential,
+				area,
+				notebook_path=root / "notebooks" / "experiments" / "area.ipynb",
+				config=config,
+				project_root=root,
+			)
+
+		for separation in result.relative_copy_separations.values():
+			np.testing.assert_allclose(separation, 0.0)
+
+	def test_stage_projected_method_rejects_coupling(self) -> None:
+		with self.assertRaises(ValueError):
+			AreaComparisonConfig(
+				steps=pi_area_steps(40, 80),
+				t_span=(0.0, np.pi),
+				save_interval=np.pi / 8,
+				coupling_frequency=1.0,
+				method_kind="stage_projected_bm4",
+			)
+
 
 class EnergyWorkflowTests(unittest.TestCase):
 	"""Verify canonical diagnostics and plotting for energy comparisons."""

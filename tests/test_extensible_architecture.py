@@ -23,8 +23,6 @@ from classes import (
 	SimulationRequest,
 	SimulationRunner,
 	Solution,
-	SystemFC,
-	SystemGC,
 	simulate,
 )
 
@@ -79,9 +77,9 @@ class _FixedOutputMethod:
 
 
 class ExtensibleArchitectureTests(unittest.TestCase):
-	"""Verify compatibility and independent numerical composition."""
+	"""Verify independent and interoperable numerical composition."""
 
-	def test_new_dynamics_match_legacy_system_equations(self) -> None:
+	def test_physical_dynamics_expose_required_capabilities(self) -> None:
 		potential = deterministic_potential()
 		gc_configuration = GCInitialConfiguration(
 			np.asarray([1.0, 1.2]),
@@ -92,37 +90,27 @@ class ExtensibleArchitectureTests(unittest.TestCase):
 			rho=0.2,
 			eta=0.1,
 		)
-		gc_system = SystemGC(potential, gc_configuration)
-		fc_system = SystemFC(potential, fc_configuration)
 
-		for dynamics, system, state in (
+		for dynamics, state in (
 			(
 				GuidingCenterDynamics(potential, rho=0.05),
-				gc_system,
 				gc_configuration.initial_state,
 			),
 			(
 				FullCyclotronDynamics(potential, rho=0.2, eta=0.1),
-				fc_system,
 				fc_configuration.initial_state,
 			),
 		):
 			assert state is not None
 			with self.subTest(dynamics=type(dynamics).__name__):
-				np.testing.assert_array_equal(
-					dynamics.vector_field(0.3, state),
-					system.vector_field(0.3, state),
-				)
-				np.testing.assert_array_equal(
-					dynamics.hamiltonian(0.3, state),
-					system.hamiltonian(0.3, state),
-				)
-				np.testing.assert_array_equal(
-					dynamics.extended_momentum_derivative(0.3, state),
-					system.extended_momentum_derivative(0.3, state),
+				self.assertEqual(dynamics.vector_field(0.3, state).shape, state.shape)
+				self.assertEqual(dynamics.hamiltonian(0.3, state).shape, (1,))
+				self.assertEqual(
+					dynamics.extended_momentum_derivative(0.3, state).shape,
+					(1,),
 				)
 
-	def test_explicit_bm4_matches_legacy_facades(self) -> None:
+	def test_bm4_formulations_interoperate_through_one_runner(self) -> None:
 		potential = deterministic_potential()
 		request = SimulationRequest.uniform(
 			t_span=(0.0, 0.04),
@@ -134,11 +122,7 @@ class ExtensibleArchitectureTests(unittest.TestCase):
 				GCInitialConfiguration(np.asarray([1.0, 1.2]), rho=0.05),
 				GuidingCenterDynamics(potential, rho=0.05),
 				GCExtendedFormulation(coupling_frequency=2.5),
-				lambda source: SystemGC(
-					potential,
-					source,
-					coupling_frequency=2.5,
-				),
+				2,
 			),
 			(
 				FCInitialConfiguration(
@@ -148,29 +132,21 @@ class ExtensibleArchitectureTests(unittest.TestCase):
 				),
 				FullCyclotronDynamics(potential, rho=0.2, eta=0.1),
 				FCSplitFormulation(),
-				lambda source: SystemFC(potential, source),
+				4,
 			),
 		)
 
-		for source, dynamics, formulation, system_factory in cases:
+		for source, dynamics, formulation, physical_size in cases:
 			with self.subTest(source=type(source).__name__):
-				explicit = simulate(
+				solution = simulate(
 					InitialValueProblem(dynamics, source),
 					BM4Composition(formulation, track_energy=True),
 					request,
 				)
-				legacy = system_factory(source).simulate(
-					step=0.01,
-					t_span=(0.0, 0.04),
-					n_output_samples=7,
-					check_energy=True,
-				)
-				np.testing.assert_array_equal(explicit.t, legacy.t)
-				np.testing.assert_array_equal(explicit.states, legacy.y)
-				np.testing.assert_array_equal(explicit.k, legacy.k)
-				self.assertEqual(explicit.err, legacy.err)
-				self.assertEqual(explicit.n_steps, legacy.n_steps)
-				self.assertIs(explicit.source, source)
+				self.assertEqual(solution.states.shape, (physical_size, 7))
+				self.assertEqual(np.asarray(solution.k).shape, (1, 7))
+				self.assertEqual(solution.n_steps, 4)
+				self.assertIs(solution.source, source)
 
 	def test_bm4_matches_pre_refactor_golden_values(self) -> None:
 		potential = deterministic_potential()
