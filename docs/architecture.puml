@@ -167,6 +167,15 @@ package "Simulation" as Simulation {
     + flow_name: str
   }
 
+  class IntegrationStep {
+    + dynamics_name: str
+    + method_name: str
+    + step_index: int
+    + time: float
+    + duration: float
+    + map_state(state): Array
+  }
+
   class Solution {
     + source: InitialConfiguration
     + t: Array
@@ -183,6 +192,7 @@ SimulationRunner ..> SimulationRequest
 SimulationRunner --> Solution : builds
 
 Solution o-- InitialConfiguration : source
+RK4 --> IntegrationStep : optional observation
 
 note right of Area
   Area is a GC initial configuration
@@ -223,12 +233,16 @@ package "Reusable workflows" as Workflows {
   class AreaComparison
   class GeneralizedEnergyComparison
   class GCAreaVisualization
+  class RK4SymplecticityStudy
 }
 
 AreaComparison ..> SimulationRunner
 AreaComparison ..> BM4Composition : coupled_bm4
 AreaComparison ..> ProjectedBM4Composition : stage_projected_bm4
 GeneralizedEnergyComparison ..> SimulationRunner
+RK4SymplecticityStudy ..> SimulationRunner
+RK4SymplecticityStudy ..> RK4
+RK4SymplecticityStudy ..> IntegrationStep : analyzes
 GCAreaVisualization ..> Potential
 GCAreaVisualization ..> Area
 GCAreaVisualization ..> Solution

@@ -14,6 +14,7 @@ from workflows import (
 	AreaComparisonConfig,
 	GeneralizedEnergyConfig,
 	RandomPotentialConfig,
+	RK4SymplecticityConfig,
 	centered_circle,
 	centered_gc_trajectory,
 	centered_square,
@@ -21,6 +22,7 @@ from workflows import (
 	pi_area_steps,
 	run_area_comparison,
 	run_generalized_energy_comparison,
+	run_rk4_symplecticity_study,
 )
 
 
@@ -194,6 +196,62 @@ class EnergyWorkflowTests(unittest.TestCase):
 		figure, axes = result.plot()
 		self.assertEqual(len(axes.lines), len(config.steps) + 1)
 		plt.close(figure)
+
+
+class RK4SymplecticityWorkflowTests(unittest.TestCase):
+	"""Verify synchronized physical GC symplecticity analysis for RK4."""
+
+	def test_short_rk4_study_returns_aligned_diagnostics(self) -> None:
+		potential = small_potential_config().build()
+		area = centered_square(
+			potential,
+			side=0.5,
+			points_per_side=1,
+			rho=0.05,
+		)
+		config = RK4SymplecticityConfig(
+			steps=pi_area_steps(400, 800),
+			t_span=(0.0, np.pi / 100),
+			save_interval=np.pi / 100,
+			chunk_size=2,
+		)
+
+		with tempfile.TemporaryDirectory(dir="/tmp") as temporary:
+			root = Path(temporary)
+			result = run_rk4_symplecticity_study(
+				potential,
+				area,
+				notebook_path=(
+					root
+					/ "notebooks"
+					/ "experiments"
+					/ "symplecticity"
+					/ "rk4.ipynb"
+				),
+				config=config,
+				project_root=root,
+			)
+
+		self.assertEqual(tuple(result.solutions), tuple(
+			step.label for step in config.steps
+		))
+		for step in config.steps:
+			self.assertEqual(len(result.records[step.label]), 2)
+			np.testing.assert_allclose(
+				[record.time for record in result.records[step.label]],
+				result.solutions[step.label].t,
+			)
+		self.assertEqual(len(result.summaries()), 2)
+		self.assertEqual(len(result.convergence_orders()), 1)
+		diagnostic_figure, diagnostic_axes = result.plot_diagnostics()
+		convergence_figure, convergence_axes = result.plot_convergence()
+		self.assertEqual(diagnostic_axes.shape, (2, 2))
+		self.assertEqual(len(convergence_axes.lines), 2)
+		animation = result.animate(frames=2, interval=10)
+		self.assertGreater(len(animation._func(1)), 0)
+		animation._draw_was_started = True
+		plt.close(diagnostic_figure)
+		plt.close(convergence_figure)
 
 
 if __name__ == "__main__":

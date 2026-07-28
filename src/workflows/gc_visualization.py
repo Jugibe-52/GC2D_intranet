@@ -15,7 +15,7 @@ from classes.simulation.solution import Solution
 from classes.trajectory import Area
 
 
-ProjectedDiagnostics = tuple[np.ndarray, np.ndarray, np.ndarray]
+AreaDiagnostics = tuple[np.ndarray, np.ndarray, np.ndarray | None]
 
 
 def _validated_solution_series(
@@ -86,46 +86,54 @@ def _validated_relative_diagnostics(
 	diagnostic_times: np.ndarray | None,
 	relative_symplecticity_errors: np.ndarray | None,
 	relative_copy_separations: np.ndarray | None,
-) -> ProjectedDiagnostics | None:
-	"""Validate synchronized, non-negative projected-trajectory diagnostics."""
-	provided = (
-		diagnostic_times,
-		relative_symplecticity_errors,
-		relative_copy_separations,
-	)
-	if all(value is None for value in provided):
+) -> AreaDiagnostics | None:
+	"""Validate synchronized non-negative symplecticity and optional separation."""
+	if (
+		diagnostic_times is None
+		and relative_symplecticity_errors is None
+		and relative_copy_separations is None
+	):
 		return None
-	if any(value is None for value in provided):
+	if diagnostic_times is None or relative_symplecticity_errors is None:
 		raise ValueError(
-			"`diagnostic_times`, `relative_symplecticity_errors` and "
-			"`relative_copy_separations` must be provided together."
+			"`diagnostic_times` and `relative_symplecticity_errors` "
+			"must be provided together."
 		)
-	assert diagnostic_times is not None
-	assert relative_symplecticity_errors is not None
-	assert relative_copy_separations is not None
 	times = np.asarray(diagnostic_times, dtype=float)
 	symplecticity_errors = np.asarray(relative_symplecticity_errors, dtype=float)
-	copy_separations = np.asarray(relative_copy_separations, dtype=float)
+	copy_separations = (
+		None
+		if relative_copy_separations is None
+		else np.asarray(relative_copy_separations, dtype=float)
+	)
 	if (
 		times.ndim != 1
 		or times.size < 1
 		or symplecticity_errors.shape != times.shape
-		or copy_separations.shape != times.shape
+		or (
+			copy_separations is not None
+			and copy_separations.shape != times.shape
+		)
 	):
 		raise ValueError(
-			"Projected diagnostics must be one-dimensional arrays of equal length."
+			"Area diagnostics must be one-dimensional arrays of equal length."
 		)
 	if (
 		not np.all(np.isfinite(times))
 		or not np.all(np.isfinite(symplecticity_errors))
-		or not np.all(np.isfinite(copy_separations))
+		or (
+			copy_separations is not None
+			and not np.all(np.isfinite(copy_separations))
+		)
 		or np.any(np.diff(times) <= 0)
 	):
 		raise ValueError(
-			"Projected diagnostics must be finite and have strictly increasing times."
+			"Area diagnostics must be finite and have strictly increasing times."
 		)
-	if np.any(symplecticity_errors < 0) or np.any(copy_separations < 0):
-		raise ValueError("Relative projected diagnostics must be non-negative.")
+	if np.any(symplecticity_errors < 0) or (
+		copy_separations is not None and np.any(copy_separations < 0)
+	):
+		raise ValueError("Relative area diagnostics must be non-negative.")
 	return times, symplecticity_errors, copy_separations
 
 
@@ -134,7 +142,7 @@ def _validated_diagnostic_series(
 	relative_symplecticity_errors: Sequence[np.ndarray | None],
 	relative_copy_separations: Sequence[np.ndarray | None],
 	series_count: int,
-) -> tuple[ProjectedDiagnostics, ...] | None:
+) -> tuple[AreaDiagnostics, ...] | None:
 	"""Validate either complete diagnostics for every series or none at all."""
 	if not (
 		len(diagnostic_times)
@@ -155,8 +163,13 @@ def _validated_diagnostic_series(
 	if all(item is None for item in validated):
 		return None
 	if any(item is None for item in validated):
-		raise ValueError("Projected diagnostics are required for every comparison.")
-	return tuple(item for item in validated if item is not None)
+		raise ValueError("Area diagnostics are required for every comparison.")
+	result = tuple(item for item in validated if item is not None)
+	if len({item[2] is None for item in result}) != 1:
+		raise ValueError(
+			"Copy-separation diagnostics must be present for every series or none."
+		)
+	return result
 
 
 def _positive_log_limits(values: Sequence[np.ndarray]) -> tuple[float, float]:
@@ -203,9 +216,9 @@ def animate_gc_area(
 	"""Render one or more transported areas and synchronized diagnostics.
 
 	All compared solutions share saved times. Their contours and scalar histories
-	use a common color per integration step. Optional projected diagnostics add
-	logarithmic panels for normalized symplecticity error and normalized separation
-	of the two internal extended-phase-space trajectories.
+	use a common color per integration step. Optional diagnostics add a logarithmic
+	symplecticity panel; doubled-state studies may additionally provide normalized
+	separation of their two internal trajectories.
 	"""
 	times, state_series = _validated_solution_series(trajectory, solutions)
 	series_count = len(state_series)
@@ -283,6 +296,9 @@ def animate_gc_area(
 		None if np.isclose(max_magnitude, 0.0) else max_magnitude / arrow_length
 	)
 
+	has_copy_separation = (
+		diagnostics is not None and diagnostics[0][2] is not None
+	)
 	if diagnostics is None:
 		fig, (ax_field, ax_area) = plt.subplots(
 			1,
@@ -293,12 +309,16 @@ def animate_gc_area(
 		ax_symplecticity = None
 		ax_separation = None
 	else:
-		fig = plt.figure(figsize=(14, 9), constrained_layout=True)
-		grid = fig.add_gridspec(3, 2, width_ratios=(1.2, 1.0))
+		row_count = 3 if has_copy_separation else 2
+		figsize = (14, 9) if has_copy_separation else (14, 7)
+		fig = plt.figure(figsize=figsize, constrained_layout=True)
+		grid = fig.add_gridspec(row_count, 2, width_ratios=(1.2, 1.0))
 		ax_field = fig.add_subplot(grid[:, 0])
 		ax_area = fig.add_subplot(grid[0, 1])
 		ax_symplecticity = fig.add_subplot(grid[1, 1])
-		ax_separation = fig.add_subplot(grid[2, 1])
+		ax_separation = (
+			fig.add_subplot(grid[2, 1]) if has_copy_separation else None
+		)
 
 	mesh = ax_field.pcolormesh(
 		potential.grid.x,
@@ -392,19 +412,12 @@ def animate_gc_area(
 	if diagnostics is not None:
 		diagnostic_plot_times = tuple(item[0] for item in diagnostics)
 		relative_symplecticity_values = tuple(item[1] for item in diagnostics)
-		relative_copy_values = tuple(item[2] for item in diagnostics)
 		symplecticity_limits = _positive_log_limits(relative_symplecticity_values)
-		separation_limits = _positive_log_limits(relative_copy_values)
 		plot_symplecticity_values = tuple(
 			np.maximum(values, symplecticity_limits[0])
 			for values in relative_symplecticity_values
 		)
-		plot_copy_values = tuple(
-			np.maximum(values, separation_limits[0])
-			for values in relative_copy_values
-		)
 		assert ax_symplecticity is not None
-		assert ax_separation is not None
 		symplecticity_lines = tuple(
 			ax_symplecticity.plot(
 				[],
@@ -433,49 +446,60 @@ def animate_gc_area(
 		ax_symplecticity.set(
 			xlabel="t",
 			ylabel=r"$\|DG^T\Omega DG-\Omega\|_F/\|\Omega\|_F$",
-			title="Relative symplecticity error of projected trajectories",
+			title="Relative symplecticity error of numerical trajectories",
 			xlim=(float(times[0]), float(times[-1])),
 			ylim=symplecticity_limits,
 			yscale="log",
 		)
 		ax_symplecticity.grid(alpha=0.25)
-		separation_lines = tuple(
-			ax_separation.plot(
-				[],
-				[],
-				color=color,
-				linewidth=1.6,
-				label=label if comparison else None,
-			)[0]
-			for color, label in zip(
-				separation_colors,
-				series_labels,
-				strict=True,
+		if has_copy_separation:
+			relative_copy_values = tuple(
+				item[2] for item in diagnostics if item[2] is not None
 			)
-		)
-		separation_markers = tuple(
-			ax_separation.plot(
-				[],
-				[],
-				"o",
-				color=color if comparison else "black",
-				markeredgecolor="black",
-				markersize=5,
-			)[0]
-			for color in separation_colors
-		)
-		ax_separation.set(
-			xlabel="t",
-			ylabel=r"$\|z_1-z_2\|_2/\|(z_1+z_2)/2\|_2$",
-			title="Relative separation of internal trajectories",
-			xlim=(float(times[0]), float(times[-1])),
-			ylim=separation_limits,
-			yscale="log",
-		)
-		ax_separation.grid(alpha=0.25)
+			separation_limits = _positive_log_limits(relative_copy_values)
+			plot_copy_values = tuple(
+				np.maximum(values, separation_limits[0])
+				for values in relative_copy_values
+			)
+			assert ax_separation is not None
+			separation_lines = tuple(
+				ax_separation.plot(
+					[],
+					[],
+					color=color,
+					linewidth=1.6,
+					label=label if comparison else None,
+				)[0]
+				for color, label in zip(
+					separation_colors,
+					series_labels,
+					strict=True,
+				)
+			)
+			separation_markers = tuple(
+				ax_separation.plot(
+					[],
+					[],
+					"o",
+					color=color if comparison else "black",
+					markeredgecolor="black",
+					markersize=5,
+				)[0]
+				for color in separation_colors
+			)
+			ax_separation.set(
+				xlabel="t",
+				ylabel=r"$\|z_1-z_2\|_2/\|(z_1+z_2)/2\|_2$",
+				title="Relative separation of internal trajectories",
+				xlim=(float(times[0]), float(times[-1])),
+				ylim=separation_limits,
+				yscale="log",
+			)
+			ax_separation.grid(alpha=0.25)
 		if comparison:
 			ax_symplecticity.legend(loc="best", fontsize="small")
-			ax_separation.legend(loc="best", fontsize="small")
+			if ax_separation is not None:
+				ax_separation.legend(loc="best", fontsize="small")
 
 	# Every component block has shape (boundary vertices, saved times). Periodic
 	# wrapping is applied independently so each numerical contour remains legible.
@@ -554,11 +578,8 @@ def animate_gc_area(
 		if diagnostics is not None:
 			assert diagnostic_plot_times is not None
 			assert relative_symplecticity_values is not None
-			assert relative_copy_values is not None
 			assert plot_symplecticity_values is not None
-			assert plot_copy_values is not None
 			assert ax_symplecticity is not None
-			assert ax_separation is not None
 			current_time = float(times[solution_index])
 			time_tolerance = 32 * np.finfo(float).eps * max(1.0, abs(current_time))
 			for series_index in range(series_count):
@@ -571,8 +592,6 @@ def animate_gc_area(
 				)
 				symplecticity_line = symplecticity_lines[series_index]
 				symplecticity_marker = symplecticity_markers[series_index]
-				separation_line = separation_lines[series_index]
-				separation_marker = separation_markers[series_index]
 				if diagnostic_stop:
 					symplecticity_line.set_data(
 						diagnostic_plot_times[series_index][:diagnostic_stop],
@@ -590,55 +609,71 @@ def animate_gc_area(
 							]
 						],
 					)
-					separation_line.set_data(
-						diagnostic_plot_times[series_index][:diagnostic_stop],
-						plot_copy_values[series_index][:diagnostic_stop],
-					)
-					separation_marker.set_data(
-						[
-							diagnostic_plot_times[series_index][
-								diagnostic_stop - 1
-							]
-						],
-						[
-							plot_copy_values[series_index][diagnostic_stop - 1]
-						],
-					)
 				else:
 					symplecticity_line.set_data([], [])
 					symplecticity_marker.set_data([], [])
-					separation_line.set_data([], [])
-					separation_marker.set_data([], [])
+				if has_copy_separation:
+					assert relative_copy_values is not None
+					assert plot_copy_values is not None
+					separation_line = separation_lines[series_index]
+					separation_marker = separation_markers[series_index]
+					if diagnostic_stop:
+						separation_line.set_data(
+							diagnostic_plot_times[series_index][:diagnostic_stop],
+							plot_copy_values[series_index][:diagnostic_stop],
+						)
+						separation_marker.set_data(
+							[
+								diagnostic_plot_times[series_index][
+									diagnostic_stop - 1
+								]
+							],
+							[
+								plot_copy_values[series_index][
+									diagnostic_stop - 1
+								]
+							],
+						)
+					else:
+						separation_line.set_data([], [])
+						separation_marker.set_data([], [])
 				if not comparison and diagnostic_stop:
 					current_symplecticity = float(
 						relative_symplecticity_values[0][diagnostic_stop - 1]
 					)
-					current_separation = float(
-						relative_copy_values[0][diagnostic_stop - 1]
-					)
 					ax_symplecticity.set_title(
-						"Relative symplecticity error of the projected trajectory\n"
+						"Relative symplecticity error of the numerical trajectory\n"
 						+ rf"$\varepsilon_\Omega={current_symplecticity:.3e}$, "
 						+ rf"$\max={np.max(relative_symplecticity_values[0][:diagnostic_stop]):.3e}$"
 					)
-					ax_separation.set_title(
-						"Relative separation of internal trajectories\n"
-						+ rf"$\delta_z={current_separation:.3e}$, "
-						+ rf"$\max={np.max(relative_copy_values[0][:diagnostic_stop]):.3e}$"
-					)
+					if has_copy_separation:
+						assert relative_copy_values is not None
+						assert ax_separation is not None
+						current_separation = float(
+							relative_copy_values[0][diagnostic_stop - 1]
+						)
+						ax_separation.set_title(
+							"Relative separation of internal trajectories\n"
+							+ rf"$\delta_z={current_separation:.3e}$, "
+							+ rf"$\max={np.max(relative_copy_values[0][:diagnostic_stop]):.3e}$"
+						)
 			for line, marker in zip(
 				symplecticity_lines,
 				symplecticity_markers,
 				strict=True,
 			):
 				artists.extend((line, marker))
-			for line, marker in zip(
-				separation_lines,
-				separation_markers,
-				strict=True,
-			):
-				artists.extend((line, marker))
-			artists.extend((ax_symplecticity.title, ax_separation.title))
+			if has_copy_separation:
+				for line, marker in zip(
+					separation_lines,
+					separation_markers,
+					strict=True,
+				):
+					artists.extend((line, marker))
+				assert ax_separation is not None
+				artists.extend((ax_symplecticity.title, ax_separation.title))
+			else:
+				artists.append(ax_symplecticity.title)
 		return tuple(artists)
 
 	update(0)
@@ -668,7 +703,7 @@ def animate_gc_area_solution(
 	relative_copy_separations: np.ndarray | None = None,
 	**pcolormesh_kwargs: Any,
 ) -> FuncAnimation:
-	"""Animate one transported GC area and optional projected diagnostics."""
+	"""Animate one transported GC area and optional numerical diagnostics."""
 	if not isinstance(area, Area):
 		raise TypeError("`area` must be an Area instance.")
 	return animate_gc_area(
@@ -713,10 +748,13 @@ def animate_gc_area_comparison(
 		relative_copy_separations,
 	)
 	if any(mapping is not None for mapping in diagnostic_mappings):
-		if any(mapping is None for mapping in diagnostic_mappings):
-			raise ValueError("All three diagnostic mappings must be provided.")
+		if diagnostic_times is None or relative_symplecticity_errors is None:
+			raise ValueError(
+				"Diagnostic times and symplecticity mappings must be provided."
+			)
 		for mapping in diagnostic_mappings:
-			assert mapping is not None
+			if mapping is None:
+				continue
 			if set(mapping) != set(labels):
 				raise ValueError(
 					"Diagnostic mappings must have the same keys as `solutions`."

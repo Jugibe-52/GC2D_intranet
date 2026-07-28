@@ -11,6 +11,7 @@ from classes.dynamics import DynamicalSystem, ExtendedHamiltonianSystem
 from .._fixed import integrate_fixed_grid
 from .._result import IntegrationData
 from ..formulations.base import generalized_energy_error
+from ..observation import IntegrationStep, StepObserver
 from ..problem import InitialValueProblem
 from ..request import SimulationRequest
 
@@ -33,6 +34,7 @@ class RK4:
 
 	track_energy: bool = False
 	progress: bool = False
+	step_observer: StepObserver | None = None
 
 	def integrate(
 		self,
@@ -77,14 +79,35 @@ class RK4:
 			t: float,
 			value: np.ndarray,
 			step: float,
-			_step_index: int,
-			_observe: bool,
+			step_index: int,
+			observe: bool,
 		) -> np.ndarray:
-			k1 = derivative(t, value)
-			k2 = derivative(t + step / 2, value + step * k1 / 2)
-			k3 = derivative(t + step / 2, value + step * k2 / 2)
-			k4 = derivative(t + step, value + step * k3)
-			return np.asarray(value + step * (k1 + 2 * k2 + 2 * k3 + k4) / 6)
+			def apply_step(candidate: np.ndarray) -> np.ndarray:
+				"""Apply this fixed RK4 step to a diagnostic candidate."""
+				k1 = derivative(t, candidate)
+				k2 = derivative(t + step / 2, candidate + step * k1 / 2)
+				k3 = derivative(t + step / 2, candidate + step * k2 / 2)
+				k4 = derivative(t + step, candidate + step * k3)
+				return np.asarray(
+					candidate + step * (k1 + 2 * k2 + 2 * k3 + k4) / 6
+				)
+
+			state_before = np.asarray(value)
+			state_after = apply_step(state_before)
+			if observe and self.step_observer is not None:
+				self.step_observer(
+					IntegrationStep(
+						dynamics_name=type(dynamics).__name__,
+						method_name=type(self).__name__,
+						step_index=step_index,
+						time=t + step,
+						duration=step,
+						state_before=state_before.copy(),
+						state_after=state_after.copy(),
+						map_state=apply_step,
+					)
+				)
+			return state_after
 
 		history, step_count = integrate_fixed_grid(
 			initial_state,

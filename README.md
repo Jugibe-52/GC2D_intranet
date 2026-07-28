@@ -76,6 +76,10 @@ result = run_area_comparison(
 Set `method_kind="stage_projected_bm4"` with `coupling_frequency=0.0` to run
 the alternative that projects both GC copies after every direct or adjoint map.
 
+The dedicated `RK4SymplecticityConfig` and
+`run_rk4_symplecticity_study(...)` workflow differentiate complete RK4 steps
+and compare local and accumulated physical GC symplecticity defects.
+
 The notebook remains responsible for declaring potential, geometry,
 integration, and sampling parameters. Workflows construct centered initial
 conditions, assemble problems, methods and observers, run repeated integrations, and
@@ -425,11 +429,17 @@ the development notebooks. The potential supports:
 
 - `developements/gc_area_and_projected_symplecticity_1_dev.ipynb`: short or
   full validation of the uncoupled projected-area workflow.
-- `experiments/gc_area_and_projected_symplecticity_1.ipynb`: three-step area
+- `experiments/symplecticity/gc_area_and_projected_symplecticity_1.ipynb`:
+  three-step area
   comparison with zero numerical copy coupling.
-- `experiments/gc_area_and_projected_symplecticity_2.ipynb`: the same
+- `experiments/symplecticity/gc_area_and_projected_symplecticity_2.ipynb`:
+  the same
   comparison with coupling frequency 10.
-- `experiments/generalized_energy.ipynb`: generalized-energy convergence over
+- `experiments/symplecticity/gc_area_and_projected_symplecticity_3.ipynb`:
+  stage-projected BM4 area and symplecticity comparison.
+- `experiments/symplecticity/gc_area_and_rk4_symplecticity.ipynb`: physical
+  RK4 area, local-step symplecticity and accumulated-flow convergence.
+- `experiments/energy/generalized_energy.ipynb`: generalized-energy convergence over
   four successively refined BM4 steps.
 
 The diagnostics specific to these studies live in `research/symplecticity/`

@@ -239,6 +239,30 @@ class ExtensibleArchitectureTests(unittest.TestCase):
 		self.assertLess(abs(float(solution.states[0, -1]) - 0.2), 1e-6)
 		self.assertEqual(float(solution.states[1, -1]), 0.0)
 
+	def test_rk4_step_observer_receives_only_main_grid_steps(self) -> None:
+		source = GCInitialConfiguration(np.asarray([1.0, 0.0]), rho=0.0)
+		problem = InitialValueProblem(_RotationDynamics(), source)
+		events = []
+		solution = simulate(
+			problem,
+			RK4(step_observer=events.append),
+			SimulationRequest.uniform(
+				t_span=(0.0, 0.02),
+				max_step=0.01,
+				sample_count=5,
+			),
+		)
+
+		self.assertEqual(solution.n_steps, 2)
+		self.assertEqual(len(events), 2)
+		self.assertEqual([event.step_index for event in events], [0, 1])
+		for event in events:
+			self.assertEqual(event.method_name, "RK4")
+			np.testing.assert_allclose(
+				event.map_state(event.state_before),
+				event.state_after,
+			)
+
 	def test_one_rk4_instance_runs_gc_and_fc(self) -> None:
 		potential = deterministic_potential()
 		request = SimulationRequest.uniform(

@@ -9,7 +9,7 @@ from .formulations import (
 	StageProjectedFormulation,
 )
 from .methods import BM4Composition, NumericalMethod, ProjectedBM4Composition, RK4
-from .observation import IntegrationStage, StageObserver
+from .observation import IntegrationStage, IntegrationStep, StageObserver, StepObserver
 from .problem import InitialValueProblem
 from .request import SimulationRequest
 from .runner import SimulationRunner, simulate
@@ -24,6 +24,7 @@ __all__ = [
 	"InitialConfiguration",
 	"InitialValueProblem",
 	"IntegrationStage",
+	"IntegrationStep",
 	"NumericalMethod",
 	"ProjectedBM4Composition",
 	"RK4",
@@ -31,6 +32,7 @@ __all__ = [
 	"SimulationRunner",
 	"Solution",
 	"StageObserver",
+	"StepObserver",
 	"StageProjectedFormulation",
 	"simulate",
 ]

@@ -25,6 +25,13 @@ from .gc_visualization import (
 )
 from .notebooks import display_animation
 from .potentials import RandomPotentialConfig
+from .rk4_symplecticity import (
+	RK4ConvergenceOrder,
+	RK4SymplecticityConfig,
+	RK4SymplecticityResult,
+	RK4SymplecticitySummary,
+	run_rk4_symplecticity_study,
+)
 
 __all__ = [
 	"AreaComparisonConfig",
@@ -33,6 +40,10 @@ __all__ = [
 	"GeneralizedEnergyConfig",
 	"GeneralizedEnergyResult",
 	"RandomPotentialConfig",
+	"RK4ConvergenceOrder",
+	"RK4SymplecticityConfig",
+	"RK4SymplecticityResult",
+	"RK4SymplecticitySummary",
 	"animate_gc_area",
 	"animate_gc_area_comparison",
 	"animate_gc_area_solution",
@@ -44,4 +55,5 @@ __all__ = [
 	"pi_area_steps",
 	"run_area_comparison",
 	"run_generalized_energy_comparison",
+	"run_rk4_symplecticity_study",
 ]

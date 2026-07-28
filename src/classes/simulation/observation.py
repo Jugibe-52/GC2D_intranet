@@ -1,4 +1,4 @@
-"""Optional observations emitted by individual composition stages."""
+"""Optional observations emitted by numerical stages and complete steps."""
 
 from __future__ import annotations
 
@@ -35,7 +35,33 @@ class IntegrationStage:
 	map_state: StateMap = field(repr=False, compare=False)
 
 
+@dataclass(frozen=True, slots=True)
+class IntegrationStep:
+	"""Describe one complete numerical step on the method's internal state.
+
+	``map_state`` evaluates the same fixed-time, fixed-duration numerical map on
+	another state. Shadow advances used only for output interpolation do not emit
+	step observations.
+	"""
+
+	dynamics_name: str
+	method_name: str
+	step_index: int
+	time: float
+	duration: float
+	state_before: np.ndarray
+	state_after: np.ndarray
+	map_state: StateMap = field(repr=False, compare=False)
+
+
 StageObserver: TypeAlias = Callable[[IntegrationStage], None]
+StepObserver: TypeAlias = Callable[[IntegrationStep], None]
 
 
-__all__ = ["IntegrationStage", "StageObserver", "StateMap"]
+__all__ = [
+	"IntegrationStage",
+	"IntegrationStep",
+	"StageObserver",
+	"StateMap",
+	"StepObserver",
+]

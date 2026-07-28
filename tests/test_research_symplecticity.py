@@ -10,8 +10,9 @@ import unittest
 
 import numpy as np
 
-from classes import IntegrationStage
+from classes import Area, IntegrationStage, IntegrationStep
 from research.symplecticity import (
+	GCAreaSymplecticityObserver,
 	SymplecticityObserver,
 	central_difference_jacobian,
 	gc_extended_symplectic_form,
@@ -172,6 +173,60 @@ class SymplecticityResearchTests(unittest.TestCase):
 					)
 				)
 			observer.close()
+
+	def test_physical_area_observer_accumulates_complete_step_jacobians(self) -> None:
+		area = Area.square(
+			center=(1.0, 1.0),
+			side=0.5,
+			points_per_side=1,
+			rho=0.05,
+		)
+		state = area.initial_state
+		assert state is not None
+		identity = np.eye(state.size)
+		with tempfile.TemporaryDirectory(dir="/tmp") as temporary:
+			root = Path(temporary)
+			with GCAreaSymplecticityObserver(
+				notebook_path=(
+					root
+					/ "notebooks"
+					/ "experiments"
+					/ "symplecticity"
+					/ "rk4.ipynb"
+				),
+				area=area,
+				project_root=root,
+				run_date="2026-07-20",
+				record_every=2,
+				chunk_size=2,
+				verbose=False,
+			) as observer:
+				for step_index in range(2):
+					observer(
+						IntegrationStep(
+							dynamics_name="GuidingCenterDynamics",
+							method_name="RK4",
+							step_index=step_index,
+							time=0.1 * (step_index + 1),
+							duration=0.1,
+							state_before=state,
+							state_after=state,
+							map_state=lambda value: identity @ value,
+						)
+					)
+
+			self.assertEqual(len(observer.records), 2)
+			self.assertEqual(observer.records[0].step_index, -1)
+			self.assertEqual(observer.records[-1].step_index, 1)
+			self.assertLess(observer.records[-1].relative_defect, 1e-10)
+			self.assertLess(observer.records[-1].local_relative_defect, 1e-10)
+			self.assertEqual(len(observer.output_blocks), 1)
+			block = observer.output_blocks[0]
+			with np.load(block.jacobians_path) as arrays:
+				self.assertEqual(
+					arrays["accumulated_jacobians"].shape,
+					(2, state.size, state.size),
+				)
 
 
 if __name__ == "__main__":

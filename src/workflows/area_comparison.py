@@ -29,38 +29,11 @@ from research.projection import (
 	ProjectedSymplecticityAreaObserver,
 )
 
+from ._validation import integer_ratio, positive_finite, positive_integer
 from .gc_visualization import animate_gc_area_comparison
 
 
 _BLOCK_PREFIX = re.compile(r"^[A-Za-z0-9_-]+$")
-
-
-def _positive_finite(value: float, name: str) -> float:
-	"""Normalize a positive finite workflow parameter."""
-	result = float(value)
-	if not np.isfinite(result) or result <= 0:
-		raise ValueError(f"`{name}` must be positive and finite.")
-	return result
-
-
-def _positive_integer(value: int, name: str) -> int:
-	"""Normalize a positive integer workflow parameter."""
-	if (
-		isinstance(value, (bool, np.bool_))
-		or not isinstance(value, (int, np.integer))
-		or value < 1
-	):
-		raise ValueError(f"`{name}` must be a positive integer.")
-	return int(value)
-
-
-def _integer_ratio(numerator: float, denominator: float, name: str) -> int:
-	"""Return an exact positive sampling ratio within floating-point tolerance."""
-	ratio = numerator / denominator
-	rounded = int(round(ratio))
-	if rounded < 1 or not np.isclose(ratio, rounded, rtol=1e-12, atol=1e-12):
-		raise ValueError(f"`{name}` must be a positive integer ratio.")
-	return rounded
 
 
 @dataclass(frozen=True, slots=True)
@@ -74,7 +47,7 @@ class AreaStep:
 		"""Validate the display label and normalized BM4 step size."""
 		if not isinstance(self.label, str) or not self.label.strip():
 			raise ValueError("An area-step label must be a non-empty string.")
-		object.__setattr__(self, "value", _positive_finite(self.value, "value"))
+		object.__setattr__(self, "value", positive_finite(self.value, "value"))
 
 
 def pi_area_steps(*denominators: int) -> tuple[AreaStep, ...]:
@@ -83,7 +56,7 @@ def pi_area_steps(*denominators: int) -> tuple[AreaStep, ...]:
 		raise ValueError("At least two step denominators are required.")
 	steps: list[AreaStep] = []
 	for denominator in denominators:
-		value = _positive_integer(denominator, "denominator")
+		value = positive_integer(denominator, "denominator")
 		steps.append(
 			AreaStep(
 				label=rf"$\Delta t=\pi/{value}$",
@@ -123,11 +96,11 @@ class AreaComparisonConfig:
 			raise ValueError("`t_span` must contain two finite increasing times.")
 		object.__setattr__(self, "t_span", (start, stop))
 
-		save_interval = _positive_finite(self.save_interval, "save_interval")
+		save_interval = positive_finite(self.save_interval, "save_interval")
 		object.__setattr__(self, "save_interval", save_interval)
-		_integer_ratio(stop - start, save_interval, "duration / save_interval")
+		integer_ratio(stop - start, save_interval, "duration / save_interval")
 		for step in steps:
-			_integer_ratio(
+			integer_ratio(
 				save_interval,
 				step.value,
 				f"save_interval / step for {step.label}",
@@ -149,7 +122,7 @@ class AreaComparisonConfig:
 		object.__setattr__(
 			self,
 			"chunk_size",
-			_positive_integer(self.chunk_size, "chunk_size"),
+			positive_integer(self.chunk_size, "chunk_size"),
 		)
 		if not isinstance(self.block_prefix, str) or not _BLOCK_PREFIX.fullmatch(
 			self.block_prefix
@@ -161,7 +134,7 @@ class AreaComparisonConfig:
 	@property
 	def output_sample_count(self) -> int:
 		"""Number of uniformly saved physical states, including both endpoints."""
-		return _integer_ratio(
+		return integer_ratio(
 			self.t_span[1] - self.t_span[0],
 			self.save_interval,
 			"duration / save_interval",
@@ -318,7 +291,7 @@ def run_area_comparison(
 		"rho": area.rho,
 	}
 	for step in config.steps:
-		record_every = _integer_ratio(
+		record_every = integer_ratio(
 			config.save_interval,
 			step.value,
 			f"save_interval / step for {step.label}",

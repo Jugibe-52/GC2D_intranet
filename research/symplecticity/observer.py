@@ -56,6 +56,20 @@ def central_difference_jacobian(
 	return jacobian
 
 
+def gc_physical_symplectic_form(particle_count: int) -> np.ndarray:
+	"""Return the canonical form for physical GC component-major coordinates."""
+	if (
+		isinstance(particle_count, (bool, np.bool_))
+		or not isinstance(particle_count, (int, np.integer))
+		or particle_count < 1
+	):
+		raise ValueError("`particle_count` must be a positive integer.")
+	count = int(particle_count)
+	identity = np.eye(count)
+	zero = np.zeros_like(identity)
+	return np.block([[zero, identity], [-identity, zero]])
+
+
 def gc_extended_symplectic_form(particle_count: int) -> np.ndarray:
 	"""Return the cross-coupled form for two component-major GC copies.
 
@@ -71,9 +85,7 @@ def gc_extended_symplectic_form(particle_count: int) -> np.ndarray:
 	):
 		raise ValueError("`particle_count` must be a positive integer.")
 	count = int(particle_count)
-	identity = np.eye(count)
-	zero = np.zeros_like(identity)
-	physical_form = np.block([[zero, identity], [-identity, zero]])
+	physical_form = gc_physical_symplectic_form(count)
 	copy_zero = np.zeros_like(physical_form)
 	return np.block(
 		[[copy_zero, physical_form], [physical_form, copy_zero]]
@@ -359,4 +371,5 @@ __all__ = [
 	"SymplecticityRecord",
 	"central_difference_jacobian",
 	"gc_extended_symplectic_form",
+	"gc_physical_symplectic_form",
 ]

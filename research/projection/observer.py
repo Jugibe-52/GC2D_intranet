@@ -12,7 +12,10 @@ from typing import Any, Mapping
 import numpy as np
 
 from classes import Area, IntegrationStage
-from research.symplecticity import central_difference_jacobian
+from research.symplecticity import (
+	central_difference_jacobian,
+	gc_physical_symplectic_form,
+)
 from research.symplecticity.paths import (
 	next_block_index,
 	notebook_output_directory,
@@ -32,14 +35,6 @@ def _positive_particle_count(particle_count: int) -> int:
 	):
 		raise ValueError("`particle_count` must be a positive integer.")
 	return int(particle_count)
-
-
-def gc_physical_symplectic_form(particle_count: int) -> np.ndarray:
-	"""Return the canonical form for physical GC order ``[x_1..x_N, y_1..y_N]``."""
-	count = _positive_particle_count(particle_count)
-	identity = np.eye(count)
-	zero = np.zeros_like(identity)
-	return np.block([[zero, identity], [-identity, zero]])
 
 
 def gc_diagonal_embedding(particle_count: int) -> np.ndarray:
