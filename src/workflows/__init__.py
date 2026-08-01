@@ -12,6 +12,7 @@ from .energy import (
 	GeneralizedEnergyResult,
 	run_generalized_energy_comparison,
 )
+from .fc_visualization import animate_fc_particle_solution, animate_gc_particle_solution
 from .initial_conditions import (
 	centered_circle,
 	centered_gc_trajectory,
@@ -47,6 +48,8 @@ __all__ = [
 	"animate_gc_area",
 	"animate_gc_area_comparison",
 	"animate_gc_area_solution",
+	"animate_fc_particle_solution",
+	"animate_gc_particle_solution",
 	"centered_circle",
 	"centered_gc_trajectory",
 	"centered_square",

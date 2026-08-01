@@ -233,6 +233,7 @@ package "Reusable workflows" as Workflows {
   class AreaComparison
   class GeneralizedEnergyComparison
   class GCAreaVisualization
+  class SingleParticleVisualization
   class RK4SymplecticityStudy
 }
 
@@ -246,6 +247,8 @@ RK4SymplecticityStudy ..> IntegrationStep : analyzes
 GCAreaVisualization ..> Potential
 GCAreaVisualization ..> Area
 GCAreaVisualization ..> Solution
+SingleParticleVisualization ..> Potential
+SingleParticleVisualization ..> Solution
 
 legend bottom
   |= Relation |= Meaning |

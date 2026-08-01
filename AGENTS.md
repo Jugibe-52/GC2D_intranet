@@ -37,13 +37,20 @@ non-English labels. When editing existing non-English prose, translate it into
 English. Keep established identifiers stable unless a rename is explicitly
 requested; proper names and mathematical notation do not require translation.
 
-# Architecture diagram
+# Architecture diagrams
 
-`docs/architecture.puml` is the authoritative architecture diagram. Review it
-with every code modification, and update it whenever a change affects the
-simulation architecture, public API, dependencies, numerical methods,
-formulations, dynamics, or result model. Do not leave the diagram inconsistent
-with the implemented code.
+`docs/architecture-overview.puml` is the authoritative domain-model and
+simulation-lifecycle overview. It must keep the relationships between
+potential, dynamics, initial configuration (state geometry), simulation, and
+the computed solution explicit. In particular, distinguish initial-state
+trajectory classes from `Solution`, the computed trajectory.
+
+`docs/architecture.puml` is the authoritative detailed implementation
+architecture diagram. Review both diagrams with every code modification, and
+update the relevant one whenever a change affects the simulation architecture,
+public API, dependencies, numerical methods, formulations, dynamics, initial
+configuration, or result model. Do not leave either diagram inconsistent with
+the implemented code.
 
 # Git tracking policy
 

@@ -1,0 +1,72 @@
+@startuml
+title GC2D Domain Model and Simulation Lifecycle
+
+skinparam componentStyle rectangle
+skinparam packageStyle rectangle
+skinparam shadowing false
+skinparam linetype ortho
+skinparam defaultTextAlignment center
+
+class Potential {
+  Field model
+}
+
+class Dynamics {
+  Equations of motion
+}
+
+class "Initial configuration\n(state geometry)" as InitialConfiguration {
+  Initial physical state
+  State layout and geometry
+}
+
+class "Initial-value problem" as InitialValueProblem {
+  Dynamics + initial configuration
+}
+
+class "Numerical method" as NumericalMethod {
+  Time-integration algorithm
+}
+
+class "Simulation request" as SimulationRequest {
+  Time span, steps, output sampling
+}
+
+class "Simulation runner" as SimulationRunner {
+  Validates and executes a run
+}
+
+class "Solution\n(computed trajectory)" as Solution {
+  Sampled times, states, diagnostics
+}
+
+Potential --> Dynamics : defines field forces
+Dynamics --> InitialValueProblem
+InitialConfiguration --> InitialValueProblem
+InitialValueProblem --> SimulationRunner
+NumericalMethod --> SimulationRunner
+SimulationRequest --> SimulationRunner
+SimulationRunner --> Solution : produces
+
+note bottom of InitialConfiguration
+  This is the role implemented by
+  TrajectoryGC and TrajectoryFC.
+  It is not the numerical result of a run.
+end note
+
+note bottom of Solution
+  Solution is the trajectory evolved in time.
+  It is distinct from the initial-state
+  geometry used to define a problem.
+end note
+
+legend bottom
+  |= Concept |= Responsibility |
+  | Potential | Physical field model |
+  | Dynamics | Equations induced by the field model |
+  | Initial configuration | Initial state and coordinate layout |
+  | Simulation | Execution using a problem, numerical method, and request |
+  | Solution | Computed trajectory and diagnostics |
+endlegend
+
+@enduml

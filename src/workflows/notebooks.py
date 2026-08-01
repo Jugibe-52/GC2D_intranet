@@ -18,6 +18,7 @@ def display_animation(animation: Animation, *, embed_limit_mb: float = 100.0) ->
 	# IPython is a notebook dependency rather than a simulation-core dependency,
 	# so import it only when interactive presentation is explicitly requested.
 	from IPython.display import HTML, display
+	from matplotlib import pyplot as plt
 
 	mpl.rcParams["animation.embed_limit"] = limit
 	html = (
@@ -26,6 +27,9 @@ def display_animation(animation: Animation, *, embed_limit_mb: float = 100.0) ->
 		else animation.to_jshtml(default_mode="once")
 	)
 	display(HTML(html))
+	# Inline backends otherwise emit the animation's first frame as an unrelated
+	# static figure after the HTML animation has already been displayed.
+	plt.close(animation._fig)
 
 
 __all__ = ["display_animation"]
