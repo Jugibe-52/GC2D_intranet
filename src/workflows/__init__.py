@@ -1,5 +1,12 @@
 """Reusable experiment composition for concise, reproducible notebooks."""
 
+from .abba_symplecticity import (
+	ABBAProjectionMultiplierOrder,
+	ABBASymplecticityConfig,
+	ABBASymplecticityResult,
+	ABBASymplecticitySummary,
+	run_abba_symplecticity_study,
+)
 from .area_comparison import (
 	AreaComparisonConfig,
 	AreaComparisonResult,
@@ -35,6 +42,10 @@ from .rk4_symplecticity import (
 )
 
 __all__ = [
+	"ABBAProjectionMultiplierOrder",
+	"ABBASymplecticityConfig",
+	"ABBASymplecticityResult",
+	"ABBASymplecticitySummary",
 	"AreaComparisonConfig",
 	"AreaComparisonResult",
 	"AreaStep",
@@ -57,6 +68,7 @@ __all__ = [
 	"domain_center",
 	"pi_area_steps",
 	"run_area_comparison",
+	"run_abba_symplecticity_study",
 	"run_generalized_energy_comparison",
 	"run_rk4_symplecticity_study",
 ]

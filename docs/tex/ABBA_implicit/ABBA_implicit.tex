@@ -1,0 +1,523 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[provide=*,english]{babel}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage{amsmath,amssymb,mathtools}
+\usepackage{geometry}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{booktabs}
+\usepackage{fancyhdr}
+\usepackage[hidelinks]{hyperref}
+
+\geometry{left=2.3cm,right=2.3cm,top=2.2cm,bottom=2.25cm,headheight=14pt}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0.38em}
+\setlist[itemize]{topsep=0.25em,itemsep=0.18em,leftmargin=1.5em}
+\setlist[enumerate]{topsep=0.25em,itemsep=0.22em,leftmargin=1.8em}
+\allowdisplaybreaks
+
+\definecolor{azul}{RGB}{34,73,110}
+\definecolor{gris}{RGB}{90,96,102}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\color{gris}GC2D: ABBA method}
+\fancyhead[R]{\small\color{gris}Projection and constant Jacobian}
+\fancyfoot[C]{\thepage}
+\renewcommand{\headrulewidth}{0.3pt}
+
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\Id}{I}
+\newcommand{\Y}{\mathcal{Y}}
+\newcommand{\M}{\mathcal{M}}
+\newcommand{\Om}{\Omega_{\times}}
+\newcommand{\PhiAB}{\Phi^{\mathrm{ABBA}}_{h,t_n}}
+\newcommand{\norm}[1]{\left\lVert #1\right\rVert}
+
+\begin{document}
+
+\begin{center}
+  {\LARGE\bfseries\color{azul}ABBA Method with Hairer's Symmetric Projection}\par
+  \vspace{0.35em}
+  {\large Adaptation to GC2D with $H_\mu=0$ and a constant simultaneous formulation}\par
+  \vspace{0.45em}
+  {\small Complete replacement of BM4 by an $A$--$B$--$B$--$A$ architecture}
+\end{center}
+
+\vspace{0.5em}
+
+\section{Guiding-center system and duplicated phase space}
+
+The physical state is
+\[
+ z=(X,Y)\in\R^2,
+\]
+and, with the convention used here, it satisfies
+\[
+ \dot X=-\partial_Y\phi(t,X,Y),
+ \qquad
+ \dot Y=\partial_X\phi(t,X,Y).
+\]
+We define
+\[
+ J_0=
+ \begin{pmatrix}
+  0&-1\\
+  1&0
+ \end{pmatrix},
+ \qquad
+ f(z,t)=J_0\nabla_z\phi(z,t),
+\]
+so that $\dot z=f(z,t)$. Its spatial Jacobian is
+\[
+ W(z,t):=D_zf(z,t)=J_0\nabla_z^2\phi(z,t).
+\]
+Since the Hessian of $\phi$ is symmetric,
+\[
+ W(z,t)^TJ_0+J_0W(z,t)=0. \tag{1}
+\]
+
+We duplicate the state:
+\[
+ \Y=(u,v)=(X_1,Y_1,X_2,Y_2)\in\R^4,
+ \qquad u,v\in\R^2.
+\]
+The duplicated dynamics associated with the subflows used below is
+\[
+ \dot u=f(v,t),
+ \qquad
+ \dot v=f(u,t).
+\]
+If initially $u=v=z$, both equations coincide with the physical dynamics.
+
+The physical state is identified with the diagonal manifold
+\[
+ \M=\{(u,v)\in\R^4:u=v\}.
+\]
+We write it as
+\[
+ g(\Y)=G\Y=u-v,
+ \qquad
+ G=(\Id_2\; -\Id_2),
+ \qquad
+ GG^T=2\Id_2.
+\]
+For $\mu=(\mu_X,\mu_Y)^T$,
+\[
+ G^T\mu=
+ \begin{pmatrix}\mu\\-\mu\end{pmatrix}
+ =(\mu_X,\mu_Y,-\mu_X,-\mu_Y)^T.
+\]
+
+The constraints are linear. Therefore,
+\[
+ \nabla^2g_1=\nabla^2g_2=0
+\]
+and, for every $\mu$,
+\[
+ \boxed{
+ H_\mu(\Y)=\sum_{j=1}^2\mu_j\nabla^2g_j(\Y)=0.
+ }
+\]
+This does not mean that $\mu=0$: $H_\mu$ is identically zero because $G=Dg$ is constant.
+
+\section{The explicit submaps \texorpdfstring{$A$}{A} and \texorpdfstring{$B$}{B}}
+
+For a substep length $s$ and an evaluation time $t$, we define
+\[
+ A_{s,t}(u,v)=\bigl(u+s f(v,t),v\bigr), \tag{2}
+\]
+\[
+ B_{s,t}(u,v)=\bigl(u,v+s f(u,t)\bigr). \tag{3}
+\]
+The map $A$ advances only the first copy using the second one; $B$ advances only the
+second copy using the first one. Both maps are explicit.
+
+Their Jacobians are
+\[
+ DA_{s,t}(u,v)=
+ \begin{pmatrix}
+  \Id_2&sW(v,t)\\
+  0&\Id_2
+ \end{pmatrix},
+ \qquad
+ DB_{s,t}(u,v)=
+ \begin{pmatrix}
+  \Id_2&0\\
+  sW(u,t)&\Id_2
+ \end{pmatrix}. \tag{4}
+\]
+
+In the duplicated phase space, we use the skew-symmetric matrix
+\[
+ \Om=
+ \begin{pmatrix}
+  0&J_0\\
+  J_0&0
+ \end{pmatrix}.
+\]
+Identity (1) directly implies
+\[
+ (DA_{s,t})^T\Om DA_{s,t}=\Om,
+ \qquad
+ (DB_{s,t})^T\Om DB_{s,t}=\Om.
+\]
+Thus, each submap is symplectic with respect to $\Om$, and any composition of these maps is
+also symplectic in the duplicated phase space.
+
+Moreover, the variables used to evaluate the field remain fixed in each submap. Therefore,
+\[
+ \boxed{A_{s,t}^{-1}=A_{-s,t},\qquad B_{s,t}^{-1}=B_{-s,t}.} \tag{5}
+\]
+
+\section{The nonautonomous \texorpdfstring{$A$--$B$--$B$--$A$}{A-B-B-A} step}
+
+Let
+\[
+ t_{n+1}=t_n+h,
+ \qquad
+ s=\frac h2.
+\]
+The base map that replaces BM4 is
+\[
+ \boxed{
+ \PhiAB
+ =A_{s,t_{n+1}}
+  \circ B_{s,t_{n+1}}
+  \circ B_{s,t_n}
+  \circ A_{s,t_n}.
+ } \tag{6}
+\]
+Compositions are read from right to left. Therefore, the effective order is
+\[
+ A_{s,t_n}\longrightarrow B_{s,t_n}
+ \longrightarrow B_{s,t_{n+1}}\longrightarrow A_{s,t_{n+1}}.
+\]
+
+Starting from $(u^{(0)},v^{(0)})$, the four stages are
+\begin{align}
+ u^{(1)}
+ &=u^{(0)}+s f\bigl(v^{(0)},t_n\bigr), &&(A_1) \tag{7a}\\
+ v^{(1)}
+ &=v^{(0)}+s f\bigl(u^{(1)},t_n\bigr), &&(B_1) \tag{7b}\\
+ v^{(2)}
+ &=v^{(1)}+s f\bigl(u^{(1)},t_{n+1}\bigr), &&(B_2) \tag{7c}\\
+ u^{(2)}
+ &=u^{(1)}+s f\bigl(v^{(2)},t_{n+1}\bigr). &&(A_2) \tag{7d}
+\end{align}
+The output is
+\[
+ \PhiAB(u^{(0)},v^{(0)})=(u^{(2)},v^{(2)}).
+\]
+
+The evaluations at the two time endpoints are essential in the nonautonomous problem.
+If every stage were evaluated at $t_n$, time symmetry would be lost. In the autonomous
+case, the two central stages can be combined, and one recovers
+\[
+ A_{h/2}\longrightarrow B_h\longrightarrow A_{h/2}.
+\]
+
+Since $A$ and $B$ are symplectic with respect to $\Om$, the complete map is also symplectic:
+\[
+ \boxed{
+ (D\PhiAB)^T\Om D\PhiAB=\Om.
+ } \tag{8}
+\]
+
+\section{Proof of the symmetry of ABBA}
+
+A time-dependent method is symmetric if
+\[
+ \Phi^{\mathrm{ABBA}}_{-h,t_{n+1}}
+ =\left(\Phi^{\mathrm{ABBA}}_{h,t_n}\right)^{-1}. \tag{9}
+\]
+Using (5) and reversing the order of composition in (6),
+\begin{align*}
+ \left(\Phi^{\mathrm{ABBA}}_{h,t_n}\right)^{-1}
+ &={}
+ A_{-s,t_n}
+ \circ B_{-s,t_n}
+ \circ B_{-s,t_{n+1}}
+ \circ A_{-s,t_{n+1}}.
+\end{align*}
+We now start at $t_{n+1}$ with a step of size $-h$. Its final time is
+$t_{n+1}-h=t_n$, and definition (6) gives precisely
+\[
+ \Phi^{\mathrm{ABBA}}_{-h,t_{n+1}}
+ =A_{-s,t_n}
+  \circ B_{-s,t_n}
+  \circ B_{-s,t_{n+1}}
+  \circ A_{-s,t_{n+1}}.
+\]
+Therefore,
+\[
+ \boxed{
+ \Phi^{\mathrm{ABBA}}_{-h,t_{n+1}}
+ =\left(\Phi^{\mathrm{ABBA}}_{h,t_n}\right)^{-1}.
+ }
+\]
+The architecture is palindromic when both the sign of the step and the two endpoint times
+are reversed simultaneously.
+
+\section{Hairer's symmetric projection around ABBA}
+
+Suppose that
+\[
+ \Y_n=(z_n,z_n)\in\M
+\]
+is known. For a multiplier $\mu\in\R^2$, we first correct the input:
+\[
+ \widehat{\Y}_n(\mu)
+ =\Y_n+G^T\mu
+ =(z_n+\mu,z_n-\mu).
+\]
+We write
+\[
+ u^{(0)}=z_n+\mu,
+ \qquad
+ v^{(0)}=z_n-\mu,
+\]
+and apply the four stages in (7). The auxiliary result is
+\[
+ \widetilde{\Y}_{n+1}(\mu)
+ =\PhiAB\bigl(\Y_n+G^T\mu\bigr)
+ =(u^{(2)}(\mu),v^{(2)}(\mu)).
+\]
+The same correction is then applied at the output:
+\[
+ \Y_{n+1}(\mu)
+ =\widetilde{\Y}_{n+1}(\mu)+G^T\mu
+ =\bigl(u^{(2)}+\mu,v^{(2)}-\mu\bigr). \tag{10}
+\]
+Imposing $\Y_{n+1}\in\M$ is equivalent to
+\[
+ u^{(2)}(\mu)+\mu=v^{(2)}(\mu)-\mu.
+\]
+Thus, the problem is reduced exactly to two equations:
+\[
+ \boxed{
+ R(\mu)
+ :=u^{(2)}(\mu)-v^{(2)}(\mu)+2\mu=0.
+ } \tag{11}
+\]
+In matrix notation,
+\[
+ R(\mu)
+ =G\PhiAB\bigl(\Y_n+G^T\mu\bigr)+2\mu. \tag{12}
+\]
+Once the root $\mu_*$ has been found, the new physical state is
+\[
+ \boxed{
+ z_{n+1}=u^{(2)}(\mu_*)+\mu_*
+          =v^{(2)}(\mu_*)-\mu_*.
+ } \tag{13}
+\]
+
+\section{Exact Jacobian of the ABBA map}
+
+For a particular evaluation of (7), we define
+\begin{align*}
+ W_1&=W\bigl(v^{(0)},t_n\bigr),
+ &W_2&=W\bigl(u^{(1)},t_n\bigr),\\
+ W_3&=W\bigl(u^{(1)},t_{n+1}\bigr),
+ &W_4&=W\bigl(v^{(2)},t_{n+1}\bigr),
+\end{align*}
+and abbreviate
+\[
+ S:=W_2+W_3.
+\]
+The Jacobians of the four stages, evaluated at the points actually traversed, are
+\[
+ M_{A_1}=
+ \begin{pmatrix}
+  \Id_2&sW_1\\0&\Id_2
+ \end{pmatrix},
+ \qquad
+ M_{B_1}=
+ \begin{pmatrix}
+  \Id_2&0\\sW_2&\Id_2
+ \end{pmatrix},
+\]
+\[
+ M_{B_2}=
+ \begin{pmatrix}
+  \Id_2&0\\sW_3&\Id_2
+ \end{pmatrix},
+ \qquad
+ M_{A_2}=
+ \begin{pmatrix}
+  \Id_2&sW_4\\0&\Id_2
+ \end{pmatrix}.
+\]
+By the chain rule,
+\[
+ \boxed{
+ D\PhiAB=M_{A_2}M_{B_2}M_{B_1}M_{A_1}.
+ } \tag{14}
+\]
+The two central matrices satisfy
+\[
+ M_{B_2}M_{B_1}
+ =
+ \begin{pmatrix}
+  \Id_2&0\\sS&\Id_2
+ \end{pmatrix}.
+\]
+Multiplying the four blocks gives the exact $4\times4$ Jacobian:
+\[
+ \boxed{
+ D\PhiAB=
+ \begin{pmatrix}
+  \Id_2+s^2W_4S
+  &s(W_1+W_4)+s^3W_4SW_1\\[2mm]
+  sS
+  &\Id_2+s^2SW_1
+ \end{pmatrix}.
+ } \tag{15}
+\]
+The Jacobian of the map has not been replaced by the identity: (15) contains exactly all
+the dependencies generated by the four stages.
+
+\section{Exact Jacobian of the reduced residual}
+
+From
+\[
+ \frac{\partial(u^{(0)},v^{(0)})}{\partial\mu}
+ =\begin{pmatrix}\Id_2\\-\Id_2\end{pmatrix}=G^T
+\]
+and from (12), we obtain
+\[
+ \boxed{
+ R'(\mu)=G\,D\PhiAB\bigl(\Y_n+G^T\mu\bigr)G^T+2\Id_2.
+ } \tag{16}
+\]
+If we write (15) as
+\[
+ D\PhiAB=
+ \begin{pmatrix}A&B\\C&D\end{pmatrix},
+\]
+then
+\[
+ G\,D\PhiAB\,G^T=A-B-C+D.
+\]
+Substituting the four blocks in (15) yields
+\[
+ \boxed{
+ \begin{aligned}
+ R'(\mu)={}&4\Id_2
+ -s\bigl(W_1+W_2+W_3+W_4\bigr)\\
+ &+s^2\bigl[W_4(W_2+W_3)+(W_2+W_3)W_1\bigr]\\
+ &-s^3W_4(W_2+W_3)W_1.
+ \end{aligned}
+ } \tag{17}
+\]
+Since $s=h/2$, this can also be written as
+\[
+ \boxed{
+ \begin{aligned}
+ R'(\mu)={}&4\Id_2
+ -\frac h2\bigl(W_1+W_2+W_3+W_4\bigr)\\
+ &+\frac{h^2}{4}
+ \bigl[W_4(W_2+W_3)+(W_2+W_3)W_1\bigr]\\
+ &-\frac{h^3}{8}W_4(W_2+W_3)W_1.
+ \end{aligned}
+ } \tag{18}
+\]
+The matrices $W_i$ need not commute: the order of the products in (17) and (18) must be
+preserved exactly.
+
+\section{Symmetry of the complete projected method}
+
+The equation defining the projected step can be written as
+\[
+ \boxed{
+ \Y_{n+1}-G^T\mu
+ =\Phi^{\mathrm{ABBA}}_{h,t_n}
+  \bigl(\Y_n+G^T\mu\bigr),
+ \qquad
+ \Y_n,\Y_{n+1}\in\M.
+ } \tag{19}
+\]
+Applying the inverse of ABBA and using its symmetry,
+\[
+ \Y_n+G^T\mu
+ =\Phi^{\mathrm{ABBA}}_{-h,t_{n+1}}
+  \bigl(\Y_{n+1}-G^T\mu\bigr).
+\]
+We define the multiplier of the reverse step as
+\[
+ \mu_{\mathrm{inv}}=-\mu.
+\]
+Then
+\[
+ \Y_n-G^T\mu_{\mathrm{inv}}
+ =\Phi^{\mathrm{ABBA}}_{-h,t_{n+1}}
+  \bigl(\Y_{n+1}+G^T\mu_{\mathrm{inv}}\bigr),
+\]
+which is exactly equation (19) applied backward. Therefore, if the root is locally unique
+and is solved exactly,
+\[
+ \boxed{
+ \Psi_{-h,t_{n+1}}\circ\Psi_{h,t_n}=\Id.
+ } \tag{20}
+\]
+Here $\Psi$ denotes ABBA together with Hairer's projection. In an implementation, the
+iteration is stopped at a finite tolerance; reversibility is preserved up to that tolerance.
+
+\section{Simultaneous formulation and constant approximation}
+
+Alternatively, $\Y_{n+1}$ can be retained as an unknown. We define
+\[
+ d(\Y_{n+1},\mu)
+ :=\Y_{n+1}-G^T\mu
+   -\PhiAB\bigl(\Y_n+G^T\mu\bigr).
+\]
+We seek
+\[
+ d(\Y_{n+1},\mu)=0,
+ \qquad
+ g(\Y_{n+1})=0.
+\]
+Since $G$ is constant and $H_\mu=0$,
+\[
+ D_{\Y_{n+1}}d=\Id_4,
+ \qquad
+ D_\mu d
+ =-\left[\Id_4+D\PhiAB(\widehat{\Y}_n)\right]G^T,
+\]
+\[
+ D_{\Y_{n+1}}g=G,
+ \qquad
+ D_\mu g=0.
+\]
+The exact simultaneous Newton iteration solves
+\[
+ \boxed{
+ \begin{pmatrix}
+  \Id_4&-\left[\Id_4+D\PhiAB(\widehat{\Y}_n)\right]G^T\\[2pt]
+  G&0
+ \end{pmatrix}
+ \begin{pmatrix}
+  \Delta\Y_{n+1}\\
+  \Delta\mu
+ \end{pmatrix}
+ =-
+ \begin{pmatrix}
+  d(\Y_{n+1},\mu)\\
+  g(\Y_{n+1})
+ \end{pmatrix}.
+ } \tag{21}
+\]
+Its Schur complement is
+\[
+ G\left[\Id_4+D\PhiAB(\widehat{\Y}_n)\right]G^T
+ =2\Id_2+GD\PhiAB(\widehat{\Y}_n)G^T
+ =R'(\mu).
+\]
+Therefore, the reduced and simultaneous formulations use exactly the same Jacobian.
+
+\end{document}

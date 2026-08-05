@@ -8,7 +8,13 @@ from .formulations import (
 	GCStageProjectedFormulation,
 	StageProjectedFormulation,
 )
-from .methods import BM4Composition, NumericalMethod, ProjectedBM4Composition, RK4
+from .methods import (
+	BM4Composition,
+	NumericalMethod,
+	ProjectedBM4Composition,
+	RK4,
+	SymmetricProjectedABBA,
+)
 from .observation import IntegrationStage, IntegrationStep, StageObserver, StepObserver
 from .problem import InitialValueProblem
 from .request import SimulationRequest
@@ -34,5 +40,6 @@ __all__ = [
 	"StageObserver",
 	"StepObserver",
 	"StageProjectedFormulation",
+	"SymmetricProjectedABBA",
 	"simulate",
 ]

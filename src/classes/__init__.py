@@ -6,6 +6,7 @@ from .dynamics import (
 	ExtendedHamiltonianSystem,
 	FullCyclotronDynamics,
 	GuidingCenterDynamics,
+	GuidingCenterJacobianSystem,
 	HamiltonianSystem,
 )
 from .potential import Potential
@@ -28,6 +29,7 @@ from .simulation import (
 	StageObserver,
 	StepObserver,
 	StageProjectedFormulation,
+	SymmetricProjectedABBA,
 	simulate,
 )
 from .trajectory import (
@@ -52,6 +54,7 @@ __all__ = [
 	"GCExtendedFormulation",
 	"GCStageProjectedFormulation",
 	"GuidingCenterDynamics",
+	"GuidingCenterJacobianSystem",
 	"HamiltonianSystem",
 	"InitialConfiguration",
 	"InitialValueProblem",
@@ -67,6 +70,7 @@ __all__ = [
 	"StageObserver",
 	"StepObserver",
 	"StageProjectedFormulation",
+	"SymmetricProjectedABBA",
 	"TrajectoryFC",
 	"TrajectoryGC",
 	"simulate",

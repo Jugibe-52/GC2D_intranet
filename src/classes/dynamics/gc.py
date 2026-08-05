@@ -37,6 +37,36 @@ class GuidingCenterDynamics:
 		)
 		return pack_components(ey, -ex)
 
+	def particle_vector_field_jacobians(
+		self,
+		t: float,
+		state: np.ndarray,
+	) -> np.ndarray:
+		"""Return one exact two-by-two spatial Jacobian per GC particle.
+
+		For ``N`` particles the packed state is ``[x_1, ..., x_N, y_1, ...,
+		y_N]`` and the result has shape ``(N, 2, 2)``. Particles are uncoupled
+		by the field evaluation, so this batched representation avoids assembling
+		a sparse ``(2N, 2N)`` matrix. With ``f = (-phi_y, phi_x)``, the rows are
+		``(-phi_xy, -phi_yy)`` and ``(phi_xx, phi_xy)``.
+		"""
+		x, y = split_components(state, component_count=self.state_dimension)
+		potential = self.effective_potential
+		if potential.interpolation_order < 3:
+			raise ValueError(
+				"Exact GC vector-field Jacobians require interpolation_order >= 3."
+			)
+		phi_xx = potential.evaluate(t, x, y, dx=2)
+		phi_xy = potential.evaluate(t, x, y, dx=1, dy=1)
+		phi_yy = potential.evaluate(t, x, y, dy=2)
+		return np.stack(
+			(
+				np.stack((-phi_xy, -phi_yy), axis=-1),
+				np.stack((phi_xx, phi_xy), axis=-1),
+			),
+			axis=-2,
+		)
+
 	def hamiltonian(
 		self,
 		t: float | np.ndarray,

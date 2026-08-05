@@ -6,6 +6,7 @@ from .protocols import (
 	CyclotronSplitSystem,
 	DynamicalSystem,
 	ExtendedHamiltonianSystem,
+	GuidingCenterJacobianSystem,
 	HamiltonianSystem,
 )
 
@@ -15,5 +16,6 @@ __all__ = [
 	"ExtendedHamiltonianSystem",
 	"FullCyclotronDynamics",
 	"GuidingCenterDynamics",
+	"GuidingCenterJacobianSystem",
 	"HamiltonianSystem",
 ]

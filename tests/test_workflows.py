@@ -11,16 +11,22 @@ import numpy as np
 
 from classes import Area, TrajectoryGC
 from workflows import (
+	ABBASymplecticityConfig,
+	ABBASymplecticityResult,
+	ABBASymplecticitySummary,
 	AreaComparisonConfig,
 	GeneralizedEnergyConfig,
 	RandomPotentialConfig,
 	RK4SymplecticityConfig,
+	RK4SymplecticityResult,
+	RK4SymplecticitySummary,
 	centered_circle,
 	centered_gc_trajectory,
 	centered_square,
 	domain_center,
 	pi_area_steps,
 	run_area_comparison,
+	run_abba_symplecticity_study,
 	run_generalized_energy_comparison,
 	run_rk4_symplecticity_study,
 )
@@ -232,6 +238,7 @@ class RK4SymplecticityWorkflowTests(unittest.TestCase):
 				project_root=root,
 			)
 
+		self.assertIs(type(result), RK4SymplecticityResult)
 		self.assertEqual(tuple(result.solutions), tuple(
 			step.label for step in config.steps
 		))
@@ -241,7 +248,11 @@ class RK4SymplecticityWorkflowTests(unittest.TestCase):
 				[record.time for record in result.records[step.label]],
 				result.solutions[step.label].t,
 			)
-		self.assertEqual(len(result.summaries()), 2)
+		summaries = result.summaries()
+		self.assertEqual(len(summaries), 2)
+		self.assertTrue(
+			all(type(row) is RK4SymplecticitySummary for row in summaries)
+		)
 		self.assertEqual(len(result.convergence_orders()), 1)
 		diagnostic_figure, diagnostic_axes = result.plot_diagnostics()
 		convergence_figure, convergence_axes = result.plot_convergence()
@@ -252,6 +263,72 @@ class RK4SymplecticityWorkflowTests(unittest.TestCase):
 		animation._draw_was_started = True
 		plt.close(diagnostic_figure)
 		plt.close(convergence_figure)
+
+
+class ABBASymplecticityWorkflowTests(unittest.TestCase):
+	"""Verify ABBA study identities, solver summaries and floor semantics."""
+
+	def test_short_abba_study_reports_a_numerical_floor(self) -> None:
+		potential = small_potential_config().build()
+		area = centered_square(
+			potential,
+			side=0.5,
+			points_per_side=1,
+			rho=0.05,
+		)
+		config = ABBASymplecticityConfig(
+			steps=pi_area_steps(400, 800),
+			t_span=(0.0, np.pi / 100),
+			save_interval=np.pi / 100,
+			chunk_size=2,
+		)
+
+		with tempfile.TemporaryDirectory(dir="/tmp") as temporary:
+			root = Path(temporary)
+			result = run_abba_symplecticity_study(
+				potential,
+				area,
+				notebook_path=(
+					root
+					/ "notebooks"
+					/ "developements"
+					/ "abba_symplecticity.ipynb"
+				),
+				config=config,
+				project_root=root,
+			)
+
+		self.assertIs(type(result), ABBASymplecticityResult)
+		summaries = result.summaries()
+		self.assertEqual(len(summaries), 2)
+		self.assertTrue(
+			all(type(row) is ABBASymplecticitySummary for row in summaries)
+		)
+		self.assertFalse(hasattr(result, "convergence_orders"))
+		for step in config.steps:
+			solution = result.solutions[step.label]
+			step_count = int(solution.diagnostics["step_count"])
+			for name in (
+				"newton_iterations",
+				"newton_residual_norms",
+				"projection_multiplier_norms",
+			):
+				self.assertEqual(
+					np.asarray(solution.diagnostics[name]).shape,
+					(step_count,),
+				)
+
+		floor_figure, floor_axes = result.plot_defect_floor()
+		solver_figure, solver_axes = result.plot_solver_diagnostics()
+		self.assertIn("numerical floor", floor_axes.get_title())
+		self.assertEqual(solver_axes.shape, (2,))
+		plt.close(floor_figure)
+		plt.close(solver_figure)
+
+		first_solution = result.solutions[config.steps[0].label]
+		first_solution.diagnostics.pop("newton_residual_norms")
+		with self.assertRaisesRegex(ValueError, "must provide.*together"):
+			result.summaries()
 
 
 if __name__ == "__main__":

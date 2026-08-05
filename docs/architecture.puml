@@ -23,6 +23,10 @@ package "Physical dynamics" as Dynamics {
     + extended_momentum_derivative(t, state): Array
   }
 
+  interface GuidingCenterJacobianSystem {
+    + particle_vector_field_jacobians(t, state): Array[N, 2, 2]
+  }
+
   interface CyclotronSplitSystem {
     + rho: float
     + eta: float
@@ -32,6 +36,7 @@ package "Physical dynamics" as Dynamics {
 
   class GuidingCenterDynamics {
     + rho: float
+    + particle_vector_field_jacobians(t, state): Array[N, 2, 2]
   }
 
   class FullCyclotronDynamics {
@@ -40,9 +45,10 @@ package "Physical dynamics" as Dynamics {
   }
 
   HamiltonianSystem <|-- ExtendedHamiltonianSystem
+  DynamicalSystem <|-- GuidingCenterJacobianSystem
   DynamicalSystem <|-- CyclotronSplitSystem
 
-  DynamicalSystem <|.. GuidingCenterDynamics
+  GuidingCenterJacobianSystem <|.. GuidingCenterDynamics
   ExtendedHamiltonianSystem <|.. GuidingCenterDynamics
 
   DynamicalSystem <|.. FullCyclotronDynamics
@@ -139,15 +145,18 @@ package "Numerical methods" as Methods {
   class RK4
   class BM4Composition
   class ProjectedBM4Composition
+  class SymmetricProjectedABBA
 
   NumericalMethod <|.. RK4
   NumericalMethod <|.. BM4Composition
   BM4Composition <|-- ProjectedBM4Composition
+  NumericalMethod <|.. SymmetricProjectedABBA
 }
 
 RK4 ..> DynamicalSystem : requires vector field
 BM4Composition o-- DirectAdjointFormulation : formulation
 ProjectedBM4Composition o-- StageProjectedFormulation : formulation
+SymmetricProjectedABBA ..> GuidingCenterJacobianSystem : requires exact batched W = Df
 
 package "Simulation" as Simulation {
   class SimulationRequest {
@@ -193,6 +202,7 @@ SimulationRunner --> Solution : builds
 
 Solution o-- InitialConfiguration : source
 RK4 --> IntegrationStep : optional observation
+SymmetricProjectedABBA --> IntegrationStep : optional observation
 
 note right of Area
   Area is a GC initial configuration
@@ -223,6 +233,17 @@ note bottom of ProjectedBM4Composition
   BM4-based method, not the coupled BM4 map.
 end note
 
+note bottom of SymmetricProjectedABBA
+  Each second-order step applies endpoint-time
+  A-B-B-A shears in a duplicated GC state, then
+  solves one reduced multiplier equation with the
+  exact Jacobian and returns to the physical diagonal.
+  Symplecticity observers differentiate the emitted
+  finite-tolerance step map by centered differences.
+  This two-sided symmetric projection is distinct from
+  the twelve irreversible averages of projected BM4.
+end note
+
 note bottom of SimulationRunner
   The runner validates and executes the supplied
   problem, numerical method, and request.
@@ -235,6 +256,7 @@ package "Reusable workflows" as Workflows {
   class GCAreaVisualization
   class SingleParticleVisualization
   class RK4SymplecticityStudy
+  class ABBASymplecticityStudy
 }
 
 AreaComparison ..> SimulationRunner
@@ -244,6 +266,9 @@ GeneralizedEnergyComparison ..> SimulationRunner
 RK4SymplecticityStudy ..> SimulationRunner
 RK4SymplecticityStudy ..> RK4
 RK4SymplecticityStudy ..> IntegrationStep : analyzes
+ABBASymplecticityStudy ..> SimulationRunner
+ABBASymplecticityStudy ..> SymmetricProjectedABBA
+ABBASymplecticityStudy ..> IntegrationStep : analyzes
 GCAreaVisualization ..> Potential
 GCAreaVisualization ..> Area
 GCAreaVisualization ..> Solution

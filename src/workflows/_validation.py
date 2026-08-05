@@ -7,6 +7,8 @@ import numpy as np
 
 def positive_finite(value: float, name: str) -> float:
 	"""Normalize a positive finite workflow parameter."""
+	if isinstance(value, (bool, np.bool_)):
+		raise ValueError(f"`{name}` must be positive and finite.")
 	result = float(value)
 	if not np.isfinite(result) or result <= 0:
 		raise ValueError(f"`{name}` must be positive and finite.")

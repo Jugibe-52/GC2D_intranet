@@ -42,6 +42,23 @@ class ExtendedHamiltonianSystem(HamiltonianSystem, Protocol):
 
 
 @runtime_checkable
+class GuidingCenterJacobianSystem(DynamicalSystem, Protocol):
+	"""Canonical planar particles with exact independent spatial Jacobians.
+
+	States use component-major layout ``[x_1, ..., x_N, y_1, ..., y_N]``.
+	Each returned block differentiates one uncoupled particle field and is
+	Hamiltonian with respect to the canonical planar symplectic form.
+	"""
+
+	def particle_vector_field_jacobians(
+		self,
+		t: float,
+		state: np.ndarray,
+	) -> np.ndarray:
+		"""Return one ``(2, 2)`` vector-field Jacobian per packed particle."""
+
+
+@runtime_checkable
 class CyclotronSplitSystem(DynamicalSystem, Protocol):
 	"""FC operations and parameters required by the exact split formulation."""
 
@@ -65,5 +82,6 @@ __all__ = [
 	"CyclotronSplitSystem",
 	"DynamicalSystem",
 	"ExtendedHamiltonianSystem",
+	"GuidingCenterJacobianSystem",
 	"HamiltonianSystem",
 ]
