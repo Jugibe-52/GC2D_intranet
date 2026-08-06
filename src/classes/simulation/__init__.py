@@ -10,6 +10,7 @@ from .formulations import (
 )
 from .methods import (
 	BM4Composition,
+	ExplicitABBA,
 	NumericalMethod,
 	ProjectedBM4Composition,
 	RK4,
@@ -24,6 +25,7 @@ from .solution import Solution
 __all__ = [
 	"BM4Composition",
 	"DirectAdjointFormulation",
+	"ExplicitABBA",
 	"FCSplitFormulation",
 	"GCExtendedFormulation",
 	"GCStageProjectedFormulation",

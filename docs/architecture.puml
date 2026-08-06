@@ -145,17 +145,20 @@ package "Numerical methods" as Methods {
   class RK4
   class BM4Composition
   class ProjectedBM4Composition
+  class ExplicitABBA
   class SymmetricProjectedABBA
 
   NumericalMethod <|.. RK4
   NumericalMethod <|.. BM4Composition
   BM4Composition <|-- ProjectedBM4Composition
+  NumericalMethod <|.. ExplicitABBA
   NumericalMethod <|.. SymmetricProjectedABBA
 }
 
 RK4 ..> DynamicalSystem : requires vector field
 BM4Composition o-- DirectAdjointFormulation : formulation
 ProjectedBM4Composition o-- StageProjectedFormulation : formulation
+ExplicitABBA ..> DynamicalSystem : requires planar vector field
 SymmetricProjectedABBA ..> GuidingCenterJacobianSystem : requires exact batched W = Df
 
 package "Simulation" as Simulation {
@@ -202,6 +205,7 @@ SimulationRunner --> Solution : builds
 
 Solution o-- InitialConfiguration : source
 RK4 --> IntegrationStep : optional observation
+ExplicitABBA --> IntegrationStep : optional observation
 SymmetricProjectedABBA --> IntegrationStep : optional observation
 
 note right of Area
@@ -244,6 +248,14 @@ note bottom of SymmetricProjectedABBA
   the twelve irreversible averages of projected BM4.
 end note
 
+note bottom of ExplicitABBA
+  Each second-order step duplicates the physical
+  state, applies endpoint-time A-B-B-A shears,
+  and returns the arithmetic mean of both copies.
+  The mean projection is explicit but does not
+  guarantee physical symplecticity or reversibility.
+end note
+
 note bottom of SimulationRunner
   The runner validates and executes the supplied
   problem, numerical method, and request.
@@ -256,6 +268,7 @@ package "Reusable workflows" as Workflows {
   class GCAreaVisualization
   class SingleParticleVisualization
   class RK4SymplecticityStudy
+  class ExplicitABBASymplecticityStudy
   class ABBASymplecticityStudy
 }
 
@@ -266,6 +279,9 @@ GeneralizedEnergyComparison ..> SimulationRunner
 RK4SymplecticityStudy ..> SimulationRunner
 RK4SymplecticityStudy ..> RK4
 RK4SymplecticityStudy ..> IntegrationStep : analyzes
+ExplicitABBASymplecticityStudy ..> SimulationRunner
+ExplicitABBASymplecticityStudy ..> ExplicitABBA
+ExplicitABBASymplecticityStudy ..> IntegrationStep : analyzes
 ABBASymplecticityStudy ..> SimulationRunner
 ABBASymplecticityStudy ..> SymmetricProjectedABBA
 ABBASymplecticityStudy ..> IntegrationStep : analyzes

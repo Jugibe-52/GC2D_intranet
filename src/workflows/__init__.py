@@ -7,6 +7,13 @@ from .abba_symplecticity import (
 	ABBASymplecticitySummary,
 	run_abba_symplecticity_study,
 )
+from .abba_explicit_symplecticity import (
+	ExplicitABBADefectOrder,
+	ExplicitABBASymplecticityConfig,
+	ExplicitABBASymplecticityResult,
+	ExplicitABBASymplecticitySummary,
+	run_explicit_abba_symplecticity_study,
+)
 from .area_comparison import (
 	AreaComparisonConfig,
 	AreaComparisonResult,
@@ -49,6 +56,10 @@ __all__ = [
 	"AreaComparisonConfig",
 	"AreaComparisonResult",
 	"AreaStep",
+	"ExplicitABBADefectOrder",
+	"ExplicitABBASymplecticityConfig",
+	"ExplicitABBASymplecticityResult",
+	"ExplicitABBASymplecticitySummary",
 	"GeneralizedEnergyConfig",
 	"GeneralizedEnergyResult",
 	"RandomPotentialConfig",
@@ -70,5 +81,6 @@ __all__ = [
 	"run_area_comparison",
 	"run_abba_symplecticity_study",
 	"run_generalized_energy_comparison",
+	"run_explicit_abba_symplecticity_study",
 	"run_rk4_symplecticity_study",
 ]

@@ -13,6 +13,7 @@ from .potential import Potential
 from .simulation import (
 	BM4Composition,
 	DirectAdjointFormulation,
+	ExplicitABBA,
 	FCSplitFormulation,
 	GCExtendedFormulation,
 	GCStageProjectedFormulation,
@@ -47,6 +48,7 @@ __all__ = [
 	"DirectAdjointFormulation",
 	"DynamicalSystem",
 	"ExtendedHamiltonianSystem",
+	"ExplicitABBA",
 	"FCInitialConfiguration",
 	"FCSplitFormulation",
 	"FullCyclotronDynamics",
