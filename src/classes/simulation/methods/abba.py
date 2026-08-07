@@ -230,28 +230,31 @@ def _ideal_projected_state_jacobian(
 
 	This is the tangent of the mathematical method defined by ``R(mu) = 0``. It
 	does not differentiate a finite Newton iteration or its stopping decision.
+	The implementation evaluates ``P - Q solve(K, L)`` without forming an inverse.
 	"""
 	particle_count = evaluation.jacobian.shape[0]
 	identity = np.broadcast_to(np.eye(2), (particle_count, 2, 2))
-	embedding = np.concatenate((identity, identity), axis=-2)
-	constraint_direction = np.concatenate((identity, -identity), axis=-2)
-	constraint = np.concatenate((identity, -identity), axis=-1)
-	average = np.concatenate((identity, identity), axis=-1) / 2.0
 	abba_jacobian = evaluation.abba_jacobian
-	residual_state_jacobian = constraint @ abba_jacobian @ embedding
+	top_left = abba_jacobian[..., :2, :2]
+	top_right = abba_jacobian[..., :2, 2:]
+	bottom_left = abba_jacobian[..., 2:, :2]
+	bottom_right = abba_jacobian[..., 2:, 2:]
+	# Equations (5)--(7) of ABBA_semiimplicit in block form.
+	residual_state_jacobian = (
+		top_left + top_right - bottom_left - bottom_right
+	)
+	direct_state_jacobian = top_left + top_right
+	implicit_weight = top_left - top_right + identity
 	try:
-		multiplier_state_jacobian = -np.linalg.solve(
+		residual_response = np.linalg.solve(
 			evaluation.jacobian,
 			residual_state_jacobian,
 		)
 	except np.linalg.LinAlgError as exc:
-		raise RuntimeError(
-			"The ABBA projection Jacobian is singular while differentiating the step."
-		) from exc
-	input_state_jacobian = (
-		embedding + constraint_direction @ multiplier_state_jacobian
-	)
-	physical_blocks = average @ abba_jacobian @ input_state_jacobian
+			raise RuntimeError(
+				"The ABBA projection Jacobian is singular while differentiating the step."
+			) from exc
+	physical_blocks = direct_state_jacobian - implicit_weight @ residual_response
 	return _dense_component_major_jacobian(physical_blocks)
 
 
@@ -342,6 +345,138 @@ def _solve_projected_step(
 	)
 
 
+def _integrate_projected_abba(
+	problem: InitialValueProblem,
+	request: SimulationRequest,
+	*,
+	method_name: str,
+	newton_absolute_tolerance: float,
+	newton_relative_tolerance: float,
+	newton_max_iterations: int,
+	progress: bool,
+	step_observer: StepObserver | None,
+	exact_tangent: bool,
+) -> IntegrationData:
+	"""Integrate projected ABBA with optional exact tangent propagation."""
+	dynamics = problem.dynamics
+	if not isinstance(dynamics, GuidingCenterJacobianSystem):
+		raise TypeError(f"{method_name} requires GuidingCenterJacobianSystem.")
+	if dynamics.state_dimension != 2:
+		raise TypeError(f"{method_name} requires planar two-component dynamics.")
+	# Preflight the exact Hessian capability before the integration grid advances.
+	_checked_vector_field_jacobian(
+		dynamics,
+		request.t_span[0],
+		problem.initial_state,
+	)
+
+	iteration_counts: list[int] = []
+	residual_norms: list[float] = []
+	multiplier_norms: list[float] = []
+	# The dense matrix follows the packed component-major physical state layout.
+	accumulated_state_jacobian = np.eye(problem.initial_state.size)
+
+	def advance(
+		t: float,
+		state: np.ndarray,
+		step: float,
+		step_index: int,
+		observe: bool,
+	) -> np.ndarray:
+		nonlocal accumulated_state_jacobian
+
+		def apply_step(candidate: np.ndarray) -> np.ndarray:
+			"""Apply this fixed-time projected ABBA map to one candidate."""
+			return _solve_projected_step(
+				dynamics,
+				t,
+				candidate,
+				step,
+				absolute_tolerance=newton_absolute_tolerance,
+				relative_tolerance=newton_relative_tolerance,
+				max_iterations=newton_max_iterations,
+				compute_ideal_state_jacobian=False,
+			).state
+
+		state_before = np.asarray(state, dtype=float)
+		result = _solve_projected_step(
+			dynamics,
+			t,
+			state_before,
+			step,
+			absolute_tolerance=newton_absolute_tolerance,
+			relative_tolerance=newton_relative_tolerance,
+			max_iterations=newton_max_iterations,
+			compute_ideal_state_jacobian=exact_tangent and observe,
+		)
+		if observe:
+			state_jacobian = result.ideal_state_jacobian
+			if exact_tangent:
+				if state_jacobian is None:
+					raise RuntimeError(
+						"Exact ABBA tangent propagation did not produce a state Jacobian."
+					)
+				accumulated_state_jacobian = (
+					state_jacobian @ accumulated_state_jacobian
+				)
+			iteration_counts.append(result.iterations)
+			residual_norms.append(result.residual_norm)
+			multiplier_norms.append(
+				float(np.linalg.norm(result.multiplier, ord=np.inf))
+			)
+			if step_observer is not None:
+				step_observer(
+					IntegrationStep(
+						dynamics_name=type(dynamics).__name__,
+						method_name=method_name,
+						step_index=step_index,
+						time=t + step,
+						duration=step,
+						state_before=state_before.copy(),
+						state_after=result.state.copy(),
+						map_state=apply_step,
+						state_jacobian=(
+							None
+							if state_jacobian is None
+							else state_jacobian.copy()
+						),
+					)
+				)
+		return result.state
+
+	history, step_count = integrate_fixed_grid(
+		problem.initial_state,
+		request,
+		advance,
+		progress=bool(progress),
+		label=method_name,
+	)
+	diagnostics: dict[str, np.ndarray | float | int | str | bool] = {
+		"step_count": step_count,
+		"newton_iterations": np.asarray(iteration_counts, dtype=int),
+		"newton_residual_norms": np.asarray(residual_norms, dtype=float),
+		"projection_multiplier_norms": np.asarray(
+			multiplier_norms,
+			dtype=float,
+		),
+		"newton_absolute_tolerance": newton_absolute_tolerance,
+		"newton_relative_tolerance": newton_relative_tolerance,
+		"newton_max_iterations": newton_max_iterations,
+	}
+	if exact_tangent:
+		diagnostics.update(
+			{
+				"state_jacobian_kind": "exact_implicit_function",
+				"final_state_jacobian": accumulated_state_jacobian.copy(),
+			}
+		)
+	return IntegrationData(
+		t=request.output_times,
+		states=np.asarray(history),
+		diagnostics=diagnostics,
+	)
+
+
 @dataclass(frozen=True, slots=True)
 class SymmetricProjectedABBA:
 	"""Second-order ABBA method closed by Hairer's symmetric projection.
@@ -391,101 +526,16 @@ class SymmetricProjectedABBA:
 		request: SimulationRequest,
 	) -> IntegrationData:
 		"""Integrate one GC problem and retain nonlinear-solve diagnostics."""
-		dynamics = problem.dynamics
-		if not isinstance(dynamics, GuidingCenterJacobianSystem):
-			raise TypeError(
-				"SymmetricProjectedABBA requires GuidingCenterJacobianSystem."
-			)
-		if dynamics.state_dimension != 2:
-			raise TypeError(
-				"SymmetricProjectedABBA requires planar two-component dynamics."
-			)
-		# Preflight the exact Hessian capability before the integration grid advances.
-		_checked_vector_field_jacobian(
-			dynamics,
-			request.t_span[0],
-			problem.initial_state,
-		)
-
-		iteration_counts: list[int] = []
-		residual_norms: list[float] = []
-		multiplier_norms: list[float] = []
-
-		def advance(
-			t: float,
-			state: np.ndarray,
-			step: float,
-			step_index: int,
-			observe: bool,
-		) -> np.ndarray:
-			def apply_step(candidate: np.ndarray) -> np.ndarray:
-				"""Apply this fixed-time projected ABBA map to one candidate."""
-				return _solve_projected_step(
-					dynamics,
-					t,
-					candidate,
-					step,
-					absolute_tolerance=self.newton_absolute_tolerance,
-					relative_tolerance=self.newton_relative_tolerance,
-					max_iterations=self.newton_max_iterations,
-					compute_ideal_state_jacobian=False,
-				).state
-
-			state_before = np.asarray(state, dtype=float)
-			result = _solve_projected_step(
-				dynamics,
-				t,
-				state_before,
-				step,
-				absolute_tolerance=self.newton_absolute_tolerance,
-				relative_tolerance=self.newton_relative_tolerance,
-				max_iterations=self.newton_max_iterations,
-				compute_ideal_state_jacobian=False,
-			)
-			if observe:
-				iteration_counts.append(result.iterations)
-				residual_norms.append(result.residual_norm)
-				multiplier_norms.append(
-					float(np.linalg.norm(result.multiplier, ord=np.inf))
-				)
-				if self.step_observer is not None:
-					self.step_observer(
-						IntegrationStep(
-							dynamics_name=type(dynamics).__name__,
-							method_name=type(self).__name__,
-							step_index=step_index,
-							time=t + step,
-							duration=step,
-							state_before=state_before.copy(),
-							state_after=result.state.copy(),
-							map_state=apply_step,
-						)
-					)
-			return result.state
-
-		history, step_count = integrate_fixed_grid(
-			problem.initial_state,
+		return _integrate_projected_abba(
+			problem,
 			request,
-			advance,
-			progress=bool(self.progress),
-			label=type(self).__name__,
-		)
-		diagnostics: dict[str, np.ndarray | float | int | str | bool] = {
-			"step_count": step_count,
-			"newton_iterations": np.asarray(iteration_counts, dtype=int),
-			"newton_residual_norms": np.asarray(residual_norms, dtype=float),
-			"projection_multiplier_norms": np.asarray(
-				multiplier_norms,
-				dtype=float,
-			),
-			"newton_absolute_tolerance": self.newton_absolute_tolerance,
-			"newton_relative_tolerance": self.newton_relative_tolerance,
-			"newton_max_iterations": self.newton_max_iterations,
-		}
-		return IntegrationData(
-			t=request.output_times,
-			states=np.asarray(history),
-			diagnostics=diagnostics,
+			method_name=type(self).__name__,
+			newton_absolute_tolerance=self.newton_absolute_tolerance,
+			newton_relative_tolerance=self.newton_relative_tolerance,
+			newton_max_iterations=self.newton_max_iterations,
+			progress=self.progress,
+			step_observer=self.step_observer,
+			exact_tangent=False,
 		)
 
 

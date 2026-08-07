@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 import re
 from types import MappingProxyType
-from typing import Any, ClassVar, Mapping, TypeVar
+from typing import Any, ClassVar, Literal, Mapping, TypeVar
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -513,6 +513,7 @@ def _run_gc_symplecticity_study(
 	result_type: type[_ResultT],
 	project_root: str | Path | None,
 	metadata: Mapping[str, Any] | None,
+	jacobian_source: Literal["finite_difference", "exact"] = "finite_difference",
 ) -> _ResultT:
 	"""Run synchronized physical GC diagnostics for a step-observable method."""
 	if not isinstance(potential, Potential):
@@ -555,7 +556,12 @@ def _run_gc_symplecticity_study(
 			block_name=f"{config.block_prefix}_step_{step_tag}",
 			record_every=record_every,
 			chunk_size=config.chunk_size,
-			relative_step=config.finite_difference_relative_step,
+			relative_step=(
+				config.finite_difference_relative_step
+				if jacobian_source == "finite_difference"
+				else None
+			),
+			jacobian_source=jacobian_source,
 			verbose=False,
 			metadata={
 				**common_metadata,

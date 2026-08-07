@@ -14,6 +14,7 @@ from .methods import (
 	NumericalMethod,
 	ProjectedBM4Composition,
 	RK4,
+	SemiImplicitABBA,
 	SymmetricProjectedABBA,
 )
 from .observation import IntegrationStage, IntegrationStep, StageObserver, StepObserver
@@ -36,6 +37,7 @@ __all__ = [
 	"NumericalMethod",
 	"ProjectedBM4Composition",
 	"RK4",
+	"SemiImplicitABBA",
 	"SimulationRequest",
 	"SimulationRunner",
 	"Solution",

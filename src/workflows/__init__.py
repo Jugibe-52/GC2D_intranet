@@ -14,6 +14,12 @@ from .abba_explicit_symplecticity import (
 	ExplicitABBASymplecticitySummary,
 	run_explicit_abba_symplecticity_study,
 )
+from .abba_semiimplicit_symplecticity import (
+	SemiImplicitABBASymplecticityConfig,
+	SemiImplicitABBASymplecticityResult,
+	SemiImplicitABBASymplecticitySummary,
+	run_semiimplicit_abba_symplecticity_study,
+)
 from .area_comparison import (
 	AreaComparisonConfig,
 	AreaComparisonResult,
@@ -67,6 +73,9 @@ __all__ = [
 	"RK4SymplecticityConfig",
 	"RK4SymplecticityResult",
 	"RK4SymplecticitySummary",
+	"SemiImplicitABBASymplecticityConfig",
+	"SemiImplicitABBASymplecticityResult",
+	"SemiImplicitABBASymplecticitySummary",
 	"animate_gc_area",
 	"animate_gc_area_comparison",
 	"animate_gc_area_solution",
@@ -83,4 +92,5 @@ __all__ = [
 	"run_generalized_energy_comparison",
 	"run_explicit_abba_symplecticity_study",
 	"run_rk4_symplecticity_study",
+	"run_semiimplicit_abba_symplecticity_study",
 ]

@@ -228,6 +228,52 @@ class SymplecticityResearchTests(unittest.TestCase):
 					(2, state.size, state.size),
 				)
 
+	def test_physical_area_observer_uses_provided_exact_jacobian(self) -> None:
+		area = Area.square(
+			center=(1.0, 1.0),
+			side=0.5,
+			points_per_side=1,
+			rho=0.05,
+		)
+		state = area.initial_state
+		assert state is not None
+		identity = np.eye(state.size)
+
+		def unexpected_map_evaluation(_state: np.ndarray) -> np.ndarray:
+			raise AssertionError("The exact observer must not evaluate `map_state`.")
+
+		with tempfile.TemporaryDirectory(dir="/tmp") as temporary:
+			root = Path(temporary)
+			with GCAreaSymplecticityObserver(
+				notebook_path=root / "notebooks" / "experiments" / "exact.ipynb",
+				area=area,
+				project_root=root,
+				run_date="2026-07-20",
+				jacobian_source="exact",
+				verbose=False,
+			) as observer:
+				observer(
+					IntegrationStep(
+						dynamics_name="GuidingCenterDynamics",
+						method_name="SemiImplicitABBA",
+						step_index=0,
+						time=0.1,
+						duration=0.1,
+						state_before=state,
+						state_after=state,
+						map_state=unexpected_map_evaluation,
+						state_jacobian=identity,
+					)
+				)
+
+			self.assertEqual(len(observer.records), 2)
+			self.assertEqual(observer.records[-1].local_relative_defect, 0.0)
+			metadata = json.loads(
+				observer.output_blocks[0].metadata_path.read_text(encoding="utf-8")
+			)
+			self.assertEqual(metadata["step_jacobian_source"], "exact")
+			self.assertIsNone(metadata["finite_difference_relative_step"])
+
 
 if __name__ == "__main__":
 	unittest.main()

@@ -147,12 +147,14 @@ package "Numerical methods" as Methods {
   class ProjectedBM4Composition
   class ExplicitABBA
   class SymmetricProjectedABBA
+  class SemiImplicitABBA
 
   NumericalMethod <|.. RK4
   NumericalMethod <|.. BM4Composition
   BM4Composition <|-- ProjectedBM4Composition
   NumericalMethod <|.. ExplicitABBA
   NumericalMethod <|.. SymmetricProjectedABBA
+  SymmetricProjectedABBA <|-- SemiImplicitABBA
 }
 
 RK4 ..> DynamicalSystem : requires vector field
@@ -186,6 +188,7 @@ package "Simulation" as Simulation {
     + time: float
     + duration: float
     + map_state(state): Array
+    + state_jacobian: Array?
   }
 
   class Solution {
@@ -207,6 +210,7 @@ Solution o-- InitialConfiguration : source
 RK4 --> IntegrationStep : optional observation
 ExplicitABBA --> IntegrationStep : optional observation
 SymmetricProjectedABBA --> IntegrationStep : optional observation
+SemiImplicitABBA --> IntegrationStep : exact physical tangent
 
 note right of Area
   Area is a GC initial configuration
@@ -248,6 +252,13 @@ note bottom of SymmetricProjectedABBA
   the twelve irreversible averages of projected BM4.
 end note
 
+note bottom of SemiImplicitABBA
+  The physical step is the same symmetric projected
+  ABBA map. At each converged main step it evaluates
+  the ideal implicit-function Jacobian, propagates the
+  accumulated tangent, and emits the exact local matrix.
+end note
+
 note bottom of ExplicitABBA
   Each second-order step duplicates the physical
   state, applies endpoint-time A-B-B-A shears,
@@ -270,6 +281,7 @@ package "Reusable workflows" as Workflows {
   class RK4SymplecticityStudy
   class ExplicitABBASymplecticityStudy
   class ABBASymplecticityStudy
+  class SemiImplicitABBASymplecticityStudy
 }
 
 AreaComparison ..> SimulationRunner
@@ -285,6 +297,9 @@ ExplicitABBASymplecticityStudy ..> IntegrationStep : analyzes
 ABBASymplecticityStudy ..> SimulationRunner
 ABBASymplecticityStudy ..> SymmetricProjectedABBA
 ABBASymplecticityStudy ..> IntegrationStep : analyzes
+SemiImplicitABBASymplecticityStudy ..> SimulationRunner
+SemiImplicitABBASymplecticityStudy ..> SemiImplicitABBA
+SemiImplicitABBASymplecticityStudy ..> IntegrationStep : exact tangent
 GCAreaVisualization ..> Potential
 GCAreaVisualization ..> Area
 GCAreaVisualization ..> Solution

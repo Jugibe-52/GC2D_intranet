@@ -1,0 +1,435 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[english]{babel}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage{amsmath,amssymb,mathtools}
+\usepackage{geometry}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{booktabs}
+\usepackage{fancyhdr}
+\usepackage[hidelinks]{hyperref}
+
+\geometry{left=2.3cm,right=2.3cm,top=2.2cm,bottom=2.25cm,headheight=14pt}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0.42em}
+\setlist[itemize]{topsep=0.25em,itemsep=0.18em,leftmargin=1.5em}
+\setlist[enumerate]{topsep=0.3em,itemsep=0.25em,leftmargin=1.9em}
+\allowdisplaybreaks
+
+\definecolor{azul}{RGB}{34,73,110}
+\definecolor{gris}{RGB}{90,96,102}
+\definecolor{azulclaro}{RGB}{238,244,249}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\color{gris}GC2D: \texttt{ABBA\_semiimplicit}}
+\fancyhead[R]{\small\color{gris}Trajectory and tangent dynamics}
+\fancyfoot[C]{\thepage}
+\renewcommand{\headrulewidth}{0.3pt}
+
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\Id}{I}
+\newcommand{\PhiAB}{\Phi^{\mathrm{ABBA}}_{h,t_n}}
+\newcommand{\norm}[1]{\left\lVert #1\right\rVert}
+
+\begin{document}
+
+\begin{center}
+  {\LARGE\bfseries\color{azul}The \texttt{ABBA\_semiimplicit} method}\par
+  \vspace{0.35em}
+  {\large Implicit physical step and explicit application of its Jacobian}\par
+  \vspace{0.45em}
+  {\small Adaptation to the GC2D problem with Hairer's symmetric projection}
+\end{center}
+
+\vspace{0.5em}
+
+\section{Purpose of the method}
+
+The \texttt{ABBA\_semiimplicit} method advances two objects simultaneously:
+\[
+ z_n\in\R^2,
+ \qquad
+ \xi_n\in\R^2,
+\]
+where $z_n$ is the physical state and $\xi_n$ is an infinitesimal perturbation or tangent
+vector. The state is computed using the complete implicit ABBA method,
+\[
+ z_{n+1}=\Psi_{h,t_n}(z_n),
+\]
+whereas the tangent vector is updated by applying the exact Jacobian of that same step:
+\[
+ \boxed{
+ \xi_{n+1}=D\Psi_{h,t_n}(z_n)\,\xi_n.
+ }
+\]
+
+The term \emph{semi-implicit} is used here in a precise sense:
+\begin{itemize}
+ \item the trajectory $z_n\mapsto z_{n+1}$ requires solving for the implicit multiplier
+       $\mu_n$;
+ \item once $\mu_n$ has converged and the ABBA stages are known, the tangent dynamics is
+       updated by means of a $2\times2$ linear system.
+\end{itemize}
+
+\subsection*{Essential distinction}
+
+The Jacobian formula does not allow the physical step to be replaced by
+\[
+ z_{n+1}=D\Psi_{h,t_n}(z_n)z_n.
+\]
+This equality is false for a general nonlinear map. The correct application is
+\[
+ \delta z_{n+1}=D\Psi_{h,t_n}(z_n)\,\delta z_n.
+\]
+Therefore, $z_{n+1}$ is first computed with the implicit method, and its Jacobian is then
+applied to $\xi_n$.
+
+\section{GC2D system and Jacobian of the vector field}
+
+The physical state is $z=(X,Y)^T$ and satisfies
+\[
+ \dot z=f(z,t)=J_0\nabla_z\phi(z,t),
+ \qquad
+ J_0=
+ \begin{pmatrix}
+  0&-1\\
+  1&0
+ \end{pmatrix}.
+\]
+The spatial Jacobian of the vector field is
+\[
+ W(z,t):=D_zf(z,t)=J_0\nabla_z^2\phi(z,t)
+ =
+ \begin{pmatrix}
+  -\phi_{XY}&-\phi_{YY}\\
+  \phi_{XX}&\phi_{XY}
+ \end{pmatrix}_{(z,t)}.
+\]
+Since the Hessian of $\phi$ is symmetric,
+\[
+ W(z,t)^TJ_0+J_0W(z,t)=0.
+\]
+
+\section{Implicit ABBA physical step}
+
+Let $s=h/2$. For a known state $z_n$ and a provisional value $\mu\in\R^2$, the two
+copies are initialized as
+\[
+ u^{(0)}=z_n+\mu,
+ \qquad
+ v^{(0)}=z_n-\mu.
+\]
+The four $A$--$B$--$B$--$A$ stages are then applied:
+\begin{align}
+ u^{(1)}&=u^{(0)}+s f(v^{(0)},t_n), \tag{1a}\\
+ v^{(1)}&=v^{(0)}+s f(u^{(1)},t_n), \tag{1b}\\
+ v^{(2)}&=v^{(1)}+s f(u^{(1)},t_{n+1}), \tag{1c}\\
+ u^{(2)}&=u^{(1)}+s f(v^{(2)},t_{n+1}). \tag{1d}
+\end{align}
+
+The multiplier for the step is the root $\mu_n=\mu_h(z_n)$ of the residual
+\[
+ \boxed{
+ \mathcal R_n(z_n,\mu)
+ :=u^{(2)}(z_n,\mu)-v^{(2)}(z_n,\mu)+2\mu=0.
+ }
+ \tag{2}
+\]
+Once the implicit iteration has converged, the next physical state is
+\[
+ \boxed{
+ z_{n+1}=u^{(2)}+\mu_n=v^{(2)}-\mu_n.
+ }
+ \tag{3}
+\]
+The two expressions in (3) coincide because $\mathcal R_n(z_n,\mu_n)=0$.
+
+\section{Construction of the physical Jacobian}
+
+All quantities in this section are evaluated \emph{after} the converged root $\mu_n$ has
+been obtained. Define
+\begin{align*}
+ W_1&=W(v^{(0)},t_n),
+ &W_2&=W(u^{(1)},t_n),\\
+ W_3&=W(u^{(1)},t_{n+1}),
+ &W_4&=W(v^{(2)},t_{n+1}),
+\end{align*}
+and
+\[
+ S:=W_2+W_3.
+\]
+
+The Jacobian of the four ABBA stages, regarded as a map on the duplicated phase space,
+is written in block form as
+\[
+ D\PhiAB=
+ \begin{pmatrix}
+  A&B\\ C&D
+ \end{pmatrix},
+\]
+where
+\begin{align*}
+ A&=\Id_2+s^2W_4S,
+ &B&=s(W_1+W_4)+s^3W_4SW_1,\\
+ C&=sS,
+ &D&=\Id_2+s^2SW_1.
+\end{align*}
+
+To account for the implicit dependence $\mu_n=\mu_h(z_n)$, introduce the four
+$2\times2$ matrices
+\begin{align}
+ \mathcal K={}&4\Id_2-s(W_1+W_2+W_3+W_4) \notag\\
+ &+s^2(W_4S+SW_1)-s^3W_4SW_1, \tag{4}\\[1mm]
+ \mathcal L={}&s(W_1-W_2-W_3+W_4) \notag\\
+ &+s^2(W_4S-SW_1) \notag\\
+ &+s^3W_4SW_1, \tag{5}\\[1mm]
+ \mathcal P={}&\Id_2+s(W_1+W_4) \notag\\*
+ &+s^2W_4S+s^3W_4SW_1, \tag{6}\\[1mm]
+ \mathcal Q={}&2\Id_2-s(W_1+W_4) \notag\\
+ &+s^2W_4S-s^3W_4SW_1. \tag{7}
+\end{align}
+
+Here,
+\[
+ \mathcal K=D_\mu\mathcal R_n,
+ \qquad
+ \mathcal L=D_z\mathcal R_n.
+\]
+Differentiating the identity
+\[
+ \mathcal R_n\bigl(z,\mu_h(z)\bigr)=0
+\]
+with respect to $z$ gives
+\[
+ \mathcal L+\mathcal K D\mu_h(z)=0,
+\]
+and, provided that $\mathcal K$ is invertible,
+\[
+ D\mu_h(z_n)=-\mathcal K^{-1}\mathcal L.
+\]
+Consequently, the exact Jacobian of the implicit physical step is
+\[
+ \boxed{
+ J_n:=D\Psi_{h,t_n}(z_n)
+ =\mathcal P-\mathcal Q\mathcal K^{-1}\mathcal L.
+ }
+ \tag{8}
+\]
+
+The matrix $\mathcal K$ in (4) is also the Jacobian of the residual used in Newton's
+method. However, $\mathcal K$ is not the physical Jacobian: the latter is $J_n$ and also
+contains $\mathcal P$, $\mathcal Q$, and $\mathcal L$.
+
+\section{Applying the Jacobian without computing an inverse}
+
+In an implementation, $\mathcal K^{-1}$ should not be formed explicitly. To construct the
+entire Jacobian, solve the system with two right-hand sides:
+\[
+ \boxed{
+ \mathcal K\mathcal T=\mathcal L,
+ \qquad
+ J_n=\mathcal P-\mathcal Q\mathcal T.
+ }
+ \tag{9}
+\]
+Since $\mathcal K\in\R^{2\times2}$, its factorization is inexpensive and can be reused for
+the two columns of $\mathcal L$.
+
+If only a tangent vector $\xi_n$ is to be propagated, it is not even necessary to form
+$\mathcal T$ or $J_n$. From (8),
+\[
+ J_n\xi_n
+ =\mathcal P\xi_n-\mathcal Q\mathcal K^{-1}(\mathcal L\xi_n).
+\]
+Therefore, compute successively
+\[
+ b_n=\mathcal L\xi_n,
+ \qquad
+ \mathcal K y_n=b_n,
+\]
+and finally
+\[
+ \boxed{
+ \xi_{n+1}=\mathcal P\xi_n-\mathcal Qy_n.
+ }
+ \tag{10}
+\]
+The only implicit part of (10) is a $2\times2$ linear system; no new nonlinear equation
+appears.
+
+\subsection{Explicit formula for the \texorpdfstring{$2\times2$}{2 x 2} system}
+
+Let
+\[
+ \mathcal K=
+ \begin{pmatrix}
+  k_{11}&k_{12}\\k_{21}&k_{22}
+ \end{pmatrix},
+ \qquad
+ b_n=
+ \begin{pmatrix}b_1\\b_2\end{pmatrix},
+ \qquad
+ \Delta_{\mathcal K}=k_{11}k_{22}-k_{12}k_{21}.
+\]
+If $\Delta_{\mathcal K}\neq0$, the solution of $\mathcal K y_n=b_n$ is
+\[
+ \boxed{
+ y_n=
+ \frac{1}{\Delta_{\mathcal K}}
+ \begin{pmatrix}
+  k_{22}b_1-k_{12}b_2\\
+  -k_{21}b_1+k_{11}b_2
+ \end{pmatrix}.
+ }
+ \tag{11}
+\]
+This expression makes it possible to apply (10) without a general-purpose matrix solver.
+
+\section{One-step algorithm}
+
+Given $t_n$, $z_n$, $\xi_n$, and $h$, one step of \texttt{ABBA\_semiimplicit} is as
+follows:
+
+\begin{enumerate}
+ \item Solve the nonlinear equation (2) to obtain $\mu_n$. Each residual evaluation
+       executes the four ABBA stages in (1).
+
+ \item With the converged root, recompute or retain the stages
+       $u^{(0)},v^{(0)},u^{(1)},v^{(1)},v^{(2)},u^{(2)}$.
+
+ \item Compute the new physical state using (3).
+
+ \item Evaluate $W_1,W_2,W_3,W_4$ at the four stage points and form
+       $S=W_2+W_3$.
+
+ \item Construct $\mathcal K$, $\mathcal L$, $\mathcal P$, and $\mathcal Q$ using
+       (4)--(7).
+
+ \item Compute $b_n=\mathcal L\xi_n$ and solve $\mathcal K y_n=b_n$.
+
+ \item Apply the Jacobian through
+       $\xi_{n+1}=\mathcal P\xi_n-\mathcal Qy_n$.
+
+ \item Advance the time: $t_{n+1}=t_n+h$.
+\end{enumerate}
+
+The output of the step is the pair
+\[
+ \boxed{
+ (z_{n+1},\xi_{n+1}).
+ }
+\]
+
+\section{Propagation of the accumulated Jacobian}
+
+To obtain the derivative of the numerical solution with respect to the complete initial
+condition, propagate a matrix $M_n\in\R^{2\times2}$ instead of a single vector. Initialize
+\[
+ M_0=\Id_2
+\]
+and, after each physical step, update it according to
+\[
+ \boxed{
+ M_{n+1}=J_nM_n.
+ }
+ \tag{12}
+\]
+Thus,
+\[
+ M_N=J_{N-1}J_{N-2}\cdots J_1J_0
+ =\frac{\partial z_N}{\partial z_0}.
+\]
+The order of the products is important: the Jacobian of the most recent step always
+multiplies from the left.
+
+The matrix update can also be performed without forming $J_n$. Solve
+\[
+ \mathcal K Y_n=\mathcal L M_n
+\]
+for the two right-hand sides and set
+\[
+ \boxed{
+ M_{n+1}=\mathcal P M_n-\mathcal QY_n.
+ }
+ \tag{13}
+\]
+
+\section{Symplecticity of the tangent propagation}
+
+If the projected ABBA step is solved exactly, its physical Jacobian satisfies
+\[
+ J_n^TJ_0J_n=J_0.
+\]
+In two dimensions, this identity is equivalent to
+\[
+ \det J_n=1.
+\]
+Therefore, the application $\xi_{n+1}=J_n\xi_n$ is a symplectic linear transformation at
+each step. In addition, the accumulated product (12) is also symplectic:
+\[
+ M_N^TJ_0M_N=J_0,
+ \qquad
+ \det M_N=1.
+\]
+
+In numerical computations, it is useful to monitor
+\[
+ \varepsilon_{\mathrm{sp},n}
+ :=\norm{J_n^TJ_0J_n-J_0},
+ \qquad
+ \varepsilon_{\det,n}:=\lvert\det J_n-1\rvert.
+\]
+These quantities will not be exactly zero because of roundoff, the tolerance used to
+solve (2), and errors in the derivatives of $\phi$.
+
+\section{Interpretation in terms of two nearby trajectories}
+
+Let $z_n^\varepsilon=z_n+\varepsilon\xi_n$, with $\varepsilon$ small. Differentiability of
+the implicit map gives
+\[
+ \Psi_{h,t_n}(z_n^\varepsilon)
+ =\Psi_{h,t_n}(z_n)
+ +\varepsilon D\Psi_{h,t_n}(z_n)\xi_n
+ +\mathcal O(\varepsilon^2).
+\]
+Since $z_{n+1}=\Psi_{h,t_n}(z_n)$ and
+$\xi_{n+1}=D\Psi_{h,t_n}(z_n)\xi_n$, it follows that
+\[
+ z_{n+1}^\varepsilon
+ =z_{n+1}+\varepsilon\xi_{n+1}+\mathcal O(\varepsilon^2).
+\]
+Thus, \texttt{ABBA\_semiimplicit} simultaneously computes the reference trajectory and
+the linear evolution of an infinitesimal separation from it.
+
+\section{Implementation-ready summary}
+
+At each time step, perform the two updates
+\[
+ \boxed{
+ \begin{aligned}
+ z_{n+1}&=\Psi_{h,t_n}(z_n)
+ &&\text{using ABBA and the implicit root }\mu_n,\\[1mm]
+ \xi_{n+1}&=
+ \left(\mathcal P-\mathcal Q\mathcal K^{-1}\mathcal L\right)\xi_n
+ &&\text{using a }2\times2\text{ linear system}.
+ \end{aligned}
+ }
+\]
+The recommended form for the second line is
+\[
+ b_n=\mathcal L\xi_n,
+ \qquad
+ \mathcal K y_n=b_n,
+ \qquad
+ \xi_{n+1}=\mathcal P\xi_n-\mathcal Qy_n.
+\]
+The physical state is not obtained by multiplying $z_n$ by the Jacobian. The Jacobian is
+applied to the tangent vector or, equivalently, to the accumulated Jacobian with respect
+to the initial condition.
+
+\end{document}

@@ -7,7 +7,7 @@ from dataclasses import asdict, dataclass
 from datetime import date, datetime
 import json
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Literal, Mapping
 
 import numpy as np
 
@@ -64,12 +64,11 @@ class _BufferedSample:
 class GCAreaSymplecticityObserver:
 	"""Propagate the Jacobian of a physical GC numerical flow.
 
-	Every complete numerical-step map is differentiated by centered finite
-	differences. Its Jacobian supplies a local symplecticity diagnostic and
-	advances the accumulated derivative of the discrete flow from the initial
-	condition. ``record_every`` controls persistence only: all step Jacobians are
-	still evaluated so the accumulated derivative remains exact for the selected
-	numerical map.
+	Each complete numerical step supplies either a centered-difference Jacobian or
+	a method-computed exact Jacobian. The selected matrix advances the accumulated
+	derivative of the discrete flow from the initial condition. ``record_every``
+	controls persistence only: every step Jacobian still contributes to the
+	accumulated tangent.
 	"""
 
 	def __init__(
@@ -84,6 +83,7 @@ class GCAreaSymplecticityObserver:
 		record_every: int = 1,
 		chunk_size: int = 16,
 		relative_step: float | None = None,
+		jacobian_source: Literal["finite_difference", "exact"] = "finite_difference",
 		verbose: bool = True,
 		metadata: Mapping[str, Any] | None = None,
 	) -> None:
@@ -106,6 +106,14 @@ class GCAreaSymplecticityObserver:
 			not np.isfinite(float(relative_step)) or float(relative_step) <= 0
 		):
 			raise ValueError("`relative_step` must be positive and finite.")
+		if jacobian_source not in ("finite_difference", "exact"):
+			raise ValueError(
+				"`jacobian_source` must be 'finite_difference' or 'exact'."
+			)
+		if jacobian_source == "exact" and relative_step is not None:
+			raise ValueError(
+				"`relative_step` is not used when `jacobian_source='exact'`."
+			)
 
 		initial_state = area.initial_state
 		assert initial_state is not None
@@ -132,6 +140,7 @@ class GCAreaSymplecticityObserver:
 		self.record_every = int(record_every)
 		self.chunk_size = int(chunk_size)
 		self.relative_step = relative_step
+		self.jacobian_source = jacobian_source
 		self.verbose = bool(verbose)
 		self.metadata = dict(metadata or {})
 		self._accumulated_jacobian = np.eye(self.physical_size)
@@ -199,11 +208,14 @@ class GCAreaSymplecticityObserver:
 			)
 			self._initialized = True
 
-		local_jacobian = central_difference_jacobian(
-			step.map_state,
-			state_before,
-			relative_step=self.relative_step,
-		)
+		if self.jacobian_source == "exact":
+			local_jacobian = self._validated_exact_jacobian(step.state_jacobian)
+		else:
+			local_jacobian = central_difference_jacobian(
+				step.map_state,
+				state_before,
+				relative_step=self.relative_step,
+			)
 		self._accumulated_jacobian = (
 			local_jacobian @ self._accumulated_jacobian
 		)
@@ -237,6 +249,24 @@ class GCAreaSymplecticityObserver:
 			raise ValueError(
 				"Physical GC diagnostics require the finite 2N state; "
 				"run the method with `track_energy=False`."
+			)
+		return value
+
+	def _validated_exact_jacobian(
+		self,
+		jacobian: np.ndarray | None,
+	) -> np.ndarray:
+		"""Require one finite method-provided physical tangent matrix."""
+		if jacobian is None:
+			raise ValueError(
+				"Exact GC diagnostics require `IntegrationStep.state_jacobian`."
+			)
+		value = np.asarray(jacobian, dtype=float)
+		expected_shape = (self.physical_size, self.physical_size)
+		if value.shape != expected_shape or not np.all(np.isfinite(value)):
+			raise ValueError(
+				"The exact physical step Jacobian must be a finite square matrix "
+				f"with shape {expected_shape}."
 			)
 		return value
 
@@ -353,10 +383,15 @@ class GCAreaSymplecticityObserver:
 			"initial_signed_area": self.initial_area,
 			"period": self.period,
 			"record_every_complete_steps": self.record_every,
+			"step_jacobian_source": self.jacobian_source,
 			"finite_difference_relative_step": (
-				float(np.cbrt(np.finfo(float).eps))
-				if self.relative_step is None
-				else float(self.relative_step)
+				None
+				if self.jacobian_source == "exact"
+				else (
+					float(np.cbrt(np.finfo(float).eps))
+					if self.relative_step is None
+					else float(self.relative_step)
+				)
 			),
 			"metadata": self.metadata,
 		}

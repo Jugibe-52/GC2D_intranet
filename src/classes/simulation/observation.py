@@ -40,8 +40,10 @@ class IntegrationStep:
 	"""Describe one complete numerical step on the method's internal state.
 
 	``map_state`` evaluates the same fixed-time, fixed-duration numerical map on
-	another state. Shadow advances used only for output interpolation do not emit
-	step observations.
+	another state. When available, ``state_jacobian`` is the method-computed
+	Jacobian of that map at ``state_before``; observers can then analyze the
+	tangent without numerical differentiation. Shadow advances used only for
+	output interpolation do not emit step observations.
 	"""
 
 	dynamics_name: str
@@ -52,6 +54,11 @@ class IntegrationStep:
 	state_before: np.ndarray
 	state_after: np.ndarray
 	map_state: StateMap = field(repr=False, compare=False)
+	state_jacobian: np.ndarray | None = field(
+		default=None,
+		repr=False,
+		compare=False,
+	)
 
 
 StageObserver: TypeAlias = Callable[[IntegrationStage], None]
