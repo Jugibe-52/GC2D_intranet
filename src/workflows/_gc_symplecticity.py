@@ -6,6 +6,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 import re
+from time import perf_counter
 from types import MappingProxyType
 from typing import Any, ClassVar, Literal, Mapping, TypeVar
 
@@ -19,6 +20,7 @@ from classes import (
 	Area,
 	GuidingCenterDynamics,
 	InitialValueProblem,
+	IntegrationStep,
 	NumericalMethod,
 	Potential,
 	SimulationRequest,
@@ -59,8 +61,8 @@ class GCSymplecticityConfig:
 	def __post_init__(self) -> None:
 		"""Validate synchronized integration and observation grids."""
 		steps = tuple(self.steps)
-		if len(steps) < 2 or any(not isinstance(step, AreaStep) for step in steps):
-			raise ValueError("`steps` must contain at least two AreaStep values.")
+		if not steps or any(not isinstance(step, AreaStep) for step in steps):
+			raise ValueError("`steps` must contain at least one AreaStep value.")
 		if len({step.label for step in steps}) != len(steps):
 			raise ValueError("GC integration-step labels must be unique.")
 		object.__setattr__(self, "steps", steps)
@@ -149,6 +151,22 @@ class _SolverSummary:
 	max_multiplier_norm: float
 
 
+@dataclass(slots=True)
+class _TimedStepObserver:
+	"""Measure diagnostic callback time without altering observed steps."""
+
+	observer: StepObserver
+	elapsed_seconds: float = 0.0
+
+	def __call__(self, step: IntegrationStep) -> None:
+		"""Forward one step and accumulate time spent inside the observer."""
+		started = perf_counter()
+		try:
+			self.observer(step)
+		finally:
+			self.elapsed_seconds += perf_counter() - started
+
+
 @dataclass(frozen=True, slots=True)
 class GCSymplecticityResult:
 	"""GC solutions, physical-flow Jacobians and shared presentation helpers."""
@@ -159,6 +177,8 @@ class GCSymplecticityResult:
 	solutions: Mapping[str, Solution]
 	records: Mapping[str, tuple[GCAreaSymplecticityRecord, ...]]
 	output_directories: Mapping[str, Path]
+	simulation_runtime_seconds: Mapping[str, float]
+	symplecticity_runtime_seconds: Mapping[str, float]
 
 	method_name: ClassVar[str] = "GC numerical method"
 	summary_type: ClassVar[type[GCSymplecticitySummary]] = GCSymplecticitySummary
@@ -540,6 +560,8 @@ def _run_gc_symplecticity_study(
 	solutions: dict[str, Solution] = {}
 	records_by_label: dict[str, tuple[GCAreaSymplecticityRecord, ...]] = {}
 	output_directories: dict[str, Path] = {}
+	simulation_runtimes: dict[str, float] = {}
+	symplecticity_runtimes: dict[str, float] = {}
 
 	for step in config.steps:
 		record_every = integer_ratio(
@@ -568,19 +590,34 @@ def _run_gc_symplecticity_study(
 				"integration_step": step.value,
 			},
 		) as observer:
+			timed_observer = _TimedStepObserver(observer)
 			request = SimulationRequest.uniform(
 				t_span=config.t_span,
 				max_step=step.value,
 				sample_count=config.output_sample_count,
 			)
+			started = perf_counter()
 			solution = simulate(
 				problem,
-				method_factory(observer),
+				method_factory(timed_observer),
 				request,
+			)
+			total_simulation_time = perf_counter() - started
+			method_runtime = total_simulation_time - timed_observer.elapsed_seconds
+			if method_runtime <= 0:
+				raise RuntimeError(
+					"Measured simulation time outside the symplecticity observer "
+					"must be positive."
+				)
+			solution.diagnostics["simulation_runtime_seconds"] = method_runtime
+			solution.diagnostics["symplecticity_runtime_seconds"] = (
+				timed_observer.elapsed_seconds
 			)
 		solutions[step.label] = solution
 		records_by_label[step.label] = observer.records
 		output_directories[step.label] = observer.output_directory
+		simulation_runtimes[step.label] = method_runtime
+		symplecticity_runtimes[step.label] = timed_observer.elapsed_seconds
 
 	return result_type(
 		dynamics=dynamics,
@@ -589,6 +626,8 @@ def _run_gc_symplecticity_study(
 		solutions=MappingProxyType(solutions),
 		records=MappingProxyType(records_by_label),
 		output_directories=MappingProxyType(output_directories),
+		simulation_runtime_seconds=MappingProxyType(simulation_runtimes),
+		symplecticity_runtime_seconds=MappingProxyType(symplecticity_runtimes),
 	)
 
 

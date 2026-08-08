@@ -282,6 +282,7 @@ package "Reusable workflows" as Workflows {
   class ExplicitABBASymplecticityStudy
   class ABBASymplecticityStudy
   class SemiImplicitABBASymplecticityStudy
+  class ABBAComparisonStudy
 }
 
 AreaComparison ..> SimulationRunner
@@ -300,6 +301,10 @@ ABBASymplecticityStudy ..> IntegrationStep : analyzes
 SemiImplicitABBASymplecticityStudy ..> SimulationRunner
 SemiImplicitABBASymplecticityStudy ..> SemiImplicitABBA
 SemiImplicitABBASymplecticityStudy ..> IntegrationStep : exact tangent
+ABBAComparisonStudy ..> ExplicitABBASymplecticityStudy : one run; times outside observer
+ABBAComparisonStudy ..> ABBASymplecticityStudy : one run; times outside observer
+ABBAComparisonStudy ..> SemiImplicitABBASymplecticityStudy : one run; times outside observer
+ABBAComparisonStudy ..> Solution : compares periodic trajectories
 GCAreaVisualization ..> Potential
 GCAreaVisualization ..> Area
 GCAreaVisualization ..> Solution

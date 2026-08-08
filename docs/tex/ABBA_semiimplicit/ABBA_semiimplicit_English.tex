@@ -89,7 +89,7 @@ This equality is false for a general nonlinear map. The correct application is
 Therefore, $z_{n+1}$ is first computed with the implicit method, and its Jacobian is then
 applied to $\xi_n$.
 
-\section{GC2D system and Jacobian of the vector field}
+\section{GC2D system and the small matrix \texorpdfstring{$w$}{w}}
 
 The physical state is $z=(X,Y)^T$ and satisfies
 \[
@@ -101,24 +101,34 @@ The physical state is $z=(X,Y)^T$ and satisfies
   1&0
  \end{pmatrix}.
 \]
-The spatial Jacobian of the vector field is
+Let $s=h/2$. We introduce the \emph{small} $2\times2$ matrix
 \[
- W(z,t):=D_zf(z,t)=J_0\nabla_z^2\phi(z,t)
- =
- \begin{pmatrix}
-  -\phi_{XY}&-\phi_{YY}\\
-  \phi_{XX}&\phi_{XY}
- \end{pmatrix}_{(z,t)}.
+ \boxed{
+ w(z,t):=s\,D_zf(z,t)=sJ_0\nabla_z^2\phi(z,t).
+ }
+\]
+For the GC2D vector field this matrix is explicitly
+\[
+ \boxed{
+ w(z,t)=
+ s\begin{pmatrix}
+  -\phi_{XY}(z,t)&-\phi_{YY}(z,t)\\
+  \phi_{XX}(z,t)&\phi_{XY}(z,t)
+ \end{pmatrix}.
+ }
+ \tag{1}
 \]
 Since the Hessian of $\phi$ is symmetric,
 \[
- W(z,t)^TJ_0+J_0W(z,t)=0.
+ w(z,t)^TJ_0+J_0w(z,t)=0.
 \]
+The factor $s$ is included in $w$ so that the Jacobian of each elementary ABBA stage has
+the particularly simple form ``identity plus one $w$ block.''
 
 \section{Implicit ABBA physical step}
 
-Let $s=h/2$. For a known state $z_n$ and a provisional value $\mu\in\R^2$, the two
-copies are initialized as
+For a known state $z_n$ and a provisional value $\mu\in\R^2$, the two copies are
+initialized as
 \[
  u^{(0)}=z_n+\mu,
  \qquad
@@ -126,10 +136,10 @@ copies are initialized as
 \]
 The four $A$--$B$--$B$--$A$ stages are then applied:
 \begin{align}
- u^{(1)}&=u^{(0)}+s f(v^{(0)},t_n), \tag{1a}\\
- v^{(1)}&=v^{(0)}+s f(u^{(1)},t_n), \tag{1b}\\
- v^{(2)}&=v^{(1)}+s f(u^{(1)},t_{n+1}), \tag{1c}\\
- u^{(2)}&=u^{(1)}+s f(v^{(2)},t_{n+1}). \tag{1d}
+ u^{(1)}&=u^{(0)}+s f(v^{(0)},t_n), \tag{2a}\\
+ v^{(1)}&=v^{(0)}+s f(u^{(1)},t_n), \tag{2b}\\
+ v^{(2)}&=v^{(1)}+s f(u^{(1)},t_{n+1}), \tag{2c}\\
+ u^{(2)}&=u^{(1)}+s f(v^{(2)},t_{n+1}). \tag{2d}
 \end{align}
 
 The multiplier for the step is the root $\mu_n=\mu_h(z_n)$ of the residual
@@ -138,60 +148,227 @@ The multiplier for the step is the root $\mu_n=\mu_h(z_n)$ of the residual
  \mathcal R_n(z_n,\mu)
  :=u^{(2)}(z_n,\mu)-v^{(2)}(z_n,\mu)+2\mu=0.
  }
- \tag{2}
+ \tag{3}
 \]
 Once the implicit iteration has converged, the next physical state is
 \[
  \boxed{
  z_{n+1}=u^{(2)}+\mu_n=v^{(2)}-\mu_n.
  }
- \tag{3}
+ \tag{4}
 \]
-The two expressions in (3) coincide because $\mathcal R_n(z_n,\mu_n)=0$.
+The two expressions in (4) coincide because $\mathcal R_n(z_n,\mu_n)=0$.
+
+\section{Explicit calculation of the four \texorpdfstring{$w_i$}{wi} matrices}
+
+All quantities in this section are evaluated after the converged root $\mu_n$ has been
+obtained. The four small matrices are the matrix (1) evaluated at the four ABBA stage
+points:
+\begin{align}
+ w_1&:=w(v^{(0)},t_n)
+ =s\begin{pmatrix}
+ -\phi_{XY}(v^{(0)},t_n)&-\phi_{YY}(v^{(0)},t_n)\\
+ \phi_{XX}(v^{(0)},t_n)&\phi_{XY}(v^{(0)},t_n)
+ \end{pmatrix}, \tag{5a}\\[2mm]
+ w_2&:=w(u^{(1)},t_n)
+ =s\begin{pmatrix}
+ -\phi_{XY}(u^{(1)},t_n)&-\phi_{YY}(u^{(1)},t_n)\\
+ \phi_{XX}(u^{(1)},t_n)&\phi_{XY}(u^{(1)},t_n)
+ \end{pmatrix}, \tag{5b}\\[2mm]
+ w_3&:=w(u^{(1)},t_{n+1})
+ =s\begin{pmatrix}
+ -\phi_{XY}(u^{(1)},t_{n+1})&-\phi_{YY}(u^{(1)},t_{n+1})\\
+ \phi_{XX}(u^{(1)},t_{n+1})&\phi_{XY}(u^{(1)},t_{n+1})
+ \end{pmatrix}, \tag{5c}\\[2mm]
+ w_4&:=w(v^{(2)},t_{n+1})
+ =s\begin{pmatrix}
+ -\phi_{XY}(v^{(2)},t_{n+1})&-\phi_{YY}(v^{(2)},t_{n+1})\\
+ \phi_{XX}(v^{(2)},t_{n+1})&\phi_{XY}(v^{(2)},t_{n+1})
+ \end{pmatrix}. \tag{5d}
+\end{align}
+For later use, define
+\[
+ \Sigma:=w_2+w_3.
+ \tag{6}
+\]
+
+\section{Explicit calculation of the four stage Jacobians \texorpdfstring{$W_i$}{Wi}}
+
+We now use a capital $W_i$ for the $4\times4$ Jacobian of each elementary map in the
+duplicated variables $(u,v)$. Each one is an identity matrix plus exactly one small
+$w_i$ block.
+
+For the first $A$ stage,
+\[
+ u^{(1)}=u^{(0)}+s f(v^{(0)},t_n),
+ \qquad
+ v^{(0)}=v^{(0)},
+\]
+so
+\[
+ \boxed{
+ W_1=
+ \begin{pmatrix}
+ I_2&w_1\\
+ 0&I_2
+ \end{pmatrix}
+ =I_4+
+ \begin{pmatrix}
+ 0&w_1\\
+ 0&0
+ \end{pmatrix}.
+ }
+ \tag{7a}
+\]
+If $w_1=(w_{1,ij})$, this means explicitly
+\[
+ W_1=
+ \begin{pmatrix}
+ 1&0&w_{1,11}&w_{1,12}\\
+ 0&1&w_{1,21}&w_{1,22}\\
+ 0&0&1&0\\
+ 0&0&0&1
+ \end{pmatrix}.
+\]
+
+For the first $B$ stage,
+\[
+ v^{(1)}=v^{(0)}+s f(u^{(1)},t_n),
+ \qquad
+ u^{(1)}=u^{(1)},
+\]
+therefore
+\[
+ \boxed{
+ W_2=
+ \begin{pmatrix}
+ I_2&0\\
+ w_2&I_2
+ \end{pmatrix}
+ =I_4+
+ \begin{pmatrix}
+ 0&0\\
+ w_2&0
+ \end{pmatrix}.
+ }
+ \tag{7b}
+\]
+Equivalently,
+\[
+ W_2=
+ \begin{pmatrix}
+ 1&0&0&0\\
+ 0&1&0&0\\
+ w_{2,11}&w_{2,12}&1&0\\
+ w_{2,21}&w_{2,22}&0&1
+ \end{pmatrix}.
+\]
+
+For the second $B$ stage,
+\[
+ v^{(2)}=v^{(1)}+s f(u^{(1)},t_{n+1}),
+ \qquad
+ u^{(1)}=u^{(1)},
+\]
+we obtain
+\[
+ \boxed{
+ W_3=
+ \begin{pmatrix}
+ I_2&0\\
+ w_3&I_2
+ \end{pmatrix}
+ =I_4+
+ \begin{pmatrix}
+ 0&0\\
+ w_3&0
+ \end{pmatrix}.
+ }
+ \tag{7c}
+\]
+Equivalently,
+\[
+ W_3=
+ \begin{pmatrix}
+ 1&0&0&0\\
+ 0&1&0&0\\
+ w_{3,11}&w_{3,12}&1&0\\
+ w_{3,21}&w_{3,22}&0&1
+ \end{pmatrix}.
+\]
+
+Finally, for the last $A$ stage,
+\[
+ u^{(2)}=u^{(1)}+s f(v^{(2)},t_{n+1}),
+ \qquad
+ v^{(2)}=v^{(2)},
+\]
+which gives
+\[
+ \boxed{
+ W_4=
+ \begin{pmatrix}
+ I_2&w_4\\
+ 0&I_2
+ \end{pmatrix}
+ =I_4+
+ \begin{pmatrix}
+ 0&w_4\\
+ 0&0
+ \end{pmatrix}.
+ }
+ \tag{7d}
+\]
+Equivalently,
+\[
+ W_4=
+ \begin{pmatrix}
+ 1&0&w_{4,11}&w_{4,12}\\
+ 0&1&w_{4,21}&w_{4,22}\\
+ 0&0&1&0\\
+ 0&0&0&1
+ \end{pmatrix}.
+\]
+
+Thus the Jacobian of the complete four-stage ABBA map is the ordered product
+\[
+ \boxed{
+ D\PhiAB=W_4W_3W_2W_1.
+ }
+ \tag{8}
+\]
+The order cannot be changed because the matrices $w_i$, and therefore the matrices
+$W_i$, do not commute in general.
 
 \section{Construction of the physical Jacobian}
 
-All quantities in this section are evaluated \emph{after} the converged root $\mu_n$ has
-been obtained. Define
-\begin{align*}
- W_1&=W(v^{(0)},t_n),
- &W_2&=W(u^{(1)},t_n),\\
- W_3&=W(u^{(1)},t_{n+1}),
- &W_4&=W(v^{(2)},t_{n+1}),
-\end{align*}
-and
-\[
- S:=W_2+W_3.
-\]
-
-The Jacobian of the four ABBA stages, regarded as a map on the duplicated phase space,
-is written in block form as
+Multiplying the four matrices in (8), the Jacobian on the duplicated phase space can be
+written in $2\times2$ block form as
 \[
  D\PhiAB=
  \begin{pmatrix}
   A&B\\ C&D
  \end{pmatrix},
 \]
-where
-\begin{align*}
- A&=\Id_2+s^2W_4S,
- &B&=s(W_1+W_4)+s^3W_4SW_1,\\
- C&=sS,
- &D&=\Id_2+s^2SW_1.
-\end{align*}
+with
+\begin{align}
+ A&=I_2+w_4\Sigma, \tag{9a}\\
+ B&=w_1+w_4+w_4\Sigma w_1, \tag{9b}\\
+ C&=\Sigma, \tag{9c}\\
+ D&=I_2+\Sigma w_1. \tag{9d}
+\end{align}
+Notice that the factors $s$ no longer appear separately in (9), because they are already
+contained inside every $w_i$.
 
 To account for the implicit dependence $\mu_n=\mu_h(z_n)$, introduce the four
 $2\times2$ matrices
 \begin{align}
- \mathcal K={}&4\Id_2-s(W_1+W_2+W_3+W_4) \notag\\
- &+s^2(W_4S+SW_1)-s^3W_4SW_1, \tag{4}\\[1mm]
- \mathcal L={}&s(W_1-W_2-W_3+W_4) \notag\\
- &+s^2(W_4S-SW_1) \notag\\
- &+s^3W_4SW_1, \tag{5}\\[1mm]
- \mathcal P={}&\Id_2+s(W_1+W_4) \notag\\*
- &+s^2W_4S+s^3W_4SW_1, \tag{6}\\[1mm]
- \mathcal Q={}&2\Id_2-s(W_1+W_4) \notag\\
- &+s^2W_4S-s^3W_4SW_1. \tag{7}
+ \mathcal K={}&4I_2-(w_1+w_2+w_3+w_4) \notag\\
+ &+(w_4\Sigma+\Sigma w_1)-w_4\Sigma w_1, \tag{10}\\[1mm]
+ \mathcal L={}&w_1-w_2-w_3+w_4 \notag\\
+ &+(w_4\Sigma-\Sigma w_1)+w_4\Sigma w_1, \tag{11}\\[1mm]
+ \mathcal P={}&I_2+w_1+w_4+w_4\Sigma+w_4\Sigma w_1, \tag{12}\\[1mm]
+ \mathcal Q={}&2I_2-w_1-w_4+w_4\Sigma-w_4\Sigma w_1. \tag{13}
 \end{align}
 
 Here,
@@ -218,10 +395,10 @@ Consequently, the exact Jacobian of the implicit physical step is
  J_n:=D\Psi_{h,t_n}(z_n)
  =\mathcal P-\mathcal Q\mathcal K^{-1}\mathcal L.
  }
- \tag{8}
+ \tag{14}
 \]
 
-The matrix $\mathcal K$ in (4) is also the Jacobian of the residual used in Newton's
+The matrix $\mathcal K$ in (10) is also the Jacobian of the residual used in Newton's
 method. However, $\mathcal K$ is not the physical Jacobian: the latter is $J_n$ and also
 contains $\mathcal P$, $\mathcal Q$, and $\mathcal L$.
 
@@ -235,13 +412,13 @@ entire Jacobian, solve the system with two right-hand sides:
  \qquad
  J_n=\mathcal P-\mathcal Q\mathcal T.
  }
- \tag{9}
+ \tag{15}
 \]
 Since $\mathcal K\in\R^{2\times2}$, its factorization is inexpensive and can be reused for
 the two columns of $\mathcal L$.
 
 If only a tangent vector $\xi_n$ is to be propagated, it is not even necessary to form
-$\mathcal T$ or $J_n$. From (8),
+$\mathcal T$ or $J_n$. From (14),
 \[
  J_n\xi_n
  =\mathcal P\xi_n-\mathcal Q\mathcal K^{-1}(\mathcal L\xi_n).
@@ -257,9 +434,9 @@ and finally
  \boxed{
  \xi_{n+1}=\mathcal P\xi_n-\mathcal Qy_n.
  }
- \tag{10}
+ \tag{16}
 \]
-The only implicit part of (10) is a $2\times2$ linear system; no new nonlinear equation
+The only implicit part of (16) is a $2\times2$ linear system; no new nonlinear equation
 appears.
 
 \subsection{Explicit formula for the \texorpdfstring{$2\times2$}{2 x 2} system}
@@ -286,9 +463,9 @@ If $\Delta_{\mathcal K}\neq0$, the solution of $\mathcal K y_n=b_n$ is
   -k_{21}b_1+k_{11}b_2
  \end{pmatrix}.
  }
- \tag{11}
+ \tag{17}
 \]
-This expression makes it possible to apply (10) without a general-purpose matrix solver.
+This expression makes it possible to apply (16) without a general-purpose matrix solver.
 
 \section{One-step algorithm}
 
@@ -296,23 +473,27 @@ Given $t_n$, $z_n$, $\xi_n$, and $h$, one step of \texttt{ABBA\_semiimplicit} is
 follows:
 
 \begin{enumerate}
- \item Solve the nonlinear equation (2) to obtain $\mu_n$. Each residual evaluation
-       executes the four ABBA stages in (1).
+ \item Solve the nonlinear equation (3) to obtain $\mu_n$. Each residual evaluation
+       executes the four ABBA stages in (2).
 
  \item With the converged root, recompute or retain the stages
        $u^{(0)},v^{(0)},u^{(1)},v^{(1)},v^{(2)},u^{(2)}$.
 
- \item Compute the new physical state using (3).
+ \item Compute the new physical state using (4).
 
- \item Evaluate $W_1,W_2,W_3,W_4$ at the four stage points and form
-       $S=W_2+W_3$.
+ \item Evaluate explicitly $w_1,w_2,w_3,w_4$ using (5), and form
+       $\Sigma=w_2+w_3$.
+
+ \item If the full duplicated Jacobian is needed, construct the four stage matrices
+       $W_1,W_2,W_3,W_4$ from (7) and multiply them in the order
+       $D\PhiAB=W_4W_3W_2W_1$.
 
  \item Construct $\mathcal K$, $\mathcal L$, $\mathcal P$, and $\mathcal Q$ using
-       (4)--(7).
+       (10)--(13).
 
  \item Compute $b_n=\mathcal L\xi_n$ and solve $\mathcal K y_n=b_n$.
 
- \item Apply the Jacobian through
+ \item Apply the physical Jacobian through
        $\xi_{n+1}=\mathcal P\xi_n-\mathcal Qy_n$.
 
  \item Advance the time: $t_{n+1}=t_n+h$.
@@ -330,14 +511,14 @@ The output of the step is the pair
 To obtain the derivative of the numerical solution with respect to the complete initial
 condition, propagate a matrix $M_n\in\R^{2\times2}$ instead of a single vector. Initialize
 \[
- M_0=\Id_2
+ M_0=I_2
 \]
 and, after each physical step, update it according to
 \[
  \boxed{
  M_{n+1}=J_nM_n.
  }
- \tag{12}
+ \tag{18}
 \]
 Thus,
 \[
@@ -356,7 +537,7 @@ for the two right-hand sides and set
  \boxed{
  M_{n+1}=\mathcal P M_n-\mathcal QY_n.
  }
- \tag{13}
+ \tag{19}
 \]
 
 \section{Symplecticity of the tangent propagation}
@@ -370,7 +551,7 @@ In two dimensions, this identity is equivalent to
  \det J_n=1.
 \]
 Therefore, the application $\xi_{n+1}=J_n\xi_n$ is a symplectic linear transformation at
-each step. In addition, the accumulated product (12) is also symplectic:
+each step. In addition, the accumulated product (18) is also symplectic:
 \[
  M_N^TJ_0M_N=J_0,
  \qquad
@@ -385,7 +566,7 @@ In numerical computations, it is useful to monitor
  \varepsilon_{\det,n}:=\lvert\det J_n-1\rvert.
 \]
 These quantities will not be exactly zero because of roundoff, the tolerance used to
-solve (2), and errors in the derivatives of $\phi$.
+solve (3), and errors in the derivatives of $\phi$.
 
 \section{Interpretation in terms of two nearby trajectories}
 
@@ -420,7 +601,24 @@ At each time step, perform the two updates
  \end{aligned}
  }
 \]
-The recommended form for the second line is
+The small matrices are
+\[
+ w_i=s\,D_zf(\text{stage point}_i,\text{stage time}_i),
+\]
+and the four elementary $4\times4$ Jacobians are explicitly
+\[
+ \boxed{
+ W_1=\begin{pmatrix}I_2&w_1\\0&I_2\end{pmatrix},\quad
+ W_2=\begin{pmatrix}I_2&0\\w_2&I_2\end{pmatrix},\quad
+ W_3=\begin{pmatrix}I_2&0\\w_3&I_2\end{pmatrix},\quad
+ W_4=\begin{pmatrix}I_2&w_4\\0&I_2\end{pmatrix}.
+ }
+\]
+Their ordered product is
+\[
+ D\PhiAB=W_4W_3W_2W_1.
+\]
+The recommended tangent update remains
 \[
  b_n=\mathcal L\xi_n,
  \qquad
