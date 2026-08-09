@@ -37,7 +37,7 @@ class "Simulation runner" as SimulationRunner {
 }
 
 class "Solution\n(computed trajectory)" as Solution {
-  Sampled times, states, diagnostics
+  Immutable sampled times, states, diagnostics
 }
 
 Potential --> Dynamics : defines field forces
@@ -49,15 +49,21 @@ SimulationRequest --> SimulationRunner
 SimulationRunner --> Solution : produces
 
 note bottom of InitialConfiguration
-  This is the role implemented by
-  TrajectoryGC and TrajectoryFC.
-  It is not the numerical result of a run.
+  This role owns initial state geometry and
+  component-major layout only. Physical rho
+  and eta parameters belong to Dynamics.
 end note
 
 note bottom of Solution
-  Solution is the trajectory evolved in time.
+  Solution is the read-only trajectory evolved in time.
   It is distinct from the initial-state
   geometry used to define a problem.
+end note
+
+note top of Potential
+  Public APIs are grouped by responsibility in
+  potential, dynamics, initial_conditions,
+  simulation, diagnostics, studies, and visualization.
 end note
 
 legend bottom

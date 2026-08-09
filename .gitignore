@@ -2,6 +2,8 @@
 __pycache__/
 *.py[cod]
 *.egg-info/
+build/
+dist/
 
 .matplotlib/
 .ipynb_checkpoints/
@@ -10,8 +12,18 @@ logs/
 *.log
 *.mat
 
-# Development notebooks are local working files. Experiments are versioned as
-# research artifacts but are not part of the supported interactive API.
+# Only experiment and symbolic-derivation notebooks are versioned. Development
+# notebooks remain local working files outside the supported repository API.
 notebooks/*
 !notebooks/experiments/
 !notebooks/experiments/**
+!notebooks/sympy/
+!notebooks/sympy/**
+
+# LaTeX sources and deliberate PDFs are versioned; compiler intermediates are
+# reproducible build products.
+docs/tex/**/*.aux
+docs/tex/**/*.fdb_latexmk
+docs/tex/**/*.fls
+docs/tex/**/*.out
+docs/tex/**/*.synctex.gz

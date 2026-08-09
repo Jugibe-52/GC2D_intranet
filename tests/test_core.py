@@ -6,24 +6,30 @@ import unittest
 
 import numpy as np
 
-from classes import (
-	Area,
-	BM4Composition,
-	FCSplitFormulation,
+from dynamics import (
 	FullCyclotronDynamics,
-	GCExtendedFormulation,
-	GCStageProjectedFormulation,
 	GuidingCenterDynamics,
-	InitialValueProblem,
-	IntegrationStage,
-	Potential,
-	ProjectedBM4Composition,
-	SimulationRequest,
+)
+from initial_conditions import (
+	Area,
+	FCInitialConfiguration,
+	GCInitialConfiguration,
 	TrajectoryFC,
 	TrajectoryGC,
+)
+from potential import Potential
+from simulation import (
+	BM4Composition,
+	FCSplitFormulation,
+	GCExtendedFormulation,
+	GCStageProjectedFormulation,
+	InitialValueProblem,
+	IntegrationStage,
+	ProjectedBM4Composition,
+	SimulationRequest,
 	simulate,
 )
-from workflows import animate_gc_area_comparison, animate_gc_area_solution
+from visualization import animate_gc_area_comparison, animate_gc_area_solution
 
 
 def random_potential(*, interpolation_order: int = 3) -> Potential:
@@ -128,6 +134,24 @@ class PotentialTests(unittest.TestCase):
 class TrajectoryTests(unittest.TestCase):
 	"""Contracts for physical-state layouts and finite-area boundaries."""
 
+	def test_canonical_configurations_contain_no_physical_parameters(self) -> None:
+		"""Keep state layout independent from the selected dynamical model."""
+		gc = GCInitialConfiguration.from_components(
+			x=np.asarray([1.0]),
+			y=np.asarray([2.0]),
+		)
+		fc = FCInitialConfiguration.from_components(
+			x=np.asarray([1.0]),
+			y=np.asarray([2.0]),
+			vx=np.asarray([0.5]),
+			vy=np.asarray([-0.5]),
+		)
+
+		self.assertFalse(hasattr(gc, "rho"))
+		self.assertFalse(hasattr(gc, "eta"))
+		self.assertFalse(hasattr(fc, "rho"))
+		self.assertFalse(hasattr(fc, "eta"))
+
 	def test_gc_state_layout_and_copy(self) -> None:
 		# A GC state is component-major: all particle x values precede all y values.
 		state = np.asarray([1.0, 2.0, 3.0, 4.0])
@@ -227,7 +251,7 @@ class TrajectoryTests(unittest.TestCase):
 			points_per_side=4,
 			rho=0.2,
 		)
-		self.assertIsInstance(square, TrajectoryGC)
+		self.assertIsInstance(square, GCInitialConfiguration)
 		self.assertEqual(square.shape, "square")
 		self.assertAlmostEqual(float(square.calculate_area()), 1.0)
 
@@ -273,7 +297,7 @@ class TrajectoryTests(unittest.TestCase):
 
 
 class SimulationTests(unittest.TestCase):
-	"""Contracts for composition, BM4 integration and workflow visualizations."""
+	"""Contracts for composition, BM4 integration and study visualizations."""
 
 	def test_gc_coupling_frequency_is_owned_by_the_formulation(self) -> None:
 		default = GCExtendedFormulation()

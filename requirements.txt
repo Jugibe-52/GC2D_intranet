@@ -1,7 +1,5 @@
-# Install the local package and its runtime dependencies from pyproject.toml.
--e .
-
-# Notebook/demo environment dependencies.
-nbclient==0.10.4
-nbformat==5.10.4
-ipykernel==7.2.0
+# Editable research environment. Runtime compatibility ranges and optional
+# dependency groups are declared in pyproject.toml; use the committed
+# constraints file to select the repository's tested direct versions.
+-c constraints.txt
+-e .[dev,notebook]

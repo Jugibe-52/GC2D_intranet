@@ -9,17 +9,17 @@ import unittest
 
 import numpy as np
 
-from classes import (
+from dynamics import GuidingCenterDynamics
+from initial_conditions import TrajectoryGC
+from potential import Potential
+from simulation import (
 	ExplicitABBA,
-	GuidingCenterDynamics,
 	InitialValueProblem,
-	Potential,
 	SimulationRequest,
-	TrajectoryGC,
 	simulate,
 )
-from classes.simulation.methods.abba_explicit import _explicit_abba_step
-from workflows import (
+from simulation.methods.abba_explicit import _explicit_abba_step
+from studies import (
 	ExplicitABBASymplecticityConfig,
 	RandomPotentialConfig,
 	centered_square,
@@ -191,8 +191,8 @@ class ExplicitABBATests(unittest.TestCase):
 			)
 
 
-class ExplicitABBASymplecticityWorkflowTests(unittest.TestCase):
-	"""Verify the reusable experiment workflow and persisted metadata."""
+class ExplicitABBASymplecticityStudyTests(unittest.TestCase):
+	"""Verify the reusable experiment study and persisted metadata."""
 
 	def test_short_study_returns_defects_and_copy_separation(self) -> None:
 		potential_config = RandomPotentialConfig(

@@ -83,10 +83,11 @@ package "Initial configuration" as Initial {
   GCInitialConfiguration <|-- Area
 
   note bottom of GCInitialConfiguration
-    GCInitialConfiguration and
-    FCInitialConfiguration are the
-    architecture-level aliases of
-    TrajectoryGC and TrajectoryFC.
+    Initial configurations own state geometry
+    and component-major layout only. Legacy
+    TrajectoryGC and TrajectoryFC wrappers, plus
+    Area's migration adapter, may carry deprecated
+    non-authoritative physical metadata.
   end note
 }
 
@@ -195,7 +196,7 @@ package "Simulation" as Simulation {
     + source: InitialConfiguration
     + t: Array
     + states: Array
-    + diagnostics: Mapping
+    + diagnostics: read-only Mapping
     + components(): Components
     + positions(): (Array, Array)
   }
@@ -218,12 +219,17 @@ note right of Area
 end note
 
 note right of Solution
-  Solution is the computed trajectory:
+  Solution is the immutable computed trajectory:
   t provides the temporal dimension and
   states[:, index] is the state at t[index].
 
   Numerical diagnostics remain attached
   without introducing more result classes.
+end note
+
+note right of GuidingCenterDynamics
+  Dynamics is the authoritative owner of rho.
+  FullCyclotronDynamics owns both rho and eta.
 end note
 
 note bottom of NumericalMethod
@@ -273,16 +279,26 @@ note bottom of SimulationRunner
   Specialized methods may own a formulation.
 end note
 
-package "Reusable workflows" as Workflows {
+package "Reusable studies" as Studies {
   class AreaComparison
   class GeneralizedEnergyComparison
-  class GCAreaVisualization
-  class SingleParticleVisualization
   class RK4SymplecticityStudy
   class ExplicitABBASymplecticityStudy
   class ABBASymplecticityStudy
   class SemiImplicitABBASymplecticityStudy
   class ABBAComparisonStudy
+}
+
+package "Optional visualization" as Visualization {
+  class PotentialVisualization
+  class GCAreaVisualization
+  class SingleParticleVisualization
+  class NotebookDisplay
+}
+
+package "Opt-in diagnostics" as Diagnostics {
+  class SymplecticityObservers
+  class DiagnosticBlockWriter
 }
 
 AreaComparison ..> SimulationRunner
@@ -305,11 +321,22 @@ ABBAComparisonStudy ..> ExplicitABBASymplecticityStudy : one run; times outside 
 ABBAComparisonStudy ..> ABBASymplecticityStudy : one run; times outside observer
 ABBAComparisonStudy ..> SemiImplicitABBASymplecticityStudy : one run; times outside observer
 ABBAComparisonStudy ..> Solution : compares periodic trajectories
+PotentialVisualization ..> Potential
 GCAreaVisualization ..> Potential
 GCAreaVisualization ..> Area
 GCAreaVisualization ..> Solution
 SingleParticleVisualization ..> Potential
 SingleParticleVisualization ..> Solution
+SymplecticityObservers ..> IntegrationStage
+SymplecticityObservers ..> IntegrationStep
+SymplecticityObservers --> DiagnosticBlockWriter : persists CSV/NPZ/JSON
+
+note top of Dynamics
+  The implementation is split into top-level
+  packages by responsibility: potential, dynamics,
+  initial_conditions, simulation, diagnostics,
+  studies, and visualization.
+end note
 
 legend bottom
   |= Relation |= Meaning |

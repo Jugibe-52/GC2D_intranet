@@ -10,26 +10,30 @@ import unittest
 import matplotlib.pyplot as plt
 import numpy as np
 
-from classes import (
-	FCInitialConfiguration,
+from dynamics import (
 	FullCyclotronDynamics,
 	GuidingCenterDynamics,
+)
+from initial_conditions import (
+	FCInitialConfiguration,
+	TrajectoryGC,
+)
+from potential import Potential
+from simulation import (
 	InitialValueProblem,
-	Potential,
 	SimulationRequest,
 	SymmetricProjectedABBA,
-	TrajectoryGC,
 	simulate,
 )
-from classes.simulation.methods.abba import (
+from simulation.methods.abba import (
 	_evaluate_residual,
 	_solve_projected_step,
 )
-from research.symplecticity import (
+from diagnostics.symplecticity import (
 	central_difference_jacobian,
 	gc_physical_symplectic_form,
 )
-from workflows import (
+from studies import (
 	ABBASymplecticityConfig,
 	RandomPotentialConfig,
 	centered_square,
@@ -415,8 +419,6 @@ class SymmetricProjectedABBATests(unittest.TestCase):
 
 		fc_source = FCInitialConfiguration(
 			np.asarray([1.0, 1.2, 0.4, -0.3]),
-			rho=0.2,
-			eta=0.1,
 		)
 		fc_problem = InitialValueProblem(
 			FullCyclotronDynamics(
@@ -461,7 +463,7 @@ class SymmetricProjectedABBATests(unittest.TestCase):
 			)
 
 
-class ABBASymplecticityWorkflowTests(unittest.TestCase):
+class ABBASymplecticityStudyTests(unittest.TestCase):
 	"""Verify the reusable physical-flow study used by the development notebook."""
 
 	def test_short_study_returns_solver_and_symplecticity_diagnostics(self) -> None:

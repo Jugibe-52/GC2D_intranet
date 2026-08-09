@@ -1,4 +1,4 @@
-"""Contracts for semi-implicit ABBA and its exact tangent workflow."""
+"""Contracts for semi-implicit ABBA and its exact tangent study."""
 
 from __future__ import annotations
 
@@ -9,21 +9,21 @@ import unittest
 
 import numpy as np
 
-from classes import (
-	GuidingCenterDynamics,
+from dynamics import GuidingCenterDynamics
+from initial_conditions import TrajectoryGC
+from potential import Potential
+from simulation import (
 	InitialValueProblem,
-	Potential,
 	SemiImplicitABBA,
 	SimulationRequest,
 	SymmetricProjectedABBA,
-	TrajectoryGC,
 	simulate,
 )
-from research.symplecticity import (
+from diagnostics.symplecticity import (
 	central_difference_jacobian,
 	gc_physical_symplectic_form,
 )
-from workflows import (
+from studies import (
 	RandomPotentialConfig,
 	SemiImplicitABBASymplecticityConfig,
 	centered_square,
@@ -115,7 +115,7 @@ class SemiImplicitABBATests(unittest.TestCase):
 		np.testing.assert_array_equal(semiimplicit.states, projected.states)
 
 
-class SemiImplicitABBAWorkflowTests(unittest.TestCase):
+class SemiImplicitABBAStudyTests(unittest.TestCase):
 	"""Verify exact-Jacobian persistence and study summaries."""
 
 	def test_short_study_uses_only_exact_step_jacobians(self) -> None:

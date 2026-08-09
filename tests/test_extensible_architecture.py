@@ -7,18 +7,22 @@ from types import SimpleNamespace
 
 import numpy as np
 
-from classes import (
-	Area,
-	BM4Composition,
-	FCInitialConfiguration,
-	FCSplitFormulation,
+from dynamics import (
 	FullCyclotronDynamics,
-	GCInitialConfiguration,
-	GCExtendedFormulation,
 	GuidingCenterDynamics,
+)
+from initial_conditions import (
+	Area,
+	FCInitialConfiguration,
+	GCInitialConfiguration,
+)
+from potential import Potential
+from simulation import (
+	BM4Composition,
+	FCSplitFormulation,
+	GCExtendedFormulation,
 	InitialConfiguration,
 	InitialValueProblem,
-	Potential,
 	RK4,
 	SimulationRequest,
 	SimulationRunner,
@@ -83,12 +87,9 @@ class ExtensibleArchitectureTests(unittest.TestCase):
 		potential = deterministic_potential()
 		gc_configuration = GCInitialConfiguration(
 			np.asarray([1.0, 1.2]),
-			rho=0.05,
 		)
 		fc_configuration = FCInitialConfiguration(
 			np.asarray([1.0, 1.2, 0.4, -0.3]),
-			rho=0.2,
-			eta=0.1,
 		)
 
 		for dynamics, state in (
@@ -119,7 +120,7 @@ class ExtensibleArchitectureTests(unittest.TestCase):
 		)
 		cases = (
 			(
-				GCInitialConfiguration(np.asarray([1.0, 1.2]), rho=0.05),
+				GCInitialConfiguration(np.asarray([1.0, 1.2])),
 				GuidingCenterDynamics(potential, rho=0.05),
 				GCExtendedFormulation(coupling_frequency=2.5),
 				2,
@@ -127,8 +128,6 @@ class ExtensibleArchitectureTests(unittest.TestCase):
 			(
 				FCInitialConfiguration(
 					np.asarray([1.0, 1.2, 0.4, -0.3]),
-					rho=0.2,
-					eta=0.1,
 				),
 				FullCyclotronDynamics(potential, rho=0.2, eta=0.1),
 				FCSplitFormulation(),
@@ -158,7 +157,7 @@ class ExtensibleArchitectureTests(unittest.TestCase):
 		gc = simulate(
 			InitialValueProblem(
 				GuidingCenterDynamics(potential, rho=0.05),
-				GCInitialConfiguration(np.asarray([1.0, 1.2]), rho=0.05),
+				GCInitialConfiguration(np.asarray([1.0, 1.2])),
 			),
 			BM4Composition(GCExtendedFormulation(), track_energy=True),
 			request,
@@ -168,8 +167,6 @@ class ExtensibleArchitectureTests(unittest.TestCase):
 				FullCyclotronDynamics(potential, rho=0.2, eta=0.1),
 				FCInitialConfiguration(
 					np.asarray([1.0, 1.2, 0.4, -0.3]),
-					rho=0.2,
-					eta=0.1,
 				),
 			),
 			BM4Composition(FCSplitFormulation(), track_energy=True),
@@ -207,7 +204,7 @@ class ExtensibleArchitectureTests(unittest.TestCase):
 		)
 
 	def test_rk4_has_fourth_order_convergence_without_a_formulation(self) -> None:
-		source = GCInitialConfiguration(np.asarray([1.0, 0.0]), rho=0.0)
+		source = GCInitialConfiguration(np.asarray([1.0, 0.0]))
 		problem = InitialValueProblem(_RotationDynamics(), source)
 		exact = np.asarray([np.cos(1.0), -np.sin(1.0)])
 		errors = []
@@ -226,7 +223,7 @@ class ExtensibleArchitectureTests(unittest.TestCase):
 		self.assertLess(errors[0] / errors[1], 18.0)
 
 	def test_rk4_uses_non_autonomous_stage_times(self) -> None:
-		source = GCInitialConfiguration(np.asarray([0.0, 0.0]), rho=0.0)
+		source = GCInitialConfiguration(np.asarray([0.0, 0.0]))
 		solution = simulate(
 			InitialValueProblem(_TimePolynomialDynamics(), source),
 			RK4(),
@@ -240,7 +237,7 @@ class ExtensibleArchitectureTests(unittest.TestCase):
 		self.assertEqual(float(solution.states[1, -1]), 0.0)
 
 	def test_rk4_step_observer_receives_only_main_grid_steps(self) -> None:
-		source = GCInitialConfiguration(np.asarray([1.0, 0.0]), rho=0.0)
+		source = GCInitialConfiguration(np.asarray([1.0, 0.0]))
 		problem = InitialValueProblem(_RotationDynamics(), source)
 		events = []
 		solution = simulate(
@@ -274,15 +271,13 @@ class ExtensibleArchitectureTests(unittest.TestCase):
 		cases = (
 			(
 				GuidingCenterDynamics(potential, rho=0.05),
-				GCInitialConfiguration(np.asarray([1.0, 1.2]), rho=0.05),
+				GCInitialConfiguration(np.asarray([1.0, 1.2])),
 				2,
 			),
 			(
 				FullCyclotronDynamics(potential, rho=0.2, eta=0.1),
 				FCInitialConfiguration(
 					np.asarray([1.0, 1.2, 0.4, -0.3]),
-					rho=0.2,
-					eta=0.1,
 				),
 				4,
 			),
@@ -303,11 +298,9 @@ class ExtensibleArchitectureTests(unittest.TestCase):
 
 	def test_incompatible_combinations_fail_before_stepping(self) -> None:
 		potential = deterministic_potential()
-		gc_source = GCInitialConfiguration(np.asarray([1.0, 1.2]), rho=0.05)
+		gc_source = GCInitialConfiguration(np.asarray([1.0, 1.2]))
 		fc_source = FCInitialConfiguration(
 			np.asarray([1.0, 1.2, 0.4, -0.3]),
-			rho=0.2,
-			eta=0.1,
 		)
 		gc_dynamics = GuidingCenterDynamics(potential, rho=0.05)
 		fc_dynamics = FullCyclotronDynamics(potential, rho=0.2, eta=0.1)
@@ -324,16 +317,16 @@ class ExtensibleArchitectureTests(unittest.TestCase):
 				InitialValueProblem(gc_dynamics, gc_source),
 				track_energy=False,
 			)
-		with self.assertRaises(ValueError):
-			InitialValueProblem(
-				GuidingCenterDynamics(potential, rho=0.2),
-				gc_source,
-			)
-		with self.assertRaises(ValueError):
-			InitialValueProblem(
-				FullCyclotronDynamics(potential, rho=0.2, eta=-0.1),
-				fc_source,
-			)
+		problem = InitialValueProblem(
+			GuidingCenterDynamics(potential, rho=0.2),
+			gc_source,
+		)
+		self.assertEqual(problem.dynamics.rho, 0.2)
+		fc_problem = InitialValueProblem(
+			FullCyclotronDynamics(potential, rho=0.2, eta=-0.1),
+			fc_source,
+		)
+		self.assertEqual(fc_problem.dynamics.eta, -0.1)
 
 	def test_area_is_source_of_the_temporal_solution(self) -> None:
 		potential = deterministic_potential()
@@ -368,7 +361,7 @@ class ExtensibleArchitectureTests(unittest.TestCase):
 
 	def test_bm4_output_density_does_not_change_common_samples(self) -> None:
 		potential = deterministic_potential()
-		source = GCInitialConfiguration(np.asarray([1.0, 1.2]), rho=0.05)
+		source = GCInitialConfiguration(np.asarray([1.0, 1.2]))
 		problem = InitialValueProblem(
 			GuidingCenterDynamics(potential, rho=0.05),
 			source,
@@ -399,9 +392,9 @@ class ExtensibleArchitectureTests(unittest.TestCase):
 
 	def test_energy_diagnostics_do_not_change_physical_states(self) -> None:
 		potential = deterministic_potential()
-		source = GCInitialConfiguration(np.asarray([1.0, 1.2]), rho=0.05)
+		source = GCInitialConfiguration(np.asarray([1.0, 1.2]))
 		problem = InitialValueProblem(
-			GuidingCenterDynamics(potential, rho=source.rho),
+			GuidingCenterDynamics(potential, rho=0.05),
 			source,
 		)
 		request = SimulationRequest.uniform(
@@ -429,7 +422,7 @@ class ExtensibleArchitectureTests(unittest.TestCase):
 		self.assertEqual(tracked.err, expected_error)
 
 	def test_runner_rejects_invalid_method_output(self) -> None:
-		source = GCInitialConfiguration(np.asarray([1.0, 0.0]), rho=0.0)
+		source = GCInitialConfiguration(np.asarray([1.0, 0.0]))
 		problem = InitialValueProblem(_RotationDynamics(), source)
 		request = SimulationRequest.uniform(
 			t_span=(0.0, 0.1),
@@ -458,18 +451,41 @@ class ExtensibleArchitectureTests(unittest.TestCase):
 				output_times=np.asarray([0.0, 1.0 + 1e-15, 1.0 + 2e-15]),
 			)
 
-	def test_solution_preserves_legacy_positional_construction(self) -> None:
-		source = GCInitialConfiguration(np.asarray([1.0, 0.0]), rho=0.0)
+	def test_solution_is_immutable_and_preserves_read_only_aliases(self) -> None:
+		source = GCInitialConfiguration(np.asarray([1.0, 0.0]))
 		times = np.asarray([0.0, 0.1])
 		states = np.asarray([[1.0, 0.9], [0.0, -0.1]])
 		momentum = np.asarray([[0.0, 0.01]])
-		solution = Solution(times, states, 1, momentum, 0.02, source)
+		solution = Solution(
+			t=times,
+			states=states,
+			source=source,
+			diagnostics={
+				"step_count": 1,
+				"extended_momentum": momentum,
+				"energy_error": 0.02,
+			},
+		)
 
 		self.assertIs(solution.y, solution.states)
 		self.assertIs(solution.trajectory, source)
 		self.assertEqual(solution.n_steps, 1)
 		np.testing.assert_array_equal(solution.k, momentum)
 		self.assertEqual(solution.err, 0.02)
+		times[0] = -1.0
+		states[0, 0] = 5.0
+		momentum[0, 0] = 7.0
+		self.assertEqual(solution.t[0], 0.0)
+		self.assertEqual(solution.states[0, 0], 1.0)
+		self.assertEqual(solution.k[0, 0], 0.0)  # type: ignore[index]
+		with self.assertRaises(ValueError):
+			solution.t[0] = -1.0
+		with self.assertRaises(ValueError):
+			solution.states[0, 0] = 2.0
+		with self.assertRaises(ValueError):
+			solution.k[0, 0] = 2.0  # type: ignore[index]
+		with self.assertRaises(TypeError):
+			solution.diagnostics["step_count"] = 2  # type: ignore[index]
 
 
 if __name__ == "__main__":

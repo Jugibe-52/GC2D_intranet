@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: |
+            pyproject.toml
+            requirements.txt
+            constraints.txt
+
+      - name: Install development environment
+        run: python -m pip install -r requirements.txt
+
+      - name: Type check source packages
+        run: python -m mypy src
+
+      - name: Run test suite
+        env:
+          MPLBACKEND: Agg
+          MPLCONFIGDIR: /tmp/guiding-center-matplotlib
+        run: python -m unittest discover -s tests -v
+
+      - name: Run supported examples
+        run: |
+          python examples/gc_orbit.py
+          python examples/projected_abba.py
+
+      - name: Build distributions
+        run: python -m build

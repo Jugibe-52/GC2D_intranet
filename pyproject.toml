@@ -9,29 +9,42 @@ description = "Guiding-center simulation tools"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-	"numpy==1.26.4",
-	"matplotlib==3.10.9",
-	"scipy==1.17.1",
+	"numpy>=1.26,<3",
+	"scipy>=1.12,<2",
 ]
 
 [tool.setuptools]
-package-dir = {"" = "src", research = "research"}
-packages = [
-	"classes",
-	"classes.dynamics",
-	"classes.potential",
-	"classes.simulation",
-	"classes.simulation.formulations",
-	"classes.simulation.methods",
-	"classes.trajectory",
-	"research",
-	"research.projection",
-	"research.symplecticity",
-	"workflows",
+package-dir = {"" = "src"}
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = [
+	"diagnostics*",
+	"dynamics*",
+	"initial_conditions*",
+	"potential*",
+	"simulation*",
+	"studies*",
+	"visualization*",
 ]
+namespaces = false
+
+[tool.setuptools.package-data]
+"*" = ["py.typed"]
 
 [project.optional-dependencies]
-dev = ["mypy>=1.10,<2"]
+visualization = ["matplotlib>=3.8,<4"]
+notebook = [
+	"matplotlib>=3.8,<4",
+	"nbclient>=0.10,<1",
+	"nbformat>=5.10,<6",
+	"ipykernel>=6,<8",
+]
+dev = [
+	"build>=1.2,<2",
+	"mypy>=1.10,<2",
+]
 
 [tool.mypy]
 python_version = "3.11"

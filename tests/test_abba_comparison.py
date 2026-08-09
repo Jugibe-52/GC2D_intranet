@@ -9,7 +9,7 @@ import unittest
 import matplotlib.pyplot as plt
 import numpy as np
 
-from workflows import (
+from studies import (
 	ABBA_METHOD_NAMES,
 	ABBAComparisonConfig,
 	RandomPotentialConfig,
@@ -18,7 +18,7 @@ from workflows import (
 )
 
 
-class ABBAComparisonWorkflowTests(unittest.TestCase):
+class ABBAComparisonStudyTests(unittest.TestCase):
 	"""Verify timing, trajectory metrics, and per-method animation contracts."""
 
 	def test_one_run_per_method_returns_aligned_comparison(self) -> None:

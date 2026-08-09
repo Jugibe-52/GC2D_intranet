@@ -4,10 +4,10 @@ When inspecting or modifying notebooks, work only in `notebooks/developements/`
 by default. Do not read or alter `notebooks/experiments/` unless the user
 explicitly asks for it.
 
-Experiment notebooks are versioned research artifacts and are outside the
+Experiment notebooks are versioned scientific artifacts and are outside the
 supported interactive API.
 
-# Notebook workflow policy
+# Notebook study policy
 
 Keep notebooks focused on the scientific definition and interpretation of an
 experiment. Parameters that affect reproducibility must remain explicit in the
@@ -15,17 +15,20 @@ notebook, including potential parameters and seeds, initial-condition geometry,
 physical and numerical parameters, integration spans and steps, and sampling
 choices.
 
-Put reusable experiment composition in `src/workflows/`. This includes common
-potential and initial-condition construction, system assembly, parameter
-validation, repeated-run orchestration, diagnostic extraction and summaries,
-and notebook presentation helpers. Do not duplicate project-root discovery,
-`sys.path` mutation, observer lifecycle management, result-dictionary assembly,
-or reusable plotting/display helpers across notebooks.
+Put reusable experiment composition in `src/studies/`. This includes
+common potential and initial-condition construction, system assembly, parameter
+validation, repeated-run orchestration, diagnostic extraction, and summaries.
+Put reusable plotting and notebook display helpers in
+`src/visualization/`. Put opt-in numerical observers and persistence in
+`src/diagnostics/`. Do not duplicate project-root discovery, `sys.path`
+mutation, observer lifecycle management, result-dictionary assembly, or
+presentation helpers across notebooks.
 
-Keep generic geometry, dynamics, numerical methods, and result behavior in
-`src/classes/`; workflows should compose those APIs rather than reimplement
+Keep generic geometry, dynamics, potentials, numerical methods, and result
+behavior in `src/initial_conditions/`, `src/dynamics/`, `src/potential/`, and
+`src/simulation/`; studies should compose those APIs rather than reimplement
 them. A notebook-local helper is appropriate only when its behavior is unique
-to that study and would not provide a stable reusable workflow.
+to that study and would not provide stable reusable composition.
 
 # Project language
 
@@ -57,8 +60,9 @@ the implemented code.
 Respect `.gitignore` when creating or modifying files. In particular, do not
 use `git add --force` (or `git add -f`) to stage ignored files, and do not
 change a file's tracked or ignored status, unless the user explicitly requests
-that Git-tracking change. Development notebooks are local working files: create
-them freely, but leave them ignored unless the user asks to version them.
+that Git-tracking change. Only notebooks under `notebooks/experiments/` and
+`notebooks/sympy/` are intended to be versioned. Development notebooks under
+`notebooks/developements/` are local working files and must remain ignored.
 Before staging a newly created notebook, verify its status with
 `git check-ignore --no-index <path>` when its intended tracking status is not
 clear.
