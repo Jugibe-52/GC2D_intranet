@@ -26,7 +26,7 @@
 \pagestyle{fancy}
 \fancyhf{}
 \fancyhead[L]{\small\color{gray}GC2D: ABBA method}
-\fancyhead[R]{\small\color{gray}Projection and constant Jacobian}
+\fancyhead[R]{\small\color{gray}Implicit 1: reduced multiplier solve}
 \fancyfoot[C]{\thepage}
 \renewcommand{\headrulewidth}{0.3pt}
 
@@ -41,9 +41,9 @@
 \begin{document}
 
 \begin{center}
-  {\LARGE\bfseries\color{blue}ABBA Method with Hairer's Symmetric Projection}\par
+  {\LARGE\bfseries\color{blue}Implicit ABBA 1 with Hairer's Symmetric Projection}\par
   \vspace{0.35em}
-  {\large Adaptation to GC2D with $H_\mu=0$ and a constant simultaneous formulation}\par
+  {\large Reduced Newton formulation for the projection multiplier}\par
   \vspace{0.45em}
   {\small Complete replacement of BM4 by an $A$--$B$--$B$--$A$ architecture}
 \end{center}
@@ -548,7 +548,7 @@ GC2D,
  \end{pmatrix}_{(z_i,t_i)}.
 \]
 The four points $(z_i,t_i)$ are, respectively,
-$(v^{(0)},t_n)$, $(u^{(1)},t_n)$, $(u^{(1)},t_{n+1})$ y
+$(v^{(0)},t_n)$, $(u^{(1)},t_n)$, $(u^{(1)},t_{n+1})$, and
 $(v^{(2)},t_{n+1})$.
 
 \subsection{Partial derivatives of the residual}
@@ -929,7 +929,7 @@ We define the multiplier of the reverse step as
 \[
  \mu_{\mathrm{inv}}=-\mu.
 \]
-Entonces
+Then
 \[
  \Y_n-G^T\mu_{\mathrm{inv}}
  =\Phi^{\mathrm{ABBA}}_{-h,t_{n+1}}
@@ -944,58 +944,6 @@ and is solved exactly,
 \]
 Here $\Psi$ denotes ABBA together with Hairer's projection. In an implementation, the
 iteration is stopped at a finite tolerance; reversibility is preserved up to that tolerance.
-
-\section{Simultaneous formulation and constant approximation}
-
-Alternatively, $\Y_{n+1}$ can be retained as an unknown. We define
-\[
- d(\Y_{n+1},\mu)
- :=\Y_{n+1}-G^T\mu
-   -\PhiAB\bigl(\Y_n+G^T\mu\bigr).
-\]
-Buscamos
-\[
- d(\Y_{n+1},\mu)=0,
- \qquad
- g(\Y_{n+1})=0.
-\]
-Since $G$ is constant and $H_\mu=0$,
-\[
- D_{\Y_{n+1}}d=\Id_4,
- \qquad
- D_\mu d
- =-\left[\Id_4+D\PhiAB(\widehat{\Y}_n)\right]G^T,
-\]
-\[
- D_{\Y_{n+1}}g=G,
- \qquad
- D_\mu g=0.
-\]
-The exact simultaneous Newton iteration solves
-\[
- \boxed{
- \begin{pmatrix}
-  \Id_4&-\left[\Id_4+D\PhiAB(\widehat{\Y}_n)\right]G^T\\[2pt]
-  G&0
- \end{pmatrix}
- \begin{pmatrix}
-  \Delta\Y_{n+1}\\
-  \Delta\mu
- \end{pmatrix}
- =-
- \begin{pmatrix}
-  d(\Y_{n+1},\mu)\\
-  g(\Y_{n+1})
- \end{pmatrix}.
- } \tag{21}
-\]
-Su complemento de Schur es
-\[
- G\left[\Id_4+D\PhiAB(\widehat{\Y}_n)\right]G^T
- =2\Id_2+GD\PhiAB(\widehat{\Y}_n)G^T
- =R'(\mu).
-\]
-Therefore, the reduced and simultaneous formulations use exactly the same Jacobian.
 
 \section{Symplecticity of the complete projected method}
 
@@ -1028,7 +976,7 @@ then equation (19) is equivalent to
  \boxed{
  \PhiAB\bigl(Ez+N\mu_h(z)\bigr)
  =E\Psi_{h,t_n}(z)-N\mu_h(z).
- } \tag{22}
+ } \tag{21}
 \]
 The same multiplier is used on both sides of this equation within one time step, with
 opposite signs. This does not mean that the multiplier remains unchanged in the next step.
@@ -1042,12 +990,12 @@ and write
  \boxed{
  \mathcal R(z,\mu)
  :=G\PhiAB(Ez+N\mu)+2\mu.
- } \tag{23}
+ } \tag{22}
 \]
 
-\subsubsection*{Detailed construction of equation (23)}
+\subsubsection*{Detailed construction of equation (22)}
 
-Expression (23) combines in a single function the two conditions required for the two
+Expression (22) combines in a single function the two conditions required for the two
 state copies to coincide again after applying ABBA and the symmetric correction. We now
 reconstruct it step by step.
 
@@ -1066,7 +1014,7 @@ The matrix $N=G^T$ introduces the multiplier in the direction transverse to that
  =\begin{pmatrix}\mu\\-\mu\end{pmatrix}
  =(\mu,-\mu)\in\R^4.
 \]
-Therefore, the ABBA argument in (23) is the pre-corrected state
+Therefore, the ABBA argument in (22) is the pre-corrected state
 \[
  Ez+N\mu=(z+\mu,z-\mu).
 \]
@@ -1091,7 +1039,7 @@ measures exactly this mismatch, since for every $(u,v)\in\R^4$,
 \[
  G\begin{pmatrix}u\\v\end{pmatrix}=u-v.
 \]
-En particular,
+In particular,
 \[
  G\PhiAB(Ez+N\mu)
  =u^{(2)}(z,\mu)-v^{(2)}(z,\mu).
@@ -1116,7 +1064,7 @@ Since $N=G^T$ and $GG^T=2\Id_2$, we obtain
 \[
  GN\mu=GG^T\mu=2\mu.
 \]
-This calculation explains the term $2\mu$ in (23): it is neither an approximation nor an
+This calculation explains the term $2\mu$ in (22): it is neither an approximation nor an
 arbitrary factor, but the exact contribution of the output correction to the constraint
 defect. Consequently,
 \[
@@ -1137,8 +1085,8 @@ Therefore, the following statements are equivalent:
 
 Writing the equality componentwise, with
 $u^{(2)}=(u_X^{(2)},u_Y^{(2)})^T$,
-$v^{(2)}=(v_X^{(2)},v_Y^{(2)})^T$ y
-$\mu=(\mu_X,\mu_Y)^T$, the nonlinear system (23) is
+$v^{(2)}=(v_X^{(2)},v_Y^{(2)})^T$, and
+$\mu=(\mu_X,\mu_Y)^T$, the nonlinear system (22) is
 \[
  \mathcal R(z,\mu)=
  \begin{pmatrix}
@@ -1165,7 +1113,7 @@ It is also useful to check the dimensions of each object:
  \qquad
  \mathcal R(z,\mu)\in\R^2.
 \]
-Thus, (23) correctly defines a map
+Thus, (22) correctly defines a map
 \[
  \mathcal R:\R^2\times\R^2\longrightarrow\R^2.
 \]
@@ -1181,7 +1129,7 @@ As a simple check, if $h=0$, then $\PhiAB=\Id_4$. In that case,
  =G(Ez+N\mu)+2\mu
  =GEz+GN\mu+2\mu.
 \]
-Ahora bien, $GE=0$ y $GN=2\Id_2$, de modo que
+Because $GE=0$ and $GN=2\Id_2$, it follows that
 \[
  \mathcal R(z,\mu)=4\mu.
 \]
@@ -1203,11 +1151,11 @@ changing $z$ changes the nonlinear system and therefore its converged solution.
 The Jacobian of the residual with respect to the multiplier is
 \[
  D_\mu\mathcal R
- =G\,D\PhiAB\,N+2\Id_2. \tag{24}
+ =G\,D\PhiAB\,N+2\Id_2. \tag{23}
 \]
 This is precisely the matrix $R'(\mu)$ obtained in (16). If it is invertible at the solution,
 the implicit function theorem guarantees that $\mu_h(z)$ is locally differentiable.
-De hecho,
+In fact,
 \[
  D\mu_h(z)
  =-\bigl(G\,D\PhiAB\,N+2\Id_2\bigr)^{-1}
@@ -1215,17 +1163,17 @@ De hecho,
 \]
 where $D\PhiAB$ is evaluated at $Ez+N\mu_h(z)$.
 
-Definamos
+Define
 \[
  M:=D\mu_h(z),
  \qquad
  J_\Psi:=D\Psi_{h,t_n}(z).
 \]
-Al derivar (22) con respecto a $z$ se obtiene
+Differentiating (21) with respect to $z$ gives
 \[
  \boxed{
  D\PhiAB\,(E+NM)=EJ_\Psi-NM.
- } \tag{25}
+ } \tag{24}
 \]
 For a physical perturbation $u\in\R^2$, this identity states that
 \[
@@ -1247,14 +1195,14 @@ Direct multiplication using the definition of $\Om$ gives
  E^T\Om N&=0,
  &N^T\Om E&=0.
  \end{aligned}
- } \tag{26}
+ } \tag{25}
 \]
 Therefore, the diagonal direction $(u,u)$ and correction direction $(a,-a)$ are
 symplectically orthogonal with respect to $\Om$.
 
 \subsection{Conservation of the extended symplectic form}
 
-Equation (25) and the symplecticity of ABBA in (8) imply
+Equation (24) and the symplecticity of ABBA in (8) imply
 \begin{align}
  &(EJ_\Psi-NM)^T\Om(EJ_\Psi-NM) \notag\\
  &\quad=\bigl[D\PhiAB(E+NM)\bigr]^T
@@ -1263,39 +1211,39 @@ Equation (25) and the symplecticity of ABBA in (8) imply
  &\quad=(E+NM)^T
           (D\PhiAB)^T\Om D\PhiAB
           (E+NM) \notag\\
- &\quad=(E+NM)^T\Om(E+NM). \tag{27}
+ &\quad=(E+NM)^T\Om(E+NM). \tag{26}
 \end{align}
 The last equality is exactly where symplecticity of the duplicated ABBA map is used.
-Thus, (27) states that $D\PhiAB$ preserves $\Om$ between the initial and final lifted perturbations.
+Thus, (26) states that $D\PhiAB$ preserves $\Om$ between the initial and final lifted perturbations.
 
-Using the four identities in (26), the initial side becomes
+Using the four identities in (25), the initial side becomes
 \begin{align}
  (E+NM)^T\Om(E+NM)
  &=E^T\Om E+M^TN^T\Om NM \notag\\
- &=2J_0-2M^TJ_0M. \tag{28}
+ &=2J_0-2M^TJ_0M. \tag{27}
 \end{align}
 The mixed terms vanish because $E^T\Om N=N^T\Om E=0$. Likewise, the final side is
 \begin{align}
  (EJ_\Psi-NM)^T\Om(EJ_\Psi-NM)
  &=J_\Psi^TE^T\Om EJ_\Psi+M^TN^T\Om NM \notag\\
- &=2J_\Psi^TJ_0J_\Psi-2M^TJ_0M. \tag{29}
+ &=2J_\Psi^TJ_0J_\Psi-2M^TJ_0M. \tag{28}
 \end{align}
 
-Sustituyendo (28) y (29) en (27), obtenemos
+Substituting (27) and (28) into (26) gives
 \[
  2J_\Psi^TJ_0J_\Psi-2M^TJ_0M
- =2J_0-2M^TJ_0M. \tag{30}
+ =2J_0-2M^TJ_0M. \tag{29}
 \]
 The term produced by the implicit dependence of the multiplier is identical on both sides
 and cancels. Hence,
 \[
- \boxed{J_\Psi^TJ_0J_\Psi=J_0.} \tag{31}
+ \boxed{J_\Psi^TJ_0J_\Psi=J_0.} \tag{30}
 \]
 Since $J_\Psi=D\Psi_{h,t_n}(z)$,
 \[
  \boxed{
  D\Psi_{h,t_n}(z)^T J_0D\Psi_{h,t_n}(z)=J_0.
- } \tag{32}
+ } \tag{31}
 \]
 Therefore, the complete physical method, consisting of ABBA together with Hairer's
 symmetric projection, is symplectic on the physical phase space. In two dimensions this also gives
@@ -1308,12 +1256,11 @@ The proof requires the following local hypotheses:
 \begin{enumerate}
  \item the ABBA map is symplectic with respect to $\Om$;
  \item the equation $\mathcal R(z,\mu)=0$ has a locally unique solution;
- \item $D_\mu\mathcal R$ es invertible, de modo que $\mu_h(z)$ es diferenciable;
+ \item $D_\mu\mathcal R$ is invertible, so $\mu_h(z)$ is differentiable;
  \item the nonlinear projection equation is solved exactly.
 \end{enumerate}
-The constant matrix used to compute the nonlinear correction changes only the iterative
-solver. If the iteration converges to the exact root, it does not change the projected map
-or the proof above. With a finite stopping tolerance, symplecticity is preserved only up
-to the defect introduced by that tolerance.
+The reduced multiplier system defines the same exact projected map independently of the
+particular convergent nonlinear solver. With a finite stopping tolerance, symplecticity is
+preserved only up to the defect introduced by that tolerance.
 
 \end{document}

@@ -60,6 +60,13 @@ note bottom of Solution
   geometry used to define a problem.
 end note
 
+note bottom of NumericalMethod
+  Implicit ABBA 1 uses the reduced multiplier
+  equation, while implicit ABBA 2 solves the
+  equivalent simultaneous output-multiplier system.
+  Both converge to the same projected physical map.
+end note
+
 note top of Potential
   Public APIs are grouped by responsibility in
   potential, dynamics, initial_conditions,

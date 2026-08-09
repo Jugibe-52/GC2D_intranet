@@ -147,6 +147,8 @@ package "Numerical methods" as Methods {
   class BM4Composition
   class ProjectedBM4Composition
   class ExplicitABBA
+  class ImplicitABBA1
+  class ImplicitABBA2
   class SymmetricProjectedABBA
   class SemiImplicitABBA
 
@@ -154,7 +156,9 @@ package "Numerical methods" as Methods {
   NumericalMethod <|.. BM4Composition
   BM4Composition <|-- ProjectedBM4Composition
   NumericalMethod <|.. ExplicitABBA
-  NumericalMethod <|.. SymmetricProjectedABBA
+  NumericalMethod <|.. ImplicitABBA1
+  NumericalMethod <|.. ImplicitABBA2
+  ImplicitABBA1 <|-- SymmetricProjectedABBA
   SymmetricProjectedABBA <|-- SemiImplicitABBA
 }
 
@@ -162,7 +166,8 @@ RK4 ..> DynamicalSystem : requires vector field
 BM4Composition o-- DirectAdjointFormulation : formulation
 ProjectedBM4Composition o-- StageProjectedFormulation : formulation
 ExplicitABBA ..> DynamicalSystem : requires planar vector field
-SymmetricProjectedABBA ..> GuidingCenterJacobianSystem : requires exact batched W = Df
+ImplicitABBA1 ..> GuidingCenterJacobianSystem : exact reduced 2x2 Newton blocks
+ImplicitABBA2 ..> GuidingCenterJacobianSystem : exact simultaneous 6x6 Newton blocks
 
 package "Simulation" as Simulation {
   class SimulationRequest {
@@ -210,6 +215,8 @@ SimulationRunner --> Solution : builds
 Solution o-- InitialConfiguration : source
 RK4 --> IntegrationStep : optional observation
 ExplicitABBA --> IntegrationStep : optional observation
+ImplicitABBA1 --> IntegrationStep : optional observation
+ImplicitABBA2 --> IntegrationStep : optional observation
 SymmetricProjectedABBA --> IntegrationStep : optional observation
 SemiImplicitABBA --> IntegrationStep : exact physical tangent
 
@@ -247,11 +254,22 @@ note bottom of ProjectedBM4Composition
   BM4-based method, not the coupled BM4 map.
 end note
 
-note bottom of SymmetricProjectedABBA
+note bottom of ImplicitABBA1
   Each second-order step applies endpoint-time
-  A-B-B-A shears in a duplicated GC state, then
-  solves one reduced multiplier equation with the
-  exact Jacobian and returns to the physical diagonal.
+  A-B-B-A shears in a duplicated GC state and
+  solves the reduced multiplier equation (11)
+  with exact independent 2x2 Newton blocks.
+end note
+
+note bottom of ImplicitABBA2
+  The projected physical map is the same as implicit 1.
+  Equation (21) retains the duplicated output and
+  multiplier as simultaneous unknowns, producing
+  one exact 6x6 Newton block per GC particle.
+end note
+
+note bottom of SymmetricProjectedABBA
+  Backward-compatible public name for ImplicitABBA1.
   Symplecticity observers differentiate the emitted
   finite-tolerance step map by centered differences.
   This two-sided symmetric projection is distinct from
@@ -285,6 +303,7 @@ package "Reusable studies" as Studies {
   class RK4SymplecticityStudy
   class ExplicitABBASymplecticityStudy
   class ABBASymplecticityStudy
+  class ImplicitABBASymplecticityStudy
   class SemiImplicitABBASymplecticityStudy
   class ABBAComparisonStudy
 }
@@ -314,6 +333,9 @@ ExplicitABBASymplecticityStudy ..> IntegrationStep : analyzes
 ABBASymplecticityStudy ..> SimulationRunner
 ABBASymplecticityStudy ..> SymmetricProjectedABBA
 ABBASymplecticityStudy ..> IntegrationStep : analyzes
+ImplicitABBASymplecticityStudy ..> ImplicitABBA1
+ImplicitABBASymplecticityStudy ..> ImplicitABBA2
+ImplicitABBASymplecticityStudy ..> IntegrationStep : compares finite-tolerance maps
 SemiImplicitABBASymplecticityStudy ..> SimulationRunner
 SemiImplicitABBASymplecticityStudy ..> SemiImplicitABBA
 SemiImplicitABBASymplecticityStudy ..> IntegrationStep : exact tangent

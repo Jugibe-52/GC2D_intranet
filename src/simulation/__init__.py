@@ -11,6 +11,8 @@ from .formulations import (
 from .methods import (
 	BM4Composition,
 	ExplicitABBA,
+	ImplicitABBA1,
+	ImplicitABBA2,
 	NumericalMethod,
 	ProjectedBM4Composition,
 	RK4,
@@ -27,6 +29,8 @@ __all__ = [
 	"BM4Composition",
 	"DirectAdjointFormulation",
 	"ExplicitABBA",
+	"ImplicitABBA1",
+	"ImplicitABBA2",
 	"FCSplitFormulation",
 	"GCExtendedFormulation",
 	"GCStageProjectedFormulation",

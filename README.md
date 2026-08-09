@@ -100,6 +100,21 @@ Physical parameters belong to the dynamics object. Changing the initial
 configuration therefore does not change the model. The effective gyroaveraged
 potential is available as `problem.dynamics.effective_potential`.
 
+## Implicit ABBA formulations
+
+The simulation API provides two implementations of Hairer's symmetric ABBA
+projection:
+
+- `ImplicitABBA1` solves the reduced multiplier equation with exact `2 x 2`
+  Newton blocks;
+- `ImplicitABBA2` solves the equivalent simultaneous output--multiplier system
+  from equation (21), using exact `6 x 6` blocks.
+
+They define the same exact projected physical map but expose distinct solver
+diagnostics. Their derivations are documented in
+[`ABBA_implicit_1`](docs/tex/ABBA_implicit_1/ABBA_implicit_1.pdf) and
+[`ABBA_implicit_2`](docs/tex/ABBA_implicit_2/ABBA_implicit_2.pdf).
+
 ## Full-cyclotron example
 
 ```python

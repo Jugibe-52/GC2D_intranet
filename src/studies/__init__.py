@@ -23,6 +23,16 @@ from .abba_explicit_symplecticity import (
 	ExplicitABBASymplecticitySummary,
 	run_explicit_abba_symplecticity_study,
 )
+from .abba_implicit_symplecticity import (
+	IMPLICIT_ABBA_FORMULATIONS,
+	ImplicitABBA1SymplecticityResult,
+	ImplicitABBA2SymplecticityResult,
+	ImplicitABBASymplecticityComparison,
+	ImplicitABBASymplecticityConfig,
+	run_implicit_abba_1_symplecticity_study,
+	run_implicit_abba_2_symplecticity_study,
+	run_implicit_abba_symplecticity_study,
+)
 from .abba_semiimplicit_symplecticity import (
 	SemiImplicitABBASymplecticityConfig,
 	SemiImplicitABBASymplecticityResult,
@@ -77,6 +87,11 @@ __all__ = [
 	"ExplicitABBASymplecticitySummary",
 	"GeneralizedEnergyConfig",
 	"GeneralizedEnergyResult",
+	"IMPLICIT_ABBA_FORMULATIONS",
+	"ImplicitABBA1SymplecticityResult",
+	"ImplicitABBA2SymplecticityResult",
+	"ImplicitABBASymplecticityComparison",
+	"ImplicitABBASymplecticityConfig",
 	"RandomPotentialConfig",
 	"RK4ConvergenceOrder",
 	"RK4SymplecticityConfig",
@@ -95,6 +110,9 @@ __all__ = [
 	"run_abba_comparison",
 	"run_abba_symplecticity_study",
 	"run_generalized_energy_comparison",
+	"run_implicit_abba_1_symplecticity_study",
+	"run_implicit_abba_2_symplecticity_study",
+	"run_implicit_abba_symplecticity_study",
 	"run_explicit_abba_symplecticity_study",
 	"run_rk4_symplecticity_study",
 	"run_semiimplicit_abba_symplecticity_study",

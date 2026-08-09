@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 
 import numpy as np
@@ -269,7 +270,7 @@ def _solve_projected_step(
 	max_iterations: int,
 	compute_ideal_state_jacobian: bool = True,
 ) -> _ProjectedStep:
-	"""Solve Hairer's two-sided projection with exact reduced Newton steps."""
+	"""Solve implicit formulation 1 with exact reduced Newton steps."""
 	value = np.asarray(state, dtype=float)
 	if value.ndim != 1 or value.size == 0 or not np.all(np.isfinite(value)):
 		raise ValueError("The ABBA physical state must be a finite, non-empty vector.")
@@ -338,10 +339,159 @@ def _solve_projected_step(
 		multiplier = multiplier - correction
 
 	raise RuntimeError(
-		"The ABBA symmetric projection did not converge at "
+		"ABBA implicit formulation 1 did not converge at "
 		f"t={t:.16g} with step={step:.16g}: "
 		f"residual norm {residual_norm:.3e} exceeds {threshold:.3e} after "
 		f"{max_iterations} Newton iterations."
+	)
+
+
+def _particle_blocks(vector: np.ndarray, dimension: int) -> np.ndarray:
+	"""View one component-major vector as particle-major coordinate blocks."""
+	return vector.reshape(dimension, -1).T
+
+
+def _packed_particle_blocks(blocks: np.ndarray) -> np.ndarray:
+	"""Pack particle-major coordinate blocks into component-major order."""
+	return blocks.T.reshape(-1)
+
+
+def _simultaneous_residual_blocks(
+	stages: _ABBAStages,
+	multiplier: np.ndarray,
+	first_output: np.ndarray,
+	second_output: np.ndarray,
+	state_dimension: int,
+) -> np.ndarray:
+	"""Evaluate the two equation-(21) defects for every independent particle.
+
+	Each returned row contains ``(d_u, d_v, g)`` in physical coordinate blocks,
+	where ``d`` is the four-dimensional step-equation defect and ``g=u-v`` is
+	the two-dimensional diagonal constraint.
+	"""
+	first_defect = first_output - multiplier - stages.u_final
+	second_defect = second_output + multiplier - stages.v_final
+	constraint_defect = first_output - second_output
+	return np.concatenate(
+		(
+			_particle_blocks(first_defect, state_dimension),
+			_particle_blocks(second_defect, state_dimension),
+			_particle_blocks(constraint_defect, state_dimension),
+		),
+		axis=-1,
+	)
+
+
+def _simultaneous_newton_jacobian(
+	evaluation: _ResidualEvaluation,
+) -> np.ndarray:
+	"""Assemble equation (21) as one exact 6-by-6 system per GC particle."""
+	particle_count = evaluation.abba_jacobian.shape[0]
+	identity_2 = np.broadcast_to(np.eye(2), (particle_count, 2, 2))
+	identity_4 = np.broadcast_to(np.eye(4), (particle_count, 4, 4))
+	zero_2 = np.zeros((particle_count, 2, 2), dtype=float)
+	# N = G^T maps the multiplier to opposite displacements of both copies.
+	normal = np.concatenate((identity_2, -identity_2), axis=-2)
+	constraint = np.concatenate((identity_2, -identity_2), axis=-1)
+	top_right = -(identity_4 + evaluation.abba_jacobian) @ normal
+	return np.concatenate(
+		(
+			np.concatenate((identity_4, top_right), axis=-1),
+			np.concatenate((constraint, zero_2), axis=-1),
+		),
+		axis=-2,
+	)
+
+
+def _solve_simultaneous_projected_step(
+	dynamics: GuidingCenterJacobianSystem,
+	t: float,
+	state: np.ndarray,
+	step: float,
+	*,
+	absolute_tolerance: float,
+	relative_tolerance: float,
+	max_iterations: int,
+	compute_ideal_state_jacobian: bool = True,
+) -> _ProjectedStep:
+	"""Solve implicit formulation 2 using the simultaneous equation (21)."""
+	value = np.asarray(state, dtype=float)
+	if value.ndim != 1 or value.size == 0 or not np.all(np.isfinite(value)):
+		raise ValueError("The ABBA physical state must be a finite, non-empty vector.")
+	multiplier = np.zeros_like(value)
+	state_scale = max(1.0, float(np.linalg.norm(value, ord=np.inf)))
+	threshold = absolute_tolerance + relative_tolerance * state_scale
+
+	# Start from the uncorrected ABBA output. This makes d=0 initially while
+	# retaining the generally non-zero diagonal constraint g in equation (21).
+	stages = _evaluate_stages(dynamics, t, value, step, multiplier)
+	first_output = stages.u_final.copy()
+	second_output = stages.v_final.copy()
+
+	for iteration in range(max_iterations + 1):
+		residual_blocks = _simultaneous_residual_blocks(
+			stages,
+			multiplier,
+			first_output,
+			second_output,
+			dynamics.state_dimension,
+		)
+		residual_norm = float(np.max(np.abs(residual_blocks)))
+		if residual_norm <= threshold:
+			# The simultaneous unknown is constrained to the physical diagonal. The
+			# mean removes its finite-tolerance antisymmetric round-off component.
+			projected_state = (first_output + second_output) / 2.0
+			ideal_state_jacobian = None
+			if compute_ideal_state_jacobian:
+				evaluation = _differentiate_stages(
+					dynamics,
+					t,
+					value,
+					step,
+					stages,
+				)
+				ideal_state_jacobian = _ideal_projected_state_jacobian(evaluation)
+			return _ProjectedStep(
+				state=np.asarray(projected_state),
+				multiplier=multiplier.copy(),
+				ideal_state_jacobian=ideal_state_jacobian,
+				iterations=iteration,
+				residual_norm=residual_norm,
+			)
+		if iteration == max_iterations:
+			break
+
+		evaluation = _differentiate_stages(
+			dynamics,
+			t,
+			value,
+			step,
+			stages,
+		)
+		newton_jacobian = _simultaneous_newton_jacobian(evaluation)
+		try:
+			increments = np.linalg.solve(
+				newton_jacobian,
+				-residual_blocks[..., None],
+			)[..., 0]
+		except np.linalg.LinAlgError as exc:
+			raise RuntimeError(
+				"The simultaneous ABBA projection Jacobian is singular at "
+				f"t={t:.16g} with step={step:.16g}."
+			) from exc
+
+		# Equation (21) orders each particle increment as (Delta Y, Delta mu),
+		# with Delta Y split into first-copy and second-copy coordinate pairs.
+		first_output = first_output + _packed_particle_blocks(increments[..., :2])
+		second_output = second_output + _packed_particle_blocks(increments[..., 2:4])
+		multiplier = multiplier + _packed_particle_blocks(increments[..., 4:])
+		stages = _evaluate_stages(dynamics, t, value, step, multiplier)
+
+	raise RuntimeError(
+		"ABBA implicit formulation 2 did not converge at "
+		f"t={t:.16g} with step={step:.16g}: "
+		f"simultaneous residual norm {residual_norm:.3e} exceeds "
+		f"{threshold:.3e} after {max_iterations} Newton iterations."
 	)
 
 
@@ -350,6 +500,8 @@ def _integrate_projected_abba(
 	request: SimulationRequest,
 	*,
 	method_name: str,
+	step_solver: Callable[..., _ProjectedStep],
+	solver_formulation: str,
 	newton_absolute_tolerance: float,
 	newton_relative_tolerance: float,
 	newton_max_iterations: int,
@@ -387,7 +539,7 @@ def _integrate_projected_abba(
 
 		def apply_step(candidate: np.ndarray) -> np.ndarray:
 			"""Apply this fixed-time projected ABBA map to one candidate."""
-			return _solve_projected_step(
+			return step_solver(
 				dynamics,
 				t,
 				candidate,
@@ -399,7 +551,7 @@ def _integrate_projected_abba(
 			).state
 
 		state_before = np.asarray(state, dtype=float)
-		result = _solve_projected_step(
+		result = step_solver(
 			dynamics,
 			t,
 			state_before,
@@ -462,6 +614,7 @@ def _integrate_projected_abba(
 		"newton_absolute_tolerance": newton_absolute_tolerance,
 		"newton_relative_tolerance": newton_relative_tolerance,
 		"newton_max_iterations": newton_max_iterations,
+		"projection_solver_formulation": solver_formulation,
 	}
 	if exact_tangent:
 		diagnostics.update(

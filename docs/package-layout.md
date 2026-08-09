@@ -9,7 +9,7 @@ name from the package that owns it.
 | `potential` | Periodic electrostatic field model | `Potential` |
 | `dynamics` | Equations of motion and capability protocols | `GuidingCenterDynamics`, `FullCyclotronDynamics` |
 | `initial_conditions` | Initial state layouts and geometry | `GCInitialConfiguration`, `FCInitialConfiguration`, `Area` |
-| `simulation` | Problems, methods, formulations, requests, and solutions | `InitialValueProblem`, `RK4`, `BM4Composition`, `SimulationRequest`, `Solution` |
+| `simulation` | Problems, methods, formulations, requests, and solutions | `InitialValueProblem`, `RK4`, `ImplicitABBA1`, `ImplicitABBA2`, `SimulationRequest`, `Solution` |
 | `diagnostics` | Optional observers and diagnostic persistence | projection and symplecticity observers |
 | `studies` | Reusable experiment assembly and summaries | configuration objects and `run_*_study` functions |
 | `visualization` | Optional plots, animations, and notebook display | `plot_potential`, `animate_gc_area_solution` |
@@ -43,6 +43,13 @@ Imports from implementation submodules are reserved for functionality that is
 intentionally specialized. For example, symbolic or diagnostic code may use a
 specific method module when it needs an internal map that is not part of the
 general simulation API.
+
+`ImplicitABBA1` and `ImplicitABBA2` expose the two nonlinear formulations of
+Hairer's symmetric ABBA projection. The first solves the reduced multiplier
+equation with independent `2 x 2` Newton blocks; the second implements the
+equivalent simultaneous equation (21) with independent `6 x 6` blocks. The
+legacy `SymmetricProjectedABBA` name remains a compatibility subclass of
+`ImplicitABBA1`.
 
 ## Dependency direction
 

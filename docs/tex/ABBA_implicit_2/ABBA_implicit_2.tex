@@ -1,0 +1,357 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[provide=*,english]{babel}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage{amsmath,amssymb,mathtools}
+\usepackage{geometry}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{booktabs}
+\usepackage{fancyhdr}
+\usepackage[hidelinks]{hyperref}
+
+\geometry{left=2.3cm,right=2.3cm,top=2.2cm,bottom=2.25cm,headheight=14pt}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0.38em}
+\setlist[itemize]{topsep=0.25em,itemsep=0.18em,leftmargin=1.5em}
+\allowdisplaybreaks
+
+\definecolor{blue}{RGB}{34,73,110}
+\definecolor{gray}{RGB}{90,96,102}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\color{gray}GC2D: ABBA method}
+\fancyhead[R]{\small\color{gray}Implicit 2: simultaneous equation (21)}
+\fancyfoot[C]{\thepage}
+\renewcommand{\headrulewidth}{0.3pt}
+
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\Id}{I}
+\newcommand{\Y}{\mathcal{Y}}
+\newcommand{\M}{\mathcal{M}}
+\newcommand{\Om}{\Omega_{\times}}
+\newcommand{\PhiAB}{\Phi^{\mathrm{ABBA}}_{h,t_n}}
+\newcommand{\norm}[1]{\left\lVert #1\right\rVert}
+
+\begin{document}
+
+\begin{center}
+  {\LARGE\bfseries\color{blue}Implicit ABBA 2 with Hairer's Symmetric Projection}\par
+  \vspace{0.35em}
+  {\large Simultaneous Newton formulation for the output state and multiplier}\par
+  \vspace{0.45em}
+  {\small GC2D implementation of equation (21) from the original implicit note}
+\end{center}
+
+\vspace{0.5em}
+
+\section{Purpose and relation to implicit ABBA 1}
+
+Implicit ABBA 2 computes the same exact projected map as implicit ABBA 1 but
+uses a different nonlinear system. Implicit ABBA 1 eliminates the duplicated
+output state and solves only for the two-component multiplier. Implicit ABBA 2
+retains both the four-component duplicated output and the multiplier as Newton
+unknowns. Consequently, for one guiding-centre particle, each Newton correction
+solves a $6\times6$ system rather than the reduced $2\times2$ Schur complement.
+
+The two formulations must converge to the same physical state whenever the
+projection root is locally unique and both nonlinear solves converge to that root.
+Finite tolerances and floating-point linear algebra can produce differences at the
+round-off level.
+
+\section{Guiding-centre and duplicated states}
+
+The physical state $z=(X,Y)\in\R^2$ satisfies
+\[
+ \dot z=f(z,t),
+ \qquad
+ f(z,t)=J_0\nabla_z\phi(z,t),
+ \qquad
+ J_0=
+ \begin{pmatrix}
+  0&-1\\
+  1&0
+ \end{pmatrix}.
+\]
+Its spatial Jacobian
+\[
+ W(z,t)=D_zf(z,t)=J_0\nabla_z^2\phi(z,t)
+\]
+satisfies $W^TJ_0+J_0W=0$ because the Hessian of $\phi$ is symmetric.
+
+The duplicated state and physical diagonal are
+\[
+ \Y=(u,v)\in\R^4,
+ \qquad
+ \M=\{(u,v):u=v\}.
+\]
+Define
+\[
+ G=(\Id_2\;-\Id_2),
+ \qquad
+ N=G^T=
+ \begin{pmatrix}\Id_2\\-\Id_2\end{pmatrix},
+ \qquad
+ E=
+ \begin{pmatrix}\Id_2\\\Id_2\end{pmatrix}.
+\]
+Then $Ez=(z,z)$ is diagonal, $N\mu=(\mu,-\mu)$ is a correction
+normal to the diagonal, and
+\[
+ GE=0,
+ \qquad
+ GN=GG^T=2\Id_2.
+\]
+
+\section{Endpoint-time ABBA map}
+
+Let $s=h/2$ and $t_{n+1}=t_n+h$. The nonautonomous ABBA map is
+\[
+ \PhiAB
+ =A_{s,t_{n+1}}\circ B_{s,t_{n+1}}
+  \circ B_{s,t_n}\circ A_{s,t_n},
+\]
+where
+\[
+ A_{s,t}(u,v)=\bigl(u+s f(v,t),v\bigr),
+ \qquad
+ B_{s,t}(u,v)=\bigl(u,v+s f(u,t)\bigr).
+\]
+Starting from $(u^{(0)},v^{(0)})$, the four explicit stages are
+\begin{align*}
+ u^{(1)}&=u^{(0)}+s f(v^{(0)},t_n),\\
+ v^{(1)}&=v^{(0)}+s f(u^{(1)},t_n),\\
+ v^{(2)}&=v^{(1)}+s f(u^{(1)},t_{n+1}),\\
+ u^{(2)}&=u^{(1)}+s f(v^{(2)},t_{n+1}).
+\end{align*}
+Thus $\PhiAB(u^{(0)},v^{(0)})=(u^{(2)},v^{(2)})$.
+The endpoint-time order makes the map symmetric:
+\[
+ \Phi^{\mathrm{ABBA}}_{-h,t_{n+1}}
+ =\left(\Phi^{\mathrm{ABBA}}_{h,t_n}\right)^{-1}.
+\]
+
+At the stage points, define
+\[
+ W_1=W(v^{(0)},t_n),\quad
+ W_2=W(u^{(1)},t_n),\quad
+ W_3=W(u^{(1)},t_{n+1}),\quad
+ W_4=W(v^{(2)},t_{n+1}),
+\]
+and $S=W_2+W_3$. The exact duplicated ABBA Jacobian is
+\[
+ D\PhiAB=
+ \begin{pmatrix}
+  \Id_2+s^2W_4S
+  &s(W_1+W_4)+s^3W_4SW_1\\[2mm]
+  sS
+  &\Id_2+s^2SW_1
+ \end{pmatrix}.
+\]
+The matrix products retain this order because stage Jacobians evaluated at
+different points need not commute.
+
+\section{Simultaneous projection equations}
+
+Given the diagonal input $\Y_n=Ez_n$, pre-correct the two copies by the
+unknown multiplier:
+\[
+ \widehat{\Y}_n(\mu)=\Y_n+N\mu=(z_n+\mu,z_n-\mu).
+\]
+Implicit ABBA 2 retains the diagonal output $\Y_{n+1}$ as an additional
+unknown and imposes
+\[
+ d(\Y_{n+1},\mu)
+ :=\Y_{n+1}-N\mu
+   -\PhiAB(\Y_n+N\mu)=0,
+\]
+\[
+ g(\Y_{n+1}):=G\Y_{n+1}=0.
+\]
+The first equation states that the same multiplier used to separate the input
+copies is applied with the opposite placement around the ABBA output. The second
+equation constrains the final copies to the physical diagonal.
+
+Writing $\Y_{n+1}=(y_u,y_v)$, the residual components used by the implementation are
+\[
+ d_u=y_u-\mu-u^{(2)}(\mu),
+ \qquad
+ d_v=y_v+\mu-v^{(2)}(\mu),
+ \qquad
+ g=y_u-y_v.
+\]
+
+\section{Exact simultaneous Newton system}
+
+Because $G$ and $N=G^T$ are constant,
+\[
+ D_{\Y_{n+1}}d=\Id_4,
+ \qquad
+ D_\mu d=-\left[\Id_4+D\PhiAB(\widehat{\Y}_n)\right]N,
+\]
+\[
+ D_{\Y_{n+1}}g=G,
+ \qquad
+ D_\mu g=0.
+\]
+Therefore, at Newton iterate $(\Y_{n+1}^{(k)},\mu^{(k)})$, implicit ABBA 2
+solves
+\[
+ \boxed{
+ \begin{pmatrix}
+  \Id_4&-\left[\Id_4+D\PhiAB(\widehat{\Y}_n)\right]G^T\\[2pt]
+  G&0
+ \end{pmatrix}
+ \begin{pmatrix}
+  \Delta\Y_{n+1}\\
+  \Delta\mu
+ \end{pmatrix}
+ =-
+ \begin{pmatrix}
+  d(\Y_{n+1},\mu)\\
+  g(\Y_{n+1})
+ \end{pmatrix}.
+ } \tag{21}
+\]
+The number (21) is retained deliberately to identify the equation from the
+original \texttt{ABBA\_implicit} document.
+
+The update is
+\[
+ \Y_{n+1}^{(k+1)}=\Y_{n+1}^{(k)}+\Delta\Y_{n+1},
+ \qquad
+ \mu^{(k+1)}=\mu^{(k)}+\Delta\mu.
+\]
+No inverse is formed explicitly; a dense linear solve is used for each
+$6\times6$ particle block.
+
+\section{Schur complement and equivalence to implicit ABBA 1}
+
+Eliminating $\Delta\Y_{n+1}$ from (21) gives the Schur complement
+\[
+ \mathcal K
+ =G\left[\Id_4+D\PhiAB(\widehat{\Y}_n)\right]G^T
+ =2\Id_2+GD\PhiAB(\widehat{\Y}_n)G^T.
+\]
+Let the reduced residual be
+\[
+ R(\mu)=G\PhiAB(\Y_n+G^T\mu)+2\mu.
+\]
+Then
+\[
+ \mathcal K=R'(\mu).
+\]
+Moreover, from the definitions of $d$ and $g$,
+\[
+ Gd=g-R(\mu).
+\]
+The second block row of (21), after substituting the first one, therefore yields
+\[
+ \mathcal K\,\Delta\mu=-R(\mu).
+\]
+This is exactly the reduced Newton correction used by implicit ABBA 1. Hence both
+algorithms generate the same multiplier iterates in exact arithmetic when they start
+from the same $\mu^{(0)}$, even though implicit ABBA 2 also updates the duplicated
+output unknown.
+
+\section{Initial iterate and convergence criterion}
+
+The implementation uses
+\[
+ \mu^{(0)}=0,
+ \qquad
+ \Y_{n+1}^{(0)}=\PhiAB(\Y_n).
+\]
+This makes $d=0$ initially while leaving the diagonal defect $g$ to drive the first
+Newton correction. For a physical input scale
+\[
+ s_z=\max\bigl(1,\norm{z_n}_\infty\bigr),
+\]
+the iteration stops when
+\[
+ \max\left(\norm{d}_\infty,\norm{g}_\infty\right)
+ \leq \text{atol}+\text{rtol}\,s_z.
+\]
+Newton is not damped, so the residual norm is not required to decrease monotonically.
+Failure to converge within the configured iteration count, or a singular simultaneous
+Jacobian, terminates the integration step with an error.
+
+For $N_p$ independent guiding-centre particles, physical states use component-major
+storage,
+\[
+ (X_1,\ldots,X_{N_p},Y_1,\ldots,Y_{N_p}),
+\]
+but equation (21) is assembled as $N_p$ independent $6\times6$ systems. This preserves
+the absence of artificial cross-particle derivatives while allowing a vectorized solve.
+
+At convergence, $y_u$ and $y_v$ agree up to the stopping tolerance. The physical state is
+represented neutrally by
+\[
+ z_{n+1}=\frac{y_u+y_v}{2}.
+\]
+
+\section{Symmetry and symplecticity of the converged map}
+
+At the exact root, both formulations satisfy
+\[
+ \Y_{n+1}-N\mu
+ =\Phi^{\mathrm{ABBA}}_{h,t_n}(\Y_n+N\mu),
+ \qquad
+ \Y_n,\Y_{n+1}\in\M.
+\]
+Using the inverse ABBA map and defining the reverse multiplier as
+$\mu_{\mathrm{inv}}=-\mu$ gives
+\[
+ \Psi_{-h,t_{n+1}}\circ\Psi_{h,t_n}=\Id,
+\]
+provided the root is locally unique and solved exactly.
+
+The duplicated symplectic form is
+\[
+ \Om=
+ \begin{pmatrix}
+  0&J_0\\
+  J_0&0
+ \end{pmatrix}.
+\]
+Every $A$ and $B$ shear preserves $\Om$, and therefore so does $\PhiAB$. The
+diagonal and correction directions satisfy
+\[
+ E^T\Om E=2J_0,
+ \qquad
+ N^T\Om N=-2J_0,
+ \qquad
+ E^T\Om N=N^T\Om E=0.
+\]
+Differentiating the exact projected equation with
+$M=D\mu_h(z)$ and $J_\Psi=D\Psi_{h,t_n}(z)$ gives
+\[
+ D\PhiAB(E+NM)=EJ_\Psi-NM.
+\]
+Preservation of $\Om$ and the orthogonality identities cancel the terms containing
+$M$, leaving
+\[
+ \boxed{J_\Psi^TJ_0J_\Psi=J_0.}
+\]
+Thus implicit ABBA 2 is the same symmetric and symplectic physical map as implicit
+ABBA 1 at the exact root. In finite arithmetic, measured reversibility and symplecticity
+also include the simultaneous Newton tolerance and linear-solve round-off.
+
+\section{Implementation correspondence}
+
+The production implementation follows the mathematical blocks directly:
+\begin{itemize}
+ \item the endpoint-time stages evaluate $\PhiAB$;
+ \item their exact derivatives assemble $D\PhiAB$;
+ \item each particle receives the $6\times6$ matrix in equation (21);
+ \item diagnostics record the simultaneous residual norm, iteration count, and
+       multiplier norm;
+ \item the optional ideal physical tangent is evaluated by implicit differentiation
+       of the common exact root, independently of the finite Newton stopping decision.
+\end{itemize}
+
+\end{document}
