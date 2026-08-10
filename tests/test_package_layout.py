@@ -8,10 +8,11 @@ import subprocess
 import sys
 import unittest
 
+import simulation
 from dynamics import GuidingCenterDynamics
 from initial_conditions import GCInitialConfiguration
 from potential import Potential
-from simulation import RK4
+from simulation import ImplicitABBA1, RK4
 
 
 class PackageLayoutTests(unittest.TestCase):
@@ -36,11 +37,14 @@ class PackageLayoutTests(unittest.TestCase):
 		self.assertIsNotNone(GuidingCenterDynamics)
 		self.assertIsNotNone(GCInitialConfiguration)
 		self.assertIsNotNone(Potential)
+		self.assertIsNotNone(ImplicitABBA1)
 		self.assertIsNotNone(RK4)
 
 	def test_removed_namespaces_are_not_importable(self) -> None:
 		for package in ("gc2d", "classes", "research", "workflows"):
 			self.assertIsNone(importlib.util.find_spec(package), package)
+		self.assertIsNone(importlib.util.find_spec("simulation.methods.abba"))
+		self.assertFalse(hasattr(simulation, "SymmetricProjectedABBA"))
 
 	def test_core_packages_do_not_require_matplotlib(self) -> None:
 		project_root = Path(__file__).resolve().parents[1]

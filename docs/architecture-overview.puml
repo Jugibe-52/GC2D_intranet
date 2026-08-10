@@ -61,8 +61,8 @@ note bottom of Solution
 end note
 
 note bottom of NumericalMethod
-  Implicit ABBA 1 uses the reduced multiplier
-  equation, while implicit ABBA 2 solves the
+  The public ImplicitABBA1 method uses the reduced multiplier
+  equation, while ImplicitABBA2 solves the
   equivalent simultaneous output-multiplier system.
   Both converge to the same projected physical map.
   Physical step Jacobians are optional diagnostics,

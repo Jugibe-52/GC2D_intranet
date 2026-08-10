@@ -1,6 +1,5 @@
 """Interoperable numerical methods."""
 
-from .abba import SymmetricProjectedABBA
 from .abba_explicit import ExplicitABBA
 from .abba_implicit_1 import ImplicitABBA1
 from .abba_implicit_2 import ImplicitABBA2
@@ -16,5 +15,4 @@ __all__ = [
 	"NumericalMethod",
 	"ProjectedBM4Composition",
 	"RK4",
-	"SymmetricProjectedABBA",
 ]

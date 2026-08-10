@@ -47,9 +47,7 @@ general simulation API.
 `ImplicitABBA1` and `ImplicitABBA2` expose the two nonlinear formulations of
 Hairer's symmetric ABBA projection. The first solves the reduced multiplier
 equation with independent `2 x 2` Newton blocks; the second implements the
-equivalent simultaneous equation (21) with independent `6 x 6` blocks. The
-legacy `SymmetricProjectedABBA` name remains a compatibility subclass of
-`ImplicitABBA1`.
+equivalent simultaneous equation (21) with independent `6 x 6` blocks.
 
 ## Dependency direction
 

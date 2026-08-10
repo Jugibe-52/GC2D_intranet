@@ -7,8 +7,8 @@ from initial_conditions import GCInitialConfiguration
 from potential import Potential
 from simulation import (
 	InitialValueProblem,
+	ImplicitABBA1,
 	SimulationRequest,
-	SymmetricProjectedABBA,
 	simulate,
 )
 
@@ -31,7 +31,7 @@ request = SimulationRequest.uniform(
 	max_step=0.05,
 	sample_count=5,
 )
-solution = simulate(problem, SymmetricProjectedABBA(), request)
+solution = simulate(problem, ImplicitABBA1(), request)
 
 print(f"steps: {solution.diagnostics['step_count']}")
 print(f"Newton iterations: {solution.diagnostics['newton_iterations']}")

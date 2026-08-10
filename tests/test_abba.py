@@ -20,12 +20,12 @@ from initial_conditions import (
 )
 from potential import Potential
 from simulation import (
+	ImplicitABBA1,
 	InitialValueProblem,
 	SimulationRequest,
-	SymmetricProjectedABBA,
 	simulate,
 )
-from simulation.methods.abba import (
+from simulation.methods._projected_abba import (
 	_evaluate_residual,
 	_solve_projected_step,
 )
@@ -138,7 +138,7 @@ class GuidingCenterJacobianTests(unittest.TestCase):
 			)
 
 
-class SymmetricProjectedABBATests(unittest.TestCase):
+class ImplicitABBA1Tests(unittest.TestCase):
 	"""Verify the ABBA stages, exact Newton solve and method integration."""
 
 	def test_reduced_residual_jacobian_matches_centered_differences(self) -> None:
@@ -178,7 +178,7 @@ class SymmetricProjectedABBATests(unittest.TestCase):
 				dynamics,
 				TrajectoryGC(initial_state, rho=0.05),
 			),
-			SymmetricProjectedABBA(step_observer=lambda _step: None),
+			ImplicitABBA1(step_observer=lambda _step: None),
 			SimulationRequest.uniform(
 				t_span=(start, start + step),
 				max_step=step,
@@ -209,7 +209,7 @@ class SymmetricProjectedABBATests(unittest.TestCase):
 				unobserved_dynamics,
 				TrajectoryGC(initial_state, rho=0.05),
 			),
-			SymmetricProjectedABBA(),
+			ImplicitABBA1(),
 			SimulationRequest.uniform(
 				t_span=(start, start + step),
 				max_step=step,
@@ -299,7 +299,7 @@ class SymmetricProjectedABBATests(unittest.TestCase):
 		def final_state(step: float) -> np.ndarray:
 			return simulate(
 				problem,
-				SymmetricProjectedABBA(
+				ImplicitABBA1(
 					newton_absolute_tolerance=1e-14,
 					newton_relative_tolerance=1e-14,
 				),
@@ -323,7 +323,7 @@ class SymmetricProjectedABBATests(unittest.TestCase):
 		events = []
 		observed = simulate(
 			problem,
-			SymmetricProjectedABBA(step_observer=events.append),
+			ImplicitABBA1(step_observer=events.append),
 			SimulationRequest.uniform(
 				t_span=(0.0, 0.05),
 				max_step=0.02,
@@ -332,7 +332,7 @@ class SymmetricProjectedABBATests(unittest.TestCase):
 		)
 		sparse = simulate(
 			problem,
-			SymmetricProjectedABBA(),
+			ImplicitABBA1(),
 			SimulationRequest.uniform(
 				t_span=(0.0, 0.05),
 				max_step=0.02,
@@ -367,7 +367,7 @@ class SymmetricProjectedABBATests(unittest.TestCase):
 		)
 		solution = simulate(
 			zero_problem,
-			SymmetricProjectedABBA(),
+			ImplicitABBA1(),
 			SimulationRequest.uniform(
 				t_span=(0.0, 0.1),
 				max_step=0.02,
@@ -381,11 +381,11 @@ class SymmetricProjectedABBATests(unittest.TestCase):
 		np.testing.assert_array_equal(solution.diagnostics["newton_iterations"], 0)
 
 		with self.assertRaises(ValueError):
-			SymmetricProjectedABBA(newton_absolute_tolerance=True)
+			ImplicitABBA1(newton_absolute_tolerance=True)
 		with self.assertRaises(ValueError):
-			SymmetricProjectedABBA(newton_relative_tolerance=0.0)
+			ImplicitABBA1(newton_relative_tolerance=0.0)
 		with self.assertRaises(ValueError):
-			SymmetricProjectedABBA(newton_max_iterations=0)
+			ImplicitABBA1(newton_max_iterations=0)
 
 		fc_source = FCInitialConfiguration(
 			np.asarray([1.0, 1.2, 0.4, -0.3]),
@@ -401,7 +401,7 @@ class SymmetricProjectedABBATests(unittest.TestCase):
 		with self.assertRaisesRegex(TypeError, "GuidingCenterJacobianSystem"):
 			simulate(
 				fc_problem,
-				SymmetricProjectedABBA(),
+				ImplicitABBA1(),
 				SimulationRequest.uniform(
 					t_span=(0.0, 0.01),
 					max_step=0.01,
@@ -420,7 +420,7 @@ class SymmetricProjectedABBATests(unittest.TestCase):
 		):
 			simulate(
 				problem,
-				SymmetricProjectedABBA(
+				ImplicitABBA1(
 					newton_absolute_tolerance=1e-30,
 					newton_relative_tolerance=1e-30,
 					newton_max_iterations=1,
@@ -480,7 +480,7 @@ class ABBASymplecticityStudyTests(unittest.TestCase):
 					"centered_difference_of_emitted_solver_map",
 				)
 
-		self.assertEqual(result.method_name, "SymmetricProjectedABBA")
+		self.assertEqual(result.method_name, "ImplicitABBA1")
 		self.assertEqual(len(result.summaries()), 2)
 		self.assertEqual(len(result.projection_multiplier_orders()), 1)
 		for summary in result.summaries():

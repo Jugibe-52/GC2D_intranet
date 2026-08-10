@@ -19,7 +19,7 @@ from simulation import (
 	SimulationRequest,
 	simulate,
 )
-from simulation.methods.abba import (
+from simulation.methods._projected_abba import (
 	_differentiate_stages,
 	_evaluate_stages,
 	_simultaneous_newton_jacobian,

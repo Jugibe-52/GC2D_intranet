@@ -149,7 +149,6 @@ package "Numerical methods" as Methods {
   class ExplicitABBA
   class ImplicitABBA1
   class ImplicitABBA2
-  class SymmetricProjectedABBA
 
   NumericalMethod <|.. RK4
   NumericalMethod <|.. BM4Composition
@@ -157,7 +156,6 @@ package "Numerical methods" as Methods {
   NumericalMethod <|.. ExplicitABBA
   NumericalMethod <|.. ImplicitABBA1
   NumericalMethod <|.. ImplicitABBA2
-  ImplicitABBA1 <|-- SymmetricProjectedABBA
 }
 
 RK4 ..> DynamicalSystem : requires vector field
@@ -225,7 +223,6 @@ RK4 --> IntegrationStep : optional observation
 ExplicitABBA --> IntegrationStep : optional observation
 ImplicitABBA1 --> ImplicitABBAIntegrationStep : converged stage data
 ImplicitABBA2 --> ImplicitABBAIntegrationStep : converged stage data
-SymmetricProjectedABBA --> ImplicitABBAIntegrationStep : compatibility alias
 
 note right of Area
   Area is a GC initial configuration
@@ -273,14 +270,6 @@ note bottom of ImplicitABBA2
   Equation (21) retains the duplicated output and
   multiplier as simultaneous unknowns, producing
   one exact 6x6 Newton block per GC particle.
-end note
-
-note bottom of SymmetricProjectedABBA
-  Backward-compatible public name for ImplicitABBA1.
-  It emits the same converged stage snapshots, while
-  tangent calculations remain optional diagnostics.
-  This two-sided symmetric projection is distinct from
-  the twelve irreversible averages of projected BM4.
 end note
 
 note bottom of ExplicitABBA
@@ -335,7 +324,7 @@ ExplicitABBASymplecticityStudy ..> SimulationRunner
 ExplicitABBASymplecticityStudy ..> ExplicitABBA
 ExplicitABBASymplecticityStudy ..> IntegrationStep : analyzes
 ABBASymplecticityStudy ..> SimulationRunner
-ABBASymplecticityStudy ..> SymmetricProjectedABBA
+ABBASymplecticityStudy ..> ImplicitABBA1
 ABBASymplecticityStudy ..> IntegrationStep : analyzes
 ImplicitABBASymplecticityStudy ..> ImplicitABBA1
 ImplicitABBASymplecticityStudy ..> ImplicitABBA2
