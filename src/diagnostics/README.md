@@ -2,9 +2,12 @@
 
 This package contains opt-in numerical diagnostics used by reproducible studies.
 Production methods emit neutral integration-stage or complete-step
-observations; finite-difference Jacobians, symplecticity metrics, and output
+observations; Jacobian calculations, symplecticity metrics, and output
 persistence live here so they cannot affect simulations unless an observer is
-explicitly passed.
+explicitly passed. Generic complete-step maps use centered differences.
+Implicit ABBA step observations additionally expose their converged stages, so
+diagnostics can select either the implicit-function factorization or the
+equivalent stage-increment factorization of the ideal-root tangent.
 
 `diagnostics.symplecticity.SymplecticityObserver` studies the two-copy GC
 state with `track_energy=False`. It writes indexed blocks below:
@@ -26,4 +29,6 @@ polygon area.
 `diagnostics.symplecticity.GCAreaSymplecticityObserver` differentiates
 complete physical GC steps. It records both the local symplecticity defect of
 each numerical step and the accumulated defect, determinant drift, and
-transported area of the discrete flow.
+transported area of the discrete flow. Its `jacobian_method` is one of
+`finite_difference`, `implicit_function`, or `stage_increment`; the two
+analytic choices require an implicit ABBA step observation.

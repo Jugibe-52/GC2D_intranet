@@ -121,14 +121,21 @@ class ABBASymplecticityResult(GCSymplecticityResult):
 		return tuple(orders)
 
 	def print_summary(self) -> None:
-		"""Print finite-tolerance ABBA defects without inferring trajectory order."""
+		"""Print ABBA defects and identify the Jacobian diagnostic used."""
 		GCSymplecticityResult.print_summary(self)
-		print(
-			"\nThe observer differentiates the emitted finite-tolerance ABBA map by "
-			"centered differences. The reported defects include differentiation, "
-			"Newton, and floating-point floors; no trajectory convergence order is "
-			"inferred."
-		)
+		if self.jacobian_method == "finite_difference":
+			print(
+				"\nThe observer differentiates the emitted finite-tolerance ABBA map by "
+				"centered differences. The reported defects include differentiation, "
+				"Newton, and floating-point floors."
+			)
+		else:
+			print(
+				"\nThe observer evaluates the ideal converged-root ABBA tangent with "
+				f"the '{self.jacobian_method}' diagnostic factorization. The reported "
+				"defects contain Newton-stage and floating-point effects but no "
+				"finite-difference floor."
+			)
 		print("\nEmpirical scaling of the maximum projection multiplier (expected ~3):")
 		for order in self.projection_multiplier_orders():
 			print(

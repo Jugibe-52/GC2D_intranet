@@ -150,7 +150,6 @@ package "Numerical methods" as Methods {
   class ImplicitABBA1
   class ImplicitABBA2
   class SymmetricProjectedABBA
-  class SemiImplicitABBA
 
   NumericalMethod <|.. RK4
   NumericalMethod <|.. BM4Composition
@@ -159,7 +158,6 @@ package "Numerical methods" as Methods {
   NumericalMethod <|.. ImplicitABBA1
   NumericalMethod <|.. ImplicitABBA2
   ImplicitABBA1 <|-- SymmetricProjectedABBA
-  SymmetricProjectedABBA <|-- SemiImplicitABBA
 }
 
 RK4 ..> DynamicalSystem : requires vector field
@@ -194,8 +192,18 @@ package "Simulation" as Simulation {
     + time: float
     + duration: float
     + map_state(state): Array
-    + state_jacobian: Array?
   }
+
+  class ImplicitABBAIntegrationStep {
+    + formulation_name: str
+    + start_time: float
+    + dynamics: GuidingCenterJacobianSystem
+    + multiplier: Array
+    + converged ABBA stage snapshots
+  }
+
+IntegrationStep <|-- ImplicitABBAIntegrationStep
+ImplicitABBAIntegrationStep --> GuidingCenterJacobianSystem : exposes dynamics
 
   class Solution {
     + source: InitialConfiguration
@@ -215,10 +223,9 @@ SimulationRunner --> Solution : builds
 Solution o-- InitialConfiguration : source
 RK4 --> IntegrationStep : optional observation
 ExplicitABBA --> IntegrationStep : optional observation
-ImplicitABBA1 --> IntegrationStep : optional observation
-ImplicitABBA2 --> IntegrationStep : optional observation
-SymmetricProjectedABBA --> IntegrationStep : optional observation
-SemiImplicitABBA --> IntegrationStep : exact physical tangent
+ImplicitABBA1 --> ImplicitABBAIntegrationStep : converged stage data
+ImplicitABBA2 --> ImplicitABBAIntegrationStep : converged stage data
+SymmetricProjectedABBA --> ImplicitABBAIntegrationStep : compatibility alias
 
 note right of Area
   Area is a GC initial configuration
@@ -270,17 +277,10 @@ end note
 
 note bottom of SymmetricProjectedABBA
   Backward-compatible public name for ImplicitABBA1.
-  Symplecticity observers differentiate the emitted
-  finite-tolerance step map by centered differences.
+  It emits the same converged stage snapshots, while
+  tangent calculations remain optional diagnostics.
   This two-sided symmetric projection is distinct from
   the twelve irreversible averages of projected BM4.
-end note
-
-note bottom of SemiImplicitABBA
-  The physical step is the same symmetric projected
-  ABBA map. At each converged main step it evaluates
-  the ideal implicit-function Jacobian, propagates the
-  accumulated tangent, and emits the exact local matrix.
 end note
 
 note bottom of ExplicitABBA
@@ -304,7 +304,6 @@ package "Reusable studies" as Studies {
   class ExplicitABBASymplecticityStudy
   class ABBASymplecticityStudy
   class ImplicitABBASymplecticityStudy
-  class SemiImplicitABBASymplecticityStudy
   class ABBAComparisonStudy
 }
 
@@ -317,6 +316,11 @@ package "Optional visualization" as Visualization {
 
 package "Opt-in diagnostics" as Diagnostics {
   class SymplecticityObservers
+  class StepJacobianDiagnostics {
+    + finite_difference(step): Array
+    + implicit_function(step): Array
+    + stage_increment(step): Array
+  }
   class DiagnosticBlockWriter
 }
 
@@ -335,13 +339,10 @@ ABBASymplecticityStudy ..> SymmetricProjectedABBA
 ABBASymplecticityStudy ..> IntegrationStep : analyzes
 ImplicitABBASymplecticityStudy ..> ImplicitABBA1
 ImplicitABBASymplecticityStudy ..> ImplicitABBA2
-ImplicitABBASymplecticityStudy ..> IntegrationStep : compares finite-tolerance maps
-SemiImplicitABBASymplecticityStudy ..> SimulationRunner
-SemiImplicitABBASymplecticityStudy ..> SemiImplicitABBA
-SemiImplicitABBASymplecticityStudy ..> IntegrationStep : exact tangent
+ImplicitABBASymplecticityStudy ..> SymplecticityObservers : configurable fan-out
+ImplicitABBASymplecticityStudy ..> ImplicitABBAIntegrationStep : analyzes
 ABBAComparisonStudy ..> ExplicitABBASymplecticityStudy : one run; times outside observer
-ABBAComparisonStudy ..> ABBASymplecticityStudy : one run; times outside observer
-ABBAComparisonStudy ..> SemiImplicitABBASymplecticityStudy : one run; times outside observer
+ABBAComparisonStudy ..> ImplicitABBASymplecticityStudy : formulations 1 and 2
 ABBAComparisonStudy ..> Solution : compares periodic trajectories
 PotentialVisualization ..> Potential
 GCAreaVisualization ..> Potential
@@ -351,6 +352,8 @@ SingleParticleVisualization ..> Potential
 SingleParticleVisualization ..> Solution
 SymplecticityObservers ..> IntegrationStage
 SymplecticityObservers ..> IntegrationStep
+SymplecticityObservers o-- StepJacobianDiagnostics : selected strategy
+StepJacobianDiagnostics ..> ImplicitABBAIntegrationStep : analytic methods
 SymplecticityObservers --> DiagnosticBlockWriter : persists CSV/NPZ/JSON
 
 note top of Dynamics

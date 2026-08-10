@@ -31,7 +31,6 @@ class _ImplicitABBA:
 
 	_step_solver: ClassVar[Callable[..., _ProjectedStep]] = _solve_projected_step
 	_solver_formulation: ClassVar[str] = "implicit_1_reduced_equation_11"
-	_exact_tangent: ClassVar[bool] = False
 
 	def __post_init__(self) -> None:
 		"""Validate the nonlinear projection solver configuration."""
@@ -77,7 +76,6 @@ class _ImplicitABBA:
 			newton_max_iterations=self.newton_max_iterations,
 			progress=self.progress,
 			step_observer=self.step_observer,
-			exact_tangent=type(self)._exact_tangent,
 		)
 
 

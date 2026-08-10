@@ -16,10 +16,15 @@ from .methods import (
 	NumericalMethod,
 	ProjectedBM4Composition,
 	RK4,
-	SemiImplicitABBA,
 	SymmetricProjectedABBA,
 )
-from .observation import IntegrationStage, IntegrationStep, StageObserver, StepObserver
+from .observation import (
+	ImplicitABBAIntegrationStep,
+	IntegrationStage,
+	IntegrationStep,
+	StageObserver,
+	StepObserver,
+)
 from .problem import InitialValueProblem
 from .request import SimulationRequest
 from .runner import SimulationRunner, simulate
@@ -36,12 +41,12 @@ __all__ = [
 	"GCStageProjectedFormulation",
 	"InitialConfiguration",
 	"InitialValueProblem",
+	"ImplicitABBAIntegrationStep",
 	"IntegrationStage",
 	"IntegrationStep",
 	"NumericalMethod",
 	"ProjectedBM4Composition",
 	"RK4",
-	"SemiImplicitABBA",
 	"SimulationRequest",
 	"SimulationRunner",
 	"Solution",

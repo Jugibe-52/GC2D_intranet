@@ -5,15 +5,20 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 from datetime import date
 from pathlib import Path
-from typing import Any, Literal, Mapping
+from typing import Any, Mapping
 
 import numpy as np
 
 from initial_conditions import Area
-from simulation import IntegrationStep
+from simulation import ImplicitABBAIntegrationStep, IntegrationStep
 from diagnostics.output import write_diagnostic_block
 
-from .observer import central_difference_jacobian, gc_physical_symplectic_form
+from .jacobians import (
+	STEP_JACOBIAN_METHODS,
+	StepJacobianMethod,
+	calculate_step_jacobian,
+)
+from .observer import gc_physical_symplectic_form
 from .paths import next_block_index, notebook_output_directory, validate_block_name
 
 
@@ -64,11 +69,10 @@ class _BufferedSample:
 class GCAreaSymplecticityObserver:
 	"""Propagate the Jacobian of a physical GC numerical flow.
 
-	Each complete numerical step supplies either a centered-difference Jacobian or
-	a method-computed exact Jacobian. The selected matrix advances the accumulated
-	derivative of the discrete flow from the initial condition. ``record_every``
-	controls persistence only: every step Jacobian still contributes to the
-	accumulated tangent.
+	Each complete numerical step is differentiated by the configured diagnostic
+	method. The selected matrix advances the accumulated derivative of the discrete
+	flow from the initial condition. ``record_every`` controls persistence only:
+	every step Jacobian still contributes to the accumulated tangent.
 	"""
 
 	def __init__(
@@ -83,7 +87,7 @@ class GCAreaSymplecticityObserver:
 		record_every: int = 1,
 		chunk_size: int = 16,
 		relative_step: float | None = None,
-		jacobian_source: Literal["finite_difference", "exact"] = "finite_difference",
+		jacobian_method: StepJacobianMethod = "finite_difference",
 		verbose: bool = True,
 		metadata: Mapping[str, Any] | None = None,
 	) -> None:
@@ -106,13 +110,15 @@ class GCAreaSymplecticityObserver:
 			not np.isfinite(float(relative_step)) or float(relative_step) <= 0
 		):
 			raise ValueError("`relative_step` must be positive and finite.")
-		if jacobian_source not in ("finite_difference", "exact"):
+		if jacobian_method not in STEP_JACOBIAN_METHODS:
 			raise ValueError(
-				"`jacobian_source` must be 'finite_difference' or 'exact'."
+				"`jacobian_method` must be 'finite_difference', "
+				"'implicit_function', or 'stage_increment'."
 			)
-		if jacobian_source == "exact" and relative_step is not None:
+		if jacobian_method != "finite_difference" and relative_step is not None:
 			raise ValueError(
-				"`relative_step` is not used when `jacobian_source='exact'`."
+				"`relative_step` is used only when "
+				"`jacobian_method='finite_difference'`."
 			)
 
 		initial_state = area.initial_state
@@ -140,7 +146,7 @@ class GCAreaSymplecticityObserver:
 		self.record_every = int(record_every)
 		self.chunk_size = int(chunk_size)
 		self.relative_step = relative_step
-		self.jacobian_source = jacobian_source
+		self.jacobian_method = jacobian_method
 		self.verbose = bool(verbose)
 		self.metadata = dict(metadata or {})
 		self._accumulated_jacobian = np.eye(self.physical_size)
@@ -200,7 +206,11 @@ class GCAreaSymplecticityObserver:
 			identity = np.eye(self.physical_size)
 			self._append_record(
 				step_index=-1,
-				time=step.time - step.duration,
+				time=(
+					step.start_time
+					if isinstance(step, ImplicitABBAIntegrationStep)
+					else step.time - step.duration
+				),
 				duration=0.0,
 				state=state_before,
 				local_jacobian=identity,
@@ -208,14 +218,11 @@ class GCAreaSymplecticityObserver:
 			)
 			self._initialized = True
 
-		if self.jacobian_source == "exact":
-			local_jacobian = self._validated_exact_jacobian(step.state_jacobian)
-		else:
-			local_jacobian = central_difference_jacobian(
-				step.map_state,
-				state_before,
-				relative_step=self.relative_step,
-			)
+		local_jacobian = calculate_step_jacobian(
+			step,
+			method=self.jacobian_method,
+			relative_step=self.relative_step,
+		)
 		self._accumulated_jacobian = (
 			local_jacobian @ self._accumulated_jacobian
 		)
@@ -249,24 +256,6 @@ class GCAreaSymplecticityObserver:
 			raise ValueError(
 				"Physical GC diagnostics require the finite 2N state; "
 				"run the method with `track_energy=False`."
-			)
-		return value
-
-	def _validated_exact_jacobian(
-		self,
-		jacobian: np.ndarray | None,
-	) -> np.ndarray:
-		"""Require one finite method-provided physical tangent matrix."""
-		if jacobian is None:
-			raise ValueError(
-				"Exact GC diagnostics require `IntegrationStep.state_jacobian`."
-			)
-		value = np.asarray(jacobian, dtype=float)
-		expected_shape = (self.physical_size, self.physical_size)
-		if value.shape != expected_shape or not np.all(np.isfinite(value)):
-			raise ValueError(
-				"The exact physical step Jacobian must be a finite square matrix "
-				f"with shape {expected_shape}."
 			)
 		return value
 
@@ -373,10 +362,10 @@ class GCAreaSymplecticityObserver:
 				"initial_signed_area": self.initial_area,
 				"period": self.period,
 				"record_every_complete_steps": self.record_every,
-				"step_jacobian_source": self.jacobian_source,
+				"step_jacobian_method": self.jacobian_method,
 				"finite_difference_relative_step": (
 				None
-				if self.jacobian_source == "exact"
+				if self.jacobian_method != "finite_difference"
 				else (
 					float(np.cbrt(np.finfo(float).eps))
 					if self.relative_step is None

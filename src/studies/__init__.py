@@ -24,20 +24,18 @@ from .abba_explicit_symplecticity import (
 	run_explicit_abba_symplecticity_study,
 )
 from .abba_implicit_symplecticity import (
+	DEFAULT_IMPLICIT_ABBA_OBSERVERS,
 	IMPLICIT_ABBA_FORMULATIONS,
+	IMPLICIT_ABBA_JACOBIAN_METHODS,
 	ImplicitABBA1SymplecticityResult,
 	ImplicitABBA2SymplecticityResult,
+	ImplicitABBAFormulation,
+	ImplicitABBAObserverConfig,
 	ImplicitABBASymplecticityComparison,
 	ImplicitABBASymplecticityConfig,
 	run_implicit_abba_1_symplecticity_study,
 	run_implicit_abba_2_symplecticity_study,
 	run_implicit_abba_symplecticity_study,
-)
-from .abba_semiimplicit_symplecticity import (
-	SemiImplicitABBASymplecticityConfig,
-	SemiImplicitABBASymplecticityResult,
-	SemiImplicitABBASymplecticitySummary,
-	run_semiimplicit_abba_symplecticity_study,
 )
 from .area_comparison import (
 	AreaComparisonConfig,
@@ -81,6 +79,7 @@ __all__ = [
 	"AreaComparisonConfig",
 	"AreaComparisonResult",
 	"AreaStep",
+	"DEFAULT_IMPLICIT_ABBA_OBSERVERS",
 	"ExplicitABBADefectOrder",
 	"ExplicitABBASymplecticityConfig",
 	"ExplicitABBASymplecticityResult",
@@ -88,8 +87,11 @@ __all__ = [
 	"GeneralizedEnergyConfig",
 	"GeneralizedEnergyResult",
 	"IMPLICIT_ABBA_FORMULATIONS",
+	"IMPLICIT_ABBA_JACOBIAN_METHODS",
 	"ImplicitABBA1SymplecticityResult",
 	"ImplicitABBA2SymplecticityResult",
+	"ImplicitABBAFormulation",
+	"ImplicitABBAObserverConfig",
 	"ImplicitABBASymplecticityComparison",
 	"ImplicitABBASymplecticityConfig",
 	"RandomPotentialConfig",
@@ -97,9 +99,6 @@ __all__ = [
 	"RK4SymplecticityConfig",
 	"RK4SymplecticityResult",
 	"RK4SymplecticitySummary",
-	"SemiImplicitABBASymplecticityConfig",
-	"SemiImplicitABBASymplecticityResult",
-	"SemiImplicitABBASymplecticitySummary",
 	"centered_circle",
 	"centered_gc_configuration",
 	"centered_gc_trajectory",
@@ -115,5 +114,4 @@ __all__ = [
 	"run_implicit_abba_symplecticity_study",
 	"run_explicit_abba_symplecticity_study",
 	"run_rk4_symplecticity_study",
-	"run_semiimplicit_abba_symplecticity_study",
 ]

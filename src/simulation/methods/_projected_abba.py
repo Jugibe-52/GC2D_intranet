@@ -11,7 +11,7 @@ from dynamics import GuidingCenterJacobianSystem
 
 from .._fixed import integrate_fixed_grid
 from .._result import IntegrationData
-from ..observation import IntegrationStep, StepObserver
+from ..observation import ImplicitABBAIntegrationStep, StepObserver
 from ..problem import InitialValueProblem
 from ..request import SimulationRequest
 
@@ -22,7 +22,7 @@ class _ProjectedStep:
 
 	state: np.ndarray
 	multiplier: np.ndarray
-	ideal_state_jacobian: np.ndarray | None
+	stages: _ABBAStages
 	iterations: int
 	residual_norm: float
 
@@ -214,51 +214,6 @@ def _evaluate_residual(
 	return _differentiate_stages(dynamics, t, state, step, stages)
 
 
-def _dense_component_major_jacobian(blocks: np.ndarray) -> np.ndarray:
-	"""Expand independent particle Jacobians into the packed physical layout."""
-	particle_count = blocks.shape[0]
-	result = np.zeros((2 * particle_count, 2 * particle_count), dtype=float)
-	for particle in range(particle_count):
-		indices = (particle, particle_count + particle)
-		result[np.ix_(indices, indices)] = blocks[particle]
-	return result
-
-
-def _ideal_projected_state_jacobian(
-	evaluation: _ResidualEvaluation,
-) -> np.ndarray:
-	"""Differentiate the exact-root projected map by the implicit theorem.
-
-	This is the tangent of the mathematical method defined by ``R(mu) = 0``. It
-	does not differentiate a finite Newton iteration or its stopping decision.
-	The implementation evaluates ``P - Q solve(K, L)`` without forming an inverse.
-	"""
-	particle_count = evaluation.jacobian.shape[0]
-	identity = np.broadcast_to(np.eye(2), (particle_count, 2, 2))
-	abba_jacobian = evaluation.abba_jacobian
-	top_left = abba_jacobian[..., :2, :2]
-	top_right = abba_jacobian[..., :2, 2:]
-	bottom_left = abba_jacobian[..., 2:, :2]
-	bottom_right = abba_jacobian[..., 2:, 2:]
-	# Equations (5)--(7) of ABBA_semiimplicit in block form.
-	residual_state_jacobian = (
-		top_left + top_right - bottom_left - bottom_right
-	)
-	direct_state_jacobian = top_left + top_right
-	implicit_weight = top_left - top_right + identity
-	try:
-		residual_response = np.linalg.solve(
-			evaluation.jacobian,
-			residual_state_jacobian,
-		)
-	except np.linalg.LinAlgError as exc:
-			raise RuntimeError(
-				"The ABBA projection Jacobian is singular while differentiating the step."
-			) from exc
-	physical_blocks = direct_state_jacobian - implicit_weight @ residual_response
-	return _dense_component_major_jacobian(physical_blocks)
-
-
 def _solve_projected_step(
 	dynamics: GuidingCenterJacobianSystem,
 	t: float,
@@ -268,7 +223,6 @@ def _solve_projected_step(
 	absolute_tolerance: float,
 	relative_tolerance: float,
 	max_iterations: int,
-	compute_ideal_state_jacobian: bool = True,
 ) -> _ProjectedStep:
 	"""Solve implicit formulation 1 with exact reduced Newton steps."""
 	value = np.asarray(state, dtype=float)
@@ -293,20 +247,10 @@ def _solve_projected_step(
 			first_copy = stages.u_final + multiplier
 			second_copy = stages.v_final - multiplier
 			projected_state = (first_copy + second_copy) / 2.0
-			ideal_state_jacobian = None
-			if compute_ideal_state_jacobian:
-				evaluation = _differentiate_stages(
-					dynamics,
-					t,
-					value,
-					step,
-					stages,
-				)
-				ideal_state_jacobian = _ideal_projected_state_jacobian(evaluation)
 			return _ProjectedStep(
 				state=np.asarray(projected_state),
 				multiplier=multiplier.copy(),
-				ideal_state_jacobian=ideal_state_jacobian,
+				stages=stages,
 				iterations=iteration,
 				residual_norm=residual_norm,
 			)
@@ -412,7 +356,6 @@ def _solve_simultaneous_projected_step(
 	absolute_tolerance: float,
 	relative_tolerance: float,
 	max_iterations: int,
-	compute_ideal_state_jacobian: bool = True,
 ) -> _ProjectedStep:
 	"""Solve implicit formulation 2 using the simultaneous equation (21)."""
 	value = np.asarray(state, dtype=float)
@@ -441,20 +384,10 @@ def _solve_simultaneous_projected_step(
 			# The simultaneous unknown is constrained to the physical diagonal. The
 			# mean removes its finite-tolerance antisymmetric round-off component.
 			projected_state = (first_output + second_output) / 2.0
-			ideal_state_jacobian = None
-			if compute_ideal_state_jacobian:
-				evaluation = _differentiate_stages(
-					dynamics,
-					t,
-					value,
-					step,
-					stages,
-				)
-				ideal_state_jacobian = _ideal_projected_state_jacobian(evaluation)
 			return _ProjectedStep(
 				state=np.asarray(projected_state),
 				multiplier=multiplier.copy(),
-				ideal_state_jacobian=ideal_state_jacobian,
+				stages=stages,
 				iterations=iteration,
 				residual_norm=residual_norm,
 			)
@@ -507,9 +440,8 @@ def _integrate_projected_abba(
 	newton_max_iterations: int,
 	progress: bool,
 	step_observer: StepObserver | None,
-	exact_tangent: bool,
 ) -> IntegrationData:
-	"""Integrate projected ABBA with optional exact tangent propagation."""
+	"""Integrate projected ABBA and optionally expose converged step data."""
 	dynamics = problem.dynamics
 	if not isinstance(dynamics, GuidingCenterJacobianSystem):
 		raise TypeError(f"{method_name} requires GuidingCenterJacobianSystem.")
@@ -525,9 +457,6 @@ def _integrate_projected_abba(
 	iteration_counts: list[int] = []
 	residual_norms: list[float] = []
 	multiplier_norms: list[float] = []
-	# The dense matrix follows the packed component-major physical state layout.
-	accumulated_state_jacobian = np.eye(problem.initial_state.size)
-
 	def advance(
 		t: float,
 		state: np.ndarray,
@@ -535,8 +464,6 @@ def _integrate_projected_abba(
 		step_index: int,
 		observe: bool,
 	) -> np.ndarray:
-		nonlocal accumulated_state_jacobian
-
 		def apply_step(candidate: np.ndarray) -> np.ndarray:
 			"""Apply this fixed-time projected ABBA map to one candidate."""
 			return step_solver(
@@ -547,7 +474,6 @@ def _integrate_projected_abba(
 				absolute_tolerance=newton_absolute_tolerance,
 				relative_tolerance=newton_relative_tolerance,
 				max_iterations=newton_max_iterations,
-				compute_ideal_state_jacobian=False,
 			).state
 
 		state_before = np.asarray(state, dtype=float)
@@ -559,18 +485,8 @@ def _integrate_projected_abba(
 			absolute_tolerance=newton_absolute_tolerance,
 			relative_tolerance=newton_relative_tolerance,
 			max_iterations=newton_max_iterations,
-			compute_ideal_state_jacobian=exact_tangent and observe,
 		)
 		if observe:
-			state_jacobian = result.ideal_state_jacobian
-			if exact_tangent:
-				if state_jacobian is None:
-					raise RuntimeError(
-						"Exact ABBA tangent propagation did not produce a state Jacobian."
-					)
-				accumulated_state_jacobian = (
-					state_jacobian @ accumulated_state_jacobian
-				)
 			iteration_counts.append(result.iterations)
 			residual_norms.append(result.residual_norm)
 			multiplier_norms.append(
@@ -578,7 +494,7 @@ def _integrate_projected_abba(
 			)
 			if step_observer is not None:
 				step_observer(
-					IntegrationStep(
+					ImplicitABBAIntegrationStep(
 						dynamics_name=type(dynamics).__name__,
 						method_name=method_name,
 						step_index=step_index,
@@ -587,11 +503,15 @@ def _integrate_projected_abba(
 						state_before=state_before.copy(),
 						state_after=result.state.copy(),
 						map_state=apply_step,
-						state_jacobian=(
-							None
-							if state_jacobian is None
-							else state_jacobian.copy()
-						),
+						formulation_name=solver_formulation,
+						start_time=t,
+						dynamics=dynamics,
+						multiplier=result.multiplier.copy(),
+						u_initial=result.stages.u_initial.copy(),
+						v_initial=result.stages.v_initial.copy(),
+						u_first=result.stages.u_first.copy(),
+						v_final=result.stages.v_final.copy(),
+						u_final=result.stages.u_final.copy(),
 					)
 				)
 		return result.state
@@ -616,13 +536,6 @@ def _integrate_projected_abba(
 		"newton_max_iterations": newton_max_iterations,
 		"projection_solver_formulation": solver_formulation,
 	}
-	if exact_tangent:
-		diagnostics.update(
-			{
-				"state_jacobian_kind": "exact_implicit_function",
-				"final_state_jacobian": accumulated_state_jacobian.copy(),
-			}
-		)
 	return IntegrationData(
 		t=request.output_times,
 		states=np.asarray(history),

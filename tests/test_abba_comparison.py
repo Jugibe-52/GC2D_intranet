@@ -88,26 +88,28 @@ class ABBAComparisonStudyTests(unittest.TestCase):
 				.simulation_runtime_seconds[config.step_label],
 			)
 
-		# These variants intentionally share the same projected physical step.
-		np.testing.assert_array_equal(
-			result.solutions["SymmetricProjectedABBA"].states,
-			result.solutions["SemiImplicitABBA"].states,
+		# Both nonlinear formulations converge to the same projected physical map.
+		np.testing.assert_allclose(
+			result.solutions["ImplicitABBA1"].states,
+			result.solutions["ImplicitABBA2"].states,
+			rtol=0.0,
+			atol=1e-14,
 		)
 		differences = result.trajectory_difference_summaries()
 		self.assertEqual(len(differences), 3)
-		projected_pair = next(
+		implicit_pair = next(
 			row
 			for row in differences
-			if row.first_method == "SymmetricProjectedABBA"
-			and row.second_method == "SemiImplicitABBA"
+			if row.first_method == "ImplicitABBA1"
+			and row.second_method == "ImplicitABBA2"
 		)
-		self.assertEqual(projected_pair.max_distance, 0.0)
+		self.assertLess(implicit_pair.max_distance, 1e-14)
 
 		runtime_figure, runtime_axis = result.plot_runtime_comparison()
 		difference_figure, difference_axis = result.plot_trajectory_differences()
 		self.assertEqual(len(runtime_axis.patches), 3)
 		self.assertEqual(len(difference_axis.lines), 6)
-		animation = result.animate("SemiImplicitABBA", frames=2, interval=10)
+		animation = result.animate("ImplicitABBA2", frames=2, interval=10)
 		self.assertGreater(len(animation._func(1)), 0)
 		animation._draw_was_started = True
 		plt.close(runtime_figure)

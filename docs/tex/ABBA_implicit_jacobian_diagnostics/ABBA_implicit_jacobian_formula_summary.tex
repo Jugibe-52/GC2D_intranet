@@ -1,0 +1,205 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[english]{babel}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage{amsmath,amssymb,mathtools}
+\usepackage{geometry}
+\usepackage{xcolor}
+\usepackage[hidelinks]{hyperref}
+
+\geometry{left=2.3cm,right=2.3cm,top=2.2cm,bottom=2.3cm}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0.45em}
+\allowdisplaybreaks
+
+\definecolor{heading}{RGB}{34,73,110}
+\newcommand{\Id}{I}
+
+\begin{document}
+
+\begin{center}
+  {\LARGE\bfseries\color{heading}Implicit ABBA Jacobian formulas}\par
+  \vspace{0.35em}
+  {\large Implicit-function and stage-increment factorizations}
+\end{center}
+
+\section{Notation}
+
+Let
+\[
+ s:=\frac h2,
+ \qquad
+ W_i:=D_zf(\text{ABBA stage point}_i,\text{stage time}_i),
+ \qquad
+ S:=W_2+W_3.
+\]
+Every $W_i$ is a $2\times2$ vector-field Jacobian. Matrix-product order must be
+preserved because the $W_i$ do not commute in general.
+
+The implicit multiplier is a function of the physical input,
+\[
+ \mu_n=\mu_h(z_n),
+\]
+and its total derivative is denoted by
+\[
+ \boxed{M:=D\mu_h(z_n).}
+\]
+The two displaced initial copies therefore satisfy
+\[
+ Du^{(0)}=\Id+M,
+ \qquad
+ Dv^{(0)}=\Id-M.
+\]
+
+\section{Residual derivatives \texorpdfstring{$K$}{K} and \texorpdfstring{$L$}{L}}
+
+For the projection residual $R(z,\mu)$, define
+\[
+ K:=D_\mu R,
+ \qquad
+ L:=D_zR.
+\]
+In terms of the four stage Jacobians,
+\[
+ \boxed{
+ \begin{aligned}
+ K={}&4\Id
+ -s(W_1+W_2+W_3+W_4)\\
+ &+s^2\bigl(W_4S+SW_1\bigr)
+ -s^3W_4SW_1,
+ \end{aligned}
+ }
+\]
+and
+\[
+ \boxed{
+ \begin{aligned}
+ L={}&s(W_1-W_2-W_3+W_4)\\
+ &+s^2\bigl(W_4S-SW_1\bigr)
+ +s^3W_4SW_1.
+ \end{aligned}
+ }
+\]
+Equivalently, after replacing $S=W_2+W_3$,
+\[
+ \begin{aligned}
+ K={}&4\Id-s(W_1+W_2+W_3+W_4)\\
+ &+s^2\bigl[W_4(W_2+W_3)+(W_2+W_3)W_1\bigr]\\
+ &-s^3W_4(W_2+W_3)W_1,
+ \end{aligned}
+\]
+\[
+ \begin{aligned}
+ L={}&s(W_1-W_2-W_3+W_4)\\
+ &+s^2\bigl[W_4(W_2+W_3)-(W_2+W_3)W_1\bigr]\\
+ &+s^3W_4(W_2+W_3)W_1.
+ \end{aligned}
+\]
+
+Differentiating the exact-root identity
+\[
+ R\bigl(z,\mu_h(z)\bigr)=0
+\]
+gives
+\[
+ L+KM=0.
+\]
+If $K$ is invertible, then
+\[
+ \boxed{M=-K^{-1}L.}
+\]
+In an implementation this inverse is not formed explicitly: the matrix system
+$KM=-L$ is solved instead.
+
+\section{Total derivatives of the four increments}
+
+The physical mean can be written as
+\[
+ z_{n+1}=z_n+\frac h4(k_1+k_2+k_3+k_4).
+\]
+The total stage derivatives, including the dependence of $\mu_h$ on $z_n$, obey
+\[
+ \begin{aligned}
+ Dk_1&=W_1(\Id-M),\\
+ Du^{(1)}&=\Id+M+sDk_1,\\
+ Dk_2&=W_2Du^{(1)},\\
+ Dk_3&=W_3Du^{(1)},\\
+ Dv^{(2)}&=\Id-M+s(Dk_2+Dk_3),\\
+ Dk_4&=W_4Dv^{(2)}.
+ \end{aligned}
+\]
+Eliminating the intermediate derivatives gives the four requested expressions:
+\[
+ \boxed{Dk_1=W_1(\Id-M),}
+\]
+\[
+ \boxed{
+ Dk_2=W_2\bigl[\Id+M+sW_1(\Id-M)\bigr],
+ }
+\]
+\[
+ \boxed{
+ Dk_3=W_3\bigl[\Id+M+sW_1(\Id-M)\bigr],
+ }
+\]
+and
+\[
+ \boxed{
+ Dk_4=W_4\Bigl\{
+ \Id-M+s(W_2+W_3)
+ \bigl[\Id+M+sW_1(\Id-M)\bigr]
+ \Bigr\}.
+ }
+\]
+Consequently, the stage-increment factorization is
+\[
+ \boxed{
+ J_n^{\mathrm{inc}}
+ =\Id+\frac h4(Dk_1+Dk_2+Dk_3+Dk_4).
+ }
+\]
+
+\section{Equality with the implicit-function factorization}
+
+For completeness, define
+\[
+ \boxed{
+ P=\Id+s(W_1+W_4)+s^2W_4S+s^3W_4SW_1,
+ }
+\]
+\[
+ \boxed{
+ Q=2\Id-s(W_1+W_4)+s^2W_4S-s^3W_4SW_1.
+ }
+\]
+The derivative of the corrected first copy is
+\[
+ J_n^{\mathrm{copy}}=P+QM.
+\]
+Direct symbolic expansion of the stage-increment recurrence gives the identity
+\[
+ \boxed{
+ J_n^{\mathrm{inc}}-(P+QM)=-\frac12(L+KM).
+ }
+\]
+At the implicit root, $L+KM=0$, and hence
+\[
+ J_n^{\mathrm{inc}}=P+QM.
+\]
+Finally, substituting $M=-K^{-1}L$ yields
+\[
+ \boxed{
+ J_n^{\mathrm{inc}}
+ =\Id+\frac h4\sum_{i=1}^{4}Dk_i
+ =P-QK^{-1}L
+ =J_n^{\mathrm{IFT}}.
+ }
+\]
+
+Thus the two calculations are symbolically different derivations and computational
+factorizations of the same ideal-root physical Jacobian.
+
+\end{document}

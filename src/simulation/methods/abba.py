@@ -5,11 +5,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from ._projected_abba import (
-	_dense_component_major_jacobian,
 	_differentiate_stages,
 	_evaluate_residual,
 	_evaluate_stages,
-	_ideal_projected_state_jacobian,
 	_integrate_projected_abba,
 	_positive_finite,
 	_positive_integer,

@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from contextlib import ExitStack
 from dataclasses import dataclass
 from pathlib import Path
 from time import perf_counter
 from types import MappingProxyType
-from typing import Any, ClassVar, Literal, Mapping, TypeVar
+from typing import Any, ClassVar, Mapping, TypeVar
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -30,6 +31,7 @@ from simulation import (
 from diagnostics.symplecticity import (
 	GCAreaSymplecticityObserver,
 	GCAreaSymplecticityRecord,
+	StepJacobianMethod,
 )
 
 from ._gc_symplecticity_models import (
@@ -61,10 +63,23 @@ class _SolverSummary:
 
 @dataclass(slots=True)
 class _TimedStepObserver:
-	"""Measure diagnostic callback time without altering observed steps."""
+	"""Measure diagnostic callback and final persistence time."""
 
-	observer: StepObserver
+	observer: GCAreaSymplecticityObserver
 	elapsed_seconds: float = 0.0
+
+	def __enter__(self) -> _TimedStepObserver:
+		"""Open the wrapped observer and return this callable timer."""
+		self.observer.__enter__()
+		return self
+
+	def __exit__(self, *exception: object) -> None:
+		"""Include final record construction and disk flushing in the timing."""
+		started = perf_counter()
+		try:
+			self.observer.__exit__(*exception)
+		finally:
+			self.elapsed_seconds += perf_counter() - started
 
 	def __call__(self, step: IntegrationStep) -> None:
 		"""Forward one step and accumulate time spent inside the observer."""
@@ -73,6 +88,18 @@ class _TimedStepObserver:
 			self.observer(step)
 		finally:
 			self.elapsed_seconds += perf_counter() - started
+
+
+@dataclass(frozen=True, slots=True)
+class _StepObserverFanout:
+	"""Deliver each implicit step to several independent diagnostics."""
+
+	observers: tuple[StepObserver, ...]
+
+	def __call__(self, step: IntegrationStep) -> None:
+		"""Forward the same step event in configured observer order."""
+		for observer in self.observers:
+			observer(step)
 
 
 @dataclass(frozen=True, slots=True)
@@ -87,6 +114,7 @@ class GCSymplecticityResult:
 	output_directories: Mapping[str, Path]
 	simulation_runtime_seconds: Mapping[str, float]
 	symplecticity_runtime_seconds: Mapping[str, float]
+	jacobian_method: StepJacobianMethod = "finite_difference"
 
 	method_name: ClassVar[str] = "GC numerical method"
 	summary_type: ClassVar[type[GCSymplecticitySummary]] = GCSymplecticitySummary
@@ -441,7 +469,7 @@ def _run_gc_symplecticity_study(
 	result_type: type[_ResultT],
 	project_root: str | Path | None,
 	metadata: Mapping[str, Any] | None,
-	jacobian_source: Literal["finite_difference", "exact"] = "finite_difference",
+	jacobian_method: StepJacobianMethod = "finite_difference",
 ) -> _ResultT:
 	"""Run synchronized physical GC diagnostics for a step-observable method."""
 	if not isinstance(potential, Potential):
@@ -479,7 +507,7 @@ def _run_gc_symplecticity_study(
 			f"save_interval / step for {step.label}",
 		)
 		step_tag = f"{step.value:.8f}".replace(".", "p")
-		with GCAreaSymplecticityObserver(
+		observer = GCAreaSymplecticityObserver(
 			notebook_path=notebook_path,
 			area=area,
 			period=potential.grid.period,
@@ -489,17 +517,17 @@ def _run_gc_symplecticity_study(
 			chunk_size=config.chunk_size,
 			relative_step=(
 				config.finite_difference_relative_step
-				if jacobian_source == "finite_difference"
+				if jacobian_method == "finite_difference"
 				else None
 			),
-			jacobian_source=jacobian_source,
+			jacobian_method=jacobian_method,
 			verbose=False,
 			metadata={
 				**common_metadata,
 				"integration_step": step.value,
 			},
-		) as observer:
-			timed_observer = _TimedStepObserver(observer)
+		)
+		with _TimedStepObserver(observer) as timed_observer:
 			request = SimulationRequest.uniform(
 				t_span=config.t_span,
 				max_step=step.value,
@@ -533,7 +561,149 @@ def _run_gc_symplecticity_study(
 		output_directories=MappingProxyType(output_directories),
 		simulation_runtime_seconds=MappingProxyType(simulation_runtimes),
 		symplecticity_runtime_seconds=MappingProxyType(symplecticity_runtimes),
+		jacobian_method=jacobian_method,
 	)
+
+
+def _run_gc_symplecticity_observers(
+	potential: Potential,
+	area: Area,
+	*,
+	notebook_path: str | Path,
+	config: GCSymplecticityConfig,
+	method_factory: _MethodFactory,
+	result_type: type[_ResultT],
+	project_root: str | Path | None,
+	metadata: Mapping[str, Any] | None,
+	jacobian_methods: Mapping[str, StepJacobianMethod],
+) -> Mapping[str, _ResultT]:
+	"""Run one trajectory per step while fan-out observers use distinct Jacobians."""
+	if not isinstance(potential, Potential):
+		raise TypeError("`potential` must be a Potential instance.")
+	if not isinstance(area, Area):
+		raise TypeError("`area` must be an Area instance.")
+	if not isinstance(config, GCSymplecticityConfig):
+		raise TypeError("`config` must be a GCSymplecticityConfig instance.")
+	methods = dict(jacobian_methods)
+	if not methods:
+		raise ValueError("`jacobian_methods` must configure at least one observer.")
+	if any(not label or not label.strip() for label in methods):
+		raise ValueError("Jacobian observer labels must be non-empty strings.")
+	method_name = result_type.method_name
+	if not isinstance(method_name, str) or not method_name.strip():
+		raise ValueError("The result type must define a non-empty method name.")
+
+	rho = resolve_rho(config.rho, area)
+	dynamics = GuidingCenterDynamics(potential, rho=rho)
+	problem = InitialValueProblem(dynamics, area)
+	initial_state = area.initial_state
+	assert initial_state is not None
+	common_metadata = {
+		**dict(metadata or {}),
+		"method": method_name,
+		"geometry": area.shape,
+		"particle_count": area.particle_count(initial_state),
+		"rho": rho,
+	}
+	solutions: dict[str, Solution] = {}
+	simulation_runtimes: dict[str, float] = {}
+	records: dict[
+		str,
+		dict[str, tuple[GCAreaSymplecticityRecord, ...]],
+	] = {label: {} for label in methods}
+	output_directories: dict[str, dict[str, Path]] = {
+		label: {} for label in methods
+	}
+	observer_runtimes: dict[str, dict[str, float]] = {
+		label: {} for label in methods
+	}
+
+	for step in config.steps:
+		record_every = integer_ratio(
+			config.save_interval,
+			step.value,
+			f"save_interval / step for {step.label}",
+		)
+		step_tag = f"{step.value:.8f}".replace(".", "p")
+		observers: dict[str, GCAreaSymplecticityObserver] = {}
+		timed_observers: dict[str, _TimedStepObserver] = {}
+		with ExitStack() as stack:
+			for label, jacobian_method in methods.items():
+				observer = GCAreaSymplecticityObserver(
+					notebook_path=notebook_path,
+					area=area,
+					period=potential.grid.period,
+					project_root=project_root,
+					block_name=f"{config.block_prefix}_{label}_step_{step_tag}",
+					record_every=record_every,
+					chunk_size=config.chunk_size,
+					relative_step=(
+						config.finite_difference_relative_step
+						if jacobian_method == "finite_difference"
+						else None
+					),
+					jacobian_method=jacobian_method,
+					verbose=False,
+					metadata={
+						**common_metadata,
+						"integration_step": step.value,
+						"observer_label": label,
+						"step_jacobian_method": jacobian_method,
+						"step_jacobian_scope": (
+							"emitted_finite_tolerance_solver_map"
+							if jacobian_method == "finite_difference"
+							else "ideal_converged_projection_root"
+						),
+					},
+				)
+				observers[label] = observer
+				timed_observers[label] = stack.enter_context(
+					_TimedStepObserver(observer)
+				)
+
+			request = SimulationRequest.uniform(
+				t_span=config.t_span,
+				max_step=step.value,
+				sample_count=config.output_sample_count,
+			)
+			fanout = _StepObserverFanout(tuple(timed_observers.values()))
+			started = perf_counter()
+			solution = simulate(problem, method_factory(fanout), request)
+			total_simulation_time = perf_counter() - started
+			observer_time = sum(
+				timed.elapsed_seconds for timed in timed_observers.values()
+			)
+			method_runtime = total_simulation_time - observer_time
+			if method_runtime <= 0:
+				raise RuntimeError(
+					"Measured simulation time outside the symplecticity observers "
+					"must be positive."
+				)
+
+		solutions[step.label] = solution
+		simulation_runtimes[step.label] = method_runtime
+		for label, observer in observers.items():
+			records[label][step.label] = observer.records
+			output_directories[label][step.label] = observer.output_directory
+			observer_runtimes[label][step.label] = timed_observers[label].elapsed_seconds
+
+	shared_solutions = MappingProxyType(solutions)
+	shared_simulation_runtimes = MappingProxyType(simulation_runtimes)
+	results = {
+		label: result_type(
+			dynamics=dynamics,
+			area=area,
+			steps=config.steps,
+			solutions=shared_solutions,
+			records=MappingProxyType(records[label]),
+			output_directories=MappingProxyType(output_directories[label]),
+			simulation_runtime_seconds=shared_simulation_runtimes,
+			symplecticity_runtime_seconds=MappingProxyType(observer_runtimes[label]),
+			jacobian_method=jacobian_method,
+		)
+		for label, jacobian_method in methods.items()
+	}
+	return MappingProxyType(results)
 
 
 __all__: list[str] = []

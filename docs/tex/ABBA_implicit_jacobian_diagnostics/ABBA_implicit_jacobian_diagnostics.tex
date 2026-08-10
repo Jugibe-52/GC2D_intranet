@@ -26,7 +26,7 @@
 
 \pagestyle{fancy}
 \fancyhf{}
-\fancyhead[L]{\small\color{gris}GC2D: \texttt{ABBA\_semiimplicit}}
+\fancyhead[L]{\small\color{gris}GC2D: implicit ABBA Jacobian diagnostics}
 \fancyhead[R]{\small\color{gris}Trajectory and tangent dynamics}
 \fancyfoot[C]{\thepage}
 \renewcommand{\headrulewidth}{0.3pt}
@@ -39,7 +39,7 @@
 \begin{document}
 
 \begin{center}
-  {\LARGE\bfseries\color{azul}The \texttt{ABBA\_semiimplicit} method}\par
+  {\LARGE\bfseries\color{azul}Jacobian diagnostics for implicit ABBA}\par
   \vspace{0.35em}
   {\large Implicit physical step and explicit application of its Jacobian}\par
   \vspace{0.45em}
@@ -48,9 +48,10 @@
 
 \vspace{0.5em}
 
-\section{Purpose of the method}
+\section{Purpose of the diagnostics}
 
-The \texttt{ABBA\_semiimplicit} method advances two objects simultaneously:
+An implicit ABBA integration can be accompanied by a diagnostic that follows two
+objects:
 \[
  z_n\in\R^2,
  \qquad
@@ -61,19 +62,20 @@ vector. The state is computed using the complete implicit ABBA method,
 \[
  z_{n+1}=\Psi_{h,t_n}(z_n),
 \]
-whereas the tangent vector is updated by applying the exact Jacobian of that same step:
+whereas an optional observer updates the tangent vector by applying the ideal-root
+Jacobian of that same step:
 \[
  \boxed{
  \xi_{n+1}=D\Psi_{h,t_n}(z_n)\,\xi_n.
  }
 \]
 
-The term \emph{semi-implicit} is used here in a precise sense:
+The responsibilities are deliberately separated:
 \begin{itemize}
- \item the trajectory $z_n\mapsto z_{n+1}$ requires solving for the implicit multiplier
-       $\mu_n$;
- \item once $\mu_n$ has converged and the ABBA stages are known, the tangent dynamics is
-       updated by means of a $2\times2$ linear system.
+ \item \texttt{ImplicitABBA1} or \texttt{ImplicitABBA2} computes the trajectory and
+       solves for the implicit multiplier $\mu_n$;
+ \item once $\mu_n$ has converged, a diagnostic observer can construct the tangent by
+       means of a $2\times2$ linear system or an equivalent stage-increment recurrence.
 \end{itemize}
 
 \subsection*{Essential distinction}
@@ -150,7 +152,7 @@ The multiplier for the step is the root $\mu_n=\mu_h(z_n)$ of the residual
  }
  \tag{3}
 \]
-Once the implicit iteration has converged, the next physical state is
+At the exact root, the next physical state is
 \[
  \boxed{
  z_{n+1}=u^{(2)}+\mu_n=v^{(2)}-\mu_n.
@@ -158,6 +160,15 @@ Once the implicit iteration has converged, the next physical state is
  \tag{4}
 \]
 The two expressions in (4) coincide because $\mathcal R_n(z_n,\mu_n)=0$.
+With a finite nonlinear-solver tolerance, formulation 1 emits the neutral mean
+\[
+ \frac12\left[(u^{(2)}+\mu_n)+(v^{(2)}-\mu_n)\right],
+\]
+while formulation 2 emits the mean of its two simultaneous output unknowns.  These
+representatives agree with (4) up to the nonlinear residual.  Centered finite
+differences differentiate the emitted finite-tolerance map; the two analytic
+factorizations below evaluate the ideal-root tangent at the converged stages and can
+therefore differ from finite differences by the order of that residual.
 
 \section{Explicit calculation of the four \texorpdfstring{$w_i$}{wi} matrices}
 
@@ -417,6 +428,40 @@ entire Jacobian, solve the system with two right-hand sides:
 Since $\mathcal K\in\R^{2\times2}$, its factorization is inexpensive and can be reused for
 the two columns of $\mathcal L$.
 
+\subsection{Equivalent stage-increment factorization}
+
+The physical mean of the two converged copies can also be written as
+\[
+ z_{n+1}=z_n+\frac h4(k_1+k_2+k_3+k_4),
+\]
+where each $k_i$ is the vector field evaluated at its traversed ABBA stage.  Let
+\[
+ F_i=D_zf(\text{stage point}_i,\text{stage time}_i)=\frac{w_i}{s},
+ \qquad
+ M_\mu=D\mu_h(z_n)=-\mathcal K^{-1}\mathcal L.
+\]
+The total stage derivatives, including the dependence of the converged multiplier on
+$z_n$, obey
+\[
+ \begin{aligned}
+ Dk_1&=F_1(I_2-M_\mu),\\
+ Du^{(1)}&=I_2+M_\mu+sDk_1,\\
+ Dk_2&=F_2Du^{(1)},\\
+ Dk_3&=F_3Du^{(1)},\\
+ Dv^{(2)}&=I_2-M_\mu+s(Dk_2+Dk_3),\\
+ Dk_4&=F_4Dv^{(2)}.
+ \end{aligned}
+\]
+Consequently, a second diagnostic construction of the local physical Jacobian is
+\[
+ \boxed{
+ J_n=I_2+\frac h4(Dk_1+Dk_2+Dk_3+Dk_4).
+ }
+\]
+This is an alternative computational factorization of (14), not a different numerical
+trajectory or a different mathematical tangent.  Setting $M_\mu=0$ would instead
+differentiate the explicitly averaged ABBA map.
+
 If only a tangent vector $\xi_n$ is to be propagated, it is not even necessary to form
 $\mathcal T$ or $J_n$. From (14),
 \[
@@ -467,44 +512,34 @@ If $\Delta_{\mathcal K}\neq0$, the solution of $\mathcal K y_n=b_n$ is
 \]
 This expression makes it possible to apply (16) without a general-purpose matrix solver.
 
-\section{One-step algorithm}
+\section{One-step diagnostic workflow}
 
-Given $t_n$, $z_n$, $\xi_n$, and $h$, one step of \texttt{ABBA\_semiimplicit} is as
-follows:
+Given an observed implicit ABBA step with $t_n$, $z_n$, $\xi_n$, $h$, and its converged
+stage snapshots, the diagnostic workflow is as follows:
 
 \begin{enumerate}
- \item Solve the nonlinear equation (3) to obtain $\mu_n$. Each residual evaluation
-       executes the four ABBA stages in (2).
+	\item Receive the multiplier $\mu_n$ and the required stage snapshots
+       $u^{(0)},v^{(0)},u^{(1)},v^{(2)},u^{(2)}$.
 
- \item With the converged root, recompute or retain the stages
-       $u^{(0)},v^{(0)},u^{(1)},v^{(1)},v^{(2)},u^{(2)}$.
-
- \item Compute the new physical state using (4).
-
- \item Evaluate explicitly $w_1,w_2,w_3,w_4$ using (5), and form
+	\item Evaluate explicitly $w_1,w_2,w_3,w_4$ using (5), and form
        $\Sigma=w_2+w_3$.
 
- \item If the full duplicated Jacobian is needed, construct the four stage matrices
+	\item If the full duplicated Jacobian is needed, construct the four stage matrices
        $W_1,W_2,W_3,W_4$ from (7) and multiply them in the order
        $D\PhiAB=W_4W_3W_2W_1$.
 
- \item Construct $\mathcal K$, $\mathcal L$, $\mathcal P$, and $\mathcal Q$ using
+	\item Construct $\mathcal K$, $\mathcal L$, $\mathcal P$, and $\mathcal Q$ using
        (10)--(13).
 
- \item Compute $b_n=\mathcal L\xi_n$ and solve $\mathcal K y_n=b_n$.
+	\item Select either the implicit-function factorization (15), the equivalent
+       stage-increment recurrence, or centered finite differences of the emitted map.
 
- \item Apply the physical Jacobian through
-       $\xi_{n+1}=\mathcal P\xi_n-\mathcal Qy_n$.
-
- \item Advance the time: $t_{n+1}=t_n+h$.
+	\item Use the resulting $J_n$ for symplecticity analysis and optional tangent
+       propagation $\xi_{n+1}=J_n\xi_n$.
 \end{enumerate}
 
-The output of the step is the pair
-\[
- \boxed{
- (z_{n+1},\xi_{n+1}).
- }
-\]
+The observer does not replace or modify the already computed physical state
+$z_{n+1}$.
 
 \section{Propagation of the accumulated Jacobian}
 
@@ -584,8 +619,8 @@ $\xi_{n+1}=D\Psi_{h,t_n}(z_n)\xi_n$, it follows that
  z_{n+1}^\varepsilon
  =z_{n+1}+\varepsilon\xi_{n+1}+\mathcal O(\varepsilon^2).
 \]
-Thus, \texttt{ABBA\_semiimplicit} simultaneously computes the reference trajectory and
-the linear evolution of an infinitesimal separation from it.
+Thus, the implicit integrator computes the reference trajectory while the optional
+diagnostic computes the linear evolution of an infinitesimal separation from it.
 
 \section{Implementation-ready summary}
 

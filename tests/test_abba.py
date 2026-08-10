@@ -261,26 +261,13 @@ class SymmetricProjectedABBATests(unittest.TestCase):
 			state,
 			relative_step=1e-5,
 		)
-		np.testing.assert_allclose(
-			forward.ideal_state_jacobian,
-			jacobian,
-			rtol=2e-8,
-			atol=2e-9,
-		)
 		form = gc_physical_symplectic_form(1)
-		exact_defect = (
-			forward.ideal_state_jacobian.T
-			@ form
-			@ forward.ideal_state_jacobian
-			- form
-		)
-		self.assertLess(float(np.linalg.norm(exact_defect, ord="fro")), 1e-12)
 		defect = jacobian.T @ form @ jacobian - form
 		self.assertLess(float(np.linalg.norm(defect, ord="fro")), 1e-8)
 		self.assertLess(abs(float(np.linalg.det(jacobian)) - 1.0), 1e-8)
 
-	def test_ideal_exact_root_tangent_preserves_two_particle_layout(self) -> None:
-		"""Keep the ideal implicit tangent distinct from the finite Newton map."""
+	def test_numerical_tangent_preserves_two_particle_layout(self) -> None:
+		"""Keep independent-particle blocks in component-major order."""
 		dynamics = gc_dynamics()
 		state = np.asarray([1.0, 1.4, 1.2, 1.6])
 		time = 0.2
@@ -290,35 +277,18 @@ class SymmetricProjectedABBATests(unittest.TestCase):
 			"relative_tolerance": 1e-14,
 			"max_iterations": 12,
 		}
-		projected = _solve_projected_step(
-			dynamics,
-			time,
-			state,
-			step,
-			**solver,
-		)
-		assert projected.ideal_state_jacobian is not None
 		numerical = central_difference_jacobian(
 			lambda candidate: _solve_projected_step(
 				dynamics,
 				time,
 				candidate,
 				step,
-				compute_ideal_state_jacobian=False,
 				**solver,
 			).state,
 			state,
 			relative_step=1e-5,
 		)
-		np.testing.assert_allclose(
-			projected.ideal_state_jacobian,
-			numerical,
-			rtol=2e-8,
-			atol=2e-9,
-		)
-		cross_particle = projected.ideal_state_jacobian[
-			np.ix_((0, 2), (1, 3))
-		]
+		cross_particle = numerical[np.ix_((0, 2), (1, 3))]
 		np.testing.assert_array_equal(cross_particle, 0.0)
 
 	def test_method_has_second_order_global_accuracy(self) -> None:

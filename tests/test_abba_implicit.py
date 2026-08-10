@@ -10,7 +10,6 @@ import numpy as np
 
 from diagnostics.symplecticity import (
 	central_difference_jacobian,
-	gc_physical_symplectic_form,
 )
 from initial_conditions import TrajectoryGC
 from simulation import (
@@ -29,6 +28,8 @@ from simulation.methods.abba import (
 	_solve_simultaneous_projected_step,
 )
 from studies import (
+	ImplicitABBAObserverConfig,
+	ImplicitABBASymplecticityComparison,
 	ImplicitABBASymplecticityConfig,
 	RandomPotentialConfig,
 	centered_square,
@@ -90,7 +91,7 @@ class ImplicitABBAFormulationTests(unittest.TestCase):
 		)
 		np.testing.assert_allclose(analytic, numerical, rtol=2e-7, atol=2e-8)
 
-	def test_both_roots_are_equivalent_reversible_and_symplectic(self) -> None:
+	def test_both_roots_are_equivalent_and_reversible(self) -> None:
 		dynamics = gc_dynamics()
 		state = np.asarray([1.0, 1.2])
 		time = 0.3
@@ -124,15 +125,6 @@ class ImplicitABBAFormulationTests(unittest.TestCase):
 			**solver,
 		)
 		np.testing.assert_allclose(backward.state, state, rtol=0.0, atol=2e-14)
-		assert second.ideal_state_jacobian is not None
-		form = gc_physical_symplectic_form(1)
-		defect = (
-			second.ideal_state_jacobian.T
-			@ form
-			@ second.ideal_state_jacobian
-			- form
-		)
-		self.assertLess(float(np.linalg.norm(defect, ord="fro")), 1e-12)
 
 	def test_public_methods_report_distinct_solver_formulations(self) -> None:
 		dynamics = gc_dynamics()
@@ -186,6 +178,18 @@ class ImplicitABBASymplecticityStudyTests(unittest.TestCase):
 			t_span=(0.0, np.pi / 100),
 			save_interval=np.pi / 100,
 			chunk_size=2,
+			observers=(
+				ImplicitABBAObserverConfig(
+					label="implicit_2",
+					formulation="implicit_2",
+					jacobian_method="finite_difference",
+				),
+				ImplicitABBAObserverConfig(
+					label="implicit_1",
+					formulation="implicit_1",
+					jacobian_method="finite_difference",
+				),
+			),
 		)
 
 		with tempfile.TemporaryDirectory(dir="/tmp") as temporary:
@@ -203,7 +207,19 @@ class ImplicitABBASymplecticityStudyTests(unittest.TestCase):
 				project_root=root,
 			)
 
-		self.assertEqual(tuple(comparison.results), ("implicit_1", "implicit_2"))
+		self.assertEqual(tuple(comparison.results), ("implicit_2", "implicit_1"))
+		self.assertEqual(
+			{result.method_name for result in comparison.results.values()},
+			{"ImplicitABBA1", "ImplicitABBA2"},
+		)
+		with self.assertRaisesRegex(TypeError, "does not match formulation"):
+			ImplicitABBASymplecticityComparison(
+				observers=config.observers,
+				results={
+					"implicit_2": comparison.results["implicit_1"],
+					"implicit_1": comparison.results["implicit_2"],
+				},
+			)
 		difference = comparison.maximum_state_differences()[config.steps[0].label]
 		self.assertLess(difference, 5e-15)
 		for result in comparison.results.values():

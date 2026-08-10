@@ -7,6 +7,8 @@ from typing import Callable, Literal, TypeAlias
 
 import numpy as np
 
+from dynamics import GuidingCenterJacobianSystem
+
 
 StateMap: TypeAlias = Callable[[np.ndarray], np.ndarray]
 
@@ -40,10 +42,8 @@ class IntegrationStep:
 	"""Describe one complete numerical step on the method's internal state.
 
 	``map_state`` evaluates the same fixed-time, fixed-duration numerical map on
-	another state. When available, ``state_jacobian`` is the method-computed
-	Jacobian of that map at ``state_before``; observers can then analyze the
-	tangent without numerical differentiation. Shadow advances used only for
-	output interpolation do not emit step observations.
+	another state. Shadow advances used only for output interpolation do not emit
+	step observations.
 	"""
 
 	dynamics_name: str
@@ -54,11 +54,26 @@ class IntegrationStep:
 	state_before: np.ndarray
 	state_after: np.ndarray
 	map_state: StateMap = field(repr=False, compare=False)
-	state_jacobian: np.ndarray | None = field(
-		default=None,
-		repr=False,
-		compare=False,
-	)
+
+
+@dataclass(frozen=True, slots=True)
+class ImplicitABBAIntegrationStep(IntegrationStep):
+	"""Expose converged ABBA stages without performing diagnostic analysis.
+
+	The numerical method owns the nonlinear projection solve. Analytic tangent
+	diagnostics can use these snapshots and ``dynamics`` to evaluate the four
+	vector-field Jacobians without importing private solver helpers.
+	"""
+
+	formulation_name: str
+	start_time: float
+	dynamics: GuidingCenterJacobianSystem = field(repr=False, compare=False)
+	multiplier: np.ndarray = field(repr=False, compare=False)
+	u_initial: np.ndarray = field(repr=False, compare=False)
+	v_initial: np.ndarray = field(repr=False, compare=False)
+	u_first: np.ndarray = field(repr=False, compare=False)
+	v_final: np.ndarray = field(repr=False, compare=False)
+	u_final: np.ndarray = field(repr=False, compare=False)
 
 
 StageObserver: TypeAlias = Callable[[IntegrationStage], None]
@@ -66,6 +81,7 @@ StepObserver: TypeAlias = Callable[[IntegrationStep], None]
 
 
 __all__ = [
+	"ImplicitABBAIntegrationStep",
 	"IntegrationStage",
 	"IntegrationStep",
 	"StageObserver",

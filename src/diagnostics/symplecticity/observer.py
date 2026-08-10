@@ -9,50 +9,11 @@ from typing import Any, Mapping
 
 import numpy as np
 
-from simulation.observation import IntegrationStage, StateMap
+from simulation.observation import IntegrationStage
 from diagnostics.output import write_diagnostic_block
 
+from .jacobians import central_difference_jacobian
 from .paths import next_block_index, notebook_output_directory, validate_block_name
-
-
-def central_difference_jacobian(
-	map_state: StateMap,
-	state: np.ndarray,
-	*,
-	relative_step: float | None = None,
-) -> np.ndarray:
-	"""Differentiate a packed stage map using centered finite differences.
-
-	``relative_step`` scales independently with each state coordinate. Its default
-	is the cube root of machine epsilon, which balances truncation and round-off
-	for a centered first derivative. The returned matrix has shape ``(D, D)``,
-	where ``D`` is the internal packed-state dimension.
-	"""
-	value = np.asarray(state, dtype=float)
-	if value.ndim != 1 or value.size == 0 or not np.all(np.isfinite(value)):
-		raise ValueError("The differentiated state must be a finite, non-empty vector.")
-	scale = (
-		float(np.cbrt(np.finfo(float).eps))
-		if relative_step is None
-		else float(relative_step)
-	)
-	if not np.isfinite(scale) or scale <= 0:
-		raise ValueError("`relative_step` must be positive and finite.")
-
-	dimension = value.size
-	jacobian = np.empty((dimension, dimension), dtype=float)
-	for column in range(dimension):
-		increment = scale * max(1.0, abs(float(value[column])))
-		perturbation = np.zeros_like(value)
-		perturbation[column] = increment
-		forward = np.asarray(map_state(value + perturbation), dtype=float)
-		backward = np.asarray(map_state(value - perturbation), dtype=float)
-		if forward.shape != value.shape or backward.shape != value.shape:
-			raise ValueError("The differentiated stage map changed the state shape.")
-		jacobian[:, column] = (forward - backward) / (2 * increment)
-	if not np.all(np.isfinite(jacobian)):
-		raise ValueError("The numerical stage Jacobian contains non-finite values.")
-	return jacobian
 
 
 def gc_physical_symplectic_form(particle_count: int) -> np.ndarray:

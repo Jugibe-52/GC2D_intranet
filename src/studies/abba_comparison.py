@@ -30,15 +30,12 @@ from .abba_explicit_symplecticity import (
 	ExplicitABBASymplecticityResult,
 	run_explicit_abba_symplecticity_study,
 )
-from .abba_semiimplicit_symplecticity import (
-	SemiImplicitABBASymplecticityConfig,
-	SemiImplicitABBASymplecticityResult,
-	run_semiimplicit_abba_symplecticity_study,
-)
-from .abba_symplecticity import (
-	ABBASymplecticityConfig,
-	ABBASymplecticityResult,
-	run_abba_symplecticity_study,
+from .abba_implicit_symplecticity import (
+	ImplicitABBA1SymplecticityResult,
+	ImplicitABBA2SymplecticityResult,
+	ImplicitABBASymplecticityConfig,
+	run_implicit_abba_1_symplecticity_study,
+	run_implicit_abba_2_symplecticity_study,
 )
 from .area_comparison import AreaStep
 from visualization import animate_gc_area_solution
@@ -46,14 +43,14 @@ from visualization import animate_gc_area_solution
 
 ABBA_METHOD_NAMES = (
 	"ExplicitABBA",
-	"SymmetricProjectedABBA",
-	"SemiImplicitABBA",
+	"ImplicitABBA1",
+	"ImplicitABBA2",
 )
 _BLOCK_PREFIX = re.compile(r"^[A-Za-z0-9_-]+$")
 ABBAComparisonStudy = (
 	ExplicitABBASymplecticityResult
-	| ABBASymplecticityResult
-	| SemiImplicitABBASymplecticityResult
+	| ImplicitABBA1SymplecticityResult
+	| ImplicitABBA2SymplecticityResult
 )
 
 
@@ -334,8 +331,8 @@ class ABBAComparisonResult:
 			)
 		print(
 			"\nRuntime excludes time spent evaluating and persisting symplecticity "
-			"diagnostics. SemiImplicitABBA still includes its method-owned exact "
-			"tangent propagation."
+			"diagnostics. Both implicit formulations use the same configured "
+			"finite-difference observer in this comparison."
 		)
 
 	def plot_runtime_comparison(self) -> tuple[Figure, Axes]:
@@ -444,27 +441,15 @@ def run_abba_comparison(
 		block_prefix=f"{config.block_prefix}_explicit",
 		finite_difference_relative_step=config.finite_difference_relative_step,
 	)
-	projected_config = ABBASymplecticityConfig(
+	implicit_config = ImplicitABBASymplecticityConfig(
 		steps=step,
 		t_span=config.t_span,
 		save_interval=config.save_interval,
 		rho=config.rho,
 		chunk_size=config.chunk_size,
 		progress=config.progress,
-		block_prefix=f"{config.block_prefix}_projected",
+		block_prefix=f"{config.block_prefix}_implicit",
 		finite_difference_relative_step=config.finite_difference_relative_step,
-		newton_absolute_tolerance=config.newton_absolute_tolerance,
-		newton_relative_tolerance=config.newton_relative_tolerance,
-		newton_max_iterations=config.newton_max_iterations,
-	)
-	semiimplicit_config = SemiImplicitABBASymplecticityConfig(
-		steps=step,
-		t_span=config.t_span,
-		save_interval=config.save_interval,
-		rho=config.rho,
-		chunk_size=config.chunk_size,
-		progress=config.progress,
-		block_prefix=f"{config.block_prefix}_semiimplicit",
 		newton_absolute_tolerance=config.newton_absolute_tolerance,
 		newton_relative_tolerance=config.newton_relative_tolerance,
 		newton_max_iterations=config.newton_max_iterations,
@@ -484,28 +469,28 @@ def run_abba_comparison(
 		metadata=common_metadata,
 	)
 
-	projected_result = run_abba_symplecticity_study(
+	implicit_1_result = run_implicit_abba_1_symplecticity_study(
 		potential,
 		area,
 		notebook_path=notebook_path,
-		config=projected_config,
+		config=implicit_config,
 		project_root=project_root,
 		metadata=common_metadata,
 	)
 
-	semiimplicit_result = run_semiimplicit_abba_symplecticity_study(
+	implicit_2_result = run_implicit_abba_2_symplecticity_study(
 		potential,
 		area,
 		notebook_path=notebook_path,
-		config=semiimplicit_config,
+		config=implicit_config,
 		project_root=project_root,
 		metadata=common_metadata,
 	)
 
 	studies: dict[str, ABBAComparisonStudy] = {
 		ABBA_METHOD_NAMES[0]: explicit_result,
-		ABBA_METHOD_NAMES[1]: projected_result,
-		ABBA_METHOD_NAMES[2]: semiimplicit_result,
+		ABBA_METHOD_NAMES[1]: implicit_1_result,
+		ABBA_METHOD_NAMES[2]: implicit_2_result,
 	}
 	runtimes = {
 		method_name: studies[method_name].simulation_runtime_seconds[
