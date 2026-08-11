@@ -10,6 +10,8 @@ from .formulations import (
 )
 from .methods import (
 	BM4Composition,
+	BM4Implicit1,
+	BM4Implicit2,
 	ExplicitABBA,
 	ImplicitABBA1,
 	ImplicitABBA2,
@@ -31,6 +33,8 @@ from .solution import Solution
 
 __all__ = [
 	"BM4Composition",
+	"BM4Implicit1",
+	"BM4Implicit2",
 	"DirectAdjointFormulation",
 	"ExplicitABBA",
 	"ImplicitABBA1",

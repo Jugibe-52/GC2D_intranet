@@ -65,6 +65,8 @@ note bottom of NumericalMethod
   equation, while ImplicitABBA2 solves the
   equivalent simultaneous output-multiplier system.
   Both converge to the same projected physical map.
+  BM4Implicit1 and BM4Implicit2 apply these two
+  projection formulations around a full BM4 cycle.
   Physical step Jacobians are optional diagnostics,
   not separate numerical integration methods.
 end note

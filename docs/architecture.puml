@@ -146,6 +146,8 @@ package "Numerical methods" as Methods {
   class RK4
   class BM4Composition
   class ProjectedBM4Composition
+  class BM4Implicit1
+  class BM4Implicit2
   class ExplicitABBA
   class ImplicitABBA1
   class ImplicitABBA2
@@ -153,6 +155,8 @@ package "Numerical methods" as Methods {
   NumericalMethod <|.. RK4
   NumericalMethod <|.. BM4Composition
   BM4Composition <|-- ProjectedBM4Composition
+  NumericalMethod <|.. BM4Implicit1
+  NumericalMethod <|.. BM4Implicit2
   NumericalMethod <|.. ExplicitABBA
   NumericalMethod <|.. ImplicitABBA1
   NumericalMethod <|.. ImplicitABBA2
@@ -161,6 +165,8 @@ package "Numerical methods" as Methods {
 RK4 ..> DynamicalSystem : requires vector field
 BM4Composition o-- DirectAdjointFormulation : formulation
 ProjectedBM4Composition o-- StageProjectedFormulation : formulation
+BM4Implicit1 ..> GCExtendedFormulation : full-cycle reduced projection
+BM4Implicit2 ..> GCExtendedFormulation : full-cycle simultaneous projection
 ExplicitABBA ..> DynamicalSystem : requires planar vector field
 ImplicitABBA1 ..> GuidingCenterJacobianSystem : exact reduced 2x2 Newton blocks
 ImplicitABBA2 ..> GuidingCenterJacobianSystem : exact simultaneous 6x6 Newton blocks
@@ -220,6 +226,8 @@ SimulationRunner --> Solution : builds
 
 Solution o-- InitialConfiguration : source
 RK4 --> IntegrationStep : optional observation
+BM4Implicit1 --> IntegrationStep : optional observation
+BM4Implicit2 --> IntegrationStep : optional observation
 ExplicitABBA --> IntegrationStep : optional observation
 ImplicitABBA1 --> ImplicitABBAIntegrationStep : converged stage data
 ImplicitABBA2 --> ImplicitABBAIntegrationStep : converged stage data
@@ -258,6 +266,20 @@ note bottom of ProjectedBM4Composition
   BM4-based method, not the coupled BM4 map.
 end note
 
+note bottom of BM4Implicit1
+  Hairer's symmetric projection surrounds one complete
+  twelve-stage BM4 cycle. Newton eliminates the duplicated
+  output and solves only for the physical multiplier.
+  The BM4 map Jacobian is evaluated by centered differences.
+end note
+
+note bottom of BM4Implicit2
+  The same projected BM4 root is expressed with the
+  duplicated output and multiplier as simultaneous unknowns.
+  It is algebraically equivalent to BM4Implicit1 through
+  the reduced Schur complement.
+end note
+
 note bottom of ImplicitABBA1
   Each second-order step applies endpoint-time
   A-B-B-A shears in a duplicated GC state and
@@ -293,6 +315,7 @@ package "Reusable studies" as Studies {
   class ExplicitABBASymplecticityStudy
   class ABBASymplecticityStudy
   class ImplicitABBASymplecticityStudy
+  class BM4ImplicitSymplecticityStudy
   class ABBAComparisonStudy
 }
 
@@ -330,6 +353,9 @@ ImplicitABBASymplecticityStudy ..> ImplicitABBA1
 ImplicitABBASymplecticityStudy ..> ImplicitABBA2
 ImplicitABBASymplecticityStudy ..> SymplecticityObservers : configurable fan-out
 ImplicitABBASymplecticityStudy ..> ImplicitABBAIntegrationStep : analyzes
+BM4ImplicitSymplecticityStudy ..> BM4Implicit1
+BM4ImplicitSymplecticityStudy ..> BM4Implicit2
+BM4ImplicitSymplecticityStudy ..> IntegrationStep : analyzes
 ABBAComparisonStudy ..> ExplicitABBASymplecticityStudy : one run; times outside observer
 ABBAComparisonStudy ..> ImplicitABBASymplecticityStudy : formulations 1 and 2
 ABBAComparisonStudy ..> Solution : compares periodic trajectories

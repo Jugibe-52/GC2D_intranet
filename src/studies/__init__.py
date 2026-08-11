@@ -56,6 +56,16 @@ from .initial_conditions import (
 	centered_square,
 	domain_center,
 )
+from .bm4_implicit_symplecticity import (
+	BM4Implicit1SymplecticityResult,
+	BM4Implicit2SymplecticityResult,
+	BM4ImplicitSymplecticityComparison,
+	BM4ImplicitSymplecticityConfig,
+	BM4ImplicitSymplecticitySummary,
+	run_bm4_implicit_1_symplecticity_study,
+	run_bm4_implicit_2_symplecticity_study,
+	run_bm4_implicit_symplecticity_study,
+)
 from .potentials import RandomPotentialConfig
 from .rk4_symplecticity import (
 	RK4ConvergenceOrder,
@@ -79,6 +89,11 @@ __all__ = [
 	"AreaComparisonConfig",
 	"AreaComparisonResult",
 	"AreaStep",
+	"BM4Implicit1SymplecticityResult",
+	"BM4Implicit2SymplecticityResult",
+	"BM4ImplicitSymplecticityComparison",
+	"BM4ImplicitSymplecticityConfig",
+	"BM4ImplicitSymplecticitySummary",
 	"DEFAULT_IMPLICIT_ABBA_OBSERVERS",
 	"ExplicitABBADefectOrder",
 	"ExplicitABBASymplecticityConfig",
@@ -106,6 +121,9 @@ __all__ = [
 	"domain_center",
 	"pi_area_steps",
 	"run_area_comparison",
+	"run_bm4_implicit_1_symplecticity_study",
+	"run_bm4_implicit_2_symplecticity_study",
+	"run_bm4_implicit_symplecticity_study",
 	"run_abba_comparison",
 	"run_abba_symplecticity_study",
 	"run_generalized_energy_comparison",

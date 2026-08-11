@@ -9,7 +9,7 @@ name from the package that owns it.
 | `potential` | Periodic electrostatic field model | `Potential` |
 | `dynamics` | Equations of motion and capability protocols | `GuidingCenterDynamics`, `FullCyclotronDynamics` |
 | `initial_conditions` | Initial state layouts and geometry | `GCInitialConfiguration`, `FCInitialConfiguration`, `Area` |
-| `simulation` | Problems, methods, formulations, requests, and solutions | `InitialValueProblem`, `RK4`, `ImplicitABBA1`, `ImplicitABBA2`, `SimulationRequest`, `Solution` |
+| `simulation` | Problems, methods, formulations, requests, and solutions | `InitialValueProblem`, `RK4`, `BM4Implicit1`, `BM4Implicit2`, `ImplicitABBA1`, `ImplicitABBA2`, `SimulationRequest`, `Solution` |
 | `diagnostics` | Optional observers and diagnostic persistence | projection and symplecticity observers |
 | `studies` | Reusable experiment assembly and summaries | configuration objects and `run_*_study` functions |
 | `visualization` | Optional plots, animations, and notebook display | `plot_potential`, `animate_gc_area_solution` |
@@ -48,6 +48,12 @@ general simulation API.
 Hairer's symmetric ABBA projection. The first solves the reduced multiplier
 equation with independent `2 x 2` Newton blocks; the second implements the
 equivalent simultaneous equation (21) with independent `6 x 6` blocks.
+
+`BM4Implicit1` and `BM4Implicit2` apply the same two Hairer projection
+formulations around one complete twelve-stage `BM4Composition` cycle. Their
+Newton matrices use centered differences of the doubled BM4 map; projection is
+performed once per complete cycle and is distinct from `ProjectedBM4Composition`,
+which averages and re-embeds the copies after every internal stage.
 
 ## Dependency direction
 

@@ -1,0 +1,463 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[provide=*,english]{babel}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage{amsmath,amssymb,mathtools}
+\usepackage{geometry}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{booktabs}
+\usepackage{fancyhdr}
+\usepackage[hidelinks]{hyperref}
+
+\geometry{left=2.3cm,right=2.3cm,top=2.2cm,bottom=2.25cm,headheight=14pt}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0.38em}
+\setlist[itemize]{topsep=0.25em,itemsep=0.18em,leftmargin=1.5em}
+\allowdisplaybreaks
+
+\definecolor{blue}{RGB}{34,73,110}
+\definecolor{gray}{RGB}{90,96,102}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\color{gray}GC2D: projected BM4}
+\fancyhead[R]{\small\color{gray}Implicit 1: reduced multiplier solve}
+\fancyfoot[C]{\thepage}
+\renewcommand{\headrulewidth}{0.3pt}
+
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\Id}{I}
+\newcommand{\Y}{\mathcal{Y}}
+\newcommand{\M}{\mathcal{M}}
+\newcommand{\PhiBM}{\Phi^{\mathrm{BM4}}_{h,t_n}}
+\newcommand{\norm}[1]{\left\lVert #1\right\rVert}
+
+\begin{document}
+
+\begin{center}
+  {\LARGE\bfseries\color{blue}BM4 Implicit 1 with Hairer's Symmetric Projection}\par
+  \vspace{0.35em}
+  {\large Reduced Newton formulation for the projection multiplier}\par
+  \vspace{0.45em}
+  {\small One symmetric projection around a complete twelve-stage BM4 cycle}
+\end{center}
+
+\vspace{0.5em}
+
+\section{Scope and distinction from stage-projected BM4}
+
+The method studied here is denoted \texttt{BM4Implicit1}.  It applies Hairer's
+symmetric projection once around the complete fourth-order BM4 map.  It is not
+\texttt{ProjectedBM4Composition}: that existing method averages and re-embeds
+the two copies after every direct or adjoint stage, hence twelve times per full
+cycle.  In the present method, all twelve BM4 stages are traversed without an
+intermediate projection and one multiplier is determined at the end of the
+cycle.
+
+The nonlinear unknown is the physical multiplier only.  For one guiding-centre
+particle it has two components and Newton solves a $2\times2$ system.  For $N$
+particles the current implementation assembles a dense $2N\times2N$ matrix,
+although the field and coupling maps act independently on each particle.
+
+\section{Physical and doubled guiding-centre states}
+
+The physical state is $z=(X,Y)\in\R^2$ and satisfies
+\[
+ \dot z=f(z,t),
+ \qquad
+ f(z,t)=J_0\nabla_z\phi(z,t),
+ \qquad
+ J_0=
+ \begin{pmatrix}0&-1\\1&0\end{pmatrix}.
+\]
+The doubled state is
+\[
+ \Y=(u,v)\in\R^4,
+ \qquad
+ \M=\{(u,v):u=v\}.
+\]
+Introduce the diagonal embedding, constraint, and normal embedding
+\[
+ E=\begin{pmatrix}\Id_2\\\Id_2\end{pmatrix},
+ \qquad
+ G=(\Id_2\;-\Id_2),
+ \qquad
+ N=G^T=\begin{pmatrix}\Id_2\\-\Id_2\end{pmatrix}.
+\]
+They satisfy
+\[
+ GE=0,
+ \qquad
+ GN=2\Id_2.
+\]
+Thus $Ez=(z,z)$ is physical and $N\mu=(\mu,-\mu)$ separates the two
+copies in opposite directions.
+
+\section{Direct, adjoint, and coupling maps}
+
+For a duration $s$ and evaluation time $t$, the uncoupled triangular shears are
+\[
+ B_{s,t}(u,v)=\bigl(u,v+s f(u,t)\bigr),
+ \qquad
+ A_{s,t}(u,v)=\bigl(u+s f(v,t),v\bigr).
+\]
+The GC extended formulation also contains an exact linear coupling
+$C_{s,\omega}$.  If
+\[
+ m=\frac{u+v}{2},
+ \qquad
+ \delta=u-v,
+\]
+then
+\[
+ m^+=m,
+ \qquad
+ \delta^+=R(2\omega s)\delta,
+ \qquad
+ R(\theta)=
+ \begin{pmatrix}
+  \cos\theta&-\sin\theta\\
+  \sin\theta&\cos\theta
+ \end{pmatrix}.
+\]
+The direct map implemented by \texttt{GCExtendedFormulation} is
+\[
+ D_{s,t}=C_{s,\omega}\circ A_{s,t}\circ B_{s,t},
+\]
+whereas its adjoint is
+\[
+ D^*_{s,t}=B_{s,t}\circ A_{s,t}\circ C_{s,\omega}.
+\]
+The ordering is important: the coupling follows both triangular updates in the
+direct map and precedes them in the adjoint map.
+
+Let $W(z,t)=D_zf(z,t)$.  Before the final coupling, the direct-map Jacobian is
+\[
+ \begin{pmatrix}
+  \Id_2+s^2W(v^+,t)W(u,t)&sW(v^+,t)\\
+  sW(u,t)&\Id_2
+ \end{pmatrix},
+ \qquad
+ v^+=v+s f(u,t).
+\]
+Therefore its full Jacobian is the coupling matrix multiplied on the left by
+this block matrix.  The adjoint Jacobian has the analogous reverse ordering,
+with the coupling matrix multiplied on the right.
+
+\section{The twelve-stage BM4 cycle}
+
+The six half-sequence coefficients are
+\[
+\begin{aligned}
+ a_1&= 0.0792036964311957,&
+ a_2&= 0.1303114101821663,\\
+ a_3&= 0.2228614958676077,&
+ a_4&=-0.3667132690474257,\\
+ a_5&= 0.3246481886897062,&
+ a_6&= 0.1096884778767498.
+\end{aligned}
+\]
+They satisfy $\sum_{j=1}^6 a_j=1/2$.  Define
+\[
+ (b_1,\ldots,b_{12})
+ =(a_1,a_2,a_3,a_4,a_5,a_6,a_6,a_5,a_4,a_3,a_2,a_1).
+\]
+Starting from $\Y^{(0)}$, the implementation alternates adjoint and direct
+maps:
+\[
+ \Y^{(j)}=
+ \begin{cases}
+  D^*_{b_jh,\,\tau_{j-1}}\bigl(\Y^{(j-1)}\bigr),&j\text{ odd},\\
+  D_{b_jh,\,\tau_j}\bigl(\Y^{(j-1)}\bigr),&j\text{ even},
+ \end{cases}
+\]
+with
+\[
+ \tau_0=t_n,
+ \qquad
+ \tau_j=t_n+h\sum_{k=1}^j b_k.
+\]
+The complete map is
+\[
+ \boxed{\PhiBM(\Y^{(0)})=\Y^{(12)}.}
+\]
+Negative coefficients are intentional.  The direct/adjoint alternation and
+palindromic coefficients produce the symmetric fourth-order composition used by
+\texttt{BM4Composition}.
+
+\section{Symmetric projection and reduced equation}
+
+Given the physical input $\Y_n=Ez_n$, displace it by an unknown multiplier:
+\[
+ \widehat{\Y}_n(\mu)=Ez_n+N\mu.
+\]
+Apply the full BM4 cycle and then the same normal correction at the output:
+\[
+ \widetilde{\Y}_{n+1}(\mu)
+ =\PhiBM(Ez_n+N\mu),
+\]
+\[
+ \Y_{n+1}(\mu)
+ =\widetilde{\Y}_{n+1}(\mu)+N\mu.
+\]
+The diagonal condition $G\Y_{n+1}=0$ gives the reduced equation
+\[
+ \boxed{
+ R(\mu)
+ =G\PhiBM(Ez_n+N\mu)+2\mu=0.
+ } \tag{1}
+\]
+If $\PhiBM(Ez_n+N\mu)=(u_f(\mu),v_f(\mu))$, this is simply
+\[
+ u_f(\mu)-v_f(\mu)+2\mu=0.
+\]
+At the converged root, the physical output is represented by
+\[
+ \boxed{
+ z_{n+1}=\frac{u_f(\mu_*)+\mu_*+v_f(\mu_*)-\mu_*}{2}
+ =\frac{u_f(\mu_*)+v_f(\mu_*)}{2}.
+ } \tag{2}
+\]
+
+\section{BM4 map Jacobian and Newton system}
+
+Let
+\[
+ J_{\mathrm{BM4}}(\widehat{\Y}_n)
+ =D\PhiBM(\widehat{\Y}_n).
+\]
+The exact derivative can be accumulated through the twelve stages.  If
+$J_j=D\mathcal S_j(\Y^{(j-1)})$ is the Jacobian of stage $j$, then
+\[
+ M_0=\Id_4,
+ \qquad
+ M_j=J_jM_{j-1},
+ \qquad
+ J_{\mathrm{BM4}}=M_{12}.
+\]
+
+\subsection*{SymPy-explicit stage factors}
+
+The following expression makes every factor in $J_{\mathrm{BM4}}$ explicit.
+For $s_j=b_jh$, define the two coupling blocks
+\[
+ H_j=\frac{\Id_2+R(2\omega s_j)}{2},
+ \qquad
+ K_j=\frac{\Id_2-R(2\omega s_j)}{2},
+\]
+so the Jacobian of the exact linear coupling is
+\[
+ C_j=
+ \begin{pmatrix}
+  H_j&K_j\\
+  K_j&H_j
+ \end{pmatrix}.
+\]
+
+For an even, direct stage $j$, let
+\[
+ \widetilde v_j
+ =v^{(j-1)}+s_jf\bigl(u^{(j-1)},\tau_j\bigr),
+\]
+and set
+\[
+ U_j=W\bigl(u^{(j-1)},\tau_j\bigr),
+ \qquad
+ V_j=W(\widetilde v_j,\tau_j),
+ \qquad
+ L_j=\Id_2+s_j^2V_jU_j.
+\]
+SymPy multiplication of the two shears and the final coupling gives the exact
+$4\times4$ direct-stage Jacobian
+\[
+ \boxed{
+ \begin{aligned}
+ \mathcal D_j
+ &=C_j
+ \begin{pmatrix}
+  L_j&s_jV_j\\
+  s_jU_j&\Id_2
+ \end{pmatrix}\\[2mm]
+ &=
+ \begin{pmatrix}
+  H_jL_j+s_jK_jU_j&s_jH_jV_j+K_j\\
+  K_jL_j+s_jH_jU_j&s_jK_jV_j+H_j
+ \end{pmatrix}.
+ \end{aligned}
+ }
+\]
+
+For an odd, adjoint stage, first write the coupled input as
+\[
+ \begin{pmatrix}\overline u_j\\\overline v_j\end{pmatrix}
+ =C_j
+ \begin{pmatrix}u^{(j-1)}\\v^{(j-1)}\end{pmatrix},
+ \qquad
+ u^{(j)}=\overline u_j+s_jf(\overline v_j,\tau_{j-1}).
+\]
+Now define
+\[
+ U_j=W(\overline v_j,\tau_{j-1}),
+ \qquad
+ V_j=W\bigl(u^{(j)},\tau_{j-1}\bigr),
+ \qquad
+ L_j=\Id_2+s_j^2V_jU_j.
+\]
+The exact adjoint-stage Jacobian is
+\[
+ \boxed{
+ \begin{aligned}
+ \mathcal A_j
+ &=
+ \begin{pmatrix}
+  \Id_2&s_jU_j\\
+  s_jV_j&L_j
+ \end{pmatrix}C_j\\[2mm]
+ &=
+ \begin{pmatrix}
+  H_j+s_jU_jK_j&K_j+s_jU_jH_j\\
+  s_jV_jH_j+L_jK_j&s_jV_jK_j+L_jH_j
+ \end{pmatrix}.
+ \end{aligned}
+ }
+\]
+The order of every $U_j$, $V_j$, $H_j$, and $K_j$ factor is essential: these
+$2\times2$ matrices do not commute in general.
+
+Let $\mathcal A_j[c]$ or $\mathcal D_j[c]$ mean that the corresponding stage
+duration is $s_j=ch$.  Substitution of the palindromic BM4 coefficients and
+application of the chain rule gives the requested explicit expression
+\[
+ \boxed{
+ \begin{aligned}
+ J_{\mathrm{BM4}}={}&
+ \mathcal D_{12}[a_1]\mathcal A_{11}[a_2]
+ \mathcal D_{10}[a_3]\mathcal A_9[a_4]
+ \mathcal D_8[a_5]\mathcal A_7[a_6]\\
+ &{}\times
+ \mathcal D_6[a_6]\mathcal A_5[a_5]
+ \mathcal D_4[a_4]\mathcal A_3[a_3]
+ \mathcal D_2[a_2]\mathcal A_1[a_1].
+ \end{aligned}
+ }
+\]
+This factorization is exact, not a finite-difference approximation.  The
+reproducible calculation in \texttt{bm4\_jacobian\_sympy.py} uses SymPy 1.14,
+verifies both displayed stage identities, and preserves noncommutative block
+order.  Even before the internal stage blocks are expanded, the fully expanded
+twelve-factor product contains $2048$ ordered monomials in each final
+$2\times2$ block, or $8192$ in total.  The factorized expression above is
+therefore the explicit form suitable for analysis and implementation.
+
+\subsection*{Reduced Newton matrix}
+
+The reduced Jacobian follows directly from (1):
+\[
+ \boxed{
+ K(\mu)=R'(\mu)
+ =GJ_{\mathrm{BM4}}(Ez_n+N\mu)N+2\Id_2.
+ } \tag{3}
+\]
+Newton therefore solves
+\[
+ K(\mu^{(k)})\Delta\mu^{(k)}=-R(\mu^{(k)}),
+ \qquad
+ \mu^{(k+1)}=\mu^{(k)}+\Delta\mu^{(k)}.
+\]
+
+The present implementation computes $J_{\mathrm{BM4}}$ by centered differences
+of the complete doubled map.  For coordinate $j$,
+\[
+ [J_{\mathrm{BM4}}]_{:,j}
+ \approx
+ \frac{\PhiBM(\widehat{\Y}+\varepsilon_je_j)
+       -\PhiBM(\widehat{\Y}-\varepsilon_je_j)}{2\varepsilon_j},
+\]
+\[
+ \varepsilon_j
+ =\eta\max(1,|\widehat{Y}_j|),
+ \qquad
+ \eta=\sqrt[3]{\epsilon_{\mathrm{mach}}}.
+\]
+No matrix inverse is formed explicitly; the reduced linear system is passed to
+a dense solve.
+
+\section{Stopping rule, symmetry, and order}
+
+The initial multiplier is $\mu^{(0)}=0$.  With
+\[
+ s_z=\max(1,\norm{z_n}_\infty),
+\]
+the solve stops when
+\[
+ \norm{R(\mu^{(k)})}_\infty
+ \leq \mathrm{atol}+\mathrm{rtol}\,s_z.
+\]
+At an exact, locally unique projection root, the symmetric placement of the same
+multiplier around the symmetric BM4 map gives
+\[
+ \Psi_{-h,t_{n+1}}\circ\Psi_{h,t_n}=\Id.
+\]
+Under the usual regularity and non-singularity assumptions, symmetric projection
+preserves the fourth-order accuracy of the BM4 base map.  The diagonal defect of
+a fourth-order cycle is $O(h^5)$, hence the multiplier is expected to satisfy
+\[
+ \boxed{\norm{\mu_h}_\infty=O(h^5).}
+\]
+
+If the doubled BM4 map preserves the extended symplectic form and the projection
+root is solved exactly, Hairer's symmetric projection induces a symplectic map on
+the physical diagonal.  Finite Newton tolerances, finite-difference Jacobians,
+and floating-point linear solves determine the measured numerical floor.
+
+\section{Reproducible numerical study}
+
+The following audit uses one guiding-centre particle and the explicit parameters
+\begin{itemize}
+ \item random potential amplitude $0.3$, maximum wave number $8$, grid
+       $32\times32$, seed $27$, interpolation order $5$;
+ \item initial state $z_0=(1,1.2)$, normalized gyroradius $\rho=0.3$;
+ \item coupling frequency $\omega=\pi/8$ and interval $[0,0.4]$;
+ \item Newton absolute and relative tolerances $10^{-15}$, at most $12$
+       iterations, and $\eta=\sqrt[3]{\epsilon_{\mathrm{mach}}}$;
+ \item reference solution computed with $h=0.003125$.
+\end{itemize}
+
+\begin{center}
+\small
+\begin{tabular}{@{}ccccc@{}}
+\toprule
+$h$ & global error & observed order & $\max\norm{\mu}_\infty$ & max Newton it.\\
+\midrule
+$0.200$ & $1.2480\times10^{-9}$  & ---    & $6.0004\times10^{-10}$ & $1$\\
+$0.100$ & $7.7277\times10^{-11}$ & $4.013$& $2.1510\times10^{-11}$ & $1$\\
+$0.050$ & $4.8223\times10^{-12}$ & $4.002$& $7.1747\times10^{-13}$ & $1$\\
+$0.025$ & $3.0344\times10^{-13}$ & $3.990$& $2.3095\times10^{-14}$ & $1$\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The multiplier orders between successive rows are $4.802$, $4.906$, and
+$4.957$, approaching the predicted value five.  The maximum final residuals are
+between $1.00\times10^{-15}$ and $1.83\times10^{-15}$.  These results verify
+fourth-order convergence and the expected projection scale without using a
+fitted symbolic model.
+
+\section{Implementation correspondence}
+
+The production path is:
+\begin{itemize}
+ \item \texttt{BM4Implicit1} selects the reduced solver;
+ \item \texttt{\_advance\_composition} evaluates the unchanged twelve-stage BM4 map;
+ \item \texttt{\_bm4\_map\_jacobian} differentiates the complete doubled map;
+ \item \texttt{\_solve\_reduced\_projected\_bm4\_step} assembles (1)--(3);
+ \item \texttt{integrate\_fixed\_grid} advances only physical projected states;
+ \item the reusable BM4 implicit symplecticity study records area, local-flow,
+       accumulated-flow, determinant, residual, iteration, and multiplier data.
+\end{itemize}
+
+\end{document}
