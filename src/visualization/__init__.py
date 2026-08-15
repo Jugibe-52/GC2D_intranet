@@ -53,15 +53,18 @@ from .ten_method_comparison import (
 from .trajectory_accuracy import (
 	AccuracySeriesView,
 	AccuracySummaryView,
+	StepAccuracySummaryView,
 	plot_accuracy_runtime_tradeoff,
 	plot_reference_trajectory_points,
 	plot_ten_method_accuracy_over_time,
+	plot_ten_method_accuracy_refinement,
 	plot_ten_method_accuracy_summary,
 )
 
 __all__ = [
 	"AccuracySeriesView",
 	"AccuracySummaryView",
+	"StepAccuracySummaryView",
 	"animate_fc_particle_solution",
 	"animate_gc_area",
 	"animate_gc_area_comparison",
@@ -99,6 +102,7 @@ __all__ = [
 	"plot_trajectory_symplecticity",
 	"plot_ten_method_nonlinear_work",
 	"plot_ten_method_accuracy_over_time",
+	"plot_ten_method_accuracy_refinement",
 	"plot_ten_method_accuracy_summary",
 	"plot_ten_method_runtimes",
 	"plot_ten_method_trajectory_differences",

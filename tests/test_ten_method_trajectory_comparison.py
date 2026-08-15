@@ -109,6 +109,12 @@ class TenMethodTrajectoryComparisonTests(unittest.TestCase):
 				t_span=(0.0, 1.0),
 				integration_step=0.3,
 			)
+		with self.assertRaisesRegex(ValueError, "save_interval / integration_step"):
+			TenMethodTrajectoryComparisonConfig(
+				t_span=(0.0, 1.0),
+				integration_step=0.2,
+				save_interval=0.5,
+			)
 
 
 if __name__ == "__main__":

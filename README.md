@@ -286,6 +286,10 @@ field. `run_ten_method_accuracy_study` verifies that artifact and reports
 minimum-image trajectory errors for all ten fixed-step variants, including
 particle-RMS error over time, final and worst-case distances, resolution-floor
 ratios, and the measured accuracy--runtime trade-off.
+`run_ten_method_accuracy_refinement_study` repeats all ten variants on nested
+complete steps while saving one common set of genuine main-grid nodes. It
+reports the error-reduction factor and observed order between every adjacent
+refinement without introducing shadow steps or trajectory interpolation.
 
 ## Results and visualization
 

@@ -130,9 +130,11 @@ floor, and a fingerprint formed from the gyroaveraged sampled field and
 canonical off-grid electric-field probes. `run_ten_method_accuracy_study`
 validates the exact initial state, time grid, physical parameter, grid,
 metadata, and dynamics fingerprint before measuring minimum-image errors for
-the ten variants. Its visualization shows error evolution, global/final RMS
-accuracy, and the runtime trade-off; reference paths use markers without
-connected lines.
+the ten variants. The refinement runner evaluates nested steps on one saved
+cadence that is an integer multiple of every complete step, then reports error
+gains and observed time-integrated/final RMS orders. Its visualization shows
+error evolution, log-log accuracy against step, global/final RMS accuracy, and
+the runtime trade-off; reference paths use markers without connected lines.
 
 ## Dependency direction
 

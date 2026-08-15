@@ -66,6 +66,7 @@ class TenMethodTrajectoryComparisonConfig:
 	coupling_frequency: float = float(np.pi / 8.0)
 	t_span: tuple[float, float] = (0.0, 2.0)
 	integration_step: float = 0.05
+	save_interval: float | None = None
 	absolute_tolerance: float = 1e-14
 	relative_tolerance: float = 1e-13
 	max_iterations: int = 40
@@ -91,6 +92,12 @@ class TenMethodTrajectoryComparisonConfig:
 			"newton_jacobian_relative_step",
 		):
 			object.__setattr__(self, name, positive_finite(getattr(self, name), name))
+		save_interval = (
+			self.integration_step
+			if self.save_interval is None
+			else positive_finite(self.save_interval, "save_interval")
+		)
+		object.__setattr__(self, "save_interval", save_interval)
 		object.__setattr__(
 			self,
 			"max_iterations",
@@ -100,6 +107,16 @@ class TenMethodTrajectoryComparisonConfig:
 			self.t_span[1] - self.t_span[0],
 			self.integration_step,
 			"duration / integration_step",
+		)
+		integer_ratio(
+			self.t_span[1] - self.t_span[0],
+			save_interval,
+			"duration / save_interval",
+		)
+		integer_ratio(
+			save_interval,
+			self.integration_step,
+			"save_interval / integration_step",
 		)
 		object.__setattr__(self, "progress", bool(self.progress))
 
@@ -114,8 +131,13 @@ class TenMethodTrajectoryComparisonConfig:
 
 	@property
 	def output_sample_count(self) -> int:
-		"""Return one saved state for every common integration-grid node."""
-		return self.step_count + 1
+		"""Return samples on a main-grid-aligned common output cadence."""
+		assert self.save_interval is not None
+		return integer_ratio(
+			self.t_span[1] - self.t_span[0],
+			self.save_interval,
+			"duration / save_interval",
+		) + 1
 
 
 @dataclass(frozen=True, slots=True)

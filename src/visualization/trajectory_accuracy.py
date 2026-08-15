@@ -53,6 +53,25 @@ class AccuracySummaryView(Protocol):
 		...
 
 
+class StepAccuracySummaryView(Protocol):
+	"""Step-dependent fields consumed by the refinement plot."""
+
+	@property
+	def integration_step(self) -> float:
+		"""Complete integration step size."""
+		...
+
+	@property
+	def method_name(self) -> str:
+		"""Stable method label."""
+		...
+
+	@property
+	def time_integrated_rms_distance(self) -> float:
+		"""Comparable space-time RMS error on the common saved grid."""
+		...
+
+
 def _positive(values: np.ndarray, *, floor: float) -> np.ndarray:
 	"""Validate distances and floor exact zeros only for logarithmic axes."""
 	array = np.asarray(values, dtype=float)
@@ -270,11 +289,82 @@ def plot_accuracy_runtime_tradeoff(
 	return figure, axis
 
 
+def plot_ten_method_accuracy_refinement(
+	summaries: Sequence[StepAccuracySummaryView],
+) -> tuple[Figure, np.ndarray]:
+	"""Plot time-integrated RMS error against step for both method families."""
+	rows = tuple(summaries)
+	if not rows:
+		raise ValueError("At least one step-accuracy summary is required.")
+	labels = tuple(TEN_METHOD_COLORS)
+	grouped: dict[str, dict[float, float]] = {label: {} for label in labels}
+	for row in rows:
+		step = float(row.integration_step)
+		error = float(row.time_integrated_rms_distance)
+		if (
+			row.method_name not in grouped
+			or not np.isfinite(step)
+			or step <= 0.0
+			or not np.isfinite(error)
+			or error <= 0.0
+		):
+			raise ValueError("Refinement summaries contain an invalid method, step, or error.")
+		if step in grouped[row.method_name]:
+			raise ValueError("Each method may contain only one result per step.")
+		grouped[row.method_name][step] = error
+	step_values = tuple(
+		sorted(
+			{step for values in grouped.values() for step in values},
+			reverse=True,
+		)
+	)
+	if len(step_values) < 2 or any(
+		set(values) != set(step_values) for values in grouped.values()
+	):
+		raise ValueError("All ten methods must share the same coarse-to-fine steps.")
+
+	figure, axes = plt.subplots(
+		1,
+		2,
+		figsize=(14, 6),
+		sharex=True,
+		constrained_layout=True,
+	)
+	for axis, family_name in zip(axes, ("ABBA", "BM4"), strict=True):
+		for label in labels:
+			if family_name not in label:
+				continue
+			linestyle = "--" if "Broyden" in label else "-"
+			if "Midpoint" in label:
+				linestyle = ":"
+			axis.loglog(
+				step_values,
+				[grouped[label][step] for step in step_values],
+				color=TEN_METHOD_COLORS[label],
+				linestyle=linestyle,
+				marker="o",
+				markersize=5,
+				label=label,
+			)
+		axis.invert_xaxis()
+		axis.set_xticks(step_values, labels=[f"{step:g}" for step in step_values])
+		axis.set(
+			title=f"{family_name} step refinement",
+			xlabel="Complete integration step $h$",
+			ylabel="Time-integrated RMS periodic distance",
+		)
+		axis.grid(which="both", alpha=0.25)
+		axis.legend(fontsize=7)
+	return figure, axes
+
+
 __all__ = [
 	"AccuracySeriesView",
 	"AccuracySummaryView",
+	"StepAccuracySummaryView",
 	"plot_accuracy_runtime_tradeoff",
 	"plot_reference_trajectory_points",
 	"plot_ten_method_accuracy_over_time",
+	"plot_ten_method_accuracy_refinement",
 	"plot_ten_method_accuracy_summary",
 ]

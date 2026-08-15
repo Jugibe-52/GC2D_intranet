@@ -20,12 +20,14 @@ from studies import (
 	periodic_particle_distances,
 	random_gc_configuration,
 	run_high_precision_reference_trajectory,
+	run_ten_method_accuracy_refinement_study,
 	run_ten_method_accuracy_study,
 )
 from visualization import (
 	plot_accuracy_runtime_tradeoff,
 	plot_reference_trajectory_points,
 	plot_ten_method_accuracy_over_time,
+	plot_ten_method_accuracy_refinement,
 	plot_ten_method_accuracy_summary,
 )
 
@@ -55,8 +57,8 @@ class TrajectoryAccuracyTests(unittest.TestCase):
 			seed=41,
 		)
 		reference_config = HighPrecisionReferenceConfig(
-			t_span=(0.0, 0.05),
-			save_interval=0.05,
+			t_span=(0.0, 0.1),
+			save_interval=0.025,
 			rho=0.05,
 			relative_tolerance=1e-11,
 			absolute_tolerance=1e-13,
@@ -91,7 +93,7 @@ class TrajectoryAccuracyTests(unittest.TestCase):
 			np.testing.assert_array_equal(loaded.times, result.trajectory.times)
 			np.testing.assert_array_equal(loaded.states, result.trajectory.states)
 			self.assertFalse(loaded.states.flags.writeable)
-			self.assertEqual(loaded.audit_periodic_distances.shape, (2, 2))
+			self.assertEqual(loaded.audit_periodic_distances.shape, (2, 5))
 			self.assertIn("dynamics_fingerprint_sha256", loaded.metadata)
 			self.assertFalse(any(expected_directory.glob(".*-*.npz")))
 			with self.assertRaisesRegex(FileExistsError, "versioned reference"):
@@ -107,8 +109,9 @@ class TrajectoryAccuracyTests(unittest.TestCase):
 
 			comparison_config = TenMethodTrajectoryComparisonConfig(
 				rho=0.05,
-				t_span=(0.0, 0.05),
+				t_span=(0.0, 0.1),
 				integration_step=0.05,
+				save_interval=0.05,
 			)
 			accuracy = run_ten_method_accuracy_study(
 				potential,
@@ -127,16 +130,20 @@ class TrajectoryAccuracyTests(unittest.TestCase):
 				summary_by_name["Midpoint ABBA"].global_rms_distance,
 			)
 			for series in accuracy.series.values():
-				self.assertEqual(series.distances.shape, (2, 2))
+				self.assertEqual(series.distances.shape, (2, 3))
 				np.testing.assert_array_equal(series.distances[:, 0], 0.0)
 				self.assertTrue(np.all(series.distances >= 0.0))
+			self.assertAlmostEqual(
+				accuracy.reference_floor,
+				float(np.sqrt(np.mean(loaded.audit_periodic_distances[:, ::2] ** 2))),
+			)
 
 			trajectory_figure, trajectory_axis = plot_reference_trajectory_points(loaded)
 			self.assertEqual(len(trajectory_axis.lines), 2)
 			trajectory_figure.canvas.draw()
 			plt.close(trajectory_figure)
 			time_figure, time_axes = plot_ten_method_accuracy_over_time(
-				loaded.times,
+				accuracy.times,
 				accuracy.series,
 				reference_floor=accuracy.reference_floor,
 			)
@@ -155,6 +162,71 @@ class TrajectoryAccuracyTests(unittest.TestCase):
 			self.assertEqual(len(tradeoff_axis.collections), 10)
 			tradeoff_figure.canvas.draw()
 			plt.close(tradeoff_figure)
+
+			refinement = run_ten_method_accuracy_refinement_study(
+				potential,
+				configuration,
+				loaded,
+				base_config=comparison_config,
+				integration_steps=(0.05, 0.025),
+				potential_metadata=potential_config.metadata(),
+				initial_condition_metadata=initial_metadata,
+			)
+			self.assertEqual(refinement.integration_steps, (0.05, 0.025))
+			self.assertEqual(len(refinement.summaries()), 20)
+			orders = refinement.convergence_orders()
+			self.assertEqual(len(orders), 10)
+			audit_distances = loaded.audit_periodic_distances[:, ::2]
+			expected_floor = float(
+				np.sqrt(
+					np.trapz(np.mean(audit_distances**2, axis=0), loaded.times[::2])
+					/ 0.1
+				)
+			)
+			self.assertAlmostEqual(refinement.reference_floor, expected_floor)
+			resolved_orders = tuple(
+				row for row in orders if row.resolved_above_reference_floor
+			)
+			self.assertTrue(resolved_orders)
+			for row in resolved_orders:
+				self.assertAlmostEqual(
+					row.time_integrated_rms_order,
+					float(np.log(row.time_integrated_rms_gain) / np.log(2.0)),
+				)
+				self.assertAlmostEqual(
+					row.final_rms_order,
+					float(np.log(row.final_rms_gain) / np.log(2.0)),
+				)
+			for step, expected_step_count in ((0.05, 2), (0.025, 4)):
+				run = refinement.results[step]
+				np.testing.assert_array_equal(run.times, loaded.times[::2])
+				for solution in run.comparison.solutions.values():
+					self.assertEqual(
+						int(solution.diagnostics["step_count"]),
+						expected_step_count,
+					)
+			refinement_figure, refinement_axes = (
+				plot_ten_method_accuracy_refinement(refinement.summaries())
+			)
+			self.assertEqual(refinement_axes.shape, (2,))
+			self.assertEqual([len(axis.lines) for axis in refinement_axes], [5, 5])
+			refinement_figure.canvas.draw()
+			plt.close(refinement_figure)
+			with self.assertRaisesRegex(ValueError, "coarse step / fine step"):
+				run_ten_method_accuracy_refinement_study(
+					potential,
+					configuration,
+					loaded,
+					base_config=TenMethodTrajectoryComparisonConfig(
+						rho=0.05,
+						t_span=(0.0, 0.1),
+						integration_step=0.05,
+						save_interval=0.1,
+					),
+					integration_steps=(0.05, 0.02),
+					potential_metadata=potential_config.metadata(),
+					initial_condition_metadata=initial_metadata,
+				)
 
 			with self.assertRaisesRegex(ValueError, "Potential metadata"):
 				run_ten_method_accuracy_study(

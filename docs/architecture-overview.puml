@@ -139,6 +139,10 @@ note bottom of NumericalMethod
   fixed-step trajectories with periodic minimum-image distances.
   It reports particle-RMS evolution, final and maximum error,
   the margin above the reference discrepancy, and runtime.
+  Its step-refinement runner uses nested complete steps and one
+  common saved cadence aligned with every main grid; error gains
+  and observed orders therefore require neither interpolation
+  nor off-grid shadow steps.
 end note
 
 note top of Potential

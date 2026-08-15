@@ -148,10 +148,14 @@ from .reference_trajectory import (
 	run_high_precision_reference_trajectory,
 )
 from .ten_method_accuracy import (
+	TenMethodAccuracyOrder,
+	TenMethodAccuracyRefinementResult,
 	TenMethodAccuracyResult,
 	TenMethodAccuracySummary,
+	TenMethodStepAccuracySummary,
 	TrajectoryAccuracySeries,
 	periodic_particle_distances,
+	run_ten_method_accuracy_refinement_study,
 	run_ten_method_accuracy_study,
 )
 
@@ -224,8 +228,11 @@ __all__ = [
 	"RK4SymplecticityResult",
 	"RK4SymplecticitySummary",
 	"ReferenceTrajectoryAuditSummary",
+	"TenMethodAccuracyOrder",
+	"TenMethodAccuracyRefinementResult",
 	"TenMethodAccuracyResult",
 	"TenMethodAccuracySummary",
+	"TenMethodStepAccuracySummary",
 	"TrajectoryDefectOrder",
 	"TrajectoryAccuracySeries",
 	"TrajectoryMethodVariant",
@@ -271,5 +278,6 @@ __all__ = [
 	"run_projected_bm4_symplecticity_study",
 	"run_rk4_symplecticity_study",
 	"run_ten_method_trajectory_comparison",
+	"run_ten_method_accuracy_refinement_study",
 	"run_ten_method_accuracy_study",
 ]

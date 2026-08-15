@@ -390,7 +390,8 @@ package "Reusable studies" as Studies {
   }
   class TenMethodTrajectoryComparisonStudy {
     + two midpoint and eight implicit variants
-    + same initial configuration, step, and saved-time grid
+    + same initial configuration and saved-time grid
+    + complete step independent from aligned save interval
     + 45 periodic-distance and ten runtime summaries
     + eight aligned nonlinear-work series
   }
@@ -403,6 +404,8 @@ package "Reusable studies" as Studies {
     + validates reference problem identity and checksum
     + per-particle periodic distances for ten variants
     + RMS, final, maximum, floor-ratio, and runtime summaries
+    + nested-step gains and observed convergence orders
+    + one common saved grid with no shadow steps
   }
   class ImplicitABBAJacobianParticleStepSeries {
     + states before and after observed steps
@@ -436,6 +439,7 @@ package "Optional visualization" as Visualization {
   class TrajectoryAccuracyVisualization {
     + marker-only high-precision reference paths
     + RMS and maximum error evolution
+    + log-log error against complete step
     + accuracy summary and runtime trade-off
   }
   class ProjectedBM4SymplecticityVisualization {
