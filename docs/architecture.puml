@@ -146,18 +146,30 @@ package "Numerical methods" as Methods {
   class RK4
   class BM4Composition
   class ProjectedBM4Composition
-  class BM4Implicit1
-  class BM4Implicit2
-  class ExplicitABBA
-  class ImplicitABBA1
-  class ImplicitABBA2
+  class BM4Implicit1 {
+    + nonlinear_solver: newton / broyden
+  }
+  class BM4Implicit2 {
+    + nonlinear_solver: newton / broyden
+  }
+  class MidpointABBA
+  class ImplicitABBA1 {
+    + nonlinear_solver: newton / broyden
+  }
+  class ImplicitABBA2 {
+    + nonlinear_solver: newton / broyden
+  }
+  class BroydenResidualSolver {
+    + solve(residual, initial_unknown, initial_jacobian, tolerance): root
+    + good rank-one Jacobian update
+  }
 
   NumericalMethod <|.. RK4
   NumericalMethod <|.. BM4Composition
   BM4Composition <|-- ProjectedBM4Composition
   NumericalMethod <|.. BM4Implicit1
   NumericalMethod <|.. BM4Implicit2
-  NumericalMethod <|.. ExplicitABBA
+  NumericalMethod <|.. MidpointABBA
   NumericalMethod <|.. ImplicitABBA1
   NumericalMethod <|.. ImplicitABBA2
 }
@@ -167,9 +179,13 @@ BM4Composition o-- DirectAdjointFormulation : formulation
 ProjectedBM4Composition o-- StageProjectedFormulation : formulation
 BM4Implicit1 ..> GCExtendedFormulation : full-cycle reduced projection
 BM4Implicit2 ..> GCExtendedFormulation : full-cycle simultaneous projection
-ExplicitABBA ..> DynamicalSystem : requires planar vector field
+MidpointABBA ..> DynamicalSystem : requires planar vector field
 ImplicitABBA1 ..> GuidingCenterJacobianSystem : exact reduced 2x2 Newton blocks
 ImplicitABBA2 ..> GuidingCenterJacobianSystem : exact simultaneous 6x6 Newton blocks
+ImplicitABBA1 ..> BroydenResidualSolver : reduced residual; K0 = 4 I
+ImplicitABBA2 ..> BroydenResidualSolver : simultaneous residual; zero-step K0
+BM4Implicit1 ..> BroydenResidualSolver : reduced residual; K0 = 4 I
+BM4Implicit2 ..> BroydenResidualSolver : simultaneous residual; zero-step K0
 
 package "Simulation" as Simulation {
   class SimulationRequest {
@@ -198,15 +214,28 @@ package "Simulation" as Simulation {
     + map_state(state): Array
   }
 
-  class ImplicitABBAIntegrationStep {
+  class ImplicitIntegrationStep {
     + formulation_name: str
     + start_time: float
+    + nonlinear_solver: newton / broyden
+    + newton_iterations: int
+    + residual_evaluations: int
+    + newton_residual_norm: float
+    + newton_tolerance: float
+    + projection_multiplier_norm: float
+  }
+
+  class ImplicitABBAIntegrationStep {
     + dynamics: GuidingCenterJacobianSystem
     + multiplier: Array
     + converged ABBA stage snapshots
   }
 
-IntegrationStep <|-- ImplicitABBAIntegrationStep
+  class ImplicitBM4IntegrationStep
+
+IntegrationStep <|-- ImplicitIntegrationStep
+ImplicitIntegrationStep <|-- ImplicitABBAIntegrationStep
+ImplicitIntegrationStep <|-- ImplicitBM4IntegrationStep
 ImplicitABBAIntegrationStep --> GuidingCenterJacobianSystem : exposes dynamics
 
   class Solution {
@@ -226,9 +255,9 @@ SimulationRunner --> Solution : builds
 
 Solution o-- InitialConfiguration : source
 RK4 --> IntegrationStep : optional observation
-BM4Implicit1 --> IntegrationStep : optional observation
-BM4Implicit2 --> IntegrationStep : optional observation
-ExplicitABBA --> IntegrationStep : optional observation
+BM4Implicit1 --> ImplicitBM4IntegrationStep : solver metrics
+BM4Implicit2 --> ImplicitBM4IntegrationStep : solver metrics
+MidpointABBA --> IntegrationStep : optional observation
 ImplicitABBA1 --> ImplicitABBAIntegrationStep : converged stage data
 ImplicitABBA2 --> ImplicitABBAIntegrationStep : converged stage data
 
@@ -268,33 +297,36 @@ end note
 
 note bottom of BM4Implicit1
   Hairer's symmetric projection surrounds one complete
-  twelve-stage BM4 cycle. Newton eliminates the duplicated
-  output and solves only for the physical multiplier.
-  The BM4 map Jacobian is evaluated by centered differences.
+  twelve-stage BM4 cycle. The reduced formulation eliminates
+  the duplicated output and solves only for the physical multiplier.
+  Newton differentiates the BM4 map by centered differences;
+  Broyden uses explicit reduced-residual evaluations.
 end note
 
 note bottom of BM4Implicit2
   The same projected BM4 root is expressed with the
   duplicated output and multiplier as simultaneous unknowns.
   It is algebraically equivalent to BM4Implicit1 through
-  the reduced Schur complement.
+  the reduced Schur complement. Both Newton and Broyden are selectable.
 end note
 
 note bottom of ImplicitABBA1
   Each second-order step applies endpoint-time
   A-B-B-A shears in a duplicated GC state and
-  solves the reduced multiplier equation (11)
-  with exact independent 2x2 Newton blocks.
+  solves the reduced multiplier equation (11).
+  Newton uses exact independent 2x2 blocks; Broyden
+  needs only explicit evaluations of that residual.
 end note
 
 note bottom of ImplicitABBA2
   The projected physical map is the same as implicit 1.
   Equation (21) retains the duplicated output and
-  multiplier as simultaneous unknowns, producing
-  one exact 6x6 Newton block per GC particle.
+  multiplier as simultaneous unknowns. Newton produces
+  exact 6x6 particle blocks; Broyden updates the shared
+  zero-step Jacobian approximation by secant data.
 end note
 
-note bottom of ExplicitABBA
+note bottom of MidpointABBA
   Each second-order step duplicates the physical
   state, applies endpoint-time A-B-B-A shears,
   and returns the arithmetic mean of both copies.
@@ -312,22 +344,63 @@ package "Reusable studies" as Studies {
   class AreaComparison
   class GeneralizedEnergyComparison
   class RK4SymplecticityStudy
-  class ExplicitABBASymplecticityStudy
+  class MidpointABBASymplecticityStudy
   class ABBASymplecticityStudy
   class ImplicitABBASymplecticityStudy
   class BM4ImplicitSymplecticityStudy
+  class ImplicitABBAJacobianStudy
+  class ImplicitABBAIterationStudy
+  class BM4ImplicitIterationStudy
+  class ImplicitTrajectoryComparisonStudy {
+    + same problem and step for four implicit methods
+    + six pairwise periodic trajectory summaries
+    + four per-step nonlinear-work series
+  }
+  class ImplicitABBAJacobianParticleStepSeries {
+    + states before and after observed steps
+    + effective electric field at step endpoints
+    + Delta z[n] = z[n+1] - z[n]
+    + norm and oriented atan2 direction of Delta z[n]
+  }
   class ABBAComparisonStudy
 }
 
 package "Optional visualization" as Visualization {
   class PotentialVisualization
   class GCAreaVisualization
-  class SingleParticleVisualization
+  class SingleParticleVisualization {
+    + animate_fc_particle_solution(potential, solution, show_electric_field, frame_annotations): FuncAnimation
+    + animate_gc_particle_solution(potential, solution, show_electric_field, frame_annotations): FuncAnimation
+  }
+  class ABBAJacobianVisualization
+  class ImplicitIterationVisualization
+  class ImplicitTrajectoryComparisonVisualization {
+    + one trajectory color per method
+    + 4 x 4 mean periodic-distance matrix in 2 x 2 family blocks
+    + aligned iteration and residual-evaluation plots
+    + notebook tables
+  }
   class NotebookDisplay
 }
 
 package "Opt-in diagnostics" as Diagnostics {
   class SymplecticityObservers
+  class ImplicitABBAJacobianObserver {
+    + local physical Jacobian per step
+    + per-particle spectrum and SVD
+  }
+  class ImplicitABBAIterationObserver {
+    + nonlinear iterations and residual evaluations per accepted step
+    + residual, tolerance, and multiplier norms
+  }
+  class ImplicitBM4IterationObserver {
+    + nonlinear iterations and residual evaluations per accepted BM4 step
+    + residual, tolerance, and multiplier norms
+  }
+  class ParticleJacobianAnalysis {
+    + trace, determinant, discriminant
+    + eigensystem and singular system
+  }
   class StepJacobianDiagnostics {
     + finite_difference(step): Array
     + implicit_function(step): Array
@@ -343,9 +416,9 @@ GeneralizedEnergyComparison ..> SimulationRunner
 RK4SymplecticityStudy ..> SimulationRunner
 RK4SymplecticityStudy ..> RK4
 RK4SymplecticityStudy ..> IntegrationStep : analyzes
-ExplicitABBASymplecticityStudy ..> SimulationRunner
-ExplicitABBASymplecticityStudy ..> ExplicitABBA
-ExplicitABBASymplecticityStudy ..> IntegrationStep : analyzes
+MidpointABBASymplecticityStudy ..> SimulationRunner
+MidpointABBASymplecticityStudy ..> MidpointABBA
+MidpointABBASymplecticityStudy ..> IntegrationStep : analyzes
 ABBASymplecticityStudy ..> SimulationRunner
 ABBASymplecticityStudy ..> ImplicitABBA1
 ABBASymplecticityStudy ..> IntegrationStep : analyzes
@@ -353,10 +426,26 @@ ImplicitABBASymplecticityStudy ..> ImplicitABBA1
 ImplicitABBASymplecticityStudy ..> ImplicitABBA2
 ImplicitABBASymplecticityStudy ..> SymplecticityObservers : configurable fan-out
 ImplicitABBASymplecticityStudy ..> ImplicitABBAIntegrationStep : analyzes
+ImplicitABBAJacobianStudy ..> ImplicitABBA1
+ImplicitABBAJacobianStudy ..> ImplicitABBA2
+ImplicitABBAJacobianStudy ..> ImplicitABBAJacobianObserver : configures
+ImplicitABBAJacobianStudy o-- ImplicitABBAJacobianParticleStepSeries : derives from observed samples
+ImplicitABBAJacobianStudy ..> GuidingCenterDynamics : evaluates effective electric field
+ImplicitABBAIterationStudy ..> ImplicitABBA1
+ImplicitABBAIterationStudy ..> ImplicitABBA2
+ImplicitABBAIterationStudy ..> ImplicitABBAIterationObserver : configures
+BM4ImplicitIterationStudy ..> BM4Implicit1
+BM4ImplicitIterationStudy ..> BM4Implicit2
+BM4ImplicitIterationStudy ..> ImplicitBM4IterationObserver : configures
+ImplicitTrajectoryComparisonStudy ..> ImplicitABBA1
+ImplicitTrajectoryComparisonStudy ..> ImplicitABBA2
+ImplicitTrajectoryComparisonStudy ..> BM4Implicit1
+ImplicitTrajectoryComparisonStudy ..> BM4Implicit2
+ImplicitTrajectoryComparisonStudy ..> Solution : compares aligned trajectories and diagnostics
 BM4ImplicitSymplecticityStudy ..> BM4Implicit1
 BM4ImplicitSymplecticityStudy ..> BM4Implicit2
 BM4ImplicitSymplecticityStudy ..> IntegrationStep : analyzes
-ABBAComparisonStudy ..> ExplicitABBASymplecticityStudy : one run; times outside observer
+ABBAComparisonStudy ..> MidpointABBASymplecticityStudy : one run; times outside observer
 ABBAComparisonStudy ..> ImplicitABBASymplecticityStudy : formulations 1 and 2
 ABBAComparisonStudy ..> Solution : compares periodic trajectories
 PotentialVisualization ..> Potential
@@ -365,11 +454,44 @@ GCAreaVisualization ..> Area
 GCAreaVisualization ..> Solution
 SingleParticleVisualization ..> Potential
 SingleParticleVisualization ..> Solution
+ABBAJacobianVisualization ..> ImplicitABBAJacobianObserver : presents samples
+ABBAJacobianVisualization ..> ImplicitABBAJacobianParticleStepSeries : presents field and finite increments
+ImplicitIterationVisualization ..> ImplicitABBAIterationObserver : presents solver work
+ImplicitIterationVisualization ..> ImplicitBM4IterationObserver : presents solver work
+ImplicitTrajectoryComparisonVisualization ..> Solution : animates and plots aligned results
 SymplecticityObservers ..> IntegrationStage
 SymplecticityObservers ..> IntegrationStep
 SymplecticityObservers o-- StepJacobianDiagnostics : selected strategy
 StepJacobianDiagnostics ..> ImplicitABBAIntegrationStep : analytic methods
 SymplecticityObservers --> DiagnosticBlockWriter : persists CSV/NPZ/JSON
+ImplicitABBAJacobianObserver ..> ImplicitABBAIntegrationStep : observes
+ImplicitABBAJacobianObserver o-- StepJacobianDiagnostics : implicit-function tangent
+ImplicitABBAJacobianObserver o-- ParticleJacobianAnalysis : one per particle
+ImplicitABBAJacobianObserver --> DiagnosticBlockWriter : persists CSV/NPZ/JSON
+ImplicitABBAIterationObserver ..> ImplicitABBAIntegrationStep : consumes solver metrics
+ImplicitABBAIterationObserver --> DiagnosticBlockWriter : persists CSV/NPZ/JSON
+ImplicitBM4IterationObserver ..> ImplicitBM4IntegrationStep : consumes solver metrics
+ImplicitBM4IterationObserver --> DiagnosticBlockWriter : persists CSV/NPZ/JSON
+
+note bottom of ImplicitABBAJacobianObserver
+  This observer studies only the local physical
+  Jacobian of each selected complete ABBA step.
+  It does not accumulate tangent maps or calculate
+  area and symplecticity quantities.
+end note
+
+note bottom of ImplicitABBAIterationObserver
+  The method performs the nonlinear solve once.
+  This observer records its accepted-step solver,
+  correction count, residual evaluations, and convergence metrics
+  and never reevaluates the implicit equations.
+end note
+
+note bottom of ImplicitBM4IterationObserver
+  The observer samples one nonlinear solve around
+  each complete twelve-stage BM4 cycle and does not
+  execute additional BM4 maps or Jacobians.
+end note
 
 note top of Dynamics
   The implementation is split into top-level

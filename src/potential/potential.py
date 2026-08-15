@@ -300,7 +300,7 @@ class Potential:
 		if dt == 1:
 			# d exp(-it) / dt = -i exp(-it).
 			phase = phase * -1j
-		return np.asarray(2.0 * np.real(coefficient * phase), dtype=float)
+		return np.asarray(np.real(coefficient * phase), dtype=float)
 
 	def electric_field(
 		self,

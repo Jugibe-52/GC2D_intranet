@@ -14,8 +14,9 @@ from ._projected_abba import _ProjectedStep, _solve_projected_step
 class ImplicitABBA1(_ImplicitABBA):
 	"""Implicit ABBA formulation 1 using the reduced multiplier equation.
 
-	Each Newton iteration solves the exact two-dimensional equation (11) for
-	the projection multiplier of every independent guiding-centre particle.
+	Newton uses the exact two-dimensional equation-(11) Jacobian for every
+	independent particle. Broyden instead updates a shared residual-Jacobian
+	approximation from explicit evaluations of the same reduced residual.
 	"""
 
 	_step_solver: ClassVar[Callable[..., _ProjectedStep]] = _solve_projected_step

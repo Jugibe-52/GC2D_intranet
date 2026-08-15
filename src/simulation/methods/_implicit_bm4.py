@@ -12,9 +12,14 @@ from .._fixed import integrate_fixed_grid
 from .._result import IntegrationData
 from ..formulations import GCExtendedFormulation
 from ..formulations.base import PreparedDirectAdjointFormulation
-from ..observation import IntegrationStep, StepObserver
+from ..observation import ImplicitBM4IntegrationStep, StepObserver
 from ..problem import InitialValueProblem
 from ..request import SimulationRequest
+from ._nonlinear import (
+	NonlinearSolver,
+	_solve_broyden,
+	_validate_nonlinear_solver,
+)
 from .bm4 import _advance_composition
 
 
@@ -25,6 +30,7 @@ class _ProjectedBM4Step:
 	state: np.ndarray
 	multiplier: np.ndarray
 	iterations: int
+	residual_evaluations: int
 	residual_norm: float
 
 
@@ -152,8 +158,9 @@ def _solve_reduced_projected_bm4_step(
 	relative_tolerance: float,
 	max_iterations: int,
 	jacobian_relative_step: float,
+	nonlinear_solver: NonlinearSolver = "newton",
 ) -> _ProjectedBM4Step:
-	"""Solve the reduced Hairer projection multiplier equation around BM4."""
+	"""Solve the reduced Hairer projection equation with Newton or Broyden."""
 	value = np.asarray(state, dtype=float)
 	if value.ndim != 1 or value.size == 0 or not np.all(np.isfinite(value)):
 		raise ValueError("The BM4 physical state must be a finite, non-empty vector.")
@@ -162,6 +169,45 @@ def _solve_reduced_projected_bm4_step(
 	multiplier = np.zeros_like(value)
 	state_scale = max(1.0, float(np.linalg.norm(value, ord=np.inf)))
 	threshold = absolute_tolerance + relative_tolerance * state_scale
+	if nonlinear_solver == "broyden":
+		def residual_function(
+			candidate: np.ndarray,
+		) -> tuple[np.ndarray, tuple[np.ndarray, np.ndarray]]:
+			"""Evaluate the reduced projected-BM4 residual at one multiplier."""
+			_, mapped = _bm4_evaluation(
+				prepared,
+				t,
+				value,
+				step,
+				candidate,
+			)
+			return constraint @ mapped + 2.0 * candidate, (mapped, candidate)
+
+		result = _solve_broyden(
+			residual_function,
+			multiplier,
+			4.0 * np.eye(physical_size),
+			tolerance=threshold,
+			max_iterations=max_iterations,
+			context=(
+				"BM4 implicit formulation 1 at "
+				f"t={t:.16g} with step={step:.16g}"
+			),
+		)
+		mapped, multiplier = result.payload
+		corrected = mapped + normal @ multiplier
+		projected_state = (
+			corrected[:physical_size] + corrected[physical_size:]
+		) / 2.0
+		return _ProjectedBM4Step(
+			state=np.asarray(projected_state),
+			multiplier=multiplier.copy(),
+			iterations=result.iterations,
+			residual_evaluations=result.residual_evaluations,
+			residual_norm=float(np.linalg.norm(result.residual, ord=np.inf)),
+		)
+	if nonlinear_solver != "newton":
+		raise ValueError("Unknown nonlinear solver for implicit BM4.")
 
 	for iteration in range(max_iterations + 1):
 		internal_input, mapped = _bm4_evaluation(
@@ -182,6 +228,7 @@ def _solve_reduced_projected_bm4_step(
 				state=np.asarray(projected_state),
 				multiplier=multiplier.copy(),
 				iterations=iteration,
+				residual_evaluations=iteration + 1,
 				residual_norm=residual_norm,
 			)
 		if iteration == max_iterations:
@@ -223,8 +270,9 @@ def _solve_simultaneous_projected_bm4_step(
 	relative_tolerance: float,
 	max_iterations: int,
 	jacobian_relative_step: float,
+	nonlinear_solver: NonlinearSolver = "newton",
 ) -> _ProjectedBM4Step:
-	"""Solve the simultaneous output-multiplier Hairer projection around BM4."""
+	"""Solve simultaneous projected BM4 with Newton or good Broyden steps."""
 	value = np.asarray(state, dtype=float)
 	if value.ndim != 1 or value.size == 0 or not np.all(np.isfinite(value)):
 		raise ValueError("The BM4 physical state must be a finite, non-empty vector.")
@@ -242,6 +290,68 @@ def _solve_simultaneous_projected_bm4_step(
 	output = mapped.copy()
 	state_scale = max(1.0, float(np.linalg.norm(value, ord=np.inf)))
 	threshold = absolute_tolerance + relative_tolerance * state_scale
+	if nonlinear_solver == "broyden":
+		identity_internal = np.eye(internal_size)
+		zero = np.zeros((physical_size, physical_size), dtype=float)
+		initial_jacobian = np.block(
+			[
+				[identity_internal, -2.0 * normal],
+				[constraint, zero],
+			]
+		)
+
+		def residual_function(
+			unknown: np.ndarray,
+		) -> tuple[np.ndarray, tuple[np.ndarray, np.ndarray]]:
+			"""Evaluate the simultaneous projected-BM4 residual."""
+			candidate_output = unknown[:internal_size]
+			candidate_multiplier = unknown[internal_size:]
+			_, candidate_mapped = _bm4_evaluation(
+				prepared,
+				t,
+				value,
+				step,
+				candidate_multiplier,
+			)
+			residual = np.concatenate(
+				(
+					candidate_output
+					- normal @ candidate_multiplier
+					- candidate_mapped,
+					constraint @ candidate_output,
+				)
+			)
+			return residual, (candidate_output, candidate_multiplier)
+
+		result = _solve_broyden(
+			residual_function,
+			np.concatenate((output, multiplier)),
+			initial_jacobian,
+			tolerance=threshold,
+			max_iterations=max_iterations,
+			context=(
+				"BM4 implicit formulation 2 at "
+				f"t={t:.16g} with step={step:.16g}"
+			),
+			initial_evaluation=(
+				np.concatenate(
+					(np.zeros(internal_size), constraint @ output)
+				),
+				(output, multiplier),
+			),
+		)
+		output, multiplier = result.payload
+		return _ProjectedBM4Step(
+			state=np.asarray(
+				(output[:physical_size] + output[physical_size:]) / 2.0
+			),
+			multiplier=multiplier.copy(),
+			iterations=result.iterations,
+			residual_evaluations=result.residual_evaluations,
+			residual_norm=float(np.linalg.norm(result.residual, ord=np.inf)),
+		)
+	if nonlinear_solver != "newton":
+		raise ValueError("Unknown nonlinear solver for implicit BM4.")
 
 	for iteration in range(max_iterations + 1):
 		map_defect = output - normal @ multiplier - mapped
@@ -256,6 +366,7 @@ def _solve_simultaneous_projected_bm4_step(
 				state=np.asarray(projected_state),
 				multiplier=multiplier.copy(),
 				iterations=iteration,
+				residual_evaluations=iteration + 1,
 				residual_norm=residual_norm,
 			)
 		if iteration == max_iterations:
@@ -310,7 +421,9 @@ def _integrate_implicit_bm4(
 		coupling_frequency=method.coupling_frequency
 	).prepare(problem, track_energy=False)
 	iteration_counts: list[int] = []
+	residual_evaluation_counts: list[int] = []
 	residual_norms: list[float] = []
+	tolerance_values: list[float] = []
 	multiplier_norms: list[float] = []
 
 	def advance(
@@ -330,6 +443,7 @@ def _integrate_implicit_bm4(
 				relative_tolerance=method.newton_relative_tolerance,
 				max_iterations=method.newton_max_iterations,
 				jacobian_relative_step=method.newton_jacobian_relative_step,
+				nonlinear_solver=method.nonlinear_solver,
 			).state
 
 		state_before = np.asarray(state, dtype=float)
@@ -342,16 +456,25 @@ def _integrate_implicit_bm4(
 			relative_tolerance=method.newton_relative_tolerance,
 			max_iterations=method.newton_max_iterations,
 			jacobian_relative_step=method.newton_jacobian_relative_step,
+			nonlinear_solver=method.nonlinear_solver,
 		)
 		if observe:
-			iteration_counts.append(result.iterations)
-			residual_norms.append(result.residual_norm)
-			multiplier_norms.append(
-				float(np.linalg.norm(result.multiplier, ord=np.inf))
+			state_scale = max(1.0, float(np.linalg.norm(state_before, ord=np.inf)))
+			newton_tolerance = (
+				method.newton_absolute_tolerance
+				+ method.newton_relative_tolerance * state_scale
 			)
+			multiplier_norm = float(
+				np.linalg.norm(result.multiplier, ord=np.inf)
+			)
+			iteration_counts.append(result.iterations)
+			residual_evaluation_counts.append(result.residual_evaluations)
+			residual_norms.append(result.residual_norm)
+			tolerance_values.append(newton_tolerance)
+			multiplier_norms.append(multiplier_norm)
 			if method.step_observer is not None:
 				method.step_observer(
-					IntegrationStep(
+					ImplicitBM4IntegrationStep(
 						dynamics_name=prepared.dynamics_name,
 						method_name=type(method).__name__,
 						step_index=step_index,
@@ -360,6 +483,14 @@ def _integrate_implicit_bm4(
 						state_before=state_before.copy(),
 						state_after=result.state.copy(),
 						map_state=apply_step,
+							formulation_name=type(method)._solver_formulation,
+							start_time=t,
+							nonlinear_solver=method.nonlinear_solver,
+							newton_iterations=result.iterations,
+							residual_evaluations=result.residual_evaluations,
+						newton_residual_norm=result.residual_norm,
+						newton_tolerance=newton_tolerance,
+						projection_multiplier_norm=multiplier_norm,
 					)
 				)
 		return result.state
@@ -373,6 +504,16 @@ def _integrate_implicit_bm4(
 	)
 	diagnostics: dict[str, np.ndarray | float | int | str | bool] = {
 		"step_count": step_count,
+		"nonlinear_solver": method.nonlinear_solver,
+		"nonlinear_iterations": np.asarray(iteration_counts, dtype=int),
+		"residual_evaluations": np.asarray(
+			residual_evaluation_counts, dtype=int
+		),
+		"nonlinear_residual_norms": np.asarray(residual_norms, dtype=float),
+		"nonlinear_tolerances": np.asarray(tolerance_values, dtype=float),
+		"nonlinear_absolute_tolerance": method.newton_absolute_tolerance,
+		"nonlinear_relative_tolerance": method.newton_relative_tolerance,
+		"nonlinear_max_iterations": method.newton_max_iterations,
 		"newton_iterations": np.asarray(iteration_counts, dtype=int),
 		"newton_residual_norms": np.asarray(residual_norms, dtype=float),
 		"projection_multiplier_norms": np.asarray(multiplier_norms, dtype=float),
@@ -399,6 +540,7 @@ class _ImplicitBM4:
 	newton_relative_tolerance: float = 1e-12
 	newton_max_iterations: int = 12
 	newton_jacobian_relative_step: float = float(np.cbrt(np.finfo(float).eps))
+	nonlinear_solver: NonlinearSolver = "newton"
 	progress: bool = False
 	step_observer: StepObserver | None = None
 
@@ -442,6 +584,11 @@ class _ImplicitBM4:
 				self.newton_jacobian_relative_step,
 				"newton_jacobian_relative_step",
 			),
+		)
+		object.__setattr__(
+			self,
+			"nonlinear_solver",
+			_validate_nonlinear_solver(self.nonlinear_solver),
 		)
 
 	def integrate(

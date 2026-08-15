@@ -1,0 +1,474 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[english]{babel}
+\usepackage{amsmath,amssymb,mathtools}
+\usepackage{geometry}
+
+\geometry{margin=2.6cm}
+
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\norm}[1]{\left\lVert #1\right\rVert}
+
+\title{Computation of Multipliers Using Broyden's Method\\
+for a Generic Numerical Integrator}
+\author{}
+\date{}
+
+\begin{document}
+
+\maketitle
+
+\section{Objective}
+
+In many numerical methods, the advance from $z_n$ to $z_{n+1}$ depends on a
+multiplier or correction vector
+\[
+    \mu\in\R^q
+\]
+that must be chosen so that the result satisfies a coupling, projection, or
+constraint condition. The computation of $\mu$ leads to a nonlinear system of
+the form
+\begin{equation}
+    R_n(\mu)=0,
+    \qquad
+    R_n:\R^q\longrightarrow\R^q.
+    \label{eq:generic-root-problem}
+\end{equation}
+
+Broyden's method makes it possible to solve \eqref{eq:generic-root-problem}
+without recomputing the exact Jacobian of the residual at every iteration.
+Its formulation depends only on the ability to evaluate $R_n(\mu)$ and not on
+the internal structure of the integrator. Therefore, it can be used with
+ABBA, BM4, or any other numerical method.
+
+\section{Generic Construction of the Residual}
+
+We separate the procedure into four maps.
+
+\subsection{Input map or lifting}
+
+The physical state $z_n\in\R^d$ and the multiplier $\mu\in\R^q$ are
+transformed into the state on which the numerical method acts:
+\begin{equation}
+    Y_n(\mu)=\mathcal E_n(z_n,\mu)\in\R^m.
+    \label{eq:lifting}
+\end{equation}
+The map $\mathcal E_n$ may duplicate the state, shift some of its components,
+or introduce auxiliary variables.
+
+\subsection{Base integrator}
+
+Let
+\begin{equation}
+    \Psi_{h,n}:\R^m\longrightarrow\R^m
+    \label{eq:base-integrator}
+\end{equation}
+be the one-step map of the chosen integrator. The state obtained after
+applying the method is
+\begin{equation}
+    Y_{n+1}(\mu)
+    =\Psi_{h,n}\bigl(Y_n(\mu)\bigr)
+    =\Psi_{h,n}\bigl(\mathcal E_n(z_n,\mu)\bigr).
+    \label{eq:numerical-output}
+\end{equation}
+The notation $\Psi_{h,n}$ represents, in an abstract way, any scheme: ABBA,
+BM4, another composition method, or even an integrator not based on
+compositions.
+
+\subsection{Compatibility condition}
+
+The result must satisfy a condition written through
+\begin{equation}
+    \mathcal C_n:\R^m\times\R^q\longrightarrow\R^q.
+    \label{eq:compatibility-map}
+\end{equation}
+The associated residual is defined by
+\begin{equation}
+    \boxed{
+    R_n(\mu)
+    :=\mathcal C_n
+    \left(
+        \Psi_{h,n}\bigl(\mathcal E_n(z_n,\mu)\bigr),
+        \mu
+    \right).}
+    \label{eq:generic-residual}
+\end{equation}
+Thus, finding the multiplier is equivalent to solving
+\[
+    R_n(\mu_n)=0.
+\]
+
+The function $\mathcal C_n$ may represent, among other possibilities, the
+equality between several copies of the same variable, a constraint condition
+$g(z)=0$, or a projection equation.
+
+\subsection{Reconstruction of the physical state}
+
+Once $\mu_n$ has been found, the physical state is reconstructed through a
+map
+\begin{equation}
+    z_{n+1}
+    =\mathcal P_n\bigl(Y_{n+1}(\mu_n),\mu_n\bigr),
+    \label{eq:reconstruction}
+\end{equation}
+where $\mathcal P_n$ depends on the specific architecture of the method.
+
+In this way, the part specific to each integrator is contained in
+\[
+    \mathcal E_n,
+    \qquad
+    \Psi_{h,n},
+    \qquad
+    \mathcal C_n,
+    \qquad
+    \mathcal P_n,
+\]
+whereas Broyden's algorithm remains unchanged.
+
+\section{Exact Jacobian of the Residual}
+
+Newton's method applied to \eqref{eq:generic-root-problem} would be
+\begin{equation}
+    \mu^{(k+1)}
+    =\mu^{(k)}
+    -K\bigl(\mu^{(k)}\bigr)^{-1}
+     R_n\bigl(\mu^{(k)}\bigr),
+    \label{eq:newton}
+\end{equation}
+where
+\begin{equation}
+    K(\mu):=D_\mu R_n(\mu)\in\R^{q\times q}.
+    \label{eq:residual-jacobian}
+\end{equation}
+
+If all maps are differentiable, the chain rule applied to
+\eqref{eq:generic-residual} gives
+\begin{equation}
+\boxed{
+\begin{aligned}
+    K(\mu)
+    ={}&D_Y\mathcal C_n\bigl(Y_{n+1}(\mu),\mu\bigr)
+       \,D\Psi_{h,n}\bigl(Y_n(\mu)\bigr)
+       \,D_\mu\mathcal E_n(z_n,\mu)\\
+      &+D_\mu\mathcal C_n\bigl(Y_{n+1}(\mu),\mu\bigr).
+\end{aligned}}
+\label{eq:generic-jacobian}
+\end{equation}
+
+This is the Jacobian of the nonlinear problem used to compute $\mu$. It
+should not be confused with the physical Jacobian of the step
+$z_n\mapsto z_{n+1}$.
+
+Computing \eqref{eq:generic-jacobian} exactly at every iteration may be
+expensive because it contains the derivative of the entire integrator,
+$D\Psi_{h,n}$. Broyden's method replaces this matrix by an approximation that
+is updated using successive evaluations of the residual.
+
+\section{Broyden's Method}
+
+Suppose that the current iterate $\mu^{(k)}$, the residual
+\begin{equation}
+    R_k:=R_n\bigl(\mu^{(k)}\bigr)
+    \label{eq:current-residual}
+\end{equation}
+and an approximation
+\[
+    K_k\simeq D_\mu R_n\bigl(\mu^{(k)}\bigr)
+\]
+are known.
+
+The correction $\Delta\mu_k$ is obtained by solving
+\begin{equation}
+    K_k\Delta\mu_k=-R_k,
+    \label{eq:linear-correction}
+\end{equation}
+and the multiplier is updated as
+\begin{equation}
+    \mu^{(k+1)}=\mu^{(k)}+\Delta\mu_k.
+    \label{eq:multiplier-update}
+\end{equation}
+
+The complete integrator is then evaluated again in order to compute
+\[
+    R_{k+1}:=R_n\bigl(\mu^{(k+1)}\bigr).
+\]
+Define
+\begin{equation}
+    s_k:=\mu^{(k+1)}-\mu^{(k)},
+    \qquad
+    y_k:=R_{k+1}-R_k.
+    \label{eq:secant-vectors}
+\end{equation}
+
+The vector $s_k$ is the change introduced in the multiplier, and $y_k$ is the
+observed change in the residual. The new Jacobian approximation must
+incorporate this information through the secant condition
+\begin{equation}
+    K_{k+1}s_k=y_k.
+    \label{eq:secant-condition}
+\end{equation}
+
+The good Broyden update is given by
+\begin{equation}
+    \boxed{
+    K_{k+1}
+    =K_k+
+    \frac{\bigl(y_k-K_ks_k\bigr)s_k^{\mathsf T}}
+         {s_k^{\mathsf T}s_k}.}
+    \label{eq:good-broyden}
+\end{equation}
+Indeed,
+\[
+\begin{aligned}
+    K_{k+1}s_k
+    &=K_ks_k
+      +\frac{\bigl(y_k-K_ks_k\bigr)s_k^{\mathsf T}s_k}
+             {s_k^{\mathsf T}s_k}\\
+    &=y_k.
+\end{aligned}
+\]
+Therefore, \eqref{eq:good-broyden} is a multidimensional generalization of
+the secant method. Moreover, it is the smallest modification of $K_k$ in the
+Frobenius norm that satisfies \eqref{eq:secant-condition}.
+
+\section{Initialization}
+
+The choice of the initial values depends on the specific problem, not on
+Broyden's algorithm itself.
+
+\subsection{Initial value of the multiplier}
+
+A common choice is
+\begin{equation}
+    \mu^{(0)}=0,
+    \label{eq:zero-initial-multiplier}
+\end{equation}
+when $\mu$ represents a small correction and the uncorrected method provides a
+sufficiently close approximation. This choice does not state that $\mu=0$ is
+the solution; it only fixes the first point at which $R_n$ is evaluated.
+
+The multiplier from the previous time step may also be used,
+\[
+    \mu^{(0)}=\mu_{n-1},
+\]
+or any available predictor. In every case, Broyden's method starts by
+evaluating the corresponding residual exactly.
+
+\subsection{Initial matrix}
+
+The matrix $K_0$ should approximate
+\[
+    D_\mu R_n\bigl(\mu^{(0)}\bigr).
+\]
+It can be obtained in different ways:
+
+\begin{enumerate}
+    \item by evaluating the exact Jacobian only at the beginning;
+
+    \item by using an asymptotic approximation valid for small $h$;
+
+    \item by finite differences, computing its columns as
+    \begin{equation}
+        K_0e_j
+        \approx
+        \frac{R_n(\mu^{(0)}+\varepsilon e_j)
+              -R_n(\mu^{(0)})}{\varepsilon};
+        \label{eq:finite-difference-initialization}
+    \end{equation}
+
+    \item by using a simple constant matrix, for example
+    $K_0=\alpha I_q$, when the structure of the problem justifies this
+    approximation.
+\end{enumerate}
+
+The choice $K_0=4I_q$ is not part of Broyden's method in general. It is an
+initialization specific to certain formulations with two symmetric copies.
+For a different lifting, a different compatibility condition, or even a
+different residual, the corresponding approximation must be used.
+
+\section{Formulation Using the Approximate Inverse}
+
+Instead of storing $K_k$, one may directly store
+\[
+    H_k\simeq K_k^{-1}.
+\]
+The iteration can then be written as
+\begin{equation}
+    \mu^{(k+1)}=\mu^{(k)}-H_kR_k.
+    \label{eq:inverse-step}
+\end{equation}
+The inverse update associated with \eqref{eq:good-broyden} is
+\begin{equation}
+    \boxed{
+    H_{k+1}
+    =H_k+
+    \frac{\bigl(s_k-H_ky_k\bigr)s_k^{\mathsf T}H_k}
+         {s_k^{\mathsf T}H_ky_k},}
+    \label{eq:inverse-broyden}
+\end{equation}
+provided that the denominator is nonzero. The initial matrix must satisfy
+\[
+    H_0\simeq K_0^{-1}.
+\]
+
+\section{Generic Algorithm for One Time Step}
+
+To advance from $z_n$ to $z_{n+1}$, the following procedure is applied:
+
+\begin{enumerate}
+    \item Choose $\mu^{(0)}$ and an initial approximation $K_0$.
+
+    \item For $k=0,1,2,\ldots$, construct
+    \[
+        Y_n^{(k)}=\mathcal E_n\bigl(z_n,\mu^{(k)}\bigr).
+    \]
+
+    \item Perform one complete step of the chosen integrator:
+    \[
+        Y_{n+1}^{(k)}=\Psi_{h,n}\bigl(Y_n^{(k)}\bigr).
+    \]
+
+    \item Evaluate the residual
+    \[
+        R_k
+        =\mathcal C_n\bigl(Y_{n+1}^{(k)},\mu^{(k)}\bigr).
+    \]
+
+    \item If
+    \[
+        \norm{R_k}_2\leq\mathrm{tol},
+    \]
+    stop the iterations and set $\mu_n=\mu^{(k)}$.
+
+    \item Solve
+    \[
+        K_k\Delta\mu_k=-R_k
+    \]
+    and update
+    \[
+        \mu^{(k+1)}=\mu^{(k)}+\Delta\mu_k.
+    \]
+
+    \item Run the integrator again with $\mu^{(k+1)}$, evaluate $R_{k+1}$,
+    and compute
+    \[
+        s_k=\mu^{(k+1)}-\mu^{(k)},
+        \qquad
+        y_k=R_{k+1}-R_k.
+    \]
+
+    \item Update
+    \[
+        K_{k+1}
+        =K_k+
+        \frac{(y_k-K_ks_k)s_k^{\mathsf T}}
+             {s_k^{\mathsf T}s_k}
+    \]
+    and continue the iteration.
+\end{enumerate}
+
+After convergence, the physical state is reconstructed as
+\[
+    z_{n+1}
+    =\mathcal P_n\bigl(Y_{n+1}(\mu_n),\mu_n\bigr).
+\]
+
+During all internal iterations, the state $z_n$ remains fixed. Each new value
+of $\mu^{(k)}$ requires rerunning the integrator because both $Y_n(\mu)$ and
+$Y_{n+1}(\mu)$ depend on the multiplier. It is useful to distinguish the
+indices
+\[
+    \boxed{
+    n=\text{time step},
+    \qquad
+    k=\text{internal Broyden iteration}.}
+\]
+
+\section{Specialization to Different Integrators}
+
+\subsection{ABBA scheme with two copies}
+
+In the usual ABBA formulation,
+\[
+    \mathcal E_n(z_n,\mu)
+    =\begin{pmatrix}z_n+\mu\\z_n-\mu\end{pmatrix},
+    \qquad
+    \Psi_{h,n}=\Phi_{\mathrm{ABBA}},
+\]
+and, if
+\[
+    \begin{pmatrix}u^{(2)}(\mu)\\v^{(2)}(\mu)\end{pmatrix}
+    =\Phi_{\mathrm{ABBA}}
+     \begin{pmatrix}z_n+\mu\\z_n-\mu\end{pmatrix},
+\]
+the compatibility condition is
+\[
+    \mathcal C_n
+    \left(
+        \begin{pmatrix}u^{(2)}\\v^{(2)}\end{pmatrix},
+        \mu
+    \right)
+    =u^{(2)}-v^{(2)}+2\mu.
+\]
+Therefore,
+\[
+    R_n(\mu)=u^{(2)}(\mu)-v^{(2)}(\mu)+2\mu.
+\]
+When $h=0$, $\Phi_{\mathrm{ABBA}}$ is the identity and
+\[
+    R_n(\mu)=4\mu,
+    \qquad
+    K_0=4I_q
+\]
+is a natural initial approximation for small $h$. After convergence,
+\[
+    z_{n+1}=u^{(2)}(\mu_n)+\mu_n
+           =v^{(2)}(\mu_n)-\mu_n.
+\]
+
+\subsection{BM4 scheme}
+
+To use Broyden's method with BM4, it is enough to replace the base integrator
+by
+\[
+    \Psi_{h,n}=\Phi_{\mathrm{BM4}}.
+\]
+If BM4 uses the same two-copy lifting and the same compatibility condition,
+the maps $\mathcal E_n$, $\mathcal C_n$, and $\mathcal P_n$ remain unchanged.
+If the BM4 architecture uses different auxiliary variables or a different
+final condition, only these maps need to be redefined. The iterations
+\eqref{eq:linear-correction}--\eqref{eq:good-broyden} remain exactly the same.
+
+\subsection{Any other method}
+
+For a new integrator, it is only necessary to specify:
+\begin{equation}
+\boxed{
+\begin{aligned}
+    Y_n(\mu)      &=\mathcal E_n(z_n,\mu),\\
+    Y_{n+1}(\mu)  &=\Psi_{h,n}\bigl(Y_n(\mu)\bigr),\\
+    R_n(\mu)      &=\mathcal C_n\bigl(Y_{n+1}(\mu),\mu\bigr),\\
+    z_{n+1}       &=\mathcal P_n\bigl(Y_{n+1}(\mu_n),\mu_n\bigr).
+\end{aligned}}
+\end{equation}
+Once the function $R_n$ has been defined, Broyden's method acts as a nonlinear
+solver independent of the integrator used to evaluate it.
+
+\section{Conclusion}
+
+The fundamental object for Broyden's method is not the integrator, but the
+residual $R_n(\mu)$. ABBA, BM4, or any other method enters only through the
+evaluation of this residual. Consequently, a modular implementation should
+separate
+\[
+    \boxed{
+    \text{evaluation of }R_n(\mu)
+    \quad\text{and}\quad
+    \text{solution of }R_n(\mu)=0\text{ using Broyden's method}.}
+\]
+This separation makes it possible to reuse the same Broyden solver with
+different integrators without modifying its update formulas.
+
+\end{document}

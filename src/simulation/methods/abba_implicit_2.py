@@ -17,9 +17,9 @@ from ._projected_abba import (
 class ImplicitABBA2(_ImplicitABBA):
 	"""Implicit ABBA formulation 2 using simultaneous equation (21).
 
-	Each Newton iteration solves for the duplicated output state and projection
-	multiplier together in one exact six-dimensional system per independent
-	guiding-centre particle.
+	The duplicated output and projection multiplier are simultaneous unknowns.
+	Newton uses exact six-dimensional particle blocks; Broyden updates an
+	asymptotically initialized Jacobian from explicit residual evaluations.
 	"""
 
 	_step_solver: ClassVar[Callable[..., _ProjectedStep]] = (

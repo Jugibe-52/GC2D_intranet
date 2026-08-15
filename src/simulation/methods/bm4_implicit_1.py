@@ -15,7 +15,7 @@ from ._implicit_bm4 import (
 
 @dataclass(frozen=True, slots=True)
 class BM4Implicit1(_ImplicitBM4):
-	"""BM4 with a reduced symmetric-projection multiplier solve."""
+	"""BM4 with a Newton or Broyden reduced projection-multiplier solve."""
 
 	_step_solver: ClassVar[Callable[..., _ProjectedBM4Step]] = (
 		_solve_reduced_projected_bm4_step

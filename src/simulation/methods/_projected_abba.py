@@ -14,6 +14,7 @@ from .._result import IntegrationData
 from ..observation import ImplicitABBAIntegrationStep, StepObserver
 from ..problem import InitialValueProblem
 from ..request import SimulationRequest
+from ._nonlinear import NonlinearSolver, _solve_broyden
 
 
 @dataclass(frozen=True, slots=True)
@@ -24,6 +25,7 @@ class _ProjectedStep:
 	multiplier: np.ndarray
 	stages: _ABBAStages
 	iterations: int
+	residual_evaluations: int
 	residual_norm: float
 
 
@@ -109,7 +111,7 @@ def _evaluate_stages(
 	step: float,
 	multiplier: np.ndarray,
 ) -> _ABBAStages:
-	"""Apply the four explicit ABBA stages and evaluate equation (11)."""
+	"""Apply the four midpoint ABBA stages and evaluate equation (11)."""
 	half_step = step / 2.0
 	final_time = t + step
 
@@ -223,14 +225,49 @@ def _solve_projected_step(
 	absolute_tolerance: float,
 	relative_tolerance: float,
 	max_iterations: int,
+	nonlinear_solver: NonlinearSolver = "newton",
 ) -> _ProjectedStep:
-	"""Solve implicit formulation 1 with exact reduced Newton steps."""
+	"""Solve implicit formulation 1 with Newton or good Broyden steps."""
 	value = np.asarray(state, dtype=float)
 	if value.ndim != 1 or value.size == 0 or not np.all(np.isfinite(value)):
 		raise ValueError("The ABBA physical state must be a finite, non-empty vector.")
 	multiplier = np.zeros_like(value)
 	state_scale = max(1.0, float(np.linalg.norm(value, ord=np.inf)))
 	threshold = absolute_tolerance + relative_tolerance * state_scale
+	if nonlinear_solver == "broyden":
+		result = _solve_broyden(
+			lambda candidate: (
+				(stages := _evaluate_stages(
+					dynamics,
+					t,
+					value,
+					step,
+					candidate,
+				)).residual,
+				stages,
+			),
+			multiplier,
+			4.0 * np.eye(value.size),
+			tolerance=threshold,
+			max_iterations=max_iterations,
+			context=(
+				"ABBA implicit formulation 1 at "
+				f"t={t:.16g} with step={step:.16g}"
+			),
+		)
+		stages = result.payload
+		first_copy = stages.u_final + result.unknown
+		second_copy = stages.v_final - result.unknown
+		return _ProjectedStep(
+			state=np.asarray((first_copy + second_copy) / 2.0),
+			multiplier=result.unknown,
+			stages=stages,
+			iterations=result.iterations,
+			residual_evaluations=result.residual_evaluations,
+			residual_norm=float(np.linalg.norm(result.residual, ord=np.inf)),
+		)
+	if nonlinear_solver != "newton":
+		raise ValueError("Unknown nonlinear solver for implicit ABBA.")
 
 	for iteration in range(max_iterations + 1):
 		stages = _evaluate_stages(
@@ -252,6 +289,7 @@ def _solve_projected_step(
 				multiplier=multiplier.copy(),
 				stages=stages,
 				iterations=iteration,
+				residual_evaluations=iteration + 1,
 				residual_norm=residual_norm,
 			)
 		if iteration == max_iterations:
@@ -356,8 +394,9 @@ def _solve_simultaneous_projected_step(
 	absolute_tolerance: float,
 	relative_tolerance: float,
 	max_iterations: int,
+	nonlinear_solver: NonlinearSolver = "newton",
 ) -> _ProjectedStep:
-	"""Solve implicit formulation 2 using the simultaneous equation (21)."""
+	"""Solve simultaneous equation (21) with Newton or good Broyden steps."""
 	value = np.asarray(state, dtype=float)
 	if value.ndim != 1 or value.size == 0 or not np.all(np.isfinite(value)):
 		raise ValueError("The ABBA physical state must be a finite, non-empty vector.")
@@ -370,6 +409,83 @@ def _solve_simultaneous_projected_step(
 	stages = _evaluate_stages(dynamics, t, value, step, multiplier)
 	first_output = stages.u_final.copy()
 	second_output = stages.v_final.copy()
+	if nonlinear_solver == "broyden":
+		physical_size = value.size
+		internal_size = 2 * physical_size
+		identity_internal = np.eye(internal_size)
+		identity_physical = np.eye(physical_size)
+		normal = np.concatenate(
+			(identity_physical, -identity_physical), axis=0
+		)
+		constraint = np.concatenate(
+			(identity_physical, -identity_physical), axis=1
+		)
+		initial_jacobian = np.block(
+			[
+				[identity_internal, -2.0 * normal],
+				[constraint, np.zeros((physical_size, physical_size))],
+			]
+		)
+
+		def residual_function(
+			unknown: np.ndarray,
+		) -> tuple[np.ndarray, tuple[_ABBAStages, np.ndarray, np.ndarray, np.ndarray]]:
+			"""Evaluate equation (21) for one simultaneous Broyden iterate."""
+			first = unknown[:physical_size]
+			second = unknown[physical_size:internal_size]
+			candidate_multiplier = unknown[internal_size:]
+			candidate_stages = _evaluate_stages(
+				dynamics,
+				t,
+				value,
+				step,
+				candidate_multiplier,
+			)
+			residual = np.concatenate(
+				(
+					first - candidate_multiplier - candidate_stages.u_final,
+					second + candidate_multiplier - candidate_stages.v_final,
+					first - second,
+				)
+			)
+			return residual, (
+				candidate_stages,
+				first,
+				second,
+				candidate_multiplier,
+			)
+
+		result = _solve_broyden(
+			residual_function,
+			np.concatenate((first_output, second_output, multiplier)),
+			initial_jacobian,
+			tolerance=threshold,
+			max_iterations=max_iterations,
+			context=(
+				"ABBA implicit formulation 2 at "
+				f"t={t:.16g} with step={step:.16g}"
+			),
+			initial_evaluation=(
+				np.concatenate(
+					(
+						np.zeros(internal_size),
+						first_output - second_output,
+					)
+				),
+				(stages, first_output, second_output, multiplier),
+			),
+		)
+		stages, first_output, second_output, multiplier = result.payload
+		return _ProjectedStep(
+			state=np.asarray((first_output + second_output) / 2.0),
+			multiplier=multiplier.copy(),
+			stages=stages,
+			iterations=result.iterations,
+			residual_evaluations=result.residual_evaluations,
+			residual_norm=float(np.linalg.norm(result.residual, ord=np.inf)),
+		)
+	if nonlinear_solver != "newton":
+		raise ValueError("Unknown nonlinear solver for implicit ABBA.")
 
 	for iteration in range(max_iterations + 1):
 		residual_blocks = _simultaneous_residual_blocks(
@@ -389,6 +505,7 @@ def _solve_simultaneous_projected_step(
 				multiplier=multiplier.copy(),
 				stages=stages,
 				iterations=iteration,
+				residual_evaluations=iteration + 1,
 				residual_norm=residual_norm,
 			)
 		if iteration == max_iterations:
@@ -438,6 +555,7 @@ def _integrate_projected_abba(
 	newton_absolute_tolerance: float,
 	newton_relative_tolerance: float,
 	newton_max_iterations: int,
+	nonlinear_solver: NonlinearSolver,
 	progress: bool,
 	step_observer: StepObserver | None,
 ) -> IntegrationData:
@@ -447,15 +565,19 @@ def _integrate_projected_abba(
 		raise TypeError(f"{method_name} requires GuidingCenterJacobianSystem.")
 	if dynamics.state_dimension != 2:
 		raise TypeError(f"{method_name} requires planar two-component dynamics.")
-	# Preflight the exact Hessian capability before the integration grid advances.
-	_checked_vector_field_jacobian(
-		dynamics,
-		request.t_span[0],
-		problem.initial_state,
-	)
+	if nonlinear_solver == "newton":
+		# Exact Newton requires spatial Hessians; Broyden evaluates only the
+		# midpoint ABBA residual and therefore does not need this capability.
+		_checked_vector_field_jacobian(
+			dynamics,
+			request.t_span[0],
+			problem.initial_state,
+		)
 
 	iteration_counts: list[int] = []
+	residual_evaluation_counts: list[int] = []
 	residual_norms: list[float] = []
+	tolerance_values: list[float] = []
 	multiplier_norms: list[float] = []
 	def advance(
 		t: float,
@@ -474,6 +596,7 @@ def _integrate_projected_abba(
 				absolute_tolerance=newton_absolute_tolerance,
 				relative_tolerance=newton_relative_tolerance,
 				max_iterations=newton_max_iterations,
+				nonlinear_solver=nonlinear_solver,
 			).state
 
 		state_before = np.asarray(state, dtype=float)
@@ -485,13 +608,22 @@ def _integrate_projected_abba(
 			absolute_tolerance=newton_absolute_tolerance,
 			relative_tolerance=newton_relative_tolerance,
 			max_iterations=newton_max_iterations,
+			nonlinear_solver=nonlinear_solver,
 		)
 		if observe:
-			iteration_counts.append(result.iterations)
-			residual_norms.append(result.residual_norm)
-			multiplier_norms.append(
-				float(np.linalg.norm(result.multiplier, ord=np.inf))
+			state_scale = max(1.0, float(np.linalg.norm(state_before, ord=np.inf)))
+			newton_tolerance = (
+				newton_absolute_tolerance
+				+ newton_relative_tolerance * state_scale
 			)
+			multiplier_norm = float(
+				np.linalg.norm(result.multiplier, ord=np.inf)
+			)
+			iteration_counts.append(result.iterations)
+			residual_evaluation_counts.append(result.residual_evaluations)
+			residual_norms.append(result.residual_norm)
+			tolerance_values.append(newton_tolerance)
+			multiplier_norms.append(multiplier_norm)
 			if step_observer is not None:
 				step_observer(
 					ImplicitABBAIntegrationStep(
@@ -505,6 +637,12 @@ def _integrate_projected_abba(
 						map_state=apply_step,
 						formulation_name=solver_formulation,
 						start_time=t,
+						nonlinear_solver=nonlinear_solver,
+						newton_iterations=result.iterations,
+						residual_evaluations=result.residual_evaluations,
+						newton_residual_norm=result.residual_norm,
+						newton_tolerance=newton_tolerance,
+						projection_multiplier_norm=multiplier_norm,
 						dynamics=dynamics,
 						multiplier=result.multiplier.copy(),
 						u_initial=result.stages.u_initial.copy(),
@@ -525,6 +663,16 @@ def _integrate_projected_abba(
 	)
 	diagnostics: dict[str, np.ndarray | float | int | str | bool] = {
 		"step_count": step_count,
+		"nonlinear_solver": nonlinear_solver,
+		"nonlinear_iterations": np.asarray(iteration_counts, dtype=int),
+		"residual_evaluations": np.asarray(
+			residual_evaluation_counts, dtype=int
+		),
+		"nonlinear_residual_norms": np.asarray(residual_norms, dtype=float),
+		"nonlinear_tolerances": np.asarray(tolerance_values, dtype=float),
+		"nonlinear_absolute_tolerance": newton_absolute_tolerance,
+		"nonlinear_relative_tolerance": newton_relative_tolerance,
+		"nonlinear_max_iterations": newton_max_iterations,
 		"newton_iterations": np.asarray(iteration_counts, dtype=int),
 		"newton_residual_norms": np.asarray(residual_norms, dtype=float),
 		"projection_multiplier_norms": np.asarray(

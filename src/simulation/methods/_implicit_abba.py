@@ -10,6 +10,7 @@ from .._result import IntegrationData
 from ..observation import StepObserver
 from ..problem import InitialValueProblem
 from ..request import SimulationRequest
+from ._nonlinear import NonlinearSolver, _validate_nonlinear_solver
 from ._projected_abba import (
 	_ProjectedStep,
 	_integrate_projected_abba,
@@ -26,6 +27,7 @@ class _ImplicitABBA:
 	newton_absolute_tolerance: float = 1e-13
 	newton_relative_tolerance: float = 1e-12
 	newton_max_iterations: int = 12
+	nonlinear_solver: NonlinearSolver = "newton"
 	progress: bool = False
 	step_observer: StepObserver | None = None
 
@@ -58,6 +60,11 @@ class _ImplicitABBA:
 				"newton_max_iterations",
 			),
 		)
+		object.__setattr__(
+			self,
+			"nonlinear_solver",
+			_validate_nonlinear_solver(self.nonlinear_solver),
+		)
 
 	def integrate(
 		self,
@@ -74,6 +81,7 @@ class _ImplicitABBA:
 			newton_absolute_tolerance=self.newton_absolute_tolerance,
 			newton_relative_tolerance=self.newton_relative_tolerance,
 			newton_max_iterations=self.newton_max_iterations,
+			nonlinear_solver=self.nonlinear_solver,
 			progress=self.progress,
 			step_observer=self.step_observer,
 		)

@@ -6,10 +6,16 @@ import subprocess
 import unittest
 from unittest.mock import patch
 
+import numpy as np
 from matplotlib import pyplot as plt
 from matplotlib.animation import Animation, FuncAnimation
+from matplotlib.quiver import Quiver
+from matplotlib.text import Text
 
-from visualization import display_animation
+from initial_conditions import GCInitialConfiguration
+from potential import Potential
+from simulation import Solution
+from visualization import animate_gc_particle_solution, display_animation
 
 
 class NotebookPresentationTests(unittest.TestCase):
@@ -41,6 +47,49 @@ class NotebookPresentationTests(unittest.TestCase):
 		javascript.assert_called_once_with(default_mode="once")
 		display.assert_called_once()
 		self.assertFalse(plt.fignum_exists(figure.number))
+
+	def test_gc_particle_animation_can_show_the_electric_field(self) -> None:
+		potential = Potential.random(
+			A=0.1,
+			M=2,
+			nx=8,
+			ny=8,
+			seed=7,
+			interpolation_order=3,
+		)
+		source = GCInitialConfiguration.from_components(
+			x=np.asarray([1.0]),
+			y=np.asarray([1.2]),
+		)
+		solution = Solution(
+			t=np.asarray([0.0, 0.1, 0.2]),
+			states=np.asarray(
+				[
+					[1.0, 1.1, 1.2],
+					[1.2, 1.25, 1.3],
+				]
+			),
+			source=source,
+		)
+
+		animation = animate_gc_particle_solution(
+			potential,
+			solution,
+			frames=3,
+			show_electric_field=True,
+			frame_annotations=("initial", "hyperbolic", "elliptic"),
+		)
+		artists = animation._func(1)
+		animation._draw_was_started = True
+
+		self.assertTrue(any(isinstance(artist, Quiver) for artist in artists))
+		self.assertTrue(
+			any(
+				isinstance(artist, Text) and artist.get_text() == "hyperbolic"
+				for artist in artists
+			)
+		)
+		plt.close(animation._fig)
 
 
 if __name__ == "__main__":

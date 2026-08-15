@@ -16,12 +16,12 @@ from .abba_symplecticity import (
 	ABBASymplecticitySummary,
 	run_abba_symplecticity_study,
 )
-from .abba_explicit_symplecticity import (
-	ExplicitABBADefectOrder,
-	ExplicitABBASymplecticityConfig,
-	ExplicitABBASymplecticityResult,
-	ExplicitABBASymplecticitySummary,
-	run_explicit_abba_symplecticity_study,
+from .abba_midpoint_symplecticity import (
+	MidpointABBADefectOrder,
+	MidpointABBASymplecticityConfig,
+	MidpointABBASymplecticityResult,
+	MidpointABBASymplecticitySummary,
+	run_midpoint_abba_symplecticity_study,
 )
 from .abba_implicit_symplecticity import (
 	DEFAULT_IMPLICIT_ABBA_OBSERVERS,
@@ -36,6 +36,21 @@ from .abba_implicit_symplecticity import (
 	run_implicit_abba_1_symplecticity_study,
 	run_implicit_abba_2_symplecticity_study,
 	run_implicit_abba_symplecticity_study,
+)
+from .abba_implicit_jacobian import (
+	ABBA_JACOBIAN_FORMULATIONS,
+	ABBAJacobianFormulation,
+	ImplicitABBAJacobianParticleStepSeries,
+	ImplicitABBAJacobianStudyConfig,
+	ImplicitABBAJacobianStudyResult,
+	run_implicit_abba_jacobian_study,
+)
+from .abba_implicit_iterations import (
+	ABBA_ITERATION_FORMULATIONS,
+	ABBAIterationFormulation,
+	ImplicitABBAIterationStudyConfig,
+	ImplicitABBAIterationStudyResult,
+	run_implicit_abba_iteration_study,
 )
 from .area_comparison import (
 	AreaComparisonConfig,
@@ -55,6 +70,15 @@ from .initial_conditions import (
 	centered_gc_trajectory,
 	centered_square,
 	domain_center,
+	random_gc_configuration,
+)
+from .implicit_trajectory_comparison import (
+	IMPLICIT_METHOD_NAMES,
+	ImplicitIterationSummary,
+	ImplicitTrajectoryComparisonConfig,
+	ImplicitTrajectoryComparisonResult,
+	ImplicitTrajectoryDifferenceSummary,
+	run_implicit_trajectory_comparison,
 )
 from .bm4_implicit_symplecticity import (
 	BM4Implicit1SymplecticityResult,
@@ -65,6 +89,13 @@ from .bm4_implicit_symplecticity import (
 	run_bm4_implicit_1_symplecticity_study,
 	run_bm4_implicit_2_symplecticity_study,
 	run_bm4_implicit_symplecticity_study,
+)
+from .bm4_implicit_iterations import (
+	BM4_ITERATION_FORMULATIONS,
+	BM4ImplicitIterationStudyConfig,
+	BM4ImplicitIterationStudyResult,
+	BM4IterationFormulation,
+	run_bm4_implicit_iteration_study,
 )
 from .potentials import RandomPotentialConfig
 from .rk4_symplecticity import (
@@ -77,6 +108,8 @@ from .rk4_symplecticity import (
 
 __all__ = [
 	"ABBA_METHOD_NAMES",
+	"ABBA_JACOBIAN_FORMULATIONS",
+	"ABBA_ITERATION_FORMULATIONS",
 	"ABBAComparisonConfig",
 	"ABBAComparisonResult",
 	"ABBAProjectionMultiplierOrder",
@@ -86,27 +119,43 @@ __all__ = [
 	"ABBASymplecticitySummary",
 	"ABBATrajectoryDifferenceSeries",
 	"ABBATrajectoryDifferenceSummary",
+	"ABBAJacobianFormulation",
+	"ABBAIterationFormulation",
 	"AreaComparisonConfig",
 	"AreaComparisonResult",
 	"AreaStep",
 	"BM4Implicit1SymplecticityResult",
+	"BM4_ITERATION_FORMULATIONS",
+	"BM4ImplicitIterationStudyConfig",
+	"BM4ImplicitIterationStudyResult",
+	"BM4IterationFormulation",
 	"BM4Implicit2SymplecticityResult",
 	"BM4ImplicitSymplecticityComparison",
 	"BM4ImplicitSymplecticityConfig",
 	"BM4ImplicitSymplecticitySummary",
 	"DEFAULT_IMPLICIT_ABBA_OBSERVERS",
-	"ExplicitABBADefectOrder",
-	"ExplicitABBASymplecticityConfig",
-	"ExplicitABBASymplecticityResult",
-	"ExplicitABBASymplecticitySummary",
+	"MidpointABBADefectOrder",
+	"MidpointABBASymplecticityConfig",
+	"MidpointABBASymplecticityResult",
+	"MidpointABBASymplecticitySummary",
 	"GeneralizedEnergyConfig",
 	"GeneralizedEnergyResult",
 	"IMPLICIT_ABBA_FORMULATIONS",
 	"IMPLICIT_ABBA_JACOBIAN_METHODS",
+	"IMPLICIT_METHOD_NAMES",
 	"ImplicitABBA1SymplecticityResult",
 	"ImplicitABBA2SymplecticityResult",
 	"ImplicitABBAFormulation",
 	"ImplicitABBAObserverConfig",
+	"ImplicitABBAJacobianParticleStepSeries",
+	"ImplicitABBAJacobianStudyConfig",
+	"ImplicitABBAJacobianStudyResult",
+	"ImplicitABBAIterationStudyConfig",
+	"ImplicitABBAIterationStudyResult",
+	"ImplicitIterationSummary",
+	"ImplicitTrajectoryComparisonConfig",
+	"ImplicitTrajectoryComparisonResult",
+	"ImplicitTrajectoryDifferenceSummary",
 	"ImplicitABBASymplecticityComparison",
 	"ImplicitABBASymplecticityConfig",
 	"RandomPotentialConfig",
@@ -120,8 +169,10 @@ __all__ = [
 	"centered_square",
 	"domain_center",
 	"pi_area_steps",
+	"random_gc_configuration",
 	"run_area_comparison",
 	"run_bm4_implicit_1_symplecticity_study",
+	"run_bm4_implicit_iteration_study",
 	"run_bm4_implicit_2_symplecticity_study",
 	"run_bm4_implicit_symplecticity_study",
 	"run_abba_comparison",
@@ -129,7 +180,10 @@ __all__ = [
 	"run_generalized_energy_comparison",
 	"run_implicit_abba_1_symplecticity_study",
 	"run_implicit_abba_2_symplecticity_study",
+	"run_implicit_abba_jacobian_study",
+	"run_implicit_abba_iteration_study",
 	"run_implicit_abba_symplecticity_study",
-	"run_explicit_abba_symplecticity_study",
+	"run_implicit_trajectory_comparison",
+	"run_midpoint_abba_symplecticity_study",
 	"run_rk4_symplecticity_study",
 ]

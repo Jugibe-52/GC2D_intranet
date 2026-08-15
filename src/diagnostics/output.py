@@ -41,15 +41,23 @@ def write_diagnostic_block(
 	rows: Sequence[Mapping[str, object]],
 	arrays: Mapping[str, np.ndarray],
 	metadata: Mapping[str, Any],
+	arrays_kind: str = "jacobians",
 ) -> DiagnosticBlockPaths:
 	"""Write synchronized scalar, array and metadata files for one block."""
 	if not rows:
 		raise ValueError("A diagnostic output block requires at least one row.")
+	if (
+		not isinstance(arrays_kind, str)
+		or not arrays_kind.isascii()
+		or not arrays_kind.isalpha()
+		or not arrays_kind.islower()
+	):
+		raise ValueError("`arrays_kind` must contain only lowercase ASCII letters.")
 	output_directory.mkdir(parents=True, exist_ok=True)
 	stem = f"{block_name}_{{kind}}_{block_index:05d}"
 	paths = DiagnosticBlockPaths(
 		summary=output_directory / f"{stem.format(kind='summary')}.csv",
-		arrays=output_directory / f"{stem.format(kind='jacobians')}.npz",
+		arrays=output_directory / f"{stem.format(kind=arrays_kind)}.npz",
 		metadata=output_directory / f"{stem.format(kind='metadata')}.json",
 	)
 	with paths.summary.open("w", encoding="utf-8", newline="") as stream:

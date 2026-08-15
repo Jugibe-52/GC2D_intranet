@@ -1,4 +1,4 @@
-"""Explicit endpoint-time ABBA integration with projection by averaging."""
+"""Midpoint ABBA integration with arithmetic-mean diagonal projection."""
 
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ from ..request import SimulationRequest
 
 
 @dataclass(frozen=True, slots=True)
-class _ExplicitABBAStep:
+class _MidpointABBAStep:
 	"""Physical average and off-diagonal copy separation after one ABBA map."""
 
 	state: np.ndarray
@@ -35,12 +35,12 @@ def _checked_vector_field(
 	return result
 
 
-def _explicit_abba_step(
+def _midpoint_abba_step(
 	dynamics: DynamicalSystem,
 	t: float,
 	state: np.ndarray,
 	step: float,
-) -> _ExplicitABBAStep:
+) -> _MidpointABBAStep:
 	"""Apply endpoint-time A-B-B-A and project both copies by their mean."""
 	value = np.asarray(state, dtype=float)
 	if value.ndim != 1 or value.size == 0 or not np.all(np.isfinite(value)):
@@ -62,15 +62,15 @@ def _explicit_abba_step(
 		v_final,
 	)
 	separation = u_final - v_final
-	return _ExplicitABBAStep(
+	return _MidpointABBAStep(
 		state=np.asarray((u_final + v_final) / 2.0),
 		copy_separation_norm=float(np.linalg.norm(separation, ord=np.inf)),
 	)
 
 
 @dataclass(frozen=True, slots=True)
-class ExplicitABBA:
-	"""Second-order explicit ABBA method with arithmetic mean projection.
+class MidpointABBA:
+	"""Second-order midpoint ABBA method with arithmetic mean projection.
 
 	The method duplicates the physical state, applies the endpoint-time A-B-B-A
 	shears, and averages the two final copies. The average is an inexpensive
@@ -88,9 +88,9 @@ class ExplicitABBA:
 		"""Integrate one planar physical problem and retain copy separation."""
 		dynamics = problem.dynamics
 		if not isinstance(dynamics, DynamicalSystem):
-			raise TypeError("ExplicitABBA requires DynamicalSystem.")
+			raise TypeError("MidpointABBA requires DynamicalSystem.")
 		if dynamics.state_dimension != 2:
-			raise TypeError("ExplicitABBA requires planar two-component dynamics.")
+			raise TypeError("MidpointABBA requires planar two-component dynamics.")
 
 		copy_separation_norms: list[float] = []
 
@@ -102,11 +102,11 @@ class ExplicitABBA:
 			observe: bool,
 		) -> np.ndarray:
 			def apply_step(candidate: np.ndarray) -> np.ndarray:
-				"""Apply the same fixed-time explicit map to one candidate state."""
-				return _explicit_abba_step(dynamics, t, candidate, step).state
+				"""Apply the same fixed-time midpoint map to one candidate state."""
+				return _midpoint_abba_step(dynamics, t, candidate, step).state
 
 			state_before = np.asarray(state, dtype=float)
-			result = _explicit_abba_step(dynamics, t, state_before, step)
+			result = _midpoint_abba_step(dynamics, t, state_before, step)
 			if observe:
 				copy_separation_norms.append(result.copy_separation_norm)
 				if self.step_observer is not None:
@@ -146,4 +146,4 @@ class ExplicitABBA:
 		)
 
 
-__all__ = ["ExplicitABBA"]
+__all__ = ["MidpointABBA"]

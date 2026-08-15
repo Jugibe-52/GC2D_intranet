@@ -1,4 +1,4 @@
-"""Symplecticity studies for explicit ABBA with arithmetic projection."""
+"""Symplecticity studies for midpoint ABBA with arithmetic projection."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ from matplotlib.figure import Figure
 from initial_conditions import Area
 from potential import Potential
 from simulation import (
-	ExplicitABBA,
+	MidpointABBA,
 	Solution,
 )
 
@@ -26,21 +26,21 @@ from ._gc_symplecticity import (
 
 
 @dataclass(frozen=True, slots=True)
-class ExplicitABBASymplecticityConfig(GCSymplecticityConfig):
-	"""Reproducible grids for an explicit averaged-ABBA GC study."""
+class MidpointABBASymplecticityConfig(GCSymplecticityConfig):
+	"""Reproducible grids for a midpoint averaged-ABBA GC study."""
 
-	block_prefix: str = "explicit_abba_symplecticity"
+	block_prefix: str = "midpoint_abba_symplecticity"
 
 
 @dataclass(frozen=True, slots=True)
-class ExplicitABBASymplecticitySummary(GCSymplecticitySummary):
+class MidpointABBASymplecticitySummary(GCSymplecticitySummary):
 	"""Maximum geometric defects and copy separation for one step size."""
 
 	max_copy_separation_norm: float = 0.0
 
 
 @dataclass(frozen=True, slots=True)
-class ExplicitABBADefectOrder:
+class MidpointABBADefectOrder:
 	"""Empirical local, accumulated and copy-separation orders."""
 
 	coarse_label: str
@@ -83,18 +83,18 @@ def _empirical_order(
 
 
 @dataclass(frozen=True, slots=True)
-class ExplicitABBASymplecticityResult(GCSymplecticityResult):
-	"""Explicit ABBA solutions and physical-flow analysis helpers."""
+class MidpointABBASymplecticityResult(GCSymplecticityResult):
+	"""Midpoint ABBA solutions and physical-flow analysis helpers."""
 
-	method_name: ClassVar[str] = "ExplicitABBA"
+	method_name: ClassVar[str] = "MidpointABBA"
 	summary_type: ClassVar[type[GCSymplecticitySummary]] = (
-		ExplicitABBASymplecticitySummary
+		MidpointABBASymplecticitySummary
 	)
 
-	def summaries(self) -> tuple[ExplicitABBASymplecticitySummary, ...]:
+	def summaries(self) -> tuple[MidpointABBASymplecticitySummary, ...]:
 		"""Return geometric summaries augmented by the maximum copy separation."""
 		base_rows = cast(
-			tuple[ExplicitABBASymplecticitySummary, ...],
+			tuple[MidpointABBASymplecticitySummary, ...],
 			GCSymplecticityResult.summaries(self),
 		)
 		return tuple(
@@ -107,13 +107,13 @@ class ExplicitABBASymplecticityResult(GCSymplecticityResult):
 			for row in base_rows
 		)
 
-	def convergence_orders(self) -> tuple[ExplicitABBADefectOrder, ...]:
+	def convergence_orders(self) -> tuple[MidpointABBADefectOrder, ...]:
 		"""Estimate defect and copy-separation orders between consecutive steps."""
 		rows = self.summaries()
-		orders: list[ExplicitABBADefectOrder] = []
+		orders: list[MidpointABBADefectOrder] = []
 		for coarse, fine in zip(rows, rows[1:]):
 			orders.append(
-				ExplicitABBADefectOrder(
+				MidpointABBADefectOrder(
 					coarse_label=coarse.label,
 					fine_label=fine.label,
 					local_defect=_empirical_order(
@@ -155,8 +155,8 @@ class ExplicitABBASymplecticityResult(GCSymplecticityResult):
 	def plot_convergence(self) -> tuple[Figure, Axes]:
 		"""Plot defects and pre-projection copy separation against step size."""
 		figure, axis = self._plot_step_defects(
-			title="Explicit ABBA symplecticity-defect convergence",
-			xlabel=r"Explicit ABBA step $\Delta t$",
+			title="Midpoint ABBA symplecticity-defect convergence",
+			xlabel=r"Midpoint ABBA step $\Delta t$",
 		)
 		rows = self.summaries()
 		axis.loglog(
@@ -170,19 +170,19 @@ class ExplicitABBASymplecticityResult(GCSymplecticityResult):
 		return figure, axis
 
 
-def run_explicit_abba_symplecticity_study(
+def run_midpoint_abba_symplecticity_study(
 	potential: Potential,
 	area: Area,
 	*,
 	notebook_path: str | Path,
-	config: ExplicitABBASymplecticityConfig,
+	config: MidpointABBASymplecticityConfig,
 	project_root: str | Path | None = None,
 	metadata: Mapping[str, Any] | None = None,
-) -> ExplicitABBASymplecticityResult:
-	"""Run explicit ABBA steps and persist physical GC-flow diagnostics."""
-	if not isinstance(config, ExplicitABBASymplecticityConfig):
+) -> MidpointABBASymplecticityResult:
+	"""Run midpoint ABBA steps and persist physical GC-flow diagnostics."""
+	if not isinstance(config, MidpointABBASymplecticityConfig):
 		raise TypeError(
-			"`config` must be an ExplicitABBASymplecticityConfig instance."
+			"`config` must be a MidpointABBASymplecticityConfig instance."
 		)
 	study_metadata = {
 		**dict(metadata or {}),
@@ -197,20 +197,20 @@ def run_explicit_abba_symplecticity_study(
 		area,
 		notebook_path=notebook_path,
 		config=config,
-		method_factory=lambda observer: ExplicitABBA(
+		method_factory=lambda observer: MidpointABBA(
 			progress=config.progress,
 			step_observer=observer,
 		),
-		result_type=ExplicitABBASymplecticityResult,
+		result_type=MidpointABBASymplecticityResult,
 		project_root=project_root,
 		metadata=study_metadata,
 	)
 
 
 __all__ = [
-	"ExplicitABBADefectOrder",
-	"ExplicitABBASymplecticityConfig",
-	"ExplicitABBASymplecticityResult",
-	"ExplicitABBASymplecticitySummary",
-	"run_explicit_abba_symplecticity_study",
+	"MidpointABBADefectOrder",
+	"MidpointABBASymplecticityConfig",
+	"MidpointABBASymplecticityResult",
+	"MidpointABBASymplecticitySummary",
+	"run_midpoint_abba_symplecticity_study",
 ]

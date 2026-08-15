@@ -12,8 +12,12 @@ import numpy as np
 from simulation.observation import IntegrationStage
 from diagnostics.output import write_diagnostic_block
 
-from .jacobians import central_difference_jacobian
-from .paths import next_block_index, notebook_output_directory, validate_block_name
+from diagnostics.jacobians import central_difference_jacobian
+from diagnostics.paths import (
+	next_block_index,
+	notebook_output_directory,
+	validate_block_name,
+)
 
 
 def gc_physical_symplectic_form(particle_count: int) -> np.ndarray:

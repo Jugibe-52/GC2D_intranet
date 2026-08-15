@@ -67,8 +67,27 @@ note bottom of NumericalMethod
   Both converge to the same projected physical map.
   BM4Implicit1 and BM4Implicit2 apply these two
   projection formulations around a full BM4 cycle.
+  Every implicit method selects Newton or Broyden.
+  Newton evaluates the formulation-specific residual
+  Jacobian; Broyden shares one residual-only secant solver
+  initialized by the corresponding small-step matrix.
   Physical step Jacobians are optional diagnostics,
   not separate numerical integration methods.
+  The implicit-ABBA Jacobian observer analyzes each
+  local physical tangent without area or symplecticity metrics.
+  Its study result can evaluate the effective electric field at
+  observed step endpoints and derive each finite physical increment
+  Delta z[n] = z[n+1] - z[n], its norm, and its oriented
+  atan2(Delta y[n], Delta x[n]) direction from accepted states.
+  The implicit-ABBA iteration observer separately records
+  nonlinear work, residual evaluations, and convergence metrics produced by each
+  accepted step, without repeating the nonlinear solve.
+  The implicit-BM4 iteration observer provides the same metrics
+  for the reduced and simultaneous projection around each complete
+  twelve-stage BM4 cycle.
+  The four-method trajectory study uses one common physical
+  problem and step, compares all six method pairs, and keeps
+  per-step nonlinear work aligned with the computed solutions.
 end note
 
 note top of Potential

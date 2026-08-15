@@ -13,13 +13,17 @@ from initial_conditions import Area
 from simulation import ImplicitABBAIntegrationStep, IntegrationStep
 from diagnostics.output import write_diagnostic_block
 
-from .jacobians import (
+from diagnostics.jacobians import (
 	STEP_JACOBIAN_METHODS,
 	StepJacobianMethod,
 	calculate_step_jacobian,
 )
 from .observer import gc_physical_symplectic_form
-from .paths import next_block_index, notebook_output_directory, validate_block_name
+from diagnostics.paths import (
+	next_block_index,
+	notebook_output_directory,
+	validate_block_name,
+)
 
 
 @dataclass(frozen=True, slots=True)

@@ -25,10 +25,10 @@ from ._validation import (
 	positive_finite,
 	positive_integer,
 )
-from .abba_explicit_symplecticity import (
-	ExplicitABBASymplecticityConfig,
-	ExplicitABBASymplecticityResult,
-	run_explicit_abba_symplecticity_study,
+from .abba_midpoint_symplecticity import (
+	MidpointABBASymplecticityConfig,
+	MidpointABBASymplecticityResult,
+	run_midpoint_abba_symplecticity_study,
 )
 from .abba_implicit_symplecticity import (
 	ImplicitABBA1SymplecticityResult,
@@ -42,13 +42,13 @@ from visualization import animate_gc_area_solution
 
 
 ABBA_METHOD_NAMES = (
-	"ExplicitABBA",
+	"MidpointABBA",
 	"ImplicitABBA1",
 	"ImplicitABBA2",
 )
 _BLOCK_PREFIX = re.compile(r"^[A-Za-z0-9_-]+$")
 ABBAComparisonStudy = (
-	ExplicitABBASymplecticityResult
+	MidpointABBASymplecticityResult
 	| ImplicitABBA1SymplecticityResult
 	| ImplicitABBA2SymplecticityResult
 )
@@ -431,14 +431,14 @@ def run_abba_comparison(
 		raise TypeError("`config` must be an ABBAComparisonConfig instance.")
 
 	step = (AreaStep(label=config.step_label, value=config.integration_step),)
-	explicit_config = ExplicitABBASymplecticityConfig(
+	midpoint_config = MidpointABBASymplecticityConfig(
 		steps=step,
 		t_span=config.t_span,
 		save_interval=config.save_interval,
 		rho=config.rho,
 		chunk_size=config.chunk_size,
 		progress=config.progress,
-		block_prefix=f"{config.block_prefix}_explicit",
+		block_prefix=f"{config.block_prefix}_midpoint",
 		finite_difference_relative_step=config.finite_difference_relative_step,
 	)
 	implicit_config = ImplicitABBASymplecticityConfig(
@@ -460,11 +460,11 @@ def run_abba_comparison(
 		"timing_scope": "simulation_excluding_symplecticity_observer",
 	}
 
-	explicit_result = run_explicit_abba_symplecticity_study(
+	midpoint_result = run_midpoint_abba_symplecticity_study(
 		potential,
 		area,
 		notebook_path=notebook_path,
-		config=explicit_config,
+		config=midpoint_config,
 		project_root=project_root,
 		metadata=common_metadata,
 	)
@@ -488,7 +488,7 @@ def run_abba_comparison(
 	)
 
 	studies: dict[str, ABBAComparisonStudy] = {
-		ABBA_METHOD_NAMES[0]: explicit_result,
+		ABBA_METHOD_NAMES[0]: midpoint_result,
 		ABBA_METHOD_NAMES[1]: implicit_1_result,
 		ABBA_METHOD_NAMES[2]: implicit_2_result,
 	}

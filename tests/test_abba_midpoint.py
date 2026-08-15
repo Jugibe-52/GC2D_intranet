@@ -1,4 +1,4 @@
-"""Contracts for explicit ABBA with arithmetic diagonal projection."""
+"""Contracts for midpoint ABBA with arithmetic diagonal projection."""
 
 from __future__ import annotations
 
@@ -13,18 +13,18 @@ from dynamics import GuidingCenterDynamics
 from initial_conditions import TrajectoryGC
 from potential import Potential
 from simulation import (
-	ExplicitABBA,
+	MidpointABBA,
 	InitialValueProblem,
 	SimulationRequest,
 	simulate,
 )
-from simulation.methods.abba_explicit import _explicit_abba_step
+from simulation.methods.abba_midpoint import _midpoint_abba_step
 from studies import (
-	ExplicitABBASymplecticityConfig,
+	MidpointABBASymplecticityConfig,
 	RandomPotentialConfig,
 	centered_square,
 	pi_area_steps,
-	run_explicit_abba_symplecticity_study,
+	run_midpoint_abba_symplecticity_study,
 )
 
 
@@ -49,7 +49,7 @@ class _TimeOnlyPlanarDynamics:
 
 
 class _LinearRotationDynamics:
-	"""Canonical oscillator ``f(y)=J_0 y`` from the explicit-ABBA note."""
+	"""Canonical oscillator ``f(y)=J_0 y`` from the midpoint-ABBA note."""
 
 	state_dimension = 2
 
@@ -74,7 +74,7 @@ def _deterministic_gc_dynamics() -> GuidingCenterDynamics:
 	return GuidingCenterDynamics(potential, rho=0.05)
 
 
-class ExplicitABBATests(unittest.TestCase):
+class MidpointABBATests(unittest.TestCase):
 	"""Verify stages, geometric limitation, accuracy and observation behavior."""
 
 	def test_non_autonomous_stages_use_both_step_endpoints(self) -> None:
@@ -87,7 +87,7 @@ class ExplicitABBATests(unittest.TestCase):
 				dynamics,
 				TrajectoryGC(initial_state, rho=0.05),
 			),
-			ExplicitABBA(),
+			MidpointABBA(),
 			SimulationRequest.uniform(
 				t_span=(start, start + step),
 				max_step=step,
@@ -114,7 +114,7 @@ class ExplicitABBATests(unittest.TestCase):
 		basis = np.eye(2)
 		matrix = np.column_stack(
 			[
-				_explicit_abba_step(dynamics, 0.0, column, step).state
+				_midpoint_abba_step(dynamics, 0.0, column, step).state
 				for column in basis.T
 			]
 		)
@@ -140,7 +140,7 @@ class ExplicitABBATests(unittest.TestCase):
 			"""Return one final state on a fixed integration interval."""
 			return simulate(
 				problem,
-				ExplicitABBA(),
+				MidpointABBA(),
 				SimulationRequest.uniform(
 					t_span=(0.0, 0.4),
 					max_step=step,
@@ -162,7 +162,7 @@ class ExplicitABBATests(unittest.TestCase):
 		events = []
 		observed = simulate(
 			problem,
-			ExplicitABBA(step_observer=events.append),
+			MidpointABBA(step_observer=events.append),
 			SimulationRequest.uniform(
 				t_span=(0.0, 0.05),
 				max_step=0.02,
@@ -171,7 +171,7 @@ class ExplicitABBATests(unittest.TestCase):
 		)
 		sparse = simulate(
 			problem,
-			ExplicitABBA(),
+			MidpointABBA(),
 			SimulationRequest.uniform(
 				t_span=(0.0, 0.05),
 				max_step=0.02,
@@ -191,7 +191,7 @@ class ExplicitABBATests(unittest.TestCase):
 			)
 
 
-class ExplicitABBASymplecticityStudyTests(unittest.TestCase):
+class MidpointABBASymplecticityStudyTests(unittest.TestCase):
 	"""Verify the reusable experiment study and persisted metadata."""
 
 	def test_short_study_returns_defects_and_copy_separation(self) -> None:
@@ -210,7 +210,7 @@ class ExplicitABBASymplecticityStudyTests(unittest.TestCase):
 			points_per_side=1,
 			rho=0.05,
 		)
-		config = ExplicitABBASymplecticityConfig(
+		config = MidpointABBASymplecticityConfig(
 			steps=pi_area_steps(40, 80),
 			t_span=(0.0, np.pi / 20),
 			save_interval=np.pi / 20,
@@ -219,11 +219,11 @@ class ExplicitABBASymplecticityStudyTests(unittest.TestCase):
 
 		with tempfile.TemporaryDirectory(dir="/tmp") as temporary:
 			root = Path(temporary)
-			result = run_explicit_abba_symplecticity_study(
+			result = run_midpoint_abba_symplecticity_study(
 				potential,
 				area,
 				notebook_path=(
-					root / "notebooks" / "developements" / "explicit_abba.ipynb"
+					root / "notebooks" / "developements" / "midpoint_abba.ipynb"
 				),
 				config=config,
 				project_root=root,
@@ -239,7 +239,7 @@ class ExplicitABBASymplecticityStudyTests(unittest.TestCase):
 			self.assertEqual(payload["metadata"]["projection"], "arithmetic_mean")
 			self.assertFalse(payload["metadata"]["projection_is_symplectic"])
 
-		self.assertEqual(result.method_name, "ExplicitABBA")
+		self.assertEqual(result.method_name, "MidpointABBA")
 		self.assertEqual(len(result.summaries()), 2)
 		self.assertEqual(len(result.convergence_orders()), 1)
 		for summary in result.summaries():

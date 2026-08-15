@@ -57,16 +57,27 @@ class IntegrationStep:
 
 
 @dataclass(frozen=True, slots=True)
-class ImplicitABBAIntegrationStep(IntegrationStep):
-	"""Expose converged ABBA stages without performing diagnostic analysis.
-
-	The numerical method owns the nonlinear projection solve. Analytic tangent
-	diagnostics can use these snapshots and ``dynamics`` to evaluate the four
-	vector-field Jacobians without importing private solver helpers.
-	"""
+class ImplicitIntegrationStep(IntegrationStep):
+	"""Expose accepted nonlinear-solver metrics for one implicit step."""
 
 	formulation_name: str
 	start_time: float
+	nonlinear_solver: Literal["newton", "broyden"]
+	newton_iterations: int
+	residual_evaluations: int
+	newton_residual_norm: float
+	newton_tolerance: float
+	projection_multiplier_norm: float
+
+
+@dataclass(frozen=True, slots=True)
+class ImplicitABBAIntegrationStep(ImplicitIntegrationStep):
+	"""Expose converged ABBA stages without performing diagnostic analysis.
+
+	Analytic tangent diagnostics use these snapshots and ``dynamics`` to evaluate
+	the four vector-field Jacobians without importing private solver helpers.
+	"""
+
 	dynamics: GuidingCenterJacobianSystem = field(repr=False, compare=False)
 	multiplier: np.ndarray = field(repr=False, compare=False)
 	u_initial: np.ndarray = field(repr=False, compare=False)
@@ -76,12 +87,19 @@ class ImplicitABBAIntegrationStep(IntegrationStep):
 	u_final: np.ndarray = field(repr=False, compare=False)
 
 
+@dataclass(frozen=True, slots=True)
+class ImplicitBM4IntegrationStep(ImplicitIntegrationStep):
+	"""Expose accepted projected-BM4 solve metrics to optional observers."""
+
+
 StageObserver: TypeAlias = Callable[[IntegrationStage], None]
 StepObserver: TypeAlias = Callable[[IntegrationStep], None]
 
 
 __all__ = [
 	"ImplicitABBAIntegrationStep",
+	"ImplicitBM4IntegrationStep",
+	"ImplicitIntegrationStep",
 	"IntegrationStage",
 	"IntegrationStep",
 	"StageObserver",

@@ -100,7 +100,7 @@ Physical parameters belong to the dynamics object. Changing the initial
 configuration therefore does not change the model. The effective gyroaveraged
 potential is available as `problem.dynamics.effective_potential`.
 
-## Implicit ABBA formulations
+## Implicit projection formulations and nonlinear solvers
 
 The simulation API provides two implementations of Hairer's symmetric ABBA
 projection:
@@ -114,6 +114,33 @@ They define the same exact projected physical map but expose distinct solver
 diagnostics. Their derivations are documented in
 [`ABBA_implicit_1`](docs/tex/ABBA_implicit_1/ABBA_implicit_1.pdf) and
 [`ABBA_implicit_2`](docs/tex/ABBA_implicit_2/ABBA_implicit_2.pdf).
+
+`BM4Implicit1` and `BM4Implicit2` use the corresponding reduced and
+simultaneous projections around one complete BM4 cycle. All four implicit
+methods accept `nonlinear_solver="newton"` or `nonlinear_solver="broyden"`.
+Newton retains the existing residual-Jacobian path: analytic particle blocks
+for ABBA and centered differentiation of the complete BM4 map for BM4.
+Broyden evaluates only the formulation's explicit residual after its initial
+small-step Jacobian approximation, then applies the good rank-one secant
+update. The generic construction is documented in
+[`broyden_generic_method.tex`](docs/tex/broyden/broyden_generic_method.tex).
+
+```python
+from simulation import ImplicitABBA1
+
+method = ImplicitABBA1(
+    nonlinear_solver="broyden",
+    newton_absolute_tolerance=1e-14,
+    newton_relative_tolerance=1e-13,
+    newton_max_iterations=40,
+)
+```
+
+Solver-neutral diagnostics are available as `nonlinear_solver`,
+`nonlinear_iterations`, `residual_evaluations`,
+`nonlinear_residual_norms`, and `nonlinear_tolerances`. The former
+`newton_iterations` and `newton_residual_norms` keys remain as compatibility
+aliases.
 
 ## Full-cyclotron example
 

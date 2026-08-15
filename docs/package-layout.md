@@ -9,10 +9,10 @@ name from the package that owns it.
 | `potential` | Periodic electrostatic field model | `Potential` |
 | `dynamics` | Equations of motion and capability protocols | `GuidingCenterDynamics`, `FullCyclotronDynamics` |
 | `initial_conditions` | Initial state layouts and geometry | `GCInitialConfiguration`, `FCInitialConfiguration`, `Area` |
-| `simulation` | Problems, methods, formulations, requests, and solutions | `InitialValueProblem`, `RK4`, `BM4Implicit1`, `BM4Implicit2`, `ImplicitABBA1`, `ImplicitABBA2`, `SimulationRequest`, `Solution` |
-| `diagnostics` | Optional observers and diagnostic persistence | projection and symplecticity observers |
-| `studies` | Reusable experiment assembly and summaries | configuration objects and `run_*_study` functions |
-| `visualization` | Optional plots, animations, and notebook display | `plot_potential`, `animate_gc_area_solution` |
+| `simulation` | Problems, methods, formulations, nonlinear-solver selection, requests, and solutions | `InitialValueProblem`, `RK4`, `BM4Implicit1`, `BM4Implicit2`, `ImplicitABBA1`, `ImplicitABBA2`, `NonlinearSolver`, `SimulationRequest`, `Solution` |
+| `diagnostics` | Optional observers and diagnostic persistence | `ImplicitABBAJacobianObserver`, ABBA/BM4 iteration observers, projection and symplecticity observers |
+| `studies` | Reusable experiment assembly and summaries | `ImplicitTrajectoryComparisonConfig`, `ImplicitABBAIterationStudyConfig`, `BM4ImplicitIterationStudyConfig`, and `run_*_study` functions |
+| `visualization` | Optional plots, animations, tables, and notebook display | `animate_implicit_method_trajectories`, `plot_implicit_trajectory_differences`, `plot_implicit_method_iterations`, `plot_potential` |
 
 ## Import pattern
 
@@ -55,6 +55,38 @@ Newton matrices use centered differences of the doubled BM4 map; projection is
 performed once per complete cycle and is distinct from `ProjectedBM4Composition`,
 which averages and re-embeds the copies after every internal stage.
 
+All four implicit methods select either `newton` or `broyden` through the same
+`nonlinear_solver` field. The Broyden path is shared across method families and
+depends only on each formulation's residual evaluator. Reduced formulations
+start from `4 I`; simultaneous formulations use the corresponding zero-step
+output--multiplier Jacobian. Per-step diagnostics distinguish nonlinear
+corrections from explicit residual evaluations.
+
+`ImplicitABBAJacobianObserver` evaluates the local physical tangent
+`D Psi_{h,t_n}(z_n)` from converged ABBA stage data. Its spectral analysis is
+separate from the area and symplecticity observers: it records the matrix,
+trace, determinant, discriminant, eigensystem, and SVD for each independent
+particle without accumulating the tangent flow.
+
+`ImplicitABBAIterationObserver` consumes solver metrics emitted by each
+accepted implicit ABBA step. It records how many nonlinear corrections were
+required and the final residual relative to the effective stopping tolerance;
+it does not reevaluate the step or its nonlinear equations.
+
+`ImplicitBM4IterationObserver` records the equivalent metrics around each
+complete projected BM4 cycle. Its records share the generic
+`ImplicitIterationRecord` schema, allowing the same plots and persistence
+format to present either method family.
+
+`run_implicit_trajectory_comparison` advances the same initial configuration
+with the four implicit methods, one common step, and one nonlinear solver. Its
+result provides six pairwise periodic trajectory summaries and four aligned
+iteration summaries. `animate_implicit_method_trajectories` assigns one color
+to each method while displaying every particle trajectory.
+`plot_implicit_trajectory_differences` presents the four methods on both axes
+of a symmetric matrix and annotates every cell with the mean periodic particle
+distance over all trajectories and saved states.
+
 ## Dependency direction
 
 The core dependency flow is intentionally one-way:
@@ -63,7 +95,7 @@ The core dependency flow is intentionally one-way:
 potential <- dynamics
 initial_conditions <- simulation -> dynamics
               diagnostics -> simulation
-visualization -> potential + initial_conditions + simulation
+visualization -> potential + initial_conditions + simulation + diagnostics
 studies -> potential + dynamics + initial_conditions + simulation + diagnostics
 ```
 

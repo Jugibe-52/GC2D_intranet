@@ -16,7 +16,7 @@ from diagnostics.symplecticity import (
 	central_difference_jacobian,
 	gc_physical_symplectic_form,
 )
-from diagnostics.symplecticity.paths import (
+from diagnostics.paths import (
 	next_block_index,
 	notebook_output_directory,
 	validate_block_name,
