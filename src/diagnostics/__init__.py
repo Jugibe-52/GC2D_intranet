@@ -47,6 +47,13 @@ from .implicit_iterations import (
 	ImplicitIterationOutputBlock,
 	ImplicitIterationRecord,
 )
+from .reference_trajectory import (
+	ReferenceTrajectoryPaths,
+	StoredReferenceTrajectory,
+	load_reference_trajectory,
+	reference_trajectory_output_directory,
+	write_reference_trajectory,
+)
 
 __all__ = [
 	"IMPLICIT_ABBA_JACOBIAN_METHODS",
@@ -69,12 +76,14 @@ __all__ = [
 	"MidpointBM4SymplecticityOutputBlock",
 	"MidpointBM4SymplecticityRecord",
 	"ParticleJacobianAnalysis",
+	"ReferenceTrajectoryPaths",
 	"STEP_JACOBIAN_METHODS",
 	"SpectralClass",
 	"TrajectoryJacobianCalculator",
 	"TrajectorySymplecticityOutputBlock",
 	"TrajectorySymplecticityRecord",
 	"StepJacobianMethod",
+	"StoredReferenceTrajectory",
 	"analyze_particle_jacobian",
 	"calculate_step_jacobian",
 	"bm4_implicit_1_step_particle_jacobians",
@@ -82,8 +91,11 @@ __all__ = [
 	"coupled_bm4_stage_particle_jacobians",
 	"implicit_abba_1_step_particle_jacobians",
 	"implicit_function_step_jacobian",
+	"load_reference_trajectory",
 	"midpoint_bm4_stage_particle_jacobians",
 	"midpoint_bm4_step_particle_jacobians",
 	"midpoint_abba_step_particle_jacobians",
+	"reference_trajectory_output_directory",
 	"stage_increment_step_jacobian",
+	"write_reference_trajectory",
 ]

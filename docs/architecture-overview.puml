@@ -40,6 +40,16 @@ class "Solution\n(computed trajectory)" as Solution {
   Immutable sampled times, states, diagnostics
 }
 
+class "High-precision numerical reference\n(versioned artifact)" as NumericalReference {
+  DOP853 trajectory + independent Radau audit
+  Immutable arrays, validated manifest, explanation, checksum
+}
+
+class "Numerical accuracy study" as NumericalAccuracyStudy {
+  Periodic distances from ten computed solutions
+  Time series, summaries, and resolution margin
+}
+
 Potential --> Dynamics : defines field forces
 Dynamics --> InitialValueProblem
 InitialConfiguration --> InitialValueProblem
@@ -47,6 +57,10 @@ InitialValueProblem --> SimulationRunner
 NumericalMethod --> SimulationRunner
 SimulationRequest --> SimulationRunner
 SimulationRunner --> Solution : produces
+Dynamics --> NumericalReference : adaptive integration of same ODE
+InitialConfiguration --> NumericalReference : exact initial state
+NumericalReference --> NumericalAccuracyStudy : verified reference
+Solution --> NumericalAccuracyStudy : compared trajectories
 
 note bottom of InitialConfiguration
   This role owns initial state geometry and
@@ -58,6 +72,13 @@ note bottom of Solution
   Solution is the read-only trajectory evolved in time.
   It is distinct from the initial-state
   geometry used to define a problem.
+end note
+
+note bottom of NumericalReference
+  This is a computed float64 surrogate for the same
+  interpolated ODE, not an analytical trajectory or
+  physical-model validation. A field fingerprint and
+  DOP853/Radau discrepancy make its scope auditable.
 end note
 
 note bottom of NumericalMethod
@@ -107,6 +128,17 @@ note bottom of NumericalMethod
   The four-method trajectory study uses one common physical
   problem and step, compares all six method pairs, and keeps
   per-step nonlinear work aligned with the computed solutions.
+  The ten-variant trajectory study adds MidpointABBA and
+  MidpointBM4, and runs each implicit ABBA/BM4 formulation
+  once with Newton and once with Broyden. All variants share
+  one initial configuration and saved-time grid; the result
+  reports 45 periodic-distance pairs, ten runtimes, and eight
+  aligned nonlinear-work series.
+  The accuracy study validates a versioned DOP853 reference
+  against an independent Radau solve, then measures all ten
+  fixed-step trajectories with periodic minimum-image distances.
+  It reports particle-RMS evolution, final and maximum error,
+  the margin above the reference discrepancy, and runtime.
 end note
 
 note top of Potential
@@ -122,6 +154,8 @@ legend bottom
   | Initial configuration | Initial state and coordinate layout |
   | Simulation | Execution using a problem, numerical method, and request |
   | Solution | Computed trajectory and diagnostics |
+  | Numerical reference | Audited high-precision trajectory for the same ODE |
+  | Accuracy study | Distance between computed solutions and the reference |
 endlegend
 
 @enduml

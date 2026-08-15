@@ -10,9 +10,9 @@ name from the package that owns it.
 | `dynamics` | Equations of motion and capability protocols | `GuidingCenterDynamics`, `FullCyclotronDynamics` |
 | `initial_conditions` | Initial state layouts and geometry | `GCInitialConfiguration`, `FCInitialConfiguration`, `Area` |
 | `simulation` | Problems, methods, formulations, nonlinear-solver selection, requests, and solutions | `InitialValueProblem`, `RK4`, `MidpointBM4`, `BM4Implicit1`, `BM4Implicit2`, `ImplicitABBA1`, `ImplicitABBA2`, `NonlinearSolver`, `SimulationRequest`, `Solution` |
-| `diagnostics` | Optional observers and diagnostic persistence | `GCTrajectorySymplecticityObserver`, `MidpointBM4SymplecticityObserver`, `ImplicitABBAJacobianObserver`, ABBA/BM4 iteration observers, projection and symplecticity observers |
-| `studies` | Reusable experiment assembly and summaries | `TrajectorySymplecticityConfig`, `MidpointBM4SymplecticityConfig`, `ProjectedBM4SymplecticityConfig`, `ImplicitTrajectoryComparisonConfig`, and `run_*_study` functions |
-| `visualization` | Optional plots, animations, tables, and notebook display | `plot_trajectory_symplecticity`, `plot_gc_trajectory_points`, `plot_midpoint_bm4_symplecticity`, `plot_projected_bm4_symplecticity_diagnostics`, `animate_implicit_method_trajectories`, `plot_potential` |
+| `diagnostics` | Optional observers and diagnostic persistence | `StoredReferenceTrajectory`, `GCTrajectorySymplecticityObserver`, `MidpointBM4SymplecticityObserver`, `ImplicitABBAJacobianObserver`, ABBA/BM4 iteration observers, projection and symplecticity observers |
+| `studies` | Reusable experiment assembly and summaries | `HighPrecisionReferenceConfig`, `TenMethodAccuracyResult`, `TenMethodTrajectoryComparisonConfig`, symplecticity configurations, and `run_*_study` functions |
+| `visualization` | Optional plots, animations, tables, and notebook display | `plot_reference_trajectory_points`, `plot_ten_method_accuracy_over_time`, `plot_accuracy_runtime_tradeoff`, `animate_ten_method_trajectory_points`, symplecticity plots, and `plot_potential` |
 
 ## Import pattern
 
@@ -112,6 +112,27 @@ to each method while displaying every particle trajectory.
 `plot_implicit_trajectory_differences` presents the four methods on both axes
 of a symmetric matrix and annotates every cell with the mean periodic particle
 distance over all trajectories and saved states.
+
+`run_ten_method_trajectory_comparison` extends the aligned comparison to
+`MidpointABBA`, `MidpointBM4`, and Newton/Broyden instances of both implicit
+ABBA and BM4 formulations. It exposes 45 pairwise periodic-distance summaries,
+ten wall-clock runtimes, and eight nonlinear-work summaries. The matching
+visualization uses a grouped `10 x 10` logarithmic distance matrix, a runtime
+chart, aligned implicit-work plots, and an animation of sampled trajectory
+points without connected paths.
+
+`run_high_precision_reference_trajectory` integrates the same interpolated GC
+ODE with DOP853 and an independent Radau audit on a prescribed output grid. It
+persists a stable `example_trajectory/vN` artifact as checksummed NPZ arrays, a
+JSON manifest, and a standalone explanation. The manifest records both solver
+controls, exact initial-condition reconstruction data, the periodic audit
+floor, and a fingerprint formed from the gyroaveraged sampled field and
+canonical off-grid electric-field probes. `run_ten_method_accuracy_study`
+validates the exact initial state, time grid, physical parameter, grid,
+metadata, and dynamics fingerprint before measuring minimum-image errors for
+the ten variants. Its visualization shows error evolution, global/final RMS
+accuracy, and the runtime trade-off; reference paths use markers without
+connected lines.
 
 ## Dependency direction
 

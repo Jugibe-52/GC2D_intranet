@@ -388,6 +388,22 @@ package "Reusable studies" as Studies {
     + six pairwise periodic trajectory summaries
     + four per-step nonlinear-work series
   }
+  class TenMethodTrajectoryComparisonStudy {
+    + two midpoint and eight implicit variants
+    + same initial configuration, step, and saved-time grid
+    + 45 periodic-distance and ten runtime summaries
+    + eight aligned nonlinear-work series
+  }
+  class HighPrecisionReferenceStudy {
+    + DOP853 reference on prescribed saved times
+    + independent Radau resolution audit
+    + actual interpolated-dynamics fingerprint
+  }
+  class TenMethodAccuracyStudy {
+    + validates reference problem identity and checksum
+    + per-particle periodic distances for ten variants
+    + RMS, final, maximum, floor-ratio, and runtime summaries
+  }
   class ImplicitABBAJacobianParticleStepSeries {
     + states before and after observed steps
     + effective electric field at step endpoints
@@ -412,6 +428,16 @@ package "Optional visualization" as Visualization {
     + aligned iteration and residual-evaluation plots
     + notebook tables
   }
+  class TenMethodTrajectoryComparisonVisualization {
+    + grouped 10 x 10 periodic-distance matrix
+    + marker-only trajectory animation
+    + runtime and implicit-work plots
+  }
+  class TrajectoryAccuracyVisualization {
+    + marker-only high-precision reference paths
+    + RMS and maximum error evolution
+    + accuracy summary and runtime trade-off
+  }
   class ProjectedBM4SymplecticityVisualization {
     + 2 x 2 time-diagnostic plot
     + step-refinement convergence plot
@@ -428,6 +454,11 @@ package "Optional visualization" as Visualization {
 }
 
 package "Opt-in diagnostics" as Diagnostics {
+  class ReferenceTrajectoryArtifact {
+    + immutable DOP853 and Radau state histories
+    + exact times, initial state, and audit distances
+    + checksummed NPZ, JSON manifest, and README
+  }
   class SymplecticityObservers
   class ProjectedSymplecticityAreaObserver {
     + differentiates all twelve projected BM4 stages
@@ -500,6 +531,20 @@ ImplicitTrajectoryComparisonStudy ..> ImplicitABBA2
 ImplicitTrajectoryComparisonStudy ..> BM4Implicit1
 ImplicitTrajectoryComparisonStudy ..> BM4Implicit2
 ImplicitTrajectoryComparisonStudy ..> Solution : compares aligned trajectories and diagnostics
+TenMethodTrajectoryComparisonStudy ..> MidpointABBA
+TenMethodTrajectoryComparisonStudy ..> MidpointBM4
+TenMethodTrajectoryComparisonStudy ..> ImplicitABBA1 : Newton and Broyden
+TenMethodTrajectoryComparisonStudy ..> ImplicitABBA2 : Newton and Broyden
+TenMethodTrajectoryComparisonStudy ..> BM4Implicit1 : Newton and Broyden
+TenMethodTrajectoryComparisonStudy ..> BM4Implicit2 : Newton and Broyden
+TenMethodTrajectoryComparisonStudy ..> Solution : compares ten aligned trajectories
+TenMethodTrajectoryComparisonStudy ..> TenMethodTrajectoryComparisonVisualization : presents
+HighPrecisionReferenceStudy ..> GuidingCenterDynamics : integrates vector_field with DOP853 and Radau
+HighPrecisionReferenceStudy ..> GCInitialConfiguration : preserves exact initial state
+HighPrecisionReferenceStudy --> ReferenceTrajectoryArtifact : persists audited reference
+TenMethodAccuracyStudy ..> TenMethodTrajectoryComparisonStudy : reuses ten aligned integrations
+TenMethodAccuracyStudy ..> ReferenceTrajectoryArtifact : verifies and compares
+TenMethodAccuracyStudy ..> TrajectoryAccuracyVisualization : presents errors and cost
 BM4ImplicitSymplecticityStudy ..> BM4Implicit1
 BM4ImplicitSymplecticityStudy ..> BM4Implicit2
 BM4ImplicitSymplecticityStudy ..> IntegrationStep : analyzes
@@ -543,6 +588,9 @@ GCTrajectorySymplecticityObserver --> DiagnosticBlockWriter : persists CSV/NPZ/J
 ProjectedSymplecticityAreaObserver ..> IntegrationStage : analyzes projected stages
 ProjectedSymplecticityAreaObserver --> DiagnosticBlockWriter : persists CSV/NPZ/JSON
 ImplicitTrajectoryComparisonVisualization ..> Solution : animates and plots aligned results
+TenMethodTrajectoryComparisonVisualization ..> Solution : presents aligned points and diagnostics
+TrajectoryAccuracyVisualization ..> ReferenceTrajectoryArtifact : plots marker-only reference paths
+TrajectoryAccuracyVisualization ..> TenMethodAccuracyStudy : plots periodic error summaries
 SymplecticityObservers ..> IntegrationStage
 SymplecticityObservers ..> IntegrationStep
 SymplecticityObservers o-- StepJacobianDiagnostics : selected strategy

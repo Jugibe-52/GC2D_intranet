@@ -269,6 +269,24 @@ repeated runs, persist diagnostics, and prepare summaries. Potential seeds,
 initial geometry, physical and numerical parameters, integration spans, and
 sampling choices remain visible in the calling notebook.
 
+`run_ten_method_trajectory_comparison` advances two explicit midpoint methods
+and all four implicit ABBA/BM4 formulations with both Newton and Broyden. Its
+ten solutions share one initial configuration and saved-time grid. The result
+provides all 45 pairwise periodic-distance summaries, runtimes for every
+variant, and aligned nonlinear-work summaries for the eight implicit runs.
+The companion animation presents sampled trajectories as points without
+connecting lines.
+
+`run_high_precision_reference_trajectory` constructs a versioned numerical
+reference for the same interpolated guiding-center ODE with adaptive DOP853 and
+audits its resolution independently with Radau. The stored NPZ/JSON/README
+artifact includes exact initial data, complete solver controls, periodic audit
+distances, checksums, and a fingerprint of the actual gyroaveraged interpolated
+field. `run_ten_method_accuracy_study` verifies that artifact and reports
+minimum-image trajectory errors for all ten fixed-step variants, including
+particle-RMS error over time, final and worst-case distances, resolution-floor
+ratios, and the measured accuracy--runtime trade-off.
+
 ## Results and visualization
 
 The result interface provides:
