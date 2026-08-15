@@ -84,7 +84,9 @@ class ProjectionDiagnosticTests(unittest.TestCase):
 			self.assertEqual(initial.step_index, -1)
 			self.assertEqual(final.step_index, 0)
 			self.assertLess(final.relative_defect, 1e-10)
+			self.assertLess(final.local_relative_defect, 1e-10)
 			self.assertLess(final.determinant_error, 1e-10)
+			self.assertLess(final.local_determinant_error, 1e-10)
 			self.assertAlmostEqual(final.relative_area_error, 0.0)
 			self.assertAlmostEqual(final.copy_separation, 0.0)
 			self.assertEqual(len(observer.output_blocks), 1)
@@ -94,6 +96,10 @@ class ProjectionDiagnosticTests(unittest.TestCase):
 				str(block.summary_path),
 			)
 			with np.load(block.jacobians_path) as arrays:
+				self.assertEqual(
+					arrays["local_projected_jacobians"].shape,
+					(2, 8, 8),
+				)
 				self.assertEqual(arrays["projected_jacobians"].shape, (2, 8, 8))
 				self.assertEqual(arrays["projected_states"].shape, (2, 8))
 

@@ -6,6 +6,7 @@ from typing import Protocol, TypeAlias, runtime_checkable
 
 import numpy as np
 
+from dynamics import DynamicalSystem
 from simulation._result import DiagnosticValue
 from simulation.problem import InitialValueProblem
 
@@ -15,6 +16,10 @@ Projection: TypeAlias = tuple[np.ndarray, dict[str, DiagnosticValue]]
 
 class PreparedDirectAdjointFormulation(Protocol):
 	"""Per-run immutable maps consumed by a composition method."""
+
+	@property
+	def dynamics(self) -> DynamicalSystem:
+		"""Exact physical system bound to the prepared stage maps."""
 
 	@property
 	def dynamics_name(self) -> str:

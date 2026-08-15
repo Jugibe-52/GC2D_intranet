@@ -67,6 +67,25 @@ note bottom of NumericalMethod
   Both converge to the same projected physical map.
   BM4Implicit1 and BM4Implicit2 apply these two
   projection formulations around a full BM4 cycle.
+  MidpointBM4 applies the uncoupled twelve-stage
+  cycle and averages both copies once at its end.
+  Its exact observer composes analytic stage factors,
+  propagates one extended tangent per trajectory,
+  projects it to a physical 2x2 Jacobian, and averages
+  the resulting individual symplecticity defects.
+  The common independent-trajectory observer applies the
+  same local-and-accumulated measurement to MidpointABBA,
+  ImplicitABBA1, and BM4Implicit1. It differentiates the
+  explicit shears analytically and differentiates converged
+  implicit projections with the implicit-function theorem;
+  BM4 first composes its twelve exact coupled stage factors.
+  Reported means are arithmetic means of the individual
+  2x2 physical defects, not a packed-system RMS.
+  ProjectedBM4Composition instead averages and
+  re-embeds both copies after every internal stage.
+  Its symplecticity study differentiates all twelve
+  projected stages and reports both complete-step
+  and accumulated physical-map defects.
   Every implicit method selects Newton or Broyden.
   Newton evaluates the formulation-specific residual
   Jacobian; Broyden shares one residual-only secant solver

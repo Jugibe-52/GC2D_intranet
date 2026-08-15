@@ -11,6 +11,14 @@ from .abba_jacobian import (
 	SpectralClass,
 	analyze_particle_jacobian,
 )
+from .bm4_midpoint import (
+	MIDPOINT_BM4_STAGE_COUNT,
+	MidpointBM4SymplecticityObserver,
+	MidpointBM4SymplecticityOutputBlock,
+	MidpointBM4SymplecticityRecord,
+	midpoint_bm4_stage_particle_jacobians,
+	midpoint_bm4_step_particle_jacobians,
+)
 from .jacobians import (
 	STEP_JACOBIAN_METHODS,
 	StepJacobianMethod,
@@ -18,6 +26,16 @@ from .jacobians import (
 	central_difference_jacobian,
 	implicit_function_step_jacobian,
 	stage_increment_step_jacobian,
+)
+from .trajectory_symplecticity import (
+	GCTrajectorySymplecticityObserver,
+	TrajectoryJacobianCalculator,
+	TrajectorySymplecticityOutputBlock,
+	TrajectorySymplecticityRecord,
+	bm4_implicit_1_step_particle_jacobians,
+	coupled_bm4_stage_particle_jacobians,
+	implicit_abba_1_step_particle_jacobians,
+	midpoint_abba_step_particle_jacobians,
 )
 from .implicit_iterations import (
 	ImplicitABBAIterationObserver,
@@ -45,13 +63,27 @@ __all__ = [
 	"ImplicitBM4IterationRecord",
 	"ImplicitIterationOutputBlock",
 	"ImplicitIterationRecord",
+	"GCTrajectorySymplecticityObserver",
+	"MIDPOINT_BM4_STAGE_COUNT",
+	"MidpointBM4SymplecticityObserver",
+	"MidpointBM4SymplecticityOutputBlock",
+	"MidpointBM4SymplecticityRecord",
 	"ParticleJacobianAnalysis",
 	"STEP_JACOBIAN_METHODS",
 	"SpectralClass",
+	"TrajectoryJacobianCalculator",
+	"TrajectorySymplecticityOutputBlock",
+	"TrajectorySymplecticityRecord",
 	"StepJacobianMethod",
 	"analyze_particle_jacobian",
 	"calculate_step_jacobian",
+	"bm4_implicit_1_step_particle_jacobians",
 	"central_difference_jacobian",
+	"coupled_bm4_stage_particle_jacobians",
+	"implicit_abba_1_step_particle_jacobians",
 	"implicit_function_step_jacobian",
+	"midpoint_bm4_stage_particle_jacobians",
+	"midpoint_bm4_step_particle_jacobians",
+	"midpoint_abba_step_particle_jacobians",
 	"stage_increment_step_jacobian",
 ]

@@ -48,6 +48,17 @@ def _coupling_matrix(duration: float, frequency: float) -> np.ndarray:
 	)
 
 
+def gc_coupling_matrix(duration: float, frequency: float) -> np.ndarray:
+	"""Return a safe copy of the exact doubled-GC coupling matrix."""
+	step = float(duration)
+	rate = float(frequency)
+	if not np.isfinite(step):
+		raise ValueError("`duration` must be finite.")
+	if not np.isfinite(rate) or rate < 0.0:
+		raise ValueError("`frequency` must be finite and non-negative.")
+	return _coupling_matrix(step, rate).copy()
+
+
 @dataclass(frozen=True, slots=True)
 class _GCExtendedState:
 	"""Two physical copies and optional time-conjugate momentum."""
@@ -296,4 +307,8 @@ class GCStageProjectedFormulation:
 		)
 
 
-__all__ = ["GCExtendedFormulation", "GCStageProjectedFormulation"]
+__all__ = [
+	"GCExtendedFormulation",
+	"GCStageProjectedFormulation",
+	"gc_coupling_matrix",
+]

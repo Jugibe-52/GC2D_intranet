@@ -12,7 +12,7 @@ from .._fixed import integrate_fixed_grid
 from .._result import IntegrationData
 from ..formulations import GCExtendedFormulation
 from ..formulations.base import PreparedDirectAdjointFormulation
-from ..observation import ImplicitBM4IntegrationStep, StepObserver
+from ..observation import ImplicitBM4IntegrationStep, IntegrationStage, StepObserver
 from ..problem import InitialValueProblem
 from ..request import SimulationRequest
 from ._nonlinear import (
@@ -29,6 +29,8 @@ class _ProjectedBM4Step:
 
 	state: np.ndarray
 	multiplier: np.ndarray
+	internal_input: np.ndarray
+	mapped: np.ndarray
 	iterations: int
 	residual_evaluations: int
 	residual_norm: float
@@ -202,6 +204,8 @@ def _solve_reduced_projected_bm4_step(
 		return _ProjectedBM4Step(
 			state=np.asarray(projected_state),
 			multiplier=multiplier.copy(),
+			internal_input=np.concatenate((value + multiplier, value - multiplier)),
+			mapped=np.asarray(mapped).copy(),
 			iterations=result.iterations,
 			residual_evaluations=result.residual_evaluations,
 			residual_norm=float(np.linalg.norm(result.residual, ord=np.inf)),
@@ -227,6 +231,8 @@ def _solve_reduced_projected_bm4_step(
 			return _ProjectedBM4Step(
 				state=np.asarray(projected_state),
 				multiplier=multiplier.copy(),
+				internal_input=np.asarray(internal_input).copy(),
+				mapped=np.asarray(mapped).copy(),
 				iterations=iteration,
 				residual_evaluations=iteration + 1,
 				residual_norm=residual_norm,
@@ -341,11 +347,20 @@ def _solve_simultaneous_projected_bm4_step(
 			),
 		)
 		output, multiplier = result.payload
+		internal_input, mapped = _bm4_evaluation(
+			prepared,
+			t,
+			value,
+			step,
+			multiplier,
+		)
 		return _ProjectedBM4Step(
 			state=np.asarray(
 				(output[:physical_size] + output[physical_size:]) / 2.0
 			),
 			multiplier=multiplier.copy(),
+			internal_input=np.asarray(internal_input).copy(),
+			mapped=np.asarray(mapped).copy(),
 			iterations=result.iterations,
 			residual_evaluations=result.residual_evaluations,
 			residual_norm=float(np.linalg.norm(result.residual, ord=np.inf)),
@@ -365,6 +380,8 @@ def _solve_simultaneous_projected_bm4_step(
 			return _ProjectedBM4Step(
 				state=np.asarray(projected_state),
 				multiplier=multiplier.copy(),
+				internal_input=np.asarray(internal_input).copy(),
+				mapped=np.asarray(mapped).copy(),
 				iterations=iteration,
 				residual_evaluations=iteration + 1,
 				residual_norm=residual_norm,
@@ -473,24 +490,44 @@ def _integrate_implicit_bm4(
 			tolerance_values.append(newton_tolerance)
 			multiplier_norms.append(multiplier_norm)
 			if method.step_observer is not None:
+				base_stages: list[IntegrationStage] = []
+				observed_mapped = _advance_composition(
+					prepared,
+					t,
+					result.internal_input,
+					step,
+					step_index=step_index,
+					stage_observer=base_stages.append,
+					stage_projection=None,
+					formulation_name="GCExtendedFormulation",
+					method_name=type(method).__name__,
+				)
+				if not np.array_equal(observed_mapped, result.mapped):
+					raise RuntimeError(
+						"The observed BM4 base cycle differs from the converged map."
+					)
 				method.step_observer(
 					ImplicitBM4IntegrationStep(
 						dynamics_name=prepared.dynamics_name,
 						method_name=type(method).__name__,
 						step_index=step_index,
+						start_time=t,
 						time=t + step,
 						duration=step,
 						state_before=state_before.copy(),
 						state_after=result.state.copy(),
 						map_state=apply_step,
-							formulation_name=type(method)._solver_formulation,
-							start_time=t,
-							nonlinear_solver=method.nonlinear_solver,
-							newton_iterations=result.iterations,
-							residual_evaluations=result.residual_evaluations,
+						dynamics=prepared.dynamics,
+						formulation_name=type(method)._solver_formulation,
+						nonlinear_solver=method.nonlinear_solver,
+						newton_iterations=result.iterations,
+						residual_evaluations=result.residual_evaluations,
 						newton_residual_norm=result.residual_norm,
 						newton_tolerance=newton_tolerance,
 						projection_multiplier_norm=multiplier_norm,
+						coupling_frequency=method.coupling_frequency,
+						multiplier=result.multiplier.copy(),
+						base_stages=tuple(base_stages),
 					)
 				)
 		return result.state

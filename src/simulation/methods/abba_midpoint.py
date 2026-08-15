@@ -115,11 +115,13 @@ class MidpointABBA:
 							dynamics_name=type(dynamics).__name__,
 							method_name=type(self).__name__,
 							step_index=step_index,
+							start_time=t,
 							time=t + step,
 							duration=step,
 							state_before=state_before.copy(),
 							state_after=result.state.copy(),
 							map_state=apply_step,
+							dynamics=dynamics,
 						)
 					)
 			return result.state

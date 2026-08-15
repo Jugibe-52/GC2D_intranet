@@ -126,6 +126,7 @@ def _advance_composition(
 					state_before=np.asarray(state_before).copy(),
 					state_after=np.asarray(state).copy(),
 					map_state=map_state,
+					dynamics=prepared.dynamics,
 				)
 			)
 		t += duration

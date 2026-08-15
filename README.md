@@ -125,6 +125,30 @@ small-step Jacobian approximation, then applies the good rank-one secant
 update. The generic construction is documented in
 [`broyden_generic_method.tex`](docs/tex/broyden/broyden_generic_method.tex).
 
+`run_projected_bm4_symplecticity_study` provides a separate finite-difference
+audit for `ProjectedBM4Composition`, which applies arithmetic-mean projection
+and diagonal re-embedding after every internal BM4 stage. It distinguishes the
+local defect of each complete twelve-stage step from the accumulated physical
+flow defect.
+
+`MidpointBM4` provides the explicit uncoupled midpoint projection: it applies
+the complete twelve-stage BM4 cycle and averages the two copies once per
+complete step. `run_midpoint_bm4_symplecticity_study` observes those twelve
+stages with exact guiding-center field Jacobians, propagates one `2 x 2`
+physical tangent per independent trajectory (through an intermediate `4 x 2`
+doubled tangent), and plots the arithmetic mean of their local and accumulated
+symplecticity errors for each requested step size.
+
+The matching independent-trajectory study API also covers `MidpointABBA`,
+`ImplicitABBA1`, and `BM4Implicit1`. It forms an exact `2 x 2` local Jacobian
+for every trajectory and accepted step, composes the physical flow tangents,
+and reports the arithmetic mean of the individual symplecticity defects. The
+explicit ABBA map is differentiated as four analytic shears. The two implicit
+maps use the implicit-function theorem at the converged projection root;
+`BM4Implicit1` additionally composes the twelve exact coupled-BM4 stage
+factors. Finite differences are used only in tests as an independent audit of
+these observer formulas.
+
 ```python
 from simulation import ImplicitABBA1
 

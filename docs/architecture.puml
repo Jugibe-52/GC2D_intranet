@@ -145,6 +145,7 @@ package "Numerical methods" as Methods {
 
   class RK4
   class BM4Composition
+  class MidpointBM4
   class ProjectedBM4Composition
   class BM4Implicit1 {
     + nonlinear_solver: newton / broyden
@@ -166,6 +167,7 @@ package "Numerical methods" as Methods {
 
   NumericalMethod <|.. RK4
   NumericalMethod <|.. BM4Composition
+  NumericalMethod <|.. MidpointBM4
   BM4Composition <|-- ProjectedBM4Composition
   NumericalMethod <|.. BM4Implicit1
   NumericalMethod <|.. BM4Implicit2
@@ -176,6 +178,7 @@ package "Numerical methods" as Methods {
 
 RK4 ..> DynamicalSystem : requires vector field
 BM4Composition o-- DirectAdjointFormulation : formulation
+MidpointBM4 ..> GCStageProjectedFormulation : uncoupled full-cycle midpoint projection
 ProjectedBM4Composition o-- StageProjectedFormulation : formulation
 BM4Implicit1 ..> GCExtendedFormulation : full-cycle reduced projection
 BM4Implicit2 ..> GCExtendedFormulation : full-cycle simultaneous projection
@@ -200,6 +203,7 @@ package "Simulation" as Simulation {
 
   class IntegrationStage {
     + dynamics_name: str
+    + dynamics: DynamicalSystem | None
     + formulation_name: str
     + method_name: str
     + flow_name: str
@@ -211,12 +215,13 @@ package "Simulation" as Simulation {
     + step_index: int
     + time: float
     + duration: float
+    + start_time: float
+    + dynamics: DynamicalSystem | None
     + map_state(state): Array
   }
 
   class ImplicitIntegrationStep {
     + formulation_name: str
-    + start_time: float
     + nonlinear_solver: newton / broyden
     + newton_iterations: int
     + residual_evaluations: int
@@ -226,17 +231,21 @@ package "Simulation" as Simulation {
   }
 
   class ImplicitABBAIntegrationStep {
-    + dynamics: GuidingCenterJacobianSystem
     + multiplier: Array
     + converged ABBA stage snapshots
   }
 
-  class ImplicitBM4IntegrationStep
+  class ImplicitBM4IntegrationStep {
+    + coupling_frequency: float
+    + multiplier: Array
+    + twelve accepted base stages
+  }
 
 IntegrationStep <|-- ImplicitIntegrationStep
 ImplicitIntegrationStep <|-- ImplicitABBAIntegrationStep
 ImplicitIntegrationStep <|-- ImplicitBM4IntegrationStep
-ImplicitABBAIntegrationStep --> GuidingCenterJacobianSystem : exposes dynamics
+IntegrationStage --> DynamicalSystem : exposes exact generating instance
+IntegrationStep --> DynamicalSystem : exposes exact generating instance
 
   class Solution {
     + source: InitialConfiguration
@@ -255,6 +264,7 @@ SimulationRunner --> Solution : builds
 
 Solution o-- InitialConfiguration : source
 RK4 --> IntegrationStep : optional observation
+MidpointBM4 --> IntegrationStage : twelve pre-projection stage snapshots
 BM4Implicit1 --> ImplicitBM4IntegrationStep : solver metrics
 BM4Implicit2 --> ImplicitBM4IntegrationStep : solver metrics
 MidpointABBA --> IntegrationStep : optional observation
@@ -293,6 +303,14 @@ note bottom of ProjectedBM4Composition
   twelve projections per complete BM4 step.
   This non-invertible projection is a distinct
   BM4-based method, not the coupled BM4 map.
+end note
+
+note bottom of MidpointBM4
+  Every complete step embeds the physical state
+  as two equal copies, executes all twelve uncoupled
+  BM4 stages, and only then averages and re-embeds.
+  Its single full-cycle midpoint projection is distinct
+  from both coupled BM4 and stage-projected BM4.
 end note
 
 note bottom of BM4Implicit1
@@ -348,6 +366,20 @@ package "Reusable studies" as Studies {
   class ABBASymplecticityStudy
   class ImplicitABBASymplecticityStudy
   class BM4ImplicitSymplecticityStudy
+  class MidpointBM4SymplecticityStudy {
+    + same random trajectories for every step size
+    + arithmetic mean of per-trajectory defects
+  }
+  class TrajectorySymplecticityStudy {
+    + common initial configuration and saved-time grid
+    + MidpointABBA / ImplicitABBA1 / BM4Implicit1 runners
+    + arithmetic mean of per-trajectory defects
+  }
+  class ProjectedBM4SymplecticityStudy {
+    + local complete-step physical defect
+    + accumulated physical-flow defect
+    + determinant, area, and refinement summaries
+  }
   class ImplicitABBAJacobianStudy
   class ImplicitABBAIterationStudy
   class BM4ImplicitIterationStudy
@@ -380,11 +412,37 @@ package "Optional visualization" as Visualization {
     + aligned iteration and residual-evaluation plots
     + notebook tables
   }
+  class ProjectedBM4SymplecticityVisualization {
+    + 2 x 2 time-diagnostic plot
+    + step-refinement convergence plot
+  }
+  class MidpointBM4SymplecticityVisualization {
+    + mean local and accumulated defects over time
+    + physical trajectory paths
+  }
+  class TrajectorySymplecticityVisualization {
+    + mean local and accumulated defects over time
+    + marker-only physical trajectories
+  }
   class NotebookDisplay
 }
 
 package "Opt-in diagnostics" as Diagnostics {
   class SymplecticityObservers
+  class ProjectedSymplecticityAreaObserver {
+    + differentiates all twelve projected BM4 stages
+    + local and accumulated physical Jacobians
+  }
+  class MidpointBM4SymplecticityObserver {
+    + exact uncoupled 4x4 stage factors per particle
+    + local and accumulated 2x2 physical tangents
+    + arithmetic trajectory-mean defects
+  }
+  class GCTrajectorySymplecticityObserver {
+    + exact local 2x2 Jacobian per trajectory
+    + accumulated physical 2x2 tangent
+    + arithmetic mean, standard deviation, and maximum defects
+  }
   class ImplicitABBAJacobianObserver {
     + local physical Jacobian per step
     + per-particle spectrum and SVD
@@ -445,6 +503,17 @@ ImplicitTrajectoryComparisonStudy ..> Solution : compares aligned trajectories a
 BM4ImplicitSymplecticityStudy ..> BM4Implicit1
 BM4ImplicitSymplecticityStudy ..> BM4Implicit2
 BM4ImplicitSymplecticityStudy ..> IntegrationStep : analyzes
+MidpointBM4SymplecticityStudy ..> MidpointBM4
+MidpointBM4SymplecticityStudy ..> MidpointBM4SymplecticityObserver : configures
+MidpointBM4SymplecticityStudy ..> MidpointBM4SymplecticityVisualization : presents
+TrajectorySymplecticityStudy ..> MidpointABBA
+TrajectorySymplecticityStudy ..> ImplicitABBA1
+TrajectorySymplecticityStudy ..> BM4Implicit1
+TrajectorySymplecticityStudy ..> GCTrajectorySymplecticityObserver : configures exact Jacobian
+TrajectorySymplecticityStudy ..> TrajectorySymplecticityVisualization : presents
+ProjectedBM4SymplecticityStudy ..> ProjectedBM4Composition
+ProjectedBM4SymplecticityStudy ..> ProjectedSymplecticityAreaObserver : configures
+ProjectedBM4SymplecticityStudy ..> ProjectedBM4SymplecticityVisualization : presents
 ABBAComparisonStudy ..> MidpointABBASymplecticityStudy : one run; times outside observer
 ABBAComparisonStudy ..> ImplicitABBASymplecticityStudy : formulations 1 and 2
 ABBAComparisonStudy ..> Solution : compares periodic trajectories
@@ -458,6 +527,21 @@ ABBAJacobianVisualization ..> ImplicitABBAJacobianObserver : presents samples
 ABBAJacobianVisualization ..> ImplicitABBAJacobianParticleStepSeries : presents field and finite increments
 ImplicitIterationVisualization ..> ImplicitABBAIterationObserver : presents solver work
 ImplicitIterationVisualization ..> ImplicitBM4IterationObserver : presents solver work
+ProjectedBM4SymplecticityVisualization ..> ProjectedSymplecticityAreaObserver : presents physical defects
+MidpointBM4SymplecticityVisualization ..> MidpointBM4SymplecticityObserver : presents averaged defects
+MidpointBM4SymplecticityVisualization ..> Solution : plots trajectory paths
+TrajectorySymplecticityVisualization ..> GCTrajectorySymplecticityObserver : presents averaged defects
+TrajectorySymplecticityVisualization ..> Solution : plots sampled trajectory points
+MidpointBM4SymplecticityObserver ..> IntegrationStage : composes exact stage tangents
+MidpointBM4SymplecticityObserver ..> GuidingCenterJacobianSystem : exact field Jacobians
+MidpointBM4SymplecticityObserver --> DiagnosticBlockWriter : persists CSV/NPZ/JSON
+GCTrajectorySymplecticityObserver ..> IntegrationStep : consumes complete physical maps
+GCTrajectorySymplecticityObserver ..> ImplicitABBAIntegrationStep : exact ABBA IFT tangent
+GCTrajectorySymplecticityObserver ..> ImplicitBM4IntegrationStep : exact BM4 stage product and IFT tangent
+GCTrajectorySymplecticityObserver ..> GuidingCenterJacobianSystem : exact field Jacobians
+GCTrajectorySymplecticityObserver --> DiagnosticBlockWriter : persists CSV/NPZ/JSON
+ProjectedSymplecticityAreaObserver ..> IntegrationStage : analyzes projected stages
+ProjectedSymplecticityAreaObserver --> DiagnosticBlockWriter : persists CSV/NPZ/JSON
 ImplicitTrajectoryComparisonVisualization ..> Solution : animates and plots aligned results
 SymplecticityObservers ..> IntegrationStage
 SymplecticityObservers ..> IntegrationStep

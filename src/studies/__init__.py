@@ -97,13 +97,36 @@ from .bm4_implicit_iterations import (
 	BM4IterationFormulation,
 	run_bm4_implicit_iteration_study,
 )
+from .bm4_midpoint_symplecticity import (
+	MidpointBM4DefectOrder,
+	MidpointBM4SymplecticityConfig,
+	MidpointBM4SymplecticityResult,
+	MidpointBM4SymplecticitySummary,
+	run_midpoint_bm4_symplecticity_study,
+)
 from .potentials import RandomPotentialConfig
+from .projected_bm4_symplecticity import (
+	ProjectedBM4DefectOrder,
+	ProjectedBM4SymplecticityConfig,
+	ProjectedBM4SymplecticityResult,
+	ProjectedBM4SymplecticitySummary,
+	run_projected_bm4_symplecticity_study,
+)
 from .rk4_symplecticity import (
 	RK4ConvergenceOrder,
 	RK4SymplecticityConfig,
 	RK4SymplecticityResult,
 	RK4SymplecticitySummary,
 	run_rk4_symplecticity_study,
+)
+from .trajectory_symplecticity import (
+	TrajectoryDefectOrder,
+	TrajectorySymplecticityConfig,
+	TrajectorySymplecticityResult,
+	TrajectorySymplecticitySummary,
+	run_bm4_implicit_1_trajectory_symplecticity_study,
+	run_implicit_abba_1_trajectory_symplecticity_study,
+	run_midpoint_abba_trajectory_symplecticity_study,
 )
 
 __all__ = [
@@ -129,6 +152,10 @@ __all__ = [
 	"BM4ImplicitIterationStudyConfig",
 	"BM4ImplicitIterationStudyResult",
 	"BM4IterationFormulation",
+	"MidpointBM4DefectOrder",
+	"MidpointBM4SymplecticityConfig",
+	"MidpointBM4SymplecticityResult",
+	"MidpointBM4SymplecticitySummary",
 	"BM4Implicit2SymplecticityResult",
 	"BM4ImplicitSymplecticityComparison",
 	"BM4ImplicitSymplecticityConfig",
@@ -159,10 +186,18 @@ __all__ = [
 	"ImplicitABBASymplecticityComparison",
 	"ImplicitABBASymplecticityConfig",
 	"RandomPotentialConfig",
+	"ProjectedBM4DefectOrder",
+	"ProjectedBM4SymplecticityConfig",
+	"ProjectedBM4SymplecticityResult",
+	"ProjectedBM4SymplecticitySummary",
 	"RK4ConvergenceOrder",
 	"RK4SymplecticityConfig",
 	"RK4SymplecticityResult",
 	"RK4SymplecticitySummary",
+	"TrajectoryDefectOrder",
+	"TrajectorySymplecticityConfig",
+	"TrajectorySymplecticityResult",
+	"TrajectorySymplecticitySummary",
 	"centered_circle",
 	"centered_gc_configuration",
 	"centered_gc_trajectory",
@@ -173,6 +208,7 @@ __all__ = [
 	"run_area_comparison",
 	"run_bm4_implicit_1_symplecticity_study",
 	"run_bm4_implicit_iteration_study",
+	"run_bm4_implicit_1_trajectory_symplecticity_study",
 	"run_bm4_implicit_2_symplecticity_study",
 	"run_bm4_implicit_symplecticity_study",
 	"run_abba_comparison",
@@ -183,7 +219,11 @@ __all__ = [
 	"run_implicit_abba_jacobian_study",
 	"run_implicit_abba_iteration_study",
 	"run_implicit_abba_symplecticity_study",
+	"run_implicit_abba_1_trajectory_symplecticity_study",
 	"run_implicit_trajectory_comparison",
 	"run_midpoint_abba_symplecticity_study",
+	"run_midpoint_abba_trajectory_symplecticity_study",
+	"run_midpoint_bm4_symplecticity_study",
+	"run_projected_bm4_symplecticity_study",
 	"run_rk4_symplecticity_study",
 ]

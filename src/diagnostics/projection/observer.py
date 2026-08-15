@@ -60,6 +60,8 @@ class ProjectedAreaRecord:
 	signed_area: float
 	absolute_area_error: float
 	relative_area_error: float
+	local_determinant_error: float
+	local_relative_defect: float
 	determinant: float
 	determinant_error: float
 	log_abs_determinant: float
@@ -88,6 +90,7 @@ class _BufferedProjection:
 
 	record: ProjectedAreaRecord
 	projected_state: np.ndarray
+	local_projected_jacobian: np.ndarray
 	projected_jacobian: np.ndarray
 
 
@@ -99,9 +102,10 @@ class ProjectedSymplecticityAreaObserver:
 	the physical mean after every complete twelve-stage BM4 step. For a
 	stage-projected method, each observed stage map already includes the
 	projection and diagonal re-embedding applied after that map. The resulting
-	square Jacobian maps the initial physical boundary coordinates to their
-	current projection and can therefore be tested against the physical GC
-	symplectic form.
+	local tangent is reset to ``E`` after each complete step, while a second
+	tangent continues from the initial physical boundary. Their projected square
+	Jacobians can therefore test both local-step and accumulated-flow
+	symplecticity against the physical GC form.
 
 	All stage Jacobians must be evaluated to propagate the cumulative tangent.
 	``record_every`` reduces only persisted observations, not differentiation cost.
@@ -155,6 +159,7 @@ class ProjectedSymplecticityAreaObserver:
 		self.embedding = gc_diagonal_embedding(self.particle_count)
 		self.physical_form = gc_physical_symplectic_form(self.particle_count)
 		self._extended_tangent = self.embedding.copy()
+		self._local_extended_tangent = self.embedding.copy()
 
 		self.initial_area = float(area.calculate_area(initial_state, period=period))
 		if not np.isfinite(self.initial_area) or abs(self.initial_area) <= np.finfo(float).eps:
@@ -175,7 +180,9 @@ class ProjectedSymplecticityAreaObserver:
 		self._expected_stage = 0
 		self._initialized = False
 		self._closed = False
-		self._last_completed: tuple[int, float, np.ndarray, np.ndarray] | None = None
+		self._last_completed: (
+			tuple[int, float, np.ndarray, np.ndarray, np.ndarray] | None
+		) = None
 		self._last_recorded_step = -2
 		self._records: list[ProjectedAreaRecord] = []
 		self._buffer: list[_BufferedProjection] = []
@@ -230,6 +237,7 @@ class ProjectedSymplecticityAreaObserver:
 				step_index=-1,
 				time=stage.time,
 				extended_state=state_before,
+				local_projected_jacobian=np.eye(self.physical_size),
 				projected_jacobian=np.eye(self.physical_size),
 			)
 			self._initialized = True
@@ -242,22 +250,31 @@ class ProjectedSymplecticityAreaObserver:
 		# The tangent has shape (4N, 2N): rows are current extended variables and
 		# columns are the original physical boundary coordinates.
 		self._extended_tangent = stage_jacobian @ self._extended_tangent
+		self._local_extended_tangent = (
+			stage_jacobian @ self._local_extended_tangent
+		)
 
 		if stage.stage_index == _BM4_STAGE_COUNT - 1:
+			local_projected_jacobian = (
+				self.projection @ self._local_extended_tangent
+			)
 			projected_jacobian = self.projection @ self._extended_tangent
 			self._last_completed = (
 				stage.step_index,
 				stage.time,
 				state_after.copy(),
+				local_projected_jacobian.copy(),
 				projected_jacobian.copy(),
 			)
 			if (stage.step_index + 1) % self.record_every == 0:
 				self._append_projection(
-					step_index=stage.step_index,
-					time=stage.time,
-					extended_state=state_after,
-					projected_jacobian=projected_jacobian,
-				)
+						step_index=stage.step_index,
+						time=stage.time,
+						extended_state=state_after,
+						local_projected_jacobian=local_projected_jacobian,
+						projected_jacobian=projected_jacobian,
+					)
+			self._local_extended_tangent = self.embedding.copy()
 			self._expected_step += 1
 			self._expected_stage = 0
 		else:
@@ -283,6 +300,7 @@ class ProjectedSymplecticityAreaObserver:
 		step_index: int,
 		time: float,
 		extended_state: np.ndarray,
+		local_projected_jacobian: np.ndarray,
 		projected_jacobian: np.ndarray,
 	) -> None:
 		"""Calculate scalar diagnostics and buffer one physical projection."""
@@ -296,13 +314,26 @@ class ProjectedSymplecticityAreaObserver:
 		)
 		area = float(self.area.calculate_area(projected_state, period=self.period))
 		area_error = area - self.initial_area
+		local_defect = (
+			local_projected_jacobian.T
+			@ self.physical_form
+			@ local_projected_jacobian
+			- self.physical_form
+		)
 		defect = (
 			projected_jacobian.T @ self.physical_form @ projected_jacobian
 			- self.physical_form
 		)
+		local_sign, local_log_abs_determinant = np.linalg.slogdet(
+			local_projected_jacobian
+		)
 		sign, log_abs_determinant = np.linalg.slogdet(projected_jacobian)
+		local_determinant = float(
+			local_sign * np.exp(local_log_abs_determinant)
+		)
 		determinant = float(sign * np.exp(log_abs_determinant))
 		defect_frobenius = float(np.linalg.norm(defect, ord="fro"))
+		form_norm = float(np.linalg.norm(self.physical_form, ord="fro"))
 		record = ProjectedAreaRecord(
 			observation_index=len(self._records),
 			step_index=step_index,
@@ -311,14 +342,16 @@ class ProjectedSymplecticityAreaObserver:
 			signed_area=area,
 			absolute_area_error=area_error,
 			relative_area_error=area_error / abs(self.initial_area),
+			local_determinant_error=abs(local_determinant - 1.0),
+			local_relative_defect=(
+				float(np.linalg.norm(local_defect, ord="fro")) / form_norm
+			),
 			determinant=determinant,
 			determinant_error=abs(determinant - 1.0),
 			log_abs_determinant=float(log_abs_determinant),
 			condition_number=float(np.linalg.cond(projected_jacobian)),
 			defect_frobenius=defect_frobenius,
-			relative_defect=(
-				defect_frobenius / float(np.linalg.norm(self.physical_form, ord="fro"))
-			),
+			relative_defect=defect_frobenius / form_norm,
 			max_abs_defect=float(np.max(np.abs(defect))),
 			copy_separation=copy_separation,
 			relative_copy_separation=copy_separation / state_scale,
@@ -328,6 +361,7 @@ class ProjectedSymplecticityAreaObserver:
 			_BufferedProjection(
 				record=record,
 				projected_state=projected_state,
+				local_projected_jacobian=local_projected_jacobian.copy(),
 				projected_jacobian=projected_jacobian.copy(),
 			)
 		)
@@ -335,6 +369,7 @@ class ProjectedSymplecticityAreaObserver:
 		if self.verbose:
 			print(
 				f"[projected] step={record.step_index:05d} t={record.time:.6g} "
+				f"local_defect={record.local_relative_defect:.3e} "
 				f"relative_defect={record.relative_defect:.3e} "
 				f"relative_area_error={record.relative_area_error:+.3e} "
 				f"copy_separation={record.copy_separation:.3e}"
@@ -354,6 +389,9 @@ class ProjectedSymplecticityAreaObserver:
 			block_index=block_index,
 			rows=rows,
 			arrays={
+				"local_projected_jacobians": np.stack(
+					[sample.local_projected_jacobian for sample in self._buffer]
+				),
 				"projected_jacobians": np.stack(
 				[sample.projected_jacobian for sample in self._buffer]
 			),
@@ -405,12 +443,19 @@ class ProjectedSymplecticityAreaObserver:
 		if self._closed:
 			return
 		if self._last_completed is not None:
-			step_index, time, extended_state, projected_jacobian = self._last_completed
+			(
+				step_index,
+				time,
+				extended_state,
+				local_projected_jacobian,
+				projected_jacobian,
+			) = self._last_completed
 			if step_index != self._last_recorded_step:
 				self._append_projection(
 					step_index=step_index,
 					time=time,
 					extended_state=extended_state,
+					local_projected_jacobian=local_projected_jacobian,
 					projected_jacobian=projected_jacobian,
 				)
 		self.flush()

@@ -7,13 +7,18 @@ from .base import (
 	StageProjectedFormulation,
 )
 from .fc import FCSplitFormulation
-from .gc import GCExtendedFormulation, GCStageProjectedFormulation
+from .gc import (
+	GCExtendedFormulation,
+	GCStageProjectedFormulation,
+	gc_coupling_matrix,
+)
 
 __all__ = [
 	"DirectAdjointFormulation",
 	"FCSplitFormulation",
 	"GCExtendedFormulation",
 	"GCStageProjectedFormulation",
+	"gc_coupling_matrix",
 	"PreparedDirectAdjointFormulation",
 	"PreparedStageProjectedFormulation",
 	"StageProjectedFormulation",

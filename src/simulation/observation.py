@@ -7,7 +7,7 @@ from typing import Callable, Literal, TypeAlias
 
 import numpy as np
 
-from dynamics import GuidingCenterJacobianSystem
+from dynamics import DynamicalSystem, GuidingCenterJacobianSystem
 
 
 StateMap: TypeAlias = Callable[[np.ndarray], np.ndarray]
@@ -22,6 +22,8 @@ class IntegrationStage:
 	evaluation time already fixed—on another state of the same shape. Diagnostic
 	code can therefore differentiate a stage without duplicating integrator logic.
 	For a stage-projected method, every stage map includes that projection.
+	``dynamics`` identifies the exact system instance that generated the snapshots;
+	exact analytic observers use it to reject accidentally mismatched systems.
 	"""
 
 	dynamics_name: str
@@ -35,6 +37,11 @@ class IntegrationStage:
 	state_before: np.ndarray
 	state_after: np.ndarray
 	map_state: StateMap = field(repr=False, compare=False)
+	dynamics: DynamicalSystem | None = field(
+		default=None,
+		repr=False,
+		compare=False,
+	)
 
 
 @dataclass(frozen=True, slots=True)
@@ -43,7 +50,8 @@ class IntegrationStep:
 
 	``map_state`` evaluates the same fixed-time, fixed-duration numerical map on
 	another state. Shadow advances used only for output interpolation do not emit
-	step observations.
+	step observations. ``dynamics`` retains the exact system instance so analytic
+	observers cannot accidentally evaluate derivatives for another potential.
 	"""
 
 	dynamics_name: str
@@ -54,6 +62,13 @@ class IntegrationStep:
 	state_before: np.ndarray
 	state_after: np.ndarray
 	map_state: StateMap = field(repr=False, compare=False)
+	start_time: float = field(default=float("nan"), kw_only=True)
+	dynamics: DynamicalSystem | None = field(
+		default=None,
+		repr=False,
+		compare=False,
+		kw_only=True,
+	)
 
 
 @dataclass(frozen=True, slots=True)
@@ -61,7 +76,6 @@ class ImplicitIntegrationStep(IntegrationStep):
 	"""Expose accepted nonlinear-solver metrics for one implicit step."""
 
 	formulation_name: str
-	start_time: float
 	nonlinear_solver: Literal["newton", "broyden"]
 	newton_iterations: int
 	residual_evaluations: int
@@ -78,7 +92,6 @@ class ImplicitABBAIntegrationStep(ImplicitIntegrationStep):
 	the four vector-field Jacobians without importing private solver helpers.
 	"""
 
-	dynamics: GuidingCenterJacobianSystem = field(repr=False, compare=False)
 	multiplier: np.ndarray = field(repr=False, compare=False)
 	u_initial: np.ndarray = field(repr=False, compare=False)
 	v_initial: np.ndarray = field(repr=False, compare=False)
@@ -89,7 +102,11 @@ class ImplicitABBAIntegrationStep(ImplicitIntegrationStep):
 
 @dataclass(frozen=True, slots=True)
 class ImplicitBM4IntegrationStep(ImplicitIntegrationStep):
-	"""Expose accepted projected-BM4 solve metrics to optional observers."""
+	"""Expose the converged projected-BM4 base cycle to exact observers."""
+
+	coupling_frequency: float
+	multiplier: np.ndarray = field(repr=False, compare=False)
+	base_stages: tuple[IntegrationStage, ...] = field(repr=False, compare=False)
 
 
 StageObserver: TypeAlias = Callable[[IntegrationStage], None]

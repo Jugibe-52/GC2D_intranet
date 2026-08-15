@@ -9,10 +9,10 @@ name from the package that owns it.
 | `potential` | Periodic electrostatic field model | `Potential` |
 | `dynamics` | Equations of motion and capability protocols | `GuidingCenterDynamics`, `FullCyclotronDynamics` |
 | `initial_conditions` | Initial state layouts and geometry | `GCInitialConfiguration`, `FCInitialConfiguration`, `Area` |
-| `simulation` | Problems, methods, formulations, nonlinear-solver selection, requests, and solutions | `InitialValueProblem`, `RK4`, `BM4Implicit1`, `BM4Implicit2`, `ImplicitABBA1`, `ImplicitABBA2`, `NonlinearSolver`, `SimulationRequest`, `Solution` |
-| `diagnostics` | Optional observers and diagnostic persistence | `ImplicitABBAJacobianObserver`, ABBA/BM4 iteration observers, projection and symplecticity observers |
-| `studies` | Reusable experiment assembly and summaries | `ImplicitTrajectoryComparisonConfig`, `ImplicitABBAIterationStudyConfig`, `BM4ImplicitIterationStudyConfig`, and `run_*_study` functions |
-| `visualization` | Optional plots, animations, tables, and notebook display | `animate_implicit_method_trajectories`, `plot_implicit_trajectory_differences`, `plot_implicit_method_iterations`, `plot_potential` |
+| `simulation` | Problems, methods, formulations, nonlinear-solver selection, requests, and solutions | `InitialValueProblem`, `RK4`, `MidpointBM4`, `BM4Implicit1`, `BM4Implicit2`, `ImplicitABBA1`, `ImplicitABBA2`, `NonlinearSolver`, `SimulationRequest`, `Solution` |
+| `diagnostics` | Optional observers and diagnostic persistence | `GCTrajectorySymplecticityObserver`, `MidpointBM4SymplecticityObserver`, `ImplicitABBAJacobianObserver`, ABBA/BM4 iteration observers, projection and symplecticity observers |
+| `studies` | Reusable experiment assembly and summaries | `TrajectorySymplecticityConfig`, `MidpointBM4SymplecticityConfig`, `ProjectedBM4SymplecticityConfig`, `ImplicitTrajectoryComparisonConfig`, and `run_*_study` functions |
+| `visualization` | Optional plots, animations, tables, and notebook display | `plot_trajectory_symplecticity`, `plot_gc_trajectory_points`, `plot_midpoint_bm4_symplecticity`, `plot_projected_bm4_symplecticity_diagnostics`, `animate_implicit_method_trajectories`, `plot_potential` |
 
 ## Import pattern
 
@@ -54,6 +54,32 @@ formulations around one complete twelve-stage `BM4Composition` cycle. Their
 Newton matrices use centered differences of the doubled BM4 map; projection is
 performed once per complete cycle and is distinct from `ProjectedBM4Composition`,
 which averages and re-embeds the copies after every internal stage.
+
+`run_projected_bm4_symplecticity_study` analyzes that stage-projected method.
+Its observer differentiates each projected internal stage, composes the twelve
+stage tangents into one local physical-step Jacobian, and separately propagates
+the accumulated physical-flow Jacobian. The result reports symplecticity and
+determinant defects, transported-area error, copy separation, and refinement
+slopes without treating area preservation alone as a symplecticity proof.
+
+`MidpointBM4` is the uncoupled explicit midpoint-projection variant. It starts
+each complete step on the doubled diagonal, executes all twelve BM4 stages,
+and averages the copies exactly once after that cycle. Its dedicated observer
+uses exact guiding-center field Jacobians to compose independent `4 x 4` stage
+factors into local and accumulated `2 x 2` physical tangents. The reusable
+study reports the arithmetic mean of the individual trajectory defects; it
+does not substitute the packed-system Frobenius defect, which is an RMS.
+
+`GCTrajectorySymplecticityObserver` provides the same independent-trajectory
+measurement protocol for `MidpointABBA`, `ImplicitABBA1`, and `BM4Implicit1`.
+It differentiates the explicit ABBA shears directly, applies the
+implicit-function theorem to the accepted implicit projection, and, for BM4,
+first composes the twelve exact coupled extended-stage factors. Every local
+physical `2 x 2` tangent is then accumulated in time before the observer takes
+the arithmetic mean of the per-trajectory relative defects. Its reusable
+study runners share one initial configuration and saved-time grid across all
+requested step sizes; trajectory plots use sampled markers without connecting
+lines.
 
 All four implicit methods select either `newton` or `broyden` through the same
 `nonlinear_solver` field. The Broyden path is shared across method families and
