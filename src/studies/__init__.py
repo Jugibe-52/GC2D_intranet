@@ -1,5 +1,13 @@
 """Reusable experiment composition for concise, reproducible notebooks."""
 
+from .abba4_implicit_1_accuracy import (
+	ABBA4Implicit1AccuracyConfig,
+	ABBA4Implicit1AccuracyOrder,
+	ABBA4Implicit1AccuracyResult,
+	ABBA4Implicit1AccuracySummary,
+	run_abba4_implicit_1_accuracy_study,
+)
+
 from .abba_comparison import (
 	ABBA_METHOD_NAMES,
 	ABBAComparisonConfig,
@@ -124,6 +132,7 @@ from .trajectory_symplecticity import (
 	TrajectorySymplecticityConfig,
 	TrajectorySymplecticityResult,
 	TrajectorySymplecticitySummary,
+	run_abba4_implicit_1_trajectory_symplecticity_study,
 	run_bm4_implicit_1_trajectory_symplecticity_study,
 	run_implicit_abba_1_trajectory_symplecticity_study,
 	run_midpoint_abba_trajectory_symplecticity_study,
@@ -160,6 +169,10 @@ from .ten_method_accuracy import (
 )
 
 __all__ = [
+	"ABBA4Implicit1AccuracyConfig",
+	"ABBA4Implicit1AccuracyOrder",
+	"ABBA4Implicit1AccuracyResult",
+	"ABBA4Implicit1AccuracySummary",
 	"AdaptiveReferenceSolveSummary",
 	"ABBA_METHOD_NAMES",
 	"ABBA_JACOBIAN_FORMULATIONS",
@@ -255,6 +268,8 @@ __all__ = [
 	"periodic_particle_distances",
 	"potential_fingerprint",
 	"random_gc_configuration",
+	"run_abba4_implicit_1_accuracy_study",
+	"run_abba4_implicit_1_trajectory_symplecticity_study",
 	"run_area_comparison",
 	"run_bm4_implicit_1_symplecticity_study",
 	"run_bm4_implicit_iteration_study",

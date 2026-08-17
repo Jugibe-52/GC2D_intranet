@@ -101,6 +101,25 @@ class ImplicitABBAIntegrationStep(ImplicitIntegrationStep):
 
 
 @dataclass(frozen=True, slots=True)
+class ImplicitABBA4IntegrationStep(ImplicitIntegrationStep):
+	"""Expose the three accepted implicit-ABBA maps in one fourth-order step.
+
+	``substeps`` follows composition order and contains the signed
+	``(gamma, delta, gamma)`` durations. Each entry owns its converged multiplier
+	and ABBA stage snapshots, allowing diagnostics to form the exact physical
+	Jacobian product without differentiating nonlinear iterations. The inherited
+	nonlinear counts are sums over all three solves; the residual and tolerance
+	identify the accepted substep with the largest residual-to-tolerance ratio.
+	"""
+
+	composition_coefficients: np.ndarray = field(repr=False, compare=False)
+	substeps: tuple[ImplicitABBAIntegrationStep, ...] = field(
+		repr=False,
+		compare=False,
+	)
+
+
+@dataclass(frozen=True, slots=True)
 class ImplicitBM4IntegrationStep(ImplicitIntegrationStep):
 	"""Expose the converged projected-BM4 base cycle to exact observers."""
 
@@ -114,6 +133,7 @@ StepObserver: TypeAlias = Callable[[IntegrationStep], None]
 
 
 __all__ = [
+	"ImplicitABBA4IntegrationStep",
 	"ImplicitABBAIntegrationStep",
 	"ImplicitBM4IntegrationStep",
 	"ImplicitIntegrationStep",

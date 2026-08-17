@@ -232,7 +232,7 @@ def plot_ten_method_runtimes(
 	return figure, axis
 
 
-def animate_ten_method_trajectory_points(
+def animate_trajectory_points(
 	potential: Potential,
 	solutions: Mapping[str, Solution],
 	*,
@@ -242,12 +242,12 @@ def animate_ten_method_trajectory_points(
 	cmap: str = "RdBu_r",
 	**imshow_kwargs: Any,
 ) -> FuncAnimation:
-	"""Animate accumulated sampled points for all ten aligned variants."""
+	"""Animate accumulated sampled points for aligned labeled solutions."""
 	if not isinstance(potential, Potential):
 		raise TypeError("`potential` must be a Potential instance.")
 	if isinstance(interval, (bool, np.bool_)) or int(interval) <= 0:
 		raise ValueError("`interval` must be a positive integer.")
-	labels, times, particle_count = _validated_solutions(solutions, expected_count=10)
+	labels, times, particle_count = _validated_solutions(solutions)
 	indices = _frame_indices(times.size, frames)
 	frame_times = times[indices]
 	fields = np.asarray(potential.evaluate(frame_times), dtype=float)
@@ -322,7 +322,7 @@ def animate_ten_method_trajectory_points(
 				np.column_stack((x[:, sample_index], y[:, sample_index]))
 			)
 			artists.extend((point_clouds[label], current_markers[label]))
-		axis.set_title(f"Ten trajectory variants at t = {times[sample_index]:.3f}")
+		axis.set_title(f"Trajectory variants at t = {times[sample_index]:.3f}")
 		return tuple(artists)
 
 	return FuncAnimation(
@@ -335,10 +335,34 @@ def animate_ten_method_trajectory_points(
 	)
 
 
+def animate_ten_method_trajectory_points(
+	potential: Potential,
+	solutions: Mapping[str, Solution],
+	*,
+	frames: int | None = None,
+	interval: int = 80,
+	repeat: bool = True,
+	cmap: str = "RdBu_r",
+	**imshow_kwargs: Any,
+) -> FuncAnimation:
+	"""Animate accumulated sampled points for exactly ten aligned variants."""
+	_validated_solutions(solutions, expected_count=10)
+	return animate_trajectory_points(
+		potential,
+		solutions,
+		frames=frames,
+		interval=interval,
+		repeat=repeat,
+		cmap=cmap,
+		**imshow_kwargs,
+	)
+
+
 __all__ = [
 	"TEN_METHOD_COLORS",
 	"TEN_METHOD_SHORT_LABELS",
 	"animate_ten_method_trajectory_points",
+	"animate_trajectory_points",
 	"plot_ten_method_nonlinear_work",
 	"plot_ten_method_runtimes",
 	"plot_ten_method_trajectory_differences",

@@ -28,6 +28,10 @@ class "Numerical method" as NumericalMethod {
   Time-integration algorithm
 }
 
+class "ABBA4Implicit1\n(public numerical method)" as ABBA4Implicit1 {
+  Fourth-order Yoshida triple jump
+}
+
 class "Simulation request" as SimulationRequest {
   Time span, steps, output sampling
 }
@@ -46,8 +50,14 @@ class "High-precision numerical reference\n(versioned artifact)" as NumericalRef
 }
 
 class "Numerical accuracy study" as NumericalAccuracyStudy {
-  Periodic distances from ten computed solutions
-  Time series, summaries, and resolution margin
+  Periodic distances from computed solutions
+  Ten-method comparison or focused ABBA4 refinement
+  Time series, summaries, orders, and resolution margin
+}
+
+class "ABBA4Implicit1 symplecticity study" as ABBA4SymplecticityStudy {
+  Exact ideal-root local and accumulated tangents
+  Arithmetic mean of individual trajectory defects
 }
 
 Potential --> Dynamics : defines field forces
@@ -55,12 +65,16 @@ Dynamics --> InitialValueProblem
 InitialConfiguration --> InitialValueProblem
 InitialValueProblem --> SimulationRunner
 NumericalMethod --> SimulationRunner
+NumericalMethod <|-- ABBA4Implicit1
 SimulationRequest --> SimulationRunner
 SimulationRunner --> Solution : produces
 Dynamics --> NumericalReference : adaptive integration of same ODE
 InitialConfiguration --> NumericalReference : exact initial state
 NumericalReference --> NumericalAccuracyStudy : verified reference
 Solution --> NumericalAccuracyStudy : compared trajectories
+ABBA4Implicit1 --> NumericalAccuracyStudy : focused nested-step study
+ABBA4Implicit1 --> ABBA4SymplecticityStudy : exact tangent study
+Solution --> ABBA4SymplecticityStudy : analyzed trajectory
 
 note bottom of InitialConfiguration
   This role owns initial state geometry and
@@ -96,7 +110,7 @@ note bottom of NumericalMethod
   the resulting individual symplecticity defects.
   The common independent-trajectory observer applies the
   same local-and-accumulated measurement to MidpointABBA,
-  ImplicitABBA1, and BM4Implicit1. It differentiates the
+  ImplicitABBA1, ABBA4Implicit1, and BM4Implicit1. It differentiates the
   explicit shears analytically and differentiates converged
   implicit projections with the implicit-function theorem;
   BM4 first composes its twelve exact coupled stage factors.
@@ -145,6 +159,17 @@ note bottom of NumericalMethod
   nor off-grid shadow steps.
 end note
 
+note bottom of ABBA4Implicit1
+  One step composes three complete reduced projected
+  ImplicitABBA1 roots with Yoshida coefficients
+  gamma = 1 / (2 - 2^(1/3)) and
+  delta = -2^(1/3) / (2 - 2^(1/3)).
+  The signed intervals are gamma h, delta h, gamma h;
+  the middle solve runs backward, and every solve owns
+  a separate projection multiplier. The exact physical
+  tangent is composed in flow order as J3 @ J2 @ J1.
+end note
+
 note top of Potential
   Public APIs are grouped by responsibility in
   potential, dynamics, initial_conditions,
@@ -160,6 +185,7 @@ legend bottom
   | Solution | Computed trajectory and diagnostics |
   | Numerical reference | Audited high-precision trajectory for the same ODE |
   | Accuracy study | Distance between computed solutions and the reference |
+  | Symplecticity study | Exact local and accumulated physical-map defects |
 endlegend
 
 @enduml

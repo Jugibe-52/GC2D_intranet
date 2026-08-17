@@ -8,6 +8,7 @@ from diagnostics.abba_jacobian import particle_jacobian_blocks
 from diagnostics.jacobians import implicit_function_step_jacobian
 from dynamics import GuidingCenterJacobianSystem
 from simulation import (
+	ImplicitABBA4IntegrationStep,
 	ImplicitABBAIntegrationStep,
 	ImplicitBM4IntegrationStep,
 	IntegrationStage,
@@ -206,6 +207,104 @@ def implicit_abba_1_step_particle_jacobians(
 	return particle_jacobian_blocks(dense, particle_count)
 
 
+def abba4_implicit_1_step_particle_jacobians(
+	step: IntegrationStep,
+) -> np.ndarray:
+	"""Compose the three exact ideal-root implicit-ABBA tangent factors."""
+	dynamics, state, state_after, particle_count = _validated_step(
+		step,
+		method_name="ABBA4Implicit1",
+	)
+	if not isinstance(step, ImplicitABBA4IntegrationStep):
+		raise TypeError(
+			"ABBA4Implicit1 exact Jacobians require three converged substeps."
+		)
+	if step.formulation_name != "abba4_implicit_1_triple_jump":
+		raise TypeError("The observed step is not ABBA4 implicit formulation 1.")
+	coefficients = np.asarray(step.composition_coefficients, dtype=float)
+	root_two = float(np.cbrt(2.0))
+	gamma = 1.0 / (2.0 - root_two)
+	delta = -root_two / (2.0 - root_two)
+	expected_coefficients = np.asarray((gamma, delta, gamma), dtype=float)
+	coefficient_tolerance = float(
+		64.0
+		* np.finfo(float).eps
+		* max(1.0, float(np.max(np.abs(expected_coefficients))))
+	)
+	if coefficients.shape != (3,) or not np.allclose(
+		coefficients,
+		expected_coefficients,
+		rtol=0.0,
+		atol=coefficient_tolerance,
+	):
+		raise ValueError("The ABBA4 composition coefficients are inconsistent.")
+	substeps = tuple(step.substeps)
+	if len(substeps) != 3:
+		raise ValueError("One ABBA4 step must contain exactly three implicit substeps.")
+
+	accumulated = np.broadcast_to(
+		np.eye(2),
+		(particle_count, 2, 2),
+	).copy()
+	current_state = state
+	current_time = float(step.start_time)
+	for index, (coefficient, substep) in enumerate(
+		zip(coefficients, substeps, strict=True)
+	):
+		if not isinstance(substep, ImplicitABBAIntegrationStep):
+			raise TypeError("Every ABBA4 substep must expose implicit ABBA stages.")
+		expected_duration = float(coefficient * step.duration)
+		tolerance = float(
+			64.0
+			* np.finfo(float).eps
+			* max(
+				1.0,
+				abs(current_time),
+				abs(expected_duration),
+				abs(float(substep.start_time)),
+			)
+		)
+		if (
+			substep.step_index != step.step_index
+			or substep.method_name != step.method_name
+			or substep.formulation_name != "implicit_1_reduced_equation_11"
+			or substep.dynamics is not dynamics
+			or not np.isclose(
+				substep.start_time,
+				current_time,
+				rtol=0.0,
+				atol=tolerance,
+			)
+			or not np.isclose(
+				substep.duration,
+				expected_duration,
+				rtol=0.0,
+				atol=tolerance,
+			)
+			or not np.array_equal(substep.state_before, current_state)
+		):
+			raise ValueError(f"ABBA4 substep {index} is inconsistent with the composition.")
+		factor = particle_jacobian_blocks(
+			implicit_function_step_jacobian(substep),
+			particle_count,
+		)
+		accumulated = factor @ accumulated
+		current_state = np.asarray(substep.state_after, dtype=float)
+		current_time = float(substep.time)
+	if not np.array_equal(current_state, state_after):
+		raise ValueError("The ABBA4 substeps do not produce the observed final state.")
+	if not np.isclose(
+		current_time,
+		step.time,
+		rtol=0.0,
+		atol=float(64.0 * np.finfo(float).eps * max(1.0, abs(step.time))),
+	):
+		raise ValueError("The ABBA4 signed substep times do not end at the outer time.")
+	if not np.all(np.isfinite(accumulated)):
+		raise ValueError("The exact ABBA4 physical Jacobian is non-finite.")
+	return np.asarray(accumulated, dtype=float)
+
+
 def coupled_bm4_stage_particle_jacobians(
 	stage: IntegrationStage,
 	dynamics: GuidingCenterJacobianSystem,
@@ -387,6 +486,7 @@ def bm4_implicit_1_step_particle_jacobians(
 
 
 __all__ = [
+	"abba4_implicit_1_step_particle_jacobians",
 	"bm4_implicit_1_step_particle_jacobians",
 	"coupled_bm4_stage_particle_jacobians",
 	"implicit_abba_1_step_particle_jacobians",

@@ -2,6 +2,7 @@
 
 from ._nonlinear import NONLINEAR_SOLVERS, NonlinearSolver
 from .abba_midpoint import MidpointABBA
+from .abba4_implicit_1 import ABBA4Implicit1
 from .abba_implicit_1 import ImplicitABBA1
 from .abba_implicit_2 import ImplicitABBA2
 from .base import NumericalMethod
@@ -12,6 +13,7 @@ from .bm4_implicit_2 import BM4Implicit2
 from .rk4 import RK4
 
 __all__ = [
+	"ABBA4Implicit1",
 	"BM4Composition",
 	"BM4Implicit1",
 	"BM4Implicit2",

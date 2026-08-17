@@ -160,6 +160,9 @@ package "Numerical methods" as Methods {
   class ImplicitABBA2 {
     + nonlinear_solver: newton / broyden
   }
+  class ABBA4Implicit1 {
+    + nonlinear_solver: newton / broyden
+  }
   class BroydenResidualSolver {
     + solve(residual, initial_unknown, initial_jacobian, tolerance): root
     + good rank-one Jacobian update
@@ -174,6 +177,7 @@ package "Numerical methods" as Methods {
   NumericalMethod <|.. MidpointABBA
   NumericalMethod <|.. ImplicitABBA1
   NumericalMethod <|.. ImplicitABBA2
+  NumericalMethod <|.. ABBA4Implicit1
 }
 
 RK4 ..> DynamicalSystem : requires vector field
@@ -185,8 +189,10 @@ BM4Implicit2 ..> GCExtendedFormulation : full-cycle simultaneous projection
 MidpointABBA ..> DynamicalSystem : requires planar vector field
 ImplicitABBA1 ..> GuidingCenterJacobianSystem : exact reduced 2x2 Newton blocks
 ImplicitABBA2 ..> GuidingCenterJacobianSystem : exact simultaneous 6x6 Newton blocks
+ABBA4Implicit1 ..> GuidingCenterJacobianSystem : three reduced 2x2 projected roots
 ImplicitABBA1 ..> BroydenResidualSolver : reduced residual; K0 = 4 I
 ImplicitABBA2 ..> BroydenResidualSolver : simultaneous residual; zero-step K0
+ABBA4Implicit1 ..> BroydenResidualSolver : separate reduced solve per signed substep
 BM4Implicit1 ..> BroydenResidualSolver : reduced residual; K0 = 4 I
 BM4Implicit2 ..> BroydenResidualSolver : simultaneous residual; zero-step K0
 
@@ -235,6 +241,12 @@ package "Simulation" as Simulation {
     + converged ABBA stage snapshots
   }
 
+  class ImplicitABBA4IntegrationStep {
+    + composition_coefficients: Array[3]
+    + substeps: tuple[ImplicitABBAIntegrationStep, 3]
+    + aggregate nonlinear-solver metrics
+  }
+
   class ImplicitBM4IntegrationStep {
     + coupling_frequency: float
     + multiplier: Array
@@ -243,7 +255,9 @@ package "Simulation" as Simulation {
 
 IntegrationStep <|-- ImplicitIntegrationStep
 ImplicitIntegrationStep <|-- ImplicitABBAIntegrationStep
+ImplicitIntegrationStep <|-- ImplicitABBA4IntegrationStep
 ImplicitIntegrationStep <|-- ImplicitBM4IntegrationStep
+ImplicitABBA4IntegrationStep o-- "3" ImplicitABBAIntegrationStep : ordered signed roots
 IntegrationStage --> DynamicalSystem : exposes exact generating instance
 IntegrationStep --> DynamicalSystem : exposes exact generating instance
 
@@ -270,6 +284,7 @@ BM4Implicit2 --> ImplicitBM4IntegrationStep : solver metrics
 MidpointABBA --> IntegrationStep : optional observation
 ImplicitABBA1 --> ImplicitABBAIntegrationStep : converged stage data
 ImplicitABBA2 --> ImplicitABBAIntegrationStep : converged stage data
+ABBA4Implicit1 --> ImplicitABBA4IntegrationStep : complete-step observation
 
 note right of Area
   Area is a GC initial configuration
@@ -344,6 +359,16 @@ note bottom of ImplicitABBA2
   zero-step Jacobian approximation by secant data.
 end note
 
+note bottom of ABBA4Implicit1
+  Yoshida's symmetric triple jump applies three complete
+  reduced projected ImplicitABBA1 roots with durations
+  gamma h, delta h, gamma h, where
+  gamma = 1 / (2 - 2^(1/3)) and delta = -2^(1/3) gamma.
+  The middle interval is negative. Every signed substep performs
+  an independent nonlinear solve with its own multiplier;
+  their composition is a public fourth-order numerical method.
+end note
+
 note bottom of MidpointABBA
   Each second-order step duplicates the physical
   state, applies endpoint-time A-B-B-A shears,
@@ -372,7 +397,8 @@ package "Reusable studies" as Studies {
   }
   class TrajectorySymplecticityStudy {
     + common initial configuration and saved-time grid
-    + MidpointABBA / ImplicitABBA1 / BM4Implicit1 runners
+    + MidpointABBA / ImplicitABBA1 / ABBA4Implicit1 / BM4Implicit1 runners
+    + ABBA4 exact tangent J3 @ J2 @ J1
     + arithmetic mean of per-trajectory defects
   }
   class ProjectedBM4SymplecticityStudy {
@@ -406,6 +432,12 @@ package "Reusable studies" as Studies {
     + RMS, final, maximum, floor-ratio, and runtime summaries
     + nested-step gains and observed convergence orders
     + one common saved grid with no shadow steps
+  }
+  class ABBA4Implicit1AccuracyStudy {
+    + validates the versioned reference identity and checksum
+    + one ABBA4 trajectory per nested complete step
+    + periodic RMS errors, refinement gains, and observed orders
+    + nonlinear work, runtime, and reference-floor resolution
   }
   class ImplicitABBAJacobianParticleStepSeries {
     + states before and after observed steps
@@ -549,6 +581,9 @@ HighPrecisionReferenceStudy --> ReferenceTrajectoryArtifact : persists audited r
 TenMethodAccuracyStudy ..> TenMethodTrajectoryComparisonStudy : reuses ten aligned integrations
 TenMethodAccuracyStudy ..> ReferenceTrajectoryArtifact : verifies and compares
 TenMethodAccuracyStudy ..> TrajectoryAccuracyVisualization : presents errors and cost
+ABBA4Implicit1AccuracyStudy ..> ABBA4Implicit1 : runs nested complete steps
+ABBA4Implicit1AccuracyStudy ..> ReferenceTrajectoryArtifact : verifies and compares
+ABBA4Implicit1AccuracyStudy ..> TrajectoryAccuracyVisualization : presents refinement
 BM4ImplicitSymplecticityStudy ..> BM4Implicit1
 BM4ImplicitSymplecticityStudy ..> BM4Implicit2
 BM4ImplicitSymplecticityStudy ..> IntegrationStep : analyzes
@@ -557,6 +592,7 @@ MidpointBM4SymplecticityStudy ..> MidpointBM4SymplecticityObserver : configures
 MidpointBM4SymplecticityStudy ..> MidpointBM4SymplecticityVisualization : presents
 TrajectorySymplecticityStudy ..> MidpointABBA
 TrajectorySymplecticityStudy ..> ImplicitABBA1
+TrajectorySymplecticityStudy ..> ABBA4Implicit1 : focused runner
 TrajectorySymplecticityStudy ..> BM4Implicit1
 TrajectorySymplecticityStudy ..> GCTrajectorySymplecticityObserver : configures exact Jacobian
 TrajectorySymplecticityStudy ..> TrajectorySymplecticityVisualization : presents
@@ -586,6 +622,7 @@ MidpointBM4SymplecticityObserver ..> GuidingCenterJacobianSystem : exact field J
 MidpointBM4SymplecticityObserver --> DiagnosticBlockWriter : persists CSV/NPZ/JSON
 GCTrajectorySymplecticityObserver ..> IntegrationStep : consumes complete physical maps
 GCTrajectorySymplecticityObserver ..> ImplicitABBAIntegrationStep : exact ABBA IFT tangent
+GCTrajectorySymplecticityObserver ..> ImplicitABBA4IntegrationStep : exact J3 @ J2 @ J1 tangent
 GCTrajectorySymplecticityObserver ..> ImplicitBM4IntegrationStep : exact BM4 stage product and IFT tangent
 GCTrajectorySymplecticityObserver ..> GuidingCenterJacobianSystem : exact field Jacobians
 GCTrajectorySymplecticityObserver --> DiagnosticBlockWriter : persists CSV/NPZ/JSON

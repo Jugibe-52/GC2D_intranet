@@ -115,8 +115,13 @@ diagnostics. Their derivations are documented in
 [`ABBA_implicit_1`](docs/tex/ABBA_implicit_1/ABBA_implicit_1.pdf) and
 [`ABBA_implicit_2`](docs/tex/ABBA_implicit_2/ABBA_implicit_2.pdf).
 
+`ABBA4Implicit1` is the fourth-order Yoshida triple jump of three complete
+reduced `ImplicitABBA1` roots. Its signed durations are
+`(gamma h, delta h, gamma h)`, so the middle solve runs backward; every
+substep owns an independent projection multiplier and nonlinear solve.
+
 `BM4Implicit1` and `BM4Implicit2` use the corresponding reduced and
-simultaneous projections around one complete BM4 cycle. All four implicit
+simultaneous projections around one complete BM4 cycle. All five implicit
 methods accept `nonlinear_solver="newton"` or `nonlinear_solver="broyden"`.
 Newton retains the existing residual-Jacobian path: analytic particle blocks
 for ABBA and centered differentiation of the complete BM4 map for BM4.
@@ -140,11 +145,12 @@ doubled tangent), and plots the arithmetic mean of their local and accumulated
 symplecticity errors for each requested step size.
 
 The matching independent-trajectory study API also covers `MidpointABBA`,
-`ImplicitABBA1`, and `BM4Implicit1`. It forms an exact `2 x 2` local Jacobian
-for every trajectory and accepted step, composes the physical flow tangents,
-and reports the arithmetic mean of the individual symplecticity defects. The
-explicit ABBA map is differentiated as four analytic shears. The two implicit
-maps use the implicit-function theorem at the converged projection root;
+`ImplicitABBA1`, `ABBA4Implicit1`, and `BM4Implicit1`. It forms an exact
+`2 x 2` local Jacobian for every trajectory and accepted step, composes the
+physical flow tangents, and reports the arithmetic mean of the individual
+symplecticity defects. The explicit ABBA map is differentiated as four analytic
+shears. The implicit maps use the implicit-function theorem at the converged
+projection root; `ABBA4Implicit1` composes its factors as `J3 @ J2 @ J1`, and
 `BM4Implicit1` additionally composes the twelve exact coupled-BM4 stage
 factors. Finite differences are used only in tests as an independent audit of
 these observer formulas.
@@ -290,6 +296,10 @@ ratios, and the measured accuracy--runtime trade-off.
 complete steps while saving one common set of genuine main-grid nodes. It
 reports the error-reduction factor and observed order between every adjacent
 refinement without introducing shadow steps or trajectory interpolation.
+The focused `run_abba4_implicit_1_accuracy_study` performs the same verified
+reference comparison for fourth-order ABBA, while
+`run_abba4_implicit_1_trajectory_symplecticity_study` analyzes its exact
+ideal-root tangent product across a requested step refinement.
 
 ## Results and visualization
 

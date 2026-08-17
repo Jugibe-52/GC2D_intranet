@@ -28,6 +28,7 @@ from .jacobians import (
 	stage_increment_step_jacobian,
 )
 from .trajectory_symplecticity import (
+	abba4_implicit_1_step_particle_jacobians,
 	GCTrajectorySymplecticityObserver,
 	TrajectoryJacobianCalculator,
 	TrajectorySymplecticityOutputBlock,
@@ -56,6 +57,7 @@ from .reference_trajectory import (
 )
 
 __all__ = [
+	"abba4_implicit_1_step_particle_jacobians",
 	"IMPLICIT_ABBA_JACOBIAN_METHODS",
 	"ImplicitABBAJacobianMethod",
 	"ImplicitABBAJacobianObserver",

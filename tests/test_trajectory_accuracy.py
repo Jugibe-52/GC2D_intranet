@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 import tempfile
 import unittest
@@ -24,6 +25,7 @@ from studies import (
 	run_ten_method_accuracy_study,
 )
 from visualization import (
+	plot_accuracy_summary,
 	plot_accuracy_runtime_tradeoff,
 	plot_reference_trajectory_points,
 	plot_ten_method_accuracy_over_time,
@@ -162,6 +164,20 @@ class TrajectoryAccuracyTests(unittest.TestCase):
 			self.assertEqual(len(tradeoff_axis.collections), 10)
 			tradeoff_figure.canvas.draw()
 			plt.close(tradeoff_figure)
+			eleven_summaries = (
+				*summaries,
+				replace(summaries[0], method_name="Additional method"),
+			)
+			eleven_figure, eleven_axis = plot_accuracy_summary(eleven_summaries)
+			self.assertEqual(len(eleven_axis.patches), 22)
+			eleven_figure.canvas.draw()
+			plt.close(eleven_figure)
+			eleven_tradeoff_figure, eleven_tradeoff_axis = (
+				plot_accuracy_runtime_tradeoff(eleven_summaries)
+			)
+			self.assertEqual(len(eleven_tradeoff_axis.collections), 11)
+			eleven_tradeoff_figure.canvas.draw()
+			plt.close(eleven_tradeoff_figure)
 
 			refinement = run_ten_method_accuracy_refinement_study(
 				potential,

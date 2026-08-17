@@ -129,13 +129,13 @@ def plot_reference_trajectory_points(
 	return figure, axis
 
 
-def plot_ten_method_accuracy_over_time(
+def plot_trajectory_accuracy_over_time(
 	times: np.ndarray,
 	series: Mapping[str, AccuracySeriesView],
 	*,
 	reference_floor: float,
 ) -> tuple[Figure, np.ndarray]:
-	"""Plot particle-RMS and maximum periodic error against the reference."""
+	"""Plot particle-RMS and maximum periodic error for labeled trajectories."""
 	time_values = np.asarray(times, dtype=float)
 	if (
 		time_values.ndim != 1
@@ -199,13 +199,94 @@ def plot_ten_method_accuracy_over_time(
 	return figure, axes
 
 
-def plot_ten_method_accuracy_summary(
+def plot_ten_method_accuracy_over_time(
+	times: np.ndarray,
+	series: Mapping[str, AccuracySeriesView],
+	*,
+	reference_floor: float,
+) -> tuple[Figure, np.ndarray]:
+	"""Plot the ten-method errors through the generic trajectory helper."""
+	return plot_trajectory_accuracy_over_time(
+		times,
+		series,
+		reference_floor=reference_floor,
+	)
+
+
+def plot_single_method_accuracy_refinement(
+	summaries: Sequence[StepAccuracySummaryView],
+	*,
+	expected_order: float,
+	reference_floor: float = 0.0,
+) -> tuple[Figure, Axes]:
+	"""Plot one method's step refinement with an anchored order guide."""
+	rows = tuple(summaries)
+	if len(rows) < 2:
+		raise ValueError("At least two refinement summaries are required.")
+	method_names = {row.method_name for row in rows}
+	if len(method_names) != 1:
+		raise ValueError("Single-method refinement requires one method label.")
+	order = float(expected_order)
+	if not np.isfinite(order) or order <= 0.0:
+		raise ValueError("`expected_order` must be positive and finite.")
+	floor = float(reference_floor)
+	if not np.isfinite(floor) or floor < 0.0:
+		raise ValueError("`reference_floor` must be finite and non-negative.")
+	steps = np.asarray([row.integration_step for row in rows], dtype=float)
+	errors = np.asarray(
+		[row.time_integrated_rms_distance for row in rows],
+		dtype=float,
+	)
+	if (
+		not np.all(np.isfinite(steps))
+		or np.any(steps <= 0.0)
+		or np.any(np.diff(steps) >= 0.0)
+		or not np.all(np.isfinite(errors))
+		or np.any(errors <= 0.0)
+	):
+		raise ValueError("Refinement steps and errors must be positive and ordered.")
+	reference = errors[0] * (steps / steps[0]) ** order
+	figure, axis = plt.subplots(figsize=(8, 6), constrained_layout=True)
+	axis.loglog(
+		steps,
+		errors,
+		marker="o",
+		linewidth=1.6,
+		label=next(iter(method_names)),
+	)
+	axis.loglog(
+		steps,
+		reference,
+		linestyle="--",
+		color="black",
+		label=rf"$O(h^{{{order:g}}})$ guide",
+	)
+	if floor > 0.0:
+		axis.axhline(
+			floor,
+			color="0.35",
+			linestyle=":",
+			label="DOP853/Radau reference discrepancy",
+		)
+	axis.invert_xaxis()
+	axis.set_xticks(steps, labels=[f"{step:g}" for step in steps])
+	axis.set(
+		title="Single-method trajectory-accuracy refinement",
+		xlabel="Complete integration step $h$",
+		ylabel="Time-integrated RMS periodic distance",
+	)
+	axis.grid(which="both", alpha=0.25)
+	axis.legend()
+	return figure, axis
+
+
+def plot_accuracy_summary(
 	summaries: Sequence[AccuracySummaryView],
 ) -> tuple[Figure, Axes]:
-	"""Compare global and final RMS reference errors on a logarithmic axis."""
+	"""Compare global and final RMS reference errors for labeled methods."""
 	rows = tuple(summaries)
-	if len(rows) != 10:
-		raise ValueError("The accuracy summary plot requires exactly ten variants.")
+	if not rows:
+		raise ValueError("At least one accuracy summary is required.")
 	labels = [row.method_name for row in rows]
 	global_errors = np.asarray([row.global_rms_distance for row in rows], dtype=float)
 	final_errors = np.asarray([row.final_rms_distance for row in rows], dtype=float)
@@ -247,13 +328,23 @@ def plot_ten_method_accuracy_summary(
 	return figure, axis
 
 
+def plot_ten_method_accuracy_summary(
+	summaries: Sequence[AccuracySummaryView],
+) -> tuple[Figure, Axes]:
+	"""Compare the ten established variants through the generic summary plot."""
+	rows = tuple(summaries)
+	if len(rows) != 10:
+		raise ValueError("The accuracy summary plot requires exactly ten variants.")
+	return plot_accuracy_summary(rows)
+
+
 def plot_accuracy_runtime_tradeoff(
 	summaries: Sequence[AccuracySummaryView],
 ) -> tuple[Figure, Axes]:
 	"""Plot global RMS error against measured wall-clock runtime."""
 	rows = tuple(summaries)
-	if len(rows) != 10:
-		raise ValueError("The trade-off plot requires exactly ten variants.")
+	if not rows:
+		raise ValueError("At least one accuracy summary is required.")
 	figure, axis = plt.subplots(figsize=(10, 7), constrained_layout=True)
 	for index, row in enumerate(rows):
 		if (
@@ -362,9 +453,12 @@ __all__ = [
 	"AccuracySeriesView",
 	"AccuracySummaryView",
 	"StepAccuracySummaryView",
+	"plot_accuracy_summary",
 	"plot_accuracy_runtime_tradeoff",
 	"plot_reference_trajectory_points",
+	"plot_single_method_accuracy_refinement",
 	"plot_ten_method_accuracy_over_time",
 	"plot_ten_method_accuracy_refinement",
 	"plot_ten_method_accuracy_summary",
+	"plot_trajectory_accuracy_over_time",
 ]

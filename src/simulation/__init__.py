@@ -10,6 +10,7 @@ from .formulations import (
 	gc_coupling_matrix,
 )
 from .methods import (
+	ABBA4Implicit1,
 	BM4Composition,
 	BM4Implicit1,
 	BM4Implicit2,
@@ -24,6 +25,7 @@ from .methods import (
 	RK4,
 )
 from .observation import (
+	ImplicitABBA4IntegrationStep,
 	ImplicitABBAIntegrationStep,
 	ImplicitBM4IntegrationStep,
 	ImplicitIntegrationStep,
@@ -38,6 +40,7 @@ from .runner import SimulationRunner, simulate
 from .solution import Solution
 
 __all__ = [
+	"ABBA4Implicit1",
 	"BM4Composition",
 	"BM4Implicit1",
 	"BM4Implicit2",
@@ -52,6 +55,7 @@ __all__ = [
 	"gc_coupling_matrix",
 	"InitialConfiguration",
 	"InitialValueProblem",
+	"ImplicitABBA4IntegrationStep",
 	"ImplicitABBAIntegrationStep",
 	"ImplicitBM4IntegrationStep",
 	"ImplicitIntegrationStep",

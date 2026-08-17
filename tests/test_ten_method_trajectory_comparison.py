@@ -19,6 +19,7 @@ from studies import (
 )
 from visualization import (
 	animate_ten_method_trajectory_points,
+	animate_trajectory_points,
 	plot_ten_method_nonlinear_work,
 	plot_ten_method_runtimes,
 	plot_ten_method_trajectory_differences,
@@ -102,6 +103,17 @@ class TenMethodTrajectoryComparisonTests(unittest.TestCase):
 		self.assertEqual(len(animation._func(1)), 21)
 		animation._draw_was_started = True
 		plt.close(animation._fig)
+		eleven_solutions = dict(result.solutions)
+		eleven_solutions["Additional method"] = next(iter(result.solutions.values()))
+		eleven_animation = animate_trajectory_points(
+			result.effective_potential,
+			eleven_solutions,
+			frames=2,
+			interval=10,
+		)
+		self.assertEqual(len(eleven_animation._func(1)), 23)
+		eleven_animation._draw_was_started = True
+		plt.close(eleven_animation._fig)
 
 	def test_config_requires_an_integral_common_grid(self) -> None:
 		with self.assertRaisesRegex(ValueError, "duration / integration_step"):

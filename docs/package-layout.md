@@ -9,10 +9,10 @@ name from the package that owns it.
 | `potential` | Periodic electrostatic field model | `Potential` |
 | `dynamics` | Equations of motion and capability protocols | `GuidingCenterDynamics`, `FullCyclotronDynamics` |
 | `initial_conditions` | Initial state layouts and geometry | `GCInitialConfiguration`, `FCInitialConfiguration`, `Area` |
-| `simulation` | Problems, methods, formulations, nonlinear-solver selection, requests, and solutions | `InitialValueProblem`, `RK4`, `MidpointBM4`, `BM4Implicit1`, `BM4Implicit2`, `ImplicitABBA1`, `ImplicitABBA2`, `NonlinearSolver`, `SimulationRequest`, `Solution` |
+| `simulation` | Problems, methods, formulations, nonlinear-solver selection, requests, and solutions | `InitialValueProblem`, `RK4`, `MidpointBM4`, `BM4Implicit1`, `BM4Implicit2`, `ImplicitABBA1`, `ImplicitABBA2`, `ABBA4Implicit1`, `NonlinearSolver`, `SimulationRequest`, `Solution` |
 | `diagnostics` | Optional observers and diagnostic persistence | `StoredReferenceTrajectory`, `GCTrajectorySymplecticityObserver`, `MidpointBM4SymplecticityObserver`, `ImplicitABBAJacobianObserver`, ABBA/BM4 iteration observers, projection and symplecticity observers |
 | `studies` | Reusable experiment assembly and summaries | `HighPrecisionReferenceConfig`, `TenMethodAccuracyResult`, `TenMethodTrajectoryComparisonConfig`, symplecticity configurations, and `run_*_study` functions |
-| `visualization` | Optional plots, animations, tables, and notebook display | `plot_reference_trajectory_points`, `plot_ten_method_accuracy_over_time`, `plot_accuracy_runtime_tradeoff`, `animate_ten_method_trajectory_points`, symplecticity plots, and `plot_potential` |
+| `visualization` | Optional plots, animations, tables, and notebook display | `plot_reference_trajectory_points`, `plot_trajectory_accuracy_over_time`, `plot_accuracy_summary`, `plot_accuracy_runtime_tradeoff`, `animate_trajectory_points`, symplecticity plots, and `plot_potential` |
 
 ## Import pattern
 
@@ -49,6 +49,15 @@ Hairer's symmetric ABBA projection. The first solves the reduced multiplier
 equation with independent `2 x 2` Newton blocks; the second implements the
 equivalent simultaneous equation (21) with independent `6 x 6` blocks.
 
+`ABBA4Implicit1` is the public fourth-order Yoshida composition of three
+complete reduced `ImplicitABBA1` roots. One outer step uses the signed
+durations `(gamma h, delta h, gamma h)`, with
+`gamma = 1 / (2 - 2**(1/3))` and `delta = -2**(1/3) * gamma`; the middle
+substep therefore runs backward. Each substep performs a separate nonlinear
+solve and owns a separate projection multiplier. Its complete-step observation
+contains the three accepted `ImplicitABBAIntegrationStep` values, and exact
+diagnostics compose their physical tangents in flow order as `J3 @ J2 @ J1`.
+
 `BM4Implicit1` and `BM4Implicit2` apply the same two Hairer projection
 formulations around one complete twelve-stage `BM4Composition` cycle. Their
 Newton matrices use centered differences of the doubled BM4 map; projection is
@@ -71,8 +80,8 @@ study reports the arithmetic mean of the individual trajectory defects; it
 does not substitute the packed-system Frobenius defect, which is an RMS.
 
 `GCTrajectorySymplecticityObserver` provides the same independent-trajectory
-measurement protocol for `MidpointABBA`, `ImplicitABBA1`, and `BM4Implicit1`.
-It differentiates the explicit ABBA shears directly, applies the
+measurement protocol for `MidpointABBA`, `ImplicitABBA1`, `ABBA4Implicit1`, and
+`BM4Implicit1`. It differentiates the explicit ABBA shears directly, applies the
 implicit-function theorem to the accepted implicit projection, and, for BM4,
 first composes the twelve exact coupled extended-stage factors. Every local
 physical `2 x 2` tangent is then accumulated in time before the observer takes
@@ -81,10 +90,11 @@ study runners share one initial configuration and saved-time grid across all
 requested step sizes; trajectory plots use sampled markers without connecting
 lines.
 
-All four implicit methods select either `newton` or `broyden` through the same
-`nonlinear_solver` field. The Broyden path is shared across method families and
-depends only on each formulation's residual evaluator. Reduced formulations
-start from `4 I`; simultaneous formulations use the corresponding zero-step
+All public implicit ABBA/BM4 methods select either `newton` or `broyden`
+through the same `nonlinear_solver` field. The Broyden path is shared across
+method families and depends only on each formulation's residual evaluator.
+Reduced formulations start from `4 I`; simultaneous formulations use the
+corresponding zero-step
 output--multiplier Jacobian. Per-step diagnostics distinguish nonlinear
 corrections from explicit residual evaluations.
 
@@ -135,6 +145,14 @@ cadence that is an integer multiple of every complete step, then reports error
 gains and observed time-integrated/final RMS orders. Its visualization shows
 error evolution, log-log accuracy against step, global/final RMS accuracy, and
 the runtime trade-off; reference paths use markers without connected lines.
+
+`run_abba4_implicit_1_accuracy_study` provides a focused refinement of the
+fourth-order composition against the same versioned reference, including
+periodic RMS errors, observed orders, nonlinear work, runtime, and the margin
+above the reference audit floor.
+`run_abba4_implicit_1_trajectory_symplecticity_study` uses the exact ideal-root
+product `J3 @ J2 @ J1` to report local and accumulated per-trajectory defects
+for the same initial configuration across step sizes.
 
 ## Dependency direction
 
