@@ -11,12 +11,15 @@ from .formulations import (
 )
 from .methods import (
 	ABBA4Implicit1,
+	ABBA4Implicit1TangentTaylor,
 	BM4Composition,
 	BM4Implicit1,
 	BM4Implicit2,
+	ExplicitEuler,
 	MidpointABBA,
 	MidpointBM4,
 	ImplicitABBA1,
+	ImplicitABBA1TangentTaylor,
 	ImplicitABBA2,
 	NONLINEAR_SOLVERS,
 	NonlinearSolver,
@@ -41,13 +44,16 @@ from .solution import Solution
 
 __all__ = [
 	"ABBA4Implicit1",
+	"ABBA4Implicit1TangentTaylor",
 	"BM4Composition",
 	"BM4Implicit1",
 	"BM4Implicit2",
+	"ExplicitEuler",
 	"DirectAdjointFormulation",
 	"MidpointABBA",
 	"MidpointBM4",
 	"ImplicitABBA1",
+	"ImplicitABBA1TangentTaylor",
 	"ImplicitABBA2",
 	"FCSplitFormulation",
 	"GCExtendedFormulation",

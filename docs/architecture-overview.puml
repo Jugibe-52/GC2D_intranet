@@ -28,8 +28,20 @@ class "Numerical method" as NumericalMethod {
   Time-integration algorithm
 }
 
+class "ExplicitEuler\n(public numerical method)" as ExplicitEuler {
+  z + h f(t, z)
+}
+
 class "ABBA4Implicit1\n(public numerical method)" as ABBA4Implicit1 {
   Fourth-order Yoshida triple jump
+}
+
+class "ImplicitABBA1TangentTaylor\n(public numerical method)" as ImplicitABBA1TangentTaylor {
+  z + h f + h^2 / 2 D(Psi_ABBA) f
+}
+
+class "ABBA4Implicit1TangentTaylor\n(public numerical method)" as ABBA4Implicit1TangentTaylor {
+  z + h f + h^2 / 2 D(Psi_ABBA4) f
 }
 
 class "Simulation request" as SimulationRequest {
@@ -51,7 +63,7 @@ class "High-precision numerical reference\n(versioned artifact)" as NumericalRef
 
 class "Numerical accuracy study" as NumericalAccuracyStudy {
   Periodic distances from computed solutions
-  Ten-method comparison or focused ABBA4 refinement
+  Ten-method, focused ABBA4, or tangent-Taylor/Euler refinement
   Time series, summaries, orders, and resolution margin
 }
 
@@ -60,12 +72,25 @@ class "ABBA4Implicit1 symplecticity study" as ABBA4SymplecticityStudy {
   Arithmetic mean of individual trajectory defects
 }
 
+class "Implicit ABBA reversibility study" as ABBAReversibilityStudy {
+  Independent signed reverse ABBA or ABBA4 solve at every selected endpoint
+  J-minus J-plus closure and normalized increment closure
+}
+
+class "ABBA tangent-Taylor trajectory study" as ABBATangentTaylorStudy {
+  Aligned original and proposed trajectories
+  Minimum-image periodic drift
+}
+
 Potential --> Dynamics : defines field forces
 Dynamics --> InitialValueProblem
 InitialConfiguration --> InitialValueProblem
 InitialValueProblem --> SimulationRunner
 NumericalMethod --> SimulationRunner
+NumericalMethod <|-- ExplicitEuler
 NumericalMethod <|-- ABBA4Implicit1
+NumericalMethod <|-- ImplicitABBA1TangentTaylor
+NumericalMethod <|-- ABBA4Implicit1TangentTaylor
 SimulationRequest --> SimulationRunner
 SimulationRunner --> Solution : produces
 Dynamics --> NumericalReference : adaptive integration of same ODE
@@ -73,8 +98,17 @@ InitialConfiguration --> NumericalReference : exact initial state
 NumericalReference --> NumericalAccuracyStudy : verified reference
 Solution --> NumericalAccuracyStudy : compared trajectories
 ABBA4Implicit1 --> NumericalAccuracyStudy : focused nested-step study
+ExplicitEuler --> NumericalAccuracyStudy : tangent-Taylor baseline
+ImplicitABBA1TangentTaylor --> NumericalAccuracyStudy : nested-step comparison
+ABBA4Implicit1TangentTaylor --> NumericalAccuracyStudy : nested-step comparison
 ABBA4Implicit1 --> ABBA4SymplecticityStudy : exact tangent study
 Solution --> ABBA4SymplecticityStudy : analyzed trajectory
+NumericalMethod --> ABBAReversibilityStudy : implicit ABBA trajectory
+ABBA4Implicit1 --> ABBAReversibilityStudy : three-factor tangent products
+Solution --> ABBAReversibilityStudy : accepted endpoints
+ImplicitABBA1TangentTaylor --> ABBATangentTaylorStudy : compared with ImplicitABBA1
+ABBA4Implicit1TangentTaylor --> ABBATangentTaylorStudy : compared with ABBA4Implicit1
+Solution --> ABBATangentTaylorStudy : aligned trajectory pair
 
 note bottom of InitialConfiguration
   This role owns initial state geometry and
@@ -125,10 +159,16 @@ note bottom of NumericalMethod
   Newton evaluates the formulation-specific residual
   Jacobian; Broyden shares one residual-only secant solver
   initialized by the corresponding small-step matrix.
-  Physical step Jacobians are optional diagnostics,
-  not separate numerical integration methods.
+  Physical step Jacobians remain optional diagnostics for the original maps.
+  The two tangent-Taylor methods explicitly promote the exact base-map tangent
+  into z + h f + h^2 / 2 D(Psi_base) f and recompute it on their own trajectory.
   The implicit-ABBA Jacobian observer analyzes each
   local physical tangent without area or symplecticity metrics.
+  The implicit-ABBA reversibility observer independently solves a signed
+  reverse root from each selected accepted endpoint. It compares
+  J-minus J-plus with the identity and normalizes the proposed increment
+  closure by max(norm(Delta-plus), norm(Delta-minus)).
+  For ABBA4 it composes J3 J2 J1 separately in both time directions.
   Its study result can evaluate the effective electric field at
   observed step endpoints and derive each finite physical increment
   Delta z[n] = z[n+1] - z[n], its norm, and its oriented

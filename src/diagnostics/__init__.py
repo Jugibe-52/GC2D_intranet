@@ -11,6 +11,10 @@ from .abba_jacobian import (
 	SpectralClass,
 	analyze_particle_jacobian,
 )
+from .abba_reversibility import (
+	ImplicitABBAReversibilityObserver,
+	ImplicitABBAReversibilitySample,
+)
 from .bm4_midpoint import (
 	MIDPOINT_BM4_STAGE_COUNT,
 	MidpointBM4SymplecticityObserver,
@@ -64,6 +68,8 @@ __all__ = [
 	"ImplicitABBAJacobianOutputBlock",
 	"ImplicitABBAJacobianRecord",
 	"ImplicitABBAJacobianSample",
+	"ImplicitABBAReversibilityObserver",
+	"ImplicitABBAReversibilitySample",
 	"ImplicitABBAIterationObserver",
 	"ImplicitABBAIterationOutputBlock",
 	"ImplicitABBAIterationRecord",

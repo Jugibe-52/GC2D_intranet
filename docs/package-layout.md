@@ -9,10 +9,10 @@ name from the package that owns it.
 | `potential` | Periodic electrostatic field model | `Potential` |
 | `dynamics` | Equations of motion and capability protocols | `GuidingCenterDynamics`, `FullCyclotronDynamics` |
 | `initial_conditions` | Initial state layouts and geometry | `GCInitialConfiguration`, `FCInitialConfiguration`, `Area` |
-| `simulation` | Problems, methods, formulations, nonlinear-solver selection, requests, and solutions | `InitialValueProblem`, `RK4`, `MidpointBM4`, `BM4Implicit1`, `BM4Implicit2`, `ImplicitABBA1`, `ImplicitABBA2`, `ABBA4Implicit1`, `NonlinearSolver`, `SimulationRequest`, `Solution` |
+| `simulation` | Problems, methods, formulations, nonlinear-solver selection, requests, and solutions | `InitialValueProblem`, `ExplicitEuler`, `RK4`, `ImplicitABBA1`, `ABBA4Implicit1`, `ImplicitABBA1TangentTaylor`, `ABBA4Implicit1TangentTaylor`, `NonlinearSolver`, `SimulationRequest`, `Solution` |
 | `diagnostics` | Optional observers and diagnostic persistence | `StoredReferenceTrajectory`, `GCTrajectorySymplecticityObserver`, `MidpointBM4SymplecticityObserver`, `ImplicitABBAJacobianObserver`, ABBA/BM4 iteration observers, projection and symplecticity observers |
-| `studies` | Reusable experiment assembly and summaries | `HighPrecisionReferenceConfig`, `TenMethodAccuracyResult`, `TenMethodTrajectoryComparisonConfig`, symplecticity configurations, and `run_*_study` functions |
-| `visualization` | Optional plots, animations, tables, and notebook display | `plot_reference_trajectory_points`, `plot_trajectory_accuracy_over_time`, `plot_accuracy_summary`, `plot_accuracy_runtime_tradeoff`, `animate_trajectory_points`, symplecticity plots, and `plot_potential` |
+| `studies` | Reusable experiment assembly and summaries | `HighPrecisionReferenceConfig`, `TangentTaylorEulerAccuracyConfig`, `TenMethodAccuracyResult`, `TenMethodTrajectoryComparisonConfig`, symplecticity configurations, and `run_*_study` functions |
+| `visualization` | Optional plots, animations, tables, and notebook display | `plot_tangent_taylor_euler_accuracy`, `plot_tangent_taylor_h_error`, `plot_reference_trajectory_points`, `plot_trajectory_accuracy_over_time`, `plot_accuracy_summary`, `plot_accuracy_runtime_tradeoff`, `animate_trajectory_points`, symplecticity plots, and `plot_potential` |
 
 ## Import pattern
 
@@ -57,6 +57,12 @@ substep therefore runs backward. Each substep performs a separate nonlinear
 solve and owns a separate projection multiplier. Its complete-step observation
 contains the three accepted `ImplicitABBAIntegrationStep` values, and exact
 diagnostics compose their physical tangents in flow order as `J3 @ J2 @ J1`.
+
+`ImplicitABBA1TangentTaylor` and `ABBA4Implicit1TangentTaylor` use those exact
+base-map tangents inside `z + h f + h**2 / 2 D(Psi_base) f`. They recompute the
+base nonlinear root and tangent at every state of their own trajectory; they
+do not sample a precomputed original trajectory. The paired comparison runners
+in `studies` report aligned periodic minimum-image drift from each base method.
 
 `BM4Implicit1` and `BM4Implicit2` apply the same two Hairer projection
 formulations around one complete twelve-stage `BM4Composition` cycle. Their

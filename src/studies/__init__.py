@@ -7,6 +7,22 @@ from .abba4_implicit_1_accuracy import (
 	ABBA4Implicit1AccuracySummary,
 	run_abba4_implicit_1_accuracy_study,
 )
+from .abba_tangent_taylor_comparison import (
+	ABBATangentTaylorComparisonConfig,
+	ABBATangentTaylorComparisonResult,
+	run_abba4_implicit1_tangent_taylor_comparison,
+	run_implicit_abba1_tangent_taylor_comparison,
+)
+from .tangent_taylor_euler_accuracy import (
+	TANGENT_TAYLOR_EULER_METHOD_NAMES,
+	TangentTaylorEulerAccuracyConfig,
+	TangentTaylorEulerAccuracyOrder,
+	TangentTaylorEulerAccuracyResult,
+	TangentTaylorEulerAccuracyRun,
+	TangentTaylorEulerAccuracySummary,
+	TangentTaylorEulerReference,
+	run_tangent_taylor_euler_accuracy_study,
+)
 
 from .abba_comparison import (
 	ABBA_METHOD_NAMES,
@@ -52,6 +68,13 @@ from .abba_implicit_jacobian import (
 	ImplicitABBAJacobianStudyConfig,
 	ImplicitABBAJacobianStudyResult,
 	run_implicit_abba_jacobian_study,
+)
+from .abba_implicit_reversibility import (
+	ABBA_REVERSIBILITY_FORMULATIONS,
+	ABBAReversibilityFormulation,
+	ImplicitABBAReversibilityStudyConfig,
+	ImplicitABBAReversibilityStudyResult,
+	run_implicit_abba_reversibility_study,
 )
 from .abba_implicit_iterations import (
 	ABBA_ITERATION_FORMULATIONS,
@@ -173,9 +196,19 @@ __all__ = [
 	"ABBA4Implicit1AccuracyOrder",
 	"ABBA4Implicit1AccuracyResult",
 	"ABBA4Implicit1AccuracySummary",
+	"ABBATangentTaylorComparisonConfig",
+	"ABBATangentTaylorComparisonResult",
+	"TANGENT_TAYLOR_EULER_METHOD_NAMES",
+	"TangentTaylorEulerAccuracyConfig",
+	"TangentTaylorEulerAccuracyOrder",
+	"TangentTaylorEulerAccuracyResult",
+	"TangentTaylorEulerAccuracyRun",
+	"TangentTaylorEulerAccuracySummary",
+	"TangentTaylorEulerReference",
 	"AdaptiveReferenceSolveSummary",
 	"ABBA_METHOD_NAMES",
 	"ABBA_JACOBIAN_FORMULATIONS",
+	"ABBA_REVERSIBILITY_FORMULATIONS",
 	"ABBA_ITERATION_FORMULATIONS",
 	"ABBAComparisonConfig",
 	"ABBAComparisonResult",
@@ -187,6 +220,7 @@ __all__ = [
 	"ABBATrajectoryDifferenceSeries",
 	"ABBATrajectoryDifferenceSummary",
 	"ABBAJacobianFormulation",
+	"ABBAReversibilityFormulation",
 	"ABBAIterationFormulation",
 	"AreaComparisonConfig",
 	"AreaComparisonResult",
@@ -223,6 +257,8 @@ __all__ = [
 	"ImplicitABBAJacobianParticleStepSeries",
 	"ImplicitABBAJacobianStudyConfig",
 	"ImplicitABBAJacobianStudyResult",
+	"ImplicitABBAReversibilityStudyConfig",
+	"ImplicitABBAReversibilityStudyResult",
 	"ImplicitABBAIterationStudyConfig",
 	"ImplicitABBAIterationStudyResult",
 	"ImplicitIterationSummary",
@@ -269,6 +305,7 @@ __all__ = [
 	"potential_fingerprint",
 	"random_gc_configuration",
 	"run_abba4_implicit_1_accuracy_study",
+	"run_abba4_implicit1_tangent_taylor_comparison",
 	"run_abba4_implicit_1_trajectory_symplecticity_study",
 	"run_area_comparison",
 	"run_bm4_implicit_1_symplecticity_study",
@@ -281,8 +318,11 @@ __all__ = [
 	"run_generalized_energy_comparison",
 	"run_high_precision_reference_trajectory",
 	"run_implicit_abba_1_symplecticity_study",
+	"run_implicit_abba1_tangent_taylor_comparison",
+	"run_tangent_taylor_euler_accuracy_study",
 	"run_implicit_abba_2_symplecticity_study",
 	"run_implicit_abba_jacobian_study",
+	"run_implicit_abba_reversibility_study",
 	"run_implicit_abba_iteration_study",
 	"run_implicit_abba_symplecticity_study",
 	"run_implicit_abba_1_trajectory_symplecticity_study",

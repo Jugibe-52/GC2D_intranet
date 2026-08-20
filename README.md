@@ -155,6 +155,38 @@ projection root; `ABBA4Implicit1` composes its factors as `J3 @ J2 @ J1`, and
 factors. Finite differences are used only in tests as an independent audit of
 these observer formulas.
 
+`run_implicit_abba_reversibility_study` complements those tangent diagnostics
+by solving a genuine signed reverse ABBA step from every selected accepted
+endpoint. Its `abba4_implicit_1` formulation composes the three forward
+tangent factors as `J3 @ J2 @ J1` and independently repeats the complete
+Yoshida composition with outer duration `-h`. It compares the resulting
+tangents through
+`J_minus @ J_plus - I` and evaluates the proposed forward and backward
+increments `h * zdot + h**2 / 2 * J @ zdot`. Increment closure is reported as
+`norm(Delta_plus + Delta_minus) / max(norm(Delta_plus), norm(Delta_minus))`.
+The reverse tangent is never defined by
+inverting the forward matrix, so the reported closure includes nonlinear-solve
+tolerance and floating-point effects.
+
+`ImplicitABBA1TangentTaylor` and `ABBA4Implicit1TangentTaylor` implement the
+physical update
+`z_next = z + h * f + h**2 / 2 * D(Psi_base) @ f`. The first differentiates
+one converged reduced `ImplicitABBA1` root. The second solves all three signed
+Yoshida factors and composes their exact physical tangents as `J3 @ J2 @ J1`.
+Every base root and tangent is recalculated at the current state of the new
+trajectory. `run_implicit_abba1_tangent_taylor_comparison` and
+`run_abba4_implicit1_tangent_taylor_comparison` compare each new trajectory
+with its original map on an aligned grid using minimum-image periodic
+distances.
+
+`ExplicitEuler` provides the classical forward map
+`z_next = z + h * f(t, z)` on the same output-independent fixed grid. The
+`run_tangent_taylor_euler_accuracy_study` refinement study compares it with
+both tangent-Taylor methods on nested complete steps. One in-memory DOP853
+trajectory supplies the reference, an independent Radau solve measures its
+resolution floor, and every reported error uses periodic minimum-image
+particle distances.
+
 ```python
 from simulation import ImplicitABBA1
 
@@ -300,6 +332,10 @@ The focused `run_abba4_implicit_1_accuracy_study` performs the same verified
 reference comparison for fourth-order ABBA, while
 `run_abba4_implicit_1_trajectory_symplecticity_study` analyzes its exact
 ideal-root tangent product across a requested step refinement.
+The focused `run_tangent_taylor_euler_accuracy_study` instead compares
+classical Euler with both proposed tangent-Taylor updates and reports their
+time-integrated RMS error, final and maximum errors, runtimes, and adjacent
+observed convergence orders.
 
 ## Results and visualization
 

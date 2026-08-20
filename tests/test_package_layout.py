@@ -12,7 +12,7 @@ import simulation
 from dynamics import GuidingCenterDynamics
 from initial_conditions import GCInitialConfiguration
 from potential import Potential
-from simulation import ImplicitABBA1, RK4
+from simulation import ExplicitEuler, ImplicitABBA1, RK4
 
 
 class PackageLayoutTests(unittest.TestCase):
@@ -39,6 +39,7 @@ class PackageLayoutTests(unittest.TestCase):
 		self.assertIsNotNone(Potential)
 		self.assertIsNotNone(ImplicitABBA1)
 		self.assertIsNotNone(RK4)
+		self.assertIsNotNone(ExplicitEuler)
 
 	def test_removed_namespaces_are_not_importable(self) -> None:
 		for package in ("gc2d", "classes", "research", "workflows"):
@@ -67,6 +68,7 @@ assert dynamics.GuidingCenterDynamics is not None
 assert initial_conditions.GCInitialConfiguration is not None
 assert potential.Potential is not None
 assert simulation.RK4 is not None
+assert simulation.ExplicitEuler is not None
 """
 		completed = subprocess.run(
 			[sys.executable, "-c", script],
