@@ -9,10 +9,10 @@ name from the package that owns it.
 | `potential` | Periodic electrostatic field model | `Potential` |
 | `dynamics` | Equations of motion and capability protocols | `GuidingCenterDynamics`, `FullCyclotronDynamics` |
 | `initial_conditions` | Initial state layouts and geometry | `GCInitialConfiguration`, `FCInitialConfiguration`, `Area` |
-| `simulation` | Problems, methods, formulations, nonlinear-solver selection, requests, and solutions | `InitialValueProblem`, `ExplicitEuler`, `RK4`, `ImplicitABBA1`, `ABBA4Implicit1`, `ImplicitABBA1TangentTaylor`, `ABBA4Implicit1TangentTaylor`, `NonlinearSolver`, `SimulationRequest`, `Solution` |
-| `diagnostics` | Optional observers and diagnostic persistence | `StoredReferenceTrajectory`, `GCTrajectorySymplecticityObserver`, `MidpointBM4SymplecticityObserver`, `ImplicitABBAJacobianObserver`, ABBA/BM4 iteration observers, projection and symplecticity observers |
-| `studies` | Reusable experiment assembly and summaries | `HighPrecisionReferenceConfig`, `TangentTaylorEulerAccuracyConfig`, `TenMethodAccuracyResult`, `TenMethodTrajectoryComparisonConfig`, symplecticity configurations, and `run_*_study` functions |
-| `visualization` | Optional plots, animations, tables, and notebook display | `plot_tangent_taylor_euler_accuracy`, `plot_tangent_taylor_h_error`, `plot_reference_trajectory_points`, `plot_trajectory_accuracy_over_time`, `plot_accuracy_summary`, `plot_accuracy_runtime_tradeoff`, `animate_trajectory_points`, symplecticity plots, and `plot_potential` |
+| `simulation` | Problems, methods, formulations, nonlinear-solver selection, requests, and solutions | `InitialValueProblem`, `ExplicitEuler`, `RK4`, `ImplicitABBA1`, `ABBA4Implicit1`, `ABBA6`, `ABBA_implicit2`, `ABBA4_implicit2`, `BM4_implicit2`, tangent-Taylor methods, `NonlinearSolver`, `SimulationRequest`, `Solution` |
+| `diagnostics` | Optional observers and diagnostic persistence | `StoredReferenceTrajectory`, generalized-energy observers, `GCFullyExtendedSymplecticityObserver`, time-extended and trajectory symplecticity observers, iteration observers, and diagnostic writers |
+| `studies` | Reusable experiment assembly and summaries | `HighPrecisionReferenceConfig`, `ImplicitGeneralizedEnergyConfig`, `FullyExtendedImplicitConfig`, `TangentTaylorEulerAccuracyConfig`, trajectory comparison results, symplecticity configurations, and `run_*_study` functions |
+| `visualization` | Optional plots, animations, tables, and notebook display | Generalized-energy component/error/refinement plots, `plot_fully_extended_symplecticity`, tangent-Taylor and reference-trajectory plots, runtime/accuracy plots, animations, symplecticity plots, and `plot_potential` |
 
 ## Import pattern
 
@@ -57,6 +57,12 @@ substep therefore runs backward. Each substep performs a separate nonlinear
 solve and owns a separate projection multiplier. Its complete-step observation
 contains the three accepted `ImplicitABBAIntegrationStep` values, and exact
 diagnostics compose their physical tangents in flow order as `J3 @ J2 @ J1`.
+
+`ABBA6` is the public sixth-order Yoshida composition of seven complete
+reduced `ImplicitABBA1` roots. Its real coefficients are palindromic, sum to
+one, and cancel the degree-three and degree-five modified-flow terms. Each
+signed substep has an independent nonlinear solve and projection multiplier;
+complete-step diagnostics aggregate all seven solves.
 
 `ImplicitABBA1TangentTaylor` and `ABBA4Implicit1TangentTaylor` use those exact
 base-map tangents inside `z + h f + h**2 / 2 D(Psi_base) f`. They recompute the
@@ -156,9 +162,49 @@ the runtime trade-off; reference paths use markers without connected lines.
 fourth-order composition against the same versioned reference, including
 periodic RMS errors, observed orders, nonlinear work, runtime, and the margin
 above the reference audit floor.
+`run_abba6_accuracy_study` provides the matching seven-stage refinement and
+uses an expected sixth-order slope in the shared accuracy visualization.
 `run_abba4_implicit_1_trajectory_symplecticity_study` uses the exact ideal-root
 product `J3 @ J2 @ J1` to report local and accumulated per-trajectory defects
 for the same initial configuration across step sizes.
+
+`GCGeneralizedEnergyObserver` reconstructs `kappa = k / 2` from the accepted
+stage snapshots of `ImplicitABBA1`, `ABBA4Implicit1`, and `BM4Implicit1`.
+For ABBA it evaluates the four endpoint-time shears, for ABBA4 it sums the
+three signed substeps, and for BM4 it follows the twelve direct/adjoint stages
+including the exact physical coupling. `run_implicit_generalized_energy_study`
+then reports `K = h + kappa`, signed drift, running error envelopes, refinement
+orders, and solver summaries at every genuine main-grid node.
+`GCTimeExtendedSymplecticityObserver` complements those energy records with
+the centered-difference Jacobian of the accepted splitting on
+`(u_x, u_y, v_x, v_y, t, k)`. It reports the relative `6 x 6` form defect and
+the determinant error. ABBA and BM4 measure their complete accepted base
+cycles; ABBA4 aggregates its three signed ABBA base maps. The diagonal Hairer
+projection is excluded because it is not a diffeomorphism from `R^6` to
+`R^6`.
+`GCReducedTimeExtendedSymplecticityObserver` separately differentiates the
+complete projected method on `(x, y, t, kappa)`. Each perturbation re-solves
+the implicit step, so the resulting `4 x 4` Jacobian includes the nonlinear
+multiplier, all internal projections, the time dependence, and the discrete
+momentum increment. This separates physical area preservation from full
+extended symplecticity.
+
+`ABBA_implicit2`, `ABBA4_implicit2`, and `BM4_implicit2` instead carry two
+complete autonomous copies
+`(x_1, y_1, t_1, k_1, x_2, y_2, t_2, k_2)`. Every Hamiltonian shear is an
+`R^8` map and the implicit projection has a four-component multiplier that
+enforces the full diagonal, including both `t` and `k`. Their accepted `R^4`
+state contains the directly integrated conjugate momentum, so
+`GCFullyExtendedEnergyObserver` reads `K = h(t,z) + k` without reconstruction.
+`GCFullyExtendedSymplecticityObserver` differentiates both the accepted base
+maps against the cross-coupled `Omega_8` and the complete projected map against
+`Omega_4`. The base tangent is the analytic product of the triangular shear
+Jacobians (and exact BM4 binding matrices), Newton uses
+`D_lambda R = G D Psi A + 2 I`, and the projected tangent follows from the
+implicit-function theorem. Independent centered differences audit all three
+analytic matrices without entering the nonlinear solve.
+`run_fully_extended_implicit_study` combines those histories with
+step-refinement orders and nonlinear-work summaries.
 
 ## Dependency direction
 

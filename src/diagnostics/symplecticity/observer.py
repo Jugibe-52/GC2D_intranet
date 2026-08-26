@@ -56,6 +56,50 @@ def gc_extended_symplectic_form(particle_count: int) -> np.ndarray:
 	)
 
 
+def gc_time_extended_symplectic_form() -> np.ndarray:
+	"""Return the autonomous one-particle GC form on ``(u, v, t, k)``.
+
+	The coordinate order is ``(u_x, u_y, v_x, v_y, t, k)``. The first
+	four coordinates use the cross-coupled duplicated form, while the last
+	two coordinates use ``-dt wedge dk``. This relative sign is the one for
+	which the associated Poisson tensor produces ``t_dot = partial_k H`` and
+	``k_dot = -partial_t H`` together with the GC convention used by the code.
+	"""
+	duplicated_form = gc_extended_symplectic_form(1)
+	time_momentum_form = np.asarray(((0.0, -1.0), (1.0, 0.0)))
+	return np.block(
+		[
+			[duplicated_form, np.zeros((4, 2))],
+			[np.zeros((2, 4)), time_momentum_form],
+		]
+	)
+
+
+def gc_reduced_time_extended_symplectic_form() -> np.ndarray:
+	"""Return the physical autonomous GC form on ``(x, y, t, kappa)``.
+
+	The upper block is the physical guiding-centre form and the lower block is
+	the time-momentum form for which ``t_dot = partial_kappa K`` and
+	``kappa_dot = -partial_t K``.
+	"""
+	return np.block(
+		[
+			[gc_physical_symplectic_form(1), np.zeros((2, 2))],
+			[
+				np.zeros((2, 2)),
+				np.asarray(((0.0, -1.0), (1.0, 0.0))),
+			],
+		]
+	)
+
+
+def gc_fully_duplicated_symplectic_form() -> np.ndarray:
+	"""Return the cross-coupled form for two full ``(x,y,t,k)`` copies."""
+	physical_extended = gc_reduced_time_extended_symplectic_form()
+	zero = np.zeros_like(physical_extended)
+	return np.block([[zero, physical_extended], [physical_extended, zero]])
+
+
 @dataclass(frozen=True, slots=True)
 class SymplecticityRecord:
 	"""Scalar diagnostics associated with one observed stage Jacobian."""

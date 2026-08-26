@@ -120,8 +120,14 @@ reduced `ImplicitABBA1` roots. Its signed durations are
 `(gamma h, delta h, gamma h)`, so the middle solve runs backward; every
 substep owns an independent projection multiplier and nonlinear solve.
 
+`ABBA6` is Yoshida's symmetric sixth-order composition of seven complete
+reduced `ImplicitABBA1` roots. Its palindromic real coefficients have unit
+first moment and vanishing third and fifth moments; two mirrored substeps are
+negative. One outer step therefore performs seven independent projected ABBA
+solves while cancelling the degree-three and degree-five modified-flow errors.
+
 `BM4Implicit1` and `BM4Implicit2` use the corresponding reduced and
-simultaneous projections around one complete BM4 cycle. All five implicit
+simultaneous projections around one complete BM4 cycle. All six implicit
 methods accept `nonlinear_solver="newton"` or `nonlinear_solver="broyden"`.
 Newton retains the existing residual-Jacobian path: analytic particle blocks
 for ABBA and centered differentiation of the complete BM4 map for BM4.
@@ -154,6 +160,45 @@ projection root; `ABBA4Implicit1` composes its factors as `J3 @ J2 @ J1`, and
 `BM4Implicit1` additionally composes the twelve exact coupled-BM4 stage
 factors. Finite differences are used only in tests as an independent audit of
 these observer formulas.
+
+`run_implicit_generalized_energy_study` reconstructs the normalized
+time-conjugate momentum `kappa = k / 2` for `ImplicitABBA1`,
+`ABBA4Implicit1`, and `BM4Implicit1` from their accepted stage snapshots. It
+reports the physical Hamiltonian `h(t, z)`, the autonomous extended quantity
+`K = h + kappa`, signed and running-envelope errors, adjacent refinement
+orders, and nonlinear-solver work without changing the physical trajectory.
+The same accepted-step observer chain evaluates the numerical Jacobian of the
+splitting map on `(u_x, u_y, v_x, v_y, t, k)` and reports the relative
+`6 x 6` defect `||D Psi.T Omega_6 D Psi - Omega_6||_F / ||Omega_6||_F` plus
+`|det(D Psi) - 1|`. This extended-space measurement explicitly excludes the
+dimension-reducing diagonal projection. A second observer re-solves every
+centered perturbation of the complete implicit step and tests the projected
+physical map on `(x, y, t, kappa)` against its `4 x 4` form. The latter
+includes the nonlinear projection and distinguishes physical area preservation
+from the stronger mixed space-time/momentum symplecticity conditions.
+The matching visualization separates the expected time variation of `h` from
+its conjugate compensation and the residual drift of `K`.
+
+The separate `ABBA_implicit2`, `ABBA4_implicit2`, and `BM4_implicit2`
+methods duplicate the complete autonomous state `Z = (x, y, t, k)` rather
+than only the physical state `z`. Their internal splitting therefore acts on
+`(Z_1, Z_2) in R^8`, and the symmetric implicit projection solves for a
+four-component multiplier so that both complete copies agree. The accepted
+state lies in `R^4`, advances `t` and `k` directly, and uses
+`K(Z) = h(t, z) + k`; no momentum reconstruction or factor of two is involved.
+These names intentionally remain distinct from the pre-existing
+`ImplicitABBA2` and `BM4Implicit2`, whose suffix denotes a simultaneous
+nonlinear-solver formulation rather than full state duplication.
+
+`run_fully_extended_implicit_study` audits the three fully duplicated methods
+over a step refinement. It records generalized-energy error and nonlinear
+work, constructs every unprojected `8 x 8` splitting Jacobian as an analytic
+product of shear and binding factors, and forms the `4 x 4` projected tangent
+with the implicit-function theorem. Newton uses the analytic residual matrix
+`D_lambda R = G D Psi A + 2 I`; centered perturbations do not enter the solve.
+The observer retains them as an independent audit of `D Psi`, `D R`, and
+`D Phi`. The associated plots keep the analytic `R^8` and `R^4` form defects,
+determinant checks, and centered-difference audit errors separate.
 
 `run_implicit_abba_reversibility_study` complements those tangent diagnostics
 by solving a genuine signed reverse ABBA step from every selected accepted
@@ -332,10 +377,21 @@ The focused `run_abba4_implicit_1_accuracy_study` performs the same verified
 reference comparison for fourth-order ABBA, while
 `run_abba4_implicit_1_trajectory_symplecticity_study` analyzes its exact
 ideal-root tangent product across a requested step refinement.
+`run_abba6_accuracy_study` applies the same reference, periodic-error,
+nonlinear-work, and runtime protocol to the seven-stage method and reports its
+observed sixth-order refinement slope.
 The focused `run_tangent_taylor_euler_accuracy_study` instead compares
 classical Euler with both proposed tangent-Taylor updates and reports their
 time-integrated RMS error, final and maximum errors, runtimes, and adjacent
 observed convergence orders.
+
+The focused `run_implicit_generalized_energy_study` runs any one of the three
+projected implicit GC methods over an ordered step refinement. Energy is
+recorded at every accepted main-grid node even when the physical solution uses
+a coarser saved-time grid; output-only shadow steps never enter the energy
+history. It also records the time-extended splitting symplecticity defect at
+every accepted step and the complete projected-map defect on the reduced
+four-dimensional extended space.
 
 ## Results and visualization
 

@@ -39,6 +39,21 @@ from .implicit_comparison import (
 	plot_implicit_method_iterations,
 	plot_implicit_trajectory_differences,
 )
+from .energy import (
+	ExtendedSymplecticityRunView,
+	ReducedExtendedSymplecticityRunView,
+	GeneralizedEnergyRunView,
+	GeneralizedEnergySummaryView,
+	plot_generalized_energy_components,
+	plot_generalized_energy_convergence,
+	plot_generalized_energy_errors,
+	plot_time_extended_symplecticity,
+	plot_reduced_time_extended_symplecticity,
+)
+from .fully_extended_implicit import (
+	FullyExtendedRunView,
+	plot_fully_extended_symplecticity,
+)
 from .notebooks import display_animation, display_records_table, records_table_html
 from .particles import animate_fc_particle_solution, animate_gc_particle_solution
 from .potential import animate_potential, plot_potential
@@ -96,6 +111,11 @@ __all__ = [
 	"display_animation",
 	"display_records_table",
 	"IMPLICIT_METHOD_COLORS",
+	"GeneralizedEnergyRunView",
+	"GeneralizedEnergySummaryView",
+	"FullyExtendedRunView",
+	"ExtendedSymplecticityRunView",
+	"ReducedExtendedSymplecticityRunView",
 	"TEN_METHOD_COLORS",
 	"TEN_METHOD_SHORT_LABELS",
 	"TANGENT_TAYLOR_EULER_COLORS",
@@ -119,6 +139,12 @@ __all__ = [
 	"plot_tangent_taylor_h_error",
 	"plot_implicit_abba_particle_step_series",
 	"plot_gc_trajectory_points",
+	"plot_generalized_energy_components",
+	"plot_generalized_energy_convergence",
+	"plot_generalized_energy_errors",
+	"plot_fully_extended_symplecticity",
+	"plot_time_extended_symplecticity",
+	"plot_reduced_time_extended_symplecticity",
 	"plot_accuracy_summary",
 	"plot_accuracy_runtime_tradeoff",
 	"plot_midpoint_bm4_symplecticity",

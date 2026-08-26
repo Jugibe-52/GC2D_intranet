@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from time import perf_counter
 from types import MappingProxyType
-from typing import Any, Mapping
+from typing import Any, ClassVar, Mapping
 
 import numpy as np
 
@@ -145,6 +145,14 @@ class ABBA4Implicit1AccuracyOrder:
 class ABBA4Implicit1AccuracyResult:
 	"""Aligned ABBA4 trajectories and errors across one nested refinement."""
 
+	method_name: ClassVar[str] = "ABBA4Implicit1"
+	summary_type: ClassVar[type[ABBA4Implicit1AccuracySummary]] = (
+		ABBA4Implicit1AccuracySummary
+	)
+	order_type: ClassVar[type[ABBA4Implicit1AccuracyOrder]] = (
+		ABBA4Implicit1AccuracyOrder
+	)
+
 	potential: Potential
 	dynamics: GuidingCenterDynamics
 	initial_configuration: GCInitialConfiguration
@@ -256,8 +264,8 @@ class ABBA4Implicit1AccuracyResult:
 				)
 			)
 			rows.append(
-				ABBA4Implicit1AccuracySummary(
-					method_name="ABBA4Implicit1",
+				self.summary_type(
+					method_name=self.method_name,
 					integration_step=step,
 					step_count=int(solution.diagnostics["step_count"]),
 					global_rms_distance=global_rms,
@@ -297,7 +305,7 @@ class ABBA4Implicit1AccuracyResult:
 			time_resolved = fine.time_integrated_rms_distance > 10.0 * time_floor
 			final_resolved = fine.final_rms_distance > 10.0 * final_floor
 			rows.append(
-				ABBA4Implicit1AccuracyOrder(
+				self.order_type(
 					coarse_step=coarse_step,
 					fine_step=fine_step,
 					time_integrated_rms_gain=float(time_gain),

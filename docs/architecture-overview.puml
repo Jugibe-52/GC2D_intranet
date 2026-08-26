@@ -36,6 +36,17 @@ class "ABBA4Implicit1\n(public numerical method)" as ABBA4Implicit1 {
   Fourth-order Yoshida triple jump
 }
 
+class "ABBA6\n(public numerical method)" as ABBA6 {
+  Sixth-order Yoshida seven-stage composition
+}
+
+class "Fully extended implicit methods" as FullyExtendedImplicitMethods {
+  ABBA_implicit2, ABBA4_implicit2, BM4_implicit2
+  Duplicate (x,y,t,k) into R8
+  Full-diagonal projection to R4
+  Analytic D Psi and D R Newton matrices
+}
+
 class "ImplicitABBA1TangentTaylor\n(public numerical method)" as ImplicitABBA1TangentTaylor {
   z + h f + h^2 / 2 D(Psi_ABBA) f
 }
@@ -63,7 +74,7 @@ class "High-precision numerical reference\n(versioned artifact)" as NumericalRef
 
 class "Numerical accuracy study" as NumericalAccuracyStudy {
   Periodic distances from computed solutions
-  Ten-method, focused ABBA4, or tangent-Taylor/Euler refinement
+  Ten-method, focused ABBA4/ABBA6, or tangent-Taylor/Euler refinement
   Time series, summaries, orders, and resolution margin
 }
 
@@ -82,6 +93,21 @@ class "ABBA tangent-Taylor trajectory study" as ABBATangentTaylorStudy {
   Minimum-image periodic drift
 }
 
+class "Implicit generalized-energy study" as ImplicitEnergyStudy {
+  Accepted-stage reconstruction of kappa = k / 2
+  K = h(t, z) + kappa histories and refinement orders
+  R6 splitting-map symplecticity and determinant defects
+  R4 complete projected-map symplecticity and determinant defects
+  ImplicitABBA1, ABBA4Implicit1, and BM4Implicit1
+}
+
+class "Fully extended implicit study" as FullyExtendedImplicitStudy {
+  Direct K = h(t,z) + k histories and refinement orders
+  Analytic R8 base-map and R4 projected-map form defects
+  Centered audits of D Psi, D R, and D Phi
+  Nonlinear projection work
+}
+
 Potential --> Dynamics : defines field forces
 Dynamics --> InitialValueProblem
 InitialConfiguration --> InitialValueProblem
@@ -89,6 +115,8 @@ InitialValueProblem --> SimulationRunner
 NumericalMethod --> SimulationRunner
 NumericalMethod <|-- ExplicitEuler
 NumericalMethod <|-- ABBA4Implicit1
+NumericalMethod <|-- ABBA6
+NumericalMethod <|-- FullyExtendedImplicitMethods
 NumericalMethod <|-- ImplicitABBA1TangentTaylor
 NumericalMethod <|-- ABBA4Implicit1TangentTaylor
 SimulationRequest --> SimulationRunner
@@ -98,6 +126,7 @@ InitialConfiguration --> NumericalReference : exact initial state
 NumericalReference --> NumericalAccuracyStudy : verified reference
 Solution --> NumericalAccuracyStudy : compared trajectories
 ABBA4Implicit1 --> NumericalAccuracyStudy : focused nested-step study
+ABBA6 --> NumericalAccuracyStudy : focused nested-step study
 ExplicitEuler --> NumericalAccuracyStudy : tangent-Taylor baseline
 ImplicitABBA1TangentTaylor --> NumericalAccuracyStudy : nested-step comparison
 ABBA4Implicit1TangentTaylor --> NumericalAccuracyStudy : nested-step comparison
@@ -109,6 +138,10 @@ Solution --> ABBAReversibilityStudy : accepted endpoints
 ImplicitABBA1TangentTaylor --> ABBATangentTaylorStudy : compared with ImplicitABBA1
 ABBA4Implicit1TangentTaylor --> ABBATangentTaylorStudy : compared with ABBA4Implicit1
 Solution --> ABBATangentTaylorStudy : aligned trajectory pair
+NumericalMethod --> ImplicitEnergyStudy : projected implicit GC methods
+Solution --> ImplicitEnergyStudy : physical trajectory and solver work
+FullyExtendedImplicitMethods --> FullyExtendedImplicitStudy : three method variants
+Solution --> FullyExtendedImplicitStudy : accepted R4 trajectory
 
 note bottom of InitialConfiguration
   This role owns initial state geometry and
@@ -136,6 +169,13 @@ note bottom of NumericalMethod
   Both converge to the same projected physical map.
   BM4Implicit1 and BM4Implicit2 apply these two
   projection formulations around a full BM4 cycle.
+  The separately named ABBA_implicit2, ABBA4_implicit2,
+  and BM4_implicit2 duplicate the complete autonomous state.
+  Their R8 splitting maps advance two (x,y,t,k) copies and
+  their four-component multiplier projects the complete map
+  onto one accepted R4 state. Here k is integrated directly.
+  Analytic shear products provide D Psi, Newton uses
+  D R = G D Psi A + 2 I, and centered differences only audit it.
   MidpointBM4 applies the uncoupled twelve-stage
   cycle and averages both copies once at its end.
   Its exact observer composes analytic stage factors,
@@ -210,6 +250,15 @@ note bottom of ABBA4Implicit1
   tangent is composed in flow order as J3 @ J2 @ J1.
 end note
 
+note bottom of ABBA6
+  One step composes seven complete reduced projected
+  ImplicitABBA1 roots with a palindromic Yoshida sequence.
+  The coefficients have unit first moment and vanishing
+  third and fifth moments. Every signed interval owns a
+  separate nonlinear solve and projection multiplier;
+  the resulting symmetric map has global order six.
+end note
+
 note top of Potential
   Public APIs are grouped by responsibility in
   potential, dynamics, initial_conditions,
@@ -226,6 +275,7 @@ legend bottom
   | Numerical reference | Audited high-precision trajectory for the same ODE |
   | Accuracy study | Distance between computed solutions and the reference |
   | Symplecticity study | Exact local and accumulated physical-map defects |
+  | Generalized-energy study | Drift of K plus R6/R8 splitting and projected R4 symplecticity |
 endlegend
 
 @enduml

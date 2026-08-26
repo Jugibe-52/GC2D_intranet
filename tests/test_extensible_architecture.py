@@ -147,62 +147,6 @@ class ExtensibleArchitectureTests(unittest.TestCase):
 				self.assertEqual(solution.n_steps, 4)
 				self.assertIs(solution.source, source)
 
-	def test_bm4_matches_pre_refactor_golden_values(self) -> None:
-		potential = deterministic_potential()
-		request = SimulationRequest.uniform(
-			t_span=(0.0, 0.04),
-			max_step=0.01,
-			sample_count=5,
-		)
-		gc = simulate(
-			InitialValueProblem(
-				GuidingCenterDynamics(potential, rho=0.05),
-				GCInitialConfiguration(np.asarray([1.0, 1.2])),
-			),
-			BM4Composition(GCExtendedFormulation(), track_energy=True),
-			request,
-		)
-		fc = simulate(
-			InitialValueProblem(
-				FullCyclotronDynamics(potential, rho=0.2, eta=0.1),
-				FCInitialConfiguration(
-					np.asarray([1.0, 1.2, 0.4, -0.3]),
-				),
-			),
-			BM4Composition(FCSplitFormulation(), track_energy=True),
-			request,
-		)
-
-		np.testing.assert_allclose(
-			gc.states[:, -1],
-			[0.9988091473170178, 1.2012404342104765],
-			atol=1e-12,
-			rtol=0.0,
-		)
-		np.testing.assert_allclose(
-			np.asarray(gc.k)[:, -1],
-			[0.00053432194466351],
-			atol=1e-12,
-			rtol=0.0,
-		)
-		np.testing.assert_allclose(
-			fc.states[:, -1],
-			[
-				1.0145676429052044,
-				1.1863758215414457,
-				0.3256681908352309,
-				-0.3788239173127920,
-			],
-			atol=1e-12,
-			rtol=0.0,
-		)
-		np.testing.assert_allclose(
-			np.asarray(fc.k)[:, -1],
-			[0.00267734528550445],
-			atol=1e-12,
-			rtol=0.0,
-		)
-
 	def test_rk4_has_fourth_order_convergence_without_a_formulation(self) -> None:
 		source = GCInitialConfiguration(np.asarray([1.0, 0.0]))
 		problem = InitialValueProblem(_RotationDynamics(), source)

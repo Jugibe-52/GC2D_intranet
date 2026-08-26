@@ -5,7 +5,20 @@ from .observer import (
 	SymplecticityObserver,
 	SymplecticityRecord,
 	gc_extended_symplectic_form,
+	gc_fully_duplicated_symplectic_form,
 	gc_physical_symplectic_form,
+	gc_reduced_time_extended_symplectic_form,
+	gc_time_extended_symplectic_form,
+)
+from .time_extended import (
+	GCReducedTimeExtendedSymplecticityObserver,
+	GCReducedTimeExtendedSymplecticityRecord,
+	GCTimeExtendedSymplecticityObserver,
+	GCTimeExtendedSymplecticityRecord,
+)
+from .fully_extended import (
+	GCFullyExtendedSymplecticityObserver,
+	GCFullyExtendedSymplecticityRecord,
 )
 from .jacobians import (
 	STEP_JACOBIAN_METHODS,
@@ -29,12 +42,21 @@ __all__ = [
 	"GCAreaSymplecticityObserver",
 	"GCAreaSymplecticityOutputBlock",
 	"GCAreaSymplecticityRecord",
+	"GCFullyExtendedSymplecticityObserver",
+	"GCFullyExtendedSymplecticityRecord",
+	"GCTimeExtendedSymplecticityObserver",
+	"GCTimeExtendedSymplecticityRecord",
+	"GCReducedTimeExtendedSymplecticityObserver",
+	"GCReducedTimeExtendedSymplecticityRecord",
 	"SymplecticityObserver",
 	"SymplecticityRecord",
 	"calculate_step_jacobian",
 	"central_difference_jacobian",
 	"gc_extended_symplectic_form",
+	"gc_fully_duplicated_symplectic_form",
 	"gc_physical_symplectic_form",
+	"gc_reduced_time_extended_symplectic_form",
+	"gc_time_extended_symplectic_form",
 	"implicit_function_step_jacobian",
 	"notebook_output_directory",
 	"stage_increment_step_jacobian",

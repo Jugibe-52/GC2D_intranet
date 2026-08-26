@@ -1,8 +1,14 @@
 """Interoperable numerical methods."""
 
 from ._nonlinear import NONLINEAR_SOLVERS, NonlinearSolver
+from ._fully_extended_implicit import (
+	ABBA_implicit2,
+	ABBA4_implicit2,
+	BM4_implicit2,
+)
 from .abba_midpoint import MidpointABBA
 from .abba4_implicit_1 import ABBA4Implicit1
+from .abba6 import ABBA6
 from .abba_tangent_taylor import (
 	ABBA4Implicit1TangentTaylor,
 	ImplicitABBA1TangentTaylor,
@@ -19,10 +25,14 @@ from .rk4 import RK4
 
 __all__ = [
 	"ABBA4Implicit1",
+	"ABBA6",
+	"ABBA_implicit2",
+	"ABBA4_implicit2",
 	"ABBA4Implicit1TangentTaylor",
 	"BM4Composition",
 	"BM4Implicit1",
 	"BM4Implicit2",
+	"BM4_implicit2",
 	"ExplicitEuler",
 	"MidpointABBA",
 	"MidpointBM4",

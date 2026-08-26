@@ -23,6 +23,12 @@ from .bm4_midpoint import (
 	midpoint_bm4_stage_particle_jacobians,
 	midpoint_bm4_step_particle_jacobians,
 )
+from .energy import (
+	GCFullyExtendedEnergyObserver,
+	GCFullyExtendedEnergyRecord,
+	GCGeneralizedEnergyObserver,
+	GCGeneralizedEnergyRecord,
+)
 from .jacobians import (
 	STEP_JACOBIAN_METHODS,
 	StepJacobianMethod,
@@ -59,6 +65,17 @@ from .reference_trajectory import (
 	reference_trajectory_output_directory,
 	write_reference_trajectory,
 )
+from .symplecticity import (
+	GCFullyExtendedSymplecticityObserver,
+	GCFullyExtendedSymplecticityRecord,
+	GCReducedTimeExtendedSymplecticityObserver,
+	GCReducedTimeExtendedSymplecticityRecord,
+	GCTimeExtendedSymplecticityObserver,
+	GCTimeExtendedSymplecticityRecord,
+	gc_time_extended_symplectic_form,
+	gc_reduced_time_extended_symplectic_form,
+	gc_fully_duplicated_symplectic_form,
+)
 
 __all__ = [
 	"abba4_implicit_1_step_particle_jacobians",
@@ -79,6 +96,16 @@ __all__ = [
 	"ImplicitIterationOutputBlock",
 	"ImplicitIterationRecord",
 	"GCTrajectorySymplecticityObserver",
+	"GCGeneralizedEnergyObserver",
+	"GCGeneralizedEnergyRecord",
+	"GCFullyExtendedEnergyObserver",
+	"GCFullyExtendedEnergyRecord",
+	"GCFullyExtendedSymplecticityObserver",
+	"GCFullyExtendedSymplecticityRecord",
+	"GCReducedTimeExtendedSymplecticityObserver",
+	"GCReducedTimeExtendedSymplecticityRecord",
+	"GCTimeExtendedSymplecticityObserver",
+	"GCTimeExtendedSymplecticityRecord",
 	"MIDPOINT_BM4_STAGE_COUNT",
 	"MidpointBM4SymplecticityObserver",
 	"MidpointBM4SymplecticityOutputBlock",
@@ -97,6 +124,9 @@ __all__ = [
 	"bm4_implicit_1_step_particle_jacobians",
 	"central_difference_jacobian",
 	"coupled_bm4_stage_particle_jacobians",
+	"gc_time_extended_symplectic_form",
+	"gc_reduced_time_extended_symplectic_form",
+	"gc_fully_duplicated_symplectic_form",
 	"implicit_abba_1_step_particle_jacobians",
 	"implicit_function_step_jacobian",
 	"load_reference_trajectory",

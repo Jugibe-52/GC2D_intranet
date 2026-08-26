@@ -12,6 +12,7 @@ from .._fixed import integrate_fixed_grid
 from .._result import IntegrationData
 from ..observation import (
 	ImplicitABBA4IntegrationStep,
+	ImplicitABBACompositionIntegrationStep,
 	ImplicitABBAIntegrationStep,
 )
 from ..problem import InitialValueProblem
@@ -44,32 +45,43 @@ class _AcceptedSubstep:
 
 
 @dataclass(frozen=True, slots=True)
-class _ABBA4Step:
-	"""Final physical state and the three accepted nonlinear substeps."""
+class _ComposedABBAStep:
+	"""Final physical state and the accepted nonlinear composition substeps."""
 
 	state: np.ndarray
 	substeps: tuple[_AcceptedSubstep, ...]
 
 
-def _solve_abba4_step(
+def _solve_composed_abba_step(
 	dynamics: GuidingCenterJacobianSystem,
 	t: float,
 	state: np.ndarray,
 	step: float,
 	*,
+	coefficients: np.ndarray,
+	method_name: str,
 	absolute_tolerance: float,
 	relative_tolerance: float,
 	max_iterations: int,
 	nonlinear_solver: NonlinearSolver,
-) -> _ABBA4Step:
-	"""Compose three complete reduced implicit-ABBA maps with signed steps."""
+) -> _ComposedABBAStep:
+	"""Compose complete reduced implicit-ABBA maps with signed durations."""
 	value = np.asarray(state, dtype=float)
 	if value.ndim != 1 or value.size == 0 or not np.all(np.isfinite(value)):
-		raise ValueError("The ABBA4 physical state must be a finite, non-empty vector.")
+		raise ValueError(
+			f"The {method_name} physical state must be a finite, non-empty vector."
+		)
+	composition = np.asarray(coefficients, dtype=float)
+	if (
+		composition.ndim != 1
+		or composition.size == 0
+		or not np.all(np.isfinite(composition))
+	):
+		raise ValueError("ABBA composition coefficients must be finite and non-empty.")
 	current_time = float(t)
 	current_state = value
 	accepted: list[_AcceptedSubstep] = []
-	for coefficient in _ABBA4_COEFFICIENTS:
+	for coefficient in composition:
 		duration = float(coefficient * step)
 		state_before = np.asarray(current_state, dtype=float)
 		result = _solve_projected_step(
@@ -100,10 +112,38 @@ def _solve_abba4_step(
 		* max(1.0, abs(float(t)), abs(expected_time), abs(float(step)))
 	)
 	if not np.isclose(current_time, expected_time, rtol=0.0, atol=tolerance):
-		raise RuntimeError("The ABBA4 composition coefficients do not sum to one.")
-	return _ABBA4Step(
+		raise RuntimeError(
+			f"The {method_name} composition coefficients do not sum to one."
+		)
+	return _ComposedABBAStep(
 		state=np.asarray(current_state),
 		substeps=tuple(accepted),
+	)
+
+
+def _solve_abba4_step(
+	dynamics: GuidingCenterJacobianSystem,
+	t: float,
+	state: np.ndarray,
+	step: float,
+	*,
+	absolute_tolerance: float,
+	relative_tolerance: float,
+	max_iterations: int,
+	nonlinear_solver: NonlinearSolver,
+) -> _ComposedABBAStep:
+	"""Compose the three signed reduced implicit-ABBA maps of ABBA4."""
+	return _solve_composed_abba_step(
+		dynamics,
+		t,
+		state,
+		step,
+		coefficients=_ABBA4_COEFFICIENTS,
+		method_name="ABBA4Implicit1",
+		absolute_tolerance=absolute_tolerance,
+		relative_tolerance=relative_tolerance,
+		max_iterations=max_iterations,
+		nonlinear_solver=nonlinear_solver,
 	)
 
 
@@ -167,12 +207,16 @@ def _substep_observation(
 	)
 
 
-def _integrate_abba4_implicit_1(
-	method: ABBA4Implicit1,
+def _integrate_composed_implicit_abba(
+	method: _ImplicitABBA,
 	problem: InitialValueProblem,
 	request: SimulationRequest,
+	*,
+	coefficients: np.ndarray,
+	composition_formulation: str,
+	observation_type: type[ImplicitABBACompositionIntegrationStep],
 ) -> IntegrationData:
-	"""Run the fourth-order composition and aggregate three solves per step."""
+	"""Run one symmetric ABBA composition and aggregate its nonlinear solves."""
 	dynamics = problem.dynamics
 	method_name = type(method).__name__
 	if not isinstance(dynamics, GuidingCenterJacobianSystem):
@@ -192,13 +236,15 @@ def _integrate_abba4_implicit_1(
 	tolerance_rows: list[list[float]] = []
 	multiplier_norm_rows: list[list[float]] = []
 
-	def solve_step(t: float, state: np.ndarray, step: float) -> _ABBA4Step:
+	def solve_step(t: float, state: np.ndarray, step: float) -> _ComposedABBAStep:
 		"""Solve one fixed-time outer composition."""
-		return _solve_abba4_step(
+		return _solve_composed_abba_step(
 			dynamics,
 			t,
 			state,
 			step,
+			coefficients=coefficients,
+			method_name=method_name,
 			absolute_tolerance=method.newton_absolute_tolerance,
 			relative_tolerance=method.newton_relative_tolerance,
 			max_iterations=method.newton_max_iterations,
@@ -215,7 +261,7 @@ def _integrate_abba4_implicit_1(
 		state_before = np.asarray(state, dtype=float)
 
 		def map_state(candidate: np.ndarray) -> np.ndarray:
-			"""Apply the same complete fourth-order map to a diagnostic state."""
+			"""Apply the same complete composed map to a diagnostic state."""
 			return solve_step(t, candidate, step).state
 
 		result = solve_step(t, state_before, step)
@@ -252,7 +298,7 @@ def _integrate_abba4_implicit_1(
 					np.argmax(np.asarray(residual_norms) / np.asarray(tolerances))
 				)
 				method.step_observer(
-					ImplicitABBA4IntegrationStep(
+					observation_type(
 						dynamics_name=type(dynamics).__name__,
 						method_name=method_name,
 						step_index=step_index,
@@ -261,7 +307,7 @@ def _integrate_abba4_implicit_1(
 						state_before=state_before.copy(),
 						state_after=result.state.copy(),
 						map_state=map_state,
-						formulation_name=_COMPOSITION_FORMULATION,
+						formulation_name=composition_formulation,
 						start_time=t,
 						nonlinear_solver=method.nonlinear_solver,
 						newton_iterations=sum(iterations),
@@ -270,7 +316,7 @@ def _integrate_abba4_implicit_1(
 						newton_tolerance=tolerances[worst_substep],
 						projection_multiplier_norm=max(multiplier_norms),
 						dynamics=dynamics,
-						composition_coefficients=_ABBA4_COEFFICIENTS.copy(),
+						composition_coefficients=coefficients.copy(),
 						substeps=substeps,
 					)
 				)
@@ -290,9 +336,9 @@ def _integrate_abba4_implicit_1(
 	multiplier_norms = np.asarray(multiplier_norm_rows, dtype=float)
 	diagnostics: dict[str, np.ndarray | float | int | str | bool] = {
 		"step_count": step_count,
-		"implicit_substeps_per_step": 3,
-		"nonlinear_solves_per_step": 3,
-		"composition_coefficients": _ABBA4_COEFFICIENTS.copy(),
+		"implicit_substeps_per_step": int(coefficients.size),
+		"nonlinear_solves_per_step": int(coefficients.size),
+		"composition_coefficients": coefficients.copy(),
 		"nonlinear_solver": method.nonlinear_solver,
 		"nonlinear_iterations": np.sum(iterations, axis=1),
 		"residual_evaluations": np.sum(residual_evaluations, axis=1),
@@ -312,13 +358,29 @@ def _integrate_abba4_implicit_1(
 		"newton_absolute_tolerance": method.newton_absolute_tolerance,
 		"newton_relative_tolerance": method.newton_relative_tolerance,
 		"newton_max_iterations": method.newton_max_iterations,
-		"projection_solver_formulation": _COMPOSITION_FORMULATION,
+		"projection_solver_formulation": composition_formulation,
 		"substep_projection_solver_formulation": _SUBSTEP_FORMULATION,
 	}
 	return IntegrationData(
 		t=request.output_times,
 		states=np.asarray(history),
 		diagnostics=diagnostics,
+	)
+
+
+def _integrate_abba4_implicit_1(
+	method: ABBA4Implicit1,
+	problem: InitialValueProblem,
+	request: SimulationRequest,
+) -> IntegrationData:
+	"""Run the fourth-order composition and aggregate three solves per step."""
+	return _integrate_composed_implicit_abba(
+		method,
+		problem,
+		request,
+		coefficients=_ABBA4_COEFFICIENTS,
+		composition_formulation=_COMPOSITION_FORMULATION,
+		observation_type=ImplicitABBA4IntegrationStep,
 	)
 
 

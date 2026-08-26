@@ -166,6 +166,19 @@ package "Numerical methods" as Methods {
   class ABBA4Implicit1 {
     + nonlinear_solver: newton / broyden
   }
+  class ABBA6 {
+    + nonlinear_solver: newton / broyden
+  }
+  class ABBA_implicit2 {
+    + duplicate and project complete (z,t,k) state
+    + analytic shear-product D Psi and D R
+  }
+  class ABBA4_implicit2 {
+    + three signed full-state projected ABBA roots
+  }
+  class BM4_implicit2 {
+    + full-state projected twelve-stage BM4 cycle
+  }
   class ImplicitABBA1TangentTaylor {
     + z_next = z + h f + h^2 / 2 D(Psi_ABBA) f
   }
@@ -188,6 +201,10 @@ package "Numerical methods" as Methods {
   NumericalMethod <|.. ImplicitABBA1
   NumericalMethod <|.. ImplicitABBA2
   NumericalMethod <|.. ABBA4Implicit1
+  NumericalMethod <|.. ABBA6
+  NumericalMethod <|.. ABBA_implicit2
+  NumericalMethod <|.. ABBA4_implicit2
+  NumericalMethod <|.. BM4_implicit2
   NumericalMethod <|.. ImplicitABBA1TangentTaylor
   NumericalMethod <|.. ABBA4Implicit1TangentTaylor
 }
@@ -203,11 +220,16 @@ MidpointABBA ..> DynamicalSystem : requires planar vector field
 ImplicitABBA1 ..> GuidingCenterJacobianSystem : exact reduced 2x2 Newton blocks
 ImplicitABBA2 ..> GuidingCenterJacobianSystem : exact simultaneous 6x6 Newton blocks
 ABBA4Implicit1 ..> GuidingCenterJacobianSystem : three reduced 2x2 projected roots
+ABBA6 ..> GuidingCenterJacobianSystem : seven reduced 2x2 projected roots
+ABBA_implicit2 ..> GuidingCenterDynamics : R8 splitting and full R4 projection
+ABBA4_implicit2 ..> ABBA_implicit2 : Yoshida triple jump
+BM4_implicit2 ..> GuidingCenterDynamics : R8 splitting and full R4 projection
 ImplicitABBA1TangentTaylor ..> ImplicitABBA1 : solves and differentiates one base root
 ABBA4Implicit1TangentTaylor ..> ABBA4Implicit1 : composes three base tangent factors
 ImplicitABBA1 ..> BroydenResidualSolver : reduced residual; K0 = 4 I
 ImplicitABBA2 ..> BroydenResidualSolver : simultaneous residual; zero-step K0
 ABBA4Implicit1 ..> BroydenResidualSolver : separate reduced solve per signed substep
+ABBA6 ..> BroydenResidualSolver : separate reduced solve per signed substep
 BM4Implicit1 ..> BroydenResidualSolver : reduced residual; K0 = 4 I
 BM4Implicit2 ..> BroydenResidualSolver : simultaneous residual; zero-step K0
 
@@ -256,10 +278,18 @@ package "Simulation" as Simulation {
     + converged ABBA stage snapshots
   }
 
-  class ImplicitABBA4IntegrationStep {
-    + composition_coefficients: Array[3]
-    + substeps: tuple[ImplicitABBAIntegrationStep, 3]
+  class ImplicitABBACompositionIntegrationStep {
+    + composition_coefficients: Array
+    + substeps: tuple[ImplicitABBAIntegrationStep]
     + aggregate nonlinear-solver metrics
+  }
+
+  class ImplicitABBA4IntegrationStep {
+    + three signed substeps
+  }
+
+  class ImplicitABBA6IntegrationStep {
+    + seven signed substeps
   }
 
   class ImplicitBM4IntegrationStep {
@@ -268,11 +298,30 @@ package "Simulation" as Simulation {
     + twelve accepted base stages
   }
 
+  class FullyExtendedBaseMap {
+    + state_before / state_after: R8
+    + map_state: R8 -> R8
+    + analytic jacobian_state: R8 -> Matrix8
+    + analytic residual_jacobian: Matrix4
+  }
+
+  class FullyExtendedImplicitIntegrationStep {
+    + state_before / state_after: R4
+    + multiplier: R4
+    + analytic projected jacobian: Matrix4
+    + base_maps: tuple[FullyExtendedBaseMap]
+  }
+
 IntegrationStep <|-- ImplicitIntegrationStep
 ImplicitIntegrationStep <|-- ImplicitABBAIntegrationStep
-ImplicitIntegrationStep <|-- ImplicitABBA4IntegrationStep
+ImplicitIntegrationStep <|-- ImplicitABBACompositionIntegrationStep
+ImplicitABBACompositionIntegrationStep <|-- ImplicitABBA4IntegrationStep
+ImplicitABBACompositionIntegrationStep <|-- ImplicitABBA6IntegrationStep
 ImplicitIntegrationStep <|-- ImplicitBM4IntegrationStep
+ImplicitIntegrationStep <|-- FullyExtendedImplicitIntegrationStep
+FullyExtendedImplicitIntegrationStep o-- FullyExtendedBaseMap
 ImplicitABBA4IntegrationStep o-- "3" ImplicitABBAIntegrationStep : ordered signed roots
+ImplicitABBA6IntegrationStep o-- "7" ImplicitABBAIntegrationStep : ordered signed roots
 IntegrationStage --> DynamicalSystem : exposes exact generating instance
 IntegrationStep --> DynamicalSystem : exposes exact generating instance
 
@@ -300,6 +349,10 @@ MidpointABBA --> IntegrationStep : optional observation
 ImplicitABBA1 --> ImplicitABBAIntegrationStep : converged stage data
 ImplicitABBA2 --> ImplicitABBAIntegrationStep : converged stage data
 ABBA4Implicit1 --> ImplicitABBA4IntegrationStep : complete-step observation
+ABBA6 --> ImplicitABBA6IntegrationStep : complete-step observation
+ABBA_implicit2 --> FullyExtendedImplicitIntegrationStep : complete full projection
+ABBA4_implicit2 --> FullyExtendedImplicitIntegrationStep : three base maps
+BM4_implicit2 --> FullyExtendedImplicitIntegrationStep : complete BM4 base map
 
 note right of Area
   Area is a GC initial configuration
@@ -384,6 +437,15 @@ note bottom of ABBA4Implicit1
   their composition is a public fourth-order numerical method.
 end note
 
+note bottom of ABBA6
+  Yoshida's symmetric seven-stage composition applies complete
+  reduced projected ImplicitABBA1 roots with a palindromic set
+  of real coefficients. Their first moment is one and their
+  third and fifth moments vanish. Every signed substep performs
+  an independent nonlinear solve with its own multiplier;
+  their composition is a public sixth-order numerical method.
+end note
+
 note bottom of MidpointABBA
   Each second-order step duplicates the physical
   state, applies endpoint-time A-B-B-A shears,
@@ -401,6 +463,19 @@ end note
 package "Reusable studies" as Studies {
   class AreaComparison
   class GeneralizedEnergyComparison
+  class ImplicitGeneralizedEnergyStudy {
+    + reconstructs kappa = k / 2 at accepted nodes
+    + K = h(t, z) + kappa error histories
+    + R6 splitting symplecticity defects
+    + R4 complete projected-map defects
+    + refinement orders and nonlinear work
+  }
+  class FullyExtendedImplicitStudy {
+    + direct K = h(t,z) + k histories
+    + analytic R8 base-map and R4 projected-map defects
+    + centered D Psi / D R / D Phi audits
+    + refinement orders and nonlinear work
+  }
   class RK4SymplecticityStudy
   class MidpointABBASymplecticityStudy
   class ABBASymplecticityStudy
@@ -469,6 +544,12 @@ package "Reusable studies" as Studies {
     + periodic RMS errors, refinement gains, and observed orders
     + nonlinear work, runtime, and reference-floor resolution
   }
+  class ABBA6AccuracyStudy {
+    + validates the versioned reference identity and checksum
+    + one ABBA6 trajectory per nested complete step
+    + periodic RMS errors, refinement gains, and observed orders
+    + nonlinear work, runtime, and reference-floor resolution
+  }
   class ImplicitABBAJacobianParticleStepSeries {
     + states before and after observed steps
     + effective electric field at step endpoints
@@ -527,6 +608,11 @@ package "Optional visualization" as Visualization {
     + mean local and accumulated defects over time
     + marker-only physical trajectories
   }
+  class GeneralizedEnergyVisualization {
+    + physical h variation and kappa compensation
+    + signed error and running envelope
+    + max-error step refinement
+  }
   class NotebookDisplay
 }
 
@@ -568,6 +654,34 @@ package "Opt-in diagnostics" as Diagnostics {
     + nonlinear iterations and residual evaluations per accepted BM4 step
     + residual, tolerance, and multiplier norms
   }
+  class GCGeneralizedEnergyObserver {
+    + four accepted ABBA shears
+    + three signed ABBA4 substeps
+    + twelve coupled BM4 stages
+    + kappa = k / 2 and K = h + kappa records
+  }
+  class GCTimeExtendedSymplecticityObserver {
+    + Omega6 on (u_x, u_y, v_x, v_y, t, k)
+    + relative D Psi.T Omega6 D Psi defect
+    + determinant and conditioning checks
+    + excludes dimension-reducing projection
+  }
+  class GCReducedTimeExtendedSymplecticityObserver {
+    + Omega4 on (x, y, t, kappa)
+    + re-solves every centered perturbation
+    + includes nonlinear projection
+    + relative symplectic and determinant defects
+  }
+  class GCFullyExtendedEnergyObserver {
+    + reads accepted (x,y,t,k) states directly
+    + K = h(t,z) + k without reconstruction
+  }
+  class GCFullyExtendedSymplecticityObserver {
+    + analytic cross-coupled Omega8 base-map defects
+    + analytic complete projected Omega4 map defects
+    + centered D Psi / D R / D Phi audits
+    + determinant and conditioning checks
+  }
   class ParticleJacobianAnalysis {
     + trace, determinant, discriminant
     + eigensystem and singular system
@@ -584,6 +698,19 @@ AreaComparison ..> SimulationRunner
 AreaComparison ..> BM4Composition : coupled_bm4
 AreaComparison ..> ProjectedBM4Composition : stage_projected_bm4
 GeneralizedEnergyComparison ..> SimulationRunner
+ImplicitGeneralizedEnergyStudy ..> SimulationRunner
+ImplicitGeneralizedEnergyStudy ..> ImplicitABBA1
+ImplicitGeneralizedEnergyStudy ..> ABBA4Implicit1
+ImplicitGeneralizedEnergyStudy ..> BM4Implicit1
+ImplicitGeneralizedEnergyStudy ..> GCGeneralizedEnergyObserver : configures
+ImplicitGeneralizedEnergyStudy ..> GCTimeExtendedSymplecticityObserver : configures
+ImplicitGeneralizedEnergyStudy ..> GCReducedTimeExtendedSymplecticityObserver : configures
+FullyExtendedImplicitStudy ..> SimulationRunner
+FullyExtendedImplicitStudy ..> ABBA_implicit2
+FullyExtendedImplicitStudy ..> ABBA4_implicit2
+FullyExtendedImplicitStudy ..> BM4_implicit2
+FullyExtendedImplicitStudy ..> GCFullyExtendedEnergyObserver : configures
+FullyExtendedImplicitStudy ..> GCFullyExtendedSymplecticityObserver : configures
 RK4SymplecticityStudy ..> SimulationRunner
 RK4SymplecticityStudy ..> RK4
 RK4SymplecticityStudy ..> IntegrationStep : analyzes
@@ -645,6 +772,9 @@ TenMethodAccuracyStudy ..> TrajectoryAccuracyVisualization : presents errors and
 ABBA4Implicit1AccuracyStudy ..> ABBA4Implicit1 : runs nested complete steps
 ABBA4Implicit1AccuracyStudy ..> ReferenceTrajectoryArtifact : verifies and compares
 ABBA4Implicit1AccuracyStudy ..> TrajectoryAccuracyVisualization : presents refinement
+ABBA6AccuracyStudy ..> ABBA6 : runs nested complete steps
+ABBA6AccuracyStudy ..> ReferenceTrajectoryArtifact : verifies and compares
+ABBA6AccuracyStudy ..> TrajectoryAccuracyVisualization : presents refinement
 BM4ImplicitSymplecticityStudy ..> BM4Implicit1
 BM4ImplicitSymplecticityStudy ..> BM4Implicit2
 BM4ImplicitSymplecticityStudy ..> IntegrationStep : analyzes
@@ -681,6 +811,9 @@ MidpointBM4SymplecticityVisualization ..> MidpointBM4SymplecticityObserver : pre
 MidpointBM4SymplecticityVisualization ..> Solution : plots trajectory paths
 TrajectorySymplecticityVisualization ..> GCTrajectorySymplecticityObserver : presents averaged defects
 TrajectorySymplecticityVisualization ..> Solution : plots sampled trajectory points
+GeneralizedEnergyVisualization ..> GCGeneralizedEnergyObserver : presents records
+GeneralizedEnergyVisualization ..> GCTimeExtendedSymplecticityObserver : plots R6 defects
+GeneralizedEnergyVisualization ..> GCReducedTimeExtendedSymplecticityObserver : plots R4 defects
 MidpointBM4SymplecticityObserver ..> IntegrationStage : composes exact stage tangents
 MidpointBM4SymplecticityObserver ..> GuidingCenterJacobianSystem : exact field Jacobians
 MidpointBM4SymplecticityObserver --> DiagnosticBlockWriter : persists CSV/NPZ/JSON
@@ -712,6 +845,15 @@ ImplicitABBAIterationObserver ..> ImplicitABBAIntegrationStep : consumes solver 
 ImplicitABBAIterationObserver --> DiagnosticBlockWriter : persists CSV/NPZ/JSON
 ImplicitBM4IterationObserver ..> ImplicitBM4IntegrationStep : consumes solver metrics
 ImplicitBM4IterationObserver --> DiagnosticBlockWriter : persists CSV/NPZ/JSON
+GCGeneralizedEnergyObserver ..> ImplicitABBAIntegrationStep : reconstructs four shears
+GCGeneralizedEnergyObserver ..> ImplicitABBA4IntegrationStep : sums signed substeps
+GCGeneralizedEnergyObserver ..> ImplicitBM4IntegrationStep : follows twelve stages
+GCGeneralizedEnergyObserver ..> GuidingCenterDynamics : evaluates h and -partial_t h
+GCTimeExtendedSymplecticityObserver ..> ImplicitABBAIntegrationStep : differentiates accepted base map
+GCTimeExtendedSymplecticityObserver ..> ImplicitABBA4IntegrationStep : aggregates three base maps
+GCTimeExtendedSymplecticityObserver ..> ImplicitBM4IntegrationStep : differentiates twelve-stage cycle
+GCReducedTimeExtendedSymplecticityObserver ..> SimulationRunner : re-solves projected perturbations
+GCReducedTimeExtendedSymplecticityObserver ..> GCGeneralizedEnergyObserver : reconstructs Delta kappa
 
 note bottom of ImplicitABBAJacobianObserver
   This observer studies only the local physical
