@@ -19,9 +19,6 @@ notebooks/*
 !notebooks/experiments/**
 !notebooks/sympy/
 !notebooks/sympy/**
-!notebooks/developements/
-notebooks/developements/*
-!notebooks/developements/phi_2_h5_potential_visualization.ipynb
 
 # LaTeX sources and deliberate PDFs are versioned; compiler intermediates are
 # reproducible build products.
