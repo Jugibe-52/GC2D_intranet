@@ -1,4 +1,4 @@
-"""Contracts for legacy GC2D HDF5 potential loading and dynamics use."""
+"""Contracts for primary GC2D HDF5 potential loading and dynamics use."""
 
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ from potential import GC2DH5Potential, Potential, load_gc2d_h5_potential
 from simulation import ABBA4Implicit1, InitialValueProblem, SimulationRequest, simulate
 
 
-def _legacy_interpolate(
+def _h5_interpolate(
 	x: np.ndarray,
 	y: np.ndarray,
 	field: np.ndarray,
@@ -28,7 +28,7 @@ def _legacy_interpolate(
 	dx: int = 0,
 	dy: int = 0,
 ) -> np.ndarray:
-	"""Evaluate one field with the historical zero-padded spline recipe."""
+	"""Evaluate one field with the GC2D HDF5 zero-padded spline recipe."""
 	padding = order + 1
 	x_extended = np.pad(
 		x,
@@ -65,7 +65,7 @@ def _legacy_interpolate(
 	return np.asarray(real + 1j * imag)
 
 
-def _legacy_resample(
+def _h5_resample(
 	x: np.ndarray,
 	y: np.ndarray,
 	field: np.ndarray,
@@ -73,15 +73,15 @@ def _legacy_resample(
 	nx: int,
 	ny: int,
 ) -> np.ndarray:
-	"""Perform the first of the legacy loader's two interpolation stages."""
+	"""Perform the first of the HDF5 loader's two interpolation stages."""
 	xi = np.linspace(x[0], x[-1], nx)
 	yi = np.linspace(y[0], y[-1], ny)
 	x_mesh, y_mesh = np.meshgrid(xi, yi, indexing="ij")
-	return _legacy_interpolate(x, y, field, x_mesh, y_mesh)
+	return _h5_interpolate(x, y, field, x_mesh, y_mesh)
 
 
 class GC2DH5PotentialTests(unittest.TestCase):
-	"""Preserve legacy data semantics while satisfying current field contracts."""
+	"""Verify GC2D HDF5 semantics against the current field contracts."""
 
 	def setUp(self) -> None:
 		"""Create a compact square HDF5 fixture with deliberately ordered modes."""
@@ -112,8 +112,23 @@ class GC2DH5PotentialTests(unittest.TestCase):
 		"""Release the temporary HDF5 fixture."""
 		self.temporary_directory.cleanup()
 
+	def test_defaults_select_mean_and_dominant_mode_with_B_1_5(self) -> None:
+		"""Use the primary-file defaults when no loader options are supplied."""
+		potential = load_gc2d_h5_potential(self.path)
+		normalization = 2.0 * np.pi * 7.0 * 1.5
+
+		self.assertAlmostEqual(potential.normalization_factor, normalization)
+		np.testing.assert_array_equal(potential.source_field_indices, [3])
+		np.testing.assert_allclose(potential.frequencies, [7.0])
+		np.testing.assert_allclose(potential.mean_value, self.mean / normalization)
+		assert potential.fluctuations is not None
+		np.testing.assert_allclose(
+			potential.fluctuations[0],
+			self.high_mode / normalization,
+		)
+
 	def test_filter_sort_selection_normalization_and_positive_phase(self) -> None:
-		"""Match the legacy meaning of indices, f0, B and exp(+i f t)."""
+		"""Match the HDF5 meaning of indices, f0, B and exp(+i f t)."""
 		B = 1.5
 		potential = load_gc2d_h5_potential(
 			self.path,
@@ -148,7 +163,7 @@ class GC2DH5PotentialTests(unittest.TestCase):
 			self.mean / normalization + expected_dynamic,
 		)
 
-	def test_denoising_and_inclusive_resampling_match_both_legacy_stages(self) -> None:
+	def test_denoising_and_resampling_match_both_hdf5_interpolation_stages(self) -> None:
 		"""Keep filtering before the inclusive-grid resampling used by GC2D."""
 		B = 2.0
 		sigma = 0.6
@@ -163,14 +178,14 @@ class GC2DH5PotentialTests(unittest.TestCase):
 			interpolation_order=3,
 		)
 		normalization = 2.0 * np.pi * 7.0 * B
-		expected_mean = _legacy_resample(
+		expected_mean = _h5_resample(
 			self.x,
 			self.y,
 			ndimage.gaussian_filter(self.mean / normalization, sigma=sigma),
 			nx=8,
 			ny=8,
 		).real
-		expected_mode = _legacy_resample(
+		expected_mode = _h5_resample(
 			self.x,
 			self.y,
 			ndimage.gaussian_filter(self.high_mode.real / normalization, sigma=sigma)
@@ -190,7 +205,7 @@ class GC2DH5PotentialTests(unittest.TestCase):
 		query_x = np.asarray([potential.x[2] + 0.01])
 		query_y = np.asarray([potential.y[4] - 0.008])
 		time = 0.013
-		expected = _legacy_interpolate(
+		expected = _h5_interpolate(
 			potential.x,
 			potential.y,
 			expected_mean.astype(np.complex128),
@@ -198,7 +213,7 @@ class GC2DH5PotentialTests(unittest.TestCase):
 			query_y,
 		).real
 		expected += 2.0 * np.real(
-			_legacy_interpolate(
+			_h5_interpolate(
 				potential.x,
 				potential.y,
 				expected_mode,
@@ -227,7 +242,7 @@ class GC2DH5PotentialTests(unittest.TestCase):
 		clipped_x = np.clip(query_x, self.x[0], self.x[-1])
 		clipped_y = np.clip(query_y, self.y[0], self.y[-1])
 		for dx, dy in ((1, 0), (0, 1), (2, 0), (1, 1), (0, 2)):
-			mean = _legacy_interpolate(
+			mean = _h5_interpolate(
 				self.x,
 				self.y,
 				potential.mean_value.astype(np.complex128),
@@ -236,7 +251,7 @@ class GC2DH5PotentialTests(unittest.TestCase):
 				dx=dx,
 				dy=dy,
 			).real
-			mode = _legacy_interpolate(
+			mode = _h5_interpolate(
 				self.x,
 				self.y,
 				potential.fluctuations[0],
@@ -251,7 +266,7 @@ class GC2DH5PotentialTests(unittest.TestCase):
 				expected,
 			)
 
-		mode = _legacy_interpolate(
+		mode = _h5_interpolate(
 			self.x,
 			self.y,
 			potential.fluctuations[0],
@@ -308,7 +323,7 @@ class GC2DH5PotentialTests(unittest.TestCase):
 		self.assertTrue(np.all(np.isfinite(solution.states)))
 
 	def test_invalid_selection_and_incomplete_resampling_are_rejected(self) -> None:
-		"""Give concise errors for the common legacy-loader configuration mistakes."""
+		"""Give concise errors for common HDF5-loader configuration mistakes."""
 		with self.assertRaisesRegex(ValueError, "range"):
 			load_gc2d_h5_potential(self.path, indx=(0, 3))
 		with self.assertRaisesRegex(ValueError, "both"):

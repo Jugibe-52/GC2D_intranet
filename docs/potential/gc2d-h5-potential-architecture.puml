@@ -13,7 +13,7 @@ skinparam wrapWidth 220
 
 hide circle
 
-class "1. Legacy HDF5 source" as HDF5Source {
+class "1. GC2D HDF5 source" as HDF5Source {
   .. Root datasets ..
   Rcells: x coordinates
   Zcells: y coordinates
@@ -26,6 +26,7 @@ class "1. Legacy HDF5 source" as HDF5Source {
 
 class "2. Import pipeline\nload_gc2d_h5_potential(...)" as ImportPipeline {
   .. Validation ..
+  Defaults: B=1.5 and indx=(0, 1)
   B, sigma, interpolation order
   HDF5 field shape and uniform axes
   Equal sampled spans required by Grid

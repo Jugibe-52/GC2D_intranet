@@ -6,13 +6,17 @@ name from the package that owns it.
 
 | Package | Responsibility | Representative public names |
 | --- | --- | --- |
-| `potential` | Periodic electrostatic field model | `Potential` |
+| `potential` | Primary GC2D HDF5 import and periodic electrostatic field models | `GC2DH5Potential`, `Potential`, `load_gc2d_h5_potential` |
 | `dynamics` | Equations of motion and capability protocols | `GuidingCenterDynamics`, `FullCyclotronDynamics` |
 | `initial_conditions` | Initial state layouts and geometry | `GCInitialConfiguration`, `FCInitialConfiguration`, `Area` |
 | `simulation` | Problems, methods, formulations, nonlinear-solver selection, requests, and solutions | `InitialValueProblem`, `ExplicitEuler`, `RK4`, `ImplicitABBA1`, `ABBA4Implicit1`, `ABBA4SingleProjectionImplicit1`, `ABBA6`, `ABBA_implicit2`, `ABBA4_implicit2`, `BM4_implicit2`, tangent-Taylor methods, `NonlinearSolver`, `SimulationRequest`, `Solution` |
 | `diagnostics` | Optional observers and diagnostic persistence | `StoredReferenceTrajectory`, generalized-energy observers, `GCFullyExtendedSymplecticityObserver`, time-extended and trajectory symplecticity observers, iteration observers, and diagnostic writers |
 | `studies` | Reusable experiment assembly and summaries | `HighPrecisionReferenceConfig`, `ImplicitGeneralizedEnergyConfig`, `FullyExtendedImplicitConfig`, `TangentTaylorEulerAccuracyConfig`, `ABBA4ProjectionComparisonConfig`, trajectory comparison results, symplecticity configurations, and `run_*_study` functions |
 | `visualization` | Optional plots, animations, tables, and notebook display | Generalized-energy component/error/refinement plots, `plot_fully_extended_symplecticity`, ABBA4 projection-comparison plots, tangent-Taylor and reference-trajectory plots, runtime/accuracy plots, animations, symplecticity plots, and `plot_potential` |
+
+The [GC2D HDF5 import contract](potential/gc2d-h5-import.md) documents the
+primary field schema, preprocessing pipeline, runtime representation, and
+guiding-center integration.
 
 ## Import pattern
 

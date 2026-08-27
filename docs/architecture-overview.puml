@@ -12,7 +12,7 @@ class Potential {
 }
 
 class GC2DH5Potential {
-  Legacy HDF5 mean + positive-frequency modes
+  Primary HDF5 mean + positive-frequency modes
   B normalization and zero-padded splines
 }
 

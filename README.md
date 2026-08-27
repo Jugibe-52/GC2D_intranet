@@ -4,7 +4,7 @@ GC2D simulates particle trajectories in a two-dimensional, time-dependent
 electrostatic potential. Library code lives directly under `src/` in packages
 grouped by responsibility:
 
-- `potential`: periodic electrostatic fields;
+- `potential`: GC2D HDF5 imports and periodic electrostatic fields;
 - `dynamics`: guiding-center and full-cyclotron equations;
 - `initial_conditions`: state layouts and initial geometry;
 - `simulation`: numerical formulations, methods, requests, and results;
@@ -48,6 +48,28 @@ python -m pip install -e .
 Runtime compatibility ranges are declared in `pyproject.toml`; tested direct
 dependency versions are recorded in `constraints.txt`. Matplotlib support is
 available through the `visualization` extra.
+
+## GC2D HDF5 potential
+
+The primary GC2D field format stores a real mean potential and complex
+positive-frequency modes in HDF5. Load it through the public potential API:
+
+```python
+from potential import load_gc2d_h5_potential
+
+potential = load_gc2d_h5_potential(
+    "data/potential/V1/PHI_2.h5",
+    interpolation_order=3,
+)
+```
+
+The primary-file defaults are `B=1.5` and `indx=(0, 1)`, selecting the mean
+field and its dominant declared positive-frequency mode.
+
+See the [HDF5 import contract](docs/potential/gc2d-h5-import.md) and its
+[architecture diagram](docs/potential/gc2d-h5-potential-architecture.puml) for
+the dataset schema, normalization, interpolation, gyroaveraging, and
+guiding-center integration.
 
 ## Guiding-center example
 

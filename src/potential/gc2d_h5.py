@@ -1,13 +1,13 @@
 # Copyright (c) 2023, Cristel Chandre
 # SPDX-License-Identifier: BSD-2-Clause
 
-"""Legacy GC2D HDF5 potentials adapted to the current simulation API.
+"""Primary GC2D HDF5 potentials integrated with the simulation API.
 
-The historical ``gc2d_classes.extract_potential`` loader stores one real mean
-field and one or more complex positive-frequency fields.  This module preserves
-its selection, scaling, interpolation and ``exp(+i f t)`` reconstruction while
-providing the :class:`~potential.Potential` interface required by the current
-dynamics and implicit methods.
+The GC2D HDF5 format stores one real mean field and one or more complex
+positive-frequency fields. This module defines their selection, scaling,
+interpolation and ``exp(+i f t)`` reconstruction while providing the
+:class:`~potential.Potential` interface required by the current dynamics and
+implicit methods.
 """
 
 from __future__ import annotations
@@ -32,7 +32,7 @@ from .potential import Potential
 
 @dataclass(frozen=True, slots=True)
 class _ComplexSpline:
-	"""Real and imaginary splines for one legacy complex spatial field."""
+	"""Real and imaginary splines for one HDF5 complex spatial field."""
 
 	real: RectBivariateSpline
 	imag: RectBivariateSpline
@@ -60,7 +60,7 @@ def _readonly_array(values: Any, *, dtype: Any) -> np.ndarray:
 
 
 def _validated_axis(values: Any, *, name: str) -> np.ndarray:
-	"""Validate one uniformly spaced legacy coordinate axis."""
+	"""Validate one uniformly spaced HDF5 coordinate axis."""
 	axis = np.asarray(values, dtype=float)
 	if axis.ndim != 1:
 		raise ValueError(f"`{name}` must be one-dimensional.")
@@ -76,14 +76,14 @@ def _validated_axis(values: Any, *, name: str) -> np.ndarray:
 	return _readonly_array(axis, dtype=float)
 
 
-def _legacy_spline(
+def _h5_spline(
 	x: np.ndarray,
 	y: np.ndarray,
 	coefficient: np.ndarray,
 	*,
 	interpolation_order: int,
 ) -> _ComplexSpline:
-	"""Build the zero-padded spline used by the historical GC2D potential."""
+	"""Build the zero-padded spline defined by the GC2D HDF5 format."""
 	padding = interpolation_order + 1
 	x_extended = np.pad(
 		x,
@@ -131,7 +131,7 @@ def _resample_fields(
 	ny: int | None,
 	interpolation_order: int,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray | None, np.ndarray | None]:
-	"""Apply the historical inclusive-grid resampling operation once."""
+	"""Apply the GC2D HDF5 inclusive-grid resampling operation once."""
 	if nx is None and ny is None:
 		return x, y, mean_value, fluctuations
 	if nx is None or ny is None:
@@ -148,7 +148,7 @@ def _resample_fields(
 	y_resampled = np.linspace(y[0], y[-1], int(ny))
 
 	def interpolate(field: np.ndarray) -> np.ndarray:
-		interpolator = _legacy_spline(
+		interpolator = _h5_spline(
 			x,
 			y,
 			np.asarray(field, dtype=np.complex128),
@@ -170,18 +170,18 @@ def _resample_fields(
 
 
 class GC2DH5Potential(Potential):
-	"""Mean plus positive-frequency modes loaded with legacy GC2D semantics.
+	"""Mean plus positive-frequency modes loaded from the GC2D HDF5 format.
 
 	The physical field is
 
 	``Phi(t, x, y) = Phi_0(x, y) + 2 Re sum_j[C_j(x, y) exp(+i f_j t)]``.
 
-	Spatial samples use the historical first-axis-x convention without
+	Spatial samples use the GC2D first-axis-x convention without
 	transposing HDF5 fields.  Runtime coordinates are clipped to the sampled
 	domain and evaluated through zero-padded rectangular splines.  A periodic
 	:class:`Grid` still records the regular coordinates because that is the grid
 	contract shared by the current simulation API; evaluation itself remains
-	non-periodic, as in the legacy implementation.
+	non-periodic, as defined by the HDF5 potential contract.
 	"""
 
 	def __init__(
@@ -198,7 +198,7 @@ class GC2DH5Potential(Potential):
 		interpolation_order: int = 3,
 		source_path: str | PathLike[str] | None = None,
 	) -> None:
-		"""Store selected legacy fields and prepare their runtime splines."""
+		"""Store selected HDF5 fields and prepare their runtime splines."""
 		x_values = _validated_axis(x, name="x")
 		y_values = _validated_axis(y, name="y")
 		shape = (x_values.size, y_values.size)
@@ -289,7 +289,7 @@ class GC2DH5Potential(Potential):
 			None if modes is None else _readonly_array(modes, dtype=np.complex128)
 		)
 		self.frequencies = _readonly_array(frequency_values, dtype=float)
-		# ``freqs`` is retained because legacy notebooks use this shorter name.
+		# ``freqs`` is retained because established GC2D notebooks use this name.
 		self.freqs = self.frequencies
 		self.source_field_indices = _readonly_array(source_indices, dtype=int)
 		self.normalization_factor = normalization
@@ -304,7 +304,7 @@ class GC2DH5Potential(Potential):
 		self._mean_spline = (
 			None
 			if self.mean_value is None
-			else _legacy_spline(
+			else _h5_spline(
 				self.x,
 				self.y,
 				self.mean_value.astype(np.complex128),
@@ -312,7 +312,7 @@ class GC2DH5Potential(Potential):
 			)
 		)
 		self._fluctuation_splines = tuple(
-			_legacy_spline(
+			_h5_spline(
 				self.x,
 				self.y,
 				field,
@@ -442,7 +442,7 @@ class GC2DH5Potential(Potential):
 		dy: int = 0,
 		dt: int = 0,
 	) -> np.ndarray:
-		"""Evaluate the total legacy potential or one supported derivative."""
+		"""Evaluate the total HDF5 potential or one supported derivative."""
 		if (x is None) != (y is None):
 			raise ValueError("`x` and `y` must be provided together.")
 		self._validate_derivatives(dx, dy, dt)
@@ -462,7 +462,7 @@ class GC2DH5Potential(Potential):
 		return np.asarray(np.real(mean) + dynamic, dtype=float)
 
 	def gyroaverage(self, rho: float) -> GC2DH5Potential:
-		"""Return the legacy FFT/Bessel Larmor-circle average of every field."""
+		"""Return the GC2D FFT/Bessel Larmor-circle average of every field."""
 		radius = float(rho)
 		if not np.isfinite(radius) or radius < 0:
 			raise ValueError("`rho` must be finite and non-negative.")
@@ -499,20 +499,23 @@ class GC2DH5Potential(Potential):
 def load_gc2d_h5_potential(
 	filename: str | PathLike[str],
 	*,
-	B: float = 1.0,
-	indx: int | Sequence[int] | np.ndarray | None = None,
+	B: float = 1.5,
+	indx: int | Sequence[int] | np.ndarray | None = (0, 1),
 	nx: int | None = None,
 	ny: int | None = None,
 	denoising: bool = False,
 	sigma: float = 1.0,
 	interpolation_order: int = 3,
 ) -> GC2DH5Potential:
-	"""Load one HDF5 field set like ``gc2d_classes.extract_potential``.
+	"""Load one field set from the primary GC2D HDF5 format.
 
-	Index zero selects the mean field.  Positive indices select fluctuation modes
-	after positive-frequency filtering and descending peak-to-peak sorting.  All
-	retained fields are normalized by ``2*pi*f0*B``, where ``f0`` is the first
-	mode after that sorting, before selection, denoising and optional resampling.
+	By default, ``B=1.5`` and ``indx=(0, 1)`` select the mean field and the
+	dominant positive-frequency mode.  Index zero selects the mean field, while
+	positive indices select fluctuation modes after positive-frequency filtering
+	and descending peak-to-peak sorting.  Pass ``indx=None`` to select the mean
+	and every retained positive-frequency mode.  All retained fields are
+	normalized by ``2*pi*f0*B``, where ``f0`` is the first mode after that
+	sorting, before selection, denoising and optional resampling.
 	"""
 	magnetic_field = float(B)
 	if not np.isfinite(magnetic_field) or magnetic_field == 0:
