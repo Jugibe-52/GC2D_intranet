@@ -10,6 +10,13 @@ skinparam defaultTextAlignment center
 package "Physical dynamics" as Dynamics {
   class Potential
 
+  class GC2DH5Potential {
+    + frequencies: Array
+    + evaluate(t, x, y, dx, dy, dt): Array
+    + dynamic_part(t, x, y, dx, dy, dt): Array
+    + gyroaverage(rho): GC2DH5Potential
+  }
+
   interface DynamicalSystem {
     + state_dimension: int
     + vector_field(t, state): Array
@@ -43,6 +50,8 @@ package "Physical dynamics" as Dynamics {
     + rho: float
     + eta: float
   }
+
+  Potential <|-- GC2DH5Potential
 
   HamiltonianSystem <|-- ExtendedHamiltonianSystem
   DynamicalSystem <|-- GuidingCenterJacobianSystem
@@ -166,6 +175,11 @@ package "Numerical methods" as Methods {
   class ABBA4Implicit1 {
     + nonlinear_solver: newton / broyden
   }
+  class ABBA4SingleProjectionImplicit1 {
+    + nonlinear_solver: newton / broyden
+    + three continuous unprojected signed ABBA maps
+    + one reduced exterior projection
+  }
   class ABBA6 {
     + nonlinear_solver: newton / broyden
   }
@@ -201,6 +215,7 @@ package "Numerical methods" as Methods {
   NumericalMethod <|.. ImplicitABBA1
   NumericalMethod <|.. ImplicitABBA2
   NumericalMethod <|.. ABBA4Implicit1
+  NumericalMethod <|.. ABBA4SingleProjectionImplicit1
   NumericalMethod <|.. ABBA6
   NumericalMethod <|.. ABBA_implicit2
   NumericalMethod <|.. ABBA4_implicit2
@@ -220,6 +235,7 @@ MidpointABBA ..> DynamicalSystem : requires planar vector field
 ImplicitABBA1 ..> GuidingCenterJacobianSystem : exact reduced 2x2 Newton blocks
 ImplicitABBA2 ..> GuidingCenterJacobianSystem : exact simultaneous 6x6 Newton blocks
 ABBA4Implicit1 ..> GuidingCenterJacobianSystem : three reduced 2x2 projected roots
+ABBA4SingleProjectionImplicit1 ..> GuidingCenterJacobianSystem : one reduced root around three unprojected maps
 ABBA6 ..> GuidingCenterJacobianSystem : seven reduced 2x2 projected roots
 ABBA_implicit2 ..> GuidingCenterDynamics : R8 splitting and full R4 projection
 ABBA4_implicit2 ..> ABBA_implicit2 : Yoshida triple jump
@@ -229,6 +245,7 @@ ABBA4Implicit1TangentTaylor ..> ABBA4Implicit1 : composes three base tangent fac
 ImplicitABBA1 ..> BroydenResidualSolver : reduced residual; K0 = 4 I
 ImplicitABBA2 ..> BroydenResidualSolver : simultaneous residual; zero-step K0
 ABBA4Implicit1 ..> BroydenResidualSolver : separate reduced solve per signed substep
+ABBA4SingleProjectionImplicit1 ..> BroydenResidualSolver : one complete-base residual; K0 = 4 I
 ABBA6 ..> BroydenResidualSolver : separate reduced solve per signed substep
 BM4Implicit1 ..> BroydenResidualSolver : reduced residual; K0 = 4 I
 BM4Implicit2 ..> BroydenResidualSolver : simultaneous residual; zero-step K0
@@ -278,6 +295,19 @@ package "Simulation" as Simulation {
     + converged ABBA stage snapshots
   }
 
+  class UnprojectedABBAIntegrationStep {
+    + start_time / time / duration
+    + converged ABBA stage snapshots
+    + no multiplier or nonlinear solve
+  }
+
+  class ABBA4SingleProjectionIntegrationStep {
+    + one exterior multiplier
+    + composition_coefficients: Array
+    + substeps: tuple[UnprojectedABBAIntegrationStep]
+    + aggregate exterior-root solver metrics
+  }
+
   class ImplicitABBACompositionIntegrationStep {
     + composition_coefficients: Array
     + substeps: tuple[ImplicitABBAIntegrationStep]
@@ -314,6 +344,7 @@ package "Simulation" as Simulation {
 
 IntegrationStep <|-- ImplicitIntegrationStep
 ImplicitIntegrationStep <|-- ImplicitABBAIntegrationStep
+ImplicitIntegrationStep <|-- ABBA4SingleProjectionIntegrationStep
 ImplicitIntegrationStep <|-- ImplicitABBACompositionIntegrationStep
 ImplicitABBACompositionIntegrationStep <|-- ImplicitABBA4IntegrationStep
 ImplicitABBACompositionIntegrationStep <|-- ImplicitABBA6IntegrationStep
@@ -322,6 +353,7 @@ ImplicitIntegrationStep <|-- FullyExtendedImplicitIntegrationStep
 FullyExtendedImplicitIntegrationStep o-- FullyExtendedBaseMap
 ImplicitABBA4IntegrationStep o-- "3" ImplicitABBAIntegrationStep : ordered signed roots
 ImplicitABBA6IntegrationStep o-- "7" ImplicitABBAIntegrationStep : ordered signed roots
+ABBA4SingleProjectionIntegrationStep o-- "3" UnprojectedABBAIntegrationStep : continuous signed base maps
 IntegrationStage --> DynamicalSystem : exposes exact generating instance
 IntegrationStep --> DynamicalSystem : exposes exact generating instance
 
@@ -349,6 +381,7 @@ MidpointABBA --> IntegrationStep : optional observation
 ImplicitABBA1 --> ImplicitABBAIntegrationStep : converged stage data
 ImplicitABBA2 --> ImplicitABBAIntegrationStep : converged stage data
 ABBA4Implicit1 --> ImplicitABBA4IntegrationStep : complete-step observation
+ABBA4SingleProjectionImplicit1 --> ABBA4SingleProjectionIntegrationStep : one-root complete-step observation
 ABBA6 --> ImplicitABBA6IntegrationStep : complete-step observation
 ABBA_implicit2 --> FullyExtendedImplicitIntegrationStep : complete full projection
 ABBA4_implicit2 --> FullyExtendedImplicitIntegrationStep : three base maps
@@ -435,6 +468,17 @@ note bottom of ABBA4Implicit1
   The middle interval is negative. Every signed substep performs
   an independent nonlinear solve with its own multiplier;
   their composition is a public fourth-order numerical method.
+end note
+
+note bottom of ABBA4SingleProjectionImplicit1
+  Yoshida's gamma h, delta h, gamma h ABBA maps evolve
+  the two copies continuously, so no internal map returns
+  them to the diagonal. A single reduced Hairer root projects
+  the complete base composition. With exact signed-map tangents
+  M1, M2, M3 in flow order, its Newton matrix is
+  K = G (M3 M2 M1) N + 2 I. Thus every complete step has
+  one nonlinear solve and one multiplier, whose leading
+  scaling is O(h^5) for this fourth-order symmetric map.
 end note
 
 note bottom of ABBA6
@@ -544,6 +588,13 @@ package "Reusable studies" as Studies {
     + periodic RMS errors, refinement gains, and observed orders
     + nonlinear work, runtime, and reference-floor resolution
   }
+  class ABBA4ProjectionComparisonStudy {
+    + same verified reference, initial state, tolerances, and nested steps
+    + ABBA4Implicit1 versus ABBA4SingleProjectionImplicit1
+    + periodic errors and resolved observed-order deficits
+    + Newton work, normalized residual/tangent ABBA-map work, and multiplier scaling
+    + median runtime and interquartile timing interval
+  }
   class ABBA6AccuracyStudy {
     + validates the versioned reference identity and checksum
     + one ABBA6 trajectory per nested complete step
@@ -595,6 +646,11 @@ package "Optional visualization" as Visualization {
     + RMS and maximum error evolution
     + log-log error against complete step
     + accuracy summary and runtime trade-off
+  }
+  class ABBA4ProjectionComparisonVisualization {
+    + log-log accuracy and resolved order-reduction plots
+    + Newton iterations and normalized ABBA-map-work plots
+    + projection-multiplier scaling and runtime plots
   }
   class ProjectedBM4SymplecticityVisualization {
     + 2 x 2 time-diagnostic plot
@@ -772,6 +828,11 @@ TenMethodAccuracyStudy ..> TrajectoryAccuracyVisualization : presents errors and
 ABBA4Implicit1AccuracyStudy ..> ABBA4Implicit1 : runs nested complete steps
 ABBA4Implicit1AccuracyStudy ..> ReferenceTrajectoryArtifact : verifies and compares
 ABBA4Implicit1AccuracyStudy ..> TrajectoryAccuracyVisualization : presents refinement
+ABBA4ProjectionComparisonStudy ..> SimulationRunner : runs one common refinement protocol
+ABBA4ProjectionComparisonStudy ..> ABBA4Implicit1 : three projections per step
+ABBA4ProjectionComparisonStudy ..> ABBA4SingleProjectionImplicit1 : one exterior projection per step
+ABBA4ProjectionComparisonStudy ..> ReferenceTrajectoryArtifact : verifies and compares
+ABBA4ProjectionComparisonStudy ..> ABBA4ProjectionComparisonVisualization : presents common result rows
 ABBA6AccuracyStudy ..> ABBA6 : runs nested complete steps
 ABBA6AccuracyStudy ..> ReferenceTrajectoryArtifact : verifies and compares
 ABBA6AccuracyStudy ..> TrajectoryAccuracyVisualization : presents refinement

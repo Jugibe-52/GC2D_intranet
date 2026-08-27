@@ -9,10 +9,10 @@ name from the package that owns it.
 | `potential` | Periodic electrostatic field model | `Potential` |
 | `dynamics` | Equations of motion and capability protocols | `GuidingCenterDynamics`, `FullCyclotronDynamics` |
 | `initial_conditions` | Initial state layouts and geometry | `GCInitialConfiguration`, `FCInitialConfiguration`, `Area` |
-| `simulation` | Problems, methods, formulations, nonlinear-solver selection, requests, and solutions | `InitialValueProblem`, `ExplicitEuler`, `RK4`, `ImplicitABBA1`, `ABBA4Implicit1`, `ABBA6`, `ABBA_implicit2`, `ABBA4_implicit2`, `BM4_implicit2`, tangent-Taylor methods, `NonlinearSolver`, `SimulationRequest`, `Solution` |
+| `simulation` | Problems, methods, formulations, nonlinear-solver selection, requests, and solutions | `InitialValueProblem`, `ExplicitEuler`, `RK4`, `ImplicitABBA1`, `ABBA4Implicit1`, `ABBA4SingleProjectionImplicit1`, `ABBA6`, `ABBA_implicit2`, `ABBA4_implicit2`, `BM4_implicit2`, tangent-Taylor methods, `NonlinearSolver`, `SimulationRequest`, `Solution` |
 | `diagnostics` | Optional observers and diagnostic persistence | `StoredReferenceTrajectory`, generalized-energy observers, `GCFullyExtendedSymplecticityObserver`, time-extended and trajectory symplecticity observers, iteration observers, and diagnostic writers |
-| `studies` | Reusable experiment assembly and summaries | `HighPrecisionReferenceConfig`, `ImplicitGeneralizedEnergyConfig`, `FullyExtendedImplicitConfig`, `TangentTaylorEulerAccuracyConfig`, trajectory comparison results, symplecticity configurations, and `run_*_study` functions |
-| `visualization` | Optional plots, animations, tables, and notebook display | Generalized-energy component/error/refinement plots, `plot_fully_extended_symplecticity`, tangent-Taylor and reference-trajectory plots, runtime/accuracy plots, animations, symplecticity plots, and `plot_potential` |
+| `studies` | Reusable experiment assembly and summaries | `HighPrecisionReferenceConfig`, `ImplicitGeneralizedEnergyConfig`, `FullyExtendedImplicitConfig`, `TangentTaylorEulerAccuracyConfig`, `ABBA4ProjectionComparisonConfig`, trajectory comparison results, symplecticity configurations, and `run_*_study` functions |
+| `visualization` | Optional plots, animations, tables, and notebook display | Generalized-energy component/error/refinement plots, `plot_fully_extended_symplecticity`, ABBA4 projection-comparison plots, tangent-Taylor and reference-trajectory plots, runtime/accuracy plots, animations, symplecticity plots, and `plot_potential` |
 
 ## Import pattern
 
@@ -57,6 +57,22 @@ substep therefore runs backward. Each substep performs a separate nonlinear
 solve and owns a separate projection multiplier. Its complete-step observation
 contains the three accepted `ImplicitABBAIntegrationStep` values, and exact
 diagnostics compose their physical tangents in flow order as `J3 @ J2 @ J1`.
+
+`ABBA4SingleProjectionImplicit1` uses the same signed Yoshida coefficients but
+keeps the two copies independent through all three unprojected ABBA maps. It
+solves one reduced Hairer projection around the complete base composition, with
+no projection between signed maps. If `M1`, `M2`, and `M3` are their accepted
+doubled-map tangents in flow order, the exact outer residual Jacobian is
+`K = G (M3 @ M2 @ M1) N + 2 I`. Consequently, one complete step owns one
+nonlinear solve and one multiplier, whose leading scaling is `O(h**5)` for the
+fourth-order symmetric composition. `ABBA4SingleProjectionIntegrationStep`
+stores that root and its aggregate solver metrics, while its three
+`UnprojectedABBAIntegrationStep` entries expose the continuous stage history
+without assigning a multiplier or nonlinear solve to an internal map.
+The implementation advances the exact signed local times and the physical
+`(u, v)` part of the autonomous kernel. Since the conjugate momentum does not
+feed back into those variables, this is the same physical map, but the method
+does not materialize `k` or expose a separate `6 x 6` extended tangent.
 
 `ABBA6` is the public sixth-order Yoshida composition of seven complete
 reduced `ImplicitABBA1` roots. Its real coefficients are palindromic, sum to
@@ -162,6 +178,19 @@ the runtime trade-off; reference paths use markers without connected lines.
 fourth-order composition against the same versioned reference, including
 periodic RMS errors, observed orders, nonlinear work, runtime, and the margin
 above the reference audit floor.
+`run_abba4_projection_comparison_study` advances `ABBA4Implicit1` and
+`ABBA4SingleProjectionImplicit1` on the same nested steps, saved-time grid,
+initial state, tolerances, and verified reference. Its summaries compare
+periodic accuracy, Newton iterations, raw residual evaluations, normalized
+ABBA-map residual and tangent evaluations, residuals relative to tolerance,
+multiplier scaling, and median wall time with an interquartile interval. Timing
+repetitions alternate which method runs first to limit thermal and cache-order
+bias. Its convergence rows report
+the explicit deficit from designed fourth order and only diagnose order
+reduction when the errors remain resolved above the reference floor. The
+matching visualization functions plot
+accuracy, observed-order reduction, nonlinear work, multiplier scaling, and
+runtime from those same result rows.
 `run_abba6_accuracy_study` provides the matching seven-stage refinement and
 uses an expected sixth-order slope in the shared accuracy visualization.
 `run_abba4_implicit_1_trajectory_symplecticity_study` uses the exact ideal-root

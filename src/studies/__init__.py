@@ -7,6 +7,15 @@ from .abba4_implicit_1_accuracy import (
 	ABBA4Implicit1AccuracySummary,
 	run_abba4_implicit_1_accuracy_study,
 )
+from .abba4_projection_comparison import (
+	ABBA4_PROJECTION_METHOD_LABELS,
+	ABBA4_PROJECTION_METHOD_NAMES,
+	ABBA4ProjectionComparisonConfig,
+	ABBA4ProjectionComparisonOrder,
+	ABBA4ProjectionComparisonResult,
+	ABBA4ProjectionComparisonSummary,
+	run_abba4_projection_comparison_study,
+)
 from .abba6_accuracy import (
 	ABBA6AccuracyConfig,
 	ABBA6AccuracyOrder,
@@ -225,6 +234,12 @@ __all__ = [
 	"ABBA4Implicit1AccuracyOrder",
 	"ABBA4Implicit1AccuracyResult",
 	"ABBA4Implicit1AccuracySummary",
+	"ABBA4_PROJECTION_METHOD_LABELS",
+	"ABBA4_PROJECTION_METHOD_NAMES",
+	"ABBA4ProjectionComparisonConfig",
+	"ABBA4ProjectionComparisonOrder",
+	"ABBA4ProjectionComparisonResult",
+	"ABBA4ProjectionComparisonSummary",
 	"ABBA6AccuracyConfig",
 	"ABBA6AccuracyOrder",
 	"ABBA6AccuracyResult",
@@ -354,6 +369,7 @@ __all__ = [
 	"potential_fingerprint",
 	"random_gc_configuration",
 	"run_abba4_implicit_1_accuracy_study",
+	"run_abba4_projection_comparison_study",
 	"run_abba6_accuracy_study",
 	"run_abba4_implicit1_tangent_taylor_comparison",
 	"run_abba4_implicit_1_trajectory_symplecticity_study",

@@ -2,6 +2,7 @@
 
 from .jacobians import (
 	abba4_implicit_1_step_particle_jacobians,
+	abba4_single_projection_implicit_1_step_particle_jacobians,
 	bm4_implicit_1_step_particle_jacobians,
 	coupled_bm4_stage_particle_jacobians,
 	implicit_abba_1_step_particle_jacobians,
@@ -16,6 +17,7 @@ from .observer import (
 
 __all__ = [
 	"abba4_implicit_1_step_particle_jacobians",
+	"abba4_single_projection_implicit_1_step_particle_jacobians",
 	"bm4_implicit_1_step_particle_jacobians",
 	"coupled_bm4_stage_particle_jacobians",
 	"GCTrajectorySymplecticityObserver",

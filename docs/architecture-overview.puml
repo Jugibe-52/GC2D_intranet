@@ -11,6 +11,11 @@ class Potential {
   Field model
 }
 
+class GC2DH5Potential {
+  Legacy HDF5 mean + positive-frequency modes
+  B normalization and zero-padded splines
+}
+
 class Dynamics {
   Equations of motion
 }
@@ -34,6 +39,11 @@ class "ExplicitEuler\n(public numerical method)" as ExplicitEuler {
 
 class "ABBA4Implicit1\n(public numerical method)" as ABBA4Implicit1 {
   Fourth-order Yoshida triple jump
+}
+
+class "ABBA4SingleProjectionImplicit1\n(public numerical method)" as ABBA4SingleProjectionImplicit1 {
+  Fourth-order unprojected Yoshida triple jump
+  One reduced exterior projection
 }
 
 class "ABBA6\n(public numerical method)" as ABBA6 {
@@ -78,6 +88,16 @@ class "Numerical accuracy study" as NumericalAccuracyStudy {
   Time series, summaries, orders, and resolution margin
 }
 
+class "ABBA4 projection comparison study" as ABBA4ProjectionComparison {
+  Same verified reference, initial state, tolerances, and nested steps
+  Accuracy, nonlinear work, multiplier scaling, runtime, order reduction
+}
+
+class "ABBA4 projection comparison plots" as ABBA4ProjectionVisualization {
+  Accuracy and resolved-order diagnostics
+  Newton work, multiplier scaling, and runtime
+}
+
 class "ABBA4Implicit1 symplecticity study" as ABBA4SymplecticityStudy {
   Exact ideal-root local and accumulated tangents
   Arithmetic mean of individual trajectory defects
@@ -109,12 +129,14 @@ class "Fully extended implicit study" as FullyExtendedImplicitStudy {
 }
 
 Potential --> Dynamics : defines field forces
+Potential <|-- GC2DH5Potential
 Dynamics --> InitialValueProblem
 InitialConfiguration --> InitialValueProblem
 InitialValueProblem --> SimulationRunner
 NumericalMethod --> SimulationRunner
 NumericalMethod <|-- ExplicitEuler
 NumericalMethod <|-- ABBA4Implicit1
+NumericalMethod <|-- ABBA4SingleProjectionImplicit1
 NumericalMethod <|-- ABBA6
 NumericalMethod <|-- FullyExtendedImplicitMethods
 NumericalMethod <|-- ImplicitABBA1TangentTaylor
@@ -130,6 +152,11 @@ ABBA6 --> NumericalAccuracyStudy : focused nested-step study
 ExplicitEuler --> NumericalAccuracyStudy : tangent-Taylor baseline
 ImplicitABBA1TangentTaylor --> NumericalAccuracyStudy : nested-step comparison
 ABBA4Implicit1TangentTaylor --> NumericalAccuracyStudy : nested-step comparison
+NumericalReference --> ABBA4ProjectionComparison : verified common reference
+Solution --> ABBA4ProjectionComparison : aligned method refinements
+ABBA4Implicit1 --> ABBA4ProjectionComparison : three projected roots
+ABBA4SingleProjectionImplicit1 --> ABBA4ProjectionComparison : one exterior root
+ABBA4ProjectionComparison --> ABBA4ProjectionVisualization : presents common result rows
 ABBA4Implicit1 --> ABBA4SymplecticityStudy : exact tangent study
 Solution --> ABBA4SymplecticityStudy : analyzed trajectory
 NumericalMethod --> ABBAReversibilityStudy : implicit ABBA trajectory
@@ -248,6 +275,25 @@ note bottom of ABBA4Implicit1
   the middle solve runs backward, and every solve owns
   a separate projection multiplier. The exact physical
   tangent is composed in flow order as J3 @ J2 @ J1.
+end note
+
+note bottom of ABBA4SingleProjectionImplicit1
+  The signed gamma h, delta h, gamma h ABBA maps
+  evolve both copies continuously, without an intermediate
+  projection. One reduced Hairer root surrounds their complete
+  base composition. With signed-map tangents M1, M2, M3 in
+  flow order, Newton uses the exact residual Jacobian
+  K = G (M3 M2 M1) N + 2 I. The single exterior multiplier
+  has leading scaling O(h^5).
+end note
+
+note bottom of ABBA4ProjectionComparison
+  The two fourth-order strategies share every physical,
+  solver, reference, and refinement control. Timing repetitions
+  alternate which method runs first; runtime is reported by its
+  median and interquartile interval. An observed-order
+  deficit is diagnosed only while the compared errors remain
+  resolved above the audited reference floor.
 end note
 
 note bottom of ABBA6

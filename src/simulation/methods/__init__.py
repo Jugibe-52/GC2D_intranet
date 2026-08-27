@@ -8,6 +8,7 @@ from ._fully_extended_implicit import (
 )
 from .abba_midpoint import MidpointABBA
 from .abba4_implicit_1 import ABBA4Implicit1
+from .abba4_single_projection_implicit_1 import ABBA4SingleProjectionImplicit1
 from .abba6 import ABBA6
 from .abba_tangent_taylor import (
 	ABBA4Implicit1TangentTaylor,
@@ -25,6 +26,7 @@ from .rk4 import RK4
 
 __all__ = [
 	"ABBA4Implicit1",
+	"ABBA4SingleProjectionImplicit1",
 	"ABBA6",
 	"ABBA_implicit2",
 	"ABBA4_implicit2",

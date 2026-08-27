@@ -1,5 +1,15 @@
 """Optional Matplotlib presentation for potentials and simulation results."""
 
+from .abba4_projection_comparison import (
+	ABBA4_PROJECTION_COLORS,
+	ABBA4ProjectionOrderView,
+	ABBA4ProjectionSummaryView,
+	plot_abba4_projection_accuracy,
+	plot_abba4_projection_multiplier_scaling,
+	plot_abba4_projection_newton_work,
+	plot_abba4_projection_order_reduction,
+	plot_abba4_projection_runtime,
+)
 from .abba_jacobian import (
 	plot_implicit_abba_particle_step_series,
 	plot_implicit_abba_jacobian_directions,
@@ -97,6 +107,9 @@ from .tangent_taylor_euler_accuracy import (
 __all__ = [
 	"AccuracySeriesView",
 	"AccuracySummaryView",
+	"ABBA4_PROJECTION_COLORS",
+	"ABBA4ProjectionOrderView",
+	"ABBA4ProjectionSummaryView",
 	"StepAccuracySummaryView",
 	"animate_fc_particle_solution",
 	"animate_gc_area",
@@ -147,6 +160,11 @@ __all__ = [
 	"plot_reduced_time_extended_symplecticity",
 	"plot_accuracy_summary",
 	"plot_accuracy_runtime_tradeoff",
+	"plot_abba4_projection_accuracy",
+	"plot_abba4_projection_multiplier_scaling",
+	"plot_abba4_projection_newton_work",
+	"plot_abba4_projection_order_reduction",
+	"plot_abba4_projection_runtime",
 	"plot_midpoint_bm4_symplecticity",
 	"plot_midpoint_bm4_trajectories",
 	"plot_potential",

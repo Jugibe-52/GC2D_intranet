@@ -112,12 +112,36 @@ def _evaluate_stages(
 	multiplier: np.ndarray,
 ) -> _ABBAStages:
 	"""Apply the four midpoint ABBA stages and evaluate equation (11)."""
-	half_step = step / 2.0
-	final_time = t + step
-
 	# G^T mu displaces the two copies in opposite physical directions.
 	u_initial = state + multiplier
 	v_initial = state - multiplier
+	unprojected = _evaluate_unprojected_stages(
+		dynamics,
+		t,
+		u_initial,
+		v_initial,
+		step,
+	)
+	return _ABBAStages(
+		u_initial=unprojected.u_initial,
+		v_initial=unprojected.v_initial,
+		u_first=unprojected.u_first,
+		v_final=unprojected.v_final,
+		u_final=unprojected.u_final,
+		residual=unprojected.residual + 2.0 * multiplier,
+	)
+
+
+def _evaluate_unprojected_stages(
+	dynamics: GuidingCenterJacobianSystem,
+	t: float,
+	u_initial: np.ndarray,
+	v_initial: np.ndarray,
+	step: float,
+) -> _ABBAStages:
+	"""Apply one signed ABBA map to two independent physical copies."""
+	half_step = step / 2.0
+	final_time = t + step
 	u_first = u_initial + half_step * _checked_vector_field(
 		dynamics,
 		t,
@@ -142,7 +166,9 @@ def _evaluate_stages(
 		v_final,
 	)
 
-	residual = u_final - v_final + 2.0 * multiplier
+	# For an unprojected map this is only the copy separation. The reduced
+	# Hairer formulation adds ``2 mu`` after the complete chosen base map.
+	residual = u_final - v_final
 	return _ABBAStages(
 		u_initial=u_initial,
 		v_initial=v_initial,

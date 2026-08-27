@@ -102,6 +102,42 @@ class ImplicitABBAIntegrationStep(ImplicitIntegrationStep):
 
 
 @dataclass(frozen=True, slots=True)
+class UnprojectedABBAIntegrationStep:
+	"""Expose one signed ABBA map inside an unprojected composition.
+
+	The two copies remain independent between consecutive entries. Stage arrays
+	use the same component-major physical layout as an implicit ABBA snapshot,
+	but this record has no multiplier or nonlinear solve of its own.
+	"""
+
+	start_time: float
+	time: float
+	duration: float
+	u_initial: np.ndarray = field(repr=False, compare=False)
+	v_initial: np.ndarray = field(repr=False, compare=False)
+	u_first: np.ndarray = field(repr=False, compare=False)
+	v_final: np.ndarray = field(repr=False, compare=False)
+	u_final: np.ndarray = field(repr=False, compare=False)
+
+
+@dataclass(frozen=True, slots=True)
+class ABBA4SingleProjectionIntegrationStep(ImplicitIntegrationStep):
+	"""Expose one projection around a complete unprojected ABBA4 base map.
+
+	``substeps`` contains the continuous signed ``(gamma, delta, gamma)`` ABBA
+	maps. The inherited nonlinear metrics describe the single reduced Hairer
+	projection multiplier solved around their complete composition.
+	"""
+
+	multiplier: np.ndarray = field(repr=False, compare=False)
+	composition_coefficients: np.ndarray = field(repr=False, compare=False)
+	substeps: tuple[UnprojectedABBAIntegrationStep, ...] = field(
+		repr=False,
+		compare=False,
+	)
+
+
+@dataclass(frozen=True, slots=True)
 class ImplicitABBACompositionIntegrationStep(ImplicitIntegrationStep):
 	"""Expose accepted implicit-ABBA maps in one symmetric composition.
 
@@ -181,6 +217,7 @@ StepObserver: TypeAlias = Callable[[IntegrationStep], None]
 
 
 __all__ = [
+	"ABBA4SingleProjectionIntegrationStep",
 	"ImplicitABBA4IntegrationStep",
 	"ImplicitABBA6IntegrationStep",
 	"ImplicitABBACompositionIntegrationStep",
@@ -195,4 +232,5 @@ __all__ = [
 	"StateMap",
 	"StateJacobian",
 	"StepObserver",
+	"UnprojectedABBAIntegrationStep",
 ]

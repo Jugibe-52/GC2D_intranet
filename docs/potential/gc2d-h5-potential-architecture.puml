@@ -1,0 +1,84 @@
+@startuml
+title GC2D HDF5 Guiding-Center Potential Architecture
+
+left to right direction
+
+skinparam shadowing false
+skinparam linetype ortho
+skinparam nodesep 35
+skinparam ranksep 60
+skinparam defaultTextAlignment left
+skinparam classAttributeIconSize 0
+skinparam wrapWidth 220
+
+hide circle
+
+class "1. Legacy HDF5 source" as HDF5Source {
+  .. Root datasets ..
+  Rcells: x coordinates
+  Zcells: y coordinates
+  freqs: temporal frequencies
+  fields: complex [frequency, y, x]
+  --
+  Root attributes: source metadata
+  Stored field orientation is preserved
+}
+
+class "2. Import pipeline\nload_gc2d_h5_potential(...)" as ImportPipeline {
+  .. Validation ..
+  B, sigma, interpolation order
+  HDF5 field shape and uniform axes
+  Equal sampled spans required by Grid
+  .. Mode processing ..
+  Near-zero frequency -> real mean
+  Discard negative frequencies
+  Sort positive modes by descending amplitude
+  Normalize all fields by 2*pi*f0*B
+  indx=0 selects the mean
+  indx>0 selects an ordered mode
+  .. Optional preprocessing ..
+  Gaussian denoising
+  Inclusive-grid resampling with zero-padded splines
+}
+
+class "3. GC2DH5Potential\nPotential subclass and runtime adapter" as H5Potential {
+  .. Immutable state ..
+  x and y axes, mean and complex modes
+  frequencies and original field indices
+  normalization, attributes, and source path
+  .. Spatial representation ..
+  One real/imag RectBivariateSpline pair per field
+  Zero-padded boundaries and clipped coordinates
+  Grid supplies periodic API and FFT metadata
+  Public HDF5 interpolation remains non-periodic
+  .. Field reconstruction ..
+  Phi = Phi0 + 2 Re sum_j[C_j exp(+i f_j t)]
+  .. Runtime API ..
+  evaluate(...) and dynamic_part(...)
+  electric_field(...) inherited from Potential
+  Spatial derivatives and first time derivative
+  gyroaverage(rho) returns GC2DH5Potential
+}
+
+class "4. GuidingCenterDynamics" as GCDynamics {
+  .. Construction ..
+  Accept a Potential instance and rho
+  effective_potential = potential.gyroaverage(rho)
+  FFT -> J0 Larmor filter -> inverse FFT
+  Preserve HDF5 modes, frequencies, and metadata
+  .. Physical capabilities ..
+  vector_field = (-Phi_y, Phi_x)
+  hamiltonian = Phi
+  particle Jacobians from the spatial Hessian
+  extended momentum derivative = -Phi_t
+  .. Compatibility boundary ..
+  Physical and reduced GC paths use this API directly
+  Arbitrary HDF5 frequencies require general Phi_tt
+  support in fully extended analytic R4/R8 methods
+}
+
+HDF5Source --> ImportPipeline
+ImportPipeline --> H5Potential
+H5Potential --> GCDynamics
+
+@enduml

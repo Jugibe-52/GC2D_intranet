@@ -11,6 +11,7 @@ from .formulations import (
 )
 from .methods import (
 	ABBA4Implicit1,
+	ABBA4SingleProjectionImplicit1,
 	ABBA6,
 	ABBA_implicit2,
 	ABBA4_implicit2,
@@ -32,6 +33,7 @@ from .methods import (
 	RK4,
 )
 from .observation import (
+	ABBA4SingleProjectionIntegrationStep,
 	FullyExtendedBaseMap,
 	FullyExtendedImplicitIntegrationStep,
 	ImplicitABBA4IntegrationStep,
@@ -44,6 +46,7 @@ from .observation import (
 	IntegrationStep,
 	StageObserver,
 	StepObserver,
+	UnprojectedABBAIntegrationStep,
 )
 from .problem import InitialValueProblem
 from .request import SimulationRequest
@@ -52,6 +55,8 @@ from .solution import Solution
 
 __all__ = [
 	"ABBA4Implicit1",
+	"ABBA4SingleProjectionImplicit1",
+	"ABBA4SingleProjectionIntegrationStep",
 	"ABBA6",
 	"ABBA_implicit2",
 	"ABBA4_implicit2",
@@ -94,5 +99,6 @@ __all__ = [
 	"StageObserver",
 	"StepObserver",
 	"StageProjectedFormulation",
+	"UnprojectedABBAIntegrationStep",
 	"simulate",
 ]
