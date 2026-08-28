@@ -114,9 +114,10 @@ dynamics object.
 
 **File:** [`src/initial_conditions/base.py`](../../src/initial_conditions/base.py)
 
-`StateConfiguration` is the reusable implementation of the
-`InitialConfiguration` contract. It implements the protocol structurally rather
-than inheriting from it explicitly.
+`StateConfiguration` is the reusable partial implementation of packed-state
+storage and layout operations. It does not complete the
+`InitialConfiguration` contract by itself because it deliberately leaves
+`state_dimension` for each concrete subclass.
 
 It owns an optional initial-state copy and implements:
 
@@ -129,9 +130,9 @@ It owns an optional initial-state copy and implements:
   physical component blocks; and
 - `particle_count(...)` and `positions(...)`, which interpret the packed state.
 
-The dashed hollow-triangle arrow from `StateConfiguration` to
-`InitialConfiguration` means **structural realization**: it satisfies the
-protocol without declaring it as a Python base class.
+Accordingly, the diagram does not show a realization arrow from
+`StateConfiguration` to `InitialConfiguration`. The base class supplies the
+shared behavior, while a concrete subclass completes the structural contract.
 
 ### `GCInitialConfiguration`
 
@@ -147,7 +148,10 @@ shown with a solid inheritance triangle. It specializes the generic layout by:
 
 This is the concrete object normally supplied to `InitialValueProblem` for a
 guiding-centre run. The problem still refers to it through the broader
-`InitialConfiguration` protocol.
+`InitialConfiguration` protocol. The dashed hollow-triangle arrow from
+`GCInitialConfiguration` to `InitialConfiguration` denotes that structural
+realization; no explicit protocol inheritance appears in the Python class
+declaration.
 
 ### `InitialValueProblem`
 

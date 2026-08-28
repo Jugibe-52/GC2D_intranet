@@ -79,6 +79,15 @@ package "Initial configuration" as Initial {
     + positions(state): (Array, Array)
   }
 
+  class StateConfiguration <<partial base>> {
+    + initial_state: Array
+    + validate_packed_state_layout(state): Array
+    + split(state): Components
+    + pack_components(components): Array
+    + particle_count(state): int
+    + positions(state): (Array, Array)
+  }
+
   class GCInitialConfiguration
   class FCInitialConfiguration
 
@@ -89,7 +98,15 @@ package "Initial configuration" as Initial {
 
   InitialConfiguration <|.. GCInitialConfiguration
   InitialConfiguration <|.. FCInitialConfiguration
+  StateConfiguration <|-- GCInitialConfiguration
+  StateConfiguration <|-- FCInitialConfiguration
   GCInitialConfiguration <|-- Area
+
+  note bottom of StateConfiguration
+    Shared partial implementation. Concrete subclasses
+    provide state_dimension and thereby complete the
+    InitialConfiguration structural contract.
+  end note
 
   note bottom of GCInitialConfiguration
     Initial configurations own state geometry
