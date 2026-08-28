@@ -102,6 +102,10 @@ Its members are:
 | `initial_state` | Returns an independent initial-state copy, or `None` if unset. |
 | `layout` | Returns the independent `StateLayout` used to interpret physical arrays. |
 
+The hollow-diamond relation from `InitialConfiguration` to `StateLayout`
+represents this abstract aggregation. The equivalent relation from
+`GCInitialConfiguration` to `GCStateLayout` is its concrete specialization.
+
 The configuration owns the initial state, not the packed-memory rules. Physical
 parameters such as the potential, gyroaverage radius, or magnetic normalization
 remain in the dynamics object.

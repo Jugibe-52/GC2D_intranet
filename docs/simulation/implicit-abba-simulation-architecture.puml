@@ -215,6 +215,7 @@ GCStateLayout -up-|> PackedStateLayout
 GCInitialConfiguration -up-|> StateConfiguration
 GCStateLayout ..> StateLayout
 GCInitialConfiguration ..> InitialConfiguration
+InitialConfiguration o-- StateLayout
 GCInitialConfiguration o-- GCStateLayout
 ImplicitABBABase .up.|> NumericalMethod
 ImplicitABBA1 -up-|> ImplicitABBABase
