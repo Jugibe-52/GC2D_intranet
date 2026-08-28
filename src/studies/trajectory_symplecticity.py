@@ -385,7 +385,7 @@ def _run_trajectory_symplecticity_study(
 
 	dynamics = GuidingCenterDynamics(potential, rho=config.rho)
 	problem = InitialValueProblem(dynamics, initial_configuration)
-	trajectory_count = initial_configuration.particle_count(initial_state)
+	trajectory_count = initial_configuration.layout.particle_count(initial_state)
 	common_metadata = {
 		**dict(metadata or {}),
 		"method": method_name,

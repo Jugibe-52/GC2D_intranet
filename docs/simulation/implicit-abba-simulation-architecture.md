@@ -31,10 +31,11 @@ dynamics + initial configuration
 InitialValueProblem + SimulationRequest + ImplicitABBA1
             |
             v
-simulate(...) -> fixed grid -> projected ABBA steps
+SimulationRunner -> ImplicitABBA1.integrate(...)
+                 -> fixed grid -> projected ABBA steps
             |
             v
-IntegrationData -> Solution
+IntegrationData -> Return to SimulationRunner -> Solution
 ```
 
 ## Inherited boundary: guiding-centre dynamics
@@ -92,66 +93,100 @@ performed.
 `InitialConfiguration` is a runtime-checkable protocol, not a concrete initial
 condition. A concrete implementation such as
 [`GCInitialConfiguration`](../../src/initial_conditions/gc.py) owns the initial
-physical state and defines how packed arrays are interpreted.
+physical state and exposes a separate object that interprets packed arrays.
 
 Its members are:
 
 | Member | Responsibility |
 |---|---|
-| `state_dimension` | Declares the number of physical components per particle. |
 | `initial_state` | Returns an independent initial-state copy, or `None` if unset. |
-| `validate_packed_state_layout(state)` | Checks the component-major layout of one packed state or a complete state history. |
-| `split(state)` | Splits component-major storage into physical component blocks. |
-| `pack_components(*components)` | Builds the packed public layout from named components. |
-| `particle_count(state)` | Computes the number of particles represented by a packed state. |
-| `positions(state)` | Returns the two position blocks used by planar trajectories. |
+| `layout` | Returns the independent `StateLayout` used to interpret physical arrays. |
 
-The configuration owns state geometry and layout only. Physical parameters such
-as the potential, gyroaverage radius, or magnetic normalization belong to the
-dynamics object.
+The configuration owns the initial state, not the packed-memory rules. Physical
+parameters such as the potential, gyroaverage radius, or magnetic normalization
+remain in the dynamics object.
+
+### `StateLayout` and `PlanarStateLayout`
+
+**File:** [`src/simulation/configuration.py`](../../src/simulation/configuration.py)
+
+`StateLayout` is the independent runtime-checkable contract consumed by the
+simulation core:
+
+| Member | Responsibility |
+|---|---|
+| `state_dimension` | Declares the number of physical components per particle. |
+| `validate_packed_state_layout(state)` | Checks one packed state or a complete state history. |
+| `split(state)` | Exposes component-major storage as physical component blocks. |
+| `particle_count(state)` | Computes the number of represented particles. |
+
+`PlanarStateLayout` extends that contract with `positions(state)`. Keeping this
+operation out of the base protocol allows a future non-planar state to be used
+by the generic integrator. `Solution.positions()` checks for the planar
+capability before accessing it.
+
+`pack_components(...)`, `as_blocks(...)`, and `from_blocks(...)` are useful
+construction and implementation operations, but the generic simulation
+contract does not require them.
+
+### `PackedStateLayout`
+
+**File:** [`src/initial_conditions/base.py`](../../src/initial_conditions/base.py)
+
+`PackedStateLayout` contains the reusable component-major reshape, validation,
+packing, and particle-count implementation. It stores no initial state and no
+physical parameters. Concrete layouts inherit it and provide
+`state_dimension` plus the physical meaning of each block.
 
 ### `StateConfiguration`
 
 **File:** [`src/initial_conditions/base.py`](../../src/initial_conditions/base.py)
 
-`StateConfiguration` is the reusable partial implementation of packed-state
-storage and layout operations. It does not complete the
-`InitialConfiguration` contract by itself because it deliberately leaves
-`state_dimension` for each concrete subclass.
+`StateConfiguration` is an abstract initial-state storage base. Its abstract
+`layout` property prevents construction until a concrete subclass supplies a
+state interpretation.
 
-It owns an optional initial-state copy and implements:
+It owns an optional initial-state copy and provides:
 
 - `set_initial_state(...)`, which validates and stores one finite flat state;
-- `initial_state`, which returns an independent copy;
-- `validate_packed_state_layout(...)`, which checks divisibility of the leading axis;
-- `as_blocks(...)` and `from_blocks(...)`, which convert between packed and
-  explicit `(components, particles, *samples)` layouts;
-- `split(...)` and `pack_components(...)`, which separate or assemble named
-  physical component blocks; and
-- `particle_count(...)` and `positions(...)`, which interpret the packed state.
+- `initial_state`, which returns an independent copy; and
+- temporary forwarding methods for notebook compatibility, while supported
+  simulation code accesses `configuration.layout` directly.
 
-Accordingly, the diagram does not show a realization arrow from
-`StateConfiguration` to `InitialConfiguration`. The base class supplies the
-shared behavior, while a concrete subclass completes the structural contract.
+The class does not inherit either protocol. Concrete configurations complete
+the `InitialConfiguration` contract by returning a concrete layout.
+
+### `GCStateLayout`
+
+**File:** [`src/initial_conditions/gc.py`](../../src/initial_conditions/gc.py)
+
+`GCStateLayout` inherits the common packed-layout implementation and defines:
+
+- `state_dimension = 2`;
+- component order `[x_1, ..., x_N, y_1, ..., y_N]`;
+- `split(...) -> GCState(x, y)`; and
+- `positions(...)` for the planar-layout capability.
+
+It structurally conforms to `PlanarStateLayout` without inheriting that
+protocol.
 
 ### `GCInitialConfiguration`
 
 **File:** [`src/initial_conditions/gc.py`](../../src/initial_conditions/gc.py)
 
 `GCInitialConfiguration` is a real Python subclass of `StateConfiguration`,
-shown with a solid inheritance triangle. It specializes the generic layout by:
+shown with a solid inheritance triangle. It:
 
-- setting `state_dimension = 2`;
-- defining the component order `[x_1, ..., x_N, y_1, ..., y_N]`;
-- providing `from_components(x=..., y=...)`; and
-- overriding `split(...)` to return the named `GCState(x, y)` tuple.
+- owns the optional initial-state copy;
+- returns the shared stateless `GCStateLayout` through `layout`; and
+- provides `from_components(x=..., y=...)` as its named constructor.
 
 This is the concrete object normally supplied to `InitialValueProblem` for a
 guiding-centre run. The problem still refers to it through the broader
-`InitialConfiguration` protocol. The dashed hollow-triangle arrow from
-`GCInitialConfiguration` to `InitialConfiguration` denotes that structural
-realization; no explicit protocol inheritance appears in the Python class
-declaration.
+`InitialConfiguration` protocol. The ordinary dashed dependency from
+`GCInitialConfiguration` to `InitialConfiguration` denotes structural
+conformance without inheritance, as stated in the diagram legend. Keeping that
+meaning in the legend avoids placing a long label across either class box.
 
 ### `InitialValueProblem`
 
@@ -167,9 +202,10 @@ a numerical method:
 
 1. `dynamics` must implement `DynamicalSystem`.
 2. `initial_configuration` must implement `InitialConfiguration`.
-3. An initial state must be present.
-4. The initial state must be a finite one-dimensional vector.
-5. The configuration and dynamics must declare the same `state_dimension`.
+3. `initial_configuration.layout` must implement `StateLayout`.
+4. An initial state must be present.
+5. The initial state must be a finite one-dimensional vector.
+6. The layout and dynamics must declare the same `state_dimension`.
 
 #### `initial_state`
 
@@ -178,8 +214,8 @@ do not receive the configuration's owned array directly.
 
 #### `particle_count`
 
-Asks the configuration to interpret the packed state and return its particle
-count.
+Asks `initial_configuration.layout` to interpret the packed state and return
+its particle count.
 
 ### `SimulationRequest`
 
@@ -214,6 +250,17 @@ grid; that distinction is handled by `integrate_fixed_grid(...)`.
 `simulate(problem, method, request)` function is a convenience facade that
 creates a runner and calls `SimulationRunner.simulate(...)`.
 
+In the run-assembly region, `InitialValueProblem`, `NumericalMethod`, and
+`SimulationRequest` all point into `SimulationRunner` because all three are
+arguments of that public method. Their later responsibilities differ, but their
+role at the API boundary is the same: caller-supplied input.
+
+The diagram shows the return phase of that same `simulate(...)` call as
+`Return to SimulationRunner` inside the result boundary. This is an algorithmic
+continuation, not a second Python class or runner instance. Separating the entry
+and return phases keeps the runtime path horizontal without drawing a long
+backward cycle across the integration boxes.
+
 #### `SimulationRunner.simulate(...)`
 
 The method:
@@ -222,9 +269,10 @@ The method:
 2. calls `method.integrate(problem, request)`;
 3. checks that returned times exactly equal the requested output times;
 4. checks state shape, finiteness, and preservation of the initial state;
-5. asks the initial configuration to validate the complete packed history; and
+5. asks `initial_configuration.layout` to validate the complete packed history;
+   and
 6. constructs the public `Solution` with the original configuration as its
-   layout source.
+   initial-state source.
 
 This boundary prevents a numerical method from returning malformed or
 method-specific state layouts to user code.
@@ -536,22 +584,26 @@ Canonical properties are:
 |---|---|
 | `t` | Saved times with shape `(T,)` |
 | `states` | Physical history with shape `(state_size, T)` |
-| `source` | Initial configuration defining the packed layout |
+| `source` | Initial-state provider whose `layout` interprets the packed history |
 | `diagnostics` | Read-only mapping of method diagnostics |
 
 #### Interpretation helpers
 
-- `components(configuration=None)` splits the full history into physical
+- `components(layout=None)` splits the full history into physical
   component blocks.
-- `positions()` returns both physical position histories through the source
-  configuration.
+- `positions()` requests the planar capability from `source.layout` before
+  returning both position histories.
 
 Deprecated compatibility views `y`, `trajectory`, `n_steps`, `k`, and `err`
 remain available while older notebooks migrate to canonical names.
 
-The dotted arrow from `InitialConfiguration` to `Solution` in the diagram means
-that the configuration is retained as a layout interpreter. It does not mean
-that the original initial-state object becomes the computed trajectory.
+The arrow from the `Return to SimulationRunner` continuation to `Solution`
+identifies `SimulationRunner` as the object that constructs the public result.
+The source arrow from `InitialConfiguration` means that the initial-state
+provider is retained for provenance, while the separate dotted arrow from
+`StateLayout` records which object validates and interprets the computed
+history. None of these relations means that the initial state becomes the
+computed trajectory.
 
 ## Complete runtime walkthrough
 
@@ -577,26 +629,33 @@ The diagram can be read from left to right as the following sequence:
 11. A converged root produces one accepted physical `_ProjectedStep`.
 12. Accepted main-grid steps contribute diagnostics and may emit an
     `ImplicitABBAIntegrationStep` observation.
-13. The coordinator returns requested samples and diagnostics as
-    `IntegrationData`.
-14. `SimulationRunner` validates the internal data and builds the immutable
-    public `Solution`.
+13. The numerical method returns requested samples and diagnostics as
+    `IntegrationData` to `SimulationRunner`.
+14. `SimulationRunner` validates that internal data and constructs the
+    immutable public `Solution`.
 
 ## Arrow and line conventions
 
 | Diagram notation | Meaning |
 |---|---|
-| Solid one-way arrow | Main runtime hand-off or control flow |
+| Solid arrow into a consumer | An argument or returned value is supplied to that consumer |
+| Solid arrow between runtime steps | A call, construction, or forward hand-off |
 | Solid two-way arrow | Iteration between multiplier selection and stage-map residual evaluation |
 | Solid line with hollow triangle | Explicit Python inheritance |
 | Dashed line with hollow triangle | Structural implementation of a `Protocol` |
-| Dashed dependency arrow | Consumed capability or optional side channel rather than ownership |
+| Dashed dependency arrow to a protocol | Structural conformance without Python inheritance |
+| Dashed dependency arrow to another class | Consumed capability or optional side channel |
 | Package boundary | Architectural responsibility, not necessarily a Python package |
 | Yellow note | Important invariant or intentionally omitted detail |
 
 The absence of text on most horizontal arrows is intentional. The action is
 described inside the destination box, which keeps connection labels from
 overlapping UML compartments in rendered diagrams.
+
+Consequently, the three public inputs point into `SimulationRunner`, whereas
+`IntegrationData` points into the `Return to SimulationRunner` continuation
+because it is the value returned by `NumericalMethod.integrate(...)`. That
+continuation then points to `Solution`, which the runner constructs.
 
 ## Minimal public usage
 

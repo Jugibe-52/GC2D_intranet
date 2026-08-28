@@ -198,7 +198,7 @@ class MidpointBM4SymplecticityResult:
 		"""Aggregate the averaged and largest individual measured errors."""
 		initial_state = self.initial_configuration.initial_state
 		assert initial_state is not None
-		trajectory_count = self.initial_configuration.particle_count(initial_state)
+		trajectory_count = self.initial_configuration.layout.particle_count(initial_state)
 		rows: list[MidpointBM4SymplecticitySummary] = []
 		for step in self.steps:
 			records = self.records[step.label]
@@ -330,7 +330,7 @@ def run_midpoint_bm4_symplecticity_study(
 
 	dynamics = GuidingCenterDynamics(potential, rho=config.rho)
 	problem = InitialValueProblem(dynamics, initial_configuration)
-	trajectory_count = initial_configuration.particle_count(initial_state)
+	trajectory_count = initial_configuration.layout.particle_count(initial_state)
 	common_metadata = {
 		**dict(metadata or {}),
 		"method": "MidpointBM4",

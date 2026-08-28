@@ -42,7 +42,7 @@ class Area(GCInitialConfiguration):
 		# New studies receive rho explicitly and dynamics remains authoritative.
 		self._legacy_rho = legacy_rho
 		super().__init__(state)
-		x, _ = self.positions(self._required_state())
+		x, _ = self.layout.positions(self._required_state())
 		if x.size < 3:
 			raise ValueError("An area boundary requires at least three points.")
 
@@ -166,7 +166,7 @@ class Area(GCInitialConfiguration):
 			raise ValueError("The area state must contain only finite values.")
 		# Here axis zero enumerates successive boundary vertices; any trailing
 		# axes are independent contour snapshots, commonly integration times.
-		x, y = self.positions(value)
+		x, y = self.layout.positions(value)
 		if x.shape[0] < 3:
 			raise ValueError("An area boundary requires at least three points.")
 		# Periodic unwrapping edits coordinates in place.  Copies protect both the

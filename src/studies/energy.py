@@ -165,7 +165,7 @@ def run_generalized_energy_comparison(
 	if not isinstance(config, GeneralizedEnergyConfig):
 		raise TypeError("`config` must be a GeneralizedEnergyConfig instance.")
 	initial_state = configuration.initial_state
-	if initial_state is None or configuration.particle_count(initial_state) != 1:
+	if initial_state is None or configuration.layout.particle_count(initial_state) != 1:
 		raise ValueError(
 			"The generalized-energy study requires exactly one initial GC state."
 		)

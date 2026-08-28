@@ -8,7 +8,7 @@ from types import MappingProxyType
 import numpy as np
 
 from ._result import DiagnosticValue
-from .configuration import InitialConfiguration
+from .configuration import InitialConfiguration, PlanarStateLayout, StateLayout
 
 
 def _readonly_array(
@@ -52,6 +52,9 @@ class Solution:
 		"""Validate, own and freeze one complete physical result."""
 		if not isinstance(source, InitialConfiguration):
 			raise TypeError("`source` must implement InitialConfiguration.")
+		layout = source.layout
+		if not isinstance(layout, StateLayout):
+			raise TypeError("`source.layout` must implement StateLayout.")
 		times = _readonly_array(t, dtype=float)
 		state_history = _readonly_array(states)
 		if (
@@ -68,7 +71,7 @@ class Solution:
 				"`t` and `states` must be finite arrays with shapes "
 				"(T,) and (state_size, T), with increasing times."
 			)
-		source.validate_packed_state_layout(state_history)
+		layout.validate_packed_state_layout(state_history)
 		normalized_diagnostics: dict[str, DiagnosticValue] = {}
 		for name, value in dict(diagnostics or {}).items():
 			if not isinstance(name, str) or not name:
@@ -130,17 +133,22 @@ class Solution:
 
 	def components(
 		self,
-		configuration: InitialConfiguration | None = None,
+		layout: StateLayout | None = None,
 	) -> tuple[np.ndarray, ...]:
 		"""Return physical component blocks over the complete time history."""
-		layout = self.source if configuration is None else configuration
-		if layout.state_dimension != self.source.state_dimension:
-			raise TypeError("The supplied configuration is incompatible with this solution.")
-		return layout.split(self.states)
+		selected = self.source.layout if layout is None else layout
+		if not isinstance(selected, StateLayout):
+			raise TypeError("`layout` must implement StateLayout.")
+		if selected.state_dimension != self.source.layout.state_dimension:
+			raise TypeError("The supplied layout is incompatible with this solution.")
+		return selected.split(self.states)
 
 	def positions(self) -> tuple[np.ndarray, np.ndarray]:
 		"""Return both physical position histories."""
-		return self.source.positions(self.states)
+		layout = self.source.layout
+		if not isinstance(layout, PlanarStateLayout):
+			raise TypeError("The solution layout does not expose planar positions.")
+		return layout.positions(self.states)
 
 
 __all__ = ["Solution"]

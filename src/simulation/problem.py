@@ -8,7 +8,7 @@ import numpy as np
 
 from dynamics import DynamicalSystem
 
-from .configuration import InitialConfiguration
+from .configuration import InitialConfiguration, StateLayout
 
 
 @dataclass(frozen=True, slots=True)
@@ -27,13 +27,16 @@ class InitialValueProblem:
 			raise TypeError(
 				"`initial_configuration` must be an InitialConfiguration instance."
 			)
+		layout = configuration.layout
+		if not isinstance(layout, StateLayout):
+			raise TypeError("`initial_configuration.layout` must implement StateLayout.")
 		state = configuration.initial_state
 		if state is None:
 			raise ValueError("The initial configuration has no initial state.")
-		value = configuration.validate_packed_state_layout(state)
+		value = layout.validate_packed_state_layout(state)
 		if value.ndim != 1 or not np.all(np.isfinite(value)):
 			raise ValueError("The initial state must be a finite one-dimensional vector.")
-		if configuration.state_dimension != self.dynamics.state_dimension:
+		if layout.state_dimension != self.dynamics.state_dimension:
 			raise TypeError(
 				"The initial configuration layout is incompatible with the dynamics."
 			)
@@ -50,7 +53,7 @@ class InitialValueProblem:
 	@property
 	def particle_count(self) -> int:
 		"""Return the number of particles represented by the initial state."""
-		return self.initial_configuration.particle_count(self.initial_state)
+		return self.initial_configuration.layout.particle_count(self.initial_state)
 
 
 __all__ = ["InitialValueProblem"]

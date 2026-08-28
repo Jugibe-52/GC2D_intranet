@@ -295,7 +295,7 @@ def run_area_comparison(
 	common_metadata = {
 		**dict(metadata or {}),
 		"geometry": area.shape,
-		"particle_count": area.particle_count(initial_state),
+		"particle_count": area.layout.particle_count(initial_state),
 		"coupling_frequency": config.coupling_frequency,
 		"method_kind": config.method_kind,
 		"rho": rho,

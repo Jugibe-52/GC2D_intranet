@@ -67,7 +67,7 @@ class InitializationStudyTests(unittest.TestCase):
 		self.assertIsInstance(trajectory, TrajectoryGC)
 		state = trajectory.initial_state
 		assert state is not None
-		x, y = trajectory.positions(state)
+		x, y = trajectory.layout.positions(state)
 		np.testing.assert_allclose((x[0], y[0]), expected_center)
 
 		circle = centered_circle(
@@ -84,7 +84,7 @@ class InitializationStudyTests(unittest.TestCase):
 		)
 		self.assertIsInstance(circle, Area)
 		self.assertIsInstance(square, Area)
-		self.assertEqual(circle.particle_count(circle.initial_state), 8)
+		self.assertEqual(circle.layout.particle_count(circle.initial_state), 8)
 		self.assertAlmostEqual(float(square.calculate_area()), 1.0)
 
 	def test_latin_hypercube_conditions_are_reproducible_and_stratified(self) -> None:
@@ -104,7 +104,7 @@ class InitializationStudyTests(unittest.TestCase):
 		assert first.initial_state is not None
 		assert second.initial_state is not None
 		np.testing.assert_array_equal(first.initial_state, second.initial_state)
-		x, y = first.positions(first.initial_state)
+		x, y = first.layout.positions(first.initial_state)
 		grid = potential.grid
 		domain_min = np.asarray((grid.xmin, grid.ymin))
 		domain_max = np.asarray((grid.xmax, grid.ymax))

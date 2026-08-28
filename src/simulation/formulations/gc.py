@@ -130,8 +130,8 @@ class _PreparedGC:
 		frequency = self.coupling_frequency
 		if frequency is None:
 			raise TypeError("The uncoupled GC formulation has no coupling flow.")
-		first = self.configuration.split(state.first)
-		second = self.configuration.split(state.second)
+		first = self.configuration.layout.split(state.first)
+		second = self.configuration.layout.split(state.second)
 		blocks = np.stack((*first, *second), axis=0)
 		coupled = np.asarray(
 			np.einsum(
@@ -141,8 +141,8 @@ class _PreparedGC:
 			)
 		)
 		return _GCExtendedState(
-			first=self.configuration.from_blocks(coupled[:2]),
-			second=self.configuration.from_blocks(coupled[2:]),
+			first=self.configuration.layout.from_blocks(coupled[:2]),
+			second=self.configuration.layout.from_blocks(coupled[2:]),
 			momentum=state.momentum,
 		)
 
@@ -206,9 +206,9 @@ class _PreparedGC:
 	def project(self, internal_history: np.ndarray) -> Projection:
 		"""Average both copies and expose projected extended momentum."""
 		final_state = self._unpack(internal_history)
-		first = self.configuration.split(final_state.first)
-		second = self.configuration.split(final_state.second)
-		states = self.configuration.pack_components(
+		first = self.configuration.layout.split(final_state.first)
+		second = self.configuration.layout.split(final_state.second)
+		states = self.configuration.layout.pack_components(
 			(first.x + second.x) / 2,
 			(first.y + second.y) / 2,
 		)
@@ -238,7 +238,7 @@ def _prepare_gc(
 	):
 		raise TypeError("Energy tracking requires ExtendedHamiltonianSystem.")
 	physical = problem.initial_state
-	particle_count = configuration.particle_count(physical)
+	particle_count = configuration.layout.particle_count(physical)
 	extended = _GCExtendedState(
 		first=physical,
 		second=physical,

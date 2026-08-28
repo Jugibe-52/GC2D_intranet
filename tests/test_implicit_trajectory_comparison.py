@@ -57,7 +57,10 @@ class ImplicitTrajectoryComparisonTests(unittest.TestCase):
 		)
 
 		self.assertEqual(tuple(result.solutions), IMPLICIT_METHOD_NAMES)
-		self.assertEqual(configuration.particle_count(configuration.initial_state), 10)
+		self.assertEqual(
+			configuration.layout.particle_count(configuration.initial_state),
+			10,
+		)
 		for solution in result.solutions.values():
 			self.assertEqual(solution.states.shape, (20, 3))
 			self.assertEqual(solution.diagnostics["nonlinear_solver"], "broyden")

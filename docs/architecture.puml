@@ -69,48 +69,84 @@ package "Physical dynamics" as Dynamics {
 }
 
 package "Initial configuration" as Initial {
-  interface InitialConfiguration {
+  interface StateLayout {
     + state_dimension: int
-    + initial_state: Array
     + validate_packed_state_layout(state): Array
     + split(state): Components
-    + pack_components(components): Array
     + particle_count(state): int
+  }
+
+  interface PlanarStateLayout {
     + positions(state): (Array, Array)
   }
 
-  class StateConfiguration <<partial base>> {
+  interface InitialConfiguration {
     + initial_state: Array
+    + layout: StateLayout
+  }
+
+  class PackedStateLayout <<shared implementation>> {
+    + state_dimension: int
     + validate_packed_state_layout(state): Array
     + split(state): Components
+    + as_blocks(state): Array
+    + from_blocks(blocks): Array
     + pack_components(components): Array
     + particle_count(state): int
+  }
+
+  abstract class StateConfiguration {
+    + initial_state: Array
+    + layout: StateLayout
+  }
+
+  class GCStateLayout {
+    + state_dimension = 2
+    + split(state): GCState
     + positions(state): (Array, Array)
   }
 
-  class GCInitialConfiguration
-  class FCInitialConfiguration
+  class FCStateLayout {
+    + state_dimension = 4
+    + split(state): FCState
+    + positions(state): (Array, Array)
+  }
+
+  class GCInitialConfiguration {
+    + layout: GCStateLayout
+  }
+
+  class FCInitialConfiguration {
+    + layout: FCStateLayout
+  }
 
   class Area {
     + shape: AreaShape
     + calculate_area(states, period=None): Array
   }
 
-  InitialConfiguration <|.. GCInitialConfiguration
-  InitialConfiguration <|.. FCInitialConfiguration
+  StateLayout <|-- PlanarStateLayout
+  PackedStateLayout <|-- GCStateLayout
+  PackedStateLayout <|-- FCStateLayout
   StateConfiguration <|-- GCInitialConfiguration
   StateConfiguration <|-- FCInitialConfiguration
+  GCStateLayout ..> PlanarStateLayout
+  FCStateLayout ..> PlanarStateLayout
+  GCInitialConfiguration ..> InitialConfiguration
+  FCInitialConfiguration ..> InitialConfiguration
+  GCInitialConfiguration o-- GCStateLayout
+  FCInitialConfiguration o-- FCStateLayout
   GCInitialConfiguration <|-- Area
 
   note bottom of StateConfiguration
-    Shared partial implementation. Concrete subclasses
-    provide state_dimension and thereby complete the
-    InitialConfiguration structural contract.
+    Abstract initial-state storage. Concrete subclasses
+    must supply a layout; compatibility forwarding methods
+    remain temporarily available for existing notebooks.
   end note
 
   note bottom of GCInitialConfiguration
-    Initial configurations own state geometry
-    and component-major layout only. Legacy
+    Initial configurations own the initial state and
+    compose a stateless layout. Legacy
     TrajectoryGC and TrajectoryFC wrappers, plus
     Area's migration adapter, may carry deprecated
     non-authoritative physical metadata.
@@ -155,13 +191,13 @@ note bottom of DirectAdjointFormulation
 end note
 
 GCExtendedFormulation ..> DynamicalSystem : requires vector field
-GCExtendedFormulation ..> GCInitialConfiguration : requires GC layout
+GCExtendedFormulation ..> GCInitialConfiguration
 GCExtendedFormulation ..> ExtendedHamiltonianSystem : optional energy tracking
 GCStageProjectedFormulation ..> DynamicalSystem : requires vector field
-GCStageProjectedFormulation ..> GCInitialConfiguration : requires GC layout
+GCStageProjectedFormulation ..> GCInitialConfiguration
 GCStageProjectedFormulation ..> ExtendedHamiltonianSystem : optional energy tracking
 FCSplitFormulation ..> CyclotronSplitSystem : requires FC split
-FCSplitFormulation ..> FCInitialConfiguration : requires FC layout
+FCSplitFormulation ..> FCInitialConfiguration
 FCSplitFormulation ..> ExtendedHamiltonianSystem : optional energy tracking
 
 package "Numerical methods" as Methods {
@@ -391,7 +427,8 @@ SimulationRunner ..> NumericalMethod
 SimulationRunner ..> SimulationRequest
 SimulationRunner --> Solution : builds
 
-Solution o-- InitialConfiguration : source
+Solution o-- InitialConfiguration
+Solution ..> StateLayout
 RK4 --> IntegrationStep : optional observation
 MidpointBM4 --> IntegrationStage : twelve pre-projection stage snapshots
 BM4Implicit1 --> ImplicitBM4IntegrationStep : solver metrics
@@ -848,7 +885,7 @@ TenMethodTrajectoryComparisonStudy ..> BM4Implicit2 : Newton and Broyden
 TenMethodTrajectoryComparisonStudy ..> Solution : compares ten aligned trajectories
 TenMethodTrajectoryComparisonStudy ..> TenMethodTrajectoryComparisonVisualization : presents
 HighPrecisionReferenceStudy ..> GuidingCenterDynamics : integrates vector_field with DOP853 and Radau
-HighPrecisionReferenceStudy ..> GCInitialConfiguration : preserves exact initial state
+HighPrecisionReferenceStudy ..> GCInitialConfiguration
 HighPrecisionReferenceStudy --> ReferenceTrajectoryArtifact : persists audited reference
 TenMethodAccuracyStudy ..> TenMethodTrajectoryComparisonStudy : reuses ten aligned integrations
 TenMethodAccuracyStudy ..> ReferenceTrajectoryArtifact : verifies and compares
@@ -989,8 +1026,9 @@ legend bottom
   |= Relation |= Meaning |
   | <|.. | Implements an interface |
   | <|-- | Inherits or specializes |
-  | ..> | Requires or adapts |
-  | o-- | Aggregates |
+  | ..> protocol | Structurally conforms without Python inheritance |
+  | ..> class | Requires or adapts |
+  | o-- | Aggregates or composes |
   | --> | Uses or produces |
 endlegend
 

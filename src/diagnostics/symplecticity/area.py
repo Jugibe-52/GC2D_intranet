@@ -129,7 +129,7 @@ class GCAreaSymplecticityObserver:
 		assert initial_state is not None
 		self.area = area
 		self.initial_state = np.asarray(initial_state, dtype=float).copy()
-		self.particle_count = area.particle_count(initial_state)
+		self.particle_count = area.layout.particle_count(initial_state)
 		self.physical_size = 2 * self.particle_count
 		self.period = period
 		self.form = gc_physical_symplectic_form(self.particle_count)

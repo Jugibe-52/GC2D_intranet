@@ -2,71 +2,29 @@
 
 from __future__ import annotations
 
+from abc import ABC, abstractmethod
 from typing import ClassVar
 
 import numpy as np
 
 
-class StateConfiguration:
-	"""Optional component-major initial state with layout operations.
+class PackedStateLayout:
+	"""Reusable operations for one component-major state layout.
 
 	``state_dimension`` is the number of scalar components stored per particle;
-	concrete subclasses define the physical meaning and order of those blocks.
+	concrete layouts define the physical meaning and order of those blocks.
 	For ``N`` particles, a state has shape
 	``(state_dimension * N, *sample_axes)`` and each component returned by
 	:meth:`split` has shape ``(N, *sample_axes)``.  The optional ``sample_axes``
 	usually represent saved integration times and are never part of the particle
 	count.
-
-	Physical model parameters do not belong to this object. They are owned by the
-	dynamical system bound to the configuration in an initial-value problem.
 	"""
+
+	__slots__ = ()
 
 	# Number of component blocks on the leading state axis.  Subclasses provide
 	# the value because GC and FC states carry different physical variables.
 	state_dimension: ClassVar[int]
-
-	def __init__(
-		self,
-		state: np.ndarray | None = None,
-	) -> None:
-		"""Create a configuration with an optional flat physical state.
-
-		``state`` is the physical initial condition only, with shape
-		``(state_dimension * N,)``; time-series arrays belong to integration
-		results and are accepted by the layout helpers but not stored here.
-		"""
-		# The private value owns the flat initial condition independently of any
-		# later solution array generated from it.
-		self._state: np.ndarray | None = None
-		if state is not None:
-			self.set_initial_state(state)
-
-	@property
-	def state(self) -> np.ndarray | None:
-		"""Return a copy so callers cannot mutate the stored initial condition."""
-		return None if self._state is None else self._state.copy()
-
-	@property
-	def initial_state(self) -> np.ndarray | None:
-		"""Return the initial physical state through the architecture-level name.
-
-		``state`` remains the notebook-facing compatibility spelling.  Both
-		properties return independent copies of the same component-major vector.
-		"""
-		return self.state
-
-	def set_initial_state(self, state: np.ndarray) -> None:
-		"""Validate and store a one-dimensional component-major state."""
-		value = np.asarray(state, dtype=float)
-		if value.ndim != 1 or value.size == 0:
-			raise ValueError("The initial state must be a non-empty one-dimensional array.")
-		if not np.all(np.isfinite(value)):
-			raise ValueError("The initial state must contain only finite values.")
-		# Delegate the layout check to the concrete trajectory variant.
-		self.split(value)
-		# Keep ownership of the initial condition independent of the input array.
-		self._state = value.copy()
 
 	def split(self, state: np.ndarray) -> tuple[np.ndarray, ...]:
 		"""Split the leading axis into equally sized physical components.
@@ -162,13 +120,78 @@ class StateConfiguration:
 		"""Return ``N`` from the leading axis, ignoring all sample axes."""
 		return int(self.as_blocks(state).shape[1])
 
-	def positions(self, state: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-		"""Return coordinate blocks ``x`` and ``y`` with matching shapes."""
-		x, y, *_ = self.split(state)
-		return x, y
+class StateConfiguration(ABC):
+	"""Own an optional initial state and delegate its interpretation to a layout.
+
+	The abstract :attr:`layout` property prevents this storage base from being
+	instantiated without a concrete state representation. Physical model
+	parameters remain owned by the dynamical system bound in an initial-value
+	problem.
+	"""
+
+	def __init__(
+		self,
+		state: np.ndarray | None = None,
+	) -> None:
+		"""Create a configuration with an optional flat physical state."""
+		self._state: np.ndarray | None = None
+		if state is not None:
+			self.set_initial_state(state)
+
+	@property
+	@abstractmethod
+	def layout(self) -> PackedStateLayout:
+		"""Return the concrete component-major state layout."""
+
+	@property
+	def state(self) -> np.ndarray | None:
+		"""Return a copy so callers cannot mutate the stored initial condition."""
+		return None if self._state is None else self._state.copy()
+
+	@property
+	def initial_state(self) -> np.ndarray | None:
+		"""Return an independent copy of the stored initial physical state."""
+		return self.state
+
+	def set_initial_state(self, state: np.ndarray) -> None:
+		"""Validate and store a one-dimensional component-major state."""
+		value = np.asarray(state, dtype=float)
+		if value.ndim != 1 or value.size == 0:
+			raise ValueError("The initial state must be a non-empty one-dimensional array.")
+		if not np.all(np.isfinite(value)):
+			raise ValueError("The initial state must contain only finite values.")
+		self.layout.validate_packed_state_layout(value)
+		self._state = value.copy()
+
+	# Compatibility accessors keep existing notebooks working while the
+	# simulation core consumes ``configuration.layout`` directly.
+	@property
+	def state_dimension(self) -> int:
+		"""Return the delegated component count."""
+		return self.layout.state_dimension
+
+	def validate_packed_state_layout(self, state: np.ndarray) -> np.ndarray:
+		"""Delegate packed-layout validation to :attr:`layout`."""
+		return self.layout.validate_packed_state_layout(state)
+
+	def split(self, state: np.ndarray) -> tuple[np.ndarray, ...]:
+		"""Delegate component splitting to :attr:`layout`."""
+		return self.layout.split(state)
+
+	def as_blocks(self, state: np.ndarray) -> np.ndarray:
+		"""Delegate explicit block exposure to :attr:`layout`."""
+		return self.layout.as_blocks(state)
+
+	def from_blocks(self, blocks: np.ndarray) -> np.ndarray:
+		"""Delegate block flattening to :attr:`layout`."""
+		return self.layout.from_blocks(blocks)
+
+	def particle_count(self, state: np.ndarray) -> int:
+		"""Delegate particle counting to :attr:`layout`."""
+		return self.layout.particle_count(state)
 
 # Compatibility spelling retained for callers importing the old base class.
 Trajectory = StateConfiguration
 
 
-__all__ = ["StateConfiguration", "Trajectory"]
+__all__ = ["PackedStateLayout", "StateConfiguration", "Trajectory"]

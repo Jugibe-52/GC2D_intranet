@@ -150,7 +150,7 @@ class GCTrajectorySymplecticityObserver:
 		self.dynamics = dynamics
 		self.initial_configuration = initial_configuration
 		self.initial_state = np.asarray(initial_state, dtype=float).copy()
-		self.particle_count = initial_configuration.particle_count(initial_state)
+		self.particle_count = initial_configuration.layout.particle_count(initial_state)
 		self.method_name = method_name
 		self.jacobian_method = jacobian_method
 		self.jacobian_calculator = jacobian_calculator

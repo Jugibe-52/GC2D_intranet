@@ -24,7 +24,7 @@ class _FCExtendedState:
 	momentum: np.ndarray | None = None
 
 	def pack(self, configuration: FCInitialConfiguration) -> np.ndarray:
-		physical = configuration.pack_components(*self.physical)
+		physical = configuration.layout.pack_components(*self.physical)
 		return self.pack_array(physical)
 
 	def pack_array(self, physical: np.ndarray) -> np.ndarray:
@@ -58,7 +58,7 @@ class _PreparedFC:
 		)
 		if value.ndim == 0 or value.shape[0] != expected:
 			raise ValueError("The FC split map changed the internal state shape.")
-		physical = self.configuration.split(value[: self.physical_size])
+		physical = self.configuration.layout.split(value[: self.physical_size])
 		momentum = value[self.physical_size :] if self.track_energy else None
 		return _FCExtendedState(physical=physical, momentum=momentum)
 
@@ -116,7 +116,7 @@ class _PreparedFC:
 			physical.vx + duration * acceleration_x,
 			physical.vy + duration * acceleration_y,
 		)
-		physical_array = self.configuration.pack_components(*physical)
+		physical_array = self.configuration.layout.pack_components(*physical)
 		momentum = self._updated_momentum(
 			current.momentum,
 			duration,
@@ -146,7 +146,7 @@ class _PreparedFC:
 		)
 		momentum = current.momentum
 		if momentum is not None:
-			pre_cyclotron = self.configuration.pack_components(*physical)
+			pre_cyclotron = self.configuration.layout.pack_components(*physical)
 			momentum = self._updated_momentum(
 				momentum,
 				duration,
@@ -159,7 +159,7 @@ class _PreparedFC:
 	def project(self, internal_history: np.ndarray) -> Projection:
 		"""Strip optional extended momentum from the physical FC history."""
 		final_state = self._unpack(internal_history)
-		states = self.configuration.pack_components(*final_state.physical)
+		states = self.configuration.layout.pack_components(*final_state.physical)
 		diagnostics: dict[str, np.ndarray | float | int | str | bool] = {}
 		if final_state.momentum is not None:
 			diagnostics["extended_momentum"] = final_state.momentum
@@ -190,9 +190,9 @@ class FCSplitFormulation:
 		):
 			raise TypeError("Energy tracking requires ExtendedHamiltonianSystem.")
 		physical = problem.initial_state
-		particle_count = configuration.particle_count(physical)
+		particle_count = configuration.layout.particle_count(physical)
 		initial = _FCExtendedState(
-			physical=configuration.split(physical),
+			physical=configuration.layout.split(physical),
 			momentum=np.zeros(particle_count) if track_energy else None,
 		)
 		initial_internal_state = initial.pack(configuration)

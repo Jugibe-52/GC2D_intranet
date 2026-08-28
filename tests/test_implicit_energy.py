@@ -100,7 +100,7 @@ class GeneralizedEnergyObserverTests(unittest.TestCase):
 				rtol=2e-14,
 				atol=2e-14,
 			)
-		self.assertEqual(configuration.particle_count(problem.initial_state), 1)
+		self.assertEqual(configuration.layout.particle_count(problem.initial_state), 1)
 		self.assertAlmostEqual(observer.records[-1].kappa, augmented[-1] / 2.0)
 
 

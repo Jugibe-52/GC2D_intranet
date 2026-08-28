@@ -264,7 +264,7 @@ def run_projected_bm4_symplecticity_study(
 		"formulation": "GCStageProjectedFormulation",
 		"projection": "arithmetic_mean_and_diagonal_reembedding",
 		"projections_per_complete_step": 12,
-		"particle_count": area.particle_count(initial_state),
+		"particle_count": area.layout.particle_count(initial_state),
 		"rho": rho,
 	}
 	solutions: dict[str, Solution] = {}

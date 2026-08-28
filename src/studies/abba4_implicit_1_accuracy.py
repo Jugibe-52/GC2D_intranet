@@ -177,7 +177,7 @@ class ABBA4Implicit1AccuracyResult:
 		initial_state = self.initial_configuration.initial_state
 		if initial_state is None:
 			raise ValueError("The initial configuration must contain an initial state.")
-		particle_count = self.initial_configuration.particle_count(initial_state)
+		particle_count = self.initial_configuration.layout.particle_count(initial_state)
 		reference_times: np.ndarray | None = None
 		for step in steps:
 			solution = self.solutions[step]

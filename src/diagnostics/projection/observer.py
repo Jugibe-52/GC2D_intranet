@@ -151,7 +151,7 @@ class ProjectedSymplecticityAreaObserver:
 		assert initial_state is not None
 		self.area = area
 		self.initial_state = initial_state.copy()
-		self.particle_count = area.particle_count(initial_state)
+		self.particle_count = area.layout.particle_count(initial_state)
 		self.physical_size = 2 * self.particle_count
 		self.extended_size = 2 * self.physical_size
 		self.period = period

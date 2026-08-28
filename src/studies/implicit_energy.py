@@ -496,7 +496,7 @@ def run_implicit_generalized_energy_study(
 		raise TypeError("`config` must be ImplicitGeneralizedEnergyConfig.")
 	method_name = _validated_method(method)
 	initial_state = configuration.initial_state
-	if initial_state is None or configuration.particle_count(initial_state) != 1:
+	if initial_state is None or configuration.layout.particle_count(initial_state) != 1:
 		raise ValueError("The implicit energy study requires exactly one GC state.")
 
 	dynamics = GuidingCenterDynamics(

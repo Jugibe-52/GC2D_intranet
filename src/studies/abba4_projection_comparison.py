@@ -271,7 +271,7 @@ class ABBA4ProjectionComparisonResult:
 		initial_state = self.initial_configuration.initial_state
 		if initial_state is None:
 			raise ValueError("The initial configuration must contain an initial state.")
-		particle_count = self.initial_configuration.particle_count(initial_state)
+		particle_count = self.initial_configuration.layout.particle_count(initial_state)
 		common_times: np.ndarray | None = None
 		frozen_runtimes: dict[str, Mapping[float, np.ndarray]] = {}
 		for method_name in ABBA4_PROJECTION_METHOD_NAMES:

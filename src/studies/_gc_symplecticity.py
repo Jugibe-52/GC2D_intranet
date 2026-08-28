@@ -491,7 +491,7 @@ def _run_gc_symplecticity_study(
 		**dict(metadata or {}),
 		"method": method_name,
 		"geometry": area.shape,
-		"particle_count": area.particle_count(initial_state),
+		"particle_count": area.layout.particle_count(initial_state),
 		"rho": rho,
 	}
 	solutions: dict[str, Solution] = {}
@@ -602,7 +602,7 @@ def _run_gc_symplecticity_observers(
 		**dict(metadata or {}),
 		"method": method_name,
 		"geometry": area.shape,
-		"particle_count": area.particle_count(initial_state),
+		"particle_count": area.layout.particle_count(initial_state),
 		"rho": rho,
 	}
 	solutions: dict[str, Solution] = {}

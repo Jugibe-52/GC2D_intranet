@@ -23,10 +23,12 @@ from simulation import (
 	GCExtendedFormulation,
 	InitialConfiguration,
 	InitialValueProblem,
+	PlanarStateLayout,
 	RK4,
 	SimulationRequest,
 	SimulationRunner,
 	Solution,
+	StateLayout,
 	simulate,
 )
 
@@ -80,6 +82,34 @@ class _FixedOutputMethod:
 		)
 
 
+class _ScalarLayout:
+	"""Minimal non-planar layout proving structural third-party composition."""
+
+	state_dimension = 1
+
+	def validate_packed_state_layout(self, state: np.ndarray) -> np.ndarray:
+		value = np.asarray(state)
+		if value.ndim == 0 or value.shape[0] == 0:
+			raise ValueError("A scalar state must have a non-empty leading axis.")
+		return value
+
+	def split(self, state: np.ndarray) -> tuple[np.ndarray, ...]:
+		return (self.validate_packed_state_layout(state),)
+
+	def particle_count(self, state: np.ndarray) -> int:
+		return int(self.validate_packed_state_layout(state).shape[0])
+
+
+class _ExternalScalarConfiguration:
+	"""Initial-state provider with no inheritance from project base classes."""
+
+	layout = _ScalarLayout()
+
+	@property
+	def initial_state(self) -> np.ndarray:
+		return np.asarray([1.0])
+
+
 class ExtensibleArchitectureTests(unittest.TestCase):
 	"""Verify independent and interoperable numerical composition."""
 
@@ -110,6 +140,21 @@ class ExtensibleArchitectureTests(unittest.TestCase):
 					dynamics.extended_momentum_derivative(0.3, state).shape,
 					(1,),
 				)
+
+	def test_external_configuration_composes_an_independent_layout(self) -> None:
+		"""Keep initial-state ownership separate from component interpretation."""
+		source = _ExternalScalarConfiguration()
+		self.assertIsInstance(source, InitialConfiguration)
+		self.assertIsInstance(source.layout, StateLayout)
+		self.assertNotIsInstance(source.layout, PlanarStateLayout)
+		solution = Solution(
+			t=np.asarray([0.0, 1.0]),
+			states=np.asarray([[1.0, 2.0]]),
+			source=source,
+		)
+		self.assertEqual(solution.components()[0].shape, (1, 2))
+		with self.assertRaises(TypeError):
+			solution.positions()
 
 	def test_bm4_formulations_interoperate_through_one_runner(self) -> None:
 		potential = deterministic_potential()
@@ -294,6 +339,8 @@ class ExtensibleArchitectureTests(unittest.TestCase):
 		)
 
 		self.assertIsInstance(area, InitialConfiguration)
+		self.assertIsInstance(area.layout, StateLayout)
+		self.assertIsInstance(area.layout, PlanarStateLayout)
 		assert area.initial_state is not None
 		self.assertEqual(area.initial_state.ndim, 1)
 		self.assertEqual(solution.states.ndim, 2)

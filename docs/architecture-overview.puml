@@ -20,9 +20,14 @@ class Dynamics {
   Equations of motion
 }
 
-class "Initial configuration\n(state geometry)" as InitialConfiguration {
+class "Initial configuration\n(initial-state provider)" as InitialConfiguration {
   Initial physical state
-  State layout and geometry
+  Reference to its state layout
+}
+
+class "State layout\n(component interpretation)" as StateLayout {
+  Component count and packed-memory rules
+  Splitting, validation, particle count
 }
 
 class "Initial-value problem" as InitialValueProblem {
@@ -132,6 +137,7 @@ Potential --> Dynamics : defines field forces
 Potential <|-- GC2DH5Potential
 Dynamics --> InitialValueProblem
 InitialConfiguration --> InitialValueProblem
+InitialConfiguration o-- StateLayout
 InitialValueProblem --> SimulationRunner
 NumericalMethod --> SimulationRunner
 NumericalMethod <|-- ExplicitEuler
@@ -143,6 +149,7 @@ NumericalMethod <|-- ImplicitABBA1TangentTaylor
 NumericalMethod <|-- ABBA4Implicit1TangentTaylor
 SimulationRequest --> SimulationRunner
 SimulationRunner --> Solution : produces
+StateLayout --> Solution
 Dynamics --> NumericalReference : adaptive integration of same ODE
 InitialConfiguration --> NumericalReference : exact initial state
 NumericalReference --> NumericalAccuracyStudy : verified reference
@@ -171,9 +178,9 @@ FullyExtendedImplicitMethods --> FullyExtendedImplicitStudy : three method varia
 Solution --> FullyExtendedImplicitStudy : accepted R4 trajectory
 
 note bottom of InitialConfiguration
-  This role owns initial state geometry and
-  component-major layout only. Physical rho
-  and eta parameters belong to Dynamics.
+  This role owns only the initial physical state.
+  Packed-memory interpretation belongs to StateLayout;
+  physical rho and eta parameters belong to Dynamics.
 end note
 
 note bottom of Solution

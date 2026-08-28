@@ -13,7 +13,10 @@ from dynamics import (
 from initial_conditions import (
 	Area,
 	FCInitialConfiguration,
+	FCStateLayout,
 	GCInitialConfiguration,
+	GCStateLayout,
+	StateConfiguration,
 	TrajectoryFC,
 	TrajectoryGC,
 )
@@ -134,6 +137,11 @@ class PotentialTests(unittest.TestCase):
 class TrajectoryTests(unittest.TestCase):
 	"""Contracts for physical-state layouts and finite-area boundaries."""
 
+	def test_state_configuration_requires_a_concrete_layout(self) -> None:
+		"""Prevent storage from being instantiated without state interpretation."""
+		with self.assertRaises(TypeError):
+			StateConfiguration()
+
 	def test_canonical_configurations_contain_no_physical_parameters(self) -> None:
 		"""Keep state layout independent from the selected dynamical model."""
 		gc = GCInitialConfiguration.from_components(
@@ -162,17 +170,18 @@ class TrajectoryTests(unittest.TestCase):
 		self.assertIsNotNone(stored)
 		assert stored is not None
 		np.testing.assert_allclose(stored, [1.0, 2.0, 3.0, 4.0])
-		x, y = trajectory.positions(stored)
+		layout = trajectory.layout
+		x, y = layout.positions(stored)
 		np.testing.assert_allclose(x, [1.0, 2.0])
 		np.testing.assert_allclose(y, [3.0, 4.0])
-		components = trajectory.split(stored)
+		components = layout.split(stored)
 		np.testing.assert_allclose(components.x, x)
 		np.testing.assert_allclose(components.y, y)
-		np.testing.assert_allclose(trajectory.pack_components(*components), stored)
-		self.assertEqual(trajectory.particle_count(stored), 2)
-		self.assertIs(trajectory.validate_packed_state_layout(stored), stored)
+		np.testing.assert_allclose(layout.pack_components(*components), stored)
+		self.assertEqual(layout.particle_count(stored), 2)
+		self.assertIs(layout.validate_packed_state_layout(stored), stored)
 		with self.assertRaises(ValueError):
-			trajectory.validate_packed_state_layout(np.asarray([1.0, 2.0, 3.0]))
+			layout.validate_packed_state_layout(np.asarray([1.0, 2.0, 3.0]))
 
 		stored[0] = -20.0
 		np.testing.assert_allclose(trajectory.state, [1.0, 2.0, 3.0, 4.0])
@@ -182,7 +191,7 @@ class TrajectoryTests(unittest.TestCase):
 		x = np.asarray([1.0, 2.0])
 		y = np.asarray([3.0, 4.0])
 		np.testing.assert_allclose(
-			TrajectoryGC.pack_components(x, y),
+			GCStateLayout.pack_components(x, y),
 			[1.0, 2.0, 3.0, 4.0],
 		)
 		gc = TrajectoryGC.from_components(x=x, y=y, rho=0.2)
@@ -190,10 +199,10 @@ class TrajectoryTests(unittest.TestCase):
 		assert gc_state is not None
 		np.testing.assert_allclose(gc_state, [1.0, 2.0, 3.0, 4.0])
 
-		blocks = gc.as_blocks(gc_state)
+		blocks = gc.layout.as_blocks(gc_state)
 		self.assertEqual(blocks.shape, (2, 2))
 		self.assertTrue(np.shares_memory(blocks, gc_state))
-		flat = gc.from_blocks(blocks)
+		flat = gc.layout.from_blocks(blocks)
 		self.assertTrue(np.shares_memory(flat, blocks))
 		np.testing.assert_allclose(flat, gc_state)
 
@@ -211,7 +220,7 @@ class TrajectoryTests(unittest.TestCase):
 			fc_state,
 			[1.0, 2.0, 3.0, 4.0, 0.5, 0.6, -0.5, -0.6],
 		)
-		self.assertEqual(fc.as_blocks(fc_state).shape, (4, 2))
+		self.assertEqual(fc.layout.as_blocks(fc_state).shape, (4, 2))
 
 		with self.assertRaises(ValueError):
 			TrajectoryGC.from_components(x=x, y=y[:-1], rho=0.2)
@@ -221,7 +230,8 @@ class TrajectoryTests(unittest.TestCase):
 		state = np.asarray([1.0, 2.0, 3.0, 4.0, 0.5, 0.6, -0.5, -0.6])
 		trajectory = TrajectoryFC(state, rho=0.4, eta=-0.2)
 
-		x, y = trajectory.positions(state)
+		layout = trajectory.layout
+		x, y = layout.positions(state)
 		vx, vy = trajectory.velocities(state)
 		np.testing.assert_allclose(x, [1.0, 2.0])
 		np.testing.assert_allclose(y, [3.0, 4.0])
@@ -230,18 +240,18 @@ class TrajectoryTests(unittest.TestCase):
 		self.assertAlmostEqual(trajectory.velocity_scale, 1.0)
 		self.assertAlmostEqual(trajectory.electric_scale, -2.5)
 		self.assertAlmostEqual(trajectory.larmor_frequency, -2.5)
-		components = trajectory.split(state)
+		components = layout.split(state)
 		np.testing.assert_allclose(components.x, x)
 		np.testing.assert_allclose(components.y, y)
 		np.testing.assert_allclose(components.vx, vx)
 		np.testing.assert_allclose(components.vy, vy)
-		np.testing.assert_allclose(trajectory.pack_components(*components), state)
-		self.assertEqual(trajectory.particle_count(state), 2)
+		np.testing.assert_allclose(layout.pack_components(*components), state)
+		self.assertEqual(layout.particle_count(state), 2)
 
 		with self.assertRaises(ValueError):
-			trajectory.pack_components(x, y, vx)
+			FCStateLayout.pack_components(x, y, vx)
 		with self.assertRaises(ValueError):
-			trajectory.pack_components(x, y[:-1], vx, vy)
+			FCStateLayout.pack_components(x, y[:-1], vx, vy)
 
 	def test_area_constructors_and_area_calculation(self) -> None:
 		# This center makes the unit square cross both periodic cell boundaries.
@@ -257,7 +267,7 @@ class TrajectoryTests(unittest.TestCase):
 
 		square_state = square.state
 		assert square_state is not None
-		x, y = square.positions(square_state)
+		x, y = square.layout.positions(square_state)
 		# Force every vertex back into the base cell to exercise periodic unwrapping.
 		wrapped = np.concatenate((x % (2 * np.pi), y % (2 * np.pi)))
 		self.assertAlmostEqual(
@@ -653,7 +663,7 @@ class SimulationTests(unittest.TestCase):
 		self.assertEqual(components.x.shape, (1, 5))
 		self.assertEqual(components.y.shape, (1, 5))
 		with self.assertRaises(TypeError):
-			solution.components(TrajectoryFC(rho=0.2, eta=0.1))
+			solution.components(TrajectoryFC(rho=0.2, eta=0.1).layout)
 
 	def test_fc_bm4_simulation_tracks_generalized_energy(self) -> None:
 		trajectory = TrajectoryFC(

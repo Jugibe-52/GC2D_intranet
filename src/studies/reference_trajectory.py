@@ -412,7 +412,7 @@ def run_high_precision_reference_trajectory(
 		period=potential.grid.period,
 	)
 	audit = _audit_summary(audit_distances, states, audit_states)
-	particle_count = initial_configuration.particle_count(initial_state)
+	particle_count = initial_configuration.layout.particle_count(initial_state)
 	output_directory = reference_trajectory_output_directory(
 		notebook_path,
 		reference_name=reference_name,

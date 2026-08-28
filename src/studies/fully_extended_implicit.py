@@ -441,7 +441,7 @@ def run_fully_extended_implicit_study(
 		raise TypeError("`config` must be FullyExtendedImplicitConfig.")
 	method_name = _validated_method(method)
 	physical_initial = configuration.initial_state
-	if physical_initial is None or configuration.particle_count(physical_initial) != 1:
+	if physical_initial is None or configuration.layout.particle_count(physical_initial) != 1:
 		raise ValueError("The fully extended study requires exactly one particle.")
 	dynamics = GuidingCenterDynamics(
 		potential,

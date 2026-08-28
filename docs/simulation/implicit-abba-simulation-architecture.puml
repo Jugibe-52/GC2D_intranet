@@ -5,8 +5,8 @@ left to right direction
 
 skinparam shadowing false
 skinparam linetype ortho
-skinparam nodesep 40
-skinparam ranksep 75
+skinparam nodesep 65
+skinparam ranksep 60
 skinparam defaultTextAlignment left
 skinparam classAttributeIconSize 0
 skinparam wrapWidth 160
@@ -42,24 +42,52 @@ package "Run assembly" as RunAssembly {
     InitialConfiguration
     --
     Supplies the initial physical state
-    Validates the packed state layout
+    Exposes an independent StateLayout
   }
 
-  class "src/initial_conditions/base.py" as StateConfiguration <<partial base>> {
+  class "src/simulation/configuration.py" as StateLayout <<contract>> {
+    StateLayout
+    --
+    state_dimension
+    validate_packed_state_layout(...)
+    split(...) / particle_count(...)
+  }
+
+  class "src/simulation/configuration.py" as PlanarStateLayout <<contract>> {
+    PlanarStateLayout
+    --
+    positions(...)
+  }
+
+  class "src/initial_conditions/base.py" as PackedStateLayout <<shared layout>> {
+    PackedStateLayout
+    --
+    validate / split / particle_count
+    as_blocks(...) / from_blocks(...)
+    pack_components(...)
+  }
+
+  class "src/initial_conditions/base.py" as StateConfiguration <<abstract storage>> {
     StateConfiguration
     --
     initial_state
-    validate_packed_state_layout(...)
-    split(...) / pack_components(...)
-    particle_count(...) / positions(...)
+    abstract layout property
+    compatibility forwarding methods
+  }
+
+  class "src/initial_conditions/gc.py" as GCStateLayout <<concrete layout>> {
+    GCStateLayout
+    --
+    state_dimension = 2
+    split(...) -> GCState
+    positions(...)
   }
 
   class "src/initial_conditions/gc.py" as GCInitialConfiguration <<concrete>> {
     GCInitialConfiguration
     --
-    state_dimension = 2
+    layout: GCStateLayout
     from_components(x, y)
-    split(...) -> GCState
   }
 
   class "src/simulation/problem.py" as InitialValueProblem <<value>> {
@@ -168,34 +196,46 @@ package "Result boundary" as ResultBoundary {
     Method diagnostics
   }
 
+  class "Return to\nSimulationRunner" as RunnerReturn <<facade continuation>> {
+    Same simulate(...) call
+    --
+    Receives IntegrationData
+    Validates returned arrays
+    Builds Solution
+  }
+
   class "src/simulation/solution.py" as Solution <<public result>> {
     Solution
     --
     Immutable sampled trajectory
     Read-only diagnostics
-    Initial configuration as layout source
+    Initial configuration plus composed layout
   }
 }
 
 ' Type and implementation relationships.
 GuidingCenterJacobianSystem -up-|> DynamicalSystem
 GuidingCenterDynamics .up.|> GuidingCenterJacobianSystem
+PlanarStateLayout -up-|> StateLayout
+GCStateLayout -up-|> PackedStateLayout
 GCInitialConfiguration -up-|> StateConfiguration
-GCInitialConfiguration .up.|> InitialConfiguration
+GCStateLayout ..> PlanarStateLayout
+GCInitialConfiguration ..> InitialConfiguration
+GCInitialConfiguration o-- GCStateLayout
 ImplicitABBABase .up.|> NumericalMethod
 ImplicitABBA1 -up-|> ImplicitABBABase
 
 note bottom of StateConfiguration
-  Shared partial implementation.
-  It leaves state_dimension to each concrete subclass.
+  Abstract initial-state storage.
+  It cannot be instantiated without a concrete layout.
 end note
 
 ' Public run assembly.
 DynamicalSystem --> InitialValueProblem
 InitialConfiguration --> InitialValueProblem
 InitialValueProblem --> SimulationRunner
+NumericalMethod --> SimulationRunner
 SimulationRequest --> SimulationRunner
-SimulationRunner --> NumericalMethod
 
 ' Implicit ABBA runtime path.
 ImplicitABBA1 --> IntegrationCoordinator
@@ -206,14 +246,16 @@ ABBAStages <--> ProjectionRoot
 ProjectionRoot --> AcceptedStep
 
 ' The inherited layer is consumed only through its public capabilities.
-GuidingCenterJacobianSystem ..> ABBAStages : vector field
-GuidingCenterJacobianSystem ..> ProjectionRoot : Newton\nJacobians
+GuidingCenterJacobianSystem ..> ABBAStages
+GuidingCenterJacobianSystem ..> ProjectionRoot
 
 ' Results and optional observation.
 AcceptedStep ..> StepObservation
 AcceptedStep --> IntegrationData
-IntegrationData --> Solution
-InitialConfiguration ..> Solution : unpack states
+IntegrationData --> RunnerReturn
+RunnerReturn --> Solution
+InitialConfiguration --> Solution
+StateLayout ..> Solution
 
 note bottom of GuidingCenterDynamics
   This is the hand-off from the dynamics diagram.
@@ -229,5 +271,16 @@ note bottom of ProjectionRoot
   Both nonlinear solvers target the same reduced implicit root.
   Only Newton consumes the inherited particle Jacobians.
 end note
+
+legend bottom
+  |= Relation |= Meaning in this diagram |
+  | solid line with hollow triangle | Explicit Python inheritance |
+  | dashed line with hollow triangle | Structural implementation of a protocol |
+  | ordinary dashed arrow to a protocol | Structural conformance without inheritance |
+  | ordinary dashed arrow into a runtime step | Supplied capability or optional event |
+  | hollow diamond | Configuration composes and exposes its layout |
+  | arrow into a consumer | Argument or returned data supplied to that consumer |
+  | arrow between runtime steps | Call, construction, or forward hand-off |
+endlegend
 
 @enduml
