@@ -21,11 +21,6 @@ from .abba_reversibility import (
 	plot_implicit_abba_reversibility_diagnostics,
 	plot_implicit_abba_transport_components,
 )
-from .abba_tangent_taylor import (
-	animate_tangent_taylor_particle_evolution,
-	plot_tangent_taylor_component_comparison,
-	plot_tangent_taylor_trajectory_comparison,
-)
 from .bm4_midpoint_symplecticity import (
 	plot_midpoint_bm4_symplecticity,
 	plot_midpoint_bm4_trajectories,
@@ -49,6 +44,15 @@ from .implicit_comparison import (
 	plot_implicit_method_iterations,
 	plot_implicit_trajectory_differences,
 )
+from .implicit_method_accuracy import (
+	IMPLICIT_ACCURACY_COLORS,
+	ImplicitMethodAccuracyOrderView,
+	ImplicitMethodAccuracySummaryView,
+	plot_implicit_method_accuracy_cost,
+	plot_implicit_method_accuracy_refinement,
+	plot_implicit_method_newton_refinement,
+	plot_implicit_method_observed_orders,
+)
 from .energy import (
 	ExtendedSymplecticityRunView,
 	ReducedExtendedSymplecticityRunView,
@@ -65,7 +69,11 @@ from .fully_extended_implicit import (
 	plot_fully_extended_symplecticity,
 )
 from .notebooks import display_animation, display_records_table, records_table_html
-from .particles import animate_fc_particle_solution, animate_gc_particle_solution
+from .particles import (
+	animate_fc_particle_solution,
+	animate_gc_particle_solution,
+	animate_gc_particle_trajectories,
+)
 from .potential import animate_potential, plot_potential
 from .projected_bm4_symplecticity import (
 	plot_projected_bm4_symplecticity_convergence,
@@ -98,6 +106,15 @@ from .trajectory_accuracy import (
 	plot_ten_method_accuracy_summary,
 	plot_trajectory_accuracy_over_time,
 )
+
+# These modules depend on study result types. Import them only after every
+# study-facing visualization above has been bound, so a clean public-package
+# import cannot re-enter a partially initialized ``visualization`` module.
+from .abba_tangent_taylor import (
+	animate_tangent_taylor_particle_evolution,
+	plot_tangent_taylor_component_comparison,
+	plot_tangent_taylor_trajectory_comparison,
+)
 from .tangent_taylor_euler_accuracy import (
 	TANGENT_TAYLOR_EULER_COLORS,
 	plot_tangent_taylor_euler_accuracy,
@@ -116,6 +133,7 @@ __all__ = [
 	"animate_gc_area_comparison",
 	"animate_gc_area_solution",
 	"animate_gc_particle_solution",
+	"animate_gc_particle_trajectories",
 	"animate_implicit_method_trajectories",
 	"animate_potential",
 	"animate_ten_method_trajectory_points",
@@ -124,6 +142,9 @@ __all__ = [
 	"display_animation",
 	"display_records_table",
 	"IMPLICIT_METHOD_COLORS",
+	"IMPLICIT_ACCURACY_COLORS",
+	"ImplicitMethodAccuracyOrderView",
+	"ImplicitMethodAccuracySummaryView",
 	"GeneralizedEnergyRunView",
 	"GeneralizedEnergySummaryView",
 	"FullyExtendedRunView",
@@ -140,6 +161,10 @@ __all__ = [
 	"plot_implicit_iteration_comparison",
 	"plot_implicit_iteration_diagnostics",
 	"plot_implicit_method_iterations",
+	"plot_implicit_method_accuracy_cost",
+	"plot_implicit_method_accuracy_refinement",
+	"plot_implicit_method_newton_refinement",
+	"plot_implicit_method_observed_orders",
 	"plot_implicit_trajectory_differences",
 	"plot_implicit_abba_jacobian_matrices",
 	"plot_implicit_abba_jacobian_polar_snapshots",

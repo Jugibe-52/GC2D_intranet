@@ -24,6 +24,7 @@ from ._trajectory_accuracy import (
 	TrajectoryAccuracySeries,
 	accuracy_series,
 	reference_indices_for_times,
+	reference_distance_convention,
 	validate_reference_identity,
 )
 from .abba4_implicit_1_accuracy import (
@@ -90,6 +91,7 @@ def run_abba6_accuracy_study(
 	series: dict[float, TrajectoryAccuracySeries] = {}
 	runtimes: dict[float, float] = {}
 	reference_indices: np.ndarray | None = None
+	distance_convention = reference_distance_convention(reference)
 	for step in config.integration_steps:
 		request = SimulationRequest.uniform(
 			t_span=config.t_span,
@@ -120,6 +122,7 @@ def run_abba6_accuracy_study(
 			solution.states,
 			reference.states[:, indices],
 			period=float(potential.grid.period),
+			distance_convention=distance_convention,
 		)
 	assert reference_indices is not None
 	return ABBA6AccuracyResult(

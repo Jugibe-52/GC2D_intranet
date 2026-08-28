@@ -26,6 +26,9 @@ from simulation import (
 )
 
 from ._trajectory_accuracy import TrajectoryAccuracySeries, accuracy_series
+from ._trajectory_distances import (
+	periodic_particle_distances as _periodic_particle_distances,
+)
 from ._validation import nonnegative_finite, positive_finite, positive_integer
 from .reference_trajectory import (
 	AdaptiveReferenceSolveSummary,
@@ -33,7 +36,6 @@ from .reference_trajectory import (
 	ReferenceTrajectoryAuditSummary,
 	_audit_summary,
 	_output_times,
-	_periodic_particle_distances,
 	_solve_adaptive,
 )
 

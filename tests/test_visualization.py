@@ -9,13 +9,18 @@ from unittest.mock import patch
 import numpy as np
 from matplotlib import pyplot as plt
 from matplotlib.animation import Animation, FuncAnimation
+from matplotlib.collections import LineCollection
 from matplotlib.quiver import Quiver
 from matplotlib.text import Text
 
 from initial_conditions import GCInitialConfiguration
 from potential import Potential
 from simulation import Solution
-from visualization import animate_gc_particle_solution, display_animation
+from visualization import (
+	animate_gc_particle_solution,
+	animate_gc_particle_trajectories,
+	display_animation,
+)
 
 
 class NotebookPresentationTests(unittest.TestCase):
@@ -89,6 +94,56 @@ class NotebookPresentationTests(unittest.TestCase):
 				for artist in artists
 			)
 		)
+		plt.close(animation._fig)
+
+	def test_gc_trajectory_animation_rotates_field_into_perpendicular_drift(
+		self,
+	) -> None:
+		potential = Potential.random(
+			A=0.1,
+			M=2,
+			nx=8,
+			ny=8,
+			seed=7,
+			interpolation_order=3,
+		)
+		source = GCInitialConfiguration.from_components(
+			x=np.asarray([1.0, 1.4]),
+			y=np.asarray([1.2, 1.6]),
+		)
+		solution = Solution(
+			t=np.asarray([0.0, 0.1, 0.2]),
+			states=np.asarray(
+				[
+					[1.0, 1.1, 1.2],
+					[1.4, 1.5, 1.6],
+					[1.2, 1.25, 1.3],
+					[1.6, 1.65, 1.7],
+				]
+			),
+			source=source,
+		)
+
+		animation = animate_gc_particle_trajectories(
+			potential,
+			solution,
+			frames=3,
+			show_electric_field=True,
+			show_perpendicular_drift=True,
+		)
+		artists = animation._func(1)
+		animation._draw_was_started = True
+		quivers = [artist for artist in artists if isinstance(artist, Quiver)]
+		paths = [artist for artist in artists if isinstance(artist, LineCollection)]
+
+		self.assertEqual(len(quivers), 2)
+		self.assertEqual(len(paths), 1)
+		x, y = solution.positions()
+		field_x, field_y = potential.electric_field(0.1, x[:, 1], y[:, 1])
+		drift = quivers[-1]
+		np.testing.assert_allclose(drift.U, field_y)
+		np.testing.assert_allclose(drift.V, -field_x)
+		np.testing.assert_allclose(field_x * drift.U + field_y * drift.V, 0.0)
 		plt.close(animation._fig)
 
 

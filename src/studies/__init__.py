@@ -139,6 +139,7 @@ from .initial_conditions import (
 	centered_gc_trajectory,
 	centered_square,
 	domain_center,
+	latin_hypercube_gc_configuration,
 	random_gc_configuration,
 )
 from .implicit_trajectory_comparison import (
@@ -148,6 +149,16 @@ from .implicit_trajectory_comparison import (
 	ImplicitTrajectoryComparisonResult,
 	ImplicitTrajectoryDifferenceSummary,
 	run_implicit_trajectory_comparison,
+)
+from .implicit_method_accuracy import (
+	IMPLICIT_ACCURACY_DESIGNED_ORDERS,
+	IMPLICIT_ACCURACY_METHOD_LABELS,
+	IMPLICIT_ACCURACY_METHOD_NAMES,
+	ImplicitMethodAccuracyConfig,
+	ImplicitMethodAccuracyOrder,
+	ImplicitMethodAccuracyResult,
+	ImplicitMethodAccuracySummary,
+	run_implicit_method_accuracy_study,
 )
 from .bm4_implicit_symplecticity import (
 	BM4Implicit1SymplecticityResult,
@@ -314,6 +325,13 @@ __all__ = [
 	"IMPLICIT_ABBA_FORMULATIONS",
 	"IMPLICIT_ABBA_JACOBIAN_METHODS",
 	"IMPLICIT_METHOD_NAMES",
+	"IMPLICIT_ACCURACY_DESIGNED_ORDERS",
+	"IMPLICIT_ACCURACY_METHOD_LABELS",
+	"IMPLICIT_ACCURACY_METHOD_NAMES",
+	"ImplicitMethodAccuracyConfig",
+	"ImplicitMethodAccuracyOrder",
+	"ImplicitMethodAccuracyResult",
+	"ImplicitMethodAccuracySummary",
 	"ImplicitABBA1SymplecticityResult",
 	"ImplicitABBA2SymplecticityResult",
 	"ImplicitABBAFormulation",
@@ -364,6 +382,7 @@ __all__ = [
 	"centered_gc_trajectory",
 	"centered_square",
 	"domain_center",
+	"latin_hypercube_gc_configuration",
 	"pi_area_steps",
 	"periodic_particle_distances",
 	"potential_fingerprint",
@@ -392,6 +411,7 @@ __all__ = [
 	"run_implicit_abba_jacobian_study",
 	"run_implicit_abba_reversibility_study",
 	"run_implicit_abba_iteration_study",
+	"run_implicit_method_accuracy_study",
 	"run_implicit_abba_symplecticity_study",
 	"run_implicit_abba_1_trajectory_symplecticity_study",
 	"run_implicit_trajectory_comparison",

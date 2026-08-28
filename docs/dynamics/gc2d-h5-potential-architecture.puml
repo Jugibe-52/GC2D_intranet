@@ -1,0 +1,115 @@
+@startuml
+title HDF5-to-Guiding-Center Runtime Path
+
+left to right direction
+
+skinparam shadowing false
+skinparam linetype ortho
+skinparam nodesep 28
+skinparam ranksep 55
+skinparam defaultTextAlignment left
+skinparam classAttributeIconSize 0
+skinparam wrapWidth 190
+
+hide circle
+hide empty members
+
+class "GC2D HDF5 file" as HDF5Source <<data>> {
+  Rcells: x coordinates
+  Zcells: y coordinates
+  freqs: temporal frequencies
+  fields: complex [frequency, y, x]
+  root attributes: source metadata
+}
+
+class "src/potential/gc2d_h5.py" as ImportPipeline <<function>> {
+  load_gc2d_h5_potential(...)
+  --
+  Open with h5py
+  Validate axes and field shape
+  Retain and sort positive modes
+  Normalize by 2*pi*f0*B
+  Select, denoise, and resample
+}
+
+class "src/potential/gc2d_h5.py" as H5Potential <<class>> {
+  GC2DH5Potential
+  --
+  Stores mean and complex modes
+  Builds zero-padded spatial splines
+  Reconstructs Phi(t, x, y)
+  evaluate(...) and dynamic_part(...)
+  gyroaverage(rho): GC2DH5Potential
+}
+
+class "src/dynamics/gc.py" as GCDynamics <<class>> {
+  GuidingCenterDynamics
+  --
+  __init__(potential, rho)
+  effective_potential = potential.gyroaverage(rho)
+  FFT -> J0 Larmor filter -> inverse FFT
+}
+
+class "src/dynamics/gc.py" as VectorField <<method>> {
+  GuidingCenterDynamics.vector_field(...)
+  --
+  Split packed state into x and y
+  effective_potential.electric_field(...)
+  Pack the resulting drift
+}
+
+class "Guiding-center dynamics" as GuidingCenterMotion <<result>> {
+  dX/dt = -Phi_y
+  dY/dt =  Phi_x
+  --
+  hamiltonian = Phi
+  extended momentum derivative = -Phi_t
+  particle Jacobians use the spatial Hessian
+}
+
+class "src/potential/potential.py" as PotentialBase <<class>> {
+  Potential
+  --
+  Common runtime interface
+  electric_field = (-Phi_x, -Phi_y)
+}
+
+class "src/potential/grid.py" as GridSupport <<class>> {
+  Grid
+  --
+  Validated regular axes
+  Periodic and FFT metadata
+}
+
+class "src/dynamics/_layout.py" as StateLayout <<helpers>> {
+  split_components(...)
+  pack_components(...)
+  --
+  State layout [x_1...x_N, y_1...y_N]
+}
+
+' Main runtime path.
+HDF5Source --> ImportPipeline
+ImportPipeline --> H5Potential
+H5Potential --> GCDynamics
+GCDynamics --> VectorField
+VectorField --> GuidingCenterMotion
+
+' Supporting inheritance, composition, and helper calls.
+H5Potential -right-|> PotentialBase
+H5Potential *-right- GridSupport
+PotentialBase ..> VectorField
+StateLayout ..> VectorField
+
+PotentialBase -[hidden]- GridSupport
+GridSupport -[hidden]- StateLayout
+
+note bottom of GCDynamics
+  The gyroaverage preserves HDF5 modes,
+  frequencies, provenance, and interpolation metadata.
+
+  Arbitrary HDF5 frequencies require general Phi_tt
+  support in fully extended analytic R4/R8 methods
+end note
+
+@enduml

@@ -79,6 +79,23 @@ assert simulation.ExplicitEuler is not None
 		)
 		self.assertEqual(completed.returncode, 0, completed.stderr)
 
+	def test_visualization_public_api_imports_in_a_clean_interpreter(self) -> None:
+		"""Prevent study type imports from re-entering a partial public package."""
+		project_root = Path(__file__).resolve().parents[1]
+		completed = subprocess.run(
+			[
+				sys.executable,
+				"-c",
+				"from visualization import animate_gc_particle_solution; "
+				"assert animate_gc_particle_solution is not None",
+			],
+			cwd=project_root,
+			check=False,
+			capture_output=True,
+			text=True,
+		)
+		self.assertEqual(completed.returncode, 0, completed.stderr)
+
 
 if __name__ == "__main__":
 	unittest.main()

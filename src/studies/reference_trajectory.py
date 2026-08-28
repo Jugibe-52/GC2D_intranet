@@ -23,6 +23,11 @@ from initial_conditions import GCInitialConfiguration
 from potential import Potential
 from simulation import SimulationRequest
 
+from ._trajectory_distances import (
+	DistanceConvention,
+	normalized_distance_convention,
+	particle_distances,
+)
 from ._validation import integer_ratio, nonnegative_finite, positive_finite
 
 
@@ -39,6 +44,7 @@ class HighPrecisionReferenceConfig:
 	audit_relative_tolerance: float = 1e-13
 	audit_absolute_tolerance: float = 1e-15
 	audit_maximum_step: float = 0.0025
+	distance_convention: DistanceConvention = "periodic"
 
 	def __post_init__(self) -> None:
 		"""Validate the reference and independent-solver audit controls."""
@@ -47,6 +53,11 @@ class HighPrecisionReferenceConfig:
 			raise ValueError("`t_span` must contain two finite, increasing times.")
 		object.__setattr__(self, "t_span", (float(span[0]), float(span[1])))
 		object.__setattr__(self, "rho", nonnegative_finite(self.rho, "rho"))
+		object.__setattr__(
+			self,
+			"distance_convention",
+			normalized_distance_convention(self.distance_convention),
+		)
 		for name in (
 			"save_interval",
 			"relative_tolerance",
@@ -237,25 +248,6 @@ def _solve_adaptive(
 	)
 
 
-def _periodic_particle_distances(
-	first_states: np.ndarray,
-	second_states: np.ndarray,
-	*,
-	period: float,
-) -> np.ndarray:
-	"""Return minimum-image planar distances with shape (particles, samples)."""
-	first = np.asarray(first_states, dtype=float)
-	second = np.asarray(second_states, dtype=float)
-	if first.shape != second.shape or first.ndim != 2 or first.shape[0] % 2:
-		raise ValueError("Compared GC state histories must have one matching packed shape.")
-	particle_count = first.shape[0] // 2
-	difference = (first - second + period / 2.0) % period - period / 2.0
-	return np.asarray(
-		np.hypot(difference[:particle_count], difference[particle_count:]),
-		dtype=float,
-	)
-
-
 def _audit_summary(
 	distances: np.ndarray,
 	states: np.ndarray,
@@ -301,6 +293,11 @@ def _reference_explanation(
 		sort_keys=True,
 		default=json_default,
 	)
+	distance_description = (
+		"minimum-image periodic"
+		if config.distance_convention == "periodic"
+		else "Euclidean"
+	)
 	return f"""# High-precision numerical reference trajectory
 
 This directory contains a numerical reference for the same interpolated
@@ -313,6 +310,7 @@ guiding-center approximation.
 - Reference solver: SciPy DOP853 (explicit Runge--Kutta order 8).
 - Packed layout: `[x_1, ..., x_N, y_1, ..., y_N]` with N={particle_count}.
 - Normalized gyro-radius: {config.rho:.16g}.
+- Particle-distance convention: {config.distance_convention}.
 - Time interval: {config.t_span}.
 - Saved interval: {config.save_interval:.16g}.
 - Relative tolerance: {config.relative_tolerance:.16g}.
@@ -343,7 +341,7 @@ An independent SciPy Radau collocation solve used maximum step
 {config.audit_absolute_tolerance:.16g}. Radau belongs to a different implicit
 solver family. Its maximum step is
 {config.audit_maximum_step / config.maximum_step:.6g} times the DOP853 maximum.
-Their periodic minimum-image discrepancy is:
+Their {distance_description} discrepancy is:
 
 - global RMS distance: {audit.global_rms_distance:.16e};
 - maximum distance: {audit.maximum_distance:.16e};
@@ -407,9 +405,10 @@ def run_high_precision_reference_trajectory(
 		maximum_step=config.maximum_step,
 		method="DOP853",
 	)
-	audit_distances = _periodic_particle_distances(
+	audit_distances = particle_distances(
 		states,
 		audit_states,
+		distance_convention=config.distance_convention,
 		period=potential.grid.period,
 	)
 	audit = _audit_summary(audit_distances, states, audit_states)
@@ -447,7 +446,7 @@ def run_high_precision_reference_trajectory(
 		states=states,
 		initial_state=initial_state,
 		audit_states=audit_states,
-		audit_periodic_distances=audit_distances,
+		audit_distances=audit_distances,
 		metadata=metadata,
 		explanation=_reference_explanation(
 			config=config,

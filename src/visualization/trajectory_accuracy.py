@@ -135,7 +135,7 @@ def plot_trajectory_accuracy_over_time(
 	*,
 	reference_floor: float,
 ) -> tuple[Figure, np.ndarray]:
-	"""Plot particle-RMS and maximum periodic error for labeled trajectories."""
+	"""Plot particle-RMS and maximum reference error for labeled trajectories."""
 	time_values = np.asarray(times, dtype=float)
 	if (
 		time_values.ndim != 1
@@ -189,12 +189,12 @@ def plot_trajectory_accuracy_over_time(
 		axis.legend(fontsize=7, ncol=2)
 	axes[0].set(
 		title="Particle-RMS distance to the high-precision reference",
-		ylabel="RMS periodic distance",
+		ylabel="RMS distance",
 	)
 	axes[1].set(
 		title="Maximum particle distance to the high-precision reference",
 		xlabel="Time",
-		ylabel="Maximum periodic distance",
+		ylabel="Maximum distance",
 	)
 	return figure, axes
 
@@ -273,7 +273,7 @@ def plot_single_method_accuracy_refinement(
 	axis.set(
 		title="Single-method trajectory-accuracy refinement",
 		xlabel="Complete integration step $h$",
-		ylabel="Time-integrated RMS periodic distance",
+		ylabel="Time-integrated RMS distance",
 	)
 	axis.grid(which="both", alpha=0.25)
 	axis.legend()

@@ -27,6 +27,7 @@ from studies import (
 	centered_gc_trajectory,
 	centered_square,
 	domain_center,
+	latin_hypercube_gc_configuration,
 	pi_area_steps,
 	run_area_comparison,
 	run_abba_symplecticity_study,
@@ -85,6 +86,41 @@ class InitializationStudyTests(unittest.TestCase):
 		self.assertIsInstance(square, Area)
 		self.assertEqual(circle.particle_count(circle.initial_state), 8)
 		self.assertAlmostEqual(float(square.calculate_area()), 1.0)
+
+	def test_latin_hypercube_conditions_are_reproducible_and_stratified(self) -> None:
+		potential = small_potential_config().build()
+		first = latin_hypercube_gc_configuration(
+			potential,
+			particle_count=10,
+			seed=20260827,
+			domain_margin_fraction=0.05,
+		)
+		second = latin_hypercube_gc_configuration(
+			potential,
+			particle_count=10,
+			seed=20260827,
+			domain_margin_fraction=0.05,
+		)
+		assert first.initial_state is not None
+		assert second.initial_state is not None
+		np.testing.assert_array_equal(first.initial_state, second.initial_state)
+		x, y = first.positions(first.initial_state)
+		grid = potential.grid
+		domain_min = np.asarray((grid.xmin, grid.ymin))
+		domain_max = np.asarray((grid.xmax, grid.ymax))
+		sampling_min = domain_min + 0.05 * (domain_max - domain_min)
+		sampling_max = domain_max - 0.05 * (domain_max - domain_min)
+		for values, lower, upper in zip((x, y), sampling_min, sampling_max):
+			strata = np.floor(10 * (values - lower) / (upper - lower)).astype(int)
+			np.testing.assert_array_equal(np.sort(strata), np.arange(10))
+
+		with self.assertRaisesRegex(ValueError, "domain_margin_fraction"):
+			latin_hypercube_gc_configuration(
+				potential,
+				particle_count=10,
+				seed=20260827,
+				domain_margin_fraction=0.5,
+			)
 
 
 class AreaComparisonStudyTests(unittest.TestCase):

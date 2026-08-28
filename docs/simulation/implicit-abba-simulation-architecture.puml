@@ -1,0 +1,171 @@
+@startuml
+title Implicit ABBA Simulation Runtime Path
+
+left to right direction
+
+skinparam shadowing false
+skinparam linetype ortho
+skinparam nodesep 40
+skinparam ranksep 75
+skinparam defaultTextAlignment left
+skinparam classAttributeIconSize 0
+skinparam wrapWidth 160
+
+hide circle
+hide empty members
+
+package "Inherited boundary" as InheritedBoundary {
+  class "Guiding-center dynamics" as InheritedDynamics <<from dynamics diagram>>
+}
+
+package "Run assembly" as RunAssembly {
+  class "src/simulation/configuration.py" as InitialConfiguration <<contract>> {
+    InitialConfiguration
+    --
+    Supplies the initial physical state
+    Validates the packed state layout
+  }
+
+  class "src/simulation/problem.py" as InitialValueProblem <<value>> {
+    InitialValueProblem
+    --
+    Binds dynamics to initial configuration
+    Checks state-dimension compatibility
+  }
+
+  class "src/simulation/request.py" as SimulationRequest <<value>> {
+    SimulationRequest
+    --
+    Time span
+    Maximum step
+    Requested output times
+  }
+
+  class "src/simulation/runner.py" as SimulationRunner <<facade>> {
+    simulate(problem, method, request)
+    --
+    Validates public inputs
+    Delegates numerical integration
+  }
+
+  class "src/simulation/methods/\nabba_implicit_1.py" as ImplicitABBA1 <<method>> {
+    ImplicitABBA1
+    --
+    Reduced projection formulation
+    Solver tolerances and iteration limit
+    Newton or Broyden selection
+  }
+}
+
+package "Implicit ABBA integration" as ImplicitIntegration {
+  class "src/simulation/methods/\n_projected_abba.py" as IntegrationCoordinator <<coordinator>> {
+    _integrate_projected_abba(...)
+    --
+    Checks the required dynamics capability
+    Collects nonlinear-work diagnostics
+  }
+
+  class "src/simulation/_fixed.py" as FixedGrid <<scheduler>> {
+    integrate_fixed_grid(...)
+    --
+    Output-independent uniform main grid
+    Shadow advances for off-grid samples
+  }
+
+  class "src/simulation/methods/\n_projected_abba.py" as ProjectedStep <<step>> {
+    _solve_projected_step(...)
+    --
+    Initialize mu = 0
+    Set residual tolerance
+  }
+
+  class "Duplicated ABBA\nstage map" as ABBAStages <<map>> {
+    u0 = z + mu
+    v0 = z - mu
+    --
+    Apply endpoint-time
+    A-B-B-A shears
+    Return u_final, v_final
+  }
+
+  class "Nonlinear\nprojection root" as ProjectionRoot <<solve>> {
+    residual = u_final - v_final
+    residual += 2 mu
+    --
+    Newton: exact 2 x 2 blocks
+    Broyden: residual-only updates
+    Update mu until converged
+  }
+
+  class "Accepted\nphysical step" as AcceptedStep <<state>> {
+    Average projected copies
+    --
+    State at t + h
+    Multiplier and solver metrics
+  }
+
+  class "src/simulation/observation.py" as StepObservation <<optional event>> {
+    ImplicitABBAIntegrationStep
+    --
+    Accepted stage snapshots
+    Exact generating dynamics instance
+  }
+}
+
+package "Result boundary" as ResultBoundary {
+  class "src/simulation/_result.py" as IntegrationData <<internal value>> {
+    Requested times
+    Sampled physical states
+    Method diagnostics
+  }
+
+  class "src/simulation/solution.py" as Solution <<public result>> {
+    Solution
+    --
+    Immutable sampled trajectory
+    Read-only diagnostics
+    Initial configuration as layout source
+  }
+}
+
+' Public run assembly.
+InheritedDynamics --> InitialValueProblem : supplied dynamics
+InitialConfiguration --> InitialValueProblem
+InitialValueProblem --> SimulationRunner
+SimulationRequest --> SimulationRunner
+SimulationRunner --> ImplicitABBA1
+
+' Implicit ABBA runtime path.
+ImplicitABBA1 --> IntegrationCoordinator
+IntegrationCoordinator --> FixedGrid
+FixedGrid --> ProjectedStep
+ProjectedStep --> ABBAStages
+ABBAStages <--> ProjectionRoot
+ProjectionRoot --> AcceptedStep
+
+' The inherited layer is consumed only through its public capabilities.
+InheritedDynamics ..> ABBAStages : vector field
+InheritedDynamics ..> ProjectionRoot : Newton\nJacobians
+
+' Results and optional observation.
+AcceptedStep ..> StepObservation
+AcceptedStep --> IntegrationData
+IntegrationData --> Solution
+InitialConfiguration ..> Solution : unpack states
+
+note bottom of InheritedDynamics
+  This is the hand-off from the dynamics diagram.
+  Its internal field model and equations are intentionally omitted here.
+end note
+
+note bottom of FixedGrid
+  Shadow advances produce requested samples but do not alter
+  the main integration trajectory or emit step observations.
+end note
+
+note bottom of ProjectionRoot
+  Both nonlinear solvers target the same reduced implicit root.
+  Only Newton consumes the inherited particle Jacobians.
+end note
+
+@enduml

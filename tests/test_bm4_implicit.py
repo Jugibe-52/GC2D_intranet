@@ -104,6 +104,43 @@ class BM4ImplicitMethodTests(unittest.TestCase):
 		self.assertGreater(coarse_error / fine_error, 15.0)
 		self.assertLess(coarse_error / fine_error, 17.0)
 
+	def test_analytic_and_finite_difference_newton_jacobians_agree(self) -> None:
+		problem = InitialValueProblem(
+			GuidingCenterDynamics(_potential(), rho=0.05),
+			GCInitialConfiguration(np.asarray([1.0, 1.2, 1.1, 0.9])),
+		)
+		request = SimulationRequest.uniform(
+			t_span=(0.0, 0.1),
+			max_step=0.05,
+			sample_count=3,
+		)
+		common = {
+			"newton_absolute_tolerance": 1e-14,
+			"newton_relative_tolerance": 1e-14,
+		}
+		analytic = simulate(
+			problem,
+			BM4Implicit1(**common, newton_jacobian_method="analytic"),
+			request,
+		)
+		finite_difference = simulate(
+			problem,
+			BM4Implicit1(**common, newton_jacobian_method="finite_difference"),
+			request,
+		)
+
+		np.testing.assert_allclose(
+			analytic.states,
+			finite_difference.states,
+			rtol=0.0,
+			atol=2e-14,
+		)
+		self.assertEqual(analytic.diagnostics["newton_jacobian_method"], "analytic")
+		self.assertEqual(
+			finite_difference.diagnostics["newton_jacobian_method"],
+			"finite_difference",
+		)
+
 	def test_step_observer_receives_only_main_grid_steps(self) -> None:
 		events = []
 		solution = simulate(
@@ -133,6 +170,8 @@ class BM4ImplicitMethodTests(unittest.TestCase):
 			BM4Implicit2(newton_max_iterations=0)
 		with self.assertRaises(ValueError):
 			BM4Implicit2(newton_jacobian_relative_step=np.inf)
+		with self.assertRaises(ValueError):
+			BM4Implicit1(newton_jacobian_method="complex_step")  # type: ignore[arg-type]
 
 
 class BM4ImplicitStudyTests(unittest.TestCase):

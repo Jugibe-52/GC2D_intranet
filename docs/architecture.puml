@@ -161,9 +161,11 @@ package "Numerical methods" as Methods {
   class ProjectedBM4Composition
   class BM4Implicit1 {
     + nonlinear_solver: newton / broyden
+    + newton_jacobian_method: analytic / finite_difference
   }
   class BM4Implicit2 {
     + nonlinear_solver: newton / broyden
+    + newton_jacobian_method: analytic / finite_difference
   }
   class MidpointABBA
   class ImplicitABBA1 {
@@ -433,7 +435,8 @@ note bottom of BM4Implicit1
   Hairer's symmetric projection surrounds one complete
   twelve-stage BM4 cycle. The reduced formulation eliminates
   the duplicated output and solves only for the physical multiplier.
-  Newton differentiates the BM4 map by centered differences;
+  Newton defaults to exact independent-particle stage products;
+  centered differences remain selectable for verification.
   Broyden uses explicit reduced-residual evaluations.
 end note
 
@@ -574,31 +577,38 @@ package "Reusable studies" as Studies {
     + DOP853 reference on prescribed saved times
     + independent Radau resolution audit
     + actual interpolated-dynamics fingerprint
+    + declared periodic or Euclidean distance convention
   }
   class TenMethodAccuracyStudy {
     + validates reference problem identity and checksum
-    + per-particle periodic distances for ten variants
+    + per-particle reference-declared distances for ten variants
     + RMS, final, maximum, floor-ratio, and runtime summaries
     + nested-step gains and observed convergence orders
     + one common saved grid with no shadow steps
   }
+  class ImplicitMethodAccuracyStudy {
+    + ImplicitABBA1 / ABBA4Implicit1 / single-projection ABBA4 / BM4Implicit1
+    + Newton-only refinement over five default step halvings
+    + reference-declared errors and designed-versus-observed orders
+    + per-solve correction frequencies, residual work, and acceptance ratios
+  }
   class ABBA4Implicit1AccuracyStudy {
     + validates the versioned reference identity and checksum
     + one ABBA4 trajectory per nested complete step
-    + periodic RMS errors, refinement gains, and observed orders
+    + reference-declared RMS errors, refinement gains, and observed orders
     + nonlinear work, runtime, and reference-floor resolution
   }
   class ABBA4ProjectionComparisonStudy {
     + same verified reference, initial state, tolerances, and nested steps
     + ABBA4Implicit1 versus ABBA4SingleProjectionImplicit1
-    + periodic errors and resolved observed-order deficits
+    + reference-declared errors and resolved observed-order deficits
     + Newton work, normalized residual/tangent ABBA-map work, and multiplier scaling
     + median runtime and interquartile timing interval
   }
   class ABBA6AccuracyStudy {
     + validates the versioned reference identity and checksum
     + one ABBA6 trajectory per nested complete step
-    + periodic RMS errors, refinement gains, and observed orders
+    + reference-declared RMS errors, refinement gains, and observed orders
     + nonlinear work, runtime, and reference-floor resolution
   }
   class ImplicitABBAJacobianParticleStepSeries {
@@ -613,9 +623,10 @@ package "Reusable studies" as Studies {
 package "Optional visualization" as Visualization {
   class PotentialVisualization
   class GCAreaVisualization
-  class SingleParticleVisualization {
+  class ParticleVisualization {
     + animate_fc_particle_solution(potential, solution, show_electric_field, frame_annotations): FuncAnimation
     + animate_gc_particle_solution(potential, solution, show_electric_field, frame_annotations): FuncAnimation
+    + animate_gc_particle_trajectories(potential, solution, show_electric_field, show_perpendicular_drift): FuncAnimation
   }
   class ABBAJacobianVisualization
   class ABBAReversibilityVisualization
@@ -825,6 +836,12 @@ HighPrecisionReferenceStudy --> ReferenceTrajectoryArtifact : persists audited r
 TenMethodAccuracyStudy ..> TenMethodTrajectoryComparisonStudy : reuses ten aligned integrations
 TenMethodAccuracyStudy ..> ReferenceTrajectoryArtifact : verifies and compares
 TenMethodAccuracyStudy ..> TrajectoryAccuracyVisualization : presents errors and cost
+ImplicitMethodAccuracyStudy ..> ImplicitABBA1 : second-order refinement
+ImplicitMethodAccuracyStudy ..> ABBA4Implicit1 : three projected roots per step
+ImplicitMethodAccuracyStudy ..> ABBA4SingleProjectionImplicit1 : one exterior root per step
+ImplicitMethodAccuracyStudy ..> BM4Implicit1 : projected twelve-stage cycle
+ImplicitMethodAccuracyStudy ..> ReferenceTrajectoryArtifact : verifies and compares
+ImplicitMethodAccuracyStudy ..> TrajectoryAccuracyVisualization : presents errors and cost
 ABBA4Implicit1AccuracyStudy ..> ABBA4Implicit1 : runs nested complete steps
 ABBA4Implicit1AccuracyStudy ..> ReferenceTrajectoryArtifact : verifies and compares
 ABBA4Implicit1AccuracyStudy ..> TrajectoryAccuracyVisualization : presents refinement
@@ -858,8 +875,8 @@ PotentialVisualization ..> Potential
 GCAreaVisualization ..> Potential
 GCAreaVisualization ..> Area
 GCAreaVisualization ..> Solution
-SingleParticleVisualization ..> Potential
-SingleParticleVisualization ..> Solution
+ParticleVisualization ..> Potential
+ParticleVisualization ..> Solution
 ABBAJacobianVisualization ..> ImplicitABBAJacobianObserver : presents samples
 ABBAJacobianVisualization ..> ImplicitABBAJacobianParticleStepSeries : presents field and finite increments
 ABBAReversibilityVisualization ..> ImplicitABBAReversibilityObserver : presents tangent and relative increment closure
@@ -889,7 +906,7 @@ ProjectedSymplecticityAreaObserver --> DiagnosticBlockWriter : persists CSV/NPZ/
 ImplicitTrajectoryComparisonVisualization ..> Solution : animates and plots aligned results
 TenMethodTrajectoryComparisonVisualization ..> Solution : presents aligned points and diagnostics
 TrajectoryAccuracyVisualization ..> ReferenceTrajectoryArtifact : plots marker-only reference paths
-TrajectoryAccuracyVisualization ..> TenMethodAccuracyStudy : plots periodic error summaries
+TrajectoryAccuracyVisualization ..> TenMethodAccuracyStudy : plots configured error summaries
 SymplecticityObservers ..> IntegrationStage
 SymplecticityObservers ..> IntegrationStep
 SymplecticityObservers o-- StepJacobianDiagnostics : selected strategy

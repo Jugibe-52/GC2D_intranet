@@ -62,6 +62,7 @@ class TrajectoryAccuracyTests(unittest.TestCase):
 			t_span=(0.0, 0.1),
 			save_interval=0.025,
 			rho=0.05,
+			distance_convention="euclidean",
 			relative_tolerance=1e-11,
 			absolute_tolerance=1e-13,
 			maximum_step=0.005,
@@ -95,7 +96,15 @@ class TrajectoryAccuracyTests(unittest.TestCase):
 			np.testing.assert_array_equal(loaded.times, result.trajectory.times)
 			np.testing.assert_array_equal(loaded.states, result.trajectory.states)
 			self.assertFalse(loaded.states.flags.writeable)
-			self.assertEqual(loaded.audit_periodic_distances.shape, (2, 5))
+			self.assertEqual(loaded.audit_distances.shape, (2, 5))
+			self.assertEqual(loaded.metadata["schema_version"], 2)
+			self.assertEqual(
+				loaded.metadata["config"]["distance_convention"],
+				"euclidean",
+			)
+			with np.load(loaded.paths.trajectory, allow_pickle=False) as archive:
+				self.assertIn("audit_distances", archive.files)
+				self.assertNotIn("audit_periodic_distances", archive.files)
 			self.assertIn("dynamics_fingerprint_sha256", loaded.metadata)
 			self.assertFalse(any(expected_directory.glob(".*-*.npz")))
 			with self.assertRaisesRegex(FileExistsError, "versioned reference"):
@@ -137,7 +146,20 @@ class TrajectoryAccuracyTests(unittest.TestCase):
 				self.assertTrue(np.all(series.distances >= 0.0))
 			self.assertAlmostEqual(
 				accuracy.reference_floor,
-				float(np.sqrt(np.mean(loaded.audit_periodic_distances[:, ::2] ** 2))),
+				float(np.sqrt(np.mean(loaded.audit_distances[:, ::2] ** 2))),
+			)
+			first_label = next(iter(accuracy.series))
+			first_states = accuracy.comparison.solutions[first_label].states
+			first_difference = first_states - loaded.states[:, ::2]
+			expected_distances = np.hypot(
+				first_difference[:2],
+				first_difference[2:],
+			)
+			np.testing.assert_allclose(
+				accuracy.series[first_label].distances,
+				expected_distances,
+				rtol=0.0,
+				atol=0.0,
 			)
 
 			trajectory_figure, trajectory_axis = plot_reference_trajectory_points(loaded)
@@ -192,7 +214,7 @@ class TrajectoryAccuracyTests(unittest.TestCase):
 			self.assertEqual(len(refinement.summaries()), 20)
 			orders = refinement.convergence_orders()
 			self.assertEqual(len(orders), 10)
-			audit_distances = loaded.audit_periodic_distances[:, ::2]
+			audit_distances = loaded.audit_distances[:, ::2]
 			expected_floor = float(
 				np.sqrt(
 					np.trapz(np.mean(audit_distances**2, axis=0), loaded.times[::2])
@@ -296,6 +318,12 @@ class TrajectoryAccuracyTests(unittest.TestCase):
 			HighPrecisionReferenceConfig(
 				absolute_tolerance=1e-15,
 				audit_absolute_tolerance=1e-12,
+			)
+
+	def test_reference_rejects_an_unknown_distance_convention(self) -> None:
+		with self.assertRaisesRegex(ValueError, "distance_convention"):
+			HighPrecisionReferenceConfig(
+				distance_convention="wrapped",  # type: ignore[arg-type]
 			)
 
 

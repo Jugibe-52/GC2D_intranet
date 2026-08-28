@@ -1,4 +1,4 @@
-"""Shared reference validation and periodic trajectory-accuracy primitives."""
+"""Shared reference validation and trajectory-accuracy primitives."""
 
 from __future__ import annotations
 
@@ -14,6 +14,12 @@ from dynamics import GuidingCenterDynamics
 from initial_conditions import GCInitialConfiguration
 from potential import Potential
 
+from ._trajectory_distances import (
+	DistanceConvention,
+	normalized_distance_convention,
+	particle_distances,
+	periodic_particle_distances,
+)
 from ._validation import integer_ratio, positive_finite
 from .reference_trajectory import potential_fingerprint
 
@@ -39,7 +45,7 @@ class ReferenceAccuracyConfig(Protocol):
 
 @dataclass(frozen=True, slots=True)
 class TrajectoryAccuracySeries:
-	"""Per-particle periodic distances and time-dependent reductions."""
+	"""Per-particle planar distances and time-dependent reductions."""
 
 	method_name: str
 	distances: np.ndarray
@@ -80,38 +86,19 @@ def _json_canonical(value: object) -> str:
 	return json.dumps(value, sort_keys=True, separators=(",", ":"), default=default)
 
 
-def periodic_particle_distances(
-	states: np.ndarray,
-	reference_states: np.ndarray,
-	*,
-	period: float,
-) -> np.ndarray:
-	"""Return minimum-image planar distances with shape ``(particles, samples)``."""
-	first = np.asarray(states, dtype=float)
-	second = np.asarray(reference_states, dtype=float)
-	if first.shape != second.shape or first.ndim != 2 or first.shape[0] % 2:
-		raise ValueError("Compared GC histories must have one matching packed shape.")
-	if not np.isfinite(period) or period <= 0.0:
-		raise ValueError("`period` must be positive and finite.")
-	particle_count = first.shape[0] // 2
-	difference = (first - second + period / 2.0) % period - period / 2.0
-	return np.asarray(
-		np.hypot(difference[:particle_count], difference[particle_count:]),
-		dtype=float,
-	)
-
-
 def accuracy_series(
 	method_name: str,
 	states: np.ndarray,
 	reference_states: np.ndarray,
 	*,
-	period: float,
+	period: float | None,
+	distance_convention: DistanceConvention = "periodic",
 ) -> TrajectoryAccuracySeries:
 	"""Build per-time reductions without averaging coordinate components first."""
-	distances = periodic_particle_distances(
+	distances = particle_distances(
 		states,
 		reference_states,
+		distance_convention=distance_convention,
 		period=period,
 	)
 	return TrajectoryAccuracySeries(
@@ -121,6 +108,19 @@ def accuracy_series(
 		mean_distance=np.mean(distances, axis=0),
 		maximum_distance=np.max(distances, axis=0),
 	)
+
+
+def reference_distance_convention(
+	reference: StoredReferenceTrajectory,
+) -> DistanceConvention:
+	"""Read the reference metric, defaulting schema-v1 artifacts to periodic."""
+	config = reference.metadata.get("config")
+	if not isinstance(config, Mapping):
+		raise ValueError("Reference numerical configuration is missing.")
+	value = config.get("distance_convention", "periodic")
+	if not isinstance(value, str):
+		raise ValueError("Reference distance convention must be textual.")
+	return normalized_distance_convention(value)
 
 
 def validate_reference_identity(
@@ -148,6 +148,7 @@ def validate_reference_identity(
 	reference_config = metadata.get("config")
 	if not isinstance(reference_config, Mapping):
 		raise ValueError("Reference numerical configuration is missing.")
+	reference_distance_convention(reference)
 	if float(reference_config["rho"]) != config.rho:
 		raise ValueError("The comparison rho differs from the reference.")
 	if tuple(float(value) for value in reference_config["t_span"]) != config.t_span:
@@ -185,7 +186,7 @@ def validate_reference_identity(
 		"interpolation_order": potential.interpolation_order,
 	}
 	if _json_canonical(grid_metadata) != _json_canonical(actual_grid_metadata):
-		raise ValueError("The comparison periodic grid differs from the reference.")
+		raise ValueError("The comparison potential grid differs from the reference.")
 	if metadata.get("dynamics_fingerprint_algorithm") != (
 		"gc2d-sampled-potential-v1-sha256"
 	):

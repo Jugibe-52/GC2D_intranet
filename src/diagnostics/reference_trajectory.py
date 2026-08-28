@@ -40,7 +40,7 @@ class StoredReferenceTrajectory:
 	states: np.ndarray
 	initial_state: np.ndarray
 	audit_states: np.ndarray
-	audit_periodic_distances: np.ndarray
+	audit_distances: np.ndarray
 	metadata: Mapping[str, Any]
 	paths: ReferenceTrajectoryPaths
 
@@ -50,8 +50,8 @@ class StoredReferenceTrajectory:
 		states = np.array(self.states, dtype=float, copy=True)
 		initial_state = np.array(self.initial_state, dtype=float, copy=True)
 		audit_states = np.array(self.audit_states, dtype=float, copy=True)
-		audit_periodic_distances = np.array(
-			self.audit_periodic_distances,
+		audit_distances = np.array(
+			self.audit_distances,
 			dtype=float,
 			copy=True,
 		)
@@ -79,10 +79,10 @@ class StoredReferenceTrajectory:
 			raise ValueError("Audit states must match the reference state history.")
 		if (
 			states.shape[0] % 2
-			or audit_periodic_distances.shape
+			or audit_distances.shape
 			!= (states.shape[0] // 2, times.size)
-			or not np.all(np.isfinite(audit_periodic_distances))
-			or np.any(audit_periodic_distances < 0.0)
+			or not np.all(np.isfinite(audit_distances))
+			or np.any(audit_distances < 0.0)
 		):
 			raise ValueError("Audit distances must have shape (particles, samples).")
 		for value in (
@@ -90,7 +90,7 @@ class StoredReferenceTrajectory:
 			states,
 			initial_state,
 			audit_states,
-			audit_periodic_distances,
+			audit_distances,
 		):
 			value.setflags(write=False)
 		object.__setattr__(self, "times", times)
@@ -99,10 +99,15 @@ class StoredReferenceTrajectory:
 		object.__setattr__(self, "audit_states", audit_states)
 		object.__setattr__(
 			self,
-			"audit_periodic_distances",
-			audit_periodic_distances,
+			"audit_distances",
+			audit_distances,
 		)
 		object.__setattr__(self, "metadata", MappingProxyType(dict(self.metadata)))
+
+	@property
+	def audit_periodic_distances(self) -> np.ndarray:
+		"""Return audit distances under the legacy schema-v1 attribute name."""
+		return self.audit_distances
 
 
 def reference_trajectory_output_directory(
@@ -149,7 +154,8 @@ def _array_digest(
 	states: np.ndarray,
 	initial_state: np.ndarray,
 	audit_states: np.ndarray,
-	audit_periodic_distances: np.ndarray,
+	audit_distances: np.ndarray,
+	audit_array_name: str = "audit_distances",
 ) -> str:
 	"""Hash array names, shapes, dtypes, and values in a stable order."""
 	digest = hashlib.sha256()
@@ -158,7 +164,7 @@ def _array_digest(
 		("states", states),
 		("initial_state", initial_state),
 		("audit_states", audit_states),
-		("audit_periodic_distances", audit_periodic_distances),
+		(audit_array_name, audit_distances),
 	):
 		array = np.ascontiguousarray(value)
 		digest.update(name.encode("ascii"))
@@ -186,12 +192,24 @@ def write_reference_trajectory(
 	states: np.ndarray,
 	initial_state: np.ndarray,
 	audit_states: np.ndarray,
-	audit_periodic_distances: np.ndarray,
 	metadata: Mapping[str, Any],
 	explanation: str,
+	audit_distances: np.ndarray | None = None,
+	audit_periodic_distances: np.ndarray | None = None,
 	overwrite: bool = False,
 ) -> StoredReferenceTrajectory:
 	"""Write one checksummed NPZ, JSON manifest, and explanatory README."""
+	if (audit_distances is None) == (audit_periodic_distances is None):
+		raise ValueError(
+			"Supply exactly one of `audit_distances` or the legacy "
+			"`audit_periodic_distances`."
+		)
+	selected_audit_distances = (
+		audit_distances
+		if audit_distances is not None
+		else audit_periodic_distances
+	)
+	assert selected_audit_distances is not None
 	paths = ReferenceTrajectoryPaths(
 		directory=Path(output_directory),
 		trajectory=Path(output_directory) / "trajectory.npz",
@@ -203,7 +221,7 @@ def write_reference_trajectory(
 		states=states,
 		initial_state=initial_state,
 		audit_states=audit_states,
-		audit_periodic_distances=audit_periodic_distances,
+		audit_distances=selected_audit_distances,
 		metadata=metadata,
 		paths=paths,
 	)
@@ -223,14 +241,14 @@ def write_reference_trajectory(
 	paths.directory.mkdir(parents=True, exist_ok=True)
 	payload = {
 		**dict(metadata),
-		"schema_version": 1,
+		"schema_version": 2,
 		"created_at": datetime.now().astimezone().isoformat(),
 		"trajectory_sha256": _array_digest(
 			times=artifact.times,
 			states=artifact.states,
 			initial_state=artifact.initial_state,
 			audit_states=artifact.audit_states,
-			audit_periodic_distances=artifact.audit_periodic_distances,
+			audit_distances=artifact.audit_distances,
 		),
 	}
 	# Serialize before touching an existing version. Staged files are moved into
@@ -255,7 +273,7 @@ def write_reference_trajectory(
 			states=artifact.states,
 			initial_state=artifact.initial_state,
 			audit_states=artifact.audit_states,
-			audit_periodic_distances=artifact.audit_periodic_distances,
+			audit_distances=artifact.audit_distances,
 		)
 		with tempfile.NamedTemporaryFile(
 			mode="w",
@@ -303,13 +321,21 @@ def load_reference_trajectory(
 	for path in (paths.trajectory, paths.metadata, paths.readme):
 		if not path.is_file():
 			raise FileNotFoundError(f"Reference artifact file not found: {path}")
+	with paths.metadata.open(encoding="utf-8") as stream:
+		metadata = json.load(stream)
+	if not isinstance(metadata, dict) or metadata.get("schema_version") not in (1, 2):
+		raise ValueError("Unsupported reference metadata schema.")
+	schema_version = int(metadata["schema_version"])
+	audit_array_name = (
+		"audit_periodic_distances" if schema_version == 1 else "audit_distances"
+	)
 	with np.load(paths.trajectory, allow_pickle=False) as archive:
 		required = {
 			"times",
 			"states",
 			"initial_state",
 			"audit_states",
-			"audit_periodic_distances",
+			audit_array_name,
 		}
 		if set(archive.files) != required:
 			raise ValueError("The reference NPZ contains an unexpected array schema.")
@@ -317,21 +343,15 @@ def load_reference_trajectory(
 		states = np.asarray(archive["states"], dtype=float)
 		initial_state = np.asarray(archive["initial_state"], dtype=float)
 		audit_states = np.asarray(archive["audit_states"], dtype=float)
-		audit_periodic_distances = np.asarray(
-			archive["audit_periodic_distances"],
-			dtype=float,
-		)
-	with paths.metadata.open(encoding="utf-8") as stream:
-		metadata = json.load(stream)
-	if not isinstance(metadata, dict) or metadata.get("schema_version") != 1:
-		raise ValueError("Unsupported reference metadata schema.")
+		audit_distances = np.asarray(archive[audit_array_name], dtype=float)
 	expected_digest = metadata.get("trajectory_sha256")
 	actual_digest = _array_digest(
 		times=times,
 		states=states,
 		initial_state=initial_state,
 		audit_states=audit_states,
-		audit_periodic_distances=audit_periodic_distances,
+		audit_distances=audit_distances,
+		audit_array_name=audit_array_name,
 	)
 	if expected_digest != actual_digest:
 		raise ValueError("The reference trajectory checksum does not match its manifest.")
@@ -340,7 +360,7 @@ def load_reference_trajectory(
 		states=states,
 		initial_state=initial_state,
 		audit_states=audit_states,
-		audit_periodic_distances=audit_periodic_distances,
+		audit_distances=audit_distances,
 		metadata=metadata,
 		paths=paths,
 	)

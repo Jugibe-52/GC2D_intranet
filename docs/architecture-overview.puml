@@ -83,8 +83,8 @@ class "High-precision numerical reference\n(versioned artifact)" as NumericalRef
 }
 
 class "Numerical accuracy study" as NumericalAccuracyStudy {
-  Periodic distances from computed solutions
-  Ten-method, focused ABBA4/ABBA6, or tangent-Taylor/Euler refinement
+  Reference-declared periodic or Euclidean distances
+  Ten-method, four-implicit-method, focused ABBA4/ABBA6, or tangent-Taylor/Euler refinement
   Time series, summaries, orders, and resolution margin
 }
 
@@ -257,13 +257,21 @@ note bottom of NumericalMethod
   aligned nonlinear-work series.
   The accuracy study validates a versioned DOP853 reference
   against an independent Radau solve, then measures all ten
-  fixed-step trajectories with periodic minimum-image distances.
+  fixed-step trajectories with the reference-declared distance convention.
   It reports particle-RMS evolution, final and maximum error,
   the margin above the reference discrepancy, and runtime.
   Its step-refinement runner uses nested complete steps and one
   common saved cadence aligned with every main grid; error gains
   and observed orders therefore require neither interpolation
   nor off-grid shadow steps.
+  The four-implicit-method accuracy study compares ImplicitABBA1,
+  ABBA4Implicit1, ABBA4SingleProjectionImplicit1, and BM4Implicit1
+  with Newton over five default nested step sizes. It reports designed versus observed order together
+  with per-solve corrections, residual work, and accepted residual ratios.
+  Local order-two and order-four guides are anchored beside the
+  corresponding ABBA and ABBA4 refinement curves.
+  Coupled BM4 Newton defaults to exact per-particle products of its
+  twelve stage Jacobians; centered differences remain an audit option.
 end note
 
 note bottom of ABBA4Implicit1

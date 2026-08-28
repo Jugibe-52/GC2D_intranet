@@ -28,6 +28,7 @@ from simulation import (
 from ._trajectory_accuracy import (
 	TrajectoryAccuracySeries,
 	accuracy_series,
+	reference_distance_convention,
 	reference_indices_for_times,
 	validate_reference_identity,
 	validated_refinement_steps,
@@ -340,7 +341,7 @@ class ABBA4ProjectionComparisonResult:
 	@property
 	def reference_floor(self) -> float:
 		"""Return the time-integrated particle-RMS DOP853/Radau discrepancy."""
-		distances = self.reference.audit_periodic_distances[
+		distances = self.reference.audit_distances[
 			:, self.reference_sample_indices
 		]
 		mean_squared = np.mean(distances**2, axis=0)
@@ -354,7 +355,7 @@ class ABBA4ProjectionComparisonResult:
 	@property
 	def final_reference_floor(self) -> float:
 		"""Return the final-time particle-RMS DOP853/Radau discrepancy."""
-		values = self.reference.audit_periodic_distances[
+		values = self.reference.audit_distances[
 			:, self.reference_sample_indices[-1]
 		]
 		return float(np.sqrt(np.mean(values**2)))
@@ -685,6 +686,7 @@ def run_abba4_projection_comparison_study(
 		method_name: {} for method_name in ABBA4_PROJECTION_METHOD_NAMES
 	}
 	reference_indices: np.ndarray | None = None
+	distance_convention = reference_distance_convention(reference)
 	for step_index, step in enumerate(config.integration_steps):
 		request = SimulationRequest.uniform(
 			t_span=config.t_span,
@@ -735,6 +737,7 @@ def run_abba4_projection_comparison_study(
 				solution.states,
 				reference.states[:, indices],
 				period=float(potential.grid.period),
+				distance_convention=distance_convention,
 			)
 	assert reference_indices is not None
 	return ABBA4ProjectionComparisonResult(

@@ -17,6 +17,7 @@ from ._trajectory_accuracy import (
 	TrajectoryAccuracySeries,
 	accuracy_series as _accuracy_series,
 	periodic_particle_distances,
+	reference_distance_convention as _reference_distance_convention,
 	reference_indices_for_times as _reference_indices_for_times,
 	validate_reference_identity as _validate_reference_identity,
 	validated_refinement_steps as _validated_refinement_steps,
@@ -120,7 +121,7 @@ class TenMethodAccuracyResult:
 	@property
 	def reference_floor(self) -> float:
 		"""Return the DOP853/Radau global RMS on this result's saved grid."""
-		distances = self.reference.audit_periodic_distances[
+		distances = self.reference.audit_distances[
 			:, self.reference_sample_indices
 		]
 		floor = float(np.sqrt(np.mean(distances**2)))
@@ -200,7 +201,7 @@ class TenMethodAccuracyRefinementResult:
 		"""Return the common-grid DOP853/Radau time-integrated RMS floor."""
 		indices = self.finest_result.reference_sample_indices
 		times = self.finest_result.times
-		distances = self.reference.audit_periodic_distances[:, indices]
+		distances = self.reference.audit_distances[:, indices]
 		particle_rms_squared = np.mean(distances**2, axis=0)
 		return float(
 			np.sqrt(
@@ -213,7 +214,7 @@ class TenMethodAccuracyRefinementResult:
 	def final_reference_floor(self) -> float:
 		"""Return the particle-RMS DOP853/Radau discrepancy at final time."""
 		indices = self.finest_result.reference_sample_indices
-		final_distances = self.reference.audit_periodic_distances[:, indices[-1]]
+		final_distances = self.reference.audit_distances[:, indices[-1]]
 		return float(np.sqrt(np.mean(final_distances**2)))
 
 	def summaries(self) -> tuple[TenMethodStepAccuracySummary, ...]:
@@ -341,12 +342,14 @@ def run_ten_method_accuracy_study(
 	reference_indices = _reference_indices_for_times(reference, comparison_times)
 	reference_states = reference.states[:, reference_indices]
 	period = float(potential.grid.period)
+	distance_convention = _reference_distance_convention(reference)
 	series = {
 		label: _accuracy_series(
 			label,
 			comparison.solutions[label].states,
 			reference_states,
 			period=period,
+			distance_convention=distance_convention,
 		)
 		for label in TEN_METHOD_LABELS
 	}

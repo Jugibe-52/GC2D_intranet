@@ -141,11 +141,63 @@ def random_gc_configuration(
 	)
 
 
+def latin_hypercube_gc_configuration(
+	potential: Potential,
+	*,
+	particle_count: int,
+	seed: int,
+	domain_margin_fraction: float = 0.0,
+) -> GCInitialConfiguration:
+	"""Place a reproducible heterogeneous sample across the grid extent.
+
+	Each spatial axis is divided into ``particle_count`` equally sized strata.
+	Independent jitter and permutations put exactly one guiding center in every
+	x and y stratum without forcing the two-dimensional points onto a regular
+	lattice. ``domain_margin_fraction`` removes the same fraction from both ends
+	of each sampled axis, which is useful for non-periodic spline boundaries.
+	"""
+	if not isinstance(potential, Potential):
+		raise TypeError("`potential` must be a Potential instance.")
+	if (
+		isinstance(particle_count, (bool, np.bool_))
+		or not isinstance(particle_count, (int, np.integer))
+		or particle_count < 1
+	):
+		raise ValueError("`particle_count` must be a positive integer.")
+	if (
+		isinstance(seed, (bool, np.bool_))
+		or not isinstance(seed, (int, np.integer))
+		or seed < 0
+	):
+		raise ValueError("`seed` must be a non-negative integer.")
+	margin = float(domain_margin_fraction)
+	if not np.isfinite(margin) or margin < 0.0 or margin >= 0.5:
+		raise ValueError("`domain_margin_fraction` must lie in [0, 0.5).")
+
+	grid = potential.grid
+	domain_min = np.asarray((grid.xmin, grid.ymin), dtype=float)
+	domain_max = np.asarray((grid.xmax, grid.ymax), dtype=float)
+	domain_span = domain_max - domain_min
+	sampling_min = domain_min + margin * domain_span
+	sampling_max = domain_max - margin * domain_span
+	random = np.random.default_rng(int(seed))
+	count = int(particle_count)
+	unit_x = (np.arange(count) + random.random(count)) / count
+	unit_y = (np.arange(count) + random.random(count)) / count
+	random.shuffle(unit_x)
+	random.shuffle(unit_y)
+	return GCInitialConfiguration.from_components(
+		x=sampling_min[0] + unit_x * (sampling_max[0] - sampling_min[0]),
+		y=sampling_min[1] + unit_y * (sampling_max[1] - sampling_min[1]),
+	)
+
+
 __all__ = [
 	"centered_circle",
 	"centered_gc_configuration",
 	"centered_gc_trajectory",
 	"centered_square",
 	"domain_center",
+	"latin_hypercube_gc_configuration",
 	"random_gc_configuration",
 ]
