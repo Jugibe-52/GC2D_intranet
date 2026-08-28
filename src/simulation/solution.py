@@ -8,7 +8,7 @@ from types import MappingProxyType
 import numpy as np
 
 from ._result import DiagnosticValue
-from .configuration import InitialConfiguration, PlanarStateLayout, StateLayout
+from .configuration import InitialConfiguration, StateLayout
 
 
 def _readonly_array(
@@ -145,10 +145,7 @@ class Solution:
 
 	def positions(self) -> tuple[np.ndarray, np.ndarray]:
 		"""Return both physical position histories."""
-		layout = self.source.layout
-		if not isinstance(layout, PlanarStateLayout):
-			raise TypeError("The solution layout does not expose planar positions.")
-		return layout.positions(self.states)
+		return self.source.layout.positions(self.states)
 
 
 __all__ = ["Solution"]

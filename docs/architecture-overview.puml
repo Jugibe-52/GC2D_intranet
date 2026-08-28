@@ -28,6 +28,7 @@ class "Initial configuration\n(initial-state provider)" as InitialConfiguration 
 class "State layout\n(component interpretation)" as StateLayout {
   Component count and packed-memory rules
   Splitting, validation, particle count
+  Planar x/y position extraction
 }
 
 class "Initial-value problem" as InitialValueProblem {

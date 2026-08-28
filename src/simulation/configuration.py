@@ -9,7 +9,7 @@ import numpy as np
 
 @runtime_checkable
 class StateLayout(Protocol):
-	"""Interpret component-major physical states independently of their source."""
+	"""Interpret component-major planar particle states independently of their source."""
 
 	state_dimension: ClassVar[int]
 
@@ -21,11 +21,6 @@ class StateLayout(Protocol):
 
 	def particle_count(self, state: np.ndarray) -> int:
 		"""Return the number of represented particles."""
-
-
-@runtime_checkable
-class PlanarStateLayout(StateLayout, Protocol):
-	"""State layout that exposes two physical position components."""
 
 	def positions(self, state: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
 		"""Return both physical position blocks."""
@@ -44,4 +39,4 @@ class InitialConfiguration(Protocol):
 		"""Return the layout used to interpret the physical state."""
 
 
-__all__ = ["InitialConfiguration", "PlanarStateLayout", "StateLayout"]
+__all__ = ["InitialConfiguration", "StateLayout"]

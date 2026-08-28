@@ -51,11 +51,6 @@ package "Run assembly" as RunAssembly {
     state_dimension
     validate_packed_state_layout(...)
     split(...) / particle_count(...)
-  }
-
-  class "src/simulation/configuration.py" as PlanarStateLayout <<contract>> {
-    PlanarStateLayout
-    --
     positions(...)
   }
 
@@ -216,10 +211,9 @@ package "Result boundary" as ResultBoundary {
 ' Type and implementation relationships.
 GuidingCenterJacobianSystem -up-|> DynamicalSystem
 GuidingCenterDynamics .up.|> GuidingCenterJacobianSystem
-PlanarStateLayout -up-|> StateLayout
 GCStateLayout -up-|> PackedStateLayout
 GCInitialConfiguration -up-|> StateConfiguration
-GCStateLayout ..> PlanarStateLayout
+GCStateLayout ..> StateLayout
 GCInitialConfiguration ..> InitialConfiguration
 GCInitialConfiguration o-- GCStateLayout
 ImplicitABBABase .up.|> NumericalMethod

@@ -74,9 +74,6 @@ package "Initial configuration" as Initial {
     + validate_packed_state_layout(state): Array
     + split(state): Components
     + particle_count(state): int
-  }
-
-  interface PlanarStateLayout {
     + positions(state): (Array, Array)
   }
 
@@ -125,13 +122,12 @@ package "Initial configuration" as Initial {
     + calculate_area(states, period=None): Array
   }
 
-  StateLayout <|-- PlanarStateLayout
   PackedStateLayout <|-- GCStateLayout
   PackedStateLayout <|-- FCStateLayout
   StateConfiguration <|-- GCInitialConfiguration
   StateConfiguration <|-- FCInitialConfiguration
-  GCStateLayout ..> PlanarStateLayout
-  FCStateLayout ..> PlanarStateLayout
+  GCStateLayout ..> StateLayout
+  FCStateLayout ..> StateLayout
   GCInitialConfiguration ..> InitialConfiguration
   FCInitialConfiguration ..> InitialConfiguration
   GCInitialConfiguration o-- GCStateLayout

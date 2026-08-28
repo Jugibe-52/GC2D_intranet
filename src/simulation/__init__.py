@@ -1,6 +1,6 @@
 """Problems, numerical formulations, methods, requests, and orchestration."""
 
-from .configuration import InitialConfiguration, PlanarStateLayout, StateLayout
+from .configuration import InitialConfiguration, StateLayout
 from .formulations import (
 	DirectAdjointFormulation,
 	FCSplitFormulation,
@@ -77,7 +77,6 @@ __all__ = [
 	"GCStageProjectedFormulation",
 	"gc_coupling_matrix",
 	"InitialConfiguration",
-	"PlanarStateLayout",
 	"FullyExtendedBaseMap",
 	"FullyExtendedImplicitIntegrationStep",
 	"InitialValueProblem",

@@ -106,7 +106,7 @@ The configuration owns the initial state, not the packed-memory rules. Physical
 parameters such as the potential, gyroaverage radius, or magnetic normalization
 remain in the dynamics object.
 
-### `StateLayout` and `PlanarStateLayout`
+### `StateLayout`
 
 **File:** [`src/simulation/configuration.py`](../../src/simulation/configuration.py)
 
@@ -119,11 +119,12 @@ simulation core:
 | `validate_packed_state_layout(state)` | Checks one packed state or a complete state history. |
 | `split(state)` | Exposes component-major storage as physical component blocks. |
 | `particle_count(state)` | Computes the number of represented particles. |
+| `positions(state)` | Returns the planar `x` and `y` position blocks. |
 
-`PlanarStateLayout` extends that contract with `positions(state)`. Keeping this
-operation out of the base protocol allows a future non-planar state to be used
-by the generic integrator. `Solution.positions()` checks for the planar
-capability before accessing it.
+Every physical state supported by GC2D represents particles in a plane, so
+position extraction is part of the base contract rather than an optional
+capability. External layouts remain supported through structural typing, but
+they must expose their particle positions.
 
 `pack_components(...)`, `as_blocks(...)`, and `from_blocks(...)` are useful
 construction and implementation operations, but the generic simulation
@@ -153,7 +154,7 @@ It owns an optional initial-state copy and provides:
 - temporary forwarding methods for notebook compatibility, while supported
   simulation code accesses `configuration.layout` directly.
 
-The class does not inherit either protocol. Concrete configurations complete
+The class does not inherit the protocol. Concrete configurations complete
 the `InitialConfiguration` contract by returning a concrete layout.
 
 ### `GCStateLayout`
@@ -165,10 +166,9 @@ the `InitialConfiguration` contract by returning a concrete layout.
 - `state_dimension = 2`;
 - component order `[x_1, ..., x_N, y_1, ..., y_N]`;
 - `split(...) -> GCState(x, y)`; and
-- `positions(...)` for the planar-layout capability.
+- `positions(...)` as required by `StateLayout`.
 
-It structurally conforms to `PlanarStateLayout` without inheriting that
-protocol.
+It structurally conforms to `StateLayout` without inheriting that protocol.
 
 ### `GCInitialConfiguration`
 
@@ -591,8 +591,8 @@ Canonical properties are:
 
 - `components(layout=None)` splits the full history into physical
   component blocks.
-- `positions()` requests the planar capability from `source.layout` before
-  returning both position histories.
+- `positions()` delegates to `source.layout` and returns both position
+  histories.
 
 Deprecated compatibility views `y`, `trajectory`, `n_steps`, `k`, and `err`
 remain available while older notebooks migrate to canonical names.

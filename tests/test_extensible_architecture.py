@@ -23,7 +23,6 @@ from simulation import (
 	GCExtendedFormulation,
 	InitialConfiguration,
 	InitialValueProblem,
-	PlanarStateLayout,
 	RK4,
 	SimulationRequest,
 	SimulationRunner,
@@ -82,32 +81,38 @@ class _FixedOutputMethod:
 		)
 
 
-class _ScalarLayout:
-	"""Minimal non-planar layout proving structural third-party composition."""
+class _ExternalParticleLayout:
+	"""Minimal planar layout proving structural third-party composition."""
 
-	state_dimension = 1
+	state_dimension = 2
 
 	def validate_packed_state_layout(self, state: np.ndarray) -> np.ndarray:
 		value = np.asarray(state)
-		if value.ndim == 0 or value.shape[0] == 0:
-			raise ValueError("A scalar state must have a non-empty leading axis.")
+		if value.ndim == 0 or value.shape[0] == 0 or value.shape[0] % 2:
+			raise ValueError("A particle state must contain matching x and y blocks.")
 		return value
 
 	def split(self, state: np.ndarray) -> tuple[np.ndarray, ...]:
-		return (self.validate_packed_state_layout(state),)
+		value = self.validate_packed_state_layout(state)
+		return tuple(np.split(value, 2, axis=0))
 
 	def particle_count(self, state: np.ndarray) -> int:
-		return int(self.validate_packed_state_layout(state).shape[0])
+		return int(self.validate_packed_state_layout(state).shape[0] // 2)
+
+	def positions(self, state: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+		"""Return the external layout's x and y particle blocks."""
+		x, y = self.split(state)
+		return x, y
 
 
-class _ExternalScalarConfiguration:
+class _ExternalParticleConfiguration:
 	"""Initial-state provider with no inheritance from project base classes."""
 
-	layout = _ScalarLayout()
+	layout = _ExternalParticleLayout()
 
 	@property
 	def initial_state(self) -> np.ndarray:
-		return np.asarray([1.0])
+		return np.asarray([1.0, 3.0])
 
 
 class ExtensibleArchitectureTests(unittest.TestCase):
@@ -143,18 +148,16 @@ class ExtensibleArchitectureTests(unittest.TestCase):
 
 	def test_external_configuration_composes_an_independent_layout(self) -> None:
 		"""Keep initial-state ownership separate from component interpretation."""
-		source = _ExternalScalarConfiguration()
+		source = _ExternalParticleConfiguration()
 		self.assertIsInstance(source, InitialConfiguration)
 		self.assertIsInstance(source.layout, StateLayout)
-		self.assertNotIsInstance(source.layout, PlanarStateLayout)
 		solution = Solution(
 			t=np.asarray([0.0, 1.0]),
-			states=np.asarray([[1.0, 2.0]]),
+			states=np.asarray([[1.0, 2.0], [3.0, 4.0]]),
 			source=source,
 		)
 		self.assertEqual(solution.components()[0].shape, (1, 2))
-		with self.assertRaises(TypeError):
-			solution.positions()
+		self.assertEqual(solution.positions()[0].shape, (1, 2))
 
 	def test_bm4_formulations_interoperate_through_one_runner(self) -> None:
 		potential = deterministic_potential()
@@ -340,7 +343,6 @@ class ExtensibleArchitectureTests(unittest.TestCase):
 
 		self.assertIsInstance(area, InitialConfiguration)
 		self.assertIsInstance(area.layout, StateLayout)
-		self.assertIsInstance(area.layout, PlanarStateLayout)
 		assert area.initial_state is not None
 		self.assertEqual(area.initial_state.ndim, 1)
 		self.assertEqual(solution.states.ndim, 2)
