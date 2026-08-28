@@ -39,21 +39,36 @@ IntegrationData -> Solution
 
 ## Inherited boundary: guiding-centre dynamics
 
-### `Guiding-center dynamics`
+### `DynamicalSystem`
 
-This box represents a dynamics object supplied from the dynamics layer. Its
-potential, field construction, and physical equations are intentionally outside
-this diagram. The implicit ABBA path consumes it through the
-[`GuidingCenterJacobianSystem`](../../src/dynamics/protocols.py) capability.
+**File:** [`src/dynamics/protocols.py`](../../src/dynamics/protocols.py)
 
-The required interface contains:
+`DynamicalSystem` is the general runtime-checkable dynamics protocol. It requires
+`state_dimension` and `vector_field(t, state)`. `InitialValueProblem` is typed
+against this broad contract so general numerical methods need not know which
+physical system they receive.
 
-- `state_dimension`: the number of physical components per particle. This path
-  requires two planar components.
-- `vector_field(t, state)`: evaluates the packed physical derivative without
-  changing the state layout.
-- `particle_vector_field_jacobians(t, state)`: returns one exact `2 x 2`
-  spatial Jacobian for every independent guiding-centre particle.
+### `GuidingCenterJacobianSystem`
+
+**File:** [`src/dynamics/protocols.py`](../../src/dynamics/protocols.py)
+
+`GuidingCenterJacobianSystem` inherits the `DynamicalSystem` protocol and adds
+`particle_vector_field_jacobians(t, state)`. The method returns one exact `2 x 2`
+spatial Jacobian for each independent guiding-centre particle. The implicit ABBA
+coordinator narrows the general problem dynamics to this capability.
+
+### `GuidingCenterDynamics`
+
+**File:** [`src/dynamics/gc.py`](../../src/dynamics/gc.py)
+
+`GuidingCenterDynamics` is the concrete structural implementation used in this
+path. It does not explicitly inherit the protocol, but it provides every required
+member: `state_dimension = 2`, `vector_field(...)`, and
+`particle_vector_field_jacobians(...)`. The dashed hollow-triangle relationship
+in the diagram denotes this structural protocol implementation.
+
+Its potential, gyroaverage construction, and field internals remain outside the
+simulation diagram. This boundary consumes only the public dynamics capability.
 
 The state convention is component-major:
 
@@ -85,7 +100,7 @@ Its members are:
 |---|---|
 | `state_dimension` | Declares the number of physical components per particle. |
 | `initial_state` | Returns an independent initial-state copy, or `None` if unset. |
-| `validate_packed_state(state)` | Checks one packed state or a complete state history. |
+| `validate_packed_state_layout(state)` | Checks the component-major layout of one packed state or a complete state history. |
 | `split(state)` | Splits component-major storage into physical component blocks. |
 | `pack_components(*components)` | Builds the packed public layout from named components. |
 | `particle_count(state)` | Computes the number of particles represented by a packed state. |
@@ -94,6 +109,45 @@ Its members are:
 The configuration owns state geometry and layout only. Physical parameters such
 as the potential, gyroaverage radius, or magnetic normalization belong to the
 dynamics object.
+
+### `StateConfiguration`
+
+**File:** [`src/initial_conditions/base.py`](../../src/initial_conditions/base.py)
+
+`StateConfiguration` is the reusable implementation of the
+`InitialConfiguration` contract. It implements the protocol structurally rather
+than inheriting from it explicitly.
+
+It owns an optional initial-state copy and implements:
+
+- `set_initial_state(...)`, which validates and stores one finite flat state;
+- `initial_state`, which returns an independent copy;
+- `validate_packed_state_layout(...)`, which checks divisibility of the leading axis;
+- `as_blocks(...)` and `from_blocks(...)`, which convert between packed and
+  explicit `(components, particles, *samples)` layouts;
+- `split(...)` and `pack_components(...)`, which separate or assemble named
+  physical component blocks; and
+- `particle_count(...)` and `positions(...)`, which interpret the packed state.
+
+The dashed hollow-triangle arrow from `StateConfiguration` to
+`InitialConfiguration` means **structural realization**: it satisfies the
+protocol without declaring it as a Python base class.
+
+### `GCInitialConfiguration`
+
+**File:** [`src/initial_conditions/gc.py`](../../src/initial_conditions/gc.py)
+
+`GCInitialConfiguration` is a real Python subclass of `StateConfiguration`,
+shown with a solid inheritance triangle. It specializes the generic layout by:
+
+- setting `state_dimension = 2`;
+- defining the component order `[x_1, ..., x_N, y_1, ..., y_N]`;
+- providing `from_components(x=..., y=...)`; and
+- overriding `split(...)` to return the named `GCState(x, y)` tuple.
+
+This is the concrete object normally supplied to `InitialValueProblem` for a
+guiding-centre run. The problem still refers to it through the broader
+`InitialConfiguration` protocol.
 
 ### `InitialValueProblem`
 
@@ -171,19 +225,29 @@ The method:
 This boundary prevents a numerical method from returning malformed or
 method-specific state layouts to user code.
 
-### `ImplicitABBA1`
+### `NumericalMethod`
 
-**Files:**
-[`src/simulation/methods/abba_implicit_1.py`](../../src/simulation/methods/abba_implicit_1.py)
-and
+**File:** [`src/simulation/methods/base.py`](../../src/simulation/methods/base.py)
+
+`NumericalMethod` is the runtime-checkable contract consumed by
+`SimulationRunner`. It requires one operation:
+
+```python
+integrate(problem: InitialValueProblem, request: SimulationRequest) -> IntegrationData
+```
+
+The runner therefore depends on a method capability rather than on
+`ImplicitABBA1` specifically. Other numerical methods can enter through the same
+interface.
+
+### `_ImplicitABBA`
+
+**File:**
 [`src/simulation/methods/_implicit_abba.py`](../../src/simulation/methods/_implicit_abba.py)
 
-`ImplicitABBA1` is the public numerical-method value object for the reduced
-implicit projection formulation. It inherits configuration and `integrate(...)`
-from the private `_ImplicitABBA` base class and selects:
-
-- `_solve_projected_step` as its step solver; and
-- `implicit_1_reduced_equation_11` as its diagnostic formulation name.
+`_ImplicitABBA` is a private frozen dataclass that structurally implements
+`NumericalMethod`. It owns the shared nonlinear configuration and implements the
+common `integrate(...)` delegation used by reduced implicit ABBA variants.
 
 Its configurable fields are:
 
@@ -205,6 +269,25 @@ the nonlinear-solver name.
 
 Delegates the run to `_integrate_projected_abba(...)`, passing the selected step
 solver, formulation name, nonlinear settings, progress option, and observer.
+
+The dashed hollow-triangle arrow to `NumericalMethod` again means structural
+implementation rather than explicit inheritance.
+
+### `ImplicitABBA1`
+
+**File:**
+[`src/simulation/methods/abba_implicit_1.py`](../../src/simulation/methods/abba_implicit_1.py)
+
+`ImplicitABBA1` is a real Python subclass of `_ImplicitABBA`, shown by the solid
+inheritance triangle. The class adds no new instance method; it specializes the
+base by selecting:
+
+- `_solve_projected_step` as `_step_solver`; and
+- `implicit_1_reduced_equation_11` as `_solver_formulation`.
+
+Consequently, an `ImplicitABBA1` instance inherits the validated tolerances,
+solver selection, observer configuration, and `integrate(...)` implementation
+from `_ImplicitABBA` while identifying the concrete reduced projection equation.
 
 ## Part 2: implicit ABBA integration
 
@@ -501,6 +584,8 @@ The diagram can be read from left to right as the following sequence:
 |---|---|
 | Solid one-way arrow | Main runtime hand-off or control flow |
 | Solid two-way arrow | Iteration between multiplier selection and stage-map residual evaluation |
+| Solid line with hollow triangle | Explicit Python inheritance |
+| Dashed line with hollow triangle | Structural implementation of a `Protocol` |
 | Dashed dependency arrow | Consumed capability or optional side channel rather than ownership |
 | Package boundary | Architectural responsibility, not necessarily a Python package |
 | Yellow note | Important invariant or intentionally omitted detail |

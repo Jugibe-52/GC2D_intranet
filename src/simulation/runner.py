@@ -41,7 +41,7 @@ class SimulationRunner:
 			raise ValueError("The numerical method returned incompatible physical output.")
 		if not np.array_equal(states[:, 0], initial_state):
 			raise ValueError("The numerical method did not preserve the initial state.")
-		problem.initial_configuration.validate_packed_state(states)
+		problem.initial_configuration.validate_packed_state_layout(states)
 		return Solution(
 			t=times,
 			states=states,

@@ -30,7 +30,7 @@ class InitialValueProblem:
 		state = configuration.initial_state
 		if state is None:
 			raise ValueError("The initial configuration has no initial state.")
-		value = configuration.validate_packed_state(state)
+		value = configuration.validate_packed_state_layout(state)
 		if value.ndim != 1 or not np.all(np.isfinite(value)):
 			raise ValueError("The initial state must be a finite one-dimensional vector.")
 		if configuration.state_dimension != self.dynamics.state_dimension:

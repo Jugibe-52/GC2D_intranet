@@ -170,9 +170,9 @@ class TrajectoryTests(unittest.TestCase):
 		np.testing.assert_allclose(components.y, y)
 		np.testing.assert_allclose(trajectory.pack_components(*components), stored)
 		self.assertEqual(trajectory.particle_count(stored), 2)
-		self.assertIs(trajectory.validate_packed_state(stored), stored)
+		self.assertIs(trajectory.validate_packed_state_layout(stored), stored)
 		with self.assertRaises(ValueError):
-			trajectory.validate_packed_state(np.asarray([1.0, 2.0, 3.0]))
+			trajectory.validate_packed_state_layout(np.asarray([1.0, 2.0, 3.0]))
 
 		stored[0] = -20.0
 		np.testing.assert_allclose(trajectory.state, [1.0, 2.0, 3.0, 4.0])

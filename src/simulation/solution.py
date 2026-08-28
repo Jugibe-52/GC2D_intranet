@@ -68,7 +68,7 @@ class Solution:
 				"`t` and `states` must be finite arrays with shapes "
 				"(T,) and (state_size, T), with increasing times."
 			)
-		source.validate_packed_state(state_history)
+		source.validate_packed_state_layout(state_history)
 		normalized_diagnostics: dict[str, DiagnosticValue] = {}
 		for name, value in dict(diagnostics or {}).items():
 			if not isinstance(name, str) or not name:

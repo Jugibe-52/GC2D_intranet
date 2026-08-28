@@ -17,8 +17,8 @@ class InitialConfiguration(Protocol):
 	def initial_state(self) -> np.ndarray | None:
 		"""Return an independent initial-state copy, or ``None`` when unset."""
 
-	def validate_packed_state(self, state: np.ndarray) -> np.ndarray:
-		"""Validate and return one packed state or state history."""
+	def validate_packed_state_layout(self, state: np.ndarray) -> np.ndarray:
+		"""Validate and return one packed state or state-history layout."""
 
 	def split(self, state: np.ndarray) -> tuple[np.ndarray, ...]:
 		"""Return physical component blocks, preserving trailing sample axes."""

@@ -72,7 +72,7 @@ package "Initial configuration" as Initial {
   interface InitialConfiguration {
     + state_dimension: int
     + initial_state: Array
-    + validate_packed_state(state): Array
+    + validate_packed_state_layout(state): Array
     + split(state): Components
     + pack_components(components): Array
     + particle_count(state): int

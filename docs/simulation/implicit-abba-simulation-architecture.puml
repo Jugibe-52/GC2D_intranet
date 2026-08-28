@@ -15,7 +15,26 @@ hide circle
 hide empty members
 
 package "Inherited boundary" as InheritedBoundary {
-  class "Guiding-center dynamics" as InheritedDynamics <<from dynamics diagram>>
+  class "src/dynamics/protocols.py" as DynamicalSystem <<protocol>> {
+    DynamicalSystem
+    --
+    state_dimension
+    vector_field(t, state)
+  }
+
+  class "src/dynamics/protocols.py" as GuidingCenterJacobianSystem <<protocol>> {
+    GuidingCenterJacobianSystem
+    --
+    particle_vector_field_jacobians(...)
+  }
+
+  class "src/dynamics/gc.py" as GuidingCenterDynamics <<implementation>> {
+    GuidingCenterDynamics
+    --
+    state_dimension = 2
+    vector_field(t, state)
+    particle_vector_field_jacobians(...)
+  }
 }
 
 package "Run assembly" as RunAssembly {
@@ -24,6 +43,23 @@ package "Run assembly" as RunAssembly {
     --
     Supplies the initial physical state
     Validates the packed state layout
+  }
+
+  class "src/initial_conditions/base.py" as StateConfiguration <<base implementation>> {
+    StateConfiguration
+    --
+    initial_state
+    validate_packed_state_layout(...)
+    split(...) / pack_components(...)
+    particle_count(...) / positions(...)
+  }
+
+  class "src/initial_conditions/gc.py" as GCInitialConfiguration <<concrete>> {
+    GCInitialConfiguration
+    --
+    state_dimension = 2
+    from_components(x, y)
+    split(...) -> GCState
   }
 
   class "src/simulation/problem.py" as InitialValueProblem <<value>> {
@@ -46,6 +82,19 @@ package "Run assembly" as RunAssembly {
     --
     Validates public inputs
     Delegates numerical integration
+  }
+
+  class "src/simulation/methods/base.py" as NumericalMethod <<protocol>> {
+    NumericalMethod
+    --
+    integrate(problem, request)
+  }
+
+  class "src/simulation/methods/\n_implicit_abba.py" as ImplicitABBABase <<base method>> {
+    _ImplicitABBA
+    --
+    Nonlinear solver configuration
+    integrate(problem, request)
   }
 
   class "src/simulation/methods/\nabba_implicit_1.py" as ImplicitABBA1 <<method>> {
@@ -128,12 +177,20 @@ package "Result boundary" as ResultBoundary {
   }
 }
 
+' Type and implementation relationships.
+GuidingCenterJacobianSystem -up-|> DynamicalSystem
+GuidingCenterDynamics .up.|> GuidingCenterJacobianSystem
+StateConfiguration .up.|> InitialConfiguration
+GCInitialConfiguration -up-|> StateConfiguration
+ImplicitABBABase .up.|> NumericalMethod
+ImplicitABBA1 -up-|> ImplicitABBABase
+
 ' Public run assembly.
-InheritedDynamics --> InitialValueProblem : supplied dynamics
+DynamicalSystem --> InitialValueProblem
 InitialConfiguration --> InitialValueProblem
 InitialValueProblem --> SimulationRunner
 SimulationRequest --> SimulationRunner
-SimulationRunner --> ImplicitABBA1
+SimulationRunner --> NumericalMethod
 
 ' Implicit ABBA runtime path.
 ImplicitABBA1 --> IntegrationCoordinator
@@ -144,8 +201,8 @@ ABBAStages <--> ProjectionRoot
 ProjectionRoot --> AcceptedStep
 
 ' The inherited layer is consumed only through its public capabilities.
-InheritedDynamics ..> ABBAStages : vector field
-InheritedDynamics ..> ProjectionRoot : Newton\nJacobians
+GuidingCenterJacobianSystem ..> ABBAStages : vector field
+GuidingCenterJacobianSystem ..> ProjectionRoot : Newton\nJacobians
 
 ' Results and optional observation.
 AcceptedStep ..> StepObservation
@@ -153,7 +210,7 @@ AcceptedStep --> IntegrationData
 IntegrationData --> Solution
 InitialConfiguration ..> Solution : unpack states
 
-note bottom of InheritedDynamics
+note bottom of GuidingCenterDynamics
   This is the hand-off from the dynamics diagram.
   Its internal field model and equations are intentionally omitted here.
 end note

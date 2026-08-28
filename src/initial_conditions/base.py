@@ -85,14 +85,14 @@ class StateConfiguration:
 		memory layout.  Making both physical axes explicit avoids repeating manual
 		block offsets inside numerical algorithms.
 		"""
-		value = self.validate_packed_state(state)
+		value = self.validate_packed_state_layout(state)
 		particle_count = value.shape[0] // self.state_dimension
 		return value.reshape(
 			(self.state_dimension, particle_count, *value.shape[1:])
 		)
 
-	def validate_packed_state(self, state: np.ndarray) -> np.ndarray:
-		"""Validate and return a component-major state array.
+	def validate_packed_state_layout(self, state: np.ndarray) -> np.ndarray:
+		"""Validate and return a component-major state-array layout.
 
 		The leading axis must contain a non-zero whole number of physical
 		component blocks.  Block consumers call this indirectly through
