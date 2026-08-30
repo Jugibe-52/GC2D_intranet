@@ -1,13 +1,6 @@
-"""State-space extensions of projected implicit ABBA methods."""
+"""Private state-extension kernels used by the canonical ABBA methods.
 
-from .fully_extended import (
-	ABBA2FullyExtendedImplicit,
-	ABBA4FullyExtendedImplicit,
-)
-from .shared_time import ABBA2SharedTimeExtendedImplicit
+State extensions are configuration values, not independent public methods.
+"""
 
-__all__ = [
-	"ABBA2FullyExtendedImplicit",
-	"ABBA2SharedTimeExtendedImplicit",
-	"ABBA4FullyExtendedImplicit",
-]
+__all__: list[str] = []

@@ -109,8 +109,13 @@ class PotentialTests(unittest.TestCase):
 			first.evaluate(0.3, x, y, dx=1),
 			first.evaluate(0.3, x, y, dy=1),
 			first.evaluate(0.3, x, y, dt=1),
+			first.evaluate(0.3, x, y, dt=2),
 		):
 			self.assertTrue(np.all(np.isfinite(derivative)))
+		np.testing.assert_allclose(
+			first.evaluate(0.3, x, y, dt=2),
+			-first.evaluate(0.3, x, y),
+		)
 
 		ex, ey = first.electric_field(0.3, x, y)
 		np.testing.assert_allclose(ex, -first.evaluate(0.3, x, y, dx=1))

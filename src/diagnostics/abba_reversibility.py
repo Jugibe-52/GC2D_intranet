@@ -10,6 +10,7 @@ import numpy as np
 
 from dynamics import GuidingCenterJacobianSystem
 from simulation import (
+	ABBA_PROJECTION_FORMULATIONS,
 	ABBA4ImplicitIntegrationStep,
 	ABBA2ImplicitIntegrationStep,
 	IntegrationStep,
@@ -253,7 +254,7 @@ class ImplicitABBAReversibilityObserver:
 			v_initial=result.stages.v_initial.copy(),
 			u_first=result.stages.u_first.copy(),
 			v_final=result.stages.v_final.copy(),
-			 u_final=result.stages.u_final.copy(),
+			u_final=result.stages.u_final.copy(),
 		)
 
 	def _solve_reverse_abba4_step(
@@ -265,6 +266,9 @@ class ImplicitABBAReversibilityObserver:
 		start_time = float(step.time)
 		duration = -float(step.duration)
 		state_before = np.asarray(step.state_after, dtype=float)
+		if step.formulation_name not in ABBA_PROJECTION_FORMULATIONS:
+			raise TypeError("The observed ABBA4 step has an unknown formulation.")
+		projection_formulation = step.formulation_name
 
 		def solve(candidate: np.ndarray) -> Any:
 			return _solve_abba4_step(
@@ -276,6 +280,7 @@ class ImplicitABBAReversibilityObserver:
 				relative_tolerance=self.newton_relative_tolerance,
 				max_iterations=self.newton_max_iterations,
 				nonlinear_solver=self.nonlinear_solver,
+				projection_formulation=projection_formulation,
 			)
 
 		result = solve(state_before)
@@ -289,6 +294,7 @@ class ImplicitABBAReversibilityObserver:
 				relative_tolerance=self.newton_relative_tolerance,
 				max_iterations=self.newton_max_iterations,
 				nonlinear_solver=self.nonlinear_solver,
+				projection_formulation=projection_formulation,
 			)
 			for accepted in result.substeps
 		)

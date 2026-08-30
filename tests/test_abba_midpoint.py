@@ -14,6 +14,7 @@ from initial_conditions import TrajectoryGC
 from potential import Potential
 from simulation import (
 	ABBA2Midpoint,
+	ABBA_STATE_EXTENSIONS,
 	InitialValueProblem,
 	SimulationRequest,
 	simulate,
@@ -76,6 +77,20 @@ def _deterministic_gc_dynamics() -> GuidingCenterDynamics:
 
 class ABBA2MidpointTests(unittest.TestCase):
 	"""Verify stages, geometric limitation, accuracy and observation behavior."""
+
+	def test_configuration_has_three_extensions_but_no_implicit_axes(self) -> None:
+		for extension in ABBA_STATE_EXTENSIONS:
+			with self.subTest(extension=extension):
+				self.assertEqual(
+					ABBA2Midpoint(state_extension=extension).state_extension,
+					extension,
+				)
+		with self.assertRaisesRegex(TypeError, "projection_formulation"):
+			ABBA2Midpoint(  # type: ignore[call-arg]
+				projection_formulation="reduced_multiplier"
+			)
+		with self.assertRaisesRegex(TypeError, "nonlinear_solver"):
+			ABBA2Midpoint(nonlinear_solver="newton")  # type: ignore[call-arg]
 
 	def test_non_autonomous_stages_use_both_step_endpoints(self) -> None:
 		dynamics = _TimeOnlyPlanarDynamics()

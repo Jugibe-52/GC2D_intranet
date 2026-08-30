@@ -11,10 +11,15 @@ import numpy as np
 from scipy import ndimage
 from scipy.interpolate import RectBivariateSpline
 
+from diagnostics import central_difference_jacobian
 from dynamics import GuidingCenterDynamics
 from initial_conditions import GCInitialConfiguration
 from potential import GC2DH5Potential, Potential, load_gc2d_h5_potential
 from simulation import ABBA4Implicit, InitialValueProblem, SimulationRequest, simulate
+from simulation.methods._fully_extended import (
+	_extended_vector_field,
+	_extended_vector_field_jacobian,
+)
 
 
 def _h5_interpolate(
@@ -236,11 +241,13 @@ class GC2DH5PotentialTests(unittest.TestCase):
 		assert potential.fluctuations is not None
 		frequency = float(potential.frequencies[0])
 		time = 0.021
-		# Both out-of-domain coordinates are clipped before spline evaluation.
+		# Out-of-domain coordinates are clipped before spline evaluation.
 		query_x = np.asarray([self.x[2] + 0.013, self.x[-1] + 1.0])
 		query_y = np.asarray([self.y[3] - 0.009, self.y[0] - 1.0])
 		clipped_x = np.clip(query_x, self.x[0], self.x[-1])
 		clipped_y = np.clip(query_y, self.y[0], self.y[-1])
+		x_active = (query_x >= self.x[0]) & (query_x <= self.x[-1])
+		y_active = (query_y >= self.y[0]) & (query_y <= self.y[-1])
 		for dx, dy in ((1, 0), (0, 1), (2, 0), (1, 1), (0, 2)):
 			mean = _h5_interpolate(
 				self.x,
@@ -261,10 +268,41 @@ class GC2DH5PotentialTests(unittest.TestCase):
 				dy=dy,
 			)
 			expected = mean + 2.0 * np.real(mode * np.exp(1j * frequency * time))
+			if dx:
+				expected = expected * x_active
+			if dy:
+				expected = expected * y_active
 			np.testing.assert_allclose(
 				potential.evaluate(time, query_x, query_y, dx=dx, dy=dy),
 				expected,
 			)
+
+		# Exact grid endpoints retain the in-domain spline derivative by contract.
+		endpoint_x = np.asarray((self.x[0], self.x[-1]))
+		endpoint_y = np.full(2, self.y[3] - 0.009)
+		endpoint_mean_x = _h5_interpolate(
+			self.x,
+			self.y,
+			potential.mean_value.astype(np.complex128),
+			endpoint_x,
+			endpoint_y,
+			dx=1,
+		).real
+		endpoint_mode_x = _h5_interpolate(
+			self.x,
+			self.y,
+			potential.fluctuations[0],
+			endpoint_x,
+			endpoint_y,
+			dx=1,
+		)
+		expected_endpoint_x = endpoint_mean_x + 2.0 * np.real(
+			endpoint_mode_x * np.exp(1j * frequency * time)
+		)
+		np.testing.assert_allclose(
+			potential.evaluate(time, endpoint_x, endpoint_y, dx=1),
+			expected_endpoint_x,
+		)
 
 		mode = _h5_interpolate(
 			self.x,
@@ -283,6 +321,90 @@ class GC2DH5PotentialTests(unittest.TestCase):
 		ex, ey = potential.electric_field(time, query_x, query_y)
 		np.testing.assert_allclose(ex, -potential.evaluate(time, query_x, query_y, dx=1))
 		np.testing.assert_allclose(ey, -potential.evaluate(time, query_x, query_y, dy=1))
+
+	def test_outside_domain_gc_jacobian_matches_clipped_vector_field(self) -> None:
+		"""Differentiate the constant clipped extension seen by GC dynamics."""
+		potential = load_gc2d_h5_potential(
+			self.path,
+			B=1.5,
+			indx=(0, 2, 1),
+			interpolation_order=3,
+		)
+		dynamics = GuidingCenterDynamics(potential, rho=0.0)
+		time = 0.029
+		states = (
+			np.asarray((self.x[-1] + 0.2, self.y[3] - 0.007)),
+			np.asarray((self.x[2] + 0.011, self.y[0] - 0.2)),
+			np.asarray((self.x[-1] + 0.2, self.y[0] - 0.2)),
+		)
+		for state in states:
+			with self.subTest(state=state):
+				analytic = dynamics.particle_vector_field_jacobians(time, state)[0]
+				numerical = central_difference_jacobian(
+					lambda candidate: dynamics.vector_field(time, candidate),
+					state,
+				)
+				np.testing.assert_allclose(
+					analytic,
+					numerical,
+					rtol=2e-6,
+					atol=2e-7,
+				)
+				if state[0] > self.x[-1]:
+					np.testing.assert_array_equal(analytic[:, 0], 0.0)
+				if state[1] < self.y[0]:
+					np.testing.assert_array_equal(analytic[:, 1], 0.0)
+
+	def test_multifrequency_second_time_derivative_and_extended_jacobian(
+		self,
+	) -> None:
+		"""Differentiate a mean plus two non-unit HDF5 frequencies exactly."""
+		potential = load_gc2d_h5_potential(
+			self.path,
+			B=1.5,
+			indx=(0, 2, 1),
+			interpolation_order=3,
+		)
+		assert potential.mean_value is not None
+		assert potential.fluctuations is not None
+		time = 0.037
+		query_x = np.asarray([self.x[2] + 0.013])
+		query_y = np.asarray([self.y[3] - 0.009])
+		expected_second = np.zeros_like(query_x)
+		for field, frequency in zip(
+			potential.fluctuations,
+			potential.frequencies,
+			strict=True,
+		):
+			mode = _h5_interpolate(
+				self.x,
+				self.y,
+				field,
+				query_x,
+				query_y,
+			)
+			expected_second += 2.0 * np.real(
+				mode
+				* (1j * float(frequency)) ** 2
+				* np.exp(1j * float(frequency) * time)
+			)
+		second = potential.evaluate(time, query_x, query_y, dt=2)
+		np.testing.assert_allclose(second, expected_second)
+		self.assertFalse(
+			np.allclose(second, -potential.evaluate(time, query_x, query_y))
+		)
+
+		dynamics = GuidingCenterDynamics(potential, rho=0.0)
+		extended_state = np.asarray(
+			(query_x[0], query_y[0], time, 0.31),
+			dtype=float,
+		)
+		analytic = _extended_vector_field_jacobian(dynamics, extended_state)
+		numerical = central_difference_jacobian(
+			lambda state: _extended_vector_field(dynamics, state),
+			extended_state,
+		)
+		np.testing.assert_allclose(analytic, numerical, rtol=2e-6, atol=2e-7)
 
 	def test_zero_gyroaverage_and_abba4_implicit_are_compatible(self) -> None:
 		"""Pass the strict Potential check and supply Hessians to implicit ABBA4."""

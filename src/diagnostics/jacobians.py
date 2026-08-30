@@ -10,6 +10,7 @@ import numpy as np
 from dynamics import GuidingCenterJacobianSystem
 from simulation.observation import (
 	ABBA2ImplicitIntegrationStep,
+	GaussLegendre4IntegrationStep,
 	IntegrationStep,
 	StateMap,
 )
@@ -235,8 +236,126 @@ def _dense_component_major_jacobian(blocks: np.ndarray) -> np.ndarray:
 	return result
 
 
+def gauss_legendre4_step_jacobian(step: IntegrationStep) -> np.ndarray:
+	"""Differentiate the ideal root of one two-stage Gauss collocation step."""
+	if not isinstance(step, GaussLegendre4IntegrationStep):
+		raise TypeError(
+			"Analytic Gauss Jacobians require GaussLegendre4IntegrationStep data."
+		)
+	dynamics = step.dynamics
+	if (
+		not isinstance(dynamics, GuidingCenterJacobianSystem)
+		or dynamics.state_dimension != 2
+	):
+		raise TypeError(
+			"Analytic Gauss Jacobians require planar "
+			"GuidingCenterJacobianSystem dynamics."
+		)
+	root_three_over_six = float(np.sqrt(3.0) / 6.0)
+	times = np.asarray(
+		(
+			step.start_time,
+			step.time,
+			step.duration,
+			step.first_stage_time,
+			step.second_stage_time,
+		),
+		dtype=float,
+	)
+	if not np.all(np.isfinite(times)):
+		raise ValueError("Analytic Gauss diagnostics require finite step times.")
+	expected_times = np.asarray(
+		(
+			step.start_time + step.duration,
+			step.start_time + step.duration * (0.5 - root_three_over_six),
+			step.start_time + step.duration * (0.5 + root_three_over_six),
+		)
+	)
+	tolerance = float(
+		32.0
+		* np.finfo(float).eps
+		* max(1.0, float(np.max(np.abs(times))))
+	)
+	if not np.allclose(
+		(step.time, step.first_stage_time, step.second_stage_time),
+		expected_times,
+		rtol=0.0,
+		atol=tolerance,
+	):
+		raise ValueError("Gauss stage times are inconsistent with the observed step.")
+	state = np.asarray(step.state_before, dtype=float)
+	if (
+		state.ndim != 1
+		or state.size == 0
+		or state.size % 2
+		or not np.all(np.isfinite(state))
+	):
+		raise ValueError(
+			"Analytic Gauss diagnostics require a finite component-major planar state."
+		)
+	particle_count = state.size // 2
+	first_stage = np.asarray(step.first_stage_state, dtype=float)
+	second_stage = np.asarray(step.second_stage_state, dtype=float)
+	if any(
+		value.shape != state.shape or not np.all(np.isfinite(value))
+		for value in (first_stage, second_stage)
+	):
+		raise ValueError("Gauss stage states must match the physical input layout.")
+	first_jacobian = _checked_vector_field_jacobians(
+		dynamics,
+		step.first_stage_time,
+		first_stage,
+		particle_count,
+	)
+	second_jacobian = _checked_vector_field_jacobians(
+		dynamics,
+		step.second_stage_time,
+		second_stage,
+		particle_count,
+	)
+	matrix = np.asarray(
+		(
+			(0.25, 0.25 - root_three_over_six),
+			(0.25 + root_three_over_six, 0.25),
+		),
+		dtype=float,
+	)
+	identity = np.broadcast_to(np.eye(2), (particle_count, 2, 2))
+	top = np.concatenate(
+		(
+			identity - step.duration * matrix[0, 0] * first_jacobian,
+			-step.duration * matrix[0, 1] * second_jacobian,
+		),
+		axis=-1,
+	)
+	bottom = np.concatenate(
+		(
+			-step.duration * matrix[1, 0] * first_jacobian,
+			identity - step.duration * matrix[1, 1] * second_jacobian,
+		),
+		axis=-1,
+	)
+	stage_matrix = np.concatenate((top, bottom), axis=-2)
+	right_hand_side = np.concatenate((identity, identity), axis=-2)
+	try:
+		stage_sensitivities = np.linalg.solve(stage_matrix, right_hand_side)
+	except np.linalg.LinAlgError as exc:
+		raise RuntimeError(
+			"The Gauss collocation matrix is singular while differentiating the step."
+		) from exc
+	first_sensitivity = stage_sensitivities[:, :2]
+	second_sensitivity = stage_sensitivities[:, 2:]
+	physical_blocks = identity + step.duration * 0.5 * (
+		first_jacobian @ first_sensitivity
+		+ second_jacobian @ second_sensitivity
+	)
+	return _dense_component_major_jacobian(physical_blocks)
+
+
 def implicit_function_step_jacobian(step: IntegrationStep) -> np.ndarray:
-	"""Calculate the ideal-root ABBA tangent as ``P - Q solve(K, L)``."""
+	"""Calculate an ideal-root tangent by implicit differentiation."""
+	if isinstance(step, GaussLegendre4IntegrationStep):
+		return gauss_legendre4_step_jacobian(step)
 	blocks = _implicit_abba_blocks(step)
 	multiplier_jacobian = _multiplier_state_jacobian(blocks)
 	direct = blocks.top_left + blocks.top_right
@@ -246,7 +365,9 @@ def implicit_function_step_jacobian(step: IntegrationStep) -> np.ndarray:
 
 
 def stage_increment_step_jacobian(step: IntegrationStep) -> np.ndarray:
-	"""Calculate the same ideal-root tangent as ``I + h/4 sum(Dk_i)``."""
+	"""Calculate an ideal-root tangent from differentiated stage increments."""
+	if isinstance(step, GaussLegendre4IntegrationStep):
+		return gauss_legendre4_step_jacobian(step)
 	blocks = _implicit_abba_blocks(step)
 	multiplier_jacobian = _multiplier_state_jacobian(blocks)
 	half_step = step.duration / 2.0
@@ -298,6 +419,7 @@ __all__ = [
 	"StepJacobianMethod",
 	"calculate_step_jacobian",
 	"central_difference_jacobian",
+	"gauss_legendre4_step_jacobian",
 	"implicit_function_step_jacobian",
 	"stage_increment_step_jacobian",
 ]

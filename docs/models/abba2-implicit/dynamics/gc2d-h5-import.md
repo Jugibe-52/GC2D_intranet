@@ -189,6 +189,10 @@ The HDF5 subclass defines its own format-specific evaluation behavior:
 - the axes are extended by `interpolation_order + 1` samples on both sides;
 - extended field values are filled with zeros;
 - query coordinates are clipped to the sampled bounds;
+- spatial derivatives follow the clipping chain rule: a derivative with
+  respect to a coordinate that was clipped outside its sampled interval is
+  zero, while derivatives in an unclipped coordinate retain the boundary
+  spline value;
 - runtime HDF5 interpolation is non-periodic.
 
 The associated `Grid` records regular periodic coordinates because the shared
@@ -214,9 +218,13 @@ The main runtime methods are:
 - `gyroaverage(rho)`: applies the Larmor-circle average to every stored field.
 
 Spatial derivative orders are delegated to the persistent splines. The time
-derivative interface currently supports `dt=0` and `dt=1`; for `dt=1`, every
-oscillatory phase is multiplied by `i*f_j`, and the stationary mean contributes
-zero.
+derivative interface supports `dt=0`, `dt=1`, and `dt=2`. Every oscillatory
+mode is multiplied by `(i*f_j)**dt`; therefore `dt=1` reconstructs `Phi_t` and
+`dt=2` reconstructs `Phi_tt` with the actual frequency of each selected mode.
+The stationary mean contributes only for `dt=0` and contributes zero to both
+time derivatives. Spatial and time orders can be combined, so calls such as
+`evaluate(..., dx=1, dt=1)` and `evaluate(..., dy=1, dt=1)` provide `Phi_xt`
+and `Phi_yt`.
 
 ## Gyroaveraging
 
@@ -247,8 +255,23 @@ hamiltonian = Phi
 extended_momentum_derivative = -Phi_t
 ```
 
-Exact particle Jacobians are assembled from `Phi_xx`, `Phi_xy`, and `Phi_yy`.
-These second derivatives require `interpolation_order >= 3`.
+Derivative requirements depend on the selected ABBA configuration:
+
+- Newton with `state_extension="physical"` or `"shared_time"` assembles exact
+  particle Jacobians from `Phi_xx`, `Phi_xy`, and `Phi_yy`.
+- Newton with `state_extension="fully_extended"` uses that spatial Hessian and
+  additionally evaluates `Phi_xt`, `Phi_yt`, and `Phi_tt` to build the analytic
+  `4 x 4` extended-vector-field Jacobian.
+- Broyden evaluates the selected residual without analytic residual Jacobians.
+  Physical Broyden therefore needs field values only; shared-time and fully
+  extended Broyden additionally use `Phi_t` for the conjugate-momentum flow,
+  but do not require the Hessian, mixed derivatives, or `Phi_tt`.
+
+The spatial second derivatives used by either Newton branch require
+`interpolation_order >= 3`. The HDF5 implementation's frequency-aware `dt=2`
+contract makes fully extended Newton valid for stationary means and arbitrary
+positive multifrequency selections; it does not use the unit-frequency
+shortcut `Phi_tt=-Phi`.
 
 A minimal simulation setup is:
 
@@ -275,7 +298,15 @@ request = SimulationRequest.uniform(
     max_step=1e-3,
     sample_count=101,
 )
-solution = simulate(problem, ABBA4Implicit(), request)
+solution = simulate(
+    problem,
+    ABBA4Implicit(
+        projection_formulation="reduced_multiplier",
+        nonlinear_solver="newton",
+        state_extension="physical",
+    ),
+    request,
+)
 ```
 
 ## Invariants and limitations
@@ -289,11 +320,10 @@ solution = simulate(problem, ABBA4Implicit(), request)
 - `nx` and `ny` must be supplied together and must each be at least 2.
 - Spatial coordinates must be supplied as an x-y pair and are clipped rather
   than periodically wrapped.
-- General mean-plus-multifrequency HDF5 potentials should not yet be presented
-  as unconditionally compatible with the fully extended analytic R4/R8
-  methods. Their current second-time-derivative shortcut assumes the generic
-  unit-frequency harmonic relation `Phi_tt = -Phi`; arbitrary HDF5 frequencies
-  require a general `Phi_tt` implementation.
+- Fully extended Newton requires a potential implementation whose
+  `evaluate(..., dt=2)` contract returns the true second time derivative. The
+  HDF5 implementation satisfies this contract mode by mode, including a zero
+  stationary-mean contribution.
 
 ## Verification
 
@@ -303,8 +333,8 @@ verifies:
 - positive-frequency filtering, amplitude ordering, normalization, selection,
   and positive phase reconstruction;
 - denoising and both interpolation stages;
-- spatial first and second derivatives, the first time derivative, and
-  coordinate clipping;
+- spatial first and second derivatives, first and second time derivatives,
+  mixed space-time derivatives, and coordinate clipping;
 - gyroaveraging and compatibility with `GuidingCenterDynamics`;
 - a complete HDF5 -> dynamics -> implicit ABBA4 -> `Solution` integration;
 - rejection of invalid selection, resampling, and magnetic-field inputs.

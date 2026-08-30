@@ -222,8 +222,8 @@ def abba4_implicit_step_particle_jacobians(
 		raise TypeError(
 			"ABBA4Implicit exact Jacobians require three converged substeps."
 		)
-	if step.formulation_name != "abba4_implicit_reduced_multiplier_triple_jump":
-		raise TypeError("The observed step is not the reduced ABBA4 composition.")
+	if step.formulation_name not in ABBA_PROJECTION_FORMULATIONS:
+		raise TypeError("The observed step has an unknown ABBA4 formulation.")
 	coefficients = np.asarray(step.composition_coefficients, dtype=float)
 	root_two = float(np.cbrt(2.0))
 	gamma = 1.0 / (2.0 - root_two)
@@ -270,7 +270,7 @@ def abba4_implicit_step_particle_jacobians(
 		if (
 			substep.step_index != step.step_index
 			or substep.method_name != step.method_name
-			or substep.formulation_name != "reduced_multiplier"
+			or substep.formulation_name != step.formulation_name
 			or substep.dynamics is not dynamics
 			or not np.isclose(
 				substep.start_time,
@@ -370,11 +370,10 @@ def abba4_implicit_single_projection_step_particle_jacobians(
 			"ABBA4ImplicitSingleProjection exact Jacobians require converged "
 			"outer-projection snapshots."
 		)
-	if (
-		step.formulation_name
-		!= "abba4_implicit_single_projection_reduced_multiplier"
-	):
-		raise TypeError("The observed step is not reduced single-projection ABBA4.")
+	if step.formulation_name not in ABBA_PROJECTION_FORMULATIONS:
+		raise TypeError(
+			"The observed step has an unknown single-projection ABBA4 formulation."
+		)
 	root_two = float(np.cbrt(2.0))
 	gamma = 1.0 / (2.0 - root_two)
 	delta = -root_two / (2.0 - root_two)
@@ -458,7 +457,20 @@ def abba4_implicit_single_projection_step_particle_jacobians(
 		current_time = float(substep.time)
 
 	projected = (u_previous + v_previous) / 2.0
-	if not np.array_equal(projected, state_after):
+	projection_tolerance = max(
+		float(step.newton_tolerance),
+		float(
+			64.0
+			* np.finfo(float).eps
+			* max(1.0, float(np.linalg.norm(state_after, ord=np.inf)))
+		),
+	)
+	if not np.allclose(
+		projected,
+		state_after,
+		rtol=0.0,
+		atol=projection_tolerance,
+	):
 		raise ValueError("The unprojected ABBA4 output and physical state disagree.")
 	identity = np.broadcast_to(np.eye(2), (particle_count, 2, 2))
 	top_left = base_tangent[:, :2, :2]

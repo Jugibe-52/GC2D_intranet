@@ -254,15 +254,20 @@ class Potential:
 
 		Coordinates are paired: ``x[i]`` is evaluated with ``y[i]``.  Omitting
 		them evaluates the field on the complete stored grid.  ``dx`` and ``dy``
-		select spatial derivative orders, while ``dt=1`` applies the first time
-		derivative of the harmonic phase.  Scalar coordinates produce scalar-shaped
-		results; array coordinates and time follow NumPy broadcasting.  With no
-		coordinates, spatial axes ``(nx, ny)`` precede any axes contributed by time.
+		select spatial derivative orders, while ``dt=1`` and ``dt=2`` apply the
+		corresponding time derivative of the harmonic phase. Scalar coordinates
+		produce scalar-shaped results; array coordinates and time follow NumPy
+		broadcasting. With no coordinates, spatial axes ``(nx, ny)`` precede any
+		axes contributed by time.
 		"""
 		if (x is None) != (y is None):
 			raise ValueError("`x` and `y` must be provided together.")
-		if dt not in (0, 1):
-			raise ValueError("`dt` must be 0 or 1.")
+		if (
+			isinstance(dt, (bool, np.bool_))
+			or not isinstance(dt, (int, np.integer))
+			or dt not in (0, 1, 2)
+		):
+			raise ValueError("`dt` must be 0, 1, or 2.")
 		for derivative, name in ((dx, "dx"), (dy, "dy")):
 			if (
 				isinstance(derivative, (bool, np.bool_))
@@ -296,10 +301,8 @@ class Potential:
 				dy=int(dy),
 			)
 
-		phase = np.exp(-1j * time)
-		if dt == 1:
-			# d exp(-it) / dt = -i exp(-it).
-			phase = phase * -1j
+		# The n-th time derivative of exp(-it) contributes (-i)**n.
+		phase = np.exp(-1j * time) * (-1j) ** int(dt)
 		return np.asarray(np.real(coefficient * phase), dtype=float)
 
 	def electric_field(

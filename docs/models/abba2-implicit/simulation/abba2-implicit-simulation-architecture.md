@@ -1,11 +1,12 @@
-# ABBA2 implicit simulation architecture
+# Canonical ABBA simulation architecture
 
 This document explains the companion
 [`abba2-implicit-simulation-architecture.puml`](abba2-implicit-simulation-architecture.puml)
-diagram. It follows one `ABBA2Implicit` simulation from public input assembly,
-through either supported projection formulation, to the read-only `Solution`
-returned to the caller. It also locates the shared-time and fully duplicated
-state extensions without confusing their state spaces with a nonlinear solve.
+diagram. It follows one selected ABBA configuration from public input assembly
+to the read-only `Solution` returned to the caller. The method family contains
+five public classes, while orthogonal parameters select residual formulation,
+nonlinear solver, and state extension. The diagram deliberately represents
+those axes without drawing 51 nearly identical method boxes.
 
 The diagram is a runtime-path view, not a complete package inventory. Some boxes
 are concrete Python classes, while others name a distinct algorithmic role
@@ -19,8 +20,8 @@ at the far left is an input to these regions rather than a fourth phase.
 
 | Region | Main question | Starts with | Produces |
 |---|---|---|---|
-| **1. Run assembly** | What physical problem, method, and time request will be run? | Dynamics, initial configuration, method parameters, and output schedule | A validated `InitialValueProblem`, `ABBA2Implicit`, and `SimulationRequest` |
-| **2. Implicit ABBA integration** | How is each numerical step advanced and projected back to a physical state? | The assembled run | Requested states plus nonlinear-solver diagnostics |
+| **1. Run assembly** | What physical problem, method, and time request will be run? | Dynamics, initial configuration, one of five ABBA classes, and output schedule | A validated problem, method configuration, and request |
+| **2. ABBA integration** | How are the state extension, composition, projection, and optional nonlinear solve applied? | The assembled run | Requested states plus method diagnostics |
 | **3. Result boundary** | How is internal numerical output validated and exposed safely? | `IntegrationData` | A read-only public `Solution` |
 
 The complete main path is:
@@ -29,11 +30,11 @@ The complete main path is:
 dynamics + initial configuration
             |
             v
-InitialValueProblem + SimulationRequest + ABBA2Implicit
+InitialValueProblem + SimulationRequest + one canonical ABBA method
             |
             v
-SimulationRunner -> ABBA2Implicit.integrate(...)
-                 -> fixed grid -> projected ABBA steps
+SimulationRunner -> method.integrate(...)
+                 -> fixed grid -> configured ABBA steps
             |
             v
 IntegrationData -> Return to SimulationRunner -> Solution
@@ -60,9 +61,14 @@ The state convention is component-major:
 [x_1, ..., x_N, y_1, ..., y_N]
 ```
 
-Both Newton and Broyden enter through the same
-`GuidingCenterJacobianSystem` protocol. Only Newton evaluates the exact particle
-Jacobians; Broyden evaluates the vector field and residual only.
+For physical and shared-time implicit configurations, Newton evaluates the
+exact spatial particle Jacobians (`Phi_xx`, `Phi_xy`, and `Phi_yy`), whereas
+Broyden evaluates residual values only. Fully extended Newton additionally
+builds the analytic `4 x 4` extended-vector-field Jacobian from `Phi_xt`,
+`Phi_yt`, and `Phi_tt`. Fully extended Broyden still needs the `Phi_t` momentum
+flow but does not evaluate those analytic Jacobian derivatives. The HDF5
+potential contract reconstructs `Phi_tt` frequency by frequency through
+`evaluate(..., dt=2)`.
 
 ### `GuidingCenterJacobianSystem`
 
@@ -328,26 +334,35 @@ interface.
 
 All ABBA-specific numerical methods now live under
 [`src/simulation/methods/abba/`](../../../../src/simulation/methods/abba/).
-The top-level import path remains stable while the classes use the new naming
-convention: callers import `ABBA2Implicit`, `ABBA2Midpoint`, and the other ABBA
-method classes from `simulation` or `simulation.methods`.
+Callers import exactly five public method classes from `simulation` or
+`simulation.methods`:
+
+1. `ABBA2Midpoint`;
+2. `ABBA2Implicit`;
+3. `ABBA4Implicit`;
+4. `ABBA4ImplicitSingleProjection`; and
+5. `ABBA6Implicit`.
+
+There are no public classes dedicated to state extensions. Every method selects
+its state-space strategy through `state_extension`.
 
 | Module | Responsibility |
 |---|---|
-| `__init__.py` | Reexports the public ABBA method classes as one family. |
+| `__init__.py` | Reexports the five public ABBA classes and their canonical configuration values. |
+| `_configuration.py` | Defines and validates `ProjectionFormulation`, `StateExtension`, and one-particle dimension diagnostics. |
+| `_coefficients.py` | Owns the signed ABBA4 and ABBA6 composition coefficients. |
 | `_core.py` | Implements the generic endpoint-time A-B-B-A map shared by midpoint and implicit projection. |
 | `_projection_common.py` | Builds the shared displaced stages, exact stage tangents, and accepted-step record. |
 | `_projection_reduced.py` | Implements formulation 1: the reduced projection-multiplier solve. |
 | `_projection_simultaneous.py` | Implements formulation 2: the simultaneous output--multiplier solve. |
 | `_implicit.py` | Owns shared implicit configuration, formulation dispatch, run coordination, fixed-grid hand-off, and diagnostics. |
-| `order2_midpoint.py` | Implements arithmetic-mean projection using the shared A-B-B-A core. |
-| `order2_implicit.py` | Implements `ABBA2Implicit` and selects its projection solver from `projection_formulation`. |
-| `order4_implicit.py` | Composes three signed reduced implicit steps into `ABBA4Implicit`. |
-| `order4_implicit_single_projection.py` | Applies one reduced projection around a complete fourth-order composition. |
-| `order6_implicit.py` | Implements the seven-substep sixth-order composition. |
-| `extensions/shared_time.py` | Implements the shared `(t,k)` lift as `ABBA2SharedTimeExtendedImplicit`. |
-| `extensions/fully_extended.py` | Exposes `ABBA2FullyExtendedImplicit` and `ABBA4FullyExtendedImplicit`. |
-| `methods/_fully_extended.py` | Implements the neutral `R^8` full-state kernel shared by ABBA and BM4 wrappers. |
+| `order2_midpoint.py` | Implements `ABBA2Midpoint` and its three state extensions without a nonlinear solve. |
+| `order2_implicit.py` | Implements `ABBA2Implicit` and dispatches its selected configuration. |
+| `order4_implicit.py` | Implements three signed projected maps with one global configuration. |
+| `order4_implicit_single_projection.py` | Applies one selected projection around the complete unprojected triple jump. |
+| `order6_implicit.py` | Implements seven signed projected maps with one global configuration. |
+| `extensions/` | Reserves private namespaces for extension-specific implementation details; it exports no numerical method class. |
+| `methods/_fully_extended.py` | Implements the `R^8` full-state kernel, its `R^4` and `R^12` projection solves, and the fully extended midpoint path. |
 
 Method-independent utilities remain outside the folder. In particular,
 `methods/_nonlinear.py` is shared by ABBA and BM4 nonlinear solvers, while
@@ -358,15 +373,17 @@ Method-independent utilities remain outside the folder. In particular,
 **File:**
 [`src/simulation/methods/abba/_implicit.py`](../../../../src/simulation/methods/abba/_implicit.py)
 
-`_ABBAImplicitConfig` is a private frozen dataclass that owns shared nonlinear-solver
-configuration. It is a configuration base, not a complete numerical method:
-it deliberately has no `integrate(...)` method. Concrete descendants implement
-that operation and thereby satisfy `NumericalMethod` structurally.
+`_ABBAImplicitConfig` is a private frozen dataclass shared by the four implicit
+classes. It is a configuration base, not a complete numerical method: it has no
+`integrate(...)` implementation. Concrete descendants supply that operation and
+thereby satisfy `NumericalMethod` structurally.
 
 Its configurable fields are:
 
 | Field | Meaning | Default |
 |---|---|---:|
+| `projection_formulation` | `"reduced_multiplier"` or `"simultaneous_state_multiplier"` | `"reduced_multiplier"` |
+| `state_extension` | `"physical"`, `"shared_time"`, or `"fully_extended"` | `"physical"` |
 | `newton_absolute_tolerance` | Absolute contribution to the nonlinear stopping threshold | `1e-13` |
 | `newton_relative_tolerance` | State-scaled contribution to the threshold | `1e-12` |
 | `newton_max_iterations` | Maximum nonlinear corrections per step | `12` |
@@ -376,81 +393,164 @@ Its configurable fields are:
 
 #### `_ABBAImplicitConfig.__post_init__()`
 
-Normalizes and validates positive tolerances, the positive iteration limit, and
-the nonlinear-solver name.
+Normalizes and validates the three canonical selectors, positive tolerances,
+and the positive iteration limit.
 
-### `ABBA2Implicit`
+### Canonical configuration axes
+
+The four implicit classes expose a Cartesian product of three independent
+axes:
+
+| Axis | Choices | Numerical role |
+|---|---:|---|
+| `projection_formulation` | 2 | Selects the reduced or simultaneous residual. |
+| `nonlinear_solver` | 2 | Selects Newton or Broyden for that residual. |
+| `state_extension` | 3 | Selects physical, shared-time, or fully extended state duplication. |
+
+Each implicit class therefore has `2 x 2 x 3 = 12` configurations.
+`ABBA2Midpoint` has no residual and no nonlinear solver, so only its three
+`state_extension` choices are valid. Across the five public classes this gives
+
+```text
+4 implicit classes x 12 + 1 midpoint class x 3 = 51 configurations.
+```
+
+`ABBA_PROJECTION_FORMULATIONS`, `NONLINEAR_SOLVERS`, and
+`ABBA_STATE_EXTENSIONS` expose the canonical values. A configuration is a
+runtime choice of one public method; it is not another class.
+
+### The five public methods
+
+#### `ABBA2Midpoint`
+
+**File:**
+[`src/simulation/methods/abba/order2_midpoint.py`](../../../../src/simulation/methods/abba/order2_midpoint.py)
+
+`ABBA2Midpoint` starts both copies on the diagonal, applies one endpoint-time
+A-B-B-A map, and accepts their arithmetic mean. It has no projection residual,
+multiplier, Newton iteration, or Broyden iteration. Its only numerical-model
+axis is `state_extension`; `progress` and `step_observer` are execution controls.
+
+#### `ABBA2Implicit`
 
 **File:**
 [`src/simulation/methods/abba/order2_implicit.py`](../../../../src/simulation/methods/abba/order2_implicit.py)
 
-`ABBA2Implicit` explicitly inherits `_ABBAImplicitConfig` and adds both the public
-`projection_formulation` field and `integrate(...)`. Its default is
-`"reduced_multiplier"`; `"simultaneous_state_multiplier"` selects the
-algebraically equivalent output--multiplier solve. `_step_solver_for(...)`
-maps the semantic identifier to the corresponding private solver and
-`integrate(...)` delegates to `_integrate_projected_abba(...)`.
+`ABBA2Implicit` inherits `_ABBAImplicitConfig` and supplies `integrate(...)`.
+One outer step contains one A-B-B-A map and one selected implicit projection.
+Physical and shared-time configurations use `_integrate_projected_abba(...)`;
+fully extended configurations use `_integrate_abba_fully_extended(...)`.
 
 Because `ABBA2Implicit` supplies `integrate(problem, request)`, the dashed
 hollow-triangle relation from this concrete class to `NumericalMethod` denotes
 structural protocol implementation. The solid hollow-triangle relation from
 `ABBA2Implicit` to `_ABBAImplicitConfig` denotes actual Python inheritance.
 
-### Projection formulations: one map, two solve vectors
+#### `ABBA4Implicit`
 
-For one guiding-centre particle, both formulations accept and return the same
-physical state `z in R^2` and traverse the same duplicated ABBA stage map on
-`(u,v) in R^4`.
+**File:**
+[`src/simulation/methods/abba/order4_implicit.py`](../../../../src/simulation/methods/abba/order4_implicit.py)
 
-| Formulation | Nonlinear unknown | Newton block | Meaning of `R^6` |
-|---|---|---:|---|
-| `reduced_multiplier` | `mu in R^2` | `2 x 2` | Not used |
-| `simultaneous_state_multiplier` | `(u_f,v_f,mu) in R^6` | `6 x 6` | Algebraic solve vector only |
+One outer step composes signed durations `(gamma h, delta h, gamma h)`. Each of
+the three maps is completed by its own implicit projection. The selected
+formulation, solver, and extension are global: all three substeps use the same
+configuration. Thus this class has 12 configurations, not independent binary
+choices for each of its three substeps.
 
-The simultaneous formulation's `R^6` vector is not a trajectory state. Once
-its root is found, the same projected `z_(n+1)` is returned. Both branches emit
-`projection_formulation` in diagnostics and in
-`ABBA2ImplicitIntegrationStep.formulation_name`.
+#### `ABBA4ImplicitSingleProjection`
 
-### State-extension classes
+**File:**
+[`src/simulation/methods/abba/order4_implicit_single_projection.py`](../../../../src/simulation/methods/abba/order4_implicit_single_projection.py)
 
-The extension classes are separate numerical-method subclasses because they
-change the internal state carried through the split flow:
+This method applies the same three signed unprojected maps continuously and
+places one implicit projection around the complete triple jump. It performs one
+nonlinear solve per outer step. This projection placement defines a different
+numerical map from `ABBA4Implicit`; it is not a fourth configuration axis.
 
-| Class | Accepted internal state | Base splitting state | Momentum | Relationship to the physical map |
+#### `ABBA6Implicit`
+
+**File:**
+[`src/simulation/methods/abba/order6_implicit.py`](../../../../src/simulation/methods/abba/order6_implicit.py)
+
+One outer step contains seven signed projected maps using Yoshida's palindromic
+sixth-order coefficients. As for `ABBA4Implicit`, its formulation, solver, and
+extension choices are global for all seven substeps.
+
+### Dimensional convention
+
+For one guiding-centre particle, the accepted state, splitting state, and
+nonlinear workspace have the following dimensions:
+
+| `state_extension` | Accepted internal state | Base splitting state | Reduced unknown | Simultaneous unknown |
 |---|---|---|---|---|
-| `ABBA2SharedTimeExtendedImplicit` | `(z,t,kappa) in R^4` | `(u,v,t,k) in R^6` | `kappa=k/2` | Same `z` trajectory as `ABBA2Implicit` with the selected formulation |
-| `ABBA2FullyExtendedImplicit` | `(z,t,k) in R^4` | `(Z_1,Z_2) in R^8` | Direct `k` | Distinct full-state projected ABBA2 map |
-| `ABBA4FullyExtendedImplicit` | `(z,t,k) in R^4` | `(Z_1,Z_2) in R^8` | Direct `k` | Fourth-order full-state composition |
+| `"physical"` | `z in R^2` | `(u,v) in R^4` | `mu in R^2` | `(u_f,v_f,mu) in R^6` |
+| `"shared_time"` | `(z,t,kappa) in R^4` | `(u,v,t,k) in R^6` | `mu in R^2` | `(u_f,v_f,mu) in R^6` |
+| `"fully_extended"` | `Z=(z,t,k) in R^4` | `(Z_1,Z_2) in R^8` | `mu in R^4` | `(Z_1f,Z_2f,mu) in R^12` |
 
-Here `Z=(z,t,k)`. The shared-time extension inherits `ABBA2Implicit`, reuses
-its `projection_formulation`, and asks the same coordinator to advance the
-additional `(t,kappa)` values. The full-state classes instead inherit the
-neutral `_FullyExtendedImplicitMethod` kernel. All three extensions currently
-require exactly one particle.
+Here `z=(x,y)`, `Z=(z,t,k)`, and the table's dimensions are literal for one
+particle. For a physical run with `N` independent particles, its accepted,
+splitting, reduced, and simultaneous dimensions scale to `2N`, `4N`, `2N`,
+and `6N`. Shared-time and fully extended configurations currently require
+exactly one `GuidingCenterDynamics` particle, so their tabulated dimensions do
+not have a multi-particle generalization in the current API.
 
-The table distinguishes the two unrelated six-dimensional objects: the
-simultaneous formulation has a temporary `R^6` Newton unknown, whereas
-`ABBA2SharedTimeExtendedImplicit` has a genuine `R^6` splitting state.
+The shared-time strategy duplicates only `z` and shares `(t,k)`. Its accepted
+momentum is `kappa=k/2`; the triangular momentum equation cannot feed back into
+`z`, so it preserves the corresponding physical trajectory. The fully extended
+strategy duplicates all of `Z`, advances direct `k`, and can define a different
+physical map.
 
-## Part 2: implicit ABBA integration
+The accepted internal dimension and observer dimension deliberately differ for
+shared time. Physical and shared-time observers receive the closed physical map
+`z -> z_next` in `R^2`; `t` and `kappa` remain available through diagnostics.
+Fully extended observers receive the accepted internal map `Z -> Z_next` in
+`R^4`. The diagnostics fields `observer_state_dimension` and
+`observer_state_kind` make this contract explicit for all five public methods.
+
+The two appearances of `R^6` are unrelated. `(u,v,t,k)` is a genuine splitting
+state for `shared_time`, whereas `(u_f,v_f,mu)` is a temporary nonlinear
+workspace for a simultaneous physical or shared-time solve. For
+`fully_extended`, the analogous simultaneous workspace is in `R^12`.
+
+### Projection formulations: one exact root, two solve vectors
+
+For a fixed method, extension, and step, both formulations impose the same
+diagonal projection and define the same exact map at convergence. They differ
+only in the nonlinear unknown retained by the solver.
+
+| Formulation | Physical/shared-time unknown | Fully extended unknown |
+|---|---|---|
+| `reduced_multiplier` | `mu in R^2` | `mu in R^4` |
+| `simultaneous_state_multiplier` | `(u_f,v_f,mu) in R^6` | `(Z_1f,Z_2f,mu) in R^12` |
+
+Newton differentiates the selected residual exactly. Broyden evaluates that
+same residual and updates a Jacobian approximation. Solver choice does not
+change the exact root; finite tolerances and round-off can produce small
+differences. Both values are recorded by diagnostics and step observations.
+
+## Part 2: configured ABBA integration
 
 This region makes the numerical execution order explicit. Read its principal
 boxes from left to right:
 
 ```text
-coordinator -> outer time loop -> formulation selector
-            -> reduced or simultaneous nonlinear solve
-            -> shared A-B-B-A map -> accepted physical state
-            -> outer-loop continuation -> IntegrationData
+fixed grid -> state-extension strategy -> composition policy
+           -> arithmetic mean, or implicit residual + Newton/Broyden
+           -> accepted internal state -> physical sample -> IntegrationData
 ```
 
-There are two nested loops:
+Implicit configurations have two nested loops:
 
 1. The **outer time loop** advances the physical trajectory over the uniform
    main grid and, when necessary, computes independent shadow samples.
-2. The **inner nonlinear loop** solves one projected ABBA step. The reduced
-   branch corrects `mu`; the simultaneous branch corrects `(u_f,v_f,mu)`.
+2. The **inner nonlinear loop** solves each projection selected by the method's
+   composition policy. `ABBA4Implicit` performs three such solves,
+   `ABBA4ImplicitSingleProjection` performs one, and `ABBA6Implicit` performs
+   seven per outer step.
+
+`ABBA2Midpoint` traverses the same outer loop and extension dispatch but bypasses
+the formulation and nonlinear-solver boxes. It closes each duplicated map with
+an arithmetic mean.
 
 Most boxes are algorithmic roles rather than separate public Python classes.
 Their files are deliberately separated by responsibility:
@@ -462,19 +562,26 @@ Their files are deliberately separated by responsibility:
 - [`_projection_simultaneous.py`](../../../../src/simulation/methods/abba/_projection_simultaneous.py)
   implements formulation 2;
 - [`_projection_common.py`](../../../../src/simulation/methods/abba/_projection_common.py)
-  retains only their shared stage and tangent kernels; and
+  retains only their shared stage and tangent kernels;
 - [`_core.py`](../../../../src/simulation/methods/abba/_core.py) applies the
-  projection-independent A-B-B-A stage map.
+  physical/shared-time projection-independent A-B-B-A stage map; and
+- [`methods/_fully_extended.py`](../../../../src/simulation/methods/_fully_extended.py)
+  owns the duplicated `R^8` maps, `R^4` and `R^12` residuals, and fully extended
+  midpoint mean.
 
 The outer scheduler remains the shared utility
 [`src/simulation/_fixed.py`](../../../../src/simulation/_fixed.py).
 
-### Integration coordinator: `_integrate_projected_abba(...)`
+### Physical and shared-time coordinator: `_integrate_projected_abba(...)`
 
 **File:**
 [`src/simulation/methods/abba/_implicit.py`](../../../../src/simulation/methods/abba/_implicit.py)
 
-This private function coordinates the complete method run.
+This private function coordinates an `ABBA2Implicit` physical or shared-time
+run. `order4_implicit.py` generalizes the same pattern to the three- and
+seven-projection compositions, while
+`order4_implicit_single_projection.py` coordinates the one-projection triple
+jump.
 
 Before stepping, it verifies that:
 
@@ -483,10 +590,10 @@ Before stepping, it verifies that:
 - when Newton is selected, an exact vector-field Jacobian can be evaluated at
   the initial state.
 
-For `ABBA2SharedTimeExtendedImplicit`, it additionally requires one concrete
+When `state_extension="shared_time"`, it additionally requires one concrete
 `GuidingCenterDynamics` particle, initializes the accepted internal state as
 `(z,t,kappa)`, and checks that its carried time stays aligned with the fixed
-grid. Ordinary `ABBA2Implicit` runs carry only `z`.
+grid. A `physical` run carries only `z`.
 
 It then defines the `advance(t, state, step, step_index, observe)` callback used
 by the fixed-grid scheduler. Each callback invocation solves one projected ABBA
@@ -506,12 +613,45 @@ diagnostics into `IntegrationData`:
 
 Shared-time runs additionally store `extended_time`, `extended_kappa`, and
 `extended_momentum_normalization="kappa_equals_k_over_2"`; only their physical
-`z` history enters `IntegrationData.states`.
+`z` history enters `IntegrationData.states`. Their observers likewise receive
+the closed `R^2` physical map, while the carried `t` and `kappa` remain in those
+diagnostics. `observer_state_dimension=2` and
+`observer_state_kind="physical_map"` record that choice.
 
 The `newton_*` diagnostic names remain alongside the general `nonlinear_*`
 names for compatibility. The coordinator does not itself perform the temporal
 or nonlinear iteration: it creates the callback and hands control to the outer
 time loop.
+
+### Fully extended coordinator: `_integrate_abba_fully_extended(...)`
+
+**File:**
+[`src/simulation/methods/_fully_extended.py`](../../../../src/simulation/methods/_fully_extended.py)
+
+When an implicit class selects `state_extension="fully_extended"`, its public
+`integrate(...)` method delegates to this coordinator. It initializes
+`Z=(z,t,k)` with `k=0`, duplicates the complete state into `(Z_1,Z_2) in R^8`,
+and dispatches the selected residual:
+
+- the reduced formulation solves `mu in R^4`;
+- the simultaneous formulation solves `(Z_1f,Z_2f,mu) in R^12`.
+
+The method variant determines the composition coefficients and projection
+placement. `ABBA4ImplicitSingleProjection` builds one complete unprojected
+triple-jump base map before its single solve. The other implicit variants solve
+after each constituent A-B-B-A map. The same configuration is used for every
+constituent map.
+
+`ABBA2Midpoint(state_extension="fully_extended")` enters the neighboring
+`_integrate_abba_fully_extended_midpoint(...)` path. It duplicates the same
+`R^4` accepted state into `R^8`, but closes the copies by their arithmetic mean
+and performs no nonlinear solve.
+
+For both implicit and midpoint fully extended paths, the observer receives the
+accepted internal `R^4` map rather than its `R^2` physical projection. The
+coordinator records `observer_state_dimension=4` and
+`observer_state_kind="accepted_internal_map"`; sampled solution states remain
+physical and therefore have dimension two.
 
 ### Outer time loop — entry: `integrate_fixed_grid(...)`
 
@@ -532,6 +672,12 @@ of the returned main or shadow state are described later under
 side of the diagram.
 
 ### Formulation selection
+
+The following residual and stage subsections expand the representative
+`ABBA2Implicit(state_extension="physical")` path. Shared time reuses this
+physical solve and advances `(t,kappa)` alongside it. Fully extended execution
+uses dimensionally analogous residuals in `_fully_extended.py`, with the
+`R^4/R^8/R^12` dimensions stated above.
 
 **Files:**
 [`src/simulation/methods/abba/_implicit.py`](../../../../src/simulation/methods/abba/_implicit.py)
@@ -638,8 +784,10 @@ u_0=v_0=z_n.
 
 It does not introduce a multiplier or nonlinear solve. It accepts the arithmetic
 mean `(u_f+v_f)/2` and records `||d||_inf` as the copy-separation diagnostic.
-The dashed arrow in the diagram represents this shared-core dependency;
-`ABBA2Midpoint` is not executed during an `ABBA2Implicit` run.
+The same public class can carry the shared `(t,kappa)` variables or use the
+fully duplicated `R^8` kernel, according to `state_extension`. The dashed arrow
+in the diagram represents shared-core dependency; midpoint is a separate public
+method, not a branch executed inside an implicit run.
 
 ### Inner nonlinear loop — projection residual
 
@@ -795,12 +943,17 @@ The private `_ProjectedStep` returned to the scheduler contains:
 | `residual_evaluations` | Number of residual evaluations |
 | `residual_norm` | Final infinity norm of the selected formulation's residual |
 
-For `ABBA2SharedTimeExtendedImplicit`, the coordinator then advances the
-accepted conjugate value from the four converged ABBA stage snapshots. The
-split variable is `k`, while the accepted variable is normalized as
-`kappa=k/2`; the accumulated split increment is therefore divided by two.
-The accepted internal value becomes `(z_(n+1),t_n+h,kappa_(n+1))`, but only
-`z_(n+1)` is exposed in the physical state history.
+With `state_extension="shared_time"`, the coordinator then advances the accepted
+conjugate value from the four converged ABBA stage snapshots. The split variable
+is `k`, while the accepted variable is normalized as `kappa=k/2`; the
+accumulated split increment is therefore divided by two. The accepted internal
+value becomes `(z_(n+1),t_n+h,kappa_(n+1))`, but only `z_(n+1)` is exposed in
+the physical state history.
+
+With `state_extension="fully_extended"`, the corresponding accepted record is
+`Z_(n+1)=(z_(n+1),t_(n+1),k_(n+1)) in R^4`. The runner still receives only the
+physical `z` history; time, momentum, and generalized-energy values are exposed
+as diagnostics.
 
 ### Outer time loop — continuation
 
@@ -832,8 +985,19 @@ beginning of this section.
 
 **File:** [`src/simulation/observation.py`](../../../../src/simulation/observation.py)
 
-If `ABBA2Implicit.step_observer` is set, every accepted main-grid step emits an
-`ABBA2ImplicitIntegrationStep`. Shadow advances never emit one.
+If `ABBA2Implicit.step_observer` is set for a physical or shared-time run, every
+accepted main-grid step emits an `ABBA2ImplicitIntegrationStep`. Composed and
+single-projection methods emit their corresponding observation records. Fully
+extended implicit runs emit `FullyExtendedImplicitIntegrationStep`; midpoint
+runs emit the general `IntegrationStep`. Shadow advances never emit an event.
+
+For `physical` and `shared_time`, `state_before`, `state_after`, and the domain
+and codomain of `map_state` are the closed physical state in `R^2`. In
+particular, a shared-time observer does not receive the accepted internal
+`(z,t,kappa) in R^4`; that carried pair is exposed as `extended_time` and
+`extended_kappa` in integration diagnostics. For `fully_extended`, those three
+observer objects use the accepted internal state `Z=(z,t,k) in R^4`. This is
+also why the latter can expose a full `4 x 4` accepted-map Jacobian.
 
 The observation contains:
 
@@ -947,27 +1111,29 @@ wall-clock execution.
    output samples.
 8. `SimulationRunner` receives the problem, request, and a `NumericalMethod`.
 9. `NumericalMethod` defines the integration capability consumed by the runner.
-10. `_ABBAImplicitConfig` validates the common nonlinear configuration but does not
-    itself implement `integrate(...)`.
-11. `ABBA2Implicit` implements `NumericalMethod`, validates
-    `projection_formulation`, and enters `_integrate_projected_abba(...)`.
-12. The coordinator checks guiding-centre capabilities, creates the fixed-grid
-    `advance(...)` callback, and starts the outer scheduler.
-13. `integrate_fixed_grid(...)` selects the output-independent main grid and
-    requests a main or shadow advance.
-14. `_step_solver_for(...)` selects the reduced or simultaneous helper.
-15. The reduced helper sets `mu_0=0`; the simultaneous helper initializes
-    `(u_f,v_f,mu)` from the uncorrected output. Both compute the same stopping
-    tolerance from `z_n`.
-16. The shared `_core.py` map executes the four A-B-B-A shears.
-17. The reduced branch tests `d_k+2mu_k`; the simultaneous branch tests its two
-    step defects plus `u_f-v_f`.
-18. A failed test invokes Newton or Broyden and repeats the selected residual;
-    a successful test constructs the common physical `_ProjectedStep`.
-19. The scheduler either advances the main trajectory or stores a shadow
-    sample, then repeats its outer loop until `t_f`. Main steps may emit an
-    `ABBA2ImplicitIntegrationStep`.
-20. The numerical method returns requested samples and diagnostics as
+10. The public-method box selects one of the five canonical classes.
+11. `ABBA2Midpoint` validates only `state_extension`; each implicit class
+    inherits `_ABBAImplicitConfig` and validates all three canonical axes.
+12. `state_extension` chooses the physical `R^4`, shared-time `R^6`, or fully
+    duplicated `R^8` base splitting state.
+13. The method class chooses one, three, or seven signed A-B-B-A maps and whether
+    projection occurs after each map or once around the complete composition.
+14. Midpoint closes the copies by arithmetic mean and bypasses the nonlinear
+    branch.
+15. An implicit method selects the reduced or simultaneous residual. Its
+    workspace is `R^2/R^6` for physical and shared-time execution, or
+    `R^4/R^12` for fully extended execution.
+16. Newton or Broyden solves that residual. The same choice is reused globally
+    by all substeps of a composed method.
+17. The accepted internal state is reduced back to the physical `z` sample;
+    extension variables remain in diagnostics. Physical and shared-time
+    observers receive the closed `R^2` map, while fully extended observers
+    receive the accepted internal `R^4` map.
+18. `integrate_fixed_grid(...)` either advances the main trajectory or stores a
+    shadow sample and repeats until `t_f`.
+19. Accepted main steps may emit the observation type associated with the
+    selected method and extension.
+20. The numerical method returns requested physical samples and diagnostics as
     `IntegrationData`.
 21. Execution returns to the existing `SimulationRunner.simulate(...)` call,
     which validates the transfer object.
@@ -979,10 +1145,9 @@ wall-clock execution.
 |---|---|
 | Solid arrow into a consumer | An argument or returned value is supplied to that consumer |
 | Solid arrow between runtime steps | A call, construction, or forward hand-off |
-| Backward solid arrow inside the nonlinear solve | Reevaluate the stages and residual with the updated multiplier |
 | Solid line with hollow triangle | Explicit Python inheritance |
 | Dashed line with hollow triangle | Structural implementation of a `Protocol` |
-| Ordinary dashed dependency | Required capability, shared-core reuse, or optional side channel |
+| Ordinary dashed arrow | Required capability, structural reuse, optional side channel, or midpoint bypass of the nonlinear solver |
 | Package boundary | Architectural responsibility, not necessarily a Python package |
 | Yellow note | Important invariant or intentionally omitted detail |
 
@@ -1024,6 +1189,7 @@ request = SimulationRequest.uniform(
 method = ABBA2Implicit(
     projection_formulation="reduced_multiplier",
     nonlinear_solver="newton",
+    state_extension="physical",
     newton_absolute_tolerance=1e-13,
     newton_relative_tolerance=1e-12,
     newton_max_iterations=12,
@@ -1038,15 +1204,14 @@ Here `dynamics`, `initial_x`, `initial_y`, `final_time`, `max_step`, and
 
 ## Scope and deliberate omissions
 
-The main runtime row focuses on `ABBA2Implicit`; its formulation selector shows
-both equivalent nonlinear branches. The extension boxes show class ownership,
-state dimensions, and momentum normalization without expanding a second full
-runtime row. `ABBA2Midpoint` appears only to make reuse of `_core.py` explicit;
-it is not part of the depicted implicit runtime path. The diagram deliberately
-omits:
+The diagram shows all five public method classes and all three configuration
+axes, but it does not duplicate the runtime row for every one of the 51 valid
+configurations. Each option list is vertical inside its box, and the execution
+phases remain ordered horizontally. The diagram deliberately omits:
 
 - the internal potential and field model of the guiding-centre dynamics;
-- higher-order ABBA compositions and other numerical methods;
+- the individual algebraic stages inside each higher-order composition;
+- numerical methods outside the ABBA family;
 - downstream diagnostic algorithms that consume step observations; and
 - experiment- or notebook-specific construction of physical parameters.
 

@@ -34,6 +34,7 @@ from .jacobians import (
 	StepJacobianMethod,
 	calculate_step_jacobian,
 	central_difference_jacobian,
+	gauss_legendre4_step_jacobian,
 	implicit_function_step_jacobian,
 	stage_increment_step_jacobian,
 )
@@ -125,6 +126,7 @@ __all__ = [
 	"calculate_step_jacobian",
 	"bm4_implicit_1_step_particle_jacobians",
 	"central_difference_jacobian",
+	"gauss_legendre4_step_jacobian",
 	"coupled_bm4_stage_particle_jacobians",
 	"gc_time_extended_symplectic_form",
 	"gc_reduced_time_extended_symplectic_form",

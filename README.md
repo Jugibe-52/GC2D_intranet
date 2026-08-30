@@ -127,105 +127,166 @@ Physical parameters belong to the dynamics object. Changing the initial
 configuration therefore does not change the model. The effective gyroaveraged
 potential is available as `problem.dynamics.effective_potential`.
 
-## Implicit projection formulations and nonlinear solvers
+## ABBA models and canonical configuration space
 
-`ABBA2Implicit` is the single public second-order implementation of Hairer's
-symmetric projection. Its `projection_formulation` field chooses how the same
-accepted physical map is solved:
+The public API contains exactly five ABBA numerical-method classes:
 
-| `projection_formulation` | Nonlinear unknown for one particle | Exact Newton block |
-|---|---|---:|
-| `"reduced_multiplier"` | Projection multiplier `mu` | `2 x 2` |
-| `"simultaneous_state_multiplier"` | Final duplicated state and multiplier `(u_f, v_f, mu)` | `6 x 6` |
+1. `ABBA2Midpoint`;
+2. `ABBA2Implicit`;
+3. `ABBA4Implicit`;
+4. `ABBA4ImplicitSingleProjection`; and
+5. `ABBA6Implicit`.
 
-The implementation keeps those branches in separate private modules:
-`_projection_reduced.py` owns formulation 1, `_projection_simultaneous.py` owns
-formulation 2, and `_projection_common.py` contains only their shared stage and
-tangent records. The public selector remains unified because the two branches
-solve the same projected map.
+State-space choices are parameters of those methods, not additional public
+method classes. The four implicit methods share three independent
+configuration axes:
 
-The `6 x 6` simultaneous system is a nonlinear-solver workspace. It is **not**
-an `R^6` accepted state and it does not define another numerical method. Both
-formulations return the same physical state up to the nonlinear stopping
-tolerance. The reduced derivation is documented in
-[`ABBA2_implicit`](docs/models/abba2-implicit/ABBA2_implicit.pdf); the
-simultaneous algebra remains in the historical
-[simultaneous-formulation note](docs/tex/ABBA_implicit_2/ABBA_implicit_2.pdf).
+| Axis | Canonical values | Meaning |
+|---|---|---|
+| `projection_formulation` | `"reduced_multiplier"`, `"simultaneous_state_multiplier"` | Chooses the nonlinear residual representation. |
+| `nonlinear_solver` | `"newton"`, `"broyden"` | Chooses how that residual is solved. |
+| `state_extension` | `"physical"`, `"shared_time"`, `"fully_extended"` | Chooses which state is duplicated by the ABBA splitting. |
+
+Consequently, each implicit class admits
+
+```text
+2 projection formulations x 2 nonlinear solvers x 3 state extensions = 12
+```
+
+configurations. `ABBA2Midpoint` has no nonlinear residual and therefore accepts
+only the three `state_extension` values. The complete public family contains
+`4 x 12 + 3 = 51` valid configurations while retaining five method classes.
+The exported tuples `ABBA_PROJECTION_FORMULATIONS`, `NONLINEAR_SOLVERS`, and
+`ABBA_STATE_EXTENSIONS` expose the canonical values programmatically.
 
 ```python
-from simulation import ABBA2Implicit
+from simulation import ABBA4Implicit
 
-method = ABBA2Implicit(
+method = ABBA4Implicit(
     projection_formulation="simultaneous_state_multiplier",
     nonlinear_solver="broyden",
+    state_extension="fully_extended",
     newton_absolute_tolerance=1e-14,
     newton_relative_tolerance=1e-13,
     newton_max_iterations=40,
 )
 ```
 
-`ABBA2Midpoint` reuses the same endpoint-time A-B-B-A stage map but replaces
-the nonlinear symmetric projection with an arithmetic mean. The implicit
-composition family uses the reduced multiplier root as its base step:
+The projection and solver selections are global for a composed step. Thus all
+three signed substeps of `ABBA4Implicit`, and all seven signed substeps of
+`ABBA6Implicit`, use the same selected formulation, solver, and state
+extension. They do not make independent per-substep choices.
 
-- `ABBA4Implicit` is Yoshida's fourth-order triple jump with signed durations
-  `(gamma h, delta h, gamma h)`;
-- `ABBA4ImplicitSingleProjection` applies one reduced projection around a
-  complete unprojected fourth-order triple jump; and
-- `ABBA6Implicit` is the symmetric seven-stage sixth-order composition, with
-  two mirrored negative substeps.
+The five methods differ in their base composition and projection placement:
 
-All projected implicit ABBA methods accept `nonlinear_solver="newton"` or
-`nonlinear_solver="broyden"`. Newton uses exact independent particle blocks.
-Broyden evaluates the residual and applies a good rank-one secant update. The
-generic solver construction is documented in
-[`broyden_generic_method.tex`](docs/tex/broyden/broyden_generic_method.tex).
+| Method | ABBA maps per outer step | Projection policy |
+|---|---:|---|
+| `ABBA2Midpoint` | 1 | Arithmetic mean; no nonlinear solve |
+| `ABBA2Implicit` | 1 | One implicit symmetric projection |
+| `ABBA4Implicit` | 3 | One implicit projection after each signed map |
+| `ABBA4ImplicitSingleProjection` | 3 | One implicit projection around the complete unprojected triple jump |
+| `ABBA6Implicit` | 7 | One implicit projection after each signed map |
 
-### Time extensions and their state spaces
+This makes `ABBA4ImplicitSingleProjection` a different numerical map, not an
+alias for an `ABBA4Implicit` parameter choice. Its formulation and solver are
+selected once for its single outer projection.
 
-The two extension families are deliberately separate because they lift a
-different state and, in the fully extended case, define a different projected
-map:
+### Residual and state dimensions
 
-| Method | Accepted internal state | Base splitting state | Momentum convention | Physical map |
+For one guiding-centre particle, the complete dimensional convention is:
+
+| `state_extension` | Accepted internal state | Base splitting state | Reduced unknown | Simultaneous unknown |
 |---|---|---|---|---|
-| `ABBA2SharedTimeExtendedImplicit` | `(z,t,kappa) in R^4` | `(u,v,t,k) in R^6` | `kappa = k/2` | Identical to `ABBA2Implicit` for the same formulation |
-| `ABBA2FullyExtendedImplicit` | `(z,t,k) in R^4` | `(Z_1,Z_2) in R^8` | Direct `k` | Full-state projected ABBA2 map |
-| `ABBA4FullyExtendedImplicit` | `(z,t,k) in R^4` | `(Z_1,Z_2) in R^8` | Direct `k` | Fourth-order composition of full-state ABBA maps |
+| `"physical"` | `z in R^2` | `(u,v) in R^4` | `mu in R^2` | `(u_f,v_f,mu) in R^6` |
+| `"shared_time"` | `(z,t,kappa) in R^4` | `(u,v,t,k) in R^6` | `mu in R^2` | `(u_f,v_f,mu) in R^6` |
+| `"fully_extended"` | `Z=(z,t,k) in R^4` | `(Z_1,Z_2) in R^8` | `mu in R^4` | `(Z_1f,Z_2f,mu) in R^12` |
 
-Here `z=(x,y)` and `Z=(z,t,k)`. The shared-time method duplicates only the
-physical state and shares one time--momentum pair, so its splitting state is
-genuinely in `R^6`. The fully extended methods duplicate the complete
-autonomous state and therefore operate on `R^8`. These extension classes
-currently require exactly one guiding-centre particle.
+These literal `R^2/R^4/R^6/R^8/R^12` entries are the one-particle dimensions.
+For `physical` with `N` independent particles, the four columns scale to
+`2N`, `4N`, `2N`, and `6N`; `shared_time` and `fully_extended` currently
+require `N=1`.
 
-This distinction also prevents a common ambiguity: the `R^6` simultaneous
-Newton unknown of `ABBA2Implicit` is an algebraic solve vector, whereas the
-`R^6` value in `ABBA2SharedTimeExtendedImplicit` is the state of the lifted
-splitting map.
+The simultaneous unknown is a nonlinear-solver workspace, not an accepted
+trajectory state. In particular, the physical formulation's temporary `R^6`
+solve vector is unrelated to the genuine `R^6` splitting state used by
+`state_extension="shared_time"`.
 
-`run_implicit_generalized_energy_study` can reconstruct the normalized
-conjugate momentum `kappa=k/2` from accepted projected-ABBA stages without
-changing the physical trajectory. `run_fully_extended_implicit_study` instead
-audits the analytic `R^8` splitting tangent and the projected `R^4` tangent of
-the fully duplicated methods.
+The shared-time strategy duplicates only `z`, shares one `(t,k)` pair, and
+stores the accepted momentum as `kappa=k/2`. Its triangular momentum update
+does not feed back into `z`, so it preserves the physical trajectory of the
+corresponding `state_extension="physical"` configuration. The fully extended
+strategy duplicates the complete autonomous state `Z`, advances direct `k`,
+and can define a different physical map. Both non-physical extensions currently
+require exactly one guiding-centre particle.
 
-The independent-trajectory diagnostics cover `ABBA2Midpoint`,
-`ABBA2Implicit`, `ABBA4Implicit`, and the BM4 family. They form exact local
-particle Jacobians, compose accumulated flow tangents, and use finite
-differences only as independent verification. The reversibility study performs
-a genuine signed reverse step rather than defining the reverse tangent as the
-inverse of the forward matrix.
+The accepted internal dimension is not always the dimension seen by a step
+observer. Physical and shared-time configurations expose the closed physical
+map `z -> z_next`, so their observer states are in `R^2`; for shared time,
+`extended_time` and `extended_kappa` remain in diagnostics. Fully extended
+configurations expose the accepted internal map `Z -> Z_next`, so their
+observer states are in `R^4`. This distinction applies to midpoint and implicit
+methods alike.
+
+`ABBA2Implicit`'s two residual formulations define the same exact projected
+map at convergence. The reduced branch lives in `_projection_reduced.py`; the
+simultaneous branch lives in `_projection_simultaneous.py`; and their shared
+physical stage records live in `_projection_common.py`. Fully extended
+counterparts operate on the `R^8` base map in `methods/_fully_extended.py`.
+Newton uses exact independent-particle blocks, whereas Broyden applies a good
+rank-one secant update to the selected residual. The derivations are documented
+in [`ABBA2_implicit`](docs/models/abba2-implicit/ABBA2_implicit.pdf), the
+[simultaneous-formulation note](docs/tex/ABBA_implicit_2/ABBA_implicit_2.pdf),
+and [`broyden_generic_method.tex`](docs/tex/broyden/broyden_generic_method.tex).
 
 Solver-neutral diagnostics include `projection_formulation`,
 `state_extension`, `nonlinear_solver`, `nonlinear_iterations`,
 `residual_evaluations`, `nonlinear_residual_norms`, and
-`nonlinear_tolerances`. Shared-time runs additionally expose `extended_time`,
+`nonlinear_tolerances`. They also record
+`accepted_internal_state_dimension`, `base_splitting_state_dimension`, and
+`nonlinear_unknown_dimension`, plus `observer_state_dimension` and
+`observer_state_kind`. Shared-time runs expose `extended_time`,
 `extended_kappa`, and the `kappa_equals_k_over_2` normalization. Fully extended
-runs report the `fully_extended` state extension and direct-`k` normalization.
+runs expose direct `extended_momentum` and generalized-energy diagnostics.
 
 `ExplicitEuler` provides the classical forward map
 `z_next = z + h * f(t, z)` on the same output-independent fixed grid.
+
+### Two-stage Gauss--Legendre method
+
+`GaussLegendre4` is a symmetric, fourth-order implicit Runge--Kutta method.
+For guiding-center dynamics it uses exact Hessian-derived field Jacobians and
+solves one independent `4 x 4` coupled-stage Newton system per particle. Other
+`DynamicalSystem` implementations use a dense centered-difference fallback.
+
+```python
+from simulation import GaussLegendre4
+
+solution = simulate(
+    problem,
+    GaussLegendre4(
+        track_energy=True,
+        newton_absolute_tolerance=1e-14,
+        newton_relative_tolerance=1e-13,
+        newton_max_iterations=40,
+        newton_jacobian_method="analytic",
+    ),
+    SimulationRequest.uniform(
+        t_span=(0.0, 2.0),
+        max_step=0.05,
+        sample_count=41,
+    ),
+)
+```
+
+The observer event retains both converged collocation stages. For planar
+guiding-center dynamics with exact particle Jacobians, diagnostics can therefore
+calculate the exact ideal-root step tangent and audit the actual finite-tolerance
+map separately. Energy tracking advances the direct conjugate
+momentum `k` with the same Gauss nodes and reports drift of `K=H+k` without
+changing the physical trajectory.
+
+See the model-specific [dynamics contract](docs/models/gauss-legendre4/dynamics/guiding-center-contract.md)
+and [simulation derivation](docs/models/gauss-legendre4/simulation/gauss-legendre4-simulation-architecture.md).
 
 ## Full-cyclotron example
 
@@ -365,6 +426,16 @@ a coarser saved-time grid; output-only shadow steps never enter the energy
 history. It also records the time-extended splitting symplecticity defect at
 every accepted step and the complete projected-map defect on the reduced
 four-dimensional extended space.
+
+`run_gauss_legendre4_evaluation` combines a DOP853/Radau reference audit with
+trajectory accuracy, robust runtime samples, generalized-energy drift, Newton
+work, exact ideal-root symplecticity, sparse finite-stopping-rule map audits,
+and resolved order-deficit detection backed by a tighter-Newton trajectory
+audit. Its energy history is sampled at every complete step.
+`run_gauss_bm4_comparison` applies the
+same reference and alternated timing protocol to `GaussLegendre4` and
+`BM4Implicit1`, reporting both equal-step ratios and log--log interpolated
+runtime ratios at equal trajectory accuracy.
 
 ## Results and visualization
 

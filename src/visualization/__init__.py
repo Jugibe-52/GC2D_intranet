@@ -1,5 +1,8 @@
 """Optional Matplotlib presentation for potentials and simulation results."""
 
+from .abba4_configuration_comparison import (
+	animate_abba4_configuration_trajectories,
+)
 from .abba4_projection_comparison import (
 	ABBA4_PROJECTION_COLORS,
 	ABBA4ProjectionOrderView,
@@ -68,6 +71,14 @@ from .fully_extended_implicit import (
 	FullyExtendedRunView,
 	plot_fully_extended_symplecticity,
 )
+from .hbvm42 import (
+	HBVM42BM4SummaryView,
+	HBVM42EvaluationSummaryView,
+	HBVM42OrderSummaryView,
+	plot_hbvm42_bm4_comparison,
+	plot_hbvm42_energy_errors,
+	plot_hbvm42_evaluation,
+)
 from .notebooks import display_animation, display_records_table, records_table_html
 from .particles import (
 	animate_fc_particle_solution,
@@ -106,14 +117,24 @@ from .trajectory_accuracy import (
 	plot_ten_method_accuracy_summary,
 	plot_trajectory_accuracy_over_time,
 )
+from .gauss_legendre4 import (
+	GAUSS_BM4_COLORS,
+	plot_gauss_bm4_accuracy_runtime,
+	plot_gauss_legendre4_evaluation,
+	plot_gauss_legendre4_energy,
+	plot_gauss_legendre4_observed_order,
+	plot_gauss_legendre4_symplecticity,
+)
 
 __all__ = [
+	"GAUSS_BM4_COLORS",
 	"AccuracySeriesView",
 	"AccuracySummaryView",
 	"ABBA4_PROJECTION_COLORS",
 	"ABBA4ProjectionOrderView",
 	"ABBA4ProjectionSummaryView",
 	"StepAccuracySummaryView",
+	"animate_abba4_configuration_trajectories",
 	"animate_fc_particle_solution",
 	"animate_gc_area",
 	"animate_gc_area_comparison",
@@ -132,6 +153,9 @@ __all__ = [
 	"ImplicitMethodAccuracySummaryView",
 	"GeneralizedEnergyRunView",
 	"GeneralizedEnergySummaryView",
+	"HBVM42BM4SummaryView",
+	"HBVM42EvaluationSummaryView",
+	"HBVM42OrderSummaryView",
 	"FullyExtendedRunView",
 	"ExtendedSymplecticityRunView",
 	"ReducedExtendedSymplecticityRunView",
@@ -160,6 +184,14 @@ __all__ = [
 	"plot_generalized_energy_components",
 	"plot_generalized_energy_convergence",
 	"plot_generalized_energy_errors",
+	"plot_gauss_bm4_accuracy_runtime",
+	"plot_gauss_legendre4_evaluation",
+	"plot_gauss_legendre4_energy",
+	"plot_gauss_legendre4_observed_order",
+	"plot_gauss_legendre4_symplecticity",
+	"plot_hbvm42_bm4_comparison",
+	"plot_hbvm42_energy_errors",
+	"plot_hbvm42_evaluation",
 	"plot_fully_extended_symplecticity",
 	"plot_time_extended_symplecticity",
 	"plot_reduced_time_extended_symplecticity",

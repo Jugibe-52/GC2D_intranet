@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from itertools import product
 import unittest
 
 import matplotlib.pyplot as plt
@@ -12,8 +13,9 @@ from dynamics import GuidingCenterDynamics
 from initial_conditions import GCInitialConfiguration
 from potential import Potential
 from simulation import (
-	ABBA2FullyExtendedImplicit,
-	ABBA4FullyExtendedImplicit,
+	ABBA2Implicit,
+	ABBA4Implicit,
+	ABBA4ImplicitSingleProjection,
 	BM4Implicit2,
 	BM4_implicit2,
 	FullyExtendedImplicitIntegrationStep,
@@ -55,9 +57,9 @@ def _problem() -> tuple[Potential, GCInitialConfiguration, InitialValueProblem]:
 class FullyExtendedImplicitMethodTests(unittest.TestCase):
 	"""Verify the full state, diagonal projection, and public identifiers."""
 
-	def test_requested_names_do_not_replace_historical_solver_formulation(self) -> None:
-		self.assertEqual(ABBA2FullyExtendedImplicit.__name__, "ABBA2FullyExtendedImplicit")
-		self.assertEqual(ABBA4FullyExtendedImplicit.__name__, "ABBA4FullyExtendedImplicit")
+	def test_canonical_abba_names_do_not_replace_historical_bm4_formulation(self) -> None:
+		self.assertEqual(ABBA2Implicit.__name__, "ABBA2Implicit")
+		self.assertEqual(ABBA4Implicit.__name__, "ABBA4Implicit")
 		self.assertEqual(BM4_implicit2.__name__, "BM4_implicit2")
 		self.assertIsNot(BM4_implicit2, BM4Implicit2)
 
@@ -66,7 +68,8 @@ class FullyExtendedImplicitMethodTests(unittest.TestCase):
 		records: list[FullyExtendedImplicitIntegrationStep] = []
 		solution = simulate(
 			problem,
-			ABBA2FullyExtendedImplicit(
+			ABBA2Implicit(
+				state_extension="fully_extended",
 				newton_absolute_tolerance=1e-14,
 				newton_relative_tolerance=1e-14,
 				step_observer=records.append,
@@ -153,6 +156,41 @@ class FullyExtendedImplicitMethodTests(unittest.TestCase):
 			),
 			1e-8,
 		)
+
+	def test_long_abba4_runs_pin_extended_time_to_the_output_grid(self) -> None:
+		"""Do not accumulate roundoff in the exactly solvable time coordinate."""
+		_, _, problem = _problem()
+		request = SimulationRequest.uniform(
+			t_span=(0.0, 0.84),
+			max_step=0.0025,
+			sample_count=85,
+		)
+		for method_type, formulation, nonlinear_solver in product(
+			(ABBA4Implicit, ABBA4ImplicitSingleProjection),
+			("reduced_multiplier", "simultaneous_state_multiplier"),
+			("newton", "broyden"),
+		):
+			with self.subTest(
+				method=method_type.__name__,
+				formulation=formulation,
+				nonlinear_solver=nonlinear_solver,
+			):
+				solution = simulate(
+					problem,
+					method_type(
+						state_extension="fully_extended",
+						projection_formulation=formulation,
+						nonlinear_solver=nonlinear_solver,
+						newton_absolute_tolerance=1e-14,
+						newton_relative_tolerance=1e-13,
+						newton_max_iterations=40,
+					),
+					request,
+				)
+				np.testing.assert_array_equal(
+					solution.diagnostics["extended_time"],
+					request.output_times,
+				)
 
 
 class FullyExtendedImplicitStudyTests(unittest.TestCase):

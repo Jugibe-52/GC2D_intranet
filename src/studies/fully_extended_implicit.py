@@ -18,8 +18,8 @@ from dynamics import GuidingCenterDynamics
 from initial_conditions import GCInitialConfiguration
 from potential import Potential
 from simulation import (
-	ABBA2FullyExtendedImplicit,
-	ABBA4FullyExtendedImplicit,
+	ABBA2Implicit,
+	ABBA4Implicit,
 	BM4_implicit2,
 	FullyExtendedImplicitIntegrationStep,
 	IntegrationStep,
@@ -52,8 +52,8 @@ FULLY_EXTENDED_IMPLICIT_METHODS: tuple[FullyExtendedImplicitMethod, ...] = (
 FULLY_EXTENDED_IMPLICIT_LABELS: Mapping[FullyExtendedImplicitMethod, str] = (
 	MappingProxyType(
 		{
-			"abba2_fully_extended_implicit": "ABBA2FullyExtendedImplicit",
-			"abba4_fully_extended_implicit": "ABBA4FullyExtendedImplicit",
+			"abba2_fully_extended_implicit": "ABBA2Implicit[fully_extended]",
+			"abba4_fully_extended_implicit": "ABBA4Implicit[fully_extended]",
 			"bm4_implicit2": "BM4_implicit2",
 		}
 	)
@@ -398,7 +398,8 @@ def _method_for_run(
 ) -> NumericalMethod:
 	"""Construct one requested method with the shared observer."""
 	if method == "abba2_fully_extended_implicit":
-		return ABBA2FullyExtendedImplicit(
+		return ABBA2Implicit(
+			state_extension="fully_extended",
 			newton_absolute_tolerance=config.newton_absolute_tolerance,
 			newton_relative_tolerance=config.newton_relative_tolerance,
 			newton_max_iterations=config.newton_max_iterations,
@@ -406,7 +407,8 @@ def _method_for_run(
 			step_observer=observer,
 		)
 	if method == "abba4_fully_extended_implicit":
-		return ABBA4FullyExtendedImplicit(
+		return ABBA4Implicit(
+			state_extension="fully_extended",
 			newton_absolute_tolerance=config.newton_absolute_tolerance,
 			newton_relative_tolerance=config.newton_relative_tolerance,
 			newton_max_iterations=config.newton_max_iterations,

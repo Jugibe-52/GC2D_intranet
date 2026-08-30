@@ -1,4 +1,4 @@
-"""One reduced Hairer projection around an unprojected ABBA4 composition."""
+"""One configurable projection around an unprojected ABBA4 composition."""
 
 from __future__ import annotations
 
@@ -6,8 +6,9 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from dynamics import GuidingCenterJacobianSystem
+from dynamics import GuidingCenterDynamics, GuidingCenterJacobianSystem
 
+from .._fully_extended import _integrate_abba_fully_extended
 from ..._fixed import integrate_fixed_grid
 from ..._result import IntegrationData
 from ...observation import (
@@ -17,19 +18,22 @@ from ...observation import (
 from ...problem import InitialValueProblem
 from ...request import SimulationRequest
 from .._nonlinear import NonlinearSolver, _solve_broyden
+from ._coefficients import _ABBA4_COEFFICIENTS
+from ._configuration import (
+	ProjectionFormulation,
+	_state_dimension_diagnostics,
+)
 from ._core import _ABBAStages, _evaluate_unprojected_stages
-from ._implicit import _ABBAImplicitConfig
+from ._implicit import (
+	_ABBAImplicitConfig,
+	_shared_time_kappa_increment_from_stages,
+)
 from ._projection_common import (
 	_checked_vector_field_jacobian,
 	_differentiate_stages,
 )
 
 
-_CUBE_ROOT_TWO = float(np.cbrt(2.0))
-_GAMMA = 1.0 / (2.0 - _CUBE_ROOT_TWO)
-_DELTA = -_CUBE_ROOT_TWO / (2.0 - _CUBE_ROOT_TWO)
-_ABBA4_COEFFICIENTS = np.asarray((_GAMMA, _DELTA, _GAMMA), dtype=float)
-_FORMULATION = "abba4_implicit_single_projection_reduced_multiplier"
 _BASE_COMPOSITION = "unprojected_abba4_triple_jump"
 
 
@@ -247,7 +251,7 @@ def _projected_state(
 	return np.asarray((first_copy + second_copy) / 2.0)
 
 
-def _solve_abba4_single_projection_step(
+def _solve_reduced_abba4_single_projection_step(
 	dynamics: GuidingCenterJacobianSystem,
 	t: float,
 	state: np.ndarray,
@@ -353,6 +357,226 @@ def _solve_abba4_single_projection_step(
 	)
 
 
+def _simultaneous_residual_blocks(
+	base: _SingleProjectionBaseEvaluation,
+	multiplier: np.ndarray,
+	first_output: np.ndarray,
+	second_output: np.ndarray,
+	state_dimension: int,
+) -> np.ndarray:
+	"""Return particle-major output, multiplier, and diagonal defects."""
+	first_defect = first_output - multiplier - base.u_final
+	second_defect = second_output + multiplier - base.v_final
+	constraint = first_output - second_output
+	particle_blocks = lambda vector: vector.reshape(state_dimension, -1).T
+	return np.concatenate(
+		(
+			particle_blocks(first_defect),
+			particle_blocks(second_defect),
+			particle_blocks(constraint),
+		),
+		axis=-1,
+	)
+
+
+def _simultaneous_newton_jacobian(
+	evaluation: _SingleProjectionResidualEvaluation,
+) -> np.ndarray:
+	"""Assemble exact simultaneous blocks around the complete ABBA4 base map."""
+	particle_count = evaluation.base_jacobian.shape[0]
+	identity_2 = np.broadcast_to(np.eye(2), (particle_count, 2, 2))
+	identity_4 = np.broadcast_to(np.eye(4), (particle_count, 4, 4))
+	zero_2 = np.zeros((particle_count, 2, 2), dtype=float)
+	normal = np.concatenate((identity_2, -identity_2), axis=-2)
+	constraint = np.concatenate((identity_2, -identity_2), axis=-1)
+	top_right = -(identity_4 + evaluation.base_jacobian) @ normal
+	return np.concatenate(
+		(
+			np.concatenate((identity_4, top_right), axis=-1),
+			np.concatenate((constraint, zero_2), axis=-1),
+		),
+		axis=-2,
+	)
+
+
+def _solve_simultaneous_abba4_single_projection_step(
+	dynamics: GuidingCenterJacobianSystem,
+	t: float,
+	state: np.ndarray,
+	step: float,
+	*,
+	absolute_tolerance: float,
+	relative_tolerance: float,
+	max_iterations: int,
+	nonlinear_solver: NonlinearSolver = "newton",
+) -> _ABBA4SingleProjectionStep:
+	"""Solve output copies and one multiplier around the complete ABBA4 map."""
+	value = _validated_state(dynamics, state)
+	multiplier = np.zeros_like(value)
+	base = _evaluate_single_projection_base(dynamics, t, value, step, multiplier)
+	first_output = base.u_final.copy()
+	second_output = base.v_final.copy()
+	threshold = absolute_tolerance + relative_tolerance * max(
+		1.0,
+		float(np.linalg.norm(value, ord=np.inf)),
+	)
+	context = (
+		"ABBA4 single simultaneous state-multiplier projection at "
+		f"t={t:.16g} with step={step:.16g}"
+	)
+
+	if nonlinear_solver == "broyden":
+		physical_size = value.size
+		internal_size = 2 * physical_size
+		identity_internal = np.eye(internal_size)
+		identity_physical = np.eye(physical_size)
+		normal = np.concatenate((identity_physical, -identity_physical), axis=0)
+		constraint = np.concatenate((identity_physical, -identity_physical), axis=1)
+		initial_jacobian = np.block(
+			[
+				[identity_internal, -2.0 * normal],
+				[constraint, np.zeros((physical_size, physical_size))],
+			]
+		)
+
+		def residual_function(
+			unknown: np.ndarray,
+		) -> tuple[
+			np.ndarray,
+			tuple[_SingleProjectionBaseEvaluation, np.ndarray, np.ndarray, np.ndarray],
+		]:
+			first = unknown[:physical_size]
+			second = unknown[physical_size:internal_size]
+			candidate_multiplier = unknown[internal_size:]
+			candidate_base = _evaluate_single_projection_base(
+				dynamics,
+				t,
+				value,
+				step,
+				candidate_multiplier,
+			)
+			residual = np.concatenate(
+				(
+					first - candidate_multiplier - candidate_base.u_final,
+					second + candidate_multiplier - candidate_base.v_final,
+					first - second,
+				)
+			)
+			return residual, (candidate_base, first, second, candidate_multiplier)
+
+		result = _solve_broyden(
+			residual_function,
+			np.concatenate((first_output, second_output, multiplier)),
+			initial_jacobian,
+			tolerance=threshold,
+			max_iterations=max_iterations,
+			context=context,
+			initial_evaluation=(
+				np.concatenate(
+					(
+						np.zeros(internal_size),
+						first_output - second_output,
+					)
+				),
+				(base, first_output, second_output, multiplier),
+			),
+		)
+		base, first_output, second_output, multiplier = result.payload
+		return _ABBA4SingleProjectionStep(
+			state=np.asarray((first_output + second_output) / 2.0),
+			multiplier=np.asarray(multiplier).copy(),
+			substeps=base.substeps,
+			iterations=result.iterations,
+			residual_evaluations=result.residual_evaluations,
+			residual_norm=float(np.linalg.norm(result.residual, ord=np.inf)),
+		)
+	if nonlinear_solver != "newton":
+		raise ValueError("Unknown nonlinear solver for ABBA4 single projection.")
+
+	for iteration in range(max_iterations + 1):
+		residual_blocks = _simultaneous_residual_blocks(
+			base,
+			multiplier,
+			first_output,
+			second_output,
+			dynamics.state_dimension,
+		)
+		residual_norm = float(np.max(np.abs(residual_blocks)))
+		if residual_norm <= threshold:
+			return _ABBA4SingleProjectionStep(
+				state=np.asarray((first_output + second_output) / 2.0),
+				multiplier=multiplier.copy(),
+				substeps=base.substeps,
+				iterations=iteration,
+				residual_evaluations=iteration + 1,
+				residual_norm=residual_norm,
+			)
+		if iteration == max_iterations:
+			break
+		evaluation = _differentiate_single_projection_base(
+			dynamics,
+			t,
+			value,
+			step,
+			base,
+		)
+		try:
+			increments = np.linalg.solve(
+				_simultaneous_newton_jacobian(evaluation),
+				-residual_blocks[..., None],
+			)[..., 0]
+		except np.linalg.LinAlgError as exc:
+			raise RuntimeError(
+				"The simultaneous ABBA4 single-projection Jacobian is singular at "
+				f"t={t:.16g} with step={step:.16g}."
+			) from exc
+		first_output = first_output + increments[..., :2].T.reshape(-1)
+		second_output = second_output + increments[..., 2:4].T.reshape(-1)
+		multiplier = multiplier + increments[..., 4:].T.reshape(-1)
+		base = _evaluate_single_projection_base(
+			dynamics,
+			t,
+			value,
+			step,
+			multiplier,
+		)
+
+	raise RuntimeError(
+		f"{context} did not converge: residual {residual_norm:.3e} exceeds "
+		f"{threshold:.3e} after {max_iterations} iterations."
+	)
+
+
+def _solve_abba4_single_projection_step(
+	dynamics: GuidingCenterJacobianSystem,
+	t: float,
+	state: np.ndarray,
+	step: float,
+	*,
+	absolute_tolerance: float,
+	relative_tolerance: float,
+	max_iterations: int,
+	nonlinear_solver: NonlinearSolver = "newton",
+	projection_formulation: ProjectionFormulation = "reduced_multiplier",
+) -> _ABBA4SingleProjectionStep:
+	"""Select one formulation around the complete unprojected ABBA4 map."""
+	solver = (
+		_solve_reduced_abba4_single_projection_step
+		if projection_formulation == "reduced_multiplier"
+		else _solve_simultaneous_abba4_single_projection_step
+	)
+	return solver(
+		dynamics,
+		t,
+		state,
+		step,
+		absolute_tolerance=absolute_tolerance,
+		relative_tolerance=relative_tolerance,
+		max_iterations=max_iterations,
+		nonlinear_solver=nonlinear_solver,
+	)
+
+
 def _observed_substeps(
 	start_time: float,
 	step: float,
@@ -395,6 +619,16 @@ def _integrate_abba4_implicit_single_projection(
 		raise TypeError(f"{method_name} requires GuidingCenterJacobianSystem.")
 	if dynamics.state_dimension != 2:
 		raise TypeError(f"{method_name} requires planar two-component dynamics.")
+	shared_time_extension = method.state_extension == "shared_time"
+	if shared_time_extension:
+		if not isinstance(dynamics, GuidingCenterDynamics):
+			raise TypeError(
+				f"{method_name} requires GuidingCenterDynamics for shared_time."
+			)
+		if np.asarray(problem.initial_state).shape != (2,):
+			raise ValueError(
+				f"{method_name} requires exactly one GC particle for shared_time."
+			)
 	if method.nonlinear_solver == "newton":
 		_checked_vector_field_jacobian(
 			dynamics,
@@ -423,6 +657,7 @@ def _integrate_abba4_implicit_single_projection(
 			relative_tolerance=method.newton_relative_tolerance,
 			max_iterations=method.newton_max_iterations,
 			nonlinear_solver=method.nonlinear_solver,
+			projection_formulation=method.projection_formulation,
 		)
 
 	def advance(
@@ -432,7 +667,26 @@ def _integrate_abba4_implicit_single_projection(
 		step_index: int,
 		observe: bool,
 	) -> np.ndarray:
-		state_before = np.asarray(state, dtype=float)
+		if shared_time_extension:
+			extended_before = np.asarray(state, dtype=float)
+			if extended_before.shape != (4,) or not np.all(np.isfinite(extended_before)):
+				raise ValueError(
+					"The accepted shared-time state must use finite (x,y,t,kappa) order."
+				)
+			time_tolerance = 64.0 * np.finfo(float).eps * max(1.0, abs(t))
+			if not np.isclose(
+				float(extended_before[2]),
+				t,
+				rtol=0.0,
+				atol=float(time_tolerance),
+			):
+				raise RuntimeError(
+					"The shared-time extension and integration-grid times diverged."
+				)
+			state_before = extended_before[:2]
+		else:
+			extended_before = None
+			state_before = np.asarray(state, dtype=float)
 		result = solve_step(t, state_before, step)
 		if observe:
 			state_scale = max(1.0, float(np.linalg.norm(state_before, ord=np.inf)))
@@ -463,7 +717,7 @@ def _integrate_abba4_implicit_single_projection(
 						state_before=state_before.copy(),
 						state_after=result.state.copy(),
 						map_state=map_state,
-						formulation_name=_FORMULATION,
+						formulation_name=method.projection_formulation,
 						start_time=t,
 						nonlinear_solver=method.nonlinear_solver,
 						newton_iterations=result.iterations,
@@ -483,10 +737,34 @@ def _integrate_abba4_implicit_single_projection(
 						),
 					)
 				)
-		return result.state
+		if not shared_time_extension:
+			return result.state
+		assert extended_before is not None
+		assert isinstance(dynamics, GuidingCenterDynamics)
+		kappa_after = float(extended_before[3])
+		current_time = float(t)
+		for coefficient, stages in zip(
+			_ABBA4_COEFFICIENTS,
+			result.substeps,
+			strict=True,
+		):
+			duration = float(coefficient * step)
+			kappa_after += _shared_time_kappa_increment_from_stages(
+				dynamics,
+				current_time,
+				duration,
+				stages,
+			)
+			current_time += duration
+		return np.concatenate((result.state, (t + step, kappa_after)))
 
+	initial_state = problem.initial_state
+	if shared_time_extension:
+		initial_state = np.concatenate(
+			(initial_state, (float(request.t_span[0]), 0.0))
+		)
 	history, step_count = integrate_fixed_grid(
-		problem.initial_state,
+		initial_state,
 		request,
 		advance,
 		progress=bool(method.progress),
@@ -529,24 +807,40 @@ def _integrate_abba4_implicit_single_projection(
 		"newton_absolute_tolerance": method.newton_absolute_tolerance,
 		"newton_relative_tolerance": method.newton_relative_tolerance,
 		"newton_max_iterations": method.newton_max_iterations,
-		"projection_formulation": _FORMULATION,
-		"state_extension": "physical",
+		"projection_formulation": method.projection_formulation,
+		"state_extension": method.state_extension,
 	}
+	diagnostics.update(
+		_state_dimension_diagnostics(
+			method.state_extension,
+			method.projection_formulation,
+			particle_count=problem.initial_state.size // dynamics.state_dimension,
+		)
+	)
+	if shared_time_extension:
+		diagnostics.update(
+			{
+				"extended_time": np.asarray(history[2]),
+				"extended_kappa": np.asarray(history[3]),
+				"extended_momentum_normalization": "kappa_equals_k_over_2",
+			}
+		)
 	return IntegrationData(
 		t=request.output_times,
-		states=np.asarray(history),
+		states=np.asarray(history[:2] if shared_time_extension else history),
 		diagnostics=diagnostics,
 	)
 
 
 @dataclass(frozen=True, slots=True)
 class ABBA4ImplicitSingleProjection(_ABBAImplicitConfig):
-	"""Fourth-order ABBA triple jump with one reduced symmetric projection.
+	"""Fourth-order ABBA triple jump with one symmetric outer projection.
 
 	The signed ``(gamma h, delta h, gamma h)`` ABBA maps evolve two independent
 	physical copies continuously. A single multiplier is solved around the whole
 	composition, so no projection returns the copies to the diagonal between its
-	three constituent maps.
+	three constituent maps. Both projection formulations, both nonlinear solvers,
+	and all three state extensions apply to this one outer projection.
 	"""
 
 	def integrate(
@@ -555,6 +849,14 @@ class ABBA4ImplicitSingleProjection(_ABBAImplicitConfig):
 		request: SimulationRequest,
 	) -> IntegrationData:
 		"""Integrate a planar GC problem with one outer projection per step."""
+		if self.state_extension == "fully_extended":
+			return _integrate_abba_fully_extended(
+				self,
+				problem,
+				request,
+				variant="abba4_single_projection",
+				projection_formulation=self.projection_formulation,
+			)
 		return _integrate_abba4_implicit_single_projection(
 			self,
 			problem,

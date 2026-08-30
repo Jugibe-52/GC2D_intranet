@@ -1,0 +1,35 @@
+@startuml
+title GaussLegendre4 complete-step lifecycle
+
+skinparam componentStyle rectangle
+
+actor Notebook
+component SimulationRequest
+component InitialValueProblem
+component GaussLegendre4
+component "Two coupled stages" as Stages
+component "Batched Newton\nN x (4 x 4)" as Newton
+component "GaussLegendre4IntegrationStep" as Observation
+component "GC ideal-root tangent" as Tangent
+component "Finite-difference map audit" as Audit
+component Solution
+
+Notebook --> InitialValueProblem
+Notebook --> SimulationRequest
+Notebook --> GaussLegendre4
+InitialValueProblem --> GaussLegendre4 : dynamics and physical state
+SimulationRequest --> GaussLegendre4 : main grid and output times
+GaussLegendre4 --> Stages : predictor Z1, Z2
+Stages --> Newton : unconverged R1, R2; then J1, J2
+Newton --> Stages : correction
+Stages --> GaussLegendre4 : converged fields
+GaussLegendre4 --> Observation : main steps only
+Observation --> Tangent : implicit differentiation
+Observation --> Audit : sparse map_state differences
+GaussLegendre4 --> Solution : physical history, Newton work, optional k
+
+note bottom of Tangent
+  D Phi = I + h/2 (J1 S1 + J2 S2)
+end note
+
+@enduml

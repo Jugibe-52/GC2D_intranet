@@ -1,13 +1,15 @@
-"""Fourth-order triple-jump composition of reduced implicit ABBA steps."""
+"""Fourth-order triple-jump composition of projected implicit ABBA steps."""
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 
 import numpy as np
 
-from dynamics import GuidingCenterJacobianSystem
+from dynamics import GuidingCenterDynamics, GuidingCenterJacobianSystem
 
+from .._fully_extended import _integrate_abba_fully_extended
 from ..._fixed import integrate_fixed_grid
 from ..._result import IntegrationData
 from ...observation import (
@@ -18,22 +20,23 @@ from ...observation import (
 from ...problem import InitialValueProblem
 from ...request import SimulationRequest
 from .._nonlinear import NonlinearSolver
-from ._implicit import _ABBAImplicitConfig
+from ._coefficients import _ABBA4_COEFFICIENTS
+from ._configuration import (
+	ProjectionFormulation,
+	_state_dimension_diagnostics,
+)
+from ._implicit import (
+	_ABBAImplicitConfig,
+	_shared_time_kappa_increment,
+	_step_solver_for,
+)
 from ._projection_common import (
 	_ProjectedStep,
 	_checked_vector_field_jacobian,
 )
-from ._projection_reduced import (
-	_solve_reduced_multiplier_step,
-)
 
 
-_CUBE_ROOT_TWO = float(np.cbrt(2.0))
-_GAMMA = 1.0 / (2.0 - _CUBE_ROOT_TWO)
-_DELTA = -_CUBE_ROOT_TWO / (2.0 - _CUBE_ROOT_TWO)
-_ABBA4_COEFFICIENTS = np.asarray((_GAMMA, _DELTA, _GAMMA), dtype=float)
-_SUBSTEP_FORMULATION = "reduced_multiplier"
-_COMPOSITION_FORMULATION = "abba4_implicit_reduced_multiplier_triple_jump"
+_COMPOSITION_POLICY = "project_each_abba_substep"
 
 
 @dataclass(frozen=True, slots=True)
@@ -66,8 +69,9 @@ def _solve_composed_abba_step(
 	relative_tolerance: float,
 	max_iterations: int,
 	nonlinear_solver: NonlinearSolver,
+	projection_formulation: ProjectionFormulation = "reduced_multiplier",
 ) -> _ComposedABBAStep:
-	"""Compose complete reduced implicit-ABBA maps with signed durations."""
+	"""Compose complete projected ABBA maps with one global formulation."""
 	value = np.asarray(state, dtype=float)
 	if value.ndim != 1 or value.size == 0 or not np.all(np.isfinite(value)):
 		raise ValueError(
@@ -83,10 +87,13 @@ def _solve_composed_abba_step(
 	current_time = float(t)
 	current_state = value
 	accepted: list[_AcceptedSubstep] = []
+	step_solver: Callable[..., _ProjectedStep] = _step_solver_for(
+		projection_formulation
+	)
 	for coefficient in composition:
 		duration = float(coefficient * step)
 		state_before = np.asarray(current_state, dtype=float)
-		result = _solve_reduced_multiplier_step(
+		result = step_solver(
 			dynamics,
 			current_time,
 			state_before,
@@ -133,8 +140,9 @@ def _solve_abba4_step(
 	relative_tolerance: float,
 	max_iterations: int,
 	nonlinear_solver: NonlinearSolver,
+	projection_formulation: ProjectionFormulation = "reduced_multiplier",
 ) -> _ComposedABBAStep:
-	"""Compose the three signed reduced implicit-ABBA maps of ABBA4."""
+	"""Compose the three signed projected ABBA maps of ABBA4."""
 	return _solve_composed_abba_step(
 		dynamics,
 		t,
@@ -146,6 +154,7 @@ def _solve_abba4_step(
 		relative_tolerance=relative_tolerance,
 		max_iterations=max_iterations,
 		nonlinear_solver=nonlinear_solver,
+		projection_formulation=projection_formulation,
 	)
 
 
@@ -159,6 +168,7 @@ def _substep_observation(
 	relative_tolerance: float,
 	max_iterations: int,
 	nonlinear_solver: NonlinearSolver,
+	projection_formulation: ProjectionFormulation,
 ) -> ABBA2ImplicitIntegrationStep:
 	"""Build one immutable diagnostic snapshot for a composed signed substep."""
 	state_before = accepted.state_before
@@ -168,7 +178,7 @@ def _substep_observation(
 
 	def map_state(candidate: np.ndarray) -> np.ndarray:
 		"""Apply this fixed-time signed projected-ABBA substep."""
-		return _solve_reduced_multiplier_step(
+		return _step_solver_for(projection_formulation)(
 			dynamics,
 			start_time,
 			candidate,
@@ -191,7 +201,7 @@ def _substep_observation(
 		state_before=state_before.copy(),
 		state_after=result.state.copy(),
 		map_state=map_state,
-		formulation_name=_SUBSTEP_FORMULATION,
+		formulation_name=projection_formulation,
 		start_time=start_time,
 		nonlinear_solver=nonlinear_solver,
 		newton_iterations=result.iterations,
@@ -215,7 +225,7 @@ def _integrate_composed_implicit_abba(
 	request: SimulationRequest,
 	*,
 	coefficients: np.ndarray,
-	composition_formulation: str,
+	composition_policy: str,
 	observation_type: type[ABBAImplicitCompositionIntegrationStep],
 ) -> IntegrationData:
 	"""Run one symmetric ABBA composition and aggregate its nonlinear solves."""
@@ -225,6 +235,16 @@ def _integrate_composed_implicit_abba(
 		raise TypeError(f"{method_name} requires GuidingCenterJacobianSystem.")
 	if dynamics.state_dimension != 2:
 		raise TypeError(f"{method_name} requires planar two-component dynamics.")
+	shared_time_extension = method.state_extension == "shared_time"
+	if shared_time_extension:
+		if not isinstance(dynamics, GuidingCenterDynamics):
+			raise TypeError(
+				f"{method_name} requires GuidingCenterDynamics for shared_time."
+			)
+		if np.asarray(problem.initial_state).shape != (2,):
+			raise ValueError(
+				f"{method_name} requires exactly one GC particle for shared_time."
+			)
 	if method.nonlinear_solver == "newton":
 		_checked_vector_field_jacobian(
 			dynamics,
@@ -251,6 +271,7 @@ def _integrate_composed_implicit_abba(
 			relative_tolerance=method.newton_relative_tolerance,
 			max_iterations=method.newton_max_iterations,
 			nonlinear_solver=method.nonlinear_solver,
+			projection_formulation=method.projection_formulation,
 		)
 
 	def advance(
@@ -260,7 +281,26 @@ def _integrate_composed_implicit_abba(
 		step_index: int,
 		observe: bool,
 	) -> np.ndarray:
-		state_before = np.asarray(state, dtype=float)
+		if shared_time_extension:
+			extended_before = np.asarray(state, dtype=float)
+			if extended_before.shape != (4,) or not np.all(np.isfinite(extended_before)):
+				raise ValueError(
+					"The accepted shared-time state must use finite (x,y,t,kappa) order."
+				)
+			time_tolerance = 64.0 * np.finfo(float).eps * max(1.0, abs(t))
+			if not np.isclose(
+				float(extended_before[2]),
+				t,
+				rtol=0.0,
+				atol=float(time_tolerance),
+			):
+				raise RuntimeError(
+					"The shared-time extension and integration-grid times diverged."
+				)
+			state_before = extended_before[:2]
+		else:
+			extended_before = None
+			state_before = np.asarray(state, dtype=float)
 
 		def map_state(candidate: np.ndarray) -> np.ndarray:
 			"""Apply the same complete composed map to a diagnostic state."""
@@ -278,6 +318,7 @@ def _integrate_composed_implicit_abba(
 					relative_tolerance=method.newton_relative_tolerance,
 					max_iterations=method.newton_max_iterations,
 					nonlinear_solver=method.nonlinear_solver,
+					projection_formulation=method.projection_formulation,
 				)
 				for accepted in result.substeps
 			)
@@ -309,7 +350,7 @@ def _integrate_composed_implicit_abba(
 						state_before=state_before.copy(),
 						state_after=result.state.copy(),
 						map_state=map_state,
-						formulation_name=composition_formulation,
+						formulation_name=method.projection_formulation,
 						start_time=t,
 						nonlinear_solver=method.nonlinear_solver,
 						newton_iterations=sum(iterations),
@@ -322,10 +363,27 @@ def _integrate_composed_implicit_abba(
 						substeps=substeps,
 					)
 				)
-		return result.state
+		if not shared_time_extension:
+			return result.state
+		assert extended_before is not None
+		assert isinstance(dynamics, GuidingCenterDynamics)
+		kappa_after = float(extended_before[3])
+		for accepted in result.substeps:
+			kappa_after += _shared_time_kappa_increment(
+				dynamics,
+				accepted.start_time,
+				accepted.duration,
+				accepted.result,
+			)
+		return np.concatenate((result.state, (t + step, kappa_after)))
 
+	initial_state = problem.initial_state
+	if shared_time_extension:
+		initial_state = np.concatenate(
+			(initial_state, (float(request.t_span[0]), 0.0))
+		)
 	history, step_count = integrate_fixed_grid(
-		problem.initial_state,
+		initial_state,
 		request,
 		advance,
 		progress=bool(method.progress),
@@ -336,6 +394,10 @@ def _integrate_composed_implicit_abba(
 	residual_norms = np.asarray(residual_norm_rows, dtype=float)
 	tolerances = np.asarray(tolerance_rows, dtype=float)
 	multiplier_norms = np.asarray(multiplier_norm_rows, dtype=float)
+	worst_substeps = np.argmax(residual_norms / tolerances, axis=1)
+	step_rows = np.arange(residual_norms.shape[0])
+	worst_residuals = residual_norms[step_rows, worst_substeps]
+	worst_tolerances = tolerances[step_rows, worst_substeps]
 	diagnostics: dict[str, np.ndarray | float | int | str | bool] = {
 		"step_count": step_count,
 		"implicit_substeps_per_step": int(coefficients.size),
@@ -344,8 +406,8 @@ def _integrate_composed_implicit_abba(
 		"nonlinear_solver": method.nonlinear_solver,
 		"nonlinear_iterations": np.sum(iterations, axis=1),
 		"residual_evaluations": np.sum(residual_evaluations, axis=1),
-		"nonlinear_residual_norms": np.max(residual_norms, axis=1),
-		"nonlinear_tolerances": np.max(tolerances, axis=1),
+		"nonlinear_residual_norms": worst_residuals,
+		"nonlinear_tolerances": worst_tolerances,
 		"projection_multiplier_norms": np.max(multiplier_norms, axis=1),
 		"substep_nonlinear_iterations": iterations,
 		"substep_residual_evaluations": residual_evaluations,
@@ -356,17 +418,33 @@ def _integrate_composed_implicit_abba(
 		"nonlinear_relative_tolerance": method.newton_relative_tolerance,
 		"nonlinear_max_iterations": method.newton_max_iterations,
 		"newton_iterations": np.sum(iterations, axis=1),
-		"newton_residual_norms": np.max(residual_norms, axis=1),
+		"newton_residual_norms": worst_residuals,
 		"newton_absolute_tolerance": method.newton_absolute_tolerance,
 		"newton_relative_tolerance": method.newton_relative_tolerance,
 		"newton_max_iterations": method.newton_max_iterations,
-		"projection_formulation": composition_formulation,
-		"substep_projection_formulation": _SUBSTEP_FORMULATION,
-		"state_extension": "physical",
+		"projection_formulation": method.projection_formulation,
+		"substep_projection_formulation": method.projection_formulation,
+		"composition_policy": composition_policy,
+		"state_extension": method.state_extension,
 	}
+	diagnostics.update(
+		_state_dimension_diagnostics(
+			method.state_extension,
+			method.projection_formulation,
+			particle_count=problem.initial_state.size // dynamics.state_dimension,
+		)
+	)
+	if shared_time_extension:
+		diagnostics.update(
+			{
+				"extended_time": np.asarray(history[2]),
+				"extended_kappa": np.asarray(history[3]),
+				"extended_momentum_normalization": "kappa_equals_k_over_2",
+			}
+		)
 	return IntegrationData(
 		t=request.output_times,
-		states=np.asarray(history),
+		states=np.asarray(history[:2] if shared_time_extension else history),
 		diagnostics=diagnostics,
 	)
 
@@ -382,19 +460,19 @@ def _integrate_abba4_implicit(
 		problem,
 		request,
 		coefficients=_ABBA4_COEFFICIENTS,
-		composition_formulation=_COMPOSITION_FORMULATION,
+		composition_policy=_COMPOSITION_POLICY,
 		observation_type=ABBA4ImplicitIntegrationStep,
 	)
 
 
 @dataclass(frozen=True, slots=True)
 class ABBA4Implicit(_ABBAImplicitConfig):
-	"""Fourth-order symmetric composition of three reduced implicit ABBA maps.
+	"""Fourth-order symmetric composition of three projected ABBA maps.
 
 	One complete step applies signed substeps ``(gamma h, delta h, gamma h)``;
-	the middle substep runs backward in time. Every substep solves its own reduced
-	projection multiplier equation with exact ``2 x 2`` Newton blocks or with
-	good Broyden updates.
+	the middle substep runs backward in time. Every substep uses the same selected
+	projection formulation, nonlinear solver, and state extension, and solves its
+	own independent projection problem.
 	"""
 
 	def integrate(
@@ -403,6 +481,14 @@ class ABBA4Implicit(_ABBAImplicitConfig):
 		request: SimulationRequest,
 	) -> IntegrationData:
 		"""Integrate a planar GC problem with the fourth-order composition."""
+		if self.state_extension == "fully_extended":
+			return _integrate_abba_fully_extended(
+				self,
+				problem,
+				request,
+				variant="abba4",
+				projection_formulation=self.projection_formulation,
+			)
 		return _integrate_abba4_implicit(self, problem, request)
 
 

@@ -25,6 +25,7 @@ from .jacobians import (
 	StepJacobianMethod,
 	calculate_step_jacobian,
 	central_difference_jacobian,
+	gauss_legendre4_step_jacobian,
 	implicit_function_step_jacobian,
 	stage_increment_step_jacobian,
 )
@@ -52,6 +53,7 @@ __all__ = [
 	"SymplecticityRecord",
 	"calculate_step_jacobian",
 	"central_difference_jacobian",
+	"gauss_legendre4_step_jacobian",
 	"gc_extended_symplectic_form",
 	"gc_fully_duplicated_symplectic_form",
 	"gc_physical_symplectic_form",

@@ -1,4 +1,4 @@
-"""Sixth-order seven-stage composition of reduced implicit ABBA steps."""
+"""Sixth-order seven-stage composition of projected implicit ABBA steps."""
 
 from __future__ import annotations
 
@@ -8,11 +8,14 @@ import numpy as np
 
 from dynamics import GuidingCenterJacobianSystem
 
+from .._fully_extended import _integrate_abba_fully_extended
 from ..._result import IntegrationData
 from ...observation import ABBA6ImplicitIntegrationStep
 from ...problem import InitialValueProblem
 from ...request import SimulationRequest
 from .._nonlinear import NonlinearSolver
+from ._coefficients import _ABBA6_COEFFICIENTS
+from ._configuration import ProjectionFormulation
 from ._implicit import _ABBAImplicitConfig
 from .order4_implicit import (
 	_ComposedABBAStep,
@@ -21,22 +24,7 @@ from .order4_implicit import (
 )
 
 
-# Yoshida's real symmetric order-six solution. The palindromic sequence is
-# essential for self-adjointness; its negative stages allow all degree-three
-# and degree-five composition conditions to vanish.
-_ABBA6_COEFFICIENTS = np.asarray(
-	(
-		0.78451361047755726382,
-		0.23557321335935813368,
-		-1.17767998417887100695,
-		1.31518632068391121889,
-		-1.17767998417887100695,
-		0.23557321335935813368,
-		0.78451361047755726382,
-	),
-	dtype=float,
-)
-_COMPOSITION_FORMULATION = "abba6_implicit_reduced_multiplier_seven_stage_yoshida"
+_COMPOSITION_POLICY = "project_each_abba_substep"
 
 
 def _solve_abba6_step(
@@ -49,8 +37,9 @@ def _solve_abba6_step(
 	relative_tolerance: float,
 	max_iterations: int,
 	nonlinear_solver: NonlinearSolver,
+	projection_formulation: ProjectionFormulation = "reduced_multiplier",
 ) -> _ComposedABBAStep:
-	"""Compose the seven signed reduced implicit-ABBA maps of ABBA6Implicit."""
+	"""Compose the seven signed projected ABBA maps of ABBA6Implicit."""
 	return _solve_composed_abba_step(
 		dynamics,
 		t,
@@ -62,6 +51,7 @@ def _solve_abba6_step(
 		relative_tolerance=relative_tolerance,
 		max_iterations=max_iterations,
 		nonlinear_solver=nonlinear_solver,
+		projection_formulation=projection_formulation,
 	)
 
 
@@ -70,9 +60,9 @@ class ABBA6Implicit(_ABBAImplicitConfig):
 	"""Sixth-order symmetric composition of seven implicit ABBA maps.
 
 	Each outer step applies Yoshida's palindromic seven-stage coefficients to
-	complete reduced ``ABBA2Implicit`` maps. Two substeps run backward in time.
-	Every signed substep solves its own projection multiplier equation with exact
-	``2 x 2`` Newton blocks or with good Broyden updates.
+	complete ``ABBA2Implicit`` maps. Two substeps run backward in time. Every
+	signed substep uses the same selected projection formulation, nonlinear
+	solver, and state extension, and solves an independent projection problem.
 	"""
 
 	def integrate(
@@ -81,12 +71,20 @@ class ABBA6Implicit(_ABBAImplicitConfig):
 		request: SimulationRequest,
 	) -> IntegrationData:
 		"""Integrate a planar GC problem with the sixth-order composition."""
+		if self.state_extension == "fully_extended":
+			return _integrate_abba_fully_extended(
+				self,
+				problem,
+				request,
+				variant="abba6",
+				projection_formulation=self.projection_formulation,
+			)
 		return _integrate_composed_implicit_abba(
 			self,
 			problem,
 			request,
 			coefficients=_ABBA6_COEFFICIENTS,
-			composition_formulation=_COMPOSITION_FORMULATION,
+			composition_policy=_COMPOSITION_POLICY,
 			observation_type=ABBA6ImplicitIntegrationStep,
 		)
 

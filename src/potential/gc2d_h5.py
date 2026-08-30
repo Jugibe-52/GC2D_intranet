@@ -178,10 +178,15 @@ class GC2DH5Potential(Potential):
 
 	Spatial samples use the GC2D first-axis-x convention without
 	transposing HDF5 fields.  Runtime coordinates are clipped to the sampled
-	domain and evaluated through zero-padded rectangular splines.  A periodic
-	:class:`Grid` still records the regular coordinates because that is the grid
-	contract shared by the current simulation API; evaluation itself remains
-	non-periodic, as defined by the HDF5 potential contract.
+	domain and evaluated through zero-padded rectangular splines. Outside that
+	domain, the clipped potential is constant in each clipped coordinate, so every
+	positive-order derivative with respect to that coordinate is zero. At an exact
+	grid endpoint, the endpoint is considered in-domain and the spline derivative
+	is returned; this explicitly selects the interior-field convention at the
+	nondifferentiable clipping boundary. A periodic :class:`Grid` still records the
+	regular coordinates because that is the grid contract shared by the current
+	simulation API; evaluation itself remains non-periodic, as defined by the HDF5
+	potential contract.
 	"""
 
 	def __init__(
@@ -324,8 +329,12 @@ class GC2DH5Potential(Potential):
 	@staticmethod
 	def _validate_derivatives(dx: int, dy: int, dt: int) -> None:
 		"""Validate derivative orders supported by the potential interface."""
-		if dt not in (0, 1):
-			raise ValueError("`dt` must be 0 or 1.")
+		if (
+			isinstance(dt, (bool, np.bool_))
+			or not isinstance(dt, (int, np.integer))
+			or dt not in (0, 1, 2)
+		):
+			raise ValueError("`dt` must be 0, 1, or 2.")
 		for derivative, name in ((dx, "dx"), (dy, "dy")):
 			if (
 				isinstance(derivative, (bool, np.bool_))
@@ -345,7 +354,12 @@ class GC2DH5Potential(Potential):
 		dy: int,
 		time_dimensions: int,
 	) -> np.ndarray:
-		"""Evaluate one stored mode while preserving NumPy broadcasting."""
+		"""Evaluate one stored mode with derivatives of its clipped extension.
+
+		The sampled rectangle is closed: coordinates exactly on an endpoint use
+		the spline derivative. Strictly outside it, a derivative is zero along each
+		clipped coordinate, consistently differentiating the constant extension.
+		"""
 		if x is None:
 			if dx or dy:
 				raise ValueError("Spatial derivatives require `x` and `y`.")
@@ -354,14 +368,19 @@ class GC2DH5Potential(Potential):
 			return field
 		assert y is not None
 		x_values, y_values = np.broadcast_arrays(np.asarray(x), np.asarray(y))
-		x_values = np.clip(x_values, self.x[0], self.x[-1])
-		y_values = np.clip(y_values, self.y[0], self.y[-1])
-		return interpolator.evaluate(
-			x_values,
-			y_values,
+		x_active = (x_values >= self.x[0]) & (x_values <= self.x[-1])
+		y_active = (y_values >= self.y[0]) & (y_values <= self.y[-1])
+		coefficient = interpolator.evaluate(
+			np.clip(x_values, self.x[0], self.x[-1]),
+			np.clip(y_values, self.y[0], self.y[-1]),
 			dx=int(dx),
 			dy=int(dy),
 		)
+		if dx:
+			coefficient = coefficient * x_active
+		if dy:
+			coefficient = coefficient * y_active
+		return np.asarray(coefficient)
 
 	def _zero_result(
 		self,
@@ -424,9 +443,11 @@ class GC2DH5Potential(Potential):
 				dy=dy,
 				time_dimensions=time.ndim,
 			)
-			phase = np.exp(1j * float(frequency) * time)
-			if dt == 1:
-				phase = phase * (1j * float(frequency))
+			# Each temporal derivative contributes one factor i*f_j without
+			# assuming a common or unit angular frequency.
+			phase = np.exp(1j * float(frequency) * time) * (
+				1j * float(frequency)
+			) ** int(dt)
 			term = 2.0 * np.real(coefficient * phase)
 			result = term if result is None else result + term
 		assert result is not None
@@ -448,7 +469,8 @@ class GC2DH5Potential(Potential):
 		self._validate_derivatives(dx, dy, dt)
 		time = np.asarray(t)
 		dynamic = self.dynamic_part(t, x, y, dx=dx, dy=dy, dt=dt)
-		if dt == 1 or self.mean_value is None or self._mean_spline is None:
+		# Every positive-order time derivative annihilates the static mean.
+		if dt > 0 or self.mean_value is None or self._mean_spline is None:
 			return dynamic
 		mean = self._spatial_coefficient(
 			self.mean_value.astype(np.complex128),

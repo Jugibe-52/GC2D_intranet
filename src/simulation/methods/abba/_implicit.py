@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Literal, TypeAlias
 
 import numpy as np
 
@@ -16,6 +15,15 @@ from ...observation import ABBA2ImplicitIntegrationStep, StepObserver
 from ...problem import InitialValueProblem
 from ...request import SimulationRequest
 from .._nonlinear import NonlinearSolver, _validate_nonlinear_solver
+from ._configuration import (
+	ABBA_PROJECTION_FORMULATIONS,
+	ProjectionFormulation,
+	StateExtension,
+	_state_dimension_diagnostics,
+	_validate_projection_formulation,
+	_validate_state_extension,
+)
+from ._core import _ABBAStages
 from ._projection_common import (
 	_ProjectedStep,
 	_checked_vector_field_jacobian,
@@ -28,26 +36,6 @@ from ._projection_simultaneous import (
 )
 
 
-ProjectionFormulation: TypeAlias = Literal[
-	"reduced_multiplier",
-	"simultaneous_state_multiplier",
-]
-ABBA_PROJECTION_FORMULATIONS: tuple[ProjectionFormulation, ...] = (
-	"reduced_multiplier",
-	"simultaneous_state_multiplier",
-)
-
-
-def _validate_projection_formulation(value: str) -> ProjectionFormulation:
-	"""Return one supported semantic formulation identifier."""
-	if value not in ABBA_PROJECTION_FORMULATIONS:
-		raise ValueError(
-			"`projection_formulation` must be 'reduced_multiplier' or "
-			"'simultaneous_state_multiplier'."
-		)
-	return value
-
-
 def _step_solver_for(
 	formulation: ProjectionFormulation,
 ) -> Callable[..., _ProjectedStep]:
@@ -57,14 +45,13 @@ def _step_solver_for(
 	return _solve_simultaneous_state_multiplier_step
 
 
-def _shared_time_kappa_increment(
+def _shared_time_kappa_increment_from_stages(
 	dynamics: GuidingCenterDynamics,
 	start_time: float,
 	duration: float,
-	result: _ProjectedStep,
+	stages: _ABBAStages,
 ) -> float:
 	"""Advance the accepted conjugate ``kappa=k/2`` through one ABBA map."""
-	stages = result.stages
 	stop_time = start_time + duration
 
 	def momentum_derivative(time: float, state: np.ndarray) -> float:
@@ -85,6 +72,21 @@ def _shared_time_kappa_increment(
 		+ momentum_derivative(stop_time, stages.v_final)
 	)
 	return doubled_increment / 2.0
+
+
+def _shared_time_kappa_increment(
+	dynamics: GuidingCenterDynamics,
+	start_time: float,
+	duration: float,
+	result: _ProjectedStep,
+) -> float:
+	"""Advance ``kappa`` from one accepted projected ABBA result."""
+	return _shared_time_kappa_increment_from_stages(
+		dynamics,
+		start_time,
+		duration,
+		result.stages,
+	)
 
 
 def _positive_finite(value: float, name: str) -> float:
@@ -273,6 +275,7 @@ def _integrate_projected_abba(
 	)
 	diagnostics: dict[str, np.ndarray | float | int | str | bool] = {
 		"step_count": step_count,
+		"nonlinear_solves_per_step": 1,
 		"nonlinear_solver": nonlinear_solver,
 		"nonlinear_iterations": np.asarray(iteration_counts, dtype=int),
 		"residual_evaluations": np.asarray(
@@ -294,10 +297,15 @@ def _integrate_projected_abba(
 		"newton_relative_tolerance": newton_relative_tolerance,
 		"newton_max_iterations": newton_max_iterations,
 		"projection_formulation": projection_formulation,
-		"state_extension": (
-			"shared_time_extended" if shared_time_extension else "physical"
-		),
+		"state_extension": "shared_time" if shared_time_extension else "physical",
 	}
+	diagnostics.update(
+		_state_dimension_diagnostics(
+			"shared_time" if shared_time_extension else "physical",
+			projection_formulation,
+			particle_count=problem.initial_state.size // dynamics.state_dimension,
+		)
+	)
 	if shared_time_extension:
 		diagnostics.update(
 			{
@@ -317,6 +325,8 @@ def _integrate_projected_abba(
 class _ABBAImplicitConfig:
 	"""Validate configuration shared by projected implicit ABBA methods."""
 
+	projection_formulation: ProjectionFormulation = "reduced_multiplier"
+	state_extension: StateExtension = "physical"
 	newton_absolute_tolerance: float = 1e-13
 	newton_relative_tolerance: float = 1e-12
 	newton_max_iterations: int = 12
@@ -326,6 +336,16 @@ class _ABBAImplicitConfig:
 
 	def __post_init__(self) -> None:
 		"""Validate the nonlinear projection solver configuration."""
+		object.__setattr__(
+			self,
+			"projection_formulation",
+			_validate_projection_formulation(self.projection_formulation),
+		)
+		object.__setattr__(
+			self,
+			"state_extension",
+			_validate_state_extension(self.state_extension),
+		)
 		object.__setattr__(
 			self,
 			"newton_absolute_tolerance",

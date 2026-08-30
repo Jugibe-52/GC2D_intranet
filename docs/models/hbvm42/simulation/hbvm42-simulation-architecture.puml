@@ -1,0 +1,60 @@
+@startuml
+title HBVM(4,2) simulation and notebook studies
+
+package simulation {
+  class HBVM42 {
+    +integrate(problem, request)
+  }
+  class "integrate_fixed_grid" as FixedGrid
+  class IntegrationData
+}
+
+package dynamics {
+  interface DynamicalSystem
+  interface HamiltonianSystem
+  interface GuidingCenterJacobianSystem
+}
+
+package studies {
+  class HBVM42EvaluationConfig
+  class HBVM42EvaluationResult
+  class HBVM42BM4ComparisonConfig
+  class HBVM42BM4ComparisonResult
+  class QuarticOscillatorDynamics
+  class "run_hbvm42_evaluation" as IndividualStudy
+  class "run_hbvm42_bm4_comparison" as ComparisonStudy
+}
+
+package visualization {
+  class "plot_hbvm42_evaluation" as IndividualPlot
+  class "plot_hbvm42_energy_errors" as EnergyPlot
+  class "plot_hbvm42_bm4_comparison" as ComparisonPlot
+}
+
+DynamicalSystem --> HBVM42 : vector field
+HamiltonianSystem --> HBVM42 : optional energy
+GuidingCenterJacobianSystem --> HBVM42 : optional exact Jacobians
+HBVM42 --> FixedGrid
+FixedGrid --> IntegrationData
+
+QuarticOscillatorDynamics ..|> DynamicalSystem
+QuarticOscillatorDynamics ..|> HamiltonianSystem
+QuarticOscillatorDynamics ..|> GuidingCenterJacobianSystem
+
+HBVM42EvaluationConfig --> IndividualStudy
+QuarticOscillatorDynamics --> IndividualStudy
+IndividualStudy --> HBVM42EvaluationResult
+HBVM42EvaluationResult --> IndividualPlot
+HBVM42EvaluationResult --> EnergyPlot
+
+HBVM42BM4ComparisonConfig --> ComparisonStudy
+QuarticOscillatorDynamics --> ComparisonStudy
+ComparisonStudy --> HBVM42BM4ComparisonResult
+HBVM42BM4ComparisonResult --> ComparisonPlot
+
+note right of HBVM42
+  4 quadrature stages
+  2 Legendre unknowns
+  order 4
+end note
+@enduml

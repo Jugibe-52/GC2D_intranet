@@ -37,8 +37,11 @@ class "src/potential/gc2d_h5.py" as H5Potential <<class>> {
   --
   Stores mean and complex modes
   Builds zero-padded spatial splines
+  Clips coordinates; differentiates the clipped extension
   Reconstructs Phi(t, x, y)
-  evaluate(...) and dynamic_part(...)
+  evaluate(..., dt=0/1/2)
+  mode factor = (i*f_j)^dt
+  dynamic_part(...)
   gyroaverage(rho): GC2DH5Potential
 }
 
@@ -65,6 +68,7 @@ class "Guiding-center dynamics" as GuidingCenterMotion <<result>> {
   hamiltonian = Phi
   extended momentum derivative = -Phi_t
   particle Jacobians use the spatial Hessian
+  full-state Jacobian also uses Phi_xt, Phi_yt, Phi_tt
 }
 
 class "src/potential/potential.py" as PotentialBase <<class>> {
@@ -108,8 +112,9 @@ note bottom of GCDynamics
   The gyroaverage preserves HDF5 modes,
   frequencies, provenance, and interpolation metadata.
 
-  Arbitrary HDF5 frequencies require general Phi_tt
-  support in fully extended analytic R4/R8 methods
+  Newton physical/shared: spatial Hessian.
+  Newton fully_extended: also Phi_xt, Phi_yt, Phi_tt.
+  Broyden: residual values only; no analytic residual Jacobian.
 end note
 
 @enduml

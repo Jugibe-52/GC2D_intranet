@@ -1,0 +1,34 @@
+@startuml
+title HBVM(4,2) canonical dynamics contract
+
+interface DynamicalSystem {
+  +state_dimension
+  +vector_field(t, state)
+}
+
+interface HamiltonianSystem {
+  +hamiltonian(t, state)
+}
+
+interface GuidingCenterJacobianSystem {
+  +particle_vector_field_jacobians(t, state)
+}
+
+class QuarticOscillatorDynamics {
+  +quartic_strength
+  +vector_field(t, state)
+  +hamiltonian(t, state)
+  +particle_vector_field_jacobians(t, state)
+}
+
+QuarticOscillatorDynamics ..|> DynamicalSystem
+QuarticOscillatorDynamics ..|> HamiltonianSystem
+QuarticOscillatorDynamics ..|> GuidingCenterJacobianSystem
+
+note right of QuarticOscillatorDynamics
+  Packed state:
+  [q_1, ..., q_N, p_1, ..., p_N]
+
+  H = p^2/2 + a q^4/4
+end note
+@enduml

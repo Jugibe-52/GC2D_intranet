@@ -1,10 +1,10 @@
-"""A-B-B-A numerical methods and their shared private kernels."""
+"""Five public A-B-B-A methods and their orthogonal configuration axes."""
 
-from ._implicit import ABBA_PROJECTION_FORMULATIONS, ProjectionFormulation
-from .extensions import (
-	ABBA2FullyExtendedImplicit,
-	ABBA2SharedTimeExtendedImplicit,
-	ABBA4FullyExtendedImplicit,
+from ._configuration import (
+	ABBA_PROJECTION_FORMULATIONS,
+	ABBA_STATE_EXTENSIONS,
+	ProjectionFormulation,
+	StateExtension,
 )
 from .order2_implicit import ABBA2Implicit
 from .order2_midpoint import ABBA2Midpoint
@@ -13,14 +13,13 @@ from .order4_implicit_single_projection import ABBA4ImplicitSingleProjection
 from .order6_implicit import ABBA6Implicit
 
 __all__ = [
+	"ABBA2Midpoint",
+	"ABBA2Implicit",
 	"ABBA4Implicit",
 	"ABBA4ImplicitSingleProjection",
-	"ABBA4FullyExtendedImplicit",
 	"ABBA6Implicit",
-	"ABBA2FullyExtendedImplicit",
-	"ABBA2Implicit",
-	"ABBA2Midpoint",
-	"ABBA2SharedTimeExtendedImplicit",
 	"ABBA_PROJECTION_FORMULATIONS",
+	"ABBA_STATE_EXTENSIONS",
 	"ProjectionFormulation",
+	"StateExtension",
 ]

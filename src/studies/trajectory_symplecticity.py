@@ -525,7 +525,7 @@ def run_abba4_implicit_trajectory_symplecticity_study(
 	project_root: str | Path | None = None,
 	metadata: Mapping[str, Any] | None = None,
 ) -> TrajectorySymplecticityResult:
-	"""Run ABBA4 implicit 1 and compose its three exact physical tangents."""
+	"""Run reduced ABBA4 and compose its three exact physical tangents."""
 	root_two = float(np.cbrt(2.0))
 	gamma = 1.0 / (2.0 - root_two)
 	delta = -root_two / (2.0 - root_two)
@@ -548,10 +548,8 @@ def run_abba4_implicit_trajectory_symplecticity_study(
 		project_root=project_root,
 		metadata={
 			**dict(metadata or {}),
-			"projection_formulation": (
-				"abba4_implicit_reduced_multiplier_triple_jump"
-			),
-			"substep_projection_formulation": "reduced_multiplier",
+			"projection_formulation": "reduced_multiplier",
+			"composition_policy": "project_each_abba_substep",
 			"nonlinear_solver": "newton",
 			"composition_coefficients": (gamma, delta, gamma),
 			"signed_substeps": True,

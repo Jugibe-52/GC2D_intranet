@@ -6,6 +6,7 @@ from diagnostics.jacobians import (
 	_dense_component_major_jacobian,
 	calculate_step_jacobian,
 	central_difference_jacobian,
+	gauss_legendre4_step_jacobian,
 	implicit_function_step_jacobian,
 	stage_increment_step_jacobian,
 )
@@ -18,6 +19,7 @@ __all__ = [
 	"StepJacobianMethod",
 	"calculate_step_jacobian",
 	"central_difference_jacobian",
+	"gauss_legendre4_step_jacobian",
 	"implicit_function_step_jacobian",
 	"stage_increment_step_jacobian",
 ]

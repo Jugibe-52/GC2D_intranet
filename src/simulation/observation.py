@@ -47,12 +47,15 @@ class IntegrationStage:
 
 @dataclass(frozen=True, slots=True)
 class IntegrationStep:
-	"""Describe one complete numerical step on the method's internal state.
+	"""Describe one complete numerical step on its observer-facing map domain.
 
 	``map_state`` evaluates the same fixed-time, fixed-duration numerical map on
-	another state. Shadow advances used only for output interpolation do not emit
-	step observations. ``dynamics`` retains the exact system instance so analytic
-	observers cannot accidentally evaluate derivatives for another potential.
+	another state. This is normally the accepted internal state. A triangular
+	state extension may instead expose its closed physical subsystem so existing
+	physical stage observers remain reusable; solution diagnostics identify the
+	observer state dimension and kind. Shadow advances used only for output
+	interpolation do not emit observations. ``dynamics`` retains the exact system
+	instance so analytic observers cannot use derivatives from another potential.
 	"""
 
 	dynamics_name: str
@@ -70,6 +73,26 @@ class IntegrationStep:
 		compare=False,
 		kw_only=True,
 	)
+
+
+@dataclass(frozen=True, slots=True)
+class GaussLegendre4IntegrationStep(IntegrationStep):
+	"""Expose the converged stages of one two-stage Gauss collocation step.
+
+	The inherited state map is the physical fixed-time map, even when the
+	integrator also advances the time-conjugate momentum for energy diagnostics.
+	The two stage snapshots allow analytic observers to differentiate the ideal
+	converged collocation equations without differentiating Newton iterations.
+	"""
+
+	first_stage_time: float
+	second_stage_time: float
+	newton_iterations: int
+	residual_evaluations: int
+	newton_residual_norm: float
+	newton_tolerance: float
+	first_stage_state: np.ndarray = field(repr=False, compare=False)
+	second_stage_state: np.ndarray = field(repr=False, compare=False)
 
 
 @dataclass(frozen=True, slots=True)
@@ -125,8 +148,8 @@ class ABBA4ImplicitSingleProjectionIntegrationStep(ImplicitIntegrationStep):
 	"""Expose one projection around a complete unprojected ABBA4 base map.
 
 	``substeps`` contains the continuous signed ``(gamma, delta, gamma)`` ABBA
-	maps. The inherited nonlinear metrics describe the single reduced Hairer
-	projection multiplier solved around their complete composition.
+	maps. The inherited nonlinear metrics describe the selected reduced-multiplier
+	or simultaneous state-multiplier projection around their complete composition.
 	"""
 
 	multiplier: np.ndarray = field(repr=False, compare=False)
@@ -225,6 +248,7 @@ __all__ = [
 	"ImplicitBM4IntegrationStep",
 	"FullyExtendedBaseMap",
 	"FullyExtendedImplicitIntegrationStep",
+	"GaussLegendre4IntegrationStep",
 	"ImplicitIntegrationStep",
 	"IntegrationStage",
 	"IntegrationStep",

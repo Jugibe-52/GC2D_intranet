@@ -1,27 +1,35 @@
-"""Contracts for the shared-time and fully duplicated ABBA2 extensions."""
+"""Semantic contracts for the canonical ABBA state-extension parameter."""
 
 from __future__ import annotations
 
+from itertools import product
 import unittest
 
 import numpy as np
 
-from diagnostics import GCGeneralizedEnergyObserver
 from dynamics import GuidingCenterDynamics
 from initial_conditions import GCInitialConfiguration
 from potential import Potential
 from simulation import (
-	ABBA2FullyExtendedImplicit,
 	ABBA2Implicit,
-	ABBA2SharedTimeExtendedImplicit,
+	ABBA2Midpoint,
+	ABBA4Implicit,
+	ABBA4ImplicitSingleProjection,
+	ABBA6Implicit,
 	ABBA_PROJECTION_FORMULATIONS,
+	ABBA_STATE_EXTENSIONS,
 	InitialValueProblem,
 	SimulationRequest,
 	simulate,
 )
-from simulation.methods import ABBA2SharedTimeExtendedImplicit as MethodsExport
-from simulation.methods.abba.extensions import (
-	ABBA2SharedTimeExtendedImplicit as ExtensionsExport,
+
+
+_ALL_METHODS = (
+	ABBA2Midpoint,
+	ABBA2Implicit,
+	ABBA4Implicit,
+	ABBA4ImplicitSingleProjection,
+	ABBA6Implicit,
 )
 
 
@@ -45,118 +53,122 @@ def _problem(*, particle_count: int = 1) -> InitialValueProblem:
 	)
 
 
-def _request() -> SimulationRequest:
-	"""Return a short grid that exposes two accepted steps and three samples."""
+def _request(*, duration: float = 0.1) -> SimulationRequest:
+	"""Return one accepted step and both endpoint samples."""
 	return SimulationRequest.uniform(
-		t_span=(0.0, 0.2),
-		max_step=0.1,
-		sample_count=3,
+		t_span=(0.0, duration),
+		max_step=duration,
+		sample_count=2,
 	)
 
 
-class ABBA2SharedTimeExtensionTests(unittest.TestCase):
-	"""Verify the R6 lift without conflating it with the full R8 method."""
+class ABBAStateExtensionTests(unittest.TestCase):
+	"""Verify state-space meaning independently of the configuration smoke test."""
 
-	def test_shared_time_method_is_exported_by_all_public_facades(self) -> None:
-		self.assertIs(MethodsExport, ABBA2SharedTimeExtendedImplicit)
-		self.assertIs(ExtensionsExport, ABBA2SharedTimeExtendedImplicit)
+	def test_extension_identifiers_are_stable_and_complete(self) -> None:
+		self.assertEqual(
+			ABBA_STATE_EXTENSIONS,
+			("physical", "shared_time", "fully_extended"),
+		)
 
-	def test_physical_map_and_reconstructed_kappa_match_for_both_formulations(
+	def test_shared_and_fully_extended_variants_reject_multiple_particles(
 		self,
 	) -> None:
+		problem = _problem(particle_count=2)
+		request = _request(duration=0.02)
+		for method_type, extension in product(
+			_ALL_METHODS,
+			("shared_time", "fully_extended"),
+		):
+			kwargs: dict[str, object] = {"state_extension": extension}
+			if method_type is not ABBA2Midpoint:
+				kwargs.update(
+					projection_formulation="reduced_multiplier",
+					nonlinear_solver="newton",
+				)
+			with self.subTest(method=method_type.__name__, extension=extension):
+				with self.assertRaisesRegex(ValueError, "exactly one GC particle"):
+					simulate(problem, method_type(**kwargs), request)
+
+	def test_fully_extended_abba2_is_distinct_from_the_shared_time_lift(self) -> None:
+		problem = _problem()
+		request = _request()
 		for formulation in ABBA_PROJECTION_FORMULATIONS:
 			with self.subTest(formulation=formulation):
-				problem = _problem()
-				initial_state = np.asarray(problem.initial_state)
-				observer = GCGeneralizedEnergyObserver(
-					problem.dynamics,
-					initial_time=0.0,
-					initial_state=initial_state,
-				)
 				shared = simulate(
-					problem,
-					ABBA2SharedTimeExtendedImplicit(
-						projection_formulation=formulation,
-						newton_absolute_tolerance=1e-14,
-						newton_relative_tolerance=1e-14,
-						step_observer=observer,
-					),
-					_request(),
-				)
-				physical = simulate(
 					problem,
 					ABBA2Implicit(
 						projection_formulation=formulation,
+						state_extension="shared_time",
 						newton_absolute_tolerance=1e-14,
 						newton_relative_tolerance=1e-14,
 					),
-					_request(),
+					request,
+				)
+				fully_extended = simulate(
+					problem,
+					ABBA2Implicit(
+						projection_formulation=formulation,
+						state_extension="fully_extended",
+						newton_absolute_tolerance=1e-14,
+						newton_relative_tolerance=1e-14,
+					),
+					request,
 				)
 
-				np.testing.assert_allclose(
-					shared.states,
-					physical.states,
-					rtol=0.0,
-					atol=2e-15,
-				)
-				self.assertEqual(
-					shared.diagnostics["projection_formulation"],
-					formulation,
-				)
 				self.assertEqual(
 					shared.diagnostics["state_extension"],
-					"shared_time_extended",
+					"shared_time",
 				)
+				self.assertEqual(
+					fully_extended.diagnostics["state_extension"],
+					"fully_extended",
+				)
+				self.assertIn("extended_kappa", shared.diagnostics)
+				self.assertIn("extended_momentum", fully_extended.diagnostics)
 				self.assertEqual(
 					shared.diagnostics["extended_momentum_normalization"],
 					"kappa_equals_k_over_2",
 				)
-				extended_time = np.asarray(shared.diagnostics["extended_time"])
-				extended_kappa = np.asarray(shared.diagnostics["extended_kappa"])
-				self.assertEqual(extended_time.shape, shared.t.shape)
-				self.assertEqual(extended_kappa.shape, shared.t.shape)
-				np.testing.assert_allclose(extended_time, shared.t, rtol=0.0, atol=0.0)
-				self.assertEqual(float(extended_kappa[0]), 0.0)
-				np.testing.assert_allclose(
-					extended_kappa,
-					[record.kappa for record in observer.records],
-					rtol=0.0,
-					atol=2e-15,
+				self.assertEqual(
+					fully_extended.diagnostics["extended_momentum_normalization"],
+					"direct_k",
+				)
+				self.assertGreater(
+					float(
+						np.max(
+							np.abs(shared.states - fully_extended.states)
+						)
+					),
+					1e-9,
 				)
 
-	def test_shared_time_extension_rejects_multiple_particles(self) -> None:
-		for formulation in ABBA_PROJECTION_FORMULATIONS:
-			with self.subTest(formulation=formulation):
-				with self.assertRaisesRegex(ValueError, "exactly one GC particle"):
-					simulate(
-						_problem(particle_count=2),
-						ABBA2SharedTimeExtendedImplicit(
-							projection_formulation=formulation
-						),
-						_request(),
-					)
-
-	def test_fully_duplicated_extension_is_a_distinct_numerical_method(self) -> None:
-		problem = _problem()
-		shared = simulate(
-			problem,
-			ABBA2SharedTimeExtendedImplicit(),
-			_request(),
+	def test_fully_extended_diagnostics_close_the_generalized_energy_identity(
+		self,
+	) -> None:
+		solution = simulate(
+			_problem(),
+			ABBA2Implicit(state_extension="fully_extended"),
+			_request(duration=0.05),
 		)
-		fully_extended = simulate(
-			problem,
-			ABBA2FullyExtendedImplicit(),
-			_request(),
+		hamiltonian = np.asarray(solution.diagnostics["physical_hamiltonian"])
+		momentum = np.asarray(solution.diagnostics["extended_momentum"])
+		generalized = np.asarray(solution.diagnostics["generalized_energy"])
+		error = np.asarray(solution.diagnostics["generalized_energy_error"])
+		np.testing.assert_allclose(generalized, hamiltonian + momentum)
+		np.testing.assert_allclose(error, generalized - generalized[0])
+		np.testing.assert_allclose(
+			solution.diagnostics["extended_time"],
+			solution.t,
+			rtol=0.0,
+			atol=5e-15,
 		)
 
-		self.assertEqual(shared.diagnostics["state_extension"], "shared_time_extended")
-		self.assertEqual(fully_extended.diagnostics["state_extension"], "fully_extended")
-		self.assertIn("extended_kappa", shared.diagnostics)
-		self.assertIn("extended_momentum", fully_extended.diagnostics)
-		self.assertGreater(
-			float(np.max(np.abs(shared.states - fully_extended.states))),
-			1e-9,
-		)
+	def test_invalid_extension_fails_during_method_configuration(self) -> None:
+		for method_type in _ALL_METHODS:
+			with self.subTest(method=method_type.__name__):
+				with self.assertRaisesRegex(ValueError, "state_extension"):
+					method_type(state_extension="unknown")  # type: ignore[arg-type]
 
 
 if __name__ == "__main__":
