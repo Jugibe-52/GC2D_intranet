@@ -19,7 +19,7 @@ from ...request import SimulationRequest
 from .._nonlinear import NonlinearSolver, _solve_broyden
 from ._core import _ABBAStages, _evaluate_unprojected_stages
 from ._implicit import _ABBAImplicitConfig
-from ._projection import (
+from ._projection_common import (
 	_checked_vector_field_jacobian,
 	_differentiate_stages,
 )

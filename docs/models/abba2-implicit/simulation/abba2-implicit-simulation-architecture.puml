@@ -271,19 +271,29 @@ digraph ABBA2ImplicitArchitecture {
     { rank=same; selector_anchor; FormulationSelector; }
 
     solvers_anchor [shape=point, width=0, height=0, label="", style=invis];
-    FormulationSolvers [label=<
+    ReducedProjectionSolver [label=<
       <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#F7F7F7">
-        <TR><TD><FONT POINT-SIZE="9"><I>&#171;equivalent nonlinear solves&#187;</I></FONT><BR/><FONT POINT-SIZE="9">src/simulation/methods/abba/_projection.py</FONT><BR/><B>_solve_reduced_multiplier_step(...)</B></TD></TR>
+        <TR><TD><FONT POINT-SIZE="9"><I>&#171;formulation 1&#187;</I></FONT><BR/><FONT POINT-SIZE="9">src/simulation/methods/abba/_projection_reduced.py</FONT><BR/><B>_solve_reduced_multiplier_step(...)</B></TD></TR>
         <HR/>
         <TR><TD ALIGN="LEFT">Unknown: mu in R2 per particle<BR ALIGN="LEFT"/>Newton block: 2 x 2<BR ALIGN="LEFT"/>r = u_f - v_f + 2 mu</TD></TR>
-        <HR/>
-        <TR><TD><B>_solve_simultaneous_state_multiplier_step(...)</B></TD></TR>
+      </TABLE>
+    >];
+    SimultaneousProjectionSolver [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#F7F7F7">
+        <TR><TD><FONT POINT-SIZE="9"><I>&#171;formulation 2&#187;</I></FONT><BR/><FONT POINT-SIZE="9">src/simulation/methods/abba/_projection_simultaneous.py</FONT><BR/><B>_solve_simultaneous_state_multiplier_step(...)</B></TD></TR>
         <HR/>
         <TR><TD ALIGN="LEFT">Unknown: (u_f,v_f,mu) in R6 per particle<BR ALIGN="LEFT"/>Newton block: 6 x 6<BR ALIGN="LEFT"/>R6 is an algebraic solve vector, not a state</TD></TR>
       </TABLE>
     >];
+    ProjectionCommon [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#F7F7F7">
+        <TR><TD><FONT POINT-SIZE="9"><I>&#171;shared projection kernel&#187;</I></FONT><BR/><FONT POINT-SIZE="9">src/simulation/methods/abba/_projection_common.py</FONT><BR/><B>_evaluate_displaced_stages(...)</B></TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT">Displaced copies and residual<BR ALIGN="LEFT"/>Exact stage derivatives<BR ALIGN="LEFT"/>Common _ProjectedStep record</TD></TR>
+      </TABLE>
+    >];
     FormulationNote [shape=note, style="filled", fillcolor="#FFFDEB", color="#B8AE6F", margin="0.10,0.07", label="Both branches solve the same projected physical map.\nTheir R2 and R6 unknowns are nonlinear workspaces."];
-    { rank=same; solvers_anchor; FormulationSolvers; FormulationNote; }
+    { rank=same; solvers_anchor; ReducedProjectionSolver; SimultaneousProjectionSolver; FormulationNote; }
 
     core_anchor [shape=point, width=0, height=0, label="", style=invis];
     ABBACore [label=<
@@ -305,7 +315,7 @@ digraph ABBA2ImplicitArchitecture {
     accepted_anchor [shape=point, width=0, height=0, label="", style=invis];
     AcceptedStep [label=<
       <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#F7F7F7">
-        <TR><TD><FONT POINT-SIZE="9"><I>&#171;one-step output&#187;</I></FONT><BR/><FONT POINT-SIZE="9">src/simulation/methods/abba/_projection.py</FONT><BR/><B>_ProjectedStep</B></TD></TR>
+        <TR><TD><FONT POINT-SIZE="9"><I>&#171;one-step output&#187;</I></FONT><BR/><FONT POINT-SIZE="9">src/simulation/methods/abba/_projection_common.py</FONT><BR/><B>_ProjectedStep</B></TD></TR>
         <HR/>
         <TR><TD ALIGN="LEFT">Same accepted z_(n+1) for both formulations<BR ALIGN="LEFT"/>Converged multiplier and stage snapshots<BR ALIGN="LEFT"/>Solver metrics</TD></TR>
       </TABLE>
@@ -418,15 +428,18 @@ digraph ABBA2ImplicitArchitecture {
   SharedTimeExtension -> IntegrationCoordinator [style=dashed, arrowhead=normal, constraint=false];
   IntegrationCoordinator -> FixedGrid [style=solid, arrowhead=normal, constraint=false];
   FixedGrid -> FormulationSelector [style=solid, arrowhead=normal, constraint=false];
-  FormulationSelector -> FormulationSolvers [style=solid, arrowhead=normal, constraint=false];
-  FormulationSolvers -> ABBACore [style=solid, arrowhead=normal, constraint=false];
+  FormulationSelector -> ReducedProjectionSolver [style=solid, arrowhead=normal, constraint=false];
+  FormulationSelector -> SimultaneousProjectionSolver [style=solid, arrowhead=normal, constraint=false];
+  ReducedProjectionSolver -> ProjectionCommon [style=solid, arrowhead=normal, constraint=false];
+  SimultaneousProjectionSolver -> ProjectionCommon [style=solid, arrowhead=normal, constraint=false];
+  ProjectionCommon -> ABBACore [style=solid, arrowhead=normal, constraint=false];
   ABBACore -> AcceptedStep [style=solid, arrowhead=normal, constraint=false];
   AcceptedStep -> SchedulerContinuation [style=solid, arrowhead=normal, constraint=false];
   AcceptedStep -> SharedTimeAdvance [style=dashed, arrowhead=normal, constraint=false];
   SharedTimeAdvance -> SchedulerContinuation [style=solid, arrowhead=normal, constraint=false];
 
   // Required capabilities, reuse, and optional observation.
-  GuidingCenterJacobianSystem -> FormulationSolvers [style=dashed, arrowhead=normal, constraint=false];
+  GuidingCenterJacobianSystem -> ProjectionCommon [style=dashed, arrowhead=normal, constraint=false];
   GuidingCenterDynamics -> SharedTimeAdvance [style=dashed, arrowhead=normal, constraint=false];
   ABBA2MidpointReuse -> ABBACore [style=dashed, arrowhead=normal, constraint=false];
   SchedulerContinuation -> StepObservation [style=dashed, arrowhead=normal, constraint=false];

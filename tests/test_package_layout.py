@@ -66,7 +66,9 @@ class PackageLayoutTests(unittest.TestCase):
 			"simulation.methods._fully_extended",
 			"simulation.methods.abba",
 			"simulation.methods.abba._core",
-			"simulation.methods.abba._projection",
+			"simulation.methods.abba._projection_common",
+			"simulation.methods.abba._projection_reduced",
+			"simulation.methods.abba._projection_simultaneous",
 			"simulation.methods.abba._implicit",
 			"simulation.methods.abba.order2_midpoint",
 			"simulation.methods.abba.order2_implicit",
@@ -95,6 +97,7 @@ class PackageLayoutTests(unittest.TestCase):
 		for module in (
 			"simulation.methods._implicit_abba",
 			"simulation.methods._projected_abba",
+			"simulation.methods.abba._projection",
 			"simulation.methods.abba_midpoint",
 			"simulation.methods.abba_implicit_1",
 			"simulation.methods.abba_implicit_2",

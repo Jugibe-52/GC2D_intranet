@@ -20,8 +20,10 @@ from simulation.methods.abba.order4_implicit import (
 	_solve_abba4_step,
 	_substep_observation,
 )
-from simulation.methods.abba._projection import (
+from simulation.methods.abba._projection_reduced import (
 	_solve_reduced_multiplier_step,
+)
+from simulation.methods.abba._projection_simultaneous import (
 	_solve_simultaneous_state_multiplier_step,
 )
 

@@ -19,12 +19,16 @@ from simulation import (
 	SimulationRequest,
 	simulate,
 )
-from simulation.methods.abba._projection import (
+from simulation.methods.abba._projection_common import (
 	_differentiate_stages,
-	_evaluate_stages,
+	_evaluate_displaced_stages,
+)
+from simulation.methods.abba._projection_reduced import (
+	_solve_reduced_multiplier_step,
+)
+from simulation.methods.abba._projection_simultaneous import (
 	_simultaneous_newton_jacobian,
 	_simultaneous_residual_blocks,
-	_solve_reduced_multiplier_step,
 	_solve_simultaneous_state_multiplier_step,
 )
 from studies import (
@@ -54,7 +58,7 @@ class ImplicitABBAFormulationTests(unittest.TestCase):
 			first_output = unknown[:2]
 			second_output = unknown[2:4]
 			multiplier = unknown[4:]
-			stages = _evaluate_stages(
+			stages = _evaluate_displaced_stages(
 				dynamics,
 				time,
 				state,
@@ -69,7 +73,7 @@ class ImplicitABBAFormulationTests(unittest.TestCase):
 				dynamics.state_dimension,
 			)[0]
 
-		stages = _evaluate_stages(
+		stages = _evaluate_displaced_stages(
 			dynamics,
 			time,
 			state,

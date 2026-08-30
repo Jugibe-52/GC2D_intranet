@@ -16,10 +16,14 @@ from ...observation import ABBA2ImplicitIntegrationStep, StepObserver
 from ...problem import InitialValueProblem
 from ...request import SimulationRequest
 from .._nonlinear import NonlinearSolver, _validate_nonlinear_solver
-from ._projection import (
+from ._projection_common import (
 	_ProjectedStep,
 	_checked_vector_field_jacobian,
+)
+from ._projection_reduced import (
 	_solve_reduced_multiplier_step,
+)
+from ._projection_simultaneous import (
 	_solve_simultaneous_state_multiplier_step,
 )
 

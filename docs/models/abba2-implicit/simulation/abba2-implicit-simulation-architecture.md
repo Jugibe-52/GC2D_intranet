@@ -336,7 +336,9 @@ method classes from `simulation` or `simulation.methods`.
 |---|---|
 | `__init__.py` | Reexports the public ABBA method classes as one family. |
 | `_core.py` | Implements the generic endpoint-time A-B-B-A map shared by midpoint and implicit projection. |
-| `_projection.py` | Builds projection residuals, exact Jacobians, nonlinear solves, and accepted projected states. |
+| `_projection_common.py` | Builds the shared displaced stages, exact stage tangents, and accepted-step record. |
+| `_projection_reduced.py` | Implements formulation 1: the reduced projection-multiplier solve. |
+| `_projection_simultaneous.py` | Implements formulation 2: the simultaneous output--multiplier solve. |
 | `_implicit.py` | Owns shared implicit configuration, formulation dispatch, run coordination, fixed-grid hand-off, and diagnostics. |
 | `order2_midpoint.py` | Implements arithmetic-mean projection using the shared A-B-B-A core. |
 | `order2_implicit.py` | Implements `ABBA2Implicit` and selects its projection solver from `projection_formulation`. |
@@ -455,8 +457,12 @@ Their files are deliberately separated by responsibility:
 
 - [`_implicit.py`](../../../../src/simulation/methods/abba/_implicit.py) coordinates
   the complete run;
-- [`_projection.py`](../../../../src/simulation/methods/abba/_projection.py)
-  implements the implicit projection; and
+- [`_projection_reduced.py`](../../../../src/simulation/methods/abba/_projection_reduced.py)
+  implements formulation 1;
+- [`_projection_simultaneous.py`](../../../../src/simulation/methods/abba/_projection_simultaneous.py)
+  implements formulation 2;
+- [`_projection_common.py`](../../../../src/simulation/methods/abba/_projection_common.py)
+  retains only their shared stage and tangent kernels; and
 - [`_core.py`](../../../../src/simulation/methods/abba/_core.py) applies the
   projection-independent A-B-B-A stage map.
 
@@ -529,8 +535,10 @@ side of the diagram.
 
 **Files:**
 [`src/simulation/methods/abba/_implicit.py`](../../../../src/simulation/methods/abba/_implicit.py)
+with
+[`_projection_reduced.py`](../../../../src/simulation/methods/abba/_projection_reduced.py)
 and
-[`src/simulation/methods/abba/_projection.py`](../../../../src/simulation/methods/abba/_projection.py)
+[`_projection_simultaneous.py`](../../../../src/simulation/methods/abba/_projection_simultaneous.py)
 
 `_step_solver_for(...)` selects `_solve_reduced_multiplier_step(...)` for
 `reduced_multiplier` or `_solve_simultaneous_state_multiplier_step(...)` for
@@ -542,7 +550,7 @@ independent of the selected algebraic formulation.
 ### Reduced branch: `_solve_reduced_multiplier_step(...)`
 
 **File:**
-[`src/simulation/methods/abba/_projection.py`](../../../../src/simulation/methods/abba/_projection.py)
+[`src/simulation/methods/abba/_projection_reduced.py`](../../../../src/simulation/methods/abba/_projection_reduced.py)
 
 This is the default step solver. One invocation receives:
 
@@ -573,10 +581,10 @@ advance.
 ### Inner nonlinear loop — duplicated input
 
 **File:**
-[`src/simulation/methods/abba/_projection.py`](../../../../src/simulation/methods/abba/_projection.py)
+[`src/simulation/methods/abba/_projection_common.py`](../../../../src/simulation/methods/abba/_projection_common.py)
 
-At the start of nonlinear iteration `k`, `_evaluate_stages(...)` uses the
-current multiplier to create two displaced copies of the same physical state:
+At the start of nonlinear iteration `k`, `_evaluate_displaced_stages(...)` uses
+the current multiplier to create two displaced copies of the same physical state:
 
 \[
 u_0 = z_n + \mu_k,
@@ -636,9 +644,9 @@ The dashed arrow in the diagram represents this shared-core dependency;
 ### Inner nonlinear loop — projection residual
 
 **File:**
-[`src/simulation/methods/abba/_projection.py`](../../../../src/simulation/methods/abba/_projection.py)
+[`src/simulation/methods/abba/_projection_reduced.py`](../../../../src/simulation/methods/abba/_projection_reduced.py)
 
-After the shared map returns, `_evaluate_stages(...)` adds the multiplier term
+After the shared map returns, the reduced branch's `_evaluate_stages(...)` adds the multiplier term
 required by Hairer's reduced symmetric projection:
 
 \[
@@ -671,7 +679,9 @@ with the outer scheduler's decision to advance to another physical time.
 ### Inner nonlinear loop — multiplier correction
 
 **File:**
-[`src/simulation/methods/abba/_projection.py`](../../../../src/simulation/methods/abba/_projection.py)
+[`src/simulation/methods/abba/_projection_reduced.py`](../../../../src/simulation/methods/abba/_projection_reduced.py),
+using the exact stage derivatives from
+[`_projection_common.py`](../../../../src/simulation/methods/abba/_projection_common.py)
 
 Both available nonlinear solvers target the same reduced root `r(mu) = 0`; they differ
 only in how they compute the correction `Delta_mu_k`.
@@ -722,6 +732,9 @@ information.
 
 ### Simultaneous branch: `_solve_simultaneous_state_multiplier_step(...)`
 
+**File:**
+[`src/simulation/methods/abba/_projection_simultaneous.py`](../../../../src/simulation/methods/abba/_projection_simultaneous.py)
+
 The alternative formulation starts from the uncorrected stage outputs and
 solves for
 
@@ -749,7 +762,8 @@ is unrelated to the shared-time splitting state described above.
 ### Accepted physical state
 
 **File:**
-[`src/simulation/methods/abba/_projection.py`](../../../../src/simulation/methods/abba/_projection.py)
+The two branch modules construct the common `_ProjectedStep` record defined in
+[`src/simulation/methods/abba/_projection_common.py`](../../../../src/simulation/methods/abba/_projection_common.py).
 
 In the reduced branch, once `mu_star` satisfies the stopping condition, the
 final duplicated states are projected as

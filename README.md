@@ -138,6 +138,12 @@ accepted physical map is solved:
 | `"reduced_multiplier"` | Projection multiplier `mu` | `2 x 2` |
 | `"simultaneous_state_multiplier"` | Final duplicated state and multiplier `(u_f, v_f, mu)` | `6 x 6` |
 
+The implementation keeps those branches in separate private modules:
+`_projection_reduced.py` owns formulation 1, `_projection_simultaneous.py` owns
+formulation 2, and `_projection_common.py` contains only their shared stage and
+tangent records. The public selector remains unified because the two branches
+solve the same projected map.
+
 The `6 x 6` simultaneous system is a nonlinear-solver workspace. It is **not**
 an `R^6` accepted state and it does not define another numerical method. Both
 formulations return the same physical state up to the nonlinear stopping
