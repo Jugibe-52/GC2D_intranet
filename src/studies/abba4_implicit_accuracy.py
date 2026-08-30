@@ -14,7 +14,7 @@ from dynamics import GuidingCenterDynamics
 from initial_conditions import GCInitialConfiguration
 from potential import Potential
 from simulation import (
-	ABBA4Implicit1,
+	ABBA4Implicit,
 	NONLINEAR_SOLVERS,
 	InitialValueProblem,
 	NonlinearSolver,
@@ -40,7 +40,7 @@ from ._validation import (
 
 
 @dataclass(frozen=True, slots=True)
-class ABBA4Implicit1AccuracyConfig:
+class ABBA4ImplicitAccuracyConfig:
 	"""Physical, nonlinear, integration, and sampling controls."""
 
 	integration_steps: tuple[float, ...] = (0.4, 0.2, 0.1, 0.05)
@@ -109,7 +109,7 @@ class ABBA4Implicit1AccuracyConfig:
 
 
 @dataclass(frozen=True, slots=True)
-class ABBA4Implicit1AccuracySummary:
+class ABBA4ImplicitAccuracySummary:
 	"""Accuracy, nonlinear work, and runtime for one complete step size."""
 
 	method_name: str
@@ -130,7 +130,7 @@ class ABBA4Implicit1AccuracySummary:
 
 
 @dataclass(frozen=True, slots=True)
-class ABBA4Implicit1AccuracyOrder:
+class ABBA4ImplicitAccuracyOrder:
 	"""Observed error gains and orders between adjacent nested steps."""
 
 	coarse_step: float
@@ -143,22 +143,22 @@ class ABBA4Implicit1AccuracyOrder:
 
 
 @dataclass(frozen=True, slots=True)
-class ABBA4Implicit1AccuracyResult:
+class ABBA4ImplicitAccuracyResult:
 	"""Aligned ABBA4 trajectories and errors across one nested refinement."""
 
-	method_name: ClassVar[str] = "ABBA4Implicit1"
-	summary_type: ClassVar[type[ABBA4Implicit1AccuracySummary]] = (
-		ABBA4Implicit1AccuracySummary
+	method_name: ClassVar[str] = "ABBA4Implicit"
+	summary_type: ClassVar[type[ABBA4ImplicitAccuracySummary]] = (
+		ABBA4ImplicitAccuracySummary
 	)
-	order_type: ClassVar[type[ABBA4Implicit1AccuracyOrder]] = (
-		ABBA4Implicit1AccuracyOrder
+	order_type: ClassVar[type[ABBA4ImplicitAccuracyOrder]] = (
+		ABBA4ImplicitAccuracyOrder
 	)
 
 	potential: Potential
 	dynamics: GuidingCenterDynamics
 	initial_configuration: GCInitialConfiguration
 	reference: StoredReferenceTrajectory
-	config: ABBA4Implicit1AccuracyConfig
+	config: ABBA4ImplicitAccuracyConfig
 	reference_sample_indices: np.ndarray
 	solutions: Mapping[float, Solution]
 	series: Mapping[float, TrajectoryAccuracySeries]
@@ -237,9 +237,9 @@ class ABBA4Implicit1AccuracyResult:
 		]
 		return float(np.sqrt(np.mean(values**2)))
 
-	def summaries(self) -> tuple[ABBA4Implicit1AccuracySummary, ...]:
+	def summaries(self) -> tuple[ABBA4ImplicitAccuracySummary, ...]:
 		"""Return error, work, and runtime metrics from coarse to fine."""
-		rows: list[ABBA4Implicit1AccuracySummary] = []
+		rows: list[ABBA4ImplicitAccuracySummary] = []
 		period = float(self.potential.grid.period)
 		floor = max(self.reference_floor, float(np.finfo(float).eps))
 		duration = float(self.times[-1] - self.times[0])
@@ -285,12 +285,12 @@ class ABBA4Implicit1AccuracyResult:
 			)
 		return tuple(rows)
 
-	def convergence_orders(self) -> tuple[ABBA4Implicit1AccuracyOrder, ...]:
+	def convergence_orders(self) -> tuple[ABBA4ImplicitAccuracyOrder, ...]:
 		"""Estimate time-integrated and final RMS orders under step halving."""
 		summaries = {row.integration_step: row for row in self.summaries()}
 		time_floor = max(self.reference_floor, float(np.finfo(float).eps))
 		final_floor = max(self.final_reference_floor, float(np.finfo(float).eps))
-		rows: list[ABBA4Implicit1AccuracyOrder] = []
+		rows: list[ABBA4ImplicitAccuracyOrder] = []
 		for coarse_step, fine_step in zip(
 			self.config.integration_steps,
 			self.config.integration_steps[1:],
@@ -327,15 +327,15 @@ class ABBA4Implicit1AccuracyResult:
 		return tuple(rows)
 
 
-def run_abba4_implicit_1_accuracy_study(
+def run_abba4_implicit_accuracy_study(
 	potential: Potential,
 	initial_configuration: GCInitialConfiguration,
 	reference: StoredReferenceTrajectory,
 	*,
-	config: ABBA4Implicit1AccuracyConfig,
+	config: ABBA4ImplicitAccuracyConfig,
 	potential_metadata: Mapping[str, Any],
 	initial_condition_metadata: Mapping[str, Any],
-) -> ABBA4Implicit1AccuracyResult:
+) -> ABBA4ImplicitAccuracyResult:
 	"""Run ABBA4 on nested steps and compare every saved state to the reference."""
 	if not isinstance(potential, Potential):
 		raise TypeError("`potential` must be a Potential instance.")
@@ -343,8 +343,8 @@ def run_abba4_implicit_1_accuracy_study(
 		raise TypeError("`initial_configuration` must be GCInitialConfiguration.")
 	if not isinstance(reference, StoredReferenceTrajectory):
 		raise TypeError("`reference` must be a StoredReferenceTrajectory.")
-	if not isinstance(config, ABBA4Implicit1AccuracyConfig):
-		raise TypeError("`config` must be ABBA4Implicit1AccuracyConfig.")
+	if not isinstance(config, ABBA4ImplicitAccuracyConfig):
+		raise TypeError("`config` must be ABBA4ImplicitAccuracyConfig.")
 	validate_reference_identity(
 		potential,
 		initial_configuration,
@@ -369,7 +369,7 @@ def run_abba4_implicit_1_accuracy_study(
 		started = perf_counter()
 		solution = simulate(
 			problem,
-			ABBA4Implicit1(
+			ABBA4Implicit(
 				newton_absolute_tolerance=config.absolute_tolerance,
 				newton_relative_tolerance=config.relative_tolerance,
 				newton_max_iterations=config.max_iterations,
@@ -386,14 +386,14 @@ def run_abba4_implicit_1_accuracy_study(
 		elif not np.array_equal(indices, reference_indices):
 			raise ValueError("ABBA4 refinements do not share reference sample indices.")
 		series[step] = accuracy_series(
-			"ABBA4Implicit1",
+			"ABBA4Implicit",
 			solution.states,
 			reference.states[:, indices],
 			period=float(potential.grid.period),
 			distance_convention=distance_convention,
 		)
 	assert reference_indices is not None
-	return ABBA4Implicit1AccuracyResult(
+	return ABBA4ImplicitAccuracyResult(
 		potential=potential,
 		dynamics=dynamics,
 		initial_configuration=initial_configuration,
@@ -407,9 +407,9 @@ def run_abba4_implicit_1_accuracy_study(
 
 
 __all__ = [
-	"ABBA4Implicit1AccuracyConfig",
-	"ABBA4Implicit1AccuracyOrder",
-	"ABBA4Implicit1AccuracyResult",
-	"ABBA4Implicit1AccuracySummary",
-	"run_abba4_implicit_1_accuracy_study",
+	"ABBA4ImplicitAccuracyConfig",
+	"ABBA4ImplicitAccuracyOrder",
+	"ABBA4ImplicitAccuracyResult",
+	"ABBA4ImplicitAccuracySummary",
+	"run_abba4_implicit_accuracy_study",
 ]

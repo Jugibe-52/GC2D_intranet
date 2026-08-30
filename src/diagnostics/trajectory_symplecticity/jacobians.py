@@ -8,9 +8,10 @@ from diagnostics.abba_jacobian import particle_jacobian_blocks
 from diagnostics.jacobians import implicit_function_step_jacobian
 from dynamics import GuidingCenterJacobianSystem
 from simulation import (
-	ABBA4SingleProjectionIntegrationStep,
-	ImplicitABBA4IntegrationStep,
-	ImplicitABBAIntegrationStep,
+	ABBA_PROJECTION_FORMULATIONS,
+	ABBA4ImplicitSingleProjectionIntegrationStep,
+	ABBA4ImplicitIntegrationStep,
+	ABBA2ImplicitIntegrationStep,
 	ImplicitBM4IntegrationStep,
 	IntegrationStage,
 	IntegrationStep,
@@ -125,13 +126,13 @@ def _doubled_particle_blocks(state: np.ndarray, particle_count: int) -> np.ndarr
 	)
 
 
-def midpoint_abba_step_particle_jacobians(
+def abba2_midpoint_step_particle_jacobians(
 	step: IntegrationStep,
 ) -> np.ndarray:
 	"""Return the exact arithmetic-midpoint ABBA map Jacobian per particle."""
 	dynamics, state, state_after, particle_count = _validated_step(
 		step,
-		method_name="MidpointABBA",
+		method_name="ABBA2Midpoint",
 	)
 	half_step = step.duration / 2.0
 	start_time = step.start_time
@@ -191,38 +192,38 @@ def midpoint_abba_step_particle_jacobians(
 	return np.asarray(result, dtype=float)
 
 
-def implicit_abba_1_step_particle_jacobians(
+def abba2_implicit_step_particle_jacobians(
 	step: IntegrationStep,
 ) -> np.ndarray:
-	"""Return the exact ideal-root implicit-ABBA-1 Jacobian blocks."""
+	"""Return exact ideal-root ABBA2 Jacobians for either solve formulation."""
 	_, _, _, particle_count = _validated_step(
 		step,
-		method_name="ImplicitABBA1",
+		method_name="ABBA2Implicit",
 	)
-	if not isinstance(step, ImplicitABBAIntegrationStep):
+	if not isinstance(step, ABBA2ImplicitIntegrationStep):
 		raise TypeError(
-			"ImplicitABBA1 exact Jacobians require converged stage snapshots."
+			"ABBA2Implicit exact Jacobians require converged stage snapshots."
 		)
-	if step.formulation_name != "reduced_multiplier":
-		raise TypeError("The observed step is not implicit ABBA formulation 1.")
+	if step.formulation_name not in ABBA_PROJECTION_FORMULATIONS:
+		raise TypeError("The observed step has an unknown ABBA2 formulation.")
 	dense = implicit_function_step_jacobian(step)
 	return particle_jacobian_blocks(dense, particle_count)
 
 
-def abba4_implicit_1_step_particle_jacobians(
+def abba4_implicit_step_particle_jacobians(
 	step: IntegrationStep,
 ) -> np.ndarray:
 	"""Compose the three exact ideal-root implicit-ABBA tangent factors."""
 	dynamics, state, state_after, particle_count = _validated_step(
 		step,
-		method_name="ABBA4Implicit1",
+		method_name="ABBA4Implicit",
 	)
-	if not isinstance(step, ImplicitABBA4IntegrationStep):
+	if not isinstance(step, ABBA4ImplicitIntegrationStep):
 		raise TypeError(
-			"ABBA4Implicit1 exact Jacobians require three converged substeps."
+			"ABBA4Implicit exact Jacobians require three converged substeps."
 		)
-	if step.formulation_name != "abba4_implicit_1_triple_jump":
-		raise TypeError("The observed step is not ABBA4 implicit formulation 1.")
+	if step.formulation_name != "abba4_implicit_reduced_multiplier_triple_jump":
+		raise TypeError("The observed step is not the reduced ABBA4 composition.")
 	coefficients = np.asarray(step.composition_coefficients, dtype=float)
 	root_two = float(np.cbrt(2.0))
 	gamma = 1.0 / (2.0 - root_two)
@@ -253,7 +254,7 @@ def abba4_implicit_1_step_particle_jacobians(
 	for index, (coefficient, substep) in enumerate(
 		zip(coefficients, substeps, strict=True)
 	):
-		if not isinstance(substep, ImplicitABBAIntegrationStep):
+		if not isinstance(substep, ABBA2ImplicitIntegrationStep):
 			raise TypeError("Every ABBA4 substep must expose implicit ABBA stages.")
 		expected_duration = float(coefficient * step.duration)
 		tolerance = float(
@@ -356,21 +357,24 @@ def _unprojected_abba_step_particle_jacobians(
 	)
 
 
-def abba4_single_projection_implicit_1_step_particle_jacobians(
+def abba4_implicit_single_projection_step_particle_jacobians(
 	step: IntegrationStep,
 ) -> np.ndarray:
 	"""Differentiate the one ideal projection around unprojected ABBA4."""
 	dynamics, state, state_after, particle_count = _validated_step(
 		step,
-		method_name="ABBA4SingleProjectionImplicit1",
+		method_name="ABBA4ImplicitSingleProjection",
 	)
-	if not isinstance(step, ABBA4SingleProjectionIntegrationStep):
+	if not isinstance(step, ABBA4ImplicitSingleProjectionIntegrationStep):
 		raise TypeError(
-			"ABBA4SingleProjectionImplicit1 exact Jacobians require converged "
+			"ABBA4ImplicitSingleProjection exact Jacobians require converged "
 			"outer-projection snapshots."
 		)
-	if step.formulation_name != "abba4_single_projection_implicit_1_reduced":
-		raise TypeError("The observed step is not ABBA4 single-projection formulation 1.")
+	if (
+		step.formulation_name
+		!= "abba4_implicit_single_projection_reduced_multiplier"
+	):
+		raise TypeError("The observed step is not reduced single-projection ABBA4.")
 	root_two = float(np.cbrt(2.0))
 	gamma = 1.0 / (2.0 - root_two)
 	delta = -root_two / (2.0 - root_two)
@@ -669,10 +673,10 @@ def bm4_implicit_1_step_particle_jacobians(
 
 
 __all__ = [
-	"abba4_implicit_1_step_particle_jacobians",
-	"abba4_single_projection_implicit_1_step_particle_jacobians",
+	"abba4_implicit_step_particle_jacobians",
+	"abba4_implicit_single_projection_step_particle_jacobians",
 	"bm4_implicit_1_step_particle_jacobians",
 	"coupled_bm4_stage_particle_jacobians",
-	"implicit_abba_1_step_particle_jacobians",
-	"midpoint_abba_step_particle_jacobians",
+	"abba2_implicit_step_particle_jacobians",
+	"abba2_midpoint_step_particle_jacobians",
 ]

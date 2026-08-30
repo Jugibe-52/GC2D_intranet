@@ -72,7 +72,7 @@ Jacobian of that same step:
 
 The responsibilities are deliberately separated:
 \begin{itemize}
- \item \texttt{ImplicitABBA1} or \texttt{ImplicitABBA2} computes the trajectory and
+ \item \texttt{ABBA2Implicit}, with the selected projection formulation, computes the trajectory and
        solves for the implicit multiplier $\mu_n$;
  \item once $\mu_n$ has converged, a diagnostic observer can construct the tangent by
        means of a $2\times2$ linear system or an equivalent stage-increment recurrence.

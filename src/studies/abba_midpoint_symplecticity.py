@@ -13,7 +13,7 @@ from matplotlib.figure import Figure
 from initial_conditions import Area
 from potential import Potential
 from simulation import (
-	MidpointABBA,
+	ABBA2Midpoint,
 	Solution,
 )
 
@@ -26,21 +26,21 @@ from ._gc_symplecticity import (
 
 
 @dataclass(frozen=True, slots=True)
-class MidpointABBASymplecticityConfig(GCSymplecticityConfig):
+class ABBA2MidpointSymplecticityConfig(GCSymplecticityConfig):
 	"""Reproducible grids for a midpoint averaged-ABBA GC study."""
 
 	block_prefix: str = "midpoint_abba_symplecticity"
 
 
 @dataclass(frozen=True, slots=True)
-class MidpointABBASymplecticitySummary(GCSymplecticitySummary):
+class ABBA2MidpointSymplecticitySummary(GCSymplecticitySummary):
 	"""Maximum geometric defects and copy separation for one step size."""
 
 	max_copy_separation_norm: float = 0.0
 
 
 @dataclass(frozen=True, slots=True)
-class MidpointABBADefectOrder:
+class ABBA2MidpointDefectOrder:
 	"""Empirical local, accumulated and copy-separation orders."""
 
 	coarse_label: str
@@ -83,18 +83,18 @@ def _empirical_order(
 
 
 @dataclass(frozen=True, slots=True)
-class MidpointABBASymplecticityResult(GCSymplecticityResult):
+class ABBA2MidpointSymplecticityResult(GCSymplecticityResult):
 	"""Midpoint ABBA solutions and physical-flow analysis helpers."""
 
-	method_name: ClassVar[str] = "MidpointABBA"
+	method_name: ClassVar[str] = "ABBA2Midpoint"
 	summary_type: ClassVar[type[GCSymplecticitySummary]] = (
-		MidpointABBASymplecticitySummary
+		ABBA2MidpointSymplecticitySummary
 	)
 
-	def summaries(self) -> tuple[MidpointABBASymplecticitySummary, ...]:
+	def summaries(self) -> tuple[ABBA2MidpointSymplecticitySummary, ...]:
 		"""Return geometric summaries augmented by the maximum copy separation."""
 		base_rows = cast(
-			tuple[MidpointABBASymplecticitySummary, ...],
+			tuple[ABBA2MidpointSymplecticitySummary, ...],
 			GCSymplecticityResult.summaries(self),
 		)
 		return tuple(
@@ -107,13 +107,13 @@ class MidpointABBASymplecticityResult(GCSymplecticityResult):
 			for row in base_rows
 		)
 
-	def convergence_orders(self) -> tuple[MidpointABBADefectOrder, ...]:
+	def convergence_orders(self) -> tuple[ABBA2MidpointDefectOrder, ...]:
 		"""Estimate defect and copy-separation orders between consecutive steps."""
 		rows = self.summaries()
-		orders: list[MidpointABBADefectOrder] = []
+		orders: list[ABBA2MidpointDefectOrder] = []
 		for coarse, fine in zip(rows, rows[1:]):
 			orders.append(
-				MidpointABBADefectOrder(
+				ABBA2MidpointDefectOrder(
 					coarse_label=coarse.label,
 					fine_label=fine.label,
 					local_defect=_empirical_order(
@@ -170,19 +170,19 @@ class MidpointABBASymplecticityResult(GCSymplecticityResult):
 		return figure, axis
 
 
-def run_midpoint_abba_symplecticity_study(
+def run_abba2_midpoint_symplecticity_study(
 	potential: Potential,
 	area: Area,
 	*,
 	notebook_path: str | Path,
-	config: MidpointABBASymplecticityConfig,
+	config: ABBA2MidpointSymplecticityConfig,
 	project_root: str | Path | None = None,
 	metadata: Mapping[str, Any] | None = None,
-) -> MidpointABBASymplecticityResult:
+) -> ABBA2MidpointSymplecticityResult:
 	"""Run midpoint ABBA steps and persist physical GC-flow diagnostics."""
-	if not isinstance(config, MidpointABBASymplecticityConfig):
+	if not isinstance(config, ABBA2MidpointSymplecticityConfig):
 		raise TypeError(
-			"`config` must be a MidpointABBASymplecticityConfig instance."
+			"`config` must be a ABBA2MidpointSymplecticityConfig instance."
 		)
 	study_metadata = {
 		**dict(metadata or {}),
@@ -197,20 +197,20 @@ def run_midpoint_abba_symplecticity_study(
 		area,
 		notebook_path=notebook_path,
 		config=config,
-		method_factory=lambda observer: MidpointABBA(
+		method_factory=lambda observer: ABBA2Midpoint(
 			progress=config.progress,
 			step_observer=observer,
 		),
-		result_type=MidpointABBASymplecticityResult,
+		result_type=ABBA2MidpointSymplecticityResult,
 		project_root=project_root,
 		metadata=study_metadata,
 	)
 
 
 __all__ = [
-	"MidpointABBADefectOrder",
-	"MidpointABBASymplecticityConfig",
-	"MidpointABBASymplecticityResult",
-	"MidpointABBASymplecticitySummary",
-	"run_midpoint_abba_symplecticity_study",
+	"ABBA2MidpointDefectOrder",
+	"ABBA2MidpointSymplecticityConfig",
+	"ABBA2MidpointSymplecticityResult",
+	"ABBA2MidpointSymplecticitySummary",
+	"run_abba2_midpoint_symplecticity_study",
 ]

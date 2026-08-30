@@ -38,16 +38,16 @@ from .jacobians import (
 	stage_increment_step_jacobian,
 )
 from .trajectory_symplecticity import (
-	abba4_implicit_1_step_particle_jacobians,
-	abba4_single_projection_implicit_1_step_particle_jacobians,
+	abba4_implicit_step_particle_jacobians,
+	abba4_implicit_single_projection_step_particle_jacobians,
 	GCTrajectorySymplecticityObserver,
 	TrajectoryJacobianCalculator,
 	TrajectorySymplecticityOutputBlock,
 	TrajectorySymplecticityRecord,
 	bm4_implicit_1_step_particle_jacobians,
 	coupled_bm4_stage_particle_jacobians,
-	implicit_abba_1_step_particle_jacobians,
-	midpoint_abba_step_particle_jacobians,
+	abba2_implicit_step_particle_jacobians,
+	abba2_midpoint_step_particle_jacobians,
 )
 from .implicit_iterations import (
 	ImplicitABBAIterationObserver,
@@ -79,8 +79,8 @@ from .symplecticity import (
 )
 
 __all__ = [
-	"abba4_implicit_1_step_particle_jacobians",
-	"abba4_single_projection_implicit_1_step_particle_jacobians",
+	"abba4_implicit_step_particle_jacobians",
+	"abba4_implicit_single_projection_step_particle_jacobians",
 	"IMPLICIT_ABBA_JACOBIAN_METHODS",
 	"ImplicitABBAJacobianMethod",
 	"ImplicitABBAJacobianObserver",
@@ -129,12 +129,12 @@ __all__ = [
 	"gc_time_extended_symplectic_form",
 	"gc_reduced_time_extended_symplectic_form",
 	"gc_fully_duplicated_symplectic_form",
-	"implicit_abba_1_step_particle_jacobians",
+	"abba2_implicit_step_particle_jacobians",
 	"implicit_function_step_jacobian",
 	"load_reference_trajectory",
 	"midpoint_bm4_stage_particle_jacobians",
 	"midpoint_bm4_step_particle_jacobians",
-	"midpoint_abba_step_particle_jacobians",
+	"abba2_midpoint_step_particle_jacobians",
 	"reference_trajectory_output_directory",
 	"stage_increment_step_jacobian",
 	"write_reference_trajectory",

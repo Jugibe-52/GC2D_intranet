@@ -11,18 +11,18 @@ from dynamics import GuidingCenterJacobianSystem
 from ..._fixed import integrate_fixed_grid
 from ..._result import IntegrationData
 from ...observation import (
-	ImplicitABBA4IntegrationStep,
-	ImplicitABBACompositionIntegrationStep,
-	ImplicitABBAIntegrationStep,
+	ABBA4ImplicitIntegrationStep,
+	ABBAImplicitCompositionIntegrationStep,
+	ABBA2ImplicitIntegrationStep,
 )
 from ...problem import InitialValueProblem
 from ...request import SimulationRequest
 from .._nonlinear import NonlinearSolver
-from ._implicit import _ImplicitABBA
+from ._implicit import _ABBAImplicitConfig
 from ._projection import (
 	_ProjectedStep,
 	_checked_vector_field_jacobian,
-	_solve_projected_step,
+	_solve_reduced_multiplier_step,
 )
 
 
@@ -31,7 +31,7 @@ _GAMMA = 1.0 / (2.0 - _CUBE_ROOT_TWO)
 _DELTA = -_CUBE_ROOT_TWO / (2.0 - _CUBE_ROOT_TWO)
 _ABBA4_COEFFICIENTS = np.asarray((_GAMMA, _DELTA, _GAMMA), dtype=float)
 _SUBSTEP_FORMULATION = "reduced_multiplier"
-_COMPOSITION_FORMULATION = "abba4_implicit_1_triple_jump"
+_COMPOSITION_FORMULATION = "abba4_implicit_reduced_multiplier_triple_jump"
 
 
 @dataclass(frozen=True, slots=True)
@@ -84,7 +84,7 @@ def _solve_composed_abba_step(
 	for coefficient in composition:
 		duration = float(coefficient * step)
 		state_before = np.asarray(current_state, dtype=float)
-		result = _solve_projected_step(
+		result = _solve_reduced_multiplier_step(
 			dynamics,
 			current_time,
 			state_before,
@@ -139,7 +139,7 @@ def _solve_abba4_step(
 		state,
 		step,
 		coefficients=_ABBA4_COEFFICIENTS,
-		method_name="ABBA4Implicit1",
+		method_name="ABBA4Implicit",
 		absolute_tolerance=absolute_tolerance,
 		relative_tolerance=relative_tolerance,
 		max_iterations=max_iterations,
@@ -157,7 +157,7 @@ def _substep_observation(
 	relative_tolerance: float,
 	max_iterations: int,
 	nonlinear_solver: NonlinearSolver,
-) -> ImplicitABBAIntegrationStep:
+) -> ABBA2ImplicitIntegrationStep:
 	"""Build one immutable diagnostic snapshot for a composed signed substep."""
 	state_before = accepted.state_before
 	result = accepted.result
@@ -166,7 +166,7 @@ def _substep_observation(
 
 	def map_state(candidate: np.ndarray) -> np.ndarray:
 		"""Apply this fixed-time signed projected-ABBA substep."""
-		return _solve_projected_step(
+		return _solve_reduced_multiplier_step(
 			dynamics,
 			start_time,
 			candidate,
@@ -180,7 +180,7 @@ def _substep_observation(
 	state_scale = max(1.0, float(np.linalg.norm(state_before, ord=np.inf)))
 	tolerance = absolute_tolerance + relative_tolerance * state_scale
 	multiplier_norm = float(np.linalg.norm(result.multiplier, ord=np.inf))
-	return ImplicitABBAIntegrationStep(
+	return ABBA2ImplicitIntegrationStep(
 		dynamics_name=type(dynamics).__name__,
 		method_name=method_name,
 		step_index=step_index,
@@ -208,13 +208,13 @@ def _substep_observation(
 
 
 def _integrate_composed_implicit_abba(
-	method: _ImplicitABBA,
+	method: _ABBAImplicitConfig,
 	problem: InitialValueProblem,
 	request: SimulationRequest,
 	*,
 	coefficients: np.ndarray,
 	composition_formulation: str,
-	observation_type: type[ImplicitABBACompositionIntegrationStep],
+	observation_type: type[ABBAImplicitCompositionIntegrationStep],
 ) -> IntegrationData:
 	"""Run one symmetric ABBA composition and aggregate its nonlinear solves."""
 	dynamics = problem.dynamics
@@ -358,8 +358,9 @@ def _integrate_composed_implicit_abba(
 		"newton_absolute_tolerance": method.newton_absolute_tolerance,
 		"newton_relative_tolerance": method.newton_relative_tolerance,
 		"newton_max_iterations": method.newton_max_iterations,
-		"projection_solver_formulation": composition_formulation,
-		"substep_projection_solver_formulation": _SUBSTEP_FORMULATION,
+		"projection_formulation": composition_formulation,
+		"substep_projection_formulation": _SUBSTEP_FORMULATION,
+		"state_extension": "physical",
 	}
 	return IntegrationData(
 		t=request.output_times,
@@ -368,8 +369,8 @@ def _integrate_composed_implicit_abba(
 	)
 
 
-def _integrate_abba4_implicit_1(
-	method: ABBA4Implicit1,
+def _integrate_abba4_implicit(
+	method: ABBA4Implicit,
 	problem: InitialValueProblem,
 	request: SimulationRequest,
 ) -> IntegrationData:
@@ -380,12 +381,12 @@ def _integrate_abba4_implicit_1(
 		request,
 		coefficients=_ABBA4_COEFFICIENTS,
 		composition_formulation=_COMPOSITION_FORMULATION,
-		observation_type=ImplicitABBA4IntegrationStep,
+		observation_type=ABBA4ImplicitIntegrationStep,
 	)
 
 
 @dataclass(frozen=True, slots=True)
-class ABBA4Implicit1(_ImplicitABBA):
+class ABBA4Implicit(_ABBAImplicitConfig):
 	"""Fourth-order symmetric composition of three reduced implicit ABBA maps.
 
 	One complete step applies signed substeps ``(gamma h, delta h, gamma h)``;
@@ -400,7 +401,7 @@ class ABBA4Implicit1(_ImplicitABBA):
 		request: SimulationRequest,
 	) -> IntegrationData:
 		"""Integrate a planar GC problem with the fourth-order composition."""
-		return _integrate_abba4_implicit_1(self, problem, request)
+		return _integrate_abba4_implicit(self, problem, request)
 
 
-__all__ = ["ABBA4Implicit1"]
+__all__ = ["ABBA4Implicit"]

@@ -13,7 +13,7 @@ from dynamics import GuidingCenterDynamics
 from initial_conditions import GCInitialConfiguration
 from potential import Potential
 from simulation import (
-	ABBA6,
+	ABBA6Implicit,
 	InitialValueProblem,
 	SimulationRequest,
 	Solution,
@@ -27,36 +27,36 @@ from ._trajectory_accuracy import (
 	reference_distance_convention,
 	validate_reference_identity,
 )
-from .abba4_implicit_1_accuracy import (
-	ABBA4Implicit1AccuracyConfig,
-	ABBA4Implicit1AccuracyOrder,
-	ABBA4Implicit1AccuracyResult,
-	ABBA4Implicit1AccuracySummary,
+from .abba4_implicit_accuracy import (
+	ABBA4ImplicitAccuracyConfig,
+	ABBA4ImplicitAccuracyOrder,
+	ABBA4ImplicitAccuracyResult,
+	ABBA4ImplicitAccuracySummary,
 )
 
 
 @dataclass(frozen=True, slots=True)
-class ABBA6AccuracyConfig(ABBA4Implicit1AccuracyConfig):
-	"""Physical, nonlinear, integration, and sampling controls for ABBA6."""
+class ABBA6AccuracyConfig(ABBA4ImplicitAccuracyConfig):
+	"""Physical, nonlinear, integration, and sampling controls for ABBA6Implicit."""
 
 
 @dataclass(frozen=True, slots=True)
-class ABBA6AccuracySummary(ABBA4Implicit1AccuracySummary):
-	"""Accuracy, nonlinear work, and runtime for one ABBA6 step size."""
+class ABBA6AccuracySummary(ABBA4ImplicitAccuracySummary):
+	"""Accuracy, nonlinear work, and runtime for one ABBA6Implicit step size."""
 
 
 @dataclass(frozen=True, slots=True)
-class ABBA6AccuracyOrder(ABBA4Implicit1AccuracyOrder):
-	"""Observed ABBA6 error gains and orders between adjacent nested steps."""
+class ABBA6AccuracyOrder(ABBA4ImplicitAccuracyOrder):
+	"""Observed ABBA6Implicit error gains and orders between adjacent nested steps."""
 
 
 @dataclass(frozen=True, slots=True)
-class ABBA6AccuracyResult(ABBA4Implicit1AccuracyResult):
-	"""Aligned ABBA6 trajectories and errors across one nested refinement."""
+class ABBA6AccuracyResult(ABBA4ImplicitAccuracyResult):
+	"""Aligned ABBA6Implicit trajectories and errors across one nested refinement."""
 
-	method_name: ClassVar[str] = "ABBA6"
-	summary_type: ClassVar[type[ABBA4Implicit1AccuracySummary]] = ABBA6AccuracySummary
-	order_type: ClassVar[type[ABBA4Implicit1AccuracyOrder]] = ABBA6AccuracyOrder
+	method_name: ClassVar[str] = "ABBA6Implicit"
+	summary_type: ClassVar[type[ABBA4ImplicitAccuracySummary]] = ABBA6AccuracySummary
+	order_type: ClassVar[type[ABBA4ImplicitAccuracyOrder]] = ABBA6AccuracyOrder
 
 
 def run_abba6_accuracy_study(
@@ -68,7 +68,7 @@ def run_abba6_accuracy_study(
 	potential_metadata: Mapping[str, Any],
 	initial_condition_metadata: Mapping[str, Any],
 ) -> ABBA6AccuracyResult:
-	"""Run ABBA6 on nested steps and compare saved states to one reference."""
+	"""Run ABBA6Implicit on nested steps and compare saved states to one reference."""
 	if not isinstance(potential, Potential):
 		raise TypeError("`potential` must be a Potential instance.")
 	if not isinstance(initial_configuration, GCInitialConfiguration):
@@ -101,7 +101,7 @@ def run_abba6_accuracy_study(
 		started = perf_counter()
 		solution = simulate(
 			problem,
-			ABBA6(
+			ABBA6Implicit(
 				newton_absolute_tolerance=config.absolute_tolerance,
 				newton_relative_tolerance=config.relative_tolerance,
 				newton_max_iterations=config.max_iterations,
@@ -116,9 +116,9 @@ def run_abba6_accuracy_study(
 		if reference_indices is None:
 			reference_indices = indices
 		elif not np.array_equal(indices, reference_indices):
-			raise ValueError("ABBA6 refinements do not share reference sample indices.")
+			raise ValueError("ABBA6Implicit refinements do not share reference sample indices.")
 		series[step] = accuracy_series(
-			"ABBA6",
+			"ABBA6Implicit",
 			solution.states,
 			reference.states[:, indices],
 			period=float(potential.grid.period),

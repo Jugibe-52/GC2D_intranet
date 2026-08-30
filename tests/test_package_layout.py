@@ -9,10 +9,17 @@ import sys
 import unittest
 
 import simulation
+import simulation.methods as simulation_methods
 from dynamics import GuidingCenterDynamics
 from initial_conditions import GCInitialConfiguration
 from potential import Potential
-from simulation import ExplicitEuler, ImplicitABBA1, RK4
+from simulation import (
+	ABBA2Implicit,
+	ABBA2SharedTimeExtendedImplicit,
+	ABBA_PROJECTION_FORMULATIONS,
+	ExplicitEuler,
+	RK4,
+)
 from simulation.methods import abba as abba_methods
 from simulation.methods import bm4 as bm4_methods
 from simulation.methods import classical as classical_methods
@@ -40,24 +47,35 @@ class PackageLayoutTests(unittest.TestCase):
 		self.assertIsNotNone(GuidingCenterDynamics)
 		self.assertIsNotNone(GCInitialConfiguration)
 		self.assertIsNotNone(Potential)
-		self.assertIsNotNone(ImplicitABBA1)
+		self.assertIsNotNone(ABBA2Implicit)
+		self.assertIsNotNone(ABBA2SharedTimeExtendedImplicit)
+		self.assertEqual(
+			ABBA_PROJECTION_FORMULATIONS,
+			("reduced_multiplier", "simultaneous_state_multiplier"),
+		)
 		self.assertIsNotNone(RK4)
 		self.assertIsNotNone(ExplicitEuler)
-		self.assertIs(abba_methods.ImplicitABBA1, ImplicitABBA1)
+		self.assertIs(abba_methods.ABBA2Implicit, ABBA2Implicit)
+		self.assertIs(
+			abba_methods.ABBA2SharedTimeExtendedImplicit,
+			ABBA2SharedTimeExtendedImplicit,
+		)
 		self.assertIs(bm4_methods.BM4Implicit1, simulation.BM4Implicit1)
 		self.assertIs(classical_methods.RK4, RK4)
 		for module in (
+			"simulation.methods._fully_extended",
 			"simulation.methods.abba",
 			"simulation.methods.abba._core",
 			"simulation.methods.abba._projection",
 			"simulation.methods.abba._implicit",
-			"simulation.methods.abba.midpoint",
-			"simulation.methods.abba.implicit_1",
-			"simulation.methods.abba.implicit_2",
-			"simulation.methods.abba.order4_implicit_1",
-			"simulation.methods.abba.order4_single_projection_implicit_1",
-			"simulation.methods.abba.order6",
-			"simulation.methods.abba.fully_extended",
+			"simulation.methods.abba.order2_midpoint",
+			"simulation.methods.abba.order2_implicit",
+			"simulation.methods.abba.order4_implicit",
+			"simulation.methods.abba.order4_implicit_single_projection",
+			"simulation.methods.abba.order6_implicit",
+			"simulation.methods.abba.extensions",
+			"simulation.methods.abba.extensions.shared_time",
+			"simulation.methods.abba.extensions.fully_extended",
 			"simulation.methods.bm4",
 			"simulation.methods.bm4._core",
 			"simulation.methods.bm4._implicit",
@@ -83,6 +101,13 @@ class PackageLayoutTests(unittest.TestCase):
 			"simulation.methods.abba4_implicit_1",
 			"simulation.methods.abba4_single_projection_implicit_1",
 			"simulation.methods.abba6",
+			"simulation.methods.abba.midpoint",
+			"simulation.methods.abba.implicit_1",
+			"simulation.methods.abba.implicit_2",
+			"simulation.methods.abba.order4_implicit_1",
+			"simulation.methods.abba.order4_single_projection_implicit_1",
+			"simulation.methods.abba.order6",
+			"simulation.methods.abba.fully_extended",
 			"simulation.methods.abba_tangent_taylor",
 			"simulation.methods.abba.tangent_taylor",
 			"simulation.methods.bm4_midpoint",
@@ -94,7 +119,22 @@ class PackageLayoutTests(unittest.TestCase):
 			"simulation.methods.rk4",
 		):
 			self.assertIsNone(importlib.util.find_spec(module), module)
-		self.assertFalse(hasattr(simulation, "SymmetricProjectedABBA"))
+		for namespace in (simulation, simulation_methods, abba_methods):
+			for name in (
+				"SymmetricProjectedABBA",
+				"MidpointABBA",
+				"ImplicitABBA1",
+				"ImplicitABBA2",
+				"ABBA4Implicit1",
+				"ABBA4SingleProjectionImplicit1",
+				"ABBA6",
+				"ABBA_implicit2",
+				"ABBA4_implicit2",
+			):
+				self.assertFalse(
+					hasattr(namespace, name),
+					f"{namespace.__name__}.{name}",
+				)
 
 	def test_core_packages_do_not_require_matplotlib(self) -> None:
 		project_root = Path(__file__).resolve().parents[1]

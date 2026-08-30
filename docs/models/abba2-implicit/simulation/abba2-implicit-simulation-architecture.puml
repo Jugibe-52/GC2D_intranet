@@ -1,0 +1,439 @@
+@startdot
+digraph ABBA2ImplicitArchitecture {
+  graph [
+    rankdir=LR,
+    compound=true,
+    newrank=true,
+    splines=ortho,
+    nodesep=0.30,
+    ranksep=0.72,
+    pad=0.20,
+    bgcolor="white",
+    fontname="DejaVu Sans",
+    fontsize=12,
+    label="ABBA2 Implicit Simulation Runtime Path and State Extensions",
+    labelloc="t",
+    labeljust="c"
+  ];
+  node [shape=plain, fontname="DejaVu Sans", fontsize=10];
+  edge [color="#333333", penwidth=1.0, arrowsize=0.72, fontname="DejaVu Sans", fontsize=9];
+
+  subgraph cluster_inherited {
+    label="Inherited boundary";
+    labeljust="l";
+    color="#777777";
+    penwidth=1.0;
+    style="rounded";
+
+    inherited_anchor [shape=point, width=0, height=0, label="", style=invis];
+
+    GuidingCenterDynamics [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#F7F7F7">
+        <TR><TD><FONT POINT-SIZE="9"><I>&#171;implementation&#187;</I></FONT><BR/><FONT POINT-SIZE="9">src/dynamics/gc.py</FONT><BR/><B>GuidingCenterDynamics</B></TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT">state_dimension = 2<BR ALIGN="LEFT"/>vector_field(t, state)<BR ALIGN="LEFT"/>particle_vector_field_jacobians(...)<BR ALIGN="LEFT"/>extended_momentum_derivative(...)</TD></TR>
+      </TABLE>
+    >];
+
+    GuidingCenterJacobianSystem [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#F7F7F7">
+        <TR><TD><FONT POINT-SIZE="9"><I>&#171;protocol&#187;</I></FONT><BR/><FONT POINT-SIZE="9">src/dynamics/protocols.py</FONT><BR/><B>GuidingCenterJacobianSystem</B></TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT">particle_vector_field_jacobians(...)</TD></TR>
+      </TABLE>
+    >];
+
+    DynamicalSystem [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#F7F7F7">
+        <TR><TD><FONT POINT-SIZE="9"><I>&#171;protocol&#187;</I></FONT><BR/><FONT POINT-SIZE="9">src/dynamics/protocols.py</FONT><BR/><B>DynamicalSystem</B></TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT">state_dimension<BR ALIGN="LEFT"/>vector_field(t, state)</TD></TR>
+      </TABLE>
+    >];
+
+    { rank=same; inherited_anchor; GuidingCenterDynamics; GuidingCenterJacobianSystem; DynamicalSystem; }
+  }
+
+  subgraph cluster_run {
+    label="Run assembly";
+    labeljust="l";
+    color="#555555";
+    penwidth=1.2;
+    style="rounded";
+
+    subgraph cluster_problem {
+      label="1. Initial value problem";
+      labeljust="l";
+      color="#A0A0A0";
+      style="rounded";
+      problem_anchor [shape=point, width=0, height=0, label="", style=invis];
+      InitialValueProblem [label=<
+        <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#F7F7F7">
+          <TR><TD><FONT POINT-SIZE="9"><I>&#171;value&#187;</I></FONT><BR/><FONT POINT-SIZE="9">src/simulation/problem.py</FONT><BR/><B>InitialValueProblem</B></TD></TR>
+          <HR/>
+          <TR><TD ALIGN="LEFT">Binds dynamics to initial configuration<BR ALIGN="LEFT"/>Checks state-dimension compatibility</TD></TR>
+        </TABLE>
+      >];
+      { rank=same; problem_anchor; InitialValueProblem; }
+    }
+
+    subgraph cluster_state_contracts {
+      label="2. State contracts";
+      labeljust="l";
+      color="#A0A0A0";
+      style="rounded";
+      state_contracts_anchor [shape=point, width=0, height=0, label="", style=invis];
+      InitialConfiguration [label=<
+        <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#F7F7F7">
+          <TR><TD><FONT POINT-SIZE="9"><I>&#171;protocol&#187;</I></FONT><BR/><FONT POINT-SIZE="9">src/simulation/configuration.py</FONT><BR/><B>InitialConfiguration</B></TD></TR>
+          <HR/>
+          <TR><TD ALIGN="LEFT">Supplies initial_state<BR ALIGN="LEFT"/>Exposes StateLayout</TD></TR>
+        </TABLE>
+      >];
+      StateLayout [label=<
+        <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#F7F7F7">
+          <TR><TD><FONT POINT-SIZE="9"><I>&#171;protocol&#187;</I></FONT><BR/><FONT POINT-SIZE="9">src/simulation/configuration.py</FONT><BR/><B>StateLayout</B></TD></TR>
+          <HR/>
+          <TR><TD ALIGN="LEFT">state_dimension<BR ALIGN="LEFT"/>validate_packed_state_layout(...)<BR ALIGN="LEFT"/>split(...) / particle_count(...)<BR ALIGN="LEFT"/>positions(...)</TD></TR>
+        </TABLE>
+      >];
+      { rank=same; state_contracts_anchor; InitialConfiguration; StateLayout; }
+    }
+
+    subgraph cluster_gc_state {
+      label="3. Guiding-center initial state";
+      labeljust="l";
+      color="#A0A0A0";
+      style="rounded";
+      gc_state_anchor [shape=point, width=0, height=0, label="", style=invis];
+      GCInitialConfiguration [label=<
+        <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#F7F7F7">
+          <TR><TD><FONT POINT-SIZE="9"><I>&#171;concrete&#187;</I></FONT><BR/><FONT POINT-SIZE="9">src/initial_conditions/gc.py</FONT><BR/><B>GCInitialConfiguration</B></TD></TR>
+          <HR/>
+          <TR><TD ALIGN="LEFT">layout: GCStateLayout<BR ALIGN="LEFT"/>from_components(x, y)</TD></TR>
+        </TABLE>
+      >];
+      GCStateLayout [label=<
+        <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#F7F7F7">
+          <TR><TD><FONT POINT-SIZE="9"><I>&#171;concrete layout&#187;</I></FONT><BR/><FONT POINT-SIZE="9">src/initial_conditions/gc.py</FONT><BR/><B>GCStateLayout</B></TD></TR>
+          <HR/>
+          <TR><TD ALIGN="LEFT">state_dimension = 2<BR ALIGN="LEFT"/>split(...) -&gt; GCState<BR ALIGN="LEFT"/>positions(...)</TD></TR>
+        </TABLE>
+      >];
+      { rank=same; gc_state_anchor; GCInitialConfiguration; GCStateLayout; }
+    }
+
+    subgraph cluster_shared_state {
+      label="4. Shared state implementation";
+      labeljust="l";
+      color="#A0A0A0";
+      style="rounded";
+      shared_state_anchor [shape=point, width=0, height=0, label="", style=invis];
+      StateConfiguration [label=<
+        <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#F7F7F7">
+          <TR><TD><FONT POINT-SIZE="9"><I>&#171;abstract storage&#187;</I></FONT><BR/><FONT POINT-SIZE="9">src/initial_conditions/base.py</FONT><BR/><B>StateConfiguration</B></TD></TR>
+          <HR/>
+          <TR><TD ALIGN="LEFT">initial_state<BR ALIGN="LEFT"/>abstract layout property<BR ALIGN="LEFT"/>compatibility forwarding methods</TD></TR>
+        </TABLE>
+      >];
+      PackedStateLayout [label=<
+        <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#F7F7F7">
+          <TR><TD><FONT POINT-SIZE="9"><I>&#171;shared layout&#187;</I></FONT><BR/><FONT POINT-SIZE="9">src/initial_conditions/base.py</FONT><BR/><B>PackedStateLayout</B></TD></TR>
+          <HR/>
+          <TR><TD ALIGN="LEFT">validate / split / particle_count<BR ALIGN="LEFT"/>as_blocks(...) / from_blocks(...)<BR ALIGN="LEFT"/>pack_components(...)</TD></TR>
+        </TABLE>
+      >];
+      StateConfigurationNote [shape=note, style="filled", fillcolor="#FFFDEB", color="#B8AE6F", margin="0.10,0.07", label="Abstract initial-state storage.\nIt cannot be instantiated without\na concrete layout."];
+      { rank=same; shared_state_anchor; StateConfiguration; PackedStateLayout; StateConfigurationNote; }
+    }
+
+    subgraph cluster_request {
+      label="5. Time request";
+      labeljust="l";
+      color="#A0A0A0";
+      style="rounded";
+      request_anchor [shape=point, width=0, height=0, label="", style=invis];
+      SimulationRequest [label=<
+        <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#F7F7F7">
+          <TR><TD><FONT POINT-SIZE="9"><I>&#171;value&#187;</I></FONT><BR/><FONT POINT-SIZE="9">src/simulation/request.py</FONT><BR/><B>SimulationRequest</B></TD></TR>
+          <HR/>
+          <TR><TD ALIGN="LEFT">Time span<BR ALIGN="LEFT"/>Maximum step<BR ALIGN="LEFT"/>Requested output times</TD></TR>
+        </TABLE>
+      >];
+      { rank=same; request_anchor; SimulationRequest; }
+    }
+
+    subgraph cluster_runner {
+      label="6. Simulation facade";
+      labeljust="l";
+      color="#A0A0A0";
+      style="rounded";
+      runner_anchor [shape=point, width=0, height=0, label="", style=invis];
+      SimulationRunner [label=<
+        <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#F7F7F7">
+          <TR><TD><FONT POINT-SIZE="9"><I>&#171;facade&#187;</I></FONT><BR/><FONT POINT-SIZE="9">src/simulation/runner.py</FONT><BR/><B>SimulationRunner</B></TD></TR>
+          <HR/>
+          <TR><TD ALIGN="LEFT">simulate(problem, method, request)<BR ALIGN="LEFT"/>Validates public inputs<BR ALIGN="LEFT"/>Delegates numerical integration</TD></TR>
+        </TABLE>
+      >];
+      { rank=same; runner_anchor; SimulationRunner; }
+    }
+
+    subgraph cluster_method {
+      label="7. ABBA method family";
+      labeljust="l";
+      color="#A0A0A0";
+      style="rounded";
+      method_anchor [shape=point, width=0, height=0, label="", style=invis];
+      NumericalMethod [label=<
+        <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#F7F7F7">
+          <TR><TD><FONT POINT-SIZE="9"><I>&#171;protocol&#187;</I></FONT><BR/><FONT POINT-SIZE="9">src/simulation/methods/base.py</FONT><BR/><B>NumericalMethod</B></TD></TR>
+          <HR/>
+          <TR><TD ALIGN="LEFT">integrate(problem, request)</TD></TR>
+        </TABLE>
+      >];
+      ABBAImplicitConfig [label=<
+        <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#F7F7F7">
+          <TR><TD><FONT POINT-SIZE="9"><I>&#171;configuration base&#187;</I></FONT><BR/><FONT POINT-SIZE="9">src/simulation/methods/abba/_implicit.py</FONT><BR/><B>_ABBAImplicitConfig</B></TD></TR>
+          <HR/>
+          <TR><TD ALIGN="LEFT">Solver tolerances and iteration limit<BR ALIGN="LEFT"/>Newton or Broyden selection<BR ALIGN="LEFT"/>No integrate(...) implementation</TD></TR>
+        </TABLE>
+      >];
+      ABBA2Implicit [label=<
+        <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#F7F7F7">
+          <TR><TD><FONT POINT-SIZE="9"><I>&#171;method&#187;</I></FONT><BR/><FONT POINT-SIZE="9">src/simulation/methods/abba/order2_implicit.py</FONT><BR/><B>ABBA2Implicit</B></TD></TR>
+          <HR/>
+          <TR><TD ALIGN="LEFT">projection_formulation<BR ALIGN="LEFT"/>integrate(problem, request)</TD></TR>
+        </TABLE>
+      >];
+      SharedTimeExtension [label=<
+        <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#F7F7F7">
+          <TR><TD><FONT POINT-SIZE="9"><I>&#171;extension&#187;</I></FONT><BR/><FONT POINT-SIZE="9">src/simulation/methods/abba/extensions/shared_time.py</FONT><BR/><B>ABBA2SharedTimeExtendedImplicit</B></TD></TR>
+          <HR/>
+          <TR><TD ALIGN="LEFT">Accepted: (z,t,kappa) in R4<BR ALIGN="LEFT"/>Base split: (u,v,t,k) in R6<BR ALIGN="LEFT"/>kappa = k/2</TD></TR>
+        </TABLE>
+      >];
+      FullyExtendedBase [label=<
+        <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#F7F7F7">
+          <TR><TD><FONT POINT-SIZE="9"><I>&#171;extension base&#187;</I></FONT><BR/><FONT POINT-SIZE="9">src/simulation/methods/_fully_extended.py</FONT><BR/><B>_FullyExtendedImplicitMethod</B></TD></TR>
+          <HR/>
+          <TR><TD ALIGN="LEFT">Accepted: (z,t,k) in R4<BR ALIGN="LEFT"/>Base split: (Z1,Z2) in R8<BR ALIGN="LEFT"/>Direct k</TD></TR>
+        </TABLE>
+      >];
+      FullyExtendedABBA [label=<
+        <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#F7F7F7">
+          <TR><TD><FONT POINT-SIZE="9"><I>&#171;extensions&#187;</I></FONT><BR/><FONT POINT-SIZE="9">src/simulation/methods/abba/extensions/fully_extended.py</FONT><BR/><B>ABBA2FullyExtendedImplicit</B><BR/><B>ABBA4FullyExtendedImplicit</B></TD></TR>
+          <HR/>
+          <TR><TD ALIGN="LEFT">Distinct full-state projected maps</TD></TR>
+        </TABLE>
+      >];
+      FullyExtendedNote [shape=note, style="filled", fillcolor="#FFFDEB", color="#B8AE6F", margin="0.10,0.07", label="Full-state extension duplicates Z=(z,t,k).\nIts base map is in R8 and uses direct k.\nIt differs from the shared-time lift."];
+      { rank=same; method_anchor; NumericalMethod; ABBAImplicitConfig; ABBA2Implicit; SharedTimeExtension; FullyExtendedBase; FullyExtendedABBA; FullyExtendedNote; }
+    }
+  }
+
+  subgraph cluster_integration {
+    label="ABBA2 implicit integration";
+    labeljust="l";
+    color="#555555";
+    penwidth=1.2;
+    style="rounded";
+
+    coordinator_anchor [shape=point, width=0, height=0, label="", style=invis];
+    IntegrationCoordinator [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#F7F7F7">
+        <TR><TD><FONT POINT-SIZE="9"><I>&#171;run-level setup&#187;</I></FONT><BR/><FONT POINT-SIZE="9">src/simulation/methods/abba/_implicit.py</FONT><BR/><B>_integrate_projected_abba(...)</B></TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT">Validate dynamics and solver capability<BR ALIGN="LEFT"/>Build advance(t_n, state, h, observe)<BR ALIGN="LEFT"/>Collect main-grid diagnostics</TD></TR>
+      </TABLE>
+    >];
+    { rank=same; coordinator_anchor; IntegrationCoordinator; }
+
+    fixed_anchor [shape=point, width=0, height=0, label="", style=invis];
+    FixedGrid [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#F7F7F7">
+        <TR><TD><FONT POINT-SIZE="9"><I>&#171;outer time loop&#187;</I></FONT><BR/><FONT POINT-SIZE="9">src/simulation/_fixed.py</FONT><BR/><B>integrate_fixed_grid(...)</B></TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT">Build uniform main grid<BR ALIGN="LEFT"/>Request main and shadow advances</TD></TR>
+      </TABLE>
+    >];
+    FixedGridNote [shape=note, style="filled", fillcolor="#FFFDEB", color="#B8AE6F", margin="0.10,0.07", label="Shadow advances produce requested samples\nbut do not alter the main trajectory or\nemit step observations."];
+    { rank=same; fixed_anchor; FixedGrid; FixedGridNote; }
+
+    selector_anchor [shape=point, width=0, height=0, label="", style=invis];
+    FormulationSelector [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#F7F7F7">
+        <TR><TD><FONT POINT-SIZE="9"><I>&#171;dispatch&#187;</I></FONT><BR/><FONT POINT-SIZE="9">src/simulation/methods/abba/_implicit.py</FONT><BR/><B>_step_solver_for(...)</B></TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT">reduced_multiplier<BR ALIGN="LEFT"/>or<BR ALIGN="LEFT"/>simultaneous_state_multiplier</TD></TR>
+      </TABLE>
+    >];
+    { rank=same; selector_anchor; FormulationSelector; }
+
+    solvers_anchor [shape=point, width=0, height=0, label="", style=invis];
+    FormulationSolvers [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#F7F7F7">
+        <TR><TD><FONT POINT-SIZE="9"><I>&#171;equivalent nonlinear solves&#187;</I></FONT><BR/><FONT POINT-SIZE="9">src/simulation/methods/abba/_projection.py</FONT><BR/><B>_solve_reduced_multiplier_step(...)</B></TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT">Unknown: mu in R2 per particle<BR ALIGN="LEFT"/>Newton block: 2 x 2<BR ALIGN="LEFT"/>r = u_f - v_f + 2 mu</TD></TR>
+        <HR/>
+        <TR><TD><B>_solve_simultaneous_state_multiplier_step(...)</B></TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT">Unknown: (u_f,v_f,mu) in R6 per particle<BR ALIGN="LEFT"/>Newton block: 6 x 6<BR ALIGN="LEFT"/>R6 is an algebraic solve vector, not a state</TD></TR>
+      </TABLE>
+    >];
+    FormulationNote [shape=note, style="filled", fillcolor="#FFFDEB", color="#B8AE6F", margin="0.10,0.07", label="Both branches solve the same projected physical map.\nTheir R2 and R6 unknowns are nonlinear workspaces."];
+    { rank=same; solvers_anchor; FormulationSolvers; FormulationNote; }
+
+    core_anchor [shape=point, width=0, height=0, label="", style=invis];
+    ABBACore [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#F7F7F7">
+        <TR><TD><FONT POINT-SIZE="9"><I>&#171;shared stage map&#187;</I></FONT><BR/><FONT POINT-SIZE="9">src/simulation/methods/abba/_core.py</FONT><BR/><B>_evaluate_unprojected_stages(...)</B></TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT">Endpoint-time A-B-B-A shears<BR ALIGN="LEFT"/>(u_0,v_0) -&gt; (u_f,v_f)</TD></TR>
+      </TABLE>
+    >];
+    ABBA2MidpointReuse [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#F7F7F7">
+        <TR><TD><FONT POINT-SIZE="9"><I>&#171;shared-core consumer&#187;</I></FONT><BR/><FONT POINT-SIZE="9">src/simulation/methods/abba/order2_midpoint.py</FONT><BR/><B>ABBA2Midpoint</B></TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT">Set u_0 = v_0 = z_n<BR ALIGN="LEFT"/>Reuse A-B-B-A stages<BR ALIGN="LEFT"/>Return (u_f + v_f) / 2</TD></TR>
+      </TABLE>
+    >];
+    { rank=same; core_anchor; ABBACore; ABBA2MidpointReuse; }
+
+    accepted_anchor [shape=point, width=0, height=0, label="", style=invis];
+    AcceptedStep [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#F7F7F7">
+        <TR><TD><FONT POINT-SIZE="9"><I>&#171;one-step output&#187;</I></FONT><BR/><FONT POINT-SIZE="9">src/simulation/methods/abba/_projection.py</FONT><BR/><B>_ProjectedStep</B></TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT">Same accepted z_(n+1) for both formulations<BR ALIGN="LEFT"/>Converged multiplier and stage snapshots<BR ALIGN="LEFT"/>Solver metrics</TD></TR>
+      </TABLE>
+    >];
+    SharedTimeAdvance [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#F7F7F7">
+        <TR><TD><FONT POINT-SIZE="9"><I>&#171;optional extension update&#187;</I></FONT><BR/><FONT POINT-SIZE="9">src/simulation/methods/abba/_implicit.py</FONT><BR/><B>_shared_time_kappa_increment(...)</B></TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT">Carry (z,t,kappa) in R4<BR ALIGN="LEFT"/>Advance the genuine R6 split state<BR ALIGN="LEFT"/>Divide the k increment by 2</TD></TR>
+      </TABLE>
+    >];
+    SharedTimeNote [shape=note, style="filled", fillcolor="#FFFDEB", color="#B8AE6F", margin="0.10,0.07", label="This R6 object is a genuine splitting state.\nIt is not the simultaneous solver's R6 unknown."];
+    { rank=same; accepted_anchor; AcceptedStep; SharedTimeAdvance; SharedTimeNote; }
+
+    scheduler_anchor [shape=point, width=0, height=0, label="", style=invis];
+    SchedulerContinuation [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#F7F7F7">
+        <TR><TD><FONT POINT-SIZE="9"><I>&#171;outer-loop continuation&#187;</I></FONT><BR/><B>Main or shadow advance result</B></TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT">observe = true: replace main state<BR ALIGN="LEFT"/>observe = false: save shadow sample only<BR ALIGN="LEFT"/>Repeat until t_f</TD></TR>
+      </TABLE>
+    >];
+    StepObservation [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#F7F7F7">
+        <TR><TD><FONT POINT-SIZE="9"><I>&#171;optional event&#187;</I></FONT><BR/><FONT POINT-SIZE="9">src/simulation/observation.py</FONT><BR/><B>ABBA2ImplicitIntegrationStep</B></TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT">Semantic formulation name<BR ALIGN="LEFT"/>Accepted stage snapshots<BR ALIGN="LEFT"/>Exact generating dynamics instance</TD></TR>
+      </TABLE>
+    >];
+    { rank=same; scheduler_anchor; SchedulerContinuation; StepObservation; }
+  }
+
+  subgraph cluster_result {
+    label="Result boundary";
+    labeljust="l";
+    color="#555555";
+    penwidth=1.2;
+    style="rounded";
+
+    data_anchor [shape=point, width=0, height=0, label="", style=invis];
+    IntegrationData [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#F7F7F7">
+        <TR><TD><FONT POINT-SIZE="9"><I>&#171;internal value&#187;</I></FONT><BR/><FONT POINT-SIZE="9">src/simulation/_result.py</FONT><BR/><B>IntegrationData</B></TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT">Requested times<BR ALIGN="LEFT"/>Sampled physical states<BR ALIGN="LEFT"/>Method diagnostics</TD></TR>
+      </TABLE>
+    >];
+    { rank=same; data_anchor; IntegrationData; }
+
+    return_anchor [shape=point, width=0, height=0, label="", style=invis];
+    RunnerReturn [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#F7F7F7">
+        <TR><TD><FONT POINT-SIZE="9"><I>&#171;facade continuation&#187;</I></FONT><BR/><B>Return to SimulationRunner</B></TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT">Same simulate(...) call<BR ALIGN="LEFT"/>Receives IntegrationData<BR ALIGN="LEFT"/>Validates returned arrays<BR ALIGN="LEFT"/>Builds Solution</TD></TR>
+      </TABLE>
+    >];
+    { rank=same; return_anchor; RunnerReturn; }
+
+    solution_anchor [shape=point, width=0, height=0, label="", style=invis];
+    Solution [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#F7F7F7">
+        <TR><TD><FONT POINT-SIZE="9"><I>&#171;public result&#187;</I></FONT><BR/><FONT POINT-SIZE="9">src/simulation/solution.py</FONT><BR/><B>Solution</B></TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT">Immutable sampled trajectory<BR ALIGN="LEFT"/>Read-only diagnostics<BR ALIGN="LEFT"/>Initial configuration and layout</TD></TR>
+      </TABLE>
+    >];
+
+    Legend [label=<
+      <TABLE BORDER="1" CELLBORDER="1" CELLSPACING="0" CELLPADDING="4" BGCOLOR="#FFFFFF">
+        <TR><TD><B>Relation</B></TD><TD><B>Meaning in this diagram</B></TD></TR>
+        <TR><TD ALIGN="LEFT">solid line + hollow triangle</TD><TD ALIGN="LEFT">Explicit Python inheritance</TD></TR>
+        <TR><TD ALIGN="LEFT">dashed line + hollow triangle</TD><TD ALIGN="LEFT">Structural implementation of a protocol</TD></TR>
+        <TR><TD ALIGN="LEFT">ordinary dashed arrow</TD><TD ALIGN="LEFT">Required capability, shared-core reuse, or optional path</TD></TR>
+        <TR><TD ALIGN="LEFT">hollow diamond</TD><TD ALIGN="LEFT">Configuration composes and exposes its layout</TD></TR>
+        <TR><TD ALIGN="LEFT">ordinary solid arrow into a consumer</TD><TD ALIGN="LEFT">Argument or returned data supplied to that consumer</TD></TR>
+        <TR><TD ALIGN="LEFT">ordinary solid arrow between runtime steps</TD><TD ALIGN="LEFT">Call, construction, or forward hand-off</TD></TR>
+      </TABLE>
+    >];
+    { rank=same; solution_anchor; Solution; Legend; }
+  }
+
+  // The invisible backbone is the only layout constraint. It fixes the exact
+  // left-to-right order while semantic relations are drawn without changing ranks.
+  inherited_anchor -> problem_anchor -> state_contracts_anchor -> gc_state_anchor -> shared_state_anchor -> request_anchor -> runner_anchor -> method_anchor -> coordinator_anchor -> fixed_anchor -> selector_anchor -> solvers_anchor -> core_anchor -> accepted_anchor -> scheduler_anchor -> data_anchor -> return_anchor -> solution_anchor [style=invis, weight=1000, minlen=2];
+
+  // Type and implementation relationships.
+  GuidingCenterDynamics -> GuidingCenterJacobianSystem [style=dashed, arrowhead=empty, constraint=false];
+  GuidingCenterJacobianSystem -> DynamicalSystem [style=solid, arrowhead=empty, constraint=false];
+  GCInitialConfiguration -> StateConfiguration [style=solid, arrowhead=empty, constraint=false];
+  GCStateLayout -> PackedStateLayout [style=solid, arrowhead=empty, constraint=false];
+  GCInitialConfiguration -> InitialConfiguration [style=dashed, arrowhead=empty, constraint=false];
+  GCStateLayout -> StateLayout [style=dashed, arrowhead=empty, constraint=false];
+  InitialConfiguration -> StateLayout [dir=both, arrowtail=odiamond, arrowhead=none, constraint=false];
+  GCInitialConfiguration -> GCStateLayout [dir=both, arrowtail=odiamond, arrowhead=none, constraint=false];
+  ABBA2Implicit -> ABBAImplicitConfig [style=solid, arrowhead=empty, constraint=false];
+  ABBA2Implicit -> NumericalMethod [style=dashed, arrowhead=empty, constraint=false];
+  SharedTimeExtension -> ABBA2Implicit [style=solid, arrowhead=empty, constraint=false];
+  FullyExtendedABBA -> FullyExtendedBase [style=solid, arrowhead=empty, constraint=false];
+
+  // Public run assembly.
+  DynamicalSystem -> InitialValueProblem [style=solid, arrowhead=normal, constraint=false];
+  InitialConfiguration -> InitialValueProblem [style=solid, arrowhead=normal, constraint=false];
+  InitialValueProblem -> SimulationRunner [style=solid, arrowhead=normal, constraint=false];
+  SimulationRequest -> SimulationRunner [style=solid, arrowhead=normal, constraint=false];
+  NumericalMethod -> SimulationRunner [style=solid, arrowhead=normal, constraint=false];
+
+  // Main ABBA2 runtime path.
+  ABBA2Implicit -> IntegrationCoordinator [style=solid, arrowhead=normal, constraint=false];
+  SharedTimeExtension -> IntegrationCoordinator [style=dashed, arrowhead=normal, constraint=false];
+  IntegrationCoordinator -> FixedGrid [style=solid, arrowhead=normal, constraint=false];
+  FixedGrid -> FormulationSelector [style=solid, arrowhead=normal, constraint=false];
+  FormulationSelector -> FormulationSolvers [style=solid, arrowhead=normal, constraint=false];
+  FormulationSolvers -> ABBACore [style=solid, arrowhead=normal, constraint=false];
+  ABBACore -> AcceptedStep [style=solid, arrowhead=normal, constraint=false];
+  AcceptedStep -> SchedulerContinuation [style=solid, arrowhead=normal, constraint=false];
+  AcceptedStep -> SharedTimeAdvance [style=dashed, arrowhead=normal, constraint=false];
+  SharedTimeAdvance -> SchedulerContinuation [style=solid, arrowhead=normal, constraint=false];
+
+  // Required capabilities, reuse, and optional observation.
+  GuidingCenterJacobianSystem -> FormulationSolvers [style=dashed, arrowhead=normal, constraint=false];
+  GuidingCenterDynamics -> SharedTimeAdvance [style=dashed, arrowhead=normal, constraint=false];
+  ABBA2MidpointReuse -> ABBACore [style=dashed, arrowhead=normal, constraint=false];
+  SchedulerContinuation -> StepObservation [style=dashed, arrowhead=normal, constraint=false];
+
+  // Result hand-off.
+  SchedulerContinuation -> IntegrationData [style=solid, arrowhead=normal, constraint=false];
+  IntegrationData -> RunnerReturn [style=solid, arrowhead=normal, constraint=false];
+  RunnerReturn -> Solution [style=solid, arrowhead=normal, constraint=false];
+}
+@enddot

@@ -12,8 +12,8 @@ from dynamics import GuidingCenterDynamics
 from initial_conditions import GCInitialConfiguration
 from potential import Potential
 from simulation import (
-	ABBA_implicit2,
-	ABBA4_implicit2,
+	ABBA2FullyExtendedImplicit,
+	ABBA4FullyExtendedImplicit,
 	BM4Implicit2,
 	BM4_implicit2,
 	FullyExtendedImplicitIntegrationStep,
@@ -56,8 +56,8 @@ class FullyExtendedImplicitMethodTests(unittest.TestCase):
 	"""Verify the full state, diagonal projection, and public identifiers."""
 
 	def test_requested_names_do_not_replace_historical_solver_formulation(self) -> None:
-		self.assertEqual(ABBA_implicit2.__name__, "ABBA_implicit2")
-		self.assertEqual(ABBA4_implicit2.__name__, "ABBA4_implicit2")
+		self.assertEqual(ABBA2FullyExtendedImplicit.__name__, "ABBA2FullyExtendedImplicit")
+		self.assertEqual(ABBA4FullyExtendedImplicit.__name__, "ABBA4FullyExtendedImplicit")
 		self.assertEqual(BM4_implicit2.__name__, "BM4_implicit2")
 		self.assertIsNot(BM4_implicit2, BM4Implicit2)
 
@@ -66,7 +66,7 @@ class FullyExtendedImplicitMethodTests(unittest.TestCase):
 		records: list[FullyExtendedImplicitIntegrationStep] = []
 		solution = simulate(
 			problem,
-			ABBA_implicit2(
+			ABBA2FullyExtendedImplicit(
 				newton_absolute_tolerance=1e-14,
 				newton_relative_tolerance=1e-14,
 				step_observer=records.append,
@@ -176,7 +176,9 @@ class FullyExtendedImplicitStudyTests(unittest.TestCase):
 				)
 				self.assertEqual(len(result.runs), 2)
 				order = result.convergence_orders()[0].maximum_error_order
-				minimum_order = 1.8 if method == "abba_implicit2" else 3.8
+				minimum_order = (
+					1.8 if method == "abba2_fully_extended_implicit" else 3.8
+				)
 				self.assertGreater(order, minimum_order)
 				for run, step_count in zip(result.runs, (2, 4), strict=True):
 					self.assertEqual(run.solution.n_steps, step_count)
@@ -213,7 +215,9 @@ class FullyExtendedImplicitStudyTests(unittest.TestCase):
 				convergence_figure, _ = plot_generalized_energy_convergence(
 					result.summaries(),
 					method_name=result.method_name,
-					expected_order=2.0 if method == "abba_implicit2" else 4.0,
+					expected_order=(
+						2.0 if method == "abba2_fully_extended_implicit" else 4.0
+					),
 				)
 				symplecticity_figure, _ = plot_fully_extended_symplecticity(
 					result.runs,

@@ -20,8 +20,8 @@ from dynamics import GuidingCenterDynamics
 from initial_conditions import Area, TrajectoryGC
 from potential import Potential
 from simulation import (
-	ImplicitABBA1,
-	ImplicitABBA2,
+	ABBA_PROJECTION_FORMULATIONS,
+	ABBA2Implicit,
 	InitialValueProblem,
 	IntegrationStep,
 	SimulationRequest,
@@ -95,11 +95,12 @@ class ImplicitABBAJacobianTests(unittest.TestCase):
 		)
 		form = gc_physical_symplectic_form(2)
 
-		for method_type in (ImplicitABBA1, ImplicitABBA2):
+		for formulation in ABBA_PROJECTION_FORMULATIONS:
 			events = []
 			solution = simulate(
 				problem,
-				method_type(
+				ABBA2Implicit(
+					projection_formulation=formulation,
 					newton_absolute_tolerance=1e-14,
 					newton_relative_tolerance=1e-14,
 					step_observer=events.append,
@@ -149,7 +150,7 @@ class ImplicitABBAJacobianTests(unittest.TestCase):
 			implicit_function_step_jacobian,
 			stage_increment_step_jacobian,
 		):
-			with self.assertRaisesRegex(TypeError, "ImplicitABBAIntegrationStep"):
+			with self.assertRaisesRegex(TypeError, "ABBA2ImplicitIntegrationStep"):
 				calculator(step)
 
 	def test_analytic_methods_use_the_exact_observed_endpoint_times(self) -> None:
@@ -162,7 +163,7 @@ class ImplicitABBAJacobianTests(unittest.TestCase):
 				dynamics,
 				TrajectoryGC(np.asarray([1.0, 1.2]), rho=0.05),
 			),
-			ImplicitABBA1(step_observer=events.append),
+			ABBA2Implicit(step_observer=events.append),
 			SimulationRequest.uniform(
 				t_span=(start, start + duration),
 				max_step=duration,
@@ -224,7 +225,7 @@ class ImplicitABBAObserverStudyTests(unittest.TestCase):
 				tuple(comparison.results),
 				tuple(observer.label for observer in DEFAULT_IMPLICIT_ABBA_OBSERVERS),
 			)
-			for formulation in ("implicit_1", "implicit_2"):
+			for formulation in ABBA_PROJECTION_FORMULATIONS:
 				labels = [
 					observer.label
 					for observer in config.observers

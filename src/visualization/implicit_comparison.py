@@ -22,8 +22,8 @@ from .particles import _field_normalization, _frame_indices
 
 
 IMPLICIT_METHOD_COLORS: Mapping[str, str] = {
-	"ImplicitABBA1": "tab:blue",
-	"ImplicitABBA2": "tab:orange",
+	"ABBA2Implicit[reduced_multiplier]": "tab:blue",
+	"ABBA2Implicit[simultaneous_state_multiplier]": "tab:orange",
 	"BM4Implicit1": "tab:green",
 	"BM4Implicit2": "tab:red",
 }

@@ -15,11 +15,11 @@ from potential import Potential
 from simulation import (
 	BM4Implicit1,
 	BM4Implicit2,
-	ImplicitABBA1,
-	ImplicitABBA2,
+	ABBA2Implicit,
 	InitialConfiguration,
 	InitialValueProblem,
 	NonlinearSolver,
+	NumericalMethod,
 	SimulationRequest,
 	Solution,
 	simulate,
@@ -34,8 +34,8 @@ from ._validation import (
 
 
 IMPLICIT_METHOD_NAMES: tuple[str, ...] = (
-	"ImplicitABBA1",
-	"ImplicitABBA2",
+	"ABBA2Implicit[reduced_multiplier]",
+	"ABBA2Implicit[simultaneous_state_multiplier]",
 	"BM4Implicit1",
 	"BM4Implicit2",
 )
@@ -296,15 +296,17 @@ def run_implicit_trajectory_comparison(
 		max_step=config.integration_step,
 		sample_count=config.output_sample_count,
 	)
-	methods = (
-		ImplicitABBA1(
+	methods: tuple[NumericalMethod, ...] = (
+		ABBA2Implicit(
+			projection_formulation="reduced_multiplier",
 			newton_absolute_tolerance=config.absolute_tolerance,
 			newton_relative_tolerance=config.relative_tolerance,
 			newton_max_iterations=config.max_iterations,
 			nonlinear_solver=config.nonlinear_solver,
 			progress=config.progress,
 		),
-		ImplicitABBA2(
+		ABBA2Implicit(
+			projection_formulation="simultaneous_state_multiplier",
 			newton_absolute_tolerance=config.absolute_tolerance,
 			newton_relative_tolerance=config.relative_tolerance,
 			newton_max_iterations=config.max_iterations,
@@ -332,8 +334,7 @@ def run_implicit_trajectory_comparison(
 	)
 	solutions: dict[str, Solution] = {}
 	runtimes: dict[str, float] = {}
-	for method in methods:
-		method_name = type(method).__name__
+	for method_name, method in zip(IMPLICIT_METHOD_NAMES, methods, strict=True):
 		started = perf_counter()
 		solutions[method_name] = simulate(problem, method, request)
 		runtimes[method_name] = perf_counter() - started

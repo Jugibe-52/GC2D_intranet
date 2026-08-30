@@ -11,30 +11,30 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from diagnostics import (
-	abba4_implicit_1_step_particle_jacobians,
+	abba4_implicit_step_particle_jacobians,
 	central_difference_jacobian,
 )
 from initial_conditions import GCInitialConfiguration
 from simulation import (
-	ABBA4Implicit1,
-	ImplicitABBA4IntegrationStep,
+	ABBA4Implicit,
+	ABBA4ImplicitIntegrationStep,
 	InitialValueProblem,
 	SimulationRequest,
 	simulate,
 )
-from simulation.methods.abba.order4_implicit_1 import (
+from simulation.methods.abba.order4_implicit import (
 	_ABBA4_COEFFICIENTS,
 	_solve_abba4_step,
 )
 from studies import (
-	ABBA4Implicit1AccuracyConfig,
+	ABBA4ImplicitAccuracyConfig,
 	AreaStep,
 	HighPrecisionReferenceConfig,
 	RandomPotentialConfig,
 	TrajectorySymplecticityConfig,
 	random_gc_configuration,
-	run_abba4_implicit_1_accuracy_study,
-	run_abba4_implicit_1_trajectory_symplecticity_study,
+	run_abba4_implicit_accuracy_study,
+	run_abba4_implicit_trajectory_symplecticity_study,
 	run_high_precision_reference_trajectory,
 )
 from visualization import (
@@ -109,7 +109,7 @@ def _dense(blocks: np.ndarray) -> np.ndarray:
 	return result
 
 
-class ABBA4Implicit1MethodTests(unittest.TestCase):
+class ABBA4ImplicitMethodTests(unittest.TestCase):
 	"""Verify signed composition, designed order, reversibility, and tangent."""
 
 	def test_observation_contains_three_continuous_signed_substeps(self) -> None:
@@ -119,7 +119,7 @@ class ABBA4Implicit1MethodTests(unittest.TestCase):
 		events = []
 		solution = simulate(
 			_rotation_problem(),
-			ABBA4Implicit1(
+			ABBA4Implicit(
 				newton_absolute_tolerance=1e-14,
 				newton_relative_tolerance=1e-14,
 				step_observer=events.append,
@@ -132,7 +132,7 @@ class ABBA4Implicit1MethodTests(unittest.TestCase):
 		)
 		self.assertEqual(len(events), 2)
 		step = events[0]
-		self.assertIsInstance(step, ImplicitABBA4IntegrationStep)
+		self.assertIsInstance(step, ABBA4ImplicitIntegrationStep)
 		self.assertEqual(len(step.substeps), 3)
 		self.assertLess(step.substeps[1].duration, 0.0)
 		np.testing.assert_allclose(
@@ -184,7 +184,7 @@ class ABBA4Implicit1MethodTests(unittest.TestCase):
 		for step in (0.2, 0.1, 0.05):
 			solution = simulate(
 				problem,
-				ABBA4Implicit1(
+				ABBA4Implicit(
 					newton_absolute_tolerance=1e-14,
 					newton_relative_tolerance=1e-14,
 				),
@@ -232,7 +232,7 @@ class ABBA4Implicit1MethodTests(unittest.TestCase):
 		for step in (0.2, 0.1, 0.05, 0.025):
 			solution = simulate(
 				problem,
-				ABBA4Implicit1(
+				ABBA4Implicit(
 					newton_absolute_tolerance=1e-14,
 					newton_relative_tolerance=1e-14,
 				),
@@ -256,7 +256,7 @@ class ABBA4Implicit1MethodTests(unittest.TestCase):
 		events = []
 		simulate(
 			problem,
-			ABBA4Implicit1(
+			ABBA4Implicit(
 				newton_absolute_tolerance=1e-14,
 				newton_relative_tolerance=1e-14,
 				step_observer=events.append,
@@ -267,7 +267,7 @@ class ABBA4Implicit1MethodTests(unittest.TestCase):
 				sample_count=2,
 			),
 		)
-		exact = _dense(abba4_implicit_1_step_particle_jacobians(events[0]))
+		exact = _dense(abba4_implicit_step_particle_jacobians(events[0]))
 		numerical = central_difference_jacobian(
 			events[0].map_state,
 			events[0].state_before,
@@ -278,14 +278,14 @@ class ABBA4Implicit1MethodTests(unittest.TestCase):
 			/ np.linalg.norm(numerical, ord="fro")
 		)
 		self.assertLess(relative_error, 2e-8)
-		for block in abba4_implicit_1_step_particle_jacobians(events[0]):
+		for block in abba4_implicit_step_particle_jacobians(events[0]):
 			self.assertAlmostEqual(float(np.linalg.det(block)), 1.0, places=13)
 		malformed = replace(
 			events[0],
 			composition_coefficients=np.asarray([1.0, -1.0, 1.0]),
 		)
 		with self.assertRaisesRegex(ValueError, "coefficients"):
-			abba4_implicit_1_step_particle_jacobians(malformed)
+			abba4_implicit_step_particle_jacobians(malformed)
 
 	def test_broyden_path_matches_the_newton_root(self) -> None:
 		request = SimulationRequest.uniform(
@@ -293,10 +293,10 @@ class ABBA4Implicit1MethodTests(unittest.TestCase):
 			max_step=0.1,
 			sample_count=5,
 		)
-		newton = simulate(_rotation_problem(), ABBA4Implicit1(), request)
+		newton = simulate(_rotation_problem(), ABBA4Implicit(), request)
 		broyden = simulate(
 			_rotation_problem(),
-			ABBA4Implicit1(nonlinear_solver="broyden"),
+			ABBA4Implicit(nonlinear_solver="broyden"),
 			request,
 		)
 		self.assertEqual(broyden.diagnostics["nonlinear_solver"], "broyden")
@@ -308,7 +308,7 @@ class ABBA4Implicit1MethodTests(unittest.TestCase):
 		)
 
 
-class ABBA4Implicit1StudyTests(unittest.TestCase):
+class ABBA4ImplicitStudyTests(unittest.TestCase):
 	"""Exercise focused reference-accuracy and symplecticity runners."""
 
 	def test_short_accuracy_and_symplecticity_studies(self) -> None:
@@ -355,11 +355,11 @@ class ABBA4Implicit1StudyTests(unittest.TestCase):
 				initial_condition_metadata=initial_metadata,
 				project_root=root,
 			)
-			accuracy = run_abba4_implicit_1_accuracy_study(
+			accuracy = run_abba4_implicit_accuracy_study(
 				potential,
 				configuration,
 				reference_result.trajectory,
-				config=ABBA4Implicit1AccuracyConfig(
+				config=ABBA4ImplicitAccuracyConfig(
 					integration_steps=(0.1, 0.05),
 					t_span=(0.0, 0.2),
 					save_interval=0.1,
@@ -389,7 +389,7 @@ class ABBA4Implicit1StudyTests(unittest.TestCase):
 			plt.close(figure)
 			plt.close(time_figure)
 
-			symplecticity = run_abba4_implicit_1_trajectory_symplecticity_study(
+			symplecticity = run_abba4_implicit_trajectory_symplecticity_study(
 				potential,
 				configuration,
 				notebook_path=(

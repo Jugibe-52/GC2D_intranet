@@ -1,5 +1,5 @@
 @startuml
-title Implicit ABBA 1: HDF5-to-Guiding-Center Dynamics
+title ABBA2 Implicit: HDF5-to-Guiding-Center Dynamics
 
 left to right direction
 

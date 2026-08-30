@@ -9,7 +9,7 @@ import numpy as np
 
 from dynamics import GuidingCenterJacobianSystem
 from simulation.observation import (
-	ImplicitABBAIntegrationStep,
+	ABBA2ImplicitIntegrationStep,
 	IntegrationStep,
 	StateMap,
 )
@@ -79,7 +79,7 @@ class _ImplicitABBABlocks:
 
 
 def _validated_stage_state(
-	step: ImplicitABBAIntegrationStep,
+	step: ABBA2ImplicitIntegrationStep,
 	state: np.ndarray,
 	name: str,
 ) -> np.ndarray:
@@ -115,10 +115,10 @@ def _checked_vector_field_jacobians(
 
 def _implicit_abba_blocks(step: IntegrationStep) -> _ImplicitABBABlocks:
 	"""Evaluate the converged ABBA stage blocks required by analytic tangents."""
-	if not isinstance(step, ImplicitABBAIntegrationStep):
+	if not isinstance(step, ABBA2ImplicitIntegrationStep):
 		raise TypeError(
 			"Analytic implicit-ABBA Jacobians require "
-			"ImplicitABBAIntegrationStep data."
+			"ABBA2ImplicitIntegrationStep data."
 		)
 	dynamics = step.dynamics
 	if not isinstance(dynamics, GuidingCenterJacobianSystem):

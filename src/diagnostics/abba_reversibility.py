@@ -10,33 +10,33 @@ import numpy as np
 
 from dynamics import GuidingCenterJacobianSystem
 from simulation import (
-	ImplicitABBA4IntegrationStep,
-	ImplicitABBAIntegrationStep,
+	ABBA4ImplicitIntegrationStep,
+	ABBA2ImplicitIntegrationStep,
 	IntegrationStep,
 	NONLINEAR_SOLVERS,
 	NonlinearSolver,
 )
-from simulation.methods.abba.order4_implicit_1 import (
+from simulation.methods.abba.order4_implicit import (
 	_solve_abba4_step,
 	_substep_observation,
 )
 from simulation.methods.abba._projection import (
-	_solve_projected_step,
-	_solve_simultaneous_projected_step,
+	_solve_reduced_multiplier_step,
+	_solve_simultaneous_state_multiplier_step,
 )
 
 from .jacobians import implicit_function_step_jacobian
 from .trajectory_symplecticity.jacobians import (
-	abba4_implicit_1_step_particle_jacobians,
+	abba4_implicit_step_particle_jacobians,
 )
 
 
 _StepSolver = Callable[..., Any]
 _FORMULATION_SOLVERS: dict[str, _StepSolver] = {
-	"reduced_multiplier": _solve_projected_step,
-	"simultaneous_state_multiplier": _solve_simultaneous_projected_step,
+	"reduced_multiplier": _solve_reduced_multiplier_step,
+	"simultaneous_state_multiplier": _solve_simultaneous_state_multiplier_step,
 }
-_ObservedStep = ImplicitABBAIntegrationStep | ImplicitABBA4IntegrationStep
+_ObservedStep = ABBA2ImplicitIntegrationStep | ABBA4ImplicitIntegrationStep
 
 
 def _dense_component_major_jacobian(blocks: np.ndarray) -> np.ndarray:
@@ -56,9 +56,9 @@ def _dense_component_major_jacobian(blocks: np.ndarray) -> np.ndarray:
 
 def _complete_step_jacobian(step: _ObservedStep) -> np.ndarray:
 	"""Return the exact complete-map tangent for ABBA2 or composed ABBA4."""
-	if isinstance(step, ImplicitABBA4IntegrationStep):
+	if isinstance(step, ABBA4ImplicitIntegrationStep):
 		return _dense_component_major_jacobian(
-			abba4_implicit_1_step_particle_jacobians(step)
+			abba4_implicit_step_particle_jacobians(step)
 		)
 	return implicit_function_step_jacobian(step)
 
@@ -182,7 +182,7 @@ class ImplicitABBAReversibilityObserver:
 		dynamics: GuidingCenterJacobianSystem,
 	) -> _ObservedStep:
 		"""Solve and expose the signed reverse step independently of ``J_plus``."""
-		if isinstance(step, ImplicitABBA4IntegrationStep):
+		if isinstance(step, ABBA4ImplicitIntegrationStep):
 			return self._solve_reverse_abba4_step(step, dynamics)
 		try:
 			step_solver = _FORMULATION_SOLVERS[step.formulation_name]
@@ -226,7 +226,7 @@ class ImplicitABBAReversibilityObserver:
 			self.newton_absolute_tolerance
 			+ self.newton_relative_tolerance * state_scale
 		)
-		return ImplicitABBAIntegrationStep(
+		return ABBA2ImplicitIntegrationStep(
 			dynamics_name=step.dynamics_name,
 			method_name=step.method_name,
 			step_index=step.step_index,
@@ -256,9 +256,9 @@ class ImplicitABBAReversibilityObserver:
 
 	def _solve_reverse_abba4_step(
 		self,
-		step: ImplicitABBA4IntegrationStep,
+		step: ABBA4ImplicitIntegrationStep,
 		dynamics: GuidingCenterJacobianSystem,
-	) -> ImplicitABBA4IntegrationStep:
+	) -> ABBA4ImplicitIntegrationStep:
 		"""Solve the three signed Yoshida factors from the forward endpoint."""
 		start_time = float(step.time)
 		duration = -float(step.duration)
@@ -304,7 +304,7 @@ class ImplicitABBAReversibilityObserver:
 			"""Apply the complete fixed signed ABBA4 reverse map."""
 			return np.asarray(solve(candidate).state, dtype=float)
 
-		return ImplicitABBA4IntegrationStep(
+		return ABBA4ImplicitIntegrationStep(
 			dynamics_name=step.dynamics_name,
 			method_name=step.method_name,
 			step_index=step.step_index,
@@ -339,7 +339,7 @@ class ImplicitABBAReversibilityObserver:
 		"""Observe one consecutive accepted implicit-ABBA step."""
 		if not isinstance(
 			step,
-			(ImplicitABBAIntegrationStep, ImplicitABBA4IntegrationStep),
+			(ABBA2ImplicitIntegrationStep, ABBA4ImplicitIntegrationStep),
 		):
 			raise TypeError(
 				"ImplicitABBAReversibilityObserver requires "

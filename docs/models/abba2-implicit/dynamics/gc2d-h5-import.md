@@ -1,7 +1,7 @@
-# Implicit ABBA 1 dynamics architecture
+# ABBA2 implicit dynamics architecture
 
 This document describes the potential-to-dynamics boundary used by the
-`ImplicitABBA1` model. The guiding-center dynamics are shared with other
+`ABBA2Implicit` model. The guiding-center dynamics are shared with other
 integrators, but they are documented here as the physical input to this model.
 
 The HDF5 import path loads the primary GC2D field format into the potential and
@@ -258,7 +258,7 @@ import numpy as np
 from dynamics import GuidingCenterDynamics
 from initial_conditions import GCInitialConfiguration
 from potential import load_gc2d_h5_potential
-from simulation import ABBA4Implicit1, InitialValueProblem, SimulationRequest, simulate
+from simulation import ABBA4Implicit, InitialValueProblem, SimulationRequest, simulate
 
 potential = load_gc2d_h5_potential(
     "data/potential/V1/PHI_2.h5",
@@ -275,7 +275,7 @@ request = SimulationRequest.uniform(
     max_step=1e-3,
     sample_count=101,
 )
-solution = simulate(problem, ABBA4Implicit1(), request)
+solution = simulate(problem, ABBA4Implicit(), request)
 ```
 
 ## Invariants and limitations

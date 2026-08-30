@@ -10,10 +10,10 @@ from dynamics import GuidingCenterDynamics
 from initial_conditions import GCInitialConfiguration
 from potential import Potential
 from simulation import (
+	ABBA_PROJECTION_FORMULATIONS,
 	BM4Implicit1,
 	BM4Implicit2,
-	ImplicitABBA1,
-	ImplicitABBA2,
+	ABBA2Implicit,
 	InitialValueProblem,
 	SimulationRequest,
 	simulate,
@@ -54,24 +54,37 @@ class ImplicitBroydenTests(unittest.TestCase):
 			"newton_relative_tolerance": 1e-13,
 			"newton_max_iterations": 30,
 		}
-		for method_type in (
-			ImplicitABBA1,
-			ImplicitABBA2,
-			BM4Implicit1,
-			BM4Implicit2,
-		):
-			with self.subTest(method=method_type.__name__):
+		methods = [
+			ABBA2Implicit(projection_formulation=formulation)
+			for formulation in ABBA_PROJECTION_FORMULATIONS
+		]
+		methods.extend((BM4Implicit1(), BM4Implicit2()))
+		for method in methods:
+			method_kwargs = (
+				{"projection_formulation": method.projection_formulation}
+				if isinstance(method, ABBA2Implicit)
+				else {}
+			)
+			with self.subTest(
+				method=type(method).__name__,
+				formulation=method_kwargs.get("projection_formulation"),
+			):
 				events = []
 				newton = simulate(
 					_problem(),
-					method_type(nonlinear_solver="newton", **common),
+					type(method)(
+						nonlinear_solver="newton",
+						**method_kwargs,
+						**common,
+					),
 					request,
 				)
 				broyden = simulate(
 					_problem(),
-					method_type(
+					type(method)(
 						nonlinear_solver="broyden",
 						step_observer=events.append,
+						**method_kwargs,
 						**common,
 					),
 					request,
@@ -111,23 +124,30 @@ class ImplicitBroydenTests(unittest.TestCase):
 			max_step=0.05,
 			sample_count=2,
 		)
-		for method_type in (ImplicitABBA1, ImplicitABBA2):
-			with self.subTest(method=method_type.__name__):
+		for formulation in ABBA_PROJECTION_FORMULATIONS:
+			with self.subTest(formulation=formulation):
 				solution = simulate(
 					_problem(interpolation_order=2),
-					method_type(
+					ABBA2Implicit(
+						projection_formulation=formulation,
 						nonlinear_solver="broyden",
 						newton_max_iterations=30,
 					),
 					request,
 				)
 				self.assertEqual(solution.states.shape, (4, 2))
-		with self.assertRaisesRegex(ValueError, "interpolation_order"):
-			simulate(_problem(interpolation_order=2), ImplicitABBA1(), request)
+		for formulation in ABBA_PROJECTION_FORMULATIONS:
+			with self.subTest(newton_formulation=formulation):
+				with self.assertRaisesRegex(ValueError, "interpolation_order"):
+					simulate(
+						_problem(interpolation_order=2),
+						ABBA2Implicit(projection_formulation=formulation),
+						request,
+					)
 
 	def test_unknown_solver_fails_during_method_configuration(self) -> None:
 		with self.assertRaisesRegex(ValueError, "nonlinear_solver"):
-			ImplicitABBA1(nonlinear_solver="unknown")  # type: ignore[arg-type]
+			ABBA2Implicit(nonlinear_solver="unknown")  # type: ignore[arg-type]
 		with self.assertRaisesRegex(ValueError, "nonlinear_solver"):
 			BM4Implicit2(nonlinear_solver="unknown")  # type: ignore[arg-type]
 

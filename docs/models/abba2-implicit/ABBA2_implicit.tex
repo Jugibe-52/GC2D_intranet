@@ -10,6 +10,7 @@
 \usepackage{xcolor}
 \usepackage{enumitem}
 \usepackage{booktabs}
+\usepackage{array}
 \usepackage{fancyhdr}
 \usepackage[hidelinks]{hyperref}
 
@@ -26,7 +27,7 @@
 \pagestyle{fancy}
 \fancyhf{}
 \fancyhead[L]{\small\color{gray}GC2D: ABBA method}
-\fancyhead[R]{\small\color{gray}Implicit 1: reduced multiplier solve}
+\fancyhead[R]{\small\color{gray}ABBA2 implicit: reduced multiplier solve}
 \fancyfoot[C]{\thepage}
 \renewcommand{\headrulewidth}{0.3pt}
 
@@ -41,14 +42,32 @@
 \begin{document}
 
 \begin{center}
-  {\LARGE\bfseries\color{blue}Implicit ABBA 1 with Hairer's Symmetric Projection}\par
+  {\LARGE\bfseries\color{blue}ABBA2 Implicit with Hairer's Symmetric Projection}\par
   \vspace{0.35em}
   {\large Reduced Newton formulation for the projection multiplier}\par
   \vspace{0.45em}
-  {\small Complete replacement of BM4 by an $A$--$B$--$B$--$A$ architecture}
+  {\small Endpoint-time $A$--$B$--$B$--$A$ map with symmetric diagonal projection}
 \end{center}
 
 \vspace{0.5em}
+
+\section{Scope and implementation name}
+
+The public implementation is \texttt{ABBA2Implicit}.  Its
+\texttt{projection\_formulation} field selects one of two algebraically equivalent
+projection solvers:
+\begin{itemize}
+ \item \texttt{reduced\_multiplier};
+ \item \texttt{simultaneous\_state\_multiplier}.
+\end{itemize}
+Both formulations traverse the same duplicated ABBA map and define the same
+accepted physical map, up to the nonlinear stopping tolerance.
+
+This note derives the reduced multiplier formulation.  Its nonlinear unknown is
+$\mu\in\R^2$ per particle and its exact Newton matrix is $2\times2$.  The
+simultaneous formulation instead solves for $(u_f,v_f,\mu)\in\R^6$ per particle
+with a $6\times6$ Newton block.  That six-dimensional vector is only an algebraic
+solver workspace; it is not a trajectory state or a separate numerical method.
 
 \section{Guiding-center system and duplicated phase space}
 
@@ -1262,5 +1281,48 @@ The proof requires the following local hypotheses:
 The reduced multiplier system defines the same exact projected map independently of the
 particular convergent nonlinear solver. With a finite stopping tolerance, symplecticity is
 preserved only up to the defect introduced by that tolerance.
+
+\section{Time extensions and dimensional conventions}
+
+The implementation keeps two time-extension families separate because they duplicate
+different variables.  For one guiding-center particle, the relevant spaces are:
+
+\begin{center}
+\small
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{0.30\textwidth}
+                    >{\raggedright\arraybackslash}p{0.20\textwidth}
+                    >{\raggedright\arraybackslash}p{0.20\textwidth}
+                    >{\raggedright\arraybackslash}p{0.19\textwidth}@{}}
+\toprule
+Method & Accepted internal state & Base splitting state & Momentum convention \\
+\midrule
+\texttt{ABBA2SharedTime}\allowbreak\texttt{ExtendedImplicit}
+  & $(z,t,\kappa)\in\R^4$
+  & $(u,v,t,k)\in\R^6$
+  & $\kappa=k/2$ \\
+\texttt{ABBA2Fully}\allowbreak\texttt{ExtendedImplicit}
+  & $(z,t,k)\in\R^4$
+  & $(Z_1,Z_2)\in\R^8$
+  & direct $k$ \\
+\texttt{ABBA4Fully}\allowbreak\texttt{ExtendedImplicit}
+  & $(z,t,k)\in\R^4$
+  & $(Z_1,Z_2)\in\R^8$
+  & direct $k$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Here $Z=(z,t,k)$.  The shared-time lift duplicates only the physical state and
+shares one $(t,k)$ pair.  Its accepted conjugate variable is normalized as
+$\kappa=k/2$, and its physical trajectory is identical to that of
+\texttt{ABBA2Implicit} with the same projection formulation.  Its $\R^6$ object
+is therefore a genuine splitting state, unlike the temporary $\R^6$ unknown of
+the simultaneous nonlinear formulation.
+
+The fully extended methods duplicate the complete autonomous state, operate on
+$(Z_1,Z_2)\in\R^8$, and advance $k$ directly.  Their full-state projection defines
+a different numerical map; it is not merely another solver formulation of
+\texttt{ABBA2Implicit}.  All three extension classes currently require exactly one
+particle so that the displayed dimensions are literal.
 
 \end{document}

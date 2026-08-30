@@ -26,31 +26,31 @@ from ._validation import (
 	positive_integer,
 )
 from .abba_midpoint_symplecticity import (
-	MidpointABBASymplecticityConfig,
-	MidpointABBASymplecticityResult,
-	run_midpoint_abba_symplecticity_study,
+	ABBA2MidpointSymplecticityConfig,
+	ABBA2MidpointSymplecticityResult,
+	run_abba2_midpoint_symplecticity_study,
 )
 from .abba_implicit_symplecticity import (
-	ImplicitABBA1SymplecticityResult,
-	ImplicitABBA2SymplecticityResult,
+	ABBA2ReducedMultiplierSymplecticityResult,
+	ABBA2SimultaneousStateMultiplierSymplecticityResult,
 	ImplicitABBASymplecticityConfig,
-	run_implicit_abba_1_symplecticity_study,
-	run_implicit_abba_2_symplecticity_study,
+	run_abba2_reduced_multiplier_symplecticity_study,
+	run_abba2_simultaneous_state_multiplier_symplecticity_study,
 )
 from .area_comparison import AreaStep
 from visualization import animate_gc_area_solution
 
 
 ABBA_METHOD_NAMES = (
-	"MidpointABBA",
-	"ImplicitABBA1",
-	"ImplicitABBA2",
+	"ABBA2Midpoint",
+	"ABBA2Implicit[reduced_multiplier]",
+	"ABBA2Implicit[simultaneous_state_multiplier]",
 )
 _BLOCK_PREFIX = re.compile(r"^[A-Za-z0-9_-]+$")
 ABBAComparisonStudy = (
-	MidpointABBASymplecticityResult
-	| ImplicitABBA1SymplecticityResult
-	| ImplicitABBA2SymplecticityResult
+	ABBA2MidpointSymplecticityResult
+	| ABBA2ReducedMultiplierSymplecticityResult
+	| ABBA2SimultaneousStateMultiplierSymplecticityResult
 )
 
 
@@ -431,7 +431,7 @@ def run_abba_comparison(
 		raise TypeError("`config` must be an ABBAComparisonConfig instance.")
 
 	step = (AreaStep(label=config.step_label, value=config.integration_step),)
-	midpoint_config = MidpointABBASymplecticityConfig(
+	midpoint_config = ABBA2MidpointSymplecticityConfig(
 		steps=step,
 		t_span=config.t_span,
 		save_interval=config.save_interval,
@@ -460,7 +460,7 @@ def run_abba_comparison(
 		"timing_scope": "simulation_excluding_symplecticity_observer",
 	}
 
-	midpoint_result = run_midpoint_abba_symplecticity_study(
+	midpoint_result = run_abba2_midpoint_symplecticity_study(
 		potential,
 		area,
 		notebook_path=notebook_path,
@@ -469,7 +469,7 @@ def run_abba_comparison(
 		metadata=common_metadata,
 	)
 
-	implicit_1_result = run_implicit_abba_1_symplecticity_study(
+	reduced_result = run_abba2_reduced_multiplier_symplecticity_study(
 		potential,
 		area,
 		notebook_path=notebook_path,
@@ -478,7 +478,7 @@ def run_abba_comparison(
 		metadata=common_metadata,
 	)
 
-	implicit_2_result = run_implicit_abba_2_symplecticity_study(
+	simultaneous_result = run_abba2_simultaneous_state_multiplier_symplecticity_study(
 		potential,
 		area,
 		notebook_path=notebook_path,
@@ -489,8 +489,8 @@ def run_abba_comparison(
 
 	studies: dict[str, ABBAComparisonStudy] = {
 		ABBA_METHOD_NAMES[0]: midpoint_result,
-		ABBA_METHOD_NAMES[1]: implicit_1_result,
-		ABBA_METHOD_NAMES[2]: implicit_2_result,
+		ABBA_METHOD_NAMES[1]: reduced_result,
+		ABBA_METHOD_NAMES[2]: simultaneous_result,
 	}
 	runtimes = {
 		method_name: studies[method_name].simulation_runtime_seconds[

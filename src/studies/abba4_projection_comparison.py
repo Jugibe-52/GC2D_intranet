@@ -14,8 +14,8 @@ from dynamics import GuidingCenterDynamics
 from initial_conditions import GCInitialConfiguration
 from potential import Potential
 from simulation import (
-	ABBA4Implicit1,
-	ABBA4SingleProjectionImplicit1,
+	ABBA4Implicit,
+	ABBA4ImplicitSingleProjection,
 	NONLINEAR_SOLVERS,
 	InitialValueProblem,
 	NonlinearSolver,
@@ -42,13 +42,13 @@ from ._validation import (
 
 
 ABBA4_PROJECTION_METHOD_NAMES: tuple[str, ...] = (
-	"ABBA4Implicit1",
-	"ABBA4SingleProjectionImplicit1",
+	"ABBA4Implicit",
+	"ABBA4ImplicitSingleProjection",
 )
 ABBA4_PROJECTION_METHOD_LABELS: Mapping[str, str] = MappingProxyType(
 	{
-		"ABBA4Implicit1": "ABBA4 (three projections)",
-		"ABBA4SingleProjectionImplicit1": "SP-ABBA4 (single projection)",
+		"ABBA4Implicit": "ABBA4 (three projections)",
+		"ABBA4ImplicitSingleProjection": "SP-ABBA4 (single projection)",
 	}
 )
 
@@ -632,11 +632,11 @@ def _configured_method(
 	config: ABBA4ProjectionComparisonConfig,
 ) -> NumericalMethod:
 	"""Construct either projection strategy with identical nonlinear controls."""
-	method_type: type[ABBA4Implicit1] | type[ABBA4SingleProjectionImplicit1]
-	if method_name == "ABBA4Implicit1":
-		method_type = ABBA4Implicit1
-	elif method_name == "ABBA4SingleProjectionImplicit1":
-		method_type = ABBA4SingleProjectionImplicit1
+	method_type: type[ABBA4Implicit] | type[ABBA4ImplicitSingleProjection]
+	if method_name == "ABBA4Implicit":
+		method_type = ABBA4Implicit
+	elif method_name == "ABBA4ImplicitSingleProjection":
+		method_type = ABBA4ImplicitSingleProjection
 	else:
 		raise ValueError(f"Unknown ABBA4 projection method {method_name!r}.")
 	return method_type(

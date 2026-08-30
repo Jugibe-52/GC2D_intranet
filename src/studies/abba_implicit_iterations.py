@@ -6,7 +6,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from time import perf_counter
 from types import MappingProxyType
-from typing import Any, Literal, Mapping, TypeAlias
+from typing import Any, Mapping, TypeAlias
 
 import numpy as np
 
@@ -18,11 +18,12 @@ from diagnostics import (
 from dynamics import GuidingCenterDynamics
 from potential import Potential
 from simulation import (
-	ImplicitABBA1,
-	ImplicitABBA2,
+	ABBA_PROJECTION_FORMULATIONS,
+	ABBA2Implicit,
 	InitialConfiguration,
 	InitialValueProblem,
 	NonlinearSolver,
+	ProjectionFormulation,
 	SimulationRequest,
 	Solution,
 	simulate,
@@ -31,11 +32,8 @@ from simulation import (
 from ._validation import nonnegative_finite, positive_finite, positive_integer
 
 
-ABBAIterationFormulation: TypeAlias = Literal["implicit_1", "implicit_2"]
-ABBA_ITERATION_FORMULATIONS: tuple[ABBAIterationFormulation, ...] = (
-	"implicit_1",
-	"implicit_2",
-)
+ABBAIterationFormulation: TypeAlias = ProjectionFormulation
+ABBA_ITERATION_FORMULATIONS = ABBA_PROJECTION_FORMULATIONS
 
 
 def _readonly_float_array(value: np.ndarray) -> np.ndarray:
@@ -56,7 +54,7 @@ def _readonly_int_array(value: np.ndarray) -> np.ndarray:
 class ImplicitABBAIterationStudyConfig:
 	"""Physical, numerical, and observer controls for one iteration study."""
 
-	formulation: ABBAIterationFormulation = "implicit_1"
+	formulation: ABBAIterationFormulation = "reduced_multiplier"
 	rho: float = 0.3
 	t_span: tuple[float, float] = (0.0, 1.0)
 	max_step: float = 0.01
@@ -171,7 +169,7 @@ class ImplicitABBAIterationStudyResult:
 		iterations = self.iteration_counts
 		ratios = self.residual_to_tolerance_ratios
 		print(
-			f"{self.solution.diagnostics['projection_solver_formulation']}: "
+			f"{self.solution.diagnostics['projection_formulation']}: "
 			f"steps={self.solution.n_steps}, observed={len(self.records)}, "
 			f"runtime={self.runtime_seconds:.6f} s"
 		)
@@ -212,7 +210,6 @@ def run_implicit_abba_iteration_study(
 		max_step=config.max_step,
 		sample_count=config.sample_count,
 	)
-	method_type = ImplicitABBA1 if config.formulation == "implicit_1" else ImplicitABBA2
 	with ImplicitABBAIterationObserver(
 		notebook_path=notebook_path,
 		project_root=project_root,
@@ -228,7 +225,8 @@ def run_implicit_abba_iteration_study(
 		started = perf_counter()
 		solution = simulate(
 			problem,
-			method_type(
+			ABBA2Implicit(
+				projection_formulation=config.formulation,
 				newton_absolute_tolerance=config.newton_absolute_tolerance,
 				newton_relative_tolerance=config.newton_relative_tolerance,
 				newton_max_iterations=config.newton_max_iterations,

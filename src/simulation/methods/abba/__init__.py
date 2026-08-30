@@ -1,20 +1,26 @@
 """A-B-B-A numerical methods and their shared private kernels."""
 
-from .fully_extended import ABBA_implicit2, ABBA4_implicit2
-from .implicit_1 import ImplicitABBA1
-from .implicit_2 import ImplicitABBA2
-from .midpoint import MidpointABBA
-from .order4_implicit_1 import ABBA4Implicit1
-from .order4_single_projection_implicit_1 import ABBA4SingleProjectionImplicit1
-from .order6 import ABBA6
+from ._implicit import ABBA_PROJECTION_FORMULATIONS, ProjectionFormulation
+from .extensions import (
+	ABBA2FullyExtendedImplicit,
+	ABBA2SharedTimeExtendedImplicit,
+	ABBA4FullyExtendedImplicit,
+)
+from .order2_implicit import ABBA2Implicit
+from .order2_midpoint import ABBA2Midpoint
+from .order4_implicit import ABBA4Implicit
+from .order4_implicit_single_projection import ABBA4ImplicitSingleProjection
+from .order6_implicit import ABBA6Implicit
 
 __all__ = [
-	"ABBA4Implicit1",
-	"ABBA4SingleProjectionImplicit1",
-	"ABBA4_implicit2",
-	"ABBA6",
-	"ABBA_implicit2",
-	"ImplicitABBA1",
-	"ImplicitABBA2",
-	"MidpointABBA",
+	"ABBA4Implicit",
+	"ABBA4ImplicitSingleProjection",
+	"ABBA4FullyExtendedImplicit",
+	"ABBA6Implicit",
+	"ABBA2FullyExtendedImplicit",
+	"ABBA2Implicit",
+	"ABBA2Midpoint",
+	"ABBA2SharedTimeExtendedImplicit",
+	"ABBA_PROJECTION_FORMULATIONS",
+	"ProjectionFormulation",
 ]

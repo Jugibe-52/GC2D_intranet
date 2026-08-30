@@ -10,7 +10,7 @@ from typing import Any, Mapping
 import numpy as np
 
 from initial_conditions import Area
-from simulation import ImplicitABBAIntegrationStep, IntegrationStep
+from simulation import ABBA2ImplicitIntegrationStep, IntegrationStep
 from diagnostics.output import write_diagnostic_block
 
 from diagnostics.jacobians import (
@@ -212,7 +212,7 @@ class GCAreaSymplecticityObserver:
 				step_index=-1,
 				time=(
 					step.start_time
-					if isinstance(step, ImplicitABBAIntegrationStep)
+					if isinstance(step, ABBA2ImplicitIntegrationStep)
 					else step.time - step.duration
 				),
 				duration=0.0,

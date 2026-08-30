@@ -25,7 +25,7 @@
 \pagestyle{fancy}
 \fancyhf{}
 \fancyhead[L]{\small\color{gray}GC2D: ABBA method}
-\fancyhead[R]{\small\color{gray}Implicit 2: simultaneous equation (21)}
+\fancyhead[R]{\small\color{gray}ABBA2 implicit: simultaneous formulation}
 \fancyfoot[C]{\thepage}
 \renewcommand{\headrulewidth}{0.3pt}
 
@@ -40,7 +40,7 @@
 \begin{document}
 
 \begin{center}
-  {\LARGE\bfseries\color{blue}Implicit ABBA 2 with Hairer's Symmetric Projection}\par
+  {\LARGE\bfseries\color{blue}ABBA2 Implicit: Simultaneous State--Multiplier Formulation}\par
   \vspace{0.35em}
   {\large Simultaneous Newton formulation for the output state and multiplier}\par
   \vspace{0.45em}
@@ -49,12 +49,14 @@
 
 \vspace{0.5em}
 
-\section{Purpose and relation to implicit ABBA 1}
+\section{Purpose and relation to the reduced formulation}
 
-Implicit ABBA 2 computes the same exact projected map as implicit ABBA 1 but
-uses a different nonlinear system. Implicit ABBA 1 eliminates the duplicated
-output state and solves only for the two-component multiplier. Implicit ABBA 2
-retains both the four-component duplicated output and the multiplier as Newton
+The \texttt{simultaneous\_state\_multiplier} option of
+\texttt{ABBA2Implicit} computes the same exact projected map as its
+\texttt{reduced\_multiplier} option but uses a different nonlinear system. The
+reduced formulation eliminates the duplicated output state and solves only for
+the two-component multiplier. The simultaneous formulation retains both the
+four-component duplicated output and the multiplier as Newton
 unknowns. Consequently, for one guiding-centre particle, each Newton correction
 solves a $6\times6$ system rather than the reduced $2\times2$ Schur complement.
 
@@ -162,7 +164,7 @@ unknown multiplier:
 \[
  \widehat{\Y}_n(\mu)=\Y_n+N\mu=(z_n+\mu,z_n-\mu).
 \]
-Implicit ABBA 2 retains the diagonal output $\Y_{n+1}$ as an additional
+The simultaneous formulation retains the diagonal output $\Y_{n+1}$ as an additional
 unknown and imposes
 \[
  d(\Y_{n+1},\mu)
@@ -198,7 +200,7 @@ Because $G$ and $N=G^T$ are constant,
  \qquad
  D_\mu g=0.
 \]
-Therefore, at Newton iterate $(\Y_{n+1}^{(k)},\mu^{(k)})$, implicit ABBA 2
+Therefore, at Newton iterate $(\Y_{n+1}^{(k)},\mu^{(k)})$, the simultaneous formulation
 solves
 \[
  \boxed{
@@ -229,7 +231,7 @@ The update is
 No inverse is formed explicitly; a dense linear solve is used for each
 $6\times6$ particle block.
 
-\section{Schur complement and equivalence to implicit ABBA 1}
+\section{Schur complement and equivalence to the reduced formulation}
 
 Eliminating $\Delta\Y_{n+1}$ from (21) gives the Schur complement
 \[
@@ -253,9 +255,9 @@ The second block row of (21), after substituting the first one, therefore yields
 \[
  \mathcal K\,\Delta\mu=-R(\mu).
 \]
-This is exactly the reduced Newton correction used by implicit ABBA 1. Hence both
+This is exactly the Newton correction used by the reduced formulation. Hence both
 algorithms generate the same multiplier iterates in exact arithmetic when they start
-from the same $\mu^{(0)}$, even though implicit ABBA 2 also updates the duplicated
+from the same $\mu^{(0)}$, even though the simultaneous formulation also updates the duplicated
 output unknown.
 
 \section{Initial iterate and convergence criterion}
@@ -337,8 +339,8 @@ $M$, leaving
 \[
  \boxed{J_\Psi^TJ_0J_\Psi=J_0.}
 \]
-Thus implicit ABBA 2 is the same symmetric and symplectic physical map as implicit
-ABBA 1 at the exact root. In finite arithmetic, measured reversibility and symplecticity
+Thus the simultaneous formulation is the same symmetric and symplectic physical
+map as the reduced formulation at the exact root. In finite arithmetic, measured reversibility and symplecticity
 also include the simultaneous Newton tolerance and linear-solve round-off.
 
 \section{Implementation correspondence}

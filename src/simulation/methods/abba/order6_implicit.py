@@ -9,12 +9,12 @@ import numpy as np
 from dynamics import GuidingCenterJacobianSystem
 
 from ..._result import IntegrationData
-from ...observation import ImplicitABBA6IntegrationStep
+from ...observation import ABBA6ImplicitIntegrationStep
 from ...problem import InitialValueProblem
 from ...request import SimulationRequest
 from .._nonlinear import NonlinearSolver
-from ._implicit import _ImplicitABBA
-from .order4_implicit_1 import (
+from ._implicit import _ABBAImplicitConfig
+from .order4_implicit import (
 	_ComposedABBAStep,
 	_integrate_composed_implicit_abba,
 	_solve_composed_abba_step,
@@ -36,7 +36,7 @@ _ABBA6_COEFFICIENTS = np.asarray(
 	),
 	dtype=float,
 )
-_COMPOSITION_FORMULATION = "abba6_implicit_1_seven_stage_yoshida"
+_COMPOSITION_FORMULATION = "abba6_implicit_reduced_multiplier_seven_stage_yoshida"
 
 
 def _solve_abba6_step(
@@ -50,14 +50,14 @@ def _solve_abba6_step(
 	max_iterations: int,
 	nonlinear_solver: NonlinearSolver,
 ) -> _ComposedABBAStep:
-	"""Compose the seven signed reduced implicit-ABBA maps of ABBA6."""
+	"""Compose the seven signed reduced implicit-ABBA maps of ABBA6Implicit."""
 	return _solve_composed_abba_step(
 		dynamics,
 		t,
 		state,
 		step,
 		coefficients=_ABBA6_COEFFICIENTS,
-		method_name="ABBA6",
+		method_name="ABBA6Implicit",
 		absolute_tolerance=absolute_tolerance,
 		relative_tolerance=relative_tolerance,
 		max_iterations=max_iterations,
@@ -66,11 +66,11 @@ def _solve_abba6_step(
 
 
 @dataclass(frozen=True, slots=True)
-class ABBA6(_ImplicitABBA):
+class ABBA6Implicit(_ABBAImplicitConfig):
 	"""Sixth-order symmetric composition of seven implicit ABBA maps.
 
 	Each outer step applies Yoshida's palindromic seven-stage coefficients to
-	complete reduced ``ImplicitABBA1`` maps. Two substeps run backward in time.
+	complete reduced ``ABBA2Implicit`` maps. Two substeps run backward in time.
 	Every signed substep solves its own projection multiplier equation with exact
 	``2 x 2`` Newton blocks or with good Broyden updates.
 	"""
@@ -87,8 +87,8 @@ class ABBA6(_ImplicitABBA):
 			request,
 			coefficients=_ABBA6_COEFFICIENTS,
 			composition_formulation=_COMPOSITION_FORMULATION,
-			observation_type=ImplicitABBA6IntegrationStep,
+			observation_type=ABBA6ImplicitIntegrationStep,
 		)
 
 
-__all__ = ["ABBA6"]
+__all__ = ["ABBA6Implicit"]

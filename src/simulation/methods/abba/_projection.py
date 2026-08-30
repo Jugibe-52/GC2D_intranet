@@ -61,7 +61,7 @@ def _evaluate_stages(
 	step: float,
 	multiplier: np.ndarray,
 ) -> _ABBAStages:
-	"""Apply the four midpoint ABBA stages and evaluate equation (11)."""
+	"""Apply the four ABBA stages and assemble the reduced-multiplier residual."""
 	# G^T mu displaces the two copies in opposite physical directions.
 	u_initial = state + multiplier
 	v_initial = state - multiplier
@@ -145,7 +145,7 @@ def _evaluate_residual(
 	return _differentiate_stages(dynamics, t, state, step, stages)
 
 
-def _solve_projected_step(
+def _solve_reduced_multiplier_step(
 	dynamics: GuidingCenterJacobianSystem,
 	t: float,
 	state: np.ndarray,
@@ -156,7 +156,7 @@ def _solve_projected_step(
 	max_iterations: int,
 	nonlinear_solver: NonlinearSolver = "newton",
 ) -> _ProjectedStep:
-	"""Solve implicit formulation 1 with Newton or good Broyden steps."""
+	"""Solve the reduced-multiplier projection with Newton or good Broyden."""
 	value = np.asarray(state, dtype=float)
 	if value.ndim != 1 or value.size == 0 or not np.all(np.isfinite(value)):
 		raise ValueError("The ABBA physical state must be a finite, non-empty vector.")
@@ -180,7 +180,7 @@ def _solve_projected_step(
 			tolerance=threshold,
 			max_iterations=max_iterations,
 			context=(
-				"ABBA implicit formulation 1 at "
+				"ABBA reduced-multiplier projection at "
 				f"t={t:.16g} with step={step:.16g}"
 			),
 		)
@@ -250,7 +250,7 @@ def _solve_projected_step(
 		multiplier = multiplier - correction
 
 	raise RuntimeError(
-		"ABBA implicit formulation 1 did not converge at "
+		"ABBA reduced-multiplier projection did not converge at "
 		f"t={t:.16g} with step={step:.16g}: "
 		f"residual norm {residual_norm:.3e} exceeds {threshold:.3e} after "
 		f"{max_iterations} Newton iterations."
@@ -274,7 +274,7 @@ def _simultaneous_residual_blocks(
 	second_output: np.ndarray,
 	state_dimension: int,
 ) -> np.ndarray:
-	"""Evaluate the two equation-(21) defects for every independent particle.
+	"""Evaluate simultaneous state-multiplier defects for every particle.
 
 	Each returned row contains ``(d_u, d_v, g)`` in physical coordinate blocks,
 	where ``d`` is the four-dimensional step-equation defect and ``g=u-v`` is
@@ -296,7 +296,7 @@ def _simultaneous_residual_blocks(
 def _simultaneous_newton_jacobian(
 	evaluation: _ResidualEvaluation,
 ) -> np.ndarray:
-	"""Assemble equation (21) as one exact 6-by-6 system per GC particle."""
+	"""Assemble one exact simultaneous 6-by-6 system per GC particle."""
 	particle_count = evaluation.abba_jacobian.shape[0]
 	identity_2 = np.broadcast_to(np.eye(2), (particle_count, 2, 2))
 	identity_4 = np.broadcast_to(np.eye(4), (particle_count, 4, 4))
@@ -314,7 +314,7 @@ def _simultaneous_newton_jacobian(
 	)
 
 
-def _solve_simultaneous_projected_step(
+def _solve_simultaneous_state_multiplier_step(
 	dynamics: GuidingCenterJacobianSystem,
 	t: float,
 	state: np.ndarray,
@@ -325,7 +325,7 @@ def _solve_simultaneous_projected_step(
 	max_iterations: int,
 	nonlinear_solver: NonlinearSolver = "newton",
 ) -> _ProjectedStep:
-	"""Solve simultaneous equation (21) with Newton or good Broyden steps."""
+	"""Solve the simultaneous state-multiplier projection."""
 	value = np.asarray(state, dtype=float)
 	if value.ndim != 1 or value.size == 0 or not np.all(np.isfinite(value)):
 		raise ValueError("The ABBA physical state must be a finite, non-empty vector.")
@@ -334,7 +334,7 @@ def _solve_simultaneous_projected_step(
 	threshold = absolute_tolerance + relative_tolerance * state_scale
 
 	# Start from the uncorrected ABBA output. This makes d=0 initially while
-	# retaining the generally non-zero diagonal constraint g in equation (21).
+	# retaining the generally non-zero diagonal constraint in the coupled system.
 	stages = _evaluate_stages(dynamics, t, value, step, multiplier)
 	first_output = stages.u_final.copy()
 	second_output = stages.v_final.copy()
@@ -359,7 +359,7 @@ def _solve_simultaneous_projected_step(
 		def residual_function(
 			unknown: np.ndarray,
 		) -> tuple[np.ndarray, tuple[_ABBAStages, np.ndarray, np.ndarray, np.ndarray]]:
-			"""Evaluate equation (21) for one simultaneous Broyden iterate."""
+			"""Evaluate the coupled defects for one simultaneous Broyden iterate."""
 			first = unknown[:physical_size]
 			second = unknown[physical_size:internal_size]
 			candidate_multiplier = unknown[internal_size:]
@@ -391,7 +391,7 @@ def _solve_simultaneous_projected_step(
 			tolerance=threshold,
 			max_iterations=max_iterations,
 			context=(
-				"ABBA implicit formulation 2 at "
+				"ABBA simultaneous state-multiplier projection at "
 				f"t={t:.16g} with step={step:.16g}"
 			),
 			initial_evaluation=(
@@ -467,7 +467,7 @@ def _solve_simultaneous_projected_step(
 		stages = _evaluate_stages(dynamics, t, value, step, multiplier)
 
 	raise RuntimeError(
-		"ABBA implicit formulation 2 did not converge at "
+		"ABBA simultaneous state-multiplier projection did not converge at "
 		f"t={t:.16g} with step={step:.16g}: "
 		f"simultaneous residual norm {residual_norm:.3e} exceeds "
 		f"{threshold:.3e} after {max_iterations} Newton iterations."

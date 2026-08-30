@@ -20,9 +20,9 @@ from dynamics import GuidingCenterDynamics
 from initial_conditions import GCInitialConfiguration
 from potential import Potential
 from simulation import (
-	ABBA4Implicit1,
+	ABBA4Implicit,
 	BM4Implicit1,
-	ImplicitABBA1,
+	ABBA2Implicit,
 	InitialValueProblem,
 	NumericalMethod,
 	SimulationRequest,
@@ -40,19 +40,19 @@ from ._validation import (
 
 
 ImplicitEnergyMethod = Literal[
-	"implicit_abba_1",
-	"abba4_implicit_1",
+	"abba2_implicit_reduced_multiplier",
+	"abba4_implicit",
 	"bm4_implicit_1",
 ]
 IMPLICIT_ENERGY_METHODS: tuple[ImplicitEnergyMethod, ...] = (
-	"implicit_abba_1",
-	"abba4_implicit_1",
+	"abba2_implicit_reduced_multiplier",
+	"abba4_implicit",
 	"bm4_implicit_1",
 )
 IMPLICIT_ENERGY_METHOD_LABELS: Mapping[ImplicitEnergyMethod, str] = MappingProxyType(
 	{
-		"implicit_abba_1": "ImplicitABBA1",
-		"abba4_implicit_1": "ABBA4Implicit1",
+		"abba2_implicit_reduced_multiplier": "ABBA2Implicit[reduced_multiplier]",
+		"abba4_implicit": "ABBA4Implicit",
 		"bm4_implicit_1": "BM4Implicit1",
 	}
 )
@@ -453,16 +453,17 @@ def _method_for_run(
 	observer: Callable[[IntegrationStep], None],
 ) -> NumericalMethod:
 	"""Construct one implicit method with one accepted-step observer."""
-	if method == "implicit_abba_1":
-		return ImplicitABBA1(
+	if method == "abba2_implicit_reduced_multiplier":
+		return ABBA2Implicit(
+			projection_formulation="reduced_multiplier",
 			newton_absolute_tolerance=config.newton_absolute_tolerance,
 			newton_relative_tolerance=config.newton_relative_tolerance,
 			newton_max_iterations=config.newton_max_iterations,
 			progress=config.progress,
 			step_observer=observer,
 		)
-	if method == "abba4_implicit_1":
-		return ABBA4Implicit1(
+	if method == "abba4_implicit":
+		return ABBA4Implicit(
 			newton_absolute_tolerance=config.newton_absolute_tolerance,
 			newton_relative_tolerance=config.newton_relative_tolerance,
 			newton_max_iterations=config.newton_max_iterations,

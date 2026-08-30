@@ -256,7 +256,7 @@ class SymplecticityDiagnosticTests(unittest.TestCase):
 				jacobian_method="implicit_function",
 				verbose=False,
 			) as observer:
-				with self.assertRaisesRegex(TypeError, "ImplicitABBAIntegrationStep"):
+				with self.assertRaisesRegex(TypeError, "ABBA2ImplicitIntegrationStep"):
 					observer(
 						IntegrationStep(
 							dynamics_name="GuidingCenterDynamics",

@@ -14,10 +14,10 @@ from dynamics import GuidingCenterDynamics
 from initial_conditions import GCInitialConfiguration
 from potential import Potential
 from simulation import (
-	ABBA4Implicit1,
-	ABBA4SingleProjectionImplicit1,
+	ABBA4Implicit,
+	ABBA4ImplicitSingleProjection,
 	BM4Implicit1,
-	ImplicitABBA1,
+	ABBA2Implicit,
 	InitialValueProblem,
 	NumericalMethod,
 	SimulationRequest,
@@ -42,24 +42,24 @@ from ._validation import (
 
 
 IMPLICIT_ACCURACY_METHOD_NAMES: tuple[str, ...] = (
-	"ImplicitABBA1",
-	"ABBA4Implicit1",
-	"ABBA4SingleProjectionImplicit1",
+	"ABBA2Implicit[reduced_multiplier]",
+	"ABBA4Implicit",
+	"ABBA4ImplicitSingleProjection",
 	"BM4Implicit1",
 )
 IMPLICIT_ACCURACY_METHOD_LABELS: Mapping[str, str] = MappingProxyType(
 	{
-		"ImplicitABBA1": "Implicit ABBA",
-		"ABBA4Implicit1": "Implicit ABBA4 (three projections)",
-		"ABBA4SingleProjectionImplicit1": "Implicit ABBA4 (single projection)",
+		"ABBA2Implicit[reduced_multiplier]": "Implicit ABBA2 (reduced multiplier)",
+		"ABBA4Implicit": "Implicit ABBA4 (three projections)",
+		"ABBA4ImplicitSingleProjection": "Implicit ABBA4 (single projection)",
 		"BM4Implicit1": "Implicit BM4",
 	}
 )
 IMPLICIT_ACCURACY_DESIGNED_ORDERS: Mapping[str, float] = MappingProxyType(
 	{
-		"ImplicitABBA1": 2.0,
-		"ABBA4Implicit1": 4.0,
-		"ABBA4SingleProjectionImplicit1": 4.0,
+		"ABBA2Implicit[reduced_multiplier]": 2.0,
+		"ABBA4Implicit": 4.0,
+		"ABBA4ImplicitSingleProjection": 4.0,
 		"BM4Implicit1": 4.0,
 	}
 )
@@ -232,24 +232,25 @@ def _configured_method(
 	config: ImplicitMethodAccuracyConfig,
 ) -> NumericalMethod:
 	"""Construct one Newton-solved method with the common tolerances."""
-	if method_name == "ImplicitABBA1":
-		return ImplicitABBA1(
+	if method_name == "ABBA2Implicit[reduced_multiplier]":
+		return ABBA2Implicit(
+			projection_formulation="reduced_multiplier",
 			newton_absolute_tolerance=config.absolute_tolerance,
 			newton_relative_tolerance=config.relative_tolerance,
 			newton_max_iterations=config.max_iterations,
 			nonlinear_solver="newton",
 			progress=config.progress,
 		)
-	if method_name == "ABBA4Implicit1":
-		return ABBA4Implicit1(
+	if method_name == "ABBA4Implicit":
+		return ABBA4Implicit(
 			newton_absolute_tolerance=config.absolute_tolerance,
 			newton_relative_tolerance=config.relative_tolerance,
 			newton_max_iterations=config.max_iterations,
 			nonlinear_solver="newton",
 			progress=config.progress,
 		)
-	if method_name == "ABBA4SingleProjectionImplicit1":
-		return ABBA4SingleProjectionImplicit1(
+	if method_name == "ABBA4ImplicitSingleProjection":
+		return ABBA4ImplicitSingleProjection(
 			newton_absolute_tolerance=config.absolute_tolerance,
 			newton_relative_tolerance=config.relative_tolerance,
 			newton_max_iterations=config.max_iterations,

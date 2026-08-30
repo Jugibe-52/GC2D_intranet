@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 import unittest
 
 import matplotlib
@@ -13,9 +14,9 @@ import numpy as np
 from diagnostics import ImplicitABBAReversibilityObserver
 from initial_conditions import GCInitialConfiguration
 from simulation import (
-	ABBA4Implicit1,
-	ImplicitABBA1,
-	ImplicitABBA2,
+	ABBA4Implicit,
+	ABBA_PROJECTION_FORMULATIONS,
+	ABBA2Implicit,
 	InitialValueProblem,
 	SimulationRequest,
 	simulate,
@@ -51,11 +52,16 @@ class ImplicitABBAReversibilityObserverTests(unittest.TestCase):
 			"newton_relative_tolerance": 1e-14,
 			"newton_max_iterations": 12,
 		}
-		for method_type in (ImplicitABBA1, ImplicitABBA2, ABBA4Implicit1):
+		methods = [
+			ABBA2Implicit(projection_formulation=formulation, **solver)
+			for formulation in ABBA_PROJECTION_FORMULATIONS
+		]
+		methods.append(ABBA4Implicit(**solver))
+		for method in methods:
 			observer = ImplicitABBAReversibilityObserver(**solver)
 			solution = simulate(
 				problem,
-				method_type(step_observer=observer, **solver),
+				replace(method, step_observer=observer),
 				request,
 			)
 			self.assertEqual(len(observer.samples), solution.n_steps)
@@ -129,7 +135,7 @@ class ImplicitABBAReversibilityObserverTests(unittest.TestCase):
 			potential,
 			configuration,
 			config=ImplicitABBAReversibilityStudyConfig(
-				formulation="abba4_implicit_1",
+				formulation="abba4_implicit",
 				rho=0.05,
 				t_span=(0.0, 0.04),
 				max_step=0.02,

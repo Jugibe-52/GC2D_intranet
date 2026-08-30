@@ -84,7 +84,7 @@ class ImplicitTrajectoryComparisonTests(unittest.TestCase):
 				("maximum_distance", "Maximum distance", ".3e"),
 			),
 		)
-		self.assertIn("ImplicitABBA1", html)
+		self.assertIn("ABBA2Implicit", html)
 		figure, axes = plot_implicit_method_iterations(result.solutions)
 		self.assertEqual(axes.shape, (3,))
 		figure.canvas.draw()

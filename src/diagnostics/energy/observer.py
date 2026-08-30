@@ -8,8 +8,8 @@ import numpy as np
 
 from dynamics import GuidingCenterDynamics
 from simulation import (
-	ImplicitABBA4IntegrationStep,
-	ImplicitABBAIntegrationStep,
+	ABBA4ImplicitIntegrationStep,
+	ABBA2ImplicitIntegrationStep,
 	ImplicitBM4IntegrationStep,
 	IntegrationStage,
 	IntegrationStep,
@@ -38,7 +38,7 @@ def _momentum_derivative(
 
 
 def _abba_kappa_increment(
-	record: ImplicitABBAIntegrationStep,
+	record: ABBA2ImplicitIntegrationStep,
 	dynamics: GuidingCenterDynamics,
 ) -> float:
 	"""Reconstruct the normalized momentum increment of four ABBA shears."""
@@ -103,11 +103,11 @@ def _kappa_increment(
 	dynamics: GuidingCenterDynamics,
 ) -> float:
 	"""Dispatch the accepted-step momentum reconstruction by record type."""
-	if isinstance(record, ImplicitABBA4IntegrationStep):
+	if isinstance(record, ABBA4ImplicitIntegrationStep):
 		return float(
 			sum(_abba_kappa_increment(substep, dynamics) for substep in record.substeps)
 		)
-	if isinstance(record, ImplicitABBAIntegrationStep):
+	if isinstance(record, ABBA2ImplicitIntegrationStep):
 		return _abba_kappa_increment(record, dynamics)
 	if isinstance(record, ImplicitBM4IntegrationStep):
 		if len(record.base_stages) != 12:
@@ -123,8 +123,8 @@ def _kappa_increment(
 			)
 		)
 	raise TypeError(
-		"Generalized-energy reconstruction supports ImplicitABBA1, "
-		"ABBA4Implicit1, and BM4Implicit1 step records."
+		"Generalized-energy reconstruction supports ABBA2Implicit, "
+		"ABBA4Implicit, and BM4Implicit1 step records."
 	)
 
 

@@ -48,13 +48,13 @@ Keep architecture documentation separated by numerical model under
 PlantUML diagram. Mathematical LaTeX sources and their deliberate PDFs belong
 at the model-directory root.
 
-For `ImplicitABBA1`, the authoritative files are:
+For `ABBA2Implicit`, the authoritative files are:
 
-- `docs/models/implicit-abba-1/dynamics/gc2d-h5-import.md` and
+- `docs/models/abba2-implicit/dynamics/gc2d-h5-import.md` and
   `gc2d-h5-potential-architecture.puml`;
-- `docs/models/implicit-abba-1/simulation/implicit-abba-simulation-architecture.md`
-  and `implicit-abba-simulation-architecture.puml`; and
-- `docs/models/implicit-abba-1/ABBA_implicit_1.tex` and its compiled PDF.
+- `docs/models/abba2-implicit/simulation/abba2-implicit-simulation-architecture.md`
+  and `abba2-implicit-simulation-architecture.puml`; and
+- `docs/models/abba2-implicit/ABBA2_implicit.tex` and its compiled PDF.
 
 Update the relevant model documents whenever code changes affect their public
 API, dependencies, dynamics, initial configuration, simulation lifecycle,

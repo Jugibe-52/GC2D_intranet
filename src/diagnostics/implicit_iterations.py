@@ -10,7 +10,7 @@ from typing import Any, ClassVar, Mapping, Self
 import numpy as np
 
 from simulation import (
-	ImplicitABBAIntegrationStep,
+	ABBA2ImplicitIntegrationStep,
 	ImplicitBM4IntegrationStep,
 	ImplicitIntegrationStep,
 	IntegrationStep,
@@ -313,7 +313,7 @@ class _ImplicitIterationObserver:
 class ImplicitABBAIterationObserver(_ImplicitIterationObserver):
 	"""Record nonlinear work for accepted implicit-ABBA steps."""
 
-	_step_type = ImplicitABBAIntegrationStep
+	_step_type = ABBA2ImplicitIntegrationStep
 	_diagnostic_label = "implicit-abba-iterations"
 	_objective = "Nonlinear-solver work for accepted implicit ABBA steps"
 

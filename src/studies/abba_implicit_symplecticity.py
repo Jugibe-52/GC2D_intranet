@@ -6,14 +6,18 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 import re
 from types import MappingProxyType
-from typing import Any, ClassVar, Literal, Mapping, TypeAlias
+from typing import Any, ClassVar, Mapping, TypeAlias
 
 import numpy as np
 
 from diagnostics.symplecticity import StepJacobianMethod
 from initial_conditions import Area
 from potential import Potential
-from simulation import ImplicitABBA1, ImplicitABBA2
+from simulation import (
+	ABBA_PROJECTION_FORMULATIONS,
+	ABBA2Implicit,
+	ProjectionFormulation,
+)
 
 from ._gc_symplecticity import (
 	_run_gc_symplecticity_observers,
@@ -26,11 +30,8 @@ from .abba_symplecticity import (
 )
 
 
-ImplicitABBAFormulation: TypeAlias = Literal["implicit_1", "implicit_2"]
-IMPLICIT_ABBA_FORMULATIONS: tuple[ImplicitABBAFormulation, ...] = (
-	"implicit_1",
-	"implicit_2",
-)
+ImplicitABBAFormulation: TypeAlias = ProjectionFormulation
+IMPLICIT_ABBA_FORMULATIONS = ABBA_PROJECTION_FORMULATIONS
 IMPLICIT_ABBA_JACOBIAN_METHODS: tuple[StepJacobianMethod, ...] = (
 	"finite_difference",
 	"implicit_function",
@@ -97,27 +98,34 @@ class ImplicitABBASymplecticityConfig(ABBASymplecticityConfig):
 
 
 @dataclass(frozen=True, slots=True)
-class ImplicitABBA1SymplecticityResult(ABBASymplecticityResult):
+class ABBA2ReducedMultiplierSymplecticityResult(ABBASymplecticityResult):
 	"""Symplecticity diagnostics produced by the reduced formulation."""
 
-	method_name: ClassVar[str] = "ImplicitABBA1"
+	method_name: ClassVar[str] = "ABBA2Implicit[reduced_multiplier]"
+	projection_formulation: ClassVar[ProjectionFormulation] = "reduced_multiplier"
 	summary_type: ClassVar[type[ABBASymplecticitySummary]] = (
 		ABBASymplecticitySummary
 	)
 
 
 @dataclass(frozen=True, slots=True)
-class ImplicitABBA2SymplecticityResult(ABBASymplecticityResult):
+class ABBA2SimultaneousStateMultiplierSymplecticityResult(
+	ABBASymplecticityResult
+):
 	"""Symplecticity diagnostics produced by simultaneous equation (21)."""
 
-	method_name: ClassVar[str] = "ImplicitABBA2"
+	method_name: ClassVar[str] = "ABBA2Implicit[simultaneous_state_multiplier]"
+	projection_formulation: ClassVar[ProjectionFormulation] = (
+		"simultaneous_state_multiplier"
+	)
 	summary_type: ClassVar[type[ABBASymplecticitySummary]] = (
 		ABBASymplecticitySummary
 	)
 
 
 ImplicitABBAStudyResult: TypeAlias = (
-	ImplicitABBA1SymplecticityResult | ImplicitABBA2SymplecticityResult
+	ABBA2ReducedMultiplierSymplecticityResult
+	| ABBA2SimultaneousStateMultiplierSymplecticityResult
 )
 
 
@@ -136,9 +144,9 @@ class ImplicitABBASymplecticityComparison:
 		for observer in self.observers:
 			result = self.results[observer.label]
 			expected_type = (
-				ImplicitABBA1SymplecticityResult
-				if observer.formulation == "implicit_1"
-				else ImplicitABBA2SymplecticityResult
+				ABBA2ReducedMultiplierSymplecticityResult
+				if observer.formulation == "reduced_multiplier"
+				else ABBA2SimultaneousStateMultiplierSymplecticityResult
 			)
 			if not isinstance(result, expected_type):
 				raise TypeError(
@@ -164,8 +172,8 @@ class ImplicitABBASymplecticityComparison:
 			for formulation in IMPLICIT_ABBA_FORMULATIONS
 		):
 			return MappingProxyType({})
-		first = by_formulation["implicit_1"]
-		second = by_formulation["implicit_2"]
+		first = by_formulation["reduced_multiplier"]
+		second = by_formulation["simultaneous_state_multiplier"]
 		differences: dict[str, float] = {}
 		for step in first.steps:
 			first_solution = first.solutions[step.label]
@@ -192,7 +200,7 @@ class ImplicitABBASymplecticityComparison:
 			)
 			self.results[observer.label].print_summary()
 		if self.maximum_state_differences():
-			print("\nMaximum |implicit_1 - implicit_2| by integration step:")
+			print("\nMaximum reduced-versus-simultaneous difference by step:")
 			for label, difference in self.maximum_state_differences().items():
 				print(f"  {label}: {difference:.8e}")
 
@@ -213,7 +221,7 @@ def _implicit_study_metadata(
 	}
 
 
-def run_implicit_abba_1_symplecticity_study(
+def run_abba2_reduced_multiplier_symplecticity_study(
 	potential: Potential,
 	area: Area,
 	*,
@@ -222,8 +230,8 @@ def run_implicit_abba_1_symplecticity_study(
 	jacobian_method: StepJacobianMethod = "finite_difference",
 	project_root: str | Path | None = None,
 	metadata: Mapping[str, Any] | None = None,
-) -> ImplicitABBA1SymplecticityResult:
-	"""Run one selected Jacobian diagnostic for implicit ABBA formulation 1."""
+) -> ABBA2ReducedMultiplierSymplecticityResult:
+	"""Run one Jacobian diagnostic for the reduced-multiplier ABBA2 solve."""
 	if not isinstance(config, ImplicitABBASymplecticityConfig):
 		raise TypeError(
 			"`config` must be an ImplicitABBASymplecticityConfig instance."
@@ -231,7 +239,7 @@ def run_implicit_abba_1_symplecticity_study(
 	method_config = replace(
 		config,
 		block_prefix=(
-			f"{config.block_prefix}_implicit_1_{jacobian_method}"
+			f"{config.block_prefix}_reduced_multiplier_{jacobian_method}"
 		),
 	)
 	return _run_gc_symplecticity_study(
@@ -239,18 +247,19 @@ def run_implicit_abba_1_symplecticity_study(
 		area,
 		notebook_path=notebook_path,
 		config=method_config,
-		method_factory=lambda observer: ImplicitABBA1(
+		method_factory=lambda observer: ABBA2Implicit(
+			projection_formulation="reduced_multiplier",
 			newton_absolute_tolerance=config.newton_absolute_tolerance,
 			newton_relative_tolerance=config.newton_relative_tolerance,
 			newton_max_iterations=config.newton_max_iterations,
 			progress=config.progress,
 			step_observer=observer,
 		),
-		result_type=ImplicitABBA1SymplecticityResult,
+		result_type=ABBA2ReducedMultiplierSymplecticityResult,
 		project_root=project_root,
 		metadata={
 			**_implicit_study_metadata(config, metadata),
-			"implicit_formulation": "reduced_multiplier",
+			"projection_formulation": "reduced_multiplier",
 			"step_jacobian_method": jacobian_method,
 			"step_jacobian_scope": (
 				"emitted_finite_tolerance_solver_map"
@@ -262,7 +271,7 @@ def run_implicit_abba_1_symplecticity_study(
 	)
 
 
-def run_implicit_abba_2_symplecticity_study(
+def run_abba2_simultaneous_state_multiplier_symplecticity_study(
 	potential: Potential,
 	area: Area,
 	*,
@@ -271,8 +280,8 @@ def run_implicit_abba_2_symplecticity_study(
 	jacobian_method: StepJacobianMethod = "finite_difference",
 	project_root: str | Path | None = None,
 	metadata: Mapping[str, Any] | None = None,
-) -> ImplicitABBA2SymplecticityResult:
-	"""Run one selected Jacobian diagnostic for implicit ABBA formulation 2."""
+) -> ABBA2SimultaneousStateMultiplierSymplecticityResult:
+	"""Run one Jacobian diagnostic for the simultaneous ABBA2 solve."""
 	if not isinstance(config, ImplicitABBASymplecticityConfig):
 		raise TypeError(
 			"`config` must be an ImplicitABBASymplecticityConfig instance."
@@ -280,7 +289,7 @@ def run_implicit_abba_2_symplecticity_study(
 	method_config = replace(
 		config,
 		block_prefix=(
-			f"{config.block_prefix}_implicit_2_{jacobian_method}"
+			f"{config.block_prefix}_simultaneous_state_multiplier_{jacobian_method}"
 		),
 	)
 	return _run_gc_symplecticity_study(
@@ -288,18 +297,19 @@ def run_implicit_abba_2_symplecticity_study(
 		area,
 		notebook_path=notebook_path,
 		config=method_config,
-		method_factory=lambda observer: ImplicitABBA2(
+		method_factory=lambda observer: ABBA2Implicit(
+			projection_formulation="simultaneous_state_multiplier",
 			newton_absolute_tolerance=config.newton_absolute_tolerance,
 			newton_relative_tolerance=config.newton_relative_tolerance,
 			newton_max_iterations=config.newton_max_iterations,
 			progress=config.progress,
 			step_observer=observer,
 		),
-		result_type=ImplicitABBA2SymplecticityResult,
+		result_type=ABBA2SimultaneousStateMultiplierSymplecticityResult,
 		project_root=project_root,
 		metadata={
 			**_implicit_study_metadata(config, metadata),
-			"implicit_formulation": "simultaneous_state_multiplier",
+			"projection_formulation": "simultaneous_state_multiplier",
 			"step_jacobian_method": jacobian_method,
 			"step_jacobian_scope": (
 				"emitted_finite_tolerance_solver_map"
@@ -329,26 +339,23 @@ def _run_formulation_observers(
 	)
 	common_metadata = {
 		**_implicit_study_metadata(config, metadata),
-		"implicit_formulation": (
-			"reduced_multiplier"
-			if formulation == "implicit_1"
-			else "simultaneous_state_multiplier"
-		),
+		"projection_formulation": formulation,
 	}
-	if formulation == "implicit_1":
+	if formulation == "reduced_multiplier":
 		return _run_gc_symplecticity_observers(
 			potential,
 			area,
 			notebook_path=notebook_path,
 			config=method_config,
-			method_factory=lambda observer: ImplicitABBA1(
+			method_factory=lambda observer: ABBA2Implicit(
+				projection_formulation=formulation,
 				newton_absolute_tolerance=config.newton_absolute_tolerance,
 				newton_relative_tolerance=config.newton_relative_tolerance,
 				newton_max_iterations=config.newton_max_iterations,
 				progress=config.progress,
 				step_observer=observer,
 			),
-			result_type=ImplicitABBA1SymplecticityResult,
+			result_type=ABBA2ReducedMultiplierSymplecticityResult,
 			project_root=project_root,
 			metadata=common_metadata,
 			jacobian_methods=observer_methods,
@@ -358,14 +365,15 @@ def _run_formulation_observers(
 		area,
 		notebook_path=notebook_path,
 		config=method_config,
-		method_factory=lambda observer: ImplicitABBA2(
+		method_factory=lambda observer: ABBA2Implicit(
+			projection_formulation=formulation,
 			newton_absolute_tolerance=config.newton_absolute_tolerance,
 			newton_relative_tolerance=config.newton_relative_tolerance,
 			newton_max_iterations=config.newton_max_iterations,
 			progress=config.progress,
 			step_observer=observer,
 		),
-		result_type=ImplicitABBA2SymplecticityResult,
+		result_type=ABBA2SimultaneousStateMultiplierSymplecticityResult,
 		project_root=project_root,
 		metadata=common_metadata,
 		jacobian_methods=observer_methods,
@@ -420,13 +428,13 @@ __all__ = [
 	"DEFAULT_IMPLICIT_ABBA_OBSERVERS",
 	"IMPLICIT_ABBA_FORMULATIONS",
 	"IMPLICIT_ABBA_JACOBIAN_METHODS",
-	"ImplicitABBA1SymplecticityResult",
-	"ImplicitABBA2SymplecticityResult",
+	"ABBA2ReducedMultiplierSymplecticityResult",
+	"ABBA2SimultaneousStateMultiplierSymplecticityResult",
 	"ImplicitABBAFormulation",
 	"ImplicitABBAObserverConfig",
 	"ImplicitABBASymplecticityComparison",
 	"ImplicitABBASymplecticityConfig",
-	"run_implicit_abba_1_symplecticity_study",
-	"run_implicit_abba_2_symplecticity_study",
+	"run_abba2_reduced_multiplier_symplecticity_study",
+	"run_abba2_simultaneous_state_multiplier_symplecticity_study",
 	"run_implicit_abba_symplecticity_study",
 ]

@@ -18,8 +18,8 @@ from dynamics import GuidingCenterDynamics
 from initial_conditions import GCInitialConfiguration
 from potential import Potential
 from simulation import (
-	ImplicitABBA1,
-	ImplicitABBA2,
+	ABBA_PROJECTION_FORMULATIONS,
+	ABBA2Implicit,
 	InitialValueProblem,
 	IntegrationStep,
 	SimulationRequest,
@@ -66,7 +66,7 @@ class ImplicitABBAIterationObserverTests(unittest.TestCase):
 			max_step=0.02,
 			sample_count=3,
 		)
-		for method_type in (ImplicitABBA1, ImplicitABBA2):
+		for formulation in ABBA_PROJECTION_FORMULATIONS:
 			with tempfile.TemporaryDirectory(dir="/tmp") as temporary:
 				root = Path(temporary)
 				with ImplicitABBAIterationObserver(
@@ -84,7 +84,10 @@ class ImplicitABBAIterationObserverTests(unittest.TestCase):
 							GuidingCenterDynamics(_potential(), rho=0.05),
 							_configuration(),
 						),
-						method_type(step_observer=observer),
+						ABBA2Implicit(
+							projection_formulation=formulation,
+							step_observer=observer,
+						),
 						request,
 					)
 
@@ -122,7 +125,7 @@ class ImplicitABBAIterationObserverTests(unittest.TestCase):
 
 	def test_study_exposes_frequencies_and_plot(self) -> None:
 		config = ImplicitABBAIterationStudyConfig(
-			formulation="implicit_1",
+			formulation="reduced_multiplier",
 			rho=0.05,
 			t_span=(0.0, 0.04),
 			max_step=0.02,
@@ -153,7 +156,7 @@ class ImplicitABBAIterationObserverTests(unittest.TestCase):
 			figure.canvas.draw()
 			plt.close(figure)
 			figure, axes = plot_implicit_abba_iteration_comparison(
-				{"implicit_1": result.records}
+				{"reduced_multiplier": result.records}
 			)
 			self.assertEqual(axes.shape, (2,))
 			self.assertEqual(
@@ -172,7 +175,7 @@ class ImplicitABBAIterationObserverTests(unittest.TestCase):
 				),
 				project_root=root,
 			)
-			with self.assertRaisesRegex(TypeError, "ImplicitABBAIntegrationStep"):
+			with self.assertRaisesRegex(TypeError, "ABBA2ImplicitIntegrationStep"):
 				observer(
 					IntegrationStep(
 						dynamics_name="GuidingCenterDynamics",

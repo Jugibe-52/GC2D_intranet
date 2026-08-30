@@ -19,7 +19,7 @@ from diagnostics.paths import (
 	notebook_output_directory,
 	validate_block_name,
 )
-from simulation import ImplicitABBAIntegrationStep, IntegrationStep
+from simulation import ABBA2ImplicitIntegrationStep, IntegrationStep
 
 from .analysis import (
 	ParticleJacobianAnalysis,
@@ -183,9 +183,10 @@ def _record_from_analysis(
 class ImplicitABBAJacobianObserver:
 	"""Analyze the local physical Jacobian of selected implicit-ABBA steps.
 
-	The observer uses converged stage snapshots emitted by ``ImplicitABBA1`` or
-	``ImplicitABBA2``. It studies only the complete physical map Jacobian; it does
-	not accumulate tangent maps or calculate area and symplecticity quantities.
+	The observer uses converged stage snapshots emitted by either
+	``ABBA2Implicit`` projection formulation. It studies only the complete
+	physical map Jacobian; it does not accumulate tangent maps or calculate area
+	and symplecticity quantities.
 	"""
 
 	def __init__(
@@ -265,9 +266,9 @@ class ImplicitABBAJacobianObserver:
 		"""Analyze one consecutive complete implicit-ABBA integration step."""
 		if self._closed:
 			raise RuntimeError("This implicit-ABBA Jacobian observer is already closed.")
-		if not isinstance(step, ImplicitABBAIntegrationStep):
+		if not isinstance(step, ABBA2ImplicitIntegrationStep):
 			raise TypeError(
-				"ImplicitABBAJacobianObserver requires ImplicitABBAIntegrationStep data."
+				"ImplicitABBAJacobianObserver requires ABBA2ImplicitIntegrationStep data."
 			)
 		if step.step_index != self._expected_step:
 			raise ValueError("Implicit ABBA steps must be observed consecutively.")

@@ -13,18 +13,18 @@ from dynamics import GuidingCenterDynamics
 from initial_conditions import TrajectoryGC
 from potential import Potential
 from simulation import (
-	MidpointABBA,
+	ABBA2Midpoint,
 	InitialValueProblem,
 	SimulationRequest,
 	simulate,
 )
-from simulation.methods.abba.midpoint import _midpoint_abba_step
+from simulation.methods.abba.order2_midpoint import _midpoint_abba_step
 from studies import (
-	MidpointABBASymplecticityConfig,
+	ABBA2MidpointSymplecticityConfig,
 	RandomPotentialConfig,
 	centered_square,
 	pi_area_steps,
-	run_midpoint_abba_symplecticity_study,
+	run_abba2_midpoint_symplecticity_study,
 )
 
 
@@ -74,7 +74,7 @@ def _deterministic_gc_dynamics() -> GuidingCenterDynamics:
 	return GuidingCenterDynamics(potential, rho=0.05)
 
 
-class MidpointABBATests(unittest.TestCase):
+class ABBA2MidpointTests(unittest.TestCase):
 	"""Verify stages, geometric limitation, accuracy and observation behavior."""
 
 	def test_non_autonomous_stages_use_both_step_endpoints(self) -> None:
@@ -87,7 +87,7 @@ class MidpointABBATests(unittest.TestCase):
 				dynamics,
 				TrajectoryGC(initial_state, rho=0.05),
 			),
-			MidpointABBA(),
+			ABBA2Midpoint(),
 			SimulationRequest.uniform(
 				t_span=(start, start + step),
 				max_step=step,
@@ -140,7 +140,7 @@ class MidpointABBATests(unittest.TestCase):
 			"""Return one final state on a fixed integration interval."""
 			return simulate(
 				problem,
-				MidpointABBA(),
+				ABBA2Midpoint(),
 				SimulationRequest.uniform(
 					t_span=(0.0, 0.4),
 					max_step=step,
@@ -162,7 +162,7 @@ class MidpointABBATests(unittest.TestCase):
 		events = []
 		observed = simulate(
 			problem,
-			MidpointABBA(step_observer=events.append),
+			ABBA2Midpoint(step_observer=events.append),
 			SimulationRequest.uniform(
 				t_span=(0.0, 0.05),
 				max_step=0.02,
@@ -171,7 +171,7 @@ class MidpointABBATests(unittest.TestCase):
 		)
 		sparse = simulate(
 			problem,
-			MidpointABBA(),
+			ABBA2Midpoint(),
 			SimulationRequest.uniform(
 				t_span=(0.0, 0.05),
 				max_step=0.02,
@@ -191,7 +191,7 @@ class MidpointABBATests(unittest.TestCase):
 			)
 
 
-class MidpointABBASymplecticityStudyTests(unittest.TestCase):
+class ABBA2MidpointSymplecticityStudyTests(unittest.TestCase):
 	"""Verify the reusable experiment study and persisted metadata."""
 
 	def test_short_study_returns_defects_and_copy_separation(self) -> None:
@@ -210,7 +210,7 @@ class MidpointABBASymplecticityStudyTests(unittest.TestCase):
 			points_per_side=1,
 			rho=0.05,
 		)
-		config = MidpointABBASymplecticityConfig(
+		config = ABBA2MidpointSymplecticityConfig(
 			steps=pi_area_steps(40, 80),
 			t_span=(0.0, np.pi / 20),
 			save_interval=np.pi / 20,
@@ -219,7 +219,7 @@ class MidpointABBASymplecticityStudyTests(unittest.TestCase):
 
 		with tempfile.TemporaryDirectory(dir="/tmp") as temporary:
 			root = Path(temporary)
-			result = run_midpoint_abba_symplecticity_study(
+			result = run_abba2_midpoint_symplecticity_study(
 				potential,
 				area,
 				notebook_path=(
@@ -239,7 +239,7 @@ class MidpointABBASymplecticityStudyTests(unittest.TestCase):
 			self.assertEqual(payload["metadata"]["projection"], "arithmetic_mean")
 			self.assertFalse(payload["metadata"]["projection_is_symplectic"])
 
-		self.assertEqual(result.method_name, "MidpointABBA")
+		self.assertEqual(result.method_name, "ABBA2Midpoint")
 		self.assertEqual(len(result.summaries()), 2)
 		self.assertEqual(len(result.convergence_orders()), 1)
 		for summary in result.summaries():

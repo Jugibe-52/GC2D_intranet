@@ -86,7 +86,7 @@ class ImplicitIntegrationStep(IntegrationStep):
 
 
 @dataclass(frozen=True, slots=True)
-class ImplicitABBAIntegrationStep(ImplicitIntegrationStep):
+class ABBA2ImplicitIntegrationStep(ImplicitIntegrationStep):
 	"""Expose converged ABBA stages without performing diagnostic analysis.
 
 	Analytic tangent diagnostics use these snapshots and ``dynamics`` to evaluate
@@ -121,7 +121,7 @@ class UnprojectedABBAIntegrationStep:
 
 
 @dataclass(frozen=True, slots=True)
-class ABBA4SingleProjectionIntegrationStep(ImplicitIntegrationStep):
+class ABBA4ImplicitSingleProjectionIntegrationStep(ImplicitIntegrationStep):
 	"""Expose one projection around a complete unprojected ABBA4 base map.
 
 	``substeps`` contains the continuous signed ``(gamma, delta, gamma)`` ABBA
@@ -138,7 +138,7 @@ class ABBA4SingleProjectionIntegrationStep(ImplicitIntegrationStep):
 
 
 @dataclass(frozen=True, slots=True)
-class ImplicitABBACompositionIntegrationStep(ImplicitIntegrationStep):
+class ABBAImplicitCompositionIntegrationStep(ImplicitIntegrationStep):
 	"""Expose accepted implicit-ABBA maps in one symmetric composition.
 
 	``substeps`` follows composition order. Each entry owns its converged
@@ -150,14 +150,14 @@ class ImplicitABBACompositionIntegrationStep(ImplicitIntegrationStep):
 	"""
 
 	composition_coefficients: np.ndarray = field(repr=False, compare=False)
-	substeps: tuple[ImplicitABBAIntegrationStep, ...] = field(
+	substeps: tuple[ABBA2ImplicitIntegrationStep, ...] = field(
 		repr=False,
 		compare=False,
 	)
 
 
 @dataclass(frozen=True, slots=True)
-class ImplicitABBA4IntegrationStep(ImplicitABBACompositionIntegrationStep):
+class ABBA4ImplicitIntegrationStep(ABBAImplicitCompositionIntegrationStep):
 	"""Expose the three accepted implicit-ABBA maps in one fourth-order step.
 
 	``substeps`` follows composition order and contains the signed
@@ -167,7 +167,7 @@ class ImplicitABBA4IntegrationStep(ImplicitABBACompositionIntegrationStep):
 
 
 @dataclass(frozen=True, slots=True)
-class ImplicitABBA6IntegrationStep(ImplicitABBACompositionIntegrationStep):
+class ABBA6ImplicitIntegrationStep(ABBAImplicitCompositionIntegrationStep):
 	"""Expose the seven accepted implicit-ABBA maps in one sixth-order step."""
 
 
@@ -217,11 +217,11 @@ StepObserver: TypeAlias = Callable[[IntegrationStep], None]
 
 
 __all__ = [
-	"ABBA4SingleProjectionIntegrationStep",
-	"ImplicitABBA4IntegrationStep",
-	"ImplicitABBA6IntegrationStep",
-	"ImplicitABBACompositionIntegrationStep",
-	"ImplicitABBAIntegrationStep",
+	"ABBA2ImplicitIntegrationStep",
+	"ABBA4ImplicitIntegrationStep",
+	"ABBA4ImplicitSingleProjectionIntegrationStep",
+	"ABBA6ImplicitIntegrationStep",
+	"ABBAImplicitCompositionIntegrationStep",
 	"ImplicitBM4IntegrationStep",
 	"FullyExtendedBaseMap",
 	"FullyExtendedImplicitIntegrationStep",

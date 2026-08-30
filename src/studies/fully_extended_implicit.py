@@ -18,8 +18,8 @@ from dynamics import GuidingCenterDynamics
 from initial_conditions import GCInitialConfiguration
 from potential import Potential
 from simulation import (
-	ABBA_implicit2,
-	ABBA4_implicit2,
+	ABBA2FullyExtendedImplicit,
+	ABBA4FullyExtendedImplicit,
 	BM4_implicit2,
 	FullyExtendedImplicitIntegrationStep,
 	IntegrationStep,
@@ -40,20 +40,20 @@ from ._validation import (
 
 
 FullyExtendedImplicitMethod = Literal[
-	"abba_implicit2",
-	"abba4_implicit2",
+	"abba2_fully_extended_implicit",
+	"abba4_fully_extended_implicit",
 	"bm4_implicit2",
 ]
 FULLY_EXTENDED_IMPLICIT_METHODS: tuple[FullyExtendedImplicitMethod, ...] = (
-	"abba_implicit2",
-	"abba4_implicit2",
+	"abba2_fully_extended_implicit",
+	"abba4_fully_extended_implicit",
 	"bm4_implicit2",
 )
 FULLY_EXTENDED_IMPLICIT_LABELS: Mapping[FullyExtendedImplicitMethod, str] = (
 	MappingProxyType(
 		{
-			"abba_implicit2": "ABBA_implicit2",
-			"abba4_implicit2": "ABBA4_implicit2",
+			"abba2_fully_extended_implicit": "ABBA2FullyExtendedImplicit",
+			"abba4_fully_extended_implicit": "ABBA4FullyExtendedImplicit",
 			"bm4_implicit2": "BM4_implicit2",
 		}
 	)
@@ -397,21 +397,19 @@ def _method_for_run(
 	observer: StepObserver,
 ) -> NumericalMethod:
 	"""Construct one requested method with the shared observer."""
-	if method == "abba_implicit2":
-		return ABBA_implicit2(
+	if method == "abba2_fully_extended_implicit":
+		return ABBA2FullyExtendedImplicit(
 			newton_absolute_tolerance=config.newton_absolute_tolerance,
 			newton_relative_tolerance=config.newton_relative_tolerance,
 			newton_max_iterations=config.newton_max_iterations,
-			coupling_frequency=config.coupling_frequency,
 			progress=config.progress,
 			step_observer=observer,
 		)
-	if method == "abba4_implicit2":
-		return ABBA4_implicit2(
+	if method == "abba4_fully_extended_implicit":
+		return ABBA4FullyExtendedImplicit(
 			newton_absolute_tolerance=config.newton_absolute_tolerance,
 			newton_relative_tolerance=config.newton_relative_tolerance,
 			newton_max_iterations=config.newton_max_iterations,
-			coupling_frequency=config.coupling_frequency,
 			progress=config.progress,
 			step_observer=observer,
 		)

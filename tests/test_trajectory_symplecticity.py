@@ -13,18 +13,18 @@ import numpy as np
 from diagnostics import (
 	bm4_implicit_1_step_particle_jacobians,
 	central_difference_jacobian,
-	implicit_abba_1_step_particle_jacobians,
-	midpoint_abba_step_particle_jacobians,
+	abba2_implicit_step_particle_jacobians,
+	abba2_midpoint_step_particle_jacobians,
 )
 from dynamics import GuidingCenterDynamics
 from initial_conditions import GCInitialConfiguration
 from potential import Potential
 from simulation import (
 	BM4Implicit1,
-	ImplicitABBA1,
+	ABBA2Implicit,
 	InitialValueProblem,
 	IntegrationStep,
-	MidpointABBA,
+	ABBA2Midpoint,
 	SimulationRequest,
 	simulate,
 )
@@ -34,8 +34,8 @@ from studies import (
 	TrajectorySymplecticityConfig,
 	random_gc_configuration,
 	run_bm4_implicit_1_trajectory_symplecticity_study,
-	run_implicit_abba_1_trajectory_symplecticity_study,
-	run_midpoint_abba_trajectory_symplecticity_study,
+	run_abba2_reduced_multiplier_trajectory_symplecticity_study,
+	run_abba2_midpoint_trajectory_symplecticity_study,
 )
 
 
@@ -78,15 +78,15 @@ class ExactTrajectoryJacobianTests(unittest.TestCase):
 			sample_count=2,
 		)
 		cases = (
-			(MidpointABBA, midpoint_abba_step_particle_jacobians),
-			(ImplicitABBA1, implicit_abba_1_step_particle_jacobians),
+			(ABBA2Midpoint, abba2_midpoint_step_particle_jacobians),
+			(ABBA2Implicit, abba2_implicit_step_particle_jacobians),
 			(BM4Implicit1, bm4_implicit_1_step_particle_jacobians),
 		)
 		for method_type, calculator in cases:
 			with self.subTest(method=method_type.__name__):
 				events: list[IntegrationStep] = []
 				kwargs: dict[str, object] = {"step_observer": events.append}
-				if method_type in (ImplicitABBA1, BM4Implicit1):
+				if method_type in (ABBA2Implicit, BM4Implicit1):
 					kwargs.update(
 						newton_absolute_tolerance=1e-14,
 						newton_relative_tolerance=1e-14,
@@ -137,8 +137,8 @@ class ExactTrajectoryJacobianTests(unittest.TestCase):
 			newton_relative_tolerance=1e-14,
 		)
 		runners = (
-			run_midpoint_abba_trajectory_symplecticity_study,
-			run_implicit_abba_1_trajectory_symplecticity_study,
+			run_abba2_midpoint_trajectory_symplecticity_study,
+			run_abba2_reduced_multiplier_trajectory_symplecticity_study,
 			run_bm4_implicit_1_trajectory_symplecticity_study,
 		)
 		with tempfile.TemporaryDirectory(dir="/tmp") as temporary:

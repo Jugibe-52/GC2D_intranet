@@ -10,18 +10,18 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from diagnostics import (
-	abba4_single_projection_implicit_1_step_particle_jacobians,
+	abba4_implicit_single_projection_step_particle_jacobians,
 	central_difference_jacobian,
 )
 from initial_conditions import GCInitialConfiguration
 from simulation import (
-	ABBA4Implicit1,
-	ABBA4SingleProjectionImplicit1,
+	ABBA4Implicit,
+	ABBA4ImplicitSingleProjection,
 	InitialValueProblem,
 	SimulationRequest,
 	simulate,
 )
-from simulation.methods.abba.order4_single_projection_implicit_1 import (
+from simulation.methods.abba.order4_implicit_single_projection import (
 	_evaluate_single_projection_residual,
 	_solve_abba4_single_projection_step,
 )
@@ -134,7 +134,7 @@ def _dense_particle_blocks(blocks: np.ndarray) -> np.ndarray:
 	return result
 
 
-class ABBA4SingleProjectionImplicit1Tests(unittest.TestCase):
+class ABBA4ImplicitSingleProjectionTests(unittest.TestCase):
 	"""Verify order, one solve, exact Newton differentiation, and symmetry."""
 
 	_solver = {
@@ -165,7 +165,7 @@ class ABBA4SingleProjectionImplicit1Tests(unittest.TestCase):
 		for step in (0.2, 0.1, 0.05):
 			solution = simulate(
 				problem,
-				ABBA4SingleProjectionImplicit1(
+				ABBA4ImplicitSingleProjection(
 					newton_absolute_tolerance=1e-14,
 					newton_relative_tolerance=1e-14,
 				),
@@ -188,7 +188,7 @@ class ABBA4SingleProjectionImplicit1Tests(unittest.TestCase):
 				x=np.asarray([0.8]),
 				y=np.asarray([0.3]),
 			),
-			ABBA4SingleProjectionImplicit1(
+			ABBA4ImplicitSingleProjection(
 				newton_absolute_tolerance=1e-14,
 				newton_relative_tolerance=1e-14,
 				step_observer=events.append,
@@ -205,7 +205,7 @@ class ABBA4SingleProjectionImplicit1Tests(unittest.TestCase):
 		self.assertLess(events[0].substeps[1].duration, 0.0)
 		self.assertEqual(solution.diagnostics["nonlinear_iterations"].shape, (2,))
 
-		exact = abba4_single_projection_implicit_1_step_particle_jacobians(
+		exact = abba4_implicit_single_projection_step_particle_jacobians(
 			events[0]
 		)[0]
 		numerical = central_difference_jacobian(
@@ -306,10 +306,10 @@ class ABBA4SingleProjectionImplicit1Tests(unittest.TestCase):
 			max_step=0.15,
 			sample_count=2,
 		)
-		old = simulate(problem, ABBA4Implicit1(), request).states[:, -1]
+		old = simulate(problem, ABBA4Implicit(), request).states[:, -1]
 		new = simulate(
 			problem,
-			ABBA4SingleProjectionImplicit1(),
+			ABBA4ImplicitSingleProjection(),
 			request,
 		).states[:, -1]
 		difference = float(np.linalg.norm(new - old))
@@ -327,10 +327,10 @@ class ABBA4SingleProjectionImplicit1Tests(unittest.TestCase):
 			max_step=0.1,
 			sample_count=3,
 		)
-		newton = simulate(problem, ABBA4SingleProjectionImplicit1(), request)
+		newton = simulate(problem, ABBA4ImplicitSingleProjection(), request)
 		broyden = simulate(
 			problem,
-			ABBA4SingleProjectionImplicit1(nonlinear_solver="broyden"),
+			ABBA4ImplicitSingleProjection(nonlinear_solver="broyden"),
 			request,
 		)
 		self.assertEqual(broyden.diagnostics["nonlinear_solver"], "broyden")
@@ -413,7 +413,7 @@ class ABBA4SingleProjectionStudyTests(unittest.TestCase):
 		self.assertEqual(len(orders), 2)
 		for row in summaries:
 			maps_per_evaluation = (
-				3 if row.method_name == "ABBA4SingleProjectionImplicit1" else 1
+				3 if row.method_name == "ABBA4ImplicitSingleProjection" else 1
 			)
 			self.assertEqual(
 				row.total_unprojected_abba_map_evaluations,

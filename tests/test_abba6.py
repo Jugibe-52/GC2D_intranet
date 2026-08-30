@@ -10,13 +10,13 @@ import numpy as np
 
 from initial_conditions import GCInitialConfiguration
 from simulation import (
-	ABBA6,
-	ImplicitABBA6IntegrationStep,
+	ABBA6Implicit,
+	ABBA6ImplicitIntegrationStep,
 	InitialValueProblem,
 	SimulationRequest,
 	simulate,
 )
-from simulation.methods.abba.order6 import _ABBA6_COEFFICIENTS, _solve_abba6_step
+from simulation.methods.abba.order6_implicit import _ABBA6_COEFFICIENTS, _solve_abba6_step
 from studies import (
 	ABBA6AccuracyConfig,
 	HighPrecisionReferenceConfig,
@@ -65,7 +65,7 @@ class ABBA6MethodTests(unittest.TestCase):
 		events = []
 		solution = simulate(
 			_rotation_problem(),
-			ABBA6(
+			ABBA6Implicit(
 				newton_absolute_tolerance=1e-14,
 				newton_relative_tolerance=1e-14,
 				step_observer=events.append,
@@ -78,7 +78,7 @@ class ABBA6MethodTests(unittest.TestCase):
 		)
 		self.assertEqual(len(events), 2)
 		step = events[0]
-		self.assertIsInstance(step, ImplicitABBA6IntegrationStep)
+		self.assertIsInstance(step, ABBA6ImplicitIntegrationStep)
 		self.assertEqual(len(step.substeps), 7)
 		np.testing.assert_allclose(
 			[substep.duration for substep in step.substeps],
@@ -114,7 +114,7 @@ class ABBA6MethodTests(unittest.TestCase):
 		for step in (0.2, 0.1, 0.05):
 			solution = simulate(
 				problem,
-				ABBA6(
+				ABBA6Implicit(
 					newton_absolute_tolerance=1e-14,
 					newton_relative_tolerance=1e-14,
 				),
@@ -162,7 +162,7 @@ class ABBA6MethodTests(unittest.TestCase):
 		for step in (0.25, 0.125, 0.0625):
 			solution = simulate(
 				problem,
-				ABBA6(
+				ABBA6Implicit(
 					newton_absolute_tolerance=1e-14,
 					newton_relative_tolerance=1e-14,
 				),
@@ -239,7 +239,7 @@ class ABBA6MethodTests(unittest.TestCase):
 		self.assertEqual(len(accuracy.summaries()), 2)
 		self.assertEqual(len(accuracy.convergence_orders()), 1)
 		for summary in accuracy.summaries():
-			self.assertEqual(summary.method_name, "ABBA6")
+			self.assertEqual(summary.method_name, "ABBA6Implicit")
 		for solution in accuracy.solutions.values():
 			self.assertEqual(solution.diagnostics["nonlinear_solves_per_step"], 7)
 		for values in accuracy.series.values():

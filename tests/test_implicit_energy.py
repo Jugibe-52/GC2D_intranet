@@ -175,7 +175,7 @@ class ImplicitGeneralizedEnergyStudyTests(unittest.TestCase):
 						float(np.max(run.reduced_extended_determinant_errors)),
 						1e-8,
 					)
-					expected_map_count = 3 if method == "abba4_implicit_1" else 1
+					expected_map_count = 3 if method == "abba4_implicit" else 1
 					self.assertTrue(
 						all(
 							record.base_map_count == expected_map_count
@@ -194,7 +194,11 @@ class ImplicitGeneralizedEnergyStudyTests(unittest.TestCase):
 				convergence_figure, _ = plot_generalized_energy_convergence(
 					result.summaries(),
 					method_name=result.method_name,
-					expected_order=2.0 if method == "implicit_abba_1" else 4.0,
+					expected_order=(
+						2.0
+						if method == "abba2_implicit_reduced_multiplier"
+						else 4.0
+					),
 				)
 				extended_figure, _ = plot_time_extended_symplecticity(
 					result.runs,

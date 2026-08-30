@@ -15,9 +15,8 @@ from diagnostics import (
 from dynamics import GuidingCenterDynamics
 from potential import Potential
 from simulation import (
-	ABBA4Implicit1,
-	ImplicitABBA1,
-	ImplicitABBA2,
+	ABBA4Implicit,
+	ABBA2Implicit,
 	InitialConfiguration,
 	InitialValueProblem,
 	NONLINEAR_SOLVERS,
@@ -31,14 +30,14 @@ from ._validation import nonnegative_finite, positive_finite, positive_integer
 
 
 ABBAReversibilityFormulation: TypeAlias = Literal[
-	"implicit_1",
-	"implicit_2",
-	"abba4_implicit_1",
+	"reduced_multiplier",
+	"simultaneous_state_multiplier",
+	"abba4_implicit",
 ]
 ABBA_REVERSIBILITY_FORMULATIONS: tuple[ABBAReversibilityFormulation, ...] = (
-	"implicit_1",
-	"implicit_2",
-	"abba4_implicit_1",
+	"reduced_multiplier",
+	"simultaneous_state_multiplier",
+	"abba4_implicit",
 )
 
 
@@ -46,7 +45,7 @@ ABBA_REVERSIBILITY_FORMULATIONS: tuple[ABBAReversibilityFormulation, ...] = (
 class ImplicitABBAReversibilityStudyConfig:
 	"""Physical, integration, nonlinear-solver, and sampling parameters."""
 
-	formulation: ABBAReversibilityFormulation = "implicit_1"
+	formulation: ABBAReversibilityFormulation = "reduced_multiplier"
 	rho: float = 0.3
 	t_span: tuple[float, float] = (0.0, 1.0)
 	max_step: float = 0.01
@@ -105,7 +104,7 @@ class ImplicitABBAReversibilityStudyResult:
 			print("No implicit ABBA reversibility samples were retained.")
 			return
 		print(
-			f"{self.solution.diagnostics['projection_solver_formulation']} / "
+			f"{self.solution.diagnostics['projection_formulation']} / "
 			f"{self.config.nonlinear_solver}"
 		)
 		print(
@@ -157,7 +156,7 @@ def run_implicit_abba_reversibility_study(
 		verbose=config.verbose_observer,
 	)
 	method = (
-		ABBA4Implicit1(
+		ABBA4Implicit(
 			newton_absolute_tolerance=config.newton_absolute_tolerance,
 			newton_relative_tolerance=config.newton_relative_tolerance,
 			newton_max_iterations=config.newton_max_iterations,
@@ -165,9 +164,10 @@ def run_implicit_abba_reversibility_study(
 			progress=config.progress,
 			step_observer=observer,
 		)
-		if config.formulation == "abba4_implicit_1"
+		if config.formulation == "abba4_implicit"
 		else (
-			ImplicitABBA1(
+			ABBA2Implicit(
+				projection_formulation="reduced_multiplier",
 				newton_absolute_tolerance=config.newton_absolute_tolerance,
 				newton_relative_tolerance=config.newton_relative_tolerance,
 				newton_max_iterations=config.newton_max_iterations,
@@ -175,8 +175,9 @@ def run_implicit_abba_reversibility_study(
 				progress=config.progress,
 				step_observer=observer,
 			)
-			if config.formulation == "implicit_1"
-			else ImplicitABBA2(
+			if config.formulation == "reduced_multiplier"
+			else ABBA2Implicit(
+				projection_formulation="simultaneous_state_multiplier",
 				newton_absolute_tolerance=config.newton_absolute_tolerance,
 				newton_relative_tolerance=config.newton_relative_tolerance,
 				newton_max_iterations=config.newton_max_iterations,

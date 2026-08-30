@@ -90,8 +90,10 @@ class ABBAComparisonStudyTests(unittest.TestCase):
 
 		# Both nonlinear formulations converge to the same projected physical map.
 		np.testing.assert_allclose(
-			result.solutions["ImplicitABBA1"].states,
-			result.solutions["ImplicitABBA2"].states,
+			result.solutions["ABBA2Implicit[reduced_multiplier]"].states,
+			result.solutions[
+				"ABBA2Implicit[simultaneous_state_multiplier]"
+			].states,
 			rtol=0.0,
 			atol=1e-14,
 		)
@@ -100,8 +102,9 @@ class ABBAComparisonStudyTests(unittest.TestCase):
 		implicit_pair = next(
 			row
 			for row in differences
-			if row.first_method == "ImplicitABBA1"
-			and row.second_method == "ImplicitABBA2"
+			if row.first_method == "ABBA2Implicit[reduced_multiplier]"
+			and row.second_method
+			== "ABBA2Implicit[simultaneous_state_multiplier]"
 		)
 		self.assertLess(implicit_pair.max_distance, 1e-14)
 
@@ -109,7 +112,11 @@ class ABBAComparisonStudyTests(unittest.TestCase):
 		difference_figure, difference_axis = result.plot_trajectory_differences()
 		self.assertEqual(len(runtime_axis.patches), 3)
 		self.assertEqual(len(difference_axis.lines), 6)
-		animation = result.animate("ImplicitABBA2", frames=2, interval=10)
+		animation = result.animate(
+			"ABBA2Implicit[reduced_multiplier]",
+			frames=2,
+			interval=10,
+		)
 		self.assertGreater(len(animation._func(1)), 0)
 		animation._draw_was_started = True
 		plt.close(runtime_figure)

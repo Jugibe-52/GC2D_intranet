@@ -13,16 +13,17 @@ import numpy as np
 from dynamics import GuidingCenterDynamics
 from potential import Potential
 from simulation import (
+	ABBA_PROJECTION_FORMULATIONS,
 	BM4Implicit1,
 	BM4Implicit2,
-	ImplicitABBA1,
-	ImplicitABBA2,
+	ABBA2Implicit,
 	InitialConfiguration,
 	InitialValueProblem,
-	MidpointABBA,
+	ABBA2Midpoint,
 	MidpointBM4,
 	NonlinearSolver,
 	NumericalMethod,
+	ProjectionFormulation,
 	SimulationRequest,
 	Solution,
 	simulate,
@@ -39,15 +40,42 @@ class TrajectoryMethodVariant:
 	method_name: str
 	family: str
 	nonlinear_solver: NonlinearSolver | None
+	projection_formulation: ProjectionFormulation | None = None
+
+	def __post_init__(self) -> None:
+		"""Require an explicit formulation exactly for fused ABBA2 variants."""
+		if not self.label or not self.method_name or not self.family:
+			raise ValueError("Variant labels and identities must be non-empty.")
+		if self.method_name == "ABBA2Implicit":
+			if self.projection_formulation not in ABBA_PROJECTION_FORMULATIONS:
+				raise ValueError(
+					"ABBA2Implicit variants require a projection formulation."
+				)
+		elif self.projection_formulation is not None:
+			raise ValueError(
+				"Only ABBA2Implicit variants accept a projection formulation."
+			)
 
 
 TEN_METHOD_VARIANTS: tuple[TrajectoryMethodVariant, ...] = (
-	TrajectoryMethodVariant("Midpoint ABBA", "MidpointABBA", "midpoint", None),
+	TrajectoryMethodVariant("Midpoint ABBA", "ABBA2Midpoint", "midpoint", None),
 	TrajectoryMethodVariant("Midpoint BM4", "MidpointBM4", "midpoint", None),
-	TrajectoryMethodVariant("Implicit ABBA 1 (Newton)", "ImplicitABBA1", "abba", "newton"),
-	TrajectoryMethodVariant("Implicit ABBA 1 (Broyden)", "ImplicitABBA1", "abba", "broyden"),
-	TrajectoryMethodVariant("Implicit ABBA 2 (Newton)", "ImplicitABBA2", "abba", "newton"),
-	TrajectoryMethodVariant("Implicit ABBA 2 (Broyden)", "ImplicitABBA2", "abba", "broyden"),
+	TrajectoryMethodVariant(
+		"ABBA2 reduced (Newton)", "ABBA2Implicit", "abba", "newton",
+		"reduced_multiplier",
+	),
+	TrajectoryMethodVariant(
+		"ABBA2 reduced (Broyden)", "ABBA2Implicit", "abba", "broyden",
+		"reduced_multiplier",
+	),
+	TrajectoryMethodVariant(
+		"ABBA2 simultaneous (Newton)", "ABBA2Implicit", "abba", "newton",
+		"simultaneous_state_multiplier",
+	),
+	TrajectoryMethodVariant(
+		"ABBA2 simultaneous (Broyden)", "ABBA2Implicit", "abba", "broyden",
+		"simultaneous_state_multiplier",
+	),
 	TrajectoryMethodVariant("BM4 implicit 1 (Newton)", "BM4Implicit1", "bm4", "newton"),
 	TrajectoryMethodVariant("BM4 implicit 1 (Broyden)", "BM4Implicit1", "bm4", "broyden"),
 	TrajectoryMethodVariant("BM4 implicit 2 (Newton)", "BM4Implicit2", "bm4", "newton"),
@@ -193,22 +221,17 @@ def _method_for_variant(
 	config: TenMethodTrajectoryComparisonConfig,
 ) -> NumericalMethod:
 	"""Build one configured method while keeping labels separate from class names."""
-	if variant.method_name == "MidpointABBA":
-		return MidpointABBA(progress=config.progress)
+	if variant.method_name == "ABBA2Midpoint":
+		return ABBA2Midpoint(progress=config.progress)
 	if variant.method_name == "MidpointBM4":
 		return MidpointBM4(progress=config.progress)
 	if variant.nonlinear_solver is None:
 		raise ValueError("Implicit variants require a nonlinear solver.")
-	if variant.method_name == "ImplicitABBA1":
-		return ImplicitABBA1(
-			newton_absolute_tolerance=config.absolute_tolerance,
-			newton_relative_tolerance=config.relative_tolerance,
-			newton_max_iterations=config.max_iterations,
-			nonlinear_solver=variant.nonlinear_solver,
-			progress=config.progress,
-		)
-	if variant.method_name == "ImplicitABBA2":
-		return ImplicitABBA2(
+	if variant.method_name == "ABBA2Implicit":
+		if variant.projection_formulation is None:
+			raise ValueError("ABBA2 variants require a projection formulation.")
+		return ABBA2Implicit(
+			projection_formulation=variant.projection_formulation,
 			newton_absolute_tolerance=config.absolute_tolerance,
 			newton_relative_tolerance=config.relative_tolerance,
 			newton_max_iterations=config.max_iterations,

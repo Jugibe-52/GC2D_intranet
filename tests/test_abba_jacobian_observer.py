@@ -22,8 +22,8 @@ from dynamics import GuidingCenterDynamics
 from initial_conditions import GCInitialConfiguration
 from potential import Potential
 from simulation import (
-	ImplicitABBA1,
-	ImplicitABBA2,
+	ABBA_PROJECTION_FORMULATIONS,
+	ABBA2Implicit,
 	InitialValueProblem,
 	SimulationRequest,
 	simulate,
@@ -100,7 +100,7 @@ class ImplicitABBAJacobianObserverTests(unittest.TestCase):
 			max_step=0.02,
 			sample_count=3,
 		)
-		for method_type in (ImplicitABBA1, ImplicitABBA2):
+		for formulation in ABBA_PROJECTION_FORMULATIONS:
 			with tempfile.TemporaryDirectory(dir="/tmp") as temporary:
 				root = Path(temporary)
 				with ImplicitABBAJacobianObserver(
@@ -119,7 +119,10 @@ class ImplicitABBAJacobianObserverTests(unittest.TestCase):
 							GuidingCenterDynamics(_potential(), rho=0.05),
 							configuration,
 						),
-						method_type(step_observer=observer),
+						ABBA2Implicit(
+							projection_formulation=formulation,
+							step_observer=observer,
+						),
 						request,
 					)
 				self.assertEqual(len(observer.samples), solution.n_steps)

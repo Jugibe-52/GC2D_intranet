@@ -14,7 +14,7 @@ from scipy.interpolate import RectBivariateSpline
 from dynamics import GuidingCenterDynamics
 from initial_conditions import GCInitialConfiguration
 from potential import GC2DH5Potential, Potential, load_gc2d_h5_potential
-from simulation import ABBA4Implicit1, InitialValueProblem, SimulationRequest, simulate
+from simulation import ABBA4Implicit, InitialValueProblem, SimulationRequest, simulate
 
 
 def _h5_interpolate(
@@ -284,7 +284,7 @@ class GC2DH5PotentialTests(unittest.TestCase):
 		np.testing.assert_allclose(ex, -potential.evaluate(time, query_x, query_y, dx=1))
 		np.testing.assert_allclose(ey, -potential.evaluate(time, query_x, query_y, dy=1))
 
-	def test_zero_gyroaverage_and_abba4_implicit_1_are_compatible(self) -> None:
+	def test_zero_gyroaverage_and_abba4_implicit_are_compatible(self) -> None:
 		"""Pass the strict Potential check and supply Hessians to implicit ABBA4."""
 		potential = load_gc2d_h5_potential(
 			self.path,
@@ -312,7 +312,7 @@ class GC2DH5PotentialTests(unittest.TestCase):
 
 		solution = simulate(
 			InitialValueProblem(dynamics, configuration),
-			ABBA4Implicit1(newton_max_iterations=20),
+			ABBA4Implicit(newton_max_iterations=20),
 			SimulationRequest.uniform(
 				t_span=(0.0, 1e-3),
 				max_step=5e-4,

@@ -13,8 +13,8 @@ from diagnostics.symplecticity import (
 )
 from initial_conditions import TrajectoryGC
 from simulation import (
-	ImplicitABBA1,
-	ImplicitABBA2,
+	ABBA_PROJECTION_FORMULATIONS,
+	ABBA2Implicit,
 	InitialValueProblem,
 	SimulationRequest,
 	simulate,
@@ -24,8 +24,8 @@ from simulation.methods.abba._projection import (
 	_evaluate_stages,
 	_simultaneous_newton_jacobian,
 	_simultaneous_residual_blocks,
-	_solve_projected_step,
-	_solve_simultaneous_projected_step,
+	_solve_reduced_multiplier_step,
+	_solve_simultaneous_state_multiplier_step,
 )
 from studies import (
 	ImplicitABBAObserverConfig,
@@ -101,8 +101,8 @@ class ImplicitABBAFormulationTests(unittest.TestCase):
 			"relative_tolerance": 1e-14,
 			"max_iterations": 12,
 		}
-		first = _solve_projected_step(dynamics, time, state, step, **solver)
-		second = _solve_simultaneous_projected_step(
+		first = _solve_reduced_multiplier_step(dynamics, time, state, step, **solver)
+		second = _solve_simultaneous_state_multiplier_step(
 			dynamics,
 			time,
 			state,
@@ -117,7 +117,7 @@ class ImplicitABBAFormulationTests(unittest.TestCase):
 			atol=2e-15,
 		)
 
-		backward = _solve_simultaneous_projected_step(
+		backward = _solve_simultaneous_state_multiplier_step(
 			dynamics,
 			time + step,
 			second.state,
@@ -126,7 +126,9 @@ class ImplicitABBAFormulationTests(unittest.TestCase):
 		)
 		np.testing.assert_allclose(backward.state, state, rtol=0.0, atol=2e-14)
 
-	def test_public_methods_report_distinct_solver_formulations(self) -> None:
+	def test_public_method_reports_and_matches_both_projection_formulations(
+		self,
+	) -> None:
 		dynamics = gc_dynamics()
 		state = np.asarray([1.0, 1.4, 1.2, 1.6])
 		problem = InitialValueProblem(
@@ -138,20 +140,26 @@ class ImplicitABBAFormulationTests(unittest.TestCase):
 			max_step=0.05,
 			sample_count=5,
 		)
-		first = simulate(problem, ImplicitABBA1(), request)
-		second = simulate(problem, ImplicitABBA2(), request)
-		np.testing.assert_allclose(second.states, first.states, rtol=0.0, atol=5e-15)
-		self.assertEqual(
-			first.diagnostics["projection_solver_formulation"],
-			"reduced_multiplier",
-		)
-		self.assertEqual(
-			second.diagnostics["projection_solver_formulation"],
-			"simultaneous_state_multiplier",
-		)
-		self.assertEqual(
-			second.diagnostics["newton_iterations"].shape,
-			(4,),
+		solutions = {
+			formulation: simulate(
+				problem,
+				ABBA2Implicit(projection_formulation=formulation),
+				request,
+			)
+			for formulation in ABBA_PROJECTION_FORMULATIONS
+		}
+		for formulation, solution in solutions.items():
+			self.assertEqual(
+				solution.diagnostics["projection_formulation"],
+				formulation,
+			)
+			self.assertEqual(solution.diagnostics["state_extension"], "physical")
+			self.assertEqual(solution.diagnostics["newton_iterations"].shape, (4,))
+		np.testing.assert_allclose(
+			solutions["simultaneous_state_multiplier"].states,
+			solutions["reduced_multiplier"].states,
+			rtol=0.0,
+			atol=5e-15,
 		)
 
 
@@ -180,13 +188,13 @@ class ImplicitABBASymplecticityStudyTests(unittest.TestCase):
 			chunk_size=2,
 			observers=(
 				ImplicitABBAObserverConfig(
-					label="implicit_2",
-					formulation="implicit_2",
+					label="simultaneous",
+					formulation="simultaneous_state_multiplier",
 					jacobian_method="finite_difference",
 				),
 				ImplicitABBAObserverConfig(
-					label="implicit_1",
-					formulation="implicit_1",
+					label="reduced",
+					formulation="reduced_multiplier",
 					jacobian_method="finite_difference",
 				),
 			),
@@ -207,17 +215,23 @@ class ImplicitABBASymplecticityStudyTests(unittest.TestCase):
 				project_root=root,
 			)
 
-		self.assertEqual(tuple(comparison.results), ("implicit_2", "implicit_1"))
+		self.assertEqual(tuple(comparison.results), ("simultaneous", "reduced"))
 		self.assertEqual(
-			{result.method_name for result in comparison.results.values()},
-			{"ImplicitABBA1", "ImplicitABBA2"},
+			{
+				label: result.method_name
+				for label, result in comparison.results.items()
+			},
+			{
+				"simultaneous": "ABBA2Implicit[simultaneous_state_multiplier]",
+				"reduced": "ABBA2Implicit[reduced_multiplier]",
+			},
 		)
 		with self.assertRaisesRegex(TypeError, "does not match formulation"):
 			ImplicitABBASymplecticityComparison(
 				observers=config.observers,
 				results={
-					"implicit_2": comparison.results["implicit_1"],
-					"implicit_1": comparison.results["implicit_2"],
+					"simultaneous": comparison.results["reduced"],
+					"reduced": comparison.results["simultaneous"],
 				},
 			)
 		difference = comparison.maximum_state_differences()[config.steps[0].label]

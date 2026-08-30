@@ -6,7 +6,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from time import perf_counter
 from types import MappingProxyType
-from typing import Any, Literal, Mapping, TypeAlias
+from typing import Any, Mapping, TypeAlias
 
 import numpy as np
 
@@ -20,10 +20,11 @@ from diagnostics.abba_jacobian import (
 from dynamics import GuidingCenterDynamics
 from potential import Potential
 from simulation import (
-	ImplicitABBA1,
-	ImplicitABBA2,
+	ABBA_PROJECTION_FORMULATIONS,
+	ABBA2Implicit,
 	InitialConfiguration,
 	InitialValueProblem,
+	ProjectionFormulation,
 	SimulationRequest,
 	Solution,
 	simulate,
@@ -32,11 +33,8 @@ from simulation import (
 from ._validation import nonnegative_finite, positive_finite, positive_integer
 
 
-ABBAJacobianFormulation: TypeAlias = Literal["implicit_1", "implicit_2"]
-ABBA_JACOBIAN_FORMULATIONS: tuple[ABBAJacobianFormulation, ...] = (
-	"implicit_1",
-	"implicit_2",
-)
+ABBAJacobianFormulation: TypeAlias = ProjectionFormulation
+ABBA_JACOBIAN_FORMULATIONS = ABBA_PROJECTION_FORMULATIONS
 
 
 def _readonly_float_array(value: np.ndarray) -> np.ndarray:
@@ -75,7 +73,7 @@ class ImplicitABBAJacobianParticleStepSeries:
 class ImplicitABBAJacobianStudyConfig:
 	"""Physical, numerical, sampling, and classification study parameters."""
 
-	formulation: ABBAJacobianFormulation = "implicit_1"
+	formulation: ABBAJacobianFormulation = "reduced_multiplier"
 	rho: float = 0.3
 	t_span: tuple[float, float] = (0.0, 1.0)
 	max_step: float = 0.01
@@ -227,7 +225,7 @@ class ImplicitABBAJacobianStudyResult:
 		maximum_condition = max(record.condition_number for record in self.records)
 		maximum_radius = max(record.spectral_radius for record in self.records)
 		print(
-			f"{self.solution.diagnostics['projection_solver_formulation']} / "
+			f"{self.solution.diagnostics['projection_formulation']} / "
 			f"{self.config.jacobian_method}"
 		)
 		print(
@@ -288,7 +286,6 @@ def run_implicit_abba_jacobian_study(
 		max_step=config.max_step,
 		sample_count=config.sample_count,
 	)
-	method_type = ImplicitABBA1 if config.formulation == "implicit_1" else ImplicitABBA2
 	with ImplicitABBAJacobianObserver(
 		notebook_path=notebook_path,
 		project_root=project_root,
@@ -306,7 +303,8 @@ def run_implicit_abba_jacobian_study(
 		started = perf_counter()
 		solution = simulate(
 			problem,
-			method_type(
+			ABBA2Implicit(
+				projection_formulation=config.formulation,
 				newton_absolute_tolerance=config.newton_absolute_tolerance,
 				newton_relative_tolerance=config.newton_relative_tolerance,
 				newton_max_iterations=config.newton_max_iterations,

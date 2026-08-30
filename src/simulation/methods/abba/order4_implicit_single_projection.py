@@ -11,14 +11,14 @@ from dynamics import GuidingCenterJacobianSystem
 from ..._fixed import integrate_fixed_grid
 from ..._result import IntegrationData
 from ...observation import (
-	ABBA4SingleProjectionIntegrationStep,
+	ABBA4ImplicitSingleProjectionIntegrationStep,
 	UnprojectedABBAIntegrationStep,
 )
 from ...problem import InitialValueProblem
 from ...request import SimulationRequest
 from .._nonlinear import NonlinearSolver, _solve_broyden
 from ._core import _ABBAStages, _evaluate_unprojected_stages
-from ._implicit import _ImplicitABBA
+from ._implicit import _ABBAImplicitConfig
 from ._projection import (
 	_checked_vector_field_jacobian,
 	_differentiate_stages,
@@ -29,7 +29,7 @@ _CUBE_ROOT_TWO = float(np.cbrt(2.0))
 _GAMMA = 1.0 / (2.0 - _CUBE_ROOT_TWO)
 _DELTA = -_CUBE_ROOT_TWO / (2.0 - _CUBE_ROOT_TWO)
 _ABBA4_COEFFICIENTS = np.asarray((_GAMMA, _DELTA, _GAMMA), dtype=float)
-_FORMULATION = "abba4_single_projection_implicit_1_reduced"
+_FORMULATION = "abba4_implicit_single_projection_reduced_multiplier"
 _BASE_COMPOSITION = "unprojected_abba4_triple_jump"
 
 
@@ -264,7 +264,7 @@ def _solve_abba4_single_projection_step(
 	state_scale = max(1.0, float(np.linalg.norm(value, ord=np.inf)))
 	threshold = absolute_tolerance + relative_tolerance * state_scale
 	context = (
-		"ABBA4 single-projection implicit formulation 1 at "
+		"ABBA4 single reduced-multiplier projection at "
 		f"t={t:.16g} with step={step:.16g}"
 	)
 
@@ -299,9 +299,7 @@ def _solve_abba4_single_projection_step(
 			residual_norm=float(np.linalg.norm(result.residual, ord=np.inf)),
 		)
 	if nonlinear_solver != "newton":
-		raise ValueError(
-			"Unknown nonlinear solver for ABBA4 single-projection formulation 1."
-		)
+		raise ValueError("Unknown nonlinear solver for ABBA4 single projection.")
 
 	for iteration in range(max_iterations + 1):
 		base = _evaluate_single_projection_base(
@@ -348,7 +346,7 @@ def _solve_abba4_single_projection_step(
 		multiplier = multiplier - correction_blocks.T.reshape(-1)
 
 	raise RuntimeError(
-		"ABBA4 single-projection implicit formulation 1 did not converge at "
+		"ABBA4 single reduced-multiplier projection did not converge at "
 		f"t={t:.16g} with step={step:.16g}: residual norm "
 		f"{residual_norm:.3e} exceeds {threshold:.3e} after "
 		f"{max_iterations} Newton iterations."
@@ -385,8 +383,8 @@ def _observed_substeps(
 	return tuple(result)
 
 
-def _integrate_abba4_single_projection_implicit_1(
-	method: ABBA4SingleProjectionImplicit1,
+def _integrate_abba4_implicit_single_projection(
+	method: ABBA4ImplicitSingleProjection,
 	problem: InitialValueProblem,
 	request: SimulationRequest,
 ) -> IntegrationData:
@@ -456,7 +454,7 @@ def _integrate_abba4_single_projection_implicit_1(
 					return solve_step(t, candidate, step).state
 
 				method.step_observer(
-					ABBA4SingleProjectionIntegrationStep(
+					ABBA4ImplicitSingleProjectionIntegrationStep(
 						dynamics_name=type(dynamics).__name__,
 						method_name=method_name,
 						step_index=step_index,
@@ -531,7 +529,8 @@ def _integrate_abba4_single_projection_implicit_1(
 		"newton_absolute_tolerance": method.newton_absolute_tolerance,
 		"newton_relative_tolerance": method.newton_relative_tolerance,
 		"newton_max_iterations": method.newton_max_iterations,
-		"projection_solver_formulation": _FORMULATION,
+		"projection_formulation": _FORMULATION,
+		"state_extension": "physical",
 	}
 	return IntegrationData(
 		t=request.output_times,
@@ -541,7 +540,7 @@ def _integrate_abba4_single_projection_implicit_1(
 
 
 @dataclass(frozen=True, slots=True)
-class ABBA4SingleProjectionImplicit1(_ImplicitABBA):
+class ABBA4ImplicitSingleProjection(_ABBAImplicitConfig):
 	"""Fourth-order ABBA triple jump with one reduced symmetric projection.
 
 	The signed ``(gamma h, delta h, gamma h)`` ABBA maps evolve two independent
@@ -556,11 +555,11 @@ class ABBA4SingleProjectionImplicit1(_ImplicitABBA):
 		request: SimulationRequest,
 	) -> IntegrationData:
 		"""Integrate a planar GC problem with one outer projection per step."""
-		return _integrate_abba4_single_projection_implicit_1(
+		return _integrate_abba4_implicit_single_projection(
 			self,
 			problem,
 			request,
 		)
 
 
-__all__ = ["ABBA4SingleProjectionImplicit1"]
+__all__ = ["ABBA4ImplicitSingleProjection"]

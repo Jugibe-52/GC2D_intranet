@@ -12,7 +12,7 @@ from matplotlib.figure import Figure
 
 from initial_conditions import Area
 from potential import Potential
-from simulation import ImplicitABBA1
+from simulation import ABBA2Implicit
 
 from ._gc_symplecticity import (
 	GCSymplecticityConfig,
@@ -79,7 +79,7 @@ class ABBAProjectionMultiplierOrder:
 class ABBASymplecticityResult(GCSymplecticityResult):
 	"""Projected ABBA solutions and numerical-floor diagnostics."""
 
-	method_name: ClassVar[str] = "ImplicitABBA1"
+	method_name: ClassVar[str] = "ABBA2Implicit[reduced_multiplier]"
 	summary_type: ClassVar[type[GCSymplecticitySummary]] = ABBASymplecticitySummary
 
 	def summaries(self) -> tuple[ABBASymplecticitySummary, ...]:
@@ -178,7 +178,8 @@ def run_abba_symplecticity_study(
 		area,
 		notebook_path=notebook_path,
 		config=config,
-		method_factory=lambda observer: ImplicitABBA1(
+		method_factory=lambda observer: ABBA2Implicit(
+			projection_formulation="reduced_multiplier",
 			newton_absolute_tolerance=config.newton_absolute_tolerance,
 			newton_relative_tolerance=config.newton_relative_tolerance,
 			newton_max_iterations=config.newton_max_iterations,

@@ -17,7 +17,7 @@ from ._core import _evaluate_unprojected_stages
 
 
 @dataclass(frozen=True, slots=True)
-class _MidpointABBAStep:
+class _ABBA2MidpointStep:
 	"""Physical average and off-diagonal copy separation after one ABBA map."""
 
 	state: np.ndarray
@@ -29,7 +29,7 @@ def _midpoint_abba_step(
 	t: float,
 	state: np.ndarray,
 	step: float,
-) -> _MidpointABBAStep:
+) -> _ABBA2MidpointStep:
 	"""Apply endpoint-time A-B-B-A and project both copies by their mean."""
 	value = np.asarray(state, dtype=float)
 	if value.ndim != 1 or value.size == 0 or not np.all(np.isfinite(value)):
@@ -43,7 +43,7 @@ def _midpoint_abba_step(
 		value,
 		step,
 	)
-	return _MidpointABBAStep(
+	return _ABBA2MidpointStep(
 		state=np.asarray((stages.u_final + stages.v_final) / 2.0),
 		copy_separation_norm=float(
 			np.linalg.norm(stages.residual, ord=np.inf)
@@ -52,7 +52,7 @@ def _midpoint_abba_step(
 
 
 @dataclass(frozen=True, slots=True)
-class MidpointABBA:
+class ABBA2Midpoint:
 	"""Second-order midpoint ABBA method with arithmetic mean projection.
 
 	The method duplicates the physical state, applies the endpoint-time A-B-B-A
@@ -71,9 +71,9 @@ class MidpointABBA:
 		"""Integrate one planar physical problem and retain copy separation."""
 		dynamics = problem.dynamics
 		if not isinstance(dynamics, DynamicalSystem):
-			raise TypeError("MidpointABBA requires DynamicalSystem.")
+			raise TypeError("ABBA2Midpoint requires DynamicalSystem.")
 		if dynamics.state_dimension != 2:
-			raise TypeError("MidpointABBA requires planar two-component dynamics.")
+			raise TypeError("ABBA2Midpoint requires planar two-component dynamics.")
 
 		copy_separation_norms: list[float] = []
 
@@ -125,10 +125,11 @@ class MidpointABBA:
 					copy_separation_norms,
 					dtype=float,
 				),
-				"projection_kind": "arithmetic_mean",
-				"vector_field_evaluations_per_step": 4,
+					"projection_kind": "arithmetic_mean",
+					"state_extension": "physical",
+					"vector_field_evaluations_per_step": 4,
 			},
 		)
 
 
-__all__ = ["MidpointABBA"]
+__all__ = ["ABBA2Midpoint"]

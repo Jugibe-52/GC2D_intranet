@@ -12,8 +12,8 @@ from matplotlib.figure import Figure
 
 
 ABBA4_PROJECTION_COLORS: dict[str, str] = {
-	"ABBA4Implicit1": "tab:blue",
-	"ABBA4SingleProjectionImplicit1": "tab:orange",
+	"ABBA4Implicit": "tab:blue",
+	"ABBA4ImplicitSingleProjection": "tab:orange",
 }
 
 
@@ -357,7 +357,7 @@ def plot_abba4_projection_multiplier_scaling(
 			color=color,
 			label=method_rows[steps[0]].method_label,
 		)
-		expected_order = 3.0 if method_name == "ABBA4Implicit1" else 5.0
+		expected_order = 3.0 if method_name == "ABBA4Implicit" else 5.0
 		guide = plot_values[0] * (step_values / step_values[0]) ** expected_order
 		axis.loglog(
 			step_values,

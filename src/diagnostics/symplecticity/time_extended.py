@@ -9,8 +9,8 @@ import numpy as np
 
 from dynamics import GuidingCenterDynamics
 from simulation import (
-	ImplicitABBA4IntegrationStep,
-	ImplicitABBAIntegrationStep,
+	ABBA4ImplicitIntegrationStep,
+	ABBA2ImplicitIntegrationStep,
 	ImplicitBM4IntegrationStep,
 	IntegrationStep,
 	gc_coupling_matrix,
@@ -52,7 +52,7 @@ def _momentum_derivative(
 
 
 def _abba_extended_map(
-	record: ImplicitABBAIntegrationStep,
+	record: ABBA2ImplicitIntegrationStep,
 	dynamics: GuidingCenterDynamics,
 ) -> ExtendedMap:
 	"""Return the accepted unprojected ABBA splitting on ``R^6``."""
@@ -189,8 +189,8 @@ def _measure_symplectic_map(
 class GCTimeExtendedSymplecticityObserver:
 	"""Measure the accepted splitting before diagonal Hairer projection.
 
-	For ``ImplicitABBA1`` and ``BM4Implicit1`` one record measures the complete
-	unprojected base cycle. ``ABBA4Implicit1`` projects between its three signed
+	For ``ABBA2Implicit`` and ``BM4Implicit1`` one record measures the complete
+	unprojected base cycle. ``ABBA4Implicit`` projects between its three signed
 	ABBA substeps, so its record aggregates the three legitimate ``R^6`` base-map
 	measurements instead of pretending that the dimension-reducing projection is
 	itself a map from ``R^6`` to ``R^6``.
@@ -228,7 +228,7 @@ class GCTimeExtendedSymplecticityObserver:
 			raise ValueError("Extended symplecticity records must be sequential.")
 
 		maps_and_states: list[tuple[ExtendedMap, np.ndarray]] = []
-		if isinstance(record, ImplicitABBA4IntegrationStep):
+		if isinstance(record, ABBA4ImplicitIntegrationStep):
 			for substep in record.substeps:
 				map_state = _abba_extended_map(substep, self._dynamics)
 				state = np.concatenate(
@@ -236,7 +236,7 @@ class GCTimeExtendedSymplecticityObserver:
 				)
 				maps_and_states.append((map_state, state))
 			scope = "three accepted ABBA base maps; inter-substep projections excluded"
-		elif isinstance(record, ImplicitABBAIntegrationStep):
+		elif isinstance(record, ABBA2ImplicitIntegrationStep):
 			map_state = _abba_extended_map(record, self._dynamics)
 			state = np.concatenate(
 				(record.u_initial, record.v_initial, (record.start_time, 0.0))
@@ -257,7 +257,7 @@ class GCTimeExtendedSymplecticityObserver:
 			scope = "complete accepted twelve-stage BM4 base cycle; projection excluded"
 		else:
 			raise TypeError(
-				"The observer supports ImplicitABBA1, ABBA4Implicit1, and "
+				"The observer supports ABBA2Implicit, ABBA4Implicit, and "
 				"BM4Implicit1 step records."
 			)
 

@@ -17,20 +17,20 @@ from diagnostics import (
 	GCTrajectorySymplecticityObserver,
 	TrajectoryJacobianCalculator,
 	TrajectorySymplecticityRecord,
-	abba4_implicit_1_step_particle_jacobians,
+	abba4_implicit_step_particle_jacobians,
 	bm4_implicit_1_step_particle_jacobians,
-	implicit_abba_1_step_particle_jacobians,
-	midpoint_abba_step_particle_jacobians,
+	abba2_implicit_step_particle_jacobians,
+	abba2_midpoint_step_particle_jacobians,
 )
 from dynamics import GuidingCenterDynamics
 from initial_conditions import GCInitialConfiguration
 from potential import Potential
 from simulation import (
-	ABBA4Implicit1,
+	ABBA4Implicit,
 	BM4Implicit1,
-	ImplicitABBA1,
+	ABBA2Implicit,
 	InitialValueProblem,
-	MidpointABBA,
+	ABBA2Midpoint,
 	NumericalMethod,
 	SimulationRequest,
 	Solution,
@@ -448,7 +448,7 @@ def _run_trajectory_symplecticity_study(
 	)
 
 
-def run_midpoint_abba_trajectory_symplecticity_study(
+def run_abba2_midpoint_trajectory_symplecticity_study(
 	potential: Potential,
 	initial_configuration: GCInitialConfiguration,
 	*,
@@ -463,11 +463,11 @@ def run_midpoint_abba_trajectory_symplecticity_study(
 		initial_configuration,
 		notebook_path=notebook_path,
 		config=config,
-		method_name="MidpointABBA",
-		method_slug="midpoint_abba",
+		method_name="ABBA2Midpoint",
+		method_slug="abba2_midpoint",
 		jacobian_method="explicit_abba_stage_chain",
-		jacobian_calculator=midpoint_abba_step_particle_jacobians,
-		method_factory=lambda observer: MidpointABBA(
+		jacobian_calculator=abba2_midpoint_step_particle_jacobians,
+		method_factory=lambda observer: ABBA2Midpoint(
 			progress=config.progress,
 			step_observer=observer,
 		),
@@ -480,7 +480,7 @@ def run_midpoint_abba_trajectory_symplecticity_study(
 	)
 
 
-def run_implicit_abba_1_trajectory_symplecticity_study(
+def run_abba2_reduced_multiplier_trajectory_symplecticity_study(
 	potential: Potential,
 	initial_configuration: GCInitialConfiguration,
 	*,
@@ -489,17 +489,18 @@ def run_implicit_abba_1_trajectory_symplecticity_study(
 	project_root: str | Path | None = None,
 	metadata: Mapping[str, Any] | None = None,
 ) -> TrajectorySymplecticityResult:
-	"""Run implicit ABBA formulation 1 with an exact ideal-root tangent."""
+	"""Run reduced-multiplier ABBA2 with an exact ideal-root tangent."""
 	return _run_trajectory_symplecticity_study(
 		potential,
 		initial_configuration,
 		notebook_path=notebook_path,
 		config=config,
-		method_name="ImplicitABBA1",
-		method_slug="implicit_abba_1",
+		method_name="ABBA2Implicit",
+		method_slug="abba2_implicit_reduced_multiplier",
 		jacobian_method="explicit_implicit_function_theorem",
-		jacobian_calculator=implicit_abba_1_step_particle_jacobians,
-		method_factory=lambda observer: ImplicitABBA1(
+		jacobian_calculator=abba2_implicit_step_particle_jacobians,
+		method_factory=lambda observer: ABBA2Implicit(
+			projection_formulation="reduced_multiplier",
 			newton_absolute_tolerance=config.newton_absolute_tolerance,
 			newton_relative_tolerance=config.newton_relative_tolerance,
 			newton_max_iterations=config.newton_max_iterations,
@@ -509,13 +510,13 @@ def run_implicit_abba_1_trajectory_symplecticity_study(
 		project_root=project_root,
 		metadata={
 			**dict(metadata or {}),
-			"implicit_formulation": "reduced_multiplier",
+			"projection_formulation": "reduced_multiplier",
 			"nonlinear_solver": "newton",
 		},
 	)
 
 
-def run_abba4_implicit_1_trajectory_symplecticity_study(
+def run_abba4_implicit_trajectory_symplecticity_study(
 	potential: Potential,
 	initial_configuration: GCInitialConfiguration,
 	*,
@@ -533,11 +534,11 @@ def run_abba4_implicit_1_trajectory_symplecticity_study(
 		initial_configuration,
 		notebook_path=notebook_path,
 		config=config,
-		method_name="ABBA4Implicit1",
-		method_slug="abba4_implicit_1",
+		method_name="ABBA4Implicit",
+		method_slug="abba4_implicit",
 		jacobian_method="three_substep_explicit_implicit_function_theorem",
-		jacobian_calculator=abba4_implicit_1_step_particle_jacobians,
-		method_factory=lambda observer: ABBA4Implicit1(
+		jacobian_calculator=abba4_implicit_step_particle_jacobians,
+		method_factory=lambda observer: ABBA4Implicit(
 			newton_absolute_tolerance=config.newton_absolute_tolerance,
 			newton_relative_tolerance=config.newton_relative_tolerance,
 			newton_max_iterations=config.newton_max_iterations,
@@ -547,8 +548,10 @@ def run_abba4_implicit_1_trajectory_symplecticity_study(
 		project_root=project_root,
 		metadata={
 			**dict(metadata or {}),
-			"implicit_formulation": "abba4_implicit_1_triple_jump",
-			"substep_implicit_formulation": "reduced_multiplier",
+			"projection_formulation": (
+				"abba4_implicit_reduced_multiplier_triple_jump"
+			),
+			"substep_projection_formulation": "reduced_multiplier",
 			"nonlinear_solver": "newton",
 			"composition_coefficients": (gamma, delta, gamma),
 			"signed_substeps": True,
@@ -603,8 +606,8 @@ __all__ = [
 	"TrajectorySymplecticityConfig",
 	"TrajectorySymplecticityResult",
 	"TrajectorySymplecticitySummary",
-	"run_abba4_implicit_1_trajectory_symplecticity_study",
+	"run_abba4_implicit_trajectory_symplecticity_study",
 	"run_bm4_implicit_1_trajectory_symplecticity_study",
-	"run_implicit_abba_1_trajectory_symplecticity_study",
-	"run_midpoint_abba_trajectory_symplecticity_study",
+	"run_abba2_reduced_multiplier_trajectory_symplecticity_study",
+	"run_abba2_midpoint_trajectory_symplecticity_study",
 ]
