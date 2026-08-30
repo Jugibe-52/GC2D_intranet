@@ -1,5 +1,6 @@
 @startuml
 title Implicit ABBA 1 Simulation Runtime Path
+scale max 4000 width
 
 left to right direction
 
@@ -10,6 +11,11 @@ skinparam ranksep 60
 skinparam defaultTextAlignment left
 skinparam classAttributeIconSize 0
 skinparam wrapWidth 160
+skinparam package<<layout>> {
+  BorderColor transparent
+  BackgroundColor transparent
+  FontColor transparent
+}
 
 hide circle
 hide empty members
@@ -38,94 +44,111 @@ package "Inherited boundary" as InheritedBoundary {
 }
 
 package "Run assembly" as RunAssembly {
-  class "src/simulation/configuration.py" as InitialConfiguration <<contract>> {
-    InitialConfiguration
-    --
-    Supplies the initial physical state
-    Exposes an independent StateLayout
+  package " " as MethodSlot <<layout>> {
+    class "src/simulation/methods/\nabba_implicit_1.py" as ImplicitABBA1 <<method>> {
+      ImplicitABBA1
+      --
+      Reduced projection formulation
+      Solver tolerances and iteration limit
+      Newton or Broyden selection
+    }
+
+    class "src/simulation/methods/\n_implicit_abba.py" as ImplicitABBABase <<base method>> {
+      _ImplicitABBA
+      --
+      Nonlinear solver configuration
+      integrate(problem, request)
+    }
+
+    class "src/simulation/methods/base.py" as NumericalMethod <<protocol>> {
+      NumericalMethod
+      --
+      integrate(problem, request)
+    }
   }
 
-  class "src/simulation/configuration.py" as StateLayout <<contract>> {
-    StateLayout
-    --
-    state_dimension
-    validate_packed_state_layout(...)
-    split(...) / particle_count(...)
-    positions(...)
+  package " " as RunnerSlot <<layout>> {
+    class "src/simulation/runner.py" as SimulationRunner <<facade>> {
+      simulate(problem, method, request)
+      --
+      Validates public inputs
+      Delegates numerical integration
+    }
   }
 
-  class "src/initial_conditions/base.py" as PackedStateLayout <<shared layout>> {
-    PackedStateLayout
-    --
-    validate / split / particle_count
-    as_blocks(...) / from_blocks(...)
-    pack_components(...)
+  package " " as RequestSlot <<layout>> {
+    class "src/simulation/request.py" as SimulationRequest <<value>> {
+      SimulationRequest
+      --
+      Time span
+      Maximum step
+      Requested output times
+    }
   }
 
-  class "src/initial_conditions/base.py" as StateConfiguration <<abstract storage>> {
-    StateConfiguration
-    --
-    initial_state
-    abstract layout property
-    compatibility forwarding methods
+  package "Shared state implementation" as SharedStateImplementation {
+    top to bottom direction
+    class "src/initial_conditions/base.py" as PackedStateLayout <<shared layout>> {
+      PackedStateLayout
+      --
+      validate / split / particle_count
+      as_blocks(...) / from_blocks(...)
+      pack_components(...)
+    }
+
+    class "src/initial_conditions/base.py" as StateConfiguration <<abstract storage>> {
+      StateConfiguration
+      --
+      initial_state
+      abstract layout property
+      compatibility forwarding methods
+    }
   }
 
-  class "src/initial_conditions/gc.py" as GCStateLayout <<concrete layout>> {
-    GCStateLayout
-    --
-    state_dimension = 2
-    split(...) -> GCState
-    positions(...)
+  package "Guiding-center initial state" as GuidingCenterInitialState {
+    top to bottom direction
+    class "src/initial_conditions/gc.py" as GCStateLayout <<concrete layout>> {
+      GCStateLayout
+      --
+      state_dimension = 2
+      split(...) -> GCState
+      positions(...)
+    }
+
+    class "src/initial_conditions/gc.py" as GCInitialConfiguration <<concrete>> {
+      GCInitialConfiguration
+      --
+      layout: GCStateLayout
+      from_components(x, y)
+    }
   }
 
-  class "src/initial_conditions/gc.py" as GCInitialConfiguration <<concrete>> {
-    GCInitialConfiguration
-    --
-    layout: GCStateLayout
-    from_components(x, y)
+  package "State contracts" as StateContracts {
+    top to bottom direction
+    class "src/simulation/configuration.py" as InitialConfiguration <<protocol>> {
+      InitialConfiguration
+      --
+      Supplies the initial physical state
+      Exposes an independent StateLayout
+    }
+
+    class "src/simulation/configuration.py" as StateLayout <<protocol>> {
+      StateLayout
+      --
+      state_dimension
+      validate_packed_state_layout(...)
+      split(...) / particle_count(...)
+      positions(...)
+    }
   }
 
-  class "src/simulation/problem.py" as InitialValueProblem <<value>> {
-    InitialValueProblem
-    --
-    Binds dynamics to initial configuration
-    Checks state-dimension compatibility
-  }
-
-  class "src/simulation/request.py" as SimulationRequest <<value>> {
-    SimulationRequest
-    --
-    Time span
-    Maximum step
-    Requested output times
-  }
-
-  class "src/simulation/runner.py" as SimulationRunner <<facade>> {
-    simulate(problem, method, request)
-    --
-    Validates public inputs
-    Delegates numerical integration
-  }
-
-  class "src/simulation/methods/base.py" as NumericalMethod <<protocol>> {
-    NumericalMethod
-    --
-    integrate(problem, request)
-  }
-
-  class "src/simulation/methods/\n_implicit_abba.py" as ImplicitABBABase <<base method>> {
-    _ImplicitABBA
-    --
-    Nonlinear solver configuration
-    integrate(problem, request)
-  }
-
-  class "src/simulation/methods/\nabba_implicit_1.py" as ImplicitABBA1 <<method>> {
-    ImplicitABBA1
-    --
-    Reduced projection formulation
-    Solver tolerances and iteration limit
-    Newton or Broyden selection
+  package " " as ProblemSlot <<layout>> {
+    class "src/simulation/problem.py" as InitialValueProblem <<value>> {
+      InitialValueProblem
+      --
+      Binds dynamics to initial configuration
+      Checks state-dimension compatibility
+    }
   }
 }
 
@@ -209,16 +232,23 @@ package "Result boundary" as ResultBoundary {
 }
 
 ' Type and implementation relationships.
-GuidingCenterJacobianSystem -up-|> DynamicalSystem
-GuidingCenterDynamics .up.|> GuidingCenterJacobianSystem
-GCStateLayout -up-|> PackedStateLayout
-GCInitialConfiguration -up-|> StateConfiguration
-GCStateLayout ..> StateLayout
-GCInitialConfiguration ..> InitialConfiguration
-InitialConfiguration o-- StateLayout
-GCInitialConfiguration o-- GCStateLayout
-ImplicitABBABase .up.|> NumericalMethod
-ImplicitABBA1 -up-|> ImplicitABBABase
+GuidingCenterJacobianSystem -right-|> DynamicalSystem
+GuidingCenterDynamics .right.|> GuidingCenterJacobianSystem
+GCStateLayout -right-|> PackedStateLayout
+GCInitialConfiguration -right-|> StateConfiguration
+GCStateLayout .left.|> StateLayout
+GCInitialConfiguration .left.|> InitialConfiguration
+InitialConfiguration o-down- StateLayout
+GCInitialConfiguration o-down- GCStateLayout
+StateConfiguration -[hidden]down- PackedStateLayout
+ProblemSlot -[hidden]right-> StateContracts
+StateContracts -[hidden]right-> GuidingCenterInitialState
+GuidingCenterInitialState -[hidden]right-> SharedStateImplementation
+SharedStateImplementation -[hidden]right-> RequestSlot
+RequestSlot -[hidden]right-> RunnerSlot
+RunnerSlot -[hidden]right-> MethodSlot
+ImplicitABBABase .left.|> NumericalMethod
+ImplicitABBA1 -left-|> ImplicitABBABase
 
 note bottom of StateConfiguration
   Abstract initial-state storage.
@@ -226,31 +256,34 @@ note bottom of StateConfiguration
 end note
 
 ' Public run assembly.
-DynamicalSystem --> InitialValueProblem
-InitialConfiguration --> InitialValueProblem
-InitialValueProblem --> SimulationRunner
-NumericalMethod --> SimulationRunner
-SimulationRequest --> SimulationRunner
+DynamicalSystem -right-> InitialValueProblem
+InitialConfiguration -left-> InitialValueProblem
+InitialValueProblem -right-> SimulationRunner
+NumericalMethod -left-> SimulationRunner
+SimulationRequest -right-> SimulationRunner
 
 ' Implicit ABBA runtime path.
-ImplicitABBA1 --> IntegrationCoordinator
-IntegrationCoordinator --> FixedGrid
-FixedGrid --> ProjectedStep
-ProjectedStep --> ABBAStages
-ABBAStages <--> ProjectionRoot
-ProjectionRoot --> AcceptedStep
+ImplicitABBA1 -right-> IntegrationCoordinator
+IntegrationCoordinator -right-> FixedGrid
+FixedGrid -right-> ProjectedStep
+ProjectedStep -right-> ABBAStages
+ABBAStages <-right-> ProjectionRoot
+ProjectionRoot -right-> AcceptedStep
 
 ' The inherited layer is consumed only through its public capabilities.
-GuidingCenterJacobianSystem ..> ABBAStages
-GuidingCenterJacobianSystem ..> ProjectionRoot
+GuidingCenterJacobianSystem .right.> ABBAStages
+GuidingCenterJacobianSystem .right.> ProjectionRoot
 
 ' Results and optional observation.
-AcceptedStep ..> StepObservation
-AcceptedStep --> IntegrationData
-IntegrationData --> RunnerReturn
-RunnerReturn --> Solution
-InitialConfiguration --> Solution
-StateLayout ..> Solution
+AcceptedStep .right.> StepObservation
+AcceptedStep -right-> IntegrationData
+IntegrationData -right-> RunnerReturn
+RunnerReturn -right-> Solution
+
+' Preserve the three principal phases independently of cross-phase dependencies.
+InheritedBoundary -[hidden]right-> RunAssembly
+RunAssembly -[hidden]right-> ImplicitIntegration
+ImplicitIntegration -[hidden]right-> ResultBoundary
 
 note bottom of GuidingCenterDynamics
   This is the hand-off from the dynamics diagram.
@@ -271,11 +304,10 @@ legend bottom
   |= Relation |= Meaning in this diagram |
   | solid line with hollow triangle | Explicit Python inheritance |
   | dashed line with hollow triangle | Structural implementation of a protocol |
-  | ordinary dashed arrow to a protocol | Structural conformance without inheritance |
-  | ordinary dashed arrow into a runtime step | Supplied capability or optional event |
+  | ordinary dashed arrow into a runtime step | Required capability or optional event |
   | hollow diamond | Configuration composes and exposes its layout |
-  | arrow into a consumer | Argument or returned data supplied to that consumer |
-  | arrow between runtime steps | Call, construction, or forward hand-off |
+  | ordinary solid arrow into a consumer | Argument or returned data supplied to that consumer |
+  | ordinary solid arrow between runtime steps | Call, construction, or forward hand-off |
 endlegend
 
 @enduml
