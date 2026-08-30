@@ -6,7 +6,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import ClassVar
 
-from ._implicit_bm4 import (
+from ._implicit import (
 	_ImplicitBM4,
 	_ProjectedBM4Step,
 	_solve_reduced_projected_bm4_step,

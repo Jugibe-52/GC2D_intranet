@@ -11,16 +11,16 @@ from typing import Literal
 
 import numpy as np
 
-from .._fixed import integrate_fixed_grid
-from .._result import IntegrationData
-from ..formulations import DirectAdjointFormulation
-from ..formulations.base import (
+from ..._fixed import integrate_fixed_grid
+from ..._result import IntegrationData
+from ...formulations import DirectAdjointFormulation
+from ...formulations.base import (
 	PreparedDirectAdjointFormulation,
 	generalized_energy_error,
 )
-from ..observation import IntegrationStage, StageObserver
-from ..problem import InitialValueProblem
-from ..request import SimulationRequest
+from ...observation import IntegrationStage, StageObserver
+from ...problem import InitialValueProblem
+from ...request import SimulationRequest
 
 
 _BM4_HALF_STAGES = np.asarray(

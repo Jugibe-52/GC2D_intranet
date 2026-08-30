@@ -16,11 +16,11 @@ from simulation import (
 	NONLINEAR_SOLVERS,
 	NonlinearSolver,
 )
-from simulation.methods.abba4_implicit_1 import (
+from simulation.methods.abba.order4_implicit_1 import (
 	_solve_abba4_step,
 	_substep_observation,
 )
-from simulation.methods._projected_abba import (
+from simulation.methods.abba._projection import (
 	_solve_projected_step,
 	_solve_simultaneous_projected_step,
 )
@@ -33,8 +33,8 @@ from .trajectory_symplecticity.jacobians import (
 
 _StepSolver = Callable[..., Any]
 _FORMULATION_SOLVERS: dict[str, _StepSolver] = {
-	"implicit_1_reduced_equation_11": _solve_projected_step,
-	"implicit_2_simultaneous_equation_21": _solve_simultaneous_projected_step,
+	"reduced_multiplier": _solve_projected_step,
+	"simultaneous_state_multiplier": _solve_simultaneous_projected_step,
 }
 _ObservedStep = ImplicitABBAIntegrationStep | ImplicitABBA4IntegrationStep
 

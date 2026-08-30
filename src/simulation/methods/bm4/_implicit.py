@@ -10,19 +10,19 @@ import numpy as np
 
 from dynamics import GuidingCenterDynamics
 
-from .._fixed import integrate_fixed_grid
-from .._result import IntegrationData
-from ..formulations import GCExtendedFormulation, gc_coupling_matrix
-from ..formulations.base import PreparedDirectAdjointFormulation
-from ..observation import ImplicitBM4IntegrationStep, IntegrationStage, StepObserver
-from ..problem import InitialValueProblem
-from ..request import SimulationRequest
-from ._nonlinear import (
+from ..._fixed import integrate_fixed_grid
+from ..._result import IntegrationData
+from ...formulations import GCExtendedFormulation, gc_coupling_matrix
+from ...formulations.base import PreparedDirectAdjointFormulation
+from ...observation import ImplicitBM4IntegrationStep, IntegrationStage, StepObserver
+from ...problem import InitialValueProblem
+from ...request import SimulationRequest
+from .._nonlinear import (
 	NonlinearSolver,
 	_solve_broyden,
 	_validate_nonlinear_solver,
 )
-from .bm4 import _BM4_ORDERS, _BM4_STAGES, _advance_composition
+from ._core import _BM4_ORDERS, _BM4_STAGES, _advance_composition
 
 
 NewtonJacobianMethod: TypeAlias = Literal["analytic", "finite_difference"]

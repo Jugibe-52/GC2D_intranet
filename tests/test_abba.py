@@ -25,7 +25,7 @@ from simulation import (
 	SimulationRequest,
 	simulate,
 )
-from simulation.methods._projected_abba import (
+from simulation.methods.abba._projection import (
 	_evaluate_residual,
 	_solve_projected_step,
 )

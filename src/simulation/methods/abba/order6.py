@@ -8,13 +8,13 @@ import numpy as np
 
 from dynamics import GuidingCenterJacobianSystem
 
-from .._result import IntegrationData
-from ..observation import ImplicitABBA6IntegrationStep
-from ..problem import InitialValueProblem
-from ..request import SimulationRequest
-from ._implicit_abba import _ImplicitABBA
-from ._nonlinear import NonlinearSolver
-from .abba4_implicit_1 import (
+from ..._result import IntegrationData
+from ...observation import ImplicitABBA6IntegrationStep
+from ...problem import InitialValueProblem
+from ...request import SimulationRequest
+from .._nonlinear import NonlinearSolver
+from ._implicit import _ImplicitABBA
+from .order4_implicit_1 import (
 	_ComposedABBAStep,
 	_integrate_composed_implicit_abba,
 	_solve_composed_abba_step,

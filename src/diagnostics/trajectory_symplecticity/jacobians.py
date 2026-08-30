@@ -203,7 +203,7 @@ def implicit_abba_1_step_particle_jacobians(
 		raise TypeError(
 			"ImplicitABBA1 exact Jacobians require converged stage snapshots."
 		)
-	if step.formulation_name != "implicit_1_reduced_equation_11":
+	if step.formulation_name != "reduced_multiplier":
 		raise TypeError("The observed step is not implicit ABBA formulation 1.")
 	dense = implicit_function_step_jacobian(step)
 	return particle_jacobian_blocks(dense, particle_count)
@@ -269,7 +269,7 @@ def abba4_implicit_1_step_particle_jacobians(
 		if (
 			substep.step_index != step.step_index
 			or substep.method_name != step.method_name
-			or substep.formulation_name != "implicit_1_reduced_equation_11"
+			or substep.formulation_name != "reduced_multiplier"
 			or substep.dynamics is not dynamics
 			or not np.isclose(
 				substep.start_time,

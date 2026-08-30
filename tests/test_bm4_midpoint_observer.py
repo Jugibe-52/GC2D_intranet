@@ -25,7 +25,7 @@ from simulation import (
 	SimulationRequest,
 	simulate,
 )
-from simulation.methods.bm4 import _BM4_ORDERS, _BM4_STAGES
+from simulation.methods.bm4._core import _BM4_ORDERS, _BM4_STAGES
 
 
 def _dynamics() -> GuidingCenterDynamics:

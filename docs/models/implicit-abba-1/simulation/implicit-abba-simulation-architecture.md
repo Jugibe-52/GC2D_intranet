@@ -323,10 +323,37 @@ The runner therefore depends on a method capability rather than on
 `ImplicitABBA1` specifically. Other numerical methods can enter through the same
 interface.
 
+### ABBA method subpackage
+
+All ABBA-specific numerical methods now live under
+[`src/simulation/methods/abba/`](../../../../src/simulation/methods/abba/).
+The public facade remains unchanged: callers still import `ImplicitABBA1`,
+`MidpointABBA`, and the other method classes from `simulation` or
+`simulation.methods`.
+
+| Module | Responsibility |
+|---|---|
+| `__init__.py` | Reexports the public ABBA method classes as one family. |
+| `_core.py` | Implements the generic endpoint-time A-B-B-A map shared by midpoint and implicit projection. |
+| `_projection.py` | Builds projection residuals, exact Jacobians, nonlinear solves, and accepted projected states. |
+| `_implicit.py` | Owns implicit-method configuration, run coordination, fixed-grid hand-off, and diagnostics. |
+| `midpoint.py` | Implements arithmetic-mean projection using the shared A-B-B-A core. |
+| `implicit_1.py` | Selects the reduced multiplier equation used by `ImplicitABBA1`. |
+| `implicit_2.py` | Selects the simultaneous output-and-multiplier equation used by `ImplicitABBA2`. |
+| `order4_implicit_1.py` | Composes three signed reduced implicit steps into `ABBA4Implicit1`. |
+| `order4_single_projection_implicit_1.py` | Applies one reduced projection around a complete fourth-order composition. |
+| `order6.py` | Implements the seven-substep sixth-order composition. |
+| `tangent_taylor.py` | Builds tangent-driven Taylor-like methods from converged implicit ABBA maps. |
+| `fully_extended.py` | Exposes the ABBA full-state variants built on the extended kernel shared with BM4. |
+
+Method-independent utilities remain outside the folder. In particular,
+`methods/_nonlinear.py` is shared by ABBA and BM4 nonlinear solvers, while
+`simulation/_fixed.py` is shared by numerical methods outside the ABBA family.
+
 ### `_ImplicitABBA`
 
 **File:**
-[`src/simulation/methods/_implicit_abba.py`](../../../../src/simulation/methods/_implicit_abba.py)
+[`src/simulation/methods/abba/_implicit.py`](../../../../src/simulation/methods/abba/_implicit.py)
 
 `_ImplicitABBA` is a private frozen dataclass that structurally implements
 `NumericalMethod`. It owns the shared nonlinear configuration and implements the
@@ -350,8 +377,9 @@ the nonlinear-solver name.
 
 #### `_ImplicitABBA.integrate(...)`
 
-Delegates the run to `_integrate_projected_abba(...)`, passing the selected step
-solver, formulation name, nonlinear settings, progress option, and observer.
+Delegates the run to the colocated `_integrate_projected_abba(...)`, passing the
+selected step solver, formulation name, nonlinear settings, progress option,
+and observer.
 
 The dashed hollow-triangle arrow to `NumericalMethod` again means structural
 implementation rather than explicit inheritance.
@@ -359,13 +387,19 @@ implementation rather than explicit inheritance.
 ### `ImplicitABBA1`
 
 **File:**
-[`src/simulation/methods/abba_implicit_1.py`](../../../../src/simulation/methods/abba_implicit_1.py)
+[`src/simulation/methods/abba/implicit_1.py`](../../../../src/simulation/methods/abba/implicit_1.py)
 
 `ImplicitABBA1` is a real Python subclass of `_ImplicitABBA`, shown by the solid
 inheritance triangle. The class adds no new instance method; it declares:
 
 - `_solve_projected_step` as `_step_solver`; and
-- `implicit_1_reduced_equation_11` as `_solver_formulation`.
+- `reduced_multiplier` as `_solver_formulation`.
+
+The formulation identifier is semantic rather than tied to a document's
+equation numbering. The implementation still solves the reduced residual
+derived as equation (11), but renumbering that derivation no longer requires a
+code or diagnostic identifier change. `ImplicitABBA2` analogously reports
+`simultaneous_state_multiplier`.
 
 Consequently, an `ImplicitABBA1` instance inherits the validated tolerances,
 solver selection, observer configuration, and `integrate(...)` implementation
@@ -374,12 +408,40 @@ the integration coordinator.
 
 ## Part 2: implicit ABBA integration
 
-Most boxes in this region correspond to roles inside
-[`src/simulation/methods/_projected_abba.py`](../../../../src/simulation/methods/_projected_abba.py).
-The scheduler is the separate shared utility
+This region makes the numerical execution order explicit. Read its principal
+boxes from left to right:
+
+```text
+coordinator -> outer time loop -> step setup -> duplicated input
+            -> shared A-B-B-A map -> projection residual
+            -> convergence test -> correction or acceptance
+            -> outer-loop continuation -> IntegrationData
+```
+
+There are two nested loops:
+
+1. The **outer time loop** advances the physical trajectory over the uniform
+   main grid and, when necessary, computes independent shadow samples.
+2. The **inner nonlinear loop** solves one projected ABBA step by repeatedly
+   evaluating the residual and correcting the multiplier `mu`.
+
+Most boxes are algorithmic roles rather than separate public Python classes.
+Their files are deliberately separated by responsibility:
+
+- [`_implicit.py`](../../../../src/simulation/methods/abba/_implicit.py) coordinates
+  the complete run;
+- [`_projection.py`](../../../../src/simulation/methods/abba/_projection.py)
+  implements the implicit projection; and
+- [`_core.py`](../../../../src/simulation/methods/abba/_core.py) applies the
+  projection-independent A-B-B-A stage map.
+
+The outer scheduler remains the shared utility
 [`src/simulation/_fixed.py`](../../../../src/simulation/_fixed.py).
 
 ### Integration coordinator: `_integrate_projected_abba(...)`
+
+**File:**
+[`src/simulation/methods/abba/_implicit.py`](../../../../src/simulation/methods/abba/_implicit.py)
 
 This private function coordinates the complete method run.
 
@@ -407,138 +469,221 @@ diagnostics into `IntegrationData`:
 - configured absolute tolerance, relative tolerance, and iteration limit.
 
 The `newton_*` diagnostic names remain alongside the general `nonlinear_*`
-names for compatibility.
+names for compatibility. The coordinator does not itself perform the temporal
+or nonlinear iteration: it creates the callback and hands control to the outer
+time loop.
 
-### Fixed-grid scheduler: `integrate_fixed_grid(...)`
+### Outer time loop — entry: `integrate_fixed_grid(...)`
 
 **File:** [`src/simulation/_fixed.py`](../../../../src/simulation/_fixed.py)
 
 The scheduler separates the numerical trajectory from the requested sampling
-schedule.
+schedule. At the `FixedGrid` box it performs these actions:
 
-1. It chooses the smallest uniform main-step count whose internal step does not
+1. Chooses the smallest uniform main-step count whose internal step does not
    exceed `request.max_step`.
-2. It advances the main trajectory from `t_0` to `t_f` with equal steps.
-3. If an output time lies exactly on a main-grid endpoint, it reuses that state.
-4. If an output time lies inside a main interval, it performs a shorter **shadow
-   advance** from the preceding main-grid state.
+2. Builds the uniform main grid from `t_0` to `t_f`.
+3. For each required interval, it invokes the coordinator's `advance(...)`
+   callback with a main or shadow step.
 
-A shadow advance is used only to obtain a requested sample. It does not replace
-the main state, affect later steps, contribute main-step diagnostics, or emit a
-step observation. Consequently, changing `output_times` does not change the
-underlying main integration trajectory.
+The callback then enters the one-step setup shown in the next box. The effects
+of the returned main or shadow state are described later under
+**Outer time loop — continuation**, matching its position near the right-hand
+side of the diagram.
 
-The function returns:
+### One-step setup: `_solve_projected_step(...)`
 
-- a state history with shape `(state_size, number_of_output_times)`; and
-- the number of accepted main-grid steps.
+**File:**
+[`src/simulation/methods/abba/_projection.py`](../../../../src/simulation/methods/abba/_projection.py)
 
-### Projected step: `_solve_projected_step(...)`
+This is the step solver selected by `ImplicitABBA1`. One invocation receives:
 
-This is the step solver selected by `ImplicitABBA1`. Its inputs are the dynamics,
-current time `t`, physical state `z`, step duration `h`, nonlinear tolerances,
-iteration limit, and solver choice.
+- the dynamics;
+- the current main or shadow start time `t_n`;
+- the packed physical state `z_n`;
+- the requested step duration `h`; and
+- the nonlinear tolerances, iteration limit, and solver selection.
 
-The function:
+Before starting the inner loop, it validates `z_n`, initializes the projection
+multiplier as
 
-1. validates the current physical state;
-2. initializes the projection multiplier with `mu = 0`;
-3. computes the stopping threshold
+\[
+\mu_0 = 0,
+\]
 
-   \[
-   \tau = \text{atol} + \text{rtol}\,
-   \max\left(1, \lVert z \rVert_\infty\right);
-   \]
+and computes the stopping threshold
 
-4. repeatedly evaluates the duplicated ABBA stage map;
-5. updates `mu` with Newton or good Broyden steps until the residual norm is at
-   most `tau`; and
-6. returns a `_ProjectedStep` record.
+\[
+\tau = \operatorname{atol} + \operatorname{rtol}\,
+\max\left(1, \lVert z_n \rVert_\infty\right).
+\]
+
+This setup occurs once per attempted main or shadow advance. The following
+residual evaluation and correction may occur several times within that same
+advance.
+
+### Inner nonlinear loop — duplicated input
+
+**File:**
+[`src/simulation/methods/abba/_projection.py`](../../../../src/simulation/methods/abba/_projection.py)
+
+At the start of nonlinear iteration `k`, `_evaluate_stages(...)` uses the
+current multiplier to create two displaced copies of the same physical state:
+
+\[
+u_0 = z_n + \mu_k,
+\qquad
+v_0 = z_n - \mu_k.
+\]
+
+This displacement is projection-specific. When the correction produces
+`mu_(k+1)`, the backward arrow returns here so both copies are reconstructed
+before the four stages are reevaluated.
+
+### Inner nonlinear loop — shared A-B-B-A map
+
+**File:**
+[`src/simulation/methods/abba/_core.py`](../../../../src/simulation/methods/abba/_core.py)
+
+`_evaluate_unprojected_stages(...)` accepts any `DynamicalSystem`; it needs only
+`vector_field(...)`, not guiding-centre Jacobians. With initial copies `u_0` and
+`v_0`, vector field `f`, initial time `t_n`, final time `t_n+h`, and step `h`,
+it performs the endpoint-time shears:
+
+\[
+\begin{aligned}
+u_1 &= u_0 + \frac{h}{2}f(t_n,v_0), \\
+v_1 &= v_0 + \frac{h}{2}f(t_n,u_1), \\
+v_f &= v_1 + \frac{h}{2}f(t_n+h,u_1), \\
+u_f &= u_1 + \frac{h}{2}f(t_n+h,v_f).
+\end{aligned}
+\]
+
+The core then records the unprojected copy separation
+
+\[
+d_k = u_f-v_f.
+\]
+
+The private `_ABBAStages` record retains `u_initial`, `v_initial`, `u_first`,
+`v_final`, `u_final`, and this separation in its `residual` field. The name of
+that field is intentionally generic because the projection layer replaces it
+with the complete reduced residual. `_checked_vector_field(...)` guards every
+stage evaluation against a changed shape or non-finite value.
+
+#### Reuse by `MidpointABBA`
+
+[`midpoint.py`](../../../../src/simulation/methods/abba/midpoint.py) calls the
+same core with
+
+\[
+u_0=v_0=z_n.
+\]
+
+It does not introduce a multiplier or nonlinear solve. It accepts the arithmetic
+mean `(u_f+v_f)/2` and records `||d||_inf` as the copy-separation diagnostic.
+The dashed arrow in the diagram represents this shared-core dependency;
+`MidpointABBA` is not executed during an `ImplicitABBA1` run.
+
+### Inner nonlinear loop — projection residual
+
+**File:**
+[`src/simulation/methods/abba/_projection.py`](../../../../src/simulation/methods/abba/_projection.py)
+
+After the shared map returns, `_evaluate_stages(...)` adds the multiplier term
+required by Hairer's reduced symmetric projection:
+
+\[
+r_k = r(\mu_k) = d_k + 2\mu_k
+    = u_f(\mu_k)-v_f(\mu_k)+2\mu_k.
+\]
+
+The returned projected `_ABBAStages` snapshots therefore contain the complete
+`r_k` used by the convergence test, diagnostics, and optional tangent analysis.
+
+### Inner nonlinear loop — convergence decision
+
+After every residual evaluation, the solver checks
+
+\[
+\lVert r_k \rVert_\infty \leq \tau.
+\]
+
+The two outgoing arrows from `ResidualTest` are the two possible numerical
+branches:
+
+- **yes:** the multiplier has converged, so execution moves directly to
+  `AcceptedStep`;
+- **no:** execution enters `NonlinearCorrection`, computes a new multiplier,
+  and follows the backward arrow to reevaluate all ABBA stages.
+
+This is a convergence decision inside one time step. It must not be confused
+with the outer scheduler's decision to advance to another physical time.
+
+### Inner nonlinear loop — multiplier correction
+
+**File:**
+[`src/simulation/methods/abba/_projection.py`](../../../../src/simulation/methods/abba/_projection.py)
+
+Both available solvers target the same reduced root `r(mu) = 0`; they differ
+only in how they compute the correction `Delta_mu_k`.
+
+#### Newton path
+
+Newton differentiates the four traversed ABBA stages with
+`_differentiate_stages(...)`; `_evaluate_residual(...)` combines that
+differentiation with the current stage evaluation. Newton evaluates exact
+particle vector-field Jacobians at the relevant endpoint-time states and
+assembles one independent
+`2 x 2` reduced residual Jacobian `J_r` per particle. The packed system
+
+\[
+J_r(\mu_k)\,\Delta\mu_k = r_k
+\]
+
+is reshaped into particle blocks, solved in a batch, and repacked into
+component-major order.
+
+#### Broyden path
+
+Broyden consumes the residual-only `_evaluate_stages(...)` path and does not
+call `_differentiate_stages(...)` or the exact particle-Jacobian capability. It
+starts with `4 I` as its residual-Jacobian approximation `B_0`, solves
+
+\[
+B_k\,\Delta\mu_k = r_k,
+\]
+
+and updates the approximation from successive multiplier and residual changes.
+
+#### Return to the residual
+
+Whichever solver is selected, the multiplier update is
+
+\[
+\mu_{k+1} = \mu_k - \Delta\mu_k.
+\]
+
+The backward arrow from `NonlinearCorrection` to `DuplicatedInput` means that
+`u_0`, `v_0`, every A-B-B-A stage, `d_{k+1}`, and `r_{k+1}` are recomputed using
+this new multiplier. This cycle continues until the convergence test succeeds.
 
 If the iteration limit is reached, or if a Newton block is singular, the method
 raises a contextual `RuntimeError` containing the time, step size, and residual
 information.
 
-### Duplicated ABBA stage map
+### Accepted physical state
 
-This is a conceptual diagram box implemented by `_evaluate_stages(...)`,
-`_evaluate_unprojected_stages(...)`, and the private `_ABBAStages` record. It is
-not a public class named `ABBAStages`.
+**File:**
+[`src/simulation/methods/abba/_projection.py`](../../../../src/simulation/methods/abba/_projection.py)
 
-For current physical state `z` and multiplier `mu`, two displaced copies are
-created:
+Once `mu_star` satisfies the stopping condition, the final duplicated states
+are projected as
 
 \[
-u_0 = z + \mu,
+u^+ = u_f + \mu_\star,
 \qquad
-v_0 = z - \mu.
-\]
-
-With vector field `f`, step `h`, initial time `t`, and final time `t+h`, the
-endpoint-time A-B-B-A shears are:
-
-\[
-\begin{aligned}
-u_1 &= u_0 + \frac{h}{2}f(t,v_0), \\
-v_1 &= v_0 + \frac{h}{2}f(t,u_1), \\
-v_f &= v_1 + \frac{h}{2}f(t+h,u_1), \\
-u_f &= u_1 + \frac{h}{2}f(t+h,v_f).
-\end{aligned}
-\]
-
-The `_ABBAStages` record retains `u_initial`, `v_initial`, `u_first`, `v_final`,
-`u_final`, and the residual. These snapshots support the nonlinear solve,
-diagnostics, and optional exact tangent analysis.
-
-`_checked_vector_field(...)` guards every stage evaluation against a changed
-shape or non-finite value.
-
-### Nonlinear projection root
-
-This is another conceptual box. The reduced nonlinear equation is solved inside
-`_solve_projected_step(...)`; Broyden's reusable iteration machinery lives in
-`_solve_broyden(...)`.
-
-The reduced residual is:
-
-\[
-r(\mu) = u_f(\mu) - v_f(\mu) + 2\mu.
-\]
-
-The bidirectional arrow between the stage map and the root means:
-
-1. the root solver proposes a multiplier `mu`;
-2. the ABBA map evaluates `u_f`, `v_f`, and `r(mu)`; and
-3. the root solver uses that residual to produce the next multiplier.
-
-#### Newton path
-
-Newton differentiates the four traversed ABBA stages with
-`_differentiate_stages(...)`. It evaluates exact particle vector-field
-Jacobians at the relevant endpoint-time states and assembles one independent
-`2 x 2` reduced residual Jacobian per particle. The packed residual is reshaped
-into particle blocks, solved in a batch, and repacked into component-major
-order.
-
-#### Broyden path
-
-Broyden evaluates the same reduced residual but does not call the exact
-particle-Jacobian capability. It starts with `4 I` as the residual-Jacobian
-approximation and updates that approximation from successive residuals and
-multiplier changes.
-
-Both paths target the same reduced implicit root. The choice changes how the
-root is found, not the accepted mathematical equation.
-
-### Accepted physical step
-
-This conceptual box corresponds to the private `_ProjectedStep` dataclass.
-After convergence, the projected copies are
-
-\[
-u^+ = u_f + \mu,
-\qquad
-v^+ = v_f - \mu,
+v^+ = v_f - \mu_\star,
 \]
 
 and the accepted physical state is their neutral mean:
@@ -547,18 +692,44 @@ and the accepted physical state is their neutral mean:
 z_{n+1} = \frac{u^+ + v^+}{2}.
 \]
 
-The returned `_ProjectedStep` also contains:
+The private `_ProjectedStep` returned to the scheduler contains:
 
 | Field | Meaning |
 |---|---|
 | `state` | Accepted physical state `z_(n+1)` |
-| `multiplier` | Converged projection multiplier `mu` |
+| `multiplier` | Converged projection multiplier `mu_star` |
 | `stages` | Converged `_ABBAStages` snapshots |
 | `iterations` | Number of nonlinear corrections |
 | `residual_evaluations` | Number of residual evaluations |
 | `residual_norm` | Final infinity norm of the reduced residual |
 
-### Optional step observation
+### Outer time loop — continuation
+
+Control now returns to `integrate_fixed_grid(...)`. The meaning of the accepted
+state depends on the `observe` flag passed to the callback:
+
+- With `observe=True`, it is a **main-grid advance**. The scheduler replaces
+  the main state, and the coordinator records nonlinear diagnostics and may
+  emit a step observation.
+- With `observe=False`, it is a **shadow advance** used only to obtain a
+  requested output sample. It does not replace the main state, affect later
+  steps, contribute main-step diagnostics, or emit a step observation.
+
+If an output time lies exactly on a main-grid endpoint, the scheduler reuses
+that main state. If it lies inside a main interval, the scheduler computes a
+shorter shadow advance from the preceding main-grid state. Consequently,
+changing `output_times` does not change the underlying main integration
+trajectory.
+
+The scheduler repeats the outer loop until `t_f` and returns:
+
+- a state history with shape `(state_size, number_of_output_times)`; and
+- the number of accepted main-grid steps.
+
+The coordinator then completes the `IntegrationData` object described at the
+beginning of this section.
+
+### Optional main-step observation
 
 **File:** [`src/simulation/observation.py`](../../../../src/simulation/observation.py)
 
@@ -681,19 +852,29 @@ wall-clock execution.
     configuration.
 11. `ImplicitABBA1` selects the reduced equation-(11) formulation and enters
     `_integrate_projected_abba(...)`.
-12. The coordinator checks guiding-centre capabilities and configures the
-    fixed-grid `advance(...)` callback.
-13. `integrate_fixed_grid(...)` advances the output-independent main grid and
-    performs any required shadow samples.
-14. Each advance calls `_solve_projected_step(...)`, which alternates between
-    the duplicated ABBA stage map and the nonlinear projection root.
-15. A converged root produces an accepted physical `_ProjectedStep` and may emit
-    an `ImplicitABBAIntegrationStep` for an accepted main-grid step.
-16. The numerical method returns requested samples and diagnostics as
+12. The coordinator checks guiding-centre capabilities, creates the fixed-grid
+    `advance(...)` callback, and starts the outer scheduler.
+13. `integrate_fixed_grid(...)` selects the output-independent main grid and
+    requests a main or shadow advance.
+14. `_solve_projected_step(...)` receives `(t_n, z_n, h)`, sets `mu_0 = 0`, and
+    computes the nonlinear stopping tolerance.
+15. `_projection.py` constructs `u_0 = z_n + mu_k` and
+    `v_0 = z_n - mu_k`.
+16. The shared `_core.py` map executes the four A-B-B-A shears and returns the
+    copy separation `d_k = u_f-v_f`.
+17. `_projection.py` assembles `r_k = d_k+2mu_k` and tests
+    `||r_k||_inf <= tau`.
+18. A failed test invokes Newton or Broyden, updates `mu_(k+1)`, and returns to
+    the duplicated input; a successful test constructs the accepted physical
+    `_ProjectedStep`.
+19. The scheduler either advances the main trajectory or stores a shadow
+    sample, then repeats its outer loop until `t_f`. Main steps may emit an
+    `ImplicitABBAIntegrationStep`.
+20. The numerical method returns requested samples and diagnostics as
     `IntegrationData`.
-17. Execution returns to the existing `SimulationRunner.simulate(...)` call,
+21. Execution returns to the existing `SimulationRunner.simulate(...)` call,
     which validates the transfer object.
-18. The runner constructs and returns the public `Solution`.
+22. The runner constructs and returns the public `Solution`.
 
 ## Arrow and line conventions
 
@@ -701,10 +882,10 @@ wall-clock execution.
 |---|---|
 | Solid arrow into a consumer | An argument or returned value is supplied to that consumer |
 | Solid arrow between runtime steps | A call, construction, or forward hand-off |
-| Solid two-way arrow | Iteration between multiplier selection and stage-map residual evaluation |
+| Backward solid arrow inside the nonlinear solve | Reevaluate the stages and residual with the updated multiplier |
 | Solid line with hollow triangle | Explicit Python inheritance |
 | Dashed line with hollow triangle | Structural implementation of a `Protocol` |
-| Ordinary dashed dependency | Required capability or optional side channel |
+| Ordinary dashed dependency | Required capability, shared-core reuse, or optional side channel |
 | Package boundary | Architectural responsibility, not necessarily a Python package |
 | Yellow note | Important invariant or intentionally omitted detail |
 
@@ -760,7 +941,8 @@ Here `dynamics`, `initial_x`, `initial_y`, `final_time`, `max_step`, and
 ## Scope and deliberate omissions
 
 The diagram focuses on `ImplicitABBA1`, the reduced equation-(11) formulation.
-It deliberately omits:
+`MidpointABBA` appears only to make reuse of `_core.py` explicit; it is not part
+of the depicted runtime path. The diagram otherwise deliberately omits:
 
 - the internal potential and field model of the guiding-centre dynamics;
 - the simultaneous `ImplicitABBA2` formulation;

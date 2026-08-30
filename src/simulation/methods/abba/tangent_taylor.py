@@ -9,20 +9,19 @@ import numpy as np
 
 from dynamics import GuidingCenterJacobianSystem
 
-from .._fixed import integrate_fixed_grid
-from .._result import IntegrationData
-from ..problem import InitialValueProblem
-from ..request import SimulationRequest
-from ._nonlinear import NonlinearSolver, _validate_nonlinear_solver
-from ._projected_abba import (
-	_checked_vector_field,
+from ..._fixed import integrate_fixed_grid
+from ..._result import IntegrationData
+from ...problem import InitialValueProblem
+from ...request import SimulationRequest
+from .._nonlinear import NonlinearSolver, _validate_nonlinear_solver
+from ._core import _checked_vector_field
+from ._implicit import _positive_finite, _positive_integer
+from ._projection import (
 	_checked_vector_field_jacobian,
-	_positive_finite,
-	_positive_integer,
 	_projected_step_particle_jacobians,
 	_solve_projected_step,
 )
-from .abba4_implicit_1 import _solve_abba4_step
+from .order4_implicit_1 import _solve_abba4_step
 
 
 TangentTaylorBase: TypeAlias = Literal["implicit_abba_1", "abba4_implicit_1"]
@@ -258,7 +257,7 @@ def _integrate_tangent_taylor(
 		else "ABBA4Implicit1"
 	)
 	base_formulation = (
-		"implicit_1_reduced_equation_11"
+		"reduced_multiplier"
 		if method._base == "implicit_abba_1"
 		else "abba4_implicit_1_triple_jump"
 	)

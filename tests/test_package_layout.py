@@ -1,4 +1,4 @@
-"""Flattened package layout and optional-dependency contracts."""
+"""Supported package layout and optional-dependency contracts."""
 
 from __future__ import annotations
 
@@ -13,12 +13,15 @@ from dynamics import GuidingCenterDynamics
 from initial_conditions import GCInitialConfiguration
 from potential import Potential
 from simulation import ExplicitEuler, ImplicitABBA1, RK4
+from simulation.methods import abba as abba_methods
+from simulation.methods import bm4 as bm4_methods
+from simulation.methods import classical as classical_methods
 
 
 class PackageLayoutTests(unittest.TestCase):
-	"""Keep public packages flat and remove every superseded namespace."""
+	"""Keep the supported source hierarchy and remove superseded namespaces."""
 
-	def test_flattened_packages_are_the_only_source_roots(self) -> None:
+	def test_supported_packages_are_present(self) -> None:
 		project_root = Path(__file__).resolve().parents[1]
 		source_root = project_root / "src"
 		for package in (
@@ -40,11 +43,57 @@ class PackageLayoutTests(unittest.TestCase):
 		self.assertIsNotNone(ImplicitABBA1)
 		self.assertIsNotNone(RK4)
 		self.assertIsNotNone(ExplicitEuler)
+		self.assertIs(abba_methods.ImplicitABBA1, ImplicitABBA1)
+		self.assertIs(bm4_methods.BM4Implicit1, simulation.BM4Implicit1)
+		self.assertIs(classical_methods.RK4, RK4)
+		for module in (
+			"simulation.methods.abba",
+			"simulation.methods.abba._core",
+			"simulation.methods.abba._projection",
+			"simulation.methods.abba._implicit",
+			"simulation.methods.abba.midpoint",
+			"simulation.methods.abba.implicit_1",
+			"simulation.methods.abba.implicit_2",
+			"simulation.methods.abba.order4_implicit_1",
+			"simulation.methods.abba.order4_single_projection_implicit_1",
+			"simulation.methods.abba.order6",
+			"simulation.methods.abba.tangent_taylor",
+			"simulation.methods.abba.fully_extended",
+			"simulation.methods.bm4",
+			"simulation.methods.bm4._core",
+			"simulation.methods.bm4._implicit",
+			"simulation.methods.bm4.midpoint",
+			"simulation.methods.bm4.implicit_1",
+			"simulation.methods.bm4.implicit_2",
+			"simulation.methods.bm4.fully_extended",
+			"simulation.methods.classical",
+			"simulation.methods.classical.euler",
+			"simulation.methods.classical.rk4",
+		):
+			self.assertIsNotNone(importlib.util.find_spec(module), module)
 
 	def test_removed_namespaces_are_not_importable(self) -> None:
 		for package in ("gc2d", "classes", "research", "workflows"):
 			self.assertIsNone(importlib.util.find_spec(package), package)
-		self.assertIsNone(importlib.util.find_spec("simulation.methods.abba"))
+		for module in (
+			"simulation.methods._implicit_abba",
+			"simulation.methods._projected_abba",
+			"simulation.methods.abba_midpoint",
+			"simulation.methods.abba_implicit_1",
+			"simulation.methods.abba_implicit_2",
+			"simulation.methods.abba4_implicit_1",
+			"simulation.methods.abba4_single_projection_implicit_1",
+			"simulation.methods.abba6",
+			"simulation.methods.abba_tangent_taylor",
+			"simulation.methods.bm4_midpoint",
+			"simulation.methods.bm4_implicit_1",
+			"simulation.methods.bm4_implicit_2",
+			"simulation.methods._implicit_bm4",
+			"simulation.methods._fully_extended_implicit",
+			"simulation.methods.euler",
+			"simulation.methods.rk4",
+		):
+			self.assertIsNone(importlib.util.find_spec(module), module)
 		self.assertFalse(hasattr(simulation, "SymmetricProjectedABBA"))
 
 	def test_core_packages_do_not_require_matplotlib(self) -> None:

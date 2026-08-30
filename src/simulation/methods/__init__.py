@@ -1,28 +1,28 @@
 """Interoperable numerical methods."""
 
 from ._nonlinear import NONLINEAR_SOLVERS, NonlinearSolver
-from ._fully_extended_implicit import (
+from .bm4 import (
+	BM4Composition,
+	BM4Implicit1,
+	BM4Implicit2,
+	BM4_implicit2,
+	MidpointBM4,
+	ProjectedBM4Composition,
+)
+from .abba import (
+	ABBA4Implicit1,
+	ABBA4Implicit1TangentTaylor,
+	ABBA4SingleProjectionImplicit1,
 	ABBA_implicit2,
 	ABBA4_implicit2,
-	BM4_implicit2,
-)
-from .abba_midpoint import MidpointABBA
-from .abba4_implicit_1 import ABBA4Implicit1
-from .abba4_single_projection_implicit_1 import ABBA4SingleProjectionImplicit1
-from .abba6 import ABBA6
-from .abba_tangent_taylor import (
-	ABBA4Implicit1TangentTaylor,
+	ABBA6,
+	ImplicitABBA1,
 	ImplicitABBA1TangentTaylor,
+	ImplicitABBA2,
+	MidpointABBA,
 )
-from .abba_implicit_1 import ImplicitABBA1
-from .abba_implicit_2 import ImplicitABBA2
 from .base import NumericalMethod
-from .bm4 import BM4Composition, ProjectedBM4Composition
-from .bm4_midpoint import MidpointBM4
-from .bm4_implicit_1 import BM4Implicit1
-from .bm4_implicit_2 import BM4Implicit2
-from .euler import ExplicitEuler
-from .rk4 import RK4
+from .classical import ExplicitEuler, RK4
 
 __all__ = [
 	"ABBA4Implicit1",

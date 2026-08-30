@@ -10,22 +10,22 @@ import numpy as np
 
 from dynamics import GuidingCenterDynamics
 
-from .._fixed import integrate_fixed_grid
-from .._result import IntegrationData
-from ..formulations import gc_coupling_matrix
-from ..observation import (
+from ..._fixed import integrate_fixed_grid
+from ..._result import IntegrationData
+from ...formulations import gc_coupling_matrix
+from ...observation import (
 	FullyExtendedBaseMap,
 	FullyExtendedImplicitIntegrationStep,
 	StepObserver,
 )
-from ..problem import InitialValueProblem
-from ..request import SimulationRequest
-from ._nonlinear import (
+from ...problem import InitialValueProblem
+from ...request import SimulationRequest
+from .._nonlinear import (
 	NonlinearSolver,
 	_solve_broyden,
 	_validate_nonlinear_solver,
 )
-from .bm4 import _BM4_ORDERS, _BM4_STAGES
+from ._core import _BM4_ORDERS, _BM4_STAGES
 
 
 _ExtendedMap = Callable[[np.ndarray], np.ndarray]
@@ -843,22 +843,10 @@ class _FullyExtendedImplicitMethod:
 		return _integrate_fully_extended(self, problem, request)
 
 
-class ABBA_implicit2(_FullyExtendedImplicitMethod):
-	"""Second-order ABBA with both ``z`` and ``(t,k)`` duplicated."""
-
-	_variant: ClassVar[_Variant] = "abba"
-
-
-class ABBA4_implicit2(_FullyExtendedImplicitMethod):
-	"""Fourth-order triple jump of full-state implicit ABBA steps."""
-
-	_variant: ClassVar[_Variant] = "abba4"
-
-
 class BM4_implicit2(_FullyExtendedImplicitMethod):
 	"""Fourth-order BM4 with full-state duplication and projection."""
 
 	_variant: ClassVar[_Variant] = "bm4"
 
 
-__all__ = ["ABBA_implicit2", "ABBA4_implicit2", "BM4_implicit2"]
+__all__ = ["BM4_implicit2"]

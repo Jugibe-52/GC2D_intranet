@@ -8,11 +8,12 @@ import numpy as np
 
 from dynamics import DynamicalSystem
 
-from .._fixed import integrate_fixed_grid
-from .._result import IntegrationData
-from ..observation import IntegrationStep, StepObserver
-from ..problem import InitialValueProblem
-from ..request import SimulationRequest
+from ..._fixed import integrate_fixed_grid
+from ..._result import IntegrationData
+from ...observation import IntegrationStep, StepObserver
+from ...problem import InitialValueProblem
+from ...request import SimulationRequest
+from ._core import _evaluate_unprojected_stages
 
 
 @dataclass(frozen=True, slots=True)
@@ -21,18 +22,6 @@ class _MidpointABBAStep:
 
 	state: np.ndarray
 	copy_separation_norm: float
-
-
-def _checked_vector_field(
-	dynamics: DynamicalSystem,
-	t: float,
-	state: np.ndarray,
-) -> np.ndarray:
-	"""Evaluate a finite vector field without allowing a layout change."""
-	result = np.asarray(dynamics.vector_field(t, state), dtype=float)
-	if result.shape != state.shape or not np.all(np.isfinite(result)):
-		raise ValueError("The vector field changed shape or became non-finite.")
-	return result
 
 
 def _midpoint_abba_step(
@@ -45,26 +34,20 @@ def _midpoint_abba_step(
 	value = np.asarray(state, dtype=float)
 	if value.ndim != 1 or value.size == 0 or not np.all(np.isfinite(value)):
 		raise ValueError("The ABBA physical state must be a finite, non-empty vector.")
-	half_step = step / 2.0
-	final_time = t + step
-
-	# Each complete step starts from the physical diagonal u=v=y_n.
-	u_first = value + half_step * _checked_vector_field(dynamics, t, value)
-	v_first = value + half_step * _checked_vector_field(dynamics, t, u_first)
-	v_final = v_first + half_step * _checked_vector_field(
+	# Midpoint projection starts both copies on the physical diagonal, then uses
+	# exactly the same endpoint-time A-B-B-A map as the implicit formulations.
+	stages = _evaluate_unprojected_stages(
 		dynamics,
-		final_time,
-		u_first,
+		t,
+		value,
+		value,
+		step,
 	)
-	u_final = u_first + half_step * _checked_vector_field(
-		dynamics,
-		final_time,
-		v_final,
-	)
-	separation = u_final - v_final
 	return _MidpointABBAStep(
-		state=np.asarray((u_final + v_final) / 2.0),
-		copy_separation_norm=float(np.linalg.norm(separation, ord=np.inf)),
+		state=np.asarray((stages.u_final + stages.v_final) / 2.0),
+		copy_separation_norm=float(
+			np.linalg.norm(stages.residual, ord=np.inf)
+		),
 	)
 
 

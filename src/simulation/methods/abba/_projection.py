@@ -1,20 +1,15 @@
-"""ABBA integration with Hairer's symmetric projection for GC dynamics."""
+"""Hairer symmetric-projection kernels for endpoint-time A-B-B-A maps."""
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from dataclasses import dataclass
 
 import numpy as np
 
 from dynamics import GuidingCenterJacobianSystem
 
-from .._fixed import integrate_fixed_grid
-from .._result import IntegrationData
-from ..observation import ImplicitABBAIntegrationStep, StepObserver
-from ..problem import InitialValueProblem
-from ..request import SimulationRequest
-from ._nonlinear import NonlinearSolver, _solve_broyden
+from .._nonlinear import NonlinearSolver, _solve_broyden
+from ._core import _ABBAStages, _evaluate_unprojected_stages
 
 
 @dataclass(frozen=True, slots=True)
@@ -38,51 +33,6 @@ class _ResidualEvaluation:
 	residual: np.ndarray
 	jacobian: np.ndarray
 	abba_jacobian: np.ndarray
-
-
-@dataclass(frozen=True, slots=True)
-class _ABBAStages:
-	"""State points traversed by one explicit endpoint-time ABBA map."""
-
-	u_initial: np.ndarray
-	v_initial: np.ndarray
-	u_first: np.ndarray
-	v_final: np.ndarray
-	u_final: np.ndarray
-	residual: np.ndarray
-
-
-def _positive_finite(value: float, name: str) -> float:
-	"""Normalize a strictly positive finite solver parameter."""
-	if isinstance(value, (bool, np.bool_)):
-		raise ValueError(f"`{name}` must be positive and finite.")
-	result = float(value)
-	if not np.isfinite(result) or result <= 0:
-		raise ValueError(f"`{name}` must be positive and finite.")
-	return result
-
-
-def _positive_integer(value: int, name: str) -> int:
-	"""Normalize a strictly positive integer solver parameter."""
-	if (
-		isinstance(value, (bool, np.bool_))
-		or not isinstance(value, (int, np.integer))
-		or value < 1
-	):
-		raise ValueError(f"`{name}` must be a positive integer.")
-	return int(value)
-
-
-def _checked_vector_field(
-	dynamics: GuidingCenterJacobianSystem,
-	t: float,
-	state: np.ndarray,
-) -> np.ndarray:
-	"""Evaluate one GC vector field without allowing a layout change."""
-	result = np.asarray(dynamics.vector_field(t, state), dtype=float)
-	if result.shape != state.shape or not np.all(np.isfinite(result)):
-		raise ValueError("The GC vector field changed shape or became non-finite.")
-	return result
 
 
 def _checked_vector_field_jacobian(
@@ -129,53 +79,6 @@ def _evaluate_stages(
 		v_final=unprojected.v_final,
 		u_final=unprojected.u_final,
 		residual=unprojected.residual + 2.0 * multiplier,
-	)
-
-
-def _evaluate_unprojected_stages(
-	dynamics: GuidingCenterJacobianSystem,
-	t: float,
-	u_initial: np.ndarray,
-	v_initial: np.ndarray,
-	step: float,
-) -> _ABBAStages:
-	"""Apply one signed ABBA map to two independent physical copies."""
-	half_step = step / 2.0
-	final_time = t + step
-	u_first = u_initial + half_step * _checked_vector_field(
-		dynamics,
-		t,
-		v_initial,
-	)
-
-	v_first = v_initial + half_step * _checked_vector_field(
-		dynamics,
-		t,
-		u_first,
-	)
-
-	v_final = v_first + half_step * _checked_vector_field(
-		dynamics,
-		final_time,
-		u_first,
-	)
-
-	u_final = u_first + half_step * _checked_vector_field(
-		dynamics,
-		final_time,
-		v_final,
-	)
-
-	# For an unprojected map this is only the copy separation. The reduced
-	# Hairer formulation adds ``2 mu`` after the complete chosen base map.
-	residual = u_final - v_final
-	return _ABBAStages(
-		u_initial=u_initial,
-		v_initial=v_initial,
-		u_first=u_first,
-		v_final=v_final,
-		u_final=u_final,
-		residual=residual,
 	)
 
 
@@ -628,150 +531,5 @@ def _solve_simultaneous_projected_step(
 		f"{threshold:.3e} after {max_iterations} Newton iterations."
 	)
 
-
-def _integrate_projected_abba(
-	problem: InitialValueProblem,
-	request: SimulationRequest,
-	*,
-	method_name: str,
-	step_solver: Callable[..., _ProjectedStep],
-	solver_formulation: str,
-	newton_absolute_tolerance: float,
-	newton_relative_tolerance: float,
-	newton_max_iterations: int,
-	nonlinear_solver: NonlinearSolver,
-	progress: bool,
-	step_observer: StepObserver | None,
-) -> IntegrationData:
-	"""Integrate projected ABBA and optionally expose converged step data."""
-	dynamics = problem.dynamics
-	if not isinstance(dynamics, GuidingCenterJacobianSystem):
-		raise TypeError(f"{method_name} requires GuidingCenterJacobianSystem.")
-	if dynamics.state_dimension != 2:
-		raise TypeError(f"{method_name} requires planar two-component dynamics.")
-	if nonlinear_solver == "newton":
-		# Exact Newton requires spatial Hessians; Broyden evaluates only the
-		# midpoint ABBA residual and therefore does not need this capability.
-		_checked_vector_field_jacobian(
-			dynamics,
-			request.t_span[0],
-			problem.initial_state,
-		)
-
-	iteration_counts: list[int] = []
-	residual_evaluation_counts: list[int] = []
-	residual_norms: list[float] = []
-	tolerance_values: list[float] = []
-	multiplier_norms: list[float] = []
-	def advance(
-		t: float,
-		state: np.ndarray,
-		step: float,
-		step_index: int,
-		observe: bool,
-	) -> np.ndarray:
-		def apply_step(candidate: np.ndarray) -> np.ndarray:
-			"""Apply this fixed-time projected ABBA map to one candidate."""
-			return step_solver(
-				dynamics,
-				t,
-				candidate,
-				step,
-				absolute_tolerance=newton_absolute_tolerance,
-				relative_tolerance=newton_relative_tolerance,
-				max_iterations=newton_max_iterations,
-				nonlinear_solver=nonlinear_solver,
-			).state
-
-		state_before = np.asarray(state, dtype=float)
-		result = step_solver(
-			dynamics,
-			t,
-			state_before,
-			step,
-			absolute_tolerance=newton_absolute_tolerance,
-			relative_tolerance=newton_relative_tolerance,
-			max_iterations=newton_max_iterations,
-			nonlinear_solver=nonlinear_solver,
-		)
-		if observe:
-			state_scale = max(1.0, float(np.linalg.norm(state_before, ord=np.inf)))
-			newton_tolerance = (
-				newton_absolute_tolerance
-				+ newton_relative_tolerance * state_scale
-			)
-			multiplier_norm = float(
-				np.linalg.norm(result.multiplier, ord=np.inf)
-			)
-			iteration_counts.append(result.iterations)
-			residual_evaluation_counts.append(result.residual_evaluations)
-			residual_norms.append(result.residual_norm)
-			tolerance_values.append(newton_tolerance)
-			multiplier_norms.append(multiplier_norm)
-			if step_observer is not None:
-				step_observer(
-					ImplicitABBAIntegrationStep(
-						dynamics_name=type(dynamics).__name__,
-						method_name=method_name,
-						step_index=step_index,
-						time=t + step,
-						duration=step,
-						state_before=state_before.copy(),
-						state_after=result.state.copy(),
-						map_state=apply_step,
-						formulation_name=solver_formulation,
-						start_time=t,
-						nonlinear_solver=nonlinear_solver,
-						newton_iterations=result.iterations,
-						residual_evaluations=result.residual_evaluations,
-						newton_residual_norm=result.residual_norm,
-						newton_tolerance=newton_tolerance,
-						projection_multiplier_norm=multiplier_norm,
-						dynamics=dynamics,
-						multiplier=result.multiplier.copy(),
-						u_initial=result.stages.u_initial.copy(),
-						v_initial=result.stages.v_initial.copy(),
-						u_first=result.stages.u_first.copy(),
-						v_final=result.stages.v_final.copy(),
-						u_final=result.stages.u_final.copy(),
-					)
-				)
-		return result.state
-
-	history, step_count = integrate_fixed_grid(
-		problem.initial_state,
-		request,
-		advance,
-		progress=bool(progress),
-		label=method_name,
-	)
-	diagnostics: dict[str, np.ndarray | float | int | str | bool] = {
-		"step_count": step_count,
-		"nonlinear_solver": nonlinear_solver,
-		"nonlinear_iterations": np.asarray(iteration_counts, dtype=int),
-		"residual_evaluations": np.asarray(
-			residual_evaluation_counts, dtype=int
-		),
-		"nonlinear_residual_norms": np.asarray(residual_norms, dtype=float),
-		"nonlinear_tolerances": np.asarray(tolerance_values, dtype=float),
-		"nonlinear_absolute_tolerance": newton_absolute_tolerance,
-		"nonlinear_relative_tolerance": newton_relative_tolerance,
-		"nonlinear_max_iterations": newton_max_iterations,
-		"newton_iterations": np.asarray(iteration_counts, dtype=int),
-		"newton_residual_norms": np.asarray(residual_norms, dtype=float),
-		"projection_multiplier_norms": np.asarray(
-			multiplier_norms,
-			dtype=float,
-		),
-		"newton_absolute_tolerance": newton_absolute_tolerance,
-		"newton_relative_tolerance": newton_relative_tolerance,
-		"newton_max_iterations": newton_max_iterations,
-		"projection_solver_formulation": solver_formulation,
-	}
-	return IntegrationData(
-		t=request.output_times,
-		states=np.asarray(history),
-		diagnostics=diagnostics,
-	)
 
 __all__: list[str] = []

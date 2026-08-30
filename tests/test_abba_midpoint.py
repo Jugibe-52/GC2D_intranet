@@ -18,7 +18,7 @@ from simulation import (
 	SimulationRequest,
 	simulate,
 )
-from simulation.methods.abba_midpoint import _midpoint_abba_step
+from simulation.methods.abba.midpoint import _midpoint_abba_step
 from studies import (
 	MidpointABBASymplecticityConfig,
 	RandomPotentialConfig,

@@ -19,7 +19,7 @@ from simulation import (
 	SimulationRequest,
 	simulate,
 )
-from simulation.methods._projected_abba import (
+from simulation.methods.abba._projection import (
 	_differentiate_stages,
 	_evaluate_stages,
 	_simultaneous_newton_jacobian,
@@ -143,11 +143,11 @@ class ImplicitABBAFormulationTests(unittest.TestCase):
 		np.testing.assert_allclose(second.states, first.states, rtol=0.0, atol=5e-15)
 		self.assertEqual(
 			first.diagnostics["projection_solver_formulation"],
-			"implicit_1_reduced_equation_11",
+			"reduced_multiplier",
 		)
 		self.assertEqual(
 			second.diagnostics["projection_solver_formulation"],
-			"implicit_2_simultaneous_equation_21",
+			"simultaneous_state_multiplier",
 		)
 		self.assertEqual(
 			second.diagnostics["newton_iterations"].shape,

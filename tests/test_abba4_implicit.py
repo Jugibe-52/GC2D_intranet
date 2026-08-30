@@ -22,7 +22,7 @@ from simulation import (
 	SimulationRequest,
 	simulate,
 )
-from simulation.methods.abba4_implicit_1 import (
+from simulation.methods.abba.order4_implicit_1 import (
 	_ABBA4_COEFFICIENTS,
 	_solve_abba4_step,
 )

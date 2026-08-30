@@ -21,7 +21,7 @@ from simulation import (
 	SimulationRequest,
 	simulate,
 )
-from simulation.methods.abba4_single_projection_implicit_1 import (
+from simulation.methods.abba.order4_single_projection_implicit_1 import (
 	_evaluate_single_projection_residual,
 	_solve_abba4_single_projection_step,
 )

@@ -8,21 +8,20 @@ import numpy as np
 
 from dynamics import GuidingCenterJacobianSystem
 
-from .._fixed import integrate_fixed_grid
-from .._result import IntegrationData
-from ..observation import (
+from ..._fixed import integrate_fixed_grid
+from ..._result import IntegrationData
+from ...observation import (
 	ABBA4SingleProjectionIntegrationStep,
 	UnprojectedABBAIntegrationStep,
 )
-from ..problem import InitialValueProblem
-from ..request import SimulationRequest
-from ._implicit_abba import _ImplicitABBA
-from ._nonlinear import NonlinearSolver, _solve_broyden
-from ._projected_abba import (
-	_ABBAStages,
+from ...problem import InitialValueProblem
+from ...request import SimulationRequest
+from .._nonlinear import NonlinearSolver, _solve_broyden
+from ._core import _ABBAStages, _evaluate_unprojected_stages
+from ._implicit import _ImplicitABBA
+from ._projection import (
 	_checked_vector_field_jacobian,
 	_differentiate_stages,
-	_evaluate_unprojected_stages,
 )
 
 

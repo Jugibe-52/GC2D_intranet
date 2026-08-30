@@ -45,7 +45,7 @@ package "Inherited boundary" as InheritedBoundary {
 
 package "Run assembly" as RunAssembly {
   package " " as MethodSlot <<layout>> {
-    class "src/simulation/methods/\nabba_implicit_1.py" as ImplicitABBA1 <<method>> {
+    class "src/simulation/methods/abba/\nimplicit_1.py" as ImplicitABBA1 <<method>> {
       ImplicitABBA1
       --
       Reduced projection formulation
@@ -53,7 +53,7 @@ package "Run assembly" as RunAssembly {
       Newton or Broyden selection
     }
 
-    class "src/simulation/methods/\n_implicit_abba.py" as ImplicitABBABase <<base method>> {
+    class "src/simulation/methods/abba/\n_implicit.py" as ImplicitABBABase <<base method>> {
       _ImplicitABBA
       --
       Nonlinear solver configuration
@@ -153,50 +153,90 @@ package "Run assembly" as RunAssembly {
 }
 
 package "Implicit ABBA integration" as ImplicitIntegration {
-  class "src/simulation/methods/\n_projected_abba.py" as IntegrationCoordinator <<coordinator>> {
+  class "src/simulation/methods/abba/\n_implicit.py" as IntegrationCoordinator <<run-level setup>> {
     _integrate_projected_abba(...)
     --
-    Checks the required dynamics capability
-    Collects nonlinear-work diagnostics
+    Validate dynamics and solver capability
+    Build advance(t_n, z_n, h, observe)
+    Collect main-grid diagnostics
   }
 
-  class "src/simulation/_fixed.py" as FixedGrid <<scheduler>> {
+  class "src/simulation/_fixed.py" as FixedGrid <<outer time loop>> {
     integrate_fixed_grid(...)
     --
-    Output-independent uniform main grid
-    Shadow advances for off-grid samples
+    Build uniform main grid
+    Request main and shadow advances
   }
 
-  class "src/simulation/methods/\n_projected_abba.py" as ProjectedStep <<step>> {
+  class "src/simulation/methods/abba/\n_projection.py" as StepSetup <<one-step setup>> {
     _solve_projected_step(...)
     --
-    Initialize mu = 0
-    Set residual tolerance
+    Input: (t_n, z_n, h)
+    mu_0 = 0
+    scale_n = max(1, ||z_n||_inf)
+    tau = atol + rtol scale_n
   }
 
-  class "Duplicated ABBA\nstage map" as ABBAStages <<map>> {
-    u0 = z + mu
-    v0 = z - mu
+  class "src/simulation/methods/abba/\n_projection.py" as DuplicatedInput <<inner loop: input>> {
+    _evaluate_stages(...)
     --
-    Apply endpoint-time
-    A-B-B-A shears
-    Return u_final, v_final
+    u_0 = z_n + mu_k
+    v_0 = z_n - mu_k
   }
 
-  class "Nonlinear\nprojection root" as ProjectionRoot <<solve>> {
-    residual = u_final - v_final
-    residual += 2 mu
+  class "src/simulation/methods/abba/\n_core.py" as ABBACore <<shared stage map>> {
+    _evaluate_unprojected_stages(...)
     --
-    Newton: exact 2 x 2 blocks
-    Broyden: residual-only updates
-    Update mu until converged
+    A-B-B-A -> (u_f, v_f)
+    d_k = u_f - v_f
   }
 
-  class "Accepted\nphysical step" as AcceptedStep <<state>> {
-    Average projected copies
+  class "src/simulation/methods/abba/\n_projection.py" as ProjectionResidual <<inner loop: residual>> {
+    Assemble the Hairer residual
     --
-    State at t + h
-    Multiplier and solver metrics
+    r_k = d_k + 2 mu_k
+  }
+
+  class "src/simulation/methods/abba/\n_projection.py" as ResidualTest <<decision>> {
+    Residual convergence test
+    --
+    ||r_k||_inf <= tau ?
+    --
+    yes: accept projection
+    no: correct multiplier
+  }
+
+  class "src/simulation/methods/abba/\n_projection.py" as NonlinearCorrection <<inner loop: update>> {
+    Nonlinear multiplier correction
+    --
+    Newton: J_r Delta_mu_k = r_k
+    exact independent 2 x 2 blocks
+    --
+    Broyden: B_k Delta_mu_k = r_k
+    residual-only approximation update
+    --
+    mu_(k+1) = mu_k - Delta_mu_k
+    repeat residual evaluation
+  }
+
+  class "src/simulation/methods/abba/\n_projection.py" as AcceptedStep <<one-step output>> {
+    Accepted physical state
+    --
+    u_plus = u_f + mu_star
+    v_plus = v_f - mu_star
+    --
+    z_(n+1) = (u_plus + v_plus) / 2
+    Return multiplier and solver metrics
+  }
+
+  class "Main or shadow advance result" as SchedulerContinuation <<outer loop: continuation>> {
+    observe = true
+    Replace main state and record diagnostics
+    --
+    observe = false
+    Save requested sample only
+    --
+    Repeat grid loop until t_f
   }
 
   class "src/simulation/observation.py" as StepObservation <<optional event>> {
@@ -204,6 +244,14 @@ package "Implicit ABBA integration" as ImplicitIntegration {
     --
     Accepted stage snapshots
     Exact generating dynamics instance
+  }
+
+  class "src/simulation/methods/abba/\nmidpoint.py" as MidpointABBAReuse <<shared-core consumer>> {
+    MidpointABBA
+    --
+    Set u_0 = v_0 = z_n
+    Reuse the same A-B-B-A map
+    Return (u_f + v_f) / 2
   }
 }
 
@@ -265,18 +313,24 @@ SimulationRequest -right-> SimulationRunner
 ' Implicit ABBA runtime path.
 ImplicitABBA1 -right-> IntegrationCoordinator
 IntegrationCoordinator -right-> FixedGrid
-FixedGrid -right-> ProjectedStep
-ProjectedStep -right-> ABBAStages
-ABBAStages <-right-> ProjectionRoot
-ProjectionRoot -right-> AcceptedStep
+FixedGrid -right-> StepSetup
+StepSetup -right-> DuplicatedInput
+DuplicatedInput -right-> ABBACore
+ABBACore -right-> ProjectionResidual
+ProjectionResidual -right-> ResidualTest
+ResidualTest -right-> NonlinearCorrection : no
+NonlinearCorrection -[norank]left-> DuplicatedInput
+NonlinearCorrection -[hidden]right-> AcceptedStep
+ResidualTest -right-> AcceptedStep : yes
+AcceptedStep -right-> SchedulerContinuation
 
 ' The inherited layer is consumed only through its public capabilities.
-GuidingCenterJacobianSystem .right.> ABBAStages
-GuidingCenterJacobianSystem .right.> ProjectionRoot
+GuidingCenterJacobianSystem .right.> NonlinearCorrection
 
 ' Results and optional observation.
-AcceptedStep .right.> StepObservation
-AcceptedStep -right-> IntegrationData
+SchedulerContinuation .down.> StepObservation
+MidpointABBAReuse .up.> ABBACore
+SchedulerContinuation -right-> IntegrationData
 IntegrationData -right-> RunnerReturn
 RunnerReturn -right-> Solution
 
@@ -295,19 +349,25 @@ note bottom of FixedGrid
   the main integration trajectory or emit step observations.
 end note
 
-note bottom of ProjectionRoot
+note bottom of NonlinearCorrection
   Both nonlinear solvers target the same reduced implicit root.
   Only Newton consumes the inherited particle Jacobians.
+end note
+
+note bottom of ABBACore
+  The stage map depends only on DynamicalSystem.vector_field(...).
+  Implicit projection and midpoint projection supply different copy inputs.
 end note
 
 legend bottom
   |= Relation |= Meaning in this diagram |
   | solid line with hollow triangle | Explicit Python inheritance |
   | dashed line with hollow triangle | Structural implementation of a protocol |
-  | ordinary dashed arrow into a runtime step | Required capability or optional event |
+  | ordinary dashed arrow | Required capability, shared-core reuse, or optional event |
   | hollow diamond | Configuration composes and exposes its layout |
   | ordinary solid arrow into a consumer | Argument or returned data supplied to that consumer |
   | ordinary solid arrow between runtime steps | Call, construction, or forward hand-off |
+  | backward solid arrow inside the nonlinear solve | Repeat the residual evaluation with the updated multiplier |
 endlegend
 
 @enduml

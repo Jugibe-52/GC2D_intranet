@@ -6,8 +6,8 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import ClassVar
 
-from ._implicit_abba import _ImplicitABBA
-from ._projected_abba import (
+from ._implicit import _ImplicitABBA
+from ._projection import (
 	_ProjectedStep,
 	_solve_simultaneous_projected_step,
 )
@@ -25,7 +25,7 @@ class ImplicitABBA2(_ImplicitABBA):
 	_step_solver: ClassVar[Callable[..., _ProjectedStep]] = (
 		_solve_simultaneous_projected_step
 	)
-	_solver_formulation: ClassVar[str] = "implicit_2_simultaneous_equation_21"
+	_solver_formulation: ClassVar[str] = "simultaneous_state_multiplier"
 
 
 __all__ = ["ImplicitABBA2"]

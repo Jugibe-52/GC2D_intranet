@@ -509,7 +509,7 @@ def run_implicit_abba_1_trajectory_symplecticity_study(
 		project_root=project_root,
 		metadata={
 			**dict(metadata or {}),
-			"implicit_formulation": "implicit_1_reduced_equation_11",
+			"implicit_formulation": "reduced_multiplier",
 			"nonlinear_solver": "newton",
 		},
 	)
@@ -548,7 +548,7 @@ def run_abba4_implicit_1_trajectory_symplecticity_study(
 		metadata={
 			**dict(metadata or {}),
 			"implicit_formulation": "abba4_implicit_1_triple_jump",
-			"substep_implicit_formulation": "implicit_1_reduced_equation_11",
+			"substep_implicit_formulation": "reduced_multiplier",
 			"nonlinear_solver": "newton",
 			"composition_coefficients": (gamma, delta, gamma),
 			"signed_substeps": True,

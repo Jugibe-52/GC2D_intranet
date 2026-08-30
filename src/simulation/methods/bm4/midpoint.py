@@ -6,13 +6,13 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from .._fixed import integrate_fixed_grid
-from .._result import IntegrationData
-from ..formulations import GCStageProjectedFormulation
-from ..observation import StageObserver
-from ..problem import InitialValueProblem
-from ..request import SimulationRequest
-from .bm4 import _advance_composition
+from ..._fixed import integrate_fixed_grid
+from ..._result import IntegrationData
+from ...formulations import GCStageProjectedFormulation
+from ...observation import StageObserver
+from ...problem import InitialValueProblem
+from ...request import SimulationRequest
+from ._core import _advance_composition
 
 
 @dataclass(frozen=True, slots=True)

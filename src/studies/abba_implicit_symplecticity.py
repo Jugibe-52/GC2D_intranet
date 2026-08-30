@@ -250,7 +250,7 @@ def run_implicit_abba_1_symplecticity_study(
 		project_root=project_root,
 		metadata={
 			**_implicit_study_metadata(config, metadata),
-			"implicit_formulation": "implicit_1_reduced_equation_11",
+			"implicit_formulation": "reduced_multiplier",
 			"step_jacobian_method": jacobian_method,
 			"step_jacobian_scope": (
 				"emitted_finite_tolerance_solver_map"
@@ -299,7 +299,7 @@ def run_implicit_abba_2_symplecticity_study(
 		project_root=project_root,
 		metadata={
 			**_implicit_study_metadata(config, metadata),
-			"implicit_formulation": "implicit_2_simultaneous_equation_21",
+			"implicit_formulation": "simultaneous_state_multiplier",
 			"step_jacobian_method": jacobian_method,
 			"step_jacobian_scope": (
 				"emitted_finite_tolerance_solver_map"
@@ -330,9 +330,9 @@ def _run_formulation_observers(
 	common_metadata = {
 		**_implicit_study_metadata(config, metadata),
 		"implicit_formulation": (
-			"implicit_1_reduced_equation_11"
+			"reduced_multiplier"
 			if formulation == "implicit_1"
-			else "implicit_2_simultaneous_equation_21"
+			else "simultaneous_state_multiplier"
 		),
 	}
 	if formulation == "implicit_1":

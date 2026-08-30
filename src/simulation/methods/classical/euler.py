@@ -8,11 +8,11 @@ import numpy as np
 
 from dynamics import DynamicalSystem
 
-from .._fixed import integrate_fixed_grid
-from .._result import IntegrationData
-from ..observation import IntegrationStep, StepObserver
-from ..problem import InitialValueProblem
-from ..request import SimulationRequest
+from ..._fixed import integrate_fixed_grid
+from ..._result import IntegrationData
+from ...observation import IntegrationStep, StepObserver
+from ...problem import InitialValueProblem
+from ...request import SimulationRequest
 
 
 def _checked_vector_field(

@@ -6,8 +6,8 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import ClassVar
 
-from ._implicit_abba import _ImplicitABBA
-from ._projected_abba import _ProjectedStep, _solve_projected_step
+from ._implicit import _ImplicitABBA
+from ._projection import _ProjectedStep, _solve_projected_step
 
 
 @dataclass(frozen=True, slots=True)
@@ -20,7 +20,7 @@ class ImplicitABBA1(_ImplicitABBA):
 	"""
 
 	_step_solver: ClassVar[Callable[..., _ProjectedStep]] = _solve_projected_step
-	_solver_formulation: ClassVar[str] = "implicit_1_reduced_equation_11"
+	_solver_formulation: ClassVar[str] = "reduced_multiplier"
 
 
 __all__ = ["ImplicitABBA1"]

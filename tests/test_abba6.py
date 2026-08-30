@@ -16,7 +16,7 @@ from simulation import (
 	SimulationRequest,
 	simulate,
 )
-from simulation.methods.abba6 import _ABBA6_COEFFICIENTS, _solve_abba6_step
+from simulation.methods.abba.order6 import _ABBA6_COEFFICIENTS, _solve_abba6_step
 from studies import (
 	ABBA6AccuracyConfig,
 	HighPrecisionReferenceConfig,

@@ -8,18 +8,18 @@ import numpy as np
 
 from dynamics import GuidingCenterJacobianSystem
 
-from .._fixed import integrate_fixed_grid
-from .._result import IntegrationData
-from ..observation import (
+from ..._fixed import integrate_fixed_grid
+from ..._result import IntegrationData
+from ...observation import (
 	ImplicitABBA4IntegrationStep,
 	ImplicitABBACompositionIntegrationStep,
 	ImplicitABBAIntegrationStep,
 )
-from ..problem import InitialValueProblem
-from ..request import SimulationRequest
-from ._implicit_abba import _ImplicitABBA
-from ._nonlinear import NonlinearSolver
-from ._projected_abba import (
+from ...problem import InitialValueProblem
+from ...request import SimulationRequest
+from .._nonlinear import NonlinearSolver
+from ._implicit import _ImplicitABBA
+from ._projection import (
 	_ProjectedStep,
 	_checked_vector_field_jacobian,
 	_solve_projected_step,
@@ -30,7 +30,7 @@ _CUBE_ROOT_TWO = float(np.cbrt(2.0))
 _GAMMA = 1.0 / (2.0 - _CUBE_ROOT_TWO)
 _DELTA = -_CUBE_ROOT_TWO / (2.0 - _CUBE_ROOT_TWO)
 _ABBA4_COEFFICIENTS = np.asarray((_GAMMA, _DELTA, _GAMMA), dtype=float)
-_SUBSTEP_FORMULATION = "implicit_1_reduced_equation_11"
+_SUBSTEP_FORMULATION = "reduced_multiplier"
 _COMPOSITION_FORMULATION = "abba4_implicit_1_triple_jump"
 
 
