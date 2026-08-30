@@ -26,9 +26,12 @@ SimulationRequest -------------------------------/
 
 `Solution` is an immutable computed trajectory. Its initial configuration is
 available as `solution.source`, while diagnostics are attached as read-only
-data. See the [package layout](docs/package-layout.md) and the
-[detailed](docs/architecture.puml) and
-[conceptual](docs/architecture-overview.puml) architecture diagrams.
+data. Architecture documentation is organized by numerical model. The
+`ImplicitABBA1` documentation currently provides separate
+[dynamics](docs/models/implicit-abba-1/dynamics/gc2d-h5-potential-architecture.puml)
+and
+[simulation](docs/models/implicit-abba-1/simulation/implicit-abba-simulation-architecture.puml)
+diagrams.
 
 ## Installation
 
@@ -66,9 +69,11 @@ potential = load_gc2d_h5_potential(
 The primary-file defaults are `B=1.5` and `indx=(0, 1)`, selecting the mean
 field and its dominant declared positive-frequency mode.
 
-See the [HDF5 import contract](docs/potential/gc2d-h5-import.md) and its
-[architecture diagram](docs/potential/gc2d-h5-potential-architecture.puml) for
-the dataset schema, normalization, interpolation, gyroaveraging, and
+See the
+[HDF5 import contract](docs/models/implicit-abba-1/dynamics/gc2d-h5-import.md)
+and its
+[architecture diagram](docs/models/implicit-abba-1/dynamics/gc2d-h5-potential-architecture.puml)
+for the dataset schema, normalization, interpolation, gyroaveraging, and
 guiding-center integration.
 
 ## Guiding-center example
@@ -134,7 +139,7 @@ projection:
 
 They define the same exact projected physical map but expose distinct solver
 diagnostics. Their derivations are documented in
-[`ABBA_implicit_1`](docs/tex/ABBA_implicit_1/ABBA_implicit_1.pdf) and
+[`ABBA_implicit_1`](docs/models/implicit-abba-1/ABBA_implicit_1.pdf) and
 [`ABBA_implicit_2`](docs/tex/ABBA_implicit_2/ABBA_implicit_2.pdf).
 
 `ABBA4Implicit1` is the fourth-order Yoshida triple jump of three complete

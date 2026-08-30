@@ -22,8 +22,8 @@ notebooks/*
 
 # LaTeX sources and deliberate PDFs are versioned; compiler intermediates are
 # reproducible build products.
-docs/tex/**/*.aux
-docs/tex/**/*.fdb_latexmk
-docs/tex/**/*.fls
-docs/tex/**/*.out
-docs/tex/**/*.synctex.gz
+docs/**/*.aux
+docs/**/*.fdb_latexmk
+docs/**/*.fls
+docs/**/*.out
+docs/**/*.synctex.gz

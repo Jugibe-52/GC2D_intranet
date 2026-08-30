@@ -1,5 +1,5 @@
 @startuml
-title HDF5-to-Guiding-Center Runtime Path
+title Implicit ABBA 1: HDF5-to-Guiding-Center Dynamics
 
 left to right direction
 

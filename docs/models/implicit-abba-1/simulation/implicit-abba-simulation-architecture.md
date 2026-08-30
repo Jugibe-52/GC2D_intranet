@@ -1,4 +1,4 @@
-# Implicit ABBA simulation architecture
+# Implicit ABBA 1 simulation architecture
 
 This document explains the companion
 [`implicit-abba-simulation-architecture.puml`](implicit-abba-simulation-architecture.puml)
@@ -42,7 +42,7 @@ IntegrationData -> Return to SimulationRunner -> Solution
 
 ### `DynamicalSystem`
 
-**File:** [`src/dynamics/protocols.py`](../../src/dynamics/protocols.py)
+**File:** [`src/dynamics/protocols.py`](../../../../src/dynamics/protocols.py)
 
 `DynamicalSystem` is the general runtime-checkable dynamics protocol. It requires
 `state_dimension` and `vector_field(t, state)`. `InitialValueProblem` is typed
@@ -51,7 +51,7 @@ physical system they receive.
 
 ### `GuidingCenterJacobianSystem`
 
-**File:** [`src/dynamics/protocols.py`](../../src/dynamics/protocols.py)
+**File:** [`src/dynamics/protocols.py`](../../../../src/dynamics/protocols.py)
 
 `GuidingCenterJacobianSystem` inherits the `DynamicalSystem` protocol and adds
 `particle_vector_field_jacobians(t, state)`. The method returns one exact `2 x 2`
@@ -60,7 +60,7 @@ coordinator narrows the general problem dynamics to this capability.
 
 ### `GuidingCenterDynamics`
 
-**File:** [`src/dynamics/gc.py`](../../src/dynamics/gc.py)
+**File:** [`src/dynamics/gc.py`](../../../../src/dynamics/gc.py)
 
 `GuidingCenterDynamics` is the concrete structural implementation used in this
 path. It does not explicitly inherit the protocol, but it provides every required
@@ -88,11 +88,11 @@ performed.
 
 ### `InitialConfiguration`
 
-**File:** [`src/simulation/configuration.py`](../../src/simulation/configuration.py)
+**File:** [`src/simulation/configuration.py`](../../../../src/simulation/configuration.py)
 
 `InitialConfiguration` is a runtime-checkable protocol, not a concrete initial
 condition. A concrete implementation such as
-[`GCInitialConfiguration`](../../src/initial_conditions/gc.py) owns the initial
+[`GCInitialConfiguration`](../../../../src/initial_conditions/gc.py) owns the initial
 physical state and exposes a separate object that interprets packed arrays.
 
 Its members are:
@@ -112,7 +112,7 @@ remain in the dynamics object.
 
 ### `StateLayout`
 
-**File:** [`src/simulation/configuration.py`](../../src/simulation/configuration.py)
+**File:** [`src/simulation/configuration.py`](../../../../src/simulation/configuration.py)
 
 `StateLayout` is the independent runtime-checkable contract consumed by the
 simulation core:
@@ -136,7 +136,7 @@ contract does not require them.
 
 ### `PackedStateLayout`
 
-**File:** [`src/initial_conditions/base.py`](../../src/initial_conditions/base.py)
+**File:** [`src/initial_conditions/base.py`](../../../../src/initial_conditions/base.py)
 
 `PackedStateLayout` contains the reusable component-major reshape, validation,
 packing, and particle-count implementation. It stores no initial state and no
@@ -145,7 +145,7 @@ physical parameters. Concrete layouts inherit it and provide
 
 ### `StateConfiguration`
 
-**File:** [`src/initial_conditions/base.py`](../../src/initial_conditions/base.py)
+**File:** [`src/initial_conditions/base.py`](../../../../src/initial_conditions/base.py)
 
 `StateConfiguration` is an abstract initial-state storage base. Its abstract
 `layout` property prevents construction until a concrete subclass supplies a
@@ -163,7 +163,7 @@ the `InitialConfiguration` contract by returning a concrete layout.
 
 ### `GCStateLayout`
 
-**File:** [`src/initial_conditions/gc.py`](../../src/initial_conditions/gc.py)
+**File:** [`src/initial_conditions/gc.py`](../../../../src/initial_conditions/gc.py)
 
 `GCStateLayout` inherits the common packed-layout implementation and defines:
 
@@ -176,7 +176,7 @@ It structurally conforms to `StateLayout` without inheriting that protocol.
 
 ### `GCInitialConfiguration`
 
-**File:** [`src/initial_conditions/gc.py`](../../src/initial_conditions/gc.py)
+**File:** [`src/initial_conditions/gc.py`](../../../../src/initial_conditions/gc.py)
 
 `GCInitialConfiguration` is a real Python subclass of `StateConfiguration`,
 shown with a solid inheritance triangle. It:
@@ -194,7 +194,7 @@ meaning in the legend avoids placing a long label across either class box.
 
 ### `InitialValueProblem`
 
-**File:** [`src/simulation/problem.py`](../../src/simulation/problem.py)
+**File:** [`src/simulation/problem.py`](../../../../src/simulation/problem.py)
 
 `InitialValueProblem` is a frozen value object that binds one dynamics instance
 to one initial configuration.
@@ -223,7 +223,7 @@ its particle count.
 
 ### `SimulationRequest`
 
-**File:** [`src/simulation/request.py`](../../src/simulation/request.py)
+**File:** [`src/simulation/request.py`](../../../../src/simulation/request.py)
 
 `SimulationRequest` is a frozen, method-independent description of the time
 domain and sampling request.
@@ -248,7 +248,7 @@ grid; that distinction is handled by `integrate_fixed_grid(...)`.
 
 ### `SimulationRunner` and `simulate(...)`
 
-**File:** [`src/simulation/runner.py`](../../src/simulation/runner.py)
+**File:** [`src/simulation/runner.py`](../../../../src/simulation/runner.py)
 
 `SimulationRunner` is the public orchestration boundary. The module-level
 `simulate(problem, method, request)` function is a convenience facade that
@@ -283,7 +283,7 @@ method-specific state layouts to user code.
 
 ### `NumericalMethod`
 
-**File:** [`src/simulation/methods/base.py`](../../src/simulation/methods/base.py)
+**File:** [`src/simulation/methods/base.py`](../../../../src/simulation/methods/base.py)
 
 `NumericalMethod` is the runtime-checkable contract consumed by
 `SimulationRunner`. It requires one operation:
@@ -299,7 +299,7 @@ interface.
 ### `_ImplicitABBA`
 
 **File:**
-[`src/simulation/methods/_implicit_abba.py`](../../src/simulation/methods/_implicit_abba.py)
+[`src/simulation/methods/_implicit_abba.py`](../../../../src/simulation/methods/_implicit_abba.py)
 
 `_ImplicitABBA` is a private frozen dataclass that structurally implements
 `NumericalMethod`. It owns the shared nonlinear configuration and implements the
@@ -332,7 +332,7 @@ implementation rather than explicit inheritance.
 ### `ImplicitABBA1`
 
 **File:**
-[`src/simulation/methods/abba_implicit_1.py`](../../src/simulation/methods/abba_implicit_1.py)
+[`src/simulation/methods/abba_implicit_1.py`](../../../../src/simulation/methods/abba_implicit_1.py)
 
 `ImplicitABBA1` is a real Python subclass of `_ImplicitABBA`, shown by the solid
 inheritance triangle. The class adds no new instance method; it specializes the
@@ -348,9 +348,9 @@ from `_ImplicitABBA` while identifying the concrete reduced projection equation.
 ## Part 2: implicit ABBA integration
 
 Most boxes in this region correspond to roles inside
-[`src/simulation/methods/_projected_abba.py`](../../src/simulation/methods/_projected_abba.py).
+[`src/simulation/methods/_projected_abba.py`](../../../../src/simulation/methods/_projected_abba.py).
 The scheduler is the separate shared utility
-[`src/simulation/_fixed.py`](../../src/simulation/_fixed.py).
+[`src/simulation/_fixed.py`](../../../../src/simulation/_fixed.py).
 
 ### Integration coordinator: `_integrate_projected_abba(...)`
 
@@ -384,7 +384,7 @@ names for compatibility.
 
 ### Fixed-grid scheduler: `integrate_fixed_grid(...)`
 
-**File:** [`src/simulation/_fixed.py`](../../src/simulation/_fixed.py)
+**File:** [`src/simulation/_fixed.py`](../../../../src/simulation/_fixed.py)
 
 The scheduler separates the numerical trajectory from the requested sampling
 schedule.
@@ -533,7 +533,7 @@ The returned `_ProjectedStep` also contains:
 
 ### Optional step observation
 
-**File:** [`src/simulation/observation.py`](../../src/simulation/observation.py)
+**File:** [`src/simulation/observation.py`](../../../../src/simulation/observation.py)
 
 If `ImplicitABBA1.step_observer` is set, every accepted main-grid step emits an
 `ImplicitABBAIntegrationStep`. Shadow advances never emit one.
@@ -558,7 +558,7 @@ This region separates private method output from the stable public result.
 
 ### `IntegrationData`
 
-**File:** [`src/simulation/_result.py`](../../src/simulation/_result.py)
+**File:** [`src/simulation/_result.py`](../../../../src/simulation/_result.py)
 
 `IntegrationData` is a frozen internal transfer object with three fields:
 
@@ -571,7 +571,7 @@ It is intentionally small. The numerical method constructs it, and
 
 ### `Solution`
 
-**File:** [`src/simulation/solution.py`](../../src/simulation/solution.py)
+**File:** [`src/simulation/solution.py`](../../../../src/simulation/solution.py)
 
 `Solution` is the immutable public simulation result.
 

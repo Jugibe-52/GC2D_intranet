@@ -1,10 +1,14 @@
-# Importing GC2D potentials from HDF5
+# Implicit ABBA 1 dynamics architecture
+
+This document describes the potential-to-dynamics boundary used by the
+`ImplicitABBA1` model. The guiding-center dynamics are shared with other
+integrators, but they are documented here as the physical input to this model.
 
 The HDF5 import path loads the primary GC2D field format into the potential and
 simulation APIs. Its implementation lives in
-[`src/potential/gc2d_h5.py`](../../src/potential/gc2d_h5.py), and the package
+[`src/potential/gc2d_h5.py`](../../../../src/potential/gc2d_h5.py), and the package
 exports both `load_gc2d_h5_potential` and `GC2DH5Potential` from
-[`src/potential/__init__.py`](../../src/potential/__init__.py).
+[`src/potential/__init__.py`](../../../../src/potential/__init__.py).
 
 The corresponding component and data-flow diagram is
 [`gc2d-h5-potential-architecture.puml`](gc2d-h5-potential-architecture.puml).
@@ -173,7 +177,7 @@ following provenance information:
 ## Runtime representation
 
 `GC2DH5Potential` subclasses the generic
-[`Potential`](../../src/potential/potential.py). This inheritance is important
+[`Potential`](../../../../src/potential/potential.py). This inheritance is important
 because `GuidingCenterDynamics` accepts objects through the common `Potential`
 API and performs a strict runtime type check.
 
@@ -235,7 +239,7 @@ normalization, attributes, source path, and interpolation order are preserved.
 ## Guiding-center consumption
 
 The effective HDF5 potential supplies all field operations required by
-[`GuidingCenterDynamics`](../../src/dynamics/gc.py):
+[`GuidingCenterDynamics`](../../../../src/dynamics/gc.py):
 
 ```text
 vector_field = (-Phi_y, Phi_x)
@@ -293,7 +297,7 @@ solution = simulate(problem, ABBA4Implicit1(), request)
 
 ## Verification
 
-[`tests/test_gc2d_h5_potential.py`](../../tests/test_gc2d_h5_potential.py)
+[`tests/test_gc2d_h5_potential.py`](../../../../tests/test_gc2d_h5_potential.py)
 verifies:
 
 - positive-frequency filtering, amplitude ordering, normalization, selection,

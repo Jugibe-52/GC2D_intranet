@@ -40,20 +40,26 @@ non-English labels. When editing existing non-English prose, translate it into
 English. Keep established identifiers stable unless a rename is explicitly
 requested; proper names and mathematical notation do not require translation.
 
-# Architecture diagrams
+# Model architecture documentation
 
-`docs/architecture-overview.puml` is the authoritative domain-model and
-simulation-lifecycle overview. It must keep the relationships between
-potential, dynamics, initial configuration (state geometry), simulation, and
-the computed solution explicit. In particular, distinguish initial-state
-trajectory classes from `Solution`, the computed trajectory.
+Keep architecture documentation separated by numerical model under
+`docs/models/<model>/`. Each model owns independent `dynamics/` and
+`simulation/` directories containing one Markdown explanation and its companion
+PlantUML diagram. Mathematical LaTeX sources and their deliberate PDFs belong
+at the model-directory root.
 
-`docs/architecture.puml` is the authoritative detailed implementation
-architecture diagram. Review both diagrams with every code modification, and
-update the relevant one whenever a change affects the simulation architecture,
-public API, dependencies, numerical methods, formulations, dynamics, initial
-configuration, or result model. Do not leave either diagram inconsistent with
-the implemented code.
+For `ImplicitABBA1`, the authoritative files are:
+
+- `docs/models/implicit-abba-1/dynamics/gc2d-h5-import.md` and
+  `gc2d-h5-potential-architecture.puml`;
+- `docs/models/implicit-abba-1/simulation/implicit-abba-simulation-architecture.md`
+  and `implicit-abba-simulation-architecture.puml`; and
+- `docs/models/implicit-abba-1/ABBA_implicit_1.tex` and its compiled PDF.
+
+Update the relevant model documents whenever code changes affect their public
+API, dependencies, dynamics, initial configuration, simulation lifecycle,
+numerical method, or result model. Do not recreate a global architecture
+diagram unless that cross-model document is explicitly requested.
 
 # Git tracking policy
 
