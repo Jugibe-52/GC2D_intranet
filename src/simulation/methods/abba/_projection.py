@@ -257,64 +257,6 @@ def _solve_projected_step(
 	)
 
 
-def _projected_step_particle_jacobians(
-	dynamics: GuidingCenterJacobianSystem,
-	t: float,
-	state: np.ndarray,
-	step: float,
-	result: _ProjectedStep,
-) -> np.ndarray:
-	"""Differentiate one converged reduced projected-ABBA physical map.
-
-	The returned array has shape ``(N, 2, 2)`` in particle-major blocks. It
-	differentiates the accepted implicit root, rather than the finite Newton or
-	Broyden iteration sequence used to find that root.
-	"""
-	value = np.asarray(state, dtype=float)
-	if value.ndim != 1 or value.size == 0 or value.size % 2:
-		raise ValueError("The differentiated ABBA state must contain finite 2N values.")
-	if not np.all(np.isfinite(value)):
-		raise ValueError("The differentiated ABBA state must contain finite 2N values.")
-	evaluation = _differentiate_stages(
-		dynamics,
-		float(t),
-		value,
-		float(step),
-		result.stages,
-	)
-	blocks = np.asarray(evaluation.abba_jacobian, dtype=float)
-	particle_count = value.size // 2
-	expected_shape = (particle_count, 4, 4)
-	if blocks.shape != expected_shape:
-		raise ValueError(
-			"The converged ABBA stage Jacobian must have shape "
-			f"{expected_shape}."
-		)
-	identity = np.broadcast_to(np.eye(2), (particle_count, 2, 2))
-	top_left = blocks[:, :2, :2]
-	top_right = blocks[:, :2, 2:]
-	bottom_left = blocks[:, 2:, :2]
-	bottom_right = blocks[:, 2:, 2:]
-	residual_state_jacobian = (
-		top_left + top_right - bottom_left - bottom_right
-	)
-	try:
-		multiplier_state_jacobian = -np.linalg.solve(
-			evaluation.jacobian,
-			residual_state_jacobian,
-		)
-	except np.linalg.LinAlgError as exc:
-		raise RuntimeError(
-			"The projected-ABBA root is singular while differentiating its map."
-		) from exc
-	direct = top_left + top_right
-	implicit_weight = top_left - top_right + identity
-	physical = direct + implicit_weight @ multiplier_state_jacobian
-	if not np.all(np.isfinite(physical)):
-		raise ValueError("The projected-ABBA physical Jacobian is non-finite.")
-	return np.asarray(physical, dtype=float)
-
-
 def _particle_blocks(vector: np.ndarray, dimension: int) -> np.ndarray:
 	"""View one component-major vector as particle-major coordinate blocks."""
 	return vector.reshape(dimension, -1).T

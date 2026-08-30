@@ -107,20 +107,6 @@ from .trajectory_accuracy import (
 	plot_trajectory_accuracy_over_time,
 )
 
-# These modules depend on study result types. Import them only after every
-# study-facing visualization above has been bound, so a clean public-package
-# import cannot re-enter a partially initialized ``visualization`` module.
-from .abba_tangent_taylor import (
-	animate_tangent_taylor_particle_evolution,
-	plot_tangent_taylor_component_comparison,
-	plot_tangent_taylor_trajectory_comparison,
-)
-from .tangent_taylor_euler_accuracy import (
-	TANGENT_TAYLOR_EULER_COLORS,
-	plot_tangent_taylor_euler_accuracy,
-	plot_tangent_taylor_h_error,
-)
-
 __all__ = [
 	"AccuracySeriesView",
 	"AccuracySummaryView",
@@ -137,7 +123,6 @@ __all__ = [
 	"animate_implicit_method_trajectories",
 	"animate_potential",
 	"animate_ten_method_trajectory_points",
-	"animate_tangent_taylor_particle_evolution",
 	"animate_trajectory_points",
 	"display_animation",
 	"display_records_table",
@@ -152,7 +137,6 @@ __all__ = [
 	"ReducedExtendedSymplecticityRunView",
 	"TEN_METHOD_COLORS",
 	"TEN_METHOD_SHORT_LABELS",
-	"TANGENT_TAYLOR_EULER_COLORS",
 	"plot_implicit_abba_jacobian_directions",
 	"plot_implicit_abba_iteration_diagnostics",
 	"plot_implicit_abba_iteration_comparison",
@@ -171,10 +155,6 @@ __all__ = [
 	"plot_implicit_abba_jacobian_spectrum",
 	"plot_implicit_abba_reversibility_diagnostics",
 	"plot_implicit_abba_transport_components",
-	"plot_tangent_taylor_component_comparison",
-	"plot_tangent_taylor_trajectory_comparison",
-	"plot_tangent_taylor_euler_accuracy",
-	"plot_tangent_taylor_h_error",
 	"plot_implicit_abba_particle_step_series",
 	"plot_gc_trajectory_points",
 	"plot_generalized_energy_components",

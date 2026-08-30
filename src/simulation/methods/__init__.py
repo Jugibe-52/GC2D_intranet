@@ -11,13 +11,11 @@ from .bm4 import (
 )
 from .abba import (
 	ABBA4Implicit1,
-	ABBA4Implicit1TangentTaylor,
 	ABBA4SingleProjectionImplicit1,
 	ABBA_implicit2,
 	ABBA4_implicit2,
 	ABBA6,
 	ImplicitABBA1,
-	ImplicitABBA1TangentTaylor,
 	ImplicitABBA2,
 	MidpointABBA,
 )
@@ -30,7 +28,6 @@ __all__ = [
 	"ABBA6",
 	"ABBA_implicit2",
 	"ABBA4_implicit2",
-	"ABBA4Implicit1TangentTaylor",
 	"BM4Composition",
 	"BM4Implicit1",
 	"BM4Implicit2",
@@ -39,7 +36,6 @@ __all__ = [
 	"MidpointABBA",
 	"MidpointBM4",
 	"ImplicitABBA1",
-	"ImplicitABBA1TangentTaylor",
 	"ImplicitABBA2",
 	"NONLINEAR_SOLVERS",
 	"NonlinearSolver",

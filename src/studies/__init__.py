@@ -23,23 +23,6 @@ from .abba6_accuracy import (
 	ABBA6AccuracySummary,
 	run_abba6_accuracy_study,
 )
-from .abba_tangent_taylor_comparison import (
-	ABBATangentTaylorComparisonConfig,
-	ABBATangentTaylorComparisonResult,
-	run_abba4_implicit1_tangent_taylor_comparison,
-	run_implicit_abba1_tangent_taylor_comparison,
-)
-from .tangent_taylor_euler_accuracy import (
-	TANGENT_TAYLOR_EULER_METHOD_NAMES,
-	TangentTaylorEulerAccuracyConfig,
-	TangentTaylorEulerAccuracyOrder,
-	TangentTaylorEulerAccuracyResult,
-	TangentTaylorEulerAccuracyRun,
-	TangentTaylorEulerAccuracySummary,
-	TangentTaylorEulerReference,
-	run_tangent_taylor_euler_accuracy_study,
-)
-
 from .abba_comparison import (
 	ABBA_METHOD_NAMES,
 	ABBAComparisonConfig,
@@ -255,15 +238,6 @@ __all__ = [
 	"ABBA6AccuracyOrder",
 	"ABBA6AccuracyResult",
 	"ABBA6AccuracySummary",
-	"ABBATangentTaylorComparisonConfig",
-	"ABBATangentTaylorComparisonResult",
-	"TANGENT_TAYLOR_EULER_METHOD_NAMES",
-	"TangentTaylorEulerAccuracyConfig",
-	"TangentTaylorEulerAccuracyOrder",
-	"TangentTaylorEulerAccuracyResult",
-	"TangentTaylorEulerAccuracyRun",
-	"TangentTaylorEulerAccuracySummary",
-	"TangentTaylorEulerReference",
 	"AdaptiveReferenceSolveSummary",
 	"ABBA_METHOD_NAMES",
 	"ABBA_JACOBIAN_FORMULATIONS",
@@ -390,7 +364,6 @@ __all__ = [
 	"run_abba4_implicit_1_accuracy_study",
 	"run_abba4_projection_comparison_study",
 	"run_abba6_accuracy_study",
-	"run_abba4_implicit1_tangent_taylor_comparison",
 	"run_abba4_implicit_1_trajectory_symplecticity_study",
 	"run_area_comparison",
 	"run_bm4_implicit_1_symplecticity_study",
@@ -405,8 +378,6 @@ __all__ = [
 	"run_fully_extended_implicit_study",
 	"run_high_precision_reference_trajectory",
 	"run_implicit_abba_1_symplecticity_study",
-	"run_implicit_abba1_tangent_taylor_comparison",
-	"run_tangent_taylor_euler_accuracy_study",
 	"run_implicit_abba_2_symplecticity_study",
 	"run_implicit_abba_jacobian_study",
 	"run_implicit_abba_reversibility_study",

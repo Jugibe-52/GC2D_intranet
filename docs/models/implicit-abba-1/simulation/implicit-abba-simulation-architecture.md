@@ -343,7 +343,6 @@ The public facade remains unchanged: callers still import `ImplicitABBA1`,
 | `order4_implicit_1.py` | Composes three signed reduced implicit steps into `ABBA4Implicit1`. |
 | `order4_single_projection_implicit_1.py` | Applies one reduced projection around a complete fourth-order composition. |
 | `order6.py` | Implements the seven-substep sixth-order composition. |
-| `tangent_taylor.py` | Builds tangent-driven Taylor-like methods from converged implicit ABBA maps. |
 | `fully_extended.py` | Exposes the ABBA full-state variants built on the extended kernel shared with BM4. |
 
 Method-independent utilities remain outside the folder. In particular,

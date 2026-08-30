@@ -240,24 +240,8 @@ The reverse tangent is never defined by
 inverting the forward matrix, so the reported closure includes nonlinear-solve
 tolerance and floating-point effects.
 
-`ImplicitABBA1TangentTaylor` and `ABBA4Implicit1TangentTaylor` implement the
-physical update
-`z_next = z + h * f + h**2 / 2 * D(Psi_base) @ f`. The first differentiates
-one converged reduced `ImplicitABBA1` root. The second solves all three signed
-Yoshida factors and composes their exact physical tangents as `J3 @ J2 @ J1`.
-Every base root and tangent is recalculated at the current state of the new
-trajectory. `run_implicit_abba1_tangent_taylor_comparison` and
-`run_abba4_implicit1_tangent_taylor_comparison` compare each new trajectory
-with its original map on an aligned grid using minimum-image periodic
-distances.
-
 `ExplicitEuler` provides the classical forward map
-`z_next = z + h * f(t, z)` on the same output-independent fixed grid. The
-`run_tangent_taylor_euler_accuracy_study` refinement study compares it with
-both tangent-Taylor methods on nested complete steps. One in-memory DOP853
-trajectory supplies the reference, an independent Radau solve measures its
-resolution floor, and every reported error uses periodic minimum-image
-particle distances.
+`z_next = z + h * f(t, z)` on the same output-independent fixed grid.
 
 ```python
 from simulation import ImplicitABBA1
@@ -407,11 +391,6 @@ ideal-root tangent product across a requested step refinement.
 `run_abba6_accuracy_study` applies the same reference, periodic-error,
 nonlinear-work, and runtime protocol to the seven-stage method and reports its
 observed sixth-order refinement slope.
-The focused `run_tangent_taylor_euler_accuracy_study` instead compares
-classical Euler with both proposed tangent-Taylor updates and reports their
-time-integrated RMS error, final and maximum errors, runtimes, and adjacent
-observed convergence orders.
-
 The focused `run_implicit_generalized_energy_study` runs any one of the three
 projected implicit GC methods over an ordered step refinement. Energy is
 recorded at every accepted main-grid node even when the physical solution uses
