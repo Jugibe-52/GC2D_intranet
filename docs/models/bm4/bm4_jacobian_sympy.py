@@ -1,7 +1,7 @@
 """Verify the exact factorized Jacobian of the twelve-stage BM4 map.
 
 Run this documentation helper from the project root with
-``.venv/bin/python docs/tex/bm4_jacobian_sympy.py``.  The calculation treats
+``.venv/bin/python docs/models/bm4/bm4_jacobian_sympy.py``. The calculation treats
 the stage blocks as noncommuting objects because field Jacobians evaluated at
 different BM4 stage points cannot in general be reordered.
 """

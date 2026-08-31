@@ -90,14 +90,14 @@ def _solution(
 	)
 
 
-def _result() -> SimpleNamespace:
-	"""Assemble a duck-typed 16-by-10 comparison result."""
+def _result(*, particle_count: int = 10) -> SimpleNamespace:
+	"""Assemble a duck-typed comparison result with a configurable population."""
 	potential = _CountingH5Potential()
 	variants = _variants()
 	solutions = {
 		variant.key: tuple(
 			_solution(particle, variant_index)
-			for particle in range(10)
+			for particle in range(particle_count)
 		)
 		for variant_index, variant in enumerate(variants)
 	}
@@ -112,46 +112,68 @@ def _result() -> SimpleNamespace:
 class ABBA4ConfigurationAnimationTests(unittest.TestCase):
 	"""Verify layout, shared HDF5 work, trajectory updates, and validation."""
 
-	def test_animation_facets_all_160_trajectories_over_one_shared_field(self) -> None:
-		result = _result()
-		animation = animate_abba4_configuration_trajectories(
-			result,
-			frames=3,
-			interval=10,
-			repeat=False,
-		)
-		artists = animation._func(2)
-		animation._draw_was_started = True
+	def test_animation_infers_three_or_ten_trajectories_over_one_shared_field(
+		self,
+	) -> None:
+		for particle_count in (3, 10):
+			with self.subTest(particle_count=particle_count):
+				result = _result(particle_count=particle_count)
+				animation = animate_abba4_configuration_trajectories(
+					result,
+					frames=3,
+					interval=10,
+					repeat=False,
+				)
+				artists = animation._func(2)
+				animation._draw_was_started = True
 
-		# Sixteen data axes share one seventeenth colorbar axis.
-		self.assertEqual(len(animation._fig.axes), 17)
-		data_axes = animation._fig.axes[:16]
-		self.assertEqual(result.potential.evaluation_count, 1)
-		for axis in data_axes:
-			self.assertEqual(len(axis.images), 1)
-			paths = [
-				collection
-				for collection in axis.collections
-				if isinstance(collection, LineCollection)
-			]
-			markers = [
-				collection
-				for collection in axis.collections
-				if isinstance(collection, PathCollection)
-			]
-			self.assertEqual(len(paths), 1)
-			self.assertEqual(len(paths[0].get_segments()), 10)
-			self.assertEqual(markers[0].get_offsets().shape, (10, 2))
-			self.assertEqual(axis.get_xlim(), (result.potential.x[0], result.potential.x[-1]))
-			self.assertEqual(axis.get_ylim(), (result.potential.y[0], result.potential.y[-1]))
+				# Sixteen data axes share one seventeenth colorbar axis.
+				self.assertEqual(len(animation._fig.axes), 17)
+				data_axes = animation._fig.axes[:16]
+				self.assertEqual(result.potential.evaluation_count, 1)
+				for axis in data_axes:
+					self.assertEqual(len(axis.images), 1)
+					paths = [
+						collection
+						for collection in axis.collections
+						if isinstance(collection, LineCollection)
+					]
+					markers = [
+						collection
+						for collection in axis.collections
+						if isinstance(collection, PathCollection)
+					]
+					self.assertEqual(len(paths), 1)
+					self.assertEqual(
+						len(paths[0].get_segments()),
+						particle_count,
+					)
+					self.assertEqual(
+						markers[0].get_offsets().shape,
+						(particle_count, 2),
+					)
+					self.assertEqual(
+						axis.get_xlim(),
+						(result.potential.x[0], result.potential.x[-1]),
+					)
+					self.assertEqual(
+						axis.get_ylim(),
+						(result.potential.y[0], result.potential.y[-1]),
+					)
 
-		self.assertEqual(len(animation._fig.legends), 1)
-		self.assertEqual(len(animation._fig.legends[0].get_texts()), 10)
-		self.assertEqual(len(artists), 49)
-		assert animation._fig._suptitle is not None
-		self.assertIn("160 trajectories", animation._fig._suptitle.get_text())
-		self.assertIn("phase", animation._fig._suptitle.get_text())
-		plt.close(animation._fig)
+				self.assertEqual(len(animation._fig.legends), 1)
+				self.assertEqual(
+					len(animation._fig.legends[0].get_texts()),
+					particle_count,
+				)
+				self.assertEqual(len(artists), 49)
+				assert animation._fig._suptitle is not None
+				self.assertIn(
+					f"{16 * particle_count} trajectories",
+					animation._fig._suptitle.get_text(),
+				)
+				self.assertIn("phase", animation._fig._suptitle.get_text())
+				plt.close(animation._fig)
 
 	def test_animation_rejects_an_incomplete_or_misaligned_result(self) -> None:
 		result = _result()
@@ -162,7 +184,11 @@ class ABBA4ConfigurationAnimationTests(unittest.TestCase):
 		result = _result()
 		key = result.variants[0].key
 		result.solutions[key] = result.solutions[key][:-1]
-		with self.assertRaisesRegex(ValueError, "exactly 10"):
+		with self.assertRaisesRegex(ValueError, "same number"):
+			animate_abba4_configuration_trajectories(result, frames=3)
+
+		result = _result(particle_count=11)
+		with self.assertRaisesRegex(ValueError, "between 1 and 10"):
 			animate_abba4_configuration_trajectories(result, frames=3)
 
 		result = _result()

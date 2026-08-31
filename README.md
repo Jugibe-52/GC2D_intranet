@@ -26,12 +26,17 @@ SimulationRequest -------------------------------/
 
 `Solution` is an immutable computed trajectory. Its initial configuration is
 available as `solution.source`, while diagnostics are attached as read-only
-data. Architecture documentation is organized by numerical model. The
-`ABBA2Implicit` documentation currently provides separate
-[dynamics](docs/models/abba2-implicit/dynamics/gc2d-h5-potential-architecture.puml)
-and
-[simulation](docs/models/abba2-implicit/simulation/abba2-implicit-simulation-architecture.puml)
-diagrams.
+data. Architecture documentation is organized by numerical model, with
+separate dynamics contracts and simulation explanations:
+
+- ABBA: [dynamics](docs/models/abba2-implicit/dynamics/gc2d-h5-import.md)
+  and [simulation](docs/models/abba/simulation/abba-numerical-architecture.md);
+- BM4: [dynamics and formulation contract](docs/models/bm4/dynamics/direct-adjoint-formulation-contract.md)
+  and [simulation architecture](docs/models/bm4/simulation/bm4-simulation-architecture.md);
+- `GaussLegendre4`: [dynamics](docs/models/gauss-legendre4/dynamics/guiding-center-contract.md)
+  and [simulation](docs/models/gauss-legendre4/simulation/gauss-legendre4-simulation-architecture.md); and
+- `HBVM42`: [dynamics](docs/models/hbvm42/dynamics/canonical-hamiltonian-contract.md)
+  and [simulation](docs/models/hbvm42/simulation/hbvm42-simulation-architecture.md).
 
 ## Installation
 
@@ -122,6 +127,12 @@ solution = simulate(
     request,
 )
 ```
+
+See the BM4 model-specific
+[dynamics and formulation contract](docs/models/bm4/dynamics/direct-adjoint-formulation-contract.md)
+and [simulation architecture](docs/models/bm4/simulation/bm4-simulation-architecture.md)
+for the twelve-stage composition, projection variants, nonlinear solves,
+diagnostics, and supported state extensions.
 
 Physical parameters belong to the dynamics object. Changing the initial
 configuration therefore does not change the model. The effective gyroaveraged

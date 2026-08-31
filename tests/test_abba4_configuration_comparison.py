@@ -1,4 +1,4 @@
-"""Sixteen-configuration ABBA4 comparison on ten separate trajectories."""
+"""Sixteen-configuration ABBA4 comparison on separate trajectories."""
 
 from __future__ import annotations
 
@@ -15,6 +15,7 @@ from initial_conditions import GCInitialConfiguration
 from potential import Potential
 from studies.abba4_configuration_comparison import (
 	ABBA4_CONFIGURATION_KEYS,
+	ABBA4_CONFIGURATION_PARTICLE_COUNT,
 	ABBA4_CONFIGURATION_VARIANTS,
 	ABBA4ConfigurationComparisonConfig,
 	ABBA4ConfigurationComparisonResult,
@@ -53,6 +54,7 @@ def _reference(
 	"""Construct an in-memory DOP853 reference containing a longer prefix."""
 	initial_state = configuration.initial_state
 	assert initial_state is not None
+	particle_count = configuration.layout.particle_count(initial_state)
 	dynamics = GuidingCenterDynamics(potential, rho=0.0)
 	times = np.linspace(0.0, 0.04, 5)
 	solve = solve_ivp(
@@ -77,7 +79,7 @@ def _reference(
 			"t_span": (0.0, 0.04),
 			"save_interval": 0.01,
 		},
-		"particle_count": 10,
+		"particle_count": particle_count,
 	}
 	if fingerprint is not None:
 		metadata["dynamics_fingerprint_sha256"] = fingerprint
@@ -86,7 +88,7 @@ def _reference(
 		states=states,
 		initial_state=initial_state,
 		audit_states=states,
-		audit_distances=np.zeros((10, times.size)),
+		audit_distances=np.zeros((particle_count, times.size)),
 		metadata=metadata,
 		paths=ReferenceTrajectoryPaths(
 			directory=directory,
@@ -138,6 +140,7 @@ class ABBA4ConfigurationComparisonTests(unittest.TestCase):
 
 	def test_runs_exactly_sixteen_by_ten_aligned_trajectories(self) -> None:
 		"""Keep every one-particle run instead of vectorizing extended states."""
+		self.assertEqual(self.config.particle_count, ABBA4_CONFIGURATION_PARTICLE_COUNT)
 		self.assertEqual(len(ABBA4_CONFIGURATION_VARIANTS), 16)
 		self.assertEqual(tuple(self.result.solutions), ABBA4_CONFIGURATION_KEYS)
 		self.assertEqual(tuple(self.result.runtimes), ABBA4_CONFIGURATION_KEYS)
@@ -185,7 +188,8 @@ class ABBA4ConfigurationComparisonTests(unittest.TestCase):
 						solution.states[0] - reference[particle]
 					) ** 2
 					+ (
-						solution.states[1] - reference[10 + particle]
+						solution.states[1]
+						- reference[self.config.particle_count + particle]
 					) ** 2
 					for particle, solution in enumerate(
 						self.result.solutions[variant.key]
@@ -214,7 +218,7 @@ class ABBA4ConfigurationComparisonTests(unittest.TestCase):
 	def test_runtime_and_iteration_metrics_use_sum_and_per_solve_mean(
 		self,
 	) -> None:
-		"""Sum ten timings and count every composed nonlinear solve once."""
+		"""Sum all timings and count every composed nonlinear solve once."""
 		rows = {row.key: row for row in self.result.summaries()}
 		for variant in ABBA4_CONFIGURATION_VARIANTS:
 			expected_runtime = sum(
@@ -380,8 +384,8 @@ class ABBA4ConfigurationComparisonTests(unittest.TestCase):
 			)
 
 	def test_rejects_wrong_particle_count_and_fingerprint(self) -> None:
-		"""Require ten initial states and the certified interpolated dynamics."""
-		with self.assertRaisesRegex(ValueError, "exactly ten"):
+		"""Require the configured state count and certified interpolated dynamics."""
+		with self.assertRaisesRegex(ValueError, "particle_count=10"):
 			run_abba4_configuration_comparison(
 				self.potential,
 				_configuration(particle_count=9),
@@ -400,6 +404,48 @@ class ABBA4ConfigurationComparisonTests(unittest.TestCase):
 				wrong_fingerprint,
 				config=self.config,
 			)
+
+	def test_particle_count_three_runs_sixteen_separate_triplets(self) -> None:
+		"""Allow a quick 16-by-3 study without changing the ten-path default."""
+		configuration = _configuration(particle_count=3)
+		fingerprint = potential_fingerprint(
+			GuidingCenterDynamics(self.potential, rho=0.0).effective_potential
+		)
+		reference = _reference(
+			self.potential,
+			configuration,
+			fingerprint=fingerprint,
+		)
+		config = ABBA4ConfigurationComparisonConfig(
+			t_span=(0.0, 0.01),
+			integration_step=0.01,
+			save_interval=0.01,
+			rho=0.0,
+			absolute_tolerance=1e-12,
+			relative_tolerance=1e-12,
+			max_iterations=40,
+			progress=False,
+			particle_count=3,
+		)
+		result = run_abba4_configuration_comparison(
+			self.potential,
+			configuration,
+			reference,
+			config=config,
+		)
+
+		self.assertEqual(config.particle_count, 3)
+		self.assertEqual(len(result.summaries()), 16)
+		for key in ABBA4_CONFIGURATION_KEYS:
+			self.assertEqual(len(result.solutions[key]), 3)
+			self.assertEqual(result.runtimes[key].shape, (3,))
+			for solution in result.solutions[key]:
+				source_state = solution.source.initial_state
+				assert source_state is not None
+				self.assertEqual(
+					solution.source.layout.particle_count(source_state),
+					1,
+				)
 
 
 if __name__ == "__main__":

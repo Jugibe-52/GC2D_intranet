@@ -1,0 +1,109 @@
+@startuml
+title BM4 composition, projection variants, and fixed-grid lifecycle
+
+skinparam componentStyle rectangle
+
+actor Notebook
+
+package simulation {
+  class InitialValueProblem
+  class SimulationRequest
+  class "integrate_fixed_grid" as FixedGrid
+  class IntegrationData
+  class Solution
+}
+
+package simulation.formulations {
+  interface DirectAdjointFormulation
+  interface StageProjectedFormulation
+  class GCExtendedFormulation
+  class GCStageProjectedFormulation
+  class FCSplitFormulation
+}
+
+package simulation.methods.bm4 {
+  class "twelve-stage BM4 cycle" as BM4Cycle
+  class BM4Composition
+  class ProjectedBM4Composition
+  class MidpointBM4
+  class BM4Implicit1
+  class BM4Implicit2
+  class BM4_implicit2
+}
+
+package observation {
+  class IntegrationStage
+  class ImplicitBM4IntegrationStep
+  class FullyExtendedImplicitIntegrationStep
+}
+
+package studies_and_diagnostics {
+  class "BM4 symplecticity studies" as SymplecticityStudies
+  class "implicit iteration study" as IterationStudy
+  class "energy and comparison studies" as ComparisonStudies
+}
+
+Notebook --> InitialValueProblem
+Notebook --> SimulationRequest
+
+GCExtendedFormulation ..|> DirectAdjointFormulation
+FCSplitFormulation ..|> DirectAdjointFormulation
+GCStageProjectedFormulation ..|> StageProjectedFormulation
+StageProjectedFormulation --|> DirectAdjointFormulation
+
+DirectAdjointFormulation --> BM4Composition
+StageProjectedFormulation --> ProjectedBM4Composition
+GCStageProjectedFormulation --> MidpointBM4
+GCExtendedFormulation --> BM4Implicit1
+GCExtendedFormulation --> BM4Implicit2
+InitialValueProblem --> BM4_implicit2 : one-particle GC (x,y,t,k)
+
+BM4Composition --> BM4Cycle
+ProjectedBM4Composition --> BM4Cycle : project every stage
+MidpointBM4 --> BM4Cycle : project after full cycle
+BM4Implicit1 --> BM4Cycle : reduced symmetric projection
+BM4Implicit2 --> BM4Cycle : simultaneous symmetric projection
+BM4_implicit2 --> BM4Cycle : full-state projection
+
+SimulationRequest --> FixedGrid
+BM4Cycle --> FixedGrid
+FixedGrid --> IntegrationData
+IntegrationData --> Solution
+
+BM4Composition --> IntegrationStage : optional, 12 per main step
+ProjectedBM4Composition --> IntegrationStage : stage map includes projection
+MidpointBM4 --> IntegrationStage : unprojected base stages
+BM4Implicit1 --> ImplicitBM4IntegrationStep
+BM4Implicit2 --> ImplicitBM4IntegrationStep
+BM4_implicit2 --> FullyExtendedImplicitIntegrationStep
+
+IntegrationStage --> SymplecticityStudies
+ImplicitBM4IntegrationStep --> SymplecticityStudies
+ImplicitBM4IntegrationStep --> IterationStudy
+FullyExtendedImplicitIntegrationStep --> ComparisonStudies
+Solution --> ComparisonStudies
+
+note right of BM4Cycle
+  coefficients:
+  (a1,...,a6,a6,...,a1)
+  alternating adjoint/direct
+  one signed coefficient is negative
+end note
+
+note bottom of BM4Implicit2
+  Same exact projected physical root
+  as BM4Implicit1; larger nonlinear unknown
+end note
+
+note bottom of BM4_implicit2
+  Distinct class and state extension;
+  not an alias for BM4Implicit2
+end note
+
+note right of FixedGrid
+  Shadow output advances:
+  no observations
+  no main-step diagnostics
+end note
+
+@enduml

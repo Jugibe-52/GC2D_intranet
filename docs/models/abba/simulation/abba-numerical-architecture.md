@@ -1,28 +1,31 @@
-# Canonical ABBA simulation architecture
+# Canonical ABBA numerical architecture
 
 This document explains the companion
-[`abba2-implicit-simulation-architecture.puml`](abba2-implicit-simulation-architecture.puml)
-diagram. It follows one selected ABBA configuration from public input assembly
-to the read-only `Solution` returned to the caller. The method family contains
-five public classes, while orthogonal parameters select residual formulation,
-nonlinear solver, and state extension. The diagram deliberately represents
-those axes without drawing 51 nearly identical method boxes.
+[`abba-numerical-architecture.puml`](abba-numerical-architecture.puml) diagram.
+This is documentation for the complete ABBA family, not for `ABBA2Implicit`
+alone. It follows every active ABBA runtime branch from public input assembly to
+the read-only `Solution` returned to the caller.
 
-The diagram is a runtime-path view, not a complete package inventory. Some boxes
-are concrete Python classes, while others name a distinct algorithmic role
-implemented by private helpers in the same module. The distinction is stated
-explicitly below.
+The family contains five public classes. Orthogonal parameters select residual
+formulation, nonlinear solver, and state extension without creating 51 separate
+classes. The diagram lists the classes, module-level functions, participating
+records and protocols, and named local closures used by the physical,
+shared-time, and fully extended paths. Optional observer and progress paths use
+dashed arrows.
 
-## The three main parts
+## Diagram regions
 
-The horizontal diagram has three principal regions. The small inherited boundary
-at the far left is an input to these regions rather than a fourth phase.
+The diagram separates six responsibilities so that symbol coverage does not
+hide the execution flow.
 
 | Region | Main question | Starts with | Produces |
 |---|---|---|---|
-| **1. Run assembly** | What physical problem, method, and time request will be run? | Dynamics, initial configuration, one of five ABBA classes, and output schedule | A validated problem, method configuration, and request |
-| **2. ABBA integration** | How are the state extension, composition, projection, and optional nonlinear solve applied? | The assembled run | Requested states plus method diagnostics |
-| **3. Result boundary** | How is internal numerical output validated and exposed safely? | `IntegrationData` | A read-only public `Solution` |
+| **1. Problem and simulation boundary** | What physical problem and time request will be run? | Dynamics and initial configuration | A validated `InitialValueProblem` and `SimulationRequest` |
+| **2. Public ABBA family and configuration** | Which canonical method and axes are selected? | One of five public classes | One validated method object |
+| **3. Coordinators and fixed grid** | Which state extension and composition execute? | Method, problem, and request | Main and shadow step callbacks |
+| **4. Physical/shared-time kernels** | How are the A-B-B-A stages and physical projections evaluated? | `R^2` physical copies | A closed physical state and nonlinear diagnostics |
+| **5. Fully extended kernels** | How is `(z,t,k)` duplicated, projected, and differentiated? | `R^4` accepted and `R^8` split states | A closed extended state plus energy diagnostics |
+| **6. Shared boundaries** | How are Broyden, observations, and results shared? | Residual functions and sampled histories | `IntegrationData` and public `Solution` |
 
 The complete main path is:
 
@@ -40,6 +43,21 @@ SimulationRunner -> method.integrate(...)
 IntegrationData -> Return to SimulationRunner -> Solution
 ```
 
+## Active numerical symbol coverage
+
+The diagram is a runtime inventory rather than a source-file inventory. A
+symbol is included when a public ABBA `integrate(...)` path can invoke or
+construct it, including optional progress and step-observer branches. Named
+closures such as `advance()`, `map_state()`, `evaluate()`, and `accepted()` are
+listed inside the box of their owning function.
+
+The audit deliberately excludes helpers that exist in the modules but are not
+called by an active ABBA runtime path: `_evaluate_residual(...)`,
+`_evaluate_single_projection_residual(...)`, `_solve_abba4_step(...)`, and
+`_solve_abba6_step(...)`. It also excludes the BM4-only functions in
+`methods/_fully_extended.py`, other numerical-method families, trivial property
+accessors, and potential-field internals behind the dynamics contract.
+
 ## Inherited boundary: guiding-centre dynamics
 
 ### `GuidingCenterDynamics`
@@ -49,8 +67,8 @@ IntegrationData -> Return to SimulationRunner -> Solution
 `GuidingCenterDynamics` is the concrete structural implementation used in this
 path. It does not explicitly inherit the protocol, but it provides every required
 member: `state_dimension = 2`, `vector_field(...)`, and
-`particle_vector_field_jacobians(...)`. The dashed hollow-triangle relationship
-in the diagram denotes this structural protocol implementation.
+`particle_vector_field_jacobians(...)`. The diagram groups it with the two
+protocols whose numerical capabilities it supplies.
 
 Its potential, gyroaverage construction, and field internals remain outside the
 simulation diagram. This boundary consumes only the public dynamics capability.
@@ -88,15 +106,14 @@ coordinator narrows the general problem dynamics to this capability.
 against this broad contract so general numerical methods need not know which
 physical system they receive.
 
-The inherited boundary is therefore read from the concrete implementation on
-the left, through the guiding-centre-specific capability, to the general
-dynamical-system contract on the right. These arrows express type relationships,
-not successive runtime calls.
+The dynamics box is a capability boundary: it groups the concrete
+implementation with the guiding-centre-specific and general protocols. Those
+type relationships are not successive runtime calls.
 
 ## Part 1: run assembly
 
-The subsections below mirror the exact horizontal order of the diagram. Within
-each vertical state box, the configuration is described before its layout.
+The subsections below expand the problem and simulation boundary before entering
+the ABBA-specific numerical regions.
 
 ### `InitialValueProblem`
 
@@ -128,21 +145,15 @@ do not receive the configuration's owned array directly.
 Asks `initial_configuration.layout` to interpret the packed state and return
 its particle count.
 
-`InitialValueProblem` appears first because it is the public problem object whose
-dependencies are expanded by the boxes to its right. This is an architectural
-reading order, not the literal construction order in user code: a concrete
-initial configuration must already exist when the problem is instantiated.
-
-Two solid arrows enter `InitialValueProblem`. `DynamicalSystem` is drawn on its
-left, so that arrow points right; `InitialConfiguration` is drawn on its right,
-so that arrow points left. Both have exactly the same meaning: the corresponding
-object is supplied to the constructor and retained in a dataclass field. Neither
-arrow denotes inheritance.
+`InitialValueProblem` is the public problem object. A concrete initial
+configuration must already exist when it is instantiated; both the dynamics and
+configuration objects are supplied to its constructor and retained in dataclass
+fields.
 
 ### State contracts
 
-This vertical box contains the two runtime-checkable protocols consumed by
-`InitialValueProblem` and `Solution`.
+The initial-state-and-layout box includes the two runtime-checkable protocols
+consumed by `InitialValueProblem` and `Solution`.
 
 #### `InitialConfiguration`
 
@@ -150,8 +161,7 @@ This vertical box contains the two runtime-checkable protocols consumed by
 
 `InitialConfiguration` is a runtime-checkable protocol, not a concrete initial
 condition. It is therefore marked `«protocol»` just like `DynamicalSystem` and
-`NumericalMethod`; **State contracts** is the architectural name of the
-containing box. A concrete implementation owns the optional initial physical
+`NumericalMethod`. A concrete implementation owns the optional initial physical
 state and exposes a separate layout object that interprets packed arrays.
 
 | Member | Responsibility |
@@ -159,8 +169,7 @@ state and exposes a separate layout object that interprets packed arrays.
 | `initial_state` | Returns an independent initial-state copy, or `None` if unset. |
 | `layout` | Returns the `StateLayout` used to interpret physical arrays. |
 
-The hollow diamond between `InitialConfiguration` and `StateLayout` represents
-that composed capability. The configuration owns state storage, not the packed
+The configuration owns state storage, while `StateLayout` owns the packed
 memory rules. Physical parameters such as the potential and gyroaverage radius
 remain in the dynamics object.
 
@@ -186,8 +195,8 @@ but the generic protocol does not require them.
 
 ### Guiding-center initial state
 
-This vertical box is the concrete guiding-centre specialization of the two
-contracts immediately to its left.
+These classes are the concrete guiding-centre specialization of the two state
+contracts.
 
 #### `GCInitialConfiguration`
 
@@ -202,8 +211,7 @@ contracts immediately to its left.
   protocol.
 
 This is the concrete configuration normally supplied when constructing a
-guiding-centre `InitialValueProblem`. Its dashed line with a hollow triangle
-denotes structural implementation of the protocol.
+guiding-centre `InitialValueProblem`.
 
 #### `GCStateLayout`
 
@@ -216,16 +224,12 @@ denotes structural implementation of the protocol.
 - `split(...) -> GCState(x, y)`; and
 - `positions(...)` as required by `StateLayout`.
 
-It structurally conforms to `StateLayout` without inheriting that protocol. As
-with `GCInitialConfiguration`, this is shown by a dashed line with a hollow
-triangle.
+It structurally conforms to `StateLayout` without inheriting that protocol.
 
 ### Shared state implementation
 
-This vertical box contains reusable storage and packed-layout behavior. It is
-shown after the guiding-centre specialization because the diagram follows the
-requested visual order; the hollow inheritance triangles still point from the
-concrete guiding-centre classes to these base classes.
+These classes contain reusable storage and packed-layout behavior for the
+guiding-centre specialization.
 
 #### `StateConfiguration`
 
@@ -287,17 +291,10 @@ grid; that distinction is handled by `integrate_fixed_grid(...)`.
 `simulate(problem, method, request)` function is a convenience facade that
 creates a runner and calls `SimulationRunner.simulate(...)`.
 
-`InitialValueProblem`, `NumericalMethod`, and `SimulationRequest` all point into
-`SimulationRunner` because all three are arguments of that public method. The
-problem and request arrive from the left; the method protocol is placed to the
-right so the remaining diagram can expand the selected implementation before
-entering the integration region.
-
-The diagram shows the return phase of that same `simulate(...)` call as
-`Return to SimulationRunner` inside the result boundary. This is an algorithmic
-continuation, not a second Python class or runner instance. Separating the entry
-and return phases keeps the runtime path horizontal without drawing a long
-backward cycle across the integration boxes.
+`InitialValueProblem`, `NumericalMethod`, and `SimulationRequest` are the three
+arguments of that public method. After the selected implementation returns
+`IntegrationData`, execution resumes in the same runner instance to validate
+the transfer object and construct `Solution`.
 
 #### `SimulationRunner.simulate(...)`
 
@@ -441,10 +438,9 @@ One outer step contains one A-B-B-A map and one selected implicit projection.
 Physical and shared-time configurations use `_integrate_projected_abba(...)`;
 fully extended configurations use `_integrate_abba_fully_extended(...)`.
 
-Because `ABBA2Implicit` supplies `integrate(problem, request)`, the dashed
-hollow-triangle relation from this concrete class to `NumericalMethod` denotes
-structural protocol implementation. The solid hollow-triangle relation from
-`ABBA2Implicit` to `_ABBAImplicitConfig` denotes actual Python inheritance.
+Because `ABBA2Implicit` supplies `integrate(problem, request)`, it structurally
+implements `NumericalMethod`. Its inheritance from `_ABBAImplicitConfig` is a
+separate concrete Python relationship.
 
 #### `ABBA4Implicit`
 
@@ -530,8 +526,7 @@ differences. Both values are recorded by diagnostics and step observations.
 
 ## Part 2: configured ABBA integration
 
-This region makes the numerical execution order explicit. Read its principal
-boxes from left to right:
+The coordinator and kernel regions make the numerical execution order explicit:
 
 ```text
 fixed grid -> state-extension strategy -> composition policy
@@ -549,11 +544,11 @@ Implicit configurations have two nested loops:
    seven per outer step.
 
 `ABBA2Midpoint` traverses the same outer loop and extension dispatch but bypasses
-the formulation and nonlinear-solver boxes. It closes each duplicated map with
-an arithmetic mean.
+the formulation and nonlinear-solver kernels. It closes each duplicated map
+with an arithmetic mean.
 
-Most boxes are algorithmic roles rather than separate public Python classes.
-Their files are deliberately separated by responsibility:
+Each diagram box groups the exact runtime symbols owned by one responsibility.
+Their files are deliberately separated as follows:
 
 - [`_implicit.py`](../../../../src/simulation/methods/abba/_implicit.py) coordinates
   the complete run;
@@ -666,10 +661,9 @@ schedule. At the `FixedGrid` box it performs these actions:
 3. For each required interval, it invokes the coordinator's `advance(...)`
    callback with a main or shadow step.
 
-The callback then enters the one-step setup shown in the next box. The effects
-of the returned main or shadow state are described later under
-**Outer time loop — continuation**, matching its position near the right-hand
-side of the diagram.
+The callback then enters the selected one-step kernel. The effects of the
+returned main or shadow state are described later under
+**Outer time loop — continuation**.
 
 ### Formulation selection
 
@@ -813,13 +807,11 @@ After every residual evaluation, the solver checks
 \lVert r_k \rVert_\infty \leq \tau.
 \]
 
-The two outgoing arrows from `ResidualTest` are the two possible numerical
-branches:
+The residual test has two possible numerical outcomes:
 
-- **yes:** the multiplier has converged, so execution moves directly to
-  `AcceptedStep`;
-- **no:** execution enters `NonlinearCorrection`, computes a new multiplier,
-  and follows the backward arrow to reevaluate all ABBA stages.
+- **converged:** the solver constructs the accepted projected step;
+- **not converged:** Newton or Broyden computes a new multiplier and reevaluates
+  all ABBA stages.
 
 This is a convergence decision inside one time step. It must not be confused
 with the outer scheduler's decision to advance to another physical time.
@@ -836,9 +828,8 @@ only in how they compute the correction `Delta_mu_k`.
 
 #### Newton path
 
-Newton differentiates the four traversed ABBA stages with
-`_differentiate_stages(...)`; `_evaluate_residual(...)` combines that
-differentiation with the current stage evaluation. Newton evaluates exact
+Newton differentiates the current `_ABBAStages` directly with
+`_differentiate_stages(...)`. Newton evaluates exact
 particle vector-field Jacobians at the relevant endpoint-time states and
 assembles one independent
 `2 x 2` reduced residual Jacobian `J_r` per particle. The packed system
@@ -870,9 +861,9 @@ Whichever solver is selected, the multiplier update is
 \mu_{k+1} = \mu_k - \Delta\mu_k.
 \]
 
-The backward arrow from `NonlinearCorrection` to `DuplicatedInput` means that
-`u_0`, `v_0`, every A-B-B-A stage, `d_{k+1}`, and `r_{k+1}` are recomputed using
-this new multiplier. This cycle continues until the convergence test succeeds.
+After every correction, `u_0`, `v_0`, every A-B-B-A stage, `d_{k+1}`, and
+`r_{k+1}` are recomputed using the new multiplier. This cycle continues until
+the convergence test succeeds.
 
 If the iteration limit is reached, or if a Newton block is singular, the method
 raises a contextual `RuntimeError` containing the time, step size, and residual
@@ -1082,19 +1073,17 @@ The sampled times, states, and diagnostic arrays remain protected, but callers
 should not mutate the source configuration after constructing a solution if
 they want its provenance to remain unchanged.
 
-The arrow from the `Return to SimulationRunner` continuation to `Solution`
-identifies `SimulationRunner` as the object that constructs the public result.
-The `Solution` box states that the initial configuration and its composed layout
-are retained for provenance and for interpretation of the computed history.
-This information is written inside the box instead of using two long cross-phase
-arrows, so the integration and result phases remain ordered from left to right.
-The initial state remains distinct from the computed trajectory.
+The return arrow from the result boundary to public run assembly identifies
+`SimulationRunner` as the object that constructs `Solution`. The result box also
+states that the initial configuration and its composed layout are retained for
+provenance and for interpretation of the computed history. The initial state
+remains distinct from the computed trajectory.
 
 ## Complete runtime walkthrough
 
-The following list follows the boxes from left to right. Type and containment
-boxes explain dependencies and therefore do not all represent later moments in
-wall-clock execution.
+The following list expands the complete runtime path. Grouped type and
+containment symbols explain dependencies and therefore do not all represent
+later moments in wall-clock execution.
 
 1. `GuidingCenterDynamics` provides the concrete vector field and exact particle
    Jacobians.
@@ -1111,7 +1100,7 @@ wall-clock execution.
    output samples.
 8. `SimulationRunner` receives the problem, request, and a `NumericalMethod`.
 9. `NumericalMethod` defines the integration capability consumed by the runner.
-10. The public-method box selects one of the five canonical classes.
+10. The public ABBA region selects one of the five canonical classes.
 11. `ABBA2Midpoint` validates only `state_extension`; each implicit class
     inherits `_ABBAImplicitConfig` and validates all three canonical axes.
 12. `state_extension` chooses the physical `R^4`, shared-time `R^6`, or fully
@@ -1145,26 +1134,22 @@ wall-clock execution.
 |---|---|
 | Solid arrow into a consumer | An argument or returned value is supplied to that consumer |
 | Solid arrow between runtime steps | A call, construction, or forward hand-off |
-| Solid line with hollow triangle | Explicit Python inheritance |
-| Dashed line with hollow triangle | Structural implementation of a `Protocol` |
-| Ordinary dashed arrow | Required capability, structural reuse, optional side channel, or midpoint bypass of the nonlinear solver |
-| Package boundary | Architectural responsibility, not necessarily a Python package |
-| Yellow note | Important invariant or intentionally omitted detail |
+| Dashed arrow | Optional progress, observer, or observer-requested tangent path |
+| Cluster boundary | Architectural responsibility, not necessarily a Python package |
+| Bold symbol | Class, dataclass, or protocol |
+| Plain symbol ending in `(...)` | Function, method, or named local closure |
+| Yellow note | Coverage rule and deliberate omissions |
 
 The absence of text on most horizontal arrows is intentional. The action is
 described inside the destination box, which keeps connection labels from
 overlapping UML compartments in rendered diagrams.
 
-Consequently, the three public inputs point into `SimulationRunner`, whereas
-`IntegrationData` points into the `Return to SimulationRunner` continuation
-because it is the value returned by `NumericalMethod.integrate(...)`. That
-continuation then points to `Solution`, which the runner constructs.
-
-The same input rule applies to `InitialValueProblem`: both `DynamicalSystem` and
-`InitialConfiguration` use solid arrows directed into the problem. Every Python
-`Protocol` shown in the diagram carries the `«protocol»` stereotype. A concrete
-class that satisfies a protocol structurally uses a dashed line with a hollow
-triangle, regardless of which side of the concrete class the protocol occupies.
+Consequently, the problem and request enter public run assembly, the selected
+method dispatches to a coordinator, and `IntegrationData` returns through the
+result boundary so the runner can construct `Solution`. Every Python `Protocol`
+shown in the diagram carries the `«protocol»` stereotype; structural conformance
+and concrete inheritance are explained in the prose rather than encoded as
+additional cross-region arrows.
 
 ## Minimal public usage
 
@@ -1204,13 +1189,13 @@ Here `dynamics`, `initial_x`, `initial_y`, `final_time`, `max_step`, and
 
 ## Scope and deliberate omissions
 
-The diagram shows all five public method classes and all three configuration
-axes, but it does not duplicate the runtime row for every one of the 51 valid
-configurations. Each option list is vertical inside its box, and the execution
-phases remain ordered horizontally. The diagram deliberately omits:
+The diagram shows all five public method classes, all three configuration axes,
+and the active classes and functions used by their numerical runtime. It does
+not duplicate the same path for every one of the 51 valid configurations. The
+diagram deliberately omits:
 
 - the internal potential and field model of the guiding-centre dynamics;
-- the individual algebraic stages inside each higher-order composition;
+- unused convenience helpers that are not called by public ABBA integration;
 - numerical methods outside the ABBA family;
 - downstream diagnostic algorithms that consume step observations; and
 - experiment- or notebook-specific construction of physical parameters.

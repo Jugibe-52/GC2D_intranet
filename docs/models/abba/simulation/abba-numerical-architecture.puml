@@ -1,0 +1,362 @@
+@startdot
+digraph G {
+  graph [
+    rankdir=LR,
+    compound=true,
+    newrank=true,
+    splines=ortho,
+    nodesep=0.32,
+    ranksep=0.72,
+    pad=0.18,
+    bgcolor="white",
+    fontname="DejaVu Sans",
+    fontsize=12,
+    label="Canonical ABBA Numerical Architecture",
+    labelloc="t",
+    labeljust="c"
+  ];
+  node [shape=plain, fontname="DejaVu Sans", fontsize=9];
+  edge [color="#333333", penwidth=1.0, arrowsize=0.68, fontname="DejaVu Sans", fontsize=8];
+
+  subgraph cluster_boundary {
+    label="Problem and simulation boundary";
+    labeljust="l";
+    color="#777777";
+    style="rounded";
+
+    boundary_anchor [shape=point, width=0, height=0, label="", style=invis];
+
+    Dynamics [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#F7F7F7">
+        <TR><TD><FONT POINT-SIZE="8">src/dynamics</FONT><BR/><B>Numerical dynamics contract</B></TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT"><B>DynamicalSystem</B> &#171;protocol&#187;<BR ALIGN="LEFT"/><B>GuidingCenterJacobianSystem</B> &#171;protocol&#187;<BR ALIGN="LEFT"/><B>GuidingCenterDynamics</B> &#171;implementation&#187;<BR ALIGN="LEFT"/>vector_field(...)<BR ALIGN="LEFT"/>particle_vector_field_jacobians(...)<BR ALIGN="LEFT"/>extended_momentum_derivative(...)</TD></TR>
+      </TABLE>
+    >];
+
+    InitialState [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#F7F7F7">
+        <TR><TD><FONT POINT-SIZE="8">src/simulation/configuration.py<BR/>src/initial_conditions/base.py, gc.py</FONT><BR/><B>Initial state and layout</B></TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT"><B>InitialConfiguration</B> &#171;protocol&#187;<BR ALIGN="LEFT"/><B>StateLayout</B> &#171;protocol&#187;<BR ALIGN="LEFT"/><B>StateConfiguration</B><BR ALIGN="LEFT"/><B>PackedStateLayout</B><BR ALIGN="LEFT"/><B>GCInitialConfiguration</B>.from_components(...)<BR ALIGN="LEFT"/><B>GCStateLayout</B><BR ALIGN="LEFT"/>validate_packed_state_layout(...)<BR ALIGN="LEFT"/>particle_count(...), positions(...)</TD></TR>
+      </TABLE>
+    >];
+
+    Assembly [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#EAF2F8">
+        <TR><TD><FONT POINT-SIZE="8">src/simulation</FONT><BR/><B>Public run assembly</B></TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT"><B>InitialValueProblem</B>.__post_init__(...)<BR ALIGN="LEFT"/>initial_state, particle_count<BR ALIGN="LEFT"/><B>SimulationRequest</B>.__post_init__(...), uniform(...)<BR ALIGN="LEFT"/><B>SimulationRunner</B>.simulate(...)<BR ALIGN="LEFT"/>simulate(...)<BR ALIGN="LEFT"/><B>NumericalMethod</B>.integrate(...) &#171;protocol&#187;</TD></TR>
+      </TABLE>
+    >];
+
+    { rank=same; boundary_anchor; Dynamics; InitialState; Assembly; }
+  }
+
+  subgraph cluster_public {
+    label="Public ABBA family and configuration";
+    labeljust="l";
+    color="#6C5B7B";
+    penwidth=1.2;
+    style="rounded";
+
+    public_anchor [shape=point, width=0, height=0, label="", style=invis];
+
+    ABBA2Midpoint [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#F3ECF7">
+        <TR><TD><FONT POINT-SIZE="8">abba/order2_midpoint.py</FONT><BR/><B>ABBA2Midpoint</B></TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT">__post_init__(), integrate(...)<BR ALIGN="LEFT"/>state_extension: 3 choices</TD></TR>
+      </TABLE>
+    >];
+
+    ABBA2Implicit [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#F3ECF7">
+        <TR><TD><FONT POINT-SIZE="8">abba/order2_implicit.py</FONT><BR/><B>ABBA2Implicit</B></TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT">integrate(...)<BR ALIGN="LEFT"/>2 x 2 x 3 configurations</TD></TR>
+      </TABLE>
+    >];
+
+    ABBA4Implicit [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#F3ECF7">
+        <TR><TD><FONT POINT-SIZE="8">abba/order4_implicit.py</FONT><BR/><B>ABBA4Implicit</B></TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT">integrate(...)<BR ALIGN="LEFT"/>three projected maps</TD></TR>
+      </TABLE>
+    >];
+
+    ABBA4Single [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#F3ECF7">
+        <TR><TD><FONT POINT-SIZE="8">abba/order4_implicit_single_projection.py</FONT><BR/><B>ABBA4ImplicitSingleProjection</B></TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT">integrate(...)<BR ALIGN="LEFT"/>one projection around three maps</TD></TR>
+      </TABLE>
+    >];
+
+    ABBA6Implicit [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#F3ECF7">
+        <TR><TD><FONT POINT-SIZE="8">abba/order6_implicit.py</FONT><BR/><B>ABBA6Implicit</B></TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT">integrate(...)<BR ALIGN="LEFT"/>seven projected maps</TD></TR>
+      </TABLE>
+    >];
+
+    Configuration [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#FBF7FD">
+        <TR><TD><FONT POINT-SIZE="8">abba/_configuration.py, _implicit.py<BR/>methods/_nonlinear.py</FONT><BR/><B>Configuration symbols</B></TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT"><B>_ABBAImplicitConfig</B>.__post_init__(...)<BR ALIGN="LEFT"/>_validate_projection_formulation(...)<BR ALIGN="LEFT"/>_validate_state_extension(...)<BR ALIGN="LEFT"/>_state_dimension_diagnostics(...)<BR ALIGN="LEFT"/>_positive_finite(...)<BR ALIGN="LEFT"/>_positive_integer(...)<BR ALIGN="LEFT"/>_validate_nonlinear_solver(...)</TD></TR>
+      </TABLE>
+    >];
+
+    { rank=same; public_anchor; ABBA2Midpoint; ABBA2Implicit; ABBA4Implicit; ABBA4Single; ABBA6Implicit; Configuration; }
+  }
+
+  subgraph cluster_coordinators {
+    label="Integration coordinators and fixed grid";
+    labeljust="l";
+    color="#3F6F8F";
+    penwidth=1.2;
+    style="rounded";
+
+    coordinator_anchor [shape=point, width=0, height=0, label="", style=invis];
+
+    MidpointCoordinator [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#EAF2F8">
+        <TR><TD><FONT POINT-SIZE="8">abba/order2_midpoint.py</FONT><BR/><B>Midpoint coordinator</B></TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT">ABBA2Midpoint.integrate(...)<BR ALIGN="LEFT"/>_midpoint_abba_step(...)<BR ALIGN="LEFT"/><B>_ABBA2MidpointStep</B><BR ALIGN="LEFT"/>local advance(), apply_step()</TD></TR>
+      </TABLE>
+    >];
+
+    ProjectedCoordinator [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#EAF2F8">
+        <TR><TD><FONT POINT-SIZE="8">abba/_implicit.py</FONT><BR/><B>Order-two projected coordinator</B></TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT">_integrate_projected_abba(...)<BR ALIGN="LEFT"/>_step_solver_for(...)<BR ALIGN="LEFT"/>_shared_time_kappa_increment(...)<BR ALIGN="LEFT"/>_shared_time_kappa_increment_from_stages(...)<BR ALIGN="LEFT"/>local advance(), apply_step(), momentum_derivative()</TD></TR>
+      </TABLE>
+    >];
+
+    ComposedCoordinator [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#EAF2F8">
+        <TR><TD><FONT POINT-SIZE="8">abba/order4_implicit.py</FONT><BR/><B>Composed projected coordinator</B></TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT">_integrate_abba4_implicit(...)<BR ALIGN="LEFT"/>_integrate_composed_implicit_abba(...)<BR ALIGN="LEFT"/>_solve_composed_abba_step(...)<BR ALIGN="LEFT"/>_substep_observation(...)<BR ALIGN="LEFT"/><B>_AcceptedSubstep</B>, <B>_ComposedABBAStep</B><BR ALIGN="LEFT"/>local solve_step(), advance(), map_state()</TD></TR>
+      </TABLE>
+    >];
+
+    SingleCoordinator [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#EAF2F8">
+        <TR><TD><FONT POINT-SIZE="8">abba/order4_implicit_single_projection.py</FONT><BR/><B>Single-projection coordinator</B></TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT">_integrate_abba4_implicit_single_projection(...)<BR ALIGN="LEFT"/>_solve_abba4_single_projection_step(...)<BR ALIGN="LEFT"/>_observed_substeps(...)<BR ALIGN="LEFT"/>local solve_step(), advance(), map_state()</TD></TR>
+      </TABLE>
+    >];
+
+    FixedGrid [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#DDEBF3">
+        <TR><TD><FONT POINT-SIZE="8">src/simulation/_fixed.py</FONT><BR/><B>Fixed-grid driver</B></TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT">integrate_fixed_grid(...)<BR ALIGN="LEFT"/>_step_count(...)<BR ALIGN="LEFT"/><B>_Progress</B>.update(...), close() [optional]<BR ALIGN="LEFT"/>main and shadow advance callbacks</TD></TR>
+      </TABLE>
+    >];
+
+    { rank=same; coordinator_anchor; MidpointCoordinator; ProjectedCoordinator; ComposedCoordinator; SingleCoordinator; FixedGrid; }
+  }
+
+  subgraph cluster_physical {
+    label="Physical R2 and shared-time R4 numerical kernels";
+    labeljust="l";
+    color="#4F7D63";
+    penwidth=1.2;
+    style="rounded";
+
+    physical_anchor [shape=point, width=0, height=0, label="", style=invis];
+
+    PhysicalStages [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#EAF6EE">
+        <TR><TD><FONT POINT-SIZE="8">abba/_core.py<BR/>abba/_projection_common.py</FONT><BR/><B>Stages and exact tangents</B></TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT"><B>_ABBAStages</B><BR ALIGN="LEFT"/><B>_ProjectedStep</B><BR ALIGN="LEFT"/><B>_ResidualEvaluation</B><BR ALIGN="LEFT"/>_checked_vector_field(...)<BR ALIGN="LEFT"/>_evaluate_unprojected_stages(...)<BR ALIGN="LEFT"/>_checked_vector_field_jacobian(...)<BR ALIGN="LEFT"/>_evaluate_displaced_stages(...)<BR ALIGN="LEFT"/>_differentiate_stages(...)</TD></TR>
+      </TABLE>
+    >];
+
+    ReducedProjection [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#EAF6EE">
+        <TR><TD><FONT POINT-SIZE="8">abba/_projection_reduced.py</FONT><BR/><B>Reduced multiplier</B></TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT">_evaluate_stages(...)<BR ALIGN="LEFT"/>_solve_reduced_multiplier_step(...)<BR ALIGN="LEFT"/>inline Newton: numpy.linalg.solve<BR ALIGN="LEFT"/>Broyden: _solve_broyden(...)</TD></TR>
+      </TABLE>
+    >];
+
+    SimultaneousProjection [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#EAF6EE">
+        <TR><TD><FONT POINT-SIZE="8">abba/_projection_simultaneous.py</FONT><BR/><B>Simultaneous state and multiplier</B></TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT">_particle_blocks(...)<BR ALIGN="LEFT"/>_packed_particle_blocks(...)<BR ALIGN="LEFT"/>_simultaneous_residual_blocks(...)<BR ALIGN="LEFT"/>_simultaneous_newton_jacobian(...)<BR ALIGN="LEFT"/>_solve_simultaneous_state_multiplier_step(...)<BR ALIGN="LEFT"/>local residual_function()</TD></TR>
+      </TABLE>
+    >];
+
+    SingleProjection [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#EAF6EE">
+        <TR><TD><FONT POINT-SIZE="8">abba/order4_implicit_single_projection.py</FONT><BR/><B>One outer ABBA4 projection</B></TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT"><B>_SingleProjectionBaseEvaluation</B><BR ALIGN="LEFT"/><B>_SingleProjectionResidualEvaluation</B><BR ALIGN="LEFT"/><B>_ABBA4SingleProjectionStep</B><BR ALIGN="LEFT"/>_validated_state(...)<BR ALIGN="LEFT"/>_evaluate_single_projection_base(...)<BR ALIGN="LEFT"/>_differentiate_single_projection_base(...)<BR ALIGN="LEFT"/>_projected_state(...)<BR ALIGN="LEFT"/>_solve_reduced_abba4_single_projection_step(...)<BR ALIGN="LEFT"/>_simultaneous_residual_blocks(...)<BR ALIGN="LEFT"/>_simultaneous_newton_jacobian(...)<BR ALIGN="LEFT"/>_solve_simultaneous_abba4_single_projection_step(...)<BR ALIGN="LEFT"/>local residual_function()</TD></TR>
+      </TABLE>
+    >];
+
+    { rank=same; physical_anchor; PhysicalStages; ReducedProjection; SimultaneousProjection; SingleProjection; }
+  }
+
+  subgraph cluster_full {
+    label="Fully extended R4 / duplicated R8 numerical kernels";
+    labeljust="l";
+    color="#A66A3F";
+    penwidth=1.2;
+    style="rounded";
+
+    full_anchor [shape=point, width=0, height=0, label="", style=invis];
+
+    FullCoordinator [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#FAEEE5">
+        <TR><TD><FONT POINT-SIZE="8">methods/_fully_extended.py</FONT><BR/><B>ABBA full-state coordination</B></TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT"><B>_ABBAFullyExtendedMethod</B> &#171;protocol&#187;<BR ALIGN="LEFT"/><B>_ABBAFullyExtendedMidpointMethod</B> &#171;protocol&#187;<BR ALIGN="LEFT"/><B>_AcceptedFullSubstep</B>, <B>_FullMethodStep</B><BR ALIGN="LEFT"/>_validate_abba_projection_formulation(...)<BR ALIGN="LEFT"/>_abba_variant_coefficients(...)<BR ALIGN="LEFT"/>_solve_abba_fully_extended_step(...)<BR ALIGN="LEFT"/>_integrate_abba_fully_extended(...)<BR ALIGN="LEFT"/>_integrate_abba_fully_extended_midpoint(...)<BR ALIGN="LEFT"/>_fully_extended_energy_diagnostics(...)<BR ALIGN="LEFT"/>local solve_step(), advance(), map_state(), midpoint_step()</TD></TR>
+      </TABLE>
+    >];
+
+    FullFlows [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#FAEEE5">
+        <TR><TD><FONT POINT-SIZE="8">methods/_fully_extended.py</FONT><BR/><B>Extended field and ABBA maps</B></TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT"><B>_AnalyticExtendedMap</B><BR ALIGN="LEFT"/>_checked_extended_state(...)<BR ALIGN="LEFT"/>_synchronized_extended_time(...)<BR ALIGN="LEFT"/>_extended_vector_field(...)<BR ALIGN="LEFT"/>_extended_vector_field_jacobian(...)<BR ALIGN="LEFT"/>_flow_first(...), _flow_second(...)<BR ALIGN="LEFT"/>_flow_first_jacobian(...)<BR ALIGN="LEFT"/>_flow_second_jacobian(...)<BR ALIGN="LEFT"/>_abba_base_map(...)<BR ALIGN="LEFT"/>_composed_abba_base_map(...)<BR ALIGN="LEFT"/>local map_state(), jacobian_state()</TD></TR>
+      </TABLE>
+    >];
+
+    FullProjection [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#FAEEE5">
+        <TR><TD><FONT POINT-SIZE="8">methods/_fully_extended.py</FONT><BR/><B>Full diagonal projection</B></TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT"><B>_FullProjectedStep</B><BR ALIGN="LEFT"/>_full_reduced_residual_jacobian(...)<BR ALIGN="LEFT"/>_solve_abba_full_reduced_projection(...)<BR ALIGN="LEFT"/>_solve_abba_full_simultaneous_projection(...)<BR ALIGN="LEFT"/>_solve_abba_full_projection(...)<BR ALIGN="LEFT"/>local evaluate(), evaluate_unknown(), accepted()<BR ALIGN="LEFT"/>inline Newton: numpy.linalg.solve<BR ALIGN="LEFT"/>Broyden: _solve_broyden(...)</TD></TR>
+      </TABLE>
+    >];
+
+    FullTangent [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#FFF5EC">
+        <TR><TD><FONT POINT-SIZE="8">methods/_fully_extended.py</FONT><BR/><B>Observer-requested tangent path</B> [optional]</TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT">_centered_map_jacobian(...)<BR ALIGN="LEFT"/>_base_map_jacobian(...)<BR ALIGN="LEFT"/>_projected_substep_jacobian(...)<BR ALIGN="LEFT"/>_method_step_jacobian(...)<BR ALIGN="LEFT"/>_base_observation(...)<BR ALIGN="LEFT"/>local jacobian_state()</TD></TR>
+      </TABLE>
+    >];
+
+    { rank=same; full_anchor; FullCoordinator; FullFlows; FullProjection; FullTangent; }
+  }
+
+  subgraph cluster_shared {
+    label="Shared nonlinear solver, observation, and result boundary";
+    labeljust="l";
+    color="#555555";
+    penwidth=1.2;
+    style="rounded";
+
+    shared_anchor [shape=point, width=0, height=0, label="", style=invis];
+
+    Nonlinear [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#F2F2F2">
+        <TR><TD><FONT POINT-SIZE="8">methods/_nonlinear.py</FONT><BR/><B>Shared Broyden implementation</B></TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT"><B>_BroydenResult</B><BR ALIGN="LEFT"/>_checked_residual_evaluation(...)<BR ALIGN="LEFT"/>_solve_broyden(...)</TD></TR>
+      </TABLE>
+    >];
+
+    Observations [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#FFFDEB">
+        <TR><TD><FONT POINT-SIZE="8">src/simulation/observation.py</FONT><BR/><B>Step-observer records</B> [optional]</TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT"><B>IntegrationStep</B><BR ALIGN="LEFT"/><B>ImplicitIntegrationStep</B><BR ALIGN="LEFT"/><B>ABBA2ImplicitIntegrationStep</B><BR ALIGN="LEFT"/><B>UnprojectedABBAIntegrationStep</B><BR ALIGN="LEFT"/><B>ABBAImplicitCompositionIntegrationStep</B><BR ALIGN="LEFT"/><B>ABBA4ImplicitIntegrationStep</B><BR ALIGN="LEFT"/><B>ABBA6ImplicitIntegrationStep</B><BR ALIGN="LEFT"/><B>ABBA4ImplicitSingleProjectionIntegrationStep</B><BR ALIGN="LEFT"/><B>FullyExtendedBaseMap</B><BR ALIGN="LEFT"/><B>FullyExtendedImplicitIntegrationStep</B></TD></TR>
+      </TABLE>
+    >];
+
+    Result [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#EAF2F8">
+        <TR><TD><FONT POINT-SIZE="8">src/simulation/_result.py, solution.py</FONT><BR/><B>Result boundary</B></TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT"><B>IntegrationData</B><BR ALIGN="LEFT"/><B>Solution</B>.__init__(...)<BR ALIGN="LEFT"/>_readonly_array(...)<BR ALIGN="LEFT"/>components(...), positions(...)<BR ALIGN="LEFT"/>read-only times, states, diagnostics, source</TD></TR>
+      </TABLE>
+    >];
+
+    Scope [shape=note, style="filled", fillcolor="#FFFDEB", color="#B8AE6F", margin="0.10,0.07", label="Coverage: active ABBA runtime symbols\nfor physical, shared-time, and fully extended paths.\nNamed local closures are shown with their owner.\nDashed arrows are optional observer or progress paths.\nUnused helpers and BM4/RK4/HBVM kernels are outside scope."];
+
+    { rank=same; shared_anchor; Nonlinear; Observations; Result; Scope; }
+  }
+
+  // Invisible spine keeps the six regions in temporal reading order.
+  boundary_anchor -> public_anchor -> coordinator_anchor -> physical_anchor -> full_anchor -> shared_anchor [style=invis, weight=1000, minlen=2];
+
+  // Public assembly and method selection.
+  Dynamics -> Assembly [constraint=false];
+  InitialState -> Assembly [constraint=false];
+  Assembly -> ABBA2Midpoint [constraint=false];
+  Assembly -> ABBA2Implicit [constraint=false];
+  Assembly -> ABBA4Implicit [constraint=false];
+  Assembly -> ABBA4Single [constraint=false];
+  Assembly -> ABBA6Implicit [constraint=false];
+  Configuration -> ABBA2Midpoint [style=dashed, constraint=false];
+  Configuration -> ABBA2Implicit [constraint=false];
+  Configuration -> ABBA4Implicit [constraint=false];
+  Configuration -> ABBA4Single [constraint=false];
+  Configuration -> ABBA6Implicit [constraint=false];
+
+  // State-extension dispatch from every public method.
+  ABBA2Midpoint -> MidpointCoordinator [constraint=false];
+  ABBA2Implicit -> ProjectedCoordinator [constraint=false];
+  ABBA4Implicit -> ComposedCoordinator [constraint=false];
+  ABBA6Implicit -> ComposedCoordinator [constraint=false];
+  ABBA4Single -> SingleCoordinator [constraint=false];
+  ABBA2Midpoint -> FullCoordinator [constraint=false];
+  ABBA2Implicit -> FullCoordinator [constraint=false];
+  ABBA4Implicit -> FullCoordinator [constraint=false];
+  ABBA4Single -> FullCoordinator [constraint=false];
+  ABBA6Implicit -> FullCoordinator [constraint=false];
+
+  // Coordinators register their advance closure with the common driver.
+  MidpointCoordinator -> FixedGrid [constraint=false];
+  ProjectedCoordinator -> FixedGrid [constraint=false];
+  ComposedCoordinator -> FixedGrid [constraint=false];
+  SingleCoordinator -> FixedGrid [constraint=false];
+  FullCoordinator -> FixedGrid [constraint=false];
+
+  // Active physical/shared-time callback paths.
+  FixedGrid -> PhysicalStages [constraint=false];
+  ProjectedCoordinator -> ReducedProjection [constraint=false];
+  ProjectedCoordinator -> SimultaneousProjection [constraint=false];
+  ComposedCoordinator -> ReducedProjection [constraint=false];
+  ComposedCoordinator -> SimultaneousProjection [constraint=false];
+  SingleCoordinator -> SingleProjection [constraint=false];
+  MidpointCoordinator -> PhysicalStages [constraint=false];
+  ReducedProjection -> PhysicalStages [constraint=false];
+  SimultaneousProjection -> PhysicalStages [constraint=false];
+  SingleProjection -> PhysicalStages [constraint=false];
+
+  // Active fully extended callback path.
+  FullCoordinator -> FullFlows [constraint=false];
+  FullCoordinator -> FullProjection [constraint=false];
+  FullProjection -> FullFlows [constraint=false];
+  FullCoordinator -> FullTangent [style=dashed, constraint=false];
+  FullTangent -> FullFlows [style=dashed, constraint=false];
+
+  // Shared solver and result hand-off.
+  ReducedProjection -> Nonlinear [constraint=false];
+  SimultaneousProjection -> Nonlinear [constraint=false];
+  SingleProjection -> Nonlinear [constraint=false];
+  FullProjection -> Nonlinear [constraint=false];
+  MidpointCoordinator -> Observations [style=dashed, constraint=false];
+  ProjectedCoordinator -> Observations [style=dashed, constraint=false];
+  ComposedCoordinator -> Observations [style=dashed, constraint=false];
+  SingleCoordinator -> Observations [style=dashed, constraint=false];
+  FullTangent -> Observations [style=dashed, constraint=false];
+  FixedGrid -> Result [constraint=false];
+  Result -> Assembly [constraint=false];
+}
+@enddot

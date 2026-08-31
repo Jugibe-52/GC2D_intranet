@@ -46,9 +46,9 @@ _COLUMN_COORDINATES = (
 	("simultaneous_state_multiplier", "newton", "Simultaneous\nNewton"),
 	("simultaneous_state_multiplier", "broyden", "Simultaneous\nBroyden"),
 )
-_PARTICLE_COUNT = 10
 _VARIANT_COUNT = 16
 _INITIAL_CONDITION_COLORS = tuple(mcolors.TABLEAU_COLORS.values())
+_MAX_PARTICLE_COUNT = len(_INITIAL_CONDITION_COLORS)
 
 
 def _effective_potential(result: object) -> Potential:
@@ -121,12 +121,13 @@ def _ordered_variants(result: object) -> tuple[object, ...]:
 def _aligned_positions(
 	result: object,
 	variants: Sequence[object],
-) -> tuple[np.ndarray, dict[str, tuple[np.ndarray, np.ndarray]]]:
-	"""Collect sixteen arrays of ten ordered one-particle trajectories."""
+) -> tuple[np.ndarray, dict[str, tuple[np.ndarray, np.ndarray]], int]:
+	"""Collect sixteen arrays sharing one inferred particle count and order."""
 	solutions_value = getattr(result, "solutions", None)
 	if not isinstance(solutions_value, Mapping):
 		raise TypeError("`result.solutions` must map variant keys to trajectories.")
 	variant_keys: list[str] = []
+	particle_count: int | None = None
 	reference_times: np.ndarray | None = None
 	reference_initial_positions: np.ndarray | None = None
 	positions: dict[str, tuple[np.ndarray, np.ndarray]] = {}
@@ -146,8 +147,17 @@ def _aligned_positions(
 		):
 			raise TypeError("Every variant value must be a sequence of Solutions.")
 		trajectories = tuple(trajectory_value)
-		if len(trajectories) != _PARTICLE_COUNT:
-			raise ValueError("Every ABBA4 variant must contain exactly 10 trajectories.")
+		if particle_count is None:
+			particle_count = len(trajectories)
+			if not 1 <= particle_count <= _MAX_PARTICLE_COUNT:
+				raise ValueError(
+					"The animation requires between 1 and "
+					f"{_MAX_PARTICLE_COUNT} trajectories per variant."
+				)
+		elif len(trajectories) != particle_count:
+			raise ValueError(
+				"Every ABBA4 variant must contain the same number of trajectories."
+			)
 
 		x_rows: list[np.ndarray] = []
 		y_rows: list[np.ndarray] = []
@@ -163,7 +173,9 @@ def _aligned_positions(
 			if reference_times is None:
 				reference_times = times
 			elif not np.array_equal(times, reference_times):
-				raise ValueError("All 160 trajectories must share one saved-time grid.")
+				raise ValueError(
+					"All configuration trajectories must share one saved-time grid."
+				)
 			x_rows.append(np.asarray(x[0], dtype=float))
 			y_rows.append(np.asarray(y[0], dtype=float))
 
@@ -183,7 +195,8 @@ def _aligned_positions(
 	if set(solutions_value) != set(variant_keys):
 		raise ValueError("`result.solutions` must contain exactly the 16 variant keys.")
 	assert reference_times is not None
-	return reference_times, positions
+	assert particle_count is not None
+	return reference_times, positions, particle_count
 
 
 def _closed_spatial_limits(potential: Potential) -> tuple[float, float, float, float]:
@@ -229,11 +242,11 @@ def animate_abba4_configuration_trajectories(
 	cmap: str = "Greys",
 	**imshow_kwargs: Any,
 ) -> FuncAnimation:
-	"""Animate 16 ABBA4 configurations and 10 shared initial conditions.
+	"""Animate 16 ABBA4 configurations and up to 10 shared initial conditions.
 
 	Rows encode the projection placement and state extension, while columns encode
 	the projection formulation and nonlinear solver. Each panel therefore needs
-	only the ten stable initial-condition colors; no sixteen-entry method legend
+	only the stable initial-condition colors; no sixteen-entry method legend
 	is required. The effective potential is evaluated once on every selected frame
 	and the same field array and normalization are reused by all sixteen panels.
 	"""
@@ -246,7 +259,8 @@ def animate_abba4_configuration_trajectories(
 	if not isinstance(repeat, (bool, np.bool_)):
 		raise TypeError("`repeat` must be a boolean.")
 	variants = _ordered_variants(result)
-	times, positions = _aligned_positions(result, variants)
+	times, positions, particle_count = _aligned_positions(result, variants)
+	particle_colors = _INITIAL_CONDITION_COLORS[:particle_count]
 	indices = _frame_indices(times.size, frames)
 	frame_times = times[indices]
 	potential = _effective_potential(result)
@@ -283,7 +297,7 @@ def animate_abba4_configuration_trajectories(
 		image = axis.imshow(fields[:, :, 0].T, **image_options)
 		path = LineCollection(
 			[],
-			colors=_INITIAL_CONDITION_COLORS,
+			colors=particle_colors,
 			linewidths=1.0,
 			alpha=0.82,
 			zorder=3,
@@ -293,7 +307,7 @@ def animate_abba4_configuration_trajectories(
 			x_values[:, 0],
 			y_values[:, 0],
 			s=22,
-			color=_INITIAL_CONDITION_COLORS,
+			color=particle_colors,
 			edgecolor="white",
 			linewidth=0.4,
 			zorder=5,
@@ -339,12 +353,12 @@ def animate_abba4_configuration_trajectories(
 			linewidth=1.0,
 			label=f"IC {particle + 1}",
 		)
-		for particle, color in enumerate(_INITIAL_CONDITION_COLORS)
+		for particle, color in enumerate(particle_colors)
 	]
 	figure.legend(
 		handles=legend_handles,
 		loc="outside lower center",
-		ncols=10,
+		ncols=particle_count,
 		fontsize=8,
 		framealpha=0.9,
 	)
@@ -352,7 +366,7 @@ def animate_abba4_configuration_trajectories(
 	suptitle = figure.suptitle("")
 
 	def update(frame: int) -> tuple[Any, ...]:
-		"""Update one shared field and all 160 accumulated trajectories."""
+		"""Update one shared field and every accumulated trajectory."""
 		sample_index = int(indices[frame])
 		artists: list[Any] = []
 		for image in images:
@@ -369,7 +383,7 @@ def animate_abba4_configuration_trajectories(
 							y_values[particle, : sample_index + 1],
 						)
 					)
-					for particle in range(_PARTICLE_COUNT)
+					for particle in range(particle_count)
 				]
 			)
 			markers[key].set_offsets(
@@ -381,8 +395,9 @@ def animate_abba4_configuration_trajectories(
 		time = float(times[sample_index])
 		phase = float(np.mod(frequency * time, 2.0 * np.pi))
 		suptitle.set_text(
-			"16 ABBA4 configurations × 10 shared initial conditions "
-			f"(160 trajectories) — t = {time:.6g}, phase = {phase:.3f} rad"
+			f"16 ABBA4 configurations × {particle_count} shared initial "
+			f"conditions ({_VARIANT_COUNT * particle_count} trajectories) — "
+			f"t = {time:.6g}, phase = {phase:.3f} rad"
 		)
 		artists.append(suptitle)
 		return tuple(artists)

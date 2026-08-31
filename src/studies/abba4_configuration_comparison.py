@@ -1,4 +1,4 @@
-"""Sixteen-configuration ABBA4 comparison on ten one-particle trajectories."""
+"""Sixteen-configuration ABBA4 comparison on separate particle trajectories."""
 
 from __future__ import annotations
 
@@ -164,6 +164,7 @@ class ABBA4ConfigurationComparisonConfig:
 	relative_tolerance: float = 1e-13
 	max_iterations: int = 40
 	progress: bool = False
+	particle_count: int = ABBA4_CONFIGURATION_PARTICLE_COUNT
 
 	def __post_init__(self) -> None:
 		"""Normalize all reproducibility controls and require aligned grids."""
@@ -189,6 +190,11 @@ class ABBA4ConfigurationComparisonConfig:
 			positive_integer(self.max_iterations, "max_iterations"),
 		)
 		object.__setattr__(self, "progress", bool(self.progress))
+		object.__setattr__(
+			self,
+			"particle_count",
+			positive_integer(self.particle_count, "particle_count"),
+		)
 		integer_ratio(
 			self.t_span[1] - self.t_span[0],
 			self.integration_step,
@@ -241,11 +247,17 @@ class ABBA4ConfigurationComparisonSummary:
 	mean_relative_energy_error: float
 
 
-def _readonly_runtime_array(value: np.ndarray) -> np.ndarray:
-	"""Own and freeze ten positive wall-clock measurements."""
+def _readonly_runtime_array(
+	value: np.ndarray,
+	*,
+	particle_count: int,
+) -> np.ndarray:
+	"""Own and freeze one positive wall-clock measurement per particle."""
 	array = np.array(value, dtype=float, copy=True)
-	if array.shape != (ABBA4_CONFIGURATION_PARTICLE_COUNT,):
-		raise ValueError("Every configuration must contain ten runtime samples.")
+	if array.shape != (particle_count,):
+		raise ValueError(
+			"Every configuration must contain one runtime sample per particle."
+		)
 	if not np.all(np.isfinite(array)) or np.any(array <= 0.0):
 		raise ValueError("Every trajectory runtime must be positive and finite.")
 	array.setflags(write=False)
@@ -349,18 +361,25 @@ class ABBA4ConfigurationComparisonResult:
 		initial_state = self.initial_configuration.initial_state
 		if initial_state is None:
 			raise ValueError("The initial configuration must contain a state.")
-		if self.initial_configuration.layout.particle_count(initial_state) != (
-			ABBA4_CONFIGURATION_PARTICLE_COUNT
+		particle_count = self.config.particle_count
+		if (
+			self.initial_configuration.layout.particle_count(initial_state)
+			!= particle_count
 		):
-			raise ValueError("The comparison requires exactly ten initial conditions.")
+			raise ValueError(
+				"The initial configuration must contain exactly "
+				f"particle_count={particle_count} initial conditions."
+			)
 		initial_x, initial_y = self.initial_configuration.positions(initial_state)
 		common_times: np.ndarray | None = None
 		frozen_solutions: dict[str, tuple[Solution, ...]] = {}
 		frozen_runtimes: dict[str, np.ndarray] = {}
 		for variant in ABBA4_CONFIGURATION_VARIANTS:
 			trajectory_solutions = tuple(self.solutions[variant.key])
-			if len(trajectory_solutions) != ABBA4_CONFIGURATION_PARTICLE_COUNT:
-				raise ValueError("Every configuration must contain ten solutions.")
+			if len(trajectory_solutions) != particle_count:
+				raise ValueError(
+					"Every configuration must contain one solution per particle."
+				)
 			expected_dimensions = _expected_dimensions(variant)
 			for particle, solution in enumerate(trajectory_solutions):
 				if not isinstance(solution, Solution):
@@ -376,7 +395,9 @@ class ABBA4ConfigurationComparisonResult:
 				if common_times is None:
 					common_times = solution.t
 				elif not np.array_equal(solution.t, common_times):
-					raise ValueError("All 160 trajectories must share one saved-time grid.")
+					raise ValueError(
+						"All configuration trajectories must share one saved-time grid."
+					)
 				diagnostics = solution.diagnostics
 				if int(diagnostics.get("step_count", -1)) != self.config.step_count:
 					raise ValueError("A trajectory used an inconsistent integration grid.")
@@ -400,7 +421,8 @@ class ABBA4ConfigurationComparisonResult:
 					raise ValueError("A trajectory reported inconsistent state dimensions.")
 			frozen_solutions[variant.key] = trajectory_solutions
 			frozen_runtimes[variant.key] = _readonly_runtime_array(
-				self.runtimes[variant.key]
+				self.runtimes[variant.key],
+				particle_count=particle_count,
 			)
 
 		assert common_times is not None
@@ -432,17 +454,16 @@ class ABBA4ConfigurationComparisonResult:
 		return self.solutions[ABBA4_CONFIGURATION_KEYS[0]][0].t
 
 	def _trajectory_distances(self, key: str) -> np.ndarray:
-		"""Return direct Euclidean errors with shape ``(10, saved_times)``."""
+		"""Return Euclidean errors with shape ``(particles, saved_times)``."""
+		particle_count = self.config.particle_count
 		reference = self.reference.states[:, self.reference_sample_indices]
 		distances = np.empty(
-			(ABBA4_CONFIGURATION_PARTICLE_COUNT, self.times.size),
+			(particle_count, self.times.size),
 			dtype=float,
 		)
 		for particle, solution in enumerate(self.solutions[key]):
 			delta_x = solution.states[0] - reference[particle]
-			delta_y = solution.states[1] - reference[
-				ABBA4_CONFIGURATION_PARTICLE_COUNT + particle
-			]
+			delta_y = solution.states[1] - reference[particle_count + particle]
 			distances[particle] = np.hypot(delta_x, delta_y)
 		return distances
 
@@ -450,9 +471,9 @@ class ABBA4ConfigurationComparisonResult:
 		self,
 		variant: ABBA4ConfigurationVariant,
 	) -> np.ndarray:
-		"""Return normalized absolute generalized-energy errors for ten paths."""
+		"""Return normalized absolute generalized-energy errors for all paths."""
 		values = np.empty(
-			(ABBA4_CONFIGURATION_PARTICLE_COUNT, self.times.size),
+			(self.config.particle_count, self.times.size),
 			dtype=float,
 		)
 		for particle, solution in enumerate(self.solutions[variant.key]):
@@ -532,11 +553,11 @@ def _method_for_variant(
 	)
 
 
-def _alternating_particle_order() -> tuple[int, ...]:
+def _alternating_particle_order(particle_count: int) -> tuple[int, ...]:
 	"""Interleave low and high indices to avoid monotone trajectory ordering."""
 	order: list[int] = []
 	left = 0
-	right = ABBA4_CONFIGURATION_PARTICLE_COUNT - 1
+	right = particle_count - 1
 	while left <= right:
 		order.append(left)
 		left += 1
@@ -558,6 +579,19 @@ def _validated_reference_samples(
 	initial_state = initial_configuration.initial_state
 	if initial_state is None or not np.array_equal(initial_state, reference.initial_state):
 		raise ValueError("The comparison initial state differs from the reference.")
+	reference_particle_count = reference.metadata.get("particle_count")
+	if reference_particle_count is not None:
+		try:
+			stored_particle_count = positive_integer(
+				reference_particle_count,
+				"reference particle_count",
+			)
+		except ValueError as exc:
+			raise ValueError("Reference particle-count metadata is invalid.") from exc
+		if stored_particle_count != config.particle_count:
+			raise ValueError(
+				"The reference particle count differs from the configured particle_count."
+			)
 	if reference_distance_convention(reference) != "euclidean":
 		raise ValueError("The real HDF5 comparison requires Euclidean reference errors.")
 	reference_config = reference.metadata.get("config")
@@ -588,7 +622,7 @@ def run_abba4_configuration_comparison(
 	*,
 	config: ABBA4ConfigurationComparisonConfig,
 ) -> ABBA4ConfigurationComparisonResult:
-	"""Run sixteen configurations for ten separate initial conditions."""
+	"""Run sixteen configurations for each configured initial condition."""
 	if not isinstance(potential, Potential):
 		raise TypeError("`potential` must be a Potential instance.")
 	if not isinstance(initial_configuration, GCInitialConfiguration):
@@ -600,8 +634,11 @@ def run_abba4_configuration_comparison(
 	initial_state = initial_configuration.initial_state
 	if initial_state is None or initial_configuration.layout.particle_count(
 		initial_state
-	) != ABBA4_CONFIGURATION_PARTICLE_COUNT:
-		raise ValueError("The comparison requires exactly ten initial conditions.")
+	) != config.particle_count:
+		raise ValueError(
+			"The initial configuration must contain exactly "
+			f"particle_count={config.particle_count} initial conditions."
+		)
 
 	dynamics = GuidingCenterDynamics(potential, rho=config.rho)
 	request = SimulationRequest.uniform(
@@ -623,7 +660,7 @@ def run_abba4_configuration_comparison(
 			x=np.asarray([initial_x[particle]], dtype=float),
 			y=np.asarray([initial_y[particle]], dtype=float),
 		)
-		for particle in range(ABBA4_CONFIGURATION_PARTICLE_COUNT)
+		for particle in range(config.particle_count)
 	)
 	problems = tuple(
 		InitialValueProblem(dynamics, particle_configuration)
@@ -637,10 +674,12 @@ def run_abba4_configuration_comparison(
 		key: {} for key in ABBA4_CONFIGURATION_KEYS
 	}
 	runtime_rows: dict[str, np.ndarray] = {
-		key: np.empty(ABBA4_CONFIGURATION_PARTICLE_COUNT, dtype=float)
+		key: np.empty(config.particle_count, dtype=float)
 		for key in ABBA4_CONFIGURATION_KEYS
 	}
-	for schedule_index, particle in enumerate(_alternating_particle_order()):
+	for schedule_index, particle in enumerate(
+		_alternating_particle_order(config.particle_count)
+	):
 		variant_order = (
 			ABBA4_CONFIGURATION_VARIANTS
 			if schedule_index % 2 == 0
@@ -663,7 +702,7 @@ def run_abba4_configuration_comparison(
 		solutions={
 			key: tuple(
 				solution_rows[key][particle]
-				for particle in range(ABBA4_CONFIGURATION_PARTICLE_COUNT)
+				for particle in range(config.particle_count)
 			)
 			for key in ABBA4_CONFIGURATION_KEYS
 		},
