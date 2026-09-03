@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from typing import Protocol
 
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
+
+from .implicit_comparison import IMPLICIT_METHOD_COLORS
 
 
 class GeneralizedEnergyRunView(Protocol):
@@ -63,6 +65,24 @@ class GeneralizedEnergySummaryView(Protocol):
 		"""Maximum absolute generalized-energy drift."""
 		...
 
+
+class EnergyAccuracySeriesView(Protocol):
+	"""Physical-Hamiltonian reference errors consumed by comparison plots."""
+
+	@property
+	def errors(self) -> np.ndarray:
+		"""Return signed particle-time Hamiltonian errors."""
+		...
+
+	@property
+	def rms_error(self) -> np.ndarray:
+		"""Return particle-RMS Hamiltonian errors over time."""
+		...
+
+	@property
+	def running_maximum_absolute_error(self) -> np.ndarray:
+		"""Return the running worst absolute particle error."""
+		...
 
 class ExtendedSymplecticityRunView(Protocol):
 	"""Step-dependent arrays consumed by the ``R^6`` defect plot."""
@@ -240,6 +260,115 @@ def plot_generalized_energy_errors(
 	return figure, axes
 
 
+def plot_energy_accuracy_over_time(
+	times: np.ndarray,
+	series: Mapping[str, EnergyAccuracySeriesView],
+	*,
+	reference_energy_errors: np.ndarray,
+) -> tuple[Figure, np.ndarray]:
+	"""Plot Hamiltonian-observable errors against DOP853 and its Radau audit."""
+	time_values = np.asarray(times, dtype=float)
+	if (
+		time_values.ndim != 1
+		or time_values.size < 2
+		or not np.all(np.isfinite(time_values))
+		or np.any(np.diff(time_values) <= 0.0)
+	):
+		raise ValueError("Energy-accuracy times must be finite and increasing.")
+	if not series:
+		raise ValueError("At least one energy-accuracy series is required.")
+	reference_errors = np.asarray(reference_energy_errors, dtype=float)
+	if (
+		reference_errors.ndim != 2
+		or reference_errors.shape[1] != time_values.size
+		or not np.all(np.isfinite(reference_errors))
+	):
+		raise ValueError("Reference energy errors must share the particle-time grid.")
+
+	reference_rms = np.asarray(
+		np.sqrt(np.mean(reference_errors**2, axis=0)),
+		dtype=float,
+	)
+	reference_running = np.asarray(
+		np.maximum.accumulate(np.max(np.abs(reference_errors), axis=0)),
+		dtype=float,
+	)
+	prepared: list[tuple[str, np.ndarray, np.ndarray]] = []
+	positive_values: list[np.ndarray] = []
+	for label, values in series.items():
+		errors = np.asarray(values.errors, dtype=float)
+		rms = np.asarray(values.rms_error, dtype=float)
+		running = np.asarray(values.running_maximum_absolute_error, dtype=float)
+		if (
+			errors.ndim != 2
+			or errors.shape[1] != time_values.size
+			or rms.shape != time_values.shape
+			or running.shape != time_values.shape
+			or not np.all(np.isfinite(errors))
+			or np.any(rms < 0.0)
+			or np.any(running < 0.0)
+		):
+			raise ValueError("Every energy series must share one finite time grid.")
+		prepared.append((label, rms, running))
+		positive_values.extend((rms[rms > 0.0], running[running > 0.0]))
+	positive_values.extend(
+		(reference_rms[reference_rms > 0.0], reference_running[reference_running > 0.0])
+	)
+	nonempty = [values for values in positive_values if values.size]
+	plot_floor = (
+		min(float(np.min(values)) for values in nonempty) / 2.0
+		if nonempty
+		else float(np.finfo(float).tiny)
+	)
+
+	figure, axes = plt.subplots(
+		2,
+		1,
+		figsize=(12, 9),
+		sharex=True,
+		constrained_layout=True,
+	)
+	for index, (label, rms, running) in enumerate(prepared):
+		color = IMPLICIT_METHOD_COLORS.get(label, f"C{index}")
+		axes[0].semilogy(
+			time_values,
+			np.maximum(rms, plot_floor),
+			color=color,
+			label=label,
+		)
+		axes[1].semilogy(
+			time_values,
+			np.maximum(running, plot_floor),
+			color=color,
+			label=label,
+		)
+	for axis, reference_values in zip(
+		axes,
+		(reference_rms, reference_running),
+		strict=True,
+	):
+		axis.semilogy(
+			time_values,
+			np.maximum(reference_values, plot_floor),
+			color="black",
+			linestyle=":",
+			linewidth=1.3,
+			label="DOP853/Radau energy discrepancy",
+		)
+		axis.grid(which="both", alpha=0.25)
+		axis.legend(fontsize="small", ncol=2)
+	axes[0].set(
+		title="Particle-RMS Hamiltonian error against DOP853",
+		ylabel=r"RMS $|H(t,z_h)-H(t,z_{ref})|$",
+	)
+	axes[1].set(
+		title="Running worst particle Hamiltonian error",
+		xlabel="Time",
+		ylabel=r"$\max_{j\leq n,\,i}|\Delta H_i(t_j)|$",
+	)
+	return figure, axes
+
+
 def plot_generalized_energy_convergence(
 	summaries: Sequence[GeneralizedEnergySummaryView],
 	*,
@@ -393,6 +522,7 @@ def plot_reduced_time_extended_symplecticity(
 
 
 __all__ = [
+	"EnergyAccuracySeriesView",
 	"GeneralizedEnergyRunView",
 	"GeneralizedEnergySummaryView",
 	"ExtendedSymplecticityRunView",
@@ -400,6 +530,7 @@ __all__ = [
 	"plot_generalized_energy_components",
 	"plot_generalized_energy_convergence",
 	"plot_generalized_energy_errors",
+	"plot_energy_accuracy_over_time",
 	"plot_time_extended_symplecticity",
 	"plot_reduced_time_extended_symplecticity",
 ]

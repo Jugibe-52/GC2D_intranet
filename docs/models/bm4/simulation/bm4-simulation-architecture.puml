@@ -1,4 +1,5 @@
 @startuml
+allowmixing
 title BM4 composition, projection variants, and fixed-grid lifecycle
 
 skinparam componentStyle rectangle

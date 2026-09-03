@@ -1,0 +1,410 @@
+@startdot
+digraph ABBA2ImplicitClassRelationships {
+  graph [
+    rankdir=TB,
+    compound=true,
+    newrank=true,
+    splines=polyline,
+    nodesep=0.42,
+    ranksep=0.72,
+    pad=0.20,
+    bgcolor="white",
+    fontname="DejaVu Sans",
+    fontsize=15,
+    label="ABBA2 Implicit - Static Class Relationships (View 1 of 3)",
+    labelloc="t",
+    labeljust="c"
+  ];
+  node [shape=plain, fontname="DejaVu Sans", fontsize=10];
+  edge [
+    color="#43515C",
+    fontcolor="#263238",
+    penwidth=1.15,
+    arrowsize=0.78,
+    fontname="DejaVu Sans",
+    fontsize=9
+  ];
+
+  subgraph cluster_domain {
+    label="Problem and dynamics contracts";
+    labeljust="l";
+    color="#4C78A8";
+    penwidth=1.3;
+    style="rounded";
+
+    domain_anchor [shape=point, width=0, height=0, label="", style=invis];
+
+    Problem [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="6" BGCOLOR="#F3ECF7">
+        <TR><TD><FONT POINT-SIZE="9">src/simulation/problem.py</FONT><BR/><B>InitialValueProblem</B><BR/><FONT POINT-SIZE="9">&#171;dataclass&#187;</FONT></TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT">dynamics<BR ALIGN="LEFT"/>initial_configuration<BR ALIGN="LEFT"/>initial_state, particle_count</TD></TR>
+      </TABLE>
+    >];
+
+    DynamicalSystem [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="6" BGCOLOR="#EAF2F8">
+        <TR><TD><FONT POINT-SIZE="9">src/dynamics/protocols.py</FONT><BR/><B>DynamicalSystem</B><BR/><FONT POINT-SIZE="9">&#171;protocol&#187;</FONT></TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT">state_dimension<BR ALIGN="LEFT"/>vector_field(t, state)</TD></TR>
+      </TABLE>
+    >];
+
+    JacobianSystem [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="6" BGCOLOR="#DDEBF3">
+        <TR><TD><FONT POINT-SIZE="9">src/dynamics/protocols.py</FONT><BR/><B>GuidingCenterJacobianSystem</B><BR/><FONT POINT-SIZE="9">&#171;protocol&#187;</FONT></TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT">vector_field(t, state)<BR ALIGN="LEFT"/>particle_vector_field_jacobians(t, state)</TD></TR>
+      </TABLE>
+    >];
+
+    InitialConfiguration [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="6" BGCOLOR="#EAF2F8">
+        <TR><TD><FONT POINT-SIZE="9">src/simulation/configuration.py</FONT><BR/><B>InitialConfiguration</B><BR/><FONT POINT-SIZE="9">&#171;protocol&#187;</FONT></TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT">initial_state<BR ALIGN="LEFT"/>layout: StateLayout</TD></TR>
+      </TABLE>
+    >];
+
+    StateLayout [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="6" BGCOLOR="#EAF2F8">
+        <TR><TD><FONT POINT-SIZE="9">src/simulation/configuration.py</FONT><BR/><B>StateLayout</B><BR/><FONT POINT-SIZE="9">&#171;protocol&#187;</FONT></TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT">validate_packed_state_layout(state)<BR ALIGN="LEFT"/>particle_count(state), positions(state)</TD></TR>
+      </TABLE>
+    >];
+
+    { rank=same; DynamicalSystem; InitialConfiguration; }
+    { rank=same; JacobianSystem; StateLayout; }
+  }
+
+  subgraph cluster_method {
+    label="Numerical method and internal step data";
+    labeljust="l";
+    color="#6C5B7B";
+    penwidth=1.3;
+    style="rounded";
+
+    method_anchor [shape=point, width=0, height=0, label="", style=invis];
+
+    Method [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="6" BGCOLOR="#DCCDE5">
+        <TR><TD><FONT POINT-SIZE="9">abba/order2_implicit.py</FONT><BR/><B>ABBA2Implicit</B><BR/><FONT POINT-SIZE="9">&#171;dataclass / numerical method&#187;</FONT></TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT">integrate(problem, request) -&gt; IntegrationData<BR ALIGN="LEFT"/>requires problem.dynamics: GuidingCenterJacobianSystem<BR ALIGN="LEFT"/>inherited solver configuration</TD></TR>
+      </TABLE>
+    >];
+
+    Config [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="6" BGCOLOR="#F3ECF7">
+        <TR><TD><FONT POINT-SIZE="9">abba/_implicit.py</FONT><BR/><B>_ABBAImplicitConfig</B><BR/><FONT POINT-SIZE="9">&#171;dataclass&#187;</FONT></TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT">projection_formulation<BR ALIGN="LEFT"/>state_extension<BR ALIGN="LEFT"/>nonlinear_solver<BR ALIGN="LEFT"/>Newton tolerances and limit<BR ALIGN="LEFT"/>progress, step_observer</TD></TR>
+      </TABLE>
+    >];
+
+    NumericalMethod [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="6" BGCOLOR="#EAF2F8">
+        <TR><TD><FONT POINT-SIZE="9">src/simulation/methods/base.py</FONT><BR/><B>NumericalMethod</B><BR/><FONT POINT-SIZE="9">&#171;protocol&#187;</FONT></TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT">integrate(problem, request) -&gt; IntegrationData</TD></TR>
+      </TABLE>
+    >];
+
+    ProjectedStep [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="6" BGCOLOR="#FFF4E5">
+        <TR><TD><FONT POINT-SIZE="9">abba/_projection_common.py</FONT><BR/><B>_ProjectedStep</B><BR/><FONT POINT-SIZE="9">&#171;dataclass&#187;</FONT></TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT">state, multiplier<BR ALIGN="LEFT"/>stages: _ABBAStages<BR ALIGN="LEFT"/>iterations, residual evaluations, norm</TD></TR>
+      </TABLE>
+    >];
+
+    Stages [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="6" BGCOLOR="#FFF4E5">
+        <TR><TD><FONT POINT-SIZE="9">abba/_core.py</FONT><BR/><B>_ABBAStages</B><BR/><FONT POINT-SIZE="9">&#171;dataclass&#187;</FONT></TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT">u_initial, v_initial, u_first<BR ALIGN="LEFT"/>v_final, u_final, residual</TD></TR>
+      </TABLE>
+    >];
+
+    { rank=same; Config; NumericalMethod; }
+    { rank=same; ProjectedStep; Stages; }
+  }
+
+  subgraph cluster_runtime {
+    label="Simulation boundary and public result";
+    labeljust="l";
+    color="#3F6F8F";
+    penwidth=1.3;
+    style="rounded";
+
+    runtime_anchor [shape=point, width=0, height=0, label="", style=invis];
+
+    Runner [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="6" BGCOLOR="#DDEBF3">
+        <TR><TD><FONT POINT-SIZE="9">src/simulation/runner.py</FONT><BR/><B>SimulationRunner</B></TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT">simulate(problem, method, request)<BR ALIGN="LEFT"/>validates IntegrationData<BR ALIGN="LEFT"/>creates Solution</TD></TR>
+      </TABLE>
+    >];
+
+    Request [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="6" BGCOLOR="#F3ECF7">
+        <TR><TD><FONT POINT-SIZE="9">src/simulation/request.py</FONT><BR/><B>SimulationRequest</B><BR/><FONT POINT-SIZE="9">&#171;dataclass&#187;</FONT></TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT">t_span, max_step, output_times</TD></TR>
+      </TABLE>
+    >];
+
+    IntegrationData [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="6" BGCOLOR="#FFF4E5">
+        <TR><TD><FONT POINT-SIZE="9">src/simulation/_result.py</FONT><BR/><B>IntegrationData</B><BR/><FONT POINT-SIZE="9">&#171;dataclass / transfer object&#187;</FONT></TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT">t, states, diagnostics</TD></TR>
+      </TABLE>
+    >];
+
+    Solution [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="6" BGCOLOR="#EAF6EE">
+        <TR><TD><FONT POINT-SIZE="9">src/simulation/solution.py</FONT><BR/><B>Solution</B></TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT">t, states, diagnostics<BR ALIGN="LEFT"/>source: InitialConfiguration</TD></TR>
+      </TABLE>
+    >];
+
+    { rank=same; Request; IntegrationData; Solution; }
+  }
+
+  subgraph cluster_observation {
+    label="Optional observation type hierarchy";
+    labeljust="l";
+    color="#A36A00";
+    penwidth=1.3;
+    style="rounded";
+
+    observation_anchor [shape=point, width=0, height=0, label="", style=invis];
+
+    ObserverStep [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="6" BGCOLOR="#FFF2CC">
+        <TR><TD><FONT POINT-SIZE="9">src/simulation/observation.py</FONT><BR/><B>ABBA2ImplicitIntegrationStep</B><BR/><FONT POINT-SIZE="9">&#171;dataclass&#187;</FONT></TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT">multiplier and converged ABBA stages</TD></TR>
+      </TABLE>
+    >];
+
+    ImplicitStep [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="6" BGCOLOR="#FFFDEB">
+        <TR><TD><FONT POINT-SIZE="9">src/simulation/observation.py</FONT><BR/><B>ImplicitIntegrationStep</B><BR/><FONT POINT-SIZE="9">&#171;dataclass&#187;</FONT></TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT">formulation and nonlinear metrics</TD></TR>
+      </TABLE>
+    >];
+
+    IntegrationStep [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="6" BGCOLOR="#FFFDEB">
+        <TR><TD><FONT POINT-SIZE="9">src/simulation/observation.py</FONT><BR/><B>IntegrationStep</B><BR/><FONT POINT-SIZE="9">&#171;dataclass&#187;</FONT></TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT">state_before, state_after<BR ALIGN="LEFT"/>map_state callback, dynamics</TD></TR>
+      </TABLE>
+    >];
+  }
+
+  Legend [shape=note, style="filled", fillcolor="#F7F7F7", color="#8A8A8A", margin="0.12,0.08", label="Relationship legend\nsolid hollow triangle: nominal inheritance\ndashed hollow triangle: structural protocol implementation\nhollow diamond: aggregates an injected collaborator\nfilled diamond: contains an internal record\nsolid arrow: association or creation\ndashed arrow: dependency, use, or return type"];
+
+  { rank=same; domain_anchor; method_anchor; }
+  { rank=same; runtime_anchor; observation_anchor; }
+  domain_anchor -> runtime_anchor [style=invis, weight=1000];
+  method_anchor -> observation_anchor [style=invis, weight=1000];
+  runtime_anchor -> Legend [style=invis, weight=1000];
+  domain_anchor -> Problem [style=invis, weight=1000];
+  method_anchor -> Method [style=invis, weight=1000];
+  runtime_anchor -> Runner [style=invis, weight=1000];
+  observation_anchor -> ObserverStep [style=invis, weight=1000];
+  Problem -> DynamicalSystem [dir=both, arrowtail=odiamond, arrowhead=none, label="dynamics"];
+  Problem -> InitialConfiguration [dir=both, arrowtail=odiamond, arrowhead=none, label="initial_configuration"];
+  InitialConfiguration -> StateLayout [arrowhead=vee, label="layout property"];
+  JacobianSystem -> DynamicalSystem [arrowhead=empty, color="#6C5B7B", fontcolor="#6C5B7B", label="extends protocol", constraint=false];
+
+  Method -> Config [arrowhead=empty, color="#6C5B7B", fontcolor="#6C5B7B", label="inherits"];
+  Method -> NumericalMethod [arrowhead=empty, style=dashed, color="#6C5B7B", fontcolor="#6C5B7B", label="structurally implements"];
+  ProjectedStep -> Stages [dir=both, arrowtail=diamond, arrowhead=none, label="stages"];
+
+  Runner -> Problem [style=dashed, arrowhead=vee, color="#66757F", label="uses", constraint=false];
+  Runner -> Request [style=dashed, arrowhead=vee, color="#66757F", label="uses"];
+  Runner -> NumericalMethod [style=dashed, arrowhead=vee, color="#66757F", label="uses", constraint=false];
+  Runner -> IntegrationData [style=dashed, arrowhead=vee, color="#66757F", label="validates"];
+  Runner -> Solution [arrowhead=vee, color="#2E7D5B", fontcolor="#2E7D5B", penwidth=1.5, label="creates"];
+  Solution -> InitialConfiguration [arrowhead=vee, color="#43515C", label="source", constraint=false];
+
+  ObserverStep -> ImplicitStep [arrowhead=empty, color="#A36A00", fontcolor="#A36A00", label="inherits"];
+  ImplicitStep -> IntegrationStep [arrowhead=empty, color="#A36A00", fontcolor="#A36A00", label="inherits"];
+  Method -> ObserverStep [style=dashed, arrowhead=vee, color="#C47A00", fontcolor="#A36A00", label="configures optional observation", constraint=false];
+}
+@enddot
+
+@startdot
+digraph ABBA2ImplicitNewtonLoop {
+  graph [
+    rankdir=TB,
+    compound=true,
+    newrank=true,
+    splines=polyline,
+    nodesep=0.48,
+    ranksep=0.70,
+    pad=0.20,
+    bgcolor="white",
+    fontname="DejaVu Sans",
+    fontsize=15,
+    label="ABBA2 Implicit - Reduced-Multiplier Newton Loop (View 2 of 3)",
+    labelloc="t",
+    labeljust="c"
+  ];
+  node [shape=box, style="rounded,filled", fontname="DejaVu Sans", fontsize=10, color="#607D8B", fillcolor="#F7FAFC", margin="0.13,0.09"];
+  edge [color="#2F5D7C", fontcolor="#263238", penwidth=1.35, arrowsize=0.80, fontname="DejaVu Sans", fontsize=9];
+
+  Context [shape=note, style="filled", fillcolor="#FFFDEB", color="#B8AE6F", label="Called by advance for every main or shadow step.\nThe multiplier and all stages are recomputed\nfrom the same accepted input state each iteration."];
+
+  Solve [fillcolor="#D9EEDC", color="#4F7D63", penwidth=1.5, label="8  _solve_reduced_multiplier_step(...)\ninitialize multiplier mu = 0\ncompute tau = atol + rtol max(1, ||state||inf)"];
+  Evaluate [fillcolor="#EAF6EE", label="8.1  Evaluate the reduced residual at current mu\n_evaluate_stages(...)\n  -> _evaluate_displaced_stages(...)\n  -> _evaluate_unprojected_stages(...)\n  -> _checked_vector_field(...) x 4 (A-B-B-A)\nr(mu) = u_final - v_final + 2 mu"];
+  Converged [shape=diamond, style="filled", fillcolor="#FFFDEB", color="#A88734", label="||r(mu)||inf\n<= tau?"];
+  Limit [shape=diamond, style="filled", fillcolor="#FFF2CC", color="#A88734", label="iteration ==\nmax_iterations?"];
+  Differentiate [fillcolor="#EAF6EE", label="8.2  Exact reduced residual Jacobian\n_differentiate_stages(...)\n  -> _checked_vector_field_jacobian(...) x 4\nassemble independent (2 x 2) particle blocks"];
+  LinearSolve [fillcolor="#EAF6EE", label="8.3  Newton correction\nnumpy.linalg.solve(J, r)\nmu <- mu - delta_mu"];
+  NextIteration [shape=circle, width=0.58, height=0.58, fixedsize=true, fillcolor="#EAF6EE", color="#4F7D63", fontsize=8, label="repeat"];
+  Accepted [fillcolor="#D9EEDC", color="#2E7D5B", penwidth=1.7, label="9  Converged projection\nfirst_copy = u_final + mu\nsecond_copy = v_final - mu\nstate_next = (first_copy + second_copy) / 2"];
+  AcceptedReturn [fillcolor="#D9EEDC", color="#2E7D5B", label="9.1  return _ProjectedStep\nstate, multiplier, _ABBAStages,\niteration count, residual count, residual norm"];
+  Failure [shape=octagon, style="filled", fillcolor="#FDECEC", color="#B23A48", fontcolor="#8F2430", label="raise RuntimeError\nprojection did not converge"];
+  Legend [shape=note, style="filled", fillcolor="#F7F7F7", color="#8A8A8A", label="The green back edge is one Newton correction cycle.\nA zero-correction convergence exits after the first\nresidual evaluation without differentiating stages."];
+
+  Context -> Solve [style=invis, weight=1000];
+  Solve -> Evaluate;
+  Evaluate -> Converged [label="residual evaluation"];
+  Converged -> Accepted [color="#2E7D5B", fontcolor="#2E7D5B", label="yes"];
+  Accepted -> AcceptedReturn [color="#2E7D5B", label="build result"];
+  Converged -> Limit [color="#9A6A00", fontcolor="#8A5C00", label="no"];
+  Limit -> Failure [color="#B23A48", fontcolor="#8F2430", label="yes"];
+  Limit -> Differentiate [color="#9A6A00", fontcolor="#8A5C00", label="no"];
+  Differentiate -> LinearSolve;
+  LinearSolve -> NextIteration [color="#4F7D63"];
+  NextIteration -> Evaluate [color="#4F7D63", fontcolor="#3F6B52", label="next iteration", constraint=false];
+  AcceptedReturn -> Legend [style=invis, weight=1000];
+}
+@enddot
+
+@startdot
+digraph ABBA2ImplicitExecutionSequence {
+  graph [
+    rankdir=TB,
+    compound=true,
+    newrank=true,
+    splines=polyline,
+    nodesep=0.45,
+    ranksep=0.72,
+    pad=0.20,
+    bgcolor="white",
+    fontname="DejaVu Sans",
+    fontsize=15,
+    label="ABBA2 Implicit - Default Execution Sequence (View 3 of 3)",
+    labelloc="t",
+    labeljust="c"
+  ];
+  node [shape=box, style="rounded,filled", fontname="DejaVu Sans", fontsize=10, color="#607D8B", fillcolor="#F7FAFC", margin="0.13,0.09"];
+  edge [color="#2F5D7C", fontcolor="#263238", penwidth=1.35, arrowsize=0.80, fontname="DejaVu Sans", fontsize=9];
+
+  Scope [shape=note, style="filled", fillcolor="#FFFDEB", color="#B8AE6F", label="Expanded runtime branch\nstate_extension = physical\nprojection_formulation = reduced_multiplier\nnonlinear_solver = newton\nOther configurations are intentionally omitted."];
+
+  subgraph cluster_entry {
+    label="A. Public entry";
+    labeljust="l";
+    color="#4C78A8";
+    penwidth=1.3;
+    style="rounded";
+
+    Entry [fillcolor="#EAF6EE", label="1  simulate(problem, method, request)\npublic convenience entry point"];
+    RunnerCall [fillcolor="#DDEBF3", label="2  SimulationRunner.simulate(...)\nvalidate input object types"];
+    MethodCall [fillcolor="#EDE2F2", color="#6C5B7B", label="3  ABBA2Implicit.integrate(...)\ndispatch the configured state-extension branch"];
+
+    Entry -> RunnerCall [label="call"];
+    RunnerCall -> MethodCall [label="method.integrate(...)\nreturns IntegrationData later"];
+  }
+
+  subgraph cluster_setup {
+    label="B. Solver selection and run preparation";
+    labeljust="l";
+    color="#3F6F8F";
+    penwidth=1.3;
+    style="rounded";
+
+    Selector [fillcolor="#EAF6EE", label="4  _step_solver_for(\"reduced_multiplier\")\nreturn _solve_reduced_multiplier_step callback\n(the solver is not executed here)"];
+    Coordinator [fillcolor="#DDEBF3", label="5  _integrate_projected_abba(...)\nreceive the callback; validate planar\nGuidingCenterJacobianSystem"];
+    Preflight [fillcolor="#EAF6EE", label="5a  Newton-only preflight\n_checked_vector_field_jacobian(...) once\nvalidate finite (N, 2, 2) blocks"];
+    Grid [fillcolor="#DDEBF3", label="6  integrate_fixed_grid(..., advance)\nbuild an output-independent uniform main grid\nloop over every main interval"];
+
+    Selector -> Coordinator [style=dashed, color="#66757F", fontcolor="#52616B", label="callback returned, then passed as step_solver"];
+    Coordinator -> Preflight [label="newton"];
+    Preflight -> Grid [label="start grid"];
+  }
+
+  subgraph cluster_grid_calls {
+    label="C. Calls made by the fixed-grid driver";
+    labeljust="l";
+    color="#4F7D63";
+    penwidth=1.3;
+    style="rounded";
+
+    MainCall [fillcolor="#EAF6EE", label="7  Main-grid call (always first in the interval)\nadvance(t, state, h, step_index, observe=True)"];
+    Advance [fillcolor="#D9EEDC", color="#4F7D63", penwidth=1.5, label="7.1  advance(...)\nextract the physical state and invoke step_solver"];
+
+    MainCall -> Advance [label="call"];
+  }
+
+  subgraph cluster_newton {
+    label="D. Implicit step solver";
+    labeljust="l";
+    color="#4F7D63";
+    penwidth=1.5;
+    style="rounded";
+
+    Solve [fillcolor="#D9EEDC", color="#4F7D63", penwidth=1.5, label="8  _solve_reduced_multiplier_step(...)\nrun the reduced residual/Newton loop from View 2\nreturn _ProjectedStep, or raise on non-convergence"];
+  }
+
+  subgraph cluster_output {
+    label="E. Step completion, fixed-grid loops, and public result";
+    labeljust="l";
+    color="#A36A00";
+    penwidth=1.3;
+    style="rounded";
+
+    StepReceived [fillcolor="#EAF6EE", label="10  advance receives _ProjectedStep\nif observe=True, append main-step solver metrics"];
+    Observer [fillcolor="#FFF2CC", color="#C47A00", label="10a  Optional accepted-main-step event\nif observe and step_observer is not None:\ncreate and emit ABBA2ImplicitIntegrationStep\napply_step is stored as event.map_state;\nit is not called by normal integration"];
+    ReturnState [fillcolor="#EAF6EE", label="10b  advance returns result.state\nto integrate_fixed_grid"];
+    DriverResume [fillcolor="#DDEBF3", label="10c  Fixed-grid driver resumes\nmain result: replace the accepted main state\nshadow result: store only the output sample\nreuse exact main-grid nodes directly"];
+    InteriorOutput [shape=diamond, style="filled", fillcolor="#F7F7F7", color="#7D8A91", label="strictly interior\nrequested output\nremains?"];
+    ShadowCall [fillcolor="#F7F7F7", color="#8A8A8A", label="10d  Shadow call (only after the main step)\nadvance(t, state_before.copy(), shorter_h,\n        step_index, observe=False)\nno main diagnostics, progress update, or event"];
+    MoreIntervals [shape=diamond, style="filled", fillcolor="#EAF2F8", color="#4C78A8", label="more main\nintervals?"];
+    Data [fillcolor="#FFF4E5", color="#A36A00", label="11  Grid finishes and returns history, step_count\n_integrate_projected_abba creates IntegrationData\nwith requested states and solver diagnostics"];
+    PublicResult [fillcolor="#DDEBF3", label="12  SimulationRunner validates IntegrationData\ncreate Solution(t, states, source, diagnostics)\nreturn Solution through simulate(...)"];
+
+    StepReceived -> Observer [style=dashed, color="#C47A00", fontcolor="#A36A00", label="observe=True and observer configured"];
+    Observer -> ReturnState [style=dashed, color="#C47A00", fontcolor="#A36A00", label="observer returns"];
+    StepReceived -> ReturnState [color="#2E7D5B", fontcolor="#2E7D5B", label="observe=False or no observer"];
+    ReturnState -> DriverResume [color="#2E7D5B", label="return to driver"];
+    DriverResume -> InteriorOutput;
+    InteriorOutput -> ShadowCall [style=dashed, color="#7D8A91", fontcolor="#66757F", label="yes"];
+    InteriorOutput -> MoreIntervals [color="#2F5D7C", label="no"];
+    MoreIntervals -> Data [color="#2E7D5B", fontcolor="#2E7D5B", label="no"];
+    Data -> PublicResult [color="#2E7D5B", fontcolor="#2E7D5B", label="return IntegrationData"];
+  }
+
+  FlowLegend [shape=note, style="filled", fillcolor="#F7F7F7", color="#8A8A8A", label="Flow legend\nsolid blue/green: executed call or forward result flow\ndashed gray: selected callback or shadow-only branch\ndashed amber: optional observer branch\nback edges: shadow sample and next main interval"];
+
+  Scope -> Entry [style=invis, weight=1000];
+  MethodCall -> Selector [label="select step solver"];
+  Grid -> MainCall [label="first main interval"];
+  Advance -> Solve [label="step_solver(...)"];
+  Solve -> StepReceived [color="#2E7D5B", fontcolor="#2E7D5B", label="return _ProjectedStep"];
+  ShadowCall -> Advance [style=dashed, color="#7D8A91", fontcolor="#66757F", label="solve shadow step", constraint=false];
+  MoreIntervals -> MainCall [color="#2F5D7C", fontcolor="#2F5D7C", label="yes: next main interval", constraint=false];
+  PublicResult -> FlowLegend [style=invis, weight=1000];
+}
+@enddot

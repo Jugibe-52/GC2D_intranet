@@ -57,6 +57,7 @@ from .implicit_method_accuracy import (
 	plot_implicit_method_observed_orders,
 )
 from .energy import (
+	EnergyAccuracySeriesView,
 	ExtendedSymplecticityRunView,
 	ReducedExtendedSymplecticityRunView,
 	GeneralizedEnergyRunView,
@@ -64,6 +65,7 @@ from .energy import (
 	plot_generalized_energy_components,
 	plot_generalized_energy_convergence,
 	plot_generalized_energy_errors,
+	plot_energy_accuracy_over_time,
 	plot_time_extended_symplecticity,
 	plot_reduced_time_extended_symplecticity,
 )
@@ -153,6 +155,7 @@ __all__ = [
 	"ImplicitMethodAccuracySummaryView",
 	"GeneralizedEnergyRunView",
 	"GeneralizedEnergySummaryView",
+	"EnergyAccuracySeriesView",
 	"HBVM42BM4SummaryView",
 	"HBVM42EvaluationSummaryView",
 	"HBVM42OrderSummaryView",
@@ -184,6 +187,7 @@ __all__ = [
 	"plot_generalized_energy_components",
 	"plot_generalized_energy_convergence",
 	"plot_generalized_energy_errors",
+	"plot_energy_accuracy_over_time",
 	"plot_gauss_bm4_accuracy_runtime",
 	"plot_gauss_legendre4_evaluation",
 	"plot_gauss_legendre4_energy",

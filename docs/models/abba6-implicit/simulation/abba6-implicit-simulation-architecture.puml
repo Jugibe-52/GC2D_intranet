@@ -1,0 +1,62 @@
+@startuml
+title ABBA6Implicit - Default Physical Reduced-Newton Outer Step
+
+autonumber
+
+participant "fixed-grid advance" as Advance
+participant "composition coordinator" as Compose
+participant "reduced projection" as Reduced
+participant "A-B-B-A stages" as ABBA
+participant "exact Newton blocks" as Newton
+participant "diagnostics / observer" as Output
+
+note over Advance, Reduced
+  projection_formulation = reduced_multiplier
+  state_extension = physical
+  nonlinear_solver = newton
+  Projection is completed after every signed A-B-B-A map.
+end note
+
+Advance -> Compose : solve outer map at (t_n, z_n, h)
+note over Compose
+  w = (a, b, c, d, c, b, a)
+  a = 0.7845136104775573; b = 0.23557321335935813
+  c = -1.177679984178871; d = 1.3151863206839112
+  t_j = t_n + h * sum_(ell < j) w_ell
+  q_j = w_j * h
+end note
+
+loop j = 1 ... 7
+  Compose -> Reduced : z^(j-1), t_j, q_j; initialize mu = 0
+  loop until ||r(mu)||_infinity <= tau_j
+    Reduced -> ABBA : u_0 = z + mu; v_0 = z - mu
+    ABBA -> ABBA : four endpoint-time shears\nat t_j and t_j + q_j
+    ABBA --> Reduced : u_f, v_f, r = u_f - v_f + 2 mu
+    alt residual has not converged
+      Reduced -> Newton : W_1 ... W_4 and r(mu)
+      Newton -> Newton : solve J_r Delta_mu = r\nper independent particle
+      Newton --> Reduced : mu <- mu - Delta_mu
+    else residual has converged
+      Reduced -> Reduced : z^(j) = mean(u_f + mu, v_f - mu)
+    end
+  end
+  Reduced --> Compose : accepted z^(j) and substep record
+end
+
+Compose --> Advance : z_(n+1) = z^(7)
+
+alt observe = true (main step)
+  Advance -> Output : totals, (7,) substep row, optional outer event
+else observe = false (shadow step)
+  note right of Advance
+    Return the sample only.
+    Do not append diagnostics or emit an event.
+  end note
+end
+
+note over Compose
+  w_3 = w_5 < 0, so those substeps run backward.
+  Intermediate times may lie outside [t_n, t_n + h].
+end note
+
+@enduml

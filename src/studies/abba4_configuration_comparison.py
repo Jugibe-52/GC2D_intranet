@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass
 from itertools import product
+import sys
 from time import perf_counter
 from types import MappingProxyType
 from typing import Literal, TypeAlias
@@ -677,6 +678,17 @@ def run_abba4_configuration_comparison(
 		key: np.empty(config.particle_count, dtype=float)
 		for key in ABBA4_CONFIGURATION_KEYS
 	}
+	total_run_count = len(ABBA4_CONFIGURATION_VARIANTS) * config.particle_count
+	completed_run_count = 0
+	study_started = perf_counter()
+	if config.progress:
+		print(
+			"ABBA4 comparison: starting "
+			f"{total_run_count} independent integrations "
+			f"({config.step_count} steps each).",
+			file=sys.stderr,
+			flush=True,
+		)
 	for schedule_index, particle in enumerate(
 		_alternating_particle_order(config.particle_count)
 	):
@@ -686,11 +698,44 @@ def run_abba4_configuration_comparison(
 			else tuple(reversed(ABBA4_CONFIGURATION_VARIANTS))
 		)
 		for variant in variant_order:
+			if config.progress:
+				print(
+					f"[{completed_run_count + 1}/{total_run_count}] Starting "
+					f"particle {particle + 1}/{config.particle_count}: "
+					f"{variant.label}",
+					file=sys.stderr,
+					flush=True,
+				)
 			started = perf_counter()
 			solution = simulate(problems[particle], methods[variant.key], request)
 			_generalized_energy_history(dynamics, variant, solution)
-			runtime_rows[variant.key][particle] = perf_counter() - started
+			run_seconds = perf_counter() - started
+			runtime_rows[variant.key][particle] = run_seconds
 			solution_rows[variant.key][particle] = solution
+			completed_run_count += 1
+			if config.progress:
+				elapsed_seconds = perf_counter() - study_started
+				remaining_seconds = (
+					elapsed_seconds
+					* (total_run_count - completed_run_count)
+					/ completed_run_count
+				)
+				print(
+					f"[{completed_run_count}/{total_run_count}] Completed in "
+					f"{run_seconds:.2f} s; total "
+					f"{completed_run_count / total_run_count:.1%}; "
+					f"elapsed {elapsed_seconds:.1f} s; "
+					f"ETA {remaining_seconds:.1f} s.",
+					file=sys.stderr,
+					flush=True,
+				)
+	if config.progress:
+		print(
+			f"ABBA4 comparison: all integrations completed in "
+			f"{perf_counter() - study_started:.1f} s.",
+			file=sys.stderr,
+			flush=True,
+		)
 
 	return ABBA4ConfigurationComparisonResult(
 		potential=potential,

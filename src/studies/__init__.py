@@ -143,6 +143,15 @@ from .fully_extended_implicit import (
 	FullyExtendedImplicitSummary,
 	run_fully_extended_implicit_study,
 )
+from .three_method_newton_comparison import (
+	THREE_METHOD_NEWTON_LABELS,
+	THREE_METHOD_NEWTON_METHODS,
+	EnergyAccuracySeries,
+	ThreeMethodNewtonComparisonConfig,
+	ThreeMethodNewtonComparisonResult,
+	ThreeMethodNewtonSummary,
+	run_three_method_newton_comparison,
+)
 from .initial_conditions import (
 	centered_circle,
 	centered_gc_configuration,
@@ -368,6 +377,12 @@ __all__ = [
 	"FullyExtendedImplicitResult",
 	"FullyExtendedImplicitRun",
 	"FullyExtendedImplicitSummary",
+	"THREE_METHOD_NEWTON_LABELS",
+	"THREE_METHOD_NEWTON_METHODS",
+	"EnergyAccuracySeries",
+	"ThreeMethodNewtonComparisonConfig",
+	"ThreeMethodNewtonComparisonResult",
+	"ThreeMethodNewtonSummary",
 	"ImplicitGeneralizedEnergyConfig",
 	"ImplicitGeneralizedEnergyOrder",
 	"ImplicitGeneralizedEnergyResult",
@@ -462,6 +477,7 @@ __all__ = [
 	"run_hbvm42_evaluation",
 	"run_implicit_generalized_energy_study",
 	"run_fully_extended_implicit_study",
+	"run_three_method_newton_comparison",
 	"run_high_precision_reference_trajectory",
 	"run_abba2_reduced_multiplier_symplecticity_study",
 	"run_abba2_simultaneous_state_multiplier_symplecticity_study",

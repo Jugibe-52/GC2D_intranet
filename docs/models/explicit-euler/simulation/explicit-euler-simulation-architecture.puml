@@ -1,0 +1,78 @@
+@startuml
+title ExplicitEuler fixed-grid lifecycle
+
+skinparam componentStyle rectangle
+
+actor Caller
+
+package dynamics {
+  interface DynamicalSystem {
+    +state_dimension
+    +vector_field(t, state)
+  }
+}
+
+package simulation {
+  interface NumericalMethod {
+    +integrate(problem, request)
+  }
+
+  class InitialValueProblem
+  class SimulationRequest {
+    +t_span
+    +max_step
+    +output_times
+  }
+  class SimulationRunner
+  class ExplicitEuler {
+    +progress
+    +step_observer
+    +integrate(problem, request)
+  }
+  component "integrate_fixed_grid(...)" as FixedGrid
+  component "advance(...)" as Advance
+  component "apply_step(candidate)" as ApplyStep
+  class IntegrationStep
+  class IntegrationData
+  class Solution
+}
+
+ExplicitEuler ..|> NumericalMethod
+InitialValueProblem --> ExplicitEuler : dynamics and initial state
+SimulationRequest --> ExplicitEuler : temporal request
+DynamicalSystem --> InitialValueProblem : physical capability
+
+Caller --> SimulationRunner : simulate(problem, method, request)
+SimulationRunner --> NumericalMethod : integrate(...)
+ExplicitEuler --> FixedGrid : initial state, request, advance
+SimulationRequest --> FixedGrid : main grid and saved times
+FixedGrid --> Advance : main or shadow callback
+Advance --> ApplyStep : fixed t and duration
+ApplyStep --> DynamicalSystem : vector_field(t, state)
+Advance ..> IntegrationStep : main step when observer exists
+ExplicitEuler --> IntegrationData : times, states, step_count
+IntegrationData --> SimulationRunner : validated physical output
+SimulationRunner --> Solution : immutable result
+
+note right of FixedGrid
+  Main call: observe = true
+  Shadow call: observe = false
+
+  A shadow starts from the preceding
+  main node and never changes the
+  accepted main trajectory.
+end note
+
+note right of ApplyStep
+  state_next = state + h f(t, state)
+  One validated field evaluation
+  per invocation
+end note
+
+note bottom of IntegrationStep
+  Copies both snapshots and exposes
+  the same captured apply_step map.
+end note
+
+@enduml
+

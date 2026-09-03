@@ -1,0 +1,199 @@
+@startdot
+digraph G {
+  graph [
+    rankdir=LR,
+    compound=true,
+    newrank=true,
+    splines=ortho,
+    nodesep=0.34,
+    ranksep=0.72,
+    pad=0.18,
+    bgcolor="white",
+    fontname="DejaVu Sans",
+    fontsize=13,
+    label="ABBA2Midpoint - Physical Simulation Path",
+    labelloc="t",
+    labeljust="c"
+  ];
+  node [shape=plain, fontname="DejaVu Sans", fontsize=10];
+  edge [color="#333333", penwidth=1.05, arrowsize=0.72];
+
+  subgraph cluster_inputs {
+    label="1. Public simulation input";
+    labeljust="l";
+    color="#4C78A8";
+    penwidth=1.2;
+    style="rounded";
+
+    input_anchor [shape=point, width=0, height=0, label="", style=invis];
+
+    Dynamics [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="6" BGCOLOR="#EAF2F8">
+        <TR><TD><FONT POINT-SIZE="9">src/dynamics/protocols.py</FONT><BR/><B>DynamicalSystem</B> &#171;protocol&#187;</TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT">state_dimension = 2<BR ALIGN="LEFT"/>vector_field(t, state)</TD></TR>
+      </TABLE>
+    >];
+
+    Problem [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="6" BGCOLOR="#EAF2F8">
+        <TR><TD><FONT POINT-SIZE="9">src/simulation/problem.py</FONT><BR/><B>InitialValueProblem</B></TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT">dynamics<BR ALIGN="LEFT"/>initial physical state z<SUB>0</SUB></TD></TR>
+      </TABLE>
+    >];
+
+    Request [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="6" BGCOLOR="#EAF2F8">
+        <TR><TD><FONT POINT-SIZE="9">src/simulation/request.py</FONT><BR/><B>SimulationRequest</B></TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT">t_span<BR ALIGN="LEFT"/>max_step<BR ALIGN="LEFT"/>output_times</TD></TR>
+      </TABLE>
+    >];
+
+    Method [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="6" BGCOLOR="#F3ECF7">
+        <TR><TD><FONT POINT-SIZE="9">abba/order2_midpoint.py</FONT><BR/><B>ABBA2Midpoint</B></TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT">state_extension = &quot;physical&quot;<BR ALIGN="LEFT"/>progress<BR ALIGN="LEFT"/>step_observer [optional]<BR ALIGN="LEFT"/>integrate(problem, request)</TD></TR>
+      </TABLE>
+    >];
+
+    Runner [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="6" BGCOLOR="#EAF2F8">
+        <TR><TD><FONT POINT-SIZE="9">src/simulation/runner.py</FONT><BR/><B>SimulationRunner</B></TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT">simulate(problem, method, request)</TD></TR>
+      </TABLE>
+    >];
+
+    { rank=same; input_anchor; Dynamics; Problem; Request; Method; Runner; }
+  }
+
+  subgraph cluster_execution {
+    label="2. Fixed-grid execution";
+    labeljust="l";
+    color="#3F6F8F";
+    penwidth=1.2;
+    style="rounded";
+
+    execution_anchor [shape=point, width=0, height=0, label="", style=invis];
+
+    Integrate [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="6" BGCOLOR="#DDEBF3">
+        <TR><TD><FONT POINT-SIZE="9">ABBA2Midpoint.integrate(...)</FONT><BR/><B>Prepare the run</B></TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT">require planar DynamicalSystem<BR ALIGN="LEFT"/>define local advance(...)<BR ALIGN="LEFT"/>collect copy-separation diagnostics</TD></TR>
+      </TABLE>
+    >];
+
+    Grid [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="6" BGCOLOR="#DDEBF3">
+        <TR><TD><FONT POINT-SIZE="9">src/simulation/_fixed.py</FONT><BR/><B>integrate_fixed_grid(...)</B></TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT">uniform main grid with h &lt;= max_step<BR ALIGN="LEFT"/>call advance(...) once per main step<BR ALIGN="LEFT"/>use independent shadow steps for output samples</TD></TR>
+      </TABLE>
+    >];
+
+    { rank=same; execution_anchor; Integrate; Grid; }
+  }
+
+  subgraph cluster_step {
+    label="3. One ABBA2Midpoint step";
+    labeljust="l";
+    color="#4F7D63";
+    penwidth=1.4;
+    style="rounded";
+
+    step_anchor [shape=point, width=0, height=0, label="", style=invis];
+
+    Duplicate [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="7" BGCOLOR="#EAF6EE">
+        <TR><TD><FONT POINT-SIZE="9">_midpoint_abba_step(...)</FONT><BR/><B>Duplicate the accepted state</B></TD></TR>
+        <HR/>
+        <TR><TD><FONT POINT-SIZE="12">u<SUB>0</SUB> = z<SUB>n</SUB>,  v<SUB>0</SUB> = z<SUB>n</SUB></FONT></TD></TR>
+      </TABLE>
+    >];
+
+    Stages [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="7" BGCOLOR="#EAF6EE">
+        <TR><TD><FONT POINT-SIZE="9">_evaluate_unprojected_stages(...)</FONT><BR/><B>Explicit endpoint-time A-B-B-A map</B></TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT"><B>A:</B> u<SUB>1</SUB> = u<SUB>0</SUB> + (h/2) f(t<SUB>n</SUB>, v<SUB>0</SUB>)<BR ALIGN="LEFT"/><B>B:</B> v<SUB>1</SUB> = v<SUB>0</SUB> + (h/2) f(t<SUB>n</SUB>, u<SUB>1</SUB>)<BR ALIGN="LEFT"/><B>B:</B> v<SUB>f</SUB> = v<SUB>1</SUB> + (h/2) f(t<SUB>n</SUB>+h, u<SUB>1</SUB>)<BR ALIGN="LEFT"/><B>A:</B> u<SUB>f</SUB> = u<SUB>1</SUB> + (h/2) f(t<SUB>n</SUB>+h, v<SUB>f</SUB>)</TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT">Every f evaluation passes through<BR ALIGN="LEFT"/>_checked_vector_field(...).<BR ALIGN="LEFT"/><B>_ABBAStages</B> stores the traversed states.</TD></TR>
+      </TABLE>
+    >];
+
+    Mean [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="7" BGCOLOR="#EAF6EE">
+        <TR><TD><FONT POINT-SIZE="9">_ABBA2MidpointStep</FONT><BR/><B>Arithmetic diagonal projection</B></TD></TR>
+        <HR/>
+        <TR><TD><FONT POINT-SIZE="12">z<SUB>n+1</SUB> = (u<SUB>f</SUB> + v<SUB>f</SUB>) / 2</FONT></TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT">copy separation = ||u<SUB>f</SUB> - v<SUB>f</SUB>||<SUB>infinity</SUB><BR ALIGN="LEFT"/>return the physical state z<SUB>n+1</SUB></TD></TR>
+      </TABLE>
+    >];
+
+    Properties [shape=note, style="filled", fillcolor="#FFFDEB", color="#B8AE6F", margin="0.10,0.07", label="Explicit second-order method\n4 vector-field evaluations per step\nNo multiplier, residual, Newton, or Broyden solve\nArithmetic averaging is not guaranteed symplectic"];
+
+    { rank=same; step_anchor; Duplicate; Stages; Mean; Properties; }
+  }
+
+  subgraph cluster_output {
+    label="4. Diagnostics and public result";
+    labeljust="l";
+    color="#777777";
+    penwidth=1.2;
+    style="rounded";
+
+    output_anchor [shape=point, width=0, height=0, label="", style=invis];
+
+    Observation [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="6" BGCOLOR="#FFFDEB">
+        <TR><TD><FONT POINT-SIZE="9">src/simulation/observation.py</FONT><BR/><B>IntegrationStep</B> [optional]</TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT">state_before, state_after<BR ALIGN="LEFT"/>local apply_step(...) as map_state<BR ALIGN="LEFT"/>emitted only for accepted main steps</TD></TR>
+      </TABLE>
+    >];
+
+    Data [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="6" BGCOLOR="#EAF2F8">
+        <TR><TD><FONT POINT-SIZE="9">src/simulation/_result.py</FONT><BR/><B>IntegrationData</B></TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT">requested times<BR ALIGN="LEFT"/>physical state history<BR ALIGN="LEFT"/>step_count<BR ALIGN="LEFT"/>copy_separation_norms<BR ALIGN="LEFT"/>projection_kind = arithmetic_mean</TD></TR>
+      </TABLE>
+    >];
+
+    Solution [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="6" BGCOLOR="#EAF2F8">
+        <TR><TD><FONT POINT-SIZE="9">src/simulation/solution.py</FONT><BR/><B>Solution</B></TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT">read-only t, states, diagnostics<BR ALIGN="LEFT"/>source initial configuration</TD></TR>
+      </TABLE>
+    >];
+
+    Scope [shape=note, style="filled", fillcolor="#F7F7F7", color="#999999", margin="0.10,0.07", label="Introductory scope: state_extension = physical.\nThe shared-time and fully extended configurations\nretain the same four-shear plus arithmetic-mean idea,\nbut their extra carried variables are intentionally omitted.\nPublic method name: ABBA2Midpoint."];
+
+    { rank=same; output_anchor; Observation; Data; Solution; Scope; }
+  }
+
+  input_anchor -> execution_anchor -> step_anchor -> output_anchor [style=invis, weight=1000, minlen=2];
+
+  Dynamics -> Problem [constraint=false];
+  Problem -> Runner [constraint=false];
+  Request -> Runner [constraint=false];
+  Method -> Runner [constraint=false];
+  Runner -> Integrate [constraint=false];
+  Integrate -> Grid [constraint=false];
+
+  Grid -> Duplicate [constraint=false];
+  Duplicate -> Stages [constraint=false];
+  Stages -> Mean [constraint=false];
+  Mean -> Properties [constraint=false];
+
+  Mean -> Observation [style=dashed, constraint=false];
+  Grid -> Data [constraint=false];
+  Data -> Solution [constraint=false];
+}
+@enddot

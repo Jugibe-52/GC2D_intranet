@@ -1,0 +1,696 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[provide=*,english]{babel}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage{amsmath,amssymb,mathtools}
+\usepackage{geometry}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{booktabs}
+\usepackage{fancyhdr}
+\usepackage[hidelinks]{hyperref}
+
+\geometry{left=2.3cm,right=2.3cm,top=2.2cm,bottom=2.25cm,headheight=14pt}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0.38em}
+\setlist[itemize]{topsep=0.25em,itemsep=0.18em,leftmargin=1.5em}
+\allowdisplaybreaks
+
+\definecolor{blue}{RGB}{34,73,110}
+\definecolor{gray}{RGB}{90,96,102}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\color{gray}GC2D: Gauss--Legendre method}
+\fancyhead[R]{\small\color{gray}Jacobian, symplecticity, and symmetry}
+\fancyfoot[C]{\thepage}
+\renewcommand{\headrulewidth}{0.3pt}
+
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\Id}{I}
+\newcommand{\Om}{\Omega}
+\newcommand{\Jn}{\mathcal{J}_n}
+\newcommand{\Phih}{\Phi_{h,t_n}}
+
+\begin{document}
+
+\begin{center}
+  {\LARGE\bfseries\color{blue}Two-stage Gauss--Legendre Method}\par
+  \vspace{0.35em}
+  {\large Exact one-step Jacobian, symplecticity, and symmetry}\par
+  \vspace{0.45em}
+  {\small Fourth-order collocation method for canonical Hamiltonian systems}
+\end{center}
+
+\vspace{0.5em}
+
+\section{Hamiltonian convention}
+
+Let $z\in\R^{2d}$ and consider the possibly time-dependent canonical
+Hamiltonian system
+\begin{equation}
+ \dot z=f(t,z)=\Om^{-1}\nabla_z H(t,z),
+ \qquad
+ \Om=
+ \begin{pmatrix}
+  0&\Id_d\\
+  -\Id_d&0
+ \end{pmatrix}.
+ \label{eq:hamiltonian-system}
+\end{equation}
+For the component-major guiding-centre state
+\[
+ z=(x_1,\ldots,x_d,y_1,\ldots,y_d)^T,
+\]
+this convention gives
+\[
+ f(t,z)=
+ \begin{pmatrix}
+  -\nabla_y H(t,z)\\
+  \nabla_x H(t,z)
+ \end{pmatrix}.
+\]
+At any fixed time and state, let $F=D_zf(t,z)$.  Since
+$\nabla_z^2H$ is symmetric,
+\begin{equation}
+ F^T\Om+\Om F=0.
+ \label{eq:hamiltonian-jacobian}
+\end{equation}
+This identity is the infinitesimal Hamiltonian condition used below.  The
+proof remains valid for a time-dependent Hamiltonian because the stage times
+do not depend on the initial state $z_n$.
+
+\section{Gauss--Legendre stages}
+
+Set
+\[
+ r=\frac{\sqrt{3}}{6},
+ \qquad
+ c_1=\frac12-r,
+ \qquad
+ c_2=\frac12+r.
+\]
+The Butcher coefficients of the two-stage Gauss--Legendre method are
+\begin{equation}
+ A=
+ \begin{pmatrix}
+  \frac14&\frac14-r\\[1mm]
+  \frac14+r&\frac14
+ \end{pmatrix},
+ \qquad
+ b=
+ \begin{pmatrix}
+  \frac12\\[1mm]
+  \frac12
+ \end{pmatrix}.
+ \label{eq:tableau}
+\end{equation}
+For one step of length $h$, the stage states satisfy
+\begin{equation}
+ Z_i=z_n+h\sum_{j=1}^2a_{ij}f(t_n+c_jh,Z_j),
+ \qquad i=1,2,
+ \label{eq:stage-equations}
+\end{equation}
+and the accepted state is
+\begin{equation}
+ z_{n+1}=\Phih(z_n)
+ =z_n+h\sum_{i=1}^2b_i f(t_n+c_ih,Z_i).
+ \label{eq:step-map}
+\end{equation}
+The method is implicit: equations \eqref{eq:stage-equations} determine
+$(Z_1,Z_2)$ simultaneously.
+
+\clearpage
+
+\section{Direct proof of fourth-order accuracy}
+
+We now prove directly why the Runge--Kutta order conditions through degree four
+give a fourth-order method.  For clarity, first consider the autonomous
+problem
+\begin{equation}
+ \dot y=f(y),
+ \qquad y(t_n)=y.
+ \label{eq:autonomous-order-problem}
+\end{equation}
+The non-autonomous case follows by augmenting the state with time,
+$\widehat y=(t,y)$ and $\dot{\widehat y}=(1,f(t,y))$.  Because
+$c=A\mathbf{1}$, applying the Runge--Kutta method to this augmented autonomous
+system produces exactly the stage times used in
+\eqref{eq:stage-equations}.
+
+Set
+\begin{equation}
+ F=f(y),
+ \qquad
+ F'=Df(y),
+ \qquad
+ F''=D^2f(y),
+ \qquad
+ F'''=D^3f(y),
+ \label{eq:elementary-differential-notation}
+\end{equation}
+where the derivatives are multilinear maps.  Repeated application of the
+chain rule gives
+\begin{align}
+ y'&=F,
+ \notag\\
+ y''&=F'F,
+ \notag\\
+ y'''&=F''(F,F)+F'^2F,
+ \notag\\
+ y^{(4)}&=F'''(F,F,F)
+ +3F''(F,F'F)
+ +F'F''(F,F)
+ +F'^3F.
+ \label{eq:exact-time-derivatives}
+\end{align}
+Consequently, the exact flow has the expansion
+\begin{align}
+ y(t_n+h)={}&y+hF+\frac{h^2}{2}F'F
+ \notag\\
+ &+\frac{h^3}{6}
+ \left[F''(F,F)+F'^2F\right]
+ \notag\\
+ &+\frac{h^4}{24}
+ \left[
+ F'''(F,F,F)
+ +3F''(F,F'F)
+ +F'F''(F,F)
+ +F'^3F
+ \right]
+ +O(h^5).
+ \label{eq:exact-order-four-expansion}
+\end{align}
+
+For a generic Runge--Kutta step, write
+\begin{equation}
+ K_i=f(Y_i),
+ \qquad
+ Y_i=y+h\sum_j a_{ij}K_j,
+ \qquad
+ y_{n+1}=y+h\sum_i b_iK_i,
+ \label{eq:generic-rk-order-step}
+\end{equation}
+and define $C=\operatorname{diag}(c)$.  Powers such as $c^2$ and $c^3$
+are understood componentwise.  If
+$\Delta_i=h\sum_j a_{ij}K_j$, Taylor expansion about $y$ gives
+\begin{equation}
+ K_i
+ =F+F'\Delta_i
+ +\frac12F''(\Delta_i,\Delta_i)
+ +\frac16F'''(\Delta_i,\Delta_i,\Delta_i)
+ +O(h^4).
+ \label{eq:stage-field-taylor}
+\end{equation}
+Substituting the stage expansions recursively into
+\eqref{eq:stage-field-taylor} and collecting equal powers of $h$ yields
+\begin{align}
+ K_i={}&F+h c_iF'F
+ \notag\\
+ &+h^2\left[
+ (Ac)_iF'^2F
+ +\frac12c_i^2F''(F,F)
+ \right]
+ \notag\\
+ &+h^3\left[
+ (A^2c)_iF'^3F
+ +\frac12(Ac^2)_iF'F''(F,F)
+ \right.
+ \notag\\
+ &\hspace{27mm}\left.
+ +c_i(Ac)_iF''(F,F'F)
+ +\frac16c_i^3F'''(F,F,F)
+ \right]
+ +O(h^4).
+ \label{eq:rk-stage-order-four-expansion}
+\end{align}
+Inserting \eqref{eq:rk-stage-order-four-expansion} into the accepted update
+in \eqref{eq:generic-rk-order-step} gives
+\begin{align}
+ y_{n+1}={}&y+h(b^T\mathbf{1})F
+ +h^2(b^Tc)F'F
+ \notag\\
+ &+h^3\left[
+ (b^TAc)F'^2F
+ +\frac12(b^Tc^2)F''(F,F)
+ \right]
+ \notag\\
+ &+h^4\left[
+ (b^TA^2c)F'^3F
+ +\frac12(b^TAc^2)F'F''(F,F)
+ \right.
+ \notag\\
+ &\hspace{25mm}\left.
+ +(b^TCAc)F''(F,F'F)
+ +\frac16(b^Tc^3)F'''(F,F,F)
+ \right]
+ +O(h^5).
+ \label{eq:rk-order-four-expansion}
+\end{align}
+
+The elementary differentials in
+\eqref{eq:exact-order-four-expansion} and
+\eqref{eq:rk-order-four-expansion} are independent for a general smooth
+vector field.  Their coefficients agree through $h^4$ precisely when
+\begin{align}
+ b^T\mathbf{1}&=1,
+ &b^Tc&=\frac12,
+ \notag\\
+ b^Tc^2&=\frac13,
+ &b^TAc&=\frac16,
+ \notag\\
+ b^Tc^3&=\frac14,
+ &b^TCAc&=\frac18,
+ \notag\\
+ b^TAc^2&=\frac1{12},
+ &b^TA^2c&=\frac1{24}.
+ \label{eq:order-four-conditions}
+\end{align}
+For example, the coefficient of $F''(F,F)$ in the numerical step is
+$\tfrac12b^Tc^2$ and its exact coefficient is $\tfrac16$, which gives
+$b^Tc^2=\tfrac13$.  The other seven equalities follow from the same
+term-by-term comparison.  Thus these conditions are not merely formal
+identities: they are exactly the equations that make the numerical and exact
+Taylor expansions coincide through fourth degree.
+
+It remains to verify them for the coefficients in \eqref{eq:tableau}.  Direct
+calculation gives
+\begin{equation}
+ b^T\mathbf{1}=1,
+ \qquad
+ b^Tc=\frac12,
+ \qquad
+ b^Tc^2=\frac13,
+ \qquad
+ b^Tc^3=\frac14,
+ \label{eq:gauss-moment-identities}
+\end{equation}
+and
+\begin{equation}
+ Ac=\frac12c^2,
+ \qquad
+ b^TA=b^T(I-C).
+ \label{eq:gauss-stage-order-identities}
+\end{equation}
+Therefore
+\begin{align}
+ b^TAc&=\frac12b^Tc^2=\frac16,
+ &b^TCAc&=\frac12b^Tc^3=\frac18,
+ \notag\\
+ b^TAc^2&=b^T(c^2-c^3)=\frac1{12},
+ &b^TA^2c&=\frac12b^TAc^2=\frac1{24}.
+ \label{eq:gauss-remaining-order-identities}
+\end{align}
+Hence all conditions in \eqref{eq:order-four-conditions} hold, and comparison
+of \eqref{eq:exact-order-four-expansion} with
+\eqref{eq:rk-order-four-expansion} proves the one-step defect estimate
+\begin{equation}
+ \left\lVert y(t_n+h)-y_{n+1}\right\rVert=O(h^5).
+ \label{eq:local-order-five-defect}
+\end{equation}
+
+Finally, let $e_n$ be the global error.  For a smooth Lipschitz vector field,
+the Runge--Kutta one-step map is Lipschitz with factor $1+Lh$ for sufficiently
+small $h$.  The local estimate \eqref{eq:local-order-five-defect} then gives
+\begin{equation}
+ \lVert e_{n+1}\rVert
+ \leq(1+Lh)\lVert e_n\rVert+Ch^5.
+ \label{eq:global-error-recurrence}
+\end{equation}
+For $nh\leq T$, the discrete Gronwall estimate yields
+\begin{equation}
+ \lVert e_n\rVert
+ \leq Ch^5\sum_{j=0}^{n-1}(1+Lh)^j
+ \leq C_T h^4.
+ \label{eq:global-order-four-bound}
+\end{equation}
+Thus the two-stage Gauss--Legendre method has global order four.
+
+\section{Exact Jacobian of the stage root}
+
+Introduce the stage field Jacobians and stage sensitivities
+\begin{equation}
+ F_i:=D_zf(t_n+c_ih,Z_i),
+ \qquad
+ S_i:=\frac{\partial Z_i}{\partial z_n}.
+ \label{eq:stage-derivatives}
+\end{equation}
+Differentiating \eqref{eq:stage-equations} with respect to $z_n$ gives
+\begin{equation}
+ S_i=\Id_{2d}+h\sum_{j=1}^2a_{ij}F_jS_j.
+ \label{eq:stage-sensitivities}
+\end{equation}
+Equivalently,
+\begin{equation}
+ \underbrace{
+ \begin{pmatrix}
+  \Id_{2d}-\frac h4F_1
+   &-h\left(\frac14-r\right)F_2\\[1mm]
+  -h\left(\frac14+r\right)F_1
+   &\Id_{2d}-\frac h4F_2
+ \end{pmatrix}}_{M=D_{(Z_1,Z_2)}R}
+ \begin{pmatrix}S_1\\S_2\end{pmatrix}
+ =
+ \begin{pmatrix}\Id_{2d}\\\Id_{2d}\end{pmatrix}.
+ \label{eq:stage-tangent-system}
+\end{equation}
+Here $M$ is the Jacobian of the coupled stage residual.  It is also the matrix
+used by an exact Newton linearization, but it is \emph{not} the Jacobian of the
+physical one-step map.
+
+Assuming that the converged stage root is regular, the implicit function
+theorem gives
+\begin{equation}
+ \begin{pmatrix}S_1\\S_2\end{pmatrix}
+ =M^{-1}
+ \begin{pmatrix}\Id_{2d}\\\Id_{2d}\end{pmatrix}.
+ \label{eq:stage-tangent-solution}
+\end{equation}
+In an implementation, equation \eqref{eq:stage-tangent-system} should be
+solved directly; the inverse in \eqref{eq:stage-tangent-solution} is only
+notation.
+
+\section{Exact Jacobian of the physical step}
+
+Define the Jacobian of the map \eqref{eq:step-map} by
+\[
+ \Jn:=D_{z_n}\Phih(z_n).
+\]
+Differentiating the accepted update and using
+\eqref{eq:stage-derivatives} yields
+\begin{equation}
+ \boxed{
+ \Jn=\Id_{2d}+h\sum_{i=1}^2b_iF_iS_i
+ =\Id_{2d}+\frac h2\left(F_1S_1+F_2S_2\right).
+ }
+ \label{eq:step-jacobian}
+\end{equation}
+Combining \eqref{eq:stage-tangent-solution} and
+\eqref{eq:step-jacobian}, the same Jacobian can be written as
+\begin{equation}
+ \boxed{
+ \Jn
+ =\Id_{2d}
+ +h
+ \begin{pmatrix}\frac12F_1&\frac12F_2\end{pmatrix}
+ M^{-1}
+ \begin{pmatrix}\Id_{2d}\\\Id_{2d}\end{pmatrix}.
+ }
+ \label{eq:explicit-step-jacobian}
+\end{equation}
+This is the exact tangent of the ideal converged root.  It differentiates the
+mathematical Gauss--Legendre map, not a finite Newton stopping rule.
+
+\clearpage
+
+\section{Direct proof of symplecticity with the step Jacobian}
+
+The one-step map is symplectic if and only if
+\begin{equation}
+ \Jn^T\Om\Jn=\Om.
+ \label{eq:symplectic-condition}
+\end{equation}
+Set
+\begin{equation}
+ K_i:=F_iS_i.
+ \label{eq:Ki}
+\end{equation}
+Then equations \eqref{eq:step-jacobian} and
+\eqref{eq:stage-sensitivities} become
+\begin{equation}
+ \Jn=\Id_{2d}+h\sum_i b_iK_i,
+ \qquad
+ \Id_{2d}=S_i-h\sum_j a_{ij}K_j.
+ \label{eq:compact-identities}
+\end{equation}
+Expanding the symplecticity defect gives
+\begin{align}
+ \Jn^T\Om\Jn-\Om
+ ={}&h\sum_i b_i\left(K_i^T\Om+\Om K_i\right)
+ \notag\\
+ &+h^2\sum_{i,j}b_ib_jK_i^T\Om K_j.
+ \label{eq:defect-expansion}
+\end{align}
+By the Hamiltonian identity \eqref{eq:hamiltonian-jacobian},
+\begin{align}
+ K_i^T\Om S_i+S_i^T\Om K_i
+ &=S_i^T\left(F_i^T\Om+\Om F_i\right)S_i
+ \notag\\
+ &=0.
+ \label{eq:hamiltonian-cancellation}
+\end{align}
+Using the second identity in \eqref{eq:compact-identities} on both occurrences
+of $\Id_{2d}$ therefore gives
+\begin{equation}
+ K_i^T\Om+\Om K_i
+ =-h\sum_j a_{ij}
+ \left(K_i^T\Om K_j+K_j^T\Om K_i\right).
+ \label{eq:linear-term-reduction}
+\end{equation}
+Substitute \eqref{eq:linear-term-reduction} into
+\eqref{eq:defect-expansion}.  Renaming $i$ and $j$ in the second term arising
+from \eqref{eq:linear-term-reduction} produces
+\begin{equation}
+ \boxed{
+ \Jn^T\Om\Jn-\Om
+ =h^2\sum_{i,j}
+ \left(b_ib_j-b_i a_{ij}-b_j a_{ji}\right)
+ K_i^T\Om K_j.
+ }
+ \label{eq:rk-symplecticity-defect}
+\end{equation}
+Consequently, the defect vanishes whenever the Runge--Kutta coefficients obey
+\begin{equation}
+ \boxed{
+ b_i a_{ij}+b_j a_{ji}=b_ib_j,
+ \qquad i,j=1,2.
+ }
+ \label{eq:rk-symplecticity-condition}
+\end{equation}
+
+\clearpage
+
+\section{Verification for the Gauss--Legendre coefficients}
+
+For the diagonal terms in \eqref{eq:rk-symplecticity-condition},
+\begin{equation}
+ 2b_1a_{11}-b_1^2
+ =2\left(\frac12\right)\left(\frac14\right)-\frac14=0,
+ \qquad
+ 2b_2a_{22}-b_2^2=0.
+ \label{eq:diagonal-check}
+\end{equation}
+For the off-diagonal terms,
+\begin{align}
+ b_1a_{12}+b_2a_{21}-b_1b_2
+ &=\frac12\left(\frac14-r\right)
+   +\frac12\left(\frac14+r\right)-\frac14
+ \notag\\
+ &=0.
+ \label{eq:off-diagonal-check}
+\end{align}
+The case $(i,j)=(2,1)$ is the same equality with the two summands exchanged.
+Thus every coefficient multiplying $K_i^T\Om K_j$ in
+\eqref{eq:rk-symplecticity-defect} is zero, and hence
+\begin{equation}
+ \boxed{\Jn^T\Om\Jn=\Om.}
+ \label{eq:final-symplecticity}
+\end{equation}
+Therefore the two-stage Gauss--Legendre method is symplectic when its implicit
+stage equations are solved exactly.
+
+\clearpage
+
+\section{Symmetry and time reversibility}
+
+Symmetry is a property distinct from symplecticity.  The method is symmetric
+when its backward step is exactly the inverse of its forward step.  For the
+possibly time-dependent problem \eqref{eq:hamiltonian-system}, this means
+\begin{equation}
+ \boxed{
+ \Phi_{-h,t_n+h}\circ\Phi_{h,t_n}=\operatorname{Id}.
+ }
+ \label{eq:symmetry-definition}
+\end{equation}
+For an autonomous problem, equation \eqref{eq:symmetry-definition} reduces to
+$\Phi_{-h}=\Phi_h^{-1}$.
+
+For the forward step, write
+\begin{equation}
+ f_1=f(t_n+c_1h,Z_1),
+ \qquad
+ f_2=f(t_n+c_2h,Z_2).
+ \label{eq:forward-stage-fields}
+\end{equation}
+Equations \eqref{eq:stage-equations} and \eqref{eq:step-map} are then
+\begin{align}
+ Z_1&=z_n+h(a_{11}f_1+a_{12}f_2),
+ \notag\\
+ Z_2&=z_n+h(a_{21}f_1+a_{22}f_2),
+ \label{eq:forward-stages-expanded}
+\\
+ z_{n+1}&=z_n+h(b_1f_1+b_2f_2).
+ \label{eq:forward-output-expanded}
+\end{align}
+
+Now start from $z_{n+1}$ at time $t_n+h$ and apply the same method with step
+$-h$.  Its stages $\widehat Z_1,\widehat Z_2$ satisfy
+\begin{equation}
+ \widehat Z_i=z_{n+1}
+ -h\sum_{j=1}^2a_{ij}
+ f(t_n+h-c_jh,\widehat Z_j).
+ \label{eq:backward-stage-equations}
+\end{equation}
+The Gauss nodes are reflected about the midpoint:
+\begin{equation}
+ 1-c_1=c_2,
+ \qquad
+ 1-c_2=c_1.
+ \label{eq:reflected-nodes}
+\end{equation}
+Thus the backward stage times are the forward stage times in reverse order.
+We shall verify that the backward stages are
+\begin{equation}
+ \boxed{
+ \widehat Z_1=Z_2,
+ \qquad
+ \widehat Z_2=Z_1.
+ }
+ \label{eq:reversed-stages}
+\end{equation}
+
+Under the identification \eqref{eq:reversed-stages}, the first backward stage
+equation becomes
+\begin{align}
+ \widehat Z_1
+ &=z_{n+1}-h(a_{11}f_2+a_{12}f_1)
+ \notag\\
+ &=z_n+h\left[(b_1-a_{12})f_1+(b_2-a_{11})f_2\right].
+ \label{eq:first-backward-stage}
+\end{align}
+For the coefficients \eqref{eq:tableau},
+\begin{equation}
+ b_1-a_{12}=a_{21},
+ \qquad
+ b_2-a_{11}=a_{22}.
+ \label{eq:first-reversal-identities}
+\end{equation}
+Consequently,
+\[
+ \widehat Z_1=z_n+h(a_{21}f_1+a_{22}f_2)=Z_2.
+\]
+Likewise, the second backward stage satisfies
+\begin{align}
+ \widehat Z_2
+ &=z_{n+1}-h(a_{21}f_2+a_{22}f_1)
+ \notag\\
+ &=z_n+h\left[(b_1-a_{22})f_1+(b_2-a_{21})f_2\right].
+ \label{eq:second-backward-stage}
+\end{align}
+Since
+\begin{equation}
+ b_1-a_{22}=a_{11},
+ \qquad
+ b_2-a_{21}=a_{12},
+ \label{eq:second-reversal-identities}
+\end{equation}
+we obtain
+\[
+ \widehat Z_2=z_n+h(a_{11}f_1+a_{12}f_2)=Z_1.
+\]
+The proposed reversed stages therefore solve the coupled backward stage
+equations exactly.
+
+\clearpage
+
+The output of the backward step is now
+\begin{align}
+ \widehat z_n
+ &=z_{n+1}-h(b_1f_2+b_2f_1)
+ \notag\\
+ &=z_n+h(b_1f_1+b_2f_2)-h(b_1f_2+b_2f_1)
+ \notag\\
+ &=z_n,
+ \label{eq:backward-recovers-input}
+\end{align}
+where the last equality uses $b_1=b_2=1/2$.  This proves
+\eqref{eq:symmetry-definition}.
+
+More generally, an $s$-stage Runge--Kutta method is symmetric when its
+coefficients are invariant under stage reversal:
+\begin{equation}
+ \boxed{
+ c_i=1-c_{s+1-i},
+ \qquad
+ b_i=b_{s+1-i},
+ \qquad
+ a_{ij}=b_{s+1-j}-a_{s+1-i,s+1-j}.
+ }
+ \label{eq:rk-symmetry-condition}
+\end{equation}
+The coefficients in \eqref{eq:tableau} satisfy all three identities for
+$s=2$.
+
+Differentiating the map identity \eqref{eq:symmetry-definition} also gives the
+Jacobian form of reversibility:
+\begin{equation}
+ \boxed{
+ D\Phi_{-h,t_n+h}(z_{n+1})\,
+ D\Phi_{h,t_n}(z_n)=\Id_{2d}.
+ }
+ \label{eq:jacobian-reversibility}
+\end{equation}
+Thus the backward-step Jacobian is exactly the inverse of the forward-step
+Jacobian.  As with symplecticity, a finite Newton tolerance and floating-point
+round-off can produce a small measured reversibility defect even though the
+ideal implicit method is exactly symmetric.
+
+\clearpage
+
+\section{Consequences and numerical interpretation}
+
+For one guiding-centre particle, $\Jn\in\R^{2\times2}$ and
+\[
+ \Jn^T\Om\Jn=\det(\Jn)\Om.
+\]
+Equation \eqref{eq:final-symplecticity} therefore implies
+\[
+ \det(\Jn)=1,
+\]
+so the one-step map preserves oriented area.  In dimensions greater than two,
+unit determinant is only a consequence of symplecticity, not an equivalent
+test.
+
+If $\Jn$ denotes the local Jacobian at step $n$, the accumulated flow tangent
+after $N$ steps is
+\[
+ \mathcal{P}_N=\mathcal{J}_{N-1}\cdots\mathcal{J}_1\mathcal{J}_0.
+\]
+Since a product of symplectic matrices is symplectic,
+\[
+ \mathcal{P}_N^T\Om\mathcal{P}_N=\Om.
+\]
+
+The algebraic result concerns the exact root and the exact tangent
+\eqref{eq:step-jacobian}.  In floating-point computations, a finite Newton
+tolerance, round-off, or a finite-difference approximation of the map
+Jacobian produces a small nonzero measured defect
+\[
+ \left\lVert\Jn^T\Om\Jn-\Om\right\rVert.
+\]
+That numerical floor does not contradict the exact symplecticity proved above.
+
+\section*{References}
+
+\begin{itemize}
+ \item J.~M. Sanz-Serna, ``Runge--Kutta schemes for Hamiltonian systems,''
+       \emph{BIT Numerical Mathematics}, 28 (1988), 877--883.
+ \item E. Hairer, C. Lubich, and G. Wanner,
+       \emph{Geometric Numerical Integration}, second edition,
+       Springer, 2006.
+\end{itemize}
+
+\end{document}

@@ -465,7 +465,7 @@ def run_abba2_midpoint_trajectory_symplecticity_study(
 		config=config,
 		method_name="ABBA2Midpoint",
 		method_slug="abba2_midpoint",
-		jacobian_method="explicit_abba_stage_chain",
+		jacobian_method="abba2_midpoint_stage_chain",
 		jacobian_calculator=abba2_midpoint_step_particle_jacobians,
 		method_factory=lambda observer: ABBA2Midpoint(
 			progress=config.progress,

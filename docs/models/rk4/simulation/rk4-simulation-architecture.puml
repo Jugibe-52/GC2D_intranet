@@ -1,0 +1,68 @@
+@startuml
+title Classical RK4 simulation and diagnostic lifecycle
+
+skinparam componentStyle rectangle
+
+actor Caller
+
+package dynamics {
+  interface DynamicalSystem
+  interface ExtendedHamiltonianSystem
+}
+
+package simulation {
+  class InitialValueProblem
+  class SimulationRequest
+  class RK4 {
+    +track_energy
+    +progress
+    +step_observer
+    +integrate(problem, request)
+  }
+  component "Four-stage RK4 map" as StepMap
+  component "integrate_fixed_grid" as FixedGrid
+  class IntegrationStep
+  class IntegrationData
+  class SimulationRunner
+  class Solution
+}
+
+package diagnostics {
+  component "Centered map differences" as Differences
+  class GCAreaSymplecticityObserver
+}
+
+Caller --> InitialValueProblem
+Caller --> SimulationRequest
+Caller --> RK4
+Caller --> SimulationRunner : simulate(...)
+InitialValueProblem --> DynamicalSystem
+SimulationRunner --> RK4 : integrate
+SimulationRequest --> FixedGrid : t_span, max_step, output_times
+RK4 --> StepMap : k1, k2, k3, k4
+RK4 ..> ExtendedHamiltonianSystem : optional [z, k] derivative
+RK4 --> FixedGrid : advance callback
+
+FixedGrid --> StepMap : complete main step\nobserve=true
+FixedGrid ..> StepMap : off-grid shadow step\nobserve=false
+StepMap --> IntegrationStep : main steps only
+IntegrationStep --> GCAreaSymplecticityObserver : optional callback
+GCAreaSymplecticityObserver --> Differences : map_state
+Differences --> GCAreaSymplecticityObserver : local Jacobian
+
+FixedGrid --> IntegrationData : sampled history and step_count
+IntegrationData --> SimulationRunner
+SimulationRunner --> Solution : validated physical history\nand read-only diagnostics
+
+note right of FixedGrid
+  Uniform main grid is independent
+  of the requested output density.
+end note
+
+note right of IntegrationStep
+  Snapshots and map_state use the
+  physical state normally, or [z, k]
+  when energy tracking is enabled.
+end note
+
+@enduml

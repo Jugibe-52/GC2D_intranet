@@ -1,5 +1,7 @@
 # BM4 fourth-order composition and projection architecture
 
+![BM4 composition, projection variants, and fixed-grid lifecycle](bm4-simulation-architecture.png)
+
 ## Public family
 
 The BM4 implementation exposes six public classes. They share the same
@@ -255,5 +257,5 @@ sources [`BM4_implicit_1.tex`](../BM4_implicit_1.tex) and
 [`bm4_jacobian_sympy.py`](../bm4_jacobian_sympy.py) verifies the ordered
 symbolic stage-product factors.
 
-The companion component diagram is
+The editable source for the rendered component diagram is
 [`bm4-simulation-architecture.puml`](bm4-simulation-architecture.puml).

@@ -1,0 +1,204 @@
+@startdot
+digraph G {
+  graph [
+    rankdir=LR,
+    compound=true,
+    newrank=true,
+    splines=ortho,
+    nodesep=0.34,
+    ranksep=0.76,
+    pad=0.18,
+    bgcolor="white",
+    fontname="DejaVu Sans",
+    fontsize=12,
+    label="ABBA4ImplicitSingleProjection: Physical Reduced-Newton Architecture",
+    labelloc="t",
+    labeljust="c"
+  ];
+  node [shape=plain, fontname="DejaVu Sans", fontsize=9];
+  edge [color="#333333", penwidth=1.0, arrowsize=0.68, fontname="DejaVu Sans", fontsize=8];
+
+  subgraph cluster_boundary {
+    label="Default configuration and outer scheduler";
+    labeljust="l";
+    color="#6C5B7B";
+    penwidth=1.2;
+    style="rounded";
+
+    Dynamics [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#F7F7F7">
+        <TR><TD><FONT POINT-SIZE="8">src/dynamics/protocols.py</FONT><BR/><B>GuidingCenterJacobianSystem</B></TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT">state_dimension = 2<BR ALIGN="LEFT"/>vector_field(t, state)<BR ALIGN="LEFT"/>particle_vector_field_jacobians(t, state)<BR ALIGN="LEFT"/>N independent 2 x 2 blocks</TD></TR>
+      </TABLE>
+    >];
+
+    Method [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#F3ECF7">
+        <TR><TD><FONT POINT-SIZE="8">abba/order4_implicit_single_projection.py</FONT><BR/><B>ABBA4ImplicitSingleProjection</B></TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT">state_extension = physical<BR ALIGN="LEFT"/>projection_formulation = reduced_multiplier<BR ALIGN="LEFT"/>nonlinear_solver = newton<BR ALIGN="LEFT"/>integrate(problem, request)</TD></TR>
+      </TABLE>
+    >];
+
+    Coordinator [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#EAF2F8">
+        <TR><TD><FONT POINT-SIZE="8">order4_implicit_single_projection.py</FONT><BR/><B>Physical coordinator</B></TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT">_integrate_abba4_implicit_single_projection(...)<BR ALIGN="LEFT"/>local solve_step(...), advance(...), map_state(...)</TD></TR>
+      </TABLE>
+    >];
+
+    FixedGrid [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#DDEBF3">
+        <TR><TD><FONT POINT-SIZE="8">src/simulation/_fixed.py</FONT><BR/><B>integrate_fixed_grid(...)</B></TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT">uniform output-independent main grid<BR ALIGN="LEFT"/>main callback: observe = true<BR ALIGN="LEFT"/>shadow callback: observe = false</TD></TR>
+      </TABLE>
+    >];
+  }
+
+  subgraph cluster_projection {
+    label="One outer reduced-multiplier Newton solve";
+    labeljust="l";
+    color="#4F7D63";
+    penwidth=1.2;
+    style="rounded";
+
+    Embed [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#EAF6EE">
+        <TR><TD><B>Outer normal embedding</B></TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT">mu_0 = 0<BR ALIGN="LEFT"/>u_0 = z_n + mu_k<BR ALIGN="LEFT"/>v_0 = z_n - mu_k<BR ALIGN="LEFT"/>performed once around the complete base</TD></TR>
+      </TABLE>
+    >];
+
+    Factor1 [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#EAF6EE">
+        <TR><TD><B>Factor M1</B></TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT">A-B-B-A map<BR ALIGN="LEFT"/>start t_n<BR ALIGN="LEFT"/>duration gamma h</TD></TR>
+      </TABLE>
+    >];
+
+    Factor2 [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#EAF6EE">
+        <TR><TD><B>Factor M2</B></TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT">A-B-B-A map<BR ALIGN="LEFT"/>start t_n + gamma h<BR ALIGN="LEFT"/>duration delta h &lt; 0<BR ALIGN="LEFT"/>no intermediate projection</TD></TR>
+      </TABLE>
+    >];
+
+    Factor3 [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#EAF6EE">
+        <TR><TD><B>Factor M3</B></TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT">A-B-B-A map<BR ALIGN="LEFT"/>start t_n + (gamma + delta) h<BR ALIGN="LEFT"/>duration gamma h<BR ALIGN="LEFT"/>end t_n + h</TD></TR>
+      </TABLE>
+    >];
+
+    Residual [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#EAF6EE">
+        <TR><TD><B>Complete-base residual</B></TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT">r(mu) = u_b - v_b + 2 mu<BR ALIGN="LEFT"/>tau = atol + rtol max(1, ||z_n||_inf)<BR ALIGN="LEFT"/>accept when ||r||_inf &lt;= tau</TD></TR>
+      </TABLE>
+    >];
+
+    OrderedTangent [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#EAF6EE">
+        <TR><TD><FONT POINT-SIZE="8">_differentiate_single_projection_base(...)</FONT><BR/><B>Ordered analytic tangent</B></TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT">M_b = M3 M2 M1<BR ALIGN="LEFT"/>K = G M_b N + 2 I<BR ALIGN="LEFT"/>one exact 2 x 2 K block per particle</TD></TR>
+      </TABLE>
+    >];
+
+    Newton [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#EAF6EE">
+        <TR><TD><B>Newton correction</B></TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT">K Delta_mu = r<BR ALIGN="LEFT"/>mu_(k+1) = mu_k - Delta_mu<BR ALIGN="LEFT"/>rebuild all three factors</TD></TR>
+      </TABLE>
+    >];
+
+    Accept [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#EAF6EE">
+        <TR><TD><B>Accepted physical state</B></TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT">u+ = u_b + mu<BR ALIGN="LEFT"/>v+ = v_b - mu<BR ALIGN="LEFT"/>z_(n+1) = (u+ + v+) / 2</TD></TR>
+      </TABLE>
+    >];
+  }
+
+  subgraph cluster_result {
+    label="Main observations, shadow samples, and result";
+    labeljust="l";
+    color="#3F6F8F";
+    penwidth=1.2;
+    style="rounded";
+
+    Observe [shape=diamond, style="filled", fillcolor="#FFFFFF", label="observe?"];
+
+    Diagnostics [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#EAF2F8">
+        <TR><TD><B>Main-step diagnostics</B></TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT">nonlinear_solves_per_step = 1<BR ALIGN="LEFT"/>unprojected maps per residual = 3<BR ALIGN="LEFT"/>iterations, evaluations, residuals<BR ALIGN="LEFT"/>tolerances and multiplier norms</TD></TR>
+      </TABLE>
+    >];
+
+    Observer [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#EAF2F8">
+        <TR><TD><FONT POINT-SIZE="8">src/simulation/observation.py</FONT><BR/><B>ABBA4ImplicitSingleProjectionIntegrationStep</B></TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT">one outer multiplier and solve metrics<BR ALIGN="LEFT"/>three ordered UnprojectedABBAIntegrationStep records<BR ALIGN="LEFT"/>physical map_state and dynamics instance</TD></TR>
+      </TABLE>
+    >];
+
+    Shadow [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#F7F7F7">
+        <TR><TD><B>Shadow sample only</B></TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT">complete shorter Newton solve<BR ALIGN="LEFT"/>no main-state replacement<BR ALIGN="LEFT"/>no diagnostics or observation</TD></TR>
+      </TABLE>
+    >];
+
+    IntegrationData [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#DDEBF3">
+        <TR><TD><B>IntegrationData to Solution</B></TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT">requested times<BR ALIGN="LEFT"/>physical state history<BR ALIGN="LEFT"/>main-step diagnostics</TD></TR>
+      </TABLE>
+    >];
+  }
+
+  Comparison [shape=note, style="filled", fillcolor="#FFF4CC", label="Projection placement is the method distinction:\nABBA4ImplicitSingleProjection: 1 solve around all 3 factors.\nABBA4Implicit: 3 solves, one after each factor.\nThe finite-step maps are different."];
+
+  Limits [shape=note, style="filled", fillcolor="#FFF4CC", label="Default-scope limits:\nphysical state + reduced multiplier + Newton;\nexact planar particle Jacobians required;\nnegative middle factor uses non-monotone times;\nno adaptive error control or solver fallback."];
+
+  Dynamics -> Method;
+  Method -> Coordinator;
+  Coordinator -> FixedGrid;
+  FixedGrid -> Embed [xlabel="main or shadow advance"];
+  Embed -> Factor1;
+  Factor1 -> Factor2 [xlabel="continuous (u,v)"];
+  Factor2 -> Factor3 [xlabel="continuous (u,v)"];
+  Factor3 -> Residual;
+  Residual -> Accept [xlabel="converged"];
+  Residual -> OrderedTangent [xlabel="not converged"];
+  Factor1 -> OrderedTangent [style=dashed, color="#4F7D63", constraint=false];
+  Factor2 -> OrderedTangent [style=dashed, color="#4F7D63", constraint=false];
+  Factor3 -> OrderedTangent [style=dashed, color="#4F7D63", constraint=false];
+  OrderedTangent -> Newton;
+  Newton -> Embed [xlabel="next mu", constraint=false];
+  Accept -> Observe;
+  Observe -> Diagnostics [xlabel="main"];
+  Observe -> Observer [xlabel="main + callback"];
+  Observe -> Shadow [xlabel="shadow"];
+  Diagnostics -> IntegrationData;
+  Shadow -> IntegrationData [xlabel="saved output"];
+  Observer -> IntegrationData [style=dotted, arrowhead=none, constraint=false];
+  Method -> Comparison [style=dotted, arrowhead=none, constraint=false];
+  OrderedTangent -> Limits [style=dotted, arrowhead=none, constraint=false];
+}
+@enddot

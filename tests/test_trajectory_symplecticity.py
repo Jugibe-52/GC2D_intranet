@@ -158,6 +158,11 @@ class ExactTrajectoryJacobianTests(unittest.TestCase):
 						project_root=root,
 						config=config,
 					)
+					if runner is run_abba2_midpoint_trajectory_symplecticity_study:
+						self.assertEqual(
+							result.jacobian_method,
+							"abba2_midpoint_stage_chain",
+						)
 					self.assertEqual(len(result.steps), 3)
 					for expected_steps, step in zip(
 						(2, 4, 8),

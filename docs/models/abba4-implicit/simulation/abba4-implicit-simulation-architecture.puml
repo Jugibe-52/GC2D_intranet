@@ -1,0 +1,286 @@
+@startdot
+digraph G {
+  graph [
+    rankdir=LR,
+    compound=true,
+    newrank=true,
+    splines=ortho,
+    nodesep=0.32,
+    ranksep=0.76,
+    pad=0.18,
+    bgcolor="white",
+    fontname="DejaVu Sans",
+    fontsize=13,
+    label="ABBA4Implicit - Default Physical Reduced-Newton Path",
+    labelloc="t",
+    labeljust="c"
+  ];
+  node [shape=plain, fontname="DejaVu Sans", fontsize=9];
+  edge [color="#3F4A54", penwidth=1.0, arrowsize=0.70, fontname="DejaVu Sans", fontsize=8];
+
+  subgraph cluster_public {
+    label="1. Public simulation boundary";
+    labeljust="l";
+    color="#4C78A8";
+    penwidth=1.2;
+    style="rounded";
+
+    public_anchor [shape=point, width=0, height=0, label="", style=invis];
+
+    Scope [shape=note, style="filled", fillcolor="#FFFDEB", color="#B8AE6F", margin="0.10,0.07", label="Expanded runtime scope:\nABBA4Implicit defaults\nstate_extension = physical\nprojection_formulation = reduced_multiplier\nnonlinear_solver = newton\nOther family branches are linked, not expanded."];
+
+    Dynamics [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="6" BGCOLOR="#EAF2F8">
+        <TR><TD><FONT POINT-SIZE="8">src/dynamics/protocols.py</FONT><BR/><B>GuidingCenterJacobianSystem</B> &#171;protocol&#187;</TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT">state_dimension = 2<BR ALIGN="LEFT"/>vector_field(t, state)<BR ALIGN="LEFT"/>particle_vector_field_jacobians(t, state)</TD></TR>
+      </TABLE>
+    >];
+
+    Problem [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="6" BGCOLOR="#EAF2F8">
+        <TR><TD><FONT POINT-SIZE="8">src/simulation/problem.py</FONT><BR/><B>InitialValueProblem</B></TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT">dynamics<BR ALIGN="LEFT"/>validated physical state z<SUB>0</SUB><BR ALIGN="LEFT"/>source initial configuration and layout</TD></TR>
+      </TABLE>
+    >];
+
+    Request [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="6" BGCOLOR="#EAF2F8">
+        <TR><TD><FONT POINT-SIZE="8">src/simulation/request.py</FONT><BR/><B>SimulationRequest</B></TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT">t_span<BR ALIGN="LEFT"/>max_step<BR ALIGN="LEFT"/>output_times</TD></TR>
+      </TABLE>
+    >];
+
+    Method [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="6" BGCOLOR="#DCCDE5">
+        <TR><TD><FONT POINT-SIZE="8">abba/order4_implicit.py</FONT><BR/><B>ABBA4Implicit</B></TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT">inherits _ABBAImplicitConfig<BR ALIGN="LEFT"/>physical + reduced_multiplier + newton<BR ALIGN="LEFT"/>progress [optional]<BR ALIGN="LEFT"/>step_observer [optional]<BR ALIGN="LEFT"/>integrate(problem, request)</TD></TR>
+      </TABLE>
+    >];
+
+    Runner [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="6" BGCOLOR="#EAF2F8">
+        <TR><TD><FONT POINT-SIZE="8">src/simulation/runner.py</FONT><BR/><B>simulate(...) / SimulationRunner</B></TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT">validate public inputs<BR ALIGN="LEFT"/>call method.integrate(...)<BR ALIGN="LEFT"/>validate IntegrationData<BR ALIGN="LEFT"/>construct Solution</TD></TR>
+      </TABLE>
+    >];
+
+    { rank=same; public_anchor; Scope; Dynamics; Problem; Request; Method; Runner; }
+  }
+
+  subgraph cluster_scheduler {
+    label="2. Dispatch and fixed-grid lifecycle";
+    labeljust="l";
+    color="#3F6F8F";
+    penwidth=1.2;
+    style="rounded";
+
+    scheduler_anchor [shape=point, width=0, height=0, label="", style=invis];
+
+    Dispatch [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="6" BGCOLOR="#DDEBF3">
+        <TR><TD><FONT POINT-SIZE="8">abba/order4_implicit.py</FONT><BR/><B>_integrate_abba4_implicit(...)</B></TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT">coefficients = _ABBA4_COEFFICIENTS<BR ALIGN="LEFT"/>composition_policy = project_each_abba_substep<BR ALIGN="LEFT"/>observation_type = ABBA4ImplicitIntegrationStep</TD></TR>
+      </TABLE>
+    >];
+
+    Coordinator [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="6" BGCOLOR="#DDEBF3">
+        <TR><TD><FONT POINT-SIZE="8">abba/order4_implicit.py</FONT><BR/><B>_integrate_composed_implicit_abba(...)</B></TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT">validate planar Jacobian dynamics<BR ALIGN="LEFT"/>define solve_step(...), advance(...), map_state(...)<BR ALIGN="LEFT"/>collect three-column substep metrics<BR ALIGN="LEFT"/>aggregate main-step diagnostics</TD></TR>
+      </TABLE>
+    >];
+
+    FixedGrid [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="6" BGCOLOR="#DDEBF3">
+        <TR><TD><FONT POINT-SIZE="8">src/simulation/_fixed.py</FONT><BR/><B>integrate_fixed_grid(...)</B></TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT">uniform main step h &lt;= max_step<BR ALIGN="LEFT"/>advance(..., observe=True) for main steps<BR ALIGN="LEFT"/>independent observe=False shadow steps<BR ALIGN="LEFT"/>return history and step_count</TD></TR>
+      </TABLE>
+    >];
+
+    Shadow [shape=note, style="filled", fillcolor="#F7F7F7", color="#999999", margin="0.10,0.07", label="Off-grid output: run all three signed projected substeps\nfrom the preceding main node with a shorter outer duration.\nSave the sample only; do not change the main trajectory,\ndiagnostics, progress, or observations."];
+
+    { rank=same; scheduler_anchor; Dispatch; Coordinator; FixedGrid; Shadow; }
+  }
+
+  subgraph cluster_composition {
+    label="3. One outer triple-jump step";
+    labeljust="l";
+    color="#7B5A8E";
+    penwidth=1.3;
+    style="rounded";
+
+    composition_anchor [shape=point, width=0, height=0, label="", style=invis];
+
+    Coefficients [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="7" BGCOLOR="#F3ECF7">
+        <TR><TD><FONT POINT-SIZE="8">methods/_abba_coefficients.py</FONT><BR/><B>_ABBA4_COEFFICIENTS</B></TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT">gamma = 1 / (2 - cbrt(2))<BR ALIGN="LEFT"/>delta = -cbrt(2) / (2 - cbrt(2))<BR ALIGN="LEFT"/>(gamma, delta, gamma)<BR ALIGN="LEFT"/>2 gamma + delta = 1<BR ALIGN="LEFT"/>2 gamma^3 + delta^3 = 0</TD></TR>
+      </TABLE>
+    >];
+
+    Compose [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="7" BGCOLOR="#F3ECF7">
+        <TR><TD><FONT POINT-SIZE="8">abba/order4_implicit.py</FONT><BR/><B>_solve_composed_abba_step(...)</B></TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT">current_state = z<SUB>n</SUB>, current_time = t<SUB>n</SUB><BR ALIGN="LEFT"/>for each coefficient c:<BR ALIGN="LEFT"/>duration = c h<BR ALIGN="LEFT"/>solve one complete projected ABBA map<BR ALIGN="LEFT"/>feed accepted state and signed end time forward<BR ALIGN="LEFT"/>verify final time is t<SUB>n</SUB> + h</TD></TR>
+      </TABLE>
+    >];
+
+    Timeline [label=<
+      <TABLE BORDER="1" CELLBORDER="1" CELLSPACING="0" CELLPADDING="6" BGCOLOR="#F8F3FA">
+        <TR><TD><B>Substep</B></TD><TD><B>Duration</B></TD><TD><B>Start time</B></TD><TD><B>Accepted output</B></TD></TR>
+        <TR><TD>1</TD><TD>gamma h</TD><TD>t<SUB>n</SUB></TD><TD>z<SUB>1</SUB> after projection 1</TD></TR>
+        <TR><TD>2</TD><TD>delta h &lt; 0</TD><TD>t<SUB>n</SUB> + gamma h</TD><TD>z<SUB>2</SUB> after projection 2</TD></TR>
+        <TR><TD>3</TD><TD>gamma h</TD><TD>t<SUB>n</SUB> + (gamma + delta)h</TD><TD>z<SUB>n+1</SUB> after projection 3</TD></TR>
+      </TABLE>
+    >];
+
+    Records [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="6" BGCOLOR="#FFF4E5">
+        <TR><TD><FONT POINT-SIZE="8">abba/order4_implicit.py</FONT><BR/><B>_AcceptedSubstep x 3 / _ComposedABBAStep</B></TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT">per substep: start_time, duration,<BR ALIGN="LEFT"/>state_before, _ProjectedStep result<BR ALIGN="LEFT"/>complete step: final state and ordered tuple</TD></TR>
+      </TABLE>
+    >];
+
+    Policy [shape=note, style="filled", fillcolor="#FFFDEB", color="#B8AE6F", margin="0.10,0.07", label="Projection placement is part of the method:\neach signed ABBA map solves and closes its own projection.\nThis is not ABBA4ImplicitSingleProjection, which projects once\naround the complete unprojected triple jump."];
+
+    { rank=same; composition_anchor; Coefficients; Compose; Timeline; Records; Policy; }
+  }
+
+  subgraph cluster_kernel {
+    label="4. Reused reduced-Newton substep kernel (called three times)";
+    labeljust="l";
+    color="#4F7D63";
+    penwidth=1.3;
+    style="rounded";
+
+    kernel_anchor [shape=point, width=0, height=0, label="", style=invis];
+
+    Selector [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="6" BGCOLOR="#EAF6EE">
+        <TR><TD><FONT POINT-SIZE="8">abba/_implicit.py</FONT><BR/><B>_step_solver_for(...)</B></TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT">reduced_multiplier<BR ALIGN="LEFT"/>-&gt; _solve_reduced_multiplier_step(...)</TD></TR>
+      </TABLE>
+    >];
+
+    Reduced [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="7" BGCOLOR="#D9EEDC">
+        <TR><TD><FONT POINT-SIZE="8">abba/_projection_reduced.py</FONT><BR/><B>Reduced symmetric projection</B></TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT">mu<SUB>0</SUB> = 0<BR ALIGN="LEFT"/>u<SUB>0</SUB> = z + mu, v<SUB>0</SUB> = z - mu<BR ALIGN="LEFT"/>run _evaluate_unprojected_stages(...)<BR ALIGN="LEFT"/>r(mu) = u<SUB>f</SUB> - v<SUB>f</SUB> + 2 mu<BR ALIGN="LEFT"/>tau = atol + rtol max(1, ||z||<SUB>infinity</SUB>)</TD></TR>
+      </TABLE>
+    >];
+
+    Newton [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="7" BGCOLOR="#EAF6EE">
+        <TR><TD><FONT POINT-SIZE="8">abba/_projection_common.py</FONT><BR/><B>_differentiate_stages(...) + numpy.linalg.solve(...)</B></TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT">evaluate exact W<SUB>1</SUB>, W<SUB>2</SUB>, W<SUB>3</SUB>, W<SUB>4</SUB><BR ALIGN="LEFT"/>assemble ordered reduced Jacobian J<SUB>r</SUB><BR ALIGN="LEFT"/>J<SUB>r</SUB> Delta mu = r(mu)<BR ALIGN="LEFT"/>mu &lt;- mu - Delta mu<BR ALIGN="LEFT"/>repeat until ||r||<SUB>infinity</SUB> &lt;= tau</TD></TR>
+      </TABLE>
+    >];
+
+    Accepted [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="7" BGCOLOR="#EAF6EE">
+        <TR><TD><FONT POINT-SIZE="8">abba/_projection_common.py</FONT><BR/><B>_ProjectedStep</B></TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT">u<SUP>+</SUP> = u<SUB>f</SUB> + mu<SUB>*</SUB><BR ALIGN="LEFT"/>v<SUP>+</SUP> = v<SUB>f</SUB> - mu<SUB>*</SUB><BR ALIGN="LEFT"/>accepted z = (u<SUP>+</SUP> + v<SUP>+</SUP>) / 2<BR ALIGN="LEFT"/>multiplier, stages, iterations,<BR ALIGN="LEFT"/>residual_evaluations, residual_norm</TD></TR>
+      </TABLE>
+    >];
+
+    { rank=same; kernel_anchor; Selector; Reduced; Newton; Accepted; }
+  }
+
+  subgraph cluster_output {
+    label="5. Aggregated observation, diagnostics, and result";
+    labeljust="l";
+    color="#A36A00";
+    penwidth=1.2;
+    style="rounded";
+
+    output_anchor [shape=point, width=0, height=0, label="", style=invis];
+
+    SubstepObservation [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="6" BGCOLOR="#FFFDEB">
+        <TR><TD><FONT POINT-SIZE="8">_substep_observation(...)</FONT><BR/><B>3 x ABBA2ImplicitIntegrationStep snapshots</B></TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT">signed start_time and duration<BR ALIGN="LEFT"/>state_before and state_after<BR ALIGN="LEFT"/>own map_state, multiplier, ABBA stages<BR ALIGN="LEFT"/>own nonlinear work and tolerance<BR ALIGN="LEFT"/>stored inside the outer event; not separately emitted</TD></TR>
+      </TABLE>
+    >];
+
+    Observation [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="6" BGCOLOR="#FFFDEB">
+        <TR><TD><FONT POINT-SIZE="8">src/simulation/observation.py</FONT><BR/><B>ABBA4ImplicitIntegrationStep</B> [optional]</TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT">one event per accepted main step<BR ALIGN="LEFT"/>complete-composition map_state<BR ALIGN="LEFT"/>composition_coefficients and ordered substeps<BR ALIGN="LEFT"/>sum iterations and residual evaluations<BR ALIGN="LEFT"/>residual/tolerance from worst normalized substep<BR ALIGN="LEFT"/>maximum multiplier norm</TD></TR>
+      </TABLE>
+    >];
+
+    Diagnostics [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="6" BGCOLOR="#FFF4E5">
+        <TR><TD><FONT POINT-SIZE="8">_integrate_composed_implicit_abba(...)</FONT><BR/><B>Aggregated diagnostics</B></TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT">3 implicit substeps and nonlinear solves per step<BR ALIGN="LEFT"/>composition_coefficients and composition_policy<BR ALIGN="LEFT"/>per-step sums: iterations, residual evaluations<BR ALIGN="LEFT"/>per-step selected residual/tolerance, max multiplier<BR ALIGN="LEFT"/>substep arrays with shape (step_count, 3)<BR ALIGN="LEFT"/>solver, formulation, extension, dimensions</TD></TR>
+      </TABLE>
+    >];
+
+    Data [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="6" BGCOLOR="#EAF2F8">
+        <TR><TD><FONT POINT-SIZE="8">src/simulation/_result.py</FONT><BR/><B>IntegrationData</B></TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT">requested times<BR ALIGN="LEFT"/>physical state history<BR ALIGN="LEFT"/>diagnostics mapping</TD></TR>
+      </TABLE>
+    >];
+
+    Solution [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="6" BGCOLOR="#EAF2F8">
+        <TR><TD><FONT POINT-SIZE="8">src/simulation/solution.py</FONT><BR/><B>Solution</B></TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT">read-only t, states, diagnostics<BR ALIGN="LEFT"/>source initial configuration and layout</TD></TR>
+      </TABLE>
+    >];
+
+    { rank=same; output_anchor; SubstepObservation; Observation; Diagnostics; Data; Solution; }
+  }
+
+  public_anchor -> scheduler_anchor -> composition_anchor -> kernel_anchor -> output_anchor [style=invis, weight=1000, minlen=2];
+
+  Dynamics -> Problem [constraint=false];
+  Problem -> Runner [constraint=false];
+  Request -> Runner [constraint=false];
+  Method -> Runner [constraint=false];
+  Runner -> Dispatch [constraint=false];
+
+  Dispatch -> Coordinator [constraint=false];
+  Coordinator -> FixedGrid [constraint=false];
+  FixedGrid -> Shadow [style=dashed, color="#777777", constraint=false];
+  FixedGrid -> Compose [constraint=false];
+
+  Coefficients -> Compose [constraint=false];
+  Compose -> Timeline [constraint=false];
+  Compose -> Selector [xlabel="3 signed calls", constraint=false];
+  Selector -> Reduced [constraint=false];
+  Reduced -> Newton [constraint=false];
+  Newton -> Accepted [constraint=false];
+  Accepted -> Compose [xlabel="next accepted state", constraint=false];
+  Compose -> Records [constraint=false];
+  Records -> Policy [constraint=false];
+
+  Records -> SubstepObservation [constraint=false];
+  SubstepObservation -> Observation [style=dashed, color="#777777", constraint=false];
+  Records -> Diagnostics [constraint=false];
+  FixedGrid -> Data [constraint=false];
+  Diagnostics -> Data [constraint=false];
+  Data -> Solution [constraint=false];
+}
+@enddot

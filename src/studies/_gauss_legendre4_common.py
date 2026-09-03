@@ -10,7 +10,7 @@ from scipy.integrate import solve_ivp
 
 from dynamics import GuidingCenterDynamics
 
-from ._trajectory_distances import particle_distances
+from ._trajectory_distances import DistanceConvention, particle_distances
 
 
 @dataclass(frozen=True, slots=True)
@@ -76,7 +76,8 @@ def build_adaptive_reference(
 	initial_state: np.ndarray,
 	times: np.ndarray,
 	*,
-	period: float,
+	period: float | None,
+	distance_convention: DistanceConvention = "periodic",
 	relative_tolerance: float,
 	absolute_tolerance: float,
 	maximum_step: float,
@@ -132,7 +133,7 @@ def build_adaptive_reference(
 	distances = particle_distances(
 		dop853,
 		radau,
-		distance_convention="periodic",
+		distance_convention=distance_convention,
 		period=period,
 	)
 	return AdaptiveReference(

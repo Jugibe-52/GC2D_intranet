@@ -1,0 +1,52 @@
+@startuml
+title ExplicitEuler dynamical-system contract
+
+skinparam componentStyle rectangle
+
+package dynamics {
+  interface DynamicalSystem {
+    +state_dimension
+    +vector_field(t, state)
+  }
+}
+
+package simulation {
+  class InitialValueProblem {
+    +dynamics
+    +initial_configuration
+    +initial_state
+  }
+
+  class ExplicitEuler {
+    +progress
+    +step_observer
+    +integrate(problem, request)
+  }
+
+  component "_checked_vector_field(...)" as CheckedField
+}
+
+DynamicalSystem --> InitialValueProblem : required capability
+InitialValueProblem --> ExplicitEuler : validated physical state
+ExplicitEuler --> CheckedField : evaluate each Euler map
+DynamicalSystem --> CheckedField : vector_field(t, state)
+
+note right of InitialValueProblem
+  The initial-configuration layout
+  must match state_dimension.
+end note
+
+note right of CheckedField
+  Convert to float ndarray.
+  Require the candidate shape.
+  Reject non-finite values.
+end note
+
+note bottom of ExplicitEuler
+  No Hamiltonian, extended-momentum,
+  Jacobian, or split-flow capability
+  is consumed.
+end note
+
+@enduml
+

@@ -15,7 +15,7 @@ from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
 from matplotlib.ticker import MaxNLocator
 
-from potential import Potential
+from potential import GC2DH5Potential, Potential
 from simulation import Solution
 
 from .particles import _field_normalization, _frame_indices
@@ -24,8 +24,11 @@ from .particles import _field_normalization, _frame_indices
 IMPLICIT_METHOD_COLORS: Mapping[str, str] = {
 	"ABBA2Implicit[reduced_multiplier]": "tab:blue",
 	"ABBA2Implicit[simultaneous_state_multiplier]": "tab:orange",
+	"ABBA4ImplicitSingleProjection": "tab:blue",
+	"GaussLegendre4": "tab:orange",
 	"BM4Implicit1": "tab:green",
 	"BM4Implicit2": "tab:red",
+	"HBVM42": "tab:red",
 }
 _METHOD_LINESTYLES = ("solid", "dashed", "dashdot", "dotted")
 _METHOD_LINEWIDTHS = (3.0, 2.35, 1.7, 1.05)
@@ -73,8 +76,13 @@ def plot_implicit_method_iterations(
 		iterations = np.asarray(
 			solution.diagnostics["nonlinear_iterations"], dtype=int
 		)
+		residual_key = (
+			"residual_evaluations"
+			if "residual_evaluations" in solution.diagnostics
+			else "residual_evaluations_per_step"
+		)
 		residual_evaluations = np.asarray(
-			solution.diagnostics["residual_evaluations"], dtype=int
+			solution.diagnostics[residual_key], dtype=int
 		)
 		residuals = np.asarray(
 			solution.diagnostics["nonlinear_residual_norms"], dtype=float
@@ -209,6 +217,7 @@ def animate_implicit_method_trajectories(
 	if isinstance(interval, (bool, np.bool_)) or int(interval) <= 0:
 		raise ValueError("`interval` must be a positive integer.")
 	labels, times, particle_count = _validated_solutions(solutions)
+	method_count_label = {3: "Three", 4: "Four"}.get(len(labels), str(len(labels)))
 	indices = _frame_indices(times.size, frames)
 	frame_times = times[indices]
 	fields = np.asarray(potential.evaluate(frame_times), dtype=float)
@@ -217,11 +226,13 @@ def animate_implicit_method_trajectories(
 	positions = {label: solutions[label].positions() for label in labels}
 
 	grid = potential.grid
+	xmax = grid.xmax if isinstance(potential, GC2DH5Potential) else grid.xmin + grid.period
+	ymax = grid.ymax if isinstance(potential, GC2DH5Potential) else grid.ymin + grid.period
 	figure, axis = plt.subplots(figsize=(8, 7), constrained_layout=True)
 	image = axis.imshow(
 		fields[:, :, 0].T,
 		origin="lower",
-		extent=(grid.xmin, grid.xmin + grid.period, grid.ymin, grid.ymin + grid.period),
+		extent=(grid.xmin, xmax, grid.ymin, ymax),
 		aspect="equal",
 		cmap=cmap,
 		norm=_field_normalization(fields),
@@ -287,8 +298,8 @@ def animate_implicit_method_trajectories(
 	axis.set(
 		xlabel="x",
 		ylabel="y",
-		xlim=(grid.xmin, grid.xmin + grid.period),
-		ylim=(grid.ymin, grid.ymin + grid.period),
+		xlim=(grid.xmin, xmax),
+		ylim=(grid.ymin, ymax),
 	)
 	axis.legend(handles=legend_handles, loc="upper right", fontsize="small")
 	figure.colorbar(image, ax=axis, label="Effective potential")
@@ -312,7 +323,7 @@ def animate_implicit_method_trajectories(
 			)
 			artists.extend((collections[label], markers[label]))
 		axis.set_title(
-			"Four implicit methods with a common step "
+			f"{method_count_label} implicit methods with a common step "
 			f"at t = {times[sample_index]:.3f}"
 		)
 		return tuple(artists)

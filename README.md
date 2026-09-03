@@ -29,14 +29,24 @@ available as `solution.source`, while diagnostics are attached as read-only
 data. Architecture documentation is organized by numerical model, with
 separate dynamics contracts and simulation explanations:
 
-- ABBA: [dynamics](docs/models/abba2-implicit/dynamics/gc2d-h5-import.md)
-  and [simulation](docs/models/abba/simulation/abba-numerical-architecture.md);
+- ABBA: [dynamics](docs/models/abba2-implicit/dynamics/gc2d-h5-import.md),
+  [family simulation](docs/models/abba/simulation/abba-numerical-architecture.md),
+  and focused views for
+  [`ABBA2Midpoint`](docs/models/abba2-midpoint/simulation/abba2-midpoint-simulation-architecture.md),
+  [`ABBA2Implicit`](docs/models/abba2-implicit/simulation/abba2-implicit-simulation-architecture.md),
+  [`ABBA4Implicit`](docs/models/abba4-implicit/simulation/abba4-implicit-simulation-architecture.md),
+  [`ABBA4ImplicitSingleProjection`](docs/models/abba4-implicit-single-projection/simulation/abba4-implicit-single-projection-simulation-architecture.md),
+  and [`ABBA6Implicit`](docs/models/abba6-implicit/simulation/abba6-implicit-simulation-architecture.md);
 - BM4: [dynamics and formulation contract](docs/models/bm4/dynamics/direct-adjoint-formulation-contract.md)
   and [simulation architecture](docs/models/bm4/simulation/bm4-simulation-architecture.md);
+- `ExplicitEuler`: [dynamics](docs/models/explicit-euler/dynamics/dynamical-system-contract.md)
+  and [simulation](docs/models/explicit-euler/simulation/explicit-euler-simulation-architecture.md);
 - `GaussLegendre4`: [dynamics](docs/models/gauss-legendre4/dynamics/guiding-center-contract.md)
-  and [simulation](docs/models/gauss-legendre4/simulation/gauss-legendre4-simulation-architecture.md); and
+  and [simulation](docs/models/gauss-legendre4/simulation/gauss-legendre4-simulation-architecture.md);
 - `HBVM42`: [dynamics](docs/models/hbvm42/dynamics/canonical-hamiltonian-contract.md)
-  and [simulation](docs/models/hbvm42/simulation/hbvm42-simulation-architecture.md).
+  and [simulation](docs/models/hbvm42/simulation/hbvm42-simulation-architecture.md); and
+- `RK4`: [dynamics](docs/models/rk4/dynamics/dynamical-system-contract.md)
+  and [simulation](docs/models/rk4/simulation/rk4-simulation-architecture.md).
 
 ## Installation
 
@@ -259,8 +269,19 @@ Solver-neutral diagnostics include `projection_formulation`,
 `extended_kappa`, and the `kappa_equals_k_over_2` normalization. Fully extended
 runs expose direct `extended_momentum` and generalized-energy diagnostics.
 
-`ExplicitEuler` provides the classical forward map
-`z_next = z + h * f(t, z)` on the same output-independent fixed grid.
+### Classical explicit methods
+
+`ExplicitEuler` provides the first-order forward map
+`z_next = z + h * f(t, z)`. `RK4` uses the four classical stages at
+`t`, `t + h/2`, `t + h/2`, and `t + h`, and has designed global order four.
+Both consume the general `DynamicalSystem` protocol and use the shared
+output-independent fixed grid. RK4 can additionally advance the
+time-conjugate momentum when `track_energy=True` and the dynamics implements
+`ExtendedHamiltonianSystem`.
+
+See the model-specific documentation for
+[`ExplicitEuler`](docs/models/explicit-euler/simulation/explicit-euler-simulation-architecture.md)
+and [`RK4`](docs/models/rk4/simulation/rk4-simulation-architecture.md).
 
 ### Two-stage Gauss--Legendre method
 

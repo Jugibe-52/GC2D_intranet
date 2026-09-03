@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from contextlib import redirect_stderr
+import io
 from pathlib import Path
 from typing import ClassVar
 import unittest
@@ -446,6 +448,47 @@ class ABBA4ConfigurationComparisonTests(unittest.TestCase):
 					solution.source.layout.particle_count(source_state),
 					1,
 				)
+
+	def test_progress_reports_each_configuration_and_particle(self) -> None:
+		"""Expose both per-step bars and identifiable global run progress."""
+		configuration = _configuration(particle_count=1)
+		reference = _reference(
+			self.potential,
+			configuration,
+			fingerprint=potential_fingerprint(
+				GuidingCenterDynamics(
+					self.potential,
+					rho=0.0,
+				).effective_potential
+			),
+		)
+		config = ABBA4ConfigurationComparisonConfig(
+			t_span=(0.0, 0.01),
+			integration_step=0.01,
+			save_interval=0.01,
+			absolute_tolerance=1e-12,
+			relative_tolerance=1e-12,
+			max_iterations=40,
+			progress=True,
+			particle_count=1,
+		)
+		progress_output = io.StringIO()
+		with redirect_stderr(progress_output):
+			run_abba4_configuration_comparison(
+				self.potential,
+				configuration,
+				reference,
+				config=config,
+			)
+
+		log = progress_output.getvalue()
+		self.assertIn(
+			"ABBA4 comparison: starting 16 independent integrations",
+			log,
+		)
+		self.assertEqual(log.count("] Starting particle "), 16)
+		self.assertEqual(log.count("] Completed in "), 16)
+		self.assertIn("ABBA4 comparison: all integrations completed", log)
 
 
 if __name__ == "__main__":

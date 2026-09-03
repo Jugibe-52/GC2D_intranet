@@ -1,0 +1,618 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[provide=*,english]{babel}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage{amsmath,amssymb,mathtools,amsthm}
+\usepackage{geometry}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{booktabs}
+\usepackage{fancyhdr}
+\usepackage[hidelinks]{hyperref}
+
+\geometry{left=2.3cm,right=2.3cm,top=2.2cm,bottom=2.25cm,headheight=14pt}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0.38em}
+\setlist[itemize]{topsep=0.25em,itemsep=0.18em,leftmargin=1.5em}
+\setlist[enumerate]{topsep=0.3em,itemsep=0.25em,leftmargin=1.8em}
+\allowdisplaybreaks
+
+\definecolor{blue}{RGB}{34,73,110}
+\definecolor{gray}{RGB}{90,96,102}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\color{gray}GC2D: symplectic integration}
+\fancyhead[R]{\small\color{gray}Generalized-energy near-conservation}
+\fancyfoot[C]{\thepage}
+\renewcommand{\headrulewidth}{0.3pt}
+
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{corollary}[theorem]{Corollary}
+\theoremstyle{definition}
+\newtheorem{assumption}[theorem]{Assumption}
+\theoremstyle{remark}
+\newtheorem{remark}[theorem]{Remark}
+
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\J}{\mathbb{J}}
+\newcommand{\Om}{\Omega}
+\newcommand{\K}{\mathcal{K}}
+\newcommand{\Kh}{\widetilde{\mathcal{K}}_h}
+\newcommand{\PhiNum}{\Phi_h}
+\newcommand{\flow}[1]{\varphi^{#1}}
+\newcommand{\norm}[1]{\left\lVert #1\right\rVert}
+\newcommand{\abs}[1]{\left\lvert #1\right\rvert}
+
+\begin{document}
+
+\begin{center}
+  {\LARGE\bfseries\color{blue}Absence of Secular Generalized-Energy Drift}\par
+  \vspace{0.35em}
+  {\large A backward-error argument for Gauss--Legendre and fully extended ABBA methods}\par
+  \vspace{0.45em}
+  {\small Precise theorem, proof, scope, and implementation limitations for GC2D}
+\end{center}
+
+\vspace{0.5em}
+
+\section{Purpose and precise claim}
+
+This note proves a conditional near-conservation result for fixed-step
+symplectic discretizations of the time-dependent guiding-centre problem.  The
+central conclusion is not exact conservation and is not a statement for
+infinite time.  Under the analytic backward-error hypotheses stated below, a
+symplectic method of order $p$ satisfies
+\begin{equation}
+ \abs{\K(Z_n)-\K(Z_0)}\leq C h^p
+ \qquad\text{for}\qquad
+ t_n=nh\leq \exp(c/h),
+ \label{eq:headline-bound}
+\end{equation}
+after a harmless reduction of the positive constant $c$.  The constants are
+independent of $h$ and $n$, but they depend on the Hamiltonian, the complex
+analyticity domain, and the compact set containing the numerical orbit.
+
+Equation \eqref{eq:headline-bound} excludes a secular contribution of the
+form $t_nh^p$ throughout the stated interval.  It does not imply that the
+energy error is exactly periodic, that its average is zero, or that the same
+bound holds as $n\to\infty$ with $h$ fixed.
+
+The result applies to the autonomous extended Hamiltonian
+\begin{equation}
+ \K(x,y,t,k)=H(t,x,y)+k,
+ \label{eq:extended-hamiltonian-introduction}
+\end{equation}
+not to the explicitly time-dependent physical value $H(t,x,y)$ alone.
+
+\section{Physical and extended Hamiltonian systems}
+
+For one guiding-centre particle, let
+\[
+ z=(x,y)^T,
+ \qquad
+ J_0=
+ \begin{pmatrix}
+  0&-1\\
+  1&0
+ \end{pmatrix}.
+\]
+The physical system is
+\begin{equation}
+ \dot z=J_0\nabla_zH(t,z)
+ =
+ \begin{pmatrix}
+  -H_y(t,x,y)\\
+  H_x(t,x,y)
+ \end{pmatrix}.
+ \label{eq:physical-hamiltonian-system}
+\end{equation}
+Along an exact physical trajectory,
+\begin{align}
+ \frac{d}{dt}H(t,z(t))
+ &=H_t(t,z)+\nabla_zH(t,z)^T\dot z
+ \notag\\
+ &=H_t(t,z)+\nabla_zH(t,z)^TJ_0\nabla_zH(t,z)
+ =H_t(t,z).
+ \label{eq:physical-energy-change}
+\end{align}
+The last equality uses the skew-symmetry of $J_0$.  Consequently, $H$ is not
+an invariant when $H_t\neq0$.
+
+Introduce the extended state and constant Poisson matrix
+\begin{equation}
+ Z=(x,y,t,k)^T,
+ \qquad
+ \J=
+ \begin{pmatrix}
+  0&-1&0&0\\
+  1&0&0&0\\
+  0&0&0&1\\
+  0&0&-1&0
+ \end{pmatrix}.
+ \label{eq:extended-poisson-matrix}
+\end{equation}
+With $\K$ from \eqref{eq:extended-hamiltonian-introduction}, the autonomous
+extended equations are
+\begin{equation}
+ \dot Z=\J\nabla_Z\K(Z)
+ =
+ \begin{pmatrix}
+  -H_y\\ H_x\\ 1\\ -H_t
+ \end{pmatrix}.
+ \label{eq:extended-system}
+\end{equation}
+They reproduce the physical system, advance time at unit speed, and evolve
+the conjugate momentum according to $\dot k=-H_t$.  Moreover,
+\begin{equation}
+ \frac{d}{ds}\K(Z(s))
+ =\nabla_Z\K(Z)^T\J\nabla_Z\K(Z)=0.
+ \label{eq:exact-generalized-energy-conservation}
+\end{equation}
+Thus $\K=H+k$ is the invariant whose numerical drift is meaningful.
+
+Since $\J^{-1}=-\J$, the extended symplectic-form matrix is
+\begin{equation}
+ \Om=\J^{-1}=-\J.
+ \label{eq:extended-symplectic-form}
+\end{equation}
+A differentiable numerical map $\PhiNum$ is symplectic when
+\begin{equation}
+ D\PhiNum(Z)^T\Om D\PhiNum(Z)=\Om.
+ \label{eq:symplectic-map-definition}
+\end{equation}
+
+\section{Hypotheses for exponentially long near-conservation}
+
+The exponential time scale requires stronger assumptions than finite-interval
+convergence.
+
+\begin{assumption}[Analytic Hamiltonian]
+\label{ass:analyticity}
+There is a compact simply connected real domain $D\subset\R^4$ and a complex
+neighbourhood $D_\rho$ of uniform width $\rho>0$ on which $\K$ is analytic
+and bounded together with the derivatives required below.
+\end{assumption}
+
+\begin{assumption}[Ideal numerical map]
+\label{ass:ideal-map}
+For fixed $h$, the one-step map $\PhiNum$ is analytic on $D_\rho$, symplectic,
+and of order $p$:
+\begin{equation}
+ \PhiNum(Z)=\flow{\K}_h(Z)+O(h^{p+1}),
+ \label{eq:method-order}
+\end{equation}
+uniformly on the relevant domain.  Every implicit stage or projection equation
+is solved at its exact local root and arithmetic is exact.
+\end{assumption}
+
+\begin{assumption}[Confined orbit and small fixed step]
+\label{ass:confined-orbit}
+The fixed step $h$ is sufficiently small relative to the analytic scales of
+the problem, and the numerical orbit $Z_j=\PhiNum^j(Z_0)$ remains in a compact
+subset of $D$ for all indices considered.
+\end{assumption}
+
+The qualification ``sufficiently small'' is problem dependent.  For a
+Hamiltonian containing a fast frequency $\omega$, the constants deteriorate
+as $\omega$ increases; resolving that scale, rather than merely requiring a
+small dimensional value of $h$, is essential.
+
+\section{Modified Hamiltonian}
+
+Backward-error analysis seeks a differential equation whose exact time-$h$
+flow reproduces the numerical map to a much higher accuracy than the original
+order estimate.  Formally, the modified vector field has an expansion
+\begin{equation}
+ F_h=F+h^pF_p+h^{p+1}F_{p+1}+\cdots,
+ \qquad
+ F=\J\nabla\K.
+ \label{eq:formal-modified-vector-field}
+\end{equation}
+
+\begin{proposition}[Hamiltonian character of the modified equation]
+\label{prop:modified-hamiltonian}
+Under Assumption~\ref{ass:ideal-map}, every coefficient of the formal modified
+vector field is locally Hamiltonian.  On the simply connected domain $D$, one
+may therefore write
+\begin{equation}
+ F_h=\J\nabla\Kh,
+ \qquad
+ \Kh
+ =\K+h^p\K_p+h^{p+1}\K_{p+1}+\cdots.
+ \label{eq:formal-modified-hamiltonian}
+\end{equation}
+If the method is also symmetric,
+\begin{equation}
+ \Phi_{-h}=\PhiNum^{-1},
+ \label{eq:symmetry-condition}
+\end{equation}
+then the modified Hamiltonian may be chosen with the parity expansion
+\begin{equation}
+ \Kh=\K+h^p\K_p+h^{p+2}\K_{p+2}+h^{p+4}\K_{p+4}+\cdots.
+ \label{eq:symmetric-modified-hamiltonian}
+\end{equation}
+\end{proposition}
+
+\begin{proof}
+The formal logarithm of a near-identity one-step map defines the modified
+vector field.  Symplecticity of $\PhiNum$ implies, order by order, that its
+formal logarithm is a symplectic vector field.  On a simply connected canonical
+domain, a symplectic vector field is Hamiltonian, which gives
+\eqref{eq:formal-modified-hamiltonian}.  The order-$p$ consistency in
+\eqref{eq:method-order} removes all corrections below $h^p$.
+
+For a symmetric method, replacing $h$ by $-h$ produces the inverse map.
+Taking the formal logarithm shows that the modified vector field is an even
+function of $h$.  Hence the terms after $h^p$ advance in increments of two,
+as stated in \eqref{eq:symmetric-modified-hamiltonian}.  Symmetry supplies this
+parity, but symplecticity is the property that makes the modified vector field
+Hamiltonian.
+\end{proof}
+
+The formal series generally diverges and cannot itself be declared an exactly
+conserved numerical energy.  Analyticity permits optimal truncation before
+the coefficients begin to grow.
+
+\begin{lemma}[Exponentially accurate truncated modified Hamiltonian]
+\label{lem:exponential-modified-hamiltonian}
+Under Assumptions~\ref{ass:analyticity}--\ref{ass:confined-orbit}, there are
+positive constants $C_0$, $C_1$, $c$, and $h_0$ such that, for
+$0<h<h_0$, the formal series can be truncated at an index $N(h)=O(h^{-1})$
+to produce $\Kh^{[N]}$ satisfying
+\begin{align}
+ \sup_{Z\in D}\abs{\Kh^{[N]}(Z)-\K(Z)}
+ &\leq C_0h^p,
+ \label{eq:modified-original-distance}\\
+ \abs{\Kh^{[N]}(\PhiNum(Z))-\Kh^{[N]}(Z)}
+ &\leq C_1h\exp(-c/h)
+ \label{eq:one-step-modified-energy-defect}
+\end{align}
+whenever the step and the connecting modified trajectory remain in the
+domain used for the estimates.
+\end{lemma}
+
+\begin{proof}[Proof sketch]
+Analyticity on the uniform complex neighbourhood gives Cauchy estimates for
+successive derivatives.  Applied to the recursive construction of the
+modified equation, these estimates bound its coefficients by factorially
+growing quantities.  Truncating near the smallest term, at
+$N(h)\asymp c/h$, converts the algebraic remainder into an exponentially small
+one.  Because Proposition~\ref{prop:modified-hamiltonian} makes the truncated
+modified equation Hamiltonian, its exact flow conserves $\Kh^{[N]}$.  The
+exponentially small difference between that flow and $\PhiNum$ then gives
+\eqref{eq:one-step-modified-energy-defect}; consistency gives
+\eqref{eq:modified-original-distance}.  This optimal-truncation result is the
+standard analytic input of Hamiltonian backward-error analysis.
+\end{proof}
+
+\section{No-secular-drift theorem}
+
+\begin{theorem}[Generalized-energy near-conservation]
+\label{thm:no-secular-drift}
+Under Assumptions~\ref{ass:analyticity}--\ref{ass:confined-orbit}, there are
+positive constants $C$, $c$, and $h_0$ such that the numerical orbit satisfies
+\begin{equation}
+ \abs{\K(Z_n)-\K(Z_0)}
+ \leq Ch^p+C t_n\exp(-c/h),
+ \qquad t_n=nh,
+ \label{eq:full-energy-bound}
+\end{equation}
+for every index for which the domain assumptions remain valid.  Consequently,
+after possibly reducing $c$, there is a constant $C'$ such that
+\begin{equation}
+ \boxed{
+ \abs{\K(Z_n)-\K(Z_0)}\leq C'h^p
+ \qquad\text{when}\qquad
+ 0\leq t_n\leq\exp\!\left(\frac{c}{2h}\right).}
+ \label{eq:exponentially-long-bound}
+\end{equation}
+\end{theorem}
+
+\begin{proof}
+Let $\Kh^{[N]}$ be supplied by
+Lemma~\ref{lem:exponential-modified-hamiltonian}.  Telescoping its one-step
+defect along the numerical orbit gives
+\begin{align}
+ \abs{\Kh^{[N]}(Z_n)-\Kh^{[N]}(Z_0)}
+ &\leq
+ \sum_{j=0}^{n-1}
+ \abs{\Kh^{[N]}(Z_{j+1})-\Kh^{[N]}(Z_j)}
+ \notag\\
+ &\leq nC_1h\exp(-c/h)
+ =C_1t_n\exp(-c/h).
+ \label{eq:telescoped-modified-energy}
+\end{align}
+Insert and subtract the truncated modified Hamiltonian at both endpoints:
+\begin{align}
+ \abs{\K(Z_n)-\K(Z_0)}
+ &\leq
+ \abs{\K(Z_n)-\Kh^{[N]}(Z_n)}
+ \notag\\
+ &\quad+
+ \abs{\Kh^{[N]}(Z_n)-\Kh^{[N]}(Z_0)}
+ +\abs{\Kh^{[N]}(Z_0)-\K(Z_0)}.
+ \label{eq:energy-triangle-inequality}
+\end{align}
+Equations \eqref{eq:modified-original-distance} and
+\eqref{eq:telescoped-modified-energy} yield
+\[
+ \abs{\K(Z_n)-\K(Z_0)}
+ \leq2C_0h^p+C_1t_n\exp(-c/h),
+\]
+which is \eqref{eq:full-energy-bound} after renaming constants.
+
+If $t_n\leq\exp(c/(2h))$, the accumulated exponential term is bounded by
+$C_1\exp(-c/(2h))$.  For every fixed $p$, this is smaller than a constant
+multiple of $h^p$ when $h$ is sufficiently small.  Absorbing it into the
+first term proves \eqref{eq:exponentially-long-bound}.
+\end{proof}
+
+\begin{remark}[Meaning of ``no secular drift'']
+Theorem~\ref{thm:no-secular-drift} rules out an energy error growing like
+$t_nh^p$ on the exponentially long interval.  It proves confinement to an
+$O(h^p)$ band, not literal oscillation about zero.  A plotted sign change or
+small fitted slope is useful evidence, but it is not part of the theorem.
+\end{remark}
+
+\begin{remark}[Not an infinite-time theorem]
+For fixed $h$, the upper time in \eqref{eq:exponentially-long-bound} is finite.
+The theorem therefore does not exclude later effects caused by resonances,
+loss of confinement, exponentially small remainders, or arithmetic errors.
+\end{remark}
+
+\section{Application to the GC2D integrators}
+
+\subsection{Two-stage Gauss--Legendre}
+
+Let $A=(a_{ij})$, $b=(b_i)$, and $c=(c_i)$ be the two-stage Gauss--Legendre
+coefficients.  Applying this Runge--Kutta method to
+\eqref{eq:extended-system} gives the stage times
+\begin{equation}
+ T_i=t_n+h\sum_j a_{ij}=t_n+c_ih,
+ \label{eq:gauss-stage-times}
+\end{equation}
+because $A\mathbf{1}=c$.  The physical stages solve
+\begin{equation}
+ Z_i^{\mathrm{phys}}
+ =z_n+h\sum_j a_{ij}
+ J_0\nabla_zH(T_j,Z_j^{\mathrm{phys}}),
+ \label{eq:gauss-physical-stages}
+\end{equation}
+and the accepted physical and momentum updates are
+\begin{align}
+ z_{n+1}
+ &=z_n+h\sum_i b_iJ_0\nabla_zH(T_i,Z_i^{\mathrm{phys}}),
+ \label{eq:gauss-physical-update}\\
+ k_{n+1}
+ &=k_n-h\sum_i b_iH_t(T_i,Z_i^{\mathrm{phys}}).
+ \label{eq:gauss-momentum-update}
+\end{align}
+The internal $k$ stages need not be solved because neither the physical field
+nor $-H_t$ depends on $k$.  Thus the triangular implementation of
+\eqref{eq:gauss-momentum-update} is algebraically the Gauss method on the full
+extended system.  This is the extended map represented by
+\texttt{GaussLegendre4(track\_energy=True)} in the project implementation.
+
+Gauss coefficients satisfy the symplectic Runge--Kutta identities
+\begin{equation}
+ b_i a_{ij}+b_j a_{ji}=b_ib_j,
+ \qquad i,j=1,2.
+ \label{eq:gauss-symplectic-condition}
+\end{equation}
+The method is symmetric and has order four.
+
+\begin{corollary}[Ideal Gauss--Legendre energy band]
+\label{cor:gauss-energy-band}
+If Assumptions~\ref{ass:analyticity} and \ref{ass:confined-orbit} hold and the
+Gauss stage equations are solved exactly, then
+\begin{equation}
+ \abs{\K(Z_n)-\K(Z_0)}=O(h^4)
+ \label{eq:gauss-energy-band}
+\end{equation}
+through the exponentially long interval of
+Theorem~\ref{thm:no-secular-drift}.
+\end{corollary}
+
+\subsection{Fully extended implicit ABBA}
+
+The fully extended ABBA construction duplicates the complete canonical state
+$Z=(x,y,t,k)$, applies a composition of Hamiltonian shears on the doubled
+space, and returns to the diagonal through an implicit symmetric projection.
+The exact projected map is symplectic under the following local hypotheses:
+\begin{itemize}
+ \item every doubled shear is evaluated exactly;
+ \item the projection root is locally unique;
+ \item the residual Jacobian with respect to the multiplier is nonsingular;
+ \item the projection equation is solved exactly.
+\end{itemize}
+The physical ABBA2 projection proof and its local hypotheses are developed in
+the model note \texttt{ABBA2\_implicit.tex}, located under
+\path{docs/models/abba2-implicit/}.  The fully extended construction applies
+the same symmetric-projection mechanism to the complete canonical state.
+Palindromic compositions of the projected second-order map remain symplectic,
+and the single-projection fourth-order variant applies the same mechanism
+around the complete symplectic base composition.
+
+\begin{corollary}[Ideal fully extended ABBA energy bands]
+\label{cor:abba-energy-bands}
+Under the local exact-projection hypotheses above and
+Assumptions~\ref{ass:analyticity} and \ref{ass:confined-orbit}, the fully
+extended implicit ABBA methods satisfy the bounds in Table~\ref{tab:energy-bands}.
+\end{corollary}
+
+\begin{table}[ht]
+ \centering
+ \caption{Ideal generalized-energy bands from symplectic backward-error analysis.}
+ \label{tab:energy-bands}
+ \begin{tabular}{@{}lcc@{}}
+  \toprule
+  Method & Order $p$ & Energy band \\
+  \midrule
+  Two-stage Gauss--Legendre & $4$ & $O(h^4)$ \\
+  \texttt{ABBA2Implicit}, fully extended & $2$ & $O(h^2)$ \\
+  \texttt{ABBA4Implicit}, fully extended & $4$ & $O(h^4)$ \\
+  \texttt{ABBA4ImplicitSingleProjection}, fully extended & $4$ & $O(h^4)$ \\
+  \texttt{ABBA6Implicit}, fully extended & $6$ & $O(h^6)$ \\
+  \bottomrule
+ \end{tabular}
+\end{table}
+
+The statement does not cover \texttt{ABBA2Midpoint}: arithmetic averaging of
+the final copies is not a symplectic projection in general.  Nor does it
+automatically cover an energy diagnostic obtained by advancing or
+reconstructing $k$ after a physical-only projected map.  For a theorem about
+$\K$, the accepted map must be symplectic in the complete canonical extended
+space, not merely area preserving in $(x,y)$.
+
+\section{Finite regularity of the runtime potential}
+
+The analytic hypothesis is substantive for the current implementation.
+A tensor-product spline of degree $q$ is generically only $C^{q-1}$ across
+simple internal knots.  It is polynomial, hence analytic, inside one open
+spline cell, but a trajectory crossing multiple knots does not remain in one
+common analytic expression.  The HDF5 evaluator also clips coordinates at the
+sampled rectangle.  Unless the interior derivative vanishes at the boundary,
+the constant clipped extension loses differentiability there.
+
+Consequently, Theorem~\ref{thm:no-secular-drift} is a rigorous theorem for an
+analytic idealization, but its exponential time scale is not a global theorem
+for the spline-and-clipping runtime representation.  Finite-smoothness
+backward-error analysis can still construct a modified Hamiltonian through a
+finite order.  If a truncation at order $N>p$ gives a one-step modified-energy
+defect $O(h^{N+1})$, the same telescoping argument yields schematically
+\begin{equation}
+ \abs{\K(Z_n)-\K(Z_0)}
+ \leq Ch^p+C t_nh^N.
+ \label{eq:finite-smoothness-energy-bound}
+\end{equation}
+This keeps an $O(h^p)$ band only on an algebraic time scale such as
+\begin{equation}
+ t_n\leq c h^{-(N-p)},
+ \label{eq:algebraic-time-scale}
+\end{equation}
+and only when the available differentiability and uniform derivative bounds
+justify the chosen $N$.
+
+There are two clean ways to strengthen the analytic claim:
+\begin{enumerate}
+ \item use a globally analytic spatial representation, such as a finite
+       Fourier representation on a periodic domain; or
+ \item prove a finite-regularity theorem with an explicit $N$ supported by the
+       chosen spline degree, while keeping every stage away from the clipped
+       boundary.
+\end{enumerate}
+
+\section{Finite nonlinear solves and floating-point arithmetic}
+
+Let $\PhiNum$ denote the exact-root symplectic map and let the implemented map
+be
+\begin{equation}
+ \widehat\Phi_h(Z)=\PhiNum(Z)+d_h(Z),
+ \qquad
+ \norm{d_h(Z)}\leq\eta_h.
+ \label{eq:perturbed-map}
+\end{equation}
+Data-dependent Newton or Broyden stopping generally makes
+$\widehat\Phi_h$ neither exactly symplectic nor exactly symmetric.  If the
+truncated modified Hamiltonian is Lipschitz on the numerical domain, the
+additional one-step change caused by $d_h$ is at most $C\eta_h$.  Repeating the
+proof of Theorem~\ref{thm:no-secular-drift} gives the worst-case estimate
+\begin{equation}
+ \abs{\K(\widehat Z_n)-\K(\widehat Z_0)}
+ \leq Ch^p+C t_n\exp(-c/h)
+       +C\frac{t_n}{h}\eta_h.
+ \label{eq:finite-solve-energy-bound}
+\end{equation}
+The final term is potentially secular.  If the target integration time is
+$T$, retaining an $O(h^p)$ energy band in this worst-case estimate requires
+\begin{equation}
+ \eta_h\ll\frac{h^{p+1}}{T}.
+ \label{eq:map-error-requirement}
+\end{equation}
+
+The nonlinear residual tolerance is not itself $\eta_h$.  If the root
+Jacobian is uniformly invertible and its inverse is bounded by $M$, a local
+perturbation argument gives a relation of the form
+\begin{equation}
+ \eta_h\leq C M\tau_h,
+ \label{eq:residual-to-map-error}
+\end{equation}
+where $\tau_h$ bounds the accepted residual and the constant also depends on
+the reconstruction map.  This conditioning factor must be included in any
+rigorous implementation-level estimate.
+
+Round-off adds another perturbation.  A random-walk growth proportional to
+$\sqrt{n}$ is often observed, but it is a statistical model, not a deterministic
+guarantee.  An adversarial deterministic bound must allow growth proportional
+to $n$.
+
+\section{What is proved, observed, and not claimed}
+
+\begin{itemize}
+ \item \textbf{Proved for the ideal analytic map:} Gauss--Legendre and the
+       fully extended implicit ABBA variants have an $O(h^p)$ generalized-energy
+       band over exponentially long, but finite, times.
+ \item \textbf{Proved algebraically for the exact physical flow:}
+       $H(t,z)$ is not generally conserved, whereas $\K=H+k$ is conserved.
+ \item \textbf{Not proved by a bounded-looking graph:} sign changes, a small
+       final-to-peak ratio, and a small fitted slope support the interpretation
+       but do not establish the long-time theorem.
+ \item \textbf{Not covered by the exponential theorem as currently represented:}
+       spline-knot crossings, clipped-boundary crossings, finite nonlinear
+       stopping, and floating-point arithmetic.
+ \item \textbf{Not claimed:} exact conservation of $\K$, a bound for all
+       $n$, or a bounded physical difference $H(t_n,z_n)-H(0,z_0)$.
+\end{itemize}
+
+If exact step-by-step generalized-energy conservation is the primary goal, an
+energy-preserving discrete-gradient method gives a different algebraic result,
+\begin{equation}
+ \K(Z_{n+1})=\K(Z_n),
+ \label{eq:discrete-gradient-contrast}
+\end{equation}
+at the exact nonlinear root.  Such a method is not generally symplectic.  This
+is stronger in energy and weaker in symplectic structure than the near-
+conservation result proved here.
+
+\section{Conclusion}
+
+The absence of secular generalized-energy drift for symplectic GC2D
+integrators is a backward-error statement.  Symplecticity creates a modified
+Hamiltonian, analyticity makes the defect in its numerical conservation
+exponentially small, and comparison of the modified and original Hamiltonians
+confines $\K$ to an $O(h^p)$ band for exponentially long times.  Symmetry
+improves the parity of the modified expansion but is not, by itself, the
+source of the energy bound.
+
+For the project, this theorem applies directly to the exact-root idealizations
+of Gauss--Legendre and the fully extended implicit ABBA methods.  A literal
+implementation-level theorem additionally requires a regularity statement for
+the potential, a domain separated from clipping, conditioning bounds for the
+implicit equations, and explicit control of nonlinear and round-off errors.
+
+\section*{References}
+
+\begin{itemize}
+ \item G. Benettin and A. Giorgilli,
+       ``On the Hamiltonian interpolation of near-to-the-identity symplectic
+       mappings with application to symplectic integration algorithms,''
+       \emph{Journal of Statistical Physics}, 74 (1994), 1117--1143.
+ \item E. Hairer and C. Lubich,
+       ``The life-span of backward error analysis for numerical integrators,''
+       \emph{Numerische Mathematik}, 76 (1997), 441--462.
+ \item E. Hairer, C. Lubich, and G. Wanner,
+       \emph{Geometric Numerical Integration: Structure-Preserving Algorithms
+       for Ordinary Differential Equations}, second edition, Springer, 2006,
+       Chapter~IX.
+ \item J. M. Sanz-Serna,
+       ``Runge--Kutta schemes for Hamiltonian systems,''
+       \emph{BIT Numerical Mathematics}, 28 (1988), 877--883.
+\end{itemize}
+
+\end{document}
