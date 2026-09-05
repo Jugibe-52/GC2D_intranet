@@ -48,10 +48,20 @@ from studies import (
 from tests.test_abba import gc_dynamics
 
 
+_ENERGY_STRATEGIES = (
+	("physical", False),
+	("physical", True),
+	("fully_extended", True),
+)
+
+
 class ImplicitABBAFormulationTests(unittest.TestCase):
 	"""Verify equation (21) and its equivalence to the reduced solve."""
 
-	def test_all_four_public_implicit_methods_expose_the_three_axes(self) -> None:
+	def test_all_four_public_methods_expose_normalized_energy_strategies(
+		self,
+	) -> None:
+		self.assertEqual(ABBA_STATE_EXTENSIONS, ("physical", "fully_extended"))
 		for method_type in (
 			ABBA2Implicit,
 			ABBA4Implicit,
@@ -59,20 +69,23 @@ class ImplicitABBAFormulationTests(unittest.TestCase):
 			ABBA6Implicit,
 		):
 			for formulation in ABBA_PROJECTION_FORMULATIONS:
-				for extension in ABBA_STATE_EXTENSIONS:
+				for extension, track_energy in _ENERGY_STRATEGIES:
 					with self.subTest(
 						method=method_type.__name__,
 						formulation=formulation,
 						extension=extension,
+						track_energy=track_energy,
 					):
 						method = method_type(
 							projection_formulation=formulation,
 							nonlinear_solver="broyden",
 							state_extension=extension,
+							track_energy=track_energy,
 						)
 						self.assertEqual(method.projection_formulation, formulation)
 						self.assertEqual(method.nonlinear_solver, "broyden")
 						self.assertEqual(method.state_extension, extension)
+						self.assertIs(method.track_energy, track_energy)
 			with self.assertRaisesRegex(ValueError, "projection_formulation"):
 				method_type(projection_formulation="unknown")  # type: ignore[arg-type]
 
@@ -187,6 +200,7 @@ class ImplicitABBAFormulationTests(unittest.TestCase):
 				formulation,
 			)
 			self.assertEqual(solution.diagnostics["state_extension"], "physical")
+			self.assertIs(solution.diagnostics["track_energy"], False)
 			self.assertEqual(solution.diagnostics["newton_iterations"].shape, (4,))
 		np.testing.assert_allclose(
 			solutions["simultaneous_state_multiplier"].states,

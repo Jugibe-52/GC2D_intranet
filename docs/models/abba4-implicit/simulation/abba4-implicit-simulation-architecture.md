@@ -9,16 +9,18 @@ diagram. The expanded runtime branch is exactly the default
 ABBA4Implicit(
     projection_formulation="reduced_multiplier",
     state_extension="physical",
+    track_energy=False,
     nonlinear_solver="newton",
 )
 ```
 
-The complete ABBA family, its five public classes, orthogonal configuration
-axes, and all 51 valid configurations are documented in the authoritative
+The complete ABBA family, its five public classes, normalized configuration
+controls, and all 51 normalized strategies are documented in the authoritative
 [`Canonical ABBA numerical architecture`](../../abba/simulation/abba-numerical-architecture.md).
-This companion does not duplicate the simultaneous, Broyden, shared-time, or
-fully extended branches. The default ABBA2 reduced-Newton kernel reused by each
-signed substep is described in detail by the
+This companion expands the default physical reduced-Newton path while its
+diagram also shows simultaneous projection, Broyden, optional physical energy
+tracking, and fully extended dispatch. The default ABBA2 reduced-Newton kernel
+reused by each signed substep is described in detail by the
 [`ABBA2 implicit companion`](../../abba2-implicit/simulation/abba2-implicit-simulation-architecture.md).
 
 ## Scoped runtime path
@@ -65,7 +67,8 @@ its ordered `substeps` tuple retains all three signed solves.
 |---|---|
 | [`src/simulation/methods/abba/order4_implicit.py`](../../../../src/simulation/methods/abba/order4_implicit.py) | Public method, triple-jump coordinator, signed-substep records, aggregation, and observation assembly |
 | [`src/simulation/methods/_abba_coefficients.py`](../../../../src/simulation/methods/_abba_coefficients.py) | Canonical ABBA4 and ABBA6 composition coefficients |
-| [`src/simulation/methods/abba/_implicit.py`](../../../../src/simulation/methods/abba/_implicit.py) | Shared implicit configuration, solver selector, and shared-time helper outside this scope |
+| [`src/simulation/methods/abba/_implicit.py`](../../../../src/simulation/methods/abba/_implicit.py) | Shared implicit configuration, solver selector, and projected physical coordinator |
+| [`src/simulation/methods/abba/_energy.py`](../../../../src/simulation/methods/abba/_energy.py) | Optional physical conjugate-momentum workspace, stage quadrature, and energy diagnostics |
 | [`src/simulation/methods/abba/_projection_reduced.py`](../../../../src/simulation/methods/abba/_projection_reduced.py) | Reduced multiplier residual and Newton loop reused three times |
 | [`src/simulation/methods/abba/_projection_common.py`](../../../../src/simulation/methods/abba/_projection_common.py) | Displaced copies, exact stage differentiation, and `_ProjectedStep` |
 | [`src/simulation/methods/abba/_core.py`](../../../../src/simulation/methods/abba/_core.py) | Endpoint-time A--B--B--A stage map |
@@ -89,6 +92,7 @@ problem, method, and request before calling `ABBA4Implicit.integrate(...)`.
 |---|---:|---|
 | `projection_formulation` | `"reduced_multiplier"` | Selects `_solve_reduced_multiplier_step(...)` for all three substeps |
 | `state_extension` | `"physical"` | Carries only the accepted physical packed state |
+| `track_energy` | `False` | Omits the auxiliary conjugate-momentum workspace and energy diagnostics |
 | `nonlinear_solver` | `"newton"` | Uses exact stage differentiation for every substep solve |
 | `newton_absolute_tolerance` | `1e-13` | Absolute contribution to each substep threshold |
 | `newton_relative_tolerance` | `1e-12` | Substep-state-scaled threshold contribution |
@@ -96,9 +100,27 @@ problem, method, and request before calling `ABBA4Implicit.integrate(...)`.
 | `progress` | `False` | Enables the shared main-grid progress display |
 | `step_observer` | `None` | Receives complete accepted outer-step events |
 
+`state_extension` accepts only `"physical"` and `"fully_extended"`.
+`track_energy` is optional for the physical extension, while the fully extended
+formulation evolves the complete autonomous state and therefore normalizes
+`track_energy` to `True`. This produces three distinct state/energy strategies:
+
+| `state_extension` | Normalized `track_energy` | Numerical state and energy behavior |
+|---|---:|---|
+| `"physical"` | `False` | Project only the physical state `z` |
+| `"physical"` | `True` | Apply the same physical map and track one auxiliary `kappa` per particle |
+| `"fully_extended"` | `True` | Duplicate, evolve, and project the complete `Z=(z,t,k)` state |
+
+Combining these three normalized strategies with two projection formulations
+and two nonlinear solvers gives the twelve distinct `ABBA4Implicit` strategies.
+Passing `track_energy=False` with `state_extension="fully_extended"` does not
+create a thirteenth strategy; construction resolves it to `True`.
+
 The physical Newton path requires dynamics satisfying
 [`GuidingCenterJacobianSystem`](../../../../src/dynamics/protocols.py),
 `state_dimension == 2`, and finite particle Jacobians with shape `(N,2,2)`.
+Physical energy tracking additionally requires
+[`ExtendedHamiltonianSystem`](../../../../src/dynamics/protocols.py).
 The packed convention is component-major:
 
 ```text
@@ -107,8 +129,12 @@ The packed convention is component-major:
 
 For `N` particles the accepted state, each multiplier, and the reduced
 nonlinear unknown have dimension `2N`; each duplicated ABBA state has dimension
-`4N`. Configuration selection is global: all three substeps use the same
-formulation, solver, extension, and tolerances.
+`4N`. The observer also receives the closed physical map with dimension `2N`. These
+accepted, splitting, nonlinear, and observer dimensions do not change when
+energy tracking is enabled: its `kappa in R^N` is an auxiliary fixed-grid
+workspace, not part of the ABBA splitting or projection solve. Configuration
+selection is global: all three substeps use the same formulation, solver,
+extension, energy-tracking setting, and tolerances.
 
 ## Triple-jump coefficients
 
@@ -264,6 +290,46 @@ entire unprojected triple jump and solves one projection around that complete
 composition. Projection placement is a method distinction, not a fourth
 configuration axis.
 
+## Optional physical energy tracking
+
+With `state_extension="physical"` and `track_energy=True`, the physical solve
+above is unchanged. The fixed-grid workspace appends one conjugate momentum
+per particle,
+
+\[
+\kappa\in\mathbb R^N,
+\]
+
+but `_solve_composed_abba_step(...)`, both projection formulations, and every
+step observer continue to receive only `z`. Consequently, enabling tracking
+cannot feed back into the projected trajectory and the accepted, base-splitting,
+and observer dimensions remain `2N`, `4N`, and `2N`.
+
+After each signed substep, [`_energy.py`](../../../../src/simulation/methods/abba/_energy.py)
+uses its already converged `_ABBAStages`. If
+\(g(t,z)=-\partial_t H(t,z)\) is the extended-momentum derivative, the
+auxiliary increment for a substep starting at `T` with signed duration `q` is
+
+\[
+\Delta\kappa=\frac{q}{4}\left[
+g(T,v_0)+g(T,u_1)+g(T+q,u_1)+g(T+q,v_f)
+\right].
+\]
+
+The three increments are accumulated chronologically, including the negative
+middle duration. The fixed-grid buffer is therefore `(z,kappa)` with dimension
+`3N` only as an orchestration workspace; it is neither an accepted ABBA state
+dimension nor a splitting dimension. The public trajectory remains physical.
+At requested output times, the auxiliary history is published as
+`extended_momentum` with shape `(N, output_count)`, and `energy_error` is the maximum drift of
+`H(t,z)+kappa`. The stored normalization is `kappa_equals_k_over_2`, matching
+the projection of the duplicated formulation's summed momentum.
+
+For `state_extension="fully_extended"`, energy evolution is not optional.
+That branch duplicates `Z=(z,t,k)` in `R^4` into an `R^8` base state and
+normalizes `track_energy=True`; its state and projection can change the physical
+map, unlike the triangular auxiliary tracking described here.
+
 ## Fixed main grid and shadow compositions
 
 [`integrate_fixed_grid(...)`](../../../../src/simulation/_fixed.py) chooses the
@@ -309,6 +375,7 @@ history and these diagnostics:
 | `projection_formulation` | `"reduced_multiplier"` |
 | `substep_projection_formulation` | `"reduced_multiplier"` for all three columns |
 | `state_extension` | `"physical"` |
+| `track_energy` | `False` |
 | `nonlinear_iterations` | Row-wise sum of the three correction counts |
 | `residual_evaluations` | Row-wise sum of the three residual-evaluation counts |
 | `nonlinear_residual_norms` | Residual of the substep with the largest `residual/tolerance` ratio |
@@ -327,6 +394,12 @@ history and these diagnostics:
 | `nonlinear_unknown_dimension` | `2N` per solve |
 | `observer_state_dimension` | `2N` |
 | `observer_state_kind` | `"physical_map"` |
+
+When physical energy tracking is enabled, the same table retains dimensions
+`2N`, `4N`, and `2N`, `track_energy` becomes `True`, and the result additionally
+contains `extended_momentum`, `extended_momentum_normalization`, and the scalar
+`energy_error`. No `extended_time` or `extended_kappa` compatibility histories
+are produced; requested times already live in `Solution.t`.
 
 The selected residual and tolerance deliberately come from one consistent
 substep. Selecting their independent absolute maxima could report a ratio that
@@ -415,8 +488,9 @@ come from the same normalized-worst substep.
 The following limitations apply to the scoped diagram:
 
 - It expands only physical reduced Newton. The simultaneous formulation,
-  Broyden, shared-time normalization, and fully extended kernel are linked
-  through the canonical family document rather than repeated here.
+  Broyden, optional energy tracking, and fully extended kernel are linked in
+  the diagram and detailed by the canonical family document rather than
+  repeated here.
 - The fixed grid is not adaptive. A singular residual Jacobian or a substep
   that exceeds its iteration limit aborts the outer composition; there is no
   smaller-step retry.
@@ -428,8 +502,9 @@ The following limitations apply to the scoped diagram:
   can eventually limit observed refinement.
 - This method performs three projections per outer step and is not equivalent
   to `ABBA4ImplicitSingleProjection`.
-- The physical branch carries no conjugate momentum and publishes no
-  generalized-energy diagnostic.
+- The default physical branch carries no conjugate momentum. Setting
+  `track_energy=True` adds the triangular `kappa` workspace and energy
+  diagnostics without changing the physical map.
 - Potential construction, downstream diagnostic algorithms, and
   experiment-specific parameter assembly remain outside this simulation
   diagram.
@@ -444,6 +519,7 @@ solution = simulate(
     ABBA4Implicit(
         projection_formulation="reduced_multiplier",
         state_extension="physical",
+        track_energy=False,
         nonlinear_solver="newton",
         newton_absolute_tolerance=1e-13,
         newton_relative_tolerance=1e-12,

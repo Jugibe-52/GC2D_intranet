@@ -1,4 +1,4 @@
-"""Five public A-B-B-A methods and their orthogonal configuration axes."""
+"""Five public A-B-B-A methods and their normalized energy strategies."""
 
 from ._configuration import (
 	ABBA_PROJECTION_FORMULATIONS,

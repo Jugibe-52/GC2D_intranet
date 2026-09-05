@@ -58,7 +58,7 @@ digraph G {
       <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#F3ECF7">
         <TR><TD><FONT POINT-SIZE="8">abba/order2_midpoint.py</FONT><BR/><B>ABBA2Midpoint</B></TD></TR>
         <HR/>
-        <TR><TD ALIGN="LEFT">__post_init__(), integrate(...)<BR ALIGN="LEFT"/>state_extension: 3 choices</TD></TR>
+        <TR><TD ALIGN="LEFT">__post_init__(), integrate(...)<BR ALIGN="LEFT"/>state_extension: 2 choices<BR ALIGN="LEFT"/>track_energy: False / True</TD></TR>
       </TABLE>
     >];
 
@@ -98,7 +98,7 @@ digraph G {
       <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#FBF7FD">
         <TR><TD><FONT POINT-SIZE="8">abba/_configuration.py, _implicit.py<BR/>methods/_nonlinear.py</FONT><BR/><B>Configuration symbols</B></TD></TR>
         <HR/>
-        <TR><TD ALIGN="LEFT"><B>_ABBAImplicitConfig</B>.__post_init__(...)<BR ALIGN="LEFT"/>_validate_projection_formulation(...)<BR ALIGN="LEFT"/>_validate_state_extension(...)<BR ALIGN="LEFT"/>_state_dimension_diagnostics(...)<BR ALIGN="LEFT"/>_positive_finite(...)<BR ALIGN="LEFT"/>_positive_integer(...)<BR ALIGN="LEFT"/>_validate_nonlinear_solver(...)</TD></TR>
+        <TR><TD ALIGN="LEFT"><B>_ABBAImplicitConfig</B>.__post_init__(...)<BR ALIGN="LEFT"/>_validate_projection_formulation(...)<BR ALIGN="LEFT"/>_validate_state_extension(...)<BR ALIGN="LEFT"/>_resolved_track_energy(...)<BR ALIGN="LEFT"/>_state_dimension_diagnostics(...)<BR ALIGN="LEFT"/>_positive_finite(...)<BR ALIGN="LEFT"/>_positive_integer(...)<BR ALIGN="LEFT"/>_validate_nonlinear_solver(...)</TD></TR>
       </TABLE>
     >];
 
@@ -126,7 +126,7 @@ digraph G {
       <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#EAF2F8">
         <TR><TD><FONT POINT-SIZE="8">abba/_implicit.py</FONT><BR/><B>Order-two projected coordinator</B></TD></TR>
         <HR/>
-        <TR><TD ALIGN="LEFT">_integrate_projected_abba(...)<BR ALIGN="LEFT"/>_step_solver_for(...)<BR ALIGN="LEFT"/>_shared_time_kappa_increment(...)<BR ALIGN="LEFT"/>_shared_time_kappa_increment_from_stages(...)<BR ALIGN="LEFT"/>local advance(), apply_step(), momentum_derivative()</TD></TR>
+        <TR><TD ALIGN="LEFT">_integrate_projected_abba(...)<BR ALIGN="LEFT"/>_step_solver_for(...)<BR ALIGN="LEFT"/>local advance(), apply_step()</TD></TR>
       </TABLE>
     >];
 
@@ -158,7 +158,7 @@ digraph G {
   }
 
   subgraph cluster_physical {
-    label="Physical R2 and shared-time R4 numerical kernels";
+    label="Physical R2 kernels and optional energy sidecar";
     labeljust="l";
     color="#4F7D63";
     penwidth=1.2;
@@ -198,7 +198,15 @@ digraph G {
       </TABLE>
     >];
 
-    { rank=same; physical_anchor; PhysicalStages; ReducedProjection; SimultaneousProjection; SingleProjection; }
+    EnergyTracking [label=<
+      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#F3FAF5">
+        <TR><TD><FONT POINT-SIZE="8">abba/_energy.py</FONT><BR/><B>Physical energy tracking</B> [optional]</TD></TR>
+        <HR/>
+        <TR><TD ALIGN="LEFT">_validate_energy_tracking(...)<BR ALIGN="LEFT"/>_energy_tracking_initial_state(...)<BR ALIGN="LEFT"/>_unpack_energy_tracking_state(...)<BR ALIGN="LEFT"/>_conjugate_momentum_increment_from_stages(...)<BR ALIGN="LEFT"/>_pack_energy_tracking_state(...)<BR ALIGN="LEFT"/>_energy_tracking_diagnostics(...)<BR ALIGN="LEFT"/>kappa = k / 2 in R^N; no feedback into z</TD></TR>
+      </TABLE>
+    >];
+
+    { rank=same; physical_anchor; PhysicalStages; ReducedProjection; SimultaneousProjection; SingleProjection; EnergyTracking; }
   }
 
   subgraph cluster_full {
@@ -274,11 +282,11 @@ digraph G {
       <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#EAF2F8">
         <TR><TD><FONT POINT-SIZE="8">src/simulation/_result.py, solution.py</FONT><BR/><B>Result boundary</B></TD></TR>
         <HR/>
-        <TR><TD ALIGN="LEFT"><B>IntegrationData</B><BR ALIGN="LEFT"/><B>Solution</B>.__init__(...)<BR ALIGN="LEFT"/>_readonly_array(...)<BR ALIGN="LEFT"/>components(...), positions(...)<BR ALIGN="LEFT"/>read-only times, states, diagnostics, source</TD></TR>
+        <TR><TD ALIGN="LEFT"><B>IntegrationData</B><BR ALIGN="LEFT"/><B>Solution</B>.__init__(...)<BR ALIGN="LEFT"/>_readonly_array(...)<BR ALIGN="LEFT"/>components(...), positions(...)<BR ALIGN="LEFT"/>read-only times, states, diagnostics, source<BR ALIGN="LEFT"/>extended_momentum and energy_error when tracked</TD></TR>
       </TABLE>
     >];
 
-    Scope [shape=note, style="filled", fillcolor="#FFFDEB", color="#B8AE6F", margin="0.10,0.07", label="Coverage: active ABBA runtime symbols\nfor physical, shared-time, and fully extended paths.\nNamed local closures are shown with their owner.\nDashed arrows are optional observer or progress paths.\nUnused helpers and BM4/RK4/HBVM kernels are outside scope."];
+    Scope [shape=note, style="filled", fillcolor="#FFFDEB", color="#B8AE6F", margin="0.10,0.07", label="Coverage: active ABBA runtime symbols\nfor physical, energy-tracked physical, and fully extended paths.\nNamed local closures are shown with their owner.\nDashed arrows are optional energy, observer, or progress paths.\nUnused helpers and BM4/RK4/HBVM kernels are outside scope."];
 
     { rank=same; shared_anchor; Nonlinear; Observations; Result; Scope; }
   }
@@ -318,7 +326,7 @@ digraph G {
   SingleCoordinator -> FixedGrid [constraint=false];
   FullCoordinator -> FixedGrid [constraint=false];
 
-  // Active physical/shared-time callback paths.
+  // Active physical callback paths.
   FixedGrid -> PhysicalStages [constraint=false];
   ProjectedCoordinator -> ReducedProjection [constraint=false];
   ProjectedCoordinator -> SimultaneousProjection [constraint=false];
@@ -329,6 +337,14 @@ digraph G {
   ReducedProjection -> PhysicalStages [constraint=false];
   SimultaneousProjection -> PhysicalStages [constraint=false];
   SingleProjection -> PhysicalStages [constraint=false];
+
+  // Optional triangular momentum sidecar for every physical method.
+  MidpointCoordinator -> EnergyTracking [style=dashed, constraint=false];
+  ProjectedCoordinator -> EnergyTracking [style=dashed, constraint=false];
+  ComposedCoordinator -> EnergyTracking [style=dashed, constraint=false];
+  SingleCoordinator -> EnergyTracking [style=dashed, constraint=false];
+  PhysicalStages -> EnergyTracking [style=dashed, constraint=false];
+  EnergyTracking -> FixedGrid [style=dashed, constraint=false];
 
   // Active fully extended callback path.
   FullCoordinator -> FullFlows [constraint=false];

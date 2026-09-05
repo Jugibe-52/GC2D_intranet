@@ -54,7 +54,14 @@ from .observation import (
 	UnprojectedABBAIntegrationStep,
 )
 from .problem import InitialValueProblem
-from .request import SimulationRequest
+from .request import (
+	DEFAULT_INTEGRATION_STEP,
+	DEFAULT_INTEGRATION_STEPS_PER_CYCLE,
+	DEFAULT_SAVED_STEPS_PER_CYCLE,
+	DEFAULT_SAVE_INTERVAL,
+	NORMALIZED_CYCLE_DURATION,
+	SimulationRequest,
+)
 from .runner import SimulationRunner, simulate
 from .solution import Solution
 
@@ -76,6 +83,10 @@ __all__ = [
 	"HBVM42",
 	"HBVMJacobianMethod",
 	"DirectAdjointFormulation",
+	"DEFAULT_INTEGRATION_STEP",
+	"DEFAULT_INTEGRATION_STEPS_PER_CYCLE",
+	"DEFAULT_SAVED_STEPS_PER_CYCLE",
+	"DEFAULT_SAVE_INTERVAL",
 	"MidpointBM4",
 	"ABBA_PROJECTION_FORMULATIONS",
 	"ABBA_STATE_EXTENSIONS",
@@ -97,6 +108,7 @@ __all__ = [
 	"IntegrationStage",
 	"IntegrationStep",
 	"NONLINEAR_SOLVERS",
+	"NORMALIZED_CYCLE_DURATION",
 	"NonlinearSolver",
 	"NumericalMethod",
 	"ProjectedBM4Composition",

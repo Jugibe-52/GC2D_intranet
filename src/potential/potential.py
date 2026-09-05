@@ -380,9 +380,9 @@ class Potential:
 	def animate(
 		self,
 		*,
-		t_max: float = 2 * np.pi,
-		frames: int = 120,
-		interval: int = 50,
+		t_max: float = 1.0,
+		frames: int | None = None,
+		interval: int = 200,
 		cmap: str = "RdBu_r",
 		repeat: bool = True,
 		**pcolormesh_kwargs: Any,

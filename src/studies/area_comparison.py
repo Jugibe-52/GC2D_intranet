@@ -248,8 +248,8 @@ class AreaComparisonResult:
 	def animate(
 		self,
 		*,
-		frames: int | None = 120,
-		interval: int = 50,
+		frames: int | None = None,
+		interval: int = 200,
 		repeat: bool = True,
 	) -> FuncAnimation:
 		"""Build the synchronized contour and projected-diagnostic animation."""

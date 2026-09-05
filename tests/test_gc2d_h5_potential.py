@@ -134,7 +134,7 @@ class GC2DH5PotentialTests(unittest.TestCase):
 		"""Use the primary-file defaults when no loader options are supplied."""
 		potential = load_gc2d_h5_potential(self.path)
 		length_scale = 0.06
-		normalization = 7.0 * length_scale**2 * 1.5 / (2.0 * np.pi)
+		normalization = 7.0 * length_scale**2 * 1.5 / (2.0 * np.pi) ** 2
 
 		self.assertAlmostEqual(potential.normalization_factor, normalization)
 		np.testing.assert_array_equal(potential.source_field_indices, [3])
@@ -142,7 +142,7 @@ class GC2DH5PotentialTests(unittest.TestCase):
 		np.testing.assert_allclose(potential.frequencies, [1.0])
 		self.assertEqual(potential.characteristic_length, length_scale)
 		self.assertAlmostEqual(potential.characteristic_frequency, 7.0)
-		self.assertAlmostEqual(potential.characteristic_period, 1.0 / 7.0)
+		self.assertAlmostEqual(potential.characteristic_period, 2.0 * np.pi / 7.0)
 		np.testing.assert_allclose(potential.source_x, self.x)
 		np.testing.assert_allclose(potential.source_y, self.y)
 		np.testing.assert_allclose(
@@ -159,11 +159,11 @@ class GC2DH5PotentialTests(unittest.TestCase):
 		query_y = np.asarray([1.73])
 		np.testing.assert_allclose(
 			potential.evaluate(0.37, query_x, query_y),
-			potential.evaluate(0.37 + 2.0 * np.pi, query_x, query_y),
+			potential.evaluate(0.37 + 1.0, query_x, query_y),
 		)
 
 	def test_filter_sort_selection_normalization_and_positive_phase(self) -> None:
-		"""Match the HDF5 meaning of indices, f0, B and exp(+i f t)."""
+		"""Match HDF5 indices, normalization, and cycle-based positive phase."""
 		B = 1.5
 		potential = load_gc2d_h5_potential(
 			self.path,
@@ -173,7 +173,7 @@ class GC2DH5PotentialTests(unittest.TestCase):
 			interpolation_order=3,
 		)
 		normalization = (
-			7.0 * self.characteristic_length**2 * B / (2.0 * np.pi)
+			7.0 * self.characteristic_length**2 * B / (2.0 * np.pi) ** 2
 		)
 
 		self.assertIsInstance(potential, GC2DH5Potential)
@@ -193,8 +193,10 @@ class GC2DH5PotentialTests(unittest.TestCase):
 
 		time = 0.037
 		expected_dynamic = 2.0 * np.real(
-			self.low_mode / normalization * np.exp(1j * (3.0 / 7.0) * time)
-			+ self.high_mode / normalization * np.exp(1j * time)
+			self.low_mode
+			/ normalization
+			* np.exp(2j * np.pi * (3.0 / 7.0) * time)
+			+ self.high_mode / normalization * np.exp(2j * np.pi * time)
 		)
 		np.testing.assert_allclose(potential.dynamic_part(time), expected_dynamic)
 		np.testing.assert_allclose(
@@ -216,11 +218,14 @@ class GC2DH5PotentialTests(unittest.TestCase):
 			frequency_scale
 			* self.characteristic_length**2
 			* 1.5
-			/ (2.0 * np.pi)
+			/ (2.0 * np.pi) ** 2
 		)
 
 		self.assertAlmostEqual(potential.characteristic_frequency, frequency_scale)
-		self.assertAlmostEqual(potential.characteristic_period, 1.0 / frequency_scale)
+		self.assertAlmostEqual(
+			potential.characteristic_period,
+			2.0 * np.pi / frequency_scale,
+		)
 		self.assertAlmostEqual(potential.normalization_factor, normalization)
 		np.testing.assert_allclose(potential.frequencies, [0.5])
 		np.testing.assert_allclose(potential.mean_value, self.mean / normalization)
@@ -244,11 +249,11 @@ class GC2DH5PotentialTests(unittest.TestCase):
 			indx=(0,),
 		)
 		normalization = (
-			5.0 * self.characteristic_length**2 * 2.0 / (2.0 * np.pi)
+			5.0 * self.characteristic_length**2 * 2.0 / (2.0 * np.pi) ** 2
 		)
 
 		self.assertAlmostEqual(potential.normalization_factor, normalization)
-		self.assertAlmostEqual(potential.characteristic_period, 0.2)
+		self.assertAlmostEqual(potential.characteristic_period, 2.0 * np.pi / 5.0)
 		np.testing.assert_allclose(potential.mean_value, self.mean / normalization)
 		self.assertEqual(potential.frequencies.size, 0)
 
@@ -268,7 +273,7 @@ class GC2DH5PotentialTests(unittest.TestCase):
 			interpolation_order=3,
 		)
 		normalization = (
-			7.0 * self.characteristic_length**2 * B / (2.0 * np.pi)
+			7.0 * self.characteristic_length**2 * B / (2.0 * np.pi) ** 2
 		)
 		expected_mean = _h5_resample(
 			self.runtime_x,
@@ -313,7 +318,7 @@ class GC2DH5PotentialTests(unittest.TestCase):
 				query_x,
 				query_y,
 			)
-			* np.exp(1j * time)
+			* np.exp(2j * np.pi * time)
 		)
 		np.testing.assert_allclose(potential.evaluate(time, query_x, query_y), expected)
 
@@ -354,7 +359,10 @@ class GC2DH5PotentialTests(unittest.TestCase):
 				dx=dx,
 				dy=dy,
 			)
-			expected = mean + 2.0 * np.real(mode * np.exp(1j * frequency * time))
+			angular_frequency = 2.0 * np.pi * frequency
+			expected = mean + 2.0 * np.real(
+				mode * np.exp(1j * angular_frequency * time)
+			)
 			np.testing.assert_allclose(
 				potential.evaluate(time, query_x, query_y, dx=dx, dy=dy),
 				expected,
@@ -380,7 +388,7 @@ class GC2DH5PotentialTests(unittest.TestCase):
 			dx=1,
 		)
 		expected_endpoint_x = endpoint_mean_x + 2.0 * np.real(
-			endpoint_mode_x * np.exp(1j * frequency * time)
+			endpoint_mode_x * np.exp(1j * angular_frequency * time)
 		)
 		np.testing.assert_allclose(
 			potential.evaluate(time, endpoint_x, endpoint_y, dx=1),
@@ -395,7 +403,9 @@ class GC2DH5PotentialTests(unittest.TestCase):
 			wrapped_y,
 		)
 		expected_time_derivative = 2.0 * np.real(
-			mode * (1j * frequency) * np.exp(1j * frequency * time)
+			mode
+			* (1j * angular_frequency)
+			* np.exp(1j * angular_frequency * time)
 		)
 		np.testing.assert_allclose(
 			potential.evaluate(time, query_x, query_y, dt=1),
@@ -469,10 +479,11 @@ class GC2DH5PotentialTests(unittest.TestCase):
 				query_x,
 				query_y,
 			)
+			angular_frequency = 2.0 * np.pi * float(frequency)
 			expected_second += 2.0 * np.real(
 				mode
-				* (1j * float(frequency)) ** 2
-				* np.exp(1j * float(frequency) * time)
+				* (1j * angular_frequency) ** 2
+				* np.exp(1j * angular_frequency * time)
 			)
 		second = potential.evaluate(time, query_x, query_y, dt=2)
 		np.testing.assert_allclose(second, expected_second)
@@ -527,8 +538,8 @@ class GC2DH5PotentialTests(unittest.TestCase):
 			InitialValueProblem(dynamics, configuration),
 			ABBA4Implicit(newton_max_iterations=20),
 			SimulationRequest.uniform(
-				t_span=(0.0, 1e-3),
-				max_step=5e-4,
+				t_span=(0.0, 1e-3 / (2.0 * np.pi)),
+				max_step=5e-4 / (2.0 * np.pi),
 				sample_count=3,
 			),
 		)

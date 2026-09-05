@@ -37,7 +37,7 @@ digraph G {
       <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#F3ECF7">
         <TR><TD><FONT POINT-SIZE="8">abba/order4_implicit_single_projection.py</FONT><BR/><B>ABBA4ImplicitSingleProjection</B></TD></TR>
         <HR/>
-        <TR><TD ALIGN="LEFT">state_extension = physical<BR ALIGN="LEFT"/>projection_formulation = reduced_multiplier<BR ALIGN="LEFT"/>nonlinear_solver = newton<BR ALIGN="LEFT"/>integrate(problem, request)</TD></TR>
+        <TR><TD ALIGN="LEFT">state_extension = physical<BR ALIGN="LEFT"/>track_energy = false<BR ALIGN="LEFT"/>projection_formulation = reduced_multiplier<BR ALIGN="LEFT"/>nonlinear_solver = newton<BR ALIGN="LEFT"/>integrate(problem, request)</TD></TR>
       </TABLE>
     >];
 

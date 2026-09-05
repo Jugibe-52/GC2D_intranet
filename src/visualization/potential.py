@@ -75,22 +75,28 @@ def plot_potential(
 def animate_potential(
 	potential: Potential,
 	*,
-	t_max: float = 2 * np.pi,
-	frames: int = 120,
-	interval: int = 50,
+	t_max: float = 1.0,
+	frames: int | None = None,
+	interval: int = 200,
 	cmap: str = "RdBu_r",
 	repeat: bool = True,
 	**pcolormesh_kwargs: Any,
 ) -> FuncAnimation:
-	"""Animate a potential and electric field over one normalized time span."""
+	"""Animate normalized cycles with 10 frames per cycle at 5 fps."""
 	if not isinstance(potential, Potential):
 		raise TypeError("`potential` must be a Potential instance.")
-	if not isinstance(frames, int) or isinstance(frames, bool) or frames < 2:
-		raise ValueError("`frames` must be an integer of at least 2.")
 	t_max = float(t_max)
 	if not np.isfinite(t_max) or t_max <= 0:
 		raise ValueError("`t_max` must be positive and finite.")
-	times = np.linspace(0.0, t_max, frames, endpoint=False)
+	if frames is None:
+		# A normalized cycle has length one. Ceil retains at least 10 saved
+		# frames per cycle when the requested horizon is not an integer.
+		frame_count = max(2, int(np.ceil(10.0 * t_max)))
+	elif not isinstance(frames, int) or isinstance(frames, bool) or frames < 2:
+		raise ValueError("`frames` must be None or an integer of at least 2.")
+	else:
+		frame_count = frames
+	times = np.linspace(0.0, t_max, frame_count, endpoint=False)
 	fields = [potential.evaluate(time) for time in times]
 	stride = max(1, int(np.ceil(max(potential.grid.shape) / 20)))
 	quiver_x, quiver_y = np.meshgrid(
@@ -138,7 +144,7 @@ def animate_potential(
 	animation = FuncAnimation(
 		figure,
 		update,
-		frames=frames,
+		frames=frame_count,
 		interval=interval,
 		blit=False,
 		repeat=repeat,

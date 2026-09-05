@@ -55,11 +55,13 @@ not a single projection around an unprojected seven-map base.
 
 The class supports two algebraically equivalent residual formulations
 (reduced and simultaneous), two nonlinear solvers (Newton and Broyden), and
-three state extensions (physical, shared time, and fully extended).  The
-chosen values apply uniformly to all seven factors.  For $N$ physical
-guiding-centre particles, a reduced physical solve has a $2N$-component
-multiplier and a $4N$-component duplicated base state.  Non-physical
-extensions currently require one particle.
+physical or fully extended state.  Physical execution may additionally enable
+the triangular $\kappa=k/2$ energy sidecar; fully extended execution always
+enables energy evolution.  The chosen values apply uniformly to all seven
+factors.  For $N$ physical guiding-centre particles, with tracking either off
+or on, a reduced solve has a $2N$-component multiplier and a $4N$-component
+duplicated base state.  Fully extended execution currently requires one
+particle.
 
 \section{Signed time path}
 

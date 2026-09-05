@@ -62,7 +62,8 @@ class ABBA6Implicit(_ABBAImplicitConfig):
 	Each outer step applies Yoshida's palindromic seven-stage coefficients to
 	complete ``ABBA2Implicit`` maps. Two substeps run backward in time. Every
 	signed substep uses the same selected projection formulation, nonlinear
-	solver, and state extension, and solves an independent projection problem.
+	solver, and state strategy, and solves an independent projection problem.
+	Physical conjugate-momentum tracking is optional and triangular.
 	"""
 
 	def integrate(

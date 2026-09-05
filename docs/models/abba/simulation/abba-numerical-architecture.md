@@ -6,12 +6,13 @@ This is documentation for the complete ABBA family, not for `ABBA2Implicit`
 alone. It follows every active ABBA runtime branch from public input assembly to
 the read-only `Solution` returned to the caller.
 
-The family contains five public classes. Orthogonal parameters select residual
-formulation, nonlinear solver, and state extension without creating 51 separate
-classes. The diagram lists the classes, module-level functions, participating
-records and protocols, and named local closures used by the physical,
-shared-time, and fully extended paths. Optional observer and progress paths use
-dashed arrows.
+The family contains five public classes. Configuration controls select residual
+formulation, nonlinear solver, physical or fully extended state, and optional
+physical energy tracking without creating 51 separate classes. The diagram
+lists the classes, module-level functions, participating records and protocols,
+and named local closures used by the physical, energy-tracked physical, and
+fully extended paths. Optional energy, observer, and progress paths use dashed
+arrows.
 
 ## Diagram regions
 
@@ -22,8 +23,8 @@ hide the execution flow.
 |---|---|---|---|
 | **1. Problem and simulation boundary** | What physical problem and time request will be run? | Dynamics and initial configuration | A validated `InitialValueProblem` and `SimulationRequest` |
 | **2. Public ABBA family and configuration** | Which canonical method and axes are selected? | One of five public classes | One validated method object |
-| **3. Coordinators and fixed grid** | Which state extension and composition execute? | Method, problem, and request | Main and shadow step callbacks |
-| **4. Physical/shared-time kernels** | How are the A-B-B-A stages and physical projections evaluated? | `R^2` physical copies | A closed physical state and nonlinear diagnostics |
+| **3. Coordinators and fixed grid** | Which state extension, energy policy, and composition execute? | Method, problem, and request | Main and shadow step callbacks |
+| **4. Physical kernels and energy sidecar** | How are the A-B-B-A stages and physical projections evaluated, and is conjugate momentum transported? | `R^2` physical copies | A closed physical state, optional momentum, and nonlinear diagnostics |
 | **5. Fully extended kernels** | How is `(z,t,k)` duplicated, projected, and differentiated? | `R^4` accepted and `R^8` split states | A closed extended state plus energy diagnostics |
 | **6. Shared boundaries** | How are Broyden, observations, and results shared? | Residual functions and sampled histories | `IntegrationData` and public `Solution` |
 
@@ -67,8 +68,9 @@ families. See the shared
 contract.
 
 This model consumes `DynamicalSystem` for midpoint and unprojected stages,
-`GuidingCenterJacobianSystem` for implicit Newton paths, and the extended
-momentum capability for time-extended states. The remaining sections document
+`GuidingCenterJacobianSystem` for implicit Newton paths, and
+`ExtendedHamiltonianSystem` when physical energy tracking or fully extended
+execution needs the time-conjugate momentum. The remaining sections document
 only how ABBA uses those capabilities.
 
 ## Part 1: run assembly
@@ -301,8 +303,9 @@ Callers import exactly five public method classes from `simulation` or
 4. `ABBA4ImplicitSingleProjection`; and
 5. `ABBA6Implicit`.
 
-There are no public classes dedicated to state extensions. Every method selects
-its state-space strategy through `state_extension`.
+There are no public classes dedicated to state extensions or energy tracking.
+Every method selects its state-space strategy through `state_extension` and its
+optional physical momentum sidecar through `track_energy`.
 
 | Module | Responsibility |
 |---|---|
@@ -314,7 +317,8 @@ its state-space strategy through `state_extension`.
 | `_projection_reduced.py` | Implements formulation 1: the reduced projection-multiplier solve. |
 | `_projection_simultaneous.py` | Implements formulation 2: the simultaneous output--multiplier solve. |
 | `_implicit.py` | Owns shared implicit configuration, formulation dispatch, run coordination, fixed-grid hand-off, and diagnostics. |
-| `order2_midpoint.py` | Implements `ABBA2Midpoint` and its three state extensions without a nonlinear solve. |
+| `_energy.py` | Validates optional physical energy tracking, advances `kappa=k/2` from accepted stages, and builds standard energy diagnostics. |
+| `order2_midpoint.py` | Implements `ABBA2Midpoint`, both state extensions, and optional physical energy tracking without a nonlinear solve. |
 | `order2_implicit.py` | Implements `ABBA2Implicit` and dispatches its selected configuration. |
 | `order4_implicit.py` | Implements three signed projected maps with one global configuration. |
 | `order4_implicit_single_projection.py` | Applies one selected projection around the complete unprojected triple jump. |
@@ -341,7 +345,8 @@ Its configurable fields are:
 | Field | Meaning | Default |
 |---|---|---:|
 | `projection_formulation` | `"reduced_multiplier"` or `"simultaneous_state_multiplier"` | `"reduced_multiplier"` |
-| `state_extension` | `"physical"`, `"shared_time"`, or `"fully_extended"` | `"physical"` |
+| `state_extension` | `"physical"` or `"fully_extended"` | `"physical"` |
+| `track_energy` | Transports `kappa=k/2` beside a physical run; fully extended execution resolves it to `True` | `False` |
 | `newton_absolute_tolerance` | Absolute contribution to the nonlinear stopping threshold | `1e-13` |
 | `newton_relative_tolerance` | State-scaled contribution to the threshold | `1e-12` |
 | `newton_max_iterations` | Maximum nonlinear corrections per step | `12` |
@@ -351,23 +356,28 @@ Its configurable fields are:
 
 #### `_ABBAImplicitConfig.__post_init__()`
 
-Normalizes and validates the three canonical selectors, positive tolerances,
-and the positive iteration limit.
+Normalizes and validates the canonical selectors, resolves `track_energy=True`
+for fully extended execution, and validates positive tolerances and the
+positive iteration limit.
 
-### Canonical configuration axes
+### Canonical configuration controls
 
-The four implicit classes expose a Cartesian product of three independent
-axes:
+The four implicit classes expose two independent nonlinear selectors and a
+constrained state/energy strategy:
 
-| Axis | Choices | Numerical role |
+| Control | Choices | Numerical role |
 |---|---:|---|
 | `projection_formulation` | 2 | Selects the reduced or simultaneous residual. |
 | `nonlinear_solver` | 2 | Selects Newton or Broyden for that residual. |
-| `state_extension` | 3 | Selects physical, shared-time, or fully extended state duplication. |
+| `state_extension` | 2 | Selects physical or fully extended state duplication. |
+| `track_energy` | 2 | Optionally transports conjugate momentum for physical execution; fully extended execution always resolves it to `True`. |
 
-Each implicit class therefore has `2 x 2 x 3 = 12` configurations.
-`ABBA2Midpoint` has no residual and no nonlinear solver, so only its three
-`state_extension` choices are valid. Across the five public classes this gives
+The three canonical normalized state/energy strategies are
+`(physical, False)`, `(physical, True)`, and `(fully_extended, True)`.
+Consequently, each implicit class has `2 x 2 x 3 = 12` canonical
+configurations. `ABBA2Midpoint` has no residual and no nonlinear solver, so it
+supports those three strategies directly. Across the five public classes this
+gives
 
 ```text
 4 implicit classes x 12 + 1 midpoint class x 3 = 51 configurations.
@@ -375,7 +385,9 @@ Each implicit class therefore has `2 x 2 x 3 = 12` configurations.
 
 `ABBA_PROJECTION_FORMULATIONS`, `NONLINEAR_SOLVERS`, and
 `ABBA_STATE_EXTENSIONS` expose the canonical values. A configuration is a
-runtime choice of one public method; it is not another class.
+runtime choice of one public method; it is not another class. Passing
+`track_energy=False` with `state_extension="fully_extended"` produces the same
+normalized method as passing `True` and is not counted twice.
 
 ### The five public methods
 
@@ -386,8 +398,9 @@ runtime choice of one public method; it is not another class.
 
 `ABBA2Midpoint` starts both copies on the diagonal, applies one endpoint-time
 A-B-B-A map, and accepts their arithmetic mean. It has no projection residual,
-multiplier, Newton iteration, or Broyden iteration. Its only numerical-model
-axis is `state_extension`; `progress` and `step_observer` are execution controls.
+multiplier, Newton iteration, or Broyden iteration. Its numerical controls are
+`state_extension` and `track_energy`; `progress` and `step_observer` are
+execution controls.
 
 #### `ABBA2Implicit`
 
@@ -396,8 +409,9 @@ axis is `state_extension`; `progress` and `step_observer` are execution controls
 
 `ABBA2Implicit` inherits `_ABBAImplicitConfig` and supplies `integrate(...)`.
 One outer step contains one A-B-B-A map and one selected implicit projection.
-Physical and shared-time configurations use `_integrate_projected_abba(...)`;
-fully extended configurations use `_integrate_abba_fully_extended(...)`.
+Physical configurations use `_integrate_projected_abba(...)`, with optional
+energy tracking inside that coordinator; fully extended configurations use
+`_integrate_abba_fully_extended(...)`.
 
 Because `ABBA2Implicit` supplies `integrate(problem, request)`, it structurally
 implements `NumericalMethod`. Its inheritance from `_ABBAImplicitConfig` is a
@@ -438,36 +452,35 @@ extension choices are global for all seven substeps.
 For one guiding-centre particle, the accepted state, splitting state, and
 nonlinear workspace have the following dimensions:
 
-| `state_extension` | Accepted internal state | Base splitting state | Reduced unknown | Simultaneous unknown |
-|---|---|---|---|---|
-| `"physical"` | `z in R^2` | `(u,v) in R^4` | `mu in R^2` | `(u_f,v_f,mu) in R^6` |
-| `"shared_time"` | `(z,t,kappa) in R^4` | `(u,v,t,k) in R^6` | `mu in R^2` | `(u_f,v_f,mu) in R^6` |
-| `"fully_extended"` | `Z=(z,t,k) in R^4` | `(Z_1,Z_2) in R^8` | `mu in R^4` | `(Z_1f,Z_2f,mu) in R^12` |
+| `state_extension` | `track_energy` | Accepted state | Base splitting state | Reduced unknown | Simultaneous unknown |
+|---|---:|---|---|---|---|
+| `"physical"` | `False` | `z in R^2` | `(u,v) in R^4` | `mu in R^2` | `(u_f,v_f,mu) in R^6` |
+| `"physical"` | `True` | `z in R^2` | `(u,v) in R^4` | `mu in R^2` | `(u_f,v_f,mu) in R^6` |
+| `"fully_extended"` | `True` | `Z=(z,t,k) in R^4` | `(Z_1,Z_2) in R^8` | `mu in R^4` | `(Z_1f,Z_2f,mu) in R^12` |
 
 Here `z=(x,y)`, `Z=(z,t,k)`, and the table's dimensions are literal for one
 particle. For a physical run with `N` independent particles, its accepted,
 splitting, reduced, and simultaneous dimensions scale to `2N`, `4N`, `2N`,
-and `6N`. Shared-time and fully extended configurations currently require
-exactly one `GuidingCenterDynamics` particle, so their tabulated dimensions do
-not have a multi-particle generalization in the current API.
+and `6N`, independently of `track_energy`. Energy tracking adds an `N`-value
+fixed-grid sidecar, not another accepted or splitting state. Fully extended
+configurations currently require exactly one `GuidingCenterDynamics` particle.
 
-The shared-time strategy duplicates only `z` and shares `(t,k)`. Its accepted
-momentum is `kappa=k/2`; the triangular momentum equation cannot feed back into
-`z`, so it preserves the corresponding physical trajectory. The fully extended
-strategy duplicates all of `Z`, advances direct `k`, and can define a different
-physical map.
+Physical energy tracking reuses the accepted stage snapshots to advance
+`kappa=k/2`. The triangular momentum equation cannot feed back into `z`, so it
+preserves the corresponding untracked trajectory. It works for all `N`
+independent particles. The fully extended strategy instead duplicates all of
+`Z`, advances direct `k`, and can define a different physical map.
 
-The accepted internal dimension and observer dimension deliberately differ for
-shared time. Physical and shared-time observers receive the closed physical map
-`z -> z_next` in `R^2`; `t` and `kappa` remain available through diagnostics.
-Fully extended observers receive the accepted internal map `Z -> Z_next` in
-`R^4`. The diagnostics fields `observer_state_dimension` and
-`observer_state_kind` make this contract explicit for all five public methods.
+Physical observers receive the closed physical map `z -> z_next`, whether
+tracking is disabled or enabled; the auxiliary momentum never enters the
+observer state or its Jacobian. Fully extended observers receive the accepted
+internal map `Z -> Z_next` in `R^4`. The diagnostics fields
+`observer_state_dimension` and `observer_state_kind` make this contract
+explicit for all five public methods.
 
-The two appearances of `R^6` are unrelated. `(u,v,t,k)` is a genuine splitting
-state for `shared_time`, whereas `(u_f,v_f,mu)` is a temporary nonlinear
-workspace for a simultaneous physical or shared-time solve. For
-`fully_extended`, the analogous simultaneous workspace is in `R^12`.
+The temporary `(u_f,v_f,mu) in R^6` simultaneous unknown is a nonlinear
+workspace, not a trajectory or energy-sidecar state. For `fully_extended`, the
+analogous simultaneous workspace is in `R^12`.
 
 ### Projection formulations: one exact root, two solve vectors
 
@@ -475,7 +488,7 @@ For a fixed method, extension, and step, both formulations impose the same
 diagonal projection and define the same exact map at convergence. They differ
 only in the nonlinear unknown retained by the solver.
 
-| Formulation | Physical/shared-time unknown | Fully extended unknown |
+| Formulation | Physical unknown | Fully extended unknown |
 |---|---|---|
 | `reduced_multiplier` | `mu in R^2` | `mu in R^4` |
 | `simultaneous_state_multiplier` | `(u_f,v_f,mu) in R^6` | `(Z_1f,Z_2f,mu) in R^12` |
@@ -490,9 +503,9 @@ differences. Both values are recorded by diagnostics and step observations.
 The coordinator and kernel regions make the numerical execution order explicit:
 
 ```text
-fixed grid -> state-extension strategy -> composition policy
+fixed grid -> state/energy strategy -> composition policy
            -> arithmetic mean, or implicit residual + Newton/Broyden
-           -> accepted internal state -> physical sample -> IntegrationData
+           -> accepted state + optional momentum -> physical sample -> IntegrationData
 ```
 
 Implicit configurations have two nested loops:
@@ -520,7 +533,9 @@ Their files are deliberately separated as follows:
 - [`_projection_common.py`](../../../../src/simulation/methods/abba/_projection_common.py)
   retains only their shared stage and tangent kernels;
 - [`_core.py`](../../../../src/simulation/methods/abba/_core.py) applies the
-  physical/shared-time projection-independent A-B-B-A stage map; and
+  physical projection-independent A-B-B-A stage map;
+- [`_energy.py`](../../../../src/simulation/methods/abba/_energy.py) advances
+  optional physical conjugate momentum from accepted stage snapshots; and
 - [`methods/_fully_extended.py`](../../../../src/simulation/methods/_fully_extended.py)
   owns the duplicated `R^8` maps, `R^4` and `R^12` residuals, and fully extended
   midpoint mean.
@@ -528,14 +543,14 @@ Their files are deliberately separated as follows:
 The outer scheduler remains the shared utility
 [`src/simulation/_fixed.py`](../../../../src/simulation/_fixed.py).
 
-### Physical and shared-time coordinator: `_integrate_projected_abba(...)`
+### Physical coordinator: `_integrate_projected_abba(...)`
 
 **File:**
 [`src/simulation/methods/abba/_implicit.py`](../../../../src/simulation/methods/abba/_implicit.py)
 
-This private function coordinates an `ABBA2Implicit` physical or shared-time
-run. `order4_implicit.py` generalizes the same pattern to the three- and
-seven-projection compositions, while
+This private function coordinates an `ABBA2Implicit` physical run, with or
+without energy tracking. `order4_implicit.py` generalizes the same pattern to
+the three- and seven-projection compositions, while
 `order4_implicit_single_projection.py` coordinates the one-projection triple
 jump.
 
@@ -546,10 +561,10 @@ Before stepping, it verifies that:
 - when Newton is selected, an exact vector-field Jacobian can be evaluated at
   the initial state.
 
-When `state_extension="shared_time"`, it additionally requires one concrete
-`GuidingCenterDynamics` particle, initializes the accepted internal state as
-`(z,t,kappa)`, and checks that its carried time stays aligned with the fixed
-grid. A `physical` run carries only `z`.
+When `track_energy=True`, it additionally requires
+`ExtendedHamiltonianSystem`. The fixed-grid workspace appends one zero initial
+momentum per particle to `z`; time remains the scheduler's independent
+coordinate. The physical state passed to every ABBA solve is unchanged.
 
 It then defines the `advance(t, state, step, step_index, observe)` callback used
 by the fixed-grid scheduler. Each callback invocation solves one projected ABBA
@@ -561,18 +576,18 @@ After the scheduler finishes, the coordinator packages saved states and these
 diagnostics into `IntegrationData`:
 
 - main `step_count`;
-- `nonlinear_solver`, `projection_formulation`, and `state_extension`;
+- `nonlinear_solver`, `projection_formulation`, `state_extension`, and
+  `track_energy`;
 - nonlinear iteration and residual-evaluation counts;
 - residual norms and stopping tolerances;
 - projection-multiplier norms; and
 - configured absolute tolerance, relative tolerance, and iteration limit.
 
-Shared-time runs additionally store `extended_time`, `extended_kappa`, and
-`extended_momentum_normalization="kappa_equals_k_over_2"`; only their physical
-`z` history enters `IntegrationData.states`. Their observers likewise receive
-the closed `R^2` physical map, while the carried `t` and `kappa` remain in those
-diagnostics. `observer_state_dimension=2` and
-`observer_state_kind="physical_map"` record that choice.
+Energy-tracked physical runs additionally store `extended_momentum` with shape
+`(N,T)`, `extended_momentum_normalization="kappa_equals_k_over_2"`, and the
+scalar maximum drift `energy_error`. Their time coordinate is the ordinary
+`Solution.t`, and only physical `z` enters `IntegrationData.states`. Observers
+receive the same closed physical map as an untracked run.
 
 The `newton_*` diagnostic names remain alongside the general `nonlinear_*`
 names for compatibility. The coordinator does not itself perform the temporal
@@ -607,7 +622,9 @@ For both implicit and midpoint fully extended paths, the observer receives the
 accepted internal `R^4` map rather than its `R^2` physical projection. The
 coordinator records `observer_state_dimension=4` and
 `observer_state_kind="accepted_internal_map"`; sampled solution states remain
-physical and therefore have dimension two.
+physical and therefore have dimension two. Fully extended execution always
+reports `track_energy=True`, direct `extended_momentum`, `extended_time`, the
+scalar `energy_error`, and detailed generalized-energy histories.
 
 ### Outer time loop — entry: `integrate_fixed_grid(...)`
 
@@ -629,9 +646,10 @@ returned main or shadow state are described later under
 ### Formulation selection
 
 The following residual and stage subsections expand the representative
-`ABBA2Implicit(state_extension="physical")` path. Shared time reuses this
-physical solve and advances `(t,kappa)` alongside it. Fully extended execution
-uses dimensionally analogous residuals in `_fully_extended.py`, with the
+`ABBA2Implicit(state_extension="physical")` path. Energy tracking reuses this
+physical solve and advances auxiliary `kappa` from its accepted stages. Fully
+extended execution uses dimensionally analogous residuals in
+`_fully_extended.py`, with the
 `R^4/R^8/R^12` dimensions stated above.
 
 **Files:**
@@ -739,10 +757,11 @@ u_0=v_0=z_n.
 
 It does not introduce a multiplier or nonlinear solve. It accepts the arithmetic
 mean `(u_f+v_f)/2` and records `||d||_inf` as the copy-separation diagnostic.
-The same public class can carry the shared `(t,kappa)` variables or use the
-fully duplicated `R^8` kernel, according to `state_extension`. The dashed arrow
-in the diagram represents shared-core dependency; midpoint is a separate public
-method, not a branch executed inside an implicit run.
+The same public class can optionally track auxiliary `kappa` beside the
+physical map or use the fully duplicated `R^8` kernel, according to
+`state_extension` and `track_energy`. The dashed arrow in the diagram represents
+shared-core dependency; midpoint is a separate public method, not a branch
+executed inside an implicit run.
 
 ### Inner nonlinear loop — projection residual
 
@@ -857,7 +876,7 @@ Newton assembles one exact `6 x 6` block per particle. Broyden uses the same
 six-component residual and a block initial approximation. At convergence the
 diagonal constraint makes the two outputs equal up to tolerance; the solver
 returns their mean as `z_(n+1)`. This temporary `q` is not stored as a state and
-is unrelated to the shared-time splitting state described above.
+is unrelated to the optional momentum sidecar.
 
 ### Accepted physical state
 
@@ -895,12 +914,12 @@ The private `_ProjectedStep` returned to the scheduler contains:
 | `residual_evaluations` | Number of residual evaluations |
 | `residual_norm` | Final infinity norm of the selected formulation's residual |
 
-With `state_extension="shared_time"`, the coordinator then advances the accepted
-conjugate value from the four converged ABBA stage snapshots. The split variable
-is `k`, while the accepted variable is normalized as `kappa=k/2`; the
-accumulated split increment is therefore divided by two. The accepted internal
-value becomes `(z_(n+1),t_n+h,kappa_(n+1))`, but only `z_(n+1)` is exposed in
-the physical state history.
+With `state_extension="physical"` and `track_energy=True`, the coordinator then
+advances one conjugate value per particle from the four converged ABBA stage
+snapshots. The projected variable is normalized as `kappa=k/2`; the accumulated
+doubled-space increment is therefore divided by two. The fixed-grid workspace
+appends `kappa_(n+1)` to `z_(n+1)`, but this auxiliary block is neither part of
+the physical map nor exposed in the physical state history.
 
 With `state_extension="fully_extended"`, the corresponding accepted record is
 `Z_(n+1)=(z_(n+1),t_(n+1),k_(n+1)) in R^4`. The runner still receives only the
@@ -937,19 +956,18 @@ beginning of this section.
 
 **File:** [`src/simulation/observation.py`](../../../../src/simulation/observation.py)
 
-If `ABBA2Implicit.step_observer` is set for a physical or shared-time run, every
-accepted main-grid step emits an `ABBA2ImplicitIntegrationStep`. Composed and
+If `ABBA2Implicit.step_observer` is set for a physical run, every accepted
+main-grid step emits an `ABBA2ImplicitIntegrationStep`. Composed and
 single-projection methods emit their corresponding observation records. Fully
 extended implicit runs emit `FullyExtendedImplicitIntegrationStep`; midpoint
 runs emit the general `IntegrationStep`. Shadow advances never emit an event.
 
-For `physical` and `shared_time`, `state_before`, `state_after`, and the domain
-and codomain of `map_state` are the closed physical state in `R^2`. In
-particular, a shared-time observer does not receive the accepted internal
-`(z,t,kappa) in R^4`; that carried pair is exposed as `extended_time` and
-`extended_kappa` in integration diagnostics. For `fully_extended`, those three
-observer objects use the accepted internal state `Z=(z,t,k) in R^4`. This is
-also why the latter can expose a full `4 x 4` accepted-map Jacobian.
+For physical execution, `state_before`, `state_after`, and the domain and
+codomain of `map_state` are the closed physical state in `R^2`, independently
+of `track_energy`. The optional momentum is exposed only through integration
+diagnostics. For `fully_extended`, those three observer objects use the
+accepted internal state `Z=(z,t,k) in R^4`. This is also why the latter can
+expose a full `4 x 4` accepted-map Jacobian.
 
 The observation contains:
 
@@ -1062,23 +1080,25 @@ later moments in wall-clock execution.
 8. `SimulationRunner` receives the problem, request, and a `NumericalMethod`.
 9. `NumericalMethod` defines the integration capability consumed by the runner.
 10. The public ABBA region selects one of the five canonical classes.
-11. `ABBA2Midpoint` validates only `state_extension`; each implicit class
-    inherits `_ABBAImplicitConfig` and validates all three canonical axes.
-12. `state_extension` chooses the physical `R^4`, shared-time `R^6`, or fully
-    duplicated `R^8` base splitting state.
+11. `ABBA2Midpoint` validates `state_extension` and `track_energy`; each
+    implicit class inherits `_ABBAImplicitConfig` and validates the same pair
+    plus its projection and nonlinear-solver selectors.
+12. `state_extension` chooses the physical `R^4` or fully duplicated `R^8`
+    base splitting state. Physical `track_energy=True` adds only an auxiliary
+    momentum block to the fixed-grid workspace.
 13. The method class chooses one, three, or seven signed A-B-B-A maps and whether
     projection occurs after each map or once around the complete composition.
 14. Midpoint closes the copies by arithmetic mean and bypasses the nonlinear
     branch.
 15. An implicit method selects the reduced or simultaneous residual. Its
-    workspace is `R^2/R^6` for physical and shared-time execution, or
-    `R^4/R^12` for fully extended execution.
+    workspace is `R^2/R^6` for physical execution, or `R^4/R^12` for fully
+    extended execution.
 16. Newton or Broyden solves that residual. The same choice is reused globally
     by all substeps of a composed method.
-17. The accepted internal state is reduced back to the physical `z` sample;
-    extension variables remain in diagnostics. Physical and shared-time
-    observers receive the closed `R^2` map, while fully extended observers
-    receive the accepted internal `R^4` map.
+17. The accepted state is reduced back to the physical `z` sample. Optional
+    physical momentum remains in diagnostics; physical observers receive the
+    closed `R^2` map, while fully extended observers receive the accepted
+    internal `R^4` map.
 18. `integrate_fixed_grid(...)` either advances the main trajectory or stores a
     shadow sample and repeats until `t_f`.
 19. Accepted main steps may emit the observation type associated with the
@@ -1136,6 +1156,7 @@ method = ABBA2Implicit(
     projection_formulation="reduced_multiplier",
     nonlinear_solver="newton",
     state_extension="physical",
+    track_energy=False,
     newton_absolute_tolerance=1e-13,
     newton_relative_tolerance=1e-12,
     newton_max_iterations=12,
@@ -1150,10 +1171,10 @@ Here `dynamics`, `initial_x`, `initial_y`, `final_time`, `max_step`, and
 
 ## Scope and deliberate omissions
 
-The diagram shows all five public method classes, all three configuration axes,
+The diagram shows all five public method classes, the configuration controls,
 and the active classes and functions used by their numerical runtime. It does
-not duplicate the same path for every one of the 51 valid configurations. The
-diagram deliberately omits:
+not duplicate the same path for every one of the 51 canonical configurations.
+The diagram deliberately omits:
 
 - the internal potential and field model of the guiding-centre dynamics;
 - unused convenience helpers that are not called by public ABBA integration;

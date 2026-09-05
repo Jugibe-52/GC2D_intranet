@@ -196,21 +196,21 @@ digraph G {
         <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#EEE3F5">
           <TR><TD><FONT POINT-SIZE="9"><I>&#171;configuration base&#187;</I></FONT><BR/><FONT POINT-SIZE="9">src/simulation/methods/abba/_implicit.py</FONT><BR/><B>_ABBAImplicitConfig</B></TD></TR>
           <HR/>
-          <TR><TD ALIGN="LEFT">projection_formulation: 2 choices<BR ALIGN="LEFT"/>state_extension: 3 choices<BR ALIGN="LEFT"/>nonlinear_solver: 2 choices<BR ALIGN="LEFT"/>tolerances, progress and observer</TD></TR>
+          <TR><TD ALIGN="LEFT">projection_formulation: 2 choices<BR ALIGN="LEFT"/>state_extension: 2 choices<BR ALIGN="LEFT"/>track_energy: False / True<BR ALIGN="LEFT"/>nonlinear_solver: 2 choices<BR ALIGN="LEFT"/>tolerances, progress and observer</TD></TR>
         </TABLE>
       >];
       ABBAConfiguration [label=<
         <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#EEE3F5">
-          <TR><TD><FONT POINT-SIZE="9"><I>&#171;configuration helpers&#187;</I></FONT><BR/><FONT POINT-SIZE="9">src/simulation/methods/abba/_configuration.py</FONT><BR/><B>ABBA configuration axes</B></TD></TR>
+          <TR><TD><FONT POINT-SIZE="9"><I>&#171;configuration helpers&#187;</I></FONT><BR/><FONT POINT-SIZE="9">src/simulation/methods/abba/_configuration.py</FONT><BR/><B>ABBA configuration controls</B></TD></TR>
           <HR/>
-          <TR><TD ALIGN="LEFT">ProjectionFormulation<BR ALIGN="LEFT"/>StateExtension<BR ALIGN="LEFT"/>validation and dimension diagnostics</TD></TR>
+          <TR><TD ALIGN="LEFT">ProjectionFormulation<BR ALIGN="LEFT"/>StateExtension<BR ALIGN="LEFT"/>track_energy resolution<BR ALIGN="LEFT"/>validation and dimension diagnostics</TD></TR>
         </TABLE>
       >];
       ABBA2Implicit [label=<
         <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#EEE3F5">
           <TR><TD><FONT POINT-SIZE="9"><I>&#171;public method&#187;</I></FONT><BR/><FONT POINT-SIZE="9">src/simulation/methods/abba/order2_implicit.py</FONT><BR/><B>ABBA2Implicit</B></TD></TR>
           <HR/>
-          <TR><TD ALIGN="LEFT">One class, twelve configurations<BR ALIGN="LEFT"/>integrate(problem, request)<BR ALIGN="LEFT"/>Dispatches by state_extension</TD></TR>
+          <TR><TD ALIGN="LEFT">One class, twelve canonical configurations<BR ALIGN="LEFT"/>integrate(problem, request)<BR ALIGN="LEFT"/>Dispatches by state_extension<BR ALIGN="LEFT"/>Optionally tracks physical energy</TD></TR>
         </TABLE>
       >];
       FullyExtendedProtocol [label=<
@@ -220,7 +220,7 @@ digraph G {
           <TR><TD ALIGN="LEFT">Consumes solver configuration<BR ALIGN="LEFT"/>No public method inheritance</TD></TR>
         </TABLE>
       >];
-      ConfigurationNote [shape=note, style="filled", fillcolor="#FFFDEB", color="#B8AE6F", margin="0.10,0.07", label="Configuration cube:\n2 projection formulations x\n3 state extensions x\n2 nonlinear solvers = 12."];
+      ConfigurationNote [shape=note, style="filled", fillcolor="#FFFDEB", color="#B8AE6F", margin="0.10,0.07", label="Canonical configuration space:\n2 projection formulations x\n3 normalized state/energy strategies x\n2 nonlinear solvers = 12.\nFully extended implies track_energy = True."];
       { rank=same; method_anchor; NumericalMethod; ABBAImplicitConfig; ABBAConfiguration; ABBA2Implicit; FullyExtendedProtocol; ConfigurationNote; }
     }
   }
@@ -237,7 +237,7 @@ digraph G {
       <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#EEE3F5">
         <TR><TD><FONT POINT-SIZE="9"><I>&#171;dispatch&#187;</I></FONT><BR/><FONT POINT-SIZE="9">src/simulation/methods/abba/order2_implicit.py</FONT><BR/><B>ABBA2Implicit.integrate(...)</B></TD></TR>
         <HR/>
-        <TR><TD ALIGN="LEFT">physical / shared_time<BR ALIGN="LEFT"/>or<BR ALIGN="LEFT"/>fully_extended</TD></TR>
+        <TR><TD ALIGN="LEFT">physical<BR ALIGN="LEFT"/>or<BR ALIGN="LEFT"/>fully_extended</TD></TR>
       </TABLE>
     >];
     { rank=same; dispatch_anchor; StateExtensionDispatch; }
@@ -245,9 +245,9 @@ digraph G {
     coordinators_anchor [shape=point, width=0, height=0, label="", style=invis];
     ProjectedCoordinator [label=<
       <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#FFF3D6">
-        <TR><TD><FONT POINT-SIZE="9"><I>&#171;physical/shared-time coordinator&#187;</I></FONT><BR/><FONT POINT-SIZE="9">src/simulation/methods/abba/_implicit.py</FONT><BR/><B>_integrate_projected_abba(...)</B></TD></TR>
+        <TR><TD><FONT POINT-SIZE="9"><I>&#171;physical coordinator&#187;</I></FONT><BR/><FONT POINT-SIZE="9">src/simulation/methods/abba/_implicit.py</FONT><BR/><B>_integrate_projected_abba(...)</B></TD></TR>
         <HR/>
-        <TR><TD ALIGN="LEFT">Validate GC Jacobian capability<BR ALIGN="LEFT"/>Build projected advance closure<BR ALIGN="LEFT"/>Collect physical/shared-time diagnostics</TD></TR>
+        <TR><TD ALIGN="LEFT">Validate GC Jacobian capability<BR ALIGN="LEFT"/>Build projected advance closure<BR ALIGN="LEFT"/>Collect physical and optional energy diagnostics</TD></TR>
       </TABLE>
     >];
     FullCoordinator [label=<
@@ -290,14 +290,14 @@ digraph G {
     solvers_anchor [shape=point, width=0, height=0, label="", style=invis];
     ReducedProjectionSolver [label=<
       <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#FFF3D6">
-        <TR><TD><FONT POINT-SIZE="9"><I>&#171;physical/shared formulation 1&#187;</I></FONT><BR/><FONT POINT-SIZE="9">src/simulation/methods/abba/_projection_reduced.py</FONT><BR/><B>_solve_reduced_multiplier_step(...)</B></TD></TR>
+        <TR><TD><FONT POINT-SIZE="9"><I>&#171;physical formulation 1&#187;</I></FONT><BR/><FONT POINT-SIZE="9">src/simulation/methods/abba/_projection_reduced.py</FONT><BR/><B>_solve_reduced_multiplier_step(...)</B></TD></TR>
         <HR/>
         <TR><TD ALIGN="LEFT">Unknown: mu in R2 per particle<BR ALIGN="LEFT"/>Newton block: 2 x 2</TD></TR>
       </TABLE>
     >];
     SimultaneousProjectionSolver [label=<
       <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#FFF3D6">
-        <TR><TD><FONT POINT-SIZE="9"><I>&#171;physical/shared formulation 2&#187;</I></FONT><BR/><FONT POINT-SIZE="9">src/simulation/methods/abba/_projection_simultaneous.py</FONT><BR/><B>_solve_simultaneous_state_multiplier_step(...)</B></TD></TR>
+        <TR><TD><FONT POINT-SIZE="9"><I>&#171;physical formulation 2&#187;</I></FONT><BR/><FONT POINT-SIZE="9">src/simulation/methods/abba/_projection_simultaneous.py</FONT><BR/><B>_solve_simultaneous_state_multiplier_step(...)</B></TD></TR>
         <HR/>
         <TR><TD ALIGN="LEFT">Unknown: (u_f,v_f,mu) in R6 per particle<BR ALIGN="LEFT"/>Newton block: 6 x 6</TD></TR>
       </TABLE>
@@ -353,11 +353,11 @@ digraph G {
     { rank=same; full_solvers_anchor; ProjectedStep; FullReducedSolver; FullSimultaneousSolver; }
 
     accepted_anchor [shape=point, width=0, height=0, label="", style=invis];
-    SharedTimeAdvance [label=<
+    EnergyTracking [label=<
       <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#FFF3D6">
-        <TR><TD><FONT POINT-SIZE="9"><I>&#171;optional shared-time update&#187;</I></FONT><BR/><FONT POINT-SIZE="9">src/simulation/methods/abba/_implicit.py</FONT><BR/><B>_shared_time_kappa_increment(...)</B></TD></TR>
+        <TR><TD><FONT POINT-SIZE="9"><I>&#171;optional energy sidecar&#187;</I></FONT><BR/><FONT POINT-SIZE="9">src/simulation/methods/abba/_energy.py</FONT><BR/><B>_conjugate_momentum_increment_from_stages(...)</B></TD></TR>
         <HR/>
-        <TR><TD ALIGN="LEFT">Carry accepted (z,t,kappa) in R4<BR ALIGN="LEFT"/>Base split (u,v,t,k) in R6<BR ALIGN="LEFT"/>kappa = k/2</TD></TR>
+        <TR><TD ALIGN="LEFT">Append kappa in R^N to fixed-grid workspace<BR ALIGN="LEFT"/>Reuse accepted physical stages<BR ALIGN="LEFT"/>kappa = k/2; no feedback into z</TD></TR>
       </TABLE>
     >];
     FullProjectedStep [label=<
@@ -375,7 +375,7 @@ digraph G {
       </TABLE>
     >];
     NewtonNote [shape=note, style="filled", fillcolor="#FFFDEB", color="#B8AE6F", margin="0.10,0.07", label="Newton iterations are implemented inline in each\nformulation solver. Broyden uses the shared service."];
-    { rank=same; accepted_anchor; SharedTimeAdvance; FullProjectedStep; NonlinearService; NewtonNote; }
+    { rank=same; accepted_anchor; EnergyTracking; FullProjectedStep; NonlinearService; NewtonNote; }
 
     scheduler_anchor [shape=point, width=0, height=0, label="", style=invis];
     SchedulerContinuation [label=<
@@ -387,7 +387,7 @@ digraph G {
     >];
     ABBA2Observation [label=<
       <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#FFF9D9">
-        <TR><TD><FONT POINT-SIZE="9"><I>&#171;physical/shared-time event&#187;</I></FONT><BR/><FONT POINT-SIZE="9">src/simulation/observation.py</FONT><BR/><B>ABBA2ImplicitIntegrationStep</B></TD></TR>
+        <TR><TD><FONT POINT-SIZE="9"><I>&#171;physical event&#187;</I></FONT><BR/><FONT POINT-SIZE="9">src/simulation/observation.py</FONT><BR/><B>ABBA2ImplicitIntegrationStep</B></TD></TR>
         <HR/>
         <TR><TD ALIGN="LEFT">Physical accepted map and stages<BR ALIGN="LEFT"/>Formulation and nonlinear metrics</TD></TR>
       </TABLE>
@@ -479,27 +479,27 @@ digraph G {
 
   // Unified public method and state-extension dispatch.
   ABBA2Implicit -> StateExtensionDispatch [style=solid, arrowhead=normal, constraint=false];
-  StateExtensionDispatch -> ProjectedCoordinator [xlabel=" physical / shared_time", style=solid, arrowhead=normal, constraint=false];
+  StateExtensionDispatch -> ProjectedCoordinator [xlabel=" physical", style=solid, arrowhead=normal, constraint=false];
   StateExtensionDispatch -> FullCoordinator [xlabel=" fully_extended", style=solid, arrowhead=normal, constraint=false];
   GuidingCenterJacobianSystem -> ProjectedCoordinator [style=dashed, arrowhead=normal, constraint=false];
   GuidingCenterDynamics -> FullCoordinator [style=dashed, arrowhead=normal, constraint=false];
-  GuidingCenterDynamics -> SharedTimeAdvance [style=dashed, arrowhead=normal, constraint=false];
+  GuidingCenterDynamics -> EnergyTracking [style=dashed, arrowhead=normal, constraint=false];
 
   // Both coordinators use the same main/shadow fixed-grid scheduler.
   ProjectedCoordinator -> FixedGrid [style=solid, arrowhead=normal, constraint=false];
   FullCoordinator -> FixedGrid [style=solid, arrowhead=normal, constraint=false];
-  FixedGrid -> ProjectedSelector [xlabel=" physical / shared_time", style=solid, arrowhead=normal, constraint=false];
+  FixedGrid -> ProjectedSelector [xlabel=" physical", style=solid, arrowhead=normal, constraint=false];
   FixedGrid -> FullStepDispatch [xlabel=" fully_extended", style=solid, arrowhead=normal, constraint=false];
 
-  // Physical and shared-time projection engine.
+  // Physical projection engine.
   ProjectedSelector -> ReducedProjectionSolver [style=solid, arrowhead=normal, constraint=false];
   ProjectedSelector -> SimultaneousProjectionSolver [style=solid, arrowhead=normal, constraint=false];
   ReducedProjectionSolver -> ProjectionCommon [style=solid, arrowhead=normal, constraint=false];
   SimultaneousProjectionSolver -> ProjectionCommon [style=solid, arrowhead=normal, constraint=false];
   ProjectionCommon -> ProjectedStep [style=solid, arrowhead=normal, constraint=false];
-  ProjectedStep -> SchedulerContinuation [xlabel=" physical", style=solid, arrowhead=normal, constraint=false];
-  ProjectedStep -> SharedTimeAdvance [xlabel=" shared_time", style=dashed, arrowhead=normal, constraint=false];
-  SharedTimeAdvance -> SchedulerContinuation [style=solid, arrowhead=normal, constraint=false];
+  ProjectedStep -> SchedulerContinuation [xlabel=" track_energy = false", style=solid, arrowhead=normal, constraint=false];
+  ProjectedStep -> EnergyTracking [xlabel=" track_energy = true", style=dashed, arrowhead=normal, constraint=false];
+  EnergyTracking -> SchedulerContinuation [style=solid, arrowhead=normal, constraint=false];
   ProjectedStep -> ABBA2Observation [style=dashed, arrowhead=normal, constraint=false];
 
   // Fully extended R4/R8 projection engine.

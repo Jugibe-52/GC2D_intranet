@@ -21,8 +21,8 @@ from .particles import _field_normalization, _frame_indices
 _ROW_COORDINATES = (
 	(
 		"ABBA4Implicit",
-		"shared_time",
-		"ABBA4 · 3 projections\nshared time · base R6",
+		"physical",
+		"ABBA4 · 3 projections\nphysical + energy · base R4",
 	),
 	(
 		"ABBA4Implicit",
@@ -31,8 +31,8 @@ _ROW_COORDINATES = (
 	),
 	(
 		"ABBA4ImplicitSingleProjection",
-		"shared_time",
-		"SP-ABBA4 · 1 projection\nshared time · base R6",
+		"physical",
+		"SP-ABBA4 · 1 projection\nphysical + energy · base R4",
 	),
 	(
 		"ABBA4ImplicitSingleProjection",
@@ -223,7 +223,7 @@ def _closed_spatial_limits(potential: Potential) -> tuple[float, float, float, f
 
 
 def _fundamental_frequency(potential: Potential) -> float:
-	"""Return the first physical HDF5 frequency, or the normalized unit frequency."""
+	"""Return the first normalized HDF5 cycle frequency, or the unit default."""
 	frequencies = getattr(potential, "frequencies", None)
 	if frequencies is None:
 		return 1.0
@@ -236,8 +236,8 @@ def _fundamental_frequency(potential: Potential) -> float:
 def animate_abba4_configuration_trajectories(
 	result: object,
 	*,
-	frames: int | None = 61,
-	interval: int = 100,
+	frames: int | None = None,
+	interval: int = 200,
 	repeat: bool = True,
 	cmap: str = "Greys",
 	**imshow_kwargs: Any,
@@ -393,7 +393,7 @@ def animate_abba4_configuration_trajectories(
 			)
 			artists.extend((paths[key], markers[key]))
 		time = float(times[sample_index])
-		phase = float(np.mod(frequency * time, 2.0 * np.pi))
+		phase = float(np.mod(2.0 * np.pi * frequency * time, 2.0 * np.pi))
 		suptitle.set_text(
 			f"16 ABBA4 configurations × {particle_count} shared initial "
 			f"conditions ({_VARIANT_COUNT * particle_count} trajectories) — "

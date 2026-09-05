@@ -100,6 +100,18 @@ class FullyExtendedImplicitMethodTests(unittest.TestCase):
 			float(solution.diagnostics["extended_time"][-1]),
 			0.1,
 		)
+		self.assertIs(solution.diagnostics["track_energy"], True)
+		self.assertEqual(
+			solution.diagnostics["extended_momentum_normalization"],
+			"direct_k",
+		)
+		generalized_error = np.asarray(
+			solution.diagnostics["generalized_energy_error"]
+		)
+		self.assertEqual(
+			solution.diagnostics["energy_error"],
+			float(np.max(np.abs(generalized_error))),
+		)
 		self.assertEqual(
 			solution.diagnostics["projection_jacobian"],
 			"analytic_stage_product",
@@ -191,6 +203,7 @@ class FullyExtendedImplicitMethodTests(unittest.TestCase):
 					solution.diagnostics["extended_time"],
 					request.output_times,
 				)
+				self.assertIs(solution.diagnostics["track_energy"], True)
 
 
 class FullyExtendedImplicitStudyTests(unittest.TestCase):

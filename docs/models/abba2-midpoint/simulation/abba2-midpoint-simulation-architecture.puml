@@ -55,7 +55,7 @@ digraph G {
       <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="6" BGCOLOR="#F3ECF7">
         <TR><TD><FONT POINT-SIZE="9">abba/order2_midpoint.py</FONT><BR/><B>ABBA2Midpoint</B></TD></TR>
         <HR/>
-        <TR><TD ALIGN="LEFT">state_extension = &quot;physical&quot;<BR ALIGN="LEFT"/>progress<BR ALIGN="LEFT"/>step_observer [optional]<BR ALIGN="LEFT"/>integrate(problem, request)</TD></TR>
+        <TR><TD ALIGN="LEFT">state_extension = &quot;physical&quot;<BR ALIGN="LEFT"/>track_energy = false<BR ALIGN="LEFT"/>progress<BR ALIGN="LEFT"/>step_observer [optional]<BR ALIGN="LEFT"/>integrate(problem, request)</TD></TR>
       </TABLE>
     >];
 
@@ -83,7 +83,7 @@ digraph G {
       <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="6" BGCOLOR="#DDEBF3">
         <TR><TD><FONT POINT-SIZE="9">ABBA2Midpoint.integrate(...)</FONT><BR/><B>Prepare the run</B></TD></TR>
         <HR/>
-        <TR><TD ALIGN="LEFT">require planar DynamicalSystem<BR ALIGN="LEFT"/>define local advance(...)<BR ALIGN="LEFT"/>collect copy-separation diagnostics</TD></TR>
+        <TR><TD ALIGN="LEFT">require planar DynamicalSystem<BR ALIGN="LEFT"/>energy sidecar disabled in this view<BR ALIGN="LEFT"/>define local advance(...)<BR ALIGN="LEFT"/>collect copy-separation diagnostics</TD></TR>
       </TABLE>
     >];
 
@@ -161,7 +161,7 @@ digraph G {
       <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="6" BGCOLOR="#EAF2F8">
         <TR><TD><FONT POINT-SIZE="9">src/simulation/_result.py</FONT><BR/><B>IntegrationData</B></TD></TR>
         <HR/>
-        <TR><TD ALIGN="LEFT">requested times<BR ALIGN="LEFT"/>physical state history<BR ALIGN="LEFT"/>step_count<BR ALIGN="LEFT"/>copy_separation_norms<BR ALIGN="LEFT"/>projection_kind = arithmetic_mean</TD></TR>
+        <TR><TD ALIGN="LEFT">requested times<BR ALIGN="LEFT"/>physical state history<BR ALIGN="LEFT"/>step_count<BR ALIGN="LEFT"/>copy_separation_norms<BR ALIGN="LEFT"/>projection_kind = arithmetic_mean<BR ALIGN="LEFT"/>track_energy = false</TD></TR>
       </TABLE>
     >];
 
@@ -173,7 +173,7 @@ digraph G {
       </TABLE>
     >];
 
-    Scope [shape=note, style="filled", fillcolor="#F7F7F7", color="#999999", margin="0.10,0.07", label="Introductory scope: state_extension = physical.\nThe shared-time and fully extended configurations\nretain the same four-shear plus arithmetic-mean idea,\nbut their extra carried variables are intentionally omitted.\nPublic method name: ABBA2Midpoint."];
+    Scope [shape=note, style="filled", fillcolor="#F7F7F7", color="#999999", margin="0.10,0.07", label="Introductory scope: state_extension = physical\nand track_energy = false. Optional physical energy\ntracking reuses the same stages; fully extended execution\nduplicates (z,t,k). Both are intentionally omitted.\nPublic method name: ABBA2Midpoint."];
 
     { rank=same; output_anchor; Observation; Data; Solution; Scope; }
   }

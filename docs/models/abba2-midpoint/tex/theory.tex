@@ -34,26 +34,28 @@ z_{n+1}=\frac{u_f+v_f}{2}.
 ``Midpoint'' therefore refers to this arithmetic projection; the method is not
 the implicit-midpoint Runge--Kutta rule.
 
-\section{State-extension configurations}
+\section{State and energy configurations}
 
 The model has no multiplier, residual, Newton iteration, or Broyden update.
-Its only numerical configuration axis is \texttt{state\_extension}:
+Its state and energy controls are \texttt{state\_extension} and
+\texttt{track\_energy}:
 \begin{center}
-\begin{tabular}{@{}lll@{}}
+\begin{tabular}{@{}llll@{}}
 \toprule
-Value & accepted internal state & duplicated base state\\
+Extension & tracking & accepted state & duplicated base state\\
 \midrule
-\texttt{physical} & $z\in\R^{2N}$ & $(u,v)\in\R^{4N}$\\
-\texttt{shared\_time} & $(z,t,\kappa)\in\R^4$ & $(u,v,t,k)\in\R^6$\\
-\texttt{fully\_extended} & $Z=(z,t,k)\in\R^4$ & $(Z_1,Z_2)\in\R^8$\\
+\texttt{physical} & off & $z\in\R^{2N}$ & $(u,v)\in\R^{4N}$\\
+\texttt{physical} & on & $z\in\R^{2N}$ & $(u,v)\in\R^{4N}$\\
+\texttt{fully\_extended} & on & $Z=(z,t,k)\in\R^4$ & $(Z_1,Z_2)\in\R^8$\\
 \bottomrule
 \end{tabular}
 \end{center}
-The last two rows currently apply to one guiding-centre particle.  Shared time
-duplicates only the physical coordinates and stores $\kappa=k/2$; the
-triangular momentum update does not feed back into the physical trajectory.
-Fully extended mode duplicates all of $Z$ and may therefore define a different
-physical map.
+Physical tracking reuses the four accepted stage states to advance one
+$\kappa=k/2$ per particle.  This triangular sidecar does not feed back into the
+physical trajectory and does not change the accepted or duplicated dimensions.
+Fully extended mode, which currently applies to one guiding-centre particle,
+always enables energy evolution, duplicates all of $Z$, and may therefore
+define a different physical map.
 
 \section{Symmetry, order, and geometry}
 
@@ -83,8 +85,9 @@ trajectory or its diagnostics.
 
 The public class is implemented in
 \texttt{src/simulation/methods/abba/order2\_midpoint.py}.  It reuses the common
-endpoint-time stages from \texttt{abba/\_core.py}; shared-time and fully
-extended kernels are selected by the same public class.  The companion
+endpoint-time stages from \texttt{abba/\_core.py}; optional physical energy
+tracking lives in \texttt{abba/\_energy.py}, and the fully extended kernel is
+selected by the same public class.  The companion
 architecture document under \texttt{../simulation/} records the complete
 runtime and observation contract.
 

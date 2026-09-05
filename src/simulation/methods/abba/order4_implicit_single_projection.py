@@ -6,7 +6,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from dynamics import GuidingCenterDynamics, GuidingCenterJacobianSystem
+from dynamics import ExtendedHamiltonianSystem, GuidingCenterJacobianSystem
 
 from .._fully_extended import _integrate_abba_fully_extended
 from ..._fixed import integrate_fixed_grid
@@ -24,10 +24,15 @@ from ._configuration import (
 	_state_dimension_diagnostics,
 )
 from ._core import _ABBAStages, _evaluate_unprojected_stages
-from ._implicit import (
-	_ABBAImplicitConfig,
-	_shared_time_kappa_increment_from_stages,
+from ._energy import (
+	_conjugate_momentum_increment_from_stages,
+	_energy_tracking_diagnostics,
+	_energy_tracking_initial_state,
+	_pack_energy_tracking_state,
+	_unpack_energy_tracking_state,
+	_validate_energy_tracking,
 )
+from ._implicit import _ABBAImplicitConfig
 from ._projection_common import (
 	_checked_vector_field_jacobian,
 	_differentiate_stages,
@@ -619,16 +624,13 @@ def _integrate_abba4_implicit_single_projection(
 		raise TypeError(f"{method_name} requires GuidingCenterJacobianSystem.")
 	if dynamics.state_dimension != 2:
 		raise TypeError(f"{method_name} requires planar two-component dynamics.")
-	shared_time_extension = method.state_extension == "shared_time"
-	if shared_time_extension:
-		if not isinstance(dynamics, GuidingCenterDynamics):
-			raise TypeError(
-				f"{method_name} requires GuidingCenterDynamics for shared_time."
-			)
-		if np.asarray(problem.initial_state).shape != (2,):
-			raise ValueError(
-				f"{method_name} requires exactly one GC particle for shared_time."
-			)
+	_validate_energy_tracking(
+		dynamics,
+		enabled=method.track_energy,
+		method_name=method_name,
+	)
+	physical_size = problem.initial_state.size
+	particle_count = physical_size // dynamics.state_dimension
 	if method.nonlinear_solver == "newton":
 		_checked_vector_field_jacobian(
 			dynamics,
@@ -667,26 +669,12 @@ def _integrate_abba4_implicit_single_projection(
 		step_index: int,
 		observe: bool,
 	) -> np.ndarray:
-		if shared_time_extension:
-			extended_before = np.asarray(state, dtype=float)
-			if extended_before.shape != (4,) or not np.all(np.isfinite(extended_before)):
-				raise ValueError(
-					"The accepted shared-time state must use finite (x,y,t,kappa) order."
-				)
-			time_tolerance = 64.0 * np.finfo(float).eps * max(1.0, abs(t))
-			if not np.isclose(
-				float(extended_before[2]),
-				t,
-				rtol=0.0,
-				atol=float(time_tolerance),
-			):
-				raise RuntimeError(
-					"The shared-time extension and integration-grid times diverged."
-				)
-			state_before = extended_before[:2]
-		else:
-			extended_before = None
-			state_before = np.asarray(state, dtype=float)
+		state_before, momentum_before = _unpack_energy_tracking_state(
+			state,
+			physical_size=physical_size,
+			particle_count=particle_count,
+			enabled=method.track_energy,
+		)
 		result = solve_step(t, state_before, step)
 		if observe:
 			state_scale = max(1.0, float(np.linalg.norm(state_before, ord=np.inf)))
@@ -737,38 +725,42 @@ def _integrate_abba4_implicit_single_projection(
 						),
 					)
 				)
-		if not shared_time_extension:
-			return result.state
-		assert extended_before is not None
-		assert isinstance(dynamics, GuidingCenterDynamics)
-		kappa_after = float(extended_before[3])
-		current_time = float(t)
-		for coefficient, stages in zip(
-			_ABBA4_COEFFICIENTS,
-			result.substeps,
-			strict=True,
-		):
-			duration = float(coefficient * step)
-			kappa_after += _shared_time_kappa_increment_from_stages(
-				dynamics,
-				current_time,
-				duration,
-				stages,
-			)
-			current_time += duration
-		return np.concatenate((result.state, (t + step, kappa_after)))
+		momentum_after = momentum_before
+		if momentum_before is not None:
+			assert isinstance(dynamics, ExtendedHamiltonianSystem)
+			momentum_after = momentum_before.copy()
+			current_time = float(t)
+			for coefficient, stages in zip(
+				_ABBA4_COEFFICIENTS,
+				result.substeps,
+				strict=True,
+			):
+				duration = float(coefficient * step)
+				momentum_after += _conjugate_momentum_increment_from_stages(
+					dynamics,
+					current_time,
+					duration,
+					stages,
+					particle_count=particle_count,
+				)
+				current_time += duration
+		return _pack_energy_tracking_state(result.state, momentum_after)
 
-	initial_state = problem.initial_state
-	if shared_time_extension:
-		initial_state = np.concatenate(
-			(initial_state, (float(request.t_span[0]), 0.0))
-		)
+	initial_state = _energy_tracking_initial_state(
+		problem.initial_state,
+		particle_count=particle_count,
+		enabled=method.track_energy,
+	)
 	history, step_count = integrate_fixed_grid(
 		initial_state,
 		request,
 		advance,
 		progress=bool(method.progress),
 		label=method_name,
+	)
+	states = np.asarray(history[:physical_size])
+	momentum = (
+		np.asarray(history[physical_size:]) if method.track_energy else None
 	)
 	iterations = np.asarray(iteration_counts, dtype=int)
 	residual_evaluations = np.asarray(residual_evaluation_counts, dtype=int)
@@ -809,25 +801,26 @@ def _integrate_abba4_implicit_single_projection(
 		"newton_max_iterations": method.newton_max_iterations,
 		"projection_formulation": method.projection_formulation,
 		"state_extension": method.state_extension,
+		"track_energy": method.track_energy,
 	}
 	diagnostics.update(
 		_state_dimension_diagnostics(
 			method.state_extension,
 			method.projection_formulation,
-			particle_count=problem.initial_state.size // dynamics.state_dimension,
+			particle_count=particle_count,
 		)
 	)
-	if shared_time_extension:
-		diagnostics.update(
-			{
-				"extended_time": np.asarray(history[2]),
-				"extended_kappa": np.asarray(history[3]),
-				"extended_momentum_normalization": "kappa_equals_k_over_2",
-			}
+	diagnostics.update(
+		_energy_tracking_diagnostics(
+			request.output_times,
+			states,
+			momentum,
+			dynamics,
 		)
+	)
 	return IntegrationData(
 		t=request.output_times,
-		states=np.asarray(history[:2] if shared_time_extension else history),
+		states=states,
 		diagnostics=diagnostics,
 	)
 
@@ -840,7 +833,8 @@ class ABBA4ImplicitSingleProjection(_ABBAImplicitConfig):
 	physical copies continuously. A single multiplier is solved around the whole
 	composition, so no projection returns the copies to the diagonal between its
 	three constituent maps. Both projection formulations, both nonlinear solvers,
-	and all three state extensions apply to this one outer projection.
+	and both state strategies apply to this one outer projection. Physical
+	conjugate-momentum tracking is optional and remains outside the splitting.
 	"""
 
 	def integrate(

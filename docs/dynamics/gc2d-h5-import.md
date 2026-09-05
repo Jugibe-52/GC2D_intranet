@@ -45,7 +45,7 @@ The loader accepts the following options:
 | `filename` | Required | Path to the GC2D HDF5 file. |
 | `B` | `1.5` | Non-zero magnetic-field normalization parameter. |
 | `characteristic_length` | `0.06` | Physical fluctuation length `lambda` mapped to `2*pi`. |
-| `characteristic_frequency` | `None` | Positive source frequency `f0=1/tau`; the dominant sorted mode is used when omitted. |
+| `characteristic_frequency` | `None` | Positive source angular frequency `omega0=2*pi/T0`; the dominant sorted mode is used when omitted. |
 | `indx` | `(0, 1)` | Selected mean and fluctuation indices after mode ordering. |
 | `nx`, `ny` | `None` | Optional target sizes for periodic resampling. They must be supplied together. |
 | `denoising` | `False` | Enables Gaussian filtering before optional resampling. |
@@ -71,7 +71,7 @@ The loader reads four datasets from the root of the file:
 | --- | --- | --- |
 | `Rcells` | One-dimensional real array | Sampled x coordinates. |
 | `Zcells` | One-dimensional real array | Sampled y coordinates. |
-| `freqs` | One-dimensional real array | One temporal frequency per stored field. |
+| `freqs` | One-dimensional real array | One angular frequency per stored field. |
 | `fields` | Complex array with shape `(len(freqs), len(Zcells), len(Rcells))` | Mean and oscillatory spatial fields. |
 
 Root HDF5 attributes are copied into the resulting potential as read-only source
@@ -123,34 +123,34 @@ traceability.
 
 ### 4. Nondimensionalize space, time, and the fields
 
-Let `lambda` be `characteristic_length`. Let `f0` be
+Let `lambda` be `characteristic_length`. Let `omega0` be
 `characteristic_frequency`, or the frequency of the first mode after amplitude
 sorting when the argument is omitted. The characteristic period is
-`tau = 1/f0`. The runtime variables follow the article convention:
+`T0 = 2*pi/omega0`. Runtime time counts complete characteristic periods:
 
 ```text
 x_hat = 2*pi*(x - x[0])/lambda
 y_hat = 2*pi*(y - y[0])/lambda
-t_hat = 2*pi*t/tau = 2*pi*f0*t
-f_hat_j = f_j/f0
-Phi_hat = 2*pi*Phi/(f0*lambda**2*B)
+t_hat = t/T0 = omega0*t/(2*pi)
+f_hat_j = omega_j/omega0
+Phi_hat = (2*pi)**2*Phi/(omega0*lambda**2*B)
 ```
 
 The implementation retains a divisor-style provenance value,
 
 ```text
-normalization_factor = f0*lambda**2*B/(2*pi),
+normalization_factor = omega0*lambda**2*B/(2*pi)**2,
 ```
 
 and divides the mean field and every retained fluctuation by that value. The
-dominant mode therefore has dimensionless angular frequency one and temporal
-period `2*pi`. The complete `PHI_2.h5` spatial box has length `0.18`, so the
-default `lambda=0.06` maps it to a dimensionless box of length `6*pi`.
+dominant mode therefore completes one cycle per normalized time unit and has
+temporal period `1`. The complete `PHI_2.h5` spatial box has length `0.18`, so
+the default `lambda=0.06` maps it to a dimensionless box of length `6*pi`.
 
 With the default single-mode selection, the complete potential is therefore
-exactly periodic in runtime time with period `2*pi`. If several modes are
+exactly periodic in runtime time with period `1`. If several modes are
 selected, a finite common temporal period exists only when all normalized
-frequency ratios are commensurate; `2*pi` need not then be a period of the
+frequency ratios are commensurate; `1` need not then be a period of the
 combined field.
 
 If the file contains no retained positive-frequency mode, the normalization
@@ -231,7 +231,7 @@ The physical potential is reconstructed as
 
 ```text
 Phi(t, x, y) = Phi0(x, y)
-             + 2 Re sum_j[C_j(x, y) exp(+i f_hat_j t_hat)].
+             + 2 Re sum_j[C_j(x, y) exp(+i 2*pi*f_hat_j*t_hat)].
 ```
 
 The main runtime methods are:
@@ -244,7 +244,7 @@ The main runtime methods are:
 
 Spatial derivative orders are delegated to the persistent splines. The time
 derivative interface supports `dt=0`, `dt=1`, and `dt=2`. Every oscillatory
-mode is multiplied by `(i*f_hat_j)**dt`; therefore `dt=1` reconstructs
+mode is multiplied by `(i*2*pi*f_hat_j)**dt`; therefore `dt=1` reconstructs
 `Phi_t_hat` and `dt=2` reconstructs `Phi_t_hat_t_hat` with the dimensionless
 frequency of each selected mode.
 The stationary mean contributes only for `dt=0` and contributes zero to both
@@ -284,15 +284,16 @@ extended_momentum_derivative = -Phi_t
 
 Derivative requirements depend on the selected ABBA configuration:
 
-- Newton with `state_extension="physical"` or `"shared_time"` assembles exact
-  particle Jacobians from `Phi_xx`, `Phi_xy`, and `Phi_yy`.
+- Newton with `state_extension="physical"` assembles exact particle Jacobians
+  from `Phi_xx`, `Phi_xy`, and `Phi_yy`, independently of `track_energy`.
 - Newton with `state_extension="fully_extended"` uses that spatial Hessian and
   additionally evaluates `Phi_xt`, `Phi_yt`, and `Phi_tt` to build the analytic
   `4 x 4` extended-vector-field Jacobian.
 - Broyden evaluates the selected residual without analytic residual Jacobians.
-  Physical Broyden therefore needs field values only; shared-time and fully
-  extended Broyden additionally use `Phi_t` for the conjugate-momentum flow,
-  but do not require the Hessian, mixed derivatives, or `Phi_tt`.
+  Physical Broyden with `track_energy=False` therefore needs field values only.
+  Enabling energy tracking additionally uses `Phi_t` for the auxiliary
+  conjugate-momentum update. Fully extended Broyden also uses `Phi_t`, but
+  neither case requires the Hessian, mixed derivatives, or `Phi_tt`.
 
 The spatial second derivatives used by either Newton branch require
 `interpolation_order >= 3`. The HDF5 implementation's frequency-aware `dt=2`

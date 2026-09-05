@@ -5,7 +5,7 @@
 
 The GC2D HDF5 format stores one real mean field and one or more complex
 positive-frequency fields. This module defines their selection,
-nondimensionalization, periodic interpolation and ``exp(+i f t)``
+nondimensionalization, periodic interpolation and ``exp(+i 2*pi*f*t)``
 reconstruction while providing the
 :class:`~potential.Potential` interface required by the current dynamics and
 implicit methods.
@@ -186,13 +186,13 @@ class GC2DH5Potential(Potential):
 
 	The nondimensional runtime field is
 
-	``Phi(t, x, y) = Phi_0(x, y) + 2 Re sum_j[C_j(x, y) exp(+i f_j t)]``.
+	``Phi(t, x, y) = Phi_0(x, y) + 2 Re sum_j[C_j(x, y) exp(+i 2*pi*f_j*t)]``.
 
 	Spatial samples use the GC2D first-axis-x convention without transposing HDF5
 	fields. Runtime coordinates are wrapped into the nondimensional sampled cell
 	and evaluated through periodic rectangular splines. Frequencies are expressed
-	relative to the characteristic source frequency, so the dominant source mode
-	has angular frequency one and temporal period ``2*pi``.
+	relative to the characteristic source frequency in cycles per normalized time
+	unit, so the dominant source mode has frequency one and temporal period one.
 	"""
 
 	def __init__(
@@ -360,7 +360,7 @@ class GC2DH5Potential(Potential):
 		self.characteristic_length = length_scale
 		self.characteristic_period = period_scale
 		self.characteristic_frequency = (
-			None if period_scale is None else 1.0 / period_scale
+			None if period_scale is None else 2.0 * np.pi / period_scale
 		)
 		self.normalization_factor = normalization
 		attribute_values: dict[str, np.ndarray] = {}
@@ -498,10 +498,11 @@ class GC2DH5Potential(Potential):
 				dy=dy,
 				time_dimensions=time.ndim,
 			)
-			# Each temporal derivative contributes one factor i*f_j without
-			# assuming a common or unit angular frequency.
-			phase = np.exp(1j * float(frequency) * time) * (
-				1j * float(frequency)
+			# Frequencies count cycles per normalized time unit, so their angular
+			# rates include 2*pi. Each time derivative contributes one such factor.
+			angular_frequency = 2.0 * np.pi * float(frequency)
+			phase = np.exp(1j * angular_frequency * time) * (
+				1j * angular_frequency
 			) ** int(dt)
 			term = 2.0 * np.real(coefficient * phase)
 			result = term if result is None else result + term
@@ -603,9 +604,9 @@ def load_gc2d_h5_potential(
 	``x_hat = 2*pi*(x-x0)/characteristic_length`` and likewise for ``y``.
 	Source frequencies are divided by ``characteristic_frequency``; when that
 	argument is omitted, the dominant sorted frequency is used. The corresponding
-	characteristic period is ``1/characteristic_frequency`` and the potential is
-	scaled by ``2*pi/(f0*characteristic_length**2*B)``. Consequently, the dominant
-	mode has unit angular frequency and period ``2*pi``.
+	characteristic period is ``2*pi/characteristic_frequency`` and the potential
+	is scaled by ``(2*pi)**2/(omega0*characteristic_length**2*B)``. Consequently,
+	the dominant mode completes one temporal cycle per normalized time unit.
 	"""
 	magnetic_field = float(B)
 	if not np.isfinite(magnetic_field) or magnetic_field == 0:
@@ -670,7 +671,7 @@ def load_gc2d_h5_potential(
 				frequency_scale
 				* length_scale**2
 				* magnetic_field
-				/ (2.0 * np.pi)
+				/ (2.0 * np.pi) ** 2
 			)
 			retained_fields = retained_fields / normalization_factor
 			if mean_value is not None:
@@ -687,7 +688,7 @@ def load_gc2d_h5_potential(
 					frequency_scale
 					* length_scale**2
 					* magnetic_field
-					/ (2.0 * np.pi)
+					/ (2.0 * np.pi) ** 2
 				)
 				if mean_value is not None:
 					mean_value = mean_value / normalization_factor
@@ -764,7 +765,7 @@ def load_gc2d_h5_potential(
 		source_frequencies=selected_source_frequencies,
 		characteristic_length=length_scale,
 		characteristic_period=(
-			None if frequency_scale is None else 1.0 / frequency_scale
+			None if frequency_scale is None else 2.0 * np.pi / frequency_scale
 		),
 		normalization_factor=normalization_factor,
 		attributes=attributes,

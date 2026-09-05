@@ -206,7 +206,7 @@ rectangle "3. Numerical Model" as NumericalModelGroup #FFF5E6 {
     + output_times: ndarray
     --
     + __post_init__(): None
-    + {static} uniform(*, t_span: tuple[float, float] = (0.0, 2*pi), max_step: float, sample_count: int = 361): SimulationRequest
+    + {static} uniform(*, t_span: tuple[float, float] = (0.0, 1.0), max_step: float = 1/10, sample_count: int | None = None): SimulationRequest
   }
 
   interface "NumericalMethod" as NumericalMethod <<methods/base.py>> {

@@ -1383,7 +1383,7 @@ def _integrate_fully_extended(
 def _fully_extended_energy_diagnostics(
 	dynamics: GuidingCenterDynamics,
 	extended_history: np.ndarray,
-) -> dict[str, np.ndarray | str]:
+) -> dict[str, np.ndarray | float | str]:
 	"""Return direct-``k`` energy histories shared by full ABBA runtimes."""
 	physical_hamiltonian = np.asarray(
 		[
@@ -1399,13 +1399,15 @@ def _fully_extended_energy_diagnostics(
 		]
 	)
 	generalized_energy = physical_hamiltonian + extended_history[3]
+	generalized_error = generalized_energy - generalized_energy[0]
 	return {
 		"extended_time": np.asarray(extended_history[2]),
 		"extended_momentum": np.asarray(extended_history[3]),
 		"extended_momentum_normalization": "direct_k",
 		"physical_hamiltonian": physical_hamiltonian,
 		"generalized_energy": generalized_energy,
-		"generalized_energy_error": generalized_energy - generalized_energy[0],
+		"generalized_energy_error": generalized_error,
+		"energy_error": float(np.max(np.abs(generalized_error))),
 	}
 
 
@@ -1618,6 +1620,7 @@ def _integrate_abba_fully_extended(
 		),
 		"projection_formulation": formulation,
 		"state_extension": "fully_extended",
+		"track_energy": True,
 		"projection_placement": projection_placement,
 		"implicit_substeps_per_step": projection_count,
 		"nonlinear_solves_per_step": projection_count,
@@ -1750,6 +1753,7 @@ def _integrate_abba_fully_extended_midpoint(
 		"copy_separation_norms": np.asarray(copy_separation_norms, dtype=float),
 		"projection_kind": "arithmetic_mean",
 		"state_extension": "fully_extended",
+		"track_energy": True,
 		"accepted_internal_state_dimension": 4,
 		"base_splitting_state_dimension": 8,
 		"observer_state_dimension": 4,

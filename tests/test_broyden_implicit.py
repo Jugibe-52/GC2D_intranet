@@ -16,7 +16,6 @@ from simulation import (
 	ABBA4ImplicitSingleProjection,
 	ABBA6Implicit,
 	ABBA_PROJECTION_FORMULATIONS,
-	ABBA_STATE_EXTENSIONS,
 	InitialValueProblem,
 	SimulationRequest,
 	simulate,
@@ -28,6 +27,11 @@ _IMPLICIT_METHODS = (
 	ABBA4Implicit,
 	ABBA4ImplicitSingleProjection,
 	ABBA6Implicit,
+)
+_ENERGY_STRATEGIES = (
+	("physical", False),
+	("physical", True),
+	("fully_extended", True),
 )
 
 
@@ -135,17 +139,21 @@ class ImplicitBroydenTests(unittest.TestCase):
 					events[0].newton_iterations + solves_per_step,
 				)
 
-	def test_broyden_is_residual_only_for_all_methods_and_extensions(self) -> None:
+	def test_broyden_is_residual_only_for_all_methods_and_energy_strategies(
+		self,
+	) -> None:
 		problem = _problem(interpolation_order=2)
-		for method_type, formulation, extension in product(
+		for method_type, formulation, strategy in product(
 			_IMPLICIT_METHODS,
 			ABBA_PROJECTION_FORMULATIONS,
-			ABBA_STATE_EXTENSIONS,
+			_ENERGY_STRATEGIES,
 		):
+			extension, track_energy = strategy
 			with self.subTest(
 				method=method_type.__name__,
 				formulation=formulation,
 				extension=extension,
+				track_energy=track_energy,
 			):
 				solution = simulate(
 					problem,
@@ -153,23 +161,26 @@ class ImplicitBroydenTests(unittest.TestCase):
 						projection_formulation=formulation,
 						nonlinear_solver="broyden",
 						state_extension=extension,
+						track_energy=track_energy,
 						newton_max_iterations=50,
 					),
 					_request(),
 				)
 				self.assertEqual(solution.states.shape, (2, 2))
 
-	def test_newton_abba2_requires_analytic_derivatives_for_every_extension(
+	def test_newton_abba2_requires_derivatives_for_every_energy_strategy(
 		self,
 	) -> None:
 		problem = _problem(interpolation_order=2)
-		for formulation, extension in product(
+		for formulation, strategy in product(
 			ABBA_PROJECTION_FORMULATIONS,
-			ABBA_STATE_EXTENSIONS,
+			_ENERGY_STRATEGIES,
 		):
+			extension, track_energy = strategy
 			with self.subTest(
 				formulation=formulation,
 				extension=extension,
+				track_energy=track_energy,
 			):
 				with self.assertRaisesRegex(ValueError, "interpolation_order"):
 					simulate(
@@ -177,6 +188,7 @@ class ImplicitBroydenTests(unittest.TestCase):
 						ABBA2Implicit(
 							projection_formulation=formulation,
 							state_extension=extension,
+							track_energy=track_energy,
 						),
 						_request(),
 					)
@@ -205,6 +217,7 @@ class ImplicitBroydenTests(unittest.TestCase):
 					solution.diagnostics["projection_jacobian"],
 					"centered_difference_observer_fallback",
 				)
+				self.assertIs(solution.diagnostics["track_energy"], True)
 
 	def test_unknown_solver_fails_for_all_four_methods(self) -> None:
 		for method_type in _IMPLICIT_METHODS:

@@ -17,12 +17,12 @@ from ._implicit import (
 
 @dataclass(frozen=True, slots=True)
 class ABBA2Implicit(_ABBAImplicitConfig):
-	"""Second-order implicit ABBA with twelve supported configurations.
+	"""Second-order implicit ABBA with optional physical energy tracking.
 
 	The two projection formulations define the same accepted map and may be
-	solved by Newton or Broyden. ``state_extension`` selects the physical,
-	shared-time, or fully duplicated ``(z,t,k)`` map; the fully duplicated branch
-	has reduced and simultaneous nonlinear workspaces in ``R^4`` and ``R^12``.
+	solved by Newton or Broyden. ``state_extension`` selects the physical
+	or fully duplicated ``(z,t,k)`` map. Physical energy tracking is a
+	triangular auxiliary update and does not change the accepted physical map.
 	"""
 
 	def integrate(
@@ -51,7 +51,7 @@ class ABBA2Implicit(_ABBAImplicitConfig):
 			nonlinear_solver=self.nonlinear_solver,
 			progress=self.progress,
 			step_observer=self.step_observer,
-			shared_time_extension=self.state_extension == "shared_time",
+			track_energy=self.track_energy,
 		)
 
 

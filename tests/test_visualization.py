@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from inspect import signature
 import subprocess
 import unittest
 from unittest.mock import patch
@@ -17,14 +18,57 @@ from initial_conditions import GCInitialConfiguration
 from potential import Potential
 from simulation import Solution
 from visualization import (
+	animate_abba4_configuration_trajectories,
+	animate_fc_particle_solution,
 	animate_gc_particle_solution,
 	animate_gc_particle_trajectories,
+	animate_gc_area_comparison,
+	animate_gc_area_solution,
+	animate_implicit_method_trajectories,
+	animate_potential,
+	animate_ten_method_trajectory_points,
+	animate_trajectory_points,
 	display_animation,
 )
 
 
 class NotebookPresentationTests(unittest.TestCase):
 	"""Keep animation embedding usable when external encoders fail."""
+
+	def test_animation_defaults_use_saved_samples_at_5_fps(self) -> None:
+		"""Use every saved state and a 200 ms frame interval by default."""
+		solution_animations = (
+			animate_abba4_configuration_trajectories,
+			animate_fc_particle_solution,
+			animate_gc_area_comparison,
+			animate_gc_area_solution,
+			animate_gc_particle_solution,
+			animate_gc_particle_trajectories,
+			animate_implicit_method_trajectories,
+			animate_ten_method_trajectory_points,
+			animate_trajectory_points,
+		)
+		for animation_function in solution_animations:
+			with self.subTest(animation=animation_function.__name__):
+				parameters = signature(animation_function).parameters
+				self.assertIsNone(parameters["frames"].default)
+				self.assertEqual(parameters["interval"].default, 200)
+
+		potential_parameters = signature(animate_potential).parameters
+		self.assertEqual(potential_parameters["t_max"].default, 1.0)
+		self.assertIsNone(potential_parameters["frames"].default)
+		self.assertEqual(potential_parameters["interval"].default, 200)
+		adapter_parameters = signature(Potential.animate).parameters
+		self.assertEqual(adapter_parameters["t_max"].default, 1.0)
+		self.assertIsNone(adapter_parameters["frames"].default)
+		self.assertEqual(adapter_parameters["interval"].default, 200)
+
+		potential = Potential.random(A=0.1, M=2, nx=8, ny=8, seed=7)
+		animation = animate_potential(potential, t_max=10.0)
+		self.assertEqual(animation._save_count, 100)
+		self.assertEqual(animation.event_source.interval, 200)
+		animation._draw_was_started = True
+		plt.close(animation._fig)
 
 	def test_display_animation_falls_back_when_ffmpeg_fails(self) -> None:
 		figure = plt.figure()

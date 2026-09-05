@@ -62,11 +62,12 @@ independent projected ABBA substeps.  Consequently, for one guiding-centre
 particle, it solves three $6\times6$ nonlinear systems rather than three
 $2\times2$ reduced Schur-complement systems.
 
-This note describes the physical-state branch.  The
-\texttt{shared\_time} branch uses the same physical projected solves and adds a
-triangular update of the accepted conjugate momentum.  The
-\texttt{fully\_extended} branch duplicates the complete autonomous state and
-therefore uses different dimensions.
+This note describes the physical-state branch.  Setting
+\texttt{track\_energy=True} uses the same physical projected solves and adds a
+triangular auxiliary update of $\kappa=k/2$ from the accepted stages; it does
+not change the dimensions below.  The \texttt{fully\_extended} branch
+duplicates the complete autonomous state and therefore uses different
+dimensions.
 
 The two physical formulations agree whenever each projection root is locally
 unique and both nonlinear algorithms converge to that root.  Finite stopping

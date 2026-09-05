@@ -22,7 +22,6 @@ from simulation import (
 	ABBA4ImplicitSingleProjection,
 	ABBA6Implicit,
 	ABBA_PROJECTION_FORMULATIONS,
-	ABBA_STATE_EXTENSIONS,
 	InitialValueProblem,
 	SimulationRequest,
 	simulate,
@@ -36,20 +35,29 @@ _IMPLICIT_METHODS = (
 	ABBA6Implicit,
 )
 _NONLINEAR_SOLVERS = ("newton", "broyden")
+_ENERGY_STRATEGIES = (
+	("physical", False),
+	("physical", True),
+	("fully_extended", True),
+)
 _IMPLICIT_CONFIGURATIONS = tuple(
-	product(
+	(method, formulation, solver, extension, track_energy)
+	for method, formulation, solver, (
+		extension,
+		track_energy,
+	) in product(
 		_IMPLICIT_METHODS,
 		ABBA_PROJECTION_FORMULATIONS,
 		_NONLINEAR_SOLVERS,
-		ABBA_STATE_EXTENSIONS,
+		_ENERGY_STRATEGIES,
 	)
 )
 _MIDPOINT_CONFIGURATIONS = tuple(
-	(ABBA2Midpoint, extension) for extension in ABBA_STATE_EXTENSIONS
+	(ABBA2Midpoint, extension, track_energy)
+	for extension, track_energy in _ENERGY_STRATEGIES
 )
 _EXPECTED_DIMENSIONS = {
 	"physical": (2, 4),
-	"shared_time": (4, 6),
 	"fully_extended": (4, 8),
 }
 _EXPECTED_NONLINEAR_SOLVES = {
@@ -103,8 +111,8 @@ def _dense_component_major_jacobian(blocks: np.ndarray) -> np.ndarray:
 class ABBAConfigurationCubeTests(unittest.TestCase):
 	"""Exercise three midpoint variants and the 48 implicit combinations once."""
 
-	implicit_solutions: dict[tuple[str, str, str, str], object] = {}
-	midpoint_solutions: dict[str, object] = {}
+	implicit_solutions: dict[tuple[str, str, str, str, bool], object] = {}
+	midpoint_solutions: dict[tuple[str, bool], object] = {}
 	configuration_failures: dict[tuple[str, ...], Exception] = {}
 
 	@classmethod
@@ -112,8 +120,20 @@ class ABBAConfigurationCubeTests(unittest.TestCase):
 		"""Cache all 51 one-step runs for smoke and equivalence assertions."""
 		problem = _problem()
 		request = _request()
-		for method_type, formulation, solver, extension in _IMPLICIT_CONFIGURATIONS:
-			key = (method_type.__name__, formulation, solver, extension)
+		for (
+			method_type,
+			formulation,
+			solver,
+			extension,
+			track_energy,
+		) in _IMPLICIT_CONFIGURATIONS:
+			key = (
+				method_type.__name__,
+				formulation,
+				solver,
+				extension,
+				track_energy,
+			)
 			try:
 				cls.implicit_solutions[key] = simulate(
 					problem,
@@ -121,6 +141,7 @@ class ABBAConfigurationCubeTests(unittest.TestCase):
 						projection_formulation=formulation,
 						nonlinear_solver=solver,
 						state_extension=extension,
+						track_energy=track_energy,
 						newton_absolute_tolerance=1e-12,
 						newton_relative_tolerance=1e-12,
 						newton_max_iterations=50,
@@ -129,12 +150,15 @@ class ABBAConfigurationCubeTests(unittest.TestCase):
 				)
 			except Exception as exc:  # pragma: no cover - reported by the smoke test
 				cls.configuration_failures[key] = exc
-		for method_type, extension in _MIDPOINT_CONFIGURATIONS:
-			key = (method_type.__name__, extension)
+		for method_type, extension, track_energy in _MIDPOINT_CONFIGURATIONS:
+			key = (method_type.__name__, extension, track_energy)
 			try:
-				cls.midpoint_solutions[extension] = simulate(
+				cls.midpoint_solutions[(extension, track_energy)] = simulate(
 					problem,
-					method_type(state_extension=extension),
+					method_type(
+						state_extension=extension,
+						track_energy=track_energy,
+					),
 					request,
 				)
 			except Exception as exc:  # pragma: no cover - reported by the smoke test
@@ -149,13 +173,26 @@ class ABBAConfigurationCubeTests(unittest.TestCase):
 		)
 
 	def test_all_51_configurations_run_and_report_canonical_dimensions(self) -> None:
-		for method_type, formulation, solver, extension in _IMPLICIT_CONFIGURATIONS:
-			key = (method_type.__name__, formulation, solver, extension)
+		for (
+			method_type,
+			formulation,
+			solver,
+			extension,
+			track_energy,
+		) in _IMPLICIT_CONFIGURATIONS:
+			key = (
+				method_type.__name__,
+				formulation,
+				solver,
+				extension,
+				track_energy,
+			)
 			with self.subTest(
 				method=method_type.__name__,
 				formulation=formulation,
 				solver=solver,
 				extension=extension,
+				track_energy=track_energy,
 			):
 				if key in self.configuration_failures:
 					self.fail(f"{key} failed: {self.configuration_failures[key]}")
@@ -164,6 +201,7 @@ class ABBAConfigurationCubeTests(unittest.TestCase):
 				self.assertTrue(np.all(np.isfinite(solution.states)))
 				diagnostics = solution.diagnostics
 				self.assertEqual(diagnostics["state_extension"], extension)
+				self.assertIs(diagnostics["track_energy"], track_energy)
 				self.assertEqual(
 					diagnostics["projection_formulation"],
 					formulation,
@@ -207,16 +245,21 @@ class ABBAConfigurationCubeTests(unittest.TestCase):
 					_EXPECTED_NONLINEAR_SOLVES[method_type.__name__],
 				)
 
-		for method_type, extension in _MIDPOINT_CONFIGURATIONS:
-			key = (method_type.__name__, extension)
-			with self.subTest(method=method_type.__name__, extension=extension):
+		for method_type, extension, track_energy in _MIDPOINT_CONFIGURATIONS:
+			key = (method_type.__name__, extension, track_energy)
+			with self.subTest(
+				method=method_type.__name__,
+				extension=extension,
+				track_energy=track_energy,
+			):
 				if key in self.configuration_failures:
 					self.fail(f"{key} failed: {self.configuration_failures[key]}")
-				solution = self.midpoint_solutions[extension]
+				solution = self.midpoint_solutions[(extension, track_energy)]
 				self.assertEqual(solution.states.shape, (2, 2))
 				self.assertTrue(np.all(np.isfinite(solution.states)))
 				diagnostics = solution.diagnostics
 				self.assertEqual(diagnostics["state_extension"], extension)
+				self.assertIs(diagnostics["track_energy"], track_energy)
 				self.assertEqual(diagnostics["projection_kind"], "arithmetic_mean")
 				accepted, base = _EXPECTED_DIMENSIONS[extension]
 				self.assertEqual(
@@ -247,22 +290,25 @@ class ABBAConfigurationCubeTests(unittest.TestCase):
 	def test_projection_formulations_are_equivalent_for_every_implicit_variant(
 		self,
 	) -> None:
-		for method_type, solver, extension in product(
+		for method_type, solver, strategy in product(
 			_IMPLICIT_METHODS,
 			_NONLINEAR_SOLVERS,
-			ABBA_STATE_EXTENSIONS,
+			_ENERGY_STRATEGIES,
 		):
+			extension, track_energy = strategy
 			reduced_key = (
 				method_type.__name__,
 				"reduced_multiplier",
 				solver,
 				extension,
+				track_energy,
 			)
 			simultaneous_key = (
 				method_type.__name__,
 				"simultaneous_state_multiplier",
 				solver,
 				extension,
+				track_energy,
 			)
 			if (
 				reduced_key in self.configuration_failures
@@ -273,6 +319,7 @@ class ABBAConfigurationCubeTests(unittest.TestCase):
 				method=method_type.__name__,
 				solver=solver,
 				extension=extension,
+				track_energy=track_energy,
 			):
 				np.testing.assert_allclose(
 					self.implicit_solutions[simultaneous_key].states,
@@ -282,22 +329,25 @@ class ABBAConfigurationCubeTests(unittest.TestCase):
 				)
 
 	def test_newton_and_broyden_converge_to_the_same_implicit_maps(self) -> None:
-		for method_type, formulation, extension in product(
+		for method_type, formulation, strategy in product(
 			_IMPLICIT_METHODS,
 			ABBA_PROJECTION_FORMULATIONS,
-			ABBA_STATE_EXTENSIONS,
+			_ENERGY_STRATEGIES,
 		):
+			extension, track_energy = strategy
 			newton_key = (
 				method_type.__name__,
 				formulation,
 				"newton",
 				extension,
+				track_energy,
 			)
 			broyden_key = (
 				method_type.__name__,
 				formulation,
 				"broyden",
 				extension,
+				track_energy,
 			)
 			if (
 				newton_key in self.configuration_failures
@@ -308,6 +358,7 @@ class ABBAConfigurationCubeTests(unittest.TestCase):
 				method=method_type.__name__,
 				formulation=formulation,
 				extension=extension,
+				track_energy=track_energy,
 			):
 				np.testing.assert_allclose(
 					self.implicit_solutions[broyden_key].states,
@@ -316,27 +367,29 @@ class ABBAConfigurationCubeTests(unittest.TestCase):
 					atol=5e-9,
 				)
 
-	def test_shared_time_preserves_each_physical_map(self) -> None:
+	def test_energy_tracking_preserves_each_physical_map(self) -> None:
 		for method_type, formulation, solver in product(
 			_IMPLICIT_METHODS,
 			ABBA_PROJECTION_FORMULATIONS,
 			_NONLINEAR_SOLVERS,
 		):
-			physical_key = (
+			untracked_key = (
 				method_type.__name__,
 				formulation,
 				solver,
 				"physical",
+				False,
 			)
-			shared_key = (
+			tracked_key = (
 				method_type.__name__,
 				formulation,
 				solver,
-				"shared_time",
+				"physical",
+				True,
 			)
 			if (
-				physical_key in self.configuration_failures
-				or shared_key in self.configuration_failures
+				untracked_key in self.configuration_failures
+				or tracked_key in self.configuration_failures
 			):
 				continue
 			with self.subTest(
@@ -344,34 +397,29 @@ class ABBAConfigurationCubeTests(unittest.TestCase):
 				formulation=formulation,
 				solver=solver,
 			):
-				physical = self.implicit_solutions[physical_key]
-				shared = self.implicit_solutions[shared_key]
-				np.testing.assert_allclose(
-					shared.states,
-					physical.states,
-					rtol=0.0,
-					atol=5e-10 if solver == "broyden" else 5e-12,
+				untracked = self.implicit_solutions[untracked_key]
+				tracked = self.implicit_solutions[tracked_key]
+				np.testing.assert_array_equal(
+					tracked.states,
+					untracked.states,
 				)
-				np.testing.assert_allclose(
-					shared.diagnostics["extended_time"],
-					shared.t,
-					rtol=0.0,
-					atol=0.0,
+				self.assertNotIn(
+					"extended_momentum",
+					untracked.diagnostics,
 				)
 				self.assertEqual(
-					np.asarray(shared.diagnostics["extended_kappa"]).shape,
-					shared.t.shape,
+					np.asarray(tracked.diagnostics["extended_momentum"]).shape,
+					(1, tracked.t.size),
 				)
 				self.assertEqual(
-					float(shared.diagnostics["extended_kappa"][0]),
+					float(tracked.diagnostics["extended_momentum"][0, 0]),
 					0.0,
 				)
+				self.assertGreaterEqual(tracked.diagnostics["energy_error"], 0.0)
 
-		np.testing.assert_allclose(
-			self.midpoint_solutions["shared_time"].states,
-			self.midpoint_solutions["physical"].states,
-			rtol=0.0,
-			atol=5e-12,
+		np.testing.assert_array_equal(
+			self.midpoint_solutions[("physical", True)].states,
+			self.midpoint_solutions[("physical", False)].states,
 		)
 
 	def test_physical_dimensions_scale_with_particle_count(self) -> None:
@@ -406,6 +454,7 @@ class ABBAConfigurationCubeTests(unittest.TestCase):
 				"reduced_multiplier",
 				"newton",
 				"physical",
+				False,
 			)
 			diagnostics = self.implicit_solutions[key].diagnostics
 			substep_residuals = np.asarray(

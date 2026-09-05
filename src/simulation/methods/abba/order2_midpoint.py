@@ -6,7 +6,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from dynamics import DynamicalSystem, GuidingCenterDynamics
+from dynamics import DynamicalSystem, ExtendedHamiltonianSystem
 
 from .._fully_extended import _integrate_abba_fully_extended_midpoint
 from ..._fixed import integrate_fixed_grid
@@ -16,11 +16,19 @@ from ...problem import InitialValueProblem
 from ...request import SimulationRequest
 from ._configuration import (
 	StateExtension,
+	_resolved_track_energy,
 	_state_dimension_diagnostics,
 	_validate_state_extension,
 )
 from ._core import _ABBAStages, _evaluate_unprojected_stages
-from ._implicit import _shared_time_kappa_increment_from_stages
+from ._energy import (
+	_conjugate_momentum_increment_from_stages,
+	_energy_tracking_diagnostics,
+	_energy_tracking_initial_state,
+	_pack_energy_tracking_state,
+	_unpack_energy_tracking_state,
+	_validate_energy_tracking,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -62,24 +70,31 @@ def _midpoint_abba_step(
 
 @dataclass(frozen=True, slots=True)
 class ABBA2Midpoint:
-	"""Second-order midpoint ABBA with three state-extension configurations.
+	"""Second-order midpoint ABBA with optional physical energy tracking.
 
-	The method duplicates the state selected by ``state_extension``, applies the
-	endpoint-time A-B-B-A shears, and averages the two final copies. The average
-	is inexpensive but does not guarantee a symplectic physical map. Midpoint has
-	no residual-formulation or nonlinear-solver axis.
+	The method duplicates the selected physical or fully extended state, applies
+	the endpoint-time A-B-B-A shears, and averages the two final copies. Tracking
+	the physical conjugate momentum is an auxiliary triangular update that does
+	not feed back into this map. Midpoint has no residual-formulation or
+	nonlinear-solver axis.
 	"""
 
 	state_extension: StateExtension = "physical"
 	progress: bool = False
 	step_observer: StepObserver | None = None
+	track_energy: bool = False
 
 	def __post_init__(self) -> None:
-		"""Validate the only configuration axis used by midpoint ABBA."""
+		"""Validate the state strategy and resolve inherent energy tracking."""
 		object.__setattr__(
 			self,
 			"state_extension",
 			_validate_state_extension(self.state_extension),
+		)
+		object.__setattr__(
+			self,
+			"track_energy",
+			_resolved_track_energy(self.track_energy, self.state_extension),
 		)
 
 	def integrate(
@@ -95,16 +110,13 @@ class ABBA2Midpoint:
 			raise TypeError("ABBA2Midpoint requires DynamicalSystem.")
 		if dynamics.state_dimension != 2:
 			raise TypeError("ABBA2Midpoint requires planar two-component dynamics.")
-		shared_time_extension = self.state_extension == "shared_time"
-		if shared_time_extension:
-			if not isinstance(dynamics, GuidingCenterDynamics):
-				raise TypeError(
-					"ABBA2Midpoint requires GuidingCenterDynamics for shared_time."
-				)
-			if np.asarray(problem.initial_state).shape != (2,):
-				raise ValueError(
-					"ABBA2Midpoint requires exactly one GC particle for shared_time."
-				)
+		_validate_energy_tracking(
+			dynamics,
+			enabled=self.track_energy,
+			method_name=type(self).__name__,
+		)
+		physical_size = problem.initial_state.size
+		particle_count = physical_size // dynamics.state_dimension
 
 		copy_separation_norms: list[float] = []
 
@@ -119,26 +131,12 @@ class ABBA2Midpoint:
 				"""Apply the same fixed-time midpoint map to one candidate state."""
 				return _midpoint_abba_step(dynamics, t, candidate, step).state
 
-			if shared_time_extension:
-				extended_before = np.asarray(state, dtype=float)
-				if extended_before.shape != (4,) or not np.all(np.isfinite(extended_before)):
-					raise ValueError(
-						"The accepted shared-time state must use finite (x,y,t,kappa) order."
-					)
-				time_tolerance = 64.0 * np.finfo(float).eps * max(1.0, abs(t))
-				if not np.isclose(
-					float(extended_before[2]),
-					t,
-					rtol=0.0,
-					atol=float(time_tolerance),
-				):
-					raise RuntimeError(
-						"The shared-time extension and integration-grid times diverged."
-					)
-				state_before = extended_before[:2]
-			else:
-				extended_before = None
-				state_before = np.asarray(state, dtype=float)
+			state_before, momentum_before = _unpack_energy_tracking_state(
+				state,
+				physical_size=physical_size,
+				particle_count=particle_count,
+				enabled=self.track_energy,
+			)
 			result = _midpoint_abba_step(dynamics, t, state_before, step)
 			if observe:
 				copy_separation_norms.append(result.copy_separation_norm)
@@ -157,29 +155,36 @@ class ABBA2Midpoint:
 							dynamics=dynamics,
 						)
 					)
-			if not shared_time_extension:
-				return result.state
-			assert extended_before is not None
-			assert isinstance(dynamics, GuidingCenterDynamics)
-			kappa_after = extended_before[3] + _shared_time_kappa_increment_from_stages(
-				dynamics,
-				t,
-				step,
-				result.stages,
-			)
-			return np.concatenate((result.state, (t + step, kappa_after)))
+			momentum_after = momentum_before
+			if momentum_before is not None:
+				assert isinstance(dynamics, ExtendedHamiltonianSystem)
+				momentum_after = (
+					momentum_before
+					+ _conjugate_momentum_increment_from_stages(
+						dynamics,
+						t,
+						step,
+						result.stages,
+						particle_count=particle_count,
+					)
+				)
+			return _pack_energy_tracking_state(result.state, momentum_after)
 
-		initial_state = problem.initial_state
-		if shared_time_extension:
-			initial_state = np.concatenate(
-				(initial_state, (float(request.t_span[0]), 0.0))
-			)
+		initial_state = _energy_tracking_initial_state(
+			problem.initial_state,
+			particle_count=particle_count,
+			enabled=self.track_energy,
+		)
 		history, step_count = integrate_fixed_grid(
 			initial_state,
 			request,
 			advance,
 			progress=bool(self.progress),
 			label=type(self).__name__,
+		)
+		states = np.asarray(history[:physical_size])
+		momentum = (
+			np.asarray(history[physical_size:]) if self.track_energy else None
 		)
 		diagnostics: dict[str, np.ndarray | float | int | str | bool] = {
 			"step_count": step_count,
@@ -189,26 +194,27 @@ class ABBA2Midpoint:
 			),
 			"projection_kind": "arithmetic_mean",
 			"state_extension": self.state_extension,
+			"track_energy": self.track_energy,
 			"vector_field_evaluations_per_step": 4,
 		}
 		diagnostics.update(
 			_state_dimension_diagnostics(
 				self.state_extension,
-				particle_count=problem.initial_state.size // dynamics.state_dimension,
+				particle_count=particle_count,
 			)
 		)
 		diagnostics["nonlinear_unknown_dimension"] = 0
-		if shared_time_extension:
-			diagnostics.update(
-				{
-					"extended_time": np.asarray(history[2]),
-					"extended_kappa": np.asarray(history[3]),
-					"extended_momentum_normalization": "kappa_equals_k_over_2",
-				}
+		diagnostics.update(
+			_energy_tracking_diagnostics(
+				request.output_times,
+				states,
+				momentum,
+				dynamics,
 			)
+		)
 		return IntegrationData(
 			t=request.output_times,
-			states=np.asarray(history[:2] if shared_time_extension else history),
+			states=states,
 			diagnostics=diagnostics,
 		)
 

@@ -10,6 +10,7 @@ from simulation import ABBA4ImplicitSingleProjection
 method = ABBA4ImplicitSingleProjection(
     projection_formulation="reduced_multiplier",
     state_extension="physical",
+    track_energy=False,
     nonlinear_solver="newton",
     newton_absolute_tolerance=1e-13,
     newton_relative_tolerance=1e-12,
@@ -24,7 +25,8 @@ from one signed A-B-B-A factor to the next; they are not projected or averaged
 between factors.
 
 The authoritative description of the complete ABBA family, including the
-simultaneous formulation, Broyden, shared-time and fully extended states, is
+simultaneous formulation, Broyden, optional physical energy tracking, and fully
+extended state, is
 [`docs/models/abba/simulation/abba-numerical-architecture.md`](../../abba/simulation/abba-numerical-architecture.md).
 Those axes are intentionally not duplicated here.
 
@@ -259,6 +261,7 @@ For this default physical reduced-Newton configuration, the returned
 | `nonlinear_solver` | `"newton"` |
 | `projection_formulation` | `"reduced_multiplier"` |
 | `state_extension` | `"physical"` |
+| `track_energy` | `False` |
 
 `unprojected_abba_maps_per_step` describes the three-factor topology; actual
 base-map work also depends on `residual_evaluations`.
@@ -370,8 +373,8 @@ solve into an exact algebraic root.
 - One nonlinear solve does not imply one residual evaluation: each Newton
   correction repeats the entire unprojected triple jump and its ordered
   tangent construction.
-- Shared-time, fully extended, simultaneous, and Broyden behavior belongs to
-  the canonical family document linked in the scope section.
+- Physical energy tracking, fully extended, simultaneous, and Broyden behavior
+  belongs to the canonical family document linked in the scope section.
 
 ## Files
 
@@ -384,4 +387,3 @@ solve into an exact algebraic root.
 - [`src/diagnostics/trajectory_symplecticity/jacobians.py`](../../../../src/diagnostics/trajectory_symplecticity/jacobians.py)
 - [`tests/test_abba4_single_projection.py`](../../../../tests/test_abba4_single_projection.py)
 - [`Companion PlantUML source`](abba4-implicit-single-projection-simulation-architecture.puml)
-

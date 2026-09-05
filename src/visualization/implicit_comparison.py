@@ -206,7 +206,7 @@ def animate_implicit_method_trajectories(
 	solutions: Mapping[str, Solution],
 	*,
 	frames: int | None = None,
-	interval: int = 80,
+	interval: int = 200,
 	repeat: bool = True,
 	cmap: str = "RdBu_r",
 	**imshow_kwargs: Any,

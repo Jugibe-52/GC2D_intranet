@@ -130,6 +130,18 @@ class ABBA4ConfigurationAnimationTests(unittest.TestCase):
 				# Sixteen data axes share one seventeenth colorbar axis.
 				self.assertEqual(len(animation._fig.axes), 17)
 				data_axes = animation._fig.axes[:16]
+				row_labels = tuple(
+					data_axes[row * 4].get_ylabel() for row in range(4)
+				)
+				self.assertEqual(
+					row_labels,
+					(
+						"ABBA4 · 3 projections\nphysical + energy · base R4",
+						"ABBA4 · 3 projections\nfully extended · base R8",
+						"SP-ABBA4 · 1 projection\nphysical + energy · base R4",
+						"SP-ABBA4 · 1 projection\nfully extended · base R8",
+					),
+				)
 				self.assertEqual(result.potential.evaluation_count, 1)
 				for axis in data_axes:
 					self.assertEqual(len(axis.images), 1)

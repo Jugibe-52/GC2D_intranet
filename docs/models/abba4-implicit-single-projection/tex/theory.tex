@@ -59,12 +59,14 @@ Every residual evaluation traverses all three ABBA factors.
 
 \section{Configurations}
 
-The class exposes the same orthogonal axes as the other implicit ABBA methods:
-two projection formulations, Newton or Broyden, and physical, shared-time, or
-fully extended state.  The selector values are global to the outer step.  In
-the simultaneous formulation the corrected doubled output joins $\mu$ in the
-unknown; elimination gives the reduced residual above.  State extension
-changes what is duplicated, but never introduces intermediate projection.
+The class exposes the same controls as the other implicit ABBA methods: two
+projection formulations, Newton or Broyden, physical or fully extended state,
+and optional physical energy tracking.  Fully extended execution always
+enables energy evolution.  The selected values are global to the outer step.
+In the simultaneous formulation the corrected doubled output joins $\mu$ in
+the unknown; elimination gives the reduced residual above.  State extension
+changes what is duplicated, while physical tracking adds only a triangular
+$\kappa=k/2$ sidecar.  Neither choice introduces intermediate projection.
 
 \section{Difference from \texttt{ABBA4Implicit}}
 

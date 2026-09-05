@@ -44,7 +44,8 @@ implicit solves.
 
 \section{Implemented configuration space}
 
-\texttt{ABBA4Implicit} is one model with three independent configuration axes:
+\texttt{ABBA4Implicit} is one model with two nonlinear selectors and a
+constrained state/energy strategy:
 \begin{center}
 \begin{tabular}{@{}ll@{}}
 \toprule
@@ -54,7 +55,10 @@ Axis & Values\\
  & \texttt{reduced\_multiplier}, \texttt{simultaneous\_state\_multiplier}\\
 \texttt{nonlinear\_solver} & \texttt{newton}, \texttt{broyden}\\
 \texttt{state\_extension}
- & \texttt{physical}, \texttt{shared\_time}, \texttt{fully\_extended}\\
+ & \texttt{physical}, \texttt{fully\_extended}\\
+\texttt{track\_energy}
+ & \texttt{False}, \texttt{True}; fully extended execution implies
+   \texttt{True}\\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -62,10 +66,11 @@ All three signed substeps use the same selected configuration.  The detailed
 derivation below uses the reduced physical Newton branch because it exposes the
 smallest exact Jacobian.  The simultaneous formulation has the same ideal root
 after block elimination; Broyden approximates the chosen residual Jacobian by
-secant updates.  Shared-time mode duplicates only the physical state, whereas
-fully extended mode duplicates $Z=(z,t,k)$.  These variants change state and
-workspace dimensions but retain the defining policy of one projection after
-each of the three signed ABBA maps.
+secant updates.  Physical \texttt{track\_energy=True} reuses accepted stages to
+advance auxiliary $\kappa=k/2$ without changing the physical map or its
+dimensions, whereas fully extended mode duplicates $Z=(z,t,k)$.  These
+strategies retain the defining policy of one projection after each of the three
+signed ABBA maps.
 
 \section{GC2D system and duplicated phase space}
 The physical state is

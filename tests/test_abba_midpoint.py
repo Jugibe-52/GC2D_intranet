@@ -78,19 +78,56 @@ def _deterministic_gc_dynamics() -> GuidingCenterDynamics:
 class ABBA2MidpointTests(unittest.TestCase):
 	"""Verify stages, geometric limitation, accuracy and observation behavior."""
 
-	def test_configuration_has_three_extensions_but_no_implicit_axes(self) -> None:
-		for extension in ABBA_STATE_EXTENSIONS:
-			with self.subTest(extension=extension):
-				self.assertEqual(
-					ABBA2Midpoint(state_extension=extension).state_extension,
-					extension,
+	def test_configuration_has_two_extensions_and_three_energy_strategies(
+		self,
+	) -> None:
+		self.assertEqual(ABBA_STATE_EXTENSIONS, ("physical", "fully_extended"))
+		strategies = (
+			("physical", False),
+			("physical", True),
+			("fully_extended", True),
+		)
+		for extension, track_energy in strategies:
+			with self.subTest(
+				extension=extension,
+				track_energy=track_energy,
+			):
+				method = ABBA2Midpoint(
+					state_extension=extension,
+					track_energy=track_energy,
 				)
+				self.assertEqual(method.state_extension, extension)
+				self.assertIs(method.track_energy, track_energy)
+		self.assertIs(
+			ABBA2Midpoint(
+				state_extension="fully_extended",
+				track_energy=False,
+			).track_energy,
+			True,
+		)
 		with self.assertRaisesRegex(TypeError, "projection_formulation"):
 			ABBA2Midpoint(  # type: ignore[call-arg]
 				projection_formulation="reduced_multiplier"
 			)
 		with self.assertRaisesRegex(TypeError, "nonlinear_solver"):
 			ABBA2Midpoint(nonlinear_solver="newton")  # type: ignore[call-arg]
+
+	def test_energy_tracking_requires_extended_hamiltonian_capability(self) -> None:
+		dynamics = _TimeOnlyPlanarDynamics()
+		problem = InitialValueProblem(
+			dynamics,
+			TrajectoryGC(np.asarray([1.0, 1.2]), rho=0.05),
+		)
+		with self.assertRaisesRegex(TypeError, "ExtendedHamiltonianSystem"):
+			simulate(
+				problem,
+				ABBA2Midpoint(track_energy=True),
+				SimulationRequest.uniform(
+					t_span=(0.0, 0.1),
+					max_step=0.1,
+					sample_count=2,
+				),
+			)
 
 	def test_non_autonomous_stages_use_both_step_endpoints(self) -> None:
 		dynamics = _TimeOnlyPlanarDynamics()

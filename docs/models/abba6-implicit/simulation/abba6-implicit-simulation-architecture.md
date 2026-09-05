@@ -10,13 +10,14 @@ ABBA6Implicit(
     projection_formulation="reduced_multiplier",
     state_extension="physical",
     nonlinear_solver="newton",
+    track_energy=False,
 )
 ```
 
-`ABBA6Implicit` also supports a simultaneous residual, Broyden, shared time,
-and a fully extended state. Those axes are intentionally not expanded here.
-Their contracts and the complete 51-configuration family are documented in
-the authoritative
+`ABBA6Implicit` also supports a simultaneous residual, Broyden, optional
+physical-state energy tracking, and a fully extended state. Those choices are
+intentionally not expanded here. Their contracts and the complete 51-member
+canonical ABBA family are documented in the authoritative
 [`Canonical ABBA numerical architecture`](../../abba/simulation/abba-numerical-architecture.md).
 
 ## Scoped runtime path
@@ -76,6 +77,7 @@ call path.
 | `projection_formulation` | `"reduced_multiplier"` | Solves one multiplier per constituent ABBA map |
 | `state_extension` | `"physical"` | Carries only the accepted packed physical state |
 | `nonlinear_solver` | `"newton"` | Uses exact residual differentiation |
+| `track_energy` | `False` | Disables the auxiliary physical-state energy sidecar |
 | `newton_absolute_tolerance` | `1e-13` | Absolute stopping contribution for each substep |
 | `newton_relative_tolerance` | `1e-12` | Substep-state-scaled stopping contribution |
 | `newton_max_iterations` | `12` | Maximum corrections in each of seven solves |
@@ -98,6 +100,15 @@ z = [x_1, ..., x_N, y_1, ..., y_N] in R^(2N).
 
 One reduced multiplier also has dimension `2N`. Each Newton correction is
 solved as `N` independent `2 x 2` systems, not as one dense `2N x 2N` solve.
+
+Setting `track_energy=True` leaves these physical, duplicated, multiplier, and
+observer dimensions unchanged. It evolves one auxiliary momentum per particle
+through the seven signed factors, records that projected momentum as
+`extended_momentum` with
+`extended_momentum_normalization="kappa_equals_k_over_2"`, and adds the scalar
+maximum `energy_error`. Physical time remains `Solution.t`. Selecting
+`state_extension="fully_extended"` instead evolves the full canonical state
+and normalizes `track_energy` to `True`.
 
 ## Yoshida seven-stage composition
 
@@ -298,6 +309,7 @@ diagnostics:
 | `projection_formulation` | `"reduced_multiplier"` | Outer formulation |
 | `substep_projection_formulation` | `"reduced_multiplier"` | Formulation shared by all seven solves |
 | `state_extension` | `"physical"` | Scoped accepted state |
+| `track_energy` | `False` | Scoped energy-sidecar setting |
 
 The aggregate main-step arrays have shape `(M,)`:
 
@@ -387,9 +399,9 @@ boundary is identical to the canonical ABBA result path.
   by finite Newton tolerances and round-off. The method does not make a
   symplecticity claim for an arbitrary `GuidingCenterJacobianSystem` merely
   because it satisfies the structural protocol.
-- This companion covers only physical + reduced multiplier + Newton. Use the
-  canonical ABBA document for simultaneous, Broyden, shared-time, and fully
-  extended behavior.
+- This companion covers only physical + reduced multiplier + Newton with
+  energy tracking disabled. Use the canonical ABBA document for simultaneous,
+  Broyden, physical energy-sidecar, and fully extended behavior.
 
 ## Regression evidence
 

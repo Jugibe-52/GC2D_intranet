@@ -349,25 +349,25 @@ class ABBA4ConfigurationComparisonTests(unittest.TestCase):
 					expected_iterations,
 				)
 
-	def test_shared_time_energy_metric_uses_hamiltonian_plus_kappa(self) -> None:
-		"""Reconstruct the shared-time generalized energy independently."""
+	def test_physical_energy_metric_uses_hamiltonian_plus_momentum(self) -> None:
+		"""Reconstruct the tracked physical generalized energy independently."""
 		rows = {row.key: row for row in self.result.summaries()}
 		for variant in ABBA4_CONFIGURATION_VARIANTS:
-			if variant.state_extension != "shared_time":
+			if variant.state_extension != "physical":
 				continue
 			relative_errors: list[np.ndarray] = []
 			for solution in self.result.solutions[variant.key]:
 				diagnostics = solution.diagnostics
-				times = np.asarray(diagnostics["extended_time"], dtype=float)
+				times = solution.t
 				hamiltonian = np.asarray(
 					self.result.dynamics.hamiltonian(times, solution.states),
 					dtype=float,
 				).reshape(-1)
-				kappa = np.asarray(
-					diagnostics["extended_kappa"],
+				momentum = np.asarray(
+					diagnostics["extended_momentum"],
 					dtype=float,
 				).reshape(-1)
-				generalized_energy = hamiltonian + kappa
+				generalized_energy = hamiltonian + momentum
 				scale = max(
 					abs(float(generalized_energy[0])),
 					float(np.finfo(float).eps),
@@ -419,14 +419,15 @@ class ABBA4ConfigurationComparisonTests(unittest.TestCase):
 					atol=1e-18,
 				)
 
-	def test_every_variant_reports_its_literal_r6_or_r8_dimensions(self) -> None:
+	def test_every_variant_reports_its_literal_r4_or_r8_dimensions(self) -> None:
 		"""Distinguish splitting dimensions from nonlinear workspace sizes."""
 		for variant in ABBA4_CONFIGURATION_VARIANTS:
 			diagnostics = self.result.solutions[variant.key][0].diagnostics
-			if variant.state_extension == "shared_time":
+			self.assertIs(diagnostics["track_energy"], True)
+			if variant.state_extension == "physical":
 				expected = (
+					2,
 					4,
-					6,
 					2
 					if variant.projection_formulation == "reduced_multiplier"
 					else 6,

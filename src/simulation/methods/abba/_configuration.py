@@ -16,12 +16,10 @@ ABBA_PROJECTION_FORMULATIONS: tuple[ProjectionFormulation, ...] = (
 
 StateExtension: TypeAlias = Literal[
 	"physical",
-	"shared_time",
 	"fully_extended",
 ]
 ABBA_STATE_EXTENSIONS: tuple[StateExtension, ...] = (
 	"physical",
-	"shared_time",
 	"fully_extended",
 )
 
@@ -40,10 +38,17 @@ def _validate_state_extension(value: str) -> StateExtension:
 	"""Return one supported ABBA state-space strategy."""
 	if value not in ABBA_STATE_EXTENSIONS:
 		raise ValueError(
-			"`state_extension` must be 'physical', 'shared_time', or "
-			"'fully_extended'."
+			"`state_extension` must be 'physical' or 'fully_extended'."
 		)
 	return value
+
+
+def _resolved_track_energy(
+	value: bool,
+	state_extension: StateExtension,
+) -> bool:
+	"""Enable inherent energy evolution for the fully extended formulation."""
+	return bool(value) or state_extension == "fully_extended"
 
 
 def _state_dimension_diagnostics(
@@ -58,20 +63,13 @@ def _state_dimension_diagnostics(
 	if state_extension == "physical":
 		accepted_dimension = 2 * particle_count
 		base_dimension = 4 * particle_count
-	elif state_extension == "shared_time":
-		accepted_dimension = 2 * particle_count + 2
-		base_dimension = 4 * particle_count + 2
 	else:
 		accepted_dimension = 2 * particle_count + 2
 		base_dimension = 4 * particle_count + 4
 	result: dict[str, int | str] = {
 		"accepted_internal_state_dimension": accepted_dimension,
 		"base_splitting_state_dimension": base_dimension,
-		"observer_state_dimension": (
-			accepted_dimension
-			if state_extension != "shared_time"
-			else 2 * particle_count
-		),
+		"observer_state_dimension": accepted_dimension,
 		"observer_state_kind": (
 			"accepted_internal_map"
 			if state_extension == "fully_extended"

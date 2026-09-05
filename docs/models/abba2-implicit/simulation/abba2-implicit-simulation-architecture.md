@@ -1,19 +1,21 @@
 # ABBA2 implicit simulation architecture
 
 This document accompanies
-[`abba2-implicit-simulation-architecture-current-vscode.puml`](abba2-implicit-simulation-architecture-current-vscode.puml).
+[`abba2-implicit-simulation-architecture.puml`](abba2-implicit-simulation-architecture.puml).
 The diagram preserves the horizontal Graphviz structure of the earlier VS Code
 view while describing the current unified `ABBA2Implicit` runtime.
 
 ## Configuration cube
 
-`ABBA2Implicit` is the only public second-order implicit ABBA class. Its three
-independent selector axes provide twelve supported configurations:
+`ABBA2Implicit` is the only public second-order implicit ABBA class. Its two
+nonlinear selectors and three normalized state/energy strategies provide
+twelve canonical configurations:
 
 | Axis | Choices |
 |---|---|
 | `projection_formulation` | `"reduced_multiplier"`, `"simultaneous_state_multiplier"` |
-| `state_extension` | `"physical"`, `"shared_time"`, `"fully_extended"` |
+| `state_extension` | `"physical"`, `"fully_extended"` |
+| `track_energy` | `False`, `True`; fully extended execution always resolves to `True` |
 | `nonlinear_solver` | `"newton"`, `"broyden"` |
 
 The frozen `_ABBAImplicitConfig` stores these selectors together with solver
@@ -21,9 +23,12 @@ tolerances, the iteration limit, progress selection, and the optional step
 observer. Configuration names and state-dimension diagnostics are centralized
 in `src/simulation/methods/abba/_configuration.py`.
 
-The former `ABBA2SharedTimeExtendedImplicit` and
-`ABBA2FullyExtendedImplicit` classes are not part of the current public API.
-Their behavior is selected through `ABBA2Implicit(state_extension=...)`.
+The three state/energy strategies are `(physical, False)`, `(physical, True)`,
+and `(fully_extended, True)`. The former
+`ABBA2SharedTimeExtendedImplicit` behavior is now selected with
+`ABBA2Implicit(state_extension="physical", track_energy=True)`, while the
+former `ABBA2FullyExtendedImplicit` behavior uses
+`state_extension="fully_extended"`. Neither former class is public.
 
 ## Common public path
 
@@ -49,10 +54,9 @@ immutable `Solution`.
 
 `ABBA2Implicit.integrate(...)` selects one of two coordinators.
 
-### Physical and shared-time path
+### Physical path
 
-The `physical` and `shared_time` variants call
-`_integrate_projected_abba(...)` in
+The `physical` variant calls `_integrate_projected_abba(...)` in
 `src/simulation/methods/abba/_implicit.py`. The coordinator:
 
 1. validates the guiding-center Jacobian capability;
@@ -65,10 +69,11 @@ The reduced formulation solves for one multiplier in `R^(2N)`. The
 simultaneous formulation solves for `(u_f, v_f, mu)` in `R^(6N)`. Both use the
 same endpoint-time A--B--B--A stage kernels and return `_ProjectedStep`.
 
-For `shared_time`, the accepted internal state is `(z,t,kappa)` and
-`_shared_time_kappa_increment(...)` advances `kappa = k/2` after the projected
-physical step. The public trajectory still contains only the physical state;
-extended coordinates are retained as diagnostics.
+With `track_energy=True`, `_energy.py` advances one auxiliary
+`kappa = k/2` per particle from the accepted physical stage snapshots. The
+update does not feed back into the projected solve, alter its dimensions, or
+enter the observer map. The public trajectory still contains only the physical
+state; `extended_momentum` and the scalar `energy_error` remain in diagnostics.
 
 ### Fully extended path
 
@@ -88,7 +93,8 @@ The full branch retains the exact base-map Jacobian when observation requires
 it. `_FullProjectedStep`, `_AcceptedFullSubstep`, and `_FullMethodStep` carry
 the accepted internal result through the coordinator. Only the physical
 `z` slice is transferred to the public `Solution`; extended coordinates and
-generalized-energy quantities remain in diagnostics.
+generalized-energy quantities remain in diagnostics. This branch always
+normalizes `track_energy` to `True`.
 
 ## Nonlinear solvers
 
@@ -99,11 +105,15 @@ Jacobian. Broyden iterations reuse `_solve_broyden(...)` from
 
 For one guiding-center particle, the relevant dimensions are:
 
-| State extension | Accepted internal state | Base splitting state | Reduced unknown | Simultaneous unknown |
-|---|---:|---:|---:|---:|
-| `physical` | 2 | 4 | 2 | 6 |
-| `shared_time` | 4 | 6 | 2 | 6 |
-| `fully_extended` | 4 | 8 | 4 | 12 |
+| State extension | `track_energy` | Accepted state | Base splitting state | Reduced unknown | Simultaneous unknown |
+|---|---:|---:|---:|---:|---:|
+| `physical` | `False` | 2 | 4 | 2 | 6 |
+| `physical` | `True` | 2 | 4 | 2 | 6 |
+| `fully_extended` | `True` | 4 | 8 | 4 | 12 |
+
+For `N` physical particles, these four numerical dimensions are `2N`, `4N`,
+`2N`, and `6N` with tracking either off or on. The optional momentum sidecar
+has `N` entries and is not part of any dimension in the table.
 
 ## Fixed grid and observations
 
@@ -113,8 +123,8 @@ diagnostics, and may emit one event. Off-grid requested samples use a shadow
 advance from the preceding main node with `observe=False`; they do not modify
 later states or emit events.
 
-Physical and shared-time main steps emit
-`ABBA2ImplicitIntegrationStep`. Fully extended main steps emit
+Physical main steps emit `ABBA2ImplicitIntegrationStep`, independently of
+energy tracking. Fully extended main steps emit
 `FullyExtendedImplicitIntegrationStep`, including `FullyExtendedBaseMap`
 snapshots when an observer is installed.
 
@@ -124,7 +134,8 @@ snapshots when an observer is installed.
 |---|---|
 | `src/simulation/methods/abba/order2_implicit.py` | Public method and state-extension dispatch |
 | `src/simulation/methods/abba/_configuration.py` | Canonical selector axes and dimension diagnostics |
-| `src/simulation/methods/abba/_implicit.py` | Shared configuration and physical/shared-time coordinator |
+| `src/simulation/methods/abba/_implicit.py` | Shared configuration and physical coordinator |
+| `src/simulation/methods/abba/_energy.py` | Optional physical conjugate-momentum update and energy diagnostics |
 | `src/simulation/methods/abba/_projection_reduced.py` | Reduced physical projection |
 | `src/simulation/methods/abba/_projection_simultaneous.py` | Simultaneous physical projection |
 | `src/simulation/methods/abba/_core.py` | Projection-independent ABBA2 stages |

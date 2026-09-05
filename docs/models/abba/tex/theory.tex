@@ -31,9 +31,10 @@
 
 The ABBA model is a family of integrators built from the same explicit
 $A$--$B$--$B$--$A$ map on two copies of a physical state.  A public class
-selects the order and projection placement; independent configuration axes
-select the projection equations, nonlinear solver, and state extension.  These
-choices are configurations of a model, not additional model identities.
+selects the order and projection placement; configuration controls select the
+projection equations, nonlinear solver, state extension, and optional physical
+energy tracking.  These choices are configurations of a model, not additional
+model identities.
 
 The family has five public methods:
 \begin{itemize}
@@ -105,33 +106,43 @@ Axis & Canonical values and meaning\\
 Projection formulation & \texttt{reduced\_multiplier};
 \texttt{simultaneous\_state\_multiplier}.\\
 Nonlinear solver & \texttt{newton}; \texttt{broyden}.\\
-State extension & \texttt{physical}; \texttt{shared\_time};
-\texttt{fully\_extended}.\\
+State extension & \texttt{physical}; \texttt{fully\_extended}.\\
+Energy tracking & \texttt{False}; \texttt{True}.  Fully extended execution
+normalizes this value to \texttt{True}.\\
 \bottomrule
 \end{tabular}
 \end{center}
 
-Each implicit class admits $2\times2\times3=12$ configurations.
-\texttt{ABBA2Midpoint} has no nonlinear equations and only the three state
-extensions.  The family therefore contains $4\times12+3=51$ valid public
-configurations while retaining five method classes.
+The state-extension values are \texttt{physical} and
+\texttt{fully\_extended}; physical execution may disable or enable energy
+tracking, while fully extended execution always enables it.  Thus the three
+canonical normalized strategies are
+$(\texttt{physical},\texttt{False})$,
+$(\texttt{physical},\texttt{True})$, and
+$(\texttt{fully\_extended},\texttt{True})$.  Each implicit class admits
+$2\times2\times3=12$ canonical configurations.  \texttt{ABBA2Midpoint} has no
+nonlinear equations and supports the same three strategies.  The family
+therefore contains $4\times12+3=51$ canonical public configurations while
+retaining five method classes.
 
 For one guiding-centre particle, the state dimensions are
 \begin{center}
 \begin{tabular}{@{}lcccc@{}}
 \toprule
-Extension & accepted & split & reduced unknown & simultaneous unknown\\
+Extension and tracking & accepted & split & reduced unknown & simultaneous unknown\\
 \midrule
-physical & $2$ & $4$ & $2$ & $6$\\
-shared time & $4$ & $6$ & $2$ & $6$\\
-fully extended & $4$ & $8$ & $4$ & $12$\\
+physical, off & $2$ & $4$ & $2$ & $6$\\
+physical, on & $2$ & $4$ & $2$ & $6$\\
+fully extended, on & $4$ & $8$ & $4$ & $12$\\
 \bottomrule
 \end{tabular}
 \end{center}
 The simultaneous vector is nonlinear-solver workspace, not a trajectory
-state.  Shared time duplicates only $z$ and carries a single time--momentum
-pair.  Fully extended mode duplicates $Z=(z,t,k)$ and projects the complete
-autonomous state.
+state.  Physical energy tracking reuses the accepted ABBA stages to advance
+one auxiliary normalized momentum $\kappa=k/2$ per particle.  The update is
+triangular: it does not feed back into $z$ and does not change the accepted,
+split, observer, or nonlinear-workspace dimensions.  Fully extended mode
+instead duplicates $Z=(z,t,k)$ and projects the complete autonomous state.
 
 \section{Order by symmetric composition}
 

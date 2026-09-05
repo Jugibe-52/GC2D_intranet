@@ -173,24 +173,30 @@ The public API contains exactly five ABBA numerical-method classes:
 5. `ABBA6Implicit`.
 
 State-space choices are parameters of those methods, not additional public
-method classes. The four implicit methods share three independent
-configuration axes:
+method classes. The four implicit methods share two nonlinear selector axes
+and one constrained state/energy strategy:
 
 | Axis | Canonical values | Meaning |
 |---|---|---|
 | `projection_formulation` | `"reduced_multiplier"`, `"simultaneous_state_multiplier"` | Chooses the nonlinear residual representation. |
 | `nonlinear_solver` | `"newton"`, `"broyden"` | Chooses how that residual is solved. |
-| `state_extension` | `"physical"`, `"shared_time"`, `"fully_extended"` | Chooses which state is duplicated by the ABBA splitting. |
+| `state_extension` | `"physical"`, `"fully_extended"` | Chooses whether ABBA duplicates only the physical state or the complete autonomous state. |
+| `track_energy` | `False`, `True` | Optionally transports the time-conjugate momentum alongside a physical run; fully extended execution always resolves this value to `True`. |
 
 Consequently, each implicit class admits
 
 ```text
-2 projection formulations x 2 nonlinear solvers x 3 state extensions = 12
+2 projection formulations x 2 nonlinear solvers x 3 state/energy strategies = 12
 ```
 
-configurations. `ABBA2Midpoint` has no nonlinear residual and therefore accepts
-only the three `state_extension` values. The complete public family contains
-`4 x 12 + 3 = 51` valid configurations while retaining five method classes.
+canonical configurations. The three normalized strategies are
+`(physical, False)`, `(physical, True)`, and `(fully_extended, True)` for
+`(state_extension, track_energy)`. Passing `track_energy=False` with
+`state_extension="fully_extended"` is accepted but normalized to `True`, so it
+does not create a fourth strategy. `ABBA2Midpoint` has no nonlinear residual
+and supports the same three strategies. The complete public family therefore
+contains `4 x 12 + 3 = 51` canonical configurations while retaining five
+method classes.
 The exported tuples `ABBA_PROJECTION_FORMULATIONS`, `NONLINEAR_SOLVERS`, and
 `ABBA_STATE_EXTENSIONS` expose the canonical values programmatically.
 
@@ -201,6 +207,7 @@ method = ABBA4Implicit(
     projection_formulation="simultaneous_state_multiplier",
     nonlinear_solver="broyden",
     state_extension="fully_extended",
+    track_energy=True,
     newton_absolute_tolerance=1e-14,
     newton_relative_tolerance=1e-13,
     newton_max_iterations=40,
@@ -209,8 +216,8 @@ method = ABBA4Implicit(
 
 The projection and solver selections are global for a composed step. Thus all
 three signed substeps of `ABBA4Implicit`, and all seven signed substeps of
-`ABBA6Implicit`, use the same selected formulation, solver, and state
-extension. They do not make independent per-substep choices.
+`ABBA6Implicit`, use the same selected formulation, solver, state extension,
+and energy-tracking policy. They do not make independent per-substep choices.
 
 The five methods differ in their base composition and projection placement:
 
@@ -230,34 +237,35 @@ selected once for its single outer projection.
 
 For one guiding-centre particle, the complete dimensional convention is:
 
-| `state_extension` | Accepted internal state | Base splitting state | Reduced unknown | Simultaneous unknown |
-|---|---|---|---|---|
-| `"physical"` | `z in R^2` | `(u,v) in R^4` | `mu in R^2` | `(u_f,v_f,mu) in R^6` |
-| `"shared_time"` | `(z,t,kappa) in R^4` | `(u,v,t,k) in R^6` | `mu in R^2` | `(u_f,v_f,mu) in R^6` |
-| `"fully_extended"` | `Z=(z,t,k) in R^4` | `(Z_1,Z_2) in R^8` | `mu in R^4` | `(Z_1f,Z_2f,mu) in R^12` |
+| `state_extension` | `track_energy` | Accepted state | Base splitting state | Reduced unknown | Simultaneous unknown |
+|---|---:|---|---|---|---|
+| `"physical"` | `False` | `z in R^2` | `(u,v) in R^4` | `mu in R^2` | `(u_f,v_f,mu) in R^6` |
+| `"physical"` | `True` | `z in R^2` | `(u,v) in R^4` | `mu in R^2` | `(u_f,v_f,mu) in R^6` |
+| `"fully_extended"` | `True` | `Z=(z,t,k) in R^4` | `(Z_1,Z_2) in R^8` | `mu in R^4` | `(Z_1f,Z_2f,mu) in R^12` |
 
 These literal `R^2/R^4/R^6/R^8/R^12` entries are the one-particle dimensions.
-For `physical` with `N` independent particles, the four columns scale to
-`2N`, `4N`, `2N`, and `6N`; `shared_time` and `fully_extended` currently
-require `N=1`.
+For `physical` with `N` independent particles, the four numerical columns
+scale to `2N`, `4N`, `2N`, and `6N`, whether energy tracking is enabled or not.
+The optional fixed-grid sidecar contains `N` conjugate momenta but is not an
+accepted state, splitting state, or nonlinear unknown. Fully extended execution
+currently requires `N=1`.
 
 The simultaneous unknown is a nonlinear-solver workspace, not an accepted
-trajectory state. In particular, the physical formulation's temporary `R^6`
-solve vector is unrelated to the genuine `R^6` splitting state used by
-`state_extension="shared_time"`.
+trajectory state. In particular, its temporary `R^6` vector is unrelated to
+the optional conjugate-momentum sidecar.
 
-The shared-time strategy duplicates only `z`, shares one `(t,k)` pair, and
-stores the accepted momentum as `kappa=k/2`. Its triangular momentum update
-does not feed back into `z`, so it preserves the physical trajectory of the
-corresponding `state_extension="physical"` configuration. The fully extended
-strategy duplicates the complete autonomous state `Z`, advances direct `k`,
-and can define a different physical map. Both non-physical extensions currently
-require exactly one guiding-centre particle.
+With `state_extension="physical"`, `track_energy=True` reuses the accepted ABBA
+stages to transport one normalized momentum `kappa=k/2` per particle. This
+triangular update does not feed back into `z`, so enabling it preserves the
+physical trajectory exactly. It requires an `ExtendedHamiltonianSystem` and
+adds momentum-derivative evaluations, but it does not define another ABBA
+splitting. The fully extended strategy instead duplicates the complete
+autonomous state `Z`, advances direct `k`, and can define a different physical
+map.
 
-The accepted internal dimension is not always the dimension seen by a step
-observer. Physical and shared-time configurations expose the closed physical
-map `z -> z_next`, so their observer states are in `R^2`; for shared time,
-`extended_time` and `extended_kappa` remain in diagnostics. Fully extended
+Physical configurations expose the closed physical map `z -> z_next` to step
+observers whether or not energy tracking is enabled. The conjugate momentum is
+therefore absent from observer states and Jacobians. Fully extended
 configurations expose the accepted internal map `Z -> Z_next`, so their
 observer states are in `R^4`. This distinction applies to midpoint and implicit
 methods alike.
@@ -282,14 +290,16 @@ the [`Jacobian formula summary`](docs/models/abba4-implicit/tex/jacobian-formula
 and the [`Jacobian diagnostics`](docs/models/abba4-implicit/tex/jacobian-diagnostics.pdf).
 
 Solver-neutral diagnostics include `projection_formulation`,
-`state_extension`, `nonlinear_solver`, `nonlinear_iterations`,
+`state_extension`, `track_energy`, `nonlinear_solver`, `nonlinear_iterations`,
 `residual_evaluations`, `nonlinear_residual_norms`, and
 `nonlinear_tolerances`. They also record
 `accepted_internal_state_dimension`, `base_splitting_state_dimension`, and
 `nonlinear_unknown_dimension`, plus `observer_state_dimension` and
-`observer_state_kind`. Shared-time runs expose `extended_time`,
-`extended_kappa`, and the `kappa_equals_k_over_2` normalization. Fully extended
-runs expose direct `extended_momentum` and generalized-energy diagnostics.
+`observer_state_kind`. Energy-tracked physical runs expose
+`extended_momentum`, `energy_error`, and the `kappa_equals_k_over_2`
+normalization; their time coordinate is the ordinary `Solution.t`. Fully
+extended runs expose direct `extended_momentum`, `extended_time`, the same
+scalar `energy_error`, and detailed generalized-energy histories.
 
 ### Classical explicit methods
 

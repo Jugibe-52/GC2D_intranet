@@ -57,7 +57,7 @@ _METHOD_NAMES: tuple[ABBA4ConfigurationMethod, ...] = (
 	"ABBA4ImplicitSingleProjection",
 )
 _STATE_EXTENSIONS: tuple[StateExtension, ...] = (
-	"shared_time",
+	"physical",
 	"fully_extended",
 )
 _PROJECTION_FORMULATIONS: tuple[ProjectionFormulation, ...] = (
@@ -82,9 +82,8 @@ _METHOD_LABELS: Mapping[ABBA4ConfigurationMethod, str] = MappingProxyType(
 )
 _EXTENSION_LABELS: Mapping[StateExtension, str] = MappingProxyType(
 	{
-		"shared_time": "shared time R6",
+		"physical": "physical R4 + tracked energy",
 		"fully_extended": "fully extended R8",
-		"physical": "physical R4",
 	}
 )
 _FORMULATION_LABELS: Mapping[ProjectionFormulation, str] = MappingProxyType(
@@ -296,10 +295,10 @@ def _readonly_runtime_array(
 
 def _expected_dimensions(variant: ABBA4ConfigurationVariant) -> tuple[int, int, int]:
 	"""Return accepted, base-map, and nonlinear workspace dimensions."""
-	if variant.state_extension == "shared_time":
+	if variant.state_extension == "physical":
 		return (
+			2,
 			4,
-			6,
 			2 if variant.projection_formulation == "reduced_multiplier" else 6,
 		)
 	return (
@@ -316,24 +315,26 @@ def _generalized_energy_history(
 ) -> tuple[np.ndarray, np.ndarray]:
 	"""Return aligned generalized energy and drift for one trajectory.
 
-	The shared-time solver stores the conjugate momentum but deliberately does
-	not duplicate the fully-extended solver's energy diagnostics.  Evaluating
-	the Hamiltonian here gives both extensions the same energy-accounting work
-	inside the wall-clock interval used by the comparison.
+	The tracked physical solver stores the conjugate momentum but does not
+	duplicate the fully extended solver's energy histories. This reconstruction
+	is validation and reporting work outside the timed integration interval.
 	"""
 	diagnostics = solution.diagnostics
-	if variant.state_extension == "shared_time":
+	if variant.state_extension == "physical":
 		hamiltonian = np.asarray(
 			dynamics.hamiltonian(solution.t, solution.states),
 			dtype=float,
 		).reshape(-1)
-		kappa = np.asarray(
-			diagnostics["extended_kappa"],
+		momentum = np.asarray(
+			diagnostics["extended_momentum"],
 			dtype=float,
 		).reshape(-1)
-		if hamiltonian.shape != solution.t.shape or kappa.shape != solution.t.shape:
-			raise ValueError("Shared-time energy histories are not aligned.")
-		generalized = hamiltonian + kappa
+		if (
+			hamiltonian.shape != solution.t.shape
+			or momentum.shape != solution.t.shape
+		):
+			raise ValueError("Tracked physical energy histories are not aligned.")
+		generalized = hamiltonian + momentum
 		error = generalized - generalized[0]
 	else:
 		generalized = np.asarray(
@@ -433,6 +434,8 @@ class ABBA4ConfigurationComparisonResult:
 					raise ValueError("A trajectory used an inconsistent integration grid.")
 				if diagnostics.get("state_extension") != variant.state_extension:
 					raise ValueError("A trajectory used the wrong state extension.")
+				if diagnostics.get("track_energy") is not True:
+					raise ValueError("Every comparison trajectory must track energy.")
 				if diagnostics.get("projection_formulation") != (
 					variant.projection_formulation
 				):
@@ -574,6 +577,7 @@ def _method_for_variant(
 		method_type = ABBA4ImplicitSingleProjection
 	return method_type(
 		state_extension=variant.state_extension,
+		track_energy=True,
 		projection_formulation=variant.projection_formulation,
 		nonlinear_solver=variant.nonlinear_solver,
 		newton_absolute_tolerance=config.absolute_tolerance,
@@ -770,8 +774,8 @@ def _run_abba4_trajectory_task(
 		context.methods[task.variant_key],
 		context.request,
 	)
-	_generalized_energy_history(context.dynamics, variant, solution)
 	runtime_seconds = perf_counter() - started
+	_generalized_energy_history(context.dynamics, variant, solution)
 	return _ABBA4TrajectoryPayload(
 		variant_key=task.variant_key,
 		particle=task.particle,
@@ -1004,8 +1008,8 @@ def _run_sequential_trajectories(
 			methods[task.variant_key],
 			request,
 		)
-		_generalized_energy_history(dynamics, variant, solution)
 		runtime_seconds = perf_counter() - started
+		_generalized_energy_history(dynamics, variant, solution)
 		runtime_rows[task.variant_key][task.particle] = runtime_seconds
 		solution_rows[task.variant_key][task.particle] = solution
 		if config.progress:

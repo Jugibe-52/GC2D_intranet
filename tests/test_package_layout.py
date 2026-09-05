@@ -25,7 +25,6 @@ from simulation import (
 	RK4,
 )
 from simulation.methods import abba as abba_methods
-from simulation.methods.abba import extensions as abba_extensions
 from simulation.methods import bm4 as bm4_methods
 from simulation.methods import classical as classical_methods
 
@@ -63,7 +62,7 @@ class PackageLayoutTests(unittest.TestCase):
 		)
 		self.assertEqual(
 			ABBA_STATE_EXTENSIONS,
-			("physical", "shared_time", "fully_extended"),
+			("physical", "fully_extended"),
 		)
 		self.assertIsNotNone(RK4)
 		self.assertIsNotNone(ExplicitEuler)
@@ -87,15 +86,13 @@ class PackageLayoutTests(unittest.TestCase):
 			"simulation.methods.abba._projection_simultaneous",
 			"simulation.methods.abba._implicit",
 			"simulation.methods.abba._configuration",
+			"simulation.methods.abba._energy",
 			"simulation.methods.abba._coefficients",
 			"simulation.methods.abba.order2_midpoint",
 			"simulation.methods.abba.order2_implicit",
 			"simulation.methods.abba.order4_implicit",
 			"simulation.methods.abba.order4_implicit_single_projection",
 			"simulation.methods.abba.order6_implicit",
-			"simulation.methods.abba.extensions",
-			"simulation.methods.abba.extensions.shared_time",
-			"simulation.methods.abba.extensions.fully_extended",
 			"simulation.methods.bm4",
 			"simulation.methods.bm4._core",
 			"simulation.methods.bm4._implicit",
@@ -129,6 +126,7 @@ class PackageLayoutTests(unittest.TestCase):
 			"simulation.methods.abba.order4_single_projection_implicit_1",
 			"simulation.methods.abba.order6",
 			"simulation.methods.abba.fully_extended",
+			"simulation.methods.abba.extensions",
 			"simulation.methods.abba_tangent_taylor",
 			"simulation.methods.abba.tangent_taylor",
 			"simulation.methods.bm4_midpoint",
@@ -144,7 +142,6 @@ class PackageLayoutTests(unittest.TestCase):
 			simulation,
 			simulation_methods,
 			abba_methods,
-			abba_extensions,
 		):
 			for name in (
 				"SymmetricProjectedABBA",

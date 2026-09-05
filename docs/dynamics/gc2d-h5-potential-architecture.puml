@@ -54,6 +54,11 @@ class "GC2DH5Potential" as H5Potential <<src/potential/gc2d_h5.py>> {
   + gyroaverage(rho: float): GC2DH5Potential
 }
 
+note right of H5Potential
+  Runtime phase: exp(+i 2*pi*f_j*t)
+  Dominant-mode temporal period: 1
+end note
+
 class "GuidingCenterDynamics" as GCDynamics <<src/dynamics/gc.py>> {
   + {static} state_dimension: int = 2
   + potential: Potential
@@ -79,7 +84,7 @@ class "Potential" as PotentialBase <<src/potential/potential.py>> {
   + electric_field(t: float | ndarray, x: ndarray | None = None, y: ndarray | None = None): tuple[ndarray, ndarray]
   + gyroaverage(rho: float): Potential
   + plot(t: float = 0.0, contours: int | Sequence[float] | None = 12, cmap: str = "RdBu_r", show: bool = True, **kwargs: Any): Any
-  + animate(t_max: float = 2*pi, frames: int = 120, interval: int = 50, cmap: str = "RdBu_r", repeat: bool = True, **kwargs: Any): Any
+  + animate(t_max: float = 1.0, frames: int | None = None, interval: int = 200, cmap: str = "RdBu_r", repeat: bool = True, **kwargs: Any): Any
 }
 
 class "Grid" as GridSupport <<src/potential/grid.py>> {
