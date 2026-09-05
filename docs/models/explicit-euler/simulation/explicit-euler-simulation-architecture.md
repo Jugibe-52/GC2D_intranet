@@ -132,6 +132,4 @@ disabled.
 - [`src/simulation/observation.py`](../../../../src/simulation/observation.py)
 - [`tests/test_euler.py`](../../../../tests/test_euler.py)
 - [`tests/test_package_layout.py`](../../../../tests/test_package_layout.py)
-- [`Dynamical-system contract`](../dynamics/dynamical-system-contract.md)
 - [`Companion PlantUML diagram`](explicit-euler-simulation-architecture.puml)
-

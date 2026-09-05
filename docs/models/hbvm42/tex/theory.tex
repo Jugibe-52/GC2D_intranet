@@ -1,0 +1,83 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}\usepackage[T1]{fontenc}
+\usepackage[provide=*,english]{babel}
+\usepackage{lmodern,microtype,amsmath,amssymb,booktabs,geometry,xcolor,fancyhdr}
+\usepackage[hidelinks]{hyperref}
+\geometry{margin=2.3cm,headheight=14pt}
+\setlength{\parindent}{0pt}\setlength{\parskip}{0.4em}
+\definecolor{gcblue}{RGB}{34,73,110}\definecolor{gcgray}{RGB}{90,96,102}
+\pagestyle{fancy}\fancyhf{}
+\fancyhead[L]{\small\color{gcgray}GC2D: HBVM(4,2)}
+\fancyhead[R]{\small\color{gcgray}Model theory}\fancyfoot[C]{\thepage}
+\begin{document}
+\begin{center}
+ {\LARGE\bfseries\color{gcblue}Hamiltonian Boundary Value Method HBVM(4,2)}\par
+ \vspace{0.35em}{\large Rank-two polynomial path with four Gauss nodes}
+\end{center}
+
+\section{Polynomial-path formulation}
+
+Let $(c_i,b_i)_{i=1}^4$ be four-point Gauss--Legendre quadrature on $[0,1]$.
+For the first two orthonormal shifted Legendre polynomials,
+\[
+P_0(c)=1,\qquad P_1(c)=\sqrt3(2c-1),
+\]
+define
+\[
+I_{i0}=c_i,\qquad I_{i1}=\sqrt3(c_i^2-c_i).
+\]
+HBVM(4,2) solves for two vector coefficients $\gamma_0,\gamma_1$:
+\begin{align}
+Y_i&=y_n+h\sum_{j=0}^1I_{ij}\gamma_j,\\
+R_j(\gamma)&=\gamma_j-
+\sum_{i=1}^4b_iP_j(c_i)f(t_n+c_ih,Y_i)=0.
+\end{align}
+The accepted state is
+\[
+y_{n+1}=y_n+h\sum_{i=1}^4b_i f(t_n+c_ih,Y_i).
+\]
+Equivalently, the Runge--Kutta matrix is
+$A=\mathcal I_2\mathcal P_2^T\Omega_q$ and has rank two.  The nonlinear
+unknown therefore has twice the state dimension, although four stages evaluate
+the line integral.
+
+\section{Order and energy property}
+
+With polynomial degree $s=2$, the method has classical order $2s=4$.
+Four-point Gauss quadrature has degree seven.  For an autonomous polynomial
+Hamiltonian of degree $\nu$, exact polynomial energy conservation follows when
+$k\geq\nu s/2$; hence HBVM(4,2) covers degrees through four.  For a general
+smooth Hamiltonian the quadrature error makes energy conservation approximate,
+with an error that decreases rapidly with the step and quadrature accuracy.
+
+HBVM$(k,s)$ is generally not symplectic when $k>s$.  Thus HBVM(4,2) must not be
+labeled symplectic by construction; map-Jacobian diagnostics measure its
+canonical defect independently of its energy behavior.
+
+\section{Nonlinear configurations}
+
+Newton acts on the reduced residual $(R_0,R_1)$.  The public
+\texttt{jacobian\_method} values are \texttt{analytic},
+\texttt{finite\_difference}, and \texttt{auto}.  Analytic mode assembles exact
+guiding-centre particle blocks at the four stages; finite-difference mode
+differentiates the stage fields; auto selects the available capability.  A
+backtracking correction is used only when the full Newton update increases the
+residual.  The stopping scale is
+\[
+\varepsilon_{\rm abs}+\varepsilon_{\rm rel}
+\max(1,\lVert y_n\rVert_\infty).
+\]
+
+With \texttt{track\_energy=True}, the implementation stores the physical
+Hamiltonian and its drift at saved times.  For explicitly time-dependent
+systems this is a diagnostic, not an invariant claim.
+
+\section{Implementation correspondence}
+
+Coefficients, residuals, Newton assembly, and integration are in
+\path{src/simulation/methods/hbvm/order4.py}.  The simulation document describes
+required Hamiltonian capabilities, work counters, fixed-grid sampling, and
+evaluation studies; shared physical dynamics are documented outside the model
+tree.
+
+\end{document}

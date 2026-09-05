@@ -3,18 +3,21 @@
 from __future__ import annotations
 
 from contextlib import redirect_stderr
+from dataclasses import replace
 import io
 from pathlib import Path
 from typing import ClassVar
 import unittest
+from unittest.mock import patch
 
 import numpy as np
 from scipy.integrate import solve_ivp
 
+import studies.abba4_configuration_comparison as comparison_module
 from diagnostics import ReferenceTrajectoryPaths, StoredReferenceTrajectory
 from dynamics import GuidingCenterDynamics
 from initial_conditions import GCInitialConfiguration
-from potential import Potential
+from potential import GC2DH5Potential, Potential
 from studies.abba4_configuration_comparison import (
 	ABBA4_CONFIGURATION_KEYS,
 	ABBA4_CONFIGURATION_PARTICLE_COUNT,
@@ -27,7 +30,7 @@ from studies.reference_trajectory import potential_fingerprint
 
 
 def _potential() -> Potential:
-	"""Return a compact smooth non-autonomous field for the 160 smoke runs."""
+	"""Return a compact smooth non-autonomous field for short smoke runs."""
 	return Potential.random(
 		A=0.02,
 		M=2,
@@ -109,10 +112,11 @@ class ABBA4ConfigurationComparisonTests(unittest.TestCase):
 	reference: ClassVar[StoredReferenceTrajectory]
 	config: ClassVar[ABBA4ConfigurationComparisonConfig]
 	result: ClassVar[ABBA4ConfigurationComparisonResult]
+	parallel_result: ClassVar[ABBA4ConfigurationComparisonResult]
 
 	@classmethod
 	def setUpClass(cls) -> None:
-		"""Run all 160 short simulations once for shared assertions."""
+		"""Run matching serial and parallel 160-path fixtures once."""
 		cls.potential = _potential()
 		cls.configuration = _configuration()
 		fingerprint = potential_fingerprint(
@@ -138,6 +142,98 @@ class ABBA4ConfigurationComparisonTests(unittest.TestCase):
 			cls.configuration,
 			cls.reference,
 			config=cls.config,
+		)
+		cls.parallel_result = run_abba4_configuration_comparison(
+			cls.potential,
+			cls.configuration,
+			cls.reference,
+			config=replace(cls.config, worker_count=2),
+		)
+
+	def test_worker_count_defaults_to_one_and_requires_positive_integer(
+		self,
+	) -> None:
+		"""Preserve serial execution unless a valid process count is explicit."""
+		self.assertEqual(ABBA4ConfigurationComparisonConfig().worker_count, 1)
+		for invalid in (0, -1, True, 1.5, "2", None):
+			with self.subTest(worker_count=invalid):
+				with self.assertRaisesRegex(
+					ValueError,
+					"`worker_count` must be a positive integer",
+				):
+					ABBA4ConfigurationComparisonConfig(worker_count=invalid)  # type: ignore[arg-type]
+		config = ABBA4ConfigurationComparisonConfig(worker_count=np.int64(2))
+		self.assertEqual(config.worker_count, 2)
+		self.assertIs(type(config.worker_count), int)
+
+	def test_parallel_results_match_sequential_results(self) -> None:
+		"""Process transport must preserve every numerical result and diagnostic."""
+		self.assertEqual(
+			tuple(self.parallel_result.solutions),
+			ABBA4_CONFIGURATION_KEYS,
+		)
+		for key in ABBA4_CONFIGURATION_KEYS:
+			for sequential, parallel in zip(
+				self.result.solutions[key],
+				self.parallel_result.solutions[key],
+			):
+				np.testing.assert_array_equal(parallel.t, sequential.t)
+				np.testing.assert_array_equal(parallel.states, sequential.states)
+				np.testing.assert_array_equal(
+					parallel.source.initial_state,
+					sequential.source.initial_state,
+				)
+				self.assertEqual(
+					tuple(parallel.diagnostics),
+					tuple(sequential.diagnostics),
+				)
+				for name, expected in sequential.diagnostics.items():
+					actual = parallel.diagnostics[name]
+					if isinstance(expected, np.ndarray):
+						np.testing.assert_array_equal(actual, expected)
+					else:
+						self.assertEqual(actual, expected)
+			self.assertEqual(
+				self.parallel_result.runtimes[key].shape,
+				self.result.runtimes[key].shape,
+			)
+			self.assertTrue(
+				np.all(np.isfinite(self.parallel_result.runtimes[key]))
+			)
+			self.assertTrue(np.all(self.parallel_result.runtimes[key] > 0.0))
+
+		metric_names = (
+			"mean_trajectory_error",
+			"final_trajectory_error",
+			"mean_iterations_per_solve",
+			"mean_relative_energy_error",
+		)
+		for sequential, parallel in zip(
+			self.result.summaries(),
+			self.parallel_result.summaries(),
+		):
+			self.assertEqual(parallel.key, sequential.key)
+			for name in metric_names:
+				self.assertEqual(getattr(parallel, name), getattr(sequential, name))
+
+	def test_parallel_results_restore_stable_particle_order(self) -> None:
+		"""Completion order must not leak into public variant or particle rows."""
+		initial_state = self.configuration.initial_state
+		assert initial_state is not None
+		expected = np.column_stack(
+			self.configuration.positions(initial_state)
+		)
+		for key in ABBA4_CONFIGURATION_KEYS:
+			actual = np.stack(
+				[
+					solution.states[:, 0]
+					for solution in self.parallel_result.solutions[key]
+				]
+			)
+			np.testing.assert_array_equal(actual, expected)
+		self.assertEqual(
+			tuple(row.key for row in self.parallel_result.summaries()),
+			ABBA4_CONFIGURATION_KEYS,
 		)
 
 	def test_runs_exactly_sixteen_by_ten_aligned_trajectories(self) -> None:
@@ -354,7 +450,7 @@ class ABBA4ConfigurationComparisonTests(unittest.TestCase):
 			self.assertEqual(actual, expected)
 
 	def test_rejects_non_euclidean_references_before_simulation(self) -> None:
-		"""Do not apply periodic minimum-image errors to the clipped HDF5 model."""
+		"""Keep the study's transport errors on unwrapped trajectories."""
 		periodic = _reference(
 			self.potential,
 			self.configuration,
@@ -488,6 +584,97 @@ class ABBA4ConfigurationComparisonTests(unittest.TestCase):
 		)
 		self.assertEqual(log.count("] Starting particle "), 16)
 		self.assertEqual(log.count("] Completed in "), 16)
+		self.assertIn("ABBA4 comparison: all integrations completed", log)
+
+	def test_parallel_path_reconstructs_h5_potential_and_owns_progress(
+		self,
+	) -> None:
+		"""Exercise the notebook potential snapshot and parent-only progress."""
+		axis = np.arange(8, dtype=float) * (2.0 * np.pi / 8.0)
+		x_mesh, y_mesh = np.meshgrid(axis, axis, indexing="ij")
+		potential = GC2DH5Potential(
+			axis,
+			axis,
+			0.01 * np.cos(x_mesh) * np.cos(y_mesh),
+			np.asarray(
+				[0.002 * np.exp(1j * (x_mesh + y_mesh))],
+				dtype=np.complex128,
+			),
+			np.asarray([0.7]),
+			source_field_indices=np.asarray([1]),
+			attributes={"fixture": np.asarray("parallel-h5")},
+			interpolation_order=3,
+			source_path=Path("/tmp/parallel-h5-fixture.h5"),
+		)
+		configuration = GCInitialConfiguration.from_components(
+			x=np.asarray([1.1]),
+			y=np.asarray([1.3]),
+		)
+		reference = _reference(
+			potential,
+			configuration,
+			fingerprint=potential_fingerprint(
+				GuidingCenterDynamics(potential, rho=0.0).effective_potential
+			),
+		)
+		config = ABBA4ConfigurationComparisonConfig(
+			t_span=(0.0, 0.01),
+			integration_step=0.01,
+			save_interval=0.01,
+			absolute_tolerance=1e-12,
+			relative_tolerance=1e-12,
+			max_iterations=40,
+			progress=True,
+			particle_count=1,
+			worker_count=2,
+		)
+		serial_result = run_abba4_configuration_comparison(
+			potential,
+			configuration,
+			reference,
+			config=replace(config, progress=False, worker_count=1),
+		)
+		progress_output = io.StringIO()
+		with (
+			patch.object(
+				comparison_module,
+				"_run_parallel_trajectories",
+				wraps=comparison_module._run_parallel_trajectories,
+			) as parallel_path,
+			redirect_stderr(progress_output),
+		):
+			result = run_abba4_configuration_comparison(
+				potential,
+				configuration,
+				reference,
+				config=config,
+			)
+
+		parallel_path.assert_called_once()
+		self.assertEqual(tuple(result.solutions), ABBA4_CONFIGURATION_KEYS)
+		for key in ABBA4_CONFIGURATION_KEYS:
+			np.testing.assert_array_equal(
+				result.solutions[key][0].states,
+				serial_result.solutions[key][0].states,
+			)
+			self.assertEqual(
+				tuple(result.solutions[key][0].diagnostics),
+				tuple(serial_result.solutions[key][0].diagnostics),
+			)
+			for name, expected in serial_result.solutions[key][0].diagnostics.items():
+				actual = result.solutions[key][0].diagnostics[name]
+				if isinstance(expected, np.ndarray):
+					np.testing.assert_array_equal(actual, expected)
+				else:
+					self.assertEqual(actual, expected)
+		log = progress_output.getvalue()
+		self.assertIn("with 2 worker processes", log)
+		self.assertIn("Parallel progress [------------------------]", log)
+		self.assertIn("0/16 (0.0%); unfinished 16; workers 2", log)
+		self.assertIn("ETA after first completion", log)
+		self.assertNotIn("] Starting particle ", log)
+		self.assertEqual(log.count("] Completed in "), 16)
+		self.assertIn("progress [########################]; total 100.0%", log)
 		self.assertIn("ABBA4 comparison: all integrations completed", log)
 
 

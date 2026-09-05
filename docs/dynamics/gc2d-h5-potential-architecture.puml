@@ -1,0 +1,124 @@
+@startuml
+allowmixing
+title GC2D HDF5-to-Guiding-Center Dynamics
+
+left to right direction
+
+skinparam shadowing false
+skinparam linetype ortho
+skinparam nodesep 28
+skinparam ranksep 55
+skinparam defaultTextAlignment left
+skinparam classAttributeIconSize 0
+skinparam wrapWidth 240
+
+hide circle
+hide empty members
+
+class "GC2D HDF5 file" as HDF5Source <<data>> {
+  + Rcells: ndarray[float]
+  + Zcells: ndarray[float]
+  + freqs: ndarray[float]
+  + fields: ndarray[complex, frequency, y, x]
+  + root_attributes: Mapping[str, Any]
+}
+
+rectangle "<b>load_gc2d_h5_potential</b>\n<i>src/potential/gc2d_h5.py</i>\n\n<b>IN</b>\nfilename: str | PathLike[str]\nB: float = 1.5\ncharacteristic_length: float = 0.06\ncharacteristic_frequency: float | None = None\nindx: int | Sequence[int] | ndarray | None = (0, 1)\nnx: int | None = None\nny: int | None = None\ndenoising: bool = False\nsigma: float = 1.0\ninterpolation_order: int = 3\n\n<b>OUT</b>\nGC2DH5Potential" as ImportPipeline
+
+class "GC2DH5Potential" as H5Potential <<src/potential/gc2d_h5.py>> {
+  + x: ndarray
+  + y: ndarray
+  + mean_value: ndarray | None
+  + fluctuations: ndarray | None
+  + frequencies: ndarray
+  + freqs: ndarray
+  + source_field_indices: ndarray
+  + source_x: ndarray
+  + source_y: ndarray
+  + source_frequencies: ndarray
+  + characteristic_length: float | None
+  + characteristic_frequency: float | None
+  + characteristic_period: float | None
+  + normalization_factor: float
+  + attributes: Mapping[str, ndarray]
+  + source_path: Path | None
+  - _mean_spline: _ComplexSpline | None
+  - _fluctuation_splines: tuple[_ComplexSpline, ...]
+  --
+  + __init__(x: ndarray, y: ndarray, mean_value: ndarray | None, fluctuations: ndarray | None, frequencies: ndarray | Sequence[float], source_field_indices: ndarray | Sequence[int] | None = None, source_x: ndarray | Sequence[float] | None = None, source_y: ndarray | Sequence[float] | None = None, source_frequencies: ndarray | Sequence[float] | None = None, characteristic_length: float | None = None, characteristic_period: float | None = None, normalization_factor: float = 1.0, attributes: Mapping[str, Any] | None = None, interpolation_order: int = 3, source_path: str | PathLike[str] | None = None): None
+  - {static} _validate_derivatives(dx: int, dy: int, dt: int): None
+  - _spatial_coefficient(field: ndarray, interpolator: _ComplexSpline, x: ndarray | None, y: ndarray | None, dx: int, dy: int, time_dimensions: int): ndarray
+  - _zero_result(time: ndarray, x: ndarray | None, y: ndarray | None, dx: int, dy: int): ndarray
+  + dynamic_part(t: float | ndarray, x: ndarray | None = None, y: ndarray | None = None, dx: int = 0, dy: int = 0, dt: int = 0): ndarray
+  + evaluate(t: float | ndarray, x: ndarray | None = None, y: ndarray | None = None, dx: int = 0, dy: int = 0, dt: int = 0): ndarray
+  + gyroaverage(rho: float): GC2DH5Potential
+}
+
+class "GuidingCenterDynamics" as GCDynamics <<src/dynamics/gc.py>> {
+  + {static} state_dimension: int = 2
+  + potential: Potential
+  + rho: float
+  + effective_potential: Potential
+  --
+  + __init__(potential: Potential, rho: float = 0.0): None
+  + vector_field(t: float, state: ndarray): ndarray
+  + particle_vector_field_jacobians(t: float, state: ndarray): ndarray
+  + hamiltonian(t: float | ndarray, state: ndarray): ndarray
+  + extended_momentum_derivative(t: float, state: ndarray): ndarray
+}
+
+class "Potential" as PotentialBase <<src/potential/potential.py>> {
+  + grid: Grid
+  + interpolation_order: int
+  - _coefficient: ndarray
+  - _spline: _Spline
+  --
+  + __init__(grid: Grid, coefficient: ndarray, interpolation_order: int = 3): None
+  + {static} random(A: float, M: int, nx: int, ny: int, seed: int = 27, interpolation_order: int = 3): Potential
+  + evaluate(t: float | ndarray, x: ndarray | None = None, y: ndarray | None = None, dx: int = 0, dy: int = 0, dt: int = 0): ndarray
+  + electric_field(t: float | ndarray, x: ndarray | None = None, y: ndarray | None = None): tuple[ndarray, ndarray]
+  + gyroaverage(rho: float): Potential
+  + plot(t: float = 0.0, contours: int | Sequence[float] | None = 12, cmap: str = "RdBu_r", show: bool = True, **kwargs: Any): Any
+  + animate(t_max: float = 2*pi, frames: int = 120, interval: int = 50, cmap: str = "RdBu_r", repeat: bool = True, **kwargs: Any): Any
+}
+
+class "Grid" as GridSupport <<src/potential/grid.py>> {
+  + x0: float
+  + y0: float
+  + dx: float
+  + dy: float
+  + nx: int
+  + ny: int
+  + period: float
+  + x: ndarray
+  + y: ndarray
+  + shape: tuple[int, int]
+  + xmin: float
+  + xmax: float
+  + ymin: float
+  + ymax: float
+  --
+  + __init__(x0: float, y0: float, dx: float, dy: float, nx: int, ny: int, period: float): None
+  + __post_init__(): None
+  - {static} _axis(origin: float, spacing: float, size: int): ndarray
+  + {static} periodic(nx: int, ny: int, period: float = 2*pi): Grid
+  + normalize(x: ndarray, y: ndarray): tuple[ndarray, ndarray]
+}
+
+rectangle "<b>split_components</b>\n<i>src/dynamics/_layout.py</i>\nIN: state: ndarray, component_count: int\nOUT: tuple[ndarray, ...]\n\n<b>pack_components</b>\nIN: *components: ndarray\nOUT: ndarray" as StateLayout
+
+' HDF5 import and runtime construction.
+HDF5Source --> ImportPipeline : input
+ImportPipeline --> H5Potential : output
+H5Potential --> GCDynamics : potential
+
+' Inheritance, composition, and function calls.
+H5Potential -right-|> PotentialBase
+PotentialBase *-right- GridSupport : grid
+GCDynamics --> PotentialBase : potential
+GCDynamics ..> StateLayout : uses
+
+PotentialBase -[hidden]- StateLayout
+GridSupport -[hidden]- StateLayout
+
+@enduml

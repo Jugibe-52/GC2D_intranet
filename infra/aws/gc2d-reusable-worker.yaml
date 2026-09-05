@@ -1,0 +1,215 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Reusable 32-vCPU GC2D notebook worker that stops when idle.
+
+Parameters:
+  WorkerImageId:
+    Type: AWS::EC2::Image::Id
+    Default: ami-042dc8681de073ac4
+    Description: Ubuntu Server 24.04 LTS x86_64 AMI in eu-central-1.
+  WorkerInstanceType:
+    Type: String
+    Default: c8a.8xlarge
+  InputBucket:
+    Type: String
+    Default: gc2d-frankfurt-20260904-j7m3q9
+  InputKey:
+    Type: String
+    Default: inputs/gc2d_abba4_cloud_job_20260904.tar.gz
+  InputSha256:
+    Type: String
+    Default: 6753c75f0cec4bf367e5c27c7afd19a904c879d41bcbc0220e080cc63f74a01a
+  ResultPrefix:
+    Type: String
+    Default: runs/compare-abba4-r6-r8
+  InitialRunId:
+    Type: String
+    Default: none
+    AllowedPattern: '^(none|[0-9]{8}T[0-9]{6}Z)$'
+    Description: Optional first notebook run performed after provisioning.
+
+Resources:
+  WorkerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: GC2D worker with no inbound network access
+      VpcId: vpc-0d80bb9c1385c3649
+      SecurityGroupIngress: []
+      SecurityGroupEgress:
+        - IpProtocol: '-1'
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: gc2d-worker-sg
+        - Key: Project
+          Value: GC2D
+
+  WorkerInstance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !Ref WorkerImageId
+      InstanceType: !Ref WorkerInstanceType
+      IamInstanceProfile: GC2DWorkerRole
+      InstanceInitiatedShutdownBehavior: stop
+      SecurityGroupIds:
+        - !Ref WorkerSecurityGroup
+      BlockDeviceMappings:
+        - DeviceName: /dev/sda1
+          Ebs:
+            DeleteOnTermination: true
+            Encrypted: true
+            VolumeSize: 30
+            VolumeType: gp3
+      Tags:
+        - Key: Name
+          Value: gc2d-worker
+        - Key: Project
+          Value: GC2D
+        - Key: Job
+          Value: compare-abba4-r6-r8
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          set -Eeuo pipefail
+          exec > >(tee -a /var/log/gc2d-worker-setup.log) 2>&1
+
+          BUCKET="${InputBucket}"
+          INPUT_KEY="${InputKey}"
+          ARCHIVE_SHA256="${InputSha256}"
+          RESULT_PREFIX="${ResultPrefix}"
+          INITIAL_RUN_ID="${InitialRunId}"
+          JOB_DIR="/opt/gc2d"
+          NOTEBOOK="notebooks/experiments/comparison/compare_abba4_r6_r8_configurations.ipynb"
+          SETUP_STATUS="failed"
+
+          publish_setup() {
+            exit_code="$1"
+            set +e
+            printf 'status=%s\nexit_code=%s\n' "$SETUP_STATUS" "$exit_code" \
+              > /tmp/gc2d-worker-setup-status.txt
+            if [ -x /opt/bootstrap-venv/bin/aws ]; then
+              /opt/bootstrap-venv/bin/aws s3 cp /var/log/gc2d-worker-setup.log \
+                "s3://$BUCKET/$RESULT_PREFIX/setup/setup.log"
+              /opt/bootstrap-venv/bin/aws s3 cp /tmp/gc2d-worker-setup-status.txt \
+                "s3://$BUCKET/$RESULT_PREFIX/setup/status.txt"
+            fi
+          }
+
+          finish_setup() {
+            exit_code=$?
+            publish_setup "$exit_code"
+            sync
+            shutdown -h now
+          }
+          trap finish_setup EXIT
+
+          cat >/etc/systemd/system/gc2d-cost-guard.service <<'UNIT'
+          [Unit]
+          Description=Stop the GC2D worker after 60 minutes
+          After=network-online.target
+
+          [Service]
+          Type=oneshot
+          ExecStart=/usr/bin/systemd-run --unit=gc2d-hard-stop --on-active=60m /usr/sbin/shutdown -h now
+          RemainAfterExit=yes
+
+          [Install]
+          WantedBy=multi-user.target
+          UNIT
+          systemctl daemon-reload
+          systemctl enable --now gc2d-cost-guard.service
+
+          export DEBIAN_FRONTEND=noninteractive
+          apt-get update
+          apt-get install -y python3 python3-venv python3-pip build-essential
+
+          python3 -m venv /opt/bootstrap-venv
+          /opt/bootstrap-venv/bin/pip install --upgrade pip
+          /opt/bootstrap-venv/bin/pip install awscli
+
+          mkdir -p "$JOB_DIR/.cloud"
+          /opt/bootstrap-venv/bin/aws s3 cp \
+            "s3://$BUCKET/$INPUT_KEY" /tmp/gc2d-cloud-job.tar.gz
+          echo "$ARCHIVE_SHA256  /tmp/gc2d-cloud-job.tar.gz" | sha256sum -c -
+          tar -xzf /tmp/gc2d-cloud-job.tar.gz -C "$JOB_DIR"
+
+          cd "$JOB_DIR"
+          python3 -m venv .venv
+          .venv/bin/pip install --upgrade pip
+          .venv/bin/pip install -c constraints.txt -e '.[notebook]'
+          cp "$NOTEBOOK" .cloud/notebook-template.ipynb
+          chown -R ubuntu:ubuntu "$JOB_DIR"
+
+          cat >/etc/gc2d-worker.conf <<SETTINGS
+          BUCKET="$BUCKET"
+          RESULT_PREFIX="$RESULT_PREFIX"
+          SETTINGS
+          chmod 0644 /etc/gc2d-worker.conf
+
+          cat >/usr/local/bin/gc2d-run-notebook <<'SCRIPT'
+          #!/bin/bash
+          set -Eeuo pipefail
+
+          if [ "$#" -ne 1 ]; then
+            echo "A UTC run identifier such as 20260904T120000Z is required." >&2
+            exit 2
+          fi
+          RUN_ID="$1"
+          if [[ ! "$RUN_ID" =~ ^[0-9]{8}T[0-9]{6}Z$ ]]; then
+            echo "Invalid UTC run identifier: $RUN_ID" >&2
+            exit 2
+          fi
+
+          exec 9>/var/lock/gc2d-notebook.lock
+          if ! flock -n 9; then
+            echo "Another GC2D notebook job is already running." >&2
+            exit 3
+          fi
+
+          source /etc/gc2d-worker.conf
+          JOB_DIR="/opt/gc2d"
+          NOTEBOOK="notebooks/experiments/comparison/compare_abba4_r6_r8_configurations.ipynb"
+          RUN_ROOT="$RESULT_PREFIX/$RUN_ID"
+          LOG_FILE="/tmp/gc2d-$RUN_ID.log"
+          STATUS="failed"
+          exec > >(tee -a "$LOG_FILE") 2>&1
+
+          finish_job() {
+            exit_code=$?
+            set +e
+            printf '{"status":"%s","exit_code":%s,"run_id":"%s"}\n' \
+              "$STATUS" "$exit_code" "$RUN_ID" >/tmp/gc2d-status.json
+            /opt/bootstrap-venv/bin/aws s3 cp "$LOG_FILE" \
+              "s3://$BUCKET/$RUN_ROOT/execution.log"
+            if [ -f "$JOB_DIR/$NOTEBOOK" ]; then
+              /opt/bootstrap-venv/bin/aws s3 cp "$JOB_DIR/$NOTEBOOK" \
+                "s3://$BUCKET/$RUN_ROOT/executed.ipynb"
+            fi
+            /opt/bootstrap-venv/bin/aws s3 cp /tmp/gc2d-status.json \
+              "s3://$BUCKET/$RUN_ROOT/status.json"
+            sync
+            shutdown -h now
+          }
+          trap finish_job EXIT
+
+          systemd-run --unit="gc2d-job-stop-$RUN_ID" --on-active=60m \
+            /usr/sbin/shutdown -h now
+          cd "$JOB_DIR"
+          cp .cloud/notebook-template.ipynb "$NOTEBOOK"
+          chown ubuntu:ubuntu "$NOTEBOOK"
+          sudo -u ubuntu env MPLBACKEND=Agg MPLCONFIGDIR=/tmp/gc2d-matplotlib \
+            .venv/bin/jupyter execute --inplace --timeout=2900 "$NOTEBOOK"
+          STATUS="success"
+          SCRIPT
+          chmod 0755 /usr/local/bin/gc2d-run-notebook
+
+          SETUP_STATUS="ready"
+          if [ "$INITIAL_RUN_ID" != "none" ]; then
+            publish_setup 0
+            trap - EXIT
+            exec /usr/local/bin/gc2d-run-notebook "$INITIAL_RUN_ID"
+          fi
+
+Outputs:
+  InstanceId:
+    Description: Reusable stopped worker instance identifier
+    Value: !Ref WorkerInstance

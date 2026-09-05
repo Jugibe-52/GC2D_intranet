@@ -1,0 +1,94 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}\usepackage[T1]{fontenc}
+\usepackage[provide=*,english]{babel}
+\usepackage{lmodern,microtype,amsmath,amssymb,booktabs,geometry,xcolor,fancyhdr}
+\usepackage[hidelinks]{hyperref}
+\geometry{margin=2.3cm,headheight=14pt}
+\setlength{\parindent}{0pt}\setlength{\parskip}{0.4em}
+\definecolor{gcblue}{RGB}{34,73,110}\definecolor{gcgray}{RGB}{90,96,102}
+\pagestyle{fancy}\fancyhf{}
+\fancyhead[L]{\small\color{gcgray}GC2D: ABBA4 single projection}
+\fancyhead[R]{\small\color{gcgray}Model theory}\fancyfoot[C]{\thepage}
+\newcommand{\R}{\mathbb{R}}
+\begin{document}
+\begin{center}
+ {\LARGE\bfseries\color{gcblue}ABBA4 Implicit Single Projection}\par
+ \vspace{0.35em}{\large One symmetric projection around an unprojected triple jump}
+\end{center}
+
+\section{Unprojected fourth-order base}
+
+Let $\mathcal A_{q,t}$ be one signed endpoint-time ABBA map on two copies,
+with no intermediate diagonal projection.  Define
+\[
+\gamma=\frac{1}{2-\sqrt[3]{2}},\qquad
+\delta=-\frac{\sqrt[3]{2}}{2-\sqrt[3]{2}}.
+\]
+The complete base map is
+\[
+\mathcal C_{h,t}=
+\mathcal A_{\gamma h,t+(\gamma+\delta)h}
+\circ\mathcal A_{\delta h,t+\gamma h}
+\circ\mathcal A_{\gamma h,t}.
+\]
+Because $2\gamma+\delta=1$ and $2\gamma^3+\delta^3=0$, the palindromic
+composition cancels the leading third-order defect of a symmetric second-order
+base.  The middle duration is negative, and the two copies pass continuously
+through all three factors.
+
+\section{One outer symmetric projection}
+
+For
+\[
+E=\begin{pmatrix}I\\I\end{pmatrix},\quad
+P=\tfrac12\begin{pmatrix}I&I\end{pmatrix},\quad
+G=\begin{pmatrix}I&-I\end{pmatrix},\quad N=G^T,
+\]
+the reduced formulation is
+\begin{align}
+M(\mu)&=\mathcal C_{h,t}(Ez+N\mu),\\
+r(\mu)&=GM(\mu)+2\mu=0,\\
+z^+&=P(M(\mu)+N\mu).
+\end{align}
+If $J_j$ is the Jacobian of signed factor $j$, then
+$J_\mathcal C=J_3J_2J_1$ in execution order and
+\[
+D_\mu r=GJ_\mathcal C N+2I.
+\]
+Every residual evaluation traverses all three ABBA factors.
+
+\section{Configurations}
+
+The class exposes the same orthogonal axes as the other implicit ABBA methods:
+two projection formulations, Newton or Broyden, and physical, shared-time, or
+fully extended state.  The selector values are global to the outer step.  In
+the simultaneous formulation the corrected doubled output joins $\mu$ in the
+unknown; elimination gives the reduced residual above.  State extension
+changes what is duplicated, but never introduces intermediate projection.
+
+\section{Difference from \texttt{ABBA4Implicit}}
+
+Both fourth-order classes use $(\gamma,\delta,\gamma)$, but
+\texttt{ABBA4Implicit} solves three projections and re-embeds a physical state
+between signed factors.  This method solves one projection around the full
+unprojected composition.  Since projection and factor evolution do not
+commute, the classes define different numerical maps rather than two costs for
+the same map.
+
+\section{Properties and limitations}
+
+The ideal method is symmetric and designed for order four.  Geometric claims
+refer to the converged projection root; finite nonlinear tolerances perturb the
+map.  Negative internal time increments require the potential and dynamics to
+be evaluable slightly outside the outer interval.  Observer records preserve
+the three ordered factors so the accepted-map tangent can be reconstructed.
+
+\section{Implementation correspondence}
+
+The public class and outer residual are in
+\path{src/simulation/methods/abba/order4_implicit_single_projection.py}.
+The common ABBA stages and projection helpers live in the neighboring private
+modules.  The companion architecture document under \texttt{../simulation/}
+gives dimensions, diagnostics, and runtime flow.
+
+\end{document}

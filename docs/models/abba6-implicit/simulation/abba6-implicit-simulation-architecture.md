@@ -259,8 +259,8 @@ the complete seven-map composition.
 
 The ABBA2 derivation and ideal-root geometric argument are not duplicated
 here. See
-[`ABBA2_implicit.tex`](../../abba2-implicit/ABBA2_implicit.tex) and its
-[`compiled PDF`](../../abba2-implicit/ABBA2_implicit.pdf).
+[`ABBA2 theory`](../../abba2-implicit/tex/theory.tex) and its
+[`compiled PDF`](../../abba2-implicit/tex/theory.pdf).
 
 ## Fixed grid and shadow advances
 

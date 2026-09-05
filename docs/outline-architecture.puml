@@ -1,0 +1,514 @@
+@startuml
+!pragma layout smetana
+allowmixing
+title Architecture of a GC2D Trajectory Calculation\nDynamics -> Initial State -> Numerical Model -> Solution
+
+' Keep members vertical inside each group; the hidden rightward links below
+' place the four top-level groups in the requested horizontal sequence.
+top to bottom direction
+
+skinparam shadowing false
+skinparam linetype ortho
+skinparam nodesep 18
+skinparam ranksep 38
+skinparam defaultTextAlignment left
+skinparam classAttributeIconSize 0
+skinparam wrapWidth 230
+skinparam packageStyle rectangle
+skinparam ArrowColor #4B5563
+skinparam PackageBorderColor #64748B
+skinparam ClassBorderColor #64748B
+skinparam RectangleBorderColor #64748B
+
+hide circle
+hide empty members
+
+rectangle "1. Dynamics" as DynamicsGroup #EAF4FA {
+  class "Potential" as Potential <<potential/potential.py>> {
+    + grid: Grid
+    + interpolation_order: int
+    --
+    + evaluate(t: float | ndarray, x: ndarray | None = None, y: ndarray | None = None, *, dx: int = 0, dy: int = 0, dt: int = 0): ndarray
+    + electric_field(t: float | ndarray, x: ndarray | None = None, y: ndarray | None = None): tuple[ndarray, ndarray]
+    + gyroaverage(rho: float): Potential
+  }
+
+  interface "DynamicalSystem" as DynamicalSystem <<dynamics/protocols.py>> {
+    + {static} state_dimension: int
+    --
+    + vector_field(t: float, state: ndarray): ndarray
+  }
+
+  class "GuidingCenterDynamics" as GCDynamics <<dynamics/gc.py>> {
+    + {static} state_dimension: int = 2
+    + potential: Potential
+    + rho: float
+    + effective_potential: Potential
+    --
+    + __init__(potential: Potential, *, rho: float = 0.0): None
+    + vector_field(t: float, state: ndarray): ndarray
+    + particle_vector_field_jacobians(t: float, state: ndarray): ndarray
+    + hamiltonian(t: float | ndarray, state: ndarray): ndarray
+    + extended_momentum_derivative(t: float, state: ndarray): ndarray
+  }
+
+  class "FullCyclotronDynamics" as FCDynamics <<dynamics/fc.py>> {
+    + {static} state_dimension: int = 4
+    + potential: Potential
+    + rho: float
+    + eta: float
+    + velocity_scale: float
+    + electric_scale: float
+    + larmor_frequency: float
+    --
+    + __init__(potential: Potential, *, rho: float, eta: float): None
+    + electric_acceleration(t: float, x: ndarray, y: ndarray): tuple[ndarray, ndarray]
+    + vector_field(t: float, state: ndarray): ndarray
+    + hamiltonian(t: float | ndarray, state: ndarray): ndarray
+    + extended_momentum_derivative(t: float, state: ndarray): ndarray
+  }
+
+  rectangle "<b>split_components</b>\n<i>dynamics/_layout.py</i>\nIN: state: ndarray, component_count: int\nOUT: tuple[ndarray, ...]\n\n<b>pack_components</b>\nIN: *components: ndarray\nOUT: ndarray" as DynamicsLayoutFunctions
+
+  GCDynamics ..|> DynamicalSystem
+  FCDynamics ..|> DynamicalSystem
+  GCDynamics o--> Potential : potential
+  FCDynamics o--> Potential : potential
+  GCDynamics ..> DynamicsLayoutFunctions : calls
+  FCDynamics ..> DynamicsLayoutFunctions : calls
+}
+
+rectangle "2. Initial State" as InitialStateGroup #EDF8EE {
+  interface "StateLayout" as StateLayout <<simulation/configuration.py>> {
+    + {static} state_dimension: int
+    --
+    + validate_packed_state_layout(state: ndarray): ndarray
+    + split(state: ndarray): tuple[ndarray, ...]
+    + particle_count(state: ndarray): int
+    + positions(state: ndarray): tuple[ndarray, ndarray]
+  }
+
+  interface "InitialConfiguration" as InitialConfiguration <<simulation/configuration.py>> {
+    + initial_state: ndarray | None
+    + layout: StateLayout
+  }
+
+  class "PackedStateLayout" as PackedStateLayout <<initial_conditions/base.py>> {
+    + {static} state_dimension: int
+    --
+    + split(state: ndarray): tuple[ndarray, ...]
+    + as_blocks(state: ndarray): ndarray
+    + validate_packed_state_layout(state: ndarray): ndarray
+    + from_blocks(blocks: ndarray): ndarray
+    + {static} pack_components(*components: ndarray): ndarray
+    + particle_count(state: ndarray): int
+  }
+
+  abstract class "StateConfiguration" as StateConfiguration <<initial_conditions/base.py>> {
+    - _state: ndarray | None
+    + layout: PackedStateLayout
+    + state: ndarray | None
+    + initial_state: ndarray | None
+    + state_dimension: int
+    --
+    + __init__(state: ndarray | None = None): None
+    + set_initial_state(state: ndarray): None
+    + validate_packed_state_layout(state: ndarray): ndarray
+    + split(state: ndarray): tuple[ndarray, ...]
+    + as_blocks(state: ndarray): ndarray
+    + from_blocks(blocks: ndarray): ndarray
+    + particle_count(state: ndarray): int
+  }
+
+  class "GCState" as GCState <<NamedTuple>> {
+    + x: ndarray
+    + y: ndarray
+  }
+
+  class "FCState" as FCState <<NamedTuple>> {
+    + x: ndarray
+    + y: ndarray
+    + vx: ndarray
+    + vy: ndarray
+  }
+
+  class "GCStateLayout" as GCStateLayout <<initial_conditions/gc.py>> {
+    + {static} state_dimension: int = 2
+    --
+    + split(state: ndarray): GCState
+    + positions(state: ndarray): tuple[ndarray, ndarray]
+  }
+
+  class "FCStateLayout" as FCStateLayout <<initial_conditions/fc.py>> {
+    + {static} state_dimension: int = 4
+    --
+    + split(state: ndarray): FCState
+    + positions(state: ndarray): tuple[ndarray, ndarray]
+  }
+
+  class "GCInitialConfiguration" as GCInitialConfiguration <<initial_conditions/gc.py>> {
+    + layout: GCStateLayout
+    --
+    + {static} pack_components(*components: ndarray): ndarray
+    + {static} from_components(*, x: ndarray, y: ndarray): GCInitialConfiguration
+    + split(state: ndarray): GCState
+    + positions(state: ndarray): tuple[ndarray, ndarray]
+  }
+
+  class "FCInitialConfiguration" as FCInitialConfiguration <<initial_conditions/fc.py>> {
+    + layout: FCStateLayout
+    --
+    + {static} pack_components(*components: ndarray): ndarray
+    + {static} from_components(*, x: ndarray, y: ndarray, vx: ndarray, vy: ndarray): FCInitialConfiguration
+    + velocities(state: ndarray): tuple[ndarray, ndarray]
+    + split(state: ndarray): FCState
+    + positions(state: ndarray): tuple[ndarray, ndarray]
+  }
+
+  class "Area" as Area <<initial_conditions/area.py>> {
+    + shape: Literal["square", "circle"]
+    --
+    + __init__(state: ndarray, *, shape: Literal["square", "circle"], rho: float = 0.0): None
+    + {static} from_components(*, x: ndarray, y: ndarray, shape: Literal["square", "circle"] = "square", rho: float = 0.0): Area
+    + {static} square(*, center: tuple[float, float], side: float, points_per_side: int = 1, rho: float = 0.0): Area
+    + {static} circle(*, center: tuple[float, float], radius: float, points: int = 128, rho: float = 0.0): Area
+    + calculate_area(state: ndarray | None = None, *, period: float | None = None): ndarray
+  }
+
+  class "InitialValueProblem" as InitialValueProblem <<simulation/problem.py>> {
+    + dynamics: DynamicalSystem
+    + initial_configuration: InitialConfiguration
+    + initial_state: ndarray
+    + particle_count: int
+    --
+    + __post_init__(): None
+  }
+
+  StateConfiguration ..|> InitialConfiguration
+  GCStateLayout --|> PackedStateLayout
+  FCStateLayout --|> PackedStateLayout
+  GCStateLayout ..|> StateLayout
+  FCStateLayout ..|> StateLayout
+  GCStateLayout ..> GCState : split output
+  FCStateLayout ..> FCState : split output
+  GCInitialConfiguration --|> StateConfiguration
+  FCInitialConfiguration --|> StateConfiguration
+  GCInitialConfiguration o--> GCStateLayout : shared layout
+  FCInitialConfiguration o--> FCStateLayout : shared layout
+  Area --|> GCInitialConfiguration
+  InitialValueProblem o--> InitialConfiguration : initial_configuration
+}
+
+rectangle "3. Numerical Model" as NumericalModelGroup #FFF5E6 {
+  class "SimulationRequest" as SimulationRequest <<simulation/request.py>> {
+    + t_span: tuple[float, float]
+    + max_step: float
+    + output_times: ndarray
+    --
+    + __post_init__(): None
+    + {static} uniform(*, t_span: tuple[float, float] = (0.0, 2*pi), max_step: float, sample_count: int = 361): SimulationRequest
+  }
+
+  interface "NumericalMethod" as NumericalMethod <<methods/base.py>> {
+    + integrate(problem: InitialValueProblem, request: SimulationRequest): IntegrationData
+  }
+
+  rectangle "Classical and HBVM" as ClassicalGroup #FFFBF5 {
+    class "ExplicitEuler" as ExplicitEuler <<classical/euler.py>> {
+      + progress: bool = False
+      + step_observer: StepObserver | None = None
+      --
+      + integrate(problem: InitialValueProblem, request: SimulationRequest): IntegrationData
+    }
+
+    class "RK4" as RK4 <<classical/rk4.py>> {
+      + track_energy: bool = False
+      + progress: bool = False
+      + step_observer: StepObserver | None = None
+      --
+      + integrate(problem: InitialValueProblem, request: SimulationRequest): IntegrationData
+    }
+
+    class "GaussLegendre4" as GaussLegendre4 <<classical/gauss_legendre.py>> {
+      + track_energy: bool = False
+      + newton_absolute_tolerance: float = 1e-14
+      + newton_relative_tolerance: float = 1e-13
+      + newton_max_iterations: int = 20
+      + newton_jacobian_method: GaussJacobianMethod = "auto"
+      + newton_jacobian_relative_step: float = cbrt(eps)
+      + progress: bool = False
+      + step_observer: StepObserver | None = None
+      --
+      + __post_init__(): None
+      + integrate(problem: InitialValueProblem, request: SimulationRequest): IntegrationData
+    }
+
+    class "HBVM42" as HBVM42 <<hbvm/order4.py>> {
+      + absolute_tolerance: float = 1e-13
+      + relative_tolerance: float = 1e-12
+      + max_iterations: int = 12
+      + jacobian_method: HBVMJacobianMethod = "auto"
+      + jacobian_relative_step: float = cbrt(eps)
+      + track_energy: bool = False
+      + progress: bool = False
+      --
+      + __post_init__(): None
+      + integrate(problem: InitialValueProblem, request: SimulationRequest): IntegrationData
+    }
+  }
+
+  rectangle "ABBA family" as ABBAGroup #FFFBF5 {
+    class "ABBA2Midpoint" as ABBA2Midpoint <<abba/order2_midpoint.py>> {
+      + state_extension: StateExtension = "physical"
+      + progress: bool = False
+      + step_observer: StepObserver | None = None
+      --
+      + __post_init__(): None
+      + integrate(problem: InitialValueProblem, request: SimulationRequest): IntegrationData
+    }
+
+    class "_ABBAImplicitConfig" as ABBAImplicitConfig <<abba/_implicit.py>> {
+      + projection_formulation: ProjectionFormulation = "reduced_multiplier"
+      + state_extension: StateExtension = "physical"
+      + newton_absolute_tolerance: float = 1e-13
+      + newton_relative_tolerance: float = 1e-12
+      + newton_max_iterations: int = 12
+      + nonlinear_solver: NonlinearSolver = "newton"
+      + progress: bool = False
+      + step_observer: StepObserver | None = None
+      --
+      + __post_init__(): None
+    }
+
+    class "ABBA2Implicit" as ABBA2Implicit <<abba/order2_implicit.py>> {
+      + integrate(problem: InitialValueProblem, request: SimulationRequest): IntegrationData
+    }
+    class "ABBA4Implicit" as ABBA4Implicit <<abba/order4_implicit.py>> {
+      + integrate(problem: InitialValueProblem, request: SimulationRequest): IntegrationData
+    }
+    class "ABBA4ImplicitSingleProjection" as ABBA4Single <<abba/order4_implicit_single_projection.py>> {
+      + integrate(problem: InitialValueProblem, request: SimulationRequest): IntegrationData
+    }
+    class "ABBA6Implicit" as ABBA6Implicit <<abba/order6_implicit.py>> {
+      + integrate(problem: InitialValueProblem, request: SimulationRequest): IntegrationData
+    }
+
+    ABBA2Implicit --|> ABBAImplicitConfig
+    ABBA4Implicit --|> ABBAImplicitConfig
+    ABBA4Single --|> ABBAImplicitConfig
+    ABBA6Implicit --|> ABBAImplicitConfig
+  }
+
+  rectangle "BM4 family" as BM4Group #FFFBF5 {
+    class "BM4Composition" as BM4Composition <<bm4/_core.py>> {
+      + formulation: DirectAdjointFormulation
+      + track_energy: bool = False
+      + progress: bool = False
+      + stage_observer: StageObserver | None = None
+      --
+      + __post_init__(): None
+      + integrate(problem: InitialValueProblem, request: SimulationRequest): IntegrationData
+    }
+
+    class "ProjectedBM4Composition" as ProjectedBM4 <<bm4/_core.py>> {
+      + integrate(problem: InitialValueProblem, request: SimulationRequest): IntegrationData
+    }
+
+    class "MidpointBM4" as MidpointBM4 <<bm4/midpoint.py>> {
+      + progress: bool = False
+      + stage_observer: StageObserver | None = None
+      --
+      + integrate(problem: InitialValueProblem, request: SimulationRequest): IntegrationData
+    }
+
+    class "_ImplicitBM4" as ImplicitBM4 <<bm4/_implicit.py>> {
+      + coupling_frequency: float = pi/8
+      + newton_absolute_tolerance: float = 1e-13
+      + newton_relative_tolerance: float = 1e-12
+      + newton_max_iterations: int = 12
+      + newton_jacobian_relative_step: float = cbrt(eps)
+      + newton_jacobian_method: NewtonJacobianMethod = "analytic"
+      + nonlinear_solver: NonlinearSolver = "newton"
+      + progress: bool = False
+      + step_observer: StepObserver | None = None
+      --
+      + __post_init__(): None
+      + integrate(problem: InitialValueProblem, request: SimulationRequest): IntegrationData
+    }
+
+    class "BM4Implicit1" as BM4Implicit1 <<bm4/implicit_1.py>> {
+      - {static} _step_solver: Callable = _solve_reduced_projected_bm4_step
+      - {static} _solver_formulation: str = "bm4_implicit_1_reduced"
+    }
+    class "BM4Implicit2" as BM4Implicit2 <<bm4/implicit_2.py>> {
+      - {static} _step_solver: Callable = _solve_simultaneous_projected_bm4_step
+      - {static} _solver_formulation: str = "bm4_implicit_2_simultaneous"
+    }
+
+    class "_FullyExtendedImplicitMethod" as FullyExtendedImplicitMethod <<methods/_fully_extended.py>> {
+      + newton_absolute_tolerance: float = 1e-13
+      + newton_relative_tolerance: float = 1e-12
+      + newton_max_iterations: int = 20
+      + nonlinear_solver: NonlinearSolver = "newton"
+      + progress: bool = False
+      + step_observer: StepObserver | None = None
+      --
+      + __post_init__(): None
+      + integrate(problem: InitialValueProblem, request: SimulationRequest): IntegrationData
+    }
+
+    class "BM4_implicit2" as BM4FullyExtended <<bm4/fully_extended.py>> {
+      + coupling_frequency: float = pi/8
+      --
+      + __post_init__(): None
+    }
+
+    ProjectedBM4 --|> BM4Composition
+    BM4Implicit1 --|> ImplicitBM4
+    BM4Implicit2 --|> ImplicitBM4
+    BM4FullyExtended --|> FullyExtendedImplicitMethod
+  }
+
+  rectangle "BM4 formulations" as FormulationGroup #FFFBF5 {
+    interface "DirectAdjointFormulation" as DirectAdjointFormulation <<formulations/base.py>> {
+      + prepare(problem: InitialValueProblem, *, track_energy: bool): PreparedDirectAdjointFormulation
+    }
+    interface "StageProjectedFormulation" as StageProjectedFormulation <<formulations/base.py>> {
+      + prepare(problem: InitialValueProblem, *, track_energy: bool): PreparedStageProjectedFormulation
+    }
+    interface "PreparedDirectAdjointFormulation" as PreparedDirectAdjoint <<formulations/base.py>> {
+      + dynamics: DynamicalSystem
+      + dynamics_name: str
+      + initial_internal_state: ndarray
+      --
+      + direct_map(duration: float, t: float, state: ndarray): ndarray
+      + adjoint_map(duration: float, t: float, state: ndarray): ndarray
+      + project(internal_history: ndarray): tuple[ndarray, diagnostics]
+    }
+    interface "PreparedStageProjectedFormulation" as PreparedStageProjected <<formulations/base.py>> {
+      + supports_stage_projection: bool
+      --
+      + project_internal_state(state: ndarray): ndarray
+    }
+    class "FCSplitFormulation" as FCSplitFormulation <<formulations/fc.py>> {
+      + prepare(problem: InitialValueProblem, *, track_energy: bool): PreparedDirectAdjointFormulation
+    }
+    class "GCExtendedFormulation" as GCExtendedFormulation <<formulations/gc.py>> {
+      + coupling_frequency: float = pi/8
+      --
+      + __post_init__(): None
+      + prepare(problem: InitialValueProblem, *, track_energy: bool): PreparedDirectAdjointFormulation
+    }
+    class "GCStageProjectedFormulation" as GCStageProjectedFormulation <<formulations/gc.py>> {
+      + prepare(problem: InitialValueProblem, *, track_energy: bool): PreparedStageProjectedFormulation
+    }
+    rectangle "<b>gc_coupling_matrix</b>\n<i>formulations/gc.py</i>\nIN: duration: float, frequency: float\nOUT: ndarray" as GCCouplingFunction
+
+    StageProjectedFormulation --|> DirectAdjointFormulation
+    PreparedStageProjected --|> PreparedDirectAdjoint
+    FCSplitFormulation ..|> DirectAdjointFormulation
+    GCExtendedFormulation ..|> DirectAdjointFormulation
+    GCStageProjectedFormulation ..|> StageProjectedFormulation
+    DirectAdjointFormulation ..> PreparedDirectAdjoint : prepare output
+    StageProjectedFormulation ..> PreparedStageProjected : prepare output
+  }
+
+  rectangle "<b>Classical step functions</b>\n\n<b>_solve_gauss_step</b>\nIN: dynamics, time, state, step, Newton configuration\nOUT: _GaussStepResult\n\n<b>_advance_hbvm42</b>\nIN: dynamics, time, state, step, Newton configuration\nOUT: _HBVMStepResult" as ClassicalFunctions
+
+  rectangle "<b>ABBA coordinators and step solvers</b>\n\n<b>_midpoint_abba_step</b>\nIN: dynamics, t, state, step\nOUT: _ABBA2MidpointStep\n\n<b>_step_solver_for</b>\nIN: formulation: ProjectionFormulation\nOUT: Callable[..., _ProjectedStep]\n\n<b>_solve_reduced_multiplier_step</b>\nIN: dynamics, t, state, step, solver configuration\nOUT: _ProjectedStep\n\n<b>_solve_simultaneous_state_multiplier_step</b>\nIN: dynamics, t, state, step, solver configuration\nOUT: _ProjectedStep\n\n<b>_solve_composed_abba_step</b>\nIN: dynamics, t, state, step, coefficients, method/solver configuration\nOUT: _ComposedABBAStep\n\n<b>_solve_abba4_single_projection_step</b>\nIN: dynamics, t, state, step, solver/projection configuration\nOUT: _ABBA4SingleProjectionStep\n\n<b>_integrate_projected_abba</b>\nIN: problem, request, method/solver configuration\nOUT: IntegrationData\n\n<b>_integrate_composed_implicit_abba</b>\nIN: method, problem, request, composition configuration\nOUT: IntegrationData\n\n<b>_integrate_abba4_implicit_single_projection</b>\nIN: method, problem, request\nOUT: IntegrationData\n\n<b>_integrate_abba_fully_extended</b>\nIN: method, problem, request, variant, projection_formulation\nOUT: IntegrationData\n\n<b>_integrate_abba_fully_extended_midpoint</b>\nIN: method, problem, request\nOUT: IntegrationData" as ABBAFunctions
+
+  rectangle "<b>BM4 coordinators</b>\n\n<b>_advance_composition</b>\nIN: prepared, t, state, step, observer/projection configuration\nOUT: ndarray\n\n<b>_integrate_bm4</b>\nIN: method, problem, request, project_each_stage\nOUT: IntegrationData\n\n<b>_integrate_implicit_bm4</b>\nIN: method, problem, request\nOUT: IntegrationData\n\n<b>_solve_reduced_projected_bm4_step</b>\nIN: prepared, t, state, step, solver configuration\nOUT: _ProjectedBM4Step\n\n<b>_solve_simultaneous_projected_bm4_step</b>\nIN: prepared, t, state, step, solver configuration\nOUT: _ProjectedBM4Step\n\n<b>_integrate_fully_extended</b>\nIN: method, problem, request\nOUT: IntegrationData" as BM4Functions
+
+  rectangle "<b>integrate_fixed_grid</b>\n<i>simulation/_fixed.py</i>\nIN: initial_state: ndarray\nIN: request: SimulationRequest\nIN: advance(time, state, step, step_index, observe): ndarray\nIN: progress: bool, label: str\nOUT: tuple[history: ndarray, step_count: int]" as FixedGridFunction
+
+  rectangle "<b>_solve_broyden</b>\n<i>methods/_nonlinear.py</i>\nIN: residual_function, initial_unknown, initial_jacobian, tolerance, max_iterations, context\nOUT: _BroydenResult\n\n<b>generalized_energy_error</b>\n<i>formulations/base.py</i>\nIN: t, states, momentum, hamiltonian\nOUT: float" as SharedNumericalFunctions
+
+  ExplicitEuler ..|> NumericalMethod
+  RK4 ..|> NumericalMethod
+  GaussLegendre4 ..|> NumericalMethod
+  HBVM42 ..|> NumericalMethod
+  ABBA2Midpoint ..|> NumericalMethod
+  ABBA2Implicit ..|> NumericalMethod
+  ABBA4Implicit ..|> NumericalMethod
+  ABBA4Single ..|> NumericalMethod
+  ABBA6Implicit ..|> NumericalMethod
+  BM4Composition ..|> NumericalMethod
+  MidpointBM4 ..|> NumericalMethod
+  ImplicitBM4 ..|> NumericalMethod
+  FullyExtendedImplicitMethod ..|> NumericalMethod
+
+  BM4Composition o--> DirectAdjointFormulation : formulation
+  ProjectedBM4 ..> StageProjectedFormulation : requires
+  MidpointBM4 ..> GCStageProjectedFormulation : uses
+  BM4Composition ..> PreparedDirectAdjoint : uses prepared maps
+  GaussLegendre4 ..> ClassicalFunctions
+  HBVM42 ..> ClassicalFunctions
+  ABBA2Midpoint ..> ABBAFunctions
+  ABBAImplicitConfig ..> ABBAFunctions
+  BM4Composition ..> BM4Functions
+  MidpointBM4 ..> BM4Functions
+  ImplicitBM4 ..> BM4Functions
+  BM4Implicit1 ..> BM4Functions : reduced _step_solver
+  BM4Implicit2 ..> BM4Functions : simultaneous _step_solver
+  FullyExtendedImplicitMethod ..> BM4Functions
+  ClassicalFunctions ..> FixedGridFunction
+  ABBAFunctions ..> FixedGridFunction
+  BM4Functions ..> FixedGridFunction
+  NumericalMethod ..> FixedGridFunction : implementations use
+  FixedGridFunction ..> SimulationRequest
+
+  ClassicalGroup -[hidden]right- ABBAGroup
+  ABBAGroup -[hidden]right- BM4Group
+  BM4Group -[hidden]right- FormulationGroup
+  ClassicalFunctions -[hidden]right- ABBAFunctions
+  ABBAFunctions -[hidden]right- BM4Functions
+  BM4Functions -[hidden]right- FixedGridFunction
+  FixedGridFunction -[hidden]right- SharedNumericalFunctions
+}
+
+rectangle "4. Solution" as SolutionGroup #F4EEFA {
+  rectangle "<b>simulate</b>\n<i>simulation/runner.py</i>\nIN: problem: InitialValueProblem\nIN: method: NumericalMethod\nIN: request: SimulationRequest\nOUT: Solution" as SimulateFunction
+
+  class "SimulationRunner" as SimulationRunner <<simulation/runner.py>> {
+    + simulate(problem: InitialValueProblem, method: NumericalMethod, request: SimulationRequest): Solution
+  }
+
+  class "IntegrationData" as IntegrationData <<internal transfer>> {
+    + t: ndarray
+    + states: ndarray
+    + diagnostics: dict[str, DiagnosticValue]
+  }
+
+  class "Solution" as Solution <<simulation/solution.py>> {
+    - _t: ndarray
+    - _states: ndarray
+    - _source: InitialConfiguration
+    - _diagnostics: Mapping[str, DiagnosticValue]
+    + t: ndarray
+    + states: ndarray
+    + source: InitialConfiguration
+    + diagnostics: Mapping[str, DiagnosticValue]
+    --
+    + __init__(*, t: ndarray, states: ndarray, source: InitialConfiguration, diagnostics: Mapping | None = None): None
+    + components(layout: StateLayout | None = None): tuple[ndarray, ...]
+    + positions(): tuple[ndarray, ndarray]
+  }
+
+  SimulateFunction --> SimulationRunner : delegates
+  IntegrationData --> SimulationRunner : validated input
+  SimulationRunner --> Solution : constructs
+}
+
+' Visible cross-group data flow; "norank" preserves the four-column layout.
+GCDynamics -[norank]-> InitialValueProblem : dynamics
+FCDynamics -[norank]-> InitialValueProblem : dynamics
+InitialValueProblem -[norank]-> NumericalMethod : problem
+SimulationRequest -[norank]-> NumericalMethod : request
+NumericalMethod -[norank]-> IntegrationData : returns
+
+' Main horizontal trajectory path.
+DynamicsGroup -[hidden]right- InitialStateGroup
+InitialStateGroup -[hidden]right- NumericalModelGroup
+NumericalModelGroup -[hidden]right- SolutionGroup
+
+@enduml

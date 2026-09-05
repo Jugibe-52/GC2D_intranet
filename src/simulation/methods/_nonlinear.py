@@ -64,7 +64,7 @@ def _solve_broyden(
 
 	The initial Jacobian is supplied by the formulation. Every later matrix is
 	obtained from exact residual evaluations and the rank-one secant update from
-	``docs/tex/broyden/broyden_generic_method.tex``. Iterations count accepted
+	``docs/models/abba/tex/nonlinear-solvers.tex``. Iterations count accepted
 	corrections, so a root at the initial guess reports zero iterations and one
 	residual evaluation.
 	"""

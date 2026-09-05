@@ -15,7 +15,7 @@ from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
 from matplotlib.ticker import MaxNLocator
 
-from potential import GC2DH5Potential, Potential
+from potential import Potential
 from simulation import Solution
 
 from .particles import _field_normalization, _frame_indices
@@ -226,8 +226,8 @@ def animate_implicit_method_trajectories(
 	positions = {label: solutions[label].positions() for label in labels}
 
 	grid = potential.grid
-	xmax = grid.xmax if isinstance(potential, GC2DH5Potential) else grid.xmin + grid.period
-	ymax = grid.ymax if isinstance(potential, GC2DH5Potential) else grid.ymin + grid.period
+	xmax = grid.xmin + grid.period
+	ymax = grid.ymin + grid.period
 	figure, axis = plt.subplots(figsize=(8, 7), constrained_layout=True)
 	image = axis.imshow(
 		fields[:, :, 0].T,

@@ -217,8 +217,8 @@ source initial configuration so its layout can split components and positions.
   internals, or downstream diagnostic algorithms.
 
 The mathematical derivation in
-[`ABBA2_implicit.tex`](../../abba2-implicit/ABBA2_implicit.tex) and its
-[`compiled PDF`](../../abba2-implicit/ABBA2_implicit.pdf) derives the shared
+[`ABBA2 implicit theory`](../../abba2-implicit/tex/theory.tex) and its
+[`compiled PDF`](../../abba2-implicit/tex/theory.pdf) derives the shared
 endpoint-time A--B--B--A map, its symmetry, and its duplicated-space
 symplecticity. Its later Hairer-projection proof applies to the implicit method,
 not to the arithmetic midpoint closure documented here.

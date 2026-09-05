@@ -58,57 +58,18 @@ called by an active ABBA runtime path: `_evaluate_residual(...)`,
 `methods/_fully_extended.py`, other numerical-method families, trivial property
 accessors, and potential-field internals behind the dynamics contract.
 
-## Inherited boundary: guiding-centre dynamics
+## Shared dynamics dependency
 
-### `GuidingCenterDynamics`
+Dynamics are documented outside the ABBA model because the physical equations,
+potential construction, and state convention are shared by several numerical
+families. See the shared
+[`GC2D HDF5 potential and guiding-center dynamics`](../../../dynamics/gc2d-h5-import.md)
+contract.
 
-**File:** [`src/dynamics/gc.py`](../../../../src/dynamics/gc.py)
-
-`GuidingCenterDynamics` is the concrete structural implementation used in this
-path. It does not explicitly inherit the protocol, but it provides every required
-member: `state_dimension = 2`, `vector_field(...)`, and
-`particle_vector_field_jacobians(...)`. The diagram groups it with the two
-protocols whose numerical capabilities it supplies.
-
-Its potential, gyroaverage construction, and field internals remain outside the
-simulation diagram. This boundary consumes only the public dynamics capability.
-
-The state convention is component-major:
-
-```text
-[x_1, ..., x_N, y_1, ..., y_N]
-```
-
-For physical and shared-time implicit configurations, Newton evaluates the
-exact spatial particle Jacobians (`Phi_xx`, `Phi_xy`, and `Phi_yy`), whereas
-Broyden evaluates residual values only. Fully extended Newton additionally
-builds the analytic `4 x 4` extended-vector-field Jacobian from `Phi_xt`,
-`Phi_yt`, and `Phi_tt`. Fully extended Broyden still needs the `Phi_t` momentum
-flow but does not evaluate those analytic Jacobian derivatives. The HDF5
-potential contract reconstructs `Phi_tt` frequency by frequency through
-`evaluate(..., dt=2)`.
-
-### `GuidingCenterJacobianSystem`
-
-**File:** [`src/dynamics/protocols.py`](../../../../src/dynamics/protocols.py)
-
-`GuidingCenterJacobianSystem` inherits the `DynamicalSystem` protocol and adds
-`particle_vector_field_jacobians(t, state)`. The method returns one exact `2 x 2`
-spatial Jacobian for each independent guiding-centre particle. The implicit ABBA
-coordinator narrows the general problem dynamics to this capability.
-
-### `DynamicalSystem`
-
-**File:** [`src/dynamics/protocols.py`](../../../../src/dynamics/protocols.py)
-
-`DynamicalSystem` is the general runtime-checkable dynamics protocol. It requires
-`state_dimension` and `vector_field(t, state)`. `InitialValueProblem` is typed
-against this broad contract so general numerical methods need not know which
-physical system they receive.
-
-The dynamics box is a capability boundary: it groups the concrete
-implementation with the guiding-centre-specific and general protocols. Those
-type relationships are not successive runtime calls.
+This model consumes `DynamicalSystem` for midpoint and unprojected stages,
+`GuidingCenterJacobianSystem` for implicit Newton paths, and the extended
+momentum capability for time-extended states. The remaining sections document
+only how ABBA uses those capabilities.
 
 ## Part 1: run assembly
 

@@ -1,0 +1,90 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}\usepackage[T1]{fontenc}
+\usepackage[provide=*,english]{babel}
+\usepackage{lmodern,microtype,amsmath,amssymb,booktabs,geometry,xcolor,fancyhdr}
+\usepackage[hidelinks]{hyperref}
+\geometry{margin=2.3cm,headheight=14pt}
+\setlength{\parindent}{0pt}\setlength{\parskip}{0.4em}
+\definecolor{gcblue}{RGB}{34,73,110}\definecolor{gcgray}{RGB}{90,96,102}
+\pagestyle{fancy}\fancyhf{}
+\fancyhead[L]{\small\color{gcgray}GC2D: ABBA6Implicit}
+\fancyhead[R]{\small\color{gcgray}Model theory}\fancyfoot[C]{\thepage}
+\begin{document}
+\begin{center}
+ {\LARGE\bfseries\color{gcblue}ABBA6 Implicit}\par
+ \vspace{0.35em}{\large Yoshida seven-stage composition of projected ABBA2 maps}
+\end{center}
+
+\section{Seven-stage composition}
+
+Let $\mathcal P_{q,t}$ be one complete symmetric projected ABBA2 step with
+signed duration $q$.  The sixth-order model uses
+\begin{align*}
+a&=0.78451361047755726382,&b&=0.23557321335935813368,\\
+c&=-1.17767998417887100695,&d&=1.31518632068391121889,
+\end{align*}
+and $(w_1,\ldots,w_7)=(a,b,c,d,c,b,a)$.  Starting from
+$z^{(0)}=z_n$, it applies
+\[
+t_j=t_n+h\sum_{\ell<j}w_\ell,qquad
+z^{(j)}=\mathcal P_{w_jh,t_j}(z^{(j-1)}),\qquad
+z_{n+1}=z^{(7)}.
+\]
+The binary64 coefficients satisfy, up to round-off,
+\[
+\sum_jw_j=1,
+\qquad \sum_jw_j^3=0,
+\qquad \sum_jw_j^5=0.
+\]
+Together with palindromy, these are the relevant odd-order cancellation
+conditions for a symmetric second-order base.
+
+\section{Projection at every factor}
+
+Every $\mathcal P_{w_jh,t_j}$ starts a new projection problem.  In reduced
+form, with the usual diagonal operators $E,P,G,N=G^T$, factor $j$ solves
+\begin{align}
+M_j(\mu_j)&=\Psi_{w_jh,t_j}(Ez^{(j-1)}+N\mu_j),\\
+G M_j(\mu_j)+2\mu_j&=0,\\
+z^{(j)}&=P(M_j(\mu_j)+N\mu_j).
+\end{align}
+Thus one outer step has seven projections and seven nonlinear solves.  It is
+not a single projection around an unprojected seven-map base.
+
+\section{Configurations}
+
+The class supports two algebraically equivalent residual formulations
+(reduced and simultaneous), two nonlinear solvers (Newton and Broyden), and
+three state extensions (physical, shared time, and fully extended).  The
+chosen values apply uniformly to all seven factors.  For $N$ physical
+guiding-centre particles, a reduced physical solve has a $2N$-component
+multiplier and a $4N$-component duplicated base state.  Non-physical
+extensions currently require one particle.
+
+\section{Signed time path}
+
+Coefficients $c$ in factors three and five are negative.  Partial sums also
+leave the outer interval: the composition reaches approximately
+$t_n+1.02009h$, then $t_n-0.15759h$, later $t_n+1.15759h$, and finally
+$t_n+h$.  This non-monotone path is part of the real sixth-order composition;
+the dynamics must be defined at all internal times.
+
+\section{Order and finite-root qualifications}
+
+If the projected ABBA2 base is symmetric and second order, and each
+projection equation is solved to the relevant local root, the palindromic
+composition has designed global order six.  Finite Newton or Broyden stopping,
+floating-point coefficient error, and non-smooth dynamics perturb this ideal
+statement.  Diagnostics consequently retain work and residual data for every
+factor as well as outer-step aggregates.
+
+\section{Implementation correspondence}
+
+The public class is in
+\texttt{src/simulation/methods/abba/order6\_implicit.py}; coefficients are in
+\texttt{src/simulation/methods/\_abba\_coefficients.py}; and the general
+signed-composition coordinator is shared with \texttt{ABBA4Implicit}.  The
+companion architecture document under \texttt{../simulation/} gives the
+complete runtime and observation contract.
+
+\end{document}

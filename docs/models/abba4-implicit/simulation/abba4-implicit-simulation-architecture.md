@@ -392,12 +392,15 @@ configuration for component and position interpretation.
 
 ## Derivation, properties, and limitations
 
-The reduced physical ABBA map and exact residual Jacobian are derived in
-[`ABBA2_implicit.tex`](../../abba2-implicit/ABBA2_implicit.tex) and its
-[`compiled PDF`](../../abba2-implicit/ABBA2_implicit.pdf). `ABBA4Implicit`
-uses that complete projected map as the symmetric second-order base of the
-triple jump. No different residual is introduced by fourth-order composition;
-there are three independent roots with signed durations.
+The full fourth-order construction is derived in
+[`ABBA4 implicit theory`](../tex/theory.tex) and its
+[`compiled PDF`](../tex/theory.pdf). Focused companion notes cover the
+[`simultaneous state--multiplier formulation`](../tex/simultaneous-formulation.tex),
+the [`Jacobian formula summary`](../tex/jacobian-formula-summary.tex), and the
+[`Jacobian diagnostic workflow`](../tex/jacobian-diagnostics.tex); each source
+has a same-named compiled PDF beside it. These documents specialize the ABBA2
+projected kernel to the three independent roots and signed durations of the
+fourth-order composition.
 
 The focused contracts in
 [`tests/test_abba4_implicit.py`](../../../../tests/test_abba4_implicit.py)

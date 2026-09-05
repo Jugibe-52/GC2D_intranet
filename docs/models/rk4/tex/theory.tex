@@ -1,0 +1,85 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}\usepackage[T1]{fontenc}
+\usepackage[provide=*,english]{babel}
+\usepackage{lmodern,microtype,amsmath,amssymb,booktabs,geometry,xcolor,fancyhdr}
+\usepackage[hidelinks]{hyperref}
+\geometry{margin=2.3cm,headheight=14pt}
+\setlength{\parindent}{0pt}\setlength{\parskip}{0.4em}
+\definecolor{gcblue}{RGB}{34,73,110}\definecolor{gcgray}{RGB}{90,96,102}
+\pagestyle{fancy}\fancyhf{}
+\fancyhead[L]{\small\color{gcgray}GC2D: RK4}
+\fancyhead[R]{\small\color{gcgray}Model theory}\fancyfoot[C]{\thepage}
+\begin{document}
+\begin{center}
+ {\LARGE\bfseries\color{gcblue}Classical Fourth-Order Runge--Kutta}\par
+ \vspace{0.35em}{\large Four-stage explicit integration}
+\end{center}
+
+\section{Butcher tableau and stages}
+
+The classical method has tableau
+\[
+\begin{array}{c|cccc}
+0&0&0&0&0\\
+\tfrac12&\tfrac12&0&0&0\\
+\tfrac12&0&\tfrac12&0&0\\
+1&0&0&1&0\\ \hline
+&\tfrac16&\tfrac13&\tfrac13&\tfrac16
+\end{array}
+\]
+and, for $\dot z=f(t,z)$,
+\begin{align}
+k_1&=f(t_n,z_n),\\
+k_2&=f(t_n+h/2,z_n+hk_1/2),\\
+k_3&=f(t_n+h/2,z_n+hk_2/2),\\
+k_4&=f(t_n+h,z_n+hk_3),\\
+z_{n+1}&=z_n+\frac h6(k_1+2k_2+2k_3+k_4).
+\end{align}
+The non-autonomous stage times are part of the model.
+
+\section{Order and stability}
+
+The tableau satisfies the Runge--Kutta order conditions through order four;
+the local error is $\mathcal O(h^5)$ and the global error is $\mathcal O(h^4)$
+for sufficiently smooth problems.  On $y'=\lambda y$, its stability polynomial
+is
+\[
+R(\xi)=1+\xi+\frac{\xi^2}{2}+\frac{\xi^3}{6}+\frac{\xi^4}{24}.
+\]
+The finite stability region does not make RK4 an A-stable method.
+
+\section{Geometric properties}
+
+Classical RK4 is not symmetric and is not symplectic for a general Hamiltonian
+system.  Its high local accuracy can nevertheless make short-time energy and
+area errors small.  The distinction is structural: symplecticity is the exact
+identity
+\[
+(D\Phi_h)^T\Omega D\Phi_h=\Omega,
+\]
+not merely a small defect at one step size.  The implementation exposes each
+complete step map to observers so local and accumulated defects can be
+measured.
+
+\section{Energy-tracking configuration}
+
+The public model has an optional \texttt{track\_energy} configuration.  When
+enabled for dynamics satisfying the extended Hamiltonian contract, RK4
+advances the triangular state $(z,k)$ with
+\[
+\dot k=-\partial_tH(t,z),\qquad K(z,t,k)=H(t,z)+k.
+\]
+The same RK4 nodes and weights are used for $z$ and $k$.  The physical
+trajectory is returned normally; $k$ and the maximum sampled drift of $K$ are
+diagnostics.  This extension monitors generalized energy but does not turn RK4
+into a symplectic or energy-preserving method.
+
+\section{Implementation correspondence}
+
+The method is implemented in \texttt{src/simulation/methods/classical/rk4.py}
+and consumes the generic dynamics protocol.  Main-grid steps are independent
+of the output schedule; shadow steps provide off-grid samples without changing
+the accepted trajectory or emitting observations.  See the sibling runtime
+document for the exact result and diagnostic contract.
+
+\end{document}

@@ -1,0 +1,139 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}\usepackage[T1]{fontenc}
+\usepackage[provide=*,english]{babel}
+\usepackage{lmodern,microtype,amsmath,amssymb,booktabs,array,geometry,xcolor,fancyhdr}
+\usepackage[hidelinks]{hyperref}
+\geometry{margin=2.3cm,headheight=14pt}
+\setlength{\parindent}{0pt}\setlength{\parskip}{0.4em}
+\definecolor{gcblue}{RGB}{34,73,110}\definecolor{gcgray}{RGB}{90,96,102}
+\pagestyle{fancy}\fancyhf{}
+\fancyhead[L]{\small\color{gcgray}GC2D: BM4 family}
+\fancyhead[R]{\small\color{gcgray}Model theory}\fancyfoot[C]{\thepage}
+\newcommand{\R}{\mathbb{R}}
+\begin{document}
+\begin{center}
+ {\LARGE\bfseries\color{gcblue}BM4 Fourth-Order Composition}\par
+ \vspace{0.35em}{\large Direct--adjoint splitting and all projection configurations}
+\end{center}
+
+\section{Common composition}
+
+Let $\chi_h$ be a first-order map and $\chi_h^*=\chi_{-h}^{-1}$ its adjoint.
+All BM4 configurations use the palindromic twelve-stage composition
+\[
+\Psi_h=\chi_{b_{12}h}\circ\chi^*_{b_{11}h}\circ\cdots
+\circ\chi_{b_2h}\circ\chi^*_{b_1h},
+\]
+with alternating adjoint and direct maps in chronological execution order and
+\[
+(b_1,\ldots,b_{12})=(a_1,a_2,a_3,a_4,a_5,a_6,a_6,a_5,a_4,a_3,a_2,a_1),
+\]
+\begin{align*}
+a_1&=0.0792036964311957,&a_2&=0.1303114101821663,\\
+a_3&=0.2228614958676077,&a_4&=-0.3667132690474257,\\
+a_5&=0.3246481886897062,&a_6&=0.1096884778767498.
+\end{align*}
+The half-cycle coefficients sum to $1/2$.  Palindromy makes the composition
+self-adjoint and its order conditions give designed global order four when the
+direct--adjoint pair satisfies the assumed smoothness and consistency.  The
+negative $a_4$ is an intentional backward subflow.
+
+\section{Public configurations}
+
+The family exposes six classes because projection placement changes the
+numerical map:
+\begin{center}
+\small
+\begin{tabular}{@{}p{0.27\linewidth}p{0.48\linewidth}p{0.17\linewidth}@{}}
+\toprule
+Class & projection placement & nonlinear unknown\\
+\midrule
+\texttt{BM4Composition} & formulation-owned output extraction & none\\
+\texttt{ProjectedBM4}\allowbreak\texttt{Composition} & arithmetic re-embedding after every stage & none\\
+\texttt{MidpointBM4} & arithmetic re-embedding after the full cycle & none\\
+\texttt{BM4Implicit1} & one symmetric projection around the full cycle & $\mu\in\R^{2N}$\\
+\texttt{BM4Implicit2} & the same projection in simultaneous form & $(Y,\mu)\in\R^{6N}$\\
+\texttt{BM4\_implicit2} & full-diagonal projection of duplicated $Z$ & $\mu\in\R^4$\\
+\bottomrule
+\end{tabular}
+\end{center}
+The underscore in \texttt{BM4\_implicit2} distinguishes the fully extended
+method from the simultaneous physical method \texttt{BM4Implicit2}.
+
+\section{Doubled physical state}
+
+For a physical state $z\in\R^m$, define
+\[
+E=\begin{pmatrix}I\\I\end{pmatrix},\quad
+P=\tfrac12\begin{pmatrix}I&I\end{pmatrix},\quad
+G=\begin{pmatrix}I&-I\end{pmatrix},\quad N=G^T.
+\]
+The unprojected composition retains two copies.  Stage projection applies
+$EP$ after each of the twelve factors; midpoint projection applies it once
+after the complete cycle.  These placements must not be conflated because
+projection and the stage maps do not commute.
+
+\section{Implicit physical projection}
+
+Let $\Psi_{h,t}$ denote the complete coupled BM4 cycle.  The reduced method
+solves
+\begin{align}
+M(\mu)&=\Psi_{h,t}(Ez+N\mu),\\
+r(\mu)&=GM(\mu)+2\mu=0,\\
+z^+&=P\bigl(M(\mu)+N\mu\bigr).
+\end{align}
+With $J_{\rm BM4}=D\Psi_{h,t}(Ez+N\mu)$, the exact Newton matrix is
+\[
+D_\mu r=GJ_{\rm BM4}N+2I.
+\]
+The simultaneous method solves
+\[
+F(Y,\mu)=
+\begin{pmatrix}
+Y-N\mu-\Psi_{h,t}(Ez+N\mu)\\GY
+\end{pmatrix}=0,
+\]
+whose block Jacobian is
+\[
+\begin{pmatrix}I&-(I+J_{\rm BM4})N\\G&0\end{pmatrix}.
+\]
+Its Schur complement is the reduced Newton equation, proving equivalence of
+the two ideal roots.  Both formulations accept exact Newton or good Broyden;
+this solver choice changes work and finite-tolerance behavior, not the
+defining projected map.
+
+\section{Fully extended configuration}
+
+For one non-autonomous guiding-centre particle introduce
+\[
+Z=(x,y,t,k),\qquad K(Z)=H(t,x,y)+k.
+\]
+\texttt{BM4\_implicit2} duplicates $Z$ to an eight-dimensional splitting
+state, executes the same twelve-stage coefficient schedule, and projects the
+full diagonal with a four-component multiplier.  The accepted physical
+solution contains $(x,y)$ while diagnostics retain $t$, $k$, and the drift of
+$K$.  This configuration is a genuine extended-state map and is not algebraic
+workspace for \texttt{BM4Implicit2}.
+
+\section{Geometric interpretation and finite solves}
+
+For an exact adjoint pair, the base composition is symmetric and fourth order.
+The symmetric implicit projection is designed to preserve the inherited
+geometric structure at its exact root.  Arithmetic stage or cycle projections
+define separate maps and must be assessed directly.  Finite Newton or Broyden
+tolerances perturb every ideal statement; the implementation therefore records
+nonlinear work and exposes step maps for Jacobian-based audits.
+
+\section{Implementation correspondence}
+
+The shared composition is in the BM4 module's \texttt{\_core.py}; the midpoint,
+reduced, simultaneous, and fully extended variants are in its neighboring
+modules.  Two detailed derivations accompany this theory:
+\begin{itemize}
+\item \texttt{implicit-reduced.tex}; and
+\item \texttt{implicit-simultaneous.tex}.
+\end{itemize}
+The runtime architecture lives under \texttt{../simulation/}; shared physical
+dynamics are documented outside the model tree.
+
+\end{document}

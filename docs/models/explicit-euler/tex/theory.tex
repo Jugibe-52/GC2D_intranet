@@ -1,0 +1,71 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}\usepackage[T1]{fontenc}
+\usepackage[provide=*,english]{babel}
+\usepackage{lmodern,microtype,amsmath,amssymb,geometry,xcolor,fancyhdr}
+\usepackage[hidelinks]{hyperref}
+\geometry{margin=2.3cm,headheight=14pt}
+\setlength{\parindent}{0pt}\setlength{\parskip}{0.4em}
+\definecolor{gcblue}{RGB}{34,73,110}\definecolor{gcgray}{RGB}{90,96,102}
+\pagestyle{fancy}\fancyhf{}
+\fancyhead[L]{\small\color{gcgray}GC2D: ExplicitEuler}
+\fancyhead[R]{\small\color{gcgray}Model theory}\fancyfoot[C]{\thepage}
+\begin{document}
+\begin{center}
+ {\LARGE\bfseries\color{gcblue}Explicit Euler}\par
+ \vspace{0.35em}{\large First-order forward discretization}
+\end{center}
+
+\section{Numerical map}
+
+For an initial-value problem
+\[
+\dot z=f(t,z),\qquad z(t_n)=z_n,
+\]
+Taylor expansion gives
+\[
+z(t_n+h)=z_n+h f(t_n,z_n)+\mathcal O(h^2).
+\]
+Explicit Euler discards the remainder and defines
+\[
+\Phi_{h,t_n}(z_n)=z_n+h f(t_n,z_n).
+\]
+The method requires one vector-field evaluation, has local truncation error
+$\mathcal O(h^2)$ and, under the standard stability and smoothness assumptions,
+global error $\mathcal O(h)$.
+
+\section{Stability}
+
+For the test equation $y'=\lambda y$ the amplification factor is
+\[
+R(\xi)=1+\xi,\qquad \xi=h\lambda.
+\]
+Absolute stability requires $|1+\xi|\leq1$, the disk centered at $-1$ with
+radius one.  The bounded stability region makes this method unsuitable for
+stiff problems unless the step is very small.
+
+\section{Hamiltonian interpretation}
+
+For a canonical Hamiltonian system with Jacobian $A=Df(z_n)$, the step tangent
+is $D\Phi=I+hA$.  Even when $A$ is Hamiltonian,
+$(D\Phi)^T\Omega D\Phi=\Omega+h^2A^T\Omega A$ in general.  Explicit Euler is
+therefore neither symmetric nor symplectic and does not preserve energy in
+general.  It serves as a transparent first-order baseline for accuracy and
+geometric diagnostics.
+
+\section{Implemented configuration}
+
+\texttt{ExplicitEuler} has no numerical configuration variants beyond shared
+progress and step-observer controls.  It consumes the general
+\texttt{DynamicalSystem} contract, performs no nonlinear solve, and publishes
+only the number of accepted main steps.  Requested off-grid output values are
+computed by disposable shadow steps from the preceding main node, so output
+density does not change the fixed-grid trajectory.
+
+\section{Implementation correspondence}
+
+The method is implemented in
+\texttt{src/simulation/methods/classical/euler.py}.  The fixed-grid execution
+lifecycle is documented in the sibling \texttt{simulation/} directory; shared
+physical dynamics are documented outside the model tree.
+
+\end{document}

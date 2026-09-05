@@ -1,0 +1,389 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[provide=*,english]{babel}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage{amsmath,amssymb,mathtools}
+\usepackage{geometry}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{booktabs}
+\usepackage{fancyhdr}
+\usepackage[hidelinks]{hyperref}
+
+\geometry{left=2.3cm,right=2.3cm,top=2.2cm,bottom=2.25cm,headheight=14pt}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0.38em}
+\setlist[itemize]{topsep=0.25em,itemsep=0.18em,leftmargin=1.5em}
+\setlist[enumerate]{topsep=0.25em,itemsep=0.22em,leftmargin=1.8em}
+\allowdisplaybreaks
+
+\definecolor{blue}{RGB}{34,73,110}
+\definecolor{gray}{RGB}{90,96,102}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\color{gray}GC2D: ABBA method}
+\fancyhead[R]{\small\color{gray}ABBA4 implicit: simultaneous formulation}
+\fancyfoot[C]{\thepage}
+\renewcommand{\headrulewidth}{0.3pt}
+
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\Id}{I}
+\newcommand{\Y}{\mathcal{Y}}
+\newcommand{\M}{\mathcal{M}}
+\newcommand{\Om}{\Omega_{\times}}
+\newcommand{\PhiAB}{\Phi^{\mathrm{ABBA}}}
+\newcommand{\PsiTwo}{\Psi^{[2]}}
+\newcommand{\PsiFour}{\Psi^{[4]}}
+\newcommand{\norm}[1]{\left\lVert #1\right\rVert}
+
+\begin{document}
+
+\begin{center}
+  {\LARGE\bfseries\color{blue}ABBA4 Implicit: Simultaneous State--Multiplier Formulation}\par
+  \vspace{0.35em}
+  {\large Three signed simultaneous solves in the fourth-order triple jump}\par
+  \vspace{0.45em}
+  {\small Physical GC2D branch with one diagonal constraint per projected substep}
+\end{center}
+
+\vspace{0.5em}
+
+\section{Purpose and scope}
+
+The \texttt{simultaneous\_state\_multiplier} option of
+\texttt{ABBA4Implicit} computes the same ideal physical map as the
+\texttt{reduced\_multiplier} option, but it retains the duplicated output state
+as part of each nonlinear solve.  One fourth-order step contains three
+independent projected ABBA substeps.  Consequently, for one guiding-centre
+particle, it solves three $6\times6$ nonlinear systems rather than three
+$2\times2$ reduced Schur-complement systems.
+
+This note describes the physical-state branch.  The
+\texttt{shared\_time} branch uses the same physical projected solves and adds a
+triangular update of the accepted conjugate momentum.  The
+\texttt{fully\_extended} branch duplicates the complete autonomous state and
+therefore uses different dimensions.
+
+The two physical formulations agree whenever each projection root is locally
+unique and both nonlinear algorithms converge to that root.  Finite stopping
+tolerances and floating-point linear solves can produce round-off-level
+differences.
+
+\section{Fourth-order signed composition}
+
+Define the triple-jump coefficients
+\[
+ \gamma=\frac{1}{2-2^{1/3}},
+ \qquad
+ \delta=-\frac{2^{1/3}}{2-2^{1/3}},
+ \qquad
+ (c_1,c_2,c_3)=(\gamma,\delta,\gamma).
+\]
+They satisfy
+\[
+ c_1+c_2+c_3=1,
+ \qquad
+ c_1^3+c_2^3+c_3^3=0.
+\]
+For an outer step $(t_n,z_n)\mapsto(t_n+h,z_{n+1})$, set
+\[
+ \tau_1=t_n,
+ \qquad
+ \tau_2=t_n+c_1h,
+ \qquad
+ \tau_3=t_n+(c_1+c_2)h,
+\]
+and
+\[
+ \ell_j=c_jh,
+ \qquad
+ \tau_j^+=\tau_j+\ell_j.
+\]
+The chronological physical updates are
+\[
+ z^{[0]}=z_n,
+ \qquad
+ z^{[j]}=\PsiTwo_{\ell_j,\tau_j}(z^{[j-1]}),
+ \quad j=1,2,3,
+ \qquad
+ z_{n+1}=z^{[3]}.
+\]
+The middle duration $\ell_2=\delta h$ is negative.  Its endpoint precedes its
+start, but the same endpoint-time formulas remain valid without a special
+backward branch.
+
+\section{Duplicated state and one signed ABBA map}
+
+The physical state $z=(X,Y)\in\R^2$ satisfies
+\[
+ \dot z=f(z,t),
+ \qquad
+ f(z,t)=J_0\nabla_z\phi(z,t),
+ \qquad
+ J_0=\begin{pmatrix}0&-1\\1&0\end{pmatrix}.
+\]
+Its spatial Jacobian is
+\[
+ W(z,t)=D_zf(z,t)=J_0\nabla_z^2\phi(z,t).
+\]
+Introduce the duplicated state and the diagonal and correction maps
+\[
+ \Y=(u,v)\in\R^4,
+ \qquad
+ G=(\Id_2\;-\Id_2),
+ \qquad
+ N=G^T=\begin{pmatrix}\Id_2\\-\Id_2\end{pmatrix},
+ \qquad
+ E=\begin{pmatrix}\Id_2\\\Id_2\end{pmatrix}.
+\]
+Thus $Ez=(z,z)$ lies on
+\(
+ \M=\{(u,v):u=v\}
+\), $N\mu=(\mu,-\mu)$ separates the copies, and
+\[
+ GE=0,
+ \qquad
+ GN=2\Id_2.
+\]
+
+For substep $j$, let $s_j=\ell_j/2$.  Starting from
+$(u_j^{(0)},v_j^{(0)})$, the signed endpoint-time ABBA map is
+\begin{align*}
+ u_j^{(1)}&=u_j^{(0)}+s_j f(v_j^{(0)},\tau_j),\\
+ v_j^{(1)}&=v_j^{(0)}+s_j f(u_j^{(1)},\tau_j),\\
+ v_j^{(2)}&=v_j^{(1)}+s_j f(u_j^{(1)},\tau_j^+),\\
+ u_j^{(2)}&=u_j^{(1)}+s_j f(v_j^{(2)},\tau_j^+).
+\end{align*}
+We denote the resulting duplicated map by
+\[
+ \PhiAB_{\ell_j,\tau_j}(u_j^{(0)},v_j^{(0)})
+ =(u_j^{(2)},v_j^{(2)}).
+\]
+
+At its four stage points define
+\[
+ W_{j,1}=W(v_j^{(0)},\tau_j),
+ \quad
+ W_{j,2}=W(u_j^{(1)},\tau_j),
+ \quad
+ W_{j,3}=W(u_j^{(1)},\tau_j^+),
+ \quad
+ W_{j,4}=W(v_j^{(2)},\tau_j^+),
+\]
+and $S_j=W_{j,2}+W_{j,3}$.  The exact duplicated-space Jacobian is
+\[
+ J_{\mathrm{ABBA},j}
+ =\begin{pmatrix}
+ \Id_2+s_j^2W_{j,4}S_j
+ &s_j(W_{j,1}+W_{j,4})+s_j^3W_{j,4}S_jW_{j,1}\\[1mm]
+ s_jS_j
+ &\Id_2+s_j^2S_jW_{j,1}
+ \end{pmatrix}.
+\]
+The factor order is essential because the stage Jacobians do not commute in
+general.
+
+\section{Simultaneous equations for substep \texorpdfstring{$j$}{j}}
+
+Given $z^{[j-1]}$, pre-correct the diagonal input with an independent
+multiplier $\mu_j$:
+\[
+ \widehat{\Y}_j(\mu_j)
+ =Ez^{[j-1]}+N\mu_j
+ =(z^{[j-1]}+\mu_j,z^{[j-1]}-\mu_j).
+\]
+The simultaneous unknown is
+\[
+ (\Y_j^+,\mu_j)\in\R^4\times\R^2,
+ \qquad
+ \Y_j^+=(y_{u,j},y_{v,j}).
+\]
+It is determined by
+\[
+ d_j(\Y_j^+,\mu_j)
+ :=\Y_j^+-N\mu_j
+ -\PhiAB_{\ell_j,\tau_j}
+   \bigl(Ez^{[j-1]}+N\mu_j\bigr)=0,
+\]
+\[
+ g_j(\Y_j^+):=G\Y_j^+=0.
+\]
+In component blocks, the residual is
+\[
+ d_{u,j}=y_{u,j}-\mu_j-u_j^{(2)}(\mu_j),
+ \qquad
+ d_{v,j}=y_{v,j}+\mu_j-v_j^{(2)}(\mu_j),
+ \qquad
+ g_j=y_{u,j}-y_{v,j}.
+\]
+At convergence the accepted physical state is represented neutrally by
+\[
+ z^{[j]}=\frac{y_{u,j}+y_{v,j}}{2}.
+\]
+The mean removes the antisymmetric component left by finite stopping tolerance;
+at the exact root both output copies are identical.
+
+\section{Exact simultaneous Newton system}
+
+Because $G$ and $N$ are constant,
+\[
+ D_{\Y_j^+}d_j=\Id_4,
+ \qquad
+ D_{\mu_j}d_j
+ =-\bigl(\Id_4+J_{\mathrm{ABBA},j}\bigr)N,
+\]
+\[
+ D_{\Y_j^+}g_j=G,
+ \qquad
+ D_{\mu_j}g_j=0.
+\]
+Each Newton correction therefore solves
+\[
+ \boxed{
+ \begin{pmatrix}
+  \Id_4&-\bigl(\Id_4+J_{\mathrm{ABBA},j}\bigr)N\\[1mm]
+  G&0
+ \end{pmatrix}
+ \begin{pmatrix}
+  \Delta\Y_j^+\\
+  \Delta\mu_j
+ \end{pmatrix}
+ =-
+ \begin{pmatrix}
+  d_j\\g_j
+ \end{pmatrix}.
+ }
+ \tag{1}
+\]
+The update adds $(\Delta\Y_j^+,\Delta\mu_j)$ to the current iterate.  No
+matrix inverse is formed: the implementation solves one dense $6\times6$
+system per independent particle.
+
+The initial iterate is
+\[
+ \mu_j^{(0)}=0,
+ \qquad
+ \Y_j^{+,(0)}
+ =\PhiAB_{\ell_j,\tau_j}(Ez^{[j-1]}).
+\]
+It makes $d_j=0$ initially, while the generally nonzero copy difference $g_j$
+drives the first correction.
+
+For
+\[
+ \sigma_j=\max\bigl(1,\norm{z^{[j-1]}}_\infty\bigr),
+\]
+the solve stops when
+\[
+ \max\bigl(\norm{d_j}_\infty,\norm{g_j}_\infty\bigr)
+ \leq \mathrm{atol}+\mathrm{rtol}\,\sigma_j.
+\]
+Each of the three substeps has its own scale, iteration count, and stopping
+decision.
+
+\section{Schur complement and reduced-formulation equivalence}
+
+Eliminating $\Delta\Y_j^+$ from (1) produces
+\[
+ K_j
+ =G\bigl(\Id_4+J_{\mathrm{ABBA},j}\bigr)G^T
+ =2\Id_2+GJ_{\mathrm{ABBA},j}G^T.
+\]
+The reduced residual is
+\[
+ R_j(\mu_j)
+ =G\PhiAB_{\ell_j,\tau_j}
+   \bigl(Ez^{[j-1]}+G^T\mu_j\bigr)+2\mu_j,
+\]
+and $K_j=D_{\mu_j}R_j$.  Moreover,
+\[
+ Gd_j=g_j-R_j(\mu_j).
+\]
+Substitution into the second block row of (1) gives
+\[
+ K_j\Delta\mu_j=-R_j(\mu_j),
+\]
+which is exactly the reduced Newton correction.  With equal initial
+multipliers, the two formulations therefore generate the same multiplier
+iterates in exact arithmetic.  The simultaneous branch additionally updates
+the duplicated output workspace.
+
+This equivalence is local to each signed substep.  ABBA4 still requires three
+different roots because $(z^{[j-1]},\tau_j,\ell_j)$ changes with $j$.
+
+\section{Broyden and multiple-particle layout}
+
+Selecting \texttt{nonlinear\_solver="broyden"} preserves the simultaneous
+residual $(d_j,g_j)$ but replaces the exact Newton matrix by a good rank-one
+secant update.  The initial approximation has the same block structure as (1)
+with the unprojected Jacobian approximated by the identity.  Broyden changes
+the root-finding algorithm, not the defining projected map.
+
+For $N_p$ independent guiding-centre particles, accepted physical states use
+component-major storage,
+\[
+ (X_1,\ldots,X_{N_p},Y_1,\ldots,Y_{N_p}).
+\]
+Newton reshapes this storage into $N_p$ independent $6\times6$ blocks and packs
+the corrections back into component-major order.  Broyden instead treats the
+complete simultaneous vector as one system of dimension $6N_p$.
+
+\section{Symmetry and symplecticity of the complete map}
+
+At an exact root, every substep satisfies
+\[
+ \Y_j^+-N\mu_j
+ =\PhiAB_{\ell_j,\tau_j}
+  \bigl(Ez^{[j-1]}+N\mu_j\bigr),
+ \qquad
+ \Y_j^+\in\M.
+\]
+The endpoint-time ABBA map is self-adjoint under a signed-step reversal.  The
+symmetric projection then gives
+\[
+ \PsiTwo_{-\ell_j,\tau_j^+}
+ \circ\PsiTwo_{\ell_j,\tau_j}=\Id.
+\]
+Because $(\gamma,\delta,\gamma)$ is palindromic, the complete composition obeys
+\[
+ \PsiFour_{-h,t_n+h}\circ\PsiFour_{h,t_n}=\Id.
+\]
+
+Each elementary ABBA shear preserves the duplicated form
+\[
+ \Om=\begin{pmatrix}0&J_0\\J_0&0\end{pmatrix}.
+\]
+Hairer's symmetric projection restricts that preservation to the physical
+diagonal, so the ideal physical Jacobian $J_j$ of each signed substep satisfies
+\[
+ J_j^TJ_0J_j=J_0.
+\]
+The outer Jacobian is $J_3J_2J_1$ and is therefore symplectic as well.  In
+finite arithmetic, both reversibility and symplecticity include the defects of
+all three nonlinear solves.
+
+\section{Implementation correspondence}
+
+The production path mirrors the derivation:
+\begin{enumerate}
+ \item \texttt{order4\_implicit.py} creates the three signed durations and
+       passes the accepted physical output of one solve into the next;
+ \item \texttt{\_projection\_simultaneous.py} evaluates $(d_j,g_j)$ and
+       assembles the particle-wise matrix (1);
+ \item \texttt{\_projection\_common.py} evaluates the endpoint-time stages and
+       $J_{\mathrm{ABBA},j}$;
+ \item each accepted outer step stores three ordered substep observations and
+       three columns of nonlinear diagnostics;
+ \item aggregate diagnostics sum iteration and residual-evaluation counts,
+       retain the worst normalized residual, and record the maximum multiplier
+       norm.
+\end{enumerate}
+
+The three simultaneous systems are solver workspaces.  They are not trajectory
+states and do not introduce a fourth composition stage or a new public method.
+
+\end{document}

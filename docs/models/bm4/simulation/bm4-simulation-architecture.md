@@ -250,10 +250,11 @@ The principal modules are `src/studies/bm4_midpoint_symplecticity.py`,
 `src/visualization` and opt-in numerical analysis remains in `src/diagnostics`.
 
 The complete projection derivations are available as
-[`BM4_implicit_1.pdf`](../BM4_implicit_1.pdf) and
-[`BM4_implicit_2.pdf`](../BM4_implicit_2.pdf), with their companion LaTeX
-sources [`BM4_implicit_1.tex`](../BM4_implicit_1.tex) and
-[`BM4_implicit_2.tex`](../BM4_implicit_2.tex) at the BM4 model root.
+The unified [`BM4 theory`](../tex/theory.tex) covers the complete family.
+Detailed reduced and simultaneous derivations remain available as
+[`implicit-reduced.tex`](../tex/implicit-reduced.tex) and
+[`implicit-simultaneous.tex`](../tex/implicit-simultaneous.tex) in the same
+model-owned directory.
 [`bm4_jacobian_sympy.py`](../bm4_jacobian_sympy.py) verifies the ordered
 symbolic stage-product factors.
 

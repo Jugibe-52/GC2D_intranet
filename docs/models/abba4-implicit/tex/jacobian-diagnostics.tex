@@ -1,0 +1,467 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[provide=*,english]{babel}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage{amsmath,amssymb,mathtools}
+\usepackage{geometry}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{booktabs}
+\usepackage{fancyhdr}
+\usepackage[hidelinks]{hyperref}
+
+\geometry{left=2.3cm,right=2.3cm,top=2.2cm,bottom=2.25cm,headheight=14pt}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0.42em}
+\setlist[itemize]{topsep=0.25em,itemsep=0.18em,leftmargin=1.5em}
+\setlist[enumerate]{topsep=0.3em,itemsep=0.25em,leftmargin=1.9em}
+\allowdisplaybreaks
+
+\definecolor{blue}{RGB}{34,73,110}
+\definecolor{gray}{RGB}{90,96,102}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\color{gray}GC2D: ABBA4 implicit diagnostics}
+\fancyhead[R]{\small\color{gray}Trajectory and tangent dynamics}
+\fancyfoot[C]{\thepage}
+\renewcommand{\headrulewidth}{0.3pt}
+
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\Id}{I}
+\newcommand{\norm}[1]{\left\lVert #1\right\rVert}
+
+\begin{document}
+
+\begin{center}
+  {\LARGE\bfseries\color{blue}Jacobian Diagnostics for ABBA4 Implicit}\par
+  \vspace{0.35em}
+  {\large Three ideal-root tangents along one signed triple jump}\par
+  \vspace{0.45em}
+  {\small Physical GC2D trajectory, local symplecticity, and accumulated sensitivity}
+\end{center}
+
+\vspace{0.5em}
+
+\section{Purpose of the diagnostics}
+
+An \texttt{ABBA4Implicit} integration can be observed through the physical
+state and an infinitesimal perturbation,
+\[
+ z_n\in\R^2,
+ \qquad
+ \xi_n\in\R^2.
+\]
+The trajectory advances with the complete three-solve method,
+\[
+ z_{n+1}=\Psi^{[4]}_{h,t_n}(z_n),
+\]
+while the tangent follows the derivative of that same nonlinear map,
+\[
+ \boxed{
+ \xi_{n+1}=D\Psi^{[4]}_{h,t_n}(z_n)\,\xi_n.
+ }
+\]
+
+The Jacobian is not a replacement for the state update.  In general,
+\[
+ z_{n+1}\neq D\Psi^{[4]}_{h,t_n}(z_n)z_n.
+\]
+It acts on a perturbation or on an accumulated derivative with respect to the
+initial condition.
+
+The production observer exposes the complete accepted outer step and an
+ordered tuple of three signed substep snapshots.  The diagnostic first
+constructs one ideal-root physical Jacobian from each snapshot and then applies
+the chain rule.
+
+\section{Signed substep geometry}
+
+Let
+\[
+ (c_1,c_2,c_3)=(\gamma,\delta,\gamma),
+\]
+where
+\[
+ \gamma=\frac{1}{2-2^{1/3}},
+ \qquad
+ \delta=-\frac{2^{1/3}}{2-2^{1/3}}.
+\]
+Define
+\[
+ \ell_j=c_jh,
+ \qquad
+ \tau_j=t_n+h\sum_{r<j}c_r,
+ \qquad
+ s_j=\frac{\ell_j}{2}.
+\]
+Then
+\[
+ z^{[0]}=z_n,
+ \qquad
+ z^{[j]}=\Psi^{[2]}_{\ell_j,\tau_j}(z^{[j-1]}),
+ \qquad
+ z_{n+1}=z^{[3]}.
+\]
+The signed clock is
+\begin{center}
+\begin{tabular}{@{}cccc@{}}
+\toprule
+Substep & Start & Duration & End\\
+\midrule
+$1$ & $t_n$ & $\gamma h$ & $t_n+\gamma h$\\
+$2$ & $t_n+\gamma h$ & $\delta h$ & $t_n+(\gamma+\delta)h$\\
+$3$ & $t_n+(\gamma+\delta)h$ & $\gamma h$ & $t_n+h$\\
+\bottomrule
+\end{tabular}
+\end{center}
+The second row runs backward in time.  A diagnostic must use the stored signed
+duration and start time rather than infer monotone stage times from the outer
+interval.
+
+\section{One projected ABBA substep}
+
+For a provisional multiplier $\mu_j\in\R^2$, initialize
+\[
+ u_j^{(0)}=z^{[j-1]}+\mu_j,
+ \qquad
+ v_j^{(0)}=z^{[j-1]}-\mu_j.
+\]
+The endpoint-time stages are
+\begin{align*}
+ u_j^{(1)}&=u_j^{(0)}+s_jf(v_j^{(0)},\tau_j),\\
+ v_j^{(1)}&=v_j^{(0)}+s_jf(u_j^{(1)},\tau_j),\\
+ v_j^{(2)}&=v_j^{(1)}+s_jf(u_j^{(1)},\tau_j+\ell_j),\\
+ u_j^{(2)}&=u_j^{(1)}+s_jf(v_j^{(2)},\tau_j+\ell_j).
+\end{align*}
+The independent root $\mu_j^*$ satisfies
+\[
+ \boxed{
+ R_j(z^{[j-1]},\mu_j)
+ =u_j^{(2)}-v_j^{(2)}+2\mu_j=0.
+ }
+\]
+At the exact root,
+\[
+ z^{[j]}=u_j^{(2)}+\mu_j^*=v_j^{(2)}-\mu_j^*.
+\]
+The finite-tolerance implementation returns the neutral mean of these corrected
+copies.  The analytic formulas below evaluate the ideal-root tangent at the
+converged stages; a finite-difference derivative of the emitted map also
+contains the stopping decision and the residual-level copy mismatch.
+
+\section{Small GC2D matrices at the traversed stages}
+
+For
+\[
+ f(z,t)=J_0\nabla_z\phi(z,t),
+ \qquad
+ J_0=\begin{pmatrix}0&-1\\1&0\end{pmatrix},
+\]
+introduce the signed small matrix
+\[
+ \boxed{
+ w_j(z,t):=s_jD_zf(z,t)
+ =s_j\begin{pmatrix}
+ -\phi_{XY}&-\phi_{YY}\\
+ \phi_{XX}&\phi_{XY}
+ \end{pmatrix}_{(z,t)}.
+ }
+\]
+The four matrices for substep $j$ are
+\begin{align*}
+ w_{j,1}&=w_j(v_j^{(0)},\tau_j),&
+ w_{j,2}&=w_j(u_j^{(1)},\tau_j),\\
+ w_{j,3}&=w_j(u_j^{(1)},\tau_j+\ell_j),&
+ w_{j,4}&=w_j(v_j^{(2)},\tau_j+\ell_j),
+\end{align*}
+with
+\[
+ \Sigma_j=w_{j,2}+w_{j,3}.
+\]
+Because $s_2<0$, all four middle-substep matrices include that sign.  Replacing
+them by absolute-step matrices differentiates a different map.
+
+\section{Four duplicated-space stage Jacobians}
+
+Each elementary shear has a $4\times4$ Jacobian containing one small block:
+\[
+ \boxed{
+ \mathcal W_{j,1}=\begin{pmatrix}\Id_2&w_{j,1}\\0&\Id_2\end{pmatrix},
+ \quad
+ \mathcal W_{j,2}=\begin{pmatrix}\Id_2&0\\w_{j,2}&\Id_2\end{pmatrix},
+ }
+\]
+\[
+ \boxed{
+ \mathcal W_{j,3}=\begin{pmatrix}\Id_2&0\\w_{j,3}&\Id_2\end{pmatrix},
+ \quad
+ \mathcal W_{j,4}=\begin{pmatrix}\Id_2&w_{j,4}\\0&\Id_2\end{pmatrix}.
+ }
+\]
+The exact Jacobian of the unprojected signed ABBA map is the ordered product
+\[
+ \boxed{
+ D\Phi^{\mathrm{ABBA}}_{\ell_j,\tau_j}
+ =\mathcal W_{j,4}\mathcal W_{j,3}
+  \mathcal W_{j,2}\mathcal W_{j,1}.
+ }
+\]
+Writing it as
+\[
+ D\Phi^{\mathrm{ABBA}}_{\ell_j,\tau_j}
+ =\begin{pmatrix}A_j&B_j\\C_j&D_j\end{pmatrix},
+\]
+the blocks are
+\begin{align*}
+ A_j&=\Id_2+w_{j,4}\Sigma_j,\\
+ B_j&=w_{j,1}+w_{j,4}+w_{j,4}\Sigma_jw_{j,1},\\
+ C_j&=\Sigma_j,\\
+ D_j&=\Id_2+\Sigma_jw_{j,1}.
+\end{align*}
+
+\section{Local physical Jacobian}
+
+Form the four $2\times2$ matrices
+\begin{align*}
+ K_j={}&4\Id_2-(w_{j,1}+w_{j,2}+w_{j,3}+w_{j,4})\\
+       &+(w_{j,4}\Sigma_j+\Sigma_jw_{j,1})
+        -w_{j,4}\Sigma_jw_{j,1},\\[1mm]
+ L_j={}&w_{j,1}-w_{j,2}-w_{j,3}+w_{j,4}\\
+       &+(w_{j,4}\Sigma_j-\Sigma_jw_{j,1})
+        +w_{j,4}\Sigma_jw_{j,1},\\[1mm]
+ P_j={}&\Id_2+w_{j,1}+w_{j,4}
+          +w_{j,4}\Sigma_j+w_{j,4}\Sigma_jw_{j,1},\\[1mm]
+ Q_j={}&2\Id_2-w_{j,1}-w_{j,4}
+          +w_{j,4}\Sigma_j-w_{j,4}\Sigma_jw_{j,1}.
+\end{align*}
+Here
+\[
+ K_j=D_{\mu_j}R_j,
+ \qquad
+ L_j=D_{z^{[j-1]}}R_j.
+\]
+The implicit-function theorem gives
+\[
+ D\mu_j^*=-K_j^{-1}L_j,
+\]
+and the local physical Jacobian is
+\[
+ \boxed{
+ J_j:=D\Psi^{[2]}_{\ell_j,\tau_j}(z^{[j-1]})
+ =P_j-Q_jK_j^{-1}L_j.
+ }
+\]
+The matrix $K_j$ is the reduced Newton matrix, not the physical Jacobian.  To
+construct $J_j$ without an inverse, solve
+\[
+ K_jT_j=L_j,
+ \qquad
+ J_j=P_j-Q_jT_j.
+\]
+
+\section{Applying the triple-jump Jacobian}
+
+The complete outer Jacobian is
+\[
+ \boxed{
+ \mathcal J_n
+ :=D\Psi^{[4]}_{h,t_n}(z_n)=J_3J_2J_1.
+ }
+\]
+If only one tangent vector is needed, no $\mathcal J_n$ need be formed.  Start
+with $\eta_0=\xi_n$ and repeat
+\[
+ b_j=L_j\eta_{j-1},
+ \qquad
+ K_jy_j=b_j,
+ \qquad
+ \eta_j=P_j\eta_{j-1}-Q_jy_j,
+ \qquad j=1,2,3.
+\]
+Then
+\[
+ \boxed{\xi_{n+1}=\eta_3.}
+\]
+This procedure uses three $2\times2$ linear solves per particle but introduces
+no additional nonlinear solve.
+
+An equivalent local construction differentiates the four vector-field
+increments.  With $M_j=D\mu_j^*$,
+\begin{align*}
+ Dk_{j,1}&=\frac{w_{j,1}}{s_j}(\Id_2-M_j),\\
+ Du_j^{(1)}&=\Id_2+M_j+s_jDk_{j,1},\\
+ Dk_{j,2}&=\frac{w_{j,2}}{s_j}Du_j^{(1)},\\
+ Dk_{j,3}&=\frac{w_{j,3}}{s_j}Du_j^{(1)},\\
+ Dv_j^{(2)}&=\Id_2-M_j+s_j(Dk_{j,2}+Dk_{j,3}),\\
+ Dk_{j,4}&=\frac{w_{j,4}}{s_j}Dv_j^{(2)},
+\end{align*}
+and
+\[
+ J_j=\Id_2+\frac{\ell_j}{4}
+ (Dk_{j,1}+Dk_{j,2}+Dk_{j,3}+Dk_{j,4}).
+\]
+This recurrence is useful as an independent analytic cross-check of the
+implicit-function factorization.
+
+\section{Observer-to-formula correspondence}
+
+One accepted \texttt{ABBA4ImplicitIntegrationStep} contains the outer state,
+time interval, coefficients, aggregate solver data, and an ordered
+\texttt{substeps} tuple.  Each substep record supplies:
+\begin{itemize}
+ \item signed \texttt{start\_time} and \texttt{duration};
+ \item \texttt{state\_before} and \texttt{state\_after};
+ \item the converged multiplier;
+ \item $u_j^{(0)},v_j^{(0)},u_j^{(1)},v_j^{(2)},u_j^{(2)}$;
+ \item formulation, solver, iteration, residual, and tolerance metadata; and
+ \item the dynamics object needed to evaluate the four spatial Jacobians.
+\end{itemize}
+
+The three snapshots are continuous:
+\[
+ z^{[0]}=z_n,
+ \qquad
+ z^{[j]}_{\mathrm{after}}=z^{[j+1]}_{\mathrm{before}},
+ \qquad
+ z^{[3]}=z_{n+1}.
+\]
+Shadow compositions used only to produce off-grid output samples do not emit
+observation records and must not enter an accumulated tangent diagnostic.
+
+\section{One-step diagnostic workflow}
+
+For each observed outer step:
+\begin{enumerate}
+ \item Verify that exactly three substep records are present and that their
+       coefficients, signed times, and boundary states are continuous.
+ \item For each $j$, evaluate $w_{j,1},\ldots,w_{j,4}$ at the stored stage
+       points and signed endpoint times.
+ \item Form $K_j,L_j,P_j,Q_j$ in the stated order and solve the required local
+       $2\times2$ systems.
+ \item Propagate the tangent chronologically through $J_1$, $J_2$, and $J_3$,
+       or construct $\mathcal J_n=J_3J_2J_1$.
+ \item Compare the implicit-function and stage-increment factorizations when
+       diagnosing analytic derivatives.
+ \item Optionally compare with centered finite differences of the complete
+       stored \texttt{map\_state}, choosing a perturbation above the nonlinear
+       residual floor.
+ \item Record local symplecticity and determinant defects without modifying the
+       accepted physical trajectory.
+\end{enumerate}
+
+\section{Accumulated sensitivity}
+
+To differentiate the numerical solution with respect to its initial state,
+propagate $M_n\in\R^{2\times2}$:
+\[
+ M_0=\Id_2,
+ \qquad
+ \boxed{M_{n+1}=\mathcal J_nM_n.}
+\]
+After $N$ outer steps,
+\[
+ M_N=\mathcal J_{N-1}\cdots\mathcal J_1\mathcal J_0
+ =\frac{\partial z_N}{\partial z_0}.
+\]
+The newest Jacobian multiplies from the left.  The update can be implemented
+by applying the three local factorizations successively to the two columns of
+$M_n$.
+
+\section{Symplecticity diagnostics}
+
+At exact projected roots, every local physical tangent is symplectic:
+\[
+ J_j^TJ_0J_j=J_0.
+\]
+Therefore,
+\[
+ \mathcal J_n^TJ_0\mathcal J_n=J_0,
+ \qquad
+ M_N^TJ_0M_N=J_0.
+\]
+In two dimensions this is equivalent to unit determinant.  Useful monitored
+defects are
+\[
+ \varepsilon_{\mathrm{sp},n}
+ =\norm{\mathcal J_n^TJ_0\mathcal J_n-J_0},
+ \qquad
+ \varepsilon_{\det,n}=\lvert\det\mathcal J_n-1\rvert.
+\]
+Their numerical size includes floating-point error, derivative accuracy, and
+the residuals of all three nonlinear solves.  A small outer defect can mask
+opposing local defects, so diagnostics should retain both the three $J_j$
+values and their product when investigating a failure.
+
+\section{Nearby-trajectory interpretation}
+
+Let
+\[
+ z_n^\varepsilon=z_n+\varepsilon\xi_n.
+\]
+Differentiability of the complete implicit map gives
+\[
+ \Psi^{[4]}_{h,t_n}(z_n^\varepsilon)
+ =\Psi^{[4]}_{h,t_n}(z_n)
+ +\varepsilon\mathcal J_n\xi_n+\mathcal O(\varepsilon^2).
+\]
+Thus the integrator produces the reference trajectory while the optional
+diagnostic produces the linear evolution of an infinitesimal separation.  The
+negative middle duration changes the intermediate tangent, but the three
+chronological applications still approximate the final nearby-trajectory
+difference.
+
+\section{Implementation-ready summary}
+
+For every outer step, perform
+\[
+ \boxed{
+ \begin{aligned}
+ z_{n+1}&=\Psi^{[4]}_{h,t_n}(z_n)
+ &&\text{with three independent projected solves},\\[1mm]
+ \xi_{n+1}&=J_3J_2J_1\xi_n
+ &&\text{with three local ideal-root tangents}.
+ \end{aligned}
+ }
+\]
+For each substep, compute
+\[
+ K_jy_j=L_j\eta_{j-1},
+ \qquad
+ \eta_j=P_j\eta_{j-1}-Q_jy_j.
+\]
+The physical state is never obtained by multiplying its previous value by a
+Jacobian.  The tangent is a read-only diagnostic derived from the already
+accepted multipliers and stage snapshots.
+
+\subsection*{Minimum retained data}
+
+A reproducible outer-step record must preserve the ordered coefficient vector,
+the three signed start times and durations, the three accepted boundary states,
+and each substep's converged multiplier and stage snapshots.  Keeping only the
+aggregate iteration count or the maximum multiplier norm is insufficient to
+reconstruct $J_1$, $J_2$, and $J_3$.
+
+\subsection*{Interpreting discrepancies}
+
+When two Jacobian diagnostics disagree, check the following causes in order:
+\begin{itemize}
+ \item a lost negative sign in $s_2=\delta h/2$ or a stage evaluated at the
+       outer time instead of its signed local endpoint;
+ \item reordered matrix products, especially $w_{j,4}\Sigma_jw_{j,1}$ or the
+       outer product $J_3J_2J_1$;
+ \item comparison of an ideal-root analytic tangent with a finite-difference
+       perturbation below the nonlinear residual floor;
+ \item an ill-conditioned $K_j$, which amplifies residual, derivative, and
+       round-off errors; or
+ \item accidental inclusion of an unobserved shadow composition in the
+       accumulated tangent history.
+\end{itemize}
+
+These checks localize the defect to one signed solve before the complete outer
+composition is assessed.
+
+\end{document}

@@ -4,8 +4,9 @@
 """Primary GC2D HDF5 potentials integrated with the simulation API.
 
 The GC2D HDF5 format stores one real mean field and one or more complex
-positive-frequency fields. This module defines their selection, scaling,
-interpolation and ``exp(+i f t)`` reconstruction while providing the
+positive-frequency fields. This module defines their selection,
+nondimensionalization, periodic interpolation and ``exp(+i f t)``
+reconstruction while providing the
 :class:`~potential.Potential` interface required by the current dynamics and
 implicit methods.
 """
@@ -28,6 +29,9 @@ from scipy.special import jv
 
 from .grid import Grid
 from .potential import Potential
+
+
+DEFAULT_CHARACTERISTIC_LENGTH = 0.06
 
 
 @dataclass(frozen=True, slots=True)
@@ -83,25 +87,31 @@ def _h5_spline(
 	*,
 	interpolation_order: int,
 ) -> _ComplexSpline:
-	"""Build the zero-padded spline defined by the GC2D HDF5 format."""
-	padding = interpolation_order + 1
+	"""Build a periodic spline over independent samples of one HDF5 field."""
+	margin = interpolation_order + 1
+	padding = (margin, margin + 1)
 	x_extended = np.pad(
 		x,
-		(padding, padding),
+		padding,
 		mode="linear_ramp",
-		end_values=(x[0] - padding * (x[1] - x[0]), x[-1] + padding * (x[1] - x[0])),
+		end_values=(
+			x[0] - padding[0] * (x[1] - x[0]),
+			x[-1] + padding[1] * (x[1] - x[0]),
+		),
 	)
 	y_extended = np.pad(
 		y,
-		(padding, padding),
+		padding,
 		mode="linear_ramp",
-		end_values=(y[0] - padding * (y[1] - y[0]), y[-1] + padding * (y[1] - y[0])),
+		end_values=(
+			y[0] - padding[0] * (y[1] - y[0]),
+			y[-1] + padding[1] * (y[1] - y[0]),
+		),
 	)
 	field_extended = np.pad(
 		coefficient,
-		((padding, padding), (padding, padding)),
-		mode="constant",
-		constant_values=0,
+		(padding, padding),
+		mode="wrap",
 	)
 	return _ComplexSpline(
 		RectBivariateSpline(
@@ -131,7 +141,7 @@ def _resample_fields(
 	ny: int | None,
 	interpolation_order: int,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray | None, np.ndarray | None]:
-	"""Apply the GC2D HDF5 inclusive-grid resampling operation once."""
+	"""Resample periodic HDF5 fields without duplicating the upper endpoint."""
 	if nx is None and ny is None:
 		return x, y, mean_value, fluctuations
 	if nx is None or ny is None:
@@ -144,8 +154,10 @@ def _resample_fields(
 		):
 			raise ValueError(f"`{name}` must be an integer of at least 2.")
 
-	x_resampled = np.linspace(x[0], x[-1], int(nx))
-	y_resampled = np.linspace(y[0], y[-1], int(ny))
+	period_x = x.size * (x[1] - x[0])
+	period_y = y.size * (y[1] - y[0])
+	x_resampled = x[0] + period_x * np.arange(int(nx), dtype=float) / int(nx)
+	y_resampled = y[0] + period_y * np.arange(int(ny), dtype=float) / int(ny)
 
 	def interpolate(field: np.ndarray) -> np.ndarray:
 		interpolator = _h5_spline(
@@ -170,23 +182,17 @@ def _resample_fields(
 
 
 class GC2DH5Potential(Potential):
-	"""Mean plus positive-frequency modes loaded from the GC2D HDF5 format.
+	"""Nondimensional mean and modes loaded from the GC2D HDF5 format.
 
-	The physical field is
+	The nondimensional runtime field is
 
 	``Phi(t, x, y) = Phi_0(x, y) + 2 Re sum_j[C_j(x, y) exp(+i f_j t)]``.
 
-	Spatial samples use the GC2D first-axis-x convention without
-	transposing HDF5 fields.  Runtime coordinates are clipped to the sampled
-	domain and evaluated through zero-padded rectangular splines. Outside that
-	domain, the clipped potential is constant in each clipped coordinate, so every
-	positive-order derivative with respect to that coordinate is zero. At an exact
-	grid endpoint, the endpoint is considered in-domain and the spline derivative
-	is returned; this explicitly selects the interior-field convention at the
-	nondifferentiable clipping boundary. A periodic :class:`Grid` still records the
-	regular coordinates because that is the grid contract shared by the current
-	simulation API; evaluation itself remains non-periodic, as defined by the HDF5
-	potential contract.
+	Spatial samples use the GC2D first-axis-x convention without transposing HDF5
+	fields. Runtime coordinates are wrapped into the nondimensional sampled cell
+	and evaluated through periodic rectangular splines. Frequencies are expressed
+	relative to the characteristic source frequency, so the dominant source mode
+	has angular frequency one and temporal period ``2*pi``.
 	"""
 
 	def __init__(
@@ -198,6 +204,11 @@ class GC2DH5Potential(Potential):
 		frequencies: np.ndarray | Sequence[float],
 		*,
 		source_field_indices: np.ndarray | Sequence[int] | None = None,
+		source_x: np.ndarray | Sequence[float] | None = None,
+		source_y: np.ndarray | Sequence[float] | None = None,
+		source_frequencies: np.ndarray | Sequence[float] | None = None,
+		characteristic_length: float | None = None,
+		characteristic_period: float | None = None,
 		normalization_factor: float = 1.0,
 		attributes: Mapping[str, Any] | None = None,
 		interpolation_order: int = 3,
@@ -254,6 +265,49 @@ class GC2DH5Potential(Potential):
 				raise TypeError("`source_field_indices` must contain integers.")
 		if np.any(source_indices < 0):
 			raise ValueError("`source_field_indices` must be non-negative.")
+		source_x_values = (
+			x_values
+			if source_x is None
+			else _validated_axis(source_x, name="source_x")
+		)
+		source_y_values = (
+			y_values
+			if source_y is None
+			else _validated_axis(source_y, name="source_y")
+		)
+		source_frequency_values = (
+			frequency_values
+			if source_frequencies is None
+			else np.atleast_1d(np.asarray(source_frequencies, dtype=float))
+		)
+		if (
+			source_frequency_values.ndim != 1
+			or source_frequency_values.size != frequency_values.size
+			or not np.all(np.isfinite(source_frequency_values))
+			or np.any(source_frequency_values <= 0)
+		):
+			raise ValueError(
+				"`source_frequencies` must contain one finite positive value "
+				"per runtime frequency."
+			)
+
+		def optional_positive(value: float | None, *, name: str) -> float | None:
+			"""Validate one optional positive dimensional scale."""
+			if value is None:
+				return None
+			number = float(value)
+			if not np.isfinite(number) or number <= 0:
+				raise ValueError(f"`{name}` must be finite and positive when supplied.")
+			return number
+
+		length_scale = optional_positive(
+			characteristic_length,
+			name="characteristic_length",
+		)
+		period_scale = optional_positive(
+			characteristic_period,
+			name="characteristic_period",
+		)
 
 		normalization = float(normalization_factor)
 		if not np.isfinite(normalization) or normalization == 0:
@@ -297,6 +351,17 @@ class GC2DH5Potential(Potential):
 		# ``freqs`` is retained because established GC2D notebooks use this name.
 		self.freqs = self.frequencies
 		self.source_field_indices = _readonly_array(source_indices, dtype=int)
+		self.source_x = _readonly_array(source_x_values, dtype=float)
+		self.source_y = _readonly_array(source_y_values, dtype=float)
+		self.source_frequencies = _readonly_array(
+			source_frequency_values,
+			dtype=float,
+		)
+		self.characteristic_length = length_scale
+		self.characteristic_period = period_scale
+		self.characteristic_frequency = (
+			None if period_scale is None else 1.0 / period_scale
+		)
 		self.normalization_factor = normalization
 		attribute_values: dict[str, np.ndarray] = {}
 		for name, value in (attributes or {}).items():
@@ -354,12 +419,7 @@ class GC2DH5Potential(Potential):
 		dy: int,
 		time_dimensions: int,
 	) -> np.ndarray:
-		"""Evaluate one stored mode with derivatives of its clipped extension.
-
-		The sampled rectangle is closed: coordinates exactly on an endpoint use
-		the spline derivative. Strictly outside it, a derivative is zero along each
-		clipped coordinate, consistently differentiating the constant extension.
-		"""
+		"""Evaluate one stored mode and its derivatives on the periodic cell."""
 		if x is None:
 			if dx or dy:
 				raise ValueError("Spatial derivatives require `x` and `y`.")
@@ -368,18 +428,13 @@ class GC2DH5Potential(Potential):
 			return field
 		assert y is not None
 		x_values, y_values = np.broadcast_arrays(np.asarray(x), np.asarray(y))
-		x_active = (x_values >= self.x[0]) & (x_values <= self.x[-1])
-		y_active = (y_values >= self.y[0]) & (y_values <= self.y[-1])
+		x_values, y_values = self.grid.normalize(x_values, y_values)
 		coefficient = interpolator.evaluate(
-			np.clip(x_values, self.x[0], self.x[-1]),
-			np.clip(y_values, self.y[0], self.y[-1]),
+			x_values,
+			y_values,
 			dx=int(dx),
 			dy=int(dy),
 		)
-		if dx:
-			coefficient = coefficient * x_active
-		if dy:
-			coefficient = coefficient * y_active
 		return np.asarray(coefficient)
 
 	def _zero_result(
@@ -511,6 +566,11 @@ class GC2DH5Potential(Potential):
 			modes,
 			self.frequencies,
 			source_field_indices=self.source_field_indices,
+			source_x=self.source_x,
+			source_y=self.source_y,
+			source_frequencies=self.source_frequencies,
+			characteristic_length=self.characteristic_length,
+			characteristic_period=self.characteristic_period,
 			normalization_factor=self.normalization_factor,
 			attributes=self.attributes,
 			interpolation_order=self.interpolation_order,
@@ -522,6 +582,8 @@ def load_gc2d_h5_potential(
 	filename: str | PathLike[str],
 	*,
 	B: float = 1.5,
+	characteristic_length: float = DEFAULT_CHARACTERISTIC_LENGTH,
+	characteristic_frequency: float | None = None,
 	indx: int | Sequence[int] | np.ndarray | None = (0, 1),
 	nx: int | None = None,
 	ny: int | None = None,
@@ -529,19 +591,35 @@ def load_gc2d_h5_potential(
 	sigma: float = 1.0,
 	interpolation_order: int = 3,
 ) -> GC2DH5Potential:
-	"""Load one field set from the primary GC2D HDF5 format.
+	"""Load and nondimensionalize one primary GC2D HDF5 field set.
 
 	By default, ``B=1.5`` and ``indx=(0, 1)`` select the mean field and the
 	dominant positive-frequency mode.  Index zero selects the mean field, while
 	positive indices select fluctuation modes after positive-frequency filtering
-	and descending peak-to-peak sorting.  Pass ``indx=None`` to select the mean
-	and every retained positive-frequency mode.  All retained fields are
-	normalized by ``2*pi*f0*B``, where ``f0`` is the first mode after that
-	sorting, before selection, denoising and optional resampling.
+	and descending peak-to-peak sorting. Pass ``indx=None`` to select the mean
+	and every retained positive-frequency mode.
+
+	The source variables are mapped to the article convention through
+	``x_hat = 2*pi*(x-x0)/characteristic_length`` and likewise for ``y``.
+	Source frequencies are divided by ``characteristic_frequency``; when that
+	argument is omitted, the dominant sorted frequency is used. The corresponding
+	characteristic period is ``1/characteristic_frequency`` and the potential is
+	scaled by ``2*pi/(f0*characteristic_length**2*B)``. Consequently, the dominant
+	mode has unit angular frequency and period ``2*pi``.
 	"""
 	magnetic_field = float(B)
 	if not np.isfinite(magnetic_field) or magnetic_field == 0:
 		raise ValueError("`B` must be finite and non-zero.")
+	length_scale = float(characteristic_length)
+	if not np.isfinite(length_scale) or length_scale <= 0:
+		raise ValueError("`characteristic_length` must be finite and positive.")
+	frequency_scale = None
+	if characteristic_frequency is not None:
+		frequency_scale = float(characteristic_frequency)
+		if not np.isfinite(frequency_scale) or frequency_scale <= 0:
+			raise ValueError(
+				"`characteristic_frequency` must be finite and positive when supplied."
+			)
 	if not isinstance(denoising, (bool, np.bool_)):
 		raise TypeError("`denoising` must be boolean.")
 	denoising_sigma = float(sigma)
@@ -550,8 +628,10 @@ def load_gc2d_h5_potential(
 
 	path = Path(filename)
 	with h5py.File(path, "r") as h5:
-		x = np.asarray(h5["Rcells"][()], dtype=float)
-		y = np.asarray(h5["Zcells"][()], dtype=float)
+		source_x = np.asarray(h5["Rcells"][()], dtype=float)
+		source_y = np.asarray(h5["Zcells"][()], dtype=float)
+		x = _validated_axis(source_x, name="Rcells")
+		y = _validated_axis(source_y, name="Zcells")
 		all_frequencies = np.atleast_1d(np.asarray(h5["freqs"][()], dtype=float))
 		fields = h5["fields"]
 		attributes = {name: np.asarray(value) for name, value in h5.attrs.items()}
@@ -584,8 +664,13 @@ def load_gc2d_h5_potential(
 			retained_frequencies = retained_frequencies[sort_indices]
 			retained_fields = retained_fields[sort_indices]
 			retained_indices = retained_indices[sort_indices]
+			if frequency_scale is None:
+				frequency_scale = float(retained_frequencies[0])
 			normalization_factor = float(
-				2.0 * np.pi * retained_frequencies[0] * magnetic_field
+				frequency_scale
+				* length_scale**2
+				* magnetic_field
+				/ (2.0 * np.pi)
 			)
 			retained_fields = retained_fields / normalization_factor
 			if mean_value is not None:
@@ -595,7 +680,26 @@ def load_gc2d_h5_potential(
 				(0, len(y), len(x)),
 				dtype=np.complex128,
 			)
-			normalization_factor = 1.0
+			if frequency_scale is None:
+				normalization_factor = 1.0
+			else:
+				normalization_factor = float(
+					frequency_scale
+					* length_scale**2
+					* magnetic_field
+					/ (2.0 * np.pi)
+				)
+				if mean_value is not None:
+					mean_value = mean_value / normalization_factor
+
+	# Preserve the dimensional provenance before mapping to the article's
+	# dimensionless spatial and temporal variables.
+	retained_source_frequencies = retained_frequencies.copy()
+	if frequency_scale is not None:
+		retained_frequencies = retained_frequencies / frequency_scale
+	coordinate_scale = 2.0 * np.pi / length_scale
+	x = (np.asarray(x) - float(x[0])) * coordinate_scale
+	y = (np.asarray(y) - float(y[0])) * coordinate_scale
 
 	if indx is None:
 		selected = np.arange(len(retained_frequencies) + 1, dtype=int)
@@ -613,6 +717,9 @@ def load_gc2d_h5_potential(
 	selected_mean = mean_value if 0 in selected else None
 	fluctuation_selection = selected[selected != 0] - 1
 	selected_frequencies = retained_frequencies[fluctuation_selection]
+	selected_source_frequencies = retained_source_frequencies[
+		fluctuation_selection
+	]
 	selected_fields = retained_fields[fluctuation_selection]
 	selected_source_indices = retained_indices[fluctuation_selection]
 	selected_fluctuations = (
@@ -652,6 +759,13 @@ def load_gc2d_h5_potential(
 		selected_fluctuations,
 		selected_frequencies,
 		source_field_indices=selected_source_indices,
+		source_x=source_x,
+		source_y=source_y,
+		source_frequencies=selected_source_frequencies,
+		characteristic_length=length_scale,
+		characteristic_period=(
+			None if frequency_scale is None else 1.0 / frequency_scale
+		),
 		normalization_factor=normalization_factor,
 		attributes=attributes,
 		interpolation_order=interpolation_order,
@@ -659,4 +773,8 @@ def load_gc2d_h5_potential(
 	)
 
 
-__all__ = ["GC2DH5Potential", "load_gc2d_h5_potential"]
+__all__ = [
+	"DEFAULT_CHARACTERISTIC_LENGTH",
+	"GC2DH5Potential",
+	"load_gc2d_h5_potential",
+]

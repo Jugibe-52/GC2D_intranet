@@ -42,24 +42,17 @@ requested; proper names and mathematical notation do not require translation.
 
 # Model architecture documentation
 
-Keep architecture documentation separated by numerical model under
-`docs/models/<model>/`. Each model owns independent `dynamics/` and
-`simulation/` directories containing one Markdown explanation and its companion
-PlantUML diagram. Mathematical LaTeX sources and their deliberate PDFs belong
-at the model-directory root.
-
-For the complete ABBA method family, the authoritative numerical-architecture
-files are:
-
-- `docs/models/abba/simulation/abba-numerical-architecture.md`; and
-- `docs/models/abba/simulation/abba-numerical-architecture.puml`.
-
-For the `ABBA2Implicit`-specific dynamics and mathematical derivation, the
-authoritative files are:
-
-- `docs/models/abba2-implicit/dynamics/gc2d-h5-import.md` and
-  `gc2d-h5-potential-architecture.puml`;
-- `docs/models/abba2-implicit/ABBA2_implicit.tex` and its compiled PDF.
+Keep numerical-method architecture documentation separated by model under
+`docs/models/<model>/`. Model directories contain numerical-method theory and
+simulation architecture only; do not create model-specific `dynamics/`
+directories. Shared physical dynamics, potential behavior, and dynamics
+protocols belong under `docs/dynamics/`, and model documents may link to those
+shared contracts when necessary. Every model owns a `tex/` directory whose
+canonical theoretical entry point is `tex/theory.tex`, with the deliberate
+compiled PDF at `tex/theory.pdf`. A model with several runtime configurations
+explains their common mathematics and differences in that entry point; detailed
+derivations may accompany it in the same `tex/` directory. Do not recreate a
+global `docs/tex/` tree.
 
 Update the relevant model documents whenever code changes affect their public
 API, dependencies, dynamics, initial configuration, simulation lifecycle,

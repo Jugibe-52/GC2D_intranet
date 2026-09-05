@@ -3,19 +3,23 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass
+from concurrent.futures import FIRST_COMPLETED, Future, ProcessPoolExecutor, wait
+from dataclasses import dataclass, replace
 from itertools import product
+from multiprocessing import get_context
+from pathlib import Path
 import sys
 from time import perf_counter
 from types import MappingProxyType
-from typing import Literal, TypeAlias
+from typing import Any, Literal, TypeAlias
 
 import numpy as np
+from threadpoolctl import ThreadpoolController
 
 from diagnostics import StoredReferenceTrajectory
 from dynamics import GuidingCenterDynamics
 from initial_conditions import GCInitialConfiguration
-from potential import Potential
+from potential import GC2DH5Potential, Potential
 from simulation import (
 	ABBA4Implicit,
 	ABBA4ImplicitSingleProjection,
@@ -151,11 +155,25 @@ ABBA4_CONFIGURATION_KEYS: tuple[str, ...] = tuple(
 ABBA4_CONFIGURATION_LABELS: Mapping[str, str] = MappingProxyType(
 	{variant.key: variant.label for variant in ABBA4_CONFIGURATION_VARIANTS}
 )
+_ABBA4_CONFIGURATION_VARIANTS_BY_KEY: Mapping[
+	str,
+	ABBA4ConfigurationVariant,
+] = MappingProxyType(
+	{variant.key: variant for variant in ABBA4_CONFIGURATION_VARIANTS}
+)
+_PARALLEL_PROGRESS_BAR_WIDTH = 24
+_PARALLEL_PROGRESS_HEARTBEAT_SECONDS = 5.0
 
 
 @dataclass(frozen=True, slots=True)
 class ABBA4ConfigurationComparisonConfig:
-	"""Physical interval, fixed grid, and common nonlinear controls."""
+	"""Physical, numerical, and process-level execution controls.
+
+	``worker_count=1`` preserves the serial execution and isolated timing
+	semantics. Larger values distribute complete one-particle trajectories over
+	spawned worker processes; the time steps within each trajectory remain
+	strictly sequential.
+	"""
 
 	t_span: tuple[float, float] = (0.0, 4.0)
 	integration_step: float = 0.0025
@@ -166,6 +184,7 @@ class ABBA4ConfigurationComparisonConfig:
 	max_iterations: int = 40
 	progress: bool = False
 	particle_count: int = ABBA4_CONFIGURATION_PARTICLE_COUNT
+	worker_count: int = 1
 
 	def __post_init__(self) -> None:
 		"""Normalize all reproducibility controls and require aligned grids."""
@@ -195,6 +214,11 @@ class ABBA4ConfigurationComparisonConfig:
 			self,
 			"particle_count",
 			positive_integer(self.particle_count, "particle_count"),
+		)
+		object.__setattr__(
+			self,
+			"worker_count",
+			positive_integer(self.worker_count, "worker_count"),
 		)
 		integer_ratio(
 			self.t_span[1] - self.t_span[0],
@@ -233,7 +257,12 @@ class ABBA4ConfigurationComparisonConfig:
 
 @dataclass(frozen=True, slots=True)
 class ABBA4ConfigurationComparisonSummary:
-	"""The five requested metrics plus the stable configuration identity."""
+	"""The five requested metrics plus the stable configuration identity.
+
+	When ``worker_count > 1``, ``total_runtime_seconds`` is the sum of contended
+	per-worker wall times, not the overall process-pool elapsed time. Use serial
+	execution for isolated method-runtime comparisons.
+	"""
 
 	key: str
 	label: str
@@ -331,7 +360,7 @@ def _generalized_energy_history(
 
 @dataclass(frozen=True, slots=True)
 class ABBA4ConfigurationComparisonResult:
-	"""Aligned one-particle solutions for all sixteen configurations."""
+	"""Aligned one-particle solutions and task timings for all configurations."""
 
 	potential: Potential
 	dynamics: GuidingCenterDynamics
@@ -488,7 +517,7 @@ class ABBA4ConfigurationComparisonResult:
 		return values
 
 	def summaries(self) -> tuple[ABBA4ConfigurationComparisonSummary, ...]:
-		"""Return exactly sixteen rows containing the five requested metrics."""
+		"""Return sixteen rows, including aggregate trajectory-task runtime."""
 		rows: list[ABBA4ConfigurationComparisonSummary] = []
 		for variant in ABBA4_CONFIGURATION_VARIANTS:
 			distances = self._trajectory_distances(variant.key)
@@ -568,6 +597,191 @@ def _alternating_particle_order(particle_count: int) -> tuple[int, ...]:
 	return tuple(order)
 
 
+@dataclass(frozen=True, slots=True)
+class _GC2DH5PotentialSnapshot:
+	"""Pickle-safe processed HDF5 field used to initialize spawned workers."""
+
+	x: np.ndarray
+	y: np.ndarray
+	mean_value: np.ndarray | None
+	fluctuations: np.ndarray | None
+	frequencies: np.ndarray
+	source_field_indices: np.ndarray
+	source_x: np.ndarray
+	source_y: np.ndarray
+	source_frequencies: np.ndarray
+	characteristic_length: float | None
+	characteristic_period: float | None
+	normalization_factor: float
+	attributes: dict[str, np.ndarray]
+	interpolation_order: int
+	source_path: str | None
+
+	@classmethod
+	def from_potential(
+		cls,
+		potential: GC2DH5Potential,
+	) -> _GC2DH5PotentialSnapshot:
+		"""Capture the selected and resampled fields without the source HDF5."""
+		return cls(
+			x=potential.x,
+			y=potential.y,
+			mean_value=potential.mean_value,
+			fluctuations=potential.fluctuations,
+			frequencies=potential.frequencies,
+			source_field_indices=potential.source_field_indices,
+			source_x=potential.source_x,
+			source_y=potential.source_y,
+			source_frequencies=potential.source_frequencies,
+			characteristic_length=potential.characteristic_length,
+			characteristic_period=potential.characteristic_period,
+			normalization_factor=potential.normalization_factor,
+			attributes=dict(potential.attributes),
+			interpolation_order=potential.interpolation_order,
+			source_path=(
+				None
+				if potential.source_path is None
+				else str(potential.source_path)
+			),
+		)
+
+	def restore(self) -> GC2DH5Potential:
+		"""Rebuild runtime splines once inside one worker process."""
+		return GC2DH5Potential(
+			self.x,
+			self.y,
+			self.mean_value,
+			self.fluctuations,
+			self.frequencies,
+			source_field_indices=self.source_field_indices,
+			source_x=self.source_x,
+			source_y=self.source_y,
+			source_frequencies=self.source_frequencies,
+			characteristic_length=self.characteristic_length,
+			characteristic_period=self.characteristic_period,
+			normalization_factor=self.normalization_factor,
+			attributes=self.attributes,
+			interpolation_order=self.interpolation_order,
+			source_path=(
+				None if self.source_path is None else Path(self.source_path)
+			),
+		)
+
+
+_WorkerPotentialPayload: TypeAlias = Potential | _GC2DH5PotentialSnapshot
+
+
+@dataclass(frozen=True, slots=True)
+class _ABBA4TrajectoryTask:
+	"""One independent configuration-particle trajectory."""
+
+	variant_key: str
+	particle: int
+
+
+@dataclass(frozen=True, slots=True)
+class _ABBA4TrajectoryPayload:
+	"""Pickle-safe trajectory data returned by a worker process."""
+
+	variant_key: str
+	particle: int
+	times: np.ndarray
+	states: np.ndarray
+	diagnostics: dict[str, Any]
+	runtime_seconds: float
+
+
+@dataclass(frozen=True, slots=True)
+class _ABBA4WorkerContext:
+	"""Objects constructed once and reused by consecutive tasks in one worker."""
+
+	dynamics: GuidingCenterDynamics
+	request: SimulationRequest
+	problems: tuple[InitialValueProblem, ...]
+	methods: Mapping[str, NumericalMethod]
+
+
+_ABBA4_WORKER_CONTEXT: _ABBA4WorkerContext | None = None
+_ABBA4_WORKER_THREADPOOL_LIMITER: Any = None
+
+
+def _worker_potential_payload(potential: Potential) -> _WorkerPotentialPayload:
+	"""Return a spawn-safe potential representation without rereading HDF5."""
+	if isinstance(potential, GC2DH5Potential):
+		return _GC2DH5PotentialSnapshot.from_potential(potential)
+	return potential
+
+
+def _initialize_abba4_worker(
+	potential_payload: _WorkerPotentialPayload,
+	particle_coordinates: tuple[tuple[float, float], ...],
+	config: ABBA4ConfigurationComparisonConfig,
+) -> None:
+	"""Build process-local dynamics, methods, and single-particle problems."""
+	global _ABBA4_WORKER_CONTEXT, _ABBA4_WORKER_THREADPOOL_LIMITER
+	# NumPy is imported before the initializer under ``spawn``. Runtime limits
+	# therefore prevent process-by-BLAS oversubscription more reliably than
+	# environment variables set by the calling notebook.
+	_ABBA4_WORKER_THREADPOOL_LIMITER = ThreadpoolController().limit(limits=1)
+	potential = (
+		potential_payload.restore()
+		if isinstance(potential_payload, _GC2DH5PotentialSnapshot)
+		else potential_payload
+	)
+	dynamics = GuidingCenterDynamics(potential, rho=config.rho)
+	request = SimulationRequest.uniform(
+		t_span=config.t_span,
+		max_step=config.integration_step,
+		sample_count=config.output_sample_count,
+	)
+	particle_configurations = tuple(
+		GCInitialConfiguration.from_components(
+			x=np.asarray([x], dtype=float),
+			y=np.asarray([y], dtype=float),
+		)
+		for x, y in particle_coordinates
+	)
+	worker_config = replace(config, progress=False)
+	_ABBA4_WORKER_CONTEXT = _ABBA4WorkerContext(
+		dynamics=dynamics,
+		request=request,
+		problems=tuple(
+			InitialValueProblem(dynamics, particle_configuration)
+			for particle_configuration in particle_configurations
+		),
+		methods={
+			variant.key: _method_for_variant(variant, worker_config)
+			for variant in ABBA4_CONFIGURATION_VARIANTS
+		},
+	)
+
+
+def _run_abba4_trajectory_task(
+	task: _ABBA4TrajectoryTask,
+) -> _ABBA4TrajectoryPayload:
+	"""Integrate and time one complete trajectory inside a worker process."""
+	context = _ABBA4_WORKER_CONTEXT
+	if context is None:
+		raise RuntimeError("The ABBA4 worker process was not initialized.")
+	variant = _ABBA4_CONFIGURATION_VARIANTS_BY_KEY[task.variant_key]
+	started = perf_counter()
+	solution = simulate(
+		context.problems[task.particle],
+		context.methods[task.variant_key],
+		context.request,
+	)
+	_generalized_energy_history(context.dynamics, variant, solution)
+	runtime_seconds = perf_counter() - started
+	return _ABBA4TrajectoryPayload(
+		variant_key=task.variant_key,
+		particle=task.particle,
+		times=solution.t,
+		states=solution.states,
+		diagnostics=dict(solution.diagnostics),
+		runtime_seconds=runtime_seconds,
+	)
+
+
 def _validated_reference_samples(
 	potential: Potential,
 	dynamics: GuidingCenterDynamics,
@@ -614,6 +828,305 @@ def _validated_reference_samples(
 	if potential is not dynamics.potential:
 		raise ValueError("The comparison dynamics must use the supplied potential.")
 	return indices
+
+
+def _empty_trajectory_rows(
+	particle_count: int,
+) -> tuple[dict[str, dict[int, Solution]], dict[str, np.ndarray]]:
+	"""Allocate stable variant rows for solutions and per-particle timings."""
+	return (
+		{key: {} for key in ABBA4_CONFIGURATION_KEYS},
+		{
+			key: np.empty(particle_count, dtype=float)
+			for key in ABBA4_CONFIGURATION_KEYS
+		},
+	)
+
+
+def _sequential_task_schedule(
+	particle_count: int,
+) -> tuple[_ABBA4TrajectoryTask, ...]:
+	"""Retain the historical alternating order used for isolated timings."""
+	tasks: list[_ABBA4TrajectoryTask] = []
+	for schedule_index, particle in enumerate(
+		_alternating_particle_order(particle_count)
+	):
+		variant_order = (
+			ABBA4_CONFIGURATION_VARIANTS
+			if schedule_index % 2 == 0
+			else tuple(reversed(ABBA4_CONFIGURATION_VARIANTS))
+		)
+		tasks.extend(
+			_ABBA4TrajectoryTask(variant.key, particle)
+			for variant in variant_order
+		)
+	return tuple(tasks)
+
+
+def _parallel_task_schedule(
+	particle_count: int,
+) -> tuple[_ABBA4TrajectoryTask, ...]:
+	"""Submit empirically heavier R8/Newton trajectories before short work."""
+	variant_order = tuple(
+		sorted(
+			ABBA4_CONFIGURATION_VARIANTS,
+			key=lambda variant: (
+				variant.state_extension == "fully_extended",
+				variant.nonlinear_solver == "newton",
+				variant.method_name == "ABBA4Implicit",
+				variant.projection_formulation
+				== "simultaneous_state_multiplier",
+			),
+			reverse=True,
+		)
+	)
+	particle_order = _alternating_particle_order(particle_count)
+	return tuple(
+		_ABBA4TrajectoryTask(variant.key, particle)
+		for variant in variant_order
+		for particle in particle_order
+	)
+
+
+def _trajectory_progress_bar(
+	completed_run_count: int,
+	total_run_count: int,
+) -> str:
+	"""Return the fixed-width global trajectory progress bar."""
+	completion_fraction = completed_run_count / total_run_count
+	filled_width = min(
+		_PARALLEL_PROGRESS_BAR_WIDTH,
+		int(completion_fraction * _PARALLEL_PROGRESS_BAR_WIDTH),
+	)
+	return (
+		"#" * filled_width
+		+ "-" * (_PARALLEL_PROGRESS_BAR_WIDTH - filled_width)
+	)
+
+
+def _report_trajectory_completion(
+	*,
+	task: _ABBA4TrajectoryTask,
+	runtime_seconds: float,
+	completed_run_count: int,
+	total_run_count: int,
+	particle_count: int,
+	study_started: float,
+) -> None:
+	"""Print one parent-owned completion record and campaign ETA."""
+	elapsed_seconds = perf_counter() - study_started
+	remaining_seconds = (
+		elapsed_seconds
+		* (total_run_count - completed_run_count)
+		/ completed_run_count
+	)
+	progress_bar = _trajectory_progress_bar(
+		completed_run_count,
+		total_run_count,
+	)
+	variant = _ABBA4_CONFIGURATION_VARIANTS_BY_KEY[task.variant_key]
+	print(
+		f"[{completed_run_count}/{total_run_count}] Completed in "
+		f"{runtime_seconds:.2f} s; particle "
+		f"{task.particle + 1}/{particle_count}: {variant.label}; "
+		f"progress [{progress_bar}]; "
+		f"total {completed_run_count / total_run_count:.1%}; "
+		f"elapsed {elapsed_seconds:.1f} s; ETA {remaining_seconds:.1f} s.",
+		file=sys.stderr,
+		flush=True,
+	)
+
+
+def _report_parallel_progress(
+	*,
+	completed_run_count: int,
+	total_run_count: int,
+	unfinished_run_count: int,
+	worker_count: int,
+	study_started: float,
+) -> None:
+	"""Print a periodic parent-owned heartbeat for a parallel campaign."""
+	elapsed_seconds = perf_counter() - study_started
+	completion_fraction = completed_run_count / total_run_count
+	progress_bar = _trajectory_progress_bar(
+		completed_run_count,
+		total_run_count,
+	)
+	eta_text = (
+		"ETA after first completion"
+		if completed_run_count == 0
+		else (
+			f"ETA {elapsed_seconds * unfinished_run_count / completed_run_count:.1f} s"
+		)
+	)
+	print(
+		f"Parallel progress [{progress_bar}] "
+		f"{completed_run_count}/{total_run_count} "
+		f"({completion_fraction:.1%}); unfinished {unfinished_run_count}; "
+		f"workers {worker_count}; elapsed {elapsed_seconds:.1f} s; {eta_text}.",
+		file=sys.stderr,
+		flush=True,
+	)
+
+
+def _run_sequential_trajectories(
+	dynamics: GuidingCenterDynamics,
+	particle_configurations: tuple[GCInitialConfiguration, ...],
+	request: SimulationRequest,
+	config: ABBA4ConfigurationComparisonConfig,
+	*,
+	study_started: float,
+) -> tuple[dict[str, dict[int, Solution]], dict[str, np.ndarray]]:
+	"""Run the compatibility path with one process and per-method progress."""
+	problems = tuple(
+		InitialValueProblem(dynamics, particle_configuration)
+		for particle_configuration in particle_configurations
+	)
+	methods = {
+		variant.key: _method_for_variant(variant, config)
+		for variant in ABBA4_CONFIGURATION_VARIANTS
+	}
+	solution_rows, runtime_rows = _empty_trajectory_rows(config.particle_count)
+	tasks = _sequential_task_schedule(config.particle_count)
+	for completed_before, task in enumerate(tasks):
+		variant = _ABBA4_CONFIGURATION_VARIANTS_BY_KEY[task.variant_key]
+		if config.progress:
+			print(
+				f"[{completed_before + 1}/{len(tasks)}] Starting particle "
+				f"{task.particle + 1}/{config.particle_count}: "
+				f"{variant.label}",
+				file=sys.stderr,
+				flush=True,
+			)
+		started = perf_counter()
+		solution = simulate(
+			problems[task.particle],
+			methods[task.variant_key],
+			request,
+		)
+		_generalized_energy_history(dynamics, variant, solution)
+		runtime_seconds = perf_counter() - started
+		runtime_rows[task.variant_key][task.particle] = runtime_seconds
+		solution_rows[task.variant_key][task.particle] = solution
+		if config.progress:
+			_report_trajectory_completion(
+				task=task,
+				runtime_seconds=runtime_seconds,
+				completed_run_count=completed_before + 1,
+				total_run_count=len(tasks),
+				particle_count=config.particle_count,
+				study_started=study_started,
+			)
+	return solution_rows, runtime_rows
+
+
+def _run_parallel_trajectories(
+	potential: Potential,
+	particle_configurations: tuple[GCInitialConfiguration, ...],
+	config: ABBA4ConfigurationComparisonConfig,
+	*,
+	study_started: float,
+) -> tuple[dict[str, dict[int, Solution]], dict[str, np.ndarray]]:
+	"""Run complete trajectories in spawn-safe, single-threaded workers."""
+	tasks = _parallel_task_schedule(config.particle_count)
+	worker_count = min(config.worker_count, len(tasks))
+	particle_coordinates: list[tuple[float, float]] = []
+	for particle_configuration in particle_configurations:
+		initial_state = particle_configuration.initial_state
+		assert initial_state is not None
+		x, y = particle_configuration.positions(initial_state)
+		particle_coordinates.append((float(x[0]), float(y[0])))
+
+	solution_rows, runtime_rows = _empty_trajectory_rows(config.particle_count)
+	with ProcessPoolExecutor(
+		max_workers=worker_count,
+		mp_context=get_context("spawn"),
+		initializer=_initialize_abba4_worker,
+		initargs=(
+			_worker_potential_payload(potential),
+			tuple(particle_coordinates),
+			config,
+		),
+	) as executor:
+		future_tasks: dict[
+			Future[_ABBA4TrajectoryPayload],
+			_ABBA4TrajectoryTask,
+		] = {}
+		try:
+			for task in tasks:
+				future_tasks[
+					executor.submit(_run_abba4_trajectory_task, task)
+				] = task
+			pending_futures = set(future_tasks)
+			completed_run_count = 0
+			if config.progress:
+				_report_parallel_progress(
+					completed_run_count=completed_run_count,
+					total_run_count=len(tasks),
+					unfinished_run_count=len(pending_futures),
+					worker_count=worker_count,
+					study_started=study_started,
+				)
+			while pending_futures:
+				completed_futures, pending_futures = wait(
+					pending_futures,
+					timeout=_PARALLEL_PROGRESS_HEARTBEAT_SECONDS,
+					return_when=FIRST_COMPLETED,
+				)
+				if not completed_futures:
+					if config.progress:
+						_report_parallel_progress(
+							completed_run_count=completed_run_count,
+							total_run_count=len(tasks),
+							unfinished_run_count=len(pending_futures),
+							worker_count=worker_count,
+							study_started=study_started,
+						)
+					continue
+				for future in completed_futures:
+					task = future_tasks[future]
+					variant = _ABBA4_CONFIGURATION_VARIANTS_BY_KEY[
+						task.variant_key
+					]
+					try:
+						payload = future.result()
+					except Exception as exc:
+						raise RuntimeError(
+							"ABBA4 comparison failed for particle "
+							f"{task.particle + 1}/{config.particle_count}, "
+							f"configuration {task.variant_key} ({variant.label})."
+						) from exc
+					if (
+						payload.variant_key != task.variant_key
+						or payload.particle != task.particle
+					):
+						raise RuntimeError(
+							"An ABBA4 worker returned a trajectory for the wrong task."
+						)
+					solution_rows[task.variant_key][task.particle] = Solution(
+						t=payload.times,
+						states=payload.states,
+						source=particle_configurations[task.particle],
+						diagnostics=payload.diagnostics,
+					)
+					runtime_rows[task.variant_key][task.particle] = (
+						payload.runtime_seconds
+					)
+					completed_run_count += 1
+					if config.progress:
+						_report_trajectory_completion(
+							task=task,
+							runtime_seconds=payload.runtime_seconds,
+							completed_run_count=completed_run_count,
+							total_run_count=len(tasks),
+							particle_count=config.particle_count,
+							study_started=study_started,
+						)
+		except BaseException:
+			for pending in future_tasks:
+				pending.cancel()
+			raise
+	return solution_rows, runtime_rows
 
 
 def run_abba4_configuration_comparison(
@@ -663,72 +1176,38 @@ def run_abba4_configuration_comparison(
 		)
 		for particle in range(config.particle_count)
 	)
-	problems = tuple(
-		InitialValueProblem(dynamics, particle_configuration)
-		for particle_configuration in particle_configurations
-	)
-	methods = {
-		variant.key: _method_for_variant(variant, config)
-		for variant in ABBA4_CONFIGURATION_VARIANTS
-	}
-	solution_rows: dict[str, dict[int, Solution]] = {
-		key: {} for key in ABBA4_CONFIGURATION_KEYS
-	}
-	runtime_rows: dict[str, np.ndarray] = {
-		key: np.empty(config.particle_count, dtype=float)
-		for key in ABBA4_CONFIGURATION_KEYS
-	}
 	total_run_count = len(ABBA4_CONFIGURATION_VARIANTS) * config.particle_count
-	completed_run_count = 0
+	effective_worker_count = min(config.worker_count, total_run_count)
 	study_started = perf_counter()
 	if config.progress:
+		worker_label = (
+			"worker process"
+			if effective_worker_count == 1
+			else "worker processes"
+		)
 		print(
 			"ABBA4 comparison: starting "
 			f"{total_run_count} independent integrations "
-			f"({config.step_count} steps each).",
+			f"({config.step_count} steps each) with "
+			f"{effective_worker_count} {worker_label}.",
 			file=sys.stderr,
 			flush=True,
 		)
-	for schedule_index, particle in enumerate(
-		_alternating_particle_order(config.particle_count)
-	):
-		variant_order = (
-			ABBA4_CONFIGURATION_VARIANTS
-			if schedule_index % 2 == 0
-			else tuple(reversed(ABBA4_CONFIGURATION_VARIANTS))
+	if config.worker_count == 1:
+		solution_rows, runtime_rows = _run_sequential_trajectories(
+			dynamics,
+			particle_configurations,
+			request,
+			config,
+			study_started=study_started,
 		)
-		for variant in variant_order:
-			if config.progress:
-				print(
-					f"[{completed_run_count + 1}/{total_run_count}] Starting "
-					f"particle {particle + 1}/{config.particle_count}: "
-					f"{variant.label}",
-					file=sys.stderr,
-					flush=True,
-				)
-			started = perf_counter()
-			solution = simulate(problems[particle], methods[variant.key], request)
-			_generalized_energy_history(dynamics, variant, solution)
-			run_seconds = perf_counter() - started
-			runtime_rows[variant.key][particle] = run_seconds
-			solution_rows[variant.key][particle] = solution
-			completed_run_count += 1
-			if config.progress:
-				elapsed_seconds = perf_counter() - study_started
-				remaining_seconds = (
-					elapsed_seconds
-					* (total_run_count - completed_run_count)
-					/ completed_run_count
-				)
-				print(
-					f"[{completed_run_count}/{total_run_count}] Completed in "
-					f"{run_seconds:.2f} s; total "
-					f"{completed_run_count / total_run_count:.1%}; "
-					f"elapsed {elapsed_seconds:.1f} s; "
-					f"ETA {remaining_seconds:.1f} s.",
-					file=sys.stderr,
-					flush=True,
-				)
+	else:
+		solution_rows, runtime_rows = _run_parallel_trajectories(
+			potential,
+			particle_configurations,
+			config,
+			study_started=study_started,
+		)
 	if config.progress:
 		print(
 			f"ABBA4 comparison: all integrations completed in "

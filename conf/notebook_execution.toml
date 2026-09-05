@@ -1,0 +1,16 @@
+# Change only this value to select where the notebook runs.
+execution_target = "aws"
+
+[notebook]
+path = "notebooks/experiments/comparison/compare_abba4_r6_r8_configurations.ipynb"
+local_result = "notebooks/experiments/comparison/compare_abba4_r6_r8_configurations_local_executed.ipynb"
+aws_result = "notebooks/experiments/comparison/compare_abba4_r6_r8_configurations_aws_executed.ipynb"
+cell_timeout_seconds = 2900
+hard_stop_minutes = 60
+
+[aws]
+region = "eu-central-1"
+stack_name = "gc2d-abba4-worker"
+instance_name = "gc2d-worker"
+bucket = "gc2d-frankfurt-20260904-j7m3q9"
+result_prefix = "runs/compare-abba4-r6-r8"

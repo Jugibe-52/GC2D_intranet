@@ -1,0 +1,304 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[provide=*,english]{babel}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage{amsmath,amssymb,mathtools}
+\usepackage{geometry}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{fancyhdr}
+\usepackage[hidelinks]{hyperref}
+
+\geometry{left=2.3cm,right=2.3cm,top=2.2cm,bottom=2.25cm,headheight=14pt}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0.42em}
+\setlist[itemize]{topsep=0.25em,itemsep=0.18em,leftmargin=1.5em}
+\allowdisplaybreaks
+
+\definecolor{blue}{RGB}{34,73,110}
+\definecolor{gray}{RGB}{90,96,102}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\color{gray}GC2D: ABBA4 implicit}
+\fancyhead[R]{\small\color{gray}Jacobian formula summary}
+\fancyfoot[C]{\thepage}
+\renewcommand{\headrulewidth}{0.3pt}
+
+\newcommand{\Id}{I}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\norm}[1]{\left\lVert#1\right\rVert}
+
+\begin{document}
+
+\begin{center}
+  {\LARGE\bfseries\color{blue}ABBA4 Implicit Jacobian Formulas}\par
+  \vspace{0.35em}
+  {\large Local implicit-function factors and the triple-jump product}\par
+  \vspace{0.45em}
+  {\small Reduced physical branch for non-autonomous GC2D dynamics}
+\end{center}
+
+\section{Composition notation}
+
+Let
+\[
+ \gamma=\frac{1}{2-2^{1/3}},
+ \qquad
+ \delta=-\frac{2^{1/3}}{2-2^{1/3}},
+ \qquad
+ (c_1,c_2,c_3)=(\gamma,\delta,\gamma).
+\]
+For outer step size $h$, define
+\[
+ \ell_j=c_jh,
+ \qquad
+ \tau_j=t_n+h\sum_{r<j}c_r,
+ \qquad
+ s_j=\frac{\ell_j}{2},
+ \qquad
+ j=1,2,3.
+\]
+The signed physical substeps are
+\[
+ z^{[0]}=z_n,
+ \qquad
+ z^{[j]}=\Psi^{[2]}_{\ell_j,\tau_j}(z^{[j-1]}),
+ \qquad
+ z_{n+1}=z^{[3]}.
+\]
+Every quantity below with first index $j$ belongs to one independent
+projection solve.  In particular, the three multipliers $\mu_j$ and their
+stage points must not be shared.
+
+\section{Stage Jacobians for one signed substep}
+
+Let
+\[
+ W_{j,i}=D_zf(\text{stage point }i,\text{stage time }i),
+ \qquad i=1,2,3,4,
+\]
+and define
+\[
+ S_j=W_{j,2}+W_{j,3}.
+\]
+The matrix-product order must be preserved.  The exact duplicated ABBA
+Jacobian has $2\times2$ blocks
+\[
+ J_{\mathrm{ABBA},j}
+ =\begin{pmatrix}A_j&B_j\\C_j&D_j\end{pmatrix},
+\]
+where
+\begin{align*}
+ A_j&=\Id_2+s_j^2W_{j,4}S_j,\\
+ B_j&=s_j(W_{j,1}+W_{j,4})
+      +s_j^3W_{j,4}S_jW_{j,1},\\
+ C_j&=s_jS_j,\\
+ D_j&=\Id_2+s_j^2S_jW_{j,1}.
+\end{align*}
+These expressions are valid without modification for the negative middle
+substep because $s_2=\delta h/2<0$.
+
+\section{Residual derivatives \texorpdfstring{$K_j$}{Kj} and \texorpdfstring{$L_j$}{Lj}}
+
+For the reduced projection residual
+\[
+ R_j(z,\mu)
+ =G\Phi^{\mathrm{ABBA}}_{\ell_j,\tau_j}(Ez+G^T\mu)+2\mu,
+\]
+define
+\[
+ K_j=D_\mu R_j,
+ \qquad
+ L_j=D_zR_j.
+\]
+Their compact block expressions are
+\[
+ \boxed{
+ K_j=A_j-B_j-C_j+D_j+2\Id_2,
+ }
+\]
+\[
+ \boxed{
+ L_j=A_j+B_j-C_j-D_j.
+ }
+\]
+Equivalently,
+\[
+ \boxed{
+ \begin{aligned}
+ K_j={}&4\Id_2-s_j(W_{j,1}+W_{j,2}+W_{j,3}+W_{j,4})\\
+ &+s_j^2\bigl(W_{j,4}S_j+S_jW_{j,1}\bigr)
+ -s_j^3W_{j,4}S_jW_{j,1},
+ \end{aligned}
+ }
+\]
+and
+\[
+ \boxed{
+ \begin{aligned}
+ L_j={}&s_j(W_{j,1}-W_{j,2}-W_{j,3}+W_{j,4})\\
+ &+s_j^2\bigl(W_{j,4}S_j-S_jW_{j,1}\bigr)
+ +s_j^3W_{j,4}S_jW_{j,1}.
+ \end{aligned}
+ }
+\]
+
+The converged multiplier is a function
+\[
+ \mu_j^*=\mu_{\ell_j,\tau_j}(z^{[j-1]}).
+\]
+Differentiating
+\(
+ R_j(z,\mu_j^*(z))=0
+\)
+gives
+\[
+ L_j+K_jM_j=0,
+ \qquad
+ M_j:=D_z\mu_j^*,
+\]
+and hence
+\[
+ \boxed{M_j=-K_j^{-1}L_j.}
+\]
+An implementation solves $K_jM_j=-L_j$ and does not form the inverse.
+
+\section{Physical Jacobian of one substep}
+
+Define
+\[
+ P_j=A_j+B_j,
+ \qquad
+ Q_j=A_j-B_j+\Id_2.
+\]
+In expanded form,
+\[
+ P_j=\Id_2+s_j(W_{j,1}+W_{j,4})
+ +s_j^2W_{j,4}S_j+s_j^3W_{j,4}S_jW_{j,1},
+\]
+\[
+ Q_j=2\Id_2-s_j(W_{j,1}+W_{j,4})
+ +s_j^2W_{j,4}S_j-s_j^3W_{j,4}S_jW_{j,1}.
+\]
+The exact ideal-root physical Jacobian is
+\[
+ \boxed{
+ J_j
+ :=D_z\Psi^{[2]}_{\ell_j,\tau_j}(z^{[j-1]})
+ =P_j-Q_jK_j^{-1}L_j.
+ }
+\]
+To construct it stably, solve the two-right-hand-side system
+\[
+ K_jT_j=L_j,
+ \qquad
+ J_j=P_j-Q_jT_j.
+\]
+The Newton matrix $K_j$ is not the physical Jacobian $J_j$.
+
+\section{Equivalent stage-increment factorization}
+
+For one substep, the physical mean is
+\[
+ z^{[j]}=z^{[j-1]}
+ +\frac{\ell_j}{4}(k_{j,1}+k_{j,2}+k_{j,3}+k_{j,4}).
+\]
+The total derivatives, including $M_j=D\mu_j^*$, obey
+\begin{align*}
+ Dk_{j,1}&=W_{j,1}(\Id_2-M_j),\\
+ Du_j^{(1)}&=\Id_2+M_j+s_jDk_{j,1},\\
+ Dk_{j,2}&=W_{j,2}Du_j^{(1)},\\
+ Dk_{j,3}&=W_{j,3}Du_j^{(1)},\\
+ Dv_j^{(2)}&=\Id_2-M_j+s_j(Dk_{j,2}+Dk_{j,3}),\\
+ Dk_{j,4}&=W_{j,4}Dv_j^{(2)}.
+\end{align*}
+Therefore,
+\[
+ \boxed{
+ J_j=\Id_2+\frac{\ell_j}{4}
+ \sum_{i=1}^4Dk_{j,i}.
+ }
+\]
+This stage-increment recurrence and the implicit-function formula are two
+factorizations of the same local tangent.  Omitting $M_j$ differentiates a
+different, explicitly averaged map.
+
+\section{Complete ABBA4 Jacobian}
+
+The outer chain rule gives
+\[
+ \boxed{
+ D_z\Psi^{[4]}_{h,t_n}(z_n)=J_3J_2J_1.
+ }
+\]
+The chronological order matters: $J_1$ acts first and $J_3$ multiplies from
+the left.  No derivative of the Newton or Broyden iteration history appears;
+the formulas differentiate the converged implicit roots.
+
+For a tangent vector $\xi_n$, apply each local Jacobian without constructing
+the full outer matrix.  Set $\eta_0=\xi_n$ and, for $j=1,2,3$, compute
+\[
+ b_j=L_j\eta_{j-1},
+ \qquad
+ K_jy_j=b_j,
+ \qquad
+ \boxed{\eta_j=P_j\eta_{j-1}-Q_jy_j.}
+\]
+Then
+\[
+ \xi_{n+1}=\eta_3.
+\]
+Each application adds one $2\times2$ linear solve per particle and no new
+nonlinear solve.
+
+\section{Accumulation over many outer steps}
+
+Let $\mathcal J_n$ be the local ABBA4 Jacobian for outer step $n$, and let
+$\mathcal M_n$ be the derivative of the numerical state with respect to the
+initial condition.  Initialize
+\[
+ \mathcal M_0=\Id_2
+\]
+and update
+\[
+ \boxed{
+ \mathcal M_{n+1}=\mathcal J_n\mathcal M_n,
+ \qquad
+ \mathcal J_n=J_{n,3}J_{n,2}J_{n,1}.
+ }
+\]
+Thus the most recent local Jacobian always multiplies from the left.
+
+For the ideal projected roots,
+\[
+ J_{n,j}^TJ_0J_{n,j}=J_0
+\]
+for every signed substep, and consequently
+\[
+ \mathcal J_n^TJ_0\mathcal J_n=J_0,
+ \qquad
+ \mathcal M_n^TJ_0\mathcal M_n=J_0.
+\]
+In two dimensions these identities are equivalent to unit determinant.  A
+finite nonlinear tolerance makes the emitted numerical map differ slightly
+from the ideal-root map evaluated by these formulas.
+
+\section{Implementation checklist}
+
+For each accepted outer step:
+\begin{itemize}
+ \item retain the ordered three substep snapshots and their independent
+       multipliers;
+ \item evaluate $W_{j,1},\ldots,W_{j,4}$ at the signed stage times;
+ \item form $K_j,L_j,P_j,Q_j$ without commuting matrix products;
+ \item solve $K_jT_j=L_j$ or apply the tangent through one right-hand side;
+ \item compose in the order $J_3J_2J_1$;
+ \item compare against centered finite differences only at a scale larger than
+       the three nonlinear residual floors.
+\end{itemize}
+
+\end{document}

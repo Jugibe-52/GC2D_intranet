@@ -1,0 +1,187 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[provide=*,english]{babel}
+\usepackage{lmodern,microtype}
+\usepackage{amsmath,amssymb,mathtools}
+\usepackage{booktabs,array,geometry,enumitem,xcolor,fancyhdr}
+\usepackage[hidelinks]{hyperref}
+\geometry{margin=2.3cm,headheight=14pt}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0.4em}
+\setlist[itemize]{leftmargin=1.5em,itemsep=0.2em}
+\definecolor{gcblue}{RGB}{34,73,110}
+\definecolor{gcgray}{RGB}{90,96,102}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\color{gcgray}GC2D numerical models}
+\fancyhead[R]{\small\color{gcgray}ABBA family theory}
+\fancyfoot[C]{\thepage}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\norm}[1]{\left\lVert#1\right\rVert}
+
+\begin{document}
+\begin{center}
+ {\LARGE\bfseries\color{gcblue}The ABBA Numerical-Method Family}\par
+ \vspace{0.35em}
+ {\large Duplicated phase space, projection, composition, and configuration axes}
+\end{center}
+
+\section{Purpose and model boundary}
+
+The ABBA model is a family of integrators built from the same explicit
+$A$--$B$--$B$--$A$ map on two copies of a physical state.  A public class
+selects the order and projection placement; independent configuration axes
+select the projection equations, nonlinear solver, and state extension.  These
+choices are configurations of a model, not additional model identities.
+
+The family has five public methods:
+\begin{itemize}
+\item \texttt{ABBA2Midpoint} and \texttt{ABBA2Implicit};
+\item \texttt{ABBA4Implicit} and
+      \texttt{ABBA4ImplicitSingleProjection}; and
+\item \texttt{ABBA6Implicit}.
+\end{itemize}
+Their focused theory documents live in the sibling model directories.
+
+\section{Duplicated-space ABBA map}
+
+Let $\dot z=f(t,z)$ with $z\in\R^m$.  Duplicate the state as $(u,v)$ and set
+$s=h/2$.  One signed endpoint-time step beginning at $t$ is
+\begin{align}
+ u_1 &= u_0+s f(t,v_0), &
+ v_1 &= v_0+s f(t,u_1),\\
+ v_f &= v_1+s f(t+h,u_1), &
+ u_f &= u_1+s f(t+h,v_f).
+\end{align}
+We denote this map by $\Psi_{h,t}(u_0,v_0)=(u_f,v_f)$.  Its reverse is
+$\Psi_{-h,t+h}$, so the endpoint-time convention is essential for
+non-autonomous reversibility.  When the split system is Hamiltonian, each
+line is a shear and the composition is symplectic on the duplicated space.
+
+With
+\[
+ E=\begin{pmatrix}I\\I\end{pmatrix},\qquad
+ P=\tfrac12\begin{pmatrix}I&I\end{pmatrix},\qquad
+ G=\begin{pmatrix}I&-I\end{pmatrix},\qquad N=G^T,
+\]
+$Ez$ embeds the physical diagonal, $P$ takes its arithmetic mean, and
+$G(u,v)=u-v$ measures copy separation.
+
+\section{Projection choices}
+
+The midpoint method accepts $P\Psi_{h,t}(Ez)$ directly.  The implicit methods
+use Hairer's symmetric projection.  In the reduced formulation a multiplier
+$\mu\in\R^m$ displaces the input and corrects the output:
+\begin{align}
+ \widehat Y &= Ez+N\mu, & M&=\Psi_{h,t}(\widehat Y),\\
+ r(\mu)&=GM+2\mu=0, & z^+&=P(M+N\mu).
+\end{align}
+If $J_\Psi=D\Psi_{h,t}(\widehat Y)$, Newton uses
+\[
+ D_\mu r=GJ_\Psi N+2I.
+\]
+
+The simultaneous formulation solves for the corrected doubled output $Y$ and
+$\mu$ together:
+\[
+ F(Y,\mu)=
+ \begin{pmatrix}
+ Y-N\mu-\Psi_{h,t}(Ez+N\mu)\\GY
+ \end{pmatrix}=0.
+\]
+Eliminating $Y$ gives the reduced equation.  Thus both formulations define
+the same ideal projected map when they converge to the same root.  Newton uses
+the exact residual Jacobian; good Broyden replaces repeated Jacobian assembly
+by rank-one secant updates without changing the defining residual.
+
+\section{Canonical configuration space}
+
+\begin{center}
+\begin{tabular}{@{}p{0.28\linewidth}p{0.64\linewidth}@{}}
+\toprule
+Axis & Canonical values and meaning\\
+\midrule
+Projection formulation & \texttt{reduced\_multiplier};
+\texttt{simultaneous\_state\_multiplier}.\\
+Nonlinear solver & \texttt{newton}; \texttt{broyden}.\\
+State extension & \texttt{physical}; \texttt{shared\_time};
+\texttt{fully\_extended}.\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Each implicit class admits $2\times2\times3=12$ configurations.
+\texttt{ABBA2Midpoint} has no nonlinear equations and only the three state
+extensions.  The family therefore contains $4\times12+3=51$ valid public
+configurations while retaining five method classes.
+
+For one guiding-centre particle, the state dimensions are
+\begin{center}
+\begin{tabular}{@{}lcccc@{}}
+\toprule
+Extension & accepted & split & reduced unknown & simultaneous unknown\\
+\midrule
+physical & $2$ & $4$ & $2$ & $6$\\
+shared time & $4$ & $6$ & $2$ & $6$\\
+fully extended & $4$ & $8$ & $4$ & $12$\\
+\bottomrule
+\end{tabular}
+\end{center}
+The simultaneous vector is nonlinear-solver workspace, not a trajectory
+state.  Shared time duplicates only $z$ and carries a single time--momentum
+pair.  Fully extended mode duplicates $Z=(z,t,k)$ and projects the complete
+autonomous state.
+
+\section{Order by symmetric composition}
+
+The projected ABBA2 map is a symmetric method of order two.  Higher order is
+obtained by palindromic signed compositions.  ABBA4 uses the triple jump
+$(\gamma,\delta,\gamma)$ with
+\[
+ \gamma=\frac{1}{2-\sqrt[3]{2}},\qquad
+ \delta=-\frac{\sqrt[3]{2}}{2-\sqrt[3]{2}},
+ \quad 2\gamma+\delta=1,\quad 2\gamma^3+\delta^3=0.
+\]
+ABBA6 uses seven Yoshida coefficients whose first, third, and fifth odd
+moments have the required cancellations.  Negative coefficients are intrinsic
+to these real compositions, so the dynamics must be defined at all internal
+signed times.
+
+\section{Projection placement is part of the model}
+
+\begin{center}
+\begin{tabular}{@{}lcc@{}}
+\toprule
+Method & ABBA maps & projection policy\\
+\midrule
+ABBA2Midpoint & 1 & arithmetic mean\\
+ABBA2Implicit & 1 & one symmetric projection\\
+ABBA4Implicit & 3 & project after every signed map\\
+ABBA4ImplicitSingleProjection & 3 & project around the complete triple jump\\
+ABBA6Implicit & 7 & project after every signed map\\
+\bottomrule
+\end{tabular}
+\end{center}
+The two fourth-order policies define different numerical maps even though they
+share the same coefficients.
+
+\section{Finite solves and geometric claims}
+
+Symmetry, formal order, and symplecticity concern the ideal map obtained from
+the exact projection root.  A finite stopping tolerance and floating-point
+arithmetic perturb that map.  Consequently, the implementation records
+iterations, residual evaluations, final residual norms, tolerances, and
+projection multipliers.  Step observers expose the accepted map so measured
+Jacobian defects can be distinguished from ideal algebraic properties.
+
+\section{Implementation correspondence}
+
+The common stage kernel is in \texttt{src/simulation/methods/abba/\_core.py};
+the two projection formulations are in \texttt{\_projection\_reduced.py} and
+\texttt{\_projection\_simultaneous.py}; configuration validation is in
+\texttt{\_configuration.py}; and the five public classes are implemented by
+the corresponding \texttt{order*.py} modules.  The architecture document in
+\texttt{../simulation/} is the authoritative runtime inventory.
+
+\end{document}

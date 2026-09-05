@@ -24,12 +24,20 @@ NumericalMethod ---------------------------------/
 SimulationRequest -------------------------------/
 ```
 
+The [trajectory calculation architecture](docs/outline-architecture.md) gives
+a single horizontal view of the dynamics, initial-state, numerical-model, and
+solution boundaries.
+
 `Solution` is an immutable computed trajectory. Its initial configuration is
 available as `solution.source`, while diagnostics are attached as read-only
-data. Architecture documentation is organized by numerical model, with
-separate dynamics contracts and simulation explanations:
+data. Shared physical dynamics are documented independently of the numerical
+models:
 
-- ABBA: [dynamics](docs/models/abba2-implicit/dynamics/gc2d-h5-import.md),
+- [GC2D HDF5 potential and guiding-center dynamics](docs/dynamics/gc2d-h5-import.md).
+
+Numerical architecture is organized by model:
+
+- ABBA: [family theory](docs/models/abba/tex/theory.pdf),
   [family simulation](docs/models/abba/simulation/abba-numerical-architecture.md),
   and focused views for
   [`ABBA2Midpoint`](docs/models/abba2-midpoint/simulation/abba2-midpoint-simulation-architecture.md),
@@ -37,16 +45,19 @@ separate dynamics contracts and simulation explanations:
   [`ABBA4Implicit`](docs/models/abba4-implicit/simulation/abba4-implicit-simulation-architecture.md),
   [`ABBA4ImplicitSingleProjection`](docs/models/abba4-implicit-single-projection/simulation/abba4-implicit-single-projection-simulation-architecture.md),
   and [`ABBA6Implicit`](docs/models/abba6-implicit/simulation/abba6-implicit-simulation-architecture.md);
-- BM4: [dynamics and formulation contract](docs/models/bm4/dynamics/direct-adjoint-formulation-contract.md)
+- BM4: [theory](docs/models/bm4/tex/theory.pdf),
   and [simulation architecture](docs/models/bm4/simulation/bm4-simulation-architecture.md);
-- `ExplicitEuler`: [dynamics](docs/models/explicit-euler/dynamics/dynamical-system-contract.md)
+- `ExplicitEuler`: [theory](docs/models/explicit-euler/tex/theory.pdf),
   and [simulation](docs/models/explicit-euler/simulation/explicit-euler-simulation-architecture.md);
-- `GaussLegendre4`: [dynamics](docs/models/gauss-legendre4/dynamics/guiding-center-contract.md)
+- `GaussLegendre4`: [theory](docs/models/gauss-legendre4/tex/theory.pdf),
   and [simulation](docs/models/gauss-legendre4/simulation/gauss-legendre4-simulation-architecture.md);
-- `HBVM42`: [dynamics](docs/models/hbvm42/dynamics/canonical-hamiltonian-contract.md)
+- `HBVM42`: [theory](docs/models/hbvm42/tex/theory.pdf),
   and [simulation](docs/models/hbvm42/simulation/hbvm42-simulation-architecture.md); and
-- `RK4`: [dynamics](docs/models/rk4/dynamics/dynamical-system-contract.md)
+- `RK4`: [theory](docs/models/rk4/tex/theory.pdf),
   and [simulation](docs/models/rk4/simulation/rk4-simulation-architecture.md).
+
+The [model documentation index](docs/models/README.md) links every canonical
+theory source and PDF, including each focused ABBA model.
 
 ## Installation
 
@@ -77,17 +88,20 @@ from potential import load_gc2d_h5_potential
 
 potential = load_gc2d_h5_potential(
     "data/potential/V1/PHI_2.h5",
+    characteristic_length=0.06,
     interpolation_order=3,
 )
 ```
 
-The primary-file defaults are `B=1.5` and `indx=(0, 1)`, selecting the mean
-field and its dominant declared positive-frequency mode.
+The primary-file defaults are `B=1.5`, `characteristic_length=0.06`, and
+`indx=(0, 1)`, selecting the mean field and its dominant declared
+positive-frequency mode. The loader maps that dominant frequency to one, its
+temporal period to `2*pi`, and each characteristic spatial length to `2*pi`.
 
 See the
-[HDF5 import contract](docs/models/abba2-implicit/dynamics/gc2d-h5-import.md)
+[HDF5 import contract](docs/dynamics/gc2d-h5-import.md)
 and its
-[architecture diagram](docs/models/abba2-implicit/dynamics/gc2d-h5-potential-architecture.puml)
+[architecture diagram](docs/dynamics/gc2d-h5-potential-architecture.puml)
 for the dataset schema, normalization, interpolation, gyroaveraging, and
 guiding-center integration.
 
@@ -139,7 +153,7 @@ solution = simulate(
 ```
 
 See the BM4 model-specific
-[dynamics and formulation contract](docs/models/bm4/dynamics/direct-adjoint-formulation-contract.md)
+[theory](docs/models/bm4/tex/theory.pdf)
 and [simulation architecture](docs/models/bm4/simulation/bm4-simulation-architecture.md)
 for the twelve-stage composition, projection variants, nonlinear solves,
 diagnostics, and supported state extensions.
@@ -255,9 +269,17 @@ physical stage records live in `_projection_common.py`. Fully extended
 counterparts operate on the `R^8` base map in `methods/_fully_extended.py`.
 Newton uses exact independent-particle blocks, whereas Broyden applies a good
 rank-one secant update to the selected residual. The derivations are documented
-in [`ABBA2_implicit`](docs/models/abba2-implicit/ABBA2_implicit.pdf), the
-[simultaneous-formulation note](docs/tex/ABBA_implicit_2/ABBA_implicit_2.pdf),
-and [`broyden_generic_method.tex`](docs/tex/broyden/broyden_generic_method.tex).
+in the [`ABBA2Implicit` theory](docs/models/abba2-implicit/tex/theory.pdf),
+its [simultaneous-formulation note](docs/models/abba2-implicit/tex/simultaneous-formulation.pdf),
+and the family-level
+[`nonlinear-solvers.tex`](docs/models/abba/tex/nonlinear-solvers.tex).
+
+`ABBA4Implicit` applies that projected kernel three times with signed durations
+`(gamma h, delta h, gamma h)`. Its model documentation includes the
+[`fourth-order theory`](docs/models/abba4-implicit/tex/theory.pdf), the
+[`simultaneous-formulation note`](docs/models/abba4-implicit/tex/simultaneous-formulation.pdf),
+the [`Jacobian formula summary`](docs/models/abba4-implicit/tex/jacobian-formula-summary.pdf),
+and the [`Jacobian diagnostics`](docs/models/abba4-implicit/tex/jacobian-diagnostics.pdf).
 
 Solver-neutral diagnostics include `projection_formulation`,
 `state_extension`, `nonlinear_solver`, `nonlinear_iterations`,
@@ -317,8 +339,8 @@ map separately. Energy tracking advances the direct conjugate
 momentum `k` with the same Gauss nodes and reports drift of `K=H+k` without
 changing the physical trajectory.
 
-See the model-specific [dynamics contract](docs/models/gauss-legendre4/dynamics/guiding-center-contract.md)
-and [simulation derivation](docs/models/gauss-legendre4/simulation/gauss-legendre4-simulation-architecture.md).
+See the model-specific
+[simulation derivation](docs/models/gauss-legendre4/simulation/gauss-legendre4-simulation-architecture.md).
 
 ## Full-cyclotron example
 
@@ -500,6 +522,9 @@ Fast supported scripts live in `examples/`. Git versions notebooks only in:
 `notebooks/developements/` contains local working notebooks and remains
 ignored. Generated outputs live below
 `outputs/<notebook folder>/<notebook>/<date>/` and are not versioned.
+
+Local and reusable AWS notebook execution is selected by one attribute; see
+[`docs/cloud-notebook-execution.md`](docs/cloud-notebook-execution.md).
 
 ## Quality checks
 

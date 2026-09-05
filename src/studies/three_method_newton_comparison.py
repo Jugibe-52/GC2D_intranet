@@ -11,7 +11,7 @@ import numpy as np
 
 from dynamics import GuidingCenterDynamics
 from initial_conditions import GCInitialConfiguration
-from potential import GC2DH5Potential, Potential
+from potential import Potential
 from simulation import (
 	ABBA4ImplicitSingleProjection,
 	BM4Implicit1,
@@ -546,13 +546,6 @@ def run_three_method_newton_comparison(
 		raise TypeError("`initial_configuration` must be GCInitialConfiguration.")
 	if not isinstance(config, ThreeMethodNewtonComparisonConfig):
 		raise TypeError("`config` must be ThreeMethodNewtonComparisonConfig.")
-	if (
-		isinstance(potential, GC2DH5Potential)
-		and config.distance_convention != "euclidean"
-	):
-		raise ValueError(
-			"GC2DH5Potential comparisons require Euclidean trajectory distances."
-		)
 	study_started = perf_counter()
 	dynamics = GuidingCenterDynamics(potential, rho=config.rho)
 	problem = InitialValueProblem(dynamics, initial_configuration)

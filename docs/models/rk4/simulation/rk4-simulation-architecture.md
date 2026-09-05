@@ -23,9 +23,8 @@ solution = simulate(
 )
 ```
 
-The method consumes the generic dynamics contract described in
-[`dynamical-system-contract.md`](../dynamics/dynamical-system-contract.md).
-No numerical formulation is prepared between the problem and the method.
+The method consumes the shared `DynamicalSystem` protocol directly. No
+numerical formulation is prepared between the problem and the method.
 
 ## Complete-step map
 

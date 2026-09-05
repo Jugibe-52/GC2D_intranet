@@ -7,7 +7,6 @@ import unittest
 import matplotlib.pyplot as plt
 import numpy as np
 
-from potential import GC2DH5Potential
 from studies import (
 	THREE_METHOD_NEWTON_METHODS,
 	ThreeMethodNewtonComparisonConfig,
@@ -189,40 +188,6 @@ class ThreeMethodNewtonComparisonTests(unittest.TestCase):
 			work_figure,
 		):
 			plt.close(figure)
-
-	def test_hdf5_potential_rejects_a_periodic_distance_convention(self) -> None:
-		axis = np.linspace(0.0, 1.0, 8)
-		x, y = np.meshgrid(axis, axis, indexing="ij")
-		potential = GC2DH5Potential(
-			axis,
-			axis,
-			x**2 + y**2,
-			None,
-			[],
-			interpolation_order=3,
-		)
-		initial_configuration = latin_hypercube_gc_configuration(
-			potential,
-			particle_count=3,
-			seed=7,
-			domain_margin_fraction=0.2,
-		)
-		config = ThreeMethodNewtonComparisonConfig(
-			t_span=(0.0, 0.1),
-			integration_step=0.1,
-			reference_maximum_step=0.02,
-			audit_maximum_step=0.01,
-			timing_warmups=0,
-			timing_repeats=1,
-			distance_convention="periodic",
-		)
-		with self.assertRaisesRegex(ValueError, "Euclidean"):
-			run_three_method_newton_comparison(
-				potential,
-				initial_configuration,
-				config=config,
-			)
-
 
 if __name__ == "__main__":
 	unittest.main()

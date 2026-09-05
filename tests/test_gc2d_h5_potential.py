@@ -33,25 +33,31 @@ def _h5_interpolate(
 	dx: int = 0,
 	dy: int = 0,
 ) -> np.ndarray:
-	"""Evaluate one field with the GC2D HDF5 zero-padded spline recipe."""
-	padding = order + 1
+	"""Evaluate one field with the GC2D HDF5 periodic spline recipe."""
+	margin = order + 1
+	padding = (margin, margin + 1)
 	x_extended = np.pad(
 		x,
-		(padding, padding),
+		padding,
 		mode="linear_ramp",
-		end_values=(x[0] - padding * (x[1] - x[0]), x[-1] + padding * (x[1] - x[0])),
+		end_values=(
+			x[0] - padding[0] * (x[1] - x[0]),
+			x[-1] + padding[1] * (x[1] - x[0]),
+		),
 	)
 	y_extended = np.pad(
 		y,
-		(padding, padding),
+		padding,
 		mode="linear_ramp",
-		end_values=(y[0] - padding * (y[1] - y[0]), y[-1] + padding * (y[1] - y[0])),
+		end_values=(
+			y[0] - padding[0] * (y[1] - y[0]),
+			y[-1] + padding[1] * (y[1] - y[0]),
+		),
 	)
 	field_extended = np.pad(
 		field,
-		((padding, padding), (padding, padding)),
-		mode="constant",
-		constant_values=0,
+		(padding, padding),
+		mode="wrap",
 	)
 	real = RectBivariateSpline(
 		x_extended,
@@ -78,9 +84,9 @@ def _h5_resample(
 	nx: int,
 	ny: int,
 ) -> np.ndarray:
-	"""Perform the first of the HDF5 loader's two interpolation stages."""
-	xi = np.linspace(x[0], x[-1], nx)
-	yi = np.linspace(y[0], y[-1], ny)
+	"""Perform periodic HDF5 resampling without duplicating an endpoint."""
+	xi = x[0] + x.size * (x[1] - x[0]) * np.arange(nx) / nx
+	yi = y[0] + y.size * (y[1] - y[0]) * np.arange(ny) / ny
 	x_mesh, y_mesh = np.meshgrid(xi, yi, indexing="ij")
 	return _h5_interpolate(x, y, field, x_mesh, y_mesh)
 
@@ -94,6 +100,13 @@ class GC2DH5PotentialTests(unittest.TestCase):
 		self.path = Path(self.temporary_directory.name) / "potential.h5"
 		self.x = 0.10 + 0.05 * np.arange(6)
 		self.y = 0.02 + 0.05 * np.arange(6)
+		self.characteristic_length = 0.30
+		self.runtime_x = (
+			2.0 * np.pi * (self.x - self.x[0]) / self.characteristic_length
+		)
+		self.runtime_y = (
+			2.0 * np.pi * (self.y - self.y[0]) / self.characteristic_length
+		)
 		row, column = np.indices((6, 6))
 		self.mean = 2.0 + 0.7 * row + 0.2 * column
 		self.low_mode = (row + 2.0 * column) + 1j * (0.3 * row - column)
@@ -120,16 +133,33 @@ class GC2DH5PotentialTests(unittest.TestCase):
 	def test_defaults_select_mean_and_dominant_mode_with_B_1_5(self) -> None:
 		"""Use the primary-file defaults when no loader options are supplied."""
 		potential = load_gc2d_h5_potential(self.path)
-		normalization = 2.0 * np.pi * 7.0 * 1.5
+		length_scale = 0.06
+		normalization = 7.0 * length_scale**2 * 1.5 / (2.0 * np.pi)
 
 		self.assertAlmostEqual(potential.normalization_factor, normalization)
 		np.testing.assert_array_equal(potential.source_field_indices, [3])
-		np.testing.assert_allclose(potential.frequencies, [7.0])
+		np.testing.assert_allclose(potential.source_frequencies, [7.0])
+		np.testing.assert_allclose(potential.frequencies, [1.0])
+		self.assertEqual(potential.characteristic_length, length_scale)
+		self.assertAlmostEqual(potential.characteristic_frequency, 7.0)
+		self.assertAlmostEqual(potential.characteristic_period, 1.0 / 7.0)
+		np.testing.assert_allclose(potential.source_x, self.x)
+		np.testing.assert_allclose(potential.source_y, self.y)
+		np.testing.assert_allclose(
+			potential.x,
+			2.0 * np.pi * (self.x - self.x[0]) / length_scale,
+		)
 		np.testing.assert_allclose(potential.mean_value, self.mean / normalization)
 		assert potential.fluctuations is not None
 		np.testing.assert_allclose(
 			potential.fluctuations[0],
 			self.high_mode / normalization,
+		)
+		query_x = np.asarray([0.41])
+		query_y = np.asarray([1.73])
+		np.testing.assert_allclose(
+			potential.evaluate(0.37, query_x, query_y),
+			potential.evaluate(0.37 + 2.0 * np.pi, query_x, query_y),
 		)
 
 	def test_filter_sort_selection_normalization_and_positive_phase(self) -> None:
@@ -138,16 +168,20 @@ class GC2DH5PotentialTests(unittest.TestCase):
 		potential = load_gc2d_h5_potential(
 			self.path,
 			B=B,
+			characteristic_length=self.characteristic_length,
 			indx=(0, 2, 1),
 			interpolation_order=3,
 		)
-		normalization = 2.0 * np.pi * 7.0 * B
+		normalization = (
+			7.0 * self.characteristic_length**2 * B / (2.0 * np.pi)
+		)
 
 		self.assertIsInstance(potential, GC2DH5Potential)
 		self.assertIsInstance(potential, Potential)
 		self.assertAlmostEqual(potential.normalization_factor, normalization)
 		np.testing.assert_array_equal(potential.source_field_indices, [2, 3])
-		np.testing.assert_allclose(potential.frequencies, [3.0, 7.0])
+		np.testing.assert_allclose(potential.source_frequencies, [3.0, 7.0])
+		np.testing.assert_allclose(potential.frequencies, [3.0 / 7.0, 1.0])
 		np.testing.assert_allclose(potential.freqs, potential.frequencies)
 		# No transpose is applied: the deliberately asymmetric raw array is retained.
 		np.testing.assert_allclose(potential.mean_value, self.mean / normalization)
@@ -159,8 +193,8 @@ class GC2DH5PotentialTests(unittest.TestCase):
 
 		time = 0.037
 		expected_dynamic = 2.0 * np.real(
-			self.low_mode / normalization * np.exp(1j * 3.0 * time)
-			+ self.high_mode / normalization * np.exp(1j * 7.0 * time)
+			self.low_mode / normalization * np.exp(1j * (3.0 / 7.0) * time)
+			+ self.high_mode / normalization * np.exp(1j * time)
 		)
 		np.testing.assert_allclose(potential.dynamic_part(time), expected_dynamic)
 		np.testing.assert_allclose(
@@ -168,13 +202,64 @@ class GC2DH5PotentialTests(unittest.TestCase):
 			self.mean / normalization + expected_dynamic,
 		)
 
+	def test_explicit_characteristic_frequency_controls_time_and_amplitude(self) -> None:
+		"""Honor an explicitly supplied source frequency instead of the dominant mode."""
+		frequency_scale = 14.0
+		potential = load_gc2d_h5_potential(
+			self.path,
+			B=1.5,
+			characteristic_length=self.characteristic_length,
+			characteristic_frequency=frequency_scale,
+			indx=(0, 1),
+		)
+		normalization = (
+			frequency_scale
+			* self.characteristic_length**2
+			* 1.5
+			/ (2.0 * np.pi)
+		)
+
+		self.assertAlmostEqual(potential.characteristic_frequency, frequency_scale)
+		self.assertAlmostEqual(potential.characteristic_period, 1.0 / frequency_scale)
+		self.assertAlmostEqual(potential.normalization_factor, normalization)
+		np.testing.assert_allclose(potential.frequencies, [0.5])
+		np.testing.assert_allclose(potential.mean_value, self.mean / normalization)
+
+	def test_explicit_frequency_normalizes_a_mean_only_file(self) -> None:
+		"""Use the requested article scales even when no oscillatory mode is stored."""
+		path = Path(self.temporary_directory.name) / "mean-only.h5"
+		with h5py.File(path, "w") as h5:
+			h5.create_dataset("Rcells", data=self.x)
+			h5.create_dataset("Zcells", data=self.y)
+			h5.create_dataset("freqs", data=np.asarray([0.0]))
+			h5.create_dataset(
+				"fields",
+				data=np.asarray([self.mean], dtype=np.complex128),
+			)
+		potential = load_gc2d_h5_potential(
+			path,
+			B=2.0,
+			characteristic_length=self.characteristic_length,
+			characteristic_frequency=5.0,
+			indx=(0,),
+		)
+		normalization = (
+			5.0 * self.characteristic_length**2 * 2.0 / (2.0 * np.pi)
+		)
+
+		self.assertAlmostEqual(potential.normalization_factor, normalization)
+		self.assertAlmostEqual(potential.characteristic_period, 0.2)
+		np.testing.assert_allclose(potential.mean_value, self.mean / normalization)
+		self.assertEqual(potential.frequencies.size, 0)
+
 	def test_denoising_and_resampling_match_both_hdf5_interpolation_stages(self) -> None:
-		"""Keep filtering before the inclusive-grid resampling used by GC2D."""
+		"""Keep filtering before periodic resampling of dimensionless fields."""
 		B = 2.0
 		sigma = 0.6
 		potential = load_gc2d_h5_potential(
 			self.path,
 			B=B,
+			characteristic_length=self.characteristic_length,
 			indx=(0, 1),
 			nx=8,
 			ny=8,
@@ -182,17 +267,19 @@ class GC2DH5PotentialTests(unittest.TestCase):
 			sigma=sigma,
 			interpolation_order=3,
 		)
-		normalization = 2.0 * np.pi * 7.0 * B
+		normalization = (
+			7.0 * self.characteristic_length**2 * B / (2.0 * np.pi)
+		)
 		expected_mean = _h5_resample(
-			self.x,
-			self.y,
+			self.runtime_x,
+			self.runtime_y,
 			ndimage.gaussian_filter(self.mean / normalization, sigma=sigma),
 			nx=8,
 			ny=8,
 		).real
 		expected_mode = _h5_resample(
-			self.x,
-			self.y,
+			self.runtime_x,
+			self.runtime_y,
 			ndimage.gaussian_filter(self.high_mode.real / normalization, sigma=sigma)
 			+ 1j
 			* ndimage.gaussian_filter(self.high_mode.imag / normalization, sigma=sigma),
@@ -200,13 +287,14 @@ class GC2DH5PotentialTests(unittest.TestCase):
 			ny=8,
 		)
 
-		np.testing.assert_allclose(potential.x, np.linspace(self.x[0], self.x[-1], 8))
-		np.testing.assert_allclose(potential.y, np.linspace(self.y[0], self.y[-1], 8))
+		expected_axis = 2.0 * np.pi * np.arange(8) / 8
+		np.testing.assert_allclose(potential.x, expected_axis)
+		np.testing.assert_allclose(potential.y, expected_axis)
 		np.testing.assert_allclose(potential.mean_value, expected_mean)
 		assert potential.fluctuations is not None
 		np.testing.assert_allclose(potential.fluctuations[0], expected_mode)
 
-		# Runtime evaluation is the second zero-padded interpolation stage.
+		# Runtime evaluation is the second periodic interpolation stage.
 		query_x = np.asarray([potential.x[2] + 0.01])
 		query_y = np.asarray([potential.y[4] - 0.008])
 		time = 0.013
@@ -225,15 +313,16 @@ class GC2DH5PotentialTests(unittest.TestCase):
 				query_x,
 				query_y,
 			)
-			* np.exp(1j * 7.0 * time)
+			* np.exp(1j * time)
 		)
 		np.testing.assert_allclose(potential.evaluate(time, query_x, query_y), expected)
 
-	def test_spatial_hessians_time_derivative_and_clipping(self) -> None:
-		"""Expose exact spline Hessians and the positive-frequency time derivative."""
+	def test_spatial_hessians_time_derivative_and_periodic_wrapping(self) -> None:
+		"""Expose exact spline derivatives on the periodic normalized domain."""
 		potential = load_gc2d_h5_potential(
 			self.path,
 			B=1.5,
+			characteristic_length=self.characteristic_length,
 			indx=(0, 1),
 			interpolation_order=3,
 		)
@@ -241,56 +330,50 @@ class GC2DH5PotentialTests(unittest.TestCase):
 		assert potential.fluctuations is not None
 		frequency = float(potential.frequencies[0])
 		time = 0.021
-		# Out-of-domain coordinates are clipped before spline evaluation.
-		query_x = np.asarray([self.x[2] + 0.013, self.x[-1] + 1.0])
-		query_y = np.asarray([self.y[3] - 0.009, self.y[0] - 1.0])
-		clipped_x = np.clip(query_x, self.x[0], self.x[-1])
-		clipped_y = np.clip(query_y, self.y[0], self.y[-1])
-		x_active = (query_x >= self.x[0]) & (query_x <= self.x[-1])
-		y_active = (query_y >= self.y[0]) & (query_y <= self.y[-1])
+		period = potential.grid.period
+		query_x = np.asarray([potential.x[2] + 0.013, potential.x[-1] + 1.0])
+		query_y = np.asarray([potential.y[3] - 0.009, potential.y[0] - 1.0])
+		wrapped_x = (query_x - potential.x[0]) % period + potential.x[0]
+		wrapped_y = (query_y - potential.y[0]) % period + potential.y[0]
 		for dx, dy in ((1, 0), (0, 1), (2, 0), (1, 1), (0, 2)):
 			mean = _h5_interpolate(
-				self.x,
-				self.y,
+				potential.x,
+				potential.y,
 				potential.mean_value.astype(np.complex128),
-				clipped_x,
-				clipped_y,
+				wrapped_x,
+				wrapped_y,
 				dx=dx,
 				dy=dy,
 			).real
 			mode = _h5_interpolate(
-				self.x,
-				self.y,
+				potential.x,
+				potential.y,
 				potential.fluctuations[0],
-				clipped_x,
-				clipped_y,
+				wrapped_x,
+				wrapped_y,
 				dx=dx,
 				dy=dy,
 			)
 			expected = mean + 2.0 * np.real(mode * np.exp(1j * frequency * time))
-			if dx:
-				expected = expected * x_active
-			if dy:
-				expected = expected * y_active
 			np.testing.assert_allclose(
 				potential.evaluate(time, query_x, query_y, dx=dx, dy=dy),
 				expected,
 			)
 
-		# Exact grid endpoints retain the in-domain spline derivative by contract.
-		endpoint_x = np.asarray((self.x[0], self.x[-1]))
-		endpoint_y = np.full(2, self.y[3] - 0.009)
+		# Independent grid samples retain their direct spline derivatives.
+		endpoint_x = np.asarray((potential.x[0], potential.x[-1]))
+		endpoint_y = np.full(2, potential.y[3] - 0.009)
 		endpoint_mean_x = _h5_interpolate(
-			self.x,
-			self.y,
+			potential.x,
+			potential.y,
 			potential.mean_value.astype(np.complex128),
 			endpoint_x,
 			endpoint_y,
 			dx=1,
 		).real
 		endpoint_mode_x = _h5_interpolate(
-			self.x,
-			self.y,
+			potential.x,
+			potential.y,
 			potential.fluctuations[0],
 			endpoint_x,
 			endpoint_y,
@@ -305,11 +388,11 @@ class GC2DH5PotentialTests(unittest.TestCase):
 		)
 
 		mode = _h5_interpolate(
-			self.x,
-			self.y,
+			potential.x,
+			potential.y,
 			potential.fluctuations[0],
-			clipped_x,
-			clipped_y,
+			wrapped_x,
+			wrapped_y,
 		)
 		expected_time_derivative = 2.0 * np.real(
 			mode * (1j * frequency) * np.exp(1j * frequency * time)
@@ -322,20 +405,22 @@ class GC2DH5PotentialTests(unittest.TestCase):
 		np.testing.assert_allclose(ex, -potential.evaluate(time, query_x, query_y, dx=1))
 		np.testing.assert_allclose(ey, -potential.evaluate(time, query_x, query_y, dy=1))
 
-	def test_outside_domain_gc_jacobian_matches_clipped_vector_field(self) -> None:
-		"""Differentiate the constant clipped extension seen by GC dynamics."""
+	def test_outside_domain_gc_jacobian_matches_periodic_vector_field(self) -> None:
+		"""Differentiate the periodically wrapped field seen by GC dynamics."""
 		potential = load_gc2d_h5_potential(
 			self.path,
 			B=1.5,
+			characteristic_length=self.characteristic_length,
 			indx=(0, 2, 1),
 			interpolation_order=3,
 		)
 		dynamics = GuidingCenterDynamics(potential, rho=0.0)
 		time = 0.029
+		period = potential.grid.period
 		states = (
-			np.asarray((self.x[-1] + 0.2, self.y[3] - 0.007)),
-			np.asarray((self.x[2] + 0.011, self.y[0] - 0.2)),
-			np.asarray((self.x[-1] + 0.2, self.y[0] - 0.2)),
+			np.asarray((potential.x[-1] + 0.2, potential.y[3] - 0.007)),
+			np.asarray((potential.x[2] + 0.011, potential.y[0] - 0.2)),
+			np.asarray((potential.x[-1] + 0.2, potential.y[0] - 0.2)),
 		)
 		for state in states:
 			with self.subTest(state=state):
@@ -350,10 +435,10 @@ class GC2DH5PotentialTests(unittest.TestCase):
 					rtol=2e-6,
 					atol=2e-7,
 				)
-				if state[0] > self.x[-1]:
-					np.testing.assert_array_equal(analytic[:, 0], 0.0)
-				if state[1] < self.y[0]:
-					np.testing.assert_array_equal(analytic[:, 1], 0.0)
+				np.testing.assert_allclose(
+					dynamics.vector_field(time, state),
+					dynamics.vector_field(time, state + period),
+				)
 
 	def test_multifrequency_second_time_derivative_and_extended_jacobian(
 		self,
@@ -362,14 +447,15 @@ class GC2DH5PotentialTests(unittest.TestCase):
 		potential = load_gc2d_h5_potential(
 			self.path,
 			B=1.5,
+			characteristic_length=self.characteristic_length,
 			indx=(0, 2, 1),
 			interpolation_order=3,
 		)
 		assert potential.mean_value is not None
 		assert potential.fluctuations is not None
 		time = 0.037
-		query_x = np.asarray([self.x[2] + 0.013])
-		query_y = np.asarray([self.y[3] - 0.009])
+		query_x = np.asarray([potential.x[2] + 0.013])
+		query_y = np.asarray([potential.y[3] - 0.009])
 		expected_second = np.zeros_like(query_x)
 		for field, frequency in zip(
 			potential.fluctuations,
@@ -377,8 +463,8 @@ class GC2DH5PotentialTests(unittest.TestCase):
 			strict=True,
 		):
 			mode = _h5_interpolate(
-				self.x,
-				self.y,
+				potential.x,
+				potential.y,
 				field,
 				query_x,
 				query_y,
@@ -411,12 +497,17 @@ class GC2DH5PotentialTests(unittest.TestCase):
 		potential = load_gc2d_h5_potential(
 			self.path,
 			B=1.5,
+			characteristic_length=self.characteristic_length,
 			indx=(0, 1),
 			interpolation_order=3,
 		)
 		self.assertIs(potential.gyroaverage(0.0), potential)
 		averaged = potential.gyroaverage(0.01)
 		self.assertIsInstance(averaged, GC2DH5Potential)
+		self.assertEqual(
+			averaged.characteristic_frequency,
+			potential.characteristic_frequency,
+		)
 		self.assertTrue(np.all(np.isfinite(averaged.evaluate(0.02))))
 
 		angles = np.linspace(0.0, 2.0 * np.pi, 5, endpoint=False)
@@ -452,6 +543,10 @@ class GC2DH5PotentialTests(unittest.TestCase):
 			load_gc2d_h5_potential(self.path, nx=8)
 		with self.assertRaisesRegex(ValueError, "non-zero"):
 			load_gc2d_h5_potential(self.path, B=0.0)
+		with self.assertRaisesRegex(ValueError, "characteristic_length"):
+			load_gc2d_h5_potential(self.path, characteristic_length=0.0)
+		with self.assertRaisesRegex(ValueError, "characteristic_frequency"):
+			load_gc2d_h5_potential(self.path, characteristic_frequency=-1.0)
 
 
 if __name__ == "__main__":
