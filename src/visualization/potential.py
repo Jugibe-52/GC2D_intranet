@@ -39,7 +39,7 @@ def plot_potential(
 	"""Plot one potential field without coupling presentation to the model."""
 	if not isinstance(potential, Potential):
 		raise TypeError("`potential` must be a Potential instance.")
-	field = potential.evaluate(t)
+	field = potential.evaluate_grid(t)
 	figure, axis = plt.subplots(figsize=(6, 5), constrained_layout=True)
 	mesh = axis.pcolormesh(
 		potential.grid.x,
@@ -97,7 +97,7 @@ def animate_potential(
 	else:
 		frame_count = frames
 	times = np.linspace(0.0, t_max, frame_count, endpoint=False)
-	fields = [potential.evaluate(time) for time in times]
+	fields = [potential.evaluate_grid(time) for time in times]
 	stride = max(1, int(np.ceil(max(potential.grid.shape) / 20)))
 	quiver_x, quiver_y = np.meshgrid(
 		potential.grid.x[::stride],

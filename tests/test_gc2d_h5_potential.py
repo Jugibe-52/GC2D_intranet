@@ -204,7 +204,7 @@ class GC2DH5ImportTests(unittest.TestCase):
 			+ self.high_mode / normalization * np.exp(2j * np.pi * time)
 		)
 		np.testing.assert_allclose(
-			potential.evaluate(time),
+			potential.evaluate_grid(time),
 			self.mean / normalization + expected_dynamic,
 		)
 
@@ -537,7 +537,7 @@ class GC2DH5ImportTests(unittest.TestCase):
 			averaged_metadata.characteristic_frequency,
 			potential_metadata.characteristic_frequency,
 		)
-		self.assertTrue(np.all(np.isfinite(averaged.evaluate(0.02))))
+		self.assertTrue(np.all(np.isfinite(averaged.evaluate_grid(0.02))))
 
 		angles = np.linspace(0.0, 2.0 * np.pi, 5, endpoint=False)
 		configuration = GCInitialConfiguration.from_components(

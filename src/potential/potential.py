@@ -14,6 +14,7 @@ gyroaveraging independent of the evaluation time.
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Any
 
@@ -337,58 +338,72 @@ class Potential:
 	def evaluate(
 		self,
 		t: float | np.ndarray,
-		x: np.ndarray | None = None,
-		y: np.ndarray | None = None,
+		x: np.ndarray,
+		y: np.ndarray,
 		*,
 		dx: int = 0,
 		dy: int = 0,
 		dt: int = 0,
 	) -> np.ndarray:
-		"""Evaluate the real potential or one of its derivatives.
+		"""Evaluate the real potential or a derivative at paired coordinates.
 
-		Coordinates are paired: ``x[i]`` is evaluated with ``y[i]``.  Omitting
-		them evaluates the field on the complete stored grid.  ``dx`` and ``dy``
-		select spatial derivative orders, while ``dt=1`` and ``dt=2`` apply the
-		corresponding time derivative of the harmonic phase. Scalar coordinates
-		produce scalar-shaped results; array coordinates and time follow NumPy
-		broadcasting. With no coordinates, spatial axes ``(nx, ny)`` precede any
-		axes contributed by time.
+		``x[i]`` is evaluated with ``y[i]``. ``dx`` and ``dy`` select spatial
+		derivative orders, while ``dt=1`` and ``dt=2`` differentiate the harmonic
+		phase. Scalar coordinates produce scalar-shaped results; arrays and time
+		follow NumPy broadcasting.
 		"""
-		if (x is None) != (y is None):
-			raise ValueError("`x` and `y` must be provided together.")
 		self._validate_derivatives(dx, dy, dt)
 		dx, dy, dt = int(dx), int(dy), int(dt)
 		time = np.asarray(t)
-		mean_coefficient = None
-
-		if x is None:
-			if dx or dy:
-				raise ValueError("Spatial derivatives require `x` and `y`.")
-			trailing_axes = (1,) * time.ndim
-			result_shape = self.grid.shape + time.shape
-			if dt == 0:
-				mean_coefficient = self.mean.reshape(self.grid.shape + trailing_axes)
-			mode_coefficients = (
-				field.reshape(self.grid.shape + trailing_axes) for field in self.modes
-			)
-		else:
-			assert y is not None
-			x_values, y_values = np.broadcast_arrays(np.asarray(x), np.asarray(y))
-			x_values, y_values = self.grid.normalize(x_values, y_values)
-			result_shape = np.broadcast_shapes(x_values.shape, time.shape)
-			if dt == 0:
-				mean_coefficient = self._mean_spline.evaluate(
-					x_values,
-					y_values,
-					dx=dx,
-					dy=dy,
-				)
-			mode_coefficients = (
+		x_values, y_values = np.broadcast_arrays(np.asarray(x), np.asarray(y))
+		x_values, y_values = self.grid.normalize(x_values, y_values)
+		mean_coefficient = (
+			self._mean_spline.evaluate(x_values, y_values, dx=dx, dy=dy)
+			if dt == 0
+			else None
+		)
+		return self._evaluate_time_dependence(
+			time,
+			mean_coefficient,
+			(
 				interpolator.evaluate(x_values, y_values, dx=dx, dy=dy)
 				for interpolator in self._mode_splines
-			)
+			),
+			coefficient_shape=x_values.shape,
+			dt=dt,
+		)
 
-		result = np.zeros(result_shape, dtype=float)
+	def evaluate_grid(self, t: float | np.ndarray, *, dt: int = 0) -> np.ndarray:
+		"""Evaluate the potential or a time derivative on the complete grid.
+
+		The spatial axes ``(nx, ny)`` precede any axes contributed by time.
+		"""
+		self._validate_derivatives(0, 0, dt)
+		dt = int(dt)
+		time = np.asarray(t)
+		coefficient_shape = self.grid.shape + (1,) * time.ndim
+		mean_coefficient = (
+			self.mean.reshape(coefficient_shape) if dt == 0 else None
+		)
+		return self._evaluate_time_dependence(
+			time,
+			mean_coefficient,
+			self.modes.reshape((len(self.modes), *coefficient_shape)),
+			coefficient_shape=coefficient_shape,
+			dt=dt,
+		)
+
+	def _evaluate_time_dependence(
+		self,
+		time: np.ndarray,
+		mean_coefficient: np.ndarray | None,
+		mode_coefficients: Iterable[np.ndarray],
+		*,
+		coefficient_shape: tuple[int, ...],
+		dt: int,
+	) -> np.ndarray:
+		"""Combine spatial coefficients with their harmonic time dependence."""
+		result = np.zeros(np.broadcast_shapes(coefficient_shape, time.shape), dtype=float)
 		if mean_coefficient is not None:
 			result += np.real(mean_coefficient)
 		for coefficient, frequency in zip(

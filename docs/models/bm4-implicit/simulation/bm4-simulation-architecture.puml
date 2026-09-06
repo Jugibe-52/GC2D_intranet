@@ -66,7 +66,7 @@ digraph G {
       color="#A0A0A0";
       style="rounded";
       concrete_state_anchor [shape=point, width=0, height=0, label="", style=invis];
-      GCInitialConfiguration [label="«concrete»\nsrc/initial_conditions/gc.py\nGCInitialConfiguration|layout: GCStateLayout\lfrom_components(x, y)\lphysical state z in R^(2N)\l"];
+      GCInitialConfiguration [label="«concrete»\nsrc/initial_conditions/gc.py\nGCInitialConfiguration|layout: GCStateLayout\lfrom_components(x, y)\lphysical state z in R^(2p) for p particles\l"];
       { rank=same; concrete_state_anchor; GCInitialConfiguration; }
     }
 
@@ -137,7 +137,7 @@ digraph G {
       color="#A0A0A0";
       style="rounded";
       coordinator_anchor [shape=point, width=0, height=0, label="", style=invis];
-      ImplicitCoordinator [fillcolor="#FFF3D6", label="«coordinator»\nsrc/simulation/methods/bm4/implicit.py\n_integrate_implicit_bm4(...)|Prepare physical two-copy GC map\lAccepted / base / observer: R2N / R4N / R2N\lCollect solve and multiplier metrics\l"];
+      ImplicitCoordinator [fillcolor="#FFF3D6", label="«coordinator»\nsrc/simulation/methods/bm4/implicit.py\n_integrate_implicit_bm4(...)|Prepare physical two-copy GC map\lAccepted / base / observer: R2p / R4p / R2p\lCollect solve and multiplier metrics\l"];
       { rank=same; coordinator_anchor; ImplicitCoordinator; }
     }
 
@@ -170,8 +170,8 @@ digraph G {
       style="rounded";
       formulation_anchor [shape=point, width=0, height=0, label="", style=invis];
       GCExtendedFormulation [fillcolor="#E7F0FA", label="«internal formulation»\nsrc/simulation/formulations/gc.py\nGCExtendedFormulation|Prepare coupled physical copies\ltrack_energy = false\lNo time or conjugate momentum in the state\l"];
-      PreparedMaps [fillcolor="#E7F0FA", label="«prepared maps»\nPreparedDirectAdjointFormulation|initial physical state z in R2N\ldirect_map / adjoint_map on R4N\lparticle count and coupling frequency\l"];
-      StateSpaceNote [shape=note, fillcolor="#FFFDEB", color="#B8AE6F", label="The R4N duplication is internal splitting\nworkspace, not a fully extended (z,t,k) state."];
+      PreparedMaps [fillcolor="#E7F0FA", label="«prepared maps»\nPreparedDirectAdjointFormulation|initial_internal_state in R4p: (z, z)\ldirect_map / adjoint_map on R4p\lparticle count and coupling frequency\l"];
+      StateSpaceNote [shape=note, fillcolor="#FFFDEB", color="#B8AE6F", label="The R4p duplication is internal splitting\nworkspace, not a fully extended (z,t,k) state."];
       { rank=same; formulation_anchor; GCExtendedFormulation; PreparedMaps; StateSpaceNote; }
     }
 
@@ -181,7 +181,7 @@ digraph G {
       color="#A0A0A0";
       style="rounded";
       kernels_anchor [shape=point, width=0, height=0, label="", style=invis];
-      BM4MapJacobian [fillcolor="#FFF3D6", label="«physical implicit kernel»\nsrc/simulation/methods/bm4/implicit.py\n_bm4_map(...) / _bm4_map_jacobian(...)|Evaluate complete coupled R4N cycle\lAnalytic twelve-stage Jacobian product\lCentered-difference fallback\l"];
+      BM4MapJacobian [fillcolor="#FFF3D6", label="«complete-map kernel»\nsrc/simulation/methods/bm4/implicit.py\n_bm4_map(...) / _bm4_map_jacobian(...)|Evaluate complete coupled R4p cycle\lTwelve explicit direct/adjoint stages\lAnalytic product or centered differences\l"];
       { rank=same; kernels_anchor; BM4MapJacobian; }
     }
 
@@ -191,8 +191,8 @@ digraph G {
       color="#A0A0A0";
       style="rounded";
       projection_anchor [shape=point, width=0, height=0, label="", style=invis];
-      ReducedSolver [fillcolor="#FFF3D6", label="«only nonlinear formulation»\nsrc/simulation/methods/bm4/implicit.py\n_solve_reduced_projected_bm4_step(...)|Unknown mu in R2N\lInput Ez + N mu in R4N\lr(mu) = G Psi(Ez + N mu) + 2 mu\lOutput correction and physical projection\l"];
-      ProjectedBM4Step [fillcolor="#FFF3D6", label="«accepted-step record»\n_ProjectedBM4Step|Accepted physical state in R2N\lMultiplier and displaced R4N input\lMapped R4N cycle output\lIterations, evaluations and residual norm\l"];
+      ReducedSolver [fillcolor="#FFF3D6", label="«only nonlinear formulation»\nsrc/simulation/methods/bm4/implicit.py\n_solve_reduced_projected_bm4_step(...)|Unknown mu in R2p\lInput Ez + N mu in R4p\lr(mu) = G Psi(Ez + N mu) + 2 mu\lOutput correction and physical projection\l"];
+      ProjectedBM4Step [fillcolor="#FFF3D6", label="«accepted-step record»\n_ProjectedBM4Step|Accepted physical state in R2p\lMultiplier and displaced R4p input\lMapped R4p cycle output\lIterations, evaluations and residual norm\l"];
       ProjectionNote [shape=note, fillcolor="#FFFDEB", color="#B8AE6F", label="Hairer's symmetric placement uses the same\nmu before and after the complete cycle.\nThere is no projection between BM4 stages."];
       { rank=same; projection_anchor; ReducedSolver; ProjectedBM4Step; ProjectionNote; }
     }
@@ -205,7 +205,7 @@ digraph G {
       services_anchor [shape=point, width=0, height=0, label="", style=invis];
       NonlinearService [fillcolor="#FCECF1", label="«shared nonlinear service»\nsrc/simulation/methods/_nonlinear.py\nNonlinear solver support|_validate_nonlinear_solver(...)\l_solve_broyden(...)\l"];
       AcceptedDiagnostics [label="«diagnostic aggregation»\nAccepted physical BM4 steps|Iteration and residual histories\lProjection-multiplier norms\lJacobian and solver metadata\lFixed reduced-formulation marker\l"];
-      NewtonNote [shape=note, fillcolor="#FFFDEB", color="#B8AE6F", label="Analytic Newton uses exact GC stage tangents.\nFinite-difference Newton and good Broyden solve\nthe same reduced physical equation."];
+      NewtonNote [shape=note, fillcolor="#FFFDEB", color="#B8AE6F", label="An analytic Newton correction uses\nGuidingCenterDynamics and requires\ninterpolation_order >= 3. Finite-difference\nNewton and Broyden solve the same equation."];
       { rank=same; services_anchor; NonlinearService; AcceptedDiagnostics; NewtonNote; }
     }
 
@@ -228,7 +228,7 @@ digraph G {
     penwidth=1.0;
     style="rounded";
     data_anchor [shape=point, width=0, height=0, label="", style=invis];
-    IntegrationData [label="«internal result»\nsrc/simulation/_result.py\nIntegrationData|Requested times\lPhysical R2N state history\lBM4Implicit diagnostics\l"];
+    IntegrationData [label="«internal result»\nsrc/simulation/_result.py\nIntegrationData|Requested times\lPhysical R2p state history\lBM4Implicit diagnostics\l"];
     return_anchor [shape=point, width=0, height=0, label="", style=invis];
     RunnerReturn [label="«facade validation»\nsrc/simulation/runner.py\nSimulationRunner return checks|Validate time and physical-state shapes\lRequire finite output and preserved initial state\l"];
     solution_anchor [shape=point, width=0, height=0, label="", style=invis];
@@ -274,7 +274,7 @@ digraph G {
   FixedGrid -> ReducedSolver [xlabel=" one solve per complete step", style=solid, arrowhead=normal, constraint=false];
   ReducedSolver -> BM4MapJacobian [xlabel=" residual and tangent evaluations", style=solid, arrowhead=normal, constraint=false];
   BM4MapJacobian -> AdvanceComposition [xlabel=" complete Psi_h", style=solid, arrowhead=normal, constraint=false];
-  GuidingCenterJacobianSystem -> BM4MapJacobian [xlabel=" analytic path", style=dashed, arrowhead=normal, constraint=false];
+  GuidingCenterDynamics -> BM4MapJacobian [xlabel=" concrete analytic path", style=dashed, arrowhead=normal, constraint=false];
   ReducedSolver -> NonlinearService [xlabel=" Broyden", style=dashed, arrowhead=normal, constraint=false];
   ReducedSolver -> ProjectedBM4Step [style=solid, arrowhead=normal, constraint=false];
 

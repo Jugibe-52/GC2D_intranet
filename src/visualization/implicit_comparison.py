@@ -228,7 +228,7 @@ def animate_implicit_method_trajectories(
 	)
 	indices = _frame_indices(times.size, frames)
 	frame_times = times[indices]
-	fields = np.asarray(potential.evaluate(frame_times), dtype=float)
+	fields = np.asarray(potential.evaluate_grid(frame_times), dtype=float)
 	if fields.shape != (*potential.grid.shape, indices.size):
 		raise ValueError("Potential evaluation returned an unexpected animation shape.")
 	positions = {label: solutions[label].positions() for label in labels}

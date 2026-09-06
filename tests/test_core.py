@@ -96,12 +96,16 @@ class PotentialTests(unittest.TestCase):
 		self.assertEqual(first.modes.shape, (1, *first.grid.shape))
 		np.testing.assert_allclose(first.frequencies, [1.0 / (2.0 * np.pi)])
 		self.assertIsNone(first.metadata)
-		np.testing.assert_allclose(first.evaluate(0.3), second.evaluate(0.3))
+		np.testing.assert_allclose(first.evaluate_grid(0.3), second.evaluate_grid(0.3))
 		times = np.asarray([0.0, 0.2, 0.5])
-		fields = first.evaluate(times)
+		fields = first.evaluate_grid(times)
 		self.assertEqual(fields.shape, first.grid.shape + (times.size,))
 		for index, time in enumerate(times):
-			np.testing.assert_allclose(fields[..., index], first.evaluate(time))
+			np.testing.assert_allclose(fields[..., index], first.evaluate_grid(time))
+		np.testing.assert_allclose(
+			first.evaluate_grid(0.3, dt=2),
+			-first.evaluate_grid(0.3),
+		)
 
 		x = np.asarray([0.7, 1.4, 2.1])
 		y = np.asarray([0.9, 1.7, 2.5])
@@ -137,13 +141,13 @@ class PotentialTests(unittest.TestCase):
 		expected = mean + 2.0 * np.real(
 			mode * np.exp(2j * np.pi * frequency * time)
 		)
-		np.testing.assert_allclose(potential.evaluate(time), expected)
+		np.testing.assert_allclose(potential.evaluate_grid(time), expected)
 		coordinate = np.asarray([0.5])
 		with self.assertRaisesRegex(ValueError, "at most 2"):
 			potential.evaluate(time, coordinate, coordinate, dx=3)
 
 		zero = Potential(grid)
-		np.testing.assert_array_equal(zero.evaluate(time), np.zeros(grid.shape))
+		np.testing.assert_array_equal(zero.evaluate_grid(time), np.zeros(grid.shape))
 		self.assertEqual(zero.modes.shape, (0, *grid.shape))
 		with self.assertRaisesRegex(TypeError, "NumPy array or None"):
 			Potential(
@@ -154,13 +158,13 @@ class PotentialTests(unittest.TestCase):
 
 	def test_gyroaverage_preserves_the_original_potential(self) -> None:
 		potential = random_potential(interpolation_order=5)
-		original = potential.evaluate(0.2).copy()
+		original = potential.evaluate_grid(0.2).copy()
 
 		averaged = potential.gyroaverage(0.1)
 
 		self.assertIsInstance(averaged, Potential)
-		self.assertTrue(np.all(np.isfinite(averaged.evaluate(0.2))))
-		np.testing.assert_allclose(potential.evaluate(0.2), original)
+		self.assertTrue(np.all(np.isfinite(averaged.evaluate_grid(0.2))))
+		np.testing.assert_allclose(potential.evaluate_grid(0.2), original)
 
 		with self.assertRaises(ValueError):
 			Potential.random(A=0.1, M=2, nx=0, ny=8, interpolation_order=3)

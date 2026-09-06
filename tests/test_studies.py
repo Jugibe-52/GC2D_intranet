@@ -57,7 +57,7 @@ class InitializationStudyTests(unittest.TestCase):
 		first = config.build()
 		second = config.build()
 
-		np.testing.assert_allclose(first.evaluate(0.2), second.evaluate(0.2))
+		np.testing.assert_allclose(first.evaluate_grid(0.2), second.evaluate_grid(0.2))
 		self.assertEqual(config.metadata()["max_wave_number"], 3)
 
 	def test_centered_initial_conditions_use_the_periodic_cell_center(self) -> None:

@@ -86,7 +86,7 @@ def animate_gc_area(
 	frame_count = times.size if frames is None else min(int(frames), times.size)
 	frame_indices = np.linspace(0, times.size - 1, frame_count, dtype=int)
 	frame_times = times[frame_indices]
-	fields = [potential.evaluate(time) for time in frame_times]
+	fields = [potential.evaluate_grid(time) for time in frame_times]
 	vmin = min(float(np.min(field)) for field in fields)
 	vmax = max(float(np.max(field)) for field in fields)
 	if vmin < 0 < vmax:

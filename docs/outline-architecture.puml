@@ -32,7 +32,8 @@ rectangle "1. Dynamics" as DynamicsGroup #EAF4FA {
 		+ frequencies: ndarray
 		+ metadata: object | None
 		--
-		+ evaluate(t: float | ndarray, x: ndarray | None = None, y: ndarray | None = None, *, dx: int = 0, dy: int = 0, dt: int = 0): ndarray
+		+ evaluate(t: float | ndarray, x: ndarray, y: ndarray, *, dx: int = 0, dy: int = 0, dt: int = 0): ndarray
+		+ evaluate_grid(t: float | ndarray, *, dt: int = 0): ndarray
     + electric_field(t: float | ndarray, x: ndarray | None = None, y: ndarray | None = None): tuple[ndarray, ndarray]
     + gyroaverage(rho: float): Potential
   }

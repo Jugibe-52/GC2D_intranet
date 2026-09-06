@@ -259,9 +259,11 @@ Phi(t, x, y) = Phi0(x, y)
 
 The main runtime methods are:
 
-- `evaluate(...)`: reconstructs the mean and positive-frequency modes;
+- `evaluate(t, x, y, ...)`: reconstructs the mean and positive-frequency modes
+  at paired coordinates;
+- `evaluate_grid(t, ...)`: reconstructs them on the complete stored grid;
 - `electric_field(...)`: evaluates `(-Phi_x, -Phi_y)` through the same
-  frequency-aware `evaluate(...)` implementation;
+  frequency-aware derivative machinery;
 - `gyroaverage(rho)`: applies the Larmor-circle average to every stored field.
 
 Spatial derivative orders are delegated to the persistent splines. The time

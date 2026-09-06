@@ -5,25 +5,32 @@
 ## Scope
 
 `BM4Implicit` is the only public BM4 numerical method. It has one fixed
-geometric construction:
+geometric construction.
+
+For a source-order explanation of every implementation symbol, array layout,
+nonlinear branch, observer closure, and diagnostic field, see the
+[`BM4Implicit` implementation walkthrough](bm4-implicit-code-walkthrough.md).
 
 | Architectural choice | Fixed BM4 behavior |
 |---|---|
 | Public method | `BM4Implicit` |
-| Accepted and returned state | Physical guiding-centre state `z in R^(2N)` |
-| Internal splitting state | Two physical copies in `R^(4N)` |
+| Accepted and returned state | Physical guiding-centre state `z in R^(2p)` for `p` particles |
+| Internal splitting state | Two physical copies in `R^(4p)` |
 | Projection | Hairer's symmetric projection |
 | Projection placement | Once around one complete twelve-stage BM4 cycle |
-| Nonlinear formulation | Reduced multiplier `mu in R^(2N)` |
+| Nonlinear formulation | Reduced multiplier `mu in R^(2p)` |
 
 Newton and Broyden are solver choices for the same reduced equation. They do
 not define different numerical methods. Likewise, selecting an analytic or
 finite-difference Newton Jacobian changes how the equation is solved, not the
 projected map.
 
+"Implicit" refers to the reduced multiplier root solve. The twelve
+direct/adjoint maps in the BM4 base cycle are explicit sequential stages.
+
 There is no stage-projected, arithmetic-midpoint, simultaneous-output, or fully
 extended BM4 branch. In particular, the accepted state never includes time or
-its conjugate momentum. The duplicated `R^(4N)` value is only internal
+its conjugate momentum. The duplicated `R^(4p)` value is only internal
 splitting and nonlinear-solver workspace; it is not a fully extended state.
 
 ## Runtime boundaries
@@ -41,8 +48,10 @@ splitting and nonlinear-solver workspace; it is not a fully extended state.
 
 Preparation requires a guiding-centre initial configuration. The analytic
 Jacobian path additionally requires the exact particle Jacobians supplied by
-`GuidingCenterDynamics`; finite-difference Newton and Broyden evaluate the same
-prepared physical BM4 map without changing its state contract.
+`GuidingCenterDynamics` and an effective potential with
+`interpolation_order >= 3` whenever Newton needs a correction; finite-difference
+Newton and Broyden evaluate the same prepared physical BM4 map without changing
+its state contract.
 
 ## Public configuration
 
@@ -103,7 +112,8 @@ order four.
 
 ## Physical Hairer projection
 
-Let the packed physical GC state have dimension `m=2N`, and define
+Let `p` be the particle count, let the packed physical GC state have dimension
+`m=2p`, and define
 
 \[
 E=\begin{pmatrix}I\\I\end{pmatrix},\qquad
@@ -160,8 +170,8 @@ With `newton_jacobian_method="analytic"`, the implementation accumulates the
 ordered product of all twelve exact GC stage Jacobians. The
 `"finite_difference"` path differentiates the complete duplicated map with
 centered differences. Good Broyden instead updates an approximation to this
-reduced residual Jacobian and avoids differentiating the map at every
-correction.
+reduced residual Jacobian from `4I` and secant data; it never differentiates the
+map or consults either Newton-Jacobian configuration field.
 
 The stopping threshold for a state `z_n` is
 
@@ -183,7 +193,7 @@ simulate(problem, BM4Implicit(...), request)
   -> integrate_fixed_grid(...)
        -> solve one reduced Hairer equation per complete main step
             -> evaluate the full twelve-stage BM4 base cycle
-       -> accept z_(n+1) in R^(2N)
+       -> accept z_(n+1) in R^(2p)
   -> IntegrationData
   -> Solution
 ```
@@ -193,7 +203,8 @@ larger than `SimulationRequest.max_step`. Requested off-grid samples are
 computed by shadow advances from the preceding main node. Shadow advances do
 not replace the accepted trajectory, emit observer events, or enter accepted-
 step diagnostics. Changing `sample_count` therefore cannot alter the main-grid
-trajectory.
+trajectory, although each interior requested time adds a shorter projected-BM4
+shadow solve and therefore increases runtime.
 
 ## Observation and diagnostics
 
@@ -214,7 +225,7 @@ The public solution diagnostics include:
 - `projection_multiplier_norms` and `coupling_frequency`; and
 - the fixed `projection_solver_formulation = "bm4_implicit_reduced"` marker.
 
-All returned trajectory states remain physical `R^(2N)` values. There are no
+All returned trajectory states remain physical `R^(2p)` values. There are no
 extended-time, conjugate-momentum, or generalized-energy arrays in this method.
 
 ## Public usage

@@ -158,7 +158,7 @@ def potential_fingerprint(potential: Potential) -> str:
 	)
 	digest.update(grid_values.tobytes())
 	for time in (0.0, np.pi / 2.0):
-		sample = np.ascontiguousarray(potential.evaluate(time), dtype=np.float64)
+		sample = np.ascontiguousarray(potential.evaluate_grid(time), dtype=np.float64)
 		digest.update(str(sample.shape).encode("ascii"))
 		digest.update(sample.tobytes())
 	probe_x = grid.xmin + grid.period * np.asarray(

@@ -264,7 +264,7 @@ def animate_abba4_configuration_trajectories(
 	indices = _frame_indices(times.size, frames)
 	frame_times = times[indices]
 	potential = _effective_potential(result)
-	fields = np.asarray(potential.evaluate(frame_times), dtype=float)
+	fields = np.asarray(potential.evaluate_grid(frame_times), dtype=float)
 	if fields.shape != (*potential.grid.shape, indices.size):
 		raise ValueError("Potential evaluation returned an unexpected animation shape.")
 	xmin, xmax, ymin, ymax = _closed_spatial_limits(potential)

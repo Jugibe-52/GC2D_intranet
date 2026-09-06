@@ -55,19 +55,15 @@ class _CountingPotential(Potential):
 		)
 		self.evaluation_count = 0
 
-	def evaluate(
+	def evaluate_grid(
 		self,
 		t: float | np.ndarray,
-		x: np.ndarray | None = None,
-		y: np.ndarray | None = None,
 		*,
-		dx: int = 0,
-		dy: int = 0,
 		dt: int = 0,
 	) -> np.ndarray:
 		"""Count one batch call before delegating to the real HDF5 semantics."""
 		self.evaluation_count += 1
-		return super().evaluate(t, x, y, dx=dx, dy=dy, dt=dt)
+		return super().evaluate_grid(t, dt=dt)
 
 
 def _variants() -> tuple[ABBA4ConfigurationVariant, ...]:
