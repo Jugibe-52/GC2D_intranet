@@ -7,7 +7,6 @@ from concurrent.futures import FIRST_COMPLETED, Future, ProcessPoolExecutor, wai
 from dataclasses import dataclass, replace
 from itertools import product
 from multiprocessing import get_context
-from pathlib import Path
 import sys
 from time import perf_counter
 from types import MappingProxyType
@@ -19,13 +18,13 @@ from threadpoolctl import ThreadpoolController
 from diagnostics import StoredReferenceTrajectory
 from dynamics import GuidingCenterDynamics
 from initial_conditions import GCInitialConfiguration
-from potential import GC2DH5Potential, Potential
+from potential import GC2DH5Metadata, Grid, Potential
 from simulation import (
 	ABBA4Implicit,
-	ABBA4ImplicitSingleProjection,
 	InitialValueProblem,
 	NonlinearSolver,
 	NumericalMethod,
+	ProjectionPlacement,
 	ProjectionFormulation,
 	SimulationRequest,
 	Solution,
@@ -570,12 +569,13 @@ def _method_for_variant(
 	config: ABBA4ConfigurationComparisonConfig,
 ) -> NumericalMethod:
 	"""Construct one numerical method with common nonlinear controls."""
-	method_type: type[ABBA4Implicit] | type[ABBA4ImplicitSingleProjection]
-	if variant.method_name == "ABBA4Implicit":
-		method_type = ABBA4Implicit
-	else:
-		method_type = ABBA4ImplicitSingleProjection
-	return method_type(
+	projection_placement: ProjectionPlacement = (
+		"after_each_abba_map"
+		if variant.method_name == "ABBA4Implicit"
+		else "around_complete_composition"
+	)
+	return ABBA4Implicit(
+		projection_placement=projection_placement,
 		state_extension=variant.state_extension,
 		track_energy=True,
 		projection_formulation=variant.projection_formulation,
@@ -602,77 +602,46 @@ def _alternating_particle_order(particle_count: int) -> tuple[int, ...]:
 
 
 @dataclass(frozen=True, slots=True)
-class _GC2DH5PotentialSnapshot:
+class _H5PotentialSnapshot:
 	"""Pickle-safe processed HDF5 field used to initialize spawned workers."""
 
-	x: np.ndarray
-	y: np.ndarray
-	mean_value: np.ndarray | None
-	fluctuations: np.ndarray | None
+	grid: Grid
+	mean: np.ndarray
+	modes: np.ndarray
 	frequencies: np.ndarray
-	source_field_indices: np.ndarray
-	source_x: np.ndarray
-	source_y: np.ndarray
-	source_frequencies: np.ndarray
-	characteristic_length: float | None
-	characteristic_period: float | None
-	normalization_factor: float
-	attributes: dict[str, np.ndarray]
+	metadata: GC2DH5Metadata
 	interpolation_order: int
-	source_path: str | None
 
 	@classmethod
 	def from_potential(
 		cls,
-		potential: GC2DH5Potential,
-	) -> _GC2DH5PotentialSnapshot:
+		potential: Potential,
+	) -> _H5PotentialSnapshot:
 		"""Capture the selected and resampled fields without the source HDF5."""
+		if not isinstance(potential.metadata, GC2DH5Metadata):
+			raise TypeError("The potential must contain GC2D HDF5 metadata.")
 		return cls(
-			x=potential.x,
-			y=potential.y,
-			mean_value=potential.mean_value,
-			fluctuations=potential.fluctuations,
+			grid=potential.grid,
+			mean=potential.mean,
+			modes=potential.modes,
 			frequencies=potential.frequencies,
-			source_field_indices=potential.source_field_indices,
-			source_x=potential.source_x,
-			source_y=potential.source_y,
-			source_frequencies=potential.source_frequencies,
-			characteristic_length=potential.characteristic_length,
-			characteristic_period=potential.characteristic_period,
-			normalization_factor=potential.normalization_factor,
-			attributes=dict(potential.attributes),
+			metadata=potential.metadata,
 			interpolation_order=potential.interpolation_order,
-			source_path=(
-				None
-				if potential.source_path is None
-				else str(potential.source_path)
-			),
 		)
 
-	def restore(self) -> GC2DH5Potential:
+	def restore(self) -> Potential:
 		"""Rebuild runtime splines once inside one worker process."""
-		return GC2DH5Potential(
-			self.x,
-			self.y,
-			self.mean_value,
-			self.fluctuations,
-			self.frequencies,
-			source_field_indices=self.source_field_indices,
-			source_x=self.source_x,
-			source_y=self.source_y,
-			source_frequencies=self.source_frequencies,
-			characteristic_length=self.characteristic_length,
-			characteristic_period=self.characteristic_period,
-			normalization_factor=self.normalization_factor,
-			attributes=self.attributes,
+		return Potential(
+			self.grid,
+			mean=self.mean,
+			modes=self.modes,
+			frequencies=self.frequencies,
+			metadata=self.metadata,
 			interpolation_order=self.interpolation_order,
-			source_path=(
-				None if self.source_path is None else Path(self.source_path)
-			),
 		)
 
 
-_WorkerPotentialPayload: TypeAlias = Potential | _GC2DH5PotentialSnapshot
+_WorkerPotentialPayload: TypeAlias = Potential | _H5PotentialSnapshot
 
 
 @dataclass(frozen=True, slots=True)
@@ -711,8 +680,8 @@ _ABBA4_WORKER_THREADPOOL_LIMITER: Any = None
 
 def _worker_potential_payload(potential: Potential) -> _WorkerPotentialPayload:
 	"""Return a spawn-safe potential representation without rereading HDF5."""
-	if isinstance(potential, GC2DH5Potential):
-		return _GC2DH5PotentialSnapshot.from_potential(potential)
+	if isinstance(potential.metadata, GC2DH5Metadata):
+		return _H5PotentialSnapshot.from_potential(potential)
 	return potential
 
 
@@ -729,7 +698,7 @@ def _initialize_abba4_worker(
 	_ABBA4_WORKER_THREADPOOL_LIMITER = ThreadpoolController().limit(limits=1)
 	potential = (
 		potential_payload.restore()
-		if isinstance(potential_payload, _GC2DH5PotentialSnapshot)
+		if isinstance(potential_payload, _H5PotentialSnapshot)
 		else potential_payload
 	)
 	dynamics = GuidingCenterDynamics(potential, rho=config.rho)

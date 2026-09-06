@@ -363,11 +363,11 @@ def abba4_implicit_single_projection_step_particle_jacobians(
 	"""Differentiate the one ideal projection around unprojected ABBA4."""
 	dynamics, state, state_after, particle_count = _validated_step(
 		step,
-		method_name="ABBA4ImplicitSingleProjection",
+		method_name="ABBA4Implicit",
 	)
 	if not isinstance(step, ABBA4ImplicitSingleProjectionIntegrationStep):
 		raise TypeError(
-			"ABBA4ImplicitSingleProjection exact Jacobians require converged "
+			"Outer-projection ABBA4 exact Jacobians require converged "
 			"outer-projection snapshots."
 		)
 	if step.formulation_name not in ABBA_PROJECTION_FORMULATIONS:
@@ -582,18 +582,18 @@ def coupled_bm4_stage_particle_jacobians(
 	return np.asarray(result, dtype=float)
 
 
-def bm4_implicit_1_step_particle_jacobians(
+def bm4_implicit_step_particle_jacobians(
 	step: IntegrationStep,
 ) -> np.ndarray:
 	"""Differentiate the ideal reduced Hairer projection by exact stages."""
 	dynamics, state, state_after, particle_count = _validated_step(
 		step,
-		method_name="BM4Implicit1",
+		method_name="BM4Implicit",
 	)
 	if not isinstance(step, ImplicitBM4IntegrationStep):
-		raise TypeError("BM4Implicit1 exact Jacobians require base-stage snapshots.")
-	if step.formulation_name != "bm4_implicit_1_reduced":
-		raise TypeError("The observed step is not implicit BM4 formulation 1.")
+		raise TypeError("BM4Implicit exact Jacobians require base-stage snapshots.")
+	if step.formulation_name != "bm4_implicit_reduced":
+		raise TypeError("The observed step is not reduced-projection BM4Implicit.")
 	stages = tuple(step.base_stages)
 	if len(stages) != _BM4_STAGE_COUNT:
 		raise ValueError("A complete implicit BM4 base cycle has twelve stages.")
@@ -687,7 +687,7 @@ def bm4_implicit_1_step_particle_jacobians(
 __all__ = [
 	"abba4_implicit_step_particle_jacobians",
 	"abba4_implicit_single_projection_step_particle_jacobians",
-	"bm4_implicit_1_step_particle_jacobians",
+	"bm4_implicit_step_particle_jacobians",
 	"coupled_bm4_stage_particle_jacobians",
 	"abba2_implicit_step_particle_jacobians",
 	"abba2_midpoint_step_particle_jacobians",

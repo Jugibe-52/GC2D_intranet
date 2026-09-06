@@ -15,8 +15,7 @@ from initial_conditions import GCInitialConfiguration
 from potential import Potential
 from simulation import (
 	ABBA4Implicit,
-	ABBA4ImplicitSingleProjection,
-	BM4Implicit1,
+	BM4Implicit,
 	ABBA2Implicit,
 	InitialValueProblem,
 	NumericalMethod,
@@ -45,14 +44,14 @@ IMPLICIT_ACCURACY_METHOD_NAMES: tuple[str, ...] = (
 	"ABBA2Implicit[reduced_multiplier]",
 	"ABBA4Implicit",
 	"ABBA4ImplicitSingleProjection",
-	"BM4Implicit1",
+	"BM4Implicit",
 )
 IMPLICIT_ACCURACY_METHOD_LABELS: Mapping[str, str] = MappingProxyType(
 	{
 		"ABBA2Implicit[reduced_multiplier]": "Implicit ABBA2 (reduced multiplier)",
 		"ABBA4Implicit": "Implicit ABBA4 (three projections)",
 		"ABBA4ImplicitSingleProjection": "Implicit ABBA4 (single projection)",
-		"BM4Implicit1": "Implicit BM4",
+		"BM4Implicit": "Implicit BM4",
 	}
 )
 IMPLICIT_ACCURACY_DESIGNED_ORDERS: Mapping[str, float] = MappingProxyType(
@@ -60,7 +59,7 @@ IMPLICIT_ACCURACY_DESIGNED_ORDERS: Mapping[str, float] = MappingProxyType(
 		"ABBA2Implicit[reduced_multiplier]": 2.0,
 		"ABBA4Implicit": 4.0,
 		"ABBA4ImplicitSingleProjection": 4.0,
-		"BM4Implicit1": 4.0,
+		"BM4Implicit": 4.0,
 	}
 )
 
@@ -250,15 +249,16 @@ def _configured_method(
 			progress=config.progress,
 		)
 	if method_name == "ABBA4ImplicitSingleProjection":
-		return ABBA4ImplicitSingleProjection(
+		return ABBA4Implicit(
+			projection_placement="around_complete_composition",
 			newton_absolute_tolerance=config.absolute_tolerance,
 			newton_relative_tolerance=config.relative_tolerance,
 			newton_max_iterations=config.max_iterations,
 			nonlinear_solver="newton",
 			progress=config.progress,
 		)
-	if method_name == "BM4Implicit1":
-		return BM4Implicit1(
+	if method_name == "BM4Implicit":
+		return BM4Implicit(
 			coupling_frequency=config.coupling_frequency,
 			newton_absolute_tolerance=config.absolute_tolerance,
 			newton_relative_tolerance=config.relative_tolerance,

@@ -6,9 +6,10 @@ This is documentation for the complete ABBA family, not for `ABBA2Implicit`
 alone. It follows every active ABBA runtime branch from public input assembly to
 the read-only `Solution` returned to the caller.
 
-The family contains five public classes. Configuration controls select residual
-formulation, nonlinear solver, physical or fully extended state, and optional
-physical energy tracking without creating 51 separate classes. The diagram
+The family contains four public classes. Configuration controls select residual
+formulation, nonlinear solver, physical or fully extended state, optional
+physical energy tracking, and the two ABBA4 projection placements without
+creating 51 separate classes. The diagram
 lists the classes, module-level functions, participating records and protocols,
 and named local closures used by the physical, energy-tracked physical, and
 fully extended paths. Optional energy, observer, and progress paths use dashed
@@ -22,7 +23,7 @@ hide the execution flow.
 | Region | Main question | Starts with | Produces |
 |---|---|---|---|
 | **1. Problem and simulation boundary** | What physical problem and time request will be run? | Dynamics and initial configuration | A validated `InitialValueProblem` and `SimulationRequest` |
-| **2. Public ABBA family and configuration** | Which canonical method and axes are selected? | One of five public classes | One validated method object |
+| **2. Public ABBA family and configuration** | Which canonical method and axes are selected? | One of four public classes | One validated method object |
 | **3. Coordinators and fixed grid** | Which state extension, energy policy, and composition execute? | Method, problem, and request | Main and shadow step callbacks |
 | **4. Physical kernels and energy sidecar** | How are the A-B-B-A stages and physical projections evaluated, and is conjugate momentum transported? | `R^2` physical copies | A closed physical state, optional momentum, and nonlinear diagnostics |
 | **5. Fully extended kernels** | How is `(z,t,k)` duplicated, projected, and differentiated? | `R^4` accepted and `R^8` split states | A closed extended state plus energy diagnostics |
@@ -294,14 +295,17 @@ interface.
 
 All ABBA-specific numerical methods now live under
 [`src/simulation/methods/abba/`](../../../../src/simulation/methods/abba/).
-Callers import exactly five public method classes from `simulation` or
+Callers import exactly four public method classes from `simulation` or
 `simulation.methods`:
 
 1. `ABBA2Midpoint`;
 2. `ABBA2Implicit`;
 3. `ABBA4Implicit`;
-4. `ABBA4ImplicitSingleProjection`; and
-5. `ABBA6Implicit`.
+4. `ABBA6Implicit`.
+
+The deprecated `ABBA4ImplicitSingleProjection(...)` compatibility factory
+returns `ABBA4Implicit(projection_placement="around_complete_composition")`;
+it is not another method class.
 
 There are no public classes dedicated to state extensions or energy tracking.
 Every method selects its state-space strategy through `state_extension` and its
@@ -309,8 +313,8 @@ optional physical momentum sidecar through `track_energy`.
 
 | Module | Responsibility |
 |---|---|
-| `__init__.py` | Reexports the five public ABBA classes and their canonical configuration values. |
-| `_configuration.py` | Defines and validates `ProjectionFormulation`, `StateExtension`, and one-particle dimension diagnostics. |
+| `__init__.py` | Reexports the four public ABBA classes, the deprecated ABBA4 factory, and canonical configuration values. |
+| `_configuration.py` | Defines and validates `ProjectionPlacement`, `ProjectionFormulation`, `StateExtension`, and one-particle dimension diagnostics. |
 | `_coefficients.py` | Owns the signed ABBA4 and ABBA6 composition coefficients. |
 | `_core.py` | Implements the generic endpoint-time A-B-B-A map shared by midpoint and implicit projection. |
 | `_projection_common.py` | Builds the shared displaced stages, exact stage tangents, and accepted-step record. |
@@ -320,8 +324,8 @@ optional physical momentum sidecar through `track_energy`.
 | `_energy.py` | Validates optional physical energy tracking, advances `kappa=k/2` from accepted stages, and builds standard energy diagnostics. |
 | `order2_midpoint.py` | Implements `ABBA2Midpoint`, both state extensions, and optional physical energy tracking without a nonlinear solve. |
 | `order2_implicit.py` | Implements `ABBA2Implicit` and dispatches its selected configuration. |
-| `order4_implicit.py` | Implements three signed projected maps with one global configuration. |
-| `order4_implicit_single_projection.py` | Applies one selected projection around the complete unprojected triple jump. |
+| `order4_implicit.py` | Implements the unified `ABBA4Implicit` class and dispatches its two projection placements. |
+| `order4_implicit_single_projection.py` | Implements the private physical kernel for one projection around the complete unprojected triple jump. |
 | `order6_implicit.py` | Implements seven signed projected maps with one global configuration. |
 | `extensions/` | Reserves private namespaces for extension-specific implementation details; it exports no numerical method class. |
 | `methods/_fully_extended.py` | Implements the `R^8` full-state kernel, its `R^4` and `R^12` projection solves, and the fully extended midpoint path. |
@@ -335,7 +339,7 @@ Method-independent utilities remain outside the folder. In particular,
 **File:**
 [`src/simulation/methods/abba/_implicit.py`](../../../../src/simulation/methods/abba/_implicit.py)
 
-`_ABBAImplicitConfig` is a private frozen dataclass shared by the four implicit
+`_ABBAImplicitConfig` is a private frozen dataclass shared by the three implicit
 classes. It is a configuration base, not a complete numerical method: it has no
 `integrate(...)` implementation. Concrete descendants supply that operation and
 thereby satisfy `NumericalMethod` structurally.
@@ -362,7 +366,7 @@ positive iteration limit.
 
 ### Canonical configuration controls
 
-The four implicit classes expose two independent nonlinear selectors and a
+The three implicit classes expose two independent nonlinear selectors and a
 constrained state/energy strategy:
 
 | Control | Choices | Numerical role |
@@ -372,24 +376,29 @@ constrained state/energy strategy:
 | `state_extension` | 2 | Selects physical or fully extended state duplication. |
 | `track_energy` | 2 | Optionally transports conjugate momentum for physical execution; fully extended execution always resolves it to `True`. |
 
+`ABBA4Implicit` adds `projection_placement` with the canonical values
+`"after_each_abba_map"` and `"around_complete_composition"`. This axis selects
+two distinct fourth-order maps while retaining a single public method class.
+
 The three canonical normalized state/energy strategies are
 `(physical, False)`, `(physical, True)`, and `(fully_extended, True)`.
-Consequently, each implicit class has `2 x 2 x 3 = 12` canonical
-configurations. `ABBA2Midpoint` has no residual and no nonlinear solver, so it
-supports those three strategies directly. Across the five public classes this
+Consequently, `ABBA2Implicit` and `ABBA6Implicit` each have `2 x 2 x 3 = 12`
+canonical configurations, while `ABBA4Implicit` has `2 x 12 = 24`.
+`ABBA2Midpoint` has no residual and no nonlinear solver, so it supports those
+three strategies directly. Across the four public classes this
 gives
 
 ```text
-4 implicit classes x 12 + 1 midpoint class x 3 = 51 configurations.
+12 ABBA2 + 24 ABBA4 + 12 ABBA6 + 3 midpoint = 51 configurations.
 ```
 
-`ABBA_PROJECTION_FORMULATIONS`, `NONLINEAR_SOLVERS`, and
+`ABBA4_PROJECTION_PLACEMENTS`, `ABBA_PROJECTION_FORMULATIONS`, `NONLINEAR_SOLVERS`, and
 `ABBA_STATE_EXTENSIONS` expose the canonical values. A configuration is a
 runtime choice of one public method; it is not another class. Passing
 `track_energy=False` with `state_extension="fully_extended"` produces the same
 normalized method as passing `True` and is not counted twice.
 
-### The five public methods
+### The four public methods
 
 #### `ABBA2Midpoint`
 
@@ -423,20 +432,13 @@ separate concrete Python relationship.
 [`src/simulation/methods/abba/order4_implicit.py`](../../../../src/simulation/methods/abba/order4_implicit.py)
 
 One outer step composes signed durations `(gamma h, delta h, gamma h)`. Each of
-the three maps is completed by its own implicit projection. The selected
-formulation, solver, and extension are global: all three substeps use the same
-configuration. Thus this class has 12 configurations, not independent binary
-choices for each of its three substeps.
-
-#### `ABBA4ImplicitSingleProjection`
-
-**File:**
-[`src/simulation/methods/abba/order4_implicit_single_projection.py`](../../../../src/simulation/methods/abba/order4_implicit_single_projection.py)
-
-This method applies the same three signed unprojected maps continuously and
-places one implicit projection around the complete triple jump. It performs one
-nonlinear solve per outer step. This projection placement defines a different
-numerical map from `ABBA4Implicit`; it is not a fourth configuration axis.
+the three maps is either completed by its own implicit projection or left
+continuous with the other two before one projection around the complete triple
+jump. The `projection_placement` selector chooses between these distinct maps.
+The selected formulation, solver, and extension are global: the per-map branch
+uses them for all three solves, while the exterior branch uses them for its one
+solve. The private exterior kernel remains in
+[`order4_implicit_single_projection.py`](../../../../src/simulation/methods/abba/order4_implicit_single_projection.py).
 
 #### `ABBA6Implicit`
 
@@ -476,7 +478,7 @@ tracking is disabled or enabled; the auxiliary momentum never enters the
 observer state or its Jacobian. Fully extended observers receive the accepted
 internal map `Z -> Z_next` in `R^4`. The diagnostics fields
 `observer_state_dimension` and `observer_state_kind` make this contract
-explicit for all five public methods.
+explicit for all four public methods.
 
 The temporary `(u_f,v_f,mu) in R^6` simultaneous unknown is a nonlinear
 workspace, not a trajectory or energy-sidecar state. For `fully_extended`, the
@@ -513,9 +515,10 @@ Implicit configurations have two nested loops:
 1. The **outer time loop** advances the physical trajectory over the uniform
    main grid and, when necessary, computes independent shadow samples.
 2. The **inner nonlinear loop** solves each projection selected by the method's
-   composition policy. `ABBA4Implicit` performs three such solves,
-   `ABBA4ImplicitSingleProjection` performs one, and `ABBA6Implicit` performs
-   seven per outer step.
+   composition policy. `ABBA4Implicit` performs three solves with
+   `projection_placement="after_each_abba_map"` and one with
+   `"around_complete_composition"`; `ABBA6Implicit` performs seven per outer
+   step.
 
 `ABBA2Midpoint` traverses the same outer loop and extension dispatch but bypasses
 the formulation and nonlinear-solver kernels. It closes each duplicated map
@@ -608,10 +611,10 @@ and dispatches the selected residual:
 - the simultaneous formulation solves `(Z_1f,Z_2f,mu) in R^12`.
 
 The method variant determines the composition coefficients and projection
-placement. `ABBA4ImplicitSingleProjection` builds one complete unprojected
-triple-jump base map before its single solve. The other implicit variants solve
-after each constituent A-B-B-A map. The same configuration is used for every
-constituent map.
+placement. `ABBA4Implicit(projection_placement="around_complete_composition")`
+builds one complete unprojected triple-jump base map before its single solve.
+The other implicit variants solve after each constituent A-B-B-A map. The same
+configuration is used for every constituent map.
 
 `ABBA2Midpoint(state_extension="fully_extended")` enters the neighboring
 `_integrate_abba_fully_extended_midpoint(...)` path. It duplicates the same
@@ -1171,7 +1174,7 @@ Here `dynamics`, `initial_x`, `initial_y`, `final_time`, `max_step`, and
 
 ## Scope and deliberate omissions
 
-The diagram shows all five public method classes, the configuration controls,
+The diagram shows all four public method classes, the configuration controls,
 and the active classes and functions used by their numerical runtime. It does
 not duplicate the same path for every one of the 51 canonical configurations.
 The diagram deliberately omits:

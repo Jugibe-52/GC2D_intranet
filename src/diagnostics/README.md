@@ -21,7 +21,7 @@ fields retain the former `newton_*` spelling while solver-neutral properties
 and arrays use `nonlinear_*` names.
 
 `diagnostics.ImplicitBM4IterationObserver` uses the same persisted record
-schema for `BM4Implicit1` and `BM4Implicit2`. Each observation represents the
+schema for `BM4Implicit`. Each observation represents the
 single Hairer projection solve surrounding one complete twelve-stage BM4
 cycle. The observer does not perform additional BM4 maps or finite-difference
 Jacobians.

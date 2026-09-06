@@ -15,19 +15,19 @@ IMPLICIT_ACCURACY_COLORS = {
 	"ABBA2Implicit[reduced_multiplier]": "#1f77b4",
 	"ABBA4Implicit": "#ff7f0e",
 	"ABBA4ImplicitSingleProjection": "#2ca02c",
-	"BM4Implicit1": "#d62728",
+	"BM4Implicit": "#d62728",
 }
 _LINE_STYLES = {
 	"ABBA2Implicit[reduced_multiplier]": "-",
 	"ABBA4Implicit": "-",
 	"ABBA4ImplicitSingleProjection": "--",
-	"BM4Implicit1": "-",
+	"BM4Implicit": "-",
 }
 _MARKERS = {
 	"ABBA2Implicit[reduced_multiplier]": "o",
 	"ABBA4Implicit": "s",
 	"ABBA4ImplicitSingleProjection": "+",
-	"BM4Implicit1": "o",
+	"BM4Implicit": "o",
 }
 
 
@@ -301,7 +301,7 @@ def plot_implicit_method_accuracy_cost(
 		"ABBA2Implicit[reduced_multiplier]": (5, 5),
 		"ABBA4Implicit": (5, 6),
 		"ABBA4ImplicitSingleProjection": (5, -13),
-		"BM4Implicit1": (5, 5),
+		"BM4Implicit": (5, 5),
 	}
 	for method in methods:
 		rows = grouped[method]

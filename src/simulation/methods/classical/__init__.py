@@ -7,6 +7,14 @@ from .gauss_legendre import (
 	GaussLegendre4,
 )
 from .rk4 import RK4
+from .sdirk import (
+	SDIRK4_TABLEAU_A,
+	SDIRK4_TABLEAU_B,
+	SDIRK4_TABLEAU_C,
+	SDIRK_JACOBIAN_METHODS,
+	SDIRK4,
+	SDIRKJacobianMethod,
+)
 
 __all__ = [
 	"ExplicitEuler",
@@ -14,4 +22,10 @@ __all__ = [
 	"GaussJacobianMethod",
 	"GaussLegendre4",
 	"RK4",
+	"SDIRK4_TABLEAU_A",
+	"SDIRK4_TABLEAU_B",
+	"SDIRK4_TABLEAU_C",
+	"SDIRK_JACOBIAN_METHODS",
+	"SDIRK4",
+	"SDIRKJacobianMethod",
 ]

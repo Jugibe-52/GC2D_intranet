@@ -203,13 +203,28 @@ class HBVM42StudyTests(unittest.TestCase):
 		)
 		self.assertGreater(evaluation.summaries()[0].local_symplecticity_defect, 0.0)
 
+		gc_dynamics = GuidingCenterDynamics(
+			Potential.random(
+				A=0.08,
+				M=3,
+				nx=16,
+				ny=16,
+				seed=27,
+				interpolation_order=5,
+			),
+			rho=0.05,
+		)
+		gc_configuration = GCInitialConfiguration.from_components(
+			x=np.asarray((1.0,)),
+			y=np.asarray((1.2,)),
+		)
 		comparison = run_hbvm42_bm4_comparison(
-			dynamics,
-			configuration,
+			gc_dynamics,
+			gc_configuration,
 			config=HBVM42BM4ComparisonConfig(
-				steps=(0.4, 0.2),
-				t_span=(0.0, 0.8),
-				reference_maximum_step=0.01,
+				steps=(0.1, 0.05),
+				t_span=(0.0, 0.2),
+				reference_maximum_step=0.005,
 				runtime_warmups=0,
 				runtime_repeats=1,
 			),
@@ -217,7 +232,7 @@ class HBVM42StudyTests(unittest.TestCase):
 		self.assertEqual(len(comparison.summaries()), 4)
 		self.assertEqual(
 			{row.method for row in comparison.summaries()},
-			{"HBVM(4,2)", "BM4"},
+			{"HBVM(4,2)", "BM4Implicit"},
 		)
 
 		figures = (

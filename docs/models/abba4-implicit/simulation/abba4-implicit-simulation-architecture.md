@@ -1,12 +1,13 @@
-# ABBA4 implicit default physical simulation architecture
+# Unified ABBA4 implicit simulation architecture
 
 This document explains the companion
 [`abba4-implicit-simulation-architecture.puml`](abba4-implicit-simulation-architecture.puml)
-diagram. The expanded runtime branch is exactly the default
-`ABBA4Implicit` configuration:
+diagram. `ABBA4Implicit` owns both projection placements. The default remains
+the three-projection map:
 
 ```python
 ABBA4Implicit(
+    projection_placement="after_each_abba_map",
     projection_formulation="reduced_multiplier",
     state_extension="physical",
     track_energy=False,
@@ -14,18 +15,26 @@ ABBA4Implicit(
 )
 ```
 
-The complete ABBA family, its five public classes, normalized configuration
-controls, and all 51 normalized strategies are documented in the authoritative
+The alternative numerical map is selected without changing method class:
+
+```python
+ABBA4Implicit(
+    projection_placement="around_complete_composition",
+)
+```
+
+The complete ABBA family, its four public classes, normalized configuration
+controls, and all 51 normalized configurations are documented in the authoritative
 [`Canonical ABBA numerical architecture`](../../abba/simulation/abba-numerical-architecture.md).
-This companion expands the default physical reduced-Newton path while its
-diagram also shows simultaneous projection, Broyden, optional physical energy
-tracking, and fully extended dispatch. The default ABBA2 reduced-Newton kernel
+This companion expands both physical projection placements while its diagram
+also shows simultaneous projection, Broyden, optional physical energy
+tracking, and fully extended dispatch. The ABBA2 reduced-Newton kernel
 reused by each signed substep is described in detail by the
 [`ABBA2 implicit companion`](../../abba2-implicit/simulation/abba2-implicit-simulation-architecture.md).
 
-## Scoped runtime path
+## Unified runtime paths
 
-The default physical call flow is:
+The public entry path is shared until placement dispatch:
 
 ```text
 simulate(problem, ABBA4Implicit(), request)
@@ -37,36 +46,35 @@ SimulationRunner.simulate(...)
 ABBA4Implicit.integrate(...)
         |
         v
-_integrate_abba4_implicit(...)
+projection_placement
         |
-        v
-_integrate_composed_implicit_abba(...)
+        +-> after_each_abba_map
+        |       -> _integrate_composed_implicit_abba(...)
+        |       -> three independently projected ABBA maps
         |
-        v
-integrate_fixed_grid(...) -> advance(...) -> solve_step(...)
-        |
-        v
-_solve_composed_abba_step(...)
-        |
-        +-> projected ABBA(gamma h)
-        +-> projected ABBA(delta h)
-        +-> projected ABBA(gamma h)
+        +-> around_complete_composition
+                -> _integrate_abba4_implicit_single_projection(...)
+                -> three continuous unprojected maps
+                -> one exterior projection
         |
         v
 IntegrationData -> SimulationRunner -> Solution
 ```
 
-Each arrow to a signed ABBA map represents a complete, independently solved
-Hairer projection. The middle duration is negative. The optional observation
-branch emits one `ABBA4ImplicitIntegrationStep` for the complete outer step;
-its ordered `substeps` tuple retains all three signed solves.
+The middle duration is negative in both maps. The per-map placement emits an
+`ABBA4ImplicitIntegrationStep` containing three projected solves. The exterior
+placement emits an `ABBA4ImplicitSingleProjectionIntegrationStep` containing
+three continuous unprojected stage records and one outer solve. The record
+types remain distinct because their numerical contents differ, even though the
+configured public method class is the same.
 
 ## Principal files
 
 | File | Responsibility in this scoped path |
 |---|---|
-| [`src/simulation/methods/abba/order4_implicit.py`](../../../../src/simulation/methods/abba/order4_implicit.py) | Public method, triple-jump coordinator, signed-substep records, aggregation, and observation assembly |
-| [`src/simulation/methods/_abba_coefficients.py`](../../../../src/simulation/methods/_abba_coefficients.py) | Canonical ABBA4 and ABBA6 composition coefficients |
+| [`src/simulation/methods/abba/order4_implicit.py`](../../../../src/simulation/methods/abba/order4_implicit.py) | Unified public method, placement dispatch, per-map triple-jump coordinator, aggregation, and compatibility factory |
+| [`src/simulation/methods/abba/order4_implicit_single_projection.py`](../../../../src/simulation/methods/abba/order4_implicit_single_projection.py) | Private physical kernel for one projection around the complete unprojected triple jump |
+| [`src/simulation/methods/abba/_coefficients.py`](../../../../src/simulation/methods/abba/_coefficients.py) | Canonical ABBA4 and ABBA6 composition coefficients |
 | [`src/simulation/methods/abba/_implicit.py`](../../../../src/simulation/methods/abba/_implicit.py) | Shared implicit configuration, solver selector, and projected physical coordinator |
 | [`src/simulation/methods/abba/_energy.py`](../../../../src/simulation/methods/abba/_energy.py) | Optional physical conjugate-momentum workspace, stage quadrature, and energy diagnostics |
 | [`src/simulation/methods/abba/_projection_reduced.py`](../../../../src/simulation/methods/abba/_projection_reduced.py) | Reduced multiplier residual and Newton loop reused three times |
@@ -90,6 +98,7 @@ problem, method, and request before calling `ABBA4Implicit.integrate(...)`.
 
 | Field | Default | Role in the scoped path |
 |---|---:|---|
+| `projection_placement` | `"after_each_abba_map"` | Selects the three-projection map or the one-exterior-projection map |
 | `projection_formulation` | `"reduced_multiplier"` | Selects `_solve_reduced_multiplier_step(...)` for all three substeps |
 | `state_extension` | `"physical"` | Carries only the accepted physical packed state |
 | `track_energy` | `False` | Omits the auxiliary conjugate-momentum workspace and energy diagnostics |
@@ -111,10 +120,11 @@ formulation evolves the complete autonomous state and therefore normalizes
 | `"physical"` | `True` | Apply the same physical map and track one auxiliary `kappa` per particle |
 | `"fully_extended"` | `True` | Duplicate, evolve, and project the complete `Z=(z,t,k)` state |
 
-Combining these three normalized strategies with two projection formulations
-and two nonlinear solvers gives the twelve distinct `ABBA4Implicit` strategies.
+Combining these three normalized strategies with two projection placements,
+two projection formulations, and two nonlinear solvers gives 24 canonical
+`ABBA4Implicit` configurations.
 Passing `track_energy=False` with `state_extension="fully_extended"` does not
-create a thirteenth strategy; construction resolves it to `True`.
+create another state/energy strategy; construction resolves it to `True`.
 
 The physical Newton path requires dynamics satisfying
 [`GuidingCenterJacobianSystem`](../../../../src/dynamics/protocols.py),
@@ -133,12 +143,13 @@ nonlinear unknown have dimension `2N`; each duplicated ABBA state has dimension
 accepted, splitting, nonlinear, and observer dimensions do not change when
 energy tracking is enabled: its `kappa in R^N` is an auxiliary fixed-grid
 workspace, not part of the ABBA splitting or projection solve. Configuration
-selection is global: all three substeps use the same formulation, solver,
-extension, energy-tracking setting, and tolerances.
+selection is global. The per-map branch uses the same formulation, solver,
+extension, energy-tracking setting, and tolerances for all three independent
+solves. The exterior branch applies those selections to its one outer solve.
 
 ## Triple-jump coefficients
 
-[`_ABBA4_COEFFICIENTS`](../../../../src/simulation/methods/_abba_coefficients.py)
+[`_ABBA4_COEFFICIENTS`](../../../../src/simulation/methods/abba/_coefficients.py)
 contains
 
 \[
@@ -285,10 +296,36 @@ multiplier and duplicated stages do not remain live across substep boundaries;
 the next solve starts again from `mu_0=0` around its new physical state.
 
 This placement is numerically distinct from
-`ABBA4ImplicitSingleProjection`, which keeps the duplicated copies through the
-entire unprojected triple jump and solves one projection around that complete
-composition. Projection placement is a method distinction, not a fourth
-configuration axis.
+`projection_placement="around_complete_composition"`, which keeps the
+duplicated copies through the entire unprojected triple jump and solves one
+projection around that complete composition. Projection placement is therefore
+an explicit ABBA4 configuration axis, not a performance toggle.
+
+## One projection around the complete composition
+
+With `projection_placement="around_complete_composition"`, the initial normal
+embedding is applied once:
+
+\[
+u_0=z_n+\mu, \qquad v_0=z_n-\mu.
+\]
+
+The signed `(gamma h, delta h, gamma h)` ABBA maps then evolve these two copies
+continuously without returning them to the diagonal between maps. One final
+normal correction imposes
+
+\[
+r(\mu)=u_f(\mu)-v_f(\mu)+2\mu=0,
+\qquad
+z_{n+1}=\frac{u_f+\mu+v_f-\mu}{2}.
+\]
+
+Newton differentiates the product of all three unprojected ABBA tangents;
+Broyden evaluates the same complete-composition residual without requiring its
+analytic Jacobian. This branch performs one nonlinear solve per accepted outer
+step, but every residual evaluation traverses all three signed ABBA maps. Its
+focused derivation remains beside the canonical theory in
+[`exterior-projection.tex`](../tex/exterior-projection.tex).
 
 ## Optional physical energy tracking
 
@@ -340,15 +377,17 @@ smallest uniform main-step count whose internal outer step does not exceed
 h_{\mathrm{main}}=\frac{t_f-t_0}{\text{step_count}}.
 \]
 
-For every main interval it calls the nested `advance(...)` callback with
-`observe=True`. That callback runs the complete three-solve triple jump,
-replaces the main state, records diagnostics, advances progress, and may emit
-one complete-step observation.
+For every main interval it calls the selected coordinator's nested
+`advance(...)` callback with `observe=True`. That callback runs either the
+three-solve composition or the one exterior solve, replaces the main state,
+records diagnostics, advances progress, and may emit one complete-step
+observation.
 
 An output time inside a main interval triggers an independent shadow
 composition from a copy of the preceding main node. The shadow outer duration
 is the distance to that output time, but it still expands into
-`(gamma q, delta q, gamma q)` and performs three projected Newton solves.
+`(gamma q, delta q, gamma q)` and applies the selected placement. It therefore
+performs three projected solves or one exterior solve.
 The sample is stored with `observe=False`: it does not replace the main state,
 affect later steps, contribute diagnostic rows, advance progress, or emit an
 observation. Output times at main endpoints reuse the corresponding main state.
@@ -371,6 +410,7 @@ history and these diagnostics:
 | `nonlinear_solves_per_step` | `3` |
 | `composition_coefficients` | `(gamma, delta, gamma)` |
 | `composition_policy` | `"project_each_abba_substep"` |
+| `projection_placement` | `"after_each_abba_map"` |
 | `nonlinear_solver` | `"newton"` |
 | `projection_formulation` | `"reduced_multiplier"` |
 | `substep_projection_formulation` | `"reduced_multiplier"` for all three columns |
@@ -411,6 +451,15 @@ nonlinear values.
 Shadow compositions contribute no rows. The counts represent nonlinear work;
 they do not include the vector-field and Jacobian evaluations hidden inside
 each residual or Newton assembly.
+
+For `projection_placement="around_complete_composition"`, the common keys use
+the same meanings but `implicit_substeps_per_step` and
+`nonlinear_solves_per_step` are `1`, `projection_placement` records
+`"around_complete_composition"`, and the `substep_*` arrays have shape
+`(step_count,1)`. `unprojected_abba_maps_per_step` and
+`unprojected_abba_maps_per_residual_evaluation` are both `3`. The optional
+`base_composition="unprojected_abba4_triple_jump"` key further identifies the
+residual's base map.
 
 ## Complete-step and substep observations
 
@@ -453,6 +502,13 @@ Downstream diagnostics can form the exact ideal-root tangent of each substep
 from its multiplier and stage snapshots, then multiply the three physical
 Jacobians in chronological order. The observation stores solver data; it does
 not itself perform tangent or symplecticity analysis.
+
+For the exterior placement, the callback instead receives
+`ABBA4ImplicitSingleProjectionIntegrationStep`. Its inherited metrics describe
+the single outer solve, its multiplier belongs to the complete composition,
+and its three `UnprojectedABBAIntegrationStep` children expose continuous stage
+states without per-map multipliers. Downstream diagnostics differentiate the
+three base tangents first and then the one exterior projection equation.
 
 ## Public result boundary
 
@@ -500,8 +556,8 @@ The following limitations apply to the scoped diagram:
 - Fourth-order, reversibility, and physical symplecticity are ideal-map
   properties. Finite nonlinear tolerances introduce corresponding defects and
   can eventually limit observed refinement.
-- This method performs three projections per outer step and is not equivalent
-  to `ABBA4ImplicitSingleProjection`.
+- The two projection placements define different numerical maps and observation
+  payloads. Selecting one does not reinterpret the other as an optimization.
 - The default physical branch carries no conjugate momentum. Setting
   `track_energy=True` adds the triangular `kappa` workspace and energy
   diagnostics without changing the physical map.
@@ -517,6 +573,7 @@ from simulation import ABBA4Implicit, SimulationRequest, simulate
 solution = simulate(
     problem,
     ABBA4Implicit(
+        projection_placement="after_each_abba_map",
         projection_formulation="reduced_multiplier",
         state_extension="physical",
         track_energy=False,

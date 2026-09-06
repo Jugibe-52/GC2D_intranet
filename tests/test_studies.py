@@ -28,6 +28,7 @@ from studies import (
 	centered_square,
 	domain_center,
 	latin_hypercube_gc_configuration,
+	latin_hypercube_gc_configuration_with_near_center,
 	pi_area_steps,
 	run_area_comparison,
 	run_abba_symplecticity_study,
@@ -122,6 +123,39 @@ class InitializationStudyTests(unittest.TestCase):
 				domain_margin_fraction=0.5,
 			)
 
+	def test_near_center_latin_hypercube_moves_only_first_trajectory(self) -> None:
+		potential = small_potential_config().build()
+		offset_fraction = np.asarray((0.08, -0.06))
+		baseline = latin_hypercube_gc_configuration(
+			potential,
+			particle_count=3,
+			seed=20260905,
+			domain_margin_fraction=0.05,
+		)
+		centered = latin_hypercube_gc_configuration_with_near_center(
+			potential,
+			particle_count=3,
+			seed=20260905,
+			center_offset_fraction=tuple(offset_fraction),
+			domain_margin_fraction=0.05,
+		)
+		assert baseline.initial_state is not None
+		assert centered.initial_state is not None
+		baseline_x, baseline_y = baseline.layout.positions(baseline.initial_state)
+		centered_x, centered_y = centered.layout.positions(centered.initial_state)
+		expected = np.asarray(domain_center(potential)) + offset_fraction * potential.grid.period
+		np.testing.assert_allclose((centered_x[0], centered_y[0]), expected)
+		np.testing.assert_array_equal(centered_x[1:], baseline_x[1:])
+		np.testing.assert_array_equal(centered_y[1:], baseline_y[1:])
+
+		with self.assertRaisesRegex(ValueError, "center_offset_fraction"):
+			latin_hypercube_gc_configuration_with_near_center(
+				potential,
+				particle_count=3,
+				seed=20260905,
+				center_offset_fraction=(0.5, 0.0),
+			)
+
 
 class AreaComparisonStudyTests(unittest.TestCase):
 	"""Verify synchronization and collected projected-area results."""
@@ -159,6 +193,12 @@ class AreaComparisonStudyTests(unittest.TestCase):
 			for step in config.steps:
 				label = step.label
 				self.assertEqual(result.solutions[label].states.shape[1], 2)
+				self.assertEqual(
+					result.solutions[label].diagnostics[
+						"projection_solver_formulation"
+					],
+					"bm4_implicit_reduced",
+				)
 				self.assertEqual(result.diagnostic_times[label].shape, (2,))
 				self.assertTrue(result.output_directories[label].is_dir())
 			self.assertEqual(len(result.summaries()), 2)
@@ -170,46 +210,6 @@ class AreaComparisonStudyTests(unittest.TestCase):
 				t_span=(0.0, np.pi),
 				save_interval=0.1,
 			)
-
-	def test_stage_projected_area_comparison_has_no_copy_separation(self) -> None:
-		potential = small_potential_config().build()
-		area = centered_square(
-			potential,
-			side=0.5,
-			points_per_side=1,
-			rho=0.05,
-		)
-		config = AreaComparisonConfig(
-			steps=pi_area_steps(400, 800),
-			t_span=(0.0, np.pi / 100),
-			save_interval=np.pi / 100,
-			method_kind="stage_projected_bm4",
-			chunk_size=2,
-		)
-
-		with tempfile.TemporaryDirectory(dir="/tmp") as temporary:
-			root = Path(temporary)
-			result = run_area_comparison(
-				potential,
-				area,
-				notebook_path=root / "notebooks" / "experiments" / "area.ipynb",
-				config=config,
-				project_root=root,
-			)
-
-		for separation in result.relative_copy_separations.values():
-			np.testing.assert_allclose(separation, 0.0)
-
-	def test_stage_projected_method_rejects_coupling(self) -> None:
-		with self.assertRaises(ValueError):
-			AreaComparisonConfig(
-				steps=pi_area_steps(40, 80),
-				t_span=(0.0, np.pi),
-				save_interval=np.pi / 8,
-				coupling_frequency=1.0,
-				method_kind="stage_projected_bm4",
-			)
-
 
 class EnergyStudyTests(unittest.TestCase):
 	"""Verify canonical diagnostics and plotting for energy comparisons."""

@@ -1,0 +1,124 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}\usepackage[T1]{fontenc}
+\usepackage[provide=*,english]{babel}
+\usepackage{lmodern,microtype,amsmath,amssymb,booktabs,array,geometry,xcolor,fancyhdr}
+\usepackage[hidelinks]{hyperref}
+\geometry{margin=2.3cm,headheight=14pt}
+\setlength{\parindent}{0pt}\setlength{\parskip}{0.4em}
+\definecolor{gcblue}{RGB}{34,73,110}\definecolor{gcgray}{RGB}{90,96,102}
+\pagestyle{fancy}\fancyhf{}
+\fancyhead[L]{\small\color{gcgray}GC2D: BM4 implicit}
+\fancyhead[R]{\small\color{gcgray}Model theory}\fancyfoot[C]{\thepage}
+\newcommand{\R}{\mathbb{R}}
+\begin{document}
+\begin{center}
+ {\LARGE\bfseries\color{gcblue}BM4 Implicit Method}\par
+ \vspace{0.35em}{\large Physical state and one reduced Hairer projection per complete cycle}
+\end{center}
+
+\section{Twelve-stage BM4 base map}
+
+Let $\chi_h$ be a first-order map and $\chi_h^*=\chi_{-h}^{-1}$ its
+adjoint.  One complete step uses the palindromic composition
+\[
+\Psi_h=\chi_{b_{12}h}\circ\chi^*_{b_{11}h}\circ\cdots
+\circ\chi_{b_2h}\circ\chi^*_{b_1h},
+\]
+with alternating adjoint and direct maps in chronological order and
+\[
+(b_1,\ldots,b_{12})=(a_1,a_2,a_3,a_4,a_5,a_6,a_6,a_5,a_4,a_3,a_2,a_1),
+\]
+\begin{align*}
+a_1&=0.0792036964311957,&a_2&=0.1303114101821663,\\
+a_3&=0.2228614958676077,&a_4&=-0.3667132690474257,\\
+a_5&=0.3246481886897062,&a_6&=0.1096884778767498.
+\end{align*}
+The half-cycle coefficients sum to $1/2$.  Palindromy makes the composition
+self-adjoint and the order conditions give designed global order four.  The
+negative coefficient $a_4$ is an intentional backward subflow.
+
+\section{Physical state and internal workspace}
+
+The only accepted state is the physical guiding-centre state
+$z\in\R^{2N}$.  Define
+\[
+E=\begin{pmatrix}I\\I\end{pmatrix},\qquad
+P=\tfrac12\begin{pmatrix}I&I\end{pmatrix},\qquad
+G=\begin{pmatrix}I&-I\end{pmatrix},\qquad
+N=G^T.
+\]
+The doubled vector in $\R^{4N}$ is temporary algebraic workspace required by
+the direct--adjoint splitting and Hairer projection.  It is neither an
+accepted state nor a public state-extension option.  Time remains an external
+integration parameter; no time-conjugate momentum is added to the state.
+
+\section{One Hairer projection around the complete cycle}
+
+For every complete BM4 step, the method displaces the diagonal embedding by a
+single multiplier $\mu\in\R^{2N}$,
+\begin{align}
+\widehat Y_n&=Ez_n+N\mu,
+&M(\mu)&=\Psi_{h,t_n}(\widehat Y_n),\\
+r(\mu)&=GM(\mu)+2\mu,
+&z_{n+1}&=P\bigl(M(\mu)+N\mu\bigr).
+\end{align}
+The accepted multiplier is the root $r(\mu)=0$.  Thus the projection is
+applied once around the full twelve-stage composition, never between its
+internal stages.
+
+With $J_{\mathrm{BM4}}=D\Psi_{h,t_n}(\widehat Y_n)$, Newton uses
+\[
+D_\mu r=GJ_{\mathrm{BM4}}N+2I.
+\]
+The implementation forms $J_{\mathrm{BM4}}$ as the exact ordered product of
+the twelve guiding-centre stage Jacobians, with a centred-difference fallback.
+Good Broyden is retained as a nonlinear-solver choice; it changes the finite
+iteration path but not the defining projected map.
+
+\section{Single public method}
+
+The model exposes only \texttt{BM4Implicit}.  Its numerical choices are
+solver controls rather than distinct model classes:
+\begin{center}
+\small
+\begin{tabular}{@{}ll@{}}
+\toprule
+Fixed architectural choice & Value\\
+\midrule
+Projection placement & once around each complete BM4 cycle\\
+Projection formulation & reduced Hairer multiplier\\
+Accepted state & physical $z\in\R^{2N}$\\
+Temporary base-map workspace & doubled state in $\R^{4N}$\\
+Public state extension & none\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The configurable controls are the coupling frequency, Newton tolerances,
+maximum iterations, analytic or finite-difference Newton Jacobian, Newton or
+Broyden nonlinear solver, progress reporting, and an optional step observer.
+
+\section{Fixed-grid lifecycle and diagnostics}
+
+The accepted physical state is advanced on the output-independent grid.  An
+off-grid requested sample uses a shadow step from the preceding main node and
+is discarded after sampling, so output density does not alter the accepted
+trajectory.  Only main steps contribute observer records and diagnostics.
+
+Each accepted step reports nonlinear iterations, residual evaluations, final
+residual and tolerance, the projection-multiplier norm, coupling frequency,
+and Jacobian strategy.  An optional \texttt{ImplicitBM4IntegrationStep}
+contains the physical input/output, multiplier, solver metrics, and twelve
+reconstructed base-stage snapshots.  Generalized energy may be reconstructed
+as a diagnostic from those snapshots without introducing a public extended
+state.
+
+\section{Implementation correspondence}
+
+The public implementation is \texttt{src/simulation/methods/bm4/implicit.py}.
+The private \texttt{\_core.py} module owns only the coefficient schedule and
+twelve-stage base-map traversal.  The detailed reduced-projection derivation
+is retained in \texttt{implicit-reduced.tex}; runtime architecture is under
+\texttt{../simulation/}.
+
+\end{document}

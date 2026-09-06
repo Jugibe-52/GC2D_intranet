@@ -16,7 +16,6 @@ from diagnostics import (
 from initial_conditions import GCInitialConfiguration
 from simulation import (
 	ABBA4Implicit,
-	ABBA4ImplicitSingleProjection,
 	InitialValueProblem,
 	SimulationRequest,
 	simulate,
@@ -165,7 +164,8 @@ class ABBA4ImplicitSingleProjectionTests(unittest.TestCase):
 		for step in (0.2, 0.1, 0.05):
 			solution = simulate(
 				problem,
-				ABBA4ImplicitSingleProjection(
+				ABBA4Implicit(
+					projection_placement="around_complete_composition",
 					newton_absolute_tolerance=1e-14,
 					newton_relative_tolerance=1e-14,
 				),
@@ -188,7 +188,8 @@ class ABBA4ImplicitSingleProjectionTests(unittest.TestCase):
 				x=np.asarray([0.8]),
 				y=np.asarray([0.3]),
 			),
-			ABBA4ImplicitSingleProjection(
+			ABBA4Implicit(
+				projection_placement="around_complete_composition",
 				newton_absolute_tolerance=1e-14,
 				newton_relative_tolerance=1e-14,
 				step_observer=events.append,
@@ -200,6 +201,10 @@ class ABBA4ImplicitSingleProjectionTests(unittest.TestCase):
 			),
 		)
 		self.assertEqual(solution.diagnostics["nonlinear_solves_per_step"], 1)
+		self.assertEqual(
+			solution.diagnostics["projection_placement"],
+			"around_complete_composition",
+		)
 		self.assertEqual(len(events), 2)
 		self.assertEqual(len(events[0].substeps), 3)
 		self.assertLess(events[0].substeps[1].duration, 0.0)
@@ -309,7 +314,9 @@ class ABBA4ImplicitSingleProjectionTests(unittest.TestCase):
 		old = simulate(problem, ABBA4Implicit(), request).states[:, -1]
 		new = simulate(
 			problem,
-			ABBA4ImplicitSingleProjection(),
+			ABBA4Implicit(
+				projection_placement="around_complete_composition",
+			),
 			request,
 		).states[:, -1]
 		difference = float(np.linalg.norm(new - old))
@@ -327,10 +334,19 @@ class ABBA4ImplicitSingleProjectionTests(unittest.TestCase):
 			max_step=0.1,
 			sample_count=3,
 		)
-		newton = simulate(problem, ABBA4ImplicitSingleProjection(), request)
+		newton = simulate(
+			problem,
+			ABBA4Implicit(
+				projection_placement="around_complete_composition",
+			),
+			request,
+		)
 		broyden = simulate(
 			problem,
-			ABBA4ImplicitSingleProjection(nonlinear_solver="broyden"),
+			ABBA4Implicit(
+				projection_placement="around_complete_composition",
+				nonlinear_solver="broyden",
+			),
 			request,
 		)
 		self.assertEqual(broyden.diagnostics["nonlinear_solver"], "broyden")

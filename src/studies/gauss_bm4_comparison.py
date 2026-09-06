@@ -13,7 +13,7 @@ from dynamics import GuidingCenterDynamics
 from initial_conditions import GCInitialConfiguration
 from potential import Potential
 from simulation import (
-	BM4Implicit1,
+	BM4Implicit,
 	GaussLegendre4,
 	InitialValueProblem,
 	NumericalMethod,
@@ -35,11 +35,11 @@ from ._trajectory_accuracy import (
 from ._validation import integer_ratio, nonnegative_finite, positive_finite, positive_integer
 
 
-GAUSS_BM4_METHODS: tuple[str, ...] = ("GaussLegendre4", "BM4Implicit1")
+GAUSS_BM4_METHODS: tuple[str, ...] = ("GaussLegendre4", "BM4Implicit")
 GAUSS_BM4_LABELS: Mapping[str, str] = MappingProxyType(
 	{
 		"GaussLegendre4": "Gauss--Legendre (2 stages, order 4)",
-		"BM4Implicit1": "Implicit projected BM4",
+		"BM4Implicit": "Implicit projected BM4",
 	}
 )
 
@@ -325,10 +325,10 @@ class GaussBM4ComparisonResult:
 				integration_step=step,
 				gauss_to_bm4_error_ratio=(
 					summaries[("GaussLegendre4", step)].time_integrated_rms_distance
-					/ summaries[("BM4Implicit1", step)].time_integrated_rms_distance
+					/ summaries[("BM4Implicit", step)].time_integrated_rms_distance
 				),
 				bm4_to_gauss_runtime_ratio=(
-					summaries[("BM4Implicit1", step)].runtime_seconds
+					summaries[("BM4Implicit", step)].runtime_seconds
 					/ summaries[("GaussLegendre4", step)].runtime_seconds
 				),
 			)
@@ -380,7 +380,7 @@ class GaussBM4ComparisonResult:
 		result: list[GaussBM4EqualAccuracyRatio] = []
 		for target in targets:
 			gauss_runtime = interpolated_runtime("GaussLegendre4", float(target))
-			bm4_runtime = interpolated_runtime("BM4Implicit1", float(target))
+			bm4_runtime = interpolated_runtime("BM4Implicit", float(target))
 			result.append(
 				GaussBM4EqualAccuracyRatio(
 					target_time_integrated_rms_distance=float(target),
@@ -405,8 +405,8 @@ def _method(
 			newton_jacobian_method="analytic",
 			progress=config.progress,
 		)
-	if method_name == "BM4Implicit1":
-		return BM4Implicit1(
+	if method_name == "BM4Implicit":
+		return BM4Implicit(
 			coupling_frequency=config.coupling_frequency,
 			newton_absolute_tolerance=config.absolute_tolerance,
 			newton_relative_tolerance=config.relative_tolerance,

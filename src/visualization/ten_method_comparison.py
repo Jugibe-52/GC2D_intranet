@@ -1,4 +1,4 @@
-"""Plots and animation for the aligned ten-method trajectory comparison."""
+"""Plots and animation for the aligned seven-variant trajectory comparison."""
 
 from __future__ import annotations
 
@@ -22,27 +22,21 @@ from .particles import _field_normalization, _frame_indices
 
 TEN_METHOD_COLORS: Mapping[str, str] = {
 	"Midpoint ABBA": "tab:purple",
-	"Midpoint BM4": "tab:brown",
 	"ABBA2 reduced (Newton)": "tab:blue",
 	"ABBA2 reduced (Broyden)": "cornflowerblue",
 	"ABBA2 simultaneous (Newton)": "tab:orange",
 	"ABBA2 simultaneous (Broyden)": "goldenrod",
-	"BM4 implicit 1 (Newton)": "tab:green",
-	"BM4 implicit 1 (Broyden)": "yellowgreen",
-	"BM4 implicit 2 (Newton)": "tab:red",
-	"BM4 implicit 2 (Broyden)": "lightcoral",
+	"BM4 implicit (Newton)": "tab:green",
+	"BM4 implicit (Broyden)": "yellowgreen",
 }
 TEN_METHOD_SHORT_LABELS: Mapping[str, str] = {
 	"Midpoint ABBA": "ABBA\nmidpoint",
-	"Midpoint BM4": "BM4\nmidpoint",
 	"ABBA2 reduced (Newton)": "ABBA2 reduced\nNewton",
 	"ABBA2 reduced (Broyden)": "ABBA2 reduced\nBroyden",
 	"ABBA2 simultaneous (Newton)": "ABBA2 simultaneous\nNewton",
 	"ABBA2 simultaneous (Broyden)": "ABBA2 simultaneous\nBroyden",
-	"BM4 implicit 1 (Newton)": "BM4 1\nNewton",
-	"BM4 implicit 1 (Broyden)": "BM4 1\nBroyden",
-	"BM4 implicit 2 (Newton)": "BM4 2\nNewton",
-	"BM4 implicit 2 (Broyden)": "BM4 2\nBroyden",
+	"BM4 implicit (Newton)": "BM4\nNewton",
+	"BM4 implicit (Broyden)": "BM4\nBroyden",
 }
 
 
@@ -82,7 +76,7 @@ def _mean_periodic_distance_matrix(
 	solutions: Mapping[str, Solution],
 ) -> tuple[tuple[str, ...], np.ndarray]:
 	"""Return the symmetric mean minimum-image distance matrix."""
-	labels, _, _ = _validated_solutions(solutions, expected_count=10)
+	labels, _, _ = _validated_solutions(solutions, expected_count=7)
 	period = float(potential.grid.period)
 	positions = {label: solutions[label].positions() for label in labels}
 	matrix = np.zeros((len(labels), len(labels)), dtype=float)
@@ -102,7 +96,7 @@ def plot_ten_method_trajectory_differences(
 	potential: Potential,
 	solutions: Mapping[str, Solution],
 ) -> tuple[Figure, Axes]:
-	"""Plot the 10 x 10 mean periodic trajectory-distance matrix."""
+	"""Plot the 7 x 7 mean periodic trajectory-distance matrix."""
 	if not isinstance(potential, Potential):
 		raise TypeError("`potential` must be a Potential instance.")
 	labels, distance_matrix = _mean_periodic_distance_matrix(potential, solutions)
@@ -124,12 +118,12 @@ def plot_ten_method_trajectory_differences(
 	axis.xaxis.tick_top()
 	axis.xaxis.set_label_position("top")
 	axis.set(
-		title="Mean periodic distance between ten trajectory variants",
+		title="Mean periodic distance between seven trajectory variants",
 		xlabel="compared variant",
 		ylabel="reference variant",
 	)
 	# Separate midpoint, implicit ABBA, and implicit BM4 families.
-	for boundary in (1.5, 5.5):
+	for boundary in (0.5, 4.5):
 		axis.axhline(boundary, color="white", linewidth=2.0)
 		axis.axvline(boundary, color="white", linewidth=2.0)
 	for row in range(len(labels)):
@@ -151,8 +145,8 @@ def plot_ten_method_trajectory_differences(
 def plot_ten_method_nonlinear_work(
 	solutions: Mapping[str, Solution],
 ) -> tuple[Figure, np.ndarray]:
-	"""Compare nonlinear corrections and residual work for eight variants."""
-	labels, times, _ = _validated_solutions(solutions, expected_count=8)
+	"""Compare nonlinear corrections and residual work for six variants."""
+	labels, times, _ = _validated_solutions(solutions, expected_count=6)
 	figure, axes = plt.subplots(3, 1, figsize=(13, 10), constrained_layout=True)
 	for index, label in enumerate(labels):
 		solution = solutions[label]
@@ -208,9 +202,9 @@ def plot_ten_method_nonlinear_work(
 def plot_ten_method_runtimes(
 	runtimes: Mapping[str, float],
 ) -> tuple[Figure, Axes]:
-	"""Plot wall-clock integration times for all ten variants."""
-	if len(runtimes) != 10:
-		raise ValueError("The runtime plot requires exactly ten variants.")
+	"""Plot wall-clock integration times for all seven variants."""
+	if len(runtimes) != 7:
+		raise ValueError("The runtime plot requires exactly seven variants.")
 	labels = tuple(runtimes)
 	values = np.asarray([runtimes[label] for label in labels], dtype=float)
 	if not np.all(np.isfinite(values)) or np.any(values <= 0.0):
@@ -345,8 +339,8 @@ def animate_ten_method_trajectory_points(
 	cmap: str = "RdBu_r",
 	**imshow_kwargs: Any,
 ) -> FuncAnimation:
-	"""Animate accumulated sampled points for exactly ten aligned variants."""
-	_validated_solutions(solutions, expected_count=10)
+	"""Animate accumulated sampled points for exactly seven aligned variants."""
+	_validated_solutions(solutions, expected_count=7)
 	return animate_trajectory_points(
 		potential,
 		solutions,

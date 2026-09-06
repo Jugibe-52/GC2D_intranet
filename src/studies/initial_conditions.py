@@ -192,6 +192,44 @@ def latin_hypercube_gc_configuration(
 	)
 
 
+def latin_hypercube_gc_configuration_with_near_center(
+	potential: Potential,
+	*,
+	particle_count: int,
+	seed: int,
+	center_offset_fraction: tuple[float, float],
+	domain_margin_fraction: float = 0.0,
+) -> GCInitialConfiguration:
+	"""Move trajectory one near the cell center in a reproducible LHS sample.
+
+	The remaining trajectories retain their seeded Latin-hypercube positions.
+	The displacement is expressed as fractions of the periodic-cell width on
+	each axis and must keep the selected point within half a period of the center.
+	"""
+	offset_fraction = np.asarray(center_offset_fraction, dtype=float)
+	if (
+		offset_fraction.shape != (2,)
+		or not np.all(np.isfinite(offset_fraction))
+		or np.any(np.abs(offset_fraction) >= 0.5)
+	):
+		raise ValueError(
+			"`center_offset_fraction` must contain two finite values in (-0.5, 0.5)."
+		)
+	configuration = latin_hypercube_gc_configuration(
+		potential,
+		particle_count=particle_count,
+		seed=seed,
+		domain_margin_fraction=domain_margin_fraction,
+	)
+	state = configuration.initial_state
+	assert state is not None
+	x, y = configuration.layout.positions(state)
+	center_x, center_y = domain_center(potential)
+	x[0] = center_x + offset_fraction[0] * potential.grid.period
+	y[0] = center_y + offset_fraction[1] * potential.grid.period
+	return GCInitialConfiguration.from_components(x=x, y=y)
+
+
 __all__ = [
 	"centered_circle",
 	"centered_gc_configuration",
@@ -199,5 +237,6 @@ __all__ = [
 	"centered_square",
 	"domain_center",
 	"latin_hypercube_gc_configuration",
+	"latin_hypercube_gc_configuration_with_near_center",
 	"random_gc_configuration",
 ]

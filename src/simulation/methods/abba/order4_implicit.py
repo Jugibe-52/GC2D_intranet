@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import warnings
 from collections.abc import Callable
 from dataclasses import dataclass
+from typing import Any, Literal
 
 import numpy as np
 
@@ -22,8 +24,10 @@ from ...request import SimulationRequest
 from .._nonlinear import NonlinearSolver
 from ._coefficients import _ABBA4_COEFFICIENTS
 from ._configuration import (
+	ProjectionPlacement,
 	ProjectionFormulation,
 	_state_dimension_diagnostics,
+	_validate_projection_placement,
 )
 from ._energy import (
 	_conjugate_momentum_increment_from_stages,
@@ -40,6 +44,9 @@ from ._implicit import (
 from ._projection_common import (
 	_ProjectedStep,
 	_checked_vector_field_jacobian,
+)
+from .order4_implicit_single_projection import (
+	_integrate_abba4_implicit_single_projection,
 )
 
 
@@ -419,6 +426,7 @@ def _integrate_composed_implicit_abba(
 		"projection_formulation": method.projection_formulation,
 		"substep_projection_formulation": method.projection_formulation,
 		"composition_policy": composition_policy,
+		"projection_placement": "after_each_abba_map",
 		"state_extension": method.state_extension,
 		"track_energy": method.track_energy,
 	}
@@ -462,30 +470,76 @@ def _integrate_abba4_implicit(
 
 @dataclass(frozen=True, slots=True)
 class ABBA4Implicit(_ABBAImplicitConfig):
-	"""Fourth-order symmetric composition of three projected ABBA maps.
+	"""Fourth-order triple jump with configurable projection placement.
 
-	One complete step applies signed substeps ``(gamma h, delta h, gamma h)``;
-	the middle substep runs backward in time. Every substep uses the same selected
-	projection formulation, nonlinear solver, and state strategy, and solves its
-	own independent projection problem. Physical conjugate-momentum tracking is
-	optional and does not feed back into the composed map.
+	One complete step applies signed substeps ``(gamma h, delta h, gamma h)``.
+	The selected placement either projects every signed ABBA map independently or
+	keeps both copies separate through the complete composition and projects once
+	around it. These placements define distinct numerical maps while sharing one
+	public configuration type.
 	"""
+
+	projection_placement: ProjectionPlacement = "after_each_abba_map"
+
+	def __post_init__(self) -> None:
+		"""Validate shared solver options and the ABBA4 placement selector."""
+		_ABBAImplicitConfig.__post_init__(self)
+		object.__setattr__(
+			self,
+			"projection_placement",
+			_validate_projection_placement(self.projection_placement),
+		)
 
 	def integrate(
 		self,
 		problem: InitialValueProblem,
 		request: SimulationRequest,
 	) -> IntegrationData:
-		"""Integrate a planar GC problem with the fourth-order composition."""
+		"""Integrate a planar GC problem with the selected ABBA4 map."""
 		if self.state_extension == "fully_extended":
+			variant: Literal["abba4", "abba4_single_projection"] = (
+				"abba4"
+				if self.projection_placement == "after_each_abba_map"
+				else "abba4_single_projection"
+			)
 			return _integrate_abba_fully_extended(
 				self,
 				problem,
 				request,
-				variant="abba4",
+				variant=variant,
 				projection_formulation=self.projection_formulation,
+			)
+		if self.projection_placement == "around_complete_composition":
+			return _integrate_abba4_implicit_single_projection(
+				self,
+				problem,
+				request,
 			)
 		return _integrate_abba4_implicit(self, problem, request)
 
 
-__all__ = ["ABBA4Implicit"]
+def ABBA4ImplicitSingleProjection(
+	*args: Any,
+	**kwargs: Any,
+) -> ABBA4Implicit:
+	"""Build the deprecated single-outer-projection ABBA4 configuration."""
+	warnings.warn(
+		"ABBA4ImplicitSingleProjection is deprecated; use ABBA4Implicit("
+		"projection_placement='around_complete_composition') instead.",
+		DeprecationWarning,
+		stacklevel=2,
+	)
+	placement = kwargs.pop(
+		"projection_placement",
+		"around_complete_composition",
+	)
+	if placement != "around_complete_composition":
+		raise ValueError(
+			"ABBA4ImplicitSingleProjection requires "
+			"projection_placement='around_complete_composition'."
+		)
+	kwargs["projection_placement"] = "around_complete_composition"
+	return ABBA4Implicit(*args, **kwargs)
+
+
+__all__ = ["ABBA4Implicit", "ABBA4ImplicitSingleProjection"]

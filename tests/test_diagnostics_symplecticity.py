@@ -72,7 +72,7 @@ class SymplecticityDiagnosticTests(unittest.TestCase):
 						IntegrationStage(
 							dynamics_name="GuidingCenterDynamics",
 							formulation_name="GCExtendedFormulation",
-							method_name="BM4Composition",
+							method_name="BM4Implicit",
 							flow_name=(
 								"flow" if stage_index % 2 else "adjoint_flow"
 							),
@@ -115,7 +115,7 @@ class SymplecticityDiagnosticTests(unittest.TestCase):
 					IntegrationStage(
 						dynamics_name="GuidingCenterDynamics",
 						formulation_name="GCExtendedFormulation",
-						method_name="BM4Composition",
+						method_name="BM4Implicit",
 						flow_name="flow",
 						step_index=0,
 						stage_index=0,
@@ -151,7 +151,7 @@ class SymplecticityDiagnosticTests(unittest.TestCase):
 			)
 			base = {
 				"formulation_name": "GCExtendedFormulation",
-				"method_name": "BM4Composition",
+				"method_name": "BM4Implicit",
 				"flow_name": "flow",
 				"step_index": 0,
 				"stage_index": 0,

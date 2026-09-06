@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from diagnostics import (
-	bm4_implicit_1_step_particle_jacobians,
+	bm4_implicit_step_particle_jacobians,
 	central_difference_jacobian,
 	abba2_implicit_step_particle_jacobians,
 	abba2_midpoint_step_particle_jacobians,
@@ -20,7 +20,7 @@ from dynamics import GuidingCenterDynamics
 from initial_conditions import GCInitialConfiguration
 from potential import Potential
 from simulation import (
-	BM4Implicit1,
+	BM4Implicit,
 	ABBA2Implicit,
 	InitialValueProblem,
 	IntegrationStep,
@@ -33,7 +33,7 @@ from studies import (
 	RandomPotentialConfig,
 	TrajectorySymplecticityConfig,
 	random_gc_configuration,
-	run_bm4_implicit_1_trajectory_symplecticity_study,
+	run_bm4_implicit_trajectory_symplecticity_study,
 	run_abba2_reduced_multiplier_trajectory_symplecticity_study,
 	run_abba2_midpoint_trajectory_symplecticity_study,
 )
@@ -80,13 +80,13 @@ class ExactTrajectoryJacobianTests(unittest.TestCase):
 		cases = (
 			(ABBA2Midpoint, abba2_midpoint_step_particle_jacobians),
 			(ABBA2Implicit, abba2_implicit_step_particle_jacobians),
-			(BM4Implicit1, bm4_implicit_1_step_particle_jacobians),
+			(BM4Implicit, bm4_implicit_step_particle_jacobians),
 		)
 		for method_type, calculator in cases:
 			with self.subTest(method=method_type.__name__):
 				events: list[IntegrationStep] = []
 				kwargs: dict[str, object] = {"step_observer": events.append}
-				if method_type in (ABBA2Implicit, BM4Implicit1):
+				if method_type in (ABBA2Implicit, BM4Implicit):
 					kwargs.update(
 						newton_absolute_tolerance=1e-14,
 						newton_relative_tolerance=1e-14,
@@ -105,7 +105,7 @@ class ExactTrajectoryJacobianTests(unittest.TestCase):
 					/ np.linalg.norm(numerical, ord="fro")
 				)
 				self.assertLess(relative_error, 2e-8)
-				if method_type is BM4Implicit1:
+				if method_type is BM4Implicit:
 					self.assertEqual(len(event.base_stages), 12)
 
 	def test_three_method_studies_share_five_paths_and_three_steps(self) -> None:
@@ -139,7 +139,7 @@ class ExactTrajectoryJacobianTests(unittest.TestCase):
 		runners = (
 			run_abba2_midpoint_trajectory_symplecticity_study,
 			run_abba2_reduced_multiplier_trajectory_symplecticity_study,
-			run_bm4_implicit_1_trajectory_symplecticity_study,
+			run_bm4_implicit_trajectory_symplecticity_study,
 		)
 		with tempfile.TemporaryDirectory(dir="/tmp") as temporary:
 			root = Path(temporary)

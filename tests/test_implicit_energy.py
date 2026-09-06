@@ -16,7 +16,7 @@ from dynamics import GuidingCenterDynamics
 from initial_conditions import GCInitialConfiguration
 from potential import Potential
 from simulation import (
-	BM4Implicit1,
+	BM4Implicit,
 	GCExtendedFormulation,
 	ImplicitBM4IntegrationStep,
 	InitialValueProblem,
@@ -63,7 +63,7 @@ class GeneralizedEnergyObserverTests(unittest.TestCase):
 		events: list[ImplicitBM4IntegrationStep] = []
 		simulate(
 			problem,
-			BM4Implicit1(
+			BM4Implicit(
 				newton_absolute_tolerance=1e-14,
 				newton_relative_tolerance=1e-14,
 				step_observer=events.append,

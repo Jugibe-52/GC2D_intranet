@@ -1,4 +1,4 @@
-"""Plots for a certified reference trajectory and ten-method accuracy study."""
+"""Plots for a certified reference trajectory and seven-variant accuracy study."""
 
 from __future__ import annotations
 
@@ -50,6 +50,35 @@ class AccuracySummaryView(Protocol):
 	@property
 	def runtime_seconds(self) -> float:
 		"""Measured integration runtime."""
+		...
+
+
+class RuntimeSummaryView(Protocol):
+	"""Median and interquartile runtime fields consumed by timing plots."""
+
+	@property
+	def method_name(self) -> str:
+		"""Stable method identifier."""
+		...
+
+	@property
+	def method_label(self) -> str:
+		"""Human-readable method label."""
+		...
+
+	@property
+	def runtime_seconds(self) -> float:
+		"""Median measured integration runtime."""
+		...
+
+	@property
+	def runtime_first_quartile_seconds(self) -> float:
+		"""First runtime quartile."""
+		...
+
+	@property
+	def runtime_third_quartile_seconds(self) -> float:
+		"""Third runtime quartile."""
 		...
 
 
@@ -205,7 +234,7 @@ def plot_ten_method_accuracy_over_time(
 	*,
 	reference_floor: float,
 ) -> tuple[Figure, np.ndarray]:
-	"""Plot the ten-method errors through the generic trajectory helper."""
+	"""Plot the seven-variant errors through the generic trajectory helper."""
 	return plot_trajectory_accuracy_over_time(
 		times,
 		series,
@@ -331,10 +360,10 @@ def plot_accuracy_summary(
 def plot_ten_method_accuracy_summary(
 	summaries: Sequence[AccuracySummaryView],
 ) -> tuple[Figure, Axes]:
-	"""Compare the ten established variants through the generic summary plot."""
+	"""Compare the seven established variants through the generic summary plot."""
 	rows = tuple(summaries)
-	if len(rows) != 10:
-		raise ValueError("The accuracy summary plot requires exactly ten variants.")
+	if len(rows) != 7:
+		raise ValueError("The accuracy summary plot requires exactly seven variants.")
 	return plot_accuracy_summary(rows)
 
 
@@ -380,6 +409,83 @@ def plot_accuracy_runtime_tradeoff(
 	return figure, axis
 
 
+def plot_runtime_comparison(
+	summaries: Sequence[RuntimeSummaryView],
+) -> tuple[Figure, np.ndarray]:
+	"""Compare absolute median runtimes and slowdown relative to the fastest."""
+	rows = tuple(summaries)
+	if not rows:
+		raise ValueError("At least one runtime summary is required.")
+	medians = np.asarray([row.runtime_seconds for row in rows], dtype=float)
+	first_quartiles = np.asarray(
+		[row.runtime_first_quartile_seconds for row in rows],
+		dtype=float,
+	)
+	third_quartiles = np.asarray(
+		[row.runtime_third_quartile_seconds for row in rows],
+		dtype=float,
+	)
+	if (
+		not np.all(np.isfinite(medians))
+		or not np.all(np.isfinite(first_quartiles))
+		or not np.all(np.isfinite(third_quartiles))
+		or np.any(first_quartiles <= 0.0)
+		or np.any(first_quartiles > medians)
+		or np.any(medians > third_quartiles)
+	):
+		raise ValueError("Runtime quartiles must be positive, finite, and ordered.")
+	positions = np.arange(len(rows), dtype=float)
+	labels = [row.method_label for row in rows]
+	colors = [
+		{
+			"ABBA4ImplicitSingleProjection": "tab:blue",
+			"GaussLegendre4": "tab:orange",
+			"BM4Implicit": "tab:green",
+			"SDIRK4": "tab:red",
+			"RK4": "tab:purple",
+		}.get(row.method_name, f"C{index}")
+		for index, row in enumerate(rows)
+	]
+	figure, axes = plt.subplots(1, 2, figsize=(14, 6), constrained_layout=True)
+	quartile_errors = np.vstack(
+		(medians - first_quartiles, third_quartiles - medians)
+	)
+	axes[0].bar(positions, medians, color=colors, alpha=0.9)
+	axes[0].errorbar(
+		positions,
+		medians,
+		yerr=quartile_errors,
+		fmt="none",
+		ecolor="black",
+		capsize=4,
+		linewidth=1.1,
+	)
+	axes[0].set(
+		title="Median integration runtime with interquartile range",
+		ylabel="Runtime [s]",
+	)
+	slowdowns = medians / float(np.min(medians))
+	axes[1].bar(positions, slowdowns, color=colors, alpha=0.9)
+	axes[1].axhline(1.0, color="black", linestyle=":", linewidth=1.0)
+	for position, slowdown in zip(positions, slowdowns, strict=True):
+		axes[1].annotate(
+			f"{slowdown:.2f}x",
+			(position, slowdown),
+			xytext=(0, 4),
+			textcoords="offset points",
+			ha="center",
+			fontsize=8,
+		)
+	axes[1].set(
+		title="Runtime relative to the fastest method",
+		ylabel="Slowdown factor",
+	)
+	for axis in axes:
+		axis.set_xticks(positions, labels=labels, rotation=25, ha="right")
+		axis.grid(axis="y", alpha=0.25)
+	return figure, axes
+
+
 def plot_ten_method_accuracy_refinement(
 	summaries: Sequence[StepAccuracySummaryView],
 ) -> tuple[Figure, np.ndarray]:
@@ -412,7 +518,7 @@ def plot_ten_method_accuracy_refinement(
 	if len(step_values) < 2 or any(
 		set(values) != set(step_values) for values in grouped.values()
 	):
-		raise ValueError("All ten methods must share the same coarse-to-fine steps.")
+		raise ValueError("All seven variants must share the same coarse-to-fine steps.")
 
 	figure, axes = plt.subplots(
 		1,
@@ -452,9 +558,11 @@ def plot_ten_method_accuracy_refinement(
 __all__ = [
 	"AccuracySeriesView",
 	"AccuracySummaryView",
+	"RuntimeSummaryView",
 	"StepAccuracySummaryView",
 	"plot_accuracy_summary",
 	"plot_accuracy_runtime_tradeoff",
+	"plot_runtime_comparison",
 	"plot_reference_trajectory_points",
 	"plot_single_method_accuracy_refinement",
 	"plot_ten_method_accuracy_over_time",

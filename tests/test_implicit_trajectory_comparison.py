@@ -1,4 +1,4 @@
-"""Reusable comparison of ten trajectories across four implicit methods."""
+"""Reusable comparison of ten trajectories across three implicit methods."""
 
 from __future__ import annotations
 
@@ -70,9 +70,9 @@ class ImplicitTrajectoryComparisonTests(unittest.TestCase):
 			)
 
 		differences = result.trajectory_difference_summaries()
-		self.assertEqual(len(differences), 6)
+		self.assertEqual(len(differences), 3)
 		self.assertTrue(all(row.maximum_distance >= 0.0 for row in differences))
-		self.assertEqual(len(result.iteration_summaries()), 4)
+		self.assertEqual(len(result.iteration_summaries()), 3)
 		self.assertTrue(
 			all(row.step_count == config.step_count for row in result.iteration_summaries())
 		)
@@ -93,8 +93,8 @@ class ImplicitTrajectoryComparisonTests(unittest.TestCase):
 			result.effective_potential,
 			result.solutions,
 		)
-		self.assertEqual(np.asarray(difference_axis.images[0].get_array()).shape, (4, 4))
-		self.assertEqual(len(difference_axis.texts), 16)
+		self.assertEqual(np.asarray(difference_axis.images[0].get_array()).shape, (3, 3))
+		self.assertEqual(len(difference_axis.texts), 9)
 		difference_figure.canvas.draw()
 		plt.close(difference_figure)
 		animation = animate_implicit_method_trajectories(
@@ -103,7 +103,7 @@ class ImplicitTrajectoryComparisonTests(unittest.TestCase):
 			frames=2,
 			interval=10,
 		)
-		self.assertEqual(len(animation._func(1)), 9)
+		self.assertEqual(len(animation._func(1)), 7)
 		animation._draw_was_started = True
 		plt.close(animation._fig)
 

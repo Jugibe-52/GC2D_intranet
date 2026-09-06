@@ -1,0 +1,104 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}\usepackage[T1]{fontenc}
+\usepackage[provide=*,english]{babel}
+\usepackage{lmodern,microtype,amsmath,amssymb,booktabs,geometry,xcolor,fancyhdr}
+\usepackage[hidelinks]{hyperref}
+\geometry{margin=2.3cm,headheight=14pt}
+\setlength{\parindent}{0pt}\setlength{\parskip}{0.4em}
+\definecolor{gcblue}{RGB}{34,73,110}\definecolor{gcgray}{RGB}{90,96,102}
+\pagestyle{fancy}\fancyhf{}
+\fancyhead[L]{\small\color{gcgray}GC2D: SDIRK4 S54b}
+\fancyhead[R]{\small\color{gcgray}Model theory}\fancyfoot[C]{\thepage}
+\begin{document}
+\begin{center}
+ {\LARGE\bfseries\color{gcblue}Five-Stage Fourth-Order SDIRK}\par
+ \vspace{0.35em}{\large Skvortsov S54b non-geometric reference method}
+\end{center}
+
+\section{Butcher tableau}
+
+For $\dot z=f(t,z)$, the S54b tableau is
+\[
+\begin{array}{c|ccccc}
+\tfrac14&\tfrac14&0&0&0&0\\
+0&-\tfrac14&\tfrac14&0&0&0\\
+\tfrac12&\tfrac18&\tfrac18&\tfrac14&0&0\\
+1&-\tfrac32&\tfrac34&\tfrac32&\tfrac14&0\\
+1&0&\tfrac16&\tfrac23&-\tfrac1{12}&\tfrac14\\ \hline
+&0&\tfrac16&\tfrac23&-\tfrac1{12}&\tfrac14
+\end{array}.
+\]
+All five diagonal entries equal $\gamma=1/4$, so the method is singly
+diagonally implicit.  The final row of $A$ equals $b^T$, making the method
+stiffly accurate.
+
+The stages are solved sequentially:
+\begin{align}
+ Z_i&=z_n+h\sum_{j<i}a_{ij}f(t_n+c_jh,Z_j)
+      +h\gamma f(t_n+c_ih,Z_i),\\
+ z_{n+1}&=z_n+h\sum_{i=1}^{5}b_i f(t_n+c_ih,Z_i).
+\end{align}
+Each stage therefore requires a nonlinear solve in the physical state
+dimension, rather than one simultaneous system containing all stages.
+
+\section{Fourth-order conditions}
+
+Writing $C=\operatorname{diag}(c)$ and using componentwise powers, the
+coefficients satisfy
+\[
+\begin{array}{llll}
+b^T\mathbf 1=1,&b^Tc=\tfrac12,&b^Tc^2=\tfrac13,&b^TAc=\tfrac16,\\
+b^Tc^3=\tfrac14,&b^TCAc=\tfrac18,&b^TAc^2=\tfrac1{12},&b^TA^2c=\tfrac1{24}.
+\end{array}
+\]
+These are the Runge--Kutta conditions through order four.  For sufficiently
+smooth problems the local truncation error is $\mathcal O(h^5)$ and the global
+error is $\mathcal O(h^4)$.
+
+\section{Deliberately non-geometric structure}
+
+A Runge--Kutta method is symplectic for general canonical Hamiltonian systems
+only if
+\[
+ b_i a_{ij}+b_j a_{ji}-b_i b_j=0
+ \qquad\text{for every }i,j.
+\]
+The S54b coefficients do not satisfy this identity.  For example, with
+$i=j=5$ the left-hand side is $1/16$, not zero.  Hence S54b is not a
+symplectic Runge--Kutta method.
+
+Symmetry would require equality with the adjoint tableau, including
+\[
+ c_i=1-c_{6-i},\qquad b_i=b_{6-i},\qquad
+ a_{ij}+a_{6-i,6-j}=b_{6-j}.
+\]
+Already $c_1=1/4\ne 1-c_5=0$, so S54b is not symmetric.  These failures make
+the method a useful same-order control in long-time comparisons against
+geometric fourth-order methods.
+
+\section{Newton implementation}
+
+For a known right-hand side $r_i$, one stage solves
+\[
+ R_i(Z_i)=Z_i-r_i-h\gamma f(t_n+c_ih,Z_i)=0.
+\]
+Newton corrections satisfy
+\[
+ \left[I-h\gamma D_zf(t_n+c_ih,Z_i^{(k)})\right]\delta_i^{(k)}
+ =-R_i(Z_i^{(k)}).
+\]
+For guiding-centre dynamics the implementation uses independent analytic
+$2\times2$ particle Jacobians.  A centered finite-difference dense Jacobian is
+available for generic dynamical systems.  Per-stage and per-step iterations,
+residual evaluations, residual norms, and effective tolerances are returned as
+diagnostics.
+
+\section{Reference}
+
+The coefficient table is the S54b method presented by L.~M.~Skvortsov,
+``Diagonally implicit Runge--Kutta methods for stiff problems,''
+\emph{Computational Mathematics and Mathematical Physics}, 46(12),
+2110--2123 (2006), DOI:
+\href{https://doi.org/10.1134/S0965542506120098}{10.1134/S0965542506120098}.
+
+\end{document}

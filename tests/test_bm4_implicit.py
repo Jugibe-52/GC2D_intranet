@@ -1,4 +1,4 @@
-"""Contracts for reduced and simultaneous Hairer-projected BM4 methods."""
+"""Contracts for the physical reduced Hairer-projected BM4 method."""
 
 from __future__ import annotations
 
@@ -12,8 +12,8 @@ from dynamics import GuidingCenterDynamics
 from initial_conditions import GCInitialConfiguration
 from potential import Potential
 from simulation import (
-	BM4Implicit1,
-	BM4Implicit2,
+	BM4Implicit,
+	ImplicitBM4IntegrationStep,
 	InitialValueProblem,
 	SimulationRequest,
 	simulate,
@@ -49,36 +49,64 @@ def _problem() -> InitialValueProblem:
 
 
 class BM4ImplicitMethodTests(unittest.TestCase):
-	"""Verify equivalence, order, observations and parameter validation."""
+	"""Verify state space, order, observations and parameter validation."""
 
-	def test_reduced_and_simultaneous_formulations_share_the_projected_root(self) -> None:
+	def test_one_cycle_uses_the_reduced_physical_hairer_projection(self) -> None:
 		problem = _problem()
+		events: list[ImplicitBM4IntegrationStep] = []
 		request = SimulationRequest.uniform(
 			t_span=(0.0, 0.2),
 			max_step=0.2,
 			sample_count=2,
 		)
-		common = {
-			"newton_absolute_tolerance": 1e-14,
-			"newton_relative_tolerance": 1e-14,
-		}
-		first = simulate(problem, BM4Implicit1(**common), request)
-		second = simulate(problem, BM4Implicit2(**common), request)
+		solution = simulate(
+			problem,
+			BM4Implicit(
+				newton_absolute_tolerance=1e-14,
+				newton_relative_tolerance=1e-14,
+				step_observer=events.append,
+			),
+			request,
+		)
 
-		np.testing.assert_allclose(first.states, second.states, rtol=0.0, atol=2e-14)
+		self.assertEqual(solution.states.shape, (2, 2))
+		self.assertEqual(len(events), 1)
+		event = events[0]
+		self.assertEqual(event.state_before.shape, (2,))
+		self.assertEqual(event.state_after.shape, (2,))
+		self.assertEqual(event.multiplier.shape, (2,))
+		self.assertEqual(len(event.base_stages), 12)
+		self.assertTrue(
+			all(stage.state_before.shape == (4,) for stage in event.base_stages)
+		)
+		internal_input = np.concatenate(
+			(
+				event.state_before + event.multiplier,
+				event.state_before - event.multiplier,
+			)
+		)
+		np.testing.assert_array_equal(
+			event.base_stages[0].state_before,
+			internal_input,
+		)
+		mapped = event.base_stages[-1].state_after
+		corrected_first = mapped[:2] + event.multiplier
+		corrected_second = mapped[2:] - event.multiplier
 		np.testing.assert_allclose(
-			first.diagnostics["projection_multiplier_norms"],
-			second.diagnostics["projection_multiplier_norms"],
-			rtol=1e-9,
-			atol=1e-15,
+			corrected_first,
+			corrected_second,
+			rtol=0.0,
+			atol=3e-14,
+		)
+		np.testing.assert_allclose(
+			corrected_first,
+			event.state_after,
+			rtol=0.0,
+			atol=2e-14,
 		)
 		self.assertEqual(
-			first.diagnostics["projection_solver_formulation"],
-			"bm4_implicit_1_reduced",
-		)
-		self.assertEqual(
-			second.diagnostics["projection_solver_formulation"],
-			"bm4_implicit_2_simultaneous",
+			solution.diagnostics["projection_solver_formulation"],
+			"bm4_implicit_reduced",
 		)
 
 	def test_reduced_method_has_fourth_order_global_accuracy(self) -> None:
@@ -87,7 +115,7 @@ class BM4ImplicitMethodTests(unittest.TestCase):
 		def final_state(step: float) -> np.ndarray:
 			return simulate(
 				problem,
-				BM4Implicit1(
+				BM4Implicit(
 					newton_absolute_tolerance=1e-14,
 					newton_relative_tolerance=1e-14,
 				),
@@ -120,12 +148,12 @@ class BM4ImplicitMethodTests(unittest.TestCase):
 		}
 		analytic = simulate(
 			problem,
-			BM4Implicit1(**common, newton_jacobian_method="analytic"),
+			BM4Implicit(**common, newton_jacobian_method="analytic"),
 			request,
 		)
 		finite_difference = simulate(
 			problem,
-			BM4Implicit1(**common, newton_jacobian_method="finite_difference"),
+			BM4Implicit(**common, newton_jacobian_method="finite_difference"),
 			request,
 		)
 
@@ -145,7 +173,7 @@ class BM4ImplicitMethodTests(unittest.TestCase):
 		events = []
 		solution = simulate(
 			_problem(),
-			BM4Implicit2(step_observer=events.append),
+			BM4Implicit(step_observer=events.append),
 			SimulationRequest.uniform(
 				t_span=(0.0, 0.05),
 				max_step=0.02,
@@ -163,21 +191,21 @@ class BM4ImplicitMethodTests(unittest.TestCase):
 
 	def test_invalid_solver_parameters_fail_during_configuration(self) -> None:
 		with self.assertRaises(ValueError):
-			BM4Implicit1(coupling_frequency=-1.0)
+			BM4Implicit(coupling_frequency=-1.0)
 		with self.assertRaises(ValueError):
-			BM4Implicit1(newton_absolute_tolerance=0.0)
+			BM4Implicit(newton_absolute_tolerance=0.0)
 		with self.assertRaises(ValueError):
-			BM4Implicit2(newton_max_iterations=0)
+			BM4Implicit(newton_max_iterations=0)
 		with self.assertRaises(ValueError):
-			BM4Implicit2(newton_jacobian_relative_step=np.inf)
+			BM4Implicit(newton_jacobian_relative_step=np.inf)
 		with self.assertRaises(ValueError):
-			BM4Implicit1(newton_jacobian_method="complex_step")  # type: ignore[arg-type]
+			BM4Implicit(newton_jacobian_method="complex_step")  # type: ignore[arg-type]
 
 
 class BM4ImplicitStudyTests(unittest.TestCase):
-	"""Verify the reusable two-formulation symplecticity study."""
+	"""Verify the reusable physical projected-BM4 symplecticity study."""
 
-	def test_short_study_returns_aligned_formulations(self) -> None:
+	def test_short_study_returns_physical_symplecticity_diagnostics(self) -> None:
 		potential = RandomPotentialConfig(
 			amplitude=0.08,
 			max_wave_number=3,
@@ -202,7 +230,7 @@ class BM4ImplicitStudyTests(unittest.TestCase):
 		)
 		with tempfile.TemporaryDirectory(dir="/tmp") as temporary:
 			root = Path(temporary)
-			comparison = run_bm4_implicit_symplecticity_study(
+			result = run_bm4_implicit_symplecticity_study(
 				potential,
 				area,
 				notebook_path=root / "notebooks" / "developements" / "bm4.ipynb",
@@ -210,16 +238,15 @@ class BM4ImplicitStudyTests(unittest.TestCase):
 				project_root=root,
 			)
 
-		self.assertEqual(tuple(comparison.results), ("implicit_1", "implicit_2"))
-		self.assertLess(comparison.maximum_state_differences()["h=0.05"], 2e-14)
-		for result in comparison.results.values():
-			self.assertEqual(result.jacobian_method, "finite_difference")
-			self.assertEqual(len(result.summaries()), 1)
-			summary = result.summaries()[0]
-			self.assertLess(summary.max_local_defect, 1e-8)
-			self.assertLess(summary.max_flow_defect, 1e-8)
-			self.assertLess(summary.max_determinant_error, 1e-8)
-			self.assertIsNotNone(summary.max_newton_iterations)
+		self.assertEqual(result.method_name, "BM4Implicit")
+		self.assertEqual(tuple(result.solutions), ("h=0.05",))
+		self.assertEqual(result.jacobian_method, "finite_difference")
+		self.assertEqual(len(result.summaries()), 1)
+		summary = result.summaries()[0]
+		self.assertLess(summary.max_local_defect, 1e-8)
+		self.assertLess(summary.max_flow_defect, 1e-8)
+		self.assertLess(summary.max_determinant_error, 1e-8)
+		self.assertIsNotNone(summary.max_newton_iterations)
 
 
 if __name__ == "__main__":

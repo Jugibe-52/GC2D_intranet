@@ -32,14 +32,16 @@
 \maketitle
 
 \begin{abstract}
-This note combines two constructions. First, a non-autonomous second-order
+The default projection placement combines two constructions. First, a non-autonomous second-order
 ABBA step is made implicit by Hairer's symmetric projection on the duplicated
 phase space. Second, three complete implicit projected ABBA steps are composed
 with the symmetric coefficients $\gamma,\delta,\gamma$ in order to cancel the
 complete third-order defect. The resulting ideal method has local truncation
 error $\OO(h^5)$ and global order four. Each outer stage has its own multiplier
 and signed time interval, so one fourth-order step requires three complete
-implicit solves.
+implicit solves. The same public model also supports one symmetric projection
+around the complete unprojected triple jump; that distinct fourth-order map is
+derived in the focused exterior-projection companion.
 \end{abstract}
 
 \section{Implemented configuration space}
@@ -51,6 +53,8 @@ constrained state/energy strategy:
 \toprule
 Axis & Values\\
 \midrule
+\texttt{projection\_placement}
+ & \texttt{after\_each\_abba\_map}, \texttt{around\_complete\_composition}\\
 \texttt{projection\_formulation}
  & \texttt{reduced\_multiplier}, \texttt{simultaneous\_state\_multiplier}\\
 \texttt{nonlinear\_solver} & \texttt{newton}, \texttt{broyden}\\
@@ -62,15 +66,19 @@ Axis & Values\\
 \bottomrule
 \end{tabular}
 \end{center}
-All three signed substeps use the same selected configuration.  The detailed
-derivation below uses the reduced physical Newton branch because it exposes the
-smallest exact Jacobian.  The simultaneous formulation has the same ideal root
+The detailed derivation below selects
+\texttt{projection\_placement=after\_each\_abba\_map} and the reduced physical
+Newton branch because they expose the three projected factors and the smallest
+exact Jacobians. All three signed substeps use the same selected nonlinear and
+state configuration. The simultaneous formulation has the same ideal root
 after block elimination; Broyden approximates the chosen residual Jacobian by
-secant updates.  Physical \texttt{track\_energy=True} reuses accepted stages to
+secant updates. Physical \texttt{track\_energy=True} reuses accepted stages to
 advance auxiliary $\kappa=k/2$ without changing the physical map or its
 dimensions, whereas fully extended mode duplicates $Z=(z,t,k)$.  These
-strategies retain the defining policy of one projection after each of the three
-signed ABBA maps.
+strategies apply to either placement. The exterior placement retains both
+duplicated copies across the three signed maps and solves a single outer
+projection; its derivation is in
+\path{docs/models/abba4-implicit/tex/exterior-projection.tex}.
 
 \section{GC2D system and duplicated phase space}
 The physical state is

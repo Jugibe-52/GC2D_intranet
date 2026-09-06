@@ -1,4 +1,4 @@
-"""Numerical accuracy of ten fixed-step variants against a stored reference."""
+"""Numerical accuracy of seven fixed-step variants against a stored reference."""
 
 from __future__ import annotations
 
@@ -82,7 +82,7 @@ class TenMethodAccuracyOrder:
 
 @dataclass(frozen=True, slots=True)
 class TenMethodAccuracyResult:
-	"""Reference errors for ten variants on one fixed-step main grid."""
+	"""Reference errors for seven variants on one fixed-step main grid."""
 
 	reference: StoredReferenceTrajectory
 	comparison: TenMethodTrajectoryComparisonResult
@@ -92,7 +92,7 @@ class TenMethodAccuracyResult:
 	def __post_init__(self) -> None:
 		"""Require complete label coverage and exact sample alignment."""
 		if tuple(self.series) != TEN_METHOD_LABELS:
-			raise ValueError("Accuracy results must contain all ten variants.")
+			raise ValueError("Accuracy results must contain all seven variants.")
 		indices = np.array(self.reference_sample_indices, dtype=np.int64, copy=True)
 		comparison_times = next(iter(self.comparison.solutions.values())).t
 		if (
@@ -167,7 +167,7 @@ class TenMethodAccuracyResult:
 
 @dataclass(frozen=True, slots=True)
 class TenMethodAccuracyRefinementResult:
-	"""Ten-method accuracy results on nested steps and one common output grid."""
+	"""Seven-variant accuracy results on nested steps and one common output grid."""
 
 	reference: StoredReferenceTrajectory
 	integration_steps: tuple[float, ...]
@@ -316,7 +316,7 @@ def run_ten_method_accuracy_study(
 	potential_metadata: Mapping[str, Any],
 	initial_condition_metadata: Mapping[str, Any],
 ) -> TenMethodAccuracyResult:
-	"""Run all ten variants and measure their periodic distance to the reference."""
+	"""Run all seven variants and measure their periodic distance to the reference."""
 	if not isinstance(potential, Potential):
 		raise TypeError("`potential` must be a Potential instance.")
 	if not isinstance(initial_configuration, GCInitialConfiguration):
@@ -371,7 +371,7 @@ def run_ten_method_accuracy_refinement_study(
 	potential_metadata: Mapping[str, Any],
 	initial_condition_metadata: Mapping[str, Any],
 ) -> TenMethodAccuracyRefinementResult:
-	"""Run all ten variants on nested steps and one main-grid-aligned cadence."""
+	"""Run all seven variants on nested steps and one main-grid-aligned cadence."""
 	if not isinstance(base_config, TenMethodTrajectoryComparisonConfig):
 		raise TypeError("`base_config` must be a TenMethodTrajectoryComparisonConfig.")
 	steps = _validated_refinement_steps(integration_steps)

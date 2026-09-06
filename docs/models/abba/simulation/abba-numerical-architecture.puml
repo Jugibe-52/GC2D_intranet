@@ -74,15 +74,7 @@ digraph G {
       <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#F3ECF7">
         <TR><TD><FONT POINT-SIZE="8">abba/order4_implicit.py</FONT><BR/><B>ABBA4Implicit</B></TD></TR>
         <HR/>
-        <TR><TD ALIGN="LEFT">integrate(...)<BR ALIGN="LEFT"/>three projected maps</TD></TR>
-      </TABLE>
-    >];
-
-    ABBA4Single [label=<
-      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#F3ECF7">
-        <TR><TD><FONT POINT-SIZE="8">abba/order4_implicit_single_projection.py</FONT><BR/><B>ABBA4ImplicitSingleProjection</B></TD></TR>
-        <HR/>
-        <TR><TD ALIGN="LEFT">integrate(...)<BR ALIGN="LEFT"/>one projection around three maps</TD></TR>
+        <TR><TD ALIGN="LEFT">integrate(...)<BR ALIGN="LEFT"/>placement: after each map or around all three<BR ALIGN="LEFT"/>2 x 2 x 2 x 3 configurations</TD></TR>
       </TABLE>
     >];
 
@@ -98,11 +90,11 @@ digraph G {
       <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#FBF7FD">
         <TR><TD><FONT POINT-SIZE="8">abba/_configuration.py, _implicit.py<BR/>methods/_nonlinear.py</FONT><BR/><B>Configuration symbols</B></TD></TR>
         <HR/>
-        <TR><TD ALIGN="LEFT"><B>_ABBAImplicitConfig</B>.__post_init__(...)<BR ALIGN="LEFT"/>_validate_projection_formulation(...)<BR ALIGN="LEFT"/>_validate_state_extension(...)<BR ALIGN="LEFT"/>_resolved_track_energy(...)<BR ALIGN="LEFT"/>_state_dimension_diagnostics(...)<BR ALIGN="LEFT"/>_positive_finite(...)<BR ALIGN="LEFT"/>_positive_integer(...)<BR ALIGN="LEFT"/>_validate_nonlinear_solver(...)</TD></TR>
+        <TR><TD ALIGN="LEFT"><B>ABBA4_PROJECTION_PLACEMENTS</B><BR ALIGN="LEFT"/><B>_ABBAImplicitConfig</B>.__post_init__(...)<BR ALIGN="LEFT"/>_validate_projection_formulation(...)<BR ALIGN="LEFT"/>_validate_projection_placement(...)<BR ALIGN="LEFT"/>_validate_state_extension(...)<BR ALIGN="LEFT"/>_resolved_track_energy(...)<BR ALIGN="LEFT"/>_state_dimension_diagnostics(...)<BR ALIGN="LEFT"/>_positive_finite(...)<BR ALIGN="LEFT"/>_positive_integer(...)<BR ALIGN="LEFT"/>_validate_nonlinear_solver(...)</TD></TR>
       </TABLE>
     >];
 
-    { rank=same; public_anchor; ABBA2Midpoint; ABBA2Implicit; ABBA4Implicit; ABBA4Single; ABBA6Implicit; Configuration; }
+    { rank=same; public_anchor; ABBA2Midpoint; ABBA2Implicit; ABBA4Implicit; ABBA6Implicit; Configuration; }
   }
 
   subgraph cluster_coordinators {
@@ -299,24 +291,21 @@ digraph G {
   Assembly -> ABBA2Midpoint [constraint=false];
   Assembly -> ABBA2Implicit [constraint=false];
   Assembly -> ABBA4Implicit [constraint=false];
-  Assembly -> ABBA4Single [constraint=false];
   Assembly -> ABBA6Implicit [constraint=false];
   Configuration -> ABBA2Midpoint [style=dashed, constraint=false];
   Configuration -> ABBA2Implicit [constraint=false];
   Configuration -> ABBA4Implicit [constraint=false];
-  Configuration -> ABBA4Single [constraint=false];
   Configuration -> ABBA6Implicit [constraint=false];
 
   // State-extension dispatch from every public method.
   ABBA2Midpoint -> MidpointCoordinator [constraint=false];
   ABBA2Implicit -> ProjectedCoordinator [constraint=false];
   ABBA4Implicit -> ComposedCoordinator [constraint=false];
+  ABBA4Implicit -> SingleCoordinator [constraint=false];
   ABBA6Implicit -> ComposedCoordinator [constraint=false];
-  ABBA4Single -> SingleCoordinator [constraint=false];
   ABBA2Midpoint -> FullCoordinator [constraint=false];
   ABBA2Implicit -> FullCoordinator [constraint=false];
   ABBA4Implicit -> FullCoordinator [constraint=false];
-  ABBA4Single -> FullCoordinator [constraint=false];
   ABBA6Implicit -> FullCoordinator [constraint=false];
 
   // Coordinators register their advance closure with the common driver.

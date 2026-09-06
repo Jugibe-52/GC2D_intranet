@@ -1,10 +1,10 @@
-"""Implicit full-diagonal projection after duplicating ``(z, t, k)``."""
+"""Fully extended ABBA maps, projections, and integration runtimes."""
 
 from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import ClassVar, Literal, Protocol, TypeAlias
+from typing import Literal, Protocol, TypeAlias
 
 import numpy as np
 
@@ -12,7 +12,6 @@ from dynamics import GuidingCenterDynamics
 
 from .._fixed import integrate_fixed_grid
 from .._result import IntegrationData
-from ..formulations import gc_coupling_matrix
 from ..observation import (
 	FullyExtendedBaseMap,
 	FullyExtendedImplicitIntegrationStep,
@@ -27,7 +26,6 @@ from ._nonlinear import (
 	_solve_broyden,
 	_validate_nonlinear_solver,
 )
-from .bm4._core import _BM4_ORDERS, _BM4_STAGES
 
 
 _ExtendedMap = Callable[[np.ndarray], np.ndarray]
@@ -36,7 +34,6 @@ ProjectionFormulation: TypeAlias = Literal[
 	"reduced_multiplier",
 	"simultaneous_state_multiplier",
 ]
-_Variant = Literal["bm4"]
 _ABBAVariant = Literal[
 	"abba",
 	"abba4",
@@ -80,16 +77,6 @@ def _positive_finite(value: float, name: str) -> float:
 	result = float(value)
 	if not np.isfinite(result) or result <= 0.0:
 		raise ValueError(f"`{name}` must be positive and finite.")
-	return result
-
-
-def _nonnegative_finite(value: float, name: str) -> float:
-	"""Normalize one non-negative finite method parameter."""
-	if isinstance(value, (bool, np.bool_)):
-		raise ValueError(f"`{name}` must be non-negative and finite.")
-	result = float(value)
-	if not np.isfinite(result) or result < 0.0:
-		raise ValueError(f"`{name}` must be non-negative and finite.")
 	return result
 
 
@@ -243,32 +230,6 @@ def _flow_second(
 	return value
 
 
-def _couple_physical_copies(
-	state: np.ndarray,
-	*,
-	duration: float,
-	frequency: float,
-) -> np.ndarray:
-	"""Apply the exact GC binding flow to ``z`` while leaving both ``(t,k)`` pairs."""
-	value = _checked_extended_state(state, duplicated=True)
-	physical = np.asarray((value[0], value[1], value[4], value[5]))
-	coupled = gc_coupling_matrix(duration, frequency) @ physical
-	value[[0, 1, 4, 5]] = coupled
-	return value
-
-
-def _physical_coupling_jacobian(
-	*,
-	duration: float,
-	frequency: float,
-) -> np.ndarray:
-	"""Embed the exact physical binding matrix into the full ``R^8`` state."""
-	indices = np.asarray((0, 1, 4, 5))
-	result = _IDENTITY_8.copy()
-	result[np.ix_(indices, indices)] = gc_coupling_matrix(duration, frequency)
-	return result
-
-
 def _abba_base_map(
 	dynamics: GuidingCenterDynamics,
 	duration: float,
@@ -341,151 +302,6 @@ def _composed_abba_base_map(
 	)
 
 
-def _bm4_direct_map(
-	dynamics: GuidingCenterDynamics,
-	state: np.ndarray,
-	*,
-	duration: float,
-	frequency: float,
-) -> np.ndarray:
-	"""Apply first-copy shear, second-copy shear, then physical binding."""
-	value = _flow_first(dynamics, state, duration)
-	value = _flow_second(dynamics, value, duration)
-	return _couple_physical_copies(
-		value,
-		duration=duration,
-		frequency=frequency,
-	)
-
-
-def _bm4_direct_jacobian(
-	dynamics: GuidingCenterDynamics,
-	state: np.ndarray,
-	*,
-	duration: float,
-	frequency: float,
-) -> np.ndarray:
-	"""Return the analytic direct-stage product in flow order."""
-	value = _checked_extended_state(state, duplicated=True)
-	first = _flow_first_jacobian(dynamics, value, duration)
-	value = _flow_first(dynamics, value, duration)
-	second = _flow_second_jacobian(dynamics, value, duration)
-	coupling = _physical_coupling_jacobian(
-		duration=duration,
-		frequency=frequency,
-	)
-	return np.asarray(coupling @ second @ first)
-
-
-def _bm4_adjoint_map(
-	dynamics: GuidingCenterDynamics,
-	state: np.ndarray,
-	*,
-	duration: float,
-	frequency: float,
-) -> np.ndarray:
-	"""Reverse the direct-map factor order to obtain its exact adjoint."""
-	value = _couple_physical_copies(
-		state,
-		duration=duration,
-		frequency=frequency,
-	)
-	value = _flow_second(dynamics, value, duration)
-	return _flow_first(dynamics, value, duration)
-
-
-def _bm4_adjoint_jacobian(
-	dynamics: GuidingCenterDynamics,
-	state: np.ndarray,
-	*,
-	duration: float,
-	frequency: float,
-) -> np.ndarray:
-	"""Return the analytic adjoint-stage product in flow order."""
-	value = _checked_extended_state(state, duplicated=True)
-	coupling = _physical_coupling_jacobian(
-		duration=duration,
-		frequency=frequency,
-	)
-	value = _couple_physical_copies(
-		value,
-		duration=duration,
-		frequency=frequency,
-	)
-	second = _flow_second_jacobian(dynamics, value, duration)
-	value = _flow_second(dynamics, value, duration)
-	first = _flow_first_jacobian(dynamics, value, duration)
-	return np.asarray(first @ second @ coupling)
-
-
-def _bm4_base_map(
-	dynamics: GuidingCenterDynamics,
-	duration: float,
-	*,
-	frequency: float,
-) -> _AnalyticExtendedMap:
-	"""Return the twelve-stage fourth-order full-state BM4 map on ``R^8``."""
-
-	def map_state(candidate: np.ndarray) -> np.ndarray:
-		value = _checked_extended_state(candidate, duplicated=True)
-		for coefficient, order in zip(_BM4_STAGES, _BM4_ORDERS, strict=True):
-			stage_duration = float(coefficient * duration)
-			if int(order) == 0:
-				value = _bm4_direct_map(
-					dynamics,
-					value,
-					duration=stage_duration,
-					frequency=frequency,
-				)
-			else:
-				value = _bm4_adjoint_map(
-					dynamics,
-					value,
-					duration=stage_duration,
-					frequency=frequency,
-				)
-		return value
-
-	def jacobian_state(candidate: np.ndarray) -> np.ndarray:
-		value = _checked_extended_state(candidate, duplicated=True)
-		total = _IDENTITY_8.copy()
-		for coefficient, order in zip(_BM4_STAGES, _BM4_ORDERS, strict=True):
-			stage_duration = float(coefficient * duration)
-			if int(order) == 0:
-				factor = _bm4_direct_jacobian(
-					dynamics,
-					value,
-					duration=stage_duration,
-					frequency=frequency,
-				)
-				value = _bm4_direct_map(
-					dynamics,
-					value,
-					duration=stage_duration,
-					frequency=frequency,
-				)
-			else:
-				factor = _bm4_adjoint_jacobian(
-					dynamics,
-					value,
-					duration=stage_duration,
-					frequency=frequency,
-				)
-				value = _bm4_adjoint_map(
-					dynamics,
-					value,
-					duration=stage_duration,
-					frequency=frequency,
-				)
-			total = factor @ total
-		return total
-
-	return _AnalyticExtendedMap(
-		map_state=map_state,
-		jacobian_state=jacobian_state,
-	)
-
-
 @dataclass(frozen=True, slots=True)
 class _FullProjectedStep:
 	"""One converged full-diagonal projection and its base-map snapshots."""
@@ -499,106 +315,6 @@ class _FullProjectedStep:
 	iterations: int
 	residual_evaluations: int
 	residual_norm: float
-
-
-def _solve_full_projection(
-	state: np.ndarray,
-	base_map: _AnalyticExtendedMap,
-	*,
-	absolute_tolerance: float,
-	relative_tolerance: float,
-	max_iterations: int,
-	nonlinear_solver: NonlinearSolver,
-	context: str,
-) -> _FullProjectedStep:
-	"""Solve the four-component symmetric projection onto ``Z_1=Z_2``."""
-	value = _checked_extended_state(state, duplicated=False)
-	multiplier = np.zeros(4, dtype=float)
-	threshold = absolute_tolerance + relative_tolerance * max(
-		1.0,
-		float(np.linalg.norm(value, ord=np.inf)),
-	)
-	evaluation_count = 0
-
-	def evaluate(candidate: np.ndarray) -> tuple[np.ndarray, tuple[np.ndarray, np.ndarray]]:
-		nonlocal evaluation_count
-		evaluation_count += 1
-		unknown = np.asarray(candidate, dtype=float)
-		internal_input = np.concatenate((value + unknown, value - unknown))
-		mapped = np.asarray(base_map.map_state(internal_input), dtype=float)
-		if mapped.shape != (8,) or not np.all(np.isfinite(mapped)):
-			raise ValueError("The full duplicated base map returned an invalid state.")
-		residual = mapped[:4] - mapped[4:] + 2.0 * unknown
-		return residual, (internal_input, mapped)
-
-	def analytic_residual_jacobian(internal_input: np.ndarray) -> np.ndarray:
-		return np.asarray(
-			_COPY_DIFFERENCE
-			@ base_map.jacobian_state(np.asarray(internal_input))
-			@ _ANTIDIAGONAL_EMBEDDING
-			+ 2.0 * _IDENTITY_4,
-		)
-
-	if nonlinear_solver == "broyden":
-		initial_jacobian = analytic_residual_jacobian(
-			np.concatenate((value, value))
-		)
-		result = _solve_broyden(
-			evaluate,
-			multiplier,
-			initial_jacobian,
-			tolerance=threshold,
-			max_iterations=max_iterations,
-			context=context,
-		)
-		internal_input, mapped = result.payload
-		corrected_first = mapped[:4] + result.unknown
-		corrected_second = mapped[4:] - result.unknown
-		return _FullProjectedStep(
-			state=np.asarray((corrected_first + corrected_second) / 2.0),
-			multiplier=np.asarray(result.unknown).copy(),
-			internal_input=np.asarray(internal_input).copy(),
-			mapped=np.asarray(mapped).copy(),
-			base_map=base_map,
-			residual_jacobian=analytic_residual_jacobian(internal_input),
-			iterations=result.iterations,
-			residual_evaluations=result.residual_evaluations,
-			residual_norm=float(np.linalg.norm(result.residual, ord=np.inf)),
-		)
-	if nonlinear_solver != "newton":
-		raise ValueError("Unknown nonlinear solver for the full extended projection.")
-
-	for iteration in range(max_iterations + 1):
-		residual, payload = evaluate(multiplier)
-		internal_input, mapped = payload
-		residual_norm = float(np.linalg.norm(residual, ord=np.inf))
-		if residual_norm <= threshold:
-			corrected_first = mapped[:4] + multiplier
-			corrected_second = mapped[4:] - multiplier
-			return _FullProjectedStep(
-				state=np.asarray((corrected_first + corrected_second) / 2.0),
-				multiplier=multiplier.copy(),
-				internal_input=np.asarray(internal_input).copy(),
-				mapped=np.asarray(mapped).copy(),
-				base_map=base_map,
-				residual_jacobian=analytic_residual_jacobian(internal_input),
-				iterations=iteration,
-				residual_evaluations=evaluation_count,
-				residual_norm=residual_norm,
-			)
-		if iteration == max_iterations:
-			break
-		jacobian = analytic_residual_jacobian(internal_input)
-		try:
-			correction = np.linalg.solve(jacobian, residual)
-		except np.linalg.LinAlgError as exc:
-			raise RuntimeError(f"The projection Jacobian is singular for {context}.") from exc
-		multiplier = multiplier - correction
-
-	raise RuntimeError(
-		f"{context} did not converge: residual {residual_norm:.3e} exceeds "
-		f"{threshold:.3e} after {max_iterations} iterations."
-	)
 
 
 def _full_reduced_residual_jacobian(
@@ -1143,48 +859,6 @@ def _method_step_jacobian(result: _FullMethodStep) -> np.ndarray:
 	return total
 
 
-def _solve_method_step(
-	method: _FullyExtendedImplicitMethod,
-	dynamics: GuidingCenterDynamics,
-	state: np.ndarray,
-	duration: float,
-) -> _FullMethodStep:
-	"""Solve one legacy fully extended BM4 step."""
-	value = _checked_extended_state(state, duplicated=False)
-	frequency = getattr(method, "coupling_frequency", None)
-	if frequency is None:
-		raise RuntimeError(
-			"The fully extended BM4 variant requires `coupling_frequency`."
-		)
-	base_map = _bm4_base_map(
-		dynamics,
-		duration,
-		frequency=float(frequency),
-	)
-	result = _solve_full_projection(
-		value,
-		base_map,
-		absolute_tolerance=method.newton_absolute_tolerance,
-		relative_tolerance=method.newton_relative_tolerance,
-		max_iterations=method.newton_max_iterations,
-		nonlinear_solver=method.nonlinear_solver,
-		context=(
-			"fully_extended_bm4_cycle at "
-			f"t={value[2]:.16g} with duration={duration:.16g}"
-		),
-	)
-	return _FullMethodStep(
-		state=result.state,
-		substeps=(
-			_AcceptedFullSubstep(
-				start_state=value.copy(),
-				duration=duration,
-				result=result,
-			),
-		),
-	)
-
-
 def _base_observation(
 	accepted: _AcceptedFullSubstep,
 	*,
@@ -1215,168 +889,6 @@ def _base_observation(
 		jacobian_state=jacobian_state,
 		projection_multiplier=result.multiplier.copy(),
 		residual_jacobian=residual_jacobian.copy(),
-	)
-
-
-def _integrate_fully_extended(
-	method: _FullyExtendedImplicitMethod,
-	problem: InitialValueProblem,
-	request: SimulationRequest,
-) -> IntegrationData:
-	"""Integrate a one-particle GC problem through the physical ``R^4`` state."""
-	method_name = type(method).__name__
-	if not isinstance(problem.dynamics, GuidingCenterDynamics):
-		raise TypeError(f"{method_name} requires GuidingCenterDynamics.")
-	physical_initial = np.asarray(problem.initial_state, dtype=float)
-	if physical_initial.shape != (2,):
-		raise ValueError(f"{method_name} requires exactly one GC particle.")
-	dynamics = problem.dynamics
-	initial_extended = np.concatenate(
-		(physical_initial, (float(request.t_span[0]), 0.0))
-	)
-	iteration_counts: list[int] = []
-	residual_evaluations: list[int] = []
-	residual_norms: list[float] = []
-	projection_norms: list[float] = []
-
-	def advance(
-		time: float,
-		state: np.ndarray,
-		step: float,
-		step_index: int,
-		observe: bool,
-	) -> np.ndarray:
-		value = _synchronized_extended_time(
-			state,
-			time,
-			context="The internal state",
-		)
-
-		def map_state(candidate: np.ndarray) -> np.ndarray:
-			candidate_value = _checked_extended_state(candidate, duplicated=False)
-			mapped = _solve_method_step(
-				method,
-				dynamics,
-				candidate_value,
-				step,
-			).state
-			return _synchronized_extended_time(
-				mapped,
-				float(candidate_value[2] + step),
-				context="The fully extended map",
-			)
-
-		result = _solve_method_step(method, dynamics, value, step)
-		expected_time = time + step
-		accepted_state = _synchronized_extended_time(
-			result.state,
-			expected_time,
-			context="The fully extended map",
-		)
-		if observe:
-			iterations = sum(item.result.iterations for item in result.substeps)
-			evaluations = sum(
-				item.result.residual_evaluations for item in result.substeps
-			)
-			worst_residual = max(item.result.residual_norm for item in result.substeps)
-			max_multiplier = max(
-				float(np.linalg.norm(item.result.multiplier, ord=np.inf))
-				for item in result.substeps
-			)
-			iteration_counts.append(iterations)
-			residual_evaluations.append(evaluations)
-			residual_norms.append(worst_residual)
-			projection_norms.append(max_multiplier)
-			if method.step_observer is not None:
-				base_maps = tuple(
-					_base_observation(
-						item,
-						map_name="fully_extended_bm4_cycle",
-					)
-					for item in result.substeps
-				)
-				method.step_observer(
-					FullyExtendedImplicitIntegrationStep(
-							dynamics_name=type(dynamics).__name__,
-							method_name=method_name,
-							step_index=step_index,
-							start_time=time,
-							time=expected_time,
-							duration=step,
-							state_before=value.copy(),
-							state_after=accepted_state.copy(),
-						map_state=map_state,
-						dynamics=dynamics,
-						formulation_name="fully_duplicated_z_t_k_projection",
-						nonlinear_solver=method.nonlinear_solver,
-						newton_iterations=iterations,
-						residual_evaluations=evaluations,
-						newton_residual_norm=worst_residual,
-						newton_tolerance=(
-							method.newton_absolute_tolerance
-							+ method.newton_relative_tolerance
-							* max(1.0, float(np.linalg.norm(value, ord=np.inf)))
-						),
-						projection_multiplier_norm=max_multiplier,
-						multiplier=result.substeps[-1].result.multiplier.copy(),
-						jacobian=_method_step_jacobian(result),
-						base_maps=base_maps,
-					)
-				)
-		return accepted_state
-
-	extended_history, step_count = integrate_fixed_grid(
-		initial_extended,
-		request,
-		advance,
-		progress=method.progress,
-		label=method_name,
-	)
-	extended_history[2] = request.output_times
-	physical_hamiltonian = np.asarray(
-		[
-			float(
-				np.asarray(
-					dynamics.hamiltonian(
-						float(extended_history[2, index]),
-						extended_history[:2, index],
-					)
-				).reshape(-1)[0]
-			)
-			for index in range(extended_history.shape[1])
-		]
-	)
-	generalized_energy = physical_hamiltonian + extended_history[3]
-	diagnostics: dict[str, np.ndarray | float | int | str | bool] = {
-		"step_count": step_count,
-		"nonlinear_solver": method.nonlinear_solver,
-		"newton_iterations": np.asarray(iteration_counts, dtype=int),
-		"residual_evaluations": np.asarray(residual_evaluations, dtype=int),
-		"newton_residual_norms": np.asarray(residual_norms, dtype=float),
-		"projection_multiplier_norms": np.asarray(projection_norms, dtype=float),
-		"newton_absolute_tolerance": method.newton_absolute_tolerance,
-		"newton_relative_tolerance": method.newton_relative_tolerance,
-		"newton_max_iterations": method.newton_max_iterations,
-		"projection_jacobian": "analytic_stage_product",
-		"projection_formulation": "full_state_multiplier",
-		"state_extension": "fully_extended",
-		"extended_time": np.asarray(extended_history[2]),
-		"extended_momentum": np.asarray(extended_history[3]),
-		"extended_momentum_normalization": "direct_k",
-		"physical_hamiltonian": physical_hamiltonian,
-		"generalized_energy": generalized_energy,
-		"generalized_energy_error": generalized_energy - generalized_energy[0],
-	}
-	frequency = getattr(method, "coupling_frequency", None)
-	if frequency is None:
-		raise RuntimeError(
-			"The fully extended BM4 variant requires `coupling_frequency`."
-		)
-	diagnostics["coupling_frequency"] = float(frequency)
-	return IntegrationData(
-		t=request.output_times,
-		states=np.asarray(extended_history[:2]),
-		diagnostics=diagnostics,
 	)
 
 
@@ -1441,7 +953,7 @@ def _integrate_abba_fully_extended(
 		coefficients.size
 	)
 	projection_placement = (
-		"around_complete_base_composition"
+		"around_complete_composition"
 		if variant == "abba4_single_projection"
 		else "after_each_abba_map"
 	)
@@ -1768,58 +1280,6 @@ def _integrate_abba_fully_extended_midpoint(
 		states=np.asarray(extended_history[:2]),
 		diagnostics=diagnostics,
 	)
-
-
-@dataclass(frozen=True, slots=True)
-class _FullyExtendedImplicitMethod:
-	"""Shared configuration for full ``(z,t,k)`` duplication and projection."""
-
-	newton_absolute_tolerance: float = 1e-13
-	newton_relative_tolerance: float = 1e-12
-	newton_max_iterations: int = 20
-	nonlinear_solver: NonlinearSolver = "newton"
-	progress: bool = False
-	step_observer: StepObserver | None = None
-
-	_variant: ClassVar[_Variant] = "bm4"
-
-	def __post_init__(self) -> None:
-		"""Validate nonlinear controls shared by all full-state variants."""
-		object.__setattr__(
-			self,
-			"newton_absolute_tolerance",
-			_positive_finite(
-				self.newton_absolute_tolerance,
-				"newton_absolute_tolerance",
-			),
-		)
-		object.__setattr__(
-			self,
-			"newton_relative_tolerance",
-			_positive_finite(
-				self.newton_relative_tolerance,
-				"newton_relative_tolerance",
-			),
-		)
-		object.__setattr__(
-			self,
-			"newton_max_iterations",
-			_positive_integer(self.newton_max_iterations, "newton_max_iterations"),
-		)
-		object.__setattr__(
-			self,
-			"nonlinear_solver",
-			_validate_nonlinear_solver(self.nonlinear_solver),
-		)
-		object.__setattr__(self, "progress", bool(self.progress))
-
-	def integrate(
-		self,
-		problem: InitialValueProblem,
-		request: SimulationRequest,
-	) -> IntegrationData:
-		"""Integrate one GC problem with complete extended-state projection."""
-		return _integrate_fully_extended(self, problem, request)
 
 
 __all__: list[str] = []

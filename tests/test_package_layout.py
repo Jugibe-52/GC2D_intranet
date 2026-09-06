@@ -19,8 +19,10 @@ from simulation import (
 	ABBA4Implicit,
 	ABBA4ImplicitSingleProjection,
 	ABBA6Implicit,
+	ABBA4_PROJECTION_PLACEMENTS,
 	ABBA_PROJECTION_FORMULATIONS,
 	ABBA_STATE_EXTENSIONS,
+	BM4Implicit,
 	ExplicitEuler,
 	RK4,
 )
@@ -56,6 +58,11 @@ class PackageLayoutTests(unittest.TestCase):
 		self.assertIsNotNone(ABBA4Implicit)
 		self.assertIsNotNone(ABBA4ImplicitSingleProjection)
 		self.assertIsNotNone(ABBA6Implicit)
+		self.assertIsNotNone(BM4Implicit)
+		self.assertEqual(
+			ABBA4_PROJECTION_PLACEMENTS,
+			("after_each_abba_map", "around_complete_composition"),
+		)
 		self.assertEqual(
 			ABBA_PROJECTION_FORMULATIONS,
 			("reduced_multiplier", "simultaneous_state_multiplier"),
@@ -75,7 +82,7 @@ class PackageLayoutTests(unittest.TestCase):
 		)
 		self.assertIs(abba_methods.ABBA6Implicit, ABBA6Implicit)
 		self.assertEqual(abba_methods.ABBA_STATE_EXTENSIONS, ABBA_STATE_EXTENSIONS)
-		self.assertIs(bm4_methods.BM4Implicit1, simulation.BM4Implicit1)
+		self.assertIs(bm4_methods.BM4Implicit, simulation.BM4Implicit)
 		self.assertIs(classical_methods.RK4, RK4)
 		for module in (
 			"simulation.methods._fully_extended",
@@ -95,11 +102,7 @@ class PackageLayoutTests(unittest.TestCase):
 			"simulation.methods.abba.order6_implicit",
 			"simulation.methods.bm4",
 			"simulation.methods.bm4._core",
-			"simulation.methods.bm4._implicit",
-			"simulation.methods.bm4.midpoint",
-			"simulation.methods.bm4.implicit_1",
-			"simulation.methods.bm4.implicit_2",
-			"simulation.methods.bm4.fully_extended",
+			"simulation.methods.bm4.implicit",
 			"simulation.methods.classical",
 			"simulation.methods.classical.euler",
 			"simulation.methods.classical.rk4",
@@ -130,10 +133,14 @@ class PackageLayoutTests(unittest.TestCase):
 			"simulation.methods.abba_tangent_taylor",
 			"simulation.methods.abba.tangent_taylor",
 			"simulation.methods.bm4_midpoint",
-			"simulation.methods.bm4_implicit_1",
+			"simulation.methods.bm4_implicit",
 			"simulation.methods.bm4_implicit_2",
 			"simulation.methods._implicit_bm4",
 			"simulation.methods._fully_extended_implicit",
+			"simulation.methods.bm4.midpoint",
+			"simulation.methods.bm4.implicit_1",
+			"simulation.methods.bm4.implicit_2",
+			"simulation.methods.bm4.fully_extended",
 			"simulation.methods.euler",
 			"simulation.methods.rk4",
 		):
@@ -142,6 +149,7 @@ class PackageLayoutTests(unittest.TestCase):
 			simulation,
 			simulation_methods,
 			abba_methods,
+			bm4_methods,
 		):
 			for name in (
 				"SymmetricProjectedABBA",
@@ -156,6 +164,12 @@ class PackageLayoutTests(unittest.TestCase):
 				"ABBA2SharedTimeExtendedImplicit",
 				"ABBA2FullyExtendedImplicit",
 				"ABBA4FullyExtendedImplicit",
+				"BM4Composition",
+				"BM4Implicit1",
+				"BM4Implicit2",
+				"BM4_implicit2",
+				"MidpointBM4",
+				"ProjectedBM4Composition",
 			):
 				self.assertFalse(
 					hasattr(namespace, name),

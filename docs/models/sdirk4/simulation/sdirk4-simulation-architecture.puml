@@ -1,0 +1,33 @@
+@startuml
+title S54b SDIRK4 simulation architecture
+
+class InitialValueProblem
+class SimulationRequest
+class SDIRK4 {
+  + integrate(problem, request)
+  - solve five sequential stages
+}
+interface DynamicalSystem
+interface GuidingCenterJacobianSystem
+class "integrate_fixed_grid" as FixedGrid
+class IntegrationData
+class IntegrationStep
+
+InitialValueProblem --> DynamicalSystem
+GuidingCenterJacobianSystem -up-|> DynamicalSystem
+SDIRK4 --> InitialValueProblem
+SDIRK4 --> SimulationRequest
+SDIRK4 --> DynamicalSystem : vector_field
+SDIRK4 ..> GuidingCenterJacobianSystem : analytic 2 x 2 blocks
+SDIRK4 --> FixedGrid
+SDIRK4 --> IntegrationStep : optional main-step observation
+SDIRK4 --> IntegrationData
+
+note right of SDIRK4
+  S54b: 5 stages, order 4
+  gamma = 1/4
+  stiffly accurate
+  not symmetric
+  not symplectic
+end note
+@enduml

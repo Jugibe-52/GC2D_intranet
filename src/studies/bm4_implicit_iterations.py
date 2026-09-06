@@ -6,7 +6,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from time import perf_counter
 from types import MappingProxyType
-from typing import Any, Literal, Mapping, TypeAlias
+from typing import Any, Mapping
 
 import numpy as np
 
@@ -18,8 +18,7 @@ from diagnostics import (
 from dynamics import GuidingCenterDynamics
 from potential import Potential
 from simulation import (
-	BM4Implicit1,
-	BM4Implicit2,
+	BM4Implicit,
 	InitialConfiguration,
 	InitialValueProblem,
 	NonlinearSolver,
@@ -29,13 +28,6 @@ from simulation import (
 )
 
 from ._validation import nonnegative_finite, positive_finite, positive_integer
-
-
-BM4IterationFormulation: TypeAlias = Literal["implicit_1", "implicit_2"]
-BM4_ITERATION_FORMULATIONS: tuple[BM4IterationFormulation, ...] = (
-	"implicit_1",
-	"implicit_2",
-)
 
 
 def _readonly_float_array(value: np.ndarray) -> np.ndarray:
@@ -56,7 +48,6 @@ def _readonly_int_array(value: np.ndarray) -> np.ndarray:
 class BM4ImplicitIterationStudyConfig:
 	"""Physical, numerical, and observer controls for one BM4 iteration run."""
 
-	formulation: BM4IterationFormulation = "implicit_1"
 	rho: float = 0.3
 	coupling_frequency: float = float(np.pi / 8.0)
 	t_span: tuple[float, float] = (0.0, 1.0)
@@ -75,8 +66,6 @@ class BM4ImplicitIterationStudyConfig:
 
 	def __post_init__(self) -> None:
 		"""Normalize all controls that affect the reproduced experiment."""
-		if self.formulation not in BM4_ITERATION_FORMULATIONS:
-			raise ValueError("Unknown implicit BM4 iteration-study formulation.")
 		if self.nonlinear_solver not in ("newton", "broyden"):
 			raise ValueError("Unknown nonlinear solver for the BM4 iteration study.")
 		span = np.asarray(self.t_span, dtype=float)
@@ -220,7 +209,6 @@ def run_bm4_implicit_iteration_study(
 		max_step=config.max_step,
 		sample_count=config.sample_count,
 	)
-	method_type = BM4Implicit1 if config.formulation == "implicit_1" else BM4Implicit2
 	with ImplicitBM4IterationObserver(
 		notebook_path=notebook_path,
 		project_root=project_root,
@@ -237,7 +225,7 @@ def run_bm4_implicit_iteration_study(
 		started = perf_counter()
 		solution = simulate(
 			problem,
-			method_type(
+			BM4Implicit(
 				coupling_frequency=config.coupling_frequency,
 				newton_absolute_tolerance=config.newton_absolute_tolerance,
 				newton_relative_tolerance=config.newton_relative_tolerance,
@@ -265,9 +253,7 @@ def run_bm4_implicit_iteration_study(
 
 
 __all__ = [
-	"BM4_ITERATION_FORMULATIONS",
 	"BM4ImplicitIterationStudyConfig",
 	"BM4ImplicitIterationStudyResult",
-	"BM4IterationFormulation",
 	"run_bm4_implicit_iteration_study",
 ]

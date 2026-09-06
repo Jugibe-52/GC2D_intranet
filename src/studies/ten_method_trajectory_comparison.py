@@ -1,4 +1,4 @@
-"""Aligned trajectory comparison for two midpoint and eight implicit variants."""
+"""Aligned trajectory comparison for one midpoint and six implicit variants."""
 
 from __future__ import annotations
 
@@ -14,13 +14,11 @@ from dynamics import GuidingCenterDynamics
 from potential import Potential
 from simulation import (
 	ABBA_PROJECTION_FORMULATIONS,
-	BM4Implicit1,
-	BM4Implicit2,
+	BM4Implicit,
 	ABBA2Implicit,
 	InitialConfiguration,
 	InitialValueProblem,
 	ABBA2Midpoint,
-	MidpointBM4,
 	NonlinearSolver,
 	NumericalMethod,
 	ProjectionFormulation,
@@ -59,7 +57,6 @@ class TrajectoryMethodVariant:
 
 TEN_METHOD_VARIANTS: tuple[TrajectoryMethodVariant, ...] = (
 	TrajectoryMethodVariant("Midpoint ABBA", "ABBA2Midpoint", "midpoint", None),
-	TrajectoryMethodVariant("Midpoint BM4", "MidpointBM4", "midpoint", None),
 	TrajectoryMethodVariant(
 		"ABBA2 reduced (Newton)", "ABBA2Implicit", "abba", "newton",
 		"reduced_multiplier",
@@ -76,10 +73,8 @@ TEN_METHOD_VARIANTS: tuple[TrajectoryMethodVariant, ...] = (
 		"ABBA2 simultaneous (Broyden)", "ABBA2Implicit", "abba", "broyden",
 		"simultaneous_state_multiplier",
 	),
-	TrajectoryMethodVariant("BM4 implicit 1 (Newton)", "BM4Implicit1", "bm4", "newton"),
-	TrajectoryMethodVariant("BM4 implicit 1 (Broyden)", "BM4Implicit1", "bm4", "broyden"),
-	TrajectoryMethodVariant("BM4 implicit 2 (Newton)", "BM4Implicit2", "bm4", "newton"),
-	TrajectoryMethodVariant("BM4 implicit 2 (Broyden)", "BM4Implicit2", "bm4", "broyden"),
+	TrajectoryMethodVariant("BM4 implicit (Newton)", "BM4Implicit", "bm4", "newton"),
+	TrajectoryMethodVariant("BM4 implicit (Broyden)", "BM4Implicit", "bm4", "broyden"),
 )
 TEN_METHOD_LABELS: tuple[str, ...] = tuple(
 	variant.label for variant in TEN_METHOD_VARIANTS
@@ -88,7 +83,7 @@ TEN_METHOD_LABELS: tuple[str, ...] = tuple(
 
 @dataclass(frozen=True, slots=True)
 class TenMethodTrajectoryComparisonConfig:
-	"""Common physical grid and nonlinear controls for all ten variants."""
+	"""Common physical grid and nonlinear controls for all seven variants."""
 
 	rho: float = 0.3
 	coupling_frequency: float = float(np.pi / 8.0)
@@ -193,7 +188,7 @@ class TenMethodRuntimeSummary:
 
 @dataclass(frozen=True, slots=True)
 class TenMethodNonlinearWorkSummary:
-	"""Nonlinear work for one of the eight implicit variants."""
+	"""Nonlinear work for one of the six implicit variants."""
 
 	method_name: str
 	nonlinear_solver: str
@@ -223,8 +218,6 @@ def _method_for_variant(
 	"""Build one configured method while keeping labels separate from class names."""
 	if variant.method_name == "ABBA2Midpoint":
 		return ABBA2Midpoint(progress=config.progress)
-	if variant.method_name == "MidpointBM4":
-		return MidpointBM4(progress=config.progress)
 	if variant.nonlinear_solver is None:
 		raise ValueError("Implicit variants require a nonlinear solver.")
 	if variant.method_name == "ABBA2Implicit":
@@ -238,18 +231,8 @@ def _method_for_variant(
 			nonlinear_solver=variant.nonlinear_solver,
 			progress=config.progress,
 		)
-	if variant.method_name == "BM4Implicit1":
-		return BM4Implicit1(
-			coupling_frequency=config.coupling_frequency,
-			newton_absolute_tolerance=config.absolute_tolerance,
-			newton_relative_tolerance=config.relative_tolerance,
-			newton_max_iterations=config.max_iterations,
-			newton_jacobian_relative_step=config.newton_jacobian_relative_step,
-			nonlinear_solver=variant.nonlinear_solver,
-			progress=config.progress,
-		)
-	if variant.method_name == "BM4Implicit2":
-		return BM4Implicit2(
+	if variant.method_name == "BM4Implicit":
+		return BM4Implicit(
 			coupling_frequency=config.coupling_frequency,
 			newton_absolute_tolerance=config.absolute_tolerance,
 			newton_relative_tolerance=config.relative_tolerance,
@@ -263,7 +246,7 @@ def _method_for_variant(
 
 @dataclass(frozen=True, slots=True)
 class TenMethodTrajectoryComparisonResult:
-	"""Ten aligned solutions with trajectory, runtime, and solver summaries."""
+	"""Seven aligned solutions with trajectory, runtime, and solver summaries."""
 
 	potential: Potential
 	dynamics: GuidingCenterDynamics
@@ -283,7 +266,7 @@ class TenMethodTrajectoryComparisonResult:
 		if not isinstance(self.config, TenMethodTrajectoryComparisonConfig):
 			raise TypeError("`config` must be a TenMethodTrajectoryComparisonConfig.")
 		if tuple(self.solutions) != TEN_METHOD_LABELS:
-			raise ValueError("The comparison must contain all ten method variants.")
+			raise ValueError("The comparison must contain all seven method variants.")
 		if tuple(self.runtimes) != TEN_METHOD_LABELS:
 			raise ValueError("The comparison must contain one runtime per variant.")
 
@@ -304,7 +287,7 @@ class TenMethodTrajectoryComparisonResult:
 			if reference_times is None:
 				reference_times = candidate_times
 			elif not np.array_equal(candidate_times, reference_times):
-				raise ValueError("All ten solutions must share the saved-time grid.")
+				raise ValueError("All seven solutions must share the saved-time grid.")
 			seconds = float(self.runtimes[variant.label])
 			if not np.isfinite(seconds) or seconds <= 0.0:
 				raise ValueError("Every variant runtime must be positive and finite.")
@@ -319,7 +302,7 @@ class TenMethodTrajectoryComparisonResult:
 
 	@property
 	def implicit_solutions(self) -> Mapping[str, Solution]:
-		"""Return the eight variants with nonlinear diagnostics."""
+		"""Return the six variants with nonlinear diagnostics."""
 		return MappingProxyType(
 			{
 				variant.label: self.solutions[variant.label]
@@ -331,7 +314,7 @@ class TenMethodTrajectoryComparisonResult:
 	def trajectory_difference_summaries(
 		self,
 	) -> tuple[TenMethodTrajectoryDifferenceSummary, ...]:
-		"""Compare all 45 pairs over the periodic cell, particles, and time."""
+		"""Compare all 21 pairs over the periodic cell, particles, and time."""
 		rows: list[TenMethodTrajectoryDifferenceSummary] = []
 		period = self.potential.grid.period
 		for first_method, second_method in combinations(TEN_METHOD_LABELS, 2):
@@ -412,7 +395,7 @@ def run_ten_method_trajectory_comparison(
 	*,
 	config: TenMethodTrajectoryComparisonConfig,
 ) -> TenMethodTrajectoryComparisonResult:
-	"""Run all ten variants once on one common problem and saved-time grid."""
+	"""Run all seven variants once on one common problem and saved-time grid."""
 	if not isinstance(potential, Potential):
 		raise TypeError("`potential` must be a Potential instance.")
 	if not isinstance(initial_configuration, InitialConfiguration):

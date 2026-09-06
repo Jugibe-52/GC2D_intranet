@@ -69,7 +69,7 @@ class ThreeMethodNewtonComparisonTests(unittest.TestCase):
 		expected_methods = (
 			"ABBA4ImplicitSingleProjection",
 			"GaussLegendre4",
-			"BM4Implicit1",
+			"BM4Implicit",
 		)
 		self.assertEqual(THREE_METHOD_NEWTON_METHODS, expected_methods)
 		self.assertNotIn("HBVM42", THREE_METHOD_NEWTON_METHODS)

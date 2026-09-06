@@ -16,8 +16,6 @@ from simulation import (
 	ABBA2Implicit,
 	ABBA4Implicit,
 	ABBA4ImplicitSingleProjection,
-	BM4Implicit2,
-	BM4_implicit2,
 	FullyExtendedImplicitIntegrationStep,
 	InitialValueProblem,
 	SimulationRequest,
@@ -57,11 +55,9 @@ def _problem() -> tuple[Potential, GCInitialConfiguration, InitialValueProblem]:
 class FullyExtendedImplicitMethodTests(unittest.TestCase):
 	"""Verify the full state, diagonal projection, and public identifiers."""
 
-	def test_canonical_abba_names_do_not_replace_historical_bm4_formulation(self) -> None:
+	def test_canonical_abba_names_are_stable(self) -> None:
 		self.assertEqual(ABBA2Implicit.__name__, "ABBA2Implicit")
 		self.assertEqual(ABBA4Implicit.__name__, "ABBA4Implicit")
-		self.assertEqual(BM4_implicit2.__name__, "BM4_implicit2")
-		self.assertIsNot(BM4_implicit2, BM4Implicit2)
 
 	def test_one_step_projects_all_four_extended_coordinates(self) -> None:
 		_, _, problem = _problem()
@@ -209,7 +205,7 @@ class FullyExtendedImplicitMethodTests(unittest.TestCase):
 class FullyExtendedImplicitStudyTests(unittest.TestCase):
 	"""Verify energy orders, both symplecticity spaces, and plots."""
 
-	def test_three_methods_return_expected_short_refinements(self) -> None:
+	def test_two_methods_return_expected_short_refinements(self) -> None:
 		potential, configuration, _ = _problem()
 		config = FullyExtendedImplicitConfig(
 			steps=(0.1, 0.05),

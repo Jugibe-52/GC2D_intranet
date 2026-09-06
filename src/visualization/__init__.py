@@ -24,10 +24,6 @@ from .abba_reversibility import (
 	plot_implicit_abba_reversibility_diagnostics,
 	plot_implicit_abba_transport_components,
 )
-from .bm4_midpoint_symplecticity import (
-	plot_midpoint_bm4_symplecticity,
-	plot_midpoint_bm4_trajectories,
-)
 from .gc_area import (
 	animate_gc_area,
 	animate_gc_area_comparison,
@@ -88,10 +84,6 @@ from .particles import (
 	animate_gc_particle_trajectories,
 )
 from .potential import animate_potential, plot_potential
-from .projected_bm4_symplecticity import (
-	plot_projected_bm4_symplecticity_convergence,
-	plot_projected_bm4_symplecticity_diagnostics,
-)
 from .trajectory_symplecticity import (
 	TrajectorySymplecticityRecordView,
 	plot_gc_trajectory_points,
@@ -109,9 +101,11 @@ from .ten_method_comparison import (
 from .trajectory_accuracy import (
 	AccuracySeriesView,
 	AccuracySummaryView,
+	RuntimeSummaryView,
 	StepAccuracySummaryView,
 	plot_accuracy_summary,
 	plot_accuracy_runtime_tradeoff,
+	plot_runtime_comparison,
 	plot_reference_trajectory_points,
 	plot_single_method_accuracy_refinement,
 	plot_ten_method_accuracy_over_time,
@@ -132,6 +126,7 @@ __all__ = [
 	"GAUSS_BM4_COLORS",
 	"AccuracySeriesView",
 	"AccuracySummaryView",
+	"RuntimeSummaryView",
 	"ABBA4_PROJECTION_COLORS",
 	"ABBA4ProjectionOrderView",
 	"ABBA4ProjectionSummaryView",
@@ -201,16 +196,13 @@ __all__ = [
 	"plot_reduced_time_extended_symplecticity",
 	"plot_accuracy_summary",
 	"plot_accuracy_runtime_tradeoff",
+	"plot_runtime_comparison",
 	"plot_abba4_projection_accuracy",
 	"plot_abba4_projection_multiplier_scaling",
 	"plot_abba4_projection_newton_work",
 	"plot_abba4_projection_order_reduction",
 	"plot_abba4_projection_runtime",
-	"plot_midpoint_bm4_symplecticity",
-	"plot_midpoint_bm4_trajectories",
 	"plot_potential",
-	"plot_projected_bm4_symplecticity_convergence",
-	"plot_projected_bm4_symplecticity_diagnostics",
 	"plot_reference_trajectory_points",
 	"plot_single_method_accuracy_refinement",
 	"plot_trajectory_symplecticity",

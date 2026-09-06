@@ -1,0 +1,659 @@
+"""Hairer symmetric projection around one complete BM4 composition step."""
+
+from __future__ import annotations
+
+from collections.abc import Callable
+from dataclasses import dataclass
+from typing import Literal, TypeAlias
+
+import numpy as np
+
+from dynamics import GuidingCenterDynamics
+
+from ..._fixed import integrate_fixed_grid
+from ..._result import IntegrationData
+from ...formulations import GCExtendedFormulation, gc_coupling_matrix
+from ...formulations.base import PreparedDirectAdjointFormulation
+from ...observation import ImplicitBM4IntegrationStep, IntegrationStage, StepObserver
+from ...problem import InitialValueProblem
+from ...request import SimulationRequest
+from .._nonlinear import (
+	NonlinearSolver,
+	_solve_broyden,
+	_validate_nonlinear_solver,
+)
+from ._core import _BM4_ORDERS, _BM4_STAGES, _advance_composition
+
+
+NewtonJacobianMethod: TypeAlias = Literal["analytic", "finite_difference"]
+NEWTON_JACOBIAN_METHODS: tuple[NewtonJacobianMethod, ...] = (
+	"analytic",
+	"finite_difference",
+)
+
+
+@dataclass(frozen=True, slots=True)
+class _ProjectedBM4Step:
+	"""Converged physical state and nonlinear diagnostics for one BM4 step."""
+
+	state: np.ndarray
+	multiplier: np.ndarray
+	internal_input: np.ndarray
+	mapped: np.ndarray
+	iterations: int
+	residual_evaluations: int
+	residual_norm: float
+
+
+def _positive_finite(value: float, name: str) -> float:
+	"""Normalize a strictly positive finite parameter."""
+	if isinstance(value, (bool, np.bool_)):
+		raise ValueError(f"`{name}` must be positive and finite.")
+	result = float(value)
+	if not np.isfinite(result) or result <= 0:
+		raise ValueError(f"`{name}` must be positive and finite.")
+	return result
+
+
+def _nonnegative_finite(value: float, name: str) -> float:
+	"""Normalize a non-negative finite parameter."""
+	if isinstance(value, (bool, np.bool_)):
+		raise ValueError(f"`{name}` must be non-negative and finite.")
+	result = float(value)
+	if not np.isfinite(result) or result < 0:
+		raise ValueError(f"`{name}` must be non-negative and finite.")
+	return result
+
+
+def _positive_integer(value: int, name: str) -> int:
+	"""Normalize a strictly positive integer parameter."""
+	if (
+		isinstance(value, (bool, np.bool_))
+		or not isinstance(value, (int, np.integer))
+		or value < 1
+	):
+		raise ValueError(f"`{name}` must be a positive integer.")
+	return int(value)
+
+
+def _bm4_map(
+	prepared: PreparedDirectAdjointFormulation,
+	t: float,
+	internal_state: np.ndarray,
+	step: float,
+) -> np.ndarray:
+	"""Apply the current twelve-stage BM4 map without stage observations."""
+	value = np.asarray(internal_state, dtype=float)
+	result = _advance_composition(
+		prepared,
+		t,
+		value,
+		step,
+		step_index=0,
+		stage_observer=None,
+		formulation_name="GCExtendedFormulation",
+		method_name="BM4",
+	)
+	if result.shape != value.shape or not np.all(np.isfinite(result)):
+		raise ValueError("The BM4 base map changed shape or became non-finite.")
+	return np.asarray(result, dtype=float)
+
+
+def _central_difference_jacobian(
+	map_state: Callable[[np.ndarray], np.ndarray],
+	state: np.ndarray,
+	*,
+	relative_step: float,
+) -> np.ndarray:
+	"""Differentiate the doubled BM4 map with centered finite differences."""
+	value = np.asarray(state, dtype=float)
+	dimension = value.size
+	jacobian = np.empty((dimension, dimension), dtype=float)
+	for column in range(dimension):
+		increment = relative_step * max(1.0, abs(float(value[column])))
+		perturbation = np.zeros_like(value)
+		perturbation[column] = increment
+		forward = np.asarray(map_state(value + perturbation), dtype=float)
+		backward = np.asarray(map_state(value - perturbation), dtype=float)
+		if forward.shape != value.shape or backward.shape != value.shape:
+			raise ValueError("The differentiated BM4 map changed the state shape.")
+		jacobian[:, column] = (forward - backward) / (2.0 * increment)
+	if not np.all(np.isfinite(jacobian)):
+		raise ValueError("The BM4 map Jacobian contains non-finite values.")
+	return jacobian
+
+
+def _projection_matrices(physical_size: int) -> tuple[np.ndarray, np.ndarray]:
+	"""Return the diagonal constraint G and normal embedding N=G^T."""
+	identity = np.eye(physical_size)
+	constraint = np.concatenate((identity, -identity), axis=1)
+	normal = np.concatenate((identity, -identity), axis=0)
+	return constraint, normal
+
+
+def _bm4_evaluation(
+	prepared: PreparedDirectAdjointFormulation,
+	t: float,
+	state: np.ndarray,
+	step: float,
+	multiplier: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray]:
+	"""Evaluate BM4 from the symmetrically displaced duplicated input."""
+	internal_input = np.concatenate((state + multiplier, state - multiplier))
+	return internal_input, _bm4_map(prepared, t, internal_input, step)
+
+
+def _bm4_map_jacobian(
+	prepared: PreparedDirectAdjointFormulation,
+	t: float,
+	internal_input: np.ndarray,
+	step: float,
+	*,
+	relative_step: float,
+	method: NewtonJacobianMethod,
+) -> np.ndarray:
+	"""Differentiate one complete BM4 map analytically or by differences."""
+	if method == "analytic":
+		return _analytic_bm4_map_jacobian(prepared, t, internal_input, step)
+	return _central_difference_jacobian(
+		lambda candidate: _bm4_map(prepared, t, candidate, step),
+		internal_input,
+		relative_step=relative_step,
+	)
+
+
+def _particle_blocks(state: np.ndarray, particle_count: int) -> np.ndarray:
+	"""Return doubled GC states in per-particle ``(x1, y1, x2, y2)`` order."""
+	value = np.asarray(state, dtype=float)
+	expected_size = 4 * particle_count
+	if value.shape != (expected_size,):
+		raise ValueError(
+			"The analytic BM4 Jacobian requires a doubled two-dimensional GC state."
+		)
+	return np.column_stack(
+		(
+			value[:particle_count],
+			value[particle_count : 2 * particle_count],
+			value[2 * particle_count : 3 * particle_count],
+			value[3 * particle_count :],
+		)
+	)
+
+
+def _packed_physical(blocks: np.ndarray, offset: int) -> np.ndarray:
+	"""Pack one two-coordinate copy from per-particle doubled blocks."""
+	return np.concatenate((blocks[:, offset], blocks[:, offset + 1]))
+
+
+def _batched_identity(particle_count: int) -> np.ndarray:
+	"""Return a writable batch of four-dimensional identity matrices."""
+	return np.broadcast_to(np.eye(4), (particle_count, 4, 4)).copy()
+
+
+def _direct_stage_particle_jacobians(
+	dynamics: GuidingCenterDynamics,
+	state: np.ndarray,
+	*,
+	duration: float,
+	time: float,
+	frequency: float,
+) -> np.ndarray:
+	"""Return exact per-particle Jacobians of one prepared direct GC map."""
+	particle_count = int(state.shape[0])
+	first = _packed_physical(state, 0)
+	second = _packed_physical(state, 2)
+	first_jacobians = np.asarray(
+		dynamics.particle_vector_field_jacobians(time, first),
+		dtype=float,
+	)
+	updated_second = second + duration * np.asarray(
+		dynamics.vector_field(time, first), dtype=float
+	)
+	second_jacobians = np.asarray(
+		dynamics.particle_vector_field_jacobians(time, updated_second),
+		dtype=float,
+	)
+	second_shear = _batched_identity(particle_count)
+	second_shear[:, 2:, :2] = duration * first_jacobians
+	first_shear = _batched_identity(particle_count)
+	first_shear[:, :2, 2:] = duration * second_jacobians
+	coupling = gc_coupling_matrix(duration, frequency)
+	return np.asarray(coupling @ first_shear @ second_shear)
+
+
+def _adjoint_stage_particle_jacobians(
+	dynamics: GuidingCenterDynamics,
+	state: np.ndarray,
+	*,
+	duration: float,
+	time: float,
+	frequency: float,
+) -> np.ndarray:
+	"""Return exact per-particle Jacobians of one prepared adjoint GC map."""
+	particle_count = int(state.shape[0])
+	coupling = gc_coupling_matrix(duration, frequency)
+	coupled = np.asarray(state @ coupling.T)
+	first = _packed_physical(coupled, 0)
+	second = _packed_physical(coupled, 2)
+	second_jacobians = np.asarray(
+		dynamics.particle_vector_field_jacobians(time, second),
+		dtype=float,
+	)
+	updated_first = first + duration * np.asarray(
+		dynamics.vector_field(time, second), dtype=float
+	)
+	first_jacobians = np.asarray(
+		dynamics.particle_vector_field_jacobians(time, updated_first),
+		dtype=float,
+	)
+	first_shear = _batched_identity(particle_count)
+	first_shear[:, :2, 2:] = duration * second_jacobians
+	second_shear = _batched_identity(particle_count)
+	second_shear[:, 2:, :2] = duration * first_jacobians
+	return np.asarray(second_shear @ first_shear @ coupling)
+
+
+def _packed_particle_jacobians(jacobians: np.ndarray) -> np.ndarray:
+	"""Assemble independent four-dimensional particle blocks in packed order."""
+	particle_count = int(jacobians.shape[0])
+	result = np.zeros((4 * particle_count, 4 * particle_count), dtype=float)
+	for particle_index in range(particle_count):
+		indices = np.asarray(
+			[
+				particle_index,
+				particle_count + particle_index,
+				2 * particle_count + particle_index,
+				3 * particle_count + particle_index,
+			]
+		)
+		result[np.ix_(indices, indices)] = jacobians[particle_index]
+	return result
+
+
+def _analytic_bm4_map_jacobian(
+	prepared: PreparedDirectAdjointFormulation,
+	t: float,
+	internal_input: np.ndarray,
+	step: float,
+) -> np.ndarray:
+	"""Return the exact stage-product Jacobian for independent GC particles."""
+	dynamics = prepared.dynamics
+	if not isinstance(dynamics, GuidingCenterDynamics):
+		raise TypeError("Analytic implicit-BM4 Jacobians require GC dynamics.")
+	particle_count_value = getattr(prepared, "particle_count", None)
+	frequency_value = getattr(prepared, "coupling_frequency", None)
+	if not isinstance(particle_count_value, int) or particle_count_value < 1:
+		raise TypeError("The prepared GC formulation has no particle count.")
+	if frequency_value is None:
+		raise TypeError("The prepared GC formulation has no coupling frequency.")
+	particle_count = int(particle_count_value)
+	frequency = float(frequency_value)
+	current = np.asarray(internal_input, dtype=float).copy()
+	particle_jacobian = _batched_identity(particle_count)
+	current_time = float(t)
+	for coefficient, order in zip(_BM4_STAGES, _BM4_ORDERS, strict=True):
+		duration = float(coefficient * step)
+		blocks = _particle_blocks(current, particle_count)
+		if int(order) == 0:
+			evaluation_time = current_time + duration
+			factor = _direct_stage_particle_jacobians(
+				dynamics,
+				blocks,
+				duration=duration,
+				time=evaluation_time,
+				frequency=frequency,
+			)
+			current = np.asarray(
+				prepared.direct_map(duration, evaluation_time, current),
+				dtype=float,
+			)
+		else:
+			evaluation_time = current_time
+			factor = _adjoint_stage_particle_jacobians(
+				dynamics,
+				blocks,
+				duration=duration,
+				time=evaluation_time,
+				frequency=frequency,
+			)
+			current = np.asarray(
+				prepared.adjoint_map(duration, evaluation_time, current),
+				dtype=float,
+			)
+		particle_jacobian = np.asarray(factor @ particle_jacobian)
+		current_time += duration
+	if not np.all(np.isfinite(particle_jacobian)):
+		raise ValueError("The analytic BM4 map Jacobian contains non-finite values.")
+	return _packed_particle_jacobians(particle_jacobian)
+
+
+def _solve_reduced_projected_bm4_step(
+	prepared: PreparedDirectAdjointFormulation,
+	t: float,
+	state: np.ndarray,
+	step: float,
+	*,
+	absolute_tolerance: float,
+	relative_tolerance: float,
+	max_iterations: int,
+	jacobian_relative_step: float,
+	jacobian_method: NewtonJacobianMethod,
+	nonlinear_solver: NonlinearSolver = "newton",
+) -> _ProjectedBM4Step:
+	"""Solve the reduced Hairer projection equation with Newton or Broyden."""
+	value = np.asarray(state, dtype=float)
+	if value.ndim != 1 or value.size == 0 or not np.all(np.isfinite(value)):
+		raise ValueError("The BM4 physical state must be a finite, non-empty vector.")
+	physical_size = value.size
+	constraint, normal = _projection_matrices(physical_size)
+	multiplier = np.zeros_like(value)
+	state_scale = max(1.0, float(np.linalg.norm(value, ord=np.inf)))
+	threshold = absolute_tolerance + relative_tolerance * state_scale
+	if nonlinear_solver == "broyden":
+		def residual_function(
+			candidate: np.ndarray,
+		) -> tuple[np.ndarray, tuple[np.ndarray, np.ndarray]]:
+			"""Evaluate the reduced projected-BM4 residual at one multiplier."""
+			_, mapped = _bm4_evaluation(
+				prepared,
+				t,
+				value,
+				step,
+				candidate,
+			)
+			return constraint @ mapped + 2.0 * candidate, (mapped, candidate)
+
+		result = _solve_broyden(
+			residual_function,
+			multiplier,
+			4.0 * np.eye(physical_size),
+			tolerance=threshold,
+			max_iterations=max_iterations,
+			context=(
+				"BM4Implicit at "
+				f"t={t:.16g} with step={step:.16g}"
+			),
+		)
+		mapped, multiplier = result.payload
+		corrected = mapped + normal @ multiplier
+		projected_state = (
+			corrected[:physical_size] + corrected[physical_size:]
+		) / 2.0
+		return _ProjectedBM4Step(
+			state=np.asarray(projected_state),
+			multiplier=multiplier.copy(),
+			internal_input=np.concatenate((value + multiplier, value - multiplier)),
+			mapped=np.asarray(mapped).copy(),
+			iterations=result.iterations,
+			residual_evaluations=result.residual_evaluations,
+			residual_norm=float(np.linalg.norm(result.residual, ord=np.inf)),
+		)
+	if nonlinear_solver != "newton":
+		raise ValueError("Unknown nonlinear solver for implicit BM4.")
+
+	for iteration in range(max_iterations + 1):
+		internal_input, mapped = _bm4_evaluation(
+			prepared,
+			t,
+			value,
+			step,
+			multiplier,
+		)
+		residual = constraint @ mapped + 2.0 * multiplier
+		residual_norm = float(np.linalg.norm(residual, ord=np.inf))
+		if residual_norm <= threshold:
+			corrected = mapped + normal @ multiplier
+			projected_state = (
+				corrected[:physical_size] + corrected[physical_size:]
+			) / 2.0
+			return _ProjectedBM4Step(
+				state=np.asarray(projected_state),
+				multiplier=multiplier.copy(),
+				internal_input=np.asarray(internal_input).copy(),
+				mapped=np.asarray(mapped).copy(),
+				iterations=iteration,
+				residual_evaluations=iteration + 1,
+				residual_norm=residual_norm,
+			)
+		if iteration == max_iterations:
+			break
+		base_jacobian = _bm4_map_jacobian(
+			prepared,
+			t,
+			internal_input,
+			step,
+			relative_step=jacobian_relative_step,
+			method=jacobian_method,
+		)
+		residual_jacobian = (
+			constraint @ base_jacobian @ normal + 2.0 * np.eye(physical_size)
+		)
+		try:
+			correction = np.linalg.solve(residual_jacobian, residual)
+		except np.linalg.LinAlgError as exc:
+			raise RuntimeError(
+				"The reduced BM4 projection Jacobian is singular at "
+				f"t={t:.16g} with step={step:.16g}."
+			) from exc
+		multiplier = multiplier - correction
+
+	raise RuntimeError(
+		"BM4Implicit did not converge at "
+		f"t={t:.16g} with step={step:.16g}: residual norm "
+		f"{residual_norm:.3e} exceeds {threshold:.3e} after "
+		f"{max_iterations} Newton iterations."
+	)
+
+
+def _integrate_implicit_bm4(
+	method: BM4Implicit,
+	problem: InitialValueProblem,
+	request: SimulationRequest,
+) -> IntegrationData:
+	"""Integrate physical states with one reduced projection per complete BM4 cycle."""
+	prepared = GCExtendedFormulation(
+		coupling_frequency=method.coupling_frequency
+	).prepare(problem, track_energy=False)
+	iteration_counts: list[int] = []
+	residual_evaluation_counts: list[int] = []
+	residual_norms: list[float] = []
+	tolerance_values: list[float] = []
+	multiplier_norms: list[float] = []
+
+	def advance(
+		t: float,
+		state: np.ndarray,
+		step: float,
+		step_index: int,
+		observe: bool,
+	) -> np.ndarray:
+		def apply_step(candidate: np.ndarray) -> np.ndarray:
+			return _solve_reduced_projected_bm4_step(
+				prepared,
+				t,
+				candidate,
+				step,
+				absolute_tolerance=method.newton_absolute_tolerance,
+				relative_tolerance=method.newton_relative_tolerance,
+				max_iterations=method.newton_max_iterations,
+				jacobian_relative_step=method.newton_jacobian_relative_step,
+				jacobian_method=method.newton_jacobian_method,
+				nonlinear_solver=method.nonlinear_solver,
+			).state
+
+		state_before = np.asarray(state, dtype=float)
+		result = _solve_reduced_projected_bm4_step(
+			prepared,
+			t,
+			state_before,
+			step,
+			absolute_tolerance=method.newton_absolute_tolerance,
+			relative_tolerance=method.newton_relative_tolerance,
+			max_iterations=method.newton_max_iterations,
+			jacobian_relative_step=method.newton_jacobian_relative_step,
+			jacobian_method=method.newton_jacobian_method,
+			nonlinear_solver=method.nonlinear_solver,
+		)
+		if observe:
+			state_scale = max(1.0, float(np.linalg.norm(state_before, ord=np.inf)))
+			newton_tolerance = (
+				method.newton_absolute_tolerance
+				+ method.newton_relative_tolerance * state_scale
+			)
+			multiplier_norm = float(
+				np.linalg.norm(result.multiplier, ord=np.inf)
+			)
+			iteration_counts.append(result.iterations)
+			residual_evaluation_counts.append(result.residual_evaluations)
+			residual_norms.append(result.residual_norm)
+			tolerance_values.append(newton_tolerance)
+			multiplier_norms.append(multiplier_norm)
+			if method.step_observer is not None:
+				base_stages: list[IntegrationStage] = []
+				observed_mapped = _advance_composition(
+					prepared,
+					t,
+					result.internal_input,
+					step,
+					step_index=step_index,
+					stage_observer=base_stages.append,
+					formulation_name="GCExtendedFormulation",
+					method_name=type(method).__name__,
+				)
+				if not np.array_equal(observed_mapped, result.mapped):
+					raise RuntimeError(
+						"The observed BM4 base cycle differs from the converged map."
+					)
+				method.step_observer(
+					ImplicitBM4IntegrationStep(
+						dynamics_name=prepared.dynamics_name,
+						method_name=type(method).__name__,
+						step_index=step_index,
+						start_time=t,
+						time=t + step,
+						duration=step,
+						state_before=state_before.copy(),
+						state_after=result.state.copy(),
+						map_state=apply_step,
+						dynamics=prepared.dynamics,
+						formulation_name="bm4_implicit_reduced",
+						nonlinear_solver=method.nonlinear_solver,
+						newton_iterations=result.iterations,
+						residual_evaluations=result.residual_evaluations,
+						newton_residual_norm=result.residual_norm,
+						newton_tolerance=newton_tolerance,
+						projection_multiplier_norm=multiplier_norm,
+						coupling_frequency=method.coupling_frequency,
+						multiplier=result.multiplier.copy(),
+						base_stages=tuple(base_stages),
+					)
+				)
+		return result.state
+
+	history, step_count = integrate_fixed_grid(
+		problem.initial_state,
+		request,
+		advance,
+		progress=method.progress,
+		label=type(method).__name__,
+	)
+	diagnostics: dict[str, np.ndarray | float | int | str | bool] = {
+		"step_count": step_count,
+		"nonlinear_solver": method.nonlinear_solver,
+		"nonlinear_iterations": np.asarray(iteration_counts, dtype=int),
+		"residual_evaluations": np.asarray(
+			residual_evaluation_counts, dtype=int
+		),
+		"nonlinear_residual_norms": np.asarray(residual_norms, dtype=float),
+		"nonlinear_tolerances": np.asarray(tolerance_values, dtype=float),
+		"nonlinear_absolute_tolerance": method.newton_absolute_tolerance,
+		"nonlinear_relative_tolerance": method.newton_relative_tolerance,
+		"nonlinear_max_iterations": method.newton_max_iterations,
+		"newton_iterations": np.asarray(iteration_counts, dtype=int),
+		"newton_residual_norms": np.asarray(residual_norms, dtype=float),
+		"projection_multiplier_norms": np.asarray(multiplier_norms, dtype=float),
+		"newton_absolute_tolerance": method.newton_absolute_tolerance,
+		"newton_relative_tolerance": method.newton_relative_tolerance,
+		"newton_max_iterations": method.newton_max_iterations,
+		"newton_jacobian_relative_step": method.newton_jacobian_relative_step,
+		"newton_jacobian_method": method.newton_jacobian_method,
+		"coupling_frequency": method.coupling_frequency,
+		"projection_solver_formulation": "bm4_implicit_reduced",
+	}
+	return IntegrationData(
+		t=request.output_times,
+		states=np.asarray(history),
+		diagnostics=diagnostics,
+	)
+
+
+@dataclass(frozen=True, slots=True)
+class BM4Implicit:
+	"""Physical BM4 with one reduced Hairer projection per complete cycle."""
+
+	coupling_frequency: float = np.pi / 8
+	newton_absolute_tolerance: float = 1e-13
+	newton_relative_tolerance: float = 1e-12
+	newton_max_iterations: int = 12
+	newton_jacobian_relative_step: float = float(np.cbrt(np.finfo(float).eps))
+	newton_jacobian_method: NewtonJacobianMethod = "analytic"
+	nonlinear_solver: NonlinearSolver = "newton"
+	progress: bool = False
+	step_observer: StepObserver | None = None
+
+	def __post_init__(self) -> None:
+		"""Validate coupling and nonlinear-solver controls."""
+		object.__setattr__(
+			self,
+			"coupling_frequency",
+			_nonnegative_finite(self.coupling_frequency, "coupling_frequency"),
+		)
+		object.__setattr__(
+			self,
+			"newton_absolute_tolerance",
+			_positive_finite(
+				self.newton_absolute_tolerance,
+				"newton_absolute_tolerance",
+			),
+		)
+		object.__setattr__(
+			self,
+			"newton_relative_tolerance",
+			_positive_finite(
+				self.newton_relative_tolerance,
+				"newton_relative_tolerance",
+			),
+		)
+		object.__setattr__(
+			self,
+			"newton_max_iterations",
+			_positive_integer(self.newton_max_iterations, "newton_max_iterations"),
+		)
+		object.__setattr__(
+			self,
+			"newton_jacobian_relative_step",
+			_positive_finite(
+				self.newton_jacobian_relative_step,
+				"newton_jacobian_relative_step",
+			),
+		)
+		if self.newton_jacobian_method not in NEWTON_JACOBIAN_METHODS:
+			raise ValueError(
+				"`newton_jacobian_method` must be 'analytic' or 'finite_difference'."
+			)
+		object.__setattr__(
+			self,
+			"nonlinear_solver",
+			_validate_nonlinear_solver(self.nonlinear_solver),
+		)
+
+	def integrate(
+		self,
+		problem: InitialValueProblem,
+		request: SimulationRequest,
+	) -> IntegrationData:
+		"""Integrate one GC problem with the selected projected BM4 solve."""
+		return _integrate_implicit_bm4(self, problem, request)
+
+
+__all__ = ["BM4Implicit"]

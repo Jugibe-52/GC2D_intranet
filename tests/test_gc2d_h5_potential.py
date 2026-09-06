@@ -14,7 +14,11 @@ from scipy.interpolate import RectBivariateSpline
 from diagnostics import central_difference_jacobian
 from dynamics import GuidingCenterDynamics
 from initial_conditions import GCInitialConfiguration
-from potential import GC2DH5Potential, Potential, load_gc2d_h5_potential
+from potential import (
+	GC2DH5Metadata,
+	Potential,
+	load_gc2d_h5_potential,
+)
 from simulation import ABBA4Implicit, InitialValueProblem, SimulationRequest, simulate
 from simulation.methods._fully_extended import (
 	_extended_vector_field,
@@ -91,7 +95,7 @@ def _h5_resample(
 	return _h5_interpolate(x, y, field, x_mesh, y_mesh)
 
 
-class GC2DH5PotentialTests(unittest.TestCase):
+class GC2DH5ImportTests(unittest.TestCase):
 	"""Verify GC2D HDF5 semantics against the current field contracts."""
 
 	def setUp(self) -> None:
@@ -136,23 +140,25 @@ class GC2DH5PotentialTests(unittest.TestCase):
 		length_scale = 0.06
 		normalization = 7.0 * length_scale**2 * 1.5 / (2.0 * np.pi) ** 2
 
-		self.assertAlmostEqual(potential.normalization_factor, normalization)
-		np.testing.assert_array_equal(potential.source_field_indices, [3])
-		np.testing.assert_allclose(potential.source_frequencies, [7.0])
+		self.assertIsInstance(potential.metadata, GC2DH5Metadata)
+		metadata = potential.metadata
+		assert isinstance(metadata, GC2DH5Metadata)
+		self.assertAlmostEqual(metadata.normalization_factor, normalization)
+		np.testing.assert_array_equal(metadata.source_field_indices, [3])
+		np.testing.assert_allclose(metadata.source_frequencies, [7.0])
 		np.testing.assert_allclose(potential.frequencies, [1.0])
-		self.assertEqual(potential.characteristic_length, length_scale)
-		self.assertAlmostEqual(potential.characteristic_frequency, 7.0)
-		self.assertAlmostEqual(potential.characteristic_period, 2.0 * np.pi / 7.0)
-		np.testing.assert_allclose(potential.source_x, self.x)
-		np.testing.assert_allclose(potential.source_y, self.y)
+		self.assertEqual(metadata.characteristic_length, length_scale)
+		self.assertAlmostEqual(metadata.characteristic_frequency, 7.0)
+		self.assertAlmostEqual(metadata.characteristic_period, 2.0 * np.pi / 7.0)
+		np.testing.assert_allclose(metadata.source_x, self.x)
+		np.testing.assert_allclose(metadata.source_y, self.y)
 		np.testing.assert_allclose(
-			potential.x,
+			potential.grid.x,
 			2.0 * np.pi * (self.x - self.x[0]) / length_scale,
 		)
-		np.testing.assert_allclose(potential.mean_value, self.mean / normalization)
-		assert potential.fluctuations is not None
+		np.testing.assert_allclose(potential.mean, self.mean / normalization)
 		np.testing.assert_allclose(
-			potential.fluctuations[0],
+			potential.modes[0],
 			self.high_mode / normalization,
 		)
 		query_x = np.asarray([0.41])
@@ -176,19 +182,18 @@ class GC2DH5PotentialTests(unittest.TestCase):
 			7.0 * self.characteristic_length**2 * B / (2.0 * np.pi) ** 2
 		)
 
-		self.assertIsInstance(potential, GC2DH5Potential)
 		self.assertIsInstance(potential, Potential)
-		self.assertAlmostEqual(potential.normalization_factor, normalization)
-		np.testing.assert_array_equal(potential.source_field_indices, [2, 3])
-		np.testing.assert_allclose(potential.source_frequencies, [3.0, 7.0])
+		metadata = potential.metadata
+		assert isinstance(metadata, GC2DH5Metadata)
+		self.assertAlmostEqual(metadata.normalization_factor, normalization)
+		np.testing.assert_array_equal(metadata.source_field_indices, [2, 3])
+		np.testing.assert_allclose(metadata.source_frequencies, [3.0, 7.0])
 		np.testing.assert_allclose(potential.frequencies, [3.0 / 7.0, 1.0])
-		np.testing.assert_allclose(potential.freqs, potential.frequencies)
 		# No transpose is applied: the deliberately asymmetric raw array is retained.
-		np.testing.assert_allclose(potential.mean_value, self.mean / normalization)
-		assert potential.fluctuations is not None
-		np.testing.assert_allclose(potential.fluctuations[0], self.low_mode / normalization)
-		np.testing.assert_allclose(potential.fluctuations[1], self.high_mode / normalization)
-		self.assertEqual(int(potential.attributes["shot"]), 42)
+		np.testing.assert_allclose(potential.mean, self.mean / normalization)
+		np.testing.assert_allclose(potential.modes[0], self.low_mode / normalization)
+		np.testing.assert_allclose(potential.modes[1], self.high_mode / normalization)
+		self.assertEqual(int(metadata.attributes["shot"]), 42)
 		self.assertFalse(potential.frequencies.flags.writeable)
 
 		time = 0.037
@@ -198,7 +203,6 @@ class GC2DH5PotentialTests(unittest.TestCase):
 			* np.exp(2j * np.pi * (3.0 / 7.0) * time)
 			+ self.high_mode / normalization * np.exp(2j * np.pi * time)
 		)
-		np.testing.assert_allclose(potential.dynamic_part(time), expected_dynamic)
 		np.testing.assert_allclose(
 			potential.evaluate(time),
 			self.mean / normalization + expected_dynamic,
@@ -221,14 +225,16 @@ class GC2DH5PotentialTests(unittest.TestCase):
 			/ (2.0 * np.pi) ** 2
 		)
 
-		self.assertAlmostEqual(potential.characteristic_frequency, frequency_scale)
+		metadata = potential.metadata
+		assert isinstance(metadata, GC2DH5Metadata)
+		self.assertAlmostEqual(metadata.characteristic_frequency, frequency_scale)
 		self.assertAlmostEqual(
-			potential.characteristic_period,
+			metadata.characteristic_period,
 			2.0 * np.pi / frequency_scale,
 		)
-		self.assertAlmostEqual(potential.normalization_factor, normalization)
+		self.assertAlmostEqual(metadata.normalization_factor, normalization)
 		np.testing.assert_allclose(potential.frequencies, [0.5])
-		np.testing.assert_allclose(potential.mean_value, self.mean / normalization)
+		np.testing.assert_allclose(potential.mean, self.mean / normalization)
 
 	def test_explicit_frequency_normalizes_a_mean_only_file(self) -> None:
 		"""Use the requested article scales even when no oscillatory mode is stored."""
@@ -252,9 +258,11 @@ class GC2DH5PotentialTests(unittest.TestCase):
 			5.0 * self.characteristic_length**2 * 2.0 / (2.0 * np.pi) ** 2
 		)
 
-		self.assertAlmostEqual(potential.normalization_factor, normalization)
-		self.assertAlmostEqual(potential.characteristic_period, 2.0 * np.pi / 5.0)
-		np.testing.assert_allclose(potential.mean_value, self.mean / normalization)
+		metadata = potential.metadata
+		assert isinstance(metadata, GC2DH5Metadata)
+		self.assertAlmostEqual(metadata.normalization_factor, normalization)
+		self.assertAlmostEqual(metadata.characteristic_period, 2.0 * np.pi / 5.0)
+		np.testing.assert_allclose(potential.mean, self.mean / normalization)
 		self.assertEqual(potential.frequencies.size, 0)
 
 	def test_denoising_and_resampling_match_both_hdf5_interpolation_stages(self) -> None:
@@ -293,27 +301,26 @@ class GC2DH5PotentialTests(unittest.TestCase):
 		)
 
 		expected_axis = 2.0 * np.pi * np.arange(8) / 8
-		np.testing.assert_allclose(potential.x, expected_axis)
-		np.testing.assert_allclose(potential.y, expected_axis)
-		np.testing.assert_allclose(potential.mean_value, expected_mean)
-		assert potential.fluctuations is not None
-		np.testing.assert_allclose(potential.fluctuations[0], expected_mode)
+		np.testing.assert_allclose(potential.grid.x, expected_axis)
+		np.testing.assert_allclose(potential.grid.y, expected_axis)
+		np.testing.assert_allclose(potential.mean, expected_mean)
+		np.testing.assert_allclose(potential.modes[0], expected_mode)
 
 		# Runtime evaluation is the second periodic interpolation stage.
-		query_x = np.asarray([potential.x[2] + 0.01])
-		query_y = np.asarray([potential.y[4] - 0.008])
+		query_x = np.asarray([potential.grid.x[2] + 0.01])
+		query_y = np.asarray([potential.grid.y[4] - 0.008])
 		time = 0.013
 		expected = _h5_interpolate(
-			potential.x,
-			potential.y,
+			potential.grid.x,
+			potential.grid.y,
 			expected_mean.astype(np.complex128),
 			query_x,
 			query_y,
 		).real
 		expected += 2.0 * np.real(
 			_h5_interpolate(
-				potential.x,
-				potential.y,
+				potential.grid.x,
+				potential.grid.y,
 				expected_mode,
 				query_x,
 				query_y,
@@ -331,29 +338,31 @@ class GC2DH5PotentialTests(unittest.TestCase):
 			indx=(0, 1),
 			interpolation_order=3,
 		)
-		assert potential.mean_value is not None
-		assert potential.fluctuations is not None
 		frequency = float(potential.frequencies[0])
 		time = 0.021
 		period = potential.grid.period
-		query_x = np.asarray([potential.x[2] + 0.013, potential.x[-1] + 1.0])
-		query_y = np.asarray([potential.y[3] - 0.009, potential.y[0] - 1.0])
-		wrapped_x = (query_x - potential.x[0]) % period + potential.x[0]
-		wrapped_y = (query_y - potential.y[0]) % period + potential.y[0]
+		query_x = np.asarray(
+			[potential.grid.x[2] + 0.013, potential.grid.x[-1] + 1.0]
+		)
+		query_y = np.asarray(
+			[potential.grid.y[3] - 0.009, potential.grid.y[0] - 1.0]
+		)
+		wrapped_x = (query_x - potential.grid.x[0]) % period + potential.grid.x[0]
+		wrapped_y = (query_y - potential.grid.y[0]) % period + potential.grid.y[0]
 		for dx, dy in ((1, 0), (0, 1), (2, 0), (1, 1), (0, 2)):
 			mean = _h5_interpolate(
-				potential.x,
-				potential.y,
-				potential.mean_value.astype(np.complex128),
+				potential.grid.x,
+				potential.grid.y,
+				potential.mean.astype(np.complex128),
 				wrapped_x,
 				wrapped_y,
 				dx=dx,
 				dy=dy,
 			).real
 			mode = _h5_interpolate(
-				potential.x,
-				potential.y,
-				potential.fluctuations[0],
+				potential.grid.x,
+				potential.grid.y,
+				potential.modes[0],
 				wrapped_x,
 				wrapped_y,
 				dx=dx,
@@ -369,20 +378,20 @@ class GC2DH5PotentialTests(unittest.TestCase):
 			)
 
 		# Independent grid samples retain their direct spline derivatives.
-		endpoint_x = np.asarray((potential.x[0], potential.x[-1]))
-		endpoint_y = np.full(2, potential.y[3] - 0.009)
+		endpoint_x = np.asarray((potential.grid.x[0], potential.grid.x[-1]))
+		endpoint_y = np.full(2, potential.grid.y[3] - 0.009)
 		endpoint_mean_x = _h5_interpolate(
-			potential.x,
-			potential.y,
-			potential.mean_value.astype(np.complex128),
+			potential.grid.x,
+			potential.grid.y,
+			potential.mean.astype(np.complex128),
 			endpoint_x,
 			endpoint_y,
 			dx=1,
 		).real
 		endpoint_mode_x = _h5_interpolate(
-			potential.x,
-			potential.y,
-			potential.fluctuations[0],
+			potential.grid.x,
+			potential.grid.y,
+			potential.modes[0],
 			endpoint_x,
 			endpoint_y,
 			dx=1,
@@ -396,9 +405,9 @@ class GC2DH5PotentialTests(unittest.TestCase):
 		)
 
 		mode = _h5_interpolate(
-			potential.x,
-			potential.y,
-			potential.fluctuations[0],
+			potential.grid.x,
+			potential.grid.y,
+			potential.modes[0],
 			wrapped_x,
 			wrapped_y,
 		)
@@ -428,9 +437,15 @@ class GC2DH5PotentialTests(unittest.TestCase):
 		time = 0.029
 		period = potential.grid.period
 		states = (
-			np.asarray((potential.x[-1] + 0.2, potential.y[3] - 0.007)),
-			np.asarray((potential.x[2] + 0.011, potential.y[0] - 0.2)),
-			np.asarray((potential.x[-1] + 0.2, potential.y[0] - 0.2)),
+			np.asarray(
+				(potential.grid.x[-1] + 0.2, potential.grid.y[3] - 0.007)
+			),
+			np.asarray(
+				(potential.grid.x[2] + 0.011, potential.grid.y[0] - 0.2)
+			),
+			np.asarray(
+				(potential.grid.x[-1] + 0.2, potential.grid.y[0] - 0.2)
+			),
 		)
 		for state in states:
 			with self.subTest(state=state):
@@ -461,20 +476,18 @@ class GC2DH5PotentialTests(unittest.TestCase):
 			indx=(0, 2, 1),
 			interpolation_order=3,
 		)
-		assert potential.mean_value is not None
-		assert potential.fluctuations is not None
 		time = 0.037
-		query_x = np.asarray([potential.x[2] + 0.013])
-		query_y = np.asarray([potential.y[3] - 0.009])
+		query_x = np.asarray([potential.grid.x[2] + 0.013])
+		query_y = np.asarray([potential.grid.y[3] - 0.009])
 		expected_second = np.zeros_like(query_x)
 		for field, frequency in zip(
-			potential.fluctuations,
+			potential.modes,
 			potential.frequencies,
 			strict=True,
 		):
 			mode = _h5_interpolate(
-				potential.x,
-				potential.y,
+				potential.grid.x,
+				potential.grid.y,
 				field,
 				query_x,
 				query_y,
@@ -514,10 +527,15 @@ class GC2DH5PotentialTests(unittest.TestCase):
 		)
 		self.assertIs(potential.gyroaverage(0.0), potential)
 		averaged = potential.gyroaverage(0.01)
-		self.assertIsInstance(averaged, GC2DH5Potential)
+		self.assertIsInstance(averaged, Potential)
+		self.assertIs(averaged.metadata, potential.metadata)
+		averaged_metadata = averaged.metadata
+		potential_metadata = potential.metadata
+		assert isinstance(averaged_metadata, GC2DH5Metadata)
+		assert isinstance(potential_metadata, GC2DH5Metadata)
 		self.assertEqual(
-			averaged.characteristic_frequency,
-			potential.characteristic_frequency,
+			averaged_metadata.characteristic_frequency,
+			potential_metadata.characteristic_frequency,
 		)
 		self.assertTrue(np.all(np.isfinite(averaged.evaluate(0.02))))
 

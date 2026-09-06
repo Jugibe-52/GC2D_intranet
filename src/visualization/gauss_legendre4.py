@@ -13,7 +13,7 @@ from matplotlib.figure import Figure
 
 GAUSS_BM4_COLORS: Mapping[str, str] = {
 	"GaussLegendre4": "tab:blue",
-	"BM4Implicit1": "tab:orange",
+	"BM4Implicit": "tab:orange",
 }
 
 

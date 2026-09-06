@@ -112,6 +112,22 @@ def _dense(blocks: np.ndarray) -> np.ndarray:
 class ABBA4ImplicitMethodTests(unittest.TestCase):
 	"""Verify signed composition, designed order, reversibility, and tangent."""
 
+	def test_projection_placement_is_validated_at_configuration_time(self) -> None:
+		self.assertEqual(
+			ABBA4Implicit().projection_placement,
+			"after_each_abba_map",
+		)
+		self.assertEqual(
+			ABBA4Implicit(
+				projection_placement="around_complete_composition",
+			).projection_placement,
+			"around_complete_composition",
+		)
+		with self.assertRaisesRegex(ValueError, "projection_placement"):
+			ABBA4Implicit(
+				projection_placement="unknown",  # type: ignore[arg-type]
+			)
+
 	def test_observation_contains_three_continuous_signed_substeps(self) -> None:
 		self.assertLess(_ABBA4_COEFFICIENTS[1], 0.0)
 		self.assertAlmostEqual(float(np.sum(_ABBA4_COEFFICIENTS)), 1.0)
@@ -165,6 +181,10 @@ class ABBA4ImplicitMethodTests(unittest.TestCase):
 			atol=2e-15,
 		)
 		self.assertEqual(solution.diagnostics["nonlinear_solves_per_step"], 3)
+		self.assertEqual(
+			solution.diagnostics["projection_placement"],
+			"after_each_abba_map",
+		)
 		self.assertEqual(
 			solution.diagnostics["substep_nonlinear_iterations"].shape,
 			(2, 3),

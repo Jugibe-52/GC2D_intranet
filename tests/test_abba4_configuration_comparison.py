@@ -17,7 +17,7 @@ import studies.abba4_configuration_comparison as comparison_module
 from diagnostics import ReferenceTrajectoryPaths, StoredReferenceTrajectory
 from dynamics import GuidingCenterDynamics
 from initial_conditions import GCInitialConfiguration
-from potential import GC2DH5Potential, Potential
+from potential import GC2DH5Metadata, Grid, Potential
 from studies.abba4_configuration_comparison import (
 	ABBA4_CONFIGURATION_KEYS,
 	ABBA4_CONFIGURATION_PARTICLE_COUNT,
@@ -593,19 +593,26 @@ class ABBA4ConfigurationComparisonTests(unittest.TestCase):
 		"""Exercise the notebook potential snapshot and parent-only progress."""
 		axis = np.arange(8, dtype=float) * (2.0 * np.pi / 8.0)
 		x_mesh, y_mesh = np.meshgrid(axis, axis, indexing="ij")
-		potential = GC2DH5Potential(
-			axis,
-			axis,
+		potential = Potential(
+			Grid.periodic(8, 8),
 			0.01 * np.cos(x_mesh) * np.cos(y_mesh),
 			np.asarray(
 				[0.002 * np.exp(1j * (x_mesh + y_mesh))],
 				dtype=np.complex128,
 			),
 			np.asarray([0.7]),
-			source_field_indices=np.asarray([1]),
-			attributes={"fixture": np.asarray("parallel-h5")},
+			metadata=GC2DH5Metadata(
+				source_field_indices=np.asarray([1]),
+				source_x=axis,
+				source_y=axis,
+				source_frequencies=np.asarray([0.7]),
+				characteristic_length=None,
+				characteristic_period=None,
+				normalization_factor=1.0,
+				attributes={"fixture": np.asarray("parallel-h5")},
+				source_path=Path("/tmp/parallel-h5-fixture.h5"),
+			),
 			interpolation_order=3,
-			source_path=Path("/tmp/parallel-h5-fixture.h5"),
 		)
 		configuration = GCInitialConfiguration.from_components(
 			x=np.asarray([1.1]),

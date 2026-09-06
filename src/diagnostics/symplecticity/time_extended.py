@@ -189,7 +189,7 @@ def _measure_symplectic_map(
 class GCTimeExtendedSymplecticityObserver:
 	"""Measure the accepted splitting before diagonal Hairer projection.
 
-	For ``ABBA2Implicit`` and ``BM4Implicit1`` one record measures the complete
+	For ``ABBA2Implicit`` and ``BM4Implicit`` one record measures the complete
 	unprojected base cycle. ``ABBA4Implicit`` projects between its three signed
 	ABBA substeps, so its record aggregates the three legitimate ``R^6`` base-map
 	measurements instead of pretending that the dimension-reducing projection is
@@ -258,7 +258,7 @@ class GCTimeExtendedSymplecticityObserver:
 		else:
 			raise TypeError(
 				"The observer supports ABBA2Implicit, ABBA4Implicit, and "
-				"BM4Implicit1 step records."
+				"BM4Implicit step records."
 			)
 
 		metrics = np.asarray(

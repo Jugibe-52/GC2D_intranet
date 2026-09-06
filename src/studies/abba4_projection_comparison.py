@@ -15,11 +15,11 @@ from initial_conditions import GCInitialConfiguration
 from potential import Potential
 from simulation import (
 	ABBA4Implicit,
-	ABBA4ImplicitSingleProjection,
 	NONLINEAR_SOLVERS,
 	InitialValueProblem,
 	NonlinearSolver,
 	NumericalMethod,
+	ProjectionPlacement,
 	SimulationRequest,
 	Solution,
 	simulate,
@@ -632,14 +632,14 @@ def _configured_method(
 	config: ABBA4ProjectionComparisonConfig,
 ) -> NumericalMethod:
 	"""Construct either projection strategy with identical nonlinear controls."""
-	method_type: type[ABBA4Implicit] | type[ABBA4ImplicitSingleProjection]
 	if method_name == "ABBA4Implicit":
-		method_type = ABBA4Implicit
+		projection_placement: ProjectionPlacement = "after_each_abba_map"
 	elif method_name == "ABBA4ImplicitSingleProjection":
-		method_type = ABBA4ImplicitSingleProjection
+		projection_placement = "around_complete_composition"
 	else:
 		raise ValueError(f"Unknown ABBA4 projection method {method_name!r}.")
-	return method_type(
+	return ABBA4Implicit(
+		projection_placement=projection_placement,
 		newton_absolute_tolerance=config.absolute_tolerance,
 		newton_relative_tolerance=config.relative_tolerance,
 		newton_max_iterations=config.max_iterations,

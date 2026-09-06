@@ -58,11 +58,6 @@ class NotebookPresentationTests(unittest.TestCase):
 		self.assertEqual(potential_parameters["t_max"].default, 1.0)
 		self.assertIsNone(potential_parameters["frames"].default)
 		self.assertEqual(potential_parameters["interval"].default, 200)
-		adapter_parameters = signature(Potential.animate).parameters
-		self.assertEqual(adapter_parameters["t_max"].default, 1.0)
-		self.assertIsNone(adapter_parameters["frames"].default)
-		self.assertEqual(adapter_parameters["interval"].default, 200)
-
 		potential = Potential.random(A=0.1, M=2, nx=8, ny=8, seed=7)
 		animation = animate_potential(potential, t_max=10.0)
 		self.assertEqual(animation._save_count, 100)
@@ -95,6 +90,24 @@ class NotebookPresentationTests(unittest.TestCase):
 
 		javascript.assert_called_once_with(default_mode="once")
 		display.assert_called_once()
+		self.assertFalse(plt.fignum_exists(figure.number))
+
+	def test_display_animation_can_emit_interactive_html_only_output(self) -> None:
+		figure = plt.figure()
+		animation = FuncAnimation(figure, lambda _frame: (), frames=(0,))
+		animation._draw_was_started = True
+		html = "<div>Interactive JavaScript animation</div>"
+
+		with (
+			patch.object(Animation, "to_jshtml", return_value=html) as javascript,
+			patch.object(Animation, "to_html5_video") as html5_video,
+			patch("IPython.display.display") as display,
+		):
+			display_animation(animation, interactive=True)
+
+		javascript.assert_called_once_with(default_mode="loop")
+		html5_video.assert_not_called()
+		display.assert_called_once_with({"text/html": html}, raw=True)
 		self.assertFalse(plt.fignum_exists(figure.number))
 
 	def test_gc_particle_animation_can_show_the_electric_field(self) -> None:

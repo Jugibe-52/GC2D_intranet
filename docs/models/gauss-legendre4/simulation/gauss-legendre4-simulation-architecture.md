@@ -136,7 +136,7 @@ The method publishes:
   adjacent deficits resolved above both the DOP853/Radau audit floor and a
   second trajectory computed with proportionally tighter Newton tolerances.
 - `notebooks/developements/gauss_legendre4_vs_bm4_accuracy_runtime.ipynb`
-  compares Gauss4 with `BM4Implicit1` using the same physical problem,
+  compares Gauss4 with `BM4Implicit` using the same physical problem,
   refinement grid, Newton tolerances, DOP853/Radau reference, and alternated
   runtime repetitions. It reports direct equal-step ratios and interpolated
   runtime ratios inside the common measured accuracy range.

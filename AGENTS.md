@@ -7,6 +7,14 @@ explicitly asks for it.
 Experiment notebooks are versioned scientific artifacts and are outside the
 supported interactive API.
 
+# Token efficiency
+
+Use the minimum context and tool work needed for a correct result. Start with
+targeted file searches, inspect only relevant sections, and avoid repository-wide
+reviews unless requested. Run the narrowest meaningful checks and do not repeat
+successful checks unless subsequent changes can affect them. Keep progress updates
+brief and final responses concise unless the user asks for detail.
+
 # Notebook study policy
 
 Keep notebooks focused on the scientific definition and interpretation of an
@@ -29,6 +37,67 @@ behavior in `src/initial_conditions/`, `src/dynamics/`, `src/potential/`, and
 `src/simulation/`; studies should compose those APIs rather than reimplement
 them. A notebook-local helper is appropriate only when its behavior is unique
 to that study and would not provide stable reusable composition.
+
+## Standard for fourth-order method comparisons
+
+Use the following protocol as the project standard for long-time comparative
+studies of fourth-order GC2D integrators. A narrower or different protocol is
+acceptable only when the scientific question requires it; document the reason
+and retain every applicable control and diagnostic below.
+
+- Compare ABBA4 with one reduced projection around the complete composition,
+  `BM4Implicit`, two-stage Gauss--Legendre, SDIRK4 S54b, and classical RK4.
+  Treat DOP853 as the accuracy reference and use an independently tighter Radau
+  integration to quantify the reference floor.
+- Give every compared method identical physical data, initial states, time
+  interval, effective step, saved times, and distance convention. Give all
+  implicit methods identical Newton tolerances and analytic guiding-centre
+  Jacobians. Keep explicit methods out of nonlinear-work statistics.
+- Use the measured, nondimensionalized GC2D potential in
+  `data/potential/V1/PHI_2.h5` with magnetic field `1.5`, characteristic length
+  `0.06`, source-field selection `(0, 1)`, and cubic interpolation unless the
+  study explicitly investigates one of those choices.
+- Use three jointly integrated trajectories: one reproducibly offset from the
+  periodic-cell center by `(0.08, -0.06)` cell widths and two spatially
+  distributed Latin-hypercube samples. Use seed `20260905` and a `0.05` domain
+  margin. Plot and tabulate the initial-condition coverage.
+- Use `rho = 0.3`, coupling frequency `pi/8`, and 200 normalized cycles with ten
+  complete steps per cycle. Save every effective step, producing 2000 steps and
+  2001 aligned states. Use minimum-image periodic distance for trajectory error.
+- Use Newton absolute tolerance `1e-12`, relative tolerance `1e-11`, at most 40
+  corrections, and a Jacobian relative step equal to the cube root of machine
+  epsilon. Configure DOP853 with relative/absolute tolerances `1e-10`/`1e-12`
+  and maximum step `0.025`; configure the Radau audit with `1e-11`/`1e-13` and
+  maximum step `0.0125`.
+- Time at least three complete integrations per method in alternating order and
+  report the median and interquartile range. Advance all trajectories together
+  in each vectorized integration, and exclude reference-generation time from
+  per-method runtime comparisons.
+- Verify method identities and structural claims in executable assertions. In
+  particular, audit all eight Runge--Kutta order conditions through order four
+  for SDIRK4 S54b, its common diagonal coefficient `1/4`, stiff accuracy, and
+  its nonzero symplecticity and adjoint-symmetry defects. Assert expected stage,
+  step, diagnostic-array, projection-formulation, and nonlinear-solver metadata.
+- Report, for every method, space-time RMS and final periodic trajectory error,
+  median runtime and quartiles, and space-time RMS and maximum absolute physical
+  Hamiltonian error relative to DOP853. Interpret the Hamiltonian diagnostic as
+  agreement with the reference energy history, not conservation, because the
+  measured potential is time dependent.
+- For implicit methods, report nonlinear solves per step, mean and maximum
+  Newton corrections per step, total corrections, mean and total residual
+  evaluations, and the maximum residual-to-tolerance ratio. For projection
+  methods, also report and plot the mean, RMS, maximum, final value, and complete
+  time history of the projection-multiplier infinity norm.
+- Include the full trajectory-error history, accuracy summary, accuracy/runtime
+  tradeoff, absolute and relative runtime comparison, per-step nonlinear work,
+  physical-energy error history, and a downsampled trajectory animation. Retain
+  all saved states; use 201 uniformly spaced animation frames at ten frames per
+  second for the standard 200-cycle run.
+- Derive conclusions from computed records rather than hard-coding them. At a
+  minimum, identify the fastest median integration, smallest space-time RMS
+  trajectory error, smallest space-time RMS physical-energy error, least total
+  Newton work, and smallest peak projection-multiplier norm, and summarize the
+  SDIRK4 and classical-RK4 long-time results explicitly.
 
 # Project language
 

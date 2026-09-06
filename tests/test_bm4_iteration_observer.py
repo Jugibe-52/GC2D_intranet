@@ -1,4 +1,4 @@
-"""Nonlinear-iteration diagnostics for projected BM4 methods."""
+"""Nonlinear-iteration diagnostics for the projected BM4 method."""
 
 from __future__ import annotations
 
@@ -17,8 +17,7 @@ from dynamics import GuidingCenterDynamics
 from initial_conditions import GCInitialConfiguration
 from potential import Potential
 from simulation import (
-	BM4Implicit1,
-	BM4Implicit2,
+	BM4Implicit,
 	InitialValueProblem,
 	SimulationRequest,
 	simulate,
@@ -49,49 +48,51 @@ def _configuration() -> GCInitialConfiguration:
 class ImplicitBM4IterationObserverTests(unittest.TestCase):
 	"""Verify projected-BM4 iteration capture, study assembly, and plots."""
 
-	def test_observer_matches_both_bm4_solution_diagnostics(self) -> None:
+	def test_observer_matches_bm4_solution_diagnostics(self) -> None:
 		request = SimulationRequest.uniform(
 			t_span=(0.0, 0.04),
 			max_step=0.02,
 			sample_count=3,
 		)
-		for method_type in (BM4Implicit1, BM4Implicit2):
-			with tempfile.TemporaryDirectory(dir="/tmp") as temporary:
-				root = Path(temporary)
-				with ImplicitBM4IterationObserver(
-					notebook_path=(
-						root / "notebooks" / "developements" / "bm4.ipynb"
+		with tempfile.TemporaryDirectory(dir="/tmp") as temporary:
+			root = Path(temporary)
+			with ImplicitBM4IterationObserver(
+				notebook_path=(
+					root / "notebooks" / "developements" / "bm4.ipynb"
+				),
+				project_root=root,
+				chunk_size=2,
+			) as observer:
+				solution = simulate(
+					InitialValueProblem(
+						GuidingCenterDynamics(_potential(), rho=0.05),
+						_configuration(),
 					),
-					project_root=root,
-					chunk_size=2,
-				) as observer:
-					solution = simulate(
-						InitialValueProblem(
-							GuidingCenterDynamics(_potential(), rho=0.05),
-							_configuration(),
-						),
-						method_type(step_observer=observer),
-						request,
-					)
-				iterations = np.asarray(
-					[record.newton_iterations for record in observer.records]
+					BM4Implicit(step_observer=observer),
+					request,
 				)
-				np.testing.assert_array_equal(
-					iterations,
-					solution.diagnostics["newton_iterations"],
+			iterations = np.asarray(
+				[record.newton_iterations for record in observer.records]
+			)
+			np.testing.assert_array_equal(
+				iterations,
+				solution.diagnostics["newton_iterations"],
+			)
+			self.assertEqual(len(observer.records), solution.n_steps)
+			self.assertEqual(len(observer.output_blocks), 1)
+			self.assertTrue(
+				all(
+					record.method_name == "BM4Implicit"
+					for record in observer.records
 				)
-				self.assertEqual(len(observer.records), solution.n_steps)
-				self.assertEqual(len(observer.output_blocks), 1)
-				self.assertTrue(
-					all(
-						record.method_name == method_type.__name__
-						for record in observer.records
-					)
-				)
+			)
+			self.assertEqual(
+				solution.diagnostics["projection_solver_formulation"],
+				"bm4_implicit_reduced",
+			)
 
 	def test_study_and_bm4_iteration_plots(self) -> None:
 		config = BM4ImplicitIterationStudyConfig(
-			formulation="implicit_2",
 			rho=0.05,
 			t_span=(0.0, 0.04),
 			max_step=0.02,
@@ -117,7 +118,7 @@ class ImplicitBM4IterationObserverTests(unittest.TestCase):
 			figure.canvas.draw()
 			plt.close(figure)
 			figure, axes = plot_implicit_bm4_iteration_comparison(
-				{"implicit_2": result.records}
+				{"BM4Implicit": result.records}
 			)
 			self.assertEqual(axes.shape, (2,))
 			figure.canvas.draw()

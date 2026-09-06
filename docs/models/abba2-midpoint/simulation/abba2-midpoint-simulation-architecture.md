@@ -6,7 +6,7 @@ diagram. Its scope is deliberately narrow: it follows
 `ABBA2Midpoint(state_extension="physical", track_energy=False)` from public
 simulation input to the returned `Solution`.
 
-The complete ABBA family, its five public classes, three normalized
+The complete ABBA family, its four public classes, three normalized
 state/energy strategies, and all 51 canonical configurations are documented in
 the authoritative
 [`Canonical ABBA numerical architecture`](../../abba/simulation/abba-numerical-architecture.md).

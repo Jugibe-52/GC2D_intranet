@@ -1,9 +1,13 @@
 # Copyright (c) 2023, Cristel Chandre
 # SPDX-License-Identifier: BSD-2-Clause
 
-"""Periodic, time-dependent electrostatic potentials and their interpolation.
+"""Periodic electrostatic potentials represented by a mean and harmonic modes.
 
-The spatial information is stored as a complex amplitude on a regular grid.
+Every potential uses the same runtime convention, independently of whether its
+fields were generated artificially or loaded from measured data:
+
+``Phi(t, x, y) = Phi_0(x, y) + 2 Re sum_j[C_j(x, y) exp(i 2*pi*f_j*t)]``.
+
 Keeping the harmonic time dependence separate makes spatial interpolation and
 gyroaveraging independent of the evaluation time.
 """
@@ -11,9 +15,7 @@ gyroaveraging independent of the evaluation time.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from collections.abc import Sequence
 from typing import Any
-import warnings
 
 import numpy as np
 from numpy.fft import fft2, fftfreq, ifft2
@@ -122,54 +124,167 @@ def _build_spline(
 	)
 
 
+def _readonly_array(values: Any, *, dtype: Any) -> np.ndarray:
+	"""Return an owned, immutable array with the requested dtype."""
+	array = np.array(values, dtype=dtype, copy=True)
+	array.setflags(write=False)
+	return array
+
+
+@dataclass(frozen=True, slots=True)
+class _ValidatedPotentialData:
+	"""Validated, immutable fields used to initialize a potential."""
+
+	mean: np.ndarray
+	modes: np.ndarray
+	frequencies: np.ndarray
+
+
+def _validated_potential_data(
+	grid: Grid,
+	mean: np.ndarray | None,
+	modes: np.ndarray | None,
+	frequencies: np.ndarray | None,
+) -> _ValidatedPotentialData:
+	"""Validate and own the mutually dependent runtime potential fields."""
+	shape = grid.shape
+	if mean is None:
+		mean_values = np.zeros(shape, dtype=float)
+	else:
+		mean_values = np.asarray(mean, dtype=float)
+		if mean_values.shape != shape:
+			raise ValueError(
+				f"The mean field shape is {mean_values.shape}; expected {shape}."
+			)
+		if not np.all(np.isfinite(mean_values)):
+			raise ValueError("The mean field must contain finite values.")
+
+	if frequencies is None:
+		frequency_values = np.empty(0, dtype=float)
+	elif not isinstance(frequencies, np.ndarray):
+		raise TypeError("`frequencies` must be a NumPy array or None.")
+	else:
+		frequency_values = np.asarray(frequencies, dtype=float)
+	if frequency_values.ndim != 1:
+		raise ValueError("`frequencies` must be one-dimensional.")
+	if not np.all(np.isfinite(frequency_values)) or np.any(frequency_values <= 0):
+		raise ValueError("`frequencies` must contain finite positive values.")
+
+	if modes is None:
+		mode_values = np.empty((0, *shape), dtype=np.complex128)
+	else:
+		mode_values = np.asarray(modes, dtype=np.complex128)
+		if mode_values.ndim != 3 or mode_values.shape[1:] != shape:
+			raise ValueError(
+				"`modes` must have shape "
+				f"(mode_count, {shape[0]}, {shape[1]})."
+			)
+		if not np.all(np.isfinite(mode_values)):
+			raise ValueError("The mode fields must contain finite values.")
+	if mode_values.shape[0] != frequency_values.size:
+		raise ValueError("The mode count must equal the frequency count.")
+
+	return _ValidatedPotentialData(
+		mean=_readonly_array(mean_values, dtype=float),
+		modes=_readonly_array(mode_values, dtype=np.complex128),
+		frequencies=_readonly_array(frequency_values, dtype=float),
+	)
+
+
+def _random_positive_frequency_mode(
+	grid: Grid,
+	*,
+	amplitude: float,
+	maximum_wave_number: int,
+	seed: int,
+) -> np.ndarray:
+	"""Generate the canonical positive-frequency mode for a random potential."""
+	wave_x, wave_y = np.meshgrid(
+		np.arange(maximum_wave_number + 1),
+		np.arange(maximum_wave_number + 1),
+		indexing="ij",
+	)
+	spectrum = np.zeros(
+		(maximum_wave_number + 1, maximum_wave_number + 1),
+		dtype=np.complex128,
+	)
+	phases = 2.0 * np.pi * np.random.default_rng(seed).random(
+		(maximum_wave_number, maximum_wave_number)
+	)
+	spectrum[1:, 1:] = (
+		amplitude
+		/ (wave_x[1:, 1:] ** 2 + wave_y[1:, 1:] ** 2) ** 1.5
+		* np.exp(1j * phases)
+	)
+	# A circular cutoff makes ``maximum_wave_number`` limit |k| without
+	# privileging diagonal spatial modes.
+	spectrum[np.hypot(wave_x, wave_y) > maximum_wave_number] = 0
+
+	mode_x, mode_y = np.indices(spectrum.shape)
+	x_mesh, y_mesh = np.meshgrid(grid.x, grid.y, indexing="ij")
+	phase = np.exp(
+		1j
+		* (
+			mode_x[:, :, None, None] * x_mesh[None, None, :, :]
+			+ mode_y[:, :, None, None] * y_mesh[None, None, :, :]
+		)
+	)
+	legacy_coefficient = np.asarray(np.einsum("nm,nm...->...", spectrum, phase))
+	# Re(C exp(-i*t)) equals 2*Re((conj(C)/2) exp(+i*2*pi*f*t)) for
+	# f=1/(2*pi), preserving the established artificial field exactly.
+	return np.asarray(0.5 * np.conjugate(legacy_coefficient))
+
+
 class Potential:
-	"""One harmonic time mode interpolated on a regular periodic grid.
+	"""Mean plus positive-frequency modes on a regular periodic grid.
 
-	For a complex spatial amplitude ``C(x, y)``, the real physical field is
-	reconstructed as ``phi(t, x, y) = 2 Re[C(x, y) exp(-i t)]``.  Its magnitude
-	therefore controls the local oscillation amplitude and its argument controls
-	the local phase.  Time is normalized so this stored harmonic has angular
-	frequency one.
-
-	The coefficient is a complex array with shape ``grid.shape == (nx, ny)``:
-	the first axis is x and the second is y.  All spatial derivatives use that
-	same axis convention.
+	``mean`` has shape ``grid.shape == (nx, ny)``. ``modes`` has
+	shape ``(mode_count, nx, ny)``, and ``frequencies`` stores one positive cycle
+	rate per mode. A missing mean is normalized to a zero array and missing modes
+	to an empty collection, giving every instance the same internal structure.
 	"""
 
 	def __init__(
 		self,
 		grid: Grid,
-		coefficient: np.ndarray,
+		mean: np.ndarray | None = None,
+		modes: np.ndarray | None = None,
+		frequencies: np.ndarray | None = None,
 		*,
+		metadata: object | None = None,
 		interpolation_order: int = 3,
 	) -> None:
-		"""Store sampled ``C(x, y)`` and prepare its periodic interpolant.
+		"""Store sampled fields and prepare their periodic interpolants.
 
 		``interpolation_order`` is the polynomial degree used independently on both
 		spatial axes.  It affects off-grid evaluations but not the stored samples.
 		"""
 		if not isinstance(grid, Grid):
 			raise TypeError("`grid` must be a Grid instance.")
-		field = np.asarray(coefficient, dtype=np.complex128)
-		if field.shape != grid.shape:
-			raise ValueError(
-				f"The coefficient shape is {field.shape}; expected {grid.shape}."
-			)
-		if not np.all(np.isfinite(field)):
-			raise ValueError("The potential coefficient must contain finite values.")
 		if (
 			isinstance(interpolation_order, (bool, np.bool_))
 			or not isinstance(interpolation_order, (int, np.integer))
 			or not 2 <= int(interpolation_order) <= 5
 		):
 			raise ValueError("`interpolation_order` must be an integer from 2 to 5.")
+		data = _validated_potential_data(
+			grid,
+			mean,
+			modes,
+			frequencies,
+		)
 		self.grid = grid
 		self.interpolation_order = int(interpolation_order)
-		self._coefficient = field.copy()
-		self._spline = _build_spline(
-			self.grid,
-			self._coefficient,
-			self.interpolation_order,
+		self.mean = data.mean
+		self.modes = data.modes
+		self.frequencies = data.frequencies
+		self.metadata = metadata
+		self._mean_spline = _build_spline(
+			self.grid, self.mean, self.interpolation_order
+		)
+		self._mode_splines = tuple(
+			_build_spline(self.grid, field, self.interpolation_order)
+			for field in self.modes
 		)
 
 	@classmethod
@@ -189,54 +304,33 @@ class Potential:
 		spatial wave number.  Each retained mode receives a reproducible random
 		phase and an amplitude that decays as ``|k|**-3``.  ``nx`` and ``ny`` are
 		the numbers of physical-space samples; they determine the returned
-		coefficient shape, not the number of generated modes.
+		mode shape, not the number of generated spatial wave numbers.
 		"""
 		A = float(A)
 		if not np.isfinite(A) or A < 0:
 			raise ValueError("`A` must be a finite, non-negative number.")
-		if isinstance(M, (bool, np.bool_)) or not isinstance(M, (int, np.integer)) or M < 1:
+		if (
+			isinstance(M, (bool, np.bool_))
+			or not isinstance(M, (int, np.integer))
+			or M < 1
+		):
 			raise ValueError("`M` must be a positive integer.")
-		if isinstance(seed, (bool, np.bool_)) or not isinstance(seed, (int, np.integer)):
+		if isinstance(seed, (bool, np.bool_)) or not isinstance(
+			seed, (int, np.integer)
+		):
 			raise TypeError("`seed` must be an integer.")
 
 		grid = Grid.periodic(nx, ny)
-		# ``wave_x`` and ``wave_y`` index the non-negative integer wave numbers;
-		# their common shape is the spectral square ``(M + 1, M + 1)``.
-		wave_x, wave_y = np.meshgrid(
-			np.arange(M + 1),
-			np.arange(M + 1),
-			indexing="ij",
+		mode = _random_positive_frequency_mode(
+			grid,
+			amplitude=A,
+			maximum_wave_number=int(M),
+			seed=int(seed),
 		)
-		spectrum = np.zeros((M + 1, M + 1), dtype=np.complex128)
-		# Axis and constant modes remain zero; the fluctuating potential is built
-		# from modes with positive wave numbers in both spatial directions.
-		phases = 2 * np.pi * np.random.default_rng(int(seed)).random((M, M))
-		spectrum[1:, 1:] = (
-			A
-			/ (wave_x[1:, 1:] ** 2 + wave_y[1:, 1:] ** 2) ** 1.5
-			* np.exp(1j * phases)
-		)
-		# Apply a circular rather than square cut-off so ``M`` limits |k| without
-		# privileging diagonal modes.
-		spectrum[np.hypot(wave_x, wave_y) > M] = 0
-
-		# Evaluate the truncated Fourier sum on every physical grid point.  The
-		# explicit phase tensor keeps the construction independent of FFT layout.
-		mode_x, mode_y = np.indices(spectrum.shape)
-		x_mesh, y_mesh = np.meshgrid(grid.x, grid.y, indexing="ij")
-		# The first two axes enumerate modes and the last two enumerate physical
-		# grid points, giving ``phase`` shape ``(M + 1, M + 1, nx, ny)``.
-		phase = np.exp(
-			1j
-			* (
-				mode_x[:, :, None, None] * x_mesh[None, None, :, :]
-				+ mode_y[:, :, None, None] * y_mesh[None, None, :, :]
-			)
-		)
-		coefficient = np.asarray(np.einsum("nm,nm...->...", spectrum, phase))
 		return cls(
 			grid,
-			coefficient,
+			modes=mode[np.newaxis, ...],
+			frequencies=np.asarray([1.0 / (2.0 * np.pi)]),
 			interpolation_order=interpolation_order,
 		)
 
@@ -262,48 +356,52 @@ class Potential:
 		"""
 		if (x is None) != (y is None):
 			raise ValueError("`x` and `y` must be provided together.")
-		if (
-			isinstance(dt, (bool, np.bool_))
-			or not isinstance(dt, (int, np.integer))
-			or dt not in (0, 1, 2)
-		):
-			raise ValueError("`dt` must be 0, 1, or 2.")
-		for derivative, name in ((dx, "dx"), (dy, "dy")):
-			if (
-				isinstance(derivative, (bool, np.bool_))
-				or not isinstance(derivative, (int, np.integer))
-				or derivative < 0
-			):
-				raise ValueError(f"`{name}` must be a non-negative integer.")
-
+		self._validate_derivatives(dx, dy, dt)
+		dx, dy, dt = int(dx), int(dy), int(dt)
 		time = np.asarray(t)
+		mean_coefficient = None
+
 		if x is None:
-			# Raw samples are available directly, but their spatial derivatives are
-			# defined by the interpolant and therefore require explicit coordinates.
 			if dx or dy:
 				raise ValueError("Spatial derivatives require `x` and `y`.")
-			coefficient = self._coefficient
-			if time.ndim:
-				# Append singleton dimensions so a time array is broadcast after the
-				# two spatial grid dimensions.
-				coefficient = coefficient.reshape(
-					coefficient.shape + (1,) * time.ndim
-				)
+			trailing_axes = (1,) * time.ndim
+			result_shape = self.grid.shape + time.shape
+			if dt == 0:
+				mean_coefficient = self.mean.reshape(self.grid.shape + trailing_axes)
+			mode_coefficients = (
+				field.reshape(self.grid.shape + trailing_axes) for field in self.modes
+			)
 		else:
 			assert y is not None
-			# Normalization makes evaluations outside the base cell obey the same
-			# periodicity as the coefficients used to construct the spline.
-			x_values, y_values = self.grid.normalize(np.asarray(x), np.asarray(y))
-			coefficient = self._spline.evaluate(
-				x_values,
-				y_values,
-				dx=int(dx),
-				dy=int(dy),
+			x_values, y_values = np.broadcast_arrays(np.asarray(x), np.asarray(y))
+			x_values, y_values = self.grid.normalize(x_values, y_values)
+			result_shape = np.broadcast_shapes(x_values.shape, time.shape)
+			if dt == 0:
+				mean_coefficient = self._mean_spline.evaluate(
+					x_values,
+					y_values,
+					dx=dx,
+					dy=dy,
+				)
+			mode_coefficients = (
+				interpolator.evaluate(x_values, y_values, dx=dx, dy=dy)
+				for interpolator in self._mode_splines
 			)
 
-		# The n-th time derivative of exp(-it) contributes (-i)**n.
-		phase = np.exp(-1j * time) * (-1j) ** int(dt)
-		return np.asarray(np.real(coefficient * phase), dtype=float)
+		result = np.zeros(result_shape, dtype=float)
+		if mean_coefficient is not None:
+			result += np.real(mean_coefficient)
+		for coefficient, frequency in zip(
+			mode_coefficients,
+			self.frequencies,
+			strict=True,
+		):
+			angular_frequency = 2.0 * np.pi * float(frequency)
+			phase = np.exp(1j * angular_frequency * time) * (
+				1j * angular_frequency
+			) ** dt
+			result += 2.0 * np.real(coefficient * phase)
+		return result
 
 	def electric_field(
 		self,
@@ -326,16 +424,18 @@ class Potential:
 		)
 
 	def gyroaverage(self, rho: float) -> Potential:
-		"""Return the Larmor-circle average at radius ``rho``.
+		"""Return the Larmor-circle average of every field at radius ``rho``.
 
 		A circular average multiplies each Fourier mode by ``J_0(rho |k|)``.
 		This spectral form performs the average exactly for the sampled modes.
 		``rho`` uses the same length scale as the grid coordinates, making
 		``rho |k|`` dimensionless.
 		"""
-		rho = float(rho)
-		if not np.isfinite(rho) or rho < 0:
+		radius = float(rho)
+		if not np.isfinite(radius) or radius < 0:
 			raise ValueError("`rho` must be finite and non-negative.")
+		if radius == 0:
+			return self
 		# ``fftfreq`` returns cycles per unit length; multiplying its norm by
 		# ``2*pi`` below converts it to the angular wave number used by J_0.
 		kx = fftfreq(self.grid.nx, d=self.grid.dx)
@@ -343,68 +443,45 @@ class Potential:
 		kx_mesh, ky_mesh = np.meshgrid(kx, ky, indexing="ij")
 		# ``factor`` has shape ``(nx, ny)`` and attenuates each discrete spatial
 		# Fourier coefficient without mixing modes.
-		factor = jv(0, 2 * np.pi * rho * np.hypot(kx_mesh, ky_mesh))
-		coefficient = ifft2(fft2(self._coefficient) * factor)
+		factor = jv(0, 2 * np.pi * radius * np.hypot(kx_mesh, ky_mesh))
+		mean = np.asarray(ifft2(fft2(self.mean) * factor).real)
+		modes = (
+			self.modes.copy()
+			if self.modes.shape[0] == 0
+			else np.asarray(
+				[ifft2(fft2(field) * factor) for field in self.modes],
+				dtype=np.complex128,
+			)
+		)
 		return Potential(
 			self.grid,
-			coefficient,
+			mean=mean,
+			modes=modes,
+			frequencies=self.frequencies,
+			metadata=self.metadata,
 			interpolation_order=self.interpolation_order,
 		)
 
-	def plot(
-		self,
-		*,
-		t: float = 0.0,
-		contours: int | Sequence[float] | None = 12,
-		cmap: str = "RdBu_r",
-		show: bool = True,
-		**pcolormesh_kwargs: Any,
-	) -> Any:
-		"""Deprecated adapter for :func:`visualization.plot_potential`."""
-		warnings.warn(
-			"`Potential.plot()` is deprecated; use `visualization.plot_potential`.",
-			DeprecationWarning,
-			stacklevel=2,
-		)
-		from visualization.potential import plot_potential
-
-		return plot_potential(
-			self,
-			t=t,
-			contours=contours,
-			cmap=cmap,
-			show=show,
-			**pcolormesh_kwargs,
-		)
-
-	def animate(
-		self,
-		*,
-		t_max: float = 1.0,
-		frames: int | None = None,
-		interval: int = 200,
-		cmap: str = "RdBu_r",
-		repeat: bool = True,
-		**pcolormesh_kwargs: Any,
-	) -> Any:
-		"""Deprecated adapter for :func:`visualization.animate_potential`."""
-		warnings.warn(
-			"`Potential.animate()` is deprecated; use "
-			"`visualization.animate_potential`.",
-			DeprecationWarning,
-			stacklevel=2,
-		)
-		from visualization.potential import animate_potential
-
-		return animate_potential(
-			self,
-			t_max=t_max,
-			frames=frames,
-			interval=interval,
-			cmap=cmap,
-			repeat=repeat,
-			**pcolormesh_kwargs,
-		)
+	def _validate_derivatives(self, dx: int, dy: int, dt: int) -> None:
+		"""Validate derivative orders supported by the configured splines."""
+		if (
+			isinstance(dt, (bool, np.bool_))
+			or not isinstance(dt, (int, np.integer))
+			or dt not in (0, 1, 2)
+		):
+			raise ValueError("`dt` must be 0, 1, or 2.")
+		for derivative, name in ((dx, "dx"), (dy, "dy")):
+			if (
+				isinstance(derivative, (bool, np.bool_))
+				or not isinstance(derivative, (int, np.integer))
+				or derivative < 0
+			):
+				raise ValueError(f"`{name}` must be a non-negative integer.")
+			if derivative >= self.interpolation_order:
+				raise ValueError(
+					f"`{name}` must be at most {self.interpolation_order - 1} "
+					f"for interpolation order {self.interpolation_order}."
+				)
 
 
 __all__ = ["Potential"]

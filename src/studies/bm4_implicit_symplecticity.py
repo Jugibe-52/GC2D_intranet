@@ -1,17 +1,16 @@
-"""Comparative symplecticity studies for the two implicit BM4 formulations."""
+"""Symplecticity study for the physical Hairer-projected BM4 method."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from types import MappingProxyType
 from typing import Any, ClassVar, Mapping, cast
 
 import numpy as np
 
 from initial_conditions import Area
 from potential import Potential
-from simulation import BM4Implicit1, BM4Implicit2
+from simulation import BM4Implicit
 
 from ._gc_symplecticity import (
 	GCSymplecticityResult,
@@ -62,10 +61,10 @@ class BM4ImplicitSymplecticitySummary(GCSymplecticitySummary):
 
 
 @dataclass(frozen=True, slots=True)
-class BM4Implicit1SymplecticityResult(GCSymplecticityResult):
-	"""Symplecticity data from the reduced BM4 projection solve."""
+class BM4ImplicitSymplecticityResult(GCSymplecticityResult):
+	"""Symplecticity data from the reduced physical BM4 projection solve."""
 
-	method_name: ClassVar[str] = "BM4Implicit1"
+	method_name: ClassVar[str] = "BM4Implicit"
 	summary_type: ClassVar[type[GCSymplecticitySummary]] = (
 		BM4ImplicitSymplecticitySummary
 	)
@@ -76,49 +75,6 @@ class BM4Implicit1SymplecticityResult(GCSymplecticityResult):
 			tuple[BM4ImplicitSymplecticitySummary, ...],
 			GCSymplecticityResult.summaries(self),
 		)
-
-
-@dataclass(frozen=True, slots=True)
-class BM4Implicit2SymplecticityResult(BM4Implicit1SymplecticityResult):
-	"""Symplecticity data from the simultaneous BM4 projection solve."""
-
-	method_name: ClassVar[str] = "BM4Implicit2"
-
-
-BM4ImplicitStudyResult = (
-	BM4Implicit1SymplecticityResult | BM4Implicit2SymplecticityResult
-)
-
-
-@dataclass(frozen=True, slots=True)
-class BM4ImplicitSymplecticityComparison:
-	"""Aligned results for reduced and simultaneous projected BM4 runs."""
-
-	results: Mapping[str, BM4ImplicitStudyResult]
-
-	def __post_init__(self) -> None:
-		"""Require one result from each projected BM4 formulation."""
-		values = dict(self.results)
-		if set(values) != {"implicit_1", "implicit_2"}:
-			raise ValueError(
-				"BM4 implicit comparison requires 'implicit_1' and 'implicit_2'."
-			)
-		object.__setattr__(self, "results", MappingProxyType(values))
-
-	def maximum_state_differences(self) -> Mapping[str, float]:
-		"""Return maximum aligned state differences for every integration step."""
-		first = self.results["implicit_1"]
-		second = self.results["implicit_2"]
-		differences: dict[str, float] = {}
-		for step in first.steps:
-			first_solution = first.solutions[step.label]
-			second_solution = second.solutions[step.label]
-			if not np.array_equal(first_solution.t, second_solution.t):
-				raise ValueError("Projected BM4 comparison times are not aligned.")
-			differences[step.label] = float(
-				np.max(np.abs(first_solution.states - second_solution.states))
-			)
-		return MappingProxyType(differences)
 
 
 def _solver_metadata(config: BM4ImplicitSymplecticityConfig) -> dict[str, Any]:
@@ -134,66 +90,6 @@ def _solver_metadata(config: BM4ImplicitSymplecticityConfig) -> dict[str, Any]:
 	}
 
 
-def run_bm4_implicit_1_symplecticity_study(
-	potential: Potential,
-	area: Area,
-	*,
-	notebook_path: str | Path,
-	config: BM4ImplicitSymplecticityConfig,
-	project_root: str | Path | None = None,
-	metadata: Mapping[str, Any] | None = None,
-) -> BM4Implicit1SymplecticityResult:
-	"""Run reduced projected BM4 and persist physical-flow diagnostics."""
-	return _run_gc_symplecticity_study(
-		potential,
-		area,
-		notebook_path=notebook_path,
-		config=config,
-		method_factory=lambda observer: BM4Implicit1(
-			coupling_frequency=config.coupling_frequency,
-			newton_absolute_tolerance=config.newton_absolute_tolerance,
-			newton_relative_tolerance=config.newton_relative_tolerance,
-			newton_max_iterations=config.newton_max_iterations,
-			newton_jacobian_relative_step=config.newton_jacobian_relative_step,
-			progress=config.progress,
-			step_observer=observer,
-		),
-		result_type=BM4Implicit1SymplecticityResult,
-		project_root=project_root,
-		metadata={**dict(metadata or {}), **_solver_metadata(config)},
-	)
-
-
-def run_bm4_implicit_2_symplecticity_study(
-	potential: Potential,
-	area: Area,
-	*,
-	notebook_path: str | Path,
-	config: BM4ImplicitSymplecticityConfig,
-	project_root: str | Path | None = None,
-	metadata: Mapping[str, Any] | None = None,
-) -> BM4Implicit2SymplecticityResult:
-	"""Run simultaneous projected BM4 and persist physical-flow diagnostics."""
-	return _run_gc_symplecticity_study(
-		potential,
-		area,
-		notebook_path=notebook_path,
-		config=config,
-		method_factory=lambda observer: BM4Implicit2(
-			coupling_frequency=config.coupling_frequency,
-			newton_absolute_tolerance=config.newton_absolute_tolerance,
-			newton_relative_tolerance=config.newton_relative_tolerance,
-			newton_max_iterations=config.newton_max_iterations,
-			newton_jacobian_relative_step=config.newton_jacobian_relative_step,
-			progress=config.progress,
-			step_observer=observer,
-		),
-		result_type=BM4Implicit2SymplecticityResult,
-		project_root=project_root,
-		metadata={**dict(metadata or {}), **_solver_metadata(config)},
-	)
-
-
 def run_bm4_implicit_symplecticity_study(
 	potential: Potential,
 	area: Area,
@@ -202,36 +98,31 @@ def run_bm4_implicit_symplecticity_study(
 	config: BM4ImplicitSymplecticityConfig,
 	project_root: str | Path | None = None,
 	metadata: Mapping[str, Any] | None = None,
-) -> BM4ImplicitSymplecticityComparison:
-	"""Run both projected BM4 formulations on identical physical grids."""
-	first = run_bm4_implicit_1_symplecticity_study(
+) -> BM4ImplicitSymplecticityResult:
+	"""Run physical reduced-projection BM4 and persist flow diagnostics."""
+	return _run_gc_symplecticity_study(
 		potential,
 		area,
 		notebook_path=notebook_path,
 		config=config,
+		method_factory=lambda observer: BM4Implicit(
+			coupling_frequency=config.coupling_frequency,
+			newton_absolute_tolerance=config.newton_absolute_tolerance,
+			newton_relative_tolerance=config.newton_relative_tolerance,
+			newton_max_iterations=config.newton_max_iterations,
+			newton_jacobian_relative_step=config.newton_jacobian_relative_step,
+			progress=config.progress,
+			step_observer=observer,
+		),
+		result_type=BM4ImplicitSymplecticityResult,
 		project_root=project_root,
-		metadata=metadata,
-	)
-	second = run_bm4_implicit_2_symplecticity_study(
-		potential,
-		area,
-		notebook_path=notebook_path,
-		config=config,
-		project_root=project_root,
-		metadata=metadata,
-	)
-	return BM4ImplicitSymplecticityComparison(
-		results=MappingProxyType({"implicit_1": first, "implicit_2": second})
+		metadata={**dict(metadata or {}), **_solver_metadata(config)},
 	)
 
 
 __all__ = [
-	"BM4Implicit1SymplecticityResult",
-	"BM4Implicit2SymplecticityResult",
-	"BM4ImplicitSymplecticityComparison",
 	"BM4ImplicitSymplecticityConfig",
+	"BM4ImplicitSymplecticityResult",
 	"BM4ImplicitSymplecticitySummary",
-	"run_bm4_implicit_1_symplecticity_study",
-	"run_bm4_implicit_2_symplecticity_study",
 	"run_bm4_implicit_symplecticity_study",
 ]

@@ -18,7 +18,6 @@ from initial_conditions import (
 )
 from potential import Potential
 from simulation import (
-	BM4Composition,
 	FCSplitFormulation,
 	GCExtendedFormulation,
 	InitialConfiguration,
@@ -159,41 +158,6 @@ class ExtensibleArchitectureTests(unittest.TestCase):
 		self.assertEqual(solution.components()[0].shape, (1, 2))
 		self.assertEqual(solution.positions()[0].shape, (1, 2))
 
-	def test_bm4_formulations_interoperate_through_one_runner(self) -> None:
-		potential = deterministic_potential()
-		request = SimulationRequest.uniform(
-			t_span=(0.0, 0.04),
-			max_step=0.01,
-			sample_count=7,
-		)
-		cases = (
-			(
-				GCInitialConfiguration(np.asarray([1.0, 1.2])),
-				GuidingCenterDynamics(potential, rho=0.05),
-				GCExtendedFormulation(coupling_frequency=2.5),
-				2,
-			),
-			(
-				FCInitialConfiguration(
-					np.asarray([1.0, 1.2, 0.4, -0.3]),
-				),
-				FullCyclotronDynamics(potential, rho=0.2, eta=0.1),
-				FCSplitFormulation(),
-				4,
-			),
-		)
-
-		for source, dynamics, formulation, physical_size in cases:
-			with self.subTest(source=type(source).__name__):
-				solution = simulate(
-					InitialValueProblem(dynamics, source),
-					BM4Composition(formulation, track_energy=True),
-					request,
-				)
-				self.assertEqual(solution.states.shape, (physical_size, 7))
-				self.assertEqual(np.asarray(solution.k).shape, (1, 7))
-				self.assertEqual(solution.n_steps, 4)
-				self.assertIs(solution.source, source)
 
 	def test_rk4_has_fourth_order_convergence_without_a_formulation(self) -> None:
 		source = GCInitialConfiguration(np.asarray([1.0, 0.0]))
@@ -352,67 +316,7 @@ class ExtensibleArchitectureTests(unittest.TestCase):
 		self.assertEqual(area.calculate_area(solution.states).shape, (3,))
 		self.assertEqual(solution.positions()[0].shape, (16, 3))
 
-	def test_bm4_output_density_does_not_change_common_samples(self) -> None:
-		potential = deterministic_potential()
-		source = GCInitialConfiguration(np.asarray([1.0, 1.2]))
-		problem = InitialValueProblem(
-			GuidingCenterDynamics(potential, rho=0.05),
-			source,
-		)
-		method = BM4Composition(GCExtendedFormulation())
-		sparse = simulate(
-			problem,
-			method,
-			SimulationRequest.uniform(
-				t_span=(0.0, 0.05),
-				max_step=0.02,
-				sample_count=3,
-			),
-		)
-		dense = simulate(
-			problem,
-			method,
-			SimulationRequest.uniform(
-				t_span=(0.0, 0.05),
-				max_step=0.02,
-				sample_count=7,
-			),
-		)
-		self.assertEqual(sparse.n_steps, 3)
-		self.assertEqual(dense.n_steps, 3)
-		np.testing.assert_array_equal(sparse.states[:, 1], dense.states[:, 3])
-		np.testing.assert_array_equal(sparse.states[:, -1], dense.states[:, -1])
 
-	def test_energy_diagnostics_do_not_change_physical_states(self) -> None:
-		potential = deterministic_potential()
-		source = GCInitialConfiguration(np.asarray([1.0, 1.2]))
-		problem = InitialValueProblem(
-			GuidingCenterDynamics(potential, rho=0.05),
-			source,
-		)
-		request = SimulationRequest.uniform(
-			t_span=(0.0, 0.04),
-			max_step=0.01,
-			sample_count=5,
-		)
-		plain = simulate(
-			problem,
-			BM4Composition(GCExtendedFormulation()),
-			request,
-		)
-		tracked = simulate(
-			problem,
-			BM4Composition(GCExtendedFormulation(), track_energy=True),
-			request,
-		)
-
-		np.testing.assert_array_equal(plain.states, tracked.states)
-		assert tracked.k is not None
-		energy = problem.dynamics.hamiltonian(tracked.t, tracked.states) + tracked.k
-		expected_error = float(
-			np.max(np.abs(energy - np.asarray(energy)[:, :1]))
-		)
-		self.assertEqual(tracked.err, expected_error)
 
 	def test_runner_rejects_invalid_method_output(self) -> None:
 		source = GCInitialConfiguration(np.asarray([1.0, 0.0]))

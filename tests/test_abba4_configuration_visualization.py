@@ -13,7 +13,7 @@ import numpy as np
 from matplotlib.collections import LineCollection, PathCollection
 
 from initial_conditions import GCInitialConfiguration
-from potential import GC2DH5Potential
+from potential import GC2DH5Metadata, Grid, Potential
 from simulation import Solution
 from studies.abba4_configuration_comparison import (
 	ABBA4_CONFIGURATION_VARIANTS,
@@ -24,7 +24,7 @@ from visualization.abba4_configuration_comparison import (
 )
 
 
-class _CountingH5Potential(GC2DH5Potential):
+class _CountingPotential(Potential):
 	"""Small HDF5-style field that records vectorized animation evaluations."""
 
 	def __init__(self) -> None:
@@ -37,11 +37,20 @@ class _CountingH5Potential(GC2DH5Potential):
 			dtype=np.complex128,
 		)
 		super().__init__(
-			x,
-			y,
+			Grid(0.1, 0.2, 0.1, 0.1, 8, 8, 0.8),
 			mean,
 			mode[None, :, :],
 			frequencies=np.asarray([2.0]),
+			metadata=GC2DH5Metadata(
+				source_field_indices=np.asarray([1]),
+				source_x=x,
+				source_y=y,
+				source_frequencies=np.asarray([2.0]),
+				characteristic_length=None,
+				characteristic_period=None,
+				normalization_factor=1.0,
+				attributes={},
+			),
 			interpolation_order=3,
 		)
 		self.evaluation_count = 0
@@ -92,7 +101,7 @@ def _solution(
 
 def _result(*, particle_count: int = 10) -> SimpleNamespace:
 	"""Assemble a duck-typed comparison result with a configurable population."""
-	potential = _CountingH5Potential()
+	potential = _CountingPotential()
 	variants = _variants()
 	solutions = {
 		variant.key: tuple(
@@ -166,11 +175,11 @@ class ABBA4ConfigurationAnimationTests(unittest.TestCase):
 					)
 					self.assertEqual(
 						axis.get_xlim(),
-						(result.potential.x[0], result.potential.x[-1]),
+						(result.potential.grid.x[0], result.potential.grid.x[-1]),
 					)
 					self.assertEqual(
 						axis.get_ylim(),
-						(result.potential.y[0], result.potential.y[-1]),
+						(result.potential.grid.y[0], result.potential.grid.y[-1]),
 					)
 
 				self.assertEqual(len(animation._fig.legends), 1)

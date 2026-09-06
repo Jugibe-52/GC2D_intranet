@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 import re
 from types import MappingProxyType
-from typing import Any, Literal, Mapping
+from typing import Any, Mapping
 
 import numpy as np
 from matplotlib.animation import FuncAnimation
@@ -15,18 +15,15 @@ from dynamics import GuidingCenterDynamics
 from initial_conditions import Area
 from potential import Potential
 from simulation import (
-	BM4Composition,
-	GCExtendedFormulation,
-	GCStageProjectedFormulation,
+	BM4Implicit,
 	InitialValueProblem,
-	ProjectedBM4Composition,
 	SimulationRequest,
 	Solution,
 	simulate,
 )
-from diagnostics.projection import (
-	ProjectedAreaRecord,
-	ProjectedSymplecticityAreaObserver,
+from diagnostics.symplecticity import (
+	GCAreaSymplecticityObserver,
+	GCAreaSymplecticityRecord,
 )
 
 from ._validation import (
@@ -74,14 +71,17 @@ def pi_area_steps(*denominators: int) -> tuple[AreaStep, ...]:
 
 @dataclass(frozen=True, slots=True)
 class AreaComparisonConfig:
-	"""Numerical, method-selection and persistence parameters for an area study."""
+	"""Numerical and persistence parameters for an implicit-BM4 area study."""
 
 	steps: tuple[AreaStep, ...]
 	t_span: tuple[float, float]
 	save_interval: float
 	rho: float | None = None
 	coupling_frequency: float = 0.0
-	method_kind: Literal["coupled_bm4", "stage_projected_bm4"] = "coupled_bm4"
+	newton_absolute_tolerance: float = 1e-13
+	newton_relative_tolerance: float = 1e-12
+	newton_max_iterations: int = 12
+	newton_jacobian_relative_step: float = float(np.cbrt(np.finfo(float).eps))
 	chunk_size: int = 16
 	progress: bool = False
 	block_prefix: str = "circle_comparison"
@@ -119,15 +119,21 @@ class AreaComparisonConfig:
 		if not np.isfinite(frequency) or frequency < 0:
 			raise ValueError("`coupling_frequency` must be finite and non-negative.")
 		object.__setattr__(self, "coupling_frequency", frequency)
-		if self.method_kind not in {"coupled_bm4", "stage_projected_bm4"}:
-			raise ValueError(
-				"`method_kind` must be 'coupled_bm4' or 'stage_projected_bm4'."
+		for name in (
+			"newton_absolute_tolerance",
+			"newton_relative_tolerance",
+			"newton_jacobian_relative_step",
+		):
+			object.__setattr__(
+				self,
+				name,
+				positive_finite(getattr(self, name), name),
 			)
-		if self.method_kind == "stage_projected_bm4" and frequency != 0.0:
-			raise ValueError(
-				"`stage_projected_bm4` does not support harmonic coupling. "
-				"Set `coupling_frequency` to zero."
-			)
+		object.__setattr__(
+			self,
+			"newton_max_iterations",
+			positive_integer(self.newton_max_iterations, "newton_max_iterations"),
+		)
 		object.__setattr__(
 			self,
 			"chunk_size",
@@ -158,8 +164,8 @@ class AreaSummary:
 	step: float
 	step_count: int
 	max_area_error: float
-	max_symplectic_defect: float
-	max_relative_separation: float
+	max_local_symplectic_defect: float
+	max_flow_symplectic_defect: float
 
 
 @dataclass(frozen=True, slots=True)
@@ -170,7 +176,7 @@ class AreaComparisonResult:
 	area: Area
 	steps: tuple[AreaStep, ...]
 	solutions: Mapping[str, Solution]
-	records: Mapping[str, tuple[ProjectedAreaRecord, ...]]
+	records: Mapping[str, tuple[GCAreaSymplecticityRecord, ...]]
 	output_directories: Mapping[str, Path]
 
 	@property
@@ -189,16 +195,6 @@ class AreaComparisonResult:
 			for label, records in self.records.items()
 		}
 
-	@property
-	def relative_copy_separations(self) -> Mapping[str, np.ndarray]:
-		"""Relative separations of both internal GC copies."""
-		return {
-			label: np.asarray(
-				[record.relative_copy_separation for record in records]
-			)
-			for label, records in self.records.items()
-		}
-
 	def summaries(self) -> tuple[AreaSummary, ...]:
 		"""Return maximum diagnostics in configured step order."""
 		rows: list[AreaSummary] = []
@@ -214,11 +210,11 @@ class AreaComparisonResult:
 					max_area_error=max(
 						abs(record.relative_area_error) for record in records
 					),
-					max_symplectic_defect=max(
-						record.relative_defect for record in records
+					max_local_symplectic_defect=max(
+						record.local_relative_defect for record in records
 					),
-					max_relative_separation=max(
-						record.relative_copy_separation for record in records
+					max_flow_symplectic_defect=max(
+						record.relative_defect for record in records
 					),
 				)
 			)
@@ -230,8 +226,8 @@ class AreaComparisonResult:
 			"step",
 			"integration steps",
 			"max |area error|",
-			"max symplectic defect",
-			"max relative separation",
+			"max local defect",
+			"max flow defect",
 		)
 		print(
 			f"{header[0]:>22} {header[1]:>12} {header[2]:>20} "
@@ -241,8 +237,8 @@ class AreaComparisonResult:
 			print(
 				f"{row.label:>22} {row.step_count:12d} "
 				f"{row.max_area_error:20.8e} "
-				f"{row.max_symplectic_defect:26.8e} "
-				f"{row.max_relative_separation:26.8e}"
+				f"{row.max_local_symplectic_defect:26.8e} "
+				f"{row.max_flow_symplectic_defect:26.8e}"
 			)
 
 	def animate(
@@ -259,7 +255,6 @@ class AreaComparisonResult:
 			self.solutions,
 			diagnostic_times=self.diagnostic_times,
 			relative_symplecticity_errors=self.relative_symplecticity_errors,
-			relative_copy_separations=self.relative_copy_separations,
 			frames=frames,
 			interval=interval,
 			repeat=repeat,
@@ -289,7 +284,7 @@ def run_area_comparison(
 	initial_state = area.initial_state
 	assert initial_state is not None
 	solutions: dict[str, Solution] = {}
-	records_by_label: dict[str, tuple[ProjectedAreaRecord, ...]] = {}
+	records_by_label: dict[str, tuple[GCAreaSymplecticityRecord, ...]] = {}
 	output_directories: dict[str, Path] = {}
 
 	common_metadata = {
@@ -297,7 +292,9 @@ def run_area_comparison(
 		"geometry": area.shape,
 		"particle_count": area.layout.particle_count(initial_state),
 		"coupling_frequency": config.coupling_frequency,
-		"method_kind": config.method_kind,
+		"method_name": "BM4Implicit",
+		"projection_scope": "one_complete_twelve_stage_cycle",
+		"projection_formulation": "reduced_multiplier",
 		"rho": rho,
 	}
 	for step in config.steps:
@@ -307,7 +304,7 @@ def run_area_comparison(
 			f"save_interval / step for {step.label}",
 		)
 		step_tag = f"{step.value:.8f}".replace(".", "p")
-		with ProjectedSymplecticityAreaObserver(
+		with GCAreaSymplecticityObserver(
 			notebook_path=notebook_path,
 			area=area,
 			period=potential.grid.period,
@@ -315,6 +312,7 @@ def run_area_comparison(
 			block_name=f"{config.block_prefix}_step_{step_tag}",
 			record_every=record_every,
 			chunk_size=config.chunk_size,
+			jacobian_method="finite_difference",
 			verbose=False,
 			metadata={
 				**common_metadata,
@@ -326,20 +324,19 @@ def run_area_comparison(
 				max_step=step.value,
 				sample_count=config.output_sample_count,
 			)
-			if config.method_kind == "coupled_bm4":
-				method = BM4Composition(
-					GCExtendedFormulation(
-						coupling_frequency=config.coupling_frequency,
-					),
-					progress=config.progress,
-					stage_observer=observer,
-				)
-			else:
-				method = ProjectedBM4Composition(
-					GCStageProjectedFormulation(),
-					progress=config.progress,
-					stage_observer=observer,
-				)
+			method = BM4Implicit(
+				coupling_frequency=config.coupling_frequency,
+				newton_absolute_tolerance=config.newton_absolute_tolerance,
+				newton_relative_tolerance=config.newton_relative_tolerance,
+				newton_max_iterations=config.newton_max_iterations,
+				newton_jacobian_relative_step=(
+					config.newton_jacobian_relative_step
+				),
+				newton_jacobian_method="analytic",
+				nonlinear_solver="newton",
+				progress=config.progress,
+				step_observer=observer,
+			)
 			solution = simulate(problem, method, request)
 		solutions[step.label] = solution
 		records_by_label[step.label] = observer.records

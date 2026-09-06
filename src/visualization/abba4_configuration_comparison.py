@@ -201,8 +201,8 @@ def _aligned_positions(
 
 def _closed_spatial_limits(potential: Potential) -> tuple[float, float, float, float]:
 	"""Return sampled closed bounds without applying periodic endpoint wrapping."""
-	x_values = np.asarray(getattr(potential, "x", potential.grid.x), dtype=float)
-	y_values = np.asarray(getattr(potential, "y", potential.grid.y), dtype=float)
+	x_values = np.asarray(potential.grid.x, dtype=float)
+	y_values = np.asarray(potential.grid.y, dtype=float)
 	if (
 		x_values.ndim != 1
 		or y_values.ndim != 1

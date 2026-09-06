@@ -10,11 +10,10 @@ from typing import Callable, Mapping
 import numpy as np
 from scipy.integrate import solve_ivp
 
-from dynamics import DynamicalSystem, HamiltonianSystem
+from dynamics import DynamicalSystem, GuidingCenterDynamics, HamiltonianSystem
 from initial_conditions import GCInitialConfiguration
 from simulation import (
-	BM4Composition,
-	GCExtendedFormulation,
+	BM4Implicit,
 	HBVM42,
 	HBVMJacobianMethod,
 	InitialValueProblem,
@@ -28,7 +27,7 @@ from ._validation import integer_ratio, positive_finite, positive_integer
 
 
 HBVM42_LABEL = "HBVM(4,2)"
-BM4_LABEL = "BM4"
+BM4_LABEL = "BM4Implicit"
 
 
 class QuarticOscillatorDynamics:
@@ -264,7 +263,7 @@ class HBVM42EvaluationResult:
 
 @dataclass(frozen=True, slots=True)
 class HBVM42BM4ComparisonConfig:
-	"""Common accuracy and wall-clock controls for HBVM(4,2) versus BM4."""
+	"""Common controls for HBVM(4,2) versus physical implicit BM4."""
 
 	steps: tuple[float, ...] = (0.4, 0.2, 0.1, 0.05)
 	t_span: tuple[float, float] = (0.0, 8.0)
@@ -331,7 +330,7 @@ class HBVM42BM4Summary:
 
 @dataclass(frozen=True, slots=True)
 class HBVM42BM4ComparisonResult:
-	"""Common reference and benchmark rows for HBVM(4,2) and BM4."""
+	"""Common reference and benchmark rows for HBVM(4,2) and implicit BM4."""
 
 	config: HBVM42BM4ComparisonConfig
 	dynamics: DynamicalSystem
@@ -349,12 +348,17 @@ def _validated_problem(
 	configuration: GCInitialConfiguration,
 	*,
 	require_hamiltonian: bool,
+	require_guiding_center: bool = False,
 ) -> InitialValueProblem:
 	"""Build the one-particle planar problem required by both studies."""
 	if not isinstance(dynamics, DynamicalSystem):
 		raise TypeError("`dynamics` must implement DynamicalSystem.")
 	if require_hamiltonian and not isinstance(dynamics, HamiltonianSystem):
 		raise TypeError("The individual HBVM study requires HamiltonianSystem dynamics.")
+	if require_guiding_center and not isinstance(dynamics, GuidingCenterDynamics):
+		raise TypeError(
+			"The HBVM/BM4Implicit comparison requires GuidingCenterDynamics."
+		)
 	if not isinstance(configuration, GCInitialConfiguration):
 		raise TypeError("`configuration` must be a GCInitialConfiguration.")
 	problem = InitialValueProblem(dynamics, configuration)
@@ -638,7 +642,12 @@ def run_hbvm42_bm4_comparison(
 	"""Compare fourth-order endpoint accuracy and runtime on identical grids."""
 	if not isinstance(config, HBVM42BM4ComparisonConfig):
 		raise TypeError("`config` must be an HBVM42BM4ComparisonConfig.")
-	problem = _validated_problem(dynamics, configuration, require_hamiltonian=False)
+	problem = _validated_problem(
+		dynamics,
+		configuration,
+		require_hamiltonian=False,
+		require_guiding_center=True,
+	)
 	reference_times = np.asarray(config.t_span, dtype=float)
 	reference_final_state = _reference_solution(
 		problem,
@@ -647,14 +656,21 @@ def run_hbvm42_bm4_comparison(
 		absolute_tolerance=config.reference_absolute_tolerance,
 		maximum_step=config.reference_maximum_step,
 	)[:, -1]
+	bm4_jacobian_method = (
+		"analytic" if config.jacobian_method == "auto" else config.jacobian_method
+	)
 	method_factories: tuple[tuple[str, Callable[[], NumericalMethod]], ...] = (
 		(HBVM42_LABEL, lambda: _hbvm_method(config, track_energy=False)),
 		(
 			BM4_LABEL,
-			lambda: BM4Composition(
-				GCExtendedFormulation(
-					coupling_frequency=config.coupling_frequency,
-				),
+			lambda: BM4Implicit(
+				coupling_frequency=config.coupling_frequency,
+				newton_absolute_tolerance=config.absolute_tolerance,
+				newton_relative_tolerance=config.relative_tolerance,
+				newton_max_iterations=config.max_iterations,
+				newton_jacobian_method=bm4_jacobian_method,
+				newton_jacobian_relative_step=config.jacobian_relative_step,
+				nonlinear_solver="newton",
 				progress=config.progress,
 			),
 		),

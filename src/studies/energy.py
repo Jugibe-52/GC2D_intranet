@@ -11,19 +11,25 @@ import numpy as np
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 
+from diagnostics import GCGeneralizedEnergyObserver
 from dynamics import GuidingCenterDynamics
 from initial_conditions import GCInitialConfiguration
 from potential import Potential
 from simulation import (
-	BM4Composition,
-	GCExtendedFormulation,
+	BM4Implicit,
 	InitialValueProblem,
 	SimulationRequest,
 	Solution,
 	simulate,
 )
 
-from ._validation import nonnegative_finite, resolve_rho
+from ._validation import (
+	integer_ratio,
+	nonnegative_finite,
+	positive_finite,
+	positive_integer,
+	resolve_rho,
+)
 
 
 def _validated_steps(steps: tuple[float, ...]) -> tuple[float, ...]:
@@ -45,6 +51,10 @@ class GeneralizedEnergyConfig:
 	output_sample_count: int
 	rho: float | None = None
 	coupling_frequency: float = np.pi / 8
+	newton_absolute_tolerance: float = 1e-13
+	newton_relative_tolerance: float = 1e-12
+	newton_max_iterations: int = 12
+	newton_jacobian_relative_step: float = float(np.cbrt(np.finfo(float).eps))
 	progress: bool = False
 
 	def __post_init__(self) -> None:
@@ -64,12 +74,34 @@ class GeneralizedEnergyConfig:
 		):
 			raise ValueError("`output_sample_count` must be an integer of at least 2.")
 		object.__setattr__(self, "output_sample_count", int(self.output_sample_count))
+		save_interval = (stop - start) / (self.output_sample_count - 1)
+		for step in self.steps:
+			integer_ratio(
+				save_interval,
+				step,
+				f"output interval / step for {step:g}",
+			)
 		if self.rho is not None:
 			object.__setattr__(self, "rho", nonnegative_finite(self.rho, "rho"))
 		frequency = float(self.coupling_frequency)
 		if not np.isfinite(frequency) or frequency < 0:
 			raise ValueError("`coupling_frequency` must be finite and non-negative.")
 		object.__setattr__(self, "coupling_frequency", frequency)
+		for name in (
+			"newton_absolute_tolerance",
+			"newton_relative_tolerance",
+			"newton_jacobian_relative_step",
+		):
+			object.__setattr__(
+				self,
+				name,
+				positive_finite(getattr(self, name), name),
+			)
+		object.__setattr__(
+			self,
+			"newton_max_iterations",
+			positive_integer(self.newton_max_iterations, "newton_max_iterations"),
+		)
 
 
 @dataclass(frozen=True, slots=True)
@@ -186,29 +218,94 @@ def run_generalized_energy_comparison(
 			max_step=step,
 			sample_count=config.output_sample_count,
 		)
-		method = BM4Composition(
-			GCExtendedFormulation(
-				coupling_frequency=config.coupling_frequency,
-			),
-			track_energy=True,
-			progress=config.progress,
+		energy_observer = GCGeneralizedEnergyObserver(
+			dynamics,
+			initial_time=config.t_span[0],
+			initial_state=initial_state,
 		)
-		solution = simulate(problem, method, request)
-		extended_momentum = solution.diagnostics.get("extended_momentum")
-		if extended_momentum is None:
-			raise RuntimeError("Energy tracking did not return extended momentum.")
+		method = BM4Implicit(
+			coupling_frequency=config.coupling_frequency,
+			newton_absolute_tolerance=config.newton_absolute_tolerance,
+			newton_relative_tolerance=config.newton_relative_tolerance,
+			newton_max_iterations=config.newton_max_iterations,
+			newton_jacobian_relative_step=config.newton_jacobian_relative_step,
+			newton_jacobian_method="analytic",
+			nonlinear_solver="newton",
+			progress=config.progress,
+			step_observer=energy_observer,
+		)
+		raw_solution = simulate(problem, method, request)
+		records = energy_observer.records
+		if len(records) != raw_solution.n_steps + 1:
+			raise RuntimeError(
+				"Energy records do not match the accepted BM4 step count."
+			)
+		output_interval = (config.t_span[1] - config.t_span[0]) / (
+			config.output_sample_count - 1
+		)
+		record_stride = integer_ratio(
+			output_interval,
+			step,
+			f"output interval / step for {step:g}",
+		)
+		selected_records = records[::record_stride]
+		if len(selected_records) != raw_solution.t.size:
+			raise RuntimeError(
+				"Energy records do not align with the requested output grid."
+			)
+		record_times = np.asarray([record.time for record in selected_records])
+		time_tolerance = float(
+			64.0
+			* np.finfo(float).eps
+			* max(
+				1.0,
+				abs(config.t_span[0]),
+				abs(config.t_span[1]),
+			)
+		)
+		if not np.allclose(
+			record_times,
+			raw_solution.t,
+			rtol=0.0,
+			atol=time_tolerance,
+		):
+			raise RuntimeError(
+				"Energy-record times do not match the requested output times."
+			)
 		hamiltonian = np.asarray(
-			dynamics.hamiltonian(solution.t, solution.states),
+			[record.hamiltonian for record in selected_records],
 			dtype=float,
-		)[0]
-		generalized_energy = hamiltonian + np.asarray(
-			extended_momentum,
+		)
+		extended_momentum = np.asarray(
+			[record.kappa for record in selected_records],
 			dtype=float,
-		)[0]
-		energy_scale = max(abs(generalized_energy[0]), np.finfo(float).eps)
-		relative_error = (
-			generalized_energy - generalized_energy[0]
-		) / energy_scale
+		)
+		generalized_energy = np.asarray(
+			[record.generalized_energy for record in selected_records],
+			dtype=float,
+		)
+		generalized_energy_error = generalized_energy - generalized_energy[0]
+		relative_error = np.asarray(
+			[record.relative_error for record in selected_records],
+			dtype=float,
+		)
+		solution = Solution(
+			t=raw_solution.t,
+			states=raw_solution.states,
+			source=raw_solution.source,
+			diagnostics={
+				**dict(raw_solution.diagnostics),
+				"track_energy": True,
+				"hamiltonian": hamiltonian[np.newaxis, :],
+				"extended_momentum": extended_momentum[np.newaxis, :],
+				"extended_momentum_normalization": "kappa_equals_k_over_2",
+				"generalized_energy": generalized_energy,
+				"generalized_energy_error": generalized_energy_error,
+				"energy_error": float(
+					np.max(np.abs(generalized_energy_error))
+				),
+			},
+		)
 
 		solutions[step] = solution
 		energies[step] = generalized_energy

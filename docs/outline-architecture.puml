@@ -27,8 +27,12 @@ rectangle "1. Dynamics" as DynamicsGroup #EAF4FA {
   class "Potential" as Potential <<potential/potential.py>> {
     + grid: Grid
     + interpolation_order: int
-    --
-    + evaluate(t: float | ndarray, x: ndarray | None = None, y: ndarray | None = None, *, dx: int = 0, dy: int = 0, dt: int = 0): ndarray
+    + mean: ndarray
+    + modes: ndarray
+		+ frequencies: ndarray
+		+ metadata: object | None
+		--
+		+ evaluate(t: float | ndarray, x: ndarray | None = None, y: ndarray | None = None, *, dx: int = 0, dy: int = 0, dt: int = 0): ndarray
     + electric_field(t: float | ndarray, x: ndarray | None = None, y: ndarray | None = None): tuple[ndarray, ndarray]
     + gyroaverage(rho: float): Potential
   }
@@ -284,9 +288,7 @@ rectangle "3. Numerical Model" as NumericalModelGroup #FFF5E6 {
       + integrate(problem: InitialValueProblem, request: SimulationRequest): IntegrationData
     }
     class "ABBA4Implicit" as ABBA4Implicit <<abba/order4_implicit.py>> {
-      + integrate(problem: InitialValueProblem, request: SimulationRequest): IntegrationData
-    }
-    class "ABBA4ImplicitSingleProjection" as ABBA4Single <<abba/order4_implicit_single_projection.py>> {
+      + projection_placement: ProjectionPlacement
       + integrate(problem: InitialValueProblem, request: SimulationRequest): IntegrationData
     }
     class "ABBA6Implicit" as ABBA6Implicit <<abba/order6_implicit.py>> {
@@ -295,33 +297,11 @@ rectangle "3. Numerical Model" as NumericalModelGroup #FFF5E6 {
 
     ABBA2Implicit --|> ABBAImplicitConfig
     ABBA4Implicit --|> ABBAImplicitConfig
-    ABBA4Single --|> ABBAImplicitConfig
     ABBA6Implicit --|> ABBAImplicitConfig
   }
 
-  rectangle "BM4 family" as BM4Group #FFFBF5 {
-    class "BM4Composition" as BM4Composition <<bm4/_core.py>> {
-      + formulation: DirectAdjointFormulation
-      + track_energy: bool = False
-      + progress: bool = False
-      + stage_observer: StageObserver | None = None
-      --
-      + __post_init__(): None
-      + integrate(problem: InitialValueProblem, request: SimulationRequest): IntegrationData
-    }
-
-    class "ProjectedBM4Composition" as ProjectedBM4 <<bm4/_core.py>> {
-      + integrate(problem: InitialValueProblem, request: SimulationRequest): IntegrationData
-    }
-
-    class "MidpointBM4" as MidpointBM4 <<bm4/midpoint.py>> {
-      + progress: bool = False
-      + stage_observer: StageObserver | None = None
-      --
-      + integrate(problem: InitialValueProblem, request: SimulationRequest): IntegrationData
-    }
-
-    class "_ImplicitBM4" as ImplicitBM4 <<bm4/_implicit.py>> {
+  rectangle "BM4 implicit" as BM4Group #FFFBF5 {
+    class "BM4Implicit" as BM4Implicit <<bm4/implicit.py>> {
       + coupling_frequency: float = pi/8
       + newton_absolute_tolerance: float = 1e-13
       + newton_relative_tolerance: float = 1e-12
@@ -335,47 +315,9 @@ rectangle "3. Numerical Model" as NumericalModelGroup #FFF5E6 {
       + __post_init__(): None
       + integrate(problem: InitialValueProblem, request: SimulationRequest): IntegrationData
     }
-
-    class "BM4Implicit1" as BM4Implicit1 <<bm4/implicit_1.py>> {
-      - {static} _step_solver: Callable = _solve_reduced_projected_bm4_step
-      - {static} _solver_formulation: str = "bm4_implicit_1_reduced"
-    }
-    class "BM4Implicit2" as BM4Implicit2 <<bm4/implicit_2.py>> {
-      - {static} _step_solver: Callable = _solve_simultaneous_projected_bm4_step
-      - {static} _solver_formulation: str = "bm4_implicit_2_simultaneous"
-    }
-
-    class "_FullyExtendedImplicitMethod" as FullyExtendedImplicitMethod <<methods/_fully_extended.py>> {
-      + newton_absolute_tolerance: float = 1e-13
-      + newton_relative_tolerance: float = 1e-12
-      + newton_max_iterations: int = 20
-      + nonlinear_solver: NonlinearSolver = "newton"
-      + progress: bool = False
-      + step_observer: StepObserver | None = None
-      --
-      + __post_init__(): None
-      + integrate(problem: InitialValueProblem, request: SimulationRequest): IntegrationData
-    }
-
-    class "BM4_implicit2" as BM4FullyExtended <<bm4/fully_extended.py>> {
-      + coupling_frequency: float = pi/8
-      --
-      + __post_init__(): None
-    }
-
-    ProjectedBM4 --|> BM4Composition
-    BM4Implicit1 --|> ImplicitBM4
-    BM4Implicit2 --|> ImplicitBM4
-    BM4FullyExtended --|> FullyExtendedImplicitMethod
   }
 
-  rectangle "BM4 formulations" as FormulationGroup #FFFBF5 {
-    interface "DirectAdjointFormulation" as DirectAdjointFormulation <<formulations/base.py>> {
-      + prepare(problem: InitialValueProblem, *, track_energy: bool): PreparedDirectAdjointFormulation
-    }
-    interface "StageProjectedFormulation" as StageProjectedFormulation <<formulations/base.py>> {
-      + prepare(problem: InitialValueProblem, *, track_energy: bool): PreparedStageProjectedFormulation
-    }
+  rectangle "BM4 physical formulation" as FormulationGroup #FFFBF5 {
     interface "PreparedDirectAdjointFormulation" as PreparedDirectAdjoint <<formulations/base.py>> {
       + dynamics: DynamicalSystem
       + dynamics_name: str
@@ -383,41 +325,23 @@ rectangle "3. Numerical Model" as NumericalModelGroup #FFF5E6 {
       --
       + direct_map(duration: float, t: float, state: ndarray): ndarray
       + adjoint_map(duration: float, t: float, state: ndarray): ndarray
-      + project(internal_history: ndarray): tuple[ndarray, diagnostics]
-    }
-    interface "PreparedStageProjectedFormulation" as PreparedStageProjected <<formulations/base.py>> {
-      + supports_stage_projection: bool
-      --
-      + project_internal_state(state: ndarray): ndarray
-    }
-    class "FCSplitFormulation" as FCSplitFormulation <<formulations/fc.py>> {
-      + prepare(problem: InitialValueProblem, *, track_energy: bool): PreparedDirectAdjointFormulation
     }
     class "GCExtendedFormulation" as GCExtendedFormulation <<formulations/gc.py>> {
       + coupling_frequency: float = pi/8
       --
-      + __post_init__(): None
-      + prepare(problem: InitialValueProblem, *, track_energy: bool): PreparedDirectAdjointFormulation
-    }
-    class "GCStageProjectedFormulation" as GCStageProjectedFormulation <<formulations/gc.py>> {
-      + prepare(problem: InitialValueProblem, *, track_energy: bool): PreparedStageProjectedFormulation
+      + prepare(problem: InitialValueProblem, *, track_energy = False): PreparedDirectAdjointFormulation
     }
     rectangle "<b>gc_coupling_matrix</b>\n<i>formulations/gc.py</i>\nIN: duration: float, frequency: float\nOUT: ndarray" as GCCouplingFunction
 
-    StageProjectedFormulation --|> DirectAdjointFormulation
-    PreparedStageProjected --|> PreparedDirectAdjoint
-    FCSplitFormulation ..|> DirectAdjointFormulation
-    GCExtendedFormulation ..|> DirectAdjointFormulation
-    GCStageProjectedFormulation ..|> StageProjectedFormulation
-    DirectAdjointFormulation ..> PreparedDirectAdjoint : prepare output
-    StageProjectedFormulation ..> PreparedStageProjected : prepare output
+    GCExtendedFormulation ..> PreparedDirectAdjoint : fixed physical preparation
+    GCExtendedFormulation ..> GCCouplingFunction : uses
   }
 
   rectangle "<b>Classical step functions</b>\n\n<b>_solve_gauss_step</b>\nIN: dynamics, time, state, step, Newton configuration\nOUT: _GaussStepResult\n\n<b>_advance_hbvm42</b>\nIN: dynamics, time, state, step, Newton configuration\nOUT: _HBVMStepResult" as ClassicalFunctions
 
   rectangle "<b>ABBA coordinators and step solvers</b>\n\n<b>_midpoint_abba_step</b>\nIN: dynamics, t, state, step\nOUT: _ABBA2MidpointStep\n\n<b>_step_solver_for</b>\nIN: formulation: ProjectionFormulation\nOUT: Callable[..., _ProjectedStep]\n\n<b>_solve_reduced_multiplier_step</b>\nIN: dynamics, t, state, step, solver configuration\nOUT: _ProjectedStep\n\n<b>_solve_simultaneous_state_multiplier_step</b>\nIN: dynamics, t, state, step, solver configuration\nOUT: _ProjectedStep\n\n<b>_solve_composed_abba_step</b>\nIN: dynamics, t, state, step, coefficients, method/solver configuration\nOUT: _ComposedABBAStep\n\n<b>_solve_abba4_single_projection_step</b>\nIN: dynamics, t, state, step, solver/projection configuration\nOUT: _ABBA4SingleProjectionStep\n\n<b>_integrate_projected_abba</b>\nIN: problem, request, method/solver configuration\nOUT: IntegrationData\n\n<b>_integrate_composed_implicit_abba</b>\nIN: method, problem, request, composition configuration\nOUT: IntegrationData\n\n<b>_integrate_abba4_implicit_single_projection</b>\nIN: method, problem, request\nOUT: IntegrationData\n\n<b>_integrate_abba_fully_extended</b>\nIN: method, problem, request, variant, projection_formulation\nOUT: IntegrationData\n\n<b>_integrate_abba_fully_extended_midpoint</b>\nIN: method, problem, request\nOUT: IntegrationData" as ABBAFunctions
 
-  rectangle "<b>BM4 coordinators</b>\n\n<b>_advance_composition</b>\nIN: prepared, t, state, step, observer/projection configuration\nOUT: ndarray\n\n<b>_integrate_bm4</b>\nIN: method, problem, request, project_each_stage\nOUT: IntegrationData\n\n<b>_integrate_implicit_bm4</b>\nIN: method, problem, request\nOUT: IntegrationData\n\n<b>_solve_reduced_projected_bm4_step</b>\nIN: prepared, t, state, step, solver configuration\nOUT: _ProjectedBM4Step\n\n<b>_solve_simultaneous_projected_bm4_step</b>\nIN: prepared, t, state, step, solver configuration\nOUT: _ProjectedBM4Step\n\n<b>_integrate_fully_extended</b>\nIN: method, problem, request\nOUT: IntegrationData" as BM4Functions
+  rectangle "<b>BM4 physical coordinator and kernels</b>\n\n<b>_advance_composition</b>\nIN: prepared, t, duplicated physical state, step\nOUT: R4N complete-cycle state\n\n<b>_bm4_map / _bm4_map_jacobian</b>\nIN: prepared, t, duplicated physical state, step\nOUT: complete map and selected tangent\n\n<b>_solve_reduced_projected_bm4_step</b>\nIN: prepared, t, physical state, step, solver configuration\nOUT: _ProjectedBM4Step\n\n<b>_integrate_implicit_bm4</b>\nIN: BM4Implicit, problem, request\nOUT: physical IntegrationData" as BM4Functions
 
   rectangle "<b>integrate_fixed_grid</b>\n<i>simulation/_fixed.py</i>\nIN: initial_state: ndarray\nIN: request: SimulationRequest\nIN: advance(time, state, step, step_index, observe): ndarray\nIN: progress: bool, label: str\nOUT: tuple[history: ndarray, step_count: int]" as FixedGridFunction
 
@@ -430,27 +354,16 @@ rectangle "3. Numerical Model" as NumericalModelGroup #FFF5E6 {
   ABBA2Midpoint ..|> NumericalMethod
   ABBA2Implicit ..|> NumericalMethod
   ABBA4Implicit ..|> NumericalMethod
-  ABBA4Single ..|> NumericalMethod
   ABBA6Implicit ..|> NumericalMethod
-  BM4Composition ..|> NumericalMethod
-  MidpointBM4 ..|> NumericalMethod
-  ImplicitBM4 ..|> NumericalMethod
-  FullyExtendedImplicitMethod ..|> NumericalMethod
+  BM4Implicit ..|> NumericalMethod
 
-  BM4Composition o--> DirectAdjointFormulation : formulation
-  ProjectedBM4 ..> StageProjectedFormulation : requires
-  MidpointBM4 ..> GCStageProjectedFormulation : uses
-  BM4Composition ..> PreparedDirectAdjoint : uses prepared maps
+  BM4Implicit ..> GCExtendedFormulation : prepares physical copies
+  BM4Implicit ..> PreparedDirectAdjoint : uses prepared maps
   GaussLegendre4 ..> ClassicalFunctions
   HBVM42 ..> ClassicalFunctions
   ABBA2Midpoint ..> ABBAFunctions
   ABBAImplicitConfig ..> ABBAFunctions
-  BM4Composition ..> BM4Functions
-  MidpointBM4 ..> BM4Functions
-  ImplicitBM4 ..> BM4Functions
-  BM4Implicit1 ..> BM4Functions : reduced _step_solver
-  BM4Implicit2 ..> BM4Functions : simultaneous _step_solver
-  FullyExtendedImplicitMethod ..> BM4Functions
+  BM4Implicit ..> BM4Functions : fixed reduced Hairer projection
   ClassicalFunctions ..> FixedGridFunction
   ABBAFunctions ..> FixedGridFunction
   BM4Functions ..> FixedGridFunction

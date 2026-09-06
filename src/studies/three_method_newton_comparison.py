@@ -13,8 +13,8 @@ from dynamics import GuidingCenterDynamics
 from initial_conditions import GCInitialConfiguration
 from potential import Potential
 from simulation import (
-	ABBA4ImplicitSingleProjection,
-	BM4Implicit1,
+	ABBA4Implicit,
+	BM4Implicit,
 	GaussLegendre4,
 	InitialValueProblem,
 	NumericalMethod,
@@ -39,13 +39,13 @@ from ._validation import integer_ratio, nonnegative_finite, positive_finite, pos
 THREE_METHOD_NEWTON_METHODS: tuple[str, ...] = (
 	"ABBA4ImplicitSingleProjection",
 	"GaussLegendre4",
-	"BM4Implicit1",
+	"BM4Implicit",
 )
 THREE_METHOD_NEWTON_LABELS: Mapping[str, str] = MappingProxyType(
 	{
 		"ABBA4ImplicitSingleProjection": "Single-projection implicit ABBA4",
 		"GaussLegendre4": "Gauss--Legendre (2 stages, order 4)",
-		"BM4Implicit1": "Single-projection implicit BM4",
+		"BM4Implicit": "Single-projection implicit BM4",
 	}
 )
 
@@ -501,7 +501,8 @@ def _method(
 ) -> NumericalMethod:
 	"""Build one method with the common analytic-Newton controls."""
 	if method_name == "ABBA4ImplicitSingleProjection":
-		return ABBA4ImplicitSingleProjection(
+		return ABBA4Implicit(
+			projection_placement="around_complete_composition",
 			projection_formulation="reduced_multiplier",
 			state_extension="physical",
 			newton_absolute_tolerance=config.absolute_tolerance,
@@ -519,8 +520,8 @@ def _method(
 			newton_jacobian_relative_step=config.jacobian_relative_step,
 			progress=config.progress,
 		)
-	if method_name == "BM4Implicit1":
-		return BM4Implicit1(
+	if method_name == "BM4Implicit":
+		return BM4Implicit(
 			coupling_frequency=config.coupling_frequency,
 			newton_absolute_tolerance=config.absolute_tolerance,
 			newton_relative_tolerance=config.relative_tolerance,

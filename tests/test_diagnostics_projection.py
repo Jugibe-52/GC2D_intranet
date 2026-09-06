@@ -12,12 +12,7 @@ from dynamics import GuidingCenterDynamics
 from initial_conditions import Area
 from potential import Potential
 from simulation import (
-	BM4Composition,
-	GCExtendedFormulation,
-	InitialValueProblem,
 	IntegrationStage,
-	SimulationRequest,
-	simulate,
 )
 from diagnostics.projection import (
 	ProjectedSymplecticityAreaObserver,
@@ -65,7 +60,7 @@ class ProjectionDiagnosticTests(unittest.TestCase):
 						IntegrationStage(
 							dynamics_name="GuidingCenterDynamics",
 							formulation_name="GCExtendedFormulation",
-							method_name="BM4Composition",
+							method_name="BM4Implicit",
 							flow_name=(
 								"adjoint_flow" if stage_index % 2 == 0 else "flow"
 							),
@@ -103,55 +98,6 @@ class ProjectionDiagnosticTests(unittest.TestCase):
 				self.assertEqual(arrays["projected_jacobians"].shape, (2, 8, 8))
 				self.assertEqual(arrays["projected_states"].shape, (2, 8))
 
-	def test_real_gc_projection_matches_the_saved_area(self) -> None:
-		area = Area.square(
-			center=(np.pi, np.pi),
-			side=0.5,
-			points_per_side=1,
-			rho=0.05,
-		)
-		potential = Potential.random(
-			A=0.08,
-			M=3,
-			nx=16,
-			ny=16,
-			seed=27,
-			interpolation_order=3,
-		)
-		problem = InitialValueProblem(
-			GuidingCenterDynamics(potential, rho=area.rho),
-			area,
-		)
-
-		with tempfile.TemporaryDirectory(dir="/tmp") as temporary:
-			root = Path(temporary)
-			with ProjectedSymplecticityAreaObserver(
-				notebook_path=root / "notebooks" / "developements" / "real.ipynb",
-				area=area,
-				period=potential.grid.period,
-				project_root=root,
-				verbose=False,
-			) as observer:
-				solution = simulate(
-					problem,
-					BM4Composition(
-						GCExtendedFormulation(coupling_frequency=0.0),
-						stage_observer=observer,
-					),
-					SimulationRequest.uniform(
-						t_span=(0.0, 0.01),
-						max_step=0.01,
-						sample_count=2,
-					),
-				)
-
-			final = observer.records[-1]
-			saved_area = float(
-				area.calculate_area(solution.y[:, -1], period=potential.grid.period)
-			)
-			self.assertAlmostEqual(final.signed_area, saved_area)
-			self.assertTrue(np.isfinite(final.relative_defect))
-			self.assertTrue(np.isfinite(final.relative_area_error))
 
 
 if __name__ == "__main__":

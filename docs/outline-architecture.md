@@ -16,8 +16,9 @@ Read the diagram from left to right through four groups:
    configurations, optional area contours, and the `InitialValueProblem` that
    checks compatibility between a configuration and its dynamics.
 3. **Numerical Model** contains the temporal request, the numerical-method
-   contract, every public method implementation, BM4 formulation contracts,
-   and the shared integration functions that coordinate a trajectory.
+   contract, every public method implementation, BM4's fixed physical
+   projection path, and the shared integration functions that coordinate a
+   trajectory.
 4. **Solution** shows the public `simulate(...)` façade, its runner, the
    internal `IntegrationData` transfer object, and the immutable public result.
 
@@ -54,7 +55,7 @@ configuration as `solution.source`.
 
 ## Numerical-method catalogue
 
-All fifteen selectable classes implement the same operation:
+All ten canonical selectable classes implement the same operation:
 
 ```text
 integrate(
@@ -65,16 +66,16 @@ integrate(
 
 | Family | Public classes |
 | --- | --- |
-| Classical | `ExplicitEuler`, `RK4`, `GaussLegendre4` |
+| Classical | `ExplicitEuler`, `RK4`, `GaussLegendre4`, `SDIRK4` |
 | HBVM | `HBVM42` |
-| ABBA | `ABBA2Midpoint`, `ABBA2Implicit`, `ABBA4Implicit`, `ABBA4ImplicitSingleProjection`, `ABBA6Implicit` |
-| BM4 | `BM4Composition`, `ProjectedBM4Composition`, `MidpointBM4`, `BM4Implicit1`, `BM4Implicit2`, `BM4_implicit2` |
+| ABBA | `ABBA2Midpoint`, `ABBA2Implicit`, `ABBA4Implicit`, `ABBA6Implicit` |
+| BM4 | `BM4Implicit` |
 
-The shared private configuration classes in the diagram avoid repeating the
-same inherited attributes on every ABBA or BM4 class. BM4's reusable
-`DirectAdjointFormulation` boundary is shown separately because
-`BM4Composition` accepts GC or FC formulations and prepares per-run direct and
-adjoint maps.
+The shared private ABBA configuration class in the diagram avoids repeating
+the same inherited attributes on every ABBA class. `BM4Implicit` instead owns
+one fixed construction: it prepares two copies of the physical GC state,
+executes the complete twelve-stage BM4 cycle without intermediate projection,
+and solves one reduced Hairer projection around that cycle.
 
 ## Scope
 

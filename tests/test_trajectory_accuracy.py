@@ -1,4 +1,4 @@
-"""Tests for certified references and ten-method numerical accuracy."""
+"""Tests for certified references and seven-variant numerical accuracy."""
 
 from __future__ import annotations
 
@@ -35,9 +35,9 @@ from visualization import (
 
 
 class TrajectoryAccuracyTests(unittest.TestCase):
-	"""Verify reference persistence, periodic errors, and all ten variants."""
+	"""Verify reference persistence, periodic errors, and all seven variants."""
 
-	def test_reference_roundtrip_and_ten_method_accuracy(self) -> None:
+	def test_reference_roundtrip_and_seven_variant_accuracy(self) -> None:
 		potential_config = RandomPotentialConfig(
 			amplitude=0.02,
 			max_wave_number=2,
@@ -132,13 +132,16 @@ class TrajectoryAccuracyTests(unittest.TestCase):
 				potential_metadata=potential_config.metadata(),
 				initial_condition_metadata=initial_metadata,
 			)
-			self.assertEqual(len(accuracy.series), 10)
+			self.assertEqual(len(accuracy.series), 7)
 			summaries = accuracy.summaries()
-			self.assertEqual(len(summaries), 10)
+			self.assertEqual(len(summaries), 7)
 			summary_by_name = {row.method_name: row for row in summaries}
-			self.assertLess(
-				summary_by_name["Midpoint BM4"].global_rms_distance,
-				summary_by_name["Midpoint ABBA"].global_rms_distance,
+			self.assertEqual(
+				{
+					name for name in summary_by_name
+					if name.startswith("BM4 implicit")
+				},
+				{"BM4 implicit (Newton)", "BM4 implicit (Broyden)"},
 			)
 			for series in accuracy.series.values():
 				self.assertEqual(series.distances.shape, (2, 3))
@@ -177,29 +180,29 @@ class TrajectoryAccuracyTests(unittest.TestCase):
 			summary_figure, summary_axis = plot_ten_method_accuracy_summary(
 				summaries
 			)
-			self.assertEqual(len(summary_axis.patches), 20)
+			self.assertEqual(len(summary_axis.patches), 14)
 			summary_figure.canvas.draw()
 			plt.close(summary_figure)
 			tradeoff_figure, tradeoff_axis = plot_accuracy_runtime_tradeoff(
 				summaries
 			)
-			self.assertEqual(len(tradeoff_axis.collections), 10)
+			self.assertEqual(len(tradeoff_axis.collections), 7)
 			tradeoff_figure.canvas.draw()
 			plt.close(tradeoff_figure)
-			eleven_summaries = (
+			eight_summaries = (
 				*summaries,
 				replace(summaries[0], method_name="Additional method"),
 			)
-			eleven_figure, eleven_axis = plot_accuracy_summary(eleven_summaries)
-			self.assertEqual(len(eleven_axis.patches), 22)
-			eleven_figure.canvas.draw()
-			plt.close(eleven_figure)
-			eleven_tradeoff_figure, eleven_tradeoff_axis = (
-				plot_accuracy_runtime_tradeoff(eleven_summaries)
+			eight_figure, eight_axis = plot_accuracy_summary(eight_summaries)
+			self.assertEqual(len(eight_axis.patches), 16)
+			eight_figure.canvas.draw()
+			plt.close(eight_figure)
+			eight_tradeoff_figure, eight_tradeoff_axis = (
+				plot_accuracy_runtime_tradeoff(eight_summaries)
 			)
-			self.assertEqual(len(eleven_tradeoff_axis.collections), 11)
-			eleven_tradeoff_figure.canvas.draw()
-			plt.close(eleven_tradeoff_figure)
+			self.assertEqual(len(eight_tradeoff_axis.collections), 8)
+			eight_tradeoff_figure.canvas.draw()
+			plt.close(eight_tradeoff_figure)
 
 			refinement = run_ten_method_accuracy_refinement_study(
 				potential,
@@ -211,9 +214,9 @@ class TrajectoryAccuracyTests(unittest.TestCase):
 				initial_condition_metadata=initial_metadata,
 			)
 			self.assertEqual(refinement.integration_steps, (0.05, 0.025))
-			self.assertEqual(len(refinement.summaries()), 20)
+			self.assertEqual(len(refinement.summaries()), 14)
 			orders = refinement.convergence_orders()
-			self.assertEqual(len(orders), 10)
+			self.assertEqual(len(orders), 7)
 			audit_distances = loaded.audit_distances[:, ::2]
 			expected_floor = float(
 				np.sqrt(
@@ -247,7 +250,7 @@ class TrajectoryAccuracyTests(unittest.TestCase):
 				plot_ten_method_accuracy_refinement(refinement.summaries())
 			)
 			self.assertEqual(refinement_axes.shape, (2,))
-			self.assertEqual([len(axis.lines) for axis in refinement_axes], [5, 5])
+			self.assertEqual([len(axis.lines) for axis in refinement_axes], [5, 2])
 			refinement_figure.canvas.draw()
 			plt.close(refinement_figure)
 			with self.assertRaisesRegex(ValueError, "coarse step / fine step"):

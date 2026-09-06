@@ -1,4 +1,4 @@
-"""Aligned trajectory and nonlinear-work comparison for four implicit methods."""
+"""Aligned trajectory and nonlinear-work comparison for three implicit methods."""
 
 from __future__ import annotations
 
@@ -13,8 +13,7 @@ import numpy as np
 from dynamics import GuidingCenterDynamics
 from potential import Potential
 from simulation import (
-	BM4Implicit1,
-	BM4Implicit2,
+	BM4Implicit,
 	ABBA2Implicit,
 	InitialConfiguration,
 	InitialValueProblem,
@@ -36,14 +35,13 @@ from ._validation import (
 IMPLICIT_METHOD_NAMES: tuple[str, ...] = (
 	"ABBA2Implicit[reduced_multiplier]",
 	"ABBA2Implicit[simultaneous_state_multiplier]",
-	"BM4Implicit1",
-	"BM4Implicit2",
+	"BM4Implicit",
 )
 
 
 @dataclass(frozen=True, slots=True)
 class ImplicitTrajectoryComparisonConfig:
-	"""Shared physical grid and nonlinear controls for all four methods."""
+	"""Shared physical grid and nonlinear controls for all three methods."""
 
 	rho: float = 0.3
 	coupling_frequency: float = float(np.pi / 8.0)
@@ -143,7 +141,7 @@ def _minimum_image_displacement(
 
 @dataclass(frozen=True, slots=True)
 class ImplicitTrajectoryComparisonResult:
-	"""Four aligned solutions with trajectory and nonlinear-work summaries."""
+	"""Three aligned solutions with trajectory and nonlinear-work summaries."""
 
 	potential: Potential
 	dynamics: GuidingCenterDynamics
@@ -165,7 +163,7 @@ class ImplicitTrajectoryComparisonResult:
 		if not isinstance(self.config, ImplicitTrajectoryComparisonConfig):
 			raise TypeError("`config` must be an ImplicitTrajectoryComparisonConfig.")
 		if tuple(self.solutions) != IMPLICIT_METHOD_NAMES:
-			raise ValueError("The comparison must contain all four implicit methods.")
+			raise ValueError("The comparison must contain all three implicit methods.")
 		if tuple(self.runtimes) != IMPLICIT_METHOD_NAMES:
 			raise ValueError("The comparison must contain one runtime per method.")
 
@@ -279,7 +277,7 @@ def run_implicit_trajectory_comparison(
 	*,
 	config: ImplicitTrajectoryComparisonConfig,
 ) -> ImplicitTrajectoryComparisonResult:
-	"""Run all four methods once with a common problem, grid, and solver controls."""
+	"""Run all three methods once with a common problem, grid, and solver controls."""
 	if not isinstance(potential, Potential):
 		raise TypeError("`potential` must be a Potential instance.")
 	if not isinstance(initial_configuration, InitialConfiguration):
@@ -313,16 +311,7 @@ def run_implicit_trajectory_comparison(
 			nonlinear_solver=config.nonlinear_solver,
 			progress=config.progress,
 		),
-		BM4Implicit1(
-			coupling_frequency=config.coupling_frequency,
-			newton_absolute_tolerance=config.absolute_tolerance,
-			newton_relative_tolerance=config.relative_tolerance,
-			newton_max_iterations=config.max_iterations,
-			newton_jacobian_relative_step=config.newton_jacobian_relative_step,
-			nonlinear_solver=config.nonlinear_solver,
-			progress=config.progress,
-		),
-		BM4Implicit2(
+		BM4Implicit(
 			coupling_frequency=config.coupling_frequency,
 			newton_absolute_tolerance=config.absolute_tolerance,
 			newton_relative_tolerance=config.relative_tolerance,

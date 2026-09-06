@@ -124,7 +124,7 @@ def _kappa_increment(
 		)
 	raise TypeError(
 		"Generalized-energy reconstruction supports ABBA2Implicit, "
-		"ABBA4Implicit, and BM4Implicit1 step records."
+		"ABBA4Implicit, and BM4Implicit step records."
 	)
 
 

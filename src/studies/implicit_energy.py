@@ -21,7 +21,7 @@ from initial_conditions import GCInitialConfiguration
 from potential import Potential
 from simulation import (
 	ABBA4Implicit,
-	BM4Implicit1,
+	BM4Implicit,
 	ABBA2Implicit,
 	InitialValueProblem,
 	NumericalMethod,
@@ -42,18 +42,18 @@ from ._validation import (
 ImplicitEnergyMethod = Literal[
 	"abba2_implicit_reduced_multiplier",
 	"abba4_implicit",
-	"bm4_implicit_1",
+	"bm4_implicit",
 ]
 IMPLICIT_ENERGY_METHODS: tuple[ImplicitEnergyMethod, ...] = (
 	"abba2_implicit_reduced_multiplier",
 	"abba4_implicit",
-	"bm4_implicit_1",
+	"bm4_implicit",
 )
 IMPLICIT_ENERGY_METHOD_LABELS: Mapping[ImplicitEnergyMethod, str] = MappingProxyType(
 	{
 		"abba2_implicit_reduced_multiplier": "ABBA2Implicit[reduced_multiplier]",
 		"abba4_implicit": "ABBA4Implicit",
-		"bm4_implicit_1": "BM4Implicit1",
+		"bm4_implicit": "BM4Implicit",
 	}
 )
 
@@ -470,7 +470,7 @@ def _method_for_run(
 			progress=config.progress,
 			step_observer=observer,
 		)
-	return BM4Implicit1(
+	return BM4Implicit(
 		coupling_frequency=config.coupling_frequency,
 		newton_absolute_tolerance=config.newton_absolute_tolerance,
 		newton_relative_tolerance=config.newton_relative_tolerance,

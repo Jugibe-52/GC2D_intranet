@@ -30,17 +30,17 @@
 \section{Purpose and model boundary}
 
 The ABBA model is a family of integrators built from the same explicit
-$A$--$B$--$B$--$A$ map on two copies of a physical state.  A public class
-selects the order and projection placement; configuration controls select the
+$A$--$B$--$B$--$A$ map on two copies of a physical state. A public class
+selects the order, while ABBA4 additionally selects its projection placement;
+configuration controls select the
 projection equations, nonlinear solver, state extension, and optional physical
 energy tracking.  These choices are configurations of a model, not additional
 model identities.
 
-The family has five public methods:
+The family has four public method classes:
 \begin{itemize}
 \item \texttt{ABBA2Midpoint} and \texttt{ABBA2Implicit};
-\item \texttt{ABBA4Implicit} and
-      \texttt{ABBA4ImplicitSingleProjection}; and
+\item \texttt{ABBA4Implicit}, with two projection placements; and
 \item \texttt{ABBA6Implicit}.
 \end{itemize}
 Their focused theory documents live in the sibling model directories.
@@ -119,11 +119,13 @@ tracking, while fully extended execution always enables it.  Thus the three
 canonical normalized strategies are
 $(\texttt{physical},\texttt{False})$,
 $(\texttt{physical},\texttt{True})$, and
-$(\texttt{fully\_extended},\texttt{True})$.  Each implicit class admits
-$2\times2\times3=12$ canonical configurations.  \texttt{ABBA2Midpoint} has no
-nonlinear equations and supports the same three strategies.  The family
-therefore contains $4\times12+3=51$ canonical public configurations while
-retaining five method classes.
+$(\texttt{fully\_extended},\texttt{True})$.  \texttt{ABBA2Implicit} and
+\texttt{ABBA6Implicit} each admit $2\times2\times3=12$ canonical
+configurations.  The two projection placements of \texttt{ABBA4Implicit}
+double that class to 24.  \texttt{ABBA2Midpoint} has no nonlinear equations and
+supports the same three strategies.  The family therefore contains
+$12+24+12+3=51$ canonical public configurations while retaining four method
+classes.
 
 For one guiding-centre particle, the state dimensions are
 \begin{center}
@@ -168,8 +170,7 @@ Method & ABBA maps & projection policy\\
 \midrule
 ABBA2Midpoint & 1 & arithmetic mean\\
 ABBA2Implicit & 1 & one symmetric projection\\
-ABBA4Implicit & 3 & project after every signed map\\
-ABBA4ImplicitSingleProjection & 3 & project around the complete triple jump\\
+ABBA4Implicit & 3 & configurable: after every map or around the composition\\
 ABBA6Implicit & 7 & project after every signed map\\
 \bottomrule
 \end{tabular}
@@ -191,8 +192,9 @@ Jacobian defects can be distinguished from ideal algebraic properties.
 The common stage kernel is in \texttt{src/simulation/methods/abba/\_core.py};
 the two projection formulations are in \texttt{\_projection\_reduced.py} and
 \texttt{\_projection\_simultaneous.py}; configuration validation is in
-\texttt{\_configuration.py}; and the five public classes are implemented by
-the corresponding \texttt{order*.py} modules.  The architecture document in
+\texttt{\_configuration.py}; and the four public classes are implemented by
+the corresponding \texttt{order*.py} modules. The private exterior-projection
+ABBA4 kernel remains in \texttt{order4\_implicit\_single\_projection.py}. The architecture document in
 \texttt{../simulation/} is the authoritative runtime inventory.
 
 \end{document}

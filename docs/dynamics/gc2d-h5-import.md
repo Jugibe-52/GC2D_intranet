@@ -7,7 +7,7 @@ model; model documentation states only which capabilities it consumes.
 The HDF5 import path loads the primary GC2D field format into the potential and
 simulation APIs. Its implementation lives in
 [`src/potential/gc2d_h5.py`](../../src/potential/gc2d_h5.py), and the package
-exports both `load_gc2d_h5_potential` and `GC2DH5Potential` from
+exports `load_gc2d_h5_potential`, `Potential`, and `GC2DH5Metadata` from
 [`src/potential/__init__.py`](../../src/potential/__init__.py).
 
 The corresponding component and data-flow diagram is
@@ -15,13 +15,17 @@ The corresponding component and data-flow diagram is
 
 ## Responsibilities
 
-The import path has two distinct responsibilities:
+The import path separates three distinct responsibilities:
 
 - `load_gc2d_h5_potential(...)` reads, validates, selects, nondimensionalizes,
-  and optionally preprocesses the fields stored in an HDF5 file.
-- `GC2DH5Potential` stores the resulting fields and preserves their HDF5
-  interpolation, time reconstruction, derivative, and gyroaveraging semantics
-  behind the common `Potential` interface.
+  and optionally preprocesses the fields stored in an HDF5 file. It also builds
+  the provenance metadata associated with those transformations.
+- `Potential` stores the resulting mean and modes using the same interpolation,
+  time-reconstruction, derivative, and gyroaveraging implementation used by
+  artificially generated potentials.
+- `GC2DH5Metadata` stores the immutable dimensional source coordinates,
+  frequencies, selection indices, scales, attributes, and source path without
+  mixing those values into the runtime-field constructor signature.
 
 The loader defines the primary GC2D HDF5 schema and runtime contract. It is not
 a general-purpose HDF5 potential reader.
@@ -44,9 +48,9 @@ The loader accepts the following options:
 | --- | --- | --- |
 | `filename` | Required | Path to the GC2D HDF5 file. |
 | `B` | `1.5` | Non-zero magnetic-field normalization parameter. |
-| `characteristic_length` | `0.06` | Physical fluctuation length `lambda` mapped to `2*pi`. |
+| `characteristic_length` | `0.06` | Physical mode length `lambda` mapped to `2*pi`. |
 | `characteristic_frequency` | `None` | Positive source angular frequency `omega0=2*pi/T0`; the dominant sorted mode is used when omitted. |
-| `indx` | `(0, 1)` | Selected mean and fluctuation indices after mode ordering. |
+| `indx` | `(0, 1)` | Selected mean and mode indices after amplitude ordering. |
 | `nx`, `ny` | `None` | Optional target sizes for periodic resampling. They must be supplied together. |
 | `denoising` | `False` | Enables Gaussian filtering before optional resampling. |
 | `sigma` | `1.0` | Non-negative standard deviation used by the Gaussian filter. |
@@ -60,8 +64,8 @@ The loader accepts the following options:
 
 The default `indx=(0, 1)` selects the mean and the dominant retained
 positive-frequency mode. Passing `indx=None` explicitly selects the mean
-position and every retained positive-frequency mode. A missing mean field
-simply leaves that component absent.
+position and every retained positive-frequency mode. A missing mean field is
+represented by a zero runtime array.
 
 ## Expected HDF5 schema
 
@@ -74,9 +78,9 @@ The loader reads four datasets from the root of the file:
 | `freqs` | One-dimensional real array | One angular frequency per stored field. |
 | `fields` | Complex array with shape `(len(freqs), len(Zcells), len(Rcells))` | Mean and oscillatory spatial fields. |
 
-Root HDF5 attributes are copied into the resulting potential as read-only source
-metadata. Missing datasets currently produce the corresponding `h5py` key
-error rather than a custom schema error.
+Root HDF5 attributes are copied into the resulting `GC2DH5Metadata` as read-only
+source metadata. Missing datasets currently produce the corresponding `h5py`
+key error rather than a custom schema error.
 
 The loader preserves the stored two-dimensional field orientation and does not
 transpose the arrays. The runtime adapter treats the first spatial array axis as
@@ -110,7 +114,7 @@ the mean potential `Phi0`.
 
 Additional zero-frequency entries do not enter the oscillatory reconstruction.
 
-### 3. Retain and order fluctuation modes
+### 3. Retain and order positive-frequency modes
 
 Negative-frequency fields are discarded. The remaining strictly positive
 frequencies and their complex spatial fields are sorted by descending
@@ -142,7 +146,7 @@ The implementation retains a divisor-style provenance value,
 normalization_factor = omega0*lambda**2*B/(2*pi)**2,
 ```
 
-and divides the mean field and every retained fluctuation by that value. The
+and divides the mean field and every retained mode by that value. The
 dominant mode therefore completes one cycle per normalized time unit and has
 temporal period `1`. The complete `PHI_2.h5` spatial box has length `0.18`, so
 the default `lambda=0.06` maps it to a dimensionless box of length `6*pi`.
@@ -159,16 +163,16 @@ selected mean can then be constructed.
 
 ### 5. Apply `indx`
 
-The loader selects the requested mean and sorted fluctuation modes. Selection
+The loader selects the requested mean and sorted modes. Selection
 order is preserved. Runtime `frequencies`, dimensional `source_frequencies`,
-`fluctuations`, and `source_field_indices` remain aligned.
+`modes`, and `source_field_indices` remain aligned.
 
 ### 6. Apply optional denoising
 
 When `denoising=True`, `scipy.ndimage.gaussian_filter` is applied to:
 
 - the real mean field, when present;
-- the real and imaginary parts of each fluctuation separately.
+- the real and imaginary parts of each mode separately.
 
 Denoising takes place after normalization and selection but before resampling.
 
@@ -188,37 +192,56 @@ HDF5 samples
     -> persistent periodic runtime splines
 ```
 
-### 8. Construct `GC2DH5Potential`
+### 8. Construct metadata and `Potential`
 
-The final step constructs a `GC2DH5Potential` with the processed arrays and the
-following provenance information:
+The final step first constructs one `GC2DH5Metadata` value with the following
+provenance information:
 
-- dimensionless selected frequencies and dimensional source frequencies;
+- dimensional source frequencies for the selected runtime modes;
 - dimensional source axes;
 - characteristic length, frequency, and period;
 - original HDF5 field indices;
 - normalization factor;
 - root attributes;
-- source path;
-- interpolation order.
+- source path.
+
+It then constructs the common `Potential` from the processed runtime arrays,
+the single metadata value, and the interpolation order:
+
+```python
+Potential(
+    grid,
+    mean=mean,
+    modes=modes,
+    frequencies=frequencies,
+    metadata=metadata,
+    interpolation_order=3,
+)
+```
+
+The loader owns the extraction and calculation of provenance. The potential
+retains the resulting immutable metadata after the HDF5 file is closed. HDF5
+provenance is accessed explicitly through attributes such as
+`potential.metadata.source_x` and `potential.metadata.normalization_factor`.
 
 ## Runtime representation
 
-`GC2DH5Potential` subclasses the generic
-[`Potential`](../../src/potential/potential.py). This inheritance is important
-because `GuidingCenterDynamics` accepts objects through the common `Potential`
-API and performs a strict runtime type check.
+[`Potential`](../../src/potential/potential.py) is the only runtime potential
+class. Artificial construction and HDF5 loading produce the same mean-plus-modes
+representation; their origin differs only through optional provenance metadata.
 
-The HDF5 subclass defines its own format-specific evaluation behavior:
+The common representation provides the following behavior:
 
 - all stored arrays and metadata are exposed as immutable values;
+- HDF5 dimensional provenance is grouped in `potential.metadata`, while an
+  artificial potential uses `metadata=None`;
 - every complex spatial field uses one real and one imaginary
   `RectBivariateSpline`;
 - the axes are extended beyond both sides of the omitted periodic endpoint;
 - extended field values wrap samples from the opposite edge;
 - query coordinates are reduced modulo the dimensionless box period;
 - values and spatial derivatives obey the same periodic wrapping;
-- runtime HDF5 interpolation is periodic.
+- runtime interpolation is periodic for every potential origin.
 
 The associated `Grid` period is the complete dimensionless source-box length,
 not necessarily `2*pi`. For the primary file and default characteristic length,
@@ -236,10 +259,9 @@ Phi(t, x, y) = Phi0(x, y)
 
 The main runtime methods are:
 
-- `dynamic_part(...)`: evaluates only the selected positive-frequency modes;
-- `evaluate(...)`: adds the mean field when appropriate;
-- `electric_field(...)`: inherited from `Potential` and evaluated as
-  `(-Phi_x, -Phi_y)` through the overridden HDF5 `evaluate(...)` method;
+- `evaluate(...)`: reconstructs the mean and positive-frequency modes;
+- `electric_field(...)`: evaluates `(-Phi_x, -Phi_y)` through the same
+  frequency-aware `evaluate(...)` implementation;
 - `gyroaverage(rho)`: applies the Larmor-circle average to every stored field.
 
 Spatial derivative orders are delegated to the persistent splines. The time
@@ -260,16 +282,18 @@ and `Phi_yt`.
 self.effective_potential = potential.gyroaverage(rho)
 ```
 
-For `rho=0`, the HDF5 potential returns itself. For positive `rho`, each mean or
-fluctuation field is transformed with a two-dimensional FFT and multiplied by
+For `rho=0`, the potential returns itself. For positive `rho`, each mean or
+mode field is transformed with a two-dimensional FFT and multiplied by
 
 ```text
 J0(2*pi*rho*sqrt(kx**2 + ky**2)).
 ```
 
-The inverse FFT produces a new `GC2DH5Potential`. Frequencies, dimensional
-source axes and frequencies, characteristic scales, source indices,
-normalization, attributes, source path, and interpolation order are preserved.
+The inverse FFT produces a new `Potential`. Its immutable `GC2DH5Metadata`
+value is reused, preserving dimensional source axes and
+frequencies, characteristic scales, source indices, normalization, attributes,
+and source path. The runtime frequencies and interpolation order are also
+preserved.
 
 ## Guiding-center consumption
 
@@ -343,15 +367,16 @@ solution = simulate(
 - Coordinate axes must be one-dimensional, finite, strictly increasing, and
   uniformly spaced.
 - The current `Grid` contract requires equal sampled spans along x and y.
-- Mean and fluctuation arrays must be finite and match the coordinate shape.
-- Every selected fluctuation must have one finite, positive frequency.
-- At least one mean or fluctuation field must remain after selection.
+- Mean and mode arrays must be finite and match the coordinate shape.
+- Every selected mode must have one finite, positive frequency.
+- At least one source mean or mode field must remain after HDF5 selection;
+  the generic `Potential` can also represent the identically zero field.
 - `nx` and `ny` must be supplied together and must each be at least 2.
 - Spatial coordinates must be supplied as an x-y pair and are periodically
   wrapped into the dimensionless source box.
 - Fully extended Newton requires a potential implementation whose
   `evaluate(..., dt=2)` contract returns the true second time derivative. The
-  HDF5 implementation satisfies this contract mode by mode, including a zero
+  common implementation satisfies this contract mode by mode, including a zero
   stationary-mean contribution.
 
 ## Verification

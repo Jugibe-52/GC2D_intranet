@@ -73,13 +73,24 @@ def display_records_table(
 	display(HTML(records_table_html(records, columns=columns)))
 
 
-def display_animation(animation: Animation, *, embed_limit_mb: float = 100.0) -> None:
-	"""Display an animation as HTML5 video with a JavaScript fallback."""
+def display_animation(
+	animation: Animation,
+	*,
+	embed_limit_mb: float = 100.0,
+	interactive: bool = False,
+) -> None:
+	"""Display an animation as video or an interactive JavaScript player.
+
+	Interactive output exposes Matplotlib's frame slider and playback controls.
+	It is emitted only as HTML so document exporters such as LaTeX/PDF omit it.
+	"""
 	if not isinstance(animation, Animation):
 		raise TypeError("`animation` must be a Matplotlib Animation instance.")
 	limit = float(embed_limit_mb)
 	if limit <= 0:
 		raise ValueError("`embed_limit_mb` must be positive.")
+	if not isinstance(interactive, bool):
+		raise TypeError("`interactive` must be a boolean.")
 
 	# IPython is a notebook dependency rather than a simulation-core dependency,
 	# so import it only when interactive presentation is explicitly requested.
@@ -87,16 +98,22 @@ def display_animation(animation: Animation, *, embed_limit_mb: float = 100.0) ->
 	from matplotlib import pyplot as plt
 
 	mpl.rcParams["animation.embed_limit"] = limit
-	if mpl_animation.writers.is_available("ffmpeg"):
-		try:
-			html = animation.to_html5_video()
-		except (OSError, subprocess.CalledProcessError):
-			# An installed encoder can still reject a frame size or codec. The
-			# browser-native representation keeps notebook execution portable.
-			html = animation.to_jshtml(default_mode="once")
+	if interactive:
+		html = animation.to_jshtml(default_mode="loop")
+		# Supplying only the HTML MIME representation prevents text or image
+		# fallbacks from appearing in LaTeX/PDF exports.
+		display({"text/html": html}, raw=True)
 	else:
-		html = animation.to_jshtml(default_mode="once")
-	display(HTML(html))
+		if mpl_animation.writers.is_available("ffmpeg"):
+			try:
+				html = animation.to_html5_video()
+			except (OSError, subprocess.CalledProcessError):
+				# An installed encoder can still reject a frame size or codec. The
+				# browser-native representation keeps notebook execution portable.
+				html = animation.to_jshtml(default_mode="once")
+		else:
+			html = animation.to_jshtml(default_mode="once")
+		display(HTML(html))
 	# Inline backends otherwise emit the animation's first frame as an unrelated
 	# static figure after the HTML animation has already been displayed.
 	figure = getattr(animation, "_fig", None)

@@ -43,10 +43,10 @@ Numerical architecture is organized by model:
   [`ABBA2Midpoint`](docs/models/abba2-midpoint/simulation/abba2-midpoint-simulation-architecture.md),
   [`ABBA2Implicit`](docs/models/abba2-implicit/simulation/abba2-implicit-simulation-architecture.md),
   [`ABBA4Implicit`](docs/models/abba4-implicit/simulation/abba4-implicit-simulation-architecture.md),
-  [`ABBA4ImplicitSingleProjection`](docs/models/abba4-implicit-single-projection/simulation/abba4-implicit-single-projection-simulation-architecture.md),
+  including its [exterior-projection derivation](docs/models/abba4-implicit/tex/exterior-projection.pdf),
   and [`ABBA6Implicit`](docs/models/abba6-implicit/simulation/abba6-implicit-simulation-architecture.md);
-- BM4: [theory](docs/models/bm4/tex/theory.pdf),
-  and [simulation architecture](docs/models/bm4/simulation/bm4-simulation-architecture.md);
+- `BM4Implicit`: [theory](docs/models/bm4-implicit/tex/theory.pdf),
+  and [simulation architecture](docs/models/bm4-implicit/simulation/bm4-simulation-architecture.md);
 - `ExplicitEuler`: [theory](docs/models/explicit-euler/tex/theory.pdf),
   and [simulation](docs/models/explicit-euler/simulation/explicit-euler-simulation-architecture.md);
 - `GaussLegendre4`: [theory](docs/models/gauss-legendre4/tex/theory.pdf),
@@ -95,8 +95,14 @@ potential = load_gc2d_h5_potential(
 
 The primary-file defaults are `B=1.5`, `characteristic_length=0.06`, and
 `indx=(0, 1)`, selecting the mean field and its dominant declared
-positive-frequency mode. The loader maps that dominant frequency to one, its
-temporal period to `2*pi`, and each characteristic spatial length to `2*pi`.
+positive-frequency mode. The loader maps that dominant frequency to one cycle
+per normalized time unit, so its temporal period is `1`, and maps each
+characteristic spatial length to `2*pi`.
+
+Loaded and artificial fields are instances of the same `Potential` class. Both
+use a real mean plus complex positive-frequency modes with runtime phase
+`exp(+i*2*pi*f*t)`; HDF5-specific provenance is retained in
+`potential.metadata`.
 
 See the
 [HDF5 import contract](docs/dynamics/gc2d-h5-import.md)
@@ -114,8 +120,7 @@ from dynamics import GuidingCenterDynamics
 from initial_conditions import GCInitialConfiguration
 from potential import Potential
 from simulation import (
-    BM4Composition,
-    GCExtendedFormulation,
+    BM4Implicit,
     InitialValueProblem,
     SimulationRequest,
     simulate,
@@ -144,19 +149,16 @@ request = SimulationRequest.uniform(
 )
 solution = simulate(
     problem,
-    BM4Composition(
-        GCExtendedFormulation(coupling_frequency=2.0),
-        track_energy=True,
-    ),
+    BM4Implicit(coupling_frequency=2.0),
     request,
 )
 ```
 
 See the BM4 model-specific
-[theory](docs/models/bm4/tex/theory.pdf)
-and [simulation architecture](docs/models/bm4/simulation/bm4-simulation-architecture.md)
-for the twelve-stage composition, projection variants, nonlinear solves,
-diagnostics, and supported state extensions.
+[theory](docs/models/bm4-implicit/tex/theory.pdf)
+and [simulation architecture](docs/models/bm4-implicit/simulation/bm4-simulation-architecture.md)
+for the twelve-stage composition, its single reduced Hairer projection around
+each complete cycle, the physical-state contract, and nonlinear diagnostics.
 
 Physical parameters belong to the dynamics object. Changing the initial
 configuration therefore does not change the model. The effective gyroaveraged
@@ -164,46 +166,52 @@ potential is available as `problem.dynamics.effective_potential`.
 
 ## ABBA models and canonical configuration space
 
-The public API contains exactly five ABBA numerical-method classes:
+The public API contains exactly four ABBA numerical-method classes:
 
 1. `ABBA2Midpoint`;
 2. `ABBA2Implicit`;
 3. `ABBA4Implicit`;
-4. `ABBA4ImplicitSingleProjection`; and
-5. `ABBA6Implicit`.
+4. `ABBA6Implicit`.
 
 State-space choices are parameters of those methods, not additional public
-method classes. The four implicit methods share two nonlinear selector axes
+method classes. The three implicit methods share two nonlinear selector axes
 and one constrained state/energy strategy:
 
 | Axis | Canonical values | Meaning |
 |---|---|---|
+| `projection_placement` | `"after_each_abba_map"`, `"around_complete_composition"` | Selects one of the two distinct ABBA4 maps; other methods have a fixed placement. |
 | `projection_formulation` | `"reduced_multiplier"`, `"simultaneous_state_multiplier"` | Chooses the nonlinear residual representation. |
 | `nonlinear_solver` | `"newton"`, `"broyden"` | Chooses how that residual is solved. |
 | `state_extension` | `"physical"`, `"fully_extended"` | Chooses whether ABBA duplicates only the physical state or the complete autonomous state. |
 | `track_energy` | `False`, `True` | Optionally transports the time-conjugate momentum alongside a physical run; fully extended execution always resolves this value to `True`. |
 
-Consequently, each implicit class admits
+`ABBA2Implicit` and `ABBA6Implicit` each admit
 
 ```text
 2 projection formulations x 2 nonlinear solvers x 3 state/energy strategies = 12
 ```
 
-canonical configurations. The three normalized strategies are
+canonical configurations, while the two ABBA4 placements double its space to
+24. The three normalized strategies are
 `(physical, False)`, `(physical, True)`, and `(fully_extended, True)` for
 `(state_extension, track_energy)`. Passing `track_energy=False` with
 `state_extension="fully_extended"` is accepted but normalized to `True`, so it
 does not create a fourth strategy. `ABBA2Midpoint` has no nonlinear residual
 and supports the same three strategies. The complete public family therefore
-contains `4 x 12 + 3 = 51` canonical configurations while retaining five
-method classes.
-The exported tuples `ABBA_PROJECTION_FORMULATIONS`, `NONLINEAR_SOLVERS`, and
+contains `12 + 24 + 12 + 3 = 51` canonical configurations while retaining four
+method classes. The deprecated `ABBA4ImplicitSingleProjection(...)` factory
+remains temporarily available and returns the corresponding `ABBA4Implicit`
+configuration.
+
+The exported tuples `ABBA4_PROJECTION_PLACEMENTS`,
+`ABBA_PROJECTION_FORMULATIONS`, `NONLINEAR_SOLVERS`, and
 `ABBA_STATE_EXTENSIONS` expose the canonical values programmatically.
 
 ```python
 from simulation import ABBA4Implicit
 
 method = ABBA4Implicit(
+    projection_placement="around_complete_composition",
     projection_formulation="simultaneous_state_multiplier",
     nonlinear_solver="broyden",
     state_extension="fully_extended",
@@ -214,24 +222,25 @@ method = ABBA4Implicit(
 )
 ```
 
-The projection and solver selections are global for a composed step. Thus all
-three signed substeps of `ABBA4Implicit`, and all seven signed substeps of
-`ABBA6Implicit`, use the same selected formulation, solver, state extension,
-and energy-tracking policy. They do not make independent per-substep choices.
+The projection, solver, state, and energy selections are global for a composed
+step. With `projection_placement="after_each_abba_map"`, all three signed
+ABBA4 substeps solve the same selected projection independently. With
+`"around_complete_composition"`, the selected formulation is solved once
+around the complete unprojected triple jump. ABBA6 applies its selections to
+all seven signed projected substeps.
 
-The five methods differ in their base composition and projection placement:
+The four methods differ in their base composition and projection placement:
 
 | Method | ABBA maps per outer step | Projection policy |
 |---|---:|---|
 | `ABBA2Midpoint` | 1 | Arithmetic mean; no nonlinear solve |
 | `ABBA2Implicit` | 1 | One implicit symmetric projection |
-| `ABBA4Implicit` | 3 | One implicit projection after each signed map |
-| `ABBA4ImplicitSingleProjection` | 3 | One implicit projection around the complete unprojected triple jump |
+| `ABBA4Implicit` | 3 | Configurable: project after each signed map or once around the complete unprojected triple jump |
 | `ABBA6Implicit` | 7 | One implicit projection after each signed map |
 
-This makes `ABBA4ImplicitSingleProjection` a different numerical map, not an
-alias for an `ABBA4Implicit` parameter choice. Its formulation and solver are
-selected once for its single outer projection.
+The two `ABBA4Implicit` placements are distinct numerical maps, not performance
+aliases. The single outer placement selects its formulation and solver once for
+the complete composition.
 
 ### Residual and state dimensions
 
@@ -357,7 +366,7 @@ See the model-specific
 ```python
 from dynamics import FullCyclotronDynamics
 from initial_conditions import FCInitialConfiguration
-from simulation import BM4Composition, FCSplitFormulation
+from simulation import InitialValueProblem, RK4, SimulationRequest, simulate
 
 configuration = FCInitialConfiguration.from_components(
     x=np.asarray([np.pi]),
@@ -371,7 +380,7 @@ problem = InitialValueProblem(
 )
 solution = simulate(
     problem,
-    BM4Composition(FCSplitFormulation(), track_energy=True),
+    RK4(),
     SimulationRequest.uniform(
         t_span=(0.0, 2 * np.pi),
         max_step=0.001,
@@ -455,13 +464,13 @@ repeated runs, persist diagnostics, and prepare summaries. Potential seeds,
 initial geometry, physical and numerical parameters, integration spans, and
 sampling choices remain visible in the calling notebook.
 
-`run_ten_method_trajectory_comparison` advances two explicit midpoint methods
-and all four implicit ABBA/BM4 formulations with both Newton and Broyden. Its
-ten solutions share one initial configuration and saved-time grid. The result
-provides all 45 pairwise periodic-distance summaries, runtimes for every
-variant, and aligned nonlinear-work summaries for the eight implicit runs.
-The companion animation presents sampled trajectories as points without
-connecting lines.
+`run_ten_method_trajectory_comparison` retains its historical public name and
+advances `ABBA2Midpoint`, both implicit ABBA2 projection formulations with
+Newton and Broyden, and `BM4Implicit` with Newton and Broyden. Every solution
+shares one initial configuration and saved-time grid. The result provides all
+pairwise periodic-distance summaries, runtimes for every variant, and aligned
+nonlinear-work summaries for the implicit runs. The companion animation
+presents sampled trajectories as points without connecting lines.
 
 `run_high_precision_reference_trajectory` constructs a versioned numerical
 reference for the same interpolated guiding-center ODE with adaptive DOP853 and
@@ -469,10 +478,10 @@ audits its resolution independently with Radau. The stored NPZ/JSON/README
 artifact includes exact initial data, complete solver controls, periodic audit
 distances, checksums, and a fingerprint of the actual gyroaveraged interpolated
 field. `run_ten_method_accuracy_study` verifies that artifact and reports
-minimum-image trajectory errors for all ten fixed-step variants, including
-particle-RMS error over time, final and worst-case distances, resolution-floor
-ratios, and the measured accuracy--runtime trade-off.
-`run_ten_method_accuracy_refinement_study` repeats all ten variants on nested
+minimum-image trajectory errors for every retained fixed-step variant,
+including particle-RMS error over time, final and worst-case distances,
+resolution-floor ratios, and the measured accuracy--runtime trade-off.
+`run_ten_method_accuracy_refinement_study` repeats those variants on nested
 complete steps while saving one common set of genuine main-grid nodes. It
 reports the error-reduction factor and observed order between every adjacent
 refinement without introducing shadow steps or trajectory interpolation.
@@ -498,7 +507,7 @@ and resolved order-deficit detection backed by a tighter-Newton trajectory
 audit. Its energy history is sampled at every complete step.
 `run_gauss_bm4_comparison` applies the
 same reference and alternated timing protocol to `GaussLegendre4` and
-`BM4Implicit1`, reporting both equal-step ratios and log--log interpolated
+`BM4Implicit`, reporting both equal-step ratios and log--log interpolated
 runtime ratios at equal trajectory accuracy.
 
 ## Results and visualization

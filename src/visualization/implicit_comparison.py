@@ -26,9 +26,10 @@ IMPLICIT_METHOD_COLORS: Mapping[str, str] = {
 	"ABBA2Implicit[simultaneous_state_multiplier]": "tab:orange",
 	"ABBA4ImplicitSingleProjection": "tab:blue",
 	"GaussLegendre4": "tab:orange",
-	"BM4Implicit1": "tab:green",
-	"BM4Implicit2": "tab:red",
+	"BM4Implicit": "tab:green",
 	"HBVM42": "tab:red",
+	"SDIRK4": "tab:red",
+	"RK4": "tab:purple",
 }
 _METHOD_LINESTYLES = ("solid", "dashed", "dashdot", "dotted")
 _METHOD_LINEWIDTHS = (3.0, 2.35, 1.7, 1.05)
@@ -139,8 +140,8 @@ def plot_implicit_trajectory_differences(
 	if not isinstance(potential, Potential):
 		raise TypeError("`potential` must be a Potential instance.")
 	labels, _, _ = _validated_solutions(solutions)
-	if len(labels) != 4:
-		raise ValueError("The distance matrix requires exactly four solutions.")
+	if len(labels) < 2:
+		raise ValueError("The distance matrix requires at least two solutions.")
 
 	period = float(potential.grid.period)
 	positions = {label: solutions[label].positions() for label in labels}
@@ -182,7 +183,7 @@ def plot_implicit_trajectory_differences(
 		xlabel="compared method",
 		ylabel="reference method",
 	)
-	# The separators expose the two ABBA and two BM4 formulation blocks.
+	# The separator exposes the two ABBA formulations and the BM4 method.
 	axis.axhline(1.5, color="white", linewidth=2.0)
 	axis.axvline(1.5, color="white", linewidth=2.0)
 	for row in range(len(labels)):
@@ -209,6 +210,7 @@ def animate_implicit_method_trajectories(
 	interval: int = 200,
 	repeat: bool = True,
 	cmap: str = "RdBu_r",
+	title_family: str = "implicit methods",
 	**imshow_kwargs: Any,
 ) -> FuncAnimation:
 	"""Animate aligned particle trajectories with one color per method."""
@@ -216,8 +218,14 @@ def animate_implicit_method_trajectories(
 		raise TypeError("`potential` must be a Potential instance.")
 	if isinstance(interval, (bool, np.bool_)) or int(interval) <= 0:
 		raise ValueError("`interval` must be a positive integer.")
+	family = str(title_family).strip()
+	if not family:
+		raise ValueError("`title_family` must not be empty.")
 	labels, times, particle_count = _validated_solutions(solutions)
-	method_count_label = {3: "Three", 4: "Four"}.get(len(labels), str(len(labels)))
+	method_count_label = {3: "Three", 4: "Four", 5: "Five"}.get(
+		len(labels),
+		str(len(labels)),
+	)
 	indices = _frame_indices(times.size, frames)
 	frame_times = times[indices]
 	fields = np.asarray(potential.evaluate(frame_times), dtype=float)
@@ -323,7 +331,7 @@ def animate_implicit_method_trajectories(
 			)
 			artists.extend((collections[label], markers[label]))
 		axis.set_title(
-			f"{method_count_label} implicit methods with a common step "
+			f"{method_count_label} {family} with a common step "
 			f"at t = {times[sample_index]:.3f}"
 		)
 		return tuple(artists)

@@ -120,11 +120,13 @@ step it computes:
 - observed global orders and signed order reductions `4 - p_observed`;
 - nonlinear iterations and field-evaluation work.
 
-`studies.run_hbvm42_bm4_comparison` evaluates HBVM(4,2) and the existing
-`BM4Composition(GCExtendedFormulation(...))` against the same DOP853 endpoint,
-on identical complete fixed-step grids, with identical timing repetitions.
-Only accuracy and execution time enter that comparison; energy and
-symplecticity remain in the individual notebook.
+`studies.run_hbvm42_bm4_comparison` evaluates HBVM(4,2) and `BM4Implicit`
+against the same DOP853 endpoint for one `GuidingCenterDynamics` problem, on
+identical complete fixed-step grids, with identical nonlinear tolerances and
+timing repetitions. BM4 uses only the physical accepted state and one reduced
+Hairer projection around each complete twelve-stage cycle. Only accuracy and
+execution time enter that comparison; energy and symplecticity remain in the
+individual notebook.
 
 The corresponding plots live in `visualization.hbvm42`. The notebooks contain
 only explicit scientific configuration, study calls, tables, and

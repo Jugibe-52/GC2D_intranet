@@ -18,7 +18,7 @@ from diagnostics import (
 	TrajectoryJacobianCalculator,
 	TrajectorySymplecticityRecord,
 	abba4_implicit_step_particle_jacobians,
-	bm4_implicit_1_step_particle_jacobians,
+	bm4_implicit_step_particle_jacobians,
 	abba2_implicit_step_particle_jacobians,
 	abba2_midpoint_step_particle_jacobians,
 )
@@ -27,7 +27,7 @@ from initial_conditions import GCInitialConfiguration
 from potential import Potential
 from simulation import (
 	ABBA4Implicit,
-	BM4Implicit1,
+	BM4Implicit,
 	ABBA2Implicit,
 	InitialValueProblem,
 	ABBA2Midpoint,
@@ -559,7 +559,7 @@ def run_abba4_implicit_trajectory_symplecticity_study(
 	)
 
 
-def run_bm4_implicit_1_trajectory_symplecticity_study(
+def run_bm4_implicit_trajectory_symplecticity_study(
 	potential: Potential,
 	initial_configuration: GCInitialConfiguration,
 	*,
@@ -568,19 +568,19 @@ def run_bm4_implicit_1_trajectory_symplecticity_study(
 	project_root: str | Path | None = None,
 	metadata: Mapping[str, Any] | None = None,
 ) -> TrajectorySymplecticityResult:
-	"""Run implicit BM4 formulation 1 with exact base-cycle differentiation."""
+	"""Run physical implicit BM4 with exact complete-cycle differentiation."""
 	return _run_trajectory_symplecticity_study(
 		potential,
 		initial_configuration,
 		notebook_path=notebook_path,
 		config=config,
-		method_name="BM4Implicit1",
-		method_slug="bm4_implicit_1",
+		method_name="BM4Implicit",
+		method_slug="bm4_implicit",
 		jacobian_method=(
 			"explicit_coupled_bm4_stages_and_implicit_function_theorem"
 		),
-		jacobian_calculator=bm4_implicit_1_step_particle_jacobians,
-		method_factory=lambda observer: BM4Implicit1(
+		jacobian_calculator=bm4_implicit_step_particle_jacobians,
+		method_factory=lambda observer: BM4Implicit(
 			coupling_frequency=config.coupling_frequency,
 			newton_absolute_tolerance=config.newton_absolute_tolerance,
 			newton_relative_tolerance=config.newton_relative_tolerance,
@@ -592,7 +592,7 @@ def run_bm4_implicit_1_trajectory_symplecticity_study(
 		project_root=project_root,
 		metadata={
 			**dict(metadata or {}),
-			"implicit_formulation": "bm4_implicit_1_reduced",
+			"implicit_formulation": "bm4_implicit_reduced",
 			"nonlinear_solver": "newton",
 			"coupling_frequency": config.coupling_frequency,
 		},
@@ -605,7 +605,7 @@ __all__ = [
 	"TrajectorySymplecticityResult",
 	"TrajectorySymplecticitySummary",
 	"run_abba4_implicit_trajectory_symplecticity_study",
-	"run_bm4_implicit_1_trajectory_symplecticity_study",
+	"run_bm4_implicit_trajectory_symplecticity_study",
 	"run_abba2_reduced_multiplier_trajectory_symplecticity_study",
 	"run_abba2_midpoint_trajectory_symplecticity_study",
 ]

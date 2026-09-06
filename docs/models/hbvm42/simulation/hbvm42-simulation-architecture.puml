@@ -5,6 +5,11 @@ package simulation {
   class HBVM42 {
     +integrate(problem, request)
   }
+  class BM4Implicit {
+    +coupling_frequency
+    +nonlinear_solver
+    +integrate(problem, request)
+  }
   class "integrate_fixed_grid" as FixedGrid
   class IntegrationData
 }
@@ -13,6 +18,7 @@ package dynamics {
   interface DynamicalSystem
   interface HamiltonianSystem
   interface GuidingCenterJacobianSystem
+  class GuidingCenterDynamics
 }
 
 package studies {
@@ -35,11 +41,17 @@ DynamicalSystem --> HBVM42 : vector field
 HamiltonianSystem --> HBVM42 : optional energy
 GuidingCenterJacobianSystem --> HBVM42 : optional exact Jacobians
 HBVM42 --> FixedGrid
+GuidingCenterDynamics --> BM4Implicit : physical GC problem
+GuidingCenterJacobianSystem --> BM4Implicit : analytic stage Jacobians
+BM4Implicit --> FixedGrid
 FixedGrid --> IntegrationData
 
 QuarticOscillatorDynamics ..|> DynamicalSystem
 QuarticOscillatorDynamics ..|> HamiltonianSystem
 QuarticOscillatorDynamics ..|> GuidingCenterJacobianSystem
+GuidingCenterDynamics ..|> DynamicalSystem
+GuidingCenterDynamics ..|> HamiltonianSystem
+GuidingCenterDynamics ..|> GuidingCenterJacobianSystem
 
 HBVM42EvaluationConfig --> IndividualStudy
 QuarticOscillatorDynamics --> IndividualStudy
@@ -48,7 +60,9 @@ HBVM42EvaluationResult --> IndividualPlot
 HBVM42EvaluationResult --> EnergyPlot
 
 HBVM42BM4ComparisonConfig --> ComparisonStudy
-QuarticOscillatorDynamics --> ComparisonStudy
+GuidingCenterDynamics --> ComparisonStudy
+ComparisonStudy ..> HBVM42 : compares
+ComparisonStudy ..> BM4Implicit : compares
 ComparisonStudy --> HBVM42BM4ComparisonResult
 HBVM42BM4ComparisonResult --> ComparisonPlot
 
@@ -56,5 +70,12 @@ note right of HBVM42
   4 quadrature stages
   2 Legendre unknowns
   order 4
+end note
+
+note right of BM4Implicit
+  physical accepted state only
+  12-stage BM4 cycle
+  one reduced Hairer projection
+  around the complete cycle
 end note
 @enduml

@@ -53,16 +53,15 @@
 
 \section{Scope and implementation name}
 
-The public ABBA family contains exactly five numerical-method classes:
+The public ABBA family contains exactly four numerical-method classes:
 \begin{itemize}
  \item \texttt{ABBA2Midpoint};
  \item \texttt{ABBA2Implicit};
  \item \texttt{ABBA4Implicit};
- \item \texttt{ABBA4ImplicitSingleProjection};
  \item \texttt{ABBA6Implicit}.
 \end{itemize}
 State-space variants are parameters of these classes, not additional public
-method classes.  The four implicit methods expose two nonlinear selectors and
+method classes. The three implicit methods expose two nonlinear selectors and
 a constrained state/energy strategy:
 
 \begin{center}
@@ -87,18 +86,18 @@ Axis & Canonical values \\
 \end{center}
 
 The three normalized state/energy strategies are physical without tracking,
-physical with tracking, and fully extended with tracking.  Each implicit class
-therefore admits $2\times2\times3=12$ canonical configurations.
+physical with tracking, and fully extended with tracking.  ABBA2 and ABBA6
+therefore admit $2\times2\times3=12$ canonical configurations each.
+ABBA4 adds two projection placements and admits 24.
 \texttt{ABBA2Midpoint} has no nonlinear residual and supports the same three
-strategies.  The five public classes consequently represent
-$4\times12+3=51$ canonical configurations.
+strategies.  The four public classes consequently represent
+$12+24+12+3=51$ canonical configurations.
 
-The formulation and solver choices are global within a composed step.  All
-three signed maps of \texttt{ABBA4Implicit}, and all seven signed maps of
-\texttt{ABBA6Implicit}, use the same configuration.  In contrast,
-\texttt{ABBA4ImplicitSingleProjection} surrounds its complete unprojected
-triple jump with one projection and therefore performs one nonlinear solve per
-outer step.
+The formulation and solver choices are global within a composed step. For
+\texttt{ABBA4Implicit}, the per-map placement applies the same configuration
+to all three signed maps independently; the exterior placement surrounds the
+complete unprojected triple jump with one projection. All seven signed maps of
+\texttt{ABBA6Implicit} use the same configuration.
 
 This note derives the following branch of \texttt{ABBA2Implicit}:
 \begin{itemize}

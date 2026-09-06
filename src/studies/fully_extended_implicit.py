@@ -20,7 +20,6 @@ from potential import Potential
 from simulation import (
 	ABBA2Implicit,
 	ABBA4Implicit,
-	BM4_implicit2,
 	FullyExtendedImplicitIntegrationStep,
 	IntegrationStep,
 	InitialValueProblem,
@@ -42,19 +41,16 @@ from ._validation import (
 FullyExtendedImplicitMethod = Literal[
 	"abba2_fully_extended_implicit",
 	"abba4_fully_extended_implicit",
-	"bm4_implicit2",
 ]
 FULLY_EXTENDED_IMPLICIT_METHODS: tuple[FullyExtendedImplicitMethod, ...] = (
 	"abba2_fully_extended_implicit",
 	"abba4_fully_extended_implicit",
-	"bm4_implicit2",
 )
 FULLY_EXTENDED_IMPLICIT_LABELS: Mapping[FullyExtendedImplicitMethod, str] = (
 	MappingProxyType(
 		{
 			"abba2_fully_extended_implicit": "ABBA2Implicit[fully_extended]",
 			"abba4_fully_extended_implicit": "ABBA4Implicit[fully_extended]",
-			"bm4_implicit2": "BM4_implicit2",
 		}
 	)
 )
@@ -415,14 +411,7 @@ def _method_for_run(
 			progress=config.progress,
 			step_observer=observer,
 		)
-	return BM4_implicit2(
-		newton_absolute_tolerance=config.newton_absolute_tolerance,
-		newton_relative_tolerance=config.newton_relative_tolerance,
-		newton_max_iterations=config.newton_max_iterations,
-		coupling_frequency=config.coupling_frequency,
-		progress=config.progress,
-		step_observer=observer,
-	)
+	raise RuntimeError(f"Unhandled fully extended method {method!r}.")
 
 
 def run_fully_extended_implicit_study(

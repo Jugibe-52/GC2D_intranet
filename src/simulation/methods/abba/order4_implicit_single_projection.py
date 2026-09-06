@@ -8,7 +8,6 @@ import numpy as np
 
 from dynamics import ExtendedHamiltonianSystem, GuidingCenterJacobianSystem
 
-from .._fully_extended import _integrate_abba_fully_extended
 from ..._fixed import integrate_fixed_grid
 from ..._result import IntegrationData
 from ...observation import (
@@ -613,7 +612,7 @@ def _observed_substeps(
 
 
 def _integrate_abba4_implicit_single_projection(
-	method: ABBA4ImplicitSingleProjection,
+	method: _ABBAImplicitConfig,
 	problem: InitialValueProblem,
 	request: SimulationRequest,
 ) -> IntegrationData:
@@ -777,7 +776,7 @@ def _integrate_abba4_implicit_single_projection(
 		),
 		"composition_coefficients": _ABBA4_COEFFICIENTS.copy(),
 		"base_composition": _BASE_COMPOSITION,
-		"projection_placement": "around_complete_base_composition",
+		"projection_placement": "around_complete_composition",
 		"nonlinear_solver": method.nonlinear_solver,
 		"nonlinear_iterations": iterations,
 		"residual_evaluations": residual_evaluations,
@@ -824,38 +823,4 @@ def _integrate_abba4_implicit_single_projection(
 		diagnostics=diagnostics,
 	)
 
-
-@dataclass(frozen=True, slots=True)
-class ABBA4ImplicitSingleProjection(_ABBAImplicitConfig):
-	"""Fourth-order ABBA triple jump with one symmetric outer projection.
-
-	The signed ``(gamma h, delta h, gamma h)`` ABBA maps evolve two independent
-	physical copies continuously. A single multiplier is solved around the whole
-	composition, so no projection returns the copies to the diagonal between its
-	three constituent maps. Both projection formulations, both nonlinear solvers,
-	and both state strategies apply to this one outer projection. Physical
-	conjugate-momentum tracking is optional and remains outside the splitting.
-	"""
-
-	def integrate(
-		self,
-		problem: InitialValueProblem,
-		request: SimulationRequest,
-	) -> IntegrationData:
-		"""Integrate a planar GC problem with one outer projection per step."""
-		if self.state_extension == "fully_extended":
-			return _integrate_abba_fully_extended(
-				self,
-				problem,
-				request,
-				variant="abba4_single_projection",
-				projection_formulation=self.projection_formulation,
-			)
-		return _integrate_abba4_implicit_single_projection(
-			self,
-			problem,
-			request,
-		)
-
-
-__all__ = ["ABBA4ImplicitSingleProjection"]
+__all__: list[str] = []
