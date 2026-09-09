@@ -4,11 +4,17 @@ from __future__ import annotations
 
 from contextlib import redirect_stderr
 import io
+from pathlib import Path
+import tempfile
 import unittest
 
 import matplotlib.pyplot as plt
 import numpy as np
 
+from diagnostics import (
+	load_five_method_comparison_csv,
+	write_five_method_comparison_csv,
+)
 from studies import (
 	FIVE_METHOD_COMPARISON_METHODS,
 	FIVE_METHOD_IMPLICIT_METHODS,
@@ -123,6 +129,42 @@ class FiveMethodComparisonTests(unittest.TestCase):
 		)
 		self.assertEqual(len(animation._func(1)), 11)
 		self.assertIn("Five numerical methods", animation._fig.axes[0].get_title())
+
+		with tempfile.TemporaryDirectory() as temporary_directory:
+			csv_path = Path(temporary_directory) / "comparison.csv"
+			written_path = write_five_method_comparison_csv(
+				result,
+				csv_path,
+				metadata={"purpose": "round-trip test"},
+			)
+			stored = load_five_method_comparison_csv(written_path)
+		self.assertEqual(tuple(stored.solutions), FIVE_METHOD_COMPARISON_METHODS)
+		self.assertEqual(stored.metadata["experiment"]["purpose"], "round-trip test")
+		np.testing.assert_array_equal(stored.reference.times, result.reference.times)
+		np.testing.assert_array_equal(
+			stored.solutions["RK4"].states,
+			result.solutions["RK4"].states,
+		)
+		np.testing.assert_array_equal(
+			stored.accuracy["SDIRK4"].distances,
+			result.accuracy["SDIRK4"].distances,
+		)
+		np.testing.assert_array_equal(
+			stored.energy_accuracy["BM4Implicit"].errors,
+			result.energy_accuracy["BM4Implicit"].errors,
+		)
+		np.testing.assert_array_equal(
+			stored.solutions["GaussLegendre4"].diagnostics["nonlinear_iterations"],
+			result.solutions["GaussLegendre4"].diagnostics["nonlinear_iterations"],
+		)
+		self.assertEqual(
+			stored.summaries()[0].method_name,
+			result.summaries()[0].method_name,
+		)
+		self.assertAlmostEqual(
+			stored.reference.time_integrated_rms_floor,
+			result.reference.time_integrated_rms_floor,
+		)
 		animation._draw_was_started = True
 		plt.close(runtime_figure)
 		plt.close(animation._fig)

@@ -21,12 +21,13 @@ class "GC2D HDF5 file" as HDF5Source <<data>> {
   produced by GC2D.
 }
 
-rectangle "<b>load_gc2d_h5_potential</b>\n<i>src/potential/gc2d_h5.py</i>\n\nReads a GC2D HDF5 result, selects and optionally\nfilters its modes, rescales the physical quantities\nand builds an interpolation-ready potential." as ImportPipeline
+rectangle "<b>load_gc2d_h5_potential</b>\n<i>src/potential/gc2d_h5.py</i>\n\nReads a GC2D HDF5 result, selects and optionally\nfilters its modes, rescales the physical quantities,\nmaps coordinates by characteristic length or to a unit box,\nand builds an interpolation-ready potential." as ImportPipeline
 
 class "GC2DH5Metadata" as H5Metadata <<src/potential/gc2d_h5.py>> {
   Groups immutable dimensional provenance:
   source axes, frequencies, field indices,
-  normalization scales, attributes and path.
+  normalization scales and spatial mode,
+  attributes and path.
 }
 
 class "Potential" as PotentialRuntime <<src/potential/potential.py>> {

@@ -5,6 +5,17 @@ Production methods emit neutral integration-stage or complete-step
 observations; Jacobian calculations, symplecticity metrics, and output
 persistence live here so they cannot affect simulations unless an observer is
 explicitly passed. Generic complete-step maps use centered differences.
+
+`five_method_comparison_csv` stores the complete five-method long-time study in
+one versioned CSV. Each data row represents one saved time, with explicit
+columns for all reference and numerical trajectories, particle errors, energy
+errors, and step-aligned nonlinear or projection diagnostics. The first row
+also carries the reproducibility configuration, timing samples, summaries, and
+execution log as JSON metadata, allowing visualization without reintegration.
+`parallel_bm4_recurrence_npz` stores dense parallel recurrence trajectories,
+worker summaries, configuration, and experiment metadata in one compressed,
+schema-versioned NPZ archive. Its loader reconstructs the validated recurrence
+result so calculation and visualization notebooks can run independently.
 Implicit ABBA step observations additionally expose their converged stages, so
 diagnostics can select either the implicit-function factorization or the
 equivalent stage-increment factorization of the ideal-root tangent. These step
@@ -57,3 +68,16 @@ each numerical step and the accumulated defect, determinant drift, and
 transported area of the discrete flow. Its `jacobian_method` is one of
 `finite_difference`, `implicit_function`, or `stage_increment`; the two
 analytic choices require an implicit ABBA step observation.
+
+Method comparisons can select a subset with `method_names` and skip adaptive
+integration with `reused_reference` in `run_five_method_comparison`. The caller
+checks physical provenance; the runner requires identical saved times and initial
+states. When several integration steps fall between saved states, the CSV stores
+each diagnostic in interleaved substep columns described by `diagnostic_substeps`.
+The loader restores the full step histories; older CSV files default to one step
+per saved interval. Newton plots use the complete integration step grid.
+Passing `reused_audit_reference` instead recomputes DOP853 with the configured
+tolerances and maximum step while retaining the aligned Radau audit history.
+Set `parallel_models=True` to assign each selected model campaign to a separate
+thread. Repetitions remain sequential within each model, and recorded runtimes
+represent elapsed time under concurrent CPU load.

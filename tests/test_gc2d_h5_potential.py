@@ -168,6 +168,36 @@ class GC2DH5ImportTests(unittest.TestCase):
 			potential.evaluate(0.37 + 1.0, query_x, query_y),
 		)
 
+	def test_unit_box_spatial_normalization_maps_both_periods_to_one(self) -> None:
+		"""Map the complete source box to a unit period on both spatial axes."""
+		potential = load_gc2d_h5_potential(
+			self.path,
+			characteristic_length=self.characteristic_length,
+			spatial_normalization="unit_box",
+		)
+
+		self.assertEqual(potential.grid.period, 1.0)
+		np.testing.assert_allclose(potential.grid.x, np.arange(6) / 6.0)
+		np.testing.assert_allclose(potential.grid.y, np.arange(6) / 6.0)
+		metadata = potential.metadata
+		assert isinstance(metadata, GC2DH5Metadata)
+		self.assertEqual(metadata.spatial_normalization, "unit_box")
+
+		default_coordinates = load_gc2d_h5_potential(
+			self.path,
+			characteristic_length=self.characteristic_length,
+		)
+		x_unit = np.asarray([0.17, 0.63])
+		y_unit = np.asarray([0.28, 0.91])
+		np.testing.assert_allclose(
+			potential.evaluate(0.37, x_unit, y_unit),
+			default_coordinates.evaluate(
+				0.37,
+				x_unit * default_coordinates.grid.period,
+				y_unit * default_coordinates.grid.period,
+			),
+		)
+
 	def test_filter_sort_selection_normalization_and_positive_phase(self) -> None:
 		"""Match HDF5 indices, normalization, and cycle-based positive phase."""
 		B = 1.5
@@ -576,6 +606,8 @@ class GC2DH5ImportTests(unittest.TestCase):
 			load_gc2d_h5_potential(self.path, characteristic_length=0.0)
 		with self.assertRaisesRegex(ValueError, "characteristic_frequency"):
 			load_gc2d_h5_potential(self.path, characteristic_frequency=-1.0)
+		with self.assertRaisesRegex(ValueError, "spatial_normalization"):
+			load_gc2d_h5_potential(self.path, spatial_normalization="source")
 
 
 if __name__ == "__main__":

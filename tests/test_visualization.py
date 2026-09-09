@@ -29,11 +29,28 @@ from visualization import (
 	animate_ten_method_trajectory_points,
 	animate_trajectory_points,
 	display_animation,
+	plot_potential,
 )
 
 
 class NotebookPresentationTests(unittest.TestCase):
 	"""Keep animation embedding usable when external encoders fail."""
+
+	def test_potential_views_cover_the_complete_periodic_box(self) -> None:
+		"""Use the exact periodic boundaries rather than sample-center limits."""
+		potential = Potential.random(A=0.1, M=2, nx=8, ny=8, seed=7)
+		expected_limits = (0.0, potential.grid.period)
+
+		figure, axis = plot_potential(potential, show=False)
+		self.assertEqual(axis.get_xlim(), expected_limits)
+		self.assertEqual(axis.get_ylim(), expected_limits)
+		plt.close(figure)
+
+		animation = animate_potential(potential, frames=2)
+		self.assertEqual(animation._fig.axes[0].get_xlim(), expected_limits)
+		self.assertEqual(animation._fig.axes[0].get_ylim(), expected_limits)
+		animation._draw_was_started = True
+		plt.close(animation._fig)
 
 	def test_animation_defaults_use_saved_samples_at_5_fps(self) -> None:
 		"""Use every saved state and a 200 ms frame interval by default."""

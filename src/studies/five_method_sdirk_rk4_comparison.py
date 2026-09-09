@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 import sys
+from threading import Lock
 from time import perf_counter
 from types import MappingProxyType
 from typing import Mapping
@@ -25,6 +27,7 @@ from simulation import (
 from ._gauss_legendre4_common import (
 	AdaptiveReference,
 	build_adaptive_reference,
+	build_dop853_reference_with_reused_audit,
 	readonly_runtime_samples,
 )
 from ._trajectory_accuracy import TrajectoryAccuracySeries, accuracy_series
@@ -133,7 +136,7 @@ class FiveMethodNonlinearWorkSummary:
 
 @dataclass(frozen=True, slots=True)
 class FiveMethodComparisonResult:
-	"""Two references, five aligned solutions, timings, and execution logs."""
+	"""Two references, selected aligned solutions, timings, and execution logs."""
 
 	potential: Potential
 	dynamics: GuidingCenterDynamics
@@ -165,9 +168,9 @@ class FiveMethodComparisonResult:
 			(self.energy_accuracy, "energy series"),
 			(self.runtime_samples, "runtime samples"),
 		):
-			if tuple(values) != FIVE_METHOD_COMPARISON_METHODS:
+			if tuple(values) != tuple(self.solutions):
 				raise ValueError(
-					f"The result must contain all five {description} in stable order."
+					f"The result must contain matching {description} in stable order."
 				)
 		particle_count = self.reference.states.shape[0] // 2
 		energy_shape = (particle_count, self.reference.times.size)
@@ -179,7 +182,7 @@ class FiveMethodComparisonResult:
 			self.audit_energies,
 			expected_shape=energy_shape,
 		)
-		for method_name in FIVE_METHOD_COMPARISON_METHODS:
+		for method_name in self.solutions:
 			solution = self.solutions[method_name]
 			if not isinstance(solution, Solution):
 				raise TypeError("Every comparison value must be a Solution.")
@@ -278,13 +281,13 @@ class FiveMethodComparisonResult:
 		return MappingProxyType(
 			{
 				name: float(np.median(self.runtime_samples[name]))
-				for name in FIVE_METHOD_COMPARISON_METHODS
+				for name in self.solutions
 			}
 		)
 
 	@property
 	def total_method_runtime_seconds(self) -> float:
-		"""Return the sum of the five median integration times."""
+		"""Return the sum of selected median integration times."""
 		return float(sum(self.runtimes.values()))
 
 	@property
@@ -308,7 +311,7 @@ class FiveMethodComparisonResult:
 		assert initial_state is not None
 		trajectory_count = self.initial_configuration.layout.particle_count(initial_state)
 		rows: list[FiveMethodComparisonSummary] = []
-		for method_name in FIVE_METHOD_COMPARISON_METHODS:
+		for method_name in self.solutions:
 			series = self.accuracy[method_name]
 			energy_series = self.energy_accuracy[method_name]
 			runtime_samples = self.runtime_samples[method_name]
@@ -356,10 +359,12 @@ class FiveMethodComparisonResult:
 	def nonlinear_work_summaries(
 		self,
 	) -> tuple[FiveMethodNonlinearWorkSummary, ...]:
-		"""Reduce Newton diagnostics for only the four implicit methods."""
+		"""Reduce Newton diagnostics for the selected implicit methods."""
 		rows: list[FiveMethodNonlinearWorkSummary] = []
 		expected_shape = (self.config.step_count,)
-		for method_name in FIVE_METHOD_IMPLICIT_METHODS:
+		for method_name in self.solutions:
+			if method_name not in FIVE_METHOD_IMPLICIT_METHODS:
+				continue
 			solution = self.solutions[method_name]
 			iterations = np.asarray(
 				solution.diagnostics["nonlinear_iterations"],
@@ -422,14 +427,26 @@ def run_five_method_comparison(
 	initial_configuration: GCInitialConfiguration,
 	*,
 	config: FiveMethodComparisonConfig,
+	method_names: tuple[str, ...] = FIVE_METHOD_COMPARISON_METHODS,
+	reused_reference: AdaptiveReference | None = None,
+	reused_audit_reference: AdaptiveReference | None = None,
+	parallel_models: bool = False,
 ) -> FiveMethodComparisonResult:
-	"""Run five aligned integrations with live progress and audited references."""
+	"""Run selected methods, optionally reusing references on the exact saved grid.
+
+	The caller must verify physical parameters and potential provenance before
+	passing a reused reference. Its times and initial states are checked here."""
 	if not isinstance(potential, Potential):
 		raise TypeError("`potential` must be a Potential instance.")
 	if not isinstance(initial_configuration, GCInitialConfiguration):
 		raise TypeError("`initial_configuration` must be GCInitialConfiguration.")
 	if not isinstance(config, FiveMethodComparisonConfig):
 		raise TypeError("`config` must be FiveMethodComparisonConfig.")
+	method_names = tuple(method_names)
+	if not method_names or len(set(method_names)) != len(method_names) or any(
+		name not in FIVE_METHOD_COMPARISON_METHODS for name in method_names
+	):
+		raise ValueError("Select distinct supported comparison methods.")
 	study_started = perf_counter()
 	dynamics = GuidingCenterDynamics(potential, rho=config.rho)
 	problem = InitialValueProblem(dynamics, initial_configuration)
@@ -441,46 +458,88 @@ def run_five_method_comparison(
 	trajectory_count = problem.particle_count
 	execution_log: list[ExecutionLogEntry] = []
 
-	_print_progress(
-		config.progress,
-		"Starting DOP853 reference and tighter Radau audit for "
-		f"{trajectory_count} trajectories on [{config.t_span[0]:g}, "
-		f"{config.t_span[1]:g}].",
-	)
-	reference_started = perf_counter()
-	reference = build_adaptive_reference(
-		dynamics,
-		problem.initial_state,
-		request.output_times,
-		period=(
-			potential.grid.period
-			if config.distance_convention == "periodic"
-			else None
-		),
-		distance_convention=config.distance_convention,
-		relative_tolerance=config.reference_relative_tolerance,
-		absolute_tolerance=config.reference_absolute_tolerance,
-		maximum_step=config.reference_maximum_step,
-		audit_relative_tolerance=config.audit_relative_tolerance,
-		audit_absolute_tolerance=config.audit_absolute_tolerance,
-		audit_maximum_step=config.audit_maximum_step,
-	)
-	reference_runtime = perf_counter() - reference_started
-	execution_log.append(
-		ExecutionLogEntry(
-			phase="reference",
-			method_name="DOP853+Radau",
-			method_label="DOP853 reference + Radau audit",
-			repeat=1,
-			trajectory_count=trajectory_count,
-			step_count=0,
-			runtime_seconds=reference_runtime,
+	if reused_reference is not None and reused_audit_reference is not None:
+		raise ValueError("Reuse either the complete reference or only the Radau audit.")
+	if reused_reference is None and reused_audit_reference is None:
+		_print_progress(
+			config.progress,
+			"Starting DOP853 reference and tighter Radau audit for "
+			f"{trajectory_count} trajectories on [{config.t_span[0]:g}, "
+			f"{config.t_span[1]:g}].",
 		)
-	)
-	_print_progress(
-		config.progress,
-		f"Completed both adaptive references in {reference_runtime:.2f} s.",
-	)
+		reference_started = perf_counter()
+		reference = build_adaptive_reference(
+			dynamics,
+			problem.initial_state,
+			request.output_times,
+			period=(
+				potential.grid.period
+				if config.distance_convention == "periodic"
+				else None
+			),
+			distance_convention=config.distance_convention,
+			relative_tolerance=config.reference_relative_tolerance,
+			absolute_tolerance=config.reference_absolute_tolerance,
+			maximum_step=config.reference_maximum_step,
+			audit_relative_tolerance=config.audit_relative_tolerance,
+			audit_absolute_tolerance=config.audit_absolute_tolerance,
+			audit_maximum_step=config.audit_maximum_step,
+		)
+		reference_runtime = perf_counter() - reference_started
+		execution_log.append(
+			ExecutionLogEntry(
+				phase="reference",
+				method_name="DOP853+Radau",
+				method_label="DOP853 reference + Radau audit",
+				repeat=1,
+				trajectory_count=trajectory_count,
+				step_count=0,
+				runtime_seconds=reference_runtime,
+			)
+		)
+		_print_progress(
+			config.progress,
+			f"Completed both adaptive references in {reference_runtime:.2f} s.",
+		)
+	elif reused_reference is not None:
+		reference = reused_reference
+		if not np.array_equal(reference.times, request.output_times):
+			raise ValueError("Reused reference must match the saved-time grid exactly.")
+		for states in (reference.states, reference.audit_states):
+			if states.shape != (problem.initial_state.size, request.output_times.size) or not np.all(np.isfinite(states)):
+				raise ValueError("Reused reference has invalid states.")
+			if not np.array_equal(states[:, 0], problem.initial_state):
+				raise ValueError("Reused reference initial state differs.")
+		_print_progress(config.progress, "Reusing saved DOP853 and Radau; no adaptive integration.")
+	else:
+		assert reused_audit_reference is not None
+		_print_progress(
+			config.progress,
+			f"Recomputing DOP853 with maximum step {config.reference_maximum_step:g}; "
+			"reusing the saved Radau audit.",
+		)
+		reference = build_dop853_reference_with_reused_audit(
+			dynamics,
+			problem.initial_state,
+			request.output_times,
+			audit_reference=reused_audit_reference,
+			period=potential.grid.period if config.distance_convention == "periodic" else None,
+			distance_convention=config.distance_convention,
+			relative_tolerance=config.reference_relative_tolerance,
+			absolute_tolerance=config.reference_absolute_tolerance,
+			maximum_step=config.reference_maximum_step,
+		)
+		execution_log.append(
+			ExecutionLogEntry(
+				phase="reference",
+				method_name="DOP853",
+				method_label="DOP853 reference (saved Radau audit)",
+				repeat=1,
+				trajectory_count=trajectory_count,
+				step_count=0,
+				runtime_seconds=reference.dop853_runtime_seconds,
+			)
+		)
 
 	energy_shape = (trajectory_count, request.output_times.size)
 	reference_energies = _readonly_energy_history(
@@ -492,11 +551,12 @@ def run_five_method_comparison(
 		expected_shape=energy_shape,
 	)
 
-	total_method_runs = len(FIVE_METHOD_COMPARISON_METHODS) * (
+	total_method_runs = len(method_names) * (
 		config.timing_warmups + config.timing_repeats
 	)
 	completed_method_runs = 0
 	method_campaign_started = perf_counter()
+	progress_lock = Lock()
 
 	def execute_method(
 		method_name: str,
@@ -516,63 +576,76 @@ def run_five_method_comparison(
 		started = perf_counter()
 		solution = simulate(problem, _method(method_name, config), request)
 		runtime_seconds = perf_counter() - started
-		completed_method_runs += 1
-		execution_log.append(
-			ExecutionLogEntry(
-				phase=phase,
-				method_name=method_name,
-				method_label=label,
-				repeat=repeat,
-				trajectory_count=trajectory_count,
-				step_count=config.step_count,
-				runtime_seconds=runtime_seconds,
+		with progress_lock:
+			completed_method_runs += 1
+			execution_log.append(
+				ExecutionLogEntry(
+					phase=phase,
+					method_name=method_name,
+					method_label=label,
+					repeat=repeat,
+					trajectory_count=trajectory_count,
+					step_count=config.step_count,
+					runtime_seconds=runtime_seconds,
+				)
 			)
-		)
-		elapsed = perf_counter() - method_campaign_started
-		remaining = total_method_runs - completed_method_runs
-		eta = elapsed * remaining / completed_method_runs
-		_print_progress(
-			config.progress,
-			f"Completed {phase} {repeat}/{repeat_count}: {label} in "
-			f"{runtime_seconds:.2f} s; campaign "
-			f"{completed_method_runs}/{total_method_runs} "
-			f"({completed_method_runs / total_method_runs:.1%}), "
-			f"elapsed {elapsed:.1f} s, ETA {eta:.1f} s.",
-		)
+			elapsed = perf_counter() - method_campaign_started
+			remaining = total_method_runs - completed_method_runs
+			eta = elapsed * remaining / completed_method_runs
+			_print_progress(
+				config.progress,
+				f"Completed {phase} {repeat}/{repeat_count}: {label} in "
+				f"{runtime_seconds:.2f} s; campaign "
+				f"{completed_method_runs}/{total_method_runs} "
+				f"({completed_method_runs / total_method_runs:.1%}), "
+				f"elapsed {elapsed:.1f} s, ETA {eta:.1f} s.",
+			)
 		return solution, runtime_seconds
 
-	for warmup in range(1, config.timing_warmups + 1):
-		for method_name in FIVE_METHOD_COMPARISON_METHODS:
+	def execute_model_campaign(method_name: str) -> tuple[Solution, list[float]]:
+		"""Run all repetitions for one model in its dedicated worker."""
+		for warmup in range(1, config.timing_warmups + 1):
 			execute_method(
 				method_name,
 				phase="warmup",
 				repeat=warmup,
 				repeat_count=config.timing_warmups,
 			)
-
-	solutions: dict[str, Solution] = {}
-	runtime_values: dict[str, list[float]] = {
-		name: [] for name in FIVE_METHOD_COMPARISON_METHODS
-	}
-	for repeat in range(1, config.timing_repeats + 1):
-		order = (
-			FIVE_METHOD_COMPARISON_METHODS
-			if repeat % 2 == 1
-			else tuple(reversed(FIVE_METHOD_COMPARISON_METHODS))
-		)
-		for method_name in order:
-			solution, runtime_seconds = execute_method(
+		latest_solution: Solution | None = None
+		runtimes: list[float] = []
+		for repeat in range(1, config.timing_repeats + 1):
+			latest_solution, runtime_seconds = execute_method(
 				method_name,
 				phase="timing",
 				repeat=repeat,
 				repeat_count=config.timing_repeats,
 			)
-			solutions[method_name] = solution
-			runtime_values[method_name].append(runtime_seconds)
+			runtimes.append(runtime_seconds)
+		assert latest_solution is not None
+		return latest_solution, runtimes
+
+	if parallel_models and len(method_names) > 1:
+		_print_progress(config.progress, f"Running {len(method_names)} model campaigns in parallel.")
+		with ThreadPoolExecutor(
+			max_workers=len(method_names),
+			thread_name_prefix="comparison-model",
+		) as executor:
+			campaigns = {
+				name: executor.submit(execute_model_campaign, name)
+				for name in method_names
+			}
+			campaign_results = {name: campaigns[name].result() for name in method_names}
+	else:
+		campaign_results = {
+			name: execute_model_campaign(name)
+			for name in method_names
+		}
+	solutions = {name: campaign_results[name][0] for name in method_names}
+	runtime_values = {name: campaign_results[name][1] for name in method_names}
 
 	accuracy_by_method: dict[str, TrajectoryAccuracySeries] = {}
 	energy_accuracy_by_method: dict[str, EnergyAccuracySeries] = {}
-	for method_name in FIVE_METHOD_COMPARISON_METHODS:
+	for method_name in method_names:
 		solution = solutions[method_name]
 		accuracy_by_method[method_name] = accuracy_series(
 			method_name,
@@ -610,7 +683,7 @@ def run_five_method_comparison(
 		energy_accuracy=energy_accuracy_by_method,
 		runtime_samples={
 			name: np.asarray(runtime_values[name], dtype=float)
-			for name in FIVE_METHOD_COMPARISON_METHODS
+			for name in method_names
 		},
 		wall_runtime_seconds=perf_counter() - study_started,
 		execution_log=tuple(execution_log),

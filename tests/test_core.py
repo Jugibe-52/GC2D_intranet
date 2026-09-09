@@ -109,6 +109,8 @@ class PotentialTests(unittest.TestCase):
 
 		x = np.asarray([0.7, 1.4, 2.1])
 		y = np.asarray([0.9, 1.7, 2.5])
+		with self.assertRaisesRegex(ValueError, "same shape"):
+			first.evaluate(0.3, x, y[:2])
 		for derivative in (
 			first.evaluate(0.3, x, y, dx=1),
 			first.evaluate(0.3, x, y, dy=1),

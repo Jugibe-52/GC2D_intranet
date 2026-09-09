@@ -15,6 +15,16 @@ reviews unless requested. Run the narrowest meaningful checks and do not repeat
 successful checks unless subsequent changes can affect them. Keep progress updates
 brief and final responses concise unless the user asks for detail.
 
+# Notebook execution policy
+
+Do not execute long-running notebooks end to end during routine validation.
+Instead, run only the smallest representative subset needed to confirm that the
+notebook and the modified execution paths complete without errors. Reduce costly
+parameters such as integration spans, step counts, sample sizes, repetitions, and
+animation frames, or execute only the relevant cells, while preserving the code
+paths being checked. Apply temporary validation overrides to an in-memory or
+disposable copy so that reduced results are not saved into the canonical notebook.
+
 # Notebook study policy
 
 Keep notebooks focused on the scientific definition and interpretation of an

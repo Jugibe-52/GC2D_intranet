@@ -66,6 +66,8 @@ def plot_potential(
 		ylabel="y",
 		title=rf"Potential, $t={t:.3f}$",
 		aspect="equal",
+		xlim=(potential.grid.x0, potential.grid.x0 + potential.grid.period),
+		ylim=(potential.grid.y0, potential.grid.y0 + potential.grid.period),
 	)
 	if show:
 		plt.show()
@@ -132,7 +134,13 @@ def animate_potential(
 		color="black",
 		width=0.003,
 	)
-	axis.set(xlabel="x", ylabel="y", aspect="equal")
+	axis.set(
+		xlabel="x",
+		ylabel="y",
+		aspect="equal",
+		xlim=(potential.grid.x0, potential.grid.x0 + potential.grid.period),
+		ylim=(potential.grid.y0, potential.grid.y0 + potential.grid.period),
+	)
 
 	def update(index: int) -> tuple[Any, ...]:
 		mesh.set_array(fields[index].T)

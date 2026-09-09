@@ -24,6 +24,10 @@ from .abba_reversibility import (
 	plot_implicit_abba_reversibility_diagnostics,
 	plot_implicit_abba_transport_components,
 )
+from .bm4_parallel_recurrence import (
+	animate_parallel_bm4_trajectories,
+	plot_parallel_bm4_recurrence_stack,
+)
 from .gc_area import (
 	animate_gc_area,
 	animate_gc_area_comparison,
@@ -139,6 +143,7 @@ __all__ = [
 	"animate_gc_particle_solution",
 	"animate_gc_particle_trajectories",
 	"animate_implicit_method_trajectories",
+	"animate_parallel_bm4_trajectories",
 	"animate_potential",
 	"animate_ten_method_trajectory_points",
 	"animate_trajectory_points",
@@ -178,6 +183,7 @@ __all__ = [
 	"plot_implicit_abba_reversibility_diagnostics",
 	"plot_implicit_abba_transport_components",
 	"plot_implicit_abba_particle_step_series",
+	"plot_parallel_bm4_recurrence_stack",
 	"plot_gc_trajectory_points",
 	"plot_generalized_energy_components",
 	"plot_generalized_energy_convergence",

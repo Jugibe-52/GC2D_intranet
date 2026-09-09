@@ -3,6 +3,7 @@
 from .gc2d_h5 import (
 	DEFAULT_CHARACTERISTIC_LENGTH,
 	GC2DH5Metadata,
+	SpatialNormalization,
 	load_gc2d_h5_potential,
 )
 from .grid import Grid
@@ -13,5 +14,6 @@ __all__ = [
 	"GC2DH5Metadata",
 	"Grid",
 	"Potential",
+	"SpatialNormalization",
 	"load_gc2d_h5_potential",
 ]

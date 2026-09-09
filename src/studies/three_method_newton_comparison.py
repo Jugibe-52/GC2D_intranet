@@ -127,8 +127,6 @@ class ThreeMethodNewtonComparisonConfig:
 			else positive_finite(self.save_interval, "save_interval")
 		)
 		object.__setattr__(self, "save_interval", save_interval)
-		if self.audit_maximum_step > self.reference_maximum_step:
-			raise ValueError("The Radau audit step cannot exceed the DOP853 step.")
 		if self.audit_relative_tolerance > self.reference_relative_tolerance:
 			raise ValueError("The Radau audit tolerance cannot be looser than DOP853.")
 		if self.audit_absolute_tolerance > self.reference_absolute_tolerance:

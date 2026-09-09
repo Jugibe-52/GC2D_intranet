@@ -21,6 +21,12 @@ from .energy import (
 	GCGeneralizedEnergyObserver,
 	GCGeneralizedEnergyRecord,
 )
+from .five_method_comparison_csv import (
+	FIVE_METHOD_COMPARISON_CSV_SCHEMA_VERSION,
+	StoredFiveMethodComparison,
+	load_five_method_comparison_csv,
+	write_five_method_comparison_csv,
+)
 from .jacobians import (
 	STEP_JACOBIAN_METHODS,
 	StepJacobianMethod,
@@ -29,6 +35,12 @@ from .jacobians import (
 	gauss_legendre4_step_jacobian,
 	implicit_function_step_jacobian,
 	stage_increment_step_jacobian,
+)
+from .parallel_bm4_recurrence_npz import (
+	PARALLEL_BM4_RECURRENCE_NPZ_SCHEMA_VERSION,
+	StoredParallelBM4Recurrence,
+	load_parallel_bm4_recurrence_npz,
+	write_parallel_bm4_recurrence_npz,
 )
 from .trajectory_symplecticity import (
 	abba4_implicit_step_particle_jacobians,
@@ -95,6 +107,7 @@ __all__ = [
 	"GCGeneralizedEnergyRecord",
 	"GCFullyExtendedEnergyObserver",
 	"GCFullyExtendedEnergyRecord",
+	"FIVE_METHOD_COMPARISON_CSV_SCHEMA_VERSION",
 	"GCFullyExtendedSymplecticityObserver",
 	"GCFullyExtendedSymplecticityRecord",
 	"GCReducedTimeExtendedSymplecticityObserver",
@@ -102,6 +115,7 @@ __all__ = [
 	"GCTimeExtendedSymplecticityObserver",
 	"GCTimeExtendedSymplecticityRecord",
 	"ParticleJacobianAnalysis",
+	"PARALLEL_BM4_RECURRENCE_NPZ_SCHEMA_VERSION",
 	"ReferenceTrajectoryPaths",
 	"STEP_JACOBIAN_METHODS",
 	"SpectralClass",
@@ -110,6 +124,8 @@ __all__ = [
 	"TrajectorySymplecticityRecord",
 	"StepJacobianMethod",
 	"StoredReferenceTrajectory",
+	"StoredParallelBM4Recurrence",
+	"StoredFiveMethodComparison",
 	"analyze_particle_jacobian",
 	"calculate_step_jacobian",
 	"bm4_implicit_step_particle_jacobians",
@@ -122,8 +138,12 @@ __all__ = [
 	"abba2_implicit_step_particle_jacobians",
 	"implicit_function_step_jacobian",
 	"load_reference_trajectory",
+	"load_parallel_bm4_recurrence_npz",
+	"load_five_method_comparison_csv",
 	"abba2_midpoint_step_particle_jacobians",
 	"reference_trajectory_output_directory",
 	"stage_increment_step_jacobian",
 	"write_reference_trajectory",
+	"write_parallel_bm4_recurrence_npz",
+	"write_five_method_comparison_csv",
 ]

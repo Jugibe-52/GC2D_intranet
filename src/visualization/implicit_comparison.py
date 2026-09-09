@@ -14,6 +14,7 @@ from matplotlib.colors import LogNorm
 from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
 from matplotlib.ticker import MaxNLocator
+from matplotlib.widgets import CheckButtons
 
 from potential import Potential
 from simulation import Solution
@@ -91,23 +92,25 @@ def plot_implicit_method_iterations(
 		tolerances = np.asarray(
 			solution.diagnostics["nonlinear_tolerances"], dtype=float
 		)
-		expected_shape = (times.size - 1,)
+		step_count = int(solution.diagnostics.get("step_count", times.size - 1))
+		step_times = np.linspace(times[0], times[-1], step_count + 1)[1:]
+		expected_shape = (step_count,)
 		if any(
 			value.shape != expected_shape
 			for value in (iterations, residual_evaluations, residuals, tolerances)
 		):
 			raise ValueError(
-				"Per-step diagnostics require one saved state at every grid node."
+				"Per-step diagnostics must match the complete integration step count."
 			)
 		color = IMPLICIT_METHOD_COLORS.get(label, f"C{index}")
 		axes[0].step(
-			times[1:], iterations, where="mid", color=color, label=label
+			step_times, iterations, where="mid", color=color, label=label
 		)
 		axes[1].step(
-			times[1:], residual_evaluations, where="mid", color=color, label=label
+			step_times, residual_evaluations, where="mid", color=color, label=label
 		)
 		axes[2].semilogy(
-			times[1:],
+			step_times,
 			np.maximum(residuals / tolerances, np.finfo(float).tiny),
 			color=color,
 			label=label,
@@ -211,13 +214,22 @@ def animate_implicit_method_trajectories(
 	repeat: bool = True,
 	cmap: str = "RdBu_r",
 	title_family: str = "implicit methods",
+	selectable: bool = False,
 	**imshow_kwargs: Any,
 ) -> FuncAnimation:
-	"""Animate aligned particle trajectories with one color per method."""
+	"""Animate aligned trajectories, optionally with a per-method selector.
+
+	When ``selectable`` is true, the returned animation includes Matplotlib
+	checkboxes that control each method's path and current-position markers.
+	Use :func:`display_animation` with ``interactive=True`` so those controls
+	are retained in a notebook's JavaScript animation.
+	"""
 	if not isinstance(potential, Potential):
 		raise TypeError("`potential` must be a Potential instance.")
 	if isinstance(interval, (bool, np.bool_)) or int(interval) <= 0:
 		raise ValueError("`interval` must be a positive integer.")
+	if not isinstance(selectable, bool):
+		raise TypeError("`selectable` must be a boolean.")
 	family = str(title_family).strip()
 	if not family:
 		raise ValueError("`title_family` must not be empty.")
@@ -236,7 +248,10 @@ def animate_implicit_method_trajectories(
 	grid = potential.grid
 	xmax = grid.xmin + grid.period
 	ymax = grid.ymin + grid.period
-	figure, axis = plt.subplots(figsize=(8, 7), constrained_layout=True)
+	figure, axis = plt.subplots(
+		figsize=(8, 7),
+		constrained_layout=not selectable,
+	)
 	image = axis.imshow(
 		fields[:, :, 0].T,
 		origin="lower",
@@ -312,6 +327,23 @@ def animate_implicit_method_trajectories(
 	axis.legend(handles=legend_handles, loc="upper right", fontsize="small")
 	figure.colorbar(image, ax=axis, label="Effective potential")
 
+	selector: CheckButtons | None = None
+	if selectable:
+		# Reserve a narrow margin for controls without obscuring the data or legend.
+		figure.subplots_adjust(right=0.79)
+		selector_axis = figure.add_axes((0.81, 0.38, 0.17, 0.24))
+		selector = CheckButtons(selector_axis, labels, [True] * len(labels))
+		selector_axis.set_title("Visible models", fontsize="small")
+
+		def toggle_method(label: str) -> None:
+			"""Show or hide a method in the current and later animation frames."""
+			is_visible = not collections[label].get_visible()
+			collections[label].set_visible(is_visible)
+			markers[label].set_visible(is_visible)
+			figure.canvas.draw_idle()
+
+		selector.on_clicked(toggle_method)
+
 	def update(frame: int) -> tuple[Any, ...]:
 		"""Update the field, accumulated paths, and markers for each method."""
 		sample_index = int(indices[frame])
@@ -336,7 +368,7 @@ def animate_implicit_method_trajectories(
 		)
 		return tuple(artists)
 
-	return FuncAnimation(
+	animation = FuncAnimation(
 		figure,
 		update,
 		frames=indices.size,
@@ -344,6 +376,11 @@ def animate_implicit_method_trajectories(
 		blit=False,
 		repeat=repeat,
 	)
+	# Keep the selector alive for the animation's lifetime. These private
+	# attributes also allow lightweight notebook-level regression tests.
+	animation._model_selector = selector  # type: ignore[attr-defined]
+	animation._model_artists = (collections, markers)  # type: ignore[attr-defined]
+	return animation
 
 
 __all__ = [

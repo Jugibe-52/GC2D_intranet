@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from os import PathLike
 from pathlib import Path
 from types import MappingProxyType
-from typing import Any
+from typing import Any, Literal
 
 import h5py
 import numpy as np
@@ -28,6 +28,7 @@ from .potential import Potential
 
 
 DEFAULT_CHARACTERISTIC_LENGTH = 0.06
+SpatialNormalization = Literal["characteristic_length", "unit_box"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -99,6 +100,7 @@ class GC2DH5Metadata:
 	normalization_factor: float
 	attributes: Mapping[str, Any]
 	source_path: Path | None = None
+	spatial_normalization: SpatialNormalization = "characteristic_length"
 
 	def __post_init__(self) -> None:
 		"""Validate, own, and freeze every provenance value."""
@@ -169,6 +171,12 @@ class GC2DH5Metadata:
 			),
 		)
 		object.__setattr__(self, "normalization_factor", normalization)
+		if not isinstance(self.spatial_normalization, str) or (
+			self.spatial_normalization not in ("characteristic_length", "unit_box")
+		):
+			raise ValueError(
+				"`spatial_normalization` must be 'characteristic_length' or 'unit_box'."
+			)
 		object.__setattr__(
 			self,
 			"attributes",
@@ -201,6 +209,7 @@ class GC2DH5Metadata:
 				self.normalization_factor,
 				dict(self.attributes),
 				self.source_path,
+				self.spatial_normalization,
 			),
 		)
 
@@ -337,6 +346,7 @@ def load_gc2d_h5_potential(
 	denoising: bool = False,
 	sigma: float = 1.0,
 	interpolation_order: int = 3,
+	spatial_normalization: SpatialNormalization = "characteristic_length",
 ) -> Potential:
 	"""Load a GC2D HDF5 field set and prepare it for runtime evaluation.
 
@@ -357,7 +367,7 @@ def load_gc2d_h5_potential(
 	   range. The public ``indx`` selectors refer to this sorted collection, not
 	   to the original positions in the HDF5 ``fields`` dataset.
 	5. Choose the characteristic frequency, normalize the fields and frequencies,
-	   and map the physical coordinates to dimensionless runtime coordinates.
+	   and map the physical coordinates to the selected runtime coordinates.
 	6. Apply ``indx``, optional Gaussian denoising, and optional periodic
 	   resampling before constructing interpolation splines.
 
@@ -398,6 +408,11 @@ def load_gc2d_h5_potential(
 	interpolation_order:
 		Degree of the periodic rectangular splines used for resampling and runtime
 		evaluation.
+	spatial_normalization:
+		Runtime coordinate convention. ``"characteristic_length"`` maps one
+		physical characteristic length to ``2*pi``. ``"unit_box"`` maps the
+		complete sampled period of each source axis to ``1``. The default is
+		``"characteristic_length"``.
 
 	Returns
 	-------
@@ -435,6 +450,13 @@ def load_gc2d_h5_potential(
 			)
 	if not isinstance(denoising, (bool, np.bool_)):
 		raise TypeError("`denoising` must be boolean.")
+	if not isinstance(spatial_normalization, str) or spatial_normalization not in (
+		"characteristic_length",
+		"unit_box",
+	):
+		raise ValueError(
+			"`spatial_normalization` must be 'characteristic_length' or 'unit_box'."
+		)
 	denoising_sigma = float(sigma)
 	if not np.isfinite(denoising_sigma) or denoising_sigma < 0:
 		raise ValueError("`sigma` must be finite and non-negative.")
@@ -528,11 +550,18 @@ def load_gc2d_h5_potential(
 	retained_source_frequencies = retained_frequencies.copy()
 	if frequency_scale is not None:
 		retained_frequencies = retained_frequencies / frequency_scale
-	# Shift each physical axis to start at zero, then map one characteristic
-	# length to 2*pi. The sampled period itself may contain several such lengths.
-	coordinate_scale = 2.0 * np.pi / length_scale
-	x = (np.asarray(x) - float(x[0])) * coordinate_scale
-	y = (np.asarray(y) - float(y[0])) * coordinate_scale
+	# Shift each physical axis to start at zero. The established convention maps
+	# one characteristic length to 2*pi; the opt-in unit-box convention maps each
+	# complete sampled source period to one.
+	if spatial_normalization == "characteristic_length":
+		coordinate_scale = 2.0 * np.pi / length_scale
+		x = (np.asarray(x) - float(x[0])) * coordinate_scale
+		y = (np.asarray(y) - float(y[0])) * coordinate_scale
+	else:
+		x_period = x.size * (x[1] - x[0])
+		y_period = y.size * (y[1] - y[0])
+		x = (np.asarray(x) - float(x[0])) / x_period
+		y = (np.asarray(y) - float(y[0])) / y_period
 
 	# Translate public selectors into array indices. Selector zero is reserved for
 	# the separately stored mean, hence positive selectors require subtracting one.
@@ -605,6 +634,7 @@ def load_gc2d_h5_potential(
 		normalization_factor=normalization_factor,
 		attributes=attributes,
 		source_path=path,
+		spatial_normalization=spatial_normalization,
 	)
 	return Potential(
 		_grid_from_validated_axes(x, y),
@@ -619,5 +649,6 @@ def load_gc2d_h5_potential(
 __all__ = [
 	"DEFAULT_CHARACTERISTIC_LENGTH",
 	"GC2DH5Metadata",
+	"SpatialNormalization",
 	"load_gc2d_h5_potential",
 ]

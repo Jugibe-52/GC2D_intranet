@@ -38,6 +38,7 @@ from potential import load_gc2d_h5_potential
 potential = load_gc2d_h5_potential(
     "data/potential/V1/PHI_2.h5",
     characteristic_length=0.06,
+    spatial_normalization="unit_box",
     interpolation_order=3,
 )
 ```
@@ -55,6 +56,7 @@ The loader accepts the following options:
 | `denoising` | `False` | Enables Gaussian filtering before optional resampling. |
 | `sigma` | `1.0` | Non-negative standard deviation used by the Gaussian filter. |
 | `interpolation_order` | `3` | Spatial spline degree, restricted to values from 2 to 5. |
+| `spatial_normalization` | `"characteristic_length"` | Runtime coordinate mode: characteristic-length scaling or a unit spatial box. |
 
 `indx` uses the GC2D HDF5 selection semantics:
 
@@ -98,7 +100,8 @@ Before opening the file, the loader requires:
 - finite, positive `characteristic_length`;
 - finite, positive `characteristic_frequency` when explicitly supplied;
 - a Boolean `denoising` value;
-- finite, non-negative `sigma`.
+- finite, non-negative `sigma`;
+- `spatial_normalization` equal to `"characteristic_length"` or `"unit_box"`.
 
 The interpolation order is validated later, when resampling or constructing
 the runtime potential, and must be an integer from 2 to 5.
@@ -139,6 +142,20 @@ t_hat = t/T0 = omega0*t/(2*pi)
 f_hat_j = omega_j/omega0
 Phi_hat = (2*pi)**2*Phi/(omega0*lambda**2*B)
 ```
+
+This is the default `spatial_normalization="characteristic_length"` coordinate
+mode. With `spatial_normalization="unit_box"`, the potential values and temporal
+normalization are unchanged, while each complete sampled source period is
+mapped independently to one:
+
+```text
+x_unit = (x - x[0])/(len(x)*dx)
+y_unit = (y - y[0])/(len(y)*dy)
+```
+
+The periodic runtime axes then lie in `[0, 1)` and both use a period of `1`.
+Spatial derivatives and gyroaverage radii are expressed in the selected runtime
+coordinate convention.
 
 The implementation retains a divisor-style provenance value,
 
@@ -202,6 +219,7 @@ provenance information:
 - characteristic length, frequency, and period;
 - original HDF5 field indices;
 - normalization factor;
+- spatial normalization mode;
 - root attributes;
 - source path.
 
@@ -243,10 +261,11 @@ The common representation provides the following behavior:
 - values and spatial derivatives obey the same periodic wrapping;
 - runtime interpolation is periodic for every potential origin.
 
-The associated `Grid` period is the complete dimensionless source-box length,
-not necessarily `2*pi`. For the primary file and default characteristic length,
-the period is `6*pi` because the `0.18` source box contains three characteristic
-lengths of `0.06`.
+The associated `Grid` period is the complete runtime source-box length. In the
+default coordinate mode it is not necessarily `2*pi`; for the primary file and
+default characteristic length, the period is `6*pi` because the `0.18` source
+box contains three characteristic lengths of `0.06`. In `"unit_box"` mode the
+period is exactly `1` on both axes.
 
 ## Time reconstruction and derivatives
 
@@ -260,7 +279,7 @@ Phi(t, x, y) = Phi0(x, y)
 The main runtime methods are:
 
 - `evaluate(t, x, y, ...)`: reconstructs the mean and positive-frequency modes
-  at paired coordinates;
+  at paired coordinates with the same shape;
 - `evaluate_grid(t, ...)`: reconstructs them on the complete stored grid;
 - `electric_field(...)`: evaluates `(-Phi_x, -Phi_y)` through the same
   frequency-aware derivative machinery;

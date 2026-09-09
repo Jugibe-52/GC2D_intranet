@@ -107,6 +107,23 @@ class ImplicitTrajectoryComparisonTests(unittest.TestCase):
 		animation._draw_was_started = True
 		plt.close(animation._fig)
 
+		selectable_animation = animate_implicit_method_trajectories(
+			result.effective_potential,
+			result.solutions,
+			frames=2,
+			selectable=True,
+		)
+		selector = selectable_animation._model_selector
+		self.assertIsNotNone(selector)
+		assert selector is not None
+		selector.set_active(0)
+		collections, markers = selectable_animation._model_artists
+		first_label = next(iter(result.solutions))
+		self.assertFalse(collections[first_label].get_visible())
+		self.assertFalse(markers[first_label].get_visible())
+		selectable_animation._draw_was_started = True
+		plt.close(selectable_animation._fig)
+
 	def test_random_configuration_is_seed_reproducible(self) -> None:
 		potential = RandomPotentialConfig(
 			amplitude=0.08,

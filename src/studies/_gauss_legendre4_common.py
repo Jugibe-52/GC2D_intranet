@@ -148,6 +148,68 @@ def build_adaptive_reference(
 	)
 
 
+def build_dop853_reference_with_reused_audit(
+	dynamics: GuidingCenterDynamics,
+	initial_state: np.ndarray,
+	times: np.ndarray,
+	*,
+	audit_reference: AdaptiveReference,
+	period: float | None,
+	distance_convention: DistanceConvention = "periodic",
+	relative_tolerance: float,
+	absolute_tolerance: float,
+	maximum_step: float,
+) -> AdaptiveReference:
+	"""Recompute DOP853 while retaining an aligned, previously computed Radau audit."""
+	values = np.asarray(times, dtype=float)
+	initial = np.asarray(initial_state, dtype=float)
+	if not np.array_equal(audit_reference.times, values):
+		raise ValueError("Reused Radau audit must match the reference output grid.")
+	if (
+		audit_reference.audit_states.shape != (initial.size, values.size)
+		or not np.array_equal(audit_reference.audit_states[:, 0], initial)
+	):
+		raise ValueError("Reused Radau audit has a different initial state or shape.")
+
+	started = perf_counter()
+	result = solve_ivp(
+		fun=lambda time, state: dynamics.vector_field(time, state),
+		t_span=(float(values[0]), float(values[-1])),
+		y0=initial,
+		method="DOP853",
+		t_eval=values,
+		rtol=relative_tolerance,
+		atol=absolute_tolerance,
+		max_step=maximum_step,
+		dense_output=False,
+		vectorized=False,
+	)
+	runtime = perf_counter() - started
+	if not result.success:
+		raise RuntimeError(f"DOP853 reference integration failed: {result.message}")
+	states = np.asarray(result.y, dtype=float)
+	if states.shape != (initial.size, values.size) or not np.all(np.isfinite(states)):
+		raise ValueError("DOP853 returned an invalid reference history.")
+	states[:, 0] = initial
+	audit_states = audit_reference.audit_states
+	distances = particle_distances(
+		states,
+		audit_states,
+		distance_convention=distance_convention,
+		period=period,
+	)
+	return AdaptiveReference(
+		times=values,
+		states=states,
+		audit_states=audit_states,
+		audit_distances=distances,
+		dop853_runtime_seconds=float(runtime),
+		radau_runtime_seconds=audit_reference.radau_runtime_seconds,
+		dop853_function_evaluations=int(result.nfev),
+		radau_function_evaluations=audit_reference.radau_function_evaluations,
+	)
+
+
 def readonly_runtime_samples(values: np.ndarray) -> np.ndarray:
 	"""Validate, copy, and freeze one positive timing sample vector."""
 	result = np.array(values, dtype=float, copy=True)

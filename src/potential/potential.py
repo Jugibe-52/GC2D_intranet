@@ -347,15 +347,17 @@ class Potential:
 	) -> np.ndarray:
 		"""Evaluate the real potential or a derivative at paired coordinates.
 
-		``x[i]`` is evaluated with ``y[i]``. ``dx`` and ``dy`` select spatial
-		derivative orders, while ``dt=1`` and ``dt=2`` differentiate the harmonic
-		phase. Scalar coordinates produce scalar-shaped results; arrays and time
-		follow NumPy broadcasting.
+		``x`` and ``y`` must have the same shape and are evaluated pairwise. ``dx``
+		and ``dy`` select spatial derivative orders, while ``dt=1`` and ``dt=2``
+		differentiate the harmonic phase. Scalar coordinates produce scalar-shaped
+		results; the common coordinate shape and time follow NumPy broadcasting.
 		"""
 		self._validate_derivatives(dx, dy, dt)
 		dx, dy, dt = int(dx), int(dy), int(dt)
 		time = np.asarray(t)
-		x_values, y_values = np.broadcast_arrays(np.asarray(x), np.asarray(y))
+		x_values, y_values = np.asarray(x), np.asarray(y)
+		if x_values.shape != y_values.shape:
+			raise ValueError("`x` and `y` must have the same shape.")
 		x_values, y_values = self.grid.normalize(x_values, y_values)
 		mean_coefficient = (
 			self._mean_spline.evaluate(x_values, y_values, dx=dx, dy=dy)
@@ -458,7 +460,8 @@ class Potential:
 		kx_mesh, ky_mesh = np.meshgrid(kx, ky, indexing="ij")
 		# ``factor`` has shape ``(nx, ny)`` and attenuates each discrete spatial
 		# Fourier coefficient without mixing modes.
-		factor = jv(0, 2 * np.pi * radius * np.hypot(kx_mesh, ky_mesh))
+		wave_number_norm = np.sqrt(kx_mesh**2 + ky_mesh**2)
+		factor = jv(0, 2 * np.pi * radius * wave_number_norm)
 		mean = np.asarray(ifft2(fft2(self.mean) * factor).real)
 		modes = (
 			self.modes.copy()
