@@ -1,146 +1,99 @@
 # ABBA2 implicit simulation architecture
 
-This document accompanies
-[`abba2-implicit-simulation-architecture.puml`](abba2-implicit-simulation-architecture.puml).
-The diagram preserves the horizontal Graphviz structure of the earlier VS Code
-view while describing the current unified `ABBA2Implicit` runtime.
+The [complete execution diagram](abba2-implicit-simulation-architecture.puml)
+([PNG](abba2-implicit-simulation-architecture.png)) follows the implemented
+runtime. Read its six phases horizontally, then each phase vertically.
+The [family architecture](../../abba/simulation/abba-numerical-architecture.md)
+defines the shared records, module responsibilities and full configuration matrix.
 
-## Configuration cube
+## One public method, one projected map
 
-`ABBA2Implicit` is the only public second-order implicit ABBA class. Its two
-nonlinear selectors and three normalized state/energy strategies provide
-twelve canonical configurations:
-
-| Axis | Choices |
-|---|---|
-| `projection_formulation` | `"reduced_multiplier"`, `"simultaneous_state_multiplier"` |
-| `state_extension` | `"physical"`, `"fully_extended"` |
-| `track_energy` | `False`, `True`; fully extended execution always resolves to `True` |
-| `nonlinear_solver` | `"newton"`, `"broyden"` |
-
-The frozen `_ABBAImplicitConfig` stores these selectors together with solver
-tolerances, the iteration limit, progress selection, and the optional step
-observer. Configuration names and state-dimension diagnostics are centralized
-in `src/simulation/methods/abba/_configuration.py`.
-
-The three state/energy strategies are `(physical, False)`, `(physical, True)`,
-and `(fully_extended, True)`. The former
-`ABBA2SharedTimeExtendedImplicit` behavior is now selected with
-`ABBA2Implicit(state_extension="physical", track_energy=True)`, while the
-former `ABBA2FullyExtendedImplicit` behavior uses
-`state_extension="fully_extended"`. Neither former class is public.
-
-## Common public path
-
-Every run begins with the same public composition:
+`ABBA2Implicit` preserves its public options: `projection_formulation`,
+`state_extension`, `track_energy`, `nonlinear_solver`, Newton tolerance names,
+iteration limit, progress and observer. Two formulations, two solvers and
+three normalized state/energy strategies still yield twelve configurations.
 
 ```text
-InitialValueProblem + SimulationRequest + ABBA2Implicit
-                         |
-                         v
-              SimulationRunner.simulate(...)
-                         |
-                         v
-                 ABBA2Implicit.integrate(...)
+simulate -> SimulationRunner -> ABBA2Implicit.integrate
+  -> prepare_abba(..., order=2)
+  -> integrate_abba -> integrate_fixed_grid -> advance
+       -> StatePolicy.unpack
+       -> solve_single_map_step -> one projected map
+       -> StatePolicy.finish_step
+       -> main step: StepResult -> metrics -> optional event
+  -> StatePolicy.extract -> IntegrationData -> SimulationRunner -> Solution
 ```
 
-`InitialValueProblem` binds opaque dynamics to an `InitialConfiguration`.
-The configuration exposes a `StateLayout`, which validates and interprets the
-packed physical state. `SimulationRunner` validates the public arguments,
-invokes the method, checks the returned physical arrays, and constructs an
-immutable `Solution`.
+The public method only prepares and executes. It no longer dispatches to
+separate physical and fully extended integration coordinators. `PreparedABBA`,
+`integrate_abba`, `StatePolicy` and the accepted-step records are the same
+components used by ABBA4 and ABBA6.
 
-## State-extension dispatch
+## Numerical work
 
-`ABBA2Implicit.integrate(...)` selects one of two coordinators.
+`solve_single_map_step` returns a one-element tuple of `ProjectedMapResult`.
+The physical reduced and simultaneous equations live in
+`projection_reduced.py` and `projection_simultaneous.py`. They share the
+unprojected endpoint-time A--B--B--A stages and exact stage derivatives from
+`maps/physical.py`. Full-diagonal equations live in `projection_extended.py`
+and use `maps/extended.py`.
 
-### Physical path
+The reduced residual is the mapped copy separation plus twice the multiplier.
+The simultaneous residual includes both output-map defects and the diagonal
+constraint. They retain their specialized analytic Jacobians and correction
+packing. `_solve_newton` and `_solve_broyden` in `methods/_nonlinear.py` own
+iteration control. The nonlinear result is adapted into solver-neutral
+`SolveStats` and the accepted map trace.
 
-The `physical` variant calls `_integrate_projected_abba(...)` in
-`src/simulation/methods/abba/_implicit.py`. The coordinator:
+| State strategy | Numerical state | Duplicated base state | Reduced unknown | Simultaneous unknown |
+|---|---:|---:|---:|---:|
+| Physical | `2N` | `4N` | `2N` | `6N` |
+| Physical with energy | `2N` | `4N` | `2N` | `6N` |
+| Fully extended, one particle | 4 | 8 | 4 | 12 |
 
-1. validates the guiding-center Jacobian capability;
-2. selects a physical projection solver with `_step_solver_for(...)`;
-3. creates the fixed-grid `advance(...)` callback;
-4. collects nonlinear and projection diagnostics; and
-5. returns physical output through `IntegrationData`.
+Physical tracking transports one `kappa=k/2` per particle from the accepted
+stage trace. It never feeds back into the projected physical state. Full
+extension evolves `(x,y,t,k)` intrinsically, always enables energy diagnostics,
+and synchronizes the accepted time at the outer boundary. Public trajectories
+contain physical coordinates; extra energy/state histories remain diagnostics.
 
-The reduced formulation solves for one multiplier in `R^(2N)`. The
-simultaneous formulation solves for `(u_f, v_f, mu)` in `R^(6N)`. Both use the
-same endpoint-time A--B--B--A stage kernels and return `_ProjectedStep`.
+## Records, sampling and observations
 
-With `track_energy=True`, `_energy.py` advances one auxiliary
-`kappa = k/2` per particle from the accepted physical stage snapshots. The
-update does not feed back into the projected solve, alter its dimensions, or
-enter the observer map. The public trajectory still contains only the physical
-state; `extended_momentum` and the scalar `energy_error` remain in diagnostics.
+Every accepted main step creates `StepResult(next_workspace, projections)`.
+Its one projection contains `SolveStats` and a `PhysicalProjectionTrace` or
+`ExtendedProjectionTrace`. `record_completed_step` collects numerical work
+directly, regardless of whether an observer exists.
 
-### Fully extended path
+An installed observer receives `ABBA2ImplicitIntegrationStep` for physical
+execution or `FullyExtendedImplicitIntegrationStep` for full execution.
+`observations.py` copies snapshots and constructs any required full tangent
+only when building the event. Optional physical energy remains outside the
+observed physical map.
 
-The `fully_extended` variant calls `_integrate_abba_fully_extended(...)` in
-`src/simulation/methods/_fully_extended.py`. It accepts one-particle
-`(z,t,k)` states in `R^4`, constructs the duplicated `(Z_1,Z_2)` base map in
-`R^8`, and applies a full diagonal projection.
-
-`_solve_abba_fully_extended_step(...)` builds the ABBA2 base map and dispatches
-to either:
-
-- `_solve_abba_full_reduced_projection(...)`, with an `R^4` multiplier; or
-- `_solve_abba_full_simultaneous_projection(...)`, with an `R^12`
-  `(Z_1,Z_2,mu)` nonlinear workspace.
-
-The full branch retains the exact base-map Jacobian when observation requires
-it. `_FullProjectedStep`, `_AcceptedFullSubstep`, and `_FullMethodStep` carry
-the accepted internal result through the coordinator. Only the physical
-`z` slice is transferred to the public `Solution`; extended coordinates and
-generalized-energy quantities remain in diagnostics. This branch always
-normalizes `track_energy` to `True`.
-
-## Nonlinear solvers
-
-Exact Newton iterations are implemented inside each reduced or simultaneous
-formulation because each branch owns a different residual and analytic
-Jacobian. Broyden iterations reuse `_solve_broyden(...)` from
-`src/simulation/methods/_nonlinear.py`.
-
-For one guiding-center particle, the relevant dimensions are:
-
-| State extension | `track_energy` | Accepted state | Base splitting state | Reduced unknown | Simultaneous unknown |
-|---|---:|---:|---:|---:|---:|
-| `physical` | `False` | 2 | 4 | 2 | 6 |
-| `physical` | `True` | 2 | 4 | 2 | 6 |
-| `fully_extended` | `True` | 4 | 8 | 4 | 12 |
-
-For `N` physical particles, these four numerical dimensions are `2N`, `4N`,
-`2N`, and `6N` with tracking either off or on. The optional momentum sidecar
-has `N` entries and is not part of any dimension in the table.
-
-## Fixed grid and observations
-
-Both coordinators delegate time scheduling to `integrate_fixed_grid(...)`.
-Main-grid advances use `observe=True`, replace the accepted trajectory, update
-diagnostics, and may emit one event. Off-grid requested samples use a shadow
-advance from the preceding main node with `observe=False`; they do not modify
-later states or emit events.
-
-Physical main steps emit `ABBA2ImplicitIntegrationStep`, independently of
-energy tracking. Fully extended main steps emit
-`FullyExtendedImplicitIntegrationStep`, including `FullyExtendedBaseMap`
-snapshots when an observer is installed.
+Off-grid output times use shadow advances through the same bound functions.
+They do not change main states, diagnostic rows or observer events. A failed
+shadow solve still raises an error. `IntegrationData` preserves the existing
+diagnostic keys and legacy Newton aliases before the runner builds `Solution`.
 
 ## Principal files
 
-| File | Responsibility |
+| File under `src/simulation/methods/abba/` | Responsibility |
 |---|---|
-| `src/simulation/methods/abba/order2_implicit.py` | Public method and state-extension dispatch |
-| `src/simulation/methods/abba/_configuration.py` | Canonical selector axes and dimension diagnostics |
-| `src/simulation/methods/abba/_implicit.py` | Shared configuration and physical coordinator |
-| `src/simulation/methods/abba/_energy.py` | Optional physical conjugate-momentum update and energy diagnostics |
-| `src/simulation/methods/abba/_projection_reduced.py` | Reduced physical projection |
-| `src/simulation/methods/abba/_projection_simultaneous.py` | Simultaneous physical projection |
-| `src/simulation/methods/abba/_core.py` | Projection-independent ABBA2 stages |
-| `src/simulation/methods/_fully_extended.py` | Fully extended base map, projections, tangents, and coordinator |
-| `src/simulation/methods/_nonlinear.py` | Shared nonlinear validation and Broyden service |
-| `src/simulation/_fixed.py` | Main-grid and shadow-sample scheduling |
-| `src/simulation/observation.py` | Physical and fully extended step events |
-| `src/simulation/runner.py` | Public validation and `Solution` construction |
+| `order2_implicit.py`, `order4_implicit.py`, `order6_implicit.py` | Public configuration and entry to preparation/runtime |
+| `_implicit.py`, `_configuration.py` | Shared option validation and state-dimension metadata |
+| `preparation.py` | Validate capabilities, choose the step recipe and bind `PreparedABBA` |
+| `runtime.py` | One main/shadow advance adapter and final result assembly |
+| `steps.py` | One projected map, a composition of projected maps, or one outer projection |
+| `state.py`, `_energy.py` | Bound workspace operations and physical/extended energy handling |
+| `records.py` | `ProjectedMapResult`, `StepResult`, typed traces and observer-independent metrics |
+| `observations.py` | Optional adapters to the existing public event classes |
+| `projection_reduced.py`, `projection_simultaneous.py` | Physical single-map equations and specialized analytic corrections |
+| `projection_outer.py` | Physical equations around the complete ABBA4 base composition |
+| `projection_extended.py` | Full-diagonal equations, accepted full-map data and implicit tangents |
+| `maps/physical.py`, `maps/extended.py` | Unprojected stages and their exact derivatives |
+| `../_nonlinear.py` | `SolverOptions`, `SolveStats`, shared Newton and Broyden drivers |
+| `../../_fixed.py` | Uniform main grid and independent shadow samples |
+
+The method's mathematical definitions and derivations remain in
+[the model theory](../tex/theory.tex). The old `proposed-full-execution`
+diagram is retained as the design proposal preceding this implementation.

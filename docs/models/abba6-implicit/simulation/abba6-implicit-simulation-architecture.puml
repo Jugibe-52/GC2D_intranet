@@ -3,12 +3,12 @@ title ABBA6Implicit - Default Physical Reduced-Newton Outer Step
 
 autonumber
 
-participant "fixed-grid advance" as Advance
-participant "composition coordinator" as Compose
+participant "runtime.py: advance" as Advance
+participant "steps.py: projected composition" as Compose
 participant "reduced projection" as Reduced
 participant "A-B-B-A stages" as ABBA
-participant "exact Newton blocks" as Newton
-participant "diagnostics / observer" as Output
+participant "_solve_newton + exact correction" as Newton
+participant "StepMetrics / optional event adapter" as Output
 
 note over Advance, Reduced
   projection_formulation = reduced_multiplier
@@ -18,7 +18,7 @@ note over Advance, Reduced
   Projection is completed after every signed A-B-B-A map.
 end note
 
-Advance -> Compose : solve outer map at (t_n, z_n, h)
+Advance -> Compose : prepared.solve_step(t_n, z_n, h)
 note over Compose
   w = (a, b, c, d, c, b, a)
   a = 0.7845136104775573; b = 0.23557321335935813
@@ -41,7 +41,7 @@ loop j = 1 ... 7
       Reduced -> Reduced : z^(j) = mean(u_f + mu, v_f - mu)
     end
   end
-  Reduced --> Compose : accepted z^(j) and substep record
+  Reduced --> Compose : ProjectedMapResult(state, stats, trace)
 end
 
 Compose --> Advance : z_(n+1) = z^(7)

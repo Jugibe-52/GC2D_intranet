@@ -8,7 +8,7 @@ import numpy as np
 
 from dynamics import DynamicalSystem, ExtendedHamiltonianSystem
 
-from .._fully_extended import _integrate_abba_fully_extended_midpoint
+from .midpoint_extended import _integrate_abba_fully_extended_midpoint
 from ..._fixed import integrate_fixed_grid
 from ..._result import IntegrationData
 from ...observation import IntegrationStep, StepObserver
@@ -20,7 +20,7 @@ from ._configuration import (
 	_state_dimension_diagnostics,
 	_validate_state_extension,
 )
-from ._core import _ABBAStages, _evaluate_unprojected_stages
+from .maps.physical import _ABBAStages, _evaluate_unprojected_stages
 from ._energy import (
 	_conjugate_momentum_increment_from_stages,
 	_energy_tracking_diagnostics,

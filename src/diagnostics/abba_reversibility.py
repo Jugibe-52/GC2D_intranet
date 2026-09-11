@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+from functools import partial
 from typing import Any
 
 import numpy as np
@@ -17,14 +18,15 @@ from simulation import (
 	NONLINEAR_SOLVERS,
 	NonlinearSolver,
 )
-from simulation.methods.abba.order4_implicit import (
-	_solve_abba4_step,
-	_substep_observation,
-)
-from simulation.methods.abba._projection_reduced import (
+from simulation.methods._nonlinear import SolverOptions
+from simulation.methods.abba._configuration import _validate_projection_formulation
+from simulation.methods.abba.observations import bind_event_builder
+from simulation.methods.abba.records import StepResult
+from simulation.methods.abba.steps import bind_physical_projection, solve_projected_composition_step
+from simulation.methods.abba.projection_reduced import (
 	_solve_reduced_multiplier_step,
 )
-from simulation.methods.abba._projection_simultaneous import (
+from simulation.methods.abba.projection_simultaneous import (
 	_solve_simultaneous_state_multiplier_step,
 )
 
@@ -262,86 +264,31 @@ class ImplicitABBAReversibilityObserver:
 		step: ABBA4ImplicitIntegrationStep,
 		dynamics: GuidingCenterJacobianSystem,
 	) -> ABBA4ImplicitIntegrationStep:
-		"""Solve the three signed Yoshida factors from the forward endpoint."""
+		"""Use the shared signed-step recipe and snapshot adapter in reverse."""
 		start_time = float(step.time)
 		duration = -float(step.duration)
 		state_before = np.asarray(step.state_after, dtype=float)
 		if step.formulation_name not in ABBA_PROJECTION_FORMULATIONS:
 			raise TypeError("The observed ABBA4 step has an unknown formulation.")
-		projection_formulation = step.formulation_name
-
-		def solve(candidate: np.ndarray) -> Any:
-			return _solve_abba4_step(
-				dynamics,
-				start_time,
-				candidate,
-				duration,
-				absolute_tolerance=self.newton_absolute_tolerance,
-				relative_tolerance=self.newton_relative_tolerance,
-				max_iterations=self.newton_max_iterations,
-				nonlinear_solver=self.nonlinear_solver,
-				projection_formulation=projection_formulation,
-			)
-
-		result = solve(state_before)
-		substeps = tuple(
-			_substep_observation(
-				dynamics=dynamics,
-				method_name=step.method_name,
-				step_index=step.step_index,
-				accepted=accepted,
-				absolute_tolerance=self.newton_absolute_tolerance,
-				relative_tolerance=self.newton_relative_tolerance,
-				max_iterations=self.newton_max_iterations,
-				nonlinear_solver=self.nonlinear_solver,
-				projection_formulation=projection_formulation,
-			)
-			for accepted in result.substeps
+		formulation = _validate_projection_formulation(step.formulation_name)
+		options = SolverOptions(
+			self.nonlinear_solver, self.newton_absolute_tolerance,
+			self.newton_relative_tolerance, self.newton_max_iterations,
 		)
-		residual_norms = np.asarray(
-			[substep.newton_residual_norm for substep in substeps],
-			dtype=float,
+		project = bind_physical_projection(dynamics, options, formulation, outer=False)
+		coefficients = tuple(float(c) for c in step.composition_coefficients)
+		solve_step = partial(solve_projected_composition_step, project, coefficients)
+		projections = solve_step(start_time, state_before, duration)
+		builder = bind_event_builder(
+			dynamics, step.method_name, formulation, order=4, fully_extended=False,
+			outer=False, coefficients=coefficients, solve_step=solve_step, project=project,
 		)
-		tolerances = np.asarray(
-			[substep.newton_tolerance for substep in substeps],
-			dtype=float,
+		event = builder(
+			start_time, duration, step.step_index, state_before,
+			StepResult(projections[-1].state, projections),
 		)
-		worst_substep = int(np.argmax(residual_norms / tolerances))
-
-		def reverse_map(candidate: np.ndarray) -> np.ndarray:
-			"""Apply the complete fixed signed ABBA4 reverse map."""
-			return np.asarray(solve(candidate).state, dtype=float)
-
-		return ABBA4ImplicitIntegrationStep(
-			dynamics_name=step.dynamics_name,
-			method_name=step.method_name,
-			step_index=step.step_index,
-			time=float(step.start_time),
-			duration=duration,
-			state_before=state_before.copy(),
-			state_after=np.asarray(result.state, dtype=float).copy(),
-			map_state=reverse_map,
-			start_time=start_time,
-			dynamics=dynamics,
-			formulation_name=step.formulation_name,
-			nonlinear_solver=self.nonlinear_solver,
-			newton_iterations=sum(
-				substep.newton_iterations for substep in substeps
-			),
-			residual_evaluations=sum(
-				substep.residual_evaluations for substep in substeps
-			),
-			newton_residual_norm=float(residual_norms[worst_substep]),
-			newton_tolerance=float(tolerances[worst_substep]),
-			projection_multiplier_norm=max(
-				substep.projection_multiplier_norm for substep in substeps
-			),
-			composition_coefficients=np.asarray(
-				step.composition_coefficients,
-				dtype=float,
-			).copy(),
-			substeps=substeps,
-		)
+		assert isinstance(event, ABBA4ImplicitIntegrationStep)
+		return replace(event, time=float(step.start_time))
 
 	def __call__(self, step: IntegrationStep) -> None:
 		"""Observe one consecutive accepted implicit-ABBA step."""

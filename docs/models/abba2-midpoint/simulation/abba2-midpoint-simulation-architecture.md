@@ -79,7 +79,7 @@ fixes them to `"physical"` and `False`.
 
 The implementation shares its explicit endpoint-time stage kernel with the
 implicit ABBA methods. The neutral kernel lives in
-[`src/simulation/methods/abba/_core.py`](../../../../src/simulation/methods/abba/_core.py),
+[`src/simulation/methods/abba/maps/physical.py`](../../../../src/simulation/methods/abba/maps/physical.py),
 while `_midpoint_abba_step(...)` owns duplication and arithmetic projection.
 
 Let `z_n` be the accepted packed state, `h` the current main or shadow duration,
@@ -259,3 +259,12 @@ solution = simulate(
 
 The caller supplies the validated `problem` and the physical time and sampling
 parameters.
+
+
+## Shared-kernel location after the implicit-runtime refactor
+
+Midpoint keeps its arithmetic projection and its existing coordinator.
+The physical kernel now lives in `maps/physical.py`; the full base maps
+live in `maps/extended.py` and the full midpoint coordinator lives in
+`midpoint_extended.py`. Full energy extraction is shared through `state.py`.
+These moves preserve the midpoint public API and numerical behavior.

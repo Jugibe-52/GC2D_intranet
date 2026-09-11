@@ -1,528 +1,423 @@
 @startdot
-digraph G {
-  // Keep the Graphviz-based layout used by the historical VS Code diagram.
+digraph ABBA2SharedFullExecution {
+  // Implemented end-to-end ABBA2Implicit execution, preserving the current public API.
+  // Both diagrams expose the same implemented family components and record contracts.
+  // Only the public method options, bound step recipe and event payload selection differ.
+  // Read the numbered phase headers horizontally, then each phase vertically.
+  // Records and operation signatures describe the shared runtime implementation.
+  // They are not additional public APIs or a class required for every operation.
+  // Cross-cluster edges are declared after all nodes to preserve cluster ownership.
   graph [
-    rankdir=LR,
-    compound=true,
-    splines=ortho,
-    nodesep=0.30,
-    ranksep=0.72,
-    pad=0.20,
-    bgcolor="white",
-    fontname="DejaVu Sans",
-    fontsize=12,
-    label="ABBA2Implicit Simulation Runtime Path and Configuration Cube",
-    labelloc="t",
-    labeljust="c"
+    rankdir=TB, newrank=true, compound=true, splines=line,
+    nodesep=0.80, ranksep=0.56, pad=0.30,
+    bgcolor="#FFFFFF", fontname="DejaVu Sans", fontsize=23,
+    labelloc="t", labeljust="l",
+    label="ABBA2 | Complete execution through the shared ABBA architecture\n\nHorizontal: complete lifecycle. Vertical: shared services and the selected method recipe.\nSHARED FAMILY: blue services and green numerical kernels. METHOD SPECIFIC: orange step recipe.\nImplemented runtime: public contracts and numerical maps are retained. N = particles; T = saved times.\nModule paths are relative to src/simulation/methods/abba/ unless stated otherwise."
   ];
-  node [shape=plain, fontname="DejaVu Sans", fontsize=10];
-  edge [color="#333333", penwidth=1.0, arrowsize=0.72, fontname="DejaVu Sans", fontsize=9];
+  node [
+    shape=box, style="rounded,filled", fillcolor="#FFFFFF",
+    color="#C4CFDC", penwidth=1.15, margin="0.02,0.02",
+    fontname="DejaVu Sans", fontsize=11
+  ];
+  edge [
+    color="#64748B", penwidth=1.15, arrowsize=0.72,
+    arrowhead=normal, arrowtail=none, dir=forward,
+    fontname="DejaVu Sans", fontsize=10
+  ];
 
-  subgraph cluster_inherited {
-    label="Inherited boundary";
-    labeljust="l";
-    color="#777777";
-    penwidth=1.0;
-    style="rounded";
+  subgraph cluster_physics {
+    label=""; style="rounded,filled"; color="#C8D6E7"; fillcolor="#F8FAFD";
+    node [group="physics"];
+    PhasePhysics [fillcolor="#263D59", color="#263D59", fontcolor="white", margin="0.22,0.16", label="01  PHYSICS AND INITIAL STATE\nDefine the reproducible physical inputs"];
 
-    inherited_anchor [shape=point, width=0, height=0, label="", style=invis];
-
-    GuidingCenterDynamics [label=<
-      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#F7F7F7">
-        <TR><TD><FONT POINT-SIZE="9"><I>&#171;implementation&#187;</I></FONT><BR/><FONT POINT-SIZE="9">src/dynamics/gc.py</FONT><BR/><B>GuidingCenterDynamics</B></TD></TR>
-        <HR/>
-        <TR><TD ALIGN="LEFT">state_dimension = 2<BR ALIGN="LEFT"/>vector_field(t, state)<BR ALIGN="LEFT"/>particle_vector_field_jacobians(...)<BR ALIGN="LEFT"/>extended_momentum_derivative(...)</TD></TR>
+    Potential [label=<
+      <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD BGCOLOR="#E8EFF8" ALIGN="LEFT"><FONT POINT-SIZE="9">EXISTING CLASS</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>Potential</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/potential/potential.py</FONT></TD></TR>
+        <TR><TD ALIGN="LEFT"><B>State</B><BR ALIGN="LEFT"/>interpolation_order: int<BR ALIGN="LEFT"/>metadata: field provenance</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT"><B>Operations</B><BR ALIGN="LEFT"/>evaluate(t, x, y, derivatives): array<BR ALIGN="LEFT"/>electric_field(t, x, y): (Ex, Ey)<BR ALIGN="LEFT"/>gyroaverage(rho): Potential</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">Load with load_gc2d_h5_potential(...),<BR ALIGN="LEFT"/>or construct with Potential.random(...).<BR ALIGN="LEFT"/>Keep normalization and seed explicit.</TD></TR>
       </TABLE>
     >];
-
-    GuidingCenterJacobianSystem [label=<
-      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#F7F7F7">
-        <TR><TD><FONT POINT-SIZE="9"><I>&#171;protocol&#187;</I></FONT><BR/><FONT POINT-SIZE="9">src/dynamics/protocols.py</FONT><BR/><B>GuidingCenterJacobianSystem</B></TD></TR>
-        <HR/>
-        <TR><TD ALIGN="LEFT">particle_vector_field_jacobians(...)</TD></TR>
+    Dynamics [label=<
+      <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD BGCOLOR="#E8EFF8" ALIGN="LEFT"><FONT POINT-SIZE="9">EXISTING CLASS</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>GuidingCenterDynamics</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/dynamics/gc.py</FONT></TD></TR>
+        <TR><TD ALIGN="LEFT"><B>State</B><BR ALIGN="LEFT"/>potential, effective_potential: Potential<BR ALIGN="LEFT"/>rho: float; state_dimension = 2</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT"><B>Operations</B><BR ALIGN="LEFT"/>vector_field(t, z): array[2N]<BR ALIGN="LEFT"/>particle_vector_field_jacobians(t, z)<BR ALIGN="LEFT"/>hamiltonian(t, z): array[N]<BR ALIGN="LEFT"/>extended_momentum_derivative(t, z)</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">Provides physical and Hamiltonian<BR ALIGN="LEFT"/>capabilities used by the selected method.</TD></TR>
       </TABLE>
     >];
-
-    DynamicalSystem [label=<
-      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#F7F7F7">
-        <TR><TD><FONT POINT-SIZE="9"><I>&#171;protocol&#187;</I></FONT><BR/><FONT POINT-SIZE="9">src/dynamics/protocols.py</FONT><BR/><B>DynamicalSystem</B></TD></TR>
-        <HR/>
-        <TR><TD ALIGN="LEFT">state_dimension<BR ALIGN="LEFT"/>vector_field(t, state)</TD></TR>
+    Initial [label=<
+      <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD BGCOLOR="#E8EFF8" ALIGN="LEFT"><FONT POINT-SIZE="9">EXISTING CLASS</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>GCInitialConfiguration</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/initial_conditions/gc.py</FONT></TD></TR>
+        <TR><TD ALIGN="LEFT"><B>State</B><BR ALIGN="LEFT"/>initial_state: array[2N]<BR ALIGN="LEFT"/>layout: GCStateLayout</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT"><B>Operations</B><BR ALIGN="LEFT"/>from_components(x, y): configuration<BR ALIGN="LEFT"/>initial_state: independent state copy</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">Inherits StateConfiguration.<BR ALIGN="LEFT"/>Supplies geometry; physical parameters<BR ALIGN="LEFT"/>remain in the dynamics.</TD></TR>
       </TABLE>
     >];
-
-    { rank=same; inherited_anchor; GuidingCenterDynamics; GuidingCenterJacobianSystem; DynamicalSystem; }
+    Layout [label=<
+      <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD BGCOLOR="#E8EFF8" ALIGN="LEFT"><FONT POINT-SIZE="9">EXISTING CLASS / STATE CONTRACT</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>GCStateLayout</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/initial_conditions/gc.py</FONT></TD></TR>
+        <TR><TD ALIGN="LEFT"><B>Convention</B><BR ALIGN="LEFT"/>z = [x1, ..., xN, y1, ..., yN]<BR ALIGN="LEFT"/>state_dimension = 2</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT"><B>Operations</B><BR ALIGN="LEFT"/>validate_packed_state_layout(z)<BR ALIGN="LEFT"/>split(z): GCState(x, y)<BR ALIGN="LEFT"/>particle_count(z): N<BR ALIGN="LEFT"/>positions(z): (x, y)</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">Inherits PackedStateLayout.<BR ALIGN="LEFT"/>Also interprets saved histories [2N, T].</TD></TR>
+      </TABLE>
+    >];
   }
 
-  subgraph cluster_run {
-    label="Run assembly";
-    labeljust="l";
-    color="#555555";
-    penwidth=1.2;
-    style="rounded";
+  subgraph cluster_definition {
+    label=""; style="rounded,filled"; color="#C8D6E7"; fillcolor="#F8FAFD";
+    node [group="definition"];
+    PhaseDefinition [fillcolor="#263D59", color="#263D59", fontcolor="white", margin="0.22,0.16", label="02  RUN DEFINITION\nAssemble problem, time request and method"];
 
-    subgraph cluster_problem {
-      label="1. Initial value problem";
-      labeljust="l";
-      color="#A0A0A0";
-      style="rounded";
-      problem_anchor [shape=point, width=0, height=0, label="", style=invis];
-      InitialValueProblem [label=<
-        <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#F7F7F7">
-          <TR><TD><FONT POINT-SIZE="9"><I>&#171;value&#187;</I></FONT><BR/><FONT POINT-SIZE="9">src/simulation/problem.py</FONT><BR/><B>InitialValueProblem</B></TD></TR>
-          <HR/>
-          <TR><TD ALIGN="LEFT">Binds dynamics to initial configuration<BR ALIGN="LEFT"/>Checks state-dimension compatibility</TD></TR>
-        </TABLE>
-      >];
-      { rank=same; problem_anchor; InitialValueProblem; }
-    }
-
-    subgraph cluster_state_contracts {
-      label="2. State contracts";
-      labeljust="l";
-      color="#A0A0A0";
-      style="rounded";
-      state_contracts_anchor [shape=point, width=0, height=0, label="", style=invis];
-      InitialConfiguration [label=<
-        <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#F7F7F7">
-          <TR><TD><FONT POINT-SIZE="9"><I>&#171;protocol&#187;</I></FONT><BR/><FONT POINT-SIZE="9">src/simulation/configuration.py</FONT><BR/><B>InitialConfiguration</B></TD></TR>
-          <HR/>
-          <TR><TD ALIGN="LEFT">Supplies initial_state<BR ALIGN="LEFT"/>Exposes StateLayout</TD></TR>
-        </TABLE>
-      >];
-      StateLayout [label=<
-        <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#F7F7F7">
-          <TR><TD><FONT POINT-SIZE="9"><I>&#171;protocol&#187;</I></FONT><BR/><FONT POINT-SIZE="9">src/simulation/configuration.py</FONT><BR/><B>StateLayout</B></TD></TR>
-          <HR/>
-          <TR><TD ALIGN="LEFT">state_dimension<BR ALIGN="LEFT"/>validate_packed_state_layout(...)<BR ALIGN="LEFT"/>split(...) / particle_count(...)<BR ALIGN="LEFT"/>positions(...)</TD></TR>
-        </TABLE>
-      >];
-      { rank=same; state_contracts_anchor; InitialConfiguration; StateLayout; }
-    }
-
-    subgraph cluster_gc_state {
-      label="3. Guiding-center initial state";
-      labeljust="l";
-      color="#A0A0A0";
-      style="rounded";
-      gc_state_anchor [shape=point, width=0, height=0, label="", style=invis];
-      GCInitialConfiguration [label=<
-        <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#F7F7F7">
-          <TR><TD><FONT POINT-SIZE="9"><I>&#171;concrete&#187;</I></FONT><BR/><FONT POINT-SIZE="9">src/initial_conditions/gc.py</FONT><BR/><B>GCInitialConfiguration</B></TD></TR>
-          <HR/>
-          <TR><TD ALIGN="LEFT">layout: GCStateLayout<BR ALIGN="LEFT"/>from_components(x, y)</TD></TR>
-        </TABLE>
-      >];
-      GCStateLayout [label=<
-        <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#F7F7F7">
-          <TR><TD><FONT POINT-SIZE="9"><I>&#171;concrete layout&#187;</I></FONT><BR/><FONT POINT-SIZE="9">src/initial_conditions/gc.py</FONT><BR/><B>GCStateLayout</B></TD></TR>
-          <HR/>
-          <TR><TD ALIGN="LEFT">state_dimension = 2<BR ALIGN="LEFT"/>split(...) -&gt; GCState<BR ALIGN="LEFT"/>positions(...)</TD></TR>
-        </TABLE>
-      >];
-      { rank=same; gc_state_anchor; GCInitialConfiguration; GCStateLayout; }
-    }
-
-    subgraph cluster_shared_state {
-      label="4. Shared state implementation";
-      labeljust="l";
-      color="#A0A0A0";
-      style="rounded";
-      shared_state_anchor [shape=point, width=0, height=0, label="", style=invis];
-      StateConfiguration [label=<
-        <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#F7F7F7">
-          <TR><TD><FONT POINT-SIZE="9"><I>&#171;abstract storage&#187;</I></FONT><BR/><FONT POINT-SIZE="9">src/initial_conditions/base.py</FONT><BR/><B>StateConfiguration</B></TD></TR>
-          <HR/>
-          <TR><TD ALIGN="LEFT">initial_state<BR ALIGN="LEFT"/>abstract layout property<BR ALIGN="LEFT"/>compatibility forwarding methods</TD></TR>
-        </TABLE>
-      >];
-      PackedStateLayout [label=<
-        <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#F7F7F7">
-          <TR><TD><FONT POINT-SIZE="9"><I>&#171;shared layout&#187;</I></FONT><BR/><FONT POINT-SIZE="9">src/initial_conditions/base.py</FONT><BR/><B>PackedStateLayout</B></TD></TR>
-          <HR/>
-          <TR><TD ALIGN="LEFT">validate / split / particle_count<BR ALIGN="LEFT"/>as_blocks(...) / from_blocks(...)<BR ALIGN="LEFT"/>pack_components(...)</TD></TR>
-        </TABLE>
-      >];
-      StateConfigurationNote [shape=note, style="filled", fillcolor="#FFFDEB", color="#B8AE6F", margin="0.10,0.07", label="Abstract initial-state storage.\nIt cannot be instantiated without\na concrete layout."];
-      { rank=same; shared_state_anchor; StateConfiguration; PackedStateLayout; StateConfigurationNote; }
-    }
-
-    subgraph cluster_request {
-      label="5. Time request";
-      labeljust="l";
-      color="#A0A0A0";
-      style="rounded";
-      request_anchor [shape=point, width=0, height=0, label="", style=invis];
-      SimulationRequest [label=<
-        <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#F7F7F7">
-          <TR><TD><FONT POINT-SIZE="9"><I>&#171;value&#187;</I></FONT><BR/><FONT POINT-SIZE="9">src/simulation/request.py</FONT><BR/><B>SimulationRequest</B></TD></TR>
-          <HR/>
-          <TR><TD ALIGN="LEFT">Time span<BR ALIGN="LEFT"/>Maximum step<BR ALIGN="LEFT"/>Requested output times</TD></TR>
-        </TABLE>
-      >];
-      { rank=same; request_anchor; SimulationRequest; }
-    }
-
-    subgraph cluster_runner {
-      label="6. Simulation facade";
-      labeljust="l";
-      color="#A0A0A0";
-      style="rounded";
-      runner_anchor [shape=point, width=0, height=0, label="", style=invis];
-      SimulationRunner [label=<
-        <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#F7F7F7">
-          <TR><TD><FONT POINT-SIZE="9"><I>&#171;facade&#187;</I></FONT><BR/><FONT POINT-SIZE="9">src/simulation/runner.py</FONT><BR/><B>SimulationRunner</B></TD></TR>
-          <HR/>
-          <TR><TD ALIGN="LEFT">simulate(problem, method, request)<BR ALIGN="LEFT"/>Validates public inputs and returned arrays<BR ALIGN="LEFT"/>Builds the public Solution</TD></TR>
-        </TABLE>
-      >];
-      { rank=same; runner_anchor; SimulationRunner; }
-    }
-
-    subgraph cluster_method {
-      label="7. Unified ABBA2 implicit method";
-      labeljust="l";
-      color="#A0A0A0";
-      style="rounded";
-      method_anchor [shape=point, width=0, height=0, label="", style=invis];
-      NumericalMethod [label=<
-        <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#F7F7F7">
-          <TR><TD><FONT POINT-SIZE="9"><I>&#171;protocol&#187;</I></FONT><BR/><FONT POINT-SIZE="9">src/simulation/methods/base.py</FONT><BR/><B>NumericalMethod</B></TD></TR>
-          <HR/>
-          <TR><TD ALIGN="LEFT">integrate(problem, request)</TD></TR>
-        </TABLE>
-      >];
-      ABBAImplicitConfig [label=<
-        <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#EEE3F5">
-          <TR><TD><FONT POINT-SIZE="9"><I>&#171;configuration base&#187;</I></FONT><BR/><FONT POINT-SIZE="9">src/simulation/methods/abba/_implicit.py</FONT><BR/><B>_ABBAImplicitConfig</B></TD></TR>
-          <HR/>
-          <TR><TD ALIGN="LEFT">projection_formulation: 2 choices<BR ALIGN="LEFT"/>state_extension: 2 choices<BR ALIGN="LEFT"/>track_energy: False / True<BR ALIGN="LEFT"/>nonlinear_solver: 2 choices<BR ALIGN="LEFT"/>tolerances, progress and observer</TD></TR>
-        </TABLE>
-      >];
-      ABBAConfiguration [label=<
-        <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#EEE3F5">
-          <TR><TD><FONT POINT-SIZE="9"><I>&#171;configuration helpers&#187;</I></FONT><BR/><FONT POINT-SIZE="9">src/simulation/methods/abba/_configuration.py</FONT><BR/><B>ABBA configuration controls</B></TD></TR>
-          <HR/>
-          <TR><TD ALIGN="LEFT">ProjectionFormulation<BR ALIGN="LEFT"/>StateExtension<BR ALIGN="LEFT"/>track_energy resolution<BR ALIGN="LEFT"/>validation and dimension diagnostics</TD></TR>
-        </TABLE>
-      >];
-      ABBA2Implicit [label=<
-        <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#EEE3F5">
-          <TR><TD><FONT POINT-SIZE="9"><I>&#171;public method&#187;</I></FONT><BR/><FONT POINT-SIZE="9">src/simulation/methods/abba/order2_implicit.py</FONT><BR/><B>ABBA2Implicit</B></TD></TR>
-          <HR/>
-          <TR><TD ALIGN="LEFT">One class, twelve canonical configurations<BR ALIGN="LEFT"/>integrate(problem, request)<BR ALIGN="LEFT"/>Dispatches by state_extension<BR ALIGN="LEFT"/>Optionally tracks physical energy</TD></TR>
-        </TABLE>
-      >];
-      FullyExtendedProtocol [label=<
-        <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#F7F7F7">
-          <TR><TD><FONT POINT-SIZE="9"><I>&#171;protocol&#187;</I></FONT><BR/><FONT POINT-SIZE="9">src/simulation/methods/_fully_extended.py</FONT><BR/><B>_ABBAFullyExtendedMethod</B></TD></TR>
-          <HR/>
-          <TR><TD ALIGN="LEFT">Consumes solver configuration<BR ALIGN="LEFT"/>No public method inheritance</TD></TR>
-        </TABLE>
-      >];
-      ConfigurationNote [shape=note, style="filled", fillcolor="#FFFDEB", color="#B8AE6F", margin="0.10,0.07", label="Canonical configuration space:\n2 projection formulations x\n3 normalized state/energy strategies x\n2 nonlinear solvers = 12.\nFully extended implies track_energy = True."];
-      { rank=same; method_anchor; NumericalMethod; ABBAImplicitConfig; ABBAConfiguration; ABBA2Implicit; FullyExtendedProtocol; ConfigurationNote; }
-    }
+    Problem [label=<
+      <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD BGCOLOR="#E8EFF8" ALIGN="LEFT"><FONT POINT-SIZE="9">EXISTING FROZEN RECORD</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>InitialValueProblem</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/simulation/problem.py</FONT></TD></TR>
+        <TR><TD ALIGN="LEFT"><B>State</B><BR ALIGN="LEFT"/>dynamics: DynamicalSystem<BR ALIGN="LEFT"/>initial_configuration: InitialConfiguration</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT"><B>Operations</B><BR ALIGN="LEFT"/>__post_init__(): validate compatibility<BR ALIGN="LEFT"/>initial_state: array[2N]<BR ALIGN="LEFT"/>particle_count: int</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">Require a finite initial state and<BR ALIGN="LEFT"/>matching dynamics/layout dimensions.</TD></TR>
+      </TABLE>
+    >];
+    Request [label=<
+      <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD BGCOLOR="#E8EFF8" ALIGN="LEFT"><FONT POINT-SIZE="9">EXISTING FROZEN RECORD</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>SimulationRequest</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/simulation/request.py</FONT></TD></TR>
+        <TR><TD ALIGN="LEFT"><B>State</B><BR ALIGN="LEFT"/>t_span: (t0, tf)<BR ALIGN="LEFT"/>max_step: float<BR ALIGN="LEFT"/>output_times: read-only array[T]</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT"><B>Operations</B><BR ALIGN="LEFT"/>uniform(t_span, max_step, sample_count)<BR ALIGN="LEFT"/>__post_init__(): validate time request</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">Increasing times include both endpoints.<BR ALIGN="LEFT"/>The saved grid need not equal the step grid.</TD></TR>
+      </TABLE>
+    >];
+    Method [label=<
+      <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD BGCOLOR="#E8EFF8" ALIGN="LEFT"><FONT POINT-SIZE="9">EXISTING PUBLIC CLASS / SHARED INTERNALS</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>ABBA2Implicit</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">order2_implicit.py</FONT></TD></TR>
+        <TR><TD ALIGN="LEFT"><B>Configuration</B><BR ALIGN="LEFT"/>projection_formulation<BR ALIGN="LEFT"/>state_extension; track_energy; nonlinear_solver<BR ALIGN="LEFT"/>newton_absolute_tolerance<BR ALIGN="LEFT"/>newton_relative_tolerance; newton_max_iterations<BR ALIGN="LEFT"/>progress; step_observer</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT"><B>Public operation</B><BR ALIGN="LEFT"/>integrate(problem, request): IntegrationData</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">Inherits _ABBAImplicitConfig.<BR ALIGN="LEFT"/>Implements NumericalMethod structurally.<BR ALIGN="LEFT"/>Keep current public option names compatible.</TD></TR>
+      </TABLE>
+    >];
+    Configuration [fillcolor="#EEF3FA", label=<
+      <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD ALIGN="LEFT"><B>12 normalized ABBA2 configurations</B></TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">3 state/energy strategies<BR ALIGN="LEFT"/>x 2 projection formulations<BR ALIGN="LEFT"/>x 2 nonlinear solvers</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">A run chooses one configuration.<BR ALIGN="LEFT"/>The diagram shows the available choices;<BR ALIGN="LEFT"/>they are not all executed in sequence.</TD></TR>
+      </TABLE>
+    >];
   }
 
-  subgraph cluster_integration {
-    label="ABBA2 implicit integration";
-    labeljust="l";
-    color="#555555";
-    penwidth=1.2;
-    style="rounded";
+  subgraph cluster_preparation {
+    label=""; style="rounded,filled"; color="#C4D0F1"; fillcolor="#F8FAFF";
+    node [group="preparation"];
+    PhasePreparation [fillcolor="#354D89", color="#354D89", fontcolor="white", margin="0.22,0.16", label="03  ENTRY AND PREPARATION\nValidate once and bind the selected behavior"];
 
-    dispatch_anchor [shape=point, width=0, height=0, label="", style=invis];
-    StateExtensionDispatch [label=<
-      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#EEE3F5">
-        <TR><TD><FONT POINT-SIZE="9"><I>&#171;dispatch&#187;</I></FONT><BR/><FONT POINT-SIZE="9">src/simulation/methods/abba/order2_implicit.py</FONT><BR/><B>ABBA2Implicit.integrate(...)</B></TD></TR>
-        <HR/>
-        <TR><TD ALIGN="LEFT">physical<BR ALIGN="LEFT"/>or<BR ALIGN="LEFT"/>fully_extended</TD></TR>
+    Runner [label=<
+      <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD BGCOLOR="#E8EFF8" ALIGN="LEFT"><FONT POINT-SIZE="9">EXISTING CLASS / PUBLIC FACADE</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>SimulationRunner</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/simulation/runner.py</FONT></TD></TR>
+        <TR><TD ALIGN="LEFT"><B>Entry</B><BR ALIGN="LEFT"/>simulate(problem, method, request): Solution<BR ALIGN="LEFT"/>The public simulate(...) function delegates here.</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT"><B>Before integration</B><BR ALIGN="LEFT"/>Validate the three public input contracts.<BR ALIGN="LEFT"/>Call method.integrate(problem, request).</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">The same call resumes in phase 06<BR ALIGN="LEFT"/>after IntegrationData is returned.</TD></TR>
       </TABLE>
     >];
-    { rank=same; dispatch_anchor; StateExtensionDispatch; }
-
-    coordinators_anchor [shape=point, width=0, height=0, label="", style=invis];
-    ProjectedCoordinator [label=<
-      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#FFF3D6">
-        <TR><TD><FONT POINT-SIZE="9"><I>&#171;physical coordinator&#187;</I></FONT><BR/><FONT POINT-SIZE="9">src/simulation/methods/abba/_implicit.py</FONT><BR/><B>_integrate_projected_abba(...)</B></TD></TR>
-        <HR/>
-        <TR><TD ALIGN="LEFT">Validate GC Jacobian capability<BR ALIGN="LEFT"/>Build projected advance closure<BR ALIGN="LEFT"/>Collect physical and optional energy diagnostics</TD></TR>
+    Prepare [label=<
+      <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">SHARED FAMILY FUNCTION</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>prepare_abba(...)</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">preparation.py</FONT></TD></TR>
+        <TR><TD ALIGN="LEFT"><B>IN</B> problem, method, request<BR ALIGN="LEFT"/><B>OUT</B> PreparedABBA<BR ALIGN="LEFT"/></TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">Validate common options and selected capabilities.<BR ALIGN="LEFT"/>Bind the model's solve_step function once.<BR ALIGN="LEFT"/>Bind state policy, projection and nonlinear solver.<BR ALIGN="LEFT"/>Select the model's optional event builder.<BR ALIGN="LEFT"/></TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">Physical: planar GuidingCenterJacobianSystem.<BR ALIGN="LEFT"/>Fully extended: one GuidingCenterDynamics particle.<BR ALIGN="LEFT"/>Newton requires the relevant derivatives.<BR ALIGN="LEFT"/>Broyden iterations remain residual-only.<BR ALIGN="LEFT"/></TD></TR>
       </TABLE>
     >];
-    FullCoordinator [label=<
-      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#FDEFD9">
-        <TR><TD><FONT POINT-SIZE="9"><I>&#171;fully extended coordinator&#187;</I></FONT><BR/><FONT POINT-SIZE="9">src/simulation/methods/_fully_extended.py</FONT><BR/><B>_integrate_abba_fully_extended(...)</B></TD></TR>
-        <HR/>
-        <TR><TD ALIGN="LEFT">Validate one-particle GC dynamics<BR ALIGN="LEFT"/>Initialize accepted (z,t,k) in R4<BR ALIGN="LEFT"/>Build full-state advance closure</TD></TR>
+    Prepared [label=<
+      <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">SHARED FAMILY RECORD</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>PreparedABBA</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">preparation.py</FONT></TD></TR>
+        <TR><TD ALIGN="LEFT"><B>State</B><BR ALIGN="LEFT"/>initial_workspace: array<BR ALIGN="LEFT"/>solve_step: bound callable<BR ALIGN="LEFT"/>state_ops: StatePolicy<BR ALIGN="LEFT"/>build_event: optional callable<BR ALIGN="LEFT"/>solver_options, method_metadata<BR ALIGN="LEFT"/></TD></TR><HR/>
+        <TR><TD ALIGN="LEFT"><B>Bound step contract</B><BR ALIGN="LEFT"/>solve_step(t, numerical_state, h)<BR ALIGN="LEFT"/>returns tuple[ProjectedMapResult, ...].<BR ALIGN="LEFT"/>Results are ordered by accepted projection.<BR ALIGN="LEFT"/></TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">The same record serves ABBA2 and ABBA4.<BR ALIGN="LEFT"/>Public method choice is resolved before the loop.<BR ALIGN="LEFT"/></TD></TR>
       </TABLE>
     >];
-    { rank=same; coordinators_anchor; ProjectedCoordinator; FullCoordinator; }
-
-    fixed_anchor [shape=point, width=0, height=0, label="", style=invis];
-    FixedGrid [label=<
-      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#F7F7F7">
-        <TR><TD><FONT POINT-SIZE="9"><I>&#171;shared outer time loop&#187;</I></FONT><BR/><FONT POINT-SIZE="9">src/simulation/_fixed.py</FONT><BR/><B>integrate_fixed_grid(...)</B></TD></TR>
-        <HR/>
-        <TR><TD ALIGN="LEFT">Build uniform main grid<BR ALIGN="LEFT"/>Request main and shadow advances</TD></TR>
+    StatePolicy [label=<
+      <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">SHARED STATE OPERATIONS</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>StatePolicy</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">state.py</FONT></TD></TR>
+        <TR><TD ALIGN="LEFT"><B>Bound operations</B><BR ALIGN="LEFT"/>initialize(z0, t0): workspace<BR ALIGN="LEFT"/>unpack(t, workspace): numerical state<BR ALIGN="LEFT"/>finish_step(t, h, workspace, projections): workspace<BR ALIGN="LEFT"/>extract(times, history): physical states + energy<BR ALIGN="LEFT"/></TD></TR><HR/>
+        <TR><TD ALIGN="LEFT"><B>One selected strategy</B><BR ALIGN="LEFT"/>Physical: z in R^(2N).<BR ALIGN="LEFT"/>Physical + energy: (z, kappa), kappa in R^N.<BR ALIGN="LEFT"/>Fully extended: (x, y, t, k) in R^4.<BR ALIGN="LEFT"/></TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">Finish from the last accepted projection state.<BR ALIGN="LEFT"/>Physical tracking uses the accepted stage traces,<BR ALIGN="LEFT"/>including their signed durations and start times.<BR ALIGN="LEFT"/>Auxiliary kappa never feeds back into z.<BR ALIGN="LEFT"/>Full extension evolves t,k and synchronizes time.<BR ALIGN="LEFT"/></TD></TR>
       </TABLE>
     >];
-    FixedGridNote [shape=note, style="filled", fillcolor="#FFFDEB", color="#B8AE6F", margin="0.10,0.07", label="Main advances replace the accepted trajectory\nand may emit one observation. Shadow advances\nproduce samples without changing later state."];
-    { rank=same; fixed_anchor; FixedGrid; FixedGridNote; }
-
-    projected_selector_anchor [shape=point, width=0, height=0, label="", style=invis];
-    ProjectedSelector [label=<
-      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#FFF3D6">
-        <TR><TD><FONT POINT-SIZE="9"><I>&#171;projected dispatch&#187;</I></FONT><BR/><FONT POINT-SIZE="9">src/simulation/methods/abba/_implicit.py</FONT><BR/><B>_step_solver_for(...)</B></TD></TR>
-        <HR/>
-        <TR><TD ALIGN="LEFT">reduced_multiplier<BR ALIGN="LEFT"/>or<BR ALIGN="LEFT"/>simultaneous_state_multiplier</TD></TR>
-      </TABLE>
-    >];
-    FullStepDispatch [label=<
-      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#FDEFD9">
-        <TR><TD><FONT POINT-SIZE="9"><I>&#171;full-step dispatch&#187;</I></FONT><BR/><FONT POINT-SIZE="9">src/simulation/methods/_fully_extended.py</FONT><BR/><B>_solve_abba_fully_extended_step(...)</B></TD></TR>
-        <HR/>
-        <TR><TD ALIGN="LEFT">ABBA2 variant coefficient: [1.0]<BR ALIGN="LEFT"/>Build base map and select projection<BR ALIGN="LEFT"/>Return _FullMethodStep</TD></TR>
-      </TABLE>
-    >];
-    { rank=same; projected_selector_anchor; ProjectedSelector; FullStepDispatch; }
-
-    solvers_anchor [shape=point, width=0, height=0, label="", style=invis];
-    ReducedProjectionSolver [label=<
-      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#FFF3D6">
-        <TR><TD><FONT POINT-SIZE="9"><I>&#171;physical formulation 1&#187;</I></FONT><BR/><FONT POINT-SIZE="9">src/simulation/methods/abba/_projection_reduced.py</FONT><BR/><B>_solve_reduced_multiplier_step(...)</B></TD></TR>
-        <HR/>
-        <TR><TD ALIGN="LEFT">Unknown: mu in R2 per particle<BR ALIGN="LEFT"/>Newton block: 2 x 2</TD></TR>
-      </TABLE>
-    >];
-    SimultaneousProjectionSolver [label=<
-      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#FFF3D6">
-        <TR><TD><FONT POINT-SIZE="9"><I>&#171;physical formulation 2&#187;</I></FONT><BR/><FONT POINT-SIZE="9">src/simulation/methods/abba/_projection_simultaneous.py</FONT><BR/><B>_solve_simultaneous_state_multiplier_step(...)</B></TD></TR>
-        <HR/>
-        <TR><TD ALIGN="LEFT">Unknown: (u_f,v_f,mu) in R6 per particle<BR ALIGN="LEFT"/>Newton block: 6 x 6</TD></TR>
-      </TABLE>
-    >];
-    FullBaseMap [label=<
-      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#FDEFD9">
-        <TR><TD><FONT POINT-SIZE="9"><I>&#171;fully extended base map&#187;</I></FONT><BR/><FONT POINT-SIZE="9">src/simulation/methods/_fully_extended.py</FONT><BR/><B>_abba_base_map(...)</B></TD></TR>
-        <HR/>
-        <TR><TD ALIGN="LEFT">Acts on duplicated (Z1,Z2) in R8<BR ALIGN="LEFT"/>Four exact extended-state shears<BR ALIGN="LEFT"/>Return map and analytic Jacobian</TD></TR>
-      </TABLE>
-    >];
-    { rank=same; solvers_anchor; ReducedProjectionSolver; SimultaneousProjectionSolver; FullBaseMap; }
-
-    kernels_anchor [shape=point, width=0, height=0, label="", style=invis];
-    ProjectionCommon [label=<
-      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#FFF3D6">
-        <TR><TD><FONT POINT-SIZE="9"><I>&#171;shared projected kernels&#187;</I></FONT><BR/><FONT POINT-SIZE="9">src/simulation/methods/abba/_core.py + _projection_common.py</FONT><BR/><B>ABBA2 projected stage map</B></TD></TR>
-        <HR/>
-        <TR><TD ALIGN="LEFT">_evaluate_unprojected_stages(...)<BR ALIGN="LEFT"/>_evaluate_displaced_stages(...)<BR ALIGN="LEFT"/>_differentiate_stages(...)</TD></TR>
-      </TABLE>
-    >];
-    FullProjectionSelector [label=<
-      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#FDEFD9">
-        <TR><TD><FONT POINT-SIZE="9"><I>&#171;full projection dispatch&#187;</I></FONT><BR/><FONT POINT-SIZE="9">src/simulation/methods/_fully_extended.py</FONT><BR/><B>_solve_abba_full_projection(...)</B></TD></TR>
-        <HR/>
-        <TR><TD ALIGN="LEFT">reduced_multiplier<BR ALIGN="LEFT"/>or<BR ALIGN="LEFT"/>simultaneous_state_multiplier</TD></TR>
-      </TABLE>
-    >];
-    { rank=same; kernels_anchor; ProjectionCommon; FullProjectionSelector; }
-
-    full_solvers_anchor [shape=point, width=0, height=0, label="", style=invis];
-    ProjectedStep [label=<
-      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#FFF3D6">
-        <TR><TD><FONT POINT-SIZE="9"><I>&#171;projected step record&#187;</I></FONT><BR/><FONT POINT-SIZE="9">src/simulation/methods/abba/_projection_common.py</FONT><BR/><B>_ProjectedStep</B></TD></TR>
-        <HR/>
-        <TR><TD ALIGN="LEFT">Accepted physical state<BR ALIGN="LEFT"/>Multiplier and ABBA stage snapshots<BR ALIGN="LEFT"/>Solver metrics</TD></TR>
-      </TABLE>
-    >];
-    FullReducedSolver [label=<
-      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#FDEFD9">
-        <TR><TD><FONT POINT-SIZE="9"><I>&#171;fully extended formulation 1&#187;</I></FONT><BR/><FONT POINT-SIZE="9">src/simulation/methods/_fully_extended.py</FONT><BR/><B>_solve_abba_full_reduced_projection(...)</B></TD></TR>
-        <HR/>
-        <TR><TD ALIGN="LEFT">Accepted (z,t,k) in R4<BR ALIGN="LEFT"/>Unknown multiplier in R4</TD></TR>
-      </TABLE>
-    >];
-    FullSimultaneousSolver [label=<
-      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#FDEFD9">
-        <TR><TD><FONT POINT-SIZE="9"><I>&#171;fully extended formulation 2&#187;</I></FONT><BR/><FONT POINT-SIZE="9">src/simulation/methods/_fully_extended.py</FONT><BR/><B>_solve_abba_full_simultaneous_projection(...)</B></TD></TR>
-        <HR/>
-        <TR><TD ALIGN="LEFT">Accepted (z,t,k) in R4<BR ALIGN="LEFT"/>Unknown (Z1,Z2,mu) in R12</TD></TR>
-      </TABLE>
-    >];
-    { rank=same; full_solvers_anchor; ProjectedStep; FullReducedSolver; FullSimultaneousSolver; }
-
-    accepted_anchor [shape=point, width=0, height=0, label="", style=invis];
-    EnergyTracking [label=<
-      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#FFF3D6">
-        <TR><TD><FONT POINT-SIZE="9"><I>&#171;optional energy sidecar&#187;</I></FONT><BR/><FONT POINT-SIZE="9">src/simulation/methods/abba/_energy.py</FONT><BR/><B>_conjugate_momentum_increment_from_stages(...)</B></TD></TR>
-        <HR/>
-        <TR><TD ALIGN="LEFT">Append kappa in R^N to fixed-grid workspace<BR ALIGN="LEFT"/>Reuse accepted physical stages<BR ALIGN="LEFT"/>kappa = k/2; no feedback into z</TD></TR>
-      </TABLE>
-    >];
-    FullProjectedStep [label=<
-      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#FDEFD9">
-        <TR><TD><FONT POINT-SIZE="9"><I>&#171;fully extended records&#187;</I></FONT><BR/><FONT POINT-SIZE="9">src/simulation/methods/_fully_extended.py</FONT><BR/><B>_FullProjectedStep / _FullMethodStep</B></TD></TR>
-        <HR/>
-        <TR><TD ALIGN="LEFT">Accepted R4 state and R8 base map<BR ALIGN="LEFT"/>Multiplier, residual Jacobian and metrics<BR ALIGN="LEFT"/>One accepted substep for ABBA2</TD></TR>
-      </TABLE>
-    >];
-    NonlinearService [label=<
-      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#FCECF1">
-        <TR><TD><FONT POINT-SIZE="9"><I>&#171;shared nonlinear service&#187;</I></FONT><BR/><FONT POINT-SIZE="9">src/simulation/methods/_nonlinear.py</FONT><BR/><B>Nonlinear solver support</B></TD></TR>
-        <HR/>
-        <TR><TD ALIGN="LEFT">_validate_nonlinear_solver(...)<BR ALIGN="LEFT"/>_solve_broyden(...)</TD></TR>
-      </TABLE>
-    >];
-    NewtonNote [shape=note, style="filled", fillcolor="#FFFDEB", color="#B8AE6F", margin="0.10,0.07", label="Newton iterations are implemented inline in each\nformulation solver. Broyden uses the shared service."];
-    { rank=same; accepted_anchor; EnergyTracking; FullProjectedStep; NonlinearService; NewtonNote; }
-
-    scheduler_anchor [shape=point, width=0, height=0, label="", style=invis];
-    SchedulerContinuation [label=<
-      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#F7F7F7">
-        <TR><TD><FONT POINT-SIZE="9"><I>&#171;outer-loop continuation&#187;</I></FONT><BR/><B>Main or shadow advance result</B></TD></TR>
-        <HR/>
-        <TR><TD ALIGN="LEFT">observe = true: replace main state<BR ALIGN="LEFT"/>observe = false: save shadow sample only<BR ALIGN="LEFT"/>Repeat until t_f</TD></TR>
-      </TABLE>
-    >];
-    ABBA2Observation [label=<
-      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#FFF9D9">
-        <TR><TD><FONT POINT-SIZE="9"><I>&#171;physical event&#187;</I></FONT><BR/><FONT POINT-SIZE="9">src/simulation/observation.py</FONT><BR/><B>ABBA2ImplicitIntegrationStep</B></TD></TR>
-        <HR/>
-        <TR><TD ALIGN="LEFT">Physical accepted map and stages<BR ALIGN="LEFT"/>Formulation and nonlinear metrics</TD></TR>
-      </TABLE>
-    >];
-    FullObservation [label=<
-      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#FFF9D9">
-        <TR><TD><FONT POINT-SIZE="9"><I>&#171;fully extended event&#187;</I></FONT><BR/><FONT POINT-SIZE="9">src/simulation/observation.py</FONT><BR/><B>FullyExtendedImplicitIntegrationStep</B></TD></TR>
-        <HR/>
-        <TR><TD ALIGN="LEFT">Accepted R4 map and exact Jacobian<BR ALIGN="LEFT"/>FullyExtendedBaseMap snapshots</TD></TR>
-      </TABLE>
-    >];
-    { rank=same; scheduler_anchor; SchedulerContinuation; ABBA2Observation; FullObservation; }
   }
 
-  subgraph cluster_result {
-    label="Result boundary";
-    labeljust="l";
-    color="#555555";
-    penwidth=1.2;
-    style="rounded";
+  subgraph cluster_execution {
+    label=""; style="rounded,filled"; color="#DECBA3"; fillcolor="#FFFCF5";
+    node [group="execution"];
+    PhaseExecution [fillcolor="#815E22", color="#815E22", fontcolor="white", margin="0.22,0.16", label="04  INTEGRATION AND NONLINEAR SOLVE\nDescend into one complete numerical advance"];
+    HistoryExit [shape=point, width=0, height=0, style=invis];
 
-    data_anchor [shape=point, width=0, height=0, label="", style=invis];
-    IntegrationData [label=<
-      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#F7F7F7">
-        <TR><TD><FONT POINT-SIZE="9"><I>&#171;internal value&#187;</I></FONT><BR/><FONT POINT-SIZE="9">src/simulation/_result.py</FONT><BR/><B>IntegrationData</B></TD></TR>
-        <HR/>
-        <TR><TD ALIGN="LEFT">Requested times<BR ALIGN="LEFT"/>Sampled physical states only<BR ALIGN="LEFT"/>Configuration and solver diagnostics</TD></TR>
+    Runtime [label=<
+      <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">SHARED FAMILY COORDINATOR</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>integrate_abba(...)</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">runtime.py</FONT></TD></TR>
+        <TR><TD ALIGN="LEFT"><B>IN</B> PreparedABBA, SimulationRequest<BR ALIGN="LEFT"/><B>OUT</B> IntegrationData<BR ALIGN="LEFT"/></TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">Create metric buffers and the advance adapter.<BR ALIGN="LEFT"/>Run the existing fixed-grid scheduler.<BR ALIGN="LEFT"/>Extract physical output and energy histories.<BR ALIGN="LEFT"/>Finalize canonical diagnostics.<BR ALIGN="LEFT"/></TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">The same coordinator executes both methods.<BR ALIGN="LEFT"/>It delegates the numerical step to solve_step.<BR ALIGN="LEFT"/></TD></TR>
       </TABLE>
     >];
-    { rank=same; data_anchor; IntegrationData; }
-
-    return_anchor [shape=point, width=0, height=0, label="", style=invis];
-    RunnerReturn [label=<
-      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#F7F7F7">
-        <TR><TD><FONT POINT-SIZE="9"><I>&#171;facade continuation&#187;</I></FONT><BR/><B>Return to SimulationRunner</B></TD></TR>
-        <HR/>
-        <TR><TD ALIGN="LEFT">Receives IntegrationData<BR ALIGN="LEFT"/>Validates physical output shape<BR ALIGN="LEFT"/>Builds Solution</TD></TR>
+    Grid [label=<
+      <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD BGCOLOR="#E8EFF8" ALIGN="LEFT"><FONT POINT-SIZE="9">EXISTING FUNCTION / OUTER TIME LOOP</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>integrate_fixed_grid(...)</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/simulation/_fixed.py</FONT></TD></TR>
+        <TR><TD ALIGN="LEFT"><B>IN</B> initial workspace, request, advance<BR ALIGN="LEFT"/><B>OUT</B> sampled history, main-step count</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">Choose uniform h &lt;= max_step.<BR ALIGN="LEFT"/>Run complete main steps up to tf.<BR ALIGN="LEFT"/>For off-grid output, make a shadow advance<BR ALIGN="LEFT"/>from the preceding main-grid state.</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">Shadow advances change neither the main<BR ALIGN="LEFT"/>trajectory nor main-step metrics/events.</TD></TR>
       </TABLE>
     >];
-    { rank=same; return_anchor; RunnerReturn; }
+    Advance [label=<
+      <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">SHARED PER-ADVANCE ADAPTER</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>advance(...)</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">runtime.py</FONT></TD></TR>
+        <TR><TD ALIGN="LEFT"><B>IN</B> t, workspace, h, step index, main/shadow<BR ALIGN="LEFT"/><B>OUT</B> next_workspace for the scheduler<BR ALIGN="LEFT"/></TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">Unpack using StatePolicy.<BR ALIGN="LEFT"/>Call prepared.solve_step(t, numerical_state, h).<BR ALIGN="LEFT"/>Finish state/energy with its projection records.<BR ALIGN="LEFT"/>On main steps, build StepResult(next_workspace, projections).<BR ALIGN="LEFT"/></TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">Main advances record metrics and optional events.<BR ALIGN="LEFT"/>Shadow advances use the same numerical map<BR ALIGN="LEFT"/>and return only the sampled workspace.<BR ALIGN="LEFT"/></TD></TR>
+      </TABLE>
+    >];
+    StepRecipe [label=<
+      <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD BGCOLOR="#FBE0C7" ALIGN="LEFT"><FONT POINT-SIZE="9">ABBA2 STEP RECIPE / SHARED FAMILY CONTRACT</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>solve_single_map_step(...)</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#90673F">steps.py</FONT></TD></TR>
+        <TR><TD ALIGN="LEFT"><B>IN</B> t, numerical_state, h<BR ALIGN="LEFT"/><B>OUT</B> tuple[ProjectedMapResult, ...]<BR ALIGN="LEFT"/></TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">Bind one base map for duration h.<BR ALIGN="LEFT"/>Call the shared projection formulation once.<BR ALIGN="LEFT"/>Return (projected_result,).<BR ALIGN="LEFT"/></TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">One A-B-B-A map and one nonlinear solve.<BR ALIGN="LEFT"/>The shared runtime handles the rest of the run.<BR ALIGN="LEFT"/></TD></TR>
+      </TABLE>
+    >];
+    Projection [label=<
+      <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD BGCOLOR="#E3F0E9" ALIGN="LEFT"><FONT POINT-SIZE="9">SHARED EQUATION BUILDERS</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>Projection formulation</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#537866">projection_reduced.py / projection_simultaneous.py<BR/>projection_outer.py / projection_extended.py</FONT></TD></TR>
+        <TR><TD ALIGN="LEFT"><B>IN</B> state, selected map, solver options<BR ALIGN="LEFT"/><B>OUT</B> ProjectedMapResult<BR ALIGN="LEFT"/></TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">The selected map may be one A-B-B-A map<BR ALIGN="LEFT"/>or an unprojected composition.<BR ALIGN="LEFT"/>Displace input copies with +mu / -mu.<BR ALIGN="LEFT"/>Define residual, correction and recovery callbacks.<BR ALIGN="LEFT"/></TD></TR><HR/>
+        <TR><TD ALIGN="LEFT"><B>Reduced:</B> mu in R^(2N) or R^4.<BR ALIGN="LEFT"/>Solve mapped copy separation + 2 mu = 0.<BR ALIGN="LEFT"/><B>Simultaneous:</B> two final outputs + mu,<BR ALIGN="LEFT"/>in R^(6N) or R^12; map defects + diagonal equality.<BR ALIGN="LEFT"/></TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">Recover the mean of the projected output copies.<BR ALIGN="LEFT"/>Keep physical and extended equations explicit.<BR ALIGN="LEFT"/>Preserve specialized analytic Jacobians.<BR ALIGN="LEFT"/></TD></TR>
+      </TABLE>
+    >];
+    Nonlinear [label=<
+      <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD BGCOLOR="#E3F0E9" ALIGN="LEFT"><FONT POINT-SIZE="9">SHARED CONVERGENCE SUPPORT</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>Nonlinear solve</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#537866">src/simulation/methods/_nonlinear.py</FONT></TD></TR>
+        <TR><TD ALIGN="LEFT"><B>IN</B> unknown, callbacks, tolerances<BR ALIGN="LEFT"/><B>OUT</B> _NonlinearResult; adapted to SolveStats<BR ALIGN="LEFT"/></TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">Evaluate residual and test its scaled tolerance.<BR ALIGN="LEFT"/>If needed, compute a correction and repeat.<BR ALIGN="LEFT"/><B>Newton:</B> formulation-specific exact systems.<BR ALIGN="LEFT"/><B>Broyden:</B> residual-only iteration updates.<BR ALIGN="LEFT"/></TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">Share stopping rules, counts and error reporting.<BR ALIGN="LEFT"/>Preserve each formulation's block layout.<BR ALIGN="LEFT"/>A failed solve raises an explicit error.<BR ALIGN="LEFT"/></TD></TR>
+      </TABLE>
+    >];
+    Maps [label=<
+      <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD BGCOLOR="#E3F0E9" ALIGN="LEFT"><FONT POINT-SIZE="9">SHARED NUMERICAL KERNELS / MODULES</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>Base maps and tangents</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#537866">maps/physical.py / maps/extended.py</FONT></TD></TR>
+        <TR><TD ALIGN="LEFT"><B>IN</B> independent copies, t, h, dynamics<BR ALIGN="LEFT"/><B>OUT</B> mapped copies, stages, requested tangent<BR ALIGN="LEFT"/></TD></TR><HR/>
+        <TR><TD ALIGN="LEFT"><B>Physical:</B> endpoint-time A-B-B-A in R^(4N).<BR ALIGN="LEFT"/><B>Fully extended:</B> four shears in R^8.<BR ALIGN="LEFT"/>Both methods reuse these numerical kernels.<BR ALIGN="LEFT"/></TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">Fields come from the dynamics contract.<BR ALIGN="LEFT"/>Preserve exact stage-product derivatives.<BR ALIGN="LEFT"/>Composition passes copies between base maps.<BR ALIGN="LEFT"/>Projection owns the input and output shifts.<BR ALIGN="LEFT"/></TD></TR>
+      </TABLE>
+    >];
+    Stages [label=<
+      <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD BGCOLOR="#E3F0E9" ALIGN="LEFT"><FONT POINT-SIZE="9">NUMERICAL DETAIL / SELECTED STATE SPACE</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>The shared four-stage kernel</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#537866">Same equations for ABBA2 and ABBA4</FONT></TD></TR>
+        <TR><TD ALIGN="LEFT"><B>Physical:</B> supplied copies u0,v0; a = h/2.<BR ALIGN="LEFT"/>f = vector_field; t is this map's start time.<BR ALIGN="LEFT"/><B>A:</B> u1 = u0 + a f(t, v0)<BR ALIGN="LEFT"/><B>B:</B> v1 = v0 + a f(t, u1)<BR ALIGN="LEFT"/><B>B:</B> v2 = v1 + a f(t+h, u1)<BR ALIGN="LEFT"/><B>A:</B> u2 = u1 + a f(t+h, v2)<BR ALIGN="LEFT"/></TD></TR><HR/>
+        <TR><TD ALIGN="LEFT"><B>Fully extended:</B> supplied copies Z1,Z2.<BR ALIGN="LEFT"/>Z = (x,y,t,k); F(Z) = (f(t,z), 1, -partial_t H).<BR ALIGN="LEFT"/><B>A:</B> Z1 += a F(Z2)<BR ALIGN="LEFT"/><B>B:</B> Z2 += a F(Z1)<BR ALIGN="LEFT"/><B>B:</B> Z2 += a F(Z1)<BR ALIGN="LEFT"/><B>A:</B> Z1 += a F(Z2)<BR ALIGN="LEFT"/></TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">For exterior projection, each next base map<BR ALIGN="LEFT"/>receives the previous mapped copies directly.<BR ALIGN="LEFT"/>Keep every map's signed duration and start time.<BR ALIGN="LEFT"/></TD></TR>
+      </TABLE>
+    >];
 
-    solution_anchor [shape=point, width=0, height=0, label="", style=invis];
+  }
+
+  subgraph cluster_records {
+    label=""; style="rounded,filled"; color="#D5CDE9"; fillcolor="#FCFAFF";
+    node [group="records"];
+    PhaseRecords [fillcolor="#654780", color="#654780", fontcolor="white", margin="0.22,0.16", label="05  ACCEPTED STEPS AND DIAGNOSTICS\nRecord basic metrics and optional observations"];
+    ObservationStart [group="observer_route", shape=point, width=0, height=0, style=invis];
+    ObservationEnd [group="observer_route", shape=point, width=0, height=0, style=invis];
+    FinalPhaseLink [group="observer_route", shape=point, width=0, height=0, style=invis];
+    MetricsLink [group="observer_route", shape=point, width=0, height=0, style=invis];
+    FailurePass [shape=point, width=0, height=0, style=invis];
+
+    Recording [label=<
+      <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">SHARED MAIN-STEP RECORDING</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>record_completed_step(...)</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">records.py</FONT></TD></TR>
+        <TR><TD ALIGN="LEFT"><B>IN</B> StepResult and main-step index<BR ALIGN="LEFT"/><B>OUT</B> appended diagnostic rows<BR ALIGN="LEFT"/></TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">Read SolveStats from step.projections.<BR ALIGN="LEFT"/>Sum corrections and residual evaluations.<BR ALIGN="LEFT"/>Keep the residual/tolerance pair from the same<BR ALIGN="LEFT"/>worst-ratio solve; retain per-projection metrics.<BR ALIGN="LEFT"/></TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">One projection for ABBA2; one or three for ABBA4.<BR ALIGN="LEFT"/>Read numerical records without building events.<BR ALIGN="LEFT"/>Shadow advances bypass recording.<BR ALIGN="LEFT"/></TD></TR>
+      </TABLE>
+    >];
+    StepResult [label=<
+      <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">SHARED RECORD / COMPLETE ADVANCE</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>StepResult</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">records.py</FONT></TD></TR>
+        <TR><TD ALIGN="LEFT"><B>State</B><BR ALIGN="LEFT"/>next_workspace: array<BR ALIGN="LEFT"/>projections: tuple[ProjectedMapResult, ...]<BR ALIGN="LEFT"/></TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">One common contract for both methods.<BR ALIGN="LEFT"/>ABBA2 returns one projection record.<BR ALIGN="LEFT"/>ABBA4 returns one or three projection records.<BR ALIGN="LEFT"/></TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">The scheduler receives next_workspace.<BR ALIGN="LEFT"/>Recording and observation read projections.<BR ALIGN="LEFT"/>Accepted numerical traces live in those records.<BR ALIGN="LEFT"/></TD></TR>
+      </TABLE>
+    >];
+    ProjectedResult [label=<
+      <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">SHARED RECORD / ONE PROJECTION</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>ProjectedMapResult</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">records.py</FONT></TD></TR>
+        <TR><TD ALIGN="LEFT"><B>State</B><BR ALIGN="LEFT"/>start_time, duration; state_before<BR ALIGN="LEFT"/>state: accepted numerical state<BR ALIGN="LEFT"/>multiplier: array; stats: SolveStats<BR ALIGN="LEFT"/>trace: accepted numerical trace<BR ALIGN="LEFT"/></TD></TR><HR/>
+        <TR><TD ALIGN="LEFT"><B>Typed numerical traces</B><BR ALIGN="LEFT"/>PhysicalProjectionTrace: ordered stage maps,<BR ALIGN="LEFT"/>with their signed durations and start times.<BR ALIGN="LEFT"/>ExtendedProjectionTrace: accepted full map<BR ALIGN="LEFT"/>and the selected composition coefficients.<BR ALIGN="LEFT"/></TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">A composed trace can contain three base maps<BR ALIGN="LEFT"/>while this record still represents only one solve.<BR ALIGN="LEFT"/></TD></TR>
+      </TABLE>
+    >];
+    Stats [label=<
+      <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">SHARED RECORD / ONE NONLINEAR SOLVE</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>SolveStats</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/simulation/methods/_nonlinear.py</FONT></TD></TR>
+        <TR><TD ALIGN="LEFT"><B>State</B><BR ALIGN="LEFT"/>solver: newton | broyden<BR ALIGN="LEFT"/>iterations, residual_evaluations: int<BR ALIGN="LEFT"/>residual_norm, tolerance: float<BR ALIGN="LEFT"/></TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">Canonical nonlinear names for both methods.<BR ALIGN="LEFT"/>A zero-correction solve still counts its<BR ALIGN="LEFT"/>initial residual evaluation.<BR ALIGN="LEFT"/></TD></TR>
+      </TABLE>
+    >];
+    EventBuilder [label=<
+      <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD BGCOLOR="#F0E8FA" ALIGN="LEFT"><FONT POINT-SIZE="9">SHARED OPTIONAL EVENT SERVICE</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>emit_observation(...)</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#79628F">observations.py</FONT></TD></TR>
+        <TR><TD ALIGN="LEFT"><B>IN</B> StepResult, metadata, bound event builder<BR ALIGN="LEFT"/><B>OUT</B> one observer callback, when configured<BR ALIGN="LEFT"/></TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">Only if main step AND observer installed.<BR ALIGN="LEFT"/>Invoke prepared.build_event(...) on the records.<BR ALIGN="LEFT"/>Copy accepted snapshots and obtain tangents<BR ALIGN="LEFT"/>only when the event contract requires them.<BR ALIGN="LEFT"/></TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">The builder preserves method-specific payloads.<BR ALIGN="LEFT"/>Call step_observer(event).<BR ALIGN="LEFT"/>Observer analysis remains in diagnostics/.<BR ALIGN="LEFT"/></TD></TR>
+      </TABLE>
+    >];
+    Events [label=<
+      <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD BGCOLOR="#F0E8FA" ALIGN="LEFT"><FONT POINT-SIZE="9">EXISTING EVENT CLASSES / METHOD-SPECIFIC PAYLOADS</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>ABBA2 event selection</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#79628F">src/simulation/observation.py</FONT></TD></TR>
+        <TR><TD ALIGN="LEFT"><B>ABBA2ImplicitIntegrationStep</B><BR ALIGN="LEFT"/>One projected physical map and stage snapshots.<BR ALIGN="LEFT"/>Physical energy tracking retains this event type.<BR ALIGN="LEFT"/><B>FullyExtendedImplicitIntegrationStep</B><BR ALIGN="LEFT"/>One projected full-state map and one base record.<BR ALIGN="LEFT"/></TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">Builders adapt the same StepResult contract.<BR ALIGN="LEFT"/>Preserve times, states, map_state and tangents.<BR ALIGN="LEFT"/></TD></TR>
+      </TABLE>
+    >];
+  }
+
+  subgraph cluster_output {
+    label=""; style="rounded,filled"; color="#C4DDCF"; fillcolor="#F8FCFA";
+    node [group="output"];
+    PhaseOutput [fillcolor="#2E6651", color="#2E6651", fontcolor="white", margin="0.22,0.16", label="06  FINAL RESULT\nFinalize, validate and interpret the trajectory"];
+    HistoryEntry [shape=point, width=0, height=0, style=invis];
+
+    Data [label=<
+      <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD BGCOLOR="#E2F1E9" ALIGN="LEFT"><FONT POINT-SIZE="9">EXISTING INTERNAL RECORD</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>IntegrationData</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#537866">src/simulation/_result.py</FONT></TD></TR>
+        <TR><TD ALIGN="LEFT"><B>State</B><BR ALIGN="LEFT"/>t: requested times [T]<BR ALIGN="LEFT"/>states: physical history [2N, T]<BR ALIGN="LEFT"/>diagnostics: dict[str, DiagnosticValue]</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">Created after the scheduler reaches tf.<BR ALIGN="LEFT"/>Extract physical coordinates from workspace.<BR ALIGN="LEFT"/>Attach energy histories when applicable.<BR ALIGN="LEFT"/>Map legacy metric aliases at this boundary.</TD></TR>
+      </TABLE>
+    >];
+    Resume [label=<
+      <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD BGCOLOR="#E2F1E9" ALIGN="LEFT"><FONT POINT-SIZE="9">EXISTING CALL CONTINUATION / SAME RUNNER</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>SimulationRunner resumes</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#537866">src/simulation/runner.py</FONT></TD></TR>
+        <TR><TD ALIGN="LEFT"><B>IN</B> IntegrationData<BR ALIGN="LEFT"/><B>OUT</B> Solution</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">Require exactly the requested output times.<BR ALIGN="LEFT"/>Check shape, finiteness and packed layout.<BR ALIGN="LEFT"/>Verify that the initial state is preserved.<BR ALIGN="LEFT"/>Retain the source initial configuration.</TD></TR>
+      </TABLE>
+    >];
     Solution [label=<
-      <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" BGCOLOR="#E4F5E9">
-        <TR><TD><FONT POINT-SIZE="9"><I>&#171;public result&#187;</I></FONT><BR/><FONT POINT-SIZE="9">src/simulation/solution.py</FONT><BR/><B>Solution</B></TD></TR>
-        <HR/>
-        <TR><TD ALIGN="LEFT">Immutable physical trajectory<BR ALIGN="LEFT"/>Read-only diagnostics<BR ALIGN="LEFT"/>Initial configuration and layout</TD></TR>
+      <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD BGCOLOR="#E2F1E9" ALIGN="LEFT"><FONT POINT-SIZE="9">EXISTING PUBLIC CLASS</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>Solution</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#537866">src/simulation/solution.py</FONT></TD></TR>
+        <TR><TD ALIGN="LEFT"><B>Read-only public properties</B><BR ALIGN="LEFT"/>t: array[T]<BR ALIGN="LEFT"/>states: array[2N, T]<BR ALIGN="LEFT"/>source: InitialConfiguration<BR ALIGN="LEFT"/>diagnostics: read-only mapping</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">Owns copies of trajectory and diagnostic arrays.<BR ALIGN="LEFT"/>Layout and provenance remain available<BR ALIGN="LEFT"/>through the source configuration.</TD></TR>
       </TABLE>
     >];
-
-    Legend [label=<
-      <TABLE BORDER="1" CELLBORDER="1" CELLSPACING="0" CELLPADDING="4" BGCOLOR="#FFFFFF">
-        <TR><TD><B>Relation</B></TD><TD><B>Meaning in this diagram</B></TD></TR>
-        <TR><TD ALIGN="LEFT">solid line + hollow triangle</TD><TD ALIGN="LEFT">Explicit Python inheritance</TD></TR>
-        <TR><TD ALIGN="LEFT">dashed line + hollow triangle</TD><TD ALIGN="LEFT">Structural implementation of a protocol</TD></TR>
-        <TR><TD ALIGN="LEFT">ordinary dashed arrow</TD><TD ALIGN="LEFT">Optional path or reusable service</TD></TR>
-        <TR><TD ALIGN="LEFT">hollow diamond</TD><TD ALIGN="LEFT">Configuration composes and exposes its layout</TD></TR>
-        <TR><TD ALIGN="LEFT">ordinary solid arrow</TD><TD ALIGN="LEFT">Call, data transfer or required dependency</TD></TR>
+    Interpret [fillcolor="#F1F8F4", label=<
+      <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD ALIGN="LEFT"><FONT POINT-SIZE="9">OPTIONAL DOWNSTREAM CONSUMERS</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>Interpret and present</B></FONT></TD></TR><HR/>
+        <TR><TD ALIGN="LEFT"><B>studies/</B> compares and summarizes runs.<BR ALIGN="LEFT"/><B>visualization/</B> builds plots and animations.<BR ALIGN="LEFT"/><B>diagnostics/</B> provides supported persistence.</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">The calling notebook keeps scientific choices<BR ALIGN="LEFT"/>and interpretation explicit.<BR ALIGN="LEFT"/>These consumers do not advance the solution.</TD></TR>
       </TABLE>
     >];
-    { rank=same; solution_anchor; Solution; Legend; }
+    Failure [fillcolor="#FFF0F0", color="#D6A5A5", label=<
+      <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD ALIGN="LEFT"><FONT POINT-SIZE="9">FAILURE PATH</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>Explicit error to caller</B></FONT></TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">Invalid inputs or incompatible capabilities.<BR ALIGN="LEFT"/>Non-finite evaluations or singular systems.<BR ALIGN="LEFT"/>Nonlinear iteration limit reached.<BR ALIGN="LEFT"/>Invalid final output.</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">Stop the run; do not construct a successful<BR ALIGN="LEFT"/>Solution from a failed integration.<BR ALIGN="LEFT"/>Retain method, time and solve context.</TD></TR>
+      </TABLE>
+    >];
   }
 
-  // Preserve the historical horizontal backbone while inserting the current
-  // configuration dispatch and the two real runtime branches.
-  inherited_anchor -> problem_anchor -> state_contracts_anchor -> gc_state_anchor -> shared_state_anchor -> request_anchor -> runner_anchor -> method_anchor -> dispatch_anchor -> coordinators_anchor -> fixed_anchor -> projected_selector_anchor -> solvers_anchor -> kernels_anchor -> full_solvers_anchor -> accepted_anchor -> scheduler_anchor -> data_anchor -> return_anchor -> solution_anchor [style=invis, weight=1000, minlen=2];
+  Legend [shape=note, fillcolor="#F8FAFC", color="#CBD5E1", margin="0.18,0.14", label=<
+    <B>HOW TO READ THIS DIAGRAM</B><BR/><BR/>
+    Thick arrows between phase headers: overall lifecycle; phases 04 and 05 repeat together for each main step.<BR/>
+    Thin solid arrows: calls or required data. Dotted blue arrows: returned values. Dashed purple arrows: optional events.<BR/>
+    A hollow diamond means a record contains another record. Red dashed arrows indicate failure propagation.<BR/>
+    Blue and green SHARED cards denote the same components in both diagrams; orange cards define the model step.<BR/><BR/>
+    <B>PRESERVED NUMERICAL DISTINCTIONS</B><BR/>
+    PreparedABBA, integrate_abba, StatePolicy, numerical kernels and result records are shared by both models.<BR/>
+    StepResult always holds a tuple of projection records. Each record retains a single-map or composed-map trace.<BR/>
+    ABBA2: one projected map. ABBA4: three projected maps or one projection around three unprojected maps.<BR/>
+    Projection placement remains part of the numerical method. Physical and extended equations keep their specialized algebra.<BR/>
+    Physical auxiliary energy does not change z. Sampling and observation preserve main trajectories and solve statistics.
+  >];
 
-  // Type and implementation relationships.
-  GuidingCenterDynamics -> GuidingCenterJacobianSystem [style=dashed, arrowhead=empty, constraint=false];
-  GuidingCenterJacobianSystem -> DynamicalSystem [style=solid, arrowhead=empty, constraint=false];
-  GCInitialConfiguration -> StateConfiguration [style=solid, arrowhead=empty, constraint=false];
-  GCStateLayout -> PackedStateLayout [style=solid, arrowhead=empty, constraint=false];
-  GCInitialConfiguration -> InitialConfiguration [style=dashed, arrowhead=empty, constraint=false];
-  GCStateLayout -> StateLayout [style=dashed, arrowhead=empty, constraint=false];
-  InitialConfiguration -> StateLayout [dir=both, arrowtail=odiamond, arrowhead=none, constraint=false];
-  GCInitialConfiguration -> GCStateLayout [dir=both, arrowtail=odiamond, arrowhead=none, constraint=false];
-  ABBA2Implicit -> ABBAImplicitConfig [style=solid, arrowhead=empty, constraint=false];
-  ABBA2Implicit -> NumericalMethod [style=dashed, arrowhead=empty, constraint=false];
-  ABBA2Implicit -> FullyExtendedProtocol [style=dashed, arrowhead=empty, constraint=false];
-  ABBAImplicitConfig -> ABBAConfiguration [style=dashed, arrowhead=normal, constraint=false];
+  // A common ordered parent fixes the six columns independently of return arrows.
+  ColumnOrder [shape=point, width=0, height=0, style=invis, ordering=out];
+  ColumnOrder -> PhasePhysics [style=invis, weight=1000];
+  ColumnOrder -> PhaseDefinition [style=invis, weight=1000];
+  ColumnOrder -> PhasePreparation [style=invis, weight=1000];
+  ColumnOrder -> PhaseExecution [style=invis, weight=1000];
+  ColumnOrder -> PhaseRecords [style=invis, weight=1000];
+  ColumnOrder -> FinalPhaseLink [style=invis, weight=1000];
+  ColumnOrder -> PhaseOutput [style=invis, weight=1000];
 
-  // Public run assembly.
-  DynamicalSystem -> InitialValueProblem [style=solid, arrowhead=normal, constraint=false];
-  InitialConfiguration -> InitialValueProblem [style=solid, arrowhead=normal, constraint=false];
-  InitialValueProblem -> SimulationRunner [style=solid, arrowhead=normal, constraint=false];
-  SimulationRequest -> SimulationRunner [style=solid, arrowhead=normal, constraint=false];
-  NumericalMethod -> SimulationRunner [style=solid, arrowhead=normal, constraint=false];
-  SimulationRunner -> ABBA2Implicit [style=solid, arrowhead=normal, constraint=false];
+  // Global rows combine a horizontal lifecycle with vertically readable columns.
+  { rank=same; PhasePhysics; PhaseDefinition; PhasePreparation; PhaseExecution; PhaseRecords; FinalPhaseLink; PhaseOutput; }
+  { rank=same; HistoryExit; HistoryEntry; }
+  { rank=same; Potential; Problem; Runner; Runtime; Recording; MetricsLink; Data; }
+  { rank=same; Dynamics; Request; Prepare; Grid; StepResult; ObservationStart; Resume; }
+  { rank=same; Initial; Method; Prepared; Advance; ProjectedResult; Solution; }
+  { rank=same; Layout; Configuration; StatePolicy; StepRecipe; Stats; Interpret; }
+  { rank=same; Projection; EventBuilder; ObservationEnd; }
+  { rank=same; FailurePass; Failure; }
+  { rank=same; Nonlinear; Events; }
 
-  // Unified public method and state-extension dispatch.
-  ABBA2Implicit -> StateExtensionDispatch [style=solid, arrowhead=normal, constraint=false];
-  StateExtensionDispatch -> ProjectedCoordinator [xlabel=" physical", style=solid, arrowhead=normal, constraint=false];
-  StateExtensionDispatch -> FullCoordinator [xlabel=" fully_extended", style=solid, arrowhead=normal, constraint=false];
-  GuidingCenterJacobianSystem -> ProjectedCoordinator [style=dashed, arrowhead=normal, constraint=false];
-  GuidingCenterDynamics -> FullCoordinator [style=dashed, arrowhead=normal, constraint=false];
-  GuidingCenterDynamics -> EnergyTracking [style=dashed, arrowhead=normal, constraint=false];
+  PhasePhysics -> PhaseDefinition -> PhasePreparation -> PhaseExecution -> PhaseRecords [color="#334155", penwidth=2.4, weight=100];
+  PhaseRecords -> FinalPhaseLink [color="#334155", penwidth=2.4, arrowhead=none, weight=100];
+  FinalPhaseLink -> PhaseOutput [color="#334155", penwidth=2.4, weight=100];
 
-  // Both coordinators use the same main/shadow fixed-grid scheduler.
-  ProjectedCoordinator -> FixedGrid [style=solid, arrowhead=normal, constraint=false];
-  FullCoordinator -> FixedGrid [style=solid, arrowhead=normal, constraint=false];
-  FixedGrid -> ProjectedSelector [xlabel=" physical", style=solid, arrowhead=normal, constraint=false];
-  FixedGrid -> FullStepDispatch [xlabel=" fully_extended", style=solid, arrowhead=normal, constraint=false];
+  // Column guides only. Invisible links carry no execution semantics.
+  PhasePhysics -> Potential [style=invis, weight=100];
+  PhaseDefinition -> Problem -> Request -> Method -> Configuration [style=invis, weight=100];
+  PhasePreparation -> Runner [style=invis, weight=100];
+  PhaseExecution -> HistoryExit -> Runtime [style=invis, weight=100];
+  PhaseRecords -> Recording -> StepResult -> ProjectedResult -> Stats -> EventBuilder -> Events [style=invis, weight=100];
+  PhaseOutput -> HistoryEntry [style=invis, weight=100];
+  EventBuilder -> FailurePass -> Events [style=invis, weight=100];
+  FinalPhaseLink -> MetricsLink [style=invis, weight=1000];
+  Dynamics -> Initial -> Layout [style=invis, weight=100];
+  Solution -> Interpret -> Failure [style=invis, weight=100];
 
-  // Physical projection engine.
-  ProjectedSelector -> ReducedProjectionSolver [style=solid, arrowhead=normal, constraint=false];
-  ProjectedSelector -> SimultaneousProjectionSolver [style=solid, arrowhead=normal, constraint=false];
-  ReducedProjectionSolver -> ProjectionCommon [style=solid, arrowhead=normal, constraint=false];
-  SimultaneousProjectionSolver -> ProjectionCommon [style=solid, arrowhead=normal, constraint=false];
-  ProjectionCommon -> ProjectedStep [style=solid, arrowhead=normal, constraint=false];
-  ProjectedStep -> SchedulerContinuation [xlabel=" track_energy = false", style=solid, arrowhead=normal, constraint=false];
-  ProjectedStep -> EnergyTracking [xlabel=" track_energy = true", style=dashed, arrowhead=normal, constraint=false];
-  EnergyTracking -> SchedulerContinuation [style=solid, arrowhead=normal, constraint=false];
-  ProjectedStep -> ABBA2Observation [style=dashed, arrowhead=normal, constraint=false];
+  // Inputs and preparation. Cross-column dependencies do not alter phase order.
+  Potential -> Dynamics [label="gyroaverage(rho)", weight=100];
+  Dynamics -> Problem [constraint=false, xlabel="equations"];
+  Initial -> Problem [constraint=false, xlabel="initial state\nand layout"];
+  Layout -> Initial [constraint=false, arrowhead=odiamond];
+  Problem -> Runner [constraint=false, xlabel="problem"];
+  Request -> Runner [constraint=false, xlabel="request"];
+  Method -> Runner [constraint=false, xlabel="method"];
+  Runner -> Prepare [label="ABBA2Implicit.integrate\nstarts preparation", weight=100];
+  Prepare -> Prepared [color="#4676A7", style=dotted, label="validated plan", weight=100];
+  Prepared -> StatePolicy [style=invis, weight=100];
+  StatePolicy -> Prepared [constraint=false, arrowhead=odiamond, xlabel="state operations"];
+  Prepared -> Runtime [constraint=false, xlabel="prepared\nfunctions"];
 
-  // Fully extended R4/R8 projection engine.
-  FullStepDispatch -> FullBaseMap [style=solid, arrowhead=normal, constraint=false];
-  FullStepDispatch -> FullProjectionSelector [style=solid, arrowhead=normal, constraint=false];
-  FullBaseMap -> FullProjectionSelector [style=solid, arrowhead=normal, constraint=false];
-  FullProjectionSelector -> FullReducedSolver [style=solid, arrowhead=normal, constraint=false];
-  FullProjectionSelector -> FullSimultaneousSolver [style=solid, arrowhead=normal, constraint=false];
-  FullReducedSolver -> FullProjectedStep [style=solid, arrowhead=normal, constraint=false];
-  FullSimultaneousSolver -> FullProjectedStep [style=solid, arrowhead=normal, constraint=false];
-  FullProjectedStep -> SchedulerContinuation [style=solid, arrowhead=normal, constraint=false];
-  FullProjectedStep -> FullObservation [style=dashed, arrowhead=normal, constraint=false];
+  // Normal execution descends into the selected complete step and its solver.
+  Runtime -> Grid [label="start main time loop", weight=100];
+  Grid -> Advance [label="main advance or\nshadow sample", weight=100];
+  Advance -> StepRecipe [label="prepared.solve_step", weight=100];
+  StepRecipe -> Projection [label="selected map and projection", weight=100];
+  Projection -> Nonlinear [label="residual + correction callbacks", weight=100];
+  Nonlinear -> Maps [label="evaluate selected residual\nand requested tangent", weight=100];
+  Nonlinear -> Nonlinear [constraint=false, color="#4676A7", style=dotted, label="correct unknown\nand repeat"];
+  Advance -> StatePolicy [constraint=false, xlabel="unpack / finish"];
 
-  // Newton is local to each formulation; Broyden is shared.
-  ReducedProjectionSolver -> NonlinearService [style=dashed, arrowhead=normal, constraint=false];
-  SimultaneousProjectionSolver -> NonlinearService [style=dashed, arrowhead=normal, constraint=false];
-  FullReducedSolver -> NonlinearService [style=dashed, arrowhead=normal, constraint=false];
-  FullSimultaneousSolver -> NonlinearService [style=dashed, arrowhead=normal, constraint=false];
-  ABBAImplicitConfig -> NonlinearService [style=dashed, arrowhead=normal, constraint=false];
+  // Returned records flow through one projection and the complete advance.
+  Nonlinear -> Stats [constraint=false, color="#4676A7", style=dotted, xlabel="SolveStats"];
+  Projection -> ProjectedResult [constraint=false, color="#4676A7", style=dotted, xlabel="accepted\nmap result"];
+  Stats -> ProjectedResult [constraint=false, arrowhead=odiamond];
+  ProjectedResult -> StepResult [constraint=false, arrowhead=odiamond, xlabel="exactly 1"];
+  Advance -> StepResult [constraint=false, color="#4676A7", style=dotted, xlabel="completed\nadvance"];
+  Grid -> StepResult [constraint=false, color="#4676A7", style=dotted, dir=back, arrowhead=none, arrowtail=normal];
+  StepResult -> Recording [constraint=false, xlabel="main step only"];
+  StepResult -> ObservationStart [color="#9369B1", style=dashed, arrowhead=none, weight=100];
+  ObservationStart -> ObservationEnd [color="#9369B1", style=dashed, arrowhead=none, xlabel="main step + observer", weight=1000];
+  ObservationEnd -> EventBuilder [color="#9369B1", style=dashed, constraint=false];
+  EventBuilder -> Events [color="#9369B1", style=dashed, xlabel="emit event", weight=1000];
 
-  // Result hand-off.
-  SchedulerContinuation -> IntegrationData [style=solid, arrowhead=normal, constraint=false];
-  IntegrationData -> RunnerReturn [style=solid, arrowhead=normal, constraint=false];
-  RunnerReturn -> Solution [style=solid, arrowhead=normal, constraint=false];
+  // Completion re-enters the same public runner before exposing Solution.
+  Runtime -> HistoryExit [constraint=false, color="#4676A7", style=dotted, arrowhead=none, xlabel="after tf"];
+  HistoryExit -> HistoryEntry [color="#4676A7", style=dotted, arrowhead=none, xlabel="runtime finalizes physical history", weight=20];
+  HistoryEntry -> Data [color="#4676A7", style=dotted, weight=100];
+  Recording -> MetricsLink [color="#4676A7", style=dotted, arrowhead=none, weight=100];
+  MetricsLink -> Data [color="#4676A7", style=dotted, xlabel="final diagnostic\narrays", weight=100];
+  Data -> Resume [label="return from method.integrate", weight=100];
+  Resume -> Solution [label="validate and construct", weight=100];
+  Solution -> Interpret [constraint=false, color="#60896D", style=dashed, xlabel="optional analysis / presentation"];
+  Nonlinear -> FailurePass [constraint=false, color="#B96969", style=dashed, arrowhead=none];
+  FailurePass -> Failure [constraint=false, color="#B96969", style=dashed, xlabel="failure: propagate error"];
+
+  Maps -> Stages [label="selected kernel details", weight=100];
+  Stages -> Legend [style=invis];
+  Failure -> Legend [style=invis];
 }
 @enddot

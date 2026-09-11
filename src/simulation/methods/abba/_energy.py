@@ -7,7 +7,7 @@ import numpy as np
 from dynamics import ExtendedHamiltonianSystem
 
 from ...formulations.base import generalized_energy_error
-from ._core import _ABBAStages
+from .maps.physical import _ABBAStages
 
 
 def _validate_energy_tracking(

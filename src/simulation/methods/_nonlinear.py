@@ -17,7 +17,34 @@ _ResidualFunction: TypeAlias = Callable[[np.ndarray], tuple[np.ndarray, _Payload
 
 
 @dataclass(frozen=True, slots=True)
-class _BroydenResult(Generic[_Payload]):
+class SolverOptions:
+	"""Validated nonlinear options bound once during method preparation."""
+
+	solver: NonlinearSolver
+	absolute_tolerance: float
+	relative_tolerance: float
+	max_iterations: int
+
+	def tolerance(self, state: np.ndarray) -> float:
+		"""Scale the accepted residual against the initial numerical state."""
+		return self.absolute_tolerance + self.relative_tolerance * max(
+			1.0, float(np.linalg.norm(state, ord=np.inf))
+		)
+
+
+@dataclass(frozen=True, slots=True)
+class SolveStats:
+	"""Work and convergence information for exactly one projection solve."""
+
+	solver: NonlinearSolver
+	iterations: int
+	residual_evaluations: int
+	residual_norm: float
+	tolerance: float
+
+
+@dataclass(frozen=True, slots=True)
+class _NonlinearResult(Generic[_Payload]):
 	"""Converged unknown, residual payload, and nonlinear-work counters."""
 
 	unknown: np.ndarray
@@ -59,7 +86,7 @@ def _solve_broyden(
 	max_iterations: int,
 	context: str,
 	initial_evaluation: tuple[np.ndarray, _Payload] | None = None,
-) -> _BroydenResult[_Payload]:
+) -> _NonlinearResult[_Payload]:
 	"""Solve one residual equation with the good Broyden Jacobian update.
 
 	The initial Jacobian is supplied by the formulation. Every later matrix is
@@ -106,7 +133,7 @@ def _solve_broyden(
 
 	for iteration in range(int(max_iterations) + 1):
 		if residual_norm <= tolerance:
-			return _BroydenResult(
+			return _NonlinearResult(
 				unknown=unknown.copy(),
 				residual=residual.copy(),
 				payload=payload,
@@ -159,6 +186,59 @@ def _solve_broyden(
 		f"{residual_norm:.3e} exceeds {tolerance:.3e} after "
 		f"{max_iterations} iterations and {residual_evaluations} residual "
 		"evaluations."
+	)
+
+
+def _solve_newton(
+	residual_function: _ResidualFunction[_Payload],
+	initial_unknown: np.ndarray,
+	update: Callable[[np.ndarray, np.ndarray, _Payload], np.ndarray],
+	*,
+	tolerance: float,
+	max_iterations: int,
+	context: str,
+	initial_evaluation: tuple[np.ndarray, _Payload] | None = None,
+) -> _NonlinearResult[_Payload]:
+	"""Share convergence and counters while the formulation owns Newton algebra.
+
+	The update callback returns the new unknown. This preserves each method's
+	subtraction/addition convention, particle packing and specialized block solve.
+	A supplied initial evaluation counts once and is never recomputed.
+	"""
+	unknown = np.asarray(initial_unknown, dtype=float).copy()
+	if unknown.ndim != 1 or unknown.size == 0 or not np.all(np.isfinite(unknown)):
+		raise ValueError("The initial Newton unknown must be a finite vector.")
+	if not np.isfinite(tolerance) or tolerance <= 0.0:
+		raise ValueError("The Newton tolerance must be positive and finite.")
+	if (
+		isinstance(max_iterations, (bool, np.bool_))
+		or not isinstance(max_iterations, (int, np.integer))
+		or max_iterations < 1
+	):
+		raise ValueError("The Newton iteration limit must be a positive integer.")
+	for iteration in range(int(max_iterations) + 1):
+		if iteration == 0 and initial_evaluation is not None:
+			residual, payload = initial_evaluation
+			residual = np.asarray(residual, dtype=float)
+			if residual.shape != unknown.shape or not np.all(np.isfinite(residual)):
+				raise ValueError("The cached Newton residual must be finite and match the unknown.")
+		else:
+			residual, payload = _checked_residual_evaluation(residual_function, unknown)
+		residual_norm = float(np.linalg.norm(residual, ord=np.inf))
+		if residual_norm <= tolerance:
+			return _NonlinearResult(
+				unknown=unknown.copy(), residual=residual.copy(), payload=payload,
+				iterations=iteration, residual_evaluations=iteration + 1,
+			)
+		if iteration == max_iterations:
+			break
+		next_unknown = np.asarray(update(unknown, residual, payload), dtype=float)
+		if next_unknown.shape != unknown.shape or not np.all(np.isfinite(next_unknown)):
+			raise RuntimeError(f"The Newton correction became invalid for {context}.")
+		unknown = next_unknown
+	raise RuntimeError(
+		f"Newton did not converge for {context}: residual norm {residual_norm:.3e} "
+		f"exceeds {tolerance:.3e} after {max_iterations} iterations."
 	)
 
 

@@ -1,10 +1,10 @@
 @startdot
-digraph ABBA4SharedFullExecution {
-  // Implemented end-to-end ABBA4Implicit execution, preserving the current public API.
-  // Both diagrams expose the same implemented family components and record contracts.
+digraph ABBA4ProposedFullExecution {
+  // Proposed end-to-end ABBA4Implicit execution, preserving the current public API.
+  // Both diagrams expose the same proposed family components and record contracts.
   // Only the public method options, bound step recipe and event payload selection differ.
   // Read the numbered phase headers horizontally, then each phase vertically.
-  // Records and operation signatures describe the shared runtime implementation.
+  // Candidate records and function signatures describe a future implementation.
   // They are not additional public APIs or a class required for every operation.
   // Cross-cluster edges are declared after all nodes to preserve cluster ownership.
   graph [
@@ -12,7 +12,7 @@ digraph ABBA4SharedFullExecution {
     nodesep=0.80, ranksep=0.56, pad=0.30,
     bgcolor="#FFFFFF", fontname="DejaVu Sans", fontsize=23,
     labelloc="t", labeljust="l",
-    label="ABBA4 | Complete execution through the shared ABBA architecture\n\nHorizontal: complete lifecycle. Vertical: shared services and the selected method recipe.\nSHARED FAMILY: blue services and green numerical kernels. METHOD SPECIFIC: orange step recipe.\nImplemented runtime: public contracts and numerical maps are retained. N = particles; T = saved times.\nModule paths are relative to src/simulation/methods/abba/ unless stated otherwise."
+    label="ABBA4 | Complete execution through the shared ABBA architecture\n\nHorizontal: complete lifecycle. Vertical: shared services and the selected method recipe.\nSHARED FAMILY: blue services and green numerical kernels. METHOD SPECIFIC: orange step recipe.\nProposal only: public contracts and numerical maps are retained. N = particles; T = saved times.\nCandidate module paths are relative to src/simulation/methods/abba/ unless stated otherwise."
   ];
   node [
     shape=box, style="rounded,filled", fillcolor="#FFFFFF",
@@ -87,7 +87,7 @@ digraph ABBA4SharedFullExecution {
     >];
     Method [label=<
       <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
-        <TR><TD BGCOLOR="#E8EFF8" ALIGN="LEFT"><FONT POINT-SIZE="9">EXISTING PUBLIC CLASS / SHARED INTERNALS</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>ABBA4Implicit</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">order4_implicit.py</FONT></TD></TR>
+        <TR><TD BGCOLOR="#E8EFF8" ALIGN="LEFT"><FONT POINT-SIZE="9">EXISTING PUBLIC CLASS / PROPOSED INTERNALS</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>ABBA4Implicit</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">order4_implicit.py</FONT></TD></TR>
         <TR><TD ALIGN="LEFT"><B>Configuration</B><BR ALIGN="LEFT"/>projection_placement; projection_formulation<BR ALIGN="LEFT"/>state_extension; track_energy; nonlinear_solver<BR ALIGN="LEFT"/>newton_absolute_tolerance<BR ALIGN="LEFT"/>newton_relative_tolerance; newton_max_iterations<BR ALIGN="LEFT"/>progress; step_observer</TD></TR><HR/>
         <TR><TD ALIGN="LEFT"><B>Public operation</B><BR ALIGN="LEFT"/>integrate(problem, request): IntegrationData</TD></TR><HR/>
         <TR><TD ALIGN="LEFT">Inherits _ABBAImplicitConfig.<BR ALIGN="LEFT"/>Implements NumericalMethod structurally.<BR ALIGN="LEFT"/>Keep current public option names compatible.</TD></TR>
@@ -117,7 +117,7 @@ digraph ABBA4SharedFullExecution {
     >];
     Prepare [label=<
       <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
-        <TR><TD BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">SHARED FAMILY FUNCTION</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>prepare_abba(...)</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">preparation.py</FONT></TD></TR>
+        <TR><TD BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">PROPOSED SHARED FAMILY FUNCTION</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>prepare_abba(...)</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">preparation.py</FONT></TD></TR>
         <TR><TD ALIGN="LEFT"><B>IN</B> problem, method, request<BR ALIGN="LEFT"/><B>OUT</B> PreparedABBA<BR ALIGN="LEFT"/></TD></TR><HR/>
         <TR><TD ALIGN="LEFT">Validate common options and selected capabilities.<BR ALIGN="LEFT"/>Bind the model's solve_step function once.<BR ALIGN="LEFT"/>Bind state policy, projection and nonlinear solver.<BR ALIGN="LEFT"/>Select the model's optional event builder.<BR ALIGN="LEFT"/></TD></TR><HR/>
         <TR><TD ALIGN="LEFT">Physical: planar GuidingCenterJacobianSystem.<BR ALIGN="LEFT"/>Fully extended: one GuidingCenterDynamics particle.<BR ALIGN="LEFT"/>Newton requires the relevant derivatives.<BR ALIGN="LEFT"/>Broyden iterations remain residual-only.<BR ALIGN="LEFT"/></TD></TR>
@@ -125,7 +125,7 @@ digraph ABBA4SharedFullExecution {
     >];
     Prepared [label=<
       <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
-        <TR><TD BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">SHARED FAMILY RECORD</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>PreparedABBA</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">preparation.py</FONT></TD></TR>
+        <TR><TD BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">PROPOSED SHARED FAMILY RECORD</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>PreparedABBA</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">preparation.py</FONT></TD></TR>
         <TR><TD ALIGN="LEFT"><B>State</B><BR ALIGN="LEFT"/>initial_workspace: array<BR ALIGN="LEFT"/>solve_step: bound callable<BR ALIGN="LEFT"/>state_ops: StatePolicy<BR ALIGN="LEFT"/>build_event: optional callable<BR ALIGN="LEFT"/>solver_options, method_metadata<BR ALIGN="LEFT"/></TD></TR><HR/>
         <TR><TD ALIGN="LEFT"><B>Bound step contract</B><BR ALIGN="LEFT"/>solve_step(t, numerical_state, h)<BR ALIGN="LEFT"/>returns tuple[ProjectedMapResult, ...].<BR ALIGN="LEFT"/>Results are ordered by accepted projection.<BR ALIGN="LEFT"/></TD></TR><HR/>
         <TR><TD ALIGN="LEFT">The same record serves ABBA2 and ABBA4.<BR ALIGN="LEFT"/>Public method choice is resolved before the loop.<BR ALIGN="LEFT"/></TD></TR>
@@ -133,8 +133,8 @@ digraph ABBA4SharedFullExecution {
     >];
     StatePolicy [label=<
       <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
-        <TR><TD BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">SHARED STATE OPERATIONS</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>StatePolicy</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">state.py</FONT></TD></TR>
-        <TR><TD ALIGN="LEFT"><B>Bound operations</B><BR ALIGN="LEFT"/>initialize(z0, t0): workspace<BR ALIGN="LEFT"/>unpack(t, workspace): numerical state<BR ALIGN="LEFT"/>finish_step(t, h, workspace, projections): workspace<BR ALIGN="LEFT"/>extract(times, history): physical states + energy<BR ALIGN="LEFT"/></TD></TR><HR/>
+        <TR><TD BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">PROPOSED SHARED STATE OPERATIONS</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>StatePolicy</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">state.py</FONT></TD></TR>
+        <TR><TD ALIGN="LEFT"><B>Bound operations</B><BR ALIGN="LEFT"/>initialize(z0, t0): workspace<BR ALIGN="LEFT"/>unpack(workspace): numerical state<BR ALIGN="LEFT"/>finish_step(workspace, projections): workspace<BR ALIGN="LEFT"/>extract(history): physical states + energy<BR ALIGN="LEFT"/></TD></TR><HR/>
         <TR><TD ALIGN="LEFT"><B>One selected strategy</B><BR ALIGN="LEFT"/>Physical: z in R^(2N).<BR ALIGN="LEFT"/>Physical + energy: (z, kappa), kappa in R^N.<BR ALIGN="LEFT"/>Fully extended: (x, y, t, k) in R^4.<BR ALIGN="LEFT"/></TD></TR><HR/>
         <TR><TD ALIGN="LEFT">Finish from the last accepted projection state.<BR ALIGN="LEFT"/>Physical tracking uses the accepted stage traces,<BR ALIGN="LEFT"/>including their signed durations and start times.<BR ALIGN="LEFT"/>Auxiliary kappa never feeds back into z.<BR ALIGN="LEFT"/>Full extension evolves t,k and synchronizes time.<BR ALIGN="LEFT"/></TD></TR>
       </TABLE>
@@ -149,7 +149,7 @@ digraph ABBA4SharedFullExecution {
 
     Runtime [label=<
       <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
-        <TR><TD BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">SHARED FAMILY COORDINATOR</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>integrate_abba(...)</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">runtime.py</FONT></TD></TR>
+        <TR><TD BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">PROPOSED SHARED FAMILY COORDINATOR</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>integrate_abba(...)</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">runtime.py</FONT></TD></TR>
         <TR><TD ALIGN="LEFT"><B>IN</B> PreparedABBA, SimulationRequest<BR ALIGN="LEFT"/><B>OUT</B> IntegrationData<BR ALIGN="LEFT"/></TD></TR><HR/>
         <TR><TD ALIGN="LEFT">Create metric buffers and the advance adapter.<BR ALIGN="LEFT"/>Run the existing fixed-grid scheduler.<BR ALIGN="LEFT"/>Extract physical output and energy histories.<BR ALIGN="LEFT"/>Finalize canonical diagnostics.<BR ALIGN="LEFT"/></TD></TR><HR/>
         <TR><TD ALIGN="LEFT">The same coordinator executes both methods.<BR ALIGN="LEFT"/>It delegates the numerical step to solve_step.<BR ALIGN="LEFT"/></TD></TR>
@@ -165,9 +165,9 @@ digraph ABBA4SharedFullExecution {
     >];
     Advance [label=<
       <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
-        <TR><TD BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">SHARED PER-ADVANCE ADAPTER</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>advance(...)</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">runtime.py</FONT></TD></TR>
+        <TR><TD BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">PROPOSED SHARED PER-ADVANCE ADAPTER</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>advance(...)</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">runtime.py</FONT></TD></TR>
         <TR><TD ALIGN="LEFT"><B>IN</B> t, workspace, h, step index, main/shadow<BR ALIGN="LEFT"/><B>OUT</B> next_workspace for the scheduler<BR ALIGN="LEFT"/></TD></TR><HR/>
-        <TR><TD ALIGN="LEFT">Unpack using StatePolicy.<BR ALIGN="LEFT"/>Call prepared.solve_step(t, numerical_state, h).<BR ALIGN="LEFT"/>Finish state/energy with its projection records.<BR ALIGN="LEFT"/>On main steps, build StepResult(next_workspace, projections).<BR ALIGN="LEFT"/></TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">Unpack using StatePolicy.<BR ALIGN="LEFT"/>Call prepared.solve_step(t, numerical_state, h).<BR ALIGN="LEFT"/>Finish state/energy with its projection records.<BR ALIGN="LEFT"/>Build StepResult(next_workspace, projections).<BR ALIGN="LEFT"/></TD></TR><HR/>
         <TR><TD ALIGN="LEFT">Main advances record metrics and optional events.<BR ALIGN="LEFT"/>Shadow advances use the same numerical map<BR ALIGN="LEFT"/>and return only the sampled workspace.<BR ALIGN="LEFT"/></TD></TR>
       </TABLE>
     >];
@@ -182,7 +182,7 @@ digraph ABBA4SharedFullExecution {
     >];
     Projection [label=<
       <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
-        <TR><TD BGCOLOR="#E3F0E9" ALIGN="LEFT"><FONT POINT-SIZE="9">SHARED EQUATION BUILDERS</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>Projection formulation</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#537866">projection_reduced.py / projection_simultaneous.py<BR/>projection_outer.py / projection_extended.py</FONT></TD></TR>
+        <TR><TD BGCOLOR="#E3F0E9" ALIGN="LEFT"><FONT POINT-SIZE="9">PROPOSED SHARED EQUATION BUILDERS</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>Projection formulation</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#537866">projection_reduced.py / projection_simultaneous.py</FONT></TD></TR>
         <TR><TD ALIGN="LEFT"><B>IN</B> state, selected map, solver options<BR ALIGN="LEFT"/><B>OUT</B> ProjectedMapResult<BR ALIGN="LEFT"/></TD></TR><HR/>
         <TR><TD ALIGN="LEFT">The selected map may be one A-B-B-A map<BR ALIGN="LEFT"/>or an unprojected composition.<BR ALIGN="LEFT"/>Displace input copies with +mu / -mu.<BR ALIGN="LEFT"/>Define residual, correction and recovery callbacks.<BR ALIGN="LEFT"/></TD></TR><HR/>
         <TR><TD ALIGN="LEFT"><B>Reduced:</B> mu in R^(2N) or R^4.<BR ALIGN="LEFT"/>Solve mapped copy separation + 2 mu = 0.<BR ALIGN="LEFT"/><B>Simultaneous:</B> two final outputs + mu,<BR ALIGN="LEFT"/>in R^(6N) or R^12; map defects + diagonal equality.<BR ALIGN="LEFT"/></TD></TR><HR/>
@@ -191,15 +191,15 @@ digraph ABBA4SharedFullExecution {
     >];
     Nonlinear [label=<
       <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
-        <TR><TD BGCOLOR="#E3F0E9" ALIGN="LEFT"><FONT POINT-SIZE="9">SHARED CONVERGENCE SUPPORT</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>Nonlinear solve</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#537866">src/simulation/methods/_nonlinear.py</FONT></TD></TR>
-        <TR><TD ALIGN="LEFT"><B>IN</B> unknown, callbacks, tolerances<BR ALIGN="LEFT"/><B>OUT</B> _NonlinearResult; adapted to SolveStats<BR ALIGN="LEFT"/></TD></TR><HR/>
+        <TR><TD BGCOLOR="#E3F0E9" ALIGN="LEFT"><FONT POINT-SIZE="9">PROPOSED SHARED CONVERGENCE SUPPORT</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>Nonlinear solve</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#537866">src/simulation/methods/_nonlinear.py</FONT></TD></TR>
+        <TR><TD ALIGN="LEFT"><B>IN</B> unknown, callbacks, tolerances<BR ALIGN="LEFT"/><B>OUT</B> converged evaluation + SolveStats<BR ALIGN="LEFT"/></TD></TR><HR/>
         <TR><TD ALIGN="LEFT">Evaluate residual and test its scaled tolerance.<BR ALIGN="LEFT"/>If needed, compute a correction and repeat.<BR ALIGN="LEFT"/><B>Newton:</B> formulation-specific exact systems.<BR ALIGN="LEFT"/><B>Broyden:</B> residual-only iteration updates.<BR ALIGN="LEFT"/></TD></TR><HR/>
         <TR><TD ALIGN="LEFT">Share stopping rules, counts and error reporting.<BR ALIGN="LEFT"/>Preserve each formulation's block layout.<BR ALIGN="LEFT"/>A failed solve raises an explicit error.<BR ALIGN="LEFT"/></TD></TR>
       </TABLE>
     >];
     Maps [label=<
       <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
-        <TR><TD BGCOLOR="#E3F0E9" ALIGN="LEFT"><FONT POINT-SIZE="9">SHARED NUMERICAL KERNELS / MODULES</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>Base maps and tangents</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#537866">maps/physical.py / maps/extended.py</FONT></TD></TR>
+        <TR><TD BGCOLOR="#E3F0E9" ALIGN="LEFT"><FONT POINT-SIZE="9">SHARED NUMERICAL KERNELS / PROPOSED MODULES</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>Base maps and tangents</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#537866">maps/physical.py / maps/extended.py</FONT></TD></TR>
         <TR><TD ALIGN="LEFT"><B>IN</B> independent copies, t, h, dynamics<BR ALIGN="LEFT"/><B>OUT</B> mapped copies, stages, requested tangent<BR ALIGN="LEFT"/></TD></TR><HR/>
         <TR><TD ALIGN="LEFT"><B>Physical:</B> endpoint-time A-B-B-A in R^(4N).<BR ALIGN="LEFT"/><B>Fully extended:</B> four shears in R^8.<BR ALIGN="LEFT"/>Both methods reuse these numerical kernels.<BR ALIGN="LEFT"/></TD></TR><HR/>
         <TR><TD ALIGN="LEFT">Fields come from the dynamics contract.<BR ALIGN="LEFT"/>Preserve exact stage-product derivatives.<BR ALIGN="LEFT"/>Composition passes copies between base maps.<BR ALIGN="LEFT"/>Projection owns the input and output shifts.<BR ALIGN="LEFT"/></TD></TR>
@@ -228,7 +228,7 @@ digraph ABBA4SharedFullExecution {
 
     Recording [label=<
       <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
-        <TR><TD BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">SHARED MAIN-STEP RECORDING</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>record_completed_step(...)</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">records.py</FONT></TD></TR>
+        <TR><TD BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">PROPOSED SHARED MAIN-STEP RECORDING</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>record_completed_step(...)</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">records.py</FONT></TD></TR>
         <TR><TD ALIGN="LEFT"><B>IN</B> StepResult and main-step index<BR ALIGN="LEFT"/><B>OUT</B> appended diagnostic rows<BR ALIGN="LEFT"/></TD></TR><HR/>
         <TR><TD ALIGN="LEFT">Read SolveStats from step.projections.<BR ALIGN="LEFT"/>Sum corrections and residual evaluations.<BR ALIGN="LEFT"/>Keep the residual/tolerance pair from the same<BR ALIGN="LEFT"/>worst-ratio solve; retain per-projection metrics.<BR ALIGN="LEFT"/></TD></TR><HR/>
         <TR><TD ALIGN="LEFT">One projection for ABBA2; one or three for ABBA4.<BR ALIGN="LEFT"/>Read numerical records without building events.<BR ALIGN="LEFT"/>Shadow advances bypass recording.<BR ALIGN="LEFT"/></TD></TR>
@@ -236,7 +236,7 @@ digraph ABBA4SharedFullExecution {
     >];
     StepResult [label=<
       <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
-        <TR><TD BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">SHARED RECORD / COMPLETE ADVANCE</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>StepResult</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">records.py</FONT></TD></TR>
+        <TR><TD BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">PROPOSED SHARED RECORD / COMPLETE ADVANCE</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>StepResult</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">records.py</FONT></TD></TR>
         <TR><TD ALIGN="LEFT"><B>State</B><BR ALIGN="LEFT"/>next_workspace: array<BR ALIGN="LEFT"/>projections: tuple[ProjectedMapResult, ...]<BR ALIGN="LEFT"/></TD></TR><HR/>
         <TR><TD ALIGN="LEFT">One common contract for both methods.<BR ALIGN="LEFT"/>ABBA2 returns one projection record.<BR ALIGN="LEFT"/>ABBA4 returns one or three projection records.<BR ALIGN="LEFT"/></TD></TR><HR/>
         <TR><TD ALIGN="LEFT">The scheduler receives next_workspace.<BR ALIGN="LEFT"/>Recording and observation read projections.<BR ALIGN="LEFT"/>Accepted numerical traces live in those records.<BR ALIGN="LEFT"/></TD></TR>
@@ -244,22 +244,22 @@ digraph ABBA4SharedFullExecution {
     >];
     ProjectedResult [label=<
       <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
-        <TR><TD BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">SHARED RECORD / ONE PROJECTION</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>ProjectedMapResult</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">records.py</FONT></TD></TR>
+        <TR><TD BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">PROPOSED SHARED RECORD / ONE PROJECTION</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>ProjectedMapResult</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">records.py</FONT></TD></TR>
         <TR><TD ALIGN="LEFT"><B>State</B><BR ALIGN="LEFT"/>start_time, duration; state_before<BR ALIGN="LEFT"/>state: accepted numerical state<BR ALIGN="LEFT"/>multiplier: array; stats: SolveStats<BR ALIGN="LEFT"/>trace: accepted numerical trace<BR ALIGN="LEFT"/></TD></TR><HR/>
-        <TR><TD ALIGN="LEFT"><B>Typed numerical traces</B><BR ALIGN="LEFT"/>PhysicalProjectionTrace: ordered stage maps,<BR ALIGN="LEFT"/>with their signed durations and start times.<BR ALIGN="LEFT"/>ExtendedProjectionTrace: accepted full map<BR ALIGN="LEFT"/>and the selected composition coefficients.<BR ALIGN="LEFT"/></TD></TR><HR/>
+        <TR><TD ALIGN="LEFT"><B>Two explicit trace variants</B><BR ALIGN="LEFT"/>Single base map: its accepted stage data.<BR ALIGN="LEFT"/>Unprojected composition: its ordered map stages,<BR ALIGN="LEFT"/>signed durations and individual start times.<BR ALIGN="LEFT"/></TD></TR><HR/>
         <TR><TD ALIGN="LEFT">A composed trace can contain three base maps<BR ALIGN="LEFT"/>while this record still represents only one solve.<BR ALIGN="LEFT"/></TD></TR>
       </TABLE>
     >];
     Stats [label=<
       <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
-        <TR><TD BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">SHARED RECORD / ONE NONLINEAR SOLVE</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>SolveStats</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/simulation/methods/_nonlinear.py</FONT></TD></TR>
+        <TR><TD BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">PROPOSED SHARED RECORD / ONE NONLINEAR SOLVE</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>SolveStats</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">Shared nonlinear-solver result contract</FONT></TD></TR>
         <TR><TD ALIGN="LEFT"><B>State</B><BR ALIGN="LEFT"/>solver: newton | broyden<BR ALIGN="LEFT"/>iterations, residual_evaluations: int<BR ALIGN="LEFT"/>residual_norm, tolerance: float<BR ALIGN="LEFT"/></TD></TR><HR/>
         <TR><TD ALIGN="LEFT">Canonical nonlinear names for both methods.<BR ALIGN="LEFT"/>A zero-correction solve still counts its<BR ALIGN="LEFT"/>initial residual evaluation.<BR ALIGN="LEFT"/></TD></TR>
       </TABLE>
     >];
     EventBuilder [label=<
       <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
-        <TR><TD BGCOLOR="#F0E8FA" ALIGN="LEFT"><FONT POINT-SIZE="9">SHARED OPTIONAL EVENT SERVICE</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>emit_observation(...)</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#79628F">observations.py</FONT></TD></TR>
+        <TR><TD BGCOLOR="#F0E8FA" ALIGN="LEFT"><FONT POINT-SIZE="9">PROPOSED SHARED OPTIONAL EVENT SERVICE</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>emit_observation(...)</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#79628F">observations.py</FONT></TD></TR>
         <TR><TD ALIGN="LEFT"><B>IN</B> StepResult, metadata, bound event builder<BR ALIGN="LEFT"/><B>OUT</B> one observer callback, when configured<BR ALIGN="LEFT"/></TD></TR><HR/>
         <TR><TD ALIGN="LEFT">Only if main step AND observer installed.<BR ALIGN="LEFT"/>Invoke prepared.build_event(...) on the records.<BR ALIGN="LEFT"/>Copy accepted snapshots and obtain tangents<BR ALIGN="LEFT"/>only when the event contract requires them.<BR ALIGN="LEFT"/></TD></TR><HR/>
         <TR><TD ALIGN="LEFT">The builder preserves method-specific payloads.<BR ALIGN="LEFT"/>Call step_observer(event).<BR ALIGN="LEFT"/>Observer analysis remains in diagnostics/.<BR ALIGN="LEFT"/></TD></TR>
@@ -318,7 +318,7 @@ digraph ABBA4SharedFullExecution {
   }
 
   Legend [shape=note, fillcolor="#F8FAFC", color="#CBD5E1", margin="0.18,0.14", label=<
-    <B>HOW TO READ THIS DIAGRAM</B><BR/><BR/>
+    <B>HOW TO READ THIS PROPOSAL</B><BR/><BR/>
     Thick arrows between phase headers: overall lifecycle; phases 04 and 05 repeat together for each main step.<BR/>
     Thin solid arrows: calls or required data. Dotted blue arrows: returned values. Dashed purple arrows: optional events.<BR/>
     A hollow diamond means a record contains another record. Red dashed arrows indicate failure propagation.<BR/>

@@ -1,0 +1,216 @@
+@startdot
+digraph ABBA4ProposedArchitecture {
+  // Design proposal only. Candidate module names are not implemented APIs.
+  // Solid arrows show calls or dependencies; dotted arrows show data delivery.
+  // A solver evaluates the selected projection residual repeatedly. Projection
+  // placement remains part of the numerical map, not a postprocessing service.
+  graph [
+    rankdir=TB, compound=true, newrank=true, splines=polyline,
+    nodesep=0.38, ranksep=0.55, pad=0.24,
+    bgcolor="white", fontname="DejaVu Sans", fontsize=19,
+    labelloc="t", labeljust="l",
+    label="ABBA4 implicit integration | Shared ABBA family architecture\n\nDesign proposal: ABBA2 and ABBA4 reuse the same services and numerical kernels.\nPublic methods and mathematical projection placements remain explicit.\nCandidate files below are relative to src/simulation/methods/abba/ unless stated otherwise."
+  ];
+  node [
+    shape=box, style="rounded,filled", color="#8293A5",
+    fillcolor="#F5F7FA", fontname="DejaVu Sans", fontsize=11,
+    margin="0.17,0.12", penwidth=1.1
+  ];
+  edge [
+    color="#536779", fontname="DejaVu Sans", fontsize=10,
+    arrowsize=0.7, penwidth=1.1
+  ];
+
+  subgraph cluster_lifecycle {
+    label="1. Public lifecycle";
+    labeljust="l"; fontsize=15; color="#CBD5E1"; style="rounded";
+
+    PublicAPI [group="col1", label=<
+      <B>Public entry point</B><BR/>
+      <FONT COLOR="#65768A">Existing simulation API</FONT><BR/><BR/>
+      simulate(problem, method, request)<BR/>
+      InitialValueProblem + ABBA4Implicit<BR/>
+      + SimulationRequest
+    >];
+
+    Prepare [group="col2", fillcolor="#E8F1FC", label=<
+      <B>Shared family preparation</B><BR/>
+      <FONT COLOR="#65768A">preparation.py / prepare_abba(...)</FONT><BR/><BR/>
+      Validate and normalize configuration<BR/>
+      Check dynamics and state capabilities<BR/>
+      Bind state policy, step map and solver<BR/>
+      Choose the method-specific observation builder<BR/><BR/>
+      <B>PreparedABBA</B>: initial_workspace, solve_step,<BR/>
+      state_ops, build_event, solver_options, metadata
+    >];
+
+    Run [group="col3", fillcolor="#E8F1FC", label=<
+      <B>Shared integrate_abba runtime</B><BR/>
+      <FONT COLOR="#65768A">runtime.py / integrate_abba(...)</FONT><BR/><BR/>
+      Reuse simulation/_fixed.py<BR/>
+      Main advance: update state and collect metrics<BR/>
+      Shadow advance: produce an output sample only<BR/>
+      Both call prepared.solve_step<BR/>
+      The coordinator is identical for ABBA2 and ABBA4
+    >];
+
+    Result [group="col4", fillcolor="#E9F5EE", color="#7AAB8A", label=<
+      <B>Validated physical result</B><BR/>
+      <FONT COLOR="#65768A">Existing result boundary</FONT><BR/><BR/>
+      IntegrationData(t, physical_states, diagnostics)<BR/>
+      SimulationRunner validates output and initial state<BR/>
+      Solution owns read-only trajectory arrays<BR/>
+      and read-only diagnostics
+    >];
+
+    { rank=same; PublicAPI; Prepare; Run; Result; }
+  }
+
+  subgraph cluster_step {
+    label="2. One advance | Numerical work and recording have separate responsibilities";
+    labeljust="l"; fontsize=15; color="#CBD5E1"; style="rounded";
+
+    StatePolicy [group="col1", fillcolor="#E8F1FC", label=<
+      <B>Shared StatePolicy</B><BR/>
+      <FONT COLOR="#65768A">state.py</FONT><BR/><BR/>
+      Physical: z for N independent particles<BR/>
+      Physical + energy: auxiliary kappa per particle<BR/>
+      Fully extended: Z = (x, y, t, k), one particle<BR/><BR/>
+      Initialize, pack and extract physical output<BR/>
+      Update auxiliary kappa from accepted map traces<BR/>
+      Retain signed durations and stage start times<BR/>
+      Preserve full-state time synchronization
+    >];
+
+    Advance [group="col2", fillcolor="#E8F1FC", label=<
+      <B>Compute one complete advance</B><BR/>
+      <FONT COLOR="#65768A">runtime.py / advance(...)</FONT><BR/><BR/>
+      Unpack the integration workspace<BR/>
+      Call prepared.solve_step(t, numerical_state, h)<BR/>
+      Finish the selected state/energy update<BR/>
+      Build the common StepResult for recording<BR/>
+      Return next_workspace to the fixed-grid scheduler<BR/><BR/>
+      StepResult: next_workspace<BR/>
+      + projections: tuple[ProjectedMapResult, ...]<BR/>
+      Each projection owns SolveStats and its trace
+    >];
+
+    Metrics [group="col3", fillcolor="#E8F1FC", label=<
+      <B>Collect basic metrics</B><BR/>
+      <FONT COLOR="#65768A">records.py / record_completed_step(...)</FONT><BR/><BR/>
+      Read SolveStats directly from StepResult<BR/>
+      Count corrections and residual evaluations<BR/>
+      Keep residual and tolerance from the same solve<BR/>
+      ABBA2: one record; ABBA4: one or three<BR/><BR/>
+      Main steps only; no observer objects needed<BR/>
+      Map legacy diagnostic names at output only
+    >];
+
+    Observations [group="col4", fillcolor="#F1EBFA", color="#AA93C5", label=<
+      <B>Build optional observations</B><BR/>
+      <FONT COLOR="#65768A">observations.py / emit_observation(...)</FONT><BR/><BR/>
+      Main steps with an observer installed only<BR/>
+      Call prepared.build_event(...) on shared records<BR/>
+      Copy accepted snapshots on demand<BR/>
+      Expose the accepted map and tangent access<BR/>
+      Preserve placement-specific event types<BR/><BR/>
+      Existing diagnostics consume these events<BR/>
+      Shadow samples emit no events
+    >];
+
+    { rank=same; StatePolicy; Advance; Metrics; Observations; }
+  }
+
+  subgraph cluster_numerics {
+    label="3. Inside the bound step map | Choices are resolved during preparation";
+    labeljust="l"; fontsize=15; color="#D6BF8C"; style="rounded";
+
+    Composition [group="col2", fillcolor="#FBE0C7", color="#C49666", label=<
+      <B>ABBA4: bind the selected step recipe</B><BR/>
+      <FONT COLOR="#857248">steps.py / common solve_step contract</FONT><BR/><BR/>
+      Signed durations: gamma h, delta h, gamma h<BR/>
+      Carry the correct start time into each map<BR/><BR/>
+      <B>solve_projected_composition_step(...)</B><BR/>
+      Three projected maps; return three records<BR/><BR/>
+      <B>solve_outer_projection_step(...)</B><BR/>
+      One projection around three maps; return one record<BR/><BR/>
+      ABBA2 binds solve_single_map_step(...) instead<BR/>
+      All return tuple[ProjectedMapResult, ...]
+    >];
+
+    Projection [group="col3", fillcolor="#E3F0E9", color="#7AAB8A", label=<
+      <B>Shared projection formulations</B><BR/>
+      <FONT COLOR="#857248">projection_reduced.py / projection_simultaneous.py</FONT><BR/><BR/>
+      Construct residual and initial unknown<BR/>
+      Supply Jacobian or correction operations<BR/>
+      Recover the accepted state and stage data<BR/><BR/>
+      Reduced: multiplier unknown<BR/>
+      Simultaneous: final copies + multiplier<BR/>
+      Physical unknown sizes: 2N / 6N<BR/>
+      Fully extended unknown sizes: 4 / 12
+    >];
+
+    Solver [group="col4", fillcolor="#E3F0E9", color="#7AAB8A", label=<
+      <B>Shared nonlinear convergence support</B><BR/>
+      <FONT COLOR="#857248">Shared simulation/methods/_nonlinear.py</FONT><BR/><BR/>
+      Common tolerances, stopping rules and failures<BR/>
+      Return SolveStats + converged evaluation<BR/><BR/>
+      Newton: exact formulation-specific corrections<BR/>
+      Broyden: residual-only iterations<BR/>
+      Retain specialized linear algebra and layouts<BR/><BR/>
+      Re-evaluate until convergence or explicit failure
+    >];
+
+    Maps [group="col4", fillcolor="#E3F0E9", color="#7AAB8A", label=<
+      <B>Shared base maps and tangents</B><BR/>
+      <FONT COLOR="#857248">maps/physical.py / maps/extended.py</FONT><BR/><BR/>
+      Physical A-B-B-A stages and exact tangents<BR/>
+      Fully extended shears and exact tangents<BR/>
+      Receive independent copies and signed duration<BR/>
+      Step recipes assemble maps for exterior projection<BR/><BR/>
+      Existing dynamics supply the physical field<BR/>
+      Derivatives are evaluated only when required<BR/>
+      No recording, sampling or output assembly
+    >];
+
+    { rank=same; Composition; Projection; Solver; }
+  }
+
+  Notes [shape=note, style=filled, fillcolor="#FAFBFD", color="#CBD5E1", label=<
+    <B>Reading and preservation rules</B><BR/><BR/>
+    Solid arrows: calls or dependencies. Dotted arrows: accepted-step data delivery.<BR/>
+    Blue: shared family coordination. Green: shared numerical kernels. Orange: model-specific step recipe.<BR/>
+    Projection is solved around its selected map; it is never a final postprocessing operation.<BR/>
+    Auxiliary physical energy tracking does not feed back into z. Full-state energy evolution is intrinsic.<BR/>
+    Both methods use PreparedABBA, StatePolicy and StepResult with a tuple of projected results.<BR/>
+    Each ProjectedMapResult owns SolveStats and either a single-map trace or a composed-map trace.<BR/>
+    Fully extended observations contain 3 base-map records for per-map projection,<BR/>
+    or 1 composed-base-map record for exterior projection.<BR/>
+    Existing behavior, dimensions, solver statistics and public compatibility require regression checks.
+  >];
+
+  // Keep cross-boundary edges outside clusters so node ownership is unambiguous.
+  PublicAPI -> Prepare [weight=20];
+  Prepare -> Run [weight=20, label="prepared functions\nand initial workspace"];
+  Run -> Result [weight=20, label="finish and extract\nphysical output"];
+  Run -> Advance [label="main or shadow\nadvance"];
+  StatePolicy -> Advance [dir=back, weight=20, label="workspace operations"];
+  Advance -> Metrics [style=dotted, weight=20, label="accepted main-step\nsolve records"];
+  Metrics -> Observations [style=invis, weight=20];
+  Advance -> Observations [style=dotted, constraint=false, label="accepted stage data\nif observer requested"];
+  Advance -> Composition [label="prepared.solve_step"];
+  Composition -> Projection [weight=20, label="project the selected\nbase map(s)"];
+  Projection -> Solver [weight=20, label="residual + optional\nJacobian/correction callbacks"];
+  Solver -> Maps [weight=100, label="repeat residual evaluation\nusing formulation callbacks"];
+
+  // Invisible links align responsibility rows; they carry no runtime meaning.
+  PublicAPI -> StatePolicy [style=invis, weight=100];
+  Prepare -> Advance [style=invis, weight=100];
+  Run -> Metrics [style=invis, weight=100];
+  Result -> Observations [style=invis, weight=100];
+  Metrics -> Projection [style=invis, weight=100];
+  Observations -> Solver [style=invis, weight=100];
+  Composition -> Notes [style=invis, weight=30];
+  Maps -> Notes [style=invis];
+}
+@enddot

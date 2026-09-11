@@ -32,57 +32,47 @@ tracking, and fully extended dispatch. The ABBA2 reduced-Newton kernel
 reused by each signed substep is described in detail by the
 [`ABBA2 implicit companion`](../../abba2-implicit/simulation/abba2-implicit-simulation-architecture.md).
 
-## Unified runtime paths
-
-The public entry path is shared until placement dispatch:
+## Shared runtime path
 
 ```text
-simulate(problem, ABBA4Implicit(), request)
-        |
-        v
-SimulationRunner.simulate(...)
-        |
-        v
-ABBA4Implicit.integrate(...)
-        |
-        v
-projection_placement
-        |
-        +-> after_each_abba_map
-        |       -> _integrate_composed_implicit_abba(...)
-        |       -> three independently projected ABBA maps
-        |
-        +-> around_complete_composition
-                -> _integrate_abba4_implicit_single_projection(...)
-                -> three continuous unprojected maps
-                -> one exterior projection
-        |
-        v
-IntegrationData -> SimulationRunner -> Solution
+simulate -> SimulationRunner -> ABBA4Implicit.integrate
+  -> prepare_abba(..., order=4)
+  -> integrate_abba -> integrate_fixed_grid -> advance
+       -> unpack state -> selected step recipe -> finish state/energy
+       -> main step: numerical metrics -> optional event adapter
+  -> extract physical output -> IntegrationData -> SimulationRunner -> Solution
 ```
 
-The middle duration is negative in both maps. The per-map placement emits an
-`ABBA4ImplicitIntegrationStep` containing three projected solves. The exterior
-placement emits an `ABBA4ImplicitSingleProjectionIntegrationStep` containing
-three continuous unprojected stage records and one outer solve. The record
-types remain distinct because their numerical contents differ, even though the
-configured public method class is the same.
+Three independently projected maps, or one projection around three continuous base maps.
+`preparation.py` binds the recipe, state policy, projection and optional event
+builder before entering the shared coordinator. The physical and extended
+branches use the same `runtime.py`. Each specialized projection retains its
+analytic residual and correction algebra; common Newton and Broyden drivers
+own convergence and counters.
+
+The runtime uses `solve_projected_composition_step` in `steps.py` for
+per-map projection. `solve_outer_projection_step` binds the ABBA4 exterior
+placement. The private `_solve_abba4_step` entry remains a compatibility
+adapter in `composition.py`, outside the public call path.
 
 ## Principal files
 
-| File | Responsibility in this scoped path |
+| File under `src/simulation/methods/abba/` | Responsibility |
 |---|---|
-| [`src/simulation/methods/abba/order4_implicit.py`](../../../../src/simulation/methods/abba/order4_implicit.py) | Unified public method, placement dispatch, per-map triple-jump coordinator, aggregation, and compatibility factory |
-| [`src/simulation/methods/abba/order4_implicit_single_projection.py`](../../../../src/simulation/methods/abba/order4_implicit_single_projection.py) | Private physical kernel for one projection around the complete unprojected triple jump |
-| [`src/simulation/methods/abba/_coefficients.py`](../../../../src/simulation/methods/abba/_coefficients.py) | Canonical ABBA4 and ABBA6 composition coefficients |
-| [`src/simulation/methods/abba/_implicit.py`](../../../../src/simulation/methods/abba/_implicit.py) | Shared implicit configuration, solver selector, and projected physical coordinator |
-| [`src/simulation/methods/abba/_energy.py`](../../../../src/simulation/methods/abba/_energy.py) | Optional physical conjugate-momentum workspace, stage quadrature, and energy diagnostics |
-| [`src/simulation/methods/abba/_projection_reduced.py`](../../../../src/simulation/methods/abba/_projection_reduced.py) | Reduced multiplier residual and Newton loop reused three times |
-| [`src/simulation/methods/abba/_projection_common.py`](../../../../src/simulation/methods/abba/_projection_common.py) | Displaced copies, exact stage differentiation, and `_ProjectedStep` |
-| [`src/simulation/methods/abba/_core.py`](../../../../src/simulation/methods/abba/_core.py) | Endpoint-time A--B--B--A stage map |
-| [`src/simulation/_fixed.py`](../../../../src/simulation/_fixed.py) | Output-independent main grid and shadow sampling |
-| [`src/simulation/observation.py`](../../../../src/simulation/observation.py) | Per-substep snapshots and complete-step observation records |
-| [`src/simulation/runner.py`](../../../../src/simulation/runner.py) | Public input validation and `Solution` construction |
+| `order2_implicit.py`, `order4_implicit.py`, `order6_implicit.py` | Public configuration and entry to preparation/runtime |
+| `_implicit.py`, `_configuration.py` | Shared option validation and state-dimension metadata |
+| `preparation.py` | Validate capabilities, choose the step recipe and bind `PreparedABBA` |
+| `runtime.py` | One main/shadow advance adapter and final result assembly |
+| `steps.py` | One projected map, a composition of projected maps, or one outer projection |
+| `state.py`, `_energy.py` | Bound workspace operations and physical/extended energy handling |
+| `records.py` | `ProjectedMapResult`, `StepResult`, typed traces and observer-independent metrics |
+| `observations.py` | Optional adapters to the existing public event classes |
+| `projection_reduced.py`, `projection_simultaneous.py` | Physical single-map equations and specialized analytic corrections |
+| `projection_outer.py` | Physical equations around the complete ABBA4 base composition |
+| `projection_extended.py` | Full-diagonal equations, accepted full-map data and implicit tangents |
+| `maps/physical.py`, `maps/extended.py` | Unprojected stages and their exact derivatives |
+| `../_nonlinear.py` | `SolverOptions`, `SolveStats`, shared Newton and Broyden drivers |
+| `../../_fixed.py` | Uniform main grid and independent shadow samples |
 
 ## Public boundary and default configuration
 
@@ -212,11 +202,11 @@ before the last positive map reaches `t_n+h`. This signed start-time sequence
 is required for a nonautonomous fourth-order composition; replacing it with
 three evaluations at the outer start time would define a different method.
 
-`_solve_composed_abba_step(...)` advances `current_time` by each signed
-duration, feeds every accepted physical state into the next solve, stores an
-`_AcceptedSubstep`, and verifies within floating-point tolerance that the final
-signed time equals `t_n+h`. The returned `_ComposedABBAStep` contains the final
-state and the ordered tuple of three accepted records.
+`solve_projected_composition_step(...)` advances the signed start time,
+feeds each accepted state into the next solve, and verifies that the final
+signed time equals `t_n+h` within floating-point tolerance. It returns an
+ordered tuple of three `ProjectedMapResult` records. Each has its own
+`SolveStats` and trace; `advance` wraps them in one `StepResult` on a main step.
 
 ## Projection after every signed substep
 
@@ -377,7 +367,7 @@ smallest uniform main-step count whose internal outer step does not exceed
 h_{\mathrm{main}}=\frac{t_f-t_0}{\text{step_count}}.
 \]
 
-For every main interval it calls the selected coordinator's nested
+For every main interval it calls the shared runtime's nested
 `advance(...)` callback with `observe=True`. That callback runs either the
 three-solve composition or the one exterior solve, replaces the main state,
 records diagnostics, advances progress, and may emit one complete-step
@@ -398,8 +388,8 @@ shadow status suppresses recording, not numerical validation.
 
 ## Aggregated diagnostics
 
-The coordinator first forms one row per accepted main step and one column per
-signed substep. It then returns
+`record_completed_step` and `StepMetrics` form one row per accepted main
+step and one column per accepted projection, directly from numerical records. It then returns
 [`IntegrationData`](../../../../src/simulation/_result.py) with the physical
 history and these diagnostics:
 
@@ -463,8 +453,8 @@ residual's base map.
 
 ## Complete-step and substep observations
 
-For every accepted main step, `_substep_observation(...)` converts the three
-`_AcceptedSubstep` records into three ordered
+Only when `step_observer` is installed, `observations.py` converts the three
+`ProjectedMapResult` records into ordered
 [`ABBA2ImplicitIntegrationStep`](../../../../src/simulation/observation.py)
 snapshots. Each snapshot contains:
 
@@ -475,8 +465,9 @@ snapshots. Each snapshot contains:
 - its own correction count, residual evaluations, residual, tolerance, and
   multiplier norm.
 
-These three records are always used to aggregate main-step diagnostics. They
-are not sent separately to the configured callback.
+Main-step diagnostics are collected from `SolveStats` independently of these
+events. The three snapshots are nested in one complete-step event and are
+not sent separately to the configured callback.
 
 When `step_observer` is set, `advance(...)` additionally emits one
 [`ABBA4ImplicitIntegrationStep`](../../../../src/simulation/observation.py).
@@ -512,7 +503,7 @@ three base tangents first and then the one exterior projection equation.
 
 ## Public result boundary
 
-After `_integrate_composed_implicit_abba(...)` returns `IntegrationData`, the
+After `integrate_abba(...)` returns `IntegrationData`, the
 existing runner call verifies requested times, history shape, finiteness, the
 unchanged initial sample, and source-layout compatibility. It then constructs
 [`Solution`](../../../../src/simulation/solution.py), which owns read-only

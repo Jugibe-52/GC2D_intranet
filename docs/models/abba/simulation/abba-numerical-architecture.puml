@@ -11,7 +11,7 @@ digraph G {
     bgcolor="white",
     fontname="DejaVu Sans",
     fontsize=12,
-    label="Canonical ABBA Numerical Architecture",
+    label="Historical ABBA Architecture - Before the Shared Runtime Refactor\nCurrent execution: see the ABBA2 and ABBA4 model diagrams",
     labelloc="t",
     labeljust="c"
   ];
