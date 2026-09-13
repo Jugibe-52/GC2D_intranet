@@ -1,7 +1,7 @@
 # Copyright (c) 2023, Cristel Chandre
 # SPDX-License-Identifier: BSD-2-Clause
 
-"""Private twelve-stage base map used by :class:`BM4Implicit`.
+"""Private twelve-stage base map shared by the BM4 methods.
 
 The base method alternates a first-order map with its adjoint using a
 palindromic coefficient sequence.  If ``h`` is the complete step and ``b_j``
@@ -11,7 +11,7 @@ the full coefficient sequence nevertheless sums to one.
 
 This module knows nothing about Hairer's projection.  It traverses exactly one
 unprojected BM4 cycle on whatever internal vector the prepared formulation
-accepts.  ``implicit.py`` places a single projection around that entire cycle.
+accepts. The callers apply their diagonal projection around the entire cycle.
 """
 
 from __future__ import annotations

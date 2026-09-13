@@ -67,10 +67,19 @@ and retain every applicable control and diagnostic below.
   `data/potential/V1/PHI_2.h5` with magnetic field `1.5`, characteristic length
   `0.06`, source-field selection `(0, 1)`, and cubic interpolation unless the
   study explicitly investigates one of those choices.
-- Use three jointly integrated trajectories: one reproducibly offset from the
-  periodic-cell center by `(0.08, -0.06)` cell widths and two spatially
-  distributed Latin-hypercube samples. Use seed `20260905` and a `0.05` domain
-  margin. Plot and tabulate the initial-condition coverage.
+- Use three jointly integrated guiding-center trajectories initially situated
+  along one radius from the periodic-cell center. The default radial distances
+  are `(0.1, 0.2, 0.3)` times the cell period, with angle `0` radians toward +x.
+  Keep the distances and angle explicit and editable in notebooks. This spatial
+  radius is distinct from the gyro-radius `rho`; the particles subsequently
+  follow the HDF5 guiding-center field without a radial constraint or mutual
+  interaction. Plot and tabulate the initial positions.
+- Maintain a reproducible high-precision HDF5 reference and a viewing notebook
+  under `notebooks/developements/`. Use the existing DOP853/Radau reference
+  pipeline, persist its solver settings and field fingerprint, and show the
+  per-particle audit discrepancy. Report the measured discrepancy rather than
+  treating requested tolerances as a guaranteed trajectory error. A focused
+  viewing notebook may use a shorter, explicitly documented time interval.
 - Use `rho = 0.3`, coupling frequency `pi/8`, and 200 normalized cycles with ten
   complete steps per cycle. Save every effective step, producing 2000 steps and
   2001 aligned states. Use minimum-image periodic distance for trajectory error.

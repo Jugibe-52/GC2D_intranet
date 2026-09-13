@@ -4,8 +4,9 @@
 
 ## Scope
 
-`BM4Implicit` is the only public BM4 numerical method. It has one fixed
-geometric construction.
+`BM4Implicit` has one fixed geometric construction. The separate
+[`BM4Midpoint`](../../bm4-midpoint/simulation/bm4-midpoint-simulation-architecture.md)
+method shares its twelve-stage base cycle and uses arithmetic projection.
 
 For a source-order explanation of every implementation symbol, array layout,
 nonlinear branch, observer closure, and diagnostic field, see the
@@ -28,8 +29,8 @@ projected map.
 "Implicit" refers to the reduced multiplier root solve. The twelve
 direct/adjoint maps in the BM4 base cycle are explicit sequential stages.
 
-There is no stage-projected, arithmetic-midpoint, simultaneous-output, or fully
-extended BM4 branch. In particular, the accepted state never includes time or
+`BM4Implicit` has no stage-projected, arithmetic-midpoint, simultaneous-output,
+or fully extended branch. Its accepted state never includes time or
 its conjugate momentum. The duplicated `R^(4p)` value is only internal
 splitting and nonlinear-solver workspace; it is not a fully extended state.
 

@@ -47,6 +47,10 @@ Numerical architecture is organized by model:
   and [`ABBA6Implicit`](docs/models/abba6-implicit/simulation/abba6-implicit-simulation-architecture.md);
 - `BM4Implicit`: [theory](docs/models/bm4-implicit/tex/theory.pdf),
   and [simulation architecture](docs/models/bm4-implicit/simulation/bm4-simulation-architecture.md);
+- `BM4Midpoint`: [theory](docs/models/bm4-midpoint/tex/theory.pdf),
+  and [simulation architecture](docs/models/bm4-midpoint/simulation/bm4-midpoint-simulation-architecture.md).
+  It averages the two copies after each complete twelve-stage cycle, with
+  ABBA-style physical/fully extended state options and optional physical energy tracking;
 - `ExplicitEuler`: [theory](docs/models/explicit-euler/tex/theory.pdf),
   and [simulation](docs/models/explicit-euler/simulation/explicit-euler-simulation-architecture.md);
 - `GaussLegendre4`: [theory](docs/models/gauss-legendre4/tex/theory.pdf),
@@ -473,6 +477,25 @@ nonlinear-work summaries for the implicit runs. The companion animation
 presents sampled trajectories as points without connecting lines.
 
 `run_high_precision_reference_trajectory` constructs a versioned numerical
+reference. The local viewer
+`notebooks/developements/accuracy/h5_three_radial_reference.ipynb` uses the
+measured HDF5 field and three initial positions on one radius, constructed by
+`studies.initial_conditions.radial_gc_configuration`. It targets normalized
+time `T=200` with 20,001 saved states, initial coverage, and per-particle audit
+discrepancies, and saves versioned artifacts for reuse. This development
+notebook remains local and ignored by Git.
+
+The reference runner accepts an optional `progress_callback(method, time,
+nfev, status)` observing accepted steps without changing adaptive integration.
+The viewer uses `diagnostics.reference_progress.reference_progress_log` to flush
+progress to its cell output and a versioned `progress.log` every ten seconds
+after an accepted step. The log identifies Radau (phase 1/2) and DOP853 (phase
+2/2), accepted simulation time, percentage, elapsed wall time and approximate
+ETA for the current solver. ETA excludes the other solver and persistence;
+the final completion message is emitted after artifacts are written. Failures
+and interruptions are logged. Logs are not resumable checkpoints.
+
+The reference pipeline constructs a numerical
 reference for the same interpolated guiding-center ODE with adaptive DOP853 and
 audits its resolution independently with Radau. The stored NPZ/JSON/README
 artifact includes exact initial data, complete solver controls, periodic audit

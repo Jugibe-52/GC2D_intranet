@@ -1,7 +1,7 @@
 """Interoperable numerical methods."""
 
 from ._nonlinear import NONLINEAR_SOLVERS, NonlinearSolver
-from .bm4 import BM4Implicit
+from .bm4 import BM4Implicit, BM4Midpoint
 from .abba import (
 	ABBA2Midpoint,
 	ABBA2Implicit,
@@ -38,6 +38,7 @@ __all__ = [
 	"ABBA4ImplicitSingleProjection",
 	"ABBA6Implicit",
 	"BM4Implicit",
+	"BM4Midpoint",
 	"ExplicitEuler",
 	"GAUSS_JACOBIAN_METHODS",
 	"GaussJacobianMethod",

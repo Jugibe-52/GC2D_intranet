@@ -942,7 +942,7 @@ solution.
 
 ### `BM4Implicit` public dataclass
 
-`BM4Implicit` is a frozen, slotted configuration object and the only public BM4
+`BM4Implicit` is a frozen, slotted configuration object and the implicit BM4
 numerical-method class. It carries no evolving numerical state. An instance can
 describe repeated simulations when its `step_observer` is absent or stateless;
 a stateful observer must be reset or replaced between logically separate runs.

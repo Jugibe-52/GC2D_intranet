@@ -7,11 +7,11 @@ import hashlib
 import json
 from pathlib import Path
 from time import perf_counter
-from typing import Any, Literal, Mapping
+from typing import Any, Callable, Literal, Mapping
 
 import numpy as np
 import scipy
-from scipy.integrate import solve_ivp
+from scipy.integrate import DOP853, Radau, solve_ivp
 
 from diagnostics import (
 	StoredReferenceTrajectory,
@@ -210,14 +210,28 @@ def _solve_adaptive(
 	absolute_tolerance: float,
 	maximum_step: float,
 	method: Literal["DOP853", "Radau"],
+	progress_callback: Callable[[str, float, int, str], None] | None = None,
 ) -> tuple[np.ndarray, AdaptiveReferenceSolveSummary]:
 	"""Run one adaptive reference or cross-check solve on prescribed times."""
 	started = perf_counter()
+	solver_method: Any = method
+	if progress_callback is not None:
+		# Observe accepted steps without restarting the solver or changing its grid.
+		base_solver = DOP853 if method == "DOP853" else Radau
+
+		class ObservedSolver(base_solver):  # type: ignore[misc, valid-type]
+			def step(self) -> str | None:
+				message = super().step()
+				progress_callback(method, float(self.t), int(self.nfev), self.status)
+				return message
+
+		solver_method = ObservedSolver
+		progress_callback(method, float(times[0]), 0, "started")
 	result = solve_ivp(
 		fun=lambda time, state: dynamics.vector_field(time, state),
 		t_span=(float(times[0]), float(times[-1])),
 		y0=np.asarray(initial_state, dtype=float),
-		method=method,
+		method=solver_method,
 		t_eval=times,
 		rtol=relative_tolerance,
 		atol=absolute_tolerance,
@@ -368,8 +382,14 @@ def run_high_precision_reference_trajectory(
 	version: str = "v1",
 	project_root: str | Path | None = None,
 	overwrite: bool = False,
+	progress_callback: Callable[[str, float, int, str], None] | None = None,
 ) -> HighPrecisionReferenceResult:
-	"""Compute, audit, explain, and persist one versioned GC reference."""
+	"""Compute, audit and persist a reference, optionally reporting accepted steps.
+
+	The callback receives method, accepted time, RHS evaluation count and solver
+	status. Radau runs first, followed by DOP853; ``finished`` ends one solver,
+	not artifact persistence. Callback exceptions propagate to the caller.
+	"""
 	if not isinstance(potential, Potential):
 		raise TypeError("`potential` must be a Potential instance.")
 	if not isinstance(initial_configuration, GCInitialConfiguration):
@@ -395,6 +415,7 @@ def run_high_precision_reference_trajectory(
 		absolute_tolerance=config.audit_absolute_tolerance,
 		maximum_step=config.audit_maximum_step,
 		method="Radau",
+		progress_callback=progress_callback,
 	)
 	states, reference_solve = _solve_adaptive(
 		dynamics,
@@ -404,6 +425,7 @@ def run_high_precision_reference_trajectory(
 		absolute_tolerance=config.absolute_tolerance,
 		maximum_step=config.maximum_step,
 		method="DOP853",
+		progress_callback=progress_callback,
 	)
 	audit_distances = particle_distances(
 		states,

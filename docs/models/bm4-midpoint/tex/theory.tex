@@ -1,0 +1,95 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern,amsmath,amssymb,geometry}
+\usepackage[hidelinks]{hyperref}
+\geometry{margin=2.3cm}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0.5em}
+\title{BM4Midpoint: Arithmetic Diagonal Projection}
+\author{GC2D numerical methods}
+\date{}
+\begin{document}
+\maketitle
+\section{Complete-cycle definition}
+For $\dot z=f(t,z)$, embed the accepted state as $E z=(z,z)$ and define
+$P(u,v)=(u+v)/2$. One step is
+\[
+ z_{n+1}=P\Psi_h(Ez_n),
+\]
+where $\Psi_h$ is the same unprojected twelve-stage BM4 composition used by
+BM4Implicit. No projection is applied between stages and no multiplier is
+solved. ``Midpoint'' refers to the final arithmetic mean.
+
+The coefficient vector is $(b_1,\ldots,b_6,b_6,\ldots,b_1)$, where
+\begin{align*}
+b_1&=0.0792036964311957,& b_2&=0.1303114101821663,\\
+b_3&=0.2228614958676077,& b_4&=-0.3667132690474257,\\
+b_5&=0.3246481886897062,& b_6&=0.1096884778767498.
+\end{align*}
+The sum is one to floating-point accuracy. Starting with the adjoint, stages
+alternate adjoint and direct maps with signed duration $d_j=b_jh$.
+If $s_j=t_n+\sum_{i<j}d_i$, an adjoint stage uses $s_j$ and a direct stage uses
+$s_j+d_j$. The negative coefficient also moves the stage clock backwards.
+
+At the chosen evaluation time, let
+\[
+A_d(u,v)=(u,v+d f(t,u)),\qquad
+B_d(u,v)=(u+d f(t,v),v).
+\]
+Let $C_d$ be the exact GC harmonic mixing flow: it preserves the copy mean
+and rotates the spatial difference through angle $2\omega d$.
+The direct map is $C_d\circ B_d\circ A_d$; its adjoint is
+$B_d\circ A_d\circ C_d$. Each stage evaluates the vector field twice.
+Thus one complete step uses 24 evaluations and one arithmetic projection.
+
+\section{State and energy conventions}
+Physical mode packs $p$ particles as $(x_1,\ldots,x_p,y_1,\ldots,y_p)$.
+Its accepted state has dimension $2p$ and its temporary copies have dimension
+$4p$. Optional energy tracking appends $p$ auxiliary momenta. Each shear adds
+$d(-\partial_t H)$ to the summed momentum $k$ at that shear's evaluation
+state. The reported physical momentum is $\kappa=k/2$, initialized at zero.
+These updates are triangular and do not affect the physical trajectory.
+
+\newpage
+\section{Fully extended state}
+As in ABBA2Midpoint, fully extended mode supports one GC particle and uses
+\[
+ Z=(x,y,t,k),\qquad X_K(Z)=(f(t,x,y),1,-\partial_t H(t,x,y)).
+\]
+Both copies contain all four coordinates. Replace $f$ in the two shears by
+$X_K$, evaluate at each copy's intrinsic time, and apply $C_d$ only to the
+spatial coordinates. The same twelve-stage traversal is followed by
+$Z_{n+1}=P\Psi_h(EZ_n)$. Time advances analytically by $h$; the implementation
+checks and synchronizes it after each complete step.
+
+Energy tracking is inherent. The reported momentum is the averaged intrinsic
+$k$, without the physical-mode factor of two. The diagnostic generalized
+energy is $H(t,x,y)+k$. Public solution states contain only $(x,y)$; observers
+receive the accepted four-dimensional map, including perturbations of time
+and momentum.
+
+\section{Order and geometric limitations}
+On the invariant diagonal of the exact extended flow, the two copies follow
+the original dynamics and the harmonic coupling vanishes. For a smooth field,
+the fourth-order unprojected composition therefore satisfies
+\[
+ \Psi_h(Ez)=E\varphi_h(z)+O(h^5).
+\]
+Since $P E=I$ and $P$ is linear, the projected method has local error
+$O(h^5)$ and global order four under the usual stability assumptions.
+The same argument applies to the autonomous fully extended field.
+
+Arithmetic projection discards the copy difference. Consequently, symmetry
+or symplecticity of a base composition alone does not establish exact
+reversibility or symplecticity of the accepted physical map. This method
+makes neither claim. The recorded infinity norm $\|u_f-v_f\|_\infty$ measures
+the discarded separation before projection.
+
+\section{Executable checks}
+The test suite compares the physical map with an independent signed-stage
+replay and checks fourth-order convergence against an exact rotation and a
+tightly integrated nonautonomous reference for both state extensions.
+It also checks momentum normalization against an augmented reference ODE,
+particle batching, persistent observer callbacks, and independence from
+off-grid output sampling. Nonlinear iterations are absent by construction.
+\end{document}

@@ -20,6 +20,31 @@ def domain_center(potential: Potential) -> tuple[float, float]:
 	return grid.xmin + grid.period / 2, grid.ymin + grid.period / 2
 
 
+def radial_gc_configuration(
+	potential: Potential,
+	*,
+	radial_fractions: tuple[float, ...] = (0.1, 0.2, 0.3),
+	angle: float = 0.0,
+) -> GCInitialConfiguration:
+	"""Place guiding centers along one radius, in fractions of the cell period.
+
+	The angle is in radians from +x. Distances are strictly increasing and
+	below half a period so all positions stay inside the centered base cell.
+	These spatial distances are independent of the dynamics' gyro-radius.
+	"""
+	center = np.asarray(domain_center(potential))
+	radii = np.asarray(radial_fractions, dtype=float)
+	if (radii.ndim != 1 or radii.size == 0 or not np.all(np.isfinite(radii))
+		or np.any(radii < 0) or np.any(radii >= 0.5)
+		or np.any(np.diff(radii) <= 0)):
+		raise ValueError("Radial fractions must increase strictly within [0, 0.5).")
+	if not np.isfinite(angle):
+		raise ValueError("The radial angle must be finite.")
+	direction = np.asarray((np.cos(angle), np.sin(angle)))
+	positions = center[:, None] + potential.grid.period * direction[:, None] * radii
+	return GCInitialConfiguration.from_components(x=positions[0], y=positions[1])
+
+
 def centered_circle(
 	potential: Potential,
 	*,
@@ -231,6 +256,7 @@ def latin_hypercube_gc_configuration_with_near_center(
 
 
 __all__ = [
+	"radial_gc_configuration",
 	"centered_circle",
 	"centered_gc_configuration",
 	"centered_gc_trajectory",
