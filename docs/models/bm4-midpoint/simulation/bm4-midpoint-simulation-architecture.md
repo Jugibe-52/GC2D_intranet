@@ -114,3 +114,31 @@ BM4Midpoint's discarded copy separation is plotted independently.
 Reusable orchestration belongs to `src/studies/bm4_projection_comparison.py`,
 persistence to `src/diagnostics/bm4_comparison.py`, and plotting, animation and
 report generation to `src/visualization/bm4_projection_comparison.py`.
+
+### Saved standard reference through normalized time 35
+
+The current `comparison.ipynb` uses the standard saved radial reference at
+`data/trajectory/h5_three_radial_dop853_t35` on its original normalized time
+interval `[0,35]`, with no period conversion. Initial radii are `(0.1,0.2,0.3)`
+times the full cell period. The reference settings are DOP853 tolerances
+`5e-13/5e-15`, maximum step `0.0025`, and Radau tolerances `5e-14/5e-16`, maximum
+step `0.00125`. Both methods take 350 complete steps of size `0.1`.
+
+The runner supports `--standard-reference --compute-only` and
+`--standard-reference --render-only`; results are stored in `standard_t35/`.
+The notebook also contains the full computation and rendering calls and loads
+saved results by default. It exposes all physical, numerical and animation
+parameters. Reference checksums, physical metadata, initial states and the
+effective-field fingerprint must match before the saved reference can be used.
+Output nodes are selected from existing saved samples to floating-point
+roundoff, without interpolation or extrapolation.
+
+`audit_saved_reference_refinement` compares the standard trajectory with the
+existing coarser DOP853 artifact `outputs/developements/accuracy/h5_three_radial/v2`
+over the full `[0,35]` prefix. Its tolerances and maximum step are twice those
+of the standard reference. All 3501 reference samples are retained for the
+per-particle refinement and Radau plots. Historical reference solver runtimes
+describe the original source run to time 200 and are not reported as timings
+for this prefix. Float64 arithmetic, integration errors and empirical reference
+discrepancies are documented separately. No analytic orbit is available for
+the interpolated measured field.

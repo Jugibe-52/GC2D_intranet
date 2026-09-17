@@ -11,6 +11,7 @@ import numpy as np
 
 from potential import Potential
 from dynamics import GuidingCenterDynamics
+from studies.bm4_projection_comparison import summarize_bm4_particles
 
 
 _METHODS = ("BM4Midpoint", "BM4Implicit")
@@ -37,24 +38,17 @@ def plot_bm4_comparison(
 		xlabel="x (normalized)", ylabel="y (normalized)", title="Initial particles on one radius")
 	ax.legend(fontsize=8)
 	figures["initial_particles"] = fig
-	fig, axes = plt.subplots(2, 2, figsize=(11, 7), layout="constrained")
-	for name, color in zip(_METHODS, _COLORS):
-		distances = arrays[f"{name}.distance"]
-		axes[0, 0].semilogy(times[1:], np.sqrt(np.mean(distances[:, 1:]**2, axis=0)), label=name, color=color)
-		axes[1, 0].semilogy(times[1:], np.sqrt(np.mean(arrays[f"{name}.energy_error"][:, 1:]**2, axis=0)), label=name, color=color)
-		row = summary["methods"][name]
-		axes[0, 1].scatter(row["runtime_median_seconds"], row["trajectory_rms"], label=name, color=color, s=60)
-		axes[1, 1].bar(name, row["trajectory_final_rms"], color=color)
-	axes[0, 0].semilogy(times[1:], np.sqrt(np.mean(arrays["reference.distance"][:, 1:]**2, axis=0)), "k--", label="DOP853 / Radau discrepancy")
-	axes[1, 0].semilogy(times[1:], np.sqrt(np.mean(arrays["reference.energy_error"][:, 1:]**2, axis=0)), "k--", label="Reference energy discrepancy")
-	axes[0, 0].set(xlabel="Time", ylabel="Periodic trajectory RMS error", title="Accuracy versus DOP853")
-	axes[1, 0].set(xlabel="Time", ylabel="Physical H RMS error", title="Energy-history agreement (not conservation)")
-	axes[0, 1].set(xlabel="Median runtime (s)", ylabel="Space-time RMS distance", title="Accuracy / runtime", xscale="log", yscale="log")
-	axes[1, 1].set(ylabel="Final periodic RMS distance", ylim=(0, None), title="Final trajectory accuracy")
-	for ax in axes.flat:
-		ax.grid(alpha=.2)
-	for ax in (axes[0, 0], axes[1, 0], axes[0, 1]):
-		ax.legend(fontsize=8)
+	fig, axes = plt.subplots(n, 2, figsize=(12, 3*n), layout="constrained", squeeze=False)
+	for j in range(n):
+		for name, color in zip(_METHODS, _COLORS):
+			axes[j, 0].semilogy(times[1:], np.maximum(arrays[f"{name}.distance"][j, 1:], 1e-18), label=name, color=color)
+			axes[j, 1].semilogy(times[1:], np.maximum(np.abs(arrays[f"{name}.energy_error"][j, 1:]), 1e-18), label=name, color=color)
+		axes[j, 0].set(title=f"P{j+1}: trajectory error vs DOP853", ylabel="Periodic distance")
+		axes[j, 1].set(title=f"P{j+1}: physical energy error vs DOP853", ylabel="Absolute H error")
+		for ax in axes[j]:
+			ax.set_xlabel("Normalized time")
+			ax.grid(alpha=.2)
+			ax.legend(fontsize=8)
 	figures["accuracy"] = fig
 	fig, axes = plt.subplots(1, 2, figsize=(10, 4), layout="constrained")
 	baseline = summary["methods"]["BM4Midpoint"]["runtime_median_seconds"]
@@ -65,35 +59,39 @@ def plot_bm4_comparison(
 		axes[0].scatter(np.full(samples.size, i), samples, color="black", s=15, zorder=4)
 		axes[1].bar(name, median/baseline, color=color)
 		axes[1].text(i, median/baseline, f"{median/baseline:.2f}x", ha="center", va="bottom")
-	axes[0].set(ylabel="Wall-clock seconds", title="Median, IQR and individual repeats")
+	axes[0].set(ylabel="Wall-clock seconds", title="Joint three-particle runtime: median and IQR")
 	axes[1].set(ylabel="Runtime / BM4Midpoint runtime", title="Relative execution time")
 	figures["runtime"] = fig
-	fig, axes = plt.subplots(2, 2, figsize=(11, 7), layout="constrained")
+	fig, axes = plt.subplots(n, 3, figsize=(13, 2.8*n), layout="constrained", squeeze=False)
 	mu = arrays["BM4Implicit.mu"].reshape(2, n, -1)
 	for j in range(n):
-		for component in range(2):
-			axes[component, 0].plot(step_times, mu[component, j], lw=1, color=_COLORS[j % 3], label=f"P{j+1}")
-		axes[0, 1].semilogy(step_times, np.max(np.abs(mu[:, j]), axis=0), color=_COLORS[j % 3], label=f"P{j+1}")
-	axes[0, 1].semilogy(step_times, np.max(np.abs(mu), axis=(0, 1)), "k--", lw=1, label="All particles")
-	axes[0, 0].set(ylabel=r"$\mu_x$", title="BM4Implicit: signed components")
-	axes[1, 0].set(ylabel=r"$\mu_y$", xlabel="Step end time")
-	axes[0, 1].set(ylabel=r"$\|\mu_i\|_\infty$", title="BM4Implicit: multiplier per particle")
-	axes[1, 1].semilogy(step_times, arrays["BM4Midpoint.copy_separation_norms"], color=_COLORS[0])
-	axes[1, 1].set(xlabel="Step end time", ylabel=r"$\|u_f-v_f\|_\infty$", title="BM4Midpoint: copy separation (not mu)")
-	for ax in axes.flat:
-		ax.grid(alpha=.2)
-	for ax in (axes[0, 0], axes[1, 0], axes[0, 1]):
-		ax.legend()
+		for component, label in enumerate(("mu_x", "mu_y")):
+			axes[j, component].plot(step_times, mu[component, j], lw=1, color=_COLORS[j % 3])
+			axes[j, component].set(title=f"P{j+1}: {label}", ylabel=label)
+		axes[j, 2].semilogy(step_times, np.maximum(np.max(np.abs(mu[:, j]), axis=0), 1e-18), color=_COLORS[j % 3])
+		axes[j, 2].set(title=f"P{j+1}: multiplier infinity norm", ylabel="max(|mu_x|, |mu_y|)")
+		for ax in axes[j]:
+			ax.set_xlabel("Step end time")
+			ax.grid(alpha=.2)
+	fig.suptitle("BM4Implicit projection multipliers per particle; BM4Midpoint has no multiplier")
 	figures["multipliers"] = fig
 	fig, axes = plt.subplots(2, 1, figsize=(10, 5), layout="constrained", sharex=True)
 	axes[0].step(step_times, arrays["BM4Implicit.nonlinear_iterations"], where="post", label="Newton corrections")
 	axes[0].step(step_times, arrays["BM4Implicit.residual_evaluations"], where="post", label="Residual evaluations")
-	axes[0].set(ylabel="Count per complete step", title="BM4Implicit nonlinear work; BM4Midpoint has no nonlinear solve")
+	axes[0].set(ylabel="Count per complete step", title="Joint BM4Implicit nonlinear work; BM4Midpoint has no nonlinear solve")
 	axes[0].legend()
 	axes[1].plot(step_times, arrays["BM4Implicit.nonlinear_residual_norms"] / arrays["BM4Implicit.nonlinear_tolerances"])
 	axes[1].axhline(1, color="red", ls="--")
 	axes[1].set(xlabel="Step end time", ylabel="Residual / tolerance")
 	figures["nonlinear_work"] = fig
+	if "reference.refinement_distance" in arrays:
+		fig, axes = plt.subplots(1, n, figsize=(4.5*n, 4), layout="constrained", squeeze=False)
+		full_times = arrays["reference.full_times"]
+		for j, ax in enumerate(axes[0]):
+			ax.semilogy(full_times[1:], np.maximum(arrays["reference.refinement_distance"][j, 1:], 1e-18), color=_COLORS[j % 3])
+			ax.set(xlabel="Normalized time", ylabel="Periodic trajectory discrepancy", title=f"P{j+1}: DOP853 refinement")
+			ax.grid(alpha=.2)
+		figures["reference_validation"] = fig
 	return figures
 
 
@@ -145,12 +143,17 @@ def animate_bm4_comparison(
 				markers[panel][j].set_data([xy[0,j,index]], [xy[1,j,index]])
 		return [title]
 
+	# Layout is constant across frames; solve it once before encoding the video.
+	update(0)
+	fig.canvas.draw()
+	fig.set_layout_engine("none")
 	return FuncAnimation(fig, update, frames=indices.size, interval=1000/fps, blit=False)
 
 
 def render_bm4_comparison(
 	potential: Potential, arrays: dict[str, np.ndarray], metadata: dict[str, Any],
 	output_directory: str | Path, *, frames: int = 201, fps: int = 10,
+	render_animation: bool = True,
 ) -> None:
 	"""Export static scientific figures and an H.264 animation from stored data."""
 	directory = Path(output_directory)
@@ -158,54 +161,57 @@ def render_bm4_comparison(
 	for name, figure in plot_bm4_comparison(arrays, metadata).items():
 		figure.savefig(directory / f"{name}.png", dpi=160)
 		plt.close(figure)
-	effective = GuidingCenterDynamics(potential, rho=metadata["config"]["rho"]).effective_potential
-	animation = animate_bm4_comparison(effective, arrays, frames=frames, fps=fps)
-	animation.save(str(directory / "trajectories.mp4"), writer="ffmpeg", fps=fps, dpi=120,
-		extra_args=["-pix_fmt", "yuv420p", "-movflags", "+faststart"])
-	plt.close(animation._fig)  # type: ignore[attr-defined]
+	if render_animation or not (directory / "trajectories.mp4").exists():
+		effective = GuidingCenterDynamics(potential, rho=metadata["config"]["rho"]).effective_potential
+		animation = animate_bm4_comparison(effective, arrays, frames=frames, fps=fps)
+		animation.save(str(directory / "trajectories.mp4"), writer="ffmpeg", fps=fps, dpi=120,
+			extra_args=["-pix_fmt", "yuv420p", "-movflags", "+faststart"])
+		plt.close(animation._fig)  # type: ignore[attr-defined]
 	write_bm4_report(arrays, metadata, directory)
 
 
 def write_bm4_report(
 	arrays: dict[str, np.ndarray], metadata: dict[str, Any], directory: str | Path,
 ) -> None:
-	"""Write a reviewable numerical report with figures and a playable video."""
+	"""Write per-particle results; keep full numerical provenance in the NPZ."""
 	target = Path(directory)
-	summary = metadata["summary"]
-	rows = summary["methods"]
-	fastest = min(rows, key=lambda name: rows[name]["runtime_median_seconds"])
-	accurate = min(rows, key=lambda name: rows[name]["trajectory_rms"])
-	energy_best = min(rows, key=lambda name: rows[name]["energy_rms"])
-	floor = summary["reference_rms_floor"]
-	conclusion = (f"Fastest median: {fastest}. Smallest trajectory RMS: {accurate}. "
-		f"Smallest physical-energy RMS error: {energy_best}. "
-		f"DOP853/Radau trajectory RMS discrepancy: {floor:.6g}. "
-		"The reference discrepancy estimates numerical resolution, not a rigorous error bound.")
-	if min(row["trajectory_rms"] for row in rows.values()) < 10 * floor:
-		conclusion += " At least one method is within ten times the reference discrepancy; its accuracy ranking needs a tighter reference."
-	headers = ["Method", "Median s", "Q1 s", "Q3 s", "Trajectory RMS", "Final RMS", "Max distance", "Energy RMS", "Max energy error"]
-	keys = ["runtime_median_seconds", "runtime_q1_seconds", "runtime_q3_seconds", "trajectory_rms", "trajectory_final_rms", "trajectory_max", "energy_rms", "energy_max"]
-	data_rows = [[name] + [f"{rows[name][key]:.6g}" for key in keys] for name in _METHODS]
+	particles = summarize_bm4_particles(arrays)
 	def table(headings: list[str], values: list[list[str]]) -> str:
-		return "<table><thead><tr>" + "".join(f"<th>{html.escape(v)}</th>" for v in headings) + "</tr></thead><tbody>" + "".join("<tr>" + "".join(f"<td>{html.escape(v)}</td>" for v in row) + "</tr>" for row in values) + "</tbody></table>"
-	positions = arrays["initial_state"].reshape(2, -1)
-	initial_rows = [[f"P{j+1}", f"{positions[0,j]:.9g}", f"{positions[1,j]:.9g}"] for j in range(positions.shape[1])]
-	mu = summary["mu"]
-	mu_text = "; ".join(f"{key}: {value:.6g}" for key, value in mu.items())
-	work = summary["nonlinear_work"]
+		return "<table><tr>" + "".join(f"<th>{html.escape(v)}</th>" for v in headings) + "</tr>" + "".join("<tr>" + "".join(f"<td>{html.escape(v)}</td>" for v in row) + "</tr>" for row in values) + "</table>"
+	accuracy = []
+	positions = []
+	for p in particles:
+		for name, r in p["methods"].items():
+			accuracy.append([p["particle"], name] + [f"{r[k]:.6e}" for k in ("trajectory_rms", "trajectory_final", "trajectory_max", "energy_rms", "energy_max")])
+		for name, xy in p["positions"].items():
+			positions.append([p["particle"], name] + [f"{v:.9f}" for v in xy])
+	mu = [[p["particle"]] + [f"{p['mu'][k]:.6e}" for k in ("mean", "rms", "maximum", "final")] for p in particles]
+	runtime = [[name] + [f"{metadata['summary']['methods'][name][k]:.6f}" for k in ("runtime_median_seconds", "runtime_q1_seconds", "runtime_q3_seconds")] for name in _METHODS]
+	refinement = [ [p["particle"]] + [f"{p['reference_refinement'][k]:.6e}" for k in ("rms", "maximum")] for p in particles if "reference_refinement" in p]
+	public = {
+		"config": {k: v for k, v in metadata["config"].items() if not k.startswith("audit_")},
+		"potential_parameters": metadata.get("potential_parameters"),
+		"particles": particles,
+		"joint_runtime_seconds": {name: {k: v for k, v in metadata["summary"]["methods"][name].items() if k.startswith("runtime_")} for name in _METHODS},
+		"joint_nonlinear_work": metadata["summary"]["nonlinear_work"],
+	}
 	figures = "".join(f'<figure><img src="{name}.png" alt="{name.replace("_", " ")}"></figure>' for name in ("initial_particles", "accuracy", "runtime", "multipliers", "nonlinear_work"))
-	page = f'''<!doctype html><html lang="en"><meta charset="utf-8"><title>BM4 projection comparison</title>
-<style>body{{font:16px system-ui;max-width:1200px;margin:40px auto;padding:0 24px;color:#172b3a}}table{{border-collapse:collapse;width:100%;font-size:14px}}th,td{{padding:10px;border-bottom:1px solid #ccd5db;text-align:right}}th:first-child,td:first-child{{text-align:left}}img,video{{width:100%}}figure{{margin:30px 0}}pre{{white-space:pre-wrap;background:#f4f6f8;padding:20px}}p{{line-height:1.6}}</style>
-<h1>BM4Midpoint versus BM4Implicit</h1>
-<p>Three radial starts; interval {arrays['times'][0]:g} to {arrays['times'][-1]:g}; {summary['step_count']} complete steps. Physical-state formulations; identical data and save times.</p>
-<p>{html.escape(conclusion)}</p>{table(headers, data_rows)}
-<p>Errors use minimum-image periodic distances. Physical-energy error is disagreement with the DOP853 energy history, not energy conservation. Timings exclude reference generation and the separate multiplier replay.</p>
-<h2>Particle evolution</h2><video controls preload="metadata" poster="initial_particles.png" src="trajectories.mp4"></video>
-<p>Particle colors are consistent across panels. Crosses show initial positions. Trajectories wrap periodically; lines break at the cell boundary.</p>
-<h2>Initial positions</h2>{table(['Particle', 'x', 'y'], initial_rows)}
-<h2>Projection multiplier</h2><p>BM4Implicit global infinity-norm statistics: {mu_text}.</p>
-<p>BM4Midpoint has no mu. Its discarded copy separation is displayed separately.</p>
-<pre>{html.escape(json.dumps(work, indent=2))}</pre>{figures}
-<details><summary>Reproducibility metadata and complete numerical summary</summary><pre>{html.escape(json.dumps(metadata, indent=2))}</pre></details></html>'''
+	ref_section = ("<h2>DOP853 reference refinement per particle</h2>" + table(["Particle", "RMS discrepancy", "Maximum discrepancy"], refinement) + '<img src="reference_validation.png" alt="DOP853 refinement">') if refinement else ""
+	page = f'''<!doctype html><html lang="en"><meta charset="utf-8"><title>BM4 per-particle comparison</title>
+<style>body{{font:16px system-ui;max-width:1300px;margin:40px auto;padding:0 24px;color:#172b3a}}table{{border-collapse:collapse;width:100%;font-size:14px}}th,td{{padding:8px;border-bottom:1px solid #ccd5db;text-align:right}}img,video{{width:100%}}pre{{white-space:pre-wrap}}p{{line-height:1.6}}</style>
+<h1>BM4Midpoint versus BM4Implicit: per-particle results</h1>
+<p>Normalized time [{arrays["times"][0]:g}, {arrays["times"][-1]:g}]; {metadata["summary"]["step_count"]} complete steps. Three radial starts; no averaging across particles.</p>
+<h2>Trajectory and physical-energy errors against DOP853</h2>
+{table(["Particle", "Method", "Trajectory RMS", "Final distance", "Max distance", "Energy RMS", "Max absolute energy error"], accuracy)}
+<p>Trajectory error uses minimum-image periodic distance. RMS is the trapezoidal time integral of squared error divided by elapsed time, then square-rooted. Energy error compares the physical Hamiltonian history, not conservation.</p>
+<h2>Initial and final positions (normalized, unwrapped)</h2>{table(["Particle", "State / method at final time", "x", "y"], positions)}
+<h2>BM4Implicit multiplier infinity norm per particle</h2>{table(["Particle", "Mean", "RMS", "Maximum", "Final"], mu)}
+<p>Multiplier statistics use all accepted steps. BM4Midpoint has no multiplier. Projection occurs once after each complete twelve-stage BM4 map.</p>
+<h2>Joint runtime: all three particles</h2>{table(["Method", "Median seconds", "Q1 seconds", "Q3 seconds"], runtime)}
+<p>These are measured joint integrations, not per-particle timings; they are not divided by three. One warm-up, three alternating serial repetitions, one BLAS thread. Reference generation and diagnostic replay excluded.</p>
+{ref_section}
+<p>Float64 arithmetic (53-bit significand) is distinct from integration accuracy. DOP853 tolerances: rtol=5e-13, atol=5e-15, max_step=0.0025. Coarser reference: 1e-12, 1e-14, 0.005. Refinement uses all saved reference nodes. The measured discrepancy is not a rigorous error bound. No independent analytic trajectory is available.</p>
+<h2>Three-particle evolution</h2><video controls preload="metadata" src="trajectories.mp4"></video>
+{figures}<details><summary>Configuration and per-particle numerical data</summary><pre>{html.escape(json.dumps(public, indent=2))}</pre></details></html>'''
 	(target / "report.html").write_text(page, encoding="utf-8")
-	(target / "summary.json").write_text(json.dumps(metadata, indent=2), encoding="utf-8")
+	(target / "summary.json").write_text(json.dumps(public, indent=2), encoding="utf-8")

@@ -48,6 +48,29 @@ behavior in `src/initial_conditions/`, `src/dynamics/`, `src/potential/`, and
 them. A notebook-local helper is appropriate only when its behavior is unique
 to that study and would not provide stable reusable composition.
 
+## Standard saved radial trajectory reference
+
+Use `data/trajectory/h5_three_radial_dop853_t35` as the default saved DOP853
+reference for the standard three-particle HDF5 radial case. Load it with
+`diagnostics.load_reference_trajectory`; `.times` and `.states` contain the
+reference, while `.audit_states` and `.audit_distances` contain the Radau audit.
+Reuse these saved data instead of repeating reference integrations.
+
+This is an exact prefix of `outputs/developements/accuracy/h5_three_radial_2x_precision/v1`,
+covering **normalized time [0, 35], not 35 oscillation cycles**, with 3501 samples
+at spacing 0.01. Arithmetic is float64. DOP853 uses rtol=5e-13, atol=5e-15 and
+maximum step=0.0025; Radau uses 5e-14, 5e-16 and 0.00125, respectively.
+The measured maximum periodic discrepancy is approximately 5.5044721e-6;
+per-particle maxima are approximately (5.5044721e-6, 2.8218455e-7, 5.8219384e-8).
+These audit discrepancies are not rigorous error bounds. Standard status does
+not establish accuracy below that measured scale. Check matching physical
+settings, initial states and field fingerprint before using the reference.
+
+Keep its NPZ, JSON and README together. Reproduce or verify the copy using
+`notebooks/developements/accuracy/h5_three_radial_reference_2x_precision/export_standard_reference_t35.ipynb`.
+Do not extrapolate it beyond time 35. Longer studies, including the protocol
+below, require a separately audited reference covering their full interval.
+
 ## Standard for fourth-order method comparisons
 
 Use the following protocol as the project standard for long-time comparative

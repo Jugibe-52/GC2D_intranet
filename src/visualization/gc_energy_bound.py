@@ -37,7 +37,7 @@ def plot_energy_histories(result: GCEnergyBoundResult, *, level: int = 0) -> Fig
     for name in METHODS:
         p = f"h{level}/{name}"
         axes[0, 0].plot(t, a[p+"/H"], color=COLORS[name], alpha=.75, label=name)
-        axes[0, 1].plot(t, a[p+"/H_reference_error"], color=COLORS[name], label=name)
+        axes[0, 1].plot(a.get(f"h{level}/comparison_times", t), a[p+"/H_reference_error"], color=COLORS[name], label=name)
         axes[1, 0].plot(t, a[p+"/K_error"], color=COLORS[name], label=name)
         axes[1, 1].loglog((t-t[0])[1:], _positive(a[p+"/K_envelope"][1:]), color=COLORS[name], label=name)
     axes[0, 1].plot(a["reference/times"], a["reference/energy_discrepancy"],
@@ -99,7 +99,7 @@ def plot_gc_accuracy_and_cost(result: GCEnergyBoundResult, *, level: int = 0) ->
     for name in METHODS:
         p = f"h{level}/{name}"
         axes[0, 0].plot(*a[p+"/states"], lw=1, color=COLORS[name], label=name)
-        axes[0, 1].semilogy(t, _positive(a[p+"/distance"]), color=COLORS[name], label=name)
+        axes[0, 1].semilogy(a.get(f"h{level}/comparison_times", t), _positive(a[p+"/distance"]), color=COLORS[name], label=name)
         rows = [r for r in result.summary if r["method"] == name]
         xs = np.array([r["runtime_median"] for r in rows])
         low = xs-np.array([r["runtime_q25"] for r in rows])
@@ -119,7 +119,7 @@ def plot_gc_accuracy_and_cost(result: GCEnergyBoundResult, *, level: int = 0) ->
     radius = max(float(np.max(upper-lower))*.6, .1)
     axes[0, 0].set_xlim(center[0]-radius, center[0]+radius)
     axes[0, 0].set_ylim(center[1]-radius, center[1]+radius)
-    axes[0, 1].set(title="Trajectory error, every saved node", xlabel="Normalized time", ylabel="Minimum-image distance")
+    axes[0, 1].set(title="Trajectory error at shared saved nodes", xlabel="Normalized time", ylabel="Minimum-image distance")
     axes[1, 0].set(title="Accuracy vs physical integration time", xlabel="Median seconds (IQR)", ylabel="Time-RMS periodic distance",
                    xscale="log", yscale="log")
     axes[1, 1].set(title="Absolute runtime comparison", xlabel="Step h", ylabel="Median seconds", xscale="log", yscale="log")
@@ -151,9 +151,16 @@ def animate_energy_orbit(result: GCEnergyBoundResult, *, level: int = 0,
                          frame_count: int = 201, fps: int = 10) -> FuncAnimation:
     """Animate aligned reference/BM4/RK4 states, retaining all states in the result."""
     a = result.arrays; times = a[f"h{level}/times"]
-    stride = (len(a["reference/times"])-1)//(len(times)-1)
-    states = {"DOP853": a["reference/states"][:, ::stride],
-              **{name: a[f"h{level}/{name}/states"] for name in METHODS}}
+    if f"h{level}/comparison_times" in a:
+        times = a[f"h{level}/comparison_times"]
+        ri = a[f"h{level}/comparison_reference_indices"]
+        mi = a[f"h{level}/comparison_method_indices"]
+        states = {"DOP853": a["reference/states"][:, ri],
+                  **{name: a[f"h{level}/{name}/states"][:, mi] for name in METHODS}}
+    else:
+        stride = (len(a["reference/times"])-1)//(len(times)-1)
+        states = {"DOP853": a["reference/states"][:, ::stride],
+                  **{name: a[f"h{level}/{name}/states"] for name in METHODS}}
     frames = np.unique(np.linspace(0, len(times)-1, min(frame_count, len(times)), dtype=int))
     fig, ax = plt.subplots(figsize=(6, 6), constrained_layout=True)
     all_states = np.concatenate(list(states.values()), axis=1)

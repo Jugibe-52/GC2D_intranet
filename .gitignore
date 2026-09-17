@@ -12,13 +12,17 @@ logs/
 *.log
 *.mat
 
-# Only experiment and symbolic-derivation notebooks are versioned. Development
-# notebooks remain local working files outside the supported repository API.
+# Experiment, symbolic-derivation, and developements_2 notebooks are versioned.
+# Notebooks under developements remain local working files.
 notebooks/*
 !notebooks/experiments/
 !notebooks/experiments/**
 !notebooks/sympy/
 !notebooks/sympy/**
+!notebooks/developements_2/
+
+# Keep this oversized notebook local.
+notebooks/developements_2/accuracy/compare_three_order4_r4_models.ipynb
 
 # LaTeX sources and deliberate PDFs are versioned; compiler intermediates are
 # reproducible build products.

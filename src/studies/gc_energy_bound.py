@@ -108,6 +108,17 @@ def envelope_statistics(
     return records
 
 
+def matching_reference_nodes(times: np.ndarray, reference_times: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Return coincident method/reference indices without interpolating either orbit."""
+    right = np.searchsorted(reference_times, times).clip(0, len(reference_times)-1)
+    left = (right-1).clip(0)
+    nearest = np.where(np.abs(reference_times[left]-times) < np.abs(reference_times[right]-times), left, right)
+    selected = np.flatnonzero(np.isclose(times, reference_times[nearest], rtol=0, atol=1e-12))
+    if selected.size < 2 or selected[0] != 0 or selected[-1] != len(times)-1:
+        raise ValueError("Method and reference must share both endpoints and at least two nodes.")
+    return selected, nearest[selected]
+
+
 def _validate_reference(
     reference: StoredReferenceTrajectory, dynamics: GuidingCenterDynamics,
     initial: np.ndarray, config: GCEnergyBoundConfig,
@@ -115,10 +126,15 @@ def _validate_reference(
     """Reject stale references from another field, orbit, radius or time grid."""
     if initial.shape != (2,):
         raise ValueError("This study requires exactly one guiding-center trajectory.")
-    n = integer_ratio(config.t_span[1]-config.t_span[0], config.steps[-1], "reference grid")
-    expected = np.linspace(*config.t_span, n+1)
-    if reference.times.shape != expected.shape or not np.allclose(reference.times, expected, rtol=0, atol=1e-12):
-        raise ValueError("The reference must save every finest-step node.")
+    if not np.allclose(reference.times[[0, -1]], config.t_span, rtol=0, atol=1e-12):
+        raise ValueError("The reference must cover the requested interval exactly.")
+    for step in config.steps:
+        count = integer_ratio(config.t_span[1]-config.t_span[0], step, "duration / step")
+        times = np.linspace(*config.t_span, count+1)
+        indices, _ = matching_reference_nodes(times, reference.times)
+        for horizon in config.horizons:
+            if not np.any(np.isclose(times[indices], config.t_span[0]+horizon, rtol=0, atol=1e-12)):
+                raise ValueError("Every requested horizon must be a shared reference node.")
     if not np.array_equal(reference.initial_state, initial):
         raise ValueError("Reference initial state differs from the requested trajectory.")
     if reference.metadata["dynamics_fingerprint_sha256"] != potential_fingerprint(dynamics.effective_potential):
@@ -175,11 +191,14 @@ def run_gc_energy_bound_study(
             count = integer_ratio(config.t_span[1]-config.t_span[0], step, "duration / step")
             request = SimulationRequest.uniform(t_span=config.t_span, max_step=step, sample_count=count+1)
             times = request.output_times
-            stride = integer_ratio(step, config.steps[-1], "reference stride")
-            ref_states = reference.states[:, ::stride]
-            ref_H = href[::stride]
-            np.testing.assert_allclose(times, tref[::stride], rtol=0, atol=1e-12)
+            method_indices, reference_indices = matching_reference_nodes(times, tref)
+            comparison_times = times[method_indices]
+            ref_states = reference.states[:, reference_indices]
+            ref_H = href[reference_indices]
             arrays[f"h{level}/times"] = times
+            arrays[f"h{level}/comparison_times"] = comparison_times
+            arrays[f"h{level}/comparison_method_indices"] = method_indices
+            arrays[f"h{level}/comparison_reference_indices"] = reference_indices
             timing: dict[str, list[float]] = {name: [] for name in METHODS}
             solutions = {}
             log(f"h={step:g}: {count} steps, {config.timing_repeats} alternating timing repeats.")
@@ -212,8 +231,8 @@ def run_gc_energy_bound_study(
                 solution = solutions[name]
                 H = np.asarray(dynamics.hamiltonian(times, solution.states)).reshape(-1)
                 K_error = H+momenta[name]-H[0]
-                H_error = H-ref_H
-                distance = particle_distances(solution.states, ref_states,
+                H_error = H[method_indices]-ref_H
+                distance = particle_distances(solution.states[:, method_indices], ref_states,
                     distance_convention="periodic", period=potential.grid.period)[0]
                 prefix = f"h{level}/{name}"
                 for label, values in {
@@ -228,17 +247,18 @@ def run_gc_energy_bound_study(
                 quartiles = np.percentile(timing[name], [25, 50, 75])
                 record: dict[str, Any] = {
                     "method": name, "step": step, "steps": count,
-                    "trajectory_rms": time_rms(distance, times),
+                    "comparison_sample_count": len(comparison_times),
+                    "trajectory_rms": time_rms(distance, comparison_times),
                     "trajectory_final": float(distance[-1]),
                     "trajectory_max": float(distance.max()),
-                    "H_error_rms": time_rms(H_error, times),
+                    "H_error_rms": time_rms(H_error, comparison_times),
                     "H_error_max": float(np.max(np.abs(H_error))),
                     "K_error_max": float(np.max(np.abs(K_error))),
                     "K_relative_max": float(np.max(np.abs(K_error)))/energy_scale,
                     "runtime_median": float(quartiles[1]),
                     "runtime_q25": float(quartiles[0]), "runtime_q75": float(quartiles[2]),
-                    "reference_H_floor": float(np.max(np.abs((href-haudit)[::stride]))),
-                    "reference_distance_floor": float(np.max(reference.audit_distances[:, ::stride])),
+                    "reference_H_floor": float(np.max(np.abs((href-haudit)[reference_indices]))),
+                    "reference_distance_floor": float(np.max(reference.audit_distances[:, reference_indices])),
                 }
                 if name == "BM4Implicit":
                     diag = solution.diagnostics
@@ -266,7 +286,7 @@ def run_gc_energy_bound_study(
                     })
                 summary.append(record)
                 for metric, errors in (("K", K_error), ("H_reference", H_error)):
-                    for envelope in envelope_statistics(times, errors, config.horizons):
+                    for envelope in envelope_statistics(times if metric == "K" else comparison_times, errors, config.horizons):
                         envelopes.append({"method": name, "step": step, "metric": metric, **envelope})
                 for block, indices in enumerate(np.array_split(np.arange(1, count+1), min(config.block_count, count)), 1):
                     values = K_error[indices]
@@ -292,6 +312,7 @@ def run_gc_energy_bound_study(
         "convention": "H=gyroaveraged potential; kappa_dot=-partial_t H; K=H+kappa",
         "BM4_energy": "accepted-stage reconstruction; physical Hairer projection; not a fully extended solver",
         "precision": "float64", "all_accepted_nodes_saved": True,
+        "reference_comparison": "Exact shared saved nodes only; no interpolation; energy balance retains every accepted node.",
         "timing": "physical integrations; 1 BLAS thread; alternating order; observers excluded",
     }
     return GCEnergyBoundResult(arrays, metadata, summary, envelopes, blocks, orders)

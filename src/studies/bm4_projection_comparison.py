@@ -1,25 +1,63 @@
 """Audited accuracy, serial timings and multipliers for the two BM4 methods."""
 
 from dataclasses import dataclass, replace
+from collections.abc import Mapping
 from time import perf_counter
+from typing import Any
 
 import numpy as np
 from threadpoolctl import threadpool_limits
 
 from dynamics import GuidingCenterDynamics
+from diagnostics import StoredReferenceTrajectory
 from initial_conditions import GCInitialConfiguration
 from potential import Potential
 from simulation import (
 	BM4Implicit, BM4Midpoint, ImplicitBM4IntegrationStep, InitialValueProblem,
 	IntegrationStep, NumericalMethod, SimulationRequest, simulate,
 )
-from ._gauss_legendre4_common import build_adaptive_reference
+from ._gauss_legendre4_common import AdaptiveReference, build_adaptive_reference
+from ._trajectory_accuracy import validate_reference_identity
 from ._trajectory_distances import particle_distances
 from .reference_trajectory import potential_fingerprint
 from .three_method_newton_comparison import ThreeMethodNewtonComparisonConfig
 
 
 BM4_PROJECTION_METHODS = ("BM4Midpoint", "BM4Implicit")
+
+
+def summarize_bm4_particles(arrays: dict[str, np.ndarray]) -> list[dict[str, Any]]:
+	"""Summarize each trajectory separately, without allocating joint runtimes."""
+	times = arrays["times"]
+	n = arrays["initial_state"].size // 2
+	mu = arrays["BM4Implicit.mu"].reshape(2, n, -1)
+	def rms(values: np.ndarray, grid: np.ndarray) -> float:
+		return float(np.sqrt(np.trapz(values**2, grid) / (grid[-1] - grid[0])))
+	rows = []
+	for j in range(n):
+		row: dict[str, Any] = {"particle": f"P{j+1}", "methods": {}}
+		for name in BM4_PROJECTION_METHODS:
+			distance = arrays[f"{name}.distance"][j]
+			energy = arrays[f"{name}.energy_error"][j]
+			row["methods"][name] = {
+				"trajectory_rms": rms(distance, times),
+				"trajectory_final": float(distance[-1]),
+				"trajectory_max": float(np.max(distance)),
+				"energy_rms": rms(energy, times),
+				"energy_max": float(np.max(np.abs(energy))),
+			}
+		row["positions"] = {"initial": arrays["initial_state"].reshape(2, n)[:, j].tolist()}
+		for name in ("DOP853", *BM4_PROJECTION_METHODS):
+			row["positions"][name] = arrays[f"{name}.states"].reshape(2, n, -1)[:, j, -1].tolist()
+		norm = np.max(np.abs(mu[:, j]), axis=0)
+		row["mu"] = {"mean": float(np.mean(norm)), "rms": float(np.sqrt(np.mean(norm**2))),
+			"maximum": float(np.max(norm)), "final": float(norm[-1])}
+		if "reference.refinement_distance" in arrays:
+			distance = arrays["reference.refinement_distance"][j]
+			row["reference_refinement"] = {"rms": rms(distance, arrays["reference.full_times"]),
+				"maximum": float(np.max(distance))}
+		rows.append(row)
+	return rows
 
 
 @dataclass(frozen=True, slots=True)
@@ -63,11 +101,72 @@ def _rms(values: np.ndarray, times: np.ndarray) -> float:
 	return float(np.sqrt(np.trapz(np.mean(values**2, axis=0), times) / (times[-1] - times[0])))
 
 
+def saved_sample_indices(reference: StoredReferenceTrajectory, times: np.ndarray) -> np.ndarray:
+	"""Select saved nodes to roundoff, never interpolate or extrapolate."""
+	spacing = float(reference.times[1] - reference.times[0])
+	indices = np.rint((times - reference.times[0]) / spacing).astype(np.int64)
+	if np.any(indices < 0) or np.any(indices >= reference.times.size):
+		raise ValueError("Requested times extend beyond the saved reference.")
+	tolerance = float(64 * np.finfo(float).eps * max(1., float(np.max(np.abs(times)))))
+	if not np.allclose(reference.times[indices], times, rtol=0, atol=tolerance):
+		raise ValueError("Requested times must coincide with saved reference samples.")
+	return np.asarray(indices, dtype=np.int64)
+
+
+def audit_saved_reference_refinement(
+	potential: Potential, configuration: GCInitialConfiguration,
+	reference: StoredReferenceTrajectory, coarse: StoredReferenceTrajectory,
+	*, config: BM4ProjectionComparisonConfig,
+	potential_metadata: Mapping[str, object], initial_condition_metadata: Mapping[str, object],
+) -> tuple[dict[str, np.ndarray], dict[str, object]]:
+	"""Compare existing DOP853 refinements over the complete standard prefix.
+
+	Both stored artifacts are validated against the actual interpolated ODE.
+	A smaller maximum step and tighter tolerances establish the refinement;
+	the measured discrepancy remains empirical, not a rigorous error bound.
+	"""
+	for stored in (reference, coarse):
+		stored_span = stored.metadata["config"]["t_span"]
+		validate_reference_identity(potential, configuration, stored,
+			replace(config, t_span=(float(stored_span[0]), float(stored_span[1]))),
+			potential_metadata=potential_metadata, initial_condition_metadata=initial_condition_metadata)
+		if stored.metadata.get("solver") != "DOP853":
+			raise ValueError("The refinement pair must contain DOP853 trajectories.")
+	fine_config, coarse_config = reference.metadata["config"], coarse.metadata["config"]
+	for key in ("relative_tolerance", "absolute_tolerance", "maximum_step"):
+		if fine_config[key] >= coarse_config[key]:
+			raise ValueError("The standard reference must refine step and both tolerances.")
+	indices = saved_sample_indices(coarse, reference.times)
+	distance = particle_distances(reference.states, coarse.states[:, indices],
+		period=potential.grid.period, distance_convention=config.distance_convention)
+	arrays = {"reference.full_times": reference.times,
+		"reference.full_audit_distance": reference.audit_distances,
+		"reference.refinement_distance": distance}
+	summary: dict[str, object] = {
+		"coarse_directory": str(coarse.paths.directory),
+		"coarse_checksum": coarse.metadata["trajectory_sha256"],
+		"fine_checksum": reference.metadata["trajectory_sha256"],
+		"coarse_solver_settings": coarse_config, "fine_solver_settings": fine_config,
+		"t_span": [float(reference.times[0]), float(reference.times[-1])],
+		"refinement_rms": _rms(distance, reference.times),
+		"refinement_maximum": float(distance.max()),
+		"refinement_maximum_per_particle": distance.max(axis=1).tolist(),
+		"radau_maximum": float(reference.audit_distances.max()),
+		"radau_maximum_per_particle": reference.audit_distances.max(axis=1).tolist(),
+		"arithmetic": "IEEE 754 float64 (53-bit significand), distinct from integration error.",
+		"interpretation": "Empirical refinement and cross-solver discrepancies, not rigorous bounds. No independent analytic solution is available for this measured interpolated field.",
+	}
+	return arrays, summary
+
+
 def run_bm4_projection_comparison(
 	potential: Potential,
 	configuration: GCInitialConfiguration,
 	*,
 	config: BM4ProjectionComparisonConfig,
+	saved_reference: StoredReferenceTrajectory | None = None,
+	potential_metadata: Mapping[str, object] | None = None,
+	initial_condition_metadata: Mapping[str, object] | None = None,
 ) -> tuple[dict[str, np.ndarray], dict[str, object]]:
 	"""Run aligned methods, audited references and a separate multiplier replay.
 
@@ -101,21 +200,42 @@ def run_bm4_projection_comparison(
 			print(message, flush=True)
 
 	with threadpool_limits(limits=1):
-		log("Computing DOP853 reference and independent Radau audit.")
-		reference = build_adaptive_reference(dynamics, problem.initial_state, times,
-			period=period, distance_convention=config.distance_convention,
-			relative_tolerance=config.reference_relative_tolerance,
-			absolute_tolerance=config.reference_absolute_tolerance,
-			maximum_step=config.reference_maximum_step,
-			audit_relative_tolerance=config.audit_relative_tolerance,
-			audit_absolute_tolerance=config.audit_absolute_tolerance,
-			audit_maximum_step=config.audit_maximum_step)
+		if saved_reference is None:
+			log("Computing DOP853 reference and independent Radau audit.")
+			reference = build_adaptive_reference(dynamics, problem.initial_state, times,
+				period=period, distance_convention=config.distance_convention,
+				relative_tolerance=config.reference_relative_tolerance,
+				absolute_tolerance=config.reference_absolute_tolerance,
+				maximum_step=config.reference_maximum_step,
+				audit_relative_tolerance=config.audit_relative_tolerance,
+				audit_absolute_tolerance=config.audit_absolute_tolerance,
+				audit_maximum_step=config.audit_maximum_step)
+		else:
+			if potential_metadata is None or initial_condition_metadata is None:
+				raise ValueError("Saved reference reuse requires explicit physical metadata.")
+			validate_reference_identity(potential, configuration, saved_reference, config,
+				potential_metadata=potential_metadata, initial_condition_metadata=initial_condition_metadata)
+			if saved_reference.metadata.get("solver") != "DOP853" or saved_reference.metadata.get("audit_solver") != "Radau":
+				raise ValueError("Expected a saved DOP853 reference with a Radau audit.")
+			for field, key in (("reference_relative_tolerance", "relative_tolerance"),
+				("reference_absolute_tolerance", "absolute_tolerance"), ("reference_maximum_step", "maximum_step"),
+				("audit_relative_tolerance", "audit_relative_tolerance"),
+				("audit_absolute_tolerance", "audit_absolute_tolerance"), ("audit_maximum_step", "audit_maximum_step")):
+				if getattr(config, field) != saved_reference.metadata["config"][key]:
+					raise ValueError(f"Saved reference setting differs: {field}.")
+			indices = saved_sample_indices(saved_reference, times)
+			reference = AdaptiveReference(times, saved_reference.states[:, indices],
+				saved_reference.audit_states[:, indices], saved_reference.audit_distances[:, indices],
+				0.0, 0.0, 0, 0)
+			log(f"Reusing verified saved DOP853/Radau reference: {saved_reference.paths.directory}")
 		arrays["DOP853.states"] = reference.states
 		arrays["Radau.states"] = reference.audit_states
 		arrays["reference.distance"] = reference.audit_distances
-		log(f"References completed: DOP853 {reference.dop853_runtime_seconds:.2f}s; Radau {reference.radau_runtime_seconds:.2f}s.")
+		if saved_reference is None:
+			log(f"References completed: DOP853 {reference.dop853_runtime_seconds:.2f}s; Radau {reference.radau_runtime_seconds:.2f}s.")
 		for _ in range(config.timing_warmups):
 			for name in BM4_PROJECTION_METHODS:
+				log(f"Warming up {name}.")
 				simulate(problem, methods[name], request)
 		runtime_samples: dict[str, list[float]] = {name: [] for name in methods}
 		solutions = {}
@@ -152,6 +272,8 @@ def run_bm4_projection_comparison(
 		"reference_final_floor": reference.final_rms_floor,
 		"reference_energy_rms_floor": _rms(arrays["reference.energy_error"], times),
 		"reference_seconds": {"DOP853": reference.dop853_runtime_seconds, "Radau": reference.radau_runtime_seconds},
+		"reference_reused": saved_reference is not None,
+		"reference_seconds_scope": "Reference integration time incurred by this comparison; zero when reusing saved arrays.",
 		"timing_policy": "Serial alternating order; one BLAS thread; references and observer replay excluded.",
 		"mu_note": "Only BM4Implicit has a projection multiplier. Midpoint copy separation is a different diagnostic.",
 	}

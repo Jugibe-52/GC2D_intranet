@@ -1,0 +1,138 @@
+{
+  "arithmetic": "IEEE 754 float64; arithmetic precision is distinct from integration error.",
+  "artifact_kind": "high_precision_gc_reference_trajectory",
+  "audit": {
+    "final_maximum_distance": 5.424802275897733e-06,
+    "final_rms_distance": 3.135441538973352e-06,
+    "global_rms_distance": 6.676607618520664e-07,
+    "maximum_distance": 5.504472094580963e-06,
+    "maximum_state_component_difference": 4.9799788008897394e-06
+  },
+  "audit_maximum_distance_per_particle": [
+    5.504472094580963e-06,
+    2.821845529359257e-07,
+    5.82193842740151e-08
+  ],
+  "audit_solve": {
+    "absolute_tolerance": 5e-16,
+    "function_evaluations": 9164666,
+    "jacobian_evaluations": 2,
+    "lu_decompositions": 199154,
+    "maximum_step": 0.00125,
+    "message": "The solver successfully reached the end of the integration interval.",
+    "method": "Radau",
+    "relative_tolerance": 5e-14,
+    "runtime_seconds": 7103.365030566998
+  },
+  "audit_solver": "Radau",
+  "config": {
+    "absolute_tolerance": 5e-15,
+    "audit_absolute_tolerance": 5e-16,
+    "audit_maximum_step": 0.00125,
+    "audit_relative_tolerance": 5e-14,
+    "distance_convention": "periodic",
+    "maximum_step": 0.0025,
+    "relative_tolerance": 5e-13,
+    "rho": 0.3,
+    "save_interval": 0.01,
+    "t_span": [
+      0.0,
+      35.0
+    ]
+  },
+  "created_at": "2026-09-13T18:41:24.569497+02:00",
+  "dynamics_fingerprint_algorithm": "gc2d-sampled-potential-v1-sha256",
+  "dynamics_fingerprint_sha256": "0caa0a26e718a2c2dcc88265691c0a1ab3aef5116e5c7469387fe13e22bd3db1",
+  "extraction": "Exact saved-sample prefix; no integration, interpolation or resampling.",
+  "initial_conditions": {
+    "angle_radians": 0.0,
+    "center": [
+      9.424777960765095,
+      9.424777960765095
+    ],
+    "geometry": "one radial segment",
+    "radial_fractions": [
+      0.1,
+      0.2,
+      0.3
+    ],
+    "x": [
+      11.309733552918114,
+      13.194689145071132,
+      15.07964473722415
+    ],
+    "y": [
+      9.424777960765095,
+      9.424777960765095,
+      9.424777960765095
+    ]
+  },
+  "numpy_version": "1.26.4",
+  "particle_count": 3,
+  "potential": {
+    "B": 1.5,
+    "characteristic_length": 0.06,
+    "indx": [
+      0,
+      1
+    ],
+    "interpolation_order": 3,
+    "source": "/home/juan/Proyectos/GC2D_intranet/data/potential/V1/PHI_2.h5",
+    "spatial_normalization": "characteristic_length"
+  },
+  "potential_grid": {
+    "dx": 0.07363107781844382,
+    "dy": 0.07363107781851078,
+    "interpolation_order": 3,
+    "nx": 256,
+    "ny": 256,
+    "period": 18.84955592153019,
+    "shape": [
+      256,
+      256
+    ],
+    "xmin": 0.0,
+    "ymin": 0.0
+  },
+  "reference_name": "h5_three_radial_dop853_t35",
+  "reference_solve": {
+    "absolute_tolerance": 5e-15,
+    "function_evaluations": 2286485,
+    "jacobian_evaluations": 0,
+    "lu_decompositions": 0,
+    "maximum_step": 0.0025,
+    "message": "The solver successfully reached the end of the integration interval.",
+    "method": "DOP853",
+    "relative_tolerance": 5e-13,
+    "runtime_seconds": 1533.2065529700012
+  },
+  "schema_version": 2,
+  "scipy_version": "1.17.1",
+  "solver": "DOP853",
+  "source_artifact": {
+    "config": {
+      "absolute_tolerance": 5e-15,
+      "audit_absolute_tolerance": 5e-16,
+      "audit_maximum_step": 0.00125,
+      "audit_relative_tolerance": 5e-14,
+      "distance_convention": "periodic",
+      "maximum_step": 0.0025,
+      "relative_tolerance": 5e-13,
+      "rho": 0.3,
+      "save_interval": 0.01,
+      "t_span": [
+        0.0,
+        200.0
+      ]
+    },
+    "created_at": "2026-09-13T16:49:05.821268+02:00",
+    "directory": "outputs/developements/accuracy/h5_three_radial_2x_precision/v1",
+    "solver_summary_scope": "Inherited solve summaries describe the full source integration to time 200.",
+    "trajectory_sha256": "1291c63445e3f74b82b04774e01478a1b78d428c24cfb62547074d3b0a43c479"
+  },
+  "source_notebook": "notebooks/developements/accuracy/h5_three_radial_reference_2x_precision/export_standard_reference_t35.ipynb",
+  "standard_reference": true,
+  "state_layout": "component_major_[x_1..x_N,y_1..y_N]",
+  "trajectory_sha256": "9681bc2662210314a34f6d8eb3a6ee55d79a77d2a81283d3aef42c15c2e895e4",
+  "version": "v1"
+}

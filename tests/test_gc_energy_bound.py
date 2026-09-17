@@ -7,10 +7,20 @@ import unittest
 import numpy as np
 
 from diagnostics.gc_energy_bound import load_energy_bound_result, save_energy_bound_result
-from studies.gc_energy_bound import GCEnergyBoundConfig, GCEnergyBoundResult, envelope_statistics, time_rms
+from studies.gc_energy_bound import GCEnergyBoundConfig, GCEnergyBoundResult, envelope_statistics, time_rms, matching_reference_nodes
 
 
 class GCEnergyBoundTests(unittest.TestCase):
+    def test_quarter_step_matches_only_existing_reference_nodes(self) -> None:
+        times = np.linspace(0, 35, 1401)
+        reference_times = np.linspace(0, 35, 3501)
+        mi, ri = matching_reference_nodes(times, reference_times)
+        np.testing.assert_array_equal(mi, np.arange(0, 1401, 2))
+        np.testing.assert_array_equal(ri, np.arange(0, 3501, 5))
+        np.testing.assert_allclose(times[mi], reference_times[ri], rtol=0, atol=1e-12)
+        with self.assertRaises(ValueError):
+            matching_reference_nodes(times, reference_times[:-1])
+
     def test_envelope_keeps_interior_peak_and_signed_excursions(self) -> None:
         times = np.arange(9, dtype=float) / 4
         errors = np.array([0, 1, -9, 2, 1, 0, -3, 0, 2.])
