@@ -70,7 +70,7 @@ class TrajectorySymplecticityConfig:
 	newton_relative_tolerance: float = 1e-12
 	newton_max_iterations: int = 16
 	newton_jacobian_relative_step: float = float(np.cbrt(np.finfo(float).eps))
-	coupling_frequency: float = float(np.pi / 8.0)
+	coupling_frequency: float = 0.0
 
 	def __post_init__(self) -> None:
 		"""Validate aligned output grids and nonlinear solver controls."""

@@ -2,6 +2,13 @@
 
 ![BM4Implicit physical Hairer-projection lifecycle](bm4-simulation-architecture.png)
 
+Read the six numbered phases from left to right, then follow each column down:
+physical inputs, run definition, preparation, integration, accepted-step records,
+and the final result. The layout follows the ABBA4 architecture diagram while
+showing BM4's implemented components and reduced Hairer solve. The previous
+diagram is preserved as [the old source](bm4-simulation-architecture-old.puml)
+and [the old rendering](bm4-simulation-architecture-old.png).
+
 ## Scope
 
 `BM4Implicit` has one fixed geometric construction. The separate
@@ -60,7 +67,7 @@ its state contract.
 
 | Field | Meaning | Default |
 |---|---|---|
-| `coupling_frequency` | Harmonic coupling frequency of the duplicated GC map | `pi/8` |
+| `coupling_frequency` | Harmonic coupling frequency of the duplicated GC map; zero disables mixing while retaining the reduced Hairer projection | `0.0` |
 | `newton_absolute_tolerance` | Absolute nonlinear stopping tolerance | `1e-13` |
 | `newton_relative_tolerance` | State-scaled relative stopping tolerance | `1e-12` |
 | `newton_max_iterations` | Maximum nonlinear corrections | `12` |

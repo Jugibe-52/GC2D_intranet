@@ -949,7 +949,7 @@ a stateful observer must be reset or replaced between logically separate runs.
 
 | Field | Default | Validation and effect |
 |---|---:|---|
-| `coupling_frequency` | `pi/8` | Finite and non-negative; configures the exact doubled-copy harmonic coupling |
+| `coupling_frequency` | `0.0` | Finite and non-negative; zero disables doubled-copy harmonic coupling while retaining the reduced Hairer projection |
 | `newton_absolute_tolerance` | `1e-13` | Finite and strictly positive; absolute part of every nonlinear threshold |
 | `newton_relative_tolerance` | `1e-12` | Finite and strictly positive; multiplies the input-state infinity scale |
 | `newton_max_iterations` | `12` | Positive integer; maximum Newton or Broyden corrections |

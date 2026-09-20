@@ -272,7 +272,7 @@ class HBVM42BM4ComparisonConfig:
 	max_iterations: int = 12
 	jacobian_method: HBVMJacobianMethod = "analytic"
 	jacobian_relative_step: float = float(np.cbrt(np.finfo(float).eps))
-	coupling_frequency: float = float(np.pi / 8.0)
+	coupling_frequency: float = 0.0
 	reference_relative_tolerance: float = 2e-13
 	reference_absolute_tolerance: float = 2e-15
 	reference_maximum_step: float = 0.002

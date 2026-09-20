@@ -78,7 +78,7 @@ class ImplicitMethodAccuracyConfig:
 	t_span: tuple[float, float] = (0.0, 4.0)
 	save_interval: float = 0.01
 	rho: float = 0.0
-	coupling_frequency: float = float(np.pi / 8.0)
+	coupling_frequency: float = 0.0
 	absolute_tolerance: float = 1e-14
 	relative_tolerance: float = 1e-13
 	max_iterations: int = 40

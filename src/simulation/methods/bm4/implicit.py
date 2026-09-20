@@ -796,6 +796,7 @@ class BM4Implicit:
 	----------
 	coupling_frequency:
 		Non-negative harmonic mixing frequency for the two internal GC copies.
+		Defaults to zero (no mixing); the reduced Hairer projection remains active.
 	newton_absolute_tolerance, newton_relative_tolerance:
 		Positive terms in the reduced-residual stopping threshold
 		``atol + rtol * max(1, ||z_n||_inf)``.  These controls also apply when
@@ -821,7 +822,7 @@ class BM4Implicit:
 	"""
 
 	# Harmonic coupling of the two temporary physical copies.
-	coupling_frequency: float = np.pi / 8
+	coupling_frequency: float = 0.0
 	# State-scaled stopping threshold and common nonlinear correction limit.
 	newton_absolute_tolerance: float = 1e-13
 	newton_relative_tolerance: float = 1e-12

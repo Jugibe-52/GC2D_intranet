@@ -28,7 +28,7 @@ class GCEnergyBoundConfig:
     steps: tuple[float, ...] = (0.1, 0.05, 0.025)
     horizons: tuple[float, ...] = (1.0, 5.0, 10.0, 25.0, 50.0, 100.0, 200.0)
     rho: float = 0.3
-    coupling_frequency: float = float(np.pi / 8)
+    coupling_frequency: float = 0.0
     newton_atol: float = 1e-12
     newton_rtol: float = 1e-11
     newton_max_iterations: int = 40

@@ -50,7 +50,7 @@ class GeneralizedEnergyConfig:
 	t_span: tuple[float, float]
 	output_sample_count: int
 	rho: float | None = None
-	coupling_frequency: float = np.pi / 8
+	coupling_frequency: float = 0.0
 	newton_absolute_tolerance: float = 1e-13
 	newton_relative_tolerance: float = 1e-12
 	newton_max_iterations: int = 12

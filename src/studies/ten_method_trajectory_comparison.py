@@ -86,7 +86,7 @@ class TenMethodTrajectoryComparisonConfig:
 	"""Common physical grid and nonlinear controls for all seven variants."""
 
 	rho: float = 0.3
-	coupling_frequency: float = float(np.pi / 8.0)
+	coupling_frequency: float = 0.0
 	t_span: tuple[float, float] = (0.0, 2.0)
 	integration_step: float = 0.05
 	save_interval: float | None = None

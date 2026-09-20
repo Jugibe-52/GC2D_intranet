@@ -87,7 +87,7 @@ class FullyExtendedImplicitConfig:
 	t_span: tuple[float, float]
 	output_sample_count: int = 201
 	rho: float | None = None
-	coupling_frequency: float = float(np.pi / 8.0)
+	coupling_frequency: float = 0.0
 	newton_absolute_tolerance: float = 1e-14
 	newton_relative_tolerance: float = 1e-13
 	newton_max_iterations: int = 30

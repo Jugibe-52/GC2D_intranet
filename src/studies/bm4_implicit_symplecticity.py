@@ -28,7 +28,7 @@ class BM4ImplicitSymplecticityConfig(GCSymplecticityConfig):
 	"""Reproducible grids and nonlinear controls for projected BM4 studies."""
 
 	block_prefix: str = "bm4_implicit_symplecticity"
-	coupling_frequency: float = float(np.pi / 8)
+	coupling_frequency: float = 0.0
 	newton_absolute_tolerance: float = 1e-13
 	newton_relative_tolerance: float = 1e-12
 	newton_max_iterations: int = 12

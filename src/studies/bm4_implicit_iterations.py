@@ -49,7 +49,7 @@ class BM4ImplicitIterationStudyConfig:
 	"""Physical, numerical, and observer controls for one BM4 iteration run."""
 
 	rho: float = 0.3
-	coupling_frequency: float = float(np.pi / 8.0)
+	coupling_frequency: float = 0.0
 	t_span: tuple[float, float] = (0.0, 1.0)
 	max_step: float = 0.01
 	sample_count: int = 101

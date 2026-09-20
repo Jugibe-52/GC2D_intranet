@@ -29,7 +29,7 @@ class ParallelBM4RecurrenceConfig:
 	steps_per_cycle: int = 40
 	saved_samples_per_cycle: int = 1
 	rho: float = 0.3
-	coupling_frequency: float = float(np.pi / 8.0)
+	coupling_frequency: float = 0.0
 	absolute_tolerance: float = 1e-12
 	relative_tolerance: float = 1e-11
 	max_iterations: int = 40

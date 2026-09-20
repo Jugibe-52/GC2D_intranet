@@ -1,0 +1,291 @@
+@startdot
+digraph G {
+  // Keep the same Graphviz-based boundary and lifecycle structure as ABBA4Implicit.
+  graph [
+    rankdir=LR,
+    compound=true,
+    splines=ortho,
+    nodesep=0.30,
+    ranksep=0.72,
+    pad=0.20,
+    bgcolor="white",
+    fontname="DejaVu Sans",
+    fontsize=12,
+    label="BM4Implicit Physical Hairer-Projection Architecture",
+    labelloc="t",
+    labeljust="c"
+  ];
+  node [shape=record, style="filled", color="#333333", fillcolor="#F7F7F7", fontname="DejaVu Sans", fontsize=10, margin="0.10,0.07"];
+  edge [color="#333333", penwidth=1.0, arrowsize=0.72, fontname="DejaVu Sans", fontsize=9];
+
+  subgraph cluster_inherited {
+    label="Inherited boundary";
+    labeljust="l";
+    color="#777777";
+    penwidth=1.0;
+    style="rounded";
+
+    inherited_anchor [shape=point, width=0, height=0, label="", style=invis];
+    DynamicalSystem [label="«protocol»\nsrc/dynamics/protocols.py\nDynamicalSystem|state_dimension\lvector_field(t, state)\l"];
+    GuidingCenterJacobianSystem [label="«protocol»\nsrc/dynamics/protocols.py\nGuidingCenterJacobianSystem|particle_vector_field_jacobians(...)\l"];
+    GuidingCenterDynamics [label="«implementation»\nsrc/dynamics/gc.py\nGuidingCenterDynamics|state_dimension = 2\lvector_field(t, state)\lparticle_vector_field_jacobians(...)\l"];
+    { rank=same; inherited_anchor; DynamicalSystem; GuidingCenterJacobianSystem; GuidingCenterDynamics; }
+  }
+
+  subgraph cluster_run {
+    label="Run assembly";
+    labeljust="l";
+    color="#555555";
+    penwidth=1.2;
+    style="rounded";
+
+    subgraph cluster_problem {
+      label="1. Initial value problem";
+      labeljust="l";
+      color="#A0A0A0";
+      style="rounded";
+      problem_anchor [shape=point, width=0, height=0, label="", style=invis];
+      InitialValueProblem [label="«value»\nsrc/simulation/problem.py\nInitialValueProblem|Binds dynamics to initial configuration\lChecks state-dimension compatibility\l"];
+      { rank=same; problem_anchor; InitialValueProblem; }
+    }
+
+    subgraph cluster_state_contracts {
+      label="2. State contracts";
+      labeljust="l";
+      color="#A0A0A0";
+      style="rounded";
+      state_contracts_anchor [shape=point, width=0, height=0, label="", style=invis];
+      InitialConfiguration [label="«protocol»\nsrc/simulation/configuration.py\nInitialConfiguration|Supplies initial_state\lExposes StateLayout\l"];
+      StateLayout [label="«protocol»\nsrc/simulation/configuration.py\nStateLayout|state_dimension\lvalidate_packed_state_layout(...)\lsplit(...) / particle_count(...)\lpositions(...)\l"];
+      { rank=same; state_contracts_anchor; InitialConfiguration; StateLayout; }
+    }
+
+    subgraph cluster_gc_state {
+      label="3. Concrete physical state";
+      labeljust="l";
+      color="#A0A0A0";
+      style="rounded";
+      concrete_state_anchor [shape=point, width=0, height=0, label="", style=invis];
+      GCInitialConfiguration [label="«concrete»\nsrc/initial_conditions/gc.py\nGCInitialConfiguration|layout: GCStateLayout\lfrom_components(x, y)\lphysical state z in R^(2p) for p particles\l"];
+      { rank=same; concrete_state_anchor; GCInitialConfiguration; }
+    }
+
+    subgraph cluster_shared_state {
+      label="4. Shared state implementation";
+      labeljust="l";
+      color="#A0A0A0";
+      style="rounded";
+      shared_state_anchor [shape=point, width=0, height=0, label="", style=invis];
+      StateConfiguration [label="«abstract storage»\nsrc/initial_conditions/base.py\nStateConfiguration|initial_state\labstract layout property\lcompatibility forwarding methods\l"];
+      PackedStateLayout [label="«shared layout»\nsrc/initial_conditions/base.py\nPackedStateLayout|validate / split / particle_count\las_blocks(...) / from_blocks(...)\lpack_components(...)\l"];
+      { rank=same; shared_state_anchor; StateConfiguration; PackedStateLayout; }
+    }
+
+    subgraph cluster_request {
+      label="5. Time request";
+      labeljust="l";
+      color="#A0A0A0";
+      style="rounded";
+      request_anchor [shape=point, width=0, height=0, label="", style=invis];
+      SimulationRequest [label="«value»\nsrc/simulation/request.py\nSimulationRequest|Time span\lMaximum step\lRequested output times\l"];
+      { rank=same; request_anchor; SimulationRequest; }
+    }
+
+    subgraph cluster_runner {
+      label="6. Simulation facade";
+      labeljust="l";
+      color="#A0A0A0";
+      style="rounded";
+      runner_anchor [shape=point, width=0, height=0, label="", style=invis];
+      SimulationRunner [label="«facade»\nsrc/simulation/runner.py\nSimulationRunner|simulate(problem, method, request)\lValidates public inputs and returned arrays\lBuilds the public Solution\l"];
+      { rank=same; runner_anchor; SimulationRunner; }
+    }
+
+    subgraph cluster_method {
+      label="7. Single BM4 public method";
+      labeljust="l";
+      color="#A0A0A0";
+      style="rounded";
+      method_anchor [shape=point, width=0, height=0, label="", style=invis];
+      NumericalMethod [label="«protocol»\nsrc/simulation/methods/base.py\nNumericalMethod|integrate(problem, request)\l"];
+      BM4Implicit [fillcolor="#FFF3D6", label="«public method»\nsrc/simulation/methods/bm4/implicit.py\nBM4Implicit|coupling_frequency\lnonlinear_solver: newton or broyden\lNewton tolerances and Jacobian strategy\lprogress / step_observer\lintegrate(problem, request)\l"];
+      MethodInvariant [shape=note, fillcolor="#FFFDEB", color="#B8AE6F", label="One class and one map:\nphysical accepted state, reduced multiplier,\nand one Hairer projection around each\ncomplete twelve-stage BM4 cycle."];
+      { rank=same; method_anchor; NumericalMethod; BM4Implicit; MethodInvariant; }
+    }
+  }
+
+  subgraph cluster_integration {
+    label="BM4Implicit integration";
+    labeljust="l";
+    color="#555555";
+    penwidth=1.2;
+    style="rounded";
+
+    subgraph cluster_integration_dispatch {
+      label="1. Public dispatch";
+      labeljust="l";
+      color="#A0A0A0";
+      style="rounded";
+      dispatch_anchor [shape=point, width=0, height=0, label="", style=invis];
+      MethodDispatch [fillcolor="#EEE3F5", label="«fixed dispatch»\nBM4Implicit.integrate(...)|Call _integrate_implicit_bm4(...)\lNo projection or state-space selector\l"];
+      { rank=same; dispatch_anchor; MethodDispatch; }
+    }
+
+    subgraph cluster_integration_coordinator {
+      label="2. Physical integration coordinator";
+      labeljust="l";
+      color="#A0A0A0";
+      style="rounded";
+      coordinator_anchor [shape=point, width=0, height=0, label="", style=invis];
+      ImplicitCoordinator [fillcolor="#FFF3D6", label="«coordinator»\nsrc/simulation/methods/bm4/implicit.py\n_integrate_implicit_bm4(...)|Prepare physical two-copy GC map\lAccepted / base / observer: R2p / R4p / R2p\lCollect solve and multiplier metrics\l"];
+      { rank=same; coordinator_anchor; ImplicitCoordinator; }
+    }
+
+    subgraph cluster_integration_fixed_grid {
+      label="3. Fixed-grid scheduler";
+      labeljust="l";
+      color="#A0A0A0";
+      style="rounded";
+      fixed_anchor [shape=point, width=0, height=0, label="", style=invis];
+      FixedGrid [label="«shared outer time loop»\nsrc/simulation/_fixed.py\nintegrate_fixed_grid(...)|Build the output-independent main grid\lRequest main and shadow advances\l"];
+      FixedGridNote [shape=note, fillcolor="#FFFDEB", color="#B8AE6F", label="One main advance means one complete\nBM4 cycle and one reduced projection solve.\nShadow advances only produce samples."];
+      { rank=same; fixed_anchor; FixedGrid; FixedGridNote; }
+    }
+
+    subgraph cluster_integration_composition {
+      label="4. Fourth-order composition";
+      labeljust="l";
+      color="#A0A0A0";
+      style="rounded";
+      composition_anchor [shape=point, width=0, height=0, label="", style=invis];
+      BM4Coefficients [fillcolor="#EEE3F5", label="«composition data»\nsrc/simulation/methods/bm4/_core.py\n_BM4_HALF_STAGES / _BM4_STAGES|Six coefficients mirrored palindromically\lOne coefficient is negative\lTwelve signed maps per complete step\l"];
+      AdvanceComposition [fillcolor="#EEE3F5", label="«complete base cycle»\nsrc/simulation/methods/bm4/_core.py\n_advance_composition(...)|Alternate adjoint and direct maps\lAdvance the signed composition clock\lNo intermediate projection\l"];
+      { rank=same; composition_anchor; BM4Coefficients; AdvanceComposition; }
+    }
+
+    subgraph cluster_integration_formulation {
+      label="5. Doubled physical formulation";
+      labeljust="l";
+      color="#A0A0A0";
+      style="rounded";
+      formulation_anchor [shape=point, width=0, height=0, label="", style=invis];
+      GCExtendedFormulation [fillcolor="#E7F0FA", label="«internal formulation»\nsrc/simulation/formulations/gc.py\nGCExtendedFormulation|Prepare coupled physical copies\ltrack_energy = false\lNo time or conjugate momentum in the state\l"];
+      PreparedMaps [fillcolor="#E7F0FA", label="«prepared maps»\nPreparedDirectAdjointFormulation|initial_internal_state in R4p: (z, z)\ldirect_map / adjoint_map on R4p\lparticle count and coupling frequency\l"];
+      StateSpaceNote [shape=note, fillcolor="#FFFDEB", color="#B8AE6F", label="The R4p duplication is internal splitting\nworkspace, not a fully extended (z,t,k) state."];
+      { rank=same; formulation_anchor; GCExtendedFormulation; PreparedMaps; StateSpaceNote; }
+    }
+
+    subgraph cluster_integration_kernels {
+      label="6. Complete-map and tangent kernels";
+      labeljust="l";
+      color="#A0A0A0";
+      style="rounded";
+      kernels_anchor [shape=point, width=0, height=0, label="", style=invis];
+      BM4MapJacobian [fillcolor="#FFF3D6", label="«complete-map kernel»\nsrc/simulation/methods/bm4/implicit.py\n_bm4_map(...) / _bm4_map_jacobian(...)|Evaluate complete coupled R4p cycle\lTwelve explicit direct/adjoint stages\lAnalytic product or centered differences\l"];
+      { rank=same; kernels_anchor; BM4MapJacobian; }
+    }
+
+    subgraph cluster_integration_projection {
+      label="7. Reduced Hairer projection";
+      labeljust="l";
+      color="#A0A0A0";
+      style="rounded";
+      projection_anchor [shape=point, width=0, height=0, label="", style=invis];
+      ReducedSolver [fillcolor="#FFF3D6", label="«only nonlinear formulation»\nsrc/simulation/methods/bm4/implicit.py\n_solve_reduced_projected_bm4_step(...)|Unknown mu in R2p\lInput Ez + N mu in R4p\lr(mu) = G Psi(Ez + N mu) + 2 mu\lOutput correction and physical projection\l"];
+      ProjectedBM4Step [fillcolor="#FFF3D6", label="«accepted-step record»\n_ProjectedBM4Step|Accepted physical state in R2p\lMultiplier and displaced R4p input\lMapped R4p cycle output\lIterations, evaluations and residual norm\l"];
+      ProjectionNote [shape=note, fillcolor="#FFFDEB", color="#B8AE6F", label="Hairer's symmetric placement uses the same\nmu before and after the complete cycle.\nThere is no projection between BM4 stages."];
+      { rank=same; projection_anchor; ReducedSolver; ProjectedBM4Step; ProjectionNote; }
+    }
+
+    subgraph cluster_integration_services {
+      label="8. Nonlinear and diagnostic services";
+      labeljust="l";
+      color="#A0A0A0";
+      style="rounded";
+      services_anchor [shape=point, width=0, height=0, label="", style=invis];
+      NonlinearService [fillcolor="#FCECF1", label="«shared nonlinear service»\nsrc/simulation/methods/_nonlinear.py\nNonlinear solver support|_validate_nonlinear_solver(...)\l_solve_broyden(...)\l"];
+      AcceptedDiagnostics [label="«diagnostic aggregation»\nAccepted physical BM4 steps|Iteration and residual histories\lProjection-multiplier norms\lJacobian and solver metadata\lFixed reduced-formulation marker\l"];
+      NewtonNote [shape=note, fillcolor="#FFFDEB", color="#B8AE6F", label="An analytic Newton correction uses\nGuidingCenterDynamics and requires\ninterpolation_order >= 3. Finite-difference\nNewton and Broyden solve the same equation."];
+      { rank=same; services_anchor; NonlinearService; AcceptedDiagnostics; NewtonNote; }
+    }
+
+    subgraph cluster_integration_continuation {
+      label="9. Continuation and observation";
+      labeljust="l";
+      color="#A0A0A0";
+      style="rounded";
+      continuation_anchor [shape=point, width=0, height=0, label="", style=invis];
+      SchedulerContinuation [label="«outer-loop continuation»\nReturn accepted physical state to fixed grid|Main state replaces the trajectory\lShadow state is sampled and discarded\l"];
+      ImplicitObservation [fillcolor="#F5ECFA", label="«optional observation»\nsrc/simulation/observation.py\nImplicitBM4IntegrationStep|Accepted physical map and nonlinear metrics\lConverged multiplier\lTwelve reconstructed base-stage records\l"];
+      { rank=same; continuation_anchor; SchedulerContinuation; ImplicitObservation; }
+    }
+  }
+
+  subgraph cluster_result {
+    label="Result boundary";
+    labeljust="l";
+    color="#777777";
+    penwidth=1.0;
+    style="rounded";
+    data_anchor [shape=point, width=0, height=0, label="", style=invis];
+    IntegrationData [label="«internal result»\nsrc/simulation/_result.py\nIntegrationData|Requested times\lPhysical R2p state history\lBM4Implicit diagnostics\l"];
+    return_anchor [shape=point, width=0, height=0, label="", style=invis];
+    RunnerReturn [label="«facade validation»\nsrc/simulation/runner.py\nSimulationRunner return checks|Validate time and physical-state shapes\lRequire finite output and preserved initial state\l"];
+    solution_anchor [shape=point, width=0, height=0, label="", style=invis];
+    Solution [label="«public result»\nsrc/simulation/solution.py\nSolution|Immutable physical trajectory\lSource configuration\lRead-only diagnostics\l"];
+    Legend [fillcolor="#FFFFFF", label="Legend|yellow: BM4Implicit projection path\lblue: internal physical two-copy formulation\lpink: shared nonlinear service\lpurple: composition or observation boundary\l"];
+    { rank=same; data_anchor; IntegrationData; }
+    { rank=same; return_anchor; RunnerReturn; }
+    { rank=same; solution_anchor; Solution; Legend; }
+  }
+
+  inherited_anchor -> problem_anchor -> state_contracts_anchor -> concrete_state_anchor -> shared_state_anchor -> request_anchor -> runner_anchor -> method_anchor -> dispatch_anchor -> coordinator_anchor -> fixed_anchor -> composition_anchor -> formulation_anchor -> kernels_anchor -> projection_anchor -> services_anchor -> continuation_anchor -> data_anchor -> return_anchor -> solution_anchor [style=invis, weight=1000, minlen=2];
+
+  // Inherited dynamics and physical-state contracts.
+  GuidingCenterDynamics -> GuidingCenterJacobianSystem [style=dashed, arrowhead=empty, constraint=false];
+  GuidingCenterJacobianSystem -> DynamicalSystem [style=solid, arrowhead=empty, constraint=false];
+  GCInitialConfiguration -> StateConfiguration [style=solid, arrowhead=empty, constraint=false];
+  GCInitialConfiguration -> InitialConfiguration [style=dashed, arrowhead=empty, constraint=false];
+  InitialConfiguration -> StateLayout [dir=both, arrowtail=odiamond, arrowhead=none, constraint=false];
+  StateConfiguration -> PackedStateLayout [dir=both, arrowtail=odiamond, arrowhead=none, constraint=false];
+
+  // Public run assembly and the single method path.
+  BM4Implicit -> NumericalMethod [style=dashed, arrowhead=empty, constraint=false];
+  DynamicalSystem -> InitialValueProblem [style=solid, arrowhead=normal, constraint=false];
+  InitialConfiguration -> InitialValueProblem [style=solid, arrowhead=normal, constraint=false];
+  InitialValueProblem -> SimulationRunner [style=solid, arrowhead=normal, constraint=false];
+  SimulationRequest -> SimulationRunner [style=solid, arrowhead=normal, constraint=false];
+  NumericalMethod -> SimulationRunner [style=solid, arrowhead=normal, constraint=false];
+  InitialValueProblem -> NumericalMethod [style=solid, arrowhead=normal, constraint=false];
+  SimulationRequest -> NumericalMethod [style=solid, arrowhead=normal, constraint=false];
+  SimulationRunner -> BM4Implicit [style=solid, arrowhead=normal, constraint=false];
+  BM4Implicit -> MethodDispatch [style=solid, arrowhead=normal, constraint=false];
+  MethodDispatch -> ImplicitCoordinator [style=solid, arrowhead=normal, constraint=false];
+
+  // Fixed physical preparation and complete-step scheduling.
+  ImplicitCoordinator -> GCExtendedFormulation [style=solid, arrowhead=normal, constraint=false];
+  ImplicitCoordinator -> FixedGrid [style=solid, arrowhead=normal, constraint=false];
+  GCExtendedFormulation -> PreparedMaps [style=solid, arrowhead=normal, constraint=false];
+  GuidingCenterDynamics -> GCExtendedFormulation [style=dashed, arrowhead=normal, constraint=false];
+  PreparedMaps -> AdvanceComposition [style=solid, arrowhead=normal, constraint=false];
+  BM4Coefficients -> AdvanceComposition [style=solid, arrowhead=normal, constraint=false];
+
+  // One reduced projection solve calls the complete BM4 map repeatedly.
+  FixedGrid -> ReducedSolver [xlabel=" one solve per complete step", style=solid, arrowhead=normal, constraint=false];
+  ReducedSolver -> BM4MapJacobian [xlabel=" residual and tangent evaluations", style=solid, arrowhead=normal, constraint=false];
+  BM4MapJacobian -> AdvanceComposition [xlabel=" complete Psi_h", style=solid, arrowhead=normal, constraint=false];
+  GuidingCenterDynamics -> BM4MapJacobian [xlabel=" concrete analytic path", style=dashed, arrowhead=normal, constraint=false];
+  ReducedSolver -> NonlinearService [xlabel=" Broyden", style=dashed, arrowhead=normal, constraint=false];
+  ReducedSolver -> ProjectedBM4Step [style=solid, arrowhead=normal, constraint=false];
+
+  // Accepted physical state, optional observation, and result hand-off.
+  ProjectedBM4Step -> AcceptedDiagnostics [style=solid, arrowhead=normal, constraint=false];
+  ProjectedBM4Step -> ImplicitObservation [style=dashed, arrowhead=normal, constraint=false];
+  AdvanceComposition -> ImplicitObservation [xlabel=" reconstruct 12 stages", style=dashed, arrowhead=normal, constraint=false];
+  ProjectedBM4Step -> SchedulerContinuation [style=solid, arrowhead=normal, constraint=false];
+  AcceptedDiagnostics -> SchedulerContinuation [style=dashed, arrowhead=normal, constraint=false];
+  SchedulerContinuation -> IntegrationData [style=solid, arrowhead=normal, constraint=false];
+  IntegrationData -> RunnerReturn [style=solid, arrowhead=normal, constraint=false];
+  RunnerReturn -> Solution [style=solid, arrowhead=normal, constraint=false];
+}
+@enddot
