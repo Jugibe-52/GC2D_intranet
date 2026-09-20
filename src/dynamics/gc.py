@@ -27,8 +27,8 @@ class GuidingCenterDynamics:
 		self.rho = rho
 		self.effective_potential = potential.gyroaverage(rho)
 
-	def vector_field(self, t: float, state: np.ndarray) -> np.ndarray:
-		"""Evaluate GC drift while preserving the packed physical layout."""
+	def vector_field(self, t: float | np.ndarray, state: np.ndarray) -> np.ndarray:
+		"""Evaluate GC drift at one time or broadcast times over a packed history."""
 		x, y = split_components(state, component_count=self.state_dimension)
 		ex, ey = self.effective_potential.electric_field(
 			t,

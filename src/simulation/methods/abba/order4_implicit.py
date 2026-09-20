@@ -1,54 +1,34 @@
 """Public order-4 implicit ABBA configuration on the shared family runtime."""
 from __future__ import annotations
 from dataclasses import dataclass
-from ..._result import IntegrationData
-from ...problem import InitialValueProblem
-from ...request import SimulationRequest
-from ._implicit import _ABBAImplicitConfig
-from .preparation import prepare_abba
-from .runtime import integrate_abba
+from typing import ClassVar, Literal
+from ._implicit import _ABBAImplicitMethod
 import warnings
 from typing import Any
 from ._coefficients import _ABBA4_COEFFICIENTS as _ABBA4_COEFFICIENTS
 from ._configuration import ProjectionPlacement, _validate_projection_placement
-from .composition import (
-    _ComposedABBAStep as _ComposedABBAStep,
-    _solve_composed_abba_step as _solve_composed_abba_step,
-    _solve_abba4_step as _solve_abba4_step,
-)
+from .projection_outer import _solve_abba4_single_projection_step as _solve_abba4_step
 
 
-@dataclass(frozen=True, slots=True)
-class ABBA4Implicit(_ABBAImplicitConfig):
-	"""Fourth-order triple jump with configurable projection placement.
+@dataclass(slots=True)
+class ABBA4Implicit(_ABBAImplicitMethod):
+	"""Fourth-order triple jump with one outer symmetric Hairer projection.
 
 	One complete step applies signed substeps ``(gamma h, delta h, gamma h)``.
-	The selected placement either projects every signed ABBA map independently or
-	keeps both copies separate through the complete composition and projects once
-	around it. These placements define distinct numerical maps while sharing one
-	public configuration type.
+	Both copies remain separate through all three base maps. One multiplier
+	shifts the input and output of the whole composition. The legacy placement
+	keyword accepts only this construction; per-map ABBA4 projection is removed.
 	"""
 
-	projection_placement: ProjectionPlacement = "after_each_abba_map"
+	projection_placement: ProjectionPlacement = "around_complete_composition"
+
+	order: ClassVar[Literal[2, 4, 6]] = 4
 
 	def __post_init__(self) -> None:
 		"""Validate shared solver options and the ABBA4 placement selector."""
-		_ABBAImplicitConfig.__post_init__(self)
-		object.__setattr__(
-			self,
-			"projection_placement",
-			_validate_projection_placement(self.projection_placement),
-		)
+		_ABBAImplicitMethod.__post_init__(self)
+		self.projection_placement = _validate_projection_placement(self.projection_placement)
 
-	def integrate(
-		self,
-		problem: InitialValueProblem,
-		request: SimulationRequest,
-	) -> IntegrationData:
-		"""Prepare the selected step recipe and run the shared ABBA coordinator."""
-		prepared = prepare_abba(problem, self, request, order=4,
-			projection_placement=self.projection_placement)
-		return integrate_abba(prepared, request)
 
 
 def ABBA4ImplicitSingleProjection(

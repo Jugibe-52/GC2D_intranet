@@ -11,7 +11,6 @@ from typing import Any, Callable, Literal, Mapping
 
 import numpy as np
 import scipy
-from scipy.integrate import DOP853, Radau, solve_ivp
 
 from diagnostics import (
 	StoredReferenceTrajectory,
@@ -21,7 +20,7 @@ from diagnostics import (
 from dynamics import GuidingCenterDynamics
 from initial_conditions import GCInitialConfiguration
 from potential import Potential
-from simulation import SimulationRequest
+from simulation import DOP853, Radau, AdaptiveIntegrationStep, InitialValueProblem, SimulationRequest
 
 from ._trajectory_distances import (
 	DistanceConvention,
@@ -214,35 +213,25 @@ def _solve_adaptive(
 ) -> tuple[np.ndarray, AdaptiveReferenceSolveSummary]:
 	"""Run one adaptive reference or cross-check solve on prescribed times."""
 	started = perf_counter()
-	solver_method: Any = method
+	method_type = DOP853 if method == "DOP853" else Radau
+	function_evaluations = 0
+	def report(step: AdaptiveIntegrationStep) -> None:
+		nonlocal function_evaluations
+		function_evaluations += step.function_evaluations
+		assert progress_callback is not None
+		progress_callback(method, step.time, function_evaluations,
+			"finished" if step.time == float(times[-1]) else "running")
 	if progress_callback is not None:
-		# Observe accepted steps without restarting the solver or changing its grid.
-		base_solver = DOP853 if method == "DOP853" else Radau
-
-		class ObservedSolver(base_solver):  # type: ignore[misc, valid-type]
-			def step(self) -> str | None:
-				message = super().step()
-				progress_callback(method, float(self.t), int(self.nfev), self.status)
-				return message
-
-		solver_method = ObservedSolver
 		progress_callback(method, float(times[0]), 0, "started")
-	result = solve_ivp(
-		fun=lambda time, state: dynamics.vector_field(time, state),
-		t_span=(float(times[0]), float(times[-1])),
-		y0=np.asarray(initial_state, dtype=float),
-		method=solver_method,
-		t_eval=times,
-		rtol=relative_tolerance,
-		atol=absolute_tolerance,
-		max_step=maximum_step,
-		dense_output=False,
-		vectorized=False,
-	)
+	configured = method_type(relative_tolerance=relative_tolerance,
+		absolute_tolerance=absolute_tolerance,
+		step_observer=report if progress_callback is not None else None)
+	problem = InitialValueProblem(dynamics, GCInitialConfiguration(np.asarray(initial_state, dtype=float)))
+	request = SimulationRequest((float(times[0]), float(times[-1])), maximum_step, times)
+	result = configured.integrate(problem, request)
+
 	runtime = perf_counter() - started
-	if not result.success:
-		raise RuntimeError(f"{method} reference integration failed: {result.message}")
-	states = np.asarray(result.y, dtype=float)
+	states = np.asarray(result.states, dtype=float)
 	if states.shape != (initial_state.size, times.size) or not np.all(
 		np.isfinite(states)
 	):
@@ -254,11 +243,11 @@ def _solve_adaptive(
 		maximum_step=maximum_step,
 		relative_tolerance=relative_tolerance,
 		absolute_tolerance=absolute_tolerance,
-		function_evaluations=int(result.nfev),
-		jacobian_evaluations=int(result.njev),
-		lu_decompositions=int(result.nlu),
+		function_evaluations=int(np.sum(result.diagnostics["function_evaluations"])),
+		jacobian_evaluations=int(np.sum(result.diagnostics["jacobian_evaluations"])),
+		lu_decompositions=int(np.sum(result.diagnostics["lu_decompositions"])),
 		runtime_seconds=float(runtime),
-		message=str(result.message),
+		message="The solver successfully reached the end of the integration interval.",
 	)
 
 

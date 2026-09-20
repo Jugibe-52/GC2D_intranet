@@ -9,6 +9,8 @@ import numpy as np
 from dynamics import GuidingCenterDynamics
 from simulation import (
 	ABBA4ImplicitIntegrationStep,
+	ABBA4ImplicitSingleProjectionIntegrationStep,
+	UnprojectedABBAIntegrationStep,
 	ABBA2ImplicitIntegrationStep,
 	ImplicitBM4IntegrationStep,
 	IntegrationStage,
@@ -38,7 +40,7 @@ def _momentum_derivative(
 
 
 def _abba_kappa_increment(
-	record: ABBA2ImplicitIntegrationStep,
+	record: ABBA2ImplicitIntegrationStep | UnprojectedABBAIntegrationStep,
 	dynamics: GuidingCenterDynamics,
 ) -> float:
 	"""Reconstruct the normalized momentum increment of four ABBA shears."""
@@ -103,7 +105,7 @@ def _kappa_increment(
 	dynamics: GuidingCenterDynamics,
 ) -> float:
 	"""Dispatch the accepted-step momentum reconstruction by record type."""
-	if isinstance(record, ABBA4ImplicitIntegrationStep):
+	if isinstance(record, (ABBA4ImplicitIntegrationStep, ABBA4ImplicitSingleProjectionIntegrationStep)):
 		return float(
 			sum(_abba_kappa_increment(substep, dynamics) for substep in record.substeps)
 		)

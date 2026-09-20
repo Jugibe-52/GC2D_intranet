@@ -20,6 +20,7 @@
 \newcommand{\R}{\mathbb{R}}
 \newcommand{\norm}[1]{\left\lVert#1\right\rVert}
 
+\setlength{\emergencystretch}{3em}
 \begin{document}
 \begin{center}
  {\LARGE\bfseries\color{gcblue}The ABBA Numerical-Method Family}\par
@@ -31,7 +32,7 @@
 
 The ABBA model is a family of integrators built from the same explicit
 $A$--$B$--$B$--$A$ map on two copies of a physical state. A public class
-selects the order, while ABBA4 additionally selects its projection placement;
+selects the order and projection recipe;
 configuration controls select the
 projection equations, nonlinear solver, state extension, and optional physical
 energy tracking.  These choices are configurations of a model, not additional
@@ -40,7 +41,7 @@ model identities.
 The family has four public method classes:
 \begin{itemize}
 \item \texttt{ABBA2Midpoint} and \texttt{ABBA2Implicit};
-\item \texttt{ABBA4Implicit}, with two projection placements; and
+\item \texttt{ABBA4Implicit}, with one outer projection; and
 \item \texttt{ABBA6Implicit}.
 \end{itemize}
 Their focused theory documents live in the sibling model directories.
@@ -121,10 +122,9 @@ $(\texttt{physical},\texttt{False})$,
 $(\texttt{physical},\texttt{True})$, and
 $(\texttt{fully\_extended},\texttt{True})$.  \texttt{ABBA2Implicit} and
 \texttt{ABBA6Implicit} each admit $2\times2\times3=12$ canonical
-configurations.  The two projection placements of \texttt{ABBA4Implicit}
-double that class to 24.  \texttt{ABBA2Midpoint} has no nonlinear equations and
+configurations, including the single outer-projection \texttt{ABBA4Implicit}.  \texttt{ABBA2Midpoint} has no nonlinear equations and
 supports the same three strategies.  The family therefore contains
-$12+24+12+3=51$ canonical public configurations while retaining four method
+$12+12+12+3=39$ canonical public configurations while retaining four method
 classes.
 
 For one guiding-centre particle, the state dimensions are
@@ -170,13 +170,14 @@ Method & ABBA maps & projection policy\\
 \midrule
 ABBA2Midpoint & 1 & arithmetic mean\\
 ABBA2Implicit & 1 & one symmetric projection\\
-ABBA4Implicit & 3 & configurable: after every map or around the composition\\
+ABBA4Implicit & 3 & one outer projection around the composition\\
 ABBA6Implicit & 7 & project after every signed map\\
 \bottomrule
 \end{tabular}
 \end{center}
-The two fourth-order policies define different numerical maps even though they
-share the same coefficients.
+The former three-projection fourth-order implementation has been removed.
+The current default has one projection, and legacy single-projection names
+refer to that same map.
 
 \section{Finite solves and geometric claims}
 
@@ -190,11 +191,25 @@ Jacobian defects can be distinguished from ideal algebraic properties.
 \section{Implementation correspondence}
 
 The common stage kernel is in \texttt{src/simulation/methods/abba/\_core.py};
-the two projection formulations are in \texttt{\_projection\_reduced.py} and
-\texttt{\_projection\_simultaneous.py}; configuration validation is in
+the two projection formulations are in \texttt{projection\_reduced.py} and
+\texttt{projection\_simultaneous.py}; configuration validation is in
 \texttt{\_configuration.py}; and the four public classes are implemented by
 the corresponding \texttt{order*.py} modules. The private exterior-projection
-ABBA4 kernel remains in \texttt{order4\_implicit\_single\_projection.py}. The architecture document in
+ABBA4 kernel is in \texttt{projection\_outer.py}; the old single-projection
+module now provides compatibility imports. The architecture document in
 \texttt{../simulation/} is the authoritative runtime inventory.
 
+
+\section{Common integration lifecycle}
+All four ABBA classes own initialization, advance, observation and history
+export. They inherit \texttt{integrate} from \texttt{IntegrationMethod}, which
+creates a fresh instance of the same numerical class and initializes its
+resources once. The three implicit orders share these operations in their
+family base class. No separate method context or callback record is used.
+The fixed controller supplies accepted intervals and independent shadow
+samples; the common coordinator owns progress, collection and event dispatch.
+\texttt{IntegrationCollector} stores saved internal states and accepted metric
+rows; family-specific numerical traces are not retained as run history.
+DOP853 and Radau supply adaptive controllers to the same global coordinator.
+ABBA retains fixed-step numerical control.
 \end{document}

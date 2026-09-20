@@ -24,9 +24,9 @@ NumericalMethod ---------------------------------/
 SimulationRequest -------------------------------/
 ```
 
-The [trajectory calculation architecture](docs/outline-architecture.md) gives
-a single horizontal view of the dynamics, initial-state, numerical-model, and
-solution boundaries.
+The [common integration architecture](docs/simulation/integration-architecture.md)
+shows the complete six-phase lifecycle, shared by all 13 methods. Each model
+also has its own detailed diagram in the [method catalog](docs/models/README.md).
 
 `Solution` is an immutable computed trajectory. Its initial configuration is
 available as `solution.source`, while diagnostics are attached as read-only
@@ -183,26 +183,25 @@ and one constrained state/energy strategy:
 
 | Axis | Canonical values | Meaning |
 |---|---|---|
-| `projection_placement` | `"after_each_abba_map"`, `"around_complete_composition"` | Selects one of the two distinct ABBA4 maps; other methods have a fixed placement. |
+| `projection_placement` | `"around_complete_composition"` | ABBA4 uses one outer projection; the removed per-map selector raises an error. |
 | `projection_formulation` | `"reduced_multiplier"`, `"simultaneous_state_multiplier"` | Chooses the nonlinear residual representation. |
 | `nonlinear_solver` | `"newton"`, `"broyden"` | Chooses how that residual is solved. |
 | `state_extension` | `"physical"`, `"fully_extended"` | Chooses whether ABBA duplicates only the physical state or the complete autonomous state. |
 | `track_energy` | `False`, `True` | Optionally transports the time-conjugate momentum alongside a physical run; fully extended execution always resolves this value to `True`. |
 
-`ABBA2Implicit` and `ABBA6Implicit` each admit
+`ABBA2Implicit`, `ABBA4Implicit` and `ABBA6Implicit` each admit
 
 ```text
 2 projection formulations x 2 nonlinear solvers x 3 state/energy strategies = 12
 ```
 
-canonical configurations, while the two ABBA4 placements double its space to
-24. The three normalized strategies are
+canonical configurations. The three normalized strategies are
 `(physical, False)`, `(physical, True)`, and `(fully_extended, True)` for
 `(state_extension, track_energy)`. Passing `track_energy=False` with
 `state_extension="fully_extended"` is accepted but normalized to `True`, so it
 does not create a fourth strategy. `ABBA2Midpoint` has no nonlinear residual
 and supports the same three strategies. The complete public family therefore
-contains `12 + 24 + 12 + 3 = 51` canonical configurations while retaining four
+contains `12 + 12 + 12 + 3 = 39` canonical configurations while retaining four
 method classes. The deprecated `ABBA4ImplicitSingleProjection(...)` factory
 remains temporarily available and returns the corresponding `ABBA4Implicit`
 configuration.
@@ -226,25 +225,20 @@ method = ABBA4Implicit(
 )
 ```
 
-The projection, solver, state, and energy selections are global for a composed
-step. With `projection_placement="after_each_abba_map"`, all three signed
-ABBA4 substeps solve the same selected projection independently. With
-`"around_complete_composition"`, the selected formulation is solved once
-around the complete unprojected triple jump. ABBA6 applies its selections to
-all seven signed projected substeps.
-
-The four methods differ in their base composition and projection placement:
+The formulation, solver, state and energy selections apply to the complete
+step. ABBA4 always carries both copies continuously through three signed maps
+inside one outer projection. Its legacy single-projection factory selects the
+same algorithm as `ABBA4Implicit()`.
 
 | Method | ABBA maps per outer step | Projection policy |
 |---|---:|---|
 | `ABBA2Midpoint` | 1 | Arithmetic mean; no nonlinear solve |
 | `ABBA2Implicit` | 1 | One implicit symmetric projection |
-| `ABBA4Implicit` | 3 | Configurable: project after each signed map or once around the complete unprojected triple jump |
+| `ABBA4Implicit` | 3 | One outer projection around the complete unprojected triple jump |
 | `ABBA6Implicit` | 7 | One implicit projection after each signed map |
 
-The two `ABBA4Implicit` placements are distinct numerical maps, not performance
-aliases. The single outer placement selects its formulation and solver once for
-the complete composition.
+The former per-map ABBA4 implementation is removed. Current ABBA4 has one
+nonlinear solve per step and three base maps per residual evaluation.
 
 ### Residual and state dimensions
 
@@ -295,12 +289,12 @@ its [simultaneous-formulation note](docs/models/abba2-implicit/tex/simultaneous-
 and the family-level
 [`nonlinear-solvers.tex`](docs/models/abba/tex/nonlinear-solvers.tex).
 
-`ABBA4Implicit` applies that projected kernel three times with signed durations
-`(gamma h, delta h, gamma h)`. Its model documentation includes the
-[`fourth-order theory`](docs/models/abba4-implicit/tex/theory.pdf), the
-[`simultaneous-formulation note`](docs/models/abba4-implicit/tex/simultaneous-formulation.pdf),
-the [`Jacobian formula summary`](docs/models/abba4-implicit/tex/jacobian-formula-summary.pdf),
-and the [`Jacobian diagnostics`](docs/models/abba4-implicit/tex/jacobian-diagnostics.pdf).
+`ABBA4Implicit` composes three unprojected ABBA maps with signed durations
+`(gamma h, delta h, gamma h)` inside one symmetric projection. Its
+[canonical theory](docs/models/abba4-implicit/tex/theory.pdf) includes the outer
+residual, simultaneous formulation and complete ideal-root tangent. Earlier
+per-map companions are retained as historical derivations.
+
 
 Solver-neutral diagnostics include `projection_formulation`,
 `state_extension`, `track_energy`, `nonlinear_solver`, `nonlinear_iterations`,
@@ -313,6 +307,37 @@ Solver-neutral diagnostics include `projection_formulation`,
 normalization; their time coordinate is the ordinary `Solution.t`. Fully
 extended runs expose direct `extended_momentum`, `extended_time`, the same
 scalar `energy_error`, and detailed generalized-energy histories.
+
+### Method instances, collection and adaptive methods
+
+Every method inherits `IntegrationMethod.integrate`. Its `new_run` creates an instance of the same numerical class. Its `initialize`,
+`advance`, `build_observation` and `export_history` own the method behavior.
+`integrate_method` owns one run;
+`IntegrationCollector` stores samples and accepted-step metrics. Method-specific
+traces are consumed only when an observer needs them.
+
+`DOP853` and `Radau` are public methods with `relative_tolerance`,
+`absolute_tolerance`, `first_step`, `dense_output` and optional energy tracking.
+They retain one live SciPy solver over the complete interval and share the same
+collector and result boundary as all fixed methods. Accepted steps can vary;
+requested samples use dense output. `AdaptiveIntegrationStep` exposes an accepted
+interpolant instead of a fixed-step `map_state`.
+
+```python
+from simulation import DOP853, Radau, simulate
+
+reference = simulate(problem, DOP853(relative_tolerance=1e-10,
+                                     absolute_tolerance=1e-12), request)
+audit = simulate(problem, Radau(relative_tolerance=1e-11,
+                                absolute_tolerance=1e-13), request)
+```
+
+The common [architecture guide](docs/simulation/integration-architecture.md)
+explains preparation, variable steps, observation domains and data ownership.
+The [DOP853](docs/models/dop853/simulation/dop853-simulation-architecture.md) and
+[Radau](docs/models/radau/simulation/radau-simulation-architecture.md) model guides
+cover their numerical sessions and work counters. The study reference and
+recurrence pipelines now use these public methods.
 
 ### Classical explicit methods
 

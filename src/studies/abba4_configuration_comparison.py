@@ -1,4 +1,4 @@
-"""Sixteen-configuration ABBA4 comparison on separate particle trajectories."""
+"""Eight-configuration single-projection ABBA4 comparison on separate particle trajectories."""
 
 from __future__ import annotations
 
@@ -24,7 +24,6 @@ from simulation import (
 	InitialValueProblem,
 	NonlinearSolver,
 	NumericalMethod,
-	ProjectionPlacement,
 	ProjectionFormulation,
 	SimulationRequest,
 	Solution,
@@ -51,8 +50,9 @@ ABBA4ConfigurationMethod: TypeAlias = Literal[
 ]
 
 ABBA4_CONFIGURATION_PARTICLE_COUNT = 10
+# Keep the explicit single-projection identity in persisted study keys. Historical
+# "ABBA4Implicit" keys described the removed three-projection implementation.
 _METHOD_NAMES: tuple[ABBA4ConfigurationMethod, ...] = (
-	"ABBA4Implicit",
 	"ABBA4ImplicitSingleProjection",
 )
 _STATE_EXTENSIONS: tuple[StateExtension, ...] = (
@@ -384,9 +384,9 @@ class ABBA4ConfigurationComparisonResult:
 		if not isinstance(self.config, ABBA4ConfigurationComparisonConfig):
 			raise TypeError("`config` must be ABBA4ConfigurationComparisonConfig.")
 		if tuple(self.solutions) != ABBA4_CONFIGURATION_KEYS:
-			raise ValueError("Solutions must follow all sixteen stable configuration keys.")
+			raise ValueError("Solutions must follow all eight stable configuration keys.")
 		if tuple(self.runtimes) != ABBA4_CONFIGURATION_KEYS:
-			raise ValueError("Runtimes must follow all sixteen stable configuration keys.")
+			raise ValueError("Runtimes must follow all eight stable configuration keys.")
 
 		initial_state = self.initial_configuration.initial_state
 		if initial_state is None:
@@ -519,7 +519,7 @@ class ABBA4ConfigurationComparisonResult:
 		return values
 
 	def summaries(self) -> tuple[ABBA4ConfigurationComparisonSummary, ...]:
-		"""Return sixteen rows, including aggregate trajectory-task runtime."""
+		"""Return eight rows, including aggregate trajectory-task runtime."""
 		rows: list[ABBA4ConfigurationComparisonSummary] = []
 		for variant in ABBA4_CONFIGURATION_VARIANTS:
 			distances = self._trajectory_distances(variant.key)
@@ -569,13 +569,9 @@ def _method_for_variant(
 	config: ABBA4ConfigurationComparisonConfig,
 ) -> NumericalMethod:
 	"""Construct one numerical method with common nonlinear controls."""
-	projection_placement: ProjectionPlacement = (
-		"after_each_abba_map"
-		if variant.method_name == "ABBA4Implicit"
-		else "around_complete_composition"
-	)
+	if variant.method_name == "ABBA4Implicit":
+		raise ValueError("This historical study key describes the removed three-projection ABBA4.")
 	return ABBA4Implicit(
-		projection_placement=projection_placement,
 		state_extension=variant.state_extension,
 		track_energy=True,
 		projection_formulation=variant.projection_formulation,
@@ -1109,7 +1105,7 @@ def run_abba4_configuration_comparison(
 	*,
 	config: ABBA4ConfigurationComparisonConfig,
 ) -> ABBA4ConfigurationComparisonResult:
-	"""Run sixteen configurations for each configured initial condition."""
+	"""Run eight configurations for each configured initial condition."""
 	if not isinstance(potential, Potential):
 		raise TypeError("`potential` must be a Potential instance.")
 	if not isinstance(initial_configuration, GCInitialConfiguration):

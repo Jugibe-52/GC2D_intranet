@@ -12,7 +12,7 @@ digraph ABBA2SharedFullExecution {
     nodesep=0.80, ranksep=0.56, pad=0.30,
     bgcolor="#FFFFFF", fontname="DejaVu Sans", fontsize=23,
     labelloc="t", labeljust="l",
-    label="ABBA2 | Complete execution through the shared ABBA architecture\n\nHorizontal: complete lifecycle. Vertical: shared services and the selected method recipe.\nSHARED FAMILY: blue services and green numerical kernels. METHOD SPECIFIC: orange step recipe.\nImplemented runtime: public contracts and numerical maps are retained. N = particles; T = saved times.\nModule paths are relative to src/simulation/methods/abba/ unless stated otherwise."
+    label="ABBA2 | Complete execution through the common integration lifecycle\n\nHorizontal: complete lifecycle. Vertical: shared services and the selected method recipe.\nCOMMON / FAMILY: blue services and green numerical kernels. METHOD SPECIFIC: orange step recipe.\nImplemented runtime: public contracts and numerical maps are retained. N = particles; T = saved times; m = 2N.\nModule paths are relative to src/simulation/methods/abba/ unless stated otherwise."
   ];
   node [
     shape=box, style="rounded,filled", fillcolor="#FFFFFF",
@@ -89,8 +89,8 @@ digraph ABBA2SharedFullExecution {
       <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
         <TR><TD BGCOLOR="#E8EFF8" ALIGN="LEFT"><FONT POINT-SIZE="9">EXISTING PUBLIC CLASS / SHARED INTERNALS</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>ABBA2Implicit</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">order2_implicit.py</FONT></TD></TR>
         <TR><TD ALIGN="LEFT"><B>Configuration</B><BR ALIGN="LEFT"/>projection_formulation<BR ALIGN="LEFT"/>state_extension; track_energy; nonlinear_solver<BR ALIGN="LEFT"/>newton_absolute_tolerance<BR ALIGN="LEFT"/>newton_relative_tolerance; newton_max_iterations<BR ALIGN="LEFT"/>progress; step_observer</TD></TR><HR/>
-        <TR><TD ALIGN="LEFT"><B>Public operation</B><BR ALIGN="LEFT"/>integrate(problem, request): IntegrationData</TD></TR><HR/>
-        <TR><TD ALIGN="LEFT">Inherits _ABBAImplicitConfig.<BR ALIGN="LEFT"/>Implements NumericalMethod structurally.<BR ALIGN="LEFT"/>Keep current public option names compatible.</TD></TR>
+        <TR><TD ALIGN="LEFT"><B>Public operations</B><BR ALIGN="LEFT"/>initialize(problem, request): None<BR ALIGN="LEFT"/>new_run(problem, request): same class<BR ALIGN="LEFT"/>inherited integrate(...): IntegrationData</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">Inherits _ABBAImplicitConfig and IntegrationMethod.<BR ALIGN="LEFT"/>Implements NumericalMethod structurally.<BR ALIGN="LEFT"/>Keep current public option names compatible.</TD></TR>
       </TABLE>
     >];
     Configuration [fillcolor="#EEF3FA", label=<
@@ -117,18 +117,18 @@ digraph ABBA2SharedFullExecution {
     >];
     Prepare [label=<
       <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
-        <TR><TD BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">SHARED FAMILY FUNCTION</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>prepare_abba(...)</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">preparation.py</FONT></TD></TR>
-        <TR><TD ALIGN="LEFT"><B>IN</B> problem, method, request<BR ALIGN="LEFT"/><B>OUT</B> PreparedABBA<BR ALIGN="LEFT"/></TD></TR><HR/>
-        <TR><TD ALIGN="LEFT">Validate common options and selected capabilities.<BR ALIGN="LEFT"/>Bind the model's solve_step function once.<BR ALIGN="LEFT"/>Bind state policy, projection and nonlinear solver.<BR ALIGN="LEFT"/>Select the model's optional event builder.<BR ALIGN="LEFT"/></TD></TR><HR/>
-        <TR><TD ALIGN="LEFT">Physical: planar GuidingCenterJacobianSystem.<BR ALIGN="LEFT"/>Fully extended: one GuidingCenterDynamics particle.<BR ALIGN="LEFT"/>Newton requires the relevant derivatives.<BR ALIGN="LEFT"/>Broyden iterations remain residual-only.<BR ALIGN="LEFT"/></TD></TR>
+        <TR><TD BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">INHERITED FAMILY INITIALIZATION</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>ABBA2Implicit.initialize(...)</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">_implicit.py / initialize</FONT></TD></TR>
+        <TR><TD ALIGN="LEFT"><B>IN</B> problem, request, method controls<BR ALIGN="LEFT"/><B>OUT</B> None; instance resources initialized</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">new_run creates an instance of the concrete order.<BR ALIGN="LEFT"/>Validate state/energy capabilities and solver options.<BR ALIGN="LEFT"/>Set StatePolicy, projection and optional event builder.<BR ALIGN="LEFT"/>The class owns solve_step, advance and export.</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">Physical: planar dynamics and selected derivatives.<BR ALIGN="LEFT"/>Fully extended: one GuidingCenterDynamics particle.<BR ALIGN="LEFT"/>Newton uses the relevant exact derivatives.<BR ALIGN="LEFT"/>Broyden iterations use residuals only.</TD></TR>
       </TABLE>
     >];
-    Prepared [label=<
+    RunMethod [label=<
       <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
-        <TR><TD BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">SHARED FAMILY RECORD</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>PreparedABBA</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">preparation.py</FONT></TD></TR>
-        <TR><TD ALIGN="LEFT"><B>State</B><BR ALIGN="LEFT"/>initial_workspace: array<BR ALIGN="LEFT"/>solve_step: bound callable<BR ALIGN="LEFT"/>state_ops: StatePolicy<BR ALIGN="LEFT"/>build_event: optional callable<BR ALIGN="LEFT"/>solver_options, method_metadata<BR ALIGN="LEFT"/></TD></TR><HR/>
-        <TR><TD ALIGN="LEFT"><B>Bound step contract</B><BR ALIGN="LEFT"/>solve_step(t, numerical_state, h)<BR ALIGN="LEFT"/>returns tuple[ProjectedMapResult, ...].<BR ALIGN="LEFT"/>Results are ordered by accepted projection.<BR ALIGN="LEFT"/></TD></TR><HR/>
-        <TR><TD ALIGN="LEFT">The same record serves ABBA2 and ABBA4.<BR ALIGN="LEFT"/>Public method choice is resolved before the loop.<BR ALIGN="LEFT"/></TD></TR>
+        <TR><TD BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">SAME NUMERICAL CLASS / ONE INSTANCE PER EXECUTION</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>ABBA2Implicit (run)</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/simulation/methods/abba/_implicit.py</FONT></TD></TR>
+        <TR><TD ALIGN="LEFT"><B>Instance data</B><BR ALIGN="LEFT"/>problem; request; initial_state (read-only)<BR ALIGN="LEFT"/>formulation or dynamics; numerical resources<BR ALIGN="LEFT"/>metadata and diagnostic_aliases (read-only)</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT"><B>Ordinary class methods</B><BR ALIGN="LEFT"/>initialize(problem, request): None<BR ALIGN="LEFT"/>advance(t, state, h): StepResult[Detail]<BR ALIGN="LEFT"/>build_observation(info, step): event<BR ALIGN="LEFT"/>export_history(times, history): physical + auxiliary<BR ALIGN="LEFT"/>controller(): StepController</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">No separate context or callback-based method record.<BR ALIGN="LEFT"/>Construct another instance for another integration.<BR ALIGN="LEFT"/>Completed runs cannot re-enter the global driver.<BR ALIGN="LEFT"/>The collector and external observer own histories.</TD></TR>
       </TABLE>
     >];
     StatePolicy [label=<
@@ -137,6 +137,14 @@ digraph ABBA2SharedFullExecution {
         <TR><TD ALIGN="LEFT"><B>Bound operations</B><BR ALIGN="LEFT"/>initialize(z0, t0): workspace<BR ALIGN="LEFT"/>unpack(t, workspace): numerical state<BR ALIGN="LEFT"/>finish_step(t, h, workspace, projections): workspace<BR ALIGN="LEFT"/>extract(times, history): physical states + energy<BR ALIGN="LEFT"/></TD></TR><HR/>
         <TR><TD ALIGN="LEFT"><B>One selected strategy</B><BR ALIGN="LEFT"/>Physical: z in R^(2N).<BR ALIGN="LEFT"/>Physical + energy: (z, kappa), kappa in R^N.<BR ALIGN="LEFT"/>Fully extended: (x, y, t, k) in R^4.<BR ALIGN="LEFT"/></TD></TR><HR/>
         <TR><TD ALIGN="LEFT">Finish from the last accepted projection state.<BR ALIGN="LEFT"/>Physical tracking uses the accepted stage traces,<BR ALIGN="LEFT"/>including their signed durations and start times.<BR ALIGN="LEFT"/>Auxiliary kappa never feeds back into z.<BR ALIGN="LEFT"/>Full extension evolves t,k and synchronizes time.<BR ALIGN="LEFT"/></TD></TR>
+      </TABLE>
+    >];
+    FamilyResources [label=<
+      <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">INHERITED NUMERICAL OPERATIONS</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>_ABBAImplicitMethod</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/simulation/methods/abba/_implicit.py</FONT></TD></TR>
+        <TR><TD ALIGN="LEFT"><B>Run resources</B><BR ALIGN="LEFT"/>state_ops: StatePolicy; project: projection equation<BR ALIGN="LEFT"/>coefficients; optional build_event; initial_state</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT"><B>Shared operations</B><BR ALIGN="LEFT"/>initialize; solve_step; advance<BR ALIGN="LEFT"/>build_observation; export_history</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">Concrete classes select order 2, 4 or 6.<BR ALIGN="LEFT"/>ABBA4 projects once around its complete composition.<BR ALIGN="LEFT"/>Mathematical kernels remain in steps.py and projection modules.</TD></TR>
       </TABLE>
     >];
   }
@@ -149,26 +157,26 @@ digraph ABBA2SharedFullExecution {
 
     Runtime [label=<
       <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
-        <TR><TD BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">SHARED FAMILY COORDINATOR</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>integrate_abba(...)</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">runtime.py</FONT></TD></TR>
-        <TR><TD ALIGN="LEFT"><B>IN</B> PreparedABBA, SimulationRequest<BR ALIGN="LEFT"/><B>OUT</B> IntegrationData<BR ALIGN="LEFT"/></TD></TR><HR/>
-        <TR><TD ALIGN="LEFT">Create metric buffers and the advance adapter.<BR ALIGN="LEFT"/>Run the existing fixed-grid scheduler.<BR ALIGN="LEFT"/>Extract physical output and energy histories.<BR ALIGN="LEFT"/>Finalize canonical diagnostics.<BR ALIGN="LEFT"/></TD></TR><HR/>
-        <TR><TD ALIGN="LEFT">The same coordinator executes both methods.<BR ALIGN="LEFT"/>It delegates the numerical step to solve_step.<BR ALIGN="LEFT"/></TD></TR>
+        <TR><TD BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">ONE COORDINATOR FOR ALL 13 METHODS</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>integrate_method(...)</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/simulation/integration.py</FONT></TD></TR>
+        <TR><TD ALIGN="LEFT"><B>IN</B> initialized method instance; optional controller<BR ALIGN="LEFT"/><B>OUT</B> IntegrationData</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">Create a fresh controller and IntegrationCollector.<BR ALIGN="LEFT"/>Validate each accepted interval and state.<BR ALIGN="LEFT"/>Record metrics; dispatch optional observations;<BR ALIGN="LEFT"/>save requested samples; report temporal progress.</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">At completion: export_history + collector.finalize.<BR ALIGN="LEFT"/>Merge metadata, metrics, auxiliary output and aliases.<BR ALIGN="LEFT"/>No branch selects a numerical-method class.</TD></TR>
       </TABLE>
     >];
     Grid [label=<
       <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
-        <TR><TD BGCOLOR="#E8EFF8" ALIGN="LEFT"><FONT POINT-SIZE="9">EXISTING FUNCTION / OUTER TIME LOOP</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>integrate_fixed_grid(...)</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/simulation/_fixed.py</FONT></TD></TR>
-        <TR><TD ALIGN="LEFT"><B>IN</B> initial workspace, request, advance<BR ALIGN="LEFT"/><B>OUT</B> sampled history, main-step count</TD></TR><HR/>
-        <TR><TD ALIGN="LEFT">Choose uniform h &lt;= max_step.<BR ALIGN="LEFT"/>Run complete main steps up to tf.<BR ALIGN="LEFT"/>For off-grid output, make a shadow advance<BR ALIGN="LEFT"/>from the preceding main-grid state.</TD></TR><HR/>
-        <TR><TD ALIGN="LEFT">Shadow advances change neither the main<BR ALIGN="LEFT"/>trajectory nor main-step metrics/events.</TD></TR>
+        <TR><TD BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">UNIFORM ACCEPTED GRID / INDEPENDENT OUTPUTS</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>FixedStepController</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/simulation/integration.py</FONT></TD></TR>
+        <TR><TD ALIGN="LEFT"><B>steps(run, request)</B><BR ALIGN="LEFT"/>Choose n = ceil((tf-t0)/max_step), h = (tf-t0)/n.<BR ALIGN="LEFT"/>Floating boundary correction uses _step_count.<BR ALIGN="LEFT"/>Yield StepInfo and run.advance(t, state, h).</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT"><B>sample(run, info, result, time)</B><BR ALIGN="LEFT"/>Reuse coincident accepted endpoints.<BR ALIGN="LEFT"/>Interior output: shortened advance from a copy<BR ALIGN="LEFT"/>of the preceding accepted state.</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">A shadow sample does not alter the main grid.<BR ALIGN="LEFT"/>Its work is excluded from metrics and observations.<BR ALIGN="LEFT"/>DOP853 and Radau supply a different controller.</TD></TR>
       </TABLE>
     >];
     Advance [label=<
       <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
-        <TR><TD BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">SHARED PER-ADVANCE ADAPTER</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>advance(...)</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">runtime.py</FONT></TD></TR>
-        <TR><TD ALIGN="LEFT"><B>IN</B> t, workspace, h, step index, main/shadow<BR ALIGN="LEFT"/><B>OUT</B> next_workspace for the scheduler<BR ALIGN="LEFT"/></TD></TR><HR/>
-        <TR><TD ALIGN="LEFT">Unpack using StatePolicy.<BR ALIGN="LEFT"/>Call prepared.solve_step(t, numerical_state, h).<BR ALIGN="LEFT"/>Finish state/energy with its projection records.<BR ALIGN="LEFT"/>On main steps, build StepResult(next_workspace, projections).<BR ALIGN="LEFT"/></TD></TR><HR/>
-        <TR><TD ALIGN="LEFT">Main advances record metrics and optional events.<BR ALIGN="LEFT"/>Shadow advances use the same numerical map<BR ALIGN="LEFT"/>and return only the sampled workspace.<BR ALIGN="LEFT"/></TD></TR>
+        <TR><TD BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">INHERITED ABBA ADVANCE / NO TIME LOOP</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>run.advance(t, workspace, h)</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">_implicit.py / advance</FONT></TD></TR>
+        <TR><TD ALIGN="LEFT"><B>IN</B> start time, internal workspace, duration<BR ALIGN="LEFT"/><B>OUT</B> generic StepResult(state, statistics, details)</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">StatePolicy.unpack exposes the numerical state.<BR ALIGN="LEFT"/>Call family.solve_step(t, numerical_state, h).<BR ALIGN="LEFT"/>StatePolicy.finish_step closes state and energy.<BR ALIGN="LEFT"/>Create records.StepResult(workspace, projections).</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">step_statistics(...) extracts one small metric row.<BR ALIGN="LEFT"/>Return that row and the family result as details.<BR ALIGN="LEFT"/>No accumulation or observer callback occurs here.<BR ALIGN="LEFT"/>Main and shadow calls use the same advance.</TD></TR>
       </TABLE>
     >];
     StepRecipe [label=<
@@ -227,18 +235,18 @@ digraph ABBA2SharedFullExecution {
 
     Recording [label=<
       <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
-        <TR><TD BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">SHARED MAIN-STEP RECORDING</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>record_completed_step(...)</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">records.py</FONT></TD></TR>
-        <TR><TD ALIGN="LEFT"><B>IN</B> StepResult and main-step index<BR ALIGN="LEFT"/><B>OUT</B> appended diagnostic rows<BR ALIGN="LEFT"/></TD></TR><HR/>
-        <TR><TD ALIGN="LEFT">Read SolveStats from step.projections.<BR ALIGN="LEFT"/>Sum corrections and residual evaluations.<BR ALIGN="LEFT"/>Keep the residual/tolerance pair from the same<BR ALIGN="LEFT"/>worst-ratio solve; retain per-projection metrics.<BR ALIGN="LEFT"/></TD></TR><HR/>
-        <TR><TD ALIGN="LEFT">One projection for ABBA2; one or three for ABBA4.<BR ALIGN="LEFT"/>Read numerical records without building events.<BR ALIGN="LEFT"/>Shadow advances bypass recording.<BR ALIGN="LEFT"/></TD></TR>
+        <TR><TD BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">ONE RUN / REQUESTED SAMPLES + ACCEPTED METRICS</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>IntegrationCollector</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/simulation/integration.py</FONT></TD></TR>
+        <TR><TD ALIGN="LEFT"><B>history</B>: internal coordinates x saved times<BR ALIGN="LEFT"/><B>record_step(info, statistics)</B><BR ALIGN="LEFT"/>Copy metric rows with stable keys and shapes.</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">Record step_start_times, step_times, step_sizes.<BR ALIGN="LEFT"/>Never store method details or observer events.<BR ALIGN="LEFT"/>Rejected adaptive trials have no accepted row;<BR ALIGN="LEFT"/>their numerical work belongs to the accepted step.</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT"><B>finalize()</B>: stack rows and provide step_count.<BR ALIGN="LEFT"/>Saved columns follow request.output_times.<BR ALIGN="LEFT"/>Metric rows follow accepted step_times.</TD></TR>
       </TABLE>
     >];
     StepResult [label=<
       <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
-        <TR><TD BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">SHARED RECORD / COMPLETE ADVANCE</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>StepResult</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">records.py</FONT></TD></TR>
-        <TR><TD ALIGN="LEFT"><B>State</B><BR ALIGN="LEFT"/>next_workspace: array<BR ALIGN="LEFT"/>projections: tuple[ProjectedMapResult, ...]<BR ALIGN="LEFT"/></TD></TR><HR/>
-        <TR><TD ALIGN="LEFT">One common contract for both methods.<BR ALIGN="LEFT"/>ABBA2 returns one projection record.<BR ALIGN="LEFT"/>ABBA4 returns one or three projection records.<BR ALIGN="LEFT"/></TD></TR><HR/>
-        <TR><TD ALIGN="LEFT">The scheduler receives next_workspace.<BR ALIGN="LEFT"/>Recording and observation read projections.<BR ALIGN="LEFT"/>Accepted numerical traces live in those records.<BR ALIGN="LEFT"/></TD></TR>
+        <TR><TD BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">SHARED RECORD / COMPLETE ADVANCE</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>Generic and ABBA StepResult</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/simulation/integration.py / records.py</FONT></TD></TR>
+        <TR><TD ALIGN="LEFT"><B>Generic result</B><BR ALIGN="LEFT"/>state, statistics, details: records.StepResult<BR ALIGN="LEFT"/><B>ABBA details</B><BR ALIGN="LEFT"/>next_workspace: array<BR ALIGN="LEFT"/>projections: tuple[ProjectedMapResult, ...]<BR ALIGN="LEFT"/></TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">One common contract for both methods.<BR ALIGN="LEFT"/>ABBA2 returns one projection record.<BR ALIGN="LEFT"/>ABBA4 returns one outer projection record.<BR ALIGN="LEFT"/></TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">The controller receives generic result.state.<BR ALIGN="LEFT"/>step_statistics and event builders read projections.<BR ALIGN="LEFT"/>Accepted numerical traces live in those records.<BR ALIGN="LEFT"/></TD></TR>
       </TABLE>
     >];
     ProjectedResult [label=<
@@ -258,10 +266,10 @@ digraph ABBA2SharedFullExecution {
     >];
     EventBuilder [label=<
       <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
-        <TR><TD BGCOLOR="#F0E8FA" ALIGN="LEFT"><FONT POINT-SIZE="9">SHARED OPTIONAL EVENT SERVICE</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>emit_observation(...)</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#79628F">observations.py</FONT></TD></TR>
-        <TR><TD ALIGN="LEFT"><B>IN</B> StepResult, metadata, bound event builder<BR ALIGN="LEFT"/><B>OUT</B> one observer callback, when configured<BR ALIGN="LEFT"/></TD></TR><HR/>
-        <TR><TD ALIGN="LEFT">Only if main step AND observer installed.<BR ALIGN="LEFT"/>Invoke prepared.build_event(...) on the records.<BR ALIGN="LEFT"/>Copy accepted snapshots and obtain tangents<BR ALIGN="LEFT"/>only when the event contract requires them.<BR ALIGN="LEFT"/></TD></TR><HR/>
-        <TR><TD ALIGN="LEFT">The builder preserves method-specific payloads.<BR ALIGN="LEFT"/>Call step_observer(event).<BR ALIGN="LEFT"/>Observer analysis remains in diagnostics/.<BR ALIGN="LEFT"/></TD></TR>
+        <TR><TD BGCOLOR="#F0E8FA" ALIGN="LEFT"><FONT POINT-SIZE="9">ABBA OPTIONAL OBSERVATION ADAPTER</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>run.build_observation(info, step)</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">_implicit.py / observations.py</FONT></TD></TR>
+        <TR><TD ALIGN="LEFT"><B>IN</B> StepInfo and generic StepResult<BR ALIGN="LEFT"/><B>OUT</B> selected IntegrationStep subclass</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">Unpack info.state_before into the event domain.<BR ALIGN="LEFT"/>Call family.build_event(..., step.details).<BR ALIGN="LEFT"/>Copy accepted traces and method-specific snapshots.<BR ALIGN="LEFT"/>Compute tangents only if the event requires them.</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">The event retains map_state and numerical timing.<BR ALIGN="LEFT"/>integrate_method dispatches step_observer(event).<BR ALIGN="LEFT"/>Analysis and persistence remain in diagnostics/.<BR ALIGN="LEFT"/>Shadow samples never request this builder.</TD></TR>
       </TABLE>
     >];
     Events [label=<
@@ -269,6 +277,14 @@ digraph ABBA2SharedFullExecution {
         <TR><TD BGCOLOR="#F0E8FA" ALIGN="LEFT"><FONT POINT-SIZE="9">EXISTING EVENT CLASSES / METHOD-SPECIFIC PAYLOADS</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>ABBA2 event selection</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#79628F">src/simulation/observation.py</FONT></TD></TR>
         <TR><TD ALIGN="LEFT"><B>ABBA2ImplicitIntegrationStep</B><BR ALIGN="LEFT"/>One projected physical map and stage snapshots.<BR ALIGN="LEFT"/>Physical energy tracking retains this event type.<BR ALIGN="LEFT"/><B>FullyExtendedImplicitIntegrationStep</B><BR ALIGN="LEFT"/>One projected full-state map and one base record.<BR ALIGN="LEFT"/></TD></TR><HR/>
         <TR><TD ALIGN="LEFT">Builders adapt the same StepResult contract.<BR ALIGN="LEFT"/>Preserve times, states, map_state and tangents.<BR ALIGN="LEFT"/></TD></TR>
+      </TABLE>
+    >];
+    MetricRow [label=<
+      <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">ABBA STATISTIC EXTRACTION / ONE ADVANCE</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>step_statistics(...)</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">records.py</FONT></TD></TR>
+        <TR><TD ALIGN="LEFT"><B>IN</B> records.StepResult, include_substeps<BR ALIGN="LEFT"/><B>OUT</B> scalar/vector statistics mapping</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">Sum corrections and residual evaluations.<BR ALIGN="LEFT"/>Select residual AND tolerance from the same solve<BR ALIGN="LEFT"/>with the largest normalized residual.<BR ALIGN="LEFT"/>Take the maximum multiplier infinity norm.</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">Optional vector columns count projections:<BR ALIGN="LEFT"/>ABBA2: one; ABBA4: one; ABBA6: seven.<BR ALIGN="LEFT"/>The common collector stacks accepted rows.</TD></TR>
       </TABLE>
     >];
   }
@@ -281,9 +297,10 @@ digraph ABBA2SharedFullExecution {
 
     Data [label=<
       <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
-        <TR><TD BGCOLOR="#E2F1E9" ALIGN="LEFT"><FONT POINT-SIZE="9">EXISTING INTERNAL RECORD</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>IntegrationData</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#537866">src/simulation/_result.py</FONT></TD></TR>
-        <TR><TD ALIGN="LEFT"><B>State</B><BR ALIGN="LEFT"/>t: requested times [T]<BR ALIGN="LEFT"/>states: physical history [2N, T]<BR ALIGN="LEFT"/>diagnostics: dict[str, DiagnosticValue]</TD></TR><HR/>
-        <TR><TD ALIGN="LEFT">Created after the scheduler reaches tf.<BR ALIGN="LEFT"/>Extract physical coordinates from workspace.<BR ALIGN="LEFT"/>Attach energy histories when applicable.<BR ALIGN="LEFT"/>Map legacy metric aliases at this boundary.</TD></TR>
+        <TR><TD BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">COMMON FINAL ASSEMBLY</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>IntegrationData</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/simulation/_result.py</FONT></TD></TR>
+        <TR><TD ALIGN="LEFT"><B>Fields</B><BR ALIGN="LEFT"/>t: requested times [T]<BR ALIGN="LEFT"/>states: physical history [m, T]<BR ALIGN="LEFT"/>diagnostics: metadata + accepted metrics + auxiliary</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">run.export_history(times, collector.history)<BR ALIGN="LEFT"/>extracts the physical state and optional energy.<BR ALIGN="LEFT"/>Export never repeats the numerical projection.<BR ALIGN="LEFT"/>Internal and physical dimensions may differ.</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">Add output_interpolation_count and metric aliases.<BR ALIGN="LEFT"/>Return to the original SimulationRunner call.<BR ALIGN="LEFT"/>Only the requested trajectory is exposed by default.</TD></TR>
       </TABLE>
     >];
     Resume [label=<
@@ -296,7 +313,7 @@ digraph ABBA2SharedFullExecution {
     Solution [label=<
       <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
         <TR><TD BGCOLOR="#E2F1E9" ALIGN="LEFT"><FONT POINT-SIZE="9">EXISTING PUBLIC CLASS</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>Solution</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#537866">src/simulation/solution.py</FONT></TD></TR>
-        <TR><TD ALIGN="LEFT"><B>Read-only public properties</B><BR ALIGN="LEFT"/>t: array[T]<BR ALIGN="LEFT"/>states: array[2N, T]<BR ALIGN="LEFT"/>source: InitialConfiguration<BR ALIGN="LEFT"/>diagnostics: read-only mapping</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT"><B>Read-only public properties</B><BR ALIGN="LEFT"/>t: array[T]<BR ALIGN="LEFT"/>states: array[m, T]<BR ALIGN="LEFT"/>source: InitialConfiguration<BR ALIGN="LEFT"/>diagnostics: read-only mapping</TD></TR><HR/>
         <TR><TD ALIGN="LEFT">Owns copies of trajectory and diagnostic arrays.<BR ALIGN="LEFT"/>Layout and provenance remain available<BR ALIGN="LEFT"/>through the source configuration.</TD></TR>
       </TABLE>
     >];
@@ -323,9 +340,9 @@ digraph ABBA2SharedFullExecution {
     A hollow diamond means a record contains another record. Red dashed arrows indicate failure propagation.<BR/>
     Blue and green SHARED cards denote the same components in both diagrams; orange cards define the model step.<BR/><BR/>
     <B>PRESERVED NUMERICAL DISTINCTIONS</B><BR/>
-    PreparedABBA, integrate_abba, StatePolicy, numerical kernels and result records are shared by both models.<BR/>
-    StepResult always holds a tuple of projection records. Each record retains a single-map or composed-map trace.<BR/>
-    ABBA2: one projected map. ABBA4: three projected maps or one projection around three unprojected maps.<BR/>
+    IntegrationMethod, integrate_method, FixedStepController and IntegrationCollector are shared by all numerical methods.<BR ALIGN="LEFT"/>_ABBAImplicitMethod, StatePolicy, projection kernels and numerical traces remain ABBA family components.<BR/>
+    The generic StepResult holds state, statistics and opaque method details; ABBA details hold projection records. Each record retains a single-map or composed-map trace.<BR/>
+    ABBA2: one projected map. ABBA4: one projection around three unprojected maps.<BR/>
     Projection placement remains part of the numerical method. Physical and extended equations keep their specialized algebra.<BR/>
     Physical auxiliary energy does not change z. Sampling and observation preserve main trajectories and solve statistics.
   >];
@@ -345,11 +362,12 @@ digraph ABBA2SharedFullExecution {
   { rank=same; HistoryExit; HistoryEntry; }
   { rank=same; Potential; Problem; Runner; Runtime; Recording; MetricsLink; Data; }
   { rank=same; Dynamics; Request; Prepare; Grid; StepResult; ObservationStart; Resume; }
-  { rank=same; Initial; Method; Prepared; Advance; ProjectedResult; Solution; }
+  { rank=same; Initial; Method; RunMethod; Advance; ProjectedResult; Solution; }
   { rank=same; Layout; Configuration; StatePolicy; StepRecipe; Stats; Interpret; }
-  { rank=same; Projection; EventBuilder; ObservationEnd; }
+  { rank=same; FamilyResources; Projection; EventBuilder; ObservationEnd; }
   { rank=same; FailurePass; Failure; }
   { rank=same; Nonlinear; Events; }
+  { rank=same; Maps; MetricRow; }
 
   PhasePhysics -> PhaseDefinition -> PhasePreparation -> PhaseExecution -> PhaseRecords [color="#334155", penwidth=2.4, weight=100];
   PhaseRecords -> FinalPhaseLink [color="#334155", penwidth=2.4, arrowhead=none, weight=100];
@@ -375,16 +393,18 @@ digraph ABBA2SharedFullExecution {
   Problem -> Runner [constraint=false, xlabel="problem"];
   Request -> Runner [constraint=false, xlabel="request"];
   Method -> Runner [constraint=false, xlabel="method"];
-  Runner -> Prepare [label="ABBA2Implicit.integrate\nstarts preparation", weight=100];
-  Prepare -> Prepared [color="#4676A7", style=dotted, label="validated plan", weight=100];
-  Prepared -> StatePolicy [style=invis, weight=100];
-  StatePolicy -> Prepared [constraint=false, arrowhead=odiamond, xlabel="state operations"];
-  Prepared -> Runtime [constraint=false, xlabel="prepared\nfunctions"];
+  Runner -> Prepare [label="inherited integrate\ncalls new_run + initialize", weight=100];
+  Prepare -> RunMethod [color="#4676A7", style=dotted, label="initialized instance", weight=100];
+  RunMethod -> StatePolicy [style=invis, weight=100];
+  StatePolicy -> FamilyResources [constraint=false, arrowhead=odiamond, xlabel="state operations"];
+  RunMethod -> Runtime [constraint=false, xlabel="method\ninstance"];
+
+  StatePolicy -> FamilyResources [style=invis, weight=100];
 
   // Normal execution descends into the selected complete step and its solver.
   Runtime -> Grid [label="start main time loop", weight=100];
   Grid -> Advance [label="main advance or\nshadow sample", weight=100];
-  Advance -> StepRecipe [label="prepared.solve_step", weight=100];
+  Advance -> StepRecipe [label="run.solve_step", weight=100];
   StepRecipe -> Projection [label="selected map and projection", weight=100];
   Projection -> Nonlinear [label="residual + correction callbacks", weight=100];
   Nonlinear -> Maps [label="evaluate selected residual\nand requested tangent", weight=100];
@@ -398,15 +418,17 @@ digraph ABBA2SharedFullExecution {
   ProjectedResult -> StepResult [constraint=false, arrowhead=odiamond, xlabel="exactly 1"];
   Advance -> StepResult [constraint=false, color="#4676A7", style=dotted, xlabel="completed\nadvance"];
   Grid -> StepResult [constraint=false, color="#4676A7", style=dotted, dir=back, arrowhead=none, arrowtail=normal];
-  StepResult -> Recording [constraint=false, xlabel="main step only"];
+  StepResult -> Recording [constraint=false, xlabel="accepted statistics"];
   StepResult -> ObservationStart [color="#9369B1", style=dashed, arrowhead=none, weight=100];
   ObservationStart -> ObservationEnd [color="#9369B1", style=dashed, arrowhead=none, xlabel="main step + observer", weight=1000];
   ObservationEnd -> EventBuilder [color="#9369B1", style=dashed, constraint=false];
-  EventBuilder -> Events [color="#9369B1", style=dashed, xlabel="emit event", weight=1000];
+  EventBuilder -> Events [color="#9369B1", style=dashed, xlabel="build event;\ncommon dispatch", weight=1000];
+
+  Events -> MetricRow [style=invis, weight=100];
 
   // Completion re-enters the same public runner before exposing Solution.
   Runtime -> HistoryExit [constraint=false, color="#4676A7", style=dotted, arrowhead=none, xlabel="after tf"];
-  HistoryExit -> HistoryEntry [color="#4676A7", style=dotted, arrowhead=none, xlabel="runtime finalizes physical history", weight=20];
+  HistoryExit -> HistoryEntry [color="#4676A7", style=dotted, arrowhead=none, xlabel="export_history(times, collector.history)", weight=20];
   HistoryEntry -> Data [color="#4676A7", style=dotted, weight=100];
   Recording -> MetricsLink [color="#4676A7", style=dotted, arrowhead=none, weight=100];
   MetricsLink -> Data [color="#4676A7", style=dotted, xlabel="final diagnostic\narrays", weight=100];

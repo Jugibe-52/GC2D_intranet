@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import numpy as np
 
 from dynamics import DynamicalSystem
 
-from ..._fixed import integrate_fixed_grid
-from ..._result import IntegrationData
+from ...integration import IntegrationMethod, StepInfo, StepResult
+from ..._result import DiagnosticValue
 from ...observation import IntegrationStep, StepObserver
 from ...problem import InitialValueProblem
 from ...request import SimulationRequest
@@ -27,69 +27,44 @@ def _checked_vector_field(
 	return derivative
 
 
-@dataclass(frozen=True, slots=True)
-class ExplicitEuler:
+@dataclass(slots=True)
+class ExplicitEuler(IntegrationMethod[None]):
 	"""Classical forward Euler, ``z_next = z + h f(t, z)``."""
 
 	progress: bool = False
 	step_observer: StepObserver | None = None
 
-	def integrate(
-		self,
-		problem: InitialValueProblem,
-		request: SimulationRequest,
-	) -> IntegrationData:
-		"""Integrate any compatible physical vector field on a fixed grid."""
-		dynamics = problem.dynamics
-		if not isinstance(dynamics, DynamicalSystem):
+	# Resources owned by one run; excluded from constructor options.
+	dynamics: DynamicalSystem = field(init=False, repr=False, compare=False)
+
+	def initialize(self, problem: InitialValueProblem, request: SimulationRequest) -> None:
+		"""Bind the Euler map, its physical observation and output extraction."""
+		self.dynamics = problem.dynamics
+		if not isinstance(self.dynamics, DynamicalSystem):
 			raise TypeError("ExplicitEuler requires DynamicalSystem.")
+		self.initial_state = problem.initial_state
 
-		def advance(
-			time: float,
-			state: np.ndarray,
-			step: float,
-			step_index: int,
-			observe: bool,
-		) -> np.ndarray:
-			def apply_step(candidate: np.ndarray) -> np.ndarray:
-				"""Apply the forward Euler map to a diagnostic candidate."""
-				value = np.asarray(candidate, dtype=float)
-				return np.asarray(
-					value + step * _checked_vector_field(dynamics, time, value),
-					dtype=float,
-				)
+	def _apply_step(self, time: float, state: np.ndarray, step: float) -> np.ndarray:
+		"""Apply one forward Euler step to an independent physical state."""
+		value = np.asarray(state, dtype=float)
+		return np.asarray(value + step * _checked_vector_field(self.dynamics, time, value), dtype=float)
 
-			state_before = np.asarray(state, dtype=float)
-			state_after = apply_step(state_before)
-			if observe and self.step_observer is not None:
-				self.step_observer(
-					IntegrationStep(
-						dynamics_name=type(dynamics).__name__,
-						method_name=type(self).__name__,
-						step_index=step_index,
-						start_time=time,
-						time=time + step,
-						duration=step,
-						state_before=state_before.copy(),
-						state_after=state_after.copy(),
-						map_state=apply_step,
-						dynamics=dynamics,
-					)
-				)
-			return np.asarray(state_after, dtype=float)
+	def advance(self, time: float, state: np.ndarray, step: float) -> StepResult[None]:
+		"""Return one forward Euler step without collection or observation."""
+		return StepResult(self._apply_step(time, state, step), {}, None)
 
-		history, step_count = integrate_fixed_grid(
-			problem.initial_state,
-			request,
-			advance,
-			progress=bool(self.progress),
-			label="ExplicitEuler",
+	def build_observation(self, info: StepInfo, result: StepResult[None]) -> IntegrationStep:
+		def map_state(candidate: np.ndarray) -> np.ndarray:
+			return self._apply_step(info.time, candidate, info.duration)
+		return IntegrationStep(
+			dynamics_name=type(self.dynamics).__name__, method_name=type(self).__name__,
+			step_index=info.index, start_time=info.time, time=info.time + info.duration,
+			duration=info.duration, state_before=info.state_before.copy(),
+			state_after=result.state.copy(), map_state=map_state, dynamics=self.dynamics,
 		)
-		return IntegrationData(
-			t=request.output_times,
-			states=history,
-			diagnostics={"step_count": step_count},
-		)
+
+	def export_history(self, times: np.ndarray, history: np.ndarray) -> tuple[np.ndarray, dict[str, DiagnosticValue]]:
+		return history, {}
 
 
 __all__ = ["ExplicitEuler"]

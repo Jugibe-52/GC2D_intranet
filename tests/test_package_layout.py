@@ -62,7 +62,7 @@ class PackageLayoutTests(unittest.TestCase):
 		self.assertIsNotNone(BM4Implicit)
 		self.assertEqual(
 			ABBA4_PROJECTION_PLACEMENTS,
-			("after_each_abba_map", "around_complete_composition"),
+			("around_complete_composition",),
 		)
 		self.assertEqual(
 			ABBA_PROJECTION_FORMULATIONS,

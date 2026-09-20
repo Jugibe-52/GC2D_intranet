@@ -12,7 +12,7 @@ import numpy as np
 from dynamics import GuidingCenterJacobianSystem
 from simulation import (
 	ABBA_PROJECTION_FORMULATIONS,
-	ABBA4ImplicitIntegrationStep,
+	ABBA4ImplicitSingleProjectionIntegrationStep,
 	ABBA2ImplicitIntegrationStep,
 	IntegrationStep,
 	NONLINEAR_SOLVERS,
@@ -22,7 +22,7 @@ from simulation.methods._nonlinear import SolverOptions
 from simulation.methods.abba._configuration import _validate_projection_formulation
 from simulation.methods.abba.observations import bind_event_builder
 from simulation.methods.abba.records import StepResult
-from simulation.methods.abba.steps import bind_physical_projection, solve_projected_composition_step
+from simulation.methods.abba.steps import bind_physical_projection, solve_outer_projection_step
 from simulation.methods.abba.projection_reduced import (
 	_solve_reduced_multiplier_step,
 )
@@ -41,7 +41,7 @@ _FORMULATION_SOLVERS: dict[str, _StepSolver] = {
 	"reduced_multiplier": _solve_reduced_multiplier_step,
 	"simultaneous_state_multiplier": _solve_simultaneous_state_multiplier_step,
 }
-_ObservedStep = ABBA2ImplicitIntegrationStep | ABBA4ImplicitIntegrationStep
+_ObservedStep = ABBA2ImplicitIntegrationStep | ABBA4ImplicitSingleProjectionIntegrationStep
 
 
 def _dense_component_major_jacobian(blocks: np.ndarray) -> np.ndarray:
@@ -61,7 +61,7 @@ def _dense_component_major_jacobian(blocks: np.ndarray) -> np.ndarray:
 
 def _complete_step_jacobian(step: _ObservedStep) -> np.ndarray:
 	"""Return the exact complete-map tangent for ABBA2 or composed ABBA4."""
-	if isinstance(step, ABBA4ImplicitIntegrationStep):
+	if isinstance(step, ABBA4ImplicitSingleProjectionIntegrationStep):
 		return _dense_component_major_jacobian(
 			abba4_implicit_step_particle_jacobians(step)
 		)
@@ -187,7 +187,7 @@ class ImplicitABBAReversibilityObserver:
 		dynamics: GuidingCenterJacobianSystem,
 	) -> _ObservedStep:
 		"""Solve and expose the signed reverse step independently of ``J_plus``."""
-		if isinstance(step, ABBA4ImplicitIntegrationStep):
+		if isinstance(step, ABBA4ImplicitSingleProjectionIntegrationStep):
 			return self._solve_reverse_abba4_step(step, dynamics)
 		try:
 			step_solver = _FORMULATION_SOLVERS[step.formulation_name]
@@ -261,9 +261,9 @@ class ImplicitABBAReversibilityObserver:
 
 	def _solve_reverse_abba4_step(
 		self,
-		step: ABBA4ImplicitIntegrationStep,
+		step: ABBA4ImplicitSingleProjectionIntegrationStep,
 		dynamics: GuidingCenterJacobianSystem,
-	) -> ABBA4ImplicitIntegrationStep:
+	) -> ABBA4ImplicitSingleProjectionIntegrationStep:
 		"""Use the shared signed-step recipe and snapshot adapter in reverse."""
 		start_time = float(step.time)
 		duration = -float(step.duration)
@@ -275,26 +275,26 @@ class ImplicitABBAReversibilityObserver:
 			self.nonlinear_solver, self.newton_absolute_tolerance,
 			self.newton_relative_tolerance, self.newton_max_iterations,
 		)
-		project = bind_physical_projection(dynamics, options, formulation, outer=False)
+		project = bind_physical_projection(dynamics, options, formulation, outer=True)
 		coefficients = tuple(float(c) for c in step.composition_coefficients)
-		solve_step = partial(solve_projected_composition_step, project, coefficients)
+		solve_step = partial(solve_outer_projection_step, project)
 		projections = solve_step(start_time, state_before, duration)
 		builder = bind_event_builder(
 			dynamics, step.method_name, formulation, order=4, fully_extended=False,
-			outer=False, coefficients=coefficients, solve_step=solve_step, project=project,
+			outer=True, coefficients=coefficients, solve_step=solve_step, project=project,
 		)
 		event = builder(
 			start_time, duration, step.step_index, state_before,
 			StepResult(projections[-1].state, projections),
 		)
-		assert isinstance(event, ABBA4ImplicitIntegrationStep)
+		assert isinstance(event, ABBA4ImplicitSingleProjectionIntegrationStep)
 		return replace(event, time=float(step.start_time))
 
 	def __call__(self, step: IntegrationStep) -> None:
 		"""Observe one consecutive accepted implicit-ABBA step."""
 		if not isinstance(
 			step,
-			(ABBA2ImplicitIntegrationStep, ABBA4ImplicitIntegrationStep),
+			(ABBA2ImplicitIntegrationStep, ABBA4ImplicitSingleProjectionIntegrationStep),
 		):
 			raise TypeError(
 				"ImplicitABBAReversibilityObserver requires "

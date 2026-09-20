@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><title>Poincare comparison</title>
+<style>
+body{font:14px system-ui;margin:16px;color:#223047;background:#fff}
+.controls{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:14px 0}
+button,select{padding:6px 12px}input[type=range]{flex:1;min-width:220px}
+.plots{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;min-width:750px}
+canvas{width:100%;aspect-ratio:1}h3{text-align:center;margin:4px}
+#particles{display:grid;grid-template-columns:repeat(8,1fr);gap:6px}
+label.particle{border:1px solid #ddd;border-radius:5px;padding:5px;cursor:pointer}
+</style>
+<h2>Synchronized Poincare sections</h2>
+<p>Wrapped coordinates x/L and y/L. Small dots: accumulated returns. Large dot: current return.
+Select particles below to update all three panels.</p>
+<div class="controls"><button id="play">Play</button><button id="reset">Reset</button>
+<input id="cycle" type="range" min="1" value="1"><strong id="status"></strong>
+<label>Cycles/frame <select id="speed"><option>1</option><option>10</option><option selected>25</option><option>50</option><option>100</option></select></label>
+<label><input type="checkbox" id="trail" checked>Accumulate returns</label></div>
+<div class="plots" id="plots"></div>
+<div class="controls"><button id="all">Show all</button><button id="none">Hide all</button><button id="invert">Invert</button><span id="count"></span></div>
+<div id="particles"></div>
+<script>
+const cfg=__CONFIG__;
+const bytes=Uint8Array.from(atob(cfg.data),c=>c.charCodeAt(0));
+const xy=new Float32Array(bytes.buffer), N=cfg.shape[1], P=cfg.shape[2];
+const selected=new Set(cfg.ids), boxes=[];
+const slider=document.getElementById('cycle'), play=document.getElementById('play');
+const speed=document.getElementById('speed'), trail=document.getElementById('trail');
+slider.max=N; speed.value=String(cfg.step);
+if(!speed.value){const o=new Option(cfg.step,cfg.step);speed.add(o);speed.value=String(cfg.step);}
+let timer=null;
+const canvases=cfg.titles.map(title=>{
+ const panel=document.createElement('div'),h=document.createElement('h3'),c=document.createElement('canvas');
+ h.textContent=title;c.width=600;c.height=600;panel.append(h,c);document.getElementById('plots').append(panel);return c;
+});
+cfg.ids.forEach((id,p)=>{
+ const label=document.createElement('label'),box=document.createElement('input');
+ label.className='particle';label.style.borderLeft='5px solid '+cfg.colors[p];box.type='checkbox';box.checked=true;
+ box.onchange=()=>{box.checked?selected.add(id):selected.delete(id);draw();};
+ label.append(box,document.createTextNode('Particle '+id));document.getElementById('particles').append(label);boxes.push(box);
+});
+function draw(){
+ const cycle=Number(slider.value);
+ document.getElementById('status').textContent='Cycle '+cycle+' / '+N;
+ document.getElementById('count').textContent=selected.size+' / '+P+' selected';
+ canvases.forEach((canvas,m)=>{
+ const ctx=canvas.getContext('2d'),left=52,top=20,size=520;
+ ctx.clearRect(0,0,600,600);ctx.font='15px system-ui';ctx.lineWidth=1;
+ for(let k=0;k<=4;k++){
+ const f=k/4;ctx.strokeStyle='#e1e5eb';ctx.beginPath();ctx.moveTo(left+f*size,top);ctx.lineTo(left+f*size,top+size);
+ ctx.moveTo(left,top+f*size);ctx.lineTo(left+size,top+f*size);ctx.stroke();
+ ctx.fillStyle='#334155';ctx.textAlign='center';ctx.fillText(f.toFixed(2),left+f*size,top+size+24);
+ ctx.textAlign='right';ctx.fillText((1-f).toFixed(2),left-8,top+f*size+5);
+ }
+ ctx.textAlign='center';ctx.fillText('x / L',left+size/2,590);
+ ctx.save();ctx.translate(16,top+size/2);ctx.rotate(-Math.PI/2);ctx.fillText('y / L',0,0);ctx.restore();
+ ctx.save();ctx.beginPath();ctx.rect(left,top,size,size);ctx.clip();
+ for(let p=0;p<P;p++){
+ if(!selected.has(cfg.ids[p]))continue;
+ ctx.fillStyle=cfg.colors[p];
+ if(trail.checked){ctx.globalAlpha=.55;
+ for(let t=0;t<cycle;t++){const i=((m*N+t)*P+p)*2;ctx.fillRect(left+xy[i]*size-1,top+(1-xy[i+1])*size-1,2,2);}}
+ ctx.globalAlpha=1;const i=((m*N+cycle-1)*P+p)*2;
+ ctx.beginPath();ctx.arc(left+xy[i]*size,top+(1-xy[i+1])*size,4,0,2*Math.PI);ctx.fill();
+ }ctx.restore();
+ });
+}
+function stop(){clearInterval(timer);timer=null;play.textContent='Play';}
+play.onclick=()=>{if(timer){stop();return;}if(Number(slider.value)===N)slider.value=1;
+ play.textContent='Pause';timer=setInterval(()=>{slider.value=Math.min(N,Number(slider.value)+Number(speed.value));draw();if(Number(slider.value)===N)stop();},100);};
+slider.oninput=draw;trail.onchange=draw;
+document.getElementById('reset').onclick=()=>{stop();slider.value=1;draw();};
+function select(mode){cfg.ids.forEach((id,p)=>{const on=mode==='all'||(mode==='invert'&&!selected.has(id));on?selected.add(id):selected.delete(id);boxes[p].checked=on;});draw();}
+for(const mode of ['all','none','invert'])document.getElementById(mode).onclick=()=>select(mode);
+draw();
+</script></html>

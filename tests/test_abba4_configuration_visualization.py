@@ -132,17 +132,15 @@ class ABBA4ConfigurationAnimationTests(unittest.TestCase):
 				artists = animation._func(2)
 				animation._draw_was_started = True
 
-				# Sixteen data axes share one seventeenth colorbar axis.
-				self.assertEqual(len(animation._fig.axes), 17)
-				data_axes = animation._fig.axes[:16]
+				# Eight data axes share one ninth colorbar axis.
+				self.assertEqual(len(animation._fig.axes), 9)
+				data_axes = animation._fig.axes[:8]
 				row_labels = tuple(
-					data_axes[row * 4].get_ylabel() for row in range(4)
+					data_axes[row * 4].get_ylabel() for row in range(2)
 				)
 				self.assertEqual(
 					row_labels,
 					(
-						"ABBA4 · 3 projections\nphysical + energy · base R4",
-						"ABBA4 · 3 projections\nfully extended · base R8",
 						"SP-ABBA4 · 1 projection\nphysical + energy · base R4",
 						"SP-ABBA4 · 1 projection\nfully extended · base R8",
 					),
@@ -183,10 +181,10 @@ class ABBA4ConfigurationAnimationTests(unittest.TestCase):
 					len(animation._fig.legends[0].get_texts()),
 					particle_count,
 				)
-				self.assertEqual(len(artists), 49)
+				self.assertEqual(len(artists), 25)
 				assert animation._fig._suptitle is not None
 				self.assertIn(
-					f"{16 * particle_count} trajectories",
+					f"{8 * particle_count} trajectories",
 					animation._fig._suptitle.get_text(),
 				)
 				self.assertIn("phase", animation._fig._suptitle.get_text())
@@ -195,7 +193,7 @@ class ABBA4ConfigurationAnimationTests(unittest.TestCase):
 	def test_animation_rejects_an_incomplete_or_misaligned_result(self) -> None:
 		result = _result()
 		result.variants = result.variants[:-1]
-		with self.assertRaisesRegex(ValueError, "exactly 16"):
+		with self.assertRaisesRegex(ValueError, "8 current or 16 historical"):
 			animate_abba4_configuration_trajectories(result, frames=3)
 
 		result = _result()

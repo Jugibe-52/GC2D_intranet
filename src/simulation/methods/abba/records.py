@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import TypeAlias
 
 import numpy as np
 
-from ..._result import DiagnosticValue
 from .._nonlinear import SolveStats
 from .maps.physical import _ABBAStages
 from .projection_extended import _FullProjectedStep
@@ -65,53 +64,32 @@ class StepResult:
 	projections: tuple[ProjectedMapResult, ...]
 
 
-@dataclass(slots=True)
-class StepMetrics:
-	"""Small numerical rows, collected without allocating observer events."""
 
-	iterations: list[list[int]] = field(default_factory=list)
-	evaluations: list[list[int]] = field(default_factory=list)
-	residuals: list[list[float]] = field(default_factory=list)
-	tolerances: list[list[float]] = field(default_factory=list)
-	multipliers: list[list[float]] = field(default_factory=list)
-
-	def finalize(self, *, include_substeps: bool) -> dict[str, DiagnosticValue]:
-		"""Aggregate work and retain the residual/tolerance from one solve."""
-		iterations = np.asarray(self.iterations, dtype=int)
-		evaluations = np.asarray(self.evaluations, dtype=int)
-		residuals = np.asarray(self.residuals, dtype=float)
-		tolerances = np.asarray(self.tolerances, dtype=float)
-		multipliers = np.asarray(self.multipliers, dtype=float)
-		worst = np.argmax(residuals / tolerances, axis=1)
-		rows = np.arange(residuals.shape[0])
-		result: dict[str, DiagnosticValue] = {
-			"nonlinear_iterations": np.sum(iterations, axis=1),
-			"residual_evaluations": np.sum(evaluations, axis=1),
-			"nonlinear_residual_norms": residuals[rows, worst],
-			"nonlinear_tolerances": tolerances[rows, worst],
-			"projection_multiplier_norms": np.max(multipliers, axis=1),
-		}
-		if include_substeps:
-			result.update({
-				"substep_nonlinear_iterations": iterations,
-				"substep_residual_evaluations": evaluations,
-				"substep_nonlinear_residual_norms": residuals,
-				"substep_nonlinear_tolerances": tolerances,
-				"substep_projection_multiplier_norms": multipliers,
-			})
-		return result
-
-
-def record_completed_step(metrics: StepMetrics, result: StepResult) -> None:
-	"""Append the numerical records of one main-grid advance."""
+def step_statistics(result: StepResult, *, include_substeps: bool) -> dict[str, np.ndarray | float | int]:
+	"""Extract one metric row without accumulating history or building events."""
 	projections = result.projections
-	metrics.iterations.append([p.stats.iterations for p in projections])
-	metrics.evaluations.append([p.stats.residual_evaluations for p in projections])
-	metrics.residuals.append([p.stats.residual_norm for p in projections])
-	metrics.tolerances.append([p.stats.tolerance for p in projections])
-	metrics.multipliers.append([
-		float(np.linalg.norm(p.multiplier, ord=np.inf)) for p in projections
-	])
+	iterations = np.asarray([p.stats.iterations for p in projections], dtype=int)
+	evaluations = np.asarray([p.stats.residual_evaluations for p in projections], dtype=int)
+	residuals = np.asarray([p.stats.residual_norm for p in projections], dtype=float)
+	tolerances = np.asarray([p.stats.tolerance for p in projections], dtype=float)
+	multipliers = np.asarray([float(np.linalg.norm(p.multiplier, ord=np.inf)) for p in projections])
+	worst = int(np.argmax(residuals / tolerances))
+	metrics: dict[str, np.ndarray | float | int] = {
+		"nonlinear_iterations": int(np.sum(iterations)),
+		"residual_evaluations": int(np.sum(evaluations)),
+		"nonlinear_residual_norms": float(residuals[worst]),
+		"nonlinear_tolerances": float(tolerances[worst]),
+		"projection_multiplier_norms": float(np.max(multipliers)),
+	}
+	if include_substeps:
+		metrics.update({
+			"substep_nonlinear_iterations": iterations,
+			"substep_residual_evaluations": evaluations,
+			"substep_nonlinear_residual_norms": residuals,
+			"substep_nonlinear_tolerances": tolerances,
+			"substep_projection_multiplier_norms": multipliers,
+		})
+	return metrics
 
 
 __all__: list[str] = []

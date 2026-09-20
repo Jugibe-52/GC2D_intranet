@@ -274,7 +274,7 @@ class ABBA4ImplicitSingleProjectionTests(unittest.TestCase):
 			self.assertGreater(float(gain), 28.0)
 			self.assertLess(float(gain), 40.0)
 
-	def test_complete_map_is_reversible_and_distinct_from_projecting_each_factor(
+	def test_complete_map_is_reversible_and_matches_the_default(
 		self,
 	) -> None:
 		dynamics = _NonlinearHamiltonianDynamics()
@@ -319,9 +319,7 @@ class ABBA4ImplicitSingleProjectionTests(unittest.TestCase):
 			),
 			request,
 		).states[:, -1]
-		difference = float(np.linalg.norm(new - old))
-		self.assertGreater(difference, 1e-12)
-		self.assertLess(difference, 1e-3)
+		np.testing.assert_array_equal(new, old)
 
 	def test_broyden_matches_the_newton_root(self) -> None:
 		problem = _problem(
@@ -359,106 +357,12 @@ class ABBA4ImplicitSingleProjectionTests(unittest.TestCase):
 
 
 class ABBA4SingleProjectionStudyTests(unittest.TestCase):
-	"""Exercise the aligned comparison summaries and all dedicated plots."""
+	"""Do not relabel current trajectories as the retired three-projection map."""
 
-	def test_comparison_normalizes_map_work_and_builds_plots(self) -> None:
-		potential_config = RandomPotentialConfig(
-			amplitude=0.08,
-			max_wave_number=3,
-			nx=16,
-			ny=16,
-			seed=27,
-			interpolation_order=5,
-		)
-		potential = potential_config.build()
-		configuration = random_gc_configuration(
-			potential,
-			particle_count=2,
-			seed=41,
-		)
-		initial_metadata = {
-			"particle_count": 2,
-			"seed": 41,
-			"sampling": "uniform_full_periodic_cell",
-		}
-		with tempfile.TemporaryDirectory(dir="/tmp") as temporary:
-			root = Path(temporary)
-			(root / "pyproject.toml").write_text("[project]\nname='test'\n")
-			reference = run_high_precision_reference_trajectory(
-				potential,
-				configuration,
-				notebook_path=(
-					root / "notebooks/developements/accuracy/reference.ipynb"
-				),
-				config=HighPrecisionReferenceConfig(
-					t_span=(0.0, 0.2),
-					save_interval=0.025,
-					rho=0.05,
-					relative_tolerance=1e-11,
-					absolute_tolerance=1e-13,
-					maximum_step=0.005,
-					audit_relative_tolerance=1e-11,
-					audit_absolute_tolerance=1e-13,
-					audit_maximum_step=0.0025,
-				),
-				potential_metadata=potential_config.metadata(),
-				initial_condition_metadata=initial_metadata,
-				project_root=root,
-			).trajectory
-			result = run_abba4_projection_comparison_study(
-				potential,
-				configuration,
-				reference,
-				config=ABBA4ProjectionComparisonConfig(
-					integration_steps=(0.1, 0.05),
-					t_span=(0.0, 0.2),
-					save_interval=0.1,
-					rho=0.05,
-					absolute_tolerance=1e-14,
-					relative_tolerance=1e-14,
-					timing_warmups=0,
-					timing_repeats=2,
-				),
-				potential_metadata=potential_config.metadata(),
-				initial_condition_metadata=initial_metadata,
-			)
-
-		summaries = result.summaries()
-		orders = result.convergence_orders()
-		self.assertEqual(len(summaries), 4)
-		self.assertEqual(len(orders), 2)
-		for row in summaries:
-			maps_per_evaluation = (
-				3 if row.method_name == "ABBA4ImplicitSingleProjection" else 1
-			)
-			self.assertEqual(
-				row.total_unprojected_abba_map_evaluations,
-				maps_per_evaluation * row.total_residual_evaluations,
-			)
-			self.assertEqual(
-				row.total_newton_tangent_abba_map_evaluations,
-				maps_per_evaluation * row.total_iterations,
-			)
-			self.assertLessEqual(row.maximum_residual_to_tolerance, 1.0)
-
-		accuracy_figure, _ = plot_abba4_projection_accuracy(
-			summaries,
-			reference_floor=result.reference_floor,
-		)
-		order_figure, order_axes = plot_abba4_projection_order_reduction(orders)
-		newton_figure, newton_axes = plot_abba4_projection_newton_work(summaries)
-		multiplier_figure, _ = plot_abba4_projection_multiplier_scaling(summaries)
-		runtime_figure, _ = plot_abba4_projection_runtime(summaries)
-		self.assertEqual(order_axes.shape, (2,))
-		self.assertEqual(newton_axes.shape, (2, 2))
-		for figure in (
-			accuracy_figure,
-			order_figure,
-			newton_figure,
-			multiplier_figure,
-			runtime_figure,
-		):
-			plt.close(figure)
+	def test_removed_projection_comparison_fails_before_starting_any_work(self) -> None:
+		with self.assertRaisesRegex(ValueError, "three-projection ABBA4 implementation has been removed"):
+			run_abba4_projection_comparison_study(
+				None, None, None, config=None, potential_metadata={}, initial_condition_metadata={})
 
 
 if __name__ == "__main__":

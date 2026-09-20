@@ -17,7 +17,7 @@ from diagnostics import (
 from initial_conditions import GCInitialConfiguration
 from simulation import (
 	ABBA4Implicit,
-	ABBA4ImplicitIntegrationStep,
+	ABBA4ImplicitSingleProjectionIntegrationStep,
 	InitialValueProblem,
 	SimulationRequest,
 	simulate,
@@ -115,7 +115,7 @@ class ABBA4ImplicitMethodTests(unittest.TestCase):
 	def test_projection_placement_is_validated_at_configuration_time(self) -> None:
 		self.assertEqual(
 			ABBA4Implicit().projection_placement,
-			"after_each_abba_map",
+			"around_complete_composition",
 		)
 		self.assertEqual(
 			ABBA4Implicit(
@@ -127,6 +127,10 @@ class ABBA4ImplicitMethodTests(unittest.TestCase):
 			ABBA4Implicit(
 				projection_placement="unknown",  # type: ignore[arg-type]
 			)
+
+	def test_removed_projection_placement_is_rejected(self) -> None:
+		with self.assertRaisesRegex(ValueError, "removed"):
+			ABBA4Implicit(projection_placement="after_each_abba_map")  # type: ignore[arg-type]
 
 	def test_observation_contains_three_continuous_signed_substeps(self) -> None:
 		self.assertLess(_ABBA4_COEFFICIENTS[1], 0.0)
@@ -148,7 +152,7 @@ class ABBA4ImplicitMethodTests(unittest.TestCase):
 		)
 		self.assertEqual(len(events), 2)
 		step = events[0]
-		self.assertIsInstance(step, ABBA4ImplicitIntegrationStep)
+		self.assertIsInstance(step, ABBA4ImplicitSingleProjectionIntegrationStep)
 		self.assertEqual(len(step.substeps), 3)
 		self.assertLess(step.substeps[1].duration, 0.0)
 		np.testing.assert_allclose(
@@ -169,25 +173,28 @@ class ABBA4ImplicitMethodTests(unittest.TestCase):
 			rtol=0.0,
 			atol=2e-16,
 		)
-		np.testing.assert_array_equal(step.substeps[0].state_before, step.state_before)
+		np.testing.assert_array_equal(step.substeps[0].u_initial, step.state_before + step.multiplier)
+		np.testing.assert_array_equal(step.substeps[0].v_initial, step.state_before - step.multiplier)
 		for first, second in zip(step.substeps, step.substeps[1:]):
-			np.testing.assert_array_equal(first.state_after, second.state_before)
-			self.assertFalse(np.shares_memory(first.multiplier, second.multiplier))
-		np.testing.assert_array_equal(step.substeps[-1].state_after, step.state_after)
+			np.testing.assert_array_equal(first.u_final, second.u_initial)
+			np.testing.assert_array_equal(first.v_final, second.v_initial)
+			self.assertFalse(np.shares_memory(first.u_final, second.u_initial))
+		np.testing.assert_allclose((step.substeps[-1].u_final + step.substeps[-1].v_final) / 2,
+		                          step.state_after, rtol=0, atol=2e-15)
 		np.testing.assert_allclose(
 			step.map_state(step.state_before),
 			step.state_after,
 			rtol=0.0,
 			atol=2e-15,
 		)
-		self.assertEqual(solution.diagnostics["nonlinear_solves_per_step"], 3)
+		self.assertEqual(solution.diagnostics["nonlinear_solves_per_step"], 1)
 		self.assertEqual(
 			solution.diagnostics["projection_placement"],
-			"after_each_abba_map",
+			"around_complete_composition",
 		)
 		self.assertEqual(
 			solution.diagnostics["substep_nonlinear_iterations"].shape,
-			(2, 3),
+			(2, 1),
 		)
 		np.testing.assert_array_equal(
 			solution.diagnostics["nonlinear_iterations"],

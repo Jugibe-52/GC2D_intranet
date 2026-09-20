@@ -13,7 +13,6 @@ from initial_conditions import GCInitialConfiguration
 from potential import Potential
 from simulation import ABBA2Implicit, ABBA4Implicit, InitialValueProblem, SimulationRequest, simulate
 from simulation.methods._nonlinear import _solve_newton
-from simulation.methods.abba.preparation import prepare_abba
 from simulation.methods.abba.records import ExtendedProjectionTrace, PhysicalProjectionTrace
 
 
@@ -40,14 +39,13 @@ class SharedABBARuntimeTests(unittest.TestCase):
 			("physical", "fully_extended"),
 			(
 				(ABBA2Implicit, 2, "after_each_abba_map", 1, 1),
-				(ABBA4Implicit, 4, "after_each_abba_map", 3, 1),
 				(ABBA4Implicit, 4, "around_complete_composition", 1, 3),
 			),
 		):
 			with self.subTest(extension=extension, order=order, placement=placement):
 				method = method_type(state_extension=extension)
-				prepared = prepare_abba(problem, method, request, order=order, projection_placement=placement)
-				state = prepared.state_ops.unpack(0.0, prepared.initial_workspace)
+				prepared = method.new_run(problem, request)
+				state = prepared.state_ops.unpack(0.0, prepared.initial_state)
 				results = prepared.solve_step(0.0, state, 0.02)
 				self.assertIsInstance(results, tuple)
 				self.assertEqual(len(results), solves)
@@ -58,15 +56,15 @@ class SharedABBARuntimeTests(unittest.TestCase):
 						self.assertIsInstance(result.trace, ExtendedProjectionTrace)
 						self.assertEqual(len(result.trace.coefficients), maps)
 					self.assertLessEqual(result.stats.residual_norm, result.stats.tolerance)
-				self.assertFalse(prepared.initial_workspace.flags.writeable)
+				self.assertFalse(prepared.initial_state.flags.writeable)
 				with self.assertRaises(TypeError):
-					prepared.method_metadata["step_count"] = 3  # type: ignore[index]
+					prepared.metadata["step_count"] = 3  # type: ignore[index]
 
 	def test_shadow_samples_preserve_main_trajectory_metrics_and_events(self) -> None:
 		problem = _problem()
 		for extension, solver, placement in product(
 			("physical", "fully_extended"), ("newton", "broyden"),
-			("after_each_abba_map", "around_complete_composition"),
+			("around_complete_composition",),
 		):
 			with self.subTest(extension=extension, solver=solver, placement=placement):
 				options = dict(state_extension=extension, nonlinear_solver=solver,
@@ -93,8 +91,8 @@ class SharedABBARuntimeTests(unittest.TestCase):
 		with patch("simulation.methods.abba.observations.ABBA2ImplicitIntegrationStep",
 			side_effect=AssertionError("Unexpected observer allocation")):
 			result = simulate(_problem(), ABBA4Implicit(), _request([0.0, 0.04]))
-		self.assertEqual(result.diagnostics["nonlinear_solves_per_step"], 3)
-		self.assertEqual(np.asarray(result.diagnostics["substep_nonlinear_iterations"]).shape, (2, 3))
+		self.assertEqual(result.diagnostics["nonlinear_solves_per_step"], 1)
+		self.assertEqual(np.asarray(result.diagnostics["substep_nonlinear_iterations"]).shape, (2, 1))
 
 	def test_observer_snapshots_cannot_mutate_state_or_tracked_energy(self) -> None:
 		problem = _problem()
@@ -106,7 +104,7 @@ class SharedABBARuntimeTests(unittest.TestCase):
 			event.state_before[:] = -999.0
 			for substep in event.substeps:
 				substep.u_first[:] = 888.0
-				substep.multiplier[:] = 888.0
+				substep.u_initial[:] = 888.0
 
 		actual = simulate(problem, ABBA4Implicit(track_energy=True, step_observer=mutate_snapshot), request)
 		np.testing.assert_array_equal(expected.states, actual.states)

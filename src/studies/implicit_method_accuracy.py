@@ -42,7 +42,6 @@ from ._validation import (
 
 IMPLICIT_ACCURACY_METHOD_NAMES: tuple[str, ...] = (
 	"ABBA2Implicit[reduced_multiplier]",
-	"ABBA4Implicit",
 	"ABBA4ImplicitSingleProjection",
 	"BM4Implicit",
 )
@@ -241,13 +240,7 @@ def _configured_method(
 			progress=config.progress,
 		)
 	if method_name == "ABBA4Implicit":
-		return ABBA4Implicit(
-			newton_absolute_tolerance=config.absolute_tolerance,
-			newton_relative_tolerance=config.relative_tolerance,
-			newton_max_iterations=config.max_iterations,
-			nonlinear_solver="newton",
-			progress=config.progress,
-		)
+		raise ValueError("This historical study key describes the removed three-projection ABBA4.")
 	if method_name == "ABBA4ImplicitSingleProjection":
 		return ABBA4Implicit(
 			projection_placement="around_complete_composition",

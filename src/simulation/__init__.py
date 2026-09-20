@@ -10,6 +10,8 @@ from .formulations import (
 	gc_coupling_matrix,
 )
 from .methods import (
+	DOP853,
+	Radau,
 	ABBA2Midpoint,
 	ABBA2Implicit,
 	ABBA4Implicit,
@@ -41,6 +43,8 @@ from .methods import (
 	SDIRKJacobianMethod,
 )
 from .observation import (
+	AdaptiveIntegrationStep,
+	AdaptiveStepObserver,
 	ABBA4ImplicitSingleProjectionIntegrationStep,
 	FullyExtendedBaseMap,
 	FullyExtendedImplicitIntegrationStep,
@@ -70,6 +74,10 @@ from .runner import SimulationRunner, simulate
 from .solution import Solution
 
 __all__ = [
+	"DOP853",
+	"Radau",
+	"AdaptiveIntegrationStep",
+	"AdaptiveStepObserver",
 	"ABBA2Midpoint",
 	"ABBA2Implicit",
 	"ABBA4Implicit",

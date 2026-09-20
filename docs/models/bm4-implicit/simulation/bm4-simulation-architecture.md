@@ -1,13 +1,59 @@
 # BM4Implicit physical simulation architecture
 
+[Editable source](bm4-simulation-architecture.puml) · [Scalable diagram (SVG)](bm4-simulation-architecture.svg)
+
 ![BM4Implicit physical Hairer-projection lifecycle](bm4-simulation-architecture.png)
 
-Read the six numbered phases from left to right, then follow each column down:
-physical inputs, run definition, preparation, integration, accepted-step records,
-and the final result. The layout follows the ABBA4 architecture diagram while
-showing BM4's implemented components and reduced Hairer solve. The previous
-diagram is preserved as [the old source](bm4-simulation-architecture-old.puml)
-and [the old rendering](bm4-simulation-architecture-old.png).
+The diagram preserves the original six-phase layout: physical inputs, run
+definition, preparation, numerical execution, accepted-step records and final
+result. Read the phases horizontally and each column vertically. Detailed cards
+retain inputs, outputs, state dimensions, numerical equations and module paths;
+arrows distinguish calls, returned records, optional observations and failures.
+
+The shared prepared lifecycle occupies the original preparation, execution and
+collection columns. The reduced Hairer solve stays inside BM4. A separate,
+earlier historical diagram remains available as [source](bm4-simulation-architecture-old.puml)
+and [rendering](bm4-simulation-architecture-old.png).
+
+## Method instances and integration lifecycle
+
+This method inherits `IntegrationMethod.integrate(problem, request)`, shared by
+all 13 public methods. It calls `new_run(problem, request)` to create a fresh
+instance of the same numerical class. That instance's `initialize` validates
+capabilities and sets its formulation, initial internal state and metadata.
+There is no separate context or callback-based method record.
+
+| Operation on the numerical class | Responsibility |
+|---|---|
+| `initialize(problem, request)` | Initialize this run's resources once; return `None` |
+| `advance(t, state, h)` | Execute numerical work and return state, statistics and typed details |
+| `build_observation(info, step)` | Construct a method-specific event with independent snapshots |
+| `export_history(times, history)` | Extract physical output and auxiliary diagnostics |
+| `controller()` | Select fixed or adaptive accepted-step scheduling |
+
+`integrate_method(run)` owns the common loop. Its `IntegrationCollector` saves
+requested samples and copied accepted-step metric rows, without retaining
+numerical details or events. The method owns the formulation and any live solver.
+Analysis and persistence remain in `diagnostics/`; observers remain caller-owned.
+
+Constructor options remain reusable through `simulate`. Per-run resources are
+excluded from reconstruction, and initial state and metadata are isolated as
+read-only copies. A completed or failed run cannot be integrated again; create a
+fresh run. Call `new_run` for low-level access rather than resetting `initialize`.
+
+`FixedStepController` calls `run.advance` with the exact effective duration and
+uses independent shortened maps for interior output times. DOP853/Radau's
+controller calls their ordinary `advance` on the live solver with an upper step
+bound and reads the actual accepted endpoint. Dense sampling retains the backend.
+
+Metric rows follow `step_times`; physical and auxiliary histories follow
+`Solution.t`. Common fields are `step_count`, `step_start_times`, `step_times`,
+`step_sizes` and `output_interpolation_count`. Shadow work and extra observer-only
+work are excluded from accepted numerical counters.
+
+See the [generic architecture](../../../simulation/integration-architecture.md)
+for the lifecycle, adaptive semantics and extension guide. Executable contracts
+are in `tests/test_method_integration.py` and `tests/test_adaptive_integration.py`.
 
 ## Scope
 
@@ -45,11 +91,11 @@ splitting and nonlinear-solver workspace; it is not a fully extended state.
 
 | File | Responsibility |
 |---|---|
-| [`src/simulation/methods/bm4/implicit.py`](../../../../src/simulation/methods/bm4/implicit.py) | Public configuration, reduced Hairer solve, BM4 map Jacobian, integration coordinator, diagnostics |
+| [`src/simulation/methods/bm4/implicit.py`](../../../../src/simulation/methods/bm4/implicit.py) | Public configuration, reduced Hairer solve, BM4 map Jacobian, prepared advance, observation adapter and metadata |
 | [`src/simulation/methods/bm4/_core.py`](../../../../src/simulation/methods/bm4/_core.py) | Palindromic coefficients and ordered twelve-stage direct--adjoint composition |
 | [`src/simulation/formulations/gc.py`](../../../../src/simulation/formulations/gc.py) | Preparation of the coupled two-copy physical GC maps |
 | [`src/simulation/methods/_nonlinear.py`](../../../../src/simulation/methods/_nonlinear.py) | Solver validation and good-Broyden implementation |
-| [`src/simulation/_fixed.py`](../../../../src/simulation/_fixed.py) | Main-grid and output-only shadow-step scheduling |
+| [`src/simulation/integration.py`](../../../../src/simulation/integration.py) | Shared preparation contract, controller, collector and result assembly |
 | [`src/simulation/observation.py`](../../../../src/simulation/observation.py) | `ImplicitBM4IntegrationStep` observer record |
 | [`src/simulation/_result.py`](../../../../src/simulation/_result.py) | Internal `IntegrationData` result |
 | [`src/simulation/solution.py`](../../../../src/simulation/solution.py) | Immutable public physical solution |
@@ -192,27 +238,13 @@ raising an error; no unconverged state is accepted.
 
 ## Fixed-grid lifecycle
 
-One public simulation follows this sequence:
-
-```text
-simulate(problem, BM4Implicit(...), request)
-  -> BM4Implicit.integrate(...)
-  -> prepare the coupled two-copy physical GC maps
-  -> integrate_fixed_grid(...)
-       -> solve one reduced Hairer equation per complete main step
-            -> evaluate the full twelve-stage BM4 base cycle
-       -> accept z_(n+1) in R^(2p)
-  -> IntegrationData
-  -> Solution
-```
-
-`integrate_fixed_grid` advances an output-independent main grid with steps no
-larger than `SimulationRequest.max_step`. Requested off-grid samples are
-computed by shadow advances from the preceding main node. Shadow advances do
-not replace the accepted trajectory, emit observer events, or enter accepted-
-step diagnostics. Changing `sample_count` therefore cannot alter the main-grid
-trajectory, although each interior requested time adds a shorter projected-BM4
-shadow solve and therefore increases runtime.
+One public simulation creates a fresh `BM4Implicit` with `new_run`; its
+`initialize` stores the formulation and initial state. `integrate_method` uses
+`FixedStepController`, which calls the class method `advance(t, state, h)`; one Hairer solve encloses the complete BM4 cycle.
+The common collector records accepted steps and the common coordinator emits
+optional events. Requested interior samples use independent shortened maps.
+They never change main states, metric rows or events, but each costs a complete
+shorter projected solve. Changing output density leaves the main trajectory intact.
 
 ## Observation and diagnostics
 

@@ -22,8 +22,5 @@ from .abba.projection_extended import (
     _solve_abba_full_projection as _solve_abba_full_projection,
     _projected_substep_jacobian as _projected_substep_jacobian,
 )
-from .abba.midpoint_extended import (
-    _integrate_abba_fully_extended_midpoint as _integrate_abba_fully_extended_midpoint,
-)
 
 __all__: list[str] = []

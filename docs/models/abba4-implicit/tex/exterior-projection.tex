@@ -59,8 +59,7 @@ Every residual evaluation traverses all three ABBA factors.
 
 \section{Configurations}
 
-This placement of \texttt{ABBA4Implicit} exposes the same controls as its
-per-map placement: two projection formulations, Newton or Broyden, physical or
+The sole implementation of \texttt{ABBA4Implicit} exposes two projection formulations, Newton or Broyden, physical or
 fully extended state, and optional physical energy tracking.  Fully extended
 execution always enables energy evolution.  The selected values are global to
 the outer step.
@@ -69,15 +68,15 @@ the unknown; elimination gives the reduced residual above.  State extension
 changes what is duplicated, while physical tracking adds only a triangular
 $\kappa=k/2$ sidecar.  Neither choice introduces intermediate projection.
 
-\section{Difference from the per-map placement}
+\section{Removed per-map implementation}
 
-Both \texttt{ABBA4Implicit} placements use $(\gamma,\delta,\gamma)$, but
-\texttt{after\_each\_abba\_map} solves three projections and re-embeds a
-physical state between signed factors.  The
-\texttt{around\_complete\_composition} placement solves one projection around
-the full unprojected composition.  Since projection and factor evolution do
-not commute, the placements define different numerical maps rather than two
-costs for the same map.
+The current default uses one outer projection. The former
+\texttt{after\_each\_abba\_map} implementation, with three distinct roots and
+intermediate diagonal re-embedding, has been removed. It defined a different
+numerical map, since projection and factor evolution do not commute.
+An explicit request for that placement now raises an error.
+The legacy single-projection constructor is a compatibility factory for the
+current default and does not define another method.
 
 \section{Properties and limitations}
 
@@ -89,13 +88,14 @@ the three ordered factors so the accepted-map tangent can be reconstructed.
 
 \section{Implementation correspondence}
 
-The public \texttt{ABBA4Implicit} placement selector is in
+The public \texttt{ABBA4Implicit} configuration is in
 \path{src/simulation/methods/abba/order4_implicit.py}; the exterior-projection
-residual and private kernel remain in
-\path{src/simulation/methods/abba/order4_implicit_single_projection.py}.
+residual and numerical kernel are in
+\path{src/simulation/methods/abba/projection_outer.py}.
+The older single-projection module provides compatibility imports only.
 The common ABBA stages and projection helpers live in the neighboring private
 modules.  The canonical architecture document
 \path{../simulation/abba4-implicit-simulation-architecture.md} gives the
-dimensions, diagnostics, and runtime flow for both placements.
+dimensions, diagnostics, and the common prepared integration lifecycle.
 
 \end{document}

@@ -1,9 +1,8 @@
-"""Accuracy, nonlinear-work, and timing comparison of two ABBA4 projections."""
+"""Historical ABBA4 projection-comparison records; new execution is retired."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from time import perf_counter
 from types import MappingProxyType
 from typing import Any, Mapping
 
@@ -14,23 +13,15 @@ from dynamics import GuidingCenterDynamics
 from initial_conditions import GCInitialConfiguration
 from potential import Potential
 from simulation import (
-	ABBA4Implicit,
 	NONLINEAR_SOLVERS,
-	InitialValueProblem,
 	NonlinearSolver,
-	NumericalMethod,
-	ProjectionPlacement,
-	SimulationRequest,
 	Solution,
-	simulate,
 )
 
 from ._trajectory_accuracy import (
 	TrajectoryAccuracySeries,
-	accuracy_series,
 	reference_distance_convention,
 	reference_indices_for_times,
-	validate_reference_identity,
 	validated_refinement_steps,
 )
 from ._validation import (
@@ -627,27 +618,6 @@ class ABBA4ProjectionComparisonResult:
 		return tuple(rows)
 
 
-def _configured_method(
-	method_name: str,
-	config: ABBA4ProjectionComparisonConfig,
-) -> NumericalMethod:
-	"""Construct either projection strategy with identical nonlinear controls."""
-	if method_name == "ABBA4Implicit":
-		projection_placement: ProjectionPlacement = "after_each_abba_map"
-	elif method_name == "ABBA4ImplicitSingleProjection":
-		projection_placement = "around_complete_composition"
-	else:
-		raise ValueError(f"Unknown ABBA4 projection method {method_name!r}.")
-	return ABBA4Implicit(
-		projection_placement=projection_placement,
-		newton_absolute_tolerance=config.absolute_tolerance,
-		newton_relative_tolerance=config.relative_tolerance,
-		newton_max_iterations=config.max_iterations,
-		nonlinear_solver=config.nonlinear_solver,
-		progress=config.progress,
-	)
-
-
 def run_abba4_projection_comparison_study(
 	potential: Potential,
 	initial_configuration: GCInitialConfiguration,
@@ -657,99 +627,16 @@ def run_abba4_projection_comparison_study(
 	potential_metadata: Mapping[str, Any],
 	initial_condition_metadata: Mapping[str, Any],
 ) -> ABBA4ProjectionComparisonResult:
-	"""Refine both ABBA4 projection strategies against one stored reference."""
-	if not isinstance(potential, Potential):
-		raise TypeError("`potential` must be a Potential instance.")
-	if not isinstance(initial_configuration, GCInitialConfiguration):
-		raise TypeError("`initial_configuration` must be GCInitialConfiguration.")
-	if not isinstance(reference, StoredReferenceTrajectory):
-		raise TypeError("`reference` must be a StoredReferenceTrajectory.")
-	if not isinstance(config, ABBA4ProjectionComparisonConfig):
-		raise TypeError("`config` must be ABBA4ProjectionComparisonConfig.")
-	validate_reference_identity(
-		potential,
-		initial_configuration,
-		reference,
-		config,
-		potential_metadata=potential_metadata,
-		initial_condition_metadata=initial_condition_metadata,
-	)
-	dynamics = GuidingCenterDynamics(potential, rho=config.rho)
-	problem = InitialValueProblem(dynamics, initial_configuration)
-	solutions: dict[str, dict[float, Solution]] = {
-		method_name: {} for method_name in ABBA4_PROJECTION_METHOD_NAMES
-	}
-	series: dict[str, dict[float, TrajectoryAccuracySeries]] = {
-		method_name: {} for method_name in ABBA4_PROJECTION_METHOD_NAMES
-	}
-	runtimes: dict[str, dict[float, np.ndarray]] = {
-		method_name: {} for method_name in ABBA4_PROJECTION_METHOD_NAMES
-	}
-	reference_indices: np.ndarray | None = None
-	distance_convention = reference_distance_convention(reference)
-	for step_index, step in enumerate(config.integration_steps):
-		request = SimulationRequest.uniform(
-			t_span=config.t_span,
-			max_step=step,
-			sample_count=config.output_sample_count,
-		)
-		methods = {
-			method_name: _configured_method(method_name, config)
-			for method_name in ABBA4_PROJECTION_METHOD_NAMES
-		}
-		for warmup_index in range(config.timing_warmups):
-			warmup_order = (
-				ABBA4_PROJECTION_METHOD_NAMES
-				if (step_index + warmup_index) % 2 == 0
-				else tuple(reversed(ABBA4_PROJECTION_METHOD_NAMES))
-			)
-			for method_name in warmup_order:
-				simulate(problem, methods[method_name], request)
-		measured: dict[str, list[float]] = {
-			method_name: [] for method_name in ABBA4_PROJECTION_METHOD_NAMES
-		}
-		measured_solutions: dict[str, Solution] = {}
-		for repetition in range(config.timing_repeats):
-			measurement_order = (
-				ABBA4_PROJECTION_METHOD_NAMES
-				if (step_index + repetition) % 2 == 0
-				else tuple(reversed(ABBA4_PROJECTION_METHOD_NAMES))
-			)
-			for method_name in measurement_order:
-				started = perf_counter()
-				candidate = simulate(problem, methods[method_name], request)
-				measured[method_name].append(perf_counter() - started)
-				measured_solutions.setdefault(method_name, candidate)
-		for method_name in ABBA4_PROJECTION_METHOD_NAMES:
-			solution = measured_solutions[method_name]
-			solutions[method_name][step] = solution
-			runtimes[method_name][step] = np.asarray(
-				measured[method_name],
-				dtype=float,
-			)
-			indices = reference_indices_for_times(reference, solution.t)
-			if reference_indices is None:
-				reference_indices = indices
-			elif not np.array_equal(indices, reference_indices):
-				raise ValueError("ABBA4 refinements do not share reference samples.")
-			series[method_name][step] = accuracy_series(
-				method_name,
-				solution.states,
-				reference.states[:, indices],
-				period=float(potential.grid.period),
-				distance_convention=distance_convention,
-			)
-	assert reference_indices is not None
-	return ABBA4ProjectionComparisonResult(
-		potential=potential,
-		dynamics=dynamics,
-		initial_configuration=initial_configuration,
-		reference=reference,
-		config=config,
-		reference_sample_indices=reference_indices,
-		solutions=solutions,
-		series=series,
-		runtime_samples=runtimes,
+	"""Reject new comparisons of the retired three-projection implementation.
+
+	Result records and persistence remain available for historical measurements.
+	Use run_abba4_configuration_comparison for the eight current configurations,
+	or run_abba4_implicit_accuracy_study for a step-refinement study.
+	"""
+	raise ValueError(
+		"The three-projection ABBA4 implementation has been removed. "
+		"Use run_abba4_configuration_comparison or run_abba4_implicit_accuracy_study; "
+		"saved projection comparisons remain readable."
 	)
 
 

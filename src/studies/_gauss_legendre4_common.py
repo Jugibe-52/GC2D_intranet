@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from time import perf_counter
 
 import numpy as np
-from scipy.integrate import solve_ivp
+from typing import Literal
+from .reference_trajectory import _solve_adaptive
 
 from dynamics import GuidingCenterDynamics
 
@@ -93,30 +93,10 @@ def build_adaptive_reference(
 	if initial.ndim != 1 or initial.size == 0 or not np.all(np.isfinite(initial)):
 		raise ValueError("The reference initial state must be a finite vector.")
 
-	def solve(method: str, *, rtol: float, atol: float, max_step: float) -> tuple[np.ndarray, float, int]:
-		started = perf_counter()
-		result = solve_ivp(
-			fun=lambda time, state: dynamics.vector_field(time, state),
-			t_span=(float(values[0]), float(values[-1])),
-			y0=initial,
-			method=method,
-			t_eval=values,
-			rtol=rtol,
-			atol=atol,
-			max_step=max_step,
-			dense_output=False,
-			vectorized=False,
-		)
-		runtime = perf_counter() - started
-		if not result.success:
-			raise RuntimeError(f"{method} reference integration failed: {result.message}")
-		states = np.asarray(result.y, dtype=float)
-		if states.shape != (initial.size, values.size) or not np.all(
-			np.isfinite(states)
-		):
-			raise ValueError(f"{method} returned an invalid reference history.")
-		states[:, 0] = initial
-		return states, float(runtime), int(result.nfev)
+	def solve(method: Literal["DOP853", "Radau"], *, rtol: float, atol: float, max_step: float) -> tuple[np.ndarray, float, int]:
+		states, work = _solve_adaptive(dynamics, initial, values, method=method,
+			relative_tolerance=rtol, absolute_tolerance=atol, maximum_step=max_step)
+		return states, work.runtime_seconds, work.function_evaluations
 
 	dop853, dop853_runtime, dop853_evaluations = solve(
 		"DOP853",
@@ -171,26 +151,10 @@ def build_dop853_reference_with_reused_audit(
 	):
 		raise ValueError("Reused Radau audit has a different initial state or shape.")
 
-	started = perf_counter()
-	result = solve_ivp(
-		fun=lambda time, state: dynamics.vector_field(time, state),
-		t_span=(float(values[0]), float(values[-1])),
-		y0=initial,
-		method="DOP853",
-		t_eval=values,
-		rtol=relative_tolerance,
-		atol=absolute_tolerance,
-		max_step=maximum_step,
-		dense_output=False,
-		vectorized=False,
-	)
-	runtime = perf_counter() - started
-	if not result.success:
-		raise RuntimeError(f"DOP853 reference integration failed: {result.message}")
-	states = np.asarray(result.y, dtype=float)
-	if states.shape != (initial.size, values.size) or not np.all(np.isfinite(states)):
-		raise ValueError("DOP853 returned an invalid reference history.")
-	states[:, 0] = initial
+	states, work = _solve_adaptive(dynamics, initial, values, method="DOP853",
+		relative_tolerance=relative_tolerance, absolute_tolerance=absolute_tolerance,
+		maximum_step=maximum_step)
+	runtime = work.runtime_seconds
 	audit_states = audit_reference.audit_states
 	distances = particle_distances(
 		states,
@@ -205,7 +169,7 @@ def build_dop853_reference_with_reused_audit(
 		audit_distances=distances,
 		dop853_runtime_seconds=float(runtime),
 		radau_runtime_seconds=audit_reference.radau_runtime_seconds,
-		dop853_function_evaluations=int(result.nfev),
+		dop853_function_evaluations=work.function_evaluations,
 		radau_function_evaluations=audit_reference.radau_function_evaluations,
 	)
 

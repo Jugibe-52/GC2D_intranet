@@ -1,4 +1,4 @@
-"""Tests for four-method implicit accuracy and Newton refinement."""
+"""Tests for three-method implicit accuracy and Newton refinement."""
 
 from __future__ import annotations
 
@@ -32,7 +32,7 @@ from visualization import (
 class ImplicitMethodAccuracyTests(unittest.TestCase):
 	"""Verify aligned errors, Newton metrics, orders, and plots."""
 
-	def test_short_four_method_refinement(self) -> None:
+	def test_short_three_method_refinement(self) -> None:
 		potential_config = RandomPotentialConfig(
 			amplitude=0.02,
 			max_wave_number=2,
@@ -99,8 +99,8 @@ class ImplicitMethodAccuracyTests(unittest.TestCase):
 
 		self.assertEqual(tuple(result.solutions), IMPLICIT_ACCURACY_METHOD_NAMES)
 		self.assertEqual(result.times.shape, (3,))
-		self.assertEqual(len(result.summaries()), 8)
-		self.assertEqual(len(result.convergence_orders()), 4)
+		self.assertEqual(len(result.summaries()), 6)
+		self.assertEqual(len(result.convergence_orders()), 3)
 		self.assertEqual(tuple(result.finest_series), IMPLICIT_ACCURACY_METHOD_NAMES)
 		for row in result.summaries():
 			self.assertLessEqual(row.maximum_residual_to_tolerance, 1.0)
@@ -138,7 +138,7 @@ class ImplicitMethodAccuracyTests(unittest.TestCase):
 		cost_figure, cost_axis = plot_implicit_method_accuracy_cost(
 			result.summaries()
 		)
-		self.assertGreaterEqual(len(accuracy_axis.lines), 7)
+		self.assertGreaterEqual(len(accuracy_axis.lines), 5)
 		order_two_guide = next(
 			line
 			for line in accuracy_axis.lines
@@ -155,7 +155,7 @@ class ImplicitMethodAccuracyTests(unittest.TestCase):
 		self.assertLessEqual(len(order_four_guide.get_xdata()), 3)
 		self.assertEqual(order_axes.shape, (2,))
 		self.assertEqual(newton_axes.shape, (2, 2))
-		self.assertGreaterEqual(len(cost_axis.lines), 4)
+		self.assertGreaterEqual(len(cost_axis.lines), 3)
 		for figure in (accuracy_figure, order_figure, newton_figure, cost_figure):
 			figure.canvas.draw()
 			plt.close(figure)

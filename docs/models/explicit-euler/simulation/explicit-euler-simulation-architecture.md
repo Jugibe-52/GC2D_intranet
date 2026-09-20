@@ -1,5 +1,52 @@
 # Explicit Euler fixed-grid integration architecture
 
+[Editable diagram](explicit-euler-simulation-architecture.puml) · [Scalable diagram](explicit-euler-simulation-architecture.svg)
+
+![explicit-euler architecture](explicit-euler-simulation-architecture.png)
+
+The diagram retains the six-phase BM4 layout, including public contracts,
+preparation, numerical equations, accepted records, optional observers and errors.
+
+## Method instances and integration lifecycle
+
+This method inherits `IntegrationMethod.integrate(problem, request)`, shared by
+all 13 public methods. It calls `new_run(problem, request)` to create a fresh
+instance of the same numerical class. That instance's `initialize` validates
+capabilities and sets its formulation, initial internal state and metadata.
+There is no separate context or callback-based method record.
+
+| Operation on the numerical class | Responsibility |
+|---|---|
+| `initialize(problem, request)` | Initialize this run's resources once; return `None` |
+| `advance(t, state, h)` | Execute numerical work and return state, statistics and typed details |
+| `build_observation(info, step)` | Construct a method-specific event with independent snapshots |
+| `export_history(times, history)` | Extract physical output and auxiliary diagnostics |
+| `controller()` | Select fixed or adaptive accepted-step scheduling |
+
+`integrate_method(run)` owns the common loop. Its `IntegrationCollector` saves
+requested samples and copied accepted-step metric rows, without retaining
+numerical details or events. The method owns the formulation and any live solver.
+Analysis and persistence remain in `diagnostics/`; observers remain caller-owned.
+
+Constructor options remain reusable through `simulate`. Per-run resources are
+excluded from reconstruction, and initial state and metadata are isolated as
+read-only copies. A completed or failed run cannot be integrated again; create a
+fresh run. Call `new_run` for low-level access rather than resetting `initialize`.
+
+`FixedStepController` calls `run.advance` with the exact effective duration and
+uses independent shortened maps for interior output times. DOP853/Radau's
+controller calls their ordinary `advance` on the live solver with an upper step
+bound and reads the actual accepted endpoint. Dense sampling retains the backend.
+
+Metric rows follow `step_times`; physical and auxiliary histories follow
+`Solution.t`. Common fields are `step_count`, `step_start_times`, `step_times`,
+`step_sizes` and `output_interpolation_count`. Shadow work and extra observer-only
+work are excluded from accepted numerical counters.
+
+See the [generic architecture](../../../simulation/integration-architecture.md)
+for the lifecycle, adaptive semantics and extension guide. Executable contracts
+are in `tests/test_method_integration.py` and `tests/test_adaptive_integration.py`.
+
 ## Public method
 
 ```python
@@ -17,7 +64,7 @@ solution = simulate(
 )
 ```
 
-`ExplicitEuler` is a frozen method configuration with two options:
+`ExplicitEuler` is a numerical dataclass with reusable constructor options with two options:
 
 - `progress` enables the shared stderr progress display for complete main-grid
   steps; and
@@ -28,8 +75,8 @@ It structurally implements the public `NumericalMethod` protocol through
 
 ## Complete-step map
 
-For a fixed start time `t_n`, candidate state `z`, and duration `h`, the local
-`apply_step` closure evaluates
+For a fixed start time `t_n`, candidate state `z`, and duration `h`, the method-owned
+`advance` closure evaluates
 
 \[
 \Phi_{t_n,h}(z)=z+h f(t_n,z).
@@ -46,7 +93,7 @@ fixed-duration numerical map.
 
 ## Output-independent fixed grid
 
-`integrate_fixed_grid` owns temporal scheduling. For
+`FixedStepController` owns temporal scheduling. For
 
 \[
 T=t_f-t_0,
@@ -76,8 +123,7 @@ inside `[t_n, t_{n+1}]`, the runner stores
   a copy of the state at `t_n`.
 
 Shadow results are saved and then discarded from the integration state. They
-cannot change later main nodes, do not update the progress display, and call
-the method callback with `observe=False`.
+cannot change later main nodes, do not update the progress display, and never request observation construction.
 
 ## Complete-step observations
 
@@ -98,12 +144,12 @@ forward-Euler update has no separately represented internal stage lifecycle.
 
 ## Integration data and solution boundary
 
-After the fixed-grid runner returns, `ExplicitEuler` creates `IntegrationData`
+After stepping completes, the common coordinator creates `IntegrationData`
 with
 
 - `t = request.output_times`;
 - `states` equal to the saved physical history; and
-- one diagnostic, `step_count = N`.
+- the common step count, accepted timing arrays and interior-sample count.
 
 `SimulationRunner` then requires the returned times to equal the request,
 checks the finite two-dimensional history and its initial column, validates the
@@ -127,7 +173,7 @@ disabled.
 ## Related files
 
 - [`src/simulation/methods/classical/euler.py`](../../../../src/simulation/methods/classical/euler.py)
-- [`src/simulation/_fixed.py`](../../../../src/simulation/_fixed.py)
+- [`src/simulation/integration.py`](../../../../src/simulation/integration.py)
 - [`src/simulation/runner.py`](../../../../src/simulation/runner.py)
 - [`src/simulation/observation.py`](../../../../src/simulation/observation.py)
 - [`tests/test_euler.py`](../../../../tests/test_euler.py)

@@ -118,7 +118,8 @@ def plot_implicit_method_accuracy_refinement(
 			"0.25",
 			"Implicit ABBA2",
 		),
-		("ABBA4Implicit", 4.0, "0.55", "Implicit ABBA4"),
+		(("ABBA4ImplicitSingleProjection" if "ABBA4ImplicitSingleProjection" in method_errors
+		  else "ABBA4Implicit"), 4.0, "0.55", "Implicit ABBA4"),
 	)
 	guide_positions = positions[-3:]
 	guide_steps = step_values[-3:]

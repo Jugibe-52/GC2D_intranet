@@ -15,6 +15,8 @@ from studies.reference_trajectory import _solve_adaptive
 class Oscillator:
     """Small independent ODE with a known smooth solution."""
 
+    state_dimension = 2
+
     def vector_field(self, time, state):
         return np.array([state[1], -state[0]])
 

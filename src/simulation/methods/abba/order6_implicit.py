@@ -1,18 +1,14 @@
 """Public order-6 implicit ABBA configuration on the shared family runtime."""
 from __future__ import annotations
 from dataclasses import dataclass
-from ..._result import IntegrationData
-from ...problem import InitialValueProblem
-from ...request import SimulationRequest
-from ._implicit import _ABBAImplicitConfig
-from .preparation import prepare_abba
-from .runtime import integrate_abba
+from typing import ClassVar, Literal
+from ._implicit import _ABBAImplicitMethod
 from .composition import _solve_abba6_step as _solve_abba6_step
 from ._coefficients import _ABBA6_COEFFICIENTS as _ABBA6_COEFFICIENTS
 
 
-@dataclass(frozen=True, slots=True)
-class ABBA6Implicit(_ABBAImplicitConfig):
+@dataclass(slots=True)
+class ABBA6Implicit(_ABBAImplicitMethod):
 	"""Sixth-order symmetric composition of seven implicit ABBA maps.
 
 	Each outer step applies Yoshida's palindromic seven-stage coefficients to
@@ -22,14 +18,7 @@ class ABBA6Implicit(_ABBAImplicitConfig):
 	Physical conjugate-momentum tracking is optional and triangular.
 	"""
 
-	def integrate(
-		self,
-		problem: InitialValueProblem,
-		request: SimulationRequest,
-	) -> IntegrationData:
-		"""Prepare the selected step recipe and run the shared ABBA coordinator."""
-		prepared = prepare_abba(problem, self, request, order=6)
-		return integrate_abba(prepared, request)
+	order: ClassVar[Literal[2, 4, 6]] = 6
 
 
 __all__ = ["ABBA6Implicit"]

@@ -1,19 +1,66 @@
-# ABBA2 midpoint physical simulation architecture
+# ABBA2Midpoint simulation architecture
+
+[Editable source](abba2-midpoint-simulation-architecture.puml) · [Scalable diagram (SVG)](abba2-midpoint-simulation-architecture.svg)
+
+![abba2-midpoint architecture](abba2-midpoint-simulation-architecture.png)
 
 This document explains the companion
 [`abba2-midpoint-simulation-architecture.puml`](abba2-midpoint-simulation-architecture.puml)
-diagram. Its scope is deliberately narrow: it follows
-`ABBA2Midpoint(state_extension="physical", track_energy=False)` from public
-simulation input to the returned `Solution`.
+diagram. It preserves the original four regions: public inputs, preparation
+and common execution, the four-stage numerical map, and observations/results.
+The diagram and detailed mathematical example use
+`ABBA2Midpoint(state_extension="physical", track_energy=False)`.
+
+The common prepared lifecycle described below also applies to the optional
+energy-tracked and fully extended branches.
 
 The complete ABBA family, its four public classes, three normalized
 state/energy strategies, and all 51 canonical configurations are documented in
 the authoritative
 [`Canonical ABBA numerical architecture`](../../abba/simulation/abba-numerical-architecture.md).
 This companion does not repeat that configuration matrix. In particular, the
-optional physical energy sidecar and fully extended midpoint branch are real
-runtime paths, but the diagram intentionally omits their additional `kappa` or
-`(t,k)` variables.
+optional physical energy sidecar and fully extended midpoint branch retain
+their `kappa` or `(t,k)` variables inside the prepared method's state adapters.
+
+## Method instances and integration lifecycle
+
+This method inherits `IntegrationMethod.integrate(problem, request)`, shared by
+all 13 public methods. It calls `new_run(problem, request)` to create a fresh
+instance of the same numerical class. That instance's `initialize` validates
+capabilities and sets its formulation, initial internal state and metadata.
+There is no separate context or callback-based method record.
+
+| Operation on the numerical class | Responsibility |
+|---|---|
+| `initialize(problem, request)` | Initialize this run's resources once; return `None` |
+| `advance(t, state, h)` | Execute numerical work and return state, statistics and typed details |
+| `build_observation(info, step)` | Construct a method-specific event with independent snapshots |
+| `export_history(times, history)` | Extract physical output and auxiliary diagnostics |
+| `controller()` | Select fixed or adaptive accepted-step scheduling |
+
+`integrate_method(run)` owns the common loop. Its `IntegrationCollector` saves
+requested samples and copied accepted-step metric rows, without retaining
+numerical details or events. The method owns the formulation and any live solver.
+Analysis and persistence remain in `diagnostics/`; observers remain caller-owned.
+
+Constructor options remain reusable through `simulate`. Per-run resources are
+excluded from reconstruction, and initial state and metadata are isolated as
+read-only copies. A completed or failed run cannot be integrated again; create a
+fresh run. Call `new_run` for low-level access rather than resetting `initialize`.
+
+`FixedStepController` calls `run.advance` with the exact effective duration and
+uses independent shortened maps for interior output times. DOP853/Radau's
+controller calls their ordinary `advance` on the live solver with an upper step
+bound and reads the actual accepted endpoint. Dense sampling retains the backend.
+
+Metric rows follow `step_times`; physical and auxiliary histories follow
+`Solution.t`. Common fields are `step_count`, `step_start_times`, `step_times`,
+`step_sizes` and `output_interpolation_count`. Shadow work and extra observer-only
+work are excluded from accepted numerical counters.
+
+See the [generic architecture](../../../simulation/integration-architecture.md)
+for the lifecycle, adaptive semantics and extension guide. Executable contracts
+are in `tests/test_method_integration.py` and `tests/test_adaptive_integration.py`.
 
 ## Scope shown by the diagram
 
@@ -31,7 +78,10 @@ DynamicalSystem + InitialValueProblem + SimulationRequest
               ABBA2Midpoint.integrate(...)
                          |
                          v
-                integrate_fixed_grid(...)
+           prepare -> integrate_method(...)
+                         |
+                         v
+               FixedStepController.steps(...)
                          |
                          v
                   _midpoint_abba_step(...)
@@ -63,7 +113,7 @@ saved times. [`SimulationRunner`](../../../../src/simulation/runner.py)
 validates those public objects, calls `integrate(...)`, validates the returned
 history against the source layout, and constructs the public `Solution`.
 
-`ABBA2Midpoint` is a frozen dataclass with four fields:
+`ABBA2Midpoint` is a numerical dataclass with four constructor options:
 
 | Field | Role | Default |
 |---|---|---:|
@@ -72,8 +122,9 @@ history against the source layout, and constructs the public `Solution`.
 | `progress` | Enables the shared terminal progress display | `False` |
 | `step_observer` | Receives accepted main-step observations | `None` |
 
-The first two rows select the numerical state/energy strategy. The diagram
-fixes them to `"physical"` and `False`.
+The first two rows select the numerical state/energy strategy. The physical
+example fixes them to `"physical"` and `False`; the shared lifecycle supports
+all three normalized state/energy strategies.
 
 ## One physical ABBA2 midpoint step
 
@@ -136,7 +187,7 @@ for that map.
 
 ## Fixed main grid and shadow samples
 
-[`integrate_fixed_grid(...)`](../../../../src/simulation/_fixed.py) separates
+[`integrate_method(...)`](../../../../src/simulation/integration.py) separates
 the numerical trajectory from the requested output schedule. It chooses the
 smallest uniform main-step count whose step does not exceed
 `request.max_step`, then uses
@@ -145,8 +196,9 @@ smallest uniform main-step count whose step does not exceed
 h_{\mathrm{main}}=\frac{t_f-t_0}{\text{step_count}}.
 \]
 
-For each main interval it calls the nested
-`advance(t, state, step, step_index, observe)` callback with `observe=True`.
+For each main interval the controller calls
+`run.advance(t, state, step)`. The coordinator records its statistics
+and builds an event only if requested.
 That returned state replaces the main state, contributes one copy-separation
 value, advances progress, and may emit an observation.
 
@@ -155,7 +207,7 @@ Requested times are handled as follows:
 - a time at the main-step start reuses the preceding main state;
 - a time at the main-step end reuses the newly accepted main state;
 - a time inside the interval triggers a shorter shadow advance from a copy of
-  the preceding main state with `observe=False`.
+  the preceding main state without recording its returned statistics or building an event.
 
 A shadow state is saved but never replaces the main state. It does not affect
 later main steps, progress, `copy_separation_norms`, or observations. Changing
@@ -263,8 +315,8 @@ parameters.
 
 ## Shared-kernel location after the implicit-runtime refactor
 
-Midpoint keeps its arithmetic projection and its existing coordinator.
-The physical kernel now lives in `maps/physical.py`; the full base maps
-live in `maps/extended.py` and the full midpoint coordinator lives in
-`midpoint_extended.py`. Full energy extraction is shared through `state.py`.
-These moves preserve the midpoint public API and numerical behavior.
+Midpoint owns initialization, advance, observation and export in
+`order2_midpoint.py`, using the common integration driver. Physical kernels live
+in `maps/physical.py`; full base maps live in `maps/extended.py`. Full energy
+extraction is shared through `state.py`. Both state modes belong to the same
+numerical class and preserve the established arithmetic projection.

@@ -1,81 +1,412 @@
-@startuml
-title HBVM(4,2) simulation and notebook studies
+@startdot
+digraph HBVMFullExecution {
+  // Complete method lifecycle using the established BM4 six-phase layout.
+  // Read numbered phase headers horizontally and each phase vertically.
+  // Cards distinguish actual types/functions from inline work and numerical details.
+  // Method initialization sets instance resources; common integration owns the lifecycle.
+  // Cross-cluster edges follow the nodes to preserve cluster ownership.
+  graph [
+    rankdir=TB, newrank=true, compound=true, splines=line,
+    nodesep=0.80, ranksep=0.56, pad=0.30,
+    bgcolor="#FFFFFF", fontname="DejaVu Sans", fontsize=23,
+    labelloc="t", labeljust="l",
+    label="HBVM42 | Common integration lifecycle\n\nHorizontal: six phases from physical inputs to validated Solution. Vertical: operations and numerical details.\nBlue: common contracts. Orange: method preparation. Green: numerical algorithm. Purple: optional observation.\nm = physical state size; q = internal workspace size; T = requested samples. All module paths are repository-relative."
+  ];
+  node [
+    shape=box, style="rounded,filled", fillcolor="#FFFFFF",
+    color="#C4CFDC", penwidth=1.15, margin="0.02,0.02",
+    fontname="DejaVu Sans", fontsize=11
+  ];
+  edge [
+    color="#64748B", penwidth=1.15, arrowsize=0.72,
+    arrowhead=normal, arrowtail=none, dir=forward,
+    fontname="DejaVu Sans", fontsize=10
+  ];
 
-package simulation {
-  class HBVM42 {
-    +integrate(problem, request)
+  subgraph cluster_physics {
+    label=""; style="rounded,filled"; color="#C8D6E7"; fillcolor="#F8FAFD";
+    node [group="physics"];
+    PhasePhysics [fillcolor="#263D59", color="#263D59", fontcolor="white", margin="0.22,0.16", label="01  PHYSICS AND INITIAL STATE\nDefine the reproducible physical inputs"];
+
+    Potential [label=<
+      <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">PHYSICAL INPUTS</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>Physical model parameters</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/potential/ / caller-supplied dynamics</FONT></TD></TR>
+        <TR><TD ALIGN="LEFT">For GC: potential field, rho and normalization.<BR ALIGN="LEFT"/>Other systems supply their own physical parameters.</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">Keep units, reproducible input data and seeds<BR ALIGN="LEFT"/>outside the numerical method.<BR ALIGN="LEFT"/>The algorithm consumes the dynamics contract.</TD></TR>
+      </TABLE>
+    >];
+    Dynamics [label=<
+      <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">SHARED CAPABILITY CONTRACT</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>DynamicalSystem</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/dynamics/</FONT></TD></TR>
+        <TR><TD ALIGN="LEFT"><B>State</B>: state_dimension per particle.<BR ALIGN="LEFT"/><B>Operation</B>: vector_field(t,z): array[m].</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">Methods request additional capabilities only<BR ALIGN="LEFT"/>when required: Hamiltonian, momentum derivative,<BR ALIGN="LEFT"/>analytic Jacobian or guiding-center splitting.</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">DynamicalSystem and selected Jacobian capability.<BR ALIGN="LEFT"/>Energy diagnostics require Hamiltonian capability.</TD></TR>
+      </TABLE>
+    >];
+    Initial [label=<
+      <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">INITIAL GEOMETRY</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>InitialConfiguration</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/initial_conditions/</FONT></TD></TR>
+        <TR><TD ALIGN="LEFT">initial_state: copied physical vector.<BR ALIGN="LEFT"/>layout: compatible StateLayout.</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">For guiding center: GCInitialConfiguration.<BR ALIGN="LEFT"/>Particle velocities come from the field.<BR ALIGN="LEFT"/>No integration history is allocated here.</TD></TR>
+      </TABLE>
+    >];
+    Layout [label=<
+      <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">PACKED PHYSICAL COORDINATES</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>StateLayout</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/simulation/configuration.py</FONT></TD></TR>
+        <TR><TD ALIGN="LEFT">Components are packed in component-major order.<BR ALIGN="LEFT"/>m = state_dimension x particle_count.</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">validate_packed_state_layout; split; particle_count.<BR ALIGN="LEFT"/>The same layout interprets saved physical history.<BR ALIGN="LEFT"/>GC example: [x1,...,xN,y1,...,yN].</TD></TR>
+      </TABLE>
+    >];
   }
-  class BM4Implicit {
-    +coupling_frequency
-    +nonlinear_solver
-    +integrate(problem, request)
+
+  subgraph cluster_definition {
+    label=""; style="rounded,filled"; color="#C8D6E7"; fillcolor="#F8FAFD";
+    node [group="definition"];
+    PhaseDefinition [fillcolor="#263D59", color="#263D59", fontcolor="white", margin="0.22,0.16", label="02  RUN DEFINITION\nAssemble problem, time request and method"];
+
+    Problem [label=<
+      <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD BGCOLOR="#E8EFF8" ALIGN="LEFT"><FONT POINT-SIZE="9">EXISTING FROZEN RECORD</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>InitialValueProblem</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/simulation/problem.py</FONT></TD></TR>
+        <TR><TD ALIGN="LEFT"><B>State</B><BR ALIGN="LEFT"/>dynamics: DynamicalSystem<BR ALIGN="LEFT"/>initial_configuration: InitialConfiguration</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT"><B>Operations</B><BR ALIGN="LEFT"/>__post_init__(): validate compatibility<BR ALIGN="LEFT"/>initial_state: array[2N]<BR ALIGN="LEFT"/>particle_count: int</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">Require a finite initial state and<BR ALIGN="LEFT"/>matching dynamics/layout dimensions.</TD></TR>
+      </TABLE>
+    >];
+    Request [label=<
+      <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD BGCOLOR="#E8EFF8" ALIGN="LEFT"><FONT POINT-SIZE="9">EXISTING FROZEN RECORD</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>SimulationRequest</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/simulation/request.py</FONT></TD></TR>
+        <TR><TD ALIGN="LEFT"><B>State</B><BR ALIGN="LEFT"/>t_span: (t0, tf)<BR ALIGN="LEFT"/>max_step: float<BR ALIGN="LEFT"/>output_times: read-only array[T]</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT"><B>Operations</B><BR ALIGN="LEFT"/>uniform(t_span, max_step, sample_count)<BR ALIGN="LEFT"/>__post_init__(): validate time request</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">Increasing times include both endpoints.<BR ALIGN="LEFT"/>The saved grid need not equal the step grid.</TD></TR>
+      </TABLE>
+    >];
+    Method [label=<
+      <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD BGCOLOR="#FBE0C7" ALIGN="LEFT"><FONT POINT-SIZE="9">METHOD CONFIGURATION / IntegrationMethod</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>HBVM42</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/simulation/methods/hbvm/order4.py</FONT></TD></TR>
+        <TR><TD ALIGN="LEFT">Newton tolerances, Jacobian policy, iteration limit.<BR ALIGN="LEFT"/>track_energy; progress; optional step_observer.</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">new_run(problem,request): same numerical class.<BR ALIGN="LEFT"/>Inherited integrate calls new_run + integrate_method.</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">Method order: 4.<BR ALIGN="LEFT"/>No model-specific global integration loop.</TD></TR>
+      </TABLE>
+    >];
+    Configuration [label=<
+      <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD BGCOLOR="#FBE0C7" ALIGN="LEFT"><FONT POINT-SIZE="9">CONFIGURATION RESOLVED BEFORE THE LOOP</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>Selected numerical policy</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/simulation/methods/hbvm/order4.py</FONT></TD></TR>
+        <TR><TD ALIGN="LEFT">Newton tolerances, Jacobian policy, iteration limit.<BR ALIGN="LEFT"/>track_energy; progress; optional step_observer.</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">Physical state z in R^m.<BR ALIGN="LEFT"/>Energy diagnostics do not enlarge the state.</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">One run chooses one compatible configuration.<BR ALIGN="LEFT"/>Initialization builds its numerical resources once.</TD></TR>
+      </TABLE>
+    >];
   }
-  class "integrate_fixed_grid" as FixedGrid
-  class IntegrationData
+
+  subgraph cluster_preparation {
+    label=""; style="rounded,filled"; color="#C4D0F1"; fillcolor="#F8FAFF";
+    node [group="preparation"];
+    PhasePreparation [fillcolor="#354D89", color="#354D89", fontcolor="white", margin="0.22,0.16", label="03  ENTRY AND PREPARATION\nInitialize one numerical instance, state and resources"];
+
+    Runner [label=<
+      <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD BGCOLOR="#E8EFF8" ALIGN="LEFT"><FONT POINT-SIZE="9">EXISTING CLASS / PUBLIC FACADE</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>SimulationRunner</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/simulation/runner.py</FONT></TD></TR>
+        <TR><TD ALIGN="LEFT"><B>Entry</B><BR ALIGN="LEFT"/>simulate(problem, method, request): Solution<BR ALIGN="LEFT"/>The public simulate(...) function delegates here.</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT"><B>Before integration</B><BR ALIGN="LEFT"/>Validate the three public input contracts.<BR ALIGN="LEFT"/>Call method.integrate(problem, request).</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">The same call resumes in phase 06<BR ALIGN="LEFT"/>after IntegrationData is returned.</TD></TR>
+      </TABLE>
+    >];
+    Prepare [label=<
+      <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD BGCOLOR="#FBE0C7" ALIGN="LEFT"><FONT POINT-SIZE="9">METHOD INITIALIZATION</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>HBVM42.initialize(...)</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/simulation/methods/hbvm/order4.py</FONT></TD></TR>
+        <TR><TD ALIGN="LEFT"><B>IN</B>: problem, request and method controls.<BR ALIGN="LEFT"/><B>OUT</B>: None; resources are attributes of this instance.</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">DynamicalSystem and selected Jacobian capability.<BR ALIGN="LEFT"/>Energy diagnostics require Hamiltonian capability.</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">new_run copies options into the same concrete class.<BR ALIGN="LEFT"/>initialize sets the initial state and numerical resources.<BR ALIGN="LEFT"/>Adaptive initialization creates the live solver once.</TD></TR>
+      </TABLE>
+    >];
+    RunMethod [label=<
+      <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">SAME NUMERICAL CLASS / ONE INSTANCE PER EXECUTION</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>HBVM42 (run)</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/simulation/methods/hbvm/order4.py</FONT></TD></TR>
+        <TR><TD ALIGN="LEFT"><B>Instance data</B><BR ALIGN="LEFT"/>problem; request; initial_state (read-only)<BR ALIGN="LEFT"/>formulation or dynamics; numerical resources<BR ALIGN="LEFT"/>metadata and diagnostic_aliases (read-only)</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT"><B>Ordinary class methods</B><BR ALIGN="LEFT"/>initialize(problem, request): None<BR ALIGN="LEFT"/>advance(t, state, h): StepResult[Detail]<BR ALIGN="LEFT"/>build_observation(info, step): event<BR ALIGN="LEFT"/>export_history(times, history): physical + auxiliary<BR ALIGN="LEFT"/>controller(): StepController</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">No separate context or callback-based method record.<BR ALIGN="LEFT"/>Construct another instance for another integration.<BR ALIGN="LEFT"/>Completed runs cannot re-enter the global driver.<BR ALIGN="LEFT"/>The collector and external observer own histories.</TD></TR>
+      </TABLE>
+    >];
+    StateSpace [label=<
+      <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">METHOD-OWNED STATE ADAPTER</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>Internal state policy</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/simulation/methods/hbvm/order4.py</FONT></TD></TR>
+        <TR><TD ALIGN="LEFT">Physical state z in R^m.<BR ALIGN="LEFT"/>Energy diagnostics do not enlarge the state.</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">Initialize before stepping; finish during advance.<BR ALIGN="LEFT"/>Expose only physical coordinates in Solution.<BR ALIGN="LEFT"/>Retain required auxiliary quantities as diagnostics.</TD></TR>
+      </TABLE>
+    >];
+    FamilyResources [label=<
+      <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">INSTANCE ATTRIBUTES / NO COLLECTOR</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>Numerical resources on self</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/simulation/methods/hbvm/order4.py</FONT></TD></TR>
+        <TR><TD ALIGN="LEFT">Store dynamics, formulation and solver controls on self.<BR ALIGN="LEFT"/>initialize constructs these resources once per run.</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">Fixed map inputs are independent values.<BR ALIGN="LEFT"/>Adaptive sessions are freshly created for each run.<BR ALIGN="LEFT"/>Observers own any data they explicitly retain.</TD></TR>
+      </TABLE>
+    >];
+  }
+
+  subgraph cluster_execution {
+    label=""; style="rounded,filled"; color="#DECBA3"; fillcolor="#FFFCF5";
+    node [group="execution"];
+    PhaseExecution [fillcolor="#815E22", color="#815E22", fontcolor="white", margin="0.22,0.16", label="04  INTEGRATION AND NUMERICAL ADVANCE\nDescend into one complete numerical advance"];
+    HistoryExit [shape=point, width=0, height=0, style=invis];
+
+    Runtime [label=<
+      <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">ONE COORDINATOR FOR ALL 13 METHODS</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>integrate_method(...)</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/simulation/integration.py</FONT></TD></TR>
+        <TR><TD ALIGN="LEFT"><B>IN</B> initialized method instance; optional controller<BR ALIGN="LEFT"/><B>OUT</B> IntegrationData</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">Create a fresh controller and IntegrationCollector.<BR ALIGN="LEFT"/>Validate each accepted interval and state.<BR ALIGN="LEFT"/>Record metrics; dispatch optional observations;<BR ALIGN="LEFT"/>save requested samples; report temporal progress.</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">At completion: export_history + collector.finalize.<BR ALIGN="LEFT"/>Merge metadata, metrics, auxiliary output and aliases.<BR ALIGN="LEFT"/>No branch selects a numerical-method class.</TD></TR>
+      </TABLE>
+    >];
+    Grid [label=<
+      <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">UNIFORM ACCEPTED GRID / INDEPENDENT OUTPUTS</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>FixedStepController</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/simulation/integration.py</FONT></TD></TR>
+        <TR><TD ALIGN="LEFT"><B>steps(run, request)</B><BR ALIGN="LEFT"/>Choose n = ceil((tf-t0)/max_step), h = (tf-t0)/n.<BR ALIGN="LEFT"/>Floating boundary correction uses _step_count.<BR ALIGN="LEFT"/>Yield StepInfo and run.advance(t, state, h).</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT"><B>sample(run, info, result, time)</B><BR ALIGN="LEFT"/>Reuse coincident accepted endpoints.<BR ALIGN="LEFT"/>Interior output: shortened advance from a copy<BR ALIGN="LEFT"/>of the preceding accepted state.</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">A shadow sample does not alter the main grid.<BR ALIGN="LEFT"/>Its work is excluded from metrics and observations.<BR ALIGN="LEFT"/>DOP853 and Radau supply a different controller.</TD></TR>
+      </TABLE>
+    >];
+    Advance [label=<
+      <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">METHOD-OWNED OPERATION</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>Numerical advance</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/simulation/methods/hbvm/order4.py</FONT></TD></TR>
+        <TR><TD ALIGN="LEFT"><B>IN</B>: start time, internal state, duration.<BR ALIGN="LEFT"/><B>OUT</B>: StepResult(state,statistics,details).</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">Four Gauss quadrature nodes, degree-two path.<BR ALIGN="LEFT"/>Solve two Legendre vector coefficients gamma_0,1.</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">Preserve the supplied state and fixed-map resources.<BR ALIGN="LEFT"/>No main/shadow flag, history write or observer call.</TD></TR>
+      </TABLE>
+    >];
+    StepRecipe [label=<
+      <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD BGCOLOR="#FBE0C7" ALIGN="LEFT"><FONT POINT-SIZE="9">METHOD-SPECIFIC ALGORITHM</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>Complete numerical recipe</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/simulation/methods/hbvm/order4.py</FONT></TD></TR>
+        <TR><TD ALIGN="LEFT">Four Gauss quadrature nodes, degree-two path.<BR ALIGN="LEFT"/>Solve two Legendre vector coefficients gamma_0,1.</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">Physical state z in R^m.<BR ALIGN="LEFT"/>Energy diagnostics do not enlarge the state.</TD></TR>
+      </TABLE>
+    >];
+    Projection [label=<
+      <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD BGCOLOR="#E2F1E9" ALIGN="LEFT"><FONT POINT-SIZE="9">EVALUATION OR NONLINEAR PROBLEM</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>Numerical equations</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/simulation/methods/hbvm/order4.py</FONT></TD></TR>
+        <TR><TD ALIGN="LEFT">Y_i = z + h sum_(j=0,1) I_ij gamma_j.<BR ALIGN="LEFT"/>R_j = gamma_j - sum_i b_i P_j(c_i) f_i.<BR ALIGN="LEFT"/>P0=1; P1(c)=sqrt(3)(2c-1).</TD></TR>
+      </TABLE>
+    >];
+    Nonlinear [label=<
+      <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD BGCOLOR="#E2F1E9" ALIGN="LEFT"><FONT POINT-SIZE="9">CONTROL INSIDE THE NUMERICAL METHOD</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>Local solution strategy</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/simulation/methods/hbvm/order4.py</FONT></TD></TR>
+        <TR><TD ALIGN="LEFT">Newton on 2m coefficient unknowns.<BR ALIGN="LEFT"/>Use four stage-field Jacobians.<BR ALIGN="LEFT"/>Backtrack if a full correction increases residual.</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">Failure propagates to the common coordinator.<BR ALIGN="LEFT"/>A failed run does not produce a successful Solution.</TD></TR>
+      </TABLE>
+    >];
+    Maps [label=<
+      <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD BGCOLOR="#E2F1E9" ALIGN="LEFT"><FONT POINT-SIZE="9">NUMERICAL KERNEL</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>Stage calculation</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/simulation/methods/hbvm/order4.py</FONT></TD></TR>
+        <TR><TD ALIGN="LEFT">I_i0=c_i; I_i1=sqrt(3)(c_i^2-c_i).<BR ALIGN="LEFT"/>z_next = z + h sum_i b_i f(t+c_i h,Y_i).<BR ALIGN="LEFT"/>Rank-two RK matrix; four physical stage states.<BR ALIGN="LEFT"/>Order four; generally not symplectic.</TD></TR>
+      </TABLE>
+    >];
+    Stages [label=<
+      <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD BGCOLOR="#E2F1E9" ALIGN="LEFT"><FONT POINT-SIZE="9">NUMERICAL COMPLETION</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>Accepted state and output policy</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/simulation/methods/hbvm/order4.py</FONT></TD></TR>
+        <TR><TD ALIGN="LEFT">Optional hamiltonian, energy_drift and energy_error.<BR ALIGN="LEFT"/>These measure physical H, not the invariant H+k.<BR ALIGN="LEFT"/>Time-dependent H need not be conserved.</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">Only accepted states continue the main trajectory.<BR ALIGN="LEFT"/>Output sampling does not replace accepted nodes.</TD></TR>
+      </TABLE>
+    >];
+
+  }
+
+  subgraph cluster_records {
+    label=""; style="rounded,filled"; color="#D5CDE9"; fillcolor="#FCFAFF";
+    node [group="records"];
+    PhaseRecords [fillcolor="#654780", color="#654780", fontcolor="white", margin="0.22,0.16", label="05  ACCEPTED STEPS AND DIAGNOSTICS\nRecord basic metrics and optional observations"];
+    ObservationStart [group="observer_route", shape=point, width=0, height=0, style=invis];
+    ObservationEnd [group="observer_route", shape=point, width=0, height=0, style=invis];
+    FinalPhaseLink [group="observer_route", shape=point, width=0, height=0, style=invis];
+    MetricsLink [group="observer_route", shape=point, width=0, height=0, style=invis];
+    FailurePass [shape=point, width=0, height=0, style=invis];
+
+    Recording [label=<
+      <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">ONE RUN / REQUESTED SAMPLES + ACCEPTED METRICS</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>IntegrationCollector</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/simulation/integration.py</FONT></TD></TR>
+        <TR><TD ALIGN="LEFT"><B>history</B>: internal coordinates x saved times<BR ALIGN="LEFT"/><B>record_step(info, statistics)</B><BR ALIGN="LEFT"/>Copy metric rows with stable keys and shapes.</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">Record step_start_times, step_times, step_sizes.<BR ALIGN="LEFT"/>Never store method details or observer events.<BR ALIGN="LEFT"/>Rejected adaptive trials have no accepted row;<BR ALIGN="LEFT"/>their numerical work belongs to the accepted step.</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT"><B>finalize()</B>: stack rows and provide step_count.<BR ALIGN="LEFT"/>Saved columns follow request.output_times.<BR ALIGN="LEFT"/>Metric rows follow accepted step_times.</TD></TR>
+      </TABLE>
+    >];
+    ProjectedStep [label=<
+      <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">ONE ADVANCE / METHOD-SPECIFIC PAYLOAD</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>StepResult[Detail]</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/simulation/integration.py</FONT></TD></TR>
+        <TR><TD ALIGN="LEFT">state: next internal vector [q].<BR ALIGN="LEFT"/>statistics: mapping of scalar/vector work values.<BR ALIGN="LEFT"/>details: _HBVMStepResult.</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">StepInfo supplies index, times and input snapshot.<BR ALIGN="LEFT"/>The collector copies only statistics and samples.<BR ALIGN="LEFT"/>The method observation builder understands Detail.</TD></TR>
+      </TABLE>
+    >];
+    Snapshots [label=<
+      <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">COPIED ACCEPTED-STEP DATA</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>Observation domain</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/simulation/methods/hbvm/order4.py</FONT></TD></TR>
+        <TR><TD ALIGN="LEFT">IntegrationStep on physical z.<BR ALIGN="LEFT"/>map_state repeats the same coefficient solve.<BR ALIGN="LEFT"/>Observation is optional and uses copied states.</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">Changing an event must not change integration<BR ALIGN="LEFT"/>state, samples, subsequent events or metrics.</TD></TR>
+      </TABLE>
+    >];
+    DiagnosticFields [label=<
+      <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">METHOD STATISTICS + COMMON TIMING</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>Accepted-step diagnostics</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/simulation/methods/hbvm/order4.py</FONT></TD></TR>
+        <TR><TD ALIGN="LEFT">Nonlinear iterations, residual/tolerance,<BR ALIGN="LEFT"/>residual, Jacobian and field evaluation counts.<BR ALIGN="LEFT"/>Shadow work is excluded from these rows.</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">Always: step_count, step_start_times, step_times,<BR ALIGN="LEFT"/>step_sizes and output_interpolation_count.</TD></TR>
+      </TABLE>
+    >];
+    EventBuilder [label=<
+      <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD BGCOLOR="#EEE5F5" ALIGN="LEFT"><FONT POINT-SIZE="9">OPTIONAL METHOD ADAPTER</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>run.build_observation</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/simulation/methods/hbvm/order4.py</FONT></TD></TR>
+        <TR><TD ALIGN="LEFT"><B>IN</B>: StepInfo + StepResult[Detail].<BR ALIGN="LEFT"/><B>OUT</B>: method-specific public event.</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">Only called when an observer is installed.<BR ALIGN="LEFT"/>Use accepted details and independent snapshots.<BR ALIGN="LEFT"/>integrate_method invokes the observer.</TD></TR>
+      </TABLE>
+    >];
+    Events [label=<
+      <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD BGCOLOR="#EEE5F5" ALIGN="LEFT"><FONT POINT-SIZE="9">CALLER-OWNED CONSUMER</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>Observer and optional persistence</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/diagnostics/</FONT></TD></TR>
+        <TR><TD ALIGN="LEFT">IntegrationStep on physical z.<BR ALIGN="LEFT"/>map_state repeats the same coefficient solve.<BR ALIGN="LEFT"/>Observation is optional and uses copied states.</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">An observer may analyze or retain records.<BR ALIGN="LEFT"/>AdaptiveTrajectoryObserver retains interpolants.<BR ALIGN="LEFT"/>Default integration does not store event histories.</TD></TR>
+      </TABLE>
+    >];
+  }
+
+  subgraph cluster_output {
+    label=""; style="rounded,filled"; color="#C4DDCF"; fillcolor="#F8FCFA";
+    node [group="output"];
+    PhaseOutput [fillcolor="#2E6651", color="#2E6651", fontcolor="white", margin="0.22,0.16", label="06  FINAL RESULT\nFinalize, validate and interpret the trajectory"];
+    HistoryEntry [shape=point, width=0, height=0, style=invis];
+
+    Data [label=<
+      <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">COMMON FINAL ASSEMBLY</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>IntegrationData</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/simulation/_result.py</FONT></TD></TR>
+        <TR><TD ALIGN="LEFT"><B>Fields</B><BR ALIGN="LEFT"/>t: requested times [T]<BR ALIGN="LEFT"/>states: physical history [m, T]<BR ALIGN="LEFT"/>diagnostics: metadata + accepted metrics + auxiliary</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">run.export_history(times, collector.history)<BR ALIGN="LEFT"/>extracts the physical state and optional energy.<BR ALIGN="LEFT"/>Export never repeats the numerical projection.<BR ALIGN="LEFT"/>Internal and physical dimensions may differ.</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">Add output_interpolation_count and metric aliases.<BR ALIGN="LEFT"/>Return to the original SimulationRunner call.<BR ALIGN="LEFT"/>Only the requested trajectory is exposed by default.</TD></TR>
+      </TABLE>
+    >];
+    Resume [label=<
+      <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD BGCOLOR="#E2F1E9" ALIGN="LEFT"><FONT POINT-SIZE="9">EXISTING CALL CONTINUATION / SAME RUNNER</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>SimulationRunner resumes</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#537866">src/simulation/runner.py</FONT></TD></TR>
+        <TR><TD ALIGN="LEFT"><B>IN</B> IntegrationData<BR ALIGN="LEFT"/><B>OUT</B> Solution</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">Require exactly the requested output times.<BR ALIGN="LEFT"/>Check shape, finiteness and packed layout.<BR ALIGN="LEFT"/>Verify that the initial state is preserved.<BR ALIGN="LEFT"/>Retain the source initial configuration.</TD></TR>
+      </TABLE>
+    >];
+    Solution [label=<
+      <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD BGCOLOR="#E2F1E9" ALIGN="LEFT"><FONT POINT-SIZE="9">EXISTING PUBLIC CLASS</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>Solution</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#537866">src/simulation/solution.py</FONT></TD></TR>
+        <TR><TD ALIGN="LEFT"><B>Read-only public properties</B><BR ALIGN="LEFT"/>t: array[T]<BR ALIGN="LEFT"/>states: array[m, T]<BR ALIGN="LEFT"/>source: InitialConfiguration<BR ALIGN="LEFT"/>diagnostics: read-only mapping</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">Owns copies of trajectory and diagnostic arrays.<BR ALIGN="LEFT"/>Layout and provenance remain available<BR ALIGN="LEFT"/>through the source configuration.</TD></TR>
+      </TABLE>
+    >];
+    Interpret [label=<
+      <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">OUTSIDE NUMERICAL INTEGRATION</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>Physical trajectory and analysis</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/studies/ / src/diagnostics/ / src/visualization/</FONT></TD></TR>
+        <TR><TD ALIGN="LEFT">Solution carries physical samples and diagnostics.<BR ALIGN="LEFT"/>Studies compose runs and reference comparisons.<BR ALIGN="LEFT"/>Diagnostics persist optional analysis results.<BR ALIGN="LEFT"/>Visualization consumes completed data.</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">Requested tolerance and energy conservation<BR ALIGN="LEFT"/>do not by themselves establish trajectory accuracy.</TD></TR>
+      </TABLE>
+    >];
+    Failure [fillcolor="#FFF0F0", color="#D6A5A5", label=<
+      <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD ALIGN="LEFT"><FONT POINT-SIZE="9">FAILURE PATH</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>Explicit error to caller</B></FONT></TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">Invalid inputs or incompatible capabilities.<BR ALIGN="LEFT"/>Non-finite evaluations or singular systems.<BR ALIGN="LEFT"/>Nonlinear iteration limit reached.<BR ALIGN="LEFT"/>Invalid final output.</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">Stop the run; do not construct a successful<BR ALIGN="LEFT"/>Solution from a failed integration.<BR ALIGN="LEFT"/>Retain method, time and solve context.</TD></TR>
+      </TABLE>
+    >];
+  }
+
+  Legend [shape=note, fillcolor="#F8FAFC", color="#CBD5E1", margin="0.18,0.14", label=<
+    <B>HOW TO READ THIS DIAGRAM</B><BR/><BR/>
+    Thick arrows between phase headers: overall lifecycle; phases 04 and 05 repeat together for each main step.<BR/>
+    Thin solid arrows: calls or required data. Dotted blue arrows: returned values. Dashed purple arrows: optional events.<BR/>
+    A hollow diamond means a record contains another record. Red dashed arrows indicate failure propagation.<BR/>
+    Card subtitles distinguish actual APIs from inline operations and numerical contracts.<BR/><BR/>
+    <B>RESPONSIBILITY BOUNDARIES</B><BR/>
+    The method prepares and advances; the controller selects accepted intervals and samples them.<BR/>
+    The common coordinator records, observes and exports; the per-run collector owns history.<BR/>
+    Method-specific Detail never becomes an implicit event history. Optional observers own analysis and persistence.<BR/>
+    Fixed methods retain their fixed-step algorithms. DOP853 and Radau retain their adaptive numerical sessions.
+  >];
+
+  // A common ordered parent fixes the six columns independently of return arrows.
+  ColumnOrder [shape=point, width=0, height=0, style=invis, ordering=out];
+  ColumnOrder -> PhasePhysics [style=invis, weight=1000];
+  ColumnOrder -> PhaseDefinition [style=invis, weight=1000];
+  ColumnOrder -> PhasePreparation [style=invis, weight=1000];
+  ColumnOrder -> PhaseExecution [style=invis, weight=1000];
+  ColumnOrder -> PhaseRecords [style=invis, weight=1000];
+  ColumnOrder -> FinalPhaseLink [style=invis, weight=1000];
+  ColumnOrder -> PhaseOutput [style=invis, weight=1000];
+
+  // Global rows combine a horizontal lifecycle with vertically readable columns.
+  { rank=same; PhasePhysics; PhaseDefinition; PhasePreparation; PhaseExecution; PhaseRecords; FinalPhaseLink; PhaseOutput; }
+  { rank=same; HistoryExit; HistoryEntry; }
+  { rank=same; Potential; Problem; Runner; Runtime; Recording; MetricsLink; Data; }
+  { rank=same; Dynamics; Request; Prepare; Grid; ProjectedStep; ObservationStart; Resume; }
+  { rank=same; Initial; Method; RunMethod; Advance; Snapshots; Solution; }
+  { rank=same; Layout; Configuration; StateSpace; StepRecipe; DiagnosticFields; Interpret; }
+  { rank=same; FamilyResources; Projection; EventBuilder; ObservationEnd; }
+  { rank=same; FailurePass; Failure; }
+  { rank=same; Nonlinear; Events; }
+
+  PhasePhysics -> PhaseDefinition -> PhasePreparation -> PhaseExecution -> PhaseRecords [color="#334155", penwidth=2.4, weight=100];
+  PhaseRecords -> FinalPhaseLink [color="#334155", penwidth=2.4, arrowhead=none, weight=100];
+  FinalPhaseLink -> PhaseOutput [color="#334155", penwidth=2.4, weight=100];
+
+  // Column guides only. Invisible links carry no execution semantics.
+  PhasePhysics -> Potential [style=invis, weight=100];
+  PhaseDefinition -> Problem -> Request -> Method -> Configuration [style=invis, weight=100];
+  PhasePreparation -> Runner [style=invis, weight=100];
+  PhaseExecution -> HistoryExit -> Runtime [style=invis, weight=100];
+  PhaseRecords -> Recording -> ProjectedStep -> Snapshots -> DiagnosticFields -> EventBuilder -> Events [style=invis, weight=100];
+  PhaseOutput -> HistoryEntry [style=invis, weight=100];
+  EventBuilder -> FailurePass -> Events [style=invis, weight=100];
+  FinalPhaseLink -> MetricsLink [style=invis, weight=1000];
+  Dynamics -> Initial -> Layout [style=invis, weight=100];
+  Solution -> Interpret -> Failure [style=invis, weight=100];
+
+  // Inputs and preparation. Cross-column dependencies do not alter phase order.
+  Potential -> Dynamics [label="physical parameters", weight=100];
+  Dynamics -> Problem [constraint=false, xlabel="equations"];
+  Initial -> Problem [constraint=false, xlabel="initial state\nand layout"];
+  Layout -> Initial [constraint=false, arrowhead=odiamond];
+  Problem -> Runner [constraint=false, xlabel="problem"];
+  Request -> Runner [constraint=false, xlabel="request"];
+  Method -> Runner [constraint=false, xlabel="method"];
+  Runner -> Prepare [label="inherited integrate\ncalls new_run + initialize", weight=100];
+  Prepare -> RunMethod [color="#4676A7", style=dotted, label="initialized instance", weight=100];
+  RunMethod -> StateSpace [style=invis, weight=100];
+
+  RunMethod -> Runtime [constraint=false, xlabel="method\ninstance"];
+
+  StateSpace -> FamilyResources [style=invis, weight=100];
+
+  // Normal execution descends into the selected complete step and its solver.
+  Runtime -> Grid [label="start main time loop", weight=100];
+  Grid -> Advance [label="accepted numerical advance", weight=100];
+  Advance -> StepRecipe [label="selected numerical recipe", weight=100];
+  StepRecipe -> Projection [label="numerical equations", weight=100];
+  Projection -> Nonlinear [label="evaluate or solve", weight=100];
+  Nonlinear -> Maps [label="local numerical operations", weight=100];
+
+
+  // One returned numerical record supplies the scheduler, metrics and optional events.
+  Advance:ne -> ProjectedStep:sw [constraint=false, color="#4676A7", style=dotted, xlabel="StepResult"];
+  Snapshots -> ProjectedStep [constraint=false, arrowhead=odiamond, xlabel="array fields"];
+  Grid -> ProjectedStep [constraint=false, color="#4676A7", style=dotted, dir=back, arrowhead=none, arrowtail=normal, xlabel="result.state"];
+  ProjectedStep -> Recording [constraint=false, xlabel="accepted statistics"];
+  ProjectedStep -> ObservationStart [color="#9369B1", style=dashed, arrowhead=none, weight=100];
+  ObservationStart -> ObservationEnd [color="#9369B1", style=dashed, arrowhead=none, xlabel="main step + observer", weight=1000];
+  ObservationEnd -> EventBuilder [color="#9369B1", style=dashed, constraint=false];
+  EventBuilder -> Events [color="#9369B1", style=dashed, xlabel="build event;\ncommon dispatch", weight=1000];
+
+  // Completion re-enters the same public runner before exposing Solution.
+  Runtime -> HistoryExit [constraint=false, color="#4676A7", style=dotted, arrowhead=none, xlabel="after tf"];
+  HistoryExit -> HistoryEntry [color="#4676A7", style=dotted, arrowhead=none, xlabel="export_history(times, collector.history)", weight=20];
+  HistoryEntry -> Data [color="#4676A7", style=dotted, weight=100];
+  Recording -> MetricsLink [color="#4676A7", style=dotted, arrowhead=none, weight=100];
+  MetricsLink -> Data [color="#4676A7", style=dotted, xlabel="final diagnostic\narrays", weight=100];
+  Data -> Resume [label="return from method.integrate", weight=100];
+  Resume -> Solution [label="validate and construct", weight=100];
+  Solution -> Interpret [constraint=false, color="#60896D", style=dashed, xlabel="optional analysis / presentation"];
+  Nonlinear -> FailurePass [constraint=false, color="#B96969", style=dashed, arrowhead=none];
+  FailurePass -> Failure [constraint=false, color="#B96969", style=dashed, xlabel="failure: propagate error"];
+
+  Maps -> Stages [label="finish accepted state", weight=100];
+  Stages -> Legend [style=invis];
+  Failure -> Legend [style=invis];
 }
-
-package dynamics {
-  interface DynamicalSystem
-  interface HamiltonianSystem
-  interface GuidingCenterJacobianSystem
-  class GuidingCenterDynamics
-}
-
-package studies {
-  class HBVM42EvaluationConfig
-  class HBVM42EvaluationResult
-  class HBVM42BM4ComparisonConfig
-  class HBVM42BM4ComparisonResult
-  class QuarticOscillatorDynamics
-  class "run_hbvm42_evaluation" as IndividualStudy
-  class "run_hbvm42_bm4_comparison" as ComparisonStudy
-}
-
-package visualization {
-  class "plot_hbvm42_evaluation" as IndividualPlot
-  class "plot_hbvm42_energy_errors" as EnergyPlot
-  class "plot_hbvm42_bm4_comparison" as ComparisonPlot
-}
-
-DynamicalSystem --> HBVM42 : vector field
-HamiltonianSystem --> HBVM42 : optional energy
-GuidingCenterJacobianSystem --> HBVM42 : optional exact Jacobians
-HBVM42 --> FixedGrid
-GuidingCenterDynamics --> BM4Implicit : physical GC problem
-GuidingCenterJacobianSystem --> BM4Implicit : analytic stage Jacobians
-BM4Implicit --> FixedGrid
-FixedGrid --> IntegrationData
-
-QuarticOscillatorDynamics ..|> DynamicalSystem
-QuarticOscillatorDynamics ..|> HamiltonianSystem
-QuarticOscillatorDynamics ..|> GuidingCenterJacobianSystem
-GuidingCenterDynamics ..|> DynamicalSystem
-GuidingCenterDynamics ..|> HamiltonianSystem
-GuidingCenterDynamics ..|> GuidingCenterJacobianSystem
-
-HBVM42EvaluationConfig --> IndividualStudy
-QuarticOscillatorDynamics --> IndividualStudy
-IndividualStudy --> HBVM42EvaluationResult
-HBVM42EvaluationResult --> IndividualPlot
-HBVM42EvaluationResult --> EnergyPlot
-
-HBVM42BM4ComparisonConfig --> ComparisonStudy
-GuidingCenterDynamics --> ComparisonStudy
-ComparisonStudy ..> HBVM42 : compares
-ComparisonStudy ..> BM4Implicit : compares
-ComparisonStudy --> HBVM42BM4ComparisonResult
-HBVM42BM4ComparisonResult --> ComparisonPlot
-
-note right of HBVM42
-  4 quadrature stages
-  2 Legendre unknowns
-  order 4
-end note
-
-note right of BM4Implicit
-  physical accepted state only
-  12-stage BM4 cycle
-  one reduced Hairer projection
-  around the complete cycle
-end note
-@enduml
+@enddot

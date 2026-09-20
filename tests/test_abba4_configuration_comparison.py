@@ -116,7 +116,7 @@ class ABBA4ConfigurationComparisonTests(unittest.TestCase):
 
 	@classmethod
 	def setUpClass(cls) -> None:
-		"""Run matching serial and parallel 160-path fixtures once."""
+		"""Run matching serial and parallel 80-path fixtures once."""
 		cls.potential = _potential()
 		cls.configuration = _configuration()
 		fingerprint = potential_fingerprint(
@@ -239,7 +239,7 @@ class ABBA4ConfigurationComparisonTests(unittest.TestCase):
 	def test_runs_exactly_sixteen_by_ten_aligned_trajectories(self) -> None:
 		"""Keep every one-particle run instead of vectorizing extended states."""
 		self.assertEqual(self.config.particle_count, ABBA4_CONFIGURATION_PARTICLE_COUNT)
-		self.assertEqual(len(ABBA4_CONFIGURATION_VARIANTS), 16)
+		self.assertEqual(len(ABBA4_CONFIGURATION_VARIANTS), 8)
 		self.assertEqual(tuple(self.result.solutions), ABBA4_CONFIGURATION_KEYS)
 		self.assertEqual(tuple(self.result.runtimes), ABBA4_CONFIGURATION_KEYS)
 		np.testing.assert_array_equal(self.result.times, [0.0, 0.01, 0.02])
@@ -255,7 +255,7 @@ class ABBA4ConfigurationComparisonTests(unittest.TestCase):
 	def test_summaries_contain_exactly_five_finite_metrics(self) -> None:
 		"""Reduce particle-time errors, runtime, solver work, and energy."""
 		rows = self.result.summaries()
-		self.assertEqual(len(rows), 16)
+		self.assertEqual(len(rows), 8)
 		self.assertEqual(tuple(row.key for row in rows), ABBA4_CONFIGURATION_KEYS)
 		metric_names = (
 			"mean_trajectory_error",
@@ -504,8 +504,8 @@ class ABBA4ConfigurationComparisonTests(unittest.TestCase):
 				config=self.config,
 			)
 
-	def test_particle_count_three_runs_sixteen_separate_triplets(self) -> None:
-		"""Allow a quick 16-by-3 study without changing the ten-path default."""
+	def test_particle_count_three_runs_eight_separate_triplets(self) -> None:
+		"""Allow a quick 8-by-3 study without changing the ten-path default."""
 		configuration = _configuration(particle_count=3)
 		fingerprint = potential_fingerprint(
 			GuidingCenterDynamics(self.potential, rho=0.0).effective_potential
@@ -534,7 +534,7 @@ class ABBA4ConfigurationComparisonTests(unittest.TestCase):
 		)
 
 		self.assertEqual(config.particle_count, 3)
-		self.assertEqual(len(result.summaries()), 16)
+		self.assertEqual(len(result.summaries()), 8)
 		for key in ABBA4_CONFIGURATION_KEYS:
 			self.assertEqual(len(result.solutions[key]), 3)
 			self.assertEqual(result.runtimes[key].shape, (3,))
@@ -580,11 +580,11 @@ class ABBA4ConfigurationComparisonTests(unittest.TestCase):
 
 		log = progress_output.getvalue()
 		self.assertIn(
-			"ABBA4 comparison: starting 16 independent integrations",
+			"ABBA4 comparison: starting 8 independent integrations",
 			log,
 		)
-		self.assertEqual(log.count("] Starting particle "), 16)
-		self.assertEqual(log.count("] Completed in "), 16)
+		self.assertEqual(log.count("] Starting particle "), 8)
+		self.assertEqual(log.count("] Completed in "), 8)
 		self.assertIn("ABBA4 comparison: all integrations completed", log)
 
 	def test_parallel_path_reconstructs_h5_potential_and_owns_progress(
@@ -678,10 +678,10 @@ class ABBA4ConfigurationComparisonTests(unittest.TestCase):
 		log = progress_output.getvalue()
 		self.assertIn("with 2 worker processes", log)
 		self.assertIn("Parallel progress [------------------------]", log)
-		self.assertIn("0/16 (0.0%); unfinished 16; workers 2", log)
+		self.assertIn("0/8 (0.0%); unfinished 8; workers 2", log)
 		self.assertIn("ETA after first completion", log)
 		self.assertNotIn("] Starting particle ", log)
-		self.assertEqual(log.count("] Completed in "), 16)
+		self.assertEqual(log.count("] Completed in "), 8)
 		self.assertIn("progress [########################]; total 100.0%", log)
 		self.assertIn("ABBA4 comparison: all integrations completed", log)
 

@@ -7,9 +7,11 @@ from time import perf_counter
 from typing import Any
 
 import numpy as np
-from scipy.integrate import solve_ivp
 from scipy.optimize import brentq
 
+from diagnostics.adaptive_trajectory import AdaptiveTrajectoryObserver
+from initial_conditions import GCInitialConfiguration
+from simulation import DOP853, Radau, InitialValueProblem, SimulationRequest
 from dynamics import GuidingCenterDynamics
 from potential import Potential
 
@@ -65,13 +67,13 @@ def minimum_image(displacement: np.ndarray, period: float) -> np.ndarray:
     """Map coordinate differences to [-L/2, L/2); coordinates precede time."""
     if not np.isfinite(period) or period <= 0:
         raise ValueError("period must be finite and positive.")
-    return (np.asarray(displacement) + period / 2) % period - period / 2
+    return np.asarray((np.asarray(displacement) + period / 2) % period - period / 2)
 
 
 def distance_to_initial(states: np.ndarray, initial: np.ndarray, period: float) -> np.ndarray:
     """Return planar periodic distances for a state or a (2, samples) history."""
     origin = initial if np.ndim(states) == 1 else initial[:, None]
-    return np.linalg.norm(minimum_image(states - origin, period), axis=0)
+    return np.asarray(np.linalg.norm(minimum_image(states - origin, period), axis=0))
 
 
 def locate_returns(dense: Any, dynamics: Any, initial: np.ndarray, period: float,
@@ -172,28 +174,33 @@ def run_single_particle_recurrence(
                    for key in ("rtol", "atol", "max_step")}
         print(f"Starting {label}: t=[0, {config.final_time:g}], {options}", flush=True)
         started = perf_counter()
-        extra = {"jac": lambda t, z: dynamics.particle_vector_field_jacobians(t, z)[0]} \
-            if method == "Radau" else {}
-        sol = solve_ivp(dynamics.vector_field, (0.0, config.final_time), initial,
-                        method=method, dense_output=True, **options, **extra)
-        if not sol.success or sol.sol is None or sol.t[-1] != config.final_time:
-            raise RuntimeError(f"{label} did not reach the final time: {sol.message}")
-        solutions[label] = sol.sol
-        arrays[label + ".states"] = sol.sol(times)
+        observer = AdaptiveTrajectoryObserver()
+        controls = dict(relative_tolerance=options['rtol'], absolute_tolerance=options['atol'],
+                        dense_output=True, step_observer=observer)
+        configured = (Radau(**controls, jacobian=lambda t, z: dynamics.particle_vector_field_jacobians(t, z)[0])
+                      if method == 'Radau' else DOP853(**controls))
+        problem = InitialValueProblem(dynamics, GCInitialConfiguration(initial))
+        data = configured.integrate(problem, SimulationRequest(
+            t_span=(0.0, config.final_time), max_step=options['max_step'], output_times=times))
+        dense = observer.evaluate
+        solutions[label] = dense
+        arrays[label + ".states"] = data.states.copy()
         arrays[label + ".states"][:, 0] = initial
-        arrays[label + ".cycle_states"] = sol.sol(arrays["cycle_times"])
-        roots = locate_returns(sol.sol, dynamics, initial, period, search_times,
+        arrays[label + ".cycle_states"] = dense(arrays["cycle_times"])
+        roots = locate_returns(dense, dynamics, initial, period, search_times,
                                root_xtol=config.root_xtol)
-        finer_roots = locate_returns(sol.sol, dynamics, initial, period, fine_search,
+        finer_roots = locate_returns(dense, dynamics, initial, period, fine_search,
                                      root_xtol=config.root_xtol)
         mesh_agrees = roots.size == finer_roots.size
         mesh_shift = float(np.max(np.abs(roots - finer_roots))) if mesh_agrees and roots.size else None
         arrays[label + ".return_times"] = finer_roots
-        arrays[label + ".return_states"] = sol.sol(finer_roots) if finer_roots.size else np.empty((2, 0))
+        arrays[label + ".return_states"] = dense(finer_roots) if finer_roots.size else np.empty((2, 0))
         metadata["solvers"][label] = dict(
             method=method, **options, runtime_seconds=perf_counter() - started,
-            nfev=int(sol.nfev), njev=int(sol.njev), nlu=int(sol.nlu),
-            accepted_steps=int(sol.t.size - 1), search_count=int(roots.size),
+            nfev=int(np.sum(data.diagnostics["function_evaluations"])),
+            njev=int(np.sum(data.diagnostics["jacobian_evaluations"])),
+            nlu=int(np.sum(data.diagnostics["lu_decompositions"])),
+            accepted_steps=int(data.diagnostics["step_count"]), search_count=int(roots.size),
             refined_search_count=int(finer_roots.size), search_counts_agree=mesh_agrees,
             search_maximum_time_shift=mesh_shift,
         )

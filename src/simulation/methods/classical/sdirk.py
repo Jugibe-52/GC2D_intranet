@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Literal, TypeAlias
 
 import numpy as np
@@ -13,8 +13,8 @@ from dynamics import (
 	GuidingCenterJacobianSystem,
 )
 
-from ..._fixed import integrate_fixed_grid
-from ..._result import IntegrationData
+from ...integration import IntegrationMethod, StepInfo, StepResult, NEWTON_ALIASES
+from ..._result import DiagnosticValue
 from ...formulations.base import generalized_energy_error
 from ...observation import IntegrationStep, StepObserver
 from ...problem import InitialValueProblem
@@ -336,8 +336,8 @@ def _resolved_jacobian_method(
 	return requested
 
 
-@dataclass(frozen=True, slots=True)
-class SDIRK4:
+@dataclass(slots=True)
+class SDIRK4(IntegrationMethod[_SDIRKStepResult]):
 	"""Skvortsov S54b: five-stage, fourth-order non-geometric SDIRK."""
 
 	track_energy: bool = False
@@ -349,6 +349,11 @@ class SDIRK4:
 	progress: bool = False
 	step_observer: StepObserver | None = None
 
+	# Resources owned by one run; excluded from constructor options.
+	dynamics: DynamicalSystem = field(init=False, repr=False, compare=False)
+	physical_size: int = field(init=False, repr=False, compare=False)
+	resolved_jacobian_method: ResolvedSDIRKJacobianMethod = field(init=False, repr=False, compare=False)
+
 	def __post_init__(self) -> None:
 		"""Validate nonlinear and differentiation controls before integration."""
 		for name in (
@@ -359,206 +364,145 @@ class SDIRK4:
 			value = float(getattr(self, name))
 			if not np.isfinite(value) or value <= 0.0:
 				raise ValueError(f"`{name}` must be positive and finite.")
-			object.__setattr__(self, name, value)
+			setattr(self, name, value)
 		if (
 			isinstance(self.newton_max_iterations, (bool, np.bool_))
 			or not isinstance(self.newton_max_iterations, (int, np.integer))
 			or self.newton_max_iterations < 1
 		):
 			raise ValueError("`newton_max_iterations` must be a positive integer.")
-		object.__setattr__(self, "newton_max_iterations", int(self.newton_max_iterations))
+		self.newton_max_iterations = int(self.newton_max_iterations)
 		if self.newton_jacobian_method not in SDIRK_JACOBIAN_METHODS:
 			raise ValueError(
 				"`newton_jacobian_method` must be 'auto', 'analytic', or "
 				"'finite_difference'."
 			)
 
-	def integrate(
-		self,
-		problem: InitialValueProblem,
-		request: SimulationRequest,
-	) -> IntegrationData:
-		"""Integrate one physical ODE with sequential diagonal stage solves."""
-		dynamics = problem.dynamics
-		if not isinstance(dynamics, DynamicalSystem):
+	def initialize(self, problem: InitialValueProblem, request: SimulationRequest) -> None:
+		"""Bind the nonlinear map, physical observation and energy exporter."""
+		self.dynamics = problem.dynamics
+		if not isinstance(self.dynamics, DynamicalSystem):
 			raise TypeError("SDIRK4 requires DynamicalSystem.")
 		if self.track_energy and not isinstance(
-			dynamics,
+			self.dynamics,
 			ExtendedHamiltonianSystem,
 		):
 			raise TypeError("Energy tracking requires ExtendedHamiltonianSystem.")
 		physical_initial = problem.initial_state
-		jacobian_method = _resolved_jacobian_method(
-			dynamics,
+		self.resolved_jacobian_method = _resolved_jacobian_method(
+			self.dynamics,
 			self.newton_jacobian_method,
 			initial_time=request.t_span[0],
 			initial_state=physical_initial,
 		)
-		physical_size = physical_initial.size
+		self.physical_size = physical_initial.size
 		particle_count = problem.particle_count
 		initial_state = (
 			physical_initial
 			if not self.track_energy
 			else np.concatenate((physical_initial, np.zeros(particle_count)))
 		)
-		iteration_counts: list[int] = []
-		residual_evaluation_counts: list[int] = []
-		residual_norms: list[float] = []
-		tolerances: list[float] = []
-		stage_iteration_counts: list[np.ndarray] = []
-		stage_residual_evaluation_counts: list[np.ndarray] = []
-		stage_residual_norms: list[np.ndarray] = []
-
-		def solve_physical(
-			time: float,
-			physical: np.ndarray,
-			step: float,
-		) -> _SDIRKStepResult:
-			return _solve_sdirk_step(
-				dynamics,
-				time,
-				physical,
-				step,
-				absolute_tolerance=self.newton_absolute_tolerance,
-				relative_tolerance=self.newton_relative_tolerance,
-				max_iterations=self.newton_max_iterations,
-				jacobian_method=jacobian_method,
-				jacobian_relative_step=self.newton_jacobian_relative_step,
-			)
-
-		def advance(
-			time: float,
-			value: np.ndarray,
-			step: float,
-			step_index: int,
-			observe: bool,
-		) -> np.ndarray:
-			physical_before = np.asarray(value[:physical_size], dtype=float)
-			result = solve_physical(time, physical_before, step)
-			if observe:
-				stage_iteration_counts.append(result.stage_iterations)
-				stage_residual_evaluation_counts.append(
-					result.stage_residual_evaluations
-				)
-				stage_residual_norms.append(result.stage_residual_norms)
-				iteration_counts.append(int(np.sum(result.stage_iterations)))
-				residual_evaluation_counts.append(
-					int(np.sum(result.stage_residual_evaluations))
-				)
-				residual_norms.append(float(np.max(result.stage_residual_norms)))
-				tolerances.append(result.tolerance)
-				if self.step_observer is not None:
-					def map_state(candidate: np.ndarray) -> np.ndarray:
-						"""Apply this fixed-time SDIRK map to a physical candidate."""
-						return solve_physical(time, candidate, step).state
-
-					self.step_observer(
-						IntegrationStep(
-							dynamics_name=type(dynamics).__name__,
-							method_name=type(self).__name__,
-							step_index=step_index,
-							start_time=time,
-							time=time + step,
-							duration=step,
-							state_before=physical_before.copy(),
-							state_after=result.state.copy(),
-							map_state=map_state,
-							dynamics=dynamics,
-						)
-					)
-			if not self.track_energy:
-				return result.state
-			assert isinstance(dynamics, ExtendedHamiltonianSystem)
-			momentum_before = np.asarray(value[physical_size:], dtype=float)
-			momentum_derivatives = tuple(
-				np.asarray(
-					dynamics.extended_momentum_derivative(
-						time + step * SDIRK4_TABLEAU_C[index],
-						result.stage_states[index],
-					),
-					dtype=float,
-				)
-				for index in range(_STAGE_COUNT)
-			)
-			if any(
-				derivative.shape != momentum_before.shape
-				or not np.all(np.isfinite(derivative))
-				for derivative in momentum_derivatives
-			):
-				raise ValueError(
-					"The extended-momentum derivative must be finite and have "
-					"one value per particle."
-				)
-			momentum_after = momentum_before + step * sum(
-				SDIRK4_TABLEAU_B[index] * momentum_derivatives[index]
-				for index in range(_STAGE_COUNT)
-			)
-			return np.concatenate((result.state, momentum_after))
-
-		history, step_count = integrate_fixed_grid(
-			initial_state,
-			request,
-			advance,
-			progress=bool(self.progress),
-			label=type(self).__name__,
-		)
-		states = np.asarray(history[:physical_size])
-		diagnostics: dict[str, np.ndarray | float | int | str | bool] = {
-			"step_count": step_count,
-			"stage_count": _STAGE_COUNT,
-			"designed_order": 4,
-			"tableau_name": "Skvortsov S54b",
-			"diagonal_coefficient": _SDIRK_DIAGONAL,
-			"stiffly_accurate": True,
-			"symmetric": False,
-			"symplectic": False,
-			"nonlinear_solver": "newton",
-			"nonlinear_solves_per_step": _STAGE_COUNT,
-			"nonlinear_iterations": np.asarray(iteration_counts, dtype=int),
-			"residual_evaluations": np.asarray(
-				residual_evaluation_counts,
-				dtype=int,
-			),
-			"nonlinear_residual_norms": np.asarray(residual_norms, dtype=float),
-			"nonlinear_tolerances": np.asarray(tolerances, dtype=float),
-			"stage_nonlinear_iterations": np.asarray(
-				stage_iteration_counts,
-				dtype=int,
-			),
-			"stage_residual_evaluations": np.asarray(
-				stage_residual_evaluation_counts,
-				dtype=int,
-			),
-			"stage_nonlinear_residual_norms": np.asarray(
-				stage_residual_norms,
-				dtype=float,
-			),
-			"nonlinear_absolute_tolerance": self.newton_absolute_tolerance,
-			"nonlinear_relative_tolerance": self.newton_relative_tolerance,
-			"nonlinear_max_iterations": self.newton_max_iterations,
-			"newton_iterations": np.asarray(iteration_counts, dtype=int),
-			"newton_residual_norms": np.asarray(residual_norms, dtype=float),
-			"newton_absolute_tolerance": self.newton_absolute_tolerance,
-			"newton_relative_tolerance": self.newton_relative_tolerance,
-			"newton_max_iterations": self.newton_max_iterations,
-			"newton_jacobian_method": jacobian_method,
-			"requested_newton_jacobian_method": self.newton_jacobian_method,
-			"newton_jacobian_relative_step": self.newton_jacobian_relative_step,
+		metadata: dict[str, DiagnosticValue] = {
+			'stage_count': _STAGE_COUNT,
+			'designed_order': 4,
+			'tableau_name': 'Skvortsov S54b',
+			'diagonal_coefficient': _SDIRK_DIAGONAL,
+			'stiffly_accurate': True,
+			'symmetric': False,
+			'symplectic': False,
+			'nonlinear_solver': 'newton',
+			'nonlinear_solves_per_step': _STAGE_COUNT,
+			'nonlinear_absolute_tolerance': self.newton_absolute_tolerance,
+			'nonlinear_relative_tolerance': self.newton_relative_tolerance,
+			'nonlinear_max_iterations': self.newton_max_iterations,
+			'newton_jacobian_method': self.resolved_jacobian_method,
+			'requested_newton_jacobian_method': self.newton_jacobian_method,
+			'newton_jacobian_relative_step': self.newton_jacobian_relative_step,
 		}
-		if self.track_energy:
-			momentum = np.asarray(history[physical_size:])
-			diagnostics["extended_momentum"] = momentum
-			diagnostics["energy_error"] = generalized_energy_error(
-				request.output_times,
-				states,
-				momentum,
-				dynamics,
-			)
-		return IntegrationData(
-			t=request.output_times,
-			states=states,
-			diagnostics=diagnostics,
+		self.initial_state = initial_state
+		self.metadata = metadata
+		self.diagnostic_aliases = NEWTON_ALIASES
+
+	def _solve_physical(
+		self,
+		time: float,
+		physical: np.ndarray,
+		step: float,
+	) -> _SDIRKStepResult:
+		return _solve_sdirk_step(
+			self.dynamics,
+			time,
+			physical,
+			step,
+			absolute_tolerance=self.newton_absolute_tolerance,
+			relative_tolerance=self.newton_relative_tolerance,
+			max_iterations=self.newton_max_iterations,
+			jacobian_method=self.resolved_jacobian_method,
+			jacobian_relative_step=self.newton_jacobian_relative_step,
 		)
+
+	def advance(self, time: float, value: np.ndarray, step: float) -> StepResult[_SDIRKStepResult]:
+		"""Solve one complete physical step and finish its auxiliary state."""
+		physical_before = np.asarray(value[:self.physical_size], dtype=float)
+		result = self._solve_physical(time, physical_before, step)
+		statistics: dict[str, np.ndarray | float | int] = {
+			'nonlinear_iterations': int(np.sum(result.stage_iterations)),
+			'residual_evaluations': int(np.sum(result.stage_residual_evaluations)),
+			'nonlinear_residual_norms': float(np.max(result.stage_residual_norms)),
+			'nonlinear_tolerances': result.tolerance,
+			'stage_nonlinear_iterations': result.stage_iterations,
+			'stage_residual_evaluations': result.stage_residual_evaluations,
+			'stage_nonlinear_residual_norms': result.stage_residual_norms,
+		}
+		if not self.track_energy:
+			return StepResult(result.state, statistics, result)
+		assert isinstance(self.dynamics, ExtendedHamiltonianSystem)
+		momentum_before = np.asarray(value[self.physical_size:], dtype=float)
+		momentum_derivatives = tuple(
+			np.asarray(
+				self.dynamics.extended_momentum_derivative(
+					time + step * SDIRK4_TABLEAU_C[index],
+					result.stage_states[index],
+				),
+				dtype=float,
+			)
+			for index in range(_STAGE_COUNT)
+		)
+		if any(
+			derivative.shape != momentum_before.shape
+			or not np.all(np.isfinite(derivative))
+			for derivative in momentum_derivatives
+		):
+			raise ValueError(
+				"The extended-momentum derivative must be finite and have "
+				"one value per particle."
+			)
+		momentum_after = momentum_before + step * sum(
+			SDIRK4_TABLEAU_B[index] * momentum_derivatives[index]
+			for index in range(_STAGE_COUNT)
+		)
+		return StepResult(np.concatenate((result.state, momentum_after)), statistics, result)
+
+	def build_observation(self, info: StepInfo, step: StepResult[_SDIRKStepResult]) -> IntegrationStep:
+		"""Build independent physical snapshots from accepted solve details."""
+		result = step.details
+		def map_state(candidate: np.ndarray) -> np.ndarray:
+			return self._solve_physical(info.time, candidate, info.duration).state
+		return IntegrationStep(
+			dynamics_name=type(self.dynamics).__name__, method_name=type(self).__name__,
+			step_index=info.index, start_time=info.time, time=info.time + info.duration,
+			duration=info.duration, state_before=info.state_before[:self.physical_size].copy(),
+			state_after=result.state.copy(), map_state=map_state, dynamics=self.dynamics,
+		)
+
+	def export_history(self, times: np.ndarray, history: np.ndarray) -> tuple[np.ndarray, dict[str, DiagnosticValue]]:
+		states = np.asarray(history[:self.physical_size])
+		auxiliary: dict[str, DiagnosticValue] = {}
+		if self.track_energy:
+			momentum = np.asarray(history[self.physical_size:])
+			auxiliary['extended_momentum'] = momentum
+			auxiliary['energy_error'] = generalized_energy_error(times, states, momentum, self.dynamics)
+		return states, auxiliary
 
 
 __all__ = [

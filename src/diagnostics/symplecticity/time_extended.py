@@ -10,6 +10,8 @@ import numpy as np
 from dynamics import GuidingCenterDynamics
 from simulation import (
 	ABBA4ImplicitIntegrationStep,
+	ABBA4ImplicitSingleProjectionIntegrationStep,
+	UnprojectedABBAIntegrationStep,
 	ABBA2ImplicitIntegrationStep,
 	ImplicitBM4IntegrationStep,
 	IntegrationStep,
@@ -52,7 +54,7 @@ def _momentum_derivative(
 
 
 def _abba_extended_map(
-	record: ABBA2ImplicitIntegrationStep,
+	record: ABBA2ImplicitIntegrationStep | UnprojectedABBAIntegrationStep,
 	dynamics: GuidingCenterDynamics,
 ) -> ExtendedMap:
 	"""Return the accepted unprojected ABBA splitting on ``R^6``."""
@@ -228,14 +230,16 @@ class GCTimeExtendedSymplecticityObserver:
 			raise ValueError("Extended symplecticity records must be sequential.")
 
 		maps_and_states: list[tuple[ExtendedMap, np.ndarray]] = []
-		if isinstance(record, ABBA4ImplicitIntegrationStep):
+		if isinstance(record, (ABBA4ImplicitIntegrationStep, ABBA4ImplicitSingleProjectionIntegrationStep)):
 			for substep in record.substeps:
 				map_state = _abba_extended_map(substep, self._dynamics)
 				state = np.concatenate(
 					(substep.u_initial, substep.v_initial, (substep.start_time, 0.0))
 				)
 				maps_and_states.append((map_state, state))
-			scope = "three accepted ABBA base maps; inter-substep projections excluded"
+			scope = ("three continuous unprojected ABBA factors; outer projection excluded"
+				if isinstance(record, ABBA4ImplicitSingleProjectionIntegrationStep)
+				else "three accepted ABBA base maps; inter-substep projections excluded")
 		elif isinstance(record, ABBA2ImplicitIntegrationStep):
 			map_state = _abba_extended_map(record, self._dynamics)
 			state = np.concatenate(

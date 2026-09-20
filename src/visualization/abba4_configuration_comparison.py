@@ -1,4 +1,4 @@
-"""Faceted trajectory animation for the sixteen ABBA4 configurations."""
+"""Faceted trajectory animation for the current or historical ABBA4 configurations."""
 
 from __future__ import annotations
 
@@ -46,7 +46,6 @@ _COLUMN_COORDINATES = (
 	("simultaneous_state_multiplier", "newton", "Simultaneous\nNewton"),
 	("simultaneous_state_multiplier", "broyden", "Simultaneous\nBroyden"),
 )
-_VARIANT_COUNT = 16
 _INITIAL_CONDITION_COLORS = tuple(mcolors.TABLEAU_COLORS.values())
 _MAX_PARTICLE_COUNT = len(_INITIAL_CONDITION_COLORS)
 
@@ -93,8 +92,8 @@ def _ordered_variants(result: object) -> tuple[object, ...]:
 	):
 		raise TypeError("`result.variants` must be a sequence of configuration records.")
 	variants = tuple(variants_value)
-	if len(variants) != _VARIANT_COUNT:
-		raise ValueError("The animation requires exactly 16 ABBA4 variants.")
+	if len(variants) not in (8, 16):
+		raise ValueError("The animation requires 8 current or 16 historical ABBA4 variants.")
 
 	by_coordinate: dict[tuple[str, str, str, str], object] = {}
 	for variant in variants:
@@ -105,14 +104,14 @@ def _ordered_variants(result: object) -> tuple[object, ...]:
 
 	expected = tuple(
 		(method, extension, formulation, solver)
-		for method, extension, _ in _ROW_COORDINATES
+		for method, extension, _ in (_ROW_COORDINATES if len(variants) == 16 else _ROW_COORDINATES[2:])
 		for formulation, solver, _ in _COLUMN_COORDINATES
 	)
 	missing = tuple(coordinate for coordinate in expected if coordinate not in by_coordinate)
 	unexpected = tuple(coordinate for coordinate in by_coordinate if coordinate not in expected)
 	if missing or unexpected:
 		raise ValueError(
-			"The variants do not form the required 4 x 4 ABBA4 configuration grid; "
+			"The variants do not form the required complete ABBA4 configuration grid; "
 			f"missing={missing!r}, unexpected={unexpected!r}."
 		)
 	return tuple(by_coordinate[coordinate] for coordinate in expected)
@@ -122,7 +121,7 @@ def _aligned_positions(
 	result: object,
 	variants: Sequence[object],
 ) -> tuple[np.ndarray, dict[str, tuple[np.ndarray, np.ndarray]], int]:
-	"""Collect sixteen arrays sharing one inferred particle count and order."""
+	"""Collect aligned arrays sharing one inferred particle count and order."""
 	solutions_value = getattr(result, "solutions", None)
 	if not isinstance(solutions_value, Mapping):
 		raise TypeError("`result.solutions` must map variant keys to trajectories.")
@@ -193,7 +192,7 @@ def _aligned_positions(
 		positions[key] = x_values, y_values
 
 	if set(solutions_value) != set(variant_keys):
-		raise ValueError("`result.solutions` must contain exactly the 16 variant keys.")
+		raise ValueError("`result.solutions` must contain exactly the variant keys.")
 	assert reference_times is not None
 	assert particle_count is not None
 	return reference_times, positions, particle_count
@@ -242,7 +241,7 @@ def animate_abba4_configuration_trajectories(
 	cmap: str = "Greys",
 	**imshow_kwargs: Any,
 ) -> FuncAnimation:
-	"""Animate 16 ABBA4 configurations and up to 10 shared initial conditions.
+	"""Animate current or historical ABBA4 configurations and up to 10 shared initial conditions.
 
 	Rows encode the projection placement and state extension, while columns encode
 	the projection formulation and nonlinear solver. Each panel therefore needs
@@ -278,10 +277,11 @@ def animate_abba4_configuration_trajectories(
 		"alpha": 0.62,
 	}
 	image_options.update(imshow_kwargs)
+	rows = _ROW_COORDINATES if len(variants) == 16 else _ROW_COORDINATES[2:]
 	figure, axes = plt.subplots(
+		len(rows),
 		4,
-		4,
-		figsize=(16, 13),
+		figsize=(16, 3 * len(rows) + 1),
 		sharex=True,
 		sharey=True,
 		constrained_layout=True,
@@ -324,7 +324,7 @@ def animate_abba4_configuration_trajectories(
 		if index < 4:
 			axis.set_title(_COLUMN_COORDINATES[index][2], fontsize=10)
 
-	for row, (_, _, label) in enumerate(_ROW_COORDINATES):
+	for row, (_, _, label) in enumerate(rows):
 		axes[row, 0].set_ylabel(
 			label,
 			rotation=0,
@@ -395,8 +395,8 @@ def animate_abba4_configuration_trajectories(
 		time = float(times[sample_index])
 		phase = float(np.mod(2.0 * np.pi * frequency * time, 2.0 * np.pi))
 		suptitle.set_text(
-			f"16 ABBA4 configurations × {particle_count} shared initial "
-			f"conditions ({_VARIANT_COUNT * particle_count} trajectories) — "
+			f"{len(variants)} ABBA4 configurations × {particle_count} shared initial "
+			f"conditions ({len(variants) * particle_count} trajectories) — "
 			f"t = {time:.6g}, phase = {phase:.3f} rad"
 		)
 		artists.append(suptitle)

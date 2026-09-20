@@ -3,27 +3,18 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
 
 import numpy as np
 
 from dynamics import GuidingCenterDynamics
 
-from ..._fixed import integrate_fixed_grid
-from ..._result import IntegrationData
 from ...formulations import gc_coupling_matrix
 from ...formulations.base import Projection
-from ...observation import IntegrationStep
-from ...problem import InitialValueProblem
-from ...request import SimulationRequest
 from ..abba.maps.extended import (
 	_checked_extended_state, _flow_first, _flow_second, _synchronized_extended_time,
 )
-from ..abba.state import _fully_extended_energy_diagnostics
 from ._core import _advance_composition
 
-if TYPE_CHECKING:
-	from .midpoint import BM4Midpoint
 
 
 @dataclass(frozen=True, slots=True)
@@ -77,55 +68,6 @@ def _midpoint_extended_bm4_step(
 		context="The fully extended BM4 midpoint map",
 	)
 	return accepted, float(np.linalg.norm(mapped[:4] - mapped[4:], ord=np.inf))
-
-
-def _integrate_bm4_fully_extended_midpoint(
-	method: BM4Midpoint, problem: InitialValueProblem, request: SimulationRequest,
-) -> IntegrationData:
-	"""Integrate one GC particle in (x,y,t,k), returning its physical history."""
-	dynamics = problem.dynamics
-	if not isinstance(dynamics, GuidingCenterDynamics):
-		raise TypeError("BM4Midpoint fully extended mode requires GuidingCenterDynamics.")
-	if problem.initial_state.shape != (2,):
-		raise ValueError("BM4Midpoint fully extended mode requires exactly one GC particle.")
-	initial = np.concatenate((problem.initial_state, (request.t_span[0], 0.0)))
-	prepared = _PreparedExtendedBM4(dynamics, method.coupling_frequency, np.tile(initial, 2))
-	separations: list[float] = []
-
-	def advance(
-		t: float, state: np.ndarray, step: float, step_index: int, observe: bool,
-	) -> np.ndarray:
-		value = _synchronized_extended_time(state, t, context="The internal state")
-		after, separation = _midpoint_extended_bm4_step(prepared, value, step)
-		if observe:
-			separations.append(separation)
-			if method.step_observer is not None:
-				def map_state(candidate: np.ndarray) -> np.ndarray:
-					return _midpoint_extended_bm4_step(prepared, candidate, step)[0]
-
-				method.step_observer(IntegrationStep(
-					dynamics_name=type(dynamics).__name__, method_name=type(method).__name__,
-					step_index=step_index, start_time=t, time=t + step, duration=step,
-					state_before=value.copy(), state_after=after.copy(),
-					map_state=map_state, dynamics=dynamics,
-				))
-		return after
-
-	history, count = integrate_fixed_grid(
-		initial, request, advance, progress=bool(method.progress), label=type(method).__name__,
-	)
-	history[2] = request.output_times
-	diagnostics: dict[str, np.ndarray | float | int | str | bool] = {
-		"step_count": count, "copy_separation_norms": np.asarray(separations),
-		"projection_kind": "arithmetic_mean", "state_extension": "fully_extended",
-		"track_energy": True, "coupling_frequency": method.coupling_frequency,
-		"accepted_internal_state_dimension": 4, "base_splitting_state_dimension": 8,
-		"observer_state_dimension": 4, "observer_state_kind": "accepted_internal_map",
-		"nonlinear_unknown_dimension": 0, "composition_stage_count": 12,
-		"vector_field_evaluations_per_step": 24,
-	}
-	diagnostics.update(_fully_extended_energy_diagnostics(dynamics, history))
-	return IntegrationData(t=request.output_times, states=np.asarray(history[:2]), diagnostics=diagnostics)
 
 
 __all__: list[str] = []

@@ -1,6 +1,7 @@
 """Interoperable numerical methods."""
 
 from ._nonlinear import NONLINEAR_SOLVERS, NonlinearSolver
+from .adaptive import DOP853, Radau
 from .bm4 import BM4Implicit, BM4Midpoint
 from .abba import (
 	ABBA2Midpoint,
@@ -32,6 +33,8 @@ from .classical import (
 from .hbvm import HBVM42, HBVMJacobianMethod
 
 __all__ = [
+	"DOP853",
+	"Radau",
 	"ABBA2Midpoint",
 	"ABBA2Implicit",
 	"ABBA4Implicit",

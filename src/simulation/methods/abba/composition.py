@@ -8,7 +8,7 @@ from dataclasses import dataclass
 import numpy as np
 from dynamics import GuidingCenterJacobianSystem
 from .._nonlinear import NonlinearSolver, SolverOptions
-from ._coefficients import _ABBA4_COEFFICIENTS, _ABBA6_COEFFICIENTS
+from ._coefficients import _ABBA6_COEFFICIENTS
 from ._configuration import ProjectionFormulation
 from ._projection_common import _ProjectedStep
 from .records import PhysicalProjectionTrace
@@ -60,33 +60,6 @@ def _solve_composed_abba_step(
         accepted.append(_AcceptedSubstep(p.start_time, p.duration, p.state_before, kernel_result))
     return _ComposedABBAStep(projections[-1].state, tuple(accepted))
 
-
-def _solve_abba4_step(
-	dynamics: GuidingCenterJacobianSystem,
-	t: float,
-	state: np.ndarray,
-	step: float,
-	*,
-	absolute_tolerance: float,
-	relative_tolerance: float,
-	max_iterations: int,
-	nonlinear_solver: NonlinearSolver,
-	projection_formulation: ProjectionFormulation = "reduced_multiplier",
-) -> _ComposedABBAStep:
-	"""Compose the three signed projected ABBA maps of ABBA4."""
-	return _solve_composed_abba_step(
-		dynamics,
-		t,
-		state,
-		step,
-		coefficients=_ABBA4_COEFFICIENTS,
-		method_name="ABBA4Implicit",
-		absolute_tolerance=absolute_tolerance,
-		relative_tolerance=relative_tolerance,
-		max_iterations=max_iterations,
-		nonlinear_solver=nonlinear_solver,
-		projection_formulation=projection_formulation,
-	)
 
 
 def _solve_abba6_step(

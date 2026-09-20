@@ -1,5 +1,13 @@
 # ABBA6 implicit default physical simulation architecture
 
+[Editable source](abba6-implicit-simulation-architecture.puml) · [Scalable diagram (SVG)](abba6-implicit-simulation-architecture.svg)
+
+![abba6-implicit architecture](abba6-implicit-simulation-architecture.png)
+
+The sequence diagram preserves the nested seven-map composition and nonlinear
+solve loops. The common coordinator, collector and optional event adapter now
+appear explicitly around those numerical operations.
+
 This document explains the companion
 [`abba6-implicit-simulation-architecture.puml`](abba6-implicit-simulation-architecture.puml)
 diagram. Its expanded runtime path is exactly the default numerical
@@ -20,21 +28,61 @@ intentionally not expanded here. Their contracts and the complete 51-member
 canonical ABBA family are documented in the authoritative
 [`Canonical ABBA numerical architecture`](../../abba/simulation/abba-numerical-architecture.md).
 
+## Method instances and integration lifecycle
+
+This method inherits `IntegrationMethod.integrate(problem, request)`, shared by
+all 13 public methods. It calls `new_run(problem, request)` to create a fresh
+instance of the same numerical class. That instance's `initialize` validates
+capabilities and sets its formulation, initial internal state and metadata.
+There is no separate context or callback-based method record.
+
+| Operation on the numerical class | Responsibility |
+|---|---|
+| `initialize(problem, request)` | Initialize this run's resources once; return `None` |
+| `advance(t, state, h)` | Execute numerical work and return state, statistics and typed details |
+| `build_observation(info, step)` | Construct a method-specific event with independent snapshots |
+| `export_history(times, history)` | Extract physical output and auxiliary diagnostics |
+| `controller()` | Select fixed or adaptive accepted-step scheduling |
+
+`integrate_method(run)` owns the common loop. Its `IntegrationCollector` saves
+requested samples and copied accepted-step metric rows, without retaining
+numerical details or events. The method owns the formulation and any live solver.
+Analysis and persistence remain in `diagnostics/`; observers remain caller-owned.
+
+Constructor options remain reusable through `simulate`. Per-run resources are
+excluded from reconstruction, and initial state and metadata are isolated as
+read-only copies. A completed or failed run cannot be integrated again; create a
+fresh run. Call `new_run` for low-level access rather than resetting `initialize`.
+
+`FixedStepController` calls `run.advance` with the exact effective duration and
+uses independent shortened maps for interior output times. DOP853/Radau's
+controller calls their ordinary `advance` on the live solver with an upper step
+bound and reads the actual accepted endpoint. Dense sampling retains the backend.
+
+Metric rows follow `step_times`; physical and auxiliary histories follow
+`Solution.t`. Common fields are `step_count`, `step_start_times`, `step_times`,
+`step_sizes` and `output_interpolation_count`. Shadow work and extra observer-only
+work are excluded from accepted numerical counters.
+
+See the [generic architecture](../../../simulation/integration-architecture.md)
+for the lifecycle, adaptive semantics and extension guide. Executable contracts
+are in `tests/test_method_integration.py` and `tests/test_adaptive_integration.py`.
+
 ## Shared runtime path
 
 ```text
 simulate -> SimulationRunner -> ABBA6Implicit.integrate
-  -> prepare_abba(..., order=6)
-  -> integrate_abba -> integrate_fixed_grid -> advance
+  -> new_run -> _ABBAImplicitMethod.initialize
+  -> integrate_method(run) -> FixedStepController -> run.advance
        -> unpack state -> selected step recipe -> finish state/energy
        -> main step: numerical metrics -> optional event adapter
   -> extract physical output -> IntegrationData -> SimulationRunner -> Solution
 ```
 
 Seven independently projected maps with Yoshida's signed coefficients.
-`preparation.py` binds the recipe, state policy, projection and optional event
+`_ABBAImplicitMethod.initialize` sets the state policy, projection and optional event
 builder before entering the shared coordinator. The physical and extended
-branches use the same `runtime.py`. Each specialized projection retains its
+branches use the same inherited `advance`. Each specialized projection retains its
 analytic residual and correction algebra; common Newton and Broyden drivers
 own convergence and counters.
 
@@ -47,10 +95,9 @@ adapter in `composition.py`, outside the public call path.
 
 | File under `src/simulation/methods/abba/` | Responsibility |
 |---|---|
-| `order2_implicit.py`, `order4_implicit.py`, `order6_implicit.py` | Public configuration and entry to preparation/runtime |
+| `order2_implicit.py`, `order4_implicit.py`, `order6_implicit.py` | Concrete order, constructor controls and inherited numerical operations |
 | `_implicit.py`, `_configuration.py` | Shared option validation and state-dimension metadata |
-| `preparation.py` | Validate capabilities, choose the step recipe and bind `PreparedABBA` |
-| `runtime.py` | One main/shadow advance adapter and final result assembly |
+| `_implicit.py` | Shared initialization, numerical advance, observation and history export |
 | `steps.py` | One projected map, a composition of projected maps, or one outer projection |
 | `state.py`, `_energy.py` | Bound workspace operations and physical/extended energy handling |
 | `records.py` | `ProjectedMapResult`, `StepResult`, typed traces and observer-independent metrics |
@@ -60,12 +107,12 @@ adapter in `composition.py`, outside the public call path.
 | `projection_extended.py` | Full-diagonal equations, accepted full-map data and implicit tangents |
 | `maps/physical.py`, `maps/extended.py` | Unprojected stages and their exact derivatives |
 | `../_nonlinear.py` | `SolverOptions`, `SolveStats`, shared Newton and Broyden drivers |
-| `../../_fixed.py` | Uniform main grid and independent shadow samples |
+| `../../integration.py` | Method lifecycle, controller, collection and common coordinator |
 
 ## Public configuration and dynamics boundary
 
-`ABBA6Implicit` is a frozen subclass of the shared private
-`_ABBAImplicitConfig`. The default physical Newton branch uses these fields:
+`ABBA6Implicit` inherits the shared numerical operations from
+`_ABBAImplicitMethod`. The default physical Newton branch uses these fields:
 
 | Field | Default | Scoped role |
 |---|---:|---|
@@ -270,17 +317,17 @@ here. See
 
 ## Fixed grid and shadow advances
 
-[`integrate_fixed_grid(...)`](../../../../src/simulation/_fixed.py) chooses the
+[`integrate_method(...)`](../../../../src/simulation/integration.py) chooses the
 fewest uniform main steps whose duration does not exceed `request.max_step`:
 
 \[
 h_{\mathrm{main}}=\frac{t_f-t_0}{\text{step_count}}.
 \]
 
-Every main interval calls the composed `advance(...)` callback with
-`observe=True`. A requested saved time strictly inside a main interval instead
+Every main interval calls `run.advance(t, state, h)` and the common
+coordinator records its accepted statistics. A saved time inside an interval instead
 triggers a shorter shadow outer step from a copy of the preceding main state
-with `observe=False`. That shadow outer step still performs the same seven
+without recording its returned statistics or building an event. That shadow outer step still performs the same seven
 signed projected maps and can incur seven Newton solves.
 
 The shadow result is saved but never replaces the main state. It does not
@@ -342,7 +389,7 @@ Shadow solves are absent from all `(M,)` and `(M, 7)` arrays.
 
 ## Outer observation and seven retained substeps
 
-On every main step `record_completed_step` aggregates the seven numerical
+On every main step `step_statistics` aggregates the seven numerical
 projection records directly. Only if `step_observer` is configured does
 `observations.py` copy seven `ABBA2ImplicitIntegrationStep` snapshots and emit one outer
 [`ABBA6ImplicitIntegrationStep`](../../../../src/simulation/observation.py)

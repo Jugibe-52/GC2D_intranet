@@ -1,16 +1,12 @@
 """Public order-2 implicit ABBA configuration on the shared family runtime."""
 from __future__ import annotations
 from dataclasses import dataclass
-from ..._result import IntegrationData
-from ...problem import InitialValueProblem
-from ...request import SimulationRequest
-from ._implicit import _ABBAImplicitConfig
-from .preparation import prepare_abba
-from .runtime import integrate_abba
+from typing import ClassVar, Literal
+from ._implicit import _ABBAImplicitMethod
 
 
-@dataclass(frozen=True, slots=True)
-class ABBA2Implicit(_ABBAImplicitConfig):
+@dataclass(slots=True)
+class ABBA2Implicit(_ABBAImplicitMethod):
 	"""Second-order implicit ABBA with optional physical energy tracking.
 
 	The two projection formulations define the same accepted map and may be
@@ -19,14 +15,7 @@ class ABBA2Implicit(_ABBAImplicitConfig):
 	triangular auxiliary update and does not change the accepted physical map.
 	"""
 
-	def integrate(
-		self,
-		problem: InitialValueProblem,
-		request: SimulationRequest,
-	) -> IntegrationData:
-		"""Prepare the selected step recipe and run the shared ABBA coordinator."""
-		prepared = prepare_abba(problem, self, request, order=2)
-		return integrate_abba(prepared, request)
+	order: ClassVar[Literal[2, 4, 6]] = 2
 
 
 __all__ = ["ABBA2Implicit"]

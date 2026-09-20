@@ -31,7 +31,6 @@ from simulation import (
 _IMPLICIT_METHODS = (
 	ABBA2Implicit,
 	ABBA4Implicit,
-	ABBA4ImplicitSingleProjection,
 	ABBA6Implicit,
 )
 _NONLINEAR_SOLVERS = ("newton", "broyden")
@@ -62,7 +61,7 @@ _EXPECTED_DIMENSIONS = {
 }
 _EXPECTED_NONLINEAR_SOLVES = {
 	"ABBA2Implicit": 1,
-	"ABBA4Implicit": 3,
+	"ABBA4Implicit": 1,
 	"ABBA4ImplicitSingleProjection": 1,
 	"ABBA6Implicit": 7,
 }
@@ -109,7 +108,7 @@ def _dense_component_major_jacobian(blocks: np.ndarray) -> np.ndarray:
 
 
 class ABBAConfigurationCubeTests(unittest.TestCase):
-	"""Exercise three midpoint variants and the 48 implicit combinations once."""
+	"""Exercise three midpoint variants and the 36 implicit combinations once."""
 
 	implicit_solutions: dict[tuple[str, str, str, str, bool], object] = {}
 	midpoint_solutions: dict[tuple[str, bool], object] = {}
@@ -117,7 +116,7 @@ class ABBAConfigurationCubeTests(unittest.TestCase):
 
 	@classmethod
 	def setUpClass(cls) -> None:
-		"""Cache all 51 one-step runs for smoke and equivalence assertions."""
+		"""Cache all 39 one-step runs for smoke and equivalence assertions."""
 		problem = _problem()
 		request = _request()
 		for (
@@ -164,15 +163,15 @@ class ABBAConfigurationCubeTests(unittest.TestCase):
 			except Exception as exc:  # pragma: no cover - reported by the smoke test
 				cls.configuration_failures[key] = exc
 
-	def test_configuration_space_contains_exactly_51_variants(self) -> None:
+	def test_configuration_space_contains_exactly_39_variants(self) -> None:
 		self.assertEqual(len(_MIDPOINT_CONFIGURATIONS), 3)
-		self.assertEqual(len(_IMPLICIT_CONFIGURATIONS), 48)
+		self.assertEqual(len(_IMPLICIT_CONFIGURATIONS), 36)
 		self.assertEqual(
 			len(_MIDPOINT_CONFIGURATIONS) + len(_IMPLICIT_CONFIGURATIONS),
-			51,
+			39,
 		)
 
-	def test_all_51_configurations_run_and_report_canonical_dimensions(self) -> None:
+	def test_all_39_configurations_run_and_report_canonical_dimensions(self) -> None:
 		for (
 			method_type,
 			formulation,

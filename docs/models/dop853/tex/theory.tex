@@ -1,0 +1,81 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}\usepackage[T1]{fontenc}
+\usepackage{lmodern,amsmath,amssymb,booktabs,geometry}
+\usepackage[hidelinks]{hyperref}\geometry{margin=2.3cm}
+\setlength{\parindent}{0pt}\setlength{\parskip}{0.5em}
+\title{DOP853: Numerical Method and Adaptive Execution}
+\author{}\date{}\begin{document}\maketitle
+\section{Differential equation and numerical method}
+Consider $z'=f(t,z)$, $z(t_0)=z_0$, in the project's packed physical layout.
+An explicit Runge--Kutta method of order eight, with embedded local-error estimation and a seventh-order dense interpolant. The implementation delegates the numerical tableau, local error
+estimator, trial rejection and interpolation polynomial to the installed SciPy
+\texttt{DOP853} solver. The adapter does not duplicate these algorithms.
+
+A Runge--Kutta evaluation has stage equations
+\[
+Y_i=z_n+h\sum_j a_{ij}f(t_n+c_jh,Y_j),\qquad
+z_{n+1}=z_n+h\sum_i b_i f(t_n+c_ih,Y_i).
+\]
+The explicit tableau evaluates stages sequentially. No nonlinear system, Jacobian or LU factorization is required.
+\section{Error control and accepted intervals}
+The adaptive backend scales local error estimates using positive absolute and
+relative tolerances, with component scale based on
+$\mathrm{atol}+\mathrm{rtol}\max(|z_n|,|z_{n+1}|)$. It selects subsequent step
+sizes and can reject trial steps. \texttt{max\_step} bounds accepted duration;
+\texttt{first\_step=None} delegates initial selection to the backend.
+Requested tolerances bound neither global trajectory error nor roundoff.
+
+One live solver is retained over the complete interval. Its state, stage work
+and any Jacobian/factorization reuse survive accepted steps. The adapter calls
+\texttt{solver.step()} until acceptance or failure; rejected trials never
+become observer records or separate accepted metric rows.
+\section{Dense output and energy extension}
+Saved output times do not determine the accepted grid. Each requested sample
+is evaluated from the dense interpolant of its accepted interval. This does not
+restart the solver. \texttt{dense\_output=True} explicitly constructs every
+accepted interpolant; optional observers can retain them for later time queries.
+
+For a suitable time-dependent Hamiltonian system, optional tracking augments
+$z$ with one momentum per particle:
+\[
+k'=-\partial_t H(t,z),\qquad k(t_0)=0.
+\]
+The exported generalized-energy diagnostic measures $H(t,z)+k$. Error control
+acts on the augmented vector, so this option can change the accepted time grid
+and the physical floating-point trajectory. It is not an independent proof of
+trajectory accuracy.
+\section{Shared architecture and observation}
+The public class owns initialization, advance, observation and history export.
+Inherited \texttt{new\_run} constructs a fresh instance of the same class and
+calls \texttt{initialize}, which creates its live solver. There is no separate
+method context or record of callbacks. All 13 methods inherit the same
+integration entry point and use the common global coordinator.
+
+\texttt{ScipyAdaptiveController} exposes accepted intervals from the retained
+numerical session. The common collector stores requested samples and small
+accepted-step statistics; it does not retain interpolants or events by default.
+
+An \texttt{AdaptiveIntegrationStep} records times and copied states. It also
+exposes work counters and \texttt{dense\_state}. It does not claim a fixed-duration
+candidate-state map: adaptive decisions depend on numerical history.
+\texttt{AdaptiveTrajectoryObserver} explicitly retains continuous output outside
+the integrator. The observer and any persistence belong to the caller.
+
+Function evaluations, Jacobian evaluations and LU decompositions are counted
+per accepted interval. Initialization work belongs to the first row; rejected
+trial work belongs to the acceptance that follows it. Interpolation needed only
+for an observer is excluded from main counters unless continuous output was
+explicitly requested. The ordinary method operation \texttt{advance} accepts one
+step on the retained solver, taking an upper step bound. The controller reports
+the actual accepted endpoint. A run instance belongs to one execution; repeating
+\texttt{simulate} creates a fresh instance and solver.
+\section{Implementation and verification}
+The adapter is in \path{src/simulation/methods/adaptive/scipy.py}; shared
+coordination and collection are in \path{src/simulation/integration.py}.
+The model's six-phase diagram is documented in its \texttt{simulation/}
+directory. Tests compare sampled states and work counters with the same
+SciPy solver, check a known non-autonomous rotation, and verify optional energy,
+dense retention, repeated runs, observation isolation and failure handling.
+Scientific reference trajectories still require refinement and an independent
+audit; arithmetic precision and integration error remain separate.
+\end{document}

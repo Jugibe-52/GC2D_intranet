@@ -2,15 +2,16 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Literal, TypeAlias
 
 import numpy as np
 
 from dynamics import GuidingCenterJacobianSystem, HamiltonianSystem
 
-from ..._fixed import integrate_fixed_grid
-from ..._result import IntegrationData
+from ...integration import IntegrationMethod, StepInfo, StepResult
+from ..._result import DiagnosticValue
+from ...observation import IntegrationStep, StepObserver
 from ...problem import InitialValueProblem
 from ...request import SimulationRequest
 
@@ -348,8 +349,8 @@ def _advance_hbvm42(
 	)
 
 
-@dataclass(frozen=True, slots=True)
-class HBVM42:
+@dataclass(slots=True)
+class HBVM42(IntegrationMethod[_HBVMStepResult]):
 	"""Fourth-order energy-preserving HBVM(4,2).
 
 	The four Gauss--Legendre nodes approximate the Hamiltonian line integral,
@@ -367,6 +368,7 @@ class HBVM42:
 	jacobian_relative_step: float = float(np.cbrt(np.finfo(float).eps))
 	track_energy: bool = False
 	progress: bool = False
+	step_observer: StepObserver | None = None
 
 	def __post_init__(self) -> None:
 		"""Validate nonlinear controls and normalize scalar fields."""
@@ -374,106 +376,73 @@ class HBVM42:
 			value = float(getattr(self, name))
 			if not np.isfinite(value) or value <= 0.0:
 				raise ValueError(f"`{name}` must be positive and finite.")
-			object.__setattr__(self, name, value)
+			setattr(self, name, value)
 		if (
 			isinstance(self.max_iterations, (bool, np.bool_))
 			or not isinstance(self.max_iterations, (int, np.integer))
 			or self.max_iterations < 1
 		):
 			raise ValueError("`max_iterations` must be a positive integer.")
-		object.__setattr__(self, "max_iterations", int(self.max_iterations))
-		object.__setattr__(
-			self,
-			"jacobian_method",
-			_validated_jacobian_method(self.jacobian_method),
-		)
+		self.max_iterations = int(self.max_iterations)
+		self.jacobian_method = _validated_jacobian_method(self.jacobian_method)
 		relative_step = float(self.jacobian_relative_step)
 		if not np.isfinite(relative_step) or relative_step <= 0.0:
 			raise ValueError("`jacobian_relative_step` must be positive and finite.")
-		object.__setattr__(self, "jacobian_relative_step", relative_step)
+		self.jacobian_relative_step = relative_step
 
-	def integrate(
-		self,
-		problem: InitialValueProblem,
-		request: SimulationRequest,
-	) -> IntegrationData:
-		"""Integrate a physical problem on the shared fixed-step grid."""
-		if self.track_energy and not isinstance(problem.dynamics, HamiltonianSystem):
+	# Resources owned by one run; excluded from constructor options.
+
+	def initialize(self, problem: InitialValueProblem, request: SimulationRequest) -> None:
+		"""Bind the HBVM coefficient solve and optional physical observation."""
+		if self.track_energy and not isinstance(self.problem.dynamics, HamiltonianSystem):
 			raise TypeError("HBVM42 energy tracking requires HamiltonianSystem dynamics.")
-		iterations: list[int] = []
-		residual_norms: list[float] = []
-		tolerances: list[float] = []
-		residual_evaluations: list[int] = []
-		jacobian_evaluations: list[int] = []
-		field_evaluations: list[int] = []
+		self.initial_state = self.problem.initial_state
+		self.metadata = {'method_order': 4, 'quadrature_stage_count': 4, 'legendre_rank': 2,
+							  'jacobian_method': self.jacobian_method}
 
-		def advance(
-			time: float,
-			state: np.ndarray,
-			step: float,
-			step_index: int,
-			observe: bool,
-		) -> np.ndarray:
-			"""Advance once and retain work only for main-grid steps."""
-			del step_index
-			result = _advance_hbvm42(
-				problem.dynamics,
-				time,
-				state,
-				step,
-				absolute_tolerance=self.absolute_tolerance,
-				relative_tolerance=self.relative_tolerance,
-				max_iterations=self.max_iterations,
-				jacobian_method=self.jacobian_method,
-				jacobian_relative_step=self.jacobian_relative_step,
-			)
-			if observe:
-				iterations.append(result.iterations)
-				residual_norms.append(result.residual_norm)
-				tolerances.append(result.tolerance)
-				residual_evaluations.append(result.residual_evaluations)
-				jacobian_evaluations.append(result.jacobian_evaluations)
-				field_evaluations.append(result.vector_field_evaluations)
-			return result.state
-
-		states, step_count = integrate_fixed_grid(
-			problem.initial_state,
-			request,
-			advance,
-			progress=bool(self.progress),
-			label=type(self).__name__,
+	def advance(self, time: float, state: np.ndarray, step: float) -> StepResult[_HBVMStepResult]:
+		"""Return one accepted coefficient solve and its local work counters."""
+		result = _advance_hbvm42(
+			self.problem.dynamics,
+			time,
+			state,
+			step,
+			absolute_tolerance=self.absolute_tolerance,
+			relative_tolerance=self.relative_tolerance,
+			max_iterations=self.max_iterations,
+			jacobian_method=self.jacobian_method,
+			jacobian_relative_step=self.jacobian_relative_step,
 		)
-		diagnostics: dict[str, np.ndarray | float | int | str | bool] = {
-			"step_count": step_count,
-			"method_order": 4,
-			"quadrature_stage_count": 4,
-			"legendre_rank": 2,
-			"nonlinear_iterations": np.asarray(iterations, dtype=int),
-			"nonlinear_residual_norms": np.asarray(residual_norms, dtype=float),
-			"nonlinear_tolerances": np.asarray(tolerances, dtype=float),
-			"residual_evaluations_per_step": np.asarray(
-				residual_evaluations,
-				dtype=int,
-			),
-			"jacobian_evaluations_per_step": np.asarray(
-				jacobian_evaluations,
-				dtype=int,
-			),
-			"vector_field_evaluations_per_step": np.asarray(
-				field_evaluations,
-				dtype=int,
-			),
-			"jacobian_method": self.jacobian_method,
-		}
+		return StepResult(result.state, {
+			'nonlinear_iterations': result.iterations,
+			'nonlinear_residual_norms': result.residual_norm,
+			'nonlinear_tolerances': result.tolerance,
+			'residual_evaluations_per_step': result.residual_evaluations,
+			'jacobian_evaluations_per_step': result.jacobian_evaluations,
+			'vector_field_evaluations_per_step': result.vector_field_evaluations,
+		}, result)
+
+	def build_observation(self, info: StepInfo, result: StepResult[_HBVMStepResult]) -> IntegrationStep:
+		def map_state(candidate: np.ndarray) -> np.ndarray:
+			return self.advance(info.time, candidate, info.duration).state
+		return IntegrationStep(
+			dynamics_name=type(self.problem.dynamics).__name__, method_name=type(self).__name__,
+			step_index=info.index, start_time=info.time, time=info.time + info.duration,
+			duration=info.duration, state_before=info.state_before.copy(),
+			state_after=result.state.copy(), map_state=map_state, dynamics=self.problem.dynamics,
+		)
+
+	def export_history(self, times: np.ndarray, states: np.ndarray) -> tuple[np.ndarray, dict[str, DiagnosticValue]]:
+		diagnostics: dict[str, DiagnosticValue] = {}
 		if self.track_energy:
-			assert isinstance(problem.dynamics, HamiltonianSystem)
+			assert isinstance(self.problem.dynamics, HamiltonianSystem)
 			energies = np.asarray(
-				problem.dynamics.hamiltonian(request.output_times, states),
+				self.problem.dynamics.hamiltonian(times, states),
 				dtype=float,
 			)
 			if energies.ndim == 1:
 				energies = energies[np.newaxis, :]
-			if energies.shape[-1] != request.output_times.size:
+			if energies.shape[-1] != times.size:
 				raise ValueError(
 					"Hamiltonian values must retain the saved-time dimension."
 				)
@@ -481,11 +450,7 @@ class HBVM42:
 			diagnostics["hamiltonian"] = energies
 			diagnostics["energy_drift"] = energy_drift
 			diagnostics["energy_error"] = float(np.max(np.abs(energy_drift)))
-		return IntegrationData(
-			t=request.output_times,
-			states=np.asarray(states),
-			diagnostics=diagnostics,
-		)
+		return np.asarray(states), diagnostics
 
 
 __all__ = ["HBVM42", "HBVMJacobianMethod"]

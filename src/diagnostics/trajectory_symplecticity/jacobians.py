@@ -213,7 +213,9 @@ def abba2_implicit_step_particle_jacobians(
 def abba4_implicit_step_particle_jacobians(
 	step: IntegrationStep,
 ) -> np.ndarray:
-	"""Compose the three exact ideal-root implicit-ABBA tangent factors."""
+	"""Return the current outer-projection tangent or read a historical event."""
+	if isinstance(step, ABBA4ImplicitSingleProjectionIntegrationStep):
+		return abba4_implicit_single_projection_step_particle_jacobians(step)
 	dynamics, state, state_after, particle_count = _validated_step(
 		step,
 		method_name="ABBA4Implicit",

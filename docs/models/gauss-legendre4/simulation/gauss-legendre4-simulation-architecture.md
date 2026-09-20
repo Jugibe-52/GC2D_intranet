@@ -1,5 +1,52 @@
 # Gauss--Legendre two-stage fourth-order integration
 
+[Editable diagram](gauss-legendre4-simulation-architecture.puml) · [Scalable diagram](gauss-legendre4-simulation-architecture.svg)
+
+![gauss-legendre4 architecture](gauss-legendre4-simulation-architecture.png)
+
+The diagram retains the six-phase BM4 layout, including public contracts,
+preparation, numerical equations, accepted records, optional observers and errors.
+
+## Method instances and integration lifecycle
+
+This method inherits `IntegrationMethod.integrate(problem, request)`, shared by
+all 13 public methods. It calls `new_run(problem, request)` to create a fresh
+instance of the same numerical class. That instance's `initialize` validates
+capabilities and sets its formulation, initial internal state and metadata.
+There is no separate context or callback-based method record.
+
+| Operation on the numerical class | Responsibility |
+|---|---|
+| `initialize(problem, request)` | Initialize this run's resources once; return `None` |
+| `advance(t, state, h)` | Execute numerical work and return state, statistics and typed details |
+| `build_observation(info, step)` | Construct a method-specific event with independent snapshots |
+| `export_history(times, history)` | Extract physical output and auxiliary diagnostics |
+| `controller()` | Select fixed or adaptive accepted-step scheduling |
+
+`integrate_method(run)` owns the common loop. Its `IntegrationCollector` saves
+requested samples and copied accepted-step metric rows, without retaining
+numerical details or events. The method owns the formulation and any live solver.
+Analysis and persistence remain in `diagnostics/`; observers remain caller-owned.
+
+Constructor options remain reusable through `simulate`. Per-run resources are
+excluded from reconstruction, and initial state and metadata are isolated as
+read-only copies. A completed or failed run cannot be integrated again; create a
+fresh run. Call `new_run` for low-level access rather than resetting `initialize`.
+
+`FixedStepController` calls `run.advance` with the exact effective duration and
+uses independent shortened maps for interior output times. DOP853/Radau's
+controller calls their ordinary `advance` on the live solver with an upper step
+bound and reads the actual accepted endpoint. Dense sampling retains the backend.
+
+Metric rows follow `step_times`; physical and auxiliary histories follow
+`Solution.t`. Common fields are `step_count`, `step_start_times`, `step_times`,
+`step_sizes` and `output_interpolation_count`. Shadow work and extra observer-only
+work are excluded from accepted numerical counters.
+
+See the [generic architecture](../../../simulation/integration-architecture.md)
+for the lifecycle, adaptive semantics and extension guide. Executable contracts
+are in `tests/test_method_integration.py` and `tests/test_adaptive_integration.py`.
+
 ## Public method
 
 ```python
@@ -116,7 +163,7 @@ undersampled by the coarser common accuracy grid.
 
 ## Fixed grid and observations
 
-`integrate_fixed_grid` defines an output-independent main grid. Off-grid saved
+`FixedStepController` defines an output-independent main grid. Off-grid saved
 times are evaluated by shadow steps from the preceding main node. Shadow steps
 do not emit observations and do not contribute to Newton diagnostic arrays.
 

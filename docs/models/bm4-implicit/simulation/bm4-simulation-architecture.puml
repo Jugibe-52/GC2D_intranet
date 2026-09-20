@@ -3,7 +3,7 @@ digraph BM4ImplicitFullExecution {
   // Implemented BM4Implicit lifecycle, using the ABBA4 diagram's six-phase layout.
   // Read numbered phase headers horizontally and each phase vertically.
   // Cards distinguish actual types/functions from inline work and numerical details.
-  // Preparation and execution show two parts of the same integration coordinator.
+  // Method initialization sets instance resources; common integration owns the lifecycle.
   // Cross-cluster edges follow the nodes to preserve cluster ownership.
   graph [
     rankdir=TB, newrank=true, compound=true, splines=line,
@@ -87,8 +87,8 @@ digraph BM4ImplicitFullExecution {
       <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
         <TR><TD BGCOLOR="#FBE0C7" ALIGN="LEFT"><FONT POINT-SIZE="9">EXISTING PUBLIC CLASS / BM4 CONFIGURATION</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>BM4Implicit</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">implicit.py</FONT></TD></TR>
         <TR><TD ALIGN="LEFT"><B>Configuration</B><BR ALIGN="LEFT"/>coupling_frequency; nonlinear_solver<BR ALIGN="LEFT"/>newton_absolute_tolerance<BR ALIGN="LEFT"/>newton_relative_tolerance; newton_max_iterations<BR ALIGN="LEFT"/>newton_jacobian_method<BR ALIGN="LEFT"/>newton_jacobian_relative_step<BR ALIGN="LEFT"/>progress; step_observer</TD></TR><HR/>
-        <TR><TD ALIGN="LEFT"><B>Public operation</B><BR ALIGN="LEFT"/>integrate(problem, request): IntegrationData</TD></TR><HR/>
-        <TR><TD ALIGN="LEFT">Frozen dataclass; validates controls at construction.<BR ALIGN="LEFT"/>Implements NumericalMethod structurally.<BR ALIGN="LEFT"/>Delegates to _integrate_implicit_bm4(...).</TD></TR>
+        <TR><TD ALIGN="LEFT"><B>Public operations</B><BR ALIGN="LEFT"/>initialize(problem, request): None<BR ALIGN="LEFT"/>new_run(problem, request): same class<BR ALIGN="LEFT"/>inherited integrate(...): IntegrationData</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">Dataclass; validates constructor controls.<BR ALIGN="LEFT"/>Implements NumericalMethod structurally.<BR ALIGN="LEFT"/>Inherits IntegrationMethod.integrate(...).</TD></TR>
       </TABLE>
     >];
     Configuration [label=<
@@ -115,18 +115,18 @@ digraph BM4ImplicitFullExecution {
     >];
     Prepare [label=<
       <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
-        <TR><TD BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">PREPARATION INSIDE THE BM4 COORDINATOR</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>GCExtendedFormulation.prepare</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/simulation/formulations/gc.py</FONT></TD></TR>
-        <TR><TD ALIGN="LEFT"><B>IN</B> problem, coupling_frequency<BR ALIGN="LEFT"/><B>OUT</B> prepared coupled physical maps</TD></TR><HR/>
-        <TR><TD ALIGN="LEFT">Called once by _integrate_implicit_bm4(...).<BR ALIGN="LEFT"/>Set track_energy=False.<BR ALIGN="LEFT"/>Require GCInitialConfiguration and DynamicalSystem.<BR ALIGN="LEFT"/>Bind dynamics, layout, particle count and frequency.</TD></TR><HR/>
-        <TR><TD ALIGN="LEFT">Initialize the two physical copies (z0, z0).<BR ALIGN="LEFT"/>The scheduler itself starts from physical z0.<BR ALIGN="LEFT"/>Time is passed separately to each map.</TD></TR>
+        <TR><TD BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">METHOD INITIALIZATION / CALLED ONCE</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>BM4Implicit.initialize(...)</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">implicit.py / initialize</FONT></TD></TR>
+        <TR><TD ALIGN="LEFT"><B>IN</B> problem, request, method controls<BR ALIGN="LEFT"/><B>OUT</B> None; instance resources initialized</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">GCExtendedFormulation(...).prepare(problem)<BR ALIGN="LEFT"/>uses track_energy=False and binds coupled maps.<BR ALIGN="LEFT"/>Require GCInitialConfiguration and DynamicalSystem.<BR ALIGN="LEFT"/>Store formulation, initial state and metadata on self.</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">Initialize the common controller with physical z0.<BR ALIGN="LEFT"/>self.formulation owns the temporary copy maps.<BR ALIGN="LEFT"/>No integration history is allocated here.</TD></TR>
       </TABLE>
     >];
-    Prepared [label=<
+    RunMethod [label=<
       <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
-        <TR><TD BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">EXISTING PREPARED IMPLEMENTATION / CONTRACT</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>_PreparedGC</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/simulation/formulations/gc.py</FONT></TD></TR>
-        <TR><TD ALIGN="LEFT"><B>Contract</B> PreparedDirectAdjointFormulation<BR ALIGN="LEFT"/>Declared in src/simulation/formulations/base.py.</TD></TR><HR/>
-        <TR><TD ALIGN="LEFT"><B>State used by BM4</B><BR ALIGN="LEFT"/>dynamics; configuration; dynamics_name<BR ALIGN="LEFT"/>particle_count; physical_size = m<BR ALIGN="LEFT"/>coupling_frequency; track_energy = False<BR ALIGN="LEFT"/>initial_internal_state: array[2m]</TD></TR><HR/>
-        <TR><TD ALIGN="LEFT"><B>Bound operations</B><BR ALIGN="LEFT"/>direct_map(duration, t, copies): array[2m]<BR ALIGN="LEFT"/>adjoint_map(duration, t, copies): array[2m]<BR ALIGN="LEFT"/>The BM4 composition consumes these maps.</TD></TR>
+        <TR><TD BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">SAME NUMERICAL CLASS / ONE INSTANCE PER EXECUTION</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>BM4Implicit (run)</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/simulation/methods/bm4/implicit.py</FONT></TD></TR>
+        <TR><TD ALIGN="LEFT"><B>Instance data</B><BR ALIGN="LEFT"/>problem; request; initial_state (read-only)<BR ALIGN="LEFT"/>formulation or dynamics; numerical resources<BR ALIGN="LEFT"/>metadata and diagnostic_aliases (read-only)</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT"><B>Ordinary class methods</B><BR ALIGN="LEFT"/>initialize(problem, request): None<BR ALIGN="LEFT"/>advance(t, state, h): StepResult[Detail]<BR ALIGN="LEFT"/>build_observation(info, step): event<BR ALIGN="LEFT"/>export_history(times, history): physical + auxiliary<BR ALIGN="LEFT"/>controller(): StepController</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">No separate context or callback-based method record.<BR ALIGN="LEFT"/>Construct another instance for another integration.<BR ALIGN="LEFT"/>Completed runs cannot re-enter the global driver.<BR ALIGN="LEFT"/>The collector and external observer own histories.</TD></TR>
       </TABLE>
     >];
     StateSpace [label=<
@@ -135,6 +135,14 @@ digraph BM4ImplicitFullExecution {
         <TR><TD ALIGN="LEFT"><B>Public and scheduler state</B><BR ALIGN="LEFT"/>z = [x1, ..., xN, y1, ..., yN] in R^m.<BR ALIGN="LEFT"/>Physical history has shape [m, T].</TD></TR><HR/>
         <TR><TD ALIGN="LEFT"><B>Temporary doubled workspace</B><BR ALIGN="LEFT"/>Y = (u, v) in R^(2m), used inside one solve.<BR ALIGN="LEFT"/>Each solve starts from (z + mu, z - mu).<BR ALIGN="LEFT"/>Only the accepted physical state persists.</TD></TR><HR/>
         <TR><TD ALIGN="LEFT">This doubling contains physical coordinates only.<BR ALIGN="LEFT"/>Time and conjugate momentum are not state blocks.<BR ALIGN="LEFT"/>These dimensions apply to maps and result records.</TD></TR>
+      </TABLE>
+    >];
+    FamilyResources [label=<
+      <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">EXISTING PREPARED IMPLEMENTATION / CONTRACT</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>_PreparedGC</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/simulation/formulations/gc.py</FONT></TD></TR>
+        <TR><TD ALIGN="LEFT"><B>Contract</B> PreparedDirectAdjointFormulation<BR ALIGN="LEFT"/>Declared in src/simulation/formulations/base.py.</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT"><B>State used by BM4</B><BR ALIGN="LEFT"/>dynamics; configuration; dynamics_name<BR ALIGN="LEFT"/>particle_count; physical_size = m<BR ALIGN="LEFT"/>coupling_frequency; track_energy = False<BR ALIGN="LEFT"/>initial_internal_state: array[2m]</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT"><B>Bound operations</B><BR ALIGN="LEFT"/>direct_map(duration, t, copies): array[2m]<BR ALIGN="LEFT"/>adjoint_map(duration, t, copies): array[2m]<BR ALIGN="LEFT"/>The BM4 composition consumes these maps.</TD></TR>
       </TABLE>
     >];
   }
@@ -147,26 +155,26 @@ digraph BM4ImplicitFullExecution {
 
     Runtime [label=<
       <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
-        <TR><TD BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">BM4 COORDINATOR / CONTINUED AFTER PREPARATION</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>_integrate_implicit_bm4(...)</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">implicit.py</FONT></TD></TR>
-        <TR><TD ALIGN="LEFT"><B>IN</B> method, problem, request<BR ALIGN="LEFT"/><B>OUT</B> IntegrationData</TD></TR><HR/>
-        <TR><TD ALIGN="LEFT">Prepare the maps once (phase 03).<BR ALIGN="LEFT"/>Create metric lists and the advance closure.<BR ALIGN="LEFT"/>Call integrate_fixed_grid with physical z0.<BR ALIGN="LEFT"/>Finalize physical history and diagnostic arrays.</TD></TR><HR/>
-        <TR><TD ALIGN="LEFT">The same call owns preparation, stepping,<BR ALIGN="LEFT"/>main-step metrics and optional observations.</TD></TR>
+        <TR><TD BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">ONE COORDINATOR FOR ALL 13 METHODS</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>integrate_method(...)</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/simulation/integration.py</FONT></TD></TR>
+        <TR><TD ALIGN="LEFT"><B>IN</B> initialized method instance; optional controller<BR ALIGN="LEFT"/><B>OUT</B> IntegrationData</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">Create a fresh controller and IntegrationCollector.<BR ALIGN="LEFT"/>Validate each accepted interval and state.<BR ALIGN="LEFT"/>Record metrics; dispatch optional observations;<BR ALIGN="LEFT"/>save requested samples; report temporal progress.</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">At completion: export_history + collector.finalize.<BR ALIGN="LEFT"/>Merge metadata, metrics, auxiliary output and aliases.<BR ALIGN="LEFT"/>No branch selects a numerical-method class.</TD></TR>
       </TABLE>
     >];
     Grid [label=<
       <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
-        <TR><TD BGCOLOR="#E8EFF8" ALIGN="LEFT"><FONT POINT-SIZE="9">EXISTING FUNCTION / OUTER TIME LOOP</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>integrate_fixed_grid(...)</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/simulation/_fixed.py</FONT></TD></TR>
-        <TR><TD ALIGN="LEFT"><B>IN</B> initial workspace, request, advance<BR ALIGN="LEFT"/><B>OUT</B> sampled history, main-step count</TD></TR><HR/>
-        <TR><TD ALIGN="LEFT">Choose uniform h &lt;= max_step.<BR ALIGN="LEFT"/>Run complete main steps up to tf.<BR ALIGN="LEFT"/>For off-grid output, make a shadow advance<BR ALIGN="LEFT"/>from the preceding main-grid state.</TD></TR><HR/>
-        <TR><TD ALIGN="LEFT">Shadow advances change neither the main<BR ALIGN="LEFT"/>trajectory nor main-step metrics/events.</TD></TR>
+        <TR><TD BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">UNIFORM ACCEPTED GRID / INDEPENDENT OUTPUTS</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>FixedStepController</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/simulation/integration.py</FONT></TD></TR>
+        <TR><TD ALIGN="LEFT"><B>steps(run, request)</B><BR ALIGN="LEFT"/>Choose n = ceil((tf-t0)/max_step), h = (tf-t0)/n.<BR ALIGN="LEFT"/>Floating boundary correction uses _step_count.<BR ALIGN="LEFT"/>Yield StepInfo and run.advance(t, state, h).</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT"><B>sample(run, info, result, time)</B><BR ALIGN="LEFT"/>Reuse coincident accepted endpoints.<BR ALIGN="LEFT"/>Interior output: shortened advance from a copy<BR ALIGN="LEFT"/>of the preceding accepted state.</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">A shadow sample does not alter the main grid.<BR ALIGN="LEFT"/>Its work is excluded from metrics and observations.<BR ALIGN="LEFT"/>DOP853 and Radau supply a different controller.</TD></TR>
       </TABLE>
     >];
     Advance [label=<
       <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
-        <TR><TD BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">BM4 PER-ADVANCE CLOSURE</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>advance(...)</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">implicit.py / _integrate_implicit_bm4</FONT></TD></TR>
-        <TR><TD ALIGN="LEFT"><B>IN</B> t, physical state, h, step_index, observe<BR ALIGN="LEFT"/><B>OUT</B> accepted physical state for the scheduler</TD></TR><HR/>
-        <TR><TD ALIGN="LEFT">Call _solve_reduced_projected_bm4_step(...).<BR ALIGN="LEFT"/>Receive one _ProjectedBM4Step.<BR ALIGN="LEFT"/>When observe=True, append metrics and optionally<BR ALIGN="LEFT"/>reconstruct the accepted cycle for the observer.</TD></TR><HR/>
-        <TR><TD ALIGN="LEFT">Return result.state on main and shadow advances.<BR ALIGN="LEFT"/>A shadow solve returns a sample; its work is<BR ALIGN="LEFT"/>excluded from main-step metrics and events.</TD></TR>
+        <TR><TD BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">BM4 COMPLETE STEP / NO RECORDING SIDE EFFECTS</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>run.advance(t, state, h)</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">implicit.py / advance</FONT></TD></TR>
+        <TR><TD ALIGN="LEFT"><B>IN</B> start time, physical state, duration<BR ALIGN="LEFT"/><B>OUT</B> generic StepResult(state, statistics, details)</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">Call self._solve(...) exactly once.<BR ALIGN="LEFT"/>It invokes _solve_reduced_projected_bm4_step(...).<BR ALIGN="LEFT"/>Return accepted physical coordinates, five metrics<BR ALIGN="LEFT"/>and the converged _ProjectedBM4Step as details.</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">No step index or main/shadow flag is needed.<BR ALIGN="LEFT"/>The coordinator chooses what to collect and observe.<BR ALIGN="LEFT"/>Preserve the input state and fixed-map resources.</TD></TR>
       </TABLE>
     >];
     StepRecipe [label=<
@@ -180,7 +188,7 @@ digraph BM4ImplicitFullExecution {
     Projection [label=<
       <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
         <TR><TD BGCOLOR="#E3F0E9" ALIGN="LEFT"><FONT POINT-SIZE="9">BM4 REDUCED HAIRER SOLVE</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>_solve_reduced_projected_<BR/>bm4_step(...)</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">implicit.py</FONT></TD></TR>
-        <TR><TD ALIGN="LEFT"><B>IN</B> prepared maps, t, z, h, solver controls<BR ALIGN="LEFT"/><B>OUT</B> _ProjectedBM4Step</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT"><B>IN</B> class operations, t, z, h, solver controls<BR ALIGN="LEFT"/><B>OUT</B> _ProjectedBM4Step</TD></TR><HR/>
         <TR><TD ALIGN="LEFT"><B>Unknown</B> mu in R^m; initial guess mu = 0.<BR ALIGN="LEFT"/>Input copies: Y_hat = (z + mu, z - mu).<BR ALIGN="LEFT"/>Mapped copies: (u, v) = Psi(t, h, Y_hat).<BR ALIGN="LEFT"/>Residual: r(mu) = u - v + 2 mu.</TD></TR><HR/>
         <TR><TD ALIGN="LEFT"><B>After convergence</B><BR ALIGN="LEFT"/>Correct both outputs: (u + mu, v - mu).<BR ALIGN="LEFT"/>Return their mean as the accepted physical state.<BR ALIGN="LEFT"/>The same mu shifts input and output copies.</TD></TR>
       </TABLE>
@@ -226,18 +234,18 @@ digraph BM4ImplicitFullExecution {
 
     Recording [label=<
       <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
-        <TR><TD BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">INLINE MAIN-STEP RECORDING</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>Append accepted-step metrics</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">implicit.py / advance(...), when observe=True</FONT></TD></TR>
-        <TR><TD ALIGN="LEFT"><B>IN</B> _ProjectedBM4Step and state_before<BR ALIGN="LEFT"/><B>OUT</B> one row per accepted main step</TD></TR><HR/>
-        <TR><TD ALIGN="LEFT">Append iterations, residual_evaluations,<BR ALIGN="LEFT"/>residual_norm, the effective tolerance,<BR ALIGN="LEFT"/>and ||multiplier||_inf.</TD></TR><HR/>
-        <TR><TD ALIGN="LEFT">Each row describes one complete BM4 solve.<BR ALIGN="LEFT"/>Recording runs even without a step_observer.<BR ALIGN="LEFT"/>Shadow advances bypass these lists.</TD></TR>
+        <TR><TD BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">ONE RUN / REQUESTED SAMPLES + ACCEPTED METRICS</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>IntegrationCollector</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/simulation/integration.py</FONT></TD></TR>
+        <TR><TD ALIGN="LEFT"><B>history</B>: internal coordinates x saved times<BR ALIGN="LEFT"/><B>record_step(info, statistics)</B><BR ALIGN="LEFT"/>Copy metric rows with stable keys and shapes.</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">Record step_start_times, step_times, step_sizes.<BR ALIGN="LEFT"/>Never store method details or observer events.<BR ALIGN="LEFT"/>Rejected adaptive trials have no accepted row;<BR ALIGN="LEFT"/>their numerical work belongs to the accepted step.</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT"><B>finalize()</B>: stack rows and provide step_count.<BR ALIGN="LEFT"/>Saved columns follow request.output_times.<BR ALIGN="LEFT"/>Metric rows follow accepted step_times.</TD></TR>
       </TABLE>
     >];
     ProjectedStep [label=<
       <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
-        <TR><TD BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">EXISTING FROZEN RECORD / ONE ACCEPTED SOLVE</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>_ProjectedBM4Step</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">implicit.py</FONT></TD></TR>
-        <TR><TD ALIGN="LEFT"><B>State</B><BR ALIGN="LEFT"/>state: array[m], accepted physical coordinates<BR ALIGN="LEFT"/>multiplier: array[m]<BR ALIGN="LEFT"/>internal_input: array[2m]<BR ALIGN="LEFT"/>mapped: array[2m]</TD></TR><HR/>
+        <TR><TD BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">COMMON RESULT / BM4 DETAILS RECORD</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>StepResult / _ProjectedBM4Step</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/simulation/integration.py / implicit.py</FONT></TD></TR>
+        <TR><TD ALIGN="LEFT"><B>Generic StepResult</B><BR ALIGN="LEFT"/>state, statistics, details: _ProjectedBM4Step<BR ALIGN="LEFT"/><B>BM4 details</B><BR ALIGN="LEFT"/>state: array[m], accepted physical coordinates<BR ALIGN="LEFT"/>multiplier: array[m]<BR ALIGN="LEFT"/>internal_input: array[2m]<BR ALIGN="LEFT"/>mapped: array[2m]</TD></TR><HR/>
         <TR><TD ALIGN="LEFT"><B>Nonlinear work</B><BR ALIGN="LEFT"/>iterations: int<BR ALIGN="LEFT"/>residual_evaluations: int<BR ALIGN="LEFT"/>residual_norm: float</TD></TR><HR/>
-        <TR><TD ALIGN="LEFT">advance(...) returns state to the scheduler.<BR ALIGN="LEFT"/>Recording reads the counters and multiplier.<BR ALIGN="LEFT"/>Observation reads the stored converged copies.</TD></TR>
+        <TR><TD ALIGN="LEFT">advance(...) returns the generic result.<BR ALIGN="LEFT"/>The collector reads only result.statistics.<BR ALIGN="LEFT"/>Observation reads the stored converged copies.</TD></TR>
       </TABLE>
     >];
     Snapshots [label=<
@@ -258,10 +266,10 @@ digraph BM4ImplicitFullExecution {
     >];
     EventBuilder [label=<
       <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
-        <TR><TD BGCOLOR="#F0E8FA" ALIGN="LEFT"><FONT POINT-SIZE="9">INLINE OPTIONAL OBSERVER PREPARATION</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>Reconstruct the accepted cycle</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">implicit.py / advance(...), after convergence</FONT></TD></TR>
-        <TR><TD ALIGN="LEFT"><B>Only if</B> main step AND step_observer installed.<BR ALIGN="LEFT"/>Replay _advance_composition(...) once from<BR ALIGN="LEFT"/>result.internal_input with a stage observer.</TD></TR><HR/>
-        <TR><TD ALIGN="LEFT">Collect twelve IntegrationStage snapshots.<BR ALIGN="LEFT"/>Require array_equal(replayed_output, result.mapped).<BR ALIGN="LEFT"/>Keep the accepted result.state unchanged.</TD></TR><HR/>
-        <TR><TD ALIGN="LEFT">Build ImplicitBM4IntegrationStep and call<BR ALIGN="LEFT"/>step_observer(event).<BR ALIGN="LEFT"/>Its map_state closure solves the complete<BR ALIGN="LEFT"/>projected physical step for a supplied candidate.</TD></TR>
+        <TR><TD BGCOLOR="#F0E8FA" ALIGN="LEFT"><FONT POINT-SIZE="9">BM4 OPTIONAL OBSERVATION ADAPTER</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>run.build_observation(info, step)</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">implicit.py / build_observation</FONT></TD></TR>
+        <TR><TD ALIGN="LEFT"><B>IN</B> StepInfo and generic StepResult<BR ALIGN="LEFT"/><B>OUT</B> ImplicitBM4IntegrationStep</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">Read converged copies from step.details.<BR ALIGN="LEFT"/>Replay _advance_composition once with snapshots.<BR ALIGN="LEFT"/>Require the replayed mapped state to match exactly.<BR ALIGN="LEFT"/>Preserve all twelve signed stage times and states.</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">Bind map_state(candidate) to the same solve.<BR ALIGN="LEFT"/>Return independent event snapshots.<BR ALIGN="LEFT"/>integrate_method invokes step_observer(event).<BR ALIGN="LEFT"/>Shadow samples never request this builder.</TD></TR>
       </TABLE>
     >];
     Events [label=<
@@ -282,9 +290,10 @@ digraph BM4ImplicitFullExecution {
 
     Data [label=<
       <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
-        <TR><TD BGCOLOR="#E2F1E9" ALIGN="LEFT"><FONT POINT-SIZE="9">EXISTING INTERNAL RECORD</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>IntegrationData</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/simulation/_result.py</FONT></TD></TR>
-        <TR><TD ALIGN="LEFT"><B>State</B><BR ALIGN="LEFT"/>t: requested times [T]<BR ALIGN="LEFT"/>states: physical history [m, T]<BR ALIGN="LEFT"/>diagnostics: dict[str, DiagnosticValue]</TD></TR><HR/>
-        <TR><TD ALIGN="LEFT">Created after the scheduler reaches tf.<BR ALIGN="LEFT"/>The history already contains physical coordinates.<BR ALIGN="LEFT"/>Attach accepted-step arrays and solver metadata.<BR ALIGN="LEFT"/>Retain the established diagnostic aliases.</TD></TR>
+        <TR><TD BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">COMMON FINAL ASSEMBLY</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>IntegrationData</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/simulation/_result.py</FONT></TD></TR>
+        <TR><TD ALIGN="LEFT"><B>Fields</B><BR ALIGN="LEFT"/>t: requested times [T]<BR ALIGN="LEFT"/>states: physical history [m, T]<BR ALIGN="LEFT"/>diagnostics: metadata + accepted metrics + auxiliary</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">run.export_history(times, collector.history)<BR ALIGN="LEFT"/>extracts the physical state and optional energy.<BR ALIGN="LEFT"/>Export never repeats the numerical projection.<BR ALIGN="LEFT"/>Internal and physical dimensions may differ.</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">Add output_interpolation_count and metric aliases.<BR ALIGN="LEFT"/>Return to the original SimulationRunner call.<BR ALIGN="LEFT"/>Only the requested trajectory is exposed by default.</TD></TR>
       </TABLE>
     >];
     Resume [label=<
@@ -297,7 +306,7 @@ digraph BM4ImplicitFullExecution {
     Solution [label=<
       <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
         <TR><TD BGCOLOR="#E2F1E9" ALIGN="LEFT"><FONT POINT-SIZE="9">EXISTING PUBLIC CLASS</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>Solution</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#537866">src/simulation/solution.py</FONT></TD></TR>
-        <TR><TD ALIGN="LEFT"><B>Read-only public properties</B><BR ALIGN="LEFT"/>t: array[T]<BR ALIGN="LEFT"/>states: array[2N, T]<BR ALIGN="LEFT"/>source: InitialConfiguration<BR ALIGN="LEFT"/>diagnostics: read-only mapping</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT"><B>Read-only public properties</B><BR ALIGN="LEFT"/>t: array[T]<BR ALIGN="LEFT"/>states: array[m, T]<BR ALIGN="LEFT"/>source: InitialConfiguration<BR ALIGN="LEFT"/>diagnostics: read-only mapping</TD></TR><HR/>
         <TR><TD ALIGN="LEFT">Owns copies of trajectory and diagnostic arrays.<BR ALIGN="LEFT"/>Layout and provenance remain available<BR ALIGN="LEFT"/>through the source configuration.</TD></TR>
       </TABLE>
     >];
@@ -346,9 +355,9 @@ digraph BM4ImplicitFullExecution {
   { rank=same; HistoryExit; HistoryEntry; }
   { rank=same; Potential; Problem; Runner; Runtime; Recording; MetricsLink; Data; }
   { rank=same; Dynamics; Request; Prepare; Grid; ProjectedStep; ObservationStart; Resume; }
-  { rank=same; Initial; Method; Prepared; Advance; Snapshots; Solution; }
+  { rank=same; Initial; Method; RunMethod; Advance; Snapshots; Solution; }
   { rank=same; Layout; Configuration; StateSpace; StepRecipe; DiagnosticFields; Interpret; }
-  { rank=same; Projection; EventBuilder; ObservationEnd; }
+  { rank=same; FamilyResources; Projection; EventBuilder; ObservationEnd; }
   { rank=same; FailurePass; Failure; }
   { rank=same; Nonlinear; Events; }
 
@@ -376,11 +385,13 @@ digraph BM4ImplicitFullExecution {
   Problem -> Runner [constraint=false, xlabel="problem"];
   Request -> Runner [constraint=false, xlabel="request"];
   Method -> Runner [constraint=false, xlabel="method"];
-  Runner -> Prepare [label="BM4Implicit.integrate\nstarts coordinator", weight=100];
-  Prepare -> Prepared [color="#4676A7", style=dotted, label="prepared maps", weight=100];
-  Prepared -> StateSpace [style=invis, weight=100];
+  Runner -> Prepare [label="inherited integrate\ncalls new_run + initialize", weight=100];
+  Prepare -> RunMethod [color="#4676A7", style=dotted, label="initialized instance", weight=100];
+  RunMethod -> StateSpace [style=invis, weight=100];
 
-  Prepared -> Runtime [constraint=false, xlabel="prepared\nphysical maps"];
+  RunMethod -> Runtime [constraint=false, xlabel="method\ninstance"];
+
+  StateSpace -> FamilyResources [style=invis, weight=100];
 
   // Normal execution descends into the selected complete step and its solver.
   Runtime -> Grid [label="start main time loop", weight=100];
@@ -393,18 +404,18 @@ digraph BM4ImplicitFullExecution {
 
 
   // One returned BM4 record supplies the scheduler, metrics and optional events.
-  Advance:ne -> ProjectedStep:sw [constraint=false, color="#4676A7", style=dotted, xlabel="converged record"];
+  Advance:ne -> ProjectedStep:sw [constraint=false, color="#4676A7", style=dotted, xlabel="StepResult"];
   Snapshots -> ProjectedStep [constraint=false, arrowhead=odiamond, xlabel="array fields"];
-  Grid -> ProjectedStep [constraint=false, color="#4676A7", style=dotted, dir=back, arrowhead=none, arrowtail=normal, xlabel="physical state"];
-  ProjectedStep -> Recording [constraint=false, xlabel="main step only"];
+  Grid -> ProjectedStep [constraint=false, color="#4676A7", style=dotted, dir=back, arrowhead=none, arrowtail=normal, xlabel="result.state"];
+  ProjectedStep -> Recording [constraint=false, xlabel="accepted statistics"];
   ProjectedStep -> ObservationStart [color="#9369B1", style=dashed, arrowhead=none, weight=100];
   ObservationStart -> ObservationEnd [color="#9369B1", style=dashed, arrowhead=none, xlabel="main step + observer", weight=1000];
   ObservationEnd -> EventBuilder [color="#9369B1", style=dashed, constraint=false];
-  EventBuilder -> Events [color="#9369B1", style=dashed, xlabel="emit event", weight=1000];
+  EventBuilder -> Events [color="#9369B1", style=dashed, xlabel="build event;\ncommon dispatch", weight=1000];
 
   // Completion re-enters the same public runner before exposing Solution.
   Runtime -> HistoryExit [constraint=false, color="#4676A7", style=dotted, arrowhead=none, xlabel="after tf"];
-  HistoryExit -> HistoryEntry [color="#4676A7", style=dotted, arrowhead=none, xlabel="runtime finalizes physical history", weight=20];
+  HistoryExit -> HistoryEntry [color="#4676A7", style=dotted, arrowhead=none, xlabel="export_history(times, collector.history)", weight=20];
   HistoryEntry -> Data [color="#4676A7", style=dotted, weight=100];
   Recording -> MetricsLink [color="#4676A7", style=dotted, arrowhead=none, weight=100];
   MetricsLink -> Data [color="#4676A7", style=dotted, xlabel="final diagnostic\narrays", weight=100];

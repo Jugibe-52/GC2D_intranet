@@ -1,585 +1,158 @@
-# Unified ABBA4 implicit simulation architecture
+# ABBA4 implicit: one outer projection
 
-This document explains the companion
-[`abba4-implicit-simulation-architecture.puml`](abba4-implicit-simulation-architecture.puml)
-diagram. `ABBA4Implicit` owns both projection placements. The default remains
-the three-projection map:
+[Editable diagram](abba4-implicit-simulation-architecture.puml) · [Scalable diagram](abba4-implicit-simulation-architecture.svg)
 
-```python
-ABBA4Implicit(
-    projection_placement="after_each_abba_map",
-    projection_formulation="reduced_multiplier",
-    state_extension="physical",
-    track_energy=False,
-    nonlinear_solver="newton",
-)
-```
+![ABBA4 architecture](abba4-implicit-simulation-architecture.png)
 
-The alternative numerical map is selected without changing method class:
-
-```python
-ABBA4Implicit(
-    projection_placement="around_complete_composition",
-)
-```
-
-The complete ABBA family, its four public classes, normalized configuration
-controls, and all 51 normalized configurations are documented in the authoritative
-[`Canonical ABBA numerical architecture`](../../abba/simulation/abba-numerical-architecture.md).
-This companion expands both physical projection placements while its diagram
-also shows simultaneous projection, Broyden, optional physical energy
-tracking, and fully extended dispatch. The ABBA2 reduced-Newton kernel
-reused by each signed substep is described in detail by the
-[`ABBA2 implicit companion`](../../abba2-implicit/simulation/abba2-implicit-simulation-architecture.md).
-
-## Shared runtime path
-
-```text
-simulate -> SimulationRunner -> ABBA4Implicit.integrate
-  -> prepare_abba(..., order=4)
-  -> integrate_abba -> integrate_fixed_grid -> advance
-       -> unpack state -> selected step recipe -> finish state/energy
-       -> main step: numerical metrics -> optional event adapter
-  -> extract physical output -> IntegrationData -> SimulationRunner -> Solution
-```
-
-Three independently projected maps, or one projection around three continuous base maps.
-`preparation.py` binds the recipe, state policy, projection and optional event
-builder before entering the shared coordinator. The physical and extended
-branches use the same `runtime.py`. Each specialized projection retains its
-analytic residual and correction algebra; common Newton and Broyden drivers
-own convergence and counters.
-
-The runtime uses `solve_projected_composition_step` in `steps.py` for
-per-map projection. `solve_outer_projection_step` binds the ABBA4 exterior
-placement. The private `_solve_abba4_step` entry remains a compatibility
-adapter in `composition.py`, outside the public call path.
-
-## Principal files
-
-| File under `src/simulation/methods/abba/` | Responsibility |
-|---|---|
-| `order2_implicit.py`, `order4_implicit.py`, `order6_implicit.py` | Public configuration and entry to preparation/runtime |
-| `_implicit.py`, `_configuration.py` | Shared option validation and state-dimension metadata |
-| `preparation.py` | Validate capabilities, choose the step recipe and bind `PreparedABBA` |
-| `runtime.py` | One main/shadow advance adapter and final result assembly |
-| `steps.py` | One projected map, a composition of projected maps, or one outer projection |
-| `state.py`, `_energy.py` | Bound workspace operations and physical/extended energy handling |
-| `records.py` | `ProjectedMapResult`, `StepResult`, typed traces and observer-independent metrics |
-| `observations.py` | Optional adapters to the existing public event classes |
-| `projection_reduced.py`, `projection_simultaneous.py` | Physical single-map equations and specialized analytic corrections |
-| `projection_outer.py` | Physical equations around the complete ABBA4 base composition |
-| `projection_extended.py` | Full-diagonal equations, accepted full-map data and implicit tangents |
-| `maps/physical.py`, `maps/extended.py` | Unprojected stages and their exact derivatives |
-| `../_nonlinear.py` | `SolverOptions`, `SolveStats`, shared Newton and Broyden drivers |
-| `../../_fixed.py` | Uniform main grid and independent shadow samples |
-
-## Public boundary and default configuration
-
-[`InitialValueProblem`](../../../../src/simulation/problem.py) binds a planar
-guiding-centre-Jacobian dynamics object to a validated initial configuration.
-[`SimulationRequest`](../../../../src/simulation/request.py) supplies the time
-span, maximum main step, and requested output times. The convenience
-`simulate(...)` function creates a
-[`SimulationRunner`](../../../../src/simulation/runner.py), which validates the
-problem, method, and request before calling `ABBA4Implicit.integrate(...)`.
-
-`ABBA4Implicit` inherits the frozen `_ABBAImplicitConfig`. Its defaults are:
-
-| Field | Default | Role in the scoped path |
-|---|---:|---|
-| `projection_placement` | `"after_each_abba_map"` | Selects the three-projection map or the one-exterior-projection map |
-| `projection_formulation` | `"reduced_multiplier"` | Selects `_solve_reduced_multiplier_step(...)` for all three substeps |
-| `state_extension` | `"physical"` | Carries only the accepted physical packed state |
-| `track_energy` | `False` | Omits the auxiliary conjugate-momentum workspace and energy diagnostics |
-| `nonlinear_solver` | `"newton"` | Uses exact stage differentiation for every substep solve |
-| `newton_absolute_tolerance` | `1e-13` | Absolute contribution to each substep threshold |
-| `newton_relative_tolerance` | `1e-12` | Substep-state-scaled threshold contribution |
-| `newton_max_iterations` | `12` | Maximum corrections for each independent substep solve |
-| `progress` | `False` | Enables the shared main-grid progress display |
-| `step_observer` | `None` | Receives complete accepted outer-step events |
-
-`state_extension` accepts only `"physical"` and `"fully_extended"`.
-`track_energy` is optional for the physical extension, while the fully extended
-formulation evolves the complete autonomous state and therefore normalizes
-`track_energy` to `True`. This produces three distinct state/energy strategies:
-
-| `state_extension` | Normalized `track_energy` | Numerical state and energy behavior |
-|---|---:|---|
-| `"physical"` | `False` | Project only the physical state `z` |
-| `"physical"` | `True` | Apply the same physical map and track one auxiliary `kappa` per particle |
-| `"fully_extended"` | `True` | Duplicate, evolve, and project the complete `Z=(z,t,k)` state |
-
-Combining these three normalized strategies with two projection placements,
-two projection formulations, and two nonlinear solvers gives 24 canonical
-`ABBA4Implicit` configurations.
-Passing `track_energy=False` with `state_extension="fully_extended"` does not
-create another state/energy strategy; construction resolves it to `True`.
-
-The physical Newton path requires dynamics satisfying
-[`GuidingCenterJacobianSystem`](../../../../src/dynamics/protocols.py),
-`state_dimension == 2`, and finite particle Jacobians with shape `(N,2,2)`.
-Physical energy tracking additionally requires
-[`ExtendedHamiltonianSystem`](../../../../src/dynamics/protocols.py).
-The packed convention is component-major:
-
-```text
-[x_1, ..., x_N, y_1, ..., y_N].
-```
-
-For `N` particles the accepted state, each multiplier, and the reduced
-nonlinear unknown have dimension `2N`; each duplicated ABBA state has dimension
-`4N`. The observer also receives the closed physical map with dimension `2N`. These
-accepted, splitting, nonlinear, and observer dimensions do not change when
-energy tracking is enabled: its `kappa in R^N` is an auxiliary fixed-grid
-workspace, not part of the ABBA splitting or projection solve. Configuration
-selection is global. The per-map branch uses the same formulation, solver,
-extension, energy-tracking setting, and tolerances for all three independent
-solves. The exterior branch applies those selections to its one outer solve.
-
-## Triple-jump coefficients
-
-[`_ABBA4_COEFFICIENTS`](../../../../src/simulation/methods/abba/_coefficients.py)
-contains
-
-\[
-\gamma=\frac{1}{2-\sqrt[3]{2}},
-\qquad
-\delta=-\frac{\sqrt[3]{2}}{2-\sqrt[3]{2}},
-\]
-
-so that
-
-\[
-(c_1,c_2,c_3)=(\gamma,\delta,\gamma)
-\approx(1.35120719196,-1.70241438392,1.35120719196).
-\]
-
-The coefficients are palindromic and satisfy the composition conditions
-
-\[
-2\gamma+\delta=1,
-\qquad
-2\gamma^3+\delta^3=0.
-\]
-
-The first identity advances the signed composition by one complete outer step.
-The second cancels the leading third-order defect of a symmetric second-order
-base map, producing the designed fourth-order triple jump when the projected
-submaps are solved to their ideal roots.
-
-Let `P_(q,T)` denote one complete projected ABBA map with signed duration `q`
-starting at time `T`. Chronologically, one outer step is
-
-\[
-\begin{aligned}
-z_1 &= P_{\gamma h,t_n}(z_n),\\
-z_2 &= P_{\delta h,t_n+\gamma h}(z_1),\\
-z_{n+1} &=
-P_{\gamma h,t_n+(\gamma+\delta)h}(z_2).
-\end{aligned}
-\]
-
-Equivalently,
-
-\[
-\Psi_h^{[4]}=
-P_{\gamma h,t_n+(\gamma+\delta)h}
-\circ P_{\delta h,t_n+\gamma h}
-\circ P_{\gamma h,t_n}.
-\]
-
-The signed clock is not monotone inside the outer step:
-
-| Substep | Start | Duration | End |
-|---|---|---|---|
-| 1 | `t_n` | `gamma h > 0` | `t_n + gamma h` |
-| 2 | `t_n + gamma h` | `delta h < 0` | `t_n + (gamma + delta)h` |
-| 3 | `t_n + (gamma + delta)h` | `gamma h > 0` | `t_n + h` |
-
-Because `gamma + delta` is negative, the middle map crosses back past `t_n`
-before the last positive map reaches `t_n+h`. This signed start-time sequence
-is required for a nonautonomous fourth-order composition; replacing it with
-three evaluations at the outer start time would define a different method.
-
-`solve_projected_composition_step(...)` advances the signed start time,
-feeds each accepted state into the next solve, and verifies that the final
-signed time equals `t_n+h` within floating-point tolerance. It returns an
-ordered tuple of three `ProjectedMapResult` records. Each has its own
-`SolveStats` and trace; `advance` wraps them in one `StepResult` on a main step.
-
-## Projection after every signed substep
-
-The composition policy is the literal diagnostic value
-`"project_each_abba_substep"`. For a generic substep starting at `T` with
-signed duration `q`, the reduced solver initializes a fresh multiplier
-
-\[
-\mu_0=0,
-\qquad
-u_0=z+\mu,
-\qquad
-v_0=z-\mu.
-\]
-
-With `s=q/2`, the endpoint-time A--B--B--A stages are
-
-\[
-\begin{aligned}
-u_1 &=u_0+s f(T,v_0),\\
-v_1 &=v_0+s f(T,u_1),\\
-v_f &=v_1+s f(T+q,u_1),\\
-u_f &=u_1+s f(T+q,v_f).
-\end{aligned}
-\]
-
-These equations use the signed `q`; for the middle substep both `s` and the
-endpoint displacement are negative. The reduced Hairer residual is
-
-\[
-r(\mu)=u_f(\mu)-v_f(\mu)+2\mu,
-\]
-
-and its independent stopping threshold is
-
-\[
-\tau_j=\mathrm{atol}+\mathrm{rtol}\,
-\max\left(1,\lVert z_{j-1}\rVert_\infty\right).
-\]
-
-The scale therefore belongs to that substep's own accepted input, not always
-to the outer `z_n`.
-
-For exact particle Jacobians `W_1,...,W_4` evaluated at the four signed stage
-points and `S=W_2+W_3`, `_differentiate_stages(...)` assembles
-
-\[
-J_r=4I-s(W_1+W_2+W_3+W_4)
-    +s^2(W_4S+SW_1)-s^3W_4SW_1.
-\]
-
-The ordered products must not be commuted. Each Newton correction solves
-
-\[
-J_r(\mu_k)\Delta\mu_k=r(\mu_k),
-\qquad
-\mu_{k+1}=\mu_k-\Delta\mu_k,
-\]
-
-as independent `2 x 2` particle blocks. Once
-`||r(mu_star)||_infinity <= tau_j`, the corrected copies are
-
-\[
-u^+=u_f+\mu_\star,
-\qquad
-v^+=v_f-\mu_\star,
-\]
-
-and the substep returns
-
-\[
-z^+=\frac{u^++v^+}{2}.
-\]
-
-This accepted `z^+` becomes the input to the next signed substep. The
-multiplier and duplicated stages do not remain live across substep boundaries;
-the next solve starts again from `mu_0=0` around its new physical state.
-
-This placement is numerically distinct from
-`projection_placement="around_complete_composition"`, which keeps the
-duplicated copies through the entire unprojected triple jump and solves one
-projection around that complete composition. Projection placement is therefore
-an explicit ABBA4 configuration axis, not a performance toggle.
-
-## One projection around the complete composition
-
-With `projection_placement="around_complete_composition"`, the initial normal
-embedding is applied once:
-
-\[
-u_0=z_n+\mu, \qquad v_0=z_n-\mu.
-\]
-
-The signed `(gamma h, delta h, gamma h)` ABBA maps then evolve these two copies
-continuously without returning them to the diagonal between maps. One final
-normal correction imposes
-
-\[
-r(\mu)=u_f(\mu)-v_f(\mu)+2\mu=0,
-\qquad
-z_{n+1}=\frac{u_f+\mu+v_f-\mu}{2}.
-\]
-
-Newton differentiates the product of all three unprojected ABBA tangents;
-Broyden evaluates the same complete-composition residual without requiring its
-analytic Jacobian. This branch performs one nonlinear solve per accepted outer
-step, but every residual evaluation traverses all three signed ABBA maps. Its
-focused derivation remains beside the canonical theory in
-[`exterior-projection.tex`](../tex/exterior-projection.tex).
-
-## Optional physical energy tracking
-
-With `state_extension="physical"` and `track_energy=True`, the physical solve
-above is unchanged. The fixed-grid workspace appends one conjugate momentum
-per particle,
-
-\[
-\kappa\in\mathbb R^N,
-\]
-
-but `_solve_composed_abba_step(...)`, both projection formulations, and every
-step observer continue to receive only `z`. Consequently, enabling tracking
-cannot feed back into the projected trajectory and the accepted, base-splitting,
-and observer dimensions remain `2N`, `4N`, and `2N`.
-
-After each signed substep, [`_energy.py`](../../../../src/simulation/methods/abba/_energy.py)
-uses its already converged `_ABBAStages`. If
-\(g(t,z)=-\partial_t H(t,z)\) is the extended-momentum derivative, the
-auxiliary increment for a substep starting at `T` with signed duration `q` is
-
-\[
-\Delta\kappa=\frac{q}{4}\left[
-g(T,v_0)+g(T,u_1)+g(T+q,u_1)+g(T+q,v_f)
-\right].
-\]
-
-The three increments are accumulated chronologically, including the negative
-middle duration. The fixed-grid buffer is therefore `(z,kappa)` with dimension
-`3N` only as an orchestration workspace; it is neither an accepted ABBA state
-dimension nor a splitting dimension. The public trajectory remains physical.
-At requested output times, the auxiliary history is published as
-`extended_momentum` with shape `(N, output_count)`, and `energy_error` is the maximum drift of
-`H(t,z)+kappa`. The stored normalization is `kappa_equals_k_over_2`, matching
-the projection of the duplicated formulation's summed momentum.
-
-For `state_extension="fully_extended"`, energy evolution is not optional.
-That branch duplicates `Z=(z,t,k)` in `R^4` into an `R^8` base state and
-normalizes `track_energy=True`; its state and projection can change the physical
-map, unlike the triangular auxiliary tracking described here.
-
-## Fixed main grid and shadow compositions
-
-[`integrate_fixed_grid(...)`](../../../../src/simulation/_fixed.py) chooses the
-smallest uniform main-step count whose internal outer step does not exceed
-`request.max_step`:
-
-\[
-h_{\mathrm{main}}=\frac{t_f-t_0}{\text{step_count}}.
-\]
-
-For every main interval it calls the shared runtime's nested
-`advance(...)` callback with `observe=True`. That callback runs either the
-three-solve composition or the one exterior solve, replaces the main state,
-records diagnostics, advances progress, and may emit one complete-step
-observation.
-
-An output time inside a main interval triggers an independent shadow
-composition from a copy of the preceding main node. The shadow outer duration
-is the distance to that output time, but it still expands into
-`(gamma q, delta q, gamma q)` and applies the selected placement. It therefore
-performs three projected solves or one exterior solve.
-The sample is stored with `observe=False`: it does not replace the main state,
-affect later steps, contribute diagnostic rows, advance progress, or emit an
-observation. Output times at main endpoints reuse the corresponding main state.
-
-Consequently, changing the saved-time schedule changes shadow work but not the
-underlying main trajectory. A failed shadow solve can still abort the run;
-shadow status suppresses recording, not numerical validation.
-
-## Aggregated diagnostics
-
-`record_completed_step` and `StepMetrics` form one row per accepted main
-step and one column per accepted projection, directly from numerical records. It then returns
-[`IntegrationData`](../../../../src/simulation/_result.py) with the physical
-history and these diagnostics:
-
-| Key | Default physical meaning |
-|---|---|
-| `step_count` | Number of accepted uniform main steps |
-| `implicit_substeps_per_step` | `3` |
-| `nonlinear_solves_per_step` | `3` |
-| `composition_coefficients` | `(gamma, delta, gamma)` |
-| `composition_policy` | `"project_each_abba_substep"` |
-| `projection_placement` | `"after_each_abba_map"` |
-| `nonlinear_solver` | `"newton"` |
-| `projection_formulation` | `"reduced_multiplier"` |
-| `substep_projection_formulation` | `"reduced_multiplier"` for all three columns |
-| `state_extension` | `"physical"` |
-| `track_energy` | `False` |
-| `nonlinear_iterations` | Row-wise sum of the three correction counts |
-| `residual_evaluations` | Row-wise sum of the three residual-evaluation counts |
-| `nonlinear_residual_norms` | Residual of the substep with the largest `residual/tolerance` ratio |
-| `nonlinear_tolerances` | Tolerance from that same selected substep |
-| `projection_multiplier_norms` | Row-wise maximum multiplier infinity norm |
-| `substep_nonlinear_iterations` | Array with shape `(step_count,3)` |
-| `substep_residual_evaluations` | Array with shape `(step_count,3)` |
-| `substep_nonlinear_residual_norms` | Array with shape `(step_count,3)` |
-| `substep_nonlinear_tolerances` | Array with shape `(step_count,3)` |
-| `substep_projection_multiplier_norms` | Array with shape `(step_count,3)` |
-| `nonlinear_absolute_tolerance` | Configured absolute tolerance |
-| `nonlinear_relative_tolerance` | Configured relative tolerance |
-| `nonlinear_max_iterations` | Configured limit applied separately to each solve |
-| `accepted_internal_state_dimension` | `2N` |
-| `base_splitting_state_dimension` | `4N` |
-| `nonlinear_unknown_dimension` | `2N` per solve |
-| `observer_state_dimension` | `2N` |
-| `observer_state_kind` | `"physical_map"` |
-
-When physical energy tracking is enabled, the same table retains dimensions
-`2N`, `4N`, and `2N`, `track_energy` becomes `True`, and the result additionally
-contains `extended_momentum`, `extended_momentum_normalization`, and the scalar
-`energy_error`. No `extended_time` or `extended_kappa` compatibility histories
-are produced; requested times already live in `Solution.t`.
-
-The selected residual and tolerance deliberately come from one consistent
-substep. Selecting their independent absolute maxima could report a ratio that
-never occurred. Compatibility keys `newton_iterations`,
-`newton_residual_norms`, `newton_absolute_tolerance`,
-`newton_relative_tolerance`, and `newton_max_iterations` mirror the general
-nonlinear values.
-
-Shadow compositions contribute no rows. The counts represent nonlinear work;
-they do not include the vector-field and Jacobian evaluations hidden inside
-each residual or Newton assembly.
-
-For `projection_placement="around_complete_composition"`, the common keys use
-the same meanings but `implicit_substeps_per_step` and
-`nonlinear_solves_per_step` are `1`, `projection_placement` records
-`"around_complete_composition"`, and the `substep_*` arrays have shape
-`(step_count,1)`. `unprojected_abba_maps_per_step` and
-`unprojected_abba_maps_per_residual_evaluation` are both `3`. The optional
-`base_composition="unprojected_abba4_triple_jump"` key further identifies the
-residual's base map.
-
-## Complete-step and substep observations
-
-Only when `step_observer` is installed, `observations.py` converts the three
-`ProjectedMapResult` records into ordered
-[`ABBA2ImplicitIntegrationStep`](../../../../src/simulation/observation.py)
-snapshots. Each snapshot contains:
-
-- its signed start time, end time, and duration;
-- continuous `state_before` and `state_after` snapshots;
-- its own fixed-time projected `map_state` callable;
-- multiplier and converged ABBA stage copies; and
-- its own correction count, residual evaluations, residual, tolerance, and
-  multiplier norm.
-
-Main-step diagnostics are collected from `SolveStats` independently of these
-events. The three snapshots are nested in one complete-step event and are
-not sent separately to the configured callback.
-
-When `step_observer` is set, `advance(...)` additionally emits one
-[`ABBA4ImplicitIntegrationStep`](../../../../src/simulation/observation.py).
-It inherits `ABBAImplicitCompositionIntegrationStep`,
-`ImplicitIntegrationStep`, and `IntegrationStep`, and contains:
-
-- the complete outer `state_before`, `state_after`, start time, end time, and
-  duration;
-- `map_state`, which reevaluates all three signed projected solves;
-- a copy of the three composition coefficients;
-- the ordered tuple of three substep snapshots;
-- summed correction and residual-evaluation counts;
-- the residual and tolerance from the substep with the worst normalized
-  residual; and
-- the maximum substep multiplier norm.
-
-The substep states are continuous: the first begins at the outer input, each
-accepted output equals the next input, and the third output equals the outer
-result. Shadow compositions construct no observation snapshots and emit no
-event.
-
-Downstream diagnostics can form the exact ideal-root tangent of each substep
-from its multiplier and stage snapshots, then multiply the three physical
-Jacobians in chronological order. The observation stores solver data; it does
-not itself perform tangent or symplecticity analysis.
-
-For the exterior placement, the callback instead receives
-`ABBA4ImplicitSingleProjectionIntegrationStep`. Its inherited metrics describe
-the single outer solve, its multiplier belongs to the complete composition,
-and its three `UnprojectedABBAIntegrationStep` children expose continuous stage
-states without per-map multipliers. Downstream diagnostics differentiate the
-three base tangents first and then the one exterior projection equation.
-
-## Public result boundary
-
-After `integrate_abba(...)` returns `IntegrationData`, the
-existing runner call verifies requested times, history shape, finiteness, the
-unchanged initial sample, and source-layout compatibility. It then constructs
-[`Solution`](../../../../src/simulation/solution.py), which owns read-only
-copies of times, states, and diagnostic arrays and retains the source initial
-configuration for component and position interpretation.
-
-## Derivation, properties, and limitations
-
-The full fourth-order construction is derived in
-[`ABBA4 implicit theory`](../tex/theory.tex) and its
-[`compiled PDF`](../tex/theory.pdf). Focused companion notes cover the
-[`simultaneous state--multiplier formulation`](../tex/simultaneous-formulation.tex),
-the [`Jacobian formula summary`](../tex/jacobian-formula-summary.tex), and the
-[`Jacobian diagnostic workflow`](../tex/jacobian-diagnostics.tex); each source
-has a same-named compiled PDF beside it. These documents specialize the ABBA2
-projected kernel to the three independent roots and signed durations of the
-fourth-order composition.
-
-The focused contracts in
-[`tests/test_abba4_implicit.py`](../../../../tests/test_abba4_implicit.py)
-verify the coefficient identities, negative central duration, continuous
-signed start times, three-column diagnostics, fourth-order refinement,
-reversibility, nonautonomous signed-time behavior, and the composed ideal-root
-Jacobian. The family tests in
-[`tests/test_abba_configuration_cube.py`](../../../../tests/test_abba_configuration_cube.py)
-verify all configuration axes and that the aggregated residual and tolerance
-come from the same normalized-worst substep.
-
-The following limitations apply to the scoped diagram:
-
-- It expands only physical reduced Newton. The simultaneous formulation,
-  Broyden, optional energy tracking, and fully extended kernel are linked in
-  the diagram and detailed by the canonical family document rather than
-  repeated here.
-- The fixed grid is not adaptive. A singular residual Jacobian or a substep
-  that exceeds its iteration limit aborts the outer composition; there is no
-  smaller-step retry.
-- The negative central duration is intrinsic to the real fourth-order
-  triple-jump coefficients. Dynamics and potentials must support evaluation at
-  every resulting signed intermediate time.
-- Fourth-order, reversibility, and physical symplecticity are ideal-map
-  properties. Finite nonlinear tolerances introduce corresponding defects and
-  can eventually limit observed refinement.
-- The two projection placements define different numerical maps and observation
-  payloads. Selecting one does not reinterpret the other as an optimization.
-- The default physical branch carries no conjugate momentum. Setting
-  `track_energy=True` adds the triangular `kappa` workspace and energy
-  diagnostics without changing the physical map.
-- Potential construction, downstream diagnostic algorithms, and
-  experiment-specific parameter assembly remain outside this simulation
-  diagram.
-
-## Minimal public usage
+`ABBA4Implicit()` uses the single outer-projection algorithm formerly selected
+explicitly through `order4_implicit_single_projection.py`. That module now provides
+compatibility imports; the numerical equations live in `projection_outer.py`.
+The three signed ABBA maps evolve both copies continuously, and one symmetric
+Hairer projection encloses the whole composition. The implementation that
+projected each factor independently has been removed.
 
 ```python
 from simulation import ABBA4Implicit, SimulationRequest, simulate
 
-solution = simulate(
-    problem,
-    ABBA4Implicit(
-        projection_placement="after_each_abba_map",
-        projection_formulation="reduced_multiplier",
-        state_extension="physical",
-        track_energy=False,
-        nonlinear_solver="newton",
-        newton_absolute_tolerance=1e-13,
-        newton_relative_tolerance=1e-12,
-        newton_max_iterations=12,
-    ),
-    SimulationRequest.uniform(
-        t_span=(0.0, final_time),
-        max_step=max_step,
-        sample_count=sample_count,
-    ),
-)
+solution = simulate(problem, ABBA4Implicit(), SimulationRequest.uniform())
+assert solution.diagnostics["nonlinear_solves_per_step"] == 1
+assert solution.diagnostics["unprojected_abba_maps_per_step"] == 3
 ```
 
-The caller supplies a validated guiding-centre-compatible `problem` and the
-physical time and sampling parameters.
+The explicit value `projection_placement="around_complete_composition"` and
+the deprecated `ABBA4ImplicitSingleProjection(...)` factory select this same
+implementation. `projection_placement="after_each_abba_map"` raises an error.
+
+## Method instances and integration lifecycle
+
+This method inherits `IntegrationMethod.integrate(problem, request)`, shared by
+all 13 public methods. It calls `new_run(problem, request)` to create a fresh
+instance of the same numerical class. That instance's `initialize` validates
+capabilities and sets its formulation, initial internal state and metadata.
+There is no separate context or callback-based method record.
+
+| Operation on the numerical class | Responsibility |
+|---|---|
+| `initialize(problem, request)` | Initialize this run's resources once; return `None` |
+| `advance(t, state, h)` | Execute numerical work and return state, statistics and typed details |
+| `build_observation(info, step)` | Construct a method-specific event with independent snapshots |
+| `export_history(times, history)` | Extract physical output and auxiliary diagnostics |
+| `controller()` | Select fixed or adaptive accepted-step scheduling |
+
+`integrate_method(run)` owns the common loop. Its `IntegrationCollector` saves
+requested samples and copied accepted-step metric rows, without retaining
+numerical details or events. The method owns the formulation and any live solver.
+Analysis and persistence remain in `diagnostics/`; observers remain caller-owned.
+
+Constructor options remain reusable through `simulate`. Per-run resources are
+excluded from reconstruction, and initial state and metadata are isolated as
+read-only copies. A completed or failed run cannot be integrated again; create a
+fresh run. Call `new_run` for low-level access rather than resetting `initialize`.
+
+`FixedStepController` calls `run.advance` with the exact effective duration and
+uses independent shortened maps for interior output times. DOP853/Radau's
+controller calls their ordinary `advance` on the live solver with an upper step
+bound and reads the actual accepted endpoint. Dense sampling retains the backend.
+
+Metric rows follow `step_times`; physical and auxiliary histories follow
+`Solution.t`. Common fields are `step_count`, `step_start_times`, `step_times`,
+`step_sizes` and `output_interpolation_count`. Shadow work and extra observer-only
+work are excluded from accepted numerical counters.
+
+See the [generic architecture](../../../simulation/integration-architecture.md)
+for the lifecycle, adaptive semantics and extension guide. Executable contracts
+are in `tests/test_method_integration.py` and `tests/test_adaptive_integration.py`.
+
+## Numerical step
+
+Let `A_(q,t)` denote an unprojected endpoint-time ABBA map, and define
+
+\[
+\gamma=\frac{1}{2-\sqrt[3]{2}},\qquad
+\delta=-\frac{\sqrt[3]{2}}{2-\sqrt[3]{2}}.
+\]
+
+The complete duplicated map is
+
+\[
+C_{h,t}=A_{\gamma h,t+(\gamma+\delta)h}
+\circ A_{\delta h,t+\gamma h}\circ A_{\gamma h,t}.
+\]
+
+Thus `2*gamma+delta=1` and `2*gamma**3+delta**3=0`. The middle factor has a
+negative duration; every factor uses its actual start time. There is no
+intermediate return to the diagonal.
+
+With `E z=(z,z)`, `N mu=(mu,-mu)`, `G(u,v)=u-v` and `P(u,v)=(u+v)/2`, the
+reduced projection solves
+
+\[
+r(\mu)=G C_{h,t}(Ez+N\mu)+2\mu=0,\qquad
+z^+=P\big(C_{h,t}(Ez+N\mu)+N\mu\big).
+\]
+
+Every residual evaluation traverses all three factors. Newton uses
+`D_mu r = G (J3 @ J2 @ J1) N + 2I`; Broyden solves the same equation with
+secant updates. The simultaneous formulation includes corrected output copies
+and the multiplier in one system; eliminating its output variables recovers
+the same reduced equation. Its solver is selected during preparation.
+
+The ideal-root physical tangent is `P J_C (E - N K^-1 L)`, where
+`K = G J_C N + 2I` and `L = G J_C E`. This is one implicit differentiation of the
+complete base composition, rather than a product of three projected tangents.
+Both public ABBA4 tangent helpers dispatch correctly for the current event.
+Finite nonlinear tolerances perturb the ideal-root order and geometric claims.
+
+## Preparation, state and observations
+
+`ABBA4Implicit` selects order four and inherits `_ABBAImplicitMethod` operations.
+`initialize` sets the projection solver, `StatePolicy` and optional event adapter
+on the run instance. `solve_step` chooses `solve_outer_projection_step`;
+`advance` returns the complete accepted state and statistics. The collector owns
+trajectory history.
+
+| State/energy strategy | Accepted numerical state | Duplicated base | Reduced unknown | Simultaneous unknown |
+|---|---:|---:|---:|---:|
+| Physical, tracking off | `2N` | `4N` | `2N` | `6N` |
+| Physical, tracking on | `2N` plus `N` auxiliary momenta | `4N` | `2N` | `6N` |
+| Fully extended, one particle | 4 | 8 | 4 | 12 |
+
+Physical energy tracking reuses accepted stage traces for `kappa=k/2` without
+changing the physical root. Fully extended execution evolves `(x,y,t,k)` and
+always enables energy. The three strategies, two formulations and two solvers
+give **12 configurations**; the comparison with energy enabled has **8**.
+
+Each complete step returns one `ProjectedMapResult` with a trace of three
+unprojected factors. Physical observations use
+`ABBA4ImplicitSingleProjectionIntegrationStep`, with a single multiplier and
+three `UnprojectedABBAIntegrationStep` records. Fully extended observations use
+`FullyExtendedImplicitIntegrationStep`, with one composed-base record and its
+full tangent. Retained `map_state` callbacks reproduce the same fixed-time,
+fixed-duration map on independent candidate states.
+
+`nonlinear_solves_per_step` and `implicit_substeps_per_step` are 1; substep
+metric arrays have shape `(accepted_steps, 1)`. `unprojected_abba_maps_per_step`
+and `unprojected_abba_maps_per_residual_evaluation` are 3. These quantities
+count different objects and must not be interchanged.
+
+## Compatibility and historical results
+
+The old event class and diagnostic readers remain available for historical
+data. They do not provide a runnable three-projection numerical method.
+`run_abba4_projection_comparison_study` now rejects new executions, because its
+scientific comparison requires the removed implementation. Current refinement
+uses `run_abba4_implicit_accuracy_study`; configuration comparisons execute only
+the eight energy-enabled outer-projection combinations. Existing persisted
+single-projection keys retain their identities.
+
+## Related sources
+
+- [Canonical theory](../tex/theory.tex) and [compiled theory](../tex/theory.pdf).
+- [Public method](../../../../src/simulation/methods/abba/order4_implicit.py).
+- [Outer projection](../../../../src/simulation/methods/abba/projection_outer.py).
+- [Shared ABBA numerical class](../../../../src/simulation/methods/abba/_implicit.py).
+- [Accepted observations](../../../../src/simulation/methods/abba/observations.py).
+- [Family guide](../../abba/simulation/abba-numerical-architecture.md).
+
+Earlier `proposed` diagrams and per-map companion derivations are historical;
+the six-phase diagram above and `tex/theory.tex` describe the implemented method.

@@ -262,21 +262,20 @@ BM4 method.
 The module docstring states the defining placement rule: one symmetric Hairer
 projection surrounds one complete BM4 composition step.
 
-`from __future__ import annotations` is particularly useful here because
-`_integrate_implicit_bm4` annotates its `method` argument with `BM4Implicit`
-before that class is declared near the end of the file.
+`from __future__ import annotations` postpones evaluation of type annotations.
+The numerical class now contains its initialization and execution operations directly.
 
 Every import supports one part of the implementation:
 
 | Import | Purpose |
 |---|---|
 | `Callable` | Complete-map callable accepted by the numerical Jacobian helper |
-| `dataclass` | Immutable step result and immutable public configuration |
+| `dataclass` | Immutable step result and numerical class with per-run fields |
 | `Literal`, `TypeAlias` | Closed string choices for Jacobian selection |
 | `numpy as np` | Arrays, norms, finite checks, linear algebra, and defaults |
 | `GuidingCenterDynamics` | Runtime requirement and exact derivatives for the analytic Jacobian |
-| `integrate_fixed_grid` | Output-independent accepted-step scheduler |
-| `IntegrationData` | Internal time/history/diagnostic return container |
+| `IntegrationMethod`, `StepInfo`, `StepResult` | Shared lifecycle and typed one-step records |
+| `DiagnosticValue` | Typed metadata and exported auxiliary diagnostics |
 | `GCExtendedFormulation` | Builder for the doubled physical direct/adjoint maps |
 | `gc_coupling_matrix` | Exact particle-local harmonic coupling and its tangent map |
 | `PreparedDirectAdjointFormulation` | Type contract for the prepared maps and metadata |
@@ -690,7 +689,7 @@ multiplier, reconstructed displaced input, raw mapped state, Broyden work
 counters, and final residual infinity norm.
 
 `jacobian_method` and `jacobian_relative_step` are intentionally unused in this
-branch. They configure only Newton, even though the immutable method object
+branch. They configure only Newton, even though the method configuration
 keeps and reports them for a uniform configuration schema.
 
 In public configuration terms, Broyden therefore ignores both
@@ -753,139 +752,58 @@ Newton damping, line search, adaptive retry, or automatic step reduction. A
 failure therefore propagates to the fixed-grid integration instead of silently
 changing the requested numerical procedure.
 
-### `_integrate_implicit_bm4`: preparation and accumulators
+### `BM4Implicit.initialize`: resources on the numerical class
 
-This coordinator adapts the one-step solver to the common fixed-grid runtime.
-It first constructs `GCExtendedFormulation` with the method's coupling
-frequency and binds it to the problem with `track_energy=False`.
+`new_run` creates another `BM4Implicit` from constructor options and invokes its
+`initialize`. This operation stores `self.formulation`, `self.initial_state`,
+metadata and diagnostic aliases. The formulation is built once with
+`track_energy=False`. No context or callback-based method record is created.
 
-That preparation:
+The ordinary class method `_solve(t, state, h)` calls the reduced Hairer kernel
+with this instance's formulation and solver controls. Global scheduling, history
+collection and event dispatch remain in `simulation/integration.py`.
 
-- requires a guiding-centre initial configuration;
-- binds the problem's dynamics and component layout;
-- provides the direct and adjoint doubled-state maps;
-- records particle count and coupling frequency needed by the analytic
-  Jacobian; and
-- deliberately omits time-conjugate momentum.
+### `advance(t, state, h)` and `StepResult`
 
-Five lists collect accepted-main-step diagnostics:
+The numerical advance calls `self._solve` exactly once, extracts its work and converged
+multiplier norm, and returns `StepResult(result.state, statistics, result)`.
+It has no `step_index` or `observe` parameter. The same operation is used for main
+and shadow steps; their recording policy belongs to the common coordinator.
+The five metric values are iteration count, residual evaluations, residual norm,
+effective tolerance and projection-multiplier norm. They are not stored in the
+method. `IntegrationCollector` copies rows only for accepted main steps.
 
-| Local list | Per-step value |
-|---|---|
-| `iteration_counts` | Newton or Broyden corrections |
-| `residual_evaluation_counts` | Reduced residual evaluations |
-| `residual_norms` | Final infinity norm |
-| `tolerance_values` | State-scaled threshold used for that step |
-| `multiplier_norms` | Infinity norm of the converged `mu` |
+### `build_observation(info, step)`
 
-They remain empty for shadow samples because shadow work must not be confused
-with the accepted integration trajectory.
+Only a requested accepted-step observation reaches this adapter. It replays the
+complete twelve-stage cycle from `step.details.internal_input`, checks exact
+equality with `step.details.mapped`, and builds `ImplicitBM4IntegrationStep`.
+The event contains independent physical before/after states, copied multiplier,
+solve statistics and twelve doubled-state stage snapshots.
 
-### The `advance` closure
+The retained `map_state(candidate)` calls `self._solve` with the captured
+time and duration. It never enters the coordinator or recursively emits events.
+The adapter returns the event; `integrate_method` invokes the observer. The
+replay is diagnostic work and never replaces the accepted physical result.
 
-The nested `advance(t, state, step, step_index, observe)` has the exact callback
-signature expected by `integrate_fixed_grid`.
+### `export_history` and the common controller
 
-- `t`, `state`, and `step` define one physical projected map.
-- `step_index` identifies the containing accepted main-grid interval.
-- `observe=True` denotes a main-grid advance; `False` denotes an output-only
-  shadow advance.
+The BM4Implicit exporter returns the already physical history and no auxiliary
+energy fields. The common coordinator chooses `FixedStepController` by default.
+Its uniform grid uses the same `_step_count` and arithmetic as before. It delivers
+accepted `StepInfo`/`StepResult` pairs. Interior requested samples use a shortened
+map from an independent copy of the preceding main state, without collection or
+observation. The main result is unchanged by output density.
 
-Inside it, `apply_step(candidate)` freezes the surrounding `prepared`, `t`,
-`step`, and method controls and reruns the complete reduced projection solve on
-another physical candidate. The observer receives this closure as the exact
-fixed-time, fixed-duration physical map. Tangent diagnostics can differentiate
-the accepted numerical map without copying integration logic. Calling it does
-not recursively emit observer records because it invokes the private one-step
-solver directly rather than `advance`.
-
-`state_before` normalizes the incoming physical state to floating point. The
-main `_solve_reduced_projected_bm4_step` call is identical for main and shadow
-steps. Therefore every saved off-grid sample still uses the same projected BM4
-method; only its shorter duration and observational status differ.
-
-### Accepted-step diagnostics and observer reconstruction
-
-The `if observe` block runs only for an accepted main-grid step. It recomputes
-the same fixed state-scaled tolerance used by the solver, computes
-`||mu||_inf`, and appends all five diagnostic values.
-
-If no `step_observer` was configured, no further work is needed. If one is
-present, the code reconstructs the complete converged base cycle for rich
-diagnostics:
-
-1. `base_stages` starts as an empty list of `IntegrationStage` records.
-2. `_advance_composition` runs once more from `result.internal_input`, the exact
-   converged displaced input.
-3. `base_stages.append` receives all twelve stage records in execution order.
-4. The reconstructed final doubled state must be bit-for-bit equal under
-   `np.array_equal` to `result.mapped` from the accepted solve. A mismatch means
-   the observed schedule no longer represents the map that was solved, so the
-   method raises instead of publishing misleading diagnostics.
-5. The configured observer receives one `ImplicitBM4IntegrationStep`.
-
-The complete-step record contains:
-
-| Record entry | Domain or meaning |
-|---|---|
-| `dynamics_name`, `dynamics` | Exact system identity |
-| `method_name` | `BM4Implicit` |
-| `step_index` | Accepted main-grid index |
-| `start_time`, `time`, `duration` | `t`, `t+h`, and `h` |
-| `state_before`, `state_after` | Independent physical `(m,)` copies |
-| `map_state` | Fixed physical projected map closure |
-| `formulation_name` | Fixed marker `bm4_implicit_reduced` |
-| `nonlinear_solver` | Newton or Broyden |
-| nonlinear counters and norms | Accepted solve work and convergence |
-| `coupling_frequency` | Prepared harmonic coupling rate |
-| `multiplier` | Converged physical-size vector copy |
-| `base_stages` | Tuple of twelve doubled-state stage records |
-
-Each base-stage record contains `(2*m,)` snapshots, while the enclosing step
-record exposes only `(m,)` physical states. Reconstructing the base stages is
-observational extra work and cannot alter `result.state`, which was already
-computed. `advance` finally returns that accepted or shadow physical state.
-
-### Main steps versus shadow steps in `integrate_fixed_grid`
-
-The fixed-grid call receives the problem's physical initial state, validated
-request, `advance` closure, progress flag, and class name used as the progress
-label.
-
-For a span `[t0, tf]`, the scheduler chooses the fewest uniform main steps `K`
-whose size
-
-\[
-h_{\mathrm{main}}=(t_f-t_0)/K
-\]
-
-does not exceed `request.max_step`. A `nextafter` adjustment in the shared
-scheduler avoids adding an extra step solely because floating-point rounding
-placed an exact ratio just above an integer.
-
-Every main step calls `advance(..., observe=True)` and becomes the starting
-point for the next main step. Requested output times are handled as follows:
-
-- an output at a main-step endpoint reuses the accepted new state;
-- an output at its start reuses the preceding accepted state; and
-- an interior output performs a shorter projected BM4 shadow advance from the
-  preceding main node with `observe=False`.
-
-A shadow result is written only to that output column. It never replaces the
-accepted main state, never seeds a later main step, never appends diagnostics,
-and never emits an observer event. Consequently, changing the requested saved
-times cannot change the accepted main-grid trajectory. It can still change
-runtime: every interior saved time adds a shorter nonlinear projected-BM4
-solve, even though that work is intentionally absent from accepted-step metrics.
-
-The returned `history` has shape `(m, S)`, where each column is a saved physical
-state, and `step_count` is `K`, not the number of saved intervals or shadow
-solves.
+`IntegrationCollector` stores only physical samples and small metric arrays.
+`step_times`, `step_start_times` and `step_sizes` identify each accepted interval;
+these arrays are independent of the requested output schedule. The added
+`output_interpolation_count` counts interior samples, not nonlinear evaluations.
 
 ### Diagnostics dictionary
 
-After fixed-grid integration, the lists become NumPy arrays and the method adds
-scalar configuration metadata. Per-step arrays have length `step_count` and
+At finalization, the common collector converts its rows into NumPy arrays;
+`integrate_method` combines them with prepared metadata and output extraction. Per-step arrays have length `step_count` and
 refer only to accepted main steps.
 
 | Diagnostic key | Value |
@@ -942,10 +860,10 @@ solution.
 
 ### `BM4Implicit` public dataclass
 
-`BM4Implicit` is a frozen, slotted configuration object and the implicit BM4
-numerical-method class. It carries no evolving numerical state. An instance can
-describe repeated simulations when its `step_observer` is absent or stateless;
-a stateful observer must be reset or replaced between logically separate runs.
+`BM4Implicit` is a numerical dataclass. Constructor fields describe its controls;
+`formulation` is excluded from construction and belongs to an initialized run.
+`simulate` creates a fresh instance for each execution, so the supplied
+configuration is reusable. The caller still manages any stateful observer.
 
 | Field | Default | Validation and effect |
 |---|---:|---|
@@ -964,15 +882,16 @@ finite differences in finite-precision calculations. The field is validated
 even when the analytic Jacobian or Broyden makes it inactive, keeping every
 instance internally well formed.
 
-`__post_init__` must use `object.__setattr__` because the dataclass is frozen.
+`__post_init__` normalizes the constructor options.
 It replaces numeric inputs with their normalized Python `float` or `int`
 values, checks the Jacobian string against `NEWTON_JACOBIAN_METHODS`, and uses
 the shared validator for the nonlinear solver. `progress` and `step_observer`
 rely on their public type contracts rather than additional custom runtime
 validation.
 
-`integrate(problem, request)` contains no alternate branch: it delegates
-directly to `_integrate_implicit_bm4`. All solver and Jacobian choices solve the
+`integrate(problem, request)` is inherited from `IntegrationMethod`. It calls
+`new_run` to create and initialize a fresh `BM4Implicit`, then calls
+`integrate_method(run)`. The driver invokes ordinary methods on that instance. All solver and Jacobian choices solve the
 same reduced projected BM4 map.
 
 ### Public `__all__`
@@ -1038,7 +957,7 @@ return saved physical history with shape (m, saved_times) and diagnostics
 | Broyden approximation and corrections remain usable | shared Broyden checks | `RuntimeError` |
 | Residual meets its threshold before acceptance | both nonlinear branches | `RuntimeError` on exhaustion |
 | Observer replay is exactly the solved base map | `np.array_equal(observed_mapped, result.mapped)` | `RuntimeError` |
-| Main and shadow steps preserve the physical shape | `integrate_fixed_grid` | `ValueError` |
+| Main and shadow steps preserve the physical shape | `integrate_method` | `ValueError` |
 | Every requested output time is covered | final fixed-grid check | `RuntimeError` |
 
 These checks deliberately fail at the boundary where an assumption is broken.

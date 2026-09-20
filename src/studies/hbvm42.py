@@ -8,7 +8,7 @@ from types import MappingProxyType
 from typing import Callable, Mapping
 
 import numpy as np
-from scipy.integrate import solve_ivp
+from simulation import DOP853
 
 from dynamics import DynamicalSystem, GuidingCenterDynamics, HamiltonianSystem
 from initial_conditions import GCInitialConfiguration
@@ -376,24 +376,10 @@ def _reference_solution(
 	maximum_step: float,
 ) -> np.ndarray:
 	"""Compute an independent high-accuracy DOP853 reference on fixed times."""
-	result = solve_ivp(
-		fun=lambda time, state: problem.dynamics.vector_field(time, state),
-		t_span=(float(times[0]), float(times[-1])),
-		y0=problem.initial_state,
-		method="DOP853",
-		t_eval=times,
-		rtol=relative_tolerance,
-		atol=absolute_tolerance,
-		max_step=maximum_step,
-		dense_output=False,
-		vectorized=False,
-	)
-	if not result.success:
-		raise RuntimeError(f"DOP853 reference integration failed: {result.message}")
-	states = np.asarray(result.y, dtype=float)
-	if states.shape != (problem.initial_state.size, times.size):
-		raise ValueError("The DOP853 reference returned an incompatible state history.")
-	return states
+	request = SimulationRequest((float(times[0]), float(times[-1])), maximum_step, times)
+	return DOP853(relative_tolerance=relative_tolerance,
+		absolute_tolerance=absolute_tolerance).integrate(problem, request).states
+
 
 
 def _hbvm_method(

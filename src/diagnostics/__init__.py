@@ -1,5 +1,7 @@
 """Opt-in diagnostics built around the stable simulation core."""
 
+from .adaptive_trajectory import AdaptiveTrajectoryObserver
+
 from .abba_jacobian import (
 	IMPLICIT_ABBA_JACOBIAN_METHODS,
 	ImplicitABBAJacobianMethod,
@@ -84,6 +86,7 @@ from .symplecticity import (
 )
 
 __all__ = [
+	"AdaptiveTrajectoryObserver",
 	"abba4_implicit_step_particle_jacobians",
 	"abba4_implicit_single_projection_step_particle_jacobians",
 	"IMPLICIT_ABBA_JACOBIAN_METHODS",

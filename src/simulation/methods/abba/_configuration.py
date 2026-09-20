@@ -15,11 +15,9 @@ ABBA_PROJECTION_FORMULATIONS: tuple[ProjectionFormulation, ...] = (
 )
 
 ProjectionPlacement: TypeAlias = Literal[
-	"after_each_abba_map",
 	"around_complete_composition",
 ]
 ABBA4_PROJECTION_PLACEMENTS: tuple[ProjectionPlacement, ...] = (
-	"after_each_abba_map",
 	"around_complete_composition",
 )
 
@@ -47,8 +45,8 @@ def _validate_projection_placement(value: str) -> ProjectionPlacement:
 	"""Return one supported ABBA4 projection placement."""
 	if value not in ABBA4_PROJECTION_PLACEMENTS:
 		raise ValueError(
-			"`projection_placement` must be 'after_each_abba_map' or "
-			"'around_complete_composition'."
+			"ABBA4 `projection_placement` must be 'around_complete_composition'; "
+			"the three-projection implementation has been removed."
 		)
 	return value
 

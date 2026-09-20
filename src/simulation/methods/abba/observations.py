@@ -9,7 +9,7 @@ import numpy as np
 from dynamics import DynamicalSystem
 
 from ...observation import (
-	ABBA2ImplicitIntegrationStep, ABBA4ImplicitIntegrationStep,
+	ABBA2ImplicitIntegrationStep,
 	ABBA4ImplicitSingleProjectionIntegrationStep, ABBA6ImplicitIntegrationStep,
 	FullyExtendedBaseMap, FullyExtendedImplicitIntegrationStep,
 	IntegrationStep, StepObserver, UnprojectedABBAIntegrationStep,
@@ -85,6 +85,8 @@ def bind_event_builder(
 	project: ProjectedMap,
 ) -> EventBuilder:
 	"""Choose the public event adapter once, outside the integration loop."""
+	if order == 4 and not outer:
+		raise ValueError("ABBA4 observation requires the outer-projection recipe.")
 	def physical_single(
 		projection: ProjectedMapResult, step_index: int
 	) -> ABBA2ImplicitIntegrationStep:
@@ -161,8 +163,7 @@ def bind_event_builder(
 				**fields, multiplier=projections[0].multiplier.copy(),
 				composition_coefficients=np.asarray(coefficients), substeps=substeps,
 			)
-		event_type = ABBA4ImplicitIntegrationStep if order == 4 else ABBA6ImplicitIntegrationStep
-		return event_type(
+		return ABBA6ImplicitIntegrationStep(
 			**fields, composition_coefficients=np.asarray(coefficients),
 			substeps=tuple(physical_single(p, step_index) for p in projections),
 		)

@@ -27,15 +27,15 @@ solves the same reduced equation without changing the numerical method.
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Literal, TypeAlias
 
 import numpy as np
 
 from dynamics import GuidingCenterDynamics
 
-from ..._fixed import integrate_fixed_grid
-from ..._result import IntegrationData
+from ...integration import IntegrationMethod, StepInfo, StepResult, NEWTON_ALIASES
+from ..._result import DiagnosticValue
 from ...formulations import GCExtendedFormulation, gc_coupling_matrix
 from ...formulations.base import PreparedDirectAdjointFormulation
 from ...observation import ImplicitBM4IntegrationStep, IntegrationStage, StepObserver
@@ -603,188 +603,8 @@ def _solve_reduced_projected_bm4_step(
 	)
 
 
-def _integrate_implicit_bm4(
-	method: BM4Implicit,
-	problem: InitialValueProblem,
-	request: SimulationRequest,
-) -> IntegrationData:
-	"""Coordinate fixed-grid integration and accepted-step diagnostics.
-
-	The formulation is prepared once for the problem with energy extension
-	disabled, so its internal state consists of exactly two physical copies.
-	``integrate_fixed_grid`` repeatedly calls ``advance`` with a physical vector.
-	Calls marked ``observe=False`` are output-only shadow steps: they return a
-	sample but must not affect accepted-step diagnostics or observer events.
-
-	Every main or shadow advance performs a complete projected BM4 solve; shadow
-	work therefore has a computational cost even though it is not recorded in
-	accepted-step metrics.  The resulting history has shape ``(m, sample_count)``
-	and contains only physical states.  Per-step diagnostic arrays have one entry
-	for every accepted main-grid step, not for every requested output sample.
-	"""
-	# ``track_energy=False`` prevents a time-conjugate momentum from entering
-	# the temporary doubled workspace; energy reconstruction belongs to observers.
-	prepared = GCExtendedFormulation(
-		coupling_frequency=method.coupling_frequency
-	).prepare(problem, track_energy=False)
-	# These lists are appended only for accepted main-grid steps.  Keeping them
-	# outside ``advance`` preserves their order across the fixed-grid traversal.
-	iteration_counts: list[int] = []
-	residual_evaluation_counts: list[int] = []
-	residual_norms: list[float] = []
-	tolerance_values: list[float] = []
-	multiplier_norms: list[float] = []
-
-	def advance(
-		t: float,
-		state: np.ndarray,
-		step: float,
-		step_index: int,
-		observe: bool,
-	) -> np.ndarray:
-		"""Advance one physical main or shadow state by one complete step."""
-
-		def apply_step(candidate: np.ndarray) -> np.ndarray:
-			"""Expose the converged physical step map to diagnostic observers."""
-			return _solve_reduced_projected_bm4_step(
-				prepared,
-				t,
-				candidate,
-				step,
-				absolute_tolerance=method.newton_absolute_tolerance,
-				relative_tolerance=method.newton_relative_tolerance,
-				max_iterations=method.newton_max_iterations,
-				jacobian_relative_step=method.newton_jacobian_relative_step,
-				jacobian_method=method.newton_jacobian_method,
-				nonlinear_solver=method.nonlinear_solver,
-			).state
-
-		# The nonlinear solver always starts from the physical state supplied by
-		# the fixed-grid driver; it constructs and discards doubled workspaces.
-		state_before = np.asarray(state, dtype=float)
-		result = _solve_reduced_projected_bm4_step(
-			prepared,
-			t,
-			state_before,
-			step,
-			absolute_tolerance=method.newton_absolute_tolerance,
-			relative_tolerance=method.newton_relative_tolerance,
-			max_iterations=method.newton_max_iterations,
-			jacobian_relative_step=method.newton_jacobian_relative_step,
-			jacobian_method=method.newton_jacobian_method,
-			nonlinear_solver=method.nonlinear_solver,
-		)
-		if observe:
-			# Recompute the exact threshold used inside the solve so the observer
-			# can compare the final residual against the accepted tolerance.
-			state_scale = max(1.0, float(np.linalg.norm(state_before, ord=np.inf)))
-			newton_tolerance = (
-				method.newton_absolute_tolerance
-				+ method.newton_relative_tolerance * state_scale
-			)
-			multiplier_norm = float(
-				np.linalg.norm(result.multiplier, ord=np.inf)
-			)
-			# Shadow steps skip this block, so each list remains aligned with the
-			# accepted main-step index rather than with output sampling density.
-			iteration_counts.append(result.iterations)
-			residual_evaluation_counts.append(result.residual_evaluations)
-			residual_norms.append(result.residual_norm)
-			tolerance_values.append(newton_tolerance)
-			multiplier_norms.append(multiplier_norm)
-			if method.step_observer is not None:
-				# Nonlinear evaluations intentionally suppress stage events.  Replay
-				# the converged base cycle once to expose its twelve stage snapshots;
-				# this replay is observational and does not replace ``result.state``.
-				base_stages: list[IntegrationStage] = []
-				observed_mapped = _advance_composition(
-					prepared,
-					t,
-					result.internal_input,
-					step,
-					step_index=step_index,
-					stage_observer=base_stages.append,
-					formulation_name="GCExtendedFormulation",
-					method_name=type(method).__name__,
-				)
-				# Exact equality detects any accidental difference between the map
-				# solved above and the map presented to diagnostics.
-				if not np.array_equal(observed_mapped, result.mapped):
-					raise RuntimeError(
-						"The observed BM4 base cycle differs from the converged map."
-					)
-				method.step_observer(
-					ImplicitBM4IntegrationStep(
-						dynamics_name=prepared.dynamics_name,
-						method_name=type(method).__name__,
-						step_index=step_index,
-						start_time=t,
-						time=t + step,
-						duration=step,
-						state_before=state_before.copy(),
-						state_after=result.state.copy(),
-						map_state=apply_step,
-						dynamics=prepared.dynamics,
-						formulation_name="bm4_implicit_reduced",
-						nonlinear_solver=method.nonlinear_solver,
-						newton_iterations=result.iterations,
-						residual_evaluations=result.residual_evaluations,
-						newton_residual_norm=result.residual_norm,
-						newton_tolerance=newton_tolerance,
-						projection_multiplier_norm=multiplier_norm,
-						coupling_frequency=method.coupling_frequency,
-						multiplier=result.multiplier.copy(),
-						base_stages=tuple(base_stages),
-					)
-				)
-		return result.state
-
-	history, step_count = integrate_fixed_grid(
-		problem.initial_state,
-		request,
-		advance,
-		progress=method.progress,
-		label=type(method).__name__,
-	)
-	# Generic ``nonlinear_*`` keys let studies compare Newton and Broyden.  The
-	# historical ``newton_*`` aliases intentionally contain the same accepted
-	# solve counters for compatibility, even when ``nonlinear_solver`` is Broyden;
-	# consumers should inspect that solver-name key when interpreting the arrays.
-	diagnostics: dict[str, np.ndarray | float | int | str | bool] = {
-		# Integration identity and generic nonlinear-work interface.
-		"step_count": step_count,
-		"nonlinear_solver": method.nonlinear_solver,
-		"nonlinear_iterations": np.asarray(iteration_counts, dtype=int),
-		"residual_evaluations": np.asarray(
-			residual_evaluation_counts, dtype=int
-		),
-		"nonlinear_residual_norms": np.asarray(residual_norms, dtype=float),
-		"nonlinear_tolerances": np.asarray(tolerance_values, dtype=float),
-		"nonlinear_absolute_tolerance": method.newton_absolute_tolerance,
-		"nonlinear_relative_tolerance": method.newton_relative_tolerance,
-		"nonlinear_max_iterations": method.newton_max_iterations,
-		# Historical Newton-named aliases retained by existing diagnostics.
-		"newton_iterations": np.asarray(iteration_counts, dtype=int),
-		"newton_residual_norms": np.asarray(residual_norms, dtype=float),
-		"projection_multiplier_norms": np.asarray(multiplier_norms, dtype=float),
-		"newton_absolute_tolerance": method.newton_absolute_tolerance,
-		"newton_relative_tolerance": method.newton_relative_tolerance,
-		"newton_max_iterations": method.newton_max_iterations,
-		"newton_jacobian_relative_step": method.newton_jacobian_relative_step,
-		"newton_jacobian_method": method.newton_jacobian_method,
-		# Parameters and marker that identify the fixed projected BM4 map.
-		"coupling_frequency": method.coupling_frequency,
-		"projection_solver_formulation": "bm4_implicit_reduced",
-	}
-	return IntegrationData(
-		t=request.output_times,
-		states=np.asarray(history),
-		diagnostics=diagnostics,
-	)
-
-
-@dataclass(frozen=True, slots=True)
-class BM4Implicit:
+@dataclass(slots=True)
+class BM4Implicit(IntegrationMethod[_ProjectedBM4Step]):
 	"""Configure physical BM4 with one reduced Hairer projection per cycle.
 
 	The class has no projection-placement or state-extension modes.  Every call
@@ -835,61 +655,105 @@ class BM4Implicit:
 	progress: bool = False
 	step_observer: StepObserver | None = None
 
+	# Resources owned by one run; excluded from constructor options.
+	formulation: PreparedDirectAdjointFormulation = field(init=False, repr=False, compare=False)
+
 	def __post_init__(self) -> None:
 		"""Validate and normalize all numeric and enumerated solver controls."""
-		# The dataclass is frozen; ``object.__setattr__`` stores normalized
-		# built-in scalars while preserving immutability after construction.
-		object.__setattr__(
-			self,
-			"coupling_frequency",
-			_nonnegative_finite(self.coupling_frequency, "coupling_frequency"),
-		)
-		object.__setattr__(
-			self,
-			"newton_absolute_tolerance",
-			_positive_finite(
-				self.newton_absolute_tolerance,
-				"newton_absolute_tolerance",
-			),
-		)
-		object.__setattr__(
-			self,
-			"newton_relative_tolerance",
-			_positive_finite(
-				self.newton_relative_tolerance,
-				"newton_relative_tolerance",
-			),
-		)
-		object.__setattr__(
-			self,
-			"newton_max_iterations",
-			_positive_integer(self.newton_max_iterations, "newton_max_iterations"),
-		)
-		object.__setattr__(
-			self,
-			"newton_jacobian_relative_step",
-			_positive_finite(
-				self.newton_jacobian_relative_step,
-				"newton_jacobian_relative_step",
-			),
-		)
+		# Normalize controls before they are copied into individual runs.
+		self.coupling_frequency = _nonnegative_finite(self.coupling_frequency, 'coupling_frequency')
+		self.newton_absolute_tolerance = _positive_finite(self.newton_absolute_tolerance, 'newton_absolute_tolerance')
+		self.newton_relative_tolerance = _positive_finite(self.newton_relative_tolerance, 'newton_relative_tolerance')
+		self.newton_max_iterations = _positive_integer(self.newton_max_iterations, 'newton_max_iterations')
+		self.newton_jacobian_relative_step = _positive_finite(self.newton_jacobian_relative_step, 'newton_jacobian_relative_step')
 		if self.newton_jacobian_method not in NEWTON_JACOBIAN_METHODS:
 			raise ValueError(
 				"`newton_jacobian_method` must be 'analytic' or 'finite_difference'."
 			)
-		object.__setattr__(
-			self,
-			"nonlinear_solver",
-			_validate_nonlinear_solver(self.nonlinear_solver),
+		self.nonlinear_solver = _validate_nonlinear_solver(self.nonlinear_solver)
+
+	def initialize(self, problem: InitialValueProblem, request: SimulationRequest) -> None:
+		"""Bind the physical BM4 map, accepted event adapter and output metadata.
+		Only two physical copies enter the temporary formulation. Per-run metric
+		lists, scheduling and observer dispatch belong to the common coordinator.
+		"""
+		self.formulation = GCExtendedFormulation(
+			coupling_frequency=self.coupling_frequency
+		).prepare(problem, track_energy=False)
+		metadata: dict[str, DiagnosticValue] = {
+			"nonlinear_solver": self.nonlinear_solver,
+			"nonlinear_absolute_tolerance": self.newton_absolute_tolerance,
+			"nonlinear_relative_tolerance": self.newton_relative_tolerance,
+			"nonlinear_max_iterations": self.newton_max_iterations,
+			"newton_jacobian_relative_step": self.newton_jacobian_relative_step,
+			"newton_jacobian_method": self.newton_jacobian_method,
+			"coupling_frequency": self.coupling_frequency,
+			"projection_solver_formulation": "bm4_implicit_reduced",
+		}
+		self.initial_state = problem.initial_state
+		self.metadata = metadata
+		self.diagnostic_aliases = NEWTON_ALIASES
+
+	def _solve(self, t: float, state: np.ndarray, h: float) -> _ProjectedBM4Step:
+		"""Solve one complete physical map without observing or accumulating."""
+		return _solve_reduced_projected_bm4_step(
+			self.formulation, t, state, h,
+			absolute_tolerance=self.newton_absolute_tolerance,
+			relative_tolerance=self.newton_relative_tolerance,
+			max_iterations=self.newton_max_iterations,
+			jacobian_relative_step=self.newton_jacobian_relative_step,
+			jacobian_method=self.newton_jacobian_method,
+			nonlinear_solver=self.nonlinear_solver,
 		)
 
-	def integrate(
-		self,
-		problem: InitialValueProblem,
-		request: SimulationRequest,
-	) -> IntegrationData:
-		"""Return physical history and diagnostics for one simulation request."""
-		return _integrate_implicit_bm4(self, problem, request)
+	def advance(self, t: float, state: np.ndarray, h: float) -> StepResult[_ProjectedBM4Step]:
+		"""Return one projected state and the already computed solve metrics."""
+		result = self._solve(t, state, h)
+		tolerance = self.newton_absolute_tolerance + self.newton_relative_tolerance * max(
+			1.0, float(np.linalg.norm(state, ord=np.inf))
+		)
+		return StepResult(result.state, {
+			"nonlinear_iterations": result.iterations,
+			"residual_evaluations": result.residual_evaluations,
+			"nonlinear_residual_norms": result.residual_norm,
+			"nonlinear_tolerances": tolerance,
+			"projection_multiplier_norms": float(np.linalg.norm(result.multiplier, ord=np.inf)),
+		}, result)
+
+	def build_observation(self, info: StepInfo, step: StepResult[_ProjectedBM4Step]) -> ImplicitBM4IntegrationStep:
+		"""Reconstruct converged stage snapshots only for a requested event."""
+		result = step.details
+		base_stages: list[IntegrationStage] = []
+		observed_mapped = _advance_composition(
+			self.formulation, info.time, result.internal_input, info.duration,
+			step_index=info.index, stage_observer=base_stages.append,
+			formulation_name="GCExtendedFormulation", method_name=type(self).__name__,
+		)
+		if not np.array_equal(observed_mapped, result.mapped):
+			raise RuntimeError("The observed BM4 base cycle differs from the converged map.")
+
+		def map_state(candidate: np.ndarray) -> np.ndarray:
+			"""Evaluate the same physical map without collecting or observing."""
+			return self._solve(info.time, candidate, info.duration).state
+
+		return ImplicitBM4IntegrationStep(
+			dynamics_name=self.formulation.dynamics_name, method_name=type(self).__name__,
+			step_index=info.index, start_time=info.time,
+			time=info.time + info.duration, duration=info.duration,
+			state_before=info.state_before.copy(), state_after=result.state.copy(),
+			map_state=map_state, dynamics=self.formulation.dynamics,
+			formulation_name="bm4_implicit_reduced", nonlinear_solver=self.nonlinear_solver,
+			newton_iterations=result.iterations, residual_evaluations=result.residual_evaluations,
+			newton_residual_norm=result.residual_norm,
+			newton_tolerance=float(step.statistics["nonlinear_tolerances"]),
+			projection_multiplier_norm=float(step.statistics["projection_multiplier_norms"]),
+			coupling_frequency=self.coupling_frequency,
+			multiplier=result.multiplier.copy(), base_stages=tuple(base_stages),
+		)
+
+	def export_history(self, times: np.ndarray, history: np.ndarray) -> tuple[np.ndarray, dict[str, DiagnosticValue]]:
+		"""BM4Implicit already advances only physical coordinates."""
+		return np.asarray(history), {}
 
 
 __all__ = ["BM4Implicit"]
