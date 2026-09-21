@@ -1,0 +1,721 @@
+{
+  "run_id": "aws_48p_5000c_20s_16proc_spot_20260920",
+  "status": "success",
+  "started_utc": "2026-09-20T13:06:34.774854+00:00",
+  "particles": 48,
+  "workers": [
+    {
+      "worker": 1,
+      "pid": 6417,
+      "particle_ids": [
+        1,
+        17,
+        33
+      ],
+      "particle_count": 3,
+      "started_utc": "2026-09-20T13:08:31.760147+00:00",
+      "finished_utc": "2026-09-20T13:50:09.890173+00:00",
+      "started_monotonic_s": 123.872026973,
+      "finished_monotonic_s": 2622.002037546,
+      "integration_seconds": 2498.1300105729997,
+      "cpu_seconds": 2497.763755042,
+      "snapshot_sha256": "eae45bb3f0c1ff0ee7d27985eaee6fe753dfc1cc2353e1ae75d3a66e09ed4e0d",
+      "threadpools": [
+        {
+          "user_api": "blas",
+          "internal_api": "openblas",
+          "num_threads": 1,
+          "prefix": "libopenblas",
+          "filepath": "/home/ubuntu/poincare/Poincare_BM4_48_radiales_5000_ciclos_20_steps_16_procesos_spot/.venv/lib/python3.12/site-packages/numpy.libs/libopenblas64_p-r0-0cf96a72.3.23.dev.so",
+          "version": "0.3.23.dev",
+          "threading_layer": "pthreads",
+          "architecture": "Cooperlake"
+        },
+        {
+          "user_api": "blas",
+          "internal_api": "openblas",
+          "num_threads": 1,
+          "prefix": "libscipy_openblas",
+          "filepath": "/home/ubuntu/poincare/Poincare_BM4_48_radiales_5000_ciclos_20_steps_16_procesos_spot/.venv/lib/python3.12/site-packages/scipy.libs/libscipy_openblas-6cdc3b4a.so",
+          "version": "0.3.30",
+          "threading_layer": "pthreads",
+          "architecture": "SkylakeX"
+        }
+      ],
+      "resumed_steps": 75500,
+      "new_steps": 24500,
+      "checkpoint_chunks": 200,
+      "checkpoint_fingerprint": "50a45d610d2771241d48f883f6ab7b59837f09eb417c3b6db161d564bf6d3bd1",
+      "maximum_residual_to_tolerance": 0.9996157133936503
+    },
+    {
+      "worker": 2,
+      "pid": 6419,
+      "particle_ids": [
+        2,
+        18,
+        34
+      ],
+      "particle_count": 3,
+      "started_utc": "2026-09-20T13:08:31.760075+00:00",
+      "finished_utc": "2026-09-20T13:48:05.837631+00:00",
+      "started_monotonic_s": 123.871955633,
+      "finished_monotonic_s": 2497.949496475,
+      "integration_seconds": 2374.077540842,
+      "cpu_seconds": 2373.733157807,
+      "snapshot_sha256": "eae45bb3f0c1ff0ee7d27985eaee6fe753dfc1cc2353e1ae75d3a66e09ed4e0d",
+      "threadpools": [
+        {
+          "user_api": "blas",
+          "internal_api": "openblas",
+          "num_threads": 1,
+          "prefix": "libopenblas",
+          "filepath": "/home/ubuntu/poincare/Poincare_BM4_48_radiales_5000_ciclos_20_steps_16_procesos_spot/.venv/lib/python3.12/site-packages/numpy.libs/libopenblas64_p-r0-0cf96a72.3.23.dev.so",
+          "version": "0.3.23.dev",
+          "threading_layer": "pthreads",
+          "architecture": "Cooperlake"
+        },
+        {
+          "user_api": "blas",
+          "internal_api": "openblas",
+          "num_threads": 1,
+          "prefix": "libscipy_openblas",
+          "filepath": "/home/ubuntu/poincare/Poincare_BM4_48_radiales_5000_ciclos_20_steps_16_procesos_spot/.venv/lib/python3.12/site-packages/scipy.libs/libscipy_openblas-6cdc3b4a.so",
+          "version": "0.3.30",
+          "threading_layer": "pthreads",
+          "architecture": "SkylakeX"
+        }
+      ],
+      "resumed_steps": 76500,
+      "new_steps": 23500,
+      "checkpoint_chunks": 200,
+      "checkpoint_fingerprint": "73717ca568279338aea3f8682c1cfdec43c0bcc0a1b6771b9acf29cb6203d4a2",
+      "maximum_residual_to_tolerance": 0.9994575713721026
+    },
+    {
+      "worker": 3,
+      "pid": 6413,
+      "particle_ids": [
+        3,
+        19,
+        35
+      ],
+      "particle_count": 3,
+      "started_utc": "2026-09-20T13:08:31.760166+00:00",
+      "finished_utc": "2026-09-20T13:47:22.847914+00:00",
+      "started_monotonic_s": 123.872047733,
+      "finished_monotonic_s": 2454.959778869,
+      "integration_seconds": 2331.087731136,
+      "cpu_seconds": 2330.7117703989998,
+      "snapshot_sha256": "eae45bb3f0c1ff0ee7d27985eaee6fe753dfc1cc2353e1ae75d3a66e09ed4e0d",
+      "threadpools": [
+        {
+          "user_api": "blas",
+          "internal_api": "openblas",
+          "num_threads": 1,
+          "prefix": "libopenblas",
+          "filepath": "/home/ubuntu/poincare/Poincare_BM4_48_radiales_5000_ciclos_20_steps_16_procesos_spot/.venv/lib/python3.12/site-packages/numpy.libs/libopenblas64_p-r0-0cf96a72.3.23.dev.so",
+          "version": "0.3.23.dev",
+          "threading_layer": "pthreads",
+          "architecture": "Cooperlake"
+        },
+        {
+          "user_api": "blas",
+          "internal_api": "openblas",
+          "num_threads": 1,
+          "prefix": "libscipy_openblas",
+          "filepath": "/home/ubuntu/poincare/Poincare_BM4_48_radiales_5000_ciclos_20_steps_16_procesos_spot/.venv/lib/python3.12/site-packages/scipy.libs/libscipy_openblas-6cdc3b4a.so",
+          "version": "0.3.30",
+          "threading_layer": "pthreads",
+          "architecture": "SkylakeX"
+        }
+      ],
+      "resumed_steps": 77500,
+      "new_steps": 22500,
+      "checkpoint_chunks": 200,
+      "checkpoint_fingerprint": "f08bc1f0aa68c4eb2b39c91f2f2a18ae674b25bc03d82ca52a76ee52e709110f",
+      "maximum_residual_to_tolerance": 0.9999503750306209
+    },
+    {
+      "worker": 4,
+      "pid": 6420,
+      "particle_ids": [
+        4,
+        20,
+        36
+      ],
+      "particle_count": 3,
+      "started_utc": "2026-09-20T13:08:31.760222+00:00",
+      "finished_utc": "2026-09-20T13:42:30.532322+00:00",
+      "started_monotonic_s": 123.872106583,
+      "finished_monotonic_s": 2162.64418643,
+      "integration_seconds": 2038.772079847,
+      "cpu_seconds": 2038.2948289909998,
+      "snapshot_sha256": "eae45bb3f0c1ff0ee7d27985eaee6fe753dfc1cc2353e1ae75d3a66e09ed4e0d",
+      "threadpools": [
+        {
+          "user_api": "blas",
+          "internal_api": "openblas",
+          "num_threads": 1,
+          "prefix": "libopenblas",
+          "filepath": "/home/ubuntu/poincare/Poincare_BM4_48_radiales_5000_ciclos_20_steps_16_procesos_spot/.venv/lib/python3.12/site-packages/numpy.libs/libopenblas64_p-r0-0cf96a72.3.23.dev.so",
+          "version": "0.3.23.dev",
+          "threading_layer": "pthreads",
+          "architecture": "Cooperlake"
+        },
+        {
+          "user_api": "blas",
+          "internal_api": "openblas",
+          "num_threads": 1,
+          "prefix": "libscipy_openblas",
+          "filepath": "/home/ubuntu/poincare/Poincare_BM4_48_radiales_5000_ciclos_20_steps_16_procesos_spot/.venv/lib/python3.12/site-packages/scipy.libs/libscipy_openblas-6cdc3b4a.so",
+          "version": "0.3.30",
+          "threading_layer": "pthreads",
+          "architecture": "SkylakeX"
+        }
+      ],
+      "resumed_steps": 80000,
+      "new_steps": 20000,
+      "checkpoint_chunks": 200,
+      "checkpoint_fingerprint": "0add7d89c04812fbe51ab28b6545348579ca68ab376503a3f78bdc96eac5d102",
+      "maximum_residual_to_tolerance": 0.9998697072607377
+    },
+    {
+      "worker": 5,
+      "pid": 6422,
+      "particle_ids": [
+        5,
+        21,
+        37
+      ],
+      "particle_count": 3,
+      "started_utc": "2026-09-20T13:08:31.760107+00:00",
+      "finished_utc": "2026-09-20T13:52:15.948044+00:00",
+      "started_monotonic_s": 123.871983693,
+      "finished_monotonic_s": 2748.059909401,
+      "integration_seconds": 2624.187925708,
+      "cpu_seconds": 2623.841605337,
+      "snapshot_sha256": "eae45bb3f0c1ff0ee7d27985eaee6fe753dfc1cc2353e1ae75d3a66e09ed4e0d",
+      "threadpools": [
+        {
+          "user_api": "blas",
+          "internal_api": "openblas",
+          "num_threads": 1,
+          "prefix": "libopenblas",
+          "filepath": "/home/ubuntu/poincare/Poincare_BM4_48_radiales_5000_ciclos_20_steps_16_procesos_spot/.venv/lib/python3.12/site-packages/numpy.libs/libopenblas64_p-r0-0cf96a72.3.23.dev.so",
+          "version": "0.3.23.dev",
+          "threading_layer": "pthreads",
+          "architecture": "Cooperlake"
+        },
+        {
+          "user_api": "blas",
+          "internal_api": "openblas",
+          "num_threads": 1,
+          "prefix": "libscipy_openblas",
+          "filepath": "/home/ubuntu/poincare/Poincare_BM4_48_radiales_5000_ciclos_20_steps_16_procesos_spot/.venv/lib/python3.12/site-packages/scipy.libs/libscipy_openblas-6cdc3b4a.so",
+          "version": "0.3.30",
+          "threading_layer": "pthreads",
+          "architecture": "SkylakeX"
+        }
+      ],
+      "resumed_steps": 75000,
+      "new_steps": 25000,
+      "checkpoint_chunks": 200,
+      "checkpoint_fingerprint": "6e02887865a57b3b748ff69ff32a6cc9a0b4c7a7e61890a3032816caddbbdb6f",
+      "maximum_residual_to_tolerance": 0.9998561131788744
+    },
+    {
+      "worker": 6,
+      "pid": 6418,
+      "particle_ids": [
+        6,
+        22,
+        38
+      ],
+      "particle_count": 3,
+      "started_utc": "2026-09-20T13:08:31.760091+00:00",
+      "finished_utc": "2026-09-20T13:20:23.537526+00:00",
+      "started_monotonic_s": 123.871967893,
+      "finished_monotonic_s": 835.649390686,
+      "integration_seconds": 711.7774227929999,
+      "cpu_seconds": 711.6419876919999,
+      "snapshot_sha256": "eae45bb3f0c1ff0ee7d27985eaee6fe753dfc1cc2353e1ae75d3a66e09ed4e0d",
+      "threadpools": [
+        {
+          "user_api": "blas",
+          "internal_api": "openblas",
+          "num_threads": 1,
+          "prefix": "libopenblas",
+          "filepath": "/home/ubuntu/poincare/Poincare_BM4_48_radiales_5000_ciclos_20_steps_16_procesos_spot/.venv/lib/python3.12/site-packages/numpy.libs/libopenblas64_p-r0-0cf96a72.3.23.dev.so",
+          "version": "0.3.23.dev",
+          "threading_layer": "pthreads",
+          "architecture": "Cooperlake"
+        },
+        {
+          "user_api": "blas",
+          "internal_api": "openblas",
+          "num_threads": 1,
+          "prefix": "libscipy_openblas",
+          "filepath": "/home/ubuntu/poincare/Poincare_BM4_48_radiales_5000_ciclos_20_steps_16_procesos_spot/.venv/lib/python3.12/site-packages/scipy.libs/libscipy_openblas-6cdc3b4a.so",
+          "version": "0.3.30",
+          "threading_layer": "pthreads",
+          "architecture": "SkylakeX"
+        }
+      ],
+      "resumed_steps": 90500,
+      "new_steps": 9500,
+      "checkpoint_chunks": 200,
+      "checkpoint_fingerprint": "90e2a66f2d44f313bdc9bf9a46b88c323ef3f0b35890a522b1410cf1085cb81b",
+      "maximum_residual_to_tolerance": 0.9999956689069841
+    },
+    {
+      "worker": 7,
+      "pid": 6416,
+      "particle_ids": [
+        7,
+        23,
+        39
+      ],
+      "particle_count": 3,
+      "started_utc": "2026-09-20T13:08:31.760119+00:00",
+      "finished_utc": "2026-09-20T13:37:44.521123+00:00",
+      "started_monotonic_s": 123.871995643,
+      "finished_monotonic_s": 1876.632988066,
+      "integration_seconds": 1752.760992423,
+      "cpu_seconds": 1752.360764711,
+      "snapshot_sha256": "eae45bb3f0c1ff0ee7d27985eaee6fe753dfc1cc2353e1ae75d3a66e09ed4e0d",
+      "threadpools": [
+        {
+          "user_api": "blas",
+          "internal_api": "openblas",
+          "num_threads": 1,
+          "prefix": "libopenblas",
+          "filepath": "/home/ubuntu/poincare/Poincare_BM4_48_radiales_5000_ciclos_20_steps_16_procesos_spot/.venv/lib/python3.12/site-packages/numpy.libs/libopenblas64_p-r0-0cf96a72.3.23.dev.so",
+          "version": "0.3.23.dev",
+          "threading_layer": "pthreads",
+          "architecture": "Cooperlake"
+        },
+        {
+          "user_api": "blas",
+          "internal_api": "openblas",
+          "num_threads": 1,
+          "prefix": "libscipy_openblas",
+          "filepath": "/home/ubuntu/poincare/Poincare_BM4_48_radiales_5000_ciclos_20_steps_16_procesos_spot/.venv/lib/python3.12/site-packages/scipy.libs/libscipy_openblas-6cdc3b4a.so",
+          "version": "0.3.30",
+          "threading_layer": "pthreads",
+          "architecture": "SkylakeX"
+        }
+      ],
+      "resumed_steps": 83000,
+      "new_steps": 17000,
+      "checkpoint_chunks": 200,
+      "checkpoint_fingerprint": "94280f1087190034560c19ab6aee42fbfd3562ac60dad23697a5591fe85b0d55",
+      "maximum_residual_to_tolerance": 0.9998682667240781
+    },
+    {
+      "worker": 8,
+      "pid": 6427,
+      "particle_ids": [
+        8,
+        24,
+        40
+      ],
+      "particle_count": 3,
+      "started_utc": "2026-09-20T13:08:31.763200+00:00",
+      "finished_utc": "2026-09-20T13:45:47.591758+00:00",
+      "started_monotonic_s": 123.875079804,
+      "finished_monotonic_s": 2359.703623063,
+      "integration_seconds": 2235.828543259,
+      "cpu_seconds": 2235.146925986,
+      "snapshot_sha256": "eae45bb3f0c1ff0ee7d27985eaee6fe753dfc1cc2353e1ae75d3a66e09ed4e0d",
+      "threadpools": [
+        {
+          "user_api": "blas",
+          "internal_api": "openblas",
+          "num_threads": 1,
+          "prefix": "libopenblas",
+          "filepath": "/home/ubuntu/poincare/Poincare_BM4_48_radiales_5000_ciclos_20_steps_16_procesos_spot/.venv/lib/python3.12/site-packages/numpy.libs/libopenblas64_p-r0-0cf96a72.3.23.dev.so",
+          "version": "0.3.23.dev",
+          "threading_layer": "pthreads",
+          "architecture": "Cooperlake"
+        },
+        {
+          "user_api": "blas",
+          "internal_api": "openblas",
+          "num_threads": 1,
+          "prefix": "libscipy_openblas",
+          "filepath": "/home/ubuntu/poincare/Poincare_BM4_48_radiales_5000_ciclos_20_steps_16_procesos_spot/.venv/lib/python3.12/site-packages/scipy.libs/libscipy_openblas-6cdc3b4a.so",
+          "version": "0.3.30",
+          "threading_layer": "pthreads",
+          "architecture": "SkylakeX"
+        }
+      ],
+      "resumed_steps": 76500,
+      "new_steps": 23500,
+      "checkpoint_chunks": 200,
+      "checkpoint_fingerprint": "0017cedc3684978ab1ea8b8596e913fb8821aab0eb5c7c7201131abb50ceae6a",
+      "maximum_residual_to_tolerance": 0.9999191299819625
+    },
+    {
+      "worker": 9,
+      "pid": 6423,
+      "particle_ids": [
+        9,
+        25,
+        41
+      ],
+      "particle_count": 3,
+      "started_utc": "2026-09-20T13:08:31.760179+00:00",
+      "finished_utc": "2026-09-20T13:52:05.340411+00:00",
+      "started_monotonic_s": 123.872052733,
+      "finished_monotonic_s": 2737.452276147,
+      "integration_seconds": 2613.5802234139996,
+      "cpu_seconds": 2612.95221647,
+      "snapshot_sha256": "eae45bb3f0c1ff0ee7d27985eaee6fe753dfc1cc2353e1ae75d3a66e09ed4e0d",
+      "threadpools": [
+        {
+          "user_api": "blas",
+          "internal_api": "openblas",
+          "num_threads": 1,
+          "prefix": "libopenblas",
+          "filepath": "/home/ubuntu/poincare/Poincare_BM4_48_radiales_5000_ciclos_20_steps_16_procesos_spot/.venv/lib/python3.12/site-packages/numpy.libs/libopenblas64_p-r0-0cf96a72.3.23.dev.so",
+          "version": "0.3.23.dev",
+          "threading_layer": "pthreads",
+          "architecture": "Cooperlake"
+        },
+        {
+          "user_api": "blas",
+          "internal_api": "openblas",
+          "num_threads": 1,
+          "prefix": "libscipy_openblas",
+          "filepath": "/home/ubuntu/poincare/Poincare_BM4_48_radiales_5000_ciclos_20_steps_16_procesos_spot/.venv/lib/python3.12/site-packages/scipy.libs/libscipy_openblas-6cdc3b4a.so",
+          "version": "0.3.30",
+          "threading_layer": "pthreads",
+          "architecture": "SkylakeX"
+        }
+      ],
+      "resumed_steps": 75000,
+      "new_steps": 25000,
+      "checkpoint_chunks": 200,
+      "checkpoint_fingerprint": "7f4366de8a15290625fe4925b05dd48f5db05de0a702725896b50c6b7caec4a2",
+      "maximum_residual_to_tolerance": 0.9999433938971104
+    },
+    {
+      "worker": 10,
+      "pid": 6421,
+      "particle_ids": [
+        10,
+        26,
+        42
+      ],
+      "particle_count": 3,
+      "started_utc": "2026-09-20T13:08:31.765179+00:00",
+      "finished_utc": "2026-09-20T13:31:53.011547+00:00",
+      "started_monotonic_s": 123.877056441,
+      "finished_monotonic_s": 1525.123411829,
+      "integration_seconds": 1401.246355388,
+      "cpu_seconds": 1401.11482937,
+      "snapshot_sha256": "eae45bb3f0c1ff0ee7d27985eaee6fe753dfc1cc2353e1ae75d3a66e09ed4e0d",
+      "threadpools": [
+        {
+          "user_api": "blas",
+          "internal_api": "openblas",
+          "num_threads": 1,
+          "prefix": "libopenblas",
+          "filepath": "/home/ubuntu/poincare/Poincare_BM4_48_radiales_5000_ciclos_20_steps_16_procesos_spot/.venv/lib/python3.12/site-packages/numpy.libs/libopenblas64_p-r0-0cf96a72.3.23.dev.so",
+          "version": "0.3.23.dev",
+          "threading_layer": "pthreads",
+          "architecture": "Cooperlake"
+        },
+        {
+          "user_api": "blas",
+          "internal_api": "openblas",
+          "num_threads": 1,
+          "prefix": "libscipy_openblas",
+          "filepath": "/home/ubuntu/poincare/Poincare_BM4_48_radiales_5000_ciclos_20_steps_16_procesos_spot/.venv/lib/python3.12/site-packages/scipy.libs/libscipy_openblas-6cdc3b4a.so",
+          "version": "0.3.30",
+          "threading_layer": "pthreads",
+          "architecture": "SkylakeX"
+        }
+      ],
+      "resumed_steps": 86500,
+      "new_steps": 13500,
+      "checkpoint_chunks": 200,
+      "checkpoint_fingerprint": "c5cb3c3c109626a4b24b6f571e066613beb140e9049b20728d4bb45cf608ac1b",
+      "maximum_residual_to_tolerance": 0.999984775931427
+    },
+    {
+      "worker": 11,
+      "pid": 6424,
+      "particle_ids": [
+        11,
+        27,
+        43
+      ],
+      "particle_count": 3,
+      "started_utc": "2026-09-20T13:08:31.764195+00:00",
+      "finished_utc": "2026-09-20T13:24:22.746469+00:00",
+      "started_monotonic_s": 123.876072638,
+      "finished_monotonic_s": 1074.858334038,
+      "integration_seconds": 950.9822614000001,
+      "cpu_seconds": 950.785220515,
+      "snapshot_sha256": "eae45bb3f0c1ff0ee7d27985eaee6fe753dfc1cc2353e1ae75d3a66e09ed4e0d",
+      "threadpools": [
+        {
+          "user_api": "blas",
+          "internal_api": "openblas",
+          "num_threads": 1,
+          "prefix": "libopenblas",
+          "filepath": "/home/ubuntu/poincare/Poincare_BM4_48_radiales_5000_ciclos_20_steps_16_procesos_spot/.venv/lib/python3.12/site-packages/numpy.libs/libopenblas64_p-r0-0cf96a72.3.23.dev.so",
+          "version": "0.3.23.dev",
+          "threading_layer": "pthreads",
+          "architecture": "Cooperlake"
+        },
+        {
+          "user_api": "blas",
+          "internal_api": "openblas",
+          "num_threads": 1,
+          "prefix": "libscipy_openblas",
+          "filepath": "/home/ubuntu/poincare/Poincare_BM4_48_radiales_5000_ciclos_20_steps_16_procesos_spot/.venv/lib/python3.12/site-packages/scipy.libs/libscipy_openblas-6cdc3b4a.so",
+          "version": "0.3.30",
+          "threading_layer": "pthreads",
+          "architecture": "SkylakeX"
+        }
+      ],
+      "resumed_steps": 89500,
+      "new_steps": 10500,
+      "checkpoint_chunks": 200,
+      "checkpoint_fingerprint": "4a211448cbeea4c0d0eaf330ab0a92f7045d6866bfd743422764468fc58ce807",
+      "maximum_residual_to_tolerance": 0.9999841258168134
+    },
+    {
+      "worker": 12,
+      "pid": 6426,
+      "particle_ids": [
+        12,
+        28,
+        44
+      ],
+      "particle_count": 3,
+      "started_utc": "2026-09-20T13:08:31.760193+00:00",
+      "finished_utc": "2026-09-20T13:18:05.722511+00:00",
+      "started_monotonic_s": 123.872066823,
+      "finished_monotonic_s": 697.83437571,
+      "integration_seconds": 573.9623088870001,
+      "cpu_seconds": 573.5614750200001,
+      "snapshot_sha256": "eae45bb3f0c1ff0ee7d27985eaee6fe753dfc1cc2353e1ae75d3a66e09ed4e0d",
+      "threadpools": [
+        {
+          "user_api": "blas",
+          "internal_api": "openblas",
+          "num_threads": 1,
+          "prefix": "libopenblas",
+          "filepath": "/home/ubuntu/poincare/Poincare_BM4_48_radiales_5000_ciclos_20_steps_16_procesos_spot/.venv/lib/python3.12/site-packages/numpy.libs/libopenblas64_p-r0-0cf96a72.3.23.dev.so",
+          "version": "0.3.23.dev",
+          "threading_layer": "pthreads",
+          "architecture": "Cooperlake"
+        },
+        {
+          "user_api": "blas",
+          "internal_api": "openblas",
+          "num_threads": 1,
+          "prefix": "libscipy_openblas",
+          "filepath": "/home/ubuntu/poincare/Poincare_BM4_48_radiales_5000_ciclos_20_steps_16_procesos_spot/.venv/lib/python3.12/site-packages/scipy.libs/libscipy_openblas-6cdc3b4a.so",
+          "version": "0.3.30",
+          "threading_layer": "pthreads",
+          "architecture": "SkylakeX"
+        }
+      ],
+      "resumed_steps": 94000,
+      "new_steps": 6000,
+      "checkpoint_chunks": 200,
+      "checkpoint_fingerprint": "0039016f1066b09832d4b54c9a58a8c5e83ba2db32d85cdfc7019b0417a71fb8",
+      "maximum_residual_to_tolerance": 0.9999935192897719
+    },
+    {
+      "worker": 13,
+      "pid": 6428,
+      "particle_ids": [
+        13,
+        29,
+        45
+      ],
+      "particle_count": 3,
+      "started_utc": "2026-09-20T13:08:31.764175+00:00",
+      "finished_utc": "2026-09-20T13:44:56.169442+00:00",
+      "started_monotonic_s": 123.876052168,
+      "finished_monotonic_s": 2308.281307106,
+      "integration_seconds": 2184.405254938,
+      "cpu_seconds": 2183.98845237,
+      "snapshot_sha256": "eae45bb3f0c1ff0ee7d27985eaee6fe753dfc1cc2353e1ae75d3a66e09ed4e0d",
+      "threadpools": [
+        {
+          "user_api": "blas",
+          "internal_api": "openblas",
+          "num_threads": 1,
+          "prefix": "libopenblas",
+          "filepath": "/home/ubuntu/poincare/Poincare_BM4_48_radiales_5000_ciclos_20_steps_16_procesos_spot/.venv/lib/python3.12/site-packages/numpy.libs/libopenblas64_p-r0-0cf96a72.3.23.dev.so",
+          "version": "0.3.23.dev",
+          "threading_layer": "pthreads",
+          "architecture": "Cooperlake"
+        },
+        {
+          "user_api": "blas",
+          "internal_api": "openblas",
+          "num_threads": 1,
+          "prefix": "libscipy_openblas",
+          "filepath": "/home/ubuntu/poincare/Poincare_BM4_48_radiales_5000_ciclos_20_steps_16_procesos_spot/.venv/lib/python3.12/site-packages/scipy.libs/libscipy_openblas-6cdc3b4a.so",
+          "version": "0.3.30",
+          "threading_layer": "pthreads",
+          "architecture": "SkylakeX"
+        }
+      ],
+      "resumed_steps": 78000,
+      "new_steps": 22000,
+      "checkpoint_chunks": 200,
+      "checkpoint_fingerprint": "d82667c8e942ed3e7bb143e3e24eb625455838099e4dc9eaf2fd0437caa82446",
+      "maximum_residual_to_tolerance": 0.999740830599176
+    },
+    {
+      "worker": 14,
+      "pid": 6429,
+      "particle_ids": [
+        14,
+        30,
+        46
+      ],
+      "particle_count": 3,
+      "started_utc": "2026-09-20T13:08:31.763173+00:00",
+      "finished_utc": "2026-09-20T13:12:51.600956+00:00",
+      "started_monotonic_s": 123.875049544,
+      "finished_monotonic_s": 383.712820723,
+      "integration_seconds": 259.837771179,
+      "cpu_seconds": 259.76849046800004,
+      "snapshot_sha256": "eae45bb3f0c1ff0ee7d27985eaee6fe753dfc1cc2353e1ae75d3a66e09ed4e0d",
+      "threadpools": [
+        {
+          "user_api": "blas",
+          "internal_api": "openblas",
+          "num_threads": 1,
+          "prefix": "libopenblas",
+          "filepath": "/home/ubuntu/poincare/Poincare_BM4_48_radiales_5000_ciclos_20_steps_16_procesos_spot/.venv/lib/python3.12/site-packages/numpy.libs/libopenblas64_p-r0-0cf96a72.3.23.dev.so",
+          "version": "0.3.23.dev",
+          "threading_layer": "pthreads",
+          "architecture": "Cooperlake"
+        },
+        {
+          "user_api": "blas",
+          "internal_api": "openblas",
+          "num_threads": 1,
+          "prefix": "libscipy_openblas",
+          "filepath": "/home/ubuntu/poincare/Poincare_BM4_48_radiales_5000_ciclos_20_steps_16_procesos_spot/.venv/lib/python3.12/site-packages/scipy.libs/libscipy_openblas-6cdc3b4a.so",
+          "version": "0.3.30",
+          "threading_layer": "pthreads",
+          "architecture": "SkylakeX"
+        }
+      ],
+      "resumed_steps": 96000,
+      "new_steps": 4000,
+      "checkpoint_chunks": 200,
+      "checkpoint_fingerprint": "60d5d497709a3cde529271a01b9e285d5541f7583c6a0cb1b6a41616dec00731",
+      "maximum_residual_to_tolerance": 0.9999713505658535
+    },
+    {
+      "worker": 15,
+      "pid": 6425,
+      "particle_ids": [
+        15,
+        31,
+        47
+      ],
+      "particle_count": 3,
+      "started_utc": "2026-09-20T13:08:31.764210+00:00",
+      "finished_utc": "2026-09-20T13:51:05.387916+00:00",
+      "started_monotonic_s": 123.876084228,
+      "finished_monotonic_s": 2677.499780793,
+      "integration_seconds": 2553.623696565,
+      "cpu_seconds": 2553.191858157,
+      "snapshot_sha256": "eae45bb3f0c1ff0ee7d27985eaee6fe753dfc1cc2353e1ae75d3a66e09ed4e0d",
+      "threadpools": [
+        {
+          "user_api": "blas",
+          "internal_api": "openblas",
+          "num_threads": 1,
+          "prefix": "libopenblas",
+          "filepath": "/home/ubuntu/poincare/Poincare_BM4_48_radiales_5000_ciclos_20_steps_16_procesos_spot/.venv/lib/python3.12/site-packages/numpy.libs/libopenblas64_p-r0-0cf96a72.3.23.dev.so",
+          "version": "0.3.23.dev",
+          "threading_layer": "pthreads",
+          "architecture": "Cooperlake"
+        },
+        {
+          "user_api": "blas",
+          "internal_api": "openblas",
+          "num_threads": 1,
+          "prefix": "libscipy_openblas",
+          "filepath": "/home/ubuntu/poincare/Poincare_BM4_48_radiales_5000_ciclos_20_steps_16_procesos_spot/.venv/lib/python3.12/site-packages/scipy.libs/libscipy_openblas-6cdc3b4a.so",
+          "version": "0.3.30",
+          "threading_layer": "pthreads",
+          "architecture": "SkylakeX"
+        }
+      ],
+      "resumed_steps": 76000,
+      "new_steps": 24000,
+      "checkpoint_chunks": 200,
+      "checkpoint_fingerprint": "5fb22a14f4827a9b0c9f8e602d4f558bed6384d376959168d040306f37d000c4",
+      "maximum_residual_to_tolerance": 0.9996180935850318
+    },
+    {
+      "worker": 16,
+      "pid": 6430,
+      "particle_ids": [
+        16,
+        32,
+        48
+      ],
+      "particle_count": 3,
+      "started_utc": "2026-09-20T13:08:31.760059+00:00",
+      "finished_utc": "2026-09-20T13:42:11.292922+00:00",
+      "started_monotonic_s": 123.871937263,
+      "finished_monotonic_s": 2143.404786502,
+      "integration_seconds": 2019.5328492390001,
+      "cpu_seconds": 2019.1902868959999,
+      "snapshot_sha256": "eae45bb3f0c1ff0ee7d27985eaee6fe753dfc1cc2353e1ae75d3a66e09ed4e0d",
+      "threadpools": [
+        {
+          "user_api": "blas",
+          "internal_api": "openblas",
+          "num_threads": 1,
+          "prefix": "libopenblas",
+          "filepath": "/home/ubuntu/poincare/Poincare_BM4_48_radiales_5000_ciclos_20_steps_16_procesos_spot/.venv/lib/python3.12/site-packages/numpy.libs/libopenblas64_p-r0-0cf96a72.3.23.dev.so",
+          "version": "0.3.23.dev",
+          "threading_layer": "pthreads",
+          "architecture": "Cooperlake"
+        },
+        {
+          "user_api": "blas",
+          "internal_api": "openblas",
+          "num_threads": 1,
+          "prefix": "libscipy_openblas",
+          "filepath": "/home/ubuntu/poincare/Poincare_BM4_48_radiales_5000_ciclos_20_steps_16_procesos_spot/.venv/lib/python3.12/site-packages/scipy.libs/libscipy_openblas-6cdc3b4a.so",
+          "version": "0.3.30",
+          "threading_layer": "pthreads",
+          "architecture": "SkylakeX"
+        }
+      ],
+      "resumed_steps": 80500,
+      "new_steps": 19500,
+      "checkpoint_chunks": 200,
+      "checkpoint_fingerprint": "439244613100239515a77b67e0f00925f06454bd9293643dabc66488e5faa839",
+      "maximum_residual_to_tolerance": 0.9999893960642705
+    }
+  ],
+  "cycles": 5000,
+  "steps_per_cycle": 20,
+  "stage": "uploaded",
+  "archive": "aws_48p_5000c_20s_16proc_spot_20260920_results.tar.gz",
+  "archive_bytes": 469885354,
+  "archive_sha256": "1f8b65c3b7ab6fd3fef93fe2e8e5e64a46dc4b7ac9bdfc9bc4e824dc13014e3c",
+  "result_s3_uri": "s3://gc2d-frankfurt-20260904-j7m3q9/runs/aws_48p_5000c_20s_16proc_spot_20260920/aws_48p_5000c_20s_16proc_spot_20260920_results.tar.gz",
+  "runtime_seconds": 2624.960909766,
+  "finished_utc": "2026-09-20T13:54:06.857389+00:00"
+}

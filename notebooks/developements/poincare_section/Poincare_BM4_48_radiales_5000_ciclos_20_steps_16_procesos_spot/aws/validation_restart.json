@@ -1,0 +1,12 @@
+{
+  "verified_utc": "2026-09-20T09:50:38.295501+00:00",
+  "resumed_steps_per_worker": 10,
+  "workers": 16,
+  "particles": 48,
+  "total_steps_per_worker": 40,
+  "baseline": "unmodified public simulate BM4Implicit",
+  "all_states_and_diagnostics_bitwise_equal": true,
+  "cycle_rows": 96,
+  "newton_step_rows": 640,
+  "newton_history_rows": 1891
+}

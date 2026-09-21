@@ -1,0 +1,27 @@
+{
+  "run_id": "aws_bm4midpoint_48p_5000c_20s_20260920",
+  "updated_utc": "2026-09-20T15:55:42.972161+00:00",
+  "worker_completed_steps": [
+    17500,
+    17500,
+    17500,
+    17500,
+    17500,
+    17500,
+    17500,
+    17500,
+    17500,
+    17000,
+    17500,
+    17500,
+    17500,
+    17500,
+    17500,
+    17500
+  ],
+  "total_steps_per_worker": 100000,
+  "minimum_completed_cycles": 850.0,
+  "maximum_completed_cycles": 875.0,
+  "average_percent": 17.46875,
+  "committed_remote_chunks": 559
+}

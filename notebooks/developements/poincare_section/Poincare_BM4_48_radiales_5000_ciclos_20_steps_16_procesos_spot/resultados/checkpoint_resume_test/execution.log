@@ -1,0 +1,253 @@
+
+[2026-09-20T09:42:33.603122+00:00] Cell 1: dependencies
+Runtime versions: {'python': '3.11.10', 'numpy': '1.26.4', 'scipy': '1.17.1', 'h5py': '3.16.0', 'matplotlib': '3.10.9', 'pandas': '3.0.5', 'threadpoolctl': '3.6.0'}
+
+[2026-09-20T09:42:33.996059+00:00] Cell 3: field
+Verified snapshot: eae45bb3f0c1ff0ee7d27985eaee6fe753dfc1cc2353e1ae75d3a66e09ed4e0d
+Field shape: (256, 256) | frequencies: [1.]
+
+[2026-09-20T09:42:34.521526+00:00] Cell 5: parameters
+
+[2026-09-20T09:42:34.529598+00:00] Cell 6: validation-overrides
+
+[2026-09-20T09:42:34.536441+00:00] Cell 7: setup
+48 particles | 2 cycles | 20 steps/cycle
+h = 0.05; 40 steps; 41 stored states per particle
+Cycle duration = 0.00261352184253 s; horizon = 0.00522704368507 s
+Float64 epsilon: 2.220446049250313e-16
+Run ID: checkpoint_resume_test
+Numerical output directory: /home/juan/Proyectos/GC2D_intranet/notebooks/developements/poincare_section/Poincare_BM4_48_radiales_5000_ciclos_20_steps_16_procesos_spot/resultados/checkpoint_resume_test
+
+[2026-09-20T09:42:34.623197+00:00] Cell 11: integration
+Worker 13: checkpoint 10/40 (25.0%), t=0.5
+Worker 2: checkpoint 10/40 (25.0%), t=0.5
+Worker 12: checkpoint 10/40 (25.0%), t=0.5
+Worker 16: checkpoint 10/40 (25.0%), t=0.5
+Worker 5: checkpoint 10/40 (25.0%), t=0.5
+Worker 10: checkpoint 10/40 (25.0%), t=0.5
+Worker 6: checkpoint 10/40 (25.0%), t=0.5
+Worker 7: checkpoint 10/40 (25.0%), t=0.5
+Worker 4: checkpoint 10/40 (25.0%), t=0.5
+Worker 1: checkpoint 10/40 (25.0%), t=0.5
+Worker 3: checkpoint 10/40 (25.0%), t=0.5
+Worker 14: checkpoint 10/40 (25.0%), t=0.5
+Worker 15: checkpoint 10/40 (25.0%), t=0.5
+Worker 11: checkpoint 10/40 (25.0%), t=0.5
+Worker 8: checkpoint 10/40 (25.0%), t=0.5
+Worker 9: checkpoint 10/40 (25.0%), t=0.5
+Traceback (most recent call last):
+  File "/home/juan/Proyectos/GC2D_intranet/notebooks/developements/poincare_section/Poincare_BM4_48_radiales_5000_ciclos_20_steps_16_procesos_spot/run.py", line 110, in main
+    client.execute(env=environment, cleanup_kc=True)
+  File "/home/juan/Proyectos/GC2D_intranet/.venv/lib/python3.11/site-packages/jupyter_core/utils/__init__.py", line 165, in wrapped
+    return loop.run_until_complete(inner)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/juan/.pyenv/versions/3.11.10/lib/python3.11/asyncio/base_events.py", line 654, in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+  File "/home/juan/Proyectos/GC2D_intranet/.venv/lib/python3.11/site-packages/nbclient/client.py", line 709, in async_execute
+    await self.async_execute_cell(
+  File "/home/juan/Proyectos/GC2D_intranet/.venv/lib/python3.11/site-packages/nbclient/client.py", line 1062, in async_execute_cell
+    await self._check_raise_for_error(cell, cell_index, exec_reply)
+  File "/home/juan/Proyectos/GC2D_intranet/.venv/lib/python3.11/site-packages/nbclient/client.py", line 918, in _check_raise_for_error
+    raise CellExecutionError.from_cell_and_msg(cell, exec_reply_content)
+nbclient.exceptions.CellExecutionError: An error occurred while executing the following cell:
+------------------
+solution = simulate_parallel(initial_xy, WORKER_SETTINGS, processes=N_PROCESSES)
+RUNTIME_SECONDS = solution.parallel_wall_seconds
+print(f'Parallel BM4 completed in {RUNTIME_SECONDS:.2f} s, including worker startup and merge.')
+print(f'All sixteen workers integrated simultaneously for {solution.simultaneous_integration_seconds:.2f} s.')
+display(pd.DataFrame(solution.workers)[['worker', 'pid', 'particle_ids',
+                                     'integration_seconds', 'cpu_seconds']])
+
+------------------
+
+----- stdout -----
+Worker 13: checkpoint 10/40 (25.0%), t=0.5
+----- stdout -----
+Worker 2: checkpoint 10/40 (25.0%), t=0.5
+Worker 12: checkpoint 10/40 (25.0%), t=0.5
+----- stdout -----
+Worker 16: checkpoint 10/40 (25.0%), t=0.5
+----- stdout -----
+Worker 5: checkpoint 10/40 (25.0%), t=0.5
+Worker 10: checkpoint 10/40 (25.0%), t=0.5
+----- stdout -----
+Worker 6: checkpoint 10/40 (25.0%), t=0.5
+----- stdout -----
+Worker 7: checkpoint 10/40 (25.0%), t=0.5
+Worker 4: checkpoint 10/40 (25.0%), t=0.5
+Worker 1: checkpoint 10/40 (25.0%), t=0.5
+Worker 3: checkpoint 10/40 (25.0%), t=0.5
+Worker 14: checkpoint 10/40 (25.0%), t=0.5
+----- stdout -----
+Worker 15: checkpoint 10/40 (25.0%), t=0.5
+Worker 11: checkpoint 10/40 (25.0%), t=0.5
+----- stdout -----
+Worker 8: checkpoint 10/40 (25.0%), t=0.5
+Worker 9: checkpoint 10/40 (25.0%), t=0.5
+------------------
+
+[31m---------------------------------------------------------------------------[39m
+[31m_RemoteTraceback[39m                          Traceback (most recent call last)
+[31m_RemoteTraceback[39m: 
+"""
+Traceback (most recent call last):
+  File "/home/juan/.pyenv/versions/3.11.10/lib/python3.11/concurrent/futures/process.py", line 261, in _process_worker
+    r = call_item.fn(*call_item.args, **call_item.kwargs)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/juan/Proyectos/GC2D_intranet/notebooks/developements/poincare_section/Poincare_BM4_48_radiales_5000_ciclos_20_steps_16_procesos_spot/checkpoint_calculation.py", line 141, in calculate_checkpointed_group
+    raise CheckpointTestInterruption('Simulated interruption after a durable checkpoint.')
+checkpoint_calculation.CheckpointTestInterruption: Simulated interruption after a durable checkpoint.
+"""
+
+The above exception was the direct cause of the following exception:
+
+[31mCheckpointTestInterruption[39m                Traceback (most recent call last)
+[36mCell[39m[36m [39m[32mIn[6][39m[32m, line 1[39m
+[32m----> [39m[32m1[39m solution = simulate_parallel(initial_xy, WORKER_SETTINGS, processes=N_PROCESSES)
+[32m      2[39m RUNTIME_SECONDS = solution.parallel_wall_seconds
+[32m      3[39m print([33mf'Parallel BM4 completed in {RUNTIME_SECONDS:.2f} s, including worker startup and merge.'[39m)
+[32m      4[39m print([33mf'All sixteen workers integrated simultaneously for {solution.simultaneous_integration_seconds:.2f} s.'[39m)
+
+[36mFile [39m[32m~/Proyectos/GC2D_intranet/notebooks/developements/poincare_section/Poincare_BM4_48_radiales_5000_ciclos_20_steps_16_procesos_spot/parallel_calculation.py:138[39m, in [36msimulate_parallel[39m[34m(initial_xy, settings, processes)[39m
+[32m    136[39m [38;5;28;01mfor[39;00m future [38;5;129;01min[39;00m as_completed(futures):
+[32m    137[39m     i = futures[future]
+[32m--> [39m[32m138[39m     outputs[i] = [30;43mfuture[39;49m[30;43m.[39;49m[30;43mresult[39;49m[30;43m([39;49m[30;43m)[39;49m  [38;5;66;03m# Any failure prevents publishing a complete run.[39;00m
+[32m    139[39m     item = outputs[i][[33m'[39m[33mrecord[39m[33m'[39m]
+[32m    140[39m     [38;5;28mprint[39m([33mf[39m[33m"[39m[33mWorker [39m[38;5;132;01m{[39;00mi+[32m1[39m[38;5;132;01m}[39;00m[33m/[39m[38;5;132;01m{[39;00mprocesses[38;5;132;01m}[39;00m[33m: PID [39m[38;5;132;01m{[39;00mitem[[33m'[39m[33mpid[39m[33m'[39m][38;5;132;01m}[39;00m[33m, [39m[33m"[39m
+[32m    141[39m           [33mf[39m[33m"[39m[38;5;132;01m{[39;00mitem[[33m'[39m[33mparticle_count[39m[33m'[39m][38;5;132;01m}[39;00m[33m particles, [39m[38;5;132;01m{[39;00mitem[[33m'[39m[33mintegration_seconds[39m[33m'[39m][38;5;132;01m:[39;00m[33m.2f[39m[38;5;132;01m}[39;00m[33m s[39m[33m"[39m, flush=[38;5;28;01mTrue[39;00m)
+
+[36mFile [39m[32m~/.pyenv/versions/3.11.10/lib/python3.11/concurrent/futures/_base.py:449[39m, in [36mFuture.result[39m[34m(self, timeout)[39m
+[32m    447[39m     [38;5;28;01mraise[39;00m CancelledError()
+[32m    448[39m [38;5;28;01melif[39;00m [38;5;28mself[39m._state == FINISHED:
+[32m--> [39m[32m449[39m     [38;5;28;01mreturn[39;00m [30;43mself[39;49m[30;43m.[39;49m[30;43m__get_result[39;49m[30;43m([39;49m[30;43m)[39;49m
+[32m    451[39m [38;5;28mself[39m._condition.wait(timeout)
+[32m    453[39m [38;5;28;01mif[39;00m [38;5;28mself[39m._state [38;5;129;01min[39;00m [CANCELLED, CANCELLED_AND_NOTIFIED]:
+
+[36mFile [39m[32m~/.pyenv/versions/3.11.10/lib/python3.11/concurrent/futures/_base.py:401[39m, in [36mFuture.__get_result[39m[34m(self)[39m
+[32m    399[39m [38;5;28;01mif[39;00m [38;5;28mself[39m._exception:
+[32m    400[39m     [38;5;28;01mtry[39;00m:
+[32m--> [39m[32m401[39m         [38;5;28;01mraise[39;00m [38;5;28mself[39m._exception
+[32m    402[39m     [38;5;28;01mfinally[39;00m:
+[32m    403[39m         [38;5;66;03m# Break a reference cycle with the exception in self._exception[39;00m
+[32m    404[39m         [38;5;28mself[39m = [38;5;28;01mNone[39;00m
+
+[31mCheckpointTestInterruption[39m: Simulated interruption after a durable checkpoint.
+
+
+[2026-09-20T09:46:49.289639+00:00] Cell 1: dependencies
+Runtime versions: {'python': '3.11.10', 'numpy': '1.26.4', 'scipy': '1.17.1', 'h5py': '3.16.0', 'matplotlib': '3.10.9', 'pandas': '3.0.5', 'threadpoolctl': '3.6.0'}
+
+[2026-09-20T09:46:49.657649+00:00] Cell 3: field
+Verified snapshot: eae45bb3f0c1ff0ee7d27985eaee6fe753dfc1cc2353e1ae75d3a66e09ed4e0d
+Field shape: (256, 256) | frequencies: [1.]
+
+[2026-09-20T09:46:50.183530+00:00] Cell 5: parameters
+
+[2026-09-20T09:46:50.191987+00:00] Cell 6: validation-overrides
+
+[2026-09-20T09:46:50.203352+00:00] Cell 7: setup
+48 particles | 2 cycles | 20 steps/cycle
+h = 0.05; 40 steps; 41 stored states per particle
+Cycle duration = 0.00261352184253 s; horizon = 0.00522704368507 s
+Float64 epsilon: 2.220446049250313e-16
+Run ID: checkpoint_resume_test
+Numerical output directory: /home/juan/Proyectos/GC2D_intranet/notebooks/developements/poincare_section/Poincare_BM4_48_radiales_5000_ciclos_20_steps_16_procesos_spot/resultados/checkpoint_resume_test
+
+[2026-09-20T09:46:50.304919+00:00] Cell 11: integration
+Worker 11: resumed verified step 10/40
+Worker 6: resumed verified step 10/40
+Worker 5: resumed verified step 10/40
+Worker 1: resumed verified step 10/40
+Worker 12: resumed verified step 10/40
+Worker 9: resumed verified step 10/40
+Worker 13: resumed verified step 10/40
+Worker 3: resumed verified step 10/40
+Worker 14: resumed verified step 10/40
+Worker 2: resumed verified step 10/40
+Worker 8: resumed verified step 10/40
+Worker 16: resumed verified step 10/40
+Worker 15: resumed verified step 10/40
+Worker 4: resumed verified step 10/40
+Worker 10: resumed verified step 10/40
+Worker 7: resumed verified step 10/40
+Worker 2: checkpoint 20/40 (50.0%), t=1
+Worker 11: checkpoint 20/40 (50.0%), t=1
+Worker 6: checkpoint 20/40 (50.0%), t=1
+Worker 4: checkpoint 20/40 (50.0%), t=1
+Worker 3: checkpoint 20/40 (50.0%), t=1
+Worker 8: checkpoint 20/40 (50.0%), t=1
+Worker 9: checkpoint 20/40 (50.0%), t=1
+Worker 16: checkpoint 20/40 (50.0%), t=1
+Worker 14: checkpoint 20/40 (50.0%), t=1
+Worker 12: checkpoint 20/40 (50.0%), t=1
+Worker 1: checkpoint 20/40 (50.0%), t=1
+Worker 15: checkpoint 20/40 (50.0%), t=1
+Worker 10: checkpoint 20/40 (50.0%), t=1
+Worker 5: checkpoint 20/40 (50.0%), t=1
+Worker 7: checkpoint 20/40 (50.0%), t=1
+Worker 13: checkpoint 20/40 (50.0%), t=1
+Worker 12: checkpoint 30/40 (75.0%), t=1.5
+Worker 2: checkpoint 30/40 (75.0%), t=1.5
+Worker 11: checkpoint 30/40 (75.0%), t=1.5
+Worker 14: checkpoint 30/40 (75.0%), t=1.5
+Worker 5: checkpoint 30/40 (75.0%), t=1.5
+Worker 7: checkpoint 30/40 (75.0%), t=1.5
+Worker 4: checkpoint 30/40 (75.0%), t=1.5
+Worker 16: checkpoint 30/40 (75.0%), t=1.5
+Worker 6: checkpoint 30/40 (75.0%), t=1.5
+Worker 5: checkpoint 40/40 (100.0%), t=2
+Worker 5/16: PID 21762, 3 particles, 39.13 s
+Worker 1: checkpoint 30/40 (75.0%), t=1.5
+Worker 8: checkpoint 30/40 (75.0%), t=1.5
+Worker 9: checkpoint 30/40 (75.0%), t=1.5
+Worker 13: checkpoint 30/40 (75.0%), t=1.5
+Worker 10: checkpoint 30/40 (75.0%), t=1.5
+Worker 12/16: PID 21769, 3 particles, 44.64 s
+Worker 12: checkpoint 40/40 (100.0%), t=2
+Worker 3: checkpoint 30/40 (75.0%), t=1.5
+Worker 4: checkpoint 40/40 (100.0%), t=2
+Worker 4/16: PID 21773, 3 particles, 49.37 s
+Worker 14: checkpoint 40/40 (100.0%), t=2
+Worker 14/16: PID 21766, 3 particles, 49.73 s
+Worker 11: checkpoint 40/40 (100.0%), t=2
+Worker 11/16: PID 21758, 3 particles, 50.15 s
+Worker 15: checkpoint 30/40 (75.0%), t=1.5
+Worker 7: checkpoint 40/40 (100.0%), t=2
+Worker 7/16: PID 21767, 3 particles, 51.16 s
+Worker 8/16: PID 21775, 3 particles, 53.54 s
+Worker 8: checkpoint 40/40 (100.0%), t=2
+Worker 2: checkpoint 40/40 (100.0%), t=2
+Worker 2/16: PID 21768, 3 particles, 54.33 s
+Worker 10: checkpoint 40/40 (100.0%), t=2
+Worker 10/16: PID 21770, 3 particles, 54.54 s
+Worker 15: checkpoint 40/40 (100.0%), t=2
+Worker 15/16: PID 21774, 3 particles, 55.77 s
+Worker 16: checkpoint 40/40 (100.0%), t=2
+Worker 16/16: PID 21772, 3 particles, 56.27 s
+Worker 9: checkpoint 40/40 (100.0%), t=2
+Worker 9/16: PID 21761, 3 particles, 56.47 s
+Worker 3: checkpoint 40/40 (100.0%), t=2
+Worker 3/16: PID 21765, 3 particles, 57.61 s
+Worker 1: checkpoint 40/40 (100.0%), t=2
+Worker 1/16: PID 21764, 3 particles, 57.87 s
+Worker 6: checkpoint 40/40 (100.0%), t=2
+Worker 6/16: PID 21771, 3 particles, 58.20 s
+Worker 13: checkpoint 40/40 (100.0%), t=2
+Worker 13/16: PID 21763, 3 particles, 58.41 s
+Parallel BM4 completed in 62.91 s, including worker startup and merge.
+All sixteen workers integrated simultaneously for 39.09 s.
+
+[2026-09-20T09:47:53.279693+00:00] Cell 12: checks
+Validated: 96 section points, 2 returns per particle.
+Maximum residual / tolerance: 0.998445
+Newton corrections per group and step: mean 1.955, max 2
+
+[2026-09-20T09:47:53.298315+00:00] Cell 14: positions
+
+[2026-09-20T09:47:53.340611+00:00] Cell 15: save-results
+Complete: 48 particles, 2 cycles, 40 steps.
+Saved 96 return positions to /home/juan/Proyectos/GC2D_intranet/notebooks/developements/poincare_section/Poincare_BM4_48_radiales_5000_ciclos_20_steps_16_procesos_spot/resultados/checkpoint_resume_test
+Next: open visualizacion.ipynb and select this run ID.
+
+Success: /home/juan/Proyectos/GC2D_intranet/notebooks/developements/poincare_section/Poincare_BM4_48_radiales_5000_ciclos_20_steps_16_procesos_spot/resultados/checkpoint_resume_test

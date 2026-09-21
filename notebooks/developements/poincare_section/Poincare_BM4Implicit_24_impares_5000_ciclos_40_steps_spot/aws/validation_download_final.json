@@ -1,0 +1,16 @@
+{
+  "verified_utc": "2026-09-20T20:25:00.291436+00:00",
+  "run_id": "aws_bm4implicit_24odd_5000c_40s_20260920",
+  "method": "BM4Implicit",
+  "archive_sha256": "a2326988492cdad0d18bd23a72a120e3a576e7efa242b4e04557b0dc3e408c0c",
+  "archive_checksum_matches_s3_status_and_sidecar": true,
+  "all_numeric_manifest_hashes_verified": true,
+  "original_ids_positions_colors_preserved": true,
+  "return_position_rows": 120000,
+  "complete_steps_per_particle": 200000,
+  "workers": 16,
+  "newton_and_multiplier_diagnostics_verified": true,
+  "executed_notebooks_successful": 2,
+  "instance_state_before_cancellation": "stopped",
+  "spot_request_state_after_cancellation": "cancelled"
+}

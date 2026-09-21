@@ -1,0 +1,27 @@
+{
+  "run_id": "aws_bm4implicit_24odd_5000c_40s_20260920",
+  "updated_utc": "2026-09-20T15:55:38.393636+00:00",
+  "worker_completed_steps": [
+    2000,
+    2000,
+    2000,
+    2000,
+    2000,
+    3000,
+    3000,
+    3000,
+    3000,
+    3000,
+    3000,
+    2000,
+    2000,
+    2000,
+    2000,
+    2000
+  ],
+  "total_steps_per_worker": 200000,
+  "minimum_completed_cycles": 50.0,
+  "maximum_completed_cycles": 75.0,
+  "average_percent": 1.1875,
+  "committed_remote_chunks": 38
+}

@@ -1,0 +1,929 @@
+{
+  "method": "BM4Implicit",
+  "particle_ids": [
+    1,
+    3,
+    5,
+    7,
+    9,
+    11,
+    13,
+    15,
+    17,
+    19,
+    21,
+    23,
+    25,
+    27,
+    29,
+    31,
+    33,
+    35,
+    37,
+    39,
+    41,
+    43,
+    45,
+    47
+  ],
+  "cycles": 2,
+  "steps_per_cycle": 40,
+  "process_count": 16,
+  "checkpoint_steps": 10,
+  "radial_fractions": [
+    0.0,
+    0.020851063829787235,
+    0.04170212765957447,
+    0.0625531914893617,
+    0.08340425531914894,
+    0.10425531914893618,
+    0.1251063829787234,
+    0.14595744680851064,
+    0.16680851063829788,
+    0.18765957446808512,
+    0.20851063829787236,
+    0.22936170212765958,
+    0.2502127659574468,
+    0.27106382978723403,
+    0.2919148936170213,
+    0.3127659574468085,
+    0.33361702127659576,
+    0.354468085106383,
+    0.37531914893617024,
+    0.3961702127659575,
+    0.4170212765957447,
+    0.4378723404255319,
+    0.45872340425531916,
+    0.4795744680851064
+  ],
+  "radial_angle_rad": 0.0,
+  "rho": 0.3,
+  "coupling_frequency": 0.39269908169872414,
+  "newton_atol": 1e-12,
+  "newton_rtol": 1e-11,
+  "newton_max_iterations": 40,
+  "jacobian_relative_step": 6.0554544523933395e-06,
+  "cycle_duration": 1.0,
+  "t0": 0.0,
+  "t_span": [
+    0.0,
+    2.0
+  ],
+  "step": 0.025,
+  "particle_count": 24,
+  "snapshot_sha256": "eae45bb3f0c1ff0ee7d27985eaee6fe753dfc1cc2353e1ae75d3a66e09ed4e0d",
+  "versions": {
+    "python": "3.11.10",
+    "numpy": "1.26.4",
+    "scipy": "1.17.1",
+    "h5py": "3.16.0",
+    "matplotlib": "3.10.9",
+    "pandas": "3.0.5",
+    "threadpoolctl": "3.6.0"
+  },
+  "validation_run": true,
+  "reference_computed": false,
+  "original_particles_sha256": "e265e189d23b060a1595b18dbcb1aa491f1e3afa73efc04fc363d885d9433aef",
+  "run_id": "checkpoint_resume_test",
+  "schema_version": 1,
+  "complete_steps": 80,
+  "arithmetic": "float64",
+  "trajectory_accuracy_certified": false,
+  "colours": {
+    "1": "#372466",
+    "3": "#4040a2",
+    "5": "#455ed3",
+    "7": "#4778f0",
+    "9": "#4391fe",
+    "11": "#33adf7",
+    "13": "#22c5e2",
+    "15": "#18d9c8",
+    "17": "#20eaac",
+    "19": "#3cf58e",
+    "21": "#61fc6c",
+    "23": "#8bff4b",
+    "25": "#a9fb39",
+    "27": "#c3f134",
+    "29": "#dde037",
+    "31": "#efcd3a",
+    "33": "#fbb838",
+    "35": "#fe9b2d",
+    "37": "#fb7e21",
+    "39": "#f15d13",
+    "41": "#e4450a",
+    "43": "#d23105",
+    "45": "#b91e02",
+    "47": "#9e1001"
+  },
+  "field_provenance": {
+    "source_hdf5": "/home/juan/Proyectos/GC2D_intranet/data/potential/V1/PHI_2.h5",
+    "source_hdf5_sha256": "4bbd873cd05992e0a615d66ebbf4d96b38c8b3c36be2ca62932e66af7e6d4ced",
+    "source_project_commit": "7f462a0a9bd108084acdee1f1f167f1c4ced659d",
+    "B_tesla": 1.5,
+    "characteristic_length_m": 0.06,
+    "source_selection": [
+      0,
+      1
+    ],
+    "interpolation_order": 3,
+    "spatial_normalization": "characteristic_length",
+    "denoising": false,
+    "resampling": false,
+    "characteristic_period_s": 0.002613521842534343,
+    "normalization_factor": 0.3288423607980393,
+    "source_field_indices": [
+      15
+    ],
+    "source_frequencies_rad_s": [
+      2404.106675108847
+    ],
+    "source_origin_m": [
+      0.0007031250000002487,
+      0.00035156249999999993
+    ],
+    "grid": {
+      "x0": 0.0,
+      "y0": 0.0,
+      "dx": 0.07363107781844382,
+      "dy": 0.07363107781851078,
+      "nx": 256,
+      "ny": 256,
+      "period": 18.84955592153019
+    },
+    "snapshot_description": "Unmodified normalized mean and first positive-frequency mode, before gyroaveraging.",
+    "source_files_sha256": {
+      "potential/__init__.py": "eb05f93a10fa0dc5e2dc875e3388602f53539207ef2ea929931c6e6f12305454",
+      "potential/gc2d_h5.py": "e57405ef6fbc518b97504b12ac189e57049c1225dd41dd60ad95b1297e3019f9",
+      "potential/grid.py": "93774c666ec321abdef8f3a637f544fdcbbd06e2672f73af49ee0a4883bc1966",
+      "potential/potential.py": "3b0cff5468ef00533b971d82f48fdb82c01646eb582e84e1e79f795e8b074a15",
+      "dynamics/__init__.py": "208f81de95417eaaea7809a6e932f75d6214222346276bd9e82d579775699616",
+      "dynamics/_layout.py": "6f6f384f27ac315698cf812b538aac95919fe0efaa11e610483d54a23db535be",
+      "dynamics/fc.py": "7ce622bbcbc0777758d7521a4df3fc7d558239a7740919ab234e4bd7705eb918",
+      "dynamics/gc.py": "9183fa9a347a69f980b8b1cccd1abddca3a4c4c566274d70ca6eb4912c846cad",
+      "dynamics/protocols.py": "d402fa7869ad1a87512a818b087036caccc442902b08d9eecd439ab8a3c03908",
+      "initial_conditions/__init__.py": "a878f13ab659055edd1c0533e1fd0ed8838cc5951bf1f33b3715e4ffcc290294",
+      "initial_conditions/area.py": "3ea24f508cf0f5625f9ba28109863af1aa2672f906a8a0b33cbcbd3a64b4fffa",
+      "initial_conditions/base.py": "388f13fbf13edbeb546af7eadae6f2351287d2609aac624acc9bc05178ec97ae",
+      "initial_conditions/fc.py": "523eb077df7621de137a4cb5cb2e6769116fb95c12d7b623d3ffd36dcd3bbace",
+      "initial_conditions/gc.py": "704d75e4b3869c61376e3b97b6101e17b7bf324a85df669d504b77e956f92763",
+      "simulation/__init__.py": "03330dbcc3b0d01bd6e7378ca488f74c362c1381a1aaa1b99f9b1e91c4feea8b",
+      "simulation/_fixed.py": "a82b6c90a295e8ae25107671ea24ea08ba3c55139050414db03cf67033705ffd",
+      "simulation/_result.py": "f5953b5f25da4da87687649e2d894be29790d3941c32205b9f637036996a7299",
+      "simulation/configuration.py": "cc70f3770f773387d6ea4105030b5795bc8055f4def2c607085371cc69164be9",
+      "simulation/formulations/__init__.py": "c42559037948ff5b0cf92178b79ceac4390aae1b4e4ce72d6056d8bf6d0afe35",
+      "simulation/formulations/base.py": "7d41849b8e44625e4bf7593019015f3dc9870ee8dbd321f190e916e64c3ebf39",
+      "simulation/formulations/fc.py": "c3e3e398c20932e3e4d4cd804a8dbdab78e615b91a82b19966622825e0d54d26",
+      "simulation/formulations/gc.py": "5610e298e0cb72ec01f2b9b31d4de3033019a68f79ab5c7bcd45998fcc2de773",
+      "simulation/methods/__init__.py": "816038021660ffda0ef67ba00be893cff7ac8300a7591414a4e55340c4e604a0",
+      "simulation/methods/_abba_coefficients.py": "5977a4521cbbefd089c9c5ef22aaca30f66ccd90ff87dc51abd73a60b91b48b7",
+      "simulation/methods/_fully_extended.py": "d98872458eaccf35284bfc3d8cd16a5443423b83a40cbb0442d359dc451be1c3",
+      "simulation/methods/_nonlinear.py": "747b252fe575b6461775c28f4db681f6f9b0166febcd8a6721fc3a9b9018bbcc",
+      "simulation/methods/abba/__init__.py": "e5a4f7c7bf38ecd645c05adda349e19a01471e030fbac05e6c1d9d3d1340574f",
+      "simulation/methods/abba/_coefficients.py": "278f713f96b5e1ef5eeb294c9fd47817200a4c33ccc28a237559572cb612f2d9",
+      "simulation/methods/abba/_configuration.py": "06c8b4604ffd0b562c1099ba614938a928a2294c7bee631568bfe46f3107516c",
+      "simulation/methods/abba/_core.py": "e552a498f024162c7fe51ac1fd1aa1de2690e10573a3d04d5a11120cda27584c",
+      "simulation/methods/abba/_energy.py": "4f431ea8849e3358e869fb795edac59a5038905e20950a735017539b3127477a",
+      "simulation/methods/abba/_implicit.py": "9c354969b1e9a5b4c6b1bba30523ecc2b563ca1a7fd329465cb1134b8213be86",
+      "simulation/methods/abba/_projection_common.py": "b519567e4aa9178bba32c13759900316d6cb3b7af788c175d125f73d7425c9d6",
+      "simulation/methods/abba/_projection_reduced.py": "5b8c967c51e332bb51a3dab926a40d00593b7e33c3d7210479956f05d0d3e567",
+      "simulation/methods/abba/_projection_simultaneous.py": "57f9846d04fb6116a667a0992f6629787ef4b65826bd8838eb648b16beb981c7",
+      "simulation/methods/abba/composition.py": "f5554671245dc56e23651b0f535d7071c870e060c4cea6aa6aa9fafe640b330c",
+      "simulation/methods/abba/maps/__init__.py": "340bde8558002b948f652afa9af8f4c86d74fdd8d6982ccf1ed769c509a72e24",
+      "simulation/methods/abba/maps/extended.py": "edac3350a79512750b2934c45fe9293ec3d9dc0f3a32f3d0b38cd30b4914bf22",
+      "simulation/methods/abba/maps/physical.py": "6737b2b92e2889bad3e14522e6b2eb25379d0a34e8a2d038395eb0a3421bd11a",
+      "simulation/methods/abba/midpoint_extended.py": "2a41f2fb5d2dfed5df0c1f8ffe3f300767b7a4480e1e528f2f3b6de70af53eef",
+      "simulation/methods/abba/observations.py": "41f3b0244c0f52f6a394c8c23ca6100c6855209266f53b892b853c7cfece51fc",
+      "simulation/methods/abba/order2_implicit.py": "512b8cc22617acb06d266fe17d479876acab156b908d4101c5a7079bfce6ba14",
+      "simulation/methods/abba/order2_midpoint.py": "9730a17dbaaadc29f2e7be3d4afd8ecd482a43cc360d165c539f5f361708d9ac",
+      "simulation/methods/abba/order4_implicit.py": "7bb65fb1e65d8a6a82e8e1a6f533e1d7e73b6737026f4500c8112d5917ec17b6",
+      "simulation/methods/abba/order4_implicit_single_projection.py": "1214f2f7a845ad81be0638ad90125acc8a90de5b6b7fe3e30cca52b2059b116a",
+      "simulation/methods/abba/order6_implicit.py": "cd282f8bf31fc390ae189e0fa5adde1ec722719a1a8aacae67bc187c284d4e59",
+      "simulation/methods/abba/preparation.py": "263e89faeafaeb4f289e3a254fa3a50979aa3bb91992576554d8d472fc606ceb",
+      "simulation/methods/abba/projection_extended.py": "703078ab8d41502001044ef022b1f8c8b96dcbcd5dcc8e42c5f6d093a835064d",
+      "simulation/methods/abba/projection_outer.py": "9a8813e7ab81dc9dec013e443bdc5cd5759db4d7d17dcef72a816ebf37ac5e61",
+      "simulation/methods/abba/projection_reduced.py": "fda03805f8d44909fa7dbf5d97fae71b618c98232434916fa506e7fe7487b07a",
+      "simulation/methods/abba/projection_simultaneous.py": "9d01b82751cab7ec7ba1adb27fb94eaa8a40cfb01ef8411f8c577730fd56b495",
+      "simulation/methods/abba/records.py": "afd5e9262c56875d18d39a06b0c3026f17b11ea6dfcd8e57dfb00d170bff9f73",
+      "simulation/methods/abba/runtime.py": "d8c14da11b8ac5baa9a1579e054a2f13173924536cd4bd286578cd4054c6b9e6",
+      "simulation/methods/abba/state.py": "9d245b086831b021c934674318f55e468a2bf53720b9b3d1470d7ec1b68a5f68",
+      "simulation/methods/abba/steps.py": "252896dcfabee0ef094f960e65378d057090439e818ad6dcc60ca2f9ad6d0a78",
+      "simulation/methods/base.py": "d7afe3187289885a619811dd2f34ad9e9d5995c277904070c59d3030591ca84b",
+      "simulation/methods/bm4/__init__.py": "45c07ad12a5ef3ef9bc666162afae37ec985a6b6c6b557b28d37fed4a1555b8f",
+      "simulation/methods/bm4/_core.py": "6187c1f6e74308d5b4b713576debcb0b2f500a76280fe0c2af2666119b0870b8",
+      "simulation/methods/bm4/implicit.py": "f488bb182ae2b674bb1f19dc349971c20a31b03221354705517b6c788b08378d",
+      "simulation/methods/bm4/midpoint.py": "0aefacb9aa3cd08a95d8221fceac3376e0c169b0b48825fea58158cb296e222f",
+      "simulation/methods/bm4/midpoint_extended.py": "9f824617a3aa1a717700da95be0e9064573493dc6ebb86a32a8f981f46e70152",
+      "simulation/methods/classical/__init__.py": "d20e2732fe5bc6a630ab506fece1b248047a2cb722a4ee3aa035737f68687aab",
+      "simulation/methods/classical/euler.py": "bf76ace060d5e3694cda7f3cb434cee95e64e482ce9ceffd106b826ceb057d5d",
+      "simulation/methods/classical/gauss_legendre.py": "6b43612e11a199604be35e046f528ec06812284edb6994195d279da4569e9576",
+      "simulation/methods/classical/rk4.py": "79aa0aec2ab3c9807885ba62bb3f26bc2932c3cf214f3168eccc84a71239d5aa",
+      "simulation/methods/classical/sdirk.py": "da4c92c30e25d044a800ce2c1b403f0cd53a8992688f05802127b8a174845590",
+      "simulation/methods/hbvm/__init__.py": "9050463002bd80af02f4160add4de181255aab001b7a2de3930f9684df3da875",
+      "simulation/methods/hbvm/order4.py": "3b64ddf8118e4f7f1104697a8abc824d3f79ecc556f27f61176f8ca6ca15c3c6",
+      "simulation/observation.py": "c48c26052da29089560e1b6474e775f4d78613ab959cb47f86552cdb352e6fb4",
+      "simulation/problem.py": "ce8a4aa467c182e61eb5ad8e2fe18a02fd8f014792efad61a1a074c5666b8dca",
+      "simulation/request.py": "a7cad9cb4447f9b23e5c18ec25563b7e5444d89f089eb40fb7c5760bb296b003",
+      "simulation/runner.py": "23990c98642b480903ad94ece102a1a5864dc4c690378b72d15c4698e67a2c6e",
+      "simulation/solution.py": "cd56e736e82282fbe4b892b3b8820734a440224e352e77c0be5d5921943818a3"
+    }
+  },
+  "time_scale_s": 0.002613521842534343,
+  "length_scale_m": 0.00954929658551372,
+  "runtime_seconds": 73.32304055799978,
+  "runtime_scope": "current attempt, including checkpoint loading and merge",
+  "workers": [
+    {
+      "worker": 1,
+      "pid": 62001,
+      "particle_ids": [
+        1,
+        33
+      ],
+      "particle_count": 2,
+      "started_utc": "2026-09-20T15:46:03.963836+00:00",
+      "finished_utc": "2026-09-20T15:47:10.198170+00:00",
+      "started_monotonic_s": 25782.516105466,
+      "finished_monotonic_s": 25848.750401872,
+      "integration_seconds": 66.2342964060008,
+      "cpu_seconds": 28.169711366,
+      "snapshot_sha256": "eae45bb3f0c1ff0ee7d27985eaee6fe753dfc1cc2353e1ae75d3a66e09ed4e0d",
+      "threadpools": [
+        {
+          "user_api": "blas",
+          "internal_api": "openblas",
+          "num_threads": 1,
+          "prefix": "libopenblas",
+          "filepath": "/home/juan/Proyectos/GC2D_intranet/.venv/lib/python3.11/site-packages/numpy.libs/libopenblas64_p-r0-0cf96a72.3.23.dev.so",
+          "version": "0.3.23.dev",
+          "threading_layer": "pthreads",
+          "architecture": "Haswell"
+        },
+        {
+          "user_api": "blas",
+          "internal_api": "openblas",
+          "num_threads": 1,
+          "prefix": "libscipy_openblas",
+          "filepath": "/home/juan/Proyectos/GC2D_intranet/.venv/lib/python3.11/site-packages/scipy.libs/libscipy_openblas-6cdc3b4a.so",
+          "version": "0.3.30",
+          "threading_layer": "pthreads",
+          "architecture": "Haswell"
+        }
+      ],
+      "resumed_steps": 10,
+      "new_steps": 70,
+      "checkpoint_chunks": 8,
+      "checkpoint_fingerprint": "fbf1b9ae5f402209acf7b22b1b560a20ab7c25ba095cafbac8d2ffc54ce8540b",
+      "maximum_residual_to_tolerance": 0.7260026354063399
+    },
+    {
+      "worker": 2,
+      "pid": 62005,
+      "particle_ids": [
+        3,
+        35
+      ],
+      "particle_count": 2,
+      "started_utc": "2026-09-20T15:46:03.933331+00:00",
+      "finished_utc": "2026-09-20T15:47:02.628344+00:00",
+      "started_monotonic_s": 25782.485629479,
+      "finished_monotonic_s": 25841.18057169,
+      "integration_seconds": 58.694942211001035,
+      "cpu_seconds": 24.578286018,
+      "snapshot_sha256": "eae45bb3f0c1ff0ee7d27985eaee6fe753dfc1cc2353e1ae75d3a66e09ed4e0d",
+      "threadpools": [
+        {
+          "user_api": "blas",
+          "internal_api": "openblas",
+          "num_threads": 1,
+          "prefix": "libopenblas",
+          "filepath": "/home/juan/Proyectos/GC2D_intranet/.venv/lib/python3.11/site-packages/numpy.libs/libopenblas64_p-r0-0cf96a72.3.23.dev.so",
+          "version": "0.3.23.dev",
+          "threading_layer": "pthreads",
+          "architecture": "Haswell"
+        },
+        {
+          "user_api": "blas",
+          "internal_api": "openblas",
+          "num_threads": 1,
+          "prefix": "libscipy_openblas",
+          "filepath": "/home/juan/Proyectos/GC2D_intranet/.venv/lib/python3.11/site-packages/scipy.libs/libscipy_openblas-6cdc3b4a.so",
+          "version": "0.3.30",
+          "threading_layer": "pthreads",
+          "architecture": "Haswell"
+        }
+      ],
+      "resumed_steps": 10,
+      "new_steps": 70,
+      "checkpoint_chunks": 8,
+      "checkpoint_fingerprint": "1c2f6b17222f4b1bc8218704e52ad494b17c1d3618d8a2a8201e360967c66197",
+      "maximum_residual_to_tolerance": 0.8675420170957825
+    },
+    {
+      "worker": 3,
+      "pid": 62006,
+      "particle_ids": [
+        5,
+        37
+      ],
+      "particle_count": 2,
+      "started_utc": "2026-09-20T15:46:03.935403+00:00",
+      "finished_utc": "2026-09-20T15:47:07.069326+00:00",
+      "started_monotonic_s": 25782.487674455,
+      "finished_monotonic_s": 25845.621556005,
+      "integration_seconds": 63.133881550002116,
+      "cpu_seconds": 26.953214926999998,
+      "snapshot_sha256": "eae45bb3f0c1ff0ee7d27985eaee6fe753dfc1cc2353e1ae75d3a66e09ed4e0d",
+      "threadpools": [
+        {
+          "user_api": "blas",
+          "internal_api": "openblas",
+          "num_threads": 1,
+          "prefix": "libopenblas",
+          "filepath": "/home/juan/Proyectos/GC2D_intranet/.venv/lib/python3.11/site-packages/numpy.libs/libopenblas64_p-r0-0cf96a72.3.23.dev.so",
+          "version": "0.3.23.dev",
+          "threading_layer": "pthreads",
+          "architecture": "Haswell"
+        },
+        {
+          "user_api": "blas",
+          "internal_api": "openblas",
+          "num_threads": 1,
+          "prefix": "libscipy_openblas",
+          "filepath": "/home/juan/Proyectos/GC2D_intranet/.venv/lib/python3.11/site-packages/scipy.libs/libscipy_openblas-6cdc3b4a.so",
+          "version": "0.3.30",
+          "threading_layer": "pthreads",
+          "architecture": "Haswell"
+        }
+      ],
+      "resumed_steps": 10,
+      "new_steps": 70,
+      "checkpoint_chunks": 8,
+      "checkpoint_fingerprint": "adc20f0c6b5caf5ea484cb37f726b56b6b6a7a1a85a47ab333273bacdd666a68",
+      "maximum_residual_to_tolerance": 0.7515673968749804
+    },
+    {
+      "worker": 4,
+      "pid": 61996,
+      "particle_ids": [
+        7,
+        39
+      ],
+      "particle_count": 2,
+      "started_utc": "2026-09-20T15:46:03.947326+00:00",
+      "finished_utc": "2026-09-20T15:47:07.215152+00:00",
+      "started_monotonic_s": 25782.499586134,
+      "finished_monotonic_s": 25845.767378259,
+      "integration_seconds": 63.26779212499969,
+      "cpu_seconds": 27.391451152000002,
+      "snapshot_sha256": "eae45bb3f0c1ff0ee7d27985eaee6fe753dfc1cc2353e1ae75d3a66e09ed4e0d",
+      "threadpools": [
+        {
+          "user_api": "blas",
+          "internal_api": "openblas",
+          "num_threads": 1,
+          "prefix": "libopenblas",
+          "filepath": "/home/juan/Proyectos/GC2D_intranet/.venv/lib/python3.11/site-packages/numpy.libs/libopenblas64_p-r0-0cf96a72.3.23.dev.so",
+          "version": "0.3.23.dev",
+          "threading_layer": "pthreads",
+          "architecture": "Haswell"
+        },
+        {
+          "user_api": "blas",
+          "internal_api": "openblas",
+          "num_threads": 1,
+          "prefix": "libscipy_openblas",
+          "filepath": "/home/juan/Proyectos/GC2D_intranet/.venv/lib/python3.11/site-packages/scipy.libs/libscipy_openblas-6cdc3b4a.so",
+          "version": "0.3.30",
+          "threading_layer": "pthreads",
+          "architecture": "Haswell"
+        }
+      ],
+      "resumed_steps": 10,
+      "new_steps": 70,
+      "checkpoint_chunks": 8,
+      "checkpoint_fingerprint": "fb9d32424878a5acedfa0e5745278eec7b8d2d6ff85386634970661e0e30b3af",
+      "maximum_residual_to_tolerance": 0.8935759634407898
+    },
+    {
+      "worker": 5,
+      "pid": 61993,
+      "particle_ids": [
+        9,
+        41
+      ],
+      "particle_count": 2,
+      "started_utc": "2026-09-20T15:46:03.966846+00:00",
+      "finished_utc": "2026-09-20T15:47:09.529339+00:00",
+      "started_monotonic_s": 25782.519110798,
+      "finished_monotonic_s": 25848.08157132,
+      "integration_seconds": 65.56246052200004,
+      "cpu_seconds": 28.02775015,
+      "snapshot_sha256": "eae45bb3f0c1ff0ee7d27985eaee6fe753dfc1cc2353e1ae75d3a66e09ed4e0d",
+      "threadpools": [
+        {
+          "user_api": "blas",
+          "internal_api": "openblas",
+          "num_threads": 1,
+          "prefix": "libopenblas",
+          "filepath": "/home/juan/Proyectos/GC2D_intranet/.venv/lib/python3.11/site-packages/numpy.libs/libopenblas64_p-r0-0cf96a72.3.23.dev.so",
+          "version": "0.3.23.dev",
+          "threading_layer": "pthreads",
+          "architecture": "Haswell"
+        },
+        {
+          "user_api": "blas",
+          "internal_api": "openblas",
+          "num_threads": 1,
+          "prefix": "libscipy_openblas",
+          "filepath": "/home/juan/Proyectos/GC2D_intranet/.venv/lib/python3.11/site-packages/scipy.libs/libscipy_openblas-6cdc3b4a.so",
+          "version": "0.3.30",
+          "threading_layer": "pthreads",
+          "architecture": "Haswell"
+        }
+      ],
+      "resumed_steps": 10,
+      "new_steps": 70,
+      "checkpoint_chunks": 8,
+      "checkpoint_fingerprint": "53ea502d4f68ca17a85d2b0d590ff157707abeccbd2dcb92113cc8224dd369d5",
+      "maximum_residual_to_tolerance": 0.7774636183352628
+    },
+    {
+      "worker": 6,
+      "pid": 62003,
+      "particle_ids": [
+        11,
+        43
+      ],
+      "particle_count": 2,
+      "started_utc": "2026-09-20T15:46:03.947280+00:00",
+      "finished_utc": "2026-09-20T15:47:05.358633+00:00",
+      "started_monotonic_s": 25782.499547885,
+      "finished_monotonic_s": 25843.910864443,
+      "integration_seconds": 61.411316558002,
+      "cpu_seconds": 26.931226425,
+      "snapshot_sha256": "eae45bb3f0c1ff0ee7d27985eaee6fe753dfc1cc2353e1ae75d3a66e09ed4e0d",
+      "threadpools": [
+        {
+          "user_api": "blas",
+          "internal_api": "openblas",
+          "num_threads": 1,
+          "prefix": "libopenblas",
+          "filepath": "/home/juan/Proyectos/GC2D_intranet/.venv/lib/python3.11/site-packages/numpy.libs/libopenblas64_p-r0-0cf96a72.3.23.dev.so",
+          "version": "0.3.23.dev",
+          "threading_layer": "pthreads",
+          "architecture": "Haswell"
+        },
+        {
+          "user_api": "blas",
+          "internal_api": "openblas",
+          "num_threads": 1,
+          "prefix": "libscipy_openblas",
+          "filepath": "/home/juan/Proyectos/GC2D_intranet/.venv/lib/python3.11/site-packages/scipy.libs/libscipy_openblas-6cdc3b4a.so",
+          "version": "0.3.30",
+          "threading_layer": "pthreads",
+          "architecture": "Haswell"
+        }
+      ],
+      "resumed_steps": 10,
+      "new_steps": 70,
+      "checkpoint_chunks": 8,
+      "checkpoint_fingerprint": "ca582faa43a62e74ba660cdb53336902e2791c4409190e75e4cfacdfcb0a4162",
+      "maximum_residual_to_tolerance": 0.5713443001246694
+    },
+    {
+      "worker": 7,
+      "pid": 62002,
+      "particle_ids": [
+        13,
+        45
+      ],
+      "particle_count": 2,
+      "started_utc": "2026-09-20T15:46:03.957834+00:00",
+      "finished_utc": "2026-09-20T15:47:09.312270+00:00",
+      "started_monotonic_s": 25782.510097339,
+      "finished_monotonic_s": 25847.864502643,
+      "integration_seconds": 65.35440530399865,
+      "cpu_seconds": 26.972616004,
+      "snapshot_sha256": "eae45bb3f0c1ff0ee7d27985eaee6fe753dfc1cc2353e1ae75d3a66e09ed4e0d",
+      "threadpools": [
+        {
+          "user_api": "blas",
+          "internal_api": "openblas",
+          "num_threads": 1,
+          "prefix": "libopenblas",
+          "filepath": "/home/juan/Proyectos/GC2D_intranet/.venv/lib/python3.11/site-packages/numpy.libs/libopenblas64_p-r0-0cf96a72.3.23.dev.so",
+          "version": "0.3.23.dev",
+          "threading_layer": "pthreads",
+          "architecture": "Haswell"
+        },
+        {
+          "user_api": "blas",
+          "internal_api": "openblas",
+          "num_threads": 1,
+          "prefix": "libscipy_openblas",
+          "filepath": "/home/juan/Proyectos/GC2D_intranet/.venv/lib/python3.11/site-packages/scipy.libs/libscipy_openblas-6cdc3b4a.so",
+          "version": "0.3.30",
+          "threading_layer": "pthreads",
+          "architecture": "Haswell"
+        }
+      ],
+      "resumed_steps": 10,
+      "new_steps": 70,
+      "checkpoint_chunks": 8,
+      "checkpoint_fingerprint": "f6c9a7e0b725c7dea5de0c90975f1928dee7eaada8a848a16f60ec2cc495fd05",
+      "maximum_residual_to_tolerance": 0.36915719487621435
+    },
+    {
+      "worker": 8,
+      "pid": 61995,
+      "particle_ids": [
+        15,
+        47
+      ],
+      "particle_count": 2,
+      "started_utc": "2026-09-20T15:46:03.929748+00:00",
+      "finished_utc": "2026-09-20T15:47:05.479222+00:00",
+      "started_monotonic_s": 25782.482028158,
+      "finished_monotonic_s": 25844.031449818,
+      "integration_seconds": 61.549421660001826,
+      "cpu_seconds": 26.436977131,
+      "snapshot_sha256": "eae45bb3f0c1ff0ee7d27985eaee6fe753dfc1cc2353e1ae75d3a66e09ed4e0d",
+      "threadpools": [
+        {
+          "user_api": "blas",
+          "internal_api": "openblas",
+          "num_threads": 1,
+          "prefix": "libopenblas",
+          "filepath": "/home/juan/Proyectos/GC2D_intranet/.venv/lib/python3.11/site-packages/numpy.libs/libopenblas64_p-r0-0cf96a72.3.23.dev.so",
+          "version": "0.3.23.dev",
+          "threading_layer": "pthreads",
+          "architecture": "Haswell"
+        },
+        {
+          "user_api": "blas",
+          "internal_api": "openblas",
+          "num_threads": 1,
+          "prefix": "libscipy_openblas",
+          "filepath": "/home/juan/Proyectos/GC2D_intranet/.venv/lib/python3.11/site-packages/scipy.libs/libscipy_openblas-6cdc3b4a.so",
+          "version": "0.3.30",
+          "threading_layer": "pthreads",
+          "architecture": "Haswell"
+        }
+      ],
+      "resumed_steps": 10,
+      "new_steps": 70,
+      "checkpoint_chunks": 8,
+      "checkpoint_fingerprint": "e7664143032a87e1569e02fcb11f398ba4fcd440b73f16bb3d4e3902832abd41",
+      "maximum_residual_to_tolerance": 0.019310082638852935
+    },
+    {
+      "worker": 9,
+      "pid": 61999,
+      "particle_ids": [
+        17
+      ],
+      "particle_count": 1,
+      "started_utc": "2026-09-20T15:46:03.922141+00:00",
+      "finished_utc": "2026-09-20T15:47:05.101823+00:00",
+      "started_monotonic_s": 25782.474410759,
+      "finished_monotonic_s": 25843.65405118,
+      "integration_seconds": 61.17964042099993,
+      "cpu_seconds": 26.068204344999998,
+      "snapshot_sha256": "eae45bb3f0c1ff0ee7d27985eaee6fe753dfc1cc2353e1ae75d3a66e09ed4e0d",
+      "threadpools": [
+        {
+          "user_api": "blas",
+          "internal_api": "openblas",
+          "num_threads": 1,
+          "prefix": "libopenblas",
+          "filepath": "/home/juan/Proyectos/GC2D_intranet/.venv/lib/python3.11/site-packages/numpy.libs/libopenblas64_p-r0-0cf96a72.3.23.dev.so",
+          "version": "0.3.23.dev",
+          "threading_layer": "pthreads",
+          "architecture": "Haswell"
+        },
+        {
+          "user_api": "blas",
+          "internal_api": "openblas",
+          "num_threads": 1,
+          "prefix": "libscipy_openblas",
+          "filepath": "/home/juan/Proyectos/GC2D_intranet/.venv/lib/python3.11/site-packages/scipy.libs/libscipy_openblas-6cdc3b4a.so",
+          "version": "0.3.30",
+          "threading_layer": "pthreads",
+          "architecture": "Haswell"
+        }
+      ],
+      "resumed_steps": 10,
+      "new_steps": 70,
+      "checkpoint_chunks": 8,
+      "checkpoint_fingerprint": "7f5783a9ce17718ae0de4d31d1c288db756d7bd2f235b1cf85f2bd8b3fef8f04",
+      "maximum_residual_to_tolerance": 0.001226119438745268
+    },
+    {
+      "worker": 10,
+      "pid": 61994,
+      "particle_ids": [
+        19
+      ],
+      "particle_count": 1,
+      "started_utc": "2026-09-20T15:46:03.946555+00:00",
+      "finished_utc": "2026-09-20T15:47:10.125701+00:00",
+      "started_monotonic_s": 25782.498855219,
+      "finished_monotonic_s": 25848.677934119,
+      "integration_seconds": 66.1790789000006,
+      "cpu_seconds": 28.8186965,
+      "snapshot_sha256": "eae45bb3f0c1ff0ee7d27985eaee6fe753dfc1cc2353e1ae75d3a66e09ed4e0d",
+      "threadpools": [
+        {
+          "user_api": "blas",
+          "internal_api": "openblas",
+          "num_threads": 1,
+          "prefix": "libopenblas",
+          "filepath": "/home/juan/Proyectos/GC2D_intranet/.venv/lib/python3.11/site-packages/numpy.libs/libopenblas64_p-r0-0cf96a72.3.23.dev.so",
+          "version": "0.3.23.dev",
+          "threading_layer": "pthreads",
+          "architecture": "Haswell"
+        },
+        {
+          "user_api": "blas",
+          "internal_api": "openblas",
+          "num_threads": 1,
+          "prefix": "libscipy_openblas",
+          "filepath": "/home/juan/Proyectos/GC2D_intranet/.venv/lib/python3.11/site-packages/scipy.libs/libscipy_openblas-6cdc3b4a.so",
+          "version": "0.3.30",
+          "threading_layer": "pthreads",
+          "architecture": "Haswell"
+        }
+      ],
+      "resumed_steps": 10,
+      "new_steps": 70,
+      "checkpoint_chunks": 8,
+      "checkpoint_fingerprint": "6843eb740ff8feb5aee65efecf02c9eda9cf10258aa535eb8f207e37fe79adce",
+      "maximum_residual_to_tolerance": 0.07424066726977924
+    },
+    {
+      "worker": 11,
+      "pid": 62000,
+      "particle_ids": [
+        21
+      ],
+      "particle_count": 1,
+      "started_utc": "2026-09-20T15:46:03.969839+00:00",
+      "finished_utc": "2026-09-20T15:47:08.085442+00:00",
+      "started_monotonic_s": 25782.522119664,
+      "finished_monotonic_s": 25846.637673453,
+      "integration_seconds": 64.1155537889972,
+      "cpu_seconds": 26.658262397,
+      "snapshot_sha256": "eae45bb3f0c1ff0ee7d27985eaee6fe753dfc1cc2353e1ae75d3a66e09ed4e0d",
+      "threadpools": [
+        {
+          "user_api": "blas",
+          "internal_api": "openblas",
+          "num_threads": 1,
+          "prefix": "libopenblas",
+          "filepath": "/home/juan/Proyectos/GC2D_intranet/.venv/lib/python3.11/site-packages/numpy.libs/libopenblas64_p-r0-0cf96a72.3.23.dev.so",
+          "version": "0.3.23.dev",
+          "threading_layer": "pthreads",
+          "architecture": "Haswell"
+        },
+        {
+          "user_api": "blas",
+          "internal_api": "openblas",
+          "num_threads": 1,
+          "prefix": "libscipy_openblas",
+          "filepath": "/home/juan/Proyectos/GC2D_intranet/.venv/lib/python3.11/site-packages/scipy.libs/libscipy_openblas-6cdc3b4a.so",
+          "version": "0.3.30",
+          "threading_layer": "pthreads",
+          "architecture": "Haswell"
+        }
+      ],
+      "resumed_steps": 10,
+      "new_steps": 70,
+      "checkpoint_chunks": 8,
+      "checkpoint_fingerprint": "6b65bca4f4805c850493f835570befe1020498f953f6405b889a943464318542",
+      "maximum_residual_to_tolerance": 0.08884452551295009
+    },
+    {
+      "worker": 12,
+      "pid": 61997,
+      "particle_ids": [
+        23
+      ],
+      "particle_count": 1,
+      "started_utc": "2026-09-20T15:46:03.951843+00:00",
+      "finished_utc": "2026-09-20T15:46:49.567638+00:00",
+      "started_monotonic_s": 25782.504108306,
+      "finished_monotonic_s": 25828.119865878,
+      "integration_seconds": 45.61575757200262,
+      "cpu_seconds": 21.457028331,
+      "snapshot_sha256": "eae45bb3f0c1ff0ee7d27985eaee6fe753dfc1cc2353e1ae75d3a66e09ed4e0d",
+      "threadpools": [
+        {
+          "user_api": "blas",
+          "internal_api": "openblas",
+          "num_threads": 1,
+          "prefix": "libopenblas",
+          "filepath": "/home/juan/Proyectos/GC2D_intranet/.venv/lib/python3.11/site-packages/numpy.libs/libopenblas64_p-r0-0cf96a72.3.23.dev.so",
+          "version": "0.3.23.dev",
+          "threading_layer": "pthreads",
+          "architecture": "Haswell"
+        },
+        {
+          "user_api": "blas",
+          "internal_api": "openblas",
+          "num_threads": 1,
+          "prefix": "libscipy_openblas",
+          "filepath": "/home/juan/Proyectos/GC2D_intranet/.venv/lib/python3.11/site-packages/scipy.libs/libscipy_openblas-6cdc3b4a.so",
+          "version": "0.3.30",
+          "threading_layer": "pthreads",
+          "architecture": "Haswell"
+        }
+      ],
+      "resumed_steps": 10,
+      "new_steps": 70,
+      "checkpoint_chunks": 8,
+      "checkpoint_fingerprint": "6bb495cc07b92a87382e305e587a79b9c8684be79cfacfbf651de46a47441d30",
+      "maximum_residual_to_tolerance": 0.6172755233056387
+    },
+    {
+      "worker": 13,
+      "pid": 61998,
+      "particle_ids": [
+        25
+      ],
+      "particle_count": 1,
+      "started_utc": "2026-09-20T15:46:03.925475+00:00",
+      "finished_utc": "2026-09-20T15:46:53.037629+00:00",
+      "started_monotonic_s": 25782.477757291,
+      "finished_monotonic_s": 25831.589858488,
+      "integration_seconds": 49.11210119700263,
+      "cpu_seconds": 21.534771822,
+      "snapshot_sha256": "eae45bb3f0c1ff0ee7d27985eaee6fe753dfc1cc2353e1ae75d3a66e09ed4e0d",
+      "threadpools": [
+        {
+          "user_api": "blas",
+          "internal_api": "openblas",
+          "num_threads": 1,
+          "prefix": "libopenblas",
+          "filepath": "/home/juan/Proyectos/GC2D_intranet/.venv/lib/python3.11/site-packages/numpy.libs/libopenblas64_p-r0-0cf96a72.3.23.dev.so",
+          "version": "0.3.23.dev",
+          "threading_layer": "pthreads",
+          "architecture": "Haswell"
+        },
+        {
+          "user_api": "blas",
+          "internal_api": "openblas",
+          "num_threads": 1,
+          "prefix": "libscipy_openblas",
+          "filepath": "/home/juan/Proyectos/GC2D_intranet/.venv/lib/python3.11/site-packages/scipy.libs/libscipy_openblas-6cdc3b4a.so",
+          "version": "0.3.30",
+          "threading_layer": "pthreads",
+          "architecture": "Haswell"
+        }
+      ],
+      "resumed_steps": 10,
+      "new_steps": 70,
+      "checkpoint_chunks": 8,
+      "checkpoint_fingerprint": "6767ceea194996a0f65723c0fc6a7ee780eb97a0c71ba1162da4ad9c29d83bf1",
+      "maximum_residual_to_tolerance": 0.8282561471221297
+    },
+    {
+      "worker": 14,
+      "pid": 61990,
+      "particle_ids": [
+        27
+      ],
+      "particle_count": 1,
+      "started_utc": "2026-09-20T15:46:03.946644+00:00",
+      "finished_utc": "2026-09-20T15:47:00.904624+00:00",
+      "started_monotonic_s": 25782.498936427,
+      "finished_monotonic_s": 25839.456852261,
+      "integration_seconds": 56.95791583399841,
+      "cpu_seconds": 24.252323332,
+      "snapshot_sha256": "eae45bb3f0c1ff0ee7d27985eaee6fe753dfc1cc2353e1ae75d3a66e09ed4e0d",
+      "threadpools": [
+        {
+          "user_api": "blas",
+          "internal_api": "openblas",
+          "num_threads": 1,
+          "prefix": "libopenblas",
+          "filepath": "/home/juan/Proyectos/GC2D_intranet/.venv/lib/python3.11/site-packages/numpy.libs/libopenblas64_p-r0-0cf96a72.3.23.dev.so",
+          "version": "0.3.23.dev",
+          "threading_layer": "pthreads",
+          "architecture": "Haswell"
+        },
+        {
+          "user_api": "blas",
+          "internal_api": "openblas",
+          "num_threads": 1,
+          "prefix": "libscipy_openblas",
+          "filepath": "/home/juan/Proyectos/GC2D_intranet/.venv/lib/python3.11/site-packages/scipy.libs/libscipy_openblas-6cdc3b4a.so",
+          "version": "0.3.30",
+          "threading_layer": "pthreads",
+          "architecture": "Haswell"
+        }
+      ],
+      "resumed_steps": 10,
+      "new_steps": 70,
+      "checkpoint_chunks": 8,
+      "checkpoint_fingerprint": "d9ebc65a7dda94b9e282b323a8bf4fd9ee51097e5cf710959f52a603a0983ae6",
+      "maximum_residual_to_tolerance": 0.6284098860870505
+    },
+    {
+      "worker": 15,
+      "pid": 62004,
+      "particle_ids": [
+        29
+      ],
+      "particle_count": 1,
+      "started_utc": "2026-09-20T15:46:03.955059+00:00",
+      "finished_utc": "2026-09-20T15:46:59.110208+00:00",
+      "started_monotonic_s": 25782.507344285,
+      "finished_monotonic_s": 25837.662438678,
+      "integration_seconds": 55.15509439299785,
+      "cpu_seconds": 24.742394293,
+      "snapshot_sha256": "eae45bb3f0c1ff0ee7d27985eaee6fe753dfc1cc2353e1ae75d3a66e09ed4e0d",
+      "threadpools": [
+        {
+          "user_api": "blas",
+          "internal_api": "openblas",
+          "num_threads": 1,
+          "prefix": "libopenblas",
+          "filepath": "/home/juan/Proyectos/GC2D_intranet/.venv/lib/python3.11/site-packages/numpy.libs/libopenblas64_p-r0-0cf96a72.3.23.dev.so",
+          "version": "0.3.23.dev",
+          "threading_layer": "pthreads",
+          "architecture": "Haswell"
+        },
+        {
+          "user_api": "blas",
+          "internal_api": "openblas",
+          "num_threads": 1,
+          "prefix": "libscipy_openblas",
+          "filepath": "/home/juan/Proyectos/GC2D_intranet/.venv/lib/python3.11/site-packages/scipy.libs/libscipy_openblas-6cdc3b4a.so",
+          "version": "0.3.30",
+          "threading_layer": "pthreads",
+          "architecture": "Haswell"
+        }
+      ],
+      "resumed_steps": 10,
+      "new_steps": 70,
+      "checkpoint_chunks": 8,
+      "checkpoint_fingerprint": "744c49f806b420df38a10f1b3c515b654e370c0ba9ee2703786cfaf5394efa77",
+      "maximum_residual_to_tolerance": 0.7351352788075227
+    },
+    {
+      "worker": 16,
+      "pid": 62007,
+      "particle_ids": [
+        31
+      ],
+      "particle_count": 1,
+      "started_utc": "2026-09-20T15:46:03.921097+00:00",
+      "finished_utc": "2026-09-20T15:47:08.378887+00:00",
+      "started_monotonic_s": 25782.47336897,
+      "finished_monotonic_s": 25846.931119068,
+      "integration_seconds": 64.45775009799763,
+      "cpu_seconds": 27.750856427,
+      "snapshot_sha256": "eae45bb3f0c1ff0ee7d27985eaee6fe753dfc1cc2353e1ae75d3a66e09ed4e0d",
+      "threadpools": [
+        {
+          "user_api": "blas",
+          "internal_api": "openblas",
+          "num_threads": 1,
+          "prefix": "libopenblas",
+          "filepath": "/home/juan/Proyectos/GC2D_intranet/.venv/lib/python3.11/site-packages/numpy.libs/libopenblas64_p-r0-0cf96a72.3.23.dev.so",
+          "version": "0.3.23.dev",
+          "threading_layer": "pthreads",
+          "architecture": "Haswell"
+        },
+        {
+          "user_api": "blas",
+          "internal_api": "openblas",
+          "num_threads": 1,
+          "prefix": "libscipy_openblas",
+          "filepath": "/home/juan/Proyectos/GC2D_intranet/.venv/lib/python3.11/site-packages/scipy.libs/libscipy_openblas-6cdc3b4a.so",
+          "version": "0.3.30",
+          "threading_layer": "pthreads",
+          "architecture": "Haswell"
+        }
+      ],
+      "resumed_steps": 10,
+      "new_steps": 70,
+      "checkpoint_chunks": 8,
+      "checkpoint_fingerprint": "e8360164f40bafae50502aae161216ffe02804f3c5cfbccaf9e062907b834781",
+      "maximum_residual_to_tolerance": 0.8576341750856027
+    }
+  ],
+  "simultaneous_integration_seconds": 45.597746213999926,
+  "partition": "round-robin over selected particle IDs; independent Newton stopping per group",
+  "original_ids_and_colors_preserved": true,
+  "initial_grid_is_new": false,
+  "newton_history_recorded": true,
+  "blas_threads_per_process": 1,
+  "checkpoint_driver_sha256": "7d0fcf35a42b613cfef52b6e6bd16df86f60e341c979c9840bd0c001c32d15af",
+  "diagnostic_instrumentation_sha256": "47788979b8d2e1e39e628ceb24466a9dbdc615e4b8cd787a81cb9733e74ca9b9",
+  "nonlinear_solver": "newton",
+  "newton_jacobian": "analytic",
+  "mu_norm_definition": "Infinity norm of the reduced implicit multiplier per particle group",
+  "projection": "one reduced Hairer projection per complete BM4 step",
+  "maximum_residual_to_tolerance": 0.8935759634407898
+}

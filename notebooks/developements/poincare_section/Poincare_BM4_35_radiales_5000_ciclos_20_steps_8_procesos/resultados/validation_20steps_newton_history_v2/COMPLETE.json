@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "completed_utc": "2026-09-20T09:07:18.203676+00:00",
+  "run_id": "validation_20steps_newton_history_v2",
+  "sha256": {
+    "bm4_trajectory.npz": "9e914a1c65b0ebfa09afcad780c2fa6d9a1ae34ebc322d20976cbc96e8954a72",
+    "metadata.json": "e264ce72cf40811f2b5014614b267c661d886e884efacffdae10a191eae13aca",
+    "positions_after_each_cycle.csv": "0d7e704588087b0060d0aef20976e22c417376659def451d50c621c2557b39bd",
+    "initial_positions.csv": "84b6c39a54080c4bc05df9d4d524b59bce27e03dc53f986150ca8ac13277351b",
+    "run_parameters.json": "a00f8d6b6c8ae8b96fed38b8e3916bda77fa5239b0b320ab0e43f0cd3c94fb52",
+    "newton_steps.csv.gz": "1518a2525670b782b01067890869130af1edd0881903d07fc51f557c16c6052f",
+    "newton_iterations.csv.gz": "3181825eb3d22065b3aa01ea275d7959aa1ad81c2de9b971341b63c049e8ab77"
+  }
+}

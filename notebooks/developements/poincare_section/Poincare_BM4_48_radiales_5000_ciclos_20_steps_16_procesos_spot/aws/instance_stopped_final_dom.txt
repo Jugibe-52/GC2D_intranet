@@ -1,0 +1,395 @@
+- navigation:
+  - 'img "Account color: Unset"'
+  - navigation "Global":
+    - link "AWS Console Home":
+      - /url: https://eu-central-1.console.aws.amazon.com/console/home?region=eu-central-1
+    - link "Skip to Main Content":
+      - /url: "#c"
+    - button "Amazon Q":
+    - button "Services":
+    - img "Search":
+    - searchbox
+    - combobox "Search"
+    - button "Ask Amazon Q":
+    - generic: "[Alt+S]"
+    - status
+    - link "CloudShell":
+      - /url: https://eu-central-1.console.aws.amazon.com/cloudshell/home?region=eu-central-1
+    - button "Notifications (none available)":
+      - img "Notifications":
+    - img "Notifications":
+    - list:
+      - button "Help & support":
+        - img "Support":
+      - button "Settings":
+      - combobox "Regions (Europe (Frankfurt))":
+        - generic: Europe (Frankfurt)
+      - button "moogui":
+        - 'generic "Account color: Unset"':
+          - generic: moogui (950327739573)
+        - generic: moogui
+    - list:
+      - button "EC2 EC2":
+        - img "EC2"
+        - generic: EC2
+      - button "VPC VPC":
+        - img "VPC"
+        - generic: VPC
+  - list
+- button "Open navigation drawer" [expanded]:
+- navigation "Breadcrumbs":
+  - list:
+    - link "EC2":
+      - /url: "#Home"
+      - generic: EC2
+    - link "Instances":
+      - /url: "#Instances:"
+      - generic: Instances
+    - link "i-0180fedd146c314c1" [disabled]:
+      - generic: i-0180fedd146c314c1
+  - list:
+    - link:
+      - /url: "#Home"
+      - generic: EC2
+    - link:
+      - /url: "#Instances:"
+      - generic: Instances
+    - generic: i-0180fedd146c314c1
+- region "Drawers":
+  - toolbar "Drawers":
+    - button "Console-to-Code":
+- navigation "Side navigation":
+  - button "Close side navigation":
+  - heading "EC2" [level=2]:
+    - link "EC2":
+      - /url: "#Overview:"
+      - generic: EC2
+  - list:
+    - link "Dashboard":
+      - /url: "#Home:"
+      - generic: Dashboard
+    - link "AWS Global ViewOpens in a new tab":
+      - /url: /ec2globalview/home
+      - text: AWS Global View
+      - img "Opens in a new tab":
+    - link "Events":
+      - /url: "#Events:"
+      - generic: Events
+    - button "Instances" [expanded]:
+      - generic: Instances
+    - group "Instances":
+      - list:
+        - link "Instances":
+          - /url: "#Instances:"
+          - generic: Instances
+        - link "Instance Types":
+          - /url: "#InstanceTypes:"
+          - generic: Instance Types
+        - link "Launch Templates":
+          - /url: "#LaunchTemplates:"
+          - generic: Launch Templates
+        - link "Spot Requests":
+          - /url: "#SpotInstances:"
+          - generic: Spot Requests
+        - link "Savings Plans":
+          - /url: "#SavingsPlans:"
+          - generic: Savings Plans
+        - link "Reserved Instances":
+          - /url: "#ReservedInstances:"
+          - generic: Reserved Instances
+        - link "Dedicated Hosts":
+          - /url: "#Hosts:"
+          - generic: Dedicated Hosts
+        - link "Capacity Reservations":
+          - /url: "#CapacityReservations:"
+          - generic: Capacity Reservations
+        - link "Capacity Manager":
+          - /url: "#CapacityManagerHome:"
+          - generic: Capacity Manager
+        - button "New":
+          - generic: New
+    - button "Images" [expanded]:
+      - generic: Images
+    - group "Images":
+      - list:
+        - link "AMIs":
+          - /url: "#Images:"
+          - generic: AMIs
+        - link "AMI Catalog":
+          - /url: "#AMICatalog:"
+          - generic: AMI Catalog
+    - button "Elastic Block Store" [expanded]:
+      - generic: Elastic Block Store
+    - group "Elastic Block Store":
+      - list:
+        - link "Volumes":
+          - /url: "#Volumes:"
+          - generic: Volumes
+        - link "Snapshots":
+          - /url: "#Snapshots:"
+          - generic: Snapshots
+        - link "Lifecycle Manager":
+          - /url: "#Lifecycle:"
+          - generic: Lifecycle Manager
+    - button "Network & Security" [expanded]:
+      - generic: Network & Security
+    - group "Network & Security":
+      - list:
+        - link "Security Groups":
+          - /url: "#SecurityGroups:"
+          - generic: Security Groups
+        - link "Elastic IPs":
+          - /url: "#Addresses:"
+          - generic: Elastic IPs
+        - link "Placement Groups":
+          - /url: "#PlacementGroups:"
+          - generic: Placement Groups
+        - link "Key Pairs":
+          - /url: "#KeyPairs:"
+          - generic: Key Pairs
+        - link "Network Interfaces":
+          - /url: "#NIC:"
+          - generic: Network Interfaces
+    - button "Load Balancing" [expanded]:
+      - generic: Load Balancing
+    - group "Load Balancing":
+      - list:
+        - link "Load Balancers":
+          - /url: "#LoadBalancers:"
+          - generic: Load Balancers
+        - link "Target Groups":
+          - /url: "#TargetGroups:"
+          - generic: Target Groups
+        - link "Trust Stores":
+          - /url: "#TrustStores:"
+          - generic: Trust Stores
+    - button "Auto Scaling" [expanded]:
+      - generic: Auto Scaling
+    - group "Auto Scaling":
+      - list:
+        - link "Auto Scaling Groups":
+          - /url: "#AutoScalingGroups:"
+          - generic: Auto Scaling Groups
+  - separator
+  - list:
+    - link "Settings":
+      - /url: "#Settings:"
+      - generic: Settings
+- main:
+  - iframe [active] [id="compute-react-frame"]:
+    - main:
+      - region "Notifications":
+        - list "Notifications"
+      - heading "Instance summary for i-0180fedd146c314c1 (poincare-bm4-48p-5000cycles-spot)" [level=2]
+      - button "Show help for instance overview": Info
+      - button "Refresh instances":
+      - button "Connect opens in a new tab" [disabled]:
+        - text: Connect
+      - button "Instance state":
+        - text: Instance state
+      - button "Actions":
+        - text: Actions
+      - paragraph: Updated less than a minute ago
+      - generic: Instance ID
+      - button "Copy Instance ID to clipboard":
+      - text: i-0180fedd146c314c1
+      - generic: Public IPv4 address
+      - generic: –
+      - generic: Private IPv4 addresses
+      - button "Copy private IPv4 address to clipboard":
+      - text: 172.31.30.110
+      - generic: IPv6 address
+      - generic: –
+      - generic: Instance state
+      - text: Stopped
+      - generic: Public DNS
+      - generic: –
+      - generic: Hostname type
+      - generic: "IP name: ip-172-31-30-110.eu-central-1.compute.internal"
+      - generic: Private IP DNS name (IPv4 only)
+      - button "Copy Private IP DNS name (IPv4 only) to clipboard":
+      - text: ip-172-31-30-110.eu-central-1.compute.internal
+      - generic: Answer private resource DNS name
+      - generic: IPv4 (A)
+      - generic: Instance type
+      - link "c8a.4xlarge":
+        - /url: "#InstanceTypes:instanceType=c8a.4xlarge"
+      - generic: Elastic IP addresses
+      - generic: –
+      - generic: Auto-assigned IP address
+      - generic: –
+      - generic: VPC ID
+      - button "Copy VPC ID to clipboard":
+      - link "vpc-0d80bb9c1385c3649 vpc-0d80bb9c1385c3649, opens in a new tab":
+        - /url: /vpc/home?region=eu-central-1#vpcs:vpcId=vpc-0d80bb9c1385c3649
+        - text: vpc-0d80bb9c1385c3649
+        - img "vpc-0d80bb9c1385c3649, opens in a new tab":
+      - generic: AWS Compute Optimizer finding
+      - text: Opt-in to AWS Compute Optimizer for recommendations.
+      - generic: "|"
+      - link "Learn more about Compute Optimizer":
+        - /url: /compute-optimizer/home?#/resource-details/ec2/arn:aws:ec2:eu-central-1:950327739573:instance/i-0180fedd146c314c1
+        - text: Learn more
+        - 'img "Opens in a new tab: /compute-optimizer/home?#/resource-details/ec2/arn:aws:ec2:eu-central-1:950327739573:instance/i-0180fedd146c314c1"':
+      - generic: IAM role
+      - button "Copy IAM Role to clipboard":
+      - link "GC2DWorkerRole GC2DWorkerRole, opens in a new tab":
+        - /url: /iam/home?region=eu-central-1#roles/GC2DWorkerRole
+        - text: GC2DWorkerRole
+        - img "GC2DWorkerRole, opens in a new tab":
+      - generic: Subnet ID
+      - button "Copy Subnet ID to clipboard":
+      - link "subnet-097898b8a21581c16 subnet-097898b8a21581c16, opens in a new tab":
+        - /url: /vpc/home?region=eu-central-1#subnets:subnetId=subnet-097898b8a21581c16
+        - text: subnet-097898b8a21581c16
+        - img "subnet-097898b8a21581c16, opens in a new tab":
+      - generic: Auto Scaling Group name
+      - generic: –
+      - generic: IMDSv2
+      - generic: Required
+      - generic: Instance ARN
+      - button "Copy Instance ARN to clipboard":
+      - text: arn:aws:ec2:eu-central-1:950327739573:instance/i-0180fedd146c314c1
+      - generic: Managed
+      - generic: "false"
+      - generic: Operator
+      - generic: –
+      - tablist "Instance details tabs":
+        - tab "Details" [selected]:
+          - generic: Details
+        - tab "Status and alarms":
+          - generic: Status and alarms
+        - tab "Monitoring":
+          - generic: Monitoring
+        - tab "Security":
+          - generic: Security
+        - tab "Networking":
+          - generic: Networking
+        - tab "Storage":
+          - generic: Storage
+        - tab "Tags":
+          - generic: Tags
+      - tabpanel "Details":
+        - button "Instance details Show help for instance details" [expanded]:
+          - heading "Instance details" [level=4]
+          - button "Show help for instance details": Info
+        - group "Instance details Show help for instance details":
+          - generic: AMI ID
+          - button "Copy AMI ID to clipboard":
+          - link "ami-042dc8681de073ac4":
+            - /url: "#Images:visibility=public-images;imageId=ami-042dc8681de073ac4"
+          - generic: Monitoring
+          - generic: disabled
+          - generic: Platform details
+          - button "Copy Platform details to clipboard":
+          - text: Linux/UNIX
+          - generic: AMI name
+          - button "Copy AMI name to clipboard":
+          - text: ubuntu/images/hvm-ssd-gp3/ubuntu-noble-24.04-amd64-server-20260610
+          - generic: Allowed image
+          - generic: "-"
+          - generic: Termination protection
+          - generic: Disabled
+          - generic: Stop protection
+          - generic: Disabled
+          - generic: Launch time
+          - button "Copy Launch time to clipboard":
+          - text: Sun Sep 20 2026 15:06:23 GMT+0200 (hora de verano de Europa central) (about 1 hour)
+          - generic: AMI location
+          - button "Copy AMI location to clipboard":
+          - text: amazon/ubuntu/images/hvm-ssd-gp3/ubuntu-noble-24.04-amd64-server-20260610
+          - generic: Instance reboot migration
+          - generic: Default (On)
+          - generic: Instance auto-recovery
+          - generic: Default
+          - generic: Lifecycle
+          - generic: spot
+          - generic: Stop-hibernate behavior
+          - generic: Disabled
+          - generic: AMI Launch index
+          - generic: "0"
+          - generic: Key pair assigned at launch
+          - generic: –
+          - generic: State transition reason
+          - generic: User initiated
+          - generic: Credit specification
+          - generic: Not supported by instance type
+          - generic: Kernel ID
+          - generic: –
+          - generic: State transition message
+          - button "Copy State transition message to clipboard":
+          - text: "Client.InstanceInitiatedShutdown: Instance initiated shutdown"
+          - generic: Usage operation
+          - button "Copy Usage operation to clipboard":
+          - text: RunInstances
+          - generic: RAM disk ID
+          - generic: –
+          - generic: Owner
+          - button "Copy Owner to clipboard":
+          - text: "950327739573"
+          - generic: Enclaves Support
+          - generic: Disabled
+          - generic: Boot mode
+          - button "Copy Boot mode to clipboard":
+          - text: uefi-preferred
+          - generic: Current instance boot mode
+          - button "Copy Current instance boot mode to clipboard":
+          - text: uefi
+          - generic: Allow tags in instance metadata
+          - generic: Disabled
+          - generic: Use RBN as guest OS hostname
+          - button "Copy Use RBN as guest OS hostname to clipboard":
+          - text: Disabled
+          - generic: Answer RBN DNS hostname IPv4
+          - button "Copy Answer RBN DNS hostname IPv4 to clipboard":
+          - text: Enabled
+        - button "Host and placement group Show help for host and placement group" [expanded]:
+          - heading "Host and placement group" [level=4]
+          - button "Show help for host and placement group": Info
+        - group "Host and placement group Show help for host and placement group":
+          - generic: Host ID
+          - generic: –
+          - generic: Affinity
+          - generic: –
+          - generic: Placement group
+          - generic: –
+          - generic: Host resource group name
+          - generic: –
+          - generic: Tenancy
+          - button "Copy Tenancy to clipboard":
+          - text: default
+          - generic: Placement group ID
+          - generic: –
+          - generic: Virtualization type
+          - button "Copy Virtualization type to clipboard":
+          - text: hvm
+          - generic: Reservation
+          - button "Copy Reservation to clipboard":
+          - text: r-0875826f867aa4e2c
+          - generic: Partition number
+          - generic: –
+          - generic: Number of vCPUs
+          - generic: "16"
+        - button "Capacity reservation Show help for capacity reservation" [expanded]:
+          - heading "Capacity reservation" [level=4]
+          - button "Show help for capacity reservation": Info
+        - group "Capacity reservation Show help for capacity reservation":
+          - generic: Capacity Reservation ID
+          - generic: –
+          - generic: Capacity Reservation setting
+          - generic: open
+- contentinfo:
+  - button "CloudShell":
+    - generic: CloudShell
+  - button "Agent Toolkit for AWS":
+    - text: Agent Toolkit for AWS
+  - button "Feedback"
+  - button "Console Mobile App":
+    - generic: Console Mobile App
+  - generic: © 2026, Amazon Web Services, Inc. or its affiliates.
+  - list:
+    - link "Privacy":
+      - /url: https://aws.amazon.com/privacy/
+    - link "Terms":
+      - /url: https://aws.amazon.com/terms/
+    - button "Cookie preferences"

@@ -1,0 +1,23 @@
+{
+  "fingerprint": "f0641c639003c7197857c855f006497e63dbb279e6fcca7110f9f1e4c00377e0",
+  "file": "chunk_00008000.npz",
+  "sha256": "d1abdc14bbdf695d1f9f29f7e405c731adcd0ff94d01671253f10ff6494ccd29",
+  "start_step": 7500,
+  "end_step": 8000,
+  "committed_utc": "2026-09-20T17:07:18.472536+00:00",
+  "particle_ids": [
+    4,
+    8,
+    12,
+    16,
+    20,
+    24,
+    28,
+    32,
+    36,
+    40,
+    44,
+    48
+  ],
+  "pid": 76092
+}

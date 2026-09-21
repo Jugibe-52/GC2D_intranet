@@ -1,0 +1,20 @@
+# Completed and downloaded
+
+The full midpoint study has been downloaded, SHA256 and numerical contents verified, and installed locally. The instance was confirmed stopped and sir-mc77mdek was cancelled. See validation_download_final.json. Do not redownload or restart this study. Keep the paired monitor active for the implicit study only. S3 results and checkpoints are retained.
+
+# Continue this authorized cloud study
+
+Local study: `/home/juan/Proyectos/GC2D_intranet/notebooks/developements/poincare_section/Poincare_BM4Midpoint_48_radiales_5000_ciclos_20_steps_spot`.
+Run: `aws_bm4midpoint_48p_5000c_20s_20260920`; instance `i-00fde6a54030c4bd2`; persistent Spot request `sir-mc77mdek`; region eu-central-1, c8a.4xlarge. Launched at 2026-09-20T15:51:35+00:00. The instance has 16 processes, 32 GiB memory and 32 GiB encrypted gp3 storage. Maximum Spot rate $0.50/hour. The global 3-hour deadline includes interruptions. Do not extend it or launch replacements without a new user instruction.
+
+Use the user's signed-in Chrome AWS session. CloudShell provides normal authenticated AWS CLI and boto3 without extracting credentials. Read S3 objects in `s3://gc2d-frankfurt-20260904-j7m3q9/runs/aws_bm4midpoint_48p_5000c_20s_20260920/`: `cloud_status.json`, `cloud_progress.json`, `calculation.log`, checkpoints. In CloudShell the launch record is in `~/bm4_pair_20260920/Poincare_BM4Midpoint_48_radiales_5000_ciclos_20_steps_spot/launch_record.json`. The system service is `poincare-midpoint.service`. It starts the hash-pinned notebook package and resumes verified checkpoints on reboot. Ignore the completed older 48-particle run and its terminated instance.
+
+Stay quiet on ordinary unchanged progress. If Spot interrupts, preserve checkpoints and wait for AWS to resume capacity within the configured deadline. Report failure, exhaustion of the deadline, required user action or completion with downloaded products. Do not confuse a Spot interruption with a scientific failure.
+
+When cloud status is success, use the private S3 console download for the named result archive and SHA256 sidecar. Downloading through Chrome writes to `/home/juan/Descargas`. Avoid repeating a large download if it is still present as `.crdownload`. Verify the archive SHA256 against cloud status and the sidecar; safely extract into a staging folder under this study, then verify every numeric file from COMPLETE.json before installing the results and figures in this study. Archive members must be normal files/directories with no absolute paths, parent traversal or symlinks. They are relative to this study root. Preserve local smoke validation outputs.
+
+Verify method BM4Midpoint, particle IDs [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48], 5,000 cycles, 20 steps per cycle, 16 workers and 240000 return-position CSV rows. Initial IDs, positions and colors must exactly match `assets/original_particles.json`. Implicit results must contain full per-step Newton diagnostics, iteration history and multiplier infinity norms; midpoint results contain copy separation infinity norms and no fictitious Newton/multiplier data. Preserve executed calculation and visualization notebooks, static figures and the interactive particle selector. Checkpoints remain in private S3; the final archive deliberately excludes those duplicate intermediate states.
+
+Confirm the instance is stopped before cancelling only `sir-mc77mdek`. Download and verify results before cancelling, because AWS can terminate the stopped instance after cancellation even if termination is unchecked. Keep S3 results. Never modify other instances or requests. Save a local validation and final cloud status, notify completion, and pause the paired monitor only when both studies are finished and safely downloaded or need intervention.
+
+After extraction, run `python aws/validate_download.py --staging` for a full internal-product validation (omit --staging after installation). Archive SHA256 must additionally match S3. The validator does not integrate trajectories.

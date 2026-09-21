@@ -1,0 +1,30 @@
+{
+  "created_utc": "2026-09-20T09:54:14.944387+00:00",
+  "run_id": "aws_48p_5000c_20s_16proc_spot_20260920",
+  "archive": "Poincare_BM4_48_radiales_5000_ciclos_20_steps_16_procesos_spot_aws.tar.gz",
+  "sha256": "316fce464861285f32f11283c0208959acd55bf30214f521069d5de2729a74eb",
+  "bytes": 1657181,
+  "bucket": "gc2d-frankfurt-20260904-j7m3q9",
+  "key": "inputs/Poincare_BM4_48_radiales_5000_ciclos_20_steps_16_procesos_spot_aws.tar.gz",
+  "instance_type": "c8a.4xlarge",
+  "market": "spot",
+  "region": "eu-central-1",
+  "processes": 16,
+  "source_sha256": {
+    "calculo.ipynb": "bc387ee4c72e986e7d6bf15d6af7212f4f59f2833a0241688c6286ab35c2bb21",
+    "visualizacion.ipynb": "90144026a0506c55163c9f5a2ca8ba892a087c45536178b2594da04a3165c27b",
+    "run.py": "91452b02acd9bd1c9a88aa26dfcbece2f223e153917ae7f228296eadfd93989e",
+    "study_io.py": "5e8edcd91c3d3ac95081a6a6c7ec4e0f65ef311169124323dd976f1dbc5a0b47",
+    "parallel_calculation.py": "df057f14d21998f7a09ec95e1221bcabb5f40d99b7ee2efb82756e1f857f6ece",
+    "checkpoint_calculation.py": "c2e228eedcf35e9c483c28ef4624cfbd81f98aec1aab5bb1925697ecfe2836dc",
+    "newton_diagnostics.py": "47788979b8d2e1e39e628ceb24466a9dbdc615e4b8cd787a81cb9733e74ca9b9",
+    "diagnostic_plots.py": "f02aaf5756a41a5965ff41ad102d99d1f84a48d9e3651a4af563239cfa5f75db",
+    "requirements.txt": "4064cd3a28fcba69362af545c7c04b0f33dd24b316bce07f5713b1066c9f3dd6",
+    "README.md": "b337d50268e0f2f7b70fe5f802578144c6da53818328dfd351a8b228bc2ed644",
+    "validate_restart.py": "d9ffd0a13d167838f873d7f547e301d40b4d90cc1e8eb9b42a9c4583ab86130a",
+    "aws/cloud_job.py": "f70cf5dbd0ee26cbb323e9341ab04225365a5feaa237d8c86087a201d577b7bf",
+    "aws/validate_checkpoint_store.py": "ec10dd88c1d6fffd8d18c3eff153398c0a416496d7066a64eb55e38ddc76a973",
+    "aws/validation_restart.json": "9f2e338b2a3147c0d3c5458e44169ccee3390429de0684819c602aa74c46dbae",
+    "aws/validation_cloud_store.json": "f111adb78fe7b4b5aaa0eb83ccd893f9d563f0678e4a4ca7ac1ca1fba557f2ba"
+  }
+}

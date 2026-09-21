@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "completed_utc": "2026-09-20T09:47:53.450530+00:00",
+  "run_id": "checkpoint_resume_test",
+  "sha256": {
+    "bm4_trajectory.npz": "eaedbbe8cab1c35e6d4d0d36747acfda579afb86b0d8c167b57c5a5c65ad7b90",
+    "metadata.json": "9d6c5f352882b19088e5568d4e02ef0f044d67415243a9a7a8efaddd5f65cef6",
+    "positions_after_each_cycle.csv": "3c2948464dda0fa40c36001d100f26f003789ca2a8c839a9b70cb5080c2fbba3",
+    "initial_positions.csv": "e07c7f4ea534ee046ddb4abda2534a0e1833a934c78e6395cfd765f479fa4f02",
+    "run_parameters.json": "ccb0dc415cc822bf00b590b43c370b9552e29f1717e8fe6747e8874dc30382cf",
+    "newton_steps.csv.gz": "1ba9f170b81a73dbb8b3c61a7b2918f67c438cf909bde37cfe371c47045bb77a",
+    "newton_iterations.csv.gz": "11b9750da0aef854e2d6ef6131f2f7f667fb857a18f4397cf2de94725c392da6"
+  }
+}

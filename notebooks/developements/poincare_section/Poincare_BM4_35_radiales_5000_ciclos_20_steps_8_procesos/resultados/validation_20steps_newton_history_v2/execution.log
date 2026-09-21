@@ -1,0 +1,53 @@
+
+[2026-09-20T09:06:45.150902+00:00] Cell 1: dependencies
+Runtime versions: {'python': '3.11.10', 'numpy': '1.26.4', 'scipy': '1.17.1', 'h5py': '3.16.0', 'matplotlib': '3.10.9', 'pandas': '3.0.5', 'threadpoolctl': '3.6.0'}
+
+[2026-09-20T09:06:45.600617+00:00] Cell 3: field
+Verified snapshot: eae45bb3f0c1ff0ee7d27985eaee6fe753dfc1cc2353e1ae75d3a66e09ed4e0d
+Field shape: (256, 256) | frequencies: [1.]
+
+[2026-09-20T09:06:46.205219+00:00] Cell 5: parameters
+
+[2026-09-20T09:06:46.213653+00:00] Cell 6: validation-overrides
+
+[2026-09-20T09:06:46.218415+00:00] Cell 7: setup
+35 particles | 2 cycles | 20 steps/cycle
+h = 0.05; 40 steps; 41 stored states per particle
+Cycle duration = 0.00261352184253 s; horizon = 0.00522704368507 s
+Float64 epsilon: 2.220446049250313e-16
+Run ID: validation_20steps_newton_history_v2
+Numerical output directory: /home/juan/ANADEL/TFM/DOCUMENTOS_GPT/Poincare_BM4_35_radiales_5000_ciclos_20_steps_8_procesos/resultados/validation_20steps_newton_history_v2
+
+[2026-09-20T09:06:46.303066+00:00] Cell 10: integration
+PID 13917: 40/40 steps, t=2, Newton corrections=2, residual/tolerance=4.01e-05
+Worker 8/8: PID 13917, 4 particles, 18.31 s
+PID 13919: 40/40 steps, t=2, Newton corrections=2, residual/tolerance=5.99e-05
+Worker 6/8: PID 13919, 4 particles, 22.47 s
+PID 13915: 40/40 steps, t=2, Newton corrections=2, residual/tolerance=8.33e-05
+Worker 2/8: PID 13915, 5 particles, 24.18 s
+PID 13914: 40/40 steps, t=2, Newton corrections=2, residual/tolerance=9.78e-05
+Worker 3/8: PID 13914, 5 particles, 24.78 s
+PID 13913: 40/40 steps, t=2, Newton corrections=2, residual/tolerance=3.34e-05
+Worker 7/8: PID 13913, 4 particles, 25.70 s
+PID 13916: 40/40 steps, t=2, Newton corrections=2, residual/tolerance=6.08e-05
+Worker 1/8: PID 13916, 5 particles, 25.80 s
+PID 13910: 40/40 steps, t=2, Newton corrections=2, residual/tolerance=5.59e-05
+Worker 4/8: PID 13910, 4 particles, 28.80 s
+PID 13918: 40/40 steps, t=2, Newton corrections=2, residual/tolerance=0.000111
+Worker 5/8: PID 13918, 4 particles, 29.60 s
+Parallel BM4 completed in 31.74 s, including worker startup and merge.
+All eight workers integrated simultaneously for 18.31 s.
+
+[2026-09-20T09:07:18.094169+00:00] Cell 11: checks
+Validated: 70 section points, 2 returns per particle.
+Maximum residual / tolerance: 0.633409
+Newton corrections per group and step: mean 1.997, max 2
+
+[2026-09-20T09:07:18.109202+00:00] Cell 13: positions
+
+[2026-09-20T09:07:18.147362+00:00] Cell 14: save-results
+Complete: 35 particles, 2 cycles, 40 steps.
+Saved 70 return positions to /home/juan/ANADEL/TFM/DOCUMENTOS_GPT/Poincare_BM4_35_radiales_5000_ciclos_20_steps_8_procesos/resultados/validation_20steps_newton_history_v2
+Next: open visualizacion.ipynb and select this run ID.
+
+Success: /home/juan/ANADEL/TFM/DOCUMENTOS_GPT/Poincare_BM4_35_radiales_5000_ciclos_20_steps_8_procesos/resultados/validation_20steps_newton_history_v2

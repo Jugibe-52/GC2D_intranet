@@ -1,0 +1,13 @@
+{
+  "verified_utc": "2026-09-20T17:16:25.660599+00:00",
+  "run_id": "local_rk4_48p_5000c_20s_20260920",
+  "method": "RK4",
+  "particles": 48,
+  "cycles": 5000,
+  "steps_per_cycle": 20,
+  "processes": 4,
+  "return_position_rows": 240000,
+  "numeric_manifest_verified": true,
+  "original_ids_positions_colors_preserved": true,
+  "executed_notebooks_verified": true
+}

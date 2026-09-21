@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "completed_utc": "2026-09-20T16:09:36.344495+00:00",
+  "run_id": "aws_bm4midpoint_48p_5000c_20s_20260920",
+  "sha256": {
+    "bm4_trajectory.npz": "bef4c79d485ec1e138aca1978c53b6ef02f902c6a4e545e6ede285f92d52d6d9",
+    "metadata.json": "059547a6072f4d53b0e777dee887393f5644ab8fb1cb11e65cbeed456cd4df45",
+    "positions_after_each_cycle.csv": "3864e1cffb4126dbfa929bcff306e3bbe3ed6f5484e724b7841033b2c6db4636",
+    "initial_positions.csv": "e07c7f4ea534ee046ddb4abda2534a0e1833a934c78e6395cfd765f479fa4f02",
+    "run_parameters.json": "0f8784c5518171c6060f56799ec7f9f6a77dc58aaae0ad091e745064886452ca",
+    "midpoint_steps.csv.gz": "9046008b78445cda77d1a1c04e517b774d6e92dcea8fefe273d0b6d04cc012bb"
+  }
+}

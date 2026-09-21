@@ -1,0 +1,12 @@
+{
+  "verified_utc": "2026-09-20T15:48:28.883102+00:00",
+  "method": "BM4Midpoint",
+  "particles": 48,
+  "workers": 16,
+  "resumed_steps_per_worker": 10,
+  "total_steps_per_worker": 40,
+  "all_states_and_diagnostics_bitwise_equal": true,
+  "original_ids_positions_colors_preserved": true,
+  "baseline": "unmodified frozen public simulate",
+  "cycle_rows": 96
+}

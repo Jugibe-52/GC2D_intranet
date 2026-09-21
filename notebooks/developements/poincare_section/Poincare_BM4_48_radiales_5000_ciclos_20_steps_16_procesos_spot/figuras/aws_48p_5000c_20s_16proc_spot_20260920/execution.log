@@ -1,0 +1,29 @@
+
+[2026-09-20T13:53:46.429647+00:00] Cell 1: dependencies
+
+[2026-09-20T13:53:47.054552+00:00] Cell 2: parameters
+
+[2026-09-20T13:53:47.058029+00:00] Cell 3: load-results
+Verified numerical files: /home/ubuntu/poincare/Poincare_BM4_48_radiales_5000_ciclos_20_steps_16_procesos_spot/resultados/aws_48p_5000c_20s_16proc_spot_20260920
+Figure output: /home/ubuntu/poincare/Poincare_BM4_48_radiales_5000_ciclos_20_steps_16_procesos_spot/figuras/aws_48p_5000c_20s_16proc_spot_20260920
+
+[2026-09-20T13:53:48.662207+00:00] Cell 5: initial-plot
+
+[2026-09-20T13:53:48.985569+00:00] Cell 7: section-plot
+
+[2026-09-20T13:53:51.532524+00:00] Cell 9: positions
+
+[2026-09-20T13:53:51.568532+00:00] Cell 11: viewer
+/home/ubuntu/poincare/Poincare_BM4_48_radiales_5000_ciclos_20_steps_16_procesos_spot/.venv/lib/python3.12/site-packages/IPython/core/display.py:447: UserWarning: Consider using IPython.display.IFrame instead
+  warnings.warn("Consider using IPython.display.IFrame instead")
+
+[2026-09-20T13:53:51.895968+00:00] Cell 14: 14
+Parallel wall time including startup and merge: 2624.96 s
+
+[2026-09-20T13:53:52.114357+00:00] Cell 16: 16
+Full step diagnostics: /home/ubuntu/poincare/Poincare_BM4_48_radiales_5000_ciclos_20_steps_16_procesos_spot/resultados/aws_48p_5000c_20s_16proc_spot_20260920/newton_steps.csv.gz
+Full Newton iteration history: /home/ubuntu/poincare/Poincare_BM4_48_radiales_5000_ciclos_20_steps_16_procesos_spot/resultados/aws_48p_5000c_20s_16proc_spot_20260920/newton_iterations.csv.gz
+
+[2026-09-20T13:53:53.551832+00:00] Cell 17: complete
+
+Success: /home/ubuntu/poincare/Poincare_BM4_48_radiales_5000_ciclos_20_steps_16_procesos_spot/figuras/aws_48p_5000c_20s_16proc_spot_20260920

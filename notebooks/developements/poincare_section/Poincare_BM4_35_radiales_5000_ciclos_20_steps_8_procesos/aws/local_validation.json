@@ -1,0 +1,18 @@
+{
+  "status": "passed",
+  "validation_run": "validation_20steps_newton_history_v2",
+  "cycles_tested": 2,
+  "steps_per_cycle": 20,
+  "workers": 8,
+  "step_rows": 320,
+  "iteration_rows": 959,
+  "mean_newton_corrections": 1.996875,
+  "maximum_newton_corrections": 2,
+  "unobserved_comparison_steps_per_group": 5,
+  "trajectory_difference_from_unobserved_solver": 0.0,
+  "diagnostics_exact_match": true,
+  "csv_npz_exact_match": true,
+  "production_run_launched": false,
+  "visualization_notebook_passed": true,
+  "diagnostic_figure_visually_reviewed": true
+}

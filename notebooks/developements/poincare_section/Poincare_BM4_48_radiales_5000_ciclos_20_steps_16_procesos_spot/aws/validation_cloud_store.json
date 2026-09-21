@@ -1,0 +1,9 @@
+{
+  "verified_utc": "2026-09-20T09:51:46.055020+00:00",
+  "committed_pairs": 64,
+  "upload_data_before_marker": true,
+  "restore_after_local_disk_loss_bitwise_equal": true,
+  "duplicate_sync_skips_immutable_chunks": true,
+  "corrupt_remote_payload_rejected_before_commit": true,
+  "backend": "in-memory S3 test double"
+}
