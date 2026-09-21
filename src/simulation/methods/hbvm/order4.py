@@ -7,7 +7,7 @@ from typing import Literal, TypeAlias
 
 import numpy as np
 
-from dynamics import GuidingCenterJacobianSystem, HamiltonianSystem
+from dynamics import GuidingCenterJacobianSystem
 
 from ...formulations.state import PhysicalFormulation
 from ...integration import IntegrationMethod, StepInfo, StepResult

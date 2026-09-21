@@ -34,6 +34,54 @@ class AdaptiveIntegrationTests(unittest.TestCase):
             GCInitialConfiguration.from_components(x=[1., .4, -.2], y=[0., .2, .5]))
         self.request = SimulationRequest.uniform(t_span=(.3, .8), max_step=.08, sample_count=31)
 
+    def test_energy_endpoint_queries_reuse_quadrature_and_return_independent_arrays(self):
+        """Repeated scalar/batched endpoints cost no energy evaluations or new solves."""
+        for cls in (DOP853, Radau):
+            with self.subTest(method=cls.__name__):
+                source = _problem()
+                problem = InitialValueProblem(source.dynamics, GCInitialConfiguration.from_components(
+                    x=[1., 1.1, 1.2], y=[1.2, 1.3, 1.4]))
+                request = SimulationRequest.uniform(t_span=(.3, .34), max_step=.02, sample_count=3)
+                run = cls(track_energy=True, first_step=.02).new_run(problem, request)
+                with patch.object(problem.dynamics, 'extended_momentum_derivative',
+                                  wraps=problem.dynamics.extended_momentum_derivative) as rate:
+                    result = run.advance(.3, run.initial_state, .02)
+                    end = float(run.solver.t)
+                    self.assertEqual(rate.call_count, 8)
+                    dense = result.details.dense_state
+                    queries = np.array([.3, end, end, .3])
+                    history = dense(queries)
+                    momenta = run.state_formulation.momentum(history)
+                    initial = run.state_formulation.momentum(run.initial_state)
+                    final = run.state_formulation.momentum(result.state).copy()
+                    expected = np.stack((initial, final, final, initial), axis=-1)
+                    np.testing.assert_array_equal(momenta, expected)
+                    self.assertEqual(rate.call_count, 8)
+                    dense(end)[:] = 999.
+                    np.testing.assert_array_equal(run.state_formulation.momentum(dense(end)), final)
+                    self.assertEqual(dense(np.empty(0)).shape, (run.initial_state.size, 0))
+                    midpoint = (.3 + end) / 2.
+                    interior = dense(midpoint)
+                    self.assertEqual(rate.call_count, 16)
+                    self.assertTrue(np.all(np.isfinite(interior)))
+                    # An old interpolant keeps its own endpoint values after the run advances.
+                    run.advance(end, result.state, .02)
+                    count = rate.call_count
+                    np.testing.assert_array_equal(run.state_formulation.momentum(dense(end)), final)
+                    self.assertEqual(rate.call_count, count)
+
+    def test_saving_adaptive_endpoints_does_not_repeat_energy_quadrature(self):
+        for cls in (DOP853, Radau):
+            with self.subTest(method=cls.__name__):
+                problem = _problem()
+                step = .32 - .3
+                request = SimulationRequest.uniform(t_span=(.3, .32), max_step=step, sample_count=2)
+                with patch.object(problem.dynamics, 'extended_momentum_derivative',
+                                  wraps=problem.dynamics.extended_momentum_derivative) as rate:
+                    result = simulate(problem, cls(track_energy=True, first_step=step), request)
+                self.assertEqual(result.n_steps, 1)
+                self.assertEqual(rate.call_count, 8)
+
     def test_every_method_uses_the_same_public_integrate(self):
         for cls in (DOP853, Radau, ABBA2Implicit, ABBA2Midpoint, ABBA4Implicit,
                     ABBA6Implicit, BM4Implicit, BM4Midpoint, ExplicitEuler, RK4,

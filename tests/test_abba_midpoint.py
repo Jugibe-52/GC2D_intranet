@@ -95,7 +95,7 @@ class ABBA2MidpointTests(unittest.TestCase):
 			dynamics,
 			TrajectoryGC(np.asarray([1.0, 1.2]), rho=0.05),
 		)
-		with self.assertRaisesRegex(TypeError, "ExtendedHamiltonianSystem"):
+		with self.assertRaisesRegex(TypeError, "HamiltonianSystem"):
 			simulate(
 				problem,
 				ABBA2Midpoint(track_energy=True),

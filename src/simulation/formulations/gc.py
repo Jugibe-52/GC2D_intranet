@@ -7,10 +7,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from functools import lru_cache
+from typing import TypeAlias
 
 import numpy as np
 
-from dynamics import DynamicalSystem, ExtendedHamiltonianSystem
+from dynamics import DynamicalSystem, HamiltonianSystem
 from initial_conditions import GCInitialConfiguration
 
 from ..problem import InitialValueProblem
@@ -19,6 +20,11 @@ from .base import (
 	PreparedStageProjectedFormulation,
 	Projection,
 )
+
+
+# Each point retains (evaluation time, signed shear duration, packed physical
+# state). Spatial maps allocate their updates, so these references stay valid.
+_EnergyQuadraturePoint: TypeAlias = tuple[float, float, np.ndarray]
 
 
 def spatial_shear(dynamics: DynamicalSystem, time: float, target: np.ndarray,
@@ -115,8 +121,8 @@ class GCDoubledMaps:
 			if not np.isfinite(frequency) or frequency < 0:
 				raise ValueError("`coupling_frequency` must be finite and non-negative.")
 			coupling_frequency = frequency
-		if track_energy and not isinstance(problem.dynamics, ExtendedHamiltonianSystem):
-			raise TypeError("Energy tracking requires ExtendedHamiltonianSystem.")
+		if track_energy and not isinstance(problem.dynamics, HamiltonianSystem):
+			raise TypeError("Energy tracking requires HamiltonianSystem.")
 		physical = problem.initial_state
 		count = problem.particle_count
 		initial = _GCExtendedState(physical, physical, np.zeros(count) if track_energy else None).pack()
@@ -153,7 +159,7 @@ class GCDoubledMaps:
 	) -> np.ndarray | None:
 		if momentum is None:
 			return None
-		assert isinstance(self.dynamics, ExtendedHamiltonianSystem)
+		assert isinstance(self.dynamics, HamiltonianSystem)
 		derivative = np.asarray(
 			self.dynamics.extended_momentum_derivative(t, state)
 		)
@@ -190,8 +196,10 @@ class GCDoubledMaps:
 		duration: float,
 		t: float,
 		state: np.ndarray,
+		*,
+		energy_points: list[_EnergyQuadraturePoint] | None = None,
 	) -> np.ndarray:
-		"""Update second then first copy and optionally apply exact coupling."""
+		"""Update both copies, optionally retaining energy quadrature states."""
 		current = self._unpack(state)
 		second = spatial_shear(self.dynamics, t, current.second, current.first, duration)
 		momentum = self._updated_momentum(
@@ -202,6 +210,8 @@ class GCDoubledMaps:
 		)
 		first = spatial_shear(self.dynamics, t, current.first, second, duration)
 		momentum = self._updated_momentum(momentum, duration, t, second)
+		if energy_points is not None:
+			energy_points.extend(((t, duration, current.first), (t, duration, second)))
 		updated = _GCExtendedState(first, second, momentum)
 		if self.coupling_frequency is None:
 			return updated.pack()
@@ -212,8 +222,10 @@ class GCDoubledMaps:
 		duration: float,
 		t: float,
 		state: np.ndarray,
+		*,
+		energy_points: list[_EnergyQuadraturePoint] | None = None,
 	) -> np.ndarray:
-		"""Optionally apply coupling, then update first and second copies."""
+		"""Couple and update both copies, optionally retaining quadrature states."""
 		current = self._unpack(state)
 		if self.coupling_frequency is not None:
 			current = self._couple(duration, current)
@@ -226,6 +238,8 @@ class GCDoubledMaps:
 		)
 		second = spatial_shear(self.dynamics, t, current.second, first, duration)
 		momentum = self._updated_momentum(momentum, duration, t, first)
+		if energy_points is not None:
+			energy_points.extend(((t, duration, current.second), (t, duration, first)))
 		return _GCExtendedState(first, second, momentum).pack()
 
 	def project_internal_state(self, state: np.ndarray) -> np.ndarray:

@@ -15,7 +15,7 @@ from typing import Any, ClassVar
 import numpy as np
 from scipy.integrate import DOP853 as ScipyDOP853, Radau as ScipyRadau
 
-from dynamics import DynamicalSystem, ExtendedHamiltonianSystem
+from dynamics import DynamicalSystem, HamiltonianSystem
 
 from ..._result import DiagnosticValue
 from ...formulations.state import PhysicalFormulation
@@ -104,8 +104,8 @@ class _AdaptiveMethod(IntegrationMethod[_AdaptiveDetails]):
         self.dynamics = problem.dynamics
         if not isinstance(self.dynamics, DynamicalSystem):
             raise TypeError(f'{type(self).__name__} requires DynamicalSystem.')
-        if self.track_energy and not isinstance(self.dynamics, ExtendedHamiltonianSystem):
-            raise TypeError('Energy tracking requires ExtendedHamiltonianSystem.')
+        if self.track_energy and not isinstance(self.dynamics, HamiltonianSystem):
+            raise TypeError('Energy tracking requires HamiltonianSystem.')
         self.physical_size = problem.initial_state.size
         self.particle_count = problem.particle_count
         self.state_formulation = PhysicalFormulation(problem, request.t_span[0], self.track_energy)
@@ -179,14 +179,23 @@ class _AdaptiveMethod(IntegrationMethod[_AdaptiveDetails]):
         momentum_before = self.state_formulation.momentum(state)
         if momentum_before is not None:
             momentum_before = momentum_before.copy()
+        momentum_after: np.ndarray | None = None
 
         def momentum_at(query: float | np.ndarray) -> np.ndarray | None:
+            """Integrate interior queries while reusing the two endpoint momenta."""
             if momentum_before is None:
                 return None
             assert interpolant is not None
             queries = np.asarray(query, dtype=float)
             values = []
             for endpoint in queries.reshape(-1):
+                # Endpoint sampling and observers must not repeat accepted quadrature.
+                if endpoint == time:
+                    values.append(momentum_before)
+                    continue
+                if endpoint == end and momentum_after is not None:
+                    values.append(momentum_after)
+                    continue
                 duration = float(endpoint - time)
                 rates = [self.state_formulation.momentum_rate(time + duration * node,
                              np.asarray(interpolant(time + duration * node))) for node in _ENERGY_NODES]
@@ -200,7 +209,8 @@ class _AdaptiveMethod(IntegrationMethod[_AdaptiveDetails]):
                 raise RuntimeError('No dense output was requested for this interval.')
             return self.state_formulation.pack(np.asarray(interpolant(query)), query, momentum_at(query))
 
-        after = self.state_formulation.pack(np.asarray(solver.y), end, momentum_at(end))
+        momentum_after = momentum_at(end)
+        after = self.state_formulation.pack(np.asarray(solver.y), end, momentum_after)
         self.current_state = after.copy()
         return StepResult(after, {
             'function_evaluations': int(work[0]),

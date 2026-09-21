@@ -43,20 +43,29 @@ factory is only a compatibility entry point.
 
 ## Energy and nonlinear work
 
-After convergence, one energy-augmented replay of the accepted twelve-stage map integrates the passive momentum. This replay uses the accepted spatial multiplier, performs no new nonlinear solve, and is excluded from nonlinear work counters.
+The converged residual retains the 24 physical shear inputs, evaluation times,
+and signed durations from its twelve-stage map when tracking is enabled.
+After convergence, passive quadrature evaluates only `-partial_t H` at these
+points and divides the summed increment by two. It repeats neither spatial
+stages nor coupling maps and uses a single `GCDoubledMaps` instance. Trial
+residual traces are discarded; Jacobian evaluations do not retain energy points.
+Optional stage observers still reconstruct their own accepted-stage snapshots.
 
 The stored momentum is physical `kappa`, initialized at zero. Its derivative is
 `-partial_t H`; splitting sums are normalized by one half. The diagnostic is
 `H(t, z) + kappa - H(t0, z0)`. It measures a balance, not conservation of the
 time-dependent physical Hamiltonian. Dynamics must implement
-`ExtendedHamiltonianSystem` when tracking is enabled, including an explicit zero
-derivative for an autonomous Hamiltonian.
+[`HamiltonianSystem`](../../../dynamics/protocols.md) when tracking is enabled.
+It extends `DynamicalSystem` with `hamiltonian` and
+`extended_momentum_derivative`, including an explicit zero derivative for an
+autonomous Hamiltonian. With tracking disabled, only `DynamicalSystem` is
+required for this energy choice; method-specific capabilities still apply.
 
 Only spatial coordinates enter a Hairer constraint. The reduced multiplier has
 2N components; the ABBA simultaneous spatial solve has 6N unknowns. Clock and
 momentum never enlarge these roots or affect their stopping scale. Tracking also
 leaves classical physical solves and adaptive acceptance decisions unchanged.
-BM4's optional energy replay and adaptive diagnostic quadrature are extra work
+Passive energy quadrature and optional observer reconstruction are extra work
 outside the physical solver counters; reported wall time still includes them.
 
 ## Lifecycle and output

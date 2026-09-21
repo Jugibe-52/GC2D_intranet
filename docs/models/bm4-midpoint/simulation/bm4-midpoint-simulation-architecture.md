@@ -49,14 +49,17 @@ The stored momentum is physical `kappa`, initialized at zero. Its derivative is
 `-partial_t H`; splitting sums are normalized by one half. The diagnostic is
 `H(t, z) + kappa - H(t0, z0)`. It measures a balance, not conservation of the
 time-dependent physical Hamiltonian. Dynamics must implement
-`ExtendedHamiltonianSystem` when tracking is enabled, including an explicit zero
-derivative for an autonomous Hamiltonian.
+[`HamiltonianSystem`](../../../dynamics/protocols.md) when tracking is enabled.
+It extends `DynamicalSystem` with `hamiltonian` and
+`extended_momentum_derivative`, including an explicit zero derivative for an
+autonomous Hamiltonian. With tracking disabled, only `DynamicalSystem` is
+required for this energy choice; method-specific capabilities still apply.
 
 Only spatial coordinates enter a Hairer constraint. The reduced multiplier has
 2N components; the ABBA simultaneous spatial solve has 6N unknowns. Clock and
 momentum never enlarge these roots or affect their stopping scale. Tracking also
 leaves classical physical solves and adaptive acceptance decisions unchanged.
-BM4's optional energy replay and adaptive diagnostic quadrature are extra work
+Passive energy quadrature and optional observer reconstruction are extra work
 outside the physical solver counters; reported wall time still includes them.
 
 ## Lifecycle and output

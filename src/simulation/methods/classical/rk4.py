@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
-from dynamics import DynamicalSystem, ExtendedHamiltonianSystem
+from dynamics import DynamicalSystem, HamiltonianSystem
 
 from ...integration import IntegrationMethod, StepInfo, StepResult
 from ..._result import DiagnosticValue
@@ -49,9 +49,9 @@ class RK4(IntegrationMethod[None]):
 			raise TypeError("RK4 requires DynamicalSystem.")
 		if self.track_energy and not isinstance(
 			self.dynamics,
-			ExtendedHamiltonianSystem,
+			HamiltonianSystem,
 		):
-			raise TypeError("Energy tracking requires ExtendedHamiltonianSystem.")
+			raise TypeError("Energy tracking requires HamiltonianSystem.")
 		physical_initial = problem.initial_state
 		self.physical_size = physical_initial.size
 		self.particle_count = problem.particle_count

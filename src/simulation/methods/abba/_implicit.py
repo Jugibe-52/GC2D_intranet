@@ -6,7 +6,7 @@ from typing import ClassVar, Literal
 
 import numpy as np
 
-from dynamics import ExtendedHamiltonianSystem, GuidingCenterJacobianSystem
+from dynamics import HamiltonianSystem, GuidingCenterJacobianSystem
 
 from ..._result import DiagnosticValue
 from ...integration import IntegrationMethod, NEWTON_ALIASES, StepInfo, StepResult as NumericalStep
@@ -179,7 +179,7 @@ class _ABBAImplicitMethod(IntegrationMethod[StepResult]):
 		projections = self.solve_step(t, state_before, h)
 		increment = None
 		if self.track_energy:
-			assert isinstance(self.problem.dynamics, ExtendedHamiltonianSystem)
+			assert isinstance(self.problem.dynamics, HamiltonianSystem)
 			increment = np.zeros(self.state_formulation.particle_count)
 			for projection in projections:
 				assert isinstance(projection.trace, PhysicalProjectionTrace)

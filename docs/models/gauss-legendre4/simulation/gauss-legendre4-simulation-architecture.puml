@@ -40,7 +40,7 @@ digraph GaussLegendreFullExecution {
         <TR><TD BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">SHARED CAPABILITY CONTRACT</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>DynamicalSystem</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/dynamics/</FONT></TD></TR>
         <TR><TD ALIGN="LEFT"><B>State</B>: state_dimension per particle.<BR ALIGN="LEFT"/><B>Operation</B>: vector_field(t,z): array[m].</TD></TR><HR/>
         <TR><TD ALIGN="LEFT">Methods request additional capabilities only<BR ALIGN="LEFT"/>when required: Hamiltonian, momentum derivative,<BR ALIGN="LEFT"/>analytic Jacobian or guiding-center splitting.</TD></TR><HR/>
-        <TR><TD ALIGN="LEFT">DynamicalSystem and selected Jacobian capability.<BR ALIGN="LEFT"/>Energy tracking requires ExtendedHamiltonianSystem.</TD></TR>
+        <TR><TD ALIGN="LEFT">DynamicalSystem and selected Jacobian capability.<BR ALIGN="LEFT"/>Energy tracking requires HamiltonianSystem.</TD></TR>
       </TABLE>
     >];
     Initial [label=<
@@ -115,7 +115,7 @@ digraph GaussLegendreFullExecution {
       <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
         <TR><TD BGCOLOR="#FBE0C7" ALIGN="LEFT"><FONT POINT-SIZE="9">METHOD INITIALIZATION</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>GaussLegendre4.initialize(...)</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/simulation/methods/classical/gauss_legendre.py</FONT></TD></TR>
         <TR><TD ALIGN="LEFT"><B>IN</B>: problem, request and method controls.<BR ALIGN="LEFT"/><B>OUT</B>: None; resources are attributes of this instance.</TD></TR><HR/>
-        <TR><TD ALIGN="LEFT">DynamicalSystem and selected Jacobian capability.<BR ALIGN="LEFT"/>Energy tracking requires ExtendedHamiltonianSystem.</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT">DynamicalSystem and selected Jacobian capability.<BR ALIGN="LEFT"/>Energy tracking requires HamiltonianSystem.</TD></TR><HR/>
         <TR><TD ALIGN="LEFT">new_run copies options into the same concrete class.<BR ALIGN="LEFT"/>initialize sets the initial state and numerical resources.<BR ALIGN="LEFT"/>Adaptive initialization creates the live solver once.</TD></TR>
       </TABLE>
     >];

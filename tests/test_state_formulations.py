@@ -1,7 +1,8 @@
 """Four state layouts, passive energy and unchanged physical solver decisions."""
 import unittest
+from types import SimpleNamespace
 import numpy as np
-from dynamics import FullCyclotronDynamics
+from dynamics import DynamicalSystem, FullCyclotronDynamics, HamiltonianSystem
 from initial_conditions import GCInitialConfiguration, FCInitialConfiguration
 from simulation import (
     ExplicitEuler, RK4, GaussLegendre4, SDIRK4, HBVM42, DOP853, Radau,
@@ -31,6 +32,44 @@ class RotatingHamiltonian:
 
 
 class FourStateFormulationTests(unittest.TestCase):
+    def test_hamiltonian_contract_requires_dynamics_and_both_energy_operations(self):
+        source = RotatingHamiltonian()
+        members = {name: getattr(source, name) for name in (
+            'state_dimension', 'vector_field', 'hamiltonian', 'extended_momentum_derivative')}
+        self.assertIsInstance(source, DynamicalSystem)
+        self.assertIsInstance(source, HamiltonianSystem)
+        for missing in members:
+            with self.subTest(missing=missing):
+                partial = SimpleNamespace(**{name: value for name, value in members.items()
+                                             if name != missing})
+                self.assertNotIsInstance(partial, HamiltonianSystem)
+
+    def test_partial_energy_capabilities_are_accepted_only_without_tracking(self):
+        source = _problem()
+        request = SimulationRequest.uniform(t_span=(.3, .32), max_step=.02, sample_count=2)
+
+        def unused_energy(time, state):
+            """Fail if an untracked formulation evaluates either energy operation."""
+            raise AssertionError('Untracked integration must not evaluate energy.')
+
+        for energy_members in ({}, {'hamiltonian': unused_energy},
+                               {'extended_momentum_derivative': unused_energy}):
+            dynamics = SimpleNamespace(
+                state_dimension=source.dynamics.state_dimension,
+                vector_field=source.dynamics.vector_field,
+                particle_vector_field_jacobians=source.dynamics.particle_vector_field_jacobians,
+                **energy_members)
+            problem = InitialValueProblem(dynamics, source.initial_configuration)
+            self.assertIsInstance(dynamics, DynamicalSystem)
+            self.assertNotIsInstance(dynamics, HamiltonianSystem)
+            for cls in CLASSICAL + DUPLICATED:
+                with self.subTest(method=cls.__name__, energy_members=tuple(energy_members)):
+                    plain = simulate(problem, cls(track_energy=False), request)
+                    self.assertEqual(plain.states.shape, (2, 2))
+                    self.assertNotIn('physical_hamiltonian', plain.diagnostics)
+                    with self.assertRaisesRegex(TypeError, 'HamiltonianSystem'):
+                        cls(track_energy=True).new_run(problem, request)
+
     def test_all_methods_have_actual_dimensions_and_passive_energy(self):
         source = _problem()
         request = SimulationRequest.uniform(t_span=(.3, .38), max_step=.02, sample_count=9)

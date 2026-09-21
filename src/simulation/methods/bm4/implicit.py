@@ -29,6 +29,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from functools import partial
 from typing import Literal, TypeAlias
 
 import numpy as np
@@ -38,7 +39,7 @@ from dynamics import GuidingCenterDynamics
 from ...formulations.state import DoubledFormulation
 from ...integration import IntegrationMethod, StepInfo, StepResult, NEWTON_ALIASES
 from ..._result import DiagnosticValue
-from ...formulations.gc import GCDoubledMaps, gc_coupling_matrix
+from ...formulations.gc import GCDoubledMaps, _EnergyQuadraturePoint, gc_coupling_matrix
 from ...formulations.base import PreparedDirectAdjointFormulation
 from ...observation import ImplicitBM4IntegrationStep, IntegrationStage, StepObserver
 from ...problem import InitialValueProblem
@@ -77,6 +78,8 @@ class _ProjectedBM4Step:
 	iterations: int
 	residual_evaluations: int
 	residual_norm: float
+	# Only the converged residual's shear states are retained for passive energy.
+	energy_points: tuple[_EnergyQuadraturePoint, ...] = ()
 
 
 def _positive_finite(value: float, name: str) -> float:
@@ -115,6 +118,8 @@ def _bm4_map(
 	t: float,
 	internal_state: np.ndarray,
 	step: float,
+	*,
+	energy_points: list[_EnergyQuadraturePoint] | None = None,
 ) -> np.ndarray:
 	"""Apply the complete unprojected BM4 map to one doubled state.
 
@@ -122,6 +127,7 @@ def _bm4_map(
 	The same signed ``step`` and non-autonomous start time ``t`` are shared by
 	all twelve stages.  Stage observation is disabled because nonlinear solvers
 	may evaluate this map many times for a single accepted integration step.
+	Optional energy points retain shear inputs without evaluating energy.
 	"""
 	value = np.asarray(internal_state, dtype=float)
 	# The traversal API always accepts diagnostic metadata.  The placeholder
@@ -135,6 +141,10 @@ def _bm4_map(
 		stage_observer=None,
 		formulation_name="GCExtendedFormulation",
 		method_name="BM4",
+		stage_maps=(
+			partial(prepared.direct_map, energy_points=energy_points),
+			partial(prepared.adjoint_map, energy_points=energy_points),
+		) if energy_points is not None else None,
 	)
 	if result.shape != value.shape or not np.all(np.isfinite(result)):
 		raise ValueError("The BM4 base map changed shape or became non-finite.")
@@ -193,6 +203,8 @@ def _bm4_evaluation(
 	state: np.ndarray,
 	step: float,
 	multiplier: np.ndarray,
+	*,
+	energy_points: list[_EnergyQuadraturePoint] | None = None,
 ) -> tuple[np.ndarray, np.ndarray]:
 	"""Return ``(E z + N mu, Psi_h(E z + N mu))``.
 
@@ -202,7 +214,7 @@ def _bm4_evaluation(
 	embedding ``N``.
 	"""
 	internal_input = np.concatenate((state + multiplier, state - multiplier))
-	return internal_input, _bm4_map(prepared, t, internal_input, step)
+	return internal_input, _bm4_map(prepared, t, internal_input, step, energy_points=energy_points)
 
 
 def _bm4_map_jacobian(
@@ -454,6 +466,7 @@ def _solve_reduced_projected_bm4_step(
 	jacobian_relative_step: float,
 	jacobian_method: NewtonJacobianMethod,
 	nonlinear_solver: NonlinearSolver = "newton",
+	retain_energy_points: bool = False,
 ) -> _ProjectedBM4Step:
 	"""Solve one physical BM4 step through Hairer's reduced multiplier equation.
 
@@ -471,6 +484,9 @@ def _solve_reduced_projected_bm4_step(
 
 	The returned state is physical shape ``(m,)``; the returned doubled values
 	have shape ``(2*m,)`` and support optional post-convergence observation.
+	Energy tracking keeps only the converged residual's shear inputs and signed
+	durations. Jacobian evaluations do not retain points, and trial residuals
+	never evaluate energy. Quadrature runs once after the solve converges.
 	Failure to converge or a singular Newton matrix rejects the entire step.
 	"""
 	# ``value`` is z_n, the accepted physical state.  No doubled state persists
@@ -487,18 +503,20 @@ def _solve_reduced_projected_bm4_step(
 	if nonlinear_solver == "broyden":
 		def residual_function(
 			candidate: np.ndarray,
-		) -> tuple[np.ndarray, tuple[np.ndarray, np.ndarray]]:
+		) -> tuple[np.ndarray, tuple[np.ndarray, np.ndarray, tuple[_EnergyQuadraturePoint, ...]]]:
 			"""Evaluate the reduced projected-BM4 residual at one multiplier."""
+			points: list[_EnergyQuadraturePoint] | None = [] if retain_energy_points else None
 			_, mapped = _bm4_evaluation(
 				prepared,
 				t,
 				value,
 				step,
 				candidate,
+				energy_points=points,
 			)
 			# G*mapped is the copy mismatch after the full BM4 cycle;
 			# 2*mu is G*N*mu from the symmetric output correction.
-			return constraint @ mapped + 2.0 * candidate, (mapped, candidate)
+			return constraint @ mapped + 2.0 * candidate, (mapped, candidate, tuple(points or ()))
 
 		# At zero step Psi is the identity, so the exact reduced derivative is
 		# G*I*N + 2I = 4I.  It is a natural low-cost initial Broyden matrix.
@@ -513,9 +531,9 @@ def _solve_reduced_projected_bm4_step(
 				f"t={t:.16g} with step={step:.16g}"
 			),
 		)
-		# The payload caches both values from the converged residual evaluation;
+		# The payload retains the converged residual's spatial values and trace;
 		# accepting the step therefore requires no extra twelve-stage map call.
-		mapped, multiplier = result.payload
+		mapped, multiplier, energy_points = result.payload
 		# Hairer's output correction is M + N*mu.  Averaging its two copies
 		# applies P = [I, I]/2; P*N = 0, so the multiplier cancels exactly.
 		corrected = mapped + normal @ multiplier
@@ -530,6 +548,7 @@ def _solve_reduced_projected_bm4_step(
 			iterations=result.iterations,
 			residual_evaluations=result.residual_evaluations,
 			residual_norm=float(np.linalg.norm(result.residual, ord=np.inf)),
+			energy_points=energy_points,
 		)
 	if nonlinear_solver != "newton":
 		raise ValueError("Unknown nonlinear solver for implicit BM4.")
@@ -537,12 +556,14 @@ def _solve_reduced_projected_bm4_step(
 	for iteration in range(max_iterations + 1):
 		# Each Newton iteration starts with exactly one full twelve-stage map
 		# evaluation at the current multiplier.
+		points: list[_EnergyQuadraturePoint] | None = [] if retain_energy_points else None
 		internal_input, mapped = _bm4_evaluation(
 			prepared,
 			t,
 			value,
 			step,
 			multiplier,
+			energy_points=points,
 		)
 		residual = constraint @ mapped + 2.0 * multiplier
 		residual_norm = float(np.linalg.norm(residual, ord=np.inf))
@@ -561,6 +582,7 @@ def _solve_reduced_projected_bm4_step(
 				iterations=iteration,
 				residual_evaluations=iteration + 1,
 				residual_norm=residual_norm,
+				energy_points=tuple(points or ()),
 			)
 		if iteration == max_iterations:
 			break
@@ -653,7 +675,6 @@ class BM4Implicit(IntegrationMethod[_ProjectedBM4Step]):
 
 	# Resources owned by one run; excluded from constructor options.
 	state_formulation: DoubledFormulation = field(init=False, repr=False, compare=False)
-	energy_maps: GCDoubledMaps | None = field(init=False, repr=False, compare=False)
 	formulation: GCDoubledMaps = field(init=False, repr=False, compare=False)
 
 	def __post_init__(self) -> None:
@@ -676,7 +697,6 @@ class BM4Implicit(IntegrationMethod[_ProjectedBM4Step]):
 		lists, scheduling and observer dispatch belong to the common coordinator.
 		"""
 		self.state_formulation = DoubledFormulation(problem, request.t_span[0], self.track_energy)
-		self.energy_maps = GCDoubledMaps(problem, self.coupling_frequency, track_energy=True) if self.track_energy else None
 		self.formulation = GCDoubledMaps(problem, self.coupling_frequency)
 		metadata: dict[str, DiagnosticValue] = {
 			"nonlinear_solver": self.nonlinear_solver,
@@ -704,6 +724,7 @@ class BM4Implicit(IntegrationMethod[_ProjectedBM4Step]):
 			jacobian_relative_step=self.newton_jacobian_relative_step,
 			jacobian_method=self.newton_jacobian_method,
 			nonlinear_solver=self.nonlinear_solver,
+			retain_energy_points=self.track_energy,
 		)
 
 	def advance(self, t: float, state: np.ndarray, h: float) -> StepResult[_ProjectedBM4Step]:
@@ -714,13 +735,13 @@ class BM4Implicit(IntegrationMethod[_ProjectedBM4Step]):
 			1.0, float(np.linalg.norm(physical, ord=np.inf))
 		)
 		increment = None
-		if self.energy_maps is not None:
-			# Replay only the converged spatial stages. No diagnostic coordinate is
-			# included in Newton/Broyden, and replay work is not nonlinear work.
-			internal = np.concatenate((result.internal_input, np.zeros(self.state_formulation.particle_count)))
-			tracked = _advance_composition(self.energy_maps, t, internal, h,
-			    step_index=0, stage_observer=None, formulation_name="duplicated_with_energy", method_name=self.method_name)
-			increment = tracked[2 * physical.size:] / 2.0
+		if self.track_energy:
+			# Keep the original signed shear order and summed-momentum normalization.
+			# Energy is evaluated only after convergence, on already computed states.
+			increment = np.zeros(self.state_formulation.particle_count)
+			for time, duration, stage in result.energy_points:
+				increment += duration * self.state_formulation.momentum_rate(time, stage)
+			increment /= 2.0
 		after = self.state_formulation.finish(state, result.state, t + h, increment)
 		return StepResult(after, {
 			"nonlinear_iterations": result.iterations,

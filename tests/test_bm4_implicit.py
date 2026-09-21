@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 import numpy as np
 
@@ -18,6 +19,8 @@ from simulation import (
 	SimulationRequest,
 	simulate,
 )
+from simulation.formulations.gc import GCDoubledMaps
+from simulation.methods.bm4._core import _advance_composition
 from studies import (
 	AreaStep,
 	BM4ImplicitSymplecticityConfig,
@@ -50,6 +53,52 @@ def _problem() -> InitialValueProblem:
 
 class BM4ImplicitMethodTests(unittest.TestCase):
 	"""Verify state space, order, observations and parameter validation."""
+
+	def test_energy_reuses_converged_shears_without_extra_spatial_work(self) -> None:
+		"""Compare traced quadrature with an independent energy-augmented replay."""
+		for particles, coupling in ((1, 0.0), (3, 0.4)):
+			problem = InitialValueProblem(
+				GuidingCenterDynamics(_potential(), rho=0.05),
+				GCInitialConfiguration.from_components(
+					x=np.linspace(1.0, 1.2, particles),
+					y=np.linspace(1.2, 1.4, particles),
+				),
+			)
+			request = SimulationRequest.uniform(t_span=(0.3, 0.5), max_step=0.2, sample_count=2)
+			for solver, jacobian in (('newton', 'analytic'), ('newton', 'finite_difference'), ('broyden', 'analytic')):
+				for step in (0.2, -0.2):
+					with self.subTest(particles=particles, coupling=coupling, solver=solver, jacobian=jacobian, step=step):
+						results = []
+						field_counts = []
+						for tracking in (False, True):
+							run = BM4Implicit(
+								track_energy=tracking, coupling_frequency=coupling,
+								nonlinear_solver=solver, newton_jacobian_method=jacobian,
+								newton_absolute_tolerance=1e-14, newton_relative_tolerance=1e-14,
+							).new_run(problem, request)
+							with patch.object(problem.dynamics, 'vector_field', wraps=problem.dynamics.vector_field) as vector_field, \
+							     patch.object(problem.dynamics, 'extended_momentum_derivative', wraps=problem.dynamics.extended_momentum_derivative) as energy_rate:
+								result = run.advance(0.3, run.initial_state, step)
+								field_counts.append(vector_field.call_count)
+								self.assertEqual(energy_rate.call_count, 24 if tracking else 0)
+							self.assertEqual(len(result.details.energy_points), 24 if tracking else 0)
+							results.append(result)
+						plain, tracked = results
+						self.assertEqual(field_counts[0], field_counts[1])
+						np.testing.assert_array_equal(plain.details.state, tracked.details.state)
+						np.testing.assert_array_equal(plain.details.multiplier, tracked.details.multiplier)
+						self.assertEqual(plain.statistics, tracked.statistics)
+						self.assertGreater(tracked.details.iterations, 0)
+						prepared = GCDoubledMaps(problem, coupling, track_energy=True)
+						replayed = _advance_composition(
+							prepared, 0.3,
+							np.concatenate((tracked.details.internal_input, np.zeros(particles))), step,
+							step_index=0, stage_observer=None,
+							formulation_name='energy_reference', method_name='BM4Implicit',
+						)
+						np.testing.assert_array_equal(
+							run.state_formulation.momentum(tracked.state), replayed[-particles:] / 2.0,
+						)
 
 	def test_one_cycle_uses_the_reduced_physical_hairer_projection(self) -> None:
 		problem = _problem()

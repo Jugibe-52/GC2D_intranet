@@ -43,6 +43,8 @@ _BM4_STAGES = np.concatenate((_BM4_HALF_STAGES, np.flip(_BM4_HALF_STAGES)))
 # therefore starts with the adjoint and ends with the direct map.
 _BM4_ORDERS = np.tile(np.asarray([1, 0], dtype=int), _BM4_HALF_STAGES.size)
 
+_StageMap = Callable[[float, float, np.ndarray], np.ndarray]
+
 
 def _checked_map(
 	mapper: object,
@@ -74,6 +76,7 @@ def _advance_composition(
 	stage_observer: StageObserver | None,
 	formulation_name: str,
 	method_name: str,
+	stage_maps: tuple[_StageMap, _StageMap] | None = None,
 ) -> np.ndarray:
 	"""Advance one complete unprojected BM4 cycle.
 
@@ -92,6 +95,9 @@ def _advance_composition(
 		coefficients.
 	step_index, stage_observer, formulation_name, method_name:
 		Diagnostic metadata.  These values do not modify the numerical map.
+	stage_maps:
+		Optional direct/adjoint callables with method-local instrumentation.
+		The default uses the prepared maps without additional tracing.
 
 	Returns
 	-------
@@ -105,6 +111,9 @@ def _advance_composition(
 	at the end of their signed substep.  This convention makes each direct map
 	and its adjoint consistent for non-autonomous guiding-centre dynamics.
 	"""
+	direct_map, adjoint_map = stage_maps if stage_maps is not None else (
+		prepared.direct_map, prepared.adjoint_map,
+	)
 	for stage_index, (coefficient, order) in enumerate(
 		zip(_BM4_STAGES, _BM4_ORDERS, strict=True)
 	):
@@ -112,11 +121,11 @@ def _advance_composition(
 		# backwards; it must also move the local clock backwards.
 		duration = float(coefficient * step)
 		if order == 0:
-			selected_map = prepared.direct_map
+			selected_map = direct_map
 			flow_name: Literal["flow", "adjoint_flow"] = "flow"
 			evaluation_time = t + duration
 		else:
-			selected_map = prepared.adjoint_map
+			selected_map = adjoint_map
 			flow_name = "adjoint_flow"
 			evaluation_time = t
 

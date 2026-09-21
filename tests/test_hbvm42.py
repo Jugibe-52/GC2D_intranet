@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import unittest
+from types import SimpleNamespace
+from unittest.mock import patch
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -183,6 +185,23 @@ class HBVM42MethodTests(unittest.TestCase):
 
 class HBVM42StudyTests(unittest.TestCase):
 	"""Keep compact study runs aligned and visualization-ready."""
+
+	def test_incomplete_energy_contract_is_rejected_before_reference_integration(self) -> None:
+		"""Energy evaluation alone cannot support the study's tracked formulation."""
+		source = QuarticOscillatorDynamics()
+		dynamics = SimpleNamespace(
+			state_dimension=source.state_dimension,
+			vector_field=source.vector_field,
+			hamiltonian=source.hamiltonian,
+		)
+		with patch('studies.hbvm42._reference_solution') as reference:
+			with self.assertRaisesRegex(TypeError, 'HamiltonianSystem'):
+				run_hbvm42_evaluation(
+					dynamics,
+					quartic_oscillator_configuration(),
+					config=HBVM42EvaluationConfig(),
+				)
+			reference.assert_not_called()
 
 	def test_individual_and_comparison_studies_produce_complete_rows(self) -> None:
 		dynamics = QuarticOscillatorDynamics(quartic_strength=1.0)

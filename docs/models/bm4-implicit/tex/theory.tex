@@ -40,7 +40,11 @@ negative coefficient $a_4$ is an intentional backward subflow.
 
 \section{Physical state and internal workspace}
 Twelve direct/adjoint stages enclosed by one spatial Hairer projection. Energy tracking is optional and passive.
-After convergence, one energy-augmented replay of the accepted twelve-stage map integrates the passive momentum. This replay uses the accepted spatial multiplier, performs no new nonlinear solve, and is excluded from nonlinear work counters.
+After convergence, passive energy quadrature evaluates $-\partial_t H$ at the
+24 shear inputs retained from the accepted residual, with their original signed
+durations. It repeats no spatial map or coupling and performs no new nonlinear
+solve. Trial traces are discarded; energy evaluations remain outside physical
+solver counters.
 The common state conventions are specified below.
 
 \section{One Hairer projection around the complete cycle}

@@ -764,9 +764,10 @@ changing the requested numerical procedure.
 `initialize`. It creates `state_formulation = DoubledFormulation(...)` with
 the selected tracking flag and obtains its initial diagonal state. It binds
 `self.formulation = GCDoubledMaps(...)` without energy for the spatial solve.
-When tracking is enabled, `self.energy_maps` holds a second map with a passive
-accumulator for the accepted-stage replay. Metadata and diagnostic aliases
-belong to this fresh run.
+When tracking is enabled, residual evaluations retain their physical shear
+inputs, signed durations and evaluation times. Only the converged residual's
+points survive the solve; the same map instance serves both tracking settings.
+Metadata and diagnostic aliases belong to this fresh run.
 
 The ordinary class method `_solve(t, state, h)` calls the reduced Hairer kernel
 with this instance's formulation and solver controls. Global scheduling, history
@@ -775,11 +776,13 @@ collection and event dispatch remain in `simulation/integration.py`.
 ### `advance(t, state, h)` and `StepResult`
 
 The numerical advance extracts physical coordinates and calls `self._solve`
-exactly once. With energy tracking, it replays the accepted base cycle and
-divides its summed momentum increment by two. `state_formulation.finish`
+exactly once. With energy tracking, it evaluates `-partial_t H` at the 24
+retained shear points in their original order and divides the summed momentum
+increment by two. No spatial stage or coupling is repeated. `state_formulation.finish`
 embeds the accepted physical state twice and updates each particle time and momentum.
 The result is `StepResult(after, statistics, result)`, where `after` has the
-full internal layout and `result` retains only the spatial solve details.
+full internal layout and `result` retains spatial solve details and optional
+energy quadrature points.
 It has no `step_index` or `observe` parameter. The same operation is used for main
 and shadow steps; their recording policy belongs to the common coordinator.
 The five metric values are iteration count, residual evaluations, residual norm,
@@ -803,9 +806,10 @@ replay is diagnostic work and never replaces the accepted physical result.
 
 The inherited exporter delegates to `DoubledFormulation`, extracting one spatial
 copy and, when enabled, the common energy histories. The integration workspace
-has 4N or 6N entries. `track_energy=True` replays only the converged spatial
-base cycle with an energy accumulator; this does not modify the multiplier or
-physical solver work. The normalized increment is half the accumulated sum. The common coordinator chooses `FixedStepController` by default.
+has 4N or 6N entries. `track_energy=True` evaluates passive quadrature using
+the converged residual's retained shear states; this does not modify the
+multiplier or add physical field evaluations. The normalized increment is half
+the accumulated sum. The common coordinator chooses `FixedStepController` by default.
 Its uniform grid uses the same `_step_count` and arithmetic as before. It delivers
 accepted `StepInfo`/`StepResult` pairs. Interior requested samples use a shortened
 map from an independent copy of the preceding main state, without collection or
@@ -929,7 +933,7 @@ numerical boundary:
 construct BM4Implicit and validate configuration
 construct DoubledFormulation with the selected tracking flag
 bind physical GC direct/adjoint maps for the spatial solve
-if tracking is enabled, bind energy maps for accepted-stage replay
+if tracking is enabled, retain shear inputs during residual evaluations
 
 choose uniform accepted main grid from t_span and max_step
 for each main interval (t, h):
@@ -945,7 +949,7 @@ for each main interval (t, h):
             start reduced Jacobian approximation at 4*I
             update it from successive residual evaluations
 
-    mapped = BM4_12_stages([z+mu; z-mu])                        # shape (2m,)
+    mapped, energy_points = values retained by the converged residual
     corrected = mapped + [mu; -mu]                              # shape (2m,)
     z_next = mean(corrected copy 1, corrected copy 2)           # shape (m,)
 
@@ -956,7 +960,8 @@ for each main interval (t, h):
         emit one physical step record containing the 12 internal records
 
     if tracking is enabled:
-        increment = accepted_energy_replay([z+mu; z-mu], h) / 2
+        increment = sum(duration * (-partial_t H)(time, point)
+                        for time, duration, point in energy_points) / 2
     current_internal_state = state_formulation.finish(
         current_internal_state, z_next, t+h, increment)
     obtain any interior saved times through non-observed shadow solves

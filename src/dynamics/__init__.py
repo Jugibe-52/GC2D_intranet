@@ -5,7 +5,6 @@ from .gc import GuidingCenterDynamics
 from .protocols import (
 	CyclotronSplitSystem,
 	DynamicalSystem,
-	ExtendedHamiltonianSystem,
 	GuidingCenterJacobianSystem,
 	HamiltonianSystem,
 )
@@ -13,7 +12,6 @@ from .protocols import (
 __all__ = [
 	"CyclotronSplitSystem",
 	"DynamicalSystem",
-	"ExtendedHamiltonianSystem",
 	"FullCyclotronDynamics",
 	"GuidingCenterDynamics",
 	"GuidingCenterJacobianSystem",

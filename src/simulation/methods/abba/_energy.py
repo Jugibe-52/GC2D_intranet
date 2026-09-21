@@ -1,12 +1,12 @@
 """Passive normalized energy quadrature from accepted spatial ABBA stages."""
 from __future__ import annotations
 import numpy as np
-from dynamics import ExtendedHamiltonianSystem
+from dynamics import HamiltonianSystem
 from .maps.physical import _ABBAStages
 
 
 def _conjugate_momentum_increment_from_stages(
-	dynamics: ExtendedHamiltonianSystem,
+	dynamics: HamiltonianSystem,
 	start_time: float,
 	duration: float,
 	stages: _ABBAStages,

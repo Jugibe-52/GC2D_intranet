@@ -9,7 +9,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from dynamics import CyclotronSplitSystem, ExtendedHamiltonianSystem
+from dynamics import CyclotronSplitSystem, HamiltonianSystem
 from initial_conditions import FCState, FCInitialConfiguration
 
 from ..problem import InitialValueProblem
@@ -88,7 +88,7 @@ class _PreparedFC:
 	) -> np.ndarray | None:
 		if momentum is None:
 			return None
-		assert isinstance(self.dynamics, ExtendedHamiltonianSystem)
+		assert isinstance(self.dynamics, HamiltonianSystem)
 		derivative = np.asarray(
 			self.dynamics.extended_momentum_derivative(t, state)
 		)
@@ -186,9 +186,9 @@ class FCSplitFormulation:
 			)
 		if track_energy and not isinstance(
 			problem.dynamics,
-			ExtendedHamiltonianSystem,
+			HamiltonianSystem,
 		):
-			raise TypeError("Energy tracking requires ExtendedHamiltonianSystem.")
+			raise TypeError("Energy tracking requires HamiltonianSystem.")
 		physical = problem.initial_state
 		particle_count = configuration.layout.particle_count(physical)
 		initial = _FCExtendedState(

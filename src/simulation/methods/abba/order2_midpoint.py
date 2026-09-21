@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
-from dynamics import DynamicalSystem, ExtendedHamiltonianSystem, GuidingCenterDynamics
+from dynamics import DynamicalSystem, HamiltonianSystem, GuidingCenterDynamics
 
 from ...formulations.state import DoubledFormulation
 from ...integration import IntegrationMethod, StepInfo, StepResult
@@ -110,7 +110,7 @@ class ABBA2Midpoint(IntegrationMethod[_ABBA2MidpointStep]):
 		result = _midpoint_abba_step(self.dynamics, t, self.state_formulation.physical(state), h)
 		increment = None
 		if self.track_energy:
-			assert isinstance(self.dynamics, ExtendedHamiltonianSystem)
+			assert isinstance(self.dynamics, HamiltonianSystem)
 			increment = _conjugate_momentum_increment_from_stages(self.dynamics, t, h, result.stages,
 			    particle_count=self.state_formulation.particle_count)
 		after = self.state_formulation.finish(state, result.state, t + h, increment)

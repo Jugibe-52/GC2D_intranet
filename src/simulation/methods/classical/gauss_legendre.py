@@ -9,7 +9,7 @@ import numpy as np
 
 from dynamics import (
 	DynamicalSystem,
-	ExtendedHamiltonianSystem,
+	HamiltonianSystem,
 	GuidingCenterJacobianSystem,
 )
 
@@ -461,9 +461,9 @@ class GaussLegendre4(IntegrationMethod[_GaussStepResult]):
 			raise TypeError("GaussLegendre4 requires DynamicalSystem.")
 		if self.track_energy and not isinstance(
 			self.dynamics,
-			ExtendedHamiltonianSystem,
+			HamiltonianSystem,
 		):
-			raise TypeError("Energy tracking requires ExtendedHamiltonianSystem.")
+			raise TypeError("Energy tracking requires HamiltonianSystem.")
 		physical_initial = problem.initial_state
 		self.resolved_jacobian_method = _resolved_jacobian_method(
 			self.dynamics,

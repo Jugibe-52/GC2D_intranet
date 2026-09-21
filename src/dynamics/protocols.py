@@ -18,8 +18,13 @@ class DynamicalSystem(Protocol):
 
 
 @runtime_checkable
-class HamiltonianSystem(Protocol):
-	"""Optional capability for evaluating physical energy."""
+class HamiltonianSystem(DynamicalSystem, Protocol):
+	"""Physical dynamics supporting optional energy-balance tracking.
+
+	Formulations enable tracking with ``track_energy``. The dynamics supplies
+	both physical Hamiltonian values and ``-partial_t H`` in the same energy
+	normalization; autonomous systems must provide an explicit zero derivative.
+	"""
 
 	def hamiltonian(
 		self,
@@ -27,11 +32,6 @@ class HamiltonianSystem(Protocol):
 		state: np.ndarray,
 	) -> np.ndarray:
 		"""Return one Hamiltonian value per particle and optional saved time."""
-
-
-@runtime_checkable
-class ExtendedHamiltonianSystem(HamiltonianSystem, Protocol):
-	"""Hamiltonian capability needed to track time-conjugate momentum."""
 
 	def extended_momentum_derivative(
 		self,
@@ -81,7 +81,6 @@ class CyclotronSplitSystem(DynamicalSystem, Protocol):
 __all__ = [
 	"CyclotronSplitSystem",
 	"DynamicalSystem",
-	"ExtendedHamiltonianSystem",
 	"GuidingCenterJacobianSystem",
 	"HamiltonianSystem",
 ]

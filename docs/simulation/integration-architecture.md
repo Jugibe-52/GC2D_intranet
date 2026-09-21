@@ -31,7 +31,10 @@ control. DOP853 and Radau own physical-only SciPy solvers and use eight-point
 Gauss quadrature over accepted dense output for passive momentum. This quadrature
 has no independent error tolerance; audit it by refinement. Radau's optional
 Jacobian always differentiates physical coordinates only. Diagnostic interpolation
-work and BM4's accepted energy replay are excluded from physical work counters.
+work and energy-derivative evaluations are excluded from physical work counters.
+BM4 reuses the converged residual's shear states for passive quadrature without
+repeating spatial maps. Adaptive energy samples reuse their accepted interval's
+endpoint momenta; only interior queries require partial-interval quadrature.
 
 Fixed controllers compute off-grid samples with independent shortened maps;
 adaptive controllers evaluate accepted dense output. The formulation validates each

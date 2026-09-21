@@ -337,7 +337,9 @@ recurrence pipelines now use these public methods.
 Both consume the general `DynamicalSystem` protocol and use the shared
 output-independent fixed grid. RK4 can additionally advance the
 time-conjugate momentum when `track_energy=True` and the dynamics implements
-`ExtendedHamiltonianSystem`.
+`HamiltonianSystem`. This extends `DynamicalSystem` with both `hamiltonian`
+and `extended_momentum_derivative`; see the shared
+[dynamics contracts](docs/dynamics/protocols.md).
 
 See the model-specific documentation for
 [`ExplicitEuler`](docs/models/explicit-euler/simulation/explicit-euler-simulation-architecture.md)

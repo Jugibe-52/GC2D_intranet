@@ -12,7 +12,7 @@ from typing import ClassVar
 
 import numpy as np
 
-from dynamics import ExtendedHamiltonianSystem
+from dynamics import HamiltonianSystem
 from .._result import DiagnosticValue
 from ..problem import InitialValueProblem
 
@@ -38,8 +38,8 @@ class PhysicalFormulation:
     def __post_init__(self) -> None:
         object.__setattr__(self, "physical_size", self.problem.initial_state.size)
         object.__setattr__(self, "particle_count", self.problem.particle_count)
-        if self.track_energy and not isinstance(self.problem.dynamics, ExtendedHamiltonianSystem):
-            raise TypeError("Energy tracking requires ExtendedHamiltonianSystem.")
+        if self.track_energy and not isinstance(self.problem.dynamics, HamiltonianSystem):
+            raise TypeError("Energy tracking requires HamiltonianSystem.")
 
     @property
     def spatial_size(self) -> int:
@@ -94,7 +94,7 @@ class PhysicalFormulation:
     def momentum_rate(self, time: float, physical: np.ndarray) -> np.ndarray:
         """Evaluate the passive energy-balance derivative in physical units."""
         dynamics = self.problem.dynamics
-        assert isinstance(dynamics, ExtendedHamiltonianSystem)
+        assert isinstance(dynamics, HamiltonianSystem)
         rate = np.asarray(dynamics.extended_momentum_derivative(time, physical), dtype=float)
         if rate.shape != (self.particle_count,) or not np.all(np.isfinite(rate)):
             raise ValueError("The momentum derivative must be finite with one value per particle.")
@@ -140,7 +140,7 @@ class PhysicalFormulation:
         if not np.allclose(particle_times, output_times, rtol=0.0, atol=tolerance):
             raise ValueError("Each particle time must match the output times within round-off.")
         dynamics = self.problem.dynamics
-        assert isinstance(dynamics, ExtendedHamiltonianSystem)
+        assert isinstance(dynamics, HamiltonianSystem)
         energy = np.asarray(dynamics.hamiltonian(times, physical), dtype=float)
         if energy.ndim == 1:
             energy = energy[np.newaxis, :]
