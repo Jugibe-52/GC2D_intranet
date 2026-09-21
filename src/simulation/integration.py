@@ -159,9 +159,12 @@ def integrate_method(
 	method._status = "running"
 	collector = IntegrationCollector(method.initial_state, request.output_times)
 	t0, tf = request.t_span
+	# Allow only float round-off when comparing interval and sampling endpoints;
+	# this is unrelated to an integrator's error or nonlinear-solver tolerance.
 	tolerance = 16 * np.finfo(float).eps * max(1.0, abs(t0), abs(tf))
 	sampling_tolerance = getattr(selected, 'sampling_tolerance', tolerance)
 	sample_endpoints = getattr(selected, 'sample_endpoints', False)
+	# Estimate the fixed-step count for the display; its percentage uses accepted time.
 	progress = _Progress(method.method_name, _step_count(tf - t0, request.max_step), t_span=request.t_span) if method.progress else None
 	output_index = 1
 	shadow_count = 0
