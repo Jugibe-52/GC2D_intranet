@@ -1,5 +1,6 @@
 """Problems, numerical formulations, methods, requests, and orchestration."""
 
+from .formulations.state import PhysicalFormulation, DoubledFormulation
 from .configuration import InitialConfiguration, StateLayout
 from .formulations import (
 	DirectAdjointFormulation,
@@ -74,6 +75,7 @@ from .runner import SimulationRunner, simulate
 from .solution import Solution
 
 __all__ = [
+	"PhysicalFormulation", "DoubledFormulation",
 	"DOP853",
 	"Radau",
 	"AdaptiveIntegrationStep",

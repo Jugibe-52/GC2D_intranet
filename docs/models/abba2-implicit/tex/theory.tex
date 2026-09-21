@@ -39,6 +39,7 @@
 \newcommand{\PhiAB}{\Phi^{\mathrm{ABBA}}_{h,t_n}}
 \newcommand{\norm}[1]{\left\lVert #1\right\rVert}
 
+\setlength{\emergencystretch}{3em}
 \begin{document}
 
 \begin{center}
@@ -52,66 +53,9 @@
 \vspace{0.5em}
 
 \section{Scope and implementation name}
-
-The public ABBA family contains exactly four numerical-method classes:
-\begin{itemize}
- \item \texttt{ABBA2Midpoint};
- \item \texttt{ABBA2Implicit};
- \item \texttt{ABBA4Implicit};
- \item \texttt{ABBA6Implicit}.
-\end{itemize}
-State-space variants are parameters of these classes, not additional public
-method classes. The three implicit methods expose two nonlinear selectors and
-a constrained state/energy strategy:
-
-\begin{center}
-\small
-\begin{tabular}{@{}>{\raggedright\arraybackslash}p{0.27\textwidth}
-                    >{\raggedright\arraybackslash}p{0.65\textwidth}@{}}
-\toprule
-Axis & Canonical values \\
-\midrule
-\texttt{projection\_formulation}
-  & \texttt{reduced\_multiplier};
-    \texttt{simultaneous\_state\_}\allowbreak\texttt{multiplier} \\
-\texttt{nonlinear\_solver}
-  & \texttt{newton}; \texttt{broyden} \\
-\texttt{state\_extension}
-  & \texttt{physical}; \texttt{fully\_extended} \\
-\texttt{track\_energy}
-  & \texttt{False}; \texttt{True}; fully extended execution always resolves
-    to \texttt{True} \\
-\bottomrule
-\end{tabular}
-\end{center}
-
-The three normalized state/energy strategies are physical without tracking,
-physical with tracking, and fully extended with tracking.  ABBA2 and ABBA6
-therefore admit $2\times2\times3=12$ canonical configurations each.
-ABBA4 adds two projection placements and admits 24.
-\texttt{ABBA2Midpoint} has no nonlinear residual and supports the same three
-strategies.  The four public classes consequently represent
-$12+24+12+3=51$ canonical configurations.
-
-The formulation and solver choices are global within a composed step. For
-\texttt{ABBA4Implicit}, the per-map placement applies the same configuration
-to all three signed maps independently; the exterior placement surrounds the
-complete unprojected triple jump with one projection. All seven signed maps of
-\texttt{ABBA6Implicit} use the same configuration.
-
-This note derives the following branch of \texttt{ABBA2Implicit}:
-\begin{itemize}
- \item \texttt{projection\_formulation}: \texttt{reduced\_multiplier};
- \item \texttt{state\_extension}: \texttt{physical};
- \item \texttt{track\_energy}: \texttt{False}.
-\end{itemize}
-Its nonlinear unknown is $\mu\in\R^2$ per particle and its exact Newton matrix
-is $2\times2$.  The simultaneous formulation instead solves for
-$(u_f,v_f,\mu)\in\R^6$ per particle with a $6\times6$ Newton block.  Both
-formulations define the same exact projected map when converged; Newton and
-Broyden are alternative algorithms for finding that root.  The
-six-dimensional simultaneous vector is only an algebraic solver workspace,
-not a trajectory state or a separate numerical method.
+One endpoint-time A-B-B-A map with one spatial Hairer projection. Energy tracking is optional and passive.
+The accepted shear stages update the normalized passive momentum after the spatial projection solve.
+The common state conventions are specified below.
 
 \section{Guiding-center system and duplicated phase space}
 
@@ -1326,74 +1270,48 @@ The reduced multiplier system defines the same exact projected map independently
 particular convergent nonlinear solver. With a finite stopping tolerance, symplecticity is
 preserved only up to the defect introduced by that tolerance.
 
-\section{State, energy tracking, and dimensional conventions}
+\section{Four state formulations and passive energy tracking}
+For one planar particle the supported internal representations are
+\[
+\begin{array}{lll}
+\text{physical} & z=(x,y) & \mathbb{R}^{2},\\
+\text{physical with energy} & (z,t,\kappa) & \mathbb{R}^{4},\\
+\text{duplicated} & (u,v),\quad u,v\in\mathbb{R}^{2} & \mathbb{R}^{4},\\
+\text{duplicated with energy} & (u,v,t,\kappa) & \mathbb{R}^{6}.
+\end{array}
+\]
+Classical methods use the physical rows; ABBA and BM4 use the duplicated rows.
+\texttt{track\_energy} selects the energy variant. For $N$ planar particles the
+respective dimensions are $2N$, $4N$, $4N$, and $6N$: one time entry and
+one momentum per particle. All time entries equal the integration time. Classical full-cyclotron runs instead use $4N$ or $6N$ entries.
+Accepted spatial copies coincide; only one physical copy is exported.
+Every coordinate block contains $N$ values in component-major order. The
+formulation validates particle times and aligns output round-off; the
+integrator does not interpret coordinate indices.
 
-The \texttt{state\_extension} selector chooses which variables are duplicated,
-while \texttt{track\_energy} optionally advances conjugate momentum beside a
-physical solve.  For one guiding-center particle, the complete dimensional
-convention is:
+The normalized passive balance is
+\[
+\dot\kappa=-\partial_tH(t,z),\qquad \kappa(t_0)=0,\qquad
+\Delta K(t)=H(t,z(t))+\kappa(t)-H(t_0,z_0).
+\]
+Splitting accumulators from both copies are divided by two. The physical
+Hamiltonian may vary with time; $\Delta K$ measures its computed balance.
+Tracking leaves physical trajectories, nonlinear stopping rules and adaptive
+acceptance unchanged. Dynamics must supply the momentum derivative, including
+zero for an autonomous Hamiltonian.
 
-\begin{center}
-\footnotesize
-\begin{tabular}{@{}>{\raggedright\arraybackslash}p{0.15\textwidth}
-                    >{\raggedright\arraybackslash}p{0.18\textwidth}
-                    >{\raggedright\arraybackslash}p{0.18\textwidth}
-                    >{\raggedright\arraybackslash}p{0.16\textwidth}
-                    >{\raggedright\arraybackslash}p{0.22\textwidth}@{}}
-\toprule
-Extension and tracking & Accepted state & Splitting state & Reduced unknown & Simultaneous unknown \\
-\midrule
-\texttt{physical}, off
-  & $z\in\R^2$
-  & $(u,v)\in\R^4$
-  & $\mu\in\R^2$
-  & $(u_f,v_f,\mu)\in\R^6$ \\
-\texttt{physical}, on
-  & $z\in\R^2$
-  & $(u,v)\in\R^4$
-  & $\mu\in\R^2$
-  & $(u_f,v_f,\mu)\in\R^6$ \\
-\texttt{fully\_extended}, on
-  & $Z=(z,t,k)\in\R^4$
-  & $(Z_1,Z_2)\in\R^8$
-  & $\mu\in\R^4$
-  & $(Z_{1f},Z_{2f},\mu)\in\R^{12}$ \\
-\bottomrule
-\end{tabular}
-\end{center}
+Hairer's constraint is solely $u-v=0$: the reduced multiplier has $2N$ entries
+and ABBA's simultaneous spatial solve has $6N$ unknowns. Neither $t$ nor
+$\kappa$ is projected. The former eight-component projection is retired;
+\texttt{state\_extension='fully\_extended'} raises migration guidance.
 
-The literal $\R^2/\R^4/\R^6/\R^8/\R^{12}$ entries in the table are for one
-particle.  For a physical run with $N$ independent particles, the accepted,
-splitting, reduced, and simultaneous dimensions scale to $2N$, $4N$, $2N$,
-and $6N$, respectively, whether tracking is disabled or enabled.  Tracking
-adds $N$ conjugate momenta to the fixed-grid workspace, not to any state or
-unknown in the table.  Fully extended execution currently requires $N=1$.
-
-Physical observers receive the closed map $z\mapsto z_{n+1}$, independently
-of energy tracking.  The optional momentum history remains in diagnostics and
-does not enter observer states or Jacobians.  Fully extended observers instead
-receive the accepted internal map $Z\mapsto Z_{n+1}$ in $\R^4$.  The
-diagnostics fields \texttt{observer\_state\_dimension} and
-\texttt{observer\_state\_kind} state which convention applies.
-
-Physical tracking reuses the four accepted ABBA stage states to advance one
-normalized conjugate value $\kappa=k/2$ per particle.  Because this momentum
-update is triangular, it does not feed back into $z$ and the physical
-trajectory agrees with the untracked configuration.  The temporary $\R^6$
-nonlinear unknown of the simultaneous formulation is unrelated to this
-auxiliary momentum block.  Diagnostics store it as
-\texttt{extended\_momentum}, together with
-\texttt{extended\_momentum\_normalization} and the scalar maximum drift
-\texttt{energy\_error}; time is the ordinary solution time.
-
-The fully extended strategy duplicates the complete autonomous state, operates
-on $(Z_1,Z_2)\in\R^8$, and advances direct $k$.  Its full-state projection can
-define a different physical map.  In the simultaneous formulation, the two
-four-component final copies and the four-component multiplier form the
-$\R^{12}$ nonlinear workspace shown in the table.  Fully extended execution
-always resolves \texttt{track\_energy} to \texttt{True} and reports direct-$k$
-energy diagnostics.  Every public ABBA class selects these strategies through
-\texttt{state\_extension} and \texttt{track\_energy}; no separate extension
-method class is exposed.
+Dynamics, formulation, method and integration remain separate. The shared
+state classes own layouts, diagonal embedding and history extraction in
+\begin{quote}\small\path{src/simulation/formulations/state.py}\end{quote}
+Each integration initializes a fresh method instance. Observers receive physical
+states; energy histories are in \texttt{Solution.diagnostics}.
+The \texttt{extended\_time} history has shape $(N,n_{\rm samples})$. Fixed-step shadow
+samples leave main states and counters unchanged. Adaptive energy quadrature
+uses accepted dense output; its backend state and Jacobian remain physical.
 
 \end{document}

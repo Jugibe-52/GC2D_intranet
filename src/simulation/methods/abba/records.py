@@ -3,13 +3,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TypeAlias
 
 import numpy as np
 
 from .._nonlinear import SolveStats
 from .maps.physical import _ABBAStages
-from .projection_extended import _FullProjectedStep
 
 
 @dataclass(frozen=True, slots=True)
@@ -29,21 +27,6 @@ class PhysicalProjectionTrace:
 
 
 @dataclass(frozen=True, slots=True)
-class ExtendedProjectionTrace:
-	"""Accepted R8 base-map data for one full-diagonal projection.
-
-	The kernel retains the complete selected map and its derivative callback.
-	An outer composition still owns only one projection and one base-map event.
-	"""
-
-	result: _FullProjectedStep
-	coefficients: tuple[float, ...]
-
-
-ProjectionTrace: TypeAlias = PhysicalProjectionTrace | ExtendedProjectionTrace
-
-
-@dataclass(frozen=True, slots=True)
 class ProjectedMapResult:
 	"""One accepted projection, independent of the enclosing method order."""
 
@@ -53,7 +36,7 @@ class ProjectedMapResult:
 	state: np.ndarray
 	multiplier: np.ndarray
 	stats: SolveStats
-	trace: ProjectionTrace
+	trace: PhysicalProjectionTrace
 
 
 @dataclass(frozen=True, slots=True)

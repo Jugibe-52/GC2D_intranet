@@ -327,24 +327,19 @@ hamiltonian = Phi
 extended_momentum_derivative = -Phi_t
 ```
 
-Derivative requirements depend on the selected ABBA configuration:
+Derivative requirements distinguish the physical solve from energy monitoring:
 
-- Newton with `state_extension="physical"` assembles exact particle Jacobians
-  from `Phi_xx`, `Phi_xy`, and `Phi_yy`, independently of `track_energy`.
-- Newton with `state_extension="fully_extended"` uses that spatial Hessian and
-  additionally evaluates `Phi_xt`, `Phi_yt`, and `Phi_tt` to build the analytic
-  `4 x 4` extended-vector-field Jacobian.
-- Broyden evaluates the selected residual without analytic residual Jacobians.
-  Physical Broyden with `track_energy=False` therefore needs field values only.
-  Enabling energy tracking additionally uses `Phi_t` for the auxiliary
-  conjugate-momentum update. Fully extended Broyden also uses `Phi_t`, but
-  neither case requires the Hessian, mixed derivatives, or `Phi_tt`.
+- Spatial Newton uses `Phi_xx`, `Phi_xy`, and `Phi_yy`, with or without tracking.
+- Spatial Broyden needs field values and no analytic residual Jacobian.
+- `track_energy=True` additionally uses `Phi_t` for the passive momentum. It
+  never projects the clock or momentum, so it requires no mixed or second time
+  derivatives for the physical solve.
 
-The spatial second derivatives used by either Newton branch require
-`interpolation_order >= 3`. The HDF5 implementation's frequency-aware `dt=2`
-contract makes fully extended Newton valid for stationary means and arbitrary
-positive multifrequency selections; it does not use the unit-frequency
-shortcut `Phi_tt=-Phi`.
+Spatial analytic second derivatives require `interpolation_order >= 3`.
+The potential's mixed derivatives and frequency-aware `dt=2` remain available
+for independent diagnostics, but the retired full time/momentum projection is
+not an active method configuration. All energy histories use normalized
+physical `kappa`, whose derivative is `-Phi_t`.
 
 A minimal simulation setup is:
 

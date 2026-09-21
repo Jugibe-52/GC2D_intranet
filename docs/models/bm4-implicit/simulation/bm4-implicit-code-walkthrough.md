@@ -1,3 +1,8 @@
+> Current state contract: the integration workspace is spatially duplicated,
+> R4 without energy or R6 with time and passive momentum per planar
+> particle. The detailed projection equations below still act only on space.
+> See [the current guide](bm4-simulation-architecture.md) for the complete API.
+
 # BM4Implicit implementation walkthrough
 
 This guide explains the implementation of `BM4Implicit` in source order. It is
@@ -27,7 +32,8 @@ embedding `N = G.T` below. The implementation uses component-major packing:
 z=(x_1,\ldots,x_p,y_1,\ldots,y_p)\in\mathbb R^m.
 \]
 
-The accepted state is always this physical vector. BM4 temporarily works with
+The nonlinear kernel accepts this physical vector. The integration state stores
+both spatial copies, and optionally p times and p passive momenta. BM4 works with
 two physical copies,
 
 \[
@@ -276,7 +282,7 @@ Every import supports one part of the implementation:
 | `GuidingCenterDynamics` | Runtime requirement and exact derivatives for the analytic Jacobian |
 | `IntegrationMethod`, `StepInfo`, `StepResult` | Shared lifecycle and typed one-step records |
 | `DiagnosticValue` | Typed metadata and exported auxiliary diagnostics |
-| `GCExtendedFormulation` | Builder for the doubled physical direct/adjoint maps |
+| `GCDoubledMaps` | Directly constructed doubled physical direct/adjoint maps |
 | `gc_coupling_matrix` | Exact particle-local harmonic coupling and its tangent map |
 | `PreparedDirectAdjointFormulation` | Type contract for the prepared maps and metadata |
 | `ImplicitBM4IntegrationStep` | Complete accepted-step observer record |
@@ -755,9 +761,12 @@ changing the requested numerical procedure.
 ### `BM4Implicit.initialize`: resources on the numerical class
 
 `new_run` creates another `BM4Implicit` from constructor options and invokes its
-`initialize`. This operation stores `self.formulation`, `self.initial_state`,
-metadata and diagnostic aliases. The formulation is built once with
-`track_energy=False`. No context or callback-based method record is created.
+`initialize`. It creates `state_formulation = DoubledFormulation(...)` with
+the selected tracking flag and obtains its initial diagonal state. It binds
+`self.formulation = GCDoubledMaps(...)` without energy for the spatial solve.
+When tracking is enabled, `self.energy_maps` holds a second map with a passive
+accumulator for the accepted-stage replay. Metadata and diagnostic aliases
+belong to this fresh run.
 
 The ordinary class method `_solve(t, state, h)` calls the reduced Hairer kernel
 with this instance's formulation and solver controls. Global scheduling, history
@@ -765,8 +774,12 @@ collection and event dispatch remain in `simulation/integration.py`.
 
 ### `advance(t, state, h)` and `StepResult`
 
-The numerical advance calls `self._solve` exactly once, extracts its work and converged
-multiplier norm, and returns `StepResult(result.state, statistics, result)`.
+The numerical advance extracts physical coordinates and calls `self._solve`
+exactly once. With energy tracking, it replays the accepted base cycle and
+divides its summed momentum increment by two. `state_formulation.finish`
+embeds the accepted physical state twice and updates each particle time and momentum.
+The result is `StepResult(after, statistics, result)`, where `after` has the
+full internal layout and `result` retains only the spatial solve details.
 It has no `step_index` or `observe` parameter. The same operation is used for main
 and shadow steps; their recording policy belongs to the common coordinator.
 The five metric values are iteration count, residual evaluations, residual norm,
@@ -788,14 +801,18 @@ replay is diagnostic work and never replaces the accepted physical result.
 
 ### `export_history` and the common controller
 
-The BM4Implicit exporter returns the already physical history and no auxiliary
-energy fields. The common coordinator chooses `FixedStepController` by default.
+The inherited exporter delegates to `DoubledFormulation`, extracting one spatial
+copy and, when enabled, the common energy histories. The integration workspace
+has 4N or 6N entries. `track_energy=True` replays only the converged spatial
+base cycle with an energy accumulator; this does not modify the multiplier or
+physical solver work. The normalized increment is half the accumulated sum. The common coordinator chooses `FixedStepController` by default.
 Its uniform grid uses the same `_step_count` and arithmetic as before. It delivers
 accepted `StepInfo`/`StepResult` pairs. Interior requested samples use a shortened
 map from an independent copy of the preceding main state, without collection or
 observation. The main result is unchanged by output density.
 
-`IntegrationCollector` stores only physical samples and small metric arrays.
+`IntegrationCollector` stores internal samples and small metric arrays; physical
+extraction happens once at export.
 `step_times`, `step_start_times` and `step_sizes` identify each accepted interval;
 these arrays are independent of the requested output schedule. The added
 `output_interpolation_count` counts interior samples, not nonlinear evaluations.
@@ -867,6 +884,7 @@ configuration is reusable. The caller still manages any stateful observer.
 
 | Field | Default | Validation and effect |
 |---|---:|---|
+| `track_energy` | `False` | Store p times and p normalized passive momenta; no change to the spatial solve |
 | `coupling_frequency` | `0.0` | Finite and non-negative; zero disables doubled-copy harmonic coupling while retaining the reduced Hairer projection |
 | `newton_absolute_tolerance` | `1e-13` | Finite and strictly positive; absolute part of every nonlinear threshold |
 | `newton_relative_tolerance` | `1e-12` | Finite and strictly positive; multiplies the input-state infinity scale |
@@ -909,11 +927,13 @@ numerical boundary:
 
 ```text
 construct BM4Implicit and validate configuration
-prepare doubled physical GC direct/adjoint maps with no energy extension
+construct DoubledFormulation with the selected tracking flag
+bind physical GC direct/adjoint maps for the spatial solve
+if tracking is enabled, bind energy maps for accepted-stage replay
 
 choose uniform accepted main grid from t_span and max_step
 for each main interval (t, h):
-    z = current accepted physical state                         # shape (m,)
+    z = state_formulation.physical(current_internal_state)     # shape (m,)
     mu = zeros_like(z)                                          # shape (m,)
     threshold = atol + rtol * max(1, norm_inf(z))
 
@@ -935,7 +955,10 @@ for each main interval (t, h):
         require replayed output == mapped
         emit one physical step record containing the 12 internal records
 
-    advance the accepted main trajectory with z_next
+    if tracking is enabled:
+        increment = accepted_energy_replay([z+mu; z-mu], h) / 2
+    current_internal_state = state_formulation.finish(
+        current_internal_state, z_next, t+h, increment)
     obtain any interior saved times through non-observed shadow solves
 
 return saved physical history with shape (m, saved_times) and diagnostics
@@ -957,7 +980,7 @@ return saved physical history with shape (m, saved_times) and diagnostics
 | Broyden approximation and corrections remain usable | shared Broyden checks | `RuntimeError` |
 | Residual meets its threshold before acceptance | both nonlinear branches | `RuntimeError` on exhaustion |
 | Observer replay is exactly the solved base map | `np.array_equal(observed_mapped, result.mapped)` | `RuntimeError` |
-| Main and shadow steps preserve the physical shape | `integrate_method` | `ValueError` |
+| Main and shadow steps preserve the selected internal shape | `integrate_method` | `ValueError` |
 | Every requested output time is covered | final fixed-grid check | `RuntimeError` |
 
 These checks deliberately fail at the boundary where an assumption is broken.
@@ -966,8 +989,9 @@ silently changes dimensions, or substitutes an arithmetic projection.
 
 ## Common interpretation pitfalls
 
-- **The doubled vector is workspace, not an accepted extended state.** Only its
-  averaged projected physical state enters the trajectory.
+- **Accepted internal states contain two identical spatial copies.** Stage
+  workspaces may separate them. The exported trajectory contains one copy, and
+  optional clock/momentum histories are returned as diagnostics.
 - **There is one projection per complete cycle, not one per internal stage.**
   `_advance_composition` contains no projection call.
 - **The projection is symmetric, not only a final average.** The multiplier

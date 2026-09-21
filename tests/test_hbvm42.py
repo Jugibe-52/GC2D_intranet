@@ -50,6 +50,10 @@ class _QuarticWithoutJacobian:
 		del t
 		return 0.5 * state[1:2] ** 2 + 0.25 * state[0:1] ** 4
 
+	def extended_momentum_derivative(self, t: float, state: np.ndarray) -> np.ndarray:
+		"""Autonomous test Hamiltonian has zero passive energy derivative."""
+		return np.zeros(1)
+
 
 class HBVM42MethodTests(unittest.TestCase):
 	"""Verify coefficients, order, energy, diagnostics, and solver selection."""

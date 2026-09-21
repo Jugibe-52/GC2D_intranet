@@ -1,132 +1,95 @@
-# Radau adaptive integration architecture
+# Radau: state formulations and execution
 
-[Editable diagram](radau-simulation-architecture.puml) · [Scalable diagram](radau-simulation-architecture.svg)
+One retained SciPy implicit adaptive solver.
 
-![Radau architecture](radau-simulation-architecture.png)
+The canonical theoretical source is [theory.tex](../tex/theory.tex), with its
+compiled [theory.pdf](../tex/theory.pdf). The four-formulation convention below
+supersedes earlier diagrams showing a duplicated clock or full time/momentum projection.
 
-`Radau` is a public numerical method using the same preparation, coordinator,
-collector and result validation as the fixed-step methods. Its backend is
-SciPy's `Radau` solver. The six-phase diagram retains the detailed BM4 structure.
+## Responsibilities
 
-```python
-from simulation import Radau, SimulationRequest, simulate
-
-solution = simulate(
-    problem,
-    Radau(relative_tolerance=1e-10, absolute_tolerance=1e-12),
-    SimulationRequest.uniform(t_span=(0.0, 1.0), max_step=0.025, sample_count=101),
-)
-```
-
-## Method instances and integration lifecycle
-
-This method inherits `IntegrationMethod.integrate(problem, request)`, shared by
-all 13 public methods. It calls `new_run(problem, request)` to create a fresh
-instance of the same numerical class. That instance's `initialize` validates
-capabilities and sets its formulation, initial internal state and metadata.
-There is no separate context or callback-based method record.
-
-| Operation on the numerical class | Responsibility |
+| Component | Owns |
 |---|---|
-| `initialize(problem, request)` | Initialize this run's resources once; return `None` |
-| `advance(t, state, h)` | Execute numerical work and return state, statistics and typed details |
-| `build_observation(info, step)` | Construct a method-specific event with independent snapshots |
-| `export_history(times, history)` | Extract physical output and auxiliary diagnostics |
-| `controller()` | Select fixed or adaptive accepted-step scheduling |
+| Dynamics | Physical vector field, Hamiltonian and required derivatives |
+| Formulation | Internal coordinates, spatial copies and physical/energy extraction |
+| Method | Stages, signed coefficients, spatial projection and passive quadrature |
+| Integration | Accepted intervals, sampling, observation and output collection |
 
-`integrate_method(run)` owns the common loop. Its `IntegrationCollector` saves
-requested samples and copied accepted-step metric rows, without retaining
-numerical details or events. The method owns the formulation and any live solver.
-Analysis and persistence remain in `diagnostics/`; observers remain caller-owned.
+## State contract
 
-Constructor options remain reusable through `simulate`. Per-run resources are
-excluded from reconstruction, and initial state and metadata are isolated as
-read-only copies. A completed or failed run cannot be integrated again; create a
-fresh run. Call `new_run` for low-level access rather than resetting `initialize`.
+| Planar one-particle formulation | Internal coordinates | Dimension |
+|---|---|---:|
+| Physical | `(x, y)` | 2 |
+| Physical with energy | `(x, y, t, kappa)` | 4 |
+| Duplicated | `(x1, y1, x2, y2)` | 4 |
+| Duplicated with energy | `(x1, y1, x2, y2, t, kappa)` | 6 |
 
-`FixedStepController` calls `run.advance` with the exact effective duration and
-uses independent shortened maps for interior output times. DOP853/Radau's
-controller calls their ordinary `advance` on the live solver with an upper step
-bound and reads the actual accepted endpoint. Dense sampling retains the backend.
+Radau uses the **physical** rows. `track_energy=False` is the default;
+`track_energy=True` enables the energy row. With N planar particles its internal
+dimensions are 2N / 4N. There are N time entries and N energy momenta.
+Classical FC runs use their actual physical size 4N, giving 4N / 6N.
+All components remain component-major; energy states append N times, then N
+normalized momenta. Every component block has the same particle dimension.
+The time entries are copies of the integration time; physical maps still receive
+one scalar time. The formulation owns clock validation and output alignment.
+The physical output always has its original size.
+Accepted duplicated copies are equal. They separate only inside the numerical map.
 
-Metric rows follow `step_times`; physical and auxiliary histories follow
-`Solution.t`. Common fields are `step_count`, `step_start_times`, `step_times`,
-`step_sizes` and `output_interpolation_count`. Shadow work and extra observer-only
-work are excluded from accepted numerical counters.
+`PhysicalFormulation` and `DoubledFormulation` are constructed directly from the
+problem, initial time and tracking flag. They are defined in
+`src/simulation/formulations/state.py`. BM4 additionally uses directly bound
+`GCDoubledMaps` for its spatial direct/adjoint stages; its legacy configuration
+factory is only a compatibility entry point.
 
-See the [generic architecture](../../../simulation/integration-architecture.md)
-for the lifecycle, adaptive semantics and extension guide. Executable contracts
-are in `tests/test_method_integration.py` and `tests/test_adaptive_integration.py`.
+## Energy and nonlinear work
 
-## Numerical session and variable steps
+Eight-point Gauss quadrature integrates the passive derivative along each accepted dense interpolant. Partial-interval quadrature supplies off-grid energy samples. The user Jacobian covers physical coordinates only. Refine the physical step to audit the diagnostic quadrature, whose error is not controlled separately.
 
-`initialize` validates the dynamics and creates **one live solver** on the
-method instance. `advance` calls `solver.step()` and returns after one acceptance
-or failure. Its `h` argument is an upper bound; the controller reads the actual
-endpoint from the retained solver. Stages, rejected trials and any Jacobian or
-factorization reuse survive successive calls. Output times only select samples.
+The stored momentum is physical `kappa`, initialized at zero. Its derivative is
+`-partial_t H`; splitting sums are normalized by one half. The diagnostic is
+`H(t, z) + kappa - H(t0, z0)`. It measures a balance, not conservation of the
+time-dependent physical Hamiltonian. Dynamics must implement
+`ExtendedHamiltonianSystem` when tracking is enabled, including an explicit zero
+derivative for an autonomous Hamiltonian.
 
-Three-stage Radau IIA collocation with Newton. Embedded error control selects/rejects trials. SciPy Radau retains Newton/Jacobian/LU state. Dense output is a cubic collocation polynomial. Optional full-state jacobian callable is supported.
+Only spatial coordinates enter a Hairer constraint. The reduced multiplier has
+2N components; the ABBA simultaneous spatial solve has 6N unknowns. Clock and
+momentum never enlarge these roots or affect their stopping scale. Tracking also
+leaves classical physical solves and adaptive acceptance decisions unchanged.
+BM4's optional energy replay and adaptive diagnostic quadrature are extra work
+outside the physical solver counters; reported wall time still includes them.
 
-`max_step` is an upper bound. The positive tolerances control local error; they
-are not a guaranteed global trajectory-error bound. `first_step=None` delegates
-initial-step selection to SciPy. Reusing the public method configuration through
-`simulate` creates a fresh instance, solver and collector. An initialized instance
-is for one execution; `advance` must start from its live solver state. Adaptive
-observations expose dense output, not a fixed-duration candidate-state map.
+## Lifecycle and output
 
-## Output and observation
+`simulate(problem, method, request)` creates a fresh run via `new_run`, validates
+its formulation and calls the shared `integrate_method`. Each `advance` returns
+an internal state, small work counters and method-specific accepted details.
+The common collector retains samples and counters; the formulation extracts the
+physical trajectory and diagnostic histories. Run resources are isolated.
 
-Requested samples use the accepted dense interpolant. They never restart the
-solver or force the accepted grid through every saved time. Endpoint sampling
-preserves `solve_ivp(t_eval=...)` arithmetic. `dense_output=False` computes
-interpolants when outputs or observers need them; `dense_output=True` computes
-every accepted interpolant without storing it in the common collector.
+Fixed methods use independent shortened maps for off-grid samples. Adaptive
+methods retain one live SciPy solver whose state is always physical. Their
+energy quadrature follows accepted dense output and cannot affect the error norm.
+Radau Jacobians are physical-sized even when energy tracking is enabled.
 
-`AdaptiveIntegrationStep` supplies accepted times, copied before/after states,
-work counters and `dense_state(time)`. It deliberately exposes no `map_state`:
-the accepted adaptive algorithm depends on step-selection history. A fixed-map
-symplecticity observer cannot be substituted for an adaptive trajectory observer.
+Observers receive the physical map and independent snapshots. Their shapes do
+not change with tracking. All energy histories have shape `(N, saved_times)`,
+including `extended_time` even for a single particle. Diagnostic arrays
+`extended_time`, `extended_momentum`,
+`physical_hamiltonian`, `generalized_energy` and `generalized_energy_error` follow
+`Solution.t`; nonlinear and runtime work arrays follow `step_times`.
+`extended_momentum_normalization` is `physical_kappa` and `energy_error` is the
+maximum absolute sampled balance error over all particles.
 
-For opt-in continuous retention:
+## Migration and verification
 
-```python
-from diagnostics import AdaptiveTrajectoryObserver
+`state_extension="fully_extended"` no longer runs a time/momentum projection.
+It raises explicit migration guidance. Use `track_energy=True` with spatial
+projection. The historical full-state symplecticity study is retired because it
+measured a different map; existing saved artifacts can still be read.
 
-trajectory = AdaptiveTrajectoryObserver()
-method = Radau(dense_output=True, step_observer=trajectory)
-solution = simulate(problem, method, request)
-state_at_time = trajectory.evaluate(0.5)  # Must lie inside request.t_span.
-```
-
-The observer owns the interpolants and rejects queries outside its retained
-interval. Other observers may stream records to storage without retaining the
-full trajectory. Reusing a stateful observer requires a fresh instance or an
-explicit caller-managed lifecycle.
-
-## Work counters and energy
-
-`function_evaluations`, `jacobian_evaluations` and `lu_decompositions` contain
-one row per accepted step. The first row includes initialization work. Rejected
-trial work is included in the next accepted row, with no rejected-step event.
-Additional dense-output work needed only by an observer is excluded from the
-main counters; `dense_output=True` includes that interpolation work explicitly.
-The original counters of SciPy match when the same output policy is requested.
-
-`track_energy=True` integrates `(z,k)` with `k'=-partial_t H`, starting from
-zero momentum per particle, and requires `ExtendedHamiltonianSystem`. Error
-control applies to the entire augmented state, so enabling tracking can change
-the accepted grid and physical floating-point trajectory. Export returns physical
-states, `extended_momentum` and the generalized-energy diagnostic for `H+k`.
-
-The reference, accuracy, energy-balance and recurrence studies now compose these
-public methods. Their scientific tolerances and reference-refinement checks
-remain the study's responsibility.
-
-See [theory](../tex/theory.tex), [PDF](../tex/theory.pdf),
-[adaptive implementation](../../../../src/simulation/methods/adaptive/scipy.py)
-and [behavioral tests](../../../../tests/test_adaptive_integration.py).
-
-`Radau(jacobian=callable)` forwards an optional full-state Jacobian. With energy
-tracking it must cover all augmented coordinates. `None` uses SciPy finite
-differences. This option is separate from the fixed methods’ Newton controls.
+Tests in `tests/test_state_formulations.py` cover all 13 methods, both tracking
+settings, particle batches, physical-only observers, adaptive control, per-particle
+time alignment and energy normalization. Model tests retain order, projection,
+Jacobian and nonlinear-solver checks. The pre-change physical trajectories are
+also compared with the migrated implementations on short nonautonomous runs.

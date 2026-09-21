@@ -1,460 +1,95 @@
-# ABBA6 implicit default physical simulation architecture
+# ABBA6Implicit: state formulations and execution
 
-[Editable source](abba6-implicit-simulation-architecture.puml) · [Scalable diagram (SVG)](abba6-implicit-simulation-architecture.svg)
+Seven signed projected ABBA maps.
 
-![abba6-implicit architecture](abba6-implicit-simulation-architecture.png)
+The canonical theoretical source is [theory.tex](../tex/theory.tex), with its
+compiled [theory.pdf](../tex/theory.pdf). The four-formulation convention below
+supersedes earlier diagrams showing a duplicated clock or full time/momentum projection.
 
-The sequence diagram preserves the nested seven-map composition and nonlinear
-solve loops. The common coordinator, collector and optional event adapter now
-appear explicitly around those numerical operations.
+## Responsibilities
 
-This document explains the companion
-[`abba6-implicit-simulation-architecture.puml`](abba6-implicit-simulation-architecture.puml)
-diagram. Its expanded runtime path is exactly the default numerical
-configuration:
-
-```python
-ABBA6Implicit(
-    projection_formulation="reduced_multiplier",
-    state_extension="physical",
-    nonlinear_solver="newton",
-    track_energy=False,
-)
-```
-
-`ABBA6Implicit` also supports a simultaneous residual, Broyden, optional
-physical-state energy tracking, and a fully extended state. Those choices are
-intentionally not expanded here. Their contracts and the complete 51-member
-canonical ABBA family are documented in the authoritative
-[`Canonical ABBA numerical architecture`](../../abba/simulation/abba-numerical-architecture.md).
-
-## Method instances and integration lifecycle
-
-This method inherits `IntegrationMethod.integrate(problem, request)`, shared by
-all 13 public methods. It calls `new_run(problem, request)` to create a fresh
-instance of the same numerical class. That instance's `initialize` validates
-capabilities and sets its formulation, initial internal state and metadata.
-There is no separate context or callback-based method record.
-
-| Operation on the numerical class | Responsibility |
+| Component | Owns |
 |---|---|
-| `initialize(problem, request)` | Initialize this run's resources once; return `None` |
-| `advance(t, state, h)` | Execute numerical work and return state, statistics and typed details |
-| `build_observation(info, step)` | Construct a method-specific event with independent snapshots |
-| `export_history(times, history)` | Extract physical output and auxiliary diagnostics |
-| `controller()` | Select fixed or adaptive accepted-step scheduling |
-
-`integrate_method(run)` owns the common loop. Its `IntegrationCollector` saves
-requested samples and copied accepted-step metric rows, without retaining
-numerical details or events. The method owns the formulation and any live solver.
-Analysis and persistence remain in `diagnostics/`; observers remain caller-owned.
-
-Constructor options remain reusable through `simulate`. Per-run resources are
-excluded from reconstruction, and initial state and metadata are isolated as
-read-only copies. A completed or failed run cannot be integrated again; create a
-fresh run. Call `new_run` for low-level access rather than resetting `initialize`.
-
-`FixedStepController` calls `run.advance` with the exact effective duration and
-uses independent shortened maps for interior output times. DOP853/Radau's
-controller calls their ordinary `advance` on the live solver with an upper step
-bound and reads the actual accepted endpoint. Dense sampling retains the backend.
-
-Metric rows follow `step_times`; physical and auxiliary histories follow
-`Solution.t`. Common fields are `step_count`, `step_start_times`, `step_times`,
-`step_sizes` and `output_interpolation_count`. Shadow work and extra observer-only
-work are excluded from accepted numerical counters.
-
-See the [generic architecture](../../../simulation/integration-architecture.md)
-for the lifecycle, adaptive semantics and extension guide. Executable contracts
-are in `tests/test_method_integration.py` and `tests/test_adaptive_integration.py`.
-
-## Shared runtime path
-
-```text
-simulate -> SimulationRunner -> ABBA6Implicit.integrate
-  -> new_run -> _ABBAImplicitMethod.initialize
-  -> integrate_method(run) -> FixedStepController -> run.advance
-       -> unpack state -> selected step recipe -> finish state/energy
-       -> main step: numerical metrics -> optional event adapter
-  -> extract physical output -> IntegrationData -> SimulationRunner -> Solution
-```
-
-Seven independently projected maps with Yoshida's signed coefficients.
-`_ABBAImplicitMethod.initialize` sets the state policy, projection and optional event
-builder before entering the shared coordinator. The physical and extended
-branches use the same inherited `advance`. Each specialized projection retains its
-analytic residual and correction algebra; common Newton and Broyden drivers
-own convergence and counters.
-
-The runtime uses `solve_projected_composition_step` in `steps.py` for
-per-map projection. `solve_outer_projection_step` binds the ABBA4 exterior
-placement. The private `_solve_abba6_step` entry remains a compatibility
-adapter in `composition.py`, outside the public call path.
-
-## Principal files
-
-| File under `src/simulation/methods/abba/` | Responsibility |
-|---|---|
-| `order2_implicit.py`, `order4_implicit.py`, `order6_implicit.py` | Concrete order, constructor controls and inherited numerical operations |
-| `_implicit.py`, `_configuration.py` | Shared option validation and state-dimension metadata |
-| `_implicit.py` | Shared initialization, numerical advance, observation and history export |
-| `steps.py` | One projected map, a composition of projected maps, or one outer projection |
-| `state.py`, `_energy.py` | Bound workspace operations and physical/extended energy handling |
-| `records.py` | `ProjectedMapResult`, `StepResult`, typed traces and observer-independent metrics |
-| `observations.py` | Optional adapters to the existing public event classes |
-| `projection_reduced.py`, `projection_simultaneous.py` | Physical single-map equations and specialized analytic corrections |
-| `projection_outer.py` | Physical equations around the complete ABBA4 base composition |
-| `projection_extended.py` | Full-diagonal equations, accepted full-map data and implicit tangents |
-| `maps/physical.py`, `maps/extended.py` | Unprojected stages and their exact derivatives |
-| `../_nonlinear.py` | `SolverOptions`, `SolveStats`, shared Newton and Broyden drivers |
-| `../../integration.py` | Method lifecycle, controller, collection and common coordinator |
-
-## Public configuration and dynamics boundary
-
-`ABBA6Implicit` inherits the shared numerical operations from
-`_ABBAImplicitMethod`. The default physical Newton branch uses these fields:
-
-| Field | Default | Scoped role |
-|---|---:|---|
-| `projection_formulation` | `"reduced_multiplier"` | Solves one multiplier per constituent ABBA map |
-| `state_extension` | `"physical"` | Carries only the accepted packed physical state |
-| `nonlinear_solver` | `"newton"` | Uses exact residual differentiation |
-| `track_energy` | `False` | Disables the auxiliary physical-state energy sidecar |
-| `newton_absolute_tolerance` | `1e-13` | Absolute stopping contribution for each substep |
-| `newton_relative_tolerance` | `1e-12` | Substep-state-scaled stopping contribution |
-| `newton_max_iterations` | `12` | Maximum corrections in each of seven solves |
-| `progress` | `False` | Enables the shared main-grid progress display |
-| `step_observer` | `None` | Receives one outer event per accepted main step |
-
-The physical Newton coordinator requires a planar
-[`GuidingCenterJacobianSystem`](../../../../src/dynamics/protocols.py):
-
-- `state_dimension == 2`;
-- `vector_field(t, state)` returns a finite shape-preserving packed field; and
-- `particle_vector_field_jacobians(t, state)` returns finite `(N, 2, 2)`
-  blocks.
-
-For `N` independent particles, the physical convention is
-
-```text
-z = [x_1, ..., x_N, y_1, ..., y_N] in R^(2N).
-```
-
-One reduced multiplier also has dimension `2N`. Each Newton correction is
-solved as `N` independent `2 x 2` systems, not as one dense `2N x 2N` solve.
-
-Setting `track_energy=True` leaves these physical, duplicated, multiplier, and
-observer dimensions unchanged. It evolves one auxiliary momentum per particle
-through the seven signed factors, records that projected momentum as
-`extended_momentum` with
-`extended_momentum_normalization="kappa_equals_k_over_2"`, and adds the scalar
-maximum `energy_error`. Physical time remains `Solution.t`. Selecting
-`state_extension="fully_extended"` instead evolves the full canonical state
-and normalizes `track_energy` to `True`.
-
-## Yoshida seven-stage composition
-
-Let `P_h(t, z)` denote one complete projected implicit ABBA2 map: it starts at
-time `t`, advances by signed duration `h`, and returns one physical state. The
-implementation stores Yoshida's coefficients as
-
-\[
-\begin{aligned}
-a &= 0.78451361047755726382,\\
-b &= 0.23557321335935813368,\\
-c &= -1.17767998417887100695,\\
-d &= 1.31518632068391121889,
-\end{aligned}
-\]
-
-\[
-(w_1,\ldots,w_7)=(a,b,c,d,c,b,a).
-\]
-
-The stored binary64 values are palindromic and satisfy, to floating-point
-round-off,
-
-\[
-\sum_{j=1}^{7}w_j=1,
-\qquad
-\sum_{j=1}^{7}w_j^3=0,
-\qquad
-\sum_{j=1}^{7}w_j^5=0.
-\]
-
-For an outer state `z_n`, start time `t_n`, and duration `h`, the coordinator
-sets
-
-\[
-z^{(0)}=z_n,
-\qquad
-t_j=t_n+h\sum_{\ell<j}w_\ell,
-\qquad
-z^{(j)}=P_{w_jh}(t_j,z^{(j-1)}),
-\]
-
-and returns `z_(n+1) = z^(7)`. The coefficient sum is checked indirectly by
-requiring the accumulated substep time to agree with `t_n+h` within a scaled
-floating-point tolerance.
-
-The signed time path is non-monotone. In fractions of the outer step, its
-constituent intervals are:
-
-| Substep | `w_j` | Start fraction | End fraction | Direction |
-|---:|---:|---:|---:|---|
-| 1 | `0.7845136104775573` | `0` | `0.7845136104775573` | Forward |
-| 2 | `0.23557321335935813` | `0.7845136104775573` | `1.0200868238369154` | Forward |
-| 3 | `-1.177679984178871` | `1.0200868238369154` | `-0.15759316034195558` | Backward |
-| 4 | `1.3151863206839112` | `-0.15759316034195558` | `1.1575931603419556` | Forward |
-| 5 | `-1.177679984178871` | `1.1575931603419556` | `-0.020086823836915402` | Backward |
-| 6 | `0.23557321335935813` | `-0.020086823836915402` | `0.21548638952244273` | Forward |
-| 7 | `0.7845136104775573` | `0.21548638952244273` | `1` | Forward |
-
-Substeps 3 and 5 therefore run backward. Intermediate field evaluations also
-occur slightly before `t_n` and after `t_n+h`; a non-autonomous dynamics must
-be valid at those times. The endpoint-time stage kernel receives the signed
-duration unchanged, so it naturally exchanges its chronological endpoints on
-a backward substep.
-
-## One reduced projected substep
-
-Every one of the seven substeps starts a new independent projection problem.
-The converged multiplier from one substep is not used as the initial guess for
-the next: each solve begins with
-
-\[
-\mu_0=0.
-\]
-
-For current physical state `z`, signed duration `q=w_j h`, start time `t`, and
-`s=q/2`, nonlinear iterate `mu_k` displaces the two copies as
-
-\[
-u_0=z+\mu_k,
-\qquad
-v_0=z-\mu_k.
-\]
-
-The common endpoint-time A--B--B--A kernel applies
-
-\[
-\begin{aligned}
-u_1 &= u_0+s f(t,v_0),\\
-v_1 &= v_0+s f(t,u_1),\\
-v_f &= v_1+s f(t+q,u_1),\\
-u_f &= u_1+s f(t+q,v_f).
-\end{aligned}
-\]
-
-Hairer's reduced residual is
-
-\[
-r(\mu_k)=u_f(\mu_k)-v_f(\mu_k)+2\mu_k,
-\]
-
-with one threshold per constituent state,
-
-\[
-\tau_j=\operatorname{atol}+\operatorname{rtol}
-\max\left(1,\lVert z^{(j-1)}\rVert_\infty\right).
-\]
-
-The substep converges when `||r(mu_k)||_infinity <= tau_j`. Negative duration
-does not change this norm or tolerance rule.
-
-## Exact Newton correction
-
-For a non-converged residual, the default path evaluates four exact particle
-field Jacobians at the traversed stages:
-
-\[
-\begin{aligned}
-W_1&=D_zf(t,v_0), & W_2&=D_zf(t,u_1),\\
-W_3&=D_zf(t+q,u_1), & W_4&=D_zf(t+q,v_f).
-\end{aligned}
-\]
-
-With `S=W_2+W_3`, the implemented reduced residual Jacobian is
-
-\[
-J_r=4I-s(W_1+W_2+W_3+W_4)
-    +s^2(W_4S+SW_1)-s^3W_4SW_1.
-\]
-
-Matrix order is retained because the stage Jacobians need not commute. For
-each particle, Newton solves
-
-\[
-J_r(\mu_k)\,\Delta\mu_k=r(\mu_k),
-\qquad
-\mu_{k+1}=\mu_k-\Delta\mu_k,
-\]
-
-then reconstructs both displaced copies and repeats all four stages. A root at
-`mu_0` records zero corrections and one residual evaluation. A singular block
-or failure after the configured correction limit raises `RuntimeError`; the
-outer fixed grid does not retry with a smaller step.
-
-At convergence the output correction is
-
-\[
-u^+=u_f+\mu_\star,
-\qquad
-v^+=v_f-\mu_\star,
-\qquad
-z^{(j)}=\frac{u^++v^+}{2}.
-\]
-
-That accepted physical state immediately becomes the input to substep `j+1`.
-Thus `composition_policy="project_each_abba_substep"` means seven projections
-and seven nonlinear solves per outer step, rather than one projection around
-the complete seven-map composition.
-
-The ABBA2 derivation and ideal-root geometric argument are not duplicated
-here. See
-[`ABBA2 theory`](../../abba2-implicit/tex/theory.tex) and its
-[`compiled PDF`](../../abba2-implicit/tex/theory.pdf).
-
-## Fixed grid and shadow advances
-
-[`integrate_method(...)`](../../../../src/simulation/integration.py) chooses the
-fewest uniform main steps whose duration does not exceed `request.max_step`:
-
-\[
-h_{\mathrm{main}}=\frac{t_f-t_0}{\text{step_count}}.
-\]
-
-Every main interval calls `run.advance(t, state, h)` and the common
-coordinator records its accepted statistics. A saved time inside an interval instead
-triggers a shorter shadow outer step from a copy of the preceding main state
-without recording its returned statistics or building an event. That shadow outer step still performs the same seven
-signed projected maps and can incur seven Newton solves.
-
-The shadow result is saved but never replaces the main state. It does not
-change later main steps, progress, per-main-step diagnostic arrays, or
-observations. Output density can therefore change computational work without
-changing the underlying main-grid trajectory.
-
-## Diagnostic aggregation
-
-For `M=step_count` main steps, the default path returns the following central
-diagnostics:
-
-| Key | Shape or value | Aggregation |
-|---|---|---|
-| `step_count` | scalar `M` | Uniform main-grid steps |
-| `implicit_substeps_per_step` | `7` | Signed ABBA maps per outer step |
-| `nonlinear_solves_per_step` | `7` | Independent reduced solves per outer step |
-| `composition_coefficients` | `(7,)` | Stored Yoshida coefficient vector |
-| `composition_policy` | `"project_each_abba_substep"` | Projection placement |
-| `nonlinear_solver` | `"newton"` | Scoped solver |
-| `projection_formulation` | `"reduced_multiplier"` | Outer formulation |
-| `substep_projection_formulation` | `"reduced_multiplier"` | Formulation shared by all seven solves |
-| `state_extension` | `"physical"` | Scoped accepted state |
-| `track_energy` | `False` | Scoped energy-sidecar setting |
-
-The aggregate main-step arrays have shape `(M,)`:
-
-- `nonlinear_iterations` and compatibility alias `newton_iterations` sum the
-  seven correction counts;
-- `residual_evaluations` sums the seven residual-evaluation counts;
-- `nonlinear_residual_norms` and `nonlinear_tolerances` select the norm and
-  tolerance from the same substep with the largest `residual/tolerance` ratio;
-- `newton_residual_norms` aliases that selected residual norm; and
-- `projection_multiplier_norms` stores the largest multiplier infinity norm
-  among the seven substeps.
-
-The corresponding per-substep arrays have shape `(M, 7)`:
-
-- `substep_nonlinear_iterations`;
-- `substep_residual_evaluations`;
-- `substep_nonlinear_residual_norms`;
-- `substep_nonlinear_tolerances`; and
-- `substep_projection_multiplier_norms`.
-
-Scalar configuration keys retain
-`nonlinear_absolute_tolerance`, `nonlinear_relative_tolerance`,
-`nonlinear_max_iterations`, and their `newton_*` compatibility aliases. The
-physical reduced path additionally reports:
-
-| Key | Value for `N` particles |
-|---|---|
-| `accepted_internal_state_dimension` | `2N` |
-| `base_splitting_state_dimension` | `4N` |
-| `nonlinear_unknown_dimension` | `2N` per sequential solve |
-| `observer_state_dimension` | `2N` |
-| `observer_state_kind` | `"physical_map"` |
-
-Shadow solves are absent from all `(M,)` and `(M, 7)` arrays.
-
-## Outer observation and seven retained substeps
-
-On every main step `step_statistics` aggregates the seven numerical
-projection records directly. Only if `step_observer` is configured does
-`observations.py` copy seven `ABBA2ImplicitIntegrationStep` snapshots and emit one outer
-[`ABBA6ImplicitIntegrationStep`](../../../../src/simulation/observation.py)
-containing those records as `substeps`.
-
-The outer event exposes:
-
-- physical `state_before`, `state_after`, `start_time`, `time`, and outer
-  `duration`;
-- a copy of the seven `composition_coefficients`;
-- summed correction and residual-evaluation counts;
-- the residual and tolerance from the worst relative-residual substep;
-- the maximum substep multiplier norm;
-- the exact dynamics instance; and
-- `map_state`, which resolves the same complete seven-solve map for another
-  physical candidate.
-
-Each retained constituent record has its own continuous signed start time,
-duration, final time, state snapshots, multiplier, converged A--B--B--A stage
-states, solver counters, and fixed substep `map_state`. Adjacent records satisfy
-`substeps[j].state_after == substeps[j+1].state_before`. They are nested data,
-not seven separate calls to the external observer. Shadow advances create no
-outer event and no retained diagnostic row.
-
-## Public result boundary
-
-The coordinator returns `IntegrationData` with requested times, physical
-history, and diagnostics. `SimulationRunner` verifies exact requested times,
-finite state shape, the unchanged initial sample, and source-layout
-compatibility before constructing the read-only public `Solution`. This
-boundary is identical to the canonical ABBA result path.
-
-## Designed property and limitations
-
-- The palindromic composition of the symmetric second-order projected base map
-  is designed for global order six. The focused rotation and non-autonomous
-  polynomial tests measure refinement gains near `2^6=64`; this is empirical
-  protection of the implementation, not an adaptive error guarantee.
-- Sixth order assumes sufficiently smooth dynamics and projection roots solved
-  accurately enough that nonlinear error does not dominate truncation error.
-- The two negative substeps and central overshoot require evaluations outside
-  the outer interval. Problems that are undefined, irreversible, or unstable
-  under backward evolution are not suitable without additional analysis.
-- Seven independent nonlinear solves make an outer or shadow step materially
-  more expensive than `ABBA2Implicit`. No solve is reused across substeps.
-- The main grid is fixed. A failed constituent solve aborts the step; there is
-  no adaptive step rejection, retry, or automatic tolerance adjustment.
-- Ideal-root reversibility and canonical geometric properties can be degraded
-  by finite Newton tolerances and round-off. The method does not make a
-  symplecticity claim for an arbitrary `GuidingCenterJacobianSystem` merely
-  because it satisfies the structural protocol.
-- This companion covers only physical + reduced multiplier + Newton with
-  energy tracking disabled. Use the canonical ABBA document for simultaneous,
-  Broyden, physical energy-sidecar, and fully extended behavior.
-
-## Regression evidence
-
-[`tests/test_abba6.py`](../../../../tests/test_abba6.py) verifies coefficient
-palindromy and moment sums, seven continuous signed substeps, sixth-order
-refinement, reversibility, non-autonomous signed stage times, and the reference
-accuracy study. The composed diagnostic selection rule and canonical dimension
-keys are checked in
-[`tests/test_abba_configuration_cube.py`](../../../../tests/test_abba_configuration_cube.py).
-Main-grid-only observation and diagnostic behavior of the shared projected
-kernel is checked in [`tests/test_abba.py`](../../../../tests/test_abba.py).
-
-The reusable accuracy experiment lives in
-[`src/studies/abba6_accuracy.py`](../../../../src/studies/abba6_accuracy.py).
+| Dynamics | Physical vector field, Hamiltonian and required derivatives |
+| Formulation | Internal coordinates, spatial copies and physical/energy extraction |
+| Method | Stages, signed coefficients, spatial projection and passive quadrature |
+| Integration | Accepted intervals, sampling, observation and output collection |
+
+## State contract
+
+| Planar one-particle formulation | Internal coordinates | Dimension |
+|---|---|---:|
+| Physical | `(x, y)` | 2 |
+| Physical with energy | `(x, y, t, kappa)` | 4 |
+| Duplicated | `(x1, y1, x2, y2)` | 4 |
+| Duplicated with energy | `(x1, y1, x2, y2, t, kappa)` | 6 |
+
+ABBA6Implicit uses the **duplicated** rows. `track_energy=False` is the default;
+`track_energy=True` enables the energy row. With N planar particles its internal
+dimensions are 4N / 6N. There are N time entries and N energy momenta.
+Classical FC runs use their actual physical size 4N, giving 4N / 6N.
+All components remain component-major; energy states append N times, then N
+normalized momenta. Every component block has the same particle dimension.
+The time entries are copies of the integration time; physical maps still receive
+one scalar time. The formulation owns clock validation and output alignment.
+The physical output always has its original size.
+Accepted duplicated copies are equal. They separate only inside the numerical map.
+
+`PhysicalFormulation` and `DoubledFormulation` are constructed directly from the
+problem, initial time and tracking flag. They are defined in
+`src/simulation/formulations/state.py`. BM4 additionally uses directly bound
+`GCDoubledMaps` for its spatial direct/adjoint stages; its legacy configuration
+factory is only a compatibility entry point.
+
+## Energy and nonlinear work
+
+Each accepted projected factor contributes its signed shear-stage increment. There are seven nonlinear solves per complete step.
+
+The stored momentum is physical `kappa`, initialized at zero. Its derivative is
+`-partial_t H`; splitting sums are normalized by one half. The diagnostic is
+`H(t, z) + kappa - H(t0, z0)`. It measures a balance, not conservation of the
+time-dependent physical Hamiltonian. Dynamics must implement
+`ExtendedHamiltonianSystem` when tracking is enabled, including an explicit zero
+derivative for an autonomous Hamiltonian.
+
+Only spatial coordinates enter a Hairer constraint. The reduced multiplier has
+2N components; the ABBA simultaneous spatial solve has 6N unknowns. Clock and
+momentum never enlarge these roots or affect their stopping scale. Tracking also
+leaves classical physical solves and adaptive acceptance decisions unchanged.
+BM4's optional energy replay and adaptive diagnostic quadrature are extra work
+outside the physical solver counters; reported wall time still includes them.
+
+## Lifecycle and output
+
+`simulate(problem, method, request)` creates a fresh run via `new_run`, validates
+its formulation and calls the shared `integrate_method`. Each `advance` returns
+an internal state, small work counters and method-specific accepted details.
+The common collector retains samples and counters; the formulation extracts the
+physical trajectory and diagnostic histories. Run resources are isolated.
+
+Fixed methods use independent shortened maps for off-grid samples. Adaptive
+methods retain one live SciPy solver whose state is always physical. Their
+energy quadrature follows accepted dense output and cannot affect the error norm.
+Radau Jacobians are physical-sized even when energy tracking is enabled.
+
+Observers receive the physical map and independent snapshots. Their shapes do
+not change with tracking. All energy histories have shape `(N, saved_times)`,
+including `extended_time` even for a single particle. Diagnostic arrays
+`extended_time`, `extended_momentum`,
+`physical_hamiltonian`, `generalized_energy` and `generalized_energy_error` follow
+`Solution.t`; nonlinear and runtime work arrays follow `step_times`.
+`extended_momentum_normalization` is `physical_kappa` and `energy_error` is the
+maximum absolute sampled balance error over all particles.
+
+## Migration and verification
+
+`state_extension="fully_extended"` no longer runs a time/momentum projection.
+It raises explicit migration guidance. Use `track_energy=True` with spatial
+projection. The historical full-state symplecticity study is retired because it
+measured a different map; existing saved artifacts can still be read.
+
+Tests in `tests/test_state_formulations.py` cover all 13 methods, both tracking
+settings, particle batches, physical-only observers, adaptive control, per-particle
+time alignment and energy normalization. Model tests retain order, projection,
+Jacobian and nonlinear-solver checks. The pre-change physical trajectories are
+also compared with the migrated implementations on short nonautonomous runs.

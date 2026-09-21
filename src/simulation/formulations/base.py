@@ -85,24 +85,6 @@ class StageProjectedFormulation(DirectAdjointFormulation, Protocol):
 		"""Create maps and their internal end-of-stage projection."""
 
 
-def generalized_energy_error(
-	t: np.ndarray,
-	states: np.ndarray,
-	momentum: np.ndarray | None,
-	hamiltonian: object,
-) -> float:
-	"""Return maximum drift of physical or extended Hamiltonian."""
-	evaluate = getattr(hamiltonian, "hamiltonian", None)
-	if not callable(evaluate):
-		raise TypeError("Energy diagnostics require HamiltonianSystem.")
-	energy = np.asarray(evaluate(t, states), dtype=float)
-	if momentum is not None:
-		energy = energy + np.asarray(momentum)
-	if energy.ndim == 1:
-		energy = energy[np.newaxis, :]
-	return float(np.max(np.abs(energy - energy[:, :1])))
-
-
 __all__ = [
 	"DirectAdjointFormulation",
 	"PreparedDirectAdjointFormulation",

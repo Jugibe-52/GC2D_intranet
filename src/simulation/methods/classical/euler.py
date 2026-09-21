@@ -8,6 +8,7 @@ import numpy as np
 
 from dynamics import DynamicalSystem
 
+from ...formulations.state import PhysicalFormulation
 from ...integration import IntegrationMethod, StepInfo, StepResult
 from ..._result import DiagnosticValue
 from ...observation import IntegrationStep, StepObserver
@@ -31,10 +32,12 @@ def _checked_vector_field(
 class ExplicitEuler(IntegrationMethod[None]):
 	"""Classical forward Euler, ``z_next = z + h f(t, z)``."""
 
+	track_energy: bool = False
 	progress: bool = False
 	step_observer: StepObserver | None = None
 
 	# Resources owned by one run; excluded from constructor options.
+	state_formulation: PhysicalFormulation = field(init=False, repr=False, compare=False)
 	dynamics: DynamicalSystem = field(init=False, repr=False, compare=False)
 
 	def initialize(self, problem: InitialValueProblem, request: SimulationRequest) -> None:
@@ -42,7 +45,8 @@ class ExplicitEuler(IntegrationMethod[None]):
 		self.dynamics = problem.dynamics
 		if not isinstance(self.dynamics, DynamicalSystem):
 			raise TypeError("ExplicitEuler requires DynamicalSystem.")
-		self.initial_state = problem.initial_state
+		self.state_formulation = PhysicalFormulation(problem, request.t_span[0], self.track_energy)
+		self.initial_state = self.state_formulation.initial_state
 
 	def _apply_step(self, time: float, state: np.ndarray, step: float) -> np.ndarray:
 		"""Apply one forward Euler step to an independent physical state."""
@@ -51,7 +55,10 @@ class ExplicitEuler(IntegrationMethod[None]):
 
 	def advance(self, time: float, state: np.ndarray, step: float) -> StepResult[None]:
 		"""Return one forward Euler step without collection or observation."""
-		return StepResult(self._apply_step(time, state, step), {}, None)
+		physical = self.state_formulation.physical(state)
+		increment = step * self.state_formulation.momentum_rate(time, physical) if self.track_energy else None
+		after = self.state_formulation.finish(state, self._apply_step(time, physical, step), time + step, increment)
+		return StepResult(after, {}, None)
 
 	def build_observation(self, info: StepInfo, result: StepResult[None]) -> IntegrationStep:
 		def map_state(candidate: np.ndarray) -> np.ndarray:
@@ -59,12 +66,10 @@ class ExplicitEuler(IntegrationMethod[None]):
 		return IntegrationStep(
 			dynamics_name=type(self.dynamics).__name__, method_name=type(self).__name__,
 			step_index=info.index, start_time=info.time, time=info.time + info.duration,
-			duration=info.duration, state_before=info.state_before.copy(),
-			state_after=result.state.copy(), map_state=map_state, dynamics=self.dynamics,
+			duration=info.duration, state_before=self.state_formulation.physical(info.state_before).copy(),
+			state_after=self.state_formulation.physical(result.state).copy(), map_state=map_state, dynamics=self.dynamics,
 		)
 
-	def export_history(self, times: np.ndarray, history: np.ndarray) -> tuple[np.ndarray, dict[str, DiagnosticValue]]:
-		return history, {}
 
 
 __all__ = ["ExplicitEuler"]

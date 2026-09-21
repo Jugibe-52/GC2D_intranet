@@ -73,7 +73,7 @@ class BM4MidpointTests(unittest.TestCase):
 		problem = _gc_problem()
 		reference = solve_ivp(problem.dynamics.vector_field, (0., 0.4), problem.initial_state,
 			method="DOP853", atol=1e-14, rtol=1e-13, max_step=0.005).y[:, -1]
-		for extension in ("physical", "fully_extended"):
+		for extension in ("physical",):
 			with self.subTest(extension=extension):
 				errors = []
 				for step in (0.1, 0.05):
@@ -106,7 +106,7 @@ class BM4MidpointTests(unittest.TestCase):
 
 	def test_shadow_samples_and_retained_observer_maps(self) -> None:
 		problem = _gc_problem()
-		for extension, tracking in (("physical", False), ("physical", True), ("fully_extended", True)):
+		for extension, tracking in (("physical", False), ("physical", True)):
 			with self.subTest(extension=extension, tracking=tracking):
 				events = []
 				method = BM4Midpoint(extension, step_observer=events.append, track_energy=tracking)
@@ -120,9 +120,9 @@ class BM4MidpointTests(unittest.TestCase):
 				sparse = simulate(problem, BM4Midpoint(extension, track_energy=tracking),
 					SimulationRequest.uniform(t_span=(0.3, 0.5), max_step=0.1, sample_count=2))
 				np.testing.assert_array_equal(dense.states[:, -1], sparse.states[:, -1])
-				if extension == "fully_extended":
-					np.testing.assert_array_equal(dense.diagnostics["extended_time"], dense.t)
-					self.assertEqual(dense.diagnostics["extended_momentum_normalization"], "direct_k")
+				if tracking:
+					np.testing.assert_array_equal(dense.diagnostics["extended_time"], dense.t[None, :])
+					self.assertEqual(dense.diagnostics["extended_momentum_normalization"], "physical_kappa")
 
 	def test_invalid_configuration_and_energy_capability(self) -> None:
 		for frequency in (-1., np.nan, np.inf):
@@ -132,7 +132,8 @@ class BM4MidpointTests(unittest.TestCase):
 			BM4Midpoint(state_extension="invalid")
 		with self.assertRaises(TypeError):
 			BM4Midpoint(nonlinear_solver="newton")
-		self.assertTrue(BM4Midpoint("fully_extended").track_energy)
+		with self.assertRaisesRegex(ValueError, "track_energy=True"):
+			BM4Midpoint("fully_extended")
 		request = SimulationRequest.uniform(t_span=(0., 0.1), max_step=0.1, sample_count=2)
 		with self.assertRaises(TypeError):
 			simulate(InitialValueProblem(_Rotation(), GCInitialConfiguration(np.asarray([1., 0.]))),

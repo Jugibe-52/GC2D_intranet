@@ -9,6 +9,7 @@ import numpy as np
 
 from dynamics import GuidingCenterJacobianSystem, HamiltonianSystem
 
+from ...formulations.state import PhysicalFormulation
 from ...integration import IntegrationMethod, StepInfo, StepResult
 from ..._result import DiagnosticValue
 from ...observation import IntegrationStep, StepObserver
@@ -65,6 +66,7 @@ class _HBVMStepResult:
 	"""Accepted state and nonlinear work for one HBVM step."""
 
 	state: np.ndarray
+	stage_states: np.ndarray
 	iterations: int
 	residual_norm: float
 	tolerance: float
@@ -289,6 +291,7 @@ def _advance_hbvm42(
 			accepted = initial_state + step * payload.projected_coefficients[0]
 			return _HBVMStepResult(
 				state=np.asarray(accepted),
+				stage_states=payload.stages,
 				iterations=iteration,
 				residual_norm=residual_norm,
 				tolerance=tolerance,
@@ -390,13 +393,12 @@ class HBVM42(IntegrationMethod[_HBVMStepResult]):
 			raise ValueError("`jacobian_relative_step` must be positive and finite.")
 		self.jacobian_relative_step = relative_step
 
-	# Resources owned by one run; excluded from constructor options.
+	state_formulation: PhysicalFormulation = field(init=False, repr=False, compare=False)
 
 	def initialize(self, problem: InitialValueProblem, request: SimulationRequest) -> None:
 		"""Bind the HBVM coefficient solve and optional physical observation."""
-		if self.track_energy and not isinstance(self.problem.dynamics, HamiltonianSystem):
-			raise TypeError("HBVM42 energy tracking requires HamiltonianSystem dynamics.")
-		self.initial_state = self.problem.initial_state
+		self.state_formulation = PhysicalFormulation(problem, request.t_span[0], self.track_energy)
+		self.initial_state = self.state_formulation.initial_state
 		self.metadata = {'method_order': 4, 'quadrature_stage_count': 4, 'legendre_rank': 2,
 							  'jacobian_method': self.jacobian_method}
 
@@ -405,7 +407,7 @@ class HBVM42(IntegrationMethod[_HBVMStepResult]):
 		result = _advance_hbvm42(
 			self.problem.dynamics,
 			time,
-			state,
+			self.state_formulation.physical(state),
 			step,
 			absolute_tolerance=self.absolute_tolerance,
 			relative_tolerance=self.relative_tolerance,
@@ -413,7 +415,12 @@ class HBVM42(IntegrationMethod[_HBVMStepResult]):
 			jacobian_method=self.jacobian_method,
 			jacobian_relative_step=self.jacobian_relative_step,
 		)
-		return StepResult(result.state, {
+		increment = None
+		if self.track_energy:
+			increment = step * sum(weight * self.state_formulation.momentum_rate(time + step * node, stage)
+			    for node, weight, stage in zip(_HBVM42_NODES, _HBVM42_WEIGHTS, result.stage_states))
+		after = self.state_formulation.finish(state, result.state, time + step, increment)
+		return StepResult(after, {
 			'nonlinear_iterations': result.iterations,
 			'nonlinear_residual_norms': result.residual_norm,
 			'nonlinear_tolerances': result.tolerance,
@@ -424,33 +431,15 @@ class HBVM42(IntegrationMethod[_HBVMStepResult]):
 
 	def build_observation(self, info: StepInfo, result: StepResult[_HBVMStepResult]) -> IntegrationStep:
 		def map_state(candidate: np.ndarray) -> np.ndarray:
-			return self.advance(info.time, candidate, info.duration).state
+			internal = self.state_formulation.pack(candidate, info.time, self.state_formulation.momentum(info.state_before))
+			return self.state_formulation.physical(self.advance(info.time, internal, info.duration).state)
 		return IntegrationStep(
 			dynamics_name=type(self.problem.dynamics).__name__, method_name=type(self).__name__,
 			step_index=info.index, start_time=info.time, time=info.time + info.duration,
-			duration=info.duration, state_before=info.state_before.copy(),
-			state_after=result.state.copy(), map_state=map_state, dynamics=self.problem.dynamics,
+			duration=info.duration, state_before=self.state_formulation.physical(info.state_before).copy(),
+			state_after=self.state_formulation.physical(result.state).copy(), map_state=map_state, dynamics=self.problem.dynamics,
 		)
 
-	def export_history(self, times: np.ndarray, states: np.ndarray) -> tuple[np.ndarray, dict[str, DiagnosticValue]]:
-		diagnostics: dict[str, DiagnosticValue] = {}
-		if self.track_energy:
-			assert isinstance(self.problem.dynamics, HamiltonianSystem)
-			energies = np.asarray(
-				self.problem.dynamics.hamiltonian(times, states),
-				dtype=float,
-			)
-			if energies.ndim == 1:
-				energies = energies[np.newaxis, :]
-			if energies.shape[-1] != times.size:
-				raise ValueError(
-					"Hamiltonian values must retain the saved-time dimension."
-				)
-			energy_drift = energies - energies[:, :1]
-			diagnostics["hamiltonian"] = energies
-			diagnostics["energy_drift"] = energy_drift
-			diagnostics["energy_error"] = float(np.max(np.abs(energy_drift)))
-		return np.asarray(states), diagnostics
 
 
 __all__ = ["HBVM42", "HBVMJacobianMethod"]

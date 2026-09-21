@@ -1,199 +1,95 @@
-# Gauss--Legendre two-stage fourth-order integration
+# GaussLegendre4: state formulations and execution
 
-[Editable diagram](gauss-legendre4-simulation-architecture.puml) · [Scalable diagram](gauss-legendre4-simulation-architecture.svg)
+Two coupled Gauss stages, solved in physical coordinates.
 
-![gauss-legendre4 architecture](gauss-legendre4-simulation-architecture.png)
+The canonical theoretical source is [theory.tex](../tex/theory.tex), with its
+compiled [theory.pdf](../tex/theory.pdf). The four-formulation convention below
+supersedes earlier diagrams showing a duplicated clock or full time/momentum projection.
 
-The diagram retains the six-phase BM4 layout, including public contracts,
-preparation, numerical equations, accepted records, optional observers and errors.
+## Responsibilities
 
-## Method instances and integration lifecycle
-
-This method inherits `IntegrationMethod.integrate(problem, request)`, shared by
-all 13 public methods. It calls `new_run(problem, request)` to create a fresh
-instance of the same numerical class. That instance's `initialize` validates
-capabilities and sets its formulation, initial internal state and metadata.
-There is no separate context or callback-based method record.
-
-| Operation on the numerical class | Responsibility |
+| Component | Owns |
 |---|---|
-| `initialize(problem, request)` | Initialize this run's resources once; return `None` |
-| `advance(t, state, h)` | Execute numerical work and return state, statistics and typed details |
-| `build_observation(info, step)` | Construct a method-specific event with independent snapshots |
-| `export_history(times, history)` | Extract physical output and auxiliary diagnostics |
-| `controller()` | Select fixed or adaptive accepted-step scheduling |
+| Dynamics | Physical vector field, Hamiltonian and required derivatives |
+| Formulation | Internal coordinates, spatial copies and physical/energy extraction |
+| Method | Stages, signed coefficients, spatial projection and passive quadrature |
+| Integration | Accepted intervals, sampling, observation and output collection |
 
-`integrate_method(run)` owns the common loop. Its `IntegrationCollector` saves
-requested samples and copied accepted-step metric rows, without retaining
-numerical details or events. The method owns the formulation and any live solver.
-Analysis and persistence remain in `diagnostics/`; observers remain caller-owned.
+## State contract
 
-Constructor options remain reusable through `simulate`. Per-run resources are
-excluded from reconstruction, and initial state and metadata are isolated as
-read-only copies. A completed or failed run cannot be integrated again; create a
-fresh run. Call `new_run` for low-level access rather than resetting `initialize`.
+| Planar one-particle formulation | Internal coordinates | Dimension |
+|---|---|---:|
+| Physical | `(x, y)` | 2 |
+| Physical with energy | `(x, y, t, kappa)` | 4 |
+| Duplicated | `(x1, y1, x2, y2)` | 4 |
+| Duplicated with energy | `(x1, y1, x2, y2, t, kappa)` | 6 |
 
-`FixedStepController` calls `run.advance` with the exact effective duration and
-uses independent shortened maps for interior output times. DOP853/Radau's
-controller calls their ordinary `advance` on the live solver with an upper step
-bound and reads the actual accepted endpoint. Dense sampling retains the backend.
+GaussLegendre4 uses the **physical** rows. `track_energy=False` is the default;
+`track_energy=True` enables the energy row. With N planar particles its internal
+dimensions are 2N / 4N. There are N time entries and N energy momenta.
+Classical FC runs use their actual physical size 4N, giving 4N / 6N.
+All components remain component-major; energy states append N times, then N
+normalized momenta. Every component block has the same particle dimension.
+The time entries are copies of the integration time; physical maps still receive
+one scalar time. The formulation owns clock validation and output alignment.
+The physical output always has its original size.
+Accepted duplicated copies are equal. They separate only inside the numerical map.
 
-Metric rows follow `step_times`; physical and auxiliary histories follow
-`Solution.t`. Common fields are `step_count`, `step_start_times`, `step_times`,
-`step_sizes` and `output_interpolation_count`. Shadow work and extra observer-only
-work are excluded from accepted numerical counters.
+`PhysicalFormulation` and `DoubledFormulation` are constructed directly from the
+problem, initial time and tracking flag. They are defined in
+`src/simulation/formulations/state.py`. BM4 additionally uses directly bound
+`GCDoubledMaps` for its spatial direct/adjoint stages; its legacy configuration
+factory is only a compatibility entry point.
 
-See the [generic architecture](../../../simulation/integration-architecture.md)
-for the lifecycle, adaptive semantics and extension guide. Executable contracts
-are in `tests/test_method_integration.py` and `tests/test_adaptive_integration.py`.
+## Energy and nonlinear work
 
-## Public method
+The two converged Gauss stage states supply the passive momentum quadrature.
 
-```python
-from simulation import GaussLegendre4
+The stored momentum is physical `kappa`, initialized at zero. Its derivative is
+`-partial_t H`; splitting sums are normalized by one half. The diagnostic is
+`H(t, z) + kappa - H(t0, z0)`. It measures a balance, not conservation of the
+time-dependent physical Hamiltonian. Dynamics must implement
+`ExtendedHamiltonianSystem` when tracking is enabled, including an explicit zero
+derivative for an autonomous Hamiltonian.
 
-method = GaussLegendre4(
-    track_energy=True,
-    newton_absolute_tolerance=1e-14,
-    newton_relative_tolerance=1e-13,
-    newton_max_iterations=40,
-    newton_jacobian_method="analytic",
-)
-```
+Only spatial coordinates enter a Hairer constraint. The reduced multiplier has
+2N components; the ABBA simultaneous spatial solve has 6N unknowns. Clock and
+momentum never enlarge these roots or affect their stopping scale. Tracking also
+leaves classical physical solves and adaptive acceptance decisions unchanged.
+BM4's optional energy replay and adaptive diagnostic quadrature are extra work
+outside the physical solver counters; reported wall time still includes them.
 
-The method is a two-stage Gauss collocation Runge--Kutta scheme. It is symmetric,
-has global order four, stage order two, and is symplectic for canonical
-Hamiltonian systems when the implicit equations are solved exactly.
+## Lifecycle and output
 
-## Tableau and collocation equations
+`simulate(problem, method, request)` creates a fresh run via `new_run`, validates
+its formulation and calls the shared `integrate_method`. Each `advance` returns
+an internal state, small work counters and method-specific accepted details.
+The common collector retains samples and counters; the formulation extracts the
+physical trajectory and diagnostic histories. Run resources are isolated.
 
-Let
+Fixed methods use independent shortened maps for off-grid samples. Adaptive
+methods retain one live SciPy solver whose state is always physical. Their
+energy quadrature follows accepted dense output and cannot affect the error norm.
+Radau Jacobians are physical-sized even when energy tracking is enabled.
 
-\[
-r=\frac{\sqrt{3}}{6},\qquad
-c=\begin{pmatrix}\frac12-r\\\frac12+r\end{pmatrix},
-\]
+Observers receive the physical map and independent snapshots. Their shapes do
+not change with tracking. All energy histories have shape `(N, saved_times)`,
+including `extended_time` even for a single particle. Diagnostic arrays
+`extended_time`, `extended_momentum`,
+`physical_hamiltonian`, `generalized_energy` and `generalized_energy_error` follow
+`Solution.t`; nonlinear and runtime work arrays follow `step_times`.
+`extended_momentum_normalization` is `physical_kappa` and `energy_error` is the
+maximum absolute sampled balance error over all particles.
 
-\[
-A=\begin{pmatrix}
-\frac14 & \frac14-r\\
-\frac14+r & \frac14
-\end{pmatrix},
-\qquad
-b=\begin{pmatrix}\frac12\\\frac12\end{pmatrix}.
-\]
+## Migration and verification
 
-For a complete step from `(t_n, z_n)`, the two stage states solve
+`state_extension="fully_extended"` no longer runs a time/momentum projection.
+It raises explicit migration guidance. Use `track_energy=True` with spatial
+projection. The historical full-state symplecticity study is retired because it
+measured a different map; existing saved artifacts can still be read.
 
-\[
-R_i(Z_1,Z_2)=Z_i-z_n-h\sum_{j=1}^{2}a_{ij}
-f(t_n+c_jh,Z_j)=0.
-\]
-
-The accepted state is
-
-\[
-z_{n+1}=z_n+\frac{h}{2}(f_1+f_2).
-\]
-
-The predictor is `Z_i = z_n + c_i h f(t_n, z_n)`. Newton stops when
-
-\[
-\max_i\lVert R_i\rVert_\infty
-\leq
-\mathrm{atol}+\mathrm{rtol}\max(1,\lVert z_n\rVert_\infty).
-\]
-
-## Exact guiding-center Newton blocks
-
-With `J_i = D_z f(t_n+c_i h,Z_i)`, one particle uses
-
-\[
-M=
-\begin{pmatrix}
-I-ha_{11}J_1 & -ha_{12}J_2\\
--ha_{21}J_1 & I-ha_{22}J_2
-\end{pmatrix}.
-\]
-
-The code gathers the component-major residual into
-`[R_1x, R_1y, R_2x, R_2y]`, solves the batched array with shape `(N, 4, 4)`,
-and restores `[x_1,...,x_N,y_1,...,y_N]` for each stage.
-
-## Exact ideal-root tangent
-
-For planar `GuidingCenterJacobianSystem` dynamics,
-`GaussLegendre4IntegrationStep` retains all data required for the exact
-ideal-root tangent. If
-`S_i = partial Z_i / partial z_n`, implicit differentiation gives
-
-\[
-M\begin{pmatrix}S_1\\S_2\end{pmatrix}
-=\begin{pmatrix}I\\I\end{pmatrix},
-\qquad
-D\Phi_h=I+\frac{h}{2}(J_1S_1+J_2S_2).
-\]
-
-This is the tangent of the ideal converged root. It is the correct object for
-checking the algebraic symplectic property. It does not differentiate the
-finite Newton stopping rule. The individual-evaluation study therefore also
-computes sparse centered-difference Jacobians of `step.map_state`; those audits
-expose any tolerance-dependent departure of the implemented map.
-
-For a generic `DynamicalSystem`, the integrator still emits the stage event and
-can be audited through `step.map_state`, but the public analytic tangent helper
-does not claim an exact particle-block Jacobian.
-
-## Energy extension
-
-At the two converged stages,
-
-\[
-g_i=-\partial_t H(t_n+c_i h,Z_i),
-\qquad
-k_{n+1}=k_n+\frac{h}{2}(g_1+g_2).
-\]
-
-The returned diagnostics include `extended_momentum` and the maximum drift of
-`K=H+k`. A general nonlinear Hamiltonian is not expected to have exact energy
-conservation under Gauss4; bounded small drift is the relevant diagnostic.
-The individual study performs a separate untimed energy run whose output grid
-contains every complete integration node, so its maximum drift is not
-undersampled by the coarser common accuracy grid.
-
-## Fixed grid and observations
-
-`FixedStepController` defines an output-independent main grid. Off-grid saved
-times are evaluated by shadow steps from the preceding main node. Shadow steps
-do not emit observations and do not contribute to Newton diagnostic arrays.
-
-The method publishes:
-
-- `step_count`, `stage_count`, and `designed_order`;
-- requested and resolved Jacobian strategies;
-- per-main-step Newton corrections, residual evaluations, final residuals, and
-  tolerances;
-- optional extended momentum and generalized-energy error.
-
-## Evaluation notebooks
-
-- `notebooks/developements/gauss_legendre4_individual_evaluation.ipynb` studies
-  symplecticity, trajectory accuracy, runtime, generalized energy, observed
-  order, and persistent order reduction. The reduction decision requires two
-  adjacent deficits resolved above both the DOP853/Radau audit floor and a
-  second trajectory computed with proportionally tighter Newton tolerances.
-- `notebooks/developements/gauss_legendre4_vs_bm4_accuracy_runtime.ipynb`
-  compares Gauss4 with `BM4Implicit` using the same physical problem,
-  refinement grid, Newton tolerances, DOP853/Radau reference, and alternated
-  runtime repetitions. It reports direct equal-step ratios and interpolated
-  runtime ratios inside the common measured accuracy range.
-
-The companion component diagram is
-[`gauss-legendre4-simulation-architecture.puml`](gauss-legendre4-simulation-architecture.puml).
-
-## References
-
-- J. M. Sanz-Serna, "Runge--Kutta schemes for Hamiltonian systems," *BIT*,
-  28 (1988), 877--883.
-- E. Hairer, C. Lubich, and G. Wanner, *Geometric Numerical Integration*,
-  second edition, Springer, 2006.
+Tests in `tests/test_state_formulations.py` cover all 13 methods, both tracking
+settings, particle batches, physical-only observers, adaptive control, per-particle
+time alignment and energy normalization. Model tests retain order, projection,
+Jacobian and nonlinear-solver checks. The pre-change physical trajectories are
+also compared with the migrated implementations on short nonautonomous runs.

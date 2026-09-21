@@ -22,7 +22,7 @@ _ROW_COORDINATES = (
 	(
 		"ABBA4Implicit",
 		"physical",
-		"ABBA4 · 3 projections\nphysical + energy · base R4",
+		"ABBA4 · 3 projections\nspatial copies + energy · R6",
 	),
 	(
 		"ABBA4Implicit",
@@ -32,7 +32,7 @@ _ROW_COORDINATES = (
 	(
 		"ABBA4ImplicitSingleProjection",
 		"physical",
-		"SP-ABBA4 · 1 projection\nphysical + energy · base R4",
+		"SP-ABBA4 · 1 projection\nspatial copies + energy · R6",
 	),
 	(
 		"ABBA4ImplicitSingleProjection",
@@ -92,8 +92,8 @@ def _ordered_variants(result: object) -> tuple[object, ...]:
 	):
 		raise TypeError("`result.variants` must be a sequence of configuration records.")
 	variants = tuple(variants_value)
-	if len(variants) not in (8, 16):
-		raise ValueError("The animation requires 8 current or 16 historical ABBA4 variants.")
+	if len(variants) not in (4, 8, 16):
+		raise ValueError("The animation requires 4 current or 8/16 historical ABBA4 variants.")
 
 	by_coordinate: dict[tuple[str, str, str, str], object] = {}
 	for variant in variants:
@@ -104,7 +104,7 @@ def _ordered_variants(result: object) -> tuple[object, ...]:
 
 	expected = tuple(
 		(method, extension, formulation, solver)
-		for method, extension, _ in (_ROW_COORDINATES if len(variants) == 16 else _ROW_COORDINATES[2:])
+		for method, extension, _ in (_ROW_COORDINATES if len(variants) == 16 else _ROW_COORDINATES[2:] if len(variants) == 8 else _ROW_COORDINATES[2:3])
 		for formulation, solver, _ in _COLUMN_COORDINATES
 	)
 	missing = tuple(coordinate for coordinate in expected if coordinate not in by_coordinate)
@@ -277,11 +277,12 @@ def animate_abba4_configuration_trajectories(
 		"alpha": 0.62,
 	}
 	image_options.update(imshow_kwargs)
-	rows = _ROW_COORDINATES if len(variants) == 16 else _ROW_COORDINATES[2:]
+	rows = _ROW_COORDINATES if len(variants) == 16 else _ROW_COORDINATES[2:] if len(variants) == 8 else _ROW_COORDINATES[2:3]
 	figure, axes = plt.subplots(
 		len(rows),
 		4,
 		figsize=(16, 3 * len(rows) + 1),
+		squeeze=False,
 		sharex=True,
 		sharey=True,
 		constrained_layout=True,

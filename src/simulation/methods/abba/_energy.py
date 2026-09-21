@@ -1,60 +1,8 @@
-"""Optional conjugate-momentum tracking for physical ABBA trajectories."""
-
+"""Passive normalized energy quadrature from accepted spatial ABBA stages."""
 from __future__ import annotations
-
 import numpy as np
-
 from dynamics import ExtendedHamiltonianSystem
-
-from ...formulations.base import generalized_energy_error
 from .maps.physical import _ABBAStages
-
-
-def _validate_energy_tracking(
-	dynamics: object,
-	*,
-	enabled: bool,
-	method_name: str,
-) -> None:
-	"""Require the Hamiltonian capability only when tracking is requested."""
-	if enabled and not isinstance(dynamics, ExtendedHamiltonianSystem):
-		raise TypeError(f"{method_name} energy tracking requires ExtendedHamiltonianSystem.")
-
-
-def _energy_tracking_initial_state(
-	physical: np.ndarray,
-	*,
-	particle_count: int,
-	enabled: bool,
-) -> np.ndarray:
-	"""Append one zero conjugate momentum per independent particle."""
-	value = np.asarray(physical, dtype=float)
-	if not enabled:
-		return value
-	return np.concatenate((value, np.zeros(particle_count, dtype=float)))
-
-
-def _unpack_energy_tracking_state(
-	state: np.ndarray,
-	*,
-	physical_size: int,
-	particle_count: int,
-	enabled: bool,
-) -> tuple[np.ndarray, np.ndarray | None]:
-	"""Split the fixed-grid workspace into physical state and optional momentum."""
-	value = np.asarray(state, dtype=float)
-	expected_size = physical_size + (particle_count if enabled else 0)
-	if (
-		value.ndim != 1
-		or value.size != expected_size
-		or not np.all(np.isfinite(value))
-	):
-		raise ValueError(
-			"The ABBA integration state changed shape or became non-finite."
-		)
-	physical = np.asarray(value[:physical_size])
-	momentum = np.asarray(value[physical_size:]) if enabled else None
-	return physical, momentum
 
 
 def _conjugate_momentum_increment_from_stages(
@@ -93,37 +41,3 @@ def _conjugate_momentum_increment_from_stages(
 	if not np.all(np.isfinite(increment)):
 		raise ValueError("The energy-tracking momentum increment became non-finite.")
 	return increment
-
-
-def _pack_energy_tracking_state(
-	physical: np.ndarray,
-	momentum: np.ndarray | None,
-) -> np.ndarray:
-	"""Return the next fixed-grid state without changing the physical map."""
-	value = np.asarray(physical, dtype=float)
-	if momentum is None:
-		return value
-	momentum_value = np.asarray(momentum, dtype=float)
-	if momentum_value.ndim != 1 or not np.all(np.isfinite(momentum_value)):
-		raise ValueError("The tracked conjugate momentum became non-finite.")
-	return np.concatenate((value, momentum_value))
-
-
-def _energy_tracking_diagnostics(
-	times: np.ndarray,
-	states: np.ndarray,
-	momentum: np.ndarray | None,
-	dynamics: object,
-) -> dict[str, np.ndarray | float | str]:
-	"""Return standard diagnostics for an optionally tracked physical run."""
-	if momentum is None:
-		return {}
-	value = np.asarray(momentum, dtype=float)
-	return {
-		"extended_momentum": value,
-		"extended_momentum_normalization": "kappa_equals_k_over_2",
-		"energy_error": generalized_energy_error(times, states, value, dynamics),
-	}
-
-
-__all__: list[str] = []

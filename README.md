@@ -50,7 +50,7 @@ Numerical architecture is organized by model:
 - `BM4Midpoint`: [theory](docs/models/bm4-midpoint/tex/theory.pdf),
   and [simulation architecture](docs/models/bm4-midpoint/simulation/bm4-midpoint-simulation-architecture.md).
   It averages the two copies after each complete twelve-stage cycle, with
-  ABBA-style physical/fully extended state options and optional physical energy tracking;
+  spatial duplication and optional passive energy tracking;
 - `ExplicitEuler`: [theory](docs/models/explicit-euler/tex/theory.pdf),
   and [simulation](docs/models/explicit-euler/simulation/explicit-euler-simulation-architecture.md);
 - `GaussLegendre4`: [theory](docs/models/gauss-legendre4/tex/theory.pdf),
@@ -186,25 +186,19 @@ and one constrained state/energy strategy:
 | `projection_placement` | `"around_complete_composition"` | ABBA4 uses one outer projection; the removed per-map selector raises an error. |
 | `projection_formulation` | `"reduced_multiplier"`, `"simultaneous_state_multiplier"` | Chooses the nonlinear residual representation. |
 | `nonlinear_solver` | `"newton"`, `"broyden"` | Chooses how that residual is solved. |
-| `state_extension` | `"physical"`, `"fully_extended"` | Chooses whether ABBA duplicates only the physical state or the complete autonomous state. |
-| `track_energy` | `False`, `True` | Optionally transports the time-conjugate momentum alongside a physical run; fully extended execution always resolves this value to `True`. |
+| `state_extension` | `"physical"` | Compatibility selector: only spatial coordinates are duplicated. |
+| `track_energy` | `False`, `True` | Adds time and passive normalized energy momentum per particle. Available on all 13 methods. |
 
-`ABBA2Implicit`, `ABBA4Implicit` and `ABBA6Implicit` each admit
+`ABBA2Implicit`, `ABBA4Implicit` and `ABBA6Implicit` each admit eight
+configurations: two spatial residual formulations, two nonlinear solvers and
+tracking off/on. `ABBA2Midpoint` has two tracking configurations, giving 26
+configurations across the four classes. The deprecated
+`ABBA4ImplicitSingleProjection` factory returns `ABBA4Implicit`.
 
-```text
-2 projection formulations x 2 nonlinear solvers x 3 state/energy strategies = 12
-```
-
-canonical configurations. The three normalized strategies are
-`(physical, False)`, `(physical, True)`, and `(fully_extended, True)` for
-`(state_extension, track_energy)`. Passing `track_energy=False` with
-`state_extension="fully_extended"` is accepted but normalized to `True`, so it
-does not create a fourth strategy. `ABBA2Midpoint` has no nonlinear residual
-and supports the same three strategies. The complete public family therefore
-contains `12 + 12 + 12 + 3 = 39` canonical configurations while retaining four
-method classes. The deprecated `ABBA4ImplicitSingleProjection(...)` factory
-remains temporarily available and returns the corresponding `ABBA4Implicit`
-configuration.
+The former `state_extension="fully_extended"` projected time and momentum as
+well as space. It is rejected explicitly; use `track_energy=True` for the new
+energy-monitoring contract. Historical full-state studies are not silently
+reinterpreted as physical studies.
 
 The exported tuples `ABBA4_PROJECTION_PLACEMENTS`,
 `ABBA_PROJECTION_FORMULATIONS`, `NONLINEAR_SOLVERS`, and
@@ -217,7 +211,7 @@ method = ABBA4Implicit(
     projection_placement="around_complete_composition",
     projection_formulation="simultaneous_state_multiplier",
     nonlinear_solver="broyden",
-    state_extension="fully_extended",
+    state_extension="physical",
     track_energy=True,
     newton_absolute_tolerance=1e-14,
     newton_relative_tolerance=1e-13,
@@ -240,54 +234,50 @@ same algorithm as `ABBA4Implicit()`.
 The former per-map ABBA4 implementation is removed. Current ABBA4 has one
 nonlinear solve per step and three base maps per residual evaluation.
 
-### Residual and state dimensions
+### Four state formulations
 
-For one guiding-centre particle, the complete dimensional convention is:
+| Formulation | One planar particle | N planar particles | Methods |
+|---|---|---:|---|
+| Physical | `(x,y)` in R2 | 2N | Classical and adaptive |
+| Physical with energy | `(x,y,t,kappa)` in R4 | 4N | Classical and adaptive |
+| Spatially duplicated | `(u,v)` in R4 | 4N | ABBA and BM4 |
+| Duplicated with energy | `(u,v,t,kappa)` in R6 | 6N | ABBA and BM4 |
 
-| `state_extension` | `track_energy` | Accepted state | Base splitting state | Reduced unknown | Simultaneous unknown |
-|---|---:|---|---|---|---|
-| `"physical"` | `False` | `z in R^2` | `(u,v) in R^4` | `mu in R^2` | `(u_f,v_f,mu) in R^6` |
-| `"physical"` | `True` | `z in R^2` | `(u,v) in R^4` | `mu in R^2` | `(u_f,v_f,mu) in R^6` |
-| `"fully_extended"` | `True` | `Z=(z,t,k) in R^4` | `(Z_1,Z_2) in R^8` | `mu in R^4` | `(Z_1f,Z_2f,mu) in R^12` |
+Every public method accepts `track_energy=True`, including `ExplicitEuler`,
+`HBVM42` and `BM4Implicit`. The concrete `PhysicalFormulation` and
+`DoubledFormulation` classes own the layouts. Accepted duplicated states store
+equal spatial copies. `Solution.states` and observer maps expose physical
+coordinates only. For FC classical methods the physical size is 4N, or 6N
+with tracking. Every component block has N entries, so
+`formulation.components(state)` has shape `(coordinates, N, *sample_axes)`.
+The time block repeats the integration time for each particle; physical maps
+continue to receive that scalar time. Clock validation and output alignment
+belong to the formulation.
 
-These literal `R^2/R^4/R^6/R^8/R^12` entries are the one-particle dimensions.
-For `physical` with `N` independent particles, the four numerical columns
-scale to `2N`, `4N`, `2N`, and `6N`, whether energy tracking is enabled or not.
-The optional fixed-grid sidecar contains `N` conjugate momenta but is not an
-accepted state, splitting state, or nonlinear unknown. Fully extended execution
-currently requires `N=1`.
+Hairer projects spatial copies only. Its reduced multiplier remains 2N, and
+the ABBA simultaneous spatial unknown remains 6N regardless of tracking.
+The energy clock and momentum never enter the nonlinear root or stopping scale.
+The energy variant's R6 state is different from the simultaneous solver's R6
+unknown for a single particle.
 
-The simultaneous unknown is a nonlinear-solver workspace, not an accepted
-trajectory state. In particular, its temporary `R^6` vector is unrelated to
-the optional conjugate-momentum sidecar.
+The auxiliary obeys `kappa'=-partial_t H`, starting from zero. Every family
+reports the same normalization: `physical_kappa`. The histories
+`extended_time`, `extended_momentum`, `physical_hamiltonian`,
+`generalized_energy` and `generalized_energy_error` follow `Solution.t`.
+All have shape `(N, saved_times)`, including `extended_time` for one particle.
+Use `Solution.t` when a one-dimensional integration grid is needed.
+`energy_error` is the maximum sampled absolute change in `H+kappa`.
+Physical H need not be conserved in a time-dependent potential.
 
-With `state_extension="physical"`, `track_energy=True` reuses the accepted ABBA
-stages to transport one normalized momentum `kappa=k/2` per particle. This
-triangular update does not feed back into `z`, so enabling it preserves the
-physical trajectory exactly. It requires an `ExtendedHamiltonianSystem` and
-adds momentum-derivative evaluations, but it does not define another ABBA
-splitting. The fully extended strategy instead duplicates the complete
-autonomous state `Z`, advances direct `k`, and can define a different physical
-map.
+Tracking preserves physical trajectories, nonlinear work and adaptive grids.
+DOP853/Radau integrate only physical coordinates in SciPy and evaluate passive
+eight-point Gauss quadrature along accepted dense output. Their diagnostic
+quadrature has no separate adaptive error tolerance and should be audited by
+refinement. Radau Jacobians are always physical-sized. BM4Implicit replays the
+converged spatial stages once for energy; that replay is not nonlinear work.
 
-Physical configurations expose the closed physical map `z -> z_next` to step
-observers whether or not energy tracking is enabled. The conjugate momentum is
-therefore absent from observer states and Jacobians. Fully extended
-configurations expose the accepted internal map `Z -> Z_next`, so their
-observer states are in `R^4`. This distinction applies to midpoint and implicit
-methods alike.
-
-`ABBA2Implicit`'s two residual formulations define the same exact projected
-map at convergence. The reduced branch lives in `_projection_reduced.py`; the
-simultaneous branch lives in `_projection_simultaneous.py`; and their shared
-physical stage records live in `_projection_common.py`. Fully extended
-counterparts operate on the `R^8` base map in `methods/_fully_extended.py`.
-Newton uses exact independent-particle blocks, whereas Broyden applies a good
-rank-one secant update to the selected residual. The derivations are documented
-in the [`ABBA2Implicit` theory](docs/models/abba2-implicit/tex/theory.pdf),
-its [simultaneous-formulation note](docs/models/abba2-implicit/tex/simultaneous-formulation.pdf),
-and the family-level
-[`nonlinear-solvers.tex`](docs/models/abba/tex/nonlinear-solvers.tex).
+See the [integration contract](docs/simulation/integration-architecture.md)
+and [model index](docs/models/README.md) for current guides and compiled theory.
 
 `ABBA4Implicit` composes three unprojected ABBA maps with signed durations
 `(gamma h, delta h, gamma h)` inside one symmetric projection. Its

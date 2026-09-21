@@ -10,7 +10,7 @@ from dynamics import DynamicalSystem, ExtendedHamiltonianSystem
 
 from ...integration import IntegrationMethod, StepInfo, StepResult
 from ..._result import DiagnosticValue
-from ...formulations.base import generalized_energy_error
+from ...formulations.state import PhysicalFormulation
 from ...observation import IntegrationStep, StepObserver
 from ...problem import InitialValueProblem
 from ...request import SimulationRequest
@@ -37,6 +37,7 @@ class RK4(IntegrationMethod[None]):
 	step_observer: StepObserver | None = None
 
 	# Resources owned by one run; excluded from constructor options.
+	state_formulation: PhysicalFormulation = field(init=False, repr=False, compare=False)
 	dynamics: DynamicalSystem = field(init=False, repr=False, compare=False)
 	physical_size: int = field(init=False, repr=False, compare=False)
 	particle_count: int = field(init=False, repr=False, compare=False)
@@ -54,39 +55,32 @@ class RK4(IntegrationMethod[None]):
 		physical_initial = problem.initial_state
 		self.physical_size = physical_initial.size
 		self.particle_count = problem.particle_count
-		initial_state = (
-			physical_initial
-			if not self.track_energy
-			else np.concatenate((physical_initial, np.zeros(self.particle_count)))
-		)
-		self.initial_state = initial_state
+		self.state_formulation = PhysicalFormulation(problem, request.t_span[0], self.track_energy)
+		self.initial_state = self.state_formulation.initial_state
 
-	def _derivative(self, t: float, value: np.ndarray) -> np.ndarray:
-		physical = value[:self.physical_size]
-		physical_derivative = _checked_vector_field(self.dynamics, t, physical)
-		if not self.track_energy:
-			return physical_derivative
-		assert isinstance(self.dynamics, ExtendedHamiltonianSystem)
-		momentum_derivative = np.asarray(
-			self.dynamics.extended_momentum_derivative(t, physical)
-		)
-		if momentum_derivative.shape != (self.particle_count,):
-			raise ValueError(
-				"The extended-momentum derivative changed its shape."
-			)
-		return np.concatenate((physical_derivative, momentum_derivative))
+	def _physical_step(self, t: float, candidate: np.ndarray, step: float) -> tuple[np.ndarray, tuple[np.ndarray, ...]]:
+		"""Return the physical RK4 map and its four accepted quadrature states."""
+		k1 = _checked_vector_field(self.dynamics, t, candidate)
+		z2 = candidate + step * k1 / 2
+		k2 = _checked_vector_field(self.dynamics, t + step / 2, z2)
+		z3 = candidate + step * k2 / 2
+		k3 = _checked_vector_field(self.dynamics, t + step / 2, z3)
+		z4 = candidate + step * k3
+		k4 = _checked_vector_field(self.dynamics, t + step, z4)
+		return np.asarray(candidate + step * (k1 + 2 * k2 + 2 * k3 + k4) / 6), (candidate, z2, z3, z4)
 
 	def _apply_step(self, t: float, candidate: np.ndarray, step: float) -> np.ndarray:
-		"""Evaluate the established four RK stages in their original arithmetic order."""
-		k1 = self._derivative(t, candidate)
-		k2 = self._derivative(t + step / 2, candidate + step * k1 / 2)
-		k3 = self._derivative(t + step / 2, candidate + step * k2 / 2)
-		k4 = self._derivative(t + step, candidate + step * k3)
-		return np.asarray(candidate + step * (k1 + 2 * k2 + 2 * k3 + k4) / 6)
+		return self._physical_step(t, candidate, step)[0]
 
 	def advance(self, t: float, state: np.ndarray, step: float) -> StepResult[None]:
-		"""Return one RK4 step; explicit stages have no nonlinear-work counters."""
-		return StepResult(self._apply_step(t, state, step), {}, None)
+		"""Advance physical stages, then the passive energy quadrature if requested."""
+		physical, stages = self._physical_step(t, self.state_formulation.physical(state), step)
+		increment = None
+		if self.track_energy:
+			rates = [self.state_formulation.momentum_rate(t + c * step, z)
+			         for c, z in zip((0., .5, .5, 1.), stages)]
+			increment = step * (rates[0] + 2 * rates[1] + 2 * rates[2] + rates[3]) / 6
+		return StepResult(self.state_formulation.finish(state, physical, t + step, increment), {}, None)
 
 	def build_observation(self, info: StepInfo, result: StepResult[None]) -> IntegrationStep:
 		def map_state(candidate: np.ndarray) -> np.ndarray:
@@ -94,18 +88,10 @@ class RK4(IntegrationMethod[None]):
 		return IntegrationStep(
 			dynamics_name=type(self.dynamics).__name__, method_name=type(self).__name__,
 			step_index=info.index, start_time=info.time, time=info.time + info.duration,
-			duration=info.duration, state_before=info.state_before.copy(),
-			state_after=result.state.copy(), map_state=map_state, dynamics=self.dynamics,
+			duration=info.duration, state_before=self.state_formulation.physical(info.state_before).copy(),
+			state_after=self.state_formulation.physical(result.state).copy(), map_state=map_state, dynamics=self.dynamics,
 		)
 
-	def export_history(self, times: np.ndarray, history: np.ndarray) -> tuple[np.ndarray, dict[str, DiagnosticValue]]:
-		states = history[:self.physical_size]
-		diagnostics: dict[str, DiagnosticValue] = {}
-		if self.track_energy:
-			momentum = history[self.physical_size:]
-			diagnostics['extended_momentum'] = momentum
-			diagnostics['energy_error'] = generalized_energy_error(times, states, momentum, self.dynamics)
-		return states, diagnostics
 
 
 __all__ = ["RK4"]

@@ -92,6 +92,10 @@ class QuarticOscillatorDynamics:
 			+ 0.25 * self.quartic_strength * position**4
 		)
 
+	def extended_momentum_derivative(self, t: float, state: np.ndarray) -> np.ndarray:
+		"""Return zero for each autonomous oscillator's passive energy balance."""
+		return np.zeros(self._split(state)[0].shape[0])
+
 
 def quartic_oscillator_configuration(
 	*,

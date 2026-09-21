@@ -6,11 +6,12 @@ from typing import ClassVar, Literal
 
 import numpy as np
 
-from dynamics import GuidingCenterDynamics, GuidingCenterJacobianSystem
+from dynamics import ExtendedHamiltonianSystem, GuidingCenterJacobianSystem
 
 from ..._result import DiagnosticValue
 from ...integration import IntegrationMethod, NEWTON_ALIASES, StepInfo, StepResult as NumericalStep
 from ...observation import IntegrationStep, StepObserver
+from ...formulations.state import DoubledFormulation
 from ...problem import InitialValueProblem
 from ...request import SimulationRequest
 from .._nonlinear import NonlinearSolver, SolverOptions, _validate_nonlinear_solver
@@ -19,14 +20,13 @@ from ._configuration import (
     ProjectionFormulation, StateExtension, _resolved_track_energy,
     _state_dimension_diagnostics, _validate_projection_formulation, _validate_state_extension,
 )
-from ._energy import _validate_energy_tracking
-from .maps.extended import _extended_vector_field_jacobian
 from .maps.physical import _checked_vector_field_jacobian
 from .observations import EventBuilder, bind_event_builder
 from .records import ProjectedMapResult, StepResult, step_statistics
-from .state import StatePolicy, extended_state_policy, physical_state_policy
+from ._energy import _conjugate_momentum_increment_from_stages
+from .records import PhysicalProjectionTrace
 from .steps import (
-    ProjectedMap, bind_extended_projection, bind_physical_projection,
+    solve_physical_projection,
     solve_outer_projection_step, solve_projected_composition_step, solve_single_map_step,
 )
 
@@ -67,8 +67,8 @@ class _ABBAImplicitMethod(IntegrationMethod[StepResult]):
 	track_energy: bool = False
 
 	order: ClassVar[Literal[2, 4, 6]]
-	state_ops: StatePolicy = field(init=False, repr=False, compare=False)
-	project: ProjectedMap = field(init=False, repr=False, compare=False)
+	state_formulation: DoubledFormulation = field(init=False, repr=False, compare=False)
+	solver_options: SolverOptions = field(init=False, repr=False, compare=False)
 	build_event: EventBuilder | None = field(init=False, repr=False, compare=False)
 	coefficients: tuple[float, ...] = field(init=False, repr=False, compare=False)
 	include_substep_metrics: bool = field(init=False, repr=False, compare=False)
@@ -102,49 +102,20 @@ class _ABBAImplicitMethod(IntegrationMethod[StepResult]):
 		)
 		dynamics = problem.dynamics
 		name = type(self).__name__
-		fully_extended = self.state_extension == "fully_extended"
-		options = SolverOptions(
-			self.nonlinear_solver, self.newton_absolute_tolerance,
-			self.newton_relative_tolerance, self.newton_max_iterations,
-		)
+		options = SolverOptions(self.nonlinear_solver, self.newton_absolute_tolerance,
+		                        self.newton_relative_tolerance, self.newton_max_iterations)
 		z0 = problem.initial_state
-		if fully_extended:
-			if not isinstance(dynamics, GuidingCenterDynamics):
-				raise TypeError(f"{name} requires GuidingCenterDynamics.")
-			if z0.shape != (2,):
-				raise ValueError(f"{name} requires exactly one GC particle.")
-			self.state_ops = extended_state_policy(dynamics)
-			self.project = bind_extended_projection(
-				dynamics, options, self.projection_formulation,
-				outer=outer, method_name=name,
-			)
-		else:
-			if not isinstance(dynamics, GuidingCenterJacobianSystem):
-				raise TypeError(f"{name} requires GuidingCenterJacobianSystem.")
-			if dynamics.state_dimension != 2:
-				raise TypeError(f"{name} requires planar two-component dynamics.")
-			_validate_energy_tracking(dynamics, enabled=self.track_energy, method_name=name)
-			self.state_ops = physical_state_policy(
-				dynamics, physical_size=z0.size,
-				particle_count=z0.size // 2, track_energy=self.track_energy,
-			)
-			self.project = bind_physical_projection(
-				dynamics, options, self.projection_formulation, outer=outer,
-			)
-		initial = self.state_ops.initialize(z0, request.t_span[0])
-		# Validate Newton capabilities before a zero residual can mask their absence.
+		if not isinstance(dynamics, GuidingCenterJacobianSystem) or dynamics.state_dimension != 2:
+			raise TypeError(f"{name} requires planar GuidingCenterJacobianSystem dynamics.")
+		self.state_formulation = DoubledFormulation(problem, request.t_span[0], self.track_energy)
+		self.solver_options = options
 		if options.solver == "newton":
-			if fully_extended:
-				assert isinstance(dynamics, GuidingCenterDynamics)
-				_extended_vector_field_jacobian(dynamics, initial)
-			else:
-				assert isinstance(dynamics, GuidingCenterJacobianSystem)
-				_checked_vector_field_jacobian(dynamics, request.t_span[0], z0)
+			_checked_vector_field_jacobian(dynamics, request.t_span[0], z0)
 		self.build_event = None
 		if self.step_observer is not None:
 			self.build_event = bind_event_builder(
 				dynamics, name, self.projection_formulation, order=self.order,
-				fully_extended=fully_extended, outer=outer, coefficients=self.coefficients,
+				outer=outer, coefficients=self.coefficients,
 				solve_step=self.solve_step, project=self.project,
 			)
 		projection_count = 1 if outer else len(self.coefficients)
@@ -161,7 +132,7 @@ class _ABBAImplicitMethod(IntegrationMethod[StepResult]):
 		metadata.update(_state_dimension_diagnostics(
 			self.state_extension, self.projection_formulation, particle_count=z0.size // 2,
 		))
-		self.include_substep_metrics = fully_extended or self.order != 2
+		self.include_substep_metrics = self.order != 2
 		if self.include_substep_metrics:
 			coefficient_array = np.asarray(self.coefficients)
 			coefficient_array.setflags(write=False)
@@ -170,19 +141,7 @@ class _ABBAImplicitMethod(IntegrationMethod[StepResult]):
 				"projection_placement": projection_placement,
 				"composition_coefficients": coefficient_array,
 			})
-		if fully_extended:
-			assert isinstance(dynamics, GuidingCenterDynamics)
-			metadata.update({
-				"unprojected_abba_maps_per_step": len(self.coefficients),
-				"unprojected_abba_maps_per_residual_evaluation": len(self.coefficients) if outer else 1,
-				"projection_jacobian": (
-					"analytic_stage_product" if options.solver == "newton"
-					or (self.step_observer is not None and dynamics.effective_potential.interpolation_order >= 3)
-					else "centered_difference_observer_fallback" if self.step_observer is not None
-					else "not_evaluated"
-				),
-			})
-		elif outer:
+		if outer:
 			metadata.update({
 				"unprojected_abba_maps_per_step": len(self.coefficients),
 				"unprojected_abba_maps_per_residual_evaluation": len(self.coefficients),
@@ -193,11 +152,18 @@ class _ABBAImplicitMethod(IntegrationMethod[StepResult]):
 				"substep_projection_formulation": self.projection_formulation,
 				"composition_policy": "project_each_abba_substep",
 			})
-		initial = initial.copy()
+		initial = self.state_formulation.initial_state
 		initial.setflags(write=False)
 		self.initial_state = initial
 		self.metadata = metadata
 		self.diagnostic_aliases = NEWTON_ALIASES
+
+	def project(self, t: float, state: np.ndarray, h: float) -> ProjectedMapResult:
+		"""Evaluate this method's selected spatial projection equation directly."""
+		dynamics = self.problem.dynamics
+		assert isinstance(dynamics, GuidingCenterJacobianSystem)
+		return solve_physical_projection(dynamics, self.solver_options, self.projection_formulation,
+		                                 t, state, h, outer=self.order == 4)
 
 	def solve_step(self, t: float, state: np.ndarray, h: float) -> tuple[ProjectedMapResult, ...]:
 		"""Apply the order's complete recipe using this run's projection equation."""
@@ -209,9 +175,19 @@ class _ABBAImplicitMethod(IntegrationMethod[StepResult]):
 
 	def advance(self, t: float, workspace: np.ndarray, h: float) -> NumericalStep[StepResult]:
 		"""Apply the projections and finish the physical or extended state update."""
-		state_before = self.state_ops.unpack(t, workspace)
+		state_before = self.state_formulation.physical(workspace)
 		projections = self.solve_step(t, state_before, h)
-		next_workspace = self.state_ops.finish_step(t, h, workspace, projections)
+		increment = None
+		if self.track_energy:
+			assert isinstance(self.problem.dynamics, ExtendedHamiltonianSystem)
+			increment = np.zeros(self.state_formulation.particle_count)
+			for projection in projections:
+				assert isinstance(projection.trace, PhysicalProjectionTrace)
+				for base_map in projection.trace.maps:
+					increment += _conjugate_momentum_increment_from_stages(
+						self.problem.dynamics, base_map.start_time, base_map.duration, base_map.stages,
+						particle_count=self.state_formulation.particle_count)
+		next_workspace = self.state_formulation.finish(workspace, projections[-1].state, t + h, increment)
 		result = StepResult(next_workspace, projections)
 		return NumericalStep(next_workspace, step_statistics(
 			result, include_substeps=self.include_substep_metrics,
@@ -220,12 +196,9 @@ class _ABBAImplicitMethod(IntegrationMethod[StepResult]):
 	def build_observation(self, info: StepInfo, step: NumericalStep[StepResult]) -> IntegrationStep:
 		"""Expose the selected physical or extended observation domain."""
 		assert self.build_event is not None
-		state_before = self.state_ops.unpack(info.time, info.state_before)
+		state_before = self.state_formulation.physical(info.state_before)
 		return self.build_event(info.time, info.duration, info.index, state_before, step.details)
 
-	def export_history(self, times: np.ndarray, history: np.ndarray) -> tuple[np.ndarray, dict[str, DiagnosticValue]]:
-		"""Extract physical samples and the selected energy diagnostics."""
-		return self.state_ops.extract(times, history)
 
 
 __all__: list[str] = []

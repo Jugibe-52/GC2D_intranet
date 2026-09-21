@@ -105,7 +105,7 @@ class AdaptiveIntegrationTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'within'):
                 observer.evaluate(.9)
 
-    def test_energy_extension_matches_the_same_augmented_scipy_problem(self):
+    def test_energy_is_passive_and_matches_an_independent_augmented_reference(self):
         problem = _problem()
         for cls in (DOP853, Radau):
             def derivative(t, z):
@@ -113,11 +113,14 @@ class AdaptiveIntegrationTests(unittest.TestCase):
                              problem.dynamics.extended_momentum_derivative(t, z[:2])]
             request = SimulationRequest.uniform(t_span=(.3, .34), max_step=.02, sample_count=5)
             reference = solve_ivp(derivative, request.t_span, np.r_[problem.initial_state, 0.],
-                method=cls.__name__, rtol=1e-10, atol=1e-12, max_step=.02, t_eval=request.output_times)
+                method='DOP853', rtol=1e-13, atol=1e-15, max_step=.001, t_eval=request.output_times)
             actual = simulate(problem, cls(track_energy=True), request)
-            np.testing.assert_array_equal(actual.states, reference.y[:2])
-            np.testing.assert_array_equal(actual.diagnostics['extended_momentum'], reference.y[2:])
-            self.assertTrue(np.all(np.isfinite(actual.diagnostics['energy_error'])))
+            plain = simulate(problem, cls(), request)
+            np.testing.assert_array_equal(actual.states, plain.states)
+            for key in ('step_times', 'function_evaluations', 'jacobian_evaluations', 'lu_decompositions'):
+                np.testing.assert_array_equal(actual.diagnostics[key], plain.diagnostics[key])
+            np.testing.assert_allclose(actual.diagnostics['extended_momentum'], reference.y[2:], rtol=1e-9, atol=1e-13)
+            np.testing.assert_array_equal(actual.diagnostics['extended_time'], actual.t[None, :])
 
     def test_advance_keeps_one_live_solver_and_independent_runs(self):
         for cls in (DOP853, Radau):

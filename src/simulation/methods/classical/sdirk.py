@@ -15,7 +15,7 @@ from dynamics import (
 
 from ...integration import IntegrationMethod, StepInfo, StepResult, NEWTON_ALIASES
 from ..._result import DiagnosticValue
-from ...formulations.base import generalized_energy_error
+from ...formulations.state import PhysicalFormulation
 from ...observation import IntegrationStep, StepObserver
 from ...problem import InitialValueProblem
 from ...request import SimulationRequest
@@ -350,6 +350,7 @@ class SDIRK4(IntegrationMethod[_SDIRKStepResult]):
 	step_observer: StepObserver | None = None
 
 	# Resources owned by one run; excluded from constructor options.
+	state_formulation: PhysicalFormulation = field(init=False, repr=False, compare=False)
 	dynamics: DynamicalSystem = field(init=False, repr=False, compare=False)
 	physical_size: int = field(init=False, repr=False, compare=False)
 	resolved_jacobian_method: ResolvedSDIRKJacobianMethod = field(init=False, repr=False, compare=False)
@@ -396,12 +397,8 @@ class SDIRK4(IntegrationMethod[_SDIRKStepResult]):
 			initial_state=physical_initial,
 		)
 		self.physical_size = physical_initial.size
-		particle_count = problem.particle_count
-		initial_state = (
-			physical_initial
-			if not self.track_energy
-			else np.concatenate((physical_initial, np.zeros(particle_count)))
-		)
+		self.state_formulation = PhysicalFormulation(problem, request.t_span[0], self.track_energy)
+		initial_state = self.state_formulation.initial_state
 		metadata: dict[str, DiagnosticValue] = {
 			'stage_count': _STAGE_COUNT,
 			'designed_order': 4,
@@ -456,32 +453,18 @@ class SDIRK4(IntegrationMethod[_SDIRKStepResult]):
 		}
 		if not self.track_energy:
 			return StepResult(result.state, statistics, result)
-		assert isinstance(self.dynamics, ExtendedHamiltonianSystem)
-		momentum_before = np.asarray(value[self.physical_size:], dtype=float)
 		momentum_derivatives = tuple(
-			np.asarray(
-				self.dynamics.extended_momentum_derivative(
-					time + step * SDIRK4_TABLEAU_C[index],
-					result.stage_states[index],
-				),
-				dtype=float,
+			self.state_formulation.momentum_rate(
+				time + step * SDIRK4_TABLEAU_C[index], result.stage_states[index],
 			)
 			for index in range(_STAGE_COUNT)
 		)
-		if any(
-			derivative.shape != momentum_before.shape
-			or not np.all(np.isfinite(derivative))
-			for derivative in momentum_derivatives
-		):
-			raise ValueError(
-				"The extended-momentum derivative must be finite and have "
-				"one value per particle."
-			)
-		momentum_after = momentum_before + step * sum(
+		increment = step * sum(
 			SDIRK4_TABLEAU_B[index] * momentum_derivatives[index]
 			for index in range(_STAGE_COUNT)
 		)
-		return StepResult(np.concatenate((result.state, momentum_after)), statistics, result)
+		after = self.state_formulation.finish(value, result.state, time + step, increment)
+		return StepResult(after, statistics, result)
 
 	def build_observation(self, info: StepInfo, step: StepResult[_SDIRKStepResult]) -> IntegrationStep:
 		"""Build independent physical snapshots from accepted solve details."""
@@ -495,14 +478,6 @@ class SDIRK4(IntegrationMethod[_SDIRKStepResult]):
 			state_after=result.state.copy(), map_state=map_state, dynamics=self.dynamics,
 		)
 
-	def export_history(self, times: np.ndarray, history: np.ndarray) -> tuple[np.ndarray, dict[str, DiagnosticValue]]:
-		states = np.asarray(history[:self.physical_size])
-		auxiliary: dict[str, DiagnosticValue] = {}
-		if self.track_energy:
-			momentum = np.asarray(history[self.physical_size:])
-			auxiliary['extended_momentum'] = momentum
-			auxiliary['energy_error'] = generalized_energy_error(times, states, momentum, self.dynamics)
-		return states, auxiliary
 
 
 __all__ = [

@@ -1,301 +1,95 @@
-# BM4Implicit physical simulation architecture
+# BM4Implicit: state formulations and execution
 
-[Editable source](bm4-simulation-architecture.puml) · [Scalable diagram (SVG)](bm4-simulation-architecture.svg)
+Twelve direct/adjoint stages enclosed by one spatial Hairer projection.
 
-![BM4Implicit physical Hairer-projection lifecycle](bm4-simulation-architecture.png)
+The canonical theoretical source is [theory.tex](../tex/theory.tex), with its
+compiled [theory.pdf](../tex/theory.pdf). The four-formulation convention below
+supersedes earlier diagrams showing a duplicated clock or full time/momentum projection.
 
-The diagram preserves the original six-phase layout: physical inputs, run
-definition, preparation, numerical execution, accepted-step records and final
-result. Read the phases horizontally and each column vertically. Detailed cards
-retain inputs, outputs, state dimensions, numerical equations and module paths;
-arrows distinguish calls, returned records, optional observations and failures.
+## Responsibilities
 
-The shared prepared lifecycle occupies the original preparation, execution and
-collection columns. The reduced Hairer solve stays inside BM4. A separate,
-earlier historical diagram remains available as [source](bm4-simulation-architecture-old.puml)
-and [rendering](bm4-simulation-architecture-old.png).
-
-## Method instances and integration lifecycle
-
-This method inherits `IntegrationMethod.integrate(problem, request)`, shared by
-all 13 public methods. It calls `new_run(problem, request)` to create a fresh
-instance of the same numerical class. That instance's `initialize` validates
-capabilities and sets its formulation, initial internal state and metadata.
-There is no separate context or callback-based method record.
-
-| Operation on the numerical class | Responsibility |
+| Component | Owns |
 |---|---|
-| `initialize(problem, request)` | Initialize this run's resources once; return `None` |
-| `advance(t, state, h)` | Execute numerical work and return state, statistics and typed details |
-| `build_observation(info, step)` | Construct a method-specific event with independent snapshots |
-| `export_history(times, history)` | Extract physical output and auxiliary diagnostics |
-| `controller()` | Select fixed or adaptive accepted-step scheduling |
+| Dynamics | Physical vector field, Hamiltonian and required derivatives |
+| Formulation | Internal coordinates, spatial copies and physical/energy extraction |
+| Method | Stages, signed coefficients, spatial projection and passive quadrature |
+| Integration | Accepted intervals, sampling, observation and output collection |
 
-`integrate_method(run)` owns the common loop. Its `IntegrationCollector` saves
-requested samples and copied accepted-step metric rows, without retaining
-numerical details or events. The method owns the formulation and any live solver.
-Analysis and persistence remain in `diagnostics/`; observers remain caller-owned.
+## State contract
 
-Constructor options remain reusable through `simulate`. Per-run resources are
-excluded from reconstruction, and initial state and metadata are isolated as
-read-only copies. A completed or failed run cannot be integrated again; create a
-fresh run. Call `new_run` for low-level access rather than resetting `initialize`.
+| Planar one-particle formulation | Internal coordinates | Dimension |
+|---|---|---:|
+| Physical | `(x, y)` | 2 |
+| Physical with energy | `(x, y, t, kappa)` | 4 |
+| Duplicated | `(x1, y1, x2, y2)` | 4 |
+| Duplicated with energy | `(x1, y1, x2, y2, t, kappa)` | 6 |
 
-`FixedStepController` calls `run.advance` with the exact effective duration and
-uses independent shortened maps for interior output times. DOP853/Radau's
-controller calls their ordinary `advance` on the live solver with an upper step
-bound and reads the actual accepted endpoint. Dense sampling retains the backend.
+BM4Implicit uses the **duplicated** rows. `track_energy=False` is the default;
+`track_energy=True` enables the energy row. With N planar particles its internal
+dimensions are 4N / 6N. There are N time entries and N energy momenta.
+Classical FC runs use their actual physical size 4N, giving 4N / 6N.
+All components remain component-major; energy states append N times, then N
+normalized momenta. Every component block has the same particle dimension.
+The time entries are copies of the integration time; physical maps still receive
+one scalar time. The formulation owns clock validation and output alignment.
+The physical output always has its original size.
+Accepted duplicated copies are equal. They separate only inside the numerical map.
 
-Metric rows follow `step_times`; physical and auxiliary histories follow
-`Solution.t`. Common fields are `step_count`, `step_start_times`, `step_times`,
-`step_sizes` and `output_interpolation_count`. Shadow work and extra observer-only
-work are excluded from accepted numerical counters.
+`PhysicalFormulation` and `DoubledFormulation` are constructed directly from the
+problem, initial time and tracking flag. They are defined in
+`src/simulation/formulations/state.py`. BM4 additionally uses directly bound
+`GCDoubledMaps` for its spatial direct/adjoint stages; its legacy configuration
+factory is only a compatibility entry point.
 
-See the [generic architecture](../../../simulation/integration-architecture.md)
-for the lifecycle, adaptive semantics and extension guide. Executable contracts
-are in `tests/test_method_integration.py` and `tests/test_adaptive_integration.py`.
+## Energy and nonlinear work
 
-## Scope
+After convergence, one energy-augmented replay of the accepted twelve-stage map integrates the passive momentum. This replay uses the accepted spatial multiplier, performs no new nonlinear solve, and is excluded from nonlinear work counters.
 
-`BM4Implicit` has one fixed geometric construction. The separate
-[`BM4Midpoint`](../../bm4-midpoint/simulation/bm4-midpoint-simulation-architecture.md)
-method shares its twelve-stage base cycle and uses arithmetic projection.
+The stored momentum is physical `kappa`, initialized at zero. Its derivative is
+`-partial_t H`; splitting sums are normalized by one half. The diagnostic is
+`H(t, z) + kappa - H(t0, z0)`. It measures a balance, not conservation of the
+time-dependent physical Hamiltonian. Dynamics must implement
+`ExtendedHamiltonianSystem` when tracking is enabled, including an explicit zero
+derivative for an autonomous Hamiltonian.
 
-For a source-order explanation of every implementation symbol, array layout,
-nonlinear branch, observer closure, and diagnostic field, see the
-[`BM4Implicit` implementation walkthrough](bm4-implicit-code-walkthrough.md).
+Only spatial coordinates enter a Hairer constraint. The reduced multiplier has
+2N components; the ABBA simultaneous spatial solve has 6N unknowns. Clock and
+momentum never enlarge these roots or affect their stopping scale. Tracking also
+leaves classical physical solves and adaptive acceptance decisions unchanged.
+BM4's optional energy replay and adaptive diagnostic quadrature are extra work
+outside the physical solver counters; reported wall time still includes them.
 
-| Architectural choice | Fixed BM4 behavior |
-|---|---|
-| Public method | `BM4Implicit` |
-| Accepted and returned state | Physical guiding-centre state `z in R^(2p)` for `p` particles |
-| Internal splitting state | Two physical copies in `R^(4p)` |
-| Projection | Hairer's symmetric projection |
-| Projection placement | Once around one complete twelve-stage BM4 cycle |
-| Nonlinear formulation | Reduced multiplier `mu in R^(2p)` |
+## Lifecycle and output
 
-Newton and Broyden are solver choices for the same reduced equation. They do
-not define different numerical methods. Likewise, selecting an analytic or
-finite-difference Newton Jacobian changes how the equation is solved, not the
-projected map.
+`simulate(problem, method, request)` creates a fresh run via `new_run`, validates
+its formulation and calls the shared `integrate_method`. Each `advance` returns
+an internal state, small work counters and method-specific accepted details.
+The common collector retains samples and counters; the formulation extracts the
+physical trajectory and diagnostic histories. Run resources are isolated.
 
-"Implicit" refers to the reduced multiplier root solve. The twelve
-direct/adjoint maps in the BM4 base cycle are explicit sequential stages.
+Fixed methods use independent shortened maps for off-grid samples. Adaptive
+methods retain one live SciPy solver whose state is always physical. Their
+energy quadrature follows accepted dense output and cannot affect the error norm.
+Radau Jacobians are physical-sized even when energy tracking is enabled.
 
-`BM4Implicit` has no stage-projected, arithmetic-midpoint, simultaneous-output,
-or fully extended branch. Its accepted state never includes time or
-its conjugate momentum. The duplicated `R^(4p)` value is only internal
-splitting and nonlinear-solver workspace; it is not a fully extended state.
+Observers receive the physical map and independent snapshots. Their shapes do
+not change with tracking. All energy histories have shape `(N, saved_times)`,
+including `extended_time` even for a single particle. Diagnostic arrays
+`extended_time`, `extended_momentum`,
+`physical_hamiltonian`, `generalized_energy` and `generalized_energy_error` follow
+`Solution.t`; nonlinear and runtime work arrays follow `step_times`.
+`extended_momentum_normalization` is `physical_kappa` and `energy_error` is the
+maximum absolute sampled balance error over all particles.
 
-## Runtime boundaries
+## Migration and verification
 
-| File | Responsibility |
-|---|---|
-| [`src/simulation/methods/bm4/implicit.py`](../../../../src/simulation/methods/bm4/implicit.py) | Public configuration, reduced Hairer solve, BM4 map Jacobian, prepared advance, observation adapter and metadata |
-| [`src/simulation/methods/bm4/_core.py`](../../../../src/simulation/methods/bm4/_core.py) | Palindromic coefficients and ordered twelve-stage direct--adjoint composition |
-| [`src/simulation/formulations/gc.py`](../../../../src/simulation/formulations/gc.py) | Preparation of the coupled two-copy physical GC maps |
-| [`src/simulation/methods/_nonlinear.py`](../../../../src/simulation/methods/_nonlinear.py) | Solver validation and good-Broyden implementation |
-| [`src/simulation/integration.py`](../../../../src/simulation/integration.py) | Shared preparation contract, controller, collector and result assembly |
-| [`src/simulation/observation.py`](../../../../src/simulation/observation.py) | `ImplicitBM4IntegrationStep` observer record |
-| [`src/simulation/_result.py`](../../../../src/simulation/_result.py) | Internal `IntegrationData` result |
-| [`src/simulation/solution.py`](../../../../src/simulation/solution.py) | Immutable public physical solution |
+`state_extension="fully_extended"` no longer runs a time/momentum projection.
+It raises explicit migration guidance. Use `track_energy=True` with spatial
+projection. The historical full-state symplecticity study is retired because it
+measured a different map; existing saved artifacts can still be read.
 
-Preparation requires a guiding-centre initial configuration. The analytic
-Jacobian path additionally requires the exact particle Jacobians supplied by
-`GuidingCenterDynamics` and an effective potential with
-`interpolation_order >= 3` whenever Newton needs a correction; finite-difference
-Newton and Broyden evaluate the same prepared physical BM4 map without changing
-its state contract.
-
-## Public configuration
-
-`BM4Implicit` exposes numerical-solution controls only:
-
-| Field | Meaning | Default |
-|---|---|---|
-| `coupling_frequency` | Harmonic coupling frequency of the duplicated GC map; zero disables mixing while retaining the reduced Hairer projection | `0.0` |
-| `newton_absolute_tolerance` | Absolute nonlinear stopping tolerance | `1e-13` |
-| `newton_relative_tolerance` | State-scaled relative stopping tolerance | `1e-12` |
-| `newton_max_iterations` | Maximum nonlinear corrections | `12` |
-| `newton_jacobian_relative_step` | Relative centered-difference increment | `cbrt(machine epsilon)` |
-| `newton_jacobian_method` | `"analytic"` or `"finite_difference"` | `"analytic"` |
-| `nonlinear_solver` | `"newton"` or `"broyden"` | `"newton"` |
-| `progress` | Enables fixed-grid progress output | `False` |
-| `step_observer` | Optional accepted-step observer | `None` |
-
-There is deliberately no projection-placement, projection-formulation,
-state-extension, or energy-tracking selector.
-
-## Complete BM4 base cycle
-
-The six independent half-cycle coefficients are
-
-\[
-\begin{aligned}
-a_1&= 0.0792036964311957,&
-a_2&= 0.1303114101821663,\\
-a_3&= 0.2228614958676077,&
-a_4&=-0.3667132690474257,\\
-a_5&= 0.3246481886897062,&
-a_6&= 0.1096884778767498.
-\end{aligned}
-\]
-
-They satisfy `sum(a_1, ..., a_6) = 1/2`. One complete step uses
-
-\[
-(b_1,\ldots,b_{12})=
-(a_1,a_2,a_3,a_4,a_5,a_6,a_6,a_5,a_4,a_3,a_2,a_1)
-\]
-
-and executes
-
-```text
-adjoint(b1 h), direct(b2 h), ..., adjoint(b11 h), direct(b12 h)
-```
-
-The negative coefficient `a_4` is an intentional backward subflow. After each
-stage, the composition clock advances by its signed duration. An adjoint stage
-evaluates at the current clock; a direct stage evaluates at the clock plus its
-signed duration. The twelve coefficients advance the clock by one complete
-step.
-
-No projection is applied between these stages. For a first-order map and its
-exact adjoint, the palindromic composition is symmetric and has designed global
-order four.
-
-## Physical Hairer projection
-
-Let `p` be the particle count, let the packed physical GC state have dimension
-`m=2p`, and define
-
-\[
-E=\begin{pmatrix}I\\I\end{pmatrix},\qquad
-P=\frac12\begin{pmatrix}I&I\end{pmatrix},\qquad
-G=\begin{pmatrix}I&-I\end{pmatrix},\qquad
-N=G^T.
-\]
-
-For one accepted state `z_n`, a trial multiplier displaces the two physical
-copies before the complete BM4 cycle:
-
-\[
-\widehat Y_n=Ez_n+N\mu
-=\begin{pmatrix}z_n+\mu\\z_n-\mu\end{pmatrix},
-\qquad
-M(\mu)=\Psi_{h,t_n}(\widehat Y_n).
-\]
-
-The same normal correction is applied to the complete-cycle output. Enforcing
-the diagonal constraint gives the reduced equation
-
-\[
-r(\mu)=G\bigl(M(\mu)+N\mu\bigr)
-=GM(\mu)+2\mu=0.
-\]
-
-After convergence,
-
-\[
-Y_{n+1}=M(\mu)+N\mu,\qquad
-z_{n+1}=P Y_{n+1}.
-\]
-
-Thus "projection after the complete BM4 cycle" means one symmetric Hairer
-projection surrounding that cycle: the converged multiplier appears in both
-the input displacement and the output correction. It is not an arithmetic
-post-processing projection.
-
-## Nonlinear solve and Jacobian
-
-If
-
-\[
-J_{\mathrm{BM4}}=D\Psi_{h,t_n}(Ez_n+N\mu),
-\]
-
-the reduced Newton matrix is
-
-\[
-D_\mu r=GJ_{\mathrm{BM4}}N+2I.
-\]
-
-With `newton_jacobian_method="analytic"`, the implementation accumulates the
-ordered product of all twelve exact GC stage Jacobians. The
-`"finite_difference"` path differentiates the complete duplicated map with
-centered differences. Good Broyden instead updates an approximation to this
-reduced residual Jacobian from `4I` and secant data; it never differentiates the
-map or consults either Newton-Jacobian configuration field.
-
-The stopping threshold for a state `z_n` is
-
-```text
-absolute_tolerance + relative_tolerance * max(1, ||z_n||_inf)
-```
-
-Failure to meet it within the configured correction limit rejects the step by
-raising an error; no unconverged state is accepted.
-
-## Fixed-grid lifecycle
-
-One public simulation creates a fresh `BM4Implicit` with `new_run`; its
-`initialize` stores the formulation and initial state. `integrate_method` uses
-`FixedStepController`, which calls the class method `advance(t, state, h)`; one Hairer solve encloses the complete BM4 cycle.
-The common collector records accepted steps and the common coordinator emits
-optional events. Requested interior samples use independent shortened maps.
-They never change main states, metric rows or events, but each costs a complete
-shorter projected solve. Changing output density leaves the main trajectory intact.
-
-## Observation and diagnostics
-
-When `step_observer` is present, every accepted main step emits one
-`ImplicitBM4IntegrationStep`. It contains the physical states before and after
-the step, the converged multiplier, nonlinear work, and an accepted physical
-`map_state`. After convergence, the implementation reconstructs the twelve
-base-stage snapshots for that event. This reconstruction is observational and
-does not change the accepted solve.
-
-The public solution diagnostics include:
-
-- `step_count`;
-- `nonlinear_solver`, iteration counts, residual-evaluation counts, residual
-  norms, and effective tolerances;
-- nonlinear tolerance and iteration-limit metadata;
-- `newton_jacobian_method` and `newton_jacobian_relative_step`;
-- `projection_multiplier_norms` and `coupling_frequency`; and
-- the fixed `projection_solver_formulation = "bm4_implicit_reduced"` marker.
-
-All returned trajectory states remain physical `R^(2p)` values. There are no
-extended-time, conjugate-momentum, or generalized-energy arrays in this method.
-
-## Public usage
-
-```python
-from simulation import BM4Implicit, SimulationRequest, simulate
-
-solution = simulate(
-    problem,
-    BM4Implicit(
-        coupling_frequency=0.2,
-        nonlinear_solver="newton",
-        newton_jacobian_method="analytic",
-        newton_absolute_tolerance=1e-14,
-        newton_relative_tolerance=1e-13,
-        newton_max_iterations=40,
-    ),
-    SimulationRequest.uniform(
-        t_span=(0.0, 2.0),
-        max_step=0.05,
-        sample_count=41,
-    ),
-)
-```
-
-The canonical mathematical entry point is [`theory.tex`](../tex/theory.tex).
-The focused reduced derivation is
-[`implicit-reduced.tex`](../tex/implicit-reduced.tex), and
-[`bm4_jacobian_sympy.py`](../bm4_jacobian_sympy.py) verifies the ordered
-symbolic stage-product factors.
-
-The editable source for the rendered component diagram is
-[`bm4-simulation-architecture.puml`](bm4-simulation-architecture.puml).
+Tests in `tests/test_state_formulations.py` cover all 13 methods, both tracking
+settings, particle batches, physical-only observers, adaptive control, per-particle
+time alignment and energy normalization. Model tests retain order, projection,
+Jacobian and nonlinear-solver checks. The pre-change physical trajectories are
+also compared with the migrated implementations on short nonautonomous runs.

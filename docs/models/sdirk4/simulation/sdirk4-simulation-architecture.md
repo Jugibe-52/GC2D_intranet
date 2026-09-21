@@ -1,121 +1,95 @@
-# S54b SDIRK4 simulation architecture
+# SDIRK4: state formulations and execution
 
-[Editable diagram](sdirk4-simulation-architecture.puml) · [Scalable diagram](sdirk4-simulation-architecture.svg)
+Five Skvortsov S54b stages with diagonal coefficient 1/4.
 
-![sdirk4 architecture](sdirk4-simulation-architecture.png)
+The canonical theoretical source is [theory.tex](../tex/theory.tex), with its
+compiled [theory.pdf](../tex/theory.pdf). The four-formulation convention below
+supersedes earlier diagrams showing a duplicated clock or full time/momentum projection.
 
-The diagram retains the six-phase BM4 layout, including public contracts,
-preparation, numerical equations, accepted records, optional observers and errors.
+## Responsibilities
 
-## Method instances and integration lifecycle
-
-This method inherits `IntegrationMethod.integrate(problem, request)`, shared by
-all 13 public methods. It calls `new_run(problem, request)` to create a fresh
-instance of the same numerical class. That instance's `initialize` validates
-capabilities and sets its formulation, initial internal state and metadata.
-There is no separate context or callback-based method record.
-
-| Operation on the numerical class | Responsibility |
+| Component | Owns |
 |---|---|
-| `initialize(problem, request)` | Initialize this run's resources once; return `None` |
-| `advance(t, state, h)` | Execute numerical work and return state, statistics and typed details |
-| `build_observation(info, step)` | Construct a method-specific event with independent snapshots |
-| `export_history(times, history)` | Extract physical output and auxiliary diagnostics |
-| `controller()` | Select fixed or adaptive accepted-step scheduling |
+| Dynamics | Physical vector field, Hamiltonian and required derivatives |
+| Formulation | Internal coordinates, spatial copies and physical/energy extraction |
+| Method | Stages, signed coefficients, spatial projection and passive quadrature |
+| Integration | Accepted intervals, sampling, observation and output collection |
 
-`integrate_method(run)` owns the common loop. Its `IntegrationCollector` saves
-requested samples and copied accepted-step metric rows, without retaining
-numerical details or events. The method owns the formulation and any live solver.
-Analysis and persistence remain in `diagnostics/`; observers remain caller-owned.
+## State contract
 
-Constructor options remain reusable through `simulate`. Per-run resources are
-excluded from reconstruction, and initial state and metadata are isolated as
-read-only copies. A completed or failed run cannot be integrated again; create a
-fresh run. Call `new_run` for low-level access rather than resetting `initialize`.
+| Planar one-particle formulation | Internal coordinates | Dimension |
+|---|---|---:|
+| Physical | `(x, y)` | 2 |
+| Physical with energy | `(x, y, t, kappa)` | 4 |
+| Duplicated | `(x1, y1, x2, y2)` | 4 |
+| Duplicated with energy | `(x1, y1, x2, y2, t, kappa)` | 6 |
 
-`FixedStepController` calls `run.advance` with the exact effective duration and
-uses independent shortened maps for interior output times. DOP853/Radau's
-controller calls their ordinary `advance` on the live solver with an upper step
-bound and reads the actual accepted endpoint. Dense sampling retains the backend.
+SDIRK4 uses the **physical** rows. `track_energy=False` is the default;
+`track_energy=True` enables the energy row. With N planar particles its internal
+dimensions are 2N / 4N. There are N time entries and N energy momenta.
+Classical FC runs use their actual physical size 4N, giving 4N / 6N.
+All components remain component-major; energy states append N times, then N
+normalized momenta. Every component block has the same particle dimension.
+The time entries are copies of the integration time; physical maps still receive
+one scalar time. The formulation owns clock validation and output alignment.
+The physical output always has its original size.
+Accepted duplicated copies are equal. They separate only inside the numerical map.
 
-Metric rows follow `step_times`; physical and auxiliary histories follow
-`Solution.t`. Common fields are `step_count`, `step_start_times`, `step_times`,
-`step_sizes` and `output_interpolation_count`. Shadow work and extra observer-only
-work are excluded from accepted numerical counters.
+`PhysicalFormulation` and `DoubledFormulation` are constructed directly from the
+problem, initial time and tracking flag. They are defined in
+`src/simulation/formulations/state.py`. BM4 additionally uses directly bound
+`GCDoubledMaps` for its spatial direct/adjoint stages; its legacy configuration
+factory is only a compatibility entry point.
 
-See the [generic architecture](../../../simulation/integration-architecture.md)
-for the lifecycle, adaptive semantics and extension guide. Executable contracts
-are in `tests/test_method_integration.py` and `tests/test_adaptive_integration.py`.
+## Energy and nonlinear work
 
-## Public method
+The five converged physical stages supply the passive momentum quadrature with the tableau weights.
 
-[`SDIRK4`](../../../../src/simulation/methods/classical/sdirk.py) is exported
-from the public `simulation` package. It consumes `DynamicalSystem` directly
-and has the same Newton controls and analytic/finite-difference Jacobian
-selection convention as `GaussLegendre4`.
+The stored momentum is physical `kappa`, initialized at zero. Its derivative is
+`-partial_t H`; splitting sums are normalized by one half. The diagnostic is
+`H(t, z) + kappa - H(t0, z0)`. It measures a balance, not conservation of the
+time-dependent physical Hamiltonian. Dynamics must implement
+`ExtendedHamiltonianSystem` when tracking is enabled, including an explicit zero
+derivative for an autonomous Hamiltonian.
 
-```python
-from simulation import InitialValueProblem, SDIRK4, SimulationRequest, simulate
+Only spatial coordinates enter a Hairer constraint. The reduced multiplier has
+2N components; the ABBA simultaneous spatial solve has 6N unknowns. Clock and
+momentum never enlarge these roots or affect their stopping scale. Tracking also
+leaves classical physical solves and adaptive acceptance decisions unchanged.
+BM4's optional energy replay and adaptive diagnostic quadrature are extra work
+outside the physical solver counters; reported wall time still includes them.
 
-solution = simulate(
-    problem,
-    SDIRK4(
-        newton_absolute_tolerance=1e-12,
-        newton_relative_tolerance=1e-11,
-        newton_max_iterations=40,
-        newton_jacobian_method="analytic",
-    ),
-    SimulationRequest.uniform(
-        t_span=(0.0, 100.0),
-        max_step=0.1,
-        sample_count=1001,
-    ),
-)
-```
+## Lifecycle and output
 
-## Step lifecycle
+`simulate(problem, method, request)` creates a fresh run via `new_run`, validates
+its formulation and calls the shared `integrate_method`. Each `advance` returns
+an internal state, small work counters and method-specific accepted details.
+The common collector retains samples and counters; the formulation extracts the
+physical trajectory and diagnostic histories. Run resources are isolated.
 
-The S54b tableau has five stages and common diagonal coefficient
-`gamma = 1/4`. One complete step performs five sequential nonlinear solves.
-At stage `i`, fields from stages `j < i` form the known right-hand side; Newton
-then solves only for the current physical stage. With analytic planar
-guiding-centre derivatives, the correction is vectorized across particles as
-independent `2 x 2` systems. Generic dynamics use a dense centered-difference
-Jacobian.
+Fixed methods use independent shortened maps for off-grid samples. Adaptive
+methods retain one live SciPy solver whose state is always physical. Their
+energy quadrature follows accepted dense output and cannot affect the error norm.
+Radau Jacobians are physical-sized even when energy tracking is enabled.
 
-The accepted state uses the tableau weights. Because S54b is stiffly accurate,
-the update is also the fifth stage to the configured nonlinear tolerance.
-When `track_energy=True`, the time-conjugate momentum uses the same stage
-states, nodes, and weights without enlarging the physical nonlinear systems.
+Observers receive the physical map and independent snapshots. Their shapes do
+not change with tracking. All energy histories have shape `(N, saved_times)`,
+including `extended_time` even for a single particle. Diagnostic arrays
+`extended_time`, `extended_momentum`,
+`physical_hamiltonian`, `generalized_energy` and `generalized_energy_error` follow
+`Solution.t`; nonlinear and runtime work arrays follow `step_times`.
+`extended_momentum_normalization` is `physical_kappa` and `energy_error` is the
+maximum absolute sampled balance error over all particles.
 
-## Fixed grid and observations
+## Migration and verification
 
-[`FixedStepController`](../../../../src/simulation/integration.py) keeps the main
-integration grid independent of the output schedule. Main steps alone append
-Newton diagnostics and notify the optional `step_observer`; shadow output
-steps do neither. The generic `IntegrationStep.map_state` callback repeats the
-same five-stage physical map for opt-in numerical differentiation.
+`state_extension="fully_extended"` no longer runs a time/momentum projection.
+It raises explicit migration guidance. Use `track_energy=True` with spatial
+projection. The historical full-state symplecticity study is retired because it
+measured a different map; existing saved artifacts can still be read.
 
-## Diagnostics
-
-The common one-dimensional arrays `nonlinear_iterations`,
-`residual_evaluations`, `nonlinear_residual_norms`, and
-`nonlinear_tolerances` contain one aggregate per complete step. Iterations and
-evaluations are summed across the five stages; the residual norm is their
-maximum. The corresponding `stage_*` arrays have shape `(step_count, 5)`.
-
-Scalar metadata records the designed order, stage count, tableau name,
-diagonal coefficient, stiff accuracy, and the deliberate absence of symmetry
-and symplecticity. The exact tableau arrays are exported read-only as
-`SDIRK4_TABLEAU_A`, `SDIRK4_TABLEAU_B`, and `SDIRK4_TABLEAU_C`.
-
-## Verification
-
-[`tests/test_sdirk4.py`](../../../../tests/test_sdirk4.py) checks all classical
-order-four conditions, the failed symmetry and symplecticity identities,
-observed fourth-order convergence, non-autonomous stage times, validation,
-diagnostic shapes, and optional energy tracking.
-
-[`tests/test_four_method_sdirk_comparison.py`](../../../../tests/test_four_method_sdirk_comparison.py)
-checks the reusable four-method experiment contract and its aligned reference,
-trajectory, energy, timing, and Newton results.
+Tests in `tests/test_state_formulations.py` cover all 13 methods, both tracking
+settings, particle batches, physical-only observers, adaptive control, per-particle
+time alignment and energy normalization. Model tests retain order, projection,
+Jacobian and nonlinear-solver checks. The pre-change physical trajectories are
+also compared with the migrated implementations on short nonautonomous runs.

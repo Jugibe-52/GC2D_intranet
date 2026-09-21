@@ -37,7 +37,6 @@ _NONLINEAR_SOLVERS = ("newton", "broyden")
 _ENERGY_STRATEGIES = (
 	("physical", False),
 	("physical", True),
-	("fully_extended", True),
 )
 _IMPLICIT_CONFIGURATIONS = tuple(
 	(method, formulation, solver, extension, track_energy)
@@ -108,7 +107,7 @@ def _dense_component_major_jacobian(blocks: np.ndarray) -> np.ndarray:
 
 
 class ABBAConfigurationCubeTests(unittest.TestCase):
-	"""Exercise three midpoint variants and the 36 implicit combinations once."""
+	"""Exercise two midpoint variants and the 24 implicit combinations once."""
 
 	implicit_solutions: dict[tuple[str, str, str, str, bool], object] = {}
 	midpoint_solutions: dict[tuple[str, bool], object] = {}
@@ -116,7 +115,7 @@ class ABBAConfigurationCubeTests(unittest.TestCase):
 
 	@classmethod
 	def setUpClass(cls) -> None:
-		"""Cache all 39 one-step runs for smoke and equivalence assertions."""
+		"""Cache all 26 one-step runs for smoke and equivalence assertions."""
 		problem = _problem()
 		request = _request()
 		for (
@@ -163,15 +162,15 @@ class ABBAConfigurationCubeTests(unittest.TestCase):
 			except Exception as exc:  # pragma: no cover - reported by the smoke test
 				cls.configuration_failures[key] = exc
 
-	def test_configuration_space_contains_exactly_39_variants(self) -> None:
-		self.assertEqual(len(_MIDPOINT_CONFIGURATIONS), 3)
-		self.assertEqual(len(_IMPLICIT_CONFIGURATIONS), 36)
+	def test_configuration_space_contains_exactly_26_variants(self) -> None:
+		self.assertEqual(len(_MIDPOINT_CONFIGURATIONS), 2)
+		self.assertEqual(len(_IMPLICIT_CONFIGURATIONS), 24)
 		self.assertEqual(
 			len(_MIDPOINT_CONFIGURATIONS) + len(_IMPLICIT_CONFIGURATIONS),
-			39,
+			26,
 		)
 
-	def test_all_39_configurations_run_and_report_canonical_dimensions(self) -> None:
+	def test_all_26_configurations_run_and_report_canonical_dimensions(self) -> None:
 		for (
 			method_type,
 			formulation,
@@ -206,7 +205,7 @@ class ABBAConfigurationCubeTests(unittest.TestCase):
 					formulation,
 				)
 				self.assertEqual(diagnostics["nonlinear_solver"], solver)
-				accepted, base = _EXPECTED_DIMENSIONS[extension]
+				accepted = base = 6 if track_energy else 4
 				self.assertEqual(
 					diagnostics["accepted_internal_state_dimension"],
 					accepted,
@@ -260,7 +259,7 @@ class ABBAConfigurationCubeTests(unittest.TestCase):
 				self.assertEqual(diagnostics["state_extension"], extension)
 				self.assertIs(diagnostics["track_energy"], track_energy)
 				self.assertEqual(diagnostics["projection_kind"], "arithmetic_mean")
-				accepted, base = _EXPECTED_DIMENSIONS[extension]
+				accepted = base = 6 if track_energy else 4
 				self.assertEqual(
 					diagnostics["accepted_internal_state_dimension"],
 					accepted,
@@ -433,7 +432,7 @@ class ABBAConfigurationCubeTests(unittest.TestCase):
 				_request(),
 			)
 			diagnostics = solution.diagnostics
-			self.assertEqual(diagnostics["accepted_internal_state_dimension"], 6)
+			self.assertEqual(diagnostics["accepted_internal_state_dimension"], 12)
 			self.assertEqual(diagnostics["base_splitting_state_dimension"], 12)
 			self.assertEqual(diagnostics["observer_state_dimension"], 6)
 			self.assertEqual(
@@ -442,7 +441,7 @@ class ABBAConfigurationCubeTests(unittest.TestCase):
 			)
 
 		midpoint = simulate(problem, ABBA2Midpoint(), _request())
-		self.assertEqual(midpoint.diagnostics["accepted_internal_state_dimension"], 6)
+		self.assertEqual(midpoint.diagnostics["accepted_internal_state_dimension"], 12)
 		self.assertEqual(midpoint.diagnostics["base_splitting_state_dimension"], 12)
 		self.assertEqual(midpoint.diagnostics["nonlinear_unknown_dimension"], 0)
 
@@ -511,32 +510,14 @@ class ABBAConfigurationCubeTests(unittest.TestCase):
 				)
 				self.assertLess(relative_error, 3e-8)
 
-		fully_extended_events = []
-		simulate(
-			_problem(),
-			ABBA4ImplicitSingleProjection(
-				projection_formulation="simultaneous_state_multiplier",
-				state_extension="fully_extended",
-				newton_absolute_tolerance=1e-13,
-				newton_relative_tolerance=1e-13,
-				step_observer=fully_extended_events.append,
-			),
-			_request(),
-		)
-		self.assertEqual(len(fully_extended_events), 1)
-		event = fully_extended_events[0]
-		self.assertEqual(event.state_before.shape, (4,))
-		self.assertEqual(event.jacobian.shape, (4, 4))
-		numerical = central_difference_jacobian(
-			event.map_state,
-			event.state_before,
-			relative_step=1e-5,
-		)
-		relative_error = float(
-			np.linalg.norm(event.jacobian - numerical, ord="fro")
-			/ np.linalg.norm(numerical, ord="fro")
-		)
-		self.assertLess(relative_error, 3e-8)
+		# The energy variant exposes the same physical Jacobian domain.
+		events = []
+		simulate(_problem(), ABBA4Implicit(track_energy=True,
+		    projection_formulation="simultaneous_state_multiplier", step_observer=events.append), _request())
+		self.assertEqual(events[0].state_before.shape, (2,))
+		analytic = _dense_component_major_jacobian(abba4_implicit_step_particle_jacobians(events[0]))
+		numerical = central_difference_jacobian(events[0].map_state, events[0].state_before, relative_step=1e-5)
+		np.testing.assert_allclose(analytic, numerical, rtol=3e-8, atol=3e-8)
 
 
 if __name__ == "__main__":

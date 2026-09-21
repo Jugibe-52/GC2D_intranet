@@ -1,5 +1,6 @@
 """Reusable numerical formulations for structure-preserving methods."""
 
+from .state import PhysicalFormulation, DoubledFormulation
 from .base import (
 	DirectAdjointFormulation,
 	PreparedDirectAdjointFormulation,
@@ -14,6 +15,7 @@ from .gc import (
 )
 
 __all__ = [
+	"PhysicalFormulation", "DoubledFormulation",
 	"DirectAdjointFormulation",
 	"FCSplitFormulation",
 	"GCExtendedFormulation",

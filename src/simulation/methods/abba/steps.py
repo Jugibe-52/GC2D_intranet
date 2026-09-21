@@ -7,17 +7,12 @@ from typing import TypeAlias
 
 import numpy as np
 
-from dynamics import GuidingCenterDynamics, GuidingCenterJacobianSystem
+from dynamics import GuidingCenterJacobianSystem
 
 from .._nonlinear import SolveStats, SolverOptions
 from ._coefficients import _ABBA4_COEFFICIENTS
 from ._configuration import ProjectionFormulation
 from ._projection_common import _ProjectedStep
-from .maps.extended import _abba_base_map, _composed_abba_base_map
-from .projection_extended import (
-	_solve_abba_full_reduced_projection,
-	_solve_abba_full_simultaneous_projection,
-)
 from .projection_outer import (
 	_ABBA4SingleProjectionStep,
 	_solve_reduced_abba4_single_projection_step,
@@ -26,7 +21,7 @@ from .projection_outer import (
 from .projection_reduced import _solve_reduced_multiplier_step
 from .projection_simultaneous import _solve_simultaneous_state_multiplier_step
 from .records import (
-	ExtendedProjectionTrace, PhysicalBaseMapTrace, PhysicalProjectionTrace,
+	PhysicalBaseMapTrace, PhysicalProjectionTrace,
 	ProjectedMapResult,
 )
 
@@ -37,14 +32,12 @@ StepSolver: TypeAlias = Callable[
 ]
 
 
-def bind_physical_projection(
-	dynamics: GuidingCenterJacobianSystem,
-	options: SolverOptions,
-	formulation: ProjectionFormulation,
-	*,
-	outer: bool,
-) -> ProjectedMap:
-	"""Select the physical equation and retain the accepted base-map trace."""
+def solve_physical_projection(
+	dynamics: GuidingCenterJacobianSystem, options: SolverOptions,
+	formulation: ProjectionFormulation, t: float, state: np.ndarray, h: float,
+	*, outer: bool,
+) -> ProjectedMapResult:
+	"""Solve the spatial equation and retain its accepted map traces."""
 	single_solver = (
 		_solve_reduced_multiplier_step if formulation == "reduced_multiplier"
 		else _solve_simultaneous_state_multiplier_step
@@ -55,80 +48,47 @@ def bind_physical_projection(
 		else _solve_simultaneous_abba4_single_projection_step
 	)
 
-	def project(t: float, state: np.ndarray, h: float) -> ProjectedMapResult:
-		result: _ProjectedStep | _ABBA4SingleProjectionStep
-		if outer:
-			result = outer_solver(
-				dynamics, t, state, h,
-				absolute_tolerance=options.absolute_tolerance,
-				relative_tolerance=options.relative_tolerance,
-				max_iterations=options.max_iterations, nonlinear_solver=options.solver,
-			)
-			stages = result.substeps
-			coefficients = _ABBA4_COEFFICIENTS
-		else:
-			single = single_solver(
-				dynamics, t, state, h,
-				absolute_tolerance=options.absolute_tolerance,
-				relative_tolerance=options.relative_tolerance,
-				max_iterations=options.max_iterations, nonlinear_solver=options.solver,
-			)
-			result = single
-			stages = (single.stages,)
-			coefficients = np.asarray((1.0,))
-		time = float(t)
-		maps: list[PhysicalBaseMapTrace] = []
-		for coefficient, stage in zip(coefficients, stages, strict=True):
-			duration = float(coefficient * h)
-			maps.append(PhysicalBaseMapTrace(time, duration, stage))
-			time += duration
-		return ProjectedMapResult(
-			t, h, state.copy(), result.state, result.multiplier,
-			SolveStats(options.solver, result.iterations, result.residual_evaluations,
-				result.residual_norm, options.tolerance(state)),
-			PhysicalProjectionTrace(tuple(maps)),
-		)
-
-	return project
-
-
-def bind_extended_projection(
-	dynamics: GuidingCenterDynamics,
-	options: SolverOptions,
-	formulation: ProjectionFormulation,
-	*,
-	outer: bool,
-	method_name: str,
-) -> ProjectedMap:
-	"""Bind one full-diagonal equation around a base map or its composition."""
-	solver = (
-		_solve_abba_full_reduced_projection if formulation == "reduced_multiplier"
-		else _solve_abba_full_simultaneous_projection
-	)
-	coefficients = tuple(float(c) for c in _ABBA4_COEFFICIENTS) if outer else (1.0,)
-
-	def project(t: float, state: np.ndarray, h: float) -> ProjectedMapResult:
-		base_map = (
-			_composed_abba_base_map(dynamics, h, np.asarray(coefficients))
-			if outer else _abba_base_map(dynamics, h)
-		)
-		start_time = float(state[2])
-		result = solver(
-			state, base_map,
+	result: _ProjectedStep | _ABBA4SingleProjectionStep
+	if outer:
+		result = outer_solver(
+			dynamics, t, state, h,
 			absolute_tolerance=options.absolute_tolerance,
 			relative_tolerance=options.relative_tolerance,
 			max_iterations=options.max_iterations, nonlinear_solver=options.solver,
-			context=f"{method_name} fully extended projection at t={start_time:.16g} with duration={h:.16g}",
-			require_tangent=False,
 		)
-		return ProjectedMapResult(
-			start_time, h, state.copy(), result.state, result.multiplier,
-			SolveStats(options.solver, result.iterations, result.residual_evaluations,
-				result.residual_norm, options.tolerance(state)),
-			ExtendedProjectionTrace(result, coefficients),
+		stages = result.substeps
+		coefficients = _ABBA4_COEFFICIENTS
+	else:
+		single = single_solver(
+			dynamics, t, state, h,
+			absolute_tolerance=options.absolute_tolerance,
+			relative_tolerance=options.relative_tolerance,
+			max_iterations=options.max_iterations, nonlinear_solver=options.solver,
 		)
+		result = single
+		stages = (single.stages,)
+		coefficients = np.asarray((1.0,))
+	time = float(t)
+	maps: list[PhysicalBaseMapTrace] = []
+	for coefficient, stage in zip(coefficients, stages, strict=True):
+		duration = float(coefficient * h)
+		maps.append(PhysicalBaseMapTrace(time, duration, stage))
+		time += duration
+	return ProjectedMapResult(
+		t, h, state.copy(), result.state, result.multiplier,
+		SolveStats(options.solver, result.iterations, result.residual_evaluations,
+			result.residual_norm, options.tolerance(state)),
+		PhysicalProjectionTrace(tuple(maps)),
+	)
 
-	return project
+
+def bind_physical_projection(
+	dynamics: GuidingCenterJacobianSystem, options: SolverOptions,
+	formulation: ProjectionFormulation, *, outer: bool,
+) -> ProjectedMap:
+	"""Compatibility adapter for existing diagnostic composition helpers."""
+	from functools import partial
+	return partial(solve_physical_projection, dynamics, options, formulation, outer=outer)
 
 
 def solve_single_map_step(

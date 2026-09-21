@@ -23,11 +23,9 @@ ABBA4_PROJECTION_PLACEMENTS: tuple[ProjectionPlacement, ...] = (
 
 StateExtension: TypeAlias = Literal[
 	"physical",
-	"fully_extended",
 ]
 ABBA_STATE_EXTENSIONS: tuple[StateExtension, ...] = (
 	"physical",
-	"fully_extended",
 )
 
 
@@ -55,7 +53,9 @@ def _validate_state_extension(value: str) -> StateExtension:
 	"""Return one supported ABBA state-space strategy."""
 	if value not in ABBA_STATE_EXTENSIONS:
 		raise ValueError(
-			"`state_extension` must be 'physical' or 'fully_extended'."
+			"Only spatial duplication is supported. Use state_extension='physical' "
+			"and track_energy=True for time and passive momentum per particle; "
+			"the former fully_extended time/momentum projection has been removed."
 		)
 	return value
 
@@ -64,8 +64,8 @@ def _resolved_track_energy(
 	value: bool,
 	state_extension: StateExtension,
 ) -> bool:
-	"""Enable inherent energy evolution for the fully extended formulation."""
-	return bool(value) or state_extension == "fully_extended"
+	"""Resolve the explicit passive-energy option without changing the spatial map."""
+	return bool(value)
 
 
 def _state_dimension_diagnostics(
@@ -77,36 +77,15 @@ def _state_dimension_diagnostics(
 	"""Describe the actual accepted, splitting, and nonlinear workspaces."""
 	if particle_count < 1:
 		raise ValueError("`particle_count` must be a positive integer.")
-	if state_extension == "physical":
-		accepted_dimension = 2 * particle_count
-		base_dimension = 4 * particle_count
-	else:
-		accepted_dimension = 2 * particle_count + 2
-		base_dimension = 4 * particle_count + 4
+	_validate_state_extension(state_extension)
 	result: dict[str, int | str] = {
-		"accepted_internal_state_dimension": accepted_dimension,
-		"base_splitting_state_dimension": base_dimension,
-		"observer_state_dimension": accepted_dimension,
-		"observer_state_kind": (
-			"accepted_internal_map"
-			if state_extension == "fully_extended"
-			else "physical_map"
-		),
+		"accepted_internal_state_dimension": 4 * particle_count,
+		"base_splitting_state_dimension": 4 * particle_count,
+		"observer_state_dimension": 2 * particle_count,
+		"observer_state_kind": "physical_map",
 	}
 	if projection_formulation is not None:
-		if state_extension == "fully_extended":
-			unknown_dimension = (
-				accepted_dimension
-				if projection_formulation == "reduced_multiplier"
-				else 3 * accepted_dimension
-			)
-		else:
-			unknown_dimension = (
-				2 * particle_count
-				if projection_formulation == "reduced_multiplier"
-				else 6 * particle_count
-			)
-		result["nonlinear_unknown_dimension"] = unknown_dimension
+		result["nonlinear_unknown_dimension"] = (2 if projection_formulation == "reduced_multiplier" else 6) * particle_count
 	return result
 
 

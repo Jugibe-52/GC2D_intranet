@@ -9,6 +9,7 @@
 \pagestyle{fancy}\fancyhf{}
 \fancyhead[L]{\small\color{gcgray}GC2D: SDIRK4 S54b}
 \fancyhead[R]{\small\color{gcgray}Model theory}\fancyfoot[C]{\thepage}
+\setlength{\emergencystretch}{3em}
 \begin{document}
 \begin{center}
  {\LARGE\bfseries\color{gcblue}Five-Stage Fourth-Order SDIRK}\par
@@ -100,5 +101,52 @@ The coefficient table is the S54b method presented by L.~M.~Skvortsov,
 \emph{Computational Mathematics and Mathematical Physics}, 46(12),
 2110--2123 (2006), DOI:
 \href{https://doi.org/10.1134/S0965542506120098}{10.1134/S0965542506120098}.
+
+\clearpage
+\section{Four state formulations and passive energy tracking}
+For one planar particle the supported internal representations are
+\[
+\begin{array}{lll}
+\text{physical} & z=(x,y) & \mathbb{R}^{2},\\
+\text{physical with energy} & (z,t,\kappa) & \mathbb{R}^{4},\\
+\text{duplicated} & (u,v),\quad u,v\in\mathbb{R}^{2} & \mathbb{R}^{4},\\
+\text{duplicated with energy} & (u,v,t,\kappa) & \mathbb{R}^{6}.
+\end{array}
+\]
+Classical methods use the physical rows; ABBA and BM4 use the duplicated rows.
+\texttt{track\_energy} selects the energy variant. For $N$ planar particles the
+respective dimensions are $2N$, $4N$, $4N$, and $6N$: one time entry and
+one momentum per particle. All time entries equal the integration time. Classical full-cyclotron runs instead use $4N$ or $6N$ entries.
+Accepted spatial copies coincide; only one physical copy is exported.
+Every coordinate block contains $N$ values in component-major order. The
+formulation validates particle times and aligns output round-off; the
+integrator does not interpret coordinate indices.
+
+The normalized passive balance is
+\[
+\dot\kappa=-\partial_tH(t,z),\qquad \kappa(t_0)=0,\qquad
+\Delta K(t)=H(t,z(t))+\kappa(t)-H(t_0,z_0).
+\]
+Splitting accumulators from both copies are divided by two. The physical
+Hamiltonian may vary with time; $\Delta K$ measures its computed balance.
+Tracking leaves physical trajectories, nonlinear stopping rules and adaptive
+acceptance unchanged. Dynamics must supply the momentum derivative, including
+zero for an autonomous Hamiltonian.
+
+Hairer's constraint is solely $u-v=0$: the reduced multiplier has $2N$ entries
+and ABBA's simultaneous spatial solve has $6N$ unknowns. Neither $t$ nor
+$\kappa$ is projected. The former eight-component projection is retired;
+\texttt{state\_extension='fully\_extended'} raises migration guidance.
+
+Dynamics, formulation, method and integration remain separate. The shared
+state classes own layouts, diagonal embedding and history extraction in
+\begin{quote}\small\path{src/simulation/formulations/state.py}\end{quote}
+Each integration initializes a fresh method instance. Observers receive physical
+states; energy histories are in \texttt{Solution.diagnostics}.
+The \texttt{extended\_time} history has shape $(N,n_{\rm samples})$. Fixed-step shadow
+samples leave main states and counters unchanged. Adaptive energy quadrature
+uses accepted dense output; its backend state and Jacobian remain physical.
+
+The five converged physical stages supply the passive momentum quadrature with the tableau weights.
 
 \end{document}

@@ -57,7 +57,6 @@ _METHOD_NAMES: tuple[ABBA4ConfigurationMethod, ...] = (
 )
 _STATE_EXTENSIONS: tuple[StateExtension, ...] = (
 	"physical",
-	"fully_extended",
 )
 _PROJECTION_FORMULATIONS: tuple[ProjectionFormulation, ...] = (
 	"reduced_multiplier",
@@ -81,8 +80,7 @@ _METHOD_LABELS: Mapping[ABBA4ConfigurationMethod, str] = MappingProxyType(
 )
 _EXTENSION_LABELS: Mapping[StateExtension, str] = MappingProxyType(
 	{
-		"physical": "physical R4 + tracked energy",
-		"fully_extended": "fully extended R8",
+		"physical": "spatially duplicated R6 with energy",
 	}
 )
 _FORMULATION_LABELS: Mapping[ProjectionFormulation, str] = MappingProxyType(
@@ -294,17 +292,7 @@ def _readonly_runtime_array(
 
 def _expected_dimensions(variant: ABBA4ConfigurationVariant) -> tuple[int, int, int]:
 	"""Return accepted, base-map, and nonlinear workspace dimensions."""
-	if variant.state_extension == "physical":
-		return (
-			2,
-			4,
-			2 if variant.projection_formulation == "reduced_multiplier" else 6,
-		)
-	return (
-		4,
-		8,
-		4 if variant.projection_formulation == "reduced_multiplier" else 12,
-	)
+	return (6, 6, 2 if variant.projection_formulation == "reduced_multiplier" else 6)
 
 
 def _generalized_energy_history(

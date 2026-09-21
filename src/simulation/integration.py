@@ -19,6 +19,7 @@ from ._fixed import _Progress, _step_count
 from ._result import DiagnosticValue, IntegrationData
 from .problem import InitialValueProblem
 from .request import SimulationRequest
+from .formulations.state import PhysicalFormulation
 
 
 Detail = TypeVar("Detail")
@@ -230,6 +231,7 @@ class IntegrationMethod(ABC, Generic[Detail]):
 	progress: bool
 	step_observer: Callable[[Any], None] | None
 	_status: str = "configuration"
+	state_formulation: PhysicalFormulation | None = None
 
 	@property
 	def method_name(self) -> str:
@@ -250,6 +252,8 @@ class IntegrationMethod(ABC, Generic[Detail]):
 		method.metadata = {}
 		method.diagnostic_aliases = {}
 		method.initialize(problem, request)
+		if method.state_formulation is not None:
+			method.metadata = {**method.metadata, **method.state_formulation.metadata()}
 		initial = np.array(method.initial_state, dtype=float, copy=True)
 		if initial.ndim != 1 or initial.size == 0 or not np.all(np.isfinite(initial)):
 			raise ValueError("The initial internal state must be a finite vector.")
@@ -285,7 +289,9 @@ class IntegrationMethod(ABC, Generic[Detail]):
 
 	def export_history(self, times: np.ndarray, history: np.ndarray) -> tuple[np.ndarray, dict[str, DiagnosticValue]]:
 		"""Extract physical samples and auxiliary diagnostics from internal history."""
-		return history, {}
+		if self.state_formulation is None:
+			return history, {}
+		return self.state_formulation.extract_history(times, history)
 
 	def controller(self) -> StepController[Detail]:
 		"""Select fixed scheduling; adaptive methods override this operation."""

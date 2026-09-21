@@ -280,7 +280,7 @@ class ImplicitABBAReversibilityObserver:
 		solve_step = partial(solve_outer_projection_step, project)
 		projections = solve_step(start_time, state_before, duration)
 		builder = bind_event_builder(
-			dynamics, step.method_name, formulation, order=4, fully_extended=False,
+			dynamics, step.method_name, formulation, order=4,
 			outer=True, coefficients=coefficients, solve_step=solve_step, project=project,
 		)
 		event = builder(

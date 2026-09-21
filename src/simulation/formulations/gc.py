@@ -21,6 +21,19 @@ from .base import (
 )
 
 
+def spatial_shear(dynamics: DynamicalSystem, time: float, target: np.ndarray,
+                  source: np.ndarray, duration: float) -> np.ndarray:
+	"""Update one spatial copy using the field at the other copy.
+
+	Both arrays use the same component-major physical layout. The method supplies
+	the signed duration and actual evaluation time; no auxiliary participates.
+	"""
+	derivative = np.asarray(dynamics.vector_field(time, source), dtype=float)
+	if derivative.shape != source.shape or not np.all(np.isfinite(derivative)):
+		raise ValueError("The vector field changed shape or became non-finite.")
+	return np.asarray(target + duration * derivative)
+
+
 _COUPLING_BASE = np.asarray(
 	[[1, 0, 1, 0], [0, 1, 0, 1], [1, 0, 1, 0], [0, 1, 0, 1]],
 	dtype=float,
@@ -72,9 +85,14 @@ class _GCExtendedState:
 		return np.concatenate(parts if self.momentum is None else (*parts, self.momentum))
 
 
-@dataclass(frozen=True, slots=True)
-class _PreparedGC:
-	"""Immutable GC maps bound to one problem and diagnostic choice."""
+@dataclass(frozen=True, slots=True, init=False)
+class GCDoubledMaps:
+	"""Spatial GC maps constructed directly for one problem.
+
+	The map vector holds two spatial copies and, optionally, a summed energy
+	accumulator. Its time is supplied separately by the composition. Accepted
+	R4/R6 states and normalized kappa are owned by DoubledFormulation.
+	"""
 
 	dynamics: DynamicalSystem
 	configuration: GCInitialConfiguration
@@ -85,6 +103,33 @@ class _PreparedGC:
 	supports_stage_projection: bool
 	dynamics_name: str
 	initial_internal_state: np.ndarray
+
+	def __init__(self, problem: InitialValueProblem, coupling_frequency: float | None = np.pi / 8,
+	             *, track_energy: bool = False, supports_stage_projection: bool = False) -> None:
+		"""Bind validated spatial maps without a configuration/preparation chain."""
+		configuration = problem.initial_configuration
+		if not isinstance(configuration, GCInitialConfiguration):
+			raise TypeError("GC doubled maps require a GC configuration.")
+		if coupling_frequency is not None:
+			frequency = float(coupling_frequency)
+			if not np.isfinite(frequency) or frequency < 0:
+				raise ValueError("`coupling_frequency` must be finite and non-negative.")
+			coupling_frequency = frequency
+		if track_energy and not isinstance(problem.dynamics, ExtendedHamiltonianSystem):
+			raise TypeError("Energy tracking requires ExtendedHamiltonianSystem.")
+		physical = problem.initial_state
+		count = problem.particle_count
+		initial = _GCExtendedState(physical, physical, np.zeros(count) if track_energy else None).pack()
+		initial.setflags(write=False)
+		object.__setattr__(self, "dynamics", problem.dynamics)
+		object.__setattr__(self, "configuration", configuration)
+		object.__setattr__(self, "coupling_frequency", coupling_frequency)
+		object.__setattr__(self, "physical_size", physical.size)
+		object.__setattr__(self, "particle_count", count)
+		object.__setattr__(self, "track_energy", bool(track_energy))
+		object.__setattr__(self, "supports_stage_projection", supports_stage_projection)
+		object.__setattr__(self, "dynamics_name", type(problem.dynamics).__name__)
+		object.__setattr__(self, "initial_internal_state", initial)
 
 	def _unpack(self, value: np.ndarray) -> _GCExtendedState:
 		expected = 2 * self.physical_size + (
@@ -98,12 +143,6 @@ class _PreparedGC:
 			second=value[self.physical_size : 2 * self.physical_size],
 			momentum=momentum,
 		)
-
-	def _vector_field(self, t: float, state: np.ndarray) -> np.ndarray:
-		derivative = np.asarray(self.dynamics.vector_field(t, state))
-		if derivative.shape != state.shape:
-			raise ValueError("The GC vector field changed the physical state shape.")
-		return derivative
 
 	def _updated_momentum(
 		self,
@@ -154,14 +193,14 @@ class _PreparedGC:
 	) -> np.ndarray:
 		"""Update second then first copy and optionally apply exact coupling."""
 		current = self._unpack(state)
-		second = current.second + duration * self._vector_field(t, current.first)
+		second = spatial_shear(self.dynamics, t, current.second, current.first, duration)
 		momentum = self._updated_momentum(
 			current.momentum,
 			duration,
 			t,
 			current.first,
 		)
-		first = current.first + duration * self._vector_field(t, second)
+		first = spatial_shear(self.dynamics, t, current.first, second, duration)
 		momentum = self._updated_momentum(momentum, duration, t, second)
 		updated = _GCExtendedState(first, second, momentum)
 		if self.coupling_frequency is None:
@@ -178,14 +217,14 @@ class _PreparedGC:
 		current = self._unpack(state)
 		if self.coupling_frequency is not None:
 			current = self._couple(duration, current)
-		first = current.first + duration * self._vector_field(t, current.second)
+		first = spatial_shear(self.dynamics, t, current.first, current.second, duration)
 		momentum = self._updated_momentum(
 			current.momentum,
 			duration,
 			t,
 			current.second,
 		)
-		second = current.second + duration * self._vector_field(t, first)
+		second = spatial_shear(self.dynamics, t, current.second, first, duration)
 		momentum = self._updated_momentum(momentum, duration, t, first)
 		return _GCExtendedState(first, second, momentum).pack()
 
@@ -218,45 +257,6 @@ class _PreparedGC:
 		return states, diagnostics
 
 
-def _prepare_gc(
-	problem: InitialValueProblem,
-	*,
-	track_energy: bool,
-	coupling_frequency: float | None,
-	supports_stage_projection: bool,
-	formulation_name: str,
-) -> _PreparedGC:
-	"""Build one immutable doubled GC state for a numerical formulation."""
-	configuration = problem.initial_configuration
-	if not isinstance(configuration, GCInitialConfiguration):
-		raise TypeError(f"{formulation_name} requires a GC configuration.")
-	if not isinstance(problem.dynamics, DynamicalSystem):
-		raise TypeError("GC formulation requires DynamicalSystem.")
-	if track_energy and not isinstance(
-		problem.dynamics,
-		ExtendedHamiltonianSystem,
-	):
-		raise TypeError("Energy tracking requires ExtendedHamiltonianSystem.")
-	physical = problem.initial_state
-	particle_count = configuration.layout.particle_count(physical)
-	extended = _GCExtendedState(
-		first=physical,
-		second=physical,
-		momentum=np.zeros(particle_count) if track_energy else None,
-	)
-	initial_internal_state = extended.pack()
-	initial_internal_state.setflags(write=False)
-	return _PreparedGC(
-		dynamics=problem.dynamics,
-		configuration=configuration,
-		coupling_frequency=coupling_frequency,
-		physical_size=physical.size,
-		particle_count=particle_count,
-		track_energy=bool(track_energy),
-		supports_stage_projection=supports_stage_projection,
-		dynamics_name=type(problem.dynamics).__name__,
-		initial_internal_state=initial_internal_state,
-	)
 
 
 @dataclass(frozen=True, slots=True)
@@ -278,12 +278,11 @@ class GCExtendedFormulation:
 		track_energy: bool,
 	) -> PreparedDirectAdjointFormulation:
 		"""Bind immutable GC maps to one compatible problem."""
-		return _prepare_gc(
+		return GCDoubledMaps(
 			problem,
 			track_energy=track_energy,
 			coupling_frequency=self.coupling_frequency,
 			supports_stage_projection=False,
-			formulation_name=type(self).__name__,
 		)
 
 
@@ -298,17 +297,17 @@ class GCStageProjectedFormulation:
 		track_energy: bool,
 	) -> PreparedStageProjectedFormulation:
 		"""Bind uncoupled triangular GC maps to one compatible problem."""
-		return _prepare_gc(
+		return GCDoubledMaps(
 			problem,
 			track_energy=track_energy,
 			coupling_frequency=None,
 			supports_stage_projection=True,
-			formulation_name=type(self).__name__,
 		)
 
 
 __all__ = [
 	"GCExtendedFormulation",
+	"GCDoubledMaps",
 	"GCStageProjectedFormulation",
 	"gc_coupling_matrix",
 ]

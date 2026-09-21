@@ -29,7 +29,7 @@ def calculate_checkpointed_group(indices, initial_xy, settings):
     from dynamics import GuidingCenterDynamics
     from initial_conditions import GCInitialConfiguration
     from simulation import InitialValueProblem
-    from simulation.formulations import GCExtendedFormulation
+    from simulation.formulations.gc import GCDoubledMaps
     import simulation.methods.bm4.implicit as bm4
     import simulation.methods.bm4.midpoint as midpoint
     import parallel_calculation
@@ -38,8 +38,7 @@ def calculate_checkpointed_group(indices, initial_xy, settings):
     xy0 = np.asarray(initial_xy, dtype=float)[indices]
     initial = GCInitialConfiguration.from_components(x=xy0[:, 0], y=xy0[:, 1])
     problem = InitialValueProblem(GuidingCenterDynamics(potential, rho=settings['rho']), initial)
-    prepared = GCExtendedFormulation(coupling_frequency=settings['coupling_frequency']).prepare(
-        problem, track_energy=False)
+    prepared = GCDoubledMaps(problem, coupling_frequency=settings['coupling_frequency'])
     implicit = settings['method'] == 'BM4Implicit'
     particle_ids = np.asarray(settings['particle_ids'])[indices]
     n = settings['n_steps']

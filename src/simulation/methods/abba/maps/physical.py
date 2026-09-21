@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import numpy as np
 from dynamics import DynamicalSystem, GuidingCenterJacobianSystem
+from ....formulations.gc import spatial_shear
 
 @dataclass(frozen=True, slots=True)
 class _ABBAStages:
@@ -38,26 +39,10 @@ def _evaluate_unprojected_stages(
 	"""Apply one signed A-B-B-A map to two independent physical copies."""
 	half_step = step / 2.0
 	final_time = t + step
-	u_first = u_initial + half_step * _checked_vector_field(
-		dynamics,
-		t,
-		v_initial,
-	)
-	v_first = v_initial + half_step * _checked_vector_field(
-		dynamics,
-		t,
-		u_first,
-	)
-	v_final = v_first + half_step * _checked_vector_field(
-		dynamics,
-		final_time,
-		u_first,
-	)
-	u_final = u_first + half_step * _checked_vector_field(
-		dynamics,
-		final_time,
-		v_final,
-	)
+	u_first = spatial_shear(dynamics, t, u_initial, v_initial, half_step)
+	v_first = spatial_shear(dynamics, t, v_initial, u_first, half_step)
+	v_final = spatial_shear(dynamics, final_time, v_first, u_first, half_step)
+	u_final = spatial_shear(dynamics, final_time, u_first, v_final, half_step)
 
 	# The copy separation is the unprojected map residual. Projection-specific
 	# formulations add their multiplier contribution outside this neutral core.

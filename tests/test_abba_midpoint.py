@@ -78,39 +78,16 @@ def _deterministic_gc_dynamics() -> GuidingCenterDynamics:
 class ABBA2MidpointTests(unittest.TestCase):
 	"""Verify stages, geometric limitation, accuracy and observation behavior."""
 
-	def test_configuration_has_two_extensions_and_three_energy_strategies(
-		self,
-	) -> None:
-		self.assertEqual(ABBA_STATE_EXTENSIONS, ("physical", "fully_extended"))
-		strategies = (
-			("physical", False),
-			("physical", True),
-			("fully_extended", True),
-		)
-		for extension, track_energy in strategies:
-			with self.subTest(
-				extension=extension,
-				track_energy=track_energy,
-			):
-				method = ABBA2Midpoint(
-					state_extension=extension,
-					track_energy=track_energy,
-				)
-				self.assertEqual(method.state_extension, extension)
-				self.assertIs(method.track_energy, track_energy)
-		self.assertIs(
-			ABBA2Midpoint(
-				state_extension="fully_extended",
-				track_energy=False,
-			).track_energy,
-			True,
-		)
-		with self.assertRaisesRegex(TypeError, "projection_formulation"):
-			ABBA2Midpoint(  # type: ignore[call-arg]
-				projection_formulation="reduced_multiplier"
-			)
-		with self.assertRaisesRegex(TypeError, "nonlinear_solver"):
-			ABBA2Midpoint(nonlinear_solver="newton")  # type: ignore[call-arg]
+	def test_configuration_has_spatial_duplication_and_optional_energy(self) -> None:
+		self.assertEqual(ABBA_STATE_EXTENSIONS, ("physical",))
+		for tracking in (False, True):
+			self.assertIs(ABBA2Midpoint(track_energy=tracking).track_energy, tracking)
+		with self.assertRaisesRegex(ValueError, "track_energy=True"):
+			ABBA2Midpoint(state_extension="fully_extended")
+		with self.assertRaises(TypeError):
+			ABBA2Midpoint(projection_formulation="reduced_multiplier")
+		with self.assertRaises(TypeError):
+			ABBA2Midpoint(nonlinear_solver="newton")
 
 	def test_energy_tracking_requires_extended_hamiltonian_capability(self) -> None:
 		dynamics = _TimeOnlyPlanarDynamics()

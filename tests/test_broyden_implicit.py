@@ -31,7 +31,6 @@ _IMPLICIT_METHODS = (
 _ENERGY_STRATEGIES = (
 	("physical", False),
 	("physical", True),
-	("fully_extended", True),
 )
 
 
@@ -193,31 +192,9 @@ class ImplicitBroydenTests(unittest.TestCase):
 						_request(),
 					)
 
-	def test_fully_extended_broyden_observation_needs_no_analytic_hessian(
-		self,
-	) -> None:
-		problem = _problem(interpolation_order=2)
-		for formulation in ABBA_PROJECTION_FORMULATIONS:
-			events = []
-			with self.subTest(formulation=formulation):
-				solution = simulate(
-					problem,
-					ABBA2Implicit(
-						projection_formulation=formulation,
-						nonlinear_solver="broyden",
-						state_extension="fully_extended",
-						step_observer=events.append,
-					),
-					_request(),
-				)
-				self.assertEqual(len(events), 1)
-				self.assertEqual(events[0].jacobian.shape, (4, 4))
-				self.assertTrue(np.all(np.isfinite(events[0].jacobian)))
-				self.assertEqual(
-					solution.diagnostics["projection_jacobian"],
-					"centered_difference_observer_fallback",
-				)
-				self.assertIs(solution.diagnostics["track_energy"], True)
+	def test_removed_full_projection_does_not_silently_select_broyden(self) -> None:
+		with self.assertRaisesRegex(ValueError, "removed"):
+			ABBA2Implicit(state_extension="fully_extended", nonlinear_solver="broyden")
 
 	def test_unknown_solver_fails_for_all_four_methods(self) -> None:
 		for method_type in _IMPLICIT_METHODS:

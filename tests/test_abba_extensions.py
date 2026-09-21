@@ -110,7 +110,7 @@ class ABBAStateExtensionTests(unittest.TestCase):
 	def test_extension_identifiers_are_stable_and_complete(self) -> None:
 		self.assertEqual(
 			ABBA_STATE_EXTENSIONS,
-			("physical", "fully_extended"),
+			("physical",),
 		)
 
 	def test_tracking_preserves_existing_positional_argument_meanings(self) -> None:
@@ -146,7 +146,7 @@ class ABBAStateExtensionTests(unittest.TestCase):
 					nonlinear_solver="newton",
 				)
 			with self.subTest(method=method_type.__name__):
-				with self.assertRaisesRegex(ValueError, "exactly one GC particle"):
+				with self.assertRaisesRegex(ValueError, "track_energy=True"):
 					simulate(problem, method_type(**kwargs), request)
 
 	def test_physical_energy_tracking_supports_multiple_particles(self) -> None:
@@ -229,93 +229,21 @@ class ABBAStateExtensionTests(unittest.TestCase):
 				_request(duration=1.0),
 			)
 
-	def test_fully_extended_abba2_is_distinct_from_tracked_physical(self) -> None:
-		problem = _problem()
-		request = _request()
+	def test_full_projection_is_rejected_instead_of_changing_the_physical_map(self) -> None:
 		for formulation in ABBA_PROJECTION_FORMULATIONS:
-			with self.subTest(formulation=formulation):
-				physical = simulate(
-					problem,
-					ABBA2Implicit(
-						projection_formulation=formulation,
-						state_extension="physical",
-						track_energy=True,
-						newton_absolute_tolerance=1e-14,
-						newton_relative_tolerance=1e-14,
-					),
-					request,
-				)
-				fully_extended = simulate(
-					problem,
-					ABBA2Implicit(
-						projection_formulation=formulation,
-						state_extension="fully_extended",
-						newton_absolute_tolerance=1e-14,
-						newton_relative_tolerance=1e-14,
-					),
-					request,
-				)
+			with self.assertRaisesRegex(ValueError, "removed"):
+				ABBA2Implicit(state_extension="fully_extended", projection_formulation=formulation)
 
-				self.assertEqual(
-					physical.diagnostics["state_extension"],
-					"physical",
-				)
-				self.assertEqual(
-					fully_extended.diagnostics["state_extension"],
-					"fully_extended",
-				)
-				self.assertIn("extended_momentum", physical.diagnostics)
-				self.assertIn("extended_momentum", fully_extended.diagnostics)
-				self.assertEqual(
-					physical.diagnostics["extended_momentum_normalization"],
-					"kappa_equals_k_over_2",
-				)
-				self.assertEqual(
-					fully_extended.diagnostics["extended_momentum_normalization"],
-					"direct_k",
-				)
-				self.assertGreater(
-					float(
-						np.max(
-							np.abs(physical.states - fully_extended.states)
-						)
-					),
-					1e-9,
-				)
+	def test_passive_diagnostics_close_the_generalized_energy_identity(self) -> None:
+		solution = simulate(_problem(), ABBA4Implicit(track_energy=True), _request())
+		d = solution.diagnostics
+		np.testing.assert_array_equal(d["generalized_energy"], d["physical_hamiltonian"] + d["extended_momentum"])
+		np.testing.assert_array_equal(d["extended_time"], solution.t[None, :])
 
-	def test_fully_extended_diagnostics_close_the_generalized_energy_identity(
-		self,
-	) -> None:
-		solution = simulate(
-			_problem(),
-			ABBA2Implicit(state_extension="fully_extended"),
-			_request(duration=0.05),
-		)
-		hamiltonian = np.asarray(solution.diagnostics["physical_hamiltonian"])
-		momentum = np.asarray(solution.diagnostics["extended_momentum"])
-		generalized = np.asarray(solution.diagnostics["generalized_energy"])
-		error = np.asarray(solution.diagnostics["generalized_energy_error"])
-		np.testing.assert_allclose(generalized, hamiltonian + momentum)
-		np.testing.assert_allclose(error, generalized - generalized[0])
-		self.assertEqual(
-			solution.diagnostics["energy_error"],
-			float(np.max(np.abs(error))),
-		)
-		np.testing.assert_allclose(
-			solution.diagnostics["extended_time"],
-			solution.t,
-			rtol=0.0,
-			atol=5e-15,
-		)
-
-	def test_fully_extended_enables_energy_tracking_implicitly(self) -> None:
-		for method_type in _ALL_METHODS:
-			with self.subTest(method=method_type.__name__):
-				method = method_type(
-					state_extension="fully_extended",
-					track_energy=False,
-				)
-				self.assertIs(method.track_energy, True)
+	def test_old_full_extension_requires_an_explicit_migration(self) -> None:
+		for cls in _ALL_METHODS:
+			with self.assertRaisesRegex(ValueError, "track_energy=True"):
+				cls(state_extension="fully_extended")
 
 	def test_disabled_physical_tracking_has_no_momentum_diagnostics(self) -> None:
 		solution = simulate(_problem(), ABBA2Implicit(), _request())

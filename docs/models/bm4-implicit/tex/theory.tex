@@ -10,6 +10,7 @@
 \fancyhead[L]{\small\color{gcgray}GC2D: BM4 implicit}
 \fancyhead[R]{\small\color{gcgray}Model theory}\fancyfoot[C]{\thepage}
 \newcommand{\R}{\mathbb{R}}
+\setlength{\emergencystretch}{3em}
 \begin{document}
 \begin{center}
  {\LARGE\bfseries\color{gcblue}BM4 Implicit Method}\par
@@ -38,19 +39,9 @@ self-adjoint and the order conditions give designed global order four.  The
 negative coefficient $a_4$ is an intentional backward subflow.
 
 \section{Physical state and internal workspace}
-
-The only accepted state is the physical guiding-centre state
-$z\in\R^{2N}$.  Define
-\[
-E=\begin{pmatrix}I\\I\end{pmatrix},\qquad
-P=\tfrac12\begin{pmatrix}I&I\end{pmatrix},\qquad
-G=\begin{pmatrix}I&-I\end{pmatrix},\qquad
-N=G^T.
-\]
-The doubled vector in $\R^{4N}$ is temporary algebraic workspace required by
-the direct--adjoint splitting and Hairer projection.  It is neither an
-accepted state nor a public state-extension option.  Time remains an external
-integration parameter; no time-conjugate momentum is added to the state.
+Twelve direct/adjoint stages enclosed by one spatial Hairer projection. Energy tracking is optional and passive.
+After convergence, one energy-augmented replay of the accepted twelve-stage map integrates the passive momentum. This replay uses the accepted spatial multiplier, performs no new nonlinear solve, and is excluded from nonlinear work counters.
+The common state conventions are specified below.
 
 \section{One Hairer projection around the complete cycle}
 
@@ -75,50 +66,63 @@ the twelve guiding-centre stage Jacobians, with a centred-difference fallback.
 Good Broyden is retained as a nonlinear-solver choice; it changes the finite
 iteration path but not the defining projected map.
 
-\section{Single public method}
-
-The model exposes only \texttt{BM4Implicit}.  Its numerical choices are
-solver controls rather than distinct model classes:
-\begin{center}
-\small
-\begin{tabular}{@{}ll@{}}
-\toprule
-Fixed architectural choice & Value\\
-\midrule
-Projection placement & once around each complete BM4 cycle\\
-Projection formulation & reduced Hairer multiplier\\
-Accepted state & physical $z\in\R^{2N}$\\
-Temporary base-map workspace & doubled state in $\R^{4N}$\\
-Public state extension & none\\
-\bottomrule
-\end{tabular}
-\end{center}
-
-The configurable controls are the coupling frequency, Newton tolerances,
-maximum iterations, analytic or finite-difference Newton Jacobian, Newton or
-Broyden nonlinear solver, progress reporting, and an optional step observer.
-
 \section{Fixed-grid lifecycle and diagnostics}
 
-The accepted physical state is advanced on the output-independent grid.  An
-off-grid requested sample uses a shadow step from the preceding main node and
-is discarded after sampling, so output density does not alter the accepted
-trajectory.  Only main steps contribute observer records and diagnostics.
-
-Each accepted step reports nonlinear iterations, residual evaluations, final
-residual and tolerance, the projection-multiplier norm, coupling frequency,
-and Jacobian strategy.  An optional \texttt{ImplicitBM4IntegrationStep}
-contains the physical input/output, multiplier, solver metrics, and twelve
-reconstructed base-stage snapshots.  Generalized energy may be reconstructed
-as a diagnostic from those snapshots without introducing a public extended
-state.
+The fixed controller advances accepted diagonal states on an output-independent
+grid. Off-grid samples use independent shadow steps. Only main steps contribute
+observations and nonlinear diagnostics: corrections, residual evaluations,
+residual norm, tolerance and multiplier norm. Coupling and Jacobian settings
+are recorded as metadata. Optional observers retain physical endpoints and
+twelve base-stage snapshots, allowing an independent energy reconstruction.
 
 \section{Implementation correspondence}
+The method is in \path{src/simulation/methods/bm4/implicit.py};
+\texttt{\_core.py} owns the coefficient schedule and twelve-stage traversal.
+See \texttt{implicit-reduced.tex} for the reduced-projection derivation and
+\texttt{../simulation/} for runtime contracts.
 
-The public implementation is \texttt{src/simulation/methods/bm4/implicit.py}.
-The private \texttt{\_core.py} module owns only the coefficient schedule and
-twelve-stage base-map traversal.  The detailed reduced-projection derivation
-is retained in \texttt{implicit-reduced.tex}; runtime architecture is under
-\texttt{../simulation/}.
+\section{Four state formulations and passive energy tracking}
+For one planar particle the supported internal representations are
+\[
+\begin{array}{lll}
+\text{physical} & z=(x,y) & \mathbb{R}^{2},\\
+\text{physical with energy} & (z,t,\kappa) & \mathbb{R}^{4},\\
+\text{duplicated} & (u,v),\quad u,v\in\mathbb{R}^{2} & \mathbb{R}^{4},\\
+\text{duplicated with energy} & (u,v,t,\kappa) & \mathbb{R}^{6}.
+\end{array}
+\]
+Classical methods use the physical rows; ABBA and BM4 use the duplicated rows.
+\texttt{track\_energy} selects the energy variant. For $N$ planar particles the
+respective dimensions are $2N$, $4N$, $4N$, and $6N$: one time entry and
+one momentum per particle. All time entries equal the integration time. Classical full-cyclotron runs instead use $4N$ or $6N$ entries.
+Accepted spatial copies coincide; only one physical copy is exported.
+Every coordinate block contains $N$ values in component-major order. The
+formulation validates particle times and aligns output round-off; the
+integrator does not interpret coordinate indices.
+
+The normalized passive balance is
+\[
+\dot\kappa=-\partial_tH(t,z),\qquad \kappa(t_0)=0,\qquad
+\Delta K(t)=H(t,z(t))+\kappa(t)-H(t_0,z_0).
+\]
+Splitting accumulators from both copies are divided by two. The physical
+Hamiltonian may vary with time; $\Delta K$ measures its computed balance.
+Tracking leaves physical trajectories, nonlinear stopping rules and adaptive
+acceptance unchanged. Dynamics must supply the momentum derivative, including
+zero for an autonomous Hamiltonian.
+
+Hairer's constraint is solely $u-v=0$: the reduced multiplier has $2N$ entries
+and ABBA's simultaneous spatial solve has $6N$ unknowns. Neither $t$ nor
+$\kappa$ is projected. The former eight-component projection is retired;
+\texttt{state\_extension='fully\_extended'} raises migration guidance.
+
+Dynamics, formulation, method and integration remain separate. The shared
+state classes own layouts, diagonal embedding and history extraction in
+\begin{quote}\small\path{src/simulation/formulations/state.py}\end{quote}
+Each integration initializes a fresh method instance. Observers receive physical
+states; energy histories are in \texttt{Solution.diagnostics}.
+The \texttt{extended\_time} history has shape $(N,n_{\rm samples})$. Fixed-step shadow
+samples leave main states and counters unchanged. Adaptive energy quadrature
+uses accepted dense output; its backend state and Jacobian remain physical.
 
 \end{document}

@@ -10,8 +10,7 @@ class ABBA2Implicit(_ABBAImplicitMethod):
 	"""Second-order implicit ABBA with optional physical energy tracking.
 
 	The two projection formulations define the same accepted map and may be
-	solved by Newton or Broyden. ``state_extension`` selects the physical
-	or fully duplicated ``(z,t,k)`` map. Physical energy tracking is a
+	solved by Newton or Broyden. Only the spatial state is duplicated and projected. Physical energy tracking is a
 	triangular auxiliary update and does not change the accepted physical map.
 	"""
 

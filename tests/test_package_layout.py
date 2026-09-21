@@ -70,7 +70,7 @@ class PackageLayoutTests(unittest.TestCase):
 		)
 		self.assertEqual(
 			ABBA_STATE_EXTENSIONS,
-			("physical", "fully_extended"),
+			("physical",),
 		)
 		self.assertIsNotNone(RK4)
 		self.assertIsNotNone(ExplicitEuler)
@@ -107,7 +107,6 @@ class PackageLayoutTests(unittest.TestCase):
 			"simulation.methods.bm4._core",
 			"simulation.methods.bm4.implicit",
 			"simulation.methods.bm4.midpoint",
-			"simulation.methods.bm4.midpoint_extended",
 			"simulation.methods.classical",
 			"simulation.methods.classical.euler",
 			"simulation.methods.classical.rk4",

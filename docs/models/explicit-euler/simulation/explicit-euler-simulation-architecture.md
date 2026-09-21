@@ -1,181 +1,95 @@
-# Explicit Euler fixed-grid integration architecture
+# ExplicitEuler: state formulations and execution
 
-[Editable diagram](explicit-euler-simulation-architecture.puml) · [Scalable diagram](explicit-euler-simulation-architecture.svg)
+One forward Euler stage.
 
-![explicit-euler architecture](explicit-euler-simulation-architecture.png)
+The canonical theoretical source is [theory.tex](../tex/theory.tex), with its
+compiled [theory.pdf](../tex/theory.pdf). The four-formulation convention below
+supersedes earlier diagrams showing a duplicated clock or full time/momentum projection.
 
-The diagram retains the six-phase BM4 layout, including public contracts,
-preparation, numerical equations, accepted records, optional observers and errors.
+## Responsibilities
 
-## Method instances and integration lifecycle
-
-This method inherits `IntegrationMethod.integrate(problem, request)`, shared by
-all 13 public methods. It calls `new_run(problem, request)` to create a fresh
-instance of the same numerical class. That instance's `initialize` validates
-capabilities and sets its formulation, initial internal state and metadata.
-There is no separate context or callback-based method record.
-
-| Operation on the numerical class | Responsibility |
+| Component | Owns |
 |---|---|
-| `initialize(problem, request)` | Initialize this run's resources once; return `None` |
-| `advance(t, state, h)` | Execute numerical work and return state, statistics and typed details |
-| `build_observation(info, step)` | Construct a method-specific event with independent snapshots |
-| `export_history(times, history)` | Extract physical output and auxiliary diagnostics |
-| `controller()` | Select fixed or adaptive accepted-step scheduling |
+| Dynamics | Physical vector field, Hamiltonian and required derivatives |
+| Formulation | Internal coordinates, spatial copies and physical/energy extraction |
+| Method | Stages, signed coefficients, spatial projection and passive quadrature |
+| Integration | Accepted intervals, sampling, observation and output collection |
 
-`integrate_method(run)` owns the common loop. Its `IntegrationCollector` saves
-requested samples and copied accepted-step metric rows, without retaining
-numerical details or events. The method owns the formulation and any live solver.
-Analysis and persistence remain in `diagnostics/`; observers remain caller-owned.
+## State contract
 
-Constructor options remain reusable through `simulate`. Per-run resources are
-excluded from reconstruction, and initial state and metadata are isolated as
-read-only copies. A completed or failed run cannot be integrated again; create a
-fresh run. Call `new_run` for low-level access rather than resetting `initialize`.
+| Planar one-particle formulation | Internal coordinates | Dimension |
+|---|---|---:|
+| Physical | `(x, y)` | 2 |
+| Physical with energy | `(x, y, t, kappa)` | 4 |
+| Duplicated | `(x1, y1, x2, y2)` | 4 |
+| Duplicated with energy | `(x1, y1, x2, y2, t, kappa)` | 6 |
 
-`FixedStepController` calls `run.advance` with the exact effective duration and
-uses independent shortened maps for interior output times. DOP853/Radau's
-controller calls their ordinary `advance` on the live solver with an upper step
-bound and reads the actual accepted endpoint. Dense sampling retains the backend.
+ExplicitEuler uses the **physical** rows. `track_energy=False` is the default;
+`track_energy=True` enables the energy row. With N planar particles its internal
+dimensions are 2N / 4N. There are N time entries and N energy momenta.
+Classical FC runs use their actual physical size 4N, giving 4N / 6N.
+All components remain component-major; energy states append N times, then N
+normalized momenta. Every component block has the same particle dimension.
+The time entries are copies of the integration time; physical maps still receive
+one scalar time. The formulation owns clock validation and output alignment.
+The physical output always has its original size.
+Accepted duplicated copies are equal. They separate only inside the numerical map.
 
-Metric rows follow `step_times`; physical and auxiliary histories follow
-`Solution.t`. Common fields are `step_count`, `step_start_times`, `step_times`,
-`step_sizes` and `output_interpolation_count`. Shadow work and extra observer-only
-work are excluded from accepted numerical counters.
+`PhysicalFormulation` and `DoubledFormulation` are constructed directly from the
+problem, initial time and tracking flag. They are defined in
+`src/simulation/formulations/state.py`. BM4 additionally uses directly bound
+`GCDoubledMaps` for its spatial direct/adjoint stages; its legacy configuration
+factory is only a compatibility entry point.
 
-See the [generic architecture](../../../simulation/integration-architecture.md)
-for the lifecycle, adaptive semantics and extension guide. Executable contracts
-are in `tests/test_method_integration.py` and `tests/test_adaptive_integration.py`.
+## Energy and nonlinear work
 
-## Public method
+Forward Euler evaluates the passive derivative at the start of the accepted step.
 
-```python
-from simulation import ExplicitEuler, SimulationRequest, simulate
+The stored momentum is physical `kappa`, initialized at zero. Its derivative is
+`-partial_t H`; splitting sums are normalized by one half. The diagnostic is
+`H(t, z) + kappa - H(t0, z0)`. It measures a balance, not conservation of the
+time-dependent physical Hamiltonian. Dynamics must implement
+`ExtendedHamiltonianSystem` when tracking is enabled, including an explicit zero
+derivative for an autonomous Hamiltonian.
 
-events = []
-solution = simulate(
-    problem,
-    ExplicitEuler(progress=False, step_observer=events.append),
-    SimulationRequest.uniform(
-        t_span=(0.0, 1.0),
-        max_step=0.05,
-        sample_count=21,
-    ),
-)
-```
+Only spatial coordinates enter a Hairer constraint. The reduced multiplier has
+2N components; the ABBA simultaneous spatial solve has 6N unknowns. Clock and
+momentum never enlarge these roots or affect their stopping scale. Tracking also
+leaves classical physical solves and adaptive acceptance decisions unchanged.
+BM4's optional energy replay and adaptive diagnostic quadrature are extra work
+outside the physical solver counters; reported wall time still includes them.
 
-`ExplicitEuler` is a numerical dataclass with reusable constructor options with two options:
+## Lifecycle and output
 
-- `progress` enables the shared stderr progress display for complete main-grid
-  steps; and
-- `step_observer` receives complete-step records when it is not `None`.
+`simulate(problem, method, request)` creates a fresh run via `new_run`, validates
+its formulation and calls the shared `integrate_method`. Each `advance` returns
+an internal state, small work counters and method-specific accepted details.
+The common collector retains samples and counters; the formulation extracts the
+physical trajectory and diagnostic histories. Run resources are isolated.
 
-It structurally implements the public `NumericalMethod` protocol through
-`integrate(problem, request)`.
+Fixed methods use independent shortened maps for off-grid samples. Adaptive
+methods retain one live SciPy solver whose state is always physical. Their
+energy quadrature follows accepted dense output and cannot affect the error norm.
+Radau Jacobians are physical-sized even when energy tracking is enabled.
 
-## Complete-step map
+Observers receive the physical map and independent snapshots. Their shapes do
+not change with tracking. All energy histories have shape `(N, saved_times)`,
+including `extended_time` even for a single particle. Diagnostic arrays
+`extended_time`, `extended_momentum`,
+`physical_hamiltonian`, `generalized_energy` and `generalized_energy_error` follow
+`Solution.t`; nonlinear and runtime work arrays follow `step_times`.
+`extended_momentum_normalization` is `physical_kappa` and `energy_error` is the
+maximum absolute sampled balance error over all particles.
 
-For a fixed start time `t_n`, candidate state `z`, and duration `h`, the method-owned
-`advance` closure evaluates
+## Migration and verification
 
-\[
-\Phi_{t_n,h}(z)=z+h f(t_n,z).
-\]
+`state_extension="fully_extended"` no longer runs a time/momentum projection.
+It raises explicit migration guidance. Use `track_energy=True` with spatial
+projection. The historical full-state symplecticity study is retired because it
+measured a different map; existing saved artifacts can still be read.
 
-This is the classical forward-Euler map implemented in
-`src/simulation/methods/classical/euler.py`. Each invocation performs one
-validated vector-field evaluation. There are no stages, nonlinear iterations,
-Jacobian evaluations, adaptive error estimates, or rejected steps.
-
-The closure captures `t_n`, `h`, and the exact dynamics instance. The accepted
-main state and the observer-facing `map_state` therefore use the same fixed-time,
-fixed-duration numerical map.
-
-## Output-independent fixed grid
-
-`FixedStepController` owns temporal scheduling. For
-
-\[
-T=t_f-t_0,
-\]
-
-it selects the smallest positive integer count represented by the implementation
-as
-
-\[
-N=\max\left(1,
-\left\lceil\operatorname{nextafter}
-\left(\frac{T}{h_{\max}},-\infty\right)\right\rceil\right),
-\qquad h=\frac{T}{N}.
-\]
-
-The `nextafter` adjustment prevents an upward floating-point rounding of an
-exact ratio from adding a spurious step. The main trajectory then advances on
-the uniform nodes `t_n = t_0 + n h`.
-
-Requested output times do not define this main grid. For every requested time
-inside `[t_n, t_{n+1}]`, the runner stores
-
-- the already accepted state when the request matches `t_{n+1}` within the
-  shared time tolerance;
-- the preceding main state when it matches `t_n`; or
-- an independent shadow Euler step of duration `t_output - t_n`, starting from
-  a copy of the state at `t_n`.
-
-Shadow results are saved and then discarded from the integration state. They
-cannot change later main nodes, do not update the progress display, and never request observation construction.
-
-## Complete-step observations
-
-When `step_observer` is configured, each main step emits one `IntegrationStep`:
-
-| Field | Explicit-Euler value |
-|---|---|
-| `dynamics_name` | Concrete dynamics class name. |
-| `method_name` | `"ExplicitEuler"`. |
-| `step_index` | Zero-based main-grid index. |
-| `start_time`, `time`, `duration` | `t_n`, `t_n + h`, and `h`. |
-| `state_before`, `state_after` | Independent copies of both physical snapshots. |
-| `map_state` | The captured forward-Euler map `Phi_(t_n,h)`. |
-| `dynamics` | The exact dynamics instance used by the step. |
-
-Shadow advances never emit records. The method has no stage observer because a
-forward-Euler update has no separately represented internal stage lifecycle.
-
-## Integration data and solution boundary
-
-After stepping completes, the common coordinator creates `IntegrationData`
-with
-
-- `t = request.output_times`;
-- `states` equal to the saved physical history; and
-- the common step count, accepted timing arrays and interior-sample count.
-
-`SimulationRunner` then requires the returned times to equal the request,
-checks the finite two-dimensional history and its initial column, validates the
-packed layout, and constructs an immutable `Solution`. Explicit Euler does not
-publish energy, Jacobian, stage, or nonlinear-solver diagnostics.
-
-## Tested contract
-
-`tests/test_euler.py` uses the canonical rotation problem and verifies with
-zero numerical tolerance that one step with `h = 0.1` returns exactly
-
-\[
-z_1=z_0+0.1 f(0,z_0),
-\]
-
-and reports one step through `solution.n_steps`. `tests/test_package_layout.py`
-also verifies that `ExplicitEuler` remains available from the public
-`simulation` package and in an interpreter where Matplotlib imports are
-disabled.
-
-## Related files
-
-- [`src/simulation/methods/classical/euler.py`](../../../../src/simulation/methods/classical/euler.py)
-- [`src/simulation/integration.py`](../../../../src/simulation/integration.py)
-- [`src/simulation/runner.py`](../../../../src/simulation/runner.py)
-- [`src/simulation/observation.py`](../../../../src/simulation/observation.py)
-- [`tests/test_euler.py`](../../../../tests/test_euler.py)
-- [`tests/test_package_layout.py`](../../../../tests/test_package_layout.py)
-- [`Companion PlantUML diagram`](explicit-euler-simulation-architecture.puml)
+Tests in `tests/test_state_formulations.py` cover all 13 methods, both tracking
+settings, particle batches, physical-only observers, adaptive control, per-particle
+time alignment and energy normalization. Model tests retain order, projection,
+Jacobian and nonlinear-solver checks. The pre-change physical trajectories are
+also compared with the migrated implementations on short nonautonomous runs.

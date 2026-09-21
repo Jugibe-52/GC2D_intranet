@@ -4,7 +4,8 @@
 \usepackage[hidelinks]{hyperref}\geometry{margin=2.3cm}
 \setlength{\parindent}{0pt}\setlength{\parskip}{0.5em}
 \title{DOP853: Numerical Method and Adaptive Execution}
-\author{}\date{}\begin{document}\maketitle
+\author{}\date{}\setlength{\emergencystretch}{3em}
+\begin{document}\maketitle
 \section{Differential equation and numerical method}
 Consider $z'=f(t,z)$, $z(t_0)=z_0$, in the project's packed physical layout.
 An explicit Runge--Kutta method of order eight, with embedded local-error estimation and a seventh-order dense interpolant. The implementation delegates the numerical tableau, local error
@@ -30,20 +31,10 @@ and any Jacobian/factorization reuse survive accepted steps. The adapter calls
 \texttt{solver.step()} until acceptance or failure; rejected trials never
 become observer records or separate accepted metric rows.
 \section{Dense output and energy extension}
-Saved output times do not determine the accepted grid. Each requested sample
-is evaluated from the dense interpolant of its accepted interval. This does not
-restart the solver. \texttt{dense\_output=True} explicitly constructs every
-accepted interpolant; optional observers can retain them for later time queries.
+One retained SciPy explicit adaptive solver. Energy tracking is optional and passive.
+Eight-point Gauss quadrature integrates the passive derivative along each accepted dense interpolant. Partial-interval quadrature supplies off-grid energy samples. This diagnostic quadrature has no separate adaptive tolerance or rigorous error bound; refine the physical step and check the balance.
+The common state conventions are specified below.
 
-For a suitable time-dependent Hamiltonian system, optional tracking augments
-$z$ with one momentum per particle:
-\[
-k'=-\partial_t H(t,z),\qquad k(t_0)=0.
-\]
-The exported generalized-energy diagnostic measures $H(t,z)+k$. Error control
-acts on the augmented vector, so this option can change the accepted time grid
-and the physical floating-point trajectory. It is not an independent proof of
-trajectory accuracy.
 \section{Shared architecture and observation}
 The public class owns initialization, advance, observation and history export.
 Inherited \texttt{new\_run} constructs a fresh instance of the same class and
@@ -72,10 +63,54 @@ the actual accepted endpoint. A run instance belongs to one execution; repeating
 \section{Implementation and verification}
 The adapter is in \path{src/simulation/methods/adaptive/scipy.py}; shared
 coordination and collection are in \path{src/simulation/integration.py}.
-The model's six-phase diagram is documented in its \texttt{simulation/}
-directory. Tests compare sampled states and work counters with the same
+The current state and execution contracts are documented in its \texttt{simulation/} directory. Tests compare sampled states and work counters with the same
 SciPy solver, check a known non-autonomous rotation, and verify optional energy,
 dense retention, repeated runs, observation isolation and failure handling.
 Scientific reference trajectories still require refinement and an independent
 audit; arithmetic precision and integration error remain separate.
+\clearpage
+\section{Four state formulations and passive energy tracking}
+For one planar particle the supported internal representations are
+\[
+\begin{array}{lll}
+\text{physical} & z=(x,y) & \mathbb{R}^{2},\\
+\text{physical with energy} & (z,t,\kappa) & \mathbb{R}^{4},\\
+\text{duplicated} & (u,v),\quad u,v\in\mathbb{R}^{2} & \mathbb{R}^{4},\\
+\text{duplicated with energy} & (u,v,t,\kappa) & \mathbb{R}^{6}.
+\end{array}
+\]
+Classical methods use the physical rows; ABBA and BM4 use the duplicated rows.
+\texttt{track\_energy} selects the energy variant. For $N$ planar particles the
+respective dimensions are $2N$, $4N$, $4N$, and $6N$: one time entry and
+one momentum per particle. All time entries equal the integration time. Classical full-cyclotron runs instead use $4N$ or $6N$ entries.
+Accepted spatial copies coincide; only one physical copy is exported.
+Every coordinate block contains $N$ values in component-major order. The
+formulation validates particle times and aligns output round-off; the
+integrator does not interpret coordinate indices.
+
+The normalized passive balance is
+\[
+\dot\kappa=-\partial_tH(t,z),\qquad \kappa(t_0)=0,\qquad
+\Delta K(t)=H(t,z(t))+\kappa(t)-H(t_0,z_0).
+\]
+Splitting accumulators from both copies are divided by two. The physical
+Hamiltonian may vary with time; $\Delta K$ measures its computed balance.
+Tracking leaves physical trajectories, nonlinear stopping rules and adaptive
+acceptance unchanged. Dynamics must supply the momentum derivative, including
+zero for an autonomous Hamiltonian.
+
+Hairer's constraint is solely $u-v=0$: the reduced multiplier has $2N$ entries
+and ABBA's simultaneous spatial solve has $6N$ unknowns. Neither $t$ nor
+$\kappa$ is projected. The former eight-component projection is retired;
+\texttt{state\_extension='fully\_extended'} raises migration guidance.
+
+Dynamics, formulation, method and integration remain separate. The shared
+state classes own layouts, diagonal embedding and history extraction in
+\begin{quote}\small\path{src/simulation/formulations/state.py}\end{quote}
+Each integration initializes a fresh method instance. Observers receive physical
+states; energy histories are in \texttt{Solution.diagnostics}.
+The \texttt{extended\_time} history has shape $(N,n_{\rm samples})$. Fixed-step shadow
+samples leave main states and counters unchanged. Adaptive energy quadrature
+uses accepted dense output; its backend state and Jacobian remain physical.
+
 \end{document}

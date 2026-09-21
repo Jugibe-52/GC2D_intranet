@@ -13,7 +13,7 @@ from initial_conditions import GCInitialConfiguration
 from potential import Potential
 from simulation import ABBA2Implicit, ABBA4Implicit, InitialValueProblem, SimulationRequest, simulate
 from simulation.methods._nonlinear import _solve_newton
-from simulation.methods.abba.records import ExtendedProjectionTrace, PhysicalProjectionTrace
+from simulation.methods.abba.records import PhysicalProjectionTrace
 
 
 def _problem() -> InitialValueProblem:
@@ -36,7 +36,7 @@ class SharedABBARuntimeTests(unittest.TestCase):
 		problem = _problem()
 		request = _request([0.0, 0.02, 0.04])
 		for extension, (method_type, order, placement, solves, maps) in product(
-			("physical", "fully_extended"),
+			("physical",),
 			(
 				(ABBA2Implicit, 2, "after_each_abba_map", 1, 1),
 				(ABBA4Implicit, 4, "around_complete_composition", 1, 3),
@@ -45,16 +45,13 @@ class SharedABBARuntimeTests(unittest.TestCase):
 			with self.subTest(extension=extension, order=order, placement=placement):
 				method = method_type(state_extension=extension)
 				prepared = method.new_run(problem, request)
-				state = prepared.state_ops.unpack(0.0, prepared.initial_state)
+				state = prepared.state_formulation.physical(prepared.initial_state)
 				results = prepared.solve_step(0.0, state, 0.02)
 				self.assertIsInstance(results, tuple)
 				self.assertEqual(len(results), solves)
 				for result in results:
-					if isinstance(result.trace, PhysicalProjectionTrace):
-						self.assertEqual(len(result.trace.maps), maps)
-					else:
-						self.assertIsInstance(result.trace, ExtendedProjectionTrace)
-						self.assertEqual(len(result.trace.coefficients), maps)
+					self.assertIsInstance(result.trace, PhysicalProjectionTrace)
+					self.assertEqual(len(result.trace.maps), maps)
 					self.assertLessEqual(result.stats.residual_norm, result.stats.tolerance)
 				self.assertFalse(prepared.initial_state.flags.writeable)
 				with self.assertRaises(TypeError):
@@ -63,7 +60,7 @@ class SharedABBARuntimeTests(unittest.TestCase):
 	def test_shadow_samples_preserve_main_trajectory_metrics_and_events(self) -> None:
 		problem = _problem()
 		for extension, solver, placement in product(
-			("physical", "fully_extended"), ("newton", "broyden"),
+			("physical",), ("newton", "broyden"),
 			("around_complete_composition",),
 		):
 			with self.subTest(extension=extension, solver=solver, placement=placement):

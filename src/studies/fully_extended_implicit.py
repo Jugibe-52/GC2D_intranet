@@ -387,33 +387,6 @@ class FullyExtendedImplicitResult:
 			)
 
 
-def _method_for_run(
-	method: FullyExtendedImplicitMethod,
-	config: FullyExtendedImplicitConfig,
-	observer: StepObserver,
-) -> NumericalMethod:
-	"""Construct one requested method with the shared observer."""
-	if method == "abba2_fully_extended_implicit":
-		return ABBA2Implicit(
-			state_extension="fully_extended",
-			newton_absolute_tolerance=config.newton_absolute_tolerance,
-			newton_relative_tolerance=config.newton_relative_tolerance,
-			newton_max_iterations=config.newton_max_iterations,
-			progress=config.progress,
-			step_observer=observer,
-		)
-	if method == "abba4_fully_extended_implicit":
-		return ABBA4Implicit(
-			state_extension="fully_extended",
-			newton_absolute_tolerance=config.newton_absolute_tolerance,
-			newton_relative_tolerance=config.newton_relative_tolerance,
-			newton_max_iterations=config.newton_max_iterations,
-			progress=config.progress,
-			step_observer=observer,
-		)
-	raise RuntimeError(f"Unhandled fully extended method {method!r}.")
-
-
 def run_fully_extended_implicit_study(
 	potential: Potential,
 	configuration: GCInitialConfiguration,
@@ -421,72 +394,11 @@ def run_fully_extended_implicit_study(
 	method: FullyExtendedImplicitMethod,
 	config: FullyExtendedImplicitConfig,
 ) -> FullyExtendedImplicitResult:
-	"""Run one method over the configured energy/symplecticity refinement."""
-	if not isinstance(potential, Potential):
-		raise TypeError("`potential` must be a Potential instance.")
-	if not isinstance(configuration, GCInitialConfiguration):
-		raise TypeError("`configuration` must be GCInitialConfiguration.")
-	if not isinstance(config, FullyExtendedImplicitConfig):
-		raise TypeError("`config` must be FullyExtendedImplicitConfig.")
-	method_name = _validated_method(method)
-	physical_initial = configuration.initial_state
-	if physical_initial is None or configuration.layout.particle_count(physical_initial) != 1:
-		raise ValueError("The fully extended study requires exactly one particle.")
-	dynamics = GuidingCenterDynamics(
-		potential,
-		rho=resolve_rho(config.rho, configuration),
-	)
-	problem = InitialValueProblem(dynamics, configuration)
-	initial_extended = np.concatenate(
-		(physical_initial, (config.t_span[0], 0.0))
-	)
-	runs: list[FullyExtendedImplicitRun] = []
-	for step in config.steps:
-		energy_observer = GCFullyExtendedEnergyObserver(
-			dynamics,
-			initial_state=initial_extended,
-		)
-		symplecticity_observer = GCFullyExtendedSymplecticityObserver(
-			dynamics,
-			relative_step=config.symplecticity_jacobian_relative_step,
-		)
-
-		def observer(record: IntegrationStep) -> None:
-			energy_observer(record)
-			symplecticity_observer(record)
-
-		solution = simulate(
-			problem,
-			_method_for_run(method_name, config, observer),
-			SimulationRequest.uniform(
-				t_span=config.t_span,
-				max_step=step,
-				sample_count=config.output_sample_count,
-			),
-		)
-		energy_records = energy_observer.records
-		symplecticity_records = symplecticity_observer.records
-		if len(energy_records) != solution.n_steps + 1:
-			raise RuntimeError("Energy records do not match the accepted step count.")
-		if len(symplecticity_records) != solution.n_steps:
-			raise RuntimeError(
-				"Symplecticity records do not match the accepted step count."
-			)
-		runs.append(
-			FullyExtendedImplicitRun(
-				step=step,
-				actual_step=float(energy_records[1].duration),
-				solution=solution,
-				energy_records=energy_records,
-				symplecticity_records=symplecticity_records,
-			)
-		)
-	return FullyExtendedImplicitResult(
-		potential=potential,
-		dynamics=dynamics,
-		initial_configuration=configuration,
-		method=method_name,
-		runs=tuple(runs),
+	"""Reject the retired full-diagonal study without reinterpreting its results."""
+	raise NotImplementedError(
+		"The historical full time/momentum projection study is retired. "
+		"Use run_implicit_energy_study for spatial projection with passive energy monitoring. "
+		"Saved full-state results retain their original mathematical meaning."
 	)
 
 

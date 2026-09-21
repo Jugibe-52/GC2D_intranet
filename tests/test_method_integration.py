@@ -42,15 +42,16 @@ def _request(dense: bool = False) -> SimulationRequest:
 def _methods():
 	"""Cover all public methods, internal domains, and explicit ABBA4 compatibility settings."""
 	yield ExplicitEuler()
+	yield ExplicitEuler(track_energy=True)
 	for method in (RK4, GaussLegendre4, SDIRK4, HBVM42):
 		for tracking in (False, True):
 			yield method(track_energy=tracking)
 	yield BM4Implicit(coupling_frequency=0.2)
+	yield BM4Implicit(coupling_frequency=0.2, track_energy=True)
 	for method in (BM4Midpoint, ABBA2Midpoint, ABBA2Implicit, ABBA4Implicit, ABBA6Implicit):
-		for extension, tracking in (("physical", False), ("physical", True), ("fully_extended", True)):
+		for extension, tracking in (("physical", False), ("physical", True)):
 			yield method(state_extension=extension, track_energy=tracking)
 	yield ABBA4Implicit(projection_placement="around_complete_composition")
-	yield ABBA4Implicit(state_extension="fully_extended", projection_placement="around_complete_composition")
 
 
 class MethodIntegrationTests(unittest.TestCase):
@@ -139,7 +140,7 @@ class MethodIntegrationTests(unittest.TestCase):
 		state = run.initial_state.copy()
 		for t, end in zip((0.3, 0.31, 0.33), (0.31, 0.33, 0.34)):
 			state = run.advance(t, state, end - t).state
-		np.testing.assert_array_equal(data.states[:, -1], state)
+		np.testing.assert_array_equal(data.states[:, -1], run.state_formulation.physical(state))
 		np.testing.assert_array_equal(data.diagnostics["step_times"], [0.31, 0.33, 0.34])
 		self.assertEqual(data.diagnostics["step_count"], 3)
 

@@ -1,322 +1,95 @@
-# ABBA2Midpoint simulation architecture
+# ABBA2Midpoint: state formulations and execution
 
-[Editable source](abba2-midpoint-simulation-architecture.puml) · [Scalable diagram (SVG)](abba2-midpoint-simulation-architecture.svg)
+One endpoint-time A-B-B-A map followed by a spatial arithmetic mean.
 
-![abba2-midpoint architecture](abba2-midpoint-simulation-architecture.png)
+The canonical theoretical source is [theory.tex](../tex/theory.tex), with its
+compiled [theory.pdf](../tex/theory.pdf). The four-formulation convention below
+supersedes earlier diagrams showing a duplicated clock or full time/momentum projection.
 
-This document explains the companion
-[`abba2-midpoint-simulation-architecture.puml`](abba2-midpoint-simulation-architecture.puml)
-diagram. It preserves the original four regions: public inputs, preparation
-and common execution, the four-stage numerical map, and observations/results.
-The diagram and detailed mathematical example use
-`ABBA2Midpoint(state_extension="physical", track_energy=False)`.
+## Responsibilities
 
-The common prepared lifecycle described below also applies to the optional
-energy-tracked and fully extended branches.
-
-The complete ABBA family, its four public classes, three normalized
-state/energy strategies, and all 51 canonical configurations are documented in
-the authoritative
-[`Canonical ABBA numerical architecture`](../../abba/simulation/abba-numerical-architecture.md).
-This companion does not repeat that configuration matrix. In particular, the
-optional physical energy sidecar and fully extended midpoint branch retain
-their `kappa` or `(t,k)` variables inside the prepared method's state adapters.
-
-## Method instances and integration lifecycle
-
-This method inherits `IntegrationMethod.integrate(problem, request)`, shared by
-all 13 public methods. It calls `new_run(problem, request)` to create a fresh
-instance of the same numerical class. That instance's `initialize` validates
-capabilities and sets its formulation, initial internal state and metadata.
-There is no separate context or callback-based method record.
-
-| Operation on the numerical class | Responsibility |
+| Component | Owns |
 |---|---|
-| `initialize(problem, request)` | Initialize this run's resources once; return `None` |
-| `advance(t, state, h)` | Execute numerical work and return state, statistics and typed details |
-| `build_observation(info, step)` | Construct a method-specific event with independent snapshots |
-| `export_history(times, history)` | Extract physical output and auxiliary diagnostics |
-| `controller()` | Select fixed or adaptive accepted-step scheduling |
+| Dynamics | Physical vector field, Hamiltonian and required derivatives |
+| Formulation | Internal coordinates, spatial copies and physical/energy extraction |
+| Method | Stages, signed coefficients, spatial projection and passive quadrature |
+| Integration | Accepted intervals, sampling, observation and output collection |
 
-`integrate_method(run)` owns the common loop. Its `IntegrationCollector` saves
-requested samples and copied accepted-step metric rows, without retaining
-numerical details or events. The method owns the formulation and any live solver.
-Analysis and persistence remain in `diagnostics/`; observers remain caller-owned.
+## State contract
 
-Constructor options remain reusable through `simulate`. Per-run resources are
-excluded from reconstruction, and initial state and metadata are isolated as
-read-only copies. A completed or failed run cannot be integrated again; create a
-fresh run. Call `new_run` for low-level access rather than resetting `initialize`.
-
-`FixedStepController` calls `run.advance` with the exact effective duration and
-uses independent shortened maps for interior output times. DOP853/Radau's
-controller calls their ordinary `advance` on the live solver with an upper step
-bound and reads the actual accepted endpoint. Dense sampling retains the backend.
-
-Metric rows follow `step_times`; physical and auxiliary histories follow
-`Solution.t`. Common fields are `step_count`, `step_start_times`, `step_times`,
-`step_sizes` and `output_interpolation_count`. Shadow work and extra observer-only
-work are excluded from accepted numerical counters.
-
-See the [generic architecture](../../../simulation/integration-architecture.md)
-for the lifecycle, adaptive semantics and extension guide. Executable contracts
-are in `tests/test_method_integration.py` and `tests/test_adaptive_integration.py`.
-
-## Scope shown by the diagram
-
-The solid runtime path is:
-
-```text
-DynamicalSystem + InitialValueProblem + SimulationRequest
-                         +
- ABBA2Midpoint(state_extension="physical", track_energy=False)
-                         |
-                         v
-               SimulationRunner.simulate(...)
-                         |
-                         v
-              ABBA2Midpoint.integrate(...)
-                         |
-                         v
-           prepare -> integrate_method(...)
-                         |
-                         v
-               FixedStepController.steps(...)
-                         |
-                         v
-                  _midpoint_abba_step(...)
-                         |
-                         v
-          IntegrationData -> SimulationRunner -> Solution
-```
-
-The optional dashed branch emits an `IntegrationStep` only for accepted
-main-grid steps. The diagram does not show an implicit projection, a residual,
-a multiplier, Newton, or Broyden because none participates in this method.
-
-## Public boundary and validation
-
-The public method is defined in
-[`src/simulation/methods/abba/order2_midpoint.py`](../../../../src/simulation/methods/abba/order2_midpoint.py).
-Its physical branch accepts any object satisfying the runtime-checkable
-[`DynamicalSystem`](../../../../src/dynamics/protocols.py) protocol, provided
-that `state_dimension == 2`. It is not restricted to
-`GuidingCenterDynamics`, and it never requests a vector-field Jacobian.
-Enabling `track_energy` additionally requires `ExtendedHamiltonianSystem` so
-the method can evaluate the time-conjugate momentum derivative.
-
-[`InitialValueProblem`](../../../../src/simulation/problem.py) supplies the
-validated packed physical state and binds it to the dynamics.
-[`SimulationRequest`](../../../../src/simulation/request.py) supplies the
-integration interval, the upper bound on the main step, and the requested
-saved times. [`SimulationRunner`](../../../../src/simulation/runner.py)
-validates those public objects, calls `integrate(...)`, validates the returned
-history against the source layout, and constructs the public `Solution`.
-
-`ABBA2Midpoint` is a numerical dataclass with four constructor options:
-
-| Field | Role | Default |
+| Planar one-particle formulation | Internal coordinates | Dimension |
 |---|---|---:|
-| `state_extension` | Chooses the physical or fully extended runtime | `"physical"` |
-| `track_energy` | Optionally transports `kappa=k/2` beside the physical map; fully extended execution resolves it to `True` | `False` |
-| `progress` | Enables the shared terminal progress display | `False` |
-| `step_observer` | Receives accepted main-step observations | `None` |
+| Physical | `(x, y)` | 2 |
+| Physical with energy | `(x, y, t, kappa)` | 4 |
+| Duplicated | `(x1, y1, x2, y2)` | 4 |
+| Duplicated with energy | `(x1, y1, x2, y2, t, kappa)` | 6 |
 
-The first two rows select the numerical state/energy strategy. The physical
-example fixes them to `"physical"` and `False`; the shared lifecycle supports
-all three normalized state/energy strategies.
+ABBA2Midpoint uses the **duplicated** rows. `track_energy=False` is the default;
+`track_energy=True` enables the energy row. With N planar particles its internal
+dimensions are 4N / 6N. There are N time entries and N energy momenta.
+Classical FC runs use their actual physical size 4N, giving 4N / 6N.
+All components remain component-major; energy states append N times, then N
+normalized momenta. Every component block has the same particle dimension.
+The time entries are copies of the integration time; physical maps still receive
+one scalar time. The formulation owns clock validation and output alignment.
+The physical output always has its original size.
+Accepted duplicated copies are equal. They separate only inside the numerical map.
 
-## One physical ABBA2 midpoint step
+`PhysicalFormulation` and `DoubledFormulation` are constructed directly from the
+problem, initial time and tracking flag. They are defined in
+`src/simulation/formulations/state.py`. BM4 additionally uses directly bound
+`GCDoubledMaps` for its spatial direct/adjoint stages; its legacy configuration
+factory is only a compatibility entry point.
 
-The implementation shares its explicit endpoint-time stage kernel with the
-implicit ABBA methods. The neutral kernel lives in
-[`src/simulation/methods/abba/maps/physical.py`](../../../../src/simulation/methods/abba/maps/physical.py),
-while `_midpoint_abba_step(...)` owns duplication and arithmetic projection.
+## Energy and nonlinear work
 
-Let `z_n` be the accepted packed state, `h` the current main or shadow duration,
-and `s=h/2`. Midpoint starts both copies on the physical diagonal:
+The four accepted shear stages update the normalized passive momentum; no nonlinear solve is used.
 
-\[
-u_0=z_n,\qquad v_0=z_n.
-\]
+The stored momentum is physical `kappa`, initialized at zero. Its derivative is
+`-partial_t H`; splitting sums are normalized by one half. The diagnostic is
+`H(t, z) + kappa - H(t0, z0)`. It measures a balance, not conservation of the
+time-dependent physical Hamiltonian. Dynamics must implement
+`ExtendedHamiltonianSystem` when tracking is enabled, including an explicit zero
+derivative for an autonomous Hamiltonian.
 
-`_evaluate_unprojected_stages(...)` then applies the four explicit shears at
-the two step endpoints:
+Only spatial coordinates enter a Hairer constraint. The reduced multiplier has
+2N components; the ABBA simultaneous spatial solve has 6N unknowns. Clock and
+momentum never enlarge these roots or affect their stopping scale. Tracking also
+leaves classical physical solves and adaptive acceptance decisions unchanged.
+BM4's optional energy replay and adaptive diagnostic quadrature are extra work
+outside the physical solver counters; reported wall time still includes them.
 
-\[
-\begin{aligned}
-u_1 &= u_0+s f(t_n,v_0),\\
-v_1 &= v_0+s f(t_n,u_1),\\
-v_f &= v_1+s f(t_n+h,u_1),\\
-u_f &= u_1+s f(t_n+h,v_f).
-\end{aligned}
-\]
+## Lifecycle and output
 
-Every field evaluation passes through `_checked_vector_field(...)`, which
-requires a finite result with exactly the candidate-state shape. The private
-`_ABBAStages` record retains `u_initial`, `v_initial`, `u_first`, `v_final`,
-`u_final`, and the unprojected separation `u_f-v_f`.
+`simulate(problem, method, request)` creates a fresh run via `new_run`, validates
+its formulation and calls the shared `integrate_method`. Each `advance` returns
+an internal state, small work counters and method-specific accepted details.
+The common collector retains samples and counters; the formulation extracts the
+physical trajectory and diagnostic histories. Run resources are isolated.
 
-The accepted state is the arithmetic diagonal projection
+Fixed methods use independent shortened maps for off-grid samples. Adaptive
+methods retain one live SciPy solver whose state is always physical. Their
+energy quadrature follows accepted dense output and cannot affect the error norm.
+Radau Jacobians are physical-sized even when energy tracking is enabled.
 
-\[
-z_{n+1}=\frac{u_f+v_f}{2},
-\]
+Observers receive the physical map and independent snapshots. Their shapes do
+not change with tracking. All energy histories have shape `(N, saved_times)`,
+including `extended_time` even for a single particle. Diagnostic arrays
+`extended_time`, `extended_momentum`,
+`physical_hamiltonian`, `generalized_energy` and `generalized_energy_error` follow
+`Solution.t`; nonlinear and runtime work arrays follow `step_times`.
+`extended_momentum_normalization` is `physical_kappa` and `energy_error` is the
+maximum absolute sampled balance error over all particles.
 
-and `_ABBA2MidpointStep` also returns
+## Migration and verification
 
-\[
-d_n=\lVert u_f-v_f\rVert_\infty.
-\]
+`state_extension="fully_extended"` no longer runs a time/momentum projection.
+It raises explicit migration guidance. Use `track_energy=True` with spatial
+projection. The historical full-state symplecticity study is retired because it
+measured a different map; existing saved artifacts can still be read.
 
-This `d_n` is a copy-separation diagnostic. It is not a nonlinear residual, a
-convergence tolerance, or an error estimate; no iteration tries to reduce it.
-The name "midpoint" refers to the arithmetic midpoint of the two final copies,
-not to the implicit midpoint Runge--Kutta rule.
-
-One call of the map evaluates the vector field four times. An off-grid shadow
-sample invokes another complete map and therefore incurs four additional
-evaluations; `vector_field_evaluations_per_step=4` describes one map, not a
-total-run evaluation counter.
-
-With `track_energy=True`, the method also evaluates
-`extended_momentum_derivative(...)` at the four accepted stage states and
-advances one `kappa=k/2` value per particle. This is a triangular auxiliary
-update: it does not alter the arithmetic midpoint map or any dimension reported
-for that map.
-
-## Fixed main grid and shadow samples
-
-[`integrate_method(...)`](../../../../src/simulation/integration.py) separates
-the numerical trajectory from the requested output schedule. It chooses the
-smallest uniform main-step count whose step does not exceed
-`request.max_step`, then uses
-
-\[
-h_{\mathrm{main}}=\frac{t_f-t_0}{\text{step_count}}.
-\]
-
-For each main interval the controller calls
-`run.advance(t, state, step)`. The coordinator records its statistics
-and builds an event only if requested.
-That returned state replaces the main state, contributes one copy-separation
-value, advances progress, and may emit an observation.
-
-Requested times are handled as follows:
-
-- a time at the main-step start reuses the preceding main state;
-- a time at the main-step end reuses the newly accepted main state;
-- a time inside the interval triggers a shorter shadow advance from a copy of
-  the preceding main state without recording its returned statistics or building an event.
-
-A shadow state is saved but never replaces the main state. It does not affect
-later main steps, progress, `copy_separation_norms`, or observations. Changing
-`output_times` can therefore change the sampling work without changing the
-underlying main-grid trajectory.
-
-## Diagnostics
-
-The physical branch returns
-[`IntegrationData`](../../../../src/simulation/_result.py) with the requested
-times, the physical packed history, and these diagnostics:
-
-| Key | Physical-branch value or meaning |
-|---|---|
-| `step_count` | Number of accepted uniform main-grid steps |
-| `copy_separation_norms` | One `||u_f-v_f||_infinity` value per main step |
-| `projection_kind` | `"arithmetic_mean"` |
-| `state_extension` | `"physical"` |
-| `track_energy` | `False` in the diagrammed path |
-| `vector_field_evaluations_per_step` | `4` for one main or shadow map |
-| `accepted_internal_state_dimension` | `2N` for `N` planar particles |
-| `base_splitting_state_dimension` | `4N` for the two copies |
-| `observer_state_dimension` | `2N` |
-| `observer_state_kind` | `"physical_map"` |
-| `nonlinear_unknown_dimension` | `0` |
-
-The diagram abbreviates this mapping to its central midpoint quantities. The
-dimension keys are generated by
-[`_state_dimension_diagnostics(...)`](../../../../src/simulation/methods/abba/_configuration.py).
-With tracking enabled, diagnostics additionally contain `extended_momentum`
-with shape `(N,T)`, `extended_momentum_normalization="kappa_equals_k_over_2"`,
-and scalar `energy_error`; time remains available as `Solution.t`.
-
-## Optional observation
-
-When `step_observer` is set, the physical branch emits one
-[`IntegrationStep`](../../../../src/simulation/observation.py) after every
-accepted main step. It contains:
-
-- method and dynamics names, step index, start time, end time, and duration;
-- independent `state_before` and `state_after` snapshots;
-- the exact dynamics instance; and
-- `map_state`, a closure that reevaluates this same fixed-time, fixed-duration
-  midpoint map on another packed physical state.
-
-Shadow advances never emit events. The event does not expose the private ABBA
-stage record; downstream code that needs a numerical tangent can evaluate or
-differentiate `map_state` without importing private integrator helpers.
-
-## Result boundary
-
-After `ABBA2Midpoint.integrate(...)` returns, the existing runner call validates
-`IntegrationData` and constructs
-[`Solution`](../../../../src/simulation/solution.py). The public result owns
-read-only copies of saved times, states, and diagnostic arrays and retains the
-source initial configuration so its layout can split components and positions.
-
-## Numerical properties and limitations
-
-- The endpoint-time A--B--B--A base map is explicit, symmetric, and designed
-  for second-order integration.
-- Its four shear maps are symplectic on the duplicated phase space for the
-  guiding-centre Hamiltonian structure, but arithmetic averaging does not in
-  general preserve that structure on the physical diagonal. The physical
-  midpoint map is therefore not guaranteed symplectic.
-- The physical branch can advance packed planar states containing multiple
-  particles; their concrete memory interpretation remains owned by the source
-  layout, and the complete vector shares one integration time.
-- A large copy separation is reported, not corrected. Users needing Hairer's
-  implicit diagonal projection should select an implicit ABBA method.
-- The diagram says nothing about the optional physical energy sidecar or fully
-  extended midpoint branch, implicit ABBA formulations, higher-order
-  compositions, potential internals, or downstream diagnostic algorithms.
-
-The mathematical derivation in
-[`ABBA2 implicit theory`](../../abba2-implicit/tex/theory.tex) and its
-[`compiled PDF`](../../abba2-implicit/tex/theory.pdf) derives the shared
-endpoint-time A--B--B--A map, its symmetry, and its duplicated-space
-symplecticity. Its later Hairer-projection proof applies to the implicit method,
-not to the arithmetic midpoint closure documented here.
-
-## Minimal public usage
-
-```python
-from simulation import ABBA2Midpoint, SimulationRequest, simulate
-
-solution = simulate(
-    problem,
-    ABBA2Midpoint(
-        state_extension="physical",
-        track_energy=False,
-        progress=False,
-    ),
-    SimulationRequest.uniform(
-        t_span=(0.0, final_time),
-        max_step=max_step,
-        sample_count=sample_count,
-    ),
-)
-```
-
-The caller supplies the validated `problem` and the physical time and sampling
-parameters.
-
-
-## Shared-kernel location after the implicit-runtime refactor
-
-Midpoint owns initialization, advance, observation and export in
-`order2_midpoint.py`, using the common integration driver. Physical kernels live
-in `maps/physical.py`; full base maps live in `maps/extended.py`. Full energy
-extraction is shared through `state.py`. Both state modes belong to the same
-numerical class and preserve the established arithmetic projection.
+Tests in `tests/test_state_formulations.py` cover all 13 methods, both tracking
+settings, particle batches, physical-only observers, adaptive control, per-particle
+time alignment and energy normalization. Model tests retain order, projection,
+Jacobian and nonlinear-solver checks. The pre-change physical trajectories are
+also compared with the migrated implementations on short nonautonomous runs.

@@ -51,7 +51,6 @@ from tests.test_abba import gc_dynamics
 _ENERGY_STRATEGIES = (
 	("physical", False),
 	("physical", True),
-	("fully_extended", True),
 )
 
 
@@ -61,7 +60,7 @@ class ImplicitABBAFormulationTests(unittest.TestCase):
 	def test_all_four_public_methods_expose_normalized_energy_strategies(
 		self,
 	) -> None:
-		self.assertEqual(ABBA_STATE_EXTENSIONS, ("physical", "fully_extended"))
+		self.assertEqual(ABBA_STATE_EXTENSIONS, ("physical",))
 		for method_type in (
 			ABBA2Implicit,
 			ABBA4Implicit,

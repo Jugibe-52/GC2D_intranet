@@ -1,11 +1,12 @@
 """Implicit BM4 with one Hairer projection around each complete base cycle.
 
-The public state is always the packed physical guiding-centre vector
+The exported physical state is always the packed physical guiding-centre vector
 ``z = (x_1, ..., x_p, y_1, ..., y_p)`` in :math:`R^{2p}`, where ``p`` is the
 particle count.  A BM4 base cycle temporarily uses two copies ``Y = (u, v)``
 in :math:`R^{4p}` because the prepared direct and adjoint maps split the
-guiding-centre vector field between those copies.  The doubled vector is
-workspace only; it is never accepted as an integration state.
+guiding-centre vector field between those copies.  The accepted internal state stores both copies on the diagonal; optional
+energy tracking appends time and normalized momentum blocks, one entry per particle.
+The spatial solve uses only the doubled spatial workspace.
 
 For a physical dimension ``m = 2p``, define the diagonal embedding
 ``E z = (z, z)``, the constraint ``G = [I, -I]``, and its transpose
@@ -34,9 +35,10 @@ import numpy as np
 
 from dynamics import GuidingCenterDynamics
 
+from ...formulations.state import DoubledFormulation
 from ...integration import IntegrationMethod, StepInfo, StepResult, NEWTON_ALIASES
 from ..._result import DiagnosticValue
-from ...formulations import GCExtendedFormulation, gc_coupling_matrix
+from ...formulations.gc import GCDoubledMaps, gc_coupling_matrix
 from ...formulations.base import PreparedDirectAdjointFormulation
 from ...observation import ImplicitBM4IntegrationStep, IntegrationStage, StepObserver
 from ...problem import InitialValueProblem
@@ -109,7 +111,7 @@ def _positive_integer(value: int, name: str) -> int:
 
 
 def _bm4_map(
-	prepared: PreparedDirectAdjointFormulation,
+	prepared: GCDoubledMaps,
 	t: float,
 	internal_state: np.ndarray,
 	step: float,
@@ -186,7 +188,7 @@ def _projection_matrices(physical_size: int) -> tuple[np.ndarray, np.ndarray]:
 
 
 def _bm4_evaluation(
-	prepared: PreparedDirectAdjointFormulation,
+	prepared: GCDoubledMaps,
 	t: float,
 	state: np.ndarray,
 	step: float,
@@ -204,7 +206,7 @@ def _bm4_evaluation(
 
 
 def _bm4_map_jacobian(
-	prepared: PreparedDirectAdjointFormulation,
+	prepared: GCDoubledMaps,
 	t: float,
 	internal_input: np.ndarray,
 	step: float,
@@ -376,7 +378,7 @@ def _packed_particle_jacobians(jacobians: np.ndarray) -> np.ndarray:
 
 
 def _analytic_bm4_map_jacobian(
-	prepared: PreparedDirectAdjointFormulation,
+	prepared: GCDoubledMaps,
 	t: float,
 	internal_input: np.ndarray,
 	step: float,
@@ -392,16 +394,9 @@ def _analytic_bm4_map_jacobian(
 	dynamics = prepared.dynamics
 	if not isinstance(dynamics, GuidingCenterDynamics):
 		raise TypeError("Analytic implicit-BM4 Jacobians require GC dynamics.")
-	# These GC-specific attributes are intentionally outside the generic
-	# direct/adjoint protocol, so validate them before using the analytic path.
-	particle_count_value = getattr(prepared, "particle_count", None)
-	frequency_value = getattr(prepared, "coupling_frequency", None)
-	if not isinstance(particle_count_value, int) or particle_count_value < 1:
-		raise TypeError("The prepared GC formulation has no particle count.")
-	if frequency_value is None:
-		raise TypeError("The prepared GC formulation has no coupling frequency.")
-	particle_count = int(particle_count_value)
-	frequency = float(frequency_value)
+	particle_count = prepared.particle_count
+	frequency = prepared.coupling_frequency
+	assert frequency is not None
 	# ``current`` is needed because every stage Jacobian is evaluated at that
 	# stage's input, not at the original doubled state.
 	current = np.asarray(internal_input, dtype=float).copy()
@@ -448,7 +443,7 @@ def _analytic_bm4_map_jacobian(
 
 
 def _solve_reduced_projected_bm4_step(
-	prepared: PreparedDirectAdjointFormulation,
+	prepared: GCDoubledMaps,
 	t: float,
 	state: np.ndarray,
 	step: float,
@@ -651,12 +646,15 @@ class BM4Implicit(IntegrationMethod[_ProjectedBM4Step]):
 	newton_jacobian_relative_step: float = float(np.cbrt(np.finfo(float).eps))
 	newton_jacobian_method: NewtonJacobianMethod = "analytic"
 	nonlinear_solver: NonlinearSolver = "newton"
+	track_energy: bool = False
 	# Fixed-grid presentation and optional accepted-step instrumentation.
 	progress: bool = False
 	step_observer: StepObserver | None = None
 
 	# Resources owned by one run; excluded from constructor options.
-	formulation: PreparedDirectAdjointFormulation = field(init=False, repr=False, compare=False)
+	state_formulation: DoubledFormulation = field(init=False, repr=False, compare=False)
+	energy_maps: GCDoubledMaps | None = field(init=False, repr=False, compare=False)
+	formulation: GCDoubledMaps = field(init=False, repr=False, compare=False)
 
 	def __post_init__(self) -> None:
 		"""Validate and normalize all numeric and enumerated solver controls."""
@@ -677,9 +675,9 @@ class BM4Implicit(IntegrationMethod[_ProjectedBM4Step]):
 		Only two physical copies enter the temporary formulation. Per-run metric
 		lists, scheduling and observer dispatch belong to the common coordinator.
 		"""
-		self.formulation = GCExtendedFormulation(
-			coupling_frequency=self.coupling_frequency
-		).prepare(problem, track_energy=False)
+		self.state_formulation = DoubledFormulation(problem, request.t_span[0], self.track_energy)
+		self.energy_maps = GCDoubledMaps(problem, self.coupling_frequency, track_energy=True) if self.track_energy else None
+		self.formulation = GCDoubledMaps(problem, self.coupling_frequency)
 		metadata: dict[str, DiagnosticValue] = {
 			"nonlinear_solver": self.nonlinear_solver,
 			"nonlinear_absolute_tolerance": self.newton_absolute_tolerance,
@@ -689,8 +687,10 @@ class BM4Implicit(IntegrationMethod[_ProjectedBM4Step]):
 			"newton_jacobian_method": self.newton_jacobian_method,
 			"coupling_frequency": self.coupling_frequency,
 			"projection_solver_formulation": "bm4_implicit_reduced",
+			"nonlinear_unknown_dimension": problem.initial_state.size,
+			"nonlinear_solves_per_step": 1,
 		}
-		self.initial_state = problem.initial_state
+		self.initial_state = self.state_formulation.initial_state
 		self.metadata = metadata
 		self.diagnostic_aliases = NEWTON_ALIASES
 
@@ -708,11 +708,21 @@ class BM4Implicit(IntegrationMethod[_ProjectedBM4Step]):
 
 	def advance(self, t: float, state: np.ndarray, h: float) -> StepResult[_ProjectedBM4Step]:
 		"""Return one projected state and the already computed solve metrics."""
-		result = self._solve(t, state, h)
+		physical = self.state_formulation.physical(state)
+		result = self._solve(t, physical, h)
 		tolerance = self.newton_absolute_tolerance + self.newton_relative_tolerance * max(
-			1.0, float(np.linalg.norm(state, ord=np.inf))
+			1.0, float(np.linalg.norm(physical, ord=np.inf))
 		)
-		return StepResult(result.state, {
+		increment = None
+		if self.energy_maps is not None:
+			# Replay only the converged spatial stages. No diagnostic coordinate is
+			# included in Newton/Broyden, and replay work is not nonlinear work.
+			internal = np.concatenate((result.internal_input, np.zeros(self.state_formulation.particle_count)))
+			tracked = _advance_composition(self.energy_maps, t, internal, h,
+			    step_index=0, stage_observer=None, formulation_name="duplicated_with_energy", method_name=self.method_name)
+			increment = tracked[2 * physical.size:] / 2.0
+		after = self.state_formulation.finish(state, result.state, t + h, increment)
+		return StepResult(after, {
 			"nonlinear_iterations": result.iterations,
 			"residual_evaluations": result.residual_evaluations,
 			"nonlinear_residual_norms": result.residual_norm,
@@ -740,7 +750,7 @@ class BM4Implicit(IntegrationMethod[_ProjectedBM4Step]):
 			dynamics_name=self.formulation.dynamics_name, method_name=type(self).__name__,
 			step_index=info.index, start_time=info.time,
 			time=info.time + info.duration, duration=info.duration,
-			state_before=info.state_before.copy(), state_after=result.state.copy(),
+			state_before=self.state_formulation.physical(info.state_before).copy(), state_after=result.state.copy(),
 			map_state=map_state, dynamics=self.formulation.dynamics,
 			formulation_name="bm4_implicit_reduced", nonlinear_solver=self.nonlinear_solver,
 			newton_iterations=result.iterations, residual_evaluations=result.residual_evaluations,
@@ -751,9 +761,6 @@ class BM4Implicit(IntegrationMethod[_ProjectedBM4Step]):
 			multiplier=result.multiplier.copy(), base_stages=tuple(base_stages),
 		)
 
-	def export_history(self, times: np.ndarray, history: np.ndarray) -> tuple[np.ndarray, dict[str, DiagnosticValue]]:
-		"""BM4Implicit already advances only physical coordinates."""
-		return np.asarray(history), {}
 
 
 __all__ = ["BM4Implicit"]
