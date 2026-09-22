@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Selectable phase classes</title>
+<style>
+* { box-sizing: border-box; }
+body { margin: 0; padding: 18px; color: #172231; background: #f5f7fa; font: 14px system-ui, sans-serif; }
+header { max-width: 1500px; margin: 0 auto 14px; }
+h1 { margin: 0 0 5px; font-size: 23px; }
+p { margin: 4px 0; color: #526174; line-height: 1.4; }
+.global { display: flex; gap: 7px; margin-top: 10px; }
+button { border: 1px solid #b9c5d2; border-radius: 6px; padding: 6px 9px; background: white; cursor: pointer; }
+button:hover { background: #edf4fb; }
+.grid { display: grid; grid-template-columns: repeat(2, minmax(400px, 1fr)); gap: 14px;
+        max-width: 1500px; margin: auto; }
+.panel { background: white; border: 1px solid #d9e0e8; border-radius: 10px; padding: 10px; }
+.panel h2 { margin: 0 0 7px; text-align: center; font-size: 18px; }
+canvas { display: block; width: 100%; height: auto; }
+.controls { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; margin: 8px 4px 2px; }
+.controls .label { margin-right: 4px; font-weight: 650; }
+.phase { display: inline-flex; align-items: center; gap: 4px; border: 1px solid #d5dce4;
+         border-radius: 5px; padding: 4px 6px; cursor: pointer; }
+.phase input { margin: 0; }
+.swatch { width: 11px; height: 11px; border-radius: 50%; display: inline-block; }
+.status { margin-left: auto; color: #53657b; font-size: 12px; }
+@media (max-width: 900px) { .grid { grid-template-columns: 1fr; } body { padding: 8px; } }
+</style>
+<header>
+ <h1 id="title"></h1>
+ <p>Select the phase classes shown in each panel. The class is the forcing-cycle index <b>n modulo q</b>.</p>
+ <div class="global"><button id="all">Show all classes</button><button id="none">Hide all classes</button></div>
+</header>
+<main id="grid" class="grid"></main>
+<script id="phase-data" type="application/json">__PHASE_CLASS_DATA__</script>
+<script>
+'use strict';
+const data = JSON.parse(document.getElementById('phase-data').textContent);
+const colors = ['#1f77b4','#ff7f0e','#2ca02c','#d62728','#9467bd',
+                '#8c564b','#e377c2','#7f7f7f','#bcbd22','#17becf'];
+document.getElementById('title').textContent = data.title;
+const instances = [];
+function decode(encoded) {
+ const raw = Uint8Array.from(atob(encoded), c => c.charCodeAt(0));
+ const view = new DataView(raw.buffer), values = new Float32Array(raw.length / 4);
+ for (let i = 0; i < values.length; i++) values[i] = view.getFloat32(i * 4, true);
+ return values;
+}
+function createPanel(panel) {
+ const article = document.createElement('article'); article.className = 'panel';
+ const heading = document.createElement('h2');
+ heading.textContent = `Particle ${panel.particle}: ${panel.q}-cycle phase classes`;
+ const canvas = document.createElement('canvas'); canvas.width = 720; canvas.height = 600;
+ canvas.setAttribute('role', 'img');
+ const controls = document.createElement('div'); controls.className = 'controls';
+ const label = document.createElement('span'); label.className = 'label'; label.textContent = 'Visible classes:';
+ const all = document.createElement('button'); all.textContent = 'All';
+ const none = document.createElement('button'); none.textContent = 'None';
+ const status = document.createElement('span'); status.className = 'status';
+ controls.append(label, all, none);
+ const selected = Array(panel.q).fill(true), checks = [];
+ for (let residue = 0; residue < panel.q; residue++) {
+  const item = document.createElement('label'); item.className = 'phase';
+  const input = document.createElement('input'); input.type = 'checkbox'; input.checked = true;
+  input.setAttribute('aria-label', `Particle ${panel.particle}, class ${residue}`);
+  const swatch = document.createElement('span'); swatch.className = 'swatch';
+  swatch.style.background = colors[residue % colors.length];
+  const text = document.createElement('span'); text.textContent = residue;
+  input.addEventListener('change', () => { selected[residue] = input.checked; draw(); });
+  item.append(input, swatch, text); controls.append(item); checks.push(input);
+ }
+ controls.append(status); article.append(heading, canvas, controls);
+ document.getElementById('grid').append(article);
+ const xy = decode(panel.coordinates), ctx = canvas.getContext('2d');
+ const xs = [], ys = [];
+ for (let i = 0; i < panel.samples; i++) { xs.push(xy[2*i]); ys.push(xy[2*i+1]); }
+ const xmin = Math.min(...xs), xmax = Math.max(...xs), ymin = Math.min(...ys), ymax = Math.max(...ys);
+ const dx = Math.max(xmax-xmin, 1e-7), dy = Math.max(ymax-ymin, 1e-7), pad = .04;
+ function setSelection(value) { selected.fill(value); checks.forEach(c => c.checked = value); draw(); }
+ function draw() {
+  const W=canvas.width,H=canvas.height,left=78,right=22,top=18,bottom=64,pw=W-left-right,ph=H-top-bottom;
+  ctx.fillStyle='#fff'; ctx.fillRect(0,0,W,H); ctx.strokeStyle='#e2e6eb'; ctx.lineWidth=1;
+  for(let k=0;k<=5;k++){const x=left+k*pw/5,y=top+k*ph/5;ctx.beginPath();ctx.moveTo(x,top);ctx.lineTo(x,top+ph);ctx.moveTo(left,y);ctx.lineTo(left+pw,y);ctx.stroke();}
+  const x0=xmin-dx*pad,x1=xmax+dx*pad,y0=ymin-dy*pad,y1=ymax+dy*pad;
+  ctx.save();ctx.beginPath();ctx.rect(left,top,pw,ph);ctx.clip();
+  let count=0;
+  for(let i=0;i<panel.samples;i++){const r=i%panel.q;if(!selected[r])continue;count++;ctx.fillStyle=colors[r%colors.length];const x=left+(xy[2*i]-x0)/(x1-x0)*pw,y=top+(y1-xy[2*i+1])/(y1-y0)*ph;ctx.beginPath();ctx.arc(x,y,2.2,0,2*Math.PI);ctx.fill();}
+  ctx.restore();ctx.strokeStyle='#111';ctx.strokeRect(left,top,pw,ph);ctx.fillStyle='#111';ctx.font='16px system-ui';
+  for(let k=0;k<=5;k++){ctx.textAlign='center';ctx.fillText((x0+k*(x1-x0)/5).toFixed(3),left+k*pw/5,top+ph+27);ctx.textAlign='right';ctx.fillText((y1-k*(y1-y0)/5).toFixed(3),left-9,top+k*ph/5+6);}
+  ctx.textAlign='center';ctx.font='19px system-ui';ctx.fillText('x / L',left+pw/2,H-10);ctx.save();ctx.translate(20,top+ph/2);ctx.rotate(-Math.PI/2);ctx.fillText('y / L',0,0);ctx.restore();
+  const visible=selected.filter(Boolean).length;status.textContent=`${visible}/${panel.q} classes · ${count.toLocaleString()} points`;
+  canvas.setAttribute('aria-label',`Particle ${panel.particle}: ${visible} of ${panel.q} phase classes visible.`);
+ }
+ all.addEventListener('click',()=>setSelection(true));none.addEventListener('click',()=>setSelection(false));
+ const instance={setSelection};instances.push(instance);draw();
+}
+data.panels.forEach(createPanel);
+document.getElementById('all').addEventListener('click',()=>instances.forEach(p=>p.setSelection(true)));
+document.getElementById('none').addEventListener('click',()=>instances.forEach(p=>p.setSelection(false)));
+</script>
+</html>

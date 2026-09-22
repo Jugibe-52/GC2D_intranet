@@ -4,73 +4,178 @@
 body{font:14px system-ui;margin:16px;color:#223047;background:#fff}
 .controls{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:14px 0}
 button,select{padding:6px 12px}input[type=range]{flex:1;min-width:220px}
-.plots{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;min-width:750px}
-canvas{width:100%;aspect-ratio:1}h3{text-align:center;margin:4px}
+.timeline{display:grid;grid-template-columns:auto auto minmax(220px,1fr) auto;gap:4px 8px;align-items:center;flex:1;min-width:420px}
+.timeline input[type=range]{width:100%;min-width:0}
+.cycle-step{min-width:34px;padding:4px 9px;font-size:16px;line-height:1}
+.plots{display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:12px;min-width:750px}
+.plots.four-panels{grid-template-columns:repeat(4,minmax(360px,1fr));min-width:1480px}
+.plots.single-panel{grid-template-columns:minmax(0,760px);min-width:0;justify-content:center}
+canvas{width:100%;aspect-ratio:1;touch-action:none;cursor:crosshair}h3{text-align:center;margin:4px}
 #particles{display:grid;grid-template-columns:repeat(8,1fr);gap:6px}
 label.particle{border:1px solid #ddd;border-radius:5px;padding:5px;cursor:pointer}
 </style>
 <h2>Synchronized Poincare sections</h2>
 <p>Wrapped coordinates x/L and y/L. Small dots: accumulated returns. Large dot: current return.
-Select particles below to update all three panels.</p>
+Select particles below to update every panel. Drag a square inside any plot to zoom all panels together.
+After zooming, Shift-drag or right-drag to pan all panels.</p>
 <div class="controls"><button id="play">Play</button><button id="reset">Reset</button>
-<input id="cycle" type="range" min="1" value="1"><strong id="status"></strong>
+<div class="timeline"><label for="start-cycle">Start cycle</label><button class="cycle-step" id="start-previous" type="button" aria-label="Previous start cycle">−</button><input id="start-cycle" type="range" min="1" step="1" value="1"><button class="cycle-step" id="start-next" type="button" aria-label="Next start cycle">+</button>
+<label for="cycle">Current cycle</label><button class="cycle-step" id="cycle-previous" type="button" aria-label="Previous current cycle">−</button><input id="cycle" type="range" min="1" step="1" value="1"><button class="cycle-step" id="cycle-next" type="button" aria-label="Next current cycle">+</button></div><strong id="status"></strong>
 <label>Cycles/frame <select id="speed"><option>1</option><option>10</option><option selected>25</option><option>50</option><option>100</option></select></label>
 <label><input type="checkbox" id="trail" checked>Accumulate returns</label></div>
+<div class="controls"><button id="full-view">Full view</button>
+<button id="region-view" hidden>Selected region</button>
+<label id="region-control" hidden>Region <select id="region-selector"></select></label>
+<label>Point size <input id="point-size" type="range" min="0.5" max="6" step="0.5" value="2"></label><output id="point-size-value">2 px</output></div>
 <div class="plots" id="plots"></div>
-<div class="controls"><button id="all">Show all</button><button id="none">Hide all</button><button id="invert">Invert</button><span id="count"></span></div>
+<div class="controls"><button id="all">Show all</button><button id="none">Hide all</button><button id="invert">Invert</button><button id="probe-only" hidden></button><span id="count"></span></div>
 <div id="particles"></div>
 <script>
 const cfg=__CONFIG__;
-const bytes=Uint8Array.from(atob(cfg.data),c=>c.charCodeAt(0));
-const xy=new Float32Array(bytes.buffer), N=cfg.shape[1], P=cfg.shape[2];
-const selected=new Set(cfg.ids), boxes=[];
-const slider=document.getElementById('cycle'), play=document.getElementById('play');
+if(cfg.title){document.title=cfg.title;document.querySelector('h2').textContent=cfg.title;}
+const panels=cfg.panels.map(panel=>{
+ const bytes=Uint8Array.from(atob(panel.data),c=>c.charCodeAt(0));
+ return {...panel,xy:new Float32Array(bytes.buffer)};
+});
+const N=panels[0].shape[0],allIds=[...new Set(panels.flatMap(panel=>panel.ids))].sort((a,b)=>a-b);
+if(panels.length===4)document.getElementById('plots').classList.add('four-panels');
+if(panels.length===1)document.getElementById('plots').classList.add('single-panel');
+const colorById=new Map();panels.forEach(panel=>panel.ids.forEach((id,p)=>colorById.set(id,panel.colors[p])));
+const selected=new Set(allIds),boxes=[];
+const slider=document.getElementById('cycle'),startSlider=document.getElementById('start-cycle'),play=document.getElementById('play');
 const speed=document.getElementById('speed'), trail=document.getElementById('trail');
-slider.max=N; speed.value=String(cfg.step);
+slider.max=N;startSlider.max=N;speed.value=String(cfg.step);
+slider.value=cfg.initialCycle??1;
 if(!speed.value){const o=new Option(cfg.step,cfg.step);speed.add(o);speed.value=String(cfg.step);}
 let timer=null;
-const canvases=cfg.titles.map(title=>{
+// One normalized square viewport is shared by every panel and animation frame.
+let view={...(cfg.initialView??{x:0,y:0,span:1})},drag=null;
+const pointSize=document.getElementById('point-size');
+function plotPoint(event,canvas){
+ const r=canvas.getBoundingClientRect();
+ return {x:Math.max(0,Math.min(1,(600*(event.clientX-r.left)/r.width-52)/520)),
+         y:Math.max(0,Math.min(1,1-(600*(event.clientY-r.top)/r.height-20)/520))};
+}
+function square(a,b){
+ const dx=b.x-a.x,dy=b.y-a.y,sx=dx<0?-1:1,sy=dy<0?-1:1;
+ const span=Math.min(Math.max(Math.abs(dx),Math.abs(dy)),sx>0?1-a.x:a.x,sy>0?1-a.y:a.y);
+ return {x:sx>0?a.x:a.x-span,y:sy>0?a.y:a.y-span,span};
+}
+const canvases=panels.map(dataPanel=>{
  const panel=document.createElement('div'),h=document.createElement('h3'),c=document.createElement('canvas');
- h.textContent=title;c.width=600;c.height=600;panel.append(h,c);document.getElementById('plots').append(panel);return c;
+ h.textContent=dataPanel.title;c.width=600;c.height=600;panel.append(h,c);document.getElementById('plots').append(panel);return c;
 });
-cfg.ids.forEach((id,p)=>{
+canvases.forEach(canvas=>{
+ canvas.oncontextmenu=event=>event.preventDefault();
+ function move(event){
+  if(drag?.canvas!==canvas||drag.id!==event.pointerId)return;
+  const point=plotPoint(event,canvas);
+  if(drag.pan){
+   // Preserve the initial square extent and keep the viewport inside the cell.
+   const initial=drag.initial,limit=1-initial.span;
+   view={x:Math.max(0,Math.min(limit,initial.x-(point.x-drag.start.x)*initial.span)),
+         y:Math.max(0,Math.min(limit,initial.y-(point.y-drag.start.y)*initial.span)),span:initial.span};
+  }else drag.box=square(drag.start,point);
+  draw();
+ }
+ canvas.onpointerdown=event=>{
+  if(drag||(event.button!==0&&event.button!==2))return;
+  const r=canvas.getBoundingClientRect(),x=600*(event.clientX-r.left)/r.width,y=600*(event.clientY-r.top)/r.height;
+  if(x<52||x>572||y<20||y>540)return;
+  event.preventDefault();
+  const start=plotPoint(event,canvas),pan=event.shiftKey||event.button===2;
+  drag={canvas,id:event.pointerId,start,box:square(start,start),pan,initial:{...view}};
+  canvas.style.cursor=pan?'grabbing':'crosshair';
+  canvas.setPointerCapture(event.pointerId);
+ };
+ canvas.onpointermove=move;
+ canvas.onpointerup=event=>{
+  if(drag?.canvas!==canvas||drag.id!==event.pointerId)return;
+  move(event);
+  const {box,pan}=drag;drag=null;canvas.style.cursor='crosshair';
+  if(!pan&&box.span*520>=5&&view.span*box.span>=1e-6)view={x:view.x+box.x*view.span,y:view.y+box.y*view.span,span:view.span*box.span};
+  canvas.releasePointerCapture(event.pointerId);draw();
+ };
+ canvas.onpointercancel=canvas.onlostpointercapture=()=>{canvas.style.cursor='crosshair';if(drag?.canvas===canvas){drag=null;draw();}};
+});
+allIds.forEach((id,p)=>{
  const label=document.createElement('label'),box=document.createElement('input');
- label.className='particle';label.style.borderLeft='5px solid '+cfg.colors[p];box.type='checkbox';box.checked=true;
+ label.className='particle';label.style.borderLeft='5px solid '+colorById.get(id);box.type='checkbox';box.checked=true;
  box.onchange=()=>{box.checked?selected.add(id):selected.delete(id);draw();};
  label.append(box,document.createTextNode('Particle '+id));document.getElementById('particles').append(label);boxes.push(box);
 });
 function draw(){
- const cycle=Number(slider.value);
- document.getElementById('status').textContent='Cycle '+cycle+' / '+N;
- document.getElementById('count').textContent=selected.size+' / '+P+' selected';
+ const cycle=Number(slider.value),startCycle=Number(startSlider.value);
+ const diameter=Number(pointSize.value),digits=Math.max(2,Math.ceil(-Math.log10(view.span))+2);
+ document.getElementById('point-size-value').textContent=diameter+' px';
+ document.getElementById('status').textContent='Cycles '+startCycle+'–'+cycle+' / '+N;
+ document.getElementById('count').textContent=selected.size+' / '+allIds.length+' selected';
  canvases.forEach((canvas,m)=>{
+ const {xy,ids,colors,shape}=panels[m],P=shape[1];
  const ctx=canvas.getContext('2d'),left=52,top=20,size=520;
  ctx.clearRect(0,0,600,600);ctx.font='15px system-ui';ctx.lineWidth=1;
  for(let k=0;k<=4;k++){
  const f=k/4;ctx.strokeStyle='#e1e5eb';ctx.beginPath();ctx.moveTo(left+f*size,top);ctx.lineTo(left+f*size,top+size);
  ctx.moveTo(left,top+f*size);ctx.lineTo(left+size,top+f*size);ctx.stroke();
- ctx.fillStyle='#334155';ctx.textAlign='center';ctx.fillText(f.toFixed(2),left+f*size,top+size+24);
- ctx.textAlign='right';ctx.fillText((1-f).toFixed(2),left-8,top+f*size+5);
+ ctx.fillStyle='#334155';ctx.textAlign='center';ctx.fillText((view.x+f*view.span).toFixed(digits),left+f*size,top+size+24);
+ ctx.textAlign='right';ctx.fillText((view.y+(1-f)*view.span).toFixed(digits),left-8,top+f*size+5);
  }
  ctx.textAlign='center';ctx.fillText('x / L',left+size/2,590);
  ctx.save();ctx.translate(16,top+size/2);ctx.rotate(-Math.PI/2);ctx.fillText('y / L',0,0);ctx.restore();
  ctx.save();ctx.beginPath();ctx.rect(left,top,size,size);ctx.clip();
  for(let p=0;p<P;p++){
- if(!selected.has(cfg.ids[p]))continue;
- ctx.fillStyle=cfg.colors[p];
- if(trail.checked){ctx.globalAlpha=.55;
- for(let t=0;t<cycle;t++){const i=((m*N+t)*P+p)*2;ctx.fillRect(left+xy[i]*size-1,top+(1-xy[i+1])*size-1,2,2);}}
- ctx.globalAlpha=1;const i=((m*N+cycle-1)*P+p)*2;
- ctx.beginPath();ctx.arc(left+xy[i]*size,top+(1-xy[i+1])*size,4,0,2*Math.PI);ctx.fill();
+ if(!selected.has(ids[p]))continue;
+ ctx.fillStyle=colors[p];
+ if(trail.checked){const highlighted=ids[p]===cfg.highlightParticle||(cfg.highlightParticles??[]).includes(ids[p]),pointDiameter=highlighted?Math.max(3,diameter):diameter;ctx.globalAlpha=highlighted?1:.55;
+ for(let t=startCycle-1;t<cycle;t++){const i=(t*P+p)*2;ctx.fillRect(left+(xy[i]-view.x)/view.span*size-pointDiameter/2,top+(1-(xy[i+1]-view.y)/view.span)*size-pointDiameter/2,pointDiameter,pointDiameter);}}
+ ctx.globalAlpha=1;const i=((cycle-1)*P+p)*2;
+ ctx.beginPath();ctx.arc(left+(xy[i]-view.x)/view.span*size,top+(1-(xy[i+1]-view.y)/view.span)*size,diameter*2,0,2*Math.PI);ctx.fill();
  }ctx.restore();
+ if(drag&&!drag.pan){const b=drag.box;ctx.save();ctx.strokeStyle='#111827';ctx.fillStyle='rgba(59,130,246,.12)';ctx.setLineDash([6,4]);ctx.fillRect(left+b.x*size,top+(1-b.y-b.span)*size,b.span*size,b.span*size);ctx.strokeRect(left+b.x*size,top+(1-b.y-b.span)*size,b.span*size,b.span*size);ctx.restore();}
  });
 }
 function stop(){clearInterval(timer);timer=null;play.textContent='Play';}
-play.onclick=()=>{if(timer){stop();return;}if(Number(slider.value)===N)slider.value=1;
+function stepCycle(input,delta){
+ stop();
+ const minimum=input===slider?Number(startSlider.value):1;
+ const maximum=input===startSlider?Number(slider.value):N;
+ input.value=Math.max(minimum,Math.min(maximum,Number(input.value)+delta));
+ draw();
+}
+document.getElementById('start-previous').onclick=()=>stepCycle(startSlider,-1);
+document.getElementById('start-next').onclick=()=>stepCycle(startSlider,1);
+document.getElementById('cycle-previous').onclick=()=>stepCycle(slider,-1);
+document.getElementById('cycle-next').onclick=()=>stepCycle(slider,1);
+play.onclick=()=>{if(timer){stop();return;}if(Number(slider.value)===N)slider.value=startSlider.value;
  play.textContent='Pause';timer=setInterval(()=>{slider.value=Math.min(N,Number(slider.value)+Number(speed.value));draw();if(Number(slider.value)===N)stop();},100);};
-slider.oninput=draw;trail.onchange=draw;
-document.getElementById('reset').onclick=()=>{stop();slider.value=1;draw();};
-function select(mode){cfg.ids.forEach((id,p)=>{const on=mode==='all'||(mode==='invert'&&!selected.has(id));on?selected.add(id):selected.delete(id);boxes[p].checked=on;});draw();}
+startSlider.oninput=()=>{if(Number(slider.value)<Number(startSlider.value))slider.value=startSlider.value;draw();};
+slider.oninput=()=>{if(Number(slider.value)<Number(startSlider.value))slider.value=startSlider.value;draw();};trail.onchange=draw;
+pointSize.oninput=draw;
+document.getElementById('full-view').onclick=()=>{view={x:0,y:0,span:1};drag=null;draw();};
+document.getElementById('reset').onclick=()=>{stop();slider.value=startSlider.value;draw();};
+function select(mode){allIds.forEach((id,p)=>{const on=mode==='all'||(mode==='invert'&&!selected.has(id));on?selected.add(id):selected.delete(id);boxes[p].checked=on;});draw();}
 for(const mode of ['all','none','invert'])document.getElementById(mode).onclick=()=>select(mode);
+if(cfg.initialView){const button=document.getElementById('region-view');button.hidden=false;
+ button.onclick=()=>{view={...cfg.initialView};drag=null;draw();};}
+if(cfg.highlightParticle!==undefined){const button=document.getElementById('probe-only');button.hidden=false;
+ button.textContent='Only particle '+cfg.highlightParticle;
+ button.onclick=()=>{select('none');selected.add(cfg.highlightParticle);boxes[allIds.indexOf(cfg.highlightParticle)].checked=true;draw();};}
+if(cfg.regions?.length){
+ const control=document.getElementById('region-control'),selector=document.getElementById('region-selector');
+ control.hidden=false;
+ cfg.regions.forEach((region,index)=>selector.add(new Option(region.label,String(index))));
+ const chooseRegion=()=>{
+  const isolated=selected.size===1&&selected.has(cfg.highlightParticle);
+  const region=cfg.regions[Number(selector.value)];
+  cfg.initialView={...region.view};view={...region.view};drag=null;cfg.highlightParticle=region.particle;
+  const only=document.getElementById('probe-only');only.hidden=false;only.textContent='Only particle '+region.particle;
+  only.onclick=()=>{select('none');selected.add(cfg.highlightParticle);boxes[allIds.indexOf(cfg.highlightParticle)].checked=true;draw();};
+  const zoom=document.getElementById('region-view');zoom.hidden=false;zoom.onclick=()=>{view={...cfg.initialView};drag=null;draw();};
+  // Preserve isolation when moving from one probe's region to another.
+  if(isolated){selected.clear();boxes.forEach(box=>box.checked=false);}
+  selected.add(region.particle);boxes[allIds.indexOf(region.particle)].checked=true;draw();
+ };
+ selector.onchange=chooseRegion;chooseRegion();
+}
 draw();
 </script></html>
