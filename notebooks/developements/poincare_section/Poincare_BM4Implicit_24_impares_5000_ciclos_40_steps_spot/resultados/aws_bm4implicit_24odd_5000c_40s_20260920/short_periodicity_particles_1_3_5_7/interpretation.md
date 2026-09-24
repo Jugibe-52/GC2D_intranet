@@ -1,0 +1,8 @@
+# Short recurring rhythms
+
+- **Particle 1:** recurrent rhythm near **8 cycles**, autocorrelation 0.99095. Mean geometric revolution: **7.842 cycles**, with block means 7.841–7.844. A fixed 8-cycle template trained on the first half has a second-half score of **-0.0022** (1 is perfect; 0 matches a constant baseline). 
+- **Particle 3:** recurrent rhythm near **7 cycles**, autocorrelation 0.99519. Mean geometric revolution: **6.901 cycles**, with block means 6.9–6.902. A fixed 7-cycle template trained on the first half has a second-half score of **0.0002** (1 is perfect; 0 matches a constant baseline). 
+- **Particle 5:** recurrent rhythm near **8 cycles**, autocorrelation 0.99828. Mean geometric revolution: **8 cycles**, with block means 7.997–8. A fixed 8-cycle template trained on the first half has a second-half score of **0.9980** (1 is perfect; 0 matches a constant baseline). 
+- **Particle 7:** recurrent rhythm near **9 cycles**, autocorrelation 0.98942. Mean geometric revolution: **8.869 cycles**, with block means 8.775–9.063. A fixed 9-cycle template trained on the first half has a second-half score of **-0.0223** (1 is perfect; 0 matches a constant baseline). 
+
+Repeated autocorrelation peaks establish a recurring numerical pattern at short lags. A stable noninteger rhythm can gradually slip relative to a fixed integer-cycle template. High template agreement with bounded multiple-lag defects supports a persistent integer-cycle structure, with residual modulation. These diagnostics do not establish an exact physical orbit period; the geometric clock uses interpolated once-per-cycle section positions.

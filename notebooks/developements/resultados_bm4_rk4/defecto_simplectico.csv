@@ -1,0 +1,5 @@
+sistema,método,defecto simpléctico h=0.4
+Oscilador,BM4,1.10809267839608e-17
+Oscilador,RK4,5.575111111124374e-05
+Péndulo,BM4,2.397294773905381e-16
+Péndulo,RK4,1.802525332064262e-05

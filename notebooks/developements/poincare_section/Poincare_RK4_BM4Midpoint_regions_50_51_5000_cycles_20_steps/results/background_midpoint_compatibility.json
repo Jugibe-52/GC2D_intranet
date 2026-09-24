@@ -1,0 +1,7 @@
+{
+  "method": "BM4Midpoint",
+  "particle": 15,
+  "cycles": 10,
+  "max_discrepancy_over_L": 0.0,
+  "interpretation": "Observed short overlap against the saved frozen BM4Midpoint section. This is a compatibility check, not an independent accuracy audit."
+}

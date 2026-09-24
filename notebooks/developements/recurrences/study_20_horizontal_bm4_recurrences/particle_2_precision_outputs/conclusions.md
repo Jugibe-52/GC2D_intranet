@@ -1,0 +1,6 @@
+- **Best same-phase return:** cycle **36**, periodic distance `8.57580768e-03` = `4.54960728e-04 L`.
+- **Selected cycle 36:** original BM4 distance `8.57575830e-03`; reference distance `8.57580768e-03`; reference discrepancy `1.120e-07`.
+- **Closest spatial approach near cycle 36:** time `35.9938483759`, distance `8.32523304e-03`, phase offset `-6.15162412e-03` cycles. Distance decreases by `2.922%` relative to the integer-cycle sample.
+- **Best detected interior spatial minimum in [1, 50]:** time `6.4874010860`, distance `3.04148340e-03`; phase offset `4.87401086e-01` cycles.
+- **Resolution assessment:** the minimum distance exceeds ten times the measured solver discrepancy; its nonzero separation is resolved by this numerical audit.
+- **Interpretation:** a near return is a finite-tolerance observation. The data do not establish an exact return or periodicity. A spatial minimum at noninteger time must also be checked against the forcing phase.

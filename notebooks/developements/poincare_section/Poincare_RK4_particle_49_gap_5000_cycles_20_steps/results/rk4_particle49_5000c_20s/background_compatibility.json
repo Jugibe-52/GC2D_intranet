@@ -1,0 +1,6 @@
+{
+  "particle": 15,
+  "cycles": 25,
+  "max_discrepancy_over_L": 0.0,
+  "interpretation": "Short overlap check against the frozen RK4 record, not an independent accuracy audit."
+}
