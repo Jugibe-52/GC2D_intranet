@@ -1,9 +1,0 @@
-{
-  "stage": "visualize",
-  "run_id": "checkpoint_resume_test",
-  "started_utc": "2026-09-20T15:51:21.201852+00:00",
-  "status": "success",
-  "validation_run": false,
-  "python": "/home/juan/Proyectos/GC2D_intranet/.venv/bin/python",
-  "finished_utc": "2026-09-20T15:51:25.309319+00:00"
-}

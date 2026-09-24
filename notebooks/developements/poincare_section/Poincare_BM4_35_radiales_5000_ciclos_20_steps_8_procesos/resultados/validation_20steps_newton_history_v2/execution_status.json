@@ -1,9 +1,0 @@
-{
-  "stage": "calculate",
-  "run_id": "validation_20steps_newton_history_v2",
-  "started_utc": "2026-09-20T09:06:44.315565+00:00",
-  "status": "success",
-  "validation_run": true,
-  "python": "/home/juan/Proyectos/GC2D_intranet/.venv/bin/python",
-  "finished_utc": "2026-09-20T09:07:21.082057+00:00"
-}

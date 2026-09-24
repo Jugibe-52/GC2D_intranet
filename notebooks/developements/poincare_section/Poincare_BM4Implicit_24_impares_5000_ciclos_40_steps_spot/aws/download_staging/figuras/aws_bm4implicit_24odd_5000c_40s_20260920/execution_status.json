@@ -1,9 +1,0 @@
-{
-  "stage": "visualize",
-  "run_id": "aws_bm4implicit_24odd_5000c_40s_20260920",
-  "started_utc": "2026-09-20T19:37:11.703093+00:00",
-  "status": "success",
-  "validation_run": false,
-  "python": "/home/ubuntu/poincare/Poincare_BM4Implicit_24_impares_5000_ciclos_40_steps_spot/.venv/bin/python",
-  "finished_utc": "2026-09-20T19:37:16.737690+00:00"
-}

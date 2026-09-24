@@ -1,9 +1,0 @@
-{
-  "stage": "visualize",
-  "run_id": "local_rk4_48p_5000c_20s_20260920",
-  "started_utc": "2026-09-20T17:16:18.161652+00:00",
-  "status": "success",
-  "validation_run": false,
-  "python": "/home/juan/Proyectos/GC2D_intranet/.venv/bin/python",
-  "finished_utc": "2026-09-20T17:16:24.266551+00:00"
-}

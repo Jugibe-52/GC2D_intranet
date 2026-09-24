@@ -1,9 +1,0 @@
-{
-  "run_id": "local_rk4_48p_5000c_20s_20260920",
-  "status": "success",
-  "pid": 76065,
-  "started_utc": "2026-09-20T17:06:27.077551+00:00",
-  "processes": 4,
-  "stage": "verified",
-  "finished_utc": "2026-09-20T17:16:25.663579+00:00"
-}
