@@ -16,7 +16,7 @@ from simulation import (
 	BM4Implicit, BM4Midpoint, ExplicitEuler, RK4, GaussLegendre4, SDIRK4, HBVM42,
 	InitialValueProblem, SimulationRequest, simulate,
 )
-from simulation.integration import (
+from integration import (
 	FixedStepController, IntegrationMethod, StepInfo, StepResult,
 	integrate_method,
 )
@@ -68,7 +68,7 @@ class MethodIntegrationTests(unittest.TestCase):
 				self.assertIsNot(run, method)
 				self.assertEqual(events, [])
 				self.assertFalse(run.initial_state.flags.writeable)
-		with patch("simulation.methods.bm4.implicit._solve_reduced_projected_bm4_step", side_effect=AssertionError("Unexpected solve")):
+		with patch("methods.extended.bm4._solve_reduced_projected_bm4_step", side_effect=AssertionError("Unexpected solve")):
 			BM4Implicit().new_run(problem, _request())
 
 	def test_run_advances_and_shadow_samples_do_not_emit_or_accumulate(self) -> None:
@@ -116,7 +116,7 @@ class MethodIntegrationTests(unittest.TestCase):
 					np.testing.assert_equal(plain.diagnostics[key], observed.diagnostics[key])
 
 	def test_unobserved_bm4_does_not_replay_stage_events(self) -> None:
-		from simulation.methods.bm4 import implicit
+		from methods.extended import bm4 as implicit
 		original = implicit._advance_composition
 		def checked(*args, **kwargs):
 			self.assertIsNone(kwargs["stage_observer"])

@@ -19,17 +19,14 @@ from diagnostics import StoredReferenceTrajectory
 from dynamics import GuidingCenterDynamics
 from initial_conditions import GCInitialConfiguration
 from potential import GC2DH5Metadata, Grid, Potential
-from simulation import (
-	ABBA4Implicit,
-	InitialValueProblem,
-	NonlinearSolver,
-	NumericalMethod,
-	ProjectionFormulation,
-	SimulationRequest,
-	Solution,
-	StateExtension,
-	simulate,
-)
+from methods.extended.order4_implicit import ABBA4Implicit
+from contracts.problem import InitialValueProblem
+from methods._nonlinear import NonlinearSolver
+from methods.base import NumericalMethod
+from methods.extended.configuration import ProjectionFormulation, StateExtension
+from contracts.request import SimulationRequest
+from solution import Solution
+from simulation.runner import simulate
 
 from ._trajectory_accuracy import (
 	reference_distance_convention,

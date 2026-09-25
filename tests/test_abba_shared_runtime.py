@@ -12,8 +12,8 @@ from dynamics import GuidingCenterDynamics
 from initial_conditions import GCInitialConfiguration
 from potential import Potential
 from simulation import ABBA2Implicit, ABBA4Implicit, InitialValueProblem, SimulationRequest, simulate
-from simulation.methods._nonlinear import _solve_newton
-from simulation.methods.abba.records import PhysicalProjectionTrace
+from methods._nonlinear import _solve_newton
+from methods.extended.records import PhysicalProjectionTrace
 
 
 def _problem() -> InitialValueProblem:
@@ -85,7 +85,7 @@ class SharedABBARuntimeTests(unittest.TestCase):
 				)
 
 	def test_unobserved_compositions_do_not_construct_events(self) -> None:
-		with patch("simulation.methods.abba.observations.ABBA2ImplicitIntegrationStep",
+		with patch("methods.extended.abba_observations.ABBA2ImplicitIntegrationStep",
 			side_effect=AssertionError("Unexpected observer allocation")):
 			result = simulate(_problem(), ABBA4Implicit(), _request([0.0, 0.04]))
 		self.assertEqual(result.diagnostics["nonlinear_solves_per_step"], 1)

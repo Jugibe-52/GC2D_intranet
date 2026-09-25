@@ -14,13 +14,11 @@ from matplotlib.animation import FuncAnimation
 from dynamics import GuidingCenterDynamics
 from initial_conditions import Area
 from potential import Potential
-from simulation import (
-	BM4Implicit,
-	InitialValueProblem,
-	SimulationRequest,
-	Solution,
-	simulate,
-)
+from methods.extended.bm4 import BM4Implicit
+from contracts.problem import InitialValueProblem
+from contracts.request import SimulationRequest
+from solution import Solution
+from simulation.runner import simulate
 from diagnostics.symplecticity import (
 	GCAreaSymplecticityObserver,
 	GCAreaSymplecticityRecord,

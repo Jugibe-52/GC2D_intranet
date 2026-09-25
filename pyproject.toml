@@ -18,13 +18,18 @@ dependencies = [
 [tool.setuptools]
 package-dir = {"" = "src"}
 include-package-data = true
+py-modules = ["solution"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
 include = [
+	"contracts*",
 	"diagnostics*",
 	"dynamics*",
+	"formulations*",
 	"initial_conditions*",
+	"integration*",
+	"methods*",
 	"potential*",
 	"simulation*",
 	"studies*",

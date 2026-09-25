@@ -15,7 +15,7 @@ from dynamics import GuidingCenterDynamics
 from initial_conditions import GCInitialConfiguration
 from potential import Potential
 from simulation import HBVM42, InitialValueProblem, SimulationRequest, simulate
-from simulation.methods.hbvm.order4 import (
+from methods.hbvm.order4 import (
 	_HBVM42_NODES,
 	_HBVM42_RUNGE_KUTTA_MATRIX,
 	_HBVM42_WEIGHTS,

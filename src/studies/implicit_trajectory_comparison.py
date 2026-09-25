@@ -12,17 +12,15 @@ import numpy as np
 
 from dynamics import GuidingCenterDynamics
 from potential import Potential
-from simulation import (
-	BM4Implicit,
-	ABBA2Implicit,
-	InitialConfiguration,
-	InitialValueProblem,
-	NonlinearSolver,
-	NumericalMethod,
-	SimulationRequest,
-	Solution,
-	simulate,
-)
+from methods.extended.bm4 import BM4Implicit
+from methods.extended.order2_implicit import ABBA2Implicit
+from contracts.configuration import InitialConfiguration
+from contracts.problem import InitialValueProblem
+from methods._nonlinear import NonlinearSolver
+from methods.base import NumericalMethod
+from contracts.request import SimulationRequest
+from solution import Solution
+from simulation.runner import simulate
 
 from ._validation import (
 	integer_ratio,

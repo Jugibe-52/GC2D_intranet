@@ -25,18 +25,16 @@ from diagnostics import (
 from dynamics import GuidingCenterDynamics
 from initial_conditions import GCInitialConfiguration
 from potential import Potential
-from simulation import (
-	ABBA4Implicit,
-	BM4Implicit,
-	ABBA2Implicit,
-	InitialValueProblem,
-	ABBA2Midpoint,
-	NumericalMethod,
-	SimulationRequest,
-	Solution,
-	StepObserver,
-	simulate,
-)
+from methods.extended.order4_implicit import ABBA4Implicit
+from methods.extended.bm4 import BM4Implicit
+from methods.extended.order2_implicit import ABBA2Implicit
+from contracts.problem import InitialValueProblem
+from methods.extended.order2_midpoint import ABBA2Midpoint
+from methods.base import NumericalMethod
+from contracts.request import SimulationRequest
+from solution import Solution
+from contracts.observation import StepObserver
+from simulation.runner import simulate
 from visualization import (
 	TrajectorySymplecticityRecordView,
 	plot_gc_trajectory_points,

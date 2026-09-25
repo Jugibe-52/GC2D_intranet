@@ -12,15 +12,13 @@ import numpy as np
 from dynamics import GuidingCenterDynamics
 from initial_conditions import GCInitialConfiguration
 from potential import Potential
-from simulation import (
-	BM4Implicit,
-	GaussLegendre4,
-	InitialValueProblem,
-	NumericalMethod,
-	SimulationRequest,
-	Solution,
-	simulate,
-)
+from methods.extended.bm4 import BM4Implicit
+from methods.classical.gauss_legendre import GaussLegendre4
+from contracts.problem import InitialValueProblem
+from methods.base import NumericalMethod
+from contracts.request import SimulationRequest
+from solution import Solution
+from simulation.runner import simulate
 
 from ._gauss_legendre4_common import (
 	AdaptiveReference,

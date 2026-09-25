@@ -11,7 +11,12 @@ from diagnostics import GCGeneralizedEnergyObserver, StoredReferenceTrajectory
 from dynamics import GuidingCenterDynamics
 from initial_conditions import GCInitialConfiguration
 from potential import Potential
-from simulation import BM4Implicit, RK4, InitialValueProblem, NumericalMethod, SimulationRequest, simulate
+from methods.extended.bm4 import BM4Implicit
+from methods.classical.rk4 import RK4
+from contracts.problem import InitialValueProblem
+from methods.base import NumericalMethod
+from contracts.request import SimulationRequest
+from simulation.runner import simulate
 from ._trajectory_distances import particle_distances
 from ._validation import integer_ratio
 from .reference_trajectory import potential_fingerprint
@@ -365,7 +370,7 @@ def audit_initial_step_geometry(
     """
     from diagnostics.jacobians import central_difference_jacobian
     from diagnostics.symplecticity.observer import gc_physical_symplectic_form
-    from simulation import IntegrationStep, ImplicitBM4IntegrationStep
+    from contracts.observation import IntegrationStep, ImplicitBM4IntegrationStep
 
     dynamics = GuidingCenterDynamics(potential, rho=config.rho)
     problem = InitialValueProblem(dynamics, configuration)

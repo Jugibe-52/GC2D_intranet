@@ -80,11 +80,30 @@ are recorded as metadata. Optional observers retain physical endpoints and
 twelve base-stage snapshots, allowing an independent energy reconstruction.
 
 \section{Implementation correspondence}
-The method is in \path{src/simulation/methods/bm4/implicit.py};
-\texttt{\_core.py} owns the coefficient schedule and twelve-stage traversal.
-See \texttt{implicit-reduced.tex} for the reduced-projection derivation and
-\texttt{../simulation/} for runtime contracts.
+The public class is in \path{src/methods/extended/bm4.py}.
+Its twelve-stage recipe is defined in \texttt{composition.py}, and its
+reduced equation uses \texttt{projection.py}. See \texttt{implicit-reduced.tex}
+for the projection derivation. The former BM4 import adapters have been removed.
 
+The public names, constructor defaults and exports from \texttt{simulation}
+remain unchanged. Internal imports use the defining modules; old import
+adapters have been removed. The ordinary implicit path is \texttt{advance}, \texttt{solve\_projection},
+\texttt{compose}, then \texttt{direct\_map} or \texttt{adjoint\_map}.
+Arithmetic midpoint variants use one explicit average instead of a nonlinear
+projection. Adjoint stages evaluate at the start of their signed substep;
+direct stages evaluate at its end.
+
+Newton and Broyden share the spatial equations and convergence services.
+Exact particle-block tangents, passive energy and optional observation use
+retained shear inputs; energy is evaluated only after accepting the spatial
+map, with the existing factor $1/2$ for physical $\kappa$. Time and momentum
+never enter the spatial root. The new internal family name does not enable
+the retired full time/momentum projection.
+
+Current module responsibilities and diagrams are documented in
+\path{docs/models/extended/simulation/extended-simulation-architecture.md}.
+
+\clearpage
 \section{Four state formulations and passive energy tracking}
 For one planar particle the supported internal representations are
 \[
@@ -122,11 +141,12 @@ $\kappa$ is projected. The former eight-component projection is retired;
 
 Dynamics, formulation, method and integration remain separate. The shared
 state classes own layouts, diagonal embedding and history extraction in
-\begin{quote}\small\path{src/simulation/formulations/state.py}\end{quote}
+\begin{quote}\small\path{src/formulations/state.py}\end{quote}
 Each integration initializes a fresh method instance. Observers receive physical
 states; energy histories are in \texttt{Solution.diagnostics}.
 The \texttt{extended\_time} history has shape $(N,n_{\rm samples})$. Fixed-step shadow
 samples leave main states and counters unchanged. Adaptive energy quadrature
 uses accepted dense output; its backend state and Jacobian remain physical.
+
 
 \end{document}

@@ -17,15 +17,13 @@ from diagnostics import (
 )
 from dynamics import GuidingCenterDynamics
 from potential import Potential
-from simulation import (
-	BM4Implicit,
-	InitialConfiguration,
-	InitialValueProblem,
-	NonlinearSolver,
-	SimulationRequest,
-	Solution,
-	simulate,
-)
+from methods.extended.bm4 import BM4Implicit
+from contracts.configuration import InitialConfiguration
+from contracts.problem import InitialValueProblem
+from methods._nonlinear import NonlinearSolver
+from contracts.request import SimulationRequest
+from solution import Solution
+from simulation.runner import simulate
 
 from ._validation import nonnegative_finite, positive_finite, positive_integer
 

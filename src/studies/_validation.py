@@ -58,10 +58,23 @@ def integer_ratio(numerator: float, denominator: float, name: str) -> int:
 	return rounded
 
 
+def refinement_steps(steps: tuple[float, ...]) -> tuple[float, ...]:
+	"""Normalize distinct positive steps ordered from coarsest to finest."""
+	values = tuple(float(step) for step in steps)
+	if not values or any(not np.isfinite(step) or step <= 0.0 for step in values):
+		raise ValueError("`steps` must contain positive finite values.")
+	if len(set(values)) != len(values):
+		raise ValueError("`steps` must not contain duplicates.")
+	if any(coarse <= fine for coarse, fine in zip(values, values[1:])):
+		raise ValueError("`steps` must be ordered from coarsest to finest.")
+	return values
+
+
 __all__ = [
 	"integer_ratio",
 	"nonnegative_finite",
 	"positive_finite",
 	"positive_integer",
+	"refinement_steps",
 	"resolve_rho",
 ]

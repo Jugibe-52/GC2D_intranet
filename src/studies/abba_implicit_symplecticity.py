@@ -13,11 +13,8 @@ import numpy as np
 from diagnostics.symplecticity import StepJacobianMethod
 from initial_conditions import Area
 from potential import Potential
-from simulation import (
-	ABBA_PROJECTION_FORMULATIONS,
-	ABBA2Implicit,
-	ProjectionFormulation,
-)
+from methods.extended.configuration import ABBA_PROJECTION_FORMULATIONS, ProjectionFormulation
+from methods.extended.order2_implicit import ABBA2Implicit
 
 from ._gc_symplecticity import (
 	_run_gc_symplecticity_observers,

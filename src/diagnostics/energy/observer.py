@@ -7,7 +7,7 @@ from dataclasses import dataclass
 import numpy as np
 
 from dynamics import GuidingCenterDynamics
-from simulation import (
+from contracts.observation import (
 	ABBA4ImplicitIntegrationStep,
 	ABBA4ImplicitSingleProjectionIntegrationStep,
 	UnprojectedABBAIntegrationStep,
@@ -15,8 +15,8 @@ from simulation import (
 	ImplicitBM4IntegrationStep,
 	IntegrationStage,
 	IntegrationStep,
-	gc_coupling_matrix,
 )
+from formulations.gc import gc_coupling_matrix
 
 
 def _scalar_value(value: np.ndarray, name: str) -> float:

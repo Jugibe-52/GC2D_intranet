@@ -15,6 +15,26 @@ reviews unless requested. Run the narrowest meaningful checks and do not repeat
 successful checks unless subsequent changes can affect them. Keep progress updates
 brief and final responses concise unless the user asks for detail.
 
+During implementation, run focused checks for the changed code. Run the full test
+suite once the change is stable, when its scope warrants it, and rerun only checks
+affected by later edits. Prefer concise test output; inspect detailed logs when a
+check fails. Test execution time does not itself use model tokens, but repeated
+tool calls and verbose outputs can increase token use.
+
+# Public API and imports
+
+Keep package exports explicit in `__init__.py` and `__all__`; do not use wildcard
+imports, dynamic module aliases, or import hooks to preserve removed paths.
+Each class and function has one canonical implementation. Public facades may
+re-export it, while internal consumers import from its defining module.
+Use `simulation.runner` when studies need the execution entry point, and import
+shared types from `contracts` submodules or `solution`.
+
+Preserve established public names unless a rename is requested. When moving
+modules, migrate supported consumers and tests before deleting the old adapters;
+do not leave compatibility trees for private or retired paths. Document supported
+public imports and any removed routes. The notebook scope policy still applies.
+
 # Notebook execution policy
 
 Do not execute long-running notebooks end to end during routine validation.
@@ -42,10 +62,13 @@ Put reusable plotting and notebook display helpers in
 mutation, observer lifecycle management, result-dictionary assembly, or
 presentation helpers across notebooks.
 
-Keep generic geometry, dynamics, potentials, numerical methods, and result
-behavior in `src/initial_conditions/`, `src/dynamics/`, `src/potential/`, and
-`src/simulation/`; studies should compose those APIs rather than reimplement
-them. A notebook-local helper is appropriate only when its behavior is unique
+Keep generic geometry, dynamics, potentials, numerical formulations, methods,
+integration, and result behavior in `src/initial_conditions/`, `src/dynamics/`,
+`src/potential/`, `src/formulations/`, `src/methods/`, `src/integration/`, and
+`src/solution.py`. Keep shared numerical interfaces in `src/contracts/` and
+the public execution facade in `src/simulation/`. Studies should compose those
+APIs rather than reimplement them. A notebook-local helper is appropriate only
+when its behavior is unique
 to that study and would not provide stable reusable composition.
 
 ## Standard saved radial trajectory reference

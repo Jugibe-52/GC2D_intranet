@@ -17,7 +17,7 @@ from matplotlib.figure import Figure
 
 from initial_conditions import Area
 from potential import Potential
-from simulation import Solution
+from solution import Solution
 
 from ._validation import (
 	integer_ratio,

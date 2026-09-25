@@ -9,24 +9,25 @@ from typing import Any
 
 import numpy as np
 
+from diagnostics._validation import positive_integer as _positive_integer
+
 from dynamics import GuidingCenterJacobianSystem
-from simulation import (
-	ABBA_PROJECTION_FORMULATIONS,
+from methods.extended.configuration import ABBA_PROJECTION_FORMULATIONS
+from contracts.observation import (
 	ABBA4ImplicitSingleProjectionIntegrationStep,
 	ABBA2ImplicitIntegrationStep,
 	IntegrationStep,
-	NONLINEAR_SOLVERS,
-	NonlinearSolver,
 )
-from simulation.methods._nonlinear import SolverOptions
-from simulation.methods.abba._configuration import _validate_projection_formulation
-from simulation.methods.abba.observations import bind_event_builder
-from simulation.methods.abba.records import StepResult
-from simulation.methods.abba.steps import bind_physical_projection, solve_outer_projection_step
-from simulation.methods.abba.projection_reduced import (
+from methods._nonlinear import NONLINEAR_SOLVERS, NonlinearSolver
+from methods._nonlinear import SolverOptions
+from methods.extended.configuration import _validate_projection_formulation
+from methods.extended.abba_observations import bind_event_builder
+from methods.extended.records import StepResult
+from methods.extended.abba_steps import bind_physical_projection, solve_outer_projection_step
+from methods.extended.abba_reduced import (
 	_solve_reduced_multiplier_step,
 )
-from simulation.methods.abba.projection_simultaneous import (
+from methods.extended.abba_simultaneous import (
 	_solve_simultaneous_state_multiplier_step,
 )
 
@@ -115,16 +116,6 @@ def _positive_finite(value: float, name: str) -> float:
 		raise ValueError(f"`{name}` must be positive and finite.")
 	return result
 
-
-def _positive_integer(value: int, name: str) -> int:
-	"""Normalize one strictly positive integer control."""
-	if (
-		isinstance(value, (bool, np.bool_))
-		or not isinstance(value, (int, np.integer))
-		or value < 1
-	):
-		raise ValueError(f"`{name}` must be a positive integer.")
-	return int(value)
 
 
 def _finite_vector(value: np.ndarray, shape: tuple[int, ...], name: str) -> np.ndarray:

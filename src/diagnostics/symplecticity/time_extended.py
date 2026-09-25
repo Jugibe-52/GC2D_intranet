@@ -8,15 +8,15 @@ from typing import Callable
 import numpy as np
 
 from dynamics import GuidingCenterDynamics
-from simulation import (
+from contracts.observation import (
 	ABBA4ImplicitIntegrationStep,
 	ABBA4ImplicitSingleProjectionIntegrationStep,
 	UnprojectedABBAIntegrationStep,
 	ABBA2ImplicitIntegrationStep,
 	ImplicitBM4IntegrationStep,
 	IntegrationStep,
-	gc_coupling_matrix,
 )
+from formulations.gc import gc_coupling_matrix
 
 from diagnostics.jacobians import central_difference_jacobian
 

@@ -7,8 +7,8 @@ import numpy as np
 from diagnostics.abba_jacobian import particle_jacobian_blocks
 from diagnostics.jacobians import implicit_function_step_jacobian
 from dynamics import GuidingCenterJacobianSystem
-from simulation import (
-	ABBA_PROJECTION_FORMULATIONS,
+from methods.extended.configuration import ABBA_PROJECTION_FORMULATIONS
+from contracts.observation import (
 	ABBA4ImplicitSingleProjectionIntegrationStep,
 	ABBA4ImplicitIntegrationStep,
 	ABBA2ImplicitIntegrationStep,
@@ -16,8 +16,8 @@ from simulation import (
 	IntegrationStage,
 	IntegrationStep,
 	UnprojectedABBAIntegrationStep,
-	gc_coupling_matrix,
 )
+from formulations.gc import gc_coupling_matrix
 
 
 _BM4_STAGE_COUNT = 12

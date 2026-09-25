@@ -10,7 +10,7 @@ from typing import Any, Mapping
 import numpy as np
 
 from initial_conditions import Area
-from simulation import ABBA2ImplicitIntegrationStep, IntegrationStep
+from contracts.observation import ABBA2ImplicitIntegrationStep, IntegrationStep
 from diagnostics.output import write_diagnostic_block
 
 from diagnostics.jacobians import (

@@ -9,7 +9,9 @@ from typing import Any, ClassVar, Mapping, Self
 
 import numpy as np
 
-from simulation import (
+from diagnostics._validation import positive_integer as _positive_integer
+
+from contracts.observation import (
 	ABBA2ImplicitIntegrationStep,
 	ImplicitBM4IntegrationStep,
 	ImplicitIntegrationStep,
@@ -77,16 +79,6 @@ ImplicitBM4IterationRecord = ImplicitIterationRecord
 ImplicitABBAIterationOutputBlock = ImplicitIterationOutputBlock
 ImplicitBM4IterationOutputBlock = ImplicitIterationOutputBlock
 
-
-def _positive_integer(value: int, name: str) -> int:
-	"""Normalize one positive integer observer control."""
-	if (
-		isinstance(value, (bool, np.bool_))
-		or not isinstance(value, (int, np.integer))
-		or value < 1
-	):
-		raise ValueError(f"`{name}` must be a positive integer.")
-	return int(value)
 
 
 def _record_from_step(

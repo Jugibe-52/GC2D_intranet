@@ -12,10 +12,8 @@ from matplotlib.figure import Figure
 
 from initial_conditions import Area
 from potential import Potential
-from simulation import (
-	ABBA2Midpoint,
-	Solution,
-)
+from methods.extended.order2_midpoint import ABBA2Midpoint
+from solution import Solution
 
 from ._gc_symplecticity import (
 	GCSymplecticityConfig,

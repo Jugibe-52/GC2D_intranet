@@ -8,7 +8,7 @@ from typing import Literal, TypeAlias
 import numpy as np
 
 from dynamics import GuidingCenterJacobianSystem
-from simulation.observation import (
+from contracts.observation import (
 	ABBA2ImplicitIntegrationStep,
 	GaussLegendre4IntegrationStep,
 	IntegrationStep,

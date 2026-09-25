@@ -65,8 +65,9 @@ class _TimePolynomialDynamics:
 class _FixedOutputMethod:
 	"""Minimal third-party-like method returning a predetermined history."""
 
-	def __init__(self, states: np.ndarray) -> None:
+	def __init__(self, states: np.ndarray, times: np.ndarray | None = None) -> None:
 		self.states = states
+		self.times = times
 
 	def integrate(
 		self,
@@ -74,7 +75,7 @@ class _FixedOutputMethod:
 		request: SimulationRequest,
 	) -> SimpleNamespace:
 		return SimpleNamespace(
-			t=request.output_times,
+			t=request.output_times if self.times is None else self.times,
 			states=self.states,
 			diagnostics={},
 		)
@@ -327,6 +328,11 @@ class ExtensibleArchitectureTests(unittest.TestCase):
 			sample_count=2,
 		)
 		invalid_histories = (
+			np.asarray(1.0),
+			np.asarray([1.0, 0.0]),
+			np.zeros((2, 0)),
+			np.zeros((2, 3)),
+			np.zeros((3, 2)),
 			np.zeros((4, 2)),
 			np.asarray([[1.0, np.nan], [0.0, 0.0]]),
 			np.asarray([[2.0, 1.0], [0.0, 0.0]]),
@@ -339,6 +345,51 @@ class ExtensibleArchitectureTests(unittest.TestCase):
 						_FixedOutputMethod(states),
 						request,
 					)
+
+	def test_runner_rejects_output_times_that_do_not_match_the_request(self) -> None:
+		problem = InitialValueProblem(
+			_RotationDynamics(), GCInitialConfiguration(np.asarray([1.0, 0.0])),
+		)
+		request = SimulationRequest.uniform(t_span=(0.0, 0.1), max_step=0.1, sample_count=2)
+		states = np.asarray([[1.0, 0.9], [0.0, -0.1]])
+		for times in (
+			np.asarray([0.0, 0.2]),
+			np.asarray([0.1, 0.0]),
+			np.asarray([0.0, np.nan]),
+			np.asarray([[0.0, 0.1]]),
+		):
+			for entry in (simulate, SimulationRunner().simulate):
+				with self.subTest(times=times, entry=entry):
+					with self.assertRaises(ValueError):
+						entry(problem, _FixedOutputMethod(states, times), request)
+
+	def test_gc_and_fc_split_maps_preserve_physical_motion_and_reverse_momentum(self) -> None:
+		potential = deterministic_potential()
+		cases = (
+			(
+				GCExtendedFormulation(),
+				GuidingCenterDynamics(potential, rho=0.05),
+				GCInitialConfiguration(np.asarray([1.0, 1.1, 1.2, 1.3])),
+			),
+			(
+				FCSplitFormulation(),
+				FullCyclotronDynamics(potential, rho=0.2, eta=0.1),
+				FCInitialConfiguration(np.asarray([1.0, 1.1, 1.2, 1.3, 0.4, 0.3, -0.3, -0.2])),
+			),
+		)
+		for formulation, dynamics, source in cases:
+			problem = InitialValueProblem(dynamics, source)
+			tracked = formulation.prepare(problem, track_energy=True)
+			physical = formulation.prepare(problem, track_energy=False)
+			for forward, reverse in (("direct_map", "adjoint_map"), ("adjoint_map", "direct_map")):
+				with self.subTest(formulation=type(formulation).__name__, forward=forward):
+					initial = tracked.initial_internal_state
+					advanced = getattr(tracked, forward)(0.01, 0.23, initial)
+					untracked = getattr(physical, forward)(0.01, 0.23, physical.initial_internal_state)
+					np.testing.assert_array_equal(advanced[:untracked.size], untracked)
+					self.assertTrue(np.any(advanced[untracked.size:] != 0.0))
+					restored = getattr(tracked, reverse)(-0.01, 0.23, advanced)
+					np.testing.assert_allclose(restored, initial, rtol=0, atol=2e-14)
 
 	def test_request_revalidates_normalized_endpoints(self) -> None:
 		with self.assertRaises(ValueError):

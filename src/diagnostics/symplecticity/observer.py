@@ -9,7 +9,7 @@ from typing import Any, Mapping
 
 import numpy as np
 
-from simulation.observation import IntegrationStage
+from contracts.observation import IntegrationStage
 from diagnostics.output import write_diagnostic_block
 
 from diagnostics.jacobians import central_difference_jacobian

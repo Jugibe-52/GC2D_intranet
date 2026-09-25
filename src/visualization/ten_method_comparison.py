@@ -15,7 +15,7 @@ from matplotlib.lines import Line2D
 from matplotlib.ticker import MaxNLocator
 
 from potential import Potential
-from simulation import Solution
+from solution import Solution
 
 from .particles import _field_normalization, _frame_indices
 

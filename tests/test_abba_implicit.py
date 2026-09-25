@@ -23,14 +23,14 @@ from simulation import (
 	SimulationRequest,
 	simulate,
 )
-from simulation.methods.abba._projection_common import (
+from methods.extended.abba_maps import (
 	_differentiate_stages,
 	_evaluate_displaced_stages,
 )
-from simulation.methods.abba._projection_reduced import (
+from methods.extended.abba_reduced import (
 	_solve_reduced_multiplier_step,
 )
-from simulation.methods.abba._projection_simultaneous import (
+from methods.extended.abba_simultaneous import (
 	_simultaneous_newton_jacobian,
 	_simultaneous_residual_blocks,
 	_solve_simultaneous_state_multiplier_step,

@@ -1,0 +1,164 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[english]{babel}
+\usepackage{lmodern,microtype,amsmath,amssymb,booktabs,geometry,xcolor,fancyhdr}
+\usepackage[hidelinks]{hyperref}
+\geometry{margin=2.3cm,headheight=14pt}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0.4em}
+\setlength{\emergencystretch}{3em}
+\definecolor{gcblue}{RGB}{34,73,110}
+\pagestyle{fancy}\fancyhf{}
+\fancyhead[L]{\small GC2D: shared extended-space implementation}
+\fancyhead[R]{\small Numerical architecture}\fancyfoot[C]{\thepage}
+\newcommand{\R}{\mathbb{R}}
+\begin{document}
+\begin{center}
+{\LARGE\bfseries\color{gcblue}ABBA and BM4 in Extended Space}\par
+\vspace{0.35em}
+{\large Common composition, spatial projection and passive energy}
+\end{center}
+
+\section{Scope and unchanged public methods}
+The directory \path{src/methods/extended/} contains the common
+implementation of the existing ABBA and BM4 methods. It introduces no public
+method named Extended. Public class names, constructor defaults, exports from
+\texttt{simulation}, observation records and diagnostic keys are retained.
+Internal imports use the defining modules. Old ABBA and BM4 import adapters
+and historical \texttt{simulation.methods} routes have been removed.
+
+For $N$ independent planar particles, the physical state $z\in\R^{2N}$ is
+packed in component-major order. The splitting acts on two copies
+$Y=(u,v)\in\R^{4N}$. Accepted copies coincide. Optional energy tracking adds
+$N$ time entries and $N$ physical conjugate momenta $\kappa$, giving a
+$6N$-component accepted internal workspace. These auxiliary variables never
+enter a spatial projection equation. Physical output remains in $\R^{2N}$.
+
+\section{Direct and adjoint compositions}
+Let $\chi_s$ denote a first-order map on the extended spatial workspace, with
+adjoint $\chi_s^*=\chi_{-s}^{-1}$, including the appropriate time translation
+for nonautonomous dynamics. A recipe with $2r$ stages is
+\[
+ \Psi_h=\chi_{b_{2r}h}\circ\chi^*_{b_{2r-1}h}\circ\cdots
+          \circ\chi_{b_2h}\circ\chi^*_{b_1h}.
+\]
+In execution order the stages alternate adjoint, direct. The weights obey
+$b_j=b_{2r+1-j}$ and $\sum_j b_j=1$. Reflection exchanges each map with its
+adjoint. These properties are checked by the recipe constructor; additional
+order conditions remain necessary for higher-order accuracy.
+
+With stage clock $\tau$ and signed duration $s=b_jh$, the adjoint evaluates at
+$\tau$, the direct map at $\tau+s$, and the clock subsequently becomes
+$\tau+s$. Negative coefficients reverse the clock as well as the subflow.
+For uncoupled GC maps, the pair with weights $(1/2,1/2)$ reproduces the
+endpoint-time A--B--B--A construction. Each direct or adjoint map contains two
+spatial shears. BM4 can additionally apply the existing exact harmonic
+coupling of the two spatial copies, in reversed operation order for the
+adjoint.
+
+ABBA4 uses three unprojected ABBA pairs scaled by
+\[
+ \gamma=\frac{1}{2-2^{1/3}},\qquad
+ \delta=-\frac{2^{1/3}}{2-2^{1/3}},\qquad
+ (\gamma,\delta,\gamma).
+\]
+Its six direct/adjoint weights are
+$(\gamma/2,\gamma/2,\delta/2,\delta/2,\gamma/2,\gamma/2)$.
+BM4 retains its twelve mirrored weights and its own fourth-order recipe.
+ABBA6 retains seven \emph{projected} ABBA2 steps with the existing Yoshida
+weights. A single projection around fourteen unprojected stages would be a
+different method and is not introduced by this refactoring.
+
+\clearpage
+\section{One common spatial projection equation}
+Write $m=2N$, $Ez=(z,z)$, $G=[I,-I]$ and $N_0=G^{\mathsf T}$. The reduced
+Hairer projection finds $\mu\in\R^m$ such that
+\[
+ r(\mu)=G\Psi_h(Ez+N_0\mu)+2\mu=0.
+\]
+After convergence the two corrected outputs are averaged. With
+$P=\tfrac12[I,I]$, the accepted state is
+\[
+ z_+=P\bigl(\Psi_h(Ez+N_0\mu)+N_0\mu\bigr).
+\]
+The same equation applies to ABBA2, the complete ABBA4 composition, and BM4;
+only $\Psi_h$ changes. ABBA6 solves it separately around each base pair.
+
+The simultaneous ABBA formulation solves for $(u_+,v_+,\mu)\in\R^{3m}$:
+\[
+ \begin{pmatrix}
+ u_+-\mu-[\Psi_h(Ez+N_0\mu)]_u\\
+ v_++\mu-[\Psi_h(Ez+N_0\mu)]_v\\
+ u_+-v_+
+ \end{pmatrix}=0.
+\]
+Arithmetic midpoint variants instead start from $Ez$, apply the complete
+recipe, and average once. They do not solve a nonlinear equation; arithmetic
+projection does not imply exact symplecticity or reversibility.
+
+\section{Nonlinear solution and exact tangents}
+All spatial roots use the unchanged stopping threshold
+\[
+ \mathrm{atol}+\mathrm{rtol}\max(1,\|z\|_\infty).
+\]
+Newton and good Broyden share the convergence machinery in
+\path{src/methods/_nonlinear.py}. Broyden's initial reduced
+Jacobian is $4I$, the exact zero-step value of $Dr$. The simultaneous
+zero-step block matrix is
+\[
+ \begin{pmatrix} I_{2m}&-2N_0\\G&0\end{pmatrix}.
+\]
+Broyden subsequently uses residual secants and evaluates no analytic
+Jacobian.
+
+If $M=D\Psi_h$, Newton's reduced Jacobian is $GMN_0+2I$. The common
+composition retains the input to each spatial shear. Exact stage tangents
+are evaluated at those inputs and multiplied in execution order,
+$M=M_{2r}\cdots M_1$, without replaying vector-field stages.
+Independence of the particles gives $4\times4$ blocks for $M$, $2\times2$
+reduced Newton blocks, and $6\times6$ simultaneous blocks. BM4 also retains
+its optional dense centered-difference differentiation of the complete map.
+
+\clearpage
+\section{Passive energy from accepted stages}
+The dynamics supply $H(t,z)$ and $-\partial_tH(t,z)$. For the accepted spatial
+trace, let $(t_j,s_j,z_j)$ denote the evaluation time, signed duration and
+physical source state of each individual shear. The shared quadrature is
+\[
+ \Delta\kappa=\frac12\sum_j s_j\,[-\partial_tH(t_j,z_j)].
+\]
+There are four shear points for an ABBA2 pair, twelve for ABBA4 and
+24 for BM4. The factor $1/2$ converts summed doubled momentum to the
+physical variable $\kappa$. Spatial harmonic coupling does not change this
+passive accumulator. Energy derivatives are evaluated only after the spatial
+root converges, from its retained trace; trial roots do not evaluate energy.
+The accepted diagnostic is
+\[
+ H(t_n,z_n)+\kappa_n-H(t_0,z_0),\qquad \kappa_0=0.
+\]
+This is an energy-balance diagnostic, not a claim that the time-dependent
+physical Hamiltonian is conserved. Tracking does not modify spatial states,
+nonlinear unknown dimensions or stopping scales.
+
+\section{Execution and compatibility}
+Initialization binds the method's recipe and projection options once. The
+ordinary implicit execution is
+\[
+ \texttt{advance}\;\longrightarrow\;\texttt{solve\_projection}
+ \;\longrightarrow\;\texttt{compose}
+ \;\longrightarrow\;\texttt{direct\_map / adjoint\_map}.
+\]
+ABBA6 repeats its complete projected-pair operation seven times. The general
+integration coordinator remains responsible for main steps, saved times,
+shadow output samples, collection and observer dispatch. Observers receive
+independent snapshots in the existing public event types; BM4 events reuse
+accepted traces without repeating the spatial composition.
+
+Current diagrams and module responsibilities are documented in
+\path{docs/models/extended/simulation/extended-simulation-architecture.md}.
+Tests verify public identity, coefficient and projection controls, signed
+nonautonomous maps, exact tangents, passive tracking and unchanged numerical
+contracts. Floating-point roundoff differences can arise from equivalent
+algebraic evaluation order; no mathematical recipe is changed.
+\end{document}

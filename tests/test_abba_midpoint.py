@@ -19,7 +19,7 @@ from simulation import (
 	SimulationRequest,
 	simulate,
 )
-from simulation.methods.abba.order2_midpoint import _midpoint_abba_step
+from methods.extended.order2_midpoint import _midpoint_abba_step
 from studies import (
 	ABBA2MidpointSymplecticityConfig,
 	RandomPotentialConfig,

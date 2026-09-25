@@ -7,7 +7,12 @@ grouped by responsibility:
 - `potential`: GC2D HDF5 imports and periodic electrostatic fields;
 - `dynamics`: guiding-center and full-cyclotron equations;
 - `initial_conditions`: state layouts and initial geometry;
-- `simulation`: numerical formulations, methods, requests, and results;
+- `contracts`: shared problem, request, state-layout, step, and observation types;
+- `formulations`: numerical coordinates and split maps;
+- `methods`: numerical methods, including the shared `extended` family;
+- `integration`: step scheduling, sampling, and collection;
+- `simulation`: public execution facade;
+- `solution.py`: immutable computed trajectories;
 - `diagnostics`: opt-in numerical observers and persistence;
 - `studies`: reusable experiment composition;
 - `visualization`: optional Matplotlib presentation.
@@ -19,7 +24,7 @@ algorithm, temporal request, and computed result separate:
 Potential -> Dynamics --\
                        +-> InitialValueProblem --\
 InitialConfiguration -/                         \
-                                                  -> SimulationRunner -> Solution
+                                                  -> simulate -> Solution
 NumericalMethod ---------------------------------/
 SimulationRequest -------------------------------/
 ```
@@ -27,6 +32,22 @@ SimulationRequest -------------------------------/
 The [common integration architecture](docs/simulation/integration-architecture.md)
 shows the complete six-phase lifecycle, shared by all 13 methods. Each model
 also has its own detailed diagram in the [method catalog](docs/models/README.md).
+In `src/`, `contracts/` holds shared input and step types, `formulations/`
+defines numerical state representations, `methods/` implements steps, and
+`integration/` schedules and collects them. `simulation/` remains the public
+execution facade; `solution.py` owns the returned result. Initial geometry
+stays in `initial_conditions/`.
+
+Public imports such as `from simulation import ABBA4Implicit, BM4Implicit,
+simulate` keep their established names. Package exports are explicit; internal
+code imports from the defining modules. The former `simulation.methods.*`,
+`simulation.formulations.*`, `methods.abba.*`, and `methods.bm4.*` routes have
+been removed. See the [import policy and migration table](docs/simulation/integration-architecture.md#public-api-and-imports)
+for canonical paths.
+
+The public `SimulationRunner.simulate` method delegates to `simulate` for callers
+using the class interface. `Solution` checks array structure and owns immutable
+copies; `simulate` checks agreement with the requested times and initial state.
 
 `Solution` is an immutable computed trajectory. Its initial configuration is
 available as `solution.source`, while diagnostics are attached as read-only
@@ -596,3 +617,10 @@ python examples/gc_orbit.py
 python examples/projected_abba.py
 python -m build
 ```
+
+### Shared ABBA/BM4 implementation
+
+ABBA and BM4 retain their public names and exports from `simulation` and share the internal
+`src/methods/extended/` engine for signed direct/adjoint composition,
+spatial projection, analytic tangents and passive energy. See the
+[family architecture and diagram](docs/models/extended/simulation/extended-simulation-architecture.md).

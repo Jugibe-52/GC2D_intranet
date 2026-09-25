@@ -3,7 +3,11 @@
 from dataclasses import dataclass, replace
 import numpy as np
 from diagnostics.bm4_vectors import BM4VectorObserver
-from simulation import BM4Implicit, InitialValueProblem, SimulationRequest, Solution, simulate
+from methods.extended.bm4 import BM4Implicit
+from contracts.problem import InitialValueProblem
+from contracts.request import SimulationRequest
+from solution import Solution
+from simulation.runner import simulate
 
 
 def vector_angles(vectors: np.ndarray, floor: float) -> tuple[np.ndarray, np.ndarray]:

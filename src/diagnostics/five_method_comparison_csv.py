@@ -16,7 +16,7 @@ from typing import Any, TYPE_CHECKING
 import numpy as np
 
 from initial_conditions import GCInitialConfiguration
-from simulation import Solution
+from solution import Solution
 
 if TYPE_CHECKING:
 	from studies import FiveMethodComparisonResult

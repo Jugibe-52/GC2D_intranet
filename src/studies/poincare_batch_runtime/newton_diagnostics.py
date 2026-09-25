@@ -6,6 +6,9 @@ import gzip
 import inspect
 import os
 import textwrap
+from collections.abc import Iterator, Callable
+from types import ModuleType
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -44,6 +47,47 @@ class NewtonHistory:
 
 
 @contextmanager
+def _observe_shared_newton(module: ModuleType, history: NewtonHistory) -> Iterator[None]:
+    """Observe the common residual callback without copying solver source code."""
+    original = getattr(module, '_solve_newton')
+
+    def observed_solve(
+        evaluate: Callable[[np.ndarray], tuple[np.ndarray, Any]],
+        initial: np.ndarray, update: Callable[..., np.ndarray], **options: Any,
+    ) -> Any:
+        # The spatial projection callback owns the step clock and the reduced
+        # or simultaneous layout. Reading its closure does not evaluate a map.
+        values = inspect.getclosurevars(evaluate).nonlocals
+        time, step = values['t'], values['h']
+        size = values['size']
+        simultaneous = values['simultaneous']
+        iteration = 0
+
+        def record(unknown: np.ndarray, residual: np.ndarray) -> None:
+            nonlocal iteration
+            multiplier = unknown[2 * size:] if simultaneous else unknown
+            history.record(iteration, float(np.linalg.norm(residual, ord=np.inf)),
+                           options['tolerance'], multiplier, time, step)
+            iteration += 1
+
+        def observed_residual(unknown: np.ndarray) -> tuple[np.ndarray, Any]:
+            residual, payload = evaluate(unknown)
+            record(unknown, residual)
+            return residual, payload
+
+        cached = options.get('initial_evaluation')
+        if cached is not None:
+            record(initial, cached[0])
+        return original(observed_residual, initial, update, **options)
+
+    setattr(module, '_solve_newton', observed_solve)
+    try:
+        yield
+    finally:
+        setattr(module, '_solve_newton', original)
+
+
+@contextmanager
 def observe_newton(expected_steps, progress_every=1000):
     """Add one observational callback to a private copy of the frozen solver.
 
@@ -52,7 +96,18 @@ def observe_newton(expected_steps, progress_every=1000):
     multipliers. It neither evaluates the field nor modifies solver state.
     Each spawned process owns its callback; restoration also occurs on failure.
     """
-    import simulation.methods.bm4.implicit as module
+    import methods.extended.bm4 as module
+
+    # Current runs use the common projection engine. Frozen historical source
+    # snapshots still use the source-preserving adapter below.
+    shared = getattr(module, 'solve_projection', None)
+    if shared is not None:
+        projection_module = inspect.getmodule(shared)
+        assert projection_module is not None
+        history = NewtonHistory(expected_steps, progress_every)
+        with _observe_shared_newton(projection_module, history):
+            yield history
+        return
 
     original = module._solve_reduced_projected_bm4_step
     tree = ast.parse(textwrap.dedent(inspect.getsource(original)))

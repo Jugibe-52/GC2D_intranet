@@ -10,7 +10,7 @@ import numpy as np
 
 from initial_conditions import Area
 from potential import Potential
-from simulation import BM4Implicit
+from methods.extended.bm4 import BM4Implicit
 
 from ._gc_symplecticity import (
 	GCSymplecticityResult,

@@ -10,6 +10,8 @@ from typing import Any, Mapping, TypeAlias
 
 import numpy as np
 
+from diagnostics._validation import positive_integer as _positive_integer
+
 from diagnostics.output import write_diagnostic_block
 from diagnostics.paths import (
 	next_block_index,
@@ -18,7 +20,7 @@ from diagnostics.paths import (
 )
 from dynamics import GuidingCenterJacobianSystem
 from initial_conditions import GCInitialConfiguration
-from simulation import IntegrationStep
+from contracts.observation import IntegrationStep
 
 
 TrajectoryJacobianCalculator: TypeAlias = Callable[[IntegrationStep], np.ndarray]
@@ -79,16 +81,6 @@ class _BufferedSample:
 	local_determinant_errors: np.ndarray
 	accumulated_determinant_errors: np.ndarray
 
-
-def _positive_integer(value: int, name: str) -> int:
-	"""Normalize a positive persistence control."""
-	if (
-		isinstance(value, (bool, np.bool_))
-		or not isinstance(value, (int, np.integer))
-		or value < 1
-	):
-		raise ValueError(f"`{name}` must be a positive integer.")
-	return int(value)
 
 
 def _particle_metrics(jacobians: np.ndarray) -> tuple[np.ndarray, np.ndarray]:

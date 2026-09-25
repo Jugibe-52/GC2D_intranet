@@ -22,10 +22,8 @@ from simulation import (
 	SimulationRequest,
 	simulate,
 )
-from simulation.methods.abba.order4_implicit import (
-	_ABBA4_COEFFICIENTS,
-	_solve_abba4_step,
-)
+from methods.extended.coefficients import _ABBA4_COEFFICIENTS
+from methods.extended.abba_outer import _solve_abba4_single_projection_step as _solve_abba4_step
 from studies import (
 	ABBA4ImplicitAccuracyConfig,
 	AreaStep,

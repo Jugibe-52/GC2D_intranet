@@ -19,15 +19,12 @@ from matplotlib.figure import Figure
 from dynamics import GuidingCenterDynamics
 from initial_conditions import Area
 from potential import Potential
-from simulation import (
-	InitialValueProblem,
-	IntegrationStep,
-	NumericalMethod,
-	SimulationRequest,
-	Solution,
-	StepObserver,
-	simulate,
-)
+from contracts.problem import InitialValueProblem
+from contracts.observation import IntegrationStep, StepObserver
+from methods.base import NumericalMethod
+from contracts.request import SimulationRequest
+from solution import Solution
+from simulation.runner import simulate
 from diagnostics.symplecticity import (
 	GCAreaSymplecticityObserver,
 	GCAreaSymplecticityRecord,

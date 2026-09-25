@@ -123,7 +123,7 @@
 <polygon fill="#e8eff8" stroke="transparent" points="438,-2127 438,-2177 673,-2177 673,-2127 438,-2127"/>
 <text text-anchor="start" x="446" y="-2162.8" font-family="DejaVu Sans" font-size="9.00">EXISTING FROZEN RECORD</text>
 <text text-anchor="start" x="446" y="-2149" font-family="DejaVu Sans" font-weight="bold" font-size="15.00">InitialValueProblem</text>
-<text text-anchor="start" x="465.5" y="-2138" font-family="DejaVu Sans" font-size="10.00" fill="#62748c">src/simulation/problem.py</text>
+<text text-anchor="start" x="465.5" y="-2138" font-family="DejaVu Sans" font-size="10.00" fill="#62748c">src/contracts/problem.py</text>
 <text text-anchor="start" x="446" y="-2111.2" font-family="DejaVu Sans" font-weight="bold" font-size="11.00">State</text>
 <text text-anchor="start" x="446" y="-2100.2" font-family="DejaVu Sans" font-size="11.00">dynamics: DynamicalSystem</text>
 <text text-anchor="start" x="446" y="-2089.2" font-family="DejaVu Sans" font-size="11.00">initial_configuration: InitialConfiguration</text>
@@ -150,7 +150,7 @@
 <polygon fill="#e8edff" stroke="transparent" points="24,-1253 24,-1303 324,-1303 324,-1253 24,-1253"/>
 <text text-anchor="start" x="32" y="-1288.8" font-family="DejaVu Sans" font-size="9.00">PACKED PHYSICAL COORDINATES</text>
 <text text-anchor="start" x="32" y="-1275" font-family="DejaVu Sans" font-weight="bold" font-size="15.00">StateLayout</text>
-<text text-anchor="start" x="32" y="-1264" font-family="DejaVu Sans" font-size="10.00" fill="#62748c">src/simulation/configuration.py</text>
+<text text-anchor="start" x="32" y="-1264" font-family="DejaVu Sans" font-size="10.00" fill="#62748c">src/contracts/configuration.py</text>
 <text text-anchor="start" x="32" y="-1236.2" font-family="DejaVu Sans" font-size="11.00">Components are packed in component&#45;major order.</text>
 <text text-anchor="start" x="67.5" y="-1224.2" font-family="DejaVu Sans" font-size="11.00">m = state_dimension x particle_count.</text>
 <text text-anchor="start" x="32" y="-1196.2" font-family="DejaVu Sans" font-size="11.00">validate_packed_state_layout; split; particle_count.</text>
@@ -194,7 +194,7 @@
 <polygon fill="#e8eff8" stroke="transparent" points="424,-1839 424,-1889 687,-1889 687,-1839 424,-1839"/>
 <text text-anchor="start" x="432" y="-1874.8" font-family="DejaVu Sans" font-size="9.00">EXISTING FROZEN RECORD</text>
 <text text-anchor="start" x="432" y="-1861" font-family="DejaVu Sans" font-weight="bold" font-size="15.00">SimulationRequest</text>
-<text text-anchor="start" x="450.5" y="-1850" font-family="DejaVu Sans" font-size="10.00" fill="#62748c">src/simulation/request.py</text>
+<text text-anchor="start" x="450.5" y="-1850" font-family="DejaVu Sans" font-size="10.00" fill="#62748c">src/contracts/request.py</text>
 <text text-anchor="start" x="432" y="-1823.2" font-family="DejaVu Sans" font-weight="bold" font-size="11.00">State</text>
 <text text-anchor="start" x="432" y="-1812.2" font-family="DejaVu Sans" font-size="11.00">t_span: (t0, tf)</text>
 <text text-anchor="start" x="432" y="-1801.2" font-family="DejaVu Sans" font-size="11.00">max_step: float</text>
@@ -213,12 +213,12 @@
 <title>Runner</title>
 <path fill="#ffffff" stroke="#c4cfdc" stroke-width="1.15" d="M1106,-2173C1106,-2173 846,-2173 846,-2173 840,-2173 834,-2167 834,-2161 834,-2161 834,-1995 834,-1995 834,-1989 840,-1983 846,-1983 846,-1983 1106,-1983 1106,-1983 1112,-1983 1118,-1989 1118,-1995 1118,-1995 1118,-2161 1118,-2161 1118,-2167 1112,-2173 1106,-2173"/>
 <polygon fill="#e8eff8" stroke="transparent" points="835,-2122 835,-2172 1117,-2172 1117,-2122 835,-2122"/>
-<text text-anchor="start" x="843" y="-2157.8" font-family="DejaVu Sans" font-size="9.00">EXISTING CLASS / PUBLIC FACADE</text>
-<text text-anchor="start" x="843" y="-2144" font-family="DejaVu Sans" font-weight="bold" font-size="15.00">SimulationRunner</text>
+<text text-anchor="start" x="843" y="-2157.8" font-family="DejaVu Sans" font-size="9.00">PUBLIC FUNCTION / CLASS ADAPTER</text>
+<text text-anchor="start" x="843" y="-2144" font-family="DejaVu Sans" font-weight="bold" font-size="15.00">simulate</text>
 <text text-anchor="start" x="861.5" y="-2133" font-family="DejaVu Sans" font-size="10.00" fill="#62748c">src/simulation/runner.py</text>
 <text text-anchor="start" x="843" y="-2106.2" font-family="DejaVu Sans" font-weight="bold" font-size="11.00">Entry</text>
 <text text-anchor="start" x="843" y="-2095.2" font-family="DejaVu Sans" font-size="11.00">simulate(problem, method, request): Solution</text>
-<text text-anchor="start" x="843" y="-2084.2" font-family="DejaVu Sans" font-size="11.00">The public simulate(...) function delegates here.</text>
+<text text-anchor="start" x="843" y="-2084.2" font-family="DejaVu Sans" font-size="11.00">SimulationRunner.simulate delegates here.</text>
 <text text-anchor="start" x="843" y="-2057.2" font-family="DejaVu Sans" font-weight="bold" font-size="11.00">Before integration</text>
 <text text-anchor="start" x="843" y="-2046.2" font-family="DejaVu Sans" font-size="11.00">Validate the three public input contracts.</text>
 <text text-anchor="start" x="843" y="-2035.2" font-family="DejaVu Sans" font-size="11.00">Call method.integrate(problem, request).</text>
@@ -241,7 +241,7 @@
 <polygon fill="#fbe0c7" stroke="transparent" points="398,-1533 398,-1583 713,-1583 713,-1533 398,-1533"/>
 <text text-anchor="start" x="406" y="-1568.8" font-family="DejaVu Sans" font-size="9.00">METHOD CONFIGURATION / IntegrationMethod</text>
 <text text-anchor="start" x="406" y="-1555" font-family="DejaVu Sans" font-weight="bold" font-size="15.00">HBVM42</text>
-<text text-anchor="start" x="413" y="-1544" font-family="DejaVu Sans" font-size="10.00" fill="#62748c">src/simulation/methods/hbvm/order4.py</text>
+<text text-anchor="start" x="413" y="-1544" font-family="DejaVu Sans" font-size="10.00" fill="#62748c">src/methods/hbvm/order4.py</text>
 <text text-anchor="start" x="406" y="-1516.2" font-family="DejaVu Sans" font-size="11.00">Newton tolerances, Jacobian policy, iteration limit.</text>
 <text text-anchor="start" x="413.5" y="-1504.2" font-family="DejaVu Sans" font-size="11.00">track_energy; progress; optional step_observer.</text>
 <text text-anchor="start" x="406" y="-1476.2" font-family="DejaVu Sans" font-size="11.00">new_run(problem,request): same numerical class.</text>
@@ -266,7 +266,7 @@
 <polygon fill="#fbe0c7" stroke="transparent" points="408,-1267 408,-1317 703,-1317 703,-1267 408,-1267"/>
 <text text-anchor="start" x="416" y="-1302.8" font-family="DejaVu Sans" font-size="9.00">CONFIGURATION RESOLVED BEFORE THE LOOP</text>
 <text text-anchor="start" x="416" y="-1289" font-family="DejaVu Sans" font-weight="bold" font-size="15.00">Selected numerical policy</text>
-<text text-anchor="start" x="428" y="-1278" font-family="DejaVu Sans" font-size="10.00" fill="#62748c">src/simulation/methods/hbvm/order4.py</text>
+<text text-anchor="start" x="428" y="-1278" font-family="DejaVu Sans" font-size="10.00" fill="#62748c">src/methods/hbvm/order4.py</text>
 <text text-anchor="start" x="416" y="-1250.2" font-family="DejaVu Sans" font-size="11.00">Newton tolerances, Jacobian policy, iteration limit.</text>
 <text text-anchor="start" x="423.5" y="-1238.2" font-family="DejaVu Sans" font-size="11.00">track_energy; progress; optional step_observer.</text>
 <text text-anchor="start" x="416" y="-1210.2" font-family="DejaVu Sans" font-size="11.00">Physical state z in R^m.</text>
@@ -305,7 +305,7 @@
 <polygon fill="#fbe0c7" stroke="transparent" points="816,-1830 816,-1880 1136,-1880 1136,-1830 816,-1830"/>
 <text text-anchor="start" x="824" y="-1865.8" font-family="DejaVu Sans" font-size="9.00">METHOD INITIALIZATION</text>
 <text text-anchor="start" x="824" y="-1852" font-family="DejaVu Sans" font-weight="bold" font-size="15.00">HBVM42.initialize(...)</text>
-<text text-anchor="start" x="824" y="-1841" font-family="DejaVu Sans" font-size="10.00" fill="#62748c">src/simulation/methods/hbvm/order4.py</text>
+<text text-anchor="start" x="824" y="-1841" font-family="DejaVu Sans" font-size="10.00" fill="#62748c">src/methods/hbvm/order4.py</text>
 <text text-anchor="start" x="824" y="-1814.2" font-family="DejaVu Sans" font-weight="bold" font-size="11.00">IN</text>
 <text text-anchor="start" x="837" y="-1814.2" font-family="DejaVu Sans" font-size="11.00">: problem, request and method controls.</text>
 <text text-anchor="start" x="824" y="-1803.2" font-family="DejaVu Sans" font-weight="bold" font-size="11.00">OUT</text>
@@ -333,7 +333,7 @@
 <polygon fill="#e8edff" stroke="transparent" points="817,-1576 817,-1626 1135,-1626 1135,-1576 817,-1576"/>
 <text text-anchor="start" x="825" y="-1611.8" font-family="DejaVu Sans" font-size="9.00">SAME NUMERICAL CLASS / ONE INSTANCE PER EXECUTION</text>
 <text text-anchor="start" x="825" y="-1598" font-family="DejaVu Sans" font-weight="bold" font-size="15.00">HBVM42 (run)</text>
-<text text-anchor="start" x="860.5" y="-1587" font-family="DejaVu Sans" font-size="10.00" fill="#62748c">src/simulation/methods/hbvm/order4.py</text>
+<text text-anchor="start" x="860.5" y="-1587" font-family="DejaVu Sans" font-size="10.00" fill="#62748c">src/methods/hbvm/order4.py</text>
 <text text-anchor="start" x="825" y="-1560.2" font-family="DejaVu Sans" font-weight="bold" font-size="11.00">Instance data</text>
 <text text-anchor="start" x="825" y="-1549.2" font-family="DejaVu Sans" font-size="11.00">problem; request; initial_state (read&#45;only)</text>
 <text text-anchor="start" x="825" y="-1538.2" font-family="DejaVu Sans" font-size="11.00">formulation or dynamics; numerical resources</text>
@@ -365,7 +365,7 @@
 <polygon fill="#e8edff" stroke="transparent" points="828,-1253 828,-1303 1125,-1303 1125,-1253 828,-1253"/>
 <text text-anchor="start" x="836" y="-1288.8" font-family="DejaVu Sans" font-size="9.00">METHOD&#45;OWNED STATE ADAPTER</text>
 <text text-anchor="start" x="836" y="-1275" font-family="DejaVu Sans" font-weight="bold" font-size="15.00">Internal state policy</text>
-<text text-anchor="start" x="836" y="-1264" font-family="DejaVu Sans" font-size="10.00" fill="#62748c">src/simulation/methods/hbvm/order4.py</text>
+<text text-anchor="start" x="836" y="-1264" font-family="DejaVu Sans" font-size="10.00" fill="#62748c">src/methods/hbvm/order4.py</text>
 <text text-anchor="start" x="836" y="-1236.2" font-family="DejaVu Sans" font-size="11.00">Physical state z in R^m.</text>
 <text text-anchor="start" x="836" y="-1224.2" font-family="DejaVu Sans" font-size="11.00">Energy diagnostics do not enlarge the state.</text>
 <text text-anchor="start" x="836" y="-1196.2" font-family="DejaVu Sans" font-size="11.00">Initialize before stepping; finish during advance.</text>
@@ -381,7 +381,7 @@
 <polygon fill="#e8edff" stroke="transparent" points="1241,-2130 1241,-2180 1562,-2180 1562,-2130 1241,-2130"/>
 <text text-anchor="start" x="1249" y="-2165.8" font-family="DejaVu Sans" font-size="9.00">ONE COORDINATOR FOR ALL 13 METHODS</text>
 <text text-anchor="start" x="1249" y="-2152" font-family="DejaVu Sans" font-weight="bold" font-size="15.00">integrate_method(...)</text>
-<text text-anchor="start" x="1274.5" y="-2141" font-family="DejaVu Sans" font-size="10.00" fill="#62748c">src/simulation/integration.py</text>
+<text text-anchor="start" x="1274.5" y="-2141" font-family="DejaVu Sans" font-size="10.00" fill="#62748c">src/integration/core.py</text>
 <text text-anchor="start" x="1249" y="-2114.2" font-family="DejaVu Sans" font-weight="bold" font-size="11.00">IN</text>
 <text text-anchor="start" x="1262" y="-2114.2" font-family="DejaVu Sans" font-size="11.00"> initialized method instance; optional controller</text>
 <text text-anchor="start" x="1327.5" y="-2103.2" font-family="DejaVu Sans" font-weight="bold" font-size="11.00">OUT</text>
@@ -411,7 +411,7 @@
 <polygon fill="#e8edff" stroke="transparent" points="813,-1044 813,-1094 1139,-1094 1139,-1044 813,-1044"/>
 <text text-anchor="start" x="821" y="-1079.8" font-family="DejaVu Sans" font-size="9.00">INSTANCE ATTRIBUTES / NO COLLECTOR</text>
 <text text-anchor="start" x="821" y="-1066" font-family="DejaVu Sans" font-weight="bold" font-size="15.00">Numerical resources on self</text>
-<text text-anchor="start" x="842.5" y="-1055" font-family="DejaVu Sans" font-size="10.00" fill="#62748c">src/simulation/methods/hbvm/order4.py</text>
+<text text-anchor="start" x="842.5" y="-1055" font-family="DejaVu Sans" font-size="10.00" fill="#62748c">src/methods/hbvm/order4.py</text>
 <text text-anchor="start" x="821" y="-1027.2" font-family="DejaVu Sans" font-size="11.00">Store dynamics, formulation and solver controls on self.</text>
 <text text-anchor="start" x="837.5" y="-1015.2" font-family="DejaVu Sans" font-size="11.00">initialize constructs these resources once per run.</text>
 <text text-anchor="start" x="821" y="-987.2" font-family="DejaVu Sans" font-size="11.00">Fixed map inputs are independent values.</text>
@@ -456,7 +456,7 @@
 <polygon fill="#e8edff" stroke="transparent" points="1250,-1851 1250,-1901 1552,-1901 1552,-1851 1250,-1851"/>
 <text text-anchor="start" x="1258" y="-1886.8" font-family="DejaVu Sans" font-size="9.00">UNIFORM ACCEPTED GRID / INDEPENDENT OUTPUTS</text>
 <text text-anchor="start" x="1258" y="-1873" font-family="DejaVu Sans" font-weight="bold" font-size="15.00">FixedStepController</text>
-<text text-anchor="start" x="1306.5" y="-1862" font-family="DejaVu Sans" font-size="10.00" fill="#62748c">src/simulation/integration.py</text>
+<text text-anchor="start" x="1306.5" y="-1862" font-family="DejaVu Sans" font-size="10.00" fill="#62748c">src/integration/core.py</text>
 <text text-anchor="start" x="1258" y="-1835.2" font-family="DejaVu Sans" font-weight="bold" font-size="11.00">steps(run, request)</text>
 <text text-anchor="start" x="1258" y="-1824.2" font-family="DejaVu Sans" font-size="11.00">Choose n = ceil((tf&#45;t0)/max_step), h = (tf&#45;t0)/n.</text>
 <text text-anchor="start" x="1258" y="-1813.2" font-family="DejaVu Sans" font-size="11.00">Floating boundary correction uses _step_count.</text>
@@ -485,7 +485,7 @@
 <polygon fill="#e8edff" stroke="transparent" points="1245,-1532 1245,-1582 1557,-1582 1557,-1532 1245,-1532"/>
 <text text-anchor="start" x="1253" y="-1567.8" font-family="DejaVu Sans" font-size="9.00">METHOD&#45;OWNED OPERATION</text>
 <text text-anchor="start" x="1253" y="-1554" font-family="DejaVu Sans" font-weight="bold" font-size="15.00">Numerical advance</text>
-<text text-anchor="start" x="1253" y="-1543" font-family="DejaVu Sans" font-size="10.00" fill="#62748c">src/simulation/methods/hbvm/order4.py</text>
+<text text-anchor="start" x="1253" y="-1543" font-family="DejaVu Sans" font-size="10.00" fill="#62748c">src/methods/hbvm/order4.py</text>
 <text text-anchor="start" x="1253" y="-1516.2" font-family="DejaVu Sans" font-weight="bold" font-size="11.00">IN</text>
 <text text-anchor="start" x="1266" y="-1516.2" font-family="DejaVu Sans" font-size="11.00">: start time, internal state, duration.</text>
 <text text-anchor="start" x="1253" y="-1505.2" font-family="DejaVu Sans" font-weight="bold" font-size="11.00">OUT</text>
@@ -511,7 +511,7 @@
 <polygon fill="#e8edff" stroke="transparent" points="1670,-1817 1670,-1867 1975,-1867 1975,-1817 1670,-1817"/>
 <text text-anchor="start" x="1678" y="-1852.8" font-family="DejaVu Sans" font-size="9.00">ONE ADVANCE / METHOD&#45;SPECIFIC PAYLOAD</text>
 <text text-anchor="start" x="1678" y="-1839" font-family="DejaVu Sans" font-weight="bold" font-size="15.00">StepResult[Detail]</text>
-<text text-anchor="start" x="1707" y="-1828" font-family="DejaVu Sans" font-size="10.00" fill="#62748c">src/simulation/integration.py</text>
+<text text-anchor="start" x="1707" y="-1828" font-family="DejaVu Sans" font-size="10.00" fill="#62748c">src/integration/core.py</text>
 <text text-anchor="start" x="1678" y="-1800.2" font-family="DejaVu Sans" font-size="11.00">state: next internal vector [q].</text>
 <text text-anchor="start" x="1678" y="-1788.2" font-family="DejaVu Sans" font-size="11.00">statistics: mapping of scalar/vector work values.</text>
 <text text-anchor="start" x="1739.5" y="-1776.2" font-family="DejaVu Sans" font-size="11.00">details: _HBVMStepResult.</text>
@@ -534,7 +534,7 @@
 <polygon fill="#fbe0c7" stroke="transparent" points="1250,-1247 1250,-1297 1552,-1297 1552,-1247 1250,-1247"/>
 <text text-anchor="start" x="1258" y="-1282.8" font-family="DejaVu Sans" font-size="9.00">METHOD&#45;SPECIFIC ALGORITHM</text>
 <text text-anchor="start" x="1258" y="-1269" font-family="DejaVu Sans" font-weight="bold" font-size="15.00">Complete numerical recipe</text>
-<text text-anchor="start" x="1275" y="-1258" font-family="DejaVu Sans" font-size="10.00" fill="#62748c">src/simulation/methods/hbvm/order4.py</text>
+<text text-anchor="start" x="1275" y="-1258" font-family="DejaVu Sans" font-size="10.00" fill="#62748c">src/methods/hbvm/order4.py</text>
 <text text-anchor="start" x="1258" y="-1230.2" font-family="DejaVu Sans" font-size="11.00">Four Gauss quadrature nodes, degree&#45;two path.</text>
 <text text-anchor="start" x="1258" y="-1218.2" font-family="DejaVu Sans" font-size="11.00">Solve two Legendre vector coefficients gamma_0,1.</text>
 <text text-anchor="start" x="1258" y="-1190.2" font-family="DejaVu Sans" font-size="11.00">Physical state z in R^m.</text>
@@ -562,7 +562,7 @@
 <polygon fill="#e2f1e9" stroke="transparent" points="1290,-1024 1290,-1074 1513,-1074 1513,-1024 1290,-1024"/>
 <text text-anchor="start" x="1298" y="-1059.8" font-family="DejaVu Sans" font-size="9.00">EVALUATION OR NONLINEAR PROBLEM</text>
 <text text-anchor="start" x="1298" y="-1046" font-family="DejaVu Sans" font-weight="bold" font-size="15.00">Numerical equations</text>
-<text text-anchor="start" x="1298" y="-1035" font-family="DejaVu Sans" font-size="10.00" fill="#62748c">src/simulation/methods/hbvm/order4.py</text>
+<text text-anchor="start" x="1298" y="-1035" font-family="DejaVu Sans" font-size="10.00" fill="#62748c">src/methods/hbvm/order4.py</text>
 <text text-anchor="start" x="1298" y="-1007.2" font-family="DejaVu Sans" font-size="11.00">Y_i = z + h sum_(j=0,1) I_ij gamma_j.</text>
 <text text-anchor="start" x="1298" y="-995.2" font-family="DejaVu Sans" font-size="11.00">R_j = gamma_j &#45; sum_i b_i P_j(c_i) f_i.</text>
 <text text-anchor="start" x="1327.5" y="-983.2" font-family="DejaVu Sans" font-size="11.00">P0=1; P1(c)=sqrt(3)(2c&#45;1).</text>
@@ -581,7 +581,7 @@
 <polygon fill="#e2f1e9" stroke="transparent" points="1250,-654 1250,-704 1552,-704 1552,-654 1250,-654"/>
 <text text-anchor="start" x="1258" y="-689.8" font-family="DejaVu Sans" font-size="9.00">CONTROL INSIDE THE NUMERICAL METHOD</text>
 <text text-anchor="start" x="1258" y="-676" font-family="DejaVu Sans" font-weight="bold" font-size="15.00">Local solution strategy</text>
-<text text-anchor="start" x="1258.5" y="-665" font-family="DejaVu Sans" font-size="10.00" fill="#62748c">src/simulation/methods/hbvm/order4.py</text>
+<text text-anchor="start" x="1258.5" y="-665" font-family="DejaVu Sans" font-size="10.00" fill="#62748c">src/methods/hbvm/order4.py</text>
 <text text-anchor="start" x="1258" y="-637.2" font-family="DejaVu Sans" font-size="11.00">Newton on 2m coefficient unknowns.</text>
 <text text-anchor="start" x="1258" y="-625.2" font-family="DejaVu Sans" font-size="11.00">Use four stage&#45;field Jacobians.</text>
 <text text-anchor="start" x="1258" y="-613.2" font-family="DejaVu Sans" font-size="11.00">Backtrack if a full correction increases residual.</text>
@@ -603,7 +603,7 @@
 <polygon fill="#e2f1e9" stroke="transparent" points="1261,-453 1261,-503 1542,-503 1542,-453 1261,-453"/>
 <text text-anchor="start" x="1269" y="-488.8" font-family="DejaVu Sans" font-size="9.00">NUMERICAL KERNEL</text>
 <text text-anchor="start" x="1269" y="-475" font-family="DejaVu Sans" font-weight="bold" font-size="15.00">Stage calculation</text>
-<text text-anchor="start" x="1269" y="-464" font-family="DejaVu Sans" font-size="10.00" fill="#62748c">src/simulation/methods/hbvm/order4.py</text>
+<text text-anchor="start" x="1269" y="-464" font-family="DejaVu Sans" font-size="10.00" fill="#62748c">src/methods/hbvm/order4.py</text>
 <text text-anchor="start" x="1269" y="-436.2" font-family="DejaVu Sans" font-size="11.00">I_i0=c_i; I_i1=sqrt(3)(c_i^2&#45;c_i).</text>
 <text text-anchor="start" x="1269" y="-424.2" font-family="DejaVu Sans" font-size="11.00">z_next = z + h sum_i b_i f(t+c_i h,Y_i).</text>
 <text text-anchor="start" x="1269" y="-412.2" font-family="DejaVu Sans" font-size="11.00">Rank&#45;two RK matrix; four physical stage states.</text>
@@ -629,7 +629,7 @@
 <polygon fill="#e2f1e9" stroke="transparent" points="1248,-286 1248,-336 1554,-336 1554,-286 1248,-286"/>
 <text text-anchor="start" x="1256" y="-321.8" font-family="DejaVu Sans" font-size="9.00">NUMERICAL COMPLETION</text>
 <text text-anchor="start" x="1256" y="-308" font-family="DejaVu Sans" font-weight="bold" font-size="15.00">Accepted state and output policy</text>
-<text text-anchor="start" x="1299.5" y="-297" font-family="DejaVu Sans" font-size="10.00" fill="#62748c">src/simulation/methods/hbvm/order4.py</text>
+<text text-anchor="start" x="1299.5" y="-297" font-family="DejaVu Sans" font-size="10.00" fill="#62748c">src/methods/hbvm/order4.py</text>
 <text text-anchor="start" x="1256" y="-269.2" font-family="DejaVu Sans" font-size="11.00">Optional hamiltonian, energy_drift and energy_error.</text>
 <text text-anchor="start" x="1256" y="-257.2" font-family="DejaVu Sans" font-size="11.00">These measure physical H, not the invariant H+k.</text>
 <text text-anchor="start" x="1283" y="-245.2" font-family="DejaVu Sans" font-size="11.00">Time&#45;dependent H need not be conserved.</text>
@@ -677,7 +677,7 @@
 <polygon fill="#e8edff" stroke="transparent" points="1673,-2134 1673,-2184 1972,-2184 1972,-2134 1673,-2134"/>
 <text text-anchor="start" x="1681" y="-2169.8" font-family="DejaVu Sans" font-size="9.00">ONE RUN / REQUESTED SAMPLES + ACCEPTED METRICS</text>
 <text text-anchor="start" x="1681" y="-2156" font-family="DejaVu Sans" font-weight="bold" font-size="15.00">IntegrationCollector</text>
-<text text-anchor="start" x="1738.5" y="-2145" font-family="DejaVu Sans" font-size="10.00" fill="#62748c">src/simulation/integration.py</text>
+<text text-anchor="start" x="1738.5" y="-2145" font-family="DejaVu Sans" font-size="10.00" fill="#62748c">src/integration/core.py</text>
 <text text-anchor="start" x="1681" y="-2118.2" font-family="DejaVu Sans" font-weight="bold" font-size="11.00">history</text>
 <text text-anchor="start" x="1725" y="-2118.2" font-family="DejaVu Sans" font-size="11.00">: internal coordinates x saved times</text>
 <text text-anchor="start" x="1681" y="-2107.2" font-family="DejaVu Sans" font-weight="bold" font-size="11.00">record_step(info, statistics)</text>
@@ -709,7 +709,7 @@
 <polygon fill="#eee5f5" stroke="transparent" points="1676,-1043 1676,-1093 1968,-1093 1968,-1043 1676,-1043"/>
 <text text-anchor="start" x="1684" y="-1078.8" font-family="DejaVu Sans" font-size="9.00">OPTIONAL METHOD ADAPTER</text>
 <text text-anchor="start" x="1684" y="-1065" font-family="DejaVu Sans" font-weight="bold" font-size="15.00">run.build_observation</text>
-<text text-anchor="start" x="1684" y="-1054" font-family="DejaVu Sans" font-size="10.00" fill="#62748c">src/simulation/methods/hbvm/order4.py</text>
+<text text-anchor="start" x="1684" y="-1054" font-family="DejaVu Sans" font-size="10.00" fill="#62748c">src/methods/hbvm/order4.py</text>
 <text text-anchor="start" x="1684" y="-1027.2" font-family="DejaVu Sans" font-weight="bold" font-size="11.00">IN</text>
 <text text-anchor="start" x="1697" y="-1027.2" font-family="DejaVu Sans" font-size="11.00">: StepInfo + StepResult[Detail].</text>
 <text text-anchor="start" x="1684" y="-1016.2" font-family="DejaVu Sans" font-weight="bold" font-size="11.00">OUT</text>
@@ -749,7 +749,7 @@
 <polygon fill="#e8edff" stroke="transparent" points="2205,-2141 2205,-2191 2520,-2191 2520,-2141 2205,-2141"/>
 <text text-anchor="start" x="2213" y="-2176.8" font-family="DejaVu Sans" font-size="9.00">COMMON FINAL ASSEMBLY</text>
 <text text-anchor="start" x="2213" y="-2163" font-family="DejaVu Sans" font-weight="bold" font-size="15.00">IntegrationData</text>
-<text text-anchor="start" x="2220.5" y="-2152" font-family="DejaVu Sans" font-size="10.00" fill="#62748c">src/simulation/_result.py</text>
+<text text-anchor="start" x="2220.5" y="-2152" font-family="DejaVu Sans" font-size="10.00" fill="#62748c">src/contracts/result.py</text>
 <text text-anchor="start" x="2213" y="-2125.2" font-family="DejaVu Sans" font-weight="bold" font-size="11.00">Fields</text>
 <text text-anchor="start" x="2213" y="-2114.2" font-family="DejaVu Sans" font-size="11.00">t: requested times [T]</text>
 <text text-anchor="start" x="2213" y="-2103.2" font-family="DejaVu Sans" font-size="11.00">states: physical history [m, T]</text>
@@ -759,7 +759,7 @@
 <text text-anchor="start" x="2213" y="-2040.2" font-family="DejaVu Sans" font-size="11.00">Export never repeats the numerical projection.</text>
 <text text-anchor="start" x="2223.5" y="-2028.2" font-family="DejaVu Sans" font-size="11.00">Internal and physical dimensions may differ.</text>
 <text text-anchor="start" x="2213" y="-2000.2" font-family="DejaVu Sans" font-size="11.00">Add output_interpolation_count and metric aliases.</text>
-<text text-anchor="start" x="2213" y="-1988.2" font-family="DejaVu Sans" font-size="11.00">Return to the original SimulationRunner call.</text>
+<text text-anchor="start" x="2213" y="-1988.2" font-family="DejaVu Sans" font-size="11.00">Return to the original simulate call.</text>
 <text text-anchor="start" x="2213" y="-1976.2" font-family="DejaVu Sans" font-size="11.00">Only the requested trajectory is exposed by default.</text>
 <polygon fill="#c4cfdc" stroke="#c4cfdc" points="2205,-2081 2205,-2081 2520,-2081 2520,-2081 2205,-2081"/>
 <polygon fill="#c4cfdc" stroke="#c4cfdc" points="2205,-2017 2205,-2017 2520,-2017 2520,-2017 2205,-2017"/>
@@ -841,7 +841,7 @@
 <polygon fill="#e8edff" stroke="transparent" points="1682,-1519 1682,-1569 1963,-1569 1963,-1519 1682,-1519"/>
 <text text-anchor="start" x="1690" y="-1554.8" font-family="DejaVu Sans" font-size="9.00">COPIED ACCEPTED&#45;STEP DATA</text>
 <text text-anchor="start" x="1690" y="-1541" font-family="DejaVu Sans" font-weight="bold" font-size="15.00">Observation domain</text>
-<text text-anchor="start" x="1690" y="-1530" font-family="DejaVu Sans" font-size="10.00" fill="#62748c">src/simulation/methods/hbvm/order4.py</text>
+<text text-anchor="start" x="1690" y="-1530" font-family="DejaVu Sans" font-size="10.00" fill="#62748c">src/methods/hbvm/order4.py</text>
 <text text-anchor="start" x="1690" y="-1502.2" font-family="DejaVu Sans" font-size="11.00">IntegrationStep on physical z.</text>
 <text text-anchor="start" x="1690" y="-1490.2" font-family="DejaVu Sans" font-size="11.00">map_state repeats the same coefficient solve.</text>
 <text text-anchor="start" x="1690" y="-1478.2" font-family="DejaVu Sans" font-size="11.00">Observation is optional and uses copied states.</text>
@@ -864,7 +864,7 @@
 <polygon fill="#e8edff" stroke="transparent" points="1676,-1253 1676,-1303 1969,-1303 1969,-1253 1676,-1253"/>
 <text text-anchor="start" x="1684" y="-1288.8" font-family="DejaVu Sans" font-size="9.00">METHOD STATISTICS + COMMON TIMING</text>
 <text text-anchor="start" x="1684" y="-1275" font-family="DejaVu Sans" font-weight="bold" font-size="15.00">Accepted&#45;step diagnostics</text>
-<text text-anchor="start" x="1698.5" y="-1264" font-family="DejaVu Sans" font-size="10.00" fill="#62748c">src/simulation/methods/hbvm/order4.py</text>
+<text text-anchor="start" x="1698.5" y="-1264" font-family="DejaVu Sans" font-size="10.00" fill="#62748c">src/methods/hbvm/order4.py</text>
 <text text-anchor="start" x="1684" y="-1236.2" font-family="DejaVu Sans" font-size="11.00">Nonlinear iterations, residual/tolerance,</text>
 <text text-anchor="start" x="1684" y="-1224.2" font-family="DejaVu Sans" font-size="11.00">residual, Jacobian and field evaluation counts.</text>
 <text text-anchor="start" x="1693" y="-1212.2" font-family="DejaVu Sans" font-size="11.00">Shadow work is excluded from these rows.</text>
@@ -896,15 +896,15 @@
 <title>Resume</title>
 <path fill="#ffffff" stroke="#c4cfdc" stroke-width="1.15" d="M2482,-1867C2482,-1867 2242,-1867 2242,-1867 2236,-1867 2230,-1861 2230,-1855 2230,-1855 2230,-1725 2230,-1725 2230,-1719 2236,-1713 2242,-1713 2242,-1713 2482,-1713 2482,-1713 2488,-1713 2494,-1719 2494,-1725 2494,-1725 2494,-1855 2494,-1855 2494,-1861 2488,-1867 2482,-1867"/>
 <polygon fill="#e2f1e9" stroke="transparent" points="2231,-1816 2231,-1866 2493,-1866 2493,-1816 2231,-1816"/>
-<text text-anchor="start" x="2239" y="-1851.8" font-family="DejaVu Sans" font-size="9.00">EXISTING CALL CONTINUATION / SAME RUNNER</text>
-<text text-anchor="start" x="2239" y="-1838" font-family="DejaVu Sans" font-weight="bold" font-size="15.00">SimulationRunner resumes</text>
+<text text-anchor="start" x="2239" y="-1851.8" font-family="DejaVu Sans" font-size="9.00">CALL CONTINUATION / SAME FUNCTION</text>
+<text text-anchor="start" x="2239" y="-1838" font-family="DejaVu Sans" font-weight="bold" font-size="15.00">simulate resumes</text>
 <text text-anchor="start" x="2295" y="-1827" font-family="DejaVu Sans" font-size="10.00" fill="#537866">src/simulation/runner.py</text>
 <text text-anchor="start" x="2239" y="-1800.2" font-family="DejaVu Sans" font-weight="bold" font-size="11.00">IN</text>
 <text text-anchor="start" x="2252" y="-1800.2" font-family="DejaVu Sans" font-size="11.00"> IntegrationData</text>
 <text text-anchor="start" x="2253.5" y="-1789.2" font-family="DejaVu Sans" font-weight="bold" font-size="11.00">OUT</text>
 <text text-anchor="start" x="2279.5" y="-1789.2" font-family="DejaVu Sans" font-size="11.00"> Solution</text>
-<text text-anchor="start" x="2239" y="-1761.2" font-family="DejaVu Sans" font-size="11.00">Require exactly the requested output times.</text>
-<text text-anchor="start" x="2239" y="-1749.2" font-family="DejaVu Sans" font-size="11.00">Check shape, finiteness and packed layout.</text>
+<text text-anchor="start" x="2239" y="-1761.2" font-family="DejaVu Sans" font-size="11.00">Solution validates arrays and layout.</text>
+<text text-anchor="start" x="2239" y="-1749.2" font-family="DejaVu Sans" font-size="11.00">Match requested times and state size.</text>
 <text text-anchor="start" x="2239" y="-1737.2" font-family="DejaVu Sans" font-size="11.00">Verify that the initial state is preserved.</text>
 <text text-anchor="start" x="2256.5" y="-1725.2" font-family="DejaVu Sans" font-size="11.00">Retain the source initial configuration.</text>
 <polygon fill="#c4cfdc" stroke="#c4cfdc" points="2231,-1778 2231,-1778 2493,-1778 2493,-1778 2231,-1778"/>
@@ -923,7 +923,7 @@
 <polygon fill="#e2f1e9" stroke="transparent" points="2220,-1534 2220,-1584 2505,-1584 2505,-1534 2220,-1534"/>
 <text text-anchor="start" x="2228" y="-1569.8" font-family="DejaVu Sans" font-size="9.00">EXISTING PUBLIC CLASS</text>
 <text text-anchor="start" x="2228" y="-1556" font-family="DejaVu Sans" font-weight="bold" font-size="15.00">Solution</text>
-<text text-anchor="start" x="2228" y="-1545" font-family="DejaVu Sans" font-size="10.00" fill="#537866">src/simulation/solution.py</text>
+<text text-anchor="start" x="2228" y="-1545" font-family="DejaVu Sans" font-size="10.00" fill="#537866">src/solution.py</text>
 <text text-anchor="start" x="2228" y="-1518.2" font-family="DejaVu Sans" font-weight="bold" font-size="11.00">Read&#45;only public properties</text>
 <text text-anchor="start" x="2228" y="-1507.2" font-family="DejaVu Sans" font-size="11.00">t: array[T]</text>
 <text text-anchor="start" x="2228" y="-1496.2" font-family="DejaVu Sans" font-size="11.00">states: array[m, T]</text>
@@ -939,7 +939,7 @@
 <title>Resume&#45;&gt;Solution</title>
 <path fill="none" stroke="#64748b" stroke-width="1.15" d="M2362,-1712.81C2362,-1676.23 2362,-1632.04 2362,-1593.36"/>
 <polygon fill="#64748b" stroke="#64748b" stroke-width="1.15" points="2364.52,-1592.9 2362,-1585.7 2359.48,-1592.9 2364.52,-1592.9"/>
-<text text-anchor="middle" x="2416.5" y="-1650" font-family="DejaVu Sans" font-size="10.00">validate and construct</text>
+<text text-anchor="middle" x="2416.5" y="-1650" font-family="DejaVu Sans" font-size="10.00">return validated result</text>
 </g>
 <!-- Interpret -->
 <g id="node44" class="node">

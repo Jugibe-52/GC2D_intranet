@@ -17,7 +17,7 @@ from matplotlib.ticker import MaxNLocator
 from matplotlib.widgets import CheckButtons
 
 from potential import Potential
-from simulation import Solution
+from solution import Solution
 
 from .particles import _field_normalization, _frame_indices
 

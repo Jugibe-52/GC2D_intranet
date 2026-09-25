@@ -82,17 +82,28 @@ be evaluable slightly outside the outer interval.  Observer records preserve
 the three ordered factors so the accepted-map tangent can be reconstructed.
 
 \section{Implementation correspondence}
-
 The public \texttt{ABBA4Implicit} configuration is in
-\path{src/simulation/methods/abba/order4_implicit.py}; the exterior-projection
-residual and numerical kernel are in
-\path{src/simulation/methods/abba/projection_outer.py}.
-The older single-projection module provides compatibility imports only.
-The common ABBA stages and projection helpers live in the neighboring private
-modules.  The canonical architecture document
-\path{../simulation/abba4-implicit-simulation-architecture.md} gives the
-dimensions, diagnostics, and the common prepared integration lifecycle.
+\path{src/methods/extended/order4_implicit.py}. One shared
+\texttt{solve\_projection} call surrounds its complete six-stage recipe.
+There is no intermediate projection between the three ABBA pairs.
 
+The public names, constructor defaults and exports from \texttt{simulation}
+remain unchanged. Internal imports use the defining modules; old import
+adapters have been removed. The ordinary implicit path is \texttt{advance}, \texttt{solve\_projection},
+\texttt{compose}, then \texttt{direct\_map} or \texttt{adjoint\_map}.
+Arithmetic midpoint variants use one explicit average instead of a nonlinear
+projection. Adjoint stages evaluate at the start of their signed substep;
+direct stages evaluate at its end.
+
+Newton and Broyden share the spatial equations and convergence services.
+Exact particle-block tangents, passive energy and optional observation use
+retained shear inputs; energy is evaluated only after accepting the spatial
+map, with the existing factor $1/2$ for physical $\kappa$. Time and momentum
+never enter the spatial root. The new internal family name does not enable
+the retired full time/momentum projection.
+
+Current module responsibilities and diagrams are documented in
+\path{docs/models/extended/simulation/extended-simulation-architecture.md}.
 
 \section{Explicit residual formulations and ideal-root tangent}
 
@@ -159,7 +170,7 @@ trajectory accuracy requires refinement, independently of energy diagnostics.
 
 The per-map simultaneous-formulation and Jacobian companions are retained as
 historical derivations for interpreting earlier data. The active architecture
-is the six-phase diagram in the model's \texttt{simulation/} directory.
+is the shared extended-space diagram in the model's \texttt{simulation/} directory.
 
 \clearpage
 \section{Four state formulations and passive energy tracking}
@@ -199,11 +210,12 @@ $\kappa$ is projected. The former eight-component projection is retired;
 
 Dynamics, formulation, method and integration remain separate. The shared
 state classes own layouts, diagonal embedding and history extraction in
-\begin{quote}\small\path{src/simulation/formulations/state.py}\end{quote}
+\begin{quote}\small\path{src/formulations/state.py}\end{quote}
 Each integration initializes a fresh method instance. Observers receive physical
 states; energy histories are in \texttt{Solution.diagnostics}.
 The \texttt{extended\_time} history has shape $(N,n_{\rm samples})$. Fixed-step shadow
 samples leave main states and counters unchanged. Adaptive energy quadrature
 uses accepted dense output; its backend state and Jacobian remain physical.
+
 
 \end{document}

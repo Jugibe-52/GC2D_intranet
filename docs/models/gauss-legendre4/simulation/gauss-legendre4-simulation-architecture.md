@@ -37,7 +37,7 @@ Accepted duplicated copies are equal. They separate only inside the numerical ma
 
 `PhysicalFormulation` and `DoubledFormulation` are constructed directly from the
 problem, initial time and tracking flag. They are defined in
-`src/simulation/formulations/state.py`. BM4 additionally uses directly bound
+`src/formulations/state.py`. BM4 additionally uses directly bound
 `GCDoubledMaps` for its spatial direct/adjoint stages; its legacy configuration
 factory is only a compatibility entry point.
 
@@ -63,6 +63,11 @@ Passive energy quadrature and optional observer reconstruction are extra work
 outside the physical solver counters; reported wall time still includes them.
 
 ## Lifecycle and output
+
+The field and Jacobian helpers in `src/methods/classical/_jacobians.py` are
+shared with SDIRK: field validation, centered finite differences, analytic
+particle-block validation and automatic Jacobian selection. The coupled Gauss
+stage equations and corrections remain in `gauss_legendre.py`.
 
 `simulate(problem, method, request)` creates a fresh run via `new_run`, validates
 its formulation and calls the shared `integrate_method`. Each `advance` returns

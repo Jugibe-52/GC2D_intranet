@@ -28,10 +28,10 @@ def calculate_checkpointed_group(indices, initial_xy, settings):
     potential, _, snapshot = load_snapshot()
     from dynamics import GuidingCenterDynamics
     from initial_conditions import GCInitialConfiguration
-    from simulation import InitialValueProblem
-    from simulation.formulations.gc import GCDoubledMaps
-    import simulation.methods.bm4.implicit as bm4
-    import simulation.methods.bm4.midpoint as midpoint
+    from contracts.problem import InitialValueProblem
+    from formulations.gc import GCDoubledMaps
+    import methods.extended.bm4 as bm4
+    import methods.extended.bm4_midpoint as midpoint
     import parallel_calculation
 
     indices = np.asarray(indices, dtype=int)

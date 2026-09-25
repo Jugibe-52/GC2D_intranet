@@ -9,7 +9,7 @@ digraph ABBA4ProposedArchitecture {
     nodesep=0.38, ranksep=0.55, pad=0.24,
     bgcolor="white", fontname="DejaVu Sans", fontsize=19,
     labelloc="t", labeljust="l",
-    label="ABBA4 implicit integration | Shared ABBA family architecture\n\nDesign proposal: ABBA2 and ABBA4 reuse the same services and numerical kernels.\nPublic methods and mathematical projection placements remain explicit.\nCandidate files below are relative to src/simulation/methods/abba/ unless stated otherwise."
+    label="ABBA4 implicit integration | Shared ABBA family architecture\n\nDesign proposal: ABBA2 and ABBA4 reuse the same services and numerical kernels.\nPublic methods and mathematical projection placements remain explicit.\nCandidate files below are relative to src/methods/abba/ unless stated otherwise."
   ];
   node [
     shape=box, style="rounded,filled", color="#8293A5",
@@ -152,7 +152,7 @@ digraph ABBA4ProposedArchitecture {
 
     Solver [group="col4", fillcolor="#E3F0E9", color="#7AAB8A", label=<
       <B>Shared nonlinear convergence support</B><BR/>
-      <FONT COLOR="#857248">Shared simulation/methods/_nonlinear.py</FONT><BR/><BR/>
+      <FONT COLOR="#857248">Shared methods/_nonlinear.py</FONT><BR/><BR/>
       Common tolerances, stopping rules and failures<BR/>
       Return SolveStats + converged evaluation<BR/><BR/>
       Newton: exact formulation-specific corrections<BR/>

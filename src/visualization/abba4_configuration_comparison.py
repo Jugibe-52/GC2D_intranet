@@ -13,7 +13,7 @@ from matplotlib.collections import LineCollection
 from matplotlib.lines import Line2D
 
 from potential import Potential
-from simulation import Solution
+from solution import Solution
 
 from .particles import _field_normalization, _frame_indices
 

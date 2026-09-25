@@ -7,7 +7,7 @@ from dataclasses import dataclass
 import numpy as np
 
 from dynamics import GuidingCenterDynamics
-from simulation import FullyExtendedImplicitIntegrationStep, IntegrationStep
+from contracts.observation import FullyExtendedImplicitIntegrationStep, IntegrationStep
 
 from diagnostics.jacobians import central_difference_jacobian
 

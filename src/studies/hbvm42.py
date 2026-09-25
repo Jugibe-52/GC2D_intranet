@@ -8,20 +8,17 @@ from types import MappingProxyType
 from typing import Callable, Mapping
 
 import numpy as np
-from simulation import DOP853
+from methods.adaptive.scipy import DOP853
 
 from dynamics import DynamicalSystem, GuidingCenterDynamics, HamiltonianSystem
 from initial_conditions import GCInitialConfiguration
-from simulation import (
-	BM4Implicit,
-	HBVM42,
-	HBVMJacobianMethod,
-	InitialValueProblem,
-	NumericalMethod,
-	SimulationRequest,
-	Solution,
-	simulate,
-)
+from methods.extended.bm4 import BM4Implicit
+from methods.hbvm.order4 import HBVM42, HBVMJacobianMethod
+from contracts.problem import InitialValueProblem
+from methods.base import NumericalMethod
+from contracts.request import SimulationRequest
+from solution import Solution
+from simulation.runner import simulate
 
 from ._validation import integer_ratio, positive_finite, positive_integer
 

@@ -1,98 +1,61 @@
-# ABBA family: state formulations and execution
+# ABBA family: shared extended-space execution
 
-ABBA2, ABBA4 and ABBA6 retain their distinct composition and projection placement.
+ABBA2 pair; ABBA4 triple jump; ABBA6: seven signed ABBA2 steps. ABBA4 projects the complete triple jump; ABBA6 projects each base pair.
 
-The canonical theoretical source is [theory.tex](../tex/theory.tex), with its
-compiled [theory.pdf](../tex/theory.pdf). The four-formulation convention below
-supersedes earlier diagrams showing a duplicated clock or full time/momentum projection.
+![ABBA family architecture](abba-numerical-architecture.svg)
 
-## Responsibilities
+The numerical implementation now lives in `src/methods/extended/`.
+Public names, constructor defaults, exports from `simulation`, observer records,
+and diagnostic keys remain unchanged. The former `methods/abba/` and
+`methods/bm4/` import adapters have been removed. Internal imports point directly
+to the defining modules in `methods.extended`.
 
-| Component | Owns |
-|---|---|
-| Dynamics | Physical vector field, Hamiltonian and required derivatives |
-| Formulation | Internal coordinates, spatial copies and physical/energy extraction |
-| Method | Stages, signed coefficients, spatial projection and passive quadrature |
-| Integration | Accepted intervals, sampling, observation and output collection |
+See the [shared architecture](../../extended/simulation/extended-simulation-architecture.md)
+for the module responsibilities, state layouts, solver equations, energy
+normalization and validation contracts. The model's mathematical entry point
+remains [theory.tex](../tex/theory.tex), with its compiled
+[theory.pdf](../tex/theory.pdf).
 
-## State contract
+## Numerical path
 
-| Planar one-particle formulation | Internal coordinates | Dimension |
-|---|---|---:|
-| Physical | `(x, y)` | 2 |
-| Physical with energy | `(x, y, t, kappa)` | 4 |
-| Duplicated | `(x1, y1, x2, y2)` | 4 |
-| Duplicated with energy | `(x1, y1, x2, y2, t, kappa)` | 6 |
+Initialization binds this model's recipe and options. The ordinary implicit
+path is `advance -> solve_projection -> compose -> direct_map / adjoint_map`.
+Explicit midpoint methods use `midpoint_step` in place of the nonlinear
+projection. ABBA6 repeats seven complete projected pairs, preserving its
+existing projection placement.
 
-ABBA family uses the **duplicated** rows. `track_energy=False` is the default;
-`track_energy=True` enables the energy row. With N planar particles its internal
-dimensions are 4N / 6N. There are N time entries and N energy momenta.
-Classical FC runs use their actual physical size 4N, giving 4N / 6N.
-All components remain component-major; energy states append N times, then N
-normalized momenta. Every component block has the same particle dimension.
-The time entries are copies of the integration time; physical maps still receive
-one scalar time. The formulation owns clock validation and output alignment.
-The physical output always has its original size.
-Accepted duplicated copies are equal. They separate only inside the numerical map.
+The reduced and simultaneous formulations use the same shared spatial
+projection engine. Newton uses exact particle-block Jacobians and Broyden uses
+residual-only secant updates.
 
-`PhysicalFormulation` and `DoubledFormulation` are constructed directly from the
-problem, initial time and tracking flag. They are defined in
-`src/simulation/formulations/state.py`. BM4 additionally uses directly bound
-`GCDoubledMaps` for its spatial direct/adjoint stages; its legacy configuration
-factory is only a compatibility entry point.
+The shared composition keeps signed durations and the nonautonomous stage
+clock: adjoint maps evaluate at the start of their substep and direct maps at
+its end. ABBA uses no harmonic coupling. BM4 retains its configurable coupling
+and the existing defaults for each public class.
 
-## Energy and nonlinear work
+## Accepted states and diagnostics
 
-Signed accepted shear-stage traces update the passive momentum independently of the spatial root solve.
+For N planar particles, both methods use two spatial copies with 4N components.
+Optional passive energy adds N time entries and N physical momenta, producing
+6N accepted internal components. Physical outputs and observer snapshots remain
+2N dimensional. Time and momentum never enter a nonlinear root.
 
-The stored momentum is physical `kappa`, initialized at zero. Its derivative is
-`-partial_t H`; splitting sums are normalized by one half. The diagnostic is
-`H(t, z) + kappa - H(t0, z0)`. It measures a balance, not conservation of the
-time-dependent physical Hamiltonian. Dynamics must implement
-[`HamiltonianSystem`](../../../dynamics/protocols.md) when tracking is enabled.
-It extends `DynamicalSystem` with `hamiltonian` and
-`extended_momentum_derivative`, including an explicit zero derivative for an
-autonomous Hamiltonian. With tracking disabled, only `DynamicalSystem` is
-required for this energy choice; method-specific capabilities still apply.
+The accepted shear trace feeds common normalized momentum quadrature after the
+spatial computation. The diagnostic `H + kappa - H_initial` measures energy
+balance for the time-dependent Hamiltonian. Tracking does not alter the spatial
+map or its nonlinear stopping scale. Analytic tangents and BM4 stage events reuse
+the retained spatial stages; no extra spatial replay is required for them.
 
-Only spatial coordinates enter a Hairer constraint. The reduced multiplier has
-2N components; the ABBA simultaneous spatial solve has 6N unknowns. Clock and
-momentum never enlarge these roots or affect their stopping scale. Tracking also
-leaves classical physical solves and adaptive acceptance decisions unchanged.
-Passive energy quadrature and optional observer reconstruction are extra work
-outside the physical solver counters; reported wall time still includes them.
+The integration coordinator still owns accepted intervals, off-grid output
+sampling, history collection and observer dispatch. Energy arrays follow saved
+times and nonlinear-work arrays follow accepted main steps. Existing method
+and observer tests remain applicable, supplemented by
+`tests/test_extended_family.py`.
 
-## Lifecycle and output
+## Diagram maintenance
 
-`simulate(problem, method, request)` creates a fresh run via `new_run`, validates
-its formulation and calls the shared `integrate_method`. Each `advance` returns
-an internal state, small work counters and method-specific accepted details.
-The common collector retains samples and counters; the formulation extracts the
-physical trajectory and diagnostic histories. Run resources are isolated.
-
-Fixed methods use independent shortened maps for off-grid samples. Adaptive
-methods retain one live SciPy solver whose state is always physical. Their
-energy quadrature follows accepted dense output and cannot affect the error norm.
-Radau Jacobians are physical-sized even when energy tracking is enabled.
-
-Observers receive the physical map and independent snapshots. Their shapes do
-not change with tracking. All energy histories have shape `(N, saved_times)`,
-including `extended_time` even for a single particle. Diagnostic arrays
-`extended_time`, `extended_momentum`,
-`physical_hamiltonian`, `generalized_energy` and `generalized_energy_error` follow
-`Solution.t`; nonlinear and runtime work arrays follow `step_times`.
-`extended_momentum_normalization` is `physical_kappa` and `energy_error` is the
-maximum absolute sampled balance error over all particles.
-
-## Migration and verification
-
-`state_extension="fully_extended"` no longer runs a time/momentum projection.
-It raises explicit migration guidance. Use `track_energy=True` with spatial
-projection. The historical full-state symplecticity study is retired because it
-measured a different map; existing saved artifacts can still be read.
-
-Tests in `tests/test_state_formulations.py` cover all 13 methods, both tracking
-settings, particle batches, physical-only observers, adaptive control, per-particle
-time alignment and energy normalization. Model tests retain order, projection,
-Jacobian and nonlinear-solver checks. The pre-change physical trajectories are
-also compared with the migrated implementations on short nonautonomous runs.
+Regenerate this diagram and the shared family view with
+`python scripts/render_extended_architecture.py`. The script writes the
+PlantUML/Graphviz source and corresponding SVG/PNG views from the same graph
+specification. Historical files marked `old` or `proposed` are archival diagrams;
+the figure above describes the current implementation.

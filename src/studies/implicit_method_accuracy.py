@@ -13,16 +13,14 @@ from diagnostics import StoredReferenceTrajectory
 from dynamics import GuidingCenterDynamics
 from initial_conditions import GCInitialConfiguration
 from potential import Potential
-from simulation import (
-	ABBA4Implicit,
-	BM4Implicit,
-	ABBA2Implicit,
-	InitialValueProblem,
-	NumericalMethod,
-	SimulationRequest,
-	Solution,
-	simulate,
-)
+from methods.extended.order4_implicit import ABBA4Implicit
+from methods.extended.bm4 import BM4Implicit
+from methods.extended.order2_implicit import ABBA2Implicit
+from contracts.problem import InitialValueProblem
+from methods.base import NumericalMethod
+from contracts.request import SimulationRequest
+from solution import Solution
+from simulation.runner import simulate
 
 from ._trajectory_accuracy import (
 	TrajectoryAccuracySeries,

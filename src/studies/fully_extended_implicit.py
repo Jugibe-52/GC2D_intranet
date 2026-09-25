@@ -17,23 +17,24 @@ from diagnostics import (
 from dynamics import GuidingCenterDynamics
 from initial_conditions import GCInitialConfiguration
 from potential import Potential
-from simulation import (
-	ABBA2Implicit,
-	ABBA4Implicit,
+from methods.extended.order2_implicit import ABBA2Implicit
+from methods.extended.order4_implicit import ABBA4Implicit
+from contracts.observation import (
 	FullyExtendedImplicitIntegrationStep,
 	IntegrationStep,
-	InitialValueProblem,
-	NumericalMethod,
-	SimulationRequest,
-	Solution,
 	StepObserver,
-	simulate,
 )
+from contracts.problem import InitialValueProblem
+from methods.base import NumericalMethod
+from contracts.request import SimulationRequest
+from solution import Solution
+from simulation.runner import simulate
 
 from ._validation import (
 	nonnegative_finite,
 	positive_finite,
 	positive_integer,
+	refinement_steps as _validated_steps,
 	resolve_rho,
 )
 
@@ -55,17 +56,6 @@ FULLY_EXTENDED_IMPLICIT_LABELS: Mapping[FullyExtendedImplicitMethod, str] = (
 	)
 )
 
-
-def _validated_steps(steps: tuple[float, ...]) -> tuple[float, ...]:
-	"""Return distinct positive steps from coarsest to finest."""
-	values = tuple(float(step) for step in steps)
-	if not values or any(not np.isfinite(step) or step <= 0.0 for step in values):
-		raise ValueError("`steps` must contain positive finite values.")
-	if len(set(values)) != len(values):
-		raise ValueError("`steps` must not contain duplicates.")
-	if any(coarse <= fine for coarse, fine in zip(values, values[1:])):
-		raise ValueError("`steps` must be ordered from coarsest to finest.")
-	return values
 
 
 def _validated_method(method: str) -> FullyExtendedImplicitMethod:

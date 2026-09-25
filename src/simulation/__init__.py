@@ -1,8 +1,8 @@
-"""Problems, numerical formulations, methods, requests, and orchestration."""
+"""Public simulation facade over problems, methods, integration and results."""
 
-from .formulations.state import PhysicalFormulation, DoubledFormulation
-from .configuration import InitialConfiguration, StateLayout
-from .formulations import (
+from formulations.state import PhysicalFormulation, DoubledFormulation
+from contracts.configuration import InitialConfiguration, StateLayout
+from formulations import (
 	DirectAdjointFormulation,
 	FCSplitFormulation,
 	GCExtendedFormulation,
@@ -10,7 +10,7 @@ from .formulations import (
 	StageProjectedFormulation,
 	gc_coupling_matrix,
 )
-from .methods import (
+from methods import (
 	DOP853,
 	Radau,
 	ABBA2Midpoint,
@@ -43,7 +43,7 @@ from .methods import (
 	SDIRK4,
 	SDIRKJacobianMethod,
 )
-from .observation import (
+from contracts.observation import (
 	AdaptiveIntegrationStep,
 	AdaptiveStepObserver,
 	ABBA4ImplicitSingleProjectionIntegrationStep,
@@ -62,8 +62,8 @@ from .observation import (
 	StepObserver,
 	UnprojectedABBAIntegrationStep,
 )
-from .problem import InitialValueProblem
-from .request import (
+from contracts.problem import InitialValueProblem
+from contracts.request import (
 	DEFAULT_INTEGRATION_STEP,
 	DEFAULT_INTEGRATION_STEPS_PER_CYCLE,
 	DEFAULT_SAVED_STEPS_PER_CYCLE,
@@ -72,7 +72,7 @@ from .request import (
 	SimulationRequest,
 )
 from .runner import SimulationRunner, simulate
-from .solution import Solution
+from solution import Solution
 
 __all__ = [
 	"PhysicalFormulation", "DoubledFormulation",

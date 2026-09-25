@@ -123,7 +123,7 @@
 <polygon fill="#e8eff8" stroke="none" points="434.52,-2155.94 434.52,-2205.94 671.48,-2205.94 671.48,-2155.94 434.52,-2155.94"/>
 <text xml:space="preserve" text-anchor="start" x="442.52" y="-2190.84" font-family="DejaVu Sans" font-size="9.00">EXISTING FROZEN RECORD</text>
 <text xml:space="preserve" text-anchor="start" x="442.52" y="-2176.44" font-family="DejaVu Sans" font-weight="bold" font-size="15.00">InitialValueProblem</text>
-<text xml:space="preserve" text-anchor="start" x="460.7" y="-2165.94" font-family="DejaVu Sans" font-size="10.00" fill="#62748c">src/simulation/problem.py</text>
+<text xml:space="preserve" text-anchor="start" x="460.7" y="-2165.94" font-family="DejaVu Sans" font-size="10.00" fill="#62748c">src/contracts/problem.py</text>
 <text xml:space="preserve" text-anchor="start" x="442.52" y="-2139.04" font-family="DejaVu Sans" font-weight="bold" font-size="11.00">State</text>
 <text xml:space="preserve" text-anchor="start" x="442.52" y="-2128.04" font-family="DejaVu Sans" font-size="11.00">dynamics: DynamicalSystem</text>
 <text xml:space="preserve" text-anchor="start" x="442.52" y="-2117.04" font-family="DejaVu Sans" font-size="11.00">initial_configuration: InitialConfiguration</text>
@@ -150,7 +150,7 @@
 <polygon fill="#e8edff" stroke="none" points="21.99,-1260.4 21.99,-1310.4 324.01,-1310.4 324.01,-1260.4 21.99,-1260.4"/>
 <text xml:space="preserve" text-anchor="start" x="29.99" y="-1295.3" font-family="DejaVu Sans" font-size="9.00">PACKED PHYSICAL COORDINATES</text>
 <text xml:space="preserve" text-anchor="start" x="29.99" y="-1280.9" font-family="DejaVu Sans" font-weight="bold" font-size="15.00">StateLayout</text>
-<text xml:space="preserve" text-anchor="start" x="29.99" y="-1270.4" font-family="DejaVu Sans" font-size="10.00" fill="#62748c">src/simulation/configuration.py</text>
+<text xml:space="preserve" text-anchor="start" x="29.99" y="-1270.4" font-family="DejaVu Sans" font-size="10.00" fill="#62748c">src/contracts/configuration.py</text>
 <text xml:space="preserve" text-anchor="start" x="29.99" y="-1241.4" font-family="DejaVu Sans" font-size="11.00">Components are packed in component&#45;major order.</text>
 <text xml:space="preserve" text-anchor="start" x="66.85" y="-1228.2" font-family="DejaVu Sans" font-size="11.00">m = state_dimension x particle_count.</text>
 <text xml:space="preserve" text-anchor="start" x="29.99" y="-1199" font-family="DejaVu Sans" font-size="11.00">validate_packed_state_layout; split; particle_count.</text>
@@ -194,7 +194,7 @@
 <polygon fill="#e8eff8" stroke="none" points="422.19,-1859.06 422.19,-1909.06 683.81,-1909.06 683.81,-1859.06 422.19,-1859.06"/>
 <text xml:space="preserve" text-anchor="start" x="430.19" y="-1893.96" font-family="DejaVu Sans" font-size="9.00">EXISTING FROZEN RECORD</text>
 <text xml:space="preserve" text-anchor="start" x="430.19" y="-1879.56" font-family="DejaVu Sans" font-weight="bold" font-size="15.00">SimulationRequest</text>
-<text xml:space="preserve" text-anchor="start" x="446.62" y="-1869.06" font-family="DejaVu Sans" font-size="10.00" fill="#62748c">src/simulation/request.py</text>
+<text xml:space="preserve" text-anchor="start" x="446.62" y="-1869.06" font-family="DejaVu Sans" font-size="10.00" fill="#62748c">src/contracts/request.py</text>
 <text xml:space="preserve" text-anchor="start" x="430.19" y="-1842.16" font-family="DejaVu Sans" font-weight="bold" font-size="11.00">State</text>
 <text xml:space="preserve" text-anchor="start" x="430.19" y="-1831.16" font-family="DejaVu Sans" font-size="11.00">t_span: (t0, tf)</text>
 <text xml:space="preserve" text-anchor="start" x="430.19" y="-1820.16" font-family="DejaVu Sans" font-size="11.00">max_step: float</text>
@@ -213,12 +213,12 @@
 <title>Runner</title>
 <path fill="#ffffff" stroke="#c4cfdc" stroke-width="1.15" d="M1102.96,-2201.88C1102.96,-2201.88 843.04,-2201.88 843.04,-2201.88 837.04,-2201.88 831.04,-2195.88 831.04,-2189.88 831.04,-2189.88 831.04,-2020.6 831.04,-2020.6 831.04,-2014.6 837.04,-2008.6 843.04,-2008.6 843.04,-2008.6 1102.96,-2008.6 1102.96,-2008.6 1108.96,-2008.6 1114.96,-2014.6 1114.96,-2020.6 1114.96,-2020.6 1114.96,-2189.88 1114.96,-2189.88 1114.96,-2195.88 1108.96,-2201.88 1102.96,-2201.88"/>
 <polygon fill="#e8eff8" stroke="none" points="832.48,-2150.44 832.48,-2200.44 1113.52,-2200.44 1113.52,-2150.44 832.48,-2150.44"/>
-<text xml:space="preserve" text-anchor="start" x="840.48" y="-2185.34" font-family="DejaVu Sans" font-size="9.00">EXISTING CLASS / PUBLIC FACADE</text>
-<text xml:space="preserve" text-anchor="start" x="840.48" y="-2170.94" font-family="DejaVu Sans" font-weight="bold" font-size="15.00">SimulationRunner</text>
+<text xml:space="preserve" text-anchor="start" x="840.48" y="-2185.34" font-family="DejaVu Sans" font-size="9.00">PUBLIC FUNCTION / CLASS ADAPTER</text>
+<text xml:space="preserve" text-anchor="start" x="840.48" y="-2170.94" font-family="DejaVu Sans" font-weight="bold" font-size="15.00">simulate</text>
 <text xml:space="preserve" text-anchor="start" x="856.21" y="-2160.44" font-family="DejaVu Sans" font-size="10.00" fill="#62748c">src/simulation/runner.py</text>
 <text xml:space="preserve" text-anchor="start" x="840.48" y="-2133.54" font-family="DejaVu Sans" font-weight="bold" font-size="11.00">Entry</text>
 <text xml:space="preserve" text-anchor="start" x="840.48" y="-2122.54" font-family="DejaVu Sans" font-size="11.00">simulate(problem, method, request): Solution</text>
-<text xml:space="preserve" text-anchor="start" x="840.48" y="-2111.54" font-family="DejaVu Sans" font-size="11.00">The public simulate(...) function delegates here.</text>
+<text xml:space="preserve" text-anchor="start" x="840.48" y="-2111.54" font-family="DejaVu Sans" font-size="11.00">SimulationRunner.simulate delegates here.</text>
 <text xml:space="preserve" text-anchor="start" x="840.48" y="-2084.54" font-family="DejaVu Sans" font-weight="bold" font-size="11.00">Before integration</text>
 <text xml:space="preserve" text-anchor="start" x="840.48" y="-2073.54" font-family="DejaVu Sans" font-size="11.00">Validate the three public input contracts.</text>
 <text xml:space="preserve" text-anchor="start" x="840.48" y="-2062.54" font-family="DejaVu Sans" font-size="11.00">Call method.integrate(problem, request).</text>
@@ -241,7 +241,7 @@
 <polygon fill="#fbe0c7" stroke="none" points="395.01,-1548.88 395.01,-1598.88 710.99,-1598.88 710.99,-1548.88 395.01,-1548.88"/>
 <text xml:space="preserve" text-anchor="start" x="403.01" y="-1583.78" font-family="DejaVu Sans" font-size="9.00">METHOD CONFIGURATION / IntegrationMethod</text>
 <text xml:space="preserve" text-anchor="start" x="403.01" y="-1569.38" font-family="DejaVu Sans" font-weight="bold" font-size="15.00">RK4</text>
-<text xml:space="preserve" text-anchor="start" x="409.31" y="-1558.88" font-family="DejaVu Sans" font-size="10.00" fill="#62748c">src/simulation/methods/classical/rk4.py</text>
+<text xml:space="preserve" text-anchor="start" x="409.31" y="-1558.88" font-family="DejaVu Sans" font-size="10.00" fill="#62748c">src/methods/classical/rk4.py</text>
 <text xml:space="preserve" text-anchor="start" x="403.01" y="-1529.88" font-family="DejaVu Sans" font-size="11.00">track_energy; progress; step_observer.</text>
 <text xml:space="preserve" text-anchor="start" x="417.12" y="-1516.68" font-family="DejaVu Sans" font-size="11.00">No nonlinear&#45;solver configuration.</text>
 <text xml:space="preserve" text-anchor="start" x="403.01" y="-1487.48" font-family="DejaVu Sans" font-size="11.00">new_run(problem,request): same numerical class.</text>
@@ -266,7 +266,7 @@
 <polygon fill="#fbe0c7" stroke="none" points="410.45,-1275 410.45,-1325 695.55,-1325 695.55,-1275 410.45,-1275"/>
 <text xml:space="preserve" text-anchor="start" x="418.45" y="-1309.9" font-family="DejaVu Sans" font-size="9.00">CONFIGURATION RESOLVED BEFORE THE LOOP</text>
 <text xml:space="preserve" text-anchor="start" x="418.45" y="-1295.5" font-family="DejaVu Sans" font-weight="bold" font-size="15.00">Selected numerical policy</text>
-<text xml:space="preserve" text-anchor="start" x="428.25" y="-1285" font-family="DejaVu Sans" font-size="10.00" fill="#62748c">src/simulation/methods/classical/rk4.py</text>
+<text xml:space="preserve" text-anchor="start" x="428.25" y="-1285" font-family="DejaVu Sans" font-size="10.00" fill="#62748c">src/methods/classical/rk4.py</text>
 <text xml:space="preserve" text-anchor="start" x="418.45" y="-1256" font-family="DejaVu Sans" font-size="11.00">track_energy; progress; step_observer.</text>
 <text xml:space="preserve" text-anchor="start" x="432.56" y="-1242.8" font-family="DejaVu Sans" font-size="11.00">No nonlinear&#45;solver configuration.</text>
 <text xml:space="preserve" text-anchor="start" x="418.45" y="-1213.6" font-family="DejaVu Sans" font-size="11.00">Physical z in R^m; optional (z,k) workspace.</text>
@@ -305,7 +305,7 @@
 <polygon fill="#fbe0c7" stroke="none" points="814.07,-1851.36 814.07,-1901.36 1131.93,-1901.36 1131.93,-1851.36 814.07,-1851.36"/>
 <text xml:space="preserve" text-anchor="start" x="822.07" y="-1886.26" font-family="DejaVu Sans" font-size="9.00">METHOD INITIALIZATION</text>
 <text xml:space="preserve" text-anchor="start" x="822.07" y="-1871.86" font-family="DejaVu Sans" font-weight="bold" font-size="15.00">RK4.initialize(...)</text>
-<text xml:space="preserve" text-anchor="start" x="822.07" y="-1861.36" font-family="DejaVu Sans" font-size="10.00" fill="#62748c">src/simulation/methods/classical/rk4.py</text>
+<text xml:space="preserve" text-anchor="start" x="822.07" y="-1861.36" font-family="DejaVu Sans" font-size="10.00" fill="#62748c">src/methods/classical/rk4.py</text>
 <text xml:space="preserve" text-anchor="start" x="822.07" y="-1834.46" font-family="DejaVu Sans" font-weight="bold" font-size="11.00">IN</text>
 <text xml:space="preserve" text-anchor="start" x="835.37" y="-1834.46" font-family="DejaVu Sans" font-size="11.00">: problem, request and method controls.</text>
 <text xml:space="preserve" text-anchor="start" x="822.07" y="-1823.46" font-family="DejaVu Sans" font-weight="bold" font-size="11.00">OUT</text>
@@ -333,7 +333,7 @@
 <polygon fill="#e8edff" stroke="none" points="814.41,-1590.68 814.41,-1640.68 1131.59,-1640.68 1131.59,-1590.68 814.41,-1590.68"/>
 <text xml:space="preserve" text-anchor="start" x="822.41" y="-1625.58" font-family="DejaVu Sans" font-size="9.00">SAME NUMERICAL CLASS / ONE INSTANCE PER EXECUTION</text>
 <text xml:space="preserve" text-anchor="start" x="822.41" y="-1611.18" font-family="DejaVu Sans" font-weight="bold" font-size="15.00">RK4 (run)</text>
-<text xml:space="preserve" text-anchor="start" x="855.98" y="-1600.68" font-family="DejaVu Sans" font-size="10.00" fill="#62748c">src/simulation/methods/classical/rk4.py</text>
+<text xml:space="preserve" text-anchor="start" x="855.98" y="-1600.68" font-family="DejaVu Sans" font-size="10.00" fill="#62748c">src/methods/classical/rk4.py</text>
 <text xml:space="preserve" text-anchor="start" x="822.41" y="-1573.78" font-family="DejaVu Sans" font-weight="bold" font-size="11.00">Instance data</text>
 <text xml:space="preserve" text-anchor="start" x="822.41" y="-1562.78" font-family="DejaVu Sans" font-size="11.00">problem; request; initial_state (read&#45;only)</text>
 <text xml:space="preserve" text-anchor="start" x="822.41" y="-1551.78" font-family="DejaVu Sans" font-size="11.00">formulation or dynamics; numerical resources</text>
@@ -365,7 +365,7 @@
 <polygon fill="#e8edff" stroke="none" points="825.04,-1260.4 825.04,-1310.4 1120.96,-1310.4 1120.96,-1260.4 825.04,-1260.4"/>
 <text xml:space="preserve" text-anchor="start" x="833.04" y="-1295.3" font-family="DejaVu Sans" font-size="9.00">METHOD&#45;OWNED STATE ADAPTER</text>
 <text xml:space="preserve" text-anchor="start" x="833.04" y="-1280.9" font-family="DejaVu Sans" font-weight="bold" font-size="15.00">Internal state policy</text>
-<text xml:space="preserve" text-anchor="start" x="833.04" y="-1270.4" font-family="DejaVu Sans" font-size="10.00" fill="#62748c">src/simulation/methods/classical/rk4.py</text>
+<text xml:space="preserve" text-anchor="start" x="833.04" y="-1270.4" font-family="DejaVu Sans" font-size="10.00" fill="#62748c">src/methods/classical/rk4.py</text>
 <text xml:space="preserve" text-anchor="start" x="833.04" y="-1241.4" font-family="DejaVu Sans" font-size="11.00">Physical z in R^m; optional (z,k) workspace.</text>
 <text xml:space="preserve" text-anchor="start" x="860.41" y="-1228.2" font-family="DejaVu Sans" font-size="11.00">k has one component per particle.</text>
 <text xml:space="preserve" text-anchor="start" x="833.04" y="-1199" font-family="DejaVu Sans" font-size="11.00">Initialize before stepping; finish during advance.</text>
@@ -381,7 +381,7 @@
 <polygon fill="#e8edff" stroke="none" points="1237.78,-2161.44 1237.78,-2211.44 1556.22,-2211.44 1556.22,-2161.44 1237.78,-2161.44"/>
 <text xml:space="preserve" text-anchor="start" x="1245.78" y="-2196.34" font-family="DejaVu Sans" font-size="9.00">ONE COORDINATOR FOR ALL 13 METHODS</text>
 <text xml:space="preserve" text-anchor="start" x="1245.78" y="-2181.94" font-family="DejaVu Sans" font-weight="bold" font-size="15.00">integrate_method(...)</text>
-<text xml:space="preserve" text-anchor="start" x="1270.46" y="-2171.44" font-family="DejaVu Sans" font-size="10.00" fill="#62748c">src/simulation/integration.py</text>
+<text xml:space="preserve" text-anchor="start" x="1270.46" y="-2171.44" font-family="DejaVu Sans" font-size="10.00" fill="#62748c">src/integration/core.py</text>
 <text xml:space="preserve" text-anchor="start" x="1245.78" y="-2144.54" font-family="DejaVu Sans" font-weight="bold" font-size="11.00">IN</text>
 <text xml:space="preserve" text-anchor="start" x="1259.08" y="-2144.54" font-family="DejaVu Sans" font-size="11.00"> initialized method instance; optional controller</text>
 <text xml:space="preserve" text-anchor="start" x="1324.55" y="-2133.54" font-family="DejaVu Sans" font-weight="bold" font-size="11.00">OUT</text>
@@ -411,7 +411,7 @@
 <polygon fill="#e8edff" stroke="none" points="810.77,-1042.92 810.77,-1092.92 1135.23,-1092.92 1135.23,-1042.92 810.77,-1042.92"/>
 <text xml:space="preserve" text-anchor="start" x="818.77" y="-1077.82" font-family="DejaVu Sans" font-size="9.00">INSTANCE ATTRIBUTES / NO COLLECTOR</text>
 <text xml:space="preserve" text-anchor="start" x="818.77" y="-1063.42" font-family="DejaVu Sans" font-weight="bold" font-size="15.00">Numerical resources on self</text>
-<text xml:space="preserve" text-anchor="start" x="837.8" y="-1052.92" font-family="DejaVu Sans" font-size="10.00" fill="#62748c">src/simulation/methods/classical/rk4.py</text>
+<text xml:space="preserve" text-anchor="start" x="837.8" y="-1052.92" font-family="DejaVu Sans" font-size="10.00" fill="#62748c">src/methods/classical/rk4.py</text>
 <text xml:space="preserve" text-anchor="start" x="818.77" y="-1023.92" font-family="DejaVu Sans" font-size="11.00">Store dynamics, formulation and solver controls on self.</text>
 <text xml:space="preserve" text-anchor="start" x="835.35" y="-1010.72" font-family="DejaVu Sans" font-size="11.00">initialize constructs these resources once per run.</text>
 <text xml:space="preserve" text-anchor="start" x="818.77" y="-981.52" font-family="DejaVu Sans" font-size="11.00">Fixed map inputs are independent values.</text>
@@ -456,7 +456,7 @@
 <polygon fill="#e8edff" stroke="none" points="1246.39,-1871.16 1246.39,-1921.16 1547.61,-1921.16 1547.61,-1871.16 1246.39,-1871.16"/>
 <text xml:space="preserve" text-anchor="start" x="1254.39" y="-1906.06" font-family="DejaVu Sans" font-size="9.00">UNIFORM ACCEPTED GRID / INDEPENDENT OUTPUTS</text>
 <text xml:space="preserve" text-anchor="start" x="1254.39" y="-1891.66" font-family="DejaVu Sans" font-weight="bold" font-size="15.00">FixedStepController</text>
-<text xml:space="preserve" text-anchor="start" x="1301.08" y="-1881.16" font-family="DejaVu Sans" font-size="10.00" fill="#62748c">src/simulation/integration.py</text>
+<text xml:space="preserve" text-anchor="start" x="1301.08" y="-1881.16" font-family="DejaVu Sans" font-size="10.00" fill="#62748c">src/integration/core.py</text>
 <text xml:space="preserve" text-anchor="start" x="1254.39" y="-1854.26" font-family="DejaVu Sans" font-weight="bold" font-size="11.00">steps(run, request)</text>
 <text xml:space="preserve" text-anchor="start" x="1254.39" y="-1843.26" font-family="DejaVu Sans" font-size="11.00">Choose n = ceil((tf&#45;t0)/max_step), h = (tf&#45;t0)/n.</text>
 <text xml:space="preserve" text-anchor="start" x="1254.39" y="-1832.26" font-family="DejaVu Sans" font-size="11.00">Floating boundary correction uses _step_count.</text>
@@ -485,7 +485,7 @@
 <polygon fill="#e8edff" stroke="none" points="1241.39,-1546.68 1241.39,-1596.68 1552.61,-1596.68 1552.61,-1546.68 1241.39,-1546.68"/>
 <text xml:space="preserve" text-anchor="start" x="1249.39" y="-1581.58" font-family="DejaVu Sans" font-size="9.00">METHOD&#45;OWNED OPERATION</text>
 <text xml:space="preserve" text-anchor="start" x="1249.39" y="-1567.18" font-family="DejaVu Sans" font-weight="bold" font-size="15.00">Numerical advance</text>
-<text xml:space="preserve" text-anchor="start" x="1249.39" y="-1556.68" font-family="DejaVu Sans" font-size="10.00" fill="#62748c">src/simulation/methods/classical/rk4.py</text>
+<text xml:space="preserve" text-anchor="start" x="1249.39" y="-1556.68" font-family="DejaVu Sans" font-size="10.00" fill="#62748c">src/methods/classical/rk4.py</text>
 <text xml:space="preserve" text-anchor="start" x="1249.39" y="-1529.78" font-family="DejaVu Sans" font-weight="bold" font-size="11.00">IN</text>
 <text xml:space="preserve" text-anchor="start" x="1262.69" y="-1529.78" font-family="DejaVu Sans" font-size="11.00">: start time, internal state, duration.</text>
 <text xml:space="preserve" text-anchor="start" x="1249.39" y="-1518.78" font-family="DejaVu Sans" font-weight="bold" font-size="11.00">OUT</text>
@@ -511,7 +511,7 @@
 <polygon fill="#e8edff" stroke="none" points="1665.8,-1838.96 1665.8,-1888.96 1970.2,-1888.96 1970.2,-1838.96 1665.8,-1838.96"/>
 <text xml:space="preserve" text-anchor="start" x="1673.8" y="-1873.86" font-family="DejaVu Sans" font-size="9.00">ONE ADVANCE / METHOD&#45;SPECIFIC PAYLOAD</text>
 <text xml:space="preserve" text-anchor="start" x="1673.8" y="-1859.46" font-family="DejaVu Sans" font-weight="bold" font-size="15.00">StepResult[Detail]</text>
-<text xml:space="preserve" text-anchor="start" x="1703.37" y="-1848.96" font-family="DejaVu Sans" font-size="10.00" fill="#62748c">src/simulation/integration.py</text>
+<text xml:space="preserve" text-anchor="start" x="1703.37" y="-1848.96" font-family="DejaVu Sans" font-size="10.00" fill="#62748c">src/integration/core.py</text>
 <text xml:space="preserve" text-anchor="start" x="1673.8" y="-1819.96" font-family="DejaVu Sans" font-size="11.00">state: next internal vector [q].</text>
 <text xml:space="preserve" text-anchor="start" x="1673.8" y="-1806.76" font-family="DejaVu Sans" font-size="11.00">statistics: mapping of scalar/vector work values.</text>
 <text xml:space="preserve" text-anchor="start" x="1769.07" y="-1793.56" font-family="DejaVu Sans" font-size="11.00">details: None.</text>
@@ -534,7 +534,7 @@
 <polygon fill="#fbe0c7" stroke="none" points="1258.06,-1253.8 1258.06,-1303.8 1535.94,-1303.8 1535.94,-1253.8 1258.06,-1253.8"/>
 <text xml:space="preserve" text-anchor="start" x="1266.06" y="-1288.7" font-family="DejaVu Sans" font-size="9.00">METHOD&#45;SPECIFIC ALGORITHM</text>
 <text xml:space="preserve" text-anchor="start" x="1266.06" y="-1274.3" font-family="DejaVu Sans" font-weight="bold" font-size="15.00">Complete numerical recipe</text>
-<text xml:space="preserve" text-anchor="start" x="1280.66" y="-1263.8" font-family="DejaVu Sans" font-size="10.00" fill="#62748c">src/simulation/methods/classical/rk4.py</text>
+<text xml:space="preserve" text-anchor="start" x="1280.66" y="-1263.8" font-family="DejaVu Sans" font-size="10.00" fill="#62748c">src/methods/classical/rk4.py</text>
 <text xml:space="preserve" text-anchor="start" x="1266.06" y="-1234.8" font-family="DejaVu Sans" font-size="11.00">Classical four&#45;stage Runge&#45;&#45;Kutta.</text>
 <text xml:space="preserve" text-anchor="start" x="1266.06" y="-1221.6" font-family="DejaVu Sans" font-size="11.00">Apply identical nodes and weights to tracked k.</text>
 <text xml:space="preserve" text-anchor="start" x="1266.06" y="-1192.4" font-family="DejaVu Sans" font-size="11.00">Physical z in R^m; optional (z,k) workspace.</text>
@@ -562,7 +562,7 @@
 <polygon fill="#e2f1e9" stroke="none" points="1290.02,-1021.72 1290.02,-1071.72 1503.98,-1071.72 1503.98,-1021.72 1290.02,-1021.72"/>
 <text xml:space="preserve" text-anchor="start" x="1298.02" y="-1056.62" font-family="DejaVu Sans" font-size="9.00">EVALUATION OR NONLINEAR PROBLEM</text>
 <text xml:space="preserve" text-anchor="start" x="1298.02" y="-1042.22" font-family="DejaVu Sans" font-weight="bold" font-size="15.00">Numerical equations</text>
-<text xml:space="preserve" text-anchor="start" x="1298.02" y="-1031.72" font-family="DejaVu Sans" font-size="10.00" fill="#62748c">src/simulation/methods/classical/rk4.py</text>
+<text xml:space="preserve" text-anchor="start" x="1298.02" y="-1031.72" font-family="DejaVu Sans" font-size="10.00" fill="#62748c">src/methods/classical/rk4.py</text>
 <text xml:space="preserve" text-anchor="start" x="1298.02" y="-1002.72" font-family="DejaVu Sans" font-size="11.00">k1=f(t,z); k2=f(t+h/2,z+h k1/2)</text>
 <text xml:space="preserve" text-anchor="start" x="1298.02" y="-989.52" font-family="DejaVu Sans" font-size="11.00">k3=f(t+h/2,z+h k2/2)</text>
 <text xml:space="preserve" text-anchor="start" x="1336.63" y="-976.32" font-family="DejaVu Sans" font-size="11.00">k4=f(t+h,z+h k3)</text>
@@ -581,7 +581,7 @@
 <polygon fill="#e2f1e9" stroke="none" points="1246.18,-636.16 1246.18,-686.16 1547.82,-686.16 1547.82,-636.16 1246.18,-636.16"/>
 <text xml:space="preserve" text-anchor="start" x="1254.18" y="-671.06" font-family="DejaVu Sans" font-size="9.00">CONTROL INSIDE THE NUMERICAL METHOD</text>
 <text xml:space="preserve" text-anchor="start" x="1254.18" y="-656.66" font-family="DejaVu Sans" font-weight="bold" font-size="15.00">Local solution strategy</text>
-<text xml:space="preserve" text-anchor="start" x="1254.18" y="-646.16" font-family="DejaVu Sans" font-size="10.00" fill="#62748c">src/simulation/methods/classical/rk4.py</text>
+<text xml:space="preserve" text-anchor="start" x="1254.18" y="-646.16" font-family="DejaVu Sans" font-size="10.00" fill="#62748c">src/methods/classical/rk4.py</text>
 <text xml:space="preserve" text-anchor="start" x="1254.18" y="-617.16" font-family="DejaVu Sans" font-size="11.00">Direct four&#45;stage evaluation.</text>
 <text xml:space="preserve" text-anchor="start" x="1254.18" y="-603.96" font-family="DejaVu Sans" font-size="11.00">No nonlinear solve, projection or step rejection.</text>
 <text xml:space="preserve" text-anchor="start" x="1254.18" y="-574.76" font-family="DejaVu Sans" font-size="11.00">Failure propagates to the common coordinator.</text>
@@ -602,7 +602,7 @@
 <polygon fill="#e2f1e9" stroke="none" points="1254.62,-439.88 1254.62,-489.88 1539.38,-489.88 1539.38,-439.88 1254.62,-439.88"/>
 <text xml:space="preserve" text-anchor="start" x="1262.62" y="-474.78" font-family="DejaVu Sans" font-size="9.00">NUMERICAL KERNEL</text>
 <text xml:space="preserve" text-anchor="start" x="1262.62" y="-460.38" font-family="DejaVu Sans" font-weight="bold" font-size="15.00">Stage calculation</text>
-<text xml:space="preserve" text-anchor="start" x="1262.62" y="-449.88" font-family="DejaVu Sans" font-size="10.00" fill="#62748c">src/simulation/methods/classical/rk4.py</text>
+<text xml:space="preserve" text-anchor="start" x="1262.62" y="-449.88" font-family="DejaVu Sans" font-size="10.00" fill="#62748c">src/methods/classical/rk4.py</text>
 <text xml:space="preserve" text-anchor="start" x="1262.62" y="-420.88" font-family="DejaVu Sans" font-size="11.00">z_next = z + h (k1+2k2+2k3+k4)/6.</text>
 <text xml:space="preserve" text-anchor="start" x="1262.62" y="-407.68" font-family="DejaVu Sans" font-size="11.00">With energy: integrate k derivative alongside z.</text>
 <text xml:space="preserve" text-anchor="start" x="1262.62" y="-394.48" font-family="DejaVu Sans" font-size="11.00">Its triangular equation does not feed back into z.</text>
@@ -627,7 +627,7 @@
 <polygon fill="#e2f1e9" stroke="none" points="1248.07,-279.4 1248.07,-329.4 1545.93,-329.4 1545.93,-279.4 1248.07,-279.4"/>
 <text xml:space="preserve" text-anchor="start" x="1256.07" y="-314.3" font-family="DejaVu Sans" font-size="9.00">NUMERICAL COMPLETION</text>
 <text xml:space="preserve" text-anchor="start" x="1256.07" y="-299.9" font-family="DejaVu Sans" font-weight="bold" font-size="15.00">Accepted state and output policy</text>
-<text xml:space="preserve" text-anchor="start" x="1297.64" y="-289.4" font-family="DejaVu Sans" font-size="10.00" fill="#62748c">src/simulation/methods/classical/rk4.py</text>
+<text xml:space="preserve" text-anchor="start" x="1297.64" y="-289.4" font-family="DejaVu Sans" font-size="10.00" fill="#62748c">src/methods/classical/rk4.py</text>
 <text xml:space="preserve" text-anchor="start" x="1256.07" y="-260.4" font-family="DejaVu Sans" font-size="11.00">Extract physical samples and optional k history.</text>
 <text xml:space="preserve" text-anchor="start" x="1297.89" y="-247.2" font-family="DejaVu Sans" font-size="11.00">Energy diagnostic uses H(t,z)+k.</text>
 <text xml:space="preserve" text-anchor="start" x="1256.07" y="-218" font-family="DejaVu Sans" font-size="11.00">Only accepted states continue the main trajectory.</text>
@@ -674,7 +674,7 @@
 <polygon fill="#e8edff" stroke="none" points="1669.08,-2163.64 1669.08,-2213.64 1966.92,-2213.64 1966.92,-2163.64 1669.08,-2163.64"/>
 <text xml:space="preserve" text-anchor="start" x="1677.08" y="-2198.54" font-family="DejaVu Sans" font-size="9.00">ONE RUN / REQUESTED SAMPLES + ACCEPTED METRICS</text>
 <text xml:space="preserve" text-anchor="start" x="1677.08" y="-2184.14" font-family="DejaVu Sans" font-weight="bold" font-size="15.00">IntegrationCollector</text>
-<text xml:space="preserve" text-anchor="start" x="1732.09" y="-2173.64" font-family="DejaVu Sans" font-size="10.00" fill="#62748c">src/simulation/integration.py</text>
+<text xml:space="preserve" text-anchor="start" x="1732.09" y="-2173.64" font-family="DejaVu Sans" font-size="10.00" fill="#62748c">src/integration/core.py</text>
 <text xml:space="preserve" text-anchor="start" x="1677.08" y="-2146.74" font-family="DejaVu Sans" font-weight="bold" font-size="11.00">history</text>
 <text xml:space="preserve" text-anchor="start" x="1720.64" y="-2146.74" font-family="DejaVu Sans" font-size="11.00">: internal coordinates x saved times</text>
 <text xml:space="preserve" text-anchor="start" x="1677.08" y="-2135.74" font-family="DejaVu Sans" font-weight="bold" font-size="11.00">record_step(info, statistics)</text>
@@ -706,7 +706,7 @@
 <polygon fill="#eee5f5" stroke="none" points="1672.52,-1040.72 1672.52,-1090.72 1963.48,-1090.72 1963.48,-1040.72 1672.52,-1040.72"/>
 <text xml:space="preserve" text-anchor="start" x="1680.52" y="-1075.62" font-family="DejaVu Sans" font-size="9.00">OPTIONAL METHOD ADAPTER</text>
 <text xml:space="preserve" text-anchor="start" x="1680.52" y="-1061.22" font-family="DejaVu Sans" font-weight="bold" font-size="15.00">run.build_observation</text>
-<text xml:space="preserve" text-anchor="start" x="1680.52" y="-1050.72" font-family="DejaVu Sans" font-size="10.00" fill="#62748c">src/simulation/methods/classical/rk4.py</text>
+<text xml:space="preserve" text-anchor="start" x="1680.52" y="-1050.72" font-family="DejaVu Sans" font-size="10.00" fill="#62748c">src/methods/classical/rk4.py</text>
 <text xml:space="preserve" text-anchor="start" x="1680.52" y="-1023.82" font-family="DejaVu Sans" font-weight="bold" font-size="11.00">IN</text>
 <text xml:space="preserve" text-anchor="start" x="1693.82" y="-1023.82" font-family="DejaVu Sans" font-size="11.00">: StepInfo + StepResult[Detail].</text>
 <text xml:space="preserve" text-anchor="start" x="1680.52" y="-1012.82" font-family="DejaVu Sans" font-weight="bold" font-size="11.00">OUT</text>
@@ -744,7 +744,7 @@
 <polygon fill="#e8edff" stroke="none" points="2201.13,-2172.44 2201.13,-2222.44 2514.87,-2222.44 2514.87,-2172.44 2201.13,-2172.44"/>
 <text xml:space="preserve" text-anchor="start" x="2209.13" y="-2207.34" font-family="DejaVu Sans" font-size="9.00">COMMON FINAL ASSEMBLY</text>
 <text xml:space="preserve" text-anchor="start" x="2209.13" y="-2192.94" font-family="DejaVu Sans" font-weight="bold" font-size="15.00">IntegrationData</text>
-<text xml:space="preserve" text-anchor="start" x="2215.32" y="-2182.44" font-family="DejaVu Sans" font-size="10.00" fill="#62748c">src/simulation/_result.py</text>
+<text xml:space="preserve" text-anchor="start" x="2215.32" y="-2182.44" font-family="DejaVu Sans" font-size="10.00" fill="#62748c">src/contracts/result.py</text>
 <text xml:space="preserve" text-anchor="start" x="2209.13" y="-2155.54" font-family="DejaVu Sans" font-weight="bold" font-size="11.00">Fields</text>
 <text xml:space="preserve" text-anchor="start" x="2209.13" y="-2144.54" font-family="DejaVu Sans" font-size="11.00">t: requested times [T]</text>
 <text xml:space="preserve" text-anchor="start" x="2209.13" y="-2133.54" font-family="DejaVu Sans" font-size="11.00">states: physical history [m, T]</text>
@@ -754,7 +754,7 @@
 <text xml:space="preserve" text-anchor="start" x="2209.13" y="-2067.04" font-family="DejaVu Sans" font-size="11.00">Export never repeats the numerical projection.</text>
 <text xml:space="preserve" text-anchor="start" x="2218.69" y="-2053.84" font-family="DejaVu Sans" font-size="11.00">Internal and physical dimensions may differ.</text>
 <text xml:space="preserve" text-anchor="start" x="2209.13" y="-2024.64" font-family="DejaVu Sans" font-size="11.00">Add output_interpolation_count and metric aliases.</text>
-<text xml:space="preserve" text-anchor="start" x="2209.13" y="-2011.44" font-family="DejaVu Sans" font-size="11.00">Return to the original SimulationRunner call.</text>
+<text xml:space="preserve" text-anchor="start" x="2209.13" y="-2011.44" font-family="DejaVu Sans" font-size="11.00">Return to the original simulate call.</text>
 <text xml:space="preserve" text-anchor="start" x="2209.13" y="-1998.24" font-family="DejaVu Sans" font-size="11.00">Only the requested trajectory is exposed by default.</text>
 <polygon fill="#c4cfdc" stroke="#c4cfdc" points="2201.13,-2112.44 2201.13,-2112.44 2514.87,-2112.44 2514.87,-2112.44 2201.13,-2112.44"/>
 <polygon fill="#c4cfdc" stroke="#c4cfdc" points="2201.13,-2043.64 2201.13,-2043.64 2514.87,-2043.64 2514.87,-2043.64 2201.13,-2043.64"/>
@@ -831,7 +831,7 @@
 <polygon fill="#e8edff" stroke="none" points="1677.48,-1527.68 1677.48,-1577.68 1958.52,-1577.68 1958.52,-1527.68 1677.48,-1527.68"/>
 <text xml:space="preserve" text-anchor="start" x="1685.48" y="-1562.58" font-family="DejaVu Sans" font-size="9.00">COPIED ACCEPTED&#45;STEP DATA</text>
 <text xml:space="preserve" text-anchor="start" x="1685.48" y="-1548.18" font-family="DejaVu Sans" font-weight="bold" font-size="15.00">Observation domain</text>
-<text xml:space="preserve" text-anchor="start" x="1685.48" y="-1537.68" font-family="DejaVu Sans" font-size="10.00" fill="#62748c">src/simulation/methods/classical/rk4.py</text>
+<text xml:space="preserve" text-anchor="start" x="1685.48" y="-1537.68" font-family="DejaVu Sans" font-size="10.00" fill="#62748c">src/methods/classical/rk4.py</text>
 <text xml:space="preserve" text-anchor="start" x="1685.48" y="-1508.68" font-family="DejaVu Sans" font-size="11.00">IntegrationStep on the integrated workspace.</text>
 <text xml:space="preserve" text-anchor="start" x="1693.62" y="-1495.48" font-family="DejaVu Sans" font-size="11.00">Tracking enabled: map_state acts on (z,k).</text>
 <text xml:space="preserve" text-anchor="start" x="1685.48" y="-1466.28" font-family="DejaVu Sans" font-size="11.00">Changing an event must not change integration</text>
@@ -853,7 +853,7 @@
 <polygon fill="#e8edff" stroke="none" points="1672.78,-1253.8 1672.78,-1303.8 1963.22,-1303.8 1963.22,-1253.8 1672.78,-1253.8"/>
 <text xml:space="preserve" text-anchor="start" x="1680.78" y="-1288.7" font-family="DejaVu Sans" font-size="9.00">METHOD STATISTICS + COMMON TIMING</text>
 <text xml:space="preserve" text-anchor="start" x="1680.78" y="-1274.3" font-family="DejaVu Sans" font-weight="bold" font-size="15.00">Accepted&#45;step diagnostics</text>
-<text xml:space="preserve" text-anchor="start" x="1693.6" y="-1263.8" font-family="DejaVu Sans" font-size="10.00" fill="#62748c">src/simulation/methods/classical/rk4.py</text>
+<text xml:space="preserve" text-anchor="start" x="1693.6" y="-1263.8" font-family="DejaVu Sans" font-size="10.00" fill="#62748c">src/methods/classical/rk4.py</text>
 <text xml:space="preserve" text-anchor="start" x="1680.78" y="-1234.8" font-family="DejaVu Sans" font-size="11.00">Common accepted timing; no nonlinear metrics.</text>
 <text xml:space="preserve" text-anchor="start" x="1680.78" y="-1221.6" font-family="DejaVu Sans" font-size="11.00">Energy history is evaluated only when requested.</text>
 <text xml:space="preserve" text-anchor="start" x="1680.78" y="-1192.4" font-family="DejaVu Sans" font-size="11.00">Always: step_count, step_start_times, step_times,</text>
@@ -884,15 +884,15 @@
 <title>Resume</title>
 <path fill="#ffffff" stroke="#c4cfdc" stroke-width="1.15" d="M2477.62,-1888.2C2477.62,-1888.2 2238.38,-1888.2 2238.38,-1888.2 2232.38,-1888.2 2226.38,-1882.2 2226.38,-1876.2 2226.38,-1876.2 2226.38,-1740.52 2226.38,-1740.52 2226.38,-1734.52 2232.38,-1728.52 2238.38,-1728.52 2238.38,-1728.52 2477.62,-1728.52 2477.62,-1728.52 2483.62,-1728.52 2489.62,-1734.52 2489.62,-1740.52 2489.62,-1740.52 2489.62,-1876.2 2489.62,-1876.2 2489.62,-1882.2 2483.62,-1888.2 2477.62,-1888.2"/>
 <polygon fill="#e2f1e9" stroke="none" points="2227.82,-1836.76 2227.82,-1886.76 2488.18,-1886.76 2488.18,-1836.76 2227.82,-1836.76"/>
-<text xml:space="preserve" text-anchor="start" x="2235.82" y="-1871.66" font-family="DejaVu Sans" font-size="9.00">EXISTING CALL CONTINUATION / SAME RUNNER</text>
-<text xml:space="preserve" text-anchor="start" x="2235.82" y="-1857.26" font-family="DejaVu Sans" font-weight="bold" font-size="15.00">SimulationRunner resumes</text>
+<text xml:space="preserve" text-anchor="start" x="2235.82" y="-1871.66" font-family="DejaVu Sans" font-size="9.00">CALL CONTINUATION / SAME FUNCTION</text>
+<text xml:space="preserve" text-anchor="start" x="2235.82" y="-1857.26" font-family="DejaVu Sans" font-weight="bold" font-size="15.00">simulate resumes</text>
 <text xml:space="preserve" text-anchor="start" x="2289.11" y="-1846.76" font-family="DejaVu Sans" font-size="10.00" fill="#537866">src/simulation/runner.py</text>
 <text xml:space="preserve" text-anchor="start" x="2235.82" y="-1819.86" font-family="DejaVu Sans" font-weight="bold" font-size="11.00">IN</text>
 <text xml:space="preserve" text-anchor="start" x="2249.12" y="-1819.86" font-family="DejaVu Sans" font-size="11.00"> IntegrationData</text>
 <text xml:space="preserve" text-anchor="start" x="2250.61" y="-1808.86" font-family="DejaVu Sans" font-weight="bold" font-size="11.00">OUT</text>
 <text xml:space="preserve" text-anchor="start" x="2276.4" y="-1808.86" font-family="DejaVu Sans" font-size="11.00"> Solution</text>
-<text xml:space="preserve" text-anchor="start" x="2235.82" y="-1779.76" font-family="DejaVu Sans" font-size="11.00">Require exactly the requested output times.</text>
-<text xml:space="preserve" text-anchor="start" x="2235.82" y="-1766.56" font-family="DejaVu Sans" font-size="11.00">Check shape, finiteness and packed layout.</text>
+<text xml:space="preserve" text-anchor="start" x="2235.82" y="-1779.76" font-family="DejaVu Sans" font-size="11.00">Solution validates arrays and layout.</text>
+<text xml:space="preserve" text-anchor="start" x="2235.82" y="-1766.56" font-family="DejaVu Sans" font-size="11.00">Match requested times and state size.</text>
 <text xml:space="preserve" text-anchor="start" x="2235.82" y="-1753.36" font-family="DejaVu Sans" font-size="11.00">Verify that the initial state is preserved.</text>
 <text xml:space="preserve" text-anchor="start" x="2252.49" y="-1740.16" font-family="DejaVu Sans" font-size="11.00">Retain the source initial configuration.</text>
 <polygon fill="#c4cfdc" stroke="#c4cfdc" points="2227.82,-1798.76 2227.82,-1798.76 2488.18,-1798.76 2488.18,-1798.76 2227.82,-1798.76"/>
@@ -911,7 +911,7 @@
 <polygon fill="#e2f1e9" stroke="none" points="2216.83,-1548.58 2216.83,-1598.58 2499.17,-1598.58 2499.17,-1548.58 2216.83,-1548.58"/>
 <text xml:space="preserve" text-anchor="start" x="2224.83" y="-1583.48" font-family="DejaVu Sans" font-size="9.00">EXISTING PUBLIC CLASS</text>
 <text xml:space="preserve" text-anchor="start" x="2224.83" y="-1569.08" font-family="DejaVu Sans" font-weight="bold" font-size="15.00">Solution</text>
-<text xml:space="preserve" text-anchor="start" x="2224.83" y="-1558.58" font-family="DejaVu Sans" font-size="10.00" fill="#537866">src/simulation/solution.py</text>
+<text xml:space="preserve" text-anchor="start" x="2224.83" y="-1558.58" font-family="DejaVu Sans" font-size="10.00" fill="#537866">src/solution.py</text>
 <text xml:space="preserve" text-anchor="start" x="2224.83" y="-1531.68" font-family="DejaVu Sans" font-weight="bold" font-size="11.00">Read&#45;only public properties</text>
 <text xml:space="preserve" text-anchor="start" x="2224.83" y="-1520.68" font-family="DejaVu Sans" font-size="11.00">t: array[T]</text>
 <text xml:space="preserve" text-anchor="start" x="2224.83" y="-1509.68" font-family="DejaVu Sans" font-size="11.00">states: array[m, T]</text>
@@ -927,7 +927,7 @@
 <title>Resume&#45;&gt;Solution</title>
 <path fill="none" stroke="#64748b" stroke-width="1.15" d="M2358,-1728.02C2358,-1691.47 2358,-1647.74 2358,-1609.17"/>
 <polygon fill="#64748b" stroke="#64748b" stroke-width="1.15" points="2360.52,-1609.45 2358,-1602.25 2355.48,-1609.45 2360.52,-1609.45"/>
-<text xml:space="preserve" text-anchor="middle" x="2414.14" y="-1665.12" font-family="DejaVu Sans" font-size="10.00">validate and construct</text>
+<text xml:space="preserve" text-anchor="middle" x="2414.14" y="-1665.12" font-family="DejaVu Sans" font-size="10.00">return validated result</text>
 </g>
 <!-- Interpret -->
 <g id="node44" class="node">

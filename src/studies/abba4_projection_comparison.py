@@ -12,11 +12,8 @@ from diagnostics import StoredReferenceTrajectory
 from dynamics import GuidingCenterDynamics
 from initial_conditions import GCInitialConfiguration
 from potential import Potential
-from simulation import (
-	NONLINEAR_SOLVERS,
-	NonlinearSolver,
-	Solution,
-)
+from methods._nonlinear import NONLINEAR_SOLVERS, NonlinearSolver
+from solution import Solution
 
 from ._trajectory_accuracy import (
 	TrajectoryAccuracySeries,

@@ -10,7 +10,11 @@ def baseline(indices,xy,meta):
     potential,_,_=load_snapshot()
     from dynamics import GuidingCenterDynamics
     from initial_conditions import GCInitialConfiguration
-    from simulation import BM4Implicit,BM4Midpoint,InitialValueProblem,SimulationRequest,simulate
+    from methods.extended.bm4 import BM4Implicit
+    from methods.extended.bm4_midpoint import BM4Midpoint
+    from contracts.problem import InitialValueProblem
+    from contracts.request import SimulationRequest
+    from simulation.runner import simulate
     initial=GCInitialConfiguration.from_components(x=xy[indices,0],y=xy[indices,1])
     problem=InitialValueProblem(GuidingCenterDynamics(potential,rho=meta['rho']),initial)
     request=SimulationRequest.uniform(t_span=tuple(meta['t_span']),max_step=meta['step'],sample_count=meta['complete_steps']+1)

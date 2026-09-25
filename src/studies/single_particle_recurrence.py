@@ -11,7 +11,9 @@ from scipy.optimize import brentq
 
 from diagnostics.adaptive_trajectory import AdaptiveTrajectoryObserver
 from initial_conditions import GCInitialConfiguration
-from simulation import DOP853, Radau, InitialValueProblem, SimulationRequest
+from methods.adaptive.scipy import DOP853, Radau
+from contracts.problem import InitialValueProblem
+from contracts.request import SimulationRequest
 from dynamics import GuidingCenterDynamics
 from potential import Potential
 

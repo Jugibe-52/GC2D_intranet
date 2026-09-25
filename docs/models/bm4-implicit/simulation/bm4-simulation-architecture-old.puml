@@ -45,7 +45,7 @@ digraph G {
       color="#A0A0A0";
       style="rounded";
       problem_anchor [shape=point, width=0, height=0, label="", style=invis];
-      InitialValueProblem [label="«value»\nsrc/simulation/problem.py\nInitialValueProblem|Binds dynamics to initial configuration\lChecks state-dimension compatibility\l"];
+      InitialValueProblem [label="«value»\nsrc/contracts/problem.py\nInitialValueProblem|Binds dynamics to initial configuration\lChecks state-dimension compatibility\l"];
       { rank=same; problem_anchor; InitialValueProblem; }
     }
 
@@ -55,8 +55,8 @@ digraph G {
       color="#A0A0A0";
       style="rounded";
       state_contracts_anchor [shape=point, width=0, height=0, label="", style=invis];
-      InitialConfiguration [label="«protocol»\nsrc/simulation/configuration.py\nInitialConfiguration|Supplies initial_state\lExposes StateLayout\l"];
-      StateLayout [label="«protocol»\nsrc/simulation/configuration.py\nStateLayout|state_dimension\lvalidate_packed_state_layout(...)\lsplit(...) / particle_count(...)\lpositions(...)\l"];
+      InitialConfiguration [label="«protocol»\nsrc/contracts/configuration.py\nInitialConfiguration|Supplies initial_state\lExposes StateLayout\l"];
+      StateLayout [label="«protocol»\nsrc/contracts/configuration.py\nStateLayout|state_dimension\lvalidate_packed_state_layout(...)\lsplit(...) / particle_count(...)\lpositions(...)\l"];
       { rank=same; state_contracts_anchor; InitialConfiguration; StateLayout; }
     }
 
@@ -87,7 +87,7 @@ digraph G {
       color="#A0A0A0";
       style="rounded";
       request_anchor [shape=point, width=0, height=0, label="", style=invis];
-      SimulationRequest [label="«value»\nsrc/simulation/request.py\nSimulationRequest|Time span\lMaximum step\lRequested output times\l"];
+      SimulationRequest [label="«value»\nsrc/contracts/request.py\nSimulationRequest|Time span\lMaximum step\lRequested output times\l"];
       { rank=same; request_anchor; SimulationRequest; }
     }
 
@@ -107,8 +107,8 @@ digraph G {
       color="#A0A0A0";
       style="rounded";
       method_anchor [shape=point, width=0, height=0, label="", style=invis];
-      NumericalMethod [label="«protocol»\nsrc/simulation/methods/base.py\nNumericalMethod|integrate(problem, request)\l"];
-      BM4Implicit [fillcolor="#FFF3D6", label="«public method»\nsrc/simulation/methods/bm4/implicit.py\nBM4Implicit|coupling_frequency\lnonlinear_solver: newton or broyden\lNewton tolerances and Jacobian strategy\lprogress / step_observer\lintegrate(problem, request)\l"];
+      NumericalMethod [label="«protocol»\nsrc/methods/base.py\nNumericalMethod|integrate(problem, request)\l"];
+      BM4Implicit [fillcolor="#FFF3D6", label="«public method»\nsrc/methods/bm4/implicit.py\nBM4Implicit|coupling_frequency\lnonlinear_solver: newton or broyden\lNewton tolerances and Jacobian strategy\lprogress / step_observer\lintegrate(problem, request)\l"];
       MethodInvariant [shape=note, fillcolor="#FFFDEB", color="#B8AE6F", label="One class and one map:\nphysical accepted state, reduced multiplier,\nand one Hairer projection around each\ncomplete twelve-stage BM4 cycle."];
       { rank=same; method_anchor; NumericalMethod; BM4Implicit; MethodInvariant; }
     }
@@ -137,7 +137,7 @@ digraph G {
       color="#A0A0A0";
       style="rounded";
       coordinator_anchor [shape=point, width=0, height=0, label="", style=invis];
-      ImplicitCoordinator [fillcolor="#FFF3D6", label="«coordinator»\nsrc/simulation/methods/bm4/implicit.py\n_integrate_implicit_bm4(...)|Prepare physical two-copy GC map\lAccepted / base / observer: R2p / R4p / R2p\lCollect solve and multiplier metrics\l"];
+      ImplicitCoordinator [fillcolor="#FFF3D6", label="«coordinator»\nsrc/methods/bm4/implicit.py\n_integrate_implicit_bm4(...)|Prepare physical two-copy GC map\lAccepted / base / observer: R2p / R4p / R2p\lCollect solve and multiplier metrics\l"];
       { rank=same; coordinator_anchor; ImplicitCoordinator; }
     }
 
@@ -147,7 +147,7 @@ digraph G {
       color="#A0A0A0";
       style="rounded";
       fixed_anchor [shape=point, width=0, height=0, label="", style=invis];
-      FixedGrid [label="«shared outer time loop»\nsrc/simulation/_fixed.py\nintegrate_fixed_grid(...)|Build the output-independent main grid\lRequest main and shadow advances\l"];
+      FixedGrid [label="«shared outer time loop»\nsrc/integration/_fixed.py\nintegrate_fixed_grid(...)|Build the output-independent main grid\lRequest main and shadow advances\l"];
       FixedGridNote [shape=note, fillcolor="#FFFDEB", color="#B8AE6F", label="One main advance means one complete\nBM4 cycle and one reduced projection solve.\nShadow advances only produce samples."];
       { rank=same; fixed_anchor; FixedGrid; FixedGridNote; }
     }
@@ -158,8 +158,8 @@ digraph G {
       color="#A0A0A0";
       style="rounded";
       composition_anchor [shape=point, width=0, height=0, label="", style=invis];
-      BM4Coefficients [fillcolor="#EEE3F5", label="«composition data»\nsrc/simulation/methods/bm4/_core.py\n_BM4_HALF_STAGES / _BM4_STAGES|Six coefficients mirrored palindromically\lOne coefficient is negative\lTwelve signed maps per complete step\l"];
-      AdvanceComposition [fillcolor="#EEE3F5", label="«complete base cycle»\nsrc/simulation/methods/bm4/_core.py\n_advance_composition(...)|Alternate adjoint and direct maps\lAdvance the signed composition clock\lNo intermediate projection\l"];
+      BM4Coefficients [fillcolor="#EEE3F5", label="«composition data»\nsrc/methods/bm4/_core.py\n_BM4_HALF_STAGES / _BM4_STAGES|Six coefficients mirrored palindromically\lOne coefficient is negative\lTwelve signed maps per complete step\l"];
+      AdvanceComposition [fillcolor="#EEE3F5", label="«complete base cycle»\nsrc/methods/bm4/_core.py\n_advance_composition(...)|Alternate adjoint and direct maps\lAdvance the signed composition clock\lNo intermediate projection\l"];
       { rank=same; composition_anchor; BM4Coefficients; AdvanceComposition; }
     }
 
@@ -169,7 +169,7 @@ digraph G {
       color="#A0A0A0";
       style="rounded";
       formulation_anchor [shape=point, width=0, height=0, label="", style=invis];
-      GCExtendedFormulation [fillcolor="#E7F0FA", label="«internal formulation»\nsrc/simulation/formulations/gc.py\nGCExtendedFormulation|Prepare coupled physical copies\ltrack_energy = false\lNo time or conjugate momentum in the state\l"];
+      GCExtendedFormulation [fillcolor="#E7F0FA", label="«internal formulation»\nsrc/formulations/gc.py\nGCExtendedFormulation|Prepare coupled physical copies\ltrack_energy = false\lNo time or conjugate momentum in the state\l"];
       PreparedMaps [fillcolor="#E7F0FA", label="«prepared maps»\nPreparedDirectAdjointFormulation|initial_internal_state in R4p: (z, z)\ldirect_map / adjoint_map on R4p\lparticle count and coupling frequency\l"];
       StateSpaceNote [shape=note, fillcolor="#FFFDEB", color="#B8AE6F", label="The R4p duplication is internal splitting\nworkspace, not a fully extended (z,t,k) state."];
       { rank=same; formulation_anchor; GCExtendedFormulation; PreparedMaps; StateSpaceNote; }
@@ -181,7 +181,7 @@ digraph G {
       color="#A0A0A0";
       style="rounded";
       kernels_anchor [shape=point, width=0, height=0, label="", style=invis];
-      BM4MapJacobian [fillcolor="#FFF3D6", label="«complete-map kernel»\nsrc/simulation/methods/bm4/implicit.py\n_bm4_map(...) / _bm4_map_jacobian(...)|Evaluate complete coupled R4p cycle\lTwelve explicit direct/adjoint stages\lAnalytic product or centered differences\l"];
+      BM4MapJacobian [fillcolor="#FFF3D6", label="«complete-map kernel»\nsrc/methods/bm4/implicit.py\n_bm4_map(...) / _bm4_map_jacobian(...)|Evaluate complete coupled R4p cycle\lTwelve explicit direct/adjoint stages\lAnalytic product or centered differences\l"];
       { rank=same; kernels_anchor; BM4MapJacobian; }
     }
 
@@ -191,7 +191,7 @@ digraph G {
       color="#A0A0A0";
       style="rounded";
       projection_anchor [shape=point, width=0, height=0, label="", style=invis];
-      ReducedSolver [fillcolor="#FFF3D6", label="«only nonlinear formulation»\nsrc/simulation/methods/bm4/implicit.py\n_solve_reduced_projected_bm4_step(...)|Unknown mu in R2p\lInput Ez + N mu in R4p\lr(mu) = G Psi(Ez + N mu) + 2 mu\lOutput correction and physical projection\l"];
+      ReducedSolver [fillcolor="#FFF3D6", label="«only nonlinear formulation»\nsrc/methods/bm4/implicit.py\n_solve_reduced_projected_bm4_step(...)|Unknown mu in R2p\lInput Ez + N mu in R4p\lr(mu) = G Psi(Ez + N mu) + 2 mu\lOutput correction and physical projection\l"];
       ProjectedBM4Step [fillcolor="#FFF3D6", label="«accepted-step record»\n_ProjectedBM4Step|Accepted physical state in R2p\lMultiplier and displaced R4p input\lMapped R4p cycle output\lIterations, evaluations and residual norm\l"];
       ProjectionNote [shape=note, fillcolor="#FFFDEB", color="#B8AE6F", label="Hairer's symmetric placement uses the same\nmu before and after the complete cycle.\nThere is no projection between BM4 stages."];
       { rank=same; projection_anchor; ReducedSolver; ProjectedBM4Step; ProjectionNote; }
@@ -203,7 +203,7 @@ digraph G {
       color="#A0A0A0";
       style="rounded";
       services_anchor [shape=point, width=0, height=0, label="", style=invis];
-      NonlinearService [fillcolor="#FCECF1", label="«shared nonlinear service»\nsrc/simulation/methods/_nonlinear.py\nNonlinear solver support|_validate_nonlinear_solver(...)\l_solve_broyden(...)\l"];
+      NonlinearService [fillcolor="#FCECF1", label="«shared nonlinear service»\nsrc/methods/_nonlinear.py\nNonlinear solver support|_validate_nonlinear_solver(...)\l_solve_broyden(...)\l"];
       AcceptedDiagnostics [label="«diagnostic aggregation»\nAccepted physical BM4 steps|Iteration and residual histories\lProjection-multiplier norms\lJacobian and solver metadata\lFixed reduced-formulation marker\l"];
       NewtonNote [shape=note, fillcolor="#FFFDEB", color="#B8AE6F", label="An analytic Newton correction uses\nGuidingCenterDynamics and requires\ninterpolation_order >= 3. Finite-difference\nNewton and Broyden solve the same equation."];
       { rank=same; services_anchor; NonlinearService; AcceptedDiagnostics; NewtonNote; }
@@ -216,7 +216,7 @@ digraph G {
       style="rounded";
       continuation_anchor [shape=point, width=0, height=0, label="", style=invis];
       SchedulerContinuation [label="«outer-loop continuation»\nReturn accepted physical state to fixed grid|Main state replaces the trajectory\lShadow state is sampled and discarded\l"];
-      ImplicitObservation [fillcolor="#F5ECFA", label="«optional observation»\nsrc/simulation/observation.py\nImplicitBM4IntegrationStep|Accepted physical map and nonlinear metrics\lConverged multiplier\lTwelve reconstructed base-stage records\l"];
+      ImplicitObservation [fillcolor="#F5ECFA", label="«optional observation»\nsrc/contracts/observation.py\nImplicitBM4IntegrationStep|Accepted physical map and nonlinear metrics\lConverged multiplier\lTwelve reconstructed base-stage records\l"];
       { rank=same; continuation_anchor; SchedulerContinuation; ImplicitObservation; }
     }
   }
@@ -228,11 +228,11 @@ digraph G {
     penwidth=1.0;
     style="rounded";
     data_anchor [shape=point, width=0, height=0, label="", style=invis];
-    IntegrationData [label="«internal result»\nsrc/simulation/_result.py\nIntegrationData|Requested times\lPhysical R2p state history\lBM4Implicit diagnostics\l"];
+    IntegrationData [label="«internal result»\nsrc/contracts/result.py\nIntegrationData|Requested times\lPhysical R2p state history\lBM4Implicit diagnostics\l"];
     return_anchor [shape=point, width=0, height=0, label="", style=invis];
     RunnerReturn [label="«facade validation»\nsrc/simulation/runner.py\nSimulationRunner return checks|Validate time and physical-state shapes\lRequire finite output and preserved initial state\l"];
     solution_anchor [shape=point, width=0, height=0, label="", style=invis];
-    Solution [label="«public result»\nsrc/simulation/solution.py\nSolution|Immutable physical trajectory\lSource configuration\lRead-only diagnostics\l"];
+    Solution [label="«public result»\nsrc/solution.py\nSolution|Immutable physical trajectory\lSource configuration\lRead-only diagnostics\l"];
     Legend [fillcolor="#FFFFFF", label="Legend|yellow: BM4Implicit projection path\lblue: internal physical two-copy formulation\lpink: shared nonlinear service\lpurple: composition or observation boundary\l"];
     { rank=same; data_anchor; IntegrationData; }
     { rank=same; return_anchor; RunnerReturn; }

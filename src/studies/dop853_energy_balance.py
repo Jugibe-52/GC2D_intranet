@@ -4,11 +4,16 @@ from typing import Any
 
 import numpy as np
 from potential import Potential
-from simulation import DOP853
-from simulation.methods import NumericalMethod
+from methods.adaptive.scipy import DOP853
+from methods.base import NumericalMethod
 from dynamics import GuidingCenterDynamics
 from initial_conditions import GCInitialConfiguration
-from simulation import InitialValueProblem, SimulationRequest, BM4Implicit, GaussLegendre4, RK4, simulate
+from contracts.problem import InitialValueProblem
+from contracts.request import SimulationRequest
+from methods.extended.bm4 import BM4Implicit
+from methods.classical.gauss_legendre import GaussLegendre4
+from methods.classical.rk4 import RK4
+from simulation.runner import simulate
 from diagnostics.bm4_energy_balance import BM4EnergyBalanceObserver
 
 METHODS = ("DOP853", "BM4Implicit", "GaussLegendre4", "RK4")

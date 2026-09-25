@@ -10,7 +10,7 @@ import numpy as np
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 
-from simulation import Solution
+from solution import Solution
 
 
 class TrajectorySymplecticityRecordView(Protocol):

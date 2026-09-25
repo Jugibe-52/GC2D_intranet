@@ -12,7 +12,7 @@ digraph ABBA2ProposedFullExecution {
     nodesep=0.80, ranksep=0.56, pad=0.30,
     bgcolor="#FFFFFF", fontname="DejaVu Sans", fontsize=23,
     labelloc="t", labeljust="l",
-    label="ABBA2 | Complete execution through the shared ABBA architecture\n\nHorizontal: complete lifecycle. Vertical: shared services and the selected method recipe.\nSHARED FAMILY: blue services and green numerical kernels. METHOD SPECIFIC: orange step recipe.\nProposal only: public contracts and numerical maps are retained. N = particles; T = saved times.\nCandidate module paths are relative to src/simulation/methods/abba/ unless stated otherwise."
+    label="ABBA2 | Complete execution through the shared ABBA architecture\n\nHorizontal: complete lifecycle. Vertical: shared services and the selected method recipe.\nSHARED FAMILY: blue services and green numerical kernels. METHOD SPECIFIC: orange step recipe.\nProposal only: public contracts and numerical maps are retained. N = particles; T = saved times.\nCandidate module paths are relative to src/methods/abba/ unless stated otherwise."
   ];
   node [
     shape=box, style="rounded,filled", fillcolor="#FFFFFF",
@@ -71,7 +71,7 @@ digraph ABBA2ProposedFullExecution {
 
     Problem [label=<
       <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
-        <TR><TD BGCOLOR="#E8EFF8" ALIGN="LEFT"><FONT POINT-SIZE="9">EXISTING FROZEN RECORD</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>InitialValueProblem</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/simulation/problem.py</FONT></TD></TR>
+        <TR><TD BGCOLOR="#E8EFF8" ALIGN="LEFT"><FONT POINT-SIZE="9">EXISTING FROZEN RECORD</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>InitialValueProblem</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/contracts/problem.py</FONT></TD></TR>
         <TR><TD ALIGN="LEFT"><B>State</B><BR ALIGN="LEFT"/>dynamics: DynamicalSystem<BR ALIGN="LEFT"/>initial_configuration: InitialConfiguration</TD></TR><HR/>
         <TR><TD ALIGN="LEFT"><B>Operations</B><BR ALIGN="LEFT"/>__post_init__(): validate compatibility<BR ALIGN="LEFT"/>initial_state: array[2N]<BR ALIGN="LEFT"/>particle_count: int</TD></TR><HR/>
         <TR><TD ALIGN="LEFT">Require a finite initial state and<BR ALIGN="LEFT"/>matching dynamics/layout dimensions.</TD></TR>
@@ -79,7 +79,7 @@ digraph ABBA2ProposedFullExecution {
     >];
     Request [label=<
       <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
-        <TR><TD BGCOLOR="#E8EFF8" ALIGN="LEFT"><FONT POINT-SIZE="9">EXISTING FROZEN RECORD</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>SimulationRequest</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/simulation/request.py</FONT></TD></TR>
+        <TR><TD BGCOLOR="#E8EFF8" ALIGN="LEFT"><FONT POINT-SIZE="9">EXISTING FROZEN RECORD</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>SimulationRequest</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/contracts/request.py</FONT></TD></TR>
         <TR><TD ALIGN="LEFT"><B>State</B><BR ALIGN="LEFT"/>t_span: (t0, tf)<BR ALIGN="LEFT"/>max_step: float<BR ALIGN="LEFT"/>output_times: read-only array[T]</TD></TR><HR/>
         <TR><TD ALIGN="LEFT"><B>Operations</B><BR ALIGN="LEFT"/>uniform(t_span, max_step, sample_count)<BR ALIGN="LEFT"/>__post_init__(): validate time request</TD></TR><HR/>
         <TR><TD ALIGN="LEFT">Increasing times include both endpoints.<BR ALIGN="LEFT"/>The saved grid need not equal the step grid.</TD></TR>
@@ -157,7 +157,7 @@ digraph ABBA2ProposedFullExecution {
     >];
     Grid [label=<
       <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
-        <TR><TD BGCOLOR="#E8EFF8" ALIGN="LEFT"><FONT POINT-SIZE="9">EXISTING FUNCTION / OUTER TIME LOOP</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>integrate_fixed_grid(...)</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/simulation/_fixed.py</FONT></TD></TR>
+        <TR><TD BGCOLOR="#E8EFF8" ALIGN="LEFT"><FONT POINT-SIZE="9">EXISTING FUNCTION / OUTER TIME LOOP</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>integrate_fixed_grid(...)</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/integration/_fixed.py</FONT></TD></TR>
         <TR><TD ALIGN="LEFT"><B>IN</B> initial workspace, request, advance<BR ALIGN="LEFT"/><B>OUT</B> sampled history, main-step count</TD></TR><HR/>
         <TR><TD ALIGN="LEFT">Choose uniform h &lt;= max_step.<BR ALIGN="LEFT"/>Run complete main steps up to tf.<BR ALIGN="LEFT"/>For off-grid output, make a shadow advance<BR ALIGN="LEFT"/>from the preceding main-grid state.</TD></TR><HR/>
         <TR><TD ALIGN="LEFT">Shadow advances change neither the main<BR ALIGN="LEFT"/>trajectory nor main-step metrics/events.</TD></TR>
@@ -190,7 +190,7 @@ digraph ABBA2ProposedFullExecution {
     >];
     Nonlinear [label=<
       <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
-        <TR><TD BGCOLOR="#E3F0E9" ALIGN="LEFT"><FONT POINT-SIZE="9">PROPOSED SHARED CONVERGENCE SUPPORT</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>Nonlinear solve</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#537866">src/simulation/methods/_nonlinear.py</FONT></TD></TR>
+        <TR><TD BGCOLOR="#E3F0E9" ALIGN="LEFT"><FONT POINT-SIZE="9">PROPOSED SHARED CONVERGENCE SUPPORT</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>Nonlinear solve</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#537866">src/methods/_nonlinear.py</FONT></TD></TR>
         <TR><TD ALIGN="LEFT"><B>IN</B> unknown, callbacks, tolerances<BR ALIGN="LEFT"/><B>OUT</B> converged evaluation + SolveStats<BR ALIGN="LEFT"/></TD></TR><HR/>
         <TR><TD ALIGN="LEFT">Evaluate residual and test its scaled tolerance.<BR ALIGN="LEFT"/>If needed, compute a correction and repeat.<BR ALIGN="LEFT"/><B>Newton:</B> formulation-specific exact systems.<BR ALIGN="LEFT"/><B>Broyden:</B> residual-only iteration updates.<BR ALIGN="LEFT"/></TD></TR><HR/>
         <TR><TD ALIGN="LEFT">Share stopping rules, counts and error reporting.<BR ALIGN="LEFT"/>Preserve each formulation's block layout.<BR ALIGN="LEFT"/>A failed solve raises an explicit error.<BR ALIGN="LEFT"/></TD></TR>
@@ -266,7 +266,7 @@ digraph ABBA2ProposedFullExecution {
     >];
     Events [label=<
       <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
-        <TR><TD BGCOLOR="#F0E8FA" ALIGN="LEFT"><FONT POINT-SIZE="9">EXISTING EVENT CLASSES / METHOD-SPECIFIC PAYLOADS</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>ABBA2 event selection</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#79628F">src/simulation/observation.py</FONT></TD></TR>
+        <TR><TD BGCOLOR="#F0E8FA" ALIGN="LEFT"><FONT POINT-SIZE="9">EXISTING EVENT CLASSES / METHOD-SPECIFIC PAYLOADS</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>ABBA2 event selection</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#79628F">src/contracts/observation.py</FONT></TD></TR>
         <TR><TD ALIGN="LEFT"><B>ABBA2ImplicitIntegrationStep</B><BR ALIGN="LEFT"/>One projected physical map and stage snapshots.<BR ALIGN="LEFT"/>Physical energy tracking retains this event type.<BR ALIGN="LEFT"/><B>FullyExtendedImplicitIntegrationStep</B><BR ALIGN="LEFT"/>One projected full-state map and one base record.<BR ALIGN="LEFT"/></TD></TR><HR/>
         <TR><TD ALIGN="LEFT">Builders adapt the same StepResult contract.<BR ALIGN="LEFT"/>Preserve times, states, map_state and tangents.<BR ALIGN="LEFT"/></TD></TR>
       </TABLE>
@@ -281,7 +281,7 @@ digraph ABBA2ProposedFullExecution {
 
     Data [label=<
       <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
-        <TR><TD BGCOLOR="#E2F1E9" ALIGN="LEFT"><FONT POINT-SIZE="9">EXISTING INTERNAL RECORD</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>IntegrationData</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#537866">src/simulation/_result.py</FONT></TD></TR>
+        <TR><TD BGCOLOR="#E2F1E9" ALIGN="LEFT"><FONT POINT-SIZE="9">EXISTING INTERNAL RECORD</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>IntegrationData</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#537866">src/contracts/result.py</FONT></TD></TR>
         <TR><TD ALIGN="LEFT"><B>State</B><BR ALIGN="LEFT"/>t: requested times [T]<BR ALIGN="LEFT"/>states: physical history [2N, T]<BR ALIGN="LEFT"/>diagnostics: dict[str, DiagnosticValue]</TD></TR><HR/>
         <TR><TD ALIGN="LEFT">Created after the scheduler reaches tf.<BR ALIGN="LEFT"/>Extract physical coordinates from workspace.<BR ALIGN="LEFT"/>Attach energy histories when applicable.<BR ALIGN="LEFT"/>Map legacy metric aliases at this boundary.</TD></TR>
       </TABLE>
@@ -295,7 +295,7 @@ digraph ABBA2ProposedFullExecution {
     >];
     Solution [label=<
       <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
-        <TR><TD BGCOLOR="#E2F1E9" ALIGN="LEFT"><FONT POINT-SIZE="9">EXISTING PUBLIC CLASS</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>Solution</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#537866">src/simulation/solution.py</FONT></TD></TR>
+        <TR><TD BGCOLOR="#E2F1E9" ALIGN="LEFT"><FONT POINT-SIZE="9">EXISTING PUBLIC CLASS</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>Solution</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#537866">src/solution.py</FONT></TD></TR>
         <TR><TD ALIGN="LEFT"><B>Read-only public properties</B><BR ALIGN="LEFT"/>t: array[T]<BR ALIGN="LEFT"/>states: array[2N, T]<BR ALIGN="LEFT"/>source: InitialConfiguration<BR ALIGN="LEFT"/>diagnostics: read-only mapping</TD></TR><HR/>
         <TR><TD ALIGN="LEFT">Owns copies of trajectory and diagnostic arrays.<BR ALIGN="LEFT"/>Layout and provenance remain available<BR ALIGN="LEFT"/>through the source configuration.</TD></TR>
       </TABLE>

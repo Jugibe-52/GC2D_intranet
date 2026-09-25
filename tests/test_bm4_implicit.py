@@ -19,8 +19,8 @@ from simulation import (
 	SimulationRequest,
 	simulate,
 )
-from simulation.formulations.gc import GCDoubledMaps
-from simulation.methods.bm4._core import _advance_composition
+from formulations.gc import GCDoubledMaps
+from methods.extended.bm4_composition import _advance_composition
 from studies import (
 	AreaStep,
 	BM4ImplicitSymplecticityConfig,

@@ -18,7 +18,10 @@ from scipy.spatial import cKDTree
 from dynamics import GuidingCenterDynamics
 from initial_conditions import GCInitialConfiguration
 from potential import Grid, Potential
-from simulation import InitialValueProblem, RK4, SimulationRequest, simulate
+from contracts.problem import InitialValueProblem
+from methods.classical.rk4 import RK4
+from contracts.request import SimulationRequest
+from simulation.runner import simulate
 from studies.poincare_periodicity import SavedPoincareSection
 
 

@@ -20,7 +20,7 @@ from potential import (
 	load_gc2d_h5_potential,
 )
 from simulation import ABBA4Implicit, InitialValueProblem, SimulationRequest, simulate
-from simulation.methods._fully_extended import (
+from methods.extended.legacy_full_maps import (
 	_extended_vector_field,
 	_extended_vector_field_jacobian,
 )

@@ -140,7 +140,7 @@ $\kappa$ is projected. The former eight-component projection is retired;
 
 Dynamics, formulation, method and integration remain separate. The shared
 state classes own layouts, diagonal embedding and history extraction in
-\begin{quote}\small\path{src/simulation/formulations/state.py}\end{quote}
+\begin{quote}\small\path{src/formulations/state.py}\end{quote}
 Each integration initializes a fresh method instance. Observers receive physical
 states; energy histories are in \texttt{Solution.diagnostics}.
 The \texttt{extended\_time} history has shape $(N,n_{\rm samples})$. Fixed-step shadow
