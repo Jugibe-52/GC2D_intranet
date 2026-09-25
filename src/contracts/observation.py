@@ -7,7 +7,7 @@ from typing import Callable, Literal, TypeAlias
 
 import numpy as np
 
-from dynamics import DynamicalSystem, GuidingCenterJacobianSystem
+from dynamics import DynamicalSystem
 
 
 StateMap: TypeAlias = Callable[[np.ndarray], np.ndarray]

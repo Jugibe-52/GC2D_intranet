@@ -1,5 +1,4 @@
 """Render saved cloud Poincare products without loading an integrator."""
-from pathlib import Path
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.colors import ListedColormap, BoundaryNorm

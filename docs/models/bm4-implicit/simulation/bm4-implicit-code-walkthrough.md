@@ -2,8 +2,10 @@
 
 The public `BM4Implicit` class is implemented in
 [`extended/bm4.py`](../../../../src/methods/extended/bm4.py).
-Its historical module path remains an import adapter. See the
-[architecture diagram](bm4-simulation-architecture.md) and
+The former `methods.bm4` import adapters have been removed; public names remain
+available through explicit exports. See the
+[detailed architecture diagram](bm4-detailed-architecture.md),
+[compact architecture](bm4-simulation-architecture.md), and
 [shared family contract](../../extended/simulation/extended-simulation-architecture.md).
 
 1. `initialize` binds `GCDoubledMaps`, `DoubledFormulation`, the twelve-stage

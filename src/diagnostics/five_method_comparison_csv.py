@@ -15,6 +15,8 @@ from typing import Any, TYPE_CHECKING
 
 import numpy as np
 
+from diagnostics.output import _json_default
+
 from initial_conditions import GCInitialConfiguration
 from solution import Solution
 
@@ -38,17 +40,6 @@ def _record_dictionary(value: object) -> dict[str, object]:
 	if not is_dataclass(value) or isinstance(value, type):
 		raise TypeError("Comparison records must be dataclass instances.")
 	return dict(asdict(value))
-
-
-def _json_default(value: object) -> object:
-	"""Serialize NumPy values and paths used in the CSV metadata cell."""
-	if isinstance(value, np.generic):
-		return value.item()
-	if isinstance(value, np.ndarray):
-		return value.tolist()
-	if isinstance(value, Path):
-		return str(value)
-	raise TypeError(f"Object of type {type(value).__name__} is not JSON serializable.")
 
 
 def _scalar_diagnostics(solution: Solution) -> dict[str, object]:

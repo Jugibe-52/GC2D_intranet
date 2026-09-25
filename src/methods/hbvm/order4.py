@@ -12,7 +12,6 @@ from dynamics import GuidingCenterJacobianSystem
 from formulations.state import PhysicalFormulation
 from integration.core import IntegrationMethod
 from contracts.step import StepInfo, StepResult
-from contracts.result import DiagnosticValue
 from contracts.observation import IntegrationStep, StepObserver
 from contracts.problem import InitialValueProblem
 from contracts.request import SimulationRequest

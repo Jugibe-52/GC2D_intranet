@@ -14,6 +14,52 @@ initial geometry stays in `src/initial_conditions/`. The `simulation` package
 continues to export the established public names through explicit imports and
 `__all__`. Internal consumers import directly from the defining modules.
 
+Validation follows the same ownership: `InitialValueProblem` checks the dynamics
+protocol and compatible initial layout; state formulations check the Hamiltonian
+capability needed for energy tracking; method constructors check their numerical
+options. Methods reuse these validated inputs instead of repeating the same
+capability checks. `IntegrationMethod.new_run` owns immutable run snapshots.
+
+## Package workflow diagram
+
+![Package responsibilities and execution workflow](package-workflow-architecture.svg)
+
+Open the [SVG](package-workflow-architecture.svg),
+[PNG](package-workflow-architecture.png), or
+[PlantUML/Graphviz source](package-workflow-architecture.puml).
+The previous detailed integration lifecycle is preserved as
+[`integration-architecture_old.puml`](integration-architecture_old.puml),
+with its [SVG](integration-architecture_old.svg) and
+[PNG](integration-architecture_old.png) renderings.
+
+The upper row follows the source responsibility order:
+`potential -> dynamics -> initial_conditions -> formulations -> methods -> integration -> simulation -> solution`.
+These are responsibility headings, not successive runtime calls. In particular:
+
+- `potential` supplies the physical field consumed by `dynamics`.
+- `dynamics` and `initial_conditions` are independent inputs to
+  `contracts.problem.InitialValueProblem`.
+- Each method prepares its formulation during initialization. Formulations
+  define internal coordinates, physical extraction and applicable split maps.
+- `simulation.runner.simulate` starts execution with a problem, method and
+  request. The method's inherited `integrate` prepares a fresh run and invokes
+  the common integration coordinator. Its controller calls `advance` repeatedly;
+  the coordinator requests output samples from the controller and collects the results.
+- History export returns `IntegrationData` to `simulate`, which constructs and
+  validates the final `Solution`. Its implementation is `src/solution.py`.
+
+The shared `contracts/` band identifies the data exchanged across these owners.
+The lower detail follows ABBA/BM4 composition through `direct_map` and
+`adjoint_map` to the physical dynamics. Other numerical families share the same
+execution lifecycle with their own step algorithms.
+
+The diagram's content and layout are maintained in
+`scripts/render_package_workflow.py`. Regenerate all three formats together:
+
+```bash
+MPLCONFIGDIR=/tmp/gc2d-mpl .venv/bin/python scripts/render_package_workflow.py
+```
+
 ## Public API and imports
 
 Use `from simulation import ABBA4Implicit, BM4Implicit, simulate` for the public
@@ -90,8 +136,9 @@ BM4 reuses the converged residual's shear states for passive quadrature without
 repeating spatial maps. Adaptive energy samples reuse their accepted interval's
 endpoint momenta; only interior queries require partial-interval quadrature.
 
-Fixed controllers compute off-grid samples with independent shortened maps;
-adaptive controllers evaluate accepted dense output. The formulation validates each
+Fixed controllers reuse accepted endpoint states and compute off-grid samples with
+independent shortened maps; adaptive controllers evaluate accepted dense output.
+The formulation validates each
 particle time and aligns diagnostic times to the requested grid within round-off.
 The coordinator and collector do not inspect clock indices or tracking flags.
 Observer snapshots cannot mutate

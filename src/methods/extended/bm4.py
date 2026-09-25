@@ -6,16 +6,16 @@ from typing import Literal, TypeAlias
 import numpy as np
 from formulations.state import DoubledFormulation
 from formulations.gc import GCDoubledMaps
-from integration.core import IntegrationMethod, NEWTON_ALIASES
+from integration.core import IntegrationMethod
 from contracts.step import StepInfo, StepResult
 from contracts.result import DiagnosticValue
-from contracts.observation import ImplicitBM4IntegrationStep, IntegrationStage, StepObserver
+from contracts.observation import ImplicitBM4IntegrationStep, StepObserver
 from contracts.problem import InitialValueProblem
 from contracts.request import SimulationRequest
 from methods._nonlinear import NonlinearSolver, SolverOptions, _validate_nonlinear_solver
 from methods.extended.configuration import (
     _positive_finite, _positive_integer, _nonnegative_finite, StateExtension,
-    _resolved_track_energy, _state_dimension_diagnostics, _validate_state_extension,
+    _state_dimension_diagnostics, _validate_state_extension,
 )
 from dynamics import DynamicalSystem
 from contracts.observation import IntegrationStep
@@ -130,15 +130,11 @@ class BM4Implicit(IntegrationMethod[_ProjectedBM4Step]):
 		}
 		self.initial_state = self.state_formulation.initial_state
 		self.metadata = metadata
-		self.diagnostic_aliases = NEWTON_ALIASES
 
 	def advance(self, t: float, state: np.ndarray, h: float) -> StepResult[_ProjectedBM4Step]:
 		"""Return one projected state and the already computed solve metrics."""
 		physical = self.state_formulation.physical(state)
 		result = self.project(t, physical, h)
-		tolerance = self.newton_absolute_tolerance + self.newton_relative_tolerance * max(
-			1.0, float(np.linalg.norm(physical, ord=np.inf))
-		)
 		increment = None
 		if self.track_energy:
 			increment = momentum_increment(self.state_formulation, result.energy_points)
@@ -147,7 +143,7 @@ class BM4Implicit(IntegrationMethod[_ProjectedBM4Step]):
 			"nonlinear_iterations": result.iterations,
 			"residual_evaluations": result.residual_evaluations,
 			"nonlinear_residual_norms": result.residual_norm,
-			"nonlinear_tolerances": tolerance,
+			"nonlinear_tolerances": result.stats.tolerance,
 			"projection_multiplier_norms": float(np.linalg.norm(result.multiplier, ord=np.inf)),
 		}, result)
 
@@ -174,7 +170,7 @@ class BM4Implicit(IntegrationMethod[_ProjectedBM4Step]):
 			newton_tolerance=float(step.statistics["nonlinear_tolerances"]),
 			projection_multiplier_norm=float(step.statistics["projection_multiplier_norms"]),
 			coupling_frequency=self.coupling_frequency,
-			multiplier=result.multiplier.copy(), base_stages=tuple(base_stages),
+			multiplier=result.multiplier.copy(), base_stages=base_stages,
 		)
 
 
@@ -201,15 +197,12 @@ class BM4Midpoint(IntegrationMethod[MidpointResult]):
 	# Runtime resources are initialized once by new_run, never constructor inputs.
 	state_formulation: DoubledFormulation = field(init=False, repr=False, compare=False)
 	dynamics: DynamicalSystem = field(init=False, repr=False, compare=False)
-	physical_size: int = field(init=False, repr=False, compare=False)
-	particle_count: int = field(init=False, repr=False, compare=False)
 	formulation: GCDoubledMaps = field(init=False, repr=False, compare=False)
 
 	def __post_init__(self) -> None:
 		"""Validate state strategy and coupling; resolve inherent energy tracking."""
-		extension = _validate_state_extension(self.state_extension)
-		self.state_extension = extension
-		self.track_energy = _resolved_track_energy(self.track_energy, extension)
+		self.state_extension = _validate_state_extension(self.state_extension)
+		self.track_energy = bool(self.track_energy)
 		frequency = float(self.coupling_frequency)
 		if not np.isfinite(frequency) or frequency < 0:
 			raise ValueError("`coupling_frequency` must be finite and non-negative.")
@@ -218,8 +211,6 @@ class BM4Midpoint(IntegrationMethod[MidpointResult]):
 	def initialize(self, problem: InitialValueProblem, request: SimulationRequest) -> None:
 		"""Initialize one spatial arithmetic-projection run with optional passive energy."""
 		self.dynamics = problem.dynamics
-		self.physical_size = problem.initial_state.size
-		self.particle_count = self.physical_size // 2
 		self.state_formulation = DoubledFormulation(problem, request.t_span[0], self.track_energy)
 		self.formulation = GCDoubledMaps(problem, self.coupling_frequency)
 		self.initial_state = self.state_formulation.initial_state
@@ -229,7 +220,7 @@ class BM4Midpoint(IntegrationMethod[MidpointResult]):
 			"coupling_frequency": self.coupling_frequency, "composition_stage_count": 12,
 			"vector_field_evaluations_per_step": 24,
 		}
-		metadata.update(_state_dimension_diagnostics(self.state_extension, particle_count=self.particle_count))
+		metadata.update(_state_dimension_diagnostics(particle_count=problem.particle_count))
 		self.metadata = metadata
 
 	def advance(self, t: float, state: np.ndarray, h: float) -> StepResult[MidpointResult]:

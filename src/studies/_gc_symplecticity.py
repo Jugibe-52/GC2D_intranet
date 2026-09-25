@@ -31,11 +31,7 @@ from diagnostics.symplecticity import (
 	StepJacobianMethod,
 )
 
-from ._gc_symplecticity_models import (
-	GCConvergenceOrder,
-	GCSymplecticityConfig,
-	GCSymplecticitySummary,
-)
+from ._gc_symplecticity_models import GCSymplecticityConfig, GCSymplecticitySummary
 from ._validation import integer_ratio, resolve_rho
 from .area_comparison import AreaStep
 from visualization import animate_gc_area_comparison

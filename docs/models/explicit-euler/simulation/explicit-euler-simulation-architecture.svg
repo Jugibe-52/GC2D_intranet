@@ -335,7 +335,7 @@
 <text text-anchor="start" x="825" y="-1512.2" font-family="DejaVu Sans" font-weight="bold" font-size="11.00">Instance data</text>
 <text text-anchor="start" x="825" y="-1501.2" font-family="DejaVu Sans" font-size="11.00">problem; request; initial_state (read&#45;only)</text>
 <text text-anchor="start" x="825" y="-1490.2" font-family="DejaVu Sans" font-size="11.00">formulation or dynamics; numerical resources</text>
-<text text-anchor="start" x="828.5" y="-1479.2" font-family="DejaVu Sans" font-size="11.00">metadata and diagnostic_aliases (read&#45;only)</text>
+<text text-anchor="start" x="828.5" y="-1479.2" font-family="DejaVu Sans" font-size="11.00">metadata (read&#45;only)</text>
 <text text-anchor="start" x="825" y="-1452.2" font-family="DejaVu Sans" font-weight="bold" font-size="11.00">Ordinary class methods</text>
 <text text-anchor="start" x="825" y="-1441.2" font-family="DejaVu Sans" font-size="11.00">initialize(problem, request): None</text>
 <text text-anchor="start" x="825" y="-1430.2" font-family="DejaVu Sans" font-size="11.00">advance(t, state, h): StepResult[Detail]</text>

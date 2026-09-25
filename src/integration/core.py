@@ -33,6 +33,12 @@ NEWTON_ALIASES: Mapping[str, str] = MappingProxyType({
 })
 
 
+def _time_tolerance(t_span: tuple[float, float]) -> float:
+	"""Allow float round-off when matching requested and accepted times."""
+	t0, tf = t_span
+	return 16 * np.finfo(float).eps * max(1.0, abs(t0), abs(tf))
+
+
 class StepController(Protocol[Detail]):
 	"""Deliver accepted intervals and evaluate output samples within them.
 
@@ -48,7 +54,9 @@ class StepController(Protocol[Detail]):
 	def sample(
 		self, method: IntegrationMethod[Detail], info: StepInfo,
 		result: StepResult[Detail], time: float,
-	) -> np.ndarray: ...
+	) -> np.ndarray:
+		"""Return a state at any requested time in the interval, including its ends."""
+		...
 
 
 class FixedStepController(Generic[Detail]):
@@ -73,7 +81,12 @@ class FixedStepController(Generic[Detail]):
 		self, method: IntegrationMethod[Detail], info: StepInfo,
 		result: StepResult[Detail], time: float,
 	) -> np.ndarray:
-		"""Compute a sample without touching main state, metrics or observers."""
+		"""Reuse accepted endpoints or take an independent partial step."""
+		tolerance = _time_tolerance(method.request.t_span)
+		if abs(time - info.end_time) <= tolerance:
+			return result.state
+		if abs(time - info.time) <= tolerance:
+			return info.state_before
 		return method.advance(info.time, info.state_before.copy(), time - info.time).state
 
 
@@ -137,13 +150,12 @@ def integrate_method(
 	t0, tf = request.t_span
 	# Allow only float round-off when comparing interval and sampling endpoints;
 	# this is unrelated to an integrator's error or nonlinear-solver tolerance.
-	tolerance = 16 * np.finfo(float).eps * max(1.0, abs(t0), abs(tf))
+	tolerance = _time_tolerance(request.t_span)
 	sampling_tolerance = getattr(selected, 'sampling_tolerance', tolerance)
-	sample_endpoints = getattr(selected, 'sample_endpoints', False)
 	# Estimate the fixed-step count for the display; its percentage uses accepted time.
 	progress = _Progress(method.method_name, _step_count(tf - t0, request.max_step), t_span=request.t_span) if method.progress else None
 	output_index = 1
-	shadow_count = 0
+	interior_sample_count = 0
 	previous_end = t0
 	try:
 		for info, result in selected.steps(method, request):
@@ -155,21 +167,18 @@ def integrate_method(
 			collector.record_step(info, result.statistics)
 			if method.step_observer is not None:
 				method.step_observer(method.build_observation(info, result))
-			while output_index < request.output_times.size and request.output_times[output_index] <= info.end_time + sampling_tolerance:
+			# One accepted step can cover several requested output times.
+			while (
+				output_index < request.output_times.size
+				and request.output_times[output_index] <= info.end_time + sampling_tolerance
+			):
 				target = float(request.output_times[output_index])
-				at_end = abs(target - info.end_time) <= sampling_tolerance
-				at_start = abs(target - info.time) <= sampling_tolerance
-				if at_end and not sample_endpoints:
-					sample = result.state
-				elif at_start and not sample_endpoints:
-					sample = info.state_before
-				else:
-					sample = np.asarray(selected.sample(method, info, result, target))
-					if not at_end and not at_start:
-						shadow_count += 1
+				sample = np.asarray(selected.sample(method, info, result, target))
 				if sample.shape != method.initial_state.shape or not np.all(np.isfinite(sample)):
 					raise ValueError("An output sample changed shape or became non-finite.")
 				collector.history[:, output_index] = sample
+				if min(abs(target - info.time), abs(target - info.end_time)) > sampling_tolerance:
+					interior_sample_count += 1
 				output_index += 1
 			previous_end = info.end_time
 			if progress is not None:
@@ -184,9 +193,12 @@ def integrate_method(
 	diagnostics = dict(method.metadata)
 	diagnostics.update(collector.finalize())
 	diagnostics.update(auxiliary)
-	diagnostics["output_interpolation_count"] = shadow_count
-	for alias, canonical in method.diagnostic_aliases.items():
-		diagnostics[alias] = diagnostics[canonical]
+	diagnostics["output_interpolation_count"] = interior_sample_count
+	# Only methods publishing the complete nonlinear contract expose legacy
+	# Newton names; a partial set belongs to other nonlinear algorithms.
+	if all(name in diagnostics for name in NEWTON_ALIASES.values()):
+		for alias, canonical in NEWTON_ALIASES.items():
+			diagnostics[alias] = diagnostics[canonical]
 	return IntegrationData(t=request.output_times, states=states, diagnostics=diagnostics)
 
 
@@ -200,7 +212,6 @@ class IntegrationMethod(ABC, Generic[Detail]):
 
 	initial_state: np.ndarray
 	metadata: Mapping[str, DiagnosticValue]
-	diagnostic_aliases: Mapping[str, str]
 	problem: InitialValueProblem
 	request: SimulationRequest
 	progress: bool
@@ -225,9 +236,10 @@ class IntegrationMethod(ABC, Generic[Detail]):
 		method.problem = problem
 		method.request = request
 		method.metadata = {}
-		method.diagnostic_aliases = {}
 		method.initialize(problem, request)
 		if method.state_formulation is not None:
+			# Keep algorithm metadata on the method and state-layout metadata on
+			# the formulation, then expose both through this run's single mapping.
 			method.metadata = {**method.metadata, **method.state_formulation.metadata()}
 		initial = np.array(method.initial_state, dtype=float, copy=True)
 		if initial.ndim != 1 or initial.size == 0 or not np.all(np.isfinite(initial)):
@@ -241,7 +253,6 @@ class IntegrationMethod(ABC, Generic[Detail]):
 				value.setflags(write=False)
 				metadata[name] = value
 		method.metadata = MappingProxyType(metadata)
-		method.diagnostic_aliases = MappingProxyType(dict(method.diagnostic_aliases))
 		method._status = "ready"
 		return method
 

@@ -2,7 +2,7 @@
 from pathlib import Path
 import hashlib,json,os,time
 import numpy as np
-from study_io import ROOT,load_snapshot,digest,atomic_json,utc_now
+from study_io import load_snapshot, digest, atomic_json, utc_now
 
 class CheckpointTestInterruption(RuntimeError):
     """Intentional interruption for validation only."""

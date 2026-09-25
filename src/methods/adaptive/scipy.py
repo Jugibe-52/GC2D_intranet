@@ -15,9 +15,8 @@ from typing import Any, ClassVar
 import numpy as np
 from scipy.integrate import DOP853 as ScipyDOP853, Radau as ScipyRadau
 
-from dynamics import DynamicalSystem, HamiltonianSystem
+from dynamics import DynamicalSystem
 
-from contracts.result import DiagnosticValue
 from formulations.state import PhysicalFormulation
 from integration.core import IntegrationMethod
 from contracts.step import StepInfo, StepResult
@@ -43,7 +42,6 @@ class _AdaptiveDetails:
 class ScipyAdaptiveController:
     """Report the live method's accepted intervals and dense output samples."""
 
-    sample_endpoints = True
     sampling_tolerance = 0.0
 
     def steps(self, method: IntegrationMethod[_AdaptiveDetails], request: SimulationRequest) -> Iterator[tuple[StepInfo, StepResult[_AdaptiveDetails]]]:
@@ -103,10 +101,6 @@ class _AdaptiveMethod(IntegrationMethod[_AdaptiveDetails]):
     def initialize(self, problem: InitialValueProblem, request: SimulationRequest) -> None:
         """Initialize this run's vector field, internal state and live solver."""
         self.dynamics = problem.dynamics
-        if not isinstance(self.dynamics, DynamicalSystem):
-            raise TypeError(f'{type(self).__name__} requires DynamicalSystem.')
-        if self.track_energy and not isinstance(self.dynamics, HamiltonianSystem):
-            raise TypeError('Energy tracking requires HamiltonianSystem.')
         self.physical_size = problem.initial_state.size
         self.particle_count = problem.particle_count
         self.state_formulation = PhysicalFormulation(problem, request.t_span[0], self.track_energy)

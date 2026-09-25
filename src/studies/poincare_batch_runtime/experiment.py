@@ -3,7 +3,6 @@ import importlib.metadata
 import json
 import os
 import platform
-from pathlib import Path
 import numpy as np
 import pandas as pd
 from study_io import ROOT, digest, load_snapshot, begin_calculation, publish_calculation

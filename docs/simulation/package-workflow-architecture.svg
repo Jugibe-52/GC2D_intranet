@@ -1,0 +1,615 @@
+<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+  "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg xmlns:xlink="http://www.w3.org/1999/xlink" width="1886.4pt" height="1051.2pt" viewBox="0 0 1886.4 1051.2" xmlns="http://www.w3.org/2000/svg" version="1.1">
+ <metadata>
+  <rdf:RDF xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+   <cc:Work>
+    <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
+    <dc:format>image/svg+xml</dc:format>
+    <dc:creator>
+     <cc:Agent>
+      <dc:title>Matplotlib v3.10.9, https://matplotlib.org/</dc:title>
+     </cc:Agent>
+    </dc:creator>
+   </cc:Work>
+  </rdf:RDF>
+ </metadata>
+ <defs>
+  <style type="text/css">*{stroke-linejoin: round; stroke-linecap: butt}</style>
+ </defs>
+ <g id="figure_1">
+  <g id="patch_1">
+   <path d="M 0 1051.2
+L 1886.4 1051.2
+L 1886.4 0
+L 0 0
+z
+" style="fill: #ffffff"/>
+  </g>
+  <g id="axes_1">
+   <g id="patch_2">
+    <path d="M 313.757051 597.6
+Q 326.87699 597.6 338.319879 597.6
+" clip-path="url(#p394e871def)" style="fill: none; stroke: #64748b; stroke-width: 1.5; stroke-linecap: round"/>
+    <path d="M 332.719879 594.8
+L 338.319879 597.6
+L 332.719879 600.4
+z
+" clip-path="url(#p394e871def)" style="fill: #64748b; stroke: #64748b; stroke-width: 1.5; stroke-linecap: round"/>
+   </g>
+   <g id="patch_3">
+    <path d="M 621.917051 597.6
+Q 635.03699 597.6 646.479879 597.6
+" clip-path="url(#p394e871def)" style="fill: none; stroke: #64748b; stroke-width: 1.5; stroke-linecap: round"/>
+    <path d="M 640.879879 594.8
+L 646.479879 597.6
+L 640.879879 600.4
+z
+" clip-path="url(#p394e871def)" style="fill: #64748b; stroke: #64748b; stroke-width: 1.5; stroke-linecap: round"/>
+   </g>
+   <g id="patch_4">
+    <path d="M 930.077051 597.6
+Q 943.19699 597.6 954.639879 597.6
+" clip-path="url(#p394e871def)" style="fill: none; stroke: #64748b; stroke-width: 1.5; stroke-linecap: round"/>
+    <path d="M 949.039879 594.8
+L 954.639879 597.6
+L 949.039879 600.4
+z
+" clip-path="url(#p394e871def)" style="fill: #64748b; stroke: #64748b; stroke-width: 1.5; stroke-linecap: round"/>
+   </g>
+   <g id="patch_5">
+    <path d="M 1238.237051 597.6
+Q 1251.35699 597.6 1262.799879 597.6
+" clip-path="url(#p394e871def)" style="fill: none; stroke: #64748b; stroke-width: 1.5; stroke-linecap: round"/>
+    <path d="M 1257.199879 594.8
+L 1262.799879 597.6
+L 1257.199879 600.4
+z
+" clip-path="url(#p394e871def)" style="fill: #64748b; stroke: #64748b; stroke-width: 1.5; stroke-linecap: round"/>
+   </g>
+   <g id="patch_6">
+    <path d="M 1546.397051 597.6
+Q 1559.51699 597.6 1570.959879 597.6
+" clip-path="url(#p394e871def)" style="fill: none; stroke: #64748b; stroke-width: 1.5; stroke-linecap: round"/>
+    <path d="M 1565.359879 594.8
+L 1570.959879 597.6
+L 1565.359879 600.4
+z
+" clip-path="url(#p394e871def)" style="fill: #64748b; stroke: #64748b; stroke-width: 1.5; stroke-linecap: round"/>
+   </g>
+   <g id="patch_7">
+    <path d="M 709.763203 860.4
+Q 788.402719 860.4 865.365184 860.4
+" clip-path="url(#p394e871def)" style="fill: none; stroke: #64748b; stroke-width: 1.5; stroke-linecap: round"/>
+    <path d="M 859.765184 857.6
+L 865.365184 860.4
+L 859.765184 863.2
+z
+" clip-path="url(#p394e871def)" style="fill: #64748b; stroke: #64748b; stroke-width: 1.5; stroke-linecap: round"/>
+   </g>
+   <g id="patch_8">
+    <path d="M 1321.759556 860.4
+Q 1382.400908 860.4 1441.36521 860.4
+" clip-path="url(#p394e871def)" style="fill: none; stroke: #64748b; stroke-width: 1.5; stroke-linecap: round"/>
+    <path d="M 1435.76521 857.6
+L 1441.36521 860.4
+L 1435.76521 863.2
+z
+" clip-path="url(#p394e871def)" style="fill: #64748b; stroke: #64748b; stroke-width: 1.5; stroke-linecap: round"/>
+   </g>
+   <g id="patch_9">
+    <path d="M 1041.997412 522.72
+Q 943.199191 522.72 845.74261 522.72
+" clip-path="url(#p394e871def)" style="fill: none; stroke-dasharray: 4.44,1.92; stroke-dashoffset: 0; stroke: #4676a7; stroke-width: 1.2; stroke-linecap: round"/>
+    <path d="M 850.54261 525.12
+L 845.74261 522.72
+L 850.54261 520.32
+z
+" clip-path="url(#p394e871def)" style="fill: #4676a7; stroke-dasharray: 4.44,1.92; stroke-dashoffset: 0; stroke: #4676a7; stroke-width: 1.2; stroke-linecap: round"/>
+   </g>
+   <g id="patch_10">
+    <path d="M 1095.334805 673.666957
+Q 843.84012 734.039971 593.758728 794.073715
+" clip-path="url(#p394e871def)" style="fill: none; stroke-dasharray: 1.3,2.145; stroke-dashoffset: 0; stroke: #b18450; stroke-width: 1.3; stroke-linecap: round"/>
+    <path d="M 599.421982 795.388078
+L 593.758728 794.073715
+L 598.208171 790.331729
+z
+" clip-path="url(#p394e871def)" style="fill: #b18450; stroke-dasharray: 1.3,2.145; stroke-dashoffset: 0; stroke: #b18450; stroke-width: 1.3; stroke-linecap: round"/>
+   </g>
+   <g id="patch_11">
+    <path d="M 34.92 321.48
+L 238.68 321.48
+Q 245.16 321.48 245.16 315
+L 245.16 109.8
+Q 245.16 103.32 238.68 103.32
+L 34.92 103.32
+Q 28.44 103.32 28.44 109.8
+L 28.44 315
+Q 28.44 321.48 34.92 321.48
+z
+" clip-path="url(#p394e871def)" style="fill: #e8eff8; stroke: #c4cfdc; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_12">
+    <path d="M 265.32 321.48
+L 469.08 321.48
+Q 475.56 321.48 475.56 315
+L 475.56 109.8
+Q 475.56 103.32 469.08 103.32
+L 265.32 103.32
+Q 258.84 103.32 258.84 109.8
+L 258.84 315
+Q 258.84 321.48 265.32 321.48
+z
+" clip-path="url(#p394e871def)" style="fill: #e8eff8; stroke: #c4cfdc; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_13">
+    <path d="M 495.72 321.48
+L 699.48 321.48
+Q 705.96 321.48 705.96 315
+L 705.96 109.8
+Q 705.96 103.32 699.48 103.32
+L 495.72 103.32
+Q 489.24 103.32 489.24 109.8
+L 489.24 315
+Q 489.24 321.48 495.72 321.48
+z
+" clip-path="url(#p394e871def)" style="fill: #e8eff8; stroke: #c4cfdc; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_14">
+    <path d="M 726.12 321.48
+L 929.88 321.48
+Q 936.36 321.48 936.36 315
+L 936.36 109.8
+Q 936.36 103.32 929.88 103.32
+L 726.12 103.32
+Q 719.64 103.32 719.64 109.8
+L 719.64 315
+Q 719.64 321.48 726.12 321.48
+z
+" clip-path="url(#p394e871def)" style="fill: #e4f1e9; stroke: #c4cfdc; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_15">
+    <path d="M 956.52 321.48
+L 1160.28 321.48
+Q 1166.76 321.48 1166.76 315
+L 1166.76 109.8
+Q 1166.76 103.32 1160.28 103.32
+L 956.52 103.32
+Q 950.04 103.32 950.04 109.8
+L 950.04 315
+Q 950.04 321.48 956.52 321.48
+z
+" clip-path="url(#p394e871def)" style="fill: #fbe8d3; stroke: #c4cfdc; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_16">
+    <path d="M 1186.92 321.48
+L 1390.68 321.48
+Q 1397.16 321.48 1397.16 315
+L 1397.16 109.8
+Q 1397.16 103.32 1390.68 103.32
+L 1186.92 103.32
+Q 1180.44 103.32 1180.44 109.8
+L 1180.44 315
+Q 1180.44 321.48 1186.92 321.48
+z
+" clip-path="url(#p394e871def)" style="fill: #e8eff8; stroke: #c4cfdc; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_17">
+    <path d="M 1417.32 321.48
+L 1621.08 321.48
+Q 1627.56 321.48 1627.56 315
+L 1627.56 109.8
+Q 1627.56 103.32 1621.08 103.32
+L 1417.32 103.32
+Q 1410.84 103.32 1410.84 109.8
+L 1410.84 315
+Q 1410.84 321.48 1417.32 321.48
+z
+" clip-path="url(#p394e871def)" style="fill: #e8eff8; stroke: #c4cfdc; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_18">
+    <path d="M 1647.72 321.48
+L 1851.48 321.48
+Q 1857.96 321.48 1857.96 315
+L 1857.96 109.8
+Q 1857.96 103.32 1851.48 103.32
+L 1647.72 103.32
+Q 1641.24 103.32 1641.24 109.8
+L 1641.24 315
+Q 1641.24 321.48 1647.72 321.48
+z
+" clip-path="url(#p394e871def)" style="fill: #eee7f6; stroke: #c4cfdc; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_19">
+    <path d="M 34.92 445.68
+L 1851.48 445.68
+Q 1857.96 445.68 1857.96 439.2
+L 1857.96 352.8
+Q 1857.96 346.32 1851.48 346.32
+L 34.92 346.32
+Q 28.44 346.32 28.44 352.8
+L 28.44 439.2
+Q 28.44 445.68 34.92 445.68
+z
+" clip-path="url(#p394e871def)" style="fill: #e8eff8; stroke: #c4cfdc; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_20">
+    <path d="M 41.4 670.68
+L 304.2 670.68
+Q 310.68 670.68 310.68 664.2
+L 310.68 531
+Q 310.68 524.52 304.2 524.52
+L 41.4 524.52
+Q 34.92 524.52 34.92 531
+L 34.92 664.2
+Q 34.92 670.68 41.4 670.68
+z
+" clip-path="url(#p394e871def)" style="fill: #e8eff8; stroke: #c4cfdc; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_21">
+    <path d="M 349.56 670.68
+L 612.36 670.68
+Q 618.84 670.68 618.84 664.2
+L 618.84 531
+Q 618.84 524.52 612.36 524.52
+L 349.56 524.52
+Q 343.08 524.52 343.08 531
+L 343.08 664.2
+Q 343.08 670.68 349.56 670.68
+z
+" clip-path="url(#p394e871def)" style="fill: #e8eff8; stroke: #c4cfdc; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_22">
+    <path d="M 657.72 670.68
+L 920.52 670.68
+Q 927 670.68 927 664.2
+L 927 531
+Q 927 524.52 920.52 524.52
+L 657.72 524.52
+Q 651.24 524.52 651.24 531
+L 651.24 664.2
+Q 651.24 670.68 657.72 670.68
+z
+" clip-path="url(#p394e871def)" style="fill: #e8eff8; stroke: #c4cfdc; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_23">
+    <path d="M 965.88 670.68
+L 1228.68 670.68
+Q 1235.16 670.68 1235.16 664.2
+L 1235.16 531
+Q 1235.16 524.52 1228.68 524.52
+L 965.88 524.52
+Q 959.4 524.52 959.4 531
+L 959.4 664.2
+Q 959.4 670.68 965.88 670.68
+z
+" clip-path="url(#p394e871def)" style="fill: #fbe8d3; stroke: #c4cfdc; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_24">
+    <path d="M 1274.04 670.68
+L 1536.84 670.68
+Q 1543.32 670.68 1543.32 664.2
+L 1543.32 531
+Q 1543.32 524.52 1536.84 524.52
+L 1274.04 524.52
+Q 1267.56 524.52 1267.56 531
+L 1267.56 664.2
+Q 1267.56 670.68 1274.04 670.68
+z
+" clip-path="url(#p394e871def)" style="fill: #e4f1e9; stroke: #c4cfdc; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_25">
+    <path d="M 1582.2 670.68
+L 1845 670.68
+Q 1851.48 670.68 1851.48 664.2
+L 1851.48 531
+Q 1851.48 524.52 1845 524.52
+L 1582.2 524.52
+Q 1575.72 524.52 1575.72 531
+L 1575.72 664.2
+Q 1575.72 670.68 1582.2 670.68
+z
+" clip-path="url(#p394e871def)" style="fill: #eee7f6; stroke: #c4cfdc; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_26">
+    <path d="M 264.6 924.48
+L 700.2 924.48
+Q 706.68 924.48 706.68 918
+L 706.68 802.8
+Q 706.68 796.32 700.2 796.32
+L 264.6 796.32
+Q 258.12 796.32 258.12 802.8
+L 258.12 918
+Q 258.12 924.48 264.6 924.48
+z
+" clip-path="url(#p394e871def)" style="fill: #fbe8d3; stroke: #c4cfdc; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_27">
+    <path d="M 876.6 924.48
+L 1312.2 924.48
+Q 1318.68 924.48 1318.68 918
+L 1318.68 802.8
+Q 1318.68 796.32 1312.2 796.32
+L 876.6 796.32
+Q 870.12 796.32 870.12 802.8
+L 870.12 918
+Q 870.12 924.48 876.6 924.48
+z
+" clip-path="url(#p394e871def)" style="fill: #e4f1e9; stroke: #c4cfdc; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_28">
+    <path d="M 1452.6 924.48
+L 1859.4 924.48
+Q 1865.88 924.48 1865.88 918
+L 1865.88 802.8
+Q 1865.88 796.32 1859.4 796.32
+L 1452.6 796.32
+Q 1446.12 796.32 1446.12 802.8
+L 1446.12 918
+Q 1446.12 924.48 1452.6 924.48
+z
+" clip-path="url(#p394e871def)" style="fill: #e8eff8; stroke: #c4cfdc; stroke-linejoin: miter"/>
+   </g>
+   <g id="text_1">
+    <text style="font-weight: 700; font-size: 22px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start; fill: #263d59" x="28.8" y="38.212812" transform="rotate(-0 28.8 38.212812)">GC2D | Package responsibilities and execution workflow</text>
+   </g>
+   <g id="text_2">
+    <text style="font-weight: 700; font-size: 12px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start; fill: #263d59" x="28.8" y="73.824375" transform="rotate(-0 28.8 73.824375)">A  SOURCE ORGANIZATION   Left to right: responsibility order; each card identifies its implementation owner.</text>
+   </g>
+   <g id="text_3">
+    <text style="font-weight: 700; font-size: 12px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start; fill: #263d59" x="28.8" y="479.904375" transform="rotate(-0 28.8 479.904375)">B  EXECUTION   Start in simulation; prepare the method; integrate; return a physical Solution.</text>
+   </g>
+   <g id="text_4">
+    <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: middle; fill: #263d59" x="943.2" y="512.519375" transform="rotate(-0 943.2 512.519375)">Accepted-step loop: repeat 3-4, sample outputs and collect statistics</text>
+   </g>
+   <g id="text_5">
+    <text style="font-weight: 700; font-size: 12px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start; fill: #263d59" x="28.8" y="759.31125" transform="rotate(-0 28.8 759.31125)">C  EXTENDED-FAMILY DETAIL   Numerical operations inside advance for ABBA and BM4</text>
+   </g>
+   <g id="text_6">
+    <text style="font-size: 11px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start; fill: #263d59" x="28.8" y="972.722344" transform="rotate(-0 28.8 972.722344)">Assembly: potential feeds dynamics; dynamics and initial_conditions join in InitialValueProblem. The method prepares its formulation.</text>
+   </g>
+   <g id="text_7">
+    <text style="font-size: 11px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start; fill: #263d59" x="28.8" y="1007.435313" transform="rotate(-0 28.8 1007.435313)">Surrounding workflow: studies/ assembles runs; diagnostics/ handles opt-in analysis and persistence; visualization/ presents results.</text>
+   </g>
+   <g id="text_8">
+    <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start; fill: #263d59" x="28.8" y="1038.119375" transform="rotate(-0 28.8 1038.119375)">Notation: m = packed physical state size; T = requested saved times. Internal doubled or energy coordinates are exported through the formulation.</text>
+   </g>
+   <g id="text_9">
+    <text style="font-weight: 700; font-size: 11.1px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start; fill: #263d59" x="39.6" y="124.742906" transform="rotate(-0 39.6 124.742906)">01  potential</text>
+   </g>
+   <g id="text_10">
+    <text style="font-size: 9px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start; fill: #62748c" x="39.6" y="145.763438" transform="rotate(-0 39.6 145.763438)">src/potential/</text>
+   </g>
+   <g id="text_11">
+    <text style="font-size: 9.7px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; fill: #34495e" transform="translate(39.6 169.370484)">Physical field</text>
+    <text style="font-size: 9.7px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; fill: #34495e" transform="translate(39.6 182.074984)"/>
+    <text style="font-size: 9.7px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; fill: #34495e" transform="translate(39.6 194.779483)">Potential; load_gc2d_h5_potential</text>
+    <text style="font-size: 9.7px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; fill: #34495e" transform="translate(39.6 207.753763)">Grid, interpolation, derivatives</text>
+    <text style="font-size: 9.7px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; fill: #34495e" transform="translate(39.6 220.458263)">Units and normalization</text>
+    <text style="font-size: 9.7px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; fill: #34495e" transform="translate(39.6 233.162762)"/>
+    <text style="font-size: 9.7px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; fill: #34495e" transform="translate(39.6 245.867261)">Consumed by physical dynamics</text>
+   </g>
+   <g id="text_12">
+    <text style="font-weight: 700; font-size: 11.1px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start; fill: #263d59" x="270" y="124.699547" transform="rotate(-0 270 124.699547)">02  dynamics</text>
+   </g>
+   <g id="text_13">
+    <text style="font-size: 9px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start; fill: #62748c" x="270" y="145.763438" transform="rotate(-0 270 145.763438)">src/dynamics/</text>
+   </g>
+   <g id="text_14">
+    <text style="font-size: 9.7px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; fill: #34495e" transform="translate(270 169.370484)">Equations of motion</text>
+    <text style="font-size: 9.7px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; fill: #34495e" transform="translate(270 182.074984)"/>
+    <text style="font-size: 9.7px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; fill: #34495e" transform="translate(270 194.779483)">GuidingCenterDynamics</text>
+    <text style="font-size: 9.7px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; fill: #34495e" transform="translate(270 207.483982)">FullCyclotronDynamics</text>
+    <text style="font-size: 9.7px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; fill: #34495e" transform="translate(270 220.188481)">Vector field and capabilities</text>
+    <text style="font-size: 9.7px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; fill: #34495e" transform="translate(270 232.89298)"/>
+    <text style="font-size: 9.7px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; fill: #34495e" transform="translate(270 245.59748)">Input to InitialValueProblem</text>
+   </g>
+   <g id="text_15">
+    <text style="font-weight: 700; font-size: 11.1px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start; fill: #263d59" x="500.4" y="124.588547" transform="rotate(-0 500.4 124.588547)">03  initial_conditions</text>
+   </g>
+   <g id="text_16">
+    <text style="font-size: 9px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start; fill: #62748c" x="500.4" y="145.638281" transform="rotate(-0 500.4 145.638281)">src/initial_conditions/</text>
+   </g>
+   <g id="text_17">
+    <text style="font-size: 9.7px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; fill: #34495e" transform="translate(500.4 169.370484)">Initial geometry</text>
+    <text style="font-size: 9.7px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; fill: #34495e" transform="translate(500.4 182.074984)"/>
+    <text style="font-size: 9.7px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; fill: #34495e" transform="translate(500.4 194.779483)">GC / FC initial configurations</text>
+    <text style="font-size: 9.7px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; fill: #34495e" transform="translate(500.4 207.483982)">Packed initial state and layout</text>
+    <text style="font-size: 9.7px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; fill: #34495e" transform="translate(500.4 220.188481)">Particle count and geometry</text>
+    <text style="font-size: 9.7px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; fill: #34495e" transform="translate(500.4 232.89298)"/>
+    <text style="font-size: 9.7px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; fill: #34495e" transform="translate(500.4 245.59748)">Input to InitialValueProblem</text>
+   </g>
+   <g id="text_18">
+    <text style="font-weight: 700; font-size: 11.1px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start; fill: #263d59" x="730.8" y="124.742906" transform="rotate(-0 730.8 124.742906)">04  formulations</text>
+   </g>
+   <g id="text_19">
+    <text style="font-size: 9px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start; fill: #62748c" x="730.8" y="145.763438" transform="rotate(-0 730.8 145.763438)">src/formulations/</text>
+   </g>
+   <g id="text_20">
+    <text style="font-size: 9.7px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; fill: #34495e" transform="translate(730.8 169.370484)">Numerical coordinates</text>
+    <text style="font-size: 9.7px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; fill: #34495e" transform="translate(730.8 182.074984)"/>
+    <text style="font-size: 9.7px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; fill: #34495e" transform="translate(730.8 194.779483)">Physical / DoubledFormulation</text>
+    <text style="font-size: 9.7px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; fill: #34495e" transform="translate(730.8 207.483982)">Optional time and momentum</text>
+    <text style="font-size: 9.7px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; fill: #34495e" transform="translate(730.8 220.188481)">GC direct / adjoint maps</text>
+    <text style="font-size: 9.7px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; fill: #34495e" transform="translate(730.8 232.89298)"/>
+    <text style="font-size: 9.7px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; fill: #34495e" transform="translate(730.8 245.59748)">Prepared by each method</text>
+   </g>
+   <g id="text_21">
+    <text style="font-weight: 700; font-size: 11.1px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start; fill: #263d59" x="961.2" y="124.742906" transform="rotate(-0 961.2 124.742906)">05  methods</text>
+   </g>
+   <g id="text_22">
+    <text style="font-size: 9px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start; fill: #62748c" x="961.2" y="145.763438" transform="rotate(-0 961.2 145.763438)">src/methods/</text>
+   </g>
+   <g id="text_23">
+    <text style="font-size: 9.7px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; fill: #34495e" transform="translate(961.2 169.370484)">One numerical step</text>
+    <text style="font-size: 9.7px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; fill: #34495e" transform="translate(961.2 182.074984)"/>
+    <text style="font-size: 9.7px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; fill: #34495e" transform="translate(961.2 194.779483)">classical / adaptive / hbvm</text>
+    <text style="font-size: 9.7px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; fill: #34495e" transform="translate(961.2 207.483982)">extended: ABBA and BM4</text>
+    <text style="font-size: 9.7px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; fill: #34495e" transform="translate(961.2 220.188481)">initialize; advance; observations</text>
+    <text style="font-size: 9.7px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; fill: #34495e" transform="translate(961.2 232.89298)"/>
+    <text style="font-size: 9.7px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; fill: #34495e" transform="translate(961.2 245.59748)">Shared nonlinear solvers</text>
+   </g>
+   <g id="text_24">
+    <text style="font-weight: 700; font-size: 11.1px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start; fill: #263d59" x="1191.6" y="124.699547" transform="rotate(-0 1191.6 124.699547)">06  integration</text>
+   </g>
+   <g id="text_25">
+    <text style="font-size: 9px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start; fill: #62748c" x="1191.6" y="145.763438" transform="rotate(-0 1191.6 145.763438)">src/integration/</text>
+   </g>
+   <g id="text_26">
+    <text style="font-size: 9.7px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; fill: #34495e" transform="translate(1191.6 169.370484)">Common run lifecycle</text>
+    <text style="font-size: 9.7px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; fill: #34495e" transform="translate(1191.6 182.074984)"/>
+    <text style="font-size: 9.7px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; fill: #34495e" transform="translate(1191.6 194.779483)">IntegrationMethod.new_run</text>
+    <text style="font-size: 9.7px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; fill: #34495e" transform="translate(1191.6 207.753763)">Controllers and output sampling</text>
+    <text style="font-size: 9.7px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; fill: #34495e" transform="translate(1191.6 220.458263)">Collector; integrate_method</text>
+    <text style="font-size: 9.7px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; fill: #34495e" transform="translate(1191.6 233.432543)"/>
+    <text style="font-size: 9.7px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; fill: #34495e" transform="translate(1191.6 246.137042)">Returns IntegrationData</text>
+   </g>
+   <g id="text_27">
+    <text style="font-weight: 700; font-size: 11.1px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start; fill: #263d59" x="1422" y="124.742906" transform="rotate(-0 1422 124.742906)">07  simulation</text>
+   </g>
+   <g id="text_28">
+    <text style="font-size: 9px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start; fill: #62748c" x="1422" y="145.763438" transform="rotate(-0 1422 145.763438)">src/simulation/</text>
+   </g>
+   <g id="text_29">
+    <text style="font-size: 9.7px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; fill: #34495e" transform="translate(1422 169.370484)">Public execution facade</text>
+    <text style="font-size: 9.7px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; fill: #34495e" transform="translate(1422 182.074984)"/>
+    <text style="font-size: 9.7px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; fill: #34495e" transform="translate(1422 194.779483)">simulate(problem, method, request)</text>
+    <text style="font-size: 9.7px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; fill: #34495e" transform="translate(1422 207.483982)">Calls method.integrate</text>
+    <text style="font-size: 9.7px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; fill: #34495e" transform="translate(1422 220.188481)">Checks consistency with inputs</text>
+    <text style="font-size: 9.7px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; fill: #34495e" transform="translate(1422 232.89298)"/>
+    <text style="font-size: 9.7px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; fill: #34495e" transform="translate(1422 245.59748)">Builds and returns Solution</text>
+   </g>
+   <g id="text_30">
+    <text style="font-weight: 700; font-size: 11.1px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start; fill: #263d59" x="1652.4" y="124.699547" transform="rotate(-0 1652.4 124.699547)">08  solution.py</text>
+   </g>
+   <g id="text_31">
+    <text style="font-size: 9px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start; fill: #62748c" x="1652.4" y="145.763438" transform="rotate(-0 1652.4 145.763438)">src/solution.py</text>
+   </g>
+   <g id="text_32">
+    <text style="font-size: 9.7px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; fill: #34495e" transform="translate(1652.4 169.370484)">Physical result module</text>
+    <text style="font-size: 9.7px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; fill: #34495e" transform="translate(1652.4 182.074984)"/>
+    <text style="font-size: 9.7px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; fill: #34495e" transform="translate(1652.4 194.779483)">Solution: immutable output</text>
+    <text style="font-size: 9.7px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; fill: #34495e" transform="translate(1652.4 207.483982)">t: (T,); states: (m, T)</text>
+    <text style="font-size: 9.7px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; fill: #34495e" transform="translate(1652.4 220.188481)">Source layout and diagnostics</text>
+    <text style="font-size: 9.7px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; fill: #34495e" transform="translate(1652.4 232.89298)"/>
+    <text style="font-size: 9.7px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; fill: #34495e" transform="translate(1652.4 245.59748)">Requested physical samples</text>
+   </g>
+   <g id="text_33">
+    <text style="font-weight: 700; font-size: 11.1px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start; fill: #263d59" x="39.6" y="367.612828" transform="rotate(-0 39.6 367.612828)">contracts/ | Shared records and interfaces</text>
+   </g>
+   <g id="text_34">
+    <text style="font-size: 9px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start; fill: #62748c" x="39.6" y="388.763438" transform="rotate(-0 39.6 388.763438)">src/contracts/</text>
+   </g>
+   <g id="text_35">
+    <text style="font-size: 9.7px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; fill: #34495e" transform="translate(39.6 412.412922)">InitialValueProblem = dynamics + initial_configuration     |     SimulationRequest = time span + step bound + saved times</text>
+    <text style="font-size: 9.7px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; fill: #34495e" transform="translate(39.6 425.448737)">StateLayout / InitialConfiguration     |     StepInfo / StepResult     |     IntegrationData     |     Observation records</text>
+   </g>
+   <g id="text_36">
+    <text style="font-weight: 700; font-size: 11.1px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start; fill: #263d59" x="46.08" y="545.942906" transform="rotate(-0 46.08 545.942906)">1  simulate</text>
+   </g>
+   <g id="text_37">
+    <text style="font-size: 9px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start; fill: #62748c" x="46.08" y="566.963438" transform="rotate(-0 46.08 566.963438)">simulation/runner.py</text>
+   </g>
+   <g id="text_38">
+    <text style="font-size: 9.7px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; fill: #34495e" transform="translate(46.08 590.570484)">Inputs: problem, method, request</text>
+    <text style="font-size: 9.7px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; fill: #34495e" transform="translate(46.08 603.274984)">Validate entry-point types</text>
+    <text style="font-size: 9.7px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; fill: #34495e" transform="translate(46.08 615.979483)">Call method.integrate</text>
+   </g>
+   <g id="text_39">
+    <text style="font-weight: 700; font-size: 11.1px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start; fill: #263d59" x="354.24" y="545.942906" transform="rotate(-0 354.24 545.942906)">2  Prepare a fresh run</text>
+   </g>
+   <g id="text_40">
+    <text style="font-size: 9px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start; fill: #62748c" x="354.24" y="566.963438" transform="rotate(-0 354.24 566.963438)">integration/core.py + methods/</text>
+   </g>
+   <g id="text_41">
+    <text style="font-size: 9.7px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; fill: #34495e" transform="translate(354.24 590.570484)">new_run calls method.initialize</text>
+    <text style="font-size: 9.7px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; fill: #34495e" transform="translate(354.24 603.544765)">Bind formulation and resources</text>
+    <text style="font-size: 9.7px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; fill: #34495e" transform="translate(354.24 616.249264)">Freeze initial state and metadata</text>
+   </g>
+   <g id="text_42">
+    <text style="font-weight: 700; font-size: 11.1px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start; fill: #263d59" x="662.4" y="545.899547" transform="rotate(-0 662.4 545.899547)">3  Coordinate integration</text>
+   </g>
+   <g id="text_43">
+    <text style="font-size: 9px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start; fill: #62748c" x="662.4" y="566.963438" transform="rotate(-0 662.4 566.963438)">integration/core.py</text>
+   </g>
+   <g id="text_44">
+    <text style="font-size: 9.7px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; fill: #34495e" transform="translate(662.4 590.570484)">integrate_method + controller</text>
+    <text style="font-size: 9.7px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; fill: #34495e" transform="translate(662.4 603.544765)">Accepted intervals and saved samples</text>
+    <text style="font-size: 9.7px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; fill: #34495e" transform="translate(662.4 616.249264)">Collect work; dispatch observations</text>
+   </g>
+   <g id="text_45">
+    <text style="font-weight: 700; font-size: 11.1px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start; fill: #263d59" x="970.56" y="545.942906" transform="rotate(-0 970.56 545.942906)">4  Advance one step</text>
+   </g>
+   <g id="text_46">
+    <text style="font-size: 9px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start; fill: #62748c" x="970.56" y="566.963438" transform="rotate(-0 970.56 566.963438)">methods/ + selected controller</text>
+   </g>
+   <g id="text_47">
+    <text style="font-size: 9.7px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; fill: #34495e" transform="translate(970.56 590.570484)">controller.steps calls advance</text>
+    <text style="font-size: 9.7px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; fill: #34495e" transform="translate(970.56 603.274984)">Evaluate the method's numerical map</text>
+    <text style="font-size: 9.7px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; fill: #34495e" transform="translate(970.56 615.979483)">Return StepInfo and StepResult</text>
+   </g>
+   <g id="text_48">
+    <text style="font-weight: 700; font-size: 11.1px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start; fill: #263d59" x="1278.72" y="545.899547" transform="rotate(-0 1278.72 545.899547)">5  Export collected history</text>
+   </g>
+   <g id="text_49">
+    <text style="font-size: 9px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start; fill: #62748c" x="1278.72" y="566.963438" transform="rotate(-0 1278.72 566.963438)">integration/ + formulations/</text>
+   </g>
+   <g id="text_50">
+    <text style="font-size: 9.7px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; fill: #34495e" transform="translate(1278.72 590.570484)">After the accepted-step loop</text>
+    <text style="font-size: 9.7px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; fill: #34495e" transform="translate(1278.72 603.274984)">export_history extracts physical states</text>
+    <text style="font-size: 9.7px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; fill: #34495e" transform="translate(1278.72 616.249264)">Return IntegrationData to simulate</text>
+   </g>
+   <g id="text_51">
+    <text style="font-weight: 700; font-size: 11.1px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start; fill: #263d59" x="1586.88" y="545.942906" transform="rotate(-0 1586.88 545.942906)">6  Return the solution</text>
+   </g>
+   <g id="text_52">
+    <text style="font-size: 9px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start; fill: #62748c" x="1586.88" y="566.963438" transform="rotate(-0 1586.88 566.963438)">simulation/runner.py + solution.py</text>
+   </g>
+   <g id="text_53">
+    <text style="font-size: 9.7px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; fill: #34495e" transform="translate(1586.88 590.570484)">simulate constructs Solution</text>
+    <text style="font-size: 9.7px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; fill: #34495e" transform="translate(1586.88 603.274984)">Check saved times and initial state</text>
+    <text style="font-size: 9.7px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; fill: #34495e" transform="translate(1586.88 615.979483)">Return immutable physical samples</text>
+   </g>
+   <g id="text_54">
+    <text style="font-weight: 700; font-size: 11.1px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start; fill: #263d59" x="269.28" y="817.612828" transform="rotate(-0 269.28 817.612828)">methods/extended/ | ABBA and BM4</text>
+   </g>
+   <g id="text_55">
+    <text style="font-size: 9px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start; fill: #62748c" x="269.28" y="838.763438" transform="rotate(-0 269.28 838.763438)">abba.py / bm4.py + core/</text>
+   </g>
+   <g id="text_56">
+    <text style="font-size: 9.7px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; fill: #34495e" transform="translate(269.28 862.370484)">Palindromic composition of signed direct / adjoint stages</text>
+    <text style="font-size: 9.7px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; fill: #34495e" transform="translate(269.28 875.074984)">One outer projection: implicit solve or midpoint average</text>
+    <text style="font-size: 9.7px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; fill: #34495e" transform="translate(269.28 887.779483)">Shared composition, Newton / Broyden and passive energy</text>
+   </g>
+   <g id="text_57">
+    <text style="font-weight: 700; font-size: 11.1px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start; fill: #263d59" x="881.28" y="817.612828" transform="rotate(-0 881.28 817.612828)">formulations/ | State and split maps</text>
+   </g>
+   <g id="text_58">
+    <text style="font-size: 9px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start; fill: #62748c" x="881.28" y="838.763438" transform="rotate(-0 881.28 838.763438)">state.py + gc.py</text>
+   </g>
+   <g id="text_59">
+    <text style="font-size: 9.7px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; fill: #34495e" transform="translate(881.28 862.370484)">DoubledFormulation: two spatial copies; optional energy</text>
+    <text style="font-size: 9.7px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; fill: #34495e" transform="translate(881.28 875.074984)">GCDoubledMaps: direct_map / adjoint_map</text>
+    <text style="font-size: 9.7px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; fill: #34495e" transform="translate(881.28 888.049264)">Evaluate shears and optional harmonic coupling</text>
+   </g>
+   <g id="text_60">
+    <text style="font-weight: 700; font-size: 11.1px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start; fill: #263d59" x="1457.28" y="817.612828" transform="rotate(-0 1457.28 817.612828)">dynamics/ + potential/ | Physical evaluations</text>
+   </g>
+   <g id="text_61">
+    <text style="font-size: 9px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start; fill: #62748c" x="1457.28" y="838.763438" transform="rotate(-0 1457.28 838.763438)">dynamics/gc.py + potential/</text>
+   </g>
+   <g id="text_62">
+    <text style="font-size: 9.7px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; fill: #34495e" transform="translate(1457.28 862.370484)">Guiding-center field from the configured potential</text>
+    <text style="font-size: 9.7px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; fill: #34495e" transform="translate(1457.28 875.074984)">Hamiltonian and time derivative when tracking energy</text>
+    <text style="font-size: 9.7px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; fill: #34495e" transform="translate(1457.28 887.779483)">Analytic spatial derivatives when the solver needs them</text>
+   </g>
+  </g>
+ </g>
+ <defs>
+  <clipPath id="p394e871def">
+   <rect x="0" y="0" width="1886.4" height="1051.2"/>
+  </clipPath>
+ </defs>
+</svg>

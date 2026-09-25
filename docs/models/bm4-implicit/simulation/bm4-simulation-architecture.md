@@ -4,6 +4,12 @@ Twelve alternating signed stages; Optional harmonic coupling. One reduced projec
 
 ![BM4Implicit architecture](bm4-simulation-architecture.svg)
 
+For a package-oriented view with the reduced equation, twelve-stage recipe,
+solver strategies and observation records, see the
+[detailed BM4 architecture](bm4-detailed-architecture.md)
+([SVG](bm4-detailed-architecture.svg), [PlantUML](bm4-detailed-architecture.puml)).
+The compact diagram above is retained.
+
 The numerical implementation now lives in `src/methods/extended/`.
 Public method names and exports from `simulation` remain unchanged. ABBA6
 now uses one outer projection; its observer substeps are unprojected pairs and

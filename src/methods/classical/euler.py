@@ -11,7 +11,6 @@ from dynamics import DynamicalSystem
 from formulations.state import PhysicalFormulation
 from integration.core import IntegrationMethod
 from contracts.step import StepInfo, StepResult
-from contracts.result import DiagnosticValue
 from contracts.observation import IntegrationStep, StepObserver
 from contracts.problem import InitialValueProblem
 from contracts.request import SimulationRequest
@@ -44,8 +43,6 @@ class ExplicitEuler(IntegrationMethod[None]):
 	def initialize(self, problem: InitialValueProblem, request: SimulationRequest) -> None:
 		"""Bind the Euler map, its physical observation and output extraction."""
 		self.dynamics = problem.dynamics
-		if not isinstance(self.dynamics, DynamicalSystem):
-			raise TypeError("ExplicitEuler requires DynamicalSystem.")
 		self.state_formulation = PhysicalFormulation(problem, request.t_span[0], self.track_energy)
 		self.initial_state = self.state_formulation.initial_state
 

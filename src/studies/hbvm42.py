@@ -13,7 +13,7 @@ from methods.adaptive.scipy import DOP853
 from dynamics import DynamicalSystem, GuidingCenterDynamics, HamiltonianSystem
 from initial_conditions import GCInitialConfiguration
 from methods.extended.bm4 import BM4Implicit
-from methods.hbvm.order4 import HBVM42, HBVMJacobianMethod
+from methods.hbvm.order4 import HBVM42, HBVMJacobianMethod, _validated_jacobian_method
 from contracts.problem import InitialValueProblem
 from methods.base import NumericalMethod
 from contracts.request import SimulationRequest
@@ -129,15 +129,6 @@ def _validated_steps(
 	for step in values:
 		integer_ratio(duration, step, "duration / step")
 	return values
-
-
-def _validated_jacobian_method(value: str) -> HBVMJacobianMethod:
-	"""Validate the public HBVM Jacobian selector at study construction time."""
-	if value not in ("auto", "analytic", "finite_difference"):
-		raise ValueError(
-			"`jacobian_method` must be 'auto', 'analytic', or 'finite_difference'."
-		)
-	return value  # type: ignore[return-value]
 
 
 @dataclass(frozen=True, slots=True)

@@ -10,6 +10,8 @@ from typing import Mapping
 
 import numpy as np
 
+from studies._trajectory_distances import minimum_image_displacement
+
 from dynamics import GuidingCenterDynamics
 from potential import Potential
 from methods.extended.bm4 import BM4Implicit
@@ -129,14 +131,6 @@ class ImplicitIterationSummary:
 	runtime_seconds: float
 
 
-def _minimum_image_displacement(
-	displacement: np.ndarray,
-	period: float,
-) -> np.ndarray:
-	"""Map a coordinate difference to its nearest periodic representative."""
-	return (np.asarray(displacement, dtype=float) + period / 2.0) % period - period / 2.0
-
-
 @dataclass(frozen=True, slots=True)
 class ImplicitTrajectoryComparisonResult:
 	"""Three aligned solutions with trajectory and nonlinear-work summaries."""
@@ -202,8 +196,8 @@ class ImplicitTrajectoryComparisonResult:
 		for first_method, second_method in combinations(IMPLICIT_METHOD_NAMES, 2):
 			first_x, first_y = self.solutions[first_method].positions()
 			second_x, second_y = self.solutions[second_method].positions()
-			delta_x = _minimum_image_displacement(first_x - second_x, period)
-			delta_y = _minimum_image_displacement(first_y - second_y, period)
+			delta_x = minimum_image_displacement(first_x - second_x, period)
+			delta_y = minimum_image_displacement(first_y - second_y, period)
 			distances = np.hypot(delta_x, delta_y)
 			rows.append(
 				ImplicitTrajectoryDifferenceSummary(

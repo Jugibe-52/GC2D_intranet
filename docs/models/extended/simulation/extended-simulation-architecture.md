@@ -31,6 +31,12 @@ collection. No per-order forwarding modules or separate ABBA composition drivers
 remain. Diagnostic analysis consumes accepted events; independent residual
 equations used only for verification live under `tests/_extended_reference/`.
 
+Constructors validate method selectors and solver controls. `SolverOptions`
+stores those controls; it does not replace the nonlinear-solver name check.
+`IntegrationMethod.new_run` owns the immutable initial state and metadata
+snapshots. BM4 reports the accepted tolerance directly from `SolveStats`, so
+observation and integration use the same convergence threshold.
+
 | Module or component | Responsibility |
 |---|---|
 | `extended/core/composition.py` | Validated immutable signed recipes and one direct/adjoint traversal |

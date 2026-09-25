@@ -122,7 +122,7 @@ digraph RKFullExecution {
     RunMethod [label=<
       <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
         <TR><TD BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">SAME NUMERICAL CLASS / ONE INSTANCE PER EXECUTION</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>RK4 (run)</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/methods/classical/rk4.py</FONT></TD></TR>
-        <TR><TD ALIGN="LEFT"><B>Instance data</B><BR ALIGN="LEFT"/>problem; request; initial_state (read-only)<BR ALIGN="LEFT"/>formulation or dynamics; numerical resources<BR ALIGN="LEFT"/>metadata and diagnostic_aliases (read-only)</TD></TR><HR/>
+        <TR><TD ALIGN="LEFT"><B>Instance data</B><BR ALIGN="LEFT"/>problem; request; initial_state (read-only)<BR ALIGN="LEFT"/>formulation or dynamics; numerical resources<BR ALIGN="LEFT"/>metadata (read-only)</TD></TR><HR/>
         <TR><TD ALIGN="LEFT"><B>Ordinary class methods</B><BR ALIGN="LEFT"/>initialize(problem, request): None<BR ALIGN="LEFT"/>advance(t, state, h): StepResult[Detail]<BR ALIGN="LEFT"/>build_observation(info, step): event<BR ALIGN="LEFT"/>export_history(times, history): physical + auxiliary<BR ALIGN="LEFT"/>controller(): StepController</TD></TR><HR/>
         <TR><TD ALIGN="LEFT">No separate context or callback-based method record.<BR ALIGN="LEFT"/>Construct another instance for another integration.<BR ALIGN="LEFT"/>Completed runs cannot re-enter the global driver.<BR ALIGN="LEFT"/>The collector and external observer own histories.</TD></TR>
       </TABLE>

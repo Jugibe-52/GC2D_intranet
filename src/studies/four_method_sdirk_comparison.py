@@ -19,11 +19,7 @@ from contracts.request import SimulationRequest
 from solution import Solution
 from simulation.runner import simulate
 
-from ._gauss_legendre4_common import (
-	AdaptiveReference,
-	build_adaptive_reference,
-	readonly_runtime_samples,
-)
+from ._gauss_legendre4_common import build_adaptive_reference, readonly_runtime_samples
 from ._trajectory_accuracy import TrajectoryAccuracySeries, accuracy_series
 from .three_method_newton_comparison import (
 	EnergyAccuracySeries,

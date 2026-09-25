@@ -12,7 +12,7 @@ from dynamics import (
 	GuidingCenterJacobianSystem,
 )
 
-from integration.core import IntegrationMethod, NEWTON_ALIASES
+from integration.core import IntegrationMethod
 from contracts.step import StepInfo, StepResult
 from contracts.result import DiagnosticValue
 from formulations.state import PhysicalFormulation
@@ -298,13 +298,7 @@ class SDIRK4(IntegrationMethod[_SDIRKStepResult]):
 	def initialize(self, problem: InitialValueProblem, request: SimulationRequest) -> None:
 		"""Bind the nonlinear map, physical observation and energy exporter."""
 		self.dynamics = problem.dynamics
-		if not isinstance(self.dynamics, DynamicalSystem):
-			raise TypeError("SDIRK4 requires DynamicalSystem.")
-		if self.track_energy and not isinstance(
-			self.dynamics,
-			HamiltonianSystem,
-		):
-			raise TypeError("Energy tracking requires HamiltonianSystem.")
+		self.state_formulation = PhysicalFormulation(problem, request.t_span[0], self.track_energy)
 		physical_initial = problem.initial_state
 		self.resolved_jacobian_method = _resolved_jacobian_method(
 			self.dynamics,
@@ -313,7 +307,6 @@ class SDIRK4(IntegrationMethod[_SDIRKStepResult]):
 			initial_state=physical_initial,
 		)
 		self.physical_size = physical_initial.size
-		self.state_formulation = PhysicalFormulation(problem, request.t_span[0], self.track_energy)
 		initial_state = self.state_formulation.initial_state
 		metadata: dict[str, DiagnosticValue] = {
 			'stage_count': _STAGE_COUNT,
@@ -334,7 +327,6 @@ class SDIRK4(IntegrationMethod[_SDIRKStepResult]):
 		}
 		self.initial_state = initial_state
 		self.metadata = metadata
-		self.diagnostic_aliases = NEWTON_ALIASES
 
 	def _solve_physical(
 		self,

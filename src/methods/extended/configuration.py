@@ -60,16 +60,7 @@ def _validate_state_extension(value: str) -> StateExtension:
 	return value
 
 
-def _resolved_track_energy(
-	value: bool,
-	state_extension: StateExtension,
-) -> bool:
-	"""Resolve the explicit passive-energy option without changing the spatial map."""
-	return bool(value)
-
-
 def _state_dimension_diagnostics(
-	state_extension: StateExtension,
 	projection_formulation: ProjectionFormulation | None = None,
 	*,
 	particle_count: int = 1,
@@ -77,7 +68,6 @@ def _state_dimension_diagnostics(
 	"""Describe the actual accepted, splitting, and nonlinear workspaces."""
 	if particle_count < 1:
 		raise ValueError("`particle_count` must be a positive integer.")
-	_validate_state_extension(state_extension)
 	result: dict[str, int | str] = {
 		"accepted_internal_state_dimension": 4 * particle_count,
 		"base_splitting_state_dimension": 4 * particle_count,

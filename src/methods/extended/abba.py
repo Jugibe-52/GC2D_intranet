@@ -15,11 +15,11 @@ from contracts.step import StepInfo, StepResult as NumericalStep
 from dynamics import DynamicalSystem, GuidingCenterJacobianSystem
 from formulations.gc import GCDoubledMaps
 from formulations.state import DoubledFormulation
-from integration.core import IntegrationMethod, NEWTON_ALIASES
+from integration.core import IntegrationMethod
 from methods._nonlinear import NonlinearSolver, SolverOptions, _validate_nonlinear_solver
 from methods.extended.configuration import (
     ProjectionFormulation, ProjectionPlacement, StateExtension,
-    _positive_finite, _positive_integer, _resolved_track_energy,
+    _positive_finite, _positive_integer,
     _state_dimension_diagnostics, _validate_projection_formulation,
     _validate_projection_placement, _validate_state_extension,
 )
@@ -56,7 +56,7 @@ class _ABBAImplicitMethod(IntegrationMethod[StepResult]):
         """Validate the common spatial projection and nonlinear solver controls."""
         self.projection_formulation = _validate_projection_formulation(self.projection_formulation)
         self.state_extension = _validate_state_extension(self.state_extension)
-        self.track_energy = _resolved_track_energy(self.track_energy, self.state_extension)
+        self.track_energy = bool(self.track_energy)
         self.newton_absolute_tolerance = _positive_finite(self.newton_absolute_tolerance, 'newton_absolute_tolerance')
         self.newton_relative_tolerance = _positive_finite(self.newton_relative_tolerance, 'newton_relative_tolerance')
         self.newton_max_iterations = _positive_integer(self.newton_max_iterations, 'newton_max_iterations')
@@ -100,12 +100,11 @@ class _ABBAImplicitMethod(IntegrationMethod[StepResult]):
             "composition_stage_count": len(self.recipe.coefficients),
         }
         metadata.update(_state_dimension_diagnostics(
-            self.state_extension, self.projection_formulation,
-            particle_count=problem.initial_state.size // 2,
+            self.projection_formulation,
+            particle_count=problem.particle_count,
         ))
         if self.order != 2:
             coefficient_array = np.asarray(coefficients)
-            coefficient_array.setflags(write=False)
             metadata.update({
                 "implicit_substeps_per_step": 1,
                 "composition_coefficients": coefficient_array,
@@ -117,9 +116,7 @@ class _ABBAImplicitMethod(IntegrationMethod[StepResult]):
                 ),
             })
         self.initial_state = self.state_formulation.initial_state
-        self.initial_state.setflags(write=False)
         self.metadata = metadata
-        self.diagnostic_aliases = NEWTON_ALIASES
 
     def advance(self, t: float, workspace: np.ndarray, h: float) -> NumericalStep[StepResult]:
         """Project the complete composition and accumulate its passive energy."""
@@ -196,22 +193,16 @@ class ABBA2Midpoint(IntegrationMethod[MidpointResult]):
 	state_formulation: DoubledFormulation = field(init=False, repr=False, compare=False)
 	dynamics: DynamicalSystem = field(init=False, repr=False, compare=False)
 	formulation: GCDoubledMaps = field(init=False, repr=False, compare=False)
-	physical_size: int = field(init=False, repr=False, compare=False)
-	particle_count: int = field(init=False, repr=False, compare=False)
 
 	def __post_init__(self) -> None:
 		"""Validate the state strategy and resolve inherent energy tracking."""
 		self.state_extension = _validate_state_extension(self.state_extension)
-		self.track_energy = _resolved_track_energy(self.track_energy, self.state_extension)
+		self.track_energy = bool(self.track_energy)
 
 	def initialize(self, problem: InitialValueProblem, request: SimulationRequest) -> None:
 		"""Initialize one spatial arithmetic-projection run with optional passive energy."""
 		self.dynamics = problem.dynamics
 		self.formulation = GCDoubledMaps(problem, coupling_frequency=None)
-		self.physical_size = problem.initial_state.size
-		self.particle_count = self.physical_size // 2
-		if not isinstance(self.dynamics, DynamicalSystem) or self.dynamics.state_dimension != 2:
-			raise TypeError("ABBA2Midpoint requires planar two-component dynamics.")
 		self.state_formulation = DoubledFormulation(problem, request.t_span[0], self.track_energy)
 		self.initial_state = self.state_formulation.initial_state
 		metadata: dict[str, DiagnosticValue] = {
@@ -219,7 +210,7 @@ class ABBA2Midpoint(IntegrationMethod[MidpointResult]):
 			"track_energy": self.track_energy, "nonlinear_unknown_dimension": 0,
 			"vector_field_evaluations_per_step": 4,
 		}
-		metadata.update(_state_dimension_diagnostics(self.state_extension, particle_count=self.particle_count))
+		metadata.update(_state_dimension_diagnostics(particle_count=problem.particle_count))
 		self.metadata = metadata
 
 	def advance(self, t: float, state: np.ndarray, h: float) -> NumericalStep[MidpointResult]:
