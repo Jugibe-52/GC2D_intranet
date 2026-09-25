@@ -7,7 +7,7 @@ from collections.abc import Sequence
 import numpy as np
 
 from initial_conditions import Area
-from simulation.solution import Solution
+from solution import Solution
 
 
 AreaDiagnostics = tuple[np.ndarray, np.ndarray, np.ndarray | None]

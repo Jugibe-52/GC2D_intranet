@@ -17,15 +17,13 @@ from diagnostics import (
 from initial_conditions import GCInitialConfiguration
 from simulation import (
 	ABBA4Implicit,
-	ABBA4ImplicitSingleProjectionIntegrationStep,
+	ABBA4ImplicitIntegrationStep,
 	InitialValueProblem,
 	SimulationRequest,
 	simulate,
 )
-from simulation.methods.abba.order4_implicit import (
-	_ABBA4_COEFFICIENTS,
-	_solve_abba4_step,
-)
+from methods.extended.core.composition import _ABBA4_COEFFICIENTS
+from tests._extended_reference.abba_outer import _solve_abba4_single_projection_step as _solve_abba4_step
 from studies import (
 	ABBA4ImplicitAccuracyConfig,
 	AreaStep,
@@ -129,7 +127,7 @@ class ABBA4ImplicitMethodTests(unittest.TestCase):
 			)
 
 	def test_removed_projection_placement_is_rejected(self) -> None:
-		with self.assertRaisesRegex(ValueError, "removed"):
+		with self.assertRaisesRegex(ValueError, "around_complete_composition"):
 			ABBA4Implicit(projection_placement="after_each_abba_map")  # type: ignore[arg-type]
 
 	def test_observation_contains_three_continuous_signed_substeps(self) -> None:
@@ -152,7 +150,7 @@ class ABBA4ImplicitMethodTests(unittest.TestCase):
 		)
 		self.assertEqual(len(events), 2)
 		step = events[0]
-		self.assertIsInstance(step, ABBA4ImplicitSingleProjectionIntegrationStep)
+		self.assertIsInstance(step, ABBA4ImplicitIntegrationStep)
 		self.assertEqual(len(step.substeps), 3)
 		self.assertLess(step.substeps[1].duration, 0.0)
 		np.testing.assert_allclose(

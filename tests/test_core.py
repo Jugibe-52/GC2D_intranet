@@ -10,16 +10,7 @@ from dynamics import (
 	FullCyclotronDynamics,
 	GuidingCenterDynamics,
 )
-from initial_conditions import (
-	Area,
-	FCInitialConfiguration,
-	FCStateLayout,
-	GCInitialConfiguration,
-	GCStateLayout,
-	StateConfiguration,
-	TrajectoryFC,
-	TrajectoryGC,
-)
+from initial_conditions import Area, FCInitialConfiguration, FCStateLayout, GCInitialConfiguration, GCStateLayout, StateConfiguration
 from potential import Grid, Potential
 from simulation import (
 	BM4Implicit,
@@ -48,25 +39,25 @@ def random_potential(*, interpolation_order: int = 3) -> Potential:
 
 
 def gc_problem(
-	trajectory: TrajectoryGC,
+	trajectory: GCInitialConfiguration,
 	potential: Potential | None = None,
 ) -> InitialValueProblem:
 	"""Build a guiding-centre problem for fast simulation tests."""
 	field = random_potential() if potential is None else potential
 	return InitialValueProblem(
-		GuidingCenterDynamics(field, rho=trajectory.rho),
+		GuidingCenterDynamics(field, rho=0.05),
 		trajectory,
 	)
 
 
 def fc_problem(
-	trajectory: TrajectoryFC,
+	trajectory: FCInitialConfiguration,
 	potential: Potential | None = None,
 ) -> InitialValueProblem:
 	"""Build a full-cyclotron problem for fast simulation tests."""
 	field = random_potential() if potential is None else potential
 	return InitialValueProblem(
-		FullCyclotronDynamics(field, rho=trajectory.rho, eta=trajectory.eta),
+		FullCyclotronDynamics(field, rho=0.05, eta=0.1),
 		trajectory,
 	)
 
@@ -203,7 +194,7 @@ class TrajectoryTests(unittest.TestCase):
 	def test_gc_state_layout_and_copy(self) -> None:
 		# A GC state is component-major: all particle x values precede all y values.
 		state = np.asarray([1.0, 2.0, 3.0, 4.0])
-		trajectory = TrajectoryGC(state, rho=0.2)
+		trajectory = GCInitialConfiguration(state)
 		state[0] = -10.0
 
 		stored = trajectory.state
@@ -234,7 +225,7 @@ class TrajectoryTests(unittest.TestCase):
 			GCStateLayout.pack_components(x, y),
 			[1.0, 2.0, 3.0, 4.0],
 		)
-		gc = TrajectoryGC.from_components(x=x, y=y, rho=0.2)
+		gc = GCInitialConfiguration.from_components(x=x, y=y)
 		gc_state = gc.state
 		assert gc_state is not None
 		np.testing.assert_allclose(gc_state, [1.0, 2.0, 3.0, 4.0])
@@ -246,13 +237,13 @@ class TrajectoryTests(unittest.TestCase):
 		self.assertTrue(np.shares_memory(flat, blocks))
 		np.testing.assert_allclose(flat, gc_state)
 
-		fc = TrajectoryFC.from_components(
+		fc = FCInitialConfiguration.from_components(
 			x=x,
 			y=y,
 			vx=np.asarray([0.5, 0.6]),
 			vy=np.asarray([-0.5, -0.6]),
-			rho=0.4,
-			eta=-0.2,
+
+
 		)
 		fc_state = fc.state
 		assert fc_state is not None
@@ -263,12 +254,12 @@ class TrajectoryTests(unittest.TestCase):
 		self.assertEqual(fc.layout.as_blocks(fc_state).shape, (4, 2))
 
 		with self.assertRaises(ValueError):
-			TrajectoryGC.from_components(x=x, y=y[:-1], rho=0.2)
+			GCInitialConfiguration.from_components(x=x, y=y[:-1])
 
 	def test_fc_state_layout_and_scales(self) -> None:
 		# FC appends velocity blocks to the GC position blocks: [x, y, vx, vy].
 		state = np.asarray([1.0, 2.0, 3.0, 4.0, 0.5, 0.6, -0.5, -0.6])
-		trajectory = TrajectoryFC(state, rho=0.4, eta=-0.2)
+		trajectory = FCInitialConfiguration(state)
 
 		layout = trajectory.layout
 		x, y = layout.positions(state)
@@ -277,9 +268,10 @@ class TrajectoryTests(unittest.TestCase):
 		np.testing.assert_allclose(y, [3.0, 4.0])
 		np.testing.assert_allclose(vx, [0.5, 0.6])
 		np.testing.assert_allclose(vy, [-0.5, -0.6])
-		self.assertAlmostEqual(trajectory.velocity_scale, 1.0)
-		self.assertAlmostEqual(trajectory.electric_scale, -2.5)
-		self.assertAlmostEqual(trajectory.larmor_frequency, -2.5)
+		dynamics = FullCyclotronDynamics(random_potential(), rho=0.4, eta=-0.2)
+		self.assertAlmostEqual(dynamics.velocity_scale, 1.0)
+		self.assertAlmostEqual(dynamics.electric_scale, -2.5)
+		self.assertAlmostEqual(dynamics.larmor_frequency, -2.5)
 		components = layout.split(state)
 		np.testing.assert_allclose(components.x, x)
 		np.testing.assert_allclose(components.y, y)
@@ -299,7 +291,7 @@ class TrajectoryTests(unittest.TestCase):
 			center=(2 * np.pi - 0.25, 2 * np.pi - 0.25),
 			side=1.0,
 			points_per_side=4,
-			rho=0.2,
+
 		)
 		self.assertIsInstance(square, GCInitialConfiguration)
 		self.assertEqual(square.shape, "square")
@@ -358,9 +350,9 @@ class SimulationTests(unittest.TestCase):
 			center=(np.pi, np.pi),
 			side=1.0,
 			points_per_side=4,
-			rho=0.05,
+
 		)
-		dynamics = GuidingCenterDynamics(random_potential(), rho=area.rho)
+		dynamics = GuidingCenterDynamics(random_potential(), rho=0.05)
 		solution = simulate(
 			InitialValueProblem(dynamics, area),
 			BM4Implicit(),
@@ -457,7 +449,7 @@ class SimulationTests(unittest.TestCase):
 		np.testing.assert_allclose(comparison_artists[5].get_xdata(), solution.t)
 		comparison_animation._draw_was_started = True
 
-		plain_trajectory = TrajectoryGC(np.asarray([1.0, 1.2]), rho=0.05)
+		plain_trajectory = GCInitialConfiguration(np.asarray([1.0, 1.2]))
 		with self.assertRaises(TypeError):
 			animate_gc_area_solution(
 				dynamics.effective_potential,
@@ -487,9 +479,9 @@ class SimulationTests(unittest.TestCase):
 
 	def test_problem_and_request_validate_initial_state_and_time_span(self) -> None:
 		with self.assertRaises(ValueError):
-			gc_problem(TrajectoryGC(rho=0.05))
+			gc_problem(GCInitialConfiguration())
 
-		trajectory = TrajectoryGC(np.asarray([1.0, 1.2]), rho=0.05)
+		trajectory = GCInitialConfiguration(np.asarray([1.0, 1.2]))
 		with self.assertRaises(ValueError):
 			uniform_request(
 				step=0.01,

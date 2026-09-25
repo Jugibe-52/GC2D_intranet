@@ -15,13 +15,11 @@ from diagnostics import GCGeneralizedEnergyObserver
 from dynamics import GuidingCenterDynamics
 from initial_conditions import GCInitialConfiguration
 from potential import Potential
-from simulation import (
-	BM4Implicit,
-	InitialValueProblem,
-	SimulationRequest,
-	Solution,
-	simulate,
-)
+from methods.extended.bm4 import BM4Implicit
+from contracts.problem import InitialValueProblem
+from contracts.request import SimulationRequest
+from solution import Solution
+from simulation.runner import simulate
 
 from ._validation import (
 	integer_ratio,
@@ -202,7 +200,7 @@ def run_generalized_energy_comparison(
 			"The generalized-energy study requires exactly one initial GC state."
 		)
 
-	rho = resolve_rho(config.rho, configuration)
+	rho = resolve_rho(config.rho)
 	dynamics = GuidingCenterDynamics(potential, rho=rho)
 	problem = InitialValueProblem(
 		dynamics,

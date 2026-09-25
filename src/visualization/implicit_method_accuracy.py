@@ -13,20 +13,20 @@ from matplotlib.figure import Figure
 
 IMPLICIT_ACCURACY_COLORS = {
 	"ABBA2Implicit[reduced_multiplier]": "#1f77b4",
-	"ABBA4Implicit": "#ff7f0e",
-	"ABBA4ImplicitSingleProjection": "#2ca02c",
+
+	"ABBA4Implicit": "#2ca02c",
 	"BM4Implicit": "#d62728",
 }
 _LINE_STYLES = {
 	"ABBA2Implicit[reduced_multiplier]": "-",
-	"ABBA4Implicit": "-",
-	"ABBA4ImplicitSingleProjection": "--",
+
+	"ABBA4Implicit": "--",
 	"BM4Implicit": "-",
 }
 _MARKERS = {
 	"ABBA2Implicit[reduced_multiplier]": "o",
-	"ABBA4Implicit": "s",
-	"ABBA4ImplicitSingleProjection": "+",
+
+	"ABBA4Implicit": "+",
 	"BM4Implicit": "o",
 }
 
@@ -118,8 +118,7 @@ def plot_implicit_method_accuracy_refinement(
 			"0.25",
 			"Implicit ABBA2",
 		),
-		(("ABBA4ImplicitSingleProjection" if "ABBA4ImplicitSingleProjection" in method_errors
-		  else "ABBA4Implicit"), 4.0, "0.55", "Implicit ABBA4"),
+		("ABBA4Implicit", 4.0, "0.55", "Implicit ABBA4"),
 	)
 	guide_positions = positions[-3:]
 	guide_steps = step_values[-3:]
@@ -300,8 +299,8 @@ def plot_implicit_method_accuracy_cost(
 	figure, axis = plt.subplots(figsize=(9, 7), constrained_layout=True)
 	annotation_offsets = {
 		"ABBA2Implicit[reduced_multiplier]": (5, 5),
-		"ABBA4Implicit": (5, 6),
-		"ABBA4ImplicitSingleProjection": (5, -13),
+
+		"ABBA4Implicit": (5, -13),
 		"BM4Implicit": (5, 5),
 	}
 	for method in methods:

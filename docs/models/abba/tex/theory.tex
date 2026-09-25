@@ -98,14 +98,15 @@ the exact residual Jacobian; good Broyden replaces repeated Jacobian assembly
 by rank-one secant updates without changing the defining residual.
 
 \section{Canonical configuration space}
-ABBA2, ABBA4 and ABBA6 retain their distinct composition and projection placement. Energy tracking is optional and passive.
+ABBA2, ABBA4 and ABBA6 select different unprojected compositions and share one outer projection. Energy tracking is optional and passive.
 Signed accepted shear-stage traces update the passive momentum independently of the spatial root solve.
 The common state conventions are specified below.
 
 \section{Order by symmetric composition}
 
-The projected ABBA2 map is a symmetric method of order two.  Higher order is
-obtained by palindromic signed compositions.  ABBA4 uses the triple jump
+The unprojected ABBA2 map is a symmetric method of order two in doubled
+space. Higher order is obtained by palindromic signed compositions, followed
+by one symmetric projection around the complete result.  ABBA4 uses the triple jump
 $(\gamma,\delta,\gamma)$ with
 \[
  \gamma=\frac{1}{2-\sqrt[3]{2}},\qquad
@@ -113,7 +114,9 @@ $(\gamma,\delta,\gamma)$ with
  \quad 2\gamma+\delta=1,\quad 2\gamma^3+\delta^3=0.
 \]
 ABBA6 uses seven Yoshida coefficients whose first, third, and fifth odd
-moments have the required cancellations.  Negative coefficients are intrinsic
+moments have the required cancellations. These moment checks alone are not
+a full sixth-order proof; the Yoshida solution also satisfies the mixed
+commutator condition. Negative coefficients are intrinsic
 to these real compositions, so the dynamics must be defined at all internal
 signed times.
 
@@ -127,13 +130,13 @@ Method & ABBA maps & projection policy\\
 ABBA2Midpoint & 1 & arithmetic mean\\
 ABBA2Implicit & 1 & one symmetric projection\\
 ABBA4Implicit & 3 & one outer projection around the composition\\
-ABBA6Implicit & 7 & project after every signed map\\
+ABBA6Implicit & 7 & one outer projection around the composition\\
 \bottomrule
 \end{tabular}
 \end{center}
 The former three-projection fourth-order implementation has been removed.
-The current default has one projection, and legacy single-projection names
-refer to that same map.
+ABBA4 and ABBA6 now both have one outer projection. The retired
+single-projection ABBA4 factory is no longer an importable interface.
 
 \section{Finite solves and geometric claims}
 
@@ -145,16 +148,27 @@ projection multipliers.  Step observers expose the accepted map so measured
 Jacobian defects can be distinguished from ideal algebraic properties.
 
 \section{Implementation correspondence}
+The existing ABBA classes select their recipes in the \texttt{order*.py}
+modules under \path{src/methods/extended/}. Their common run
+operations live in \texttt{abba.py}; the spatial engine is shared with BM4.
 
-The common stage kernel is in \texttt{src/simulation/methods/abba/\_core.py};
-the two projection formulations are in \texttt{projection\_reduced.py} and
-\texttt{projection\_simultaneous.py}; configuration validation is in
-\texttt{\_configuration.py}; and the four public classes are implemented by
-the corresponding \texttt{order*.py} modules. The private exterior-projection
-ABBA4 kernel is in \texttt{projection\_outer.py}; the old single-projection
-module now provides compatibility imports. The architecture document in
-\texttt{../simulation/} is the authoritative runtime inventory.
+The public names, constructor defaults and exports from \texttt{simulation}
+remain unchanged. Internal imports use the defining modules; old import
+adapters have been removed. The ordinary implicit path is \texttt{advance}, \texttt{solve\_projection},
+\texttt{compose}, then \texttt{direct\_map} or \texttt{adjoint\_map}.
+Arithmetic midpoint variants use one explicit average instead of a nonlinear
+projection. Adjoint stages evaluate at the start of their signed substep;
+direct stages evaluate at its end.
 
+Newton and Broyden share the spatial equations and convergence services.
+Exact particle-block tangents, passive energy and optional observation use
+retained shear inputs; energy is evaluated only after accepting the spatial
+map, with the existing factor $1/2$ for physical $\kappa$. Time and momentum
+never enter the spatial root. The new internal family name does not enable
+the retired full time/momentum projection.
+
+Current module responsibilities and diagrams are documented in
+\path{docs/models/extended/simulation/extended-simulation-architecture.md}.
 
 \section{Common integration lifecycle}
 Each integration initializes a fresh numerical instance through
@@ -162,6 +176,7 @@ Each integration initializes a fresh numerical instance through
 The fixed controller supplies accepted intervals and independent shadow
 samples; the coordinator owns progress, collection and event dispatch.
 Only sampled states and accepted metric rows are retained by the collector.
+\clearpage
 \section{Four state formulations and passive energy tracking}
 For one planar particle the supported internal representations are
 \[
@@ -199,11 +214,12 @@ $\kappa$ is projected. The former eight-component projection is retired;
 
 Dynamics, formulation, method and integration remain separate. The shared
 state classes own layouts, diagonal embedding and history extraction in
-\begin{quote}\small\path{src/simulation/formulations/state.py}\end{quote}
+\begin{quote}\small\path{src/formulations/state.py}\end{quote}
 Each integration initializes a fresh method instance. Observers receive physical
 states; energy histories are in \texttt{Solution.diagnostics}.
 The \texttt{extended\_time} history has shape $(N,n_{\rm samples})$. Fixed-step shadow
 samples leave main states and counters unchanged. Adaptive energy quadrature
 uses accepted dense output; its backend state and Jacobian remain physical.
+
 
 \end{document}

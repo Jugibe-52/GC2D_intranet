@@ -12,13 +12,11 @@ from diagnostics import StoredReferenceTrajectory
 from dynamics import GuidingCenterDynamics
 from initial_conditions import GCInitialConfiguration
 from potential import Potential
-from simulation import (
-	ABBA6Implicit,
-	InitialValueProblem,
-	SimulationRequest,
-	Solution,
-	simulate,
-)
+from methods.extended.abba import ABBA6Implicit
+from contracts.problem import InitialValueProblem
+from contracts.request import SimulationRequest
+from solution import Solution
+from simulation.runner import simulate
 
 from ._trajectory_accuracy import (
 	TrajectoryAccuracySeries,

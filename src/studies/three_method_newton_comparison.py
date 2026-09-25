@@ -12,16 +12,14 @@ import numpy as np
 from dynamics import GuidingCenterDynamics
 from initial_conditions import GCInitialConfiguration
 from potential import Potential
-from simulation import (
-	ABBA4Implicit,
-	BM4Implicit,
-	GaussLegendre4,
-	InitialValueProblem,
-	NumericalMethod,
-	SimulationRequest,
-	Solution,
-	simulate,
-)
+from methods.extended.abba import ABBA4Implicit
+from methods.extended.bm4 import BM4Implicit
+from methods.classical.gauss_legendre import GaussLegendre4
+from contracts.problem import InitialValueProblem
+from methods.base import NumericalMethod
+from contracts.request import SimulationRequest
+from solution import Solution
+from simulation.runner import simulate
 
 from ._gauss_legendre4_common import (
 	AdaptiveReference,
@@ -37,13 +35,13 @@ from ._validation import integer_ratio, nonnegative_finite, positive_finite, pos
 
 
 THREE_METHOD_NEWTON_METHODS: tuple[str, ...] = (
-	"ABBA4ImplicitSingleProjection",
+	"ABBA4Implicit",
 	"GaussLegendre4",
 	"BM4Implicit",
 )
 THREE_METHOD_NEWTON_LABELS: Mapping[str, str] = MappingProxyType(
 	{
-		"ABBA4ImplicitSingleProjection": "Single-projection implicit ABBA4",
+		"ABBA4Implicit": "Single-projection implicit ABBA4",
 		"GaussLegendre4": "Gauss--Legendre (2 stages, order 4)",
 		"BM4Implicit": "Single-projection implicit BM4",
 	}
@@ -498,7 +496,7 @@ def _method(
 	config: ThreeMethodNewtonComparisonConfig,
 ) -> NumericalMethod:
 	"""Build one method with the common analytic-Newton controls."""
-	if method_name == "ABBA4ImplicitSingleProjection":
+	if method_name == "ABBA4Implicit":
 		return ABBA4Implicit(
 			projection_placement="around_complete_composition",
 			projection_formulation="reduced_multiplier",

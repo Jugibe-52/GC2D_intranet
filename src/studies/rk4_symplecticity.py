@@ -12,15 +12,15 @@ from matplotlib.figure import Figure
 
 from initial_conditions import Area
 from potential import Potential
-from simulation import RK4
+from methods.classical.rk4 import RK4
 
 from ._gc_symplecticity import (
-	GCConvergenceOrder,
 	GCSymplecticityConfig,
 	GCSymplecticityResult,
 	GCSymplecticitySummary,
 	_run_gc_symplecticity_study,
 )
+from ._gc_symplecticity_models import GCConvergenceOrder
 
 
 @dataclass(frozen=True, slots=True)

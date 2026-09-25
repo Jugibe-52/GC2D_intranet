@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from diagnostics import (
-	abba4_implicit_single_projection_step_particle_jacobians,
+	abba4_implicit_step_particle_jacobians,
 	central_difference_jacobian,
 )
 from initial_conditions import GCInitialConfiguration
@@ -20,25 +20,11 @@ from simulation import (
 	SimulationRequest,
 	simulate,
 )
-from simulation.methods.abba.order4_implicit_single_projection import (
+from tests._extended_reference.abba_outer import (
 	_evaluate_single_projection_residual,
 	_solve_abba4_single_projection_step,
 )
-from studies import (
-	ABBA4ProjectionComparisonConfig,
-	HighPrecisionReferenceConfig,
-	RandomPotentialConfig,
-	random_gc_configuration,
-	run_abba4_projection_comparison_study,
-	run_high_precision_reference_trajectory,
-)
-from visualization import (
-	plot_abba4_projection_accuracy,
-	plot_abba4_projection_multiplier_scaling,
-	plot_abba4_projection_newton_work,
-	plot_abba4_projection_order_reduction,
-	plot_abba4_projection_runtime,
-)
+from studies import HighPrecisionReferenceConfig, RandomPotentialConfig, random_gc_configuration, run_high_precision_reference_trajectory
 
 
 class _TimeDependentRotationDynamics:
@@ -210,7 +196,7 @@ class ABBA4ImplicitSingleProjectionTests(unittest.TestCase):
 		self.assertLess(events[0].substeps[1].duration, 0.0)
 		self.assertEqual(solution.diagnostics["nonlinear_iterations"].shape, (2,))
 
-		exact = abba4_implicit_single_projection_step_particle_jacobians(
+		exact = abba4_implicit_step_particle_jacobians(
 			events[0]
 		)[0]
 		numerical = central_difference_jacobian(
@@ -356,13 +342,6 @@ class ABBA4ImplicitSingleProjectionTests(unittest.TestCase):
 		)
 
 
-class ABBA4SingleProjectionStudyTests(unittest.TestCase):
-	"""Do not relabel current trajectories as the retired three-projection map."""
-
-	def test_removed_projection_comparison_fails_before_starting_any_work(self) -> None:
-		with self.assertRaisesRegex(ValueError, "three-projection ABBA4 implementation has been removed"):
-			run_abba4_projection_comparison_study(
-				None, None, None, config=None, potential_metadata={}, initial_condition_metadata={})
 
 
 if __name__ == "__main__":

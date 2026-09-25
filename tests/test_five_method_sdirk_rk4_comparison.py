@@ -77,7 +77,7 @@ class FiveMethodComparisonTests(unittest.TestCase):
 		self.assertEqual(
 			FIVE_METHOD_COMPARISON_METHODS,
 			(
-				"ABBA4ImplicitSingleProjection",
+				"ABBA4Implicit",
 				"GaussLegendre4",
 				"BM4Implicit",
 				"SDIRK4",

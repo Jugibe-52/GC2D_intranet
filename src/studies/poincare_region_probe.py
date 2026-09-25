@@ -12,7 +12,11 @@ import scipy
 from dynamics import GuidingCenterDynamics
 from initial_conditions import GCInitialConfiguration
 from potential import Potential
-from simulation import BM4Midpoint, InitialValueProblem, RK4, SimulationRequest, simulate
+from methods.extended.bm4 import BM4Midpoint
+from contracts.problem import InitialValueProblem
+from methods.classical.rk4 import RK4
+from contracts.request import SimulationRequest
+from simulation.runner import simulate
 from studies.poincare_periodicity import SavedPoincareSection
 from studies.poincare_probe import RK4ProbeSettings
 

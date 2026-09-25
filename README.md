@@ -7,7 +7,12 @@ grouped by responsibility:
 - `potential`: GC2D HDF5 imports and periodic electrostatic fields;
 - `dynamics`: guiding-center and full-cyclotron equations;
 - `initial_conditions`: state layouts and initial geometry;
-- `simulation`: numerical formulations, methods, requests, and results;
+- `contracts`: shared problem, request, state-layout, step, and observation types;
+- `formulations`: numerical coordinates and split maps;
+- `methods`: numerical methods, including the shared `extended` family;
+- `integration`: step scheduling, sampling, and collection;
+- `simulation`: public execution facade;
+- `solution.py`: immutable computed trajectories;
 - `diagnostics`: opt-in numerical observers and persistence;
 - `studies`: reusable experiment composition;
 - `visualization`: optional Matplotlib presentation.
@@ -19,7 +24,7 @@ algorithm, temporal request, and computed result separate:
 Potential -> Dynamics --\
                        +-> InitialValueProblem --\
 InitialConfiguration -/                         \
-                                                  -> SimulationRunner -> Solution
+                                                  -> simulate -> Solution
 NumericalMethod ---------------------------------/
 SimulationRequest -------------------------------/
 ```
@@ -27,6 +32,21 @@ SimulationRequest -------------------------------/
 The [common integration architecture](docs/simulation/integration-architecture.md)
 shows the complete six-phase lifecycle, shared by all 13 methods. Each model
 also has its own detailed diagram in the [method catalog](docs/models/README.md).
+In `src/`, `contracts/` holds shared input and step types, `formulations/`
+defines numerical state representations, `methods/` implements steps, and
+`integration/` schedules and collects them. `simulation/` remains the public
+execution facade; `solution.py` owns the returned result. Initial geometry
+stays in `initial_conditions/`.
+
+Public imports such as `from simulation import ABBA4Implicit, BM4Implicit,
+simulate` keep their established names. Package exports are explicit; internal
+code imports from the defining modules. The former `simulation.methods.*`,
+`simulation.formulations.*`, `methods.abba.*`, and `methods.bm4.*` routes have
+been removed. See the [import policy and migration table](docs/simulation/integration-architecture.md#public-api-and-imports)
+for canonical paths and the [retired API migration](docs/simulation/api-migration.md).
+
+`simulate(problem, method, request)` is the public execution entry point. `Solution` checks array structure and owns immutable
+copies; `simulate` checks agreement with the requested times and initial state.
 
 `Solution` is an immutable computed trajectory. Its initial configuration is
 available as `solution.source`, while diagnostics are attached as read-only
@@ -183,7 +203,7 @@ and one constrained state/energy strategy:
 
 | Axis | Canonical values | Meaning |
 |---|---|---|
-| `projection_placement` | `"around_complete_composition"` | ABBA4 uses one outer projection; the removed per-map selector raises an error. |
+| `projection_placement` | `"around_complete_composition"` | ABBA4 and ABBA6 use one outer projection; per-map projection is rejected. |
 | `projection_formulation` | `"reduced_multiplier"`, `"simultaneous_state_multiplier"` | Chooses the nonlinear residual representation. |
 | `nonlinear_solver` | `"newton"`, `"broyden"` | Chooses how that residual is solved. |
 | `state_extension` | `"physical"` | Compatibility selector: only spatial coordinates are duplicated. |
@@ -192,8 +212,8 @@ and one constrained state/energy strategy:
 `ABBA2Implicit`, `ABBA4Implicit` and `ABBA6Implicit` each admit eight
 configurations: two spatial residual formulations, two nonlinear solvers and
 tracking off/on. `ABBA2Midpoint` has two tracking configurations, giving 26
-configurations across the four classes. The deprecated
-`ABBA4ImplicitSingleProjection` factory returns `ABBA4Implicit`.
+configurations across the four classes. Use `ABBA4Implicit` for the fourth-order
+method with one projection around the complete composition.
 
 The former `state_extension="fully_extended"` projected time and momentum as
 well as space. It is rejected explicitly; use `track_energy=True` for the new
@@ -221,15 +241,14 @@ method = ABBA4Implicit(
 
 The formulation, solver, state and energy selections apply to the complete
 step. ABBA4 always carries both copies continuously through three signed maps
-inside one outer projection. Its legacy single-projection factory selects the
-same algorithm as `ABBA4Implicit()`.
+inside one outer projection.
 
 | Method | ABBA maps per outer step | Projection policy |
 |---|---:|---|
 | `ABBA2Midpoint` | 1 | Arithmetic mean; no nonlinear solve |
 | `ABBA2Implicit` | 1 | One implicit symmetric projection |
 | `ABBA4Implicit` | 3 | One outer projection around the complete unprojected triple jump |
-| `ABBA6Implicit` | 7 | One implicit projection after each signed map |
+| `ABBA6Implicit` | 7 | One implicit projection around the complete composition |
 
 The former per-map ABBA4 implementation is removed. Current ABBA4 has one
 nonlinear solve per step and three base maps per residual evaluation.
@@ -596,3 +615,10 @@ python examples/gc_orbit.py
 python examples/projected_abba.py
 python -m build
 ```
+
+### Shared ABBA/BM4 implementation
+
+ABBA and BM4 retain their public names and exports from `simulation` and share the internal
+`src/methods/extended/` engine for signed direct/adjoint composition,
+spatial projection, analytic tangents and passive energy. See the
+[family architecture and diagram](docs/models/extended/simulation/extended-simulation-architecture.md).

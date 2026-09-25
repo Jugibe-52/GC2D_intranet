@@ -67,7 +67,7 @@ class ThreeMethodNewtonComparisonTests(unittest.TestCase):
 		)
 
 		expected_methods = (
-			"ABBA4ImplicitSingleProjection",
+			"ABBA4Implicit",
 			"GaussLegendre4",
 			"BM4Implicit",
 		)

@@ -11,7 +11,7 @@ import numpy as np
 
 from initial_conditions import (
 	Area,
-	TrajectoryGC,
+	GCInitialConfiguration,
 )
 from studies import (
 	ABBASymplecticityConfig,
@@ -24,7 +24,7 @@ from studies import (
 	RK4SymplecticityResult,
 	RK4SymplecticitySummary,
 	centered_circle,
-	centered_gc_trajectory,
+	centered_gc_configuration,
 	centered_square,
 	domain_center,
 	latin_hypercube_gc_configuration,
@@ -64,8 +64,8 @@ class InitializationStudyTests(unittest.TestCase):
 		potential = small_potential_config().build()
 		expected_center = domain_center(potential)
 
-		trajectory = centered_gc_trajectory(potential, rho=0.3)
-		self.assertIsInstance(trajectory, TrajectoryGC)
+		trajectory = centered_gc_configuration(potential)
+		self.assertIsInstance(trajectory, GCInitialConfiguration)
 		state = trajectory.initial_state
 		assert state is not None
 		x, y = trajectory.layout.positions(state)
@@ -75,13 +75,13 @@ class InitializationStudyTests(unittest.TestCase):
 			potential,
 			radius=0.5,
 			points=8,
-			rho=0.3,
+
 		)
 		square = centered_square(
 			potential,
 			side=1.0,
 			points_per_side=2,
-			rho=0.3,
+
 		)
 		self.assertIsInstance(circle, Area)
 		self.assertIsInstance(square, Area)
@@ -166,9 +166,10 @@ class AreaComparisonStudyTests(unittest.TestCase):
 			potential,
 			side=0.5,
 			points_per_side=1,
-			rho=0.05,
+
 		)
 		config = AreaComparisonConfig(
+			rho=0.05,
 			steps=pi_area_steps(400, 800),
 			t_span=(0.0, np.pi / 100),
 			save_interval=np.pi / 100,
@@ -216,8 +217,9 @@ class EnergyStudyTests(unittest.TestCase):
 
 	def test_short_generalized_energy_comparison(self) -> None:
 		potential = small_potential_config().build()
-		trajectory = centered_gc_trajectory(potential, rho=0.05)
+		trajectory = centered_gc_configuration(potential)
 		config = GeneralizedEnergyConfig(
+			rho=0.05,
 			steps=(0.01, 0.005),
 			t_span=(0.0, 0.02),
 			output_sample_count=3,
@@ -252,9 +254,10 @@ class RK4SymplecticityStudyTests(unittest.TestCase):
 			potential,
 			side=0.5,
 			points_per_side=1,
-			rho=0.05,
+
 		)
 		config = RK4SymplecticityConfig(
+			rho=0.05,
 			steps=pi_area_steps(400, 800),
 			t_span=(0.0, np.pi / 100),
 			save_interval=np.pi / 100,
@@ -313,9 +316,10 @@ class ABBASymplecticityStudyTests(unittest.TestCase):
 			potential,
 			side=0.5,
 			points_per_side=1,
-			rho=0.05,
+
 		)
 		config = ABBASymplecticityConfig(
+			rho=0.05,
 			steps=pi_area_steps(400, 800),
 			t_span=(0.0, np.pi / 100),
 			save_interval=np.pi / 100,

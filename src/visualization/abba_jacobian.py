@@ -7,7 +7,6 @@ from typing import TYPE_CHECKING
 
 import matplotlib.pyplot as plt
 import numpy as np
-from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 
 from diagnostics.abba_jacobian import ImplicitABBAJacobianSample

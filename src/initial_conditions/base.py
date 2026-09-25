@@ -190,8 +190,9 @@ class StateConfiguration(ABC):
 		"""Delegate particle counting to :attr:`layout`."""
 		return self.layout.particle_count(state)
 
-# Compatibility spelling retained for callers importing the old base class.
-Trajectory = StateConfiguration
 
 
-__all__ = ["PackedStateLayout", "StateConfiguration", "Trajectory"]
+__all__ = [
+	"PackedStateLayout",
+	"StateConfiguration",
+]

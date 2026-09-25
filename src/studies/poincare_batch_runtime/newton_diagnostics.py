@@ -1,11 +1,12 @@
 """Observe Newton iterates without repeating or changing BM4 map evaluations."""
 from array import array
-import ast
 from contextlib import contextmanager
 import gzip
 import inspect
 import os
-import textwrap
+from collections.abc import Iterator, Callable
+from types import ModuleType
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -44,40 +45,59 @@ class NewtonHistory:
 
 
 @contextmanager
-def observe_newton(expected_steps, progress_every=1000):
-    """Add one observational callback to a private copy of the frozen solver.
+def _observe_shared_newton(module: ModuleType, history: NewtonHistory) -> Iterator[None]:
+    """Observe the common residual callback without copying solver source code."""
+    original = getattr(module, '_solve_newton')
 
-    The snapshot on disk is unchanged. The copied function retains the original
-    statements and ordering; the callback reads already-computed residuals and
-    multipliers. It neither evaluates the field nor modifies solver state.
+    def observed_solve(
+        evaluate: Callable[[np.ndarray], tuple[np.ndarray, Any]],
+        initial: np.ndarray, update: Callable[..., np.ndarray], **options: Any,
+    ) -> Any:
+        # The spatial projection callback owns the step clock and the reduced
+        # or simultaneous layout. Reading its closure does not evaluate a map.
+        values = inspect.getclosurevars(evaluate).nonlocals
+        time, step = values['t'], values['h']
+        size = values['size']
+        simultaneous = values['simultaneous']
+        iteration = 0
+
+        def record(unknown: np.ndarray, residual: np.ndarray) -> None:
+            nonlocal iteration
+            multiplier = unknown[2 * size:] if simultaneous else unknown
+            history.record(iteration, float(np.linalg.norm(residual, ord=np.inf)),
+                           options['tolerance'], multiplier, time, step)
+            iteration += 1
+
+        def observed_residual(unknown: np.ndarray) -> tuple[np.ndarray, Any]:
+            residual, payload = evaluate(unknown)
+            record(unknown, residual)
+            return residual, payload
+
+        cached = options.get('initial_evaluation')
+        if cached is not None:
+            record(initial, cached[0])
+        return original(observed_residual, initial, update, **options)
+
+    setattr(module, '_solve_newton', observed_solve)
+    try:
+        yield
+    finally:
+        setattr(module, '_solve_newton', original)
+
+
+@contextmanager
+def observe_newton(expected_steps, progress_every=1000):
+    """Temporarily observe the canonical projection engine in this process.
+
+    The callback reads already-computed residuals and multipliers. It neither
+    evaluates the field nor modifies solver state or the source snapshot.
     Each spawned process owns its callback; restoration also occurs on failure.
     """
-    import simulation.methods.bm4.implicit as module
+    from methods.extended.core import projection
 
-    original = module._solve_reduced_projected_bm4_step
-    tree = ast.parse(textwrap.dedent(inspect.getsource(original)))
-    callback = ast.parse('_record_newton(iteration, residual_norm, threshold, multiplier, t, step)').body[0]
-    inserted = 0
-
-    class Instrument(ast.NodeTransformer):
-        def visit_Assign(self, node):
-            nonlocal inserted
-            if any(isinstance(t, ast.Name) and t.id == 'residual_norm' for t in node.targets):
-                inserted += 1
-                return [node, callback]
-            return node
-
-    tree = Instrument().visit(tree)
-    assert inserted == 1, 'Unsupported solver source: Newton observation point changed.'
-    ast.fix_missing_locations(tree)
     history = NewtonHistory(expected_steps, progress_every)
-    namespace = dict(original.__globals__, _record_newton=history.record)
-    exec(compile(tree, original.__code__.co_filename, 'exec'), namespace)
-    module._solve_reduced_projected_bm4_step = namespace[original.__name__]
-    try:
+    with _observe_shared_newton(projection, history):
         yield history
-    finally:
-        module._solve_reduced_projected_bm4_step = original
 
 
 def write_diagnostic_tables(directory, metadata, arrays):

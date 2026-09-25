@@ -14,15 +14,12 @@ from diagnostics.symplecticity import gc_physical_symplectic_form
 from dynamics import GuidingCenterDynamics
 from initial_conditions import GCInitialConfiguration
 from potential import Potential
-from simulation import (
-	GaussLegendre4,
-	GaussLegendre4IntegrationStep,
-	InitialValueProblem,
-	IntegrationStep,
-	SimulationRequest,
-	Solution,
-	simulate,
-)
+from methods.classical.gauss_legendre import GaussLegendre4
+from contracts.observation import GaussLegendre4IntegrationStep, IntegrationStep
+from contracts.problem import InitialValueProblem
+from contracts.request import SimulationRequest
+from solution import Solution
+from simulation.runner import simulate
 
 from ._gauss_legendre4_common import (
 	AdaptiveReference,

@@ -24,7 +24,7 @@ from scipy import ndimage
 from scipy.interpolate import RectBivariateSpline
 
 from .grid import Grid
-from .potential import Potential
+from .potential import Potential, _readonly_array
 
 
 DEFAULT_CHARACTERISTIC_LENGTH = 0.06
@@ -51,13 +51,6 @@ class _ComplexSpline:
 			self.real.ev(x, y, dx=dx, dy=dy)
 			+ 1j * self.imag.ev(x, y, dx=dx, dy=dy)
 		)
-
-
-def _readonly_array(values: Any, *, dtype: Any) -> np.ndarray:
-	"""Return an owned, immutable array with the requested dtype."""
-	array = np.array(values, dtype=dtype, copy=True)
-	array.setflags(write=False)
-	return array
 
 
 def _validated_axis(values: Any, *, name: str) -> np.ndarray:

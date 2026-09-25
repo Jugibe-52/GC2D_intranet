@@ -10,7 +10,10 @@ def main():
     potential,_,_=load_snapshot()
     from dynamics import GuidingCenterDynamics
     from initial_conditions import GCInitialConfiguration
-    from simulation import RK4,InitialValueProblem,SimulationRequest,simulate
+    from methods.classical.rk4 import RK4
+    from contracts.problem import InitialValueProblem
+    from contracts.request import SimulationRequest
+    from simulation.runner import simulate
     discrepancies=[]
     with tempfile.TemporaryDirectory() as directory:
         settings['checkpoint_directory']=directory

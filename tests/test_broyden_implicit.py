@@ -10,22 +10,12 @@ import numpy as np
 from dynamics import GuidingCenterDynamics
 from initial_conditions import GCInitialConfiguration
 from potential import Potential
-from simulation import (
-	ABBA2Implicit,
-	ABBA4Implicit,
-	ABBA4ImplicitSingleProjection,
-	ABBA6Implicit,
-	ABBA_PROJECTION_FORMULATIONS,
-	InitialValueProblem,
-	SimulationRequest,
-	simulate,
-)
+from simulation import ABBA2Implicit, ABBA4Implicit, ABBA6Implicit, ABBA_PROJECTION_FORMULATIONS, InitialValueProblem, SimulationRequest, simulate
 
 
 _IMPLICIT_METHODS = (
 	ABBA2Implicit,
 	ABBA4Implicit,
-	ABBA4ImplicitSingleProjection,
 	ABBA6Implicit,
 )
 _ENERGY_STRATEGIES = (

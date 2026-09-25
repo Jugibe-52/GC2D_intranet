@@ -19,17 +19,14 @@ from diagnostics import StoredReferenceTrajectory
 from dynamics import GuidingCenterDynamics
 from initial_conditions import GCInitialConfiguration
 from potential import GC2DH5Metadata, Grid, Potential
-from simulation import (
-	ABBA4Implicit,
-	InitialValueProblem,
-	NonlinearSolver,
-	NumericalMethod,
-	ProjectionFormulation,
-	SimulationRequest,
-	Solution,
-	StateExtension,
-	simulate,
-)
+from methods.extended.abba import ABBA4Implicit
+from contracts.problem import InitialValueProblem
+from methods._nonlinear import NonlinearSolver
+from methods.base import NumericalMethod
+from methods.extended.configuration import ProjectionFormulation, StateExtension
+from contracts.request import SimulationRequest
+from solution import Solution
+from simulation.runner import simulate
 
 from ._trajectory_accuracy import (
 	reference_distance_convention,
@@ -44,16 +41,12 @@ from ._validation import (
 from .reference_trajectory import potential_fingerprint
 
 
-ABBA4ConfigurationMethod: TypeAlias = Literal[
-	"ABBA4Implicit",
-	"ABBA4ImplicitSingleProjection",
-]
+ABBA4ConfigurationMethod: TypeAlias = Literal["ABBA4Implicit"]
 
 ABBA4_CONFIGURATION_PARTICLE_COUNT = 10
-# Keep the explicit single-projection identity in persisted study keys. Historical
-# "ABBA4Implicit" keys described the removed three-projection implementation.
+# Persist the outer-projection identity explicitly to distinguish older studies.
 _METHOD_NAMES: tuple[ABBA4ConfigurationMethod, ...] = (
-	"ABBA4ImplicitSingleProjection",
+	"ABBA4Implicit",
 )
 _STATE_EXTENSIONS: tuple[StateExtension, ...] = (
 	"physical",
@@ -66,16 +59,16 @@ _NONLINEAR_SOLVERS: tuple[NonlinearSolver, ...] = ("newton", "broyden")
 
 _METHOD_SLUGS: Mapping[ABBA4ConfigurationMethod, str] = MappingProxyType(
 	{
-		"ABBA4Implicit": "abba4_implicit",
-		"ABBA4ImplicitSingleProjection": (
-			"abba4_implicit_single_projection"
+
+		"ABBA4Implicit": (
+			"abba4_outer_projection"
 		),
 	}
 )
 _METHOD_LABELS: Mapping[ABBA4ConfigurationMethod, str] = MappingProxyType(
 	{
-		"ABBA4Implicit": "ABBA4 (three projections)",
-		"ABBA4ImplicitSingleProjection": "SP-ABBA4 (single projection)",
+
+		"ABBA4Implicit": "SP-ABBA4 (single projection)",
 	}
 )
 _EXTENSION_LABELS: Mapping[StateExtension, str] = MappingProxyType(
@@ -302,45 +295,25 @@ def _generalized_energy_history(
 ) -> tuple[np.ndarray, np.ndarray]:
 	"""Return aligned generalized energy and drift for one trajectory.
 
-	The tracked physical solver stores the conjugate momentum but does not
-	duplicate the fully extended solver's energy histories. This reconstruction
-	is validation and reporting work outside the timed integration interval.
+	Reconstruct physical H plus passive momentum outside the timed integration
+	interval using the accepted spatial trajectory and its energy history.
 	"""
 	diagnostics = solution.diagnostics
-	if variant.state_extension == "physical":
-		hamiltonian = np.asarray(
-			dynamics.hamiltonian(solution.t, solution.states),
-			dtype=float,
-		).reshape(-1)
-		momentum = np.asarray(
-			diagnostics["extended_momentum"],
-			dtype=float,
-		).reshape(-1)
-		if (
-			hamiltonian.shape != solution.t.shape
-			or momentum.shape != solution.t.shape
-		):
-			raise ValueError("Tracked physical energy histories are not aligned.")
-		generalized = hamiltonian + momentum
-		error = generalized - generalized[0]
-	else:
-		generalized = np.asarray(
-			diagnostics["generalized_energy"],
-			dtype=float,
-		).reshape(-1)
-		error = np.asarray(
-			diagnostics["generalized_energy_error"],
-			dtype=float,
-		).reshape(-1)
-		if generalized.shape != solution.t.shape or error.shape != solution.t.shape:
-			raise ValueError("Fully extended energy histories are not aligned.")
-		if not np.allclose(
-			error,
-			generalized - generalized[0],
-			rtol=float(64.0 * np.finfo(float).eps),
-			atol=float(64.0 * np.finfo(float).eps),
-		):
-			raise ValueError("Fully extended energy diagnostics are inconsistent.")
+	hamiltonian = np.asarray(
+		dynamics.hamiltonian(solution.t, solution.states),
+		dtype=float,
+	).reshape(-1)
+	momentum = np.asarray(
+		diagnostics["extended_momentum"],
+		dtype=float,
+	).reshape(-1)
+	if (
+		hamiltonian.shape != solution.t.shape
+		or momentum.shape != solution.t.shape
+	):
+		raise ValueError("Tracked physical energy histories are not aligned.")
+	generalized = hamiltonian + momentum
+	error = generalized - generalized[0]
 	if not np.all(np.isfinite(generalized)) or not np.all(np.isfinite(error)):
 		raise ValueError("Generalized-energy histories must be finite.")
 	return generalized, error
@@ -557,8 +530,6 @@ def _method_for_variant(
 	config: ABBA4ConfigurationComparisonConfig,
 ) -> NumericalMethod:
 	"""Construct one numerical method with common nonlinear controls."""
-	if variant.method_name == "ABBA4Implicit":
-		raise ValueError("This historical study key describes the removed three-projection ABBA4.")
 	return ABBA4Implicit(
 		state_extension=variant.state_extension,
 		track_energy=True,
@@ -823,12 +794,11 @@ def _sequential_task_schedule(
 def _parallel_task_schedule(
 	particle_count: int,
 ) -> tuple[_ABBA4TrajectoryTask, ...]:
-	"""Submit empirically heavier R8/Newton trajectories before short work."""
+	"""Submit heavier Newton trajectories before shorter Broyden work."""
 	variant_order = tuple(
 		sorted(
 			ABBA4_CONFIGURATION_VARIANTS,
 			key=lambda variant: (
-				variant.state_extension == "fully_extended",
 				variant.nonlinear_solver == "newton",
 				variant.method_name == "ABBA4Implicit",
 				variant.projection_formulation
@@ -934,7 +904,7 @@ def _run_sequential_trajectories(
 	*,
 	study_started: float,
 ) -> tuple[dict[str, dict[int, Solution]], dict[str, np.ndarray]]:
-	"""Run the compatibility path with one process and per-method progress."""
+	"""Run serially with one process and per-method progress."""
 	problems = tuple(
 		InitialValueProblem(dynamics, particle_configuration)
 		for particle_configuration in particle_configurations

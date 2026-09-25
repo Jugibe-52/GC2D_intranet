@@ -11,7 +11,7 @@ import numpy as np
 from matplotlib.animation import FuncAnimation
 
 from potential import Potential
-from simulation.solution import Solution
+from solution import Solution
 from initial_conditions import Area
 
 from ._gc_area_validation import (

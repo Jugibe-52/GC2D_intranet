@@ -35,7 +35,10 @@ def calculate_group(indices, initial_xy, settings):
     potential, _, snapshot_hash = load_snapshot()
     from dynamics import GuidingCenterDynamics
     from initial_conditions import GCInitialConfiguration
-    from simulation import BM4Implicit, InitialValueProblem, SimulationRequest, simulate
+    from methods.extended.bm4 import BM4Implicit
+    from contracts.problem import InitialValueProblem
+    from contracts.request import SimulationRequest
+    from simulation.runner import simulate
 
     indices = np.asarray(indices, dtype=int)
     xy0 = np.asarray(initial_xy, dtype=np.float64)[indices]

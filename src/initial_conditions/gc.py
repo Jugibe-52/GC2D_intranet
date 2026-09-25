@@ -78,32 +78,8 @@ class GCInitialConfiguration(StateConfiguration):
 		return self.layout.positions(state)
 
 
-class TrajectoryGC(GCInitialConfiguration):
-	"""Deprecated GC configuration carrying the former ``rho`` metadata."""
-
-	def __init__(
-		self,
-		state: np.ndarray | None = None,
-		*,
-		rho: float = 0.0,
-	) -> None:
-		"""Create a legacy GC trajectory while validating ``rho`` metadata."""
-		radius = float(rho)
-		if not np.isfinite(radius) or radius < 0:
-			raise ValueError("`rho` must be finite and non-negative.")
-		self.rho = radius
-		super().__init__(state)
-
-	@classmethod
-	def from_components(
-		cls,
-		*,
-		x: np.ndarray,
-		y: np.ndarray,
-		rho: float = 0.0,
-	) -> TrajectoryGC:
-		"""Create a legacy GC trajectory from named coordinate blocks."""
-		return cls(cls.pack_components(x, y), rho=rho)
-
-
-__all__ = ["GCInitialConfiguration", "GCState", "GCStateLayout", "TrajectoryGC"]
+__all__ = [
+	"GCInitialConfiguration",
+	"GCState",
+	"GCStateLayout",
+]

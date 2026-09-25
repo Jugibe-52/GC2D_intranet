@@ -13,6 +13,8 @@ from typing import Any, TYPE_CHECKING
 
 import numpy as np
 
+from diagnostics.output import _json_default
+
 if TYPE_CHECKING:
 	from studies.bm4_parallel_recurrence import ParallelBM4RecurrenceResult
 
@@ -32,17 +34,6 @@ _ARCHIVE_KEYS = frozenset(
 		"wall_runtime_seconds",
 	)
 )
-
-
-def _json_default(value: object) -> object:
-	"""Serialize NumPy scalars, arrays, and paths used by study metadata."""
-	if isinstance(value, np.generic):
-		return value.item()
-	if isinstance(value, np.ndarray):
-		return value.tolist()
-	if isinstance(value, Path):
-		return str(value)
-	raise TypeError(f"Object of type {type(value).__name__} is not JSON serializable.")
 
 
 @dataclass(frozen=True, slots=True)

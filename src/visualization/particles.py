@@ -14,7 +14,7 @@ from matplotlib.lines import Line2D
 
 from initial_conditions import FCInitialConfiguration, GCInitialConfiguration
 from potential import Potential
-from simulation.solution import Solution
+from solution import Solution
 
 
 def _frame_indices(sample_count: int, frames: int | None) -> np.ndarray:

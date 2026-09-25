@@ -65,13 +65,28 @@ off-grid output uses shadow steps that do not alter the accepted main
 trajectory or its diagnostics.
 
 \section{Implementation correspondence}
+The public class is in
+\path{src/methods/extended/abba.py}. It uses the common
+\texttt{midpoint\_step}, the uncoupled ABBA pair in \texttt{composition.py},
+and the same passive energy quadrature as implicit ABBA and BM4.
 
-The public class is implemented in
-\texttt{src/simulation/methods/abba/order2\_midpoint.py}.  It reuses the common
-endpoint-time stages from \texttt{abba/\_core.py}; optional physical energy
-tracking lives in \texttt{abba/\_energy.py}. The companion
-architecture document under \texttt{../simulation/} records the complete
-runtime and observation contract.
+The public names, constructor defaults and exports from \texttt{simulation}
+remain unchanged. Internal imports use the defining modules; old import
+adapters have been removed. The ordinary implicit path is \texttt{advance}, \texttt{solve\_projection},
+\texttt{compose}, then \texttt{direct\_map} or \texttt{adjoint\_map}.
+Arithmetic midpoint variants use one explicit average instead of a nonlinear
+projection. Adjoint stages evaluate at the start of their signed substep;
+direct stages evaluate at its end.
+
+Newton and Broyden share the spatial equations and convergence services.
+Exact particle-block tangents, passive energy and optional observation use
+retained shear inputs; energy is evaluated only after accepting the spatial
+map, with the existing factor $1/2$ for physical $\kappa$. Time and momentum
+never enter the spatial root. The new internal family name does not enable
+the retired full time/momentum projection.
+
+Current module responsibilities and diagrams are documented in
+\path{docs/models/extended/simulation/extended-simulation-architecture.md}.
 
 \section{Four state formulations and passive energy tracking}
 For one planar particle the supported internal representations are
@@ -110,11 +125,12 @@ $\kappa$ is projected. The former eight-component projection is retired;
 
 Dynamics, formulation, method and integration remain separate. The shared
 state classes own layouts, diagonal embedding and history extraction in
-\begin{quote}\small\path{src/simulation/formulations/state.py}\end{quote}
+\begin{quote}\small\path{src/formulations/state.py}\end{quote}
 Each integration initializes a fresh method instance. Observers receive physical
 states; energy histories are in \texttt{Solution.diagnostics}.
 The \texttt{extended\_time} history has shape $(N,n_{\rm samples})$. Fixed-step shadow
 samples leave main states and counters unchanged. Adaptive energy quadrature
 uses accepted dense output; its backend state and Jacobian remain physical.
+
 
 \end{document}

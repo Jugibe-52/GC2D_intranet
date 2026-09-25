@@ -19,26 +19,19 @@ from matplotlib.figure import Figure
 from dynamics import GuidingCenterDynamics
 from initial_conditions import Area
 from potential import Potential
-from simulation import (
-	InitialValueProblem,
-	IntegrationStep,
-	NumericalMethod,
-	SimulationRequest,
-	Solution,
-	StepObserver,
-	simulate,
-)
+from contracts.problem import InitialValueProblem
+from contracts.observation import IntegrationStep, StepObserver
+from methods.base import NumericalMethod
+from contracts.request import SimulationRequest
+from solution import Solution
+from simulation.runner import simulate
 from diagnostics.symplecticity import (
 	GCAreaSymplecticityObserver,
 	GCAreaSymplecticityRecord,
 	StepJacobianMethod,
 )
 
-from ._gc_symplecticity_models import (
-	GCConvergenceOrder,
-	GCSymplecticityConfig,
-	GCSymplecticitySummary,
-)
+from ._gc_symplecticity_models import GCSymplecticityConfig, GCSymplecticitySummary
 from ._validation import integer_ratio, resolve_rho
 from .area_comparison import AreaStep
 from visualization import animate_gc_area_comparison
@@ -482,7 +475,7 @@ def _run_gc_symplecticity_study(
 	if not isinstance(method_name, str) or not method_name.strip():
 		raise ValueError("The result type must define a non-empty method name.")
 
-	rho = resolve_rho(config.rho, area)
+	rho = resolve_rho(config.rho)
 	dynamics = GuidingCenterDynamics(potential, rho=rho)
 	problem = InitialValueProblem(dynamics, area)
 	initial_state = area.initial_state
@@ -593,7 +586,7 @@ def _run_gc_symplecticity_observers(
 	if not isinstance(method_name, str) or not method_name.strip():
 		raise ValueError("The result type must define a non-empty method name.")
 
-	rho = resolve_rho(config.rho, area)
+	rho = resolve_rho(config.rho)
 	dynamics = GuidingCenterDynamics(potential, rho=rho)
 	problem = InitialValueProblem(dynamics, area)
 	initial_state = area.initial_state

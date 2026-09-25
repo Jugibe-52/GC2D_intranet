@@ -12,10 +12,13 @@ from dynamics import GuidingCenterDynamics
 from diagnostics import StoredReferenceTrajectory
 from initial_conditions import GCInitialConfiguration
 from potential import Potential
-from simulation import (
-	BM4Implicit, BM4Midpoint, ImplicitBM4IntegrationStep, InitialValueProblem,
-	IntegrationStep, NumericalMethod, SimulationRequest, simulate,
-)
+from methods.extended.bm4 import BM4Implicit
+from methods.extended.bm4 import BM4Midpoint
+from contracts.observation import ImplicitBM4IntegrationStep, IntegrationStep
+from contracts.problem import InitialValueProblem
+from methods.base import NumericalMethod
+from contracts.request import SimulationRequest
+from simulation.runner import simulate
 from ._gauss_legendre4_common import AdaptiveReference, build_adaptive_reference
 from ._trajectory_accuracy import validate_reference_identity
 from ._trajectory_distances import particle_distances

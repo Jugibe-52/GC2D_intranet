@@ -15,7 +15,10 @@ from threadpoolctl import ThreadpoolController
 from dynamics import GuidingCenterDynamics
 from initial_conditions import GCInitialConfiguration
 from potential import GC2DH5Metadata, Grid, Potential
-from simulation import BM4Implicit, InitialValueProblem, SimulationRequest, simulate
+from methods.extended.bm4 import BM4Implicit
+from contracts.problem import InitialValueProblem
+from contracts.request import SimulationRequest
+from simulation.runner import simulate
 
 from ._validation import integer_ratio, nonnegative_finite, positive_finite, positive_integer
 

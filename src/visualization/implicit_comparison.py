@@ -17,7 +17,7 @@ from matplotlib.ticker import MaxNLocator
 from matplotlib.widgets import CheckButtons
 
 from potential import Potential
-from simulation import Solution
+from solution import Solution
 
 from .particles import _field_normalization, _frame_indices
 
@@ -25,7 +25,7 @@ from .particles import _field_normalization, _frame_indices
 IMPLICIT_METHOD_COLORS: Mapping[str, str] = {
 	"ABBA2Implicit[reduced_multiplier]": "tab:blue",
 	"ABBA2Implicit[simultaneous_state_multiplier]": "tab:orange",
-	"ABBA4ImplicitSingleProjection": "tab:blue",
+	"ABBA4Implicit": "tab:blue",
 	"GaussLegendre4": "tab:orange",
 	"BM4Implicit": "tab:green",
 	"HBVM42": "tab:red",

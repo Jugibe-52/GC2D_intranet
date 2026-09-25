@@ -1,4 +1,4 @@
-"""Faceted trajectory animation for the current or historical ABBA4 configurations."""
+"""Faceted trajectory animation for the current ABBA4 configurations."""
 
 from __future__ import annotations
 
@@ -13,32 +13,13 @@ from matplotlib.collections import LineCollection
 from matplotlib.lines import Line2D
 
 from potential import Potential
-from simulation import Solution
+from solution import Solution
 
 from .particles import _field_normalization, _frame_indices
 
 
 _ROW_COORDINATES = (
-	(
-		"ABBA4Implicit",
-		"physical",
-		"ABBA4 · 3 projections\nspatial copies + energy · R6",
-	),
-	(
-		"ABBA4Implicit",
-		"fully_extended",
-		"ABBA4 · 3 projections\nfully extended · base R8",
-	),
-	(
-		"ABBA4ImplicitSingleProjection",
-		"physical",
-		"SP-ABBA4 · 1 projection\nspatial copies + energy · R6",
-	),
-	(
-		"ABBA4ImplicitSingleProjection",
-		"fully_extended",
-		"SP-ABBA4 · 1 projection\nfully extended · base R8",
-	),
+	("ABBA4Implicit", "physical", "ABBA4 · 1 outer projection\nspatial copies + energy · R6"),
 )
 _COLUMN_COORDINATES = (
 	("reduced_multiplier", "newton", "Reduced\nNewton"),
@@ -92,8 +73,8 @@ def _ordered_variants(result: object) -> tuple[object, ...]:
 	):
 		raise TypeError("`result.variants` must be a sequence of configuration records.")
 	variants = tuple(variants_value)
-	if len(variants) not in (4, 8, 16):
-		raise ValueError("The animation requires 4 current or 8/16 historical ABBA4 variants.")
+	if len(variants) != 4:
+		raise ValueError("The animation requires four current ABBA4 variants.")
 
 	by_coordinate: dict[tuple[str, str, str, str], object] = {}
 	for variant in variants:
@@ -104,7 +85,7 @@ def _ordered_variants(result: object) -> tuple[object, ...]:
 
 	expected = tuple(
 		(method, extension, formulation, solver)
-		for method, extension, _ in (_ROW_COORDINATES if len(variants) == 16 else _ROW_COORDINATES[2:] if len(variants) == 8 else _ROW_COORDINATES[2:3])
+		for method, extension, _ in _ROW_COORDINATES
 		for formulation, solver, _ in _COLUMN_COORDINATES
 	)
 	missing = tuple(coordinate for coordinate in expected if coordinate not in by_coordinate)
@@ -241,7 +222,7 @@ def animate_abba4_configuration_trajectories(
 	cmap: str = "Greys",
 	**imshow_kwargs: Any,
 ) -> FuncAnimation:
-	"""Animate current or historical ABBA4 configurations and up to 10 shared initial conditions.
+	"""Animate current ABBA4 configurations and up to 10 shared initial conditions.
 
 	Rows encode the projection placement and state extension, while columns encode
 	the projection formulation and nonlinear solver. Each panel therefore needs
@@ -277,7 +258,7 @@ def animate_abba4_configuration_trajectories(
 		"alpha": 0.62,
 	}
 	image_options.update(imshow_kwargs)
-	rows = _ROW_COORDINATES if len(variants) == 16 else _ROW_COORDINATES[2:] if len(variants) == 8 else _ROW_COORDINATES[2:3]
+	rows = _ROW_COORDINATES
 	figure, axes = plt.subplots(
 		len(rows),
 		4,

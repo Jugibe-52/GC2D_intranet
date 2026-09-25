@@ -1307,11 +1307,35 @@ $\kappa$ is projected. The former eight-component projection is retired;
 
 Dynamics, formulation, method and integration remain separate. The shared
 state classes own layouts, diagonal embedding and history extraction in
-\begin{quote}\small\path{src/simulation/formulations/state.py}\end{quote}
+\begin{quote}\small\path{src/formulations/state.py}\end{quote}
 Each integration initializes a fresh method instance. Observers receive physical
 states; energy histories are in \texttt{Solution.diagnostics}.
 The \texttt{extended\_time} history has shape $(N,n_{\rm samples})$. Fixed-step shadow
 samples leave main states and counters unchanged. Adaptive energy quadrature
 uses accepted dense output; its backend state and Jacobian remain physical.
+
+
+\clearpage
+\section{Shared extended-space implementation}
+The public method names and constructor defaults are unchanged. Their code now
+lives in \path{src/methods/extended/}. Public exports from \texttt{simulation}
+remain available; former ABBA and BM4 import adapters have been removed.
+The shared execution is
+\texttt{advance}, \texttt{solve\_projection}, \texttt{compose}, then
+\texttt{direct\_map} or \texttt{adjoint\_map}. Arithmetic midpoint variants
+replace the nonlinear projection by one final average.
+
+The composition retains signed shear inputs for exact particle-block tangents,
+passive energy quadrature, and existing observation records. Newton and Broyden
+share the spatial projection equations; energy is accumulated only from the
+accepted trace, with the existing factor $1/2$ for physical $\kappa$.
+Adjoint stages evaluate at the start of their signed substep, direct stages at
+its end. The coefficients remain unchanged. ABBA4, ABBA6 and BM4 each
+use one outer projection around their complete unprojected compositions.
+ABBA6 therefore differs from historical results with seven projected pairs. This internal family name does not enable the retired full
+time/momentum projection.
+
+The implementation architecture and current diagrams are documented in
+\path{docs/models/extended/simulation/extended-simulation-architecture.md}.
 
 \end{document}

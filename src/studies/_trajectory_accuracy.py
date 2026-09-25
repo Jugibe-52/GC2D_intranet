@@ -14,12 +14,7 @@ from dynamics import GuidingCenterDynamics
 from initial_conditions import GCInitialConfiguration
 from potential import Potential
 
-from ._trajectory_distances import (
-	DistanceConvention,
-	normalized_distance_convention,
-	particle_distances,
-	periodic_particle_distances,
-)
+from ._trajectory_distances import DistanceConvention, normalized_distance_convention, particle_distances
 from ._validation import integer_ratio, positive_finite
 from .reference_trajectory import potential_fingerprint
 

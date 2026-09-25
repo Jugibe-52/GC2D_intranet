@@ -16,7 +16,7 @@ from dynamics import (
 )
 from initial_conditions import (
 	FCInitialConfiguration,
-	TrajectoryGC,
+	GCInitialConfiguration,
 )
 from potential import Potential
 from simulation import (
@@ -25,7 +25,7 @@ from simulation import (
 	SimulationRequest,
 	simulate,
 )
-from simulation.methods.abba._projection_reduced import (
+from tests._extended_reference.abba_reduced import (
 	_evaluate_residual,
 	_solve_reduced_multiplier_step,
 )
@@ -176,7 +176,7 @@ class ABBA2ImplicitTests(unittest.TestCase):
 		solution = simulate(
 			InitialValueProblem(
 				dynamics,
-				TrajectoryGC(initial_state, rho=0.05),
+				GCInitialConfiguration(initial_state),
 			),
 			ABBA2Implicit(step_observer=lambda _step: None),
 			SimulationRequest.uniform(
@@ -207,7 +207,7 @@ class ABBA2ImplicitTests(unittest.TestCase):
 		simulate(
 			InitialValueProblem(
 				unobserved_dynamics,
-				TrajectoryGC(initial_state, rho=0.05),
+				GCInitialConfiguration(initial_state),
 			),
 			ABBA2Implicit(),
 			SimulationRequest.uniform(
@@ -293,7 +293,7 @@ class ABBA2ImplicitTests(unittest.TestCase):
 
 	def test_method_has_second_order_global_accuracy(self) -> None:
 		dynamics = gc_dynamics()
-		source = TrajectoryGC(np.asarray([1.0, 1.2]), rho=0.05)
+		source = GCInitialConfiguration(np.asarray([1.0, 1.2]))
 		problem = InitialValueProblem(dynamics, source)
 
 		def final_state(step: float) -> np.ndarray:
@@ -318,7 +318,7 @@ class ABBA2ImplicitTests(unittest.TestCase):
 
 	def test_observation_and_diagnostics_ignore_shadow_steps(self) -> None:
 		dynamics = gc_dynamics()
-		source = TrajectoryGC(np.asarray([1.0, 1.2]), rho=0.05)
+		source = GCInitialConfiguration(np.asarray([1.0, 1.2]))
 		problem = InitialValueProblem(dynamics, source)
 		events = []
 		observed = simulate(
@@ -360,7 +360,7 @@ class ABBA2ImplicitTests(unittest.TestCase):
 			seed=27,
 			interpolation_order=3,
 		)
-		source = TrajectoryGC(np.asarray([1.0, 1.2]), rho=0.05)
+		source = GCInitialConfiguration(np.asarray([1.0, 1.2]))
 		zero_problem = InitialValueProblem(
 			GuidingCenterDynamics(zero_potential, rho=0.05),
 			source,
@@ -412,7 +412,7 @@ class ABBA2ImplicitTests(unittest.TestCase):
 	def test_nonconvergence_reports_time_step_and_residual(self) -> None:
 		problem = InitialValueProblem(
 			gc_dynamics(),
-			TrajectoryGC(np.asarray([1.0, 1.2]), rho=0.05),
+			GCInitialConfiguration(np.asarray([1.0, 1.2])),
 		)
 		with self.assertRaisesRegex(
 			RuntimeError,
@@ -449,9 +449,10 @@ class ABBASymplecticityStudyTests(unittest.TestCase):
 			potential,
 			side=0.5,
 			points_per_side=1,
-			rho=0.05,
+
 		)
 		config = ABBASymplecticityConfig(
+			rho=0.05,
 			steps=pi_area_steps(400, 800),
 			t_span=(0.0, np.pi / 100),
 			save_interval=np.pi / 100,

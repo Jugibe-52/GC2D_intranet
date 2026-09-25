@@ -2,46 +2,41 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from dataclasses import dataclass, replace
 from functools import partial
-from typing import Any
+from typing import Literal
 
 import numpy as np
 
+from diagnostics._validation import positive_integer as _positive_integer
+
 from dynamics import GuidingCenterJacobianSystem
-from simulation import (
-	ABBA_PROJECTION_FORMULATIONS,
-	ABBA4ImplicitSingleProjectionIntegrationStep,
+from methods.extended.configuration import ABBA_PROJECTION_FORMULATIONS
+from contracts.observation import (
+	ABBA4ImplicitIntegrationStep,
 	ABBA2ImplicitIntegrationStep,
 	IntegrationStep,
-	NONLINEAR_SOLVERS,
-	NonlinearSolver,
 )
-from simulation.methods._nonlinear import SolverOptions
-from simulation.methods.abba._configuration import _validate_projection_formulation
-from simulation.methods.abba.observations import bind_event_builder
-from simulation.methods.abba.records import StepResult
-from simulation.methods.abba.steps import bind_physical_projection, solve_outer_projection_step
-from simulation.methods.abba.projection_reduced import (
-	_solve_reduced_multiplier_step,
-)
-from simulation.methods.abba.projection_simultaneous import (
-	_solve_simultaneous_state_multiplier_step,
-)
+from methods._nonlinear import NONLINEAR_SOLVERS, NonlinearSolver
+from methods._nonlinear import SolverOptions
+from methods.extended.configuration import _validate_projection_formulation
+from methods.extended.observations import bind_event_builder
+from methods.extended.core.records import StepResult
+from contracts.problem import InitialValueProblem
+from formulations.gc import GCDoubledMaps
+from initial_conditions import GCInitialConfiguration
+from methods.extended.core.composition import ABBA2, ABBA4, ABBA6
+from methods.extended.core.projection import solve_projection
+from contracts.observation import ABBA6ImplicitIntegrationStep
 
 from .jacobians import implicit_function_step_jacobian
 from .trajectory_symplecticity.jacobians import (
 	abba4_implicit_step_particle_jacobians,
+	abba6_implicit_step_particle_jacobians,
 )
 
 
-_StepSolver = Callable[..., Any]
-_FORMULATION_SOLVERS: dict[str, _StepSolver] = {
-	"reduced_multiplier": _solve_reduced_multiplier_step,
-	"simultaneous_state_multiplier": _solve_simultaneous_state_multiplier_step,
-}
-_ObservedStep = ABBA2ImplicitIntegrationStep | ABBA4ImplicitSingleProjectionIntegrationStep
+_ObservedStep = ABBA2ImplicitIntegrationStep | ABBA4ImplicitIntegrationStep | ABBA6ImplicitIntegrationStep
 
 
 def _dense_component_major_jacobian(blocks: np.ndarray) -> np.ndarray:
@@ -60,8 +55,10 @@ def _dense_component_major_jacobian(blocks: np.ndarray) -> np.ndarray:
 
 
 def _complete_step_jacobian(step: _ObservedStep) -> np.ndarray:
-	"""Return the exact complete-map tangent for ABBA2 or composed ABBA4."""
-	if isinstance(step, ABBA4ImplicitSingleProjectionIntegrationStep):
+	"""Return the exact complete-map tangent for ABBA2 or an outer-projected composition."""
+	if isinstance(step, ABBA6ImplicitIntegrationStep):
+		return _dense_component_major_jacobian(abba6_implicit_step_particle_jacobians(step))
+	if isinstance(step, ABBA4ImplicitIntegrationStep):
 		return _dense_component_major_jacobian(
 			abba4_implicit_step_particle_jacobians(step)
 		)
@@ -114,17 +111,6 @@ def _positive_finite(value: float, name: str) -> float:
 	if not np.isfinite(result) or result <= 0.0:
 		raise ValueError(f"`{name}` must be positive and finite.")
 	return result
-
-
-def _positive_integer(value: int, name: str) -> int:
-	"""Normalize one strictly positive integer control."""
-	if (
-		isinstance(value, (bool, np.bool_))
-		or not isinstance(value, (int, np.integer))
-		or value < 1
-	):
-		raise ValueError(f"`{name}` must be a positive integer.")
-	return int(value)
 
 
 def _finite_vector(value: np.ndarray, shape: tuple[int, ...], name: str) -> np.ndarray:
@@ -182,123 +168,41 @@ class ImplicitABBAReversibilityObserver:
 		return tuple(self._samples)
 
 	def _solve_reverse_step(
-		self,
-		step: _ObservedStep,
-		dynamics: GuidingCenterJacobianSystem,
+		self, step: _ObservedStep, dynamics: GuidingCenterJacobianSystem,
 	) -> _ObservedStep:
-		"""Solve and expose the signed reverse step independently of ``J_plus``."""
-		if isinstance(step, ABBA4ImplicitSingleProjectionIntegrationStep):
-			return self._solve_reverse_abba4_step(step, dynamics)
-		try:
-			step_solver = _FORMULATION_SOLVERS[step.formulation_name]
-		except KeyError as exc:
-			raise TypeError(
-				"Implicit ABBA reversibility supports formulations 1 and 2 only."
-			) from exc
-
-		start_time = float(step.time)
-		duration = -float(step.duration)
-		state_before = np.asarray(step.state_after, dtype=float)
-
-		def reverse_map(candidate: np.ndarray) -> np.ndarray:
-			"""Apply the same fixed signed reverse map to another physical state."""
-			return np.asarray(
-				step_solver(
-					dynamics,
-					start_time,
-					candidate,
-					duration,
-					absolute_tolerance=self.newton_absolute_tolerance,
-					relative_tolerance=self.newton_relative_tolerance,
-					max_iterations=self.newton_max_iterations,
-					nonlinear_solver=self.nonlinear_solver,
-				).state,
-				dtype=float,
-			)
-
-		result = step_solver(
-			dynamics,
-			start_time,
-			state_before,
-			duration,
-			absolute_tolerance=self.newton_absolute_tolerance,
-			relative_tolerance=self.newton_relative_tolerance,
-			max_iterations=self.newton_max_iterations,
-			nonlinear_solver=self.nonlinear_solver,
-		)
-		state_scale = max(1.0, float(np.linalg.norm(state_before, ord=np.inf)))
-		threshold = (
-			self.newton_absolute_tolerance
-			+ self.newton_relative_tolerance * state_scale
-		)
-		return ABBA2ImplicitIntegrationStep(
-			dynamics_name=step.dynamics_name,
-			method_name=step.method_name,
-			step_index=step.step_index,
-			time=float(step.start_time),
-			duration=duration,
-			state_before=state_before.copy(),
-			state_after=np.asarray(result.state, dtype=float).copy(),
-			map_state=reverse_map,
-			start_time=start_time,
-			dynamics=dynamics,
-			formulation_name=step.formulation_name,
-			nonlinear_solver=self.nonlinear_solver,
-			newton_iterations=result.iterations,
-			residual_evaluations=result.residual_evaluations,
-			newton_residual_norm=result.residual_norm,
-			newton_tolerance=threshold,
-			projection_multiplier_norm=float(
-				np.linalg.norm(result.multiplier, ord=np.inf)
-			),
-			multiplier=result.multiplier.copy(),
-			u_initial=result.stages.u_initial.copy(),
-			v_initial=result.stages.v_initial.copy(),
-			u_first=result.stages.u_first.copy(),
-			v_final=result.stages.v_final.copy(),
-			u_final=result.stages.u_final.copy(),
-		)
-
-	def _solve_reverse_abba4_step(
-		self,
-		step: ABBA4ImplicitSingleProjectionIntegrationStep,
-		dynamics: GuidingCenterJacobianSystem,
-	) -> ABBA4ImplicitSingleProjectionIntegrationStep:
-		"""Use the shared signed-step recipe and snapshot adapter in reverse."""
-		start_time = float(step.time)
-		duration = -float(step.duration)
-		state_before = np.asarray(step.state_after, dtype=float)
+		"""Recompute one signed outer projection with the observed method's recipe."""
 		if step.formulation_name not in ABBA_PROJECTION_FORMULATIONS:
-			raise TypeError("The observed ABBA4 step has an unknown formulation.")
+			raise TypeError("The observed ABBA step has an unknown formulation.")
 		formulation = _validate_projection_formulation(step.formulation_name)
-		options = SolverOptions(
-			self.nonlinear_solver, self.newton_absolute_tolerance,
-			self.newton_relative_tolerance, self.newton_max_iterations,
-		)
-		project = bind_physical_projection(dynamics, options, formulation, outer=True)
-		coefficients = tuple(float(c) for c in step.composition_coefficients)
-		solve_step = partial(solve_outer_projection_step, project)
-		projections = solve_step(start_time, state_before, duration)
-		builder = bind_event_builder(
-			dynamics, step.method_name, formulation, order=4,
-			outer=True, coefficients=coefficients, solve_step=solve_step, project=project,
-		)
-		event = builder(
-			start_time, duration, step.step_index, state_before,
-			StepResult(projections[-1].state, projections),
-		)
-		assert isinstance(event, ABBA4ImplicitSingleProjectionIntegrationStep)
+		recipe = ABBA2
+		order: Literal[2, 4, 6] = 2
+		if isinstance(step, ABBA4ImplicitIntegrationStep):
+			recipe, order = ABBA4, 4
+		elif isinstance(step, ABBA6ImplicitIntegrationStep):
+			recipe, order = ABBA6, 6
+		problem = InitialValueProblem(dynamics, GCInitialConfiguration(step.state_after))
+		options = SolverOptions(self.nonlinear_solver, self.newton_absolute_tolerance,
+			self.newton_relative_tolerance, self.newton_max_iterations)
+		project = partial(solve_projection, GCDoubledMaps(problem, coupling_frequency=None),
+			recipe, options, formulation)
+		result = project(step.time, step.state_after, -step.duration)
+		builder = bind_event_builder(dynamics, step.method_name, formulation, order=order,
+			coefficients=tuple(2 * c for c in recipe.coefficients[::2]), project=project)
+		event = builder(step.time, -step.duration, step.step_index, step.state_after,
+			StepResult(result.state, (result,)))
+		assert isinstance(event, (ABBA2ImplicitIntegrationStep, ABBA4ImplicitIntegrationStep,
+			ABBA6ImplicitIntegrationStep))
 		return replace(event, time=float(step.start_time))
 
 	def __call__(self, step: IntegrationStep) -> None:
 		"""Observe one consecutive accepted implicit-ABBA step."""
 		if not isinstance(
 			step,
-			(ABBA2ImplicitIntegrationStep, ABBA4ImplicitSingleProjectionIntegrationStep),
+			(ABBA2ImplicitIntegrationStep, ABBA4ImplicitIntegrationStep, ABBA6ImplicitIntegrationStep),
 		):
 			raise TypeError(
 				"ImplicitABBAReversibilityObserver requires "
-				"implicit ABBA or ABBA4 integration-step data."
+				"ABBA2, ABBA4 or ABBA6 integration-step data."
 			)
 		if step.step_index != self._expected_step:
 			raise ValueError("Implicit ABBA steps must be observed consecutively.")

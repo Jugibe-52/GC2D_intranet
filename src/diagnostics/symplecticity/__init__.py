@@ -5,7 +5,6 @@ from .observer import (
 	SymplecticityObserver,
 	SymplecticityRecord,
 	gc_extended_symplectic_form,
-	gc_fully_duplicated_symplectic_form,
 	gc_physical_symplectic_form,
 	gc_reduced_time_extended_symplectic_form,
 	gc_time_extended_symplectic_form,
@@ -16,11 +15,7 @@ from .time_extended import (
 	GCTimeExtendedSymplecticityObserver,
 	GCTimeExtendedSymplecticityRecord,
 )
-from .fully_extended import (
-	GCFullyExtendedSymplecticityObserver,
-	GCFullyExtendedSymplecticityRecord,
-)
-from .jacobians import (
+from diagnostics.jacobians import (
 	STEP_JACOBIAN_METHODS,
 	StepJacobianMethod,
 	calculate_step_jacobian,
@@ -34,7 +29,7 @@ from .area import (
 	GCAreaSymplecticityOutputBlock,
 	GCAreaSymplecticityRecord,
 )
-from .paths import notebook_output_directory
+from diagnostics.paths import notebook_output_directory
 
 __all__ = [
 	"OutputBlock",
@@ -43,8 +38,6 @@ __all__ = [
 	"GCAreaSymplecticityObserver",
 	"GCAreaSymplecticityOutputBlock",
 	"GCAreaSymplecticityRecord",
-	"GCFullyExtendedSymplecticityObserver",
-	"GCFullyExtendedSymplecticityRecord",
 	"GCTimeExtendedSymplecticityObserver",
 	"GCTimeExtendedSymplecticityRecord",
 	"GCReducedTimeExtendedSymplecticityObserver",
@@ -55,7 +48,6 @@ __all__ = [
 	"central_difference_jacobian",
 	"gauss_legendre4_step_jacobian",
 	"gc_extended_symplectic_form",
-	"gc_fully_duplicated_symplectic_form",
 	"gc_physical_symplectic_form",
 	"gc_reduced_time_extended_symplectic_form",
 	"gc_time_extended_symplectic_form",

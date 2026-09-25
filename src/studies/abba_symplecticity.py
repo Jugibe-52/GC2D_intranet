@@ -12,7 +12,7 @@ from matplotlib.figure import Figure
 
 from initial_conditions import Area
 from potential import Potential
-from simulation import ABBA2Implicit
+from methods.extended.abba import ABBA2Implicit
 
 from ._gc_symplecticity import (
 	GCSymplecticityConfig,

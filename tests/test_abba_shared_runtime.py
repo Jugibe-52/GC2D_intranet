@@ -11,9 +11,9 @@ import numpy as np
 from dynamics import GuidingCenterDynamics
 from initial_conditions import GCInitialConfiguration
 from potential import Potential
-from simulation import ABBA2Implicit, ABBA4Implicit, InitialValueProblem, SimulationRequest, simulate
-from simulation.methods._nonlinear import _solve_newton
-from simulation.methods.abba.records import PhysicalProjectionTrace
+from simulation import ABBA2Implicit, ABBA4Implicit, ABBA6Implicit, InitialValueProblem, SimulationRequest, simulate
+from methods._nonlinear import _solve_newton
+from methods.extended.core.records import CompositionTrace
 
 
 def _problem() -> InitialValueProblem:
@@ -40,18 +40,19 @@ class SharedABBARuntimeTests(unittest.TestCase):
 			(
 				(ABBA2Implicit, 2, "after_each_abba_map", 1, 1),
 				(ABBA4Implicit, 4, "around_complete_composition", 1, 3),
+				(ABBA6Implicit, 6, "around_complete_composition", 1, 7),
 			),
 		):
 			with self.subTest(extension=extension, order=order, placement=placement):
 				method = method_type(state_extension=extension)
 				prepared = method.new_run(problem, request)
 				state = prepared.state_formulation.physical(prepared.initial_state)
-				results = prepared.solve_step(0.0, state, 0.02)
+				results = prepared.advance(0.0, prepared.initial_state, 0.02).details.projections
 				self.assertIsInstance(results, tuple)
 				self.assertEqual(len(results), solves)
 				for result in results:
-					self.assertIsInstance(result.trace, PhysicalProjectionTrace)
-					self.assertEqual(len(result.trace.maps), maps)
+					self.assertIsInstance(result.trace, CompositionTrace)
+					self.assertEqual(len(result.trace.stages), 2 * maps)
 					self.assertLessEqual(result.stats.residual_norm, result.stats.tolerance)
 				self.assertFalse(prepared.initial_state.flags.writeable)
 				with self.assertRaises(TypeError):
@@ -85,7 +86,7 @@ class SharedABBARuntimeTests(unittest.TestCase):
 				)
 
 	def test_unobserved_compositions_do_not_construct_events(self) -> None:
-		with patch("simulation.methods.abba.observations.ABBA2ImplicitIntegrationStep",
+		with patch("methods.extended.observations.ABBA2ImplicitIntegrationStep",
 			side_effect=AssertionError("Unexpected observer allocation")):
 			result = simulate(_problem(), ABBA4Implicit(), _request([0.0, 0.04]))
 		self.assertEqual(result.diagnostics["nonlinear_solves_per_step"], 1)

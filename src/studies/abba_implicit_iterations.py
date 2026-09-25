@@ -17,17 +17,14 @@ from diagnostics import (
 )
 from dynamics import GuidingCenterDynamics
 from potential import Potential
-from simulation import (
-	ABBA_PROJECTION_FORMULATIONS,
-	ABBA2Implicit,
-	InitialConfiguration,
-	InitialValueProblem,
-	NonlinearSolver,
-	ProjectionFormulation,
-	SimulationRequest,
-	Solution,
-	simulate,
-)
+from methods.extended.configuration import ABBA_PROJECTION_FORMULATIONS, ProjectionFormulation
+from methods.extended.abba import ABBA2Implicit
+from contracts.configuration import InitialConfiguration
+from contracts.problem import InitialValueProblem
+from methods._nonlinear import NonlinearSolver
+from contracts.request import SimulationRequest
+from solution import Solution
+from simulation.runner import simulate
 
 from ._validation import nonnegative_finite, positive_finite, positive_integer
 

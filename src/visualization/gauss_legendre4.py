@@ -7,7 +7,6 @@ from typing import Protocol
 
 import matplotlib.pyplot as plt
 import numpy as np
-from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 
 

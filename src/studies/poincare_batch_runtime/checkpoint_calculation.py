@@ -28,10 +28,12 @@ def calculate_checkpointed_group(indices, initial_xy, settings):
     potential, _, snapshot = load_snapshot()
     from dynamics import GuidingCenterDynamics
     from initial_conditions import GCInitialConfiguration
-    from simulation import InitialValueProblem
-    from simulation.formulations.gc import GCDoubledMaps
-    import simulation.methods.bm4.implicit as bm4
-    import simulation.methods.bm4.midpoint as midpoint
+    from contracts.problem import InitialValueProblem
+    from formulations.gc import GCDoubledMaps
+    from methods.extended.core.composition import BM4
+    from methods.extended.core.projection import solve_projection
+    from methods.extended.core.midpoint import midpoint_step
+    from methods._nonlinear import SolverOptions
     import parallel_calculation
 
     indices = np.asarray(indices, dtype=int)
@@ -40,6 +42,8 @@ def calculate_checkpointed_group(indices, initial_xy, settings):
     problem = InitialValueProblem(GuidingCenterDynamics(potential, rho=settings['rho']), initial)
     prepared = GCDoubledMaps(problem, coupling_frequency=settings['coupling_frequency'])
     implicit = settings['method'] == 'BM4Implicit'
+    solver = SolverOptions('newton', settings['newton_atol'], settings['newton_rtol'],
+                           settings['newton_max_iterations'])
     particle_ids = np.asarray(settings['particle_ids'])[indices]
     n = settings['n_steps']
     t0, tf = settings['t_span']
@@ -103,13 +107,10 @@ def calculate_checkpointed_group(indices, initial_xy, settings):
                     if implicit:
                         threshold = settings['newton_atol'] + settings['newton_rtol'] * max(
                             1.0, float(np.linalg.norm(value, ord=np.inf)))
-                        result = bm4._solve_reduced_projected_bm4_step(
-                            prepared, t0 + k * h, value, h,
-                            absolute_tolerance=settings['newton_atol'],
-                            relative_tolerance=settings['newton_rtol'],
-                            max_iterations=settings['newton_max_iterations'],
+                        result = solve_projection(
+                            prepared, BM4, solver, 'reduced_multiplier', t0 + k * h, value, h,
                             jacobian_relative_step=settings['jacobian_relative_step'],
-                            jacobian_method='analytic', nonlinear_solver='newton')
+                            jacobian_method='analytic')
                         value = result.state
                         assert np.isfinite(value).all() and result.residual_norm <= threshold
                         states[:, local + 1] = value
@@ -118,7 +119,7 @@ def calculate_checkpointed_group(indices, initial_xy, settings):
                         tolerances[local] = threshold
                         mu[local] = np.linalg.norm(result.multiplier, ord=np.inf)
                     else:
-                        result = midpoint._midpoint_bm4_step(prepared, t0 + k * h, value, h)
+                        result = midpoint_step(prepared, BM4, t0 + k * h, value, h)
                         value = result.state
                         assert np.isfinite(value).all()
                         states[:, local + 1] = value

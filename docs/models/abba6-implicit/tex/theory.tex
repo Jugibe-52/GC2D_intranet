@@ -13,76 +13,98 @@
 \begin{document}
 \begin{center}
  {\LARGE\bfseries\color{gcblue}ABBA6 Implicit}\par
- \vspace{0.35em}{\large Yoshida seven-stage composition of projected ABBA2 maps}
+ \vspace{0.35em}{\large One symmetric projection around a Yoshida composition}
 \end{center}
 
-\section{Seven-stage composition}
-
-Let $\mathcal P_{q,t}$ be one complete symmetric projected ABBA2 step with
-signed duration $q$.  The sixth-order model uses
+\section{Unprojected seven-pair composition}
+Let $S_{q,t}$ denote the symmetric second-order ABBA map on two spatial
+copies, with signed duration $q$ and start time $t$. Set
 \begin{align*}
 a&=0.78451361047755726382,&b&=0.23557321335935813368,\\
 c&=-1.17767998417887100695,&d&=1.31518632068391121889,
 \end{align*}
-and $(w_1,\ldots,w_7)=(a,b,c,d,c,b,a)$.  Starting from
-$z^{(0)}=z_n$, it applies
+and $(w_1,\ldots,w_7)=(a,b,c,d,c,b,a)$. For a trial multiplier $\mu$,
+the complete base map is evaluated through
 \[
-t_j=t_n+h\sum_{\ell<j}w_\ell,qquad
-z^{(j)}=\mathcal P_{w_jh,t_j}(z^{(j-1)}),\qquad
-z_{n+1}=z^{(7)}.
+ Y^{(0)}=Ez_n+N\mu,\qquad
+ t_j=t_n+h\sum_{\ell<j}w_\ell,\qquad
+ Y^{(j)}=S_{w_jh,t_j}(Y^{(j-1)}),\qquad
+ \Psi_{h,t_n}(Y^{(0)})=Y^{(7)}.
 \]
-The binary64 coefficients satisfy, up to round-off,
+Both copies remain independent between pairs. Each pair applies an adjoint
+and a direct map with weights $w_j/2$, giving fourteen stages in total.
+The weights satisfy, up to round-off,
 \[
-\sum_jw_j=1,
-\qquad \sum_jw_j^3=0,
-\qquad \sum_jw_j^5=0.
+ \sum_jw_j=1,\qquad \sum_jw_j^3=0,\qquad \sum_jw_j^5=0.
 \]
-Together with palindromy, these are the relevant odd-order cancellation
-conditions for a symmetric second-order base.
+These moments and palindromy are useful checks, but are not sufficient on
+their own to prove order six: the Yoshida solution also satisfies the mixed
+commutator order condition for a symmetric second-order base.
 
-\section{Projection at every factor}
+\section{One outer symmetric projection}
+For $m=2N_p$ physical coordinates, with $N_p$ independent particles, define
+$Ez=(z,z)$, $G=[I,-I]$, $N=G^{\mathsf T}$ and $P=\tfrac12[I,I]$.
+One complete step solves
+\begin{align*}
+ r(\mu)&=G\Psi_{h,t_n}(Ez_n+N\mu)+2\mu=0,\\
+ z_{n+1}&=P\bigl(\Psi_{h,t_n}(Ez_n+N\mu)+N\mu\bigr).
+\end{align*}
+The reduced formulation has $m$ unknowns. The simultaneous formulation
+solves for $(Y_+,\mu)$ using
+\[
+ Y_+-N\mu-\Psi_{h,t_n}(Ez_n+N\mu)=0,\qquad GY_+=0.
+\]
+Both formulations define the same local map and permit Newton or Broyden.
+There is one multiplier and one nonlinear solve per complete step. This is
+exactly the ABBA4 architecture with a different unprojected recipe. It
+intentionally replaces the historical composition of seven projected ABBA2
+maps; previously saved trajectories and costs belong to that former map.
 
-Every $\mathcal P_{w_jh,t_j}$ starts a new projection problem.  In reduced
-form, with the usual diagonal operators $E,P,G,N=G^T$, factor $j$ solves
-\begin{align}
-M_j(\mu_j)&=\Psi_{w_jh,t_j}(Ez^{(j-1)}+N\mu_j),\\
-G M_j(\mu_j)+2\mu_j&=0,\\
-z^{(j)}&=P(M_j(\mu_j)+N\mu_j).
-\end{align}
-Thus one outer step has seven projections and seven nonlinear solves.  It is
-not a single projection around an unprojected seven-map base.
+\section{Signed times, order and geometry}
+The third and fifth pair durations are negative. Internal times can leave
+$[t_n,t_n+h]$, reaching approximately $t_n-0.15759h$ and $t_n+1.15759h$;
+the dynamics must be defined throughout the signed path. Adjoint stages
+evaluate at their starting clock, direct stages at their ending clock.
 
-\section{Configurations}
-Seven signed projected ABBA maps. Energy tracking is optional and passive.
-Each accepted projected factor contributes its signed shear-stage increment. There are seven nonlinear solves per complete step.
-The common state conventions are specified below.
+For a smooth field, the Yoshida base has order six on doubled space. Its
+exact flow preserves the diagonal, so the local diagonal defect is
+$O(h^7)$. At $h=0$, $D_\mu r=4I$; the implicit function theorem therefore
+gives the local multiplier $\mu=O(h^7)$. The outer projection preserves
+order six. The symmetric root construction is reversible and, for the
+canonical Hamiltonian splitting, symplectic on the physical diagonal.
+These statements concern the local exact root. Finite stopping tolerances,
+round-off and nonsmooth fields can limit the observed order and geometry.
 
-\section{Signed time path}
+\section{Accepted traces and passive energy}
+Only the accepted root contributes to passive energy. The 28 signed shear
+sources give
+\[
+ \Delta\kappa=\frac12\sum_j s_j[-\partial_tH(t_j,z_j)].
+\]
+Time and momentum do not enter the nonlinear equation. The ABBA6 observation
+contains one multiplier, complete-step work metrics and seven unprojected
+pair snapshots. Work histories have shape $(n_{\rm steps},1)$ rather than
+$(n_{\rm steps},7)$. Differentiation composes the unprojected tangents first,
+then differentiates the single outer root.
 
-Coefficients $c$ in factors three and five are negative.  Partial sums also
-leave the outer interval: the composition reaches approximately
-$t_n+1.02009h$, then $t_n-0.15759h$, later $t_n+1.15759h$, and finally
-$t_n+h$.  This non-monotone path is part of the real sixth-order composition;
-the dynamics must be defined at all internal times.
+\section{Implementation correspondence and verification}
+The public class is in \path{src/methods/extended/abba.py}; it inherits the
+same initialization, advance and placement validation as ABBA4. Recipes and
+weights live in \path{src/methods/extended/core/composition.py}. The path is
+\texttt{advance}, \texttt{solve\_projection}, \texttt{compose}, then
+\texttt{direct\_map} or \texttt{adjoint\_map}. Common Newton/Broyden services,
+particle-block tangents and energy quadrature are shared with BM4.
+Public method names remain unchanged; no forwarding modules preserve retired
+internal paths. Event conversion lives in \texttt{extended/observations.py}.
 
-\section{Order and finite-root qualifications}
+Tests check the one-solve contract, fourteen signed stages, pair continuity,
+nonautonomous sixth-order convergence, both residual formulations with both
+solvers, reversibility, analytic tangents and symplecticity. The nonlinear
+convergence test uses an independently tighter DOP853 reference. Current
+architecture and diagrams are documented in
+\path{docs/models/extended/simulation/extended-simulation-architecture.md}.
 
-If the projected ABBA2 base is symmetric and second order, and each
-projection equation is solved to the relevant local root, the palindromic
-composition has designed global order six.  Finite Newton or Broyden stopping,
-floating-point coefficient error, and non-smooth dynamics perturb this ideal
-statement.  Diagnostics consequently retain work and residual data for every
-factor as well as outer-step aggregates.
-
-\section{Implementation correspondence}
-
-The public class is in
-\texttt{src/simulation/methods/abba/order6\_implicit.py}; coefficients are in
-\texttt{src/simulation/methods/\_abba\_coefficients.py}; and the general
-signed-composition coordinator is shared with \texttt{ABBA4Implicit}.  The
-companion architecture document under \texttt{../simulation/} gives the
-complete runtime and observation contract.
-
+\clearpage
 \section{Four state formulations and passive energy tracking}
 For one planar particle the supported internal representations are
 \[
@@ -120,11 +142,12 @@ $\kappa$ is projected. The former eight-component projection is retired;
 
 Dynamics, formulation, method and integration remain separate. The shared
 state classes own layouts, diagonal embedding and history extraction in
-\begin{quote}\small\path{src/simulation/formulations/state.py}\end{quote}
+\begin{quote}\small\path{src/formulations/state.py}\end{quote}
 Each integration initializes a fresh method instance. Observers receive physical
 states; energy histories are in \texttt{Solution.diagnostics}.
 The \texttt{extended\_time} history has shape $(N,n_{\rm samples})$. Fixed-step shadow
 samples leave main states and counters unchanged. Adaptive energy quadrature
 uses accepted dense output; its backend state and Jacobian remain physical.
+
 
 \end{document}

@@ -61,8 +61,8 @@ step on the retained solver, taking an upper step bound. The controller reports
 the actual accepted endpoint. A run instance belongs to one execution; repeating
 \texttt{simulate} creates a fresh instance and solver.
 \section{Implementation and verification}
-The adapter is in \path{src/simulation/methods/adaptive/scipy.py}; shared
-coordination and collection are in \path{src/simulation/integration.py}.
+The adapter is in \path{src/methods/adaptive/scipy.py}; shared
+coordination and collection are in \path{src/integration/core.py}.
 The current state and execution contracts are documented in its \texttt{simulation/} directory. Tests compare sampled states and work counters with the same
 SciPy solver, check a known non-autonomous rotation, and verify optional energy,
 dense retention, repeated runs, observation isolation and failure handling.
@@ -106,7 +106,7 @@ $\kappa$ is projected. The former eight-component projection is retired;
 
 Dynamics, formulation, method and integration remain separate. The shared
 state classes own layouts, diagonal embedding and history extraction in
-\begin{quote}\small\path{src/simulation/formulations/state.py}\end{quote}
+\begin{quote}\small\path{src/formulations/state.py}\end{quote}
 Each integration initializes a fresh method instance. Observers receive physical
 states; energy histories are in \texttt{Solution.diagnostics}.
 The \texttt{extended\_time} history has shape $(N,n_{\rm samples})$. Fixed-step shadow

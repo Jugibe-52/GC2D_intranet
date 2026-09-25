@@ -8,15 +8,14 @@ from typing import Callable
 import numpy as np
 
 from dynamics import GuidingCenterDynamics
-from simulation import (
+from contracts.observation import (
 	ABBA4ImplicitIntegrationStep,
-	ABBA4ImplicitSingleProjectionIntegrationStep,
 	UnprojectedABBAIntegrationStep,
 	ABBA2ImplicitIntegrationStep,
 	ImplicitBM4IntegrationStep,
 	IntegrationStep,
-	gc_coupling_matrix,
 )
+from formulations.gc import gc_coupling_matrix
 
 from diagnostics.jacobians import central_difference_jacobian
 
@@ -230,16 +229,14 @@ class GCTimeExtendedSymplecticityObserver:
 			raise ValueError("Extended symplecticity records must be sequential.")
 
 		maps_and_states: list[tuple[ExtendedMap, np.ndarray]] = []
-		if isinstance(record, (ABBA4ImplicitIntegrationStep, ABBA4ImplicitSingleProjectionIntegrationStep)):
+		if isinstance(record, ABBA4ImplicitIntegrationStep):
 			for substep in record.substeps:
 				map_state = _abba_extended_map(substep, self._dynamics)
 				state = np.concatenate(
 					(substep.u_initial, substep.v_initial, (substep.start_time, 0.0))
 				)
 				maps_and_states.append((map_state, state))
-			scope = ("three continuous unprojected ABBA factors; outer projection excluded"
-				if isinstance(record, ABBA4ImplicitSingleProjectionIntegrationStep)
-				else "three accepted ABBA base maps; inter-substep projections excluded")
+			scope = "three continuous unprojected ABBA factors; outer projection excluded"
 		elif isinstance(record, ABBA2ImplicitIntegrationStep):
 			map_state = _abba_extended_map(record, self._dynamics)
 			state = np.concatenate(

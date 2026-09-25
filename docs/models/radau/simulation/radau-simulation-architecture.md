@@ -37,7 +37,7 @@ Accepted duplicated copies are equal. They separate only inside the numerical ma
 
 `PhysicalFormulation` and `DoubledFormulation` are constructed directly from the
 problem, initial time and tracking flag. They are defined in
-`src/simulation/formulations/state.py`. BM4 additionally uses directly bound
+`src/formulations/state.py`. BM4 additionally uses directly bound
 `GCDoubledMaps` for its spatial direct/adjoint stages; its legacy configuration
 factory is only a compatibility entry point.
 

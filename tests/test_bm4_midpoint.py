@@ -9,7 +9,7 @@ from dynamics import GuidingCenterDynamics
 from initial_conditions import GCInitialConfiguration
 from potential import Potential
 from simulation import BM4Midpoint, InitialValueProblem, SimulationRequest, simulate
-from simulation.formulations import GCExtendedFormulation
+from formulations import GCExtendedFormulation
 
 
 class _Rotation:

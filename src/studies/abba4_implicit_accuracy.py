@@ -13,15 +13,12 @@ from diagnostics import StoredReferenceTrajectory
 from dynamics import GuidingCenterDynamics
 from initial_conditions import GCInitialConfiguration
 from potential import Potential
-from simulation import (
-	ABBA4Implicit,
-	NONLINEAR_SOLVERS,
-	InitialValueProblem,
-	NonlinearSolver,
-	SimulationRequest,
-	Solution,
-	simulate,
-)
+from methods.extended.abba import ABBA4Implicit
+from methods._nonlinear import NONLINEAR_SOLVERS, NonlinearSolver
+from contracts.problem import InitialValueProblem
+from contracts.request import SimulationRequest
+from solution import Solution
+from simulation.runner import simulate
 
 from ._trajectory_accuracy import (
 	TrajectoryAccuracySeries,

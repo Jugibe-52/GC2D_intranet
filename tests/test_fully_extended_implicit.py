@@ -2,7 +2,6 @@
 import unittest
 from simulation import ABBA2Implicit, ABBA4Implicit, ABBA6Implicit, simulate
 from tests.test_method_integration import _problem, _request
-from studies import run_fully_extended_implicit_study
 
 
 class FormerFullProjectionTests(unittest.TestCase):
@@ -21,7 +20,3 @@ class FormerFullProjectionTests(unittest.TestCase):
                 self.assertEqual(result.diagnostics["nonlinear_unknown_dimension"],
                     2 if formulation=="reduced_multiplier" else 6)
                 self.assertEqual(events[0].state_before.shape,(2,))
-
-    def test_historical_full_state_study_is_not_silently_reinterpreted(self):
-        with self.assertRaisesRegex(NotImplementedError, "passive energy"):
-            run_fully_extended_implicit_study(None,None,method="abba2_fully_extended_implicit",config=None)

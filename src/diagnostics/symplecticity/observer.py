@@ -9,7 +9,7 @@ from typing import Any, Mapping
 
 import numpy as np
 
-from simulation.observation import IntegrationStage
+from contracts.observation import IntegrationStage
 from diagnostics.output import write_diagnostic_block
 
 from diagnostics.jacobians import central_difference_jacobian
@@ -91,13 +91,6 @@ def gc_reduced_time_extended_symplectic_form() -> np.ndarray:
 			],
 		]
 	)
-
-
-def gc_fully_duplicated_symplectic_form() -> np.ndarray:
-	"""Return the cross-coupled form for two full ``(x,y,t,k)`` copies."""
-	physical_extended = gc_reduced_time_extended_symplectic_form()
-	zero = np.zeros_like(physical_extended)
-	return np.block([[zero, physical_extended], [physical_extended, zero]])
 
 
 @dataclass(frozen=True, slots=True)

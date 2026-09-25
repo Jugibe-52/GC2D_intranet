@@ -20,7 +20,10 @@ from diagnostics import (
 from dynamics import GuidingCenterDynamics
 from initial_conditions import GCInitialConfiguration
 from potential import Potential
-from simulation import DOP853, Radau, AdaptiveIntegrationStep, InitialValueProblem, SimulationRequest
+from methods.adaptive.scipy import DOP853, Radau
+from contracts.observation import AdaptiveIntegrationStep
+from contracts.problem import InitialValueProblem
+from contracts.request import SimulationRequest
 
 from ._trajectory_distances import (
 	DistanceConvention,

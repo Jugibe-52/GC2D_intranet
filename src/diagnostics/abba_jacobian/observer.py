@@ -9,6 +9,8 @@ from typing import Any, Literal, Mapping, TypeAlias
 
 import numpy as np
 
+from diagnostics._validation import positive_integer as _positive_integer
+
 from diagnostics.jacobians import (
 	implicit_function_step_jacobian,
 	stage_increment_step_jacobian,
@@ -19,7 +21,7 @@ from diagnostics.paths import (
 	notebook_output_directory,
 	validate_block_name,
 )
-from simulation import ABBA2ImplicitIntegrationStep, IntegrationStep
+from contracts.observation import ABBA2ImplicitIntegrationStep, IntegrationStep
 
 from .analysis import (
 	ParticleJacobianAnalysis,
@@ -112,17 +114,6 @@ class ImplicitABBAJacobianOutputBlock:
 	summary_path: Path
 	arrays_path: Path
 	metadata_path: Path
-
-
-def _positive_integer(value: int, name: str) -> int:
-	"""Normalize one positive integer observer control."""
-	if (
-		isinstance(value, (bool, np.bool_))
-		or not isinstance(value, (int, np.integer))
-		or value < 1
-	):
-		raise ValueError(f"`{name}` must be a positive integer.")
-	return int(value)
 
 
 def _record_from_analysis(

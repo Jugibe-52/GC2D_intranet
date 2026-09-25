@@ -89,12 +89,12 @@ the three ordered factors so the accepted-map tangent can be reconstructed.
 \section{Implementation correspondence}
 
 The public \texttt{ABBA4Implicit} configuration is in
-\path{src/simulation/methods/abba/order4_implicit.py}; the exterior-projection
+\path{src/methods/extended/order4_implicit.py}; the exterior-projection
 residual and numerical kernel are in
-\path{src/simulation/methods/abba/projection_outer.py}.
-The older single-projection module provides compatibility imports only.
-The common ABBA stages and projection helpers live in the neighboring private
-modules.  The canonical architecture document
+\path{src/methods/extended/projection.py}.
+The diagnostic helpers live in \path{src/methods/extended/abba_outer.py}.
+The older single-projection import adapter and deprecated factory have been
+removed. Use \texttt{ABBA4Implicit} and its canonical observation record.  The canonical architecture document
 \path{../simulation/abba4-implicit-simulation-architecture.md} gives the
 dimensions, diagnostics, and the common prepared integration lifecycle.
 

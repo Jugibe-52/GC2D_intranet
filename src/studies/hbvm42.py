@@ -8,20 +8,17 @@ from types import MappingProxyType
 from typing import Callable, Mapping
 
 import numpy as np
-from simulation import DOP853
+from methods.adaptive.scipy import DOP853
 
 from dynamics import DynamicalSystem, GuidingCenterDynamics, HamiltonianSystem
 from initial_conditions import GCInitialConfiguration
-from simulation import (
-	BM4Implicit,
-	HBVM42,
-	HBVMJacobianMethod,
-	InitialValueProblem,
-	NumericalMethod,
-	SimulationRequest,
-	Solution,
-	simulate,
-)
+from methods.extended.bm4 import BM4Implicit
+from methods.hbvm.order4 import HBVM42, HBVMJacobianMethod, _validated_jacobian_method
+from contracts.problem import InitialValueProblem
+from methods.base import NumericalMethod
+from contracts.request import SimulationRequest
+from solution import Solution
+from simulation.runner import simulate
 
 from ._validation import integer_ratio, positive_finite, positive_integer
 
@@ -132,15 +129,6 @@ def _validated_steps(
 	for step in values:
 		integer_ratio(duration, step, "duration / step")
 	return values
-
-
-def _validated_jacobian_method(value: str) -> HBVMJacobianMethod:
-	"""Validate the public HBVM Jacobian selector at study construction time."""
-	if value not in ("auto", "analytic", "finite_difference"):
-		raise ValueError(
-			"`jacobian_method` must be 'auto', 'analytic', or 'finite_difference'."
-		)
-	return value  # type: ignore[return-value]
 
 
 @dataclass(frozen=True, slots=True)
@@ -383,7 +371,6 @@ def _reference_solution(
 	request = SimulationRequest((float(times[0]), float(times[-1])), maximum_step, times)
 	return DOP853(relative_tolerance=relative_tolerance,
 		absolute_tolerance=absolute_tolerance).integrate(problem, request).states
-
 
 
 def _hbvm_method(

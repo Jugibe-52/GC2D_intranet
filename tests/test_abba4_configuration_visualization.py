@@ -141,7 +141,7 @@ class ABBA4ConfigurationAnimationTests(unittest.TestCase):
 				self.assertEqual(
 					row_labels,
 					(
-						"SP-ABBA4 · 1 projection\nspatial copies + energy · R6",
+						"ABBA4 · 1 outer projection\nspatial copies + energy · R6",
 					),
 				)
 				self.assertEqual(result.potential.evaluation_count, 1)
@@ -192,7 +192,7 @@ class ABBA4ConfigurationAnimationTests(unittest.TestCase):
 	def test_animation_rejects_an_incomplete_or_misaligned_result(self) -> None:
 		result = _result()
 		result.variants = result.variants[:-1]
-		with self.assertRaisesRegex(ValueError, "4 current or 8/16 historical"):
+		with self.assertRaisesRegex(ValueError, "four current"):
 			animate_abba4_configuration_trajectories(result, frames=3)
 
 		result = _result()

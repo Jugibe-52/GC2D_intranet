@@ -12,20 +12,14 @@ import numpy as np
 from dynamics import GuidingCenterDynamics
 from initial_conditions import GCInitialConfiguration
 from potential import Potential
-from simulation import (
-	InitialValueProblem,
-	NumericalMethod,
-	SDIRK4,
-	SimulationRequest,
-	Solution,
-	simulate,
-)
+from contracts.problem import InitialValueProblem
+from methods.base import NumericalMethod
+from methods.classical.sdirk import SDIRK4
+from contracts.request import SimulationRequest
+from solution import Solution
+from simulation.runner import simulate
 
-from ._gauss_legendre4_common import (
-	AdaptiveReference,
-	build_adaptive_reference,
-	readonly_runtime_samples,
-)
+from ._gauss_legendre4_common import build_adaptive_reference, readonly_runtime_samples
 from ._trajectory_accuracy import TrajectoryAccuracySeries, accuracy_series
 from .three_method_newton_comparison import (
 	EnergyAccuracySeries,
@@ -40,14 +34,14 @@ from .three_method_newton_comparison import (
 
 
 FOUR_METHOD_SDIRK_METHODS: tuple[str, ...] = (
-	"ABBA4ImplicitSingleProjection",
+	"ABBA4Implicit",
 	"GaussLegendre4",
 	"BM4Implicit",
 	"SDIRK4",
 )
 FOUR_METHOD_SDIRK_LABELS: Mapping[str, str] = MappingProxyType(
 	{
-		"ABBA4ImplicitSingleProjection": "Single-projection implicit ABBA4",
+		"ABBA4Implicit": "Single-projection implicit ABBA4",
 		"GaussLegendre4": "Gauss--Legendre (2 stages, order 4)",
 		"BM4Implicit": "Single-projection implicit BM4",
 		"SDIRK4": "SDIRK S54b (5 stages, order 4)",

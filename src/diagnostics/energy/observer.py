@@ -7,16 +7,15 @@ from dataclasses import dataclass
 import numpy as np
 
 from dynamics import GuidingCenterDynamics
-from simulation import (
+from contracts.observation import (
 	ABBA4ImplicitIntegrationStep,
-	ABBA4ImplicitSingleProjectionIntegrationStep,
 	UnprojectedABBAIntegrationStep,
 	ABBA2ImplicitIntegrationStep,
 	ImplicitBM4IntegrationStep,
 	IntegrationStage,
 	IntegrationStep,
-	gc_coupling_matrix,
 )
+from formulations.gc import gc_coupling_matrix
 
 
 def _scalar_value(value: np.ndarray, name: str) -> float:
@@ -105,7 +104,7 @@ def _kappa_increment(
 	dynamics: GuidingCenterDynamics,
 ) -> float:
 	"""Dispatch the accepted-step momentum reconstruction by record type."""
-	if isinstance(record, (ABBA4ImplicitIntegrationStep, ABBA4ImplicitSingleProjectionIntegrationStep)):
+	if isinstance(record, ABBA4ImplicitIntegrationStep):
 		return float(
 			sum(_abba_kappa_increment(substep, dynamics) for substep in record.substeps)
 		)

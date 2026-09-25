@@ -9,8 +9,10 @@ from typing import Any, Mapping
 
 import numpy as np
 
+from diagnostics._validation import positive_integer
+
 from initial_conditions import Area
-from simulation import IntegrationStage
+from contracts.observation import IntegrationStage
 from diagnostics.output import write_diagnostic_block
 from diagnostics.symplecticity import (
 	central_difference_jacobian,
@@ -26,26 +28,15 @@ from diagnostics.paths import (
 _BM4_STAGE_COUNT = 12
 
 
-def _positive_particle_count(particle_count: int) -> int:
-	"""Normalize a particle count shared by the projection matrices."""
-	if (
-		isinstance(particle_count, (bool, np.bool_))
-		or not isinstance(particle_count, (int, np.integer))
-		or particle_count < 1
-	):
-		raise ValueError("`particle_count` must be a positive integer.")
-	return int(particle_count)
-
-
 def gc_diagonal_embedding(particle_count: int) -> np.ndarray:
 	"""Return ``E: z -> (z, z)`` from physical to doubled GC coordinates."""
-	physical_identity = np.eye(2 * _positive_particle_count(particle_count))
+	physical_identity = np.eye(2 * positive_integer(particle_count, "particle_count"))
 	return np.vstack((physical_identity, physical_identity))
 
 
 def gc_average_projection(particle_count: int) -> np.ndarray:
 	"""Return ``P: (z_first, z_second) -> (z_first + z_second) / 2``."""
-	physical_identity = np.eye(2 * _positive_particle_count(particle_count))
+	physical_identity = np.eye(2 * positive_integer(particle_count, "particle_count"))
 	return np.hstack((physical_identity, physical_identity)) / 2
 
 

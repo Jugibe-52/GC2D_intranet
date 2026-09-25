@@ -2,7 +2,7 @@
 from pathlib import Path
 import hashlib,json,os,time
 import numpy as np
-from study_io import ROOT,load_snapshot,digest,atomic_json,utc_now
+from study_io import load_snapshot, digest, atomic_json, utc_now
 
 class CheckpointTestInterruption(RuntimeError):
     """Intentional interruption for validation only."""
@@ -13,7 +13,10 @@ def calculate_checkpointed_group(indices,initial_xy,settings):
     potential,_,snapshot=load_snapshot()
     from dynamics import GuidingCenterDynamics
     from initial_conditions import GCInitialConfiguration
-    from simulation import RK4,InitialValueProblem,SimulationRequest,simulate
+    from methods.classical.rk4 import RK4
+    from contracts.problem import InitialValueProblem
+    from contracts.request import SimulationRequest
+    from simulation.runner import simulate
     import parallel_calculation
     indices=np.asarray(indices,dtype=int);ids=np.asarray(settings['particle_ids'])[indices]
     xy=np.asarray(initial_xy)[indices];count=len(indices);value=np.r_[xy[:,0],xy[:,1]]

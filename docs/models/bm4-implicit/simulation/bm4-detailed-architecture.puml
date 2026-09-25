@@ -1,0 +1,555 @@
+@startdot
+digraph BM4DetailedArchitecture {
+  // Canonical source; render with scripts/render_detailed_architecture.cjs <this-file>.
+  // Source columns retain the current package ownership; EXECUTION numbers follow calls.
+  graph [rankdir=TB, newrank=true, compound=true, splines=polyline,
+    nodesep=0.62, ranksep=0.60, pad=0.35, bgcolor="#FFFFFF",
+    fontname="DejaVu Sans", fontsize=25, labelloc=t, labeljust=l,
+    label="BM4Implicit | Detailed reduced-projection architecture\n\nCurrent source ownership from potential to Solution. One nonlinear solve surrounds the complete twelve-stage palindromic composition.\nOrange: method configuration. Green: spatial maps, projection and passive energy. Blue: lifecycle and shared records. Purple: opt-in observations.\nN = particle count; m = 2N physical coordinates; q = 4N or 6N accepted internal coordinates; T = saved times. Module paths are repository-relative."];
+  node [shape=box, style="rounded,filled", fillcolor="#FFFFFF", color="#C4CFDC",
+    penwidth=1.15, margin="0.02,0.02", fontname="DejaVu Sans", fontsize=11];
+  edge [color="#64748B", penwidth=1.2, arrowsize=0.75, fontname="DejaVu Sans", fontsize=10];
+  subgraph cluster_potential {
+    label=""; style="rounded,filled"; color="#C8D6E7"; fillcolor="#F8FAFD";
+    node [group="potential"];
+    Head_potential [fillcolor="#263D59", color="#263D59", fontcolor="white", width=4.8, height=0.68, margin="0.22,0.16", label="01  potential/\nField data and periodic geometry"];
+    Potential [label=<
+      <TABLE WIDTH="330" BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD WIDTH="330" BALIGN="LEFT" BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">PHYSICAL FIELD / PUBLIC CLASS</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>Potential</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/potential/potential.py</FONT></TD></TR>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Data and construction</B><BR ALIGN="LEFT"/>Grid; spatial mode amplitudes; time dependence.<BR ALIGN="LEFT"/>Construct from data or Potential.random(...).</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Operations</B><BR ALIGN="LEFT"/>evaluate(t, x, y, dx, dy, dt)<BR ALIGN="LEFT"/>electric_field(t, x, y); gyroaverage(rho)</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Ownership</B><BR ALIGN="LEFT"/>Interpolation and field derivatives live here.<BR ALIGN="LEFT"/>Dynamics consumes the same physical field.</TD></TR>
+      </TABLE>
+    >];
+    H5Loader [label=<
+      <TABLE WIDTH="330" BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD WIDTH="330" BALIGN="LEFT" BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">MEASURED FIELD ADAPTER</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>load_gc2d_h5_potential</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/potential/gc2d_h5.py</FONT></TD></TR>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Input</B><BR ALIGN="LEFT"/>HDF5 field, magnetic field, characteristic length,<BR ALIGN="LEFT"/>source selection and interpolation settings.</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Output</B><BR ALIGN="LEFT"/>Potential with attached GC2DH5Metadata.<BR ALIGN="LEFT"/>Normalize measured coordinates and field data.</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Reproducibility</B><BR ALIGN="LEFT"/>Study parameters remain explicit at the caller.<BR ALIGN="LEFT"/>Metadata describes the loaded physical source.</TD></TR>
+      </TABLE>
+    >];
+    Grid [label=<
+      <TABLE WIDTH="330" BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD WIDTH="330" BALIGN="LEFT" BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">PERIODIC GEOMETRY / PUBLIC CLASS</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>Grid</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/potential/grid.py</FONT></TD></TR>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Geometry</B><BR ALIGN="LEFT"/>Periodic spatial axes; shape and spacing.<BR ALIGN="LEFT"/>Grid.periodic(nx, ny, period).</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Operation</B><BR ALIGN="LEFT"/>normalize(x, y): wrap coordinates into the cell.<BR ALIGN="LEFT"/>Potential owns interpolation on this grid.</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Boundary</B><BR ALIGN="LEFT"/>Physical periodicity is separate from the<BR ALIGN="LEFT"/>integration time grid and output sample grid.</TD></TR>
+      </TABLE>
+    >];
+    Pad_potential_3 [shape=point, width=0, height=0, style=invis];
+    Pad_potential_4 [shape=point, width=0, height=0, style=invis];
+    Pad_potential_5 [shape=point, width=0, height=0, style=invis];
+  }
+  subgraph cluster_dynamics {
+    label=""; style="rounded,filled"; color="#C8D6E7"; fillcolor="#F8FAFD";
+    node [group="dynamics"];
+    Head_dynamics [fillcolor="#263D59", color="#263D59", fontcolor="white", width=4.8, height=0.68, margin="0.22,0.16", label="02  dynamics/\nGuiding-center field and derivatives"];
+    Dynamics [label=<
+      <TABLE WIDTH="350" BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD WIDTH="350" BALIGN="LEFT" ALIGN="LEFT" BGCOLOR="#E8EFF8"><FONT POINT-SIZE="9">PHYSICAL CAPABILITY</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>Guiding-center vector field</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/dynamics/protocols.py; gc.py</FONT></TD></TR>
+        <TR><TD WIDTH="350" BALIGN="LEFT" ALIGN="LEFT"><B>Required spatial data</B><BR ALIGN="LEFT"/>N planar particles; physical size m = 2N.<BR ALIGN="LEFT"/>vector_field(t, z): packed derivative [m].</TD></TR><HR/>
+        <TR><TD WIDTH="350" BALIGN="LEFT" ALIGN="LEFT"><B>Concrete implementation</B><BR ALIGN="LEFT"/>GuidingCenterDynamics(potential, rho=...).<BR ALIGN="LEFT"/>Uses the gyroaveraged potential at radius rho.</TD></TR><HR/>
+        <TR><TD WIDTH="350" BALIGN="LEFT" ALIGN="LEFT"><B>Numerical use</B><BR ALIGN="LEFT"/>Both BM4 copies evaluate this same physical field.<BR ALIGN="LEFT"/>Initial geometry is supplied independently.</TD></TR>
+      </TABLE>
+    >];
+    GC [label=<
+      <TABLE WIDTH="330" BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD WIDTH="330" BALIGN="LEFT" BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">CONCRETE PHYSICAL SYSTEM</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>GuidingCenterDynamics</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/dynamics/gc.py</FONT></TD></TR>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Construction</B><BR ALIGN="LEFT"/>potential: Potential; rho: normalized gyro-radius.<BR ALIGN="LEFT"/>effective_potential = potential.gyroaverage(rho).</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Operations</B><BR ALIGN="LEFT"/>vector_field; hamiltonian; momentum derivative.<BR ALIGN="LEFT"/>particle_vector_field_jacobians: [N, 2, 2].</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Coordinates</B><BR ALIGN="LEFT"/>N uncoupled planar particles; m = 2N.<BR ALIGN="LEFT"/>Field uses the gyroaveraged electric potential.</TD></TR>
+      </TABLE>
+    >];
+    Capabilities [label=<
+      <TABLE WIDTH="350" BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD WIDTH="350" BALIGN="LEFT" ALIGN="LEFT" BGCOLOR="#E8EFF8"><FONT POINT-SIZE="9">OPTIONAL CAPABILITIES</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>Hamiltonian / analytic Jacobians</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/dynamics/protocols.py</FONT></TD></TR>
+        <TR><TD WIDTH="350" BALIGN="LEFT" ALIGN="LEFT"><B>Analytic Newton</B><BR ALIGN="LEFT"/>GuidingCenterJacobianSystem supplies<BR ALIGN="LEFT"/>particle_vector_field_jacobians: [N, 2, 2].</TD></TR><HR/>
+        <TR><TD WIDTH="350" BALIGN="LEFT" ALIGN="LEFT"><B>Passive energy</B><BR ALIGN="LEFT"/>HamiltonianSystem supplies H and -partial_t H.<BR ALIGN="LEFT"/>Required when track_energy=True.</TD></TR><HR/>
+        <TR><TD WIDTH="350" BALIGN="LEFT" ALIGN="LEFT"><B>Solver choice</B><BR ALIGN="LEFT"/>Finite-difference Newton and Broyden use<BR ALIGN="LEFT"/>spatial map evaluations without analytic Jacobians.</TD></TR>
+      </TABLE>
+    >];
+    Pad_dynamics_3 [shape=point, width=0, height=0, style=invis];
+    Pad_dynamics_4 [shape=point, width=0, height=0, style=invis];
+    Pad_dynamics_5 [shape=point, width=0, height=0, style=invis];
+  }
+  subgraph cluster_initial {
+    label=""; style="rounded,filled"; color="#C8D6E7"; fillcolor="#F8FAFD";
+    node [group="initial"];
+    Head_initial [fillcolor="#263D59", color="#263D59", fontcolor="white", width=4.8, height=0.68, margin="0.22,0.16", label="03  initial_conditions/\nPhysical input and packed GC layout"];
+    Initial [label=<
+      <TABLE WIDTH="330" BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD WIDTH="330" BALIGN="LEFT" BGCOLOR="#E8EFF8" ALIGN="LEFT"><FONT POINT-SIZE="9">BASE INITIAL CONFIGURATION</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>StateConfiguration</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/initial_conditions/base.py</FONT></TD></TR>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>State</B><BR ALIGN="LEFT"/>initial_state: finite packed physical vector [m].<BR ALIGN="LEFT"/>layout: matching PackedStateLayout.</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Construction</B><BR ALIGN="LEFT"/>set_initial_state validates and copies the vector.<BR ALIGN="LEFT"/>Concrete geometry supplies the physical layout.</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Assembly</B><BR ALIGN="LEFT"/>The caller combines this configuration and<BR ALIGN="LEFT"/>dynamics in InitialValueProblem (contracts/).</TD></TR>
+      </TABLE>
+    >];
+    InitialGC [label=<
+      <TABLE WIDTH="350" BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD WIDTH="350" BALIGN="LEFT" ALIGN="LEFT" BGCOLOR="#E8EFF8"><FONT POINT-SIZE="9">CONCRETE GC CONFIGURATION</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>GCInitialConfiguration</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/initial_conditions/gc.py</FONT></TD></TR>
+        <TR><TD WIDTH="350" BALIGN="LEFT" ALIGN="LEFT"><B>Construction</B><BR ALIGN="LEFT"/>from_components(x=x0, y=y0).<BR ALIGN="LEFT"/>Each component supplies N initial positions.</TD></TR><HR/>
+        <TR><TD WIDTH="350" BALIGN="LEFT" ALIGN="LEFT"><B>Packed input</B><BR ALIGN="LEFT"/>z = [x_1,...,x_N, y_1,...,y_N].<BR ALIGN="LEFT"/>GCDoubledMaps requires this GC configuration.</TD></TR><HR/>
+        <TR><TD WIDTH="350" BALIGN="LEFT" ALIGN="LEFT"><B>Assembly</B><BR ALIGN="LEFT"/>InitialValueProblem(dynamics, configuration)<BR ALIGN="LEFT"/>validates the initial state and physical dimensions.</TD></TR>
+      </TABLE>
+    >];
+    Layouts [label=<
+      <TABLE WIDTH="350" BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD WIDTH="350" BALIGN="LEFT" ALIGN="LEFT" BGCOLOR="#E8EFF8"><FONT POINT-SIZE="9">PACKED COORDINATE CONVENTION</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>GCStateLayout</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/initial_conditions/gc.py; base.py</FONT></TD></TR>
+        <TR><TD WIDTH="350" BALIGN="LEFT" ALIGN="LEFT"><B>Operations</B><BR ALIGN="LEFT"/>split; pack_components; particle_count.<BR ALIGN="LEFT"/>validate_packed_state_layout.</TD></TR><HR/>
+        <TR><TD WIDTH="350" BALIGN="LEFT" ALIGN="LEFT"><B>Internal spatial map</B><BR ALIGN="LEFT"/>(u, v) = [ux, uy, vx, vy] in component-major blocks.<BR ALIGN="LEFT"/>Each block contains all N particle values.</TD></TR><HR/>
+        <TR><TD WIDTH="350" BALIGN="LEFT" ALIGN="LEFT"><B>Physical output</B><BR ALIGN="LEFT"/>Solution.states keeps [x, y] only.<BR ALIGN="LEFT"/>The source layout interprets saved trajectories.</TD></TR>
+      </TABLE>
+    >];
+    Pad_initial_3 [shape=point, width=0, height=0, style=invis];
+    Pad_initial_4 [shape=point, width=0, height=0, style=invis];
+    Pad_initial_5 [shape=point, width=0, height=0, style=invis];
+  }
+  subgraph cluster_formulations {
+    label=""; style="rounded,filled"; color="#C8D6E7"; fillcolor="#F8FAFD";
+    node [group="formulations"];
+    Head_formulations [fillcolor="#2E6651", color="#2E6651", fontcolor="white", width=4.8, height=0.68, margin="0.22,0.16", label="04  formulations/\nDoubled state and exact map order"];
+    Doubled [label=<
+      <TABLE WIDTH="350" BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD WIDTH="350" BALIGN="LEFT" ALIGN="LEFT" BGCOLOR="#E2F1E9"><FONT POINT-SIZE="9">ACCEPTED INTERNAL STATE</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>DoubledFormulation</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/formulations/state.py</FONT></TD></TR>
+        <TR><TD WIDTH="350" BALIGN="LEFT" ALIGN="LEFT"><B>Bound inputs</B><BR ALIGN="LEFT"/>problem; initial_time; track_energy.<BR ALIGN="LEFT"/>initial_state duplicates the physical z0.</TD></TR><HR/>
+        <TR><TD WIDTH="350" BALIGN="LEFT" ALIGN="LEFT"><B>Size and invariant</B><BR ALIGN="LEFT"/>q = 4N, or 6N with passive time and kappa.<BR ALIGN="LEFT"/>Accepted copies are diagonal; physical size m = 2N.</TD></TR><HR/>
+        <TR><TD WIDTH="350" BALIGN="LEFT" ALIGN="LEFT"><B>Operations</B><BR ALIGN="LEFT"/>physical(state); finish(...); extract_history(...).<BR ALIGN="LEFT"/>Time and kappa never enter the nonlinear root.</TD></TR>
+      </TABLE>
+    >];
+    Maps [label=<
+      <TABLE WIDTH="350" BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD WIDTH="350" BALIGN="LEFT" ALIGN="LEFT" BGCOLOR="#E2F1E9"><FONT POINT-SIZE="9">PER-RUN SPATIAL MAPS</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>GCDoubledMaps</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/formulations/gc.py</FONT></TD></TR>
+        <TR><TD WIDTH="350" BALIGN="LEFT" ALIGN="LEFT"><B>Construction</B><BR ALIGN="LEFT"/>GCDoubledMaps(problem, coupling_frequency).<BR ALIGN="LEFT"/>BM4 binds spatial maps without internal energy variables.</TD></TR><HR/>
+        <TR><TD WIDTH="350" BALIGN="LEFT" ALIGN="LEFT"><B>Operations</B><BR ALIGN="LEFT"/>direct_map(delta, tau, (u,v))<BR ALIGN="LEFT"/>adjoint_map(delta, tau, (u,v))</TD></TR><HR/>
+        <TR><TD WIDTH="350" BALIGN="LEFT" ALIGN="LEFT"><B>Coupling</B><BR ALIGN="LEFT"/>Exact harmonic mixing C_delta uses angle 2*w*delta.<BR ALIGN="LEFT"/>w = 0 gives identity coupling.<BR ALIGN="LEFT"/>Signed durations are preserved.</TD></TR>
+      </TABLE>
+    >];
+    Direct [label=<
+      <TABLE WIDTH="350" BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD WIDTH="350" BALIGN="LEFT" ALIGN="LEFT" BGCOLOR="#E2F1E9"><FONT POINT-SIZE="9">ONE DIRECT STAGE</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>direct_map</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/formulations/gc.py</FONT></TD></TR>
+        <TR><TD WIDTH="350" BALIGN="LEFT" ALIGN="LEFT"><B>Two shears at evaluation time tau</B><BR ALIGN="LEFT"/>v1 = v + delta * f(tau, u)<BR ALIGN="LEFT"/>u1 = u + delta * f(tau, v1)</TD></TR><HR/>
+        <TR><TD WIDTH="350" BALIGN="LEFT" ALIGN="LEFT"><B>Coupling last</B><BR ALIGN="LEFT"/>(u_out, v_out) = C_delta(u1, v1).<BR ALIGN="LEFT"/>Direct stages evaluate at the signed stage endpoint.</TD></TR><HR/>
+        <TR><TD WIDTH="350" BALIGN="LEFT" ALIGN="LEFT"><B>Retained sources</B><BR ALIGN="LEFT"/>(tau, delta, u) and (tau, delta, v1).<BR ALIGN="LEFT"/>Reuse for exact tangents and passive quadrature.</TD></TR>
+      </TABLE>
+    >];
+    Adjoint [label=<
+      <TABLE WIDTH="350" BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD WIDTH="350" BALIGN="LEFT" ALIGN="LEFT" BGCOLOR="#E2F1E9"><FONT POINT-SIZE="9">ONE ADJOINT STAGE</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>adjoint_map</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/formulations/gc.py</FONT></TD></TR>
+        <TR><TD WIDTH="350" BALIGN="LEFT" ALIGN="LEFT"><B>Coupling first</B><BR ALIGN="LEFT"/>(u0, v0) = C_delta(u, v).<BR ALIGN="LEFT"/>Adjoint stages evaluate at the signed stage start.</TD></TR><HR/>
+        <TR><TD WIDTH="350" BALIGN="LEFT" ALIGN="LEFT"><B>Two shears at evaluation time tau</B><BR ALIGN="LEFT"/>u1 = u0 + delta * f(tau, v0)<BR ALIGN="LEFT"/>v1 = v0 + delta * f(tau, u1)</TD></TR><HR/>
+        <TR><TD WIDTH="350" BALIGN="LEFT" ALIGN="LEFT"><B>Retained sources</B><BR ALIGN="LEFT"/>(tau, delta, v0) and (tau, delta, u1).<BR ALIGN="LEFT"/>No diagonal projection between the twelve stages.</TD></TR>
+      </TABLE>
+    >];
+    StateFinish [label=<
+      <TABLE WIDTH="350" BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD WIDTH="350" BALIGN="LEFT" ALIGN="LEFT" BGCOLOR="#E2F1E9"><FONT POINT-SIZE="9">ACCEPTED STATE AND OUTPUT</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>finish / extract_history</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/formulations/state.py</FONT></TD></TR>
+        <TR><TD WIDTH="350" BALIGN="LEFT" ALIGN="LEFT"><B>After the converged spatial step</B><BR ALIGN="LEFT"/>finish embeds z_next into both accepted copies.<BR ALIGN="LEFT"/>Append t+h and updated kappa when tracking.</TD></TR><HR/>
+        <TR><TD WIDTH="350" BALIGN="LEFT" ALIGN="LEFT"><B>At requested saved times</B><BR ALIGN="LEFT"/>extract_history returns physical states [2N,T].<BR ALIGN="LEFT"/>Auxiliary values are separate diagnostic arrays.</TD></TR><HR/>
+        <TR><TD WIDTH="350" BALIGN="LEFT" ALIGN="LEFT"><B>Energy normalization</B><BR ALIGN="LEFT"/>Physical momentum kappa; generalized energy H+kappa.<BR ALIGN="LEFT"/>The doubled momentum convention is k=2*kappa.</TD></TR>
+      </TABLE>
+    >];
+    Pad_formulations_5 [shape=point, width=0, height=0, style=invis];
+  }
+  subgraph cluster_methods {
+    label=""; style="rounded,filled"; color="#C8D6E7"; fillcolor="#F8FAFD";
+    node [group="methods"];
+    Head_methods [fillcolor="#815E22", color="#815E22", fontcolor="white", width=4.8, height=0.68, margin="0.22,0.16", label="05  methods/extended/\nOne reduced solve around twelve stages"];
+    Config [label=<
+      <TABLE WIDTH="350" BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD WIDTH="350" BALIGN="LEFT" ALIGN="LEFT" BGCOLOR="#FBE0C7"><FONT POINT-SIZE="9">REUSABLE PUBLIC CONFIGURATION</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>BM4Implicit</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/methods/extended/bm4.py</FONT></TD></TR>
+        <TR><TD WIDTH="350" BALIGN="LEFT" ALIGN="LEFT"><B>Default spatial / solver options</B><BR ALIGN="LEFT"/>coupling_frequency = 0.0.<BR ALIGN="LEFT"/>nonlinear_solver = newton; Jacobian = analytic.</TD></TR><HR/>
+        <TR><TD WIDTH="350" BALIGN="LEFT" ALIGN="LEFT"><B>Convergence defaults</B><BR ALIGN="LEFT"/>atol = 1e-13; rtol = 1e-12; max corrections = 12.<BR ALIGN="LEFT"/>FD relative step = cube root of machine epsilon.</TD></TR><HR/>
+        <TR><TD WIDTH="350" BALIGN="LEFT" ALIGN="LEFT"><B>Optional controls</B><BR ALIGN="LEFT"/>track_energy=False; progress=False; step_observer=None.<BR ALIGN="LEFT"/>Constructor validates numerical and solver choices.</TD></TR>
+      </TABLE>
+    >];
+    Initialize [label=<
+      <TABLE WIDTH="350" BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD WIDTH="350" BALIGN="LEFT" ALIGN="LEFT" BGCOLOR="#FBE0C7"><FONT POINT-SIZE="9">EXECUTION 3 / PER-RUN PREPARATION</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>BM4Implicit.initialize</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/methods/extended/bm4.py</FONT></TD></TR>
+        <TR><TD WIDTH="350" BALIGN="LEFT" ALIGN="LEFT"><B>State and maps</B><BR ALIGN="LEFT"/>Construct DoubledFormulation and GCDoubledMaps.<BR ALIGN="LEFT"/>Bind SolverOptions and the shared BM4 recipe.</TD></TR><HR/>
+        <TR><TD WIDTH="350" BALIGN="LEFT" ALIGN="LEFT"><B>Bound callable</B><BR ALIGN="LEFT"/>self.project = partial(solve_projection, maps, BM4,<BR ALIGN="LEFT"/>options, reduced_multiplier, Jacobian options).</TD></TR><HR/>
+        <TR><TD WIDTH="350" BALIGN="LEFT" ALIGN="LEFT"><B>Metadata</B><BR ALIGN="LEFT"/>One nonlinear solve per accepted main step.<BR ALIGN="LEFT"/>Root size 2N; formulation bm4_implicit_reduced.</TD></TR>
+      </TABLE>
+    >];
+    Advance [label=<
+      <TABLE WIDTH="350" BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD WIDTH="350" BALIGN="LEFT" ALIGN="LEFT" BGCOLOR="#FBE0C7"><FONT POINT-SIZE="9">EXECUTION 6 / COMPLETE NUMERICAL STEP</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>BM4Implicit.advance(t, state, h)</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/methods/extended/bm4.py</FONT></TD></TR>
+        <TR><TD WIDTH="350" BALIGN="LEFT" ALIGN="LEFT"><B>Spatial solve</B><BR ALIGN="LEFT"/>z = state_formulation.physical(state).<BR ALIGN="LEFT"/>result = self.project(t, z, h).</TD></TR><HR/>
+        <TR><TD WIDTH="350" BALIGN="LEFT" ALIGN="LEFT"><B>Accepted auxiliary update</B><BR ALIGN="LEFT"/>Optionally evaluate momentum_increment.<BR ALIGN="LEFT"/>finish(state, result.state, t+h, increment).</TD></TR><HR/>
+        <TR><TD WIDTH="350" BALIGN="LEFT" ALIGN="LEFT"><B>Return</B><BR ALIGN="LEFT"/>contracts.step.StepResult(after, statistics, result).<BR ALIGN="LEFT"/>No collection or observer dispatch inside advance.</TD></TR>
+      </TABLE>
+    >];
+    EngineEntry [label=<
+      <TABLE WIDTH="350" BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD WIDTH="350" BALIGN="LEFT" ALIGN="LEFT" BGCOLOR="#E2F1E9"><FONT POINT-SIZE="9">SHARED BM4 / ABBA ENGINE</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>Reduced BM4 numerical engine</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/methods/extended/core/</FONT></TD></TR>
+        <TR><TD WIDTH="350" BALIGN="LEFT" ALIGN="LEFT"><B>Main path</B><BR ALIGN="LEFT"/>advance -&gt; solve_projection -&gt; compose.<BR ALIGN="LEFT"/>The projection encloses all twelve signed map stages.</TD></TR><HR/>
+        <TR><TD WIDTH="350" BALIGN="LEFT" ALIGN="LEFT"><B>Shared implementation</B><BR ALIGN="LEFT"/>Newton/Broyden; analytic/FD tangents; passive energy.<BR ALIGN="LEFT"/>Accepted CompositionTrace is reused by consumers.</TD></TR><HR/>
+        <TR><TD WIDTH="350" BALIGN="LEFT" ALIGN="LEFT"><B>Detailed equations</B><BR ALIGN="LEFT"/>See the six numerical cards below the source columns.<BR ALIGN="LEFT"/>BM4Implicit always selects the reduced multiplier root.</TD></TR>
+      </TABLE>
+    >];
+    Pad_methods_4 [shape=point, width=0, height=0, style=invis];
+    Pad_methods_5 [shape=point, width=0, height=0, style=invis];
+  }
+  subgraph cluster_integration {
+    label=""; style="rounded,filled"; color="#C8D6E7"; fillcolor="#F8FAFD";
+    node [group="integration"];
+    Head_integration [fillcolor="#263D59", color="#263D59", fontcolor="white", width=4.8, height=0.68, margin="0.22,0.16", label="06  integration/\nFixed-grid scheduling and collection"];
+    NewRun [label=<
+      <TABLE WIDTH="330" BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD WIDTH="330" BALIGN="LEFT" BGCOLOR="#E8EFF8" ALIGN="LEFT"><FONT POINT-SIZE="9">EXECUTION 2 / COMMON BASE CLASS</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>IntegrationMethod.new_run</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/integration/core.py</FONT></TD></TR>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Inherited integrate(problem, request)</B><BR ALIGN="LEFT"/>integrate_method(self.new_run(problem, request)).<BR ALIGN="LEFT"/>new_run copies constructor options to a fresh instance.</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Preparation</B><BR ALIGN="LEFT"/>Bind problem and request; call initialize (3).<BR ALIGN="LEFT"/>Copy and freeze initial_state and metadata.</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Lifecycle</B><BR ALIGN="LEFT"/>configuration -&gt; ready -&gt; running -&gt; finished.<BR ALIGN="LEFT"/>Reuse options by creating another fresh run.</TD></TR>
+      </TABLE>
+    >];
+    Coordinator [label=<
+      <TABLE WIDTH="330" BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD WIDTH="330" BALIGN="LEFT" BGCOLOR="#E8EFF8" ALIGN="LEFT"><FONT POINT-SIZE="9">EXECUTION 4 / COMMON TIME LOOP</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>integrate_method</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/integration/core.py</FONT></TD></TR>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Input / output</B><BR ALIGN="LEFT"/>Prepared IntegrationMethod -&gt; IntegrationData.<BR ALIGN="LEFT"/>Select controller; create IntegrationCollector.</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>For each accepted interval</B><BR ALIGN="LEFT"/>Validate interval and internal state; record statistics.<BR ALIGN="LEFT"/>Dispatch optional event; save requested samples.</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Completion</B><BR ALIGN="LEFT"/>Check full time coverage; export physical history.<BR ALIGN="LEFT"/>Merge metadata, work, auxiliary data and aliases.</TD></TR>
+      </TABLE>
+    >];
+    Controller [label=<
+      <TABLE WIDTH="350" BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD WIDTH="350" BALIGN="LEFT" ALIGN="LEFT" BGCOLOR="#E8EFF8"><FONT POINT-SIZE="9">EXECUTION 5 / FIXED STEP CONTROLLER</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>FixedStepController</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/integration/core.py; _fixed.py</FONT></TD></TR>
+        <TR><TD WIDTH="350" BALIGN="LEFT" ALIGN="LEFT"><B>Main grid</B><BR ALIGN="LEFT"/>M = _step_count(tf-t0, max_step); h = (tf-t0)/M.<BR ALIGN="LEFT"/>Call advance once per main step.<BR ALIGN="LEFT"/>Yield StepInfo plus StepResult.</TD></TR><HR/>
+        <TR><TD WIDTH="350" BALIGN="LEFT" ALIGN="LEFT"><B>Requested samples</B><BR ALIGN="LEFT"/>Reuse accepted endpoints. For an interior time,<BR ALIGN="LEFT"/>evaluate an independent shortened BM4 map.</TD></TR><HR/>
+        <TR><TD WIDTH="350" BALIGN="LEFT" ALIGN="LEFT"><B>Separation of work</B><BR ALIGN="LEFT"/>Shadow maps do not alter the main trajectory,<BR ALIGN="LEFT"/>accepted-step counters or observer event sequence.</TD></TR>
+      </TABLE>
+    >];
+    Collector [label=<
+      <TABLE WIDTH="330" BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD WIDTH="330" BALIGN="LEFT" BGCOLOR="#E8EFF8" ALIGN="LEFT"><FONT POINT-SIZE="9">PER-RUN STORAGE OWNER</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>IntegrationCollector</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/integration/core.py</FONT></TD></TR>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Storage</B><BR ALIGN="LEFT"/>history: internal samples [q, T].<BR ALIGN="LEFT"/>Small per-step metric arrays with stable shapes.</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Operations</B><BR ALIGN="LEFT"/>record_step(info, statistics); finalize().<BR ALIGN="LEFT"/>Record accepted times and effective step sizes.</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Boundary</B><BR ALIGN="LEFT"/>Transient StepResult.details remain method-owned.<BR ALIGN="LEFT"/>Event histories are retained only by observers.<BR ALIGN="LEFT"/>Output-only sampling is separate from main-step work.</TD></TR>
+      </TABLE>
+    >];
+    Export [label=<
+      <TABLE WIDTH="330" BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD WIDTH="330" BALIGN="LEFT" BGCOLOR="#E8EFF8" ALIGN="LEFT"><FONT POINT-SIZE="9">EXECUTION 7 / FINAL ASSEMBLY</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>export_history + finalize</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/integration/core.py -&gt; formulations/state.py</FONT></TD></TR>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Physical extraction</B><BR ALIGN="LEFT"/>method.export_history(times, collector.history).<BR ALIGN="LEFT"/>Formulation extracts states [m, T] and auxiliaries.</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Diagnostics</B><BR ALIGN="LEFT"/>Metadata + accepted metrics + energy diagnostics.<BR ALIGN="LEFT"/>output_interpolation_count and supported aliases.</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Return</B><BR ALIGN="LEFT"/>IntegrationData(t, states, diagnostics) to simulate.<BR ALIGN="LEFT"/>Export does not repeat numerical projection.</TD></TR>
+      </TABLE>
+    >];
+    Observation [label=<
+      <TABLE WIDTH="350" BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD WIDTH="350" BALIGN="LEFT" ALIGN="LEFT" BGCOLOR="#EEE5F5"><FONT POINT-SIZE="9">OPTIONAL ACCEPTED-STEP OBSERVATION</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>ImplicitBM4IntegrationStep</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/methods/extended/bm4.py; extended/observations.py</FONT></TD></TR>
+        <TR><TD WIDTH="350" BALIGN="LEFT" ALIGN="LEFT"><B>Build and dispatch</B><BR ALIGN="LEFT"/>Coordinator calls build_observation then step_observer.<BR ALIGN="LEFT"/>stage_events copies the converged twelve-stage trace.</TD></TR><HR/>
+        <TR><TD WIDTH="350" BALIGN="LEFT" ALIGN="LEFT"><B>Public event</B><BR ALIGN="LEFT"/>Physical before/after states; multiplier; solve statistics.<BR ALIGN="LEFT"/>base_stages: 12 IntegrationStage records.<BR ALIGN="LEFT"/>Stage states are spatial doubled values [4N].</TD></TR><HR/>
+        <TR><TD WIDTH="350" BALIGN="LEFT" ALIGN="LEFT"><B>Diagnostic maps</B><BR ALIGN="LEFT"/>Step map_state reruns the same physical projection.<BR ALIGN="LEFT"/>Each stage map_state uses its stored signed time.<BR ALIGN="LEFT"/>Callback evaluations are opt-in diagnostic work.</TD></TR>
+      </TABLE>
+    >];
+  }
+  subgraph cluster_simulation {
+    label=""; style="rounded,filled"; color="#C8D6E7"; fillcolor="#F8FAFD";
+    node [group="simulation"];
+    Head_simulation [fillcolor="#354D89", color="#354D89", fontcolor="white", width=4.8, height=0.68, margin="0.22,0.16", label="07  simulation/\nEntry, return and failure boundary"];
+    Simulate [label=<
+      <TABLE WIDTH="330" BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD WIDTH="330" BALIGN="LEFT" BGCOLOR="#E8EFF8" ALIGN="LEFT"><FONT POINT-SIZE="9">EXECUTION 1 / PUBLIC ENTRY POINT</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>simulate(problem, method, request)</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/simulation/runner.py</FONT></TD></TR>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Validate public inputs</B><BR ALIGN="LEFT"/>InitialValueProblem; NumericalMethod;<BR ALIGN="LEFT"/>SimulationRequest.</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Invoke execution</B><BR ALIGN="LEFT"/>data = method.integrate(problem, request).<BR ALIGN="LEFT"/>The inherited lifecycle starts in integration/ (2).</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Responsibility</B><BR ALIGN="LEFT"/>Stateless orchestration around the numerical run.<BR ALIGN="LEFT"/>The same call resumes with IntegrationData (8).</TD></TR>
+      </TABLE>
+    >];
+    Facade [label=<
+      <TABLE WIDTH="330" BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD WIDTH="330" BALIGN="LEFT" BGCOLOR="#E8EFF8" ALIGN="LEFT"><FONT POINT-SIZE="9">PUBLIC IMPORT FACADE</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>Explicit exports</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/simulation/__init__.py</FONT></TD></TR>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Public use</B><BR ALIGN="LEFT"/>from simulation import simulate, BM4Implicit, ...<BR ALIGN="LEFT"/>Established public names remain available.</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Implementation ownership</B><BR ALIGN="LEFT"/>Re-exports point to their canonical implementations.<BR ALIGN="LEFT"/>Internal consumers import defining modules.</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Execution interface</B><BR ALIGN="LEFT"/>methods.base.NumericalMethod declares integrate.<BR ALIGN="LEFT"/>Studies call simulation.runner.simulate.</TD></TR>
+      </TABLE>
+    >];
+    Resume [label=<
+      <TABLE WIDTH="330" BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD WIDTH="330" BALIGN="LEFT" BGCOLOR="#E8EFF8" ALIGN="LEFT"><FONT POINT-SIZE="9">EXECUTION 8 / SAME simulate CALL</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>Construct and check Solution</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/simulation/runner.py</FONT></TD></TR>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Build the result</B><BR ALIGN="LEFT"/>Solution(t=data.t, states=data.states,<BR ALIGN="LEFT"/>source=problem.initial_configuration,<BR ALIGN="LEFT"/>diagnostics=data.diagnostics).</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Consistency with the run</B><BR ALIGN="LEFT"/>Saved times equal request.output_times.<BR ALIGN="LEFT"/>Physical row count matches the initial state.<BR ALIGN="LEFT"/>The first saved column equals the initial state.</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Return</B><BR ALIGN="LEFT"/>Expose the validated physical Solution to the caller.</TD></TR>
+      </TABLE>
+    >];
+    Failure [label=<
+      <TABLE WIDTH="330" BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD WIDTH="330" BALIGN="LEFT" BGCOLOR="#FFF0F0" ALIGN="LEFT"><FONT POINT-SIZE="9">ERROR PROPAGATION</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>Explicit failure to caller</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/simulation/runner.py; integration/core.py</FONT></TD></TR>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Failure conditions</B><BR ALIGN="LEFT"/>Invalid configuration or incompatible capabilities.<BR ALIGN="LEFT"/>Non-finite maps; singular solve; iteration limit.<BR ALIGN="LEFT"/>Invalid accepted intervals or final output.</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Lifecycle</B><BR ALIGN="LEFT"/>Integration finalization marks the run finished.<BR ALIGN="LEFT"/>Numerical exceptions propagate to the caller.</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Result boundary</B><BR ALIGN="LEFT"/>A failed run does not produce a successful Solution.</TD></TR>
+      </TABLE>
+    >];
+    Pad_simulation_4 [shape=point, width=0, height=0, style=invis];
+    Pad_simulation_5 [shape=point, width=0, height=0, style=invis];
+  }
+  subgraph cluster_solution {
+    label=""; style="rounded,filled"; color="#C8D6E7"; fillcolor="#F8FAFD";
+    node [group="solution"];
+    Head_solution [fillcolor="#2E6651", color="#2E6651", fontcolor="white", width=4.8, height=0.68, margin="0.22,0.16", label="08  solution.py\nPhysical trajectory and diagnostics"];
+    Solution [label=<
+      <TABLE WIDTH="330" BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD WIDTH="330" BALIGN="LEFT" BGCOLOR="#E2F1E9" ALIGN="LEFT"><FONT POINT-SIZE="9">EXECUTION 9 / PUBLIC RESULT CLASS</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>Solution</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/solution.py</FONT></TD></TR>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Owned data</B><BR ALIGN="LEFT"/>t: requested times [T].<BR ALIGN="LEFT"/>states: physical history [m, T].</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Provenance and diagnostics</B><BR ALIGN="LEFT"/>source: InitialConfiguration with its layout.<BR ALIGN="LEFT"/>diagnostics: read-only mapping of copied values.</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Lifetime</B><BR ALIGN="LEFT"/>Own copies of trajectory and diagnostic arrays.<BR ALIGN="LEFT"/>Numerical run resources are not retained.</TD></TR>
+      </TABLE>
+    >];
+    Validation [label=<
+      <TABLE WIDTH="330" BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD WIDTH="330" BALIGN="LEFT" BGCOLOR="#E2F1E9" ALIGN="LEFT"><FONT POINT-SIZE="9">STRUCTURAL VALIDATION OWNER</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>Array and layout validation</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/solution.py: Solution.__init__</FONT></TD></TR>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Array checks</B><BR ALIGN="LEFT"/>Finite increasing times and finite state history.<BR ALIGN="LEFT"/>Compatible time and state array dimensions.</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Layout checks</B><BR ALIGN="LEFT"/>Valid InitialConfiguration and StateLayout.<BR ALIGN="LEFT"/>layout.validate_packed_state_layout(states).</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Immutability</B><BR ALIGN="LEFT"/>Copy and freeze arrays; freeze diagnostic mapping.<BR ALIGN="LEFT"/>Simulation separately checks agreement with inputs.</TD></TR>
+      </TABLE>
+    >];
+    Diagnostics [label=<
+      <TABLE WIDTH="350" BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD WIDTH="350" BALIGN="LEFT" ALIGN="LEFT" BGCOLOR="#E2F1E9"><FONT POINT-SIZE="9">TWO DISTINCT OUTPUT GRIDS</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>Physical samples / nonlinear work</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/solution.py; integration/core.py</FONT></TD></TR>
+        <TR><TD WIDTH="350" BALIGN="LEFT" ALIGN="LEFT"><B>Saved-time grid</B><BR ALIGN="LEFT"/>states [2N,T]; t [T]. With energy: H, kappa and H+kappa<BR ALIGN="LEFT"/>arrays follow these same T saved times.</TD></TR><HR/>
+        <TR><TD WIDTH="350" BALIGN="LEFT" ALIGN="LEFT"><B>Accepted-step grid</B><BR ALIGN="LEFT"/>nonlinear_iterations; residual_evaluations;<BR ALIGN="LEFT"/>nonlinear_residual_norms; nonlinear_tolerances;<BR ALIGN="LEFT"/>projection_multiplier_norms; accepted step times.</TD></TR><HR/>
+        <TR><TD WIDTH="350" BALIGN="LEFT" ALIGN="LEFT"><B>Interpretation</B><BR ALIGN="LEFT"/>One solve per main step; variable residual work.<BR ALIGN="LEFT"/>Requested tolerances are not trajectory error bounds.</TD></TR>
+      </TABLE>
+    >];
+    ResultUse [label=<
+      <TABLE WIDTH="330" BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD WIDTH="330" BALIGN="LEFT" BGCOLOR="#EEE5F5" ALIGN="LEFT"><FONT POINT-SIZE="9">DOWNSTREAM CONSUMERS</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>Trajectory and scientific analysis</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/studies/; diagnostics/; visualization/</FONT></TD></TR>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Studies</B><BR ALIGN="LEFT"/>Compose reproducible runs and reference comparisons.<BR ALIGN="LEFT"/>Interpret physical errors and method diagnostics.</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Diagnostics / visualization</B><BR ALIGN="LEFT"/>Optional numerical observers and persistence.<BR ALIGN="LEFT"/>Plots, summaries and animations consume results.</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Energy interpretation</B><BR ALIGN="LEFT"/>For time-dependent fields, compare physical H<BR ALIGN="LEFT"/>with the reference history; H need not be conserved.</TD></TR>
+      </TABLE>
+    >];
+    Pad_solution_4 [shape=point, width=0, height=0, style=invis];
+    Pad_solution_5 [shape=point, width=0, height=0, style=invis];
+  }
+  subgraph cluster_numerics {
+    label="methods/extended/core/ + methods/_nonlinear.py | Detailed numerical execution"; fontsize=19; fontcolor="#815E22";
+    labelloc=t; labeljust=l; style="rounded,filled"; color="#DECBA3"; fillcolor="#FFFCF5";
+    Projection [label=<
+      <TABLE WIDTH="350" BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD WIDTH="350" BALIGN="LEFT" ALIGN="LEFT" BGCOLOR="#E2F1E9"><FONT POINT-SIZE="9">ONE OUTER HAIRER PROJECTION</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>solve_projection: reduced equation</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/methods/extended/core/projection.py</FONT></TD></TR>
+        <TR><TD WIDTH="350" BALIGN="LEFT" ALIGN="LEFT"><B>Unknown and map evaluation</B><BR ALIGN="LEFT"/>mu in R^(2N); initial guess mu=0.<BR ALIGN="LEFT"/>(u,v) = Phi_h(z+mu, z-mu).</TD></TR><HR/>
+        <TR><TD WIDTH="350" BALIGN="LEFT" ALIGN="LEFT"><B>Residual and acceptance</B><BR ALIGN="LEFT"/>r(mu) = u-v+2*mu.<BR ALIGN="LEFT"/>||r||_inf &lt;= atol + rtol * max(1, ||z||_inf).</TD></TR><HR/>
+        <TR><TD WIDTH="350" BALIGN="LEFT" ALIGN="LEFT"><B>Accepted physical state</B><BR ALIGN="LEFT"/>Corrected copies: u+mu and v-mu.<BR ALIGN="LEFT"/>z_next = ((u+mu)+(v-mu))/2.<BR ALIGN="LEFT"/>Return multiplier, SolveStats and converged trace.</TD></TR>
+      </TABLE>
+    >];
+    Composition [label=<
+      <TABLE WIDTH="350" BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD WIDTH="350" BALIGN="LEFT" ALIGN="LEFT" BGCOLOR="#E2F1E9"><FONT POINT-SIZE="9">SHARED PALINDROMIC RECIPE</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>BM4 / compose</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/methods/extended/core/composition.py</FONT></TD></TR>
+        <TR><TD WIDTH="350" BALIGN="LEFT" ALIGN="LEFT"><B>Twelve signed stages</B><BR ALIGN="LEFT"/>c = (a1,a2,a3,a4,a5,a6,a6,a5,a4,a3,a2,a1).<BR ALIGN="LEFT"/>Sum c_i = 1; a4 &lt; 0. Phi_h is the complete recipe.</TD></TR><HR/>
+        <TR><TD WIDTH="350" BALIGN="LEFT" ALIGN="LEFT"><B>Execution order</B><BR ALIGN="LEFT"/>Odd stages: adjoint_map; even: direct_map.<BR ALIGN="LEFT"/>delta_i = c_i*h; tau starts at t.<BR ALIGN="LEFT"/>Adjoint uses tau; direct uses tau+delta_i; then advance tau.</TD></TR><HR/>
+        <TR><TD WIDTH="350" BALIGN="LEFT" ALIGN="LEFT"><B>Cost and trace</B><BR ALIGN="LEFT"/>Two field evaluations per stage; 24 per composition.<BR ALIGN="LEFT"/>Every residual evaluation traverses the full recipe.<BR ALIGN="LEFT"/>CompositionTrace retains all twelve accepted stages.</TD></TR>
+      </TABLE>
+    >];
+    Solver [label=<
+      <TABLE WIDTH="350" BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD WIDTH="350" BALIGN="LEFT" ALIGN="LEFT" BGCOLOR="#E2F1E9"><FONT POINT-SIZE="9">SHARED NONLINEAR ITERATION</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>Newton / Broyden</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/methods/_nonlinear.py; extended/core/projection.py</FONT></TD></TR>
+        <TR><TD WIDTH="350" BALIGN="LEFT" ALIGN="LEFT"><B>Newton</B><BR ALIGN="LEFT"/>Residual -&gt; Jacobian -&gt; correction -&gt; new residual.<BR ALIGN="LEFT"/>Choose analytic particle blocks or centered differences.</TD></TR><HR/>
+        <TR><TD WIDTH="350" BALIGN="LEFT" ALIGN="LEFT"><B>Broyden</B><BR ALIGN="LEFT"/>Initial residual Jacobian approximation is 4*I_(2N).<BR ALIGN="LEFT"/>Update by secants; no field Jacobian evaluation.</TD></TR><HR/>
+        <TR><TD WIDTH="350" BALIGN="LEFT" ALIGN="LEFT"><B>Shared outcome</B><BR ALIGN="LEFT"/>Count corrections and residual evaluations.<BR ALIGN="LEFT"/>Retain the converged residual payload and tolerance.<BR ALIGN="LEFT"/>Raise on non-convergence or invalid corrections.</TD></TR>
+      </TABLE>
+    >];
+    Tangents [label=<
+      <TABLE WIDTH="350" BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD WIDTH="350" BALIGN="LEFT" ALIGN="LEFT" BGCOLOR="#E2F1E9"><FONT POINT-SIZE="9">NEWTON JACOBIAN STRATEGIES</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>particle_jacobians / centered FD</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/methods/extended/core/jacobians.py; projection.py</FONT></TD></TR>
+        <TR><TD WIDTH="350" BALIGN="LEFT" ALIGN="LEFT"><B>Reduced Jacobian</B><BR ALIGN="LEFT"/>J_r = G * D(Phi_h) * L + 2I.<BR ALIGN="LEFT"/>G = [I,-I]; L = [I;-I]; I has size 2N.</TD></TR><HR/>
+        <TR><TD WIDTH="350" BALIGN="LEFT" ALIGN="LEFT"><B>Analytic</B><BR ALIGN="LEFT"/>Ordered shear/coupling products: [N,4,4].<BR ALIGN="LEFT"/>Solve independent reduced [N,2,2] particle blocks.<BR ALIGN="LEFT"/>Retained shear inputs avoid spatial replay.</TD></TR><HR/>
+        <TR><TD WIDTH="350" BALIGN="LEFT" ALIGN="LEFT"><B>Finite differences</B><BR ALIGN="LEFT"/>Perturb the full doubled input in both directions.<BR ALIGN="LEFT"/>Differentiate Phi_h; assemble a dense 2N system.<BR ALIGN="LEFT"/>Extra map calls are not residual-evaluation counts.</TD></TR>
+      </TABLE>
+    >];
+    Energy [label=<
+      <TABLE WIDTH="350" BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD WIDTH="350" BALIGN="LEFT" ALIGN="LEFT" BGCOLOR="#E2F1E9"><FONT POINT-SIZE="9">PASSIVE ENERGY / ACCEPTED TRACE</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>momentum_increment</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/methods/extended/core/energy.py</FONT></TD></TR>
+        <TR><TD WIDTH="350" BALIGN="LEFT" ALIGN="LEFT"><B>Physical momentum update</B><BR ALIGN="LEFT"/>delta kappa = (1/2) * sum_s delta_s * (-partial_t H)_s.<BR ALIGN="LEFT"/>Sum over the 24 retained shear sources.</TD></TR><HR/>
+        <TR><TD WIDTH="350" BALIGN="LEFT" ALIGN="LEFT"><B>Acceptance rule</B><BR ALIGN="LEFT"/>Evaluate energy only after spatial convergence.<BR ALIGN="LEFT"/>Use the converged trace with signed stage durations.<BR ALIGN="LEFT"/>No extra spatial composition is required.</TD></TR><HR/>
+        <TR><TD WIDTH="350" BALIGN="LEFT" ALIGN="LEFT"><B>Ownership</B><BR ALIGN="LEFT"/>advance calls this method-layer helper.<BR ALIGN="LEFT"/>It returns an increment; integration stores the output.</TD></TR>
+      </TABLE>
+    >];
+    AcceptedTrace [label=<
+      <TABLE WIDTH="480" BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD WIDTH="480" BALIGN="LEFT" ALIGN="LEFT" BGCOLOR="#E2F1E9"><FONT POINT-SIZE="9">PRIVATE ACCEPTED NUMERICAL RECORD</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>ProjectedMapResult / CompositionTrace</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/methods/extended/core/records.py</FONT></TD></TR>
+        <TR><TD WIDTH="480" BALIGN="LEFT" ALIGN="LEFT"><B>ProjectedMapResult</B><BR ALIGN="LEFT"/>state_before; state; multiplier; SolveStats; trace.<BR ALIGN="LEFT"/>The payload belongs to the converged residual evaluation.</TD></TR><HR/>
+        <TR><TD WIDTH="480" BALIGN="LEFT" ALIGN="LEFT"><B>CompositionTrace / MapStage</B><BR ALIGN="LEFT"/>Doubled input and output; twelve stages.<BR ALIGN="LEFT"/>Each stage retains time, duration, map kind and shear inputs.</TD></TR><HR/>
+        <TR><TD WIDTH="480" BALIGN="LEFT" ALIGN="LEFT"><B>Reuse</B><BR ALIGN="LEFT"/>Analytic tangents, passive energy and public stage events.<BR ALIGN="LEFT"/>Records become retained history only through an observer.</TD></TR>
+      </TABLE>
+    >];
+    { rank=same; Projection; Composition; Solver; Tangents; Energy; AcceptedTrace; }
+    Projection -> Composition -> Solver -> Tangents -> Energy -> AcceptedTrace [style=invis, weight=1000];
+  }
+  subgraph cluster_contracts {
+    label="contracts/ | Shared input, step and output records"; fontsize=19; fontcolor="#263D59";
+    labelloc=t; labeljust=l; style="rounded,filled"; color="#C8D6E7"; fillcolor="#F8FAFD";
+    ProblemContract [label=<
+      <TABLE WIDTH="480" BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD WIDTH="480" BALIGN="LEFT" BGCOLOR="#E8EFF8" ALIGN="LEFT"><FONT POINT-SIZE="9">VALIDATED INPUT RECORDS</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>InitialValueProblem + SimulationRequest</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/contracts/problem.py; request.py</FONT></TD></TR>
+        <TR><TD WIDTH="480" BALIGN="LEFT" ALIGN="LEFT"><B>Problem</B><BR ALIGN="LEFT"/>dynamics + initial_configuration.<BR ALIGN="LEFT"/>Validate compatible physical dimensions and finite state.</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="480" BALIGN="LEFT" ALIGN="LEFT"><B>Request</B><BR ALIGN="LEFT"/>t_span; max_step; read-only output_times [T].<BR ALIGN="LEFT"/>Saved times include both requested interval endpoints.</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="480" BALIGN="LEFT" ALIGN="LEFT"><B>Composition</B><BR ALIGN="LEFT"/>The caller assembles physics and initial geometry.<BR ALIGN="LEFT"/>The request owns temporal controls shared by all methods.</TD></TR>
+      </TABLE>
+    >];
+    LayoutContract [label=<
+      <TABLE WIDTH="480" BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD WIDTH="480" BALIGN="LEFT" BGCOLOR="#E8EFF8" ALIGN="LEFT"><FONT POINT-SIZE="9">STRUCTURAL PROTOCOLS</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>InitialConfiguration + StateLayout</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/contracts/configuration.py</FONT></TD></TR>
+        <TR><TD WIDTH="480" BALIGN="LEFT" ALIGN="LEFT"><B>InitialConfiguration</B><BR ALIGN="LEFT"/>initial_state and layout describe the packed physical input.</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="480" BALIGN="LEFT" ALIGN="LEFT"><B>StateLayout</B><BR ALIGN="LEFT"/>state_dimension; validation; particle_count; component views.</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="480" BALIGN="LEFT" ALIGN="LEFT"><B>Implementations</B><BR ALIGN="LEFT"/>The concrete GC layout lives in initial_conditions/.<BR ALIGN="LEFT"/>The same contract interprets Solution.states.</TD></TR>
+      </TABLE>
+    >];
+    StepContract [label=<
+      <TABLE WIDTH="480" BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD WIDTH="480" BALIGN="LEFT" BGCOLOR="#E8EFF8" ALIGN="LEFT"><FONT POINT-SIZE="9">ACCEPTED INTERVAL / NUMERICAL RETURN</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>StepInfo + StepResult[Detail]</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/contracts/step.py</FONT></TD></TR>
+        <TR><TD WIDTH="480" BALIGN="LEFT" ALIGN="LEFT"><B>StepInfo</B><BR ALIGN="LEFT"/>index; time; duration; end_time; state_before [q].</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="480" BALIGN="LEFT" ALIGN="LEFT"><B>StepResult</B><BR ALIGN="LEFT"/>state [q]; statistics; transient method-specific details.</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="480" BALIGN="LEFT" ALIGN="LEFT"><B>Data ownership</B><BR ALIGN="LEFT"/>Internal states are separate from physical observer snapshots.<BR ALIGN="LEFT"/>The collector stores statistics, not numerical detail histories.</TD></TR>
+      </TABLE>
+    >];
+    OutputContract [label=<
+      <TABLE WIDTH="480" BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD WIDTH="480" BALIGN="LEFT" BGCOLOR="#EEE5F5" ALIGN="LEFT"><FONT POINT-SIZE="9">FINAL DATA / OPTIONAL EVENTS</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>IntegrationData + observation records</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/contracts/result.py; observation.py</FONT></TD></TR>
+        <TR><TD WIDTH="480" BALIGN="LEFT" ALIGN="LEFT"><B>IntegrationData</B><BR ALIGN="LEFT"/>t [T]; physical states [m, T]; diagnostics.<BR ALIGN="LEFT"/>Returned by the numerical method to simulate.</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="480" BALIGN="LEFT" ALIGN="LEFT"><B>Public observation records</B><BR ALIGN="LEFT"/>BM4Implicit exposes ImplicitBM4IntegrationStep.<BR ALIGN="LEFT"/>Twelve base stages, multiplier and solve statistics.</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="480" BALIGN="LEFT" ALIGN="LEFT"><B>Dispatch and lifetime</B><BR ALIGN="LEFT"/>build_observation adapts details; coordinator dispatches.<BR ALIGN="LEFT"/>Caller-owned observers retain copied events when requested.</TD></TR>
+      </TABLE>
+    >];
+    { rank=same; ProblemContract; LayoutContract; StepContract; OutputContract; }
+    ProblemContract -> LayoutContract -> StepContract -> OutputContract [style=invis, weight=1000];
+  }
+    MidpointVariant [label=<
+      <TABLE WIDTH="670" BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD WIDTH="670" BALIGN="LEFT" ALIGN="LEFT" BGCOLOR="#FBE0C7"><FONT POINT-SIZE="9">ALTERNATIVE PUBLIC BM4 METHOD</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>BM4Midpoint: shared recipe, arithmetic projection</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/methods/extended/bm4.py; extended/core/midpoint.py</FONT></TD></TR>
+        <TR><TD WIDTH="670" BALIGN="LEFT" ALIGN="LEFT"><B>Same spatial maps and time clock</B><BR ALIGN="LEFT"/>compose starts at (z,z); z_next=(u+v)/2 after all twelve stages.<BR ALIGN="LEFT"/>No multiplier equation or nonlinear solver. Diagnostic: copy_separation_norms.</TD></TR><HR/>
+        <TR><TD WIDTH="670" BALIGN="LEFT" ALIGN="LEFT"><B>Defaults and structure</B><BR ALIGN="LEFT"/>coupling_frequency = pi/8, while BM4Implicit defaults to 0.0.<BR ALIGN="LEFT"/>Both share DoubledFormulation, composition, maps and passive energy.<BR ALIGN="LEFT"/>Use explicit matching options when comparing the methods.</TD></TR><HR/>
+        <TR><TD WIDTH="670" BALIGN="LEFT" ALIGN="LEFT"><B>Numerical distinction</B><BR ALIGN="LEFT"/>Arithmetic averaging does not imply exact symplecticity or reversibility.<BR ALIGN="LEFT"/>Observer type: IntegrationStep with physical states; no implicit BM4 solve event.</TD></TR>
+      </TABLE>
+    >];
+  Reading [shape=note, fillcolor="#F8FAFC", margin="0.20,0.14", label=<
+    <TABLE BORDER="0" CELLBORDER="0" CELLPADDING="5">
+      <TR><TD ALIGN="LEFT"><B>READING THE BM4 WORKFLOW</B></TD></TR>
+      <TR><TD ALIGN="LEFT"><B>Inputs:</B> potential -&gt; GC dynamics; dynamics + GC initial configuration -&gt; InitialValueProblem; caller selects BM4Implicit + request.</TD></TR>
+      <TR><TD ALIGN="LEFT"><B>Execution:</B> (1) simulate -&gt; (2) new_run -&gt; (3) initialize -&gt; (4) integrate_method -&gt; (5) FixedStepController -&gt; (6) advance.</TD></TR>
+      <TR><TD ALIGN="LEFT"><B>Complete step:</B> reduced solve -&gt; twelve-stage composition per residual -&gt; converged physical result -&gt; optional passive energy.</TD></TR>
+      <TR><TD ALIGN="LEFT"><B>Completion:</B> collect accepted steps and output samples -&gt; (7) export IntegrationData -&gt; (8) simulate resumes -&gt; (9) Solution.</TD></TR>
+      <TR><TD ALIGN="LEFT">Solid: calls, dependencies or implementation relationships. Dotted blue: returns. Dashed purple: optional events or analysis. Red dashed: failure.</TD></TR>
+      <TR><TD ALIGN="LEFT">Arrows show selected relationships; card subtitles identify the implementation owner. BM4Midpoint is an alternative method, not a fallback.</TD></TR>
+    </TABLE>
+  >];
+  ColumnOrder [shape=point, width=0, height=0, style=invis, ordering=out];
+  ColumnOrder -> Head_potential [style=invis, weight=10000];
+  ColumnOrder -> Head_dynamics [style=invis, weight=10000];
+  ColumnOrder -> Head_initial [style=invis, weight=10000];
+  ColumnOrder -> Head_formulations [style=invis, weight=10000];
+  ColumnOrder -> Head_methods [style=invis, weight=10000];
+  ColumnOrder -> Head_integration [style=invis, weight=10000];
+  ColumnOrder -> Head_simulation [style=invis, weight=10000];
+  ColumnOrder -> Head_solution [style=invis, weight=10000];
+  { rank=same; Head_potential; Head_dynamics; Head_initial; Head_formulations; Head_methods; Head_integration; Head_simulation; Head_solution; }
+  Head_potential -> Head_dynamics -> Head_initial -> Head_formulations -> Head_methods -> Head_integration -> Head_simulation -> Head_solution [style=invis, weight=1000];
+  { rank=same; Potential; Dynamics; Initial; Doubled; Config; NewRun; Simulate; Solution; }
+  Potential -> Dynamics -> Initial -> Doubled -> Config -> NewRun -> Simulate -> Solution [style=invis, weight=100];
+  { rank=same; H5Loader; GC; InitialGC; Maps; Initialize; Coordinator; Facade; Validation; }
+  H5Loader -> GC -> InitialGC -> Maps -> Initialize -> Coordinator -> Facade -> Validation [style=invis, weight=100];
+  { rank=same; Grid; Capabilities; Layouts; Direct; Advance; Controller; Resume; Diagnostics; }
+  Grid -> Capabilities -> Layouts -> Direct -> Advance -> Controller -> Resume -> Diagnostics [style=invis, weight=100];
+  { rank=same; Pad_potential_3; Pad_dynamics_3; Pad_initial_3; Adjoint; EngineEntry; Collector; Failure; ResultUse; }
+  Pad_potential_3 -> Pad_dynamics_3 -> Pad_initial_3 -> Adjoint -> EngineEntry -> Collector -> Failure -> ResultUse [style=invis, weight=100];
+  { rank=same; Pad_potential_4; Pad_dynamics_4; Pad_initial_4; StateFinish; Pad_methods_4; Export; Pad_simulation_4; Pad_solution_4; }
+  Pad_potential_4 -> Pad_dynamics_4 -> Pad_initial_4 -> StateFinish -> Pad_methods_4 -> Export -> Pad_simulation_4 -> Pad_solution_4 [style=invis, weight=100];
+  { rank=same; Pad_potential_5; Pad_dynamics_5; Pad_initial_5; Pad_formulations_5; Pad_methods_5; Observation; Pad_simulation_5; Pad_solution_5; }
+  Pad_potential_5 -> Pad_dynamics_5 -> Pad_initial_5 -> Pad_formulations_5 -> Pad_methods_5 -> Observation -> Pad_simulation_5 -> Pad_solution_5 [style=invis, weight=100];
+  Head_potential -> Potential -> H5Loader -> Grid -> Pad_potential_3 -> Pad_potential_4 -> Pad_potential_5 [style=invis, weight=100];
+  Pad_potential_5 -> Projection [style=invis, weight=2];
+  Head_dynamics -> Dynamics -> GC -> Capabilities -> Pad_dynamics_3 -> Pad_dynamics_4 -> Pad_dynamics_5 [style=invis, weight=100];
+  Pad_dynamics_5 -> Projection [style=invis, weight=2];
+  Head_initial -> Initial -> InitialGC -> Layouts -> Pad_initial_3 -> Pad_initial_4 -> Pad_initial_5 [style=invis, weight=100];
+  Pad_initial_5 -> Composition [style=invis, weight=2];
+  Head_formulations -> Doubled -> Maps -> Direct -> Adjoint -> StateFinish -> Pad_formulations_5 [style=invis, weight=100];
+  Pad_formulations_5 -> Solver [style=invis, weight=2];
+  Head_methods -> Config -> Initialize -> Advance -> EngineEntry -> Pad_methods_4 -> Pad_methods_5 [style=invis, weight=100];
+  Pad_methods_5 -> Tangents [style=invis, weight=2];
+  Head_integration -> NewRun -> Coordinator -> Controller -> Collector -> Export -> Observation [style=invis, weight=100];
+  Observation -> Tangents [style=invis, weight=2];
+  Head_simulation -> Simulate -> Facade -> Resume -> Failure -> Pad_simulation_4 -> Pad_simulation_5 [style=invis, weight=100];
+  Pad_simulation_5 -> Energy [style=invis, weight=2];
+  Head_solution -> Solution -> Validation -> Diagnostics -> ResultUse -> Pad_solution_4 -> Pad_solution_5 [style=invis, weight=100];
+  Pad_solution_5 -> AcceptedTrace [style=invis, weight=2];
+  Projection -> ProblemContract [style=invis, weight=2];
+  Composition -> ProblemContract [style=invis, weight=2];
+  Solver -> LayoutContract [style=invis, weight=2];
+  Tangents -> StepContract [style=invis, weight=2];
+  Energy -> StepContract [style=invis, weight=2];
+  AcceptedTrace -> OutputContract [style=invis, weight=2];
+  ProblemContract -> MidpointVariant [style=invis, weight=3];
+  LayoutContract -> MidpointVariant [style=invis, weight=3];
+  StepContract -> MidpointVariant [style=invis, weight=3];
+  OutputContract -> MidpointVariant [style=invis, weight=3];
+  MidpointVariant -> Reading [style=invis, weight=10];
+  H5Loader -> Potential [constraint=false,  xlabel="loaded field"];
+  Grid -> Potential [constraint=false,  xlabel="periodic grid"];
+  Potential -> GC [constraint=false,  xlabel="physical field"];
+  GC -> Dynamics [constraint=false,  xlabel="implements"];
+  InitialGC -> Initial [constraint=false,  xlabel="implements"];
+  Layouts -> InitialGC [constraint=false,  xlabel="physical layout"];
+  Initialize -> Doubled [constraint=false,  xlabel="accepted state"];
+  Initialize -> Maps [constraint=false,  xlabel="bind spatial maps"];
+  Maps -> Direct [constraint=false,  xlabel="direct"];
+  Maps -> Adjoint [constraint=false,  xlabel="adjoint"];
+  Simulate -> NewRun [constraint=false,  xlabel="method.integrate"];
+  NewRun -> Initialize [constraint=false,  xlabel="prepare"];
+  NewRun -> Coordinator [constraint=false,  xlabel="ready instance"];
+  Coordinator -> Controller [constraint=false,  xlabel="main time loop"];
+  Controller -> Advance [constraint=false,  xlabel="advance"];
+  Advance -> Controller [constraint=false, color="#4676A7", style=dotted, xlabel="StepResult"];
+  Advance -> EngineEntry [constraint=false,  xlabel="spatial projection"];
+  Coordinator -> Collector [constraint=false,  xlabel="statistics and samples"];
+  Collector -> Export [constraint=false,  xlabel="finalize"];
+  Coordinator -> Observation [constraint=false, color="#9369B1", style=dashed, xlabel="observer installed"];
+  Export -> Resume [constraint=false, color="#4676A7", style=dotted, xlabel="IntegrationData"];
+  Resume -> Solution [constraint=false,  xlabel="construct and return"];
+  Solution -> Validation [constraint=false,  xlabel="validate and freeze"];
+  Diagnostics -> ResultUse [constraint=false, color="#9369B1", style=dashed, xlabel="scientific analysis"];
+  Coordinator -> Failure [constraint=false, color="#B96969", style=dashed, xlabel="propagate error"];
+  EngineEntry -> Projection [constraint=false,  xlabel="one root per step"];
+  Projection -> Composition [constraint=false,  xlabel="full residual map"];
+  Solver -> Tangents [constraint=false,  xlabel="Newton strategy"];
+  AcceptedTrace -> Energy [constraint=false,  xlabel="accepted shear data"];
+}
+@enddot

@@ -18,6 +18,11 @@ def normalized_distance_convention(value: str) -> DistanceConvention:
 	return value
 
 
+def minimum_image_displacement(displacement: np.ndarray, period: float) -> np.ndarray:
+	"""Wrap coordinate differences into [-period/2, period/2) for a validated period."""
+	return (np.asarray(displacement, dtype=float) + period / 2.0) % period - period / 2.0
+
+
 def particle_distances(
 	states: np.ndarray,
 	reference_states: np.ndarray,
@@ -41,7 +46,7 @@ def particle_distances(
 	if convention == "periodic":
 		if period is None or not np.isfinite(period) or period <= 0.0:
 			raise ValueError("`period` must be positive and finite for periodic distances.")
-		difference = (difference + period / 2.0) % period - period / 2.0
+		difference = minimum_image_displacement(difference, period)
 	particle_count = first.shape[0] // 2
 	return np.asarray(
 		np.hypot(difference[:particle_count], difference[particle_count:]),

@@ -60,7 +60,7 @@ class FourMethodSDIRKComparisonTests(unittest.TestCase):
 		self.assertEqual(
 			FOUR_METHOD_SDIRK_METHODS,
 			(
-				"ABBA4ImplicitSingleProjection",
+				"ABBA4Implicit",
 				"GaussLegendre4",
 				"BM4Implicit",
 				"SDIRK4",

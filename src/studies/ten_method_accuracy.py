@@ -16,12 +16,12 @@ from potential import Potential
 from ._trajectory_accuracy import (
 	TrajectoryAccuracySeries,
 	accuracy_series as _accuracy_series,
-	periodic_particle_distances,
 	reference_distance_convention as _reference_distance_convention,
 	reference_indices_for_times as _reference_indices_for_times,
 	validate_reference_identity as _validate_reference_identity,
 	validated_refinement_steps as _validated_refinement_steps,
 )
+from ._trajectory_distances import periodic_particle_distances
 from .ten_method_trajectory_comparison import (
 	TEN_METHOD_LABELS,
 	TEN_METHOD_VARIANTS,

@@ -438,7 +438,7 @@ def plot_runtime_comparison(
 	labels = [row.method_label for row in rows]
 	colors = [
 		{
-			"ABBA4ImplicitSingleProjection": "tab:blue",
+			"ABBA4Implicit": "tab:blue",
 			"GaussLegendre4": "tab:orange",
 			"BM4Implicit": "tab:green",
 			"SDIRK4": "tab:red",

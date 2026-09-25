@@ -52,7 +52,7 @@ digraph SDIRKFullExecution {
     >];
     Layout [label=<
       <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
-        <TR><TD BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">PACKED PHYSICAL COORDINATES</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>StateLayout</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/simulation/configuration.py</FONT></TD></TR>
+        <TR><TD BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">PACKED PHYSICAL COORDINATES</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>StateLayout</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/contracts/configuration.py</FONT></TD></TR>
         <TR><TD ALIGN="LEFT">Components are packed in component-major order.<BR ALIGN="LEFT"/>m = state_dimension x particle_count.</TD></TR><HR/>
         <TR><TD ALIGN="LEFT">validate_packed_state_layout; split; particle_count.<BR ALIGN="LEFT"/>The same layout interprets saved physical history.<BR ALIGN="LEFT"/>GC example: [x1,...,xN,y1,...,yN].</TD></TR>
       </TABLE>
@@ -66,7 +66,7 @@ digraph SDIRKFullExecution {
 
     Problem [label=<
       <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
-        <TR><TD BGCOLOR="#E8EFF8" ALIGN="LEFT"><FONT POINT-SIZE="9">EXISTING FROZEN RECORD</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>InitialValueProblem</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/simulation/problem.py</FONT></TD></TR>
+        <TR><TD BGCOLOR="#E8EFF8" ALIGN="LEFT"><FONT POINT-SIZE="9">EXISTING FROZEN RECORD</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>InitialValueProblem</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/contracts/problem.py</FONT></TD></TR>
         <TR><TD ALIGN="LEFT"><B>State</B><BR ALIGN="LEFT"/>dynamics: DynamicalSystem<BR ALIGN="LEFT"/>initial_configuration: InitialConfiguration</TD></TR><HR/>
         <TR><TD ALIGN="LEFT"><B>Operations</B><BR ALIGN="LEFT"/>__post_init__(): validate compatibility<BR ALIGN="LEFT"/>initial_state: array[2N]<BR ALIGN="LEFT"/>particle_count: int</TD></TR><HR/>
         <TR><TD ALIGN="LEFT">Require a finite initial state and<BR ALIGN="LEFT"/>matching dynamics/layout dimensions.</TD></TR>
@@ -74,7 +74,7 @@ digraph SDIRKFullExecution {
     >];
     Request [label=<
       <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
-        <TR><TD BGCOLOR="#E8EFF8" ALIGN="LEFT"><FONT POINT-SIZE="9">EXISTING FROZEN RECORD</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>SimulationRequest</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/simulation/request.py</FONT></TD></TR>
+        <TR><TD BGCOLOR="#E8EFF8" ALIGN="LEFT"><FONT POINT-SIZE="9">EXISTING FROZEN RECORD</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>SimulationRequest</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/contracts/request.py</FONT></TD></TR>
         <TR><TD ALIGN="LEFT"><B>State</B><BR ALIGN="LEFT"/>t_span: (t0, tf)<BR ALIGN="LEFT"/>max_step: float<BR ALIGN="LEFT"/>output_times: read-only array[T]</TD></TR><HR/>
         <TR><TD ALIGN="LEFT"><B>Operations</B><BR ALIGN="LEFT"/>uniform(t_span, max_step, sample_count)<BR ALIGN="LEFT"/>__post_init__(): validate time request</TD></TR><HR/>
         <TR><TD ALIGN="LEFT">Increasing times include both endpoints.<BR ALIGN="LEFT"/>The saved grid need not equal the step grid.</TD></TR>
@@ -82,7 +82,7 @@ digraph SDIRKFullExecution {
     >];
     Method [label=<
       <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
-        <TR><TD BGCOLOR="#FBE0C7" ALIGN="LEFT"><FONT POINT-SIZE="9">METHOD CONFIGURATION / IntegrationMethod</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>SDIRK4</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/simulation/methods/classical/sdirk.py</FONT></TD></TR>
+        <TR><TD BGCOLOR="#FBE0C7" ALIGN="LEFT"><FONT POINT-SIZE="9">METHOD CONFIGURATION / IntegrationMethod</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>SDIRK4</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/methods/classical/sdirk.py</FONT></TD></TR>
         <TR><TD ALIGN="LEFT">Newton tolerances, iteration limit, Jacobian policy.<BR ALIGN="LEFT"/>track_energy; progress; step_observer.</TD></TR><HR/>
         <TR><TD ALIGN="LEFT">new_run(problem,request): same numerical class.<BR ALIGN="LEFT"/>Inherited integrate calls new_run + integrate_method.</TD></TR><HR/>
         <TR><TD ALIGN="LEFT">Method order: 4.<BR ALIGN="LEFT"/>No model-specific global integration loop.</TD></TR>
@@ -90,7 +90,7 @@ digraph SDIRKFullExecution {
     >];
     Configuration [label=<
       <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
-        <TR><TD BGCOLOR="#FBE0C7" ALIGN="LEFT"><FONT POINT-SIZE="9">CONFIGURATION RESOLVED BEFORE THE LOOP</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>Selected numerical policy</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/simulation/methods/classical/sdirk.py</FONT></TD></TR>
+        <TR><TD BGCOLOR="#FBE0C7" ALIGN="LEFT"><FONT POINT-SIZE="9">CONFIGURATION RESOLVED BEFORE THE LOOP</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>Selected numerical policy</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/methods/classical/sdirk.py</FONT></TD></TR>
         <TR><TD ALIGN="LEFT">Newton tolerances, iteration limit, Jacobian policy.<BR ALIGN="LEFT"/>track_energy; progress; step_observer.</TD></TR><HR/>
         <TR><TD ALIGN="LEFT">Physical z; optional auxiliary momentum k.<BR ALIGN="LEFT"/>Stage unknowns never include tracked k.</TD></TR><HR/>
         <TR><TD ALIGN="LEFT">One run chooses one compatible configuration.<BR ALIGN="LEFT"/>Initialization builds its numerical resources once.</TD></TR>
@@ -105,15 +105,15 @@ digraph SDIRKFullExecution {
 
     Runner [label=<
       <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
-        <TR><TD BGCOLOR="#E8EFF8" ALIGN="LEFT"><FONT POINT-SIZE="9">EXISTING CLASS / PUBLIC FACADE</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>SimulationRunner</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/simulation/runner.py</FONT></TD></TR>
-        <TR><TD ALIGN="LEFT"><B>Entry</B><BR ALIGN="LEFT"/>simulate(problem, method, request): Solution<BR ALIGN="LEFT"/>The public simulate(...) function delegates here.</TD></TR><HR/>
+        <TR><TD BGCOLOR="#E8EFF8" ALIGN="LEFT"><FONT POINT-SIZE="9">PUBLIC EXECUTION FUNCTION</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>simulate</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/simulation/runner.py</FONT></TD></TR>
+        <TR><TD ALIGN="LEFT"><B>Entry</B><BR ALIGN="LEFT"/>simulate(problem, method, request): Solution<BR ALIGN="LEFT"/>Single stateless execution entry point.</TD></TR><HR/>
         <TR><TD ALIGN="LEFT"><B>Before integration</B><BR ALIGN="LEFT"/>Validate the three public input contracts.<BR ALIGN="LEFT"/>Call method.integrate(problem, request).</TD></TR><HR/>
         <TR><TD ALIGN="LEFT">The same call resumes in phase 06<BR ALIGN="LEFT"/>after IntegrationData is returned.</TD></TR>
       </TABLE>
     >];
     Prepare [label=<
       <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
-        <TR><TD BGCOLOR="#FBE0C7" ALIGN="LEFT"><FONT POINT-SIZE="9">METHOD INITIALIZATION</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>SDIRK4.initialize(...)</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/simulation/methods/classical/sdirk.py</FONT></TD></TR>
+        <TR><TD BGCOLOR="#FBE0C7" ALIGN="LEFT"><FONT POINT-SIZE="9">METHOD INITIALIZATION</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>SDIRK4.initialize(...)</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/methods/classical/sdirk.py</FONT></TD></TR>
         <TR><TD ALIGN="LEFT"><B>IN</B>: problem, request and method controls.<BR ALIGN="LEFT"/><B>OUT</B>: None; resources are attributes of this instance.</TD></TR><HR/>
         <TR><TD ALIGN="LEFT">DynamicalSystem and selected Jacobian capability.<BR ALIGN="LEFT"/>Energy tracking requires HamiltonianSystem.</TD></TR><HR/>
         <TR><TD ALIGN="LEFT">new_run copies options into the same concrete class.<BR ALIGN="LEFT"/>initialize sets the initial state and numerical resources.<BR ALIGN="LEFT"/>Adaptive initialization creates the live solver once.</TD></TR>
@@ -121,22 +121,22 @@ digraph SDIRKFullExecution {
     >];
     RunMethod [label=<
       <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
-        <TR><TD BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">SAME NUMERICAL CLASS / ONE INSTANCE PER EXECUTION</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>SDIRK4 (run)</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/simulation/methods/classical/sdirk.py</FONT></TD></TR>
-        <TR><TD ALIGN="LEFT"><B>Instance data</B><BR ALIGN="LEFT"/>problem; request; initial_state (read-only)<BR ALIGN="LEFT"/>formulation or dynamics; numerical resources<BR ALIGN="LEFT"/>metadata and diagnostic_aliases (read-only)</TD></TR><HR/>
+        <TR><TD BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">SAME NUMERICAL CLASS / ONE INSTANCE PER EXECUTION</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>SDIRK4 (run)</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/methods/classical/sdirk.py</FONT></TD></TR>
+        <TR><TD ALIGN="LEFT"><B>Instance data</B><BR ALIGN="LEFT"/>problem; request; initial_state (read-only)<BR ALIGN="LEFT"/>formulation or dynamics; numerical resources<BR ALIGN="LEFT"/>metadata (read-only)</TD></TR><HR/>
         <TR><TD ALIGN="LEFT"><B>Ordinary class methods</B><BR ALIGN="LEFT"/>initialize(problem, request): None<BR ALIGN="LEFT"/>advance(t, state, h): StepResult[Detail]<BR ALIGN="LEFT"/>build_observation(info, step): event<BR ALIGN="LEFT"/>export_history(times, history): physical + auxiliary<BR ALIGN="LEFT"/>controller(): StepController</TD></TR><HR/>
         <TR><TD ALIGN="LEFT">No separate context or callback-based method record.<BR ALIGN="LEFT"/>Construct another instance for another integration.<BR ALIGN="LEFT"/>Completed runs cannot re-enter the global driver.<BR ALIGN="LEFT"/>The collector and external observer own histories.</TD></TR>
       </TABLE>
     >];
     StateSpace [label=<
       <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
-        <TR><TD BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">METHOD-OWNED STATE ADAPTER</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>Internal state policy</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/simulation/methods/classical/sdirk.py</FONT></TD></TR>
+        <TR><TD BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">METHOD-OWNED STATE ADAPTER</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>Internal state policy</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/methods/classical/sdirk.py</FONT></TD></TR>
         <TR><TD ALIGN="LEFT">Physical z; optional auxiliary momentum k.<BR ALIGN="LEFT"/>Stage unknowns never include tracked k.</TD></TR><HR/>
         <TR><TD ALIGN="LEFT">Initialize before stepping; finish during advance.<BR ALIGN="LEFT"/>Expose only physical coordinates in Solution.<BR ALIGN="LEFT"/>Retain required auxiliary quantities as diagnostics.</TD></TR>
       </TABLE>
     >];
     FamilyResources [label=<
       <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
-        <TR><TD BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">INSTANCE ATTRIBUTES / NO COLLECTOR</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>Numerical resources on self</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/simulation/methods/classical/sdirk.py</FONT></TD></TR>
+        <TR><TD BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">INSTANCE ATTRIBUTES / NO COLLECTOR</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>Numerical resources on self</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/methods/classical/sdirk.py</FONT></TD></TR>
         <TR><TD ALIGN="LEFT">Store dynamics, formulation and solver controls on self.<BR ALIGN="LEFT"/>initialize constructs these resources once per run.</TD></TR><HR/>
         <TR><TD ALIGN="LEFT">Fixed map inputs are independent values.<BR ALIGN="LEFT"/>Adaptive sessions are freshly created for each run.<BR ALIGN="LEFT"/>Observers own any data they explicitly retain.</TD></TR>
       </TABLE>
@@ -151,7 +151,7 @@ digraph SDIRKFullExecution {
 
     Runtime [label=<
       <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
-        <TR><TD BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">ONE COORDINATOR FOR ALL 13 METHODS</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>integrate_method(...)</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/simulation/integration.py</FONT></TD></TR>
+        <TR><TD BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">ONE COORDINATOR FOR ALL 13 METHODS</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>integrate_method(...)</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/integration/core.py</FONT></TD></TR>
         <TR><TD ALIGN="LEFT"><B>IN</B> initialized method instance; optional controller<BR ALIGN="LEFT"/><B>OUT</B> IntegrationData</TD></TR><HR/>
         <TR><TD ALIGN="LEFT">Create a fresh controller and IntegrationCollector.<BR ALIGN="LEFT"/>Validate each accepted interval and state.<BR ALIGN="LEFT"/>Record metrics; dispatch optional observations;<BR ALIGN="LEFT"/>save requested samples; report temporal progress.</TD></TR><HR/>
         <TR><TD ALIGN="LEFT">At completion: export_history + collector.finalize.<BR ALIGN="LEFT"/>Merge metadata, metrics, auxiliary output and aliases.<BR ALIGN="LEFT"/>No branch selects a numerical-method class.</TD></TR>
@@ -159,7 +159,7 @@ digraph SDIRKFullExecution {
     >];
     Grid [label=<
       <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
-        <TR><TD BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">UNIFORM ACCEPTED GRID / INDEPENDENT OUTPUTS</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>FixedStepController</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/simulation/integration.py</FONT></TD></TR>
+        <TR><TD BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">UNIFORM ACCEPTED GRID / INDEPENDENT OUTPUTS</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>FixedStepController</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/integration/core.py</FONT></TD></TR>
         <TR><TD ALIGN="LEFT"><B>steps(run, request)</B><BR ALIGN="LEFT"/>Choose n = ceil((tf-t0)/max_step), h = (tf-t0)/n.<BR ALIGN="LEFT"/>Floating boundary correction uses _step_count.<BR ALIGN="LEFT"/>Yield StepInfo and run.advance(t, state, h).</TD></TR><HR/>
         <TR><TD ALIGN="LEFT"><B>sample(run, info, result, time)</B><BR ALIGN="LEFT"/>Reuse coincident accepted endpoints.<BR ALIGN="LEFT"/>Interior output: shortened advance from a copy<BR ALIGN="LEFT"/>of the preceding accepted state.</TD></TR><HR/>
         <TR><TD ALIGN="LEFT">A shadow sample does not alter the main grid.<BR ALIGN="LEFT"/>Its work is excluded from metrics and observations.<BR ALIGN="LEFT"/>DOP853 and Radau supply a different controller.</TD></TR>
@@ -167,7 +167,7 @@ digraph SDIRKFullExecution {
     >];
     Advance [label=<
       <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
-        <TR><TD BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">METHOD-OWNED OPERATION</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>Numerical advance</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/simulation/methods/classical/sdirk.py</FONT></TD></TR>
+        <TR><TD BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">METHOD-OWNED OPERATION</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>Numerical advance</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/methods/classical/sdirk.py</FONT></TD></TR>
         <TR><TD ALIGN="LEFT"><B>IN</B>: start time, internal state, duration.<BR ALIGN="LEFT"/><B>OUT</B>: StepResult(state,statistics,details).</TD></TR><HR/>
         <TR><TD ALIGN="LEFT">S54b: five sequential implicit stages.<BR ALIGN="LEFT"/>A is lower triangular; a_ii = 1/4.</TD></TR><HR/>
         <TR><TD ALIGN="LEFT">Preserve the supplied state and fixed-map resources.<BR ALIGN="LEFT"/>No main/shadow flag, history write or observer call.</TD></TR>
@@ -175,33 +175,33 @@ digraph SDIRKFullExecution {
     >];
     StepRecipe [label=<
       <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
-        <TR><TD BGCOLOR="#FBE0C7" ALIGN="LEFT"><FONT POINT-SIZE="9">METHOD-SPECIFIC ALGORITHM</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>Complete numerical recipe</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/simulation/methods/classical/sdirk.py</FONT></TD></TR>
+        <TR><TD BGCOLOR="#FBE0C7" ALIGN="LEFT"><FONT POINT-SIZE="9">METHOD-SPECIFIC ALGORITHM</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>Complete numerical recipe</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/methods/classical/sdirk.py</FONT></TD></TR>
         <TR><TD ALIGN="LEFT">S54b: five sequential implicit stages.<BR ALIGN="LEFT"/>A is lower triangular; a_ii = 1/4.</TD></TR><HR/>
         <TR><TD ALIGN="LEFT">Physical z; optional auxiliary momentum k.<BR ALIGN="LEFT"/>Stage unknowns never include tracked k.</TD></TR>
       </TABLE>
     >];
     Projection [label=<
       <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
-        <TR><TD BGCOLOR="#E2F1E9" ALIGN="LEFT"><FONT POINT-SIZE="9">EVALUATION OR NONLINEAR PROBLEM</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>Numerical equations</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/simulation/methods/classical/sdirk.py</FONT></TD></TR>
+        <TR><TD BGCOLOR="#E2F1E9" ALIGN="LEFT"><FONT POINT-SIZE="9">EVALUATION OR NONLINEAR PROBLEM</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>Numerical equations</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/methods/classical/sdirk.py</FONT></TD></TR>
         <TR><TD ALIGN="LEFT">Use SDIRK4_TABLEAU_A, B and C.<BR ALIGN="LEFT"/>Solve stages in order, preserving all five records.<BR ALIGN="LEFT"/>Return the weighted physical update.</TD></TR>
       </TABLE>
     >];
     Nonlinear [label=<
       <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
-        <TR><TD BGCOLOR="#E2F1E9" ALIGN="LEFT"><FONT POINT-SIZE="9">CONTROL INSIDE THE NUMERICAL METHOD</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>Local solution strategy</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/simulation/methods/classical/sdirk.py</FONT></TD></TR>
+        <TR><TD BGCOLOR="#E2F1E9" ALIGN="LEFT"><FONT POINT-SIZE="9">CONTROL INSIDE THE NUMERICAL METHOD</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>Local solution strategy</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/methods/classical/sdirk.py</FONT></TD></TR>
         <TR><TD ALIGN="LEFT">At stage i, earlier fields form known rhs.<BR ALIGN="LEFT"/>Solve Y_i - rhs_i - h f(t+c_i h,Y_i)/4 = 0.<BR ALIGN="LEFT"/>Analytic planar or finite-difference Newton systems.</TD></TR><HR/>
         <TR><TD ALIGN="LEFT">Failure propagates to the common coordinator.<BR ALIGN="LEFT"/>A failed run does not produce a successful Solution.</TD></TR>
       </TABLE>
     >];
     Maps [label=<
       <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
-        <TR><TD BGCOLOR="#E2F1E9" ALIGN="LEFT"><FONT POINT-SIZE="9">NUMERICAL KERNEL</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>Stage calculation</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/simulation/methods/classical/sdirk.py</FONT></TD></TR>
+        <TR><TD BGCOLOR="#E2F1E9" ALIGN="LEFT"><FONT POINT-SIZE="9">NUMERICAL KERNEL</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>Stage calculation</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/methods/classical/sdirk.py</FONT></TD></TR>
         <TR><TD ALIGN="LEFT">Y_i = z + h sum_(j&lt;i) a_ij f_j + h f_i/4.<BR ALIGN="LEFT"/>z_next = z + h sum_i b_i f_i.<BR ALIGN="LEFT"/>Stiff accuracy: weighted result matches stage five<BR ALIGN="LEFT"/>to the nonlinear tolerance; no symplecticity claim.</TD></TR>
       </TABLE>
     >];
     Stages [label=<
       <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
-        <TR><TD BGCOLOR="#E2F1E9" ALIGN="LEFT"><FONT POINT-SIZE="9">NUMERICAL COMPLETION</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>Accepted state and output policy</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/simulation/methods/classical/sdirk.py</FONT></TD></TR>
+        <TR><TD BGCOLOR="#E2F1E9" ALIGN="LEFT"><FONT POINT-SIZE="9">NUMERICAL COMPLETION</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>Accepted state and output policy</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/methods/classical/sdirk.py</FONT></TD></TR>
         <TR><TD ALIGN="LEFT">Reuse stage states, nodes and weights for k.<BR ALIGN="LEFT"/>Extract physical states, k and H+k diagnostics.</TD></TR><HR/>
         <TR><TD ALIGN="LEFT">Only accepted states continue the main trajectory.<BR ALIGN="LEFT"/>Output sampling does not replace accepted nodes.</TD></TR>
       </TABLE>
@@ -221,7 +221,7 @@ digraph SDIRKFullExecution {
 
     Recording [label=<
       <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
-        <TR><TD BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">ONE RUN / REQUESTED SAMPLES + ACCEPTED METRICS</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>IntegrationCollector</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/simulation/integration.py</FONT></TD></TR>
+        <TR><TD BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">ONE RUN / REQUESTED SAMPLES + ACCEPTED METRICS</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>IntegrationCollector</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/integration/core.py</FONT></TD></TR>
         <TR><TD ALIGN="LEFT"><B>history</B>: internal coordinates x saved times<BR ALIGN="LEFT"/><B>record_step(info, statistics)</B><BR ALIGN="LEFT"/>Copy metric rows with stable keys and shapes.</TD></TR><HR/>
         <TR><TD ALIGN="LEFT">Record step_start_times, step_times, step_sizes.<BR ALIGN="LEFT"/>Never store method details or observer events.<BR ALIGN="LEFT"/>Rejected adaptive trials have no accepted row;<BR ALIGN="LEFT"/>their numerical work belongs to the accepted step.</TD></TR><HR/>
         <TR><TD ALIGN="LEFT"><B>finalize()</B>: stack rows and provide step_count.<BR ALIGN="LEFT"/>Saved columns follow request.output_times.<BR ALIGN="LEFT"/>Metric rows follow accepted step_times.</TD></TR>
@@ -229,28 +229,28 @@ digraph SDIRKFullExecution {
     >];
     ProjectedStep [label=<
       <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
-        <TR><TD BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">ONE ADVANCE / METHOD-SPECIFIC PAYLOAD</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>StepResult[Detail]</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/simulation/integration.py</FONT></TD></TR>
+        <TR><TD BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">ONE ADVANCE / METHOD-SPECIFIC PAYLOAD</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>StepResult[Detail]</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/integration/core.py</FONT></TD></TR>
         <TR><TD ALIGN="LEFT">state: next internal vector [q].<BR ALIGN="LEFT"/>statistics: mapping of scalar/vector work values.<BR ALIGN="LEFT"/>details: _SDIRKStepResult.</TD></TR><HR/>
         <TR><TD ALIGN="LEFT">StepInfo supplies index, times and input snapshot.<BR ALIGN="LEFT"/>The collector copies only statistics and samples.<BR ALIGN="LEFT"/>The method observation builder understands Detail.</TD></TR>
       </TABLE>
     >];
     Snapshots [label=<
       <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
-        <TR><TD BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">COPIED ACCEPTED-STEP DATA</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>Observation domain</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/simulation/methods/classical/sdirk.py</FONT></TD></TR>
+        <TR><TD BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">COPIED ACCEPTED-STEP DATA</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>Observation domain</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/methods/classical/sdirk.py</FONT></TD></TR>
         <TR><TD ALIGN="LEFT">IntegrationStep on physical z.<BR ALIGN="LEFT"/>map_state recomputes all five implicit stages.<BR ALIGN="LEFT"/>No stage events are retained by default.</TD></TR><HR/>
         <TR><TD ALIGN="LEFT">Changing an event must not change integration<BR ALIGN="LEFT"/>state, samples, subsequent events or metrics.</TD></TR>
       </TABLE>
     >];
     DiagnosticFields [label=<
       <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
-        <TR><TD BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">METHOD STATISTICS + COMMON TIMING</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>Accepted-step diagnostics</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/simulation/methods/classical/sdirk.py</FONT></TD></TR>
+        <TR><TD BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">METHOD STATISTICS + COMMON TIMING</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>Accepted-step diagnostics</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/methods/classical/sdirk.py</FONT></TD></TR>
         <TR><TD ALIGN="LEFT">Five stage columns for iterations, evaluations<BR ALIGN="LEFT"/>and residual norms; aggregate sums/maxima.<BR ALIGN="LEFT"/>nonlinear_solves_per_step = 5.</TD></TR><HR/>
         <TR><TD ALIGN="LEFT">Always: step_count, step_start_times, step_times,<BR ALIGN="LEFT"/>step_sizes and output_interpolation_count.</TD></TR>
       </TABLE>
     >];
     EventBuilder [label=<
       <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
-        <TR><TD BGCOLOR="#EEE5F5" ALIGN="LEFT"><FONT POINT-SIZE="9">OPTIONAL METHOD ADAPTER</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>run.build_observation</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/simulation/methods/classical/sdirk.py</FONT></TD></TR>
+        <TR><TD BGCOLOR="#EEE5F5" ALIGN="LEFT"><FONT POINT-SIZE="9">OPTIONAL METHOD ADAPTER</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>run.build_observation</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/methods/classical/sdirk.py</FONT></TD></TR>
         <TR><TD ALIGN="LEFT"><B>IN</B>: StepInfo + StepResult[Detail].<BR ALIGN="LEFT"/><B>OUT</B>: method-specific public event.</TD></TR><HR/>
         <TR><TD ALIGN="LEFT">Only called when an observer is installed.<BR ALIGN="LEFT"/>Use accepted details and independent snapshots.<BR ALIGN="LEFT"/>integrate_method invokes the observer.</TD></TR>
       </TABLE>
@@ -272,22 +272,22 @@ digraph SDIRKFullExecution {
 
     Data [label=<
       <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
-        <TR><TD BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">COMMON FINAL ASSEMBLY</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>IntegrationData</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/simulation/_result.py</FONT></TD></TR>
+        <TR><TD BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">COMMON FINAL ASSEMBLY</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>IntegrationData</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/contracts/result.py</FONT></TD></TR>
         <TR><TD ALIGN="LEFT"><B>Fields</B><BR ALIGN="LEFT"/>t: requested times [T]<BR ALIGN="LEFT"/>states: physical history [m, T]<BR ALIGN="LEFT"/>diagnostics: metadata + accepted metrics + auxiliary</TD></TR><HR/>
         <TR><TD ALIGN="LEFT">run.export_history(times, collector.history)<BR ALIGN="LEFT"/>extracts the physical state and optional energy.<BR ALIGN="LEFT"/>Export never repeats the numerical projection.<BR ALIGN="LEFT"/>Internal and physical dimensions may differ.</TD></TR><HR/>
-        <TR><TD ALIGN="LEFT">Add output_interpolation_count and metric aliases.<BR ALIGN="LEFT"/>Return to the original SimulationRunner call.<BR ALIGN="LEFT"/>Only the requested trajectory is exposed by default.</TD></TR>
+        <TR><TD ALIGN="LEFT">Add output_interpolation_count and metric aliases.<BR ALIGN="LEFT"/>Return to the original simulate call.<BR ALIGN="LEFT"/>Only the requested trajectory is exposed by default.</TD></TR>
       </TABLE>
     >];
     Resume [label=<
       <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
-        <TR><TD BGCOLOR="#E2F1E9" ALIGN="LEFT"><FONT POINT-SIZE="9">EXISTING CALL CONTINUATION / SAME RUNNER</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>SimulationRunner resumes</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#537866">src/simulation/runner.py</FONT></TD></TR>
+        <TR><TD BGCOLOR="#E2F1E9" ALIGN="LEFT"><FONT POINT-SIZE="9">CALL CONTINUATION / SAME FUNCTION</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>simulate resumes</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#537866">src/simulation/runner.py</FONT></TD></TR>
         <TR><TD ALIGN="LEFT"><B>IN</B> IntegrationData<BR ALIGN="LEFT"/><B>OUT</B> Solution</TD></TR><HR/>
-        <TR><TD ALIGN="LEFT">Require exactly the requested output times.<BR ALIGN="LEFT"/>Check shape, finiteness and packed layout.<BR ALIGN="LEFT"/>Verify that the initial state is preserved.<BR ALIGN="LEFT"/>Retain the source initial configuration.</TD></TR>
+        <TR><TD ALIGN="LEFT">Solution validates arrays and layout.<BR ALIGN="LEFT"/>Match requested times and state size.<BR ALIGN="LEFT"/>Verify that the initial state is preserved.<BR ALIGN="LEFT"/>Retain the source initial configuration.</TD></TR>
       </TABLE>
     >];
     Solution [label=<
       <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
-        <TR><TD BGCOLOR="#E2F1E9" ALIGN="LEFT"><FONT POINT-SIZE="9">EXISTING PUBLIC CLASS</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>Solution</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#537866">src/simulation/solution.py</FONT></TD></TR>
+        <TR><TD BGCOLOR="#E2F1E9" ALIGN="LEFT"><FONT POINT-SIZE="9">EXISTING PUBLIC CLASS</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>Solution</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#537866">src/solution.py</FONT></TD></TR>
         <TR><TD ALIGN="LEFT"><B>Read-only public properties</B><BR ALIGN="LEFT"/>t: array[T]<BR ALIGN="LEFT"/>states: array[m, T]<BR ALIGN="LEFT"/>source: InitialConfiguration<BR ALIGN="LEFT"/>diagnostics: read-only mapping</TD></TR><HR/>
         <TR><TD ALIGN="LEFT">Owns copies of trajectory and diagnostic arrays.<BR ALIGN="LEFT"/>Layout and provenance remain available<BR ALIGN="LEFT"/>through the source configuration.</TD></TR>
       </TABLE>
@@ -400,7 +400,7 @@ digraph SDIRKFullExecution {
   Recording -> MetricsLink [color="#4676A7", style=dotted, arrowhead=none, weight=100];
   MetricsLink -> Data [color="#4676A7", style=dotted, xlabel="final diagnostic\narrays", weight=100];
   Data -> Resume [label="return from method.integrate", weight=100];
-  Resume -> Solution [label="validate and construct", weight=100];
+  Resume -> Solution [label="return validated result", weight=100];
   Solution -> Interpret [constraint=false, color="#60896D", style=dashed, xlabel="optional analysis / presentation"];
   Nonlinear -> FailurePass [constraint=false, color="#B96969", style=dashed, arrowhead=none];
   FailurePass -> Failure [constraint=false, color="#B96969", style=dashed, xlabel="failure: propagate error"];

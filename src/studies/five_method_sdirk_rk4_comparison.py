@@ -15,14 +15,12 @@ import numpy as np
 from dynamics import GuidingCenterDynamics
 from initial_conditions import GCInitialConfiguration
 from potential import Potential
-from simulation import (
-	InitialValueProblem,
-	NumericalMethod,
-	RK4,
-	SimulationRequest,
-	Solution,
-	simulate,
-)
+from contracts.problem import InitialValueProblem
+from methods.base import NumericalMethod
+from methods.classical.rk4 import RK4
+from contracts.request import SimulationRequest
+from solution import Solution
+from simulation.runner import simulate
 
 from ._gauss_legendre4_common import (
 	AdaptiveReference,
@@ -44,7 +42,7 @@ from .three_method_newton_comparison import (
 
 
 FIVE_METHOD_COMPARISON_METHODS: tuple[str, ...] = (
-	"ABBA4ImplicitSingleProjection",
+	"ABBA4Implicit",
 	"GaussLegendre4",
 	"BM4Implicit",
 	"SDIRK4",
@@ -53,7 +51,7 @@ FIVE_METHOD_COMPARISON_METHODS: tuple[str, ...] = (
 FIVE_METHOD_IMPLICIT_METHODS = FIVE_METHOD_COMPARISON_METHODS[:-1]
 FIVE_METHOD_COMPARISON_LABELS: Mapping[str, str] = MappingProxyType(
 	{
-		"ABBA4ImplicitSingleProjection": "Single-projection implicit ABBA4",
+		"ABBA4Implicit": "Single-projection implicit ABBA4",
 		"GaussLegendre4": "Gauss--Legendre (2 stages, order 4)",
 		"BM4Implicit": "Single-projection implicit BM4",
 		"SDIRK4": "SDIRK S54b (5 stages, order 4)",

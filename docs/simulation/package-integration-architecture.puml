@@ -1,0 +1,559 @@
+@startdot
+digraph CurrentPackageIntegration {
+  // Canonical editable source. Render SVG/PNG with scripts/render_detailed_architecture.cjs.
+  // Source columns indicate ownership. Numbered EXECUTION cards indicate runtime order.
+  // The compact package overview and the _old lifecycle remain separate artifacts.
+  graph [rankdir=TB, newrank=true, compound=true, splines=polyline,
+    nodesep=0.60, ranksep=0.62, pad=0.35, bgcolor="#FFFFFF",
+    fontname="DejaVu Sans", fontsize=25, labelloc=t, labeljust=l,
+    label="GC2D | Detailed package and integration architecture\n\nEight source owners, from physical field to immutable trajectory. Read each column vertically; follow numbered EXECUTION cards for runtime order.\nBlue: shared lifecycle and contracts. Orange: method configuration. Green: numerical operations and results. Purple: optional observation and analysis.\nN = particle count; m = physical state size; q = internal state size; T = requested saved times. Module paths are relative to the repository root."];
+  node [shape=box, style="rounded,filled", fillcolor="#FFFFFF", color="#C4CFDC",
+    penwidth=1.15, margin="0.02,0.02", fontname="DejaVu Sans", fontsize=11];
+  edge [color="#64748B", penwidth=1.2, arrowsize=0.75,
+    fontname="DejaVu Sans", fontsize=10];
+  subgraph cluster_potential {
+    label=""; style="rounded,filled"; color="#C8D6E7"; fillcolor="#F8FAFD";
+    node [group="potential"];
+    Head_potential [fillcolor="#263D59", color="#263D59", fontcolor="white", width=4.8, height=0.68, margin="0.22,0.16", label="01  potential/\nPhysical field and input data"];
+    Potential [label=<
+      <TABLE WIDTH="330" BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD WIDTH="330" BALIGN="LEFT" BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">PHYSICAL FIELD / PUBLIC CLASS</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>Potential</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/potential/potential.py</FONT></TD></TR>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Data and construction</B><BR ALIGN="LEFT"/>Grid; spatial mode amplitudes; time dependence.<BR ALIGN="LEFT"/>Construct from data or Potential.random(...).</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Operations</B><BR ALIGN="LEFT"/>evaluate(t, x, y, dx, dy, dt)<BR ALIGN="LEFT"/>electric_field(t, x, y); gyroaverage(rho)</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Ownership</B><BR ALIGN="LEFT"/>Interpolation and field derivatives live here.<BR ALIGN="LEFT"/>Dynamics consumes the same physical field.</TD></TR>
+      </TABLE>
+    >];
+    H5Loader [label=<
+      <TABLE WIDTH="330" BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD WIDTH="330" BALIGN="LEFT" BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">MEASURED FIELD ADAPTER</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>load_gc2d_h5_potential</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/potential/gc2d_h5.py</FONT></TD></TR>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Input</B><BR ALIGN="LEFT"/>HDF5 field, magnetic field, characteristic length,<BR ALIGN="LEFT"/>source selection and interpolation settings.</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Output</B><BR ALIGN="LEFT"/>Potential with attached GC2DH5Metadata.<BR ALIGN="LEFT"/>Normalize measured coordinates and field data.</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Reproducibility</B><BR ALIGN="LEFT"/>Study parameters remain explicit at the caller.<BR ALIGN="LEFT"/>Metadata describes the loaded physical source.</TD></TR>
+      </TABLE>
+    >];
+    Grid [label=<
+      <TABLE WIDTH="330" BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD WIDTH="330" BALIGN="LEFT" BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">PERIODIC GEOMETRY / PUBLIC CLASS</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>Grid</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/potential/grid.py</FONT></TD></TR>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Geometry</B><BR ALIGN="LEFT"/>Periodic spatial axes; shape and spacing.<BR ALIGN="LEFT"/>Grid.periodic(nx, ny, period).</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Operation</B><BR ALIGN="LEFT"/>normalize(x, y): wrap coordinates into the cell.<BR ALIGN="LEFT"/>Potential owns interpolation on this grid.</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Boundary</B><BR ALIGN="LEFT"/>Physical periodicity is separate from the<BR ALIGN="LEFT"/>integration time grid and output sample grid.</TD></TR>
+      </TABLE>
+    >];
+    Pad_potential_3 [shape=point, width=0, height=0, style=invis];
+    Pad_potential_4 [shape=point, width=0, height=0, style=invis];
+    Pad_potential_5 [shape=point, width=0, height=0, style=invis];
+  }
+  subgraph cluster_dynamics {
+    label=""; style="rounded,filled"; color="#C8D6E7"; fillcolor="#F8FAFD";
+    node [group="dynamics"];
+    Head_dynamics [fillcolor="#263D59", color="#263D59", fontcolor="white", width=4.8, height=0.68, margin="0.22,0.16", label="02  dynamics/\nPhysical equations and capabilities"];
+    Dynamics [label=<
+      <TABLE WIDTH="330" BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD WIDTH="330" BALIGN="LEFT" BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">PHYSICAL PROTOCOL</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>DynamicalSystem</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/dynamics/protocols.py</FONT></TD></TR>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Required interface</B><BR ALIGN="LEFT"/>state_dimension: coordinates per particle.<BR ALIGN="LEFT"/>vector_field(t, state): packed derivative [m].</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Consumers</B><BR ALIGN="LEFT"/>Classical and adaptive methods evaluate the field.<BR ALIGN="LEFT"/>Split formulations consume applicable capabilities.</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Boundary</B><BR ALIGN="LEFT"/>Physics is independent of initial geometry,<BR ALIGN="LEFT"/>step size, solver tolerances and saved history.</TD></TR>
+      </TABLE>
+    >];
+    GC [label=<
+      <TABLE WIDTH="330" BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD WIDTH="330" BALIGN="LEFT" BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">CONCRETE PHYSICAL SYSTEM</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>GuidingCenterDynamics</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/dynamics/gc.py</FONT></TD></TR>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Construction</B><BR ALIGN="LEFT"/>potential: Potential; rho: normalized gyro-radius.<BR ALIGN="LEFT"/>effective_potential = potential.gyroaverage(rho).</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Operations</B><BR ALIGN="LEFT"/>vector_field; hamiltonian; momentum derivative.<BR ALIGN="LEFT"/>particle_vector_field_jacobians: [N, 2, 2].</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Coordinates</B><BR ALIGN="LEFT"/>N uncoupled planar particles; m = 2N.<BR ALIGN="LEFT"/>Field uses the gyroaveraged electric potential.</TD></TR>
+      </TABLE>
+    >];
+    FC [label=<
+      <TABLE WIDTH="330" BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD WIDTH="330" BALIGN="LEFT" BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">CONCRETE PHYSICAL SYSTEM</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>FullCyclotronDynamics</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/dynamics/fc.py</FONT></TD></TR>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Coordinates</B><BR ALIGN="LEFT"/>Positions and velocities; m = 4N.<BR ALIGN="LEFT"/>Cyclotron parameters remain physical inputs.</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Operations</B><BR ALIGN="LEFT"/>vector_field; hamiltonian; momentum derivative.<BR ALIGN="LEFT"/>electric_acceleration; larmor_frequency.</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Capability</B><BR ALIGN="LEFT"/>CyclotronSplitSystem supports exact FC splits.<BR ALIGN="LEFT"/>Numerical families check their required interface.</TD></TR>
+      </TABLE>
+    >];
+    Capabilities [label=<
+      <TABLE WIDTH="330" BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD WIDTH="330" BALIGN="LEFT" BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">OPTIONAL PHYSICAL CAPABILITIES</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>Hamiltonian and Jacobians</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/dynamics/protocols.py</FONT></TD></TR>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>HamiltonianSystem</B><BR ALIGN="LEFT"/>hamiltonian(t, state): values per particle.<BR ALIGN="LEFT"/>extended_momentum_derivative = -partial_t H.</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>GuidingCenterJacobianSystem</B><BR ALIGN="LEFT"/>particle_vector_field_jacobians(t, state).<BR ALIGN="LEFT"/>Analytic particle blocks for supported solvers.</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Validation owner</B><BR ALIGN="LEFT"/>State formulations require HamiltonianSystem<BR ALIGN="LEFT"/>when track_energy=True. Methods check split<BR ALIGN="LEFT"/>and Jacobian capabilities where needed.</TD></TR>
+      </TABLE>
+    >];
+    Pad_dynamics_4 [shape=point, width=0, height=0, style=invis];
+    Pad_dynamics_5 [shape=point, width=0, height=0, style=invis];
+  }
+  subgraph cluster_initial {
+    label=""; style="rounded,filled"; color="#C8D6E7"; fillcolor="#F8FAFD";
+    node [group="initial"];
+    Head_initial [fillcolor="#263D59", color="#263D59", fontcolor="white", width=4.8, height=0.68, margin="0.22,0.16", label="03  initial_conditions/\nInitial state and packed layout"];
+    Initial [label=<
+      <TABLE WIDTH="330" BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD WIDTH="330" BALIGN="LEFT" BGCOLOR="#E8EFF8" ALIGN="LEFT"><FONT POINT-SIZE="9">BASE INITIAL CONFIGURATION</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>StateConfiguration</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/initial_conditions/base.py</FONT></TD></TR>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>State</B><BR ALIGN="LEFT"/>initial_state: finite packed physical vector [m].<BR ALIGN="LEFT"/>layout: matching PackedStateLayout.</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Construction</B><BR ALIGN="LEFT"/>set_initial_state validates and copies the vector.<BR ALIGN="LEFT"/>Concrete geometry supplies the physical layout.</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Assembly</B><BR ALIGN="LEFT"/>The caller combines this configuration and<BR ALIGN="LEFT"/>dynamics in InitialValueProblem (contracts/).</TD></TR>
+      </TABLE>
+    >];
+    InitialModels [label=<
+      <TABLE WIDTH="330" BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD WIDTH="330" BALIGN="LEFT" BGCOLOR="#E8EFF8" ALIGN="LEFT"><FONT POINT-SIZE="9">CONCRETE INITIAL CONFIGURATIONS</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>GC / FC initial configuration</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/initial_conditions/gc.py; fc.py</FONT></TD></TR>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Guiding center</B><BR ALIGN="LEFT"/>GCInitialConfiguration.from_components(x, y).<BR ALIGN="LEFT"/>Packed state: [x_1,...,x_N, y_1,...,y_N].</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Full cyclotron</B><BR ALIGN="LEFT"/>FCInitialConfiguration.from_components(...).<BR ALIGN="LEFT"/>Packed blocks: x, y, vx, vy.</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Boundary</B><BR ALIGN="LEFT"/>These objects define starting geometry.<BR ALIGN="LEFT"/>The dynamics supplies subsequent motion.</TD></TR>
+      </TABLE>
+    >];
+    Layouts [label=<
+      <TABLE WIDTH="330" BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD WIDTH="330" BALIGN="LEFT" BGCOLOR="#E8EFF8" ALIGN="LEFT"><FONT POINT-SIZE="9">CONCRETE LAYOUT IMPLEMENTATIONS</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>PackedStateLayout</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/initial_conditions/base.py; gc.py; fc.py</FONT></TD></TR>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Operations</B><BR ALIGN="LEFT"/>split; as_blocks; from_blocks; pack_components.<BR ALIGN="LEFT"/>validate_packed_state_layout; particle_count.</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Convention</B><BR ALIGN="LEFT"/>Each coordinate block contains all N particles.<BR ALIGN="LEFT"/>Trailing sample axes are preserved.</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Shared contract</B><BR ALIGN="LEFT"/>Implements contracts.configuration.StateLayout.<BR ALIGN="LEFT"/>Solution retains the source layout for interpretation.</TD></TR>
+      </TABLE>
+    >];
+    Area [label=<
+      <TABLE WIDTH="330" BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD WIDTH="330" BALIGN="LEFT" BGCOLOR="#E8EFF8" ALIGN="LEFT"><FONT POINT-SIZE="9">OPTIONAL GEOMETRIC CONFIGURATION</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>Area</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/initial_conditions/area.py</FONT></TD></TR>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Construction</B><BR ALIGN="LEFT"/>GCInitialConfiguration subclass.<BR ALIGN="LEFT"/>Area.square(...) and Area.circle(...).</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Operations</B><BR ALIGN="LEFT"/>Initial boundary points and area calculation.<BR ALIGN="LEFT"/>Same packed GC state as other configurations.</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Boundary</B><BR ALIGN="LEFT"/>Geometry does not own an integration loop.<BR ALIGN="LEFT"/>Studies choose initial positions and sampling.</TD></TR>
+      </TABLE>
+    >];
+    Pad_initial_4 [shape=point, width=0, height=0, style=invis];
+    Pad_initial_5 [shape=point, width=0, height=0, style=invis];
+  }
+  subgraph cluster_formulations {
+    label=""; style="rounded,filled"; color="#C8D6E7"; fillcolor="#F8FAFD";
+    node [group="formulations"];
+    Head_formulations [fillcolor="#2E6651", color="#2E6651", fontcolor="white", width=4.8, height=0.68, margin="0.22,0.16", label="04  formulations/\nInternal coordinates and numerical maps"];
+    Physical [label=<
+      <TABLE WIDTH="330" BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD WIDTH="330" BALIGN="LEFT" BGCOLOR="#E2F1E9" ALIGN="LEFT"><FONT POINT-SIZE="9">STATE REPRESENTATION</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>PhysicalFormulation</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/formulations/state.py</FONT></TD></TR>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Bound inputs</B><BR ALIGN="LEFT"/>problem; initial_time; track_energy.<BR ALIGN="LEFT"/>One spatial copy; m physical coordinates.</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Operations</B><BR ALIGN="LEFT"/>initial_state; pack; physical; finish; metadata.<BR ALIGN="LEFT"/>extract_history(times, history): physical + auxiliary.</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Planar GC dimensions</B><BR ALIGN="LEFT"/>Without tracking: q = 2N.<BR ALIGN="LEFT"/>With per-particle time and kappa: q = 4N.</TD></TR>
+      </TABLE>
+    >];
+    Doubled [label=<
+      <TABLE WIDTH="330" BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD WIDTH="330" BALIGN="LEFT" BGCOLOR="#E2F1E9" ALIGN="LEFT"><FONT POINT-SIZE="9">SHARED ABBA / BM4 STATE</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>DoubledFormulation</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/formulations/state.py</FONT></TD></TR>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Representation</B><BR ALIGN="LEFT"/>PhysicalFormulation subclass with two copies.<BR ALIGN="LEFT"/>GC internal size: q = 4N, or 6N with energy.</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Invariant</B><BR ALIGN="LEFT"/>Accepted projected states have identical copies.<BR ALIGN="LEFT"/>Off-diagonal states occur inside the spatial maps.</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Projection scope</B><BR ALIGN="LEFT"/>Only spatial differences enter the projection.<BR ALIGN="LEFT"/>Time and kappa remain passive coordinates.</TD></TR>
+      </TABLE>
+    >];
+    Maps [label=<
+      <TABLE WIDTH="330" BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD WIDTH="330" BALIGN="LEFT" BGCOLOR="#E2F1E9" ALIGN="LEFT"><FONT POINT-SIZE="9">BOUND GC DIRECT / ADJOINT MAPS</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>GCDoubledMaps</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/formulations/gc.py</FONT></TD></TR>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Inputs</B><BR ALIGN="LEFT"/>InitialValueProblem and coupling_frequency.<BR ALIGN="LEFT"/>Spatial doubled state and signed stage duration.</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Operations</B><BR ALIGN="LEFT"/>direct_map(duration, t, state)<BR ALIGN="LEFT"/>adjoint_map(duration, t, state)</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Numerics</B><BR ALIGN="LEFT"/>Spatial shears evaluate the physical dynamics.<BR ALIGN="LEFT"/>Optional harmonic coupling mixes the copies.<BR ALIGN="LEFT"/>Accepted shear inputs support energy and tangents.</TD></TR>
+      </TABLE>
+    >];
+    Passive [label=<
+      <TABLE WIDTH="330" BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD WIDTH="330" BALIGN="LEFT" BGCOLOR="#E2F1E9" ALIGN="LEFT"><FONT POINT-SIZE="9">STATE EXTRACTION / ENERGY BALANCE</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>Passive time and momentum</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/formulations/state.py; base.py</FONT></TD></TR>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Dynamics</B><BR ALIGN="LEFT"/>d kappa / dt = -partial_t H; one value per particle.<BR ALIGN="LEFT"/>Time blocks follow the prescribed integration time.</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Output</B><BR ALIGN="LEFT"/>extract_history separates physical samples from<BR ALIGN="LEFT"/>extended_time, kappa and Hamiltonian diagnostics.</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Invariant</B><BR ALIGN="LEFT"/>Energy tracking does not alter the physical root<BR ALIGN="LEFT"/>or adaptive physical error control.</TD></TR>
+      </TABLE>
+    >];
+    SplitContracts [label=<
+      <TABLE WIDTH="330" BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD WIDTH="330" BALIGN="LEFT" BGCOLOR="#E2F1E9" ALIGN="LEFT"><FONT POINT-SIZE="9">FORMULATION PROTOCOLS / OTHER SPLITS</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>Prepared direct / adjoint maps</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/formulations/base.py; gc.py; fc.py</FONT></TD></TR>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Interface</B><BR ALIGN="LEFT"/>DirectAdjointFormulation.prepare(problem, ...).<BR ALIGN="LEFT"/>Prepared maps expose direct_map / adjoint_map.</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Available implementations</B><BR ALIGN="LEFT"/>GCExtendedFormulation; GCStageProjectedFormulation.<BR ALIGN="LEFT"/>FCSplitFormulation binds cyclotron split maps.</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Current ABBA / BM4 path</B><BR ALIGN="LEFT"/>Methods bind GCDoubledMaps directly and use<BR ALIGN="LEFT"/>DoubledFormulation for accepted state and export.</TD></TR>
+      </TABLE>
+    >];
+    Pad_formulations_5 [shape=point, width=0, height=0, style=invis];
+  }
+  subgraph cluster_methods {
+    label=""; style="rounded,filled"; color="#C8D6E7"; fillcolor="#F8FAFD";
+    node [group="methods"];
+    Head_methods [fillcolor="#815E22", color="#815E22", fontcolor="white", width=4.8, height=0.68, margin="0.22,0.16", label="05  methods/\nMethod configuration and complete step"];
+    Families [label=<
+      <TABLE WIDTH="330" BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD WIDTH="330" BALIGN="LEFT" BGCOLOR="#FBE0C7" ALIGN="LEFT"><FONT POINT-SIZE="9">PUBLIC NUMERICAL FAMILIES</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>13 public methods</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/methods/{classical,adaptive,hbvm,extended}/</FONT></TD></TR>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Classical / adaptive / HBVM</B><BR ALIGN="LEFT"/>ExplicitEuler; RK4; GaussLegendre4; SDIRK4.<BR ALIGN="LEFT"/>DOP853; Radau; HBVM42.</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Extended family</B><BR ALIGN="LEFT"/>ABBA2Implicit; ABBA4Implicit; ABBA6Implicit.<BR ALIGN="LEFT"/>ABBA2Midpoint; BM4Implicit; BM4Midpoint.</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Common lifecycle</B><BR ALIGN="LEFT"/>All extend IntegrationMethod. Public options are<BR ALIGN="LEFT"/>reusable; resources are initialized for each run.</TD></TR>
+      </TABLE>
+    >];
+    Initialize [label=<
+      <TABLE WIDTH="330" BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD WIDTH="330" BALIGN="LEFT" BGCOLOR="#FBE0C7" ALIGN="LEFT"><FONT POINT-SIZE="9">EXECUTION 3 / METHOD PREPARATION</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>method.initialize(problem, request)</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/methods/; extended/{abba,bm4}.py</FONT></TD></TR>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Called by IntegrationMethod.new_run</B><BR ALIGN="LEFT"/>Select and bind the state formulation.<BR ALIGN="LEFT"/>Initialize state, metadata and numerical resources.</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Extended family</B><BR ALIGN="LEFT"/>Bind composition recipe, maps and projection.<BR ALIGN="LEFT"/>Bind SolverOptions and optional event adapters.</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Adaptive family</B><BR ALIGN="LEFT"/>Create one fresh SciPy solver session per run.<BR ALIGN="LEFT"/>The constructor remains a reusable configuration.</TD></TR>
+      </TABLE>
+    >];
+    Advance [label=<
+      <TABLE WIDTH="330" BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD WIDTH="330" BALIGN="LEFT" BGCOLOR="#FBE0C7" ALIGN="LEFT"><FONT POINT-SIZE="9">EXECUTION 6 / METHOD-OWNED STEP</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>method.advance(t, state, h)</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/methods/</FONT></TD></TR>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Input / output</B><BR ALIGN="LEFT"/>Input state [q] -&gt; StepResult[Detail].<BR ALIGN="LEFT"/>state [q]; statistics; transient numerical details.</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Fixed / adaptive</B><BR ALIGN="LEFT"/>Fixed: h is the complete map duration.<BR ALIGN="LEFT"/>Adaptive: h bounds the live solver accepted step.</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Observation adapter</B><BR ALIGN="LEFT"/>build_observation(info, result) creates an event.<BR ALIGN="LEFT"/>The coordinator invokes an installed observer.</TD></TR>
+      </TABLE>
+    >];
+    Projection [label=<
+      <TABLE WIDTH="330" BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD WIDTH="330" BALIGN="LEFT" BGCOLOR="#E2F1E9" ALIGN="LEFT"><FONT POINT-SIZE="9">SHARED EXTENDED PROJECTION</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>solve_projection / midpoint_step</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/methods/extended/core/{projection,midpoint}.py</FONT></TD></TR>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Implicit ABBA / BM4</B><BR ALIGN="LEFT"/>One outer Hairer projection per complete recipe.<BR ALIGN="LEFT"/>ABBA: reduced or simultaneous equation.<BR ALIGN="LEFT"/>BM4Implicit: reduced multiplier equation.</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Arithmetic midpoint variants</B><BR ALIGN="LEFT"/>Average the two copies after the full composition.<BR ALIGN="LEFT"/>No nonlinear solve in midpoint methods.</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>ABBA4 and ABBA6</B><BR ALIGN="LEFT"/>Same engine and projection placement.<BR ALIGN="LEFT"/>Intermediate ABBA pairs are unprojected.</TD></TR>
+      </TABLE>
+    >];
+    Composition [label=<
+      <TABLE WIDTH="330" BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD WIDTH="330" BALIGN="LEFT" BGCOLOR="#E2F1E9" ALIGN="LEFT"><FONT POINT-SIZE="9">PALINDROMIC SIGNED RECIPE</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>Composition / compose</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/methods/extended/core/composition.py</FONT></TD></TR>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Stage counts</B><BR ALIGN="LEFT"/>ABBA2: 2; ABBA4: 6; ABBA6: 14; BM4: 12.<BR ALIGN="LEFT"/>Alternate adjoint_map, direct_map in recipe order.</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Stage clock</B><BR ALIGN="LEFT"/>h_i = coefficient_i * h; preserve negative durations.<BR ALIGN="LEFT"/>Adjoint evaluates at stage start, direct at stage end.</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Return</B><BR ALIGN="LEFT"/>CompositionTrace retains accepted map stages.<BR ALIGN="LEFT"/>Projection wraps the entire composition.</TD></TR>
+      </TABLE>
+    >];
+    NumericalSupport [label=<
+      <TABLE WIDTH="330" BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD WIDTH="330" BALIGN="LEFT" BGCOLOR="#E2F1E9" ALIGN="LEFT"><FONT POINT-SIZE="9">SHARED NUMERICAL SUPPORT</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>Solvers, tangents and energy</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/methods/_nonlinear.py; extended/core/</FONT></TD></TR>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Nonlinear solve</B><BR ALIGN="LEFT"/>SolverOptions / SolveStats; Newton or Broyden.<BR ALIGN="LEFT"/>Scaled residual tolerance and common work counters.</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Spatial derivatives</B><BR ALIGN="LEFT"/>jacobians.py propagates ordered stage tangents.<BR ALIGN="LEFT"/>BM4 Newton also supports finite differences.<BR ALIGN="LEFT"/>Broyden uses secant updates without Jacobians.</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Passive energy</B><BR ALIGN="LEFT"/>energy.py: momentum_increment on accepted shears.<BR ALIGN="LEFT"/>Reuse converged composition data; preserve<BR ALIGN="LEFT"/>physical stages and nonlinear convergence scales.</TD></TR>
+      </TABLE>
+    >];
+  }
+  subgraph cluster_integration {
+    label=""; style="rounded,filled"; color="#C8D6E7"; fillcolor="#F8FAFD";
+    node [group="integration"];
+    Head_integration [fillcolor="#263D59", color="#263D59", fontcolor="white", width=4.8, height=0.68, margin="0.22,0.16", label="06  integration/\nFresh run, scheduling and collection"];
+    NewRun [label=<
+      <TABLE WIDTH="330" BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD WIDTH="330" BALIGN="LEFT" BGCOLOR="#E8EFF8" ALIGN="LEFT"><FONT POINT-SIZE="9">EXECUTION 2 / COMMON BASE CLASS</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>IntegrationMethod.new_run</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/integration/core.py</FONT></TD></TR>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Inherited integrate(problem, request)</B><BR ALIGN="LEFT"/>integrate_method(self.new_run(problem, request)).<BR ALIGN="LEFT"/>new_run copies constructor options to a fresh instance.</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Preparation</B><BR ALIGN="LEFT"/>Bind problem and request; call initialize (3).<BR ALIGN="LEFT"/>Copy and freeze initial_state and metadata.</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Lifecycle</B><BR ALIGN="LEFT"/>configuration -&gt; ready -&gt; running -&gt; finished.<BR ALIGN="LEFT"/>Reuse options by creating another fresh run.</TD></TR>
+      </TABLE>
+    >];
+    Coordinator [label=<
+      <TABLE WIDTH="330" BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD WIDTH="330" BALIGN="LEFT" BGCOLOR="#E8EFF8" ALIGN="LEFT"><FONT POINT-SIZE="9">EXECUTION 4 / COMMON TIME LOOP</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>integrate_method</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/integration/core.py</FONT></TD></TR>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Input / output</B><BR ALIGN="LEFT"/>Prepared IntegrationMethod -&gt; IntegrationData.<BR ALIGN="LEFT"/>Select controller; create IntegrationCollector.</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>For each accepted interval</B><BR ALIGN="LEFT"/>Validate interval and internal state; record statistics.<BR ALIGN="LEFT"/>Dispatch optional event; save requested samples.</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Completion</B><BR ALIGN="LEFT"/>Check full time coverage; export physical history.<BR ALIGN="LEFT"/>Merge metadata, work, auxiliary data and aliases.</TD></TR>
+      </TABLE>
+    >];
+    Controller [label=<
+      <TABLE WIDTH="330" BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD WIDTH="330" BALIGN="LEFT" BGCOLOR="#E8EFF8" ALIGN="LEFT"><FONT POINT-SIZE="9">EXECUTION 5 / STEP AND SAMPLE POLICY</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>StepController</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/integration/core.py; methods/adaptive/scipy.py</FONT></TD></TR>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Protocol</B><BR ALIGN="LEFT"/>steps -&gt; iterator of (StepInfo, StepResult).<BR ALIGN="LEFT"/>sample -&gt; one requested internal state.</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>FixedStepController</B><BR ALIGN="LEFT"/>Uniform effective h; call method.advance (6).<BR ALIGN="LEFT"/>Off-grid outputs use independent shortened maps.</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>ScipyAdaptiveController</B><BR ALIGN="LEFT"/>Calls advance on a persistent DOP853 / Radau solver.<BR ALIGN="LEFT"/>Backend retries stay internal; sample dense output.</TD></TR>
+      </TABLE>
+    >];
+    Collector [label=<
+      <TABLE WIDTH="330" BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD WIDTH="330" BALIGN="LEFT" BGCOLOR="#E8EFF8" ALIGN="LEFT"><FONT POINT-SIZE="9">PER-RUN STORAGE OWNER</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>IntegrationCollector</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/integration/core.py</FONT></TD></TR>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Storage</B><BR ALIGN="LEFT"/>history: internal samples [q, T].<BR ALIGN="LEFT"/>Small per-step metric arrays with stable shapes.</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Operations</B><BR ALIGN="LEFT"/>record_step(info, statistics); finalize().<BR ALIGN="LEFT"/>Record accepted times and effective step sizes.</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Boundary</B><BR ALIGN="LEFT"/>Transient StepResult.details remain method-owned.<BR ALIGN="LEFT"/>Event histories are retained only by observers.<BR ALIGN="LEFT"/>Output-only sampling is separate from main-step work.</TD></TR>
+      </TABLE>
+    >];
+    Export [label=<
+      <TABLE WIDTH="330" BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD WIDTH="330" BALIGN="LEFT" BGCOLOR="#E8EFF8" ALIGN="LEFT"><FONT POINT-SIZE="9">EXECUTION 7 / FINAL ASSEMBLY</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>export_history + finalize</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/integration/core.py -&gt; formulations/state.py</FONT></TD></TR>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Physical extraction</B><BR ALIGN="LEFT"/>method.export_history(times, collector.history).<BR ALIGN="LEFT"/>Formulation extracts states [m, T] and auxiliaries.</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Diagnostics</B><BR ALIGN="LEFT"/>Metadata + accepted metrics + energy diagnostics.<BR ALIGN="LEFT"/>output_interpolation_count and supported aliases.</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Return</B><BR ALIGN="LEFT"/>IntegrationData(t, states, diagnostics) to simulate.<BR ALIGN="LEFT"/>Export does not repeat numerical projection.</TD></TR>
+      </TABLE>
+    >];
+    ObservationDispatch [label=<
+      <TABLE WIDTH="330" BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD WIDTH="330" BALIGN="LEFT" BGCOLOR="#EEE5F5" ALIGN="LEFT"><FONT POINT-SIZE="9">OPTIONAL ACCEPTED-STEP OBSERVATION</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>Build and dispatch observations</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/integration/core.py; methods/extended/observations.py</FONT></TD></TR>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Coordinator-owned dispatch</B><BR ALIGN="LEFT"/>With step_observer installed: build_observation(info, result),<BR ALIGN="LEFT"/>then invoke the callback on its independent event.</TD></TR><HR/>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Method-specific adaptation</B><BR ALIGN="LEFT"/>Fixed IntegrationStep or AdaptiveIntegrationStep.<BR ALIGN="LEFT"/>Extended adapters reuse accepted composition details.</TD></TR><HR/>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Caller-owned lifetime</B><BR ALIGN="LEFT"/>Optional observers retain analysis and persistence data.<BR ALIGN="LEFT"/>Event mutations cannot change integration history.</TD></TR>
+      </TABLE>
+    >];
+  }
+  subgraph cluster_simulation {
+    label=""; style="rounded,filled"; color="#C8D6E7"; fillcolor="#F8FAFD";
+    node [group="simulation"];
+    Head_simulation [fillcolor="#354D89", color="#354D89", fontcolor="white", width=4.8, height=0.68, margin="0.22,0.16", label="07  simulation/\nPublic entry and result consistency"];
+    Simulate [label=<
+      <TABLE WIDTH="330" BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD WIDTH="330" BALIGN="LEFT" BGCOLOR="#E8EFF8" ALIGN="LEFT"><FONT POINT-SIZE="9">EXECUTION 1 / PUBLIC ENTRY POINT</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>simulate(problem, method, request)</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/simulation/runner.py</FONT></TD></TR>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Validate public inputs</B><BR ALIGN="LEFT"/>InitialValueProblem; NumericalMethod;<BR ALIGN="LEFT"/>SimulationRequest.</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Invoke execution</B><BR ALIGN="LEFT"/>data = method.integrate(problem, request).<BR ALIGN="LEFT"/>The inherited lifecycle starts in integration/ (2).</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Responsibility</B><BR ALIGN="LEFT"/>Stateless orchestration around the numerical run.<BR ALIGN="LEFT"/>The same call resumes with IntegrationData (8).</TD></TR>
+      </TABLE>
+    >];
+    Facade [label=<
+      <TABLE WIDTH="330" BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD WIDTH="330" BALIGN="LEFT" BGCOLOR="#E8EFF8" ALIGN="LEFT"><FONT POINT-SIZE="9">PUBLIC IMPORT FACADE</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>Explicit exports</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/simulation/__init__.py</FONT></TD></TR>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Public use</B><BR ALIGN="LEFT"/>from simulation import simulate, ABBA4Implicit, ...<BR ALIGN="LEFT"/>Established public names remain available.</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Implementation ownership</B><BR ALIGN="LEFT"/>Re-exports point to their canonical implementations.<BR ALIGN="LEFT"/>Internal consumers import defining modules.</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Execution interface</B><BR ALIGN="LEFT"/>methods.base.NumericalMethod declares integrate.<BR ALIGN="LEFT"/>Studies call simulation.runner.simulate.</TD></TR>
+      </TABLE>
+    >];
+    Resume [label=<
+      <TABLE WIDTH="330" BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD WIDTH="330" BALIGN="LEFT" BGCOLOR="#E8EFF8" ALIGN="LEFT"><FONT POINT-SIZE="9">EXECUTION 8 / SAME simulate CALL</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>Construct and check Solution</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/simulation/runner.py</FONT></TD></TR>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Build the result</B><BR ALIGN="LEFT"/>Solution(t=data.t, states=data.states,<BR ALIGN="LEFT"/>source=problem.initial_configuration,<BR ALIGN="LEFT"/>diagnostics=data.diagnostics).</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Consistency with the run</B><BR ALIGN="LEFT"/>Saved times equal request.output_times.<BR ALIGN="LEFT"/>Physical row count matches the initial state.<BR ALIGN="LEFT"/>The first saved column equals the initial state.</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Return</B><BR ALIGN="LEFT"/>Expose the validated physical Solution to the caller.</TD></TR>
+      </TABLE>
+    >];
+    Failure [label=<
+      <TABLE WIDTH="330" BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD WIDTH="330" BALIGN="LEFT" BGCOLOR="#FFF0F0" ALIGN="LEFT"><FONT POINT-SIZE="9">ERROR PROPAGATION</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>Explicit failure to caller</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/simulation/runner.py; integration/core.py</FONT></TD></TR>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Failure conditions</B><BR ALIGN="LEFT"/>Invalid configuration or incompatible capabilities.<BR ALIGN="LEFT"/>Non-finite maps; singular solve; iteration limit.<BR ALIGN="LEFT"/>Invalid accepted intervals or final output.</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Lifecycle</B><BR ALIGN="LEFT"/>Integration finalization marks the run finished.<BR ALIGN="LEFT"/>Numerical exceptions propagate to the caller.</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Result boundary</B><BR ALIGN="LEFT"/>A failed run does not produce a successful Solution.</TD></TR>
+      </TABLE>
+    >];
+    Pad_simulation_4 [shape=point, width=0, height=0, style=invis];
+    Pad_simulation_5 [shape=point, width=0, height=0, style=invis];
+  }
+  subgraph cluster_solution {
+    label=""; style="rounded,filled"; color="#C8D6E7"; fillcolor="#F8FAFD";
+    node [group="solution"];
+    Head_solution [fillcolor="#2E6651", color="#2E6651", fontcolor="white", width=4.8, height=0.68, margin="0.22,0.16", label="08  solution.py\nImmutable physical result module"];
+    Solution [label=<
+      <TABLE WIDTH="330" BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD WIDTH="330" BALIGN="LEFT" BGCOLOR="#E2F1E9" ALIGN="LEFT"><FONT POINT-SIZE="9">EXECUTION 9 / PUBLIC RESULT CLASS</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>Solution</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/solution.py</FONT></TD></TR>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Owned data</B><BR ALIGN="LEFT"/>t: requested times [T].<BR ALIGN="LEFT"/>states: physical history [m, T].</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Provenance and diagnostics</B><BR ALIGN="LEFT"/>source: InitialConfiguration with its layout.<BR ALIGN="LEFT"/>diagnostics: read-only mapping of copied values.</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Lifetime</B><BR ALIGN="LEFT"/>Own copies of trajectory and diagnostic arrays.<BR ALIGN="LEFT"/>Numerical run resources are not retained.</TD></TR>
+      </TABLE>
+    >];
+    Validation [label=<
+      <TABLE WIDTH="330" BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD WIDTH="330" BALIGN="LEFT" BGCOLOR="#E2F1E9" ALIGN="LEFT"><FONT POINT-SIZE="9">STRUCTURAL VALIDATION OWNER</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>Array and layout validation</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/solution.py: Solution.__init__</FONT></TD></TR>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Array checks</B><BR ALIGN="LEFT"/>Finite increasing times and finite state history.<BR ALIGN="LEFT"/>Compatible time and state array dimensions.</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Layout checks</B><BR ALIGN="LEFT"/>Valid InitialConfiguration and StateLayout.<BR ALIGN="LEFT"/>layout.validate_packed_state_layout(states).</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Immutability</B><BR ALIGN="LEFT"/>Copy and freeze arrays; freeze diagnostic mapping.<BR ALIGN="LEFT"/>Simulation separately checks agreement with inputs.</TD></TR>
+      </TABLE>
+    >];
+    Accessors [label=<
+      <TABLE WIDTH="330" BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD WIDTH="330" BALIGN="LEFT" BGCOLOR="#E2F1E9" ALIGN="LEFT"><FONT POINT-SIZE="9">PHYSICAL INTERPRETATION</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>Layout-aware result access</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/solution.py</FONT></TD></TR>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Canonical properties</B><BR ALIGN="LEFT"/>t; states; source; diagnostics.<BR ALIGN="LEFT"/>Source geometry preserves the coordinate convention.</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Two grids</B><BR ALIGN="LEFT"/>Solution.t stores requested sample times.<BR ALIGN="LEFT"/>Accepted-step times are diagnostic arrays.</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Internal versus physical</B><BR ALIGN="LEFT"/>Solution.states excludes doubled coordinates<BR ALIGN="LEFT"/>and passive time/momentum blocks.</TD></TR>
+      </TABLE>
+    >];
+    ResultUse [label=<
+      <TABLE WIDTH="330" BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD WIDTH="330" BALIGN="LEFT" BGCOLOR="#EEE5F5" ALIGN="LEFT"><FONT POINT-SIZE="9">DOWNSTREAM CONSUMERS</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>Trajectory and scientific analysis</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/studies/; diagnostics/; visualization/</FONT></TD></TR>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Studies</B><BR ALIGN="LEFT"/>Compose reproducible runs and reference comparisons.<BR ALIGN="LEFT"/>Interpret physical errors and method diagnostics.</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Diagnostics / visualization</B><BR ALIGN="LEFT"/>Optional numerical observers and persistence.<BR ALIGN="LEFT"/>Plots, summaries and animations consume results.</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Energy interpretation</B><BR ALIGN="LEFT"/>For time-dependent fields, compare physical H<BR ALIGN="LEFT"/>with the reference history; H need not be conserved.</TD></TR>
+      </TABLE>
+    >];
+    Pad_solution_4 [shape=point, width=0, height=0, style=invis];
+    Pad_solution_5 [shape=point, width=0, height=0, style=invis];
+  }
+  // Shared contracts are a transverse band, not a ninth execution phase.
+  subgraph cluster_contracts {
+    label="contracts/ | Shared input, step and output records"; labelloc=t; labeljust=l;
+    fontsize=19; fontcolor="#263D59"; style="rounded,filled"; color="#C8D6E7"; fillcolor="#F8FAFD";
+    ProblemContract [label=<
+      <TABLE WIDTH="480" BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD WIDTH="480" BALIGN="LEFT" BGCOLOR="#E8EFF8" ALIGN="LEFT"><FONT POINT-SIZE="9">VALIDATED INPUT RECORDS</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>InitialValueProblem + SimulationRequest</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/contracts/problem.py; request.py</FONT></TD></TR>
+        <TR><TD WIDTH="480" BALIGN="LEFT" ALIGN="LEFT"><B>Problem</B><BR ALIGN="LEFT"/>dynamics + initial_configuration.<BR ALIGN="LEFT"/>Validate compatible physical dimensions and finite state.</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="480" BALIGN="LEFT" ALIGN="LEFT"><B>Request</B><BR ALIGN="LEFT"/>t_span; max_step; read-only output_times [T].<BR ALIGN="LEFT"/>Saved times include both requested interval endpoints.</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="480" BALIGN="LEFT" ALIGN="LEFT"><B>Composition</B><BR ALIGN="LEFT"/>The caller assembles physics and initial geometry.<BR ALIGN="LEFT"/>The request owns temporal controls shared by all methods.</TD></TR>
+      </TABLE>
+    >];
+    LayoutContract [label=<
+      <TABLE WIDTH="480" BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD WIDTH="480" BALIGN="LEFT" BGCOLOR="#E8EFF8" ALIGN="LEFT"><FONT POINT-SIZE="9">STRUCTURAL PROTOCOLS</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>InitialConfiguration + StateLayout</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/contracts/configuration.py</FONT></TD></TR>
+        <TR><TD WIDTH="480" BALIGN="LEFT" ALIGN="LEFT"><B>InitialConfiguration</B><BR ALIGN="LEFT"/>initial_state and layout describe the packed physical input.</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="480" BALIGN="LEFT" ALIGN="LEFT"><B>StateLayout</B><BR ALIGN="LEFT"/>state_dimension; validation; particle_count; component views.</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="480" BALIGN="LEFT" ALIGN="LEFT"><B>Implementations</B><BR ALIGN="LEFT"/>Concrete GC / FC layouts live in initial_conditions/.<BR ALIGN="LEFT"/>The same contract interprets Solution.states.</TD></TR>
+      </TABLE>
+    >];
+    StepContract [label=<
+      <TABLE WIDTH="480" BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD WIDTH="480" BALIGN="LEFT" BGCOLOR="#E8EFF8" ALIGN="LEFT"><FONT POINT-SIZE="9">ACCEPTED INTERVAL / NUMERICAL RETURN</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>StepInfo + StepResult[Detail]</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/contracts/step.py</FONT></TD></TR>
+        <TR><TD WIDTH="480" BALIGN="LEFT" ALIGN="LEFT"><B>StepInfo</B><BR ALIGN="LEFT"/>index; time; duration; end_time; state_before [q].</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="480" BALIGN="LEFT" ALIGN="LEFT"><B>StepResult</B><BR ALIGN="LEFT"/>state [q]; statistics; transient method-specific details.</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="480" BALIGN="LEFT" ALIGN="LEFT"><B>Data ownership</B><BR ALIGN="LEFT"/>Internal states are separate from physical observer snapshots.<BR ALIGN="LEFT"/>The collector stores statistics, not numerical detail histories.</TD></TR>
+      </TABLE>
+    >];
+    OutputContract [label=<
+      <TABLE WIDTH="480" BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
+        <TR><TD WIDTH="480" BALIGN="LEFT" BGCOLOR="#EEE5F5" ALIGN="LEFT"><FONT POINT-SIZE="9">FINAL DATA / OPTIONAL EVENTS</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>IntegrationData + observation records</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/contracts/result.py; observation.py</FONT></TD></TR>
+        <TR><TD WIDTH="480" BALIGN="LEFT" ALIGN="LEFT"><B>IntegrationData</B><BR ALIGN="LEFT"/>t [T]; physical states [m, T]; diagnostics.<BR ALIGN="LEFT"/>Returned by the numerical method to simulate.</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="480" BALIGN="LEFT" ALIGN="LEFT"><B>Public observation records</B><BR ALIGN="LEFT"/>Fixed IntegrationStep; adaptive AdaptiveIntegrationStep.<BR ALIGN="LEFT"/>Method-specific ABBA / BM4 events preserve accepted traces.</TD></TR>
+        <HR/>
+        <TR><TD WIDTH="480" BALIGN="LEFT" ALIGN="LEFT"><B>Dispatch and lifetime</B><BR ALIGN="LEFT"/>build_observation adapts details; coordinator dispatches.<BR ALIGN="LEFT"/>Caller-owned observers retain copied events when requested.</TD></TR>
+      </TABLE>
+    >];
+    { rank=same; ProblemContract; LayoutContract; StepContract; OutputContract; }
+    ProblemContract -> LayoutContract -> StepContract -> OutputContract [style=invis, weight=100];
+  }
+  Reading [shape=note, fillcolor="#F8FAFC", margin="0.20,0.14", label=<
+    <TABLE BORDER="0" CELLBORDER="0" CELLPADDING="5">
+      <TR><TD ALIGN="LEFT"><B>HOW TO READ THE CURRENT WORKFLOW</B></TD></TR>
+      <TR><TD ALIGN="LEFT">Column order is source responsibility, not a sequence of imports or runtime calls.</TD></TR>
+      <TR><TD ALIGN="LEFT"><B>Assembly:</B> potential -&gt; dynamics; dynamics + initial_conditions -&gt; InitialValueProblem; caller selects method + request.</TD></TR>
+      <TR><TD ALIGN="LEFT"><B>Execution:</B> (1) simulate -&gt; (2) new_run -&gt; (3) initialize -&gt; (4) integrate_method -&gt; (5) controller -&gt; (6) advance.</TD></TR>
+      <TR><TD ALIGN="LEFT"><B>Completion:</B> repeat (5)-(6), collect and sample; (7) export IntegrationData -&gt; (8) simulate resumes -&gt; (9) Solution.</TD></TR>
+      <TR><TD ALIGN="LEFT">Solid arrows: selected calls or required data. Dotted blue: returns. Dashed purple: optional events or analysis. Red dashed: failures.</TD></TR>
+      <TR><TD ALIGN="LEFT">Unconnected cards document capabilities or ownership; they do not imply additional runtime stages.</TD></TR>
+      <TR><TD ALIGN="LEFT">contracts/ owns shared records; dynamics/protocols.py owns physical capabilities; formulations/base.py owns split-map protocols.</TD></TR>
+      <TR><TD ALIGN="LEFT">studies/ assembles experiments; diagnostics/ owns opt-in observers and persistence; visualization/ owns presentation.</TD></TR>
+    </TABLE>
+  >];
+  ColumnOrder [shape=point, width=0, height=0, style=invis, ordering=out];
+  ColumnOrder -> Head_potential [style=invis, weight=10000];
+  ColumnOrder -> Head_dynamics [style=invis, weight=10000];
+  ColumnOrder -> Head_initial [style=invis, weight=10000];
+  ColumnOrder -> Head_formulations [style=invis, weight=10000];
+  ColumnOrder -> Head_methods [style=invis, weight=10000];
+  ColumnOrder -> Head_integration [style=invis, weight=10000];
+  ColumnOrder -> Head_simulation [style=invis, weight=10000];
+  ColumnOrder -> Head_solution [style=invis, weight=10000];
+  { rank=same; Head_potential; Head_dynamics; Head_initial; Head_formulations; Head_methods; Head_integration; Head_simulation; Head_solution; }
+  Head_potential -> Head_dynamics -> Head_initial -> Head_formulations -> Head_methods -> Head_integration -> Head_simulation -> Head_solution [style=invis, weight=1000];
+  { rank=same; Potential; Dynamics; Initial; Physical; Families; NewRun; Simulate; Solution; }
+  Potential -> Dynamics -> Initial -> Physical -> Families -> NewRun -> Simulate -> Solution [style=invis, weight=100];
+  { rank=same; H5Loader; GC; InitialModels; Doubled; Initialize; Coordinator; Facade; Validation; }
+  H5Loader -> GC -> InitialModels -> Doubled -> Initialize -> Coordinator -> Facade -> Validation [style=invis, weight=100];
+  { rank=same; Grid; FC; Layouts; Maps; Advance; Controller; Resume; Accessors; }
+  Grid -> FC -> Layouts -> Maps -> Advance -> Controller -> Resume -> Accessors [style=invis, weight=100];
+  { rank=same; Pad_potential_3; Capabilities; Area; Passive; Projection; Collector; Failure; ResultUse; }
+  Pad_potential_3 -> Capabilities -> Area -> Passive -> Projection -> Collector -> Failure -> ResultUse [style=invis, weight=100];
+  { rank=same; Pad_potential_4; Pad_dynamics_4; Pad_initial_4; SplitContracts; Composition; Export; Pad_simulation_4; Pad_solution_4; }
+  Pad_potential_4 -> Pad_dynamics_4 -> Pad_initial_4 -> SplitContracts -> Composition -> Export -> Pad_simulation_4 -> Pad_solution_4 [style=invis, weight=100];
+  { rank=same; Pad_potential_5; Pad_dynamics_5; Pad_initial_5; Pad_formulations_5; NumericalSupport; ObservationDispatch; Pad_simulation_5; Pad_solution_5; }
+  Pad_potential_5 -> Pad_dynamics_5 -> Pad_initial_5 -> Pad_formulations_5 -> NumericalSupport -> ObservationDispatch -> Pad_simulation_5 -> Pad_solution_5 [style=invis, weight=100];
+  Head_potential -> Potential -> H5Loader -> Grid -> Pad_potential_3 -> Pad_potential_4 -> Pad_potential_5 [style=invis, weight=100];
+  Pad_potential_5 -> ProblemContract [style=invis, weight=2];
+  Head_dynamics -> Dynamics -> GC -> FC -> Capabilities -> Pad_dynamics_4 -> Pad_dynamics_5 [style=invis, weight=100];
+  Pad_dynamics_5 -> ProblemContract [style=invis, weight=2];
+  Head_initial -> Initial -> InitialModels -> Layouts -> Area -> Pad_initial_4 -> Pad_initial_5 [style=invis, weight=100];
+  Pad_initial_5 -> LayoutContract [style=invis, weight=2];
+  Head_formulations -> Physical -> Doubled -> Maps -> Passive -> SplitContracts -> Pad_formulations_5 [style=invis, weight=100];
+  Pad_formulations_5 -> LayoutContract [style=invis, weight=2];
+  Head_methods -> Families -> Initialize -> Advance -> Projection -> Composition -> NumericalSupport [style=invis, weight=100];
+  NumericalSupport -> StepContract [style=invis, weight=2];
+  Head_integration -> NewRun -> Coordinator -> Controller -> Collector -> Export -> ObservationDispatch [style=invis, weight=100];
+  ObservationDispatch -> StepContract [style=invis, weight=2];
+  Head_simulation -> Simulate -> Facade -> Resume -> Failure -> Pad_simulation_4 -> Pad_simulation_5 [style=invis, weight=100];
+  Pad_simulation_5 -> OutputContract [style=invis, weight=2];
+  Head_solution -> Solution -> Validation -> Accessors -> ResultUse -> Pad_solution_4 -> Pad_solution_5 [style=invis, weight=100];
+  Pad_solution_5 -> OutputContract [style=invis, weight=2];
+  ProblemContract -> Reading [style=invis, weight=10];
+  LayoutContract -> Reading [style=invis, weight=10];
+  StepContract -> Reading [style=invis, weight=10];
+  OutputContract -> Reading [style=invis, weight=10];
+  H5Loader -> Potential [constraint=false,  xlabel="loaded physical field"];
+  Grid -> Potential [constraint=false,  xlabel="periodic geometry"];
+  Potential -> GC [constraint=false,  xlabel="gyroaveraged field"];
+  GC -> Dynamics [constraint=false,  xlabel="implements"];
+  FC -> Dynamics [constraint=false,  xlabel="implements"];
+  InitialModels -> Initial [constraint=false,  xlabel="implements"];
+  Layouts -> InitialModels [constraint=false,  xlabel="physical layout"];
+  Area -> InitialModels [constraint=false,  xlabel="GC geometry"];
+  Doubled -> Physical [constraint=false,  xlabel="extends"];
+  Initialize -> Doubled [constraint=false,  xlabel="ABBA / BM4 state"];
+  Composition -> Maps [constraint=false,  xlabel="signed maps"];
+  Maps -> Dynamics [constraint=false,  xlabel="physical evaluations"];
+  Simulate -> NewRun [constraint=false,  xlabel="method.integrate"];
+  NewRun -> Initialize [constraint=false,  xlabel="initialize fresh instance"];
+  NewRun -> Coordinator [constraint=false,  xlabel="prepared run"];
+  Coordinator -> Controller [constraint=false,  xlabel="accepted-step loop"];
+  Controller -> Advance [constraint=false,  xlabel="advance"];
+  Advance -> Projection [constraint=false,  xlabel="ABBA / BM4"];
+  Projection -> Composition [constraint=false,  xlabel="complete spatial recipe"];
+  Projection -> NumericalSupport [constraint=false,  xlabel="implicit solve"];
+  Advance -> Controller [constraint=false, color="#4676A7", style=dotted, xlabel="StepResult"];
+  Coordinator -> Collector [constraint=false,  xlabel="statistics and samples"];
+  Collector -> Export [constraint=false,  xlabel="history + metrics"];
+  Export -> Passive [constraint=false,  xlabel="extract_history"];
+  Export -> Resume [constraint=false, color="#4676A7", style=dotted, xlabel="IntegrationData"];
+  Resume:n -> Solution:w [constraint=false,  xlabel="construct and return"];
+  Solution:s -> Validation:n [constraint=false,  xlabel="validate and freeze"];
+  Accessors -> ResultUse [constraint=false, color="#9369B1", style=dashed, xlabel="optional analysis"];
+  Coordinator -> ObservationDispatch [constraint=false, color="#9369B1", style=dashed, xlabel="observer installed"];
+  ObservationDispatch -> OutputContract [constraint=false, color="#9369B1", style=dashed, xlabel="public event"];
+  Coordinator -> Failure [constraint=false, color="#B96969", style=dashed, xlabel="propagate error"];
+}
+@enddot

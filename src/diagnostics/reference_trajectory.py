@@ -15,6 +15,8 @@ from typing import Any, Mapping
 
 import numpy as np
 
+from diagnostics.output import _json_default
+
 from .paths import find_project_root
 
 
@@ -172,17 +174,6 @@ def _array_digest(
 		digest.update(json.dumps(array.shape).encode("ascii"))
 		digest.update(array.tobytes(order="C"))
 	return digest.hexdigest()
-
-
-def _json_default(value: object) -> object:
-	"""Serialize NumPy values and paths used in reference metadata."""
-	if isinstance(value, np.generic):
-		return value.item()
-	if isinstance(value, np.ndarray):
-		return value.tolist()
-	if isinstance(value, Path):
-		return str(value)
-	raise TypeError(f"Object of type {type(value).__name__} is not JSON serializable.")
 
 
 def write_reference_trajectory(
