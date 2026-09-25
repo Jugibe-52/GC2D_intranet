@@ -1,4 +1,4 @@
-"""Shared accepted-step records and observer-independent ABBA diagnostics."""
+"""Shared accepted-stage records and nonlinear-work statistics."""
 
 from __future__ import annotations
 
@@ -10,27 +10,6 @@ import numpy as np
 
 from methods._nonlinear import SolveStats
 from formulations.gc import _EnergyQuadraturePoint
-
-
-@dataclass(frozen=True, slots=True)
-class _ABBAStages:
-    """Compatibility view of the four shears in an accepted ABBA pair."""
-
-    u_initial: np.ndarray
-    v_initial: np.ndarray
-    u_first: np.ndarray
-    v_final: np.ndarray
-    u_final: np.ndarray
-    residual: np.ndarray
-
-
-@dataclass(frozen=True, slots=True)
-class PhysicalBaseMapTrace:
-    """One ABBA pair exposed to the established diagnostic API."""
-
-    start_time: float
-    duration: float
-    stages: _ABBAStages
 
 
 @dataclass(frozen=True, slots=True)
@@ -60,22 +39,6 @@ class CompositionTrace:
     def energy_points(self) -> tuple[_EnergyQuadraturePoint, ...]:
         """Expose signed shear inputs in their original execution order."""
         return tuple(point for stage in self.stages for point in stage.energy_points)
-
-    @property
-    def maps(self) -> tuple[PhysicalBaseMapTrace, ...]:
-        """Adapt uncoupled ABBA pairs for the existing observer record types."""
-        result = []
-        for first, last in zip(self.stages[::2], self.stages[1::2], strict=True):
-            size = first.state_before.size // 2
-            u0, v0 = first.state_before[:size], first.state_before[size:]
-            uf, vf = last.state_after[:size], last.state_after[size:]
-            stages = _ABBAStages(u0, v0, first.energy_points[1][2], vf, uf, uf - vf)
-            result.append(PhysicalBaseMapTrace(first.start_time, first.duration + last.duration, stages))
-        return tuple(result)
-
-
-# Existing private ABBA consumers can keep their trace type checks.
-PhysicalProjectionTrace = CompositionTrace
 
 
 @dataclass(frozen=True, slots=True)
@@ -155,4 +118,3 @@ __all__: list[str] = []
 
 
 ProjectedMap: TypeAlias = Callable[[float, np.ndarray, float], ProjectedMapResult]
-StepSolver: TypeAlias = Callable[[float, np.ndarray, float], tuple[ProjectedMapResult, ...]]

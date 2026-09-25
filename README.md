@@ -203,7 +203,7 @@ and one constrained state/energy strategy:
 
 | Axis | Canonical values | Meaning |
 |---|---|---|
-| `projection_placement` | `"around_complete_composition"` | ABBA4 uses one outer projection; the removed per-map selector raises an error. |
+| `projection_placement` | `"around_complete_composition"` | ABBA4 and ABBA6 use one outer projection; per-map projection is rejected. |
 | `projection_formulation` | `"reduced_multiplier"`, `"simultaneous_state_multiplier"` | Chooses the nonlinear residual representation. |
 | `nonlinear_solver` | `"newton"`, `"broyden"` | Chooses how that residual is solved. |
 | `state_extension` | `"physical"` | Compatibility selector: only spatial coordinates are duplicated. |
@@ -248,7 +248,7 @@ inside one outer projection.
 | `ABBA2Midpoint` | 1 | Arithmetic mean; no nonlinear solve |
 | `ABBA2Implicit` | 1 | One implicit symmetric projection |
 | `ABBA4Implicit` | 3 | One outer projection around the complete unprojected triple jump |
-| `ABBA6Implicit` | 7 | One implicit projection after each signed map |
+| `ABBA6Implicit` | 7 | One implicit projection around the complete composition |
 
 The former per-map ABBA4 implementation is removed. Current ABBA4 has one
 nonlinear solve per step and three base maps per residual evaluation.

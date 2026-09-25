@@ -25,11 +25,11 @@ from diagnostics import (
 from dynamics import GuidingCenterDynamics
 from initial_conditions import GCInitialConfiguration
 from potential import Potential
-from methods.extended.order4_implicit import ABBA4Implicit
+from methods.extended.abba import ABBA4Implicit
 from methods.extended.bm4 import BM4Implicit
-from methods.extended.order2_implicit import ABBA2Implicit
+from methods.extended.abba import ABBA2Implicit
 from contracts.problem import InitialValueProblem
-from methods.extended.order2_midpoint import ABBA2Midpoint
+from methods.extended.abba import ABBA2Midpoint
 from methods.base import NumericalMethod
 from contracts.request import SimulationRequest
 from solution import Solution

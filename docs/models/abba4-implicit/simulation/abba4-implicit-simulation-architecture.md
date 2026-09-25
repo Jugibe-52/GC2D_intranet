@@ -5,8 +5,9 @@ Three ABBA pairs; six signed stages; Triple-jump coefficients; no coupling. One 
 ![ABBA4Implicit architecture](abba4-implicit-simulation-architecture.svg)
 
 The numerical implementation now lives in `src/methods/extended/`.
-Public names, constructor defaults, exports from `simulation`, observer records,
-and diagnostic keys remain unchanged. The former `methods/abba/` and
+Public method names and exports from `simulation` remain unchanged. ABBA6
+now uses one outer projection; its observer substeps are unprojected pairs and
+its nonlinear-work arrays have one column per accepted step. The former `methods/abba/` and
 `methods/bm4/` import adapters have been removed. Internal imports point directly
 to the defining modules in `methods.extended`.
 
@@ -21,8 +22,8 @@ remains [theory.tex](../tex/theory.tex), with its compiled
 Initialization binds this model's recipe and options. The ordinary implicit
 path is `advance -> solve_projection -> compose -> direct_map / adjoint_map`.
 Explicit midpoint methods use `midpoint_step` in place of the nonlinear
-projection. ABBA6 repeats seven complete projected pairs, preserving its
-existing projection placement.
+projection. ABBA4 and ABBA6 both project once around the complete
+unprojected composition; their recipes contain six and fourteen stages.
 
 The reduced and simultaneous formulations use the same shared spatial
 projection engine. Newton uses exact particle-block Jacobians and Broyden uses

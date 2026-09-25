@@ -12,7 +12,7 @@ import numpy as np
 from dynamics import GuidingCenterDynamics
 from initial_conditions import GCInitialConfiguration
 from potential import Potential
-from methods.extended.order4_implicit import ABBA4Implicit
+from methods.extended.abba import ABBA4Implicit
 from methods.extended.bm4 import BM4Implicit
 from methods.classical.gauss_legendre import GaussLegendre4
 from contracts.problem import InitialValueProblem

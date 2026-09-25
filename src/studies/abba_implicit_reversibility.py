@@ -14,8 +14,8 @@ from diagnostics import (
 )
 from dynamics import GuidingCenterDynamics
 from potential import Potential
-from methods.extended.order4_implicit import ABBA4Implicit
-from methods.extended.order2_implicit import ABBA2Implicit
+from methods.extended.abba import ABBA4Implicit
+from methods.extended.abba import ABBA2Implicit
 from contracts.configuration import InitialConfiguration
 from contracts.problem import InitialValueProblem
 from methods._nonlinear import NONLINEAR_SOLVERS, NonlinearSolver

@@ -22,8 +22,8 @@ from simulation import (
 	SimulationRequest,
 	simulate,
 )
-from methods.extended.coefficients import _ABBA4_COEFFICIENTS
-from methods.extended.abba_outer import _solve_abba4_single_projection_step as _solve_abba4_step
+from methods.extended.core.composition import _ABBA4_COEFFICIENTS
+from tests._extended_reference.abba_outer import _solve_abba4_single_projection_step as _solve_abba4_step
 from studies import (
 	ABBA4ImplicitAccuracyConfig,
 	AreaStep,
@@ -127,7 +127,7 @@ class ABBA4ImplicitMethodTests(unittest.TestCase):
 			)
 
 	def test_removed_projection_placement_is_rejected(self) -> None:
-		with self.assertRaisesRegex(ValueError, "removed"):
+		with self.assertRaisesRegex(ValueError, "around_complete_composition"):
 			ABBA4Implicit(projection_placement="after_each_abba_map")  # type: ignore[arg-type]
 
 	def test_observation_contains_three_continuous_signed_substeps(self) -> None:

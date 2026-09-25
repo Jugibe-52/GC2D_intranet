@@ -2,13 +2,14 @@
 from __future__ import annotations
 from dataclasses import dataclass
 import numpy as np
+from methods.extended.observations import abba_pairs
 from dynamics import DynamicalSystem, GuidingCenterJacobianSystem
 from formulations.gc import spatial_shear, GCDoubledMaps
 from contracts.problem import InitialValueProblem
 from initial_conditions import GCInitialConfiguration
-from methods.extended.composition import ABBA2, compose
+from methods.extended.core.composition import ABBA2, compose
 
-from methods.extended.records import _ABBAStages
+from methods.extended.observations import _ABBAStages
 
 
 def _checked_vector_field(
@@ -33,7 +34,7 @@ def _evaluate_unprojected_stages(
     """Expose ABBA's four-shear view of the shared direct/adjoint pair."""
     maps = uncoupled_maps(dynamics, u_initial)
     trace = compose(maps, ABBA2, t, np.concatenate((u_initial, v_initial)), step)
-    return trace.maps[0].stages
+    return abba_pairs(trace)[0].stages
 
 
 @dataclass(frozen=True, slots=True)
@@ -149,7 +150,7 @@ __all__: list[str] = []
 
 
 def uncoupled_maps(dynamics: DynamicalSystem, state: np.ndarray) -> GCDoubledMaps:
-    """Bind maps for legacy diagnostic functions that receive only a field."""
+    """Bind canonical maps for independent residual-equation verification."""
     return GCDoubledMaps(InitialValueProblem(dynamics, GCInitialConfiguration(state)), coupling_frequency=None)
 
 

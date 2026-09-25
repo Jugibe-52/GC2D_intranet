@@ -25,7 +25,7 @@ from simulation import (
 	SimulationRequest,
 	simulate,
 )
-from methods.extended.abba_reduced import (
+from tests._extended_reference.abba_reduced import (
 	_evaluate_residual,
 	_solve_reduced_multiplier_step,
 )

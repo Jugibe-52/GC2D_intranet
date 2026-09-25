@@ -20,7 +20,7 @@ from simulation import (
 	SimulationRequest,
 	simulate,
 )
-from methods.extended.abba_outer import (
+from tests._extended_reference.abba_outer import (
 	_evaluate_single_projection_residual,
 	_solve_abba4_single_projection_step,
 )

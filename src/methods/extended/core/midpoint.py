@@ -3,8 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 import numpy as np
 from formulations.gc import GCDoubledMaps
-from methods.extended.composition import Composition, compose
-from methods.extended.records import CompositionTrace, _ABBAStages
+from methods.extended.core.composition import Composition, compose
+from methods.extended.core.records import CompositionTrace
 
 
 @dataclass(frozen=True, slots=True)
@@ -14,11 +14,6 @@ class MidpointResult:
     state: np.ndarray
     copy_separation_norm: float
     trace: CompositionTrace
-
-    @property
-    def stages(self) -> _ABBAStages:
-        """Expose the established ABBA2 diagnostic view when requested."""
-        return self.trace.maps[0].stages
 
 
 def midpoint_step(maps: GCDoubledMaps, recipe: Composition,

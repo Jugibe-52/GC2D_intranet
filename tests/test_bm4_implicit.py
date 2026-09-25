@@ -20,7 +20,7 @@ from simulation import (
 	simulate,
 )
 from formulations.gc import GCDoubledMaps
-from methods.extended.bm4_composition import _advance_composition
+from methods.extended.core.composition import BM4, compose
 from studies import (
 	AreaStep,
 	BM4ImplicitSymplecticityConfig,
@@ -90,12 +90,10 @@ class BM4ImplicitMethodTests(unittest.TestCase):
 						self.assertEqual(plain.statistics, tracked.statistics)
 						self.assertGreater(tracked.details.iterations, 0)
 						prepared = GCDoubledMaps(problem, coupling, track_energy=True)
-						replayed = _advance_composition(
-							prepared, 0.3,
+						replayed = compose(
+							prepared, BM4, 0.3,
 							np.concatenate((tracked.details.internal_input, np.zeros(particles))), step,
-							step_index=0, stage_observer=None,
-							formulation_name='energy_reference', method_name='BM4Implicit',
-						)
+						).state
 						np.testing.assert_array_equal(
 							run.state_formulation.momentum(tracked.state), replayed[-particles:] / 2.0,
 						)

@@ -1330,9 +1330,9 @@ passive energy quadrature, and existing observation records. Newton and Broyden
 share the spatial projection equations; energy is accumulated only from the
 accepted trace, with the existing factor $1/2$ for physical $\kappa$.
 Adjoint stages evaluate at the start of their signed substep, direct stages at
-its end. The refactoring preserves the coefficients and projection placement:
-ABBA4 and BM4 have one outer projection, while ABBA6 retains seven projected
-ABBA2 pairs. This internal family name does not enable the retired full
+its end. The coefficients remain unchanged. ABBA4, ABBA6 and BM4 each
+use one outer projection around their complete unprojected compositions.
+ABBA6 therefore differs from historical results with seven projected pairs. This internal family name does not enable the retired full
 time/momentum projection.
 
 The implementation architecture and current diagrams are documented in

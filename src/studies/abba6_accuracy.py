@@ -12,7 +12,7 @@ from diagnostics import StoredReferenceTrajectory
 from dynamics import GuidingCenterDynamics
 from initial_conditions import GCInitialConfiguration
 from potential import Potential
-from methods.extended.order6_implicit import ABBA6Implicit
+from methods.extended.abba import ABBA6Implicit
 from contracts.problem import InitialValueProblem
 from contracts.request import SimulationRequest
 from solution import Solution

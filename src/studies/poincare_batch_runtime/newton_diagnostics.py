@@ -1,11 +1,9 @@
 """Observe Newton iterates without repeating or changing BM4 map evaluations."""
 from array import array
-import ast
 from contextlib import contextmanager
 import gzip
 import inspect
 import os
-import textwrap
 from collections.abc import Iterator, Callable
 from types import ModuleType
 from typing import Any
@@ -89,50 +87,17 @@ def _observe_shared_newton(module: ModuleType, history: NewtonHistory) -> Iterat
 
 @contextmanager
 def observe_newton(expected_steps, progress_every=1000):
-    """Add one observational callback to a private copy of the frozen solver.
+    """Temporarily observe the canonical projection engine in this process.
 
-    The snapshot on disk is unchanged. The copied function retains the original
-    statements and ordering; the callback reads already-computed residuals and
-    multipliers. It neither evaluates the field nor modifies solver state.
+    The callback reads already-computed residuals and multipliers. It neither
+    evaluates the field nor modifies solver state or the source snapshot.
     Each spawned process owns its callback; restoration also occurs on failure.
     """
-    import methods.extended.bm4 as module
+    from methods.extended.core import projection
 
-    # Current runs use the common projection engine. Frozen historical source
-    # snapshots still use the source-preserving adapter below.
-    shared = getattr(module, 'solve_projection', None)
-    if shared is not None:
-        projection_module = inspect.getmodule(shared)
-        assert projection_module is not None
-        history = NewtonHistory(expected_steps, progress_every)
-        with _observe_shared_newton(projection_module, history):
-            yield history
-        return
-
-    original = module._solve_reduced_projected_bm4_step
-    tree = ast.parse(textwrap.dedent(inspect.getsource(original)))
-    callback = ast.parse('_record_newton(iteration, residual_norm, threshold, multiplier, t, step)').body[0]
-    inserted = 0
-
-    class Instrument(ast.NodeTransformer):
-        def visit_Assign(self, node):
-            nonlocal inserted
-            if any(isinstance(t, ast.Name) and t.id == 'residual_norm' for t in node.targets):
-                inserted += 1
-                return [node, callback]
-            return node
-
-    tree = Instrument().visit(tree)
-    assert inserted == 1, 'Unsupported solver source: Newton observation point changed.'
-    ast.fix_missing_locations(tree)
     history = NewtonHistory(expected_steps, progress_every)
-    namespace = dict(original.__globals__, _record_newton=history.record)
-    exec(compile(tree, original.__code__.co_filename, 'exec'), namespace)
-    module._solve_reduced_projected_bm4_step = namespace[original.__name__]
-    try:
+    with _observe_shared_newton(projection, history):
         yield history
-    finally:
-        module._solve_reduced_projected_bm4_step = original
 
 
 def write_diagnostic_tables(directory, metadata, arrays):

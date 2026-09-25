@@ -13,7 +13,7 @@ from diagnostics import StoredReferenceTrajectory
 from dynamics import GuidingCenterDynamics
 from initial_conditions import GCInitialConfiguration
 from potential import Potential
-from methods.extended.order4_implicit import ABBA4Implicit
+from methods.extended.abba import ABBA4Implicit
 from methods._nonlinear import NONLINEAR_SOLVERS, NonlinearSolver
 from contracts.problem import InitialValueProblem
 from contracts.request import SimulationRequest

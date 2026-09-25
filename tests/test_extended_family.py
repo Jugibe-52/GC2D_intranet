@@ -13,9 +13,9 @@ from potential import Potential
 from simulation import (ABBA2Implicit, ABBA4Implicit, ABBA6Implicit, ABBA2Midpoint,
                         BM4Implicit, BM4Midpoint, InitialValueProblem, SimulationRequest, simulate)
 from formulations.gc import GCDoubledMaps
-from methods.extended.composition import ABBA2, ABBA4, BM4, Composition, compose
-from methods.extended.jacobians import central_difference_jacobian, packed_jacobian, particle_jacobians
-from methods.extended.projection import solve_projection
+from methods.extended.core.composition import ABBA2, ABBA4, ABBA6, BM4, Composition, compose
+from methods.extended.core.jacobians import central_difference_jacobian, packed_jacobian, particle_jacobians
+from methods.extended.core.projection import solve_projection
 
 
 def problem(count: int = 3) -> InitialValueProblem:
@@ -35,14 +35,15 @@ class ExtendedFamilyTests(unittest.TestCase):
         for name in ('ABBA2Implicit', 'ABBA4Implicit', 'ABBA6Implicit',
                      'ABBA2Midpoint', 'BM4Implicit', 'BM4Midpoint'):
             method = getattr(family, name)
-            self.assertTrue(method.__module__.startswith('methods.extended.'))
+            owner = 'abba' if name.startswith('ABBA') else 'bm4'
+            self.assertEqual(method.__module__, f'methods.extended.{owner}')
             self.assertIs(getattr(importlib.import_module(method.__module__), name), method)
 
     def test_presets_bind_one_projection_engine_and_preserve_placement(self) -> None:
         p = problem()
         request = SimulationRequest.uniform(t_span=(.3, .34), max_step=(.34 - .3) / 2, sample_count=3)
         for cls, recipe, solves in ((ABBA2Implicit, ABBA2, 1), (ABBA4Implicit, ABBA4, 1),
-                                   (ABBA6Implicit, ABBA2, 7), (BM4Implicit, BM4, 1)):
+                                   (ABBA6Implicit, ABBA6, 1), (BM4Implicit, BM4, 1)):
             run = cls().new_run(p, request)
             self.assertIs(run.project.func, solve_projection)
             self.assertIs(run.project.args[1], recipe)
@@ -52,7 +53,7 @@ class ExtendedFamilyTests(unittest.TestCase):
         for weights in ((1.,), (.2, .8), (.2, .2), (float('nan'), float('nan'))):
             with self.assertRaises(ValueError):
                 Composition('invalid', weights)
-        self.assertEqual([len(r.coefficients) for r in (ABBA2, ABBA4, BM4)], [2, 6, 12])
+        self.assertEqual([len(r.coefficients) for r in (ABBA2, ABBA4, ABBA6, BM4)], [2, 6, 14, 12])
 
     def test_abba_pairs_match_independent_endpoint_shear_equations(self) -> None:
         p = problem()
@@ -70,7 +71,7 @@ class ExtendedFamilyTests(unittest.TestCase):
     def test_signed_nonauto_compositions_reverse_and_have_correct_tangents(self) -> None:
         p = problem()
         initial = np.concatenate((p.initial_state + .003, p.initial_state - .003))
-        for recipe, coupling in ((ABBA2, None), (ABBA4, None), (BM4, 0.), (BM4, .4)):
+        for recipe, coupling in ((ABBA2, None), (ABBA4, None), (ABBA6, None), (BM4, 0.), (BM4, .4)):
             maps = GCDoubledMaps(p, coupling_frequency=coupling)
             for h in (.15, -.15):
                 with self.subTest(recipe=recipe.name, coupling=coupling, h=h):

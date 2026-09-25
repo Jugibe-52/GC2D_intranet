@@ -1,183 +1,244 @@
-"""Configuration and numerical operations shared by implicit ABBA methods."""
+"""Public ABBA configurations sharing one composition and outer projection."""
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 from functools import partial
-from formulations.gc import GCDoubledMaps
-from methods.extended.composition import ABBA2, ABBA4
-from methods.extended.projection import solve_projection
-from methods.extended.records import ProjectedMap
-from methods.extended.energy import momentum_increment
 from typing import ClassVar, Literal
 
 import numpy as np
 
-from dynamics import GuidingCenterJacobianSystem
-
-from contracts.result import DiagnosticValue
-from integration.core import IntegrationMethod, NEWTON_ALIASES
-from contracts.step import StepInfo, StepResult as NumericalStep
 from contracts.observation import IntegrationStep, StepObserver
-from formulations.state import DoubledFormulation
 from contracts.problem import InitialValueProblem
 from contracts.request import SimulationRequest
+from contracts.result import DiagnosticValue
+from contracts.step import StepInfo, StepResult as NumericalStep
+from dynamics import DynamicalSystem, GuidingCenterJacobianSystem
+from formulations.gc import GCDoubledMaps
+from formulations.state import DoubledFormulation
+from integration.core import IntegrationMethod, NEWTON_ALIASES
 from methods._nonlinear import NonlinearSolver, SolverOptions, _validate_nonlinear_solver
-from methods.extended.coefficients import _ABBA4_COEFFICIENTS, _ABBA6_COEFFICIENTS
 from methods.extended.configuration import (
-    ProjectionFormulation, StateExtension, _resolved_track_energy,
-    _state_dimension_diagnostics, _validate_projection_formulation, _validate_state_extension,
+    ProjectionFormulation, ProjectionPlacement, StateExtension,
+    _positive_finite, _positive_integer, _resolved_track_energy,
+    _state_dimension_diagnostics, _validate_projection_formulation,
+    _validate_projection_placement, _validate_state_extension,
 )
-from methods.extended.abba_maps import _checked_vector_field_jacobian
-from methods.extended.abba_observations import EventBuilder, bind_event_builder
-from methods.extended.records import ProjectedMapResult, StepResult, step_statistics
-
-
-from methods.extended.configuration import _positive_finite, _positive_integer
+from methods.extended.core.composition import ABBA2, ABBA4, ABBA6, Composition
+from methods.extended.core.energy import momentum_increment
+from methods.extended.core.jacobians import _checked_vector_field_jacobian
+from methods.extended.core.midpoint import midpoint_step, MidpointResult
+from methods.extended.core.projection import solve_projection
+from methods.extended.core.records import ProjectedMap, StepResult, step_statistics
+from methods.extended.observations import EventBuilder, bind_event_builder
 
 
 @dataclass(slots=True)
 class _ABBAImplicitMethod(IntegrationMethod[StepResult]):
-	"""Own one ABBA run; concrete orders select the composition and projection placement."""
+    """Project one complete palindromic recipe; concrete methods select its order."""
 
-	projection_formulation: ProjectionFormulation = "reduced_multiplier"
+    projection_formulation: ProjectionFormulation = "reduced_multiplier"
+    state_extension: StateExtension = "physical"
+    newton_absolute_tolerance: float = 1e-13
+    newton_relative_tolerance: float = 1e-12
+    newton_max_iterations: int = 12
+    nonlinear_solver: NonlinearSolver = "newton"
+    progress: bool = False
+    step_observer: StepObserver | None = None
+    track_energy: bool = False
+
+    order: ClassVar[Literal[2, 4, 6]]
+    recipe: ClassVar[Composition]
+    state_formulation: DoubledFormulation = field(init=False, repr=False, compare=False)
+    build_event: EventBuilder | None = field(init=False, repr=False, compare=False)
+    project: ProjectedMap = field(init=False, repr=False, compare=False)
+
+    def __post_init__(self) -> None:
+        """Validate the common spatial projection and nonlinear solver controls."""
+        self.projection_formulation = _validate_projection_formulation(self.projection_formulation)
+        self.state_extension = _validate_state_extension(self.state_extension)
+        self.track_energy = _resolved_track_energy(self.track_energy, self.state_extension)
+        self.newton_absolute_tolerance = _positive_finite(self.newton_absolute_tolerance, 'newton_absolute_tolerance')
+        self.newton_relative_tolerance = _positive_finite(self.newton_relative_tolerance, 'newton_relative_tolerance')
+        self.newton_max_iterations = _positive_integer(self.newton_max_iterations, 'newton_max_iterations')
+        self.nonlinear_solver = _validate_nonlinear_solver(self.nonlinear_solver)
+
+    def initialize(self, problem: InitialValueProblem, request: SimulationRequest) -> None:
+        """Bind the complete recipe to one reduced or simultaneous projection."""
+        dynamics = problem.dynamics
+        name = type(self).__name__
+        if not isinstance(dynamics, GuidingCenterJacobianSystem) or dynamics.state_dimension != 2:
+            raise TypeError(f"{name} requires planar GuidingCenterJacobianSystem dynamics.")
+        options = SolverOptions(self.nonlinear_solver, self.newton_absolute_tolerance,
+                                self.newton_relative_tolerance, self.newton_max_iterations)
+        self.state_formulation = DoubledFormulation(problem, request.t_span[0], self.track_energy)
+        self.project = partial(
+            solve_projection, GCDoubledMaps(problem, coupling_frequency=None),
+            self.recipe, options, self.projection_formulation,
+            retain_energy_points=self.track_energy,
+        )
+        if options.solver == "newton":
+            _checked_vector_field_jacobian(dynamics, request.t_span[0], problem.initial_state)
+        # Each ABBA pair contains equal adjoint/direct weights. Pair durations
+        # describe unprojected stages, never independent nonlinear solves.
+        coefficients = tuple(2 * c for c in self.recipe.coefficients[::2])
+        self.build_event = None
+        if self.step_observer is not None:
+            self.build_event = bind_event_builder(
+                dynamics, name, self.projection_formulation, order=self.order,
+                coefficients=coefficients, project=self.project,
+            )
+        metadata: dict[str, DiagnosticValue] = {
+            "nonlinear_solves_per_step": 1,
+            "nonlinear_solver": options.solver,
+            "nonlinear_absolute_tolerance": options.absolute_tolerance,
+            "nonlinear_relative_tolerance": options.relative_tolerance,
+            "nonlinear_max_iterations": options.max_iterations,
+            "projection_formulation": self.projection_formulation,
+            "projection_placement": "around_complete_composition",
+            "state_extension": self.state_extension,
+            "track_energy": self.track_energy,
+            "composition_stage_count": len(self.recipe.coefficients),
+        }
+        metadata.update(_state_dimension_diagnostics(
+            self.state_extension, self.projection_formulation,
+            particle_count=problem.initial_state.size // 2,
+        ))
+        if self.order != 2:
+            coefficient_array = np.asarray(coefficients)
+            coefficient_array.setflags(write=False)
+            metadata.update({
+                "implicit_substeps_per_step": 1,
+                "composition_coefficients": coefficient_array,
+                "unprojected_abba_maps_per_step": len(coefficients),
+                "unprojected_abba_maps_per_residual_evaluation": len(coefficients),
+                "base_composition": (
+                    "unprojected_abba4_triple_jump" if self.order == 4
+                    else "unprojected_abba6_yoshida"
+                ),
+            })
+        self.initial_state = self.state_formulation.initial_state
+        self.initial_state.setflags(write=False)
+        self.metadata = metadata
+        self.diagnostic_aliases = NEWTON_ALIASES
+
+    def advance(self, t: float, workspace: np.ndarray, h: float) -> NumericalStep[StepResult]:
+        """Project the complete composition and accumulate its passive energy."""
+        state_before = self.state_formulation.physical(workspace)
+        projection = self.project(t, state_before, h)
+        increment = momentum_increment(self.state_formulation, projection.energy_points) if self.track_energy else None
+        after = self.state_formulation.finish(workspace, projection.state, t + h, increment)
+        result = StepResult(after, (projection,))
+        return NumericalStep(after, step_statistics(result, include_substeps=self.order != 2), result)
+
+    def build_observation(self, info: StepInfo, step: NumericalStep[StepResult]) -> IntegrationStep:
+        """Expose physical snapshots from the accepted projection trace."""
+        assert self.build_event is not None
+        before = self.state_formulation.physical(info.state_before)
+        return self.build_event(info.time, info.duration, info.index, before, step.details)
+
+
+@dataclass(slots=True)
+class ABBA2Implicit(_ABBAImplicitMethod):
+    """Second-order ABBA pair with one symmetric spatial projection."""
+
+    order: ClassVar[Literal[2, 4, 6]] = 2
+    recipe: ClassVar[Composition] = ABBA2
+
+
+@dataclass(slots=True)
+class _ComposedABBAImplicit(_ABBAImplicitMethod):
+    """Shared placement selector for higher-order ABBA compositions."""
+
+    projection_placement: ProjectionPlacement = "around_complete_composition"
+
+    def __post_init__(self) -> None:
+        """Validate the shared solver and the sole supported projection placement."""
+        _ABBAImplicitMethod.__post_init__(self)
+        self.projection_placement = _validate_projection_placement(self.projection_placement)
+
+
+@dataclass(slots=True)
+class ABBA4Implicit(_ComposedABBAImplicit):
+    """Fourth-order triple jump with one projection around all six stages."""
+
+    order: ClassVar[Literal[2, 4, 6]] = 4
+    recipe: ClassVar[Composition] = ABBA4
+
+
+@dataclass(slots=True)
+class ABBA6Implicit(_ComposedABBAImplicit):
+    """Sixth-order Yoshida recipe with one projection around fourteen stages.
+
+    Seven signed, unprojected ABBA pairs keep both copies independent until
+    the common outer projection. Negative coefficients reverse the stage clock.
+    Optional physical momentum tracking is passive and uses the accepted trace.
+    """
+
+    order: ClassVar[Literal[2, 4, 6]] = 6
+    recipe: ClassVar[Composition] = ABBA6
+@dataclass(slots=True)
+class ABBA2Midpoint(IntegrationMethod[MidpointResult]):
+	"""Second-order midpoint ABBA with optional physical energy tracking.
+
+	The method duplicates only the physical state, applies
+	the endpoint-time A-B-B-A shears, and averages the two final copies. Tracking
+	the physical conjugate momentum is an auxiliary triangular update that does
+	not feed back into this map. Midpoint has no residual-formulation or
+	nonlinear-solver axis.
+	"""
+
 	state_extension: StateExtension = "physical"
-	newton_absolute_tolerance: float = 1e-13
-	newton_relative_tolerance: float = 1e-12
-	newton_max_iterations: int = 12
-	nonlinear_solver: NonlinearSolver = "newton"
 	progress: bool = False
 	step_observer: StepObserver | None = None
 	track_energy: bool = False
 
-	order: ClassVar[Literal[2, 4, 6]]
+	# Runtime resources are initialized once by new_run, never constructor inputs.
 	state_formulation: DoubledFormulation = field(init=False, repr=False, compare=False)
-	solver_options: SolverOptions = field(init=False, repr=False, compare=False)
-	build_event: EventBuilder | None = field(init=False, repr=False, compare=False)
-	coefficients: tuple[float, ...] = field(init=False, repr=False, compare=False)
-	include_substep_metrics: bool = field(init=False, repr=False, compare=False)
-	project: ProjectedMap = field(init=False, repr=False, compare=False)
+	dynamics: DynamicalSystem = field(init=False, repr=False, compare=False)
+	formulation: GCDoubledMaps = field(init=False, repr=False, compare=False)
+	physical_size: int = field(init=False, repr=False, compare=False)
+	particle_count: int = field(init=False, repr=False, compare=False)
 
 	def __post_init__(self) -> None:
-		"""Validate the nonlinear projection solver configuration."""
-		self.projection_formulation = _validate_projection_formulation(self.projection_formulation)
+		"""Validate the state strategy and resolve inherent energy tracking."""
 		self.state_extension = _validate_state_extension(self.state_extension)
 		self.track_energy = _resolved_track_energy(self.track_energy, self.state_extension)
-		self.newton_absolute_tolerance = _positive_finite(self.newton_absolute_tolerance, 'newton_absolute_tolerance')
-		self.newton_relative_tolerance = _positive_finite(self.newton_relative_tolerance, 'newton_relative_tolerance')
-		self.newton_max_iterations = _positive_integer(self.newton_max_iterations, 'newton_max_iterations')
-		self.nonlinear_solver = _validate_nonlinear_solver(self.nonlinear_solver)
 
 	def initialize(self, problem: InitialValueProblem, request: SimulationRequest) -> None:
-		"""Select this run's state representation, projection and numerical recipe."""
-		projection_placement = getattr(self, "projection_placement", None)
-		outer = self.order == 4
-		if outer:
-			if projection_placement not in (None, "around_complete_composition"):
-				raise ValueError("ABBA4 requires one projection around the complete composition.")
-			projection_placement = "around_complete_composition"
-		else:
-			if projection_placement not in (None, "after_each_abba_map"):
-				raise ValueError("ABBA2 and ABBA6 project each of their base maps.")
-			projection_placement = "after_each_abba_map"
-		self.coefficients = (
-			(1.0,) if self.order == 2 else tuple(float(c) for c in (
-				_ABBA4_COEFFICIENTS if self.order == 4 else _ABBA6_COEFFICIENTS
-			))
-		)
-		dynamics = problem.dynamics
-		name = type(self).__name__
-		options = SolverOptions(self.nonlinear_solver, self.newton_absolute_tolerance,
-		                        self.newton_relative_tolerance, self.newton_max_iterations)
-		z0 = problem.initial_state
-		if not isinstance(dynamics, GuidingCenterJacobianSystem) or dynamics.state_dimension != 2:
-			raise TypeError(f"{name} requires planar GuidingCenterJacobianSystem dynamics.")
+		"""Initialize one spatial arithmetic-projection run with optional passive energy."""
+		self.dynamics = problem.dynamics
+		self.formulation = GCDoubledMaps(problem, coupling_frequency=None)
+		self.physical_size = problem.initial_state.size
+		self.particle_count = self.physical_size // 2
+		if not isinstance(self.dynamics, DynamicalSystem) or self.dynamics.state_dimension != 2:
+			raise TypeError("ABBA2Midpoint requires planar two-component dynamics.")
 		self.state_formulation = DoubledFormulation(problem, request.t_span[0], self.track_energy)
-		self.solver_options = options
-		self.project = partial(solve_projection, GCDoubledMaps(problem, coupling_frequency=None),
-		    ABBA4 if outer else ABBA2, options, self.projection_formulation,
-		    retain_energy_points=self.track_energy)
-		if options.solver == "newton":
-			_checked_vector_field_jacobian(dynamics, request.t_span[0], z0)
-		self.build_event = None
-		if self.step_observer is not None:
-			self.build_event = bind_event_builder(
-				dynamics, name, self.projection_formulation, order=self.order,
-				outer=outer, coefficients=self.coefficients,
-				solve_step=self.solve_step, project=self.project,
-			)
-		projection_count = 1 if outer else len(self.coefficients)
+		self.initial_state = self.state_formulation.initial_state
 		metadata: dict[str, DiagnosticValue] = {
-			"nonlinear_solves_per_step": projection_count,
-			"nonlinear_solver": options.solver,
-			"nonlinear_absolute_tolerance": options.absolute_tolerance,
-			"nonlinear_relative_tolerance": options.relative_tolerance,
-			"nonlinear_max_iterations": options.max_iterations,
-			"projection_formulation": self.projection_formulation,
-			"state_extension": self.state_extension,
-			"track_energy": self.track_energy,
+			"projection_kind": "arithmetic_mean", "state_extension": self.state_extension,
+			"track_energy": self.track_energy, "nonlinear_unknown_dimension": 0,
+			"vector_field_evaluations_per_step": 4,
 		}
-		metadata.update(_state_dimension_diagnostics(
-			self.state_extension, self.projection_formulation, particle_count=z0.size // 2,
-		))
-		self.include_substep_metrics = self.order != 2
-		if self.include_substep_metrics:
-			coefficient_array = np.asarray(self.coefficients)
-			coefficient_array.setflags(write=False)
-			metadata.update({
-				"implicit_substeps_per_step": projection_count,
-				"projection_placement": projection_placement,
-				"composition_coefficients": coefficient_array,
-			})
-		if outer:
-			metadata.update({
-				"unprojected_abba_maps_per_step": len(self.coefficients),
-				"unprojected_abba_maps_per_residual_evaluation": len(self.coefficients),
-				"base_composition": "unprojected_abba4_triple_jump",
-			})
-		elif self.order != 2:
-			metadata.update({
-				"substep_projection_formulation": self.projection_formulation,
-				"composition_policy": "project_each_abba_substep",
-			})
-		initial = self.state_formulation.initial_state
-		initial.setflags(write=False)
-		self.initial_state = initial
+		metadata.update(_state_dimension_diagnostics(self.state_extension, particle_count=self.particle_count))
 		self.metadata = metadata
-		self.diagnostic_aliases = NEWTON_ALIASES
 
-	def solve_step(self, t: float, state: np.ndarray, h: float) -> tuple[ProjectedMapResult, ...]:
-		"""Apply the order's complete recipe using this run's projection equation."""
-		if self.order != 6:
-			return (self.project(t, state, h),)
-		# ABBA6 composes complete projected pairs; flattening them would change it.
-		projections = []
-		for coefficient in self.coefficients:
-			duration = coefficient * h
-			result = self.project(t, state, duration)
-			projections.append(result)
-			state = result.state
-			t += duration
-		return tuple(projections)
-
-	def advance(self, t: float, workspace: np.ndarray, h: float) -> NumericalStep[StepResult]:
-		"""Apply the projections and finish the physical or extended state update."""
-		state_before = self.state_formulation.physical(workspace)
-		projections = (self.project(t, state_before, h),) if self.order != 6 else self.solve_step(t, state_before, h)
+	def advance(self, t: float, state: np.ndarray, h: float) -> NumericalStep[MidpointResult]:
+		"""Project the spatial copies and independently accumulate their energy balance."""
+		result = midpoint_step(self.formulation, ABBA2, t, self.state_formulation.physical(state), h)
 		increment = None
 		if self.track_energy:
-			increment = momentum_increment(self.state_formulation,
-			    (point for projection in projections for point in projection.energy_points))
-		next_workspace = self.state_formulation.finish(workspace, projections[-1].state, t + h, increment)
-		result = StepResult(next_workspace, projections)
-		return NumericalStep(next_workspace, step_statistics(
-			result, include_substeps=self.include_substep_metrics,
-		), result)
+			increment = momentum_increment(self.state_formulation, result.trace.energy_points)
+		after = self.state_formulation.finish(state, result.state, t + h, increment)
+		return NumericalStep(after, {"copy_separation_norms": result.copy_separation_norm}, result)
 
-	def build_observation(self, info: StepInfo, step: NumericalStep[StepResult]) -> IntegrationStep:
-		"""Expose the selected physical or extended observation domain."""
-		assert self.build_event is not None
-		state_before = self.state_formulation.physical(info.state_before)
-		return self.build_event(info.time, info.duration, info.index, state_before, step.details)
+	def build_observation(self, info: StepInfo, step: NumericalStep[MidpointResult]) -> IntegrationStep:
+		"""Observe only the physical map, independently of energy tracking."""
+		def map_state(candidate: np.ndarray) -> np.ndarray:
+			return midpoint_step(self.formulation, ABBA2, info.time, candidate, info.duration).state
+		return IntegrationStep(
+			dynamics_name=type(self.dynamics).__name__, method_name=self.method_name,
+			step_index=info.index, start_time=info.time, time=info.end_time,
+			duration=info.duration, state_before=self.state_formulation.physical(info.state_before).copy(),
+			state_after=step.details.state.copy(), map_state=map_state, dynamics=self.dynamics)
 
-
-__all__: list[str] = []
+__all__ = ["ABBA2Implicit", "ABBA4Implicit", "ABBA6Implicit", "ABBA2Midpoint"]

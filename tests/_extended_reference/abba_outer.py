@@ -2,15 +2,16 @@
 from __future__ import annotations
 from dataclasses import dataclass
 import numpy as np
-from methods.extended.projection import solve_projection
-from methods.extended.composition import ABBA4
-from methods.extended.abba_maps import uncoupled_maps
+from methods.extended.observations import abba_pairs
+from methods.extended.core.projection import solve_projection
+from methods.extended.core.composition import ABBA4
+from tests._extended_reference.abba_maps import uncoupled_maps
 from methods._nonlinear import SolverOptions
 from dynamics import GuidingCenterJacobianSystem
 from methods._nonlinear import NonlinearSolver, _solve_broyden, _solve_newton
-from methods.extended.coefficients import _ABBA4_COEFFICIENTS
+from methods.extended.core.composition import _ABBA4_COEFFICIENTS
 from methods.extended.configuration import ProjectionFormulation
-from methods.extended.abba_maps import _ABBAStages, _evaluate_unprojected_stages, _differentiate_stages
+from tests._extended_reference.abba_maps import _ABBAStages, _evaluate_unprojected_stages, _differentiate_stages
 
 @dataclass(frozen=True, slots=True)
 class _SingleProjectionBaseEvaluation:
@@ -242,7 +243,7 @@ def _solve_reduced_abba4_single_projection_step(
         SolverOptions(nonlinear_solver, absolute_tolerance, relative_tolerance, max_iterations),
         'reduced_multiplier', t, state, step)
     return _ABBA4SingleProjectionStep(result.state, result.multiplier,
-        tuple(m.stages for m in result.trace.maps), result.iterations,
+        tuple(m.stages for m in abba_pairs(result.trace)), result.iterations,
         result.residual_evaluations, result.residual_norm)
 
 
@@ -304,7 +305,7 @@ def _solve_simultaneous_abba4_single_projection_step(
         SolverOptions(nonlinear_solver, absolute_tolerance, relative_tolerance, max_iterations),
         'simultaneous_state_multiplier', t, state, step)
     return _ABBA4SingleProjectionStep(result.state, result.multiplier,
-        tuple(m.stages for m in result.trace.maps), result.iterations,
+        tuple(m.stages for m in abba_pairs(result.trace)), result.iterations,
         result.residual_evaluations, result.residual_norm)
 
 

@@ -12,7 +12,7 @@ import scipy
 from dynamics import GuidingCenterDynamics
 from initial_conditions import GCInitialConfiguration
 from potential import Potential
-from methods.extended.bm4_midpoint import BM4Midpoint
+from methods.extended.bm4 import BM4Midpoint
 from contracts.problem import InitialValueProblem
 from methods.classical.rk4 import RK4
 from contracts.request import SimulationRequest

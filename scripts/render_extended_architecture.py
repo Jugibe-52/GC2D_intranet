@@ -29,11 +29,11 @@ class Model:
 
 MODELS = (
     Model('extended', 'extended-simulation-architecture', 'ABBA and BM4',
-          'ABBA2: 2 stages | ABBA4: 6 stages\nBM4: 12 stages | signed palindromes',
-          'ABBA2 / ABBA4 / BM4: one projection\nABBA6: seven projected ABBA2 pairs'),
+          'ABBA2: 2 | ABBA4: 6 | ABBA6: 14\nBM4: 12 signed direct/adjoint stages',
+          'One outer projection per implicit step\nNo intermediate projections'),
     Model('abba', 'abba-numerical-architecture', 'ABBA family',
           'ABBA2 pair; ABBA4 triple jump\nABBA6: seven signed ABBA2 steps',
-          'ABBA4 projects the complete triple jump\nABBA6 projects each base pair'),
+          'ABBA4 and ABBA6 share one outer solve\nOnly the unprojected recipe differs'),
     Model('abba2-implicit', 'abba2-implicit-simulation-architecture', 'ABBA2Implicit',
           'adjoint(h/2), direct(h/2)\nNo harmonic coupling',
           'One spatial projection per step\nReduced or simultaneous equation'),
@@ -41,8 +41,8 @@ MODELS = (
           'Three ABBA pairs; six signed stages\nTriple-jump coefficients; no coupling',
           'One projection around all six stages\nNo intermediate projection'),
     Model('abba6-implicit', 'abba6-implicit-simulation-architecture', 'ABBA6Implicit',
-          'Seven signed projected ABBA2 pairs\nYoshida order-six coefficients',
-          'Seven independent projection solves\nDo not flatten to one outer projection'),
+          'Seven unprojected pairs; fourteen stages\nYoshida order-six coefficients',
+          'One projection around all fourteen stages\nSame execution structure as ABBA4'),
     Model('bm4-implicit', 'bm4-simulation-architecture', 'BM4Implicit',
           'Twelve alternating signed stages\nOptional harmonic coupling',
           'One reduced projection per cycle\nAnalytic or finite-difference Newton'),
@@ -59,22 +59,22 @@ def render(model: Model) -> None:
     """Generate source and readable views of the same numerical dependencies."""
     folder = ROOT / 'docs/models' / model.directory / 'simulation'
     folder.mkdir(parents=True, exist_ok=True)
-    projection = ('solve_projection', 'projection.py\nSpatial Hairer equation') if model.implicit else ('midpoint_step', 'midpoint.py\nOne arithmetic diagonal average')
+    projection = ('solve_projection', 'core/projection.py\nSpatial Hairer equation') if model.implicit else ('midpoint_step', 'core/midpoint.py\nOne arithmetic diagonal average')
     nodes = {
         'recipe': (2.3, 8.0, 'Composition recipe', model.recipe, '#fff0d9'),
-        'method': (7.0, 8.0, model.name, 'Exports: simulation / methods.extended\nImplementation: src/methods/extended/', '#e5ecfa'),
+        'method': (7.0, 8.0, model.name, 'Exports: simulation / methods.extended\nClasses: extended/abba.py and bm4.py', '#e5ecfa'),
         'driver': (11.7, 8.0, 'Simulation + integration', 'src/simulation/runner.py and src/integration/\nMain steps, output sampling, collection', '#e5ecfa'),
         'state': (2.3, 6.5, 'DoubledFormulation', 'src/formulations/state.py\nTwo copies; optional time and kappa', '#e5ecfa'),
         'advance': (7.0, 6.5, 'advance', 'Bound recipe and projection configuration\nOne accepted numerical result', '#e5ecfa'),
-        'energy': (11.7, 6.5, 'Passive energy and outputs', 'energy.py: accepted shear quadrature\nH + kappa; no feedback into the root', '#e1f0e6'),
-        'observe': (2.3, 5.0, 'Optional observations', 'src/contracts/observation.py\nIndependent accepted records and counters', '#f0e5f5'),
+        'energy': (11.7, 6.5, 'Passive energy and outputs', 'core/energy.py: accepted shear quadrature\nH + kappa; no feedback into the root', '#e1f0e6'),
+        'observe': (2.3, 5.0, 'Optional observations', 'extended/observations.py: event adapters\nPublic records: contracts/observation.py', '#f0e5f5'),
         'projection': (7.0, 5.0, projection[0], projection[1], '#e1f0e6'),
         'solver': (11.7, 5.0, 'Newton / Broyden' if model.implicit else 'Explicit projection',
                    '_nonlinear.py: shared convergence and work\nTime and momentum excluded from roots' if model.implicit else 'Average the two final copies\nNo Newton / Broyden calls', '#fff0d9'),
         'placement': (2.3, 3.5, 'Method identity', model.placement, '#fff0d9'),
-        'compose': (7.0, 3.5, 'compose', 'composition.py: signed stage clock\nAccepted trace reused by all consumers', '#e1f0e6'),
+        'compose': (7.0, 3.5, 'compose', 'core/composition.py: signed stage clock\nAccepted trace reused by all consumers', '#e1f0e6'),
         'tangent': (11.7, 3.5, 'Analytic tangents' if model.implicit else 'Accepted stage trace',
-                    'jacobians.py: particle blocks and chain rule\nBroyden does not evaluate Jacobians' if model.implicit else 'Signed times, durations and shear inputs\nEnergy evaluated after the spatial map', '#e1f0e6'),
+                    'core/jacobians.py: ordered particle tangents\nBroyden does not evaluate Jacobians' if model.implicit else 'Signed times, durations and shear inputs\nEnergy evaluated after the spatial map', '#e1f0e6'),
         'maps': (7.0, 2.0, 'GCDoubledMaps', 'direct_map / adjoint_map\nSpatial shears and optional coupling', '#e1f0e6'),
         'dynamics': (7.0, .5, 'Physical dynamics', 'Vector field, analytic derivatives, H and partial_t H\nExisting dynamics and potential contracts', '#e5ecfa'),
     }

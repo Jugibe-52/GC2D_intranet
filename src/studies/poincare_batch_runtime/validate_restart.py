@@ -11,7 +11,7 @@ def baseline(indices,xy,meta):
     from dynamics import GuidingCenterDynamics
     from initial_conditions import GCInitialConfiguration
     from methods.extended.bm4 import BM4Implicit
-    from methods.extended.bm4_midpoint import BM4Midpoint
+    from methods.extended.bm4 import BM4Midpoint
     from contracts.problem import InitialValueProblem
     from contracts.request import SimulationRequest
     from simulation.runner import simulate

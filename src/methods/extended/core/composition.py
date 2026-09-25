@@ -16,8 +16,29 @@ import numpy as np
 
 from formulations.base import PreparedDirectAdjointFormulation
 from formulations.gc import GCDoubledMaps, _EnergyQuadraturePoint
-from methods.extended.records import CompositionTrace, MapStage
-from methods.extended.coefficients import _ABBA4_COEFFICIENTS
+from methods.extended.core.records import CompositionTrace, MapStage
+_CUBE_ROOT_TWO = float(np.cbrt(2.0))
+_GAMMA = 1.0 / (2.0 - _CUBE_ROOT_TWO)
+_DELTA = -_CUBE_ROOT_TWO / (2.0 - _CUBE_ROOT_TWO)
+_ABBA4_COEFFICIENTS = np.asarray((_GAMMA, _DELTA, _GAMMA), dtype=float)
+
+# Yoshida's real symmetric order-six solution. Its negative stages are required
+# for the odd composition conditions to cancel while preserving self-adjointness.
+_ABBA6_COEFFICIENTS = np.asarray(
+	(
+		0.78451361047755726382,
+		0.23557321335935813368,
+		-1.17767998417887100695,
+		1.31518632068391121889,
+		-1.17767998417887100695,
+		0.23557321335935813368,
+		0.78451361047755726382,
+	),
+	dtype=float,
+)
+
+
+
 
 
 @dataclass(frozen=True, slots=True)
@@ -45,6 +66,7 @@ class Composition:
 
 ABBA2 = Composition("ABBA2", (0.5, 0.5))
 ABBA4 = Composition("ABBA4", tuple(float(c / 2) for c in _ABBA4_COEFFICIENTS for _ in range(2)))
+ABBA6 = Composition("ABBA6", tuple(float(c / 2) for c in _ABBA6_COEFFICIENTS for _ in range(2)))
 _BM4_HALF = (0.0792036964311957, 0.1303114101821663, 0.2228614958676077,
              -0.3667132690474257, 0.3246481886897062, 0.1096884778767498)
 BM4 = Composition("BM4", _BM4_HALF + _BM4_HALF[::-1])

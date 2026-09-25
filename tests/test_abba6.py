@@ -7,6 +7,12 @@ import tempfile
 import unittest
 
 import numpy as np
+from scipy.integrate import solve_ivp
+
+from diagnostics import (
+	ImplicitABBAReversibilityObserver, abba6_implicit_step_particle_jacobians,
+	central_difference_jacobian,
+)
 
 from initial_conditions import GCInitialConfiguration
 from simulation import (
@@ -16,8 +22,7 @@ from simulation import (
 	SimulationRequest,
 	simulate,
 )
-from methods.extended.coefficients import _ABBA6_COEFFICIENTS
-from methods.extended.abba_composition import _solve_abba6_step
+from methods.extended.core.composition import _ABBA6_COEFFICIENTS
 from studies import (
 	ABBA6AccuracyConfig,
 	HighPrecisionReferenceConfig,
@@ -28,6 +33,9 @@ from studies import (
 )
 
 from tests.test_abba4_implicit import _LinearRotationDynamics, _rotation_problem
+from tests.test_abba4_single_projection import (
+	_NonlinearHamiltonianDynamics, _problem, _dense_particle_blocks,
+)
 
 
 class _SixthDegreeTimeDynamics:
@@ -56,6 +64,61 @@ class _SixthDegreeTimeDynamics:
 
 class ABBA6MethodTests(unittest.TestCase):
 	"""Verify coefficients, sixth order, signed times, and reversibility."""
+
+	def test_nonlinear_non_autonomous_order_for_both_roots_and_solvers(self) -> None:
+		problem = _problem(_NonlinearHamiltonianDynamics(),
+			x=np.asarray([1.0, 0.7]), y=np.asarray([0.2, -0.3]))
+		reference = solve_ivp(problem.dynamics.vector_field, (0.0, 0.8), problem.initial_state,
+			method="DOP853", rtol=3e-14, atol=1e-15, max_step=0.002)
+		self.assertTrue(reference.success)
+		for formulation in ("reduced_multiplier", "simultaneous_state_multiplier"):
+			for solver in ("newton", "broyden"):
+				with self.subTest(formulation=formulation, solver=solver):
+					errors = []
+					for h in (0.2, 0.1, 0.05):
+						result = simulate(problem, ABBA6Implicit(
+							projection_formulation=formulation, nonlinear_solver=solver,
+							newton_absolute_tolerance=1e-14, newton_relative_tolerance=1e-14,
+							newton_max_iterations=40), SimulationRequest.uniform(
+								t_span=(0.0, 0.8), max_step=h, sample_count=2))
+						errors.append(np.linalg.norm(result.states[:, -1] - reference.y[:, -1]))
+						self.assertEqual(result.diagnostics["nonlinear_solves_per_step"], 1)
+						self.assertTrue(np.all(result.diagnostics["nonlinear_residual_norms"]
+							<= result.diagnostics["nonlinear_tolerances"]))
+					for gain in np.asarray(errors[:-1]) / errors[1:]:
+						self.assertGreater(gain, 60.0)
+						self.assertLess(gain, 68.0)
+
+	def test_outer_projection_tangent_symplecticity_and_reverse_observer(self) -> None:
+		problem = _problem(_NonlinearHamiltonianDynamics(),
+			x=np.asarray([1.0, 0.7]), y=np.asarray([0.2, -0.3]))
+		request = SimulationRequest.uniform(t_span=(0.3, 0.5), max_step=0.2, sample_count=2)
+		for formulation in ("reduced_multiplier", "simultaneous_state_multiplier"):
+			for solver in ("newton", "broyden"):
+				with self.subTest(formulation=formulation, solver=solver):
+					events = []
+					simulate(problem, ABBA6Implicit(projection_formulation=formulation,
+						nonlinear_solver=solver, newton_absolute_tolerance=1e-14,
+						newton_relative_tolerance=1e-14, newton_max_iterations=40,
+						step_observer=events.append), request)
+					event = events[0]
+					blocks = abba6_implicit_step_particle_jacobians(event)
+					numeric = central_difference_jacobian(event.map_state, event.state_before)
+					np.testing.assert_allclose(_dense_particle_blocks(blocks), numeric,
+						rtol=2e-8, atol=2e-9)
+					omega = np.asarray([[0., -1.], [1., 0.]])
+					for block in blocks:
+						np.testing.assert_allclose(block.T @ omega @ block, omega, rtol=0, atol=5e-13)
+					observer = ImplicitABBAReversibilityObserver(nonlinear_solver=solver,
+						newton_absolute_tolerance=1e-14, newton_relative_tolerance=1e-14,
+						newton_max_iterations=40)
+					observer(event)
+					self.assertLess(observer.samples[0].backward_state_error_norm, 2e-13)
+					self.assertLess(observer.samples[0].jacobian_composition_defect_norm, 2e-12)
+
+	def test_intermediate_projection_selector_is_rejected(self) -> None:
+		with self.assertRaisesRegex(ValueError, "around_complete_composition"):
+			ABBA6Implicit(projection_placement="after_each_abba_map")
 
 	def test_observation_contains_seven_continuous_signed_substeps(self) -> None:
 		coefficients = _ABBA6_COEFFICIENTS
@@ -100,12 +163,21 @@ class ABBA6MethodTests(unittest.TestCase):
 			atol=3e-16,
 		)
 		for first, second in zip(step.substeps, step.substeps[1:]):
-			np.testing.assert_array_equal(first.state_after, second.state_before)
-		np.testing.assert_array_equal(step.substeps[-1].state_after, step.state_after)
-		self.assertEqual(solution.diagnostics["nonlinear_solves_per_step"], 7)
+			np.testing.assert_array_equal(first.u_final, second.u_initial)
+			np.testing.assert_array_equal(first.v_final, second.v_initial)
+		np.testing.assert_array_equal(step.substeps[0].u_initial, step.state_before + step.multiplier)
+		np.testing.assert_array_equal(step.substeps[0].v_initial, step.state_before - step.multiplier)
+		last = step.substeps[-1]
+		np.testing.assert_allclose(last.u_final - last.v_final + 2 * step.multiplier, 0., atol=2e-14)
+		np.testing.assert_allclose((last.u_final + last.v_final) / 2, step.state_after, atol=2e-14)
+		self.assertEqual(solution.diagnostics["unprojected_abba_maps_per_step"], 7)
+		self.assertEqual(solution.diagnostics["composition_stage_count"], 14)
+		self.assertEqual(solution.diagnostics["projection_placement"], "around_complete_composition")
+		self.assertEqual(solution.diagnostics["base_composition"], "unprojected_abba6_yoshida")
+		self.assertEqual(solution.diagnostics["nonlinear_solves_per_step"], 1)
 		self.assertEqual(
 			solution.diagnostics["substep_nonlinear_iterations"].shape,
-			(2, 7),
+			(2, 1),
 		)
 
 	def test_method_is_sixth_order_and_reversible(self) -> None:
@@ -131,26 +203,11 @@ class ABBA6MethodTests(unittest.TestCase):
 			self.assertLess(float(gain), 68.0)
 
 		state = np.asarray([1.0, 0.2])
-		solver = {
-			"absolute_tolerance": 1e-14,
-			"relative_tolerance": 1e-14,
-			"max_iterations": 20,
-			"nonlinear_solver": "newton",
-		}
-		forward = _solve_abba6_step(
-			_LinearRotationDynamics(),
-			0.3,
-			state,
-			0.2,
-			**solver,
-		)
-		backward = _solve_abba6_step(
-			_LinearRotationDynamics(),
-			0.5,
-			forward.state,
-			-0.2,
-			**solver,
-		)
+		run = ABBA6Implicit(newton_absolute_tolerance=1e-14, newton_relative_tolerance=1e-14).new_run(
+			problem, SimulationRequest.uniform(t_span=(0.3, 0.5), max_step=0.2, sample_count=2))
+		forward = run.project(0.3, state, 0.2)
+		backward = run.project(0.5, forward.state, -0.2)
+
 		np.testing.assert_allclose(backward.state, state, rtol=0.0, atol=5e-15)
 
 	def test_sixth_order_composition_uses_signed_non_autonomous_times(self) -> None:
@@ -242,7 +299,7 @@ class ABBA6MethodTests(unittest.TestCase):
 		for summary in accuracy.summaries():
 			self.assertEqual(summary.method_name, "ABBA6Implicit")
 		for solution in accuracy.solutions.values():
-			self.assertEqual(solution.diagnostics["nonlinear_solves_per_step"], 7)
+			self.assertEqual(solution.diagnostics["nonlinear_solves_per_step"], 1)
 		for values in accuracy.series.values():
 			np.testing.assert_array_equal(values.distances[:, 0], 0.0)
 

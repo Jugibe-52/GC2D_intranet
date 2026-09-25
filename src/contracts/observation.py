@@ -169,44 +169,26 @@ class UnprojectedABBAIntegrationStep:
 
 
 @dataclass(frozen=True, slots=True)
-class ABBA4ImplicitIntegrationStep(ImplicitIntegrationStep):
-	"""Expose one projection around a complete unprojected ABBA4 base map.
+class ABBAImplicitCompositionIntegrationStep(ImplicitIntegrationStep):
+	"""Expose one outer projection around a continuous ABBA composition.
 
-	``substeps`` contains the continuous signed ``(gamma, delta, gamma)`` ABBA
-	maps. The inherited nonlinear metrics describe the selected reduced-multiplier
-	or simultaneous state-multiplier projection around their complete composition.
+	Each signed substep retains both spatial copies and has no independent
+	multiplier or nonlinear solve. The complete step owns those quantities.
 	"""
 
 	multiplier: np.ndarray = field(repr=False, compare=False)
 	composition_coefficients: np.ndarray = field(repr=False, compare=False)
-	substeps: tuple[UnprojectedABBAIntegrationStep, ...] = field(
-		repr=False,
-		compare=False,
-	)
+	substeps: tuple[UnprojectedABBAIntegrationStep, ...] = field(repr=False, compare=False)
 
 
 @dataclass(frozen=True, slots=True)
-class ABBAImplicitCompositionIntegrationStep(ImplicitIntegrationStep):
-	"""Expose accepted implicit-ABBA maps in one symmetric composition.
-
-	``substeps`` follows composition order. Each entry owns its converged
-	multiplier and ABBA stage snapshots, allowing diagnostics to form an exact
-	physical Jacobian product without differentiating nonlinear iterations. The
-	inherited nonlinear counts are sums over every solve; the residual and
-	tolerance identify the accepted substep with the largest
-	residual-to-tolerance ratio.
-	"""
-
-	composition_coefficients: np.ndarray = field(repr=False, compare=False)
-	substeps: tuple[ABBA2ImplicitIntegrationStep, ...] = field(
-		repr=False,
-		compare=False,
-	)
+class ABBA4ImplicitIntegrationStep(ABBAImplicitCompositionIntegrationStep):
+	"""Three unprojected ABBA pairs and their one outer projection."""
 
 
 @dataclass(frozen=True, slots=True)
 class ABBA6ImplicitIntegrationStep(ABBAImplicitCompositionIntegrationStep):
-	"""Expose the seven accepted implicit-ABBA maps in one sixth-order step."""
+	"""Seven unprojected ABBA pairs and their one outer projection."""
 
 
 @dataclass(frozen=True, slots=True)

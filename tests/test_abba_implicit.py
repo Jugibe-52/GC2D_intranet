@@ -13,14 +13,14 @@ from diagnostics.symplecticity import (
 )
 from initial_conditions import GCInitialConfiguration
 from simulation import ABBA_PROJECTION_FORMULATIONS, ABBA_STATE_EXTENSIONS, ABBA2Implicit, ABBA4Implicit, ABBA6Implicit, InitialValueProblem, SimulationRequest, simulate
-from methods.extended.abba_maps import (
+from tests._extended_reference.abba_maps import (
 	_differentiate_stages,
 	_evaluate_displaced_stages,
 )
-from methods.extended.abba_reduced import (
+from tests._extended_reference.abba_reduced import (
 	_solve_reduced_multiplier_step,
 )
-from methods.extended.abba_simultaneous import (
+from tests._extended_reference.abba_simultaneous import (
 	_simultaneous_newton_jacobian,
 	_simultaneous_residual_blocks,
 	_solve_simultaneous_state_multiplier_step,

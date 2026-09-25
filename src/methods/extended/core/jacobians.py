@@ -5,7 +5,7 @@ from collections.abc import Callable
 import numpy as np
 from dynamics import GuidingCenterJacobianSystem
 from formulations.gc import GCDoubledMaps, gc_coupling_matrix
-from methods.extended.records import CompositionTrace
+from methods.extended.core.records import CompositionTrace
 
 
 def particle_jacobians(maps: GCDoubledMaps, trace: CompositionTrace) -> np.ndarray:
@@ -23,9 +23,7 @@ def particle_jacobians(maps: GCDoubledMaps, trace: CompositionTrace) -> np.ndarr
     for stage in trace.stages:
         factors = []
         for _, duration, source in stage.energy_points:
-            field = np.asarray(dynamics.particle_vector_field_jacobians(stage.time, source), dtype=float)
-            if field.shape != (count, 2, 2) or not np.all(np.isfinite(field)):
-                raise ValueError("The GC vector-field Jacobian changed shape or became non-finite.")
+            field = _checked_vector_field_jacobian(dynamics, stage.time, source)
             factors.append(duration * field)
         if len(factors) != 2:
             raise ValueError("A GC stage must retain two shear sources for differentiation.")
@@ -70,3 +68,22 @@ def central_difference_jacobian(
     if not np.all(np.isfinite(result)):
         raise ValueError("The map Jacobian became non-finite.")
     return result
+
+
+def _checked_vector_field_jacobian(
+	dynamics: GuidingCenterJacobianSystem,
+	t: float,
+	state: np.ndarray,
+) -> np.ndarray:
+	"""Evaluate batched exact GC Jacobians with one matrix per particle."""
+	result = np.asarray(
+		dynamics.particle_vector_field_jacobians(t, state),
+		dtype=float,
+	)
+	particle_count = state.size // dynamics.state_dimension
+	expected_shape = (particle_count, dynamics.state_dimension, dynamics.state_dimension)
+	if result.shape != expected_shape or not np.all(np.isfinite(result)):
+		raise ValueError(
+			"The GC vector-field Jacobian changed shape or became non-finite."
+		)
+	return result

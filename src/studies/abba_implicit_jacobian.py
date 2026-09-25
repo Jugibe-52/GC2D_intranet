@@ -20,7 +20,7 @@ from diagnostics.abba_jacobian import (
 from dynamics import GuidingCenterDynamics
 from potential import Potential
 from methods.extended.configuration import ABBA_PROJECTION_FORMULATIONS, ProjectionFormulation
-from methods.extended.order2_implicit import ABBA2Implicit
+from methods.extended.abba import ABBA2Implicit
 from contracts.configuration import InitialConfiguration
 from contracts.problem import InitialValueProblem
 from contracts.request import SimulationRequest

@@ -98,14 +98,15 @@ the exact residual Jacobian; good Broyden replaces repeated Jacobian assembly
 by rank-one secant updates without changing the defining residual.
 
 \section{Canonical configuration space}
-ABBA2, ABBA4 and ABBA6 retain their distinct composition and projection placement. Energy tracking is optional and passive.
+ABBA2, ABBA4 and ABBA6 select different unprojected compositions and share one outer projection. Energy tracking is optional and passive.
 Signed accepted shear-stage traces update the passive momentum independently of the spatial root solve.
 The common state conventions are specified below.
 
 \section{Order by symmetric composition}
 
-The projected ABBA2 map is a symmetric method of order two.  Higher order is
-obtained by palindromic signed compositions.  ABBA4 uses the triple jump
+The unprojected ABBA2 map is a symmetric method of order two in doubled
+space. Higher order is obtained by palindromic signed compositions, followed
+by one symmetric projection around the complete result.  ABBA4 uses the triple jump
 $(\gamma,\delta,\gamma)$ with
 \[
  \gamma=\frac{1}{2-\sqrt[3]{2}},\qquad
@@ -113,7 +114,9 @@ $(\gamma,\delta,\gamma)$ with
  \quad 2\gamma+\delta=1,\quad 2\gamma^3+\delta^3=0.
 \]
 ABBA6 uses seven Yoshida coefficients whose first, third, and fifth odd
-moments have the required cancellations.  Negative coefficients are intrinsic
+moments have the required cancellations. These moment checks alone are not
+a full sixth-order proof; the Yoshida solution also satisfies the mixed
+commutator condition. Negative coefficients are intrinsic
 to these real compositions, so the dynamics must be defined at all internal
 signed times.
 
@@ -127,13 +130,13 @@ Method & ABBA maps & projection policy\\
 ABBA2Midpoint & 1 & arithmetic mean\\
 ABBA2Implicit & 1 & one symmetric projection\\
 ABBA4Implicit & 3 & one outer projection around the composition\\
-ABBA6Implicit & 7 & project after every signed map\\
+ABBA6Implicit & 7 & one outer projection around the composition\\
 \bottomrule
 \end{tabular}
 \end{center}
 The former three-projection fourth-order implementation has been removed.
-The current default has one projection, and legacy single-projection names
-refer to that same map.
+ABBA4 and ABBA6 now both have one outer projection. The retired
+single-projection ABBA4 factory is no longer an importable interface.
 
 \section{Finite solves and geometric claims}
 

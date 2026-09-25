@@ -3,8 +3,9 @@
 ABBA and BM4 share the numerical implementation in
 [`src/methods/extended/`](../../../../src/methods/extended/).
 `extended` names an internal implementation family, not a new public method.
-The public classes, constructor defaults, and exports from `simulation` remain
-available. Public observer records and diagnostic keys are retained.
+The public method names and exports from `simulation`, `methods`, and
+`methods.extended` remain available. ABBA6 now uses one outer projection,
+matching ABBA4; its numerical map and observation structure change accordingly.
 The canonical package is `methods.extended`; `formulations`, `integration`,
 and `contracts` are sibling packages. Old `simulation.methods.*`,
 `methods.abba.*`, and `methods.bm4.*` routes have been removed. Explicit public
@@ -26,28 +27,50 @@ The ordinary implicit path is `advance -> solve_projection -> compose ->
 direct_map / adjoint_map`. Initialization binds the recipe, spatial formulation,
 solver options and Jacobian strategy once. The generic integration coordinator
 continues to own step scheduling, output sampling, observer dispatch and history
-collection. Compatibility step views used by diagnostics are outside this path.
+collection. No per-order forwarding modules or separate ABBA composition drivers
+remain. Diagnostic analysis consumes accepted events; independent residual
+equations used only for verification live under `tests/_extended_reference/`.
 
 | Module or component | Responsibility |
 |---|---|
-| `extended/composition.py` | Validated immutable signed recipes and one direct/adjoint traversal |
-| `extended/projection.py` | Reduced and simultaneous spatial Hairer equations for any recipe |
+| `extended/core/composition.py` | Validated immutable signed recipes and one direct/adjoint traversal |
+| `extended/core/projection.py` | Reduced and simultaneous spatial Hairer equations for any recipe |
 | `methods/_nonlinear.py` | Shared Newton/Broyden convergence, iteration limits and counters |
-| `extended/jacobians.py` | Exact ordered particle-block tangents and centered-difference fallback |
-| `extended/energy.py` | Passive normalized momentum quadrature from accepted shear inputs |
-| `extended/records.py` | Numerical stage traces, projection results and aggregate statistics |
-| `extended/midpoint.py` | Explicit arithmetic projection after the complete composition |
-| `extended/abba.py`, `extended/bm4.py` | Existing public configurations' preparation and accepted-step operations |
+| `extended/core/jacobians.py` | Exact ordered particle-block tangents and centered-difference fallback |
+| `extended/core/energy.py` | Passive normalized momentum quadrature from accepted shear inputs |
+| `extended/core/records.py` | Numerical stage traces, projection results and aggregate statistics |
+| `extended/core/midpoint.py` | Explicit arithmetic projection after the complete composition |
+| `extended/abba.py`, `extended/bm4.py` | Public implicit and midpoint configurations and accepted-step operations |
+| `extended/configuration.py` | Shared selectors and configuration validation |
+| `extended/observations.py` | On-demand ABBA pair and BM4 stage events from common numerical traces |
 | `formulations/gc.py` | `GCDoubledMaps`: spatial direct/adjoint maps and optional coupling |
 | `formulations/state.py` | `DoubledFormulation`: accepted internal state and physical/energy extraction |
 
-The small order-specific ABBA classes select their existing recipes. BM4 and
-ABBA observers adapt the common accepted numerical traces to their established
-public event types. BM4 stage events no longer require a second spatial replay.
-The `abba_*` helpers provide numerical views used by active diagnostics.
-Full time/momentum projection implementations and their retired study interfaces
-have been removed. `ABBA4ImplicitIntegrationStep` describes the continuous base
-composition and its single outer multiplier.
+The family has one shallow shared engine directory:
+
+```text
+extended/
+  __init__.py
+  abba.py
+  bm4.py
+  configuration.py
+  observations.py
+  core/
+    __init__.py
+    composition.py
+    projection.py
+    midpoint.py
+    jacobians.py
+    energy.py
+    records.py
+```
+
+ABBA4 and ABBA6 inherit the same preparation, advancement and placement
+validation. Only their immutable recipes and formal orders differ. Coefficients
+and recipes live together in `core/composition.py`. ABBA-specific observation
+views stay outside the numerical core. Public exports are explicit; retired
+`order*_implicit`, `order2_midpoint`, `bm4_midpoint`, `abba_steps`, and composition
+adapter modules are not recreated as compatibility routes.
 
 ## Recipes and numerical identity
 
@@ -55,7 +78,7 @@ composition and its single outer multiplier.
 |---|---|---|
 | `ABBA2Implicit` | Adjoint/direct pair with weights `(1/2, 1/2)` | One reduced or simultaneous Hairer solve |
 | `ABBA4Implicit` | Three continuous ABBA pairs: `(gamma, delta, gamma)` | One reduced or simultaneous solve around all six stages |
-| `ABBA6Implicit` | Seven signed **projected** ABBA2 steps | Seven independent solves, preserving the Yoshida construction |
+| `ABBA6Implicit` | Seven continuous signed ABBA pairs with Yoshida weights | One reduced or simultaneous solve around all fourteen stages |
 | `BM4Implicit` | Twelve alternating stages with mirrored BM4 weights | One reduced Hairer solve |
 | `ABBA2Midpoint` | One ABBA pair | One arithmetic mean |
 | `BM4Midpoint` | Complete twelve-stage BM4 recipe | One arithmetic mean |
@@ -70,10 +93,10 @@ weights reverse both the signed subflow and its clock. Reflection exchanges
 adjoint and direct maps. Palindromic weights and unit total duration are checked,
 but they alone do not prove fourth- or sixth-order accuracy.
 
-Projection placement is part of method identity. In particular, replacing
-ABBA6's seven projected pairs by one projection around fourteen stages would
-change the method. An arithmetic mean is not a symmetric Hairer solve and does
-not imply exact symplecticity or reversibility.
+Projection placement is part of method identity. ABBA6 intentionally changes
+from seven projected pairs to one projection around fourteen stages. Historical
+ABBA6 trajectories and timings must not be relabeled as results of the new map.
+An arithmetic mean does not imply exact symplecticity or reversibility.
 
 ## State, projection and derivatives
 
@@ -111,7 +134,16 @@ and all public observers receive independent physical snapshots. Numerical
 traces do not allocate public events when no observer is requested. Shadow steps
 for off-grid output remain independent and do not emit main-step observations.
 Per-particle energy histories align with saved times; nonlinear work arrays align
-with accepted main steps. Existing diagnostic names and result shapes are kept.
+with accepted main steps. ABBA6 reports `nonlinear_solves_per_step=1`, `implicit_substeps_per_step=1`,
+`unprojected_abba_maps_per_step=7`, `composition_stage_count=14`, and
+`base_composition="unprojected_abba6_yoshida"`. Its `substep_nonlinear_*` and
+`substep_projection_multiplier_norms` histories have shape `(steps, 1)`.
+`ABBA4ImplicitIntegrationStep` and `ABBA6ImplicitIntegrationStep` share the
+`ABBAImplicitCompositionIntegrationStep` contract: one outer multiplier and
+respectively three or seven `UnprojectedABBAIntegrationStep` records. Reduced
+and simultaneous roots both expose the same physical observation domain.
+The ABBA6 exact-tangent function and reversibility observer differentiate this
+single outer root; they do not multiply seven projected physical Jacobians.
 
 ## Verification
 
@@ -120,5 +152,8 @@ identity, coefficient validation, projection placement, endpoint shear
 agreement, signed nonautonomous reversibility, analytic tangents, and passive
 tracking/observation without extra spatial work. Existing method tests retain
 convergence order, projection equations, observer compatibility, energy balance,
-vectorized particles and sampling contracts. Refactoring permits floating-point
-roundoff changes, not changed coefficients, clocks or mathematical methods.
+vectorized particles and sampling contracts. `tests/test_abba6.py` additionally
+checks sixth-order convergence for nonlinear nonautonomous dynamics with both
+root formulations and Newton/Broyden, signed reversal, the outer constraint,
+analytic versus finite-difference tangents and symplecticity. The ABBA6 change
+is intentional; the other methods preserve their numerical maps.

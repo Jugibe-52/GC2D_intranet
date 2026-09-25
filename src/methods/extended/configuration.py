@@ -40,11 +40,11 @@ def _validate_projection_formulation(value: str) -> ProjectionFormulation:
 
 
 def _validate_projection_placement(value: str) -> ProjectionPlacement:
-	"""Return one supported ABBA4 projection placement."""
+	"""Return the common higher-order ABBA projection placement."""
 	if value not in ABBA4_PROJECTION_PLACEMENTS:
 		raise ValueError(
-			"ABBA4 `projection_placement` must be 'around_complete_composition'; "
-			"the three-projection implementation has been removed."
+			"ABBA `projection_placement` must be 'around_complete_composition'; "
+			"intermediate projections are not supported."
 		)
 	return value
 

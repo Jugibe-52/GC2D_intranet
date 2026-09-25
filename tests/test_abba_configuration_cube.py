@@ -48,7 +48,7 @@ _EXPECTED_NONLINEAR_SOLVES = {
 	"ABBA2Implicit": 1,
 	"ABBA4Implicit": 1,
 	"ABBA4Implicit": 1,
-	"ABBA6Implicit": 7,
+	"ABBA6Implicit": 1,
 }
 
 

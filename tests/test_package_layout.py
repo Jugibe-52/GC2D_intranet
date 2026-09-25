@@ -111,7 +111,14 @@ class PackageLayoutTests(unittest.TestCase):
 			"simulation.observation", "simulation.solution", "simulation._result",
 			"simulation._fixed", "simulation._compat", "methods.abba", "methods.bm4",
 			"methods._fully_extended", "methods._abba_coefficients",
-			"methods.extended.order4_implicit_single_projection",
+			"methods.extended.abba_single_projection",
+			"methods.extended.order2_implicit", "methods.extended.order4_implicit",
+			"methods.extended.order6_implicit", "methods.extended.order2_midpoint",
+			"methods.extended.bm4_midpoint", "methods.extended.coefficients",
+			"methods.extended.abba_steps", "methods.extended.abba_composition",
+			"methods.extended.bm4_composition", "methods.extended.abba_maps",
+			"methods.extended.abba_outer", "methods.extended.abba_reduced",
+			"methods.extended.abba_simultaneous",
 		):
 			with self.subTest(module=module):
 				with self.assertRaises(ModuleNotFoundError):

@@ -35,9 +35,9 @@ The following old routes have been removed after migrating supported consumers:
 | `simulation._result` | `contracts.result` |
 | `simulation.solution` | `solution` |
 | `methods.abba.*`, `methods.bm4.*` | `methods.extended` public exports and their defining modules |
-| `methods._abba_coefficients` | `methods.extended.coefficients` |
+| `methods._abba_coefficients` | `methods.extended.core.composition` |
 | Full time/momentum projection modules | Removed; use spatial projection with `track_energy=True` for new studies |
-| `methods.extended.order4_implicit_single_projection` | `methods.extended.abba_outer` numerical helpers |
+| `methods.extended.order4_implicit_single_projection` | `methods.extended.abba.ABBA4Implicit`; shared projection in `methods.extended.core.projection` |
 
 No import hooks or `sys.modules` aliases recreate those paths. Deprecated
 execution classes, method factories, and full-projection studies have also been

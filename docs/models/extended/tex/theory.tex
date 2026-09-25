@@ -20,11 +20,12 @@
 {\large Common composition, spatial projection and passive energy}
 \end{center}
 
-\section{Scope and unchanged public methods}
+\section{Scope and public methods}
 The directory \path{src/methods/extended/} contains the common
 implementation of the existing ABBA and BM4 methods. It introduces no public
-method named Extended. Public class names, constructor defaults, exports from
-\texttt{simulation}, observation records and diagnostic keys are retained.
+method named Extended. Public class names and exports from \texttt{simulation} are retained. ABBA6
+now uses the same single outer projection as ABBA4. Its observed substeps
+become unprojected pairs and its work arrays have one column per step.
 Internal imports use the defining modules. Old ABBA and BM4 import adapters
 and historical \texttt{simulation.methods} routes have been removed.
 
@@ -66,9 +67,10 @@ ABBA4 uses three unprojected ABBA pairs scaled by
 Its six direct/adjoint weights are
 $(\gamma/2,\gamma/2,\delta/2,\delta/2,\gamma/2,\gamma/2)$.
 BM4 retains its twelve mirrored weights and its own fourth-order recipe.
-ABBA6 retains seven \emph{projected} ABBA2 steps with the existing Yoshida
-weights. A single projection around fourteen unprojected stages would be a
-different method and is not introduced by this refactoring.
+ABBA6 uses seven \emph{unprojected} ABBA2 pairs with the Yoshida weights.
+Each weight is repeated twice after division by two, producing fourteen
+direct/adjoint stages. One symmetric projection encloses the complete
+composition. This deliberately replaces the former seven-projection map.
 
 \clearpage
 \section{One common spatial projection equation}
@@ -82,8 +84,9 @@ $P=\tfrac12[I,I]$, the accepted state is
 \[
  z_+=P\bigl(\Psi_h(Ez+N_0\mu)+N_0\mu\bigr).
 \]
-The same equation applies to ABBA2, the complete ABBA4 composition, and BM4;
-only $\Psi_h$ changes. ABBA6 solves it separately around each base pair.
+The same equation applies to ABBA2, the complete ABBA4 and ABBA6
+compositions, and BM4; only $\Psi_h$ changes. All have one nonlinear solve
+per complete step.
 
 The simultaneous ABBA formulation solves for $(u_+,v_+,\mu)\in\R^{3m}$:
 \[
@@ -128,8 +131,8 @@ physical source state of each individual shear. The shared quadrature is
 \[
  \Delta\kappa=\frac12\sum_j s_j\,[-\partial_tH(t_j,z_j)].
 \]
-There are four shear points for an ABBA2 pair, twelve for ABBA4 and
-24 for BM4. The factor $1/2$ converts summed doubled momentum to the
+There are four shear points for ABBA2, twelve for ABBA4, 28 for ABBA6,
+and 24 for BM4. The factor $1/2$ converts summed doubled momentum to the
 physical variable $\kappa$. Spatial harmonic coupling does not change this
 passive accumulator. Energy derivatives are evaluated only after the spatial
 root converges, from its retained trace; trial roots do not evaluate energy.
@@ -141,7 +144,7 @@ This is an energy-balance diagnostic, not a claim that the time-dependent
 physical Hamiltonian is conserved. Tracking does not modify spatial states,
 nonlinear unknown dimensions or stopping scales.
 
-\section{Execution and compatibility}
+\section{Execution and organization}
 Initialization binds the method's recipe and projection options once. The
 ordinary implicit execution is
 \[
@@ -149,7 +152,10 @@ ordinary implicit execution is
  \;\longrightarrow\;\texttt{compose}
  \;\longrightarrow\;\texttt{direct\_map / adjoint\_map}.
 \]
-ABBA6 repeats its complete projected-pair operation seven times. The general
+ABBA4 and ABBA6 share this execution exactly; only their recipes differ.
+Public configurations live in \texttt{abba.py} and \texttt{bm4.py}; common
+numerical operations live in \texttt{core/}, and optional event conversion
+lives in \texttt{observations.py}. The general
 integration coordinator remains responsible for main steps, saved times,
 shadow output samples, collection and observer dispatch. Observers receive
 independent snapshots in the existing public event types; BM4 events reuse
@@ -158,7 +164,8 @@ accepted traces without repeating the spatial composition.
 Current diagrams and module responsibilities are documented in
 \path{docs/models/extended/simulation/extended-simulation-architecture.md}.
 Tests verify public identity, coefficient and projection controls, signed
-nonautonomous maps, exact tangents, passive tracking and unchanged numerical
-contracts. Floating-point roundoff differences can arise from equivalent
-algebraic evaluation order; no mathematical recipe is changed.
+nonautonomous maps, exact tangents and passive tracking. ABBA6 tests also
+verify sixth-order convergence on a nonlinear nonautonomous field with both
+root formulations and solvers. Historical ABBA6 results with seven separate
+projections represent a different map and must be recomputed for comparisons.
 \end{document}

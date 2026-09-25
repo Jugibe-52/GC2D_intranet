@@ -3,16 +3,17 @@
 from __future__ import annotations
 
 import numpy as np
-from methods.extended.projection import solve_projection
-from methods.extended.composition import ABBA2
-from methods.extended.abba_maps import uncoupled_maps
+from methods.extended.observations import abba_pairs
+from methods.extended.core.projection import solve_projection
+from methods.extended.core.composition import ABBA2
+from tests._extended_reference.abba_maps import uncoupled_maps
 from methods._nonlinear import SolverOptions
 
 from dynamics import GuidingCenterJacobianSystem
 
 from methods._nonlinear import NonlinearSolver, _solve_broyden, _solve_newton
-from methods.extended.abba_maps import _ProjectedStep
-from methods.extended.abba_maps import (
+from tests._extended_reference.abba_maps import _ProjectedStep
+from tests._extended_reference.abba_maps import (
 	_ABBAStages,
 	_ResidualEvaluation,
 	_differentiate_stages,
@@ -88,11 +89,11 @@ def _solve_simultaneous_state_multiplier_step(
 	max_iterations: int,
 	nonlinear_solver: NonlinearSolver = "newton",
 ) -> _ProjectedStep:
-    """Adapt the shared spatial projection to the historical ABBA step view."""
+    """Expose the shared solver result for independent residual checks."""
     result = solve_projection(uncoupled_maps(dynamics, state), ABBA2,
         SolverOptions(nonlinear_solver, absolute_tolerance, relative_tolerance, max_iterations),
         'simultaneous_state_multiplier', t, state, step)
-    return _ProjectedStep(result.state, result.multiplier, result.trace.maps[0].stages,
+    return _ProjectedStep(result.state, result.multiplier, abba_pairs(result.trace)[0].stages,
                           result.iterations, result.residual_evaluations, result.residual_norm)
 
 

@@ -33,7 +33,9 @@ solution = simulate(problem, ABBA4Implicit(track_energy=True), request)
 The current method projects only the two spatial copies. Energy tracking is
 passive; it does not reproduce the retired projection of time and momentum.
 ABBA4 observations now always describe the three continuous unprojected factors
-and one outer multiplier. ABBA6 retains its seven separate projected pairs.
+and one outer multiplier. ABBA6 now follows the same structure with seven
+unprojected pairs and one outer multiplier; previously saved results with seven
+separate projections describe a different numerical map.
 
 New comparison records use the method name `ABBA4Implicit`. Configuration keys
 use the `abba4_outer_projection` prefix to distinguish them from historical
@@ -51,3 +53,22 @@ the same records remain in Git history. Development notebooks remain ignored.
 
 Validation uses short disposable notebook executions. Their reduced settings and
 outputs are never saved into the canonical experiment notebooks.
+
+## Extended-family module organization and ABBA6
+
+Import public configurations from `methods.extended`, `methods`, or `simulation`.
+Their canonical definitions are `methods.extended.abba` (all ABBA variants) and
+`methods.extended.bm4` (both BM4 variants). Coefficients and compositions live in
+`methods.extended.core.composition`; projection, midpoint, Jacobians, energy and
+numerical records live in the corresponding `core` modules. Event adapters are
+in `methods.extended.observations`. Former per-order files and composition
+wrappers are removed without forwarding imports.
+
+`ABBA6Implicit` now takes `projection_placement="around_complete_composition"`
+and performs one projection around seven unprojected pairs. This replaces the
+former seven-solve map. Saved historical ABBA6 results must retain their original
+identity and require recomputation for comparisons with the new method.
+Its substep work arrays change from `(steps, 7)` to `(steps, 1)`. The ABBA6 event
+now owns one multiplier and seven unprojected snapshots, sharing the ABBA4 event
+structure. Exact tangents are available through
+`diagnostics.abba6_implicit_step_particle_jacobians`.

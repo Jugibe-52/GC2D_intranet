@@ -19,7 +19,9 @@ from simulation import (
 	SimulationRequest,
 	simulate,
 )
-from methods.extended.order2_midpoint import _midpoint_abba_step
+from methods.extended.core.midpoint import midpoint_step
+from methods.extended.core.composition import ABBA2
+from tests._extended_reference.abba_maps import uncoupled_maps
 from studies import (
 	ABBA2MidpointSymplecticityConfig,
 	RandomPotentialConfig,
@@ -143,7 +145,7 @@ class ABBA2MidpointTests(unittest.TestCase):
 		basis = np.eye(2)
 		matrix = np.column_stack(
 			[
-				_midpoint_abba_step(dynamics, 0.0, column, step).state
+				midpoint_step(uncoupled_maps(dynamics, column), ABBA2, 0.0, column, step).state
 				for column in basis.T
 			]
 		)

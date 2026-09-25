@@ -19,7 +19,7 @@ from diagnostics import StoredReferenceTrajectory
 from dynamics import GuidingCenterDynamics
 from initial_conditions import GCInitialConfiguration
 from potential import GC2DH5Metadata, Grid, Potential
-from methods.extended.order4_implicit import ABBA4Implicit
+from methods.extended.abba import ABBA4Implicit
 from contracts.problem import InitialValueProblem
 from methods._nonlinear import NonlinearSolver
 from methods.base import NumericalMethod

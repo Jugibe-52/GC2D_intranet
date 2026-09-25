@@ -12,7 +12,7 @@ from matplotlib.figure import Figure
 
 from initial_conditions import Area
 from potential import Potential
-from methods.extended.order2_midpoint import ABBA2Midpoint
+from methods.extended.abba import ABBA2Midpoint
 from solution import Solution
 
 from ._gc_symplecticity import (

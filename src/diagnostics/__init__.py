@@ -44,6 +44,7 @@ from .parallel_bm4_recurrence_npz import (
 )
 from .trajectory_symplecticity import (
 	abba4_implicit_step_particle_jacobians,
+	abba6_implicit_step_particle_jacobians,
 	GCTrajectorySymplecticityObserver,
 	TrajectoryJacobianCalculator,
 	TrajectorySymplecticityOutputBlock,
@@ -82,6 +83,7 @@ from .symplecticity import (
 __all__ = [
 	"AdaptiveTrajectoryObserver",
 	"abba4_implicit_step_particle_jacobians",
+	"abba6_implicit_step_particle_jacobians",
 	"IMPLICIT_ABBA_JACOBIAN_METHODS",
 	"ImplicitABBAJacobianMethod",
 	"ImplicitABBAJacobianObserver",

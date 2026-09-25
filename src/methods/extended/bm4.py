@@ -13,29 +13,22 @@ from contracts.observation import ImplicitBM4IntegrationStep, IntegrationStage, 
 from contracts.problem import InitialValueProblem
 from contracts.request import SimulationRequest
 from methods._nonlinear import NonlinearSolver, SolverOptions, _validate_nonlinear_solver
-from methods.extended.configuration import _positive_finite, _positive_integer, _nonnegative_finite
-from methods.extended.composition import BM4
-from methods.extended.projection import solve_projection
-from methods.extended.records import ProjectedMapResult as _ProjectedBM4Step
-from methods.extended.records import ProjectedMap
-from methods.extended.energy import momentum_increment
-from methods.extended.bm4_composition import stage_events
+from methods.extended.configuration import (
+    _positive_finite, _positive_integer, _nonnegative_finite, StateExtension,
+    _resolved_track_energy, _state_dimension_diagnostics, _validate_state_extension,
+)
+from dynamics import DynamicalSystem
+from contracts.observation import IntegrationStep
+from methods.extended.core.midpoint import midpoint_step, MidpointResult
+from methods.extended.core.composition import BM4
+from methods.extended.core.projection import solve_projection
+from methods.extended.core.records import ProjectedMapResult as _ProjectedBM4Step
+from methods.extended.core.records import ProjectedMap
+from methods.extended.core.energy import momentum_increment
+from methods.extended.observations import stage_events
 
 NewtonJacobianMethod: TypeAlias = Literal['analytic', 'finite_difference']
 NEWTON_JACOBIAN_METHODS: tuple[NewtonJacobianMethod, ...] = ('analytic', 'finite_difference')
-
-
-def _solve_reduced_projected_bm4_step(
-    prepared: GCDoubledMaps, t: float, state: np.ndarray, step: float, *,
-    absolute_tolerance: float, relative_tolerance: float, max_iterations: int,
-    jacobian_relative_step: float, jacobian_method: NewtonJacobianMethod,
-    nonlinear_solver: NonlinearSolver = 'newton', retain_energy_points: bool = False,
-) -> _ProjectedBM4Step:
-    """Compatibility entry point; integrations bind the common solver directly."""
-    return solve_projection(prepared, BM4,
-        SolverOptions(nonlinear_solver, absolute_tolerance, relative_tolerance, max_iterations),
-        'reduced_multiplier', t, state, step, jacobian_method=jacobian_method,
-        jacobian_relative_step=jacobian_relative_step, retain_energy_points=retain_energy_points)
 
 
 @dataclass(slots=True)
@@ -185,4 +178,75 @@ class BM4Implicit(IntegrationMethod[_ProjectedBM4Step]):
 		)
 
 
-__all__ = ["BM4Implicit"]
+
+
+
+@dataclass(slots=True)
+class BM4Midpoint(IntegrationMethod[MidpointResult]):
+	"""Fourth-order BM4 followed by arithmetic-mean diagonal projection.
+
+	Configuration and observer semantics follow ABBA2Midpoint. Physical mode
+	accepts packed (x_1,...,x_p,y_1,...,y_p) states with optional auxiliary
+	energy tracking. No nonlinear equation is solved.
+	The temporary copies use the same harmonic coupling frequency as BM4Implicit.
+	Arithmetic projection does not imply exact symplecticity or reversibility.
+	"""
+
+	state_extension: StateExtension = "physical"
+	progress: bool = False
+	step_observer: StepObserver | None = None
+	track_energy: bool = False
+	coupling_frequency: float = np.pi / 8
+
+	# Runtime resources are initialized once by new_run, never constructor inputs.
+	state_formulation: DoubledFormulation = field(init=False, repr=False, compare=False)
+	dynamics: DynamicalSystem = field(init=False, repr=False, compare=False)
+	physical_size: int = field(init=False, repr=False, compare=False)
+	particle_count: int = field(init=False, repr=False, compare=False)
+	formulation: GCDoubledMaps = field(init=False, repr=False, compare=False)
+
+	def __post_init__(self) -> None:
+		"""Validate state strategy and coupling; resolve inherent energy tracking."""
+		extension = _validate_state_extension(self.state_extension)
+		self.state_extension = extension
+		self.track_energy = _resolved_track_energy(self.track_energy, extension)
+		frequency = float(self.coupling_frequency)
+		if not np.isfinite(frequency) or frequency < 0:
+			raise ValueError("`coupling_frequency` must be finite and non-negative.")
+		self.coupling_frequency = frequency
+
+	def initialize(self, problem: InitialValueProblem, request: SimulationRequest) -> None:
+		"""Initialize one spatial arithmetic-projection run with optional passive energy."""
+		self.dynamics = problem.dynamics
+		self.physical_size = problem.initial_state.size
+		self.particle_count = self.physical_size // 2
+		self.state_formulation = DoubledFormulation(problem, request.t_span[0], self.track_energy)
+		self.formulation = GCDoubledMaps(problem, self.coupling_frequency)
+		self.initial_state = self.state_formulation.initial_state
+		metadata: dict[str, DiagnosticValue] = {
+			"projection_kind": "arithmetic_mean", "state_extension": self.state_extension,
+			"track_energy": self.track_energy, "nonlinear_unknown_dimension": 0,
+			"coupling_frequency": self.coupling_frequency, "composition_stage_count": 12,
+			"vector_field_evaluations_per_step": 24,
+		}
+		metadata.update(_state_dimension_diagnostics(self.state_extension, particle_count=self.particle_count))
+		self.metadata = metadata
+
+	def advance(self, t: float, state: np.ndarray, h: float) -> StepResult[MidpointResult]:
+		"""Apply the BM4 composition with one spatial average and passive momentum."""
+		result = midpoint_step(self.formulation, BM4, t, self.state_formulation.physical(state), h)
+		increment = momentum_increment(self.state_formulation, result.trace.energy_points) if self.track_energy else None
+		after = self.state_formulation.finish(state, result.state, t + h, increment)
+		return StepResult(after, {"copy_separation_norms": result.copy_separation_norm}, result)
+
+	def build_observation(self, info: StepInfo, step: StepResult[MidpointResult]) -> IntegrationStep:
+		"""Observe the physical map using independent spatial snapshots."""
+		def map_state(candidate: np.ndarray) -> np.ndarray:
+			return midpoint_step(self.formulation, BM4, info.time, candidate, info.duration).state
+		return IntegrationStep(
+			dynamics_name=type(self.dynamics).__name__, method_name=self.method_name,
+			step_index=info.index, start_time=info.time, time=info.end_time,
+			duration=info.duration, state_before=self.state_formulation.physical(info.state_before).copy(),
+			state_after=step.details.state.copy(), map_state=map_state, dynamics=self.dynamics)
+
+__all__ = ["BM4Implicit", "BM4Midpoint"]

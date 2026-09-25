@@ -6,10 +6,10 @@ import numpy as np
 
 from formulations.gc import GCDoubledMaps
 from methods._nonlinear import SolverOptions, SolveStats, _solve_broyden, _solve_newton
-from methods.extended.composition import Composition, compose
+from methods.extended.core.composition import Composition, compose
 from methods.extended.configuration import ProjectionFormulation
-from methods.extended.jacobians import central_difference_jacobian, particle_jacobians
-from methods.extended.records import CompositionTrace, ProjectedMapResult
+from methods.extended.core.jacobians import central_difference_jacobian, particle_jacobians
+from methods.extended.core.records import CompositionTrace, ProjectedMapResult
 
 
 def solve_projection(
