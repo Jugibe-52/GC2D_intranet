@@ -186,7 +186,7 @@ class SymplecticityDiagnosticTests(unittest.TestCase):
 			center=(1.0, 1.0),
 			side=0.5,
 			points_per_side=1,
-			rho=0.05,
+
 		)
 		state = area.initial_state
 		assert state is not None
@@ -242,7 +242,7 @@ class SymplecticityDiagnosticTests(unittest.TestCase):
 			center=(1.0, 1.0),
 			side=0.5,
 			points_per_side=1,
-			rho=0.05,
+
 		)
 		state = area.initial_state
 		assert state is not None

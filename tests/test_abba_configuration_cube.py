@@ -7,25 +7,11 @@ import unittest
 
 import numpy as np
 
-from diagnostics import (
-	abba4_implicit_single_projection_step_particle_jacobians,
-	abba4_implicit_step_particle_jacobians,
-	central_difference_jacobian,
-)
+from diagnostics import abba4_implicit_step_particle_jacobians, central_difference_jacobian
 from dynamics import GuidingCenterDynamics
 from initial_conditions import GCInitialConfiguration
 from potential import Potential
-from simulation import (
-	ABBA2Implicit,
-	ABBA2Midpoint,
-	ABBA4Implicit,
-	ABBA4ImplicitSingleProjection,
-	ABBA6Implicit,
-	ABBA_PROJECTION_FORMULATIONS,
-	InitialValueProblem,
-	SimulationRequest,
-	simulate,
-)
+from simulation import ABBA2Implicit, ABBA2Midpoint, ABBA4Implicit, ABBA6Implicit, ABBA_PROJECTION_FORMULATIONS, InitialValueProblem, SimulationRequest, simulate
 
 
 _IMPLICIT_METHODS = (
@@ -61,7 +47,7 @@ _EXPECTED_DIMENSIONS = {
 _EXPECTED_NONLINEAR_SOLVES = {
 	"ABBA2Implicit": 1,
 	"ABBA4Implicit": 1,
-	"ABBA4ImplicitSingleProjection": 1,
+	"ABBA4Implicit": 1,
 	"ABBA6Implicit": 7,
 }
 
@@ -477,8 +463,8 @@ class ABBAConfigurationCubeTests(unittest.TestCase):
 		for method_type, jacobian_calculator in (
 			(ABBA4Implicit, abba4_implicit_step_particle_jacobians),
 			(
-				ABBA4ImplicitSingleProjection,
-				abba4_implicit_single_projection_step_particle_jacobians,
+				ABBA4Implicit,
+				abba4_implicit_step_particle_jacobians,
 			),
 		):
 			events = []

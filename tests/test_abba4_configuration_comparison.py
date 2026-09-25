@@ -384,40 +384,6 @@ class ABBA4ConfigurationComparisonTests(unittest.TestCase):
 					atol=1e-18,
 				)
 
-	def test_fully_extended_energy_metric_uses_hamiltonian_plus_k(self) -> None:
-		"""Reconstruct direct-k generalized energy without stored energy arrays."""
-		rows = {row.key: row for row in self.result.summaries()}
-		for variant in ABBA4_CONFIGURATION_VARIANTS:
-			if variant.state_extension != "fully_extended":
-				continue
-			relative_errors: list[np.ndarray] = []
-			for solution in self.result.solutions[variant.key]:
-				diagnostics = solution.diagnostics
-				times = np.asarray(diagnostics["extended_time"], dtype=float)
-				hamiltonian = np.asarray(
-					self.result.dynamics.hamiltonian(times, solution.states),
-					dtype=float,
-				).reshape(-1)
-				momentum = np.asarray(
-					diagnostics["extended_momentum"],
-					dtype=float,
-				).reshape(-1)
-				generalized_energy = hamiltonian + momentum
-				scale = max(
-					abs(float(generalized_energy[0])),
-					float(np.finfo(float).eps),
-				)
-				relative_errors.append(
-					np.abs(generalized_energy - generalized_energy[0]) / scale
-				)
-			expected = float(np.mean(np.asarray(relative_errors)))
-			with self.subTest(configuration=variant.key):
-				np.testing.assert_allclose(
-					rows[variant.key].mean_relative_energy_error,
-					expected,
-					rtol=1e-14,
-					atol=1e-18,
-				)
 
 	def test_every_variant_reports_its_literal_r4_or_r8_dimensions(self) -> None:
 		"""Distinguish splitting dimensions from nonlinear workspace sizes."""

@@ -10,7 +10,7 @@ from dynamics import DynamicalSystem
 
 from contracts.observation import (
 	ABBA2ImplicitIntegrationStep,
-	ABBA4ImplicitSingleProjectionIntegrationStep, ABBA6ImplicitIntegrationStep,
+	ABBA4ImplicitIntegrationStep, ABBA6ImplicitIntegrationStep,
 	IntegrationStep, UnprojectedABBAIntegrationStep,
 )
 from methods.extended.configuration import ProjectionFormulation
@@ -106,7 +106,7 @@ def bind_event_builder(
 				)
 				for m in trace.maps
 			)
-			return ABBA4ImplicitSingleProjectionIntegrationStep(
+			return ABBA4ImplicitIntegrationStep(
 				**fields, multiplier=projections[0].multiplier.copy(),
 				composition_coefficients=np.asarray(coefficients), substeps=substeps,
 			)

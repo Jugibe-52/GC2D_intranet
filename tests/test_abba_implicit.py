@@ -11,18 +11,8 @@ import numpy as np
 from diagnostics.symplecticity import (
 	central_difference_jacobian,
 )
-from initial_conditions import TrajectoryGC
-from simulation import (
-	ABBA_PROJECTION_FORMULATIONS,
-	ABBA_STATE_EXTENSIONS,
-	ABBA2Implicit,
-	ABBA4Implicit,
-	ABBA4ImplicitSingleProjection,
-	ABBA6Implicit,
-	InitialValueProblem,
-	SimulationRequest,
-	simulate,
-)
+from initial_conditions import GCInitialConfiguration
+from simulation import ABBA_PROJECTION_FORMULATIONS, ABBA_STATE_EXTENSIONS, ABBA2Implicit, ABBA4Implicit, ABBA6Implicit, InitialValueProblem, SimulationRequest, simulate
 from methods.extended.abba_maps import (
 	_differentiate_stages,
 	_evaluate_displaced_stages,
@@ -64,7 +54,6 @@ class ImplicitABBAFormulationTests(unittest.TestCase):
 		for method_type in (
 			ABBA2Implicit,
 			ABBA4Implicit,
-			ABBA4ImplicitSingleProjection,
 			ABBA6Implicit,
 		):
 			for formulation in ABBA_PROJECTION_FORMULATIONS:
@@ -178,7 +167,7 @@ class ImplicitABBAFormulationTests(unittest.TestCase):
 		state = np.asarray([1.0, 1.4, 1.2, 1.6])
 		problem = InitialValueProblem(
 			dynamics,
-			TrajectoryGC(state, rho=0.05),
+			GCInitialConfiguration(state),
 		)
 		request = SimulationRequest.uniform(
 			t_span=(0.0, 0.2),
@@ -225,9 +214,10 @@ class ImplicitABBASymplecticityStudyTests(unittest.TestCase):
 			potential,
 			side=0.5,
 			points_per_side=1,
-			rho=0.05,
+
 		)
 		config = ImplicitABBASymplecticityConfig(
+			rho=0.05,
 			steps=pi_area_steps(400, 800),
 			t_span=(0.0, np.pi / 100),
 			save_interval=np.pi / 100,

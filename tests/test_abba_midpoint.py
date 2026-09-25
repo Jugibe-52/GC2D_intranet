@@ -10,7 +10,7 @@ import unittest
 import numpy as np
 
 from dynamics import GuidingCenterDynamics
-from initial_conditions import TrajectoryGC
+from initial_conditions import GCInitialConfiguration
 from potential import Potential
 from simulation import (
 	ABBA2Midpoint,
@@ -93,7 +93,7 @@ class ABBA2MidpointTests(unittest.TestCase):
 		dynamics = _TimeOnlyPlanarDynamics()
 		problem = InitialValueProblem(
 			dynamics,
-			TrajectoryGC(np.asarray([1.0, 1.2]), rho=0.05),
+			GCInitialConfiguration(np.asarray([1.0, 1.2])),
 		)
 		with self.assertRaisesRegex(TypeError, "HamiltonianSystem"):
 			simulate(
@@ -114,7 +114,7 @@ class ABBA2MidpointTests(unittest.TestCase):
 		solution = simulate(
 			InitialValueProblem(
 				dynamics,
-				TrajectoryGC(initial_state, rho=0.05),
+				GCInitialConfiguration(initial_state),
 			),
 			ABBA2Midpoint(),
 			SimulationRequest.uniform(
@@ -162,7 +162,7 @@ class ABBA2MidpointTests(unittest.TestCase):
 	def test_method_has_second_order_global_accuracy(self) -> None:
 		problem = InitialValueProblem(
 			_deterministic_gc_dynamics(),
-			TrajectoryGC(np.asarray([1.0, 1.2]), rho=0.05),
+			GCInitialConfiguration(np.asarray([1.0, 1.2])),
 		)
 
 		def final_state(step: float) -> np.ndarray:
@@ -186,7 +186,7 @@ class ABBA2MidpointTests(unittest.TestCase):
 	def test_observations_and_diagnostics_ignore_shadow_steps(self) -> None:
 		problem = InitialValueProblem(
 			_deterministic_gc_dynamics(),
-			TrajectoryGC(np.asarray([1.0, 1.2]), rho=0.05),
+			GCInitialConfiguration(np.asarray([1.0, 1.2])),
 		)
 		events = []
 		observed = simulate(
@@ -237,9 +237,10 @@ class ABBA2MidpointSymplecticityStudyTests(unittest.TestCase):
 			potential,
 			side=0.5,
 			points_per_side=1,
-			rho=0.05,
+
 		)
 		config = ABBA2MidpointSymplecticityConfig(
+			rho=0.05,
 			steps=pi_area_steps(40, 80),
 			t_span=(0.0, np.pi / 20),
 			save_interval=np.pi / 20,

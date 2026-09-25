@@ -28,7 +28,6 @@ from diagnostics.paths import (
 _BM4_STAGE_COUNT = 12
 
 
-
 def gc_diagonal_embedding(particle_count: int) -> np.ndarray:
 	"""Return ``E: z -> (z, z)`` from physical to doubled GC coordinates."""
 	physical_identity = np.eye(2 * positive_integer(particle_count, "particle_count"))

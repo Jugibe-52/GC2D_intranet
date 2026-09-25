@@ -68,7 +68,7 @@ class MethodIntegrationTests(unittest.TestCase):
 				self.assertIsNot(run, method)
 				self.assertEqual(events, [])
 				self.assertFalse(run.initial_state.flags.writeable)
-		with patch("methods.extended.bm4._solve_reduced_projected_bm4_step", side_effect=AssertionError("Unexpected solve")):
+		with patch("methods.extended.bm4.solve_projection", side_effect=AssertionError("Unexpected solve")):
 			BM4Implicit().new_run(problem, _request())
 
 	def test_run_advances_and_shadow_samples_do_not_emit_or_accumulate(self) -> None:
@@ -116,12 +116,7 @@ class MethodIntegrationTests(unittest.TestCase):
 					np.testing.assert_equal(plain.diagnostics[key], observed.diagnostics[key])
 
 	def test_unobserved_bm4_does_not_replay_stage_events(self) -> None:
-		from methods.extended import bm4 as implicit
-		original = implicit._advance_composition
-		def checked(*args, **kwargs):
-			self.assertIsNone(kwargs["stage_observer"])
-			return original(*args, **kwargs)
-		with patch.object(implicit, "_advance_composition", side_effect=checked):
+		with patch("methods.extended.bm4.stage_events", side_effect=AssertionError("Unexpected event construction")):
 			simulate(_problem(), BM4Implicit(), _request(True))
 
 	def test_controller_can_supply_nonuniform_accepted_steps(self) -> None:

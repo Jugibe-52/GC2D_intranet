@@ -24,7 +24,7 @@ from simulation import (
 	InitialValueProblem,
 	RK4,
 	SimulationRequest,
-	SimulationRunner,
+
 	Solution,
 	StateLayout,
 	simulate,
@@ -241,7 +241,7 @@ class ExtensibleArchitectureTests(unittest.TestCase):
 		)
 		for dynamics, source, physical_size in cases:
 			with self.subTest(dynamics=type(dynamics).__name__):
-				solution = SimulationRunner().simulate(
+				solution = simulate(
 					InitialValueProblem(dynamics, source),
 					method,
 					request,
@@ -291,7 +291,7 @@ class ExtensibleArchitectureTests(unittest.TestCase):
 			center=(np.pi, np.pi),
 			radius=0.2,
 			points=16,
-			rho=0.05,
+
 		)
 		solution = simulate(
 			InitialValueProblem(
@@ -358,10 +358,9 @@ class ExtensibleArchitectureTests(unittest.TestCase):
 			np.asarray([0.0, np.nan]),
 			np.asarray([[0.0, 0.1]]),
 		):
-			for entry in (simulate, SimulationRunner().simulate):
-				with self.subTest(times=times, entry=entry):
-					with self.assertRaises(ValueError):
-						entry(problem, _FixedOutputMethod(states, times), request)
+			with self.subTest(times=times):
+				with self.assertRaises(ValueError):
+					simulate(problem, _FixedOutputMethod(states, times), request)
 
 	def test_gc_and_fc_split_maps_preserve_physical_motion_and_reverse_momentum(self) -> None:
 		potential = deterministic_potential()

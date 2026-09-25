@@ -94,5 +94,4 @@ class RK4(IntegrationMethod[None]):
 		)
 
 
-
 __all__ = ["RK4"]

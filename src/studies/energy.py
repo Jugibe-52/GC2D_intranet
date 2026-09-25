@@ -200,7 +200,7 @@ def run_generalized_energy_comparison(
 			"The generalized-energy study requires exactly one initial GC state."
 		)
 
-	rho = resolve_rho(config.rho, configuration)
+	rho = resolve_rho(config.rho)
 	dynamics = GuidingCenterDynamics(potential, rho=rho)
 	problem = InitialValueProblem(
 		dynamics,

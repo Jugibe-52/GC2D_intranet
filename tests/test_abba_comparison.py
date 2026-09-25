@@ -34,9 +34,10 @@ class ABBAComparisonStudyTests(unittest.TestCase):
 			potential,
 			side=0.5,
 			points_per_side=1,
-			rho=0.05,
+
 		)
 		config = ABBAComparisonConfig(
+			rho=0.05,
 			integration_step=np.pi / 400,
 			step_label=r"$\Delta t=\pi/400$",
 			t_span=(0.0, np.pi / 100),

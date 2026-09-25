@@ -116,7 +116,6 @@ class ImplicitABBAJacobianOutputBlock:
 	metadata_path: Path
 
 
-
 def _record_from_analysis(
 	*,
 	sample: ImplicitABBAJacobianSample,

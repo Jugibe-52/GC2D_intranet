@@ -16,7 +16,6 @@ from methods import (
 	ABBA2Midpoint,
 	ABBA2Implicit,
 	ABBA4Implicit,
-	ABBA4ImplicitSingleProjection,
 	ABBA6Implicit,
 	ABBA4_PROJECTION_PLACEMENTS,
 	BM4Implicit,
@@ -43,25 +42,7 @@ from methods import (
 	SDIRK4,
 	SDIRKJacobianMethod,
 )
-from contracts.observation import (
-	AdaptiveIntegrationStep,
-	AdaptiveStepObserver,
-	ABBA4ImplicitSingleProjectionIntegrationStep,
-	FullyExtendedBaseMap,
-	FullyExtendedImplicitIntegrationStep,
-	GaussLegendre4IntegrationStep,
-	ABBA4ImplicitIntegrationStep,
-	ABBA6ImplicitIntegrationStep,
-	ABBAImplicitCompositionIntegrationStep,
-	ABBA2ImplicitIntegrationStep,
-	ImplicitBM4IntegrationStep,
-	ImplicitIntegrationStep,
-	IntegrationStage,
-	IntegrationStep,
-	StageObserver,
-	StepObserver,
-	UnprojectedABBAIntegrationStep,
-)
+from contracts.observation import AdaptiveIntegrationStep, AdaptiveStepObserver, ABBA4ImplicitIntegrationStep, GaussLegendre4IntegrationStep, ABBA6ImplicitIntegrationStep, ABBAImplicitCompositionIntegrationStep, ABBA2ImplicitIntegrationStep, ImplicitBM4IntegrationStep, ImplicitIntegrationStep, IntegrationStage, IntegrationStep, StageObserver, StepObserver, UnprojectedABBAIntegrationStep
 from contracts.problem import InitialValueProblem
 from contracts.request import (
 	DEFAULT_INTEGRATION_STEP,
@@ -71,11 +52,14 @@ from contracts.request import (
 	NORMALIZED_CYCLE_DURATION,
 	SimulationRequest,
 )
-from .runner import SimulationRunner, simulate
+from .runner import (
+	simulate,
+)
 from solution import Solution
 
 __all__ = [
-	"PhysicalFormulation", "DoubledFormulation",
+	"PhysicalFormulation",
+	"DoubledFormulation",
 	"DOP853",
 	"Radau",
 	"AdaptiveIntegrationStep",
@@ -83,8 +67,7 @@ __all__ = [
 	"ABBA2Midpoint",
 	"ABBA2Implicit",
 	"ABBA4Implicit",
-	"ABBA4ImplicitSingleProjection",
-	"ABBA4ImplicitSingleProjectionIntegrationStep",
+	"ABBA4ImplicitIntegrationStep",
 	"ABBA6Implicit",
 	"BM4Implicit",
 	"BM4Midpoint",
@@ -107,11 +90,8 @@ __all__ = [
 	"GCStageProjectedFormulation",
 	"gc_coupling_matrix",
 	"InitialConfiguration",
-	"FullyExtendedBaseMap",
-	"FullyExtendedImplicitIntegrationStep",
 	"GaussLegendre4IntegrationStep",
 	"InitialValueProblem",
-	"ABBA4ImplicitIntegrationStep",
 	"ABBA6ImplicitIntegrationStep",
 	"ABBAImplicitCompositionIntegrationStep",
 	"ABBA2ImplicitIntegrationStep",
@@ -134,7 +114,6 @@ __all__ = [
 	"SDIRK4",
 	"SDIRKJacobianMethod",
 	"SimulationRequest",
-	"SimulationRunner",
 	"Solution",
 	"StageObserver",
 	"StepObserver",

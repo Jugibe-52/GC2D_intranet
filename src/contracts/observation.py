@@ -11,7 +11,6 @@ from dynamics import DynamicalSystem, GuidingCenterJacobianSystem
 
 
 StateMap: TypeAlias = Callable[[np.ndarray], np.ndarray]
-StateJacobian: TypeAlias = Callable[[np.ndarray], np.ndarray]
 
 
 @dataclass(frozen=True, slots=True)
@@ -170,7 +169,7 @@ class UnprojectedABBAIntegrationStep:
 
 
 @dataclass(frozen=True, slots=True)
-class ABBA4ImplicitSingleProjectionIntegrationStep(ImplicitIntegrationStep):
+class ABBA4ImplicitIntegrationStep(ImplicitIntegrationStep):
 	"""Expose one projection around a complete unprojected ABBA4 base map.
 
 	``substeps`` contains the continuous signed ``(gamma, delta, gamma)`` ABBA
@@ -206,16 +205,6 @@ class ABBAImplicitCompositionIntegrationStep(ImplicitIntegrationStep):
 
 
 @dataclass(frozen=True, slots=True)
-class ABBA4ImplicitIntegrationStep(ABBAImplicitCompositionIntegrationStep):
-	"""Expose the three accepted implicit-ABBA maps in one fourth-order step.
-
-	``substeps`` follows composition order and contains the signed
-	``(gamma, delta, gamma)`` durations. Each entry owns its converged multiplier
-	and ABBA stage snapshots.
-	"""
-
-
-@dataclass(frozen=True, slots=True)
 class ABBA6ImplicitIntegrationStep(ABBAImplicitCompositionIntegrationStep):
 	"""Expose the seven accepted implicit-ABBA maps in one sixth-order step."""
 
@@ -229,38 +218,6 @@ class ImplicitBM4IntegrationStep(ImplicitIntegrationStep):
 	base_stages: tuple[IntegrationStage, ...] = field(repr=False, compare=False)
 
 
-@dataclass(frozen=True, slots=True)
-class FullyExtendedBaseMap:
-	"""One accepted unprojected map on two full ``(z, t, k)`` copies."""
-
-	map_name: str
-	start_time: float
-	duration: float
-	state_before: np.ndarray
-	state_after: np.ndarray
-	map_state: StateMap = field(repr=False, compare=False)
-	jacobian_state: StateJacobian = field(repr=False, compare=False)
-	projection_multiplier: np.ndarray = field(repr=False, compare=False)
-	residual_jacobian: np.ndarray = field(repr=False, compare=False)
-
-
-@dataclass(frozen=True, slots=True)
-class FullyExtendedImplicitIntegrationStep(ImplicitIntegrationStep):
-	"""Accepted full-diagonal projection from ``R^8`` to physical ``R^4``.
-
-	The inherited states and ``map_state`` use ``(x, y, t, k)`` order. Each
-	``base_map`` instead owns the duplicated order
-	``(x_1, y_1, t_1, k_1, x_2, y_2, t_2, k_2)``.
-	"""
-
-	multiplier: np.ndarray = field(repr=False, compare=False)
-	jacobian: np.ndarray = field(repr=False, compare=False)
-	base_maps: tuple[FullyExtendedBaseMap, ...] = field(
-		repr=False,
-		compare=False,
-	)
-
-
 StageObserver: TypeAlias = Callable[[IntegrationStage], None]
 StepObserver: TypeAlias = Callable[[IntegrationStep], None]
 
@@ -270,19 +227,15 @@ __all__ = [
 	"AdaptiveStepObserver",
 	"ABBA2ImplicitIntegrationStep",
 	"ABBA4ImplicitIntegrationStep",
-	"ABBA4ImplicitSingleProjectionIntegrationStep",
 	"ABBA6ImplicitIntegrationStep",
 	"ABBAImplicitCompositionIntegrationStep",
 	"ImplicitBM4IntegrationStep",
-	"FullyExtendedBaseMap",
-	"FullyExtendedImplicitIntegrationStep",
 	"GaussLegendre4IntegrationStep",
 	"ImplicitIntegrationStep",
 	"IntegrationStage",
 	"IntegrationStep",
 	"StageObserver",
 	"StateMap",
-	"StateJacobian",
 	"StepObserver",
 	"UnprojectedABBAIntegrationStep",
 ]

@@ -9,7 +9,6 @@ import numpy as np
 from dynamics import GuidingCenterDynamics
 from contracts.observation import (
 	ABBA4ImplicitIntegrationStep,
-	ABBA4ImplicitSingleProjectionIntegrationStep,
 	UnprojectedABBAIntegrationStep,
 	ABBA2ImplicitIntegrationStep,
 	ImplicitBM4IntegrationStep,
@@ -105,7 +104,7 @@ def _kappa_increment(
 	dynamics: GuidingCenterDynamics,
 ) -> float:
 	"""Dispatch the accepted-step momentum reconstruction by record type."""
-	if isinstance(record, (ABBA4ImplicitIntegrationStep, ABBA4ImplicitSingleProjectionIntegrationStep)):
+	if isinstance(record, ABBA4ImplicitIntegrationStep):
 		return float(
 			sum(_abba_kappa_increment(substep, dynamics) for substep in record.substeps)
 		)

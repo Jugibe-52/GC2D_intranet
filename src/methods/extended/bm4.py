@@ -5,7 +5,7 @@ from functools import partial
 from typing import Literal, TypeAlias
 import numpy as np
 from formulations.state import DoubledFormulation
-from formulations.gc import GCDoubledMaps, _EnergyQuadraturePoint
+from formulations.gc import GCDoubledMaps
 from integration.core import IntegrationMethod, NEWTON_ALIASES
 from contracts.step import StepInfo, StepResult
 from contracts.result import DiagnosticValue
@@ -14,39 +14,15 @@ from contracts.problem import InitialValueProblem
 from contracts.request import SimulationRequest
 from methods._nonlinear import NonlinearSolver, SolverOptions, _validate_nonlinear_solver
 from methods.extended.configuration import _positive_finite, _positive_integer, _nonnegative_finite
-from methods.extended.composition import BM4, compose
+from methods.extended.composition import BM4
 from methods.extended.projection import solve_projection
 from methods.extended.records import ProjectedMapResult as _ProjectedBM4Step
 from methods.extended.records import ProjectedMap
 from methods.extended.energy import momentum_increment
-from methods.extended.jacobians import central_difference_jacobian as _central_difference_jacobian, particle_jacobians, packed_jacobian
-from methods.extended.bm4_composition import _advance_composition, stage_events
+from methods.extended.bm4_composition import stage_events
 
 NewtonJacobianMethod: TypeAlias = Literal['analytic', 'finite_difference']
 NEWTON_JACOBIAN_METHODS: tuple[NewtonJacobianMethod, ...] = ('analytic', 'finite_difference')
-
-
-def _bm4_map(prepared: GCDoubledMaps, t: float, internal_state: np.ndarray, step: float,
-             *, energy_points: list[_EnergyQuadraturePoint] | None = None) -> np.ndarray:
-    """Compatibility view of the shared BM4 traversal."""
-    trace = compose(prepared, BM4, t, internal_state, step)
-    if energy_points is not None:
-        energy_points.extend(trace.energy_points)
-    return trace.state
-
-
-def _analytic_bm4_map_jacobian(prepared: GCDoubledMaps, t: float, internal_input: np.ndarray, step: float) -> np.ndarray:
-    """Expose the shared exact tangent in the historical dense layout."""
-    return packed_jacobian(particle_jacobians(prepared, compose(prepared, BM4, t, internal_input, step)))
-
-
-def _bm4_map_jacobian(prepared: GCDoubledMaps, t: float, internal_input: np.ndarray, step: float,
-                      *, relative_step: float, method: NewtonJacobianMethod) -> np.ndarray:
-    """Differentiate the complete BM4 recipe for existing diagnostic callers."""
-    if method == 'analytic':
-        return _analytic_bm4_map_jacobian(prepared, t, internal_input, step)
-    return _central_difference_jacobian(lambda state: _bm4_map(prepared, t, state, step),
-                                       internal_input, relative_step=relative_step)
 
 
 def _solve_reduced_projected_bm4_step(
@@ -207,7 +183,6 @@ class BM4Implicit(IntegrationMethod[_ProjectedBM4Step]):
 			coupling_frequency=self.coupling_frequency,
 			multiplier=result.multiplier.copy(), base_stages=tuple(base_stages),
 		)
-
 
 
 __all__ = ["BM4Implicit"]

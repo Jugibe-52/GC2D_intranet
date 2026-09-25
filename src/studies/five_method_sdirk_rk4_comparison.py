@@ -42,7 +42,7 @@ from .three_method_newton_comparison import (
 
 
 FIVE_METHOD_COMPARISON_METHODS: tuple[str, ...] = (
-	"ABBA4ImplicitSingleProjection",
+	"ABBA4Implicit",
 	"GaussLegendre4",
 	"BM4Implicit",
 	"SDIRK4",
@@ -51,7 +51,7 @@ FIVE_METHOD_COMPARISON_METHODS: tuple[str, ...] = (
 FIVE_METHOD_IMPLICIT_METHODS = FIVE_METHOD_COMPARISON_METHODS[:-1]
 FIVE_METHOD_COMPARISON_LABELS: Mapping[str, str] = MappingProxyType(
 	{
-		"ABBA4ImplicitSingleProjection": "Single-projection implicit ABBA4",
+		"ABBA4Implicit": "Single-projection implicit ABBA4",
 		"GaussLegendre4": "Gauss--Legendre (2 stages, order 4)",
 		"BM4Implicit": "Single-projection implicit BM4",
 		"SDIRK4": "SDIRK S54b (5 stages, order 4)",

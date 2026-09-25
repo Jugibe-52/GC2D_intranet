@@ -10,19 +10,6 @@ from contracts.request import SimulationRequest
 from solution import Solution
 
 
-class SimulationRunner:
-	"""Compatibility entry point for the stateless :func:`simulate` operation."""
-
-	def simulate(
-		self,
-		problem: InitialValueProblem,
-		method: NumericalMethod,
-		request: SimulationRequest,
-	) -> Solution:
-		"""Delegate to the shared simulation entry point."""
-		return simulate(problem, method, request)
-
-
 def simulate(
 	problem: InitialValueProblem,
 	method: NumericalMethod,
@@ -57,4 +44,6 @@ def simulate(
 	return solution
 
 
-__all__ = ["SimulationRunner", "simulate"]
+__all__ = [
+	"simulate",
+]

@@ -14,7 +14,7 @@ from diagnostics._validation import positive_integer as _positive_integer
 from dynamics import GuidingCenterJacobianSystem
 from methods.extended.configuration import ABBA_PROJECTION_FORMULATIONS
 from contracts.observation import (
-	ABBA4ImplicitSingleProjectionIntegrationStep,
+	ABBA4ImplicitIntegrationStep,
 	ABBA2ImplicitIntegrationStep,
 	IntegrationStep,
 )
@@ -42,7 +42,7 @@ _FORMULATION_SOLVERS: dict[str, _StepSolver] = {
 	"reduced_multiplier": _solve_reduced_multiplier_step,
 	"simultaneous_state_multiplier": _solve_simultaneous_state_multiplier_step,
 }
-_ObservedStep = ABBA2ImplicitIntegrationStep | ABBA4ImplicitSingleProjectionIntegrationStep
+_ObservedStep = ABBA2ImplicitIntegrationStep | ABBA4ImplicitIntegrationStep
 
 
 def _dense_component_major_jacobian(blocks: np.ndarray) -> np.ndarray:
@@ -62,7 +62,7 @@ def _dense_component_major_jacobian(blocks: np.ndarray) -> np.ndarray:
 
 def _complete_step_jacobian(step: _ObservedStep) -> np.ndarray:
 	"""Return the exact complete-map tangent for ABBA2 or composed ABBA4."""
-	if isinstance(step, ABBA4ImplicitSingleProjectionIntegrationStep):
+	if isinstance(step, ABBA4ImplicitIntegrationStep):
 		return _dense_component_major_jacobian(
 			abba4_implicit_step_particle_jacobians(step)
 		)
@@ -115,7 +115,6 @@ def _positive_finite(value: float, name: str) -> float:
 	if not np.isfinite(result) or result <= 0.0:
 		raise ValueError(f"`{name}` must be positive and finite.")
 	return result
-
 
 
 def _finite_vector(value: np.ndarray, shape: tuple[int, ...], name: str) -> np.ndarray:
@@ -178,7 +177,7 @@ class ImplicitABBAReversibilityObserver:
 		dynamics: GuidingCenterJacobianSystem,
 	) -> _ObservedStep:
 		"""Solve and expose the signed reverse step independently of ``J_plus``."""
-		if isinstance(step, ABBA4ImplicitSingleProjectionIntegrationStep):
+		if isinstance(step, ABBA4ImplicitIntegrationStep):
 			return self._solve_reverse_abba4_step(step, dynamics)
 		try:
 			step_solver = _FORMULATION_SOLVERS[step.formulation_name]
@@ -252,9 +251,9 @@ class ImplicitABBAReversibilityObserver:
 
 	def _solve_reverse_abba4_step(
 		self,
-		step: ABBA4ImplicitSingleProjectionIntegrationStep,
+		step: ABBA4ImplicitIntegrationStep,
 		dynamics: GuidingCenterJacobianSystem,
-	) -> ABBA4ImplicitSingleProjectionIntegrationStep:
+	) -> ABBA4ImplicitIntegrationStep:
 		"""Use the shared signed-step recipe and snapshot adapter in reverse."""
 		start_time = float(step.time)
 		duration = -float(step.duration)
@@ -278,14 +277,14 @@ class ImplicitABBAReversibilityObserver:
 			start_time, duration, step.step_index, state_before,
 			StepResult(projections[-1].state, projections),
 		)
-		assert isinstance(event, ABBA4ImplicitSingleProjectionIntegrationStep)
+		assert isinstance(event, ABBA4ImplicitIntegrationStep)
 		return replace(event, time=float(step.start_time))
 
 	def __call__(self, step: IntegrationStep) -> None:
 		"""Observe one consecutive accepted implicit-ABBA step."""
 		if not isinstance(
 			step,
-			(ABBA2ImplicitIntegrationStep, ABBA4ImplicitSingleProjectionIntegrationStep),
+			(ABBA2ImplicitIntegrationStep, ABBA4ImplicitIntegrationStep),
 		):
 			raise TypeError(
 				"ImplicitABBAReversibilityObserver requires "

@@ -231,7 +231,6 @@ class _AdaptiveMethod(IntegrationMethod[_AdaptiveDetails]):
         )
 
 
-
 @dataclass(slots=True)
 class DOP853(_AdaptiveMethod):
     """Explicit order-eight adaptive Runge--Kutta with SciPy dense output."""

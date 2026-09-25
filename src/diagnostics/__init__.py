@@ -18,8 +18,6 @@ from .abba_reversibility import (
 	ImplicitABBAReversibilitySample,
 )
 from .energy import (
-	GCFullyExtendedEnergyObserver,
-	GCFullyExtendedEnergyRecord,
 	GCGeneralizedEnergyObserver,
 	GCGeneralizedEnergyRecord,
 )
@@ -46,7 +44,6 @@ from .parallel_bm4_recurrence_npz import (
 )
 from .trajectory_symplecticity import (
 	abba4_implicit_step_particle_jacobians,
-	abba4_implicit_single_projection_step_particle_jacobians,
 	GCTrajectorySymplecticityObserver,
 	TrajectoryJacobianCalculator,
 	TrajectorySymplecticityOutputBlock,
@@ -74,21 +71,17 @@ from .reference_trajectory import (
 	write_reference_trajectory,
 )
 from .symplecticity import (
-	GCFullyExtendedSymplecticityObserver,
-	GCFullyExtendedSymplecticityRecord,
 	GCReducedTimeExtendedSymplecticityObserver,
 	GCReducedTimeExtendedSymplecticityRecord,
 	GCTimeExtendedSymplecticityObserver,
 	GCTimeExtendedSymplecticityRecord,
 	gc_time_extended_symplectic_form,
 	gc_reduced_time_extended_symplectic_form,
-	gc_fully_duplicated_symplectic_form,
 )
 
 __all__ = [
 	"AdaptiveTrajectoryObserver",
 	"abba4_implicit_step_particle_jacobians",
-	"abba4_implicit_single_projection_step_particle_jacobians",
 	"IMPLICIT_ABBA_JACOBIAN_METHODS",
 	"ImplicitABBAJacobianMethod",
 	"ImplicitABBAJacobianObserver",
@@ -108,11 +101,7 @@ __all__ = [
 	"GCTrajectorySymplecticityObserver",
 	"GCGeneralizedEnergyObserver",
 	"GCGeneralizedEnergyRecord",
-	"GCFullyExtendedEnergyObserver",
-	"GCFullyExtendedEnergyRecord",
 	"FIVE_METHOD_COMPARISON_CSV_SCHEMA_VERSION",
-	"GCFullyExtendedSymplecticityObserver",
-	"GCFullyExtendedSymplecticityRecord",
 	"GCReducedTimeExtendedSymplecticityObserver",
 	"GCReducedTimeExtendedSymplecticityRecord",
 	"GCTimeExtendedSymplecticityObserver",
@@ -137,7 +126,6 @@ __all__ = [
 	"coupled_bm4_stage_particle_jacobians",
 	"gc_time_extended_symplectic_form",
 	"gc_reduced_time_extended_symplectic_form",
-	"gc_fully_duplicated_symplectic_form",
 	"abba2_implicit_step_particle_jacobians",
 	"implicit_function_step_jacobian",
 	"load_reference_trajectory",

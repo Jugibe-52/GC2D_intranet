@@ -40,22 +40,22 @@ from ._validation import (
 
 IMPLICIT_ACCURACY_METHOD_NAMES: tuple[str, ...] = (
 	"ABBA2Implicit[reduced_multiplier]",
-	"ABBA4ImplicitSingleProjection",
+	"ABBA4Implicit",
 	"BM4Implicit",
 )
 IMPLICIT_ACCURACY_METHOD_LABELS: Mapping[str, str] = MappingProxyType(
 	{
 		"ABBA2Implicit[reduced_multiplier]": "Implicit ABBA2 (reduced multiplier)",
-		"ABBA4Implicit": "Implicit ABBA4 (three projections)",
-		"ABBA4ImplicitSingleProjection": "Implicit ABBA4 (single projection)",
+
+		"ABBA4Implicit": "Implicit ABBA4 (single projection)",
 		"BM4Implicit": "Implicit BM4",
 	}
 )
 IMPLICIT_ACCURACY_DESIGNED_ORDERS: Mapping[str, float] = MappingProxyType(
 	{
 		"ABBA2Implicit[reduced_multiplier]": 2.0,
+
 		"ABBA4Implicit": 4.0,
-		"ABBA4ImplicitSingleProjection": 4.0,
 		"BM4Implicit": 4.0,
 	}
 )
@@ -238,8 +238,6 @@ def _configured_method(
 			progress=config.progress,
 		)
 	if method_name == "ABBA4Implicit":
-		raise ValueError("This historical study key describes the removed three-projection ABBA4.")
-	if method_name == "ABBA4ImplicitSingleProjection":
 		return ABBA4Implicit(
 			projection_placement="around_complete_composition",
 			newton_absolute_tolerance=config.absolute_tolerance,

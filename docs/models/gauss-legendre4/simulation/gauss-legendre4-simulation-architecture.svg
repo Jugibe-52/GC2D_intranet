@@ -213,12 +213,12 @@
 <title>Runner</title>
 <path fill="#ffffff" stroke="#c4cfdc" stroke-width="1.15" d="M1102.96,-2215.08C1102.96,-2215.08 843.04,-2215.08 843.04,-2215.08 837.04,-2215.08 831.04,-2209.08 831.04,-2203.08 831.04,-2203.08 831.04,-2033.8 831.04,-2033.8 831.04,-2027.8 837.04,-2021.8 843.04,-2021.8 843.04,-2021.8 1102.96,-2021.8 1102.96,-2021.8 1108.96,-2021.8 1114.96,-2027.8 1114.96,-2033.8 1114.96,-2033.8 1114.96,-2203.08 1114.96,-2203.08 1114.96,-2209.08 1108.96,-2215.08 1102.96,-2215.08"/>
 <polygon fill="#e8eff8" stroke="none" points="832.48,-2163.64 832.48,-2213.64 1113.52,-2213.64 1113.52,-2163.64 832.48,-2163.64"/>
-<text xml:space="preserve" text-anchor="start" x="840.48" y="-2198.54" font-family="DejaVu Sans" font-size="9.00">PUBLIC FUNCTION / CLASS ADAPTER</text>
+<text xml:space="preserve" text-anchor="start" x="840.48" y="-2198.54" font-family="DejaVu Sans" font-size="9.00">PUBLIC EXECUTION FUNCTION</text>
 <text xml:space="preserve" text-anchor="start" x="840.48" y="-2184.14" font-family="DejaVu Sans" font-weight="bold" font-size="15.00">simulate</text>
 <text xml:space="preserve" text-anchor="start" x="856.21" y="-2173.64" font-family="DejaVu Sans" font-size="10.00" fill="#62748c">src/simulation/runner.py</text>
 <text xml:space="preserve" text-anchor="start" x="840.48" y="-2146.74" font-family="DejaVu Sans" font-weight="bold" font-size="11.00">Entry</text>
 <text xml:space="preserve" text-anchor="start" x="840.48" y="-2135.74" font-family="DejaVu Sans" font-size="11.00">simulate(problem, method, request): Solution</text>
-<text xml:space="preserve" text-anchor="start" x="840.48" y="-2124.74" font-family="DejaVu Sans" font-size="11.00">SimulationRunner.simulate delegates here.</text>
+<text xml:space="preserve" text-anchor="start" x="840.48" y="-2124.74" font-family="DejaVu Sans" font-size="11.00">Single stateless execution entry point.</text>
 <text xml:space="preserve" text-anchor="start" x="840.48" y="-2097.74" font-family="DejaVu Sans" font-weight="bold" font-size="11.00">Before integration</text>
 <text xml:space="preserve" text-anchor="start" x="840.48" y="-2086.74" font-family="DejaVu Sans" font-size="11.00">Validate the three public input contracts.</text>
 <text xml:space="preserve" text-anchor="start" x="840.48" y="-2075.74" font-family="DejaVu Sans" font-size="11.00">Call method.integrate(problem, request).</text>

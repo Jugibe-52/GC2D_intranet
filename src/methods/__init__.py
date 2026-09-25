@@ -3,11 +3,11 @@
 from methods._nonlinear import NONLINEAR_SOLVERS, NonlinearSolver
 from methods.adaptive import DOP853, Radau
 from methods.extended import (
-	BM4Implicit, BM4Midpoint,
+	BM4Implicit,
+	BM4Midpoint,
 	ABBA2Midpoint,
 	ABBA2Implicit,
 	ABBA4Implicit,
-	ABBA4ImplicitSingleProjection,
 	ABBA6Implicit,
 	ABBA4_PROJECTION_PLACEMENTS,
 	ABBA_PROJECTION_FORMULATIONS,
@@ -38,7 +38,6 @@ __all__ = [
 	"ABBA2Midpoint",
 	"ABBA2Implicit",
 	"ABBA4Implicit",
-	"ABBA4ImplicitSingleProjection",
 	"ABBA6Implicit",
 	"BM4Implicit",
 	"BM4Midpoint",

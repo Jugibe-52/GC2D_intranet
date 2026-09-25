@@ -267,9 +267,10 @@ class BM4ImplicitStudyTests(unittest.TestCase):
 			potential,
 			side=0.5,
 			points_per_side=1,
-			rho=0.05,
+
 		)
 		config = BM4ImplicitSymplecticityConfig(
+			rho=0.05,
 			steps=(AreaStep(label="h=0.05", value=0.05),),
 			t_span=(0.0, 0.05),
 			save_interval=0.05,

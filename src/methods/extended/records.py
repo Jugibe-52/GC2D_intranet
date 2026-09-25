@@ -124,7 +124,6 @@ class StepResult:
 	projections: tuple[ProjectedMapResult, ...]
 
 
-
 def step_statistics(result: StepResult, *, include_substeps: bool) -> dict[str, np.ndarray | float | int]:
 	"""Extract one metric row without accumulating history or building events."""
 	projections = result.projections

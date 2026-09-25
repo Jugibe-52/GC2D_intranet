@@ -442,5 +442,4 @@ class HBVM42(IntegrationMethod[_HBVMStepResult]):
 		)
 
 
-
 __all__ = ["HBVM42", "HBVMJacobianMethod"]

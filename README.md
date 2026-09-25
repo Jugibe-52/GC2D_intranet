@@ -43,10 +43,9 @@ simulate` keep their established names. Package exports are explicit; internal
 code imports from the defining modules. The former `simulation.methods.*`,
 `simulation.formulations.*`, `methods.abba.*`, and `methods.bm4.*` routes have
 been removed. See the [import policy and migration table](docs/simulation/integration-architecture.md#public-api-and-imports)
-for canonical paths.
+for canonical paths and the [retired API migration](docs/simulation/api-migration.md).
 
-The public `SimulationRunner.simulate` method delegates to `simulate` for callers
-using the class interface. `Solution` checks array structure and owns immutable
+`simulate(problem, method, request)` is the public execution entry point. `Solution` checks array structure and owns immutable
 copies; `simulate` checks agreement with the requested times and initial state.
 
 `Solution` is an immutable computed trajectory. Its initial configuration is
@@ -213,8 +212,8 @@ and one constrained state/energy strategy:
 `ABBA2Implicit`, `ABBA4Implicit` and `ABBA6Implicit` each admit eight
 configurations: two spatial residual formulations, two nonlinear solvers and
 tracking off/on. `ABBA2Midpoint` has two tracking configurations, giving 26
-configurations across the four classes. The deprecated
-`ABBA4ImplicitSingleProjection` factory returns `ABBA4Implicit`.
+configurations across the four classes. Use `ABBA4Implicit` for the fourth-order
+method with one projection around the complete composition.
 
 The former `state_extension="fully_extended"` projected time and momentum as
 well as space. It is rejected explicitly; use `track_energy=True` for the new
@@ -242,8 +241,7 @@ method = ABBA4Implicit(
 
 The formulation, solver, state and energy selections apply to the complete
 step. ABBA4 always carries both copies continuously through three signed maps
-inside one outer projection. Its legacy single-projection factory selects the
-same algorithm as `ABBA4Implicit()`.
+inside one outer projection.
 
 | Method | ABBA maps per outer step | Projection policy |
 |---|---:|---|

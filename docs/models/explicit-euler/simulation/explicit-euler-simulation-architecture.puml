@@ -105,8 +105,8 @@ digraph ExplicitEulerFullExecution {
 
     Runner [label=<
       <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
-        <TR><TD BGCOLOR="#E8EFF8" ALIGN="LEFT"><FONT POINT-SIZE="9">PUBLIC FUNCTION / CLASS ADAPTER</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>simulate</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/simulation/runner.py</FONT></TD></TR>
-        <TR><TD ALIGN="LEFT"><B>Entry</B><BR ALIGN="LEFT"/>simulate(problem, method, request): Solution<BR ALIGN="LEFT"/>SimulationRunner.simulate delegates here.</TD></TR><HR/>
+        <TR><TD BGCOLOR="#E8EFF8" ALIGN="LEFT"><FONT POINT-SIZE="9">PUBLIC EXECUTION FUNCTION</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>simulate</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/simulation/runner.py</FONT></TD></TR>
+        <TR><TD ALIGN="LEFT"><B>Entry</B><BR ALIGN="LEFT"/>simulate(problem, method, request): Solution<BR ALIGN="LEFT"/>Single stateless execution entry point.</TD></TR><HR/>
         <TR><TD ALIGN="LEFT"><B>Before integration</B><BR ALIGN="LEFT"/>Validate the three public input contracts.<BR ALIGN="LEFT"/>Call method.integrate(problem, request).</TD></TR><HR/>
         <TR><TD ALIGN="LEFT">The same call resumes in phase 06<BR ALIGN="LEFT"/>after IntegrationData is returned.</TD></TR>
       </TABLE>

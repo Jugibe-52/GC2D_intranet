@@ -25,7 +25,6 @@ class Area(GCInitialConfiguration):
 		state: np.ndarray,
 		*,
 		shape: Literal["square", "circle"],
-		rho: float = 0.0,
 	) -> None:
 		"""Create a closed boundary from at least three GC vertex positions.
 
@@ -35,21 +34,10 @@ class Area(GCInitialConfiguration):
 		if shape not in ("square", "circle"):
 			raise ValueError("`shape` must be 'square' or 'circle'.")
 		self.shape = shape
-		legacy_rho = float(rho)
-		if not np.isfinite(legacy_rho) or legacy_rho < 0:
-			raise ValueError("`rho` must be finite and non-negative.")
-		# Kept only so versioned experiment notebooks can migrate independently.
-		# New studies receive rho explicitly and dynamics remains authoritative.
-		self._legacy_rho = legacy_rho
 		super().__init__(state)
 		x, _ = self.layout.positions(self._required_state())
 		if x.size < 3:
 			raise ValueError("An area boundary requires at least three points.")
-
-	@property
-	def rho(self) -> float:
-		"""Return deprecated Larmor-radius metadata for legacy notebooks."""
-		return self._legacy_rho
 
 	@classmethod
 	def from_components(
@@ -58,11 +46,10 @@ class Area(GCInitialConfiguration):
 		x: np.ndarray,
 		y: np.ndarray,
 		shape: Literal["square", "circle"] = "square",
-		rho: float = 0.0,
 	) -> Area:
 		"""Create a boundary from named coordinates and an optional shape label."""
 		state = cls.pack_components(x, y)
-		return cls(state, shape=shape, rho=rho)
+		return cls(state, shape=shape)
 
 	@classmethod
 	def square(
@@ -71,7 +58,6 @@ class Area(GCInitialConfiguration):
 		center: tuple[float, float],
 		side: float,
 		points_per_side: int = 1,
-		rho: float = 0.0,
 	) -> Area:
 		"""Sample a square counter-clockwise with equal density on every edge.
 
@@ -114,7 +100,7 @@ class Area(GCInitialConfiguration):
 				top - edge,
 			)
 		)
-		return cls(np.concatenate((x, y)), shape="square", rho=rho)
+		return cls(np.concatenate((x, y)), shape="square")
 
 	@classmethod
 	def circle(
@@ -123,7 +109,6 @@ class Area(GCInitialConfiguration):
 		center: tuple[float, float],
 		radius: float,
 		points: int = 128,
-		rho: float = 0.0,
 	) -> Area:
 		"""Sample a counter-clockwise circle without repeating its first point.
 
@@ -144,7 +129,7 @@ class Area(GCInitialConfiguration):
 		angle = np.linspace(0.0, 2 * np.pi, int(points), endpoint=False)
 		x = center_x + radius * np.cos(angle)
 		y = center_y + radius * np.sin(angle)
-		return cls(np.concatenate((x, y)), shape="circle", rho=rho)
+		return cls(np.concatenate((x, y)), shape="circle")
 
 	def calculate_area(
 		self,

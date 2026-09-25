@@ -93,13 +93,6 @@ def gc_reduced_time_extended_symplectic_form() -> np.ndarray:
 	)
 
 
-def gc_fully_duplicated_symplectic_form() -> np.ndarray:
-	"""Return the cross-coupled form for two full ``(x,y,t,k)`` copies."""
-	physical_extended = gc_reduced_time_extended_symplectic_form()
-	zero = np.zeros_like(physical_extended)
-	return np.block([[zero, physical_extended], [physical_extended, zero]])
-
-
 @dataclass(frozen=True, slots=True)
 class SymplecticityRecord:
 	"""Scalar diagnostics associated with one observed stage Jacobian."""

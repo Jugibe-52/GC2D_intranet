@@ -26,8 +26,10 @@ The [ABBA family guide](abba/simulation/abba-numerical-architecture.md) and its
 [theory](abba/tex/theory.tex) describe four public classes and **26 normalized
 configurations**. ABBA4 has one outer-projection implementation and 8 state,
 formulation and solver configurations. The energy-enabled comparison uses four.
-The deprecated `ABBA4ImplicitSingleProjection` name is a compatibility factory
-for the current `ABBA4Implicit`; it is not an additional numerical method.
+Use `ABBA4Implicit` for the current outer-projection method. Its accepted
+observation record is `ABBA4ImplicitIntegrationStep`. Retired factories and
+full-projection study interfaces are removed; see the
+[API migration guide](../simulation/api-migration.md).
 
 The per-map ABBA4 projection implementation has been removed. Historical
 per-map theory companions and proposed diagrams are labeled accordingly and

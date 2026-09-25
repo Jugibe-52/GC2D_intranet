@@ -82,7 +82,6 @@ class _BufferedSample:
 	accumulated_determinant_errors: np.ndarray
 
 
-
 def _particle_metrics(jacobians: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
 	"""Return canonical relative defects and determinant errors per particle."""
 	values = np.asarray(jacobians, dtype=float)

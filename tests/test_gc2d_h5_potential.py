@@ -20,10 +20,6 @@ from potential import (
 	load_gc2d_h5_potential,
 )
 from simulation import ABBA4Implicit, InitialValueProblem, SimulationRequest, simulate
-from methods.extended.legacy_full_maps import (
-	_extended_vector_field,
-	_extended_vector_field_jacobian,
-)
 
 
 def _h5_interpolate(
@@ -535,15 +531,22 @@ class GC2DH5ImportTests(unittest.TestCase):
 		)
 
 		dynamics = GuidingCenterDynamics(potential, rho=0.0)
-		extended_state = np.asarray(
-			(query_x[0], query_y[0], time, 0.31),
-			dtype=float,
-		)
-		analytic = _extended_vector_field_jacobian(dynamics, extended_state)
-		numerical = central_difference_jacobian(
-			lambda state: _extended_vector_field(dynamics, state),
-			extended_state,
-		)
+		point = np.asarray((query_x[0], query_y[0], time))
+
+		def field_and_momentum(state: np.ndarray) -> np.ndarray:
+			"""Differentiate the active physical field and passive energy source."""
+			z, t = state[:2], float(state[2])
+			return np.concatenate((dynamics.vector_field(t, z),
+				dynamics.extended_momentum_derivative(t, z)))
+
+		analytic = np.zeros((3, 3))
+		analytic[:2, :2] = dynamics.particle_vector_field_jacobians(time, point[:2])[0]
+		h_tx = potential.evaluate(time, query_x[:1], query_y[:1], dx=1, dt=1)[0]
+		h_ty = potential.evaluate(time, query_x[:1], query_y[:1], dy=1, dt=1)[0]
+		h_tt = potential.evaluate(time, query_x[:1], query_y[:1], dt=2)[0]
+		analytic[:2, 2] = (-h_ty, h_tx)
+		analytic[2] = (-h_tx, -h_ty, -h_tt)
+		numerical = central_difference_jacobian(field_and_momentum, point)
 		np.testing.assert_allclose(analytic, numerical, rtol=2e-6, atol=2e-7)
 
 	def test_zero_gyroaverage_and_abba4_implicit_are_compatible(self) -> None:

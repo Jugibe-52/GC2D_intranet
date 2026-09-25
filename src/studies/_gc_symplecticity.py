@@ -479,7 +479,7 @@ def _run_gc_symplecticity_study(
 	if not isinstance(method_name, str) or not method_name.strip():
 		raise ValueError("The result type must define a non-empty method name.")
 
-	rho = resolve_rho(config.rho, area)
+	rho = resolve_rho(config.rho)
 	dynamics = GuidingCenterDynamics(potential, rho=rho)
 	problem = InitialValueProblem(dynamics, area)
 	initial_state = area.initial_state
@@ -590,7 +590,7 @@ def _run_gc_symplecticity_observers(
 	if not isinstance(method_name, str) or not method_name.strip():
 		raise ValueError("The result type must define a non-empty method name.")
 
-	rho = resolve_rho(config.rho, area)
+	rho = resolve_rho(config.rho)
 	dynamics = GuidingCenterDynamics(potential, rho=rho)
 	problem = InitialValueProblem(dynamics, area)
 	initial_state = area.initial_state

@@ -9,7 +9,6 @@ from diagnostics.jacobians import implicit_function_step_jacobian
 from dynamics import GuidingCenterJacobianSystem
 from methods.extended.configuration import ABBA_PROJECTION_FORMULATIONS
 from contracts.observation import (
-	ABBA4ImplicitSingleProjectionIntegrationStep,
 	ABBA4ImplicitIntegrationStep,
 	ABBA2ImplicitIntegrationStep,
 	ImplicitBM4IntegrationStep,
@@ -210,106 +209,6 @@ def abba2_implicit_step_particle_jacobians(
 	return particle_jacobian_blocks(dense, particle_count)
 
 
-def abba4_implicit_step_particle_jacobians(
-	step: IntegrationStep,
-) -> np.ndarray:
-	"""Return the current outer-projection tangent or read a historical event."""
-	if isinstance(step, ABBA4ImplicitSingleProjectionIntegrationStep):
-		return abba4_implicit_single_projection_step_particle_jacobians(step)
-	dynamics, state, state_after, particle_count = _validated_step(
-		step,
-		method_name="ABBA4Implicit",
-	)
-	if not isinstance(step, ABBA4ImplicitIntegrationStep):
-		raise TypeError(
-			"ABBA4Implicit exact Jacobians require three converged substeps."
-		)
-	if step.formulation_name not in ABBA_PROJECTION_FORMULATIONS:
-		raise TypeError("The observed step has an unknown ABBA4 formulation.")
-	coefficients = np.asarray(step.composition_coefficients, dtype=float)
-	root_two = float(np.cbrt(2.0))
-	gamma = 1.0 / (2.0 - root_two)
-	delta = -root_two / (2.0 - root_two)
-	expected_coefficients = np.asarray((gamma, delta, gamma), dtype=float)
-	coefficient_tolerance = float(
-		64.0
-		* np.finfo(float).eps
-		* max(1.0, float(np.max(np.abs(expected_coefficients))))
-	)
-	if coefficients.shape != (3,) or not np.allclose(
-		coefficients,
-		expected_coefficients,
-		rtol=0.0,
-		atol=coefficient_tolerance,
-	):
-		raise ValueError("The ABBA4 composition coefficients are inconsistent.")
-	substeps = tuple(step.substeps)
-	if len(substeps) != 3:
-		raise ValueError("One ABBA4 step must contain exactly three implicit substeps.")
-
-	accumulated = np.broadcast_to(
-		np.eye(2),
-		(particle_count, 2, 2),
-	).copy()
-	current_state = state
-	current_time = float(step.start_time)
-	for index, (coefficient, substep) in enumerate(
-		zip(coefficients, substeps, strict=True)
-	):
-		if not isinstance(substep, ABBA2ImplicitIntegrationStep):
-			raise TypeError("Every ABBA4 substep must expose implicit ABBA stages.")
-		expected_duration = float(coefficient * step.duration)
-		tolerance = float(
-			64.0
-			* np.finfo(float).eps
-			* max(
-				1.0,
-				abs(current_time),
-				abs(expected_duration),
-				abs(float(substep.start_time)),
-			)
-		)
-		if (
-			substep.step_index != step.step_index
-			or substep.method_name != step.method_name
-			or substep.formulation_name != step.formulation_name
-			or substep.dynamics is not dynamics
-			or not np.isclose(
-				substep.start_time,
-				current_time,
-				rtol=0.0,
-				atol=tolerance,
-			)
-			or not np.isclose(
-				substep.duration,
-				expected_duration,
-				rtol=0.0,
-				atol=tolerance,
-			)
-			or not np.array_equal(substep.state_before, current_state)
-		):
-			raise ValueError(f"ABBA4 substep {index} is inconsistent with the composition.")
-		factor = particle_jacobian_blocks(
-			implicit_function_step_jacobian(substep),
-			particle_count,
-		)
-		accumulated = factor @ accumulated
-		current_state = np.asarray(substep.state_after, dtype=float)
-		current_time = float(substep.time)
-	if not np.array_equal(current_state, state_after):
-		raise ValueError("The ABBA4 substeps do not produce the observed final state.")
-	if not np.isclose(
-		current_time,
-		step.time,
-		rtol=0.0,
-		atol=float(64.0 * np.finfo(float).eps * max(1.0, abs(step.time))),
-	):
-		raise ValueError("The ABBA4 signed substep times do not end at the outer time.")
-	if not np.all(np.isfinite(accumulated)):
-		raise ValueError("The exact ABBA4 physical Jacobian is non-finite.")
-	return np.asarray(accumulated, dtype=float)
-
-
 def _unprojected_abba_step_particle_jacobians(
 	step: UnprojectedABBAIntegrationStep,
 	dynamics: GuidingCenterJacobianSystem,
@@ -359,7 +258,7 @@ def _unprojected_abba_step_particle_jacobians(
 	)
 
 
-def abba4_implicit_single_projection_step_particle_jacobians(
+def abba4_implicit_step_particle_jacobians(
 	step: IntegrationStep,
 ) -> np.ndarray:
 	"""Differentiate the one ideal projection around unprojected ABBA4."""
@@ -367,7 +266,7 @@ def abba4_implicit_single_projection_step_particle_jacobians(
 		step,
 		method_name="ABBA4Implicit",
 	)
-	if not isinstance(step, ABBA4ImplicitSingleProjectionIntegrationStep):
+	if not isinstance(step, ABBA4ImplicitIntegrationStep):
 		raise TypeError(
 			"Outer-projection ABBA4 exact Jacobians require converged "
 			"outer-projection snapshots."
@@ -688,7 +587,6 @@ def bm4_implicit_step_particle_jacobians(
 
 __all__ = [
 	"abba4_implicit_step_particle_jacobians",
-	"abba4_implicit_single_projection_step_particle_jacobians",
 	"bm4_implicit_step_particle_jacobians",
 	"coupled_bm4_stage_particle_jacobians",
 	"abba2_implicit_step_particle_jacobians",

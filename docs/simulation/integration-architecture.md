@@ -36,18 +36,17 @@ The following old routes have been removed after migrating supported consumers:
 | `simulation.solution` | `solution` |
 | `methods.abba.*`, `methods.bm4.*` | `methods.extended` public exports and their defining modules |
 | `methods._abba_coefficients` | `methods.extended.coefficients` |
-| `methods._fully_extended` | `methods.extended.legacy_full_maps`, `methods.extended.legacy_full_projection` |
+| Full time/momentum projection modules | Removed; use spatial projection with `track_energy=True` for new studies |
 | `methods.extended.order4_implicit_single_projection` | `methods.extended.abba_outer` numerical helpers |
 
-No import hooks or `sys.modules` aliases recreate those paths. The public
-`ABBA4ImplicitSingleProjection` factory remains exported, as does
-`SimulationRunner`; removing import adapters does not remove those public names.
+No import hooks or `sys.modules` aliases recreate those paths. Deprecated
+execution classes, method factories, and full-projection studies have also been
+removed; see the [API migration guide](api-migration.md).
 `tests/test_package_layout.py` checks the package boundaries and declared exports.
 
 ## Execution and state ownership
 
-The `simulate` function owns the stateless entry point; the public
-`SimulationRunner.simulate` method delegates to it. `Solution` validates and
+The `simulate` function owns the stateless execution entry point. `Solution` validates and
 copies the physical arrays, including their dimensions, finite values and
 packed layout. The entry point then checks that the saved times, state size and
 initial state agree with the request and problem. Each check has one owner.

@@ -212,12 +212,12 @@
 <title>Runner</title>
 <path fill="#ffffff" stroke="#c4cfdc" stroke-width="1.15" d="M1106,-2125C1106,-2125 846,-2125 846,-2125 840,-2125 834,-2119 834,-2113 834,-2113 834,-1947 834,-1947 834,-1941 840,-1935 846,-1935 846,-1935 1106,-1935 1106,-1935 1112,-1935 1118,-1941 1118,-1947 1118,-1947 1118,-2113 1118,-2113 1118,-2119 1112,-2125 1106,-2125"/>
 <polygon fill="#e8eff8" stroke="transparent" points="835,-2074 835,-2124 1117,-2124 1117,-2074 835,-2074"/>
-<text text-anchor="start" x="843" y="-2109.8" font-family="DejaVu Sans" font-size="9.00">PUBLIC FUNCTION / CLASS ADAPTER</text>
+<text text-anchor="start" x="843" y="-2109.8" font-family="DejaVu Sans" font-size="9.00">PUBLIC EXECUTION FUNCTION</text>
 <text text-anchor="start" x="843" y="-2096" font-family="DejaVu Sans" font-weight="bold" font-size="15.00">simulate</text>
 <text text-anchor="start" x="861.5" y="-2085" font-family="DejaVu Sans" font-size="10.00" fill="#62748c">src/simulation/runner.py</text>
 <text text-anchor="start" x="843" y="-2058.2" font-family="DejaVu Sans" font-weight="bold" font-size="11.00">Entry</text>
 <text text-anchor="start" x="843" y="-2047.2" font-family="DejaVu Sans" font-size="11.00">simulate(problem, method, request): Solution</text>
-<text text-anchor="start" x="843" y="-2036.2" font-family="DejaVu Sans" font-size="11.00">SimulationRunner.simulate delegates here.</text>
+<text text-anchor="start" x="843" y="-2036.2" font-family="DejaVu Sans" font-size="11.00">Single stateless execution entry point.</text>
 <text text-anchor="start" x="843" y="-2009.2" font-family="DejaVu Sans" font-weight="bold" font-size="11.00">Before integration</text>
 <text text-anchor="start" x="843" y="-1998.2" font-family="DejaVu Sans" font-size="11.00">Validate the three public input contracts.</text>
 <text text-anchor="start" x="843" y="-1987.2" font-family="DejaVu Sans" font-size="11.00">Call method.integrate(problem, request).</text>

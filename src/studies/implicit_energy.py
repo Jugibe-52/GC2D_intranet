@@ -57,7 +57,6 @@ IMPLICIT_ENERGY_METHOD_LABELS: Mapping[ImplicitEnergyMethod, str] = MappingProxy
 )
 
 
-
 def _validated_method(method: str) -> ImplicitEnergyMethod:
 	"""Return one supported implicit energy-study method name."""
 	if method not in IMPLICIT_ENERGY_METHODS:
@@ -490,7 +489,7 @@ def run_implicit_generalized_energy_study(
 
 	dynamics = GuidingCenterDynamics(
 		potential,
-		rho=resolve_rho(config.rho, configuration),
+		rho=resolve_rho(config.rho),
 	)
 	problem = InitialValueProblem(dynamics, configuration)
 	runs: list[ImplicitGeneralizedEnergyRun] = []

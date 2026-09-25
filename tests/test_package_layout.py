@@ -16,20 +16,7 @@ import integration
 from dynamics import GuidingCenterDynamics
 from initial_conditions import GCInitialConfiguration
 from potential import Potential
-from simulation import (
-	ABBA2Midpoint,
-	ABBA2Implicit,
-	ABBA4Implicit,
-	ABBA4ImplicitSingleProjection,
-	ABBA6Implicit,
-	ABBA4_PROJECTION_PLACEMENTS,
-	ABBA_PROJECTION_FORMULATIONS,
-	ABBA_STATE_EXTENSIONS,
-	BM4Implicit,
-	BM4Midpoint,
-	ExplicitEuler,
-	RK4,
-)
+from simulation import ABBA2Midpoint, ABBA2Implicit, ABBA4Implicit, ABBA6Implicit, ABBA4_PROJECTION_PLACEMENTS, ABBA_PROJECTION_FORMULATIONS, ABBA_STATE_EXTENSIONS, BM4Implicit, BM4Midpoint, ExplicitEuler, RK4
 from methods import extended, classical
 
 
@@ -65,7 +52,7 @@ class PackageLayoutTests(unittest.TestCase):
 		self.assertIsNotNone(ABBA2Midpoint)
 		self.assertIsNotNone(ABBA2Implicit)
 		self.assertIsNotNone(ABBA4Implicit)
-		self.assertIsNotNone(ABBA4ImplicitSingleProjection)
+		self.assertIsNotNone(ABBA4Implicit)
 		self.assertIsNotNone(ABBA6Implicit)
 		self.assertIsNotNone(BM4Implicit)
 		self.assertEqual(
@@ -158,6 +145,19 @@ class PackageLayoutTests(unittest.TestCase):
 					hasattr(namespace, name),
 					f"{namespace.__name__}.{name}",
 				)
+
+	def test_retired_public_interfaces_are_absent(self) -> None:
+		for package, names in {
+			"simulation": ("SimulationRunner", "ABBA4ImplicitSingleProjection",
+				"FullyExtendedImplicitIntegrationStep", "FullyExtendedBaseMap"),
+			"initial_conditions": ("Trajectory", "TrajectoryGC", "TrajectoryFC"),
+			"studies": ("run_fully_extended_implicit_study", "centered_gc_trajectory",
+				"run_abba4_projection_comparison_study"),
+		}.items():
+			module = importlib.import_module(package)
+			for name in names:
+				with self.subTest(package=package, name=name):
+					self.assertFalse(hasattr(module, name))
 
 	def test_core_packages_do_not_require_matplotlib(self) -> None:
 		project_root = Path(__file__).resolve().parents[1]

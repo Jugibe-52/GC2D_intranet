@@ -61,7 +61,6 @@ def _solve_composed_abba_step(
     return _ComposedABBAStep(projections[-1].state, tuple(accepted))
 
 
-
 def _solve_abba6_step(
 	dynamics: GuidingCenterJacobianSystem,
 	t: float,

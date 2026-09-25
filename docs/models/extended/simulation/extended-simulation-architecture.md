@@ -44,9 +44,10 @@ collection. Compatibility step views used by diagnostics are outside this path.
 The small order-specific ABBA classes select their existing recipes. BM4 and
 ABBA observers adapt the common accepted numerical traces to their established
 public event types. BM4 stage events no longer require a second spatial replay.
-The `abba_*` compatibility helpers and `legacy_full_*` modules support existing
-diagnostic imports; historical full time/momentum projection is not a runtime
-configuration of this family.
+The `abba_*` helpers provide numerical views used by active diagnostics.
+Full time/momentum projection implementations and their retired study interfaces
+have been removed. `ABBA4ImplicitIntegrationStep` describes the continuous base
+composition and its single outer multiplier.
 
 ## Recipes and numerical identity
 
@@ -59,8 +60,7 @@ configuration of this family.
 | `ABBA2Midpoint` | One ABBA pair | One arithmetic mean |
 | `BM4Midpoint` | Complete twelve-stage BM4 recipe | One arithmetic mean |
 
-`ABBA4ImplicitSingleProjection` remains the existing deprecated factory for
-`ABBA4Implicit`. ABBA uses uncoupled maps. BM4 preserves its configurable harmonic
+`ABBA4Implicit` is the fourth-order public configuration. ABBA uses uncoupled maps. BM4 preserves its configurable harmonic
 coupling and defaults (`0` for implicit BM4, `pi/8` for midpoint BM4).
 
 In execution order, even-indexed stages are adjoint and odd-indexed stages are

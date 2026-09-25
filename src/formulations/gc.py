@@ -257,8 +257,6 @@ class GCDoubledMaps:
 		return states, diagnostics
 
 
-
-
 @dataclass(frozen=True, slots=True)
 class GCExtendedFormulation:
 	"""Reusable doubled-state GC formulation configuration."""

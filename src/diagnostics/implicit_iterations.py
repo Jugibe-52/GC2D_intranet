@@ -80,7 +80,6 @@ ImplicitABBAIterationOutputBlock = ImplicitIterationOutputBlock
 ImplicitBM4IterationOutputBlock = ImplicitIterationOutputBlock
 
 
-
 def _record_from_step(
 	step: ImplicitIntegrationStep,
 	observation_index: int,

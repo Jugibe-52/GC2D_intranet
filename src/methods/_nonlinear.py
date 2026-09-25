@@ -45,13 +45,19 @@ class SolveStats:
 
 @dataclass(frozen=True, slots=True)
 class _NonlinearResult(Generic[_Payload]):
-	"""Converged unknown, residual payload, and nonlinear-work counters."""
+	"""Return values and work counts from one converged nonlinear solve.
 
-	unknown: np.ndarray
-	residual: np.ndarray
-	payload: _Payload
-	iterations: int
-	residual_evaluations: int
+	The vectors use the solver's packed unknown convention, which depends on
+	the method (for example, concatenated particle stages or projection
+	multipliers). The payload carries formulation-specific data evaluated at
+	that same unknown.
+	"""
+
+	unknown: np.ndarray  # Accepted packed solution, with the same shape as the initial guess.
+	residual: np.ndarray  # Residual vector evaluated at `unknown`; its infinity norm measures convergence.
+	payload: _Payload  # Additional formulation-specific evaluation data paired with `unknown` and `residual`.
+	iterations: int  # Accepted nonlinear corrections; zero when the initial guess already meets tolerance.
+	residual_evaluations: int  # Number of residual evaluations used, including the converged evaluation.
 
 
 def _validate_nonlinear_solver(value: str) -> NonlinearSolver:

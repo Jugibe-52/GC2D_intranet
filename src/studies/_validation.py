@@ -25,17 +25,11 @@ def nonnegative_finite(value: float, name: str) -> float:
 	return result
 
 
-def resolve_rho(explicit: float | None, legacy_source: object) -> float:
-	"""Resolve canonical study rho with a legacy-configuration fallback."""
-	if explicit is not None:
-		return nonnegative_finite(explicit, "rho")
-	legacy = getattr(legacy_source, "rho", None)
-	if legacy is None:
-		raise ValueError(
-			"`rho` must be explicit because the initial configuration has no "
-			"legacy physical metadata."
-		)
-	return nonnegative_finite(legacy, "rho")
+def resolve_rho(explicit: float | None) -> float:
+	"""Require physical gyro-radius in the study rather than its geometry."""
+	if explicit is None:
+		raise ValueError("`rho` must be explicit in the study configuration.")
+	return nonnegative_finite(explicit, "rho")
 
 
 def positive_integer(value: int, name: str) -> int:

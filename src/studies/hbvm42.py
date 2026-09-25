@@ -382,7 +382,6 @@ def _reference_solution(
 		absolute_tolerance=absolute_tolerance).integrate(problem, request).states
 
 
-
 def _hbvm_method(
 	config: HBVM42EvaluationConfig | HBVM42BM4ComparisonConfig,
 	*,

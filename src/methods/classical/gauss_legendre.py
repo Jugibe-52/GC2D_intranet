@@ -470,7 +470,6 @@ class GaussLegendre4(IntegrationMethod[_GaussStepResult]):
 		)
 
 
-
 __all__ = [
 	"GAUSS_JACOBIAN_METHODS",
 	"GaussJacobianMethod",

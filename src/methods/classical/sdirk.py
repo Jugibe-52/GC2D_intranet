@@ -395,7 +395,6 @@ class SDIRK4(IntegrationMethod[_SDIRKStepResult]):
 		)
 
 
-
 __all__ = [
 	"SDIRK4_TABLEAU_A",
 	"SDIRK4_TABLEAU_B",

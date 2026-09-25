@@ -17,7 +17,7 @@ from diagnostics.symplecticity import (
 	stage_increment_step_jacobian,
 )
 from dynamics import GuidingCenterDynamics
-from initial_conditions import Area, TrajectoryGC
+from initial_conditions import Area, GCInitialConfiguration
 from potential import Potential
 from simulation import (
 	ABBA_PROJECTION_FORMULATIONS,
@@ -86,7 +86,7 @@ class ImplicitABBAJacobianTests(unittest.TestCase):
 		initial_state = np.asarray([1.0, 1.4, 1.2, 1.6])
 		problem = InitialValueProblem(
 			dynamics,
-			TrajectoryGC(initial_state, rho=0.05),
+			GCInitialConfiguration(initial_state),
 		)
 		request = SimulationRequest.uniform(
 			t_span=(0.0, 0.05),
@@ -161,7 +161,7 @@ class ImplicitABBAJacobianTests(unittest.TestCase):
 		simulate(
 			InitialValueProblem(
 				dynamics,
-				TrajectoryGC(np.asarray([1.0, 1.2]), rho=0.05),
+				GCInitialConfiguration(np.asarray([1.0, 1.2])),
 			),
 			ABBA2Implicit(step_observer=events.append),
 			SimulationRequest.uniform(
@@ -201,9 +201,10 @@ class ImplicitABBAObserverStudyTests(unittest.TestCase):
 			potential,
 			side=0.5,
 			points_per_side=1,
-			rho=0.05,
+
 		)
 		config = ImplicitABBASymplecticityConfig(
+			rho=0.05,
 			steps=(AreaStep(label="step", value=np.pi / 400),),
 			t_span=(0.0, np.pi / 400),
 			save_interval=np.pi / 400,
@@ -273,7 +274,7 @@ class ImplicitABBAObserverStudyTests(unittest.TestCase):
 			center=(1.0, 1.0),
 			side=0.5,
 			points_per_side=1,
-			rho=0.05,
+
 		)
 		state = area.initial_state
 		assert state is not None

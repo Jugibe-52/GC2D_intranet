@@ -17,7 +17,7 @@ from diagnostics import (
 from initial_conditions import GCInitialConfiguration
 from simulation import (
 	ABBA4Implicit,
-	ABBA4ImplicitSingleProjectionIntegrationStep,
+	ABBA4ImplicitIntegrationStep,
 	InitialValueProblem,
 	SimulationRequest,
 	simulate,
@@ -150,7 +150,7 @@ class ABBA4ImplicitMethodTests(unittest.TestCase):
 		)
 		self.assertEqual(len(events), 2)
 		step = events[0]
-		self.assertIsInstance(step, ABBA4ImplicitSingleProjectionIntegrationStep)
+		self.assertIsInstance(step, ABBA4ImplicitIntegrationStep)
 		self.assertEqual(len(step.substeps), 3)
 		self.assertLess(step.substeps[1].duration, 0.0)
 		np.testing.assert_allclose(

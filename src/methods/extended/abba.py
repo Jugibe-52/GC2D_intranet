@@ -180,5 +180,4 @@ class _ABBAImplicitMethod(IntegrationMethod[StepResult]):
 		return self.build_event(info.time, info.duration, info.index, state_before, step.details)
 
 
-
 __all__: list[str] = []

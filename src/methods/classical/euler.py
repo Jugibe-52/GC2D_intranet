@@ -72,5 +72,4 @@ class ExplicitEuler(IntegrationMethod[None]):
 		)
 
 
-
 __all__ = ["ExplicitEuler"]

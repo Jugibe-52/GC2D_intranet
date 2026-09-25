@@ -276,7 +276,7 @@ def run_area_comparison(
 	if not isinstance(config, AreaComparisonConfig):
 		raise TypeError("`config` must be an AreaComparisonConfig instance.")
 
-	rho = resolve_rho(config.rho, area)
+	rho = resolve_rho(config.rho)
 	dynamics = GuidingCenterDynamics(potential, rho=rho)
 	problem = InitialValueProblem(dynamics, area)
 	initial_state = area.initial_state

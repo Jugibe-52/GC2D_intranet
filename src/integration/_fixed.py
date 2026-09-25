@@ -9,10 +9,6 @@ import math
 import sys
 
 
-
-
-
-
 class _Progress:
 	"""Small stderr progress indicator counting complete integration steps."""
 
@@ -60,7 +56,6 @@ def _step_count(duration: float, max_step: float) -> int:
 	"""Return the fewest uniform steps respecting ``max_step``."""
 	ratio = duration / max_step
 	return max(1, math.ceil(math.nextafter(ratio, -math.inf)))
-
 
 
 __all__: list[str] = []

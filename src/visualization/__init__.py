@@ -3,16 +3,6 @@
 from .abba4_configuration_comparison import (
 	animate_abba4_configuration_trajectories,
 )
-from .abba4_projection_comparison import (
-	ABBA4_PROJECTION_COLORS,
-	ABBA4ProjectionOrderView,
-	ABBA4ProjectionSummaryView,
-	plot_abba4_projection_accuracy,
-	plot_abba4_projection_multiplier_scaling,
-	plot_abba4_projection_newton_work,
-	plot_abba4_projection_order_reduction,
-	plot_abba4_projection_runtime,
-)
 from .abba_jacobian import (
 	plot_implicit_abba_particle_step_series,
 	plot_implicit_abba_jacobian_directions,
@@ -68,10 +58,6 @@ from .energy import (
 	plot_energy_accuracy_over_time,
 	plot_time_extended_symplecticity,
 	plot_reduced_time_extended_symplecticity,
-)
-from .fully_extended_implicit import (
-	FullyExtendedRunView,
-	plot_fully_extended_symplecticity,
 )
 from .hbvm42 import (
 	HBVM42BM4SummaryView,
@@ -131,9 +117,6 @@ __all__ = [
 	"AccuracySeriesView",
 	"AccuracySummaryView",
 	"RuntimeSummaryView",
-	"ABBA4_PROJECTION_COLORS",
-	"ABBA4ProjectionOrderView",
-	"ABBA4ProjectionSummaryView",
 	"StepAccuracySummaryView",
 	"animate_abba4_configuration_trajectories",
 	"animate_fc_particle_solution",
@@ -159,7 +142,6 @@ __all__ = [
 	"HBVM42BM4SummaryView",
 	"HBVM42EvaluationSummaryView",
 	"HBVM42OrderSummaryView",
-	"FullyExtendedRunView",
 	"ExtendedSymplecticityRunView",
 	"ReducedExtendedSymplecticityRunView",
 	"TEN_METHOD_COLORS",
@@ -197,17 +179,11 @@ __all__ = [
 	"plot_hbvm42_bm4_comparison",
 	"plot_hbvm42_energy_errors",
 	"plot_hbvm42_evaluation",
-	"plot_fully_extended_symplecticity",
 	"plot_time_extended_symplecticity",
 	"plot_reduced_time_extended_symplecticity",
 	"plot_accuracy_summary",
 	"plot_accuracy_runtime_tradeoff",
 	"plot_runtime_comparison",
-	"plot_abba4_projection_accuracy",
-	"plot_abba4_projection_multiplier_scaling",
-	"plot_abba4_projection_newton_work",
-	"plot_abba4_projection_order_reduction",
-	"plot_abba4_projection_runtime",
 	"plot_potential",
 	"plot_reference_trajectory_points",
 	"plot_single_method_accuracy_refinement",
