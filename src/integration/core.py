@@ -219,12 +219,14 @@ class IntegrationMethod(ABC, Generic[Detail]):
 	step_observer: Callable[[Any], None] | None
 	_status: str = "configuration"
 	state_formulation: PhysicalFormulation | None = None
+	execution: Execution
 
 	@property
 	def method_name(self) -> str:
 		return type(self).__name__
 
-	def new_run(self, problem: InitialValueProblem, request: SimulationRequest) -> Self:
+	def new_run(self, problem: InitialValueProblem, request: SimulationRequest,
+	            *, execution: Execution | None = None) -> Self:
 		"""Create an isolated run of this class, copying only constructor options.
 
 		Dataclass replacement reconstructs the configuration and excludes all
@@ -234,6 +236,9 @@ class IntegrationMethod(ABC, Generic[Detail]):
 		if not is_dataclass(self):
 			raise TypeError("Numerical methods must declare their options as dataclass fields.")
 		method = replace(self)
+		if execution is not None and not isinstance(execution, Execution):
+			raise TypeError("`execution` must be an Execution instance or None.")
+		method.execution = Execution() if execution is None else execution
 		method.problem = problem
 		method.request = request
 		method.metadata = {}
@@ -285,15 +290,19 @@ class IntegrationMethod(ABC, Generic[Detail]):
 		return FixedStepController()
 
 	def _integrate_jax(self, execution: Execution) -> IntegrationData:
-		"""Reject unsupported device execution without silently running on CPU."""
-		raise NotImplementedError(f"{self.method_name} does not support JAX integration.")
+		"""Select the optional device driver without duplicating public methods."""
+		try:
+			from integration.jax_fixed import integrate_fixed
+		except ImportError as exc:
+			raise ImportError("JAX integration requires the optional 'jax' extra: pip install -e '.[jax]'.") from exc
+		return integrate_fixed(self, execution)
 
 	def integrate(self, problem: InitialValueProblem, request: SimulationRequest,
 	              *, execution: Execution | None = None) -> IntegrationData:
 		"""Run a fresh instance through the shared controller and collector."""
 		if execution is not None and not isinstance(execution, Execution):
 			raise TypeError("`execution` must be an Execution instance or None.")
-		run = self.new_run(problem, request)
+		run = self.new_run(problem, request, execution=execution)
 		if execution is not None and execution.backend == "jax":
 			return run._integrate_jax(execution)
 		return integrate_method(run)

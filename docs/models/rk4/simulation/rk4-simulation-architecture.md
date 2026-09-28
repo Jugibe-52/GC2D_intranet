@@ -108,7 +108,7 @@ float64 configuration and available hardware, with no automatic fallback.
 Both routes use the canonical RK4 stages and passive quadrature in
 `methods/classical/_rk4_core.py`. The default controller retains its Python
 lifecycle. For JAX, the shared `IntegrationMethod.integrate` creates a fresh run
-and selects RK4's compiled driver in `integration/jax_fixed.py`. The physical
+and selects the common fixed-step compiled driver in `integration/jax_fixed.py`. The physical
 equations are shared in `dynamics/_equations.py`; a device snapshot binds the
 existing potential evaluator and its actual SciPy spline coefficients.
 
@@ -132,8 +132,9 @@ The compiled route supports the built-in `GuidingCenterDynamics` and
 `FullCyclotronDynamics`, including gyroaveraging and time-dependent fields.
 It rejects custom dynamics, method subclasses, `step_observer` callbacks and
 `progress=True` explicitly. Use the CPU path for Python observation/progress.
-Other integrators reject `execution=Execution(backend="jax", ...)` until they
-implement a device driver. This route uses one device, not multi-GPU sharding.
+All other built-in fixed methods share this driver; DOP853/Radau use an explicit
+hybrid path. See the [execution guide](../../../simulation/jax-execution.md).
+This route uses one device, not multi-GPU sharding.
 
 ### Reproducible test notebooks
 

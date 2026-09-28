@@ -9,7 +9,9 @@ from typing import Literal
 class Execution:
     """Select the library and device for field evaluation and integration.
 
-    JAX integration currently supports RK4 with the built-in GC/FC dynamics.
+    JAX supports every built-in method with its existing GC/FC compatibility.
+    Fixed methods run on the device; DOP853/Radau retain SciPy adaptive control and
+    transfer their batched field evaluations to the selected JAX device.
     This contract does not create CPU worker processes. A SciPy CPU
     is the host as a whole; JAX device indices address its detected devices.
     """

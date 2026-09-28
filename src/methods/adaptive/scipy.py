@@ -15,10 +15,12 @@ from typing import Any, ClassVar
 import numpy as np
 from scipy.integrate import DOP853 as ScipyDOP853, Radau as ScipyRadau
 
-from dynamics import DynamicalSystem
+from dynamics.protocols import DynamicalSystem
 
 from formulations.state import PhysicalFormulation
-from integration.core import IntegrationMethod
+from integration.core import IntegrationMethod, integrate_method
+from contracts.execution import Execution
+from contracts.result import IntegrationData
 from contracts.step import StepInfo, StepResult
 from contracts.observation import AdaptiveIntegrationStep, AdaptiveStepObserver
 from contracts.problem import InitialValueProblem
@@ -81,6 +83,7 @@ class _AdaptiveMethod(IntegrationMethod[_AdaptiveDetails]):
     previous_counts: np.ndarray = field(init=False, repr=False, compare=False)
     accepted_steps: int = field(init=False, repr=False, compare=False)
     dynamics: DynamicalSystem = field(init=False, repr=False, compare=False)
+    evaluated_dynamics: DynamicalSystem = field(init=False, repr=False, compare=False)
     physical_size: int = field(init=False, repr=False, compare=False)
     particle_count: int = field(init=False, repr=False, compare=False)
 
@@ -101,9 +104,19 @@ class _AdaptiveMethod(IntegrationMethod[_AdaptiveDetails]):
     def initialize(self, problem: InitialValueProblem, request: SimulationRequest) -> None:
         """Initialize this run's vector field, internal state and live solver."""
         self.dynamics = problem.dynamics
+        self.evaluated_dynamics = self.dynamics
+        if self.execution.backend == 'jax':
+            if type(self) not in (DOP853, Radau):
+                raise TypeError('Hybrid JAX execution requires a built-in adaptive method.')
+            try:
+                from dynamics._jax_host import bind_host_dynamics
+            except ImportError as exc:
+                raise ImportError("JAX integration requires the optional 'jax' extra: pip install -e '.[jax]'.") from exc
+            self.evaluated_dynamics = bind_host_dynamics(self.dynamics, self.execution)
         self.physical_size = problem.initial_state.size
         self.particle_count = problem.particle_count
-        self.state_formulation = PhysicalFormulation(problem, request.t_span[0], self.track_energy)
+        evaluated_problem = InitialValueProblem(self.evaluated_dynamics, problem.initial_configuration)
+        self.state_formulation = PhysicalFormulation(evaluated_problem, request.t_span[0], self.track_energy)
         self.initial_state = self.state_formulation.initial_state
         self.current_state = self.initial_state.copy()
         self.metadata = {
@@ -120,13 +133,27 @@ class _AdaptiveMethod(IntegrationMethod[_AdaptiveDetails]):
         self.previous_counts = np.zeros(3, dtype=int)
         self.accepted_steps = 0
 
+    def _integrate_jax(self, execution: Execution) -> IntegrationData:
+        """Keep SciPy acceptance/dense output while field batches execute in JAX."""
+        data = integrate_method(self)
+        from dynamics._jax import bind_dynamics
+        device = bind_dynamics(self.dynamics, execution).evaluator.device
+        data.diagnostics.update({
+            'execution_backend': 'jax', 'execution_device': execution.device,
+            'execution_device_index': execution.device_index,
+            'execution_device_kind': str(device.device_kind),
+            'execution_mode': 'hybrid_scipy_controller',
+            'adaptive_controller': 'scipy',
+        })
+        return data
+
     def controller(self) -> ScipyAdaptiveController:
         """Use the live solver's accepted times and its dense interpolants."""
         return ScipyAdaptiveController()
 
     def _derivative(self, time: float, state: np.ndarray) -> np.ndarray:
         physical = state[:self.physical_size]
-        field = np.asarray(self.dynamics.vector_field(time, physical), dtype=float)
+        field = np.asarray(self.evaluated_dynamics.vector_field(time, physical), dtype=float)
         if field.shape != physical.shape or not np.all(np.isfinite(field)):
             raise ValueError('The adaptive vector field changed shape or became non-finite.')
         return field

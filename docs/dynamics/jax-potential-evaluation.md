@@ -16,9 +16,10 @@ jax_gpu = Execution(backend="jax", device="gpu", device_index=0)
 `Execution` validates backend/device combinations without importing JAX or
 initializing hardware. SciPy supports CPU index 0 only. Device availability is
 checked when the selected evaluator is first used. The same contract now selects
-complete RK4 integration through `simulation.runner.simulate(problem, RK4(),
-request, execution=execution)`. Other methods retain SciPy/CPU execution and
-reject JAX requests explicitly. CPU process counts are not part of this contract.
+execution for all built-in methods through `simulation.runner.simulate(problem,
+method, request, execution=execution)`. Fixed methods run on the device;
+DOP853/Radau use JAX fields with a SciPy adaptive controller. CPU process counts
+are not part of this contract. See the [execution guide](../simulation/jax-execution.md).
 
 ## Installation and use
 
@@ -131,10 +132,11 @@ and periodic seams. CPU and GPU need not be bitwise identical.
 
 Selecting JAX for a standalone potential call does not change the default of
 subsequent simulations. Pass `execution` to `simulate` to compile a complete
-RK4 run, including batched particle dynamics, stages, sequential time loop and
-optional energy quadrature. That route supports the built-in GC/FC equations
-and transfers the completed output to the usual NumPy `Solution`. The remaining
-methods use SciPy/CPU. See the [RK4 guide](../models/rk4/simulation/rk4-simulation-architecture.md#jax-execution).
+fixed-step run, including batched particle dynamics, stages, nonlinear solves,
+sequential time loop and optional energy quadrature. The built-in GC/FC equations
+are supported within each method's physical scope. DOP853/Radau instead retain
+SciPy adaptive control while their batched fields run on JAX. Every route exports
+the usual NumPy `Solution`; see the [execution guide](../simulation/jax-execution.md).
 
 The NumPy and JAX dynamics reuse the algebra in `dynamics/_equations.py`.
 `dynamics/_jax.py` binds an immutable field and scalar-parameter snapshot,

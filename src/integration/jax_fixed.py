@@ -1,4 +1,4 @@
-"""Compiled fixed-step RK4 with device-resident stages and requested samples.
+"""Compiled fixed-step methods with device-resident stages and requested samples.
 
 Only an explicitly selected JAX run imports this module. The time loop is
 sequential, while every field evaluation and RK stage batches all particles.
@@ -15,65 +15,65 @@ from contracts.execution import Execution
 from contracts.result import IntegrationData
 from dynamics._jax import JaxDynamics, bind_dynamics
 from integration._fixed import _step_count
-from integration.core import _time_tolerance
-from methods.classical._rk4_core import physical_step, momentum_increment
+from integration.core import _time_tolerance, NEWTON_ALIASES
+from methods._jax_common import MethodOptions
+from methods._jax_dispatch import advance, method_options
 
 if TYPE_CHECKING:
-    from methods.classical.rk4 import RK4
+    from integration.core import IntegrationMethod
 
 
-@partial(jax.jit, static_argnames=("dynamics", "track_energy"))
+@partial(jax.jit, static_argnames=("dynamics", "options"))
 def _integrate(
     initial: Any, starts: Any, step: Any, times: Any,
     offsets: Any, modes: Any, durations: Any, *,
-    dynamics: JaxDynamics, track_energy: bool,
-) -> tuple[Any, Any, Any]:
+    dynamics: JaxDynamics, options: MethodOptions,
+) -> tuple[Any, Any, Any, Any, Any]:
     """Collect O(N * saved_times) storage without retaining every main state.
 
     Sample modes select the start (0), end (1), or an independent shadow map
     (2). Offsets group samples by accepted interval, including sparse output.
     Only the accepted state is fed back into the following main step.
     """
-    n = initial.size // (dynamics.dimension + (2 if track_energy else 0))
+    n = initial.size // (dynamics.dimension * options.copies + (2 if options.track_energy else 0))
     physical_size = n * dynamics.dimension
-
-    def advance(time: Any, before: Any, h: Any) -> Any:
-        physical, stages = physical_step(dynamics.vector_field, time, before[:physical_size], h)
-        if not track_energy:
-            return physical
-        increment = momentum_increment(dynamics.momentum_rate, time, h, stages)
-        return jnp.concatenate((physical, jnp.full((n,), time + h), before[-n:] + increment))
 
     history = jnp.zeros((initial.size, times.size), dtype=initial.dtype).at[:, 0].set(initial)
 
-    def accepted(carry: Any, index: Any) -> tuple[Any, None]:
-        before, saved, valid = carry
-        after = advance(starts[index], before, step)
+    def shadow(time: Any, state: Any, duration: Any) -> Any:
+        value, _, valid = advance(time, state, duration, dynamics, options)
+        return value, valid
+
+    def accepted(carry: Any, index: Any) -> tuple[Any, Any]:
+        before, saved, valid, converged = carry
+        after, statistics, solved = advance(starts[index], before, step, dynamics, options)
+        converged = converged & solved
         valid = valid & jnp.all(jnp.isfinite(after))
 
         def sample(output_index: Any, collected: Any) -> Any:
-            values, finite = collected
-            value = jax.lax.switch(modes[output_index], (
-                lambda: before,
-                lambda: after,
-                lambda: advance(starts[index], before, durations[output_index]),
+            values, finite, solved = collected
+            value, success = jax.lax.switch(modes[output_index], (
+                lambda: (before, jnp.array(True)),
+                lambda: (after, jnp.array(True)),
+                lambda: shadow(starts[index], before, durations[output_index]),
             ))
             values = values.at[:, output_index].set(value)
-            return values, finite & jnp.all(jnp.isfinite(value))
+            return values, finite & jnp.all(jnp.isfinite(value)), solved & success
 
-        saved, valid = jax.lax.fori_loop(offsets[index], offsets[index + 1], sample, (saved, valid))
-        return (after, saved, valid), None
+        saved, valid, converged = jax.lax.fori_loop(
+            offsets[index], offsets[index + 1], sample, (saved, valid, converged))
+        return (after, saved, valid, converged), statistics
 
-    (_, history, valid), _ = jax.lax.scan(
-        accepted, (initial, history, jnp.array(True)), jnp.arange(starts.size),
+    (_, history, valid, converged), statistics = jax.lax.scan(
+        accepted, (initial, history, jnp.array(True), jnp.array(True)), jnp.arange(starts.size),
     )
     energy = (dynamics.hamiltonian(times, history[:physical_size])
-              if track_energy else jnp.empty((0,), dtype=initial.dtype))
-    return history, energy, valid & jnp.all(jnp.isfinite(energy))
+              if options.track_energy else jnp.empty((0,), dtype=initial.dtype))
+    return history, energy, valid & jnp.all(jnp.isfinite(energy)), converged, statistics
 
 
-def integrate_rk4(method: "RK4", execution: Execution) -> IntegrationData:
-    """Run one fresh RK4 instance and transfer the finished result to NumPy.
+def integrate_fixed(method: "IntegrationMethod[Any]", execution: Execution) -> IntegrationData:
+    """Run one fresh fixed-step method instance and transfer the finished result to NumPy.
 
     Python step observers and per-step progress belong to the host controller;
     requesting them here is rejected rather than introducing hidden transfers.
@@ -85,11 +85,12 @@ def integrate_rk4(method: "RK4", execution: Execution) -> IntegrationData:
     try:
         if method.step_observer is not None or method.progress:
             raise NotImplementedError(
-                "JAX RK4 requires step_observer=None and progress=False; "
+                "JAX fixed integration requires step_observer=None and progress=False; "
                 "Python callbacks are supported by the SciPy execution path."
             )
-        dynamics = bind_dynamics(method.dynamics, execution)
+        dynamics = bind_dynamics(method.problem.dynamics, execution)
         dynamics.evaluator.check_ready()
+        options = method_options(method, dynamics)
         request = method.request
         t0, tf = request.t_span
         count = _step_count(tf - t0, request.max_step)
@@ -109,25 +110,35 @@ def integrate_rk4(method: "RK4", execution: Execution) -> IntegrationData:
                   offsets.astype(np.int32), modes.astype(np.int32), durations)
         # All inputs and spline buffers are committed to the requested device.
         # device_get synchronizes timing and copies only completed output.
-        history, energy, valid = jax.device_get(_integrate(
+        history, energy, valid, converged, statistics = jax.device_get(_integrate(
             *(jax.device_put(value, device) for value in inputs),
-            dynamics=dynamics, track_energy=method.track_energy,
+            dynamics=dynamics, options=options,
         ))
         if not bool(valid):
             raise ValueError("A numerical step or output sample became non-finite.")
+        if not bool(converged):
+            raise RuntimeError(f"{method.method_name} nonlinear solve did not converge within its tolerance and iteration limit.")
+        assert method.state_formulation is not None
         states, auxiliary = method.state_formulation.extract_history(
-            times, history, energy=energy if method.track_energy else None,
+            times, history, energy=energy if options.track_energy else None,
         )
         diagnostics = dict(method.metadata)
         diagnostics.update({
             "execution_backend": "jax", "execution_device": execution.device,
+            "execution_mode": "device_resident",
             "execution_device_index": execution.device_index,
             "execution_device_kind": str(device.device_kind),
             "step_count": count, "step_start_times": starts, "step_times": ends,
             "step_sizes": np.full(count, step),
             "output_interpolation_count": int(np.count_nonzero(modes[1:] == 2)),
         })
+        diagnostics.update(statistics)
         diagnostics.update(auxiliary)
+        if all(name in diagnostics for name in NEWTON_ALIASES.values()):
+            for alias, canonical in NEWTON_ALIASES.items():
+                diagnostics[alias] = diagnostics[canonical]
+        if options.jacobian == 'finite_difference':
+            diagnostics['finite_difference_batching'] = 'independent_particle_columns'
         return IntegrationData(times, states, diagnostics)
     finally:
         method._status = "finished"

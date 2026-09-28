@@ -97,14 +97,13 @@ copies the physical arrays, including their dimensions, finite values and
 packed layout. The entry point then checks that the saved times, state size and
 initial state agree with the request and problem. Each check has one owner.
 
-`simulate(..., execution=Execution(...))` optionally selects JAX execution for
-RK4 with the built-in GC/FC dynamics. The inherited method entry point still
-initializes a fresh run; RK4 then selects a device driver that compiles the time
-loop and uses the same RK4 stage algebra. The completed trajectory crosses back
-to the usual NumPy `Solution` boundary. Omission preserves the default CPU
-controller shown above. Unsupported methods reject JAX explicitly. See the
-[RK4 execution contract](../models/rk4/simulation/rk4-simulation-architecture.md#jax-execution)
-for sampling, energy tracking and callback limitations.
+`simulate(..., execution=Execution(...))` optionally selects JAX for every
+built-in method. The inherited entry point binds the execution choice before
+initializing a fresh run. Fixed methods use a common device driver for the time
+loop, stages and nonlinear solves; DOP853/Radau retain SciPy control and use
+compiled field/energy batches. Both return the usual NumPy `Solution`. Omission
+preserves the default CPU controller shown above. See the
+[JAX execution contract](jax-execution.md) for the exact scope and limitations.
 
 Gauss--Legendre and SDIRK share field validation, analytic particle Jacobians,
 centered finite differences and Jacobian selection in

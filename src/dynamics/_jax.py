@@ -57,6 +57,19 @@ class JaxDynamics:
         x, y, *_ = jnp.split(state, self.dimension, axis=0)
         return -self.electric_scale * self.evaluator.evaluate(time, x, y, dt=1)
 
+    def particle_jacobians(self, time: Any, state: Any) -> Any:
+        """Exact GC Hessian blocks with the CPU component/sign convention."""
+        if self.dimension != 2:
+            raise TypeError("Analytic particle Jacobians require GC dynamics.")
+        if self.evaluator.interpolation_order < 3:
+            raise ValueError("Exact GC Jacobians require interpolation_order >= 3.")
+        x, y = jnp.split(state, 2)
+        xx = self.evaluator.evaluate(time, x, y, dx=2)
+        xy = self.evaluator.evaluate(time, x, y, dx=1, dy=1)
+        yy = self.evaluator.evaluate(time, x, y, dy=2)
+        return jnp.stack((jnp.stack((-xy, -yy), axis=-1),
+                          jnp.stack((xx, xy), axis=-1)), axis=-2)
+
 
 @lru_cache(maxsize=16)
 def _bind(potential: Potential, execution: Execution, dimension: int,
@@ -72,7 +85,7 @@ def bind_dynamics(dynamics: DynamicalSystem, execution: Execution) -> JaxDynamic
     if type(dynamics) is FullCyclotronDynamics:
         return _bind(dynamics.potential, execution, 4, dynamics.velocity_scale,
                      dynamics.electric_scale, dynamics.larmor_frequency)
-    raise TypeError("JAX RK4 requires built-in GuidingCenterDynamics or FullCyclotronDynamics.")
+    raise TypeError("JAX execution requires built-in GuidingCenterDynamics or FullCyclotronDynamics.")
 
 
 __all__: list[str] = []

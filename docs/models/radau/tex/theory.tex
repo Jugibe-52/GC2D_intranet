@@ -113,4 +113,21 @@ The \texttt{extended\_time} history has shape $(N,n_{\rm samples})$. Fixed-step 
 samples leave main states and counters unchanged. Adaptive energy quadrature
 uses accepted dense output; its backend state and Jacobian remain physical.
 
+
+\section{Optional JAX execution}
+
+The optional JAX execution choice preserves the same adaptive method and
+SciPy controller, including accepted/rejected step control and dense output.
+JAX evaluates particle field and passive-energy batches on a selected CPU or
+GPU, returning them to the host solver. This is explicitly reported as hybrid
+execution; it does not move the adaptive solver or Radau linear algebra onto
+the GPU. Physical error norms and passive energy decoupling are unchanged.
+
+Both execution routes use double precision and return the same physical
+solution layout. Floating-point reassociation can produce round-off
+differences without changing the designed order or geometric properties.
+First-call compilation is separate from warmed integration timings, which
+include transfers and output construction. The sibling runtime document and
+shared execution contract specify supported callbacks and exact device scope.
+
 \end{document}

@@ -122,3 +122,18 @@ node scripts/render_detailed_architecture.cjs docs/models/bm4-implicit/simulatio
 
 The renderer writes only the matching SVG and PNG. The earlier BM4 and project
 diagrams retain their independent sources and renderings.
+
+## Optional JAX execution
+
+This model supports `simulate(..., execution=Execution(backend="jax", device="cpu"))`
+(or a configured `device="gpu"`) with explicit float64. The complete fixed time
+loop, particle stages, applicable nonlinear/projection solves and passive energy
+quadrature remain on that device until final NumPy `Solution` export. Its
+coefficients, physical-state tolerance scaling and sampling conventions are
+unchanged. JAX rejects unconverged solves explicitly. Diagnostics report
+`execution_mode="device_resident"`. Python step observers and progress reporting
+require the default CPU path.
+
+Import `Execution` from `contracts.execution`. Omission preserves existing
+SciPy/NumPy execution. See the [shared execution contract](../../../simulation/jax-execution.md)
+for supported physical systems, solver details, timing scope and validation.

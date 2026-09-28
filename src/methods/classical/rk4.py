@@ -15,8 +15,6 @@ from formulations.state import PhysicalFormulation
 from contracts.observation import IntegrationStep, StepObserver
 from contracts.problem import InitialValueProblem
 from contracts.request import SimulationRequest
-from contracts.execution import Execution
-from contracts.result import IntegrationData
 from methods.classical._rk4_core import physical_step, momentum_increment
 
 
@@ -51,16 +49,6 @@ class RK4(IntegrationMethod[None]):
 		self.initial_state = self.state_formulation.initial_state
 		self.metadata = {"execution_backend": "scipy", "execution_device": "cpu",
 		                 "execution_device_index": 0}
-
-	def _integrate_jax(self, execution: Execution) -> IntegrationData:
-		"""Compile all particle stages and the fixed time loop on one device."""
-		if type(self) is not RK4:
-			raise TypeError("JAX integration requires the built-in RK4 map; subclass overrides are not compiled.")
-		try:
-			from integration.jax_fixed import integrate_rk4
-		except ImportError as exc:
-			raise ImportError("JAX RK4 requires the optional 'jax' extra: pip install -e '.[jax]'.") from exc
-		return integrate_rk4(self, execution)
 
 	def _physical_step(self, t: float, candidate: np.ndarray, step: float) -> tuple[np.ndarray, tuple[np.ndarray, ...]]:
 		"""Return the physical RK4 map and its four accepted quadrature states."""

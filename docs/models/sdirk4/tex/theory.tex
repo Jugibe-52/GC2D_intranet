@@ -149,4 +149,23 @@ uses accepted dense output; its backend state and Jacobian remain physical.
 
 The five converged physical stages supply the passive momentum quadrature with the tableau weights.
 
+
+\section{Optional JAX execution}
+
+An optional JAX driver executes the same numerical map on one selected CPU
+or GPU, with particle operations batched inside a compiled sequential time
+loop. It reuses the canonical coefficients and prepared potential splines.
+Physical-state tolerance scaling, signed stage times, passive energy weights
+and independent shortened output maps retain their definitions above.
+Applicable Newton systems use independent particle blocks; an explicitly
+selected Broyden iteration retains its global secant matrix. Nonlinear
+iteration limits and failure checks remain active on the device.
+
+Both execution routes use double precision and return the same physical
+solution layout. Floating-point reassociation can produce round-off
+differences without changing the designed order or geometric properties.
+First-call compilation is separate from warmed integration timings, which
+include transfers and output construction. The sibling runtime document and
+shared execution contract specify supported callbacks and exact device scope.
+
 \end{document}

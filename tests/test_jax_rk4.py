@@ -15,7 +15,6 @@ from dynamics.fc import FullCyclotronDynamics
 from initial_conditions.gc import GCInitialConfiguration
 from initial_conditions.fc import FCInitialConfiguration
 from methods.classical.rk4 import RK4
-from methods.classical.euler import ExplicitEuler
 from potential.grid import Grid
 from potential.potential import Potential
 from simulation.runner import simulate
@@ -70,8 +69,6 @@ else:
         np.testing.assert_array_equal(a.states, b.states)
         with self.assertRaisesRegex(TypeError, "Execution"):
             simulate(p, RK4(), r, execution="jax")
-        with self.assertRaisesRegex(NotImplementedError, "does not support"):
-            simulate(p, ExplicitEuler(), r, execution=Execution(backend="jax"))
 
 
 @unittest.skipUnless(JAX_AVAILABLE, "Optional JAX dependency is not installed")

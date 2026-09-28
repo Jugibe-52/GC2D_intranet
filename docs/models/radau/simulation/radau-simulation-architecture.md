@@ -102,3 +102,17 @@ settings, particle batches, physical-only observers, adaptive control, per-parti
 time alignment and energy normalization. Model tests retain order, projection,
 Jacobian and nonlinear-solver checks. The pre-change physical trajectories are
 also compared with the migrated implementations on short nonautonomous runs.
+
+## Optional JAX execution
+
+This model supports `simulate(..., execution=Execution(backend="jax", device="cpu"))`
+(or a configured `device="gpu"`) with explicit float64. SciPy retains adaptive
+acceptance, rejected trials, stages and dense interpolation, including Radau
+Newton/LU when applicable. Batched physical field and energy evaluations run
+on JAX with transfers at each evaluation. Diagnostics report
+`execution_mode="hybrid_scipy_controller"`; the existing host callback and
+optional Radau Jacobian contracts remain intact.
+
+Import `Execution` from `contracts.execution`. Omission preserves existing
+SciPy/NumPy execution. See the [shared execution contract](../../../simulation/jax-execution.md)
+for supported physical systems, solver details, timing scope and validation.
