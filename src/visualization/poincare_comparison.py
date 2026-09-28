@@ -8,51 +8,73 @@ import numpy as np
 def export_poincare_panel_comparison(path, panels, cycles_per_frame=25, *,
                                     initial_view=None, initial_cycle=1,
                                     highlight_particle=None, title=None,
-                                    regions=None, highlight_particles=None):
+                                    regions=None, highlight_particles=None,
+                                    coordinate_bounds=None, axis_labels=None,
+                                    description=None, particle_groups=None):
     """Export aligned panels, optionally focusing a square region and particle.
 
-    ``initial_view`` is (x/L, y/L, span/L); both axes share the same span.
+    Coordinates default to the unit cell. ``coordinate_bounds=(x0,y0,span)``
+    accepts physical coordinates without changing their units. ``initial_view``
+    and named regions use those same coordinates. A panel with ``static=True``
+    contains one fixed sample while the other panels traverse aligned cycles.
     ``highlight_particle`` adds a selection shortcut and draws opaque returns.
     """
     if not panels:
         raise ValueError("At least one comparison panel is required.")
+    bounds = np.asarray((0., 0., 1.) if coordinate_bounds is None else coordinate_bounds, dtype=float)
+    if bounds.shape != (3,) or not np.isfinite(bounds).all() or bounds[2] <= 0:
+        raise ValueError('coordinate_bounds must describe a finite positive square.')
+    lower, upper = bounds[:2], bounds[:2] + bounds[2]
     encoded_panels = []
     cycle_count = None
     for panel in panels:
-        xy = np.asarray(panel["coordinates"], dtype="<f4")
+        xy = np.asarray(panel["coordinates"], dtype=float)
+        static = bool(panel.get("static", False))
         ids = list(map(int, panel["particle_ids"]))
         colors = list(panel["colors"])
         if xy.ndim != 3 or xy.shape[-1] != 2:
             raise ValueError("Each panel must have coordinates shaped (cycles, particles, 2).")
-        if not np.isfinite(xy).all() or np.any((xy < 0) | (xy > 1)):
-            raise ValueError("Expected finite periodic coordinates in [0, 1].")
+        if not np.isfinite(xy).all() or np.any((xy < lower) | (xy > upper)):
+            raise ValueError("Expected finite coordinates within coordinate_bounds.")
+        if xy.shape[0] < 1 or xy.shape[1] < 1 or (static and xy.shape[0] != 1):
+            raise ValueError('Panels require particles and saved samples; static panels require exactly one sample.')
         if xy.shape[1] != len(ids) or len(colors) != len(ids):
             raise ValueError("Each panel's particle labels and colors must match its data.")
         if len(set(ids)) != len(ids):
             raise ValueError("Particle identifiers must be unique within each panel.")
-        if cycle_count is None:
-            cycle_count = xy.shape[0]
-        elif xy.shape[0] != cycle_count:
-            raise ValueError("All panels must contain the same number of aligned cycles.")
+        if not static:
+            if cycle_count is None:
+                cycle_count = xy.shape[0]
+            elif xy.shape[0] != cycle_count:
+                raise ValueError("All animated panels must contain the same number of aligned cycles.")
         encoded_panels.append(
             dict(
                 shape=xy.shape,
                 ids=ids,
                 colors=colors,
                 title=str(panel["title"]),
-                data=base64.b64encode(xy.tobytes()).decode("ascii"),
+                static=static,
+                data=base64.b64encode(xy.astype('<f4').tobytes()).decode("ascii"),
             )
         )
-    if int(cycles_per_frame) < 1:
+    cycle_count = 1 if cycle_count is None else cycle_count
+    if isinstance(cycles_per_frame, bool) or int(cycles_per_frame) != cycles_per_frame or int(cycles_per_frame) < 1:
         raise ValueError("cycles_per_frame must be positive.")
     if isinstance(initial_cycle, bool) or int(initial_cycle) != initial_cycle or not 1 <= initial_cycle <= cycle_count:
         raise ValueError('initial_cycle must be an integer within the saved record.')
     config = dict(panels=encoded_panels, step=int(cycles_per_frame), initialCycle=int(initial_cycle))
+    config['coordinateBounds'] = dict(x=float(bounds[0]), y=float(bounds[1]), span=float(bounds[2]))
+    if axis_labels is not None:
+        if len(axis_labels) != 2:
+            raise ValueError('axis_labels must contain an x and a y label.')
+        config['axisLabels'] = list(map(str, axis_labels))
+    if description is not None:
+        config['description'] = str(description)
     if initial_view is not None:
         view = np.asarray(initial_view, dtype=float)
         if (view.shape != (3,) or not np.isfinite(view).all() or view[2] <= 0
-                or np.any(view[:2] < 0) or np.any(view[:2] + view[2] > 1)):
-            raise ValueError('initial_view must be a positive square contained in the unit cell.')
+                or np.any(view[:2] < lower) or np.any(view[:2] + view[2] > upper)):
+            raise ValueError('initial_view must be a positive square contained in coordinate_bounds.')
         config['initialView'] = dict(x=float(view[0]), y=float(view[1]), span=float(view[2]))
     if highlight_particle is not None:
         if highlight_particle not in {pid for panel in encoded_panels for pid in panel['ids']}:
@@ -61,6 +83,13 @@ def export_poincare_panel_comparison(path, panels, cycles_per_frame=25, *,
     if title is not None:
         config['title'] = str(title)
     all_ids = {pid for panel in encoded_panels for pid in panel['ids']}
+    if particle_groups is not None:
+        config['particleGroups'] = []
+        for group in particle_groups:
+            ids = list(map(int, group['particle_ids']))
+            if not ids or not set(ids).issubset(all_ids):
+                raise ValueError('Particle groups must contain existing particle identifiers.')
+            config['particleGroups'].append(dict(label=str(group['label']), ids=ids))
     if highlight_particles is not None:
         if not set(highlight_particles).issubset(all_ids):
             raise ValueError('All highlighted particles must exist in a panel.')
@@ -72,7 +101,7 @@ def export_poincare_panel_comparison(path, panels, cycles_per_frame=25, *,
         for region in regions:
             view = np.asarray(region['view'], dtype=float)
             if (view.shape != (3,) or not np.isfinite(view).all() or view[2] <= 0
-                    or np.any(view[:2] < 0) or np.any(view[:2] + view[2] > 1)
+                    or np.any(view[:2] < lower) or np.any(view[:2] + view[2] > upper)
                     or region['particle_id'] not in all_ids):
                 raise ValueError('Each region requires a valid square viewport and an existing particle.')
             config['regions'].append(dict(label=str(region['label']),

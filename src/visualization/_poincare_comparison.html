@@ -15,7 +15,7 @@ canvas{width:100%;aspect-ratio:1;touch-action:none;cursor:crosshair}h3{text-alig
 label.particle{border:1px solid #ddd;border-radius:5px;padding:5px;cursor:pointer}
 </style>
 <h2>Synchronized Poincare sections</h2>
-<p>Wrapped coordinates x/L and y/L. Small dots: accumulated returns. Large dot: current return.
+<p id="description">Wrapped coordinates x/L and y/L. Small dots: accumulated returns. Large dot: current return.
 Select particles below to update every panel. Drag a square inside any plot to zoom all panels together.
 After zooming, Shift-drag or right-drag to pan all panels.</p>
 <div class="controls"><button id="play">Play</button><button id="reset">Reset</button>
@@ -29,15 +29,17 @@ After zooming, Shift-drag or right-drag to pan all panels.</p>
 <label>Point size <input id="point-size" type="range" min="0.5" max="6" step="0.5" value="2"></label><output id="point-size-value">2 px</output></div>
 <div class="plots" id="plots"></div>
 <div class="controls"><button id="all">Show all</button><button id="none">Hide all</button><button id="invert">Invert</button><button id="probe-only" hidden></button><span id="count"></span></div>
+<div class="controls" id="particle-groups" hidden></div>
 <div id="particles"></div>
 <script>
 const cfg=__CONFIG__;
 if(cfg.title){document.title=cfg.title;document.querySelector('h2').textContent=cfg.title;}
+if(cfg.description)document.getElementById('description').textContent=cfg.description;
 const panels=cfg.panels.map(panel=>{
  const bytes=Uint8Array.from(atob(panel.data),c=>c.charCodeAt(0));
  return {...panel,xy:new Float32Array(bytes.buffer)};
 });
-const N=panels[0].shape[0],allIds=[...new Set(panels.flatMap(panel=>panel.ids))].sort((a,b)=>a-b);
+const N=panels.find(panel=>!panel.static)?.shape[0]??1,allIds=[...new Set(panels.flatMap(panel=>panel.ids))].sort((a,b)=>a-b);
 if(panels.length===4)document.getElementById('plots').classList.add('four-panels');
 if(panels.length===1)document.getElementById('plots').classList.add('single-panel');
 const colorById=new Map();panels.forEach(panel=>panel.ids.forEach((id,p)=>colorById.set(id,panel.colors[p])));
@@ -48,13 +50,15 @@ slider.max=N;startSlider.max=N;speed.value=String(cfg.step);
 slider.value=cfg.initialCycle??1;
 if(!speed.value){const o=new Option(cfg.step,cfg.step);speed.add(o);speed.value=String(cfg.step);}
 let timer=null;
-// One normalized square viewport is shared by every panel and animation frame.
-let view={...(cfg.initialView??{x:0,y:0,span:1})},drag=null;
+// A square viewport in the data's coordinate units is shared by every panel.
+const bounds=cfg.coordinateBounds??{x:0,y:0,span:1},axisLabels=cfg.axisLabels??['x / L','y / L'];
+const plot={left:78,top:20,size:500,canvas:600};
+let view={...(cfg.initialView??bounds)},drag=null;
 const pointSize=document.getElementById('point-size');
 function plotPoint(event,canvas){
  const r=canvas.getBoundingClientRect();
- return {x:Math.max(0,Math.min(1,(600*(event.clientX-r.left)/r.width-52)/520)),
-         y:Math.max(0,Math.min(1,1-(600*(event.clientY-r.top)/r.height-20)/520))};
+ return {x:Math.max(0,Math.min(1,(plot.canvas*(event.clientX-r.left)/r.width-plot.left)/plot.size)),
+         y:Math.max(0,Math.min(1,1-(plot.canvas*(event.clientY-r.top)/r.height-plot.top)/plot.size))};
 }
 function square(a,b){
  const dx=b.x-a.x,dy=b.y-a.y,sx=dx<0?-1:1,sy=dy<0?-1:1;
@@ -72,16 +76,16 @@ canvases.forEach(canvas=>{
   const point=plotPoint(event,canvas);
   if(drag.pan){
    // Preserve the initial square extent and keep the viewport inside the cell.
-   const initial=drag.initial,limit=1-initial.span;
-   view={x:Math.max(0,Math.min(limit,initial.x-(point.x-drag.start.x)*initial.span)),
-         y:Math.max(0,Math.min(limit,initial.y-(point.y-drag.start.y)*initial.span)),span:initial.span};
+   const initial=drag.initial,limit=bounds.span-initial.span;
+   view={x:Math.max(bounds.x,Math.min(bounds.x+limit,initial.x-(point.x-drag.start.x)*initial.span)),
+         y:Math.max(bounds.y,Math.min(bounds.y+limit,initial.y-(point.y-drag.start.y)*initial.span)),span:initial.span};
   }else drag.box=square(drag.start,point);
   draw();
  }
  canvas.onpointerdown=event=>{
   if(drag||(event.button!==0&&event.button!==2))return;
   const r=canvas.getBoundingClientRect(),x=600*(event.clientX-r.left)/r.width,y=600*(event.clientY-r.top)/r.height;
-  if(x<52||x>572||y<20||y>540)return;
+  if(x<plot.left||x>plot.left+plot.size||y<plot.top||y>plot.top+plot.size)return;
   event.preventDefault();
   const start=plotPoint(event,canvas),pan=event.shiftKey||event.button===2;
   drag={canvas,id:event.pointerId,start,box:square(start,start),pan,initial:{...view}};
@@ -93,7 +97,7 @@ canvases.forEach(canvas=>{
   if(drag?.canvas!==canvas||drag.id!==event.pointerId)return;
   move(event);
   const {box,pan}=drag;drag=null;canvas.style.cursor='crosshair';
-  if(!pan&&box.span*520>=5&&view.span*box.span>=1e-6)view={x:view.x+box.x*view.span,y:view.y+box.y*view.span,span:view.span*box.span};
+  if(!pan&&box.span*plot.size>=5&&view.span*box.span>=bounds.span*1e-6)view={x:view.x+box.x*view.span,y:view.y+box.y*view.span,span:view.span*box.span};
   canvas.releasePointerCapture(event.pointerId);draw();
  };
  canvas.onpointercancel=canvas.onlostpointercapture=()=>{canvas.style.cursor='crosshair';if(drag?.canvas===canvas){drag=null;draw();}};
@@ -104,6 +108,15 @@ allIds.forEach((id,p)=>{
  box.onchange=()=>{box.checked?selected.add(id):selected.delete(id);draw();};
  label.append(box,document.createTextNode('Particle '+id));document.getElementById('particles').append(label);boxes.push(box);
 });
+if(cfg.particleGroups?.length){
+ const container=document.getElementById('particle-groups');container.hidden=false;
+ container.append(document.createTextNode('Isolate: '));
+ cfg.particleGroups.forEach(group=>{
+  const button=document.createElement('button');button.textContent=group.label;
+  button.onclick=()=>{selected.clear();group.ids.forEach(id=>selected.add(id));boxes.forEach((box,p)=>box.checked=selected.has(allIds[p]));draw();};
+  container.append(button);
+ });
+}
 function draw(){
  const cycle=Number(slider.value),startCycle=Number(startSlider.value);
  const diameter=Number(pointSize.value),digits=Math.max(2,Math.ceil(-Math.log10(view.span))+2);
@@ -111,8 +124,8 @@ function draw(){
  document.getElementById('status').textContent='Cycles '+startCycle+'–'+cycle+' / '+N;
  document.getElementById('count').textContent=selected.size+' / '+allIds.length+' selected';
  canvases.forEach((canvas,m)=>{
- const {xy,ids,colors,shape}=panels[m],P=shape[1];
- const ctx=canvas.getContext('2d'),left=52,top=20,size=520;
+ const {xy,ids,colors,shape,static:fixed}=panels[m],P=shape[1];
+ const ctx=canvas.getContext('2d'),{left,top,size}=plot;
  ctx.clearRect(0,0,600,600);ctx.font='15px system-ui';ctx.lineWidth=1;
  for(let k=0;k<=4;k++){
  const f=k/4;ctx.strokeStyle='#e1e5eb';ctx.beginPath();ctx.moveTo(left+f*size,top);ctx.lineTo(left+f*size,top+size);
@@ -120,15 +133,15 @@ function draw(){
  ctx.fillStyle='#334155';ctx.textAlign='center';ctx.fillText((view.x+f*view.span).toFixed(digits),left+f*size,top+size+24);
  ctx.textAlign='right';ctx.fillText((view.y+(1-f)*view.span).toFixed(digits),left-8,top+f*size+5);
  }
- ctx.textAlign='center';ctx.fillText('x / L',left+size/2,590);
- ctx.save();ctx.translate(16,top+size/2);ctx.rotate(-Math.PI/2);ctx.fillText('y / L',0,0);ctx.restore();
+ ctx.textAlign='center';ctx.fillText(axisLabels[0],left+size/2,590);
+ ctx.save();ctx.translate(16,top+size/2);ctx.rotate(-Math.PI/2);ctx.fillText(axisLabels[1],0,0);ctx.restore();
  ctx.save();ctx.beginPath();ctx.rect(left,top,size,size);ctx.clip();
  for(let p=0;p<P;p++){
  if(!selected.has(ids[p]))continue;
  ctx.fillStyle=colors[p];
- if(trail.checked){const highlighted=ids[p]===cfg.highlightParticle||(cfg.highlightParticles??[]).includes(ids[p]),pointDiameter=highlighted?Math.max(3,diameter):diameter;ctx.globalAlpha=highlighted?1:.55;
+ if(trail.checked&&!fixed){const highlighted=ids[p]===cfg.highlightParticle||(cfg.highlightParticles??[]).includes(ids[p]),pointDiameter=highlighted?Math.max(3,diameter):diameter;ctx.globalAlpha=highlighted?1:.55;
  for(let t=startCycle-1;t<cycle;t++){const i=(t*P+p)*2;ctx.fillRect(left+(xy[i]-view.x)/view.span*size-pointDiameter/2,top+(1-(xy[i+1]-view.y)/view.span)*size-pointDiameter/2,pointDiameter,pointDiameter);}}
- ctx.globalAlpha=1;const i=((cycle-1)*P+p)*2;
+ ctx.globalAlpha=1;const i=((fixed?0:cycle-1)*P+p)*2;
  ctx.beginPath();ctx.arc(left+(xy[i]-view.x)/view.span*size,top+(1-(xy[i+1]-view.y)/view.span)*size,diameter*2,0,2*Math.PI);ctx.fill();
  }ctx.restore();
  if(drag&&!drag.pan){const b=drag.box;ctx.save();ctx.strokeStyle='#111827';ctx.fillStyle='rgba(59,130,246,.12)';ctx.setLineDash([6,4]);ctx.fillRect(left+b.x*size,top+(1-b.y-b.span)*size,b.span*size,b.span*size);ctx.strokeRect(left+b.x*size,top+(1-b.y-b.span)*size,b.span*size,b.span*size);ctx.restore();}
@@ -151,7 +164,7 @@ play.onclick=()=>{if(timer){stop();return;}if(Number(slider.value)===N)slider.va
 startSlider.oninput=()=>{if(Number(slider.value)<Number(startSlider.value))slider.value=startSlider.value;draw();};
 slider.oninput=()=>{if(Number(slider.value)<Number(startSlider.value))slider.value=startSlider.value;draw();};trail.onchange=draw;
 pointSize.oninput=draw;
-document.getElementById('full-view').onclick=()=>{view={x:0,y:0,span:1};drag=null;draw();};
+document.getElementById('full-view').onclick=()=>{view={...bounds};drag=null;draw();};
 document.getElementById('reset').onclick=()=>{stop();slider.value=startSlider.value;draw();};
 function select(mode){allIds.forEach((id,p)=>{const on=mode==='all'||(mode==='invert'&&!selected.has(id));on?selected.add(id):selected.delete(id);boxes[p].checked=on;});draw();}
 for(const mode of ['all','none','invert'])document.getElementById(mode).onclick=()=>select(mode);

@@ -75,3 +75,25 @@ require the default CPU path.
 Import `Execution` from `contracts.execution`. Omission preserves existing
 SciPy/NumPy execution. See the [shared execution contract](../../../simulation/jax-execution.md)
 for supported physical systems, solver details, timing scope and validation.
+
+## Dimensional HDF5 star calculation
+
+The local calculation notebook at
+`notebooks/developements/poincare_section/bm4_midpoint_jax_star/calculation.ipynb`
+uses `studies.poincare_star.PoincareStarConfig` and `run_poincare_star` to compose
+the existing dimensional HDF5 field with BM4Midpoint and JAX. The generic
+`initial_conditions.star.radial_star` constructor places equally spaced
+particles on equally spaced straight arms, excluding repeated center points.
+Its canonical import is from `initial_conditions.star`.
+
+The example has eight arms of 16 particles, each extending 40% of the source
+cell width from its center. Coordinates remain in meters; time is `tau=t/T0`.
+The established `rho_hat=0.3` is converted to meters using `lambda/(2*pi)`.
+Five forcing cycles at 40 steps per cycle produce 200 complete steps and six
+saved states, including initialization. The default destination preserves the
+notebook hierarchy in the configured bucket. The paired `visualisation.ipynb`
+loads that canonical archive without integration and exports `poincare_star.html`.
+It uses `visualization.poincare_star` and the shared comparison viewer for fixed
+initial positions, animated once-per-cycle returns, arm/particle selection and
+synchronized zoom/panning. Axes remain in meters; optional periodic folding
+changes only display copies, never the saved physical coordinates.
