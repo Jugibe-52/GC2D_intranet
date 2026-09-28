@@ -9,6 +9,7 @@ import numpy as np
 from potential import Potential
 
 from ._layout import pack_components, split_components
+from ._equations import gc_velocity
 
 
 class GuidingCenterDynamics:
@@ -35,7 +36,7 @@ class GuidingCenterDynamics:
 			x,
 			y,
 		)
-		return pack_components(ey, -ex)
+		return pack_components(*gc_velocity(ex, ey))
 
 	def particle_vector_field_jacobians(
 		self,

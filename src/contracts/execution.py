@@ -7,10 +7,10 @@ from typing import Literal
 
 @dataclass(frozen=True, slots=True)
 class Execution:
-    """Select the library and device for potential evaluation.
+    """Select the library and device for field evaluation and integration.
 
-    This first execution contract covers field evaluation only. It does not
-    select an integration driver or create CPU worker processes. A SciPy CPU
+    JAX integration currently supports RK4 with the built-in GC/FC dynamics.
+    This contract does not create CPU worker processes. A SciPy CPU
     is the host as a whole; JAX device indices address its detected devices.
     """
 

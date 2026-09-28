@@ -124,9 +124,10 @@ class PhysicalFormulation:
             "energy_feedback": False,
         }
 
-    def extract_history(self, times: np.ndarray, history: np.ndarray
+    def extract_history(self, times: np.ndarray, history: np.ndarray,
+                        *, energy: np.ndarray | None = None,
                         ) -> tuple[np.ndarray, dict[str, DiagnosticValue]]:
-        """Expose physical samples and the common per-particle energy balance."""
+        """Expose physical samples and energy, optionally evaluated on a device."""
         physical = self.physical(history)
         momentum = self.momentum(history)
         if momentum is None:
@@ -141,7 +142,7 @@ class PhysicalFormulation:
             raise ValueError("Each particle time must match the output times within round-off.")
         dynamics = self.problem.dynamics
         assert isinstance(dynamics, HamiltonianSystem)
-        energy = np.asarray(dynamics.hamiltonian(times, physical), dtype=float)
+        energy = np.asarray(dynamics.hamiltonian(times, physical) if energy is None else energy, dtype=float)
         if energy.ndim == 1:
             energy = energy[np.newaxis, :]
         if energy.shape != momentum.shape or not np.all(np.isfinite(energy)):

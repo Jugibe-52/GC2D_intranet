@@ -15,10 +15,10 @@ jax_gpu = Execution(backend="jax", device="gpu", device_index=0)
 
 `Execution` validates backend/device combinations without importing JAX or
 initializing hardware. SciPy supports CPU index 0 only. Device availability is
-checked when the selected evaluator is first used. This contract currently
-configures potential evaluation; `simulation.runner.simulate(problem, method,
-request)` remains the execution facade for the unchanged NumPy integrators and
-does not yet accept `execution`. CPU process counts are not part of this phase.
+checked when the selected evaluator is first used. The same contract now selects
+complete RK4 integration through `simulation.runner.simulate(problem, RK4(),
+request, execution=execution)`. Other methods retain SciPy/CPU execution and
+reject JAX requests explicitly. CPU process counts are not part of this contract.
 
 ## Installation and use
 
@@ -129,10 +129,19 @@ and periodic seams. CPU and GPU need not be bitwise identical.
 
 ## Scope and performance
 
-The current integrators continue calling `Potential` without an execution
-choice and therefore use SciPy/CPU. Selecting JAX for a standalone potential
-call does not enable JAX for the complete simulation. Numerical-method APIs,
-the `simulation` package name, and the `Solution` contract are unchanged.
+Selecting JAX for a standalone potential call does not change the default of
+subsequent simulations. Pass `execution` to `simulate` to compile a complete
+RK4 run, including batched particle dynamics, stages, sequential time loop and
+optional energy quadrature. That route supports the built-in GC/FC equations
+and transfers the completed output to the usual NumPy `Solution`. The remaining
+methods use SciPy/CPU. See the [RK4 guide](../models/rk4/simulation/rk4-simulation-architecture.md#jax-execution).
+
+The NumPy and JAX dynamics reuse the algebra in `dynamics/_equations.py`.
+`dynamics/_jax.py` binds an immutable field and scalar-parameter snapshot,
+reusing the potential's cached evaluator. A bounded binding cache preserves
+compiled function identities across repeated runs with the same field and
+settings. Arbitrary custom dynamics and subclass overrides are rejected by the
+compiled driver, so their equations cannot be silently replaced.
 
 The first call prepares the selected evaluator and compiles for the input
 shapes and derivative orders. Measure subsequent calls separately and

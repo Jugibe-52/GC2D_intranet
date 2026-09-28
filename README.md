@@ -51,8 +51,13 @@ copies; `simulate` checks agreement with the requested times and initial state.
 Standalone potential calls accept an optional `Execution` configuration from
 `contracts.execution`: `potential.evaluate(t, x, y, execution=Execution(backend="jax", device="cpu"))`.
 The same option is supported by `electric_field` and `evaluate_grid`. Omitting
-it preserves SciPy/CPU execution. This selection currently applies to potential
-evaluation only; `simulate` retains its existing signature.
+it preserves SciPy/CPU execution. Complete RK4 runs also accept this selection:
+`simulate(problem, RK4(), request, execution=Execution(backend="jax", device="cpu"))`.
+Enable `jax_enable_x64` first; select `device="gpu"` on a compatible installation.
+The compiled path supports the built-in GC/FC dynamics and passive energy
+tracking, with all particles and time steps on one device. Results retain the
+immutable NumPy `Solution` contract. See the [RK4 execution guide](docs/models/rk4/simulation/rk4-simulation-architecture.md#jax-execution)
+for limitations and the paired development notebooks.
 
 `Solution` is an immutable computed trajectory. Its initial configuration is
 available as `solution.source`, while diagnostics are attached as read-only

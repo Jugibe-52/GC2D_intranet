@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from functools import partial
 
 import numpy as np
 
@@ -14,6 +15,9 @@ from formulations.state import PhysicalFormulation
 from contracts.observation import IntegrationStep, StepObserver
 from contracts.problem import InitialValueProblem
 from contracts.request import SimulationRequest
+from contracts.execution import Execution
+from contracts.result import IntegrationData
+from methods.classical._rk4_core import physical_step, momentum_increment
 
 
 def _checked_vector_field(
@@ -45,26 +49,29 @@ class RK4(IntegrationMethod[None]):
 		self.dynamics = problem.dynamics
 		self.state_formulation = PhysicalFormulation(problem, request.t_span[0], self.track_energy)
 		self.initial_state = self.state_formulation.initial_state
+		self.metadata = {"execution_backend": "scipy", "execution_device": "cpu",
+		                 "execution_device_index": 0}
+
+	def _integrate_jax(self, execution: Execution) -> IntegrationData:
+		"""Compile all particle stages and the fixed time loop on one device."""
+		if type(self) is not RK4:
+			raise TypeError("JAX integration requires the built-in RK4 map; subclass overrides are not compiled.")
+		try:
+			from integration.jax_fixed import integrate_rk4
+		except ImportError as exc:
+			raise ImportError("JAX RK4 requires the optional 'jax' extra: pip install -e '.[jax]'.") from exc
+		return integrate_rk4(self, execution)
 
 	def _physical_step(self, t: float, candidate: np.ndarray, step: float) -> tuple[np.ndarray, tuple[np.ndarray, ...]]:
 		"""Return the physical RK4 map and its four accepted quadrature states."""
-		k1 = _checked_vector_field(self.dynamics, t, candidate)
-		z2 = candidate + step * k1 / 2
-		k2 = _checked_vector_field(self.dynamics, t + step / 2, z2)
-		z3 = candidate + step * k2 / 2
-		k3 = _checked_vector_field(self.dynamics, t + step / 2, z3)
-		z4 = candidate + step * k3
-		k4 = _checked_vector_field(self.dynamics, t + step, z4)
-		return np.asarray(candidate + step * (k1 + 2 * k2 + 2 * k3 + k4) / 6), (candidate, z2, z3, z4)
+		return physical_step(partial(_checked_vector_field, self.dynamics), t, candidate, step)
 
 	def advance(self, t: float, state: np.ndarray, step: float) -> StepResult[None]:
 		"""Advance physical stages, then the passive energy quadrature if requested."""
 		physical, stages = self._physical_step(t, self.state_formulation.physical(state), step)
 		increment = None
 		if self.track_energy:
-			rates = [self.state_formulation.momentum_rate(t + c * step, z)
-			         for c, z in zip((0., .5, .5, 1.), stages)]
-			increment = step * (rates[0] + 2 * rates[1] + 2 * rates[2] + rates[3]) / 6
+			increment = momentum_increment(self.state_formulation.momentum_rate, t, step, stages)
 		return StepResult(self.state_formulation.finish(state, physical, t + step, increment), {}, None)
 
 	def build_observation(self, info: StepInfo, result: StepResult[None]) -> IntegrationStep:

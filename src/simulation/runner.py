@@ -5,6 +5,7 @@ from __future__ import annotations
 import numpy as np
 
 from methods.base import NumericalMethod
+from contracts.execution import Execution
 from contracts.problem import InitialValueProblem
 from contracts.request import SimulationRequest
 from solution import Solution
@@ -14,6 +15,7 @@ def simulate(
 	problem: InitialValueProblem,
 	method: NumericalMethod,
 	request: SimulationRequest,
+	*, execution: Execution | None = None,
 ) -> Solution:
 	"""Integrate one problem and verify that its solution matches the request.
 
@@ -26,7 +28,12 @@ def simulate(
 		raise TypeError("`method` must implement NumericalMethod.")
 	if not isinstance(request, SimulationRequest):
 		raise TypeError("`request` must be a SimulationRequest.")
-	data = method.integrate(problem, request)
+	if execution is not None and not isinstance(execution, Execution):
+		raise TypeError("`execution` must be an Execution instance or None.")
+	# Keep the original call contract for third-party CPU methods.
+	data = (method.integrate(problem, request, execution=execution)
+	        if execution is not None and execution.backend == "jax"
+	        else method.integrate(problem, request))
 	solution = Solution(
 		t=data.t,
 		states=data.states,

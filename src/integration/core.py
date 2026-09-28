@@ -17,6 +17,7 @@ import numpy as np
 
 from integration._fixed import _Progress, _step_count
 from contracts.result import DiagnosticValue, IntegrationData
+from contracts.execution import Execution
 from contracts.step import StepInfo, StepResult, StepValue
 from contracts.problem import InitialValueProblem
 from contracts.request import SimulationRequest
@@ -36,7 +37,7 @@ NEWTON_ALIASES: Mapping[str, str] = MappingProxyType({
 def _time_tolerance(t_span: tuple[float, float]) -> float:
 	"""Allow float round-off when matching requested and accepted times."""
 	t0, tf = t_span
-	return 16 * np.finfo(float).eps * max(1.0, abs(t0), abs(tf))
+	return float(16 * np.finfo(float).eps * max(1.0, abs(t0), abs(tf)))
 
 
 class StepController(Protocol[Detail]):
@@ -283,9 +284,19 @@ class IntegrationMethod(ABC, Generic[Detail]):
 		"""Select fixed scheduling; adaptive methods override this operation."""
 		return FixedStepController()
 
-	def integrate(self, problem: InitialValueProblem, request: SimulationRequest) -> IntegrationData:
+	def _integrate_jax(self, execution: Execution) -> IntegrationData:
+		"""Reject unsupported device execution without silently running on CPU."""
+		raise NotImplementedError(f"{self.method_name} does not support JAX integration.")
+
+	def integrate(self, problem: InitialValueProblem, request: SimulationRequest,
+	              *, execution: Execution | None = None) -> IntegrationData:
 		"""Run a fresh instance through the shared controller and collector."""
-		return integrate_method(self.new_run(problem, request))
+		if execution is not None and not isinstance(execution, Execution):
+			raise TypeError("`execution` must be an Execution instance or None.")
+		run = self.new_run(problem, request)
+		if execution is not None and execution.backend == "jax":
+			return run._integrate_jax(execution)
+		return integrate_method(run)
 
 
 __all__ = [

@@ -64,7 +64,7 @@ outside the physical solver counters; reported wall time still includes them.
 
 ## Lifecycle and output
 
-`simulate(problem, method, request)` creates a fresh run via `new_run`, validates
+By default, `simulate(problem, method, request)` creates a fresh run via `new_run`, validates
 its formulation and calls the shared `integrate_method`. Each `advance` returns
 an internal state, small work counters and method-specific accepted details.
 The common collector retains samples and counters; the formulation extracts the
@@ -83,6 +83,83 @@ including `extended_time` even for a single particle. Diagnostic arrays
 `Solution.t`; nonlinear and runtime work arrays follow `step_times`.
 `extended_momentum_normalization` is `physical_kappa` and `energy_error` is the
 maximum absolute sampled balance error over all particles.
+
+## JAX execution
+
+```python
+import jax
+from contracts.execution import Execution
+from methods.classical.rk4 import RK4
+from simulation.runner import simulate
+
+jax.config.update("jax_enable_x64", True)
+solution = simulate(
+    problem, RK4(track_energy=True), request,
+    execution=Execution(backend="jax", device="cpu"),
+)
+# Use device="gpu", device_index=0 on a configured JAX GPU installation.
+```
+
+`Execution()` or omission preserves the existing SciPy/NumPy CPU path. The JAX
+extra is optional; CPU integration never imports it. JAX requires explicit
+float64 configuration and available hardware, with no automatic fallback.
+`Execution` describes resources separately from physical data and RK4 controls.
+
+Both routes use the canonical RK4 stages and passive quadrature in
+`methods/classical/_rk4_core.py`. The default controller retains its Python
+lifecycle. For JAX, the shared `IntegrationMethod.integrate` creates a fresh run
+and selects RK4's compiled driver in `integration/jax_fixed.py`. The physical
+equations are shared in `dynamics/_equations.py`; a device snapshot binds the
+existing potential evaluator and its actual SciPy spline coefficients.
+
+The driver compiles the complete time loop using `jax.lax.scan`. Particle
+operations are batched within each stage; stages and successive time steps
+remain sequential. The accepted state and requested output buffer stay on one
+device. Storage scales with requested samples, rather than all internal steps.
+Off-grid samples use independent shortened RK4 maps from the accepted interval
+start, with the same endpoint tolerance and priority as the CPU controller.
+They never change the subsequent main trajectory. Every accepted and sampled
+state contributes to a finite-value check, including unsaved main states.
+
+Tracking uses the same four physical stage states for `-partial_t H` on the
+device. Physical Hamiltonian histories are also evaluated there, then the
+standard formulation constructs energy diagnostics after one synchronized
+transfer of the completed output. The result remains an immutable NumPy
+`Solution` with identical layouts, sampling and diagnostic definitions.
+Execution metadata reports backend, device, index and the JAX device kind.
+
+The compiled route supports the built-in `GuidingCenterDynamics` and
+`FullCyclotronDynamics`, including gyroaveraging and time-dependent fields.
+It rejects custom dynamics, method subclasses, `step_observer` callbacks and
+`progress=True` explicitly. Use the CPU path for Python observation/progress.
+Other integrators reject `execution=Execution(backend="jax", ...)` until they
+implement a device driver. This route uses one device, not multi-GPU sharding.
+
+### Reproducible test notebooks
+
+The local, Git-ignored directory `notebooks/developements/rk4_execution/`
+contains `calculation.ipynb` and `visualisation.ipynb`. The default short test
+uses 256 particles in a seeded synthetic periodic field, 200 steps, passive
+energy tracking and three alternating timing repetitions. It deliberately
+tests backend equivalence rather than the long-time method-comparison protocol.
+The calculation delegates composition to `studies.rk4_execution`, asserts
+trajectory and energy agreement and saves all trajectories, parameters, raw
+timings, software versions and field samples through canonical Solution archives.
+The visualisation delegates plots to `visualization.rk4_execution` and only
+loads saved data. Both derive the same destination with `solution_destination`:
+bucket storage is the default; `storage="local"` is an explicit alternative.
+
+First-call timing includes device preparation and compilation when required.
+Warmed timings include complete integration, transfers, energy diagnostics and
+Solution creation; input field preparation is excluded. Changing particle count
+or output shapes can trigger recompilation. Reusing a kernel can make another
+first call warm. CPU timing results do not establish GPU performance.
+
+`tests/test_jax_rk4.py` compares GC/FC trajectories and energy diagnostics,
+irregular and sparse samples, independent particles, a known time-dependent
+shear with fourth-order convergence, optional imports, and explicit capability
+failures. GPU equivalence runs only when a GPU is available. The study test
+round-trips canonical archives and keeps visualisation independent of integration.
 
 ## Migration and verification
 

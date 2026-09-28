@@ -41,7 +41,7 @@ namespaces = false
 "*" = ["py.typed"]
 
 [project.optional-dependencies]
-# Optional potential evaluator; GPU support requires a platform-specific install.
+# Optional potential evaluation and RK4 integration; GPU needs a platform-specific install.
 jax = ["jax>=0.7.1,<1"]
 visualization = ["matplotlib>=3.8,<4"]
 notebook = [

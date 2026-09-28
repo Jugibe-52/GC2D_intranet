@@ -129,4 +129,28 @@ uses accepted dense output; its backend state and Jacobian remain physical.
 
 The passive momentum uses the same four stage states and weights as the physical RK4 update.
 
+\section{CPU and JAX execution of the same map}
+
+The execution configuration selects either the default NumPy/SciPy CPU driver
+or a JAX driver on one CPU or GPU device. Both consume the same RK4 stage and
+passive-quadrature formulas. The potential uses the same fitted spline knots
+and coefficients in both implementations. JAX requires explicit double
+precision; different floating-point operation ordering can produce round-off
+differences, so equivalence does not mean bitwise identity.
+
+For independent particles, stage operations are batched over the particle
+index. The four stages retain their dependencies, and successive time steps
+remain sequential inside a compiled loop. The accepted state and requested
+sample buffer remain on the chosen device until the completed result is
+transferred to the standard immutable NumPy solution. Independent shortened
+maps still provide off-grid samples without altering accepted main states.
+The passive momentum and sampled Hamiltonian are evaluated on that device.
+
+The compiled route currently covers the built-in guiding-centre and
+full-cyclotron equations. Custom dynamics, method subclasses and Python
+step callbacks or progress reporting require the CPU route. Device choice
+does not change the order, stability region or geometric properties derived
+above. First-call compilation must be distinguished from warmed integration
+timings, which include transfers and output construction in the test study.
+
 \end{document}

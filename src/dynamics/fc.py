@@ -9,6 +9,7 @@ import numpy as np
 from potential import Potential
 
 from ._layout import pack_components, split_components
+from ._equations import fc_velocity, fc_hamiltonian
 
 
 class FullCyclotronDynamics:
@@ -61,17 +62,11 @@ class FullCyclotronDynamics:
 			state,
 			component_count=self.state_dimension,
 		)
-		acceleration_x, acceleration_y = self.electric_acceleration(
-			t,
-			x,
-			y,
-		)
-		return pack_components(
-			vx * self.velocity_scale,
-			vy * self.velocity_scale,
-			acceleration_x + vy * self.larmor_frequency,
-			acceleration_y - vx * self.larmor_frequency,
-		)
+		acceleration_x, acceleration_y = self.electric_acceleration(t, x, y)
+		return pack_components(*fc_velocity(
+			acceleration_x, acceleration_y, vx, vy, velocity_scale=self.velocity_scale,
+			larmor_frequency=self.larmor_frequency,
+		))
 
 	def hamiltonian(
 		self,
@@ -83,12 +78,10 @@ class FullCyclotronDynamics:
 			state,
 			component_count=self.state_dimension,
 		)
-		kinetic_scale = self.rho / (4 * abs(self.eta))
-		return np.asarray(
-			kinetic_scale * (vx**2 + vy**2)
-			+ self.electric_scale
-			* self.potential.evaluate(t, x, y)
-		)
+		return np.asarray(fc_hamiltonian(
+			self.potential.evaluate(t, x, y), vx, vy,
+			velocity_scale=self.velocity_scale, electric_scale=self.electric_scale,
+		))
 
 	def extended_momentum_derivative(
 		self,

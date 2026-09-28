@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Protocol, runtime_checkable
 
+from contracts.execution import Execution
 from contracts.result import IntegrationData
 from contracts.problem import InitialValueProblem
 from contracts.request import SimulationRequest
@@ -17,6 +18,7 @@ class NumericalMethod(Protocol):
 		self,
 		problem: InitialValueProblem,
 		request: SimulationRequest,
+		*, execution: Execution | None = None,
 	) -> IntegrationData:
 		"""Integrate one problem under one temporal request."""
 
