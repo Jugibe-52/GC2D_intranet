@@ -1,9 +1,0 @@
-{
-  "stage": "calculate",
-  "run_id": "aws_bm4midpoint_48p_5000c_20s_20260920",
-  "started_utc": "2026-09-20T15:52:39.770689+00:00",
-  "status": "success",
-  "validation_run": false,
-  "python": "/home/ubuntu/poincare/Poincare_BM4Midpoint_48_radiales_5000_ciclos_20_steps_spot/.venv/bin/python",
-  "finished_utc": "2026-09-20T16:09:40.317633+00:00"
-}

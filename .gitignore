@@ -13,10 +13,8 @@ logs/
 *.mat
 
 # Experiment, symbolic-derivation, and developements_2 notebooks are versioned.
-# Development notebooks are tracked on this branch.
+# Development notebooks remain local working files.
 notebooks/*
-!notebooks/developements/
-!notebooks/developements/**
 !notebooks/experiments/
 !notebooks/experiments/**
 !notebooks/sympy/

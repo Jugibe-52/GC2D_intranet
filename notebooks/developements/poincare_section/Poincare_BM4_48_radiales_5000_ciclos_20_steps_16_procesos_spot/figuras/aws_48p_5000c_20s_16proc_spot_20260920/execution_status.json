@@ -1,9 +1,0 @@
-{
-  "stage": "visualize",
-  "run_id": "aws_48p_5000c_20s_16proc_spot_20260920",
-  "started_utc": "2026-09-20T13:53:45.792697+00:00",
-  "status": "success",
-  "validation_run": false,
-  "python": "/home/ubuntu/poincare/Poincare_BM4_48_radiales_5000_ciclos_20_steps_16_procesos_spot/.venv/bin/python",
-  "finished_utc": "2026-09-20T13:53:53.943203+00:00"
-}
