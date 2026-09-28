@@ -1,0 +1,12 @@
+# Fill these from your existing Cloudflare Pages project before publishing.
+# Example origin: https://YOUR-PROJECT.pages.dev (use the actual assigned origin).
+project_name = ""
+base_url = ""
+production_branch = "main"
+
+# Publish one standalone HTML per experiment directory. Every deployment
+# includes the entire list so updating one visualization preserves the others.
+# Only notebooks/developements/ exports are supported.
+html_files = [
+    "notebooks/developements/poincare_section/Poincare_comparacion_cuatro_ejecuciones/poincare_four_runs.html",
+]

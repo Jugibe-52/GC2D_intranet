@@ -115,6 +115,9 @@ Runtime compatibility ranges are declared in `pyproject.toml`; tested direct
 dependency versions are recorded in `constraints.txt`. Matplotlib support is
 available through the `visualization` extra.
 
+Standalone notebook HTML exports can be published with URLs that preserve the
+development directory hierarchy; see [Cloudflare Pages publication](docs/visualization-pages.md).
+
 ## GC2D HDF5 potential
 
 The primary GC2D field format stores a real mean potential and complex
