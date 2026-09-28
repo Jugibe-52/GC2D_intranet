@@ -47,6 +47,33 @@ disposable copy so that reduced results are not saved into the canonical noteboo
 
 # Notebook study policy
 
+Each notebook-based experiment must have its own directory containing at least
+one matched pair of notebooks: `calculation.ipynb` and `visualisation.ipynb`,
+or `calculation_X.ipynb` and `visualisation_X.ipynb` with the same `X` for each
+pair. The calculation notebook runs the numerical work and saves its results
+to the configured destination: a bucket or local `outputs/`. The visualisation
+notebook loads those saved results from the same destination, downloading them
+when a bucket is selected, and uses them for plots and interpretation without
+repeating the calculation. Keep the data format and destination explicit so
+the two notebooks can be run independently.
+
+Use bucket storage by default, with `gc2d_data:gc2d-notebooks-data` as the
+configured result bucket. Save to local `outputs/` only when explicitly selected
+by the caller. Use `diagnostics.paths.solution_destination` to derive matching
+paths; its default is bucket storage and `storage="local"` selects local storage.
+A failed upload must be reported as a failure, rather than silently treating a
+local recovery copy as a successful bucket save.
+
+Bucket prefixes must mirror the experiment directory relative to `notebooks/`,
+preserving the complete hierarchy and appending the run identifier. For example,
+`notebooks/developements/persistence_bucket/calculation.ipynb` stores results at
+`<bucket>/developements/persistence_bucket/<run_id>/`. Development experiments
+therefore use `developements/` at the bucket root, not a generic `experiments/`
+prefix. Local results follow the same relative hierarchy below `outputs/`.
+Calculation and visualisation notebooks must use the same experiment path and
+run identifier. Preserve this correspondence when moving or renaming an
+experiment, and update its saved-data locations and notebook references together.
+
 Keep notebooks focused on the scientific definition and interpretation of an
 experiment. Parameters that affect reproducibility must remain explicit in the
 notebook, including potential parameters and seeds, initial-condition geometry,

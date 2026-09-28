@@ -1,5 +1,93 @@
 # Numerical diagnostics
 
+## Complete solutions on disk or in a bucket
+
+`diagnostics.persistence.save_solution` and `load_solution` serialize the
+canonical `Solution` independently of the integration lifecycle. They are also
+explicitly exported by `diagnostics`. Numerical methods and `Solution` do not
+perform network operations. Both GC and FC component-major layouts are supported;
+other layout types are rejected rather than inferred from the state size.
+
+```python
+from diagnostics.persistence import load_solution, save_solution
+from diagnostics.paths import solution_destination
+
+# Bucket storage is the default. Remote credentials stay outside the repository.
+location = save_solution(solution, experiment_path="developements/my_experiment",
+                         run_id="run_001", metadata=experiment_metadata,
+                         potential=base_potential)
+
+# For a deliberately local run, explicitly select its destination instead:
+# destination = solution_destination("developements/my_experiment", "run_001", storage="local")
+# location = save_solution(solution, destination, metadata=experiment_metadata,
+#                          potential=base_potential)
+
+record = load_solution(location)
+solution = record.solution
+base_potential = record.potential
+experiment_metadata = record.metadata
+```
+
+`solution_destination(experiment_path, run_id)` defaults to
+`gc2d_data:gc2d-notebooks-data/<experiment_path>/<run_id>`. Pass `storage="local"`
+to select `outputs/`, or `bucket_root="other_remote:other_bucket"` to select
+another configured bucket. Explicit destinations to `save_solution` remain
+supported. When omitting the destination, the experiment path and run ID are
+required; missing identifiers are never guessed. Failed bucket uploads raise an
+error even when a local recovery archive is retained.
+
+The remote syntax is rclone's `remote:bucket/prefix`, not an S3 URL. The transport
+uses the configured rclone executable on `PATH`, falling back to
+`~/.local/bin/rclone`. Credentials stay in rclone's configuration (normally
+`~/.config/rclone/rclone.conf`); they are not copied into artifacts. A local load
+does not require rclone or bucket credentials. See the official
+[rclone remote syntax](https://rclone.org/docs/) and
+[copyto documentation](https://rclone.org/commands/rclone_copyto/).
+
+Choose the experiment prefix from its directory relative to `notebooks/`.
+For `notebooks/developements/my_experiment/`, use
+`developements/my_experiment/<run_id>/` below the bucket or local `outputs/`.
+Calculation and visualisation notebooks share that prefix and run identifier.
+
+Each result contains:
+
+- `solution.npz`: saved times, physical states, optional initial state and all
+  diagnostic arrays, preserving their dtypes and shapes.
+- `metadata.json`: schema, layout, scalar diagnostics, software versions,
+  potential grid/interpolation/provenance and caller-supplied experiment metadata.
+- `potential.npz`, when a potential is supplied: the actual processed mean,
+  complex modes and frequencies, plus typed HDF5 attributes when applicable.
+- `manifest.json`: the allowed file inventory, byte sizes and SHA-256 hashes.
+
+The potential snapshot reconstructs the actual sampled field even when its
+original HDF5 file is unavailable. Pass the **base** field and record `rho` and
+the dynamics parameters to reconstruct the effective gyroaveraged field. Record
+the complete potential recipe, physical settings, method settings, initial
+geometry and code version in `experiment_metadata` as well: a `Solution` alone
+does not own them. Reconstruction does not run the integrator. The archive records
+NumPy and SciPy versions; matching samples do not guarantee identical interpolation
+across different library implementations. Generic potential provenance must be
+JSON-serializable; HDF5 attributes and numerical diagnostics must be pickle-free.
+
+Completed results are never overwritten. Use a fresh run directory/prefix, and
+distinct prefixes for concurrent writers. The manifest is transferred last;
+loaders verify every file before constructing a `Solution`. A remote load always
+downloads to a fresh temporary directory and removes it afterwards. If publication
+fails, the exception identifies a complete local staging directory that can be
+loaded directly or used for a manual retry, transferring the manifest last.
+Incomplete destinations are not valid results. Local transport uses exclusive
+file creation, and remote transfers use `copyto --immutable --checksum`.
+
+Development examples live in `notebooks/developements/persistence_local/` and
+`notebooks/developements/persistence_bucket/`, each with `calculation.ipynb` and
+`visualisation.ipynb`. Select the `Python (GC2D)` kernel. Their common composition
+is `studies.persistence_demo`; presentation is
+`visualization.persistence.plot_stored_gc_solution`. These short synthetic-field
+examples demonstrate storage and independent loading, not numerical-method
+accuracy. Their local `.gitignore` files keep them and their output data untracked.
+
+## Observers and study-specific persistence
+
 This package contains opt-in numerical diagnostics used by reproducible studies.
 Production methods emit neutral integration-stage or complete-step
 observations; Jacobian calculations, symplecticity metrics, and output

@@ -5,9 +5,41 @@ from __future__ import annotations
 from datetime import date
 from pathlib import Path
 import re
+from typing import Literal
 
 
 _BLOCK_NAME = re.compile(r"^[A-Za-z0-9_-]+$")
+DEFAULT_RESULTS_BUCKET = "gc2d_data:gc2d-notebooks-data"
+
+
+def solution_destination(
+	experiment_path: str | Path,
+	run_id: str,
+	*,
+	storage: Literal["bucket", "local"] = "bucket",
+	bucket_root: str = DEFAULT_RESULTS_BUCKET,
+	project_root: str | Path | None = None,
+) -> str:
+	"""Locate a run using its experiment directory relative to ``notebooks/``.
+
+	The default is the configured Backblaze data bucket. Choose ``storage="local"``
+	explicitly to use ``outputs/``. For example, an experiment path of
+	``developements/my_study`` preserves that hierarchy in either destination.
+	"""
+	path = Path(experiment_path)
+	if (path.is_absolute() or len(path.parts) < 2 or ".." in path.parts
+		or path.parts[0] == "notebooks" or ":" in str(path) or "\\" in str(path)):
+		raise ValueError("Use an experiment directory relative to notebooks/, such as developements/my_study.")
+	if not isinstance(run_id, str) or not _BLOCK_NAME.fullmatch(run_id):
+		raise ValueError("run_id must contain only letters, numbers, '_' and '-'.")
+	if storage == "bucket":
+		if not re.fullmatch(r"[A-Za-z0-9_-]+:[A-Za-z0-9_.-]+", bucket_root):
+			raise ValueError("bucket_root must have the form 'remote:bucket'.")
+		return f"{bucket_root}/{path.as_posix()}/{run_id}"
+	if storage == "local":
+		root = find_project_root(Path.cwd()) if project_root is None else Path(project_root).expanduser().resolve()
+		return str(root / "outputs" / path / run_id)
+	raise ValueError("storage must be 'bucket' or 'local'.")
 
 
 def find_project_root(start: str | Path) -> Path:
@@ -79,4 +111,4 @@ def next_block_index(output_directory: Path, block_name: str) -> int:
 	return max(indices, default=-1) + 1
 
 
-__all__ = ["find_project_root", "notebook_output_directory"]
+__all__ = ["DEFAULT_RESULTS_BUCKET", "find_project_root", "notebook_output_directory", "solution_destination"]

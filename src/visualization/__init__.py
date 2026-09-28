@@ -1,5 +1,7 @@
 """Optional Matplotlib presentation for potentials and simulation results."""
 
+from .persistence import plot_stored_gc_solution
+
 from .abba4_configuration_comparison import (
 	animate_abba4_configuration_trajectories,
 )
@@ -113,6 +115,7 @@ from .gauss_legendre4 import (
 )
 
 __all__ = [
+    "plot_stored_gc_solution",
 	"GAUSS_BM4_COLORS",
 	"AccuracySeriesView",
 	"AccuracySummaryView",

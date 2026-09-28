@@ -1,6 +1,8 @@
 """Opt-in diagnostics built around the stable simulation core."""
 
 from .adaptive_trajectory import AdaptiveTrajectoryObserver
+from .persistence import StoredSolution, load_solution, save_solution
+from .paths import DEFAULT_RESULTS_BUCKET, solution_destination
 
 from .abba_jacobian import (
 	IMPLICIT_ABBA_JACOBIAN_METHODS,
@@ -81,6 +83,11 @@ from .symplecticity import (
 )
 
 __all__ = [
+    "DEFAULT_RESULTS_BUCKET",
+    "solution_destination",
+    "StoredSolution",
+    "load_solution",
+    "save_solution",
 	"AdaptiveTrajectoryObserver",
 	"abba4_implicit_step_particle_jacobians",
 	"abba6_implicit_step_particle_jacobians",

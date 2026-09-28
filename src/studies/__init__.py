@@ -1,5 +1,7 @@
 """Reusable experiment composition for concise, reproducible notebooks."""
 
+from .persistence_demo import PersistenceDemoConfig, run_persistence_demo
+
 from .abba4_implicit_accuracy import (
 	ABBA4ImplicitAccuracyConfig,
 	ABBA4ImplicitAccuracyOrder,
@@ -259,6 +261,8 @@ from .gauss_bm4_comparison import (
 )
 
 __all__ = [
+    "PersistenceDemoConfig",
+    "run_persistence_demo",
 	"GAUSS_BM4_LABELS",
 	"GAUSS_BM4_METHODS",
 	"GaussBM4ComparisonConfig",

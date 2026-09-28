@@ -86,6 +86,20 @@ maximum absolute sampled balance error over all particles.
 
 ## Migration and verification
 
+RK4 returns the canonical in-memory `Solution` through `simulation.runner`.
+Optional persistence is a subsequent operation:
+`diagnostics.persistence.save_solution(solution, destination, metadata=..., potential=...)`.
+Omitting `destination` and supplying `experiment_path` and `run_id` selects the
+configured data bucket by default. Local storage requires an explicit local
+destination, optionally built by `solution_destination(..., storage="local")`.
+The destination selects a local result directory or a configured rclone bucket
+prefix. `load_solution` restores the GC/FC layout, diagnostics and optional
+sampled potential independently of RK4, allowing a separate visualisation notebook
+to consume a completed calculation. The small `studies.persistence_demo` example
+stores the base field, `rho`, full RK4 request and synthetic-field recipe.
+See the [persistence contract](../../../../src/diagnostics/README.md) for the
+manifest, supported formats and transfer-failure behavior.
+
 `state_extension="fully_extended"` no longer runs a time/momentum projection.
 It raises explicit migration guidance. Use `track_energy=True` with spatial
 projection. The historical full-state symplecticity study is retired because it
