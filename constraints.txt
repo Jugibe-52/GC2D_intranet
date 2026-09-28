@@ -10,3 +10,6 @@ ipykernel==7.2.0
 sympy==1.14.0
 build==1.5.0
 mypy==1.20.2
+# Optional JAX evaluator; these constraints do not install the extra by default.
+jax==0.7.1
+jaxlib==0.7.1

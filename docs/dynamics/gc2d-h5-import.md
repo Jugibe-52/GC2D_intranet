@@ -4,6 +4,12 @@ This document describes the shared potential-to-dynamics boundary used by the
 GC2D numerical integrators. It is independent of any particular time-integration
 model; model documentation states only which capabilities it consumes.
 
+The [execution configuration](jax-potential-evaluation.md) selects SciPy/CPU or
+JAX/CPU/GPU through `Potential.evaluate(..., execution=Execution(...))`, with
+the same option for `electric_field` and `evaluate_grid`. Both evaluators share
+prepared data, validation, periodic wrapping, and harmonic reconstruction. The
+import pipeline and NumPy-based dynamics and integration contracts are unchanged.
+
 The HDF5 import path loads the primary GC2D field format into the potential and
 simulation APIs. Its implementation lives in
 [`src/potential/gc2d_h5.py`](../../src/potential/gc2d_h5.py), and the package
@@ -15,11 +21,14 @@ The corresponding component and data-flow diagram is
 
 ## Responsibilities
 
-The import path separates three distinct responsibilities:
+The import path separates the following responsibilities:
 
-- `load_gc2d_h5_potential(...)` reads, validates, selects, nondimensionalizes,
-  and optionally preprocesses the fields stored in an HDF5 file. It also builds
-  the provenance metadata associated with those transformations.
+- The HDF5 adapter reads, validates, selects, nondimensionalizes, and optionally
+  preprocesses the fields stored in an HDF5 file. Its private data loader returns
+  normalized samples and provenance without constructing a runtime potential.
+- `Potential.from_gc2d_h5(...)` passes those data to `cls(...)`, preserving
+  subclass construction and preparing the runtime splines once. The existing
+  `load_gc2d_h5_potential(...)` function delegates to this class method.
 - `Potential` stores the resulting mean and modes using the same interpolation,
   time-reconstruction, derivative, and gyroaveraging implementation used by
   artificially generated potentials.
@@ -30,12 +39,12 @@ The import path separates three distinct responsibilities:
 The loader defines the primary GC2D HDF5 schema and runtime contract. It is not
 a general-purpose HDF5 potential reader.
 
-## Public entry point
+## Public entry points
 
 ```python
-from potential import load_gc2d_h5_potential
+from potential import Potential
 
-potential = load_gc2d_h5_potential(
+potential = Potential.from_gc2d_h5(
     "data/potential/V1/PHI_2.h5",
     characteristic_length=0.06,
     spatial_normalization="unit_box",
@@ -43,7 +52,13 @@ potential = load_gc2d_h5_potential(
 )
 ```
 
-The loader accepts the following options:
+Use `Potential.random(...)` for generated fields and `Potential.from_gc2d_h5(...)`
+for measured fields. Both produce the same runtime representation. The import
+`from potential import load_gc2d_h5_potential` remains supported with identical
+options and results; no public import paths have been removed. Source reading
+and preprocessing remain in `gc2d_h5.py`, separate from runtime evaluation.
+
+Both HDF5 entry points accept the following options:
 
 | Argument | Default | Meaning |
 | --- | --- | --- |

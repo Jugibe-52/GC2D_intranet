@@ -164,6 +164,46 @@ class GC2DH5ImportTests(unittest.TestCase):
 			potential.evaluate(0.37 + 1.0, query_x, query_y),
 		)
 
+	def test_class_constructor_matches_public_loader(self) -> None:
+		"""Both entry points preserve samples, derivatives, and source provenance."""
+		for options in (
+			{},
+			dict(B=-2.0, characteristic_length=0.3, characteristic_frequency=5.0,
+			     indx=(0, 2, 1, 2), nx=9, ny=8, denoising=True, sigma=0.7,
+			     interpolation_order=4, spatial_normalization="unit_box"),
+		):
+			with self.subTest(options=options):
+				loaded = load_gc2d_h5_potential(self.path, **options)
+				constructed = Potential.from_gc2d_h5(self.path, **options)
+				self.assertEqual(constructed.grid, loaded.grid)
+				self.assertEqual(constructed.interpolation_order, loaded.interpolation_order)
+				for name in ("mean", "modes", "frequencies"):
+					np.testing.assert_array_equal(getattr(constructed, name), getattr(loaded, name))
+				for derivative in ({}, {"dx": 1}, {"dy": 1}, {"dt": 1}):
+					np.testing.assert_array_equal(
+						constructed.evaluate(0.37, 0.21, 0.43, **derivative),
+						loaded.evaluate(0.37, 0.21, 0.43, **derivative),
+					)
+				for name in GC2DH5Metadata.__dataclass_fields__:
+					actual = getattr(constructed.metadata, name)
+					expected = getattr(loaded.metadata, name)
+					if name == "attributes":
+						self.assertEqual(actual.keys(), expected.keys())
+						for key in actual:
+							np.testing.assert_array_equal(actual[key], expected[key])
+					else:
+						np.testing.assert_equal(actual, expected)
+
+	def test_class_constructor_preserves_subclass(self) -> None:
+		"""HDF5 construction initializes the requested runtime class."""
+		class MeasuredPotential(Potential):
+			"""A potential with the standard constructor contract."""
+
+		potential = MeasuredPotential.from_gc2d_h5(self.path)
+		self.assertIs(type(potential), MeasuredPotential)
+		self.assertIsInstance(potential.metadata, GC2DH5Metadata)
+		self.assertTrue(np.all(np.isfinite(potential.evaluate_grid(0.37))))
+
 	def test_unit_box_spatial_normalization_maps_both_periods_to_one(self) -> None:
 		"""Map the complete source box to a unit period on both spatial axes."""
 		potential = load_gc2d_h5_potential(

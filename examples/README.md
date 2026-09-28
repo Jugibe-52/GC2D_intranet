@@ -7,6 +7,9 @@ smoke testing and documentation review.
 - `gc_orbit.py` runs a short guiding-center RK4 trajectory.
 - `projected_abba.py` runs one short `ABBA2Implicit` trajectory with the
   `reduced_multiplier` formulation and prints its nonlinear-solver diagnostics.
+- `jax_potential.py` compares optional JAX and SciPy potential evaluation for
+  256 particles, including compilation and NumPy transfer costs. Install the
+  `jax` extra first; see the [evaluator documentation](../docs/dynamics/jax-potential-evaluation.md).
 
-Run either script from the project root after installing the editable project
+Run the simulation scripts from the project root after installing the editable project
 environment with `python -m pip install -r requirements.txt`.

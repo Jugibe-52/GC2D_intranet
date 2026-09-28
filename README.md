@@ -48,12 +48,19 @@ for canonical paths and the [retired API migration](docs/simulation/api-migratio
 `simulate(problem, method, request)` is the public execution entry point. `Solution` checks array structure and owns immutable
 copies; `simulate` checks agreement with the requested times and initial state.
 
+Standalone potential calls accept an optional `Execution` configuration from
+`contracts.execution`: `potential.evaluate(t, x, y, execution=Execution(backend="jax", device="cpu"))`.
+The same option is supported by `electric_field` and `evaluate_grid`. Omitting
+it preserves SciPy/CPU execution. This selection currently applies to potential
+evaluation only; `simulate` retains its existing signature.
+
 `Solution` is an immutable computed trajectory. Its initial configuration is
 available as `solution.source`, while diagnostics are attached as read-only
 data. Shared physical dynamics are documented independently of the numerical
 models:
 
 - [GC2D HDF5 potential and guiding-center dynamics](docs/dynamics/gc2d-h5-import.md).
+- [Optional JAX potential evaluation on CPU or GPU](docs/dynamics/jax-potential-evaluation.md).
 
 Numerical architecture is organized by model:
 

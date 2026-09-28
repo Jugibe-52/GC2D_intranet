@@ -74,7 +74,7 @@ class PackageLayoutTests(unittest.TestCase):
 			self.assertIs(getattr(extended, name), getattr(methods, name))
 		self.assertIs(classical.RK4, RK4)
 		for module in (
-			"contracts.configuration", "contracts.problem", "contracts.request",
+			"contracts.configuration", "contracts.problem", "contracts.request", "contracts.execution",
 			"contracts.observation", "contracts.result", "contracts.step",
 			"formulations.gc", "formulations.fc", "formulations.state",
 			"integration.core", "methods.extended", "methods.classical",

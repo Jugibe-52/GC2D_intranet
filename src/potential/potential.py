@@ -14,182 +14,27 @@ gyroaveraging independent of the evaluation time.
 
 from __future__ import annotations
 
-from collections.abc import Iterable
-from dataclasses import dataclass
-from typing import Any
+from collections.abc import Sequence
+from os import PathLike
+from typing import Any, Self, overload
 
 import numpy as np
 from numpy.fft import fft2, fftfreq, ifft2
-from scipy.interpolate import RectBivariateSpline
 from scipy.special import jv
 
+from contracts.execution import Execution
+
 from .grid import Grid
+from .gc2d_h5 import (
+	DEFAULT_CHARACTERISTIC_LENGTH,
+	SpatialNormalization,
+	_load_gc2d_h5_data,
+)
+from .prepared import PreparedPotential
+from ._evaluation import PotentialEvaluator
+from .scipy_evaluator import ScipyPotentialEvaluator
 
-
-@dataclass(frozen=True, slots=True)
-class _SplineDomain:
-	"""Coordinates and padding used by the periodic spline extension.
-
-	``x`` and ``y`` are the extended one-dimensional coordinate axes.  The pair
-	``padding = (left, right)`` records how many wrapped samples surround each
-	original axis; the asymmetric right side also represents the omitted periodic
-	endpoint.
-	"""
-
-	x: np.ndarray
-	y: np.ndarray
-	padding: tuple[int, int]
-
-
-@dataclass(frozen=True, slots=True)
-class _Spline:
-	"""Real-valued splines that jointly interpolate a complex amplitude.
-
-	``real`` and ``imag`` represent the corresponding components of the same
-	complex field ``C(x, y)`` and therefore share coordinates and derivative
-	conventions.
-	"""
-
-	real: RectBivariateSpline
-	imag: RectBivariateSpline
-
-	def evaluate(
-		self,
-		x: np.ndarray,
-		y: np.ndarray,
-		*,
-		dx: int = 0,
-		dy: int = 0,
-	) -> np.ndarray:
-		"""Evaluate ``C`` or its ``(dx, dy)`` derivative at paired coordinates."""
-		return np.asarray(
-			self.real.ev(x, y, dx=dx, dy=dy)
-			+ 1j * self.imag.ev(x, y, dx=dx, dy=dy)
-		)
-
-
-def _spline_domain(grid: Grid, interpolation_order: int) -> _SplineDomain:
-	"""Extend both one-dimensional axes for a periodic spline of the given order."""
-	# The upper side includes the omitted periodic endpoint in addition to the
-	# interpolation margin.  The resulting coordinates remain strictly ordered,
-	# as required by ``RectBivariateSpline``.
-	margin = interpolation_order + 1
-	padding = (margin, margin + 1)
-	left, right = padding
-	x = np.pad(
-		grid.x,
-		padding,
-		mode="linear_ramp",
-		end_values=(grid.xmin - left * grid.dx, grid.xmax + right * grid.dx),
-	)
-	y = np.pad(
-		grid.y,
-		padding,
-		mode="linear_ramp",
-		end_values=(grid.ymin - left * grid.dy, grid.ymax + right * grid.dy),
-	)
-	return _SplineDomain(np.asarray(x), np.asarray(y), padding)
-
-
-def _build_spline(
-	grid: Grid,
-	coefficient: np.ndarray,
-	interpolation_order: int,
-) -> _Spline:
-	"""Build a complex periodic interpolant from ``(nx, ny)`` samples."""
-	domain = _spline_domain(grid, interpolation_order)
-	# Wrapping copies samples from the opposite edge, giving the spline local
-	# support across the seam instead of treating it as a physical boundary.
-	padded = np.pad(
-		coefficient,
-		(domain.padding, domain.padding),
-		mode="wrap",
-	)
-	# SciPy's bivariate spline is real-valued, so interpolate both components
-	# independently and recombine them only when evaluating the field.
-	return _Spline(
-		RectBivariateSpline(
-			domain.x,
-			domain.y,
-			padded.real,
-			kx=interpolation_order,
-			ky=interpolation_order,
-		),
-		RectBivariateSpline(
-			domain.x,
-			domain.y,
-			padded.imag,
-			kx=interpolation_order,
-			ky=interpolation_order,
-		),
-	)
-
-
-def _readonly_array(values: Any, *, dtype: Any) -> np.ndarray:
-	"""Return an owned, immutable array with the requested dtype."""
-	array = np.array(values, dtype=dtype, copy=True)
-	array.setflags(write=False)
-	return array
-
-
-@dataclass(frozen=True, slots=True)
-class _ValidatedPotentialData:
-	"""Validated, immutable fields used to initialize a potential."""
-
-	mean: np.ndarray
-	modes: np.ndarray
-	frequencies: np.ndarray
-
-
-def _validated_potential_data(
-	grid: Grid,
-	mean: np.ndarray | None,
-	modes: np.ndarray | None,
-	frequencies: np.ndarray | None,
-) -> _ValidatedPotentialData:
-	"""Validate and own the mutually dependent runtime potential fields."""
-	shape = grid.shape
-	if mean is None:
-		mean_values = np.zeros(shape, dtype=float)
-	else:
-		mean_values = np.asarray(mean, dtype=float)
-		if mean_values.shape != shape:
-			raise ValueError(
-				f"The mean field shape is {mean_values.shape}; expected {shape}."
-			)
-		if not np.all(np.isfinite(mean_values)):
-			raise ValueError("The mean field must contain finite values.")
-
-	if frequencies is None:
-		frequency_values = np.empty(0, dtype=float)
-	elif not isinstance(frequencies, np.ndarray):
-		raise TypeError("`frequencies` must be a NumPy array or None.")
-	else:
-		frequency_values = np.asarray(frequencies, dtype=float)
-	if frequency_values.ndim != 1:
-		raise ValueError("`frequencies` must be one-dimensional.")
-	if not np.all(np.isfinite(frequency_values)) or np.any(frequency_values <= 0):
-		raise ValueError("`frequencies` must contain finite positive values.")
-
-	if modes is None:
-		mode_values = np.empty((0, *shape), dtype=np.complex128)
-	else:
-		mode_values = np.asarray(modes, dtype=np.complex128)
-		if mode_values.ndim != 3 or mode_values.shape[1:] != shape:
-			raise ValueError(
-				"`modes` must have shape "
-				f"(mode_count, {shape[0]}, {shape[1]})."
-			)
-		if not np.all(np.isfinite(mode_values)):
-			raise ValueError("The mode fields must contain finite values.")
-	if mode_values.shape[0] != frequency_values.size:
-		raise ValueError("The mode count must equal the frequency count.")
-
-	return _ValidatedPotentialData(
-		mean=_readonly_array(mean_values, dtype=float),
-		modes=_readonly_array(mode_values, dtype=np.complex128),
-		frequencies=_readonly_array(frequency_values, dtype=float),
-	)
+_DEFAULT_EXECUTION = Execution()
 
 
 def _random_positive_frequency_mode(
@@ -260,33 +105,62 @@ class Potential:
 		``interpolation_order`` is the polynomial degree used independently on both
 		spatial axes.  It affects off-grid evaluations but not the stored samples.
 		"""
-		if not isinstance(grid, Grid):
-			raise TypeError("`grid` must be a Grid instance.")
-		if (
-			isinstance(interpolation_order, (bool, np.bool_))
-			or not isinstance(interpolation_order, (int, np.integer))
-			or not 2 <= int(interpolation_order) <= 5
-		):
-			raise ValueError("`interpolation_order` must be an integer from 2 to 5.")
-		data = _validated_potential_data(
-			grid,
-			mean,
-			modes,
-			frequencies,
-		)
-		self.grid = grid
-		self.interpolation_order = int(interpolation_order)
-		self.mean = data.mean
-		self.modes = data.modes
-		self.frequencies = data.frequencies
+		self._prepared = PreparedPotential.build(grid, mean, modes, frequencies, interpolation_order)
 		self.metadata = metadata
-		self._mean_spline = _build_spline(
-			self.grid, self.mean, self.interpolation_order
-		)
-		self._mode_splines = tuple(
-			_build_spline(self.grid, field, self.interpolation_order)
-			for field in self.modes
-		)
+		self._evaluators: dict[Execution, PotentialEvaluator] = {}
+
+	@property
+	def prepared(self) -> PreparedPotential:
+		"""Shared immutable data from which all evaluators are prepared."""
+		return self._prepared
+
+	@property
+	def grid(self) -> Grid:
+		"""Periodic spatial grid shared by every evaluator."""
+		return self._prepared.grid
+
+	@property
+	def interpolation_order(self) -> int:
+		"""Polynomial degree of the prepared spatial splines."""
+		return self._prepared.interpolation_order
+
+	@property
+	def mean(self) -> np.ndarray:
+		"""Read-only mean samples with shape (nx, ny)."""
+		return self._prepared.mean
+
+	@property
+	def modes(self) -> np.ndarray:
+		"""Read-only complex samples with shape (mode_count, nx, ny)."""
+		return self._prepared.modes
+
+	@property
+	def frequencies(self) -> np.ndarray:
+		"""Read-only positive harmonic frequencies in cycles per normalized time."""
+		return self._prepared.frequencies
+
+	def _evaluator(self, execution: Execution | None) -> PotentialEvaluator:
+		"""Resolve a per-call choice and reuse the matching prepared evaluator."""
+		choice = _DEFAULT_EXECUTION if execution is None else execution
+		if not isinstance(choice, Execution):
+			raise TypeError("`execution` must be an Execution instance or None.")
+		if choice not in self._evaluators:
+			if choice.backend == "scipy":
+				evaluator: PotentialEvaluator = ScipyPotentialEvaluator(self.prepared)
+			else:
+				from .jax_evaluator import JaxPotentialEvaluator
+				evaluator = JaxPotentialEvaluator(self.prepared, device=choice.device, device_index=choice.device_index)
+			self._evaluators[choice] = evaluator
+		return self._evaluators[choice]
+
+	def __getstate__(self) -> dict[str, Any]:
+		"""Serialize physical data only; device buffers and compiled functions are local."""
+		return dict(grid=self.grid, mean=self.mean, modes=self.modes, frequencies=self.frequencies,
+		            metadata=self.metadata, interpolation_order=self.interpolation_order)
+
+	def __setstate__(self, state: dict[str, Any]) -> None:
+		"""Rebuild CPU splines and an empty device cache in the receiving process."""
+		Potential.__init__(self, **state)
 
 	@classmethod
 	def random(
@@ -335,110 +209,92 @@ class Potential:
 			interpolation_order=interpolation_order,
 		)
 
-	def evaluate(
-		self,
-		t: float | np.ndarray,
-		x: np.ndarray,
-		y: np.ndarray,
+	@classmethod
+	def from_gc2d_h5(
+		cls,
+		filename: str | PathLike[str],
 		*,
-		dx: int = 0,
-		dy: int = 0,
-		dt: int = 0,
-	) -> np.ndarray:
-		"""Evaluate the real potential or a derivative at paired coordinates.
+		B: float = 1.5,
+		characteristic_length: float = DEFAULT_CHARACTERISTIC_LENGTH,
+		characteristic_frequency: float | None = None,
+		indx: int | Sequence[int] | np.ndarray | None = (0, 1),
+		nx: int | None = None,
+		ny: int | None = None,
+		denoising: bool = False,
+		sigma: float = 1.0,
+		interpolation_order: int = 3,
+		spatial_normalization: SpatialNormalization = "characteristic_length",
+	) -> Self:
+		"""Construct a potential from measured GC2D HDF5 fields.
 
-		``x`` and ``y`` must have the same shape and are evaluated pairwise. ``dx``
-		and ``dy`` select spatial derivative orders, while ``dt=1`` and ``dt=2``
-		differentiate the harmonic phase. Scalar coordinates produce scalar-shaped
-		results; the common coordinate shape and time follow NumPy broadcasting.
+		Options and normalization follow :func:`~potential.load_gc2d_h5_potential`.
+		By default, select the mean and dominant positive-frequency mode with
+		``B=1.5`` and characteristic length ``0.06``. The HDF5 adapter handles
+		selection, normalization, optional filtering and resampling; this class
+		prepares the common runtime representation and retains source metadata.
 		"""
-		self._validate_derivatives(dx, dy, dt)
-		dx, dy, dt = int(dx), int(dy), int(dt)
-		time = np.asarray(t)
-		x_values, y_values = np.asarray(x), np.asarray(y)
-		if x_values.shape != y_values.shape:
-			raise ValueError("`x` and `y` must have the same shape.")
-		x_values, y_values = self.grid.normalize(x_values, y_values)
-		mean_coefficient = (
-			self._mean_spline.evaluate(x_values, y_values, dx=dx, dy=dy)
-			if dt == 0
-			else None
+		data = _load_gc2d_h5_data(
+			filename,
+			B=B,
+			characteristic_length=characteristic_length,
+			characteristic_frequency=characteristic_frequency,
+			indx=indx,
+			nx=nx,
+			ny=ny,
+			denoising=denoising,
+			sigma=sigma,
+			interpolation_order=interpolation_order,
+			spatial_normalization=spatial_normalization,
 		)
-		return self._evaluate_time_dependence(
-			time,
-			mean_coefficient,
-			(
-				interpolator.evaluate(x_values, y_values, dx=dx, dy=dy)
-				for interpolator in self._mode_splines
-			),
-			coefficient_shape=x_values.shape,
-			dt=dt,
+		return cls(
+			data.grid,
+			mean=data.mean,
+			modes=data.modes,
+			frequencies=data.frequencies,
+			metadata=data.metadata,
+			interpolation_order=interpolation_order,
 		)
 
-	def evaluate_grid(self, t: float | np.ndarray, *, dt: int = 0) -> np.ndarray:
-		"""Evaluate the potential or a time derivative on the complete grid.
+	@overload
+	def evaluate(self, t: Any, x: Any, y: Any, *, dx: int = 0, dy: int = 0, dt: int = 0,
+	             execution: None = None) -> np.ndarray: ...
 
-		The spatial axes ``(nx, ny)`` precede any axes contributed by time.
+	@overload
+	def evaluate(self, t: Any, x: Any, y: Any, *, dx: int = 0, dy: int = 0, dt: int = 0,
+	             execution: Execution) -> Any: ...
+
+	def evaluate(self, t: Any, x: Any, y: Any, *, dx: int = 0, dy: int = 0, dt: int = 0,
+	             execution: Execution | None = None) -> Any:
+		"""Evaluate paired points or derivatives using one explicit execution choice.
+
+		Coordinates must have the same shape; time broadcasts against that shape.
+		Omitting execution always selects SciPy/CPU and returns a NumPy array.
+		JAX returns a device array. A choice never changes later default calls.
 		"""
-		self._validate_derivatives(0, 0, dt)
-		dt = int(dt)
-		time = np.asarray(t)
-		coefficient_shape = self.grid.shape + (1,) * time.ndim
-		mean_coefficient = (
-			self.mean.reshape(coefficient_shape) if dt == 0 else None
-		)
-		return self._evaluate_time_dependence(
-			time,
-			mean_coefficient,
-			self.modes.reshape((len(self.modes), *coefficient_shape)),
-			coefficient_shape=coefficient_shape,
-			dt=dt,
-		)
+		return self._evaluator(execution).evaluate(t, x, y, dx=dx, dy=dy, dt=dt)
 
-	def _evaluate_time_dependence(
-		self,
-		time: np.ndarray,
-		mean_coefficient: np.ndarray | None,
-		mode_coefficients: Iterable[np.ndarray],
-		*,
-		coefficient_shape: tuple[int, ...],
-		dt: int,
-	) -> np.ndarray:
-		"""Combine spatial coefficients with their harmonic time dependence."""
-		result = np.zeros(np.broadcast_shapes(coefficient_shape, time.shape), dtype=float)
-		if mean_coefficient is not None:
-			result += np.real(mean_coefficient)
-		for coefficient, frequency in zip(
-			mode_coefficients,
-			self.frequencies,
-			strict=True,
-		):
-			angular_frequency = 2.0 * np.pi * float(frequency)
-			phase = np.exp(1j * angular_frequency * time) * (
-				1j * angular_frequency
-			) ** dt
-			result += 2.0 * np.real(coefficient * phase)
-		return result
+	@overload
+	def evaluate_grid(self, t: Any, *, dt: int = 0, execution: None = None) -> np.ndarray: ...
 
-	def electric_field(
-		self,
-		t: float | np.ndarray,
-		x: np.ndarray | None = None,
-		y: np.ndarray | None = None,
-	) -> tuple[np.ndarray, np.ndarray]:
-		"""Return ``(E_x, E_y) = -grad(phi)`` at paired coordinates.
+	@overload
+	def evaluate_grid(self, t: Any, *, dt: int = 0, execution: Execution) -> Any: ...
 
-		Both components have the broadcast result shape of ``t``, ``x`` and ``y``;
-		when coordinates are omitted they instead use the full ``(nx, ny)`` grid.
-		"""
-		if x is None and y is None:
-			x, y = np.meshgrid(self.grid.x, self.grid.y, indexing="ij")
-		elif x is None or y is None:
-			raise ValueError("`x` and `y` must be provided together.")
-		return (
-			-self.evaluate(t, x, y, dx=1),
-			-self.evaluate(t, x, y, dy=1),
-		)
+	def evaluate_grid(self, t: Any, *, dt: int = 0, execution: Execution | None = None) -> Any:
+		"""Return grid values with spatial axes preceding any axes contributed by time."""
+		return self._evaluator(execution).evaluate_grid(t, dt=dt)
+
+	@overload
+	def electric_field(self, t: Any, x: Any = None, y: Any = None,
+	                   *, execution: None = None) -> tuple[np.ndarray, np.ndarray]: ...
+
+	@overload
+	def electric_field(self, t: Any, x: Any = None, y: Any = None,
+	                   *, execution: Execution) -> tuple[Any, Any]: ...
+
+	def electric_field(self, t: Any, x: Any = None, y: Any = None,
+	                   *, execution: Execution | None = None) -> tuple[Any, Any]:
+		"""Return (-phi_x, -phi_y) at paired points, or on the grid if both are omitted."""
+		return self._evaluator(execution).electric_field(t, x, y)
 
 	def gyroaverage(self, rho: float) -> Potential:
 		"""Return the Larmor-circle average of every field at radius ``rho``.
@@ -479,27 +335,6 @@ class Potential:
 			metadata=self.metadata,
 			interpolation_order=self.interpolation_order,
 		)
-
-	def _validate_derivatives(self, dx: int, dy: int, dt: int) -> None:
-		"""Validate derivative orders supported by the configured splines."""
-		if (
-			isinstance(dt, (bool, np.bool_))
-			or not isinstance(dt, (int, np.integer))
-			or dt not in (0, 1, 2)
-		):
-			raise ValueError("`dt` must be 0, 1, or 2.")
-		for derivative, name in ((dx, "dx"), (dy, "dy")):
-			if (
-				isinstance(derivative, (bool, np.bool_))
-				or not isinstance(derivative, (int, np.integer))
-				or derivative < 0
-			):
-				raise ValueError(f"`{name}` must be a non-negative integer.")
-			if derivative >= self.interpolation_order:
-				raise ValueError(
-					f"`{name}` must be at most {self.interpolation_order - 1} "
-					f"for interpolation order {self.interpolation_order}."
-				)
 
 
 __all__ = ["Potential"]

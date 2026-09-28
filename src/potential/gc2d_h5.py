@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from os import PathLike
 from pathlib import Path
 from types import MappingProxyType
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 import h5py
 import numpy as np
@@ -24,7 +24,10 @@ from scipy import ndimage
 from scipy.interpolate import RectBivariateSpline
 
 from .grid import Grid
-from .potential import Potential, _readonly_array
+from .prepared import _readonly_array
+
+if TYPE_CHECKING:
+	from .potential import Potential
 
 
 DEFAULT_CHARACTERISTIC_LENGTH = 0.06
@@ -205,6 +208,21 @@ class GC2DH5Metadata:
 				self.spatial_normalization,
 			),
 		)
+
+
+@dataclass(frozen=True, slots=True)
+class _GC2DH5Data:
+	"""Normalized samples and provenance, before runtime spline preparation.
+
+	Mean samples use (nx, ny), modes use (mode_count, nx, ny), and frequencies
+	are cycles per normalized time, following the common potential convention.
+	"""
+
+	grid: Grid
+	mean: np.ndarray | None
+	modes: np.ndarray | None
+	frequencies: np.ndarray
+	metadata: GC2DH5Metadata
 
 
 def _grid_from_validated_axes(x: np.ndarray, y: np.ndarray) -> Grid:
@@ -426,6 +444,40 @@ def load_gc2d_h5_potential(
 	positive-frequency fields and no explicit ``characteristic_frequency``, the
 	normalization factor remains one because no temporal scale can be inferred.
 	"""
+	# Resolve the runtime class only at construction time: the data preparation
+	# module must also be importable by Potential without a circular import.
+	from .potential import Potential
+
+	return Potential.from_gc2d_h5(
+		filename,
+		B=B,
+		characteristic_length=characteristic_length,
+		characteristic_frequency=characteristic_frequency,
+		indx=indx,
+		nx=nx,
+		ny=ny,
+		denoising=denoising,
+		sigma=sigma,
+		interpolation_order=interpolation_order,
+		spatial_normalization=spatial_normalization,
+	)
+
+
+def _load_gc2d_h5_data(
+	filename: str | PathLike[str],
+	*,
+	B: float,
+	characteristic_length: float,
+	characteristic_frequency: float | None,
+	indx: int | Sequence[int] | np.ndarray | None,
+	nx: int | None,
+	ny: int | None,
+	denoising: bool,
+	sigma: float,
+	interpolation_order: int,
+	spatial_normalization: SpatialNormalization,
+) -> _GC2DH5Data:
+	"""Read and normalize GC2D fields without constructing a runtime potential."""
 	# Convert public numeric inputs once. The validated local names below carry
 	# their physical meaning and avoid repeating implicit scalar conversions.
 	magnetic_field = float(B)
@@ -613,8 +665,8 @@ def load_gc2d_h5_potential(
 		ny=ny,
 		interpolation_order=interpolation_order,
 	)
-	# Construct persistent periodic splines and attach both dimensionless runtime
-	# data and dimensional provenance to the returned potential object.
+	# Keep dimensional provenance alongside the normalized samples; the runtime
+	# constructor prepares persistent periodic splines from these data.
 	metadata = GC2DH5Metadata(
 		source_field_indices=selected_source_indices,
 		source_x=source_x,
@@ -629,13 +681,12 @@ def load_gc2d_h5_potential(
 		source_path=path,
 		spatial_normalization=spatial_normalization,
 	)
-	return Potential(
+	return _GC2DH5Data(
 		_grid_from_validated_axes(x, y),
 		mean=selected_mean,
 		modes=selected_modes,
 		frequencies=selected_frequencies,
 		metadata=metadata,
-		interpolation_order=interpolation_order,
 	)
 
 
