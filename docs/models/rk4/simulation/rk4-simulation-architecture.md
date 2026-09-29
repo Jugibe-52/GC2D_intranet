@@ -200,3 +200,7 @@ remain separate in `options=ExecutionOptions(...)`. See the
 [executor contract](../../../simulation/execution.md) for the extension interface.
 The numerical stages, projection equations and integration controllers described
 above remain inside this execution boundary.
+
+`Execution_Modal` now implements this boundary for remote NumPy/SciPy CPU
+integrations. Results return to the local machine for validation and subsequent
+persistence; see the [Modal executor guide](../../../simulation/modal-execution.md).

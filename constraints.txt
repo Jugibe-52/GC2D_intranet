@@ -13,3 +13,5 @@ mypy==1.20.2
 # Optional JAX evaluator; these constraints do not install the extra by default.
 jax==0.7.1
 jaxlib==0.7.1
+# Optional remote integration client; installed only with the modal extra.
+modal==1.6.0

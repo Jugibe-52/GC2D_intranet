@@ -44,6 +44,7 @@ namespaces = false
 [project.optional-dependencies]
 # Optional field evaluation and integration; GPU needs a platform-specific install.
 jax = ["jax>=0.7.1,<1"]
+modal = ["modal>=1.6,<2"]
 visualization = ["matplotlib>=3.8,<4"]
 notebook = [
 	"matplotlib>=3.8,<4",

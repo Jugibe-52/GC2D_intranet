@@ -51,6 +51,9 @@ delegates the complete integration to a local `Execution` by default. Use
 or supply a subclass overriding `run`. Executors do not configure runtime
 resources; backend options remain separate. See the
 [executor contract and migration](docs/simulation/execution.md).
+Use `Execution_Modal` from `execution` for complete NumPy/SciPy or JAX CPU integrations on
+a deployed Modal Function. Results return locally before an explicit bucket
+save; see the [Modal deployment and recovery guide](docs/simulation/modal-execution.md).
 `Solution` checks array structure and owns immutable
 copies; `simulate` checks agreement with the requested times and initial state.
 

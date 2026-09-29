@@ -109,3 +109,70 @@ remain separate in `options=ExecutionOptions(...)`. See the
 [executor contract](../../../simulation/execution.md) for the extension interface.
 The numerical stages, projection equations and integration controllers described
 above remain inside this execution boundary.
+
+`Execution_Modal` now implements this boundary for remote NumPy/SciPy and JAX CPU
+integrations. Results return to the local machine for validation and subsequent
+persistence; see the [Modal executor guide](../../../simulation/modal-execution.md).
+
+## Modal JAX CPU star study
+
+The local development study
+`notebooks/developements/poincare_section/modal_jax_bm4midpoint_star_48_10_cycles_50_steps/`
+uses the canonical `BM4Midpoint` through `simulation.runner.simulate` and
+`Execution_Modal`. The reusable composition is `studies.modal_cpu_comparison`;
+resource settings belong to `examples/modal_jax_cpu_app.py`.
+It compares JAX float64 on CPU allocations of 1, 2 and 4 cores with identical
+48-particle inputs: eight arms, six inclusive radii from 0.05 to 0.35 of the
+cell radius R=L/2, centered in the periodic cell, first arm along +x. The generic
+`initial_conditions.star.radial_star` accepts an optional `inner_radius`; its
+existing default spacing is unchanged.
+
+The field is reconstructed from the verified PHI_2 HDF5 data with B=1.5,
+characteristic length 0.06, source selection (0,1), cubic interpolation,
+rho=0.3 and coupling frequency pi/8. Ten forcing cycles at 50 complete steps
+per cycle give h=0.02, 500 steps and 501 aligned states. BM4Midpoint uses an
+arithmetic-mean projection and no Newton solve. Each worker runs one first
+integration and three warm repetitions; metadata records timings, hardware
+and cross-CPU trajectory discrepancies. The paired visualization notebook
+only loads saved bucket archives and plots their integer-cycle sections.
+This is a short resource-scaling experiment with no independent accuracy
+reference. See the [Modal execution guide](../../../simulation/modal-execution.md)
+for deployment, transport recovery and persistence behavior.
+
+## Local JAX long-time star study
+
+`studies.local_jax_star` prepares the same verified HDF5 physics for a local
+`Execution` with JAX CPU float64. Its matched manual-run notebooks are under
+`notebooks/developements/poincare_section/local_jax_bm4midpoint_star_41_5000_cycles_50_steps/`.
+They specify one shared central particle and five particles per arm on eight
+arms, at positive radii (0.14, 0.28, 0.42, 0.56, 0.70) R with R=L/2: 41
+particles in total. The canonical geometry factory `radial_star` now accepts
+`include_center=True`, which prepends one central particle and preserves the
+existing arm-major order. Its default remains center-free.
+
+The local study performs 5000 forcing cycles at 50 complete steps per cycle,
+retaining all 250001 states. Consecutive 50-cycle blocks continue from the
+previous accepted physical state at absolute time. This is valid for the
+arithmetic-projected BM4Midpoint map with energy tracking disabled: both
+accepted spatial copies coincide after every step, and there is no nonlinear
+solver history to preserve. The same dynamics object keeps JAX bindings cached.
+The block schedule is recorded because floating-point time evaluation can
+differ from one uninterrupted compiled loop; no bitwise long-time equivalence
+is claimed. The study checks every block's step count, aligned output,
+arithmetic projection and absence of nonlinear unknowns.
+
+`diagnostics.run_progress.progress_log` writes flushed timestamped messages to
+the notebook and a local log file. It records completed cycles, percentage,
+block wall time, elapsed time and an estimated remaining time. A separate
+heartbeat thread reports during compilation, integration and upload, without
+calling Python observers inside JAX. Errors and interrupts retain tracebacks
+and propagate. `COMPLETED AND SAVED` follows successful publication only.
+Progress blocks are not restart checkpoints. The numerical result returns
+locally and is then saved to the configured bucket; failed uploads retain the
+ordinary persistence recovery archive and are reported as failures.
+
+`studies.h5_provenance.prepare_verified_h5_field` is shared with the Modal CPU
+comparison; the existing `prepare_cpu_star` name remains its supported study
+facade. `visualization.local_jax_star` reads saved states to plot initial
+geometry and block timings and export every integer-cycle return. This study
+does not extrapolate a short accuracy reference or certify 5000-cycle accuracy.

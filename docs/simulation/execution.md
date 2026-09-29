@@ -70,11 +70,14 @@ arguments: `run_rk4_execution_comparison(..., executions=(options, ...))` and
 
 ## Extending execution
 
-A future `Execution_Modal(Execution)` should override the same `run` signature,
-transfer the complete job, execute the numerical method in the remote environment
-and return compatible `IntegrationData`. That remote implementation, transport
-and deployment are not included here. Individual steps, potential evaluations
-and Newton corrections stay within the environment performing the integration.
+`Execution_Modal(Execution)` overrides the same `run` signature, transfers the
+complete job to a deployed Modal Function, and returns `IntegrationData` to the
+local machine. It uses durable call IDs for recovery and leaves any subsequent
+Backblaze upload to local persistence. Remote execution supports NumPy/SciPy and
+JAX CPU jobs with a suitably configured image. See the [Modal executor guide](modal-execution.md) for the
+separate deployment example, recovery contract and limitations. Individual steps,
+potential evaluations and Newton corrections stay within the environment
+performing the integration.
 Executors must accept the optional `options` keyword, preserve the requested
 method and sampling contract, and propagate failures.
 

@@ -5,6 +5,9 @@ and the [integration contract](../simulation/integration-architecture.md).
 Eleven methods use fixed control; DOP853 and Radau supply adaptive control.
 Every model retains its own numerical theory and detailed simulation diagram.
 Physical dynamics and potential contracts live under [dynamics](../dynamics/).
+`Execution_Modal` can execute a complete CPU integration remotely and return its
+physical history for local validation and persistence. The numerical methods
+keep their existing algorithms; see the [Modal executor contract](../simulation/modal-execution.md).
 
 | Public method | Canonical theory | Simulation architecture | Numerical scope |
 |---|---|---|---|
