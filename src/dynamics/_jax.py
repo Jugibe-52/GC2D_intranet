@@ -5,7 +5,7 @@ from typing import Any
 
 import jax.numpy as jnp
 
-from contracts.execution import Execution
+from contracts.execution_options import ExecutionOptions
 from dynamics._equations import gc_velocity, fc_velocity, fc_hamiltonian
 from dynamics.gc import GuidingCenterDynamics
 from dynamics.fc import FullCyclotronDynamics
@@ -21,7 +21,7 @@ class JaxDynamics:
     GC and four for FC. The physical equations are shared with CPU dynamics.
     """
 
-    def __init__(self, potential: Potential, execution: Execution, dimension: int,
+    def __init__(self, potential: Potential, execution: ExecutionOptions, dimension: int,
                  velocity_scale: float, electric_scale: float, frequency: float) -> None:
         # Reuse the potential's existing device buffers and canonical spline data.
         evaluator = potential._evaluator(execution)
@@ -72,13 +72,13 @@ class JaxDynamics:
 
 
 @lru_cache(maxsize=16)
-def _bind(potential: Potential, execution: Execution, dimension: int,
+def _bind(potential: Potential, execution: ExecutionOptions, dimension: int,
           velocity_scale: float, electric_scale: float, frequency: float) -> JaxDynamics:
     """Bounded reuse of compiled function identities and immutable field data."""
     return JaxDynamics(potential, execution, dimension, velocity_scale, electric_scale, frequency)
 
 
-def bind_dynamics(dynamics: DynamicalSystem, execution: Execution) -> JaxDynamics:
+def bind_dynamics(dynamics: DynamicalSystem, execution: ExecutionOptions) -> JaxDynamics:
     """Snapshot only known equations; never discard a subclass's overrides."""
     if type(dynamics) is GuidingCenterDynamics:
         return _bind(dynamics.effective_potential, execution, 2, 0., 1., 0.)

@@ -1,22 +1,24 @@
 # JAX execution across numerical methods
 
-Every built-in numerical method accepts the same optional execution selection:
+Every built-in numerical method accepts the same optional backend selection.
+`simulate` delegates the complete job to an `Execution` (local by default),
+independently of these options; see the [executor contract](execution.md).
 
 ```python
 import jax
-from contracts.execution import Execution
+from contracts.execution_options import ExecutionOptions
 from methods.extended.bm4 import BM4Implicit
 from simulation.runner import simulate
 
 jax.config.update("jax_enable_x64", True)
 solution = simulate(
     problem, BM4Implicit(track_energy=True), request,
-    execution=Execution(backend="jax", device="cpu"),
+    options=ExecutionOptions(backend="jax", device="cpu"),
 )
 # On a configured JAX accelerator: device="gpu", device_index=0.
 ```
 
-Omitting `execution` or supplying `Execution()` retains the established
+Omitting `options` or supplying `ExecutionOptions()` retains the established
 SciPy/NumPy path. JAX is optional (`pip install -c constraints.txt -e '.[jax]'`)
 and is never imported by default CPU execution. GPU operation also requires a
 compatible accelerator installation. Float64 and device availability are checked
@@ -94,7 +96,7 @@ not universal bitwise equality or identical adaptive step grids.
 
 ## Lifecycle, callbacks and measurement
 
-`IntegrationMethod.new_run` binds an immutable `Execution` choice before method
+`IntegrationMethod.new_run` binds an immutable `ExecutionOptions` choice before method
 initialization. Configured method instances remain reusable and do not retain
 run states. The common fixed JAX driver uses `lax.scan` for accepted steps and
 independent shortened maps for off-grid output, preserving the CPU endpoint

@@ -163,3 +163,15 @@ checks sixth-order convergence for nonlinear nonautonomous dynamics with both
 root formulations and Newton/Broyden, signed reversal, the outer constraint,
 analytic versus finite-difference tangents and symplecticity. The ABBA6 change
 is intentional; the other methods preserve their numerical maps.
+
+## Complete integration executor
+
+`simulate(problem, method, request, execution=Execution())` delegates the complete
+integration to `Execution.run`. Import the executor with `from execution import
+Execution`. It uses the existing local method implementation and does not
+configure runtime resources. A subclass can replace the whole integration while
+`simulate` retains final `Solution` construction and validation. Backend choices
+remain separate in `options=ExecutionOptions(...)`. See the
+[executor contract](../../../simulation/execution.md) for the extension interface.
+The numerical stages, projection equations and integration controllers described
+above remain inside this execution boundary.

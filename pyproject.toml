@@ -26,6 +26,7 @@ include = [
 	"contracts*",
 	"diagnostics*",
 	"dynamics*",
+	"execution*",
 	"formulations*",
 	"initial_conditions*",
 	"integration*",

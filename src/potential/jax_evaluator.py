@@ -8,7 +8,7 @@ from typing import Any, Literal
 
 import numpy as np
 
-from contracts.execution import Execution
+from contracts.execution_options import ExecutionOptions
 
 from ._evaluation import PotentialEvaluator
 
@@ -28,7 +28,7 @@ class JaxPotentialEvaluator(PotentialEvaluator):
     ) -> None:
         """Copy SciPy knots, coefficients, and sampled fields to one device."""
         super().__init__(potential)
-        execution = Execution(backend="jax", device=device, device_index=device_index)
+        execution = ExecutionOptions(backend="jax", device=device, device_index=device_index)
         try:
             import jax
         except ImportError as exc:

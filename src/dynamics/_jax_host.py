@@ -11,7 +11,7 @@ from typing import Any, ClassVar
 import jax
 import numpy as np
 
-from contracts.execution import Execution
+from contracts.execution_options import ExecutionOptions
 from dynamics.protocols import DynamicalSystem
 from dynamics._jax import JaxDynamics, bind_dynamics
 
@@ -54,7 +54,7 @@ def _host(dynamics: JaxDynamics) -> _HostGC:
     return (_HostGC if dynamics.dimension == 2 else _HostFC)(dynamics)
 
 
-def bind_host_dynamics(dynamics: DynamicalSystem, execution: Execution) -> DynamicalSystem:
+def bind_host_dynamics(dynamics: DynamicalSystem, execution: ExecutionOptions) -> DynamicalSystem:
     """Reuse compiled callables across runs, checking precision on every call."""
     bound = bind_dynamics(dynamics, execution)
     bound.evaluator.check_ready()

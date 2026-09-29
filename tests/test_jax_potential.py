@@ -41,12 +41,12 @@ def without_jax(name, *args, **kwargs):
     return original(name, *args, **kwargs)
 builtins.__import__ = without_jax
 import simulation
-from contracts.execution import Execution
+from contracts.execution_options import ExecutionOptions
 from potential import Grid, Potential, JaxPotentialEvaluator
 p = Potential(Grid.periodic(8, 8))
 assert p.evaluate(0., 0., 0.) == 0.
 try:
-    p.evaluate(0., 0., 0., execution=Execution(backend='jax'))
+    p.evaluate(0., 0., 0., execution=ExecutionOptions(backend='jax'))
 except ImportError as exc:
     assert "optional 'jax' extra" in str(exc)
 else:

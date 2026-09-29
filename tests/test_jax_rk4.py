@@ -7,7 +7,7 @@ import unittest
 
 import numpy as np
 
-from contracts.execution import Execution
+from contracts.execution_options import ExecutionOptions
 from contracts.problem import InitialValueProblem
 from contracts.request import SimulationRequest
 from dynamics.gc import GuidingCenterDynamics
@@ -46,14 +46,14 @@ class Block:
         if fullname == "jax" or fullname.startswith("jax."):
             raise ImportError("JAX deliberately unavailable")
 sys.meta_path.insert(0, Block())
-from contracts.execution import Execution
+from contracts.execution_options import ExecutionOptions
 from contracts.request import SimulationRequest
 from methods.classical.rk4 import RK4
 from simulation.runner import simulate
 p, r = problem(), SimulationRequest.uniform(t_span=(0., .01), max_step=.01)
-simulate(p, RK4(), r, execution=Execution())
+simulate(p, RK4(), r, options=ExecutionOptions())
 try:
-    simulate(p, RK4(), r, execution=Execution(backend="jax"))
+    simulate(p, RK4(), r, options=ExecutionOptions(backend="jax"))
 except ImportError as error:
     assert "optional" in str(error)
 else:
@@ -65,10 +65,10 @@ else:
 
     def test_default_and_explicit_cpu_execution_match(self):
         p, r = problem(), SimulationRequest.uniform(t_span=(0., .03), max_step=.01)
-        a, b = simulate(p, RK4(), r), simulate(p, RK4(), r, execution=Execution())
+        a, b = simulate(p, RK4(), r), simulate(p, RK4(), r, options=ExecutionOptions())
         np.testing.assert_array_equal(a.states, b.states)
-        with self.assertRaisesRegex(TypeError, "Execution"):
-            simulate(p, RK4(), r, execution="jax")
+        with self.assertRaisesRegex(TypeError, "ExecutionOptions"):
+            simulate(p, RK4(), r, options="jax")
 
 
 @unittest.skipUnless(JAX_AVAILABLE, "Optional JAX dependency is not installed")
@@ -79,7 +79,7 @@ class JaxRK4Tests(unittest.TestCase):
         cls.jax = jax
         cls.previous_x64 = jax.config.read("jax_enable_x64")
         jax.config.update("jax_enable_x64", True)
-        cls.execution = Execution(backend="jax")
+        cls.execution = ExecutionOptions(backend="jax")
 
     @classmethod
     def tearDownClass(cls):
@@ -88,7 +88,7 @@ class JaxRK4Tests(unittest.TestCase):
     def assert_equivalent(self, p, request, tracking, execution=None):
         method = RK4(track_energy=tracking)
         reference = simulate(p, method, request)
-        result = simulate(p, method, request, execution=execution or self.execution)
+        result = simulate(p, method, request, options=execution or self.execution)
         np.testing.assert_allclose(result.states, reference.states, rtol=2e-12, atol=2e-12)
         np.testing.assert_array_equal(result.t, reference.t)
         np.testing.assert_array_equal(result.states[:, 0], p.initial_state)
@@ -116,7 +116,7 @@ class JaxRK4Tests(unittest.TestCase):
         p = problem()
         nodes = np.linspace(0., .5, 6)
         dense = np.unique(np.concatenate((nodes, [.02, .08, .21, .22, .49])))
-        sampled = simulate(p, RK4(), SimulationRequest((0., .5), .1, dense), execution=self.execution)
+        sampled = simulate(p, RK4(), SimulationRequest((0., .5), .1, dense), options=self.execution)
         sparse = self.assert_equivalent(p, SimulationRequest((0., .5), .1, nodes[[0, 2, 5]]), False)
         np.testing.assert_allclose(sampled.states[:, np.searchsorted(dense, sparse.t)], sparse.states,
                                    rtol=1e-14, atol=1e-14)
@@ -137,28 +137,28 @@ class JaxRK4Tests(unittest.TestCase):
         exact = .4 + amplitude * np.sin(2*np.pi*.7) / (2*np.pi*.7)
         errors = []
         for h in (.2, .1, .05):
-            result = simulate(p, RK4(), SimulationRequest((0., 1.), h, np.array([0., 1.])), execution=self.execution)
+            result = simulate(p, RK4(), SimulationRequest((0., 1.), h, np.array([0., 1.])), options=self.execution)
             errors.append(abs(result.states[1, -1] - exact))
         self.assertTrue(all(14 < a/b < 18 for a, b in zip(errors[:-1], errors[1:])), errors)
 
     def test_precision_and_unsupported_capabilities_fail_explicitly(self):
         p, r = problem(), SimulationRequest.uniform(t_span=(0., .02), max_step=.01)
-        simulate(p, RK4(), r, execution=self.execution)
+        simulate(p, RK4(), r, options=self.execution)
         try:
             self.jax.config.update("jax_enable_x64", False)
             with self.assertRaisesRegex(RuntimeError, "float64"):
-                simulate(p, RK4(), r, execution=self.execution)
+                simulate(p, RK4(), r, options=self.execution)
         finally:
             self.jax.config.update("jax_enable_x64", True)
         for method in (RK4(progress=True), RK4(step_observer=lambda event: None)):
             with self.assertRaisesRegex(NotImplementedError, "callbacks"):
-                simulate(p, method, r, execution=self.execution)
+                simulate(p, method, r, options=self.execution)
         class CustomDynamics(GuidingCenterDynamics):
             def vector_field(self, time, state):
                 return np.zeros_like(state)
         custom = InitialValueProblem(CustomDynamics(p.dynamics.potential), p.initial_configuration)
         with self.assertRaisesRegex(TypeError, "built-in"):
-            simulate(custom, RK4(), r, execution=self.execution)
+            simulate(custom, RK4(), r, options=self.execution)
 
     def test_near_endpoints_and_unsaved_nonfinite_states(self):
         p = problem()
@@ -171,18 +171,18 @@ class JaxRK4Tests(unittest.TestCase):
         )
         with self.assertRaisesRegex(ValueError, "non-finite"):
             simulate(InitialValueProblem(fc, initial), RK4(),
-                     SimulationRequest((0., 1.), .1, np.array([0., 1.])), execution=self.execution)
+                     SimulationRequest((0., 1.), .1, np.array([0., 1.])), options=self.execution)
 
     def test_gpu_equivalence_or_explicit_unavailability(self):
         p, r = problem(), SimulationRequest.uniform(t_span=(0., .02), max_step=.01)
-        execution = Execution(backend="jax", device="gpu")
+        execution = ExecutionOptions(backend="jax", device="gpu")
         try:
             devices = self.jax.devices("gpu")
         except RuntimeError:
             devices = []
         if not devices:
             with self.assertRaisesRegex(RuntimeError, "unavailable"):
-                simulate(p, RK4(), r, execution=execution)
+                simulate(p, RK4(), r, options=execution)
             self.skipTest("No JAX GPU is available; explicit failure was verified")
         self.assert_equivalent(p, r, True, execution)
 

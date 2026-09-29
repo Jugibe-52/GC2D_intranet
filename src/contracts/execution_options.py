@@ -1,4 +1,4 @@
-"""Execution choices independent of physical and numerical parameters."""
+"""Immutable backend choices independent of the executor and physical data."""
 
 from dataclasses import dataclass
 from numbers import Integral
@@ -6,7 +6,7 @@ from typing import Literal
 
 
 @dataclass(frozen=True, slots=True)
-class Execution:
+class ExecutionOptions:
     """Select the library and device for field evaluation and integration.
 
     JAX supports every built-in method with its existing GC/FC compatibility.
@@ -34,4 +34,4 @@ class Execution:
             raise ValueError("SciPy evaluation requires device='cpu' and device_index=0.")
 
 
-__all__ = ["Execution"]
+__all__ = ["ExecutionOptions"]

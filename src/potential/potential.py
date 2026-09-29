@@ -22,7 +22,7 @@ import numpy as np
 from numpy.fft import fft2, fftfreq, ifft2
 from scipy.special import jv
 
-from contracts.execution import Execution
+from contracts.execution_options import ExecutionOptions
 
 from .grid import Grid
 from .gc2d_h5 import (
@@ -34,7 +34,7 @@ from .prepared import PreparedPotential
 from ._evaluation import PotentialEvaluator
 from .scipy_evaluator import ScipyPotentialEvaluator
 
-_DEFAULT_EXECUTION = Execution()
+_DEFAULT_EXECUTION = ExecutionOptions()
 
 
 def _random_positive_frequency_mode(
@@ -107,7 +107,7 @@ class Potential:
 		"""
 		self._prepared = PreparedPotential.build(grid, mean, modes, frequencies, interpolation_order)
 		self.metadata = metadata
-		self._evaluators: dict[Execution, PotentialEvaluator] = {}
+		self._evaluators: dict[ExecutionOptions, PotentialEvaluator] = {}
 
 	@property
 	def prepared(self) -> PreparedPotential:
@@ -139,11 +139,11 @@ class Potential:
 		"""Read-only positive harmonic frequencies in cycles per normalized time."""
 		return self._prepared.frequencies
 
-	def _evaluator(self, execution: Execution | None) -> PotentialEvaluator:
+	def _evaluator(self, execution: ExecutionOptions | None) -> PotentialEvaluator:
 		"""Resolve a per-call choice and reuse the matching prepared evaluator."""
 		choice = _DEFAULT_EXECUTION if execution is None else execution
-		if not isinstance(choice, Execution):
-			raise TypeError("`execution` must be an Execution instance or None.")
+		if not isinstance(choice, ExecutionOptions):
+			raise TypeError("`execution` must be an ExecutionOptions instance or None.")
 		if choice not in self._evaluators:
 			if choice.backend == "scipy":
 				evaluator: PotentialEvaluator = ScipyPotentialEvaluator(self.prepared)
@@ -261,10 +261,10 @@ class Potential:
 
 	@overload
 	def evaluate(self, t: Any, x: Any, y: Any, *, dx: int = 0, dy: int = 0, dt: int = 0,
-	             execution: Execution) -> Any: ...
+	             execution: ExecutionOptions) -> Any: ...
 
 	def evaluate(self, t: Any, x: Any, y: Any, *, dx: int = 0, dy: int = 0, dt: int = 0,
-	             execution: Execution | None = None) -> Any:
+	             execution: ExecutionOptions | None = None) -> Any:
 		"""Evaluate paired points or derivatives using one explicit execution choice.
 
 		Coordinates must have the same shape; time broadcasts against that shape.
@@ -277,9 +277,9 @@ class Potential:
 	def evaluate_grid(self, t: Any, *, dt: int = 0, execution: None = None) -> np.ndarray: ...
 
 	@overload
-	def evaluate_grid(self, t: Any, *, dt: int = 0, execution: Execution) -> Any: ...
+	def evaluate_grid(self, t: Any, *, dt: int = 0, execution: ExecutionOptions) -> Any: ...
 
-	def evaluate_grid(self, t: Any, *, dt: int = 0, execution: Execution | None = None) -> Any:
+	def evaluate_grid(self, t: Any, *, dt: int = 0, execution: ExecutionOptions | None = None) -> Any:
 		"""Return grid values with spatial axes preceding any axes contributed by time."""
 		return self._evaluator(execution).evaluate_grid(t, dt=dt)
 
@@ -289,10 +289,10 @@ class Potential:
 
 	@overload
 	def electric_field(self, t: Any, x: Any = None, y: Any = None,
-	                   *, execution: Execution) -> tuple[Any, Any]: ...
+	                   *, execution: ExecutionOptions) -> tuple[Any, Any]: ...
 
 	def electric_field(self, t: Any, x: Any = None, y: Any = None,
-	                   *, execution: Execution | None = None) -> tuple[Any, Any]:
+	                   *, execution: ExecutionOptions | None = None) -> tuple[Any, Any]:
 		"""Return (-phi_x, -phi_y) at paired points, or on the grid if both are omitted."""
 		return self._evaluator(execution).electric_field(t, x, y)
 

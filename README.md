@@ -45,14 +45,20 @@ code imports from the defining modules. The former `simulation.methods.*`,
 been removed. See the [import policy and migration table](docs/simulation/integration-architecture.md#public-api-and-imports)
 for canonical paths and the [retired API migration](docs/simulation/api-migration.md).
 
-`simulate(problem, method, request)` is the public execution entry point. `Solution` checks array structure and owns immutable
+`simulate(problem, method, request)` is the public execution entry point. It
+delegates the complete integration to a local `Execution` by default. Use
+`from execution import Execution` and pass `execution=Execution()` explicitly,
+or supply a subclass overriding `run`. Executors do not configure runtime
+resources; backend options remain separate. See the
+[executor contract and migration](docs/simulation/execution.md).
+`Solution` checks array structure and owns immutable
 copies; `simulate` checks agreement with the requested times and initial state.
 
-Standalone potential calls accept an optional `Execution` configuration from
-`contracts.execution`: `potential.evaluate(t, x, y, execution=Execution(backend="jax", device="cpu"))`.
+Standalone potential calls accept an optional `ExecutionOptions` configuration from
+`contracts.execution_options`: `potential.evaluate(t, x, y, execution=ExecutionOptions(backend="jax", device="cpu"))`.
 The same option is supported by `electric_field` and `evaluate_grid`. Omitting
 it preserves SciPy/CPU execution. All built-in methods accept the same choice
-through `simulate(problem, method, request, execution=Execution(backend="jax", device="cpu"))`.
+through `simulate(problem, method, request, options=ExecutionOptions(backend="jax", device="cpu"))`.
 Enable `jax_enable_x64` first; select `device="gpu"` on a compatible installation.
 The eleven fixed-step methods compile their stages, nonlinear/projection solves
 and time loop. DOP853/Radau retain SciPy adaptive control and use JAX for batched

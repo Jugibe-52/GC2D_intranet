@@ -88,22 +88,22 @@ maximum absolute sampled balance error over all particles.
 
 ```python
 import jax
-from contracts.execution import Execution
+from contracts.execution_options import ExecutionOptions
 from methods.classical.rk4 import RK4
 from simulation.runner import simulate
 
 jax.config.update("jax_enable_x64", True)
 solution = simulate(
     problem, RK4(track_energy=True), request,
-    execution=Execution(backend="jax", device="cpu"),
+    options=ExecutionOptions(backend="jax", device="cpu"),
 )
 # Use device="gpu", device_index=0 on a configured JAX GPU installation.
 ```
 
-`Execution()` or omission preserves the existing SciPy/NumPy CPU path. The JAX
+`ExecutionOptions()` or omission preserves the existing SciPy/NumPy CPU path. The JAX
 extra is optional; CPU integration never imports it. JAX requires explicit
 float64 configuration and available hardware, with no automatic fallback.
-`Execution` describes resources separately from physical data and RK4 controls.
+`ExecutionOptions` describes resources separately from physical data and RK4 controls.
 
 Both routes use the canonical RK4 stages and passive quadrature in
 `methods/classical/_rk4_core.py`. The default controller retains its Python
@@ -188,3 +188,15 @@ settings, particle batches, physical-only observers, adaptive control, per-parti
 time alignment and energy normalization. Model tests retain order, projection,
 Jacobian and nonlinear-solver checks. The pre-change physical trajectories are
 also compared with the migrated implementations on short nonautonomous runs.
+
+## Complete integration executor
+
+`simulate(problem, method, request, execution=Execution())` delegates the complete
+integration to `Execution.run`. Import the executor with `from execution import
+Execution`. It uses the existing local method implementation and does not
+configure runtime resources. A subclass can replace the whole integration while
+`simulate` retains final `Solution` construction and validation. Backend choices
+remain separate in `options=ExecutionOptions(...)`. See the
+[executor contract](../../../simulation/execution.md) for the extension interface.
+The numerical stages, projection equations and integration controllers described
+above remain inside this execution boundary.

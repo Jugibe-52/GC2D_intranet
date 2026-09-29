@@ -2,18 +2,18 @@
 
 `Potential.evaluate`, `electric_field`, and `evaluate_grid` accept a keyword-only
 `execution` argument. Import its immutable configuration from
-`contracts.execution.Execution`. Omitting it always selects SciPy on CPU and
+`contracts.execution_options.ExecutionOptions`. Omitting it always selects SciPy on CPU and
 returns NumPy arrays. An explicit JAX choice returns native JAX arrays.
 
 ```python
-from contracts.execution import Execution
+from contracts.execution_options import ExecutionOptions
 
-scipy_cpu = Execution()
-jax_cpu = Execution(backend="jax", device="cpu")
-jax_gpu = Execution(backend="jax", device="gpu", device_index=0)
+scipy_cpu = ExecutionOptions()
+jax_cpu = ExecutionOptions(backend="jax", device="cpu")
+jax_gpu = ExecutionOptions(backend="jax", device="gpu", device_index=0)
 ```
 
-`Execution` validates backend/device combinations without importing JAX or
+`ExecutionOptions` validates backend/device combinations without importing JAX or
 initializing hardware. SciPy supports CPU index 0 only. Device availability is
 checked when the selected evaluator is first used. The same contract now selects
 execution for all built-in methods through `simulation.runner.simulate(problem,
@@ -37,14 +37,14 @@ for that machine; the CPU extra alone does not configure GPU support.
 ```python
 import jax
 import numpy as np
-from contracts.execution import Execution
+from contracts.execution_options import ExecutionOptions
 from potential import load_gc2d_h5_potential
 
 # Configure precision once, before preparing or compiling calculations.
 jax.config.update("jax_enable_x64", True)
 potential = load_gc2d_h5_potential("data/potential/V1/PHI_2.h5")
 effective = potential.gyroaverage(0.3)
-execution = Execution(backend="jax", device="cpu")
+execution = ExecutionOptions(backend="jax", device="cpu")
 # For a configured accelerator: device="gpu", device_index=0.
 
 x = np.array([0.1, 0.2, 0.3])
@@ -94,7 +94,7 @@ remain available for advanced use and accept either a `Potential` or its
 `PreparedPotential` record. Their package exports are explicit; no import
 aliases or retired compatibility modules are introduced.
 
-Evaluators are cached per potential and equal `Execution` values. Reusing the
+Evaluators are cached per potential and equal `ExecutionOptions` values. Reusing the
 configuration across value, grid, and electric-field calls reuses the device
 buffers. A JAX call never changes the default of a subsequent call without
 `execution`. Initialization inside an outer `jax.jit` materializes constant

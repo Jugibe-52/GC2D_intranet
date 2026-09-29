@@ -8,7 +8,7 @@ from typing import Any
 
 import numpy as np
 
-from contracts.execution import Execution
+from contracts.execution_options import ExecutionOptions
 from contracts.problem import InitialValueProblem
 from contracts.request import SimulationRequest
 from dynamics.gc import GuidingCenterDynamics
@@ -53,7 +53,7 @@ class PoincareStarResult:
 
 
 def run_poincare_star(source: str | Path, config: PoincareStarConfig, *,
-                      execution: Execution) -> PoincareStarResult:
+                      execution: ExecutionOptions) -> PoincareStarResult:
     """Integrate every particle together, saving the initial state and each cycle.
 
     The dimensional stream function is (T0/B)*Phi, so the GC drift has units
@@ -96,7 +96,7 @@ def run_poincare_star(source: str | Path, config: PoincareStarConfig, *,
     method = BM4Midpoint(coupling_frequency=config.coupling_frequency,
                          track_energy=False, progress=False, step_observer=None)
     start = perf_counter()
-    solution = simulate(problem, method, request, execution=execution)
+    solution = simulate(problem, method, request, options=execution)
     elapsed = perf_counter() - start
     particles = config.arms * config.particles_per_arm
     if (solution.states.shape != (2 * particles, config.cycles + 1)

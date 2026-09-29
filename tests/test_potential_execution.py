@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 import numpy as np
 
-from contracts.execution import Execution
+from contracts.execution_options import ExecutionOptions
 from potential import Grid, Potential, ScipyPotentialEvaluator
 
 
@@ -25,21 +25,21 @@ class ExecutionTests(unittest.TestCase):
     """Configuration is immutable, hashable, and independent of optional JAX."""
 
     def test_defaults_and_valid_choices(self) -> None:
-        self.assertEqual(Execution(), Execution(backend="scipy", device="cpu"))
+        self.assertEqual(ExecutionOptions(), ExecutionOptions(backend="scipy", device="cpu"))
         for device in ("cpu", "gpu"):
-            execution = Execution(backend="jax", device=device, device_index=np.int64(2))
+            execution = ExecutionOptions(backend="jax", device=device, device_index=np.int64(2))
             self.assertEqual(execution, pickle.loads(pickle.dumps(execution)))
-            self.assertEqual(hash(execution), hash(Execution(backend="jax", device=device, device_index=2)))
+            self.assertEqual(hash(execution), hash(ExecutionOptions(backend="jax", device=device, device_index=2)))
             self.assertIs(type(execution.device_index), int)
         with self.assertRaises(FrozenInstanceError):
-            Execution().device = "gpu"
+            ExecutionOptions().device = "gpu"
 
     def test_invalid_choices(self) -> None:
         for options in ({"backend": "numpy"}, {"device": "tpu"}, {"device": "gpu"},
                         {"device_index": 1}, {"device_index": -1}, {"device_index": True},
                         {"device_index": np.bool_(False)}, {"device_index": 0.5}):
             with self.subTest(options=options), self.assertRaises(ValueError):
-                Execution(**options)
+                ExecutionOptions(**options)
 
 
 class ScipyExecutionTests(unittest.TestCase):
@@ -49,7 +49,7 @@ class ScipyExecutionTests(unittest.TestCase):
         potential = _field()
         direct = ScipyPotentialEvaluator(potential.prepared)
         expected = direct.evaluate(0.3, 0.4, 0.5, dx=1)
-        for execution in (None, Execution()):
+        for execution in (None, ExecutionOptions()):
             result = potential.evaluate(0.3, 0.4, 0.5, dx=1, execution=execution)
             self.assertIsInstance(result, np.ndarray)
             np.testing.assert_array_equal(result, expected)
@@ -74,7 +74,7 @@ class ScipyExecutionTests(unittest.TestCase):
         for call in (lambda: potential.evaluate(0., 0., 0., execution="jax"),
                      lambda: potential.evaluate_grid(0., execution="jax"),
                      lambda: potential.electric_field(0., execution="jax")):
-            with self.assertRaisesRegex(TypeError, "Execution instance"):
+            with self.assertRaisesRegex(TypeError, "ExecutionOptions instance"):
                 call()
 
 
@@ -99,9 +99,9 @@ class JaxExecutionTests(unittest.TestCase):
 
         potential = _field()
         with patch("potential.jax_evaluator.JaxPotentialEvaluator", wraps=JaxPotentialEvaluator) as constructor:
-            result = potential.evaluate(0.3, 0.4, 0.5, execution=Execution(backend="jax"))
-            field = potential.electric_field(0.3, 0.4, 0.5, execution=Execution(backend="jax"))
-            grid = potential.evaluate_grid(0.3, execution=Execution(backend="jax"))
+            result = potential.evaluate(0.3, 0.4, 0.5, execution=ExecutionOptions(backend="jax"))
+            field = potential.electric_field(0.3, 0.4, 0.5, execution=ExecutionOptions(backend="jax"))
+            grid = potential.evaluate_grid(0.3, execution=ExecutionOptions(backend="jax"))
             self.assertEqual(constructor.call_count, 1)
         for value in (result, *field, grid):
             self.assertIsInstance(value, self.jax.Array)
@@ -118,13 +118,13 @@ class JaxExecutionTests(unittest.TestCase):
             expected = 2 * np.real(potential.modes[0, ..., None] * np.exp(1j * omega * time) * (1j * omega)**dt)
             if dt == 0:
                 expected += potential.mean[..., None]
-            for execution in (Execution(), Execution(backend="jax")):
+            for execution in (ExecutionOptions(), ExecutionOptions(backend="jax")):
                 np.testing.assert_allclose(potential.evaluate_grid(time, dt=dt, execution=execution),
                                            expected, rtol=3e-12, atol=3e-12)
 
     def test_first_call_inside_jit_does_not_cache_tracers(self) -> None:
         potential = _field()
-        execution = Execution(backend="jax")
+        execution = ExecutionOptions(backend="jax")
         with self.jax.checking_leaks():
             compiled = self.jax.jit(lambda t, x, y: potential.evaluate(t, x, y, dx=1, execution=execution))
             first = compiled(0.3, 0.4, 0.5)
@@ -137,7 +137,7 @@ class JaxExecutionTests(unittest.TestCase):
         from potential.jax_evaluator import JaxPotentialEvaluator
 
         potential = _field()
-        execution = Execution(backend="jax")
+        execution = ExecutionOptions(backend="jax")
         expected = potential.evaluate(0.3, 0.4, 0.5, execution=execution)
         restored = pickle.loads(pickle.dumps(potential))
         self.assertFalse(restored.mean.flags.writeable)
@@ -149,7 +149,7 @@ class JaxExecutionTests(unittest.TestCase):
 
     def test_cached_evaluation_rejects_disabled_float64_and_does_not_poison_default(self) -> None:
         potential = _field()
-        execution = Execution(backend="jax")
+        execution = ExecutionOptions(backend="jax")
         potential.evaluate(0.3, 0.4, 0.5, execution=execution).block_until_ready()
         self.jax.config.update("jax_enable_x64", False)
         try:
@@ -163,7 +163,7 @@ class JaxExecutionTests(unittest.TestCase):
         potential = _field()
         with patch.object(self.jax, "devices", side_effect=RuntimeError("Unavailable")):
             with self.assertRaisesRegex(RuntimeError, "gpu.*unavailable"):
-                potential.evaluate(0.3, 0.4, 0.5, execution=Execution(backend="jax", device="gpu"))
+                potential.evaluate(0.3, 0.4, 0.5, execution=ExecutionOptions(backend="jax", device="gpu"))
         self.assertIsInstance(potential.evaluate(0.3, 0.4, 0.5), np.ndarray)
 
 

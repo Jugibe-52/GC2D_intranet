@@ -5,7 +5,7 @@ GC2D numerical integrators. It is independent of any particular time-integration
 model; model documentation states only which capabilities it consumes.
 
 The [execution configuration](jax-potential-evaluation.md) selects SciPy/CPU or
-JAX/CPU/GPU through `Potential.evaluate(..., execution=Execution(...))`, with
+JAX/CPU/GPU through `Potential.evaluate(..., execution=ExecutionOptions(...))`, with
 the same option for `electric_field` and `evaluate_grid`. Both evaluators share
 prepared data, validation, periodic wrapping, and harmonic reconstruction. The
 import pipeline and NumPy-based dynamics and integration contracts are unchanged.

@@ -7,7 +7,7 @@ from collections.abc import Callable
 import jax
 import numpy as np
 
-from contracts.execution import Execution
+from contracts.execution_options import ExecutionOptions
 from potential.potential import Potential
 from potential.gc2d_h5 import load_gc2d_h5_potential
 
@@ -38,7 +38,7 @@ def main() -> None:
         load_gc2d_h5_potential(args.h5)
         if args.h5 else Potential.random(A=0.7, M=8, nx=64, ny=64, seed=27, interpolation_order=3)
     ).gyroaverage(0.3)
-    execution = Execution(backend="jax", device=args.device)
+    execution = ExecutionOptions(backend="jax", device=args.device)
     device = jax.devices(execution.device)[execution.device_index]
     rng = np.random.default_rng(27)
     x = potential.grid.xmin + potential.grid.period * rng.random(args.particles)

@@ -11,7 +11,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-from contracts.execution import Execution
+from contracts.execution_options import ExecutionOptions
 from contracts.result import IntegrationData
 from dynamics._jax import JaxDynamics, bind_dynamics
 from integration._fixed import _step_count
@@ -72,7 +72,7 @@ def _integrate(
     return history, energy, valid & jnp.all(jnp.isfinite(energy)), converged, statistics
 
 
-def integrate_fixed(method: "IntegrationMethod[Any]", execution: Execution) -> IntegrationData:
+def integrate_fixed(method: "IntegrationMethod[Any]", execution: ExecutionOptions) -> IntegrationData:
     """Run one fresh fixed-step method instance and transfer the finished result to NumPy.
 
     Python step observers and per-step progress belong to the host controller;

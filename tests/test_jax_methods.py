@@ -6,7 +6,7 @@ import unittest
 
 import numpy as np
 
-from contracts.execution import Execution
+from contracts.execution_options import ExecutionOptions
 from contracts.problem import InitialValueProblem
 from contracts.request import SimulationRequest
 from dynamics.gc import GuidingCenterDynamics
@@ -30,7 +30,7 @@ class JaxMethodTests(unittest.TestCase):
         cls.jax = jax
         cls.previous = jax.config.read('jax_enable_x64')
         jax.config.update('jax_enable_x64', True)
-        cls.execution = Execution(backend='jax')
+        cls.execution = ExecutionOptions(backend='jax')
         cls.potential = Potential.random(A=.2, M=3, nx=16, ny=16, seed=27)
         cls.gc = InitialValueProblem(GuidingCenterDynamics(cls.potential, rho=.05),
             GCInitialConfiguration.from_components(x=np.array([-.02, 1.8, 6.3]), y=np.array([6.25, .9, -.01])))
@@ -46,7 +46,7 @@ class JaxMethodTests(unittest.TestCase):
     def compare(self, method, problem=None, execution=None):
         problem = self.gc if problem is None else problem
         reference = simulate(problem, method, self.request)
-        result = simulate(problem, method, self.request, execution=execution or self.execution)
+        result = simulate(problem, method, self.request, options=execution or self.execution)
         np.testing.assert_allclose(result.states, reference.states, rtol=3e-10, atol=3e-11)
         np.testing.assert_array_equal(result.t, reference.t)
         np.testing.assert_array_equal(result.states[:, 0], problem.initial_state)
@@ -104,13 +104,13 @@ class JaxMethodTests(unittest.TestCase):
 
     def test_sparse_output_independence_and_repeat_run_isolation(self):
         method = ABBA4Implicit(track_energy=True)
-        dense = simulate(self.gc, method, self.request, execution=self.execution)
+        dense = simulate(self.gc, method, self.request, options=self.execution)
         sparse_request = replace(self.request, output_times=np.array([.3, .4]))
-        sparse = simulate(self.gc, method, sparse_request, execution=self.execution)
+        sparse = simulate(self.gc, method, sparse_request, options=self.execution)
         np.testing.assert_allclose(sparse.states, dense.states[:, [0, -1]], rtol=0, atol=2e-15)
         np.testing.assert_array_equal(sparse.diagnostics['nonlinear_iterations'], dense.diagnostics['nonlinear_iterations'])
         self.assertFalse(hasattr(method, 'initial_state'))
-        again = simulate(self.gc, method, self.request, execution=self.execution)
+        again = simulate(self.gc, method, self.request, options=self.execution)
         np.testing.assert_array_equal(again.states, dense.states)
 
     def test_adaptive_scipy_control_and_physical_observers(self):
@@ -142,15 +142,15 @@ class JaxMethodTests(unittest.TestCase):
                        BM4Implicit(nonlinear_solver='broyden', newton_absolute_tolerance=1e-30,
                                    newton_relative_tolerance=1e-30, newton_max_iterations=1)):
             with self.subTest(method=method), self.assertRaisesRegex(RuntimeError, 'did not converge'):
-                simulate(self.gc, method, self.request, execution=self.execution)
+                simulate(self.gc, method, self.request, options=self.execution)
         class CustomEuler(ExplicitEuler):
             pass
         with self.assertRaisesRegex(TypeError, 'subclass'):
-            simulate(self.gc, CustomEuler(), self.request, execution=self.execution)
+            simulate(self.gc, CustomEuler(), self.request, options=self.execution)
         try:
             self.jax.config.update('jax_enable_x64', False)
             with self.assertRaisesRegex(RuntimeError, 'float64'):
-                simulate(self.gc, Radau(), self.request, execution=self.execution)
+                simulate(self.gc, Radau(), self.request, options=self.execution)
         finally:
             self.jax.config.update('jax_enable_x64', True)
 
@@ -159,10 +159,10 @@ class JaxMethodTests(unittest.TestCase):
             devices = self.jax.devices('gpu')
         except RuntimeError:
             devices = []
-        execution = Execution(backend='jax', device='gpu')
+        execution = ExecutionOptions(backend='jax', device='gpu')
         if not devices:
             with self.assertRaisesRegex(RuntimeError, 'unavailable'):
-                simulate(self.gc, Radau(), self.request, execution=execution)
+                simulate(self.gc, Radau(), self.request, options=execution)
             self.skipTest('No JAX GPU available; hybrid unavailability is explicit')
         for cls in (ExplicitEuler, RK4, GaussLegendre4, SDIRK4, HBVM42,
                     ABBA2Midpoint, BM4Midpoint, ABBA2Implicit, ABBA4Implicit, ABBA6Implicit, BM4Implicit, DOP853, Radau):

@@ -9,7 +9,7 @@ from unittest.mock import patch
 
 import numpy as np
 
-from contracts.execution import Execution
+from contracts.execution_options import ExecutionOptions
 from studies.rk4_execution import (
     RK4ExecutionConfig, run_rk4_execution_comparison,
     save_rk4_execution_comparison, load_rk4_execution_comparison,
@@ -28,7 +28,7 @@ class RK4ExecutionStudyTests(unittest.TestCase):
             t_span=(.1, .14), max_step=.01, sample_count=7, track_energy=True,
             repetitions=3, equivalence_rtol=1e-10, equivalence_atol=1e-11,
         )
-        executions = (Execution(), Execution(backend="jax"))
+        executions = (ExecutionOptions(), ExecutionOptions(backend="jax"))
         try:
             with self.assertRaisesRegex(ValueError, "three"):
                 run_rk4_execution_comparison(replace(config, repetitions=2), executions=executions)

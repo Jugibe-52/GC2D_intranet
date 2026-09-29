@@ -13,6 +13,7 @@ import simulation
 import methods
 import formulations
 import integration
+import execution
 from dynamics import GuidingCenterDynamics
 from initial_conditions import GCInitialConfiguration
 from potential import Potential
@@ -30,6 +31,7 @@ class PackageLayoutTests(unittest.TestCase):
 			"contracts",
 			"diagnostics",
 			"dynamics",
+			"execution",
 			"formulations",
 			"initial_conditions",
 			"integration",
@@ -74,17 +76,17 @@ class PackageLayoutTests(unittest.TestCase):
 			self.assertIs(getattr(extended, name), getattr(methods, name))
 		self.assertIs(classical.RK4, RK4)
 		for module in (
-			"contracts.configuration", "contracts.problem", "contracts.request", "contracts.execution",
+			"contracts.configuration", "contracts.problem", "contracts.request", "contracts.execution_options",
 			"contracts.observation", "contracts.result", "contracts.step",
 			"formulations.gc", "formulations.fc", "formulations.state",
 			"integration.core", "methods.extended", "methods.classical",
-			"methods.adaptive", "methods.hbvm", "simulation.runner", "solution",
+			"methods.adaptive", "methods.hbvm", "execution.execution", "simulation.runner", "solution",
 		):
 			with self.subTest(module=module):
 				self.assertIsNotNone(importlib.util.find_spec(module))
 
 	def test_public_exports_are_explicit_and_resolve(self) -> None:
-		for namespace in (simulation, methods, extended, classical, formulations, integration):
+		for namespace in (simulation, methods, extended, classical, formulations, integration, execution):
 			with self.subTest(namespace=namespace.__name__):
 				self.assertEqual(len(namespace.__all__), len(set(namespace.__all__)))
 				for name in namespace.__all__:
@@ -106,6 +108,7 @@ class PackageLayoutTests(unittest.TestCase):
 		for package in ("gc2d", "classes", "research", "workflows"):
 			self.assertIsNone(importlib.util.find_spec(package), package)
 		for module in (
+			"contracts.execution",
 			"simulation.methods", "simulation.formulations", "simulation.integration",
 			"simulation.configuration", "simulation.problem", "simulation.request",
 			"simulation.observation", "simulation.solution", "simulation._result",

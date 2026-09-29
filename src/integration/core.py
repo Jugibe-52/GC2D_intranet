@@ -17,7 +17,7 @@ import numpy as np
 
 from integration._fixed import _Progress, _step_count
 from contracts.result import DiagnosticValue, IntegrationData
-from contracts.execution import Execution
+from contracts.execution_options import ExecutionOptions
 from contracts.step import StepInfo, StepResult, StepValue
 from contracts.problem import InitialValueProblem
 from contracts.request import SimulationRequest
@@ -219,14 +219,14 @@ class IntegrationMethod(ABC, Generic[Detail]):
 	step_observer: Callable[[Any], None] | None
 	_status: str = "configuration"
 	state_formulation: PhysicalFormulation | None = None
-	execution: Execution
+	execution: ExecutionOptions
 
 	@property
 	def method_name(self) -> str:
 		return type(self).__name__
 
 	def new_run(self, problem: InitialValueProblem, request: SimulationRequest,
-	            *, execution: Execution | None = None) -> Self:
+	            *, execution: ExecutionOptions | None = None) -> Self:
 		"""Create an isolated run of this class, copying only constructor options.
 
 		Dataclass replacement reconstructs the configuration and excludes all
@@ -236,9 +236,9 @@ class IntegrationMethod(ABC, Generic[Detail]):
 		if not is_dataclass(self):
 			raise TypeError("Numerical methods must declare their options as dataclass fields.")
 		method = replace(self)
-		if execution is not None and not isinstance(execution, Execution):
-			raise TypeError("`execution` must be an Execution instance or None.")
-		method.execution = Execution() if execution is None else execution
+		if execution is not None and not isinstance(execution, ExecutionOptions):
+			raise TypeError("`execution` must be an ExecutionOptions instance or None.")
+		method.execution = ExecutionOptions() if execution is None else execution
 		method.problem = problem
 		method.request = request
 		method.metadata = {}
@@ -289,7 +289,7 @@ class IntegrationMethod(ABC, Generic[Detail]):
 		"""Select fixed scheduling; adaptive methods override this operation."""
 		return FixedStepController()
 
-	def _integrate_jax(self, execution: Execution) -> IntegrationData:
+	def _integrate_jax(self, execution: ExecutionOptions) -> IntegrationData:
 		"""Select the optional device driver without duplicating public methods."""
 		try:
 			from integration.jax_fixed import integrate_fixed
@@ -298,10 +298,10 @@ class IntegrationMethod(ABC, Generic[Detail]):
 		return integrate_fixed(self, execution)
 
 	def integrate(self, problem: InitialValueProblem, request: SimulationRequest,
-	              *, execution: Execution | None = None) -> IntegrationData:
+	              *, execution: ExecutionOptions | None = None) -> IntegrationData:
 		"""Run a fresh instance through the shared controller and collector."""
-		if execution is not None and not isinstance(execution, Execution):
-			raise TypeError("`execution` must be an Execution instance or None.")
+		if execution is not None and not isinstance(execution, ExecutionOptions):
+			raise TypeError("`execution` must be an ExecutionOptions instance or None.")
 		run = self.new_run(problem, request, execution=execution)
 		if execution is not None and execution.backend == "jax":
 			return run._integrate_jax(execution)

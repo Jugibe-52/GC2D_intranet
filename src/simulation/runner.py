@@ -5,9 +5,10 @@ from __future__ import annotations
 import numpy as np
 
 from methods.base import NumericalMethod
-from contracts.execution import Execution
+from contracts.execution_options import ExecutionOptions
 from contracts.problem import InitialValueProblem
 from contracts.request import SimulationRequest
+from execution.execution import Execution
 from solution import Solution
 
 
@@ -16,11 +17,14 @@ def simulate(
 	method: NumericalMethod,
 	request: SimulationRequest,
 	*, execution: Execution | None = None,
+	options: ExecutionOptions | None = None,
 ) -> Solution:
 	"""Integrate one problem and verify that its solution matches the request.
 
 	Solution owns structural validation and immutable output storage. This
 	boundary checks agreement with the requested times and initial state.
+	The executor receives the complete job; backend options are separate from
+	where it runs. Omission selects local NumPy/SciPy execution.
 	"""
 	if not isinstance(problem, InitialValueProblem):
 		raise TypeError("`problem` must be an InitialValueProblem.")
@@ -30,10 +34,8 @@ def simulate(
 		raise TypeError("`request` must be a SimulationRequest.")
 	if execution is not None and not isinstance(execution, Execution):
 		raise TypeError("`execution` must be an Execution instance or None.")
-	# Keep the original call contract for third-party CPU methods.
-	data = (method.integrate(problem, request, execution=execution)
-	        if execution is not None and execution.backend == "jax"
-	        else method.integrate(problem, request))
+	executor = Execution() if execution is None else execution
+	data = executor.run(problem, method, request, options=options)
 	solution = Solution(
 		t=data.t,
 		states=data.states,

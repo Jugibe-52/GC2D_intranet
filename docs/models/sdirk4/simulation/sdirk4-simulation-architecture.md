@@ -104,7 +104,7 @@ also compared with the migrated implementations on short nonautonomous runs.
 
 ## Optional JAX execution
 
-This model supports `simulate(..., execution=Execution(backend="jax", device="cpu"))`
+This model supports `simulate(..., options=ExecutionOptions(backend="jax", device="cpu"))`
 (or a configured `device="gpu"`) with explicit float64. The complete fixed time
 loop, particle stages, applicable nonlinear/projection solves and passive energy
 quadrature remain on that device until final NumPy `Solution` export. Its
@@ -113,6 +113,18 @@ unchanged. JAX rejects unconverged solves explicitly. Diagnostics report
 `execution_mode="device_resident"`. Python step observers and progress reporting
 require the default CPU path.
 
-Import `Execution` from `contracts.execution`. Omission preserves existing
+Import `ExecutionOptions` from `contracts.execution_options`. Omission preserves existing
 SciPy/NumPy execution. See the [shared execution contract](../../../simulation/jax-execution.md)
 for supported physical systems, solver details, timing scope and validation.
+
+## Complete integration executor
+
+`simulate(problem, method, request, execution=Execution())` delegates the complete
+integration to `Execution.run`. Import the executor with `from execution import
+Execution`. It uses the existing local method implementation and does not
+configure runtime resources. A subclass can replace the whole integration while
+`simulate` retains final `Solution` construction and validation. Backend choices
+remain separate in `options=ExecutionOptions(...)`. See the
+[executor contract](../../../simulation/execution.md) for the extension interface.
+The numerical stages, projection equations and integration controllers described
+above remain inside this execution boundary.

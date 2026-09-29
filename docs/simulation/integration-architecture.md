@@ -41,8 +41,9 @@ These are responsibility headings, not successive runtime calls. In particular:
   `contracts.problem.InitialValueProblem`.
 - Each method prepares its formulation during initialization. Formulations
   define internal coordinates, physical extraction and applicable split maps.
-- `simulation.runner.simulate` starts execution with a problem, method and
-  request. The method's inherited `integrate` prepares a fresh run and invokes
+- `simulation.runner.simulate` delegates a complete problem, method and request
+  to `Execution.run`, which executes locally by default. The method's inherited
+  `integrate` prepares a fresh run and invokes
   the common integration coordinator. Its controller calls `advance` repeatedly;
   the coordinator requests output samples from the controller and collects the results.
 - History export returns `IntegrationData` to `simulate`, which constructs and
@@ -74,6 +75,7 @@ The following old routes have been removed after migrating supported consumers:
 
 | Removed route | Current owner |
 |---|---|
+| `contracts.execution.Execution` | `execution.Execution` for the executor; `contracts.execution_options.ExecutionOptions` for backend choices |
 | `simulation.methods.*` | `methods.*` |
 | `simulation.formulations.*` | `formulations.*` |
 | `simulation.integration`, `simulation._fixed` | `integration.core`, `integration._fixed` |
@@ -92,12 +94,16 @@ removed; see the [API migration guide](api-migration.md).
 
 ## Execution and state ownership
 
-The `simulate` function owns the stateless execution entry point. `Solution` validates and
+The `simulate` function owns the stateless simulation entry point and delegates
+each complete integration to an `execution.execution.Execution` instance.
+The local executor calls `method.integrate`; subclasses can replace the whole
+execution without moving numerical algorithms out of their existing packages.
+See the [executor contract](execution.md). `Solution` validates and
 copies the physical arrays, including their dimensions, finite values and
 packed layout. The entry point then checks that the saved times, state size and
 initial state agree with the request and problem. Each check has one owner.
 
-`simulate(..., execution=Execution(...))` optionally selects JAX for every
+`simulate(..., options=ExecutionOptions(...))` optionally selects JAX for every
 built-in method. The inherited entry point binds the execution choice before
 initializing a fresh run. Fixed methods use a common device driver for the time
 loop, stages and nonlinear solves; DOP853/Radau retain SciPy control and use

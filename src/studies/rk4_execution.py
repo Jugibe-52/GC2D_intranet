@@ -9,7 +9,7 @@ from typing import Any
 import numpy as np
 import scipy
 
-from contracts.execution import Execution
+from contracts.execution_options import ExecutionOptions
 from contracts.problem import InitialValueProblem
 from contracts.request import SimulationRequest
 from diagnostics.persistence import load_solution, save_solution
@@ -66,7 +66,7 @@ def periodic_discrepancy(reference: Solution, candidate: Solution, period: float
 
 
 def run_rk4_execution_comparison(
-    config: RK4ExecutionConfig, *, executions: tuple[Execution, ...],
+    config: RK4ExecutionConfig, *, executions: tuple[ExecutionOptions, ...],
 ) -> RK4ExecutionComparison:
     """Warm each configuration, then alternate synchronized complete runs.
 
@@ -84,10 +84,10 @@ def run_rk4_execution_comparison(
     if (not np.isfinite(config.equivalence_atol) or config.equivalence_atol < 0
             or not np.isfinite(config.equivalence_rtol) or config.equivalence_rtol < 0):
         raise ValueError("Equivalence tolerances must be finite and non-negative.")
-    if not executions or any(not isinstance(item, Execution) for item in executions):
-        raise TypeError("Supply an explicit tuple of Execution configurations.")
-    if len(set(executions)) != len(executions) or Execution() not in executions:
-        raise ValueError("Use distinct executions including Execution() as the CPU baseline.")
+    if not executions or any(not isinstance(item, ExecutionOptions) for item in executions):
+        raise TypeError("Supply an explicit tuple of ExecutionOptions configurations.")
+    if len(set(executions)) != len(executions) or ExecutionOptions() not in executions:
+        raise ValueError("Use distinct executions including ExecutionOptions() as the CPU baseline.")
     potential = Potential.random(
         A=config.amplitude, M=config.maximum_wave_number, nx=config.nx, ny=config.ny,
         seed=config.potential_seed, interpolation_order=config.interpolation_order,
@@ -108,7 +108,7 @@ def run_rk4_execution_comparison(
     timings: dict[str, list[float]] = {key: [] for key in selected}
     for key, execution in selected.items():
         start = perf_counter()
-        solutions[key] = simulate(problem, method, request, execution=execution)
+        solutions[key] = simulate(problem, method, request, options=execution)
         first_calls[key] = perf_counter() - start
     orders = []
     for repetition in range(config.repetitions):
@@ -116,7 +116,7 @@ def run_rk4_execution_comparison(
         orders.append(order)
         for key in order:
             start = perf_counter()
-            solutions[key] = simulate(problem, method, request, execution=selected[key])
+            solutions[key] = simulate(problem, method, request, options=selected[key])
             timings[key].append(perf_counter() - start)
     baseline = solutions["scipy_cpu_0"]
     records: dict[str, dict[str, Any]] = {}

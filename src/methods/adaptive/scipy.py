@@ -19,7 +19,7 @@ from dynamics.protocols import DynamicalSystem
 
 from formulations.state import PhysicalFormulation
 from integration.core import IntegrationMethod, integrate_method
-from contracts.execution import Execution
+from contracts.execution_options import ExecutionOptions
 from contracts.result import IntegrationData
 from contracts.step import StepInfo, StepResult
 from contracts.observation import AdaptiveIntegrationStep, AdaptiveStepObserver
@@ -133,7 +133,7 @@ class _AdaptiveMethod(IntegrationMethod[_AdaptiveDetails]):
         self.previous_counts = np.zeros(3, dtype=int)
         self.accepted_steps = 0
 
-    def _integrate_jax(self, execution: Execution) -> IntegrationData:
+    def _integrate_jax(self, execution: ExecutionOptions) -> IntegrationData:
         """Keep SciPy acceptance/dense output while field batches execute in JAX."""
         data = integrate_method(self)
         from dynamics._jax import bind_dynamics

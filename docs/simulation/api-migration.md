@@ -5,6 +5,8 @@ method. The following interfaces have been removed, including their exports:
 
 | Removed interface | Current interface |
 |---|---|
+| `contracts.execution.Execution` | `execution.Execution` executes complete jobs; `contracts.execution_options.ExecutionOptions` holds backend choices |
+| `simulate(..., execution=Execution(backend="jax"))` | `simulate(..., options=ExecutionOptions(backend="jax"))`; `execution` now selects an executor |
 | `SimulationRunner().simulate(...)` | `simulate(...)` |
 | `ABBA4ImplicitSingleProjection(...)` | `ABBA4Implicit(...)` |
 | `ABBA4ImplicitSingleProjectionIntegrationStep` | `ABBA4ImplicitIntegrationStep`, describing one outer projection |
