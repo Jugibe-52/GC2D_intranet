@@ -5,25 +5,10 @@ import json
 import numpy as np
 
 
-def export_poincare_panel_comparison(path, panels, cycles_per_frame=25, *,
-                                    initial_view=None, initial_cycle=1,
-                                    highlight_particle=None, title=None,
-                                    regions=None, highlight_particles=None,
-                                    coordinate_bounds=None, axis_labels=None,
-                                    description=None, particle_groups=None):
-    """Export aligned panels, optionally focusing a square region and particle.
-
-    Coordinates default to the unit cell. ``coordinate_bounds=(x0,y0,span)``
-    accepts physical coordinates without changing their units. ``initial_view``
-    and named regions use those same coordinates. A panel with ``static=True``
-    contains one fixed sample while the other panels traverse aligned cycles.
-    ``highlight_particle`` adds a selection shortcut and draws opaque returns.
-    """
+def _encode_panels(panels, bounds):
+    """Validate aligned samples and encode browser copies in their original units."""
     if not panels:
         raise ValueError("At least one comparison panel is required.")
-    bounds = np.asarray((0., 0., 1.) if coordinate_bounds is None else coordinate_bounds, dtype=float)
-    if bounds.shape != (3,) or not np.isfinite(bounds).all() or bounds[2] <= 0:
-        raise ValueError('coordinate_bounds must describe a finite positive square.')
     lower, upper = bounds[:2], bounds[:2] + bounds[2]
     encoded_panels = []
     cycle_count = None
@@ -58,12 +43,59 @@ def export_poincare_panel_comparison(path, panels, cycles_per_frame=25, *,
             )
         )
     cycle_count = 1 if cycle_count is None else cycle_count
+    return encoded_panels, cycle_count
+
+
+def export_poincare_panel_comparison(path, panels, cycles_per_frame=25, *,
+                                    initial_view=None, initial_cycle=1,
+                                    highlight_particle=None, title=None,
+                                    regions=None, highlight_particles=None,
+                                    coordinate_bounds=None, axis_labels=None,
+                                    description=None, particle_groups=None,
+                                    datasets=None, dataset_label="Dataset",
+                                    selected_dataset=None, particle_labels=None):
+    """Export aligned panels with optional selection between completed datasets.
+
+    Coordinates default to the unit cell. ``coordinate_bounds=(x0,y0,span)``
+    accepts physical coordinates without changing their units. Static panels
+    contain one fixed sample. Datasets share panel shapes, IDs and colors;
+    a dataset without panels is shown as unavailable in the selector.
+    """
+    bounds = np.asarray((0., 0., 1.) if coordinate_bounds is None else coordinate_bounds, dtype=float)
+    if bounds.shape != (3,) or not np.isfinite(bounds).all() or bounds[2] <= 0:
+        raise ValueError('coordinate_bounds must describe a finite positive square.')
+    lower, upper = bounds[:2], bounds[:2] + bounds[2]
+    encoded_panels, cycle_count = _encode_panels(panels, bounds)
     if isinstance(cycles_per_frame, bool) or int(cycles_per_frame) != cycles_per_frame or int(cycles_per_frame) < 1:
         raise ValueError("cycles_per_frame must be positive.")
     if isinstance(initial_cycle, bool) or int(initial_cycle) != initial_cycle or not 1 <= initial_cycle <= cycle_count:
         raise ValueError('initial_cycle must be an integer within the saved record.')
     config = dict(panels=encoded_panels, step=int(cycles_per_frame), initialCycle=int(initial_cycle))
     config['coordinateBounds'] = dict(x=float(bounds[0]), y=float(bounds[1]), span=float(bounds[2]))
+    if datasets is not None:
+        encoded_datasets = []
+        seen = set()
+        for dataset in datasets:
+            key = str(dataset['key'])
+            if key in seen:
+                raise ValueError('Dataset keys must be unique.')
+            seen.add(key)
+            item = dict(key=key, label=str(dataset['label']), note=str(dataset.get('note', '')))
+            if dataset.get('panels') is not None:
+                encoded, count = _encode_panels(dataset['panels'], bounds)
+                if count != cycle_count or len(encoded) != len(encoded_panels) or any(
+                    any(a[k] != b[k] for k in ('shape', 'ids', 'colors', 'static'))
+                    for a, b in zip(encoded, encoded_panels)
+                ):
+                    raise ValueError('Datasets must share cycle counts, panel shapes, IDs and colors.')
+                item['panels'] = encoded
+            encoded_datasets.append(item)
+        selected = str(selected_dataset)
+        if not any(d['key'] == selected and 'panels' in d for d in encoded_datasets):
+            raise ValueError('The selected dataset must contain completed panels.')
+        config.update(datasets=encoded_datasets, datasetLabel=str(dataset_label), selectedDataset=selected)
+    if particle_labels is not None:
+        config['particleLabels'] = {str(key): str(value) for key, value in particle_labels.items()}
     if axis_labels is not None:
         if len(axis_labels) != 2:
             raise ValueError('axis_labels must contain an x and a y label.')

@@ -1,12 +1,13 @@
-# Fill these from your existing Cloudflare Pages project before publishing.
-# Example origin: https://YOUR-PROJECT.pages.dev (use the actual assigned origin).
-project_name = ""
-base_url = ""
+# Cloudflare Pages project created through the dashboard.
+project_name = "gc2d-visualizations"
+base_url = "https://gc2d-visualizations.pages.dev"
 production_branch = "main"
 
 # Publish one standalone HTML per experiment directory. Every deployment
 # includes the entire list so updating one visualization preserves the others.
 # Only notebooks/developements/ exports are supported.
 html_files = [
-    "notebooks/developements/poincare_section/Poincare_comparacion_cuatro_ejecuciones/poincare_four_runs.html",
+    "notebooks/developements/poincare_section/Poincare_comparacion_animada/poincare_comparison.html",
+    # Enable after generating this separate comparison export.
+    # "notebooks/developements/poincare_section/Poincare_comparacion_cuatro_ejecuciones/poincare_four_runs.html",
 ]

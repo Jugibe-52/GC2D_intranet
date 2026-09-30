@@ -176,3 +176,103 @@ comparison; the existing `prepare_cpu_star` name remains its supported study
 facade. `visualization.local_jax_star` reads saved states to plot initial
 geometry and block timings and export every integer-cycle return. This study
 does not extrapolate a short accuracy reference or certify 5000-cycle accuracy.
+
+## Dimensional 40-particle rho sweep on Modal
+
+`studies.poincare_rho_sweep` assembles 40 particles at distinct, linearly spaced
+radii from zero to 0.85 times the half-width of the original HDF5 cell. Particle
+IDs increase with radius. `initial_conditions.star.ranked_radial_star` assigns
+successive radial ranks to alternating arms, with eight arms and five assigned
+particles per arm. The first particle is the only particle at the center.
+
+The local working experiment lives at
+`notebooks/developements/poincare_section/bm4_midpoint_star_40_rho_sweep/`.
+Its eleven `calculation_rho_*.ipynb` files specify rho from 0 to 0.5 in increments
+of 0.05. Each independently configures 5000 forcing cycles, 50 complete steps
+per cycle, arithmetic midpoint projection, no energy tracking, and zero coupling
+frequency. The initial state and the 5000 integer-cycle returns are saved;
+internal-step arrays are omitted from the published archive.
+
+Coordinates remain in meters, without spatial normalization or output wrapping.
+`load_dimensional_h5_field` supplies the stream function `(T0/B)*Phi`, so time
+alone is normalized by the forcing period. The sweep parameter is the usual
+dimensionless gyro-radius: `rho_m = rho_hat * characteristic_length / (2*pi)`.
+At characteristic length 0.06 m, rho=0.30 corresponds to 0.00286478898 m.
+The notebooks explicitly select B=1.5, mean and dominant mode `(0,1)`, cubic
+interpolation, the checked HDF5 source hash, and the complete numerical settings.
+
+Deploy `examples/modal_poincare_rho_app.py` to create the authenticated
+`gc2d-poincare-rho-sweep/integrate` endpoint. It uses JAX CPU float64, a two-core
+request and limit, 2048/4096 MiB memory, a 7200-second timeout, no configured
+retries, and at most one container. `Execution_Modal` retains a call receipt;
+`modal_rho_executor` reuses a unique confirmed receipt on interruption. A
+completed compatible archive is loaded rather than calculated again. Scientific
+results are published to the bucket through `solution_destination`, with the
+same experiment hierarchy and a separate `rho_0_30_v1`-style run ID per rho.
+
+`visualisation.ipynb` loads and verifies only completed archives and calls
+`visualization.poincare_rho_sweep.export_rho_sweep`. The shared comparison viewer
+retains animation, interval sliders, accumulation, particle selection, point
+size, zoom and pan, and adds a rho selector with incomplete runs disabled.
+Particle labels and colors follow initial radial rank. Both the fixed initial
+star and animated returns are displayed in meters, without coordinate wrapping.
+The original cell is the initial viewport; Full view includes all unwrapped
+returns. This experiment does not certify long-time trajectory accuracy.
+
+### Spatially normalized repeat
+
+`RhoStarConfig.spatial_normalization="characteristic_length"` repeats the same
+physical experiment with `q = s*(X-X0)`, `s = 2*pi/characteristic_length`, where
+`X0` is the lower corner of the measured cell. The default remains `"none"`
+for existing dimensional notebooks and archives. The normalized working copy
+is `notebooks/developements/poincare_section/bm4_midpoint_star_40_rho_sweep_normalized_space/`;
+generate it with `scripts/create_poincare_rho_sweep_notebooks.py
+--spatial-normalization characteristic_length`. It has its own bucket prefix
+and Modal receipts, eleven independent calculation notebooks, and a viewer.
+
+The normalized potential uses the same samples, interpolation order and
+frequencies, with stream function `H_q = s^2*(T0/B)*Phi`. This square factor
+ensures `dq/dtau = s*dX/dtau` at unchanged `tau=t/T0`; equivalently this stream
+equals `2*pi*Phi_hat` from the canonical H5 loader. Merely loading `Phi_hat`
+would alter the drift speed relative to the forcing in this particular repeat.
+The runtime gyro-radius is `rho_hat`, while its physical radius remains
+`rho_hat*characteristic_length/(2*pi)` meters. The cell width is approximately
+`6*pi`, not one, for the measured 0.18 m cell and 0.06 m characteristic length.
+
+Initial conditions, integration and stored states all use these dimensionless
+coordinates. Metadata retains both physical geometry and runtime geometry,
+including the scale and origin needed to invert the coordinate change. The
+viewer uses saved coordinates directly and labels its axes `R_hat`, `Z_hat`;
+its particle labels also retain physical initial radii for comparison. Archives
+with different spatial normalizations cannot share a destination or a viewer.
+Short trajectory tests verify coordinate equivalence and agreement between the
+SciPy and JAX execution paths; chaotic long-time runs need not agree bitwise.
+
+### Radial repeat with cycle-time normalization
+
+`notebooks/developements/poincare_section/bm4_midpoint_48_radial_5000_cycles_20_steps_cycle_time/`
+contains an independent `calculation.ipynb` / `visualisation.ipynb` pair. It
+retains the historical 48-particle radial study's physical inputs, radial
+fractions from 0 to 0.49 of the cell width, rho=0.3, 5,000 forcing cycles,
+20 complete steps per cycle and coupling frequency pi/8. It changes the
+stream function to `H = 2*pi*Phi_hat` at unchanged `tau=t/T0`, multiplying
+both the mean and oscillating arrays while retaining their frequencies.
+
+`studies.poincare_radial_cycle_time` verifies the original metadata against
+its completion manifest and verifies the HDF5 source hash. It reconstructs
+the initial positions from the archived radial geometry and preserves IDs
+and colors. It uses the current BM4Midpoint implementation with a single
+joint local integration (JAX CPU float64 by default), rather than the old
+frozen AWS implementation and 16-worker partition. Thus this is a scientific
+repeat, not a bitwise reproduction of that historical runtime.
+
+All complete-step states, copy-separation diagnostics, the scaled potential
+and provenance are persisted with `diagnostics.persistence` in the default
+bucket under the new experiment hierarchy. Compatible completed archives
+are reused; changed scientific inputs require a different run ID. The
+visualisation notebook loads the same destination without integrating.
+`visualization.poincare_radial_cycle_time` extracts integer-cycle returns,
+wraps them into the cell and divides by the cell width for B-style plots and
+an offline particle selector. The diagnostic is the copy-separation infinity
+norm across all particles, rather than one norm per historical worker.
+No independent long-time trajectory-accuracy certification is implied.
