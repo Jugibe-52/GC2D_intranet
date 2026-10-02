@@ -48,9 +48,10 @@ The dimensional GC stream function is (T0/B)*Phi.
     viewer_notes = ('''Both panels use dimensionless coordinates q = 2*pi*(X-X0)/lambda with lambda = 0.06 m.
 These are the coordinates actually integrated and saved by the normalized experiment.
 The stream function is scaled consistently, so the physical dynamics and tau=t/T0
-are preserved. The left panel shows the initial star; the right shows cycle returns.
-''' if normalized else '''Both panels use meters. The left panel shows the initial star; the right panel shows
-once-per-cycle returns. No spatial division by cell width is applied.
+are preserved. The left panel shows the effective potential and GC vector field;
+the right shows cycle returns with hollow Start cycle markers.
+''' if normalized else '''Both panels use meters. The left panel shows the effective potential and GC velocity;
+the right shows once-per-cycle returns with hollow Start cycle markers. No spatial division by cell width is applied.
 ''')
     for index in range(11):
         rho = index / 20
@@ -154,7 +155,7 @@ Particle IDs and colors increase with initial radius. Time labels count forcing 
 '''), code(f'''
         from pathlib import Path
         import os
-        from IPython.display import IFrame, FileLink, display
+        from IPython.display import IFrame, display
         from diagnostics.paths import find_project_root, solution_destination
         from visualization.poincare_rho_sweep import load_available_rho_runs, export_rho_sweep
 
@@ -177,11 +178,16 @@ Particle IDs and colors increase with initial radius. Time labels count forcing 
         runs = load_available_rho_runs(destinations)
         print('Completed rho values:', ', '.join(f'{{rho:.2f}}' for rho in runs))
     '''), code('''
+        from visualization.poincare_probe import display_notebook_viewer_link
+
         export_rho_sweep(runs, OUTPUT_HTML, rho_values=RHO_VALUES,
-                         selected_rho=SELECTED_RHO, cycles_per_frame=CYCLES_PER_FRAME)
-        print('Offline web viewer:', OUTPUT_HTML)
-        display(FileLink(str(OUTPUT_HTML)))
-        display(IFrame('poincare_rho_sweep.html', width='100%', height=1100))
+                         selected_rho=SELECTED_RHO, cycles_per_frame=CYCLES_PER_FRAME,
+                         source=ROOT / 'data/potential/V1/PHI_2.h5',
+                         field_grid_size=64, vector_grid_size=17, phase_steps=50)
+        viewer_url = display_notebook_viewer_link(
+            OUTPUT_HTML, notebook_name=Path(EXPERIMENT_PATH).name + '__visualisation',
+        )
+        display(IFrame(viewer_url, width='100%', height=1100))
     ''')])
     print(f'Created 11 calculations and 1 visualization in {folder}')
 

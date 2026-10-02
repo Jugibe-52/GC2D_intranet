@@ -12,12 +12,15 @@ from unittest.mock import patch
 import numpy as np
 
 from contracts.execution_options import ExecutionOptions
+from diagnostics.persistence import load_solution
 from execution.execution import Execution
 from potential import Grid, Potential
+from solution import Solution
 from studies.dimensional_h5_midpoint import DimensionalH5Field
 from studies.poincare_rho_sweep import (
     RhoStarConfig, build_rho_star, run_rho_star, run_and_save_rho_star,
-    modal_rho_executor,
+    modal_rho_executor, folded_rho_positions,
+    sample_rho_dynamics,
 )
 from visualization.poincare_rho_sweep import export_rho_sweep, load_available_rho_runs
 
@@ -34,6 +37,104 @@ def field():
 
 
 class RhoSweepTests(unittest.TestCase):
+    def test_phase_fields_match_gc_dynamics_and_close_at_one_cycle(self):
+        """Check signs, gyro-radius dependence and both periodic endpoints."""
+        prepared = build_rho_star(field(), RhoStarConfig(rho_hat=.3, cycles=2,
+                                  hamiltonian_convention='radial'), source_sha256='synthetic')
+        sampled = sample_rho_dynamics(prepared, grid_size=8, vector_grid_size=5)
+        self.assertEqual(sampled['potential'].shape, (51, 8, 8))
+        self.assertEqual(sampled['velocity'].shape, (51, 5, 5, 2))
+        np.testing.assert_array_equal(sampled['velocity'][0], sampled['velocity'][-1])
+        np.testing.assert_array_equal(sampled['potential'][0], sampled['potential'][-1])
+        x0, y0, length = sampled['bounds']
+        q = (np.arange(5) + .5)/5
+        xx, yy = np.meshgrid(x0 + q*length, y0 + q*length)
+        effective = prepared.problem.dynamics.effective_potential
+        expected = np.stack((-effective.evaluate(.24, xx, yy, dy=1),
+                              effective.evaluate(.24, xx, yy, dx=1)), axis=-1)
+        np.testing.assert_allclose(sampled['velocity'][12], expected)
+        zero = build_rho_star(field(), replace(prepared.config, rho_hat=0.), source_sha256='synthetic')
+        zero_fields = sample_rho_dynamics(zero, grid_size=8, vector_grid_size=5)
+        self.assertGreater(np.max(np.abs(zero_fields['potential']-sampled['potential'])), 0)
+        self.assertGreater(np.max(np.abs(sampled['potential'][0]-sampled['potential'][25])), 0)
+
+    def test_radial_hamiltonian_changes_drift_without_changing_forcing_or_geometry(self):
+        """Match the radial Hamiltonian in both coordinate systems at fixed time."""
+        source = field()
+        config = RhoStarConfig(rho_hat=.3, cycles=2)
+        cycle = build_rho_star(source, config, source_sha256='synthetic')
+        radial = build_rho_star(source, replace(config, hamiltonian_convention='radial'),
+                                source_sha256='synthetic')
+        normalized = build_rho_star(source, replace(radial.config, spatial_normalization='characteristic_length'),
+                                    source_sha256='synthetic')
+        np.testing.assert_array_equal(cycle.problem.initial_state, radial.problem.initial_state)
+        np.testing.assert_array_equal(cycle.request.output_times, radial.request.output_times)
+        np.testing.assert_array_equal(cycle.problem.dynamics.potential.frequencies,
+                                      radial.problem.dynamics.potential.frequencies)
+        for time in (0., .173, .637):
+            velocity = radial.problem.dynamics.vector_field(time, radial.problem.initial_state)
+            np.testing.assert_allclose(velocity * (2*np.pi),
+                cycle.problem.dynamics.vector_field(time, cycle.problem.initial_state), rtol=1e-12, atol=1e-15)
+            np.testing.assert_allclose(normalized.problem.dynamics.vector_field(time, normalized.problem.initial_state),
+                                      velocity * (2*np.pi/.06), rtol=1e-12, atol=1e-14)
+        with tempfile.TemporaryDirectory() as tmp:
+            dest = str(Path(tmp)/'radial')
+            saved = run_and_save_rho_star(radial, dest, executor=Execution(), options=ExecutionOptions())
+            with self.assertRaisesRegex(ValueError, 'different scientific inputs'):
+                run_and_save_rho_star(cycle, dest, executor=Execution(), options=ExecutionOptions())
+            original = run_rho_star(cycle, executor=Execution(), options=ExecutionOptions())
+            original.metadata['config']['rho_hat'] = 0.
+            with self.assertRaisesRegex(ValueError, 'same spatial units'):
+                export_rho_sweep({0.: original, .3: saved}, Path(tmp)/'mixed.html', rho_values=(0., .3))
+
+    def test_folded_archive_and_viewer_preserve_unwrapped_states(self):
+        """Persist both representations and fold multi-cell excursions for display."""
+        import base64
+        prepared = build_rho_star(field(), RhoStarConfig(rho_hat=.3, cycles=2),
+                                  source_sha256='synthetic')
+        executor = Execution()
+        with tempfile.TemporaryDirectory() as tmp:
+            destination = str(Path(tmp) / 'folded')
+            saved = run_and_save_rho_star(prepared, destination, executor=executor,
+                                          options=ExecutionOptions(), save_folded_returns=True)
+            loaded = load_solution(destination)
+            np.testing.assert_array_equal(loaded.solution.states, saved.solution.states)
+            for name in ('cycle_positions_wrapped', 'cycle_positions_cell_fraction'):
+                np.testing.assert_array_equal(loaded.solution.diagnostics[name], saved.solution.diagnostics[name])
+            with patch.object(executor, 'run', side_effect=AssertionError('must not resubmit')):
+                run_and_save_rho_star(prepared, destination, executor=executor,
+                                     options=ExecutionOptions(), save_folded_returns=True)
+            # Use known returns on both sides of a nonzero-origin cell, including
+            # an exact boundary. Every particle has the same synthetic excursion.
+            states = saved.solution.states.copy()
+            states[:40, 1:] = np.array([.09, .315])
+            states[40:, 1:] = np.array([-.135, -.225])
+            synthetic = Solution(t=saved.solution.t, states=states,
+                                 source=saved.solution.source, diagnostics=saved.solution.diagnostics)
+            wrapped, fractions = folded_rho_positions(synthetic, saved.metadata)
+            np.testing.assert_allclose(wrapped[1:, 0], [[-.09, .045], [-.045, -.045]], atol=1e-15)
+            np.testing.assert_allclose(fractions[1:, 0], [[0., .75], [.25, .25]], atol=1e-14)
+            np.testing.assert_array_equal(synthetic.states, states)
+            path = export_rho_sweep({.3: replace(saved, solution=synthetic)}, Path(tmp)/'folded.html',
+                                    rho_values=(.3,), fold_to_cell=True)
+            cfg = json.loads(re.search(r'const cfg=(.*);', path.read_text()).group(1))
+            self.assertEqual(cfg['coordinateBounds'], {'x': 0., 'y': 0., 'span': 1.})
+            self.assertEqual(cfg['axisLabels'], ['(R - R0) / L', '(Z - Z0) / L'])
+            panel = cfg['panels'][1]
+            displayed = np.frombuffer(base64.b64decode(panel['data']), dtype='<f4').reshape(panel['shape'])
+            np.testing.assert_allclose(displayed, fractions, atol=1e-7)
+            self.assertEqual(cfg['firstCycle'], 0)
+            with patch('visualization.poincare_rho_sweep.prepare_rho_star', return_value=prepared):
+                export_rho_sweep({.3: saved}, path, rho_values=(.3,), fold_to_cell=True,
+                                 source='synthetic.h5', field_grid_size=8, vector_grid_size=5)
+            cfg = json.loads(re.search(r'const cfg=(.*);', path.read_text()).group(1))
+            encoded = cfg['panels'][0]['field']
+            decoded = np.frombuffer(base64.b64decode(encoded['velocity']), dtype='<f4').reshape(encoded['vectorShape'])
+            expected = sample_rho_dynamics(prepared, grid_size=8, vector_grid_size=5)
+            np.testing.assert_allclose(decoded, expected['velocity']/expected['bounds'][2], rtol=1e-7, atol=1e-12)
+            self.assertEqual(encoded['bounds'], {'x': 0., 'y': 0., 'span': 1.})
+            self.assertEqual(len(encoded['phases']), 51)
+
     def test_distinct_radial_ranks_geometry_and_physical_rho(self):
         config = RhoStarConfig(rho_hat=.3)
         source = field()
@@ -80,7 +181,7 @@ class RhoSweepTests(unittest.TestCase):
             self.assertEqual([d['key'] for d in cfg['datasets']], ['0.00', '0.30', '0.50'])
             self.assertEqual([d['key'] for d in cfg['datasets'] if 'panels' in d], ['0.30'])
             self.assertIn('85.00%', cfg['particleLabels']['40'])
-            self.assertEqual(cfg['panels'][1]['shape'], [2, 40, 2])
+            self.assertEqual(cfg['panels'][1]['shape'], [3, 40, 2])
             other = build_rho_star(field(), replace(config, rho_hat=0.), source_sha256='synthetic')
             runs[0.] = run_rho_star(other, executor=Execution(), options=ExecutionOptions())
             export_rho_sweep(runs, path, rho_values=(0., .3, .5))
@@ -110,7 +211,7 @@ class RhoSweepTests(unittest.TestCase):
             path = export_rho_sweep({.3: b}, Path(tmp)/'normalized.html', rho_values=(0., .3, .5))
             cfg = json.loads(re.search(r'const cfg=(.*);', path.read_text()).group(1))
             self.assertEqual(cfg['axisLabels'], ['R_hat', 'Z_hat'])
-            self.assertEqual(cfg['panels'][1]['shape'], [2, 40, 2])
+            self.assertEqual(cfg['panels'][1]['shape'], [3, 40, 2])
             # Different unit systems must never appear under one rho selector.
             a.metadata['config']['rho_hat'] = 0.
             with self.assertRaisesRegex(ValueError, 'same spatial units'):

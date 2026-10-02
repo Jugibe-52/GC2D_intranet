@@ -5,6 +5,29 @@ import json
 import numpy as np
 
 
+def _encode_field(field):
+    """Encode a periodic Hamiltonian raster and its collocated velocity grid."""
+    potential = np.asarray(field['potential'], dtype=float)
+    velocity = np.asarray(field['velocity'], dtype=float)
+    phases = np.asarray(field['phases'], dtype=float)
+    bounds = np.asarray(field['bounds'], dtype=float)
+    if (potential.ndim != 3 or potential.shape[1] != potential.shape[2]
+            or velocity.ndim != 4 or velocity.shape[1] != velocity.shape[2]
+            or velocity.shape[-1] != 2 or potential.shape[0] != len(phases)
+            or velocity.shape[0] != len(phases) or len(phases) < 2
+            or bounds.shape != (3,) or bounds[2] <= 0
+            or any(not np.isfinite(a).all() for a in (potential, velocity, phases, bounds))
+            or not np.all(np.diff(phases) > 0)):
+        raise ValueError('Invalid potential, velocity or phase grids.')
+    return dict(shape=potential.shape, vectorShape=velocity.shape, phases=phases.tolist(),
+                bounds=dict(x=float(bounds[0]), y=float(bounds[1]), span=float(bounds[2])),
+                potential=base64.b64encode(potential.astype('<f4').tobytes()).decode('ascii'),
+                velocity=base64.b64encode(velocity.astype('<f4').tobytes()).decode('ascii'),
+                minimum=float(potential.min()), maximum=float(potential.max()),
+                maxSpeed=float(np.linalg.norm(velocity, axis=-1).max()),
+                units=str(field['units']))
+
+
 def _encode_panels(panels, bounds):
     """Validate aligned samples and encode browser copies in their original units."""
     if not panels:
@@ -42,6 +65,8 @@ def _encode_panels(panels, bounds):
                 data=base64.b64encode(xy.astype('<f4').tobytes()).decode("ascii"),
             )
         )
+        if 'field' in panel:
+            encoded_panels[-1]['field'] = _encode_field(panel['field'])
     cycle_count = 1 if cycle_count is None else cycle_count
     return encoded_panels, cycle_count
 
@@ -53,13 +78,17 @@ def export_poincare_panel_comparison(path, panels, cycles_per_frame=25, *,
                                     coordinate_bounds=None, axis_labels=None,
                                     description=None, particle_groups=None,
                                     datasets=None, dataset_label="Dataset",
-                                    selected_dataset=None, particle_labels=None):
+                                    selected_dataset=None, particle_labels=None,
+                                    first_cycle=1):
     """Export aligned panels with optional selection between completed datasets.
 
     Coordinates default to the unit cell. ``coordinate_bounds=(x0,y0,span)``
     accepts physical coordinates without changing their units. Static panels
     contain one fixed sample. Datasets share panel shapes, IDs and colors;
     a dataset without panels is shown as unavailable in the selector.
+    ``first_cycle=0`` includes the original initial state. Hollow circles mark
+    the selected interval's first sample. A static panel may carry a ``field``
+    with phase-dependent potential and velocity grids instead of particles.
     """
     bounds = np.asarray((0., 0., 1.) if coordinate_bounds is None else coordinate_bounds, dtype=float)
     if bounds.shape != (3,) or not np.isfinite(bounds).all() or bounds[2] <= 0:
@@ -68,9 +97,12 @@ def export_poincare_panel_comparison(path, panels, cycles_per_frame=25, *,
     encoded_panels, cycle_count = _encode_panels(panels, bounds)
     if isinstance(cycles_per_frame, bool) or int(cycles_per_frame) != cycles_per_frame or int(cycles_per_frame) < 1:
         raise ValueError("cycles_per_frame must be positive.")
-    if isinstance(initial_cycle, bool) or int(initial_cycle) != initial_cycle or not 1 <= initial_cycle <= cycle_count:
+    if first_cycle not in (0, 1):
+        raise ValueError('first_cycle must be zero or one.')
+    if isinstance(initial_cycle, bool) or int(initial_cycle) != initial_cycle or not first_cycle <= initial_cycle < first_cycle + cycle_count:
         raise ValueError('initial_cycle must be an integer within the saved record.')
-    config = dict(panels=encoded_panels, step=int(cycles_per_frame), initialCycle=int(initial_cycle))
+    config = dict(panels=encoded_panels, step=int(cycles_per_frame), initialCycle=int(initial_cycle),
+                  firstCycle=int(first_cycle))
     config['coordinateBounds'] = dict(x=float(bounds[0]), y=float(bounds[1]), span=float(bounds[2]))
     if datasets is not None:
         encoded_datasets = []

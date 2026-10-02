@@ -1,5 +1,7 @@
 # Notebook scope
 
+Follow [AGENTL.md](AGENTL.md) for HTML viewer delivery and clickable local URLs.
+
 When inspecting or modifying notebooks, work only in `notebooks/developements/`
 by default. Do not read or alter `notebooks/experiments/` unless the user
 explicitly asks for it.
@@ -190,6 +192,30 @@ and retain every applicable control and diagnostic below.
   trajectory error, smallest space-time RMS physical-energy error, least total
   Newton work, and smallest peak projection-multiplier norm, and summarize the
   SDIRK4 and classical-RK4 long-time results explicitly.
+
+# Standard Poincare viewer layout
+
+Use two coordinated panels for time-periodic Poincare studies. On the right,
+show saved particle returns and mark each selected particle's position at the
+chosen **Start cycle** with an unfilled circle in its persistent particle color.
+Update those circles when Start cycle, rho, or particle selection changes.
+Include cycle 0 when the original initial state is saved, and distinguish the
+start rings from the current return and subsequent accumulated returns.
+
+On the left, show the effective potential that generates the actual dynamics
+(including gyroaveraging and the study's Hamiltonian normalization), overlaid
+with its physical guiding-center vector field. Provide an independent phase
+control with 51 samples, steps 0 through 50 over one forcing period; evaluate
+and verify that the first and last fields coincide. Label phase and units,
+provide potential/vector visibility controls and a potential color scale, and
+keep color and arrow-length scales fixed across phases. Changing rho must
+update both the potential and the vector field. Transform velocities and the
+Hamiltonian consistently when plotting normalized coordinates.
+
+Generate these backgrounds from the verified original field and saved study
+parameters without repeating trajectory integrations. Reuse shared study and
+visualization helpers. This is the default for new or revised Poincare viewers;
+document any scientifically necessary exception.
 
 # Project language
 

@@ -3,7 +3,7 @@
 <style>
 body{font:14px system-ui;margin:16px;color:#223047;background:#fff}
 .controls{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:14px 0}
-#dataset-control[hidden]{display:none}
+[hidden]{display:none!important}
 button,select{padding:6px 12px}input[type=range]{flex:1;min-width:220px}
 .timeline{display:grid;grid-template-columns:auto auto minmax(220px,1fr) auto;gap:4px 8px;align-items:center;flex:1;min-width:420px}
 .timeline input[type=range]{width:100%;min-width:0}
@@ -30,6 +30,14 @@ After zooming, Shift-drag or right-drag to pan all panels.</p>
 <button id="region-view" hidden>Selected region</button>
 <label id="region-control" hidden>Region <select id="region-selector"></select></label>
 <label>Point size <input id="point-size" type="range" min="0.5" max="6" step="0.5" value="2"></label><output id="point-size-value">2 px</output></div>
+<div class="controls" id="field-controls" hidden>
+<button id="phase-play">Play phase</button>
+<label for="phase-step">Phase step</label><button id="phase-previous" aria-label="Previous phase step">−</button>
+<input id="phase-step" type="range" min="0" max="50" step="1" value="0">
+<button id="phase-next" aria-label="Next phase step">+</button><output id="phase-status"></output>
+<label><input id="show-potential" type="checkbox" checked>Potential</label>
+<label><input id="show-vectors" type="checkbox" checked>Vector field</label>
+</div>
 <div class="plots" id="plots"></div>
 <div class="controls"><button id="all">Show all</button><button id="none">Hide all</button><button id="invert">Invert</button><button id="probe-only" hidden></button><span id="count"></span></div>
 <div class="controls" id="particle-groups" hidden></div>
@@ -38,22 +46,33 @@ After zooming, Shift-drag or right-drag to pan all panels.</p>
 const cfg=__CONFIG__;
 if(cfg.title){document.title=cfg.title;document.querySelector('h2').textContent=cfg.title;}
 if(cfg.description)document.getElementById('description').textContent=cfg.description;
+function decodeFloat(data){return new Float32Array(Uint8Array.from(atob(data),c=>c.charCodeAt(0)).buffer);}
 function decodePanels(records){return records.map(panel=>{
  const bytes=Uint8Array.from(atob(panel.data),c=>c.charCodeAt(0));
- return {...panel,xy:new Float32Array(bytes.buffer)};
+ const field=panel.field?{...panel.field,potential:decodeFloat(panel.field.potential),velocity:decodeFloat(panel.field.velocity),images:new Map()}:null;
+ return {...panel,xy:new Float32Array(bytes.buffer),field};
 });}
 let panels=decodePanels(cfg.panels);
-const N=panels.find(panel=>!panel.static)?.shape[0]??1,allIds=[...new Set(panels.flatMap(panel=>panel.ids))].sort((a,b)=>a-b);
+const firstCycle=cfg.firstCycle??1,N=(panels.find(panel=>!panel.static)?.shape[0]??1)+firstCycle-1,allIds=[...new Set(panels.flatMap(panel=>panel.ids))].sort((a,b)=>a-b);
 if(panels.length===4)document.getElementById('plots').classList.add('four-panels');
 if(panels.length===1)document.getElementById('plots').classList.add('single-panel');
 const colorById=new Map();panels.forEach(panel=>panel.ids.forEach((id,p)=>colorById.set(id,panel.colors[p])));
 const selected=new Set(allIds),boxes=[];
 const slider=document.getElementById('cycle'),startSlider=document.getElementById('start-cycle'),play=document.getElementById('play');
 const speed=document.getElementById('speed'), trail=document.getElementById('trail');
-slider.max=N;startSlider.max=N;speed.value=String(cfg.step);
+slider.min=firstCycle;startSlider.min=firstCycle;startSlider.value=firstCycle;slider.max=N;startSlider.max=N;speed.value=String(cfg.step);
 slider.value=cfg.initialCycle??1;
 if(!speed.value){const o=new Option(cfg.step,cfg.step);speed.add(o);speed.value=String(cfg.step);}
-let timer=null;
+let timer=null,phaseTimer=null;
+const phaseSlider=document.getElementById('phase-step'),phasePlay=document.getElementById('phase-play');
+const showPotential=document.getElementById('show-potential'),showVectors=document.getElementById('show-vectors');
+function stopPhase(){clearInterval(phaseTimer);phaseTimer=null;phasePlay.textContent='Play phase';}
+phaseSlider.oninput=()=>{stopPhase();draw();};
+function phaseStep(delta){stopPhase();phaseSlider.value=Math.max(0,Math.min(Number(phaseSlider.max),Number(phaseSlider.value)+delta));draw();}
+document.getElementById('phase-previous').onclick=()=>phaseStep(-1);
+document.getElementById('phase-next').onclick=()=>phaseStep(1);
+phasePlay.onclick=()=>{if(phaseTimer){stopPhase();return;}phasePlay.textContent='Pause phase';phaseTimer=setInterval(()=>{phaseSlider.value=(Number(phaseSlider.value)+1)%(Number(phaseSlider.max)+1);draw();},150);};
+showPotential.onchange=showVectors.onchange=draw;
 // A square viewport in the data's coordinate units is shared by every panel.
 const bounds=cfg.coordinateBounds??{x:0,y:0,span:1},axisLabels=cfg.axisLabels??['x / L','y / L'];
 const plot={left:78,top:20,size:500,canvas:600};
@@ -71,7 +90,7 @@ function square(a,b){
 }
 const canvases=panels.map(dataPanel=>{
  const panel=document.createElement('div'),h=document.createElement('h3'),c=document.createElement('canvas');
- h.textContent=dataPanel.title;c.width=600;c.height=600;panel.append(h,c);document.getElementById('plots').append(panel);return c;
+ h.textContent=dataPanel.title;c.width=600;c.height=600;c.setAttribute('role','img');c.setAttribute('aria-label',dataPanel.title);panel.append(h,c);const note=document.createElement('p');note.className='plot-note';panel.append(note);document.getElementById('plots').append(panel);return c;
 });
 canvases.forEach(canvas=>{
  canvas.oncontextmenu=event=>event.preventDefault();
@@ -121,14 +140,51 @@ if(cfg.particleGroups?.length){
   container.append(button);
  });
 }
+// Raster colors and arrow lengths share fixed scales across all phases of a rho.
+function heatColor(f){
+ const stops=[[68,1,84],[59,82,139],[33,145,140],[94,201,98],[253,231,37]];
+ const z=Math.max(0,Math.min(1,f))*4,i=Math.min(3,Math.floor(z)),a=z-i;
+ return stops[i].map((v,k)=>Math.round(v*(1-a)+stops[i+1][k]*a));
+}
+function drawField(ctx,field,phase){
+ const {left,top,size}=plot,b=field.bounds,n=field.shape[1],vn=field.vectorShape[1];
+ const px=x=>left+(x-view.x)/view.span*size,py=y=>top+(1-(y-view.y)/view.span)*size;
+ if(showPotential.checked){
+  if(!field.images.has(phase)){
+   const raster=document.createElement('canvas');raster.width=n;raster.height=n;
+   const rc=raster.getContext('2d'),im=rc.createImageData(n,n),range=field.maximum-field.minimum||1;
+   for(let y=0;y<n;y++)for(let x=0;x<n;x++){
+    const rgb=heatColor((field.potential[(phase*n+y)*n+x]-field.minimum)/range),i=((n-1-y)*n+x)*4;
+    im.data.set([...rgb,255],i);
+   }rc.putImageData(im,0,0);field.images.set(phase,raster);
+  }
+  ctx.drawImage(field.images.get(phase),px(b.x),py(b.y+b.span),b.span/view.span*size,b.span/view.span*size);
+ }
+ if(showVectors.checked&&field.maxSpeed>0){
+  const scale=.75*b.span/vn/field.maxSpeed;
+  for(let y=0;y<vn;y++)for(let x=0;x<vn;x++){
+   const i=((phase*vn+y)*vn+x)*2,ux=field.velocity[i],uy=field.velocity[i+1];
+   if(Math.hypot(ux,uy)<1e-12*field.maxSpeed)continue;
+   const cx=b.x+(x+.5)*b.span/vn,cy=b.y+(y+.5)*b.span/vn;
+   const ax=px(cx-.5*ux*scale),ay=py(cy-.5*uy*scale),bx=px(cx+.5*ux*scale),by=py(cy+.5*uy*scale);
+   const angle=Math.atan2(by-ay,bx-ax),head=Math.min(5,Math.hypot(bx-ax,by-ay)*.45);
+   ctx.beginPath();ctx.moveTo(ax,ay);ctx.lineTo(bx,by);ctx.moveTo(bx-head*Math.cos(angle-.5),by-head*Math.sin(angle-.5));ctx.lineTo(bx,by);ctx.lineTo(bx-head*Math.cos(angle+.5),by-head*Math.sin(angle+.5));
+   ctx.strokeStyle='rgba(255,255,255,.8)';ctx.lineWidth=3;ctx.stroke();ctx.strokeStyle='#102030';ctx.lineWidth=1.3;ctx.stroke();
+  }
+ }
+}
 function draw(){
  const cycle=Number(slider.value),startCycle=Number(startSlider.value);
  const diameter=Number(pointSize.value),digits=Math.max(2,Math.ceil(-Math.log10(view.span))+2);
  document.getElementById('point-size-value').textContent=diameter+' px';
  document.getElementById('status').textContent='Cycles '+startCycle+'–'+cycle+' / '+N;
  document.getElementById('count').textContent=selected.size+' / '+allIds.length+' selected';
+ const activeField=panels.find(p=>p.field)?.field;
+ document.getElementById('field-controls').hidden=!activeField;
+ if(activeField){phaseSlider.max=activeField.phases.length-1;document.getElementById('phase-status').textContent=`Step ${phaseSlider.value} / ${phaseSlider.max} · phase ${activeField.phases[Number(phaseSlider.value)].toFixed(2)} · endpoints coincide`;}
+
  canvases.forEach((canvas,m)=>{
- const {xy,ids,colors,shape,static:fixed}=panels[m],P=shape[1];
+ const {xy,ids,colors,shape,static:fixed,field}=panels[m],P=shape[1];
  const ctx=canvas.getContext('2d'),{left,top,size}=plot;
  ctx.clearRect(0,0,600,600);ctx.font='15px system-ui';ctx.lineWidth=1;
  for(let k=0;k<=4;k++){
@@ -140,21 +196,38 @@ function draw(){
  ctx.textAlign='center';ctx.fillText(axisLabels[0],left+size/2,590);
  ctx.save();ctx.translate(16,top+size/2);ctx.rotate(-Math.PI/2);ctx.fillText(axisLabels[1],0,0);ctx.restore();
  ctx.save();ctx.beginPath();ctx.rect(left,top,size,size);ctx.clip();
- for(let p=0;p<P;p++){
+ if(field)drawField(ctx,field,Number(phaseSlider.value));
+ if(!field)for(let p=0;p<P;p++){
  if(!selected.has(ids[p]))continue;
  ctx.fillStyle=colors[p];
  if(trail.checked&&!fixed){const highlighted=ids[p]===cfg.highlightParticle||(cfg.highlightParticles??[]).includes(ids[p]),pointDiameter=highlighted?Math.max(3,diameter):diameter;ctx.globalAlpha=highlighted?1:.55;
- for(let t=startCycle-1;t<cycle;t++){const i=(t*P+p)*2;ctx.fillRect(left+(xy[i]-view.x)/view.span*size-pointDiameter/2,top+(1-(xy[i+1]-view.y)/view.span)*size-pointDiameter/2,pointDiameter,pointDiameter);}}
- ctx.globalAlpha=1;const i=((fixed?0:cycle-1)*P+p)*2;
- ctx.beginPath();ctx.arc(left+(xy[i]-view.x)/view.span*size,top+(1-(xy[i+1]-view.y)/view.span)*size,diameter*2,0,2*Math.PI);ctx.fill();
- }ctx.restore();
+ for(let t=startCycle-firstCycle+1;t<=cycle-firstCycle;t++){const i=(t*P+p)*2;ctx.fillRect(left+(xy[i]-view.x)/view.span*size-pointDiameter/2,top+(1-(xy[i+1]-view.y)/view.span)*size-pointDiameter/2,pointDiameter,pointDiameter);}}
+ ctx.globalAlpha=1;const i=((fixed?0:cycle-firstCycle)*P+p)*2;
+ if(fixed||cycle!==startCycle){ctx.beginPath();ctx.arc(left+(xy[i]-view.x)/view.span*size,top+(1-(xy[i+1]-view.y)/view.span)*size,diameter*2,0,2*Math.PI);ctx.fill();}
+ }
+ // Draw interval-start rings last, so dense return clouds cannot hide them.
+ if(!field&&!fixed)for(let p=0;p<P;p++){
+  if(!selected.has(ids[p]))continue;
+  const i=((startCycle-firstCycle)*P+p)*2;
+  ctx.beginPath();ctx.arc(left+(xy[i]-view.x)/view.span*size,top+(1-(xy[i+1]-view.y)/view.span)*size,Math.max(6,diameter*3),0,2*Math.PI);
+  ctx.strokeStyle='white';ctx.lineWidth=4;ctx.stroke();ctx.strokeStyle=colors[p];ctx.lineWidth=2;ctx.stroke();
+ }
+ ctx.restore();
+ const note=canvas.nextElementSibling;
+ if(field){
+  note.textContent=`Effective Hρ (${field.units}). Arrows: GC drift, lengths proportional to speed; fixed scale across phases, maximum ${field.maxSpeed.toPrecision(4)}. Phase ${field.phases[Number(phaseSlider.value)].toFixed(2)}.`;
+  const gradient=ctx.createLinearGradient(left,0,left+size,0);
+  for(let k=0;k<=4;k++)gradient.addColorStop(k/4,'rgb('+heatColor(k/4).join(',')+')');
+  ctx.fillStyle=gradient;ctx.fillRect(left,552,size,10);ctx.fillStyle='#334155';ctx.font='12px system-ui';ctx.textAlign='left';ctx.fillText(field.minimum.toPrecision(4),left,577);ctx.textAlign='right';ctx.fillText(field.maximum.toPrecision(4),left+size,577);
+ }else if(!fixed)note.textContent=`Hollow circles: particle positions at Start cycle ${startCycle}. Filled dots: subsequent returns; larger dots: Current cycle ${cycle}.`;
+
  if(drag&&!drag.pan){const b=drag.box;ctx.save();ctx.strokeStyle='#111827';ctx.fillStyle='rgba(59,130,246,.12)';ctx.setLineDash([6,4]);ctx.fillRect(left+b.x*size,top+(1-b.y-b.span)*size,b.span*size,b.span*size);ctx.strokeRect(left+b.x*size,top+(1-b.y-b.span)*size,b.span*size,b.span*size);ctx.restore();}
  });
 }
 function stop(){clearInterval(timer);timer=null;play.textContent='Play';}
 function stepCycle(input,delta){
  stop();
- const minimum=input===slider?Number(startSlider.value):1;
+ const minimum=input===slider?Number(startSlider.value):firstCycle;
  const maximum=input===startSlider?Number(slider.value):N;
  input.value=Math.max(minimum,Math.min(maximum,Number(input.value)+delta));
  draw();
@@ -205,8 +278,8 @@ if(cfg.datasets?.length){
  const chooseDataset=()=>{
   const dataset=cfg.datasets.find(item=>item.key===selector.value);
   if(!dataset?.panels)return;
-  stop();panels=decodePanels(dataset.panels);
-  canvases.forEach((canvas,index)=>canvas.previousElementSibling.textContent=panels[index].title);
+  stop();stopPhase();panels=decodePanels(dataset.panels);
+  canvases.forEach((canvas,index)=>{canvas.previousElementSibling.textContent=panels[index].title;canvas.setAttribute('aria-label',panels[index].title);});
   document.getElementById('dataset-note').textContent=dataset.note;
   draw();
  };

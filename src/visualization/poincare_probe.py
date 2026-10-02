@@ -5,30 +5,64 @@ from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 import os
 from pathlib import Path
+import re
 from threading import Thread
-from urllib.parse import quote
+from urllib.parse import quote, unquote, urlsplit
 
 import matplotlib.pyplot as plt
 import numpy as np
 
 
 _VIEWER_SERVERS: dict[Path, ThreadingHTTPServer] = {}
+_VIEWER_ALIASES: dict[Path, dict[str, str]] = {}
 
 
-def serve_probe_viewer(path: Path) -> str:
+def serve_probe_viewer(path: Path, *, notebook_name: str | None = None) -> str:
     """Return a loopback HTTP URL, served for the lifetime of the notebook kernel.
 
     Reexecuting the cell reuses its server. Only the HTML directory is served,
-    and the listener is restricted to this computer.
+    and the listener is restricted to this computer. A notebook name gives the
+    URL a stable, distinct HTML basename without renaming the saved artifact.
     """
     path = Path(path).resolve(strict=True)
-    if path.parent not in _VIEWER_SERVERS:
-        handler = partial(SimpleHTTPRequestHandler, directory=str(path.parent))
+    directory = path.parent
+    aliases = _VIEWER_ALIASES.setdefault(directory, {})
+    url_basename = path.name
+    if notebook_name is not None:
+        if not re.fullmatch(r'[A-Za-z0-9_-]+', notebook_name):
+            raise ValueError('notebook_name must contain only letters, numbers, underscores, and hyphens.')
+        url_basename = f'{notebook_name}.html'
+        previous = aliases.get(url_basename)
+        if previous is not None and previous != path.name:
+            raise ValueError('The notebook URL name is already assigned to another viewer.')
+        aliases[url_basename] = path.name
+    if directory not in _VIEWER_SERVERS:
+        class ViewerHandler(SimpleHTTPRequestHandler):
+            """Map notebook-specific URL basenames to saved HTML artifacts."""
+
+            def translate_path(self, request_path: str) -> str:
+                requested = unquote(urlsplit(request_path).path.lstrip('/'))
+                if requested in aliases:
+                    return str(directory / aliases[requested])
+                return super().translate_path(request_path)
+
+        handler = partial(ViewerHandler, directory=str(directory))
         server = ThreadingHTTPServer(('127.0.0.1', 0), handler)
         Thread(target=server.serve_forever, daemon=True).start()
-        _VIEWER_SERVERS[path.parent] = server
-    port = _VIEWER_SERVERS[path.parent].server_port
-    return f'http://127.0.0.1:{port}/{quote(path.name)}'
+        _VIEWER_SERVERS[directory] = server
+    port = _VIEWER_SERVERS[directory].server_port
+    return f'http://127.0.0.1:{port}/{quote(url_basename)}'
+
+
+def display_notebook_viewer_link(path: Path, notebook_name: str) -> str:
+    """Show a clickable, notebook-named local URL for a saved HTML viewer."""
+    from IPython.display import HTML, display
+
+    url = serve_probe_viewer(path, notebook_name=notebook_name)
+    print(f'Local viewer URL ({notebook_name}): {url}')
+    display(HTML(f'<a href="{escape(url)}" target="_blank" rel="noopener">'
+                 f'Open {escape(notebook_name)} in a new tab</a>'))
+    return url
 
 
 def plot_probe_context(background, settings, *, view: tuple[float, float, float],

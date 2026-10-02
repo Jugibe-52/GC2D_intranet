@@ -204,7 +204,10 @@ interpolation, the checked HDF5 source hash, and the complete numerical settings
 Deploy `examples/modal_poincare_rho_app.py` to create the authenticated
 `gc2d-poincare-rho-sweep/integrate` endpoint. It uses JAX CPU float64, a two-core
 request and limit, 2048/4096 MiB memory, a 7200-second timeout, no configured
-retries, and at most one container. `Execution_Modal` retains a call receipt;
+retries, and at most ten independent containers (one integration per container).
+Each running container receives two CPU cores; ten concurrent runs therefore
+request twenty cores in total. Worker start/finish timestamps are retained as
+scalar diagnostics to verify integration overlap. `Execution_Modal` retains a call receipt;
 `modal_rho_executor` reuses a unique confirmed receipt on interruption. A
 completed compatible archive is loaded rather than calculated again. Scientific
 results are published to the bucket through `solution_destination`, with the
@@ -218,6 +221,83 @@ Particle labels and colors follow initial radial rank. Both the fixed initial
 star and animated returns are displayed in meters, without coordinate wrapping.
 The original cell is the initial viewport; Full view includes all unwrapped
 returns. This experiment does not certify long-time trajectory accuracy.
+
+### Standard phase-field and return display
+
+For new or revised viewers, pass the original HDF5 `source` to
+`export_rho_sweep`. The exporter rebuilds the archived physical configuration,
+checks its source hash, and uses `studies.poincare_rho_sweep.sample_rho_dynamics`
+to evaluate the effective gyroaveraged Hamiltonian and GC vector field without
+integrating any trajectories. The left panel provides potential and arrow
+layers with an independent 51-frame phase control (steps 0–50). Both forcing
+endpoints are evaluated and checked before exact browser closure. Potential
+colors and arrow lengths retain fixed scales across the phases of a given rho.
+The rho selector updates both fields. In cell fractions, the display transforms
+H to H/L² and velocity to v/L, preserving the Hamiltonian-vector-field relation.
+
+On the right, unfilled particle-colored circles mark the saved positions at
+Start cycle; cycle zero selects the original initial state. Subsequent returns
+and the current return retain their existing displays. Selection, start cycle
+and rho changes all update the rings. The shared panel exporter supports an
+explicit `first_cycle=0` for archives containing the initial state; its default
+remains one for existing return-only comparisons. Legacy calls without a source
+retain their static context panel. The radial-potential star visualization
+notebooks now explicitly select the standard field panel.
+
+### Folded display and saved returns
+
+The independent experiment at
+`notebooks/developements/poincare_section/bm4_midpoint_star_40_rho_0_30_folded/`
+contains matched `calculation.ipynb` and `visualisation.ipynb` notebooks. It
+retains the dimensional star's physical inputs, 40 particles, eight arms,
+5000 forcing cycles, 50 complete steps per cycle and zero coupling. Only
+rho=0.30 is configured, using JAX CPU float64 on the same Modal endpoint.
+
+`run_and_save_rho_star(..., save_folded_returns=True)` preserves unwrapped
+cycle states and additionally archives `cycle_positions_wrapped` in runtime
+units and `cycle_positions_cell_fraction` relative to the cell origin.
+These diagnostic arrays have shape `(5001, 40, 2)`, including cycle zero;
+they are computed after integration, never fed back into the solver.
+`studies.poincare_rho_sweep.folded_rho_positions` defines the shared conversion.
+The default archive behavior remains unchanged for existing experiments.
+
+`export_rho_sweep(..., fold_to_cell=True)` displays the initial star and
+cycle returns in the unit cell using `((X-X0) modulo L)/L`. Field evaluation
+was already periodic; this option changes only display coordinates. The
+calculation publishes an independent NPZ/JSON archive under the matching
+experiment bucket prefix. The visualization downloads that archive without
+submitting a calculation. No reference integration is included because this
+experiment repeats the star study with different saved/display representations.
+
+### Star repeat with the historical radial Hamiltonian
+
+`RhoStarConfig.hamiltonian_convention="radial"` multiplies the dimensional
+star stream `(T0/B)*Phi` by `1/(2*pi)`, including both mean and oscillating
+samples. Frequencies and cycle times are unchanged. After conversion to
+`q=2*pi*(X-X0)/lambda`, this stream equals the historical radial study's
+canonical `Phi_hat`. It changes the drift relative to the forcing; it is
+independent of spatial normalization and periodic display folding.
+The default `"cycle_time"` retains the previous star dynamics. Archives
+without this setting are interpreted as `"cycle_time"`; the two conventions
+cannot share a completed destination or a rho comparison viewer.
+
+The independent calculation/visualisation pair is under
+`notebooks/developements/poincare_section/bm4_midpoint_star_40_rho_0_30_folded_radial_potential/`.
+It retains the previous folded star's 40 particles, eight arms, rho=0.30,
+5000 cycles, 50 steps per cycle and zero coupling, using JAX CPU on Modal.
+The notebooks explicitly select the radial convention and use an independent
+bucket prefix and call receipts. Unwrapped meter coordinates and both folded
+cycle representations are saved. The viewer identifies the Hamiltonian
+convention alongside the step and coupling settings.
+
+The radial-Hamiltonian folder also contains independent matched
+`calculation_rho_*.ipynb` / `visualisation_rho_*.ipynb` pairs for the remaining
+rho values from 0.00 to 0.50 in increments of 0.05. The original
+`calculation.ipynb` remains the rho=0.30 calculation. Completed archives are
+reused; missing calculations can run concurrently in independent notebook
+kernels against the ten-container Modal deployment. Every rho has its own
+bucket run prefix and submission receipts. The main `visualisation.ipynb`
+loads all completed values into a single folded viewer with a rho selector.
 
 ### Spatially normalized repeat
 

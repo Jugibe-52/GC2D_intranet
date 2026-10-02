@@ -1,8 +1,8 @@
-"""Deploy one JAX CPU worker for the dimensional Poincare rho sweep."""
+"""Deploy up to ten independent JAX CPU workers for Poincare rho sweeps."""
 
 from pathlib import Path
 import sys
-from time import perf_counter
+from time import perf_counter, time
 
 import modal
 
@@ -23,13 +23,17 @@ app = modal.App("gc2d-poincare-rho-sweep")
 
 
 @app.function(image=image, cpu=(2.0, 2.0), memory=(2048, 4096), timeout=7200,
-              retries=0, max_containers=1, scaledown_window=60)
+              retries=0, max_containers=10, scaledown_window=60)
 def integrate(payload: bytes) -> tuple[int, str, IntegrationData]:
     """Run a single float64 integration, returning results to the local caller."""
     import numpy as np
+    started_unix = time()
     start = perf_counter()
     version, digest, data = execute_payload(payload)
     # Transfer cycle observations and scalar diagnostics, without per-step arrays.
     diagnostics = {k: v for k, v in data.diagnostics.items() if not isinstance(v, np.ndarray)}
     diagnostics['worker_wall_seconds'] = perf_counter() - start
+    # Absolute worker intervals let a batch verify actual integration overlap.
+    diagnostics['worker_started_unix_seconds'] = started_unix
+    diagnostics['worker_finished_unix_seconds'] = time()
     return version, digest, IntegrationData(data.t, data.states, diagnostics)
