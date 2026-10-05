@@ -1,4 +1,4 @@
-"""BM4Midpoint Poincare stars in physical or normalized space on Modal."""
+"""Matched Poincare stars in physical or normalized space on Modal."""
 
 from __future__ import annotations
 
@@ -14,6 +14,7 @@ import numpy as np
 from contracts.execution_options import ExecutionOptions
 from contracts.problem import InitialValueProblem
 from contracts.request import SimulationRequest
+from contracts.result import DiagnosticValue
 from diagnostics.persistence import StoredSolution, load_solution, save_solution
 from diagnostics.storage import ArtifactStore
 from dynamics.gc import GuidingCenterDynamics
@@ -21,7 +22,9 @@ from execution.execution import Execution
 from execution.execution_modal import Execution_Modal
 from initial_conditions.star import ranked_radial_star
 from initial_conditions import GCInitialConfiguration
-from methods.extended.bm4 import BM4Midpoint
+from methods.classical.gauss_legendre import GaussLegendre4
+from methods.classical.rk4 import RK4
+from methods.extended.bm4 import BM4Implicit, BM4Midpoint
 from potential import Grid, Potential
 from simulation.runner import simulate
 from solution import Solution
@@ -48,6 +51,13 @@ class RhoStarConfig:
     coupling_frequency: float = 0.0
     spatial_normalization: str = "none"
     hamiltonian_convention: str = "cycle_time"
+    method: str = "BM4Midpoint"
+    # Shared implicit stopping controls in the runtime spatial coordinates.
+    newton_absolute_tolerance: float = 1e-12
+    newton_relative_tolerance: float = 1e-11
+    newton_max_iterations: int = 40
+    newton_jacobian_relative_step: float = float(np.cbrt(np.finfo(float).eps))
+    newton_jacobian_method: str = "analytic"
 
     def __post_init__(self) -> None:
         """Reject invalid scientific inputs before creating a remote job."""
@@ -55,7 +65,11 @@ class RhoStarConfig:
             raise ValueError("spatial_normalization must be none or characteristic_length.")
         if self.hamiltonian_convention not in ("cycle_time", "radial"):
             raise ValueError("hamiltonian_convention must be cycle_time or radial.")
-        for name in ("particles", "arms", "cycles", "steps_per_cycle"):
+        if self.method not in ("BM4Midpoint", "BM4Implicit", "RK4", "GaussLegendre4"):
+            raise ValueError("method must be BM4Midpoint, BM4Implicit, RK4 or GaussLegendre4.")
+        if self.newton_jacobian_method != "analytic":
+            raise ValueError("Matched Poincare stars require analytic guiding-center Jacobians.")
+        for name in ("particles", "arms", "cycles", "steps_per_cycle", "newton_max_iterations"):
             value = getattr(self, name)
             if isinstance(value, (bool, np.bool_)) or not isinstance(value, (int, np.integer)) or value < 1:
                 raise ValueError(f"{name} must be a positive integer.")
@@ -71,6 +85,12 @@ class RhoStarConfig:
             raise ValueError("outer_radius_fraction must lie in (0, 1].")
         if not np.isfinite(self.first_angle):
             raise ValueError("first_angle must be finite.")
+        for name in ("newton_absolute_tolerance", "newton_relative_tolerance", "newton_jacobian_relative_step"):
+            value = getattr(self, name)
+            if not np.isfinite(value) or value <= 0:
+                raise ValueError(f"{name} must be finite and positive.")
+        if self.method in ("RK4", "GaussLegendre4") and self.coupling_frequency != 0:
+            raise ValueError("Classical methods require coupling_frequency=0 because they have no doubled copies.")
 
 
 @dataclass(frozen=True)
@@ -96,6 +116,7 @@ def build_rho_star(field: DimensionalH5Field, config: RhoStarConfig, *,
         center=tuple(center), outer_radius=float(radii[-1]), particles=config.particles,
         arms=config.arms, first_angle=config.first_angle,
     )
+    assert initial.state is not None
     physical_xy = np.column_stack(initial.positions(initial.state))
     # rho_hat is invariant across representations; the physical radius is meters.
     rho_m = config.rho_hat * config.characteristic_length / (2 * np.pi)
@@ -131,7 +152,8 @@ def build_rho_star(field: DimensionalH5Field, config: RhoStarConfig, *,
     )
     x, y = initial.positions(problem.initial_state)
     metadata = {
-        "study": "poincare_bm4midpoint_ranked_star_rho_sweep",
+        "study": ("poincare_bm4midpoint_ranked_star_rho_sweep" if config.method == "BM4Midpoint"
+                  else "poincare_ranked_star_rho_sweep"),
         "config": asdict(config), "source_sha256": source_sha256,
         "source_field_indices": field.source_indices,
         "space_unit": "dimensionless" if normalized else "m",
@@ -155,7 +177,7 @@ def build_rho_star(field: DimensionalH5Field, config: RhoStarConfig, *,
         "particle_id": np.arange(1, config.particles + 1),
         "arm_id": np.arange(config.particles) % config.arms + 1,
         "particle_order": "increasing distinct distance, alternating arms; one center particle",
-        "method": "BM4Midpoint", "samples_per_cycle": 1,
+        "method": config.method, "samples_per_cycle": 1,
         "initial_state_saved": True, "saved_cycles": config.cycles,
         "expected_step_count": config.cycles * config.steps_per_cycle,
     }
@@ -195,6 +217,7 @@ def sample_rho_dynamics(prepared: PreparedRhoStar, *, grid_size: int = 64,
     vx, vy = np.meshgrid(x0 + length*vq, y0 + length*vq)
     state = np.concatenate((vx.ravel(), vy.ravel()))
     dynamics = prepared.problem.dynamics
+    assert isinstance(dynamics, GuidingCenterDynamics)
     potential = np.stack([dynamics.effective_potential.evaluate(t, xx, yy) for t in phases])
     velocity = np.stack([dynamics.vector_field(t, state).reshape(2, vector_grid_size, vector_grid_size)
                          .transpose(1, 2, 0) for t in phases])
@@ -208,19 +231,82 @@ def sample_rho_dynamics(prepared: PreparedRhoStar, *, grid_size: int = 64,
                 bounds=np.array((x0, y0, length)))
 
 
-def validate_rho_solution(solution: Solution, prepared: PreparedRhoStar) -> None:
-    """Check every requested cycle and BM4 arithmetic projection before publishing."""
-    config = prepared.config
+def validate_rho_solution(solution: Solution, prepared: PreparedRhoStar, *,
+                          options: ExecutionOptions | None = None) -> None:
+    """Check complete float64 cycle samples and the selected method's contract."""
+    _validate_rho_cycle_solution(solution, prepared.config,
+                                output_times=prepared.request.output_times,
+                                initial_state=prepared.problem.initial_state, options=options)
+
+
+def _validate_rho_cycle_solution(solution: Solution, config: RhoStarConfig, *,
+                                output_times: np.ndarray, initial_state: np.ndarray,
+                                options: ExecutionOptions | None = None) -> None:
+    """Share cycle and solver checks with explicit-seed saved-data consumers."""
     diagnostics = solution.diagnostics
     if (solution.states.shape != (2 * config.particles, config.cycles + 1)
-            or not np.array_equal(solution.t, prepared.request.output_times)
+            or not np.array_equal(solution.t, output_times)
             or not np.isfinite(solution.states).all()
+            or solution.states.dtype != np.dtype("float64")
             or diagnostics["step_count"] != config.cycles * config.steps_per_cycle
-            or diagnostics["output_interpolation_count"] != 0
-            or diagnostics["projection_kind"] != "arithmetic_mean"
-            or diagnostics["coupling_frequency"] != config.coupling_frequency):
-        raise ValueError("Result does not match the requested BM4 cycle sampling.")
-    np.testing.assert_array_equal(solution.states[:, 0], prepared.problem.initial_state)
+            or diagnostics["output_interpolation_count"] != 0):
+        raise ValueError("Result does not match the requested float64 cycle sampling.")
+    if options is not None and options.backend == "jax":
+        if (diagnostics.get("execution_backend") != "jax"
+                or diagnostics.get("execution_device") != options.device
+                or diagnostics.get("execution_mode") != "device_resident"):
+            raise ValueError("Result does not match the requested device-resident JAX execution.")
+    if config.method in ("BM4Midpoint", "BM4Implicit"):
+        if diagnostics.get("coupling_frequency") != config.coupling_frequency:
+            raise ValueError("Result does not match the requested BM4 coupling frequency.")
+        if config.method == "BM4Midpoint" and diagnostics.get("projection_kind") != "arithmetic_mean":
+            raise ValueError("BM4Midpoint requires arithmetic-mean projection.")
+        if config.method == "BM4Implicit" and diagnostics.get("projection_solver_formulation") != "bm4_implicit_reduced":
+            raise ValueError("BM4Implicit requires one reduced projection around the complete composition.")
+    if config.method in ("BM4Implicit", "GaussLegendre4"):
+        expected = {
+            "nonlinear_solver": "newton", "nonlinear_solves_per_step": 1,
+            "nonlinear_absolute_tolerance": config.newton_absolute_tolerance,
+            "nonlinear_relative_tolerance": config.newton_relative_tolerance,
+            "nonlinear_max_iterations": config.newton_max_iterations,
+            "newton_jacobian_method": config.newton_jacobian_method,
+            "newton_jacobian_relative_step": config.newton_jacobian_relative_step,
+        }
+        if config.method == "GaussLegendre4":
+            expected.update(stage_count=2, designed_order=4)
+        if any(diagnostics.get(key) != value for key, value in expected.items()):
+            raise ValueError("Result does not match the requested implicit-method controls.")
+    elif "nonlinear_solver" in diagnostics:
+        raise ValueError("Explicit methods must not report nonlinear solves.")
+    if config.method in ("RK4", "GaussLegendre4") and any(
+            key in diagnostics for key in ("projection_kind", "projection_solver_formulation", "coupling_frequency")):
+        raise ValueError("Classical methods must not report doubled-copy projection.")
+    if not np.array_equal(solution.states[:, 0], initial_state):
+        raise ValueError("Result does not match the requested initial positions.")
+
+
+def _rho_star_method(config: RhoStarConfig) -> BM4Midpoint | BM4Implicit | RK4 | GaussLegendre4:
+    """Bind the explicit scientific method selection to its canonical class."""
+    if config.method == "BM4Midpoint":
+        return BM4Midpoint(coupling_frequency=config.coupling_frequency)
+    if config.method == "RK4":
+        return RK4()
+    if config.method == "BM4Implicit":
+        return BM4Implicit(
+            coupling_frequency=config.coupling_frequency,
+            newton_absolute_tolerance=config.newton_absolute_tolerance,
+            newton_relative_tolerance=config.newton_relative_tolerance,
+            newton_max_iterations=config.newton_max_iterations,
+            newton_jacobian_relative_step=config.newton_jacobian_relative_step,
+            newton_jacobian_method="analytic",
+        )
+    return GaussLegendre4(
+        newton_absolute_tolerance=config.newton_absolute_tolerance,
+        newton_relative_tolerance=config.newton_relative_tolerance,
+        newton_max_iterations=config.newton_max_iterations,
+        newton_jacobian_relative_step=config.newton_jacobian_relative_step,
+        newton_jacobian_method="analytic",
+    )
 
 
 def folded_rho_positions(solution: Solution, metadata: dict[str, Any]) -> tuple[np.ndarray, np.ndarray]:
@@ -246,14 +332,16 @@ def run_rho_star(prepared: PreparedRhoStar, *, executor: Execution,
     """Integrate once and retain cycle states, optionally with folded copies."""
     started = perf_counter()
     solution = simulate(
-        prepared.problem, BM4Midpoint(coupling_frequency=prepared.config.coupling_frequency),
+        prepared.problem, _rho_star_method(prepared.config),
         prepared.request, execution=executor, options=options,
     )
-    validate_rho_solution(solution, prepared)
+    validate_rho_solution(solution, prepared, options=options)
     # Per-step arrays are internal diagnostics, not requested observations.
     # Drop internal arrays before adding any requested cycle-only representations.
-    diagnostics = {key: value for key, value in solution.diagnostics.items()
-                   if not isinstance(value, np.ndarray)}
+    diagnostics: dict[str, DiagnosticValue] = {
+        key: value for key, value in solution.diagnostics.items()
+        if not isinstance(value, np.ndarray)
+    }
     if save_folded_returns:
         wrapped, fractions = folded_rho_positions(solution, prepared.metadata)
         diagnostics.update(cycle_positions_wrapped=wrapped, cycle_positions_cell_fraction=fractions)
@@ -287,15 +375,22 @@ def run_and_save_rho_star(prepared: PreparedRhoStar, destination: str | Path, *,
         actual = dict(stored.metadata.get("config", {}))
         actual.setdefault("spatial_normalization", "none")
         actual.setdefault("hamiltonian_convention", "cycle_time")
+        defaults = asdict(RhoStarConfig(rho_hat=0.0))
+        for key in ("method", "newton_absolute_tolerance", "newton_relative_tolerance",
+                    "newton_max_iterations", "newton_jacobian_relative_step", "newton_jacobian_method"):
+            actual.setdefault(key, defaults[key])
         if (actual != expected
-                or stored.metadata.get("source_sha256") != prepared.metadata["source_sha256"]):
+                or stored.metadata.get("source_sha256") != prepared.metadata["source_sha256"]
+                or stored.metadata.get("method", "BM4Midpoint") != prepared.config.method
+                or stored.metadata.get("probe_config") != prepared.metadata.get("probe_config")):
             raise ValueError("The completed destination belongs to different scientific inputs.")
-        validate_rho_solution(stored.solution, prepared)
+        validate_rho_solution(stored.solution, prepared, options=options)
         if save_folded_returns:
             wrapped, fractions = folded_rho_positions(stored.solution, stored.metadata)
             for name, expected_array in (("cycle_positions_wrapped", wrapped),
                                          ("cycle_positions_cell_fraction", fractions)):
-                if not np.array_equal(stored.solution.diagnostics.get(name), expected_array):
+                actual_array = stored.solution.diagnostics.get(name)
+                if not isinstance(actual_array, np.ndarray) or not np.array_equal(actual_array, expected_array):
                     raise ValueError("The completed archive has missing or inconsistent folded returns.")
         return stored
     stored = run_rho_star(prepared, executor=executor, options=options,

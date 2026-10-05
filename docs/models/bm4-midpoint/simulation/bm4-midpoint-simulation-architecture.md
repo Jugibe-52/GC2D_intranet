@@ -356,3 +356,19 @@ wraps them into the cell and divides by the cell width for B-style plots and
 an offline particle selector. The diagnostic is the copy-separation infinity
 norm across all particles, rather than one norm per historical worker.
 No independent long-time trajectory-accuracy certification is implied.
+
+`studies.poincare_rho_sweep.RhoStarConfig` also supports matched BM4Implicit,
+RK4 and GaussLegendre4 star studies. Its default `method="BM4Midpoint"` keeps
+the existing arithmetic-mean projection and cycle-only archive contract.
+Previously saved configurations without method or Newton fields retain these
+defaults when reloaded; a different method or scientific configuration cannot
+reuse the same completed destination.
+The radial Poincare study also supports explicit additional initial positions via
+`studies.poincare_gap_probes.GapProbeSeeds` and `prepare_gap_probes`. These use
+the same canonical method, physical dynamics, complete-step grid and JAX/Modal
+execution as the original star. Probe archives retain their own seed geometry
+and IDs and are saved separately; viewers append their coordinates after checking
+the field fingerprint, scientific settings and aligned cycle times. The eight
+gap probes have IDs 41–48, with two positions per gap selected at rho=0.30 and
+reused for all eleven rho values. See the
+[batch and persistence protocol](../../../simulation/modal-execution.md#additional-particles-inside-saved-poincare-gaps).

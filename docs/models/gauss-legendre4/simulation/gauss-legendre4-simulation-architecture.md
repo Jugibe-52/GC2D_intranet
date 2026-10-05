@@ -129,6 +129,26 @@ remain separate in `options=ExecutionOptions(...)`. See the
 The numerical stages, projection equations and integration controllers described
 above remain inside this execution boundary.
 
-`Execution_Modal` now implements this boundary for remote NumPy/SciPy CPU
+`Execution_Modal` implements this boundary for remote NumPy/SciPy or JAX CPU
 integrations. Results return to the local machine for validation and subsequent
 persistence; see the [Modal executor guide](../../../simulation/modal-execution.md).
+
+The matched Poincare star study selects the two-stage fourth-order method with
+`studies.poincare_rho_sweep.RhoStarConfig(method="GaussLegendre4", ...)`.
+Its analytic Newton solver uses the same explicit controls as the BM4Implicit study:
+absolute tolerance `1e-12`, relative tolerance `1e-11`, at most 40 corrections and
+Jacobian relative step `cbrt(eps)`. The method's constructor defaults are unchanged.
+Set `coupling_frequency=0`, since the physical formulation has no doubled copies.
+JAX CPU float64 execution saves the initial state and integer-cycle returns with
+scalar two-stage and solver metadata; per-step diagnostics are excluded from these
+cycle-only archives. Folded coordinates are postprocessing of the retained
+unwrapped positions. No independent trajectory-accuracy reference is implied.
+The radial Poincare study also supports explicit additional initial positions via
+`studies.poincare_gap_probes.GapProbeSeeds` and `prepare_gap_probes`. These use
+the same canonical method, physical dynamics, complete-step grid and JAX/Modal
+execution as the original star. Probe archives retain their own seed geometry
+and IDs and are saved separately; viewers append their coordinates after checking
+the field fingerprint, scientific settings and aligned cycle times. The eight
+gap probes have IDs 41–48, with two positions per gap selected at rho=0.30 and
+reused for all eleven rho values. See the
+[batch and persistence protocol](../../../simulation/modal-execution.md#additional-particles-inside-saved-poincare-gaps).

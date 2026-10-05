@@ -79,6 +79,27 @@ remain separate in `options=ExecutionOptions(...)`. See the
 The numerical stages, projection equations and integration controllers described
 above remain inside this execution boundary.
 
-`Execution_Modal` now implements this boundary for remote NumPy/SciPy CPU
+`Execution_Modal` implements this boundary for remote NumPy/SciPy or JAX CPU
 integrations. Results return to the local machine for validation and subsequent
 persistence; see the [Modal executor guide](../../../simulation/modal-execution.md).
+
+The matched Poincare star study selects this canonical implementation with
+`studies.poincare_rho_sweep.RhoStarConfig(method="BM4Implicit", ...)`.
+It applies one reduced projection around every complete composition, with explicit
+analytic-Newton controls shared with GaussLegendre4: absolute tolerance `1e-12`,
+relative tolerance `1e-11`, at most 40 corrections and Jacobian relative step
+`cbrt(eps)`. These study defaults do not change the method's constructor defaults.
+The study accepts JAX CPU float64 and retains the initial state and integer-cycle
+returns, scalar solver metadata, and optional folded coordinates. Full per-step
+diagnostic arrays are excluded from these cycle-only archives. The field, geometry
+and radial Hamiltonian normalization remain the same across methods; no independent
+trajectory-accuracy reference is inferred from a successful integration.
+The radial Poincare study also supports explicit additional initial positions via
+`studies.poincare_gap_probes.GapProbeSeeds` and `prepare_gap_probes`. These use
+the same canonical method, physical dynamics, complete-step grid and JAX/Modal
+execution as the original star. Probe archives retain their own seed geometry
+and IDs and are saved separately; viewers append their coordinates after checking
+the field fingerprint, scientific settings and aligned cycle times. The eight
+gap probes have IDs 41–48, with two positions per gap selected at rho=0.30 and
+reused for all eleven rho values. See the
+[batch and persistence protocol](../../../simulation/modal-execution.md#additional-particles-inside-saved-poincare-gaps).

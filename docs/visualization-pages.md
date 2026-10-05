@@ -26,6 +26,12 @@ data; publishing does not execute notebooks or numerical integrations.
 Keep credentials in Wrangler's login session or its documented environment
 variables; do not put them in notebooks or this configuration file.
 
+The repository's `wrangler.jsonc` identifies the Pages project for local
+Wrangler use. It omits `pages_build_output_dir` because the publishing helper
+builds a fresh, temporary snapshot for each upload. The dashboard remains the
+source of truth for Pages runtime settings. Keep the project name here aligned
+with `conf/visualization_pages.toml`.
+
 ## Prepare and publish
 
 From the project environment and repository root:

@@ -11,6 +11,13 @@ button,select{padding:6px 12px}input[type=range]{flex:1;min-width:220px}
 .plots{display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:12px;min-width:750px}
 .plots.four-panels{grid-template-columns:repeat(4,minmax(360px,1fr));min-width:1480px}
 .plots.single-panel{grid-template-columns:minmax(0,760px);min-width:0;justify-content:center}
+.plots.shared-field-layout.four-panels{grid-template-columns:repeat(4,minmax(0,1fr));min-width:0}
+.plots.shared-field-layout>div{min-width:0}
+.plots.shared-field-layout h3{font-size:16px}
+.plots.shared-field-layout .plot-note{font-size:12px;line-height:1.4}
+#field-section{margin-top:24px;border-top:1px solid #e1e5eb;padding-top:12px}
+#field-plots{display:grid;grid-template-columns:minmax(0,700px);justify-content:center}
+#field-section .controls{max-width:1000px;margin:14px auto}
 canvas{width:100%;aspect-ratio:1;touch-action:none;cursor:crosshair}h3{text-align:center;margin:4px}
 #particles{display:grid;grid-template-columns:repeat(8,1fr);gap:6px}
 label.particle{border:1px solid #ddd;border-radius:5px;padding:5px;cursor:pointer}
@@ -42,6 +49,9 @@ After zooming, Shift-drag or right-drag to pan all panels.</p>
 <div class="controls"><button id="all">Show all</button><button id="none">Hide all</button><button id="invert">Invert</button><button id="probe-only" hidden></button><span id="count"></span></div>
 <div class="controls" id="particle-groups" hidden></div>
 <div id="particles"></div>
+<section id="field-section" hidden aria-label="Shared effective potential">
+<div id="field-plots"></div>
+</section>
 <script>
 const cfg=__CONFIG__;
 if(cfg.title){document.title=cfg.title;document.querySelector('h2').textContent=cfg.title;}
@@ -54,8 +64,18 @@ function decodePanels(records){return records.map(panel=>{
 });}
 let panels=decodePanels(cfg.panels);
 const firstCycle=cfg.firstCycle??1,N=(panels.find(panel=>!panel.static)?.shape[0]??1)+firstCycle-1,allIds=[...new Set(panels.flatMap(panel=>panel.ids))].sort((a,b)=>a-b);
-if(panels.length===4)document.getElementById('plots').classList.add('four-panels');
-if(panels.length===1)document.getElementById('plots').classList.add('single-panel');
+// Detach only the field's DOM container; all panels retain common controls,
+// particle identities, cycle interval, rho selection, and the same viewport.
+const detachedField=cfg.fieldPlacement==='below_particles';
+const topPanelCount=panels.filter(panel=>!detachedField||!panel.field).length;
+const plots=document.getElementById('plots');
+if(topPanelCount===4)plots.classList.add('four-panels');
+if(topPanelCount===1)plots.classList.add('single-panel');
+if(detachedField){
+ plots.classList.add('shared-field-layout');
+ const section=document.getElementById('field-section');section.hidden=false;
+ section.prepend(document.getElementById('field-controls'));
+}
 const colorById=new Map();panels.forEach(panel=>panel.ids.forEach((id,p)=>colorById.set(id,panel.colors[p])));
 const selected=new Set(allIds),boxes=[];
 const slider=document.getElementById('cycle'),startSlider=document.getElementById('start-cycle'),play=document.getElementById('play');
@@ -90,7 +110,9 @@ function square(a,b){
 }
 const canvases=panels.map(dataPanel=>{
  const panel=document.createElement('div'),h=document.createElement('h3'),c=document.createElement('canvas');
- h.textContent=dataPanel.title;c.width=600;c.height=600;c.setAttribute('role','img');c.setAttribute('aria-label',dataPanel.title);panel.append(h,c);const note=document.createElement('p');note.className='plot-note';panel.append(note);document.getElementById('plots').append(panel);return c;
+ h.textContent=dataPanel.title;c.width=600;c.height=600;c.setAttribute('role','img');c.setAttribute('aria-label',dataPanel.title);panel.append(h,c);const note=document.createElement('p');note.className='plot-note';panel.append(note);
+ const container=detachedField&&dataPanel.field?document.getElementById('field-plots'):plots;
+ container.append(panel);return c;
 });
 canvases.forEach(canvas=>{
  canvas.oncontextmenu=event=>event.preventDefault();

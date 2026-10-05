@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from hashlib import sha256
 import pickle
+from time import perf_counter, time
 
 from contracts.execution_options import ExecutionOptions
 from contracts.problem import InitialValueProblem
@@ -72,6 +73,24 @@ def execute_payload(payload: bytes) -> tuple[int, str, IntegrationData]:
     if not isinstance(data, IntegrationData):
         raise TypeError("The remote method must return IntegrationData.")
     return PAYLOAD_VERSION, sha256(payload).hexdigest(), data
+
+
+def execute_cycle_payload(payload: bytes) -> tuple[int, str, IntegrationData]:
+    """Return cycle observations and scalar diagnostics with worker timing.
+
+    Absolute Unix intervals allow the submitting batch to measure integration
+    overlap rather than infer it from the configured container ceiling.
+    """
+    import numpy as np
+
+    started_unix, started = time(), perf_counter()
+    version, digest, data = execute_payload(payload)
+    diagnostics = {key: value for key, value in data.diagnostics.items()
+                   if not isinstance(value, np.ndarray)}
+    diagnostics.update(worker_wall_seconds=perf_counter() - started,
+                       worker_started_unix_seconds=started_unix,
+                       worker_finished_unix_seconds=time())
+    return version, digest, IntegrationData(data.t, data.states, diagnostics)
 
 
 __all__: list[str] = []

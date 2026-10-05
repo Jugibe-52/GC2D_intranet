@@ -79,7 +79,7 @@ def export_poincare_panel_comparison(path, panels, cycles_per_frame=25, *,
                                     description=None, particle_groups=None,
                                     datasets=None, dataset_label="Dataset",
                                     selected_dataset=None, particle_labels=None,
-                                    first_cycle=1):
+                                    first_cycle=1, field_placement="panel") -> Path:
     """Export aligned panels with optional selection between completed datasets.
 
     Coordinates default to the unit cell. ``coordinate_bounds=(x0,y0,span)``
@@ -89,12 +89,22 @@ def export_poincare_panel_comparison(path, panels, cycles_per_frame=25, *,
     ``first_cycle=0`` includes the original initial state. Hollow circles mark
     the selected interval's first sample. A static panel may carry a ``field``
     with phase-dependent potential and velocity grids instead of particles.
+    ``field_placement="below_particles"`` moves the single static field and
+    its phase controls below particle selection, keeping the trajectory panels
+    together in their original order. Every control still shares one state.
     """
     bounds = np.asarray((0., 0., 1.) if coordinate_bounds is None else coordinate_bounds, dtype=float)
     if bounds.shape != (3,) or not np.isfinite(bounds).all() or bounds[2] <= 0:
         raise ValueError('coordinate_bounds must describe a finite positive square.')
     lower, upper = bounds[:2], bounds[:2] + bounds[2]
     encoded_panels, cycle_count = _encode_panels(panels, bounds)
+    if field_placement not in ("panel", "below_particles"):
+        raise ValueError('field_placement must be panel or below_particles.')
+    field_indices = [i for i, panel in enumerate(encoded_panels) if 'field' in panel]
+    if field_placement == "below_particles" and (
+            len(field_indices) != 1 or not encoded_panels[field_indices[0]]['static']
+            or len(encoded_panels) < 2):
+        raise ValueError('A field below particles requires one static field and trajectory panels.')
     if isinstance(cycles_per_frame, bool) or int(cycles_per_frame) != cycles_per_frame or int(cycles_per_frame) < 1:
         raise ValueError("cycles_per_frame must be positive.")
     if first_cycle not in (0, 1):
@@ -102,7 +112,7 @@ def export_poincare_panel_comparison(path, panels, cycles_per_frame=25, *,
     if isinstance(initial_cycle, bool) or int(initial_cycle) != initial_cycle or not first_cycle <= initial_cycle < first_cycle + cycle_count:
         raise ValueError('initial_cycle must be an integer within the saved record.')
     config = dict(panels=encoded_panels, step=int(cycles_per_frame), initialCycle=int(initial_cycle),
-                  firstCycle=int(first_cycle))
+                  firstCycle=int(first_cycle), fieldPlacement=field_placement)
     config['coordinateBounds'] = dict(x=float(bounds[0]), y=float(bounds[1]), span=float(bounds[2]))
     if datasets is not None:
         encoded_datasets = []
@@ -120,6 +130,9 @@ def export_poincare_panel_comparison(path, panels, cycles_per_frame=25, *,
                     for a, b in zip(encoded, encoded_panels)
                 ):
                     raise ValueError('Datasets must share cycle counts, panel shapes, IDs and colors.')
+                if field_placement == "below_particles" and [
+                        i for i, panel in enumerate(encoded) if 'field' in panel] != field_indices:
+                    raise ValueError('Datasets must keep the shared field in the same panel.')
                 item['panels'] = encoded
             encoded_datasets.append(item)
         selected = str(selected_dataset)

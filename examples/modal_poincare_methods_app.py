@@ -1,4 +1,4 @@
-"""Deploy up to ten independent JAX CPU workers for Poincare rho sweeps."""
+"""Deploy at most 44 concurrent float64 JAX CPU Poincare integrations."""
 
 from pathlib import Path
 import sys
@@ -7,6 +7,7 @@ import modal
 
 from contracts.result import IntegrationData
 from execution._modal_worker import execute_cycle_payload
+
 
 ROOT = Path(__file__).resolve().parents[1]
 image = (
@@ -18,11 +19,11 @@ image = (
     .add_local_python_source("contracts", "dynamics", "execution", "formulations",
                              "initial_conditions", "integration", "methods", "potential", "solution")
 )
-app = modal.App("gc2d-poincare-rho-sweep")
+app = modal.App("gc2d-poincare-methods")
 
 
 @app.function(image=image, cpu=(2.0, 2.0), memory=(2048, 4096), timeout=7200,
-              retries=0, max_containers=10, scaledown_window=60)
+              retries=0, max_containers=44, scaledown_window=60)
 def integrate(payload: bytes) -> tuple[int, str, IntegrationData]:
-    """Run a single float64 integration, returning results to the local caller."""
+    """Execute one complete integration; the local caller publishes its archive."""
     return execute_cycle_payload(payload)

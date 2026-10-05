@@ -117,6 +117,78 @@ containers; warm samples characterize that particular short run, not variation
 across container placements. The study compares resource scaling, not integrator
 accuracy, and does not generate a DOP853 reference.
 
+## Concurrent Poincare method/rho batches
+
+[`examples/modal_poincare_methods_app.py`](../../examples/modal_poincare_methods_app.py)
+deploys `gc2d-poincare-methods`, with at most **44 simultaneous containers** for
+four methods and eleven rho values. Every container requests and
+limits two CPUs, requests 2048 MiB with a 4096 MiB limit, enables float64 JAX CPU,
+and has a 7200-second timeout with zero configured retries. The existing
+ten-container `gc2d-poincare-rho-sweep` endpoint retains its resource settings;
+both delegate to the same timed cycle-result worker implementation.
+
+```bash
+modal deploy examples/modal_poincare_methods_app.py
+```
+
+`studies.poincare_rho_batch.RhoBatchJob` describes one independent calculation
+with `job_id`, `experiment_path`, `run_id` and an explicit `RhoStarConfig`.
+Import both it and `run_modal_rho_batch` from their defining module. Scientific
+parameters and the rho grid belong in the calculation notebook. Use canonical
+method names `BM4Midpoint`, `BM4Implicit`, `RK4` and `GaussLegendre4` in `RhoStarConfig.method`.
+
+```python
+from studies.poincare_rho_batch import RhoBatchJob, run_modal_rho_batch
+
+report = run_modal_rho_batch(
+    source, jobs, record_directory="logs/poincare_methods/batch_v1",
+    max_workers=33, expected_source_sha256=SOURCE_SHA256,
+)
+if report["failed_count"]:
+    raise RuntimeError("The batch contains failed calculations; inspect progress.json.")
+```
+
+The batch fingerprints the source before submitting and loads each distinct
+physical HDF5 configuration once. It derives every archive prefix with
+`solution_destination`, using bucket storage by default. Each caller has its own
+executor and receipt directory below `record_directory/<job_id>`. Completed
+matching archives are reused; confirmed calls are recovered without spawning a
+replacement. A failed job or bucket upload does not cancel sibling jobs and is
+reported as failed. Publication failures retain the existing recovery archive;
+its path is included when available. Numerical work never falls back to local
+execution. The returned report requires JAX in the saved result diagnostics.
+
+An atomically replaced `progress.json` records statuses, destinations, call IDs,
+receipt locations and timing metadata, without credentials or raw exception
+messages. `completed_count` counts validated and published archives;
+`failed_count` must be zero for complete success. The configured parallelism is
+a ceiling: `measured_peak_worker_overlap` is computed from returned absolute
+worker start/end times intersecting the current batch invocation. Historical
+archives do not count as running in the current batch. Failed workers without
+returned timestamps are absent from this measured lower bound, and container
+provisioning and transfer durations are outside the worker intervals.
+
+### Additional particles inside saved Poincare gaps
+
+`studies.poincare_gap_probes.GapProbeSeeds` specifies initial cell fractions,
+persistent particle IDs, gap names and the rho used for selecting the seeds.
+Pass it as `RhoBatchJob.probe_seeds` to integrate explicit positions with the
+same physical field and method controls. The eight-particle extension uses
+`RhoStarConfig(particles=8, arms=8, ...)` for the execution configuration;
+its geometry comes exclusively from the explicit seeds, not the star constructor.
+The archive records `study="poincare_gap_probes"` and the complete `probe_config`.
+Reuse requires matching seed metadata as well as the original scientific controls.
+
+The four radial-star experiments each contain a `gap_probes/` calculation and
+visualisation notebook pair. Their eight positions were chosen from common empty
+interiors of all four saved rho=0.30 sections and remain fixed across rho=0.00
+through 0.50. Forty-four independent JAX CPU calls integrate particles 41–48 for
+5,000 cycles at 50 steps per cycle. Use `max_workers=44` to submit this entire
+batch concurrently; account limits and provisioning still determine actual overlap.
+The original forty-particle archives remain separate. The viewers validate and
+append the saved probe coordinates, preserving original particle IDs and colors.
+They do not integrate trajectories while rendering or publishing.
+
 ## Receipts and recovery
 
 Each run uses `Function.spawn`, saves the returned call ID and then waits with

@@ -20,7 +20,7 @@ from studies.dimensional_h5_midpoint import DimensionalH5Field
 from studies.poincare_rho_sweep import (
     RhoStarConfig, build_rho_star, run_rho_star, run_and_save_rho_star,
     modal_rho_executor, folded_rho_positions,
-    sample_rho_dynamics,
+    sample_rho_dynamics, validate_rho_solution,
 )
 from visualization.poincare_rho_sweep import export_rho_sweep, load_available_rho_runs
 
@@ -37,6 +37,56 @@ def field():
 
 
 class RhoSweepTests(unittest.TestCase):
+    @unittest.skipUnless(importlib.util.find_spec('jax'), 'JAX is optional')
+    def test_selected_methods_match_scipy_and_keep_cycle_only_archives(self):
+        """Exercise each new method through study assembly, JAX and persistence."""
+        import jax
+        config = RhoStarConfig(rho_hat=.3, cycles=1, steps_per_cycle=4,
+                              particles=4, arms=2, hamiltonian_convention='radial')
+        with tempfile.TemporaryDirectory() as tmp, jax.experimental.enable_x64():
+            for name in ('BM4Implicit', 'RK4', 'GaussLegendre4'):
+                with self.subTest(method=name):
+                    prepared = build_rho_star(field(), replace(config, method=name), source_sha256='synthetic')
+                    scipy = run_rho_star(prepared, executor=Execution(), options=ExecutionOptions())
+                    compiled = run_and_save_rho_star(prepared, Path(tmp)/name, executor=Execution(),
+                        options=ExecutionOptions(backend='jax'), save_folded_returns=True)
+                    loaded = load_solution(Path(tmp)/name)
+                    validate_rho_solution(loaded.solution, prepared, options=ExecutionOptions(backend='jax'))
+                    np.testing.assert_allclose(compiled.solution.states, scipy.solution.states, rtol=1e-11, atol=1e-13)
+                    np.testing.assert_array_equal(loaded.solution.states, compiled.solution.states)
+                    self.assertEqual(loaded.metadata['method'], name)
+                    self.assertEqual(loaded.solution.states.shape, (8, 2))
+                    arrays = {key for key, value in loaded.solution.diagnostics.items() if isinstance(value, np.ndarray)}
+                    self.assertEqual(arrays, {'cycle_positions_wrapped', 'cycle_positions_cell_fraction'})
+                    if name != 'RK4':
+                        self.assertEqual(loaded.solution.diagnostics['nonlinear_solves_per_step'], 1)
+                    wrong = replace(prepared, config=replace(prepared.config, newton_absolute_tolerance=1e-8)
+                                    if name != 'RK4' else replace(prepared.config, method='GaussLegendre4'))
+                    with self.assertRaisesRegex(ValueError, 'implicit-method controls'):
+                        validate_rho_solution(loaded.solution, wrong)
+
+    def test_legacy_config_reuse_and_method_mismatch(self):
+        """Old midpoint archives remain reusable; another method cannot reuse them."""
+        prepared = build_rho_star(field(), RhoStarConfig(rho_hat=.3, cycles=1, steps_per_cycle=4),
+                                  source_sha256='synthetic')
+        stored = run_rho_star(prepared, executor=Execution(), options=ExecutionOptions())
+        for key in tuple(stored.metadata['config']):
+            if key == 'method' or key.startswith('newton_'):
+                stored.metadata['config'].pop(key)
+        stored.metadata['config']['source_selection'] = list(stored.metadata['config']['source_selection'])
+        with patch('studies.poincare_rho_sweep.ArtifactStore.exists', return_value=True), \
+                patch('studies.poincare_rho_sweep.load_solution', return_value=stored):
+            same = run_and_save_rho_star(prepared, 'unused', executor=Execution(), options=ExecutionOptions())
+            self.assertIs(same, stored)
+            with self.assertRaisesRegex(ValueError, 'different scientific inputs'):
+                run_and_save_rho_star(replace(prepared, config=replace(prepared.config, method='RK4')),
+                                     'unused', executor=Execution(), options=ExecutionOptions())
+        for kwargs in ({'method': 'GaussLegendre2'}, {'newton_max_iterations': 0},
+                       {'newton_absolute_tolerance': 0}, {'newton_jacobian_method': 'finite_difference'},
+                       {'method': 'RK4', 'coupling_frequency': 1.0}):
+            with self.subTest(kwargs=kwargs), self.assertRaises(ValueError):
+                RhoStarConfig(rho_hat=.3, **kwargs)
+
     def test_phase_fields_match_gc_dynamics_and_close_at_one_cycle(self):
         """Check signs, gyro-radius dependence and both periodic endpoints."""
         prepared = build_rho_star(field(), RhoStarConfig(rho_hat=.3, cycles=2,

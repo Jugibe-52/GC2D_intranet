@@ -201,6 +201,25 @@ remain separate in `options=ExecutionOptions(...)`. See the
 The numerical stages, projection equations and integration controllers described
 above remain inside this execution boundary.
 
-`Execution_Modal` now implements this boundary for remote NumPy/SciPy CPU
+`Execution_Modal` implements this boundary for remote NumPy/SciPy or JAX CPU
 integrations. Results return to the local machine for validation and subsequent
 persistence; see the [Modal executor guide](../../../simulation/modal-execution.md).
+
+The matched Poincare star study selects this canonical implementation with
+`studies.poincare_rho_sweep.RhoStarConfig(method="RK4", ...)`. It uses the same
+physical field, geometry, radial Hamiltonian normalization and complete-step grid
+as the implicit-method studies. Set `coupling_frequency=0`, since RK4 has no
+doubled copies; Newton controls do not participate in its explicit stages.
+JAX CPU float64 execution retains the initial state and integer-cycle returns,
+optionally adding folded coordinates after integration. Its scalar metadata must
+not report nonlinear solves or projection. These cycle-only archives exclude
+per-step arrays and do not certify independent trajectory accuracy.
+The radial Poincare study also supports explicit additional initial positions via
+`studies.poincare_gap_probes.GapProbeSeeds` and `prepare_gap_probes`. These use
+the same canonical method, physical dynamics, complete-step grid and JAX/Modal
+execution as the original star. Probe archives retain their own seed geometry
+and IDs and are saved separately; viewers append their coordinates after checking
+the field fingerprint, scientific settings and aligned cycle times. The eight
+gap probes have IDs 41–48, with two positions per gap selected at rho=0.30 and
+reused for all eleven rho values. See the
+[batch and persistence protocol](../../../simulation/modal-execution.md#additional-particles-inside-saved-poincare-gaps).
