@@ -114,8 +114,10 @@ def _checked_vector_field_jacobians(
 	return result
 
 
-def _implicit_abba_blocks(step: IntegrationStep) -> _ImplicitABBABlocks:
-	"""Evaluate the converged ABBA stage blocks required by analytic tangents."""
+def _validated_implicit_abba_step(
+	step: IntegrationStep,
+) -> tuple[ABBA2ImplicitIntegrationStep, GuidingCenterJacobianSystem, np.ndarray]:
+	"""Narrow the ABBA snapshot and require a finite planar state and step times."""
 	if not isinstance(step, ABBA2ImplicitIntegrationStep):
 		raise TypeError(
 			"Analytic implicit-ABBA Jacobians require "
@@ -146,6 +148,12 @@ def _implicit_abba_blocks(step: IntegrationStep) -> _ImplicitABBABlocks:
 		or not np.isfinite(step.duration)
 	):
 		raise ValueError("The observed step times and duration must be finite.")
+	return step, dynamics, state
+
+
+def _implicit_abba_blocks(step: IntegrationStep) -> _ImplicitABBABlocks:
+	"""Evaluate the converged ABBA stage blocks required by analytic tangents."""
+	step, dynamics, state = _validated_implicit_abba_step(step)
 
 	particle_count = state.size // 2
 	v_initial = _validated_stage_state(step, step.v_initial, "v_initial")
@@ -236,8 +244,10 @@ def _dense_component_major_jacobian(blocks: np.ndarray) -> np.ndarray:
 	return result
 
 
-def gauss_legendre4_step_jacobian(step: IntegrationStep) -> np.ndarray:
-	"""Differentiate the ideal root of one two-stage Gauss collocation step."""
+def _validated_gauss_stages(
+	step: IntegrationStep,
+) -> tuple[GaussLegendre4IntegrationStep, GuidingCenterJacobianSystem, int, np.ndarray, np.ndarray]:
+	"""Return finite collocation stage states after checking their physical times."""
 	if not isinstance(step, GaussLegendre4IntegrationStep):
 		raise TypeError(
 			"Analytic Gauss Jacobians require GaussLegendre4IntegrationStep data."
@@ -301,6 +311,13 @@ def gauss_legendre4_step_jacobian(step: IntegrationStep) -> np.ndarray:
 		for value in (first_stage, second_stage)
 	):
 		raise ValueError("Gauss stage states must match the physical input layout.")
+	return step, dynamics, particle_count, first_stage, second_stage
+
+
+def gauss_legendre4_step_jacobian(step: IntegrationStep) -> np.ndarray:
+	"""Differentiate the ideal root of one two-stage Gauss collocation step."""
+	step, dynamics, particle_count, first_stage, second_stage = _validated_gauss_stages(step)
+	root_three_over_six = float(np.sqrt(3.0) / 6.0)
 	first_jacobian = _checked_vector_field_jacobians(
 		dynamics,
 		step.first_stage_time,

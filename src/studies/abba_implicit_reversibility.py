@@ -8,6 +8,15 @@ from typing import Literal, TypeAlias
 
 import numpy as np
 
+from ._validation import (
+	sample_count as validated_sample_count,
+	finite_time_span,
+	nonnegative_finite,
+	positive_finite,
+	positive_integer,
+)
+
+
 from diagnostics import (
 	ImplicitABBAReversibilityObserver,
 	ImplicitABBAReversibilitySample,
@@ -23,7 +32,6 @@ from contracts.request import SimulationRequest
 from solution import Solution
 from simulation.runner import simulate
 
-from ._validation import nonnegative_finite, positive_finite, positive_integer
 
 
 ABBAReversibilityFormulation: TypeAlias = Literal[
@@ -61,10 +69,10 @@ class ImplicitABBAReversibilityStudyConfig:
 			raise ValueError("Unknown implicit ABBA reversibility formulation.")
 		if self.nonlinear_solver not in NONLINEAR_SOLVERS:
 			raise ValueError("Unknown nonlinear solver for the reversibility study.")
-		span = np.asarray(self.t_span, dtype=float)
-		if span.shape != (2,) or not np.all(np.isfinite(span)) or span[0] >= span[1]:
-			raise ValueError("`t_span` must contain two finite, increasing times.")
-		object.__setattr__(self, "t_span", (float(span[0]), float(span[1])))
+		object.__setattr__(
+			self, "t_span",
+			finite_time_span(self.t_span, message="`t_span` must contain two finite, increasing times."),
+		)
 		object.__setattr__(self, "rho", nonnegative_finite(self.rho, "rho"))
 		for name in (
 			"max_step",
@@ -74,13 +82,7 @@ class ImplicitABBAReversibilityStudyConfig:
 			object.__setattr__(self, name, positive_finite(getattr(self, name), name))
 		for name in ("newton_max_iterations", "observer_sample_every"):
 			object.__setattr__(self, name, positive_integer(getattr(self, name), name))
-		if (
-			isinstance(self.sample_count, (bool, np.bool_))
-			or not isinstance(self.sample_count, (int, np.integer))
-			or self.sample_count < 2
-		):
-			raise ValueError("`sample_count` must be an integer of at least two.")
-		object.__setattr__(self, "sample_count", int(self.sample_count))
+		object.__setattr__(self, "sample_count", validated_sample_count(self.sample_count))
 		object.__setattr__(self, "progress", bool(self.progress))
 		object.__setattr__(self, "verbose_observer", bool(self.verbose_observer))
 

@@ -7,8 +7,6 @@ from pathlib import Path
 from typing import Any, ClassVar, Mapping, cast
 
 import numpy as np
-from matplotlib.axes import Axes
-from matplotlib.figure import Figure
 
 from initial_conditions import Area
 from potential import Potential
@@ -88,13 +86,6 @@ class RK4SymplecticityResult(GCSymplecticityResult):
 				f"  {order.coarse_label} -> {order.fine_label}: "
 				f"{order.value:.6f}"
 			)
-
-	def plot_convergence(self) -> tuple[Figure, Axes]:
-		"""Plot RK4 symplecticity defects against the integration step size."""
-		return self._plot_step_defects(
-			title="RK4 symplecticity-defect convergence",
-			xlabel=r"RK4 step $\Delta t$",
-		)
 
 
 def run_rk4_symplecticity_study(

@@ -45,21 +45,7 @@ class GCEnergyBoundConfig:
 
     def __post_init__(self) -> None:
         """Reject grids that would change the effective step or miss a horizon."""
-        start, stop = self.t_span
-        if not np.isfinite([start, stop]).all() or stop <= start:
-            raise ValueError("t_span must be finite and increasing.")
-        if (len(self.steps) < 3 or not np.isfinite(self.steps).all()
-                or min(self.steps) <= 0 or np.any(np.diff(self.steps) >= 0)):
-            raise ValueError("Use at least three distinct, decreasing positive steps.")
-        if (len(self.horizons) < 2 or not np.isfinite(self.horizons).all()
-                or min(self.horizons) <= 0 or np.any(np.diff(self.horizons) <= 0)
-                or not np.isclose(self.horizons[-1], stop-start)):
-            raise ValueError("Horizons must increase and end at the integration duration.")
-        for step in self.steps:
-            integer_ratio(stop-start, step, "duration / step")
-            integer_ratio(step, self.steps[-1], "step / finest step")
-            for horizon in self.horizons:
-                integer_ratio(horizon, step, "horizon / step")
+        _validate_energy_bound_grid(self.t_span, self.steps, self.horizons)
         for name in ("newton_atol", "newton_rtol", "jacobian_relative_step"):
             if not np.isfinite(getattr(self, name)) or getattr(self, name) <= 0:
                 raise ValueError(f"{name} must be finite and positive.")
@@ -400,3 +386,24 @@ def audit_initial_step_geometry(
                 "determinant": float(np.linalg.det(jac)),
                 "symplectic_defect": float(np.linalg.norm(jac.T@form@jac-form, ord="fro"))})
     return rows
+
+
+def _validate_energy_bound_grid(
+	t_span: tuple[float, float], steps: tuple[float, ...], horizons: tuple[float, ...],
+) -> None:
+	"""Require nested integration steps with every energy horizon on each complete-step grid."""
+	start, stop = t_span
+	if not np.isfinite([start, stop]).all() or stop <= start:
+		raise ValueError("t_span must be finite and increasing.")
+	if (len(steps) < 3 or not np.isfinite(steps).all()
+			or min(steps) <= 0 or np.any(np.diff(steps) >= 0)):
+		raise ValueError("Use at least three distinct, decreasing positive steps.")
+	if (len(horizons) < 2 or not np.isfinite(horizons).all()
+			or min(horizons) <= 0 or np.any(np.diff(horizons) <= 0)
+			or not np.isclose(horizons[-1], stop-start)):
+		raise ValueError("Horizons must increase and end at the integration duration.")
+	for step in steps:
+		integer_ratio(stop-start, step, "duration / step")
+		integer_ratio(step, steps[-1], "step / finest step")
+		for horizon in horizons:
+			integer_ratio(horizon, step, "horizon / step")

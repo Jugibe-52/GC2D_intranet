@@ -19,6 +19,7 @@ from formulations.state import PhysicalFormulation
 from contracts.observation import IntegrationStep, StepObserver
 from contracts.problem import InitialValueProblem
 from contracts.request import SimulationRequest
+from methods._validation import _positive_finite, _positive_integer
 from ._jacobians import (
 	JacobianMethod as SDIRKJacobianMethod,
 	ResolvedJacobianMethod as ResolvedSDIRKJacobianMethod,
@@ -273,22 +274,16 @@ class SDIRK4(IntegrationMethod[_SDIRKStepResult]):
 
 	def __post_init__(self) -> None:
 		"""Validate nonlinear and differentiation controls before integration."""
-		for name in (
-			"newton_absolute_tolerance",
-			"newton_relative_tolerance",
-			"newton_jacobian_relative_step",
-		):
-			value = float(getattr(self, name))
-			if not np.isfinite(value) or value <= 0.0:
-				raise ValueError(f"`{name}` must be positive and finite.")
-			setattr(self, name, value)
-		if (
-			isinstance(self.newton_max_iterations, (bool, np.bool_))
-			or not isinstance(self.newton_max_iterations, (int, np.integer))
-			or self.newton_max_iterations < 1
-		):
-			raise ValueError("`newton_max_iterations` must be a positive integer.")
-		self.newton_max_iterations = int(self.newton_max_iterations)
+		self.newton_absolute_tolerance = _positive_finite(
+			self.newton_absolute_tolerance, "newton_absolute_tolerance", allow_boolean=True,
+		)
+		self.newton_relative_tolerance = _positive_finite(
+			self.newton_relative_tolerance, "newton_relative_tolerance", allow_boolean=True,
+		)
+		self.newton_jacobian_relative_step = _positive_finite(
+			self.newton_jacobian_relative_step, "newton_jacobian_relative_step", allow_boolean=True,
+		)
+		self.newton_max_iterations = _positive_integer(self.newton_max_iterations, "newton_max_iterations")
 		if self.newton_jacobian_method not in SDIRK_JACOBIAN_METHODS:
 			raise ValueError(
 				"`newton_jacobian_method` must be 'auto', 'analytic', or "

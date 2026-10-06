@@ -37,6 +37,25 @@ from .scipy_evaluator import ScipyPotentialEvaluator
 _DEFAULT_EXECUTION = ExecutionOptions()
 
 
+def _validated_random_parameters(A: float, M: int, seed: int) -> tuple[float, int, int]:
+	"""Check random-spectrum controls, retaining the generator's seed policy."""
+	A = float(A)
+	if not np.isfinite(A) or A < 0:
+		raise ValueError("`A` must be a finite, non-negative number.")
+	if (
+		isinstance(M, (bool, np.bool_))
+		or not isinstance(M, (int, np.integer))
+		or M < 1
+	):
+		raise ValueError("`M` must be a positive integer.")
+	if isinstance(seed, (bool, np.bool_)) or not isinstance(
+		seed, (int, np.integer)
+	):
+		raise TypeError("`seed` must be an integer.")
+
+	return A, M, seed
+
+
 def _random_positive_frequency_mode(
 	grid: Grid,
 	*,
@@ -181,19 +200,7 @@ class Potential:
 		the numbers of physical-space samples; they determine the returned
 		mode shape, not the number of generated spatial wave numbers.
 		"""
-		A = float(A)
-		if not np.isfinite(A) or A < 0:
-			raise ValueError("`A` must be a finite, non-negative number.")
-		if (
-			isinstance(M, (bool, np.bool_))
-			or not isinstance(M, (int, np.integer))
-			or M < 1
-		):
-			raise ValueError("`M` must be a positive integer.")
-		if isinstance(seed, (bool, np.bool_)) or not isinstance(
-			seed, (int, np.integer)
-		):
-			raise TypeError("`seed` must be an integer.")
+		A, M, seed = _validated_random_parameters(A, M, seed)
 
 		grid = Grid.periodic(nx, ny)
 		mode = _random_positive_frequency_mode(

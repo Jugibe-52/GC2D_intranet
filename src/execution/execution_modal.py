@@ -48,6 +48,35 @@ def _write_record(path: Path, record: dict[str, Any]) -> None:
             temporary.unlink(missing_ok=True)
 
 
+def _validate_endpoint_options(
+	app_name: str, function_name: str, environment_name: str | None,
+	resume_call_id: str | None, wait_timeout: float | None,
+) -> None:
+	"""Check endpoint names and local waiting controls without contacting Modal."""
+	for name, value in (
+		("app_name", app_name), ("function_name", function_name),
+		("environment_name", environment_name), ("resume_call_id", resume_call_id),
+	):
+		if value is None and name in ("environment_name", "resume_call_id"):
+			continue
+		if not isinstance(value, str) or not value.strip():
+			raise ValueError(f"`{name}` must be a non-empty string.")
+	if wait_timeout is not None:
+		if isinstance(wait_timeout, bool) or not math.isfinite(wait_timeout) or wait_timeout < 0:
+			raise ValueError("`wait_timeout` must be finite and non-negative, or None.")
+
+
+def _validated_remote_result(result: object, digest: str) -> IntegrationData:
+	"""Require a versioned result from the exact serialized job being recovered."""
+	if (not isinstance(result, tuple) or len(result) != 3
+			or result[0] != PAYLOAD_VERSION or not isinstance(result[2], IntegrationData)):
+		raise TypeError("Modal returned an incompatible integration result.")
+	if result[1] != digest:
+		raise ValueError("The Modal result belongs to a different serialized job; use the original inputs.")
+	data = result[2]
+	return data
+
+
 class Execution_Modal(Execution):
     """Run a complete job remotely, returning IntegrationData locally.
 
@@ -70,15 +99,9 @@ class Execution_Modal(Execution):
         not remote integration time. None waits indefinitely; zero polls once.
         resume_call_id makes run retrieve an existing call without submitting.
         """
-        for name, value in (("app_name", app_name), ("function_name", function_name),
-                            ("environment_name", environment_name), ("resume_call_id", resume_call_id)):
-            if value is None and name in ("environment_name", "resume_call_id"):
-                continue
-            if not isinstance(value, str) or not value.strip():
-                raise ValueError(f"`{name}` must be a non-empty string.")
-        if wait_timeout is not None:
-            if isinstance(wait_timeout, bool) or not math.isfinite(wait_timeout) or wait_timeout < 0:
-                raise ValueError("`wait_timeout` must be finite and non-negative, or None.")
+        _validate_endpoint_options(
+            app_name, function_name, environment_name, resume_call_id, wait_timeout,
+        )
         self.app_name = app_name
         self.function_name = function_name
         self.environment_name = environment_name
@@ -140,12 +163,7 @@ class Execution_Modal(Execution):
                 self.last_call_id = self.resume_call_id
                 call = modal.FunctionCall.from_id(self.resume_call_id)
             result = call.get(timeout=self.wait_timeout)
-            if (not isinstance(result, tuple) or len(result) != 3
-                    or result[0] != PAYLOAD_VERSION or not isinstance(result[2], IntegrationData)):
-                raise TypeError("Modal returned an incompatible integration result.")
-            if result[1] != digest:
-                raise ValueError("The Modal result belongs to a different serialized job; use the original inputs.")
-            data = result[2]
+            data = _validated_remote_result(result, digest)
             return IntegrationData(data.t, data.states, {
                 **data.diagnostics, "execution_executor": "modal", "execution_call_id": self.last_call_id,
             })

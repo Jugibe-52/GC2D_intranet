@@ -74,6 +74,23 @@ def plot_potential(
 	return figure, axis
 
 
+def _potential_frame_times(t_max: float, frames: int | None) -> np.ndarray:
+	"""Prepare normalized-cycle times with the potential animator's Python-int policy."""
+	t_max = float(t_max)
+	if not np.isfinite(t_max) or t_max <= 0:
+		raise ValueError("`t_max` must be positive and finite.")
+	if frames is None:
+		# A normalized cycle has length one. Ceil retains at least 10 saved
+		# frames per cycle when the requested horizon is not an integer.
+		frame_count = max(2, int(np.ceil(10.0 * t_max)))
+	elif not isinstance(frames, int) or isinstance(frames, bool) or frames < 2:
+		raise ValueError("`frames` must be None or an integer of at least 2.")
+	else:
+		frame_count = frames
+	times = np.linspace(0.0, t_max, frame_count, endpoint=False)
+	return times
+
+
 def animate_potential(
 	potential: Potential,
 	*,
@@ -87,18 +104,7 @@ def animate_potential(
 	"""Animate normalized cycles with 10 frames per cycle at 5 fps."""
 	if not isinstance(potential, Potential):
 		raise TypeError("`potential` must be a Potential instance.")
-	t_max = float(t_max)
-	if not np.isfinite(t_max) or t_max <= 0:
-		raise ValueError("`t_max` must be positive and finite.")
-	if frames is None:
-		# A normalized cycle has length one. Ceil retains at least 10 saved
-		# frames per cycle when the requested horizon is not an integer.
-		frame_count = max(2, int(np.ceil(10.0 * t_max)))
-	elif not isinstance(frames, int) or isinstance(frames, bool) or frames < 2:
-		raise ValueError("`frames` must be None or an integer of at least 2.")
-	else:
-		frame_count = frames
-	times = np.linspace(0.0, t_max, frame_count, endpoint=False)
+	times = _potential_frame_times(t_max, frames)
 	fields = [potential.evaluate_grid(time) for time in times]
 	stride = max(1, int(np.ceil(max(potential.grid.shape) / 20)))
 	quiver_x, quiver_y = np.meshgrid(
@@ -152,7 +158,7 @@ def animate_potential(
 	animation = FuncAnimation(
 		figure,
 		update,
-		frames=frame_count,
+		frames=times.size,
 		interval=interval,
 		blit=False,
 		repeat=repeat,

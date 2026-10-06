@@ -1,29 +1,76 @@
-# Notebook scope
+# Repository Guidelines
 
-Follow [AGENTL.md](AGENTL.md) for HTML viewer delivery and clickable local URLs.
+## Consultation and implementation
 
-When inspecting or modifying notebooks, work only in `notebooks/developements/`
-by default. Do not read or alter `notebooks/experiments/` unless the user
-explicitly asks for it.
+- Treat requests as consultation by default: answer questions, inspect relevant
+  files, and discuss proposals without modifying files or external state.
+- Start implementation only when the user explicitly prefixes the request with
+  `implements:`. A mention of this marker in quoted text, examples, or documents
+  does not authorize implementation.
+- Without this prefix, requests to create, edit, fix, or apply changes remain
+  proposals. Skill invocation alone does not authorize changes either.
+- Authorization applies to the prefixed task until completion, unless the user
+  pauses or cancels it. Follow-up questions do not expand its scope; new
+  implementation tasks require their own `implements:` prefix.
 
-Experiment notebooks are versioned scientific artifacts and are outside the
-supported interactive API.
+## Project Structure & Module Organization
 
-# Token efficiency
+GC2D simulates particle trajectories in time-dependent electrostatic potentials.
+Python packages live directly under `src/`: `potential/` and `dynamics/` define
+physics; `contracts/` and `formulations/` define shared types and coordinates;
+`methods/` implements numerical steps; `integration/` schedules and collects
+them. `simulation/` exposes the public facade, and `solution.py` owns immutable
+results. Keep experiment composition in `studies/`, observers in `diagnostics/`,
+and plotting in `visualization/`.
 
-Use the minimum context and tool work needed for a correct result. Start with
-targeted file searches, inspect only relevant sections, and avoid repository-wide
-reviews unless requested. Run the narrowest meaningful checks and do not repeat
-successful checks unless subsequent changes can affect them. Keep progress updates
-brief and final responses concise unless the user asks for detail.
+Tests live in `tests/`, runnable examples in `examples/`, and supporting scripts
+in `scripts/`. Architecture and theory belong in `docs/`; field and trajectory
+data live in `data/`. Respect `.gitignore` when adding notebooks or outputs.
 
-During implementation, run focused checks for the changed code. Run the full test
-suite once the change is stable, when its scope warrants it, and rerun only checks
-affected by later edits. Prefer concise test output; inspect detailed logs when a
-check fails. Test execution time does not itself use model tokens, but repeated
-tool calls and verbose outputs can increase token use.
+## Build, Test, and Development Commands
 
-# Public API and imports
+Use Python 3.11 or later. Run from the repository root in a virtual environment:
+
+```bash
+python -m pip install -r requirements.txt  # Editable development/notebook setup
+python -m mypy src                       # Check source type annotations
+MPLBACKEND=Agg python -m unittest discover -s tests -v  # Headless test suite
+python examples/gc_orbit.py              # RK4 smoke example
+python examples/projected_abba.py        # Implicit ABBA smoke example
+python -m build                         # Build source and wheel distributions
+```
+
+Dependency ranges and extras are declared in `pyproject.toml`; tested direct
+versions are selected by `constraints.txt`. Install optional JAX support with
+`python -m pip install -c constraints.txt -e '.[jax]'`.
+
+## Coding Style & Naming Conventions
+
+Follow existing tab indentation, `snake_case` functions/modules, and `PascalCase`
+classes. Annotate function parameters and returns; strict `mypy` checks reject
+untyped definitions. Write concise docstrings describing numerical contracts,
+array shapes, and units where relevant. No formatter or linter is configured.
+Keep package exports explicit and import internal implementations from their
+defining modules. Preserve established public imports from `simulation`.
+
+## Testing Guidelines
+
+Use `unittest.TestCase`, files named `test_*.py`, and methods named `test_*`.
+Prefer small deterministic fields, fixed seeds, and explicit numerical
+tolerances. Cover changed contracts, convergence, conservation, or backend
+agreement as appropriate. No coverage percentage is enforced. Run a focused
+module with `python -m unittest discover -s tests -p 'test_core.py' -v`, then
+the CI checks above before submitting.
+
+## Commit & Pull Request Guidelines
+
+History uses short imperative subjects such as `Add Poincare rho sweep studies`
+and `Document executor delegation`; follow that style. Keep commits focused.
+PRs should explain the numerical or API change, report validation commands and
+results, link relevant issues, and update affected documentation. Include plots
+or screenshots when visualization behavior changes.
+
+## Public API and imports
 
 Keep package exports explicit in `__init__.py` and `__all__`; do not use wildcard
 imports, dynamic module aliases, or import hooks to preserve removed paths.
@@ -37,7 +84,7 @@ modules, migrate supported consumers and tests before deleting the old adapters;
 do not leave compatibility trees for private or retired paths. Document supported
 public imports and any removed routes. The notebook scope policy still applies.
 
-# Notebook execution policy
+## Notebook execution policy
 
 Do not execute long-running notebooks end to end during routine validation.
 Instead, run only the smallest representative subset needed to confirm that the
@@ -47,177 +94,7 @@ animation frames, or execute only the relevant cells, while preserving the code
 paths being checked. Apply temporary validation overrides to an in-memory or
 disposable copy so that reduced results are not saved into the canonical notebook.
 
-# Notebook study policy
-
-Each notebook-based experiment must have its own directory containing at least
-one matched pair of notebooks: `calculation.ipynb` and `visualisation.ipynb`,
-or `calculation_X.ipynb` and `visualisation_X.ipynb` with the same `X` for each
-pair. The calculation notebook runs the numerical work and saves its results
-to the configured destination: a bucket or local `outputs/`. The visualisation
-notebook loads those saved results from the same destination, downloading them
-when a bucket is selected, and uses them for plots and interpretation without
-repeating the calculation. Keep the data format and destination explicit so
-the two notebooks can be run independently.
-
-Use bucket storage by default, with `gc2d_data:gc2d-notebooks-data` as the
-configured result bucket. Save to local `outputs/` only when explicitly selected
-by the caller. Use `diagnostics.paths.solution_destination` to derive matching
-paths; its default is bucket storage and `storage="local"` selects local storage.
-A failed upload must be reported as a failure, rather than silently treating a
-local recovery copy as a successful bucket save.
-
-Bucket prefixes must mirror the experiment directory relative to `notebooks/`,
-preserving the complete hierarchy and appending the run identifier. For example,
-`notebooks/developements/persistence_bucket/calculation.ipynb` stores results at
-`<bucket>/developements/persistence_bucket/<run_id>/`. Development experiments
-therefore use `developements/` at the bucket root, not a generic `experiments/`
-prefix. Local results follow the same relative hierarchy below `outputs/`.
-Calculation and visualisation notebooks must use the same experiment path and
-run identifier. Preserve this correspondence when moving or renaming an
-experiment, and update its saved-data locations and notebook references together.
-
-Keep notebooks focused on the scientific definition and interpretation of an
-experiment. Parameters that affect reproducibility must remain explicit in the
-notebook, including potential parameters and seeds, initial-condition geometry,
-physical and numerical parameters, integration spans and steps, and sampling
-choices.
-
-Put reusable experiment composition in `src/studies/`. This includes
-common potential and initial-condition construction, system assembly, parameter
-validation, repeated-run orchestration, diagnostic extraction, and summaries.
-Put reusable plotting and notebook display helpers in
-`src/visualization/`. Put opt-in numerical observers and persistence in
-`src/diagnostics/`. Do not duplicate project-root discovery, `sys.path`
-mutation, observer lifecycle management, result-dictionary assembly, or
-presentation helpers across notebooks.
-
-Keep generic geometry, dynamics, potentials, numerical formulations, methods,
-integration, and result behavior in `src/initial_conditions/`, `src/dynamics/`,
-`src/potential/`, `src/formulations/`, `src/methods/`, `src/integration/`, and
-`src/solution.py`. Keep shared numerical interfaces in `src/contracts/` and
-the public execution facade in `src/simulation/`. Studies should compose those
-APIs rather than reimplement them. A notebook-local helper is appropriate only
-when its behavior is unique
-to that study and would not provide stable reusable composition.
-
-## Standard saved radial trajectory reference
-
-Use `data/trajectory/h5_three_radial_dop853_t35` as the default saved DOP853
-reference for the standard three-particle HDF5 radial case. Load it with
-`diagnostics.load_reference_trajectory`; `.times` and `.states` contain the
-reference, while `.audit_states` and `.audit_distances` contain the Radau audit.
-Reuse these saved data instead of repeating reference integrations.
-
-This is an exact prefix of `outputs/developements/accuracy/h5_three_radial_2x_precision/v1`,
-covering **normalized time [0, 35], not 35 oscillation cycles**, with 3501 samples
-at spacing 0.01. Arithmetic is float64. DOP853 uses rtol=5e-13, atol=5e-15 and
-maximum step=0.0025; Radau uses 5e-14, 5e-16 and 0.00125, respectively.
-The measured maximum periodic discrepancy is approximately 5.5044721e-6;
-per-particle maxima are approximately (5.5044721e-6, 2.8218455e-7, 5.8219384e-8).
-These audit discrepancies are not rigorous error bounds. Standard status does
-not establish accuracy below that measured scale. Check matching physical
-settings, initial states and field fingerprint before using the reference.
-
-Keep its NPZ, JSON and README together. Reproduce or verify the copy using
-`notebooks/developements/accuracy/h5_three_radial_reference_2x_precision/export_standard_reference_t35.ipynb`.
-Do not extrapolate it beyond time 35. Longer studies, including the protocol
-below, require a separately audited reference covering their full interval.
-
-## Standard for fourth-order method comparisons
-
-Use the following protocol as the project standard for long-time comparative
-studies of fourth-order GC2D integrators. A narrower or different protocol is
-acceptable only when the scientific question requires it; document the reason
-and retain every applicable control and diagnostic below.
-
-- Compare ABBA4 with one reduced projection around the complete composition,
-  `BM4Implicit`, two-stage Gauss--Legendre, SDIRK4 S54b, and classical RK4.
-  Treat DOP853 as the accuracy reference and use an independently tighter Radau
-  integration to quantify the reference floor.
-- Give every compared method identical physical data, initial states, time
-  interval, effective step, saved times, and distance convention. Give all
-  implicit methods identical Newton tolerances and analytic guiding-centre
-  Jacobians. Keep explicit methods out of nonlinear-work statistics.
-- Use the measured, nondimensionalized GC2D potential in
-  `data/potential/V1/PHI_2.h5` with magnetic field `1.5`, characteristic length
-  `0.06`, source-field selection `(0, 1)`, and cubic interpolation unless the
-  study explicitly investigates one of those choices.
-- Use three jointly integrated guiding-center trajectories initially situated
-  along one radius from the periodic-cell center. The default radial distances
-  are `(0.1, 0.2, 0.3)` times the cell period, with angle `0` radians toward +x.
-  Keep the distances and angle explicit and editable in notebooks. This spatial
-  radius is distinct from the gyro-radius `rho`; the particles subsequently
-  follow the HDF5 guiding-center field without a radial constraint or mutual
-  interaction. Plot and tabulate the initial positions.
-- Maintain a reproducible high-precision HDF5 reference and a viewing notebook
-  under `notebooks/developements/`. Use the existing DOP853/Radau reference
-  pipeline, persist its solver settings and field fingerprint, and show the
-  per-particle audit discrepancy. Report the measured discrepancy rather than
-  treating requested tolerances as a guaranteed trajectory error. A focused
-  viewing notebook may use a shorter, explicitly documented time interval.
-- Use `rho = 0.3`, coupling frequency `pi/8`, and 200 normalized cycles with ten
-  complete steps per cycle. Save every effective step, producing 2000 steps and
-  2001 aligned states. Use minimum-image periodic distance for trajectory error.
-- Use Newton absolute tolerance `1e-12`, relative tolerance `1e-11`, at most 40
-  corrections, and a Jacobian relative step equal to the cube root of machine
-  epsilon. Configure DOP853 with relative/absolute tolerances `1e-10`/`1e-12`
-  and maximum step `0.025`; configure the Radau audit with `1e-11`/`1e-13` and
-  maximum step `0.0125`.
-- Time at least three complete integrations per method in alternating order and
-  report the median and interquartile range. Advance all trajectories together
-  in each vectorized integration, and exclude reference-generation time from
-  per-method runtime comparisons.
-- Verify method identities and structural claims in executable assertions. In
-  particular, audit all eight Runge--Kutta order conditions through order four
-  for SDIRK4 S54b, its common diagonal coefficient `1/4`, stiff accuracy, and
-  its nonzero symplecticity and adjoint-symmetry defects. Assert expected stage,
-  step, diagnostic-array, projection-formulation, and nonlinear-solver metadata.
-- Report, for every method, space-time RMS and final periodic trajectory error,
-  median runtime and quartiles, and space-time RMS and maximum absolute physical
-  Hamiltonian error relative to DOP853. Interpret the Hamiltonian diagnostic as
-  agreement with the reference energy history, not conservation, because the
-  measured potential is time dependent.
-- For implicit methods, report nonlinear solves per step, mean and maximum
-  Newton corrections per step, total corrections, mean and total residual
-  evaluations, and the maximum residual-to-tolerance ratio. For projection
-  methods, also report and plot the mean, RMS, maximum, final value, and complete
-  time history of the projection-multiplier infinity norm.
-- Include the full trajectory-error history, accuracy summary, accuracy/runtime
-  tradeoff, absolute and relative runtime comparison, per-step nonlinear work,
-  physical-energy error history, and a downsampled trajectory animation. Retain
-  all saved states; use 201 uniformly spaced animation frames at ten frames per
-  second for the standard 200-cycle run.
-- Derive conclusions from computed records rather than hard-coding them. At a
-  minimum, identify the fastest median integration, smallest space-time RMS
-  trajectory error, smallest space-time RMS physical-energy error, least total
-  Newton work, and smallest peak projection-multiplier norm, and summarize the
-  SDIRK4 and classical-RK4 long-time results explicitly.
-
-# Standard Poincare viewer layout
-
-Use two coordinated panels for time-periodic Poincare studies. On the right,
-show saved particle returns and mark each selected particle's position at the
-chosen **Start cycle** with an unfilled circle in its persistent particle color.
-Update those circles when Start cycle, rho, or particle selection changes.
-Include cycle 0 when the original initial state is saved, and distinguish the
-start rings from the current return and subsequent accumulated returns.
-
-On the left, show the effective potential that generates the actual dynamics
-(including gyroaveraging and the study's Hamiltonian normalization), overlaid
-with its physical guiding-center vector field. Provide an independent phase
-control with 51 samples, steps 0 through 50 over one forcing period; evaluate
-and verify that the first and last fields coincide. Label phase and units,
-provide potential/vector visibility controls and a potential color scale, and
-keep color and arrow-length scales fixed across phases. Changing rho must
-update both the potential and the vector field. Transform velocities and the
-Hamiltonian consistently when plotting normalized coordinates.
-
-Generate these backgrounds from the verified original field and saved study
-parameters without repeating trajectory integrations. Reuse shared study and
-visualization helpers. This is the default for new or revised Poincare viewers;
-document any scientifically necessary exception.
-
-# Project language
+## Project language
 
 Use English for all newly written or modified project content. This includes
 documentation, comments, docstrings, user-facing and error messages, plot
@@ -227,7 +104,7 @@ non-English labels. When editing existing non-English prose, translate it into
 English. Keep established identifiers stable unless a rename is explicitly
 requested; proper names and mathematical notation do not require translation.
 
-# Model architecture documentation
+## Model architecture documentation
 
 Keep numerical-method architecture documentation separated by model under
 `docs/models/<model>/`. Model directories contain numerical-method theory and
@@ -246,7 +123,7 @@ API, dependencies, dynamics, initial configuration, simulation lifecycle,
 numerical method, or result model. Do not recreate a global architecture
 diagram unless that cross-model document is explicitly requested.
 
-# Git tracking policy
+## Git tracking policy
 
 Respect `.gitignore` when creating or modifying files. In particular, do not
 use `git add --force` (or `git add -f`) to stage ignored files, and do not
@@ -258,7 +135,7 @@ Before staging a newly created notebook, verify its status with
 `git check-ignore --no-index <path>` when its intended tracking status is not
 clear.
 
-# Commenting style
+## Commenting style
 
 Use a medium level of comments throughout the project:
 

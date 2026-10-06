@@ -7,8 +7,6 @@ from pathlib import Path
 from typing import Any, ClassVar, Mapping, cast
 
 import numpy as np
-from matplotlib.axes import Axes
-from matplotlib.figure import Figure
 
 from initial_conditions import Area
 from potential import Potential
@@ -142,13 +140,6 @@ class ABBASymplecticityResult(GCSymplecticityResult):
 				f"  {order.coarse_label} -> {order.fine_label}: "
 				f"{order.value:.6f}"
 			)
-
-	def plot_defect_floor(self) -> tuple[Figure, Axes]:
-		"""Plot measured ABBA defects across steps as a numerical floor."""
-		return self._plot_step_defects(
-			title="Projected ABBA symplecticity-defect numerical floor",
-			xlabel=r"ABBA step $\Delta t$",
-		)
 
 
 def run_abba_symplecticity_study(

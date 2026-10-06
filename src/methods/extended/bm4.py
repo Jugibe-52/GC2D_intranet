@@ -13,8 +13,9 @@ from contracts.observation import ImplicitBM4IntegrationStep, StepObserver
 from contracts.problem import InitialValueProblem
 from contracts.request import SimulationRequest
 from methods._nonlinear import NonlinearSolver, SolverOptions, _validate_nonlinear_solver
+from methods._validation import _positive_finite, _positive_integer, _nonnegative_finite
 from methods.extended.configuration import (
-    _positive_finite, _positive_integer, _nonnegative_finite, StateExtension,
+    StateExtension,
     _state_dimension_diagnostics, _validate_state_extension,
 )
 from dynamics import DynamicalSystem
@@ -203,10 +204,12 @@ class BM4Midpoint(IntegrationMethod[MidpointResult]):
 		"""Validate state strategy and coupling; resolve inherent energy tracking."""
 		self.state_extension = _validate_state_extension(self.state_extension)
 		self.track_energy = bool(self.track_energy)
-		frequency = float(self.coupling_frequency)
-		if not np.isfinite(frequency) or frequency < 0:
-			raise ValueError("`coupling_frequency` must be finite and non-negative.")
-		self.coupling_frequency = frequency
+		self.coupling_frequency = _nonnegative_finite(
+			self.coupling_frequency,
+			"coupling_frequency",
+			allow_boolean=True,
+			message="`coupling_frequency` must be finite and non-negative.",
+		)
 
 	def initialize(self, problem: InitialValueProblem, request: SimulationRequest) -> None:
 		"""Initialize one spatial arithmetic-projection run with optional passive energy."""

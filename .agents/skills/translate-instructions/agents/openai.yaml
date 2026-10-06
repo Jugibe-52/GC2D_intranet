@@ -1,0 +1,3 @@
+interface:
+  display_name: "Translate Instructions"
+  short_description: "Translate Spanish instruction files into English"

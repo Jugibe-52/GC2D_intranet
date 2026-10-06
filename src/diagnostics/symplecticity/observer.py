@@ -9,6 +9,8 @@ from typing import Any, Mapping
 
 import numpy as np
 
+from diagnostics._validation import optional_relative_step, positive_integer
+
 from contracts.observation import IntegrationStage
 from diagnostics.output import write_diagnostic_block
 
@@ -22,12 +24,7 @@ from diagnostics.paths import (
 
 def gc_physical_symplectic_form(particle_count: int) -> np.ndarray:
 	"""Return the canonical form for physical GC component-major coordinates."""
-	if (
-		isinstance(particle_count, (bool, np.bool_))
-		or not isinstance(particle_count, (int, np.integer))
-		or particle_count < 1
-	):
-		raise ValueError("`particle_count` must be a positive integer.")
+	particle_count = positive_integer(particle_count, "particle_count")
 	count = int(particle_count)
 	identity = np.eye(count)
 	zero = np.zeros_like(identity)
@@ -42,12 +39,7 @@ def gc_extended_symplectic_form(particle_count: int) -> np.ndarray:
 	updates pair the two copies, giving ``[[0, omega_gc], [omega_gc, 0]]`` rather
 	than two diagonal canonical forms. The result has shape ``(4N, 4N)``.
 	"""
-	if (
-		isinstance(particle_count, (bool, np.bool_))
-		or not isinstance(particle_count, (int, np.integer))
-		or particle_count < 1
-	):
-		raise ValueError("`particle_count` must be a positive integer.")
+	particle_count = positive_integer(particle_count, "particle_count")
 	count = int(particle_count)
 	physical_form = gc_physical_symplectic_form(count)
 	copy_zero = np.zeros_like(physical_form)
@@ -161,28 +153,10 @@ class SymplecticityObserver:
 		metadata: Mapping[str, Any] | None = None,
 	) -> None:
 		"""Configure notebook-derived storage and numerical differentiation."""
-		if (
-			isinstance(particle_count, (bool, np.bool_))
-			or not isinstance(particle_count, (int, np.integer))
-			or particle_count < 1
-		):
-			raise ValueError("`particle_count` must be a positive integer.")
-		if (
-			isinstance(sample_every, (bool, np.bool_))
-			or not isinstance(sample_every, (int, np.integer))
-			or sample_every < 1
-		):
-			raise ValueError("`sample_every` must be a positive integer.")
-		if (
-			isinstance(chunk_size, (bool, np.bool_))
-			or not isinstance(chunk_size, (int, np.integer))
-			or chunk_size < 1
-		):
-			raise ValueError("`chunk_size` must be a positive integer.")
-		if relative_step is not None and (
-			not np.isfinite(float(relative_step)) or float(relative_step) <= 0
-		):
-			raise ValueError("`relative_step` must be positive and finite.")
+		particle_count = positive_integer(particle_count, "particle_count")
+		sample_every = positive_integer(sample_every, "sample_every")
+		chunk_size = positive_integer(chunk_size, "chunk_size")
+		relative_step = optional_relative_step(relative_step)
 
 		self.output_directory = notebook_output_directory(
 			notebook_path,

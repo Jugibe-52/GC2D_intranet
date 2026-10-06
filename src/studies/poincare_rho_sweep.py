@@ -61,14 +61,10 @@ class RhoStarConfig:
 
     def __post_init__(self) -> None:
         """Reject invalid scientific inputs before creating a remote job."""
-        if self.spatial_normalization not in ("none", "characteristic_length"):
-            raise ValueError("spatial_normalization must be none or characteristic_length.")
-        if self.hamiltonian_convention not in ("cycle_time", "radial"):
-            raise ValueError("hamiltonian_convention must be cycle_time or radial.")
-        if self.method not in ("BM4Midpoint", "BM4Implicit", "RK4", "GaussLegendre4"):
-            raise ValueError("method must be BM4Midpoint, BM4Implicit, RK4 or GaussLegendre4.")
-        if self.newton_jacobian_method != "analytic":
-            raise ValueError("Matched Poincare stars require analytic guiding-center Jacobians.")
+        _validate_rho_star_modes(
+            self.spatial_normalization, self.hamiltonian_convention,
+            self.method, self.newton_jacobian_method,
+        )
         for name in ("particles", "arms", "cycles", "steps_per_cycle", "newton_max_iterations"):
             value = getattr(self, name)
             if isinstance(value, (bool, np.bool_)) or not isinstance(value, (int, np.integer)) or value < 1:
@@ -79,12 +75,7 @@ class RhoStarConfig:
             value = getattr(self, name)
             if not np.isfinite(value) or value < 0:
                 raise ValueError(f"{name} must be finite and nonnegative.")
-        if not np.isfinite(self.characteristic_length) or self.characteristic_length <= 0:
-            raise ValueError("characteristic_length must be finite and positive.")
-        if not np.isfinite(self.outer_radius_fraction) or not 0 < self.outer_radius_fraction <= 1:
-            raise ValueError("outer_radius_fraction must lie in (0, 1].")
-        if not np.isfinite(self.first_angle):
-            raise ValueError("first_angle must be finite.")
+        _validate_rho_star_extent(self.characteristic_length, self.outer_radius_fraction, self.first_angle)
         for name in ("newton_absolute_tolerance", "newton_relative_tolerance", "newton_jacobian_relative_step"):
             value = getattr(self, name)
             if not np.isfinite(value) or value <= 0:
@@ -416,6 +407,30 @@ def modal_rho_executor(record_directory: str | Path, *,
             raise ValueError('The existing receipt belongs to another Modal worker.')
         return Execution_Modal.from_record(path)
     return Execution_Modal(app_name=app_name, function_name='integrate', record_directory=directory)
+
+
+def _validate_rho_star_modes(
+	spatial_normalization: str, hamiltonian_convention: str, method: str, jacobian_method: str,
+) -> None:
+	"""Require the supported coordinate, Hamiltonian, integrator, and Jacobian conventions."""
+	if spatial_normalization not in ("none", "characteristic_length"):
+		raise ValueError("spatial_normalization must be none or characteristic_length.")
+	if hamiltonian_convention not in ("cycle_time", "radial"):
+		raise ValueError("hamiltonian_convention must be cycle_time or radial.")
+	if method not in ("BM4Midpoint", "BM4Implicit", "RK4", "GaussLegendre4"):
+		raise ValueError("method must be BM4Midpoint, BM4Implicit, RK4 or GaussLegendre4.")
+	if jacobian_method != "analytic":
+		raise ValueError("Matched Poincare stars require analytic guiding-center Jacobians.")
+
+
+def _validate_rho_star_extent(characteristic_length: float, outer_radius_fraction: float, first_angle: float) -> None:
+	"""Require finite physical length and the existing radial extent and angle limits."""
+	if not np.isfinite(characteristic_length) or characteristic_length <= 0:
+		raise ValueError("characteristic_length must be finite and positive.")
+	if not np.isfinite(outer_radius_fraction) or not 0 < outer_radius_fraction <= 1:
+		raise ValueError("outer_radius_fraction must lie in (0, 1].")
+	if not np.isfinite(first_angle):
+		raise ValueError("first_angle must be finite.")
 
 
 __all__ = ["RhoStarConfig", "PreparedRhoStar", "build_rho_star", "prepare_rho_star",

@@ -63,19 +63,7 @@ class LocalJAXStarResult:
 
 def build_local_star(potential: Potential, config: LocalJAXStarConfig) -> InitialValueProblem:
     """Validate the cycle schedule and assemble one central/shared-arm geometry."""
-    for name in ('arms', 'particles_per_arm', 'cycles', 'steps_per_cycle', 'block_cycles'):
-        value = getattr(config, name)
-        if isinstance(value, bool) or not isinstance(value, int) or value < 1:
-            raise ValueError(f'{name} must be a positive integer.')
-    if not (0 < config.radius_over_period <= .5 and 0 < config.outer_radius_fraction <= 1):
-        raise ValueError('Require 0 < R/L <= 0.5 and 0 < outer_radius_fraction <= 1.')
-    fraction = np.asarray(config.center_fraction)
-    outer = config.radius_over_period * config.outer_radius_fraction
-    if (fraction.shape != (2,) or not np.isfinite(fraction).all()
-            or np.any(fraction - outer < 0) or np.any(fraction + outer > 1)):
-        raise ValueError('The full initial star must lie inside the periodic cell.')
-    if potential.frequencies.shape != (1,) or not np.allclose(potential.frequencies, [1.], rtol=0, atol=1e-14):
-        raise ValueError('Integer-cycle sections require one mode with normalized frequency one.')
+    fraction, outer = _validated_local_star_geometry(potential, config)
     origin = np.array([potential.grid.x0, potential.grid.y0]) + fraction * potential.grid.period
     initial = radial_star(center=(float(origin[0]), float(origin[1])),
         arm_length=outer * potential.grid.period, arms=config.arms,
@@ -188,6 +176,26 @@ def calculate_local_star(
         save_solution(result.solution, destination, metadata=result.metadata, potential=potential)
         progress.phase(f'COMPLETED AND SAVED | destination={destination}')
         return result
+
+
+def _validated_local_star_geometry(
+	potential: Potential, config: LocalJAXStarConfig,
+) -> tuple[np.ndarray, float]:
+	"""Require a valid cycle schedule and a full star within the periodic cell."""
+	for name in ('arms', 'particles_per_arm', 'cycles', 'steps_per_cycle', 'block_cycles'):
+		value = getattr(config, name)
+		if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+			raise ValueError(f'{name} must be a positive integer.')
+	if not (0 < config.radius_over_period <= .5 and 0 < config.outer_radius_fraction <= 1):
+		raise ValueError('Require 0 < R/L <= 0.5 and 0 < outer_radius_fraction <= 1.')
+	fraction = np.asarray(config.center_fraction)
+	outer = config.radius_over_period * config.outer_radius_fraction
+	if (fraction.shape != (2,) or not np.isfinite(fraction).all()
+			or np.any(fraction - outer < 0) or np.any(fraction + outer > 1)):
+		raise ValueError('The full initial star must lie inside the periodic cell.')
+	if potential.frequencies.shape != (1,) or not np.allclose(potential.frequencies, [1.], rtol=0, atol=1e-14):
+		raise ValueError('Integer-cycle sections require one mode with normalized frequency one.')
+	return fraction, outer
 
 
 __all__ = ['LocalJAXStarConfig', 'LocalJAXStarResult', 'build_local_star',

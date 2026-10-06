@@ -25,6 +25,7 @@ from contracts.step import StepInfo, StepResult
 from contracts.observation import AdaptiveIntegrationStep, AdaptiveStepObserver
 from contracts.problem import InitialValueProblem
 from contracts.request import SimulationRequest
+from methods._validation import _positive_finite
 
 
 # Fixed eight-point Gauss quadrature of -partial_t H along accepted dense output.
@@ -88,14 +89,20 @@ class _AdaptiveMethod(IntegrationMethod[_AdaptiveDetails]):
     particle_count: int = field(init=False, repr=False, compare=False)
 
     def __post_init__(self) -> None:
-        for name in ('relative_tolerance', 'absolute_tolerance', 'first_step'):
-            value = getattr(self, name)
-            if value is None and name == 'first_step':
-                continue
-            value = float(value)
-            if not np.isfinite(value) or value <= 0:
-                raise ValueError(f'{name} must be finite and positive.')
-            setattr(self, name, value)
+        """Normalize tolerance controls and an optional first-step bound."""
+        self.relative_tolerance = _positive_finite(
+            self.relative_tolerance, 'relative_tolerance', allow_boolean=True,
+            message='relative_tolerance must be finite and positive.',
+        )
+        self.absolute_tolerance = _positive_finite(
+            self.absolute_tolerance, 'absolute_tolerance', allow_boolean=True,
+            message='absolute_tolerance must be finite and positive.',
+        )
+        if self.first_step is not None:
+            self.first_step = _positive_finite(
+                self.first_step, 'first_step', allow_boolean=True,
+                message='first_step must be finite and positive.',
+            )
 
     def _backend_options(self) -> dict[str, Any]:
         """Provide solver-specific controls without branching in the coordinator."""

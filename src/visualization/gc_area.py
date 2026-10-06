@@ -8,16 +8,22 @@ from typing import Any
 import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
 import numpy as np
+
 from matplotlib.animation import FuncAnimation
 
 from potential import Potential
 from solution import Solution
 from initial_conditions import Area
 
+from ._animation_validation import (
+	positive_interval,
+	unbounded_frame_count,
+)
 from ._gc_area_validation import (
 	linear_limits,
 	positive_log_limits,
 	validated_diagnostic_series,
+	validated_diagnostic_mappings,
 	validated_labels,
 	validated_solution_series,
 )
@@ -48,18 +54,8 @@ def animate_gc_area(
 	times, state_series = validated_solution_series(trajectory, solutions)
 	series_count = len(state_series)
 	series_labels = validated_labels(labels, series_count)
-	if frames is not None and (
-		isinstance(frames, (bool, np.bool_))
-		or not isinstance(frames, (int, np.integer))
-		or frames < 2
-	):
-		raise ValueError("`frames` must be None or an integer of at least 2.")
-	if (
-		isinstance(interval, (bool, np.bool_))
-		or not isinstance(interval, (int, np.integer))
-		or interval <= 0
-	):
-		raise ValueError("`interval` must be a positive integer.")
+	frames = unbounded_frame_count(frames)
+	interval = positive_interval(interval, strict=True)
 	diagnostics = validated_diagnostic_series(
 		diagnostic_times,
 		relative_symplecticity_errors,
@@ -567,31 +563,9 @@ def animate_gc_area_comparison(
 	if not isinstance(solutions, Mapping) or len(solutions) < 2:
 		raise ValueError("`solutions` must map at least two labels to solutions.")
 	labels = tuple(solutions)
-	diagnostic_mappings = (
-		diagnostic_times,
-		relative_symplecticity_errors,
-		relative_copy_separations,
+	ordered_times, ordered_errors, ordered_separations = validated_diagnostic_mappings(
+		labels, diagnostic_times, relative_symplecticity_errors, relative_copy_separations,
 	)
-	if any(mapping is not None for mapping in diagnostic_mappings):
-		if diagnostic_times is None or relative_symplecticity_errors is None:
-			raise ValueError(
-				"Diagnostic times and symplecticity mappings must be provided."
-			)
-		for mapping in diagnostic_mappings:
-			if mapping is None:
-				continue
-			if set(mapping) != set(labels):
-				raise ValueError(
-					"Diagnostic mappings must have the same keys as `solutions`."
-				)
-
-	def ordered(
-		mapping: Mapping[str, np.ndarray] | None,
-	) -> tuple[np.ndarray | None, ...]:
-		"""Align an optional diagnostic mapping with solution insertion order."""
-		if mapping is None:
-			return tuple(None for _label in labels)
-		return tuple(mapping[label] for label in labels)
 
 	return animate_gc_area(
 		potential,
@@ -602,9 +576,9 @@ def animate_gc_area_comparison(
 		interval=interval,
 		cmap=cmap,
 		repeat=repeat,
-		diagnostic_times=ordered(diagnostic_times),
-		relative_symplecticity_errors=ordered(relative_symplecticity_errors),
-		relative_copy_separations=ordered(relative_copy_separations),
+		diagnostic_times=ordered_times,
+		relative_symplecticity_errors=ordered_errors,
+		relative_copy_separations=ordered_separations,
 		pcolormesh_kwargs=pcolormesh_kwargs,
 	)
 

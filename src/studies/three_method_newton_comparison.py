@@ -9,6 +9,19 @@ from typing import Mapping
 
 import numpy as np
 
+from ._comparison_validation import (
+	comparison_runtime_samples, validate_comparison_solution, validate_trajectory_series, validate_energy_series,
+)
+
+from ._validation import (
+	finite_time_span,
+	nonnegative_integer,
+	integer_ratio,
+	nonnegative_finite,
+	positive_finite,
+	positive_integer,
+)
+
 from dynamics import GuidingCenterDynamics
 from initial_conditions import GCInitialConfiguration
 from potential import Potential
@@ -24,14 +37,12 @@ from simulation.runner import simulate
 from ._gauss_legendre4_common import (
 	AdaptiveReference,
 	build_adaptive_reference,
-	readonly_runtime_samples,
 )
 from ._trajectory_accuracy import TrajectoryAccuracySeries, accuracy_series
 from ._trajectory_distances import (
 	DistanceConvention,
 	normalized_distance_convention,
 )
-from ._validation import integer_ratio, nonnegative_finite, positive_finite, positive_integer
 
 
 THREE_METHOD_NEWTON_METHODS: tuple[str, ...] = (
@@ -74,10 +85,10 @@ class ThreeMethodNewtonComparisonConfig:
 
 	def __post_init__(self) -> None:
 		"""Validate every parameter that affects reproducibility."""
-		span = np.asarray(self.t_span, dtype=float)
-		if span.shape != (2,) or not np.all(np.isfinite(span)) or span[0] >= span[1]:
-			raise ValueError("`t_span` must contain two finite increasing times.")
-		object.__setattr__(self, "t_span", (float(span[0]), float(span[1])))
+		object.__setattr__(
+			self, "t_span",
+			finite_time_span(self.t_span, message="`t_span` must contain two finite increasing times."),
+		)
 		object.__setattr__(self, "rho", nonnegative_finite(self.rho, "rho"))
 		object.__setattr__(
 			self,
@@ -102,13 +113,7 @@ class ThreeMethodNewtonComparisonConfig:
 			"max_iterations",
 			positive_integer(self.max_iterations, "max_iterations"),
 		)
-		if (
-			isinstance(self.timing_warmups, (bool, np.bool_))
-			or not isinstance(self.timing_warmups, (int, np.integer))
-			or self.timing_warmups < 0
-		):
-			raise ValueError("`timing_warmups` must be a non-negative integer.")
-		object.__setattr__(self, "timing_warmups", int(self.timing_warmups))
+		object.__setattr__(self, "timing_warmups", nonnegative_integer(self.timing_warmups, "timing_warmups"))
 		object.__setattr__(
 			self,
 			"timing_repeats",
@@ -299,33 +304,22 @@ class ThreeMethodNewtonComparisonResult:
 			self.audit_energies,
 			expected_shape=energy_shape,
 		)
+		validated_runtimes: dict[str, np.ndarray] = {}
 		for method_name in THREE_METHOD_NEWTON_METHODS:
 			solution = self.solutions[method_name]
-			if not isinstance(solution, Solution):
-				raise TypeError("Every comparison value must be a Solution.")
-			if solution.source is not self.initial_configuration:
-				raise ValueError("All methods must share one initial configuration.")
-			if not np.array_equal(solution.t, self.reference.times):
-				raise ValueError("Every method must share the reference output grid.")
-			if int(solution.diagnostics.get("step_count", -1)) != self.config.step_count:
-				raise ValueError("Every method must use the common complete step.")
+			validate_comparison_solution(
+				solution, self.initial_configuration, self.reference.times, self.config.step_count,
+			)
 			if solution.diagnostics.get("nonlinear_solver", "newton") != "newton":
 				raise ValueError("Every compared method must use Newton.")
-			series = self.accuracy[method_name]
-			if series.method_name != method_name:
-				raise ValueError("Accuracy labels must match their numerical methods.")
-			if series.distances.shape[1] != self.reference.times.size:
-				raise ValueError("Accuracy series must share the saved-time grid.")
-			energy_series = self.energy_accuracy[method_name]
-			if not isinstance(energy_series, EnergyAccuracySeries):
-				raise TypeError("Every energy comparison must be EnergyAccuracySeries.")
-			if energy_series.method_name != method_name:
-				raise ValueError("Energy labels must match their numerical methods.")
-			if energy_series.errors.shape != energy_shape:
-				raise ValueError("Energy errors must share the particle-time grid.")
-			samples = readonly_runtime_samples(self.runtime_samples[method_name])
-			if samples.size != self.config.timing_repeats:
-				raise ValueError("Every method must contain all measured timing repeats.")
+			validate_trajectory_series(method_name, self.accuracy[method_name], self.reference.times.size)
+			validate_energy_series(
+				method_name, self.energy_accuracy[method_name],
+				energy_type=EnergyAccuracySeries, energy_shape=energy_shape,
+			)
+			validated_runtimes[method_name] = comparison_runtime_samples(
+				self.runtime_samples[method_name], self.config.timing_repeats,
+			)
 		if not np.isfinite(self.wall_runtime_seconds) or self.wall_runtime_seconds <= 0.0:
 			raise ValueError("The complete study runtime must be positive and finite.")
 		object.__setattr__(self, "solutions", MappingProxyType(dict(self.solutions)))
@@ -340,12 +334,7 @@ class ThreeMethodNewtonComparisonResult:
 		object.__setattr__(
 			self,
 			"runtime_samples",
-			MappingProxyType(
-				{
-					name: readonly_runtime_samples(values)
-					for name, values in self.runtime_samples.items()
-				}
-			),
+			MappingProxyType(validated_runtimes),
 		)
 		object.__setattr__(self, "wall_runtime_seconds", float(self.wall_runtime_seconds))
 

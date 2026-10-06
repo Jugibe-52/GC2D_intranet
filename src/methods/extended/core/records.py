@@ -79,37 +79,26 @@ class ProjectedMapResult:
         return self.stats.residual_norm
 
 
-@dataclass(frozen=True, slots=True)
-class StepResult:
-	"""Complete workspace advance and its ordered accepted projections."""
-
-	next_workspace: np.ndarray
-	projections: tuple[ProjectedMapResult, ...]
-
-
-def step_statistics(result: StepResult, *, include_substeps: bool) -> dict[str, np.ndarray | float | int]:
-	"""Extract one metric row without accumulating history or building events."""
-	projections = result.projections
-	iterations = np.asarray([p.stats.iterations for p in projections], dtype=int)
-	evaluations = np.asarray([p.stats.residual_evaluations for p in projections], dtype=int)
-	residuals = np.asarray([p.stats.residual_norm for p in projections], dtype=float)
-	tolerances = np.asarray([p.stats.tolerance for p in projections], dtype=float)
-	multipliers = np.asarray([float(np.linalg.norm(p.multiplier, ord=np.inf)) for p in projections])
-	worst = int(np.argmax(residuals / tolerances))
+def step_statistics(result: ProjectedMapResult, *, include_substeps: bool) -> dict[str, np.ndarray | float | int]:
+	"""Extract the single outer solve's metrics without building observer events."""
+	stats = result.stats
+	multiplier_norm = float(np.linalg.norm(result.multiplier, ord=np.inf))
 	metrics: dict[str, np.ndarray | float | int] = {
-		"nonlinear_iterations": int(np.sum(iterations)),
-		"residual_evaluations": int(np.sum(evaluations)),
-		"nonlinear_residual_norms": float(residuals[worst]),
-		"nonlinear_tolerances": float(tolerances[worst]),
-		"projection_multiplier_norms": float(np.max(multipliers)),
+		"nonlinear_iterations": stats.iterations,
+		"residual_evaluations": stats.residual_evaluations,
+		"nonlinear_residual_norms": stats.residual_norm,
+		"nonlinear_tolerances": stats.tolerance,
+		"projection_multiplier_norms": multiplier_norm,
 	}
 	if include_substeps:
+		# Preserve the published one-column histories for ABBA4 and ABBA6.
+		# Their unprojected stage pairs do not represent additional solves.
 		metrics.update({
-			"substep_nonlinear_iterations": iterations,
-			"substep_residual_evaluations": evaluations,
-			"substep_nonlinear_residual_norms": residuals,
-			"substep_nonlinear_tolerances": tolerances,
-			"substep_projection_multiplier_norms": multipliers,
+			"substep_nonlinear_iterations": np.asarray([stats.iterations], dtype=int),
+			"substep_residual_evaluations": np.asarray([stats.residual_evaluations], dtype=int),
+			"substep_nonlinear_residual_norms": np.asarray([stats.residual_norm], dtype=float),
+			"substep_nonlinear_tolerances": np.asarray([stats.tolerance], dtype=float),
+			"substep_projection_multiplier_norms": np.asarray([multiplier_norm]),
 		})
 	return metrics
 

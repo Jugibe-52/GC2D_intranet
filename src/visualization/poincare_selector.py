@@ -4,17 +4,13 @@ import base64
 import json
 import re
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 
 
-def export_poincare_selector(path, positions, particle_ids, colors, *, title, subtitle):
-    """Write an offline HTML figure with independent particle visibility.
-
-    ``positions`` has shape (returns, particles, 2), already wrapped and
-    normalized into [0, 1]. Every saved return is embedded as float64; no
-    trajectory integration or point subsampling occurs in this function.
-    """
+def _selector_arrays(positions: Any, particle_ids: Any, colors: Any) -> tuple[np.ndarray, np.ndarray, list[str]]:
+    """Prepare finite unit-cell returns, integer identities and hexadecimal colors."""
     xy = np.asarray(positions, dtype='<f8')
     ids = np.asarray(particle_ids)
     colors = list(colors)
@@ -27,6 +23,17 @@ def export_poincare_selector(path, positions, particle_ids, colors, *, title, su
         raise ValueError('Provide a unique integer ID for every particle.')
     if len(colors) != len(ids) or any(not re.fullmatch(r'#[0-9a-fA-F]{6}', c) for c in colors):
         raise ValueError('Provide one hexadecimal RGB color per particle.')
+    return xy, ids, colors
+
+
+def export_poincare_selector(path, positions, particle_ids, colors, *, title, subtitle):
+    """Write an offline HTML figure with independent particle visibility.
+
+    ``positions`` has shape (returns, particles, 2), already wrapped and
+    normalized into [0, 1]. Every saved return is embedded as float64; no
+    trajectory integration or point subsampling occurs in this function.
+    """
+    xy, ids, colors = _selector_arrays(positions, particle_ids, colors)
     # Particle-major order permits drawing selected particles without scanning others.
     packed = np.ascontiguousarray(xy.transpose(1, 0, 2), dtype='<f8')
     payload = dict(ids=ids.tolist(), colors=colors, returns=xy.shape[0],

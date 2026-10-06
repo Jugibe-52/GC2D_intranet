@@ -171,6 +171,26 @@ def _record_from_analysis(
 	)
 
 
+def _validated_observed_states(
+	step: ABBA2ImplicitIntegrationStep,
+) -> tuple[np.ndarray, np.ndarray]:
+	"""Read matching finite component-major planar states from an ABBA snapshot."""
+	state_before = np.asarray(step.state_before, dtype=float)
+	state_after = np.asarray(step.state_after, dtype=float)
+	if (
+		state_before.ndim != 1
+		or state_before.size == 0
+		or state_before.size % 2
+		or state_after.shape != state_before.shape
+		or not np.all(np.isfinite(state_before))
+		or not np.all(np.isfinite(state_after))
+	):
+		raise ValueError(
+			"Implicit ABBA Jacobian analysis requires finite planar physical states."
+		)
+	return state_before, state_after
+
+
 class ImplicitABBAJacobianObserver:
 	"""Analyze the local physical Jacobian of selected implicit-ABBA steps.
 
@@ -267,19 +287,7 @@ class ImplicitABBAJacobianObserver:
 		if step.step_index % self.sample_every:
 			return
 
-		state_before = np.asarray(step.state_before, dtype=float)
-		state_after = np.asarray(step.state_after, dtype=float)
-		if (
-			state_before.ndim != 1
-			or state_before.size == 0
-			or state_before.size % 2
-			or state_after.shape != state_before.shape
-			or not np.all(np.isfinite(state_before))
-			or not np.all(np.isfinite(state_after))
-		):
-			raise ValueError(
-				"Implicit ABBA Jacobian analysis requires finite planar physical states."
-			)
+		state_before, state_after = _validated_observed_states(step)
 		particle_count = state_before.size // 2
 		if self._particle_count is None:
 			self._particle_count = particle_count

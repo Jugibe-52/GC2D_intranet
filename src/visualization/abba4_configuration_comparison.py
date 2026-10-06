@@ -8,6 +8,7 @@ from typing import Any
 import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
 import numpy as np
+
 from matplotlib.animation import FuncAnimation
 from matplotlib.collections import LineCollection
 from matplotlib.lines import Line2D
@@ -15,7 +16,12 @@ from matplotlib.lines import Line2D
 from potential import Potential
 from solution import Solution
 
-from .particles import _field_normalization, _frame_indices
+from ._animation_validation import (
+	boolean_control,
+	frame_indices as _frame_indices,
+	positive_interval,
+)
+from .particles import _field_normalization
 
 
 _ROW_COORDINATES = (
@@ -230,14 +236,8 @@ def animate_abba4_configuration_trajectories(
 	is required. The effective potential is evaluated once on every selected frame
 	and the same field array and normalization are reused by all sixteen panels.
 	"""
-	if (
-		isinstance(interval, (bool, np.bool_))
-		or not isinstance(interval, (int, np.integer))
-		or int(interval) <= 0
-	):
-		raise ValueError("`interval` must be a positive integer.")
-	if not isinstance(repeat, (bool, np.bool_)):
-		raise TypeError("`repeat` must be a boolean.")
+	interval = positive_interval(interval, strict=True)
+	repeat = boolean_control(repeat, "repeat")
 	variants = _ordered_variants(result)
 	times, positions, particle_count = _aligned_positions(result, variants)
 	particle_colors = _INITIAL_CONDITION_COLORS[:particle_count]

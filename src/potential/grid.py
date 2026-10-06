@@ -7,6 +7,39 @@ from dataclasses import dataclass
 import numpy as np
 
 
+def _validate_periodic_sizes(nx: int, ny: int) -> None:
+	"""Check sample counts shared by periodic construction and HDF5 resampling."""
+	for size, name in ((nx, "nx"), (ny, "ny")):
+		if (
+			isinstance(size, (bool, np.bool_))
+			or not isinstance(size, (int, np.integer))
+			or size < 2
+		):
+			raise ValueError(f"`{name}` must be an integer of at least 2.")
+
+
+def _normalized_grid_size(value: int, name: str) -> int:
+	"""Normalize direct-constructor counts, retaining distinct type errors."""
+	if isinstance(value, (bool, np.bool_)) or not isinstance(value, (int, np.integer)):
+		raise TypeError(f"`{name}` must be an integer.")
+	if value < 2:
+		raise ValueError(f"`{name}` must be at least 2.")
+	return int(value)
+
+
+def _validated_period(period: float, *, nx: int, ny: int, dx: float, dy: float) -> float:
+	"""Require both sampled axes to cover the shared period exactly once."""
+	period = float(period)
+	if not np.isfinite(period) or period <= 0:
+		raise ValueError("`period` must be positive and finite.")
+	# Restore the omitted periodic endpoint when comparing the physical spans.
+	if not np.isclose(nx * dx, period):
+		raise ValueError("A periodic grid requires `nx * dx == period`.")
+	if not np.isclose(ny * dy, period):
+		raise ValueError("A periodic grid requires `ny * dy == period`.")
+	return period
+
+
 @dataclass(frozen=True, slots=True)
 class Grid:
 	"""A validated two-dimensional grid with a shared period on both axes.
@@ -40,22 +73,9 @@ class Grid:
 			raise ValueError("`dx` and `dy` must be positive.")
 
 		for name in ("nx", "ny"):
-			value = getattr(self, name)
-			if isinstance(value, (bool, np.bool_)) or not isinstance(value, (int, np.integer)):
-				raise TypeError(f"`{name}` must be an integer.")
-			if value < 2:
-				raise ValueError(f"`{name}` must be at least 2.")
-			object.__setattr__(self, name, int(value))
+			object.__setattr__(self, name, _normalized_grid_size(getattr(self, name), name))
 
-		period = float(self.period)
-		if not np.isfinite(period) or period <= 0:
-			raise ValueError("`period` must be positive and finite.")
-		# A single period is used to wrap both coordinates, so each sampled axis
-		# must span that period once its omitted endpoint is restored.
-		if not np.isclose(self.nx * self.dx, period):
-			raise ValueError("A periodic grid requires `nx * dx == period`.")
-		if not np.isclose(self.ny * self.dy, period):
-			raise ValueError("A periodic grid requires `ny * dy == period`.")
+		period = _validated_period(self.period, nx=self.nx, ny=self.ny, dx=self.dx, dy=self.dy)
 		object.__setattr__(self, "period", period)
 
 	@classmethod
@@ -65,13 +85,7 @@ class Grid:
 		The returned axes contain ``nx`` and ``ny`` samples in ``[0, period)``;
 		the endpoint is deliberately omitted because it represents the origin.
 		"""
-		for size, name in ((nx, "nx"), (ny, "ny")):
-			if (
-				isinstance(size, (bool, np.bool_))
-				or not isinstance(size, (int, np.integer))
-				or size < 2
-			):
-				raise ValueError(f"`{name}` must be an integer of at least 2.")
+		_validate_periodic_sizes(nx, ny)
 		period = float(period)
 		return cls(0.0, 0.0, period / nx, period / ny, nx, ny, period)
 

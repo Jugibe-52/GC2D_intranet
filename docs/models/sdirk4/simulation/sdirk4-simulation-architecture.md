@@ -64,6 +64,11 @@ outside the physical solver counters; reported wall time still includes them.
 
 ## Lifecycle and output
 
+Scalar constructor controls use the typed private helpers in
+`methods._validation`. The method retains its option names, normalization order
+and accepted scalar inputs. Checks for invalid intermediate states, singular
+systems and convergence remain next to the numerical operations.
+
 The field and Jacobian helpers in `src/methods/classical/_jacobians.py` are
 shared with Gauss--Legendre: field validation, centered finite differences,
 analytic particle-block validation and automatic Jacobian selection. The

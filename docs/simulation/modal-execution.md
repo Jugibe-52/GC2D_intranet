@@ -7,6 +7,13 @@ The notebook or study can subsequently save it through the existing persistence
 API to the configured Backblaze bucket. The remote worker does not upload results
 or receive bucket credentials.
 
+The adapter keeps endpoint-option validation and remote-result validation in
+private functions in `execution.execution_modal`. The constructor checks names
+and waiting controls without contacting Modal. Retrieval checks the response
+shape, payload version, result type, and exact serialized-job digest before
+adding executor diagnostics. Receipt writes, submission order, recovery, and
+exception context remain owned by `Execution_Modal.run`.
+
 The canonical class is `execution.execution_modal.Execution_Modal`, explicitly
 re-exported by `execution`. Importing the package or using local execution does
 not import Modal. Install the optional client before using remote execution:

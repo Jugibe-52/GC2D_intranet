@@ -40,6 +40,26 @@ def _time_tolerance(t_span: tuple[float, float]) -> float:
 	return float(16 * np.finfo(float).eps * max(1.0, abs(t0), abs(tf)))
 
 
+def _readonly_initial_state(state: np.ndarray) -> np.ndarray:
+	"""Own a finite, nonempty internal vector before a run becomes ready."""
+	initial = np.array(state, dtype=float, copy=True)
+	if initial.ndim != 1 or initial.size == 0 or not np.all(np.isfinite(initial)):
+		raise ValueError("The initial internal state must be a finite vector.")
+	initial.setflags(write=False)
+	return initial
+
+
+def _readonly_metadata(metadata: Mapping[str, DiagnosticValue]) -> Mapping[str, DiagnosticValue]:
+	"""Copy metadata arrays so reusable run preparation cannot mutate them."""
+	owned = dict(metadata)
+	for name, value in owned.items():
+		if isinstance(value, np.ndarray):
+			value = value.copy()
+			value.setflags(write=False)
+			owned[name] = value
+	return MappingProxyType(owned)
+
+
 class StepController(Protocol[Detail]):
 	"""Deliver accepted intervals and evaluate output samples within them.
 
@@ -247,18 +267,8 @@ class IntegrationMethod(ABC, Generic[Detail]):
 			# Keep algorithm metadata on the method and state-layout metadata on
 			# the formulation, then expose both through this run's single mapping.
 			method.metadata = {**method.metadata, **method.state_formulation.metadata()}
-		initial = np.array(method.initial_state, dtype=float, copy=True)
-		if initial.ndim != 1 or initial.size == 0 or not np.all(np.isfinite(initial)):
-			raise ValueError("The initial internal state must be a finite vector.")
-		initial.setflags(write=False)
-		method.initial_state = initial
-		metadata = dict(method.metadata)
-		for name, value in metadata.items():
-			if isinstance(value, np.ndarray):
-				value = value.copy()
-				value.setflags(write=False)
-				metadata[name] = value
-		method.metadata = MappingProxyType(metadata)
+		method.initial_state = _readonly_initial_state(method.initial_state)
+		method.metadata = _readonly_metadata(method.metadata)
 		method._status = "ready"
 		return method
 

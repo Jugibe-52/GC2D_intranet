@@ -604,7 +604,17 @@ The result interface provides:
 - `solution.diagnostics`: read-only numerical diagnostics;
 - `solution.components()` and `solution.positions()`: physical views.
 
-Optional presentation is kept outside the physical model:
+Optional presentation is kept outside the physical model.
+
+Study results also keep presentation separate: use functions from `visualization`
+with the result as their first argument. For example,
+`visualization.area_comparison.animate_area_comparison(result)` creates the
+area-comparison animation. Former result methods such as `result.animate()` and
+`result.plot_diagnostics()` have been removed; see the
+[study visualization migration table](docs/simulation/api-migration.md#study-result-visualization)
+for their replacements.
+
+For a potential figure:
 
 ```python
 from visualization import plot_potential

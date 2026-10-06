@@ -1,4 +1,6 @@
 """Compose a reproducible fixed-grid Poincare experiment from frozen source."""
+
+from typing import Any
 import importlib.metadata
 import json
 import os
@@ -19,26 +21,9 @@ def compute_and_save(parameters, run_id, validation_run=False):
     potential, provenance, snapshot = load_snapshot()
     from dynamics import GuidingCenterDynamics
     source = json.loads((ROOT / 'assets' / 'original_particles.json').read_text())
-    ids = np.asarray(p['particle_ids'], dtype=int)
-    assert len(set(ids)) == len(ids) and np.all(np.diff(ids) > 0)
-    original = {r['particle']: r for r in source['particles']}
-    selected = [original[int(i)] for i in ids]
-    xy0 = np.array([[r['x'], r['y']] for r in selected])
-    colors = np.array([r['rgba'] for r in selected])
-    hexcolors = [r['color'] for r in selected]
-    radii = np.array([r['radius_over_L'] for r in selected])
-    assert len(set(hexcolors)) == len(ids)
-    assert p['radial_angle_rad'] == source['radial_angle_rad'] == 0.0
-    np.testing.assert_array_equal(radii, np.asarray(p['radial_fractions']))
+    ids, xy0, colors, hexcolors, radii = _validated_original_particles(p, source)
     n, cycles, spc, workers = len(ids), p['cycles'], p['steps_per_cycle'], p['process_count']
-    assert workers >= 1 and n >= workers and cycles > 0 and spc > 0
-    implicit = p['method'] == 'BM4Implicit'
-    assert p['method'] in ('BM4Implicit','BM4Midpoint','RK4')
-    steps = cycles * spc
-    h = p['cycle_duration'] / spc
-    t0, tf = p['t0'], p['t0'] + cycles * p['cycle_duration']
-    assert t0 == 0 and p['cycle_duration'] == 1
-    np.testing.assert_allclose(potential.frequencies * p['cycle_duration'], [1.], rtol=0, atol=1e-14)
+    implicit, steps, h, t0, tf = _validated_experiment_schedule(p, potential, n, cycles, spc, workers)
     field = GuidingCenterDynamics(potential, rho=p['rho'])
     initial_state = np.concatenate((xy0[:, 0], xy0[:, 1]))
     for phase in (0, .173, .637):
@@ -60,11 +45,7 @@ def compute_and_save(parameters, run_id, validation_run=False):
                     test_stop_after_chunks=int(os.environ.get('POINCARE_TEST_STOP_AFTER_CHUNKS','0')) if validation_run else 0)
     solution = simulate_parallel(xy0, settings, processes=workers)
     states, times = solution.states, solution.t
-    assert states.shape == (2*n, steps+1) and np.isfinite(states).all()
-    np.testing.assert_array_equal(states[:, 0], initial_state)
-    cycle_xy = np.stack((states[:n, ::spc].T, states[n:, ::spc].T), axis=-1)
-    cycle_times = times[::spc]
-    np.testing.assert_allclose(cycle_times, np.arange(cycles+1), rtol=0, atol=1e-12)
+    cycle_xy, cycle_times = _validated_cycle_samples(states, times, initial_state, n, steps, spc, cycles)
     L = potential.grid.period
     origin = np.array([potential.grid.xmin, potential.grid.ymin])
     wrapped = (cycle_xy-origin) % L + origin
@@ -119,3 +100,49 @@ def compute_and_save(parameters, run_id, validation_run=False):
     print(f'Complete: {p["method"]}, {n} particles, {cycles} cycles, {steps} steps per particle.',flush=True)
     print(f'Original particle IDs: {ids.tolist()}',flush=True)
     return output
+
+
+def _validated_original_particles(
+	p: dict[str, Any], source: dict[str, Any],
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, list[str], np.ndarray]:
+	"""Resolve original particle identities, coordinates, colors, and radial order."""
+	ids = np.asarray(p['particle_ids'], dtype=int)
+	assert len(set(ids)) == len(ids) and np.all(np.diff(ids) > 0)
+	original = {r['particle']: r for r in source['particles']}
+	selected = [original[int(i)] for i in ids]
+	xy0 = np.array([[r['x'], r['y']] for r in selected])
+	colors = np.array([r['rgba'] for r in selected])
+	hexcolors = [r['color'] for r in selected]
+	radii = np.array([r['radius_over_L'] for r in selected])
+	assert len(set(hexcolors)) == len(ids)
+	assert p['radial_angle_rad'] == source['radial_angle_rad'] == 0.0
+	np.testing.assert_array_equal(radii, np.asarray(p['radial_fractions']))
+	return ids, xy0, colors, hexcolors, radii
+
+
+def _validated_experiment_schedule(
+	p: dict[str, Any], potential: Any, n: int, cycles: int, spc: int, workers: int,
+) -> tuple[bool, int, float, float, float]:
+	"""Require supported method, concurrency, and unit-cycle forcing before allocating trajectories."""
+	assert workers >= 1 and n >= workers and cycles > 0 and spc > 0
+	implicit = p['method'] == 'BM4Implicit'
+	assert p['method'] in ('BM4Implicit','BM4Midpoint','RK4')
+	steps = cycles * spc
+	h = p['cycle_duration'] / spc
+	t0, tf = p['t0'], p['t0'] + cycles * p['cycle_duration']
+	assert t0 == 0 and p['cycle_duration'] == 1
+	np.testing.assert_allclose(potential.frequencies * p['cycle_duration'], [1.], rtol=0, atol=1e-14)
+	return implicit, steps, h, t0, tf
+
+
+def _validated_cycle_samples(
+	states: np.ndarray, times: np.ndarray, initial_state: np.ndarray,
+	n: int, steps: int, spc: int, cycles: int,
+) -> tuple[np.ndarray, np.ndarray]:
+	"""Require finite complete histories and the original cycle grid before creating products."""
+	assert states.shape == (2*n, steps+1) and np.isfinite(states).all()
+	np.testing.assert_array_equal(states[:, 0], initial_state)
+	cycle_xy = np.stack((states[:n, ::spc].T, states[n:, ::spc].T), axis=-1)
+	cycle_times = times[::spc]
+	np.testing.assert_allclose(cycle_times, np.arange(cycles+1), rtol=0, atol=1e-12)
+	return cycle_xy, cycle_times

@@ -34,6 +34,56 @@ class ReferenceTrajectoryPaths:
 	readme: Path
 
 
+def _validated_reference_arrays(
+	times: np.ndarray,
+	states: np.ndarray,
+	initial_state: np.ndarray,
+	audit_states: np.ndarray,
+	audit_distances: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+	"""Copy and check reference and audit histories on a common particle-time grid."""
+	times = np.array(times, dtype=float, copy=True)
+	states = np.array(states, dtype=float, copy=True)
+	initial_state = np.array(initial_state, dtype=float, copy=True)
+	audit_states = np.array(audit_states, dtype=float, copy=True)
+	audit_distances = np.array(
+		audit_distances,
+		dtype=float,
+		copy=True,
+	)
+	if (
+		times.ndim != 1
+		or times.size < 2
+		or not np.all(np.isfinite(times))
+		or np.any(np.diff(times) <= 0.0)
+	):
+		raise ValueError("Reference times must be finite and strictly increasing.")
+	if (
+		states.ndim != 2
+		or states.shape[1] != times.size
+		or states.shape[0] == 0
+		or not np.all(np.isfinite(states))
+	):
+		raise ValueError("Reference states must be a finite packed time history.")
+	if initial_state.shape != (states.shape[0],) or not np.all(
+		np.isfinite(initial_state)
+	):
+		raise ValueError("The stored reference initial state has an invalid shape.")
+	if not np.array_equal(states[:, 0], initial_state):
+		raise ValueError("The first reference sample must equal the initial state.")
+	if audit_states.shape != states.shape or not np.all(np.isfinite(audit_states)):
+		raise ValueError("Audit states must match the reference state history.")
+	if (
+		states.shape[0] % 2
+		or audit_distances.shape
+		!= (states.shape[0] // 2, times.size)
+		or not np.all(np.isfinite(audit_distances))
+		or np.any(audit_distances < 0.0)
+	):
+		raise ValueError("Audit distances must have shape (particles, samples).")
+	return times, states, initial_state, audit_states, audit_distances
+
+
 @dataclass(frozen=True, slots=True)
 class StoredReferenceTrajectory:
 	"""Validated arrays and metadata loaded from a reference artifact."""
@@ -48,45 +98,13 @@ class StoredReferenceTrajectory:
 
 	def __post_init__(self) -> None:
 		"""Own immutable arrays after validating the packed time history."""
-		times = np.array(self.times, dtype=float, copy=True)
-		states = np.array(self.states, dtype=float, copy=True)
-		initial_state = np.array(self.initial_state, dtype=float, copy=True)
-		audit_states = np.array(self.audit_states, dtype=float, copy=True)
-		audit_distances = np.array(
+		times, states, initial_state, audit_states, audit_distances = _validated_reference_arrays(
+			self.times,
+			self.states,
+			self.initial_state,
+			self.audit_states,
 			self.audit_distances,
-			dtype=float,
-			copy=True,
 		)
-		if (
-			times.ndim != 1
-			or times.size < 2
-			or not np.all(np.isfinite(times))
-			or np.any(np.diff(times) <= 0.0)
-		):
-			raise ValueError("Reference times must be finite and strictly increasing.")
-		if (
-			states.ndim != 2
-			or states.shape[1] != times.size
-			or states.shape[0] == 0
-			or not np.all(np.isfinite(states))
-		):
-			raise ValueError("Reference states must be a finite packed time history.")
-		if initial_state.shape != (states.shape[0],) or not np.all(
-			np.isfinite(initial_state)
-		):
-			raise ValueError("The stored reference initial state has an invalid shape.")
-		if not np.array_equal(states[:, 0], initial_state):
-			raise ValueError("The first reference sample must equal the initial state.")
-		if audit_states.shape != states.shape or not np.all(np.isfinite(audit_states)):
-			raise ValueError("Audit states must match the reference state history.")
-		if (
-			states.shape[0] % 2
-			or audit_distances.shape
-			!= (states.shape[0] // 2, times.size)
-			or not np.all(np.isfinite(audit_distances))
-			or np.any(audit_distances < 0.0)
-		):
-			raise ValueError("Audit distances must have shape (particles, samples).")
 		for value in (
 			times,
 			states,
@@ -298,6 +316,17 @@ def write_reference_trajectory(
 	return load_reference_trajectory(paths.directory)
 
 
+def _reference_audit_array_name(metadata: Any) -> str:
+	"""Validate the supported reference schema and resolve its audit-distance key."""
+	if not isinstance(metadata, dict) or metadata.get("schema_version") not in (1, 2):
+		raise ValueError("Unsupported reference metadata schema.")
+	schema_version = int(metadata["schema_version"])
+	audit_array_name = (
+		"audit_periodic_distances" if schema_version == 1 else "audit_distances"
+	)
+	return audit_array_name
+
+
 def load_reference_trajectory(
 	output_directory: str | Path,
 ) -> StoredReferenceTrajectory:
@@ -314,12 +343,7 @@ def load_reference_trajectory(
 			raise FileNotFoundError(f"Reference artifact file not found: {path}")
 	with paths.metadata.open(encoding="utf-8") as stream:
 		metadata = json.load(stream)
-	if not isinstance(metadata, dict) or metadata.get("schema_version") not in (1, 2):
-		raise ValueError("Unsupported reference metadata schema.")
-	schema_version = int(metadata["schema_version"])
-	audit_array_name = (
-		"audit_periodic_distances" if schema_version == 1 else "audit_distances"
-	)
+	audit_array_name = _reference_audit_array_name(metadata)
 	with np.load(paths.trajectory, allow_pickle=False) as archive:
 		required = {
 			"times",

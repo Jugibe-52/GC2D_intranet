@@ -1,4 +1,6 @@
 """Restartable fixed-grid orchestration of frozen implicit and midpoint BM4."""
+
+from typing import Any
 from pathlib import Path
 from contextlib import nullcontext
 import hashlib
@@ -9,7 +11,7 @@ import time
 import numpy as np
 
 from newton_diagnostics import observe_newton
-from study_io import ROOT, atomic_json, digest, load_snapshot, utc_now
+from study_io import assert_checkpoint_file, ROOT, atomic_json, digest, load_snapshot, utc_now
 
 
 class CheckpointTestInterruption(RuntimeError):
@@ -76,15 +78,7 @@ def calculate_checkpointed_group(indices, initial_xy, settings):
         started = time.perf_counter()
         cpu_started = time.process_time()
         for marker in sorted(folder.glob('chunk_*.json')):
-            record = json.loads(marker.read_text())
-            assert record['fingerprint'] == fingerprint, 'Checkpoint parameters/source mismatch.'
-            assert record['start_step'] == completed and completed < record['end_step'] <= n
-            file = folder / (marker.stem + '.npz')
-            assert file.name == record['file'] and digest(file) == record['sha256'], 'Checkpoint checksum mismatch.'
-            with np.load(file, allow_pickle=False) as saved:
-                part = {k: saved[k] for k in saved.files}
-            np.testing.assert_array_equal(part['states'][:, 0], value)
-            assert part['states'].shape == (len(value), record['end_step'] - completed + 1)
+            record, part = _load_verified_bm4_checkpoint(marker, fingerprint, completed, n, value)
             parts.append(part)
             value = part['states'][:, -1].copy()
             completed = record['end_step']
@@ -185,3 +179,19 @@ def calculate_checkpointed_group(indices, initial_xy, settings):
                    'maximum_residual_to_tolerance': float(np.max(
                        diagnostics['nonlinear_residual_norms'] / diagnostics['nonlinear_tolerances'])) if implicit else None},
     }
+
+
+def _load_verified_bm4_checkpoint(
+	marker: Path, fingerprint: str, completed: int, n: int, value: np.ndarray,
+) -> tuple[dict[str, Any], dict[str, np.ndarray]]:
+	"""Load one committed BM4 chunk after checking identity, continuity, checksum, and state shape."""
+	record = json.loads(marker.read_text())
+	assert record['fingerprint'] == fingerprint, 'Checkpoint parameters/source mismatch.'
+	assert record['start_step'] == completed and completed < record['end_step'] <= n
+	file = marker.with_suffix('.npz')
+	assert_checkpoint_file(file, record, message='Checkpoint checksum mismatch.')
+	with np.load(file, allow_pickle=False) as saved:
+		part = {k: saved[k] for k in saved.files}
+	np.testing.assert_array_equal(part['states'][:, 0], value)
+	assert part['states'].shape == (len(value), record['end_step'] - completed + 1)
+	return record, part

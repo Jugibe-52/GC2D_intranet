@@ -95,20 +95,7 @@ class TenMethodAccuracyResult:
 			raise ValueError("Accuracy results must contain all seven variants.")
 		indices = np.array(self.reference_sample_indices, dtype=np.int64, copy=True)
 		comparison_times = next(iter(self.comparison.solutions.values())).t
-		if (
-			indices.ndim != 1
-			or indices.shape != comparison_times.shape
-			or np.any(indices < 0)
-			or np.any(indices >= self.reference.times.size)
-			or not np.array_equal(self.reference.times[indices], comparison_times)
-		):
-			raise ValueError("Reference sample indices do not align with the main-step grid.")
-		for label in TEN_METHOD_LABELS:
-			candidate = self.series[label]
-			if candidate.method_name != label:
-				raise ValueError("Accuracy series labels are inconsistent.")
-			if candidate.distances.shape[1] != comparison_times.size:
-				raise ValueError("Accuracy series do not match the reference grid.")
+		_validate_accuracy_samples(indices, self.reference, comparison_times, self.series)
 		indices.setflags(write=False)
 		object.__setattr__(self, "reference_sample_indices", indices)
 		object.__setattr__(self, "series", MappingProxyType(dict(self.series)))
@@ -178,16 +165,7 @@ class TenMethodAccuracyRefinementResult:
 		steps = _validated_refinement_steps(self.integration_steps)
 		if tuple(self.results) != steps:
 			raise ValueError("Refinement results must follow the configured step order.")
-		common_times: np.ndarray | None = None
-		for step, result in self.results.items():
-			if result.reference is not self.reference:
-				raise ValueError("Every refinement must use the same reference artifact.")
-			if result.comparison.config.integration_step != step:
-				raise ValueError("A refinement result used the wrong integration step.")
-			if common_times is None:
-				common_times = result.times
-			elif not np.array_equal(result.times, common_times):
-				raise ValueError("Every refinement must use one common saved-time grid.")
+		_validate_accuracy_refinements(self.results, self.reference)
 		object.__setattr__(self, "integration_steps", steps)
 		object.__setattr__(self, "results", MappingProxyType(dict(self.results)))
 
@@ -391,6 +369,43 @@ def run_ten_method_accuracy_refinement_study(
 		integration_steps=steps,
 		results=results,
 	)
+
+
+def _validate_accuracy_samples(
+	indices: np.ndarray, reference: StoredReferenceTrajectory, comparison_times: np.ndarray,
+	series: Mapping[str, TrajectoryAccuracySeries],
+) -> None:
+	"""Require a one-dimensional reference subgrid and aligned labels for all variants."""
+	if (
+		indices.ndim != 1
+		or indices.shape != comparison_times.shape
+		or np.any(indices < 0)
+		or np.any(indices >= reference.times.size)
+		or not np.array_equal(reference.times[indices], comparison_times)
+	):
+		raise ValueError("Reference sample indices do not align with the main-step grid.")
+	for label in TEN_METHOD_LABELS:
+		candidate = series[label]
+		if candidate.method_name != label:
+			raise ValueError("Accuracy series labels are inconsistent.")
+		if candidate.distances.shape[1] != comparison_times.size:
+			raise ValueError("Accuracy series do not match the reference grid.")
+
+
+def _validate_accuracy_refinements(
+	results: Mapping[float, TenMethodAccuracyResult], reference: StoredReferenceTrajectory,
+) -> None:
+	"""Require every refinement to use the same reference, configured step, and saved-time grid."""
+	common_times: np.ndarray | None = None
+	for step, result in results.items():
+		if result.reference is not reference:
+			raise ValueError("Every refinement must use the same reference artifact.")
+		if result.comparison.config.integration_step != step:
+			raise ValueError("A refinement result used the wrong integration step.")
+		if common_times is None:
+			common_times = result.times
+		elif not np.array_equal(result.times, common_times):
+			raise ValueError("Every refinement must use one common saved-time grid.")
 
 
 __all__ = [

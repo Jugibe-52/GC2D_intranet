@@ -13,12 +13,22 @@ from types import MappingProxyType
 from typing import Any, Literal, TypeAlias
 
 import numpy as np
+
+from ._comparison_validation import freeze_reference_indices
+
+from ._validation import (
+	finite_time_span,
+	integer_ratio,
+	nonnegative_finite,
+	positive_finite,
+	positive_integer,
+)
 from threadpoolctl import ThreadpoolController
 
 from diagnostics import StoredReferenceTrajectory
 from dynamics import GuidingCenterDynamics
 from initial_conditions import GCInitialConfiguration
-from potential import GC2DH5Metadata, Grid, Potential
+from potential import GC2DH5Metadata, Potential
 from methods.extended.abba import ABBA4Implicit
 from contracts.problem import InitialValueProblem
 from methods._nonlinear import NonlinearSolver
@@ -28,15 +38,10 @@ from contracts.request import SimulationRequest
 from solution import Solution
 from simulation.runner import simulate
 
+from ._potential_snapshot import _H5PotentialSnapshot
 from ._trajectory_accuracy import (
 	reference_distance_convention,
 	reference_indices_for_times,
-)
-from ._validation import (
-	integer_ratio,
-	nonnegative_finite,
-	positive_finite,
-	positive_integer,
 )
 from .reference_trajectory import potential_fingerprint
 
@@ -177,10 +182,10 @@ class ABBA4ConfigurationComparisonConfig:
 
 	def __post_init__(self) -> None:
 		"""Normalize all reproducibility controls and require aligned grids."""
-		span = np.asarray(self.t_span, dtype=float)
-		if span.shape != (2,) or not np.all(np.isfinite(span)) or span[0] >= span[1]:
-			raise ValueError("`t_span` must contain two finite, increasing times.")
-		object.__setattr__(self, "t_span", (float(span[0]), float(span[1])))
+		object.__setattr__(
+			self, "t_span",
+			finite_time_span(self.t_span, message="`t_span` must contain two finite, increasing times."),
+		)
 		for name in (
 			"integration_step",
 			"save_interval",
@@ -319,6 +324,55 @@ def _generalized_energy_history(
 	return generalized, error
 
 
+def _validated_configuration_trajectory(
+	solution: Solution, variant: ABBA4ConfigurationVariant, *,
+	particle: int, initial_x: np.ndarray, initial_y: np.ndarray,
+	common_times: np.ndarray | None, step_count: int,
+	expected_dimensions: tuple[int, int, int],
+) -> np.ndarray:
+	"""Check one particle trajectory against its configuration and common grid."""
+	if not isinstance(solution, Solution):
+		raise TypeError("Every configuration trajectory must be a Solution.")
+	if not isinstance(solution.source, GCInitialConfiguration):
+		raise TypeError("Every solution must use a GC initial configuration.")
+	expected_initial = np.asarray(
+		(initial_x[particle], initial_y[particle]),
+		dtype=float,
+	)
+	if not np.array_equal(solution.states[:, 0], expected_initial):
+		raise ValueError("A trajectory used the wrong initial condition.")
+	if common_times is None:
+		common_times = solution.t
+	elif not np.array_equal(solution.t, common_times):
+		raise ValueError(
+			"All configuration trajectories must share one saved-time grid."
+		)
+	diagnostics = solution.diagnostics
+	if int(diagnostics.get("step_count", -1)) != step_count:
+		raise ValueError("A trajectory used an inconsistent integration grid.")
+	if diagnostics.get("state_extension") != variant.state_extension:
+		raise ValueError("A trajectory used the wrong state extension.")
+	if diagnostics.get("track_energy") is not True:
+		raise ValueError("Every comparison trajectory must track energy.")
+	if diagnostics.get("projection_formulation") != (
+		variant.projection_formulation
+	):
+		raise ValueError("A trajectory used the wrong projection formulation.")
+	if diagnostics.get("nonlinear_solver") != variant.nonlinear_solver:
+		raise ValueError("A trajectory used the wrong nonlinear solver.")
+	actual_dimensions = tuple(
+		int(diagnostics[name])
+		for name in (
+			"accepted_internal_state_dimension",
+			"base_splitting_state_dimension",
+			"nonlinear_unknown_dimension",
+		)
+	)
+	if actual_dimensions != expected_dimensions:
+		raise ValueError("A trajectory reported inconsistent state dimensions.")
+	return common_times
+
+
 @dataclass(frozen=True, slots=True)
 class ABBA4ConfigurationComparisonResult:
 	"""Aligned one-particle solutions and task timings for all configurations."""
@@ -334,34 +388,14 @@ class ABBA4ConfigurationComparisonResult:
 
 	def __post_init__(self) -> None:
 		"""Freeze nested values and enforce complete alignment and diagnostics."""
-		if not isinstance(self.potential, Potential):
-			raise TypeError("`potential` must be a Potential instance.")
-		if not isinstance(self.dynamics, GuidingCenterDynamics):
-			raise TypeError("`dynamics` must be GuidingCenterDynamics.")
-		if not isinstance(self.initial_configuration, GCInitialConfiguration):
-			raise TypeError("`initial_configuration` must be GCInitialConfiguration.")
-		if not isinstance(self.reference, StoredReferenceTrajectory):
-			raise TypeError("`reference` must be a StoredReferenceTrajectory.")
-		if not isinstance(self.config, ABBA4ConfigurationComparisonConfig):
-			raise TypeError("`config` must be ABBA4ConfigurationComparisonConfig.")
-		if tuple(self.solutions) != ABBA4_CONFIGURATION_KEYS:
-			raise ValueError("Solutions must follow all eight stable configuration keys.")
-		if tuple(self.runtimes) != ABBA4_CONFIGURATION_KEYS:
-			raise ValueError("Runtimes must follow all eight stable configuration keys.")
+		_validate_configuration_inputs(
+			self.potential, self.dynamics, self.initial_configuration, self.reference,
+			self.config, self.solutions, self.runtimes,
+		)
 
-		initial_state = self.initial_configuration.initial_state
-		if initial_state is None:
-			raise ValueError("The initial configuration must contain a state.")
-		particle_count = self.config.particle_count
-		if (
-			self.initial_configuration.layout.particle_count(initial_state)
-			!= particle_count
-		):
-			raise ValueError(
-				"The initial configuration must contain exactly "
-				f"particle_count={particle_count} initial conditions."
-			)
-		initial_x, initial_y = self.initial_configuration.positions(initial_state)
+		particle_count, initial_x, initial_y = _configuration_initial_positions(
+			self.initial_configuration, self.config,
+		)
 		common_times: np.ndarray | None = None
 		frozen_solutions: dict[str, tuple[Solution, ...]] = {}
 		frozen_runtimes: dict[str, np.ndarray] = {}
@@ -373,45 +407,11 @@ class ABBA4ConfigurationComparisonResult:
 				)
 			expected_dimensions = _expected_dimensions(variant)
 			for particle, solution in enumerate(trajectory_solutions):
-				if not isinstance(solution, Solution):
-					raise TypeError("Every configuration trajectory must be a Solution.")
-				if not isinstance(solution.source, GCInitialConfiguration):
-					raise TypeError("Every solution must use a GC initial configuration.")
-				expected_initial = np.asarray(
-					(initial_x[particle], initial_y[particle]),
-					dtype=float,
+				common_times = _validated_configuration_trajectory(
+					solution, variant, particle=particle,
+					initial_x=initial_x, initial_y=initial_y, common_times=common_times,
+					step_count=self.config.step_count, expected_dimensions=expected_dimensions,
 				)
-				if not np.array_equal(solution.states[:, 0], expected_initial):
-					raise ValueError("A trajectory used the wrong initial condition.")
-				if common_times is None:
-					common_times = solution.t
-				elif not np.array_equal(solution.t, common_times):
-					raise ValueError(
-						"All configuration trajectories must share one saved-time grid."
-					)
-				diagnostics = solution.diagnostics
-				if int(diagnostics.get("step_count", -1)) != self.config.step_count:
-					raise ValueError("A trajectory used an inconsistent integration grid.")
-				if diagnostics.get("state_extension") != variant.state_extension:
-					raise ValueError("A trajectory used the wrong state extension.")
-				if diagnostics.get("track_energy") is not True:
-					raise ValueError("Every comparison trajectory must track energy.")
-				if diagnostics.get("projection_formulation") != (
-					variant.projection_formulation
-				):
-					raise ValueError("A trajectory used the wrong projection formulation.")
-				if diagnostics.get("nonlinear_solver") != variant.nonlinear_solver:
-					raise ValueError("A trajectory used the wrong nonlinear solver.")
-				actual_dimensions = tuple(
-					int(diagnostics[name])
-					for name in (
-						"accepted_internal_state_dimension",
-						"base_splitting_state_dimension",
-						"nonlinear_unknown_dimension",
-					)
-				)
-				if actual_dimensions != expected_dimensions:
-					raise ValueError("A trajectory reported inconsistent state dimensions.")
 			frozen_solutions[variant.key] = trajectory_solutions
 			frozen_runtimes[variant.key] = _readonly_runtime_array(
 				self.runtimes[variant.key],
@@ -420,14 +420,9 @@ class ABBA4ConfigurationComparisonResult:
 
 		assert common_times is not None
 		indices = np.array(self.reference_sample_indices, dtype=np.int64, copy=True)
-		if (
-			indices.shape != common_times.shape
-			or np.any(indices < 0)
-			or np.any(indices >= self.reference.times.size)
-			or not np.array_equal(self.reference.times[indices], common_times)
-		):
-			raise ValueError("Saved times do not align with the certified reference.")
-		indices.setflags(write=False)
+		indices = freeze_reference_indices(
+			indices, self.reference.times, common_times, message="Saved times do not align with the certified reference.",
+		)
 		object.__setattr__(self, "reference_sample_indices", indices)
 		object.__setattr__(
 			self,
@@ -554,46 +549,6 @@ def _alternating_particle_order(particle_count: int) -> tuple[int, ...]:
 			order.append(right)
 			right -= 1
 	return tuple(order)
-
-
-@dataclass(frozen=True, slots=True)
-class _H5PotentialSnapshot:
-	"""Pickle-safe processed HDF5 field used to initialize spawned workers."""
-
-	grid: Grid
-	mean: np.ndarray
-	modes: np.ndarray
-	frequencies: np.ndarray
-	metadata: GC2DH5Metadata
-	interpolation_order: int
-
-	@classmethod
-	def from_potential(
-		cls,
-		potential: Potential,
-	) -> _H5PotentialSnapshot:
-		"""Capture the selected and resampled fields without the source HDF5."""
-		if not isinstance(potential.metadata, GC2DH5Metadata):
-			raise TypeError("The potential must contain GC2D HDF5 metadata.")
-		return cls(
-			grid=potential.grid,
-			mean=potential.mean,
-			modes=potential.modes,
-			frequencies=potential.frequencies,
-			metadata=potential.metadata,
-			interpolation_order=potential.interpolation_order,
-		)
-
-	def restore(self) -> Potential:
-		"""Rebuild runtime splines once inside one worker process."""
-		return Potential(
-			self.grid,
-			mean=self.mean,
-			modes=self.modes,
-			frequencies=self.frequencies,
-			metadata=self.metadata,
-			interpolation_order=self.interpolation_order,
-		)
 
 
 _WorkerPotentialPayload: TypeAlias = Potential | _H5PotentialSnapshot
@@ -1159,6 +1114,49 @@ def run_abba4_configuration_comparison(
 		},
 		runtimes=runtime_rows,
 	)
+
+
+def _validate_configuration_inputs(
+	potential: Potential, dynamics: GuidingCenterDynamics,
+	initial_configuration: GCInitialConfiguration, reference: StoredReferenceTrajectory,
+	config: ABBA4ConfigurationComparisonConfig,
+	solutions: Mapping[str, tuple[Solution, ...]], runtimes: Mapping[str, np.ndarray],
+) -> None:
+	"""Require typed physical inputs and stable coverage of the eight configurations."""
+	if not isinstance(potential, Potential):
+		raise TypeError("`potential` must be a Potential instance.")
+	if not isinstance(dynamics, GuidingCenterDynamics):
+		raise TypeError("`dynamics` must be GuidingCenterDynamics.")
+	if not isinstance(initial_configuration, GCInitialConfiguration):
+		raise TypeError("`initial_configuration` must be GCInitialConfiguration.")
+	if not isinstance(reference, StoredReferenceTrajectory):
+		raise TypeError("`reference` must be a StoredReferenceTrajectory.")
+	if not isinstance(config, ABBA4ConfigurationComparisonConfig):
+		raise TypeError("`config` must be ABBA4ConfigurationComparisonConfig.")
+	if tuple(solutions) != ABBA4_CONFIGURATION_KEYS:
+		raise ValueError("Solutions must follow all eight stable configuration keys.")
+	if tuple(runtimes) != ABBA4_CONFIGURATION_KEYS:
+		raise ValueError("Runtimes must follow all eight stable configuration keys.")
+
+
+def _configuration_initial_positions(
+	initial_configuration: GCInitialConfiguration, config: ABBA4ConfigurationComparisonConfig,
+) -> tuple[int, np.ndarray, np.ndarray]:
+	"""Resolve the exact configured particle count and its packed initial planar positions."""
+	initial_state = initial_configuration.initial_state
+	if initial_state is None:
+		raise ValueError("The initial configuration must contain a state.")
+	particle_count = config.particle_count
+	if (
+		initial_configuration.layout.particle_count(initial_state)
+		!= particle_count
+	):
+		raise ValueError(
+			"The initial configuration must contain exactly "
+			f"particle_count={particle_count} initial conditions."
+		)
+	initial_x, initial_y = initial_configuration.positions(initial_state)
+	return particle_count, initial_x, initial_y
 
 
 __all__ = [

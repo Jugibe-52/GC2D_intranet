@@ -101,6 +101,32 @@ def _particle_metrics(jacobians: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
 	return relative, determinants
 
 
+def _validated_observer_initial_state(
+	dynamics: GuidingCenterJacobianSystem,
+	initial_configuration: GCInitialConfiguration,
+	method_name: str,
+	jacobian_method: str,
+	jacobian_calculator: TrajectoryJacobianCalculator,
+) -> np.ndarray:
+	"""Check observer capabilities and return the configured packed initial state."""
+	if not isinstance(dynamics, GuidingCenterJacobianSystem):
+		raise TypeError(
+			"GCTrajectorySymplecticityObserver requires exact GC Jacobians."
+		)
+	if not isinstance(initial_configuration, GCInitialConfiguration):
+		raise TypeError("`initial_configuration` must be a GC configuration.")
+	initial_state = initial_configuration.initial_state
+	if initial_state is None:
+		raise ValueError("The GC initial configuration has no initial state.")
+	if not isinstance(method_name, str) or not method_name.strip():
+		raise ValueError("`method_name` must be a non-empty string.")
+	if not isinstance(jacobian_method, str) or not jacobian_method.strip():
+		raise ValueError("`jacobian_method` must be a non-empty string.")
+	if not callable(jacobian_calculator):
+		raise TypeError("`jacobian_calculator` must be callable.")
+	return initial_state
+
+
 class GCTrajectorySymplecticityObserver:
 	"""Accumulate exact independent planar tangents and average their defects."""
 
@@ -122,21 +148,9 @@ class GCTrajectorySymplecticityObserver:
 		metadata: Mapping[str, Any] | None = None,
 	) -> None:
 		"""Configure one exact complete-step tangent stream."""
-		if not isinstance(dynamics, GuidingCenterJacobianSystem):
-			raise TypeError(
-				"GCTrajectorySymplecticityObserver requires exact GC Jacobians."
-			)
-		if not isinstance(initial_configuration, GCInitialConfiguration):
-			raise TypeError("`initial_configuration` must be a GC configuration.")
-		initial_state = initial_configuration.initial_state
-		if initial_state is None:
-			raise ValueError("The GC initial configuration has no initial state.")
-		if not isinstance(method_name, str) or not method_name.strip():
-			raise ValueError("`method_name` must be a non-empty string.")
-		if not isinstance(jacobian_method, str) or not jacobian_method.strip():
-			raise ValueError("`jacobian_method` must be a non-empty string.")
-		if not callable(jacobian_calculator):
-			raise TypeError("`jacobian_calculator` must be callable.")
+		initial_state = _validated_observer_initial_state(
+			dynamics, initial_configuration, method_name, jacobian_method, jacobian_calculator,
+		)
 
 		self.dynamics = dynamics
 		self.initial_configuration = initial_configuration
@@ -205,22 +219,10 @@ class GCTrajectorySymplecticityObserver:
 		finally:
 			self._closed = True
 
-	def __call__(self, step: IntegrationStep) -> None:
-		"""Advance the physical tangent with one consecutive complete step."""
-		if self._closed:
-			raise RuntimeError("This trajectory symplecticity observer is closed.")
-		if not isinstance(step, IntegrationStep):
-			raise TypeError("The observer requires IntegrationStep data.")
-		if step.method_name != self.method_name:
-			raise TypeError(
-				f"Expected {self.method_name} steps, received {step.method_name}."
-			)
-		if step.dynamics is not self.dynamics:
-			raise TypeError(
-				"The observed step must expose the exact configured dynamics instance."
-			)
-		if step.step_index != self._expected_step:
-			raise ValueError("Complete steps must be observed consecutively.")
+	def _validated_continuous_states(
+		self, step: IntegrationStep,
+	) -> tuple[np.ndarray, np.ndarray]:
+		"""Read finite physical states and require continuity with the previous step."""
 		state_before = self._validated_state(step.state_before)
 		state_after = self._validated_state(step.state_after)
 		if not np.array_equal(state_before, self._last_state):
@@ -238,6 +240,25 @@ class GCTrajectorySymplecticityObserver:
 				atol=tolerance,
 			):
 				raise ValueError("Observed complete-step times are not continuous.")
+		return state_before, state_after
+
+	def __call__(self, step: IntegrationStep) -> None:
+		"""Advance the physical tangent with one consecutive complete step."""
+		if self._closed:
+			raise RuntimeError("This trajectory symplecticity observer is closed.")
+		if not isinstance(step, IntegrationStep):
+			raise TypeError("The observer requires IntegrationStep data.")
+		if step.method_name != self.method_name:
+			raise TypeError(
+				f"Expected {self.method_name} steps, received {step.method_name}."
+			)
+		if step.dynamics is not self.dynamics:
+			raise TypeError(
+				"The observed step must expose the exact configured dynamics instance."
+			)
+		if step.step_index != self._expected_step:
+			raise ValueError("Complete steps must be observed consecutively.")
+		state_before, state_after = self._validated_continuous_states(step)
 		if not self._records:
 			self._append_sample(
 				_CompletedStep(

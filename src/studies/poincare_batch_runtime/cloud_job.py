@@ -1,4 +1,6 @@
 """Run both notebooks and synchronize immutable checkpoints to private S3."""
+
+from typing import Any
 import argparse
 import json
 from pathlib import Path
@@ -11,7 +13,7 @@ import traceback
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-from study_io import atomic_json, digest, utc_now, validate_run_id
+from study_io import assert_checkpoint_file, atomic_json, digest, utc_now, validate_run_id
 
 
 class CheckpointStore:
@@ -56,7 +58,7 @@ class CheckpointStore:
             assert 1 <= worker <= 16
             if relative not in self.uploaded:
                 file = marker.with_suffix('.npz')
-                assert file.name == record['file'] and digest(file) == record['sha256']
+                assert_checkpoint_file(file, record)
                 self.client.upload_file(str(file), self.bucket, self.prefix + relative[:-5] + '.npz')
                 self.client.upload_file(str(marker), self.bucket, self.prefix + relative)
                 self.uploaded.add(relative)
@@ -129,17 +131,7 @@ def main():
         stopped.set()
         sync_thread.join()
         sync_progress()
-        for directory in (numeric, figures):
-            assert json.loads((directory/'execution_status.json').read_text())['status'] == 'success'
-        manifest = json.loads((numeric/'COMPLETE.json').read_text())
-        for name, expected in manifest['sha256'].items():
-            assert digest(numeric/name) == expected
-        meta = json.loads((numeric/'metadata.json').read_text())
-        assert (meta['particle_count'],meta['cycles'],meta['steps_per_cycle'],meta['process_count']) == (len(cfg['particle_ids']),cfg['cycles'],cfg['steps_per_cycle'],16)
-        assert meta['method'] == cfg['method'] and meta['particle_ids'] == cfg['particle_ids']
-        assert meta['newton_history_recorded'] == (cfg['method'] == 'BM4Implicit')
-        assert not meta['reference_computed']
-        assert len(store.uploaded) == 16 * ((nsteps + cfg['checkpoint_steps'] - 1)//cfg['checkpoint_steps'])
+        meta = _validate_cloud_products(numeric, figures, cfg, store, nsteps)
         archive = ROOT.parent/f'{run}_results.tar.gz'
         with tarfile.open(archive,'w:gz') as tar:
             for path in (numeric, figures, ROOT/'resultados/latest_success.json'):
@@ -164,6 +156,24 @@ def main():
         try: sync_progress()
         finally: publish_status()
         raise
+
+
+def _validate_cloud_products(
+	numeric: Path, figures: Path, cfg: dict[str, Any], store: CheckpointStore, nsteps: int,
+) -> dict[str, Any]:
+	"""Verify completed calculations, checksums, scientific identity, and uploaded checkpoint coverage."""
+	for directory in (numeric, figures):
+		assert json.loads((directory/'execution_status.json').read_text())['status'] == 'success'
+	manifest = json.loads((numeric/'COMPLETE.json').read_text())
+	for name, expected in manifest['sha256'].items():
+		assert digest(numeric/name) == expected
+	meta: dict[str, Any] = json.loads((numeric/'metadata.json').read_text())
+	assert (meta['particle_count'],meta['cycles'],meta['steps_per_cycle'],meta['process_count']) == (len(cfg['particle_ids']),cfg['cycles'],cfg['steps_per_cycle'],16)
+	assert meta['method'] == cfg['method'] and meta['particle_ids'] == cfg['particle_ids']
+	assert meta['newton_history_recorded'] == (cfg['method'] == 'BM4Implicit')
+	assert not meta['reference_computed']
+	assert len(store.uploaded) == 16 * ((nsteps + cfg['checkpoint_steps'] - 1)//cfg['checkpoint_steps'])
+	return meta
 
 
 if __name__ == '__main__':

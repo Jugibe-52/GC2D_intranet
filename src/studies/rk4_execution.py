@@ -75,19 +75,7 @@ def run_rk4_execution_comparison(
     integration, energy diagnostics and immutable NumPy Solution creation.
     Explicit device requests fail if unavailable, without substitution.
     """
-    for name in ("particle_count", "repetitions"):
-        value = getattr(config, name)
-        if isinstance(value, bool) or not isinstance(value, (int, np.integer)) or value < 1:
-            raise ValueError(f"{name} must be a positive integer.")
-    if config.repetitions < 3:
-        raise ValueError("Use at least three repetitions to report timing quartiles.")
-    if (not np.isfinite(config.equivalence_atol) or config.equivalence_atol < 0
-            or not np.isfinite(config.equivalence_rtol) or config.equivalence_rtol < 0):
-        raise ValueError("Equivalence tolerances must be finite and non-negative.")
-    if not executions or any(not isinstance(item, ExecutionOptions) for item in executions):
-        raise TypeError("Supply an explicit tuple of ExecutionOptions configurations.")
-    if len(set(executions)) != len(executions) or ExecutionOptions() not in executions:
-        raise ValueError("Use distinct executions including ExecutionOptions() as the CPU baseline.")
+    _validate_execution_comparison(config, executions)
     potential = Potential.random(
         A=config.amplitude, M=config.maximum_wave_number, nx=config.nx, ny=config.ny,
         seed=config.potential_seed, interpolation_order=config.interpolation_order,
@@ -182,6 +170,25 @@ def load_rk4_execution_comparison(source: str | Path) -> RK4ExecutionComparison:
         if key not in solutions:
             solutions[key] = load_solution(f"{base}/{key}").solution
     return RK4ExecutionComparison(solutions, baseline.potential, baseline.metadata)
+
+
+def _validate_execution_comparison(
+	config: RK4ExecutionConfig, executions: tuple[ExecutionOptions, ...],
+) -> None:
+	"""Require valid timing controls and a distinct execution set containing the CPU baseline."""
+	for name in ("particle_count", "repetitions"):
+		value = getattr(config, name)
+		if isinstance(value, bool) or not isinstance(value, (int, np.integer)) or value < 1:
+			raise ValueError(f"{name} must be a positive integer.")
+	if config.repetitions < 3:
+		raise ValueError("Use at least three repetitions to report timing quartiles.")
+	if (not np.isfinite(config.equivalence_atol) or config.equivalence_atol < 0
+			or not np.isfinite(config.equivalence_rtol) or config.equivalence_rtol < 0):
+		raise ValueError("Equivalence tolerances must be finite and non-negative.")
+	if not executions or any(not isinstance(item, ExecutionOptions) for item in executions):
+		raise TypeError("Supply an explicit tuple of ExecutionOptions configurations.")
+	if len(set(executions)) != len(executions) or ExecutionOptions() not in executions:
+		raise ValueError("Use distinct executions including ExecutionOptions() as the CPU baseline.")
 
 
 __all__ = ["RK4ExecutionConfig", "RK4ExecutionComparison", "run_rk4_execution_comparison",

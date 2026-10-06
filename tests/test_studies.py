@@ -9,6 +9,16 @@ import unittest
 import matplotlib.pyplot as plt
 import numpy as np
 
+from visualization.area_comparison import animate_area_comparison
+from visualization.energy import plot_generalized_energy_comparison
+from visualization.gc_symplecticity import (
+	animate_gc_symplecticity,
+	plot_abba_defect_floor,
+	plot_gc_solver_diagnostics,
+	plot_gc_symplecticity_diagnostics,
+	plot_rk4_convergence,
+)
+
 from initial_conditions import (
 	Area,
 	GCInitialConfiguration,
@@ -203,6 +213,10 @@ class AreaComparisonStudyTests(unittest.TestCase):
 				self.assertEqual(result.diagnostic_times[label].shape, (2,))
 				self.assertTrue(result.output_directories[label].is_dir())
 			self.assertEqual(len(result.summaries()), 2)
+			animation = animate_area_comparison(result, frames=2, interval=10)
+			self.assertGreater(len(animation._func(1)), 0)
+			animation._draw_was_started = True
+			plt.close(animation._fig)
 
 	def test_sampling_ratios_must_be_integral(self) -> None:
 		with self.assertRaises(ValueError):
@@ -240,7 +254,7 @@ class EnergyStudyTests(unittest.TestCase):
 			[result.relative_errors[step][0] for step in config.steps],
 			0.0,
 		)
-		figure, axes = result.plot()
+		figure, axes = plot_generalized_energy_comparison(result)
 		self.assertEqual(len(axes.lines), len(config.steps) + 1)
 		plt.close(figure)
 
@@ -296,13 +310,14 @@ class RK4SymplecticityStudyTests(unittest.TestCase):
 			all(type(row) is RK4SymplecticitySummary for row in summaries)
 		)
 		self.assertEqual(len(result.convergence_orders()), 1)
-		diagnostic_figure, diagnostic_axes = result.plot_diagnostics()
-		convergence_figure, convergence_axes = result.plot_convergence()
+		diagnostic_figure, diagnostic_axes = plot_gc_symplecticity_diagnostics(result)
+		convergence_figure, convergence_axes = plot_rk4_convergence(result)
 		self.assertEqual(diagnostic_axes.shape, (2, 2))
 		self.assertEqual(len(convergence_axes.lines), 2)
-		animation = result.animate(frames=2, interval=10)
+		animation = animate_gc_symplecticity(result, frames=2, interval=10)
 		self.assertGreater(len(animation._func(1)), 0)
 		animation._draw_was_started = True
+		plt.close(animation._fig)
 		plt.close(diagnostic_figure)
 		plt.close(convergence_figure)
 
@@ -361,8 +376,8 @@ class ABBASymplecticityStudyTests(unittest.TestCase):
 					(step_count,),
 				)
 
-		floor_figure, floor_axes = result.plot_defect_floor()
-		solver_figure, solver_axes = result.plot_solver_diagnostics()
+		floor_figure, floor_axes = plot_abba_defect_floor(result)
+		solver_figure, solver_axes = plot_gc_solver_diagnostics(result)
 		self.assertIn("numerical floor", floor_axes.get_title())
 		self.assertEqual(solver_axes.shape, (2,))
 		plt.close(floor_figure)

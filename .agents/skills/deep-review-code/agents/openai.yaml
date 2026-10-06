@@ -1,0 +1,3 @@
+interface:
+  display_name: "Deep Review Code"
+  short_description: "Analyze code and architecture through read-only inspection"

@@ -9,6 +9,17 @@ from typing import Mapping
 
 import numpy as np
 
+from ._validation import (
+	validate_sampling_grid,
+	finite_time_span,
+	nonnegative_integer,
+	integer_ratio,
+	nonnegative_finite,
+	positive_finite,
+	positive_integer,
+)
+
+
 from diagnostics import calculate_step_jacobian, central_difference_jacobian
 from diagnostics.symplecticity import gc_physical_symplectic_form
 from dynamics import GuidingCenterDynamics
@@ -27,7 +38,6 @@ from ._gauss_legendre4_common import (
 	readonly_runtime_samples,
 )
 from ._trajectory_accuracy import TrajectoryAccuracySeries, accuracy_series
-from ._validation import integer_ratio, nonnegative_finite, positive_finite, positive_integer
 from ._trajectory_accuracy import validated_refinement_steps
 
 
@@ -63,10 +73,10 @@ class GaussLegendre4EvaluationConfig:
 		"""Validate nested steps, common outputs, tolerances, and timing controls."""
 		steps = validated_refinement_steps(self.integration_steps)
 		object.__setattr__(self, "integration_steps", steps)
-		span = np.asarray(self.t_span, dtype=float)
-		if span.shape != (2,) or not np.all(np.isfinite(span)) or span[0] >= span[1]:
-			raise ValueError("`t_span` must contain two finite increasing times.")
-		object.__setattr__(self, "t_span", (float(span[0]), float(span[1])))
+		object.__setattr__(
+			self, "t_span",
+			finite_time_span(self.t_span, message="`t_span` must contain two finite increasing times."),
+		)
 		object.__setattr__(self, "rho", nonnegative_finite(self.rho, "rho"))
 		for name in (
 			"save_interval",
@@ -106,13 +116,7 @@ class GaussLegendre4EvaluationConfig:
 				name,
 				positive_integer(getattr(self, name), name),
 			)
-		if (
-			isinstance(self.timing_warmups, (bool, np.bool_))
-			or not isinstance(self.timing_warmups, (int, np.integer))
-			or self.timing_warmups < 0
-		):
-			raise ValueError("`timing_warmups` must be a non-negative integer.")
-		object.__setattr__(self, "timing_warmups", int(self.timing_warmups))
+		object.__setattr__(self, "timing_warmups", nonnegative_integer(self.timing_warmups, "timing_warmups"))
 		if self.audit_maximum_step > self.reference_maximum_step:
 			raise ValueError("The Radau audit step cannot exceed the DOP853 step.")
 		if self.audit_relative_tolerance > self.reference_relative_tolerance:
@@ -120,10 +124,7 @@ class GaussLegendre4EvaluationConfig:
 		if self.audit_absolute_tolerance > self.reference_absolute_tolerance:
 			raise ValueError("The Radau audit tolerance cannot be looser than DOP853.")
 		duration = self.t_span[1] - self.t_span[0]
-		integer_ratio(duration, self.save_interval, "duration / save_interval")
-		for step in steps:
-			integer_ratio(duration, step, "duration / integration_step")
-			integer_ratio(self.save_interval, step, "save_interval / integration_step")
+		validate_sampling_grid(duration, self.save_interval, steps)
 
 	@property
 	def output_sample_count(self) -> int:
@@ -161,21 +162,7 @@ class GaussLegendre4SymplecticitySeries:
 				self.analytic_finite_difference_relative_differences,
 			)
 		)
-		if any(value.ndim != 1 or not np.all(np.isfinite(value)) for value in arrays):
-			raise ValueError("Symplecticity diagnostics must be finite vectors.")
-		if not (
-			arrays[0].size
-			== arrays[1].size
-			== arrays[2].size
-			== arrays[3].size
-		):
-			raise ValueError("Ideal-root symplecticity arrays must be aligned.")
-		if not (arrays[4].size == arrays[5].size == arrays[6].size):
-			raise ValueError("Finite-difference audit arrays must be aligned.")
-		if any(np.any(value < 0.0) for value in (*arrays[1:4], *arrays[5:])):
-			raise ValueError("Symplecticity defect values must be non-negative.")
-		for value in arrays:
-			value.setflags(write=False)
+		_freeze_symplecticity_arrays(arrays)
 		for name, value in zip(
 			(
 				"times",
@@ -691,6 +678,25 @@ def run_gauss_legendre4_evaluation(
 		generalized_energies=MappingProxyType(energies_by_step),
 		symplecticity=MappingProxyType(geometry_by_step),
 	)
+
+
+def _freeze_symplecticity_arrays(arrays: tuple[np.ndarray, ...]) -> None:
+	"""Check vector shapes and both diagnostic grids before freezing owned arrays."""
+	if any(value.ndim != 1 or not np.all(np.isfinite(value)) for value in arrays):
+		raise ValueError("Symplecticity diagnostics must be finite vectors.")
+	if not (
+		arrays[0].size
+		== arrays[1].size
+		== arrays[2].size
+		== arrays[3].size
+	):
+		raise ValueError("Ideal-root symplecticity arrays must be aligned.")
+	if not (arrays[4].size == arrays[5].size == arrays[6].size):
+		raise ValueError("Finite-difference audit arrays must be aligned.")
+	if any(np.any(value < 0.0) for value in (*arrays[1:4], *arrays[5:])):
+		raise ValueError("Symplecticity defect values must be non-negative.")
+	for value in arrays:
+		value.setflags(write=False)
 
 
 __all__ = [

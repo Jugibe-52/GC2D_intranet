@@ -25,6 +25,12 @@ remains [theory.tex](../tex/theory.tex), with its compiled
 
 ## Numerical path
 
+Constructor controls use the typed scalar validators in `methods._validation`,
+including rejection of boolean tolerances and coupling frequencies. Shared
+Newton/Broyden input and cached-residual checks live in `methods._nonlinear`;
+they preserve ownership of the initial arrays and do not add residual evaluations.
+Numerical convergence and singularity guards remain in their solve loops.
+
 Initialization binds this model's recipe and options. The ordinary implicit
 path is `advance -> solve_projection -> compose -> direct_map / adjoint_map`.
 Explicit midpoint methods use `midpoint_step` in place of the nonlinear

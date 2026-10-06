@@ -7,6 +7,8 @@ from typing import Callable
 
 import numpy as np
 
+from diagnostics._validation import optional_relative_step
+
 from dynamics import GuidingCenterDynamics
 from contracts.observation import (
 	ABBA4ImplicitIntegrationStep,
@@ -206,10 +208,7 @@ class GCTimeExtendedSymplecticityObserver:
 		"""Configure sequential accepted-step numerical differentiation."""
 		if not isinstance(dynamics, GuidingCenterDynamics):
 			raise TypeError("`dynamics` must be GuidingCenterDynamics.")
-		if relative_step is not None and (
-			not np.isfinite(float(relative_step)) or float(relative_step) <= 0.0
-		):
-			raise ValueError("`relative_step` must be positive and finite.")
+		relative_step = optional_relative_step(relative_step)
 		self._dynamics = dynamics
 		self.relative_step = relative_step
 		self._records: list[GCTimeExtendedSymplecticityRecord] = []
@@ -327,10 +326,7 @@ class GCReducedTimeExtendedSymplecticityObserver:
 			raise TypeError("`dynamics` must be GuidingCenterDynamics.")
 		if not callable(step_map):
 			raise TypeError("`step_map` must be callable.")
-		if relative_step is not None and (
-			not np.isfinite(float(relative_step)) or float(relative_step) <= 0.0
-		):
-			raise ValueError("`relative_step` must be positive and finite.")
+		relative_step = optional_relative_step(relative_step)
 		self._dynamics = dynamics
 		self._step_map = step_map
 		self.relative_step = relative_step

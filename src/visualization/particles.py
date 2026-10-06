@@ -16,21 +16,11 @@ from initial_conditions import FCInitialConfiguration, GCInitialConfiguration
 from potential import Potential
 from solution import Solution
 
-
-def _frame_indices(sample_count: int, frames: int | None) -> np.ndarray:
-	"""Select strictly increasing saved-state indices for an animation."""
-	if frames is None:
-		return np.arange(sample_count, dtype=int)
-	if (
-		isinstance(frames, (bool, np.bool_))
-		or not isinstance(frames, (int, np.integer))
-		or not 2 <= int(frames) <= sample_count
-	):
-		raise ValueError("`frames` must be None or an integer from 2 to the sample count.")
-	return np.asarray(
-		np.unique(np.linspace(0, sample_count - 1, int(frames), dtype=int)),
-		dtype=int,
-	)
+from ._animation_validation import (
+	boolean_control,
+	frame_indices as _frame_indices,
+	positive_interval,
+)
 
 
 def _field_normalization(fields: np.ndarray) -> mcolors.Normalize:
@@ -43,6 +33,38 @@ def _field_normalization(fields: np.ndarray) -> mcolors.Normalize:
 		delta = abs(minimum) * 0.01 or 1.0
 		return mcolors.Normalize(vmin=minimum - delta, vmax=maximum + delta)
 	return mcolors.Normalize(vmin=minimum, vmax=maximum)
+
+
+def _particle_history(
+	solution: Solution, *, single_particle: bool,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+	"""Read time-aligned positions using the animator's particle-count contract."""
+	times = np.asarray(solution.t, dtype=float)
+	x, y = solution.positions()
+	if single_particle:
+		if x.shape != (1, times.size) or y.shape != (1, times.size):
+			raise ValueError("Single-particle animation requires exactly one particle.")
+	elif x.ndim != 2 or y.shape != x.shape or x.shape[1] != times.size:
+		raise ValueError("The solution must contain sampled planar trajectories.")
+	return times, x, y
+
+
+def _frame_annotations(
+	frame_annotations: Sequence[str] | None, sample_count: int,
+) -> tuple[str, ...] | None:
+	"""Require one nonempty annotation for every saved time before frame selection."""
+	annotations: tuple[str, ...] | None = None
+	if frame_annotations is not None:
+		if isinstance(frame_annotations, (str, bytes)):
+			raise TypeError("`frame_annotations` must be a sequence of strings.")
+		annotations = tuple(frame_annotations)
+		if len(annotations) != sample_count or not all(
+			isinstance(value, str) and value for value in annotations
+		):
+			raise ValueError(
+				"`frame_annotations` must contain one non-empty string per saved time."
+			)
+	return annotations
 
 
 def _animate_particle_solution(
@@ -72,26 +94,11 @@ def _animate_particle_solution(
 		raise TypeError(
 			"`solution` has an incompatible initial-configuration type for this animation."
 		)
-	if isinstance(interval, (bool, np.bool_)) or int(interval) <= 0:
-		raise ValueError("`interval` must be a positive integer.")
-	if not isinstance(show_electric_field, (bool, np.bool_)):
-		raise TypeError("`show_electric_field` must be a boolean.")
+	interval = positive_interval(interval)
+	show_electric_field = boolean_control(show_electric_field, "show_electric_field")
 
-	times = np.asarray(solution.t, dtype=float)
-	x, y = solution.positions()
-	if x.shape != (1, times.size) or y.shape != (1, times.size):
-		raise ValueError("Single-particle animation requires exactly one particle.")
-	annotations: tuple[str, ...] | None = None
-	if frame_annotations is not None:
-		if isinstance(frame_annotations, (str, bytes)):
-			raise TypeError("`frame_annotations` must be a sequence of strings.")
-		annotations = tuple(frame_annotations)
-		if len(annotations) != times.size or not all(
-			isinstance(value, str) and value for value in annotations
-		):
-			raise ValueError(
-				"`frame_annotations` must contain one non-empty string per saved time."
-			)
+	times, x, y = _particle_history(solution, single_particle=True)
+	annotations = _frame_annotations(frame_annotations, times.size)
 	indices = _frame_indices(times.size, frames)
 	frame_times = times[indices]
 	fields = np.asarray(potential.evaluate_grid(frame_times), dtype=float)
@@ -275,19 +282,14 @@ def animate_gc_particle_trajectories(
 		raise TypeError("`solution` must be a Solution instance.")
 	if not isinstance(solution.source, GCInitialConfiguration):
 		raise TypeError("`solution` must use a GC initial configuration.")
-	if isinstance(interval, (bool, np.bool_)) or int(interval) <= 0:
-		raise ValueError("`interval` must be a positive integer.")
+	interval = positive_interval(interval)
 	for value, name in (
 		(show_electric_field, "show_electric_field"),
 		(show_perpendicular_drift, "show_perpendicular_drift"),
 	):
-		if not isinstance(value, (bool, np.bool_)):
-			raise TypeError(f"`{name}` must be a boolean.")
+		boolean_control(value, name)
 
-	times = np.asarray(solution.t, dtype=float)
-	x, y = solution.positions()
-	if x.ndim != 2 or y.shape != x.shape or x.shape[1] != times.size:
-		raise ValueError("The solution must contain sampled planar trajectories.")
+	times, x, y = _particle_history(solution, single_particle=False)
 	particle_count = x.shape[0]
 	indices = _frame_indices(times.size, frames)
 	frame_times = times[indices]

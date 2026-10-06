@@ -3,20 +3,22 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-import re
 
 import numpy as np
 
+from .area_comparison import _validated_area_steps, AreaStep
+
 from ._validation import (
+	unpacked_time_span,
+	validate_block_prefix,
 	integer_ratio,
 	nonnegative_finite,
 	positive_finite,
 	positive_integer,
 )
-from .area_comparison import AreaStep
 
 
-_BLOCK_PREFIX = re.compile(r"^[A-Za-z0-9_-]+$")
+
 
 
 @dataclass(frozen=True, slots=True)
@@ -34,21 +36,12 @@ class GCSymplecticityConfig:
 
 	def __post_init__(self) -> None:
 		"""Validate synchronized integration and observation grids."""
-		steps = tuple(self.steps)
-		if not steps or any(not isinstance(step, AreaStep) for step in steps):
-			raise ValueError("`steps` must contain at least one AreaStep value.")
-		if len({step.label for step in steps}) != len(steps):
-			raise ValueError("GC integration-step labels must be unique.")
+		steps = _validated_area_steps(
+			self.steps, minimum=1, label_message="GC integration-step labels must be unique.",
+		)
 		object.__setattr__(self, "steps", steps)
 
-		try:
-			start, stop = (float(value) for value in self.t_span)
-		except (TypeError, ValueError) as exc:
-			raise ValueError(
-				"`t_span` must contain two finite increasing times."
-			) from exc
-		if not np.isfinite(start) or not np.isfinite(stop) or start >= stop:
-			raise ValueError("`t_span` must contain two finite increasing times.")
+		start, stop = unpacked_time_span(self.t_span)
 		object.__setattr__(self, "t_span", (start, stop))
 
 		save_interval = positive_finite(self.save_interval, "save_interval")
@@ -67,12 +60,7 @@ class GCSymplecticityConfig:
 			"chunk_size",
 			positive_integer(self.chunk_size, "chunk_size"),
 		)
-		if not isinstance(self.block_prefix, str) or not _BLOCK_PREFIX.fullmatch(
-			self.block_prefix
-		):
-			raise ValueError(
-				"`block_prefix` may contain only letters, numbers, '_' and '-'."
-			)
+		validate_block_prefix(self.block_prefix)
 		relative_step = self.finite_difference_relative_step
 		if relative_step is not None:
 			object.__setattr__(

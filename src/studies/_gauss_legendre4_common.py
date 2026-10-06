@@ -32,23 +32,7 @@ class AdaptiveReference:
 		states = np.array(self.states, dtype=float, copy=True)
 		audit_states = np.array(self.audit_states, dtype=float, copy=True)
 		distances = np.array(self.audit_distances, dtype=float, copy=True)
-		if (
-			times.ndim != 1
-			or times.size < 2
-			or states.ndim != 2
-			or states.shape != audit_states.shape
-			or states.shape[1] != times.size
-			or distances.ndim != 2
-			or distances.shape[1] != times.size
-			or not all(
-				np.all(np.isfinite(value))
-				for value in (times, states, audit_states, distances)
-			)
-			or np.any(distances < 0.0)
-		):
-			raise ValueError("Adaptive reference arrays are invalid or misaligned.")
-		for value in (times, states, audit_states, distances):
-			value.setflags(write=False)
+		_freeze_reference_arrays(times, states, audit_states, distances)
 		object.__setattr__(self, "times", times)
 		object.__setattr__(self, "states", states)
 		object.__setattr__(self, "audit_states", audit_states)
@@ -183,6 +167,29 @@ def readonly_runtime_samples(values: np.ndarray) -> np.ndarray:
 		raise ValueError("Runtime samples must be strictly positive.")
 	result.setflags(write=False)
 	return result
+
+
+def _freeze_reference_arrays(
+	times: np.ndarray, states: np.ndarray, audit_states: np.ndarray, distances: np.ndarray,
+) -> None:
+	"""Validate aligned reference and audit arrays before making the owned copies immutable."""
+	if (
+		times.ndim != 1
+		or times.size < 2
+		or states.ndim != 2
+		or states.shape != audit_states.shape
+		or states.shape[1] != times.size
+		or distances.ndim != 2
+		or distances.shape[1] != times.size
+		or not all(
+			np.all(np.isfinite(value))
+			for value in (times, states, audit_states, distances)
+		)
+		or np.any(distances < 0.0)
+	):
+		raise ValueError("Adaptive reference arrays are invalid or misaligned.")
+	for value in (times, states, audit_states, distances):
+		value.setflags(write=False)
 
 
 __all__: list[str] = []

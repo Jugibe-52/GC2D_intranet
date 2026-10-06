@@ -13,7 +13,8 @@ from initial_conditions import GCInitialConfiguration
 from potential import Potential
 from simulation import ABBA2Implicit, ABBA4Implicit, ABBA6Implicit, InitialValueProblem, SimulationRequest, simulate
 from methods._nonlinear import _solve_newton
-from methods.extended.core.records import CompositionTrace
+from methods.extended.core.records import CompositionTrace, ProjectedMapResult
+from contracts.step import StepInfo
 
 
 def _problem() -> InitialValueProblem:
@@ -35,25 +36,50 @@ class SharedABBARuntimeTests(unittest.TestCase):
 	def test_prepared_records_distinguish_projection_count_from_base_map_count(self) -> None:
 		problem = _problem()
 		request = _request([0.0, 0.02, 0.04])
-		for extension, (method_type, order, placement, solves, maps) in product(
-			("physical",),
+		for formulation, solver, track_energy, (method_type, maps) in product(
+			("reduced_multiplier", "simultaneous_state_multiplier"),
+			("newton", "broyden"),
+			(False, True),
 			(
-				(ABBA2Implicit, 2, "after_each_abba_map", 1, 1),
-				(ABBA4Implicit, 4, "around_complete_composition", 1, 3),
-				(ABBA6Implicit, 6, "around_complete_composition", 1, 7),
+				(ABBA2Implicit, 1),
+				(ABBA4Implicit, 3),
+				(ABBA6Implicit, 7),
 			),
 		):
-			with self.subTest(extension=extension, order=order, placement=placement):
-				method = method_type(state_extension=extension)
+			with self.subTest(method=method_type.__name__, formulation=formulation,
+				solver=solver, track_energy=track_energy):
+				method = method_type(projection_formulation=formulation,
+					nonlinear_solver=solver, track_energy=track_energy,
+					newton_max_iterations=50, step_observer=lambda event: None)
 				prepared = method.new_run(problem, request)
 				state = prepared.state_formulation.physical(prepared.initial_state)
-				results = prepared.advance(0.0, prepared.initial_state, 0.02).details.projections
-				self.assertIsInstance(results, tuple)
-				self.assertEqual(len(results), solves)
-				for result in results:
-					self.assertIsInstance(result.trace, CompositionTrace)
-					self.assertEqual(len(result.trace.stages), 2 * maps)
-					self.assertLessEqual(result.stats.residual_norm, result.stats.tolerance)
+				step = prepared.advance(0.0, prepared.initial_state, 0.02)
+				result = step.details
+				self.assertIsInstance(result, ProjectedMapResult)
+				self.assertIsInstance(result.trace, CompositionTrace)
+				self.assertEqual(len(result.trace.stages), 2 * maps)
+				self.assertLessEqual(result.stats.residual_norm, result.stats.tolerance)
+				np.testing.assert_array_equal(result.state_before, state)
+				np.testing.assert_array_equal(
+					result.state, prepared.state_formulation.physical(step.state))
+				event = prepared.build_observation(
+					StepInfo(0, 0.0, 0.02, 0.02, prepared.initial_state), step)
+				for metric, observed in (
+					("nonlinear_iterations", event.newton_iterations),
+					("residual_evaluations", event.residual_evaluations),
+					("nonlinear_residual_norms", event.newton_residual_norm),
+					("nonlinear_tolerances", event.newton_tolerance),
+					("projection_multiplier_norms", event.projection_multiplier_norm),
+				):
+					self.assertEqual(step.statistics[metric], observed)
+					if maps > 1:
+						np.testing.assert_array_equal(step.statistics[f"substep_{metric}"], [observed])
+					else:
+						self.assertNotIn(f"substep_{metric}", step.statistics)
+				np.testing.assert_array_equal(event.state_after, result.state)
+				np.testing.assert_allclose(event.map_state(state), result.state, rtol=0.0, atol=0.0)
+				if maps > 1:
+					self.assertEqual(len(event.substeps), maps)
 				self.assertFalse(prepared.initial_state.flags.writeable)
 				with self.assertRaises(TypeError):
 					prepared.metadata["step_count"] = 3  # type: ignore[index]

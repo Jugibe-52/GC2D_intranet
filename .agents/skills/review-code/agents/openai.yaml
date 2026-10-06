@@ -1,0 +1,3 @@
+interface:
+  display_name: "Review Code"
+  short_description: "Review selected code without modifying files"

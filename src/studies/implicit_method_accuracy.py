@@ -9,6 +9,16 @@ from typing import Any, Mapping
 
 import numpy as np
 
+from ._comparison_validation import freeze_reference_indices
+
+from ._validation import (
+	finite_time_span,
+	integer_ratio,
+	nonnegative_finite,
+	positive_finite,
+	positive_integer,
+)
+
 from diagnostics import StoredReferenceTrajectory
 from dynamics import GuidingCenterDynamics
 from initial_conditions import GCInitialConfiguration
@@ -29,12 +39,6 @@ from ._trajectory_accuracy import (
 	reference_indices_for_times,
 	validate_reference_identity,
 	validated_refinement_steps,
-)
-from ._validation import (
-	integer_ratio,
-	nonnegative_finite,
-	positive_finite,
-	positive_integer,
 )
 
 
@@ -86,10 +90,10 @@ class ImplicitMethodAccuracyConfig:
 		"""Require nested complete-step grids aligned with every saved time."""
 		steps = validated_refinement_steps(self.integration_steps)
 		object.__setattr__(self, "integration_steps", steps)
-		span = np.asarray(self.t_span, dtype=float)
-		if span.shape != (2,) or not np.all(np.isfinite(span)) or span[0] >= span[1]:
-			raise ValueError("`t_span` must contain two finite, increasing times.")
-		object.__setattr__(self, "t_span", (float(span[0]), float(span[1])))
+		object.__setattr__(
+			self, "t_span",
+			finite_time_span(self.t_span, message="`t_span` must contain two finite, increasing times."),
+		)
 		object.__setattr__(
 			self,
 			"save_interval",
@@ -292,38 +296,16 @@ class ImplicitMethodAccuracyResult:
 				raise ValueError("Every method must follow the configured step order.")
 			for step in self.config.integration_steps:
 				solution = self.solutions[method_name][step]
-				if not isinstance(solution, Solution):
-					raise TypeError("Every implicit accuracy trajectory must be a Solution.")
-				if solution.source is not self.initial_configuration:
-					raise ValueError("Every solution must share one initial configuration.")
-				if int(solution.diagnostics.get("step_count", -1)) != (
-					self.config.step_count(step)
-				):
-					raise ValueError("A solution has an inconsistent complete-step count.")
-				if solution.diagnostics.get("nonlinear_solver") != "newton":
-					raise ValueError("Every implicit accuracy solve must use Newton.")
-				if common_times is None:
-					common_times = solution.t
-				elif not np.array_equal(solution.t, common_times):
-					raise ValueError("Every refinement must share one saved-time grid.")
-				accuracy = self.series[method_name][step]
-				if accuracy.method_name != method_name or accuracy.distances.shape != (
-					particle_count,
-					solution.t.size,
-				):
-					raise ValueError("An accuracy series is inconsistent with its solution.")
-				runtime = float(self.runtimes[method_name][step])
-				if not np.isfinite(runtime) or runtime <= 0.0:
-					raise ValueError("Every runtime must be positive and finite.")
+				common_times = _validated_refinement_trajectory(
+					solution, self.initial_configuration, method_name=method_name,
+					step=step, step_count=self.config.step_count(step),
+					particle_count=particle_count, common_times=common_times,
+					series=self.series, runtimes=self.runtimes,
+				)
 		assert common_times is not None
-		if (
-			indices.shape != common_times.shape
-			or np.any(indices < 0)
-			or np.any(indices >= self.reference.times.size)
-			or not np.array_equal(self.reference.times[indices], common_times)
-		):
-			raise ValueError("Comparison samples do not align with the reference.")
-		indices.setflags(write=False)
+		indices = freeze_reference_indices(
+			indices, self.reference.times, common_times, message="Comparison samples do not align with the reference.",
+		)
 		object.__setattr__(self, "reference_sample_indices", indices)
 		object.__setattr__(self, "solutions", _frozen_nested_mapping(self.solutions))
 		object.__setattr__(self, "series", _frozen_nested_mapping(self.series))
@@ -661,6 +643,40 @@ def run_implicit_method_accuracy_study(
 		series=series,
 		runtimes=runtimes,
 	)
+
+
+def _validated_refinement_trajectory(
+	solution: Solution, initial_configuration: GCInitialConfiguration, *,
+	method_name: str, step: float, step_count: int, particle_count: int,
+	common_times: np.ndarray | None,
+	series: Mapping[str, Mapping[float, TrajectoryAccuracySeries]],
+	runtimes: Mapping[str, Mapping[float, float]],
+) -> np.ndarray:
+	"""Validate one refinement and its aligned accuracy and runtime entries."""
+	if not isinstance(solution, Solution):
+		raise TypeError("Every implicit accuracy trajectory must be a Solution.")
+	if solution.source is not initial_configuration:
+		raise ValueError("Every solution must share one initial configuration.")
+	if int(solution.diagnostics.get("step_count", -1)) != (
+		step_count
+	):
+		raise ValueError("A solution has an inconsistent complete-step count.")
+	if solution.diagnostics.get("nonlinear_solver") != "newton":
+		raise ValueError("Every implicit accuracy solve must use Newton.")
+	if common_times is None:
+		common_times = solution.t
+	elif not np.array_equal(solution.t, common_times):
+		raise ValueError("Every refinement must share one saved-time grid.")
+	accuracy = series[method_name][step]
+	if accuracy.method_name != method_name or accuracy.distances.shape != (
+		particle_count,
+		solution.t.size,
+	):
+		raise ValueError("An accuracy series is inconsistent with its solution.")
+	runtime = float(runtimes[method_name][step])
+	if not np.isfinite(runtime) or runtime <= 0.0:
+		raise ValueError("Every runtime must be positive and finite.")
+	return common_times
 
 
 __all__ = [

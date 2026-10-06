@@ -7,6 +7,7 @@ from typing import Any, Mapping
 
 import numpy as np
 
+from solution import Solution
 from diagnostics.persistence import StoredSolution
 from studies.poincare_rho_sweep import (
     RhoStarConfig, folded_rho_positions, prepare_rho_star, sample_rho_dynamics,
@@ -71,6 +72,40 @@ def _require_matching_metadata(record: Mapping[str, Any], expected: Mapping[str,
         raise ValueError('Compared runs must share the saved geometry and physical parameters.') from error
 
 
+def _available_comparison_rhos(
+    runs_by_method: Mapping[str, Mapping[float, StoredSolution]], rho_values: tuple[float, ...],
+) -> set[float]:
+    """Require all supported methods to expose one common nonempty requested rho set."""
+    if set(runs_by_method) != set(_METHODS):
+        raise ValueError('Provide saved runs for all four supported star methods.')
+    available = set(runs_by_method[_METHODS[0]])
+    if (not available or not available.issubset(rho_values)
+            or len(set(rho_values)) != len(rho_values)
+            or not np.isfinite(rho_values).all() or np.any(np.asarray(rho_values) < 0)
+            or any(set(runs_by_method[method]) != available for method in _METHODS)):
+        raise ValueError('All four methods must share a nonempty set of unique requested rho values.')
+    return available
+
+
+def _validated_method_config(
+    record: Mapping[str, Any], solution: Solution, method: str, rho: float,
+    shared_config: Mapping[str, Any], implicit_controls: Mapping[str, Any],
+    reference_metadata: Mapping[str, Any], prepared_metadata: Mapping[str, Any],
+) -> RhoStarConfig:
+    """Check method identity, scientific controls and provenance before overlaying a run."""
+    config = RhoStarConfig(**record['config'])
+    actual_config, controls = _comparison_config(record)
+    if (_saved_method(record, solution.diagnostics) != method
+            or actual_config != shared_config
+            or not np.isclose(config.rho_hat, rho, rtol=0, atol=1e-14)):
+        raise ValueError('Compared methods must share scientific inputs and correctly labeled rho values.')
+    if method in _IMPLICIT_METHODS and controls != implicit_controls:
+        raise ValueError('Compared implicit methods must share Newton controls.')
+    _require_matching_metadata(record, reference_metadata)
+    _require_matching_metadata(record, prepared_metadata, include_rho=True)
+    return config
+
+
 def export_rho_method_comparison(
     runs_by_method: Mapping[str, Mapping[float, StoredSolution]], path: str | Path, *,
     source: str | Path, rho_values: tuple[float, ...], selected_rho: float = 0.3,
@@ -89,14 +124,7 @@ def export_rho_method_comparison(
     Optional probe archives add the same eight explicit seeds to each method,
     retaining the original star palette and all independently saved returns.
     """
-    if set(runs_by_method) != set(_METHODS):
-        raise ValueError('Provide saved runs for all four supported star methods.')
-    available = set(runs_by_method[_METHODS[0]])
-    if (not available or not available.issubset(rho_values)
-            or len(set(rho_values)) != len(rho_values)
-            or not np.isfinite(rho_values).all() or np.any(np.asarray(rho_values) < 0)
-            or any(set(runs_by_method[method]) != available for method in _METHODS)):
-        raise ValueError('All four methods must share a nonempty set of unique requested rho values.')
+    available = _available_comparison_rhos(runs_by_method, rho_values)
     labels = _rho_labels(rho_values)
     if selected_rho not in available:
         selected_rho = next(rho for rho in rho_values if rho in available)
@@ -134,16 +162,9 @@ def export_rho_method_comparison(
         for method in _METHODS:
             saved = runs_by_method[method][rho]
             record, solution = saved.metadata, saved.solution
-            config = RhoStarConfig(**record['config'])
-            actual_config, controls = _comparison_config(record)
-            if (_saved_method(record, solution.diagnostics) != method
-                    or actual_config != shared_config
-                    or not np.isclose(config.rho_hat, rho, rtol=0, atol=1e-14)):
-                raise ValueError('Compared methods must share scientific inputs and correctly labeled rho values.')
-            if method in _IMPLICIT_METHODS and controls != implicit_controls:
-                raise ValueError('Compared implicit methods must share Newton controls.')
-            _require_matching_metadata(record, metadata)
-            _require_matching_metadata(record, prepared.metadata, include_rho=True)
+            config = _validated_method_config(
+                record, solution, method, rho, shared_config, implicit_controls, metadata, prepared.metadata,
+            )
             # Reuse the study's executable method and cycle-sampling contract
             # against the independently reconstructed common initial state.
             validate_rho_solution(solution, replace(prepared, config=config))

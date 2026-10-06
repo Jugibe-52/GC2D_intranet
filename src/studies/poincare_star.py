@@ -61,17 +61,7 @@ def run_poincare_star(source: str | Path, config: PoincareStarConfig, *,
     is applied. Field construction is excluded from integration_seconds;
     device setup, any JIT compilation and final synchronization are included.
     """
-    for name in ("cycles", "steps_per_cycle"):
-        value = getattr(config, name)
-        if isinstance(value, (bool, np.bool_)) or not isinstance(value, (int, np.integer)) or value < 1:
-            raise ValueError(f"{name} must be a positive integer.")
-    fraction = np.asarray(config.center_fraction, dtype=float)
-    if fraction.shape != (2,) or not np.all(np.isfinite(fraction)):
-        raise ValueError("center_fraction must contain two finite coordinates.")
-    if (not np.isfinite(config.arm_length_fraction) or config.arm_length_fraction <= 0
-            or np.any(fraction - config.arm_length_fraction < 0)
-            or np.any(fraction + config.arm_length_fraction > 1)):
-        raise ValueError("The complete star must fit inside the source periodic cell.")
+    fraction = _validated_star_center(config)
     resolved = resolve_h5_source(source)
     field = load_dimensional_h5_field(
         resolved, magnetic_field=config.magnetic_field,
@@ -128,6 +118,22 @@ def run_poincare_star(source: str | Path, config: PoincareStarConfig, *,
         "track_energy": False, "samples_per_cycle": 1, "initial_state_saved": True,
     }
     return PoincareStarResult(solution, field.raw, metadata)
+
+
+def _validated_star_center(config: PoincareStarConfig) -> np.ndarray:
+	"""Check cycle counts and the full stellar extent before loading the physical field."""
+	for name in ("cycles", "steps_per_cycle"):
+		value = getattr(config, name)
+		if isinstance(value, (bool, np.bool_)) or not isinstance(value, (int, np.integer)) or value < 1:
+			raise ValueError(f"{name} must be a positive integer.")
+	fraction = np.asarray(config.center_fraction, dtype=float)
+	if fraction.shape != (2,) or not np.all(np.isfinite(fraction)):
+		raise ValueError("center_fraction must contain two finite coordinates.")
+	if (not np.isfinite(config.arm_length_fraction) or config.arm_length_fraction <= 0
+			or np.any(fraction - config.arm_length_fraction < 0)
+			or np.any(fraction + config.arm_length_fraction > 1)):
+		raise ValueError("The complete star must fit inside the source periodic cell.")
+	return fraction
 
 
 __all__ = ["PoincareStarConfig", "PoincareStarResult", "run_poincare_star"]

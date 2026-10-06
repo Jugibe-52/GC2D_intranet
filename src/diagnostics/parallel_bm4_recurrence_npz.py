@@ -113,6 +113,24 @@ def write_parallel_bm4_recurrence_npz(
 	return target
 
 
+def _validated_recurrence_config(
+	metadata_document: object, wall_runtime_value: np.ndarray,
+) -> dict[str, Any]:
+	"""Validate archive metadata and scalar runtime before constructing its result."""
+	if not isinstance(metadata_document, dict):
+		raise ValueError("Parallel BM4 metadata must decode to a JSON object.")
+	if metadata_document.get("schema_version") != PARALLEL_BM4_RECURRENCE_NPZ_SCHEMA_VERSION:
+		raise ValueError("Unsupported parallel BM4 recurrence archive schema version.")
+	config_values = metadata_document.get("config")
+	if not isinstance(config_values, dict):
+		raise ValueError("Parallel BM4 metadata does not contain a valid configuration.")
+	config_values = dict(config_values)
+	config_values["t_span"] = tuple(config_values["t_span"])
+	if wall_runtime_value.shape != ():
+		raise ValueError("Parallel BM4 wall runtime must be scalar.")
+	return config_values
+
+
 def load_parallel_bm4_recurrence_npz(
 	path: str | Path,
 ) -> StoredParallelBM4Recurrence:
@@ -146,17 +164,7 @@ def load_parallel_bm4_recurrence_npz(
 		}
 		wall_runtime_value = np.asarray(archive["wall_runtime_seconds"], dtype=float)
 
-	if not isinstance(metadata_document, dict):
-		raise ValueError("Parallel BM4 metadata must decode to a JSON object.")
-	if metadata_document.get("schema_version") != PARALLEL_BM4_RECURRENCE_NPZ_SCHEMA_VERSION:
-		raise ValueError("Unsupported parallel BM4 recurrence archive schema version.")
-	config_values = metadata_document.get("config")
-	if not isinstance(config_values, dict):
-		raise ValueError("Parallel BM4 metadata does not contain a valid configuration.")
-	config_values = dict(config_values)
-	config_values["t_span"] = tuple(config_values["t_span"])
-	if wall_runtime_value.shape != ():
-		raise ValueError("Parallel BM4 wall runtime must be scalar.")
+	config_values = _validated_recurrence_config(metadata_document, wall_runtime_value)
 
 	config = ParallelBM4RecurrenceConfig(**config_values)
 	result = ParallelBM4RecurrenceResult(

@@ -2,16 +2,24 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Sequence
+from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from pathlib import Path
-import re
 from types import MappingProxyType
-from typing import Any, Mapping, cast
+from typing import Any, Mapping
 
 import numpy as np
-from matplotlib.axes import Axes
-from matplotlib.figure import Figure
+
+from .area_comparison import _validated_area_steps, AreaStep
+
+from ._validation import (
+	unpacked_time_span,
+	validate_block_prefix,
+	integer_ratio,
+	nonnegative_finite,
+	positive_finite,
+	positive_integer,
+)
 
 from diagnostics import (
 	GCTrajectorySymplecticityObserver,
@@ -35,22 +43,9 @@ from contracts.request import SimulationRequest
 from solution import Solution
 from contracts.observation import StepObserver
 from simulation.runner import simulate
-from visualization import (
-	TrajectorySymplecticityRecordView,
-	plot_gc_trajectory_points,
-	plot_trajectory_symplecticity,
-)
-
-from ._validation import (
-	integer_ratio,
-	nonnegative_finite,
-	positive_finite,
-	positive_integer,
-)
-from .area_comparison import AreaStep
 
 
-_BLOCK_PREFIX = re.compile(r"^[A-Za-z0-9_-]+$")
+
 
 
 @dataclass(frozen=True, slots=True)
@@ -72,25 +67,16 @@ class TrajectorySymplecticityConfig:
 
 	def __post_init__(self) -> None:
 		"""Validate aligned output grids and nonlinear solver controls."""
-		steps = tuple(self.steps)
-		if not steps or any(not isinstance(step, AreaStep) for step in steps):
-			raise ValueError("`steps` must contain at least one AreaStep value.")
-		if len({step.label for step in steps}) != len(steps):
-			raise ValueError("Integration-step labels must be unique.")
+		steps = _validated_area_steps(
+			self.steps, minimum=1, label_message="Integration-step labels must be unique.",
+		)
 		if len({step.value for step in steps}) != len(steps):
 			raise ValueError("Integration-step values must be unique.")
 		if any(coarse.value <= fine.value for coarse, fine in zip(steps, steps[1:])):
 			raise ValueError("Steps must be ordered from coarsest to finest.")
 		object.__setattr__(self, "steps", steps)
 
-		try:
-			start, stop = (float(value) for value in self.t_span)
-		except (TypeError, ValueError) as exc:
-			raise ValueError(
-				"`t_span` must contain two finite increasing times."
-			) from exc
-		if not np.isfinite(start) or not np.isfinite(stop) or start >= stop:
-			raise ValueError("`t_span` must contain two finite increasing times.")
+		start, stop = unpacked_time_span(self.t_span)
 		object.__setattr__(self, "t_span", (start, stop))
 		object.__setattr__(
 			self,
@@ -123,12 +109,7 @@ class TrajectorySymplecticityConfig:
 			"coupling_frequency",
 			nonnegative_finite(self.coupling_frequency, "coupling_frequency"),
 		)
-		if not isinstance(self.block_prefix, str) or not _BLOCK_PREFIX.fullmatch(
-			self.block_prefix
-		):
-			raise ValueError(
-				"`block_prefix` may contain only letters, numbers, '_' and '-'."
-			)
+		validate_block_prefix(self.block_prefix)
 		integer_ratio(stop - start, self.save_interval, "duration / save_interval")
 		for step in steps:
 			integer_ratio(
@@ -319,36 +300,6 @@ class TrajectorySymplecticityResult:
 				f"{order.maximum_accumulated_defect:.6f} / "
 				f"{order.final_accumulated_defect:.6f}"
 			)
-
-	def plot_symplecticity(self) -> tuple[Figure, np.ndarray]:
-		"""Plot arithmetic-mean local and accumulated errors over time."""
-		return plot_trajectory_symplecticity(
-			cast(
-				Mapping[str, Sequence[TrajectorySymplecticityRecordView]],
-				self.records,
-			),
-			labels=tuple(step.label for step in self.steps),
-			method_name=self.method_name,
-		)
-
-	def plot_trajectories(
-		self,
-		*,
-		label: str | None = None,
-	) -> tuple[Figure, Axes]:
-		"""Plot saved trajectory samples as unconnected points."""
-		selected = (
-			min(self.steps, key=lambda step: step.value).label
-			if label is None
-			else label
-		)
-		if selected not in self.solutions:
-			raise ValueError(f"Unknown integration-step label {selected!r}.")
-		return plot_gc_trajectory_points(
-			self.solutions[selected],
-			method_name=self.method_name,
-			step_label=selected,
-		)
 
 
 _MethodFactory = Callable[[StepObserver], NumericalMethod]

@@ -19,6 +19,11 @@ remains [theory.tex](../tex/theory.tex), with its compiled
 
 ## Numerical path
 
+Coupling-frequency normalization uses the private scalar helpers in
+`methods._validation` and retains the midpoint constructor's existing float
+conversion policy. State-extension validation stays in
+`methods.extended.configuration`; stage-state checks stay with the composed map.
+
 Initialization binds this model's recipe and options. The ordinary implicit
 path is `advance -> solve_projection -> compose -> direct_map / adjoint_map`.
 Explicit midpoint methods use `midpoint_step` in place of the nonlinear

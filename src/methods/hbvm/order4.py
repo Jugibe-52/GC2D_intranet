@@ -15,6 +15,7 @@ from contracts.step import StepInfo, StepResult
 from contracts.observation import IntegrationStep, StepObserver
 from contracts.problem import InitialValueProblem
 from contracts.request import SimulationRequest
+from methods._validation import _positive_finite, _positive_integer
 
 
 HBVMJacobianMethod: TypeAlias = Literal["auto", "analytic", "finite_difference"]
@@ -89,6 +90,25 @@ def _validated_jacobian_method(value: str) -> HBVMJacobianMethod:
 			"`jacobian_method` must be 'auto', 'analytic', or 'finite_difference'."
 		)
 	return value  # type: ignore[return-value]
+
+
+def _resolved_jacobian_method(
+	dynamics: object,
+	requested: HBVMJacobianMethod,
+) -> HBVMJacobianMethod:
+	"""Resolve HBVM's capability-based strategy without probing field Jacobians."""
+	selected = requested
+	if selected == "auto":
+		selected = (
+			"analytic"
+			if isinstance(dynamics, GuidingCenterJacobianSystem)
+			else "finite_difference"
+		)
+	if selected == "analytic" and not isinstance(dynamics, GuidingCenterJacobianSystem):
+		raise TypeError(
+			"Analytic HBVM Jacobians require GuidingCenterJacobianSystem dynamics."
+		)
+	return selected
 
 
 def _evaluate_vector_field(
@@ -269,20 +289,7 @@ def _advance_hbvm42(
 
 	current_residual, payload = residual(coefficients)
 	residual_norm = float(np.linalg.norm(current_residual, ord=np.inf))
-	selected_jacobian_method: HBVMJacobianMethod = jacobian_method
-	if selected_jacobian_method == "auto":
-		selected_jacobian_method = (
-			"analytic"
-			if isinstance(dynamics, GuidingCenterJacobianSystem)
-			else "finite_difference"
-		)
-	if selected_jacobian_method == "analytic" and not isinstance(
-		dynamics,
-		GuidingCenterJacobianSystem,
-	):
-		raise TypeError(
-			"Analytic HBVM Jacobians require GuidingCenterJacobianSystem dynamics."
-		)
+	selected_jacobian_method = _resolved_jacobian_method(dynamics, jacobian_method)
 
 	for iteration in range(max_iterations + 1):
 		if residual_norm <= tolerance:
@@ -375,23 +382,17 @@ class HBVM42(IntegrationMethod[_HBVMStepResult]):
 
 	def __post_init__(self) -> None:
 		"""Validate nonlinear controls and normalize scalar fields."""
-		for name in ("absolute_tolerance", "relative_tolerance"):
-			value = float(getattr(self, name))
-			if not np.isfinite(value) or value <= 0.0:
-				raise ValueError(f"`{name}` must be positive and finite.")
-			setattr(self, name, value)
-		if (
-			isinstance(self.max_iterations, (bool, np.bool_))
-			or not isinstance(self.max_iterations, (int, np.integer))
-			or self.max_iterations < 1
-		):
-			raise ValueError("`max_iterations` must be a positive integer.")
-		self.max_iterations = int(self.max_iterations)
+		self.absolute_tolerance = _positive_finite(
+			self.absolute_tolerance, "absolute_tolerance", allow_boolean=True,
+		)
+		self.relative_tolerance = _positive_finite(
+			self.relative_tolerance, "relative_tolerance", allow_boolean=True,
+		)
+		self.max_iterations = _positive_integer(self.max_iterations, "max_iterations")
 		self.jacobian_method = _validated_jacobian_method(self.jacobian_method)
-		relative_step = float(self.jacobian_relative_step)
-		if not np.isfinite(relative_step) or relative_step <= 0.0:
-			raise ValueError("`jacobian_relative_step` must be positive and finite.")
-		self.jacobian_relative_step = relative_step
+		self.jacobian_relative_step = _positive_finite(
+			self.jacobian_relative_step, "jacobian_relative_step", allow_boolean=True,
+		)
 
 	state_formulation: PhysicalFormulation = field(init=False, repr=False, compare=False)
 

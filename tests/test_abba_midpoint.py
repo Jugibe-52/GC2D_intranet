@@ -7,7 +7,10 @@ from pathlib import Path
 import tempfile
 import unittest
 
+import matplotlib.pyplot as plt
 import numpy as np
+
+from visualization.gc_symplecticity import plot_abba_midpoint_convergence
 
 from dynamics import GuidingCenterDynamics
 from initial_conditions import GCInitialConfiguration
@@ -279,6 +282,13 @@ class ABBA2MidpointSymplecticityStudyTests(unittest.TestCase):
 			self.assertIsNone(summary.max_newton_iterations)
 			self.assertTrue(np.isfinite(summary.max_local_defect))
 			self.assertTrue(np.isfinite(summary.max_flow_defect))
+		figure, axis = plot_abba_midpoint_convergence(result)
+		self.assertEqual(len(axis.lines), 3)
+		np.testing.assert_allclose(
+			axis.lines[2].get_ydata(),
+			[row.max_copy_separation_norm for row in result.summaries()],
+		)
+		plt.close(figure)
 
 
 if __name__ == "__main__":

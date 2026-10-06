@@ -64,25 +64,7 @@ class ModalCPUComparison:
 
 def build_star_problem(potential: Potential, config: ModalCPUStarConfig) -> tuple[InitialValueProblem, SimulationRequest]:
     """Assemble the common physical job without selecting execution resources."""
-    for name in ('arms', 'particles_per_arm', 'cycles', 'steps_per_cycle', 'repetitions'):
-        value = getattr(config, name)
-        if isinstance(value, bool) or not isinstance(value, int) or value < 1:
-            raise ValueError(f'{name} must be a positive integer.')
-    if config.repetitions < 3 or config.cpu_counts != (1, 2, 4):
-        raise ValueError('Use CPU counts (1, 2, 4) and at least three measured repetitions.')
-    if not (0 < config.radius_over_period <= .5
-            and 0 < config.inner_radius_fraction < config.outer_radius_fraction <= 1):
-        raise ValueError('Require a positive radius no greater than L/2 and 0 < inner < outer <= 1.')
-    center = np.asarray(config.center_fraction, dtype=float)
-    outer = config.radius_over_period * config.outer_radius_fraction
-    if (center.shape != (2,) or not np.isfinite(center).all()
-            or np.any(center - outer < 0) or np.any(center + outer > 1)):
-        raise ValueError('The complete initial star must lie inside the periodic cell.')
-    if not np.isfinite([config.equivalence_rtol, config.equivalence_atol]).all() or min(
-            config.equivalence_rtol, config.equivalence_atol) < 0:
-        raise ValueError('Equivalence tolerances must be finite and non-negative.')
-    if potential.frequencies.shape != (1,) or not np.allclose(potential.frequencies, [1.], rtol=0, atol=1e-14):
-        raise ValueError('The study requires one mode with normalized forcing period one.')
+    center = _validated_cpu_star_geometry(potential, config)
     grid = potential.grid
     origin = np.array([grid.x0, grid.y0]) + center * grid.period
     radius = config.radius_over_period * grid.period
@@ -197,6 +179,30 @@ def load_cpu_star_comparison(source: str) -> ModalCPUComparison:
             raise ValueError('The CPU archives have inconsistent study metadata.')
         solutions[cores] = other.solution
     return ModalCPUComparison(solutions, stored.potential, stored.metadata)
+
+
+def _validated_cpu_star_geometry(potential: Potential, config: ModalCPUStarConfig) -> np.ndarray:
+	"""Validate the benchmark, forcing, and complete star extent before assembling the problem."""
+	for name in ('arms', 'particles_per_arm', 'cycles', 'steps_per_cycle', 'repetitions'):
+		value = getattr(config, name)
+		if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+			raise ValueError(f'{name} must be a positive integer.')
+	if config.repetitions < 3 or config.cpu_counts != (1, 2, 4):
+		raise ValueError('Use CPU counts (1, 2, 4) and at least three measured repetitions.')
+	if not (0 < config.radius_over_period <= .5
+			and 0 < config.inner_radius_fraction < config.outer_radius_fraction <= 1):
+		raise ValueError('Require a positive radius no greater than L/2 and 0 < inner < outer <= 1.')
+	center = np.asarray(config.center_fraction, dtype=float)
+	outer = config.radius_over_period * config.outer_radius_fraction
+	if (center.shape != (2,) or not np.isfinite(center).all()
+			or np.any(center - outer < 0) or np.any(center + outer > 1)):
+		raise ValueError('The complete initial star must lie inside the periodic cell.')
+	if not np.isfinite([config.equivalence_rtol, config.equivalence_atol]).all() or min(
+			config.equivalence_rtol, config.equivalence_atol) < 0:
+		raise ValueError('Equivalence tolerances must be finite and non-negative.')
+	if potential.frequencies.shape != (1,) or not np.allclose(potential.frequencies, [1.], rtol=0, atol=1e-14):
+		raise ValueError('The study requires one mode with normalized forcing period one.')
+	return center
 
 
 __all__ = ['ModalCPUStarConfig', 'ModalCPUComparison', 'build_star_problem', 'prepare_cpu_star',

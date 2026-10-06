@@ -74,25 +74,7 @@ def load_saved_poincare_section(
         raise ValueError('run_id must be a single directory name.')
     root = Path(study_directory)
     directory = root / 'resultados' / run_id
-    complete = json.loads((directory / 'COMPLETE.json').read_text())
-    if complete['run_id'] != run_id:
-        raise ValueError('Completion manifest belongs to another run.')
-    hashes = {}
-    for name in ('metadata.json', 'positions_after_each_cycle.csv'):
-        hashes[name] = _digest(directory / name)
-        if hashes[name] != complete['sha256'][name]:
-            raise ValueError(f'Checksum mismatch or unmaterialized Git LFS file: {name}')
-    meta = json.loads((directory / 'metadata.json').read_text())
-    if meta['run_id'] != run_id or not set(ids).issubset(meta['particle_ids']):
-        raise ValueError('Requested run or particle IDs do not match saved metadata.')
-    manifest = root / 'assets' / 'original_particles.json'
-    hashes['original_particles.json'] = _digest(manifest)
-    if hashes['original_particles.json'] != meta['original_particles_sha256']:
-        raise ValueError('Original-particle manifest checksum mismatch.')
-    original = {int(p['particle']): p for p in json.loads(manifest.read_text())['particles']}
-    period = float(meta['field_provenance']['grid']['period'])
-    if not np.isfinite(period) or period <= 0:
-        raise ValueError('Cell period must be finite and positive.')
+    meta, hashes, original, period = _verified_section_metadata(root, directory, run_id, ids)
     cycles = int(meta['cycles'])
     points = np.full((cycles + 1, len(ids), 2), np.nan)
     seen = np.zeros((cycles + 1, len(ids)), dtype=bool)
@@ -110,21 +92,8 @@ def load_saved_poincare_section(
             pid = int(row['particle'])
             if pid not in indices:
                 continue
-            j, n = indices[pid], int(row['cycle'])
-            if not 1 <= n <= cycles or seen[n, j]:
-                raise ValueError('Saved cycles must occur exactly once per selected particle.')
-            expected_time = meta['t0'] + n * meta['cycle_duration']
-            if not np.isclose(float(row['time_normalized']), expected_time, rtol=0, atol=1e-10):
-                raise ValueError('Saved times do not match the forcing-cycle grid.')
-            coordinates = np.array([float(row['x_over_L']), float(row['y_over_L'])])
-            wrapped = np.array([float(row['x_wrapped']), float(row['y_wrapped'])]) / period
-            if (not np.isfinite(coordinates).all() or np.any((coordinates < 0) | (coordinates > 1))
-                    or not np.allclose(coordinates, wrapped, rtol=0, atol=1e-12)):
-                raise ValueError('Invalid normalized periodic coordinates.')
-            if row['color'] != original[pid]['color'] or not np.isclose(
-                    float(row['initial_radius_over_L']), original[pid]['radius_over_L'],
-                    rtol=0, atol=1e-14):
-                raise ValueError('Particle identity differs from the original manifest.')
+            j = indices[pid]
+            n, coordinates = _validated_cycle_row(row, pid, j, cycles, seen, meta, original, period)
             points[n, j] = coordinates
             seen[n, j] = True
     if not seen.all() or not np.isfinite(points).all():
@@ -173,21 +142,9 @@ def analyze_poincare_periodicity(
     minimizes RMS over all overlapping pairs, not distance to the initial point.
     Threshold tests use the maximum defect and do not estimate numerical error.
     """
-    ids = _particle_ids(particle_ids)
-    z = np.asarray(positions, dtype=float)
-    if z.ndim != 3 or z.shape[1:] != (len(ids), 2) or len(z) < 11 or not np.isfinite(z).all():
-        raise ValueError('Require finite (cycles + 1, particles, 2) data with at least ten cycles.')
-    for name, value, lower in (('max_lag', max_lag, 1), ('minimum_repetitions', minimum_repetitions, 3)):
-        if isinstance(value, (bool, np.bool_)) or int(value) != value or value < lower:
-            raise ValueError(f'{name} must be an integer >= {lower}.')
-    thresholds = tuple(float(v) for v in threshold_fractions)
-    if not thresholds or len(set(thresholds)) != len(thresholds) or any(
-            not np.isfinite(v) or not 0 < v < .5 for v in thresholds):
-        raise ValueError('Thresholds must be distinct fractions strictly between zero and 0.5.')
-    cycles = len(z) - 1
-    limit = min(int(max_lag), cycles // int(minimum_repetitions))
-    if limit < 1:
-        raise ValueError('The record is too short for minimum_repetitions.')
+    ids, z, thresholds, cycles, limit = _validated_periodicity_inputs(
+        positions, particle_ids, max_lag, minimum_repetitions, threshold_fractions,
+    )
     lags = np.arange(1, limit + 1)
     half = cycles // 2
     metrics = np.empty((limit, len(ids), 5))
@@ -303,26 +260,12 @@ def analyze_short_periodicity(
     the normalized inner product of centered sin/cos spatial observables over
     overlapping samples. Coordinate errors retain the minimum-image convention.
     """
-    ids = _particle_ids(particle_ids)
-    z = np.asarray(positions, dtype=float)
-    if z.ndim != 3 or z.shape[1:] != (len(ids), 2) or len(z) < 21 or not np.isfinite(z).all():
-        raise ValueError('Require finite (cycles + 1, particles, 2) data with at least 20 cycles.')
-    for name, value, lower in (('max_lag', max_lag, 3), ('candidate_max_lag', candidate_max_lag, 2),
-                               ('multiple_count', multiple_count, 2), ('block_cycles', block_cycles, 10)):
-        if isinstance(value, (bool, np.bool_)) or int(value) != value or value < lower:
-            raise ValueError(f'{name} must be an integer >= {lower}.')
-    cycles = len(z) - 1
-    max_lag, candidate_max_lag, multiple_count, block_cycles = map(
-        int, (max_lag, candidate_max_lag, multiple_count, block_cycles))
-    if (not candidate_max_lag < max_lag < cycles or block_cycles > cycles
-            or candidate_max_lag > cycles // 4):
-        raise ValueError('Require candidate_max_lag < max_lag < cycles, at least four candidate repetitions, '
-                         'and block_cycles <= cycles.')
-    if not np.isfinite([peak_height, peak_prominence]).all() or not 0 < peak_height < 1 or not 0 < peak_prominence < 2:
-        raise ValueError('Peak height must be in (0,1) and prominence in (0,2).')
-    thresholds = tuple(float(eps) for eps in threshold_fractions)
-    if not thresholds or any(not np.isfinite(eps) or not 0 < eps < .5 for eps in thresholds):
-        raise ValueError('Threshold fractions must lie in (0,0.5).')
+    ids, z, cycles, max_lag, candidate_max_lag, multiple_count, block_cycles, thresholds = (
+        _validated_short_periodicity_inputs(
+            positions, particle_ids, max_lag, candidate_max_lag, peak_height,
+            peak_prominence, multiple_count, block_cycles, threshold_fractions,
+        )
+    )
     obs = np.concatenate((np.sin(2 * np.pi * z), np.cos(2 * np.pi * z)), axis=-1)
     centered = obs - obs[:1]
     centered -= centered.mean(axis=0)
@@ -423,3 +366,104 @@ def short_periodicity_interpretation(result: ShortPeriodicity) -> str:
         'High template agreement with bounded multiple-lag defects supports a persistent integer-cycle '
         'structure, with residual modulation. These diagnostics do not establish an exact physical orbit period; '
         'the geometric clock uses interpolated once-per-cycle section positions.')
+
+
+def _validated_periodicity_inputs(
+	positions: np.ndarray, particle_ids: Sequence[int], max_lag: int,
+	minimum_repetitions: int, threshold_fractions: Sequence[float],
+) -> tuple[tuple[int, ...], np.ndarray, tuple[float, ...], int, int]:
+	"""Normalize a long-period scan while retaining its distinct-threshold and repetition rules."""
+	ids = _particle_ids(particle_ids)
+	z = np.asarray(positions, dtype=float)
+	if z.ndim != 3 or z.shape[1:] != (len(ids), 2) or len(z) < 11 or not np.isfinite(z).all():
+		raise ValueError('Require finite (cycles + 1, particles, 2) data with at least ten cycles.')
+	for name, value, lower in (('max_lag', max_lag, 1), ('minimum_repetitions', minimum_repetitions, 3)):
+		if isinstance(value, (bool, np.bool_)) or int(value) != value or value < lower:
+			raise ValueError(f'{name} must be an integer >= {lower}.')
+	thresholds = tuple(float(v) for v in threshold_fractions)
+	if not thresholds or len(set(thresholds)) != len(thresholds) or any(
+			not np.isfinite(v) or not 0 < v < .5 for v in thresholds):
+		raise ValueError('Thresholds must be distinct fractions strictly between zero and 0.5.')
+	cycles = len(z) - 1
+	limit = min(int(max_lag), cycles // int(minimum_repetitions))
+	if limit < 1:
+		raise ValueError('The record is too short for minimum_repetitions.')
+	return ids, z, thresholds, cycles, limit
+
+
+def _validated_short_periodicity_inputs(
+	positions: np.ndarray, particle_ids: Sequence[int], max_lag: int,
+	candidate_max_lag: int, peak_height: float, peak_prominence: float,
+	multiple_count: int, block_cycles: int, threshold_fractions: Sequence[float],
+) -> tuple[tuple[int, ...], np.ndarray, int, int, int, int, int, tuple[float, ...]]:
+	"""Normalize the short-rhythm scan with its own record, lag, peak, and threshold limits."""
+	ids = _particle_ids(particle_ids)
+	z = np.asarray(positions, dtype=float)
+	if z.ndim != 3 or z.shape[1:] != (len(ids), 2) or len(z) < 21 or not np.isfinite(z).all():
+		raise ValueError('Require finite (cycles + 1, particles, 2) data with at least 20 cycles.')
+	for name, value, lower in (('max_lag', max_lag, 3), ('candidate_max_lag', candidate_max_lag, 2),
+							   ('multiple_count', multiple_count, 2), ('block_cycles', block_cycles, 10)):
+		if isinstance(value, (bool, np.bool_)) or int(value) != value or value < lower:
+			raise ValueError(f'{name} must be an integer >= {lower}.')
+	cycles = len(z) - 1
+	max_lag, candidate_max_lag, multiple_count, block_cycles = map(
+		int, (max_lag, candidate_max_lag, multiple_count, block_cycles))
+	if (not candidate_max_lag < max_lag < cycles or block_cycles > cycles
+			or candidate_max_lag > cycles // 4):
+		raise ValueError('Require candidate_max_lag < max_lag < cycles, at least four candidate repetitions, '
+						 'and block_cycles <= cycles.')
+	if not np.isfinite([peak_height, peak_prominence]).all() or not 0 < peak_height < 1 or not 0 < peak_prominence < 2:
+		raise ValueError('Peak height must be in (0,1) and prominence in (0,2).')
+	thresholds = tuple(float(eps) for eps in threshold_fractions)
+	if not thresholds or any(not np.isfinite(eps) or not 0 < eps < .5 for eps in thresholds):
+		raise ValueError('Threshold fractions must lie in (0,0.5).')
+	return ids, z, cycles, max_lag, candidate_max_lag, multiple_count, block_cycles, thresholds
+
+
+def _verified_section_metadata(
+	root: Path, directory: Path, run_id: str, ids: tuple[int, ...],
+) -> tuple[dict[str, Any], dict[str, str], dict[int, Any], float]:
+	"""Read and verify completion, particle provenance, and the physical cell period."""
+	complete = json.loads((directory / 'COMPLETE.json').read_text())
+	if complete['run_id'] != run_id:
+		raise ValueError('Completion manifest belongs to another run.')
+	hashes = {}
+	for name in ('metadata.json', 'positions_after_each_cycle.csv'):
+		hashes[name] = _digest(directory / name)
+		if hashes[name] != complete['sha256'][name]:
+			raise ValueError(f'Checksum mismatch or unmaterialized Git LFS file: {name}')
+	meta = json.loads((directory / 'metadata.json').read_text())
+	if meta['run_id'] != run_id or not set(ids).issubset(meta['particle_ids']):
+		raise ValueError('Requested run or particle IDs do not match saved metadata.')
+	manifest = root / 'assets' / 'original_particles.json'
+	hashes['original_particles.json'] = _digest(manifest)
+	if hashes['original_particles.json'] != meta['original_particles_sha256']:
+		raise ValueError('Original-particle manifest checksum mismatch.')
+	original = {int(p['particle']): p for p in json.loads(manifest.read_text())['particles']}
+	period = float(meta['field_provenance']['grid']['period'])
+	if not np.isfinite(period) or period <= 0:
+		raise ValueError('Cell period must be finite and positive.')
+	return meta, hashes, original, period
+
+
+def _validated_cycle_row(
+	row: dict[str, str], pid: int, j: int, cycles: int, seen: np.ndarray,
+	meta: dict[str, Any], original: dict[int, Any], period: float,
+) -> tuple[int, np.ndarray]:
+	"""Validate one selected cycle row before it is committed to the assembled section."""
+	n = int(row['cycle'])
+	if not 1 <= n <= cycles or seen[n, j]:
+		raise ValueError('Saved cycles must occur exactly once per selected particle.')
+	expected_time = meta['t0'] + n * meta['cycle_duration']
+	if not np.isclose(float(row['time_normalized']), expected_time, rtol=0, atol=1e-10):
+		raise ValueError('Saved times do not match the forcing-cycle grid.')
+	coordinates = np.array([float(row['x_over_L']), float(row['y_over_L'])])
+	wrapped = np.array([float(row['x_wrapped']), float(row['y_wrapped'])]) / period
+	if (not np.isfinite(coordinates).all() or np.any((coordinates < 0) | (coordinates > 1))
+			or not np.allclose(coordinates, wrapped, rtol=0, atol=1e-12)):
+		raise ValueError('Invalid normalized periodic coordinates.')
+	if row['color'] != original[pid]['color'] or not np.isclose(
+			float(row['initial_radius_over_L']), original[pid]['radius_over_L'],
+			rtol=0, atol=1e-14):
+		raise ValueError('Particle identity differs from the original manifest.')
+	return n, coordinates

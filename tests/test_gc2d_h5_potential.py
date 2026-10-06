@@ -395,6 +395,20 @@ class GC2DH5ImportTests(unittest.TestCase):
 		)
 		np.testing.assert_allclose(potential.evaluate(time, query_x, query_y), expected)
 
+	def test_resampling_on_original_nodes_preserves_samples_for_every_degree(self) -> None:
+		"""Both interpolation stages reproduce mean and complex mode samples."""
+		for degree in range(2, 6):
+			with self.subTest(degree=degree):
+				options = dict(indx=(0, 1, 2), interpolation_order=degree)
+				original = load_gc2d_h5_potential(self.path, **options)
+				resampled = load_gc2d_h5_potential(self.path, nx=6, ny=6, **options)
+				np.testing.assert_allclose(resampled.mean, original.mean, rtol=1e-13, atol=1e-10)
+				np.testing.assert_allclose(resampled.modes, original.modes, rtol=1e-13, atol=1e-10)
+				np.testing.assert_allclose(
+					resampled.evaluate_grid(0.37), original.evaluate_grid(0.37),
+					rtol=1e-13, atol=1e-10,
+				)
+
 	def test_spatial_hessians_time_derivative_and_periodic_wrapping(self) -> None:
 		"""Expose exact spline derivatives on the periodic normalized domain."""
 		potential = load_gc2d_h5_potential(

@@ -70,6 +70,11 @@ outside the physical solver counters; reported wall time still includes them.
 
 ## Lifecycle and output
 
+Tolerance and optional first-step normalization use private helpers in
+`methods._validation`; `first_step=None` still selects automatic startup.
+The live-solver state, accepted-step bounds and derivative checks remain in the
+adaptive execution path, where their values can change during integration.
+
 `simulate(problem, method, request)` creates a fresh run via `new_run`, validates
 its formulation and calls the shared `integrate_method`. Each `advance` returns
 an internal state, small work counters and method-specific accepted details.

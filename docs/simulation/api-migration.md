@@ -56,6 +56,40 @@ the same records remain in Git history. Development notebooks remain ignored.
 Validation uses short disposable notebook executions. Their reduced settings and
 outputs are never saved into the canonical experiment notebooks.
 
+## Study result visualization
+
+Study results retain their data, summaries and numerical analysis. Plotting and
+animation now belong to `visualization`: import a function and pass the result
+as its first argument. The result methods below have been removed without
+compatibility wrappers; their plotting options and return values are unchanged.
+
+| Result and removed method | Function | Import module |
+|---|---|---|
+| GC symplecticity results: `plot_diagnostics()` | `plot_gc_symplecticity_diagnostics(result)` | `visualization.gc_symplecticity` |
+| GC symplecticity results: `plot_solver_diagnostics()` | `plot_gc_solver_diagnostics(result)` | `visualization.gc_symplecticity` |
+| GC symplecticity results: `animate(...)` | `animate_gc_symplecticity(result, ...)` | `visualization.gc_symplecticity` |
+| `ABBA2MidpointSymplecticityResult.plot_convergence()` | `plot_abba_midpoint_convergence(result)` | `visualization.gc_symplecticity` |
+| `ABBASymplecticityResult.plot_defect_floor()` | `plot_abba_defect_floor(result)` | `visualization.gc_symplecticity` |
+| `RK4SymplecticityResult.plot_convergence()` | `plot_rk4_convergence(result)` | `visualization.gc_symplecticity` |
+| `ABBAComparisonResult.plot_runtime_comparison()` | `plot_abba_runtime_comparison(result)` | `visualization.abba_comparison` |
+| `ABBAComparisonResult.plot_trajectory_differences()` | `plot_abba_trajectory_differences(result)` | `visualization.abba_comparison` |
+| `ABBAComparisonResult.animate(...)` | `animate_abba_comparison(result, ...)` | `visualization.abba_comparison` |
+| `AreaComparisonResult.animate(...)` | `animate_area_comparison(result, ...)` | `visualization.area_comparison` |
+| `GeneralizedEnergyResult.plot()` | `plot_generalized_energy_comparison(result)` | `visualization.energy` |
+| `TrajectorySymplecticityResult.plot_symplecticity()` | `plot_trajectory_symplecticity_result(result)` | `visualization.trajectory_symplecticity` |
+| `TrajectorySymplecticityResult.plot_trajectories(...)` | `plot_trajectory_symplecticity_trajectories(result, ...)` | `visualization.trajectory_symplecticity` |
+
+For example, after running an RK4 symplecticity study:
+
+```python
+from visualization.gc_symplecticity import plot_gc_symplecticity_diagnostics
+
+figure, axes = plot_gc_symplecticity_diagnostics(result)
+```
+
+This changes presentation ownership only. Study configurations, integration,
+saved results and scientific diagnostics retain their existing contracts.
+
 ## Extended-family module organization and ABBA6
 
 Import public configurations from `methods.extended`, `methods`, or `simulation`.

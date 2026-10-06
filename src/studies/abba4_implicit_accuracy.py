@@ -9,6 +9,16 @@ from typing import Any, ClassVar, Mapping
 
 import numpy as np
 
+from ._comparison_validation import freeze_reference_indices
+
+from ._validation import (
+	finite_time_span,
+	integer_ratio,
+	nonnegative_finite,
+	positive_finite,
+	positive_integer,
+)
+
 from diagnostics import StoredReferenceTrajectory
 from dynamics import GuidingCenterDynamics
 from initial_conditions import GCInitialConfiguration
@@ -27,12 +37,6 @@ from ._trajectory_accuracy import (
 	reference_distance_convention,
 	validate_reference_identity,
 	validated_refinement_steps,
-)
-from ._validation import (
-	integer_ratio,
-	nonnegative_finite,
-	positive_finite,
-	positive_integer,
 )
 
 
@@ -54,10 +58,10 @@ class ABBA4ImplicitAccuracyConfig:
 		"""Require nested complete steps and one common main-grid cadence."""
 		steps = validated_refinement_steps(self.integration_steps)
 		object.__setattr__(self, "integration_steps", steps)
-		span = np.asarray(self.t_span, dtype=float)
-		if span.shape != (2,) or not np.all(np.isfinite(span)) or span[0] >= span[1]:
-			raise ValueError("`t_span` must contain two finite, increasing times.")
-		object.__setattr__(self, "t_span", (float(span[0]), float(span[1])))
+		object.__setattr__(
+			self, "t_span",
+			finite_time_span(self.t_span, message="`t_span` must contain two finite, increasing times."),
+		)
 		object.__setattr__(
 			self,
 			"save_interval",
@@ -178,30 +182,14 @@ class ABBA4ImplicitAccuracyResult:
 		reference_times: np.ndarray | None = None
 		for step in steps:
 			solution = self.solutions[step]
-			if not isinstance(solution, Solution):
-				raise TypeError("Every ABBA4 refinement value must be a Solution.")
-			if solution.source is not self.initial_configuration:
-				raise ValueError("Every ABBA4 solution must share one configuration.")
-			if reference_times is None:
-				reference_times = solution.t
-			elif not np.array_equal(solution.t, reference_times):
-				raise ValueError("Every ABBA4 solution must share one saved-time grid.")
-			if self.series[step].distances.shape != (
-				particle_count,
-				solution.t.size,
-			):
-				raise ValueError("An ABBA4 accuracy series has an invalid shape.")
-			if not np.isfinite(self.runtimes[step]) or self.runtimes[step] <= 0.0:
-				raise ValueError("Every ABBA4 runtime must be positive and finite.")
+			reference_times = _validated_accuracy_trajectory(
+				solution, self.initial_configuration, step=step, particle_count=particle_count,
+				reference_times=reference_times, series=self.series, runtimes=self.runtimes,
+			)
 		assert reference_times is not None
-		if (
-			indices.shape != reference_times.shape
-			or np.any(indices < 0)
-			or np.any(indices >= self.reference.times.size)
-			or not np.array_equal(self.reference.times[indices], reference_times)
-		):
-			raise ValueError("ABBA4 samples do not align with the stored reference.")
-		indices.setflags(write=False)
+		indices = freeze_reference_indices(
+			indices, self.reference.times, reference_times, message="ABBA4 samples do not align with the stored reference.",
+		)
 		object.__setattr__(self, "reference_sample_indices", indices)
 		object.__setattr__(self, "solutions", MappingProxyType(dict(self.solutions)))
 		object.__setattr__(self, "series", MappingProxyType(dict(self.series)))
@@ -401,6 +389,30 @@ def run_abba4_implicit_accuracy_study(
 		series=series,
 		runtimes=runtimes,
 	)
+
+
+def _validated_accuracy_trajectory(
+	solution: Solution, initial_configuration: GCInitialConfiguration, *,
+	step: float, particle_count: int, reference_times: np.ndarray | None,
+	series: Mapping[float, TrajectoryAccuracySeries], runtimes: Mapping[float, float],
+) -> np.ndarray:
+	"""Check one ABBA4 refinement against the shared physical sample grid."""
+	if not isinstance(solution, Solution):
+		raise TypeError("Every ABBA4 refinement value must be a Solution.")
+	if solution.source is not initial_configuration:
+		raise ValueError("Every ABBA4 solution must share one configuration.")
+	if reference_times is None:
+		reference_times = solution.t
+	elif not np.array_equal(solution.t, reference_times):
+		raise ValueError("Every ABBA4 solution must share one saved-time grid.")
+	if series[step].distances.shape != (
+		particle_count,
+		solution.t.size,
+	):
+		raise ValueError("An ABBA4 accuracy series has an invalid shape.")
+	if not np.isfinite(runtimes[step]) or runtimes[step] <= 0.0:
+		raise ValueError("Every ABBA4 runtime must be positive and finite.")
+	return reference_times
 
 
 __all__ = [

@@ -39,6 +39,16 @@ The import path separates the following responsibilities:
 The loader defines the primary GC2D HDF5 schema and runtime contract. It is not
 a general-purpose HDF5 potential reader.
 
+Private preparation functions keep these contracts separate from the import
+algorithm. `_validated_import_controls` checks dimensional scales and filtering
+options before opening the file; `_validated_field_selection` resolves the mean
+and positive-mode selectors after mode ordering. `GC2DH5Metadata` delegates
+source-index/frequency agreement and attribute copying to its own helpers,
+while preserving the order in which provenance values are validated and frozen.
+Periodic construction and resampling share the sample-count check in
+`potential.grid`; direct `Grid` construction retains its distinct type errors.
+These helpers do not change the supported public imports or field conventions.
+
 ## Public entry points
 
 ```python
@@ -213,6 +223,10 @@ Denoising takes place after normalization and selection but before resampling.
 When `nx` and `ny` are provided, the selected fields are evaluated on new
 half-open uniform axes with no duplicated periodic endpoint. The temporary
 interpolators use the same wrapped spline recipe as runtime evaluation.
+Both paths call the private `potential._periodic_spline._build_periodic_spline`
+helper, which owns axis padding, sample wrapping, and separate real/imaginary
+fits. Each caller supplies its validated axis spacing, preserving the grid's
+stored precision and the existing treatment of periodic boundaries.
 
 Resampling therefore introduces two interpolation stages:
 

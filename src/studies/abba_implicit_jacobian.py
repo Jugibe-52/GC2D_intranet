@@ -10,6 +10,15 @@ from typing import Any, Mapping, TypeAlias
 
 import numpy as np
 
+from ._validation import (
+	sample_count as validated_sample_count,
+	finite_time_span,
+	nonnegative_finite,
+	positive_finite,
+	positive_integer,
+)
+
+
 from diagnostics.abba_jacobian import (
 	ImplicitABBAJacobianMethod,
 	ImplicitABBAJacobianObserver,
@@ -27,7 +36,6 @@ from contracts.request import SimulationRequest
 from solution import Solution
 from simulation.runner import simulate
 
-from ._validation import nonnegative_finite, positive_finite, positive_integer
 
 
 ABBAJacobianFormulation: TypeAlias = ProjectionFormulation
@@ -92,10 +100,10 @@ class ImplicitABBAJacobianStudyConfig:
 			raise ValueError("Unknown implicit ABBA Jacobian formulation.")
 		if self.jacobian_method not in ("implicit_function", "stage_increment"):
 			raise ValueError("Unknown implicit ABBA Jacobian method.")
-		span = np.asarray(self.t_span, dtype=float)
-		if span.shape != (2,) or not np.all(np.isfinite(span)) or span[0] >= span[1]:
-			raise ValueError("`t_span` must contain two finite, increasing times.")
-		object.__setattr__(self, "t_span", (float(span[0]), float(span[1])))
+		object.__setattr__(
+			self, "t_span",
+			finite_time_span(self.t_span, message="`t_span` must contain two finite, increasing times."),
+		)
 		object.__setattr__(self, "rho", nonnegative_finite(self.rho, "rho"))
 		for name in (
 			"max_step",
@@ -110,13 +118,7 @@ class ImplicitABBAJacobianStudyConfig:
 			"observer_chunk_size",
 		):
 			object.__setattr__(self, name, positive_integer(getattr(self, name), name))
-		if (
-			isinstance(self.sample_count, (bool, np.bool_))
-			or not isinstance(self.sample_count, (int, np.integer))
-			or self.sample_count < 2
-		):
-			raise ValueError("`sample_count` must be an integer of at least two.")
-		object.__setattr__(self, "sample_count", int(self.sample_count))
+		object.__setattr__(self, "sample_count", validated_sample_count(self.sample_count))
 		if not isinstance(self.block_name, str) or not self.block_name:
 			raise ValueError("`block_name` must be a non-empty string.")
 		object.__setattr__(self, "progress", bool(self.progress))

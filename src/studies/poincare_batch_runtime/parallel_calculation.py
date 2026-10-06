@@ -6,6 +6,8 @@ is unchanged; each group uses its own state norm for Newton's stopping rule.
 
 from __future__ import annotations
 
+from typing import Any
+
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import dataclass
 from contextlib import nullcontext
@@ -75,17 +77,7 @@ def calculate_group(indices, initial_xy, settings):
         finished = time.perf_counter()
         finished_utc = utc_now()
     diagnostics = solution.diagnostics
-    assert diagnostics['step_count'] == settings['n_steps']
-    assert diagnostics['projection_solver_formulation'] == 'bm4_implicit_reduced'
-    assert diagnostics['newton_jacobian_method'] == 'analytic'
-    xy = np.stack(solution.positions(), axis=-1).transpose(1, 0, 2)
-    np.testing.assert_array_equal(xy[0], xy0)
-    residuals = np.asarray(diagnostics['nonlinear_residual_norms'])
-    tolerances = np.asarray(diagnostics['nonlinear_tolerances'])
-    assert residuals.shape == tolerances.shape == (settings['n_steps'],)
-    assert np.isfinite(xy).all() and np.isfinite(residuals).all()
-    assert np.all(tolerances > 0)
-    assert np.all(residuals <= tolerances * (1 + 32*np.finfo(float).eps))
+    xy, residuals, tolerances = _validated_worker_trajectory(solution, diagnostics, settings, xy0)
     return {
         'indices': indices, 'times': solution.t, 'xy': xy,
         'newton_history': history_arrays,
@@ -172,3 +164,21 @@ def simulate_parallel(initial_xy, settings, processes=16):
     states = np.concatenate((xy[..., 0].T, xy[..., 1].T), axis=0)
     wall_seconds = time.perf_counter() - started
     return ParallelSolution(times, states, diagnostics, workers, wall_seconds, overlap)
+
+
+def _validated_worker_trajectory(
+	solution: Any, diagnostics: Any, settings: dict[str, Any], xy0: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+	"""Require the worker solver identity, exact initial state, and aligned converged residuals."""
+	assert diagnostics['step_count'] == settings['n_steps']
+	assert diagnostics['projection_solver_formulation'] == 'bm4_implicit_reduced'
+	assert diagnostics['newton_jacobian_method'] == 'analytic'
+	xy: np.ndarray = np.stack(solution.positions(), axis=-1).transpose(1, 0, 2)
+	np.testing.assert_array_equal(xy[0], xy0)
+	residuals = np.asarray(diagnostics['nonlinear_residual_norms'])
+	tolerances = np.asarray(diagnostics['nonlinear_tolerances'])
+	assert residuals.shape == tolerances.shape == (settings['n_steps'],)
+	assert np.isfinite(xy).all() and np.isfinite(residuals).all()
+	assert np.all(tolerances > 0)
+	assert np.all(residuals <= tolerances * (1 + 32*np.finfo(float).eps))
+	return xy, residuals, tolerances

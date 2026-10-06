@@ -120,13 +120,7 @@ def run_modal_rho_batch(
     The caller must inspect ``failed_count`` before treating a batch as complete.
     No deployment, retries, local numerical fallback or bucket secrets are used.
     """
-    if isinstance(max_workers, bool) or not isinstance(max_workers, int) or not 1 <= max_workers <= 44:
-        raise ValueError("max_workers must be an integer between 1 and 44.")
-    jobs = tuple(jobs)
-    if not jobs or any(not isinstance(job, RhoBatchJob) for job in jobs):
-        raise ValueError("Supply at least one RhoBatchJob.")
-    if len({job.job_id for job in jobs}) != len(jobs):
-        raise ValueError("Every batch job must have a unique job_id.")
+    jobs = _validated_batch_jobs(jobs, max_workers)
     destinations = [solution_destination(
         job.experiment_path, job.run_id, storage=storage,
         bucket_root=bucket_root, project_root=project_root,
@@ -224,6 +218,18 @@ def run_modal_rho_batch(
     _update_summary(report)
     _write_progress(progress, report)
     return report
+
+
+def _validated_batch_jobs(jobs: Sequence[RhoBatchJob], max_workers: int) -> tuple[RhoBatchJob, ...]:
+	"""Require bounded concurrency and nonempty uniquely named jobs before resolving destinations."""
+	if isinstance(max_workers, bool) or not isinstance(max_workers, int) or not 1 <= max_workers <= 44:
+		raise ValueError("max_workers must be an integer between 1 and 44.")
+	jobs = tuple(jobs)
+	if not jobs or any(not isinstance(job, RhoBatchJob) for job in jobs):
+		raise ValueError("Supply at least one RhoBatchJob.")
+	if len({job.job_id for job in jobs}) != len(jobs):
+		raise ValueError("Every batch job must have a unique job_id.")
+	return jobs
 
 
 __all__ = ["RhoBatchJob", "run_modal_rho_batch"]

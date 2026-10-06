@@ -64,6 +64,12 @@ outside the physical solver counters; reported wall time still includes them.
 
 ## Lifecycle and output
 
+Scalar constructor controls use typed private helpers in `methods._validation`.
+HBVM's local Jacobian resolver selects `auto` from dynamics capabilities without
+probing analytic derivatives. Resolution still occurs during each physical step,
+after the initial predictor and residual evaluations; preparation and evaluation
+counts are unchanged. Convergence and linear-solve guards remain in the algorithm.
+
 `simulate(problem, method, request)` creates a fresh run via `new_run`, validates
 its formulation and calls the shared `integrate_method`. Each `advance` returns
 an internal state, small work counters and method-specific accepted details.

@@ -2,7 +2,7 @@
 
 from dataclasses import asdict
 from pathlib import Path
-from typing import Mapping
+from typing import Any, Mapping
 
 import numpy as np
 
@@ -131,6 +131,40 @@ def load_available_rho_runs(destinations: Mapping[float, str]) -> dict[float, St
     return runs
 
 
+def _comparable_config(record: Mapping[str, Any]) -> dict[str, Any]:
+    """Treat JSON selector lists and in-memory selector tuples identically."""
+    config = asdict(RhoStarConfig(**record['config']))
+    config.pop('rho_hat')
+    config['source_selection'] = tuple(config['source_selection'])
+    return config
+
+
+def _comparable_rho_positions(
+    saved: StoredSolution, rho: float, *, method: str, coords: Mapping[str, Any],
+    reference_metadata: Mapping[str, Any], expected_config: Mapping[str, Any], star_ids: np.ndarray,
+) -> np.ndarray:
+    """Validate scientific provenance, saved identities and cycle coordinates for one rho."""
+    record, solution = saved.metadata, saved.solution
+    initial, cell = coords['initial'], coords['cell']
+    if (_saved_method(record, solution.diagnostics) != method
+            or record.get('space_unit') != ('dimensionless' if coords['normalized'] else 'm')
+            or record.get('spatial_normalization') != reference_metadata['spatial_normalization']
+            or record.get('position_wrapping') != 'none'
+            or record['source_sha256'] != reference_metadata['source_sha256']
+            or _comparable_config(record) != expected_config
+            or not np.isclose(record['config']['rho_hat'], rho, rtol=0, atol=1e-14)):
+        raise ValueError('Only comparable star runs from one method with the same spatial units can share this viewer.')
+    x, y = solution.positions()
+    xy: np.ndarray = np.stack((x.T, y.T), axis=-1)
+    if xy.shape != (record['config']['cycles'] + 1, len(star_ids), 2) or not np.isfinite(xy).all():
+        raise ValueError('The saved cycle coordinates are incomplete or invalid.')
+    np.testing.assert_array_equal(solution.t, np.arange(record['config']['cycles'] + 1))
+    np.testing.assert_array_equal(record['particle_id'], star_ids)
+    np.testing.assert_allclose(xy[0], initial, rtol=0, atol=1e-14)
+    np.testing.assert_allclose(_coordinate_metadata(record)['cell'], cell, rtol=0, atol=1e-14)
+    return xy
+
+
 def export_rho_sweep(runs: Mapping[float, StoredSolution], path: str | Path, *,
                      rho_values: tuple[float, ...], selected_rho: float = 0.3,
                      cycles_per_frame: int = 25, fold_to_cell: bool = False,
@@ -173,32 +207,13 @@ def export_rho_sweep(runs: Mapping[float, StoredSolution], path: str | Path, *,
     initial, cell = coords['initial'], coords['cell']
     lower, upper = cell[:2].copy(), cell[:2] + cell[2]
     coordinates = {}
-    def comparable_config(record):
-        """Treat JSON selector lists and in-memory selector tuples identically."""
-        config = asdict(RhoStarConfig(**record['config']))
-        config.pop('rho_hat')
-        config['source_selection'] = tuple(config['source_selection'])
-        return config
-
-    expected_config = comparable_config(m)
+    expected_config = _comparable_config(m)
     for rho, saved in runs.items():
         record, solution = saved.metadata, saved.solution
-        if (_saved_method(record, solution.diagnostics) != method
-                or record.get('space_unit') != ('dimensionless' if coords['normalized'] else 'm')
-                or record.get('spatial_normalization') != m['spatial_normalization']
-                or record.get('position_wrapping') != 'none'
-                or record['source_sha256'] != m['source_sha256']
-                or comparable_config(record) != expected_config
-                or not np.isclose(record['config']['rho_hat'], rho, rtol=0, atol=1e-14)):
-            raise ValueError('Only comparable star runs from one method with the same spatial units can share this viewer.')
-        x, y = solution.positions()
-        xy = np.stack((x.T, y.T), axis=-1)
-        if xy.shape != (record['config']['cycles'] + 1, len(star_ids), 2) or not np.isfinite(xy).all():
-            raise ValueError('The saved cycle coordinates are incomplete or invalid.')
-        np.testing.assert_array_equal(solution.t, np.arange(record['config']['cycles'] + 1))
-        np.testing.assert_array_equal(record['particle_id'], star_ids)
-        np.testing.assert_allclose(xy[0], initial, rtol=0, atol=1e-14)
-        np.testing.assert_allclose(_coordinate_metadata(record)['cell'], cell, rtol=0, atol=1e-14)
+        xy = _comparable_rho_positions(
+            saved, rho, method=method, coords=coords, reference_metadata=m,
+            expected_config=expected_config, star_ids=star_ids,
+        )
         if fold_to_cell:
             _, xy = folded_rho_positions(solution, record)
         if probe_runs is not None:

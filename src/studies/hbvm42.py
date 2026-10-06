@@ -20,7 +20,7 @@ from contracts.request import SimulationRequest
 from solution import Solution
 from simulation.runner import simulate
 
-from ._validation import integer_ratio, positive_finite, positive_integer
+from ._validation import finite_time_span, integer_ratio, nonnegative_integer, positive_finite, positive_integer
 
 
 HBVM42_LABEL = "HBVM(4,2)"
@@ -109,14 +109,6 @@ def quartic_oscillator_configuration(
 	)
 
 
-def _validated_span(t_span: tuple[float, float]) -> tuple[float, float]:
-	"""Normalize one finite increasing integration interval."""
-	values = np.asarray(t_span, dtype=float)
-	if values.shape != (2,) or not np.all(np.isfinite(values)) or values[0] >= values[1]:
-		raise ValueError("`t_span` must contain two finite, increasing times.")
-	return float(values[0]), float(values[1])
-
-
 def _validated_steps(
 	steps: tuple[float, ...],
 	*,
@@ -153,7 +145,7 @@ class HBVM42EvaluationConfig:
 
 	def __post_init__(self) -> None:
 		"""Validate a nested fixed-grid study before any integration begins."""
-		span = _validated_span(self.t_span)
+		span = finite_time_span(self.t_span, message="`t_span` must contain two finite, increasing times.")
 		duration = span[1] - span[0]
 		steps = _validated_steps(tuple(self.steps), duration=duration)
 		save_interval = positive_finite(self.save_interval, "save_interval")
@@ -179,13 +171,7 @@ class HBVM42EvaluationConfig:
 			"jacobian_method",
 			_validated_jacobian_method(self.jacobian_method),
 		)
-		if (
-			isinstance(self.runtime_warmups, (bool, np.bool_))
-			or not isinstance(self.runtime_warmups, (int, np.integer))
-			or self.runtime_warmups < 0
-		):
-			raise ValueError("`runtime_warmups` must be a non-negative integer.")
-		object.__setattr__(self, "runtime_warmups", int(self.runtime_warmups))
+		object.__setattr__(self, "runtime_warmups", nonnegative_integer(self.runtime_warmups, "runtime_warmups"))
 		object.__setattr__(self, "runtime_repeats", positive_integer(self.runtime_repeats, "runtime_repeats"))
 
 	@property
@@ -274,7 +260,7 @@ class HBVM42BM4ComparisonConfig:
 
 	def __post_init__(self) -> None:
 		"""Validate common grids, solver controls, and benchmark repetition counts."""
-		span = _validated_span(self.t_span)
+		span = finite_time_span(self.t_span, message="`t_span` must contain two finite, increasing times.")
 		steps = _validated_steps(tuple(self.steps), duration=span[1] - span[0])
 		object.__setattr__(self, "t_span", span)
 		object.__setattr__(self, "steps", steps)
@@ -297,13 +283,7 @@ class HBVM42BM4ComparisonConfig:
 		if not np.isfinite(frequency) or frequency < 0.0:
 			raise ValueError("`coupling_frequency` must be finite and non-negative.")
 		object.__setattr__(self, "coupling_frequency", frequency)
-		if (
-			isinstance(self.runtime_warmups, (bool, np.bool_))
-			or not isinstance(self.runtime_warmups, (int, np.integer))
-			or self.runtime_warmups < 0
-		):
-			raise ValueError("`runtime_warmups` must be a non-negative integer.")
-		object.__setattr__(self, "runtime_warmups", int(self.runtime_warmups))
+		object.__setattr__(self, "runtime_warmups", nonnegative_integer(self.runtime_warmups, "runtime_warmups"))
 		object.__setattr__(self, "runtime_repeats", positive_integer(self.runtime_repeats, "runtime_repeats"))
 
 

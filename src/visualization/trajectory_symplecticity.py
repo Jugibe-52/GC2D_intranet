@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol, cast
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -11,6 +11,9 @@ from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 
 from solution import Solution
+
+if TYPE_CHECKING:
+	from studies.trajectory_symplecticity import TrajectorySymplecticityResult
 
 
 class TrajectorySymplecticityRecordView(Protocol):
@@ -37,35 +40,12 @@ def _positive(values: np.ndarray) -> np.ndarray:
 	return np.where(result == 0.0, floor, result)
 
 
-def plot_trajectory_symplecticity(
+def _symplecticity_series(
 	records: Mapping[str, Sequence[TrajectorySymplecticityRecordView]],
-	*,
-	labels: Sequence[str] | None = None,
-	method_name: str,
-) -> tuple[Figure, np.ndarray]:
-	"""Plot mean local and accumulated errors for one numerical method."""
-	ordered_labels = tuple(records) if labels is None else tuple(labels)
-	if not ordered_labels or any(label not in records for label in ordered_labels):
-		raise ValueError("`labels` must select at least one available series.")
-	figure, axes = plt.subplots(
-		2,
-		1,
-		figsize=(10, 8),
-		sharex=True,
-		constrained_layout=True,
-	)
-	fields = (
-		(
-			"mean_local_relative_defect",
-			"std_local_relative_defect",
-			f"{method_name}: mean local-step symplecticity error",
-		),
-		(
-			"mean_accumulated_relative_defect",
-			"std_accumulated_relative_defect",
-			f"{method_name}: mean accumulated-flow symplecticity error",
-		),
-	)
+	ordered_labels: tuple[str, ...], fields: tuple[tuple[str, str, str], ...],
+) -> list[tuple[str, np.ndarray, tuple[tuple[np.ndarray, np.ndarray, np.ndarray], ...]]]:
+	"""Align record times and prepare non-negative means and uncertainty bands."""
+	prepared: list[tuple[str, np.ndarray, tuple[tuple[np.ndarray, np.ndarray, np.ndarray], ...]]] = []
 	reference_times: np.ndarray | None = None
 	for label in ordered_labels:
 		rows = tuple(records[label])
@@ -87,29 +67,54 @@ def plot_trajectory_symplecticity(
 			),
 		):
 			raise ValueError("Compared records must share one saved-time grid.")
-		for axis, (mean_field, std_field, _title) in zip(
-			axes,
-			fields,
-			strict=True,
-		):
+		metrics: list[tuple[np.ndarray, np.ndarray, np.ndarray]] = []
+		for mean_field, std_field, _title in fields:
 			means = np.asarray([getattr(row, mean_field) for row in rows], dtype=float)
 			std = np.asarray([getattr(row, std_field) for row in rows], dtype=float)
 			_positive(std)
-			line = axis.semilogy(
-				times,
+			metrics.append((
 				_positive(means),
-				marker="o",
-				markersize=3,
-				label=label,
-			)[0]
-			axis.fill_between(
-				times,
 				_positive(np.maximum(means - std, 0.0)),
 				_positive(means + std),
-				color=line.get_color(),
-				alpha=0.15,
-				linewidth=0.0,
-			)
+			))
+		prepared.append((label, times, tuple(metrics)))
+	return prepared
+
+
+def plot_trajectory_symplecticity(
+	records: Mapping[str, Sequence[TrajectorySymplecticityRecordView]],
+	*,
+	labels: Sequence[str] | None = None,
+	method_name: str,
+) -> tuple[Figure, np.ndarray]:
+	"""Plot mean local and accumulated errors for one numerical method."""
+	ordered_labels = tuple(records) if labels is None else tuple(labels)
+	if not ordered_labels or any(label not in records for label in ordered_labels):
+		raise ValueError("`labels` must select at least one available series.")
+	fields = (
+		(
+			"mean_local_relative_defect",
+			"std_local_relative_defect",
+			f"{method_name}: mean local-step symplecticity error",
+		),
+		(
+			"mean_accumulated_relative_defect",
+			"std_accumulated_relative_defect",
+			f"{method_name}: mean accumulated-flow symplecticity error",
+		),
+	)
+	prepared = _symplecticity_series(records, ordered_labels, fields)
+	figure, axes = plt.subplots(
+		2,
+		1,
+		figsize=(10, 8),
+		sharex=True,
+		constrained_layout=True,
+	)
+	for label, times, metrics in prepared:
+		for axis, (means, lower, upper) in zip(axes, metrics, strict=True):
+			line = axis.semilogy(times, means, marker="o", markersize=3, label=label)[0]
+			axis.fill_between(times, lower, upper, color=line.get_color(), alpha=0.15, linewidth=0.0)
 	for axis, (_, _, title) in zip(axes, fields, strict=True):
 		axis.set(title=title, ylabel="Relative defect")
 		axis.grid(which="both", alpha=0.25)
@@ -166,8 +171,44 @@ def plot_gc_trajectory_points(
 	return figure, axis
 
 
+def plot_trajectory_symplecticity_result(
+	result: TrajectorySymplecticityResult,
+) -> tuple[Figure, np.ndarray]:
+	"""Plot arithmetic-mean local and accumulated errors for a study result."""
+	return plot_trajectory_symplecticity(
+		cast(
+			Mapping[str, Sequence[TrajectorySymplecticityRecordView]],
+			result.records,
+		),
+		labels=tuple(step.label for step in result.steps),
+		method_name=result.method_name,
+	)
+
+
+def plot_trajectory_symplecticity_trajectories(
+	result: TrajectorySymplecticityResult,
+	*,
+	label: str | None = None,
+) -> tuple[Figure, Axes]:
+	"""Plot study trajectories as points, using the finest step by default."""
+	selected = (
+		min(result.steps, key=lambda step: step.value).label
+		if label is None
+		else label
+	)
+	if selected not in result.solutions:
+		raise ValueError(f"Unknown integration-step label {selected!r}.")
+	return plot_gc_trajectory_points(
+		result.solutions[selected],
+		method_name=result.method_name,
+		step_label=selected,
+	)
+
+
 __all__ = [
 	"TrajectorySymplecticityRecordView",
 	"plot_gc_trajectory_points",
 	"plot_trajectory_symplecticity",
+	"plot_trajectory_symplecticity_result",
+	"plot_trajectory_symplecticity_trajectories",
 ]

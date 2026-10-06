@@ -80,38 +80,3 @@ def _state_dimension_diagnostics(
 
 
 __all__: list[str] = []
-
-
-import numpy as np
-
-def _positive_finite(value: float, name: str) -> float:
-	"""Return a positive finite float, rejecting booleans as numeric inputs."""
-	if isinstance(value, (bool, np.bool_)):
-		raise ValueError(f"`{name}` must be positive and finite.")
-	result = float(value)
-	if not np.isfinite(result) or result <= 0:
-		raise ValueError(f"`{name}` must be positive and finite.")
-	return result
-
-
-def _nonnegative_finite(value: float, name: str) -> float:
-	"""Return a non-negative finite float, rejecting boolean values."""
-	if isinstance(value, (bool, np.bool_)):
-		raise ValueError(f"`{name}` must be non-negative and finite.")
-	result = float(value)
-	if not np.isfinite(result) or result < 0:
-		raise ValueError(f"`{name}` must be non-negative and finite.")
-	return result
-
-
-def _positive_integer(value: int, name: str) -> int:
-	"""Return a positive built-in integer without accepting booleans."""
-	if (
-		isinstance(value, (bool, np.bool_))
-		or not isinstance(value, (int, np.integer))
-		or value < 1
-	):
-		raise ValueError(f"`{name}` must be a positive integer.")
-	return int(value)
-
-

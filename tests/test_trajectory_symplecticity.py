@@ -10,6 +10,11 @@ import unittest
 import matplotlib.pyplot as plt
 import numpy as np
 
+from visualization.trajectory_symplecticity import (
+	plot_trajectory_symplecticity_result,
+	plot_trajectory_symplecticity_trajectories,
+)
+
 from diagnostics import (
 	bm4_implicit_step_particle_jacobians,
 	central_difference_jacobian,
@@ -191,8 +196,8 @@ class ExactTrajectoryJacobianTests(unittest.TestCase):
 						[float(row["mean_accumulated_relative_defect"]) for row in rows],
 						defects.mean(axis=1),
 					)
-					error_figure, error_axes = result.plot_symplecticity()
-					path_figure, path_axis = result.plot_trajectories()
+					error_figure, error_axes = plot_trajectory_symplecticity_result(result)
+					path_figure, path_axis = plot_trajectory_symplecticity_trajectories(result)
 					self.assertEqual(error_axes.shape, (2,))
 					self.assertEqual(len(path_axis.lines), 5)
 					self.assertTrue(

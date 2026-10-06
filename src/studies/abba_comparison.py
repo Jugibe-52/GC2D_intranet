@@ -5,28 +5,27 @@ from __future__ import annotations
 from dataclasses import dataclass
 from itertools import combinations
 from pathlib import Path
-import re
 from types import MappingProxyType
 from typing import Any, Mapping
 
-import matplotlib.pyplot as plt
 import numpy as np
-
-from studies._trajectory_distances import minimum_image_displacement
-from matplotlib.animation import FuncAnimation
-from matplotlib.axes import Axes
-from matplotlib.figure import Figure
-
-from initial_conditions import Area
-from potential import Potential
-from solution import Solution
+from collections.abc import Iterable
 
 from ._validation import (
+	unpacked_time_span,
+	validate_block_prefix,
 	integer_ratio,
 	nonnegative_finite,
 	positive_finite,
 	positive_integer,
 )
+
+from studies._trajectory_distances import minimum_image_displacement
+
+from initial_conditions import Area
+from potential import Potential
+from solution import Solution
+
 from .abba_midpoint_symplecticity import (
 	ABBA2MidpointSymplecticityConfig,
 	ABBA2MidpointSymplecticityResult,
@@ -40,7 +39,6 @@ from .abba_implicit_symplecticity import (
 	run_abba2_simultaneous_state_multiplier_symplecticity_study,
 )
 from .area_comparison import AreaStep
-from visualization import animate_gc_area_solution
 
 
 ABBA_METHOD_NAMES = (
@@ -48,7 +46,6 @@ ABBA_METHOD_NAMES = (
 	"ABBA2Implicit[reduced_multiplier]",
 	"ABBA2Implicit[simultaneous_state_multiplier]",
 )
-_BLOCK_PREFIX = re.compile(r"^[A-Za-z0-9_-]+$")
 ABBAComparisonStudy = (
 	ABBA2MidpointSymplecticityResult
 	| ABBA2ReducedMultiplierSymplecticityResult
@@ -83,14 +80,7 @@ class ABBAComparisonConfig:
 		if not isinstance(self.step_label, str) or not self.step_label.strip():
 			raise ValueError("`step_label` must be a non-empty string.")
 
-		try:
-			start, stop = (float(value) for value in self.t_span)
-		except (TypeError, ValueError) as exc:
-			raise ValueError(
-				"`t_span` must contain two finite increasing times."
-			) from exc
-		if not np.isfinite(start) or not np.isfinite(stop) or start >= stop:
-			raise ValueError("`t_span` must contain two finite increasing times.")
+		start, stop = unpacked_time_span(self.t_span)
 		object.__setattr__(self, "t_span", (start, stop))
 
 		save_interval = positive_finite(self.save_interval, "save_interval")
@@ -108,12 +98,7 @@ class ABBAComparisonConfig:
 			"chunk_size",
 			positive_integer(self.chunk_size, "chunk_size"),
 		)
-		if not isinstance(self.block_prefix, str) or not _BLOCK_PREFIX.fullmatch(
-			self.block_prefix
-		):
-			raise ValueError(
-				"`block_prefix` may contain only letters, numbers, '_' and '-'."
-			)
+		validate_block_prefix(self.block_prefix)
 		if self.finite_difference_relative_step is not None:
 			object.__setattr__(
 				self,
@@ -209,25 +194,7 @@ class ABBAComparisonResult:
 				raise ValueError(
 					f"The runtime for {method_name} must be positive and finite."
 				)
-		# Validate the common output grid eagerly so all later comparisons are direct.
-		reference_times: np.ndarray | None = None
-		for method_name in ABBA_METHOD_NAMES:
-			solution = self._solution(method_name)
-			if reference_times is None:
-				reference_times = np.asarray(solution.t, dtype=float)
-			else:
-				candidate_times = np.asarray(solution.t, dtype=float)
-				time_scale = max(1.0, float(np.max(np.abs(reference_times))))
-				tolerance = float(32 * np.finfo(float).eps * time_scale)
-				if candidate_times.shape != reference_times.shape or not np.allclose(
-					candidate_times,
-					reference_times,
-					rtol=0.0,
-					atol=tolerance,
-				):
-					raise ValueError(
-						"All ABBA solutions must share the same saved-time grid."
-					)
+		_validate_abba_output_grids((self._solution(name) for name in ABBA_METHOD_NAMES))
 
 	@property
 	def solutions(self) -> Mapping[str, Solution]:
@@ -337,78 +304,6 @@ class ABBAComparisonResult:
 			"finite-difference observer in this comparison."
 		)
 
-	def plot_runtime_comparison(self) -> tuple[Figure, Axes]:
-		"""Plot simulation runtime after subtracting symplecticity callbacks."""
-		rows = self.runtime_summaries()
-		figure, axis = plt.subplots(figsize=(9, 4.8), constrained_layout=True)
-		bars = axis.bar(
-			[row.method_name for row in rows],
-			[row.seconds for row in rows],
-			color=("C0", "C1", "C2"),
-		)
-		axis.bar_label(bars, fmt="%.3f s", padding=3)
-		axis.set(
-			ylabel="Wall-clock time [s]",
-			title="One-pass ABBA runtime excluding symplecticity diagnostics",
-		)
-		axis.grid(axis="y", alpha=0.25)
-		return figure, axis
-
-	def plot_trajectory_differences(self) -> tuple[Figure, Axes]:
-		"""Plot pairwise RMS and maximum periodic particle displacement over time."""
-		figure, axis = plt.subplots(figsize=(10, 5.5), constrained_layout=True)
-		floor = np.finfo(float).eps * self.potential.grid.period
-		for index, series in enumerate(self.trajectory_difference_series()):
-			color = f"C{index}"
-			axis.semilogy(
-				series.times,
-				np.maximum(series.rms_particle_distance, floor),
-				linestyle="--",
-				color=color,
-				label=f"{series.label}: RMS",
-			)
-			axis.semilogy(
-				series.times,
-				np.maximum(series.max_particle_distance, floor),
-				color=color,
-				label=f"{series.label}: maximum",
-			)
-		axis.set(
-			xlabel="$t$",
-			ylabel="Periodic particle displacement",
-			title="Pairwise difference between ABBA physical trajectories",
-		)
-		axis.grid(which="both", alpha=0.25)
-		axis.legend(fontsize="small")
-		return figure, axis
-
-	def animate(
-		self,
-		method_name: str,
-		*,
-		frames: int | None = None,
-		interval: int = 200,
-		repeat: bool = True,
-	) -> FuncAnimation:
-		"""Animate one method's contour, area error, and symplecticity defect."""
-		if method_name not in self.studies:
-			raise KeyError(f"Unknown ABBA method: {method_name}")
-		study = self.studies[method_name]
-		label = self.config.step_label
-		records = study.records[label]
-		return animate_gc_area_solution(
-			self.potential,
-			self.area,
-			study.solutions[label],
-			frames=frames,
-			interval=interval,
-			repeat=repeat,
-			diagnostic_times=np.asarray([record.time for record in records]),
-			relative_symplecticity_errors=np.asarray(
-				[record.relative_defect for record in records]
-			),
-		)
-
 
 def run_abba_comparison(
 	potential: Potential,
@@ -502,6 +397,28 @@ def run_abba_comparison(
 		studies=MappingProxyType(studies),
 		runtimes=MappingProxyType(runtimes),
 	)
+
+
+def _validate_abba_output_grids(solutions: Iterable[Solution]) -> None:
+	"""Keep the historical epsilon-scaled tolerance for common ABBA output grids."""
+	# Validate the common output grid eagerly so all later comparisons are direct.
+	reference_times: np.ndarray | None = None
+	for solution in solutions:
+		if reference_times is None:
+			reference_times = np.asarray(solution.t, dtype=float)
+		else:
+			candidate_times = np.asarray(solution.t, dtype=float)
+			time_scale = max(1.0, float(np.max(np.abs(reference_times))))
+			tolerance = float(32 * np.finfo(float).eps * time_scale)
+			if candidate_times.shape != reference_times.shape or not np.allclose(
+				candidate_times,
+				reference_times,
+				rtol=0.0,
+				atol=tolerance,
+			):
+				raise ValueError(
+					"All ABBA solutions must share the same saved-time grid."
+				)
 
 
 __all__ = [

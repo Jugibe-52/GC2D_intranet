@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from datetime import datetime, timezone
 import fcntl
 import hashlib
@@ -166,23 +168,39 @@ def load_calculation(run_id=None):
     manifest = json.loads(marker.read_text())
     metadata = json.loads((directory / 'metadata.json').read_text())
     trajectory_file = 'rk4_trajectory.npz' if metadata['method']=='RK4' else 'bm4_trajectory.npz'
-    expected_files = {trajectory_file, 'metadata.json', 'positions_after_each_cycle.csv',
-                      'initial_positions.csv', 'run_parameters.json',
-                      'newton_steps.csv.gz', 'newton_iterations.csv.gz'}
-    if metadata['method'] == 'BM4Midpoint':
-        expected_files -= {'newton_steps.csv.gz', 'newton_iterations.csv.gz'}
-        expected_files.add('midpoint_steps.csv.gz')
-    if metadata['method']=='RK4':
-        expected_files -= {'newton_steps.csv.gz', 'newton_iterations.csv.gz'}
-    if (manifest.get('schema_version') != 1 or manifest.get('run_id') != run_id
-            or set(manifest.get('sha256', {})) != expected_files):
-        raise ValueError('Unsupported or incomplete result manifest.')
-    for name, expected in manifest['sha256'].items():
-        if digest(directory / name) != expected:
-            raise ValueError(f'Result checksum mismatch: {name}')
+    _validate_result_manifest(directory, run_id, manifest, metadata, trajectory_file)
     metadata = json.loads((directory / 'metadata.json').read_text())
     with np.load(directory / trajectory_file, allow_pickle=False) as saved:
         arrays = {name: saved[name] for name in saved.files}
     positions = pd.read_csv(directory / 'positions_after_each_cycle.csv', float_precision='round_trip')
     initial_positions = pd.read_csv(directory / 'initial_positions.csv', float_precision='round_trip')
     return directory, metadata, arrays, positions, initial_positions
+
+
+def assert_checkpoint_file(file: Path, record: dict[str, Any], *, message: str | None = None) -> None:
+	"""Verify a checkpoint data/marker pair using the runtime's assertion contract."""
+	if message is None:
+		assert file.name == record['file'] and digest(file) == record['sha256']
+	else:
+		assert file.name == record['file'] and digest(file) == record['sha256'], message
+
+
+def _validate_result_manifest(
+	directory: Path, run_id: str, manifest: dict[str, Any],
+	metadata: dict[str, Any], trajectory_file: str,
+) -> None:
+	"""Require the exact method-specific product set and verify every committed checksum."""
+	expected_files = {trajectory_file, 'metadata.json', 'positions_after_each_cycle.csv',
+					  'initial_positions.csv', 'run_parameters.json',
+					  'newton_steps.csv.gz', 'newton_iterations.csv.gz'}
+	if metadata['method'] == 'BM4Midpoint':
+		expected_files -= {'newton_steps.csv.gz', 'newton_iterations.csv.gz'}
+		expected_files.add('midpoint_steps.csv.gz')
+	if metadata['method']=='RK4':
+		expected_files -= {'newton_steps.csv.gz', 'newton_iterations.csv.gz'}
+	if (manifest.get('schema_version') != 1 or manifest.get('run_id') != run_id
+			or set(manifest.get('sha256', {})) != expected_files):
+		raise ValueError('Unsupported or incomplete result manifest.')
+	for name, expected in manifest['sha256'].items():
+		if digest(directory / name) != expected:
+			raise ValueError(f'Result checksum mismatch: {name}')

@@ -19,7 +19,7 @@ from contracts.observation import (
 )
 from methods.extended.configuration import ProjectionFormulation
 from methods.extended.core.records import (
-	CompositionTrace, ProjectedMapResult, StepResult,
+	CompositionTrace, ProjectedMapResult,
 )
 from methods.extended.core.records import ProjectedMap
 
@@ -58,22 +58,19 @@ def abba_pairs(trace: CompositionTrace) -> tuple[PhysicalBaseMapTrace, ...]:
 
 
 EventBuilder: TypeAlias = Callable[
-	[float, float, int, np.ndarray, StepResult], IntegrationStep
+	[float, float, int, np.ndarray, ProjectedMapResult], IntegrationStep
 ]
 
 
-def _solve_fields(projections: tuple[ProjectedMapResult, ...]) -> dict[str, Any]:
-	"""Read one consistent aggregate from the accepted numerical records."""
-	worst = max(projections, key=lambda p: p.stats.residual_norm / p.stats.tolerance)
+def _solve_fields(projection: ProjectedMapResult) -> dict[str, Any]:
+	"""Expose the accepted outer solve through the established observer fields."""
 	return {
-		"nonlinear_solver": worst.stats.solver,
-		"newton_iterations": sum(p.stats.iterations for p in projections),
-		"residual_evaluations": sum(p.stats.residual_evaluations for p in projections),
-		"newton_residual_norm": worst.stats.residual_norm,
-		"newton_tolerance": worst.stats.tolerance,
-		"projection_multiplier_norm": max(
-			float(np.linalg.norm(p.multiplier, ord=np.inf)) for p in projections
-		),
+		"nonlinear_solver": projection.stats.solver,
+		"newton_iterations": projection.stats.iterations,
+		"residual_evaluations": projection.stats.residual_evaluations,
+		"newton_residual_norm": projection.stats.residual_norm,
+		"newton_tolerance": projection.stats.tolerance,
+		"projection_multiplier_norm": float(np.linalg.norm(projection.multiplier, ord=np.inf)),
 	}
 
 
@@ -106,15 +103,14 @@ def bind_event_builder(
 			multiplier=projection.multiplier.copy(),
 			u_initial=stages.u_initial.copy(), v_initial=stages.v_initial.copy(),
 			u_first=stages.u_first.copy(), v_final=stages.v_final.copy(),
-			u_final=stages.u_final.copy(), **_solve_fields((projection,)),
+			u_final=stages.u_final.copy(), **_solve_fields(projection),
 		)
 
 	def build(
-		t: float, h: float, step_index: int, state_before: np.ndarray, result: StepResult
+		t: float, h: float, step_index: int, state_before: np.ndarray, result: ProjectedMapResult
 	) -> IntegrationStep:
-		projections = result.projections
 		if order == 2:
-			return physical_single(projections[0], step_index)
+			return physical_single(result, step_index)
 
 		def map_state(candidate: np.ndarray) -> np.ndarray:
 			return project(t, candidate, h).state
@@ -123,11 +119,11 @@ def bind_event_builder(
 			dynamics_name=type(dynamics).__name__, method_name=method_name,
 			step_index=step_index, start_time=t, time=t + h, duration=h,
 			state_before=state_before.copy(),
-			state_after=projections[-1].state.copy(),
+			state_after=result.state.copy(),
 			map_state=map_state, dynamics=dynamics, formulation_name=formulation,
-			**_solve_fields(projections),
+			**_solve_fields(result),
 		)
-		trace = projections[0].trace
+		trace = result.trace
 		assert isinstance(trace, CompositionTrace)
 		substeps = tuple(
 			UnprojectedABBAIntegrationStep(
@@ -140,7 +136,7 @@ def bind_event_builder(
 		)
 		event_type = ABBA4ImplicitIntegrationStep if order == 4 else ABBA6ImplicitIntegrationStep
 		return event_type(
-			**fields, multiplier=projections[0].multiplier.copy(),
+			**fields, multiplier=result.multiplier.copy(),
 			composition_coefficients=np.asarray(coefficients), substeps=substeps,
 		)
 

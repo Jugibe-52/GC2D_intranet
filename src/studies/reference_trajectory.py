@@ -10,6 +10,8 @@ from time import perf_counter
 from typing import Any, Callable, Literal, Mapping
 
 import numpy as np
+
+from ._validation import finite_time_span, integer_ratio, nonnegative_finite, positive_finite
 import scipy
 
 from diagnostics import (
@@ -30,7 +32,6 @@ from ._trajectory_distances import (
 	normalized_distance_convention,
 	particle_distances,
 )
-from ._validation import integer_ratio, nonnegative_finite, positive_finite
 
 
 @dataclass(frozen=True, slots=True)
@@ -50,10 +51,10 @@ class HighPrecisionReferenceConfig:
 
 	def __post_init__(self) -> None:
 		"""Validate the reference and independent-solver audit controls."""
-		span = np.asarray(self.t_span, dtype=float)
-		if span.shape != (2,) or not np.all(np.isfinite(span)) or span[0] >= span[1]:
-			raise ValueError("`t_span` must contain two finite, increasing times.")
-		object.__setattr__(self, "t_span", (float(span[0]), float(span[1])))
+		object.__setattr__(
+			self, "t_span",
+			finite_time_span(self.t_span, message="`t_span` must contain two finite, increasing times."),
+		)
 		object.__setattr__(self, "rho", nonnegative_finite(self.rho, "rho"))
 		object.__setattr__(
 			self,
@@ -388,13 +389,10 @@ def run_high_precision_reference_trajectory(
 		raise TypeError("`initial_configuration` must be GCInitialConfiguration.")
 	if not isinstance(config, HighPrecisionReferenceConfig):
 		raise TypeError("`config` must be a HighPrecisionReferenceConfig.")
-	if not isinstance(potential_metadata, Mapping) or not potential_metadata:
-		raise ValueError("Non-empty potential reproducibility metadata is required.")
-	if not isinstance(initial_condition_metadata, Mapping) or not initial_condition_metadata:
-		raise ValueError("Non-empty initial-condition metadata is required.")
-	initial_state = initial_configuration.initial_state
-	if initial_state is None:
-		raise ValueError("The reference initial configuration has no state.")
+	initial_state = _validated_reference_initial_state(
+		initial_configuration, potential_metadata=potential_metadata,
+		initial_condition_metadata=initial_condition_metadata,
+	)
 
 	dynamics = GuidingCenterDynamics(potential, rho=config.rho)
 	effective_potential = dynamics.effective_potential
@@ -480,6 +478,21 @@ def run_high_precision_reference_trajectory(
 		audit_solve=audit_solve,
 		audit=audit,
 	)
+
+
+def _validated_reference_initial_state(
+	initial_configuration: GCInitialConfiguration, *,
+	potential_metadata: Mapping[str, Any], initial_condition_metadata: Mapping[str, Any],
+) -> np.ndarray:
+	"""Require reproducibility metadata and a concrete initial state before reference solves."""
+	if not isinstance(potential_metadata, Mapping) or not potential_metadata:
+		raise ValueError("Non-empty potential reproducibility metadata is required.")
+	if not isinstance(initial_condition_metadata, Mapping) or not initial_condition_metadata:
+		raise ValueError("Non-empty initial-condition metadata is required.")
+	initial_state = initial_configuration.initial_state
+	if initial_state is None:
+		raise ValueError("The reference initial configuration has no state.")
+	return initial_state
 
 
 __all__ = [

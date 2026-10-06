@@ -6,6 +6,8 @@ import argparse
 from dataclasses import dataclass
 from html import escape
 from pathlib import Path
+from collections.abc import Mapping
+from typing import Any
 import shutil
 import subprocess
 import tempfile
@@ -35,23 +37,8 @@ class PagesSite:
     production_branch: str
 
 
-def prepare_pages_site(config_path: str | Path | None = None) -> PagesSite:
-    """Build all configured exports, preserving their paths below notebooks/.
-
-    Each selected HTML becomes ``<experiment-directory>/index.html``. Select
-    one standalone HTML per directory. Paths in the configuration are relative
-    to the project root; only development exports are supported. All sources
-    are checked before a new snapshot is created under ignored ``build/``.
-    """
-    config_file = (
-        find_project_root(Path.cwd()) / "conf" / "visualization_pages.toml"
-        if config_path is None
-        else Path(config_path).expanduser().resolve()
-    )
-    root = find_project_root(config_file)
-    with config_file.open("rb") as stream:
-        config = tomllib.load(stream)
-
+def _validated_pages_config(config: Mapping[str, Any]) -> tuple[str, str, str, list[Any]]:
+    """Normalize publication settings and check the configured export list."""
     project_name = str(config.get("project_name", "")).strip()
     production_branch = str(config.get("production_branch", "main")).strip()
     base_url = str(config.get("base_url", "")).strip().rstrip("/")
@@ -66,7 +53,11 @@ def prepare_pages_site(config_path: str | Path | None = None) -> PagesSite:
     exports = config.get("html_files")
     if not isinstance(exports, list) or not exports:
         raise ValueError("html_files must list at least one standalone HTML export.")
+    return project_name, production_branch, base_url, exports
 
+
+def _validated_export_sources(root: Path, exports: list[Any]) -> dict[Path, Path]:
+    """Resolve permitted HTML sources and unique routes before creating a snapshot."""
     notebooks = root / "notebooks"
     development_root = notebooks / "developements"
     sources: dict[Path, Path] = {}
@@ -84,6 +75,29 @@ def prepare_pages_site(config_path: str | Path | None = None) -> PagesSite:
         if route in sources:
             raise ValueError(f"Select only one HTML export per directory: {route}")
         sources[route] = source
+    return sources
+
+
+def prepare_pages_site(config_path: str | Path | None = None) -> PagesSite:
+    """Build all configured exports, preserving their paths below notebooks/.
+
+    Each selected HTML becomes ``<experiment-directory>/index.html``. Select
+    one standalone HTML per directory. Paths in the configuration are relative
+    to the project root; only development exports are supported. All sources
+    are checked before a new snapshot is created under ignored ``build/``.
+    """
+    config_file = (
+        find_project_root(Path.cwd()) / "conf" / "visualization_pages.toml"
+        if config_path is None
+        else Path(config_path).expanduser().resolve()
+    )
+    root = find_project_root(config_file)
+    with config_file.open("rb") as stream:
+        config = tomllib.load(stream)
+
+    project_name, production_branch, base_url, exports = _validated_pages_config(config)
+
+    sources = _validated_export_sources(root, exports)
 
     # Rebuild the complete catalog on every deployment: a Pages deployment
     # replaces the site's snapshot, so uploading just one page loses others.

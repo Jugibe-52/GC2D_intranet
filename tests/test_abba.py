@@ -10,6 +10,8 @@ import unittest
 import matplotlib.pyplot as plt
 import numpy as np
 
+from visualization.gc_symplecticity import plot_gc_solver_diagnostics
+
 from dynamics import (
 	FullCyclotronDynamics,
 	GuidingCenterDynamics,
@@ -494,7 +496,7 @@ class ABBASymplecticityStudyTests(unittest.TestCase):
 			# measured structural defect includes the centered-difference floor.
 			self.assertLess(summary.max_local_defect, 1e-9)
 			self.assertLess(summary.max_flow_defect, 1e-8)
-		figure, axes = result.plot_solver_diagnostics()
+		figure, axes = plot_gc_solver_diagnostics(result)
 		self.assertEqual(axes.shape, (2,))
 		plt.close(figure)
 

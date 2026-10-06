@@ -15,6 +15,21 @@ from matplotlib.animation import Animation
 TableColumn: TypeAlias = tuple[str, str, str | None]
 
 
+def _table_columns(column_values: tuple[TableColumn, ...]) -> tuple[TableColumn, ...]:
+	"""Check the materialized table schema, headings and format specifiers."""
+	if not column_values:
+		raise ValueError("At least one table column is required.")
+	for attribute, heading, format_spec in column_values:
+		if not isinstance(attribute, str) or not attribute:
+			raise ValueError("Table attribute names must be non-empty strings.")
+		if not isinstance(heading, str) or not heading:
+			raise ValueError("Table headings must be non-empty strings.")
+		if format_spec is not None and not isinstance(format_spec, str):
+			raise TypeError("Table format specifications must be strings or None.")
+
+	return column_values
+
+
 def records_table_html(
 	records: Sequence[object],
 	*,
@@ -29,15 +44,7 @@ def records_table_html(
 	column_values = tuple(columns)
 	if not rows:
 		raise ValueError("At least one table record is required.")
-	if not column_values:
-		raise ValueError("At least one table column is required.")
-	for attribute, heading, format_spec in column_values:
-		if not isinstance(attribute, str) or not attribute:
-			raise ValueError("Table attribute names must be non-empty strings.")
-		if not isinstance(heading, str) or not heading:
-			raise ValueError("Table headings must be non-empty strings.")
-		if format_spec is not None and not isinstance(format_spec, str):
-			raise TypeError("Table format specifications must be strings or None.")
+	column_values = _table_columns(column_values)
 
 	header = "".join(
 		f"<th style='text-align:left'>{escape(heading)}</th>"

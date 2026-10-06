@@ -7,6 +7,7 @@ from typing import Any
 
 import matplotlib.pyplot as plt
 import numpy as np
+
 from matplotlib.animation import FuncAnimation
 from matplotlib.axes import Axes
 from matplotlib.collections import LineCollection
@@ -19,7 +20,13 @@ from matplotlib.widgets import CheckButtons
 from potential import Potential
 from solution import Solution
 
-from .particles import _field_normalization, _frame_indices
+from ._animation_validation import (
+	boolean_control,
+	frame_indices as _frame_indices,
+	positive_interval,
+)
+from .particles import _field_normalization
+from ._solution_validation import validated_solutions
 
 
 IMPLICIT_METHOD_COLORS: Mapping[str, str] = {
@@ -38,42 +45,12 @@ _METHOD_MARKERS = ("o", "s", "^", "D")
 _METHOD_MARKER_SIZES = (42, 32, 23, 15)
 
 
-def _validated_solutions(
-	solutions: Mapping[str, Solution],
-) -> tuple[tuple[str, ...], np.ndarray, int]:
-	"""Validate an aligned non-empty set of planar particle solutions."""
-	if not solutions:
-		raise ValueError("At least one labeled solution is required.")
-	labels = tuple(solutions)
-	reference_times: np.ndarray | None = None
-	particle_count: int | None = None
-	for label, solution in solutions.items():
-		if not isinstance(label, str) or not label:
-			raise ValueError("Solution labels must be non-empty strings.")
-		if not isinstance(solution, Solution):
-			raise TypeError("Every comparison value must be a Solution.")
-		times = np.asarray(solution.t, dtype=float)
-		x, y = solution.positions()
-		if x.shape != y.shape or x.ndim != 2 or x.shape[1] != times.size:
-			raise ValueError("Every solution must contain aligned planar trajectories.")
-		if reference_times is None:
-			reference_times = times
-			particle_count = x.shape[0]
-		elif not np.array_equal(times, reference_times) or x.shape[0] != particle_count:
-			raise ValueError(
-				"All compared solutions must share times and particle count."
-			)
-	assert reference_times is not None and particle_count is not None
-	return labels, reference_times, particle_count
-
-
-def plot_implicit_method_iterations(
-	solutions: Mapping[str, Solution],
-) -> tuple[Figure, np.ndarray]:
-	"""Compare nonlinear corrections, residual evaluations, and convergence."""
-	labels, times, _ = _validated_solutions(solutions)
-	figure, axes = plt.subplots(3, 1, figsize=(12, 9), constrained_layout=True)
-	for index, label in enumerate(labels):
+def _iteration_arrays(
+	solutions: Mapping[str, Solution], labels: tuple[str, ...], times: np.ndarray,
+) -> list[tuple[str, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]]:
+	"""Prepare complete-step work histories before allocating plotting resources."""
+	prepared: list[tuple[str, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]] = []
+	for label in labels:
 		solution = solutions[label]
 		iterations = np.asarray(
 			solution.diagnostics["nonlinear_iterations"], dtype=int
@@ -102,6 +79,20 @@ def plot_implicit_method_iterations(
 			raise ValueError(
 				"Per-step diagnostics must match the complete integration step count."
 			)
+		prepared.append((label, step_times, iterations, residual_evaluations, residuals, tolerances))
+	return prepared
+
+
+def plot_implicit_method_iterations(
+	solutions: Mapping[str, Solution],
+) -> tuple[Figure, np.ndarray]:
+	"""Compare nonlinear corrections, residual evaluations, and convergence."""
+	labels, times, _ = validated_solutions(
+		solutions, alignment_error="All compared solutions must share times and particle count.",
+	)
+	prepared = _iteration_arrays(solutions, labels, times)
+	figure, axes = plt.subplots(3, 1, figsize=(12, 9), constrained_layout=True)
+	for index, (label, step_times, iterations, residual_evaluations, residuals, tolerances) in enumerate(prepared):
 		color = IMPLICIT_METHOD_COLORS.get(label, f"C{index}")
 		axes[0].step(
 			step_times, iterations, where="mid", color=color, label=label
@@ -142,7 +133,9 @@ def plot_implicit_trajectory_differences(
 	"""Plot the mean periodic trajectory distance between every method pair."""
 	if not isinstance(potential, Potential):
 		raise TypeError("`potential` must be a Potential instance.")
-	labels, _, _ = _validated_solutions(solutions)
+	labels, _, _ = validated_solutions(
+		solutions, alignment_error="All compared solutions must share times and particle count.",
+	)
 	if len(labels) < 2:
 		raise ValueError("The distance matrix requires at least two solutions.")
 
@@ -226,14 +219,14 @@ def animate_implicit_method_trajectories(
 	"""
 	if not isinstance(potential, Potential):
 		raise TypeError("`potential` must be a Potential instance.")
-	if isinstance(interval, (bool, np.bool_)) or int(interval) <= 0:
-		raise ValueError("`interval` must be a positive integer.")
-	if not isinstance(selectable, bool):
-		raise TypeError("`selectable` must be a boolean.")
+	interval = positive_interval(interval)
+	selectable = boolean_control(selectable, "selectable", numpy_scalar=False)
 	family = str(title_family).strip()
 	if not family:
 		raise ValueError("`title_family` must not be empty.")
-	labels, times, particle_count = _validated_solutions(solutions)
+	labels, times, particle_count = validated_solutions(
+		solutions, alignment_error="All compared solutions must share times and particle count.",
+	)
 	method_count_label = {3: "Three", 4: "Four", 5: "Five"}.get(
 		len(labels),
 		str(len(labels)),

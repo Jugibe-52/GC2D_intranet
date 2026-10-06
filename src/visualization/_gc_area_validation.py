@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 
 import numpy as np
 
@@ -188,3 +188,38 @@ def linear_limits(values: Sequence[np.ndarray]) -> tuple[float, float]:
 
 
 __all__: list[str] = []
+
+
+def validated_diagnostic_mappings(
+	labels: tuple[str, ...], diagnostic_times: Mapping[str, np.ndarray] | None,
+	relative_symplecticity_errors: Mapping[str, np.ndarray] | None,
+	relative_copy_separations: Mapping[str, np.ndarray] | None,
+) -> tuple[tuple[np.ndarray | None, ...], tuple[np.ndarray | None, ...], tuple[np.ndarray | None, ...]]:
+	"""Require matching comparison keys and align optional diagnostics by label."""
+	diagnostic_mappings = (
+		diagnostic_times,
+		relative_symplecticity_errors,
+		relative_copy_separations,
+	)
+	if any(mapping is not None for mapping in diagnostic_mappings):
+		if diagnostic_times is None or relative_symplecticity_errors is None:
+			raise ValueError(
+				"Diagnostic times and symplecticity mappings must be provided."
+			)
+		for mapping in diagnostic_mappings:
+			if mapping is None:
+				continue
+			if set(mapping) != set(labels):
+				raise ValueError(
+					"Diagnostic mappings must have the same keys as `solutions`."
+				)
+
+	def ordered(
+		mapping: Mapping[str, np.ndarray] | None,
+	) -> tuple[np.ndarray | None, ...]:
+		"""Align an optional diagnostic mapping with solution insertion order."""
+		if mapping is None:
+			return tuple(None for _label in labels)
+		return tuple(mapping[label] for label in labels)
+
+	return ordered(diagnostic_times), ordered(relative_symplecticity_errors), ordered(relative_copy_separations)

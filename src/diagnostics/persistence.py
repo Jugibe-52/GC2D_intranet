@@ -185,6 +185,39 @@ def save_solution(
     return store.location
 
 
+def _manifest_inventory(manifest: Mapping[str, Any]) -> dict[str, Any]:
+    """Validate a solution manifest and return its fixed artifact inventory."""
+    if manifest.get("schema_version") != 1 or manifest.get("artifact_kind") != "gc2d_solution":
+        raise ValueError("Unsupported solution manifest.")
+    records = manifest.get("files", {})
+    required = {"solution.npz", "metadata.json"}
+    if set(records) not in (required, required | {"potential.npz"}):
+        raise ValueError("Incomplete or unsupported manifest file inventory.")
+    return dict(records)
+
+
+def _load_solution_arrays(directory: Path, description: Mapping[str, Any]) -> Solution:
+    """Validate solution metadata and reconstruct its canonical state layout."""
+    if description.get("schema_version") != 1 or description.get("artifact_kind") != "gc2d_solution":
+        raise ValueError("Unsupported solution metadata.")
+    with np.load(directory / "solution.npz", allow_pickle=False) as saved:
+        initial = saved["initial_state"] if description["has_initial_state"] else None
+        configuration: InitialConfiguration
+        if description["layout"] == "gc_component_major_xy":
+            configuration = GCInitialConfiguration(initial)
+        elif description["layout"] == "fc_component_major_xyvxvy":
+            configuration = FCInitialConfiguration(initial)
+        else:
+            raise ValueError("Unsupported saved state layout.")
+        diagnostics: dict[str, DiagnosticValue] = {
+            name: saved[value["array"]] if "array" in value else value["scalar"]
+            for name, value in description["diagnostics"].items()
+        }
+        solution = Solution(t=saved["t"], states=saved["states"],
+                            source=configuration, diagnostics=diagnostics)
+    return solution
+
+
 def load_solution(source: str | Path) -> StoredSolution:
     """Fetch, verify and reconstruct a complete result without running a solver.
 
@@ -196,35 +229,14 @@ def load_solution(source: str | Path) -> StoredSolution:
         directory = Path(temporary)
         store.get("manifest.json", directory / "manifest.json")
         manifest = json.loads((directory / "manifest.json").read_text(encoding="utf-8"))
-        if manifest.get("schema_version") != 1 or manifest.get("artifact_kind") != "gc2d_solution":
-            raise ValueError("Unsupported solution manifest.")
-        records = manifest.get("files", {})
-        required = {"solution.npz", "metadata.json"}
-        if set(records) not in (required, required | {"potential.npz"}):
-            raise ValueError("Incomplete or unsupported manifest file inventory.")
+        records = _manifest_inventory(manifest)
         for name, record in records.items():
             path = directory / name
             store.get(name, path)
             if path.stat().st_size != record["bytes"] or _digest(path) != record["sha256"]:
                 raise ValueError(f"Artifact integrity check failed: {name}.")
         description = json.loads((directory / "metadata.json").read_text(encoding="utf-8"))
-        if description.get("schema_version") != 1 or description.get("artifact_kind") != "gc2d_solution":
-            raise ValueError("Unsupported solution metadata.")
-        with np.load(directory / "solution.npz", allow_pickle=False) as saved:
-            initial = saved["initial_state"] if description["has_initial_state"] else None
-            configuration: InitialConfiguration
-            if description["layout"] == "gc_component_major_xy":
-                configuration = GCInitialConfiguration(initial)
-            elif description["layout"] == "fc_component_major_xyvxvy":
-                configuration = FCInitialConfiguration(initial)
-            else:
-                raise ValueError("Unsupported saved state layout.")
-            diagnostics: dict[str, DiagnosticValue] = {
-                name: saved[value["array"]] if "array" in value else value["scalar"]
-                for name, value in description["diagnostics"].items()
-            }
-            solution = Solution(t=saved["t"], states=saved["states"],
-                                source=configuration, diagnostics=diagnostics)
+        solution = _load_solution_arrays(directory, description)
         potential = None
         field = description["potential"]
         if (field is not None) != ("potential.npz" in records):

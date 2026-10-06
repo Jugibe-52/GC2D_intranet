@@ -7,8 +7,6 @@ from pathlib import Path
 from typing import Any, ClassVar, Mapping, cast
 
 import numpy as np
-from matplotlib.axes import Axes
-from matplotlib.figure import Figure
 
 from initial_conditions import Area
 from potential import Potential
@@ -149,23 +147,6 @@ class ABBA2MidpointSymplecticityResult(GCSymplecticityResult):
 				f"{order.local_defect:.6f} / {order.flow_defect:.6f} / "
 				f"{order.copy_separation:.6f}"
 			)
-
-	def plot_convergence(self) -> tuple[Figure, Axes]:
-		"""Plot defects and pre-projection copy separation against step size."""
-		figure, axis = self._plot_step_defects(
-			title="Midpoint ABBA symplecticity-defect convergence",
-			xlabel=r"Midpoint ABBA step $\Delta t$",
-		)
-		rows = self.summaries()
-		axis.loglog(
-			[row.step for row in rows],
-			[row.max_copy_separation_norm for row in rows],
-			"^-",
-			label="Maximum copy separation before averaging",
-		)
-		axis.set_ylabel("Relative defect or copy-separation norm")
-		axis.legend()
-		return figure, axis
 
 
 def run_abba2_midpoint_symplecticity_study(

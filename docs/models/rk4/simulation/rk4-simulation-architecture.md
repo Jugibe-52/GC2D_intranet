@@ -84,6 +84,20 @@ including `extended_time` even for a single particle. Diagnostic arrays
 `extended_momentum_normalization` is `physical_kappa` and `energy_error` is the
 maximum absolute sampled balance error over all particles.
 
+### Study presentation
+
+RK4 study results hold numerical data and summaries. Import
+`plot_gc_symplecticity_diagnostics`, `plot_rk4_convergence`, or
+`animate_gc_symplecticity` from `visualization.gc_symplecticity` and pass the
+completed result as the first argument. The corresponding result methods
+`plot_diagnostics()`, `plot_convergence()`, and `animate()` have been removed.
+Generalized-energy result plots similarly use
+`visualization.energy.plot_generalized_energy_comparison(result)`. These
+presentation functions preserve their former options and outputs; integration
+and persistence are unchanged. See the
+[migration table](../../../simulation/api-migration.md#study-result-visualization)
+for the other study result views.
+
 ## JAX execution
 
 ```python

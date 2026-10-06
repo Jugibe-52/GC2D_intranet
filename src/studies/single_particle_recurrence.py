@@ -46,14 +46,7 @@ class SingleParticleRecurrenceConfig:
             value = getattr(self, name)
             if not np.isfinite(value) or value <= 0:
                 raise ValueError(f"{name} must be finite and positive.")
-        if not 0 < self.search_start < self.final_time:
-            raise ValueError("Require 0 < search_start < final_time.")
-        if not float(self.final_time).is_integer():
-            raise ValueError("final_time must contain complete unit cycles.")
-        if (isinstance(self.samples_per_cycle, bool)
-                or int(self.samples_per_cycle) != self.samples_per_cycle
-                or self.samples_per_cycle < 2):
-            raise ValueError("samples_per_cycle must be an integer >= 2.")
+        _validate_recurrence_schedule(self.search_start, self.final_time, self.samples_per_cycle)
         if not np.isfinite(self.rho) or self.rho < 0:
             raise ValueError("rho must be finite and nonnegative.")
         for suffix in ("rtol", "atol", "max_step"):
@@ -258,3 +251,15 @@ def run_single_particle_recurrence(
     if any(not np.all(np.isfinite(value)) for value in arrays.values()):
         raise ValueError("Nonfinite recurrence output.")
     return arrays, metadata
+
+
+def _validate_recurrence_schedule(search_start: float, final_time: float, samples_per_cycle: int) -> None:
+	"""Require a nonempty search interval, complete forcing cycles, and at least two samples per cycle."""
+	if not 0 < search_start < final_time:
+		raise ValueError("Require 0 < search_start < final_time.")
+	if not float(final_time).is_integer():
+		raise ValueError("final_time must contain complete unit cycles.")
+	if (isinstance(samples_per_cycle, bool)
+			or int(samples_per_cycle) != samples_per_cycle
+			or samples_per_cycle < 2):
+		raise ValueError("samples_per_cycle must be an integer >= 2.")

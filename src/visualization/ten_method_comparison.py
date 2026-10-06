@@ -7,6 +7,7 @@ from typing import Any
 
 import matplotlib.pyplot as plt
 import numpy as np
+
 from matplotlib.animation import FuncAnimation
 from matplotlib.axes import Axes
 from matplotlib.colors import LogNorm
@@ -17,7 +18,12 @@ from matplotlib.ticker import MaxNLocator
 from potential import Potential
 from solution import Solution
 
-from .particles import _field_normalization, _frame_indices
+from ._animation_validation import (
+	frame_indices as _frame_indices,
+	positive_interval,
+)
+from .particles import _field_normalization
+from ._solution_validation import validated_solutions as _validated_solutions
 
 
 TEN_METHOD_COLORS: Mapping[str, str] = {
@@ -38,37 +44,6 @@ TEN_METHOD_SHORT_LABELS: Mapping[str, str] = {
 	"BM4 implicit (Newton)": "BM4\nNewton",
 	"BM4 implicit (Broyden)": "BM4\nBroyden",
 }
-
-
-def _validated_solutions(
-	solutions: Mapping[str, Solution],
-	*,
-	expected_count: int | None = None,
-) -> tuple[tuple[str, ...], np.ndarray, int]:
-	"""Validate an aligned non-empty collection of planar solutions."""
-	if not solutions:
-		raise ValueError("At least one labeled solution is required.")
-	labels = tuple(solutions)
-	if expected_count is not None and len(labels) != expected_count:
-		raise ValueError(f"The plot requires exactly {expected_count} solutions.")
-	reference_times: np.ndarray | None = None
-	particle_count: int | None = None
-	for label, solution in solutions.items():
-		if not isinstance(label, str) or not label:
-			raise ValueError("Solution labels must be non-empty strings.")
-		if not isinstance(solution, Solution):
-			raise TypeError("Every comparison value must be a Solution.")
-		times = np.asarray(solution.t, dtype=float)
-		x, y = solution.positions()
-		if x.shape != y.shape or x.ndim != 2 or x.shape[1] != times.size:
-			raise ValueError("Every solution must contain aligned planar trajectories.")
-		if reference_times is None:
-			reference_times = times
-			particle_count = x.shape[0]
-		elif not np.array_equal(times, reference_times) or x.shape[0] != particle_count:
-			raise ValueError("All solutions must share times and particle count.")
-	assert reference_times is not None and particle_count is not None
-	return labels, reference_times, particle_count
 
 
 def _mean_periodic_distance_matrix(
@@ -239,8 +214,7 @@ def animate_trajectory_points(
 	"""Animate accumulated sampled points for aligned labeled solutions."""
 	if not isinstance(potential, Potential):
 		raise TypeError("`potential` must be a Potential instance.")
-	if isinstance(interval, (bool, np.bool_)) or int(interval) <= 0:
-		raise ValueError("`interval` must be a positive integer.")
+	interval = positive_interval(interval)
 	labels, times, particle_count = _validated_solutions(solutions)
 	indices = _frame_indices(times.size, frames)
 	frame_times = times[indices]

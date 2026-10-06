@@ -9,7 +9,8 @@ from typing import Any, Mapping
 
 import numpy as np
 
-from diagnostics._validation import positive_integer
+from diagnostics._validation import optional_relative_step, positive_integer
+
 
 from initial_conditions import Area
 from contracts.observation import IntegrationStage
@@ -121,22 +122,9 @@ class ProjectedSymplecticityAreaObserver:
 		"""Configure cumulative tangent propagation and notebook-derived output."""
 		if not isinstance(area, Area):
 			raise TypeError("`area` must be an Area trajectory.")
-		if (
-			isinstance(record_every, (bool, np.bool_))
-			or not isinstance(record_every, (int, np.integer))
-			or record_every < 1
-		):
-			raise ValueError("`record_every` must be a positive integer.")
-		if (
-			isinstance(chunk_size, (bool, np.bool_))
-			or not isinstance(chunk_size, (int, np.integer))
-			or chunk_size < 1
-		):
-			raise ValueError("`chunk_size` must be a positive integer.")
-		if relative_step is not None and (
-			not np.isfinite(float(relative_step)) or float(relative_step) <= 0
-		):
-			raise ValueError("`relative_step` must be positive and finite.")
+		record_every = positive_integer(record_every, "record_every")
+		chunk_size = positive_integer(chunk_size, "chunk_size")
+		relative_step = optional_relative_step(relative_step)
 
 		initial_state = area.state
 		assert initial_state is not None

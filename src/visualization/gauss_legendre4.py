@@ -289,18 +289,17 @@ def plot_gauss_legendre4_symplecticity(
 	return figure, axes
 
 
-def plot_gauss_legendre4_energy(
-	times_by_step: Mapping[float, np.ndarray],
-	energies_by_step: Mapping[float, np.ndarray],
-) -> tuple[Figure, np.ndarray]:
-	"""Plot generalized-energy drift over every complete node of each grid."""
+def _generalized_energy_histories(
+	times_by_step: Mapping[float, np.ndarray], energies_by_step: Mapping[float, np.ndarray],
+) -> list[tuple[float, np.ndarray, np.ndarray, np.ndarray]]:
+	"""Prepare aligned absolute and relative energy histories for logarithmic axes."""
 	if not times_by_step:
 		raise ValueError("At least one generalized-energy time grid is required.")
 	if not energies_by_step:
 		raise ValueError("At least one generalized-energy history is required.")
 	if set(times_by_step) != set(energies_by_step):
 		raise ValueError("Energy histories and time grids must use the same steps.")
-	figure, axes = plt.subplots(2, 1, figsize=(10, 8), sharex=True, constrained_layout=True)
+	prepared: list[tuple[float, np.ndarray, np.ndarray, np.ndarray]] = []
 	for step in sorted(energies_by_step, reverse=True):
 		time_values = np.asarray(times_by_step[step], dtype=float)
 		if time_values.ndim != 1 or time_values.size < 2:
@@ -312,9 +311,21 @@ def plot_gauss_legendre4_energy(
 			raise ValueError("Generalized-energy histories must align with saved times.")
 		error = np.max(np.abs(energy - energy[:, :1]), axis=0)
 		scale = np.maximum(np.max(np.abs(energy[:, :1])), np.finfo(float).eps)
+		prepared.append((step, time_values, _positive(error), _positive(error / scale)))
+	return prepared
+
+
+def plot_gauss_legendre4_energy(
+	times_by_step: Mapping[float, np.ndarray],
+	energies_by_step: Mapping[float, np.ndarray],
+) -> tuple[Figure, np.ndarray]:
+	"""Plot generalized-energy drift over every complete node of each grid."""
+	prepared = _generalized_energy_histories(times_by_step, energies_by_step)
+	figure, axes = plt.subplots(2, 1, figsize=(10, 8), sharex=True, constrained_layout=True)
+	for step, time_values, absolute, relative in prepared:
 		label = f"h={step:g}"
-		axes[0].semilogy(time_values, _positive(error), label=label)
-		axes[1].semilogy(time_values, _positive(error / scale), label=label)
+		axes[0].semilogy(time_values, absolute, label=label)
+		axes[1].semilogy(time_values, relative, label=label)
 	axes[0].set(title="Generalized-energy absolute drift", ylabel=r"$|K(t)-K(0)|$")
 	axes[1].set(
 		title="Generalized-energy relative drift",

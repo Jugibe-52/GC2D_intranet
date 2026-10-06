@@ -9,6 +9,12 @@ import unittest
 import matplotlib.pyplot as plt
 import numpy as np
 
+from visualization.abba_comparison import (
+	animate_abba_comparison,
+	plot_abba_runtime_comparison,
+	plot_abba_trajectory_differences,
+)
+
 from studies import (
 	ABBA_METHOD_NAMES,
 	ABBAComparisonConfig,
@@ -109,17 +115,19 @@ class ABBAComparisonStudyTests(unittest.TestCase):
 		)
 		self.assertLess(implicit_pair.max_distance, 1e-14)
 
-		runtime_figure, runtime_axis = result.plot_runtime_comparison()
-		difference_figure, difference_axis = result.plot_trajectory_differences()
+		runtime_figure, runtime_axis = plot_abba_runtime_comparison(result)
+		difference_figure, difference_axis = plot_abba_trajectory_differences(result)
 		self.assertEqual(len(runtime_axis.patches), 3)
 		self.assertEqual(len(difference_axis.lines), 6)
-		animation = result.animate(
+		animation = animate_abba_comparison(
+			result,
 			"ABBA2Implicit[reduced_multiplier]",
 			frames=2,
 			interval=10,
 		)
 		self.assertGreater(len(animation._func(1)), 0)
 		animation._draw_was_started = True
+		plt.close(animation._fig)
 		plt.close(runtime_figure)
 		plt.close(difference_figure)
 

@@ -1,5 +1,7 @@
 """Offline, synchronized animation of saved Poincare sections."""
 from pathlib import Path
+from collections.abc import Mapping, Sequence
+from typing import Any
 import base64
 import json
 import numpy as np
@@ -28,6 +30,27 @@ def _encode_field(field):
                 units=str(field['units']))
 
 
+def _validated_panel(
+    panel: Mapping[str, Any], lower: np.ndarray, upper: np.ndarray,
+) -> tuple[np.ndarray, bool, list[int], list[Any]]:
+    """Normalize one panel and validate positions, particle labels and sample count."""
+    xy = np.asarray(panel["coordinates"], dtype=float)
+    static = bool(panel.get("static", False))
+    ids = list(map(int, panel["particle_ids"]))
+    colors = list(panel["colors"])
+    if xy.ndim != 3 or xy.shape[-1] != 2:
+        raise ValueError("Each panel must have coordinates shaped (cycles, particles, 2).")
+    if not np.isfinite(xy).all() or np.any((xy < lower) | (xy > upper)):
+        raise ValueError("Expected finite coordinates within coordinate_bounds.")
+    if xy.shape[0] < 1 or xy.shape[1] < 1 or (static and xy.shape[0] != 1):
+        raise ValueError('Panels require particles and saved samples; static panels require exactly one sample.')
+    if xy.shape[1] != len(ids) or len(colors) != len(ids):
+        raise ValueError("Each panel's particle labels and colors must match its data.")
+    if len(set(ids)) != len(ids):
+        raise ValueError("Particle identifiers must be unique within each panel.")
+    return xy, static, ids, colors
+
+
 def _encode_panels(panels, bounds):
     """Validate aligned samples and encode browser copies in their original units."""
     if not panels:
@@ -36,20 +59,7 @@ def _encode_panels(panels, bounds):
     encoded_panels = []
     cycle_count = None
     for panel in panels:
-        xy = np.asarray(panel["coordinates"], dtype=float)
-        static = bool(panel.get("static", False))
-        ids = list(map(int, panel["particle_ids"]))
-        colors = list(panel["colors"])
-        if xy.ndim != 3 or xy.shape[-1] != 2:
-            raise ValueError("Each panel must have coordinates shaped (cycles, particles, 2).")
-        if not np.isfinite(xy).all() or np.any((xy < lower) | (xy > upper)):
-            raise ValueError("Expected finite coordinates within coordinate_bounds.")
-        if xy.shape[0] < 1 or xy.shape[1] < 1 or (static and xy.shape[0] != 1):
-            raise ValueError('Panels require particles and saved samples; static panels require exactly one sample.')
-        if xy.shape[1] != len(ids) or len(colors) != len(ids):
-            raise ValueError("Each panel's particle labels and colors must match its data.")
-        if len(set(ids)) != len(ids):
-            raise ValueError("Particle identifiers must be unique within each panel.")
+        xy, static, ids, colors = _validated_panel(panel, lower, upper)
         if not static:
             if cycle_count is None:
                 cycle_count = xy.shape[0]
@@ -71,33 +81,11 @@ def _encode_panels(panels, bounds):
     return encoded_panels, cycle_count
 
 
-def export_poincare_panel_comparison(path, panels, cycles_per_frame=25, *,
-                                    initial_view=None, initial_cycle=1,
-                                    highlight_particle=None, title=None,
-                                    regions=None, highlight_particles=None,
-                                    coordinate_bounds=None, axis_labels=None,
-                                    description=None, particle_groups=None,
-                                    datasets=None, dataset_label="Dataset",
-                                    selected_dataset=None, particle_labels=None,
-                                    first_cycle=1, field_placement="panel") -> Path:
-    """Export aligned panels with optional selection between completed datasets.
-
-    Coordinates default to the unit cell. ``coordinate_bounds=(x0,y0,span)``
-    accepts physical coordinates without changing their units. Static panels
-    contain one fixed sample. Datasets share panel shapes, IDs and colors;
-    a dataset without panels is shown as unavailable in the selector.
-    ``first_cycle=0`` includes the original initial state. Hollow circles mark
-    the selected interval's first sample. A static panel may carry a ``field``
-    with phase-dependent potential and velocity grids instead of particles.
-    ``field_placement="below_particles"`` moves the single static field and
-    its phase controls below particle selection, keeping the trajectory panels
-    together in their original order. Every control still shares one state.
-    """
-    bounds = np.asarray((0., 0., 1.) if coordinate_bounds is None else coordinate_bounds, dtype=float)
-    if bounds.shape != (3,) or not np.isfinite(bounds).all() or bounds[2] <= 0:
-        raise ValueError('coordinate_bounds must describe a finite positive square.')
-    lower, upper = bounds[:2], bounds[:2] + bounds[2]
-    encoded_panels, cycle_count = _encode_panels(panels, bounds)
+def _validated_playback(
+    encoded_panels: Sequence[Mapping[str, Any]], cycle_count: int,
+    field_placement: str, cycles_per_frame: int, first_cycle: int, initial_cycle: int,
+) -> list[int]:
+    """Check field placement and playback bounds without changing saved-cycle semantics."""
     if field_placement not in ("panel", "below_particles"):
         raise ValueError('field_placement must be panel or below_particles.')
     field_indices = [i for i, panel in enumerate(encoded_panels) if 'field' in panel]
@@ -111,42 +99,49 @@ def export_poincare_panel_comparison(path, panels, cycles_per_frame=25, *,
         raise ValueError('first_cycle must be zero or one.')
     if isinstance(initial_cycle, bool) or int(initial_cycle) != initial_cycle or not first_cycle <= initial_cycle < first_cycle + cycle_count:
         raise ValueError('initial_cycle must be an integer within the saved record.')
-    config = dict(panels=encoded_panels, step=int(cycles_per_frame), initialCycle=int(initial_cycle),
-                  firstCycle=int(first_cycle), fieldPlacement=field_placement)
-    config['coordinateBounds'] = dict(x=float(bounds[0]), y=float(bounds[1]), span=float(bounds[2]))
-    if datasets is not None:
-        encoded_datasets = []
-        seen = set()
-        for dataset in datasets:
-            key = str(dataset['key'])
-            if key in seen:
-                raise ValueError('Dataset keys must be unique.')
-            seen.add(key)
-            item = dict(key=key, label=str(dataset['label']), note=str(dataset.get('note', '')))
-            if dataset.get('panels') is not None:
-                encoded, count = _encode_panels(dataset['panels'], bounds)
-                if count != cycle_count or len(encoded) != len(encoded_panels) or any(
-                    any(a[k] != b[k] for k in ('shape', 'ids', 'colors', 'static'))
-                    for a, b in zip(encoded, encoded_panels)
-                ):
-                    raise ValueError('Datasets must share cycle counts, panel shapes, IDs and colors.')
-                if field_placement == "below_particles" and [
-                        i for i, panel in enumerate(encoded) if 'field' in panel] != field_indices:
-                    raise ValueError('Datasets must keep the shared field in the same panel.')
-                item['panels'] = encoded
-            encoded_datasets.append(item)
-        selected = str(selected_dataset)
-        if not any(d['key'] == selected and 'panels' in d for d in encoded_datasets):
-            raise ValueError('The selected dataset must contain completed panels.')
-        config.update(datasets=encoded_datasets, datasetLabel=str(dataset_label), selectedDataset=selected)
-    if particle_labels is not None:
-        config['particleLabels'] = {str(key): str(value) for key, value in particle_labels.items()}
-    if axis_labels is not None:
-        if len(axis_labels) != 2:
-            raise ValueError('axis_labels must contain an x and a y label.')
-        config['axisLabels'] = list(map(str, axis_labels))
-    if description is not None:
-        config['description'] = str(description)
+    return field_indices
+
+
+def _validated_datasets(
+    datasets: Sequence[Mapping[str, Any]], bounds: np.ndarray, cycle_count: int,
+    encoded_panels: Sequence[Mapping[str, Any]], field_placement: str,
+    field_indices: list[int], selected_dataset: object,
+) -> tuple[list[dict[str, Any]], str]:
+    """Encode alternative datasets only when their panel identities and cycles align."""
+    encoded_datasets: list[dict[str, Any]] = []
+    seen = set()
+    for dataset in datasets:
+        key = str(dataset['key'])
+        if key in seen:
+            raise ValueError('Dataset keys must be unique.')
+        seen.add(key)
+        item: dict[str, Any] = dict(key=key, label=str(dataset['label']), note=str(dataset.get('note', '')))
+        if dataset.get('panels') is not None:
+            encoded, count = _encode_panels(dataset['panels'], bounds)
+            if count != cycle_count or len(encoded) != len(encoded_panels) or any(
+                any(a[k] != b[k] for k in ('shape', 'ids', 'colors', 'static'))
+                for a, b in zip(encoded, encoded_panels)
+            ):
+                raise ValueError('Datasets must share cycle counts, panel shapes, IDs and colors.')
+            if field_placement == "below_particles" and [
+                    i for i, panel in enumerate(encoded) if 'field' in panel] != field_indices:
+                raise ValueError('Datasets must keep the shared field in the same panel.')
+            item['panels'] = encoded
+        encoded_datasets.append(item)
+    selected = str(selected_dataset)
+    if not any(d['key'] == selected and 'panels' in d for d in encoded_datasets):
+        raise ValueError('The selected dataset must contain completed panels.')
+    return encoded_datasets, selected
+
+
+def _selection_settings(
+    encoded_panels: Sequence[Mapping[str, Any]], lower: np.ndarray, upper: np.ndarray,
+    initial_view: Any, highlight_particle: Any, title: object,
+    particle_groups: Sequence[Mapping[str, Any]] | None, highlight_particles: Sequence[int] | None,
+    regions: Sequence[Mapping[str, Any]] | None,
+) -> dict[str, Any]:
+    """Prepare valid particle selections and named square views within coordinate bounds."""
+    config: dict[str, Any] = {}
     if initial_view is not None:
         view = np.asarray(initial_view, dtype=float)
         if (view.shape != (3,) or not np.isfinite(view).all() or view[2] <= 0
@@ -184,6 +179,59 @@ def export_poincare_panel_comparison(path, panels, cycles_per_frame=25, *,
             config['regions'].append(dict(label=str(region['label']),
                 view=dict(x=float(view[0]), y=float(view[1]), span=float(view[2])),
                 particle=int(region['particle_id'])))
+    return config
+
+
+def export_poincare_panel_comparison(path, panels, cycles_per_frame=25, *,
+                                    initial_view=None, initial_cycle=1,
+                                    highlight_particle=None, title=None,
+                                    regions=None, highlight_particles=None,
+                                    coordinate_bounds=None, axis_labels=None,
+                                    description=None, particle_groups=None,
+                                    datasets=None, dataset_label="Dataset",
+                                    selected_dataset=None, particle_labels=None,
+                                    first_cycle=1, field_placement="panel") -> Path:
+    """Export aligned panels with optional selection between completed datasets.
+
+    Coordinates default to the unit cell. ``coordinate_bounds=(x0,y0,span)``
+    accepts physical coordinates without changing their units. Static panels
+    contain one fixed sample. Datasets share panel shapes, IDs and colors;
+    a dataset without panels is shown as unavailable in the selector.
+    ``first_cycle=0`` includes the original initial state. Hollow circles mark
+    the selected interval's first sample. A static panel may carry a ``field``
+    with phase-dependent potential and velocity grids instead of particles.
+    ``field_placement="below_particles"`` moves the single static field and
+    its phase controls below particle selection, keeping the trajectory panels
+    together in their original order. Every control still shares one state.
+    """
+    bounds = np.asarray((0., 0., 1.) if coordinate_bounds is None else coordinate_bounds, dtype=float)
+    if bounds.shape != (3,) or not np.isfinite(bounds).all() or bounds[2] <= 0:
+        raise ValueError('coordinate_bounds must describe a finite positive square.')
+    lower, upper = bounds[:2], bounds[:2] + bounds[2]
+    encoded_panels, cycle_count = _encode_panels(panels, bounds)
+    field_indices = _validated_playback(
+        encoded_panels, cycle_count, field_placement, cycles_per_frame, first_cycle, initial_cycle,
+    )
+    config = dict(panels=encoded_panels, step=int(cycles_per_frame), initialCycle=int(initial_cycle),
+                  firstCycle=int(first_cycle), fieldPlacement=field_placement)
+    config['coordinateBounds'] = dict(x=float(bounds[0]), y=float(bounds[1]), span=float(bounds[2]))
+    if datasets is not None:
+        encoded_datasets, selected = _validated_datasets(
+            datasets, bounds, cycle_count, encoded_panels, field_placement, field_indices, selected_dataset,
+        )
+        config.update(datasets=encoded_datasets, datasetLabel=str(dataset_label), selectedDataset=selected)
+    if particle_labels is not None:
+        config['particleLabels'] = {str(key): str(value) for key, value in particle_labels.items()}
+    if axis_labels is not None:
+        if len(axis_labels) != 2:
+            raise ValueError('axis_labels must contain an x and a y label.')
+        config['axisLabels'] = list(map(str, axis_labels))
+    if description is not None:
+        config['description'] = str(description)
+    config.update(_selection_settings(
+        encoded_panels, lower, upper, initial_view, highlight_particle, title,
+        particle_groups, highlight_particles, regions,
+    ))
     template = Path(__file__).with_name("_poincare_comparison.html").read_text()
     payload = json.dumps(config).replace('<', '\\u003c')
     Path(path).write_text(template.replace("__CONFIG__", payload), encoding="utf-8")

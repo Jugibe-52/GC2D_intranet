@@ -18,7 +18,7 @@ from methods.classical.rk4 import RK4
 from contracts.request import SimulationRequest
 from simulation.runner import simulate
 from studies.poincare_periodicity import SavedPoincareSection
-from studies.poincare_probe import RK4ProbeSettings
+from studies.poincare_probe import _validate_probe_parameters
 
 
 @dataclass(frozen=True)
@@ -45,7 +45,7 @@ class RegionProbeSettings:
                 or len(self.colors) != len(self.particle_ids)):
             raise ValueError('Require matching, nonempty and distinct particle IDs, positions and colors.')
         for pid, xy, color in zip(self.particle_ids, self.initial_xy_over_L, self.colors):
-            RK4ProbeSettings(pid, xy, color, self.cycles, self.steps_per_cycle,
+            _validate_probe_parameters(pid, xy, color, self.cycles, self.steps_per_cycle,
                              self.chunk_steps, self.rho, self.t0, self.cycle_duration)
         if self.method == 'BM4Midpoint':
             if self.coupling_frequency is None or not np.isfinite(self.coupling_frequency) or self.coupling_frequency < 0:
@@ -57,23 +57,8 @@ class RegionProbeSettings:
 def region_probe_contract(settings: RegionProbeSettings, *, snapshot_sha256: str,
                           provenance: dict, background: SavedPoincareSection) -> dict:
     """Verify matching physical inputs and identify the reproducible calculation."""
+    _validate_region_background(settings, snapshot_sha256, provenance, background)
     meta = background.metadata
-    if set(settings.particle_ids).intersection(background.particle_ids):
-        raise ValueError('Probe IDs must be absent from the background.')
-    if meta['method'] != settings.method or meta['snapshot_sha256'] != snapshot_sha256:
-        raise ValueError('The context must use the same method and field snapshot.')
-    keys = ['rho', 't0', 'cycle_duration', 'steps_per_cycle']
-    if settings.method == 'BM4Midpoint':
-        keys.append('coupling_frequency')
-    for key in keys:
-        if meta[key] != getattr(settings, key):
-            raise ValueError(f'Probe and background disagree on {key}.')
-    if settings.chunk_steps != meta['checkpoint_steps'] or settings.cycles > meta['cycles']:
-        raise ValueError('The checkpoint schedule or cycle coverage differs from the background.')
-    for key in ('grid', 'source_hdf5_sha256', 'B_tesla', 'characteristic_length_m',
-                'source_selection', 'interpolation_order'):
-        if provenance[key] != meta['field_provenance'][key]:
-            raise ValueError(f'The background field differs on {key}.')
     source = Path(__file__).resolve().parents[1]
     paths = [Path(__file__), source / 'studies/poincare_probe.py']
     for package in ('potential', 'dynamics', 'initial_conditions', 'simulation'):
@@ -183,3 +168,27 @@ def region_probe_panel(background: SavedPoincareSection,
         colors.extend(controls.colors)
     return dict(title=f'{settings.method} — {len(ids)} particles, {settings.steps_per_cycle} steps/cycle',
                 coordinates=np.concatenate(coordinates, axis=1), particle_ids=ids, colors=colors)
+
+
+def _validate_region_background(
+	settings: RegionProbeSettings, snapshot_sha256: str, provenance: dict,
+	background: SavedPoincareSection,
+) -> None:
+	"""Require matching background physics, forcing schedule, field, and distinct probe IDs."""
+	meta = background.metadata
+	if set(settings.particle_ids).intersection(background.particle_ids):
+		raise ValueError('Probe IDs must be absent from the background.')
+	if meta['method'] != settings.method or meta['snapshot_sha256'] != snapshot_sha256:
+		raise ValueError('The context must use the same method and field snapshot.')
+	keys = ['rho', 't0', 'cycle_duration', 'steps_per_cycle']
+	if settings.method == 'BM4Midpoint':
+		keys.append('coupling_frequency')
+	for key in keys:
+		if meta[key] != getattr(settings, key):
+			raise ValueError(f'Probe and background disagree on {key}.')
+	if settings.chunk_steps != meta['checkpoint_steps'] or settings.cycles > meta['cycles']:
+		raise ValueError('The checkpoint schedule or cycle coverage differs from the background.')
+	for key in ('grid', 'source_hdf5_sha256', 'B_tesla', 'characteristic_length_m',
+				'source_selection', 'interpolation_order'):
+		if provenance[key] != meta['field_provenance'][key]:
+			raise ValueError(f'The background field differs on {key}.')

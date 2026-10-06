@@ -10,17 +10,25 @@ from time import perf_counter
 from typing import Any, TypeAlias
 
 import numpy as np
+
+from ._validation import (
+	finite_time_span,
+	integer_ratio,
+	nonnegative_finite,
+	positive_finite,
+	positive_integer,
+)
 from threadpoolctl import ThreadpoolController
 
 from dynamics import GuidingCenterDynamics
 from initial_conditions import GCInitialConfiguration
-from potential import GC2DH5Metadata, Grid, Potential
+from potential import GC2DH5Metadata, Potential
 from methods.extended.bm4 import BM4Implicit
 from contracts.problem import InitialValueProblem
 from contracts.request import SimulationRequest
 from simulation.runner import simulate
 
-from ._validation import integer_ratio, nonnegative_finite, positive_finite, positive_integer
+from ._potential_snapshot import _H5PotentialSnapshot
 
 
 @dataclass(frozen=True, slots=True)
@@ -42,10 +50,10 @@ class ParallelBM4RecurrenceConfig:
 
 	def __post_init__(self) -> None:
 		"""Validate every value that affects reproducibility or scheduling."""
-		span = np.asarray(self.t_span, dtype=float)
-		if span.shape != (2,) or not np.all(np.isfinite(span)) or span[0] >= span[1]:
-			raise ValueError("`t_span` must contain two finite increasing times.")
-		object.__setattr__(self, "t_span", (float(span[0]), float(span[1])))
+		object.__setattr__(
+			self, "t_span",
+			finite_time_span(self.t_span, message="`t_span` must contain two finite increasing times."),
+		)
 		for name in (
 			"particle_count",
 			"steps_per_cycle",
@@ -133,27 +141,10 @@ class ParallelBM4RecurrenceResult:
 		mean_iterations = _readonly(self.mean_newton_iterations)
 		maximum_iterations = _readonly(self.maximum_newton_iterations, dtype=int)
 		residual_ratios = _readonly(self.maximum_residual_to_tolerance)
-		if times.shape != (samples,) or np.any(np.diff(times) <= 0.0):
-			raise ValueError("Saved times must be aligned, finite, and increasing.")
-		if initial_positions.shape != (count, 2):
-			raise ValueError("Initial positions must have shape (particle_count, 2).")
-		if positions.shape != (count, 2, samples):
-			raise ValueError(
-				"Positions must have shape (particle_count, 2, saved_times)."
-			)
-		if not np.array_equal(positions[:, :, 0], initial_positions):
-			raise ValueError("Every returned trajectory must preserve its initial state.")
-		for values in (
-			runtimes,
-			total_iterations,
-			mean_iterations,
-			maximum_iterations,
-			residual_ratios,
-		):
-			if values.shape != (count,):
-				raise ValueError("Every particle must have one work summary.")
-		if np.any(runtimes <= 0.0) or np.any(total_iterations < 0):
-			raise ValueError("Runtime and iteration summaries must be non-negative.")
+		_validate_parallel_trajectories(times, initial_positions, positions, count=count, samples=samples)
+		_validate_parallel_work(
+			runtimes, total_iterations, mean_iterations, maximum_iterations, residual_ratios, count=count,
+		)
 		wall_runtime = positive_finite(
 			self.wall_runtime_seconds,
 			"wall_runtime_seconds",
@@ -180,43 +171,6 @@ class ParallelBM4RecurrenceResult:
 		distances[:, 0] = 0.0
 		distances.setflags(write=False)
 		return distances
-
-
-@dataclass(frozen=True, slots=True)
-class _H5PotentialSnapshot:
-	"""Pickle-safe processed HDF5 potential for spawned workers."""
-
-	grid: Grid
-	mean: np.ndarray
-	modes: np.ndarray
-	frequencies: np.ndarray
-	metadata: GC2DH5Metadata
-	interpolation_order: int
-
-	@classmethod
-	def from_potential(cls, potential: Potential) -> _H5PotentialSnapshot:
-		"""Capture processed fields without reopening the source HDF5 file."""
-		if not isinstance(potential.metadata, GC2DH5Metadata):
-			raise TypeError("The potential must contain GC2D HDF5 metadata.")
-		return cls(
-			grid=potential.grid,
-			mean=potential.mean,
-			modes=potential.modes,
-			frequencies=potential.frequencies,
-			metadata=potential.metadata,
-			interpolation_order=potential.interpolation_order,
-		)
-
-	def restore(self) -> Potential:
-		"""Build worker-local interpolation objects from the processed fields."""
-		return Potential(
-			self.grid,
-			mean=self.mean,
-			modes=self.modes,
-			frequencies=self.frequencies,
-			metadata=self.metadata,
-			interpolation_order=self.interpolation_order,
-		)
 
 
 _PotentialPayload: TypeAlias = Potential | _H5PotentialSnapshot
@@ -360,15 +314,7 @@ def run_parallel_bm4_recurrence(
 		raise TypeError("`initial_configuration` must be GCInitialConfiguration.")
 	if not isinstance(config, ParallelBM4RecurrenceConfig):
 		raise TypeError("`config` must be ParallelBM4RecurrenceConfig.")
-	initial_state = initial_configuration.initial_state
-	if initial_state is None:
-		raise ValueError("The initial configuration must contain an initial state.")
-	initial_x, initial_y = initial_configuration.positions(initial_state)
-	if initial_x.size != config.particle_count:
-		raise ValueError(
-			"The initial configuration particle count must match the campaign."
-		)
-	coordinates = np.column_stack((initial_x, initial_y))
+	coordinates = _validated_campaign_coordinates(initial_configuration, config.particle_count)
 	worker_count = min(config.worker_count, config.particle_count)
 	started = perf_counter()
 	payloads: dict[int, _ParticlePayload] = {}
@@ -459,6 +405,57 @@ def run_parallel_bm4_recurrence(
 		),
 		wall_runtime_seconds=perf_counter() - started,
 	)
+
+
+def _validate_parallel_trajectories(
+	times: np.ndarray, initial_positions: np.ndarray, positions: np.ndarray,
+	*, count: int, samples: int,
+) -> None:
+	"""Require the packed planar histories and exact initial positions for every particle."""
+	if times.shape != (samples,) or np.any(np.diff(times) <= 0.0):
+		raise ValueError("Saved times must be aligned, finite, and increasing.")
+	if initial_positions.shape != (count, 2):
+		raise ValueError("Initial positions must have shape (particle_count, 2).")
+	if positions.shape != (count, 2, samples):
+		raise ValueError(
+			"Positions must have shape (particle_count, 2, saved_times)."
+		)
+	if not np.array_equal(positions[:, :, 0], initial_positions):
+		raise ValueError("Every returned trajectory must preserve its initial state.")
+
+
+def _validate_parallel_work(
+	runtimes: np.ndarray, total_iterations: np.ndarray, mean_iterations: np.ndarray,
+	maximum_iterations: np.ndarray, residual_ratios: np.ndarray, *, count: int,
+) -> None:
+	"""Require one aligned runtime and nonlinear-work summary per trajectory."""
+	for values in (
+		runtimes,
+		total_iterations,
+		mean_iterations,
+		maximum_iterations,
+		residual_ratios,
+	):
+		if values.shape != (count,):
+			raise ValueError("Every particle must have one work summary.")
+	if np.any(runtimes <= 0.0) or np.any(total_iterations < 0):
+		raise ValueError("Runtime and iteration summaries must be non-negative.")
+
+
+def _validated_campaign_coordinates(
+	initial_configuration: GCInitialConfiguration, particle_count: int,
+) -> np.ndarray:
+	"""Resolve concrete initial positions with exactly the campaign particle count."""
+	initial_state = initial_configuration.initial_state
+	if initial_state is None:
+		raise ValueError("The initial configuration must contain an initial state.")
+	initial_x, initial_y = initial_configuration.positions(initial_state)
+	if initial_x.size != particle_count:
+		raise ValueError(
+			"The initial configuration particle count must match the campaign."
+		)
+	coordinates = np.column_stack((initial_x, initial_y))
+	return coordinates
 
 
 __all__ = [

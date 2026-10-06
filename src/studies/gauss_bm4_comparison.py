@@ -9,6 +9,15 @@ from typing import Mapping
 
 import numpy as np
 
+from ._validation import (
+	finite_time_span,
+	nonnegative_integer,
+	integer_ratio,
+	nonnegative_finite,
+	positive_finite,
+	positive_integer,
+)
+
 from dynamics import GuidingCenterDynamics
 from initial_conditions import GCInitialConfiguration
 from potential import Potential
@@ -30,7 +39,6 @@ from ._trajectory_accuracy import (
 	accuracy_series,
 	validated_refinement_steps,
 )
-from ._validation import integer_ratio, nonnegative_finite, positive_finite, positive_integer
 
 
 GAUSS_BM4_METHODS: tuple[str, ...] = ("GaussLegendre4", "BM4Implicit")
@@ -69,10 +77,10 @@ class GaussBM4ComparisonConfig:
 		"""Validate one nested, aligned comparison configuration."""
 		steps = validated_refinement_steps(self.integration_steps)
 		object.__setattr__(self, "integration_steps", steps)
-		span = np.asarray(self.t_span, dtype=float)
-		if span.shape != (2,) or not np.all(np.isfinite(span)) or span[0] >= span[1]:
-			raise ValueError("`t_span` must contain two finite increasing times.")
-		object.__setattr__(self, "t_span", (float(span[0]), float(span[1])))
+		object.__setattr__(
+			self, "t_span",
+			finite_time_span(self.t_span, message="`t_span` must contain two finite increasing times."),
+		)
 		object.__setattr__(self, "rho", nonnegative_finite(self.rho, "rho"))
 		object.__setattr__(
 			self,
@@ -98,13 +106,7 @@ class GaussBM4ComparisonConfig:
 			)
 		for name in ("max_iterations", "timing_repeats"):
 			object.__setattr__(self, name, positive_integer(getattr(self, name), name))
-		if (
-			isinstance(self.timing_warmups, (bool, np.bool_))
-			or not isinstance(self.timing_warmups, (int, np.integer))
-			or self.timing_warmups < 0
-		):
-			raise ValueError("`timing_warmups` must be a non-negative integer.")
-		object.__setattr__(self, "timing_warmups", int(self.timing_warmups))
+		object.__setattr__(self, "timing_warmups", nonnegative_integer(self.timing_warmups, "timing_warmups"))
 		if self.audit_maximum_step > self.reference_maximum_step:
 			raise ValueError("The Radau audit step cannot exceed the DOP853 step.")
 		if self.audit_relative_tolerance > self.reference_relative_tolerance:

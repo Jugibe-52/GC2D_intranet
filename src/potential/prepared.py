@@ -10,108 +10,9 @@ from functools import cached_property
 from typing import Any
 
 import numpy as np
-from scipy.interpolate import RectBivariateSpline
 
 from .grid import Grid
-
-
-@dataclass(frozen=True, slots=True)
-class _SplineDomain:
-	"""Coordinates and padding used by the periodic spline extension.
-
-	``x`` and ``y`` are the extended one-dimensional coordinate axes.  The pair
-	``padding = (left, right)`` records how many wrapped samples surround each
-	original axis; the asymmetric right side also represents the omitted periodic
-	endpoint.
-	"""
-
-	x: np.ndarray
-	y: np.ndarray
-	padding: tuple[int, int]
-
-
-@dataclass(frozen=True, slots=True)
-class _Spline:
-	"""Real-valued splines that jointly interpolate a complex amplitude.
-
-	``real`` and ``imag`` represent the corresponding components of the same
-	complex field ``C(x, y)`` and therefore share coordinates and derivative
-	conventions.
-	"""
-
-	real: RectBivariateSpline
-	imag: RectBivariateSpline
-
-	def evaluate(
-		self,
-		x: np.ndarray,
-		y: np.ndarray,
-		*,
-		dx: int = 0,
-		dy: int = 0,
-	) -> np.ndarray:
-		"""Evaluate ``C`` or its ``(dx, dy)`` derivative at paired coordinates."""
-		return np.asarray(
-			self.real.ev(x, y, dx=dx, dy=dy)
-			+ 1j * self.imag.ev(x, y, dx=dx, dy=dy)
-		)
-
-
-def _spline_domain(grid: Grid, interpolation_order: int) -> _SplineDomain:
-	"""Extend both one-dimensional axes for a periodic spline of the given order."""
-	# The upper side includes the omitted periodic endpoint in addition to the
-	# interpolation margin.  The resulting coordinates remain strictly ordered,
-	# as required by ``RectBivariateSpline``.
-	margin = interpolation_order + 1
-	padding = (margin, margin + 1)
-	left, right = padding
-	x = np.pad(
-		grid.x,
-		padding,
-		mode="linear_ramp",
-		end_values=(grid.xmin - left * grid.dx, grid.xmax + right * grid.dx),
-	)
-	y = np.pad(
-		grid.y,
-		padding,
-		mode="linear_ramp",
-		end_values=(grid.ymin - left * grid.dy, grid.ymax + right * grid.dy),
-	)
-	return _SplineDomain(np.asarray(x), np.asarray(y), padding)
-
-
-def _build_spline(
-	grid: Grid,
-	coefficient: np.ndarray,
-	interpolation_order: int,
-) -> _Spline:
-	"""Build a complex periodic interpolant from ``(nx, ny)`` samples."""
-	domain = _spline_domain(grid, interpolation_order)
-	# Wrapping copies samples from the opposite edge, giving the spline local
-	# support across the seam instead of treating it as a physical boundary.
-	padded = np.pad(
-		coefficient,
-		(domain.padding, domain.padding),
-		mode="wrap",
-	)
-	# SciPy's bivariate spline is real-valued, so interpolate both components
-	# independently and recombine them only when evaluating the field.
-	return _Spline(
-		RectBivariateSpline(
-			domain.x,
-			domain.y,
-			padded.real,
-			kx=interpolation_order,
-			ky=interpolation_order,
-		),
-		RectBivariateSpline(
-			domain.x,
-			domain.y,
-			padded.imag,
-			kx=interpolation_order,
-			ky=interpolation_order,
-		),
-	)
+from ._periodic_spline import _ComplexSpline, _build_periodic_spline
 
 
 def _readonly_array(values: Any, *, dtype: Any) -> np.ndarray:
@@ -204,7 +105,7 @@ class PreparedPotential:
     modes: np.ndarray
     frequencies: np.ndarray
     interpolation_order: int
-    _splines: tuple[_Spline, ...]
+    _splines: tuple[_ComplexSpline, ...]
 
     @classmethod
     def build(cls, grid: Grid, mean: Any, modes: Any, frequencies: Any, degree: int) -> PreparedPotential:
@@ -215,7 +116,13 @@ class PreparedPotential:
                 or not 2 <= int(degree) <= 5):
             raise ValueError("`interpolation_order` must be an integer from 2 to 5.")
         data = _validated_potential_data(grid, mean, modes, frequencies)
-        splines = tuple(_build_spline(grid, field, int(degree)) for field in (data.mean, *data.modes))
+        splines = tuple(
+            _build_periodic_spline(
+                grid.x, grid.y, field,
+                spacing=(grid.dx, grid.dy), interpolation_order=int(degree),
+            )
+            for field in (data.mean, *data.modes)
+        )
         return cls(grid, data.mean, data.modes, data.frequencies, int(degree), splines)
 
     @cached_property

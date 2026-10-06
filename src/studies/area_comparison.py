@@ -4,12 +4,20 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-import re
 from types import MappingProxyType
 from typing import Any, Mapping
 
 import numpy as np
-from matplotlib.animation import FuncAnimation
+
+from ._validation import (
+	unpacked_time_span,
+	validate_block_prefix,
+	integer_ratio,
+	nonnegative_finite,
+	positive_finite,
+	positive_integer,
+	resolve_rho,
+)
 
 from dynamics import GuidingCenterDynamics
 from initial_conditions import Area
@@ -24,17 +32,8 @@ from diagnostics.symplecticity import (
 	GCAreaSymplecticityRecord,
 )
 
-from ._validation import (
-	integer_ratio,
-	nonnegative_finite,
-	positive_finite,
-	positive_integer,
-	resolve_rho,
-)
-from visualization import animate_gc_area_comparison
 
 
-_BLOCK_PREFIX = re.compile(r"^[A-Za-z0-9_-]+$")
 
 
 @dataclass(frozen=True, slots=True)
@@ -49,6 +48,22 @@ class AreaStep:
 		if not isinstance(self.label, str) or not self.label.strip():
 			raise ValueError("An area-step label must be a non-empty string.")
 		object.__setattr__(self, "value", positive_finite(self.value, "value"))
+
+
+def _validated_area_steps(
+	values: tuple[AreaStep, ...], *, minimum: int, label_message: str,
+) -> tuple[AreaStep, ...]:
+	"""Return typed steps with stable, unique labels for area diagnostics."""
+	steps = tuple(values)
+	if len(steps) < minimum or any(not isinstance(step, AreaStep) for step in steps):
+		message = (
+			"`steps` must contain at least two AreaStep values."
+			if minimum == 2 else "`steps` must contain at least one AreaStep value."
+		)
+		raise ValueError(message)
+	if len({step.label for step in steps}) != len(steps):
+		raise ValueError(label_message)
+	return steps
 
 
 def pi_area_steps(*denominators: int) -> tuple[AreaStep, ...]:
@@ -86,19 +101,12 @@ class AreaComparisonConfig:
 
 	def __post_init__(self) -> None:
 		"""Validate synchronized step, output and diagnostic grids."""
-		steps = tuple(self.steps)
-		if len(steps) < 2 or any(not isinstance(step, AreaStep) for step in steps):
-			raise ValueError("`steps` must contain at least two AreaStep values.")
-		if len({step.label for step in steps}) != len(steps):
-			raise ValueError("Area-step labels must be unique.")
+		steps = _validated_area_steps(
+			self.steps, minimum=2, label_message="Area-step labels must be unique.",
+		)
 		object.__setattr__(self, "steps", steps)
 
-		try:
-			start, stop = (float(value) for value in self.t_span)
-		except (TypeError, ValueError) as exc:
-			raise ValueError("`t_span` must contain two finite increasing times.") from exc
-		if not np.isfinite(start) or not np.isfinite(stop) or start >= stop:
-			raise ValueError("`t_span` must contain two finite increasing times.")
+		start, stop = unpacked_time_span(self.t_span)
 		object.__setattr__(self, "t_span", (start, stop))
 
 		save_interval = positive_finite(self.save_interval, "save_interval")
@@ -137,12 +145,7 @@ class AreaComparisonConfig:
 			"chunk_size",
 			positive_integer(self.chunk_size, "chunk_size"),
 		)
-		if not isinstance(self.block_prefix, str) or not _BLOCK_PREFIX.fullmatch(
-			self.block_prefix
-		):
-			raise ValueError(
-				"`block_prefix` may contain only letters, numbers, '_' and '-'."
-			)
+		validate_block_prefix(self.block_prefix)
 
 	@property
 	def output_sample_count(self) -> int:
@@ -168,7 +171,7 @@ class AreaSummary:
 
 @dataclass(frozen=True, slots=True)
 class AreaComparisonResult:
-	"""Solutions, projected observations and presentation for one comparison."""
+	"""Solutions and projected observations for one comparison."""
 
 	effective_potential: Potential
 	area: Area
@@ -238,25 +241,6 @@ class AreaComparisonResult:
 				f"{row.max_local_symplectic_defect:26.8e} "
 				f"{row.max_flow_symplectic_defect:26.8e}"
 			)
-
-	def animate(
-		self,
-		*,
-		frames: int | None = None,
-		interval: int = 200,
-		repeat: bool = True,
-	) -> FuncAnimation:
-		"""Build the synchronized contour and projected-diagnostic animation."""
-		return animate_gc_area_comparison(
-			self.effective_potential,
-			self.area,
-			self.solutions,
-			diagnostic_times=self.diagnostic_times,
-			relative_symplecticity_errors=self.relative_symplecticity_errors,
-			frames=frames,
-			interval=interval,
-			repeat=repeat,
-		)
 
 
 def run_area_comparison(

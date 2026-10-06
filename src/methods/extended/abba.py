@@ -11,7 +11,7 @@ from contracts.observation import IntegrationStep, StepObserver
 from contracts.problem import InitialValueProblem
 from contracts.request import SimulationRequest
 from contracts.result import DiagnosticValue
-from contracts.step import StepInfo, StepResult as NumericalStep
+from contracts.step import StepInfo, StepResult
 from dynamics import DynamicalSystem, GuidingCenterJacobianSystem
 from formulations.gc import GCDoubledMaps
 from formulations.state import DoubledFormulation
@@ -19,21 +19,21 @@ from integration.core import IntegrationMethod
 from methods._nonlinear import NonlinearSolver, SolverOptions, _validate_nonlinear_solver
 from methods.extended.configuration import (
     ProjectionFormulation, ProjectionPlacement, StateExtension,
-    _positive_finite, _positive_integer,
     _state_dimension_diagnostics, _validate_projection_formulation,
     _validate_projection_placement, _validate_state_extension,
 )
 from methods.extended.core.composition import ABBA2, ABBA4, ABBA6, Composition
 from methods.extended.core.energy import momentum_increment
 from methods.extended.core.jacobians import _checked_vector_field_jacobian
+from methods._validation import _positive_finite, _positive_integer
 from methods.extended.core.midpoint import midpoint_step, MidpointResult
 from methods.extended.core.projection import solve_projection
-from methods.extended.core.records import ProjectedMap, StepResult, step_statistics
+from methods.extended.core.records import ProjectedMap, ProjectedMapResult, step_statistics
 from methods.extended.observations import EventBuilder, bind_event_builder
 
 
 @dataclass(slots=True)
-class _ABBAImplicitMethod(IntegrationMethod[StepResult]):
+class _ABBAImplicitMethod(IntegrationMethod[ProjectedMapResult]):
     """Project one complete palindromic recipe; concrete methods select its order."""
 
     projection_formulation: ProjectionFormulation = "reduced_multiplier"
@@ -118,16 +118,15 @@ class _ABBAImplicitMethod(IntegrationMethod[StepResult]):
         self.initial_state = self.state_formulation.initial_state
         self.metadata = metadata
 
-    def advance(self, t: float, workspace: np.ndarray, h: float) -> NumericalStep[StepResult]:
+    def advance(self, t: float, workspace: np.ndarray, h: float) -> StepResult[ProjectedMapResult]:
         """Project the complete composition and accumulate its passive energy."""
         state_before = self.state_formulation.physical(workspace)
         projection = self.project(t, state_before, h)
         increment = momentum_increment(self.state_formulation, projection.energy_points) if self.track_energy else None
         after = self.state_formulation.finish(workspace, projection.state, t + h, increment)
-        result = StepResult(after, (projection,))
-        return NumericalStep(after, step_statistics(result, include_substeps=self.order != 2), result)
+        return StepResult(after, step_statistics(projection, include_substeps=self.order != 2), projection)
 
-    def build_observation(self, info: StepInfo, step: NumericalStep[StepResult]) -> IntegrationStep:
+    def build_observation(self, info: StepInfo, step: StepResult[ProjectedMapResult]) -> IntegrationStep:
         """Expose physical snapshots from the accepted projection trace."""
         assert self.build_event is not None
         before = self.state_formulation.physical(info.state_before)
@@ -213,16 +212,16 @@ class ABBA2Midpoint(IntegrationMethod[MidpointResult]):
 		metadata.update(_state_dimension_diagnostics(particle_count=problem.particle_count))
 		self.metadata = metadata
 
-	def advance(self, t: float, state: np.ndarray, h: float) -> NumericalStep[MidpointResult]:
+	def advance(self, t: float, state: np.ndarray, h: float) -> StepResult[MidpointResult]:
 		"""Project the spatial copies and independently accumulate their energy balance."""
 		result = midpoint_step(self.formulation, ABBA2, t, self.state_formulation.physical(state), h)
 		increment = None
 		if self.track_energy:
 			increment = momentum_increment(self.state_formulation, result.trace.energy_points)
 		after = self.state_formulation.finish(state, result.state, t + h, increment)
-		return NumericalStep(after, {"copy_separation_norms": result.copy_separation_norm}, result)
+		return StepResult(after, {"copy_separation_norms": result.copy_separation_norm}, result)
 
-	def build_observation(self, info: StepInfo, step: NumericalStep[MidpointResult]) -> IntegrationStep:
+	def build_observation(self, info: StepInfo, step: StepResult[MidpointResult]) -> IntegrationStep:
 		"""Observe only the physical map, independently of energy tracking."""
 		def map_state(candidate: np.ndarray) -> np.ndarray:
 			return midpoint_step(self.formulation, ABBA2, info.time, candidate, info.duration).state

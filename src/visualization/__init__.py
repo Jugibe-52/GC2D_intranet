@@ -5,6 +5,12 @@ from .persistence import plot_stored_gc_solution
 from .abba4_configuration_comparison import (
 	animate_abba4_configuration_trajectories,
 )
+from .abba_comparison import (
+	animate_abba_comparison,
+	plot_abba_runtime_comparison,
+	plot_abba_trajectory_differences,
+)
+from .area_comparison import animate_area_comparison
 from .abba_jacobian import (
 	plot_implicit_abba_particle_step_series,
 	plot_implicit_abba_jacobian_directions,
@@ -24,6 +30,14 @@ from .gc_area import (
 	animate_gc_area,
 	animate_gc_area_comparison,
 	animate_gc_area_solution,
+)
+from .gc_symplecticity import (
+	animate_gc_symplecticity,
+	plot_abba_defect_floor,
+	plot_abba_midpoint_convergence,
+	plot_gc_solver_diagnostics,
+	plot_gc_symplecticity_diagnostics,
+	plot_rk4_convergence,
 )
 from .implicit_iterations import (
 	plot_implicit_abba_iteration_comparison,
@@ -54,6 +68,7 @@ from .energy import (
 	ReducedExtendedSymplecticityRunView,
 	GeneralizedEnergyRunView,
 	GeneralizedEnergySummaryView,
+	plot_generalized_energy_comparison,
 	plot_generalized_energy_components,
 	plot_generalized_energy_convergence,
 	plot_generalized_energy_errors,
@@ -80,6 +95,8 @@ from .trajectory_symplecticity import (
 	TrajectorySymplecticityRecordView,
 	plot_gc_trajectory_points,
 	plot_trajectory_symplecticity,
+	plot_trajectory_symplecticity_result,
+	plot_trajectory_symplecticity_trajectories,
 )
 from .ten_method_comparison import (
 	TEN_METHOD_COLORS,
@@ -122,12 +139,15 @@ __all__ = [
 	"RuntimeSummaryView",
 	"StepAccuracySummaryView",
 	"animate_abba4_configuration_trajectories",
+	"animate_abba_comparison",
+	"animate_area_comparison",
 	"animate_fc_particle_solution",
 	"animate_gc_area",
 	"animate_gc_area_comparison",
 	"animate_gc_area_solution",
 	"animate_gc_particle_solution",
 	"animate_gc_particle_trajectories",
+	"animate_gc_symplecticity",
 	"animate_implicit_method_trajectories",
 	"animate_parallel_bm4_trajectories",
 	"animate_potential",
@@ -149,6 +169,12 @@ __all__ = [
 	"ReducedExtendedSymplecticityRunView",
 	"TEN_METHOD_COLORS",
 	"TEN_METHOD_SHORT_LABELS",
+	"plot_abba_defect_floor",
+	"plot_abba_midpoint_convergence",
+	"plot_abba_runtime_comparison",
+	"plot_abba_trajectory_differences",
+	"plot_gc_solver_diagnostics",
+	"plot_gc_symplecticity_diagnostics",
 	"plot_implicit_abba_jacobian_directions",
 	"plot_implicit_abba_iteration_diagnostics",
 	"plot_implicit_abba_iteration_comparison",
@@ -171,6 +197,7 @@ __all__ = [
 	"plot_parallel_bm4_recurrence_stack",
 	"plot_gc_trajectory_points",
 	"plot_generalized_energy_components",
+	"plot_generalized_energy_comparison",
 	"plot_generalized_energy_convergence",
 	"plot_generalized_energy_errors",
 	"plot_energy_accuracy_over_time",
@@ -187,10 +214,13 @@ __all__ = [
 	"plot_accuracy_summary",
 	"plot_accuracy_runtime_tradeoff",
 	"plot_runtime_comparison",
+	"plot_rk4_convergence",
 	"plot_potential",
 	"plot_reference_trajectory_points",
 	"plot_single_method_accuracy_refinement",
 	"plot_trajectory_symplecticity",
+	"plot_trajectory_symplecticity_result",
+	"plot_trajectory_symplecticity_trajectories",
 	"plot_ten_method_nonlinear_work",
 	"plot_ten_method_accuracy_over_time",
 	"plot_ten_method_accuracy_refinement",

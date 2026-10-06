@@ -17,6 +17,11 @@ from potential import Potential
 if TYPE_CHECKING:
 	from studies.bm4_parallel_recurrence import ParallelBM4RecurrenceResult
 
+from ._animation_validation import (
+	boolean_control,
+	positive_interval,
+)
+
 
 def _validate_result(result: object) -> None:
 	"""Validate a recurrence result without creating a package import cycle."""
@@ -58,10 +63,8 @@ def animate_parallel_bm4_trajectories(
 	if not isinstance(potential, Potential):
 		raise TypeError("`potential` must be a Potential instance.")
 	_validate_result(result)
-	if isinstance(interval, (bool, np.bool_)) or int(interval) <= 0:
-		raise ValueError("`interval` must be a positive integer.")
-	if not isinstance(repeat, (bool, np.bool_)):
-		raise TypeError("`repeat` must be a boolean.")
+	interval = positive_interval(interval)
+	repeat = boolean_control(repeat, "repeat")
 
 	grid = potential.grid
 	period = float(grid.period)

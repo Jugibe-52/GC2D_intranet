@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -11,6 +11,9 @@ from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 
 from .implicit_comparison import IMPLICIT_METHOD_COLORS
+
+if TYPE_CHECKING:
+	from studies.energy import GeneralizedEnergyResult
 
 
 class GeneralizedEnergyRunView(Protocol):
@@ -260,13 +263,10 @@ def plot_generalized_energy_errors(
 	return figure, axes
 
 
-def plot_energy_accuracy_over_time(
-	times: np.ndarray,
-	series: Mapping[str, EnergyAccuracySeriesView],
-	*,
-	reference_energy_errors: np.ndarray,
-) -> tuple[Figure, np.ndarray]:
-	"""Plot Hamiltonian-observable errors against DOP853 and its Radau audit."""
+def _energy_accuracy_arrays(
+	times: np.ndarray, series: Mapping[str, EnergyAccuracySeriesView], reference_energy_errors: np.ndarray,
+) -> tuple[np.ndarray, list[tuple[str, np.ndarray, np.ndarray]], np.ndarray, np.ndarray, float]:
+	"""Align energy errors and derive a logarithmic floor without creating a figure."""
 	time_values = np.asarray(times, dtype=float)
 	if (
 		time_values.ndim != 1
@@ -320,6 +320,19 @@ def plot_energy_accuracy_over_time(
 		if nonempty
 		else float(np.finfo(float).tiny)
 	)
+	return time_values, prepared, reference_rms, reference_running, plot_floor
+
+
+def plot_energy_accuracy_over_time(
+	times: np.ndarray,
+	series: Mapping[str, EnergyAccuracySeriesView],
+	*,
+	reference_energy_errors: np.ndarray,
+) -> tuple[Figure, np.ndarray]:
+	"""Plot Hamiltonian-observable errors against DOP853 and its Radau audit."""
+	time_values, prepared, reference_rms, reference_running, plot_floor = _energy_accuracy_arrays(
+		times, series, reference_energy_errors,
+	)
 
 	figure, axes = plt.subplots(
 		2,
@@ -369,13 +382,10 @@ def plot_energy_accuracy_over_time(
 	return figure, axes
 
 
-def plot_generalized_energy_convergence(
-	summaries: Sequence[GeneralizedEnergySummaryView],
-	*,
-	method_name: str,
-	expected_order: float,
-) -> tuple[Figure, Axes]:
-	"""Plot maximum generalized-energy drift against step with an order guide."""
+def _generalized_energy_refinement(
+	summaries: Sequence[GeneralizedEnergySummaryView], expected_order: float,
+) -> tuple[np.ndarray, np.ndarray, float]:
+	"""Prepare finite positive decreasing steps and their generalized-energy drift."""
 	rows = tuple(summaries)
 	if len(rows) < 2:
 		raise ValueError("At least two energy summaries are required.")
@@ -392,6 +402,17 @@ def plot_generalized_energy_convergence(
 		or np.any(errors <= 0.0)
 	):
 		raise ValueError("Energy refinement steps and errors must be positive.")
+	return steps, errors, order
+
+
+def plot_generalized_energy_convergence(
+	summaries: Sequence[GeneralizedEnergySummaryView],
+	*,
+	method_name: str,
+	expected_order: float,
+) -> tuple[Figure, Axes]:
+	"""Plot maximum generalized-energy drift against step with an order guide."""
+	steps, errors, order = _generalized_energy_refinement(summaries, expected_order)
 	reference = errors[0] * (steps / steps[0]) ** order
 	figure, axis = plt.subplots(figsize=(8, 6), constrained_layout=True)
 	axis.loglog(steps, errors, marker="o", label="Measured max $|K_n-K_0|$")
@@ -521,12 +542,40 @@ def plot_reduced_time_extended_symplecticity(
 	return figure, axes
 
 
+def plot_generalized_energy_comparison(result: GeneralizedEnergyResult) -> tuple[Figure, Axes]:
+	"""Plot the relative generalized-energy error for every step size."""
+	figure, axes = plt.subplots(figsize=(9, 5), constrained_layout=True)
+	for step in result.steps:
+		solution = result.solutions[step]
+		error = result.relative_errors[step]
+		max_error = np.max(np.abs(error))
+		axes.plot(
+			solution.t,
+			error,
+			label=(
+				rf"$\Delta t={step:g}$"
+				rf" — $\max|\varepsilon_K|={max_error:.3e}$"
+			),
+		)
+	axes.axhline(0.0, color="0.5", linestyle="--", linewidth=1)
+	axes.set(
+		xlabel="$t$",
+		ylabel=r"$\varepsilon_K(t)=(K(t)-K(0))/|K(0)|$",
+		title=r"Generalized energy conservation $K=H+k$",
+	)
+	axes.ticklabel_format(axis="y", style="sci", scilimits=(0, 0))
+	axes.grid(alpha=0.25)
+	axes.legend()
+	return figure, axes
+
+
 __all__ = [
 	"EnergyAccuracySeriesView",
 	"GeneralizedEnergyRunView",
 	"GeneralizedEnergySummaryView",
 	"ExtendedSymplecticityRunView",
 	"ReducedExtendedSymplecticityRunView",
+	"plot_generalized_energy_comparison",
 	"plot_generalized_energy_components",
 	"plot_generalized_energy_convergence",
 	"plot_generalized_energy_errors",

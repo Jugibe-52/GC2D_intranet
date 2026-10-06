@@ -10,6 +10,14 @@ from typing import Mapping
 
 import numpy as np
 
+from ._validation import (
+	finite_time_span,
+	integer_ratio,
+	nonnegative_finite,
+	positive_finite,
+	positive_integer,
+)
+
 from studies._trajectory_distances import minimum_image_displacement
 
 from dynamics import GuidingCenterDynamics
@@ -24,12 +32,6 @@ from contracts.request import SimulationRequest
 from solution import Solution
 from simulation.runner import simulate
 
-from ._validation import (
-	integer_ratio,
-	nonnegative_finite,
-	positive_finite,
-	positive_integer,
-)
 
 
 IMPLICIT_METHOD_NAMES: tuple[str, ...] = (
@@ -56,10 +58,10 @@ class ImplicitTrajectoryComparisonConfig:
 
 	def __post_init__(self) -> None:
 		"""Normalize every parameter that affects numerical reproducibility."""
-		span = np.asarray(self.t_span, dtype=float)
-		if span.shape != (2,) or not np.all(np.isfinite(span)) or span[0] >= span[1]:
-			raise ValueError("`t_span` must contain two finite, increasing times.")
-		object.__setattr__(self, "t_span", (float(span[0]), float(span[1])))
+		object.__setattr__(
+			self, "t_span",
+			finite_time_span(self.t_span, message="`t_span` must contain two finite, increasing times."),
+		)
 		object.__setattr__(self, "rho", nonnegative_finite(self.rho, "rho"))
 		object.__setattr__(
 			self,
@@ -162,22 +164,10 @@ class ImplicitTrajectoryComparisonResult:
 		reference_times: np.ndarray | None = None
 		for method_name in IMPLICIT_METHOD_NAMES:
 			solution = self.solutions[method_name]
-			if not isinstance(solution, Solution):
-				raise TypeError("Every implicit comparison result must be a Solution.")
-			if solution.source is not self.initial_configuration:
-				raise ValueError("All solutions must share the initial configuration.")
-			if int(solution.diagnostics.get("step_count", -1)) != self.config.step_count:
-				raise ValueError("Every method must use the configured common step.")
-			if solution.diagnostics.get("nonlinear_solver") != self.config.nonlinear_solver:
-				raise ValueError("Every method must use the configured nonlinear solver.")
-			candidate_times = np.asarray(solution.t, dtype=float)
-			if reference_times is None:
-				reference_times = candidate_times
-			elif not np.array_equal(candidate_times, reference_times):
-				raise ValueError("All implicit solutions must share the saved-time grid.")
-			seconds = float(self.runtimes[method_name])
-			if not np.isfinite(seconds) or seconds <= 0.0:
-				raise ValueError("Every method runtime must be positive and finite.")
+			reference_times = _validated_implicit_comparison_entry(
+				solution, self.initial_configuration, self.config,
+				self.runtimes, method_name, reference_times,
+			)
 
 		object.__setattr__(self, "solutions", MappingProxyType(dict(self.solutions)))
 		object.__setattr__(self, "runtimes", MappingProxyType(dict(self.runtimes)))
@@ -328,6 +318,31 @@ def run_implicit_trajectory_comparison(
 		solutions=solutions,
 		runtimes=runtimes,
 	)
+
+
+def _validated_implicit_comparison_entry(
+	solution: Solution, initial_configuration: InitialConfiguration,
+	config: ImplicitTrajectoryComparisonConfig, runtimes: Mapping[str, float], method_name: str,
+	reference_times: np.ndarray | None,
+) -> np.ndarray:
+	"""Validate one solution and runtime while establishing the shared grid."""
+	if not isinstance(solution, Solution):
+		raise TypeError("Every implicit comparison result must be a Solution.")
+	if solution.source is not initial_configuration:
+		raise ValueError("All solutions must share the initial configuration.")
+	if int(solution.diagnostics.get("step_count", -1)) != config.step_count:
+		raise ValueError("Every method must use the configured common step.")
+	if solution.diagnostics.get("nonlinear_solver") != config.nonlinear_solver:
+		raise ValueError("Every method must use the configured nonlinear solver.")
+	candidate_times = np.asarray(solution.t, dtype=float)
+	if reference_times is None:
+		reference_times = candidate_times
+	elif not np.array_equal(candidate_times, reference_times):
+		raise ValueError("All implicit solutions must share the saved-time grid.")
+	seconds = float(runtimes[method_name])
+	if not np.isfinite(seconds) or seconds <= 0.0:
+		raise ValueError("Every method runtime must be positive and finite.")
+	return reference_times
 
 
 __all__ = [

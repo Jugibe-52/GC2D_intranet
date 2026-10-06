@@ -1,8 +1,10 @@
 """Checkpoint orchestration using the frozen public classical RK4 integrator."""
+
+from typing import Any
 from pathlib import Path
 import hashlib,json,os,time
 import numpy as np
-from study_io import load_snapshot, digest, atomic_json, utc_now
+from study_io import assert_checkpoint_file, load_snapshot, digest, atomic_json, utc_now
 
 class CheckpointTestInterruption(RuntimeError):
     """Intentional interruption for validation only."""
@@ -31,13 +33,7 @@ def calculate_checkpointed_group(indices,initial_xy,settings):
         if parallel_calculation._START_BARRIER is not None:parallel_calculation._START_BARRIER.wait(timeout=180)
         started=time.perf_counter();cpu=time.process_time();start_utc=utc_now()
         for marker in sorted(folder.glob('chunk_*.json')):
-            record=json.loads(marker.read_text());file=marker.with_suffix('.npz')
-            assert record['fingerprint']==fingerprint and record['start_step']==completed
-            assert record['file']==file.name and digest(file)==record['sha256']
-            assert completed<record['end_step']<=total
-            with np.load(file,allow_pickle=False) as a:part=a['states'].copy()
-            assert part.shape==(2*count,record['end_step']-completed+1)
-            np.testing.assert_array_equal(part[:,0],value)
+            record, part = _load_verified_rk4_checkpoint(marker, fingerprint, completed, total, count, value)
             parts.append(part);value=part[:,-1].copy();completed=record['end_step']
         resumed=completed;new_chunks=0
         while completed<total:
@@ -62,3 +58,17 @@ def calculate_checkpointed_group(indices,initial_xy,settings):
     states=np.concatenate([parts[0]]+[p[:,1:] for p in parts[1:]],axis=1)
     return dict(indices=indices,times=t0+np.arange(total+1)*h,xy=np.stack((states[:count].T,states[count:].T),axis=-1),diagnostics={},newton_history=None,
         record=dict(pid=os.getpid(),particle_ids=ids.tolist(),particle_count=count,started_utc=start_utc,finished_utc=finish_utc,started_monotonic_s=started,finished_monotonic_s=finished,integration_seconds=finished-started,cpu_seconds=cpu_seconds,snapshot_sha256=snapshot,threadpools=pools,resumed_steps=resumed,new_steps=total-resumed,checkpoint_chunks=len(parts),checkpoint_fingerprint=fingerprint,field_evaluations_per_new_step=4))
+
+
+def _load_verified_rk4_checkpoint(
+	marker: Path, fingerprint: str, completed: int, total: int, count: int, value: np.ndarray,
+) -> tuple[dict[str, Any], np.ndarray]:
+	"""Load a committed RK4 chunk while retaining its original validation order and schedule."""
+	record=json.loads(marker.read_text());file=marker.with_suffix('.npz')
+	assert record['fingerprint']==fingerprint and record['start_step']==completed
+	assert_checkpoint_file(file, record)
+	assert completed<record['end_step']<=total
+	with np.load(file,allow_pickle=False) as a:part=a['states'].copy()
+	assert part.shape==(2*count,record['end_step']-completed+1)
+	np.testing.assert_array_equal(part[:,0],value)
+	return record, part

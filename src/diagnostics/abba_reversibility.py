@@ -21,7 +21,6 @@ from methods._nonlinear import NONLINEAR_SOLVERS, NonlinearSolver
 from methods._nonlinear import SolverOptions
 from methods.extended.configuration import _validate_projection_formulation
 from methods.extended.observations import bind_event_builder
-from methods.extended.core.records import StepResult
 from contracts.problem import InitialValueProblem
 from formulations.gc import GCDoubledMaps
 from initial_conditions import GCInitialConfiguration
@@ -121,6 +120,40 @@ def _finite_vector(value: np.ndarray, shape: tuple[int, ...], name: str) -> np.n
 	return result
 
 
+def _validated_reversibility_states(
+	step: ABBA2ImplicitIntegrationStep | ABBA4ImplicitIntegrationStep | ABBA6ImplicitIntegrationStep,
+) -> tuple[GuidingCenterJacobianSystem, np.ndarray, np.ndarray]:
+	"""Read finite planar states and consistent times for one sampled ABBA step."""
+	dynamics = step.dynamics
+	if not isinstance(dynamics, GuidingCenterJacobianSystem):
+		raise TypeError(
+			"Implicit ABBA reversibility requires GuidingCenterJacobianSystem dynamics."
+		)
+
+	state_before = np.asarray(step.state_before, dtype=float)
+	if (
+		state_before.ndim != 1
+		or state_before.size == 0
+		or state_before.size % 2
+		or not np.all(np.isfinite(state_before))
+	):
+		raise ValueError("The observed physical state must be finite and planar.")
+	shape = state_before.shape
+	state_after = _finite_vector(step.state_after, shape, "state_after")
+	if not np.isclose(
+		step.time,
+		step.start_time + step.duration,
+		rtol=0.0,
+		atol=float(
+			64.0
+			* np.finfo(float).eps
+			* max(1.0, abs(step.time), abs(step.start_time))
+		),
+	):
+		raise ValueError("The observed ABBA step times are inconsistent.")
+	return dynamics, state_before, state_after
+
+
 class ImplicitABBAReversibilityObserver:
 	"""Compare exact forward and independently solved backward ABBA tangents.
 
@@ -188,8 +221,7 @@ class ImplicitABBAReversibilityObserver:
 		result = project(step.time, step.state_after, -step.duration)
 		builder = bind_event_builder(dynamics, step.method_name, formulation, order=order,
 			coefficients=tuple(2 * c for c in recipe.coefficients[::2]), project=project)
-		event = builder(step.time, -step.duration, step.step_index, step.state_after,
-			StepResult(result.state, (result,)))
+		event = builder(step.time, -step.duration, step.step_index, step.state_after, result)
 		assert isinstance(event, (ABBA2ImplicitIntegrationStep, ABBA4ImplicitIntegrationStep,
 			ABBA6ImplicitIntegrationStep))
 		return replace(event, time=float(step.start_time))
@@ -213,33 +245,8 @@ class ImplicitABBAReversibilityObserver:
 			raise ValueError(
 				"Forward and backward ABBA steps must use the same nonlinear solver."
 			)
-		dynamics = step.dynamics
-		if not isinstance(dynamics, GuidingCenterJacobianSystem):
-			raise TypeError(
-				"Implicit ABBA reversibility requires GuidingCenterJacobianSystem dynamics."
-			)
-
-		state_before = np.asarray(step.state_before, dtype=float)
-		if (
-			state_before.ndim != 1
-			or state_before.size == 0
-			or state_before.size % 2
-			or not np.all(np.isfinite(state_before))
-		):
-			raise ValueError("The observed physical state must be finite and planar.")
+		dynamics, state_before, state_after = _validated_reversibility_states(step)
 		shape = state_before.shape
-		state_after = _finite_vector(step.state_after, shape, "state_after")
-		if not np.isclose(
-			step.time,
-			step.start_time + step.duration,
-			rtol=0.0,
-			atol=float(
-				64.0
-				* np.finfo(float).eps
-				* max(1.0, abs(step.time), abs(step.start_time))
-			),
-		):
-			raise ValueError("The observed ABBA step times are inconsistent.")
 
 		forward_jacobian = _complete_step_jacobian(step)
 		reverse_step = self._solve_reverse_step(step, dynamics)

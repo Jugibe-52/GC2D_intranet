@@ -173,6 +173,7 @@ class PackageLayoutTests(unittest.TestCase):
 		project_root = Path(__file__).resolve().parents[1]
 		script = """
 import builtins
+import sys
 
 original_import = builtins.__import__
 
@@ -186,11 +187,16 @@ import dynamics
 import initial_conditions
 import potential
 import simulation
+import studies
 assert dynamics.GuidingCenterDynamics is not None
 assert initial_conditions.GCInitialConfiguration is not None
 assert potential.Potential is not None
 assert simulation.RK4 is not None
 assert simulation.ExplicitEuler is not None
+assert studies.run_area_comparison is not None
+assert studies.run_abba_symplecticity_study is not None
+assert studies.run_generalized_energy_comparison is not None
+assert not any(name == "visualization" or name.startswith("visualization.") for name in sys.modules)
 """
 		completed = subprocess.run(
 			[sys.executable, "-c", script],
@@ -208,8 +214,9 @@ assert simulation.ExplicitEuler is not None
 			[
 				sys.executable,
 				"-c",
-				"from visualization import animate_gc_particle_solution; "
-				"assert animate_gc_particle_solution is not None",
+				"import visualization; "
+				"assert len(visualization.__all__) == len(set(visualization.__all__)); "
+				"assert all(hasattr(visualization, name) for name in visualization.__all__)",
 			],
 			cwd=project_root,
 			check=False,

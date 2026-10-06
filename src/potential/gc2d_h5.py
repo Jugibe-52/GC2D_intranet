@@ -21,9 +21,9 @@ from typing import TYPE_CHECKING, Any, Literal
 import h5py
 import numpy as np
 from scipy import ndimage
-from scipy.interpolate import RectBivariateSpline
 
-from .grid import Grid
+from .grid import Grid, _validate_periodic_sizes
+from ._periodic_spline import _build_periodic_spline
 from .prepared import _readonly_array
 
 if TYPE_CHECKING:
@@ -32,28 +32,6 @@ if TYPE_CHECKING:
 
 DEFAULT_CHARACTERISTIC_LENGTH = 0.06
 SpatialNormalization = Literal["characteristic_length", "unit_box"]
-
-
-@dataclass(frozen=True, slots=True)
-class _ComplexSpline:
-	"""Real and imaginary splines for one HDF5 complex spatial field."""
-
-	real: RectBivariateSpline
-	imag: RectBivariateSpline
-
-	def evaluate(
-		self,
-		x: np.ndarray,
-		y: np.ndarray,
-		*,
-		dx: int = 0,
-		dy: int = 0,
-	) -> np.ndarray:
-		"""Evaluate the complex field or a paired-coordinate derivative."""
-		return np.asarray(
-			self.real.ev(x, y, dx=dx, dy=dy)
-			+ 1j * self.imag.ev(x, y, dx=dx, dy=dy)
-		)
 
 
 def _validated_axis(values: Any, *, name: str) -> np.ndarray:
@@ -83,6 +61,55 @@ def _optional_positive(value: float | None, *, name: str) -> float | None:
 	return number
 
 
+def _validated_source_fields(
+	indices: np.ndarray, frequencies: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray]:
+	"""Check one positive dimensional frequency per original HDF5 field index."""
+	source_indices = np.asarray(indices)
+	if source_indices.ndim != 1:
+		raise ValueError("`source_field_indices` must be one-dimensional.")
+	if not np.issubdtype(source_indices.dtype, np.integer):
+		raise TypeError("`source_field_indices` must contain integers.")
+	if np.any(source_indices < 0):
+		raise ValueError("`source_field_indices` must be non-negative.")
+	source_frequencies = np.atleast_1d(np.asarray(frequencies, dtype=float))
+	if (
+		source_frequencies.ndim != 1
+		or source_frequencies.size != source_indices.size
+		or not np.all(np.isfinite(source_frequencies))
+		or np.any(source_frequencies <= 0)
+	):
+		raise ValueError(
+			"`source_frequencies` must contain one finite positive value "
+			"per source field index."
+		)
+	return source_indices, source_frequencies
+
+
+def _finite_nonzero(value: float, *, name: str) -> float:
+	"""Normalize a signed physical factor without accepting zero or infinity."""
+	number = float(value)
+	if not np.isfinite(number) or number == 0:
+		raise ValueError(f"`{name}` must be finite and non-zero.")
+	return number
+
+
+def _validate_spatial_normalization(value: SpatialNormalization) -> None:
+	"""Check the spatial convention shared by import options and provenance."""
+	if not isinstance(value, str) or value not in ("characteristic_length", "unit_box"):
+		raise ValueError(
+			"`spatial_normalization` must be 'characteristic_length' or 'unit_box'."
+		)
+
+
+def _readonly_attributes(attributes: Mapping[str, Any]) -> dict[str, np.ndarray]:
+	"""Own each provenance attribute before wrapping the complete mapping."""
+	values: dict[str, np.ndarray] = {}
+	for name, value in attributes.items():
+		values[str(name)] = _readonly_array(value, dtype=None)
+	return values
+
+
 @dataclass(frozen=True, slots=True)
 class GC2DH5Metadata:
 	"""Immutable dimensional provenance for a processed GC2D HDF5 potential."""
@@ -100,35 +127,11 @@ class GC2DH5Metadata:
 
 	def __post_init__(self) -> None:
 		"""Validate, own, and freeze every provenance value."""
-		source_indices = np.asarray(self.source_field_indices)
-		if source_indices.ndim != 1:
-			raise ValueError("`source_field_indices` must be one-dimensional.")
-		if not np.issubdtype(source_indices.dtype, np.integer):
-			raise TypeError("`source_field_indices` must contain integers.")
-		if np.any(source_indices < 0):
-			raise ValueError("`source_field_indices` must be non-negative.")
-
-		source_frequencies = np.atleast_1d(
-			np.asarray(self.source_frequencies, dtype=float)
+		source_indices, source_frequencies = _validated_source_fields(
+			self.source_field_indices, self.source_frequencies,
 		)
-		if (
-			source_frequencies.ndim != 1
-			or source_frequencies.size != source_indices.size
-			or not np.all(np.isfinite(source_frequencies))
-			or np.any(source_frequencies <= 0)
-		):
-			raise ValueError(
-				"`source_frequencies` must contain one finite positive value "
-				"per source field index."
-			)
-
-		normalization = float(self.normalization_factor)
-		if not np.isfinite(normalization) or normalization == 0:
-			raise ValueError("`normalization_factor` must be finite and non-zero.")
-
-		attribute_values: dict[str, np.ndarray] = {}
-		for name, value in self.attributes.items():
-			attribute_values[str(name)] = _readonly_array(value, dtype=None)
+		normalization = _finite_nonzero(self.normalization_factor, name="normalization_factor")
+		attribute_values = _readonly_attributes(self.attributes)
 
 		object.__setattr__(
 			self,
@@ -167,12 +170,7 @@ class GC2DH5Metadata:
 			),
 		)
 		object.__setattr__(self, "normalization_factor", normalization)
-		if not isinstance(self.spatial_normalization, str) or (
-			self.spatial_normalization not in ("characteristic_length", "unit_box")
-		):
-			raise ValueError(
-				"`spatial_normalization` must be 'characteristic_length' or 'unit_box'."
-			)
+		_validate_spatial_normalization(self.spatial_normalization)
 		object.__setattr__(
 			self,
 			"attributes",
@@ -244,57 +242,6 @@ def _grid_from_validated_axes(x: np.ndarray, y: np.ndarray) -> Grid:
 	)
 
 
-def _h5_spline(
-	x: np.ndarray,
-	y: np.ndarray,
-	coefficient: np.ndarray,
-	*,
-	interpolation_order: int,
-) -> _ComplexSpline:
-	"""Build a periodic spline over independent samples of one HDF5 field."""
-	margin = interpolation_order + 1
-	padding = (margin, margin + 1)
-	x_extended = np.pad(
-		x,
-		padding,
-		mode="linear_ramp",
-		end_values=(
-			x[0] - padding[0] * (x[1] - x[0]),
-			x[-1] + padding[1] * (x[1] - x[0]),
-		),
-	)
-	y_extended = np.pad(
-		y,
-		padding,
-		mode="linear_ramp",
-		end_values=(
-			y[0] - padding[0] * (y[1] - y[0]),
-			y[-1] + padding[1] * (y[1] - y[0]),
-		),
-	)
-	field_extended = np.pad(
-		coefficient,
-		(padding, padding),
-		mode="wrap",
-	)
-	return _ComplexSpline(
-		RectBivariateSpline(
-			x_extended,
-			y_extended,
-			field_extended.real,
-			kx=interpolation_order,
-			ky=interpolation_order,
-		),
-		RectBivariateSpline(
-			x_extended,
-			y_extended,
-			field_extended.imag,
-			kx=interpolation_order,
-			ky=interpolation_order,
-		),
-	)
-
-
 def _resample_fields(
 	x: np.ndarray,
 	y: np.ndarray,
@@ -310,13 +257,7 @@ def _resample_fields(
 		return x, y, mean, modes
 	if nx is None or ny is None:
 		raise ValueError("`nx` and `ny` must either both be set or both be None.")
-	for size, name in ((nx, "nx"), (ny, "ny")):
-		if (
-			isinstance(size, (bool, np.bool_))
-			or not isinstance(size, (int, np.integer))
-			or size < 2
-		):
-			raise ValueError(f"`{name}` must be an integer of at least 2.")
+	_validate_periodic_sizes(nx, ny)
 
 	period_x = x.size * (x[1] - x[0])
 	period_y = y.size * (y[1] - y[0])
@@ -324,10 +265,11 @@ def _resample_fields(
 	y_resampled = y[0] + period_y * np.arange(int(ny), dtype=float) / int(ny)
 
 	def interpolate(field: np.ndarray) -> np.ndarray:
-		interpolator = _h5_spline(
+		interpolator = _build_periodic_spline(
 			x,
 			y,
 			np.asarray(field, dtype=np.complex128),
+			spacing=(float(x[1] - x[0]), float(y[1] - y[0])),
 			interpolation_order=interpolation_order,
 		)
 		x_mesh, y_mesh = np.meshgrid(x_resampled, y_resampled, indexing="ij")
@@ -463,6 +405,54 @@ def load_gc2d_h5_potential(
 	)
 
 
+def _validated_import_controls(
+	B: float,
+	characteristic_length: float,
+	characteristic_frequency: float | None,
+	denoising: bool,
+	sigma: float,
+	spatial_normalization: SpatialNormalization,
+) -> tuple[float, float, float | None, float]:
+	"""Normalize dimensional scales and filtering options before opening the file."""
+	# Convert public numeric inputs once. The validated local names below carry
+	# their physical meaning and avoid repeating implicit scalar conversions.
+	magnetic_field = _finite_nonzero(B, name="B")
+	length_scale = float(characteristic_length)
+	if not np.isfinite(length_scale) or length_scale <= 0:
+		raise ValueError("`characteristic_length` must be finite and positive.")
+	frequency_scale = _optional_positive(characteristic_frequency, name="characteristic_frequency")
+	if not isinstance(denoising, (bool, np.bool_)):
+		raise TypeError("`denoising` must be boolean.")
+	_validate_spatial_normalization(spatial_normalization)
+	denoising_sigma = float(sigma)
+	if not np.isfinite(denoising_sigma) or denoising_sigma < 0:
+		raise ValueError("`sigma` must be finite and non-negative.")
+
+	return magnetic_field, length_scale, frequency_scale, denoising_sigma
+
+
+def _validated_field_selection(
+	indx: int | Sequence[int] | np.ndarray | None, mode_count: int,
+) -> np.ndarray:
+	"""Resolve the public mean selector zero and one-based positive-mode selectors."""
+	# Translate public selectors into array indices. Selector zero is reserved for
+	# the separately stored mean, hence positive selectors require subtracting one.
+	if indx is None:
+		selected = np.arange(mode_count + 1, dtype=int)
+	else:
+		selected = np.atleast_1d(indx).astype(int)
+		if (
+			selected.size == 0
+			or selected.min() < 0
+			or selected.max() > mode_count
+		):
+			raise ValueError(
+				f"Indices must be in range [0, {mode_count}]."
+			)
+
+	return selected
+
+
 def _load_gc2d_h5_data(
 	filename: str | PathLike[str],
 	*,
@@ -478,33 +468,9 @@ def _load_gc2d_h5_data(
 	spatial_normalization: SpatialNormalization,
 ) -> _GC2DH5Data:
 	"""Read and normalize GC2D fields without constructing a runtime potential."""
-	# Convert public numeric inputs once. The validated local names below carry
-	# their physical meaning and avoid repeating implicit scalar conversions.
-	magnetic_field = float(B)
-	if not np.isfinite(magnetic_field) or magnetic_field == 0:
-		raise ValueError("`B` must be finite and non-zero.")
-	length_scale = float(characteristic_length)
-	if not np.isfinite(length_scale) or length_scale <= 0:
-		raise ValueError("`characteristic_length` must be finite and positive.")
-	frequency_scale = None
-	if characteristic_frequency is not None:
-		frequency_scale = float(characteristic_frequency)
-		if not np.isfinite(frequency_scale) or frequency_scale <= 0:
-			raise ValueError(
-				"`characteristic_frequency` must be finite and positive when supplied."
-			)
-	if not isinstance(denoising, (bool, np.bool_)):
-		raise TypeError("`denoising` must be boolean.")
-	if not isinstance(spatial_normalization, str) or spatial_normalization not in (
-		"characteristic_length",
-		"unit_box",
-	):
-		raise ValueError(
-			"`spatial_normalization` must be 'characteristic_length' or 'unit_box'."
-		)
-	denoising_sigma = float(sigma)
-	if not np.isfinite(denoising_sigma) or denoising_sigma < 0:
-		raise ValueError("`sigma` must be finite and non-negative.")
+	magnetic_field, length_scale, frequency_scale, denoising_sigma = _validated_import_controls(
+		B, characteristic_length, characteristic_frequency, denoising, sigma, spatial_normalization,
+	)
 
 	# Read all source metadata while the HDF5 handle is open. Field samples remain
 	# lazy until their selected slices are converted to NumPy arrays below.
@@ -608,20 +574,7 @@ def _load_gc2d_h5_data(
 		x = (np.asarray(x) - float(x[0])) / x_period
 		y = (np.asarray(y) - float(y[0])) / y_period
 
-	# Translate public selectors into array indices. Selector zero is reserved for
-	# the separately stored mean, hence positive selectors require subtracting one.
-	if indx is None:
-		selected = np.arange(len(retained_frequencies) + 1, dtype=int)
-	else:
-		selected = np.atleast_1d(indx).astype(int)
-		if (
-			selected.size == 0
-			or selected.min() < 0
-			or selected.max() > len(retained_frequencies)
-		):
-			raise ValueError(
-				f"Indices must be in range [0, {len(retained_frequencies)}]."
-			)
+	selected = _validated_field_selection(indx, len(retained_frequencies))
 
 	selected_mean = mean if 0 in selected else None
 	mode_selection = selected[selected != 0] - 1

@@ -6,10 +6,18 @@ from dataclasses import dataclass
 from types import MappingProxyType
 from typing import Mapping
 
-import matplotlib.pyplot as plt
 import numpy as np
-from matplotlib.axes import Axes
-from matplotlib.figure import Figure
+
+from ._validation import (
+	single_gc_state,
+	unpacked_time_span,
+	integer_ratio,
+	nonnegative_finite,
+	positive_finite,
+	positive_integer,
+	resolve_rho,
+)
+
 
 from diagnostics import GCGeneralizedEnergyObserver
 from dynamics import GuidingCenterDynamics
@@ -20,14 +28,6 @@ from contracts.problem import InitialValueProblem
 from contracts.request import SimulationRequest
 from solution import Solution
 from simulation.runner import simulate
-
-from ._validation import (
-	integer_ratio,
-	nonnegative_finite,
-	positive_finite,
-	positive_integer,
-	resolve_rho,
-)
 
 
 def _validated_steps(steps: tuple[float, ...]) -> tuple[float, ...]:
@@ -58,12 +58,7 @@ class GeneralizedEnergyConfig:
 	def __post_init__(self) -> None:
 		"""Validate integration parameters before an expensive comparison."""
 		object.__setattr__(self, "steps", _validated_steps(tuple(self.steps)))
-		try:
-			start, stop = (float(value) for value in self.t_span)
-		except (TypeError, ValueError) as exc:
-			raise ValueError("`t_span` must contain two finite increasing times.") from exc
-		if not np.isfinite(start) or not np.isfinite(stop) or start >= stop:
-			raise ValueError("`t_span` must contain two finite increasing times.")
+		start, stop = unpacked_time_span(self.t_span)
 		object.__setattr__(self, "t_span", (start, stop))
 		if (
 			isinstance(self.output_sample_count, (bool, np.bool_))
@@ -152,32 +147,6 @@ class GeneralizedEnergyResult:
 				f"{row.absolute_error:16.8e} {row.max_relative_error:20.8e}"
 			)
 
-	def plot(self) -> tuple[Figure, Axes]:
-		"""Plot the relative generalized-energy error for every step size."""
-		figure, axes = plt.subplots(figsize=(9, 5), constrained_layout=True)
-		for step in self.steps:
-			solution = self.solutions[step]
-			error = self.relative_errors[step]
-			max_error = np.max(np.abs(error))
-			axes.plot(
-				solution.t,
-				error,
-				label=(
-					rf"$\Delta t={step:g}$"
-					rf" — $\max|\varepsilon_K|={max_error:.3e}$"
-				),
-			)
-		axes.axhline(0.0, color="0.5", linestyle="--", linewidth=1)
-		axes.set(
-			xlabel="$t$",
-			ylabel=r"$\varepsilon_K(t)=(K(t)-K(0))/|K(0)|$",
-			title=r"Generalized energy conservation $K=H+k$",
-		)
-		axes.ticklabel_format(axis="y", style="sci", scilimits=(0, 0))
-		axes.grid(alpha=0.25)
-		axes.legend()
-		return figure, axes
-
 
 def run_generalized_energy_comparison(
 	potential: Potential,
@@ -194,11 +163,7 @@ def run_generalized_energy_comparison(
 		)
 	if not isinstance(config, GeneralizedEnergyConfig):
 		raise TypeError("`config` must be a GeneralizedEnergyConfig instance.")
-	initial_state = configuration.initial_state
-	if initial_state is None or configuration.layout.particle_count(initial_state) != 1:
-		raise ValueError(
-			"The generalized-energy study requires exactly one initial GC state."
-		)
+	initial_state = single_gc_state(configuration, message="The generalized-energy study requires exactly one initial GC state.")
 
 	rho = resolve_rho(config.rho)
 	dynamics = GuidingCenterDynamics(potential, rho=rho)

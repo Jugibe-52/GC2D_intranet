@@ -8,6 +8,17 @@ from typing import Callable, Literal, Mapping
 
 import numpy as np
 
+from ._validation import (
+	single_gc_state,
+	unpacked_time_span,
+	nonnegative_finite,
+	positive_finite,
+	positive_integer,
+	refinement_steps as _validated_steps,
+	resolve_rho,
+)
+
+
 from diagnostics import (
 	GCGeneralizedEnergyObserver,
 	GCGeneralizedEnergyRecord,
@@ -29,13 +40,6 @@ from solution import Solution
 from contracts.observation import IntegrationStep
 from simulation.runner import simulate
 
-from ._validation import (
-	nonnegative_finite,
-	positive_finite,
-	positive_integer,
-	refinement_steps as _validated_steps,
-	resolve_rho,
-)
 
 
 ImplicitEnergyMethod = Literal[
@@ -89,14 +93,7 @@ class ImplicitGeneralizedEnergyConfig:
 	def __post_init__(self) -> None:
 		"""Validate all controls before running the four refinements."""
 		object.__setattr__(self, "steps", _validated_steps(tuple(self.steps)))
-		try:
-			start, stop = (float(value) for value in self.t_span)
-		except (TypeError, ValueError) as exc:
-			raise ValueError(
-				"`t_span` must contain two finite increasing times."
-			) from exc
-		if not np.isfinite(start) or not np.isfinite(stop) or start >= stop:
-			raise ValueError("`t_span` must contain two finite increasing times.")
+		start, stop = unpacked_time_span(self.t_span)
 		object.__setattr__(self, "t_span", (start, stop))
 		object.__setattr__(
 			self,
@@ -483,9 +480,7 @@ def run_implicit_generalized_energy_study(
 	if not isinstance(config, ImplicitGeneralizedEnergyConfig):
 		raise TypeError("`config` must be ImplicitGeneralizedEnergyConfig.")
 	method_name = _validated_method(method)
-	initial_state = configuration.initial_state
-	if initial_state is None or configuration.layout.particle_count(initial_state) != 1:
-		raise ValueError("The implicit energy study requires exactly one GC state.")
+	initial_state = single_gc_state(configuration, message="The implicit energy study requires exactly one GC state.")
 
 	dynamics = GuidingCenterDynamics(
 		potential,

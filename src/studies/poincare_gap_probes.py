@@ -137,30 +137,7 @@ def validate_saved_gap_probes(stored: StoredSolution, *,
     metadata, solution = stored.metadata, stored.solution
     if metadata.get("study") != "poincare_gap_probes":
         raise ValueError("Expected a saved explicit gap-probe study.")
-    try:
-        seeds = GapProbeSeeds(**metadata["probe_config"])
-        config = _saved_config(metadata)
-        cell = np.asarray(metadata["cell_bounds_m"], dtype=float)
-        runtime_cell = np.asarray(metadata["cell_bounds"], dtype=float)
-        scale = float(metadata["spatial_scale_per_m"])
-        origin = np.asarray(metadata["spatial_origin_m"], dtype=float)
-    except (KeyError, TypeError, OverflowError) as exc:
-        raise ValueError("The saved probes lack a valid seed and coordinate contract.") from exc
-    if (config.particles != len(seeds.fractions) or cell.shape != (3,)
-            or runtime_cell.shape != (3,) or origin.shape != (2,)
-            or not np.isfinite(cell).all() or cell[2] <= 0
-            or not np.isfinite(scale) or scale <= 0 or not np.isfinite(origin).all()):
-        raise ValueError("The saved probes have inconsistent particle or coordinate metadata.")
-    if metadata.get("method") != config.method or not metadata.get("source_sha256"):
-        raise ValueError("The saved probes lack matching method and source provenance.")
-    physical_xy = cell[:2] + cell[2] * np.asarray(seeds.fractions)
-    xy = (physical_xy - origin) * scale
-    expected_runtime_cell = np.append((cell[:2] - origin) * scale, cell[2] * scale)
-    for name, expected in (("initial_positions_m", physical_xy), ("initial_positions", xy),
-                           ("initial_positions_cell_fraction", seeds.fractions),
-                           ("particle_id", seeds.particle_ids), ("cell_bounds", expected_runtime_cell)):
-        if not np.array_equal(np.asarray(metadata.get(name)), np.asarray(expected)):
-            raise ValueError(f"The saved probes have inconsistent {name}.")
+    seeds, config, xy = _validated_saved_probe_geometry(metadata)
     initial = GCInitialConfiguration.from_components(x=xy[:, 0], y=xy[:, 1])
     initial_state = initial.initial_state
     assert initial_state is not None
@@ -179,24 +156,63 @@ def validate_saved_gap_probes(stored: StoredSolution, *,
         if actual is not None or metadata.get("saved_folded_returns"):
             if not isinstance(actual, np.ndarray) or not np.array_equal(actual, expected):
                 raise ValueError(f"The saved probes have inconsistent {name}.")
-    if background is not None:
-        base_config = _saved_config(background.metadata)
-        # Star geometry defines the original forty positions only. Every other
-        # physical, temporal and numerical input must agree for appended probes.
-        geometric_controls = {"particles", "arms", "outer_radius_fraction", "first_angle"}
-        probe_inputs = {key: value for key, value in asdict(config).items() if key not in geometric_controls}
-        base_inputs = {key: value for key, value in asdict(base_config).items() if key not in geometric_controls}
-        if probe_inputs != base_inputs or not np.array_equal(solution.t, background.solution.t):
-            raise ValueError("The saved probes and background use different scientific inputs or cycles.")
-        for name in ("source_sha256", "source_field_indices", "cell_bounds_m", "cell_bounds",
-                     "spatial_scale_per_m", "spatial_origin_m", "space_unit", "rho_runtime", "rho_m",
-                     "time_unit_seconds", "hamiltonian_convention", "hamiltonian_scale_from_cycle_time"):
-            if not np.array_equal(np.asarray(metadata.get(name)), np.asarray(background.metadata.get(name))):
-                raise ValueError(f"The saved probes and background differ in {name}.")
-        original_ids = np.asarray(background.metadata.get("particle_id", ()))
-        if np.intersect1d(original_ids, seeds.particle_ids).size:
-            raise ValueError("Probe particle IDs must not overlap original particle IDs.")
+    _validate_gap_background(background, config, solution, metadata, seeds)
     return seeds
+
+
+def _validate_gap_background(
+	background: StoredSolution | None, config: RhoStarConfig, solution: Solution,
+	metadata: dict[str, Any], seeds: GapProbeSeeds,
+) -> None:
+	"""Require appended probes to share scientific inputs and cycles while preserving distinct IDs."""
+	if background is not None:
+		base_config = _saved_config(background.metadata)
+		# Star geometry defines the original forty positions only. Every other
+		# physical, temporal and numerical input must agree for appended probes.
+		geometric_controls = {"particles", "arms", "outer_radius_fraction", "first_angle"}
+		probe_inputs = {key: value for key, value in asdict(config).items() if key not in geometric_controls}
+		base_inputs = {key: value for key, value in asdict(base_config).items() if key not in geometric_controls}
+		if probe_inputs != base_inputs or not np.array_equal(solution.t, background.solution.t):
+			raise ValueError("The saved probes and background use different scientific inputs or cycles.")
+		for name in ("source_sha256", "source_field_indices", "cell_bounds_m", "cell_bounds",
+					 "spatial_scale_per_m", "spatial_origin_m", "space_unit", "rho_runtime", "rho_m",
+					 "time_unit_seconds", "hamiltonian_convention", "hamiltonian_scale_from_cycle_time"):
+			if not np.array_equal(np.asarray(metadata.get(name)), np.asarray(background.metadata.get(name))):
+				raise ValueError(f"The saved probes and background differ in {name}.")
+		original_ids = np.asarray(background.metadata.get("particle_id", ()))
+		if np.intersect1d(original_ids, seeds.particle_ids).size:
+			raise ValueError("Probe particle IDs must not overlap original particle IDs.")
+
+
+def _validated_saved_probe_geometry(
+	metadata: dict[str, Any],
+) -> tuple[GapProbeSeeds, RhoStarConfig, np.ndarray]:
+	"""Restore seed and coordinate metadata and require exact physical/runtime agreement."""
+	try:
+		seeds = GapProbeSeeds(**metadata["probe_config"])
+		config = _saved_config(metadata)
+		cell = np.asarray(metadata["cell_bounds_m"], dtype=float)
+		runtime_cell = np.asarray(metadata["cell_bounds"], dtype=float)
+		scale = float(metadata["spatial_scale_per_m"])
+		origin = np.asarray(metadata["spatial_origin_m"], dtype=float)
+	except (KeyError, TypeError, OverflowError) as exc:
+		raise ValueError("The saved probes lack a valid seed and coordinate contract.") from exc
+	if (config.particles != len(seeds.fractions) or cell.shape != (3,)
+			or runtime_cell.shape != (3,) or origin.shape != (2,)
+			or not np.isfinite(cell).all() or cell[2] <= 0
+			or not np.isfinite(scale) or scale <= 0 or not np.isfinite(origin).all()):
+		raise ValueError("The saved probes have inconsistent particle or coordinate metadata.")
+	if metadata.get("method") != config.method or not metadata.get("source_sha256"):
+		raise ValueError("The saved probes lack matching method and source provenance.")
+	physical_xy = cell[:2] + cell[2] * np.asarray(seeds.fractions)
+	xy = (physical_xy - origin) * scale
+	expected_runtime_cell = np.append((cell[:2] - origin) * scale, cell[2] * scale)
+	for name, expected in (("initial_positions_m", physical_xy), ("initial_positions", xy),
+						   ("initial_positions_cell_fraction", seeds.fractions),
+						   ("particle_id", seeds.particle_ids), ("cell_bounds", expected_runtime_cell)):
+		if not np.array_equal(np.asarray(metadata.get(name)), np.asarray(expected)):
+			raise ValueError(f"The saved probes have inconsistent {name}.")
+	return seeds, config, xy
 
 
 __all__ = ["GapProbeSeeds", "build_gap_probes", "prepare_gap_probes",

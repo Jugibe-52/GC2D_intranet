@@ -69,17 +69,55 @@ def _validate_nonlinear_solver(value: str) -> NonlinearSolver:
 	return value
 
 
+def _validated_initial_unknown(initial_unknown: np.ndarray, solver: str) -> np.ndarray:
+	"""Own the finite, nonempty vector whose coordinates the solver will update."""
+	unknown = np.asarray(initial_unknown, dtype=float).copy()
+	if unknown.ndim != 1 or unknown.size == 0 or not np.all(np.isfinite(unknown)):
+		raise ValueError(f"The initial {solver} unknown must be a finite vector.")
+	return unknown
+
+
+def _validate_solver_controls(tolerance: float, max_iterations: int, solver: str) -> None:
+	"""Check solve-local stopping controls without coercing their existing types."""
+	if not np.isfinite(tolerance) or tolerance <= 0.0:
+		raise ValueError(f"The {solver} tolerance must be positive and finite.")
+	if (
+		isinstance(max_iterations, (bool, np.bool_))
+		or not isinstance(max_iterations, (int, np.integer))
+		or max_iterations < 1
+	):
+		raise ValueError(f"The {solver} iteration limit must be a positive integer.")
+
+
+def _validated_broyden_jacobian(initial_jacobian: np.ndarray, unknown: np.ndarray) -> np.ndarray:
+	"""Own a finite square initial approximation in the unknown's coordinates."""
+	jacobian = np.asarray(initial_jacobian, dtype=float).copy()
+	expected_shape = (unknown.size, unknown.size)
+	if jacobian.shape != expected_shape or not np.all(np.isfinite(jacobian)):
+		raise ValueError(
+			"The initial Broyden Jacobian must be a finite square matrix matching "
+			"the unknown."
+		)
+	return jacobian
+
+
+def _validated_residual(residual: np.ndarray, unknown: np.ndarray, message: str) -> np.ndarray:
+	"""Normalize one finite residual without re-evaluating its paired payload."""
+	value = np.asarray(residual, dtype=float)
+	if value.shape != unknown.shape or not np.all(np.isfinite(value)):
+		raise ValueError(message)
+	return value
+
+
 def _checked_residual_evaluation(
 	residual_function: _ResidualFunction[_Payload],
 	unknown: np.ndarray,
 ) -> tuple[np.ndarray, _Payload]:
 	"""Evaluate a residual without allowing shape changes or non-finite values."""
 	residual, payload = residual_function(unknown)
-	value = np.asarray(residual, dtype=float)
-	if value.shape != unknown.shape or not np.all(np.isfinite(value)):
-		raise ValueError(
-			"The nonlinear residual must be finite and match the unknown shape."
-		)
+	value = _validated_residual(
+		residual, unknown, "The nonlinear residual must be finite and match the unknown shape.",
+	)
 	return value, payload
 
 
@@ -101,24 +139,9 @@ def _solve_broyden(
 	corrections, so a root at the initial guess reports zero iterations and one
 	residual evaluation.
 	"""
-	unknown = np.asarray(initial_unknown, dtype=float).copy()
-	if unknown.ndim != 1 or unknown.size == 0 or not np.all(np.isfinite(unknown)):
-		raise ValueError("The initial Broyden unknown must be a finite vector.")
-	jacobian = np.asarray(initial_jacobian, dtype=float).copy()
-	expected_shape = (unknown.size, unknown.size)
-	if jacobian.shape != expected_shape or not np.all(np.isfinite(jacobian)):
-		raise ValueError(
-			"The initial Broyden Jacobian must be a finite square matrix matching "
-			"the unknown."
-		)
-	if not np.isfinite(tolerance) or tolerance <= 0.0:
-		raise ValueError("The Broyden tolerance must be positive and finite.")
-	if (
-		isinstance(max_iterations, (bool, np.bool_))
-		or not isinstance(max_iterations, (int, np.integer))
-		or max_iterations < 1
-	):
-		raise ValueError("The Broyden iteration limit must be a positive integer.")
+	unknown = _validated_initial_unknown(initial_unknown, "Broyden")
+	jacobian = _validated_broyden_jacobian(initial_jacobian, unknown)
+	_validate_solver_controls(tolerance, max_iterations, "Broyden")
 	if not isinstance(context, str) or not context:
 		raise ValueError("The Broyden solve context must be a non-empty string.")
 
@@ -129,11 +152,10 @@ def _solve_broyden(
 		)
 	else:
 		initial_residual, payload = initial_evaluation
-		residual = np.asarray(initial_residual, dtype=float)
-		if residual.shape != unknown.shape or not np.all(np.isfinite(residual)):
-			raise ValueError(
-				"The cached initial residual must be finite and match the unknown shape."
-			)
+		residual = _validated_residual(
+			initial_residual, unknown,
+			"The cached initial residual must be finite and match the unknown shape.",
+		)
 	residual_evaluations = 1
 	residual_norm = float(np.linalg.norm(residual, ord=np.inf))
 
@@ -211,23 +233,14 @@ def _solve_newton(
 	subtraction/addition convention, particle packing and specialized block solve.
 	A supplied initial evaluation counts once and is never recomputed.
 	"""
-	unknown = np.asarray(initial_unknown, dtype=float).copy()
-	if unknown.ndim != 1 or unknown.size == 0 or not np.all(np.isfinite(unknown)):
-		raise ValueError("The initial Newton unknown must be a finite vector.")
-	if not np.isfinite(tolerance) or tolerance <= 0.0:
-		raise ValueError("The Newton tolerance must be positive and finite.")
-	if (
-		isinstance(max_iterations, (bool, np.bool_))
-		or not isinstance(max_iterations, (int, np.integer))
-		or max_iterations < 1
-	):
-		raise ValueError("The Newton iteration limit must be a positive integer.")
+	unknown = _validated_initial_unknown(initial_unknown, "Newton")
+	_validate_solver_controls(tolerance, max_iterations, "Newton")
 	for iteration in range(int(max_iterations) + 1):
 		if iteration == 0 and initial_evaluation is not None:
 			residual, payload = initial_evaluation
-			residual = np.asarray(residual, dtype=float)
-			if residual.shape != unknown.shape or not np.all(np.isfinite(residual)):
-				raise ValueError("The cached Newton residual must be finite and match the unknown.")
+			residual = _validated_residual(
+				residual, unknown, "The cached Newton residual must be finite and match the unknown.",
+			)
 		else:
 			residual, payload = _checked_residual_evaluation(residual_function, unknown)
 		residual_norm = float(np.linalg.norm(residual, ord=np.inf))

@@ -194,8 +194,8 @@ class GCGeneralizedEnergyObserver:
 		"""Return immutable snapshots including the initial node."""
 		return tuple(self._records)
 
-	def __call__(self, record: IntegrationStep) -> None:
-		"""Consume one sequential accepted implicit integration step."""
+	def _validate_next_record(self, record: IntegrationStep) -> None:
+		"""Check the next record against this energy stream before changing momentum."""
 		if not isinstance(record, IntegrationStep):
 			raise TypeError("The energy observer requires an IntegrationStep record.")
 		if record.dynamics is not self._dynamics:
@@ -216,6 +216,10 @@ class GCGeneralizedEnergyObserver:
 			atol=tolerance,
 		):
 			raise ValueError("Energy records must describe a continuous time grid.")
+
+	def __call__(self, record: IntegrationStep) -> None:
+		"""Consume one sequential accepted implicit integration step."""
+		self._validate_next_record(record)
 
 		self._kappa += _kappa_increment(record, self._dynamics)
 		hamiltonian = _scalar_value(

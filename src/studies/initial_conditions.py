@@ -9,6 +9,7 @@ from initial_conditions import (
 	GCInitialConfiguration,
 )
 from potential import Potential
+from ._validation import nonnegative_integer, positive_integer
 
 
 def domain_center(potential: Potential) -> tuple[float, float]:
@@ -83,6 +84,26 @@ def centered_gc_configuration(potential: Potential) -> GCInitialConfiguration:
 	)
 
 
+def _normalized_bounds(
+	bounds: tuple[float, float] | None,
+	cell_bounds: tuple[float, float],
+	name: str,
+) -> tuple[float, float]:
+	"""Validate one sampling interval inside the periodic base cell."""
+	candidate = np.asarray(cell_bounds if bounds is None else bounds, dtype=float)
+	if (
+		candidate.shape != (2,)
+		or not np.all(np.isfinite(candidate))
+		or candidate[0] >= candidate[1]
+		or candidate[0] < cell_bounds[0]
+		or candidate[1] > cell_bounds[1]
+	):
+		raise ValueError(
+			f"`{name}` must be a finite increasing interval inside the base cell."
+		)
+	return float(candidate[0]), float(candidate[1])
+
+
 def random_gc_configuration(
 	potential: Potential,
 	*,
@@ -99,45 +120,17 @@ def random_gc_configuration(
 	"""
 	if not isinstance(potential, Potential):
 		raise TypeError("`potential` must be a Potential instance.")
-	if (
-		isinstance(particle_count, (bool, np.bool_))
-		or not isinstance(particle_count, (int, np.integer))
-		or particle_count < 1
-	):
-		raise ValueError("`particle_count` must be a positive integer.")
-	if (
-		isinstance(seed, (bool, np.bool_))
-		or not isinstance(seed, (int, np.integer))
-		or seed < 0
-	):
-		raise ValueError("`seed` must be a non-negative integer.")
+	positive_integer(particle_count, "particle_count")
+	nonnegative_integer(seed, "seed")
 	grid = potential.grid
 
-	def normalized_bounds(
-		bounds: tuple[float, float] | None,
-		cell_bounds: tuple[float, float],
-		name: str,
-	) -> tuple[float, float]:
-		"""Validate one sampling interval inside the periodic base cell."""
-		candidate = np.asarray(cell_bounds if bounds is None else bounds, dtype=float)
-		if (
-			candidate.shape != (2,)
-			or not np.all(np.isfinite(candidate))
-			or candidate[0] >= candidate[1]
-			or candidate[0] < cell_bounds[0]
-			or candidate[1] > cell_bounds[1]
-		):
-			raise ValueError(
-				f"`{name}` must be a finite increasing interval inside the base cell."
-			)
-		return float(candidate[0]), float(candidate[1])
 
-	x_interval = normalized_bounds(
+	x_interval = _normalized_bounds(
 		x_bounds,
 		(grid.xmin, grid.xmin + grid.period),
 		"x_bounds",
 	)
-	y_interval = normalized_bounds(
+	y_interval = _normalized_bounds(
 		y_bounds,
 		(grid.ymin, grid.ymin + grid.period),
 		"y_bounds",
@@ -166,18 +159,8 @@ def latin_hypercube_gc_configuration(
 	"""
 	if not isinstance(potential, Potential):
 		raise TypeError("`potential` must be a Potential instance.")
-	if (
-		isinstance(particle_count, (bool, np.bool_))
-		or not isinstance(particle_count, (int, np.integer))
-		or particle_count < 1
-	):
-		raise ValueError("`particle_count` must be a positive integer.")
-	if (
-		isinstance(seed, (bool, np.bool_))
-		or not isinstance(seed, (int, np.integer))
-		or seed < 0
-	):
-		raise ValueError("`seed` must be a non-negative integer.")
+	positive_integer(particle_count, "particle_count")
+	nonnegative_integer(seed, "seed")
 	margin = float(domain_margin_fraction)
 	if not np.isfinite(margin) or margin < 0.0 or margin >= 0.5:
 		raise ValueError("`domain_margin_fraction` must lie in [0, 0.5).")

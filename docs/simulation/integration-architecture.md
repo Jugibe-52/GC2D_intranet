@@ -20,6 +20,35 @@ capability needed for energy tracking; method constructors check their numerical
 options. Methods reuse these validated inputs instead of repeating the same
 capability checks. `IntegrationMethod.new_run` owns immutable run snapshots.
 
+Long validation blocks are organized as private preparation functions within
+their owning modules. `SimulationRequest` separates interval validation from
+output-schedule normalization, and reuses the interval rule in `uniform`.
+`Solution` prepares the physical history and immutable diagnostics separately;
+the runner retains responsibility for agreement with the requested initial state
+and saved times. Run preparation similarly separates initial-state ownership
+and metadata freezing from the method lifecycle.
+
+Scalar option rules shared by numerical families live in `methods._validation`.
+Callers retain their existing conversion policies, including whether Boolean
+values are rejected before conversion to floating point. Newton and Broyden
+separate validated entry data from their iterations and reuse residual checks
+without repeating a cached evaluation. Checks on convergence, singular systems,
+accepted-step continuity, and newly computed non-finite values remain next to
+the numerical operation that produces them. No public names or signatures are
+changed by these internal boundaries.
+
+The downstream packages follow the same ownership convention. Studies share
+scalar and sampling rules in `studies._validation` and aligned comparison
+records in `studies._comparison_validation`; scientific identity, exact versus
+tolerant time alignment, and method-specific diagnostics remain local to each
+study family. Diagnostics prepare typed observation records before analysis and
+keep sequence and sampling checks at their original state transitions. File
+readers retain their format-specific integrity checks. Visualization prepares
+validated series before creating figures and shares planar-solution and
+animation controls through private package modules, preserving each animator's
+frame-count policy. The separately packaged Poincare batch runtime keeps its
+validation helpers within the files shipped to workers.
+
 ## Package workflow diagram
 
 ![Package responsibilities and execution workflow](package-workflow-architecture.svg)

@@ -19,6 +19,13 @@ remains [theory.tex](../tex/theory.tex), with its compiled
 
 ## Numerical path
 
+Scalar option validators are defined in `methods._validation`; projection and
+state-extension selectors remain in `methods.extended.configuration`. Internal
+consumers import numeric validators from their defining module. Newton and
+Broyden share initial-vector, stopping-control and residual validation in
+`methods._nonlinear`. Cached residuals are checked without another evaluation;
+singularity, stagnation and convergence checks stay inside the numerical loops.
+
 Initialization binds this model's recipe and options. The ordinary implicit
 path is `advance -> solve_projection -> compose -> direct_map / adjoint_map`.
 Explicit midpoint methods use `midpoint_step` in place of the nonlinear

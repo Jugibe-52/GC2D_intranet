@@ -147,29 +147,10 @@ def _readonly_array(value: np.ndarray) -> np.ndarray:
 	return result
 
 
-def write_five_method_comparison_csv(
-	result: FiveMethodComparisonResult,
-	path: str | Path,
-	*,
-	metadata: Mapping[str, Any] | None = None,
-	overwrite: bool = False,
-) -> Path:
-	"""Persist all trajectories and plotted diagnostics in one wide CSV file."""
-	target = Path(path)
-	if target.suffix.lower() != ".csv":
-		raise ValueError("The five-method comparison path must use the .csv suffix.")
-	if target.exists() and not overwrite:
-		raise FileExistsError(f"Comparison CSV already exists: {target}")
-
-	times = np.asarray(result.reference.times, dtype=float)
-	if times.ndim != 1 or times.size < 2 or np.any(np.diff(times) <= 0.0):
-		raise ValueError("Comparison times must be finite and strictly increasing.")
-	sample_count = times.size
-	particle_count = result.reference.states.shape[0] // 2
-	method_names = tuple(result.solutions)
-	if particle_count < 1 or not method_names:
-		raise ValueError("The comparison must contain methods and trajectories.")
-
+def _reference_columns(
+	result: FiveMethodComparisonResult, particle_count: int, sample_count: int,
+) -> dict[str, tuple[np.ndarray, int]]:
+	"""Prepare reference positions and audit histories aligned with saved samples."""
 	columns: dict[str, tuple[np.ndarray, int]] = {}
 	for reference_name, states in (
 		("dop853", result.reference.states),
@@ -203,7 +184,43 @@ def write_five_method_comparison_csv(
 				description=f"Reference {quantity}",
 			),
 		)
+	return columns
 
+
+def _append_step_diagnostic_columns(
+	solution: Solution, method_name: str, step_count: int, sample_count: int,
+	columns: dict[str, tuple[np.ndarray, int]],
+) -> tuple[list[str], dict[str, int]]:
+	"""Align complete-step diagnostics with saved intervals and retain substep offsets."""
+	names: list[str] = []
+	substeps: dict[str, int] = {}
+	for diagnostic_name in _STEP_DIAGNOSTICS:
+		source_name = diagnostic_name
+		if diagnostic_name == "residual_evaluations" and (
+			source_name not in solution.diagnostics
+		):
+			source_name = "residual_evaluations_per_step"
+		if source_name not in solution.diagnostics:
+			continue
+		values = np.asarray(solution.diagnostics[source_name])
+		if values.shape != (step_count,) or not np.all(np.isfinite(values)):
+			raise ValueError(f"{method_name} {source_name} must align with steps.")
+		stride, remainder = divmod(step_count, sample_count - 1)
+		if remainder or stride < 1:
+			raise ValueError("Saved intervals must contain complete integration steps.")
+		substeps[diagnostic_name] = stride
+		for substep in range(stride):
+			suffix = "" if substep == 0 else f".substep.{substep}"
+			columns[f"{method_name}.diagnostic.{diagnostic_name}{suffix}"] = (values[substep::stride], 1)
+		names.append(diagnostic_name)
+	return names, substeps
+
+
+def _append_method_columns(
+	result: FiveMethodComparisonResult, method_names: tuple[str, ...],
+	particle_count: int, sample_count: int, columns: dict[str, tuple[np.ndarray, int]],
+) -> tuple[dict[str, list[str]], dict[str, dict[str, int]]]:
+	"""Append aligned method histories and describe the stored substep diagnostics."""
 	diagnostic_columns: dict[str, list[str]] = {}
 	diagnostic_substeps: dict[str, dict[str, int]] = {}
 	for method_name in method_names:
@@ -235,28 +252,40 @@ def write_five_method_comparison_csv(
 				raise ValueError(f"{method_name} {quantity} must align with time.")
 			columns[f"{method_name}.{quantity}"] = (values, 0)
 
-		diagnostic_columns[method_name] = []
-		diagnostic_substeps[method_name] = {}
-		for diagnostic_name in _STEP_DIAGNOSTICS:
-			source_name = diagnostic_name
-			if diagnostic_name == "residual_evaluations" and (
-				source_name not in solution.diagnostics
-			):
-				source_name = "residual_evaluations_per_step"
-			if source_name not in solution.diagnostics:
-				continue
-			values = np.asarray(solution.diagnostics[source_name])
-			step_count = result.config.step_count
-			if values.shape != (step_count,) or not np.all(np.isfinite(values)):
-				raise ValueError(f"{method_name} {source_name} must align with steps.")
-			stride, remainder = divmod(step_count, sample_count - 1)
-			if remainder or stride < 1:
-				raise ValueError("Saved intervals must contain complete integration steps.")
-			diagnostic_substeps[method_name][diagnostic_name] = stride
-			for substep in range(stride):
-				suffix = "" if substep == 0 else f".substep.{substep}"
-				columns[f"{method_name}.diagnostic.{diagnostic_name}{suffix}"] = (values[substep::stride], 1)
-			diagnostic_columns[method_name].append(diagnostic_name)
+		diagnostic_columns[method_name], diagnostic_substeps[method_name] = _append_step_diagnostic_columns(
+			solution, method_name, result.config.step_count, sample_count, columns,
+		)
+	return diagnostic_columns, diagnostic_substeps
+
+
+def write_five_method_comparison_csv(
+	result: FiveMethodComparisonResult,
+	path: str | Path,
+	*,
+	metadata: Mapping[str, Any] | None = None,
+	overwrite: bool = False,
+) -> Path:
+	"""Persist all trajectories and plotted diagnostics in one wide CSV file."""
+	target = Path(path)
+	if target.suffix.lower() != ".csv":
+		raise ValueError("The five-method comparison path must use the .csv suffix.")
+	if target.exists() and not overwrite:
+		raise FileExistsError(f"Comparison CSV already exists: {target}")
+
+	times = np.asarray(result.reference.times, dtype=float)
+	if times.ndim != 1 or times.size < 2 or np.any(np.diff(times) <= 0.0):
+		raise ValueError("Comparison times must be finite and strictly increasing.")
+	sample_count = times.size
+	particle_count = result.reference.states.shape[0] // 2
+	method_names = tuple(result.solutions)
+	if particle_count < 1 or not method_names:
+		raise ValueError("The comparison must contain methods and trajectories.")
+
+	columns = _reference_columns(result, particle_count, sample_count)
+
+	diagnostic_columns, diagnostic_substeps = _append_method_columns(
+		result, method_names, particle_count, sample_count, columns,
+	)
 
 	payload = {
 		"diagnostic_substeps": diagnostic_substeps,
@@ -358,11 +387,34 @@ def _stack_particle_columns(
 		raise ValueError(f"Comparison CSV is missing column {exc.args[0]!r}.") from exc
 
 
-def load_five_method_comparison_csv(path: str | Path) -> StoredFiveMethodComparison:
-	"""Load and validate one visualization-ready five-method comparison CSV."""
-	source_path = Path(path)
-	if not source_path.is_file():
-		raise FileNotFoundError(f"Comparison CSV not found: {source_path}")
+def _validated_csv_header(
+	header: list[str], first_row: list[str],
+) -> tuple[dict[str, int], dict[str, Any]]:
+	"""Resolve unique required columns and the supported embedded metadata schema."""
+	if len(first_row) != len(header) or len(set(header)) != len(header):
+		raise ValueError("Comparison CSV has malformed or duplicate columns.")
+	indices = {name: index for index, name in enumerate(header)}
+	missing = [name for name in _CORE_COLUMNS if name not in indices]
+	if missing:
+		raise ValueError(f"Comparison CSV is missing core columns: {missing}.")
+	try:
+		payload = json.loads(first_row[indices["metadata_json"]])
+	except (json.JSONDecodeError, TypeError) as exc:
+		raise ValueError("Comparison CSV metadata is not valid JSON.") from exc
+	if (
+		int(first_row[indices["schema_version"]])
+		!= FIVE_METHOD_COMPARISON_CSV_SCHEMA_VERSION
+		or payload.get("schema_version")
+		!= FIVE_METHOD_COMPARISON_CSV_SCHEMA_VERSION
+	):
+		raise ValueError("Unsupported comparison CSV schema version.")
+	return indices, payload
+
+
+def _read_comparison_columns(
+	source_path: Path,
+) -> tuple[dict[str, Any], np.ndarray, dict[str, np.ndarray], int, tuple[str, ...]]:
+	"""Read rectangular sample rows and validate the saved time grid and identities."""
 	with source_path.open("r", encoding="utf-8", newline="") as stream:
 		reader = csv.reader(stream)
 		try:
@@ -370,23 +422,7 @@ def load_five_method_comparison_csv(path: str | Path) -> StoredFiveMethodCompari
 			first_row = next(reader)
 		except StopIteration as exc:
 			raise ValueError("Comparison CSV must contain a header and data rows.") from exc
-		if len(first_row) != len(header) or len(set(header)) != len(header):
-			raise ValueError("Comparison CSV has malformed or duplicate columns.")
-		indices = {name: index for index, name in enumerate(header)}
-		missing = [name for name in _CORE_COLUMNS if name not in indices]
-		if missing:
-			raise ValueError(f"Comparison CSV is missing core columns: {missing}.")
-		try:
-			payload = json.loads(first_row[indices["metadata_json"]])
-		except (json.JSONDecodeError, TypeError) as exc:
-			raise ValueError("Comparison CSV metadata is not valid JSON.") from exc
-		if (
-			int(first_row[indices["schema_version"]])
-			!= FIVE_METHOD_COMPARISON_CSV_SCHEMA_VERSION
-			or payload.get("schema_version")
-			!= FIVE_METHOD_COMPARISON_CSV_SCHEMA_VERSION
-		):
-			raise ValueError("Unsupported comparison CSV schema version.")
+		indices, payload = _validated_csv_header(header, first_row)
 		sample_count = int(payload["sample_count"])
 		numeric_names = [name for name in header if name not in _CORE_COLUMNS]
 		columns = {name: np.full(sample_count, np.nan) for name in numeric_names}
@@ -424,22 +460,26 @@ def load_five_method_comparison_csv(path: str | Path) -> StoredFiveMethodCompari
 	method_names = tuple(str(name) for name in payload["method_names"])
 	if particle_count < 1 or not method_names or len(set(method_names)) != len(method_names):
 		raise ValueError("Comparison CSV method or particle metadata is invalid.")
+	return payload, times, columns, particle_count, method_names
 
-	def states_for(scope: str) -> np.ndarray:
-		"""Load packed planar states for one method or reference scope."""
-		return np.vstack(
-			(
-				_stack_particle_columns(
-					columns, scope=scope, quantity="x", particle_count=particle_count
-				),
-				_stack_particle_columns(
-					columns, scope=scope, quantity="y", particle_count=particle_count
-				),
-			)
-		)
 
-	reference_states = states_for("reference.dop853")
-	audit_states = states_for("reference.radau")
+def _states_from_columns(
+	columns: Mapping[str, np.ndarray], scope: str, particle_count: int,
+) -> np.ndarray:
+	"""Rebuild packed planar component-major states for one CSV scope."""
+	return np.vstack(tuple(
+		_stack_particle_columns(columns, scope=scope, quantity=quantity, particle_count=particle_count)
+		for quantity in ("x", "y")
+	))
+
+
+def _reference_from_columns(
+	columns: Mapping[str, np.ndarray], payload: Mapping[str, Any],
+	times: np.ndarray, particle_count: int,
+) -> tuple[SimpleNamespace, np.ndarray]:
+	"""Reconstruct finite immutable reference histories and their audit discrepancy."""
+	reference_states = _states_from_columns(columns, "reference.dop853", particle_count)
+	audit_states = _states_from_columns(columns, "reference.radau", particle_count)
 	audit_distances = _stack_particle_columns(
 		columns,
 		scope="reference",
@@ -472,13 +512,54 @@ def load_five_method_comparison_csv(path: str | Path) -> StoredFiveMethodCompari
 		),
 		radau_function_evaluations=int(reference_metadata["radau_function_evaluations"]),
 	)
+	return reference, reference_energy_errors
+
+
+def _diagnostics_from_columns(
+	columns: Mapping[str, np.ndarray], payload: Mapping[str, Any], method_name: str,
+) -> dict[str, Any]:
+	"""Rebuild complete-step diagnostics in substep order after checking alignment."""
+	diagnostics = dict(payload["solution_diagnostics"][method_name])
+	for diagnostic_name in payload["diagnostic_columns"][method_name]:
+		column_name = f"{method_name}.diagnostic.{diagnostic_name}"
+		try:
+			values = columns[column_name]
+		except KeyError as exc:
+			raise ValueError(f"Comparison CSV is missing {column_name!r}.") from exc
+		if not np.isnan(values[0]) or not np.all(np.isfinite(values[1:])):
+			raise ValueError(f"Stored diagnostic {column_name!r} is misaligned.")
+		stride = payload.get("diagnostic_substeps", {}).get(method_name, {}).get(diagnostic_name, 1)
+		if stride > 1:
+			parts = [values[1:]]
+			for substep in range(1, stride):
+				extra = columns[f"{column_name}.substep.{substep}"]
+				if not np.isnan(extra[0]) or not np.all(np.isfinite(extra[1:])):
+					raise ValueError("Stored substep diagnostics are misaligned.")
+				parts.append(extra[1:])
+			values = np.concatenate(([np.nan], np.column_stack(parts).ravel()))
+		diagnostics[diagnostic_name] = (
+			values[1:].astype(int)
+			if diagnostic_name in {"nonlinear_iterations", "residual_evaluations"}
+			else values[1:]
+		)
+	return diagnostics
+
+
+def load_five_method_comparison_csv(path: str | Path) -> StoredFiveMethodComparison:
+	"""Load and validate one visualization-ready five-method comparison CSV."""
+	source_path = Path(path)
+	if not source_path.is_file():
+		raise FileNotFoundError(f"Comparison CSV not found: {source_path}")
+	payload, times, columns, particle_count, method_names = _read_comparison_columns(source_path)
+
+	reference, reference_energy_errors = _reference_from_columns(columns, payload, times, particle_count)
 
 	solutions: dict[str, Solution] = {}
 	accuracy: dict[str, SimpleNamespace] = {}
 	energy_accuracy: dict[str, SimpleNamespace] = {}
 	source: GCInitialConfiguration | None = None
 	for method_name in method_names:
-		states = states_for(method_name)
+		states = _states_from_columns(columns, method_name, particle_count)
 		if not np.all(np.isfinite(states)):
 			raise ValueError(f"Comparison CSV has incomplete {method_name} states.")
 		if source is None:
@@ -488,29 +569,7 @@ def load_five_method_comparison_csv(path: str | Path) -> StoredFiveMethodCompari
 			assert source_initial_state is not None
 			if not np.array_equal(states[:, 0], source_initial_state):
 				raise ValueError("Stored method trajectories have different origins.")
-		diagnostics = dict(payload["solution_diagnostics"][method_name])
-		for diagnostic_name in payload["diagnostic_columns"][method_name]:
-			column_name = f"{method_name}.diagnostic.{diagnostic_name}"
-			try:
-				values = columns[column_name]
-			except KeyError as exc:
-				raise ValueError(f"Comparison CSV is missing {column_name!r}.") from exc
-			if not np.isnan(values[0]) or not np.all(np.isfinite(values[1:])):
-				raise ValueError(f"Stored diagnostic {column_name!r} is misaligned.")
-			stride = payload.get("diagnostic_substeps", {}).get(method_name, {}).get(diagnostic_name, 1)
-			if stride > 1:
-				parts = [values[1:]]
-				for substep in range(1, stride):
-					extra = columns[f"{column_name}.substep.{substep}"]
-					if not np.isnan(extra[0]) or not np.all(np.isfinite(extra[1:])):
-						raise ValueError("Stored substep diagnostics are misaligned.")
-					parts.append(extra[1:])
-				values = np.concatenate(([np.nan], np.column_stack(parts).ravel()))
-			diagnostics[diagnostic_name] = (
-				values[1:].astype(int)
-				if diagnostic_name in {"nonlinear_iterations", "residual_evaluations"}
-				else values[1:]
-			)
+		diagnostics = _diagnostics_from_columns(columns, payload, method_name)
 		solutions[method_name] = Solution(
 			t=times,
 			states=states,

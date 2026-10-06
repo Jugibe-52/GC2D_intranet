@@ -26,6 +26,51 @@ def _readonly_array(
 	return result
 
 
+def _validated_history(
+	t: np.ndarray,
+	states: np.ndarray,
+	source: InitialConfiguration,
+) -> tuple[np.ndarray, np.ndarray]:
+	"""Own finite ``(T,)`` times and ``(state_size, T)`` states for one layout."""
+	if not isinstance(source, InitialConfiguration):
+		raise TypeError("`source` must implement InitialConfiguration.")
+	layout = source.layout
+	if not isinstance(layout, StateLayout):
+		raise TypeError("`source.layout` must implement StateLayout.")
+	times = _readonly_array(t, dtype=float)
+	state_history = _readonly_array(states)
+	if (
+		times.ndim != 1
+		or times.size < 2
+		or not np.all(np.isfinite(times))
+		or np.any(np.diff(times) <= 0)
+		or state_history.ndim != 2
+		or state_history.shape[1] != times.size
+		or state_history.shape[0] == 0
+		or not np.all(np.isfinite(state_history))
+	):
+		raise ValueError(
+			"`t` and `states` must be finite arrays with shapes "
+			"(T,) and (state_size, T), with increasing times."
+		)
+	layout.validate_packed_state_layout(state_history)
+	return times, state_history
+
+
+def _readonly_diagnostics(
+	diagnostics: Mapping[str, DiagnosticValue] | None,
+) -> Mapping[str, DiagnosticValue]:
+	"""Validate diagnostic names and own read-only copies of their array values."""
+	normalized: dict[str, DiagnosticValue] = {}
+	for name, value in dict(diagnostics or {}).items():
+		if not isinstance(name, str) or not name:
+			raise ValueError("Diagnostic names must be non-empty strings.")
+		normalized[name] = (
+			_readonly_array(value) if isinstance(value, np.ndarray) else value
+		)
+	return MappingProxyType(normalized)
+
+
 class Solution:
 	"""Immutable sampled physical trajectory and named numerical diagnostics.
 
@@ -50,39 +95,12 @@ class Solution:
 		diagnostics: Mapping[str, DiagnosticValue] | None = None,
 	) -> None:
 		"""Validate, own and freeze one complete physical result."""
-		if not isinstance(source, InitialConfiguration):
-			raise TypeError("`source` must implement InitialConfiguration.")
-		layout = source.layout
-		if not isinstance(layout, StateLayout):
-			raise TypeError("`source.layout` must implement StateLayout.")
-		times = _readonly_array(t, dtype=float)
-		state_history = _readonly_array(states)
-		if (
-			times.ndim != 1
-			or times.size < 2
-			or not np.all(np.isfinite(times))
-			or np.any(np.diff(times) <= 0)
-			or state_history.ndim != 2
-			or state_history.shape[1] != times.size
-			or state_history.shape[0] == 0
-			or not np.all(np.isfinite(state_history))
-		):
-			raise ValueError(
-				"`t` and `states` must be finite arrays with shapes "
-				"(T,) and (state_size, T), with increasing times."
-			)
-		layout.validate_packed_state_layout(state_history)
-		normalized_diagnostics: dict[str, DiagnosticValue] = {}
-		for name, value in dict(diagnostics or {}).items():
-			if not isinstance(name, str) or not name:
-				raise ValueError("Diagnostic names must be non-empty strings.")
-			normalized_diagnostics[name] = (
-				_readonly_array(value) if isinstance(value, np.ndarray) else value
-			)
+		times, state_history = _validated_history(t, states, source)
+		normalized_diagnostics = _readonly_diagnostics(diagnostics)
 		self._t = times
 		self._states = state_history
 		self._source = source
-		self._diagnostics = MappingProxyType(normalized_diagnostics)
+		self._diagnostics = normalized_diagnostics
 
 	@property
 	def t(self) -> np.ndarray:

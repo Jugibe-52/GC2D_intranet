@@ -40,20 +40,10 @@ class RK4ProbeSettings:
     cycle_duration: float = 1.0
 
     def __post_init__(self) -> None:
-        for name in ('particle_id', 'cycles', 'steps_per_cycle', 'chunk_steps'):
-            value = getattr(self, name)
-            if isinstance(value, bool) or not isinstance(value, int) or value < 1:
-                raise ValueError(f'{name} must be a positive integer.')
-        xy = np.asarray(self.initial_xy_over_L, dtype=float)
-        if xy.shape != (2,) or not np.isfinite(xy).all() or np.any((xy < 0) | (xy >= 1)):
-            raise ValueError('Initial coordinates must be two finite fractions in [0, 1).')
-        if self.chunk_steps % self.steps_per_cycle:
-            raise ValueError('Chunk boundaries must coincide with complete forcing cycles.')
-        if not np.isfinite([self.rho, self.t0, self.cycle_duration]).all() or self.rho < 0 or self.cycle_duration <= 0:
-            raise ValueError('Require finite time controls, rho >= 0 and cycle_duration > 0.')
-        if not isinstance(self.color, str) or len(self.color) != 7 or self.color[0] != '#':
-            raise ValueError('Use a six-digit hexadecimal particle color.')
-        int(self.color[1:], 16)
+        _validate_probe_parameters(
+            self.particle_id, self.initial_xy_over_L, self.color, self.cycles,
+            self.steps_per_cycle, self.chunk_steps, self.rho, self.t0, self.cycle_duration,
+        )
 
 
 def load_probe_field(snapshot: Path, *, expected_sha256: str,
@@ -82,22 +72,8 @@ def load_probe_field(snapshot: Path, *, expected_sha256: str,
 def probe_contract(settings: RK4ProbeSettings, *, snapshot_sha256: str,
                    provenance: dict, background: SavedPoincareSection) -> dict:
     """Validate context compatibility and identify the reproducible calculation."""
+    _validate_probe_background(settings, snapshot_sha256, provenance, background)
     meta = background.metadata
-    if settings.particle_id in background.particle_ids:
-        raise ValueError('The probe ID must be absent from the background.')
-    if meta['method'] != 'RK4' or meta['snapshot_sha256'] != snapshot_sha256:
-        raise ValueError('The context must be RK4 with the same field snapshot.')
-    for key in ('rho', 't0', 'cycle_duration', 'steps_per_cycle'):
-        if meta[key] != getattr(settings, key):
-            raise ValueError(f'Probe and background disagree on {key}.')
-    if settings.chunk_steps != meta['checkpoint_steps']:
-        raise ValueError('Use the same integration chunk schedule as the background.')
-    if settings.cycles > meta['cycles']:
-        raise ValueError('The background does not cover the requested cycle count.')
-    for key in ('grid', 'source_hdf5_sha256', 'B_tesla', 'characteristic_length_m',
-                'source_selection', 'interpolation_order'):
-        if provenance[key] != meta['field_provenance'][key]:
-            raise ValueError(f'The background field differs on {key}.')
     source = Path(__file__).resolve().parents[1]
     paths = [Path(__file__)]
     for package in ('potential', 'dynamics', 'initial_conditions', 'simulation'):
@@ -177,3 +153,48 @@ def probe_comparison_panel(background: SavedPoincareSection, positions: np.ndarr
                 coordinates=np.concatenate((background.positions[1:settings.cycles + 1], positions[1:]), axis=1),
                 particle_ids=[*background.particle_ids, settings.particle_id],
                 colors=[*background.colors, settings.color])
+
+
+def _validate_probe_parameters(
+	particle_id: int, initial_xy_over_L: tuple[float, float], color: str,
+	cycles: int, steps_per_cycle: int, chunk_steps: int, rho: float,
+	t0: float, cycle_duration: float,
+) -> None:
+	"""Validate one probe identity, geometry, schedule, and display color in contract order."""
+	for name, value in (('particle_id', particle_id), ('cycles', cycles),
+						('steps_per_cycle', steps_per_cycle), ('chunk_steps', chunk_steps)):
+		if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+			raise ValueError(f'{name} must be a positive integer.')
+	xy = np.asarray(initial_xy_over_L, dtype=float)
+	if xy.shape != (2,) or not np.isfinite(xy).all() or np.any((xy < 0) | (xy >= 1)):
+		raise ValueError('Initial coordinates must be two finite fractions in [0, 1).')
+	if chunk_steps % steps_per_cycle:
+		raise ValueError('Chunk boundaries must coincide with complete forcing cycles.')
+	if not np.isfinite([rho, t0, cycle_duration]).all() or rho < 0 or cycle_duration <= 0:
+		raise ValueError('Require finite time controls, rho >= 0 and cycle_duration > 0.')
+	if not isinstance(color, str) or len(color) != 7 or color[0] != '#':
+		raise ValueError('Use a six-digit hexadecimal particle color.')
+	int(color[1:], 16)
+
+
+def _validate_probe_background(
+	settings: RK4ProbeSettings, snapshot_sha256: str, provenance: dict,
+	background: SavedPoincareSection,
+) -> None:
+	"""Require matching background physics, forcing schedule, field, and distinct probe IDs."""
+	meta = background.metadata
+	if settings.particle_id in background.particle_ids:
+		raise ValueError('The probe ID must be absent from the background.')
+	if meta['method'] != 'RK4' or meta['snapshot_sha256'] != snapshot_sha256:
+		raise ValueError('The context must be RK4 with the same field snapshot.')
+	for key in ('rho', 't0', 'cycle_duration', 'steps_per_cycle'):
+		if meta[key] != getattr(settings, key):
+			raise ValueError(f'Probe and background disagree on {key}.')
+	if settings.chunk_steps != meta['checkpoint_steps']:
+		raise ValueError('Use the same integration chunk schedule as the background.')
+	if settings.cycles > meta['cycles']:
+		raise ValueError('The background does not cover the requested cycle count.')
+	for key in ('grid', 'source_hdf5_sha256', 'B_tesla', 'characteristic_length_m',
+				'source_selection', 'interpolation_order'):
+		if provenance[key] != meta['field_provenance'][key]:
+			raise ValueError(f'The background field differs on {key}.')

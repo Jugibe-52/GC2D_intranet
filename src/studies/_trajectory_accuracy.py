@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 import json
-from typing import Protocol
+from typing import Any, Protocol
 
 import numpy as np
 
@@ -132,14 +132,10 @@ def validate_reference_identity(
 	if initial_state is None or not np.array_equal(initial_state, reference.initial_state):
 		raise ValueError("The comparison initial state differs from the reference.")
 	metadata = reference.metadata
-	if _json_canonical(metadata.get("potential")) != _json_canonical(
-		dict(potential_metadata)
-	):
-		raise ValueError("Potential metadata differs from the reference artifact.")
-	if _json_canonical(metadata.get("initial_conditions")) != _json_canonical(
-		dict(initial_condition_metadata)
-	):
-		raise ValueError("Initial-condition metadata differs from the reference artifact.")
+	_validate_reference_provenance(
+		metadata, potential_metadata=potential_metadata,
+		initial_condition_metadata=initial_condition_metadata,
+	)
 	reference_config = metadata.get("config")
 	if not isinstance(reference_config, Mapping):
 		raise ValueError("Reference numerical configuration is missing.")
@@ -148,50 +144,8 @@ def validate_reference_identity(
 		raise ValueError("The comparison rho differs from the reference.")
 	if tuple(float(value) for value in reference_config["t_span"]) != config.t_span:
 		raise ValueError("The comparison time span differs from the reference.")
-	reference_interval = float(reference_config["save_interval"])
-	comparison_interval = config.save_interval
-	if comparison_interval is None:
-		raise ValueError("The comparison saved interval must be configured.")
-	reference_sample_count = integer_ratio(
-		config.t_span[1] - config.t_span[0],
-		reference_interval,
-		"reference duration / saved interval",
-	) + 1
-	if reference.times.size != reference_sample_count or not np.array_equal(
-		reference.times,
-		np.linspace(*config.t_span, reference_sample_count),
-	):
-		raise ValueError("The reference saved-time grid is inconsistent with its manifest.")
-	integer_ratio(
-		comparison_interval,
-		reference_interval,
-		"comparison saved interval / reference saved interval",
-	)
-	grid_metadata = metadata.get("potential_grid")
-	grid = potential.grid
-	actual_grid_metadata = {
-		"xmin": grid.xmin,
-		"ymin": grid.ymin,
-		"dx": grid.dx,
-		"dy": grid.dy,
-		"nx": grid.nx,
-		"ny": grid.ny,
-		"period": grid.period,
-		"shape": grid.shape,
-		"interpolation_order": potential.interpolation_order,
-	}
-	if _json_canonical(grid_metadata) != _json_canonical(actual_grid_metadata):
-		raise ValueError("The comparison potential grid differs from the reference.")
-	if metadata.get("dynamics_fingerprint_algorithm") != (
-		"gc2d-sampled-potential-v1-sha256"
-	):
-		raise ValueError("The reference dynamics fingerprint algorithm is unsupported.")
-	stored_fingerprint = metadata.get("dynamics_fingerprint_sha256")
-	actual_fingerprint = potential_fingerprint(
-		GuidingCenterDynamics(potential, rho=config.rho).effective_potential
-	)
-	if stored_fingerprint != actual_fingerprint:
-		raise ValueError("The comparison interpolated ODE differs from the reference.")
+	_validate_reference_sampling(reference, config, reference_config)
+	_validate_reference_dynamics(potential, metadata, config.rho)
 
 
 def reference_indices_for_times(
@@ -224,6 +178,78 @@ def validated_refinement_steps(
 	for coarse, fine in zip(steps, steps[1:]):
 		integer_ratio(coarse, fine, "coarse step / fine step")
 	return steps
+
+
+def _validate_reference_provenance(
+	metadata: Mapping[str, object], *, potential_metadata: Mapping[str, object],
+	initial_condition_metadata: Mapping[str, object],
+) -> None:
+	"""Require identical physical and initial-condition provenance in the stored manifest."""
+	if _json_canonical(metadata.get("potential")) != _json_canonical(
+		dict(potential_metadata)
+	):
+		raise ValueError("Potential metadata differs from the reference artifact.")
+	if _json_canonical(metadata.get("initial_conditions")) != _json_canonical(
+		dict(initial_condition_metadata)
+	):
+		raise ValueError("Initial-condition metadata differs from the reference artifact.")
+
+
+def _validate_reference_sampling(
+	reference: StoredReferenceTrajectory, config: ReferenceAccuracyConfig,
+	reference_config: Mapping[str, Any],
+) -> None:
+	"""Require the full stored time grid and an exactly divisible comparison cadence."""
+	reference_interval = float(reference_config["save_interval"])
+	comparison_interval = config.save_interval
+	if comparison_interval is None:
+		raise ValueError("The comparison saved interval must be configured.")
+	reference_sample_count = integer_ratio(
+		config.t_span[1] - config.t_span[0],
+		reference_interval,
+		"reference duration / saved interval",
+	) + 1
+	if reference.times.size != reference_sample_count or not np.array_equal(
+		reference.times,
+		np.linspace(*config.t_span, reference_sample_count),
+	):
+		raise ValueError("The reference saved-time grid is inconsistent with its manifest.")
+	integer_ratio(
+		comparison_interval,
+		reference_interval,
+		"comparison saved interval / reference saved interval",
+	)
+
+
+def _validate_reference_dynamics(
+	potential: Potential, metadata: Mapping[str, object], rho: float,
+) -> None:
+	"""Require the same interpolation grid and sampled effective-potential fingerprint."""
+	grid_metadata = metadata.get("potential_grid")
+	grid = potential.grid
+	actual_grid_metadata = {
+		"xmin": grid.xmin,
+		"ymin": grid.ymin,
+		"dx": grid.dx,
+		"dy": grid.dy,
+		"nx": grid.nx,
+		"ny": grid.ny,
+		"period": grid.period,
+		"shape": grid.shape,
+		"interpolation_order": potential.interpolation_order,
+	}
+	if _json_canonical(grid_metadata) != _json_canonical(actual_grid_metadata):
+		raise ValueError("The comparison potential grid differs from the reference.")
+	if metadata.get("dynamics_fingerprint_algorithm") != (
+		"gc2d-sampled-potential-v1-sha256"
+	):
+		raise ValueError("The reference dynamics fingerprint algorithm is unsupported.")
+	stored_fingerprint = metadata.get("dynamics_fingerprint_sha256")
+	actual_fingerprint = potential_fingerprint(
+		GuidingCenterDynamics(potential, rho=rho).effective_potential
+	)
+	if stored_fingerprint != actual_fingerprint:
+		raise ValueError("The comparison interpolated ODE differs from the reference.")
 
 
 __all__: list[str] = []

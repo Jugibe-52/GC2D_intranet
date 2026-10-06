@@ -44,7 +44,7 @@ observation and integration use the same convergence threshold.
 | `methods/_nonlinear.py` | Shared Newton/Broyden convergence, iteration limits and counters |
 | `extended/core/jacobians.py` | Exact ordered particle-block tangents and centered-difference fallback |
 | `extended/core/energy.py` | Passive normalized momentum quadrature from accepted shear inputs |
-| `extended/core/records.py` | Numerical stage traces, projection results and aggregate statistics |
+| `extended/core/records.py` | Numerical stage traces, projection results and per-solve statistics |
 | `extended/core/midpoint.py` | Explicit arithmetic projection after the complete composition |
 | `extended/abba.py`, `extended/bm4.py` | Public implicit and midpoint configurations and accepted-step operations |
 | `extended/configuration.py` | Shared selectors and configuration validation |
@@ -128,6 +128,14 @@ All roots retain the physical scale `atol + rtol * max(1, ||z||_inf)`.
 
 ## Energy, sampling and observation
 
+Implicit ABBA steps, like BM4 steps, place one `ProjectedMapResult` directly in
+`contracts.step.StepResult.details`. The common step contract owns the completed
+workspace; the projection record owns the physical state, solver statistics and
+accepted composition trace. The redundant private `core.records.StepResult`
+and its projection tuple have been removed. Observers and reverse-step diagnostics
+consume the projection record directly. Published diagnostic names and shapes,
+including the one-column ABBA4/ABBA6 solve histories, remain unchanged.
+
 Only the converged residual's trace is used for accepted energy quadrature.
 `Delta kappa = (1/2) sum_j s_j (-partial_t H)(t_j, z_j)` sums individual
 signed **shears**, two per direct/adjoint stage. The factor one half converts the
@@ -150,6 +158,30 @@ respectively three or seven `UnprojectedABBAIntegrationStep` records. Reduced
 and simultaneous roots both expose the same physical observation domain.
 The ABBA6 exact-tangent function and reversibility observer differentiate this
 single outer root; they do not multiply seven projected physical Jacobians.
+
+## Parallel study potential snapshots
+
+The ABBA4 configuration comparison and parallel BM4 recurrence study share
+`studies._potential_snapshot._H5PotentialSnapshot`. It carries the processed
+grid, mean, complex modes, frequencies, HDF5 provenance, and interpolation
+order to spawned workers. Each worker reconstructs its own runtime potential
+without reopening the source file. Scheduling, trajectory collection, and
+scientific summaries remain local to each study; this helper does not define
+a common experiment runner.
+
+## Study presentation
+
+ABBA and BM4 studies return numerical data and summaries; figures and animations
+are built by functions in `visualization`. GC symplecticity views, ABBA defect
+floors and midpoint convergence plots live in `visualization.gc_symplecticity`.
+Comparison views live in `visualization.abba_comparison` and
+`visualization.area_comparison`; trajectory symplecticity views live in
+`visualization.trajectory_symplecticity`, and generalized-energy plots live in
+`visualization.energy`. Each function takes the completed study result first.
+The former result plotting and animation methods are removed. See the
+[migration table](../../../simulation/api-migration.md#study-result-visualization)
+for exact imports and replacements. Numerical maps, observers and persisted
+results are unchanged by this separation.
 
 ## Verification
 
