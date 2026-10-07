@@ -1,6 +1,6 @@
 """BM4Midpoint Poincare calculation with dimensional HDF5 star positions."""
 
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from hashlib import sha256
 from pathlib import Path
 from time import perf_counter
@@ -14,6 +14,7 @@ from contracts.request import SimulationRequest
 from dynamics.gc import GuidingCenterDynamics
 from initial_conditions.star import radial_star
 from methods.extended.bm4 import BM4Midpoint
+from potential.load import DEFAULT_FIELD_INDICES
 from potential.potential import Potential
 from simulation.runner import simulate
 from solution import Solution
@@ -30,7 +31,7 @@ class PoincareStarConfig:
 
     magnetic_field: float
     characteristic_length: float
-    selectors: tuple[int, ...]
+    selectors: tuple[int, ...] = field(default=DEFAULT_FIELD_INDICES, kw_only=True)
     interpolation_order: int
     rho_hat: float
     arms: int
@@ -68,9 +69,9 @@ def run_poincare_star(source: str | Path, config: PoincareStarConfig, *,
         characteristic_length=config.characteristic_length,
         selectors=config.selectors, interpolation_order=config.interpolation_order,
     )
-    # Each saved integer time is one forcing cycle, for the selected dominant mode.
+    # Each saved integer time is one forcing cycle, for the selected variable field.
     if field.raw.frequencies.size != 1 or not np.isclose(field.raw.frequencies[0], 1.0):
-        raise ValueError("This stroboscopic study requires the dominant mode at normalized frequency 1.")
+        raise ValueError("This stroboscopic study requires one variable field at normalized frequency 1.")
     grid = field.raw.grid
     center = np.array([grid.x0, grid.y0]) + grid.period * fraction
     length = config.arm_length_fraction * grid.period

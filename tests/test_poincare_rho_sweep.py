@@ -33,7 +33,7 @@ def field():
     raw = Potential(grid, mean=1e-5*np.cos(xx)*np.cos(yy),
                     modes=np.asarray([1e-6*np.exp(1j*xx)]), frequencies=np.array([1.]),
                     interpolation_order=3)
-    return DimensionalH5Field(raw, raw, 1., 1.5, (0, 1))
+    return DimensionalH5Field(raw, raw, 1., 1.5, (15,))
 
 
 class RhoSweepTests(unittest.TestCase):
@@ -73,7 +73,7 @@ class RhoSweepTests(unittest.TestCase):
         for key in tuple(stored.metadata['config']):
             if key == 'method' or key.startswith('newton_'):
                 stored.metadata['config'].pop(key)
-        stored.metadata['config']['source_selection'] = list(stored.metadata['config']['source_selection'])
+        stored.metadata['config']['source_selection'] = [0, 1]
         with patch('studies.poincare_rho_sweep.ArtifactStore.exists', return_value=True), \
                 patch('studies.poincare_rho_sweep.load_solution', return_value=stored):
             same = run_and_save_rho_star(prepared, 'unused', executor=Execution(), options=ExecutionOptions())

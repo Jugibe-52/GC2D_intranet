@@ -33,7 +33,7 @@ class PoincareMethodComparisonTests(unittest.TestCase):
         potential = Potential(grid, mean=1e-5*np.cos(xx)*np.cos(yy),
                               modes=np.asarray([1e-6*np.exp(1j*xx)]),
                               frequencies=np.array([1.]), interpolation_order=3)
-        cls.field = DimensionalH5Field(potential, potential, 1., 1.5, (0, 1))
+        cls.field = DimensionalH5Field(potential, potential, 1., 1.5, (15,))
         cls.runs = {}
         for method in ('BM4Midpoint', 'BM4Implicit', 'RK4', 'GaussLegendre4'):
             cls.runs[method] = {}

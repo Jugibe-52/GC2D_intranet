@@ -33,7 +33,7 @@ class GapProbeViewerTests(unittest.TestCase):
         potential = Potential(grid, mean=1e-5*np.cos(xx)*np.cos(yy),
                               modes=np.asarray([1e-6*np.exp(1j*xx)]),
                               frequencies=np.array([1.]), interpolation_order=3)
-        cls.field = DimensionalH5Field(potential, potential, 1., 1.5, (0, 1))
+        cls.field = DimensionalH5Field(potential, potential, 1., 1.5, (15,))
         cls.seeds = GapProbeSeeds(
             fractions=((.21, .24), (.23, .26), (.71, .24), (.73, .26),
                        (.21, .74), (.23, .76), (.71, .74), (.73, .76)),

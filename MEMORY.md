@@ -39,7 +39,8 @@ and retain every applicable control and diagnostic below.
   Jacobians. Keep explicit methods out of nonlinear-work statistics.
 - Use the measured, nondimensionalized GC2D potential in
   `data/potential/V1/PHI_2.h5` with magnetic field `1.5`, characteristic length
-  `0.06`, source-field selection `(0, 1)`, and cubic interpolation unless the
+  `0.06`, variable source-field selection `(15,)` with constant field 0, and
+  cubic interpolation unless the
   study explicitly investigates one of those choices.
 - Use three jointly integrated guiding-center trajectories initially situated
   along one radius from the periodic-cell center. The default radial distances
@@ -117,3 +118,20 @@ results afterward. See `docs/dynamics/gc2d-h5-import.md` for archive migration.
 non-negative width enables it in grid samples (zero leaves fields unchanged).
 The separate `denoising` argument is removed. Migrate disabled calls to
 `sigma=None` and enabled calls to their previous width (formerly default `1.0`).
+
+## Direct HDF5 field selection
+
+`Potential.load` always uses `fields[0].real` as the constant field and requires
+`freqs[0] == 0` exactly. `indx` selects original HDF5 variable-field indices,
+defaulting to `(15,)` via `potential.load.DEFAULT_FIELD_INDICES`; selected
+frequencies must be finite and strictly positive. Keep the requested order and
+pair each field with its original frequency, without amplitude sorting or
+one-based index conversion. The first selected frequency supplies the default
+normalization scale. `indx=()` loads only the constant field; `None` selects
+all finite positive-frequency fields in source order.
+
+For the original `PHI_2.h5`, the old `(0, 1)` selection and new `(15,)` produce
+identical fields, normalized frequencies, normalization factor, and potential
+fingerprint. Archive readers use recorded `source_field_indices` to recover
+historical rank selections; never reinterpret old ranks as raw HDF5 indices.
+See `docs/dynamics/gc2d-h5-import.md` for notebook and study migration.

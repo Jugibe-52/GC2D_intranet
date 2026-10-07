@@ -27,6 +27,8 @@ from ._periodic_spline import _build_periodic_spline
 from .prepared import _readonly_array
 
 DEFAULT_CHARACTERISTIC_LENGTH = 0.06
+# Original HDF5 variable-field indices; field zero is always the constant term.
+DEFAULT_FIELD_INDICES: tuple[int, ...] = (15,)
 
 
 def _validated_axis(values: Any, *, name: str) -> np.ndarray:
@@ -311,23 +313,21 @@ def _validated_import_controls(
 
 
 def _validated_field_selection(
-	indx: int | Sequence[int] | np.ndarray | None, mode_count: int,
+	indx: int | Sequence[int] | np.ndarray | None, frequencies: np.ndarray,
 ) -> np.ndarray:
-	"""Resolve the public mean selector zero and one-based positive-mode selectors."""
-	# Translate public selectors into array indices. Selector zero is reserved for
-	# the separately stored mean, hence positive selectors require subtracting one.
+	"""Validate original HDF5 indices of variable fields, preserving their order."""
 	if indx is None:
-		selected = np.arange(mode_count + 1, dtype=int)
+		selected = np.flatnonzero(np.isfinite(frequencies) & (frequencies > 0))
 	else:
-		selected = np.atleast_1d(indx).astype(int)
-		if (
-			selected.size == 0
-			or selected.min() < 0
-			or selected.max() > mode_count
-		):
-			raise ValueError(
-				f"Indices must be in range [0, {mode_count}]."
-			)
+		selected = np.atleast_1d(np.asarray(indx))
+		if selected.ndim != 1 or (selected.size and not np.issubdtype(selected.dtype, np.integer)):
+			raise ValueError("`indx` must contain one-dimensional integer source field indices.")
+		if np.any(selected < 0) or np.any(selected >= frequencies.size):
+			raise ValueError(f"Source field indices must be in range [0, {frequencies.size - 1}].")
+		selected = selected.astype(int)
+	selected_frequencies = frequencies[selected]
+	if not np.all(np.isfinite(selected_frequencies) & (selected_frequencies > 0)):
+		raise ValueError("Selected variable fields must have finite, strictly positive frequencies.")
 
 	return selected
 
@@ -372,93 +372,39 @@ def _load_data(
 				f"but expected {expected_shape}."
 			)
 
-		# Frequencies close to zero represent stationary data. Only the first such
-		# field is the mean-potential channel defined by this importer; its imaginary
-		# part is intentionally discarded because a stationary potential is real.
-		zero_mask = np.isclose(all_frequencies, 0, atol=1e-5)
-		zero_indices = np.flatnonzero(zero_mask)
-		mean = (
-			None
-			if not zero_indices.size
-			else np.asarray(fields[int(zero_indices[0])].real, dtype=float)
+		if not all_frequencies.size or all_frequencies[0] != 0:
+			raise ValueError("The first source frequency must be exactly zero for the constant field.")
+		selected_source_indices = _validated_field_selection(indx, all_frequencies)
+		selected_source_frequencies = all_frequencies[selected_source_indices]
+		selected_mean = np.asarray(fields[0].real, dtype=float)
+		# Read only the requested source slices. Each coefficient stays paired with
+		# its own frequency, including when the caller requests a non-sorted order.
+		selected_modes = (
+			np.asarray([fields[int(index)] for index in selected_source_indices], dtype=np.complex128)
+			if selected_source_indices.size else None
 		)
+		if frequency_scale is None and selected_source_frequencies.size:
+			frequency_scale = float(selected_source_frequencies[0])
+		normalization_factor = (
+			1.0 if frequency_scale is None else float(
+				frequency_scale * length_scale**2 * magnetic_field / (2.0 * np.pi) ** 2
+			)
+		)
+		selected_mean = selected_mean / normalization_factor
+		if selected_modes is not None:
+			selected_modes = selected_modes / normalization_factor
 
-		# Zero and negative modes do not enter either sorting or reconstruction. A
-		# positive coefficient later contributes twice its real part, which already
-		# accounts for the conjugate negative-frequency coefficient of a real field.
-		retained_indices = np.flatnonzero((~zero_mask) & (all_frequencies >= 0))
-		retained_frequencies = all_frequencies[retained_indices]
-		if retained_indices.size:
-			# Materialize only the positive-frequency slices, then rank them by their
-			# spatial variation. ``retained_indices`` follows the same permutation so
-			# every runtime mode can still be traced to its original HDF5 slice.
-			retained_fields = np.asarray(
-				[fields[int(index)] for index in retained_indices],
-				dtype=np.complex128,
-			)
-			amplitudes = np.ptp(retained_fields, axis=(1, 2))
-			sort_indices = np.argsort(amplitudes)[::-1]
-			retained_frequencies = retained_frequencies[sort_indices]
-			retained_fields = retained_fields[sort_indices]
-			retained_indices = retained_indices[sort_indices]
-			# In the usual case the dominant mode defines omega0. Dividing all fields
-			# by the same factor preserves the relative mean/mode amplitudes.
-			if frequency_scale is None:
-				frequency_scale = float(retained_frequencies[0])
-			normalization_factor = float(
-				frequency_scale
-				* length_scale**2
-				* magnetic_field
-				/ (2.0 * np.pi) ** 2
-			)
-			retained_fields = retained_fields / normalization_factor
-			if mean is not None:
-				mean = mean / normalization_factor
-		else:
-			# Keep a correctly shaped empty collection so the common selection logic
-			# below also works for a file containing only a stationary mean field.
-			retained_fields = np.empty(
-				(0, len(y), len(x)),
-				dtype=np.complex128,
-			)
-			if frequency_scale is None:
-				normalization_factor = 1.0
-			else:
-				normalization_factor = float(
-					frequency_scale
-					* length_scale**2
-					* magnetic_field
-					/ (2.0 * np.pi) ** 2
-				)
-				if mean is not None:
-					mean = mean / normalization_factor
-
-	# Preserve dimensional frequencies before replacing them with omega_j/omega0.
-	# The source arrays let callers recover the physical meaning of runtime data.
-	retained_source_frequencies = retained_frequencies.copy()
+	# Source frequencies remain dimensional; runtime frequencies count cycles
+	# per characteristic period, set by the first selected mode unless overridden.
+	selected_frequencies = selected_source_frequencies.copy()
 	if frequency_scale is not None:
-		retained_frequencies = retained_frequencies / frequency_scale
+		selected_frequencies = selected_frequencies / frequency_scale
+
 	# Shift each physical axis to zero and map one characteristic length to 2*pi.
 	# The full source period may contain several characteristic lengths.
 	coordinate_scale = 2.0 * np.pi / length_scale
 	x = (np.asarray(x) - float(x[0])) * coordinate_scale
 	y = (np.asarray(y) - float(y[0])) * coordinate_scale
-
-	selected = _validated_field_selection(indx, len(retained_frequencies))
-
-	selected_mean = mean if 0 in selected else None
-	mode_selection = selected[selected != 0] - 1
-	selected_frequencies = retained_frequencies[mode_selection]
-	selected_source_frequencies = retained_source_frequencies[mode_selection]
-	selected_fields = retained_fields[mode_selection]
-	selected_source_indices = retained_indices[mode_selection]
-	selected_modes = (
-		None
-		if not selected_frequencies.size
-		else np.asarray(selected_fields, dtype=np.complex128)
-	)
-	if selected_mean is None and selected_modes is None:
-		raise ValueError("At least one mean or mode field must be selected.")
 
 	# Filter only selected data. Treat real and imaginary components independently
 	# rather than relying on complex-valued behavior inside scipy.ndimage.
@@ -471,7 +417,7 @@ def _load_data(
 			],
 			dtype=np.complex128,
 		)
-	if denoising_sigma is not None and selected_mean is not None:
+	if denoising_sigma is not None:
 		selected_mean = ndimage.gaussian_filter(
 			selected_mean,
 			sigma=denoising_sigma,
@@ -479,7 +425,7 @@ def _load_data(
 
 	# Optional resampling uses periodic splines and returns the original arrays
 	# unchanged when both requested sizes are None.
-	x, y, selected_mean, selected_modes = _resample_fields(
+	x, y, resampled_mean, selected_modes = _resample_fields(
 		x,
 		y,
 		selected_mean,
@@ -505,7 +451,7 @@ def _load_data(
 	)
 	return _GC2DH5Data(
 		_grid_from_validated_axes(x, y),
-		mean=selected_mean,
+		mean=resampled_mean,
 		modes=selected_modes,
 		frequencies=selected_frequencies,
 		metadata=metadata,
@@ -514,5 +460,6 @@ def _load_data(
 
 __all__ = [
 	"DEFAULT_CHARACTERISTIC_LENGTH",
+	"DEFAULT_FIELD_INDICES",
 	"GC2DH5Metadata",
 ]

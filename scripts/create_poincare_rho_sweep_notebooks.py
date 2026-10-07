@@ -106,7 +106,7 @@ an interrupted job resumes from its confirmed Modal receipt without resubmitting
                 rho_hat=RHO, particles=40, arms=8,
                 outer_radius_fraction=0.85, first_angle=0.0,
                 magnetic_field=1.5, characteristic_length=0.06,
-                source_selection=(0, 1), interpolation_order=3,
+                source_selection=(15,), interpolation_order=3,
                 cycles=5000, steps_per_cycle=50, coupling_frequency=0.0,
                 spatial_normalization={spatial_normalization!r},
             )

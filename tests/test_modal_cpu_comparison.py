@@ -26,7 +26,7 @@ from studies.modal_cpu_comparison import (
 
 def settings() -> ModalCPUStarConfig:
     """Match the requested geometry with explicit physical and numerical controls."""
-    return ModalCPUStarConfig(1.5, .06, (0, 1), 3, .3, np.pi / 8,
+    return ModalCPUStarConfig(1.5, .06, 3, .3, np.pi / 8,
                              8, 6, .5, .05, .35, (.5, .5), 0.,
                              10, 50, (1, 2, 4), 3, 1e-10, 1e-11)
 

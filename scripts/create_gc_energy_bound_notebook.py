@@ -49,8 +49,7 @@ The project convention is
 $$H(t,x,y)=\langle\Phi\rangle_\rho(t,x,y),\qquad
 \dot x=-\partial_y H,\quad \dot y=\partial_x H.$$
 
-With `indx=(0,1)`, the loaded potential includes the mean and the dominant
-positive-frequency mode. Consequently,
+With `indx=(15,)`, the loaded potential includes the constant field 0 and variable field 15. Consequently,
 
 $$\frac{dH(t,z(t))}{dt}=\partial_tH(t,z(t)),$$
 
@@ -138,7 +137,7 @@ multiple of the finest step. The reference must save that finest grid. Reducing 
 step never changes it during one trajectory and never introduces a shortened final step.
 
 For a first short run, use `T_END=2.0` and `HORIZONS=(0.5, 1.0, 2.0)`.
-For a stationary HDF5 control, explicitly change `FIELD_INDICES` to `(0,)`:
+For a stationary HDF5 control, explicitly change `FIELD_INDICES` to `()`:
 that studies the mean field and must be labelled as a different experiment.
 """)
 
@@ -147,7 +146,7 @@ code('''
 H5_PATH = ROOT / "data/potential/V1/PHI_2.h5"
 MAGNETIC_FIELD = 1.5
 CHARACTERISTIC_LENGTH = 0.06
-FIELD_INDICES = (0, 1)
+FIELD_INDICES = (15,)
 INTERPOLATION_ORDER = 3
 RHO = 0.3
 INITIAL_RADIUS_FRACTION = 0.2  # Fraction of the whole cell period, one point only.

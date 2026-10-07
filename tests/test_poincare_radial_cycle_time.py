@@ -29,7 +29,7 @@ class RadialCycleTests(unittest.TestCase):
         raw = Potential(grid, mean=1e-5*np.cos(xx)*np.cos(yy),
                         modes=np.asarray([1e-6*np.exp(1j*xx)]), frequencies=np.array([1.]),
                         interpolation_order=3)
-        self.field = DimensionalH5Field(raw, raw, 1., 1.5, (0, 1))
+        self.field = DimensionalH5Field(raw, raw, 1., 1.5, (15,))
         self.canonical = Potential(Grid(0., 0., grid.dx*s, grid.dy*s, n, n, length*s),
                                    mean=raw.mean*s*s/(2*np.pi), modes=raw.modes*s*s/(2*np.pi),
                                    frequencies=raw.frequencies, interpolation_order=3)
@@ -40,7 +40,7 @@ class RadialCycleTests(unittest.TestCase):
             radial_fractions=list(self.config.radial_fractions), rho=.3,
             coupling_frequency=np.pi/8, radial_angle_rad=0.,
             field_provenance=dict(B_tesla=1.5, characteristic_length_m=.06,
-                source_selection=[0, 1], interpolation_order=3, source_hdf5_sha256="synthetic",
+                source_selection=[0, 1], source_field_indices=[15], interpolation_order=3, source_hdf5_sha256="synthetic",
                 grid=dict(x0=0., y0=0., period=length*s), source_origin_m=[0., 0.],
                 characteristic_period_s=1.),
         )
@@ -67,6 +67,12 @@ class RadialCycleTests(unittest.TestCase):
             with patch("studies.poincare_radial_cycle_time.simulate", side_effect=AssertionError("must reuse")):
                 again = run_and_save_radial_cycle(self.prepared, Path(tmp)/"result")
             np.testing.assert_array_equal(again.solution.states, saved.solution.states)
+            legacy_config = {**saved.metadata["config"], "source_selection": [0, 1]}
+            legacy = replace(saved, metadata={**saved.metadata, "config": legacy_config})
+            with patch("studies.poincare_radial_cycle_time.load_solution", return_value=legacy), \
+                    patch("studies.poincare_radial_cycle_time.simulate", side_effect=AssertionError("must reuse")):
+                self.assertIs(run_and_save_radial_cycle(self.prepared, Path(tmp)/"result"), legacy)
+            self.assertEqual(legacy.metadata["config"]["source_selection"], [0, 1])
             changed = replace(self.prepared, metadata={**self.prepared.metadata, "baseline_metadata_sha256": "changed"})
             with self.assertRaisesRegex(ValueError, "different experiment"):
                 run_and_save_radial_cycle(changed, Path(tmp)/"result")

@@ -48,7 +48,7 @@ class InputValidationContractsTests(unittest.TestCase):
 					with self.assertRaisesRegex(ValueError, "`sigma` must be finite and non-negative"):
 						Potential.load(missing, B=1.5, sigma=sigma)
 
-	def test_field_selection_retains_integer_conversion_and_frozen_provenance(self) -> None:
+	def test_field_selection_requires_integers_and_keeps_frozen_provenance(self) -> None:
 		with tempfile.TemporaryDirectory() as directory:
 			path = Path(directory) / "field.h5"
 			with h5py.File(path, "w") as stream:
@@ -57,8 +57,10 @@ class InputValidationContractsTests(unittest.TestCase):
 				stream["freqs"] = np.asarray([0.0, 2.0])
 				stream["fields"] = np.stack((np.ones((8, 8)), np.eye(8))).astype(complex)
 				stream.attrs["scale"] = np.asarray([2.0])
-			converted = Potential.load(path, B=1.5, indx=[0.9, 1.9])
-			integer = Potential.load(path, B=1.5, indx=[0, 1])
+			with self.assertRaisesRegex(ValueError, "integer source field indices"):
+				Potential.load(path, B=1.5, indx=[1.9])
+			converted = Potential.load(path, B=1.5, indx=np.array([1]))
+			integer = Potential.load(path, B=1.5, indx=[1])
 		np.testing.assert_array_equal(converted.mean, integer.mean)
 		np.testing.assert_array_equal(converted.modes, integer.modes)
 		self.assertFalse(converted.metadata.source_field_indices.flags.writeable)

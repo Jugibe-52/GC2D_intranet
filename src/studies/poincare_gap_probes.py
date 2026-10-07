@@ -21,7 +21,7 @@ from solution import Solution
 from studies.dimensional_h5_midpoint import DimensionalH5Field
 from studies.poincare_rho_sweep import (
     PreparedRhoStar, RhoStarConfig, _validate_rho_cycle_solution,
-    build_rho_star, folded_rho_positions, prepare_rho_star, validate_rho_solution,
+    rho_config_from_metadata, build_rho_star, folded_rho_positions, prepare_rho_star, validate_rho_solution,
 )
 
 
@@ -120,10 +120,7 @@ def validate_gap_solution(solution: Solution, prepared: PreparedRhoStar, *,
 
 def _saved_config(metadata: dict[str, Any]) -> RhoStarConfig:
     """Restore tuple fields while retaining defaults for historical star runs."""
-    values = dict(metadata["config"])
-    if "source_selection" in values:
-        values["source_selection"] = tuple(values["source_selection"])
-    return RhoStarConfig(**values)
+    return rho_config_from_metadata(metadata)
 
 
 def validate_saved_gap_probes(stored: StoredSolution, *,

@@ -1,6 +1,6 @@
 """Local BM4Midpoint star study with consecutive JAX blocks and live logging."""
 
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from time import perf_counter
 from typing import Any
@@ -18,6 +18,7 @@ from execution.execution import Execution
 from initial_conditions.gc import GCInitialConfiguration
 from initial_conditions.star import radial_star
 from methods.extended.bm4 import BM4Midpoint
+from potential.load import DEFAULT_FIELD_INDICES
 from potential.potential import Potential
 from simulation.runner import simulate
 from solution import Solution
@@ -36,7 +37,7 @@ class LocalJAXStarConfig:
 
     magnetic_field: float
     characteristic_length: float
-    source_selection: tuple[int, ...]
+    source_selection: tuple[int, ...] = field(default=DEFAULT_FIELD_INDICES, kw_only=True)
     interpolation_order: int
     rho: float
     coupling_frequency: float

@@ -6,6 +6,8 @@ import json
 from pathlib import Path
 
 from diagnostics.paths import find_project_root
+from potential.load import DEFAULT_FIELD_INDICES
+from studies.h5_provenance import restore_h5_selection
 from studies.poincare_gap_probes import GapProbeSeeds
 from studies.poincare_rho_batch import RhoBatchJob, run_modal_rho_batch
 from studies.poincare_rho_sweep import RhoStarConfig
@@ -19,7 +21,9 @@ def main(spec_path: Path) -> None:
     seeds = GapProbeSeeds(**seed_config) if seed_config is not None else None
     jobs = [RhoBatchJob(
         job_id=row['job_id'], experiment_path=row['experiment_path'], run_id=row['run_id'],
-        config=RhoStarConfig(**{**row['config'], 'source_selection': tuple(row['config']['source_selection'])}),
+        config=RhoStarConfig(**{**row['config'], 'source_selection': restore_h5_selection(
+            spec['source'], {'mode_selection': row['config'].get('source_selection', DEFAULT_FIELD_INDICES)},
+        )}),
         probe_seeds=seeds,
     ) for row in spec['jobs']]
     report = run_modal_rho_batch(

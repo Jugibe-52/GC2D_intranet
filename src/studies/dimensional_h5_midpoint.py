@@ -13,6 +13,7 @@ from contracts.request import SimulationRequest
 from dynamics import GuidingCenterDynamics
 from initial_conditions import GCInitialConfiguration
 from methods.extended.bm4 import BM4Midpoint
+from potential.load import DEFAULT_FIELD_INDICES
 from potential import Grid, Potential
 from simulation.runner import simulate
 from solution import Solution
@@ -57,12 +58,13 @@ def resolve_h5_source(source: str | Path) -> Path:
 def load_dimensional_h5_field(
     source: str | Path, *, magnetic_field: float = 1.5,
     characteristic_length: float = 0.06,
-    selectors: tuple[int, ...] = (0, 1),
+    selectors: tuple[int, ...] = DEFAULT_FIELD_INDICES,
     interpolation_order: int = 3,
 ) -> DimensionalH5Field:
     """Restore original H5 samples after the canonical selection procedure.
 
-    The public H5 loader selects and sorts source modes. Its normalization is
+    The public H5 loader always includes field zero and selects variable fields
+    by their original source indices, preserving the requested order. Its normalization is
     inverted exactly at the sample level; no spatial resampling is requested.
     Time remains normalized by the selected mode's physical period.
     """

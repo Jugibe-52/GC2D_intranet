@@ -30,7 +30,7 @@ def main() -> None:
 	if args.standard_reference:
 		output = root / "notebooks/developements/bm4_projection_comparison/standard_t35"
 	source = root / "data/potential/V1/PHI_2.h5"
-	potential_parameters = dict(B=1.5, characteristic_length=0.06, indx=(0, 1), interpolation_order=3)
+	potential_parameters = dict(B=1.5, characteristic_length=0.06, indx=(15,), interpolation_order=3)
 	potential = Potential.load(source, **potential_parameters)
 	if args.render_only:
 		arrays, metadata = load_bm4_comparison(output / "results.npz")

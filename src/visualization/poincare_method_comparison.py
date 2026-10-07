@@ -10,7 +10,7 @@ import numpy as np
 from solution import Solution
 from diagnostics.persistence import StoredSolution
 from studies.poincare_rho_sweep import (
-    RhoStarConfig, folded_rho_positions, prepare_rho_star, sample_rho_dynamics,
+    RhoStarConfig, rho_config_from_metadata, folded_rho_positions, prepare_rho_star, sample_rho_dynamics,
     validate_rho_solution,
 )
 from visualization.poincare_comparison import export_poincare_panel_comparison
@@ -41,7 +41,7 @@ def load_rho_method_runs(
 
 def _comparison_config(record: Mapping[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
     """Separate shared scientific inputs from method identity and Newton controls."""
-    config = asdict(RhoStarConfig(**record['config']))
+    config = asdict(rho_config_from_metadata(record))
     controls = {name: config.pop(name) for name in tuple(config) if name.startswith('newton_')}
     config.pop('method')
     config.pop('rho_hat')
@@ -93,7 +93,7 @@ def _validated_method_config(
     reference_metadata: Mapping[str, Any], prepared_metadata: Mapping[str, Any],
 ) -> RhoStarConfig:
     """Check method identity, scientific controls and provenance before overlaying a run."""
-    config = RhoStarConfig(**record['config'])
+    config = rho_config_from_metadata(record)
     actual_config, controls = _comparison_config(record)
     if (_saved_method(record, solution.diagnostics) != method
             or actual_config != shared_config
@@ -157,7 +157,7 @@ def export_rho_method_comparison(
         # Preparing the first method only reconstructs the physical field and
         # initial condition. It does not invoke an execution backend.
         record = runs_by_method[_METHODS[0]][rho].metadata
-        prepared = prepare_rho_star(source, RhoStarConfig(**record['config']))
+        prepared = prepare_rho_star(source, rho_config_from_metadata(record))
         _require_matching_metadata(record, prepared.metadata, include_rho=True)
         for method in _METHODS:
             saved = runs_by_method[method][rho]

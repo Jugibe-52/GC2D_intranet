@@ -16,6 +16,7 @@ from dynamics.gc import GuidingCenterDynamics
 from execution.execution import Execution
 from initial_conditions.gc import GCInitialConfiguration
 from methods.extended.bm4 import BM4Midpoint
+from potential.load import DEFAULT_FIELD_INDICES
 from potential import Potential
 from simulation.runner import simulate
 from studies.dimensional_h5_midpoint import resolve_h5_source
@@ -33,7 +34,7 @@ class RadialCycleConfig:
     coupling_frequency: float = np.pi / 8
     magnetic_field: float = 1.5
     characteristic_length: float = 0.06
-    source_selection: tuple[int, ...] = (0, 1)
+    source_selection: tuple[int, ...] = DEFAULT_FIELD_INDICES
     interpolation_order: int = 3
     stream_scale: float = 2 * np.pi
 
@@ -67,7 +68,7 @@ def build_radial_cycle(potential, config, baseline, *, source_sha256, baseline_s
     """Scale both field components and reconstruct B's documented initial radius."""
     provenance = baseline["field_provenance"]
     expected = (provenance["B_tesla"], provenance["characteristic_length_m"],
-                tuple(provenance["source_selection"]), provenance["interpolation_order"],
+                tuple(provenance["source_field_indices"]), provenance["interpolation_order"],
                 baseline["rho"], baseline["coupling_frequency"], baseline["radial_angle_rad"])
     actual = (config.magnetic_field, config.characteristic_length, config.source_selection,
               config.interpolation_order, config.rho, config.coupling_frequency, config.radial_angle)
@@ -163,7 +164,17 @@ def run_and_save_radial_cycle(prepared, destination, *, options=ExecutionOptions
     expected = json.loads(json.dumps(prepared.metadata))
     if ArtifactStore(destination).exists("manifest.json"):
         saved = load_solution(destination)
-        if any(saved.metadata.get(key) != value for key, value in expected.items()):
+        actual = dict(saved.metadata)
+        old_config = dict(actual.get("config", {}))
+        if (0 in old_config.get("source_selection", ())
+                and actual.get("baseline_metadata_sha256") == expected["baseline_metadata_sha256"]
+                and actual.get("source_sha256") == expected["source_sha256"]):
+            # Preparation already checked the original field indices against
+            # this exact baseline. Compare its direct selection without
+            # rewriting the historical rank labels stored in the archive.
+            old_config["source_selection"] = expected["config"]["source_selection"]
+            actual["config"] = old_config
+        if any(actual.get(key) != value for key, value in expected.items()):
             raise ValueError("Destination contains a different experiment; choose a new run ID.")
         validate_radial_solution(saved.solution, prepared)
         return saved

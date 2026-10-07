@@ -133,7 +133,7 @@ cell radius R=L/2, centered in the periodic cell, first arm along +x. The generi
 existing default spacing is unchanged.
 
 The field is reconstructed from the verified PHI_2 HDF5 data with B=1.5,
-characteristic length 0.06, source selection (0,1), cubic interpolation,
+characteristic length 0.06, variable source selection (15,) with constant field 0, cubic interpolation,
 rho=0.3 and coupling frequency pi/8. Ten forcing cycles at 50 complete steps
 per cycle give h=0.02, 500 steps and 501 aligned states. BM4Midpoint uses an
 arithmetic-mean projection and no Newton solve. Each worker runs one first
@@ -203,7 +203,7 @@ Coordinates remain in meters, without spatial normalization or output wrapping.
 alone is normalized by the forcing period. The sweep parameter is the usual
 dimensionless gyro-radius: `rho_m = rho_hat * characteristic_length / (2*pi)`.
 At characteristic length 0.06 m, rho=0.30 corresponds to 0.00286478898 m.
-The notebooks explicitly select B=1.5, mean and dominant mode `(0,1)`, cubic
+The notebooks explicitly select B=1.5, variable source field `(15,)` with constant field 0, cubic
 interpolation, the checked HDF5 source hash, and the complete numerical settings.
 
 Deploy `examples/modal_poincare_rho_app.py` to create the authenticated
@@ -405,3 +405,10 @@ Fixed-step methods inherit `CompiledFixedMethod` and provide a JAX adapter that
 returns `contracts.compiled.CompiledStep`. The shared `integration/jax_fixed.py`
 loop knows no concrete numerical method; each method owns its compiled stages
 and statistics. See [JAX execution](../../../simulation/jax-execution.md).
+
+HDF5 variable-field indices refer directly to the original file; no amplitude
+ranking is applied. The first source frequency must be exactly zero and every
+selected variable frequency must be finite and positive. The default time
+scale comes from the first selected variable field. See the shared
+[HDF5 contract](../../../dynamics/gc2d-h5-import.md) for selection and archive
+migration, including recovery from recorded original source indices.

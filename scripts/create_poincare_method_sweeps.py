@@ -52,7 +52,7 @@ def create(rho_values: tuple[float, ...], *, run_version: str = 'v1') -> Path:
         config = RhoStarConfig(
             rho_hat=rho_values[0], method=method, particles=40, arms=8,
             outer_radius_fraction=.85, first_angle=0., magnetic_field=1.5,
-            characteristic_length=.06, source_selection=(0, 1), interpolation_order=3,
+            characteristic_length=.06, source_selection=(15,), interpolation_order=3,
             cycles=5000, steps_per_cycle=50, coupling_frequency=0.,
             spatial_normalization='none', hamiltonian_convention='radial',
         )
@@ -88,7 +88,7 @@ There is no random sampling. Each integration covers 5,000 forcing cycles using
 50 complete steps per cycle: 250,000 steps and 5,001 saved states, including cycle 0.
 Coordinates remain in meters and time is tau=t/T0. The physical gyro-radius is
 rho*0.06/(2*pi) meters. The radial Hamiltonian is (T0/B)*Phi/(2*pi), with B=1.5 T,
-HDF5 fields (0, 1), and cubic interpolation. Folding into the periodic cell occurs
+HDF5 constant field 0 and variable field 15, and cubic interpolation. Folding into the periodic cell occurs
 only after integration. All methods use identical physical inputs and output times.
 
 BM4Implicit and two-stage GaussLegendre4 use analytic Jacobians and identical
@@ -116,7 +116,7 @@ independently and never repeats trajectory integration.
                 rho_hat=RHO_VALUES[0], method=METHOD, particles=40, arms=8,
                 outer_radius_fraction=0.85, first_angle=0.0,
                 magnetic_field=1.5, characteristic_length=0.06,
-                source_selection=(0, 1), interpolation_order=3,
+                source_selection=(15,), interpolation_order=3,
                 cycles=5000, steps_per_cycle=50, coupling_frequency=0.0,
                 spatial_normalization='none', hamiltonian_convention='radial',
                 newton_absolute_tolerance=1e-12, newton_relative_tolerance=1e-11,

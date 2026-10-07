@@ -1,6 +1,6 @@
 """BM4Midpoint star trajectories and matched Modal JAX CPU timing records."""
 
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 import json
 from pathlib import Path
 from time import perf_counter
@@ -16,6 +16,7 @@ from dynamics.gc import GuidingCenterDynamics
 from execution.execution_modal import Execution_Modal
 from initial_conditions.star import radial_star
 from methods.extended.bm4 import BM4Midpoint
+from potential.load import DEFAULT_FIELD_INDICES
 from potential.potential import Potential
 from simulation.runner import simulate
 from solution import Solution
@@ -34,7 +35,7 @@ class ModalCPUStarConfig:
 
     magnetic_field: float
     characteristic_length: float
-    source_selection: tuple[int, ...]
+    source_selection: tuple[int, ...] = field(default=DEFAULT_FIELD_INDICES, kw_only=True)
     interpolation_order: int
     rho: float
     coupling_frequency: float

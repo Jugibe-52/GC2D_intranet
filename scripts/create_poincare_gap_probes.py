@@ -139,7 +139,7 @@ def create() -> Path:
         folder.mkdir(parents=True, exist_ok=True)
         config = RhoStarConfig(rho_hat=0., method=method, particles=8, arms=8,
             outer_radius_fraction=.85, first_angle=0., magnetic_field=1.5,
-            characteristic_length=.06, source_selection=(0, 1), interpolation_order=3,
+            characteristic_length=.06, source_selection=(15,), interpolation_order=3,
             cycles=5000, steps_per_cycle=50, coupling_frequency=0.,
             spatial_normalization='none', hamiltonian_convention='radial',
             newton_absolute_tolerance=1e-12, newton_relative_tolerance=1e-11,
@@ -189,7 +189,7 @@ not constraints on subsequent motion.
 
 Physical coordinates are X=X0+L*fraction in meters, with L from the verified HDF5
 periodic cell. The physical gyro-radius is rho*0.06/(2*pi) meters. The magnetic
-field is 1.5 T, source selection is (0,1), and interpolation is cubic. Time is
+field is 1.5 T, variable source selection is (15,), with constant field 0, and interpolation is cubic. Time is
 tau=t/T0 and the radial Hamiltonian is (T0/B)*Phi/(2*pi). Integrations cover
 5000 forcing cycles with 50 complete steps per cycle (250000 steps), retaining
 5001 unwrapped states and optional folded coordinates including cycle 0.
@@ -219,7 +219,7 @@ bucket prefix. Run visualisation.ipynb independently to load saved results.
                 # Star-only geometry fields remain matched; PROBE_SEEDS defines all positions.
                 outer_radius_fraction=0.85, first_angle=0.0,
                 magnetic_field=1.5, characteristic_length=0.06,
-                source_selection=(0, 1), interpolation_order=3,
+                source_selection=(15,), interpolation_order=3,
                 cycles=5000, steps_per_cycle=50, coupling_frequency=0.0,
                 spatial_normalization='none', hamiltonian_convention='radial',
                 newton_absolute_tolerance=1e-12, newton_relative_tolerance=1e-11,

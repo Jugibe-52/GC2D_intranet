@@ -1,5 +1,6 @@
 """Reconstruct a measured HDF5 field against a prior experiment's provenance."""
 
+from collections.abc import Mapping
 from dataclasses import asdict
 import hashlib
 import json
@@ -7,11 +8,34 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
+import h5py
 
 from potential.load import GC2DH5Metadata
 from potential.potential import Potential
 from studies.dimensional_h5_midpoint import resolve_h5_source
 from studies.reference_trajectory import potential_fingerprint
+
+
+def restore_h5_selection(source: str | Path, specification: Mapping[str, Any]) -> tuple[int, ...]:
+    """Recover direct field indices from a saved notebook's potential settings.
+
+    Historical single-mode PHI_2 studies sometimes saved only rank selectors.
+    Their mapping is unambiguous when the source has exactly one positive mode;
+    other old selections require recorded original source indices.
+    """
+    if "source_field_indices" in specification:
+        return tuple(int(index) for index in specification["source_field_indices"])
+    selection = tuple(specification["mode_selection"])
+    if 0 not in selection:
+        return selection
+    if selection == (0,):
+        return ()
+    with h5py.File(resolve_h5_source(source), "r") as h5:
+        frequencies = np.asarray(h5["freqs"][()], dtype=float)
+    positive = np.flatnonzero(np.isfinite(frequencies) & (frequencies > 0))
+    if selection == (0, 1) and positive.size == 1:
+        return (int(positive[0]),)
+    raise ValueError("Legacy rank selection requires recorded source_field_indices.")
 
 
 def prepare_verified_h5_field(
@@ -32,11 +56,13 @@ def prepare_verified_h5_field(
     original = json.loads(Path(original_provenance).read_text())
     for key, expected in {
         'B_tesla': magnetic_field, 'characteristic_length_m': characteristic_length,
-        'source_selection': list(source_selection), 'interpolation_order': interpolation_order,
+        'source_field_indices': list(source_selection), 'interpolation_order': interpolation_order,
         'source_hdf5_sha256': digest, 'denoising': False, 'resampling': False,
     }.items():
         if original[key] != expected:
             raise ValueError(f'Physical setting differs from the original experiment: {key}.')
+    # Archived selectors referred to amplitude ranks; original source indices
+    # above identify the same physical fields under the direct-index API.
     potential = Potential.load(resolved, B=magnetic_field,
         characteristic_length=characteristic_length, indx=source_selection,
         interpolation_order=interpolation_order,
@@ -60,4 +86,4 @@ def prepare_verified_h5_field(
 
 
 
-__all__ = ["prepare_verified_h5_field"]
+__all__ = ["prepare_verified_h5_field", "restore_h5_selection"]

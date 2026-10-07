@@ -111,7 +111,7 @@ class GC2DH5ImportTests(unittest.TestCase):
 		self.low_mode = (row + 2.0 * column) + 1j * (0.3 * row - column)
 		self.high_mode = 10.0 * (2.0 * row + column) + 1j * (row - column)
 		negative_mode = 1000.0 * (row + column)
-		self.frequencies = np.asarray([0.0, -11.0, 3.0, 7.0])
+		self.frequencies = np.asarray([0.0, -11.0, 3.0, 7.0] + [-11.0] * 11 + [7.0])
 		with h5py.File(self.path, "w") as h5:
 			h5.create_dataset("Rcells", data=self.x)
 			h5.create_dataset("Zcells", data=self.y)
@@ -119,7 +119,8 @@ class GC2DH5ImportTests(unittest.TestCase):
 			h5.create_dataset(
 				"fields",
 				data=np.asarray(
-					[self.mean, negative_mode, self.low_mode, self.high_mode],
+					[self.mean, negative_mode, self.low_mode, self.high_mode]
+					+ [negative_mode] * 11 + [self.high_mode],
 					dtype=np.complex128,
 				),
 			)
@@ -129,7 +130,7 @@ class GC2DH5ImportTests(unittest.TestCase):
 		"""Release the temporary HDF5 fixture."""
 		self.temporary_directory.cleanup()
 
-	def test_defaults_select_mean_and_dominant_mode_with_B_1_5(self) -> None:
+	def test_defaults_select_mean_and_source_field_15_with_B_1_5(self) -> None:
 		"""Use the primary-file defaults when no loader options are supplied."""
 		potential = Potential.load(self.path)
 		length_scale = 0.06
@@ -139,7 +140,7 @@ class GC2DH5ImportTests(unittest.TestCase):
 		metadata = potential.metadata
 		assert isinstance(metadata, GC2DH5Metadata)
 		self.assertAlmostEqual(metadata.normalization_factor, normalization)
-		np.testing.assert_array_equal(metadata.source_field_indices, [3])
+		np.testing.assert_array_equal(metadata.source_field_indices, [15])
 		np.testing.assert_allclose(metadata.source_frequencies, [7.0])
 		np.testing.assert_allclose(potential.frequencies, [1.0])
 		self.assertEqual(metadata.characteristic_length, length_scale)
@@ -162,6 +163,71 @@ class GC2DH5ImportTests(unittest.TestCase):
 			potential.evaluate(0.37, query_x, query_y),
 			potential.evaluate(0.37 + 1.0, query_x, query_y),
 		)
+
+	def test_direct_order_sets_default_frequency_and_keeps_pairs(self) -> None:
+		"""Source order is explicit and does not depend on field amplitude."""
+		for indices, frequencies, fields in (
+			((2, 3), [3.0, 7.0], [self.low_mode, self.high_mode]),
+			((3, 2), [7.0, 3.0], [self.high_mode, self.low_mode]),
+		):
+			with self.subTest(indices=indices):
+				potential = Potential.load(self.path, indx=indices)
+				metadata = potential.metadata
+				np.testing.assert_array_equal(metadata.source_field_indices, indices)
+				np.testing.assert_array_equal(metadata.source_frequencies, frequencies)
+				np.testing.assert_allclose(potential.frequencies, np.asarray(frequencies) / frequencies[0])
+				np.testing.assert_allclose(potential.modes * metadata.normalization_factor, fields)
+				np.testing.assert_allclose(potential.mean * metadata.normalization_factor, self.mean)
+		with h5py.File(self.path, "r+") as h5:
+			h5["fields"][3] = self.high_mode * 100
+		self.assertEqual(Potential.load(self.path).metadata.source_field_indices.tolist(), [15])
+
+	def test_selected_frequencies_must_be_finite_and_strictly_positive(self) -> None:
+		"""Explicit invalid fields raise instead of being silently filtered out."""
+		for frequency in (0.0, -1.0, np.nan, np.inf, -np.inf):
+			with self.subTest(frequency=frequency):
+				with h5py.File(self.path, "r+") as h5:
+					h5["freqs"][15] = frequency
+				with self.assertRaisesRegex(ValueError, "strictly positive"):
+					Potential.load(self.path)
+		for index in (0, 1):
+			with self.subTest(index=index):
+				with self.assertRaisesRegex(ValueError, "strictly positive"):
+					Potential.load(self.path, indx=index)
+		with h5py.File(self.path, "r+") as h5:
+			h5["freqs"][15] = 1e-12
+		self.assertEqual(Potential.load(self.path).metadata.source_frequencies[0], 1e-12)
+
+	def test_first_frequency_must_be_exactly_zero(self) -> None:
+		"""A later zero-frequency field cannot replace an invalid first field."""
+		for frequency in (1e-12, -1e-12, 2.0, np.nan, np.inf):
+			with self.subTest(frequency=frequency):
+				with h5py.File(self.path, "r+") as h5:
+					h5["freqs"][0] = frequency
+					h5["freqs"][1] = 0
+				with self.assertRaisesRegex(ValueError, "first source frequency.*exactly zero"):
+					Potential.load(self.path)
+
+	def test_all_positive_fields_and_constant_only_selection(self) -> None:
+		"""None selects eligible fields in source order; an empty tuple keeps only the mean."""
+		potential = Potential.load(self.path, indx=None)
+		np.testing.assert_array_equal(potential.metadata.source_field_indices, [2, 3, 15])
+		np.testing.assert_allclose(potential.frequencies, [1.0, 7.0 / 3.0, 7.0 / 3.0])
+		constant = Potential.load(self.path, indx=())
+		np.testing.assert_array_equal(constant.mean, self.mean)
+		self.assertEqual(constant.modes.shape[0], 0)
+		self.assertEqual(constant.metadata.normalization_factor, 1.0)
+		self.assertIsNone(constant.metadata.characteristic_period)
+
+	def test_invalid_source_indices_are_not_coerced(self) -> None:
+		"""Reject noninteger, multidimensional, and out-of-range source selectors."""
+		for indices in ((-1,), (16,), (2.5,), (True,), ((2, 3),), "15"):
+			with self.subTest(indices=indices):
+				with self.assertRaises(ValueError):
+					Potential.load(self.path, indx=indices)
+		for indices in (15, [15], np.array([15]), np.int64(15)):
+			with self.subTest(indices=indices):
+				np.testing.assert_array_equal(Potential.load(self.path, indx=indices).metadata.source_field_indices, [15])
 
 	def test_load_preserves_subclass(self) -> None:
 		"""Loading initializes the requested runtime class."""
@@ -198,14 +264,15 @@ class GC2DH5ImportTests(unittest.TestCase):
 			reference.evaluate(0.37, x, y) * reference.metadata.normalization_factor,
 		)
 
-	def test_filter_sort_selection_normalization_and_positive_phase(self) -> None:
+	def test_direct_selection_normalization_and_positive_phase(self) -> None:
 		"""Match HDF5 indices, normalization, and cycle-based positive phase."""
 		B = 1.5
 		potential = Potential.load(
 			self.path,
 			B=B,
 			characteristic_length=self.characteristic_length,
-			indx=(0, 2, 1),
+			indx=(2, 3),
+			characteristic_frequency=7.0,
 			interpolation_order=3,
 		)
 		normalization = (
@@ -239,14 +306,14 @@ class GC2DH5ImportTests(unittest.TestCase):
 		)
 
 	def test_explicit_characteristic_frequency_controls_time_and_amplitude(self) -> None:
-		"""Honor an explicitly supplied source frequency instead of the dominant mode."""
+		"""Honor an explicitly supplied source frequency instead of the first selected mode."""
 		frequency_scale = 14.0
 		potential = Potential.load(
 			self.path,
 			B=1.5,
 			characteristic_length=self.characteristic_length,
 			characteristic_frequency=frequency_scale,
-			indx=(0, 1),
+			indx=(3,),
 		)
 		normalization = (
 			frequency_scale
@@ -282,7 +349,7 @@ class GC2DH5ImportTests(unittest.TestCase):
 			B=2.0,
 			characteristic_length=self.characteristic_length,
 			characteristic_frequency=5.0,
-			indx=(0,),
+			indx=(),
 		)
 		normalization = (
 			5.0 * self.characteristic_length**2 * 2.0 / (2.0 * np.pi) ** 2
@@ -312,7 +379,7 @@ class GC2DH5ImportTests(unittest.TestCase):
 			self.path,
 			B=B,
 			characteristic_length=self.characteristic_length,
-			indx=(0, 1),
+			indx=(3,),
 			nx=8,
 			ny=8,
 			sigma=sigma,
@@ -371,7 +438,7 @@ class GC2DH5ImportTests(unittest.TestCase):
 		"""Both interpolation stages reproduce mean and complex mode samples."""
 		for degree in range(2, 6):
 			with self.subTest(degree=degree):
-				options = dict(indx=(0, 1, 2), interpolation_order=degree)
+				options = dict(indx=(3, 2), interpolation_order=degree)
 				original = Potential.load(self.path, **options)
 				resampled = Potential.load(self.path, nx=6, ny=6, **options)
 				np.testing.assert_allclose(resampled.mean, original.mean, rtol=1e-13, atol=1e-10)
@@ -387,7 +454,7 @@ class GC2DH5ImportTests(unittest.TestCase):
 			self.path,
 			B=1.5,
 			characteristic_length=self.characteristic_length,
-			indx=(0, 1),
+			indx=(3,),
 			interpolation_order=3,
 		)
 		frequency = float(potential.frequencies[0])
@@ -482,7 +549,8 @@ class GC2DH5ImportTests(unittest.TestCase):
 			self.path,
 			B=1.5,
 			characteristic_length=self.characteristic_length,
-			indx=(0, 2, 1),
+			indx=(2, 3),
+			characteristic_frequency=7.0,
 			interpolation_order=3,
 		)
 		dynamics = GuidingCenterDynamics(potential, rho=0.0)
@@ -525,7 +593,8 @@ class GC2DH5ImportTests(unittest.TestCase):
 			self.path,
 			B=1.5,
 			characteristic_length=self.characteristic_length,
-			indx=(0, 2, 1),
+			indx=(2, 3),
+			characteristic_frequency=7.0,
 			interpolation_order=3,
 		)
 		time = 0.037
@@ -581,7 +650,7 @@ class GC2DH5ImportTests(unittest.TestCase):
 			self.path,
 			B=1.5,
 			characteristic_length=self.characteristic_length,
-			indx=(0, 1),
+			indx=(3,),
 			interpolation_order=3,
 		)
 		self.assertIs(potential.gyroaverage(0.0), potential)
@@ -626,7 +695,7 @@ class GC2DH5ImportTests(unittest.TestCase):
 	def test_invalid_selection_and_incomplete_resampling_are_rejected(self) -> None:
 		"""Give concise errors for common HDF5-loader configuration mistakes."""
 		with self.assertRaisesRegex(ValueError, "range"):
-			Potential.load(self.path, indx=(0, 3))
+			Potential.load(self.path, indx=(16,))
 		with self.assertRaisesRegex(ValueError, "both"):
 			Potential.load(self.path, nx=8)
 		with self.assertRaisesRegex(ValueError, "non-zero"):

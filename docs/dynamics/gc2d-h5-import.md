@@ -40,8 +40,8 @@ a general-purpose HDF5 potential reader.
 
 Private preparation functions keep these contracts separate from the import
 algorithm. `_validated_import_controls` checks dimensional scales and filtering
-options before opening the file; `_validated_field_selection` resolves the mean
-and positive-mode selectors after mode ordering. `GC2DH5Metadata` delegates
+options before opening the file; `_validated_field_selection` validates original
+HDF5 indices and their strictly positive frequencies without reordering them. `GC2DH5Metadata` delegates
 source-index/frequency agreement and attribute copying to its own helpers,
 while preserving the order in which provenance values are validated and frozen.
 Periodic construction and resampling share the sample-count check in
@@ -74,22 +74,42 @@ The HDF5 class method accepts the following options:
 | `filename` | Required | Path to the GC2D HDF5 file. |
 | `B` | `1.5` | Non-zero magnetic-field normalization parameter. |
 | `characteristic_length` | `0.06` | Physical mode length `lambda` mapped to `2*pi`. |
-| `characteristic_frequency` | `None` | Positive source angular frequency `omega0=2*pi/T0`; the dominant sorted mode is used when omitted. |
-| `indx` | `(0, 1)` | Selected mean and mode indices after amplitude ordering. |
+| `characteristic_frequency` | `None` | Positive source angular frequency `omega0=2*pi/T0`; the first selected variable field is used when omitted. |
+| `indx` | `(15,)` | Original HDF5 indices of variable fields; source field 0 is always the constant term. |
 | `nx`, `ny` | `None` | Optional target sizes for periodic resampling. They must be supplied together. |
 | `sigma` | `None` | Gaussian standard deviation in grid samples on each axis; `None` disables filtering, and finite non-negative values enable it before resampling. |
 | `interpolation_order` | `3` | Spatial spline degree, restricted to values from 2 to 5. |
 
-`indx` uses the GC2D HDF5 selection semantics:
+`indx` directly indexes the original `fields` and `freqs` datasets. The default
+`(15,)` loads `fields[15]` with `freqs[15]`, in addition to the constant field
+`fields[0].real`. Passing `(15, 20)` keeps those two variable fields in that order.
+There is no amplitude ranking or one-based index conversion.
 
-- index `0` selects the mean field;
-- index `1` selects the first positive-frequency mode after sorting;
-- index `2` selects the second sorted mode, and so on.
+Every explicitly selected frequency must be finite and strictly positive;
+selecting zero or a negative frequency raises `ValueError`. Indices must be
+integers within the source bounds. The first source frequency must be exactly
+zero, even if another zero-frequency field exists later in the file.
 
-The default `indx=(0, 1)` selects the mean and the dominant retained
-positive-frequency mode. Passing `indx=None` explicitly selects the mean
-position and every retained positive-frequency mode. A missing mean field is
-represented by a zero runtime array.
+`indx=()` loads only the constant field. `indx=None` selects every finite,
+positive-frequency field in source order. Negative and zero-frequency channels
+may exist elsewhere in the file, but cannot be explicitly selected as variables.
+
+### Migrating studies and saved results
+
+For the original `PHI_2.h5`, the former default `(0, 1)` and the new `(15,)`
+produce identical constant and variable fields, normalized frequencies, and
+normalization factors: source field 15 is its only positive-frequency channel.
+Use `(15,)` in existing study settings; replace constant-only `(0,)` with `()`.
+For other files, use recorded `source_field_indices` rather than guessing how
+an old amplitude rank maps to a source index. A custom old frequency scale can
+be retained explicitly through `characteristic_frequency`.
+
+Study defaults share `potential.load.DEFAULT_FIELD_INDICES`. `source_selection`
+in `LocalJAXStarConfig` and `ModalCPUStarConfig`, and `selectors` in
+`PoincareStarConfig`, now default to that tuple and are keyword-only. Archive readers recover old rank selectors from recorded
+source indices; notebook archives lacking them can recover the former `(0, 1)`
+only when their source contains exactly one positive-frequency channel. Saved
+trajectories and historical provenance are not rewritten.
 
 ## Expected HDF5 schema
 
@@ -129,30 +149,24 @@ the runtime potential, and must be an integer from 2 to 5.
 After reading the file, it validates the field shape against the number of
 frequencies and sampled coordinates.
 
-### 2. Identify the mean field
+### 2. Read the constant field
 
-Frequencies numerically close to zero are detected with a tolerance of
-`1e-5`. If at least one is present, the real part of the first such field becomes
-the mean potential `Phi0`.
+Require `freqs[0] == 0` exactly and use `fields[0].real` as `Phi0`.
+A missing first frequency or a nonzero first frequency raises `ValueError`.
+No search for another stationary channel or near-zero tolerance is used.
 
-Additional zero-frequency entries do not enter the oscillatory reconstruction.
+### 3. Select variable fields
 
-### 3. Retain and order positive-frequency modes
-
-Negative-frequency fields are discarded. The remaining strictly positive
-frequencies and their complex spatial fields are sorted by descending
-peak-to-peak field amplitude.
-
-This ordering is important because both the normalization frequency and the
-format's `indx` values refer to the sorted list, not the original HDF5 order.
-The original source indices are retained in `source_field_indices` for
-traceability.
+Validate the original indices in `indx` and their frequencies, then read only
+those field slices. Keep each complex coefficient paired with its frequency
+and original index in the caller's order. No `ptp` calculation or sorting is
+needed. An empty selection leaves the constant field alone.
 
 ### 4. Nondimensionalize space, time, and the fields
 
 Let `lambda` be `characteristic_length`. Let `omega0` be
-`characteristic_frequency`, or the frequency of the first mode after amplitude
-sorting when the argument is omitted. The characteristic period is
+`characteristic_frequency`, or the frequency of the first selected variable field
+when the argument is omitted. The characteristic period is
 `T0 = 2*pi/omega0`. Runtime time counts complete characteristic periods:
 
 ```text
@@ -183,7 +197,7 @@ normalization_factor = omega0*lambda**2*B/(2*pi)**2,
 ```
 
 and divides the mean field and every retained mode by that value. The
-dominant mode therefore completes one cycle per normalized time unit and has
+first selected mode therefore completes one cycle per normalized time unit and has
 temporal period `1`. The complete `PHI_2.h5` spatial box has length `0.18`, so
 the default `lambda=0.06` maps it to a dimensionless box of length `6*pi`.
 
@@ -193,14 +207,13 @@ selected, a finite common temporal period exists only when all normalized
 frequency ratios are commensurate; `1` need not then be a period of the
 combined field.
 
-If the file contains no retained positive-frequency mode, the normalization
-factor defaults to `1.0` unless a characteristic frequency is supplied; only a
-selected mean can then be constructed.
+If no variable field is selected, the normalization factor defaults to `1.0`
+unless a characteristic frequency is supplied; the constant field remains.
+A missing default source index 15 is an error, not a fallback to another mode.
 
-### 5. Apply `indx`
+### 5. Preserve selected-field provenance
 
-The loader selects the requested mean and sorted modes. Selection
-order is preserved. Runtime `frequencies`, dimensional `source_frequencies`,
+The constant field is always present. Variable-field selection order is preserved. Runtime `frequencies`, dimensional `source_frequencies`,
 `modes`, and `source_field_indices` remain aligned.
 
 ### 6. Apply optional denoising

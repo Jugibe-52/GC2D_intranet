@@ -9,7 +9,7 @@ import numpy as np
 from diagnostics.persistence import StoredSolution, load_solution
 from diagnostics.storage import ArtifactStore
 from studies.poincare_rho_sweep import (
-    PreparedRhoStar, RhoStarConfig, folded_rho_positions, prepare_rho_star, sample_rho_dynamics,
+    PreparedRhoStar, rho_config_from_metadata, folded_rho_positions, prepare_rho_star, sample_rho_dynamics,
 )
 from visualization.poincare_comparison import export_poincare_panel_comparison
 from visualization.poincare_gap_overlay import (
@@ -133,7 +133,7 @@ def load_available_rho_runs(destinations: Mapping[float, str]) -> dict[float, St
 
 def _comparable_config(record: Mapping[str, Any]) -> dict[str, Any]:
     """Treat JSON selector lists and in-memory selector tuples identically."""
-    config = asdict(RhoStarConfig(**record['config']))
+    config = asdict(rho_config_from_metadata(record))
     config.pop('rho_hat')
     config['source_selection'] = tuple(config['source_selection'])
     return config
@@ -241,7 +241,7 @@ def export_rho_sweep(runs: Mapping[float, StoredSolution], path: str | Path, *,
             ]
             record = runs[rho].metadata
             if source is not None:
-                prepared = prepare_rho_star(source, RhoStarConfig(**record['config']))
+                prepared = prepare_rho_star(source, rho_config_from_metadata(record))
                 if prepared.metadata['source_sha256'] != record['source_sha256']:
                     raise ValueError('The viewer source does not match the saved field fingerprint.')
                 field = sample_rho_dynamics(prepared, grid_size=field_grid_size,

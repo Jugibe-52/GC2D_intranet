@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import asdict, dataclass
 from hashlib import file_digest
 import json
@@ -25,6 +26,7 @@ from initial_conditions import GCInitialConfiguration
 from methods.classical.gauss_legendre import GaussLegendre4
 from methods.classical.rk4 import RK4
 from methods.extended.bm4 import BM4Implicit, BM4Midpoint
+from potential.load import DEFAULT_FIELD_INDICES
 from potential import Grid, Potential
 from simulation.runner import simulate
 from solution import Solution
@@ -44,7 +46,7 @@ class RhoStarConfig:
     first_angle: float = 0.0
     magnetic_field: float = 1.5
     characteristic_length: float = 0.06
-    source_selection: tuple[int, ...] = (0, 1)
+    source_selection: tuple[int, ...] = DEFAULT_FIELD_INDICES
     interpolation_order: int = 3
     cycles: int = 5000
     steps_per_cycle: int = 50
@@ -94,11 +96,25 @@ class PreparedRhoStar:
     metadata: dict[str, Any]
 
 
+def rho_config_from_metadata(metadata: Mapping[str, Any]) -> RhoStarConfig:
+    """Restore archived selectors using recorded original HDF5 field indices."""
+    values = dict(metadata["config"])
+    selection = tuple(values.get("source_selection", DEFAULT_FIELD_INDICES))
+    if 0 in selection:
+        # Old selectors included the constant field and ranked the variable
+        # modes. Never reinterpret those ranks as original HDF5 indices.
+        if "source_field_indices" not in metadata:
+            raise ValueError("Legacy field selection requires recorded source_field_indices.")
+        selection = tuple(metadata["source_field_indices"])
+    values["source_selection"] = selection
+    return RhoStarConfig(**values)
+
+
 def build_rho_star(field: DimensionalH5Field, config: RhoStarConfig, *,
                    source_sha256: str) -> PreparedRhoStar:
     """Assemble the same physical star in either space; save integer cycles only."""
     if field.raw.frequencies.size != 1 or not np.isclose(field.raw.frequencies[0], 1.0):
-        raise ValueError("Select the mean and one dominant mode for cycle sampling.")
+        raise ValueError("Select one positive-frequency variable field for cycle sampling.")
     grid = field.raw.grid
     center = np.asarray((grid.x0, grid.y0)) + grid.period / 2
     cell_radius = grid.period / 2
@@ -364,6 +380,8 @@ def run_and_save_rho_star(prepared: PreparedRhoStar, destination: str | Path, *,
         expected = dict(asdict(prepared.config))
         expected["source_selection"] = list(expected["source_selection"])
         actual = dict(stored.metadata.get("config", {}))
+        if 0 in actual.get("source_selection", ()):
+            actual["source_selection"] = list(rho_config_from_metadata(stored.metadata).source_selection)
         actual.setdefault("spatial_normalization", "none")
         actual.setdefault("hamiltonian_convention", "cycle_time")
         defaults = asdict(RhoStarConfig(rho_hat=0.0))
@@ -433,6 +451,6 @@ def _validate_rho_star_extent(characteristic_length: float, outer_radius_fractio
 		raise ValueError("first_angle must be finite.")
 
 
-__all__ = ["RhoStarConfig", "PreparedRhoStar", "build_rho_star", "prepare_rho_star",
+__all__ = ["rho_config_from_metadata", "RhoStarConfig", "PreparedRhoStar", "build_rho_star", "prepare_rho_star",
            "sample_rho_dynamics", "validate_rho_solution", "folded_rho_positions", "run_rho_star",
            "run_and_save_rho_star", "modal_rho_executor"]

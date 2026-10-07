@@ -27,6 +27,7 @@ from contracts.execution_options import ExecutionOptions
 from .grid import Grid
 from .load import (
 	DEFAULT_CHARACTERISTIC_LENGTH,
+	DEFAULT_FIELD_INDICES,
 	_load_data,
 )
 from .prepared import PreparedPotential
@@ -223,7 +224,7 @@ class Potential:
 		B: float = 1.5,
 		characteristic_length: float = DEFAULT_CHARACTERISTIC_LENGTH,
 		characteristic_frequency: float | None = None,
-		indx: int | Sequence[int] | np.ndarray | None = (0, 1),
+		indx: int | Sequence[int] | np.ndarray | None = DEFAULT_FIELD_INDICES,
 		nx: int | None = None,
 		ny: int | None = None,
 		sigma: float | None = None,
@@ -236,8 +237,13 @@ class Potential:
 
 		The source schema, selection options, and normalization are described
 		in ``docs/dynamics/gc2d-h5-import.md``.
-		By default, select the mean and dominant positive-frequency mode with
-		``B=1.5`` and characteristic length ``0.06``. Coordinates always use
+		Always include source field 0 as the constant term; its frequency must
+		be exactly zero. ``indx`` selects original HDF5 variable-field indices,
+		defaulting to ``(15,)``. Their frequencies must be finite and positive.
+		Use ``()`` for the constant field alone or ``None`` for all positive
+		finite-frequency fields in source order. The first selected frequency
+		sets the time scale unless ``characteristic_frequency`` is supplied.
+		Defaults use ``B=1.5`` and characteristic length ``0.06``. Coordinates use
 		``2*pi*(X-X0)/characteristic_length``. The HDF5 adapter handles
 		selection, normalization, optional filtering and resampling; this class
 		prepares the common runtime representation and retains source metadata.
