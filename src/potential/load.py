@@ -359,7 +359,7 @@ def _load_data(
 		source_y = np.asarray(h5["Zcells"][()], dtype=float)
 		x = _validated_axis(source_x, name="Rcells")
 		y = _validated_axis(source_y, name="Zcells")
-		all_frequencies = np.atleast_1d(np.asarray(h5["freqs"][()], dtype=float))
+		all_frequencies = np.asarray(h5["freqs"][()], dtype=float)
 		fields = h5["fields"]
 		attributes = {name: np.asarray(value) for name, value in h5.attrs.items()}
 

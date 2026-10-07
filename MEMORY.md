@@ -101,6 +101,9 @@ avoid an optional validator followed by `assert`.
 
 ## HDF5 coordinate convention
 
+The source `freqs` dataset is always one-dimensional, with shape `(n,)`.
+Read it with `np.asarray(..., dtype=float)` without scalar promotion.
+
 `Potential.load` uses only `2*pi*(X-X0)/characteristic_length`; the loader's
 spatial-mode argument and `SpatialNormalization` type are removed. Keep the
 length configurable: a 0.18 m cell at length 0.06 m has period `6*pi`.
