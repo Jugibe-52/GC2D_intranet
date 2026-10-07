@@ -19,11 +19,12 @@ from contracts.problem import InitialValueProblem
 from methods.base import NumericalMethod
 from contracts.request import SimulationRequest
 from simulation.runner import simulate
-from ._gauss_legendre4_common import AdaptiveReference, build_adaptive_reference
+from contracts.comparison import AdaptiveReference
+from ._gauss_legendre4_common import (build_adaptive_reference)
 from ._trajectory_accuracy import validate_reference_identity
 from ._trajectory_distances import particle_distances
 from .reference_trajectory import potential_fingerprint
-from .three_method_newton_comparison import ThreeMethodNewtonComparisonConfig
+from ._comparison import ComparisonConfig
 
 
 BM4_PROJECTION_METHODS = ("BM4Midpoint", "BM4Implicit")
@@ -64,7 +65,7 @@ def summarize_bm4_particles(arrays: dict[str, np.ndarray]) -> list[dict[str, Any
 
 
 @dataclass(frozen=True, slots=True)
-class BM4ProjectionComparisonConfig(ThreeMethodNewtonComparisonConfig):
+class BM4ProjectionComparisonConfig(ComparisonConfig):
 	"""Standard 200-cycle comparison, with all controls available to notebooks."""
 
 	t_span: tuple[float, float] = (0.0, 200.0)

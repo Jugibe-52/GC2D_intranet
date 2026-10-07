@@ -9,7 +9,7 @@ import numpy as np
 from dynamics import DynamicalSystem
 
 from formulations.state import PhysicalFormulation
-from integration.core import IntegrationMethod
+from methods._compiled import CompiledFixedMethod
 from contracts.step import StepInfo, StepResult
 from contracts.observation import IntegrationStep, StepObserver
 from contracts.problem import InitialValueProblem
@@ -29,7 +29,7 @@ def _checked_vector_field(
 
 
 @dataclass(slots=True)
-class ExplicitEuler(IntegrationMethod[None]):
+class ExplicitEuler(CompiledFixedMethod[None]):
 	"""Classical forward Euler, ``z_next = z + h f(t, z)``."""
 
 	track_energy: bool = False

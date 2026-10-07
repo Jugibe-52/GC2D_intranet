@@ -12,11 +12,10 @@ import numpy as np
 from diagnostics._validation import optional_relative_step, positive_integer
 
 from contracts.observation import IntegrationStage
-from diagnostics.output import write_diagnostic_block
+from diagnostics.buffering import DiagnosticBuffer
 
 from diagnostics.jacobians import central_difference_jacobian
 from diagnostics.paths import (
-	next_block_index,
 	notebook_output_directory,
 	validate_block_name,
 )
@@ -170,11 +169,13 @@ class SymplecticityObserver:
 		self.relative_step = relative_step
 		self.verbose = bool(verbose)
 		self.metadata = dict(metadata or {})
-		self._buffer: list[_BufferedSample] = []
 		self._records: list[SymplecticityRecord] = []
-		self._output_blocks: list[OutputBlock] = []
-		self._closed = False
-		self._next_index = next_block_index(self.output_directory, self.block_name)
+		self._output = DiagnosticBuffer[_BufferedSample, OutputBlock](
+			output_directory=self.output_directory,
+			block_name=self.block_name,
+			chunk_size=self.chunk_size,
+			write_block=self._write_block,
+		)
 
 	@property
 	def records(self) -> tuple[SymplecticityRecord, ...]:
@@ -184,19 +185,24 @@ class SymplecticityObserver:
 	@property
 	def output_blocks(self) -> tuple[OutputBlock, ...]:
 		"""Return the synchronized file groups written by this session."""
-		return tuple(self._output_blocks)
+		return self._output.blocks
 
 	def __enter__(self) -> SymplecticityObserver:
 		"""Use the observer as a context manager so its final block is flushed."""
 		return self
 
-	def __exit__(self, *_exception: object) -> None:
-		"""Flush observations even when the surrounding integration raises."""
-		self.close()
+	def __exit__(
+		self,
+		exception_type: type[BaseException] | None,
+		exception: BaseException | None,
+		_traceback: object,
+	) -> None:
+		"""Flush output without replacing an active integration exception."""
+		self._output.exit(exception_type, exception)
 
 	def __call__(self, stage: IntegrationStage) -> None:
 		"""Observe every stage of each selected complete BM4 step."""
-		if self._closed:
+		if self._output.closed:
 			raise RuntimeError("This symplecticity observer is already closed.")
 		if stage.step_index % self.sample_every:
 			return
@@ -238,7 +244,7 @@ class SymplecticityObserver:
 			max_abs_defect=float(np.max(np.abs(defect))),
 		)
 		self._records.append(record)
-		self._buffer.append(
+		self._output.append(
 			_BufferedSample(
 				record=record,
 				state_before=state.copy(),
@@ -253,47 +259,47 @@ class SymplecticityObserver:
 				f"relative_defect={record.relative_defect:.3e} "
 				f"|det(J)-1|={record.determinant_error:.3e}"
 			)
-		if len(self._buffer) >= self.chunk_size:
-			self.flush()
+		self._output.flush_if_full()
 
 	def flush(self) -> OutputBlock | None:
+		"""Write pending samples through the shared diagnostic buffer."""
+		return self._output.flush()
+
+	def _write_block(
+		self, block_index: int, samples: tuple[_BufferedSample, ...],
+	) -> OutputBlock:
 		"""Write the current matrix buffer as one indexed output block."""
-		if not self._buffer:
-			return None
-		block_index = self._next_index
-		rows = [asdict(sample.record) for sample in self._buffer]
-		paths = write_diagnostic_block(
-			output_directory=self.output_directory,
-			block_name=self.block_name,
+		rows = [asdict(sample.record) for sample in samples]
+		paths = self._output.write(
 			block_index=block_index,
 			rows=rows,
 			arrays={
 				"jacobians": np.stack(
-					[sample.jacobian for sample in self._buffer]
+					[sample.jacobian for sample in samples]
 				),
 				"states_before": np.stack(
-					[sample.state_before for sample in self._buffer]
+					[sample.state_before for sample in samples]
 				),
 				"states_after": np.stack(
-					[sample.state_after for sample in self._buffer]
+					[sample.state_after for sample in samples]
 				),
 				"observation_indices": np.asarray(
-				[sample.record.observation_index for sample in self._buffer], dtype=int
+				[sample.record.observation_index for sample in samples], dtype=int
 			),
 				"step_indices": np.asarray(
-				[sample.record.step_index for sample in self._buffer], dtype=int
+				[sample.record.step_index for sample in samples], dtype=int
 			),
 				"stage_indices": np.asarray(
-				[sample.record.stage_index for sample in self._buffer], dtype=int
+				[sample.record.stage_index for sample in samples], dtype=int
 			),
 				"flow_names": np.asarray(
-					[sample.record.flow_name for sample in self._buffer]
+					[sample.record.flow_name for sample in samples]
 				),
 				"times": np.asarray(
-					[sample.record.time for sample in self._buffer]
+					[sample.record.time for sample in samples]
 				),
 				"durations": np.asarray(
-					[sample.record.duration for sample in self._buffer]
+					[sample.record.duration for sample in samples]
 				),
 			},
 			metadata={
@@ -311,22 +317,16 @@ class SymplecticityObserver:
 
 		block = OutputBlock(
 			index=block_index,
-			sample_count=len(self._buffer),
+			sample_count=len(samples),
 			summary_path=paths.summary,
 			jacobians_path=paths.arrays,
 			metadata_path=paths.metadata,
 		)
-		self._output_blocks.append(block)
-		self._buffer.clear()
-		self._next_index += 1
 		return block
 
 	def close(self) -> None:
-		"""Flush the final partial block and stop accepting stage events."""
-		if self._closed:
-			return
-		self.flush()
-		self._closed = True
+		"""Flush the final partial block and reject further events."""
+		self._output.close()
 
 __all__ = [
 	"OutputBlock",

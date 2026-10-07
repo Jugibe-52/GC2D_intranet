@@ -2,46 +2,37 @@
 
 from __future__ import annotations
 
+from ._comparison import (
+	COMPARISON_LABELS, ComparisonConfig, ComparisonResult, comparison_method,
+	readonly_energy_history, accuracy_summaries, nonlinear_work_summaries,
+)
+from contracts.comparison import EnergyAccuracySeries
+
+from contracts.comparison import (ExecutionLogEntry, FiveMethodComparisonSummary, FiveMethodNonlinearWorkSummary,)
+
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 import sys
 from threading import Lock
 from time import perf_counter
 from types import MappingProxyType
-from typing import Mapping
+from typing import ClassVar, Mapping
 
 import numpy as np
 
-from ._comparison_validation import (
-	comparison_runtime_samples, validate_comparison_solution, validate_trajectory_series, validate_energy_series,
-)
 
 from dynamics import GuidingCenterDynamics
 from initial_conditions import GCInitialConfiguration
 from potential import Potential
 from contracts.problem import InitialValueProblem
-from methods.base import NumericalMethod
-from methods.classical.rk4 import RK4
 from contracts.request import SimulationRequest
 from solution import Solution
 from simulation.runner import simulate
 
-from ._gauss_legendre4_common import (
-	AdaptiveReference,
-	build_adaptive_reference,
-	build_dop853_reference_with_reused_audit,
-)
-from ._trajectory_accuracy import TrajectoryAccuracySeries, accuracy_series
-from .four_method_sdirk_comparison import (
-	FourMethodSDIRKComparisonConfig,
-	_method as _implicit_method,
-)
-from .three_method_newton_comparison import (
-	EnergyAccuracySeries,
-	_readonly_energy_history,
-	_residual_evaluations,
-	_time_integrated_particle_rms,
-)
+from contracts.comparison import AdaptiveReference
+from ._gauss_legendre4_common import (build_adaptive_reference, build_dop853_reference_with_reused_audit)
+from contracts.comparison import TrajectoryAccuracySeries
+from ._trajectory_accuracy import (accuracy_series)
 
 
 FIVE_METHOD_COMPARISON_METHODS: tuple[str, ...] = (
@@ -53,352 +44,38 @@ FIVE_METHOD_COMPARISON_METHODS: tuple[str, ...] = (
 )
 FIVE_METHOD_IMPLICIT_METHODS = FIVE_METHOD_COMPARISON_METHODS[:-1]
 FIVE_METHOD_COMPARISON_LABELS: Mapping[str, str] = MappingProxyType(
-	{
-		"ABBA4Implicit": "Single-projection implicit ABBA4",
-		"GaussLegendre4": "Gauss--Legendre (2 stages, order 4)",
-		"BM4Implicit": "Single-projection implicit BM4",
-		"SDIRK4": "SDIRK S54b (5 stages, order 4)",
-		"RK4": "Classical explicit RK4",
-	}
+	{name: COMPARISON_LABELS[name] for name in FIVE_METHOD_COMPARISON_METHODS}
 )
 
 
 @dataclass(frozen=True, slots=True)
-class FiveMethodComparisonConfig(FourMethodSDIRKComparisonConfig):
+class FiveMethodComparisonConfig(ComparisonConfig):
 	"""Common physical grid, references, timings, and progress controls."""
 
 
 @dataclass(frozen=True, slots=True)
-class ExecutionLogEntry:
-	"""One completed reference, warm-up, or timed execution."""
+class FiveMethodComparisonResult(ComparisonResult):
+	"""Selected comparison methods and the completion log for their campaign."""
 
-	phase: str
-	method_name: str
-	method_label: str
-	repeat: int
-	trajectory_count: int
-	step_count: int
-	runtime_seconds: float
-
-	def __post_init__(self) -> None:
-		"""Require one finite, self-describing completion record."""
-		if self.phase not in {"reference", "warmup", "timing"}:
-			raise ValueError("Unknown execution-log phase.")
-		if not self.method_name or not self.method_label:
-			raise ValueError("Execution-log method names must not be empty.")
-		if self.repeat < 0 or self.trajectory_count < 1 or self.step_count < 0:
-			raise ValueError("Execution-log counts must be non-negative and valid.")
-		if not np.isfinite(self.runtime_seconds) or self.runtime_seconds <= 0.0:
-			raise ValueError("Execution-log runtime must be positive and finite.")
-
-
-@dataclass(frozen=True, slots=True)
-class FiveMethodComparisonSummary:
-	"""Accuracy, energy, and timing values shared by all five methods."""
-
-	method_name: str
-	method_label: str
-	solver: str
-	trajectory_count: int
-	step_count: int
-	global_rms_distance: float
-	time_integrated_rms_distance: float
-	final_rms_distance: float
-	maximum_distance: float
-	reference_floor_ratio: float
-	time_integrated_rms_energy_error: float
-	relative_time_integrated_rms_energy_error: float
-	final_rms_energy_error: float
-	maximum_absolute_energy_error: float
-	energy_reference_floor_ratio: float
-	runtime_seconds: float
-	runtime_first_quartile_seconds: float
-	runtime_third_quartile_seconds: float
-	runtime_minimum_seconds: float
-	runtime_maximum_seconds: float
-
-
-@dataclass(frozen=True, slots=True)
-class FiveMethodNonlinearWorkSummary:
-	"""Newton work for one of the four implicit methods."""
-
-	method_name: str
-	method_label: str
-	step_count: int
-	nonlinear_solves_per_step: int
-	minimum_newton_iterations: int
-	mean_newton_iterations: float
-	maximum_newton_iterations: int
-	total_newton_iterations: int
-	mean_residual_evaluations: float
-	total_residual_evaluations: int
-	maximum_residual_to_tolerance: float
-
-
-@dataclass(frozen=True, slots=True)
-class FiveMethodComparisonResult:
-	"""Two references, selected aligned solutions, timings, and execution logs."""
-
-	potential: Potential
-	dynamics: GuidingCenterDynamics
-	initial_configuration: GCInitialConfiguration
 	config: FiveMethodComparisonConfig
-	reference: AdaptiveReference
-	solutions: Mapping[str, Solution]
-	accuracy: Mapping[str, TrajectoryAccuracySeries]
-	reference_energies: np.ndarray
-	audit_energies: np.ndarray
-	energy_accuracy: Mapping[str, EnergyAccuracySeries]
-	runtime_samples: Mapping[str, np.ndarray]
-	wall_runtime_seconds: float
 	execution_log: tuple[ExecutionLogEntry, ...]
+	config_type: ClassVar[type[ComparisonConfig]] = FiveMethodComparisonConfig
 
 	def __post_init__(self) -> None:
-		"""Require stable method coverage and aligned physical trajectories."""
-		if not isinstance(self.potential, Potential):
-			raise TypeError("`potential` must be a Potential instance.")
-		if not isinstance(self.dynamics, GuidingCenterDynamics):
-			raise TypeError("`dynamics` must be GuidingCenterDynamics.")
-		if not isinstance(self.initial_configuration, GCInitialConfiguration):
-			raise TypeError("`initial_configuration` must be GCInitialConfiguration.")
-		if not isinstance(self.config, FiveMethodComparisonConfig):
-			raise TypeError("`config` must be FiveMethodComparisonConfig.")
-		for values, description in (
-			(self.solutions, "solutions"),
-			(self.accuracy, "accuracy series"),
-			(self.energy_accuracy, "energy series"),
-			(self.runtime_samples, "runtime samples"),
-		):
-			if tuple(values) != tuple(self.solutions):
-				raise ValueError(
-					f"The result must contain matching {description} in stable order."
-				)
-		particle_count = self.reference.states.shape[0] // 2
-		energy_shape = (particle_count, self.reference.times.size)
-		reference_energies = _readonly_energy_history(
-			self.reference_energies,
-			expected_shape=energy_shape,
-		)
-		audit_energies = _readonly_energy_history(
-			self.audit_energies,
-			expected_shape=energy_shape,
-		)
-		validated_runtimes: dict[str, np.ndarray] = {}
-		for method_name in self.solutions:
-			solution = self.solutions[method_name]
-			validate_comparison_solution(
-				solution, self.initial_configuration, self.reference.times, self.config.step_count,
-			)
-			if method_name in FIVE_METHOD_IMPLICIT_METHODS:
-				if solution.diagnostics.get("nonlinear_solver") != "newton":
-					raise ValueError("Every implicit method must use Newton.")
-			elif "nonlinear_solver" in solution.diagnostics:
-				raise ValueError("Classical RK4 must not report a nonlinear solver.")
-			validate_trajectory_series(method_name, self.accuracy[method_name], self.reference.times.size)
-			validate_energy_series(
-				method_name, self.energy_accuracy[method_name],
-				energy_type=EnergyAccuracySeries, energy_shape=energy_shape,
-			)
-			validated_runtimes[method_name] = comparison_runtime_samples(
-				self.runtime_samples[method_name], self.config.timing_repeats,
-			)
-		log_values = tuple(self.execution_log)
-		if not log_values or any(
-			not isinstance(entry, ExecutionLogEntry) for entry in log_values
-		):
+		"""Add validated campaign completion records to the shared result contract."""
+		ComparisonResult.__post_init__(self)
+		entries = tuple(self.execution_log)
+		if not entries or any(not isinstance(entry, ExecutionLogEntry) for entry in entries):
 			raise TypeError("`execution_log` must contain completion records.")
-		if not np.isfinite(self.wall_runtime_seconds) or self.wall_runtime_seconds <= 0.0:
-			raise ValueError("The complete study runtime must be positive and finite.")
-		object.__setattr__(self, "solutions", MappingProxyType(dict(self.solutions)))
-		object.__setattr__(self, "accuracy", MappingProxyType(dict(self.accuracy)))
-		object.__setattr__(self, "reference_energies", reference_energies)
-		object.__setattr__(self, "audit_energies", audit_energies)
-		object.__setattr__(
-			self,
-			"energy_accuracy",
-			MappingProxyType(dict(self.energy_accuracy)),
-		)
-		object.__setattr__(
-			self,
-			"runtime_samples",
-			MappingProxyType(validated_runtimes),
-		)
-		object.__setattr__(self, "execution_log", log_values)
-		object.__setattr__(self, "wall_runtime_seconds", float(self.wall_runtime_seconds))
-
-	@property
-	def effective_potential(self) -> Potential:
-		"""Return the gyroaveraged potential used by all five methods."""
-		return self.dynamics.effective_potential
-
-	@property
-	def reference_energy_errors(self) -> np.ndarray:
-		"""Return the signed DOP853-minus-Radau Hamiltonian discrepancy."""
-		return np.asarray(self.reference_energies - self.audit_energies, dtype=float)
-
-	@property
-	def reference_energy_scale(self) -> float:
-		"""Return the global particle-time RMS DOP853 Hamiltonian scale."""
-		return max(
-			_time_integrated_particle_rms(
-				self.reference_energies,
-				self.reference.times,
-			),
-			float(np.finfo(float).eps),
-		)
-
-	@property
-	def energy_reference_time_integrated_rms_floor(self) -> float:
-		"""Return the integrated DOP853/Radau Hamiltonian discrepancy."""
-		return _time_integrated_particle_rms(
-			self.reference_energy_errors,
-			self.reference.times,
-		)
-
-	@property
-	def energy_reference_final_rms_floor(self) -> float:
-		"""Return the final particle-RMS DOP853/Radau Hamiltonian discrepancy."""
-		return float(np.sqrt(np.mean(self.reference_energy_errors[:, -1] ** 2)))
-
-	@property
-	def runtimes(self) -> Mapping[str, float]:
-		"""Return the median full-integration runtime for every method."""
-		return MappingProxyType(
-			{
-				name: float(np.median(self.runtime_samples[name]))
-				for name in self.solutions
-			}
-		)
-
-	@property
-	def total_method_runtime_seconds(self) -> float:
-		"""Return the sum of selected median integration times."""
-		return float(sum(self.runtimes.values()))
-
-	@property
-	def total_study_runtime_seconds(self) -> float:
-		"""Return integration plus DOP853 and Radau reference time."""
-		return self.wall_runtime_seconds
+		object.__setattr__(self, "execution_log", entries)
 
 	def summaries(self) -> tuple[FiveMethodComparisonSummary, ...]:
-		"""Reduce the common accuracy, energy, and timing metrics."""
-		times = self.reference.times
-		duration = float(times[-1] - times[0])
-		floor = max(
-			self.reference.time_integrated_rms_floor,
-			float(np.finfo(float).eps),
-		)
-		energy_floor = max(
-			self.energy_reference_time_integrated_rms_floor,
-			float(np.finfo(float).tiny),
-		)
-		initial_state = self.initial_configuration.initial_state
-		assert initial_state is not None
-		trajectory_count = self.initial_configuration.layout.particle_count(initial_state)
-		rows: list[FiveMethodComparisonSummary] = []
-		for method_name in self.solutions:
-			series = self.accuracy[method_name]
-			energy_series = self.energy_accuracy[method_name]
-			runtime_samples = self.runtime_samples[method_name]
-			time_rms = float(
-				np.sqrt(np.trapz(series.rms_distance**2, times) / duration)
-			)
-			energy_time_rms = _time_integrated_particle_rms(
-				energy_series.errors,
-				times,
-			)
-			rows.append(
-				FiveMethodComparisonSummary(
-					method_name=method_name,
-					method_label=FIVE_METHOD_COMPARISON_LABELS[method_name],
-					solver=("Newton" if method_name in FIVE_METHOD_IMPLICIT_METHODS else "Explicit"),
-					trajectory_count=trajectory_count,
-					step_count=self.config.step_count,
-					global_rms_distance=float(np.sqrt(np.mean(series.distances**2))),
-					time_integrated_rms_distance=time_rms,
-					final_rms_distance=float(series.rms_distance[-1]),
-					maximum_distance=float(np.max(series.distances)),
-					reference_floor_ratio=time_rms / floor,
-					time_integrated_rms_energy_error=energy_time_rms,
-					relative_time_integrated_rms_energy_error=(
-						energy_time_rms / self.reference_energy_scale
-					),
-					final_rms_energy_error=float(energy_series.rms_error[-1]),
-					maximum_absolute_energy_error=float(
-						np.max(np.abs(energy_series.errors))
-					),
-					energy_reference_floor_ratio=energy_time_rms / energy_floor,
-					runtime_seconds=float(np.median(runtime_samples)),
-					runtime_first_quartile_seconds=float(
-						np.quantile(runtime_samples, 0.25)
-					),
-					runtime_third_quartile_seconds=float(
-						np.quantile(runtime_samples, 0.75)
-					),
-					runtime_minimum_seconds=float(np.min(runtime_samples)),
-					runtime_maximum_seconds=float(np.max(runtime_samples)),
-				)
-			)
-		return tuple(rows)
+		"""Reduce common accuracy, energy, and timing metrics."""
+		return accuracy_summaries(self)
 
-	def nonlinear_work_summaries(
-		self,
-	) -> tuple[FiveMethodNonlinearWorkSummary, ...]:
+	def nonlinear_work_summaries(self) -> tuple[FiveMethodNonlinearWorkSummary, ...]:
 		"""Reduce Newton diagnostics for the selected implicit methods."""
-		rows: list[FiveMethodNonlinearWorkSummary] = []
-		expected_shape = (self.config.step_count,)
-		for method_name in self.solutions:
-			if method_name not in FIVE_METHOD_IMPLICIT_METHODS:
-				continue
-			solution = self.solutions[method_name]
-			iterations = np.asarray(
-				solution.diagnostics["nonlinear_iterations"],
-				dtype=int,
-			)
-			residual_evaluations = _residual_evaluations(solution)
-			residuals = np.asarray(
-				solution.diagnostics["nonlinear_residual_norms"],
-				dtype=float,
-			)
-			tolerances = np.asarray(
-				solution.diagnostics["nonlinear_tolerances"],
-				dtype=float,
-			)
-			if any(
-				value.shape != expected_shape
-				for value in (iterations, residual_evaluations, residuals, tolerances)
-			):
-				raise ValueError("Newton diagnostics must align with every complete step.")
-			rows.append(
-				FiveMethodNonlinearWorkSummary(
-					method_name=method_name,
-					method_label=FIVE_METHOD_COMPARISON_LABELS[method_name],
-					step_count=self.config.step_count,
-					nonlinear_solves_per_step=int(
-						solution.diagnostics.get("nonlinear_solves_per_step", 1)
-					),
-					minimum_newton_iterations=int(np.min(iterations)),
-					mean_newton_iterations=float(np.mean(iterations)),
-					maximum_newton_iterations=int(np.max(iterations)),
-					total_newton_iterations=int(np.sum(iterations)),
-					mean_residual_evaluations=float(np.mean(residual_evaluations)),
-					total_residual_evaluations=int(np.sum(residual_evaluations)),
-					maximum_residual_to_tolerance=float(
-						np.max(residuals / tolerances)
-					),
-				)
-			)
-		return tuple(rows)
-
-
-def _method(
-	method_name: str,
-	config: FiveMethodComparisonConfig,
-) -> NumericalMethod:
-	"""Build one fixed-step method with the requested progress behavior."""
-	if method_name == "RK4":
-		return RK4(progress=config.progress)
-	return _implicit_method(method_name, config)
+		return nonlinear_work_summaries(self)
 
 
 def _print_progress(enabled: bool, message: str) -> None:
@@ -527,11 +204,11 @@ def run_five_method_comparison(
 		)
 
 	energy_shape = (trajectory_count, request.output_times.size)
-	reference_energies = _readonly_energy_history(
+	reference_energies = readonly_energy_history(
 		dynamics.hamiltonian(request.output_times, reference.states),
 		expected_shape=energy_shape,
 	)
-	audit_energies = _readonly_energy_history(
+	audit_energies = readonly_energy_history(
 		dynamics.hamiltonian(request.output_times, reference.audit_states),
 		expected_shape=energy_shape,
 	)
@@ -543,7 +220,7 @@ def run_five_method_comparison(
 	method_campaign_started = perf_counter()
 	progress_lock = Lock()
 
-	def execute_method(
+	def executecomparison_method(
 		method_name: str,
 		*,
 		phase: str,
@@ -559,7 +236,7 @@ def run_five_method_comparison(
 			f"{trajectory_count} trajectories together, {config.step_count} steps.",
 		)
 		started = perf_counter()
-		solution = simulate(problem, _method(method_name, config), request)
+		solution = simulate(problem, comparison_method(method_name, config), request)
 		runtime_seconds = perf_counter() - started
 		with progress_lock:
 			completed_method_runs += 1
@@ -590,7 +267,7 @@ def run_five_method_comparison(
 	def execute_model_campaign(method_name: str) -> tuple[Solution, list[float]]:
 		"""Run all repetitions for one model in its dedicated worker."""
 		for warmup in range(1, config.timing_warmups + 1):
-			execute_method(
+			executecomparison_method(
 				method_name,
 				phase="warmup",
 				repeat=warmup,
@@ -599,7 +276,7 @@ def run_five_method_comparison(
 		latest_solution: Solution | None = None
 		runtimes: list[float] = []
 		for repeat in range(1, config.timing_repeats + 1):
-			latest_solution, runtime_seconds = execute_method(
+			latest_solution, runtime_seconds = executecomparison_method(
 				method_name,
 				phase="timing",
 				repeat=repeat,
@@ -643,7 +320,7 @@ def run_five_method_comparison(
 			),
 			distance_convention=config.distance_convention,
 		)
-		method_energies = _readonly_energy_history(
+		method_energies = readonly_energy_history(
 			dynamics.hamiltonian(request.output_times, solution.states),
 			expected_shape=energy_shape,
 		)

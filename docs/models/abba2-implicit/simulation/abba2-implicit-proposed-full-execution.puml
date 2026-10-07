@@ -35,7 +35,7 @@ digraph ABBA2ProposedFullExecution {
         <TR><TD BGCOLOR="#E8EFF8" ALIGN="LEFT"><FONT POINT-SIZE="9">EXISTING CLASS</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>Potential</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/potential/potential.py</FONT></TD></TR>
         <TR><TD ALIGN="LEFT"><B>State</B><BR ALIGN="LEFT"/>interpolation_order: int<BR ALIGN="LEFT"/>metadata: field provenance</TD></TR><HR/>
         <TR><TD ALIGN="LEFT"><B>Operations</B><BR ALIGN="LEFT"/>evaluate(t, x, y, derivatives): array<BR ALIGN="LEFT"/>electric_field(t, x, y): (Ex, Ey)<BR ALIGN="LEFT"/>gyroaverage(rho): Potential</TD></TR><HR/>
-        <TR><TD ALIGN="LEFT">Load with load_gc2d_h5_potential(...),<BR ALIGN="LEFT"/>or construct with Potential.random(...).<BR ALIGN="LEFT"/>Keep normalization and seed explicit.</TD></TR>
+        <TR><TD ALIGN="LEFT">Load with Potential.load(...),<BR ALIGN="LEFT"/>or construct with Potential.random(...).<BR ALIGN="LEFT"/>Keep normalization and seed explicit.</TD></TR>
       </TABLE>
     >];
     Dynamics [label=<

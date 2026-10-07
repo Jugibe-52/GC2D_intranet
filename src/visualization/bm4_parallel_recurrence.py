@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -14,8 +14,7 @@ from matplotlib.colors import Normalize
 
 from potential import Potential
 
-if TYPE_CHECKING:
-	from studies.bm4_parallel_recurrence import ParallelBM4RecurrenceResult
+from contracts.study_results import ParallelBM4RecurrenceResult
 
 from ._animation_validation import (
 	boolean_control,
@@ -25,8 +24,6 @@ from ._animation_validation import (
 
 def _validate_result(result: object) -> None:
 	"""Validate a recurrence result without creating a package import cycle."""
-	from studies.bm4_parallel_recurrence import ParallelBM4RecurrenceResult
-
 	if not isinstance(result, ParallelBM4RecurrenceResult):
 		raise TypeError("`result` must be ParallelBM4RecurrenceResult.")
 

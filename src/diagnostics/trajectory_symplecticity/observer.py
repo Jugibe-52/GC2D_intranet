@@ -12,9 +12,8 @@ import numpy as np
 
 from diagnostics._validation import positive_integer as _positive_integer
 
-from diagnostics.output import write_diagnostic_block
+from diagnostics.buffering import DiagnosticBuffer
 from diagnostics.paths import (
-	next_block_index,
 	notebook_output_directory,
 	validate_block_name,
 )
@@ -179,10 +178,12 @@ class GCTrajectorySymplecticityObserver:
 		self._last_completed: _CompletedStep | None = None
 		self._last_recorded_step = -2
 		self._records: list[TrajectorySymplecticityRecord] = []
-		self._buffer: list[_BufferedSample] = []
-		self._output_blocks: list[TrajectorySymplecticityOutputBlock] = []
-		self._next_index = next_block_index(self.output_directory, self.block_name)
-		self._closed = False
+		self._output = DiagnosticBuffer[_BufferedSample, TrajectorySymplecticityOutputBlock](
+			output_directory=self.output_directory,
+			block_name=self.block_name,
+			chunk_size=self.chunk_size,
+			write_block=self._write_block,
+		)
 
 	@property
 	def records(self) -> tuple[TrajectorySymplecticityRecord, ...]:
@@ -192,7 +193,7 @@ class GCTrajectorySymplecticityObserver:
 	@property
 	def output_blocks(self) -> tuple[TrajectorySymplecticityOutputBlock, ...]:
 		"""Return all persisted output chunks."""
-		return tuple(self._output_blocks)
+		return self._output.blocks
 
 	def __enter__(self) -> GCTrajectorySymplecticityObserver:
 		"""Open a context-managed observation stream."""
@@ -204,20 +205,8 @@ class GCTrajectorySymplecticityObserver:
 		exception: BaseException | None,
 		_traceback: object,
 	) -> None:
-		"""Flush complete samples without replacing an active integration error."""
-		if exception_type is None:
-			self.close()
-			return
-		try:
-			self._flush_complete_samples()
-		except Exception as cleanup_error:  # pragma: no cover - exceptional I/O
-			if exception is not None:
-				exception.add_note(
-					"Trajectory observer cleanup also failed: "
-					f"{cleanup_error!r}"
-				)
-		finally:
-			self._closed = True
+		"""Flush output without replacing an active integration exception."""
+		self._output.exit(exception_type, exception, self._record_final_sample)
 
 	def _validated_continuous_states(
 		self, step: IntegrationStep,
@@ -244,7 +233,7 @@ class GCTrajectorySymplecticityObserver:
 
 	def __call__(self, step: IntegrationStep) -> None:
 		"""Advance the physical tangent with one consecutive complete step."""
-		if self._closed:
+		if self._output.closed:
 			raise RuntimeError("This trajectory symplecticity observer is closed.")
 		if not isinstance(step, IntegrationStep):
 			raise TypeError("The observer requires IntegrationStep data.")
@@ -330,7 +319,7 @@ class GCTrajectorySymplecticityObserver:
 			),
 		)
 		self._records.append(record)
-		self._buffer.append(
+		self._output.append(
 			_BufferedSample(
 				record=record,
 				state=sample.state.copy(),
@@ -350,56 +339,56 @@ class GCTrajectorySymplecticityObserver:
 				f"mean_local={record.mean_local_relative_defect:.3e} "
 				f"mean_flow={record.mean_accumulated_relative_defect:.3e}"
 			)
-		if len(self._buffer) >= self.chunk_size:
-			self.flush()
+		self._output.flush_if_full()
 
 	def flush(self) -> TrajectorySymplecticityOutputBlock | None:
+		"""Write pending samples through the shared diagnostic buffer."""
+		return self._output.flush()
+
+	def _write_block(
+		self, index: int, samples: tuple[_BufferedSample, ...],
+	) -> TrajectorySymplecticityOutputBlock:
 		"""Persist the pending scalar records and particle arrays."""
-		if not self._buffer:
-			return None
-		index = self._next_index
-		paths = write_diagnostic_block(
-			output_directory=self.output_directory,
-			block_name=self.block_name,
+		paths = self._output.write(
 			block_index=index,
-			rows=[asdict(sample.record) for sample in self._buffer],
+			rows=[asdict(sample.record) for sample in samples],
 			arrays={
-				"states": np.stack([sample.state for sample in self._buffer]),
+				"states": np.stack([sample.state for sample in samples]),
 				"local_jacobians": np.stack(
-					[sample.local_jacobians for sample in self._buffer]
+					[sample.local_jacobians for sample in samples]
 				),
 				"accumulated_jacobians": np.stack(
-					[sample.accumulated_jacobians for sample in self._buffer]
+					[sample.accumulated_jacobians for sample in samples]
 				),
 				"local_relative_defects": np.stack(
-					[sample.local_relative_defects for sample in self._buffer]
+					[sample.local_relative_defects for sample in samples]
 				),
 				"accumulated_relative_defects": np.stack(
-					[sample.accumulated_relative_defects for sample in self._buffer]
+					[sample.accumulated_relative_defects for sample in samples]
 				),
 				"local_determinant_errors": np.stack(
-					[sample.local_determinant_errors for sample in self._buffer]
+					[sample.local_determinant_errors for sample in samples]
 				),
 				"accumulated_determinant_errors": np.stack(
 					[
 						sample.accumulated_determinant_errors
-						for sample in self._buffer
+						for sample in samples
 					]
 				),
 				"observation_indices": np.asarray(
-					[sample.record.observation_index for sample in self._buffer],
+					[sample.record.observation_index for sample in samples],
 					dtype=int,
 				),
 				"step_indices": np.asarray(
-					[sample.record.step_index for sample in self._buffer],
+					[sample.record.step_index for sample in samples],
 					dtype=int,
 				),
 				"times": np.asarray(
-					[sample.record.time for sample in self._buffer],
+					[sample.record.time for sample in samples],
 					dtype=float,
 				),
 				"durations": np.asarray(
-					[sample.record.duration for sample in self._buffer],
+					[sample.record.duration for sample in samples],
 					dtype=float,
 				),
 			},
@@ -415,31 +404,24 @@ class GCTrajectorySymplecticityObserver:
 		)
 		block = TrajectorySymplecticityOutputBlock(
 			index=index,
-			sample_count=len(self._buffer),
+			sample_count=len(samples),
 			summary_path=paths.summary,
 			jacobians_path=paths.arrays,
 			metadata_path=paths.metadata,
 		)
-		self._output_blocks.append(block)
-		self._buffer.clear()
-		self._next_index += 1
 		return block
 
 	def close(self) -> None:
-		"""Force the final complete sample to disk and reject later steps."""
-		if self._closed:
-			return
-		self._flush_complete_samples()
-		self._closed = True
+		"""Flush the final partial block and reject further events."""
+		self._output.close(self._record_final_sample)
 
-	def _flush_complete_samples(self) -> None:
-		"""Persist every completed step selected explicitly or at finalization."""
+	def _record_final_sample(self) -> None:
+		"""Queue the final completed step when cadence did not select it."""
 		if (
 			self._last_completed is not None
 			and self._last_completed.step_index != self._last_recorded_step
 		):
 			self._append_sample(self._last_completed)
-		self.flush()
 
 
 __all__ = [

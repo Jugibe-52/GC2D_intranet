@@ -76,8 +76,8 @@ class BM4ImplicitMethodTests(unittest.TestCase):
 								nonlinear_solver=solver, newton_jacobian_method=jacobian,
 								newton_absolute_tolerance=1e-14, newton_relative_tolerance=1e-14,
 							).new_run(problem, request)
-							with patch.object(problem.dynamics, 'vector_field', wraps=problem.dynamics.vector_field) as vector_field, \
-							     patch.object(problem.dynamics, 'extended_momentum_derivative', wraps=problem.dynamics.extended_momentum_derivative) as energy_rate:
+							with patch.object(type(problem.dynamics), 'vector_field', autospec=True, side_effect=type(problem.dynamics).vector_field) as vector_field, \
+							     patch.object(type(problem.dynamics), 'extended_momentum_derivative', autospec=True, side_effect=type(problem.dynamics).extended_momentum_derivative) as energy_rate:
 								result = run.advance(0.3, run.initial_state, step)
 								field_counts.append(vector_field.call_count)
 								self.assertEqual(energy_rate.call_count, 24 if tracking else 0)

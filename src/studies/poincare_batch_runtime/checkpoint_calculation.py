@@ -2,7 +2,6 @@
 
 from typing import Any
 from pathlib import Path
-from contextlib import nullcontext
 import hashlib
 import json
 import os
@@ -10,7 +9,7 @@ import time
 
 import numpy as np
 
-from newton_diagnostics import observe_newton
+from newton_diagnostics import NewtonHistory
 from study_io import assert_checkpoint_file, ROOT, atomic_json, digest, load_snapshot, utc_now
 
 
@@ -18,7 +17,9 @@ class CheckpointTestInterruption(RuntimeError):
     """Deliberate interruption used only by the disposable validation run."""
 
 
-def calculate_checkpointed_group(indices, initial_xy, settings):
+def calculate_checkpointed_group(
+    indices: np.ndarray, initial_xy: np.ndarray, settings: dict[str, Any],
+) -> dict[str, Any]:
     """Save immutable step chunks and resume from their last verified endpoint.
 
     Each call uses the original BM4 reduced step and its exact global schedule
@@ -96,29 +97,30 @@ def calculate_checkpointed_group(indices, initial_xy, settings):
             residuals = np.empty(length)
             tolerances = np.empty(length)
             mu = np.empty(length)
-            with (observe_newton(length, progress_every=0) if implicit else nullcontext(None)) as history:
-                for local, k in enumerate(range(completed, end)):
-                    if implicit:
-                        threshold = settings['newton_atol'] + settings['newton_rtol'] * max(
-                            1.0, float(np.linalg.norm(value, ord=np.inf)))
-                        result = solve_projection(
-                            prepared, BM4, solver, 'reduced_multiplier', t0 + k * h, value, h,
-                            jacobian_relative_step=settings['jacobian_relative_step'],
-                            jacobian_method='analytic')
-                        value = result.state
-                        assert np.isfinite(value).all() and result.residual_norm <= threshold
-                        states[:, local + 1] = value
-                        counters[local] = result.iterations
-                        residuals[local] = result.residual_norm
-                        tolerances[local] = threshold
-                        mu[local] = np.linalg.norm(result.multiplier, ord=np.inf)
-                    else:
-                        result = midpoint_step(prepared, BM4, t0 + k * h, value, h)
-                        value = result.state
-                        assert np.isfinite(value).all()
-                        states[:, local + 1] = value
-                        mu[local] = result.copy_separation_norm
+            history = NewtonHistory(length, progress_every=0) if implicit else None
+            for local, k in enumerate(range(completed, end)):
+                if implicit:
+                    threshold = settings['newton_atol'] + settings['newton_rtol'] * max(
+                        1.0, float(np.linalg.norm(value, ord=np.inf)))
+                    result = solve_projection(
+                        prepared, BM4, solver, 'reduced_multiplier', t0 + k * h, value, h,
+                        jacobian_relative_step=settings['jacobian_relative_step'],
+                        jacobian_method='analytic', newton_observer=history)
+                    value = result.state
+                    assert np.isfinite(value).all() and result.residual_norm <= threshold
+                    states[:, local + 1] = value
+                    counters[local] = result.iterations
+                    residuals[local] = result.residual_norm
+                    tolerances[local] = threshold
+                    mu[local] = np.linalg.norm(result.multiplier, ord=np.inf)
+                else:
+                    midpoint = midpoint_step(prepared, BM4, t0 + k * h, value, h)
+                    value = midpoint.state
+                    assert np.isfinite(value).all()
+                    states[:, local + 1] = value
+                    mu[local] = midpoint.copy_separation_norm
             if implicit:
+                assert history is not None
                 hist = history.arrays()
                 part = {'states': states, 'nonlinear_iterations': counters,
                         'nonlinear_residual_norms': residuals, 'nonlinear_tolerances': tolerances,

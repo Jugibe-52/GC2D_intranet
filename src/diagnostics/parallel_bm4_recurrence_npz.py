@@ -9,14 +9,13 @@ import os
 from pathlib import Path
 import tempfile
 from types import MappingProxyType
-from typing import Any, TYPE_CHECKING
+from typing import Any
 
 import numpy as np
 
 from diagnostics.output import _json_default
 
-if TYPE_CHECKING:
-	from studies.bm4_parallel_recurrence import ParallelBM4RecurrenceResult
+from contracts.study_results import ParallelBM4RecurrenceConfig, ParallelBM4RecurrenceResult
 
 
 PARALLEL_BM4_RECURRENCE_NPZ_SCHEMA_VERSION = 1
@@ -46,8 +45,6 @@ class StoredParallelBM4Recurrence:
 
 	def __post_init__(self) -> None:
 		"""Normalize the archive path and prevent top-level metadata mutation."""
-		from studies.bm4_parallel_recurrence import ParallelBM4RecurrenceResult
-
 		if not isinstance(self.result, ParallelBM4RecurrenceResult):
 			raise TypeError("`result` must be ParallelBM4RecurrenceResult.")
 		object.__setattr__(self, "path", Path(self.path))
@@ -62,8 +59,6 @@ def write_parallel_bm4_recurrence_npz(
 	overwrite: bool = False,
 ) -> Path:
 	"""Atomically persist a complete parallel BM4 recurrence result."""
-	from studies.bm4_parallel_recurrence import ParallelBM4RecurrenceResult
-
 	if not isinstance(result, ParallelBM4RecurrenceResult):
 		raise TypeError("`result` must be ParallelBM4RecurrenceResult.")
 	target = Path(path)
@@ -135,11 +130,6 @@ def load_parallel_bm4_recurrence_npz(
 	path: str | Path,
 ) -> StoredParallelBM4Recurrence:
 	"""Load and validate a complete parallel BM4 recurrence archive."""
-	from studies.bm4_parallel_recurrence import (
-		ParallelBM4RecurrenceConfig,
-		ParallelBM4RecurrenceResult,
-	)
-
 	source = Path(path)
 	if source.suffix.lower() != ".npz":
 		raise ValueError("The parallel BM4 recurrence path must use the .npz suffix.")

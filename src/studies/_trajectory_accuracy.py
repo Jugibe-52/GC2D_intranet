@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+from contracts.comparison import (TrajectoryAccuracySeries,)
+
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
 import json
 from typing import Any, Protocol
 
@@ -36,37 +37,6 @@ class ReferenceAccuracyConfig(Protocol):
 	def save_interval(self) -> float | None:
 		"""Return the common saved-time interval after configuration validation."""
 		...
-
-
-@dataclass(frozen=True, slots=True)
-class TrajectoryAccuracySeries:
-	"""Per-particle planar distances and time-dependent reductions."""
-
-	method_name: str
-	distances: np.ndarray
-	rms_distance: np.ndarray
-	mean_distance: np.ndarray
-	maximum_distance: np.ndarray
-
-	def __post_init__(self) -> None:
-		"""Own immutable finite non-negative accuracy arrays."""
-		distances = np.array(self.distances, dtype=float, copy=True)
-		rms = np.array(self.rms_distance, dtype=float, copy=True)
-		mean = np.array(self.mean_distance, dtype=float, copy=True)
-		maximum = np.array(self.maximum_distance, dtype=float, copy=True)
-		if distances.ndim != 2 or distances.size == 0:
-			raise ValueError("Accuracy distances must have shape (particles, samples).")
-		for value in (distances, rms, mean, maximum):
-			if not np.all(np.isfinite(value)) or np.any(value < 0.0):
-				raise ValueError("Accuracy distances must be finite and non-negative.")
-		if any(value.shape != (distances.shape[1],) for value in (rms, mean, maximum)):
-			raise ValueError("Reduced accuracy series must have one value per sample.")
-		for value in (distances, rms, mean, maximum):
-			value.setflags(write=False)
-		object.__setattr__(self, "distances", distances)
-		object.__setattr__(self, "rms_distance", rms)
-		object.__setattr__(self, "mean_distance", mean)
-		object.__setattr__(self, "maximum_distance", maximum)
 
 
 def _json_canonical(value: object) -> str:

@@ -18,9 +18,8 @@ from contracts.observation import (
 	IntegrationStep,
 )
 
-from .output import write_diagnostic_block
+from diagnostics.buffering import DiagnosticBuffer
 from .paths import (
-	next_block_index,
 	notebook_output_directory,
 	validate_block_name,
 )
@@ -165,11 +164,13 @@ class _ImplicitIterationObserver:
 		self.verbose = bool(verbose)
 		self.metadata = dict(metadata or {})
 		self._expected_step = 0
-		self._closed = False
 		self._records: list[ImplicitIterationRecord] = []
-		self._buffer: list[ImplicitIterationRecord] = []
-		self._output_blocks: list[ImplicitIterationOutputBlock] = []
-		self._next_index = next_block_index(self.output_directory, self.block_name)
+		self._output = DiagnosticBuffer[ImplicitIterationRecord, ImplicitIterationOutputBlock](
+			output_directory=self.output_directory,
+			block_name=self.block_name,
+			chunk_size=self.chunk_size,
+			write_block=self._write_block,
+		)
 
 	@property
 	def records(self) -> tuple[ImplicitIterationRecord, ...]:
@@ -179,19 +180,24 @@ class _ImplicitIterationObserver:
 	@property
 	def output_blocks(self) -> tuple[ImplicitIterationOutputBlock, ...]:
 		"""Return every synchronized block written during this run."""
-		return tuple(self._output_blocks)
+		return self._output.blocks
 
 	def __enter__(self) -> Self:
 		"""Open a context-managed observer session."""
 		return self
 
-	def __exit__(self, *_exception: object) -> None:
-		"""Flush the final partial block."""
-		self.close()
+	def __exit__(
+		self,
+		exception_type: type[BaseException] | None,
+		exception: BaseException | None,
+		_traceback: object,
+	) -> None:
+		"""Flush output without replacing an active integration exception."""
+		self._output.exit(exception_type, exception)
 
 	def __call__(self, step: IntegrationStep) -> None:
 		"""Record one consecutive complete implicit step of the required type."""
-		if self._closed:
+		if self._output.closed:
 			raise RuntimeError(
 				f"This {type(self).__name__} instance is already closed."
 			)
@@ -208,7 +214,7 @@ class _ImplicitIterationObserver:
 
 		record = _record_from_step(implicit_step, len(self._records))
 		self._records.append(record)
-		self._buffer.append(record)
+		self._output.append(record)
 		if self.verbose:
 			print(
 				f"[{self._diagnostic_label}] step={step.step_index:05d} "
@@ -216,61 +222,61 @@ class _ImplicitIterationObserver:
 				f"iterations={record.newton_iterations} "
 				f"residual/tolerance={record.residual_to_tolerance_ratio:.3e}"
 			)
-		if len(self._buffer) >= self.chunk_size:
-			self.flush()
+		self._output.flush_if_full()
 
 	def flush(self) -> ImplicitIterationOutputBlock | None:
+		"""Write pending samples through the shared diagnostic buffer."""
+		return self._output.flush()
+
+	def _write_block(
+		self, block_index: int, samples: tuple[ImplicitIterationRecord, ...],
+	) -> ImplicitIterationOutputBlock:
 		"""Write the buffered records as one indexed diagnostic block."""
-		if not self._buffer:
-			return None
-		block_index = self._next_index
-		paths = write_diagnostic_block(
-			output_directory=self.output_directory,
-			block_name=self.block_name,
+		paths = self._output.write(
 			block_index=block_index,
-			rows=[asdict(record) for record in self._buffer],
+			rows=[asdict(record) for record in samples],
 			arrays={
 				"step_indices": np.asarray(
-					[record.step_index for record in self._buffer], dtype=int
+					[record.step_index for record in samples], dtype=int
 				),
 				"start_times": np.asarray(
-					[record.start_time for record in self._buffer]
+					[record.start_time for record in samples]
 				),
 				"end_times": np.asarray(
-					[record.end_time for record in self._buffer]
+					[record.end_time for record in samples]
 				),
 				"durations": np.asarray(
-					[record.duration for record in self._buffer]
+					[record.duration for record in samples]
 				),
 				"newton_iterations": np.asarray(
-					[record.newton_iterations for record in self._buffer], dtype=int
+					[record.newton_iterations for record in samples], dtype=int
 				),
 				"nonlinear_iterations": np.asarray(
-					[record.newton_iterations for record in self._buffer], dtype=int
+					[record.newton_iterations for record in samples], dtype=int
 				),
 				"residual_evaluations": np.asarray(
-					[record.residual_evaluations for record in self._buffer], dtype=int
+					[record.residual_evaluations for record in samples], dtype=int
 				),
 				"newton_residual_norms": np.asarray(
-					[record.newton_residual_norm for record in self._buffer]
+					[record.newton_residual_norm for record in samples]
 				),
 				"nonlinear_residual_norms": np.asarray(
-					[record.newton_residual_norm for record in self._buffer]
+					[record.newton_residual_norm for record in samples]
 				),
 				"newton_tolerances": np.asarray(
-					[record.newton_tolerance for record in self._buffer]
+					[record.newton_tolerance for record in samples]
 				),
 				"nonlinear_tolerances": np.asarray(
-					[record.newton_tolerance for record in self._buffer]
+					[record.newton_tolerance for record in samples]
 				),
 				"residual_to_tolerance_ratios": np.asarray(
 					[
 						record.residual_to_tolerance_ratio
-						for record in self._buffer
+						for record in samples
 					]
 				),
 				"projection_multiplier_norms": np.asarray(
-					[record.projection_multiplier_norm for record in self._buffer]
+					[record.projection_multiplier_norm for record in samples]
 				),
 			},
 			metadata={
@@ -283,23 +289,16 @@ class _ImplicitIterationObserver:
 		)
 		block = ImplicitIterationOutputBlock(
 			index=block_index,
-			record_count=len(self._buffer),
+			record_count=len(samples),
 			summary_path=paths.summary,
 			arrays_path=paths.arrays,
 			metadata_path=paths.metadata,
 		)
-		self._output_blocks.append(block)
-		self._buffer.clear()
-		self._next_index += 1
 		return block
 
 	def close(self) -> None:
-		"""Flush pending records and reject subsequent observations."""
-		if self._closed:
-			return
-		self.flush()
-		self._closed = True
-
+		"""Flush the final partial block and reject further events."""
+		self._output.close()
 
 class ImplicitABBAIterationObserver(_ImplicitIterationObserver):
 	"""Record nonlinear work for accepted implicit-ABBA steps."""

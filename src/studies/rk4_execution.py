@@ -61,7 +61,7 @@ def periodic_discrepancy(reference: Solution, candidate: Solution, period: float
     """Per-particle minimum-image distance, shaped (particles, saved_times)."""
     delta = candidate.states - reference.states
     delta = (delta + period / 2) % period - period / 2
-    dx, dy = reference.source.layout.split(delta)
+    dx, dy = reference.layout.split(delta)
     return np.hypot(dx, dy)
 
 

@@ -29,3 +29,36 @@ The former `ExtendedHamiltonianSystem` protocol has been removed. Import
 that previously supplied only `hamiltonian` must also supply the basic dynamics
 members and `extended_momentum_derivative` to satisfy the unified contract.
 Evaluating a Hamiltonian directly remains possible without enabling tracking.
+
+## Physical layouts and problem ownership
+
+`contracts.state_layout` owns `PackedStateLayout`, `GCState`, `GCStateLayout`,
+`FCState`, and `FCStateLayout`. Dynamics, formulations, and initial-condition
+builders use these same component-major operations. Existing imports from
+`initial_conditions`, `initial_conditions.base`, `initial_conditions.gc`, and
+`initial_conditions.fc` remain explicit reexports of the canonical classes;
+the private duplicate `dynamics._layout` module has been removed.
+
+An external initial-state provider implements `InitialConfiguration` and supplies
+a `StateLayout`. Layouts must be deepcopy-compatible and interpret component-major
+particle blocks: GC uses `[x, y]`, and FC uses `[x, y, vx, vy]`. GC doubled maps
+require two physical components; FC split maps require four components plus
+`CyclotronSplitSystem`. Neither requires inheritance from a built-in initial
+configuration. The optional Hamiltonian capability remains independent.
+
+`InitialValueProblem` captures and validates the state, layout, and particle count
+at construction. Its `initial_state` and `layout` properties return independent
+copies. `initial_configuration` retains the original provider for provenance;
+changing that provider afterward cannot change the problem or a formulation
+prepared from it. `Solution` similarly owns independent `layout` and `initial_state`
+snapshots while retaining its original `source` as provenance. Interpretation and
+persistence use those snapshots, so editing an initial-condition builder after a
+run cannot relabel its saved state. Construct a new problem to use a revised
+initial condition.
+
+Built-in GC and FC dynamics freeze their physical parameters. Construct a new
+`GuidingCenterDynamics` or `FullCyclotronDynamics` for a different potential,
+`rho`, or `eta`; this keeps the GC gyroaveraged field and JAX parameter snapshots
+consistent with the declared system. These objects and problem snapshots remain
+pickle-compatible for process and Modal execution. Custom dynamical systems
+remain responsible for keeping their own physical parameters stable during a run.

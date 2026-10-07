@@ -9,7 +9,7 @@ import numpy as np
 
 from dynamics import DynamicalSystem
 
-from integration.core import IntegrationMethod
+from methods._compiled import CompiledFixedMethod
 from contracts.step import StepInfo, StepResult
 from formulations.state import PhysicalFormulation
 from contracts.observation import IntegrationStep, StepObserver
@@ -31,7 +31,7 @@ def _checked_vector_field(
 
 
 @dataclass(slots=True)
-class RK4(IntegrationMethod[None]):
+class RK4(CompiledFixedMethod[None]):
 	"""Classical RK4 with an output-independent uniform main grid."""
 
 	track_energy: bool = False

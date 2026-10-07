@@ -8,12 +8,35 @@ from typing import Generic, Literal, TypeAlias, TypeVar
 
 import numpy as np
 
+from contracts.nonlinear import NewtonIteration, NewtonObserver
+
 
 NonlinearSolver: TypeAlias = Literal["newton", "broyden"]
 NONLINEAR_SOLVERS: tuple[NonlinearSolver, ...] = ("newton", "broyden")
 
 _Payload = TypeVar("_Payload")
 _ResidualFunction: TypeAlias = Callable[[np.ndarray], tuple[np.ndarray, _Payload]]
+_IterateObserver: TypeAlias = Callable[[int, np.ndarray, np.ndarray, float], None]
+
+
+def _bind_newton_observer(
+	observer: NewtonObserver | None, *, time: float, duration: float,
+	tolerance: float, stage_index: int | None = None,
+	multiplier_slice: slice | None = None,
+) -> _IterateObserver | None:
+	"""Attach method coordinates to evaluated iterates without numerical work."""
+	if observer is None:
+		return None
+
+	def observe(iteration: int, unknown: np.ndarray, residual: np.ndarray, norm: float) -> None:
+		observer(NewtonIteration(
+			time=time, duration=duration, iteration=iteration, unknown=unknown,
+			residual=residual, residual_norm=norm, tolerance=tolerance,
+			multiplier=None if multiplier_slice is None else unknown[multiplier_slice],
+			stage_index=stage_index,
+		))
+
+	return observe
 
 
 @dataclass(frozen=True, slots=True)
@@ -226,6 +249,7 @@ def _solve_newton(
 	max_iterations: int,
 	context: str,
 	initial_evaluation: tuple[np.ndarray, _Payload] | None = None,
+	iteration_observer: _IterateObserver | None = None,
 ) -> _NonlinearResult[_Payload]:
 	"""Share convergence and counters while the formulation owns Newton algebra.
 
@@ -244,6 +268,8 @@ def _solve_newton(
 		else:
 			residual, payload = _checked_residual_evaluation(residual_function, unknown)
 		residual_norm = float(np.linalg.norm(residual, ord=np.inf))
+		if iteration_observer is not None:
+			iteration_observer(iteration, unknown, residual, residual_norm)
 		if residual_norm <= tolerance:
 			return _NonlinearResult(
 				unknown=unknown.copy(), residual=residual.copy(), payload=payload,

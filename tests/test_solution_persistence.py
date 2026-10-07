@@ -18,7 +18,7 @@ from diagnostics.paths import solution_destination
 from diagnostics.storage import StorageError
 from initial_conditions.fc import FCInitialConfiguration
 from initial_conditions.gc import GCInitialConfiguration
-from potential.gc2d_h5 import GC2DH5Metadata
+from potential.load import GC2DH5Metadata
 from potential.potential import Potential
 from solution import Solution
 from studies.persistence_demo import PersistenceDemoConfig, run_persistence_demo

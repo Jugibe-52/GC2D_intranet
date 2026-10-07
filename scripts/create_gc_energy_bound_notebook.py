@@ -96,7 +96,7 @@ from diagnostics.paths import find_project_root, notebook_output_directory
 from diagnostics.reference_trajectory import load_reference_trajectory
 from diagnostics.reference_progress import reference_progress_log
 from diagnostics.gc_energy_bound import save_energy_bound_result, load_energy_bound_result
-from potential import load_gc2d_h5_potential
+from potential import Potential
 from dynamics import GuidingCenterDynamics
 from studies.initial_conditions import radial_gc_configuration, domain_center
 from studies.reference_trajectory import HighPrecisionReferenceConfig, run_high_precision_reference_trajectory
@@ -191,7 +191,7 @@ print("Reference saved states:", reference_config.output_sample_count)
 ''')
 
 code('''
-potential = load_gc2d_h5_potential(
+potential = Potential.load(
     H5_PATH, B=MAGNETIC_FIELD, characteristic_length=CHARACTERISTIC_LENGTH,
     indx=FIELD_INDICES, interpolation_order=INTERPOLATION_ORDER,
     nx=None, ny=None, denoising=False, spatial_normalization="characteristic_length",

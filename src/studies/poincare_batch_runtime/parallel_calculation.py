@@ -10,10 +10,10 @@ from typing import Any
 
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import dataclass
-from contextlib import nullcontext
 import multiprocessing as mp
+from multiprocessing.synchronize import Barrier
 
-from newton_diagnostics import observe_newton
+from newton_diagnostics import NewtonHistory
 import os
 import time
 
@@ -22,15 +22,18 @@ import numpy as np
 from study_io import load_snapshot, utc_now
 
 
-_START_BARRIER = None
+_START_BARRIER: Barrier | None = None
 
 
-def _initialize_worker(barrier):
+def _initialize_worker(barrier: Barrier) -> None:
+    """Bind the parent-created synchronization primitive to this worker."""
     global _START_BARRIER
     _START_BARRIER = barrier
 
 
-def calculate_group(indices, initial_xy, settings):
+def calculate_group(
+    indices: np.ndarray, initial_xy: np.ndarray, settings: dict[str, Any],
+) -> dict[str, Any]:
     """Integrate a particle group; reusable serially for partition validation."""
     from threadpoolctl import threadpool_info, threadpool_limits
 
@@ -50,6 +53,8 @@ def calculate_group(indices, initial_xy, settings):
         t_span=tuple(settings['t_span']), max_step=settings['step'],
         sample_count=settings['n_steps'] + 1,
     )
+    history = (NewtonHistory(settings['n_steps'], settings.get('progress_every', 1000))
+               if settings.get('record_newton_history', True) else None)
     method = BM4Implicit(
         coupling_frequency=settings['coupling_frequency'],
         newton_absolute_tolerance=settings['newton_atol'],
@@ -57,6 +62,7 @@ def calculate_group(indices, initial_xy, settings):
         newton_max_iterations=settings['newton_max_iterations'],
         newton_jacobian_relative_step=settings['jacobian_relative_step'],
         newton_jacobian_method='analytic', nonlinear_solver='newton', progress=False,
+        newton_observer=history,
     )
     with threadpool_limits(limits=1):
         pools = threadpool_info()
@@ -68,10 +74,7 @@ def calculate_group(indices, initial_xy, settings):
         started_utc = utc_now()
         started = time.perf_counter()
         cpu_started = time.process_time()
-        observer = (observe_newton(settings['n_steps'], settings.get('progress_every', 1000))
-                    if settings.get('record_newton_history', True) else nullcontext(None))
-        with observer as history:
-            solution = simulate(problem, method, request)
+        solution = simulate(problem, method, request)
         history_arrays = history.arrays() if history is not None else None
         cpu_seconds = time.process_time() - cpu_started
         finished = time.perf_counter()
@@ -107,12 +110,15 @@ class ParallelSolution:
     parallel_wall_seconds: float
     simultaneous_integration_seconds: float
 
-    def positions(self):
+    def positions(self) -> tuple[np.ndarray, np.ndarray]:
+        """Return component-major physical position histories."""
         n = self.states.shape[0] // 2
         return self.states[:n], self.states[n:]
 
 
-def simulate_parallel(initial_xy, settings, processes=16):
+def simulate_parallel(
+    initial_xy: np.ndarray, settings: dict[str, Any], processes: int = 16,
+) -> ParallelSolution:
     """Partition by round-robin ID, spawn all workers, and restore global order."""
     xy0 = np.asarray(initial_xy, dtype=np.float64)
     if isinstance(processes, bool) or not isinstance(processes, int) or not 1 <= processes <= len(xy0):

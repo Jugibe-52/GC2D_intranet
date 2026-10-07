@@ -4,8 +4,10 @@ from __future__ import annotations
 from typing import Literal
 import numpy as np
 
+from contracts.nonlinear import NewtonObserver
 from formulations.gc import GCDoubledMaps
-from methods._nonlinear import SolverOptions, SolveStats, _solve_broyden, _solve_newton
+from methods._linear import _solve_particle_systems
+from methods._nonlinear import SolverOptions, SolveStats, _bind_newton_observer, _solve_broyden, _solve_newton
 from methods.extended.core.composition import Composition, compose
 from methods.extended.configuration import ProjectionFormulation
 from methods.extended.core.jacobians import central_difference_jacobian, particle_jacobians
@@ -19,6 +21,7 @@ def solve_projection(
     jacobian_method: Literal['analytic', 'finite_difference'] = 'analytic',
     jacobian_relative_step: float = float(np.cbrt(np.finfo(float).eps)),
     retain_energy_points: bool = False,
+    newton_observer: NewtonObserver | None = None,
 ) -> ProjectedMapResult:
     """Solve the selected equation around one complete unprojected recipe.
 
@@ -35,6 +38,8 @@ def solve_projection(
         raise ValueError("Unknown projection formulation.")
     tolerance = options.tolerance(value)
     context = f'{recipe.name} {formulation} at t={t:.16g} with step={h:.16g}'
+    if newton_observer is not None and options.solver != 'newton':
+        raise ValueError('A newton_observer requires nonlinear_solver="newton".')
 
     def evaluate(unknown: np.ndarray) -> tuple[np.ndarray, CompositionTrace]:
         """Evaluate a spatial residual and retain that exact map's trace."""
@@ -65,10 +70,9 @@ def solve_projection(
             else:
                 matrix = base[:, :2, :2] - base[:, :2, 2:] - base[:, 2:, :2] + base[:, 2:, 2:] + 2 * identity
             rhs = residual.reshape(-1, count).T
-            try:
-                correction = np.linalg.solve(matrix, rhs[..., None])[..., 0].T.reshape(-1)
-            except np.linalg.LinAlgError as exc:
-                raise RuntimeError(f'The projection Jacobian is singular for {context}.') from exc
+            correction = _solve_particle_systems(
+                matrix, rhs, singular_message=f'The projection Jacobian is singular for {context}.',
+            ).T.reshape(-1)
         elif jacobian_method == 'finite_difference':
             base_dense = central_difference_jacobian(
                 lambda candidate: compose(maps, recipe, t, candidate, h).state,
@@ -115,7 +119,11 @@ def solve_projection(
     elif options.solver == 'newton':
         result = _solve_newton(evaluate, initial, newton_update,
             tolerance=tolerance, max_iterations=options.max_iterations,
-            context=context, initial_evaluation=cached)
+            context=context, initial_evaluation=cached,
+            iteration_observer=_bind_newton_observer(
+                newton_observer, time=t, duration=h, tolerance=tolerance,
+                multiplier_slice=slice(2 * size, None) if simultaneous else slice(None),
+            ))
     else:
         raise ValueError('Unknown nonlinear solver for spatial projection.')
     if simultaneous:

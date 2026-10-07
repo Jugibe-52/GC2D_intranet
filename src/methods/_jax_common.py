@@ -1,32 +1,9 @@
 """Optional device-side nonlinear control and independent particle Jacobians."""
 
-from dataclasses import dataclass
 from typing import Any, Callable, NamedTuple
 
 import jax
 import jax.numpy as jnp
-
-
-@dataclass(frozen=True)
-class MethodOptions:
-    """Hashable numerical controls; physical data stays in the dynamics binding."""
-
-    name: str
-    track_energy: bool
-    copies: int
-    atol: float = 0.
-    rtol: float = 0.
-    max_iterations: int = 1
-    jacobian: str = 'analytic'
-    relative_step: float = 0.
-    solver: str = 'newton'
-    projection: str = 'reduced_multiplier'
-    coupling: float | None = None
-    coefficients: tuple[float, ...] = ()
-
-    def tolerance(self, state: Any) -> Any:
-        """Preserve the CPU's global physical-state infinity-norm scaling."""
-        return self.atol + self.rtol * jnp.maximum(1., jnp.max(jnp.abs(state)))
 
 
 class Root(NamedTuple):

@@ -13,21 +13,19 @@ import numpy as np
 
 from contracts.execution_options import ExecutionOptions
 from contracts.result import IntegrationData
-from dynamics._jax import JaxDynamics, bind_dynamics
+from contracts.compiled import CompiledStep
 from integration._fixed import _step_count
 from integration.core import _time_tolerance, NEWTON_ALIASES
-from methods._jax_common import MethodOptions
-from methods._jax_dispatch import advance, method_options
 
 if TYPE_CHECKING:
     from integration.core import IntegrationMethod
 
 
-@partial(jax.jit, static_argnames=("dynamics", "options"))
+@partial(jax.jit, static_argnames=("kernel",))
 def _integrate(
     initial: Any, starts: Any, step: Any, times: Any,
     offsets: Any, modes: Any, durations: Any, *,
-    dynamics: JaxDynamics, options: MethodOptions,
+    kernel: CompiledStep,
 ) -> tuple[Any, Any, Any, Any, Any]:
     """Collect O(N * saved_times) storage without retaining every main state.
 
@@ -35,18 +33,18 @@ def _integrate(
     (2). Offsets group samples by accepted interval, including sparse output.
     Only the accepted state is fed back into the following main step.
     """
-    n = initial.size // (dynamics.dimension * options.copies + (2 if options.track_energy else 0))
-    physical_size = n * dynamics.dimension
+    n = initial.size // (kernel.physical_dimension * kernel.copies + (2 if kernel.track_energy else 0))
+    physical_size = n * kernel.physical_dimension
 
     history = jnp.zeros((initial.size, times.size), dtype=initial.dtype).at[:, 0].set(initial)
 
     def shadow(time: Any, state: Any, duration: Any) -> Any:
-        value, _, valid = advance(time, state, duration, dynamics, options)
+        value, _, valid = kernel(time, state, duration)
         return value, valid
 
     def accepted(carry: Any, index: Any) -> tuple[Any, Any]:
         before, saved, valid, converged = carry
-        after, statistics, solved = advance(starts[index], before, step, dynamics, options)
+        after, statistics, solved = kernel(starts[index], before, step)
         converged = converged & solved
         valid = valid & jnp.all(jnp.isfinite(after))
 
@@ -67,30 +65,23 @@ def _integrate(
     (_, history, valid, converged), statistics = jax.lax.scan(
         accepted, (initial, history, jnp.array(True), jnp.array(True)), jnp.arange(starts.size),
     )
-    energy = (dynamics.hamiltonian(times, history[:physical_size])
-              if options.track_energy else jnp.empty((0,), dtype=initial.dtype))
+    energy = (kernel.energy(times, history[:physical_size])
+              if kernel.track_energy else jnp.empty((0,), dtype=initial.dtype))
     return history, energy, valid & jnp.all(jnp.isfinite(energy)), converged, statistics
 
 
-def integrate_fixed(method: "IntegrationMethod[Any]", execution: ExecutionOptions) -> IntegrationData:
+def integrate_fixed(method: "IntegrationMethod[Any]", execution: ExecutionOptions,
+                    kernel: CompiledStep) -> IntegrationData:
     """Run one fresh fixed-step method instance and transfer the finished result to NumPy.
 
-    Python step observers and per-step progress belong to the host controller;
-    requesting them here is rejected rather than introducing hidden transfers.
+    The method adapter validates host-only callbacks and progress before
+    invoking this coordinator. The compiled loop performs no Python callbacks.
     Potential construction and schedule validation remain on the host.
     """
     if method._status != "ready":
         raise RuntimeError("Integration requires a fresh method.new_run(problem, request).")
     method._status = "running"
     try:
-        if method.step_observer is not None or method.progress:
-            raise NotImplementedError(
-                "JAX fixed integration requires step_observer=None and progress=False; "
-                "Python callbacks are supported by the SciPy execution path."
-            )
-        dynamics = bind_dynamics(method.problem.dynamics, execution)
-        dynamics.evaluator.check_ready()
-        options = method_options(method, dynamics)
         request = method.request
         t0, tf = request.t_span
         count = _step_count(tf - t0, request.max_step)
@@ -105,14 +96,14 @@ def integrate_fixed(method: "IntegrationMethod[Any]", execution: ExecutionOption
                          np.where(np.abs(times - starts[owners]) <= tolerance, 0, 2))
         durations = times - starts[owners]
         offsets = np.concatenate(([1], 1 + np.searchsorted(times[1:], ends + tolerance, side="right")))
-        device = dynamics.evaluator.device
+        device = kernel.device
         inputs = (method.initial_state, starts, np.asarray(step), times,
                   offsets.astype(np.int32), modes.astype(np.int32), durations)
         # All inputs and spline buffers are committed to the requested device.
         # device_get synchronizes timing and copies only completed output.
         history, energy, valid, converged, statistics = jax.device_get(_integrate(
             *(jax.device_put(value, device) for value in inputs),
-            dynamics=dynamics, options=options,
+            kernel=kernel,
         ))
         if not bool(valid):
             raise ValueError("A numerical step or output sample became non-finite.")
@@ -120,7 +111,7 @@ def integrate_fixed(method: "IntegrationMethod[Any]", execution: ExecutionOption
             raise RuntimeError(f"{method.method_name} nonlinear solve did not converge within its tolerance and iteration limit.")
         assert method.state_formulation is not None
         states, auxiliary = method.state_formulation.extract_history(
-            times, history, energy=energy if options.track_energy else None,
+            times, history, energy=energy if kernel.track_energy else None,
         )
         diagnostics = dict(method.metadata)
         diagnostics.update({
@@ -137,7 +128,7 @@ def integrate_fixed(method: "IntegrationMethod[Any]", execution: ExecutionOption
         if all(name in diagnostics for name in NEWTON_ALIASES.values()):
             for alias, canonical in NEWTON_ALIASES.items():
                 diagnostics[alias] = diagnostics[canonical]
-        if options.jacobian == 'finite_difference':
+        if kernel.finite_difference:
             diagnostics['finite_difference_batching'] = 'independent_particle_columns'
         return IntegrationData(times, states, diagnostics)
     finally:

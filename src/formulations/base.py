@@ -6,7 +6,7 @@ from typing import Protocol, TypeAlias, runtime_checkable
 
 import numpy as np
 
-from dynamics import DynamicalSystem, HamiltonianSystem
+from dynamics.protocols import DynamicalSystem, HamiltonianSystem
 from contracts.result import DiagnosticValue
 from contracts.problem import InitialValueProblem
 

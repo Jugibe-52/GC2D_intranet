@@ -12,8 +12,8 @@ import pipeline and NumPy-based dynamics and integration contracts are unchanged
 
 The HDF5 import path loads the primary GC2D field format into the potential and
 simulation APIs. Its implementation lives in
-[`src/potential/gc2d_h5.py`](../../src/potential/gc2d_h5.py), and the package
-exports `load_gc2d_h5_potential`, `Potential`, and `GC2DH5Metadata` from
+[`src/potential/load.py`](../../src/potential/load.py), and the package
+exports `Potential` and `GC2DH5Metadata` from
 [`src/potential/__init__.py`](../../src/potential/__init__.py).
 
 The corresponding component and data-flow diagram is
@@ -26,9 +26,8 @@ The import path separates the following responsibilities:
 - The HDF5 adapter reads, validates, selects, nondimensionalizes, and optionally
   preprocesses the fields stored in an HDF5 file. Its private data loader returns
   normalized samples and provenance without constructing a runtime potential.
-- `Potential.from_gc2d_h5(...)` passes those data to `cls(...)`, preserving
-  subclass construction and preparing the runtime splines once. The existing
-  `load_gc2d_h5_potential(...)` function delegates to this class method.
+- `Potential.load(...)` passes those data to `cls(...)`, preserving
+  subclass construction and preparing the runtime splines once.
 - `Potential` stores the resulting mean and modes using the same interpolation,
   time-reconstruction, derivative, and gyroaveraging implementation used by
   artificially generated potentials.
@@ -47,14 +46,14 @@ source-index/frequency agreement and attribute copying to its own helpers,
 while preserving the order in which provenance values are validated and frozen.
 Periodic construction and resampling share the sample-count check in
 `potential.grid`; direct `Grid` construction retains its distinct type errors.
-These helpers do not change the supported public imports or field conventions.
+These helpers preserve the field conventions.
 
 ## Public entry points
 
 ```python
 from potential import Potential
 
-potential = Potential.from_gc2d_h5(
+potential = Potential.load(
     "data/potential/V1/PHI_2.h5",
     characteristic_length=0.06,
     spatial_normalization="unit_box",
@@ -62,13 +61,14 @@ potential = Potential.from_gc2d_h5(
 )
 ```
 
-Use `Potential.random(...)` for generated fields and `Potential.from_gc2d_h5(...)`
-for measured fields. Both produce the same runtime representation. The import
-`from potential import load_gc2d_h5_potential` remains supported with identical
-options and results; no public import paths have been removed. Source reading
-and preprocessing remain in `gc2d_h5.py`, separate from runtime evaluation.
+Use `Potential.random(...)` for generated fields and `Potential.load(...)`
+for measured fields. Both produce the same runtime representation. The former
+`Potential.from_gc2d_h5(...)` method and `load_gc2d_h5_potential(...)` function
+have been removed; call `Potential.load(...)` with the same options. The old
+`potential.gc2d_h5` module path has moved to `potential.load`. Source reading
+and preprocessing remain separate from runtime evaluation.
 
-Both HDF5 entry points accept the following options:
+The HDF5 class method accepts the following options:
 
 | Argument | Default | Meaning |
 | --- | --- | --- |
@@ -377,10 +377,10 @@ import numpy as np
 
 from dynamics import GuidingCenterDynamics
 from initial_conditions import GCInitialConfiguration
-from potential import load_gc2d_h5_potential
+from potential import Potential
 from simulation import ABBA4Implicit, InitialValueProblem, SimulationRequest, simulate
 
-potential = load_gc2d_h5_potential(
+potential = Potential.load(
     "data/potential/V1/PHI_2.h5",
     characteristic_length=0.06,
     interpolation_order=3,

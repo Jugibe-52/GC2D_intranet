@@ -25,7 +25,7 @@ digraph BM4DetailedArchitecture {
     >];
     H5Loader [label=<
       <TABLE WIDTH="330" BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
-        <TR><TD WIDTH="330" BALIGN="LEFT" BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">MEASURED FIELD ADAPTER</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>load_gc2d_h5_potential</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/potential/gc2d_h5.py</FONT></TD></TR>
+        <TR><TD WIDTH="330" BALIGN="LEFT" BGCOLOR="#E8EDFF" ALIGN="LEFT"><FONT POINT-SIZE="9">MEASURED FIELD ADAPTER</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>Potential.load</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/potential/potential.py + load.py</FONT></TD></TR>
         <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Input</B><BR ALIGN="LEFT"/>HDF5 field, magnetic field, characteristic length,<BR ALIGN="LEFT"/>source selection and interpolation settings.</TD></TR>
         <HR/>
         <TR><TD WIDTH="330" BALIGN="LEFT" ALIGN="LEFT"><B>Output</B><BR ALIGN="LEFT"/>Potential with attached GC2DH5Metadata.<BR ALIGN="LEFT"/>Normalize measured coordinates and field data.</TD></TR>

@@ -134,7 +134,7 @@ def integrate_local_star(
                        execution_block_end_cycles=np.asarray(block_ends),
                        execution_block_wall_seconds=np.asarray(block_seconds))
     solution = Solution(t=times, states=states, source=problem.initial_configuration, diagnostics=diagnostics)
-    x, y = problem.initial_configuration.layout.positions(problem.initial_state)
+    x, y = problem.layout.positions(problem.initial_state)
     arms = np.repeat(np.arange(config.arms), config.particles_per_arm)
     if config.include_center:
         arms = np.r_[-1, arms]  # -1 denotes the unique shared central particle.

@@ -6,7 +6,7 @@ from typing import Literal, TypeAlias
 import numpy as np
 from formulations.state import DoubledFormulation
 from formulations.gc import GCDoubledMaps
-from integration.core import IntegrationMethod
+from methods._compiled import CompiledFixedMethod
 from contracts.step import StepInfo, StepResult
 from contracts.result import DiagnosticValue
 from contracts.observation import ImplicitBM4IntegrationStep, StepObserver
@@ -27,13 +27,14 @@ from methods.extended.core.records import ProjectedMapResult as _ProjectedBM4Ste
 from methods.extended.core.records import ProjectedMap
 from methods.extended.core.energy import momentum_increment
 from methods.extended.observations import stage_events
+from contracts.nonlinear import NewtonObserver
 
 NewtonJacobianMethod: TypeAlias = Literal['analytic', 'finite_difference']
 NEWTON_JACOBIAN_METHODS: tuple[NewtonJacobianMethod, ...] = ('analytic', 'finite_difference')
 
 
 @dataclass(slots=True)
-class BM4Implicit(IntegrationMethod[_ProjectedBM4Step]):
+class BM4Implicit(CompiledFixedMethod[_ProjectedBM4Step]):
 	"""Configure physical BM4 with one reduced Hairer projection per cycle.
 
 	The class has no projection-placement or state-extension modes.  Every call
@@ -84,6 +85,7 @@ class BM4Implicit(IntegrationMethod[_ProjectedBM4Step]):
 	# Fixed-grid presentation and optional accepted-step instrumentation.
 	progress: bool = False
 	step_observer: StepObserver | None = None
+	newton_observer: NewtonObserver | None = field(default=None, kw_only=True)
 
 	# Resources owned by one run; excluded from constructor options.
 	state_formulation: DoubledFormulation = field(init=False, repr=False, compare=False)
@@ -103,6 +105,8 @@ class BM4Implicit(IntegrationMethod[_ProjectedBM4Step]):
 				"`newton_jacobian_method` must be 'analytic' or 'finite_difference'."
 			)
 		self.nonlinear_solver = _validate_nonlinear_solver(self.nonlinear_solver)
+		if self.newton_observer is not None and self.nonlinear_solver != "newton":
+			raise ValueError('A newton_observer requires nonlinear_solver="newton".')
 
 	def initialize(self, problem: InitialValueProblem, request: SimulationRequest) -> None:
 		"""Bind the physical BM4 map, accepted event adapter and output metadata.
@@ -135,7 +139,7 @@ class BM4Implicit(IntegrationMethod[_ProjectedBM4Step]):
 	def advance(self, t: float, state: np.ndarray, h: float) -> StepResult[_ProjectedBM4Step]:
 		"""Return one projected state and the already computed solve metrics."""
 		physical = self.state_formulation.physical(state)
-		result = self.project(t, physical, h)
+		result = self.project(t, physical, h, newton_observer=self.newton_observer)
 		increment = None
 		if self.track_energy:
 			increment = momentum_increment(self.state_formulation, result.energy_points)
@@ -179,7 +183,7 @@ class BM4Implicit(IntegrationMethod[_ProjectedBM4Step]):
 
 
 @dataclass(slots=True)
-class BM4Midpoint(IntegrationMethod[MidpointResult]):
+class BM4Midpoint(CompiledFixedMethod[MidpointResult]):
 	"""Fourth-order BM4 followed by arithmetic-mean diagonal projection.
 
 	Configuration and observer semantics follow ABBA2Midpoint. Physical mode

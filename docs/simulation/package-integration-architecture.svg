@@ -92,8 +92,8 @@
 <path fill="#ffffff" stroke="#c4cfdc" stroke-width="1.15" d="M336.44,-1772.04C336.44,-1772.04 27.56,-1772.04 27.56,-1772.04 21.56,-1772.04 15.56,-1766.04 15.56,-1760.04 15.56,-1760.04 15.56,-1584.16 15.56,-1584.16 15.56,-1578.16 21.56,-1572.16 27.56,-1572.16 27.56,-1572.16 336.44,-1572.16 336.44,-1572.16 342.44,-1572.16 348.44,-1578.16 348.44,-1584.16 348.44,-1584.16 348.44,-1760.04 348.44,-1760.04 348.44,-1766.04 342.44,-1772.04 336.44,-1772.04"/>
 <polygon fill="#e8edff" stroke="none" points="17,-1720.6 17,-1770.6 347,-1770.6 347,-1720.6 17,-1720.6"/>
 <text xml:space="preserve" text-anchor="start" x="25" y="-1755.5" font-family="DejaVu Sans" font-size="9.00">MEASURED FIELD ADAPTER</text>
-<text xml:space="preserve" text-anchor="start" x="25" y="-1741.1" font-family="DejaVu Sans" font-weight="bold" font-size="15.00">load_gc2d_h5_potential</text>
-<text xml:space="preserve" text-anchor="start" x="25" y="-1730.6" font-family="DejaVu Sans" font-size="10.00" fill="#62748c">src/potential/gc2d_h5.py</text>
+<text xml:space="preserve" text-anchor="start" x="25" y="-1741.1" font-family="DejaVu Sans" font-weight="bold" font-size="15.00">Potential.load</text>
+<text xml:space="preserve" text-anchor="start" x="25" y="-1730.6" font-family="DejaVu Sans" font-size="10.00" fill="#62748c">src/potential/potential.py + load.py</text>
 <text xml:space="preserve" text-anchor="start" x="25" y="-1703.7" font-family="DejaVu Sans" font-weight="bold" font-size="11.00">Input</text>
 <text xml:space="preserve" text-anchor="start" x="25" y="-1692.7" font-family="DejaVu Sans" font-size="11.00">HDF5 field, magnetic field, characteristic length,</text>
 <text xml:space="preserve" text-anchor="start" x="25" y="-1681.7" font-family="DejaVu Sans" font-size="11.00">source selection and interpolation settings.</text>

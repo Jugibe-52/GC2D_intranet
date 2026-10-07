@@ -11,8 +11,9 @@ from typing import TypeAlias
 
 import numpy as np
 
-from dynamics import DynamicalSystem, HamiltonianSystem
-from initial_conditions import GCInitialConfiguration
+from dynamics.protocols import DynamicalSystem, HamiltonianSystem
+from contracts.configuration import InitialConfiguration, StateLayout
+from contracts.state_layout import GCStateLayout
 
 from contracts.problem import InitialValueProblem
 from formulations.base import _updated_momentum
@@ -102,7 +103,8 @@ class GCDoubledMaps:
 	"""
 
 	dynamics: DynamicalSystem
-	configuration: GCInitialConfiguration
+	configuration: InitialConfiguration
+	layout: StateLayout
 	coupling_frequency: float | None
 	physical_size: int
 	particle_count: int
@@ -114,9 +116,9 @@ class GCDoubledMaps:
 	def __init__(self, problem: InitialValueProblem, coupling_frequency: float | None = np.pi / 8,
 	             *, track_energy: bool = False, supports_stage_projection: bool = False) -> None:
 		"""Bind validated spatial maps without a configuration/preparation chain."""
-		configuration = problem.initial_configuration
-		if not isinstance(configuration, GCInitialConfiguration):
-			raise TypeError("GC doubled maps require a GC configuration.")
+		layout = problem.layout
+		if layout.state_dimension != 2:
+			raise TypeError("GC doubled maps require a planar component-major layout.")
 		if coupling_frequency is not None:
 			frequency = float(coupling_frequency)
 			if not np.isfinite(frequency) or frequency < 0:
@@ -129,7 +131,8 @@ class GCDoubledMaps:
 		initial = _GCExtendedState(physical, physical, np.zeros(count) if track_energy else None).pack()
 		initial.setflags(write=False)
 		object.__setattr__(self, "dynamics", problem.dynamics)
-		object.__setattr__(self, "configuration", configuration)
+		object.__setattr__(self, "configuration", problem.initial_configuration)
+		object.__setattr__(self, "layout", layout)
 		object.__setattr__(self, "coupling_frequency", coupling_frequency)
 		object.__setattr__(self, "physical_size", physical.size)
 		object.__setattr__(self, "particle_count", count)
@@ -159,8 +162,8 @@ class GCDoubledMaps:
 		frequency = self.coupling_frequency
 		if frequency is None:
 			raise TypeError("The uncoupled GC formulation has no coupling flow.")
-		first = self.configuration.layout.split(state.first)
-		second = self.configuration.layout.split(state.second)
+		first = self.layout.split(state.first)
+		second = self.layout.split(state.second)
 		blocks = np.stack((*first, *second), axis=0)
 		coupled = np.asarray(
 			np.einsum(
@@ -170,8 +173,8 @@ class GCDoubledMaps:
 			)
 		)
 		return _GCExtendedState(
-			first=self.configuration.layout.from_blocks(coupled[:2]),
-			second=self.configuration.layout.from_blocks(coupled[2:]),
+			first=GCStateLayout().from_blocks(coupled[:2]),
+			second=GCStateLayout().from_blocks(coupled[2:]),
 			momentum=state.momentum,
 		)
 
@@ -245,12 +248,7 @@ class GCDoubledMaps:
 	def project(self, internal_history: np.ndarray) -> Projection:
 		"""Average both copies and expose projected extended momentum."""
 		final_state = self._unpack(internal_history)
-		first = self.configuration.layout.split(final_state.first)
-		second = self.configuration.layout.split(final_state.second)
-		states = self.configuration.layout.pack_components(
-			(first.x + second.x) / 2,
-			(first.y + second.y) / 2,
-		)
+		states = np.asarray((final_state.first + final_state.second) / 2)
 		diagnostics: dict[str, np.ndarray | float | int | str | bool] = {}
 		if final_state.momentum is not None:
 			diagnostics["extended_momentum"] = final_state.momentum / 2

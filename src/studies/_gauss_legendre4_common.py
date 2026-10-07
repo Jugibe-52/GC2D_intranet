@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from contracts.comparison import (AdaptiveReference,)
+
 
 import numpy as np
 from typing import Literal
@@ -11,48 +12,6 @@ from .reference_trajectory import _solve_adaptive
 from dynamics import GuidingCenterDynamics
 
 from ._trajectory_distances import DistanceConvention, particle_distances
-
-
-@dataclass(frozen=True, slots=True)
-class AdaptiveReference:
-	"""DOP853 trajectory with an independent Radau resolution audit."""
-
-	times: np.ndarray
-	states: np.ndarray
-	audit_states: np.ndarray
-	audit_distances: np.ndarray
-	dop853_runtime_seconds: float
-	radau_runtime_seconds: float
-	dop853_function_evaluations: int
-	radau_function_evaluations: int
-
-	def __post_init__(self) -> None:
-		"""Own immutable, aligned reference and audit arrays."""
-		times = np.array(self.times, dtype=float, copy=True)
-		states = np.array(self.states, dtype=float, copy=True)
-		audit_states = np.array(self.audit_states, dtype=float, copy=True)
-		distances = np.array(self.audit_distances, dtype=float, copy=True)
-		_freeze_reference_arrays(times, states, audit_states, distances)
-		object.__setattr__(self, "times", times)
-		object.__setattr__(self, "states", states)
-		object.__setattr__(self, "audit_states", audit_states)
-		object.__setattr__(self, "audit_distances", distances)
-
-	@property
-	def time_integrated_rms_floor(self) -> float:
-		"""Return the time-integrated particle-RMS DOP853/Radau discrepancy."""
-		particle_rms_squared = np.mean(self.audit_distances**2, axis=0)
-		return float(
-			np.sqrt(
-				np.trapz(particle_rms_squared, self.times)
-				/ float(self.times[-1] - self.times[0])
-			)
-		)
-
-	@property
-	def final_rms_floor(self) -> float:
-		"""Return the final-time particle-RMS DOP853/Radau discrepancy."""
-		return float(np.sqrt(np.mean(self.audit_distances[:, -1] ** 2)))
 
 
 def build_adaptive_reference(
@@ -167,29 +126,6 @@ def readonly_runtime_samples(values: np.ndarray) -> np.ndarray:
 		raise ValueError("Runtime samples must be strictly positive.")
 	result.setflags(write=False)
 	return result
-
-
-def _freeze_reference_arrays(
-	times: np.ndarray, states: np.ndarray, audit_states: np.ndarray, distances: np.ndarray,
-) -> None:
-	"""Validate aligned reference and audit arrays before making the owned copies immutable."""
-	if (
-		times.ndim != 1
-		or times.size < 2
-		or states.ndim != 2
-		or states.shape != audit_states.shape
-		or states.shape[1] != times.size
-		or distances.ndim != 2
-		or distances.shape[1] != times.size
-		or not all(
-			np.all(np.isfinite(value))
-			for value in (times, states, audit_states, distances)
-		)
-		or np.any(distances < 0.0)
-	):
-		raise ValueError("Adaptive reference arrays are invalid or misaligned.")
-	for value in (times, states, audit_states, distances):
-		value.setflags(write=False)
 
 
 __all__: list[str] = []

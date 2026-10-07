@@ -12,14 +12,17 @@ from dynamics import (
 	GuidingCenterJacobianSystem,
 )
 
-from integration.core import IntegrationMethod
+from methods._compiled import CompiledFixedMethod
 from contracts.step import StepInfo, StepResult
 from contracts.result import DiagnosticValue
 from formulations.state import PhysicalFormulation
 from contracts.observation import IntegrationStep, StepObserver
+from contracts.nonlinear import NewtonObserver
 from contracts.problem import InitialValueProblem
 from contracts.request import SimulationRequest
 from methods._validation import _positive_finite, _positive_integer
+from methods._linear import _solve_particle_systems
+from methods._nonlinear import _bind_newton_observer, _solve_newton
 from ._jacobians import (
 	JacobianMethod as SDIRKJacobianMethod,
 	ResolvedJacobianMethod as ResolvedSDIRKJacobianMethod,
@@ -104,10 +107,10 @@ def _analytic_newton_correction(
 		(residual[:particle_count], residual[particle_count:]),
 		axis=-1,
 	)
-	try:
-		particle_corrections = np.linalg.solve(matrix, -particle_residuals)
-	except np.linalg.LinAlgError as exc:
-		raise RuntimeError("A per-particle SDIRK Newton matrix is singular.") from exc
+	particle_corrections = _solve_particle_systems(
+		matrix, -particle_residuals,
+		singular_message="A per-particle SDIRK Newton matrix is singular.",
+	)
 	return np.concatenate(
 		(particle_corrections[:, 0], particle_corrections[:, 1])
 	)
@@ -124,25 +127,18 @@ def _solve_stage(
 	max_iterations: int,
 	jacobian_method: ResolvedSDIRKJacobianMethod,
 	jacobian_relative_step: float,
+	newton_observer: NewtonObserver | None = None,
+	stage_index: int | None = None,
+	step_time: float | None = None,
 ) -> _StageResult:
 	"""Solve one diagonal stage with full Newton corrections."""
-	stage_state = np.asarray(initial_guess, dtype=float).copy()
-	field = _checked_vector_field(dynamics, stage_time, stage_state)
-	residual = stage_state - right_side - step * _SDIRK_DIAGONAL * field
-	residual_evaluations = 1
+	def evaluate(stage_state: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+		"""Retain the field paired with this exact diagonal-stage residual."""
+		field = _checked_vector_field(dynamics, stage_time, stage_state)
+		return stage_state - right_side - step * _SDIRK_DIAGONAL * field, field
 
-	for iteration in range(max_iterations + 1):
-		residual_norm = float(np.linalg.norm(residual, ord=np.inf))
-		if residual_norm <= tolerance:
-			return _StageResult(
-				state=stage_state,
-				field=field,
-				iterations=iteration,
-				residual_evaluations=residual_evaluations,
-				residual_norm=residual_norm,
-			)
-		if iteration == max_iterations:
-			break
+	def update(stage_state: np.ndarray, residual: np.ndarray, field: np.ndarray) -> np.ndarray:
+		"""Compute the S54b-specific Newton correction in physical coordinates."""
 		if jacobian_method == "analytic":
 			if not isinstance(dynamics, GuidingCenterJacobianSystem):
 				raise TypeError(
@@ -169,16 +165,21 @@ def _solve_stage(
 				raise RuntimeError("The SDIRK Newton matrix is singular.") from exc
 		if not np.all(np.isfinite(correction)):
 			raise RuntimeError("The SDIRK Newton correction became non-finite.")
-		stage_state = stage_state + correction
-		field = _checked_vector_field(dynamics, stage_time, stage_state)
-		residual = stage_state - right_side - step * _SDIRK_DIAGONAL * field
-		residual_evaluations += 1
+		return np.asarray(stage_state + correction)
 
-	raise RuntimeError(
-		"SDIRK4 Newton iteration did not converge at stage time "
-		f"t={stage_time:.16g} with h={step:.16g}: residual norm "
-		f"{residual_norm:.3e} exceeds {tolerance:.3e} after "
-		f"{max_iterations} corrections."
+	root = _solve_newton(
+		evaluate, initial_guess, update,
+		tolerance=tolerance, max_iterations=max_iterations,
+		context=f"SDIRK4 at stage time t={stage_time:.16g} with h={step:.16g}",
+		iteration_observer=_bind_newton_observer(
+			newton_observer, time=stage_time if step_time is None else step_time,
+			duration=step, tolerance=tolerance, stage_index=stage_index,
+		),
+	)
+	return _StageResult(
+		state=root.unknown, field=root.payload, iterations=root.iterations,
+		residual_evaluations=root.residual_evaluations,
+		residual_norm=float(np.linalg.norm(root.residual, ord=np.inf)),
 	)
 
 
@@ -193,6 +194,7 @@ def _solve_sdirk_step(
 	max_iterations: int,
 	jacobian_method: ResolvedSDIRKJacobianMethod,
 	jacobian_relative_step: float,
+	newton_observer: NewtonObserver | None = None,
 ) -> _SDIRKStepResult:
 	"""Advance one S54b step through five sequential implicit solves."""
 	value = np.asarray(state, dtype=float)
@@ -227,6 +229,7 @@ def _solve_sdirk_step(
 			max_iterations=max_iterations,
 			jacobian_method=jacobian_method,
 			jacobian_relative_step=jacobian_relative_step,
+			newton_observer=newton_observer, stage_index=stage_index, step_time=time,
 		)
 		stage_states.append(result.state)
 		stage_fields.append(result.field)
@@ -254,7 +257,7 @@ def _solve_sdirk_step(
 
 
 @dataclass(slots=True)
-class SDIRK4(IntegrationMethod[_SDIRKStepResult]):
+class SDIRK4(CompiledFixedMethod[_SDIRKStepResult]):
 	"""Skvortsov S54b: five-stage, fourth-order non-geometric SDIRK."""
 
 	track_energy: bool = False
@@ -265,6 +268,7 @@ class SDIRK4(IntegrationMethod[_SDIRKStepResult]):
 	newton_jacobian_relative_step: float = float(np.cbrt(np.finfo(float).eps))
 	progress: bool = False
 	step_observer: StepObserver | None = None
+	newton_observer: NewtonObserver | None = field(default=None, kw_only=True)
 
 	# Resources owned by one run; excluded from constructor options.
 	state_formulation: PhysicalFormulation = field(init=False, repr=False, compare=False)
@@ -328,6 +332,7 @@ class SDIRK4(IntegrationMethod[_SDIRKStepResult]):
 		time: float,
 		physical: np.ndarray,
 		step: float,
+		*, newton_observer: NewtonObserver | None = None,
 	) -> _SDIRKStepResult:
 		return _solve_sdirk_step(
 			self.dynamics,
@@ -339,12 +344,13 @@ class SDIRK4(IntegrationMethod[_SDIRKStepResult]):
 			max_iterations=self.newton_max_iterations,
 			jacobian_method=self.resolved_jacobian_method,
 			jacobian_relative_step=self.newton_jacobian_relative_step,
+			newton_observer=newton_observer,
 		)
 
 	def advance(self, time: float, value: np.ndarray, step: float) -> StepResult[_SDIRKStepResult]:
 		"""Solve one complete physical step and finish its auxiliary state."""
 		physical_before = np.asarray(value[:self.physical_size], dtype=float)
-		result = self._solve_physical(time, physical_before, step)
+		result = self._solve_physical(time, physical_before, step, newton_observer=self.newton_observer)
 		statistics: dict[str, np.ndarray | float | int] = {
 			'nonlinear_iterations': int(np.sum(result.stage_iterations)),
 			'residual_evaluations': int(np.sum(result.stage_residual_evaluations)),

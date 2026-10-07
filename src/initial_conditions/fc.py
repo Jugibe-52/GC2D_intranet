@@ -2,42 +2,10 @@
 
 from __future__ import annotations
 
-from typing import NamedTuple
-
 import numpy as np
 
-from .base import PackedStateLayout, StateConfiguration
-
-
-class FCState(NamedTuple):
-	"""FC position and velocity coordinates with matching dimensions.
-
-	Every field has shape ``(N, *sample_axes)``.  ``vx`` and ``vy`` are the
-	velocity coordinates stored by the normalized model. Their physical scaling
-	is owned by :class:`dynamics.FullCyclotronDynamics`.
-	"""
-
-	x: np.ndarray
-	y: np.ndarray
-	vx: np.ndarray
-	vy: np.ndarray
-
-
-class FCStateLayout(PackedStateLayout):
-	"""Interpret packed full-cyclotron states in ``[x, y, vx, vy]`` order."""
-
-	__slots__ = ()
-	state_dimension = 4
-
-	def split(self, state: np.ndarray) -> FCState:
-		"""Return named position and velocity blocks, preserving sample axes."""
-		x, y, vx, vy = super().split(state)
-		return FCState(x, y, vx, vy)
-
-	def positions(self, state: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-		"""Return the two full-cyclotron position blocks."""
-		components = self.split(state)
-		return components.x, components.y
+from contracts.state_layout import FCState, FCStateLayout
+from .base import StateConfiguration
 
 
 _FC_STATE_LAYOUT = FCStateLayout()

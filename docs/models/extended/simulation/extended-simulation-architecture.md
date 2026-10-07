@@ -211,3 +211,54 @@ above remain inside this execution boundary.
 `Execution_Modal` now implements this boundary for remote NumPy/SciPy CPU
 integrations. Results return to the local machine for validation and subsequent
 persistence; see the [Modal executor guide](../../../simulation/modal-execution.md).
+
+## Initial-state ownership
+
+`InitialValueProblem` captures the validated physical state, particle count, and
+independent layout at construction. A later edit to the original initial-state
+provider does not change this run's formulation. Physical layouts are owned by
+`contracts.state_layout`; compatible external providers need no inheritance from
+initial-condition classes. Built-in dynamics keep their physical parameters
+immutable. See the shared [layout and ownership contract](../../../dynamics/protocols.md#physical-layouts-and-problem-ownership).
+
+## Explicit Newton iteration observation
+
+Implicit ABBA and BM4 constructors accept the optional keyword-only
+`newton_observer` callback. It receives `contracts.nonlinear.NewtonIteration`
+records for every evaluated Newton iterate, including the initial guess, the
+accepted root, and the final unsuccessful iterate if the correction limit is
+reached. Residuals are observed after their normal evaluation; recording adds no
+field, residual, or Jacobian evaluations. The reduced and simultaneous layouts
+both expose their physical `multiplier` explicitly. The packed `unknown`,
+`residual`, and optional `multiplier` arrays are independent read-only copies.
+
+The callback belongs to that method instance and its prepared runs. There is no
+module replacement or inspection of closure variables. A callback also sees
+solves made by `advance` for off-grid output samples. In contrast, `map_state`
+functions exported to step observers omit this callback, so subsequent
+reversibility or Jacobian analysis cannot append to the integration history.
+Use aligned complete-step outputs when recording one history per main step.
+The portable Poincare runtime passes its `NewtonHistory` directly to
+`BM4Implicit` or `solve_projection`, including checkpoint chunks.
+New portable bundles must freeze the matching numerical source, including
+`contracts.nonlinear`; the updated driver must not be combined with an older
+snapshot that predates `newton_observer`. Historical immutable bundles remain
+self-contained and are not rewritten.
+
+Iteration callbacks require `nonlinear_solver="newton"`. Python callbacks are
+unsupported for compiled JAX and remote Modal execution and are rejected rather
+than silently discarded. Observer exceptions propagate out of the run; no
+global restoration is needed, and other method instances remain independent.
+
+Gauss, SDIRK, and analytic spatial projection share
+`methods._linear._solve_particle_systems`: matrices have shape `(N,d,d)` and
+right-hand-side vectors have shape `(N,d)`. The helper inserts one explicit
+right-hand-side axis for `numpy.linalg.solve`, preserving behavior with NumPy
+1.x and 2.x. The projection equations and particle ordering are unchanged.
+
+## Compiled fixed-step contract
+
+Fixed-step methods inherit `CompiledFixedMethod` and provide a JAX adapter that
+returns `contracts.compiled.CompiledStep`. The shared `integration/jax_fixed.py`
+loop knows no concrete numerical method; each method owns its compiled stages
+and statistics. See [JAX execution](../../../simulation/jax-execution.md).

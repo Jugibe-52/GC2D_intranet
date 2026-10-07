@@ -10,7 +10,7 @@ import numpy as np
 from dynamics import GuidingCenterJacobianSystem
 
 from formulations.state import PhysicalFormulation
-from integration.core import IntegrationMethod
+from methods._compiled import CompiledFixedMethod
 from contracts.step import StepInfo, StepResult
 from contracts.observation import IntegrationStep, StepObserver
 from contracts.problem import InitialValueProblem
@@ -360,7 +360,7 @@ def _advance_hbvm42(
 
 
 @dataclass(slots=True)
-class HBVM42(IntegrationMethod[_HBVMStepResult]):
+class HBVM42(CompiledFixedMethod[_HBVMStepResult]):
 	"""Fourth-order energy-preserving HBVM(4,2).
 
 	The four Gauss--Legendre nodes approximate the Hamiltonian line integral,
@@ -425,6 +425,7 @@ class HBVM42(IntegrationMethod[_HBVMStepResult]):
 			'nonlinear_iterations': result.iterations,
 			'nonlinear_residual_norms': result.residual_norm,
 			'nonlinear_tolerances': result.tolerance,
+			'residual_evaluations': result.residual_evaluations,
 			'residual_evaluations_per_step': result.residual_evaluations,
 			'jacobian_evaluations_per_step': result.jacobian_evaluations,
 			'vector_field_evaluations_per_step': result.vector_field_evaluations,

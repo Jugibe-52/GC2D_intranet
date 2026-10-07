@@ -83,3 +83,19 @@ above remain inside this execution boundary.
 `Execution_Modal` now implements this boundary for remote NumPy/SciPy CPU
 integrations. Results return to the local machine for validation and subsequent
 persistence; see the [Modal executor guide](../../../simulation/modal-execution.md).
+
+## Initial-state ownership
+
+`InitialValueProblem` captures the validated physical state, particle count, and
+independent layout at construction. A later edit to the original initial-state
+provider does not change this run's formulation. Physical layouts are owned by
+`contracts.state_layout`; compatible external providers need no inheritance from
+initial-condition classes. Built-in dynamics keep their physical parameters
+immutable. See the shared [layout and ownership contract](../../../dynamics/protocols.md#physical-layouts-and-problem-ownership).
+
+## Compiled fixed-step contract
+
+Fixed-step methods inherit `CompiledFixedMethod` and provide a JAX adapter that
+returns `contracts.compiled.CompiledStep`. The shared `integration/jax_fixed.py`
+loop knows no concrete numerical method; each method owns its compiled stages
+and statistics. See [JAX execution](../../../simulation/jax-execution.md).

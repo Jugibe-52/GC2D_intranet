@@ -18,13 +18,8 @@ from contracts.request import SimulationRequest
 from solution import Solution
 from simulation.runner import simulate
 
-from ._trajectory_accuracy import (
-	TrajectoryAccuracySeries,
-	accuracy_series,
-	reference_indices_for_times,
-	reference_distance_convention,
-	validate_reference_identity,
-)
+from contracts.comparison import TrajectoryAccuracySeries
+from ._trajectory_accuracy import (accuracy_series, reference_indices_for_times, reference_distance_convention, validate_reference_identity)
 from .abba4_implicit_accuracy import (
 	ABBA4ImplicitAccuracyConfig,
 	ABBA4ImplicitAccuracyOrder,

@@ -169,3 +169,26 @@ tolerances and maximum step while retaining the aligned Radau audit history.
 Set `parallel_models=True` to assign each selected model campaign to a separate
 thread. Repetitions remain sequential within each model, and recorded runtimes
 represent elapsed time under concurrent CPU load.
+
+## Buffered observer lifecycle
+
+`diagnostics.buffering.DiagnosticBuffer` owns pending samples, output block
+indices, the common writer, and finalization for stage symplecticity, physical
+area, projected area, local ABBA Jacobians, implicit iterations, and trajectory
+symplecticity. Each observer supplies only its diagnostic calculation and block
+schema through composition. Public records, samples, output block descriptors,
+chunk sizes, and existing file schemas remain unchanged.
+
+Closing an observer writes its final partial chunk once. Observers with a
+complete-step cadence also retain the last completed step before closing.
+Successful writes release pending samples; an unsuccessful write retains them
+and its index for an explicit retry. If integration already raised, a cleanup
+failure is attached as an exception note instead of replacing the original
+error, and the observer stops accepting new events.
+After such an exceptional exit, call `flush()` to retry the pending write at
+the same index; `close()` remains idempotent, and new events remain rejected.
+
+Interactive retention remains separate from pending-output buffering. In
+particular, `ImplicitABBAJacobianObserver.samples` intentionally retains every
+matrix-valued sample after writing; `chunk_size` controls pending writes and
+does not limit that documented history.

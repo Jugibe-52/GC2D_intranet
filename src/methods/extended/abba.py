@@ -8,6 +8,7 @@ from typing import ClassVar, Literal
 import numpy as np
 
 from contracts.observation import IntegrationStep, StepObserver
+from contracts.nonlinear import NewtonObserver
 from contracts.problem import InitialValueProblem
 from contracts.request import SimulationRequest
 from contracts.result import DiagnosticValue
@@ -15,7 +16,7 @@ from contracts.step import StepInfo, StepResult
 from dynamics import DynamicalSystem, GuidingCenterJacobianSystem
 from formulations.gc import GCDoubledMaps
 from formulations.state import DoubledFormulation
-from integration.core import IntegrationMethod
+from methods._compiled import CompiledFixedMethod
 from methods._nonlinear import NonlinearSolver, SolverOptions, _validate_nonlinear_solver
 from methods.extended.configuration import (
     ProjectionFormulation, ProjectionPlacement, StateExtension,
@@ -33,7 +34,7 @@ from methods.extended.observations import EventBuilder, bind_event_builder
 
 
 @dataclass(slots=True)
-class _ABBAImplicitMethod(IntegrationMethod[ProjectedMapResult]):
+class _ABBAImplicitMethod(CompiledFixedMethod[ProjectedMapResult]):
     """Project one complete palindromic recipe; concrete methods select its order."""
 
     projection_formulation: ProjectionFormulation = "reduced_multiplier"
@@ -45,6 +46,7 @@ class _ABBAImplicitMethod(IntegrationMethod[ProjectedMapResult]):
     progress: bool = False
     step_observer: StepObserver | None = None
     track_energy: bool = False
+    newton_observer: NewtonObserver | None = field(default=None, kw_only=True)
 
     order: ClassVar[Literal[2, 4, 6]]
     recipe: ClassVar[Composition]
@@ -61,6 +63,8 @@ class _ABBAImplicitMethod(IntegrationMethod[ProjectedMapResult]):
         self.newton_relative_tolerance = _positive_finite(self.newton_relative_tolerance, 'newton_relative_tolerance')
         self.newton_max_iterations = _positive_integer(self.newton_max_iterations, 'newton_max_iterations')
         self.nonlinear_solver = _validate_nonlinear_solver(self.nonlinear_solver)
+        if self.newton_observer is not None and self.nonlinear_solver != "newton":
+            raise ValueError('A newton_observer requires nonlinear_solver="newton".')
 
     def initialize(self, problem: InitialValueProblem, request: SimulationRequest) -> None:
         """Bind the complete recipe to one reduced or simultaneous projection."""
@@ -121,7 +125,7 @@ class _ABBAImplicitMethod(IntegrationMethod[ProjectedMapResult]):
     def advance(self, t: float, workspace: np.ndarray, h: float) -> StepResult[ProjectedMapResult]:
         """Project the complete composition and accumulate its passive energy."""
         state_before = self.state_formulation.physical(workspace)
-        projection = self.project(t, state_before, h)
+        projection = self.project(t, state_before, h, newton_observer=self.newton_observer)
         increment = momentum_increment(self.state_formulation, projection.energy_points) if self.track_energy else None
         after = self.state_formulation.finish(workspace, projection.state, t + h, increment)
         return StepResult(after, step_statistics(projection, include_substeps=self.order != 2), projection)
@@ -173,7 +177,7 @@ class ABBA6Implicit(_ComposedABBAImplicit):
     order: ClassVar[Literal[2, 4, 6]] = 6
     recipe: ClassVar[Composition] = ABBA6
 @dataclass(slots=True)
-class ABBA2Midpoint(IntegrationMethod[MidpointResult]):
+class ABBA2Midpoint(CompiledFixedMethod[MidpointResult]):
 	"""Second-order midpoint ABBA with optional physical energy tracking.
 
 	The method duplicates only the physical state, applies

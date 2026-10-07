@@ -9,7 +9,13 @@ import numpy as np
 
 @runtime_checkable
 class StateLayout(Protocol):
-	"""Interpret component-major planar particle states independently of their source."""
+	"""Interpret component-major planar particle states independently of their source.
+
+	Layouts contain coordinate interpretation only, support ``deepcopy``, and do
+	not own the initial state or physical parameters. A problem copies the layout
+	when it snapshots its source. Built-in implementations live in
+	``contracts.state_layout``; external implementations need no inheritance.
+	"""
 
 	state_dimension: ClassVar[int]
 

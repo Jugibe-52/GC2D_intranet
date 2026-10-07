@@ -17,7 +17,6 @@ from initial_conditions import GCInitialConfiguration
 from potential import (
 	GC2DH5Metadata,
 	Potential,
-	load_gc2d_h5_potential,
 )
 from simulation import ABBA4Implicit, InitialValueProblem, SimulationRequest, simulate
 
@@ -132,7 +131,7 @@ class GC2DH5ImportTests(unittest.TestCase):
 
 	def test_defaults_select_mean_and_dominant_mode_with_B_1_5(self) -> None:
 		"""Use the primary-file defaults when no loader options are supplied."""
-		potential = load_gc2d_h5_potential(self.path)
+		potential = Potential.load(self.path)
 		length_scale = 0.06
 		normalization = 7.0 * length_scale**2 * 1.5 / (2.0 * np.pi) ** 2
 
@@ -164,49 +163,19 @@ class GC2DH5ImportTests(unittest.TestCase):
 			potential.evaluate(0.37 + 1.0, query_x, query_y),
 		)
 
-	def test_class_constructor_matches_public_loader(self) -> None:
-		"""Both entry points preserve samples, derivatives, and source provenance."""
-		for options in (
-			{},
-			dict(B=-2.0, characteristic_length=0.3, characteristic_frequency=5.0,
-			     indx=(0, 2, 1, 2), nx=9, ny=8, denoising=True, sigma=0.7,
-			     interpolation_order=4, spatial_normalization="unit_box"),
-		):
-			with self.subTest(options=options):
-				loaded = load_gc2d_h5_potential(self.path, **options)
-				constructed = Potential.from_gc2d_h5(self.path, **options)
-				self.assertEqual(constructed.grid, loaded.grid)
-				self.assertEqual(constructed.interpolation_order, loaded.interpolation_order)
-				for name in ("mean", "modes", "frequencies"):
-					np.testing.assert_array_equal(getattr(constructed, name), getattr(loaded, name))
-				for derivative in ({}, {"dx": 1}, {"dy": 1}, {"dt": 1}):
-					np.testing.assert_array_equal(
-						constructed.evaluate(0.37, 0.21, 0.43, **derivative),
-						loaded.evaluate(0.37, 0.21, 0.43, **derivative),
-					)
-				for name in GC2DH5Metadata.__dataclass_fields__:
-					actual = getattr(constructed.metadata, name)
-					expected = getattr(loaded.metadata, name)
-					if name == "attributes":
-						self.assertEqual(actual.keys(), expected.keys())
-						for key in actual:
-							np.testing.assert_array_equal(actual[key], expected[key])
-					else:
-						np.testing.assert_equal(actual, expected)
-
-	def test_class_constructor_preserves_subclass(self) -> None:
-		"""HDF5 construction initializes the requested runtime class."""
+	def test_load_preserves_subclass(self) -> None:
+		"""Loading initializes the requested runtime class."""
 		class MeasuredPotential(Potential):
 			"""A potential with the standard constructor contract."""
 
-		potential = MeasuredPotential.from_gc2d_h5(self.path)
+		potential = MeasuredPotential.load(self.path)
 		self.assertIs(type(potential), MeasuredPotential)
 		self.assertIsInstance(potential.metadata, GC2DH5Metadata)
 		self.assertTrue(np.all(np.isfinite(potential.evaluate_grid(0.37))))
 
 	def test_unit_box_spatial_normalization_maps_both_periods_to_one(self) -> None:
 		"""Map the complete source box to a unit period on both spatial axes."""
-		potential = load_gc2d_h5_potential(
+		potential = Potential.load(
 			self.path,
 			characteristic_length=self.characteristic_length,
 			spatial_normalization="unit_box",
@@ -219,7 +188,7 @@ class GC2DH5ImportTests(unittest.TestCase):
 		assert isinstance(metadata, GC2DH5Metadata)
 		self.assertEqual(metadata.spatial_normalization, "unit_box")
 
-		default_coordinates = load_gc2d_h5_potential(
+		default_coordinates = Potential.load(
 			self.path,
 			characteristic_length=self.characteristic_length,
 		)
@@ -237,7 +206,7 @@ class GC2DH5ImportTests(unittest.TestCase):
 	def test_filter_sort_selection_normalization_and_positive_phase(self) -> None:
 		"""Match HDF5 indices, normalization, and cycle-based positive phase."""
 		B = 1.5
-		potential = load_gc2d_h5_potential(
+		potential = Potential.load(
 			self.path,
 			B=B,
 			characteristic_length=self.characteristic_length,
@@ -277,7 +246,7 @@ class GC2DH5ImportTests(unittest.TestCase):
 	def test_explicit_characteristic_frequency_controls_time_and_amplitude(self) -> None:
 		"""Honor an explicitly supplied source frequency instead of the dominant mode."""
 		frequency_scale = 14.0
-		potential = load_gc2d_h5_potential(
+		potential = Potential.load(
 			self.path,
 			B=1.5,
 			characteristic_length=self.characteristic_length,
@@ -313,7 +282,7 @@ class GC2DH5ImportTests(unittest.TestCase):
 				"fields",
 				data=np.asarray([self.mean], dtype=np.complex128),
 			)
-		potential = load_gc2d_h5_potential(
+		potential = Potential.load(
 			path,
 			B=2.0,
 			characteristic_length=self.characteristic_length,
@@ -335,7 +304,7 @@ class GC2DH5ImportTests(unittest.TestCase):
 		"""Keep filtering before periodic resampling of dimensionless fields."""
 		B = 2.0
 		sigma = 0.6
-		potential = load_gc2d_h5_potential(
+		potential = Potential.load(
 			self.path,
 			B=B,
 			characteristic_length=self.characteristic_length,
@@ -400,8 +369,8 @@ class GC2DH5ImportTests(unittest.TestCase):
 		for degree in range(2, 6):
 			with self.subTest(degree=degree):
 				options = dict(indx=(0, 1, 2), interpolation_order=degree)
-				original = load_gc2d_h5_potential(self.path, **options)
-				resampled = load_gc2d_h5_potential(self.path, nx=6, ny=6, **options)
+				original = Potential.load(self.path, **options)
+				resampled = Potential.load(self.path, nx=6, ny=6, **options)
 				np.testing.assert_allclose(resampled.mean, original.mean, rtol=1e-13, atol=1e-10)
 				np.testing.assert_allclose(resampled.modes, original.modes, rtol=1e-13, atol=1e-10)
 				np.testing.assert_allclose(
@@ -411,7 +380,7 @@ class GC2DH5ImportTests(unittest.TestCase):
 
 	def test_spatial_hessians_time_derivative_and_periodic_wrapping(self) -> None:
 		"""Expose exact spline derivatives on the periodic normalized domain."""
-		potential = load_gc2d_h5_potential(
+		potential = Potential.load(
 			self.path,
 			B=1.5,
 			characteristic_length=self.characteristic_length,
@@ -506,7 +475,7 @@ class GC2DH5ImportTests(unittest.TestCase):
 
 	def test_outside_domain_gc_jacobian_matches_periodic_vector_field(self) -> None:
 		"""Differentiate the periodically wrapped field seen by GC dynamics."""
-		potential = load_gc2d_h5_potential(
+		potential = Potential.load(
 			self.path,
 			B=1.5,
 			characteristic_length=self.characteristic_length,
@@ -549,7 +518,7 @@ class GC2DH5ImportTests(unittest.TestCase):
 		self,
 	) -> None:
 		"""Differentiate a mean plus two non-unit HDF5 frequencies exactly."""
-		potential = load_gc2d_h5_potential(
+		potential = Potential.load(
 			self.path,
 			B=1.5,
 			characteristic_length=self.characteristic_length,
@@ -605,7 +574,7 @@ class GC2DH5ImportTests(unittest.TestCase):
 
 	def test_zero_gyroaverage_and_abba4_implicit_are_compatible(self) -> None:
 		"""Pass the strict Potential check and supply Hessians to implicit ABBA4."""
-		potential = load_gc2d_h5_potential(
+		potential = Potential.load(
 			self.path,
 			B=1.5,
 			characteristic_length=self.characteristic_length,
@@ -654,17 +623,17 @@ class GC2DH5ImportTests(unittest.TestCase):
 	def test_invalid_selection_and_incomplete_resampling_are_rejected(self) -> None:
 		"""Give concise errors for common HDF5-loader configuration mistakes."""
 		with self.assertRaisesRegex(ValueError, "range"):
-			load_gc2d_h5_potential(self.path, indx=(0, 3))
+			Potential.load(self.path, indx=(0, 3))
 		with self.assertRaisesRegex(ValueError, "both"):
-			load_gc2d_h5_potential(self.path, nx=8)
+			Potential.load(self.path, nx=8)
 		with self.assertRaisesRegex(ValueError, "non-zero"):
-			load_gc2d_h5_potential(self.path, B=0.0)
+			Potential.load(self.path, B=0.0)
 		with self.assertRaisesRegex(ValueError, "characteristic_length"):
-			load_gc2d_h5_potential(self.path, characteristic_length=0.0)
+			Potential.load(self.path, characteristic_length=0.0)
 		with self.assertRaisesRegex(ValueError, "characteristic_frequency"):
-			load_gc2d_h5_potential(self.path, characteristic_frequency=-1.0)
+			Potential.load(self.path, characteristic_frequency=-1.0)
 		with self.assertRaisesRegex(ValueError, "spatial_normalization"):
-			load_gc2d_h5_potential(self.path, spatial_normalization="source")
+			Potential.load(self.path, spatial_normalization="source")
 
 
 if __name__ == "__main__":

@@ -141,7 +141,7 @@ class ImplicitABBAJacobianStudyResult:
 	@property
 	def particle_count(self) -> int:
 		"""Return the number of independently analyzed planar particles."""
-		return self.solution.source.layout.particle_count(self.solution.states[:, 0])
+		return self.solution.layout.particle_count(self.solution.states[:, 0])
 
 	def spectral_class_counts(
 		self,

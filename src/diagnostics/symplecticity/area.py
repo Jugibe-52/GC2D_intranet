@@ -13,7 +13,7 @@ from diagnostics._validation import optional_relative_step, positive_integer
 
 from initial_conditions import Area
 from contracts.observation import ABBA2ImplicitIntegrationStep, IntegrationStep
-from diagnostics.output import write_diagnostic_block
+from diagnostics.buffering import DiagnosticBuffer
 
 from diagnostics.jacobians import (
 	STEP_JACOBIAN_METHODS,
@@ -22,7 +22,6 @@ from diagnostics.jacobians import (
 )
 from .observer import gc_physical_symplectic_form
 from diagnostics.paths import (
-	next_block_index,
 	notebook_output_directory,
 	validate_block_name,
 )
@@ -145,15 +144,17 @@ class GCAreaSymplecticityObserver:
 		self._accumulated_jacobian = np.eye(self.physical_size)
 		self._expected_step = 0
 		self._initialized = False
-		self._closed = False
 		self._last_recorded_step = -2
 		self._last_completed: (
 			tuple[int, float, float, np.ndarray, np.ndarray, np.ndarray] | None
 		) = None
 		self._records: list[GCAreaSymplecticityRecord] = []
-		self._buffer: list[_BufferedSample] = []
-		self._output_blocks: list[GCAreaSymplecticityOutputBlock] = []
-		self._next_index = next_block_index(self.output_directory, self.block_name)
+		self._output = DiagnosticBuffer[_BufferedSample, GCAreaSymplecticityOutputBlock](
+			output_directory=self.output_directory,
+			block_name=self.block_name,
+			chunk_size=self.chunk_size,
+			write_block=self._write_block,
+		)
 
 	@property
 	def records(self) -> tuple[GCAreaSymplecticityRecord, ...]:
@@ -163,19 +164,24 @@ class GCAreaSymplecticityObserver:
 	@property
 	def output_blocks(self) -> tuple[GCAreaSymplecticityOutputBlock, ...]:
 		"""Return synchronized file groups written during this run."""
-		return tuple(self._output_blocks)
+		return self._output.blocks
 
 	def __enter__(self) -> GCAreaSymplecticityObserver:
 		"""Use the observer as a context manager so its final block is flushed."""
 		return self
 
-	def __exit__(self, *_exception: object) -> None:
-		"""Flush observations even when the surrounding integration raises."""
-		self.close()
+	def __exit__(
+		self,
+		exception_type: type[BaseException] | None,
+		exception: BaseException | None,
+		_traceback: object,
+	) -> None:
+		"""Flush output without replacing an active integration exception."""
+		self._output.exit(exception_type, exception, self._record_final_sample)
 
 	def __call__(self, step: IntegrationStep) -> None:
 		"""Advance local and accumulated diagnostics with one consecutive step."""
-		if self._closed:
+		if self._output.closed:
 			raise RuntimeError("This GC area symplecticity observer is already closed.")
 		if step.dynamics_name != "GuidingCenterDynamics":
 			raise TypeError(
@@ -298,7 +304,7 @@ class GCAreaSymplecticityObserver:
 			max_abs_defect=float(np.max(np.abs(defect))),
 		)
 		self._records.append(record)
-		self._buffer.append(
+		self._output.append(
 			_BufferedSample(
 				record=record,
 				state=state.copy(),
@@ -315,38 +321,38 @@ class GCAreaSymplecticityObserver:
 				f"flow_defect={record.relative_defect:.3e} "
 				f"area_error={record.relative_area_error:+.3e}"
 			)
-		if len(self._buffer) >= self.chunk_size:
-			self.flush()
+		self._output.flush_if_full()
 
 	def flush(self) -> GCAreaSymplecticityOutputBlock | None:
+		"""Write pending samples through the shared diagnostic buffer."""
+		return self._output.flush()
+
+	def _write_block(
+		self, block_index: int, samples: tuple[_BufferedSample, ...],
+	) -> GCAreaSymplecticityOutputBlock:
 		"""Write the current matrix buffer as one indexed output block."""
-		if not self._buffer:
-			return None
-		block_index = self._next_index
-		rows = [asdict(sample.record) for sample in self._buffer]
-		paths = write_diagnostic_block(
-			output_directory=self.output_directory,
-			block_name=self.block_name,
+		rows = [asdict(sample.record) for sample in samples]
+		paths = self._output.write(
 			block_index=block_index,
 			rows=rows,
 			arrays={
 				"local_jacobians": np.stack(
-				[sample.local_jacobian for sample in self._buffer]
+				[sample.local_jacobian for sample in samples]
 			),
 				"accumulated_jacobians": np.stack(
-				[sample.accumulated_jacobian for sample in self._buffer]
+				[sample.accumulated_jacobian for sample in samples]
 			),
-				"states": np.stack([sample.state for sample in self._buffer]),
+				"states": np.stack([sample.state for sample in samples]),
 				"observation_indices": np.asarray(
-				[sample.record.observation_index for sample in self._buffer],
+				[sample.record.observation_index for sample in samples],
 				dtype=int,
 			),
 				"step_indices": np.asarray(
-				[sample.record.step_index for sample in self._buffer],
+				[sample.record.step_index for sample in samples],
 				dtype=int,
 			),
 				"times": np.asarray(
-					[sample.record.time for sample in self._buffer]
+					[sample.record.time for sample in samples]
 				),
 			},
 			metadata={
@@ -371,20 +377,19 @@ class GCAreaSymplecticityObserver:
 
 		block = GCAreaSymplecticityOutputBlock(
 			index=block_index,
-			sample_count=len(self._buffer),
+			sample_count=len(samples),
 			summary_path=paths.summary,
 			jacobians_path=paths.arrays,
 			metadata_path=paths.metadata,
 		)
-		self._output_blocks.append(block)
-		self._buffer.clear()
-		self._next_index += 1
 		return block
 
 	def close(self) -> None:
-		"""Record the final completed step, flush it and reject further events."""
-		if self._closed:
-			return
+		"""Flush the final partial block and reject further events."""
+		self._output.close(self._record_final_sample)
+
+	def _record_final_sample(self) -> None:
+		"""Queue the final completed step when cadence did not select it."""
 		if self._last_completed is not None:
 			(
 				step_index,
@@ -403,8 +408,6 @@ class GCAreaSymplecticityObserver:
 					local_jacobian=local_jacobian,
 					accumulated_jacobian=accumulated_jacobian,
 				)
-		self.flush()
-		self._closed = True
 
 __all__ = [
 	"GCAreaSymplecticityObserver",

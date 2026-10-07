@@ -15,7 +15,7 @@ from visualization.poincare_comparison import export_poincare_panel_comparison
 def plot_initial_star(potential: Potential, config: ModalCPUStarConfig) -> Any:
     """Show the initial positions in cell-period units, colored by arm."""
     problem, _ = build_star_problem(potential, config)
-    x, y = problem.initial_configuration.layout.positions(problem.initial_state)
+    x, y = problem.layout.positions(problem.initial_state)
     grid = potential.grid
     fig, ax = plt.subplots(figsize=(6, 6), layout='constrained')
     for arm in range(config.arms):
@@ -69,7 +69,7 @@ def plot_cpu_comparison(comparison: ModalCPUComparison) -> Any:
     period = comparison.potential.grid.period
     for core, solution in comparison.solutions.items():
         delta = (solution.states - baseline.states + period / 2) % period - period / 2
-        dx, dy = solution.source.layout.positions(delta)
+        dx, dy = solution.layout.positions(delta)
         axes[2].plot(solution.t, np.max(np.hypot(dx, dy), axis=0), label=f'{core} core(s)')
     axes[2].set(xlabel='Normalized time / forcing cycles', ylabel='Maximum periodic distance',
                 title='Agreement with the 1-core run')
@@ -91,7 +91,7 @@ def export_cpu_star_poincare(comparison: ModalCPUComparison, path: str | Path) -
                    title='Initial star', static=True)]
     step = metadata['config']['steps_per_cycle']
     for cores, solution in comparison.solutions.items():
-        x, y = solution.source.layout.positions(solution.states[:, step::step])
+        x, y = solution.layout.positions(solution.states[:, step::step])
         coordinates = np.stack(((x.T - grid.x0) / grid.period % 1,
                                 (y.T - grid.y0) / grid.period % 1), axis=-1)
         panels.append(dict(coordinates=coordinates, particle_ids=ids, colors=colors,

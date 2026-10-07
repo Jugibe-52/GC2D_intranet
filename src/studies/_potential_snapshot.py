@@ -6,7 +6,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from potential.gc2d_h5 import GC2DH5Metadata
+from potential.load import GC2DH5Metadata
 from potential.grid import Grid
 from potential.potential import Potential
 

@@ -9,8 +9,9 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from dynamics import CyclotronSplitSystem, HamiltonianSystem
-from initial_conditions import FCState, FCInitialConfiguration
+from dynamics.protocols import CyclotronSplitSystem, HamiltonianSystem
+from contracts.configuration import InitialConfiguration, StateLayout
+from contracts.state_layout import FCState, FCStateLayout
 
 from contracts.problem import InitialValueProblem
 from formulations.base import _updated_momentum
@@ -24,8 +25,8 @@ class _FCExtendedState:
 	physical: FCState
 	momentum: np.ndarray | None = None
 
-	def pack(self, configuration: FCInitialConfiguration) -> np.ndarray:
-		physical = configuration.layout.pack_components(*self.physical)
+	def pack(self) -> np.ndarray:
+		physical = FCStateLayout.pack_components(*self.physical)
 		return self.pack_array(physical)
 
 	def pack_array(self, physical: np.ndarray) -> np.ndarray:
@@ -46,7 +47,8 @@ class _PreparedFC:
 	"""Immutable FC split maps bound to one problem."""
 
 	dynamics: CyclotronSplitSystem
-	configuration: FCInitialConfiguration
+	configuration: InitialConfiguration
+	layout: StateLayout
 	physical_size: int
 	particle_count: int
 	track_energy: bool
@@ -59,7 +61,7 @@ class _PreparedFC:
 		)
 		if value.ndim == 0 or value.shape[0] != expected:
 			raise ValueError("The FC split map changed the internal state shape.")
-		physical = self.configuration.layout.split(value[: self.physical_size])
+		physical = FCState(*self.layout.split(value[: self.physical_size]))
 		momentum = value[self.physical_size :] if self.track_energy else None
 		return _FCExtendedState(physical=physical, momentum=momentum)
 
@@ -100,7 +102,7 @@ class _PreparedFC:
 			physical.vx + duration * acceleration_x,
 			physical.vy + duration * acceleration_y,
 		)
-		physical_array = self.configuration.layout.pack_components(*physical)
+		physical_array = FCStateLayout.pack_components(*physical)
 		momentum = _updated_momentum(
 			self.dynamics,
 			current.momentum,
@@ -131,7 +133,7 @@ class _PreparedFC:
 		)
 		momentum = current.momentum
 		if momentum is not None:
-			pre_cyclotron = self.configuration.layout.pack_components(*physical)
+			pre_cyclotron = FCStateLayout.pack_components(*physical)
 			momentum = _updated_momentum(
 				self.dynamics,
 				momentum,
@@ -140,12 +142,12 @@ class _PreparedFC:
 				pre_cyclotron,
 			)
 		physical = self._cyclotron_step(physical, duration)
-		return _FCExtendedState(physical, momentum).pack(self.configuration)
+		return _FCExtendedState(physical, momentum).pack()
 
 	def project(self, internal_history: np.ndarray) -> Projection:
 		"""Strip optional extended momentum from the physical FC history."""
 		final_state = self._unpack(internal_history)
-		states = self.configuration.layout.pack_components(*final_state.physical)
+		states = FCStateLayout.pack_components(*final_state.physical)
 		diagnostics: dict[str, np.ndarray | float | int | str | bool] = {}
 		if final_state.momentum is not None:
 			diagnostics["extended_momentum"] = final_state.momentum
@@ -163,9 +165,9 @@ class FCSplitFormulation:
 		track_energy: bool,
 	) -> PreparedDirectAdjointFormulation:
 		"""Bind immutable FC maps to one compatible problem."""
-		configuration = problem.initial_configuration
-		if not isinstance(configuration, FCInitialConfiguration):
-			raise TypeError("FCSplitFormulation requires an FC configuration.")
+		layout = problem.layout
+		if layout.state_dimension != 4:
+			raise TypeError("FCSplitFormulation requires a four-component FC layout.")
 		if not isinstance(problem.dynamics, CyclotronSplitSystem):
 			raise TypeError(
 				"FCSplitFormulation requires CyclotronSplitSystem dynamics."
@@ -176,16 +178,17 @@ class FCSplitFormulation:
 		):
 			raise TypeError("Energy tracking requires HamiltonianSystem.")
 		physical = problem.initial_state
-		particle_count = configuration.layout.particle_count(physical)
+		particle_count = problem.particle_count
 		initial = _FCExtendedState(
-			physical=configuration.layout.split(physical),
+			physical=FCState(*layout.split(physical)),
 			momentum=np.zeros(particle_count) if track_energy else None,
 		)
-		initial_internal_state = initial.pack(configuration)
+		initial_internal_state = initial.pack()
 		initial_internal_state.setflags(write=False)
 		return _PreparedFC(
 			dynamics=problem.dynamics,
-			configuration=configuration,
+			configuration=problem.initial_configuration,
+			layout=layout,
 			physical_size=physical.size,
 			particle_count=particle_count,
 			track_energy=bool(track_energy),

@@ -2,20 +2,26 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import ClassVar
 
 import numpy as np
 
-from potential import Potential
+from potential.potential import Potential
 
-from ._layout import pack_components, split_components
+from contracts.state_layout import FCStateLayout
 from ._equations import fc_velocity, fc_hamiltonian
 
 
+@dataclass(frozen=True, init=False, eq=False)
 class FullCyclotronDynamics:
 	"""Full-cyclotron equations for fixed physical parameters."""
 
 	state_dimension: ClassVar[int] = 4
+
+	potential: Potential
+	rho: float
+	eta: float
 
 	def __init__(self, potential: Potential, *, rho: float, eta: float) -> None:
 		"""Create FC dynamics with finite, non-zero ``rho`` and ``eta``."""
@@ -27,9 +33,9 @@ class FullCyclotronDynamics:
 			raise ValueError("FullCyclotronDynamics requires finite, non-zero parameters.")
 		if rho < 0:
 			raise ValueError("`rho` must be positive.")
-		self.potential = potential
-		self.rho = rho
-		self.eta = eta
+		object.__setattr__(self, "potential", potential)
+		object.__setattr__(self, "rho", rho)
+		object.__setattr__(self, "eta", eta)
 
 	@property
 	def velocity_scale(self) -> float:
@@ -58,12 +64,9 @@ class FullCyclotronDynamics:
 
 	def vector_field(self, t: float, state: np.ndarray) -> np.ndarray:
 		"""Evaluate FC equations in packed ``[x, y, vx, vy]`` order."""
-		x, y, vx, vy = split_components(
-			state,
-			component_count=self.state_dimension,
-		)
+		x, y, vx, vy = FCStateLayout().split(state)
 		acceleration_x, acceleration_y = self.electric_acceleration(t, x, y)
-		return pack_components(*fc_velocity(
+		return FCStateLayout.pack_components(*fc_velocity(
 			acceleration_x, acceleration_y, vx, vy, velocity_scale=self.velocity_scale,
 			larmor_frequency=self.larmor_frequency,
 		))
@@ -74,10 +77,7 @@ class FullCyclotronDynamics:
 		state: np.ndarray,
 	) -> np.ndarray:
 		"""Evaluate kinetic plus scaled electrostatic energy."""
-		x, y, vx, vy = split_components(
-			state,
-			component_count=self.state_dimension,
-		)
+		x, y, vx, vy = FCStateLayout().split(state)
 		return np.asarray(fc_hamiltonian(
 			self.potential.evaluate(t, x, y), vx, vy,
 			velocity_scale=self.velocity_scale, electric_scale=self.electric_scale,
@@ -89,10 +89,7 @@ class FullCyclotronDynamics:
 		state: np.ndarray,
 	) -> np.ndarray:
 		"""Evaluate the time-conjugate momentum derivative."""
-		x, y, *_ = split_components(
-			state,
-			component_count=self.state_dimension,
-		)
+		x, y, *_ = FCStateLayout().split(state)
 		return np.asarray(
 			-self.electric_scale
 			* self.potential.evaluate(t, x, y, dt=1)

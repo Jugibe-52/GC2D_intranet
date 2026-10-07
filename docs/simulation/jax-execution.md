@@ -96,6 +96,21 @@ not universal bitwise equality or identical adaptive step grids.
 
 ## Lifecycle, callbacks and measurement
 
+Fixed methods inherit `methods._compiled.CompiledFixedMethod`. Its optional
+backend entry point selects a typed family adapter in `methods._jax_dispatch`.
+The adapter binds a physical kernel, prepared dynamics and immutable controls;
+explicit, classical implicit and composition methods have separate option types.
+Arithmetic projection carries no nonlinear configuration. Kernel selection is
+completed before tracing, rather than repeated through method-name strings.
+
+The coordinator receives only `contracts.compiled.CompiledStep`. This contract
+owns device selection, the internal-state map and optional physical energy;
+`integration.jax_fixed` owns scheduling, sampling, convergence checks and result
+collection. It does not import concrete methods or discover their attributes.
+Preparing a map snapshots its controls, so later edits to a configured method do
+not alter that map. Exact built-in type checks continue to reject unsupported
+subclass overrides explicitly.
+
 `IntegrationMethod.new_run` binds an immutable `ExecutionOptions` choice before method
 initialization. Configured method instances remain reusable and do not retain
 run states. The common fixed JAX driver uses `lax.scan` for accepted steps and
@@ -104,7 +119,8 @@ matching rules. Only requested states and small accepted-step statistics are
 retained. Device field bindings and compiled function identities are reused
 across runs with compatible shapes and settings.
 
-Fixed JAX methods require `progress=False` and `step_observer=None`. Python
+Fixed JAX methods require `progress=False`, `step_observer=None` and
+`newton_observer=None`. Python
 callbacks remain available through the CPU controller. Hybrid adaptive methods
 retain their normal progress and observation contracts, since their controller
 already resides on the host.

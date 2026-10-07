@@ -21,9 +21,9 @@ class "GC2D HDF5 file" as HDF5Source <<data>> {
   produced by GC2D.
 }
 
-rectangle "<b>load_gc2d_h5_potential</b>\n<i>src/potential/gc2d_h5.py</i>\n\nReads a GC2D HDF5 result, selects and optionally\nfilters its modes, rescales the physical quantities,\nmaps coordinates by characteristic length or to a unit box,\nand builds an interpolation-ready potential." as ImportPipeline
+rectangle "<b>Potential.load</b>\n<i>src/potential/potential.py + load.py</i>\n\nReads a GC2D HDF5 result, selects and optionally\nfilters its modes, rescales the physical quantities,\nmaps coordinates by characteristic length or to a unit box,\nand builds an interpolation-ready potential." as ImportPipeline
 
-class "GC2DH5Metadata" as H5Metadata <<src/potential/gc2d_h5.py>> {
+class "GC2DH5Metadata" as H5Metadata <<src/potential/load.py>> {
   Groups immutable dimensional provenance:
   source axes, frequencies, field indices,
   normalization scales and spatial mode,
@@ -61,7 +61,7 @@ class "Grid" as GridSupport <<src/potential/grid.py>> {
   back into the fundamental domain.
 }
 
-rectangle "<b>split_components</b>\n<i>src/dynamics/_layout.py</i>\nSeparates a packed ensemble state into one array\nper physical component.\n\n<b>pack_components</b>\nCombines component arrays into the packed layout\nexpected by the dynamics and integrators." as StateLayout
+rectangle "<b>GCStateLayout</b>\n<i>src/contracts/state_layout.py</i>\nDefines the canonical packed guiding-center layout.\n\n<b>split</b>\nSeparates packed ensemble states into X and Y arrays.\n\n<b>pack_components</b>\nCombines X and Y arrays into the packed layout\nused by dynamics, formulations and results." as StateLayout
 
 ' HDF5 import and runtime construction.
 HDF5Source --> ImportPipeline : input

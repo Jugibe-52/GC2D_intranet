@@ -135,14 +135,14 @@ def run_cpu_star_comparison(
         np.testing.assert_allclose(solution.states, baseline.states,
                                    rtol=config.equivalence_rtol, atol=config.equivalence_atol)
         delta = (solution.states - baseline.states + period / 2) % period - period / 2
-        dx, dy = solution.source.layout.split(delta)
+        dx, dy = solution.layout.split(delta)
         distances = np.hypot(dx, dy)
         records[str(cores)].update(
             maximum_periodic_discrepancy=float(np.max(distances)),
             rms_periodic_discrepancy=float(np.sqrt(np.mean(distances**2))),
             speedup=records['1']['median_seconds'] / records[str(cores)]['median_seconds'],
         )
-    x, y = problem.initial_configuration.layout.positions(problem.initial_state)
+    x, y = problem.layout.positions(problem.initial_state)
     assert isinstance(problem.dynamics, GuidingCenterDynamics)
     metadata = {
         'study': 'modal_jax_cpu_star', 'config': asdict(config), 'runs': records, **provenance,

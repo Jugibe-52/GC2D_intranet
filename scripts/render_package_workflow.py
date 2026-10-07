@@ -43,7 +43,7 @@ class Card:
 
 
 PACKAGES = (
-    ("potential", "Physical field", "Potential; load_gc2d_h5_potential\nGrid, interpolation, derivatives\nUnits and normalization\n\nConsumed by physical dynamics", BLUE),
+    ("potential", "Physical field", "Potential.load\nGrid, interpolation, derivatives\nUnits and normalization\n\nConsumed by physical dynamics", BLUE),
     ("dynamics", "Equations of motion", "GuidingCenterDynamics\nFullCyclotronDynamics\nVector field and capabilities\n\nInput to InitialValueProblem", BLUE),
     ("initial_conditions", "Initial geometry", "GC / FC initial configurations\nPacked initial state and layout\nParticle count and geometry\n\nInput to InitialValueProblem", BLUE),
     ("formulations", "Numerical coordinates", "Physical / DoubledFormulation\nOptional time and momentum\nGC direct / adjoint maps\n\nPrepared by each method", GREEN),

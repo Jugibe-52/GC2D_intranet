@@ -13,7 +13,7 @@ from unittest.mock import patch
 import h5py
 import numpy as np
 
-from potential import Grid, JaxPotentialEvaluator, Potential, load_gc2d_h5_potential
+from potential import Grid, JaxPotentialEvaluator, Potential
 
 
 def _potential(degree: int = 3) -> Potential:
@@ -157,7 +157,7 @@ class JaxPotentialTests(unittest.TestCase):
                 h5["Rcells"], h5["Zcells"] = axis, axis
                 h5["freqs"] = np.array([0., 2., 3.])
                 h5["fields"] = np.stack((x + y, np.sin(x + y) + 1j * np.cos(y), np.cos(x) + 1j * y))
-            potential = load_gc2d_h5_potential(path).gyroaverage(0.3)
+            potential = Potential.load(path).gyroaverage(0.3)
             evaluator = JaxPotentialEvaluator(potential)
             for dx, dy in ((0, 0), (1, 0), (0, 1), (2, 0), (1, 1), (0, 2)):
                 np.testing.assert_allclose(evaluator.evaluate(0.3, 0.4, 0.5, dx=dx, dy=dy),

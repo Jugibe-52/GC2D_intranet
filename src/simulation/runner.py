@@ -66,6 +66,8 @@ def simulate(
 		t=data.t,
 		states=data.states,
 		source=problem.initial_configuration,
+		layout=problem.layout,
+		initial_state=problem.initial_state,
 		diagnostics=data.diagnostics,
 	)
 	_validate_solution_matches_request(solution, problem, request)

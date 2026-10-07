@@ -12,7 +12,7 @@ from typing import ClassVar
 
 import numpy as np
 
-from dynamics import HamiltonianSystem
+from dynamics.protocols import HamiltonianSystem
 from contracts.result import DiagnosticValue
 from contracts.problem import InitialValueProblem
 

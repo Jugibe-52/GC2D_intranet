@@ -61,11 +61,16 @@ class _TimedStepObserver:
 		self.observer.__enter__()
 		return self
 
-	def __exit__(self, *exception: object) -> None:
+	def __exit__(
+		self,
+		exception_type: type[BaseException] | None,
+		exception: BaseException | None,
+		traceback: object,
+	) -> None:
 		"""Include final record construction and disk flushing in the timing."""
 		started = perf_counter()
 		try:
-			self.observer.__exit__(*exception)
+			self.observer.__exit__(exception_type, exception, traceback)
 		finally:
 			self.elapsed_seconds += perf_counter() - started
 

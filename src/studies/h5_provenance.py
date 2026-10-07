@@ -8,7 +8,7 @@ from typing import Any
 
 import numpy as np
 
-from potential.gc2d_h5 import GC2DH5Metadata, load_gc2d_h5_potential
+from potential.load import GC2DH5Metadata
 from potential.potential import Potential
 from studies.dimensional_h5_midpoint import resolve_h5_source
 from studies.reference_trajectory import potential_fingerprint
@@ -37,7 +37,7 @@ def prepare_verified_h5_field(
     }.items():
         if original[key] != expected:
             raise ValueError(f'Physical setting differs from the original experiment: {key}.')
-    potential = load_gc2d_h5_potential(resolved, B=magnetic_field,
+    potential = Potential.load(resolved, B=magnetic_field,
         characteristic_length=characteristic_length, indx=source_selection,
         interpolation_order=interpolation_order, spatial_normalization='characteristic_length',
         denoising=False)

@@ -12,14 +12,17 @@ from dynamics import (
 	GuidingCenterJacobianSystem,
 )
 
-from integration.core import IntegrationMethod
+from methods._compiled import CompiledFixedMethod
 from contracts.step import StepInfo, StepResult
 from contracts.result import DiagnosticValue
 from formulations.state import PhysicalFormulation
 from contracts.observation import GaussLegendre4IntegrationStep, StepObserver
+from contracts.nonlinear import NewtonObserver
 from contracts.problem import InitialValueProblem
 from contracts.request import SimulationRequest
 from methods._validation import _positive_finite, _positive_integer
+from methods._linear import _solve_particle_systems
+from methods._nonlinear import _bind_newton_observer, _solve_newton
 from ._jacobians import (
 	JacobianMethod as GaussJacobianMethod,
 	ResolvedJacobianMethod as ResolvedGaussJacobianMethod,
@@ -196,12 +199,10 @@ def _analytic_newton_correction(
 	)
 	matrix = np.concatenate((top, bottom), axis=-2)
 	residual = _particle_vectors(*evaluation.residuals)
-	try:
-		corrections = np.linalg.solve(matrix, -residual)
-	except np.linalg.LinAlgError as exc:
-		raise RuntimeError(
-			"The per-particle Gauss Newton matrix is singular."
-		) from exc
+	corrections = _solve_particle_systems(
+		matrix, -residual,
+		singular_message="The per-particle Gauss Newton matrix is singular.",
+	)
 	return _component_major_stage_corrections(corrections)
 
 
@@ -245,6 +246,7 @@ def _solve_gauss_step(
 	max_iterations: int,
 	jacobian_method: ResolvedGaussJacobianMethod,
 	jacobian_relative_step: float,
+	newton_observer: NewtonObserver | None = None,
 ) -> _GaussStepResult:
 	"""Solve the two coupled collocation stages with full Newton corrections."""
 	value = np.asarray(state, dtype=float)
@@ -259,40 +261,22 @@ def _solve_gauss_step(
 		1.0,
 		float(np.linalg.norm(value, ord=np.inf)),
 	)
-	evaluation = _stage_evaluation(
-		dynamics,
-		time,
-		value,
-		step,
-		stage_states,
-	)
-	residual_evaluations = 1
+	size = value.size
 
-	for iteration in range(max_iterations + 1):
-		residual_norm = max(
-			float(np.linalg.norm(residual, ord=np.inf))
-			for residual in evaluation.residuals
+	def evaluate(unknown: np.ndarray) -> tuple[np.ndarray, _StageEvaluation]:
+		"""Pack both stage residuals without changing their infinity norm."""
+		evaluation = _stage_evaluation(
+			dynamics, time, value, step, (unknown[:size], unknown[size:]),
 		)
-		if residual_norm <= tolerance:
-			state_after = value + step * 0.5 * (
-				evaluation.fields[0] + evaluation.fields[1]
-			)
-			if not np.all(np.isfinite(state_after)):
-				raise RuntimeError("The converged Gauss state is non-finite.")
-			return _GaussStepResult(
-				state=np.asarray(state_after),
-				stage_states=(stage_states[0].copy(), stage_states[1].copy()),
-				iterations=iteration,
-				residual_evaluations=residual_evaluations,
-				residual_norm=residual_norm,
-			)
-		if iteration == max_iterations:
-			break
+		return np.concatenate(evaluation.residuals), evaluation
+
+	def update(unknown: np.ndarray, residual: np.ndarray, evaluation: _StageEvaluation) -> np.ndarray:
+		"""Keep the collocation-specific block algebra beside its stage equations."""
 		jacobians = _stage_jacobians(
 			dynamics,
 			time,
 			step,
-			stage_states,
+			(unknown[:size], unknown[size:]),
 			jacobian_method=jacobian_method,
 			jacobian_relative_step=jacobian_relative_step,
 		)
@@ -307,29 +291,29 @@ def _solve_gauss_step(
 			corrections = _dense_newton_correction(step, evaluation, jacobians)
 		if not all(np.all(np.isfinite(value)) for value in corrections):
 			raise RuntimeError("The Gauss Newton correction became non-finite.")
-		stage_states = (
-			stage_states[0] + corrections[0],
-			stage_states[1] + corrections[1],
-		)
-		evaluation = _stage_evaluation(
-			dynamics,
-			time,
-			value,
-			step,
-			stage_states,
-		)
-		residual_evaluations += 1
+		return np.asarray(unknown + np.concatenate(corrections))
 
-	raise RuntimeError(
-		"GaussLegendre4 Newton iteration did not converge at "
-		f"t={time:.16g} with h={step:.16g}: residual norm "
-		f"{residual_norm:.3e} exceeds {tolerance:.3e} after "
-		f"{max_iterations} corrections."
+	root = _solve_newton(
+		evaluate, np.concatenate(stage_states), update,
+		tolerance=tolerance, max_iterations=max_iterations,
+		context=f"GaussLegendre4 at t={time:.16g} with h={step:.16g}",
+		iteration_observer=_bind_newton_observer(
+			newton_observer, time=time, duration=step, tolerance=tolerance,
+		),
+	)
+	state_after = value + step * 0.5 * (root.payload.fields[0] + root.payload.fields[1])
+	if not np.all(np.isfinite(state_after)):
+		raise RuntimeError("The converged Gauss state is non-finite.")
+	return _GaussStepResult(
+		state=np.asarray(state_after),
+		stage_states=(root.unknown[:size].copy(), root.unknown[size:].copy()),
+		iterations=root.iterations, residual_evaluations=root.residual_evaluations,
+		residual_norm=float(np.linalg.norm(root.residual, ord=np.inf)),
 	)
 
 
 @dataclass(slots=True)
-class GaussLegendre4(IntegrationMethod[_GaussStepResult]):
+class GaussLegendre4(CompiledFixedMethod[_GaussStepResult]):
 	"""Two-stage, fourth-order symmetric Gauss--Legendre Runge--Kutta method."""
 
 	track_energy: bool = False
@@ -340,6 +324,7 @@ class GaussLegendre4(IntegrationMethod[_GaussStepResult]):
 	newton_jacobian_relative_step: float = float(np.cbrt(np.finfo(float).eps))
 	progress: bool = False
 	step_observer: StepObserver | None = None
+	newton_observer: NewtonObserver | None = field(default=None, kw_only=True)
 
 	# Resources owned by one run; excluded from constructor options.
 	state_formulation: PhysicalFormulation = field(init=False, repr=False, compare=False)
@@ -398,6 +383,7 @@ class GaussLegendre4(IntegrationMethod[_GaussStepResult]):
 		time: float,
 		physical: np.ndarray,
 		step: float,
+		*, newton_observer: NewtonObserver | None = None,
 	) -> _GaussStepResult:
 		return _solve_gauss_step(
 			self.dynamics,
@@ -409,12 +395,13 @@ class GaussLegendre4(IntegrationMethod[_GaussStepResult]):
 			max_iterations=self.newton_max_iterations,
 			jacobian_method=self.resolved_jacobian_method,
 			jacobian_relative_step=self.newton_jacobian_relative_step,
+			newton_observer=newton_observer,
 		)
 
 	def advance(self, time: float, value: np.ndarray, step: float) -> StepResult[_GaussStepResult]:
 		"""Solve one complete physical step and finish its auxiliary state."""
 		physical_before = np.asarray(value[:self.physical_size], dtype=float)
-		result = self._solve_physical(time, physical_before, step)
+		result = self._solve_physical(time, physical_before, step, newton_observer=self.newton_observer)
 		tolerance = self.newton_absolute_tolerance + (
 			self.newton_relative_tolerance * max(1.0, float(np.linalg.norm(physical_before, ord=np.inf)))
 		)

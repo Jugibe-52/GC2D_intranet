@@ -38,11 +38,11 @@ for that machine; the CPU extra alone does not configure GPU support.
 import jax
 import numpy as np
 from contracts.execution_options import ExecutionOptions
-from potential import load_gc2d_h5_potential
+from potential import Potential
 
 # Configure precision once, before preparing or compiling calculations.
 jax.config.update("jax_enable_x64", True)
-potential = load_gc2d_h5_potential("data/potential/V1/PHI_2.h5")
+potential = Potential.load("data/potential/V1/PHI_2.h5")
 effective = potential.gyroaverage(0.3)
 execution = ExecutionOptions(backend="jax", device="cpu")
 # For a configured accelerator: device="gpu", device_index=0.

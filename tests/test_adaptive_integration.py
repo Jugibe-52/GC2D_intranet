@@ -43,8 +43,8 @@ class AdaptiveIntegrationTests(unittest.TestCase):
                     x=[1., 1.1, 1.2], y=[1.2, 1.3, 1.4]))
                 request = SimulationRequest.uniform(t_span=(.3, .34), max_step=.02, sample_count=3)
                 run = cls(track_energy=True, first_step=.02).new_run(problem, request)
-                with patch.object(problem.dynamics, 'extended_momentum_derivative',
-                                  wraps=problem.dynamics.extended_momentum_derivative) as rate:
+                with patch.object(type(problem.dynamics), 'extended_momentum_derivative', autospec=True,
+                                  side_effect=type(problem.dynamics).extended_momentum_derivative) as rate:
                     result = run.advance(.3, run.initial_state, .02)
                     end = float(run.solver.t)
                     self.assertEqual(rate.call_count, 8)
@@ -76,8 +76,8 @@ class AdaptiveIntegrationTests(unittest.TestCase):
                 problem = _problem()
                 step = .32 - .3
                 request = SimulationRequest.uniform(t_span=(.3, .32), max_step=step, sample_count=2)
-                with patch.object(problem.dynamics, 'extended_momentum_derivative',
-                                  wraps=problem.dynamics.extended_momentum_derivative) as rate:
+                with patch.object(type(problem.dynamics), 'extended_momentum_derivative', autospec=True,
+                                  side_effect=type(problem.dynamics).extended_momentum_derivative) as rate:
                     result = simulate(problem, cls(track_energy=True, first_step=step), request)
                 self.assertEqual(result.n_steps, 1)
                 self.assertEqual(rate.call_count, 8)

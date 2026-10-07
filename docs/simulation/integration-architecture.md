@@ -192,3 +192,32 @@ momentum projection in eight duplicated coordinates and is not an energy-monitor
 option. Existing historical full-state diagnostics are readers of that former
 record type, not an active simulation path. Canonical model guides and theory
 PDFs document the current methods; older rendered diagrams are historical.
+
+## Comparison and archive record ownership
+
+The three-, four-, and five-method studies share numerical setup, method
+construction, aligned-result validation, and metric reductions through
+`studies._comparison`. Their public configuration and result classes remain
+available from their existing study modules and the `studies` facade. The family
+configurations and results are siblings of neutral common bases; adding a method
+does not make one campaign depend on another campaign's private functions. The
+three- and four-method runners retain their alternating timing order. The
+five-method runner retains reference reuse, optional parallel model campaigns,
+and completion logging.
+
+`contracts.comparison` owns immutable reference and accuracy series, execution
+records, and comparison summary records. `ComparisonReadView` describes the
+shared read interface of live five-method results and loaded CSV views. CSV
+loading constructs these concrete records rather than mutable attribute bags;
+the existing CSV schema, public loader, and public study imports are preserved.
+New numerical consumers read the canonical `residual_evaluations` complete-step
+series.
+
+`contracts.study_results` owns `GCEnergyBoundResult`,
+`ParallelBM4RecurrenceConfig`, and `ParallelBM4RecurrenceResult`. The existing
+study modules explicitly re-export these classes. Their HDF5/NPZ loaders and
+visualizers import the record owners directly, so reading an archive does not
+import study orchestration or execute a simulation. Existing energy and parallel
+recurrence archive schemas are unchanged. Scalar configuration rules shared with
+those records live in `contracts._study_validation`; study-specific geometry,
+reference identity, and execution policies remain in `studies`.

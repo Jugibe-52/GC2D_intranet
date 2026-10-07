@@ -15,9 +15,8 @@ from diagnostics.jacobians import (
 	implicit_function_step_jacobian,
 	stage_increment_step_jacobian,
 )
-from diagnostics.output import write_diagnostic_block
+from diagnostics.buffering import DiagnosticBuffer
 from diagnostics.paths import (
-	next_block_index,
 	notebook_output_directory,
 	validate_block_name,
 )
@@ -238,12 +237,14 @@ class ImplicitABBAJacobianObserver:
 		self.metadata = dict(metadata or {})
 		self._expected_step = 0
 		self._particle_count: int | None = None
-		self._closed = False
 		self._samples: list[ImplicitABBAJacobianSample] = []
 		self._records: list[ImplicitABBAJacobianRecord] = []
-		self._buffer: list[ImplicitABBAJacobianSample] = []
-		self._output_blocks: list[ImplicitABBAJacobianOutputBlock] = []
-		self._next_index = next_block_index(self.output_directory, self.block_name)
+		self._output = DiagnosticBuffer[ImplicitABBAJacobianSample, ImplicitABBAJacobianOutputBlock](
+			output_directory=self.output_directory,
+			block_name=self.block_name,
+			chunk_size=self.chunk_size,
+			write_block=self._write_block,
+		)
 
 	@property
 	def particle_count(self) -> int | None:
@@ -263,19 +264,24 @@ class ImplicitABBAJacobianObserver:
 	@property
 	def output_blocks(self) -> tuple[ImplicitABBAJacobianOutputBlock, ...]:
 		"""Return synchronized output file groups written during this run."""
-		return tuple(self._output_blocks)
+		return self._output.blocks
 
 	def __enter__(self) -> ImplicitABBAJacobianObserver:
 		"""Open a context-managed observer session."""
 		return self
 
-	def __exit__(self, *_exception: object) -> None:
-		"""Flush the final partial output block."""
-		self.close()
+	def __exit__(
+		self,
+		exception_type: type[BaseException] | None,
+		exception: BaseException | None,
+		_traceback: object,
+	) -> None:
+		"""Flush output without replacing an active integration exception."""
+		self._output.exit(exception_type, exception)
 
 	def __call__(self, step: IntegrationStep) -> None:
 		"""Analyze one consecutive complete implicit-ABBA integration step."""
-		if self._closed:
+		if self._output.closed:
 			raise RuntimeError("This implicit-ABBA Jacobian observer is already closed.")
 		if not isinstance(step, ABBA2ImplicitIntegrationStep):
 			raise TypeError(
@@ -334,47 +340,47 @@ class ImplicitABBAJacobianObserver:
 			)
 			for particle, analysis in enumerate(analyses)
 		)
-		self._buffer.append(sample)
+		self._output.append(sample)
 		if self.verbose:
 			classes = ",".join(analysis.spectral_class for analysis in analyses)
 			print(
 				f"[implicit-abba-jacobian] step={step.step_index:05d} "
 				f"t={step.time:.6g} classes={classes}"
 			)
-		if len(self._buffer) >= self.chunk_size:
-			self.flush()
+		self._output.flush_if_full()
 
 	def flush(self) -> ImplicitABBAJacobianOutputBlock | None:
+		"""Write pending samples through the shared diagnostic buffer."""
+		return self._output.flush()
+
+	def _write_block(
+		self, block_index: int, samples: tuple[ImplicitABBAJacobianSample, ...],
+	) -> ImplicitABBAJacobianOutputBlock:
 		"""Write the current local-Jacobian buffer as one indexed block."""
-		if not self._buffer:
-			return None
-		block_index = self._next_index
 		buffer_observations = {
-			sample.observation_index for sample in self._buffer
+			sample.observation_index for sample in samples
 		}
 		buffer_records = [
 			record
 			for record in self._records
 			if record.observation_index in buffer_observations
 		]
-		analyses = [sample.particle_analyses for sample in self._buffer]
-		paths = write_diagnostic_block(
-			output_directory=self.output_directory,
-			block_name=self.block_name,
+		analyses = [sample.particle_analyses for sample in samples]
+		paths = self._output.write(
 			block_index=block_index,
 			rows=[asdict(record) for record in buffer_records],
 			arrays={
 				"jacobians": np.stack(
-					[sample.jacobian for sample in self._buffer]
+					[sample.jacobian for sample in samples]
 				),
 				"particle_jacobians": np.stack(
-					[sample.particle_jacobians for sample in self._buffer]
+					[sample.particle_jacobians for sample in samples]
 				),
 				"states_before": np.stack(
-					[sample.state_before for sample in self._buffer]
+					[sample.state_before for sample in samples]
 				),
 				"states_after": np.stack(
-					[sample.state_after for sample in self._buffer]
+					[sample.state_after for sample in samples]
 				),
 				"eigenvalues": np.asarray(
 					[[item.eigenvalues for item in row] for row in analyses]
@@ -410,16 +416,16 @@ class ImplicitABBAJacobianObserver:
 					]
 				),
 				"step_indices": np.asarray(
-					[sample.step_index for sample in self._buffer], dtype=int
+					[sample.step_index for sample in samples], dtype=int
 				),
 				"start_times": np.asarray(
-					[sample.start_time for sample in self._buffer]
+					[sample.start_time for sample in samples]
 				),
 				"end_times": np.asarray(
-					[sample.end_time for sample in self._buffer]
+					[sample.end_time for sample in samples]
 				),
 				"durations": np.asarray(
-					[sample.duration for sample in self._buffer]
+					[sample.duration for sample in samples]
 				),
 			},
 			metadata={
@@ -439,24 +445,17 @@ class ImplicitABBAJacobianObserver:
 		)
 		block = ImplicitABBAJacobianOutputBlock(
 			index=block_index,
-			step_count=len(self._buffer),
+			step_count=len(samples),
 			record_count=len(buffer_records),
 			summary_path=paths.summary,
 			arrays_path=paths.arrays,
 			metadata_path=paths.metadata,
 		)
-		self._output_blocks.append(block)
-		self._buffer.clear()
-		self._next_index += 1
 		return block
 
 	def close(self) -> None:
-		"""Flush pending samples and reject subsequent observations."""
-		if self._closed:
-			return
-		self.flush()
-		self._closed = True
-
+		"""Flush the final partial block and reject further events."""
+		self._output.close()
 
 __all__ = [
 	"IMPLICIT_ABBA_JACOBIAN_METHODS",

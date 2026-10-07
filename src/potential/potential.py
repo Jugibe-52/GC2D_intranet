@@ -25,10 +25,10 @@ from scipy.special import jv
 from contracts.execution_options import ExecutionOptions
 
 from .grid import Grid
-from .gc2d_h5 import (
+from .load import (
 	DEFAULT_CHARACTERISTIC_LENGTH,
 	SpatialNormalization,
-	_load_gc2d_h5_data,
+	_load_data,
 )
 from .prepared import PreparedPotential
 from ._evaluation import PotentialEvaluator
@@ -217,7 +217,7 @@ class Potential:
 		)
 
 	@classmethod
-	def from_gc2d_h5(
+	def load(
 		cls,
 		filename: str | PathLike[str],
 		*,
@@ -234,13 +234,14 @@ class Potential:
 	) -> Self:
 		"""Construct a potential from measured GC2D HDF5 fields.
 
-		Options and normalization follow :func:`~potential.load_gc2d_h5_potential`.
+		The source schema, selection options, and normalization are described
+		in ``docs/dynamics/gc2d-h5-import.md``.
 		By default, select the mean and dominant positive-frequency mode with
 		``B=1.5`` and characteristic length ``0.06``. The HDF5 adapter handles
 		selection, normalization, optional filtering and resampling; this class
 		prepares the common runtime representation and retains source metadata.
 		"""
-		data = _load_gc2d_h5_data(
+		data = _load_data(
 			filename,
 			B=B,
 			characteristic_length=characteristic_length,

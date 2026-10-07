@@ -3,13 +3,12 @@
 import csv
 import json
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import h5py
 import numpy as np
 
-if TYPE_CHECKING:
-    from studies.gc_energy_bound import GCEnergyBoundResult
+from contracts.study_results import GCEnergyBoundResult
 
 
 def _json_value(value: Any) -> Any:
@@ -46,8 +45,6 @@ def save_energy_bound_result(path: str | Path, result: "GCEnergyBoundResult") ->
 
 def load_energy_bound_result(path: str | Path) -> "GCEnergyBoundResult":
     """Read a completed study for plotting, without recomputing trajectories."""
-    from studies.gc_energy_bound import GCEnergyBoundResult
-
     arrays: dict[str, np.ndarray] = {}
     with h5py.File(path, "r") as archive:
         if archive.attrs.get("schema") != "gc-energy-bound-v1":

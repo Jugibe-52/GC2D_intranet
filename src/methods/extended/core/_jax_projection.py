@@ -7,8 +7,9 @@ import jax.numpy as jnp
 
 from dynamics._jax import JaxDynamics
 from formulations.gc import _COUPLING_BASE, _COUPLING_COS, _COUPLING_SIN
+from methods._jax_options import CompositionOptions
 from methods._jax_common import (
-    MethodOptions, newton, broyden, particle_finite_difference,
+    newton, broyden, particle_finite_difference,
     solve_particle_blocks, infinity_norm,
 )
 
@@ -23,7 +24,7 @@ def coupling_matrix(duration: Any, frequency: float | None) -> Any:
 
 
 def compose(time: Any, state: Any, step: Any, dynamics: JaxDynamics,
-            options: MethodOptions) -> tuple[Any, Any]:
+            options: CompositionOptions) -> tuple[Any, Any]:
     """Traverse signed adjoint/direct stages and retain their two shear sources.
 
     The trace consists of (stage_times, durations, sources). Sources have shape
@@ -63,7 +64,7 @@ def compose(time: Any, state: Any, step: Any, dynamics: JaxDynamics,
     return after, trace
 
 
-def composition_jacobian(trace: Any, dynamics: JaxDynamics, options: MethodOptions) -> Any:
+def composition_jacobian(trace: Any, dynamics: JaxDynamics, options: CompositionOptions) -> Any:
     """Multiply analytic shear tangents in the original signed stage order."""
     times, durations, sources = trace
     n = sources.shape[-1] // 2
@@ -100,12 +101,10 @@ def energy_increment(trace: Any, dynamics: JaxDynamics) -> Any:
 
 
 def extended_step(time: Any, state: Any, step: Any, dynamics: JaxDynamics,
-                  options: MethodOptions) -> tuple[Any, Any, dict[str, Any], Any]:
+                  options: CompositionOptions) -> tuple[Any, Any, dict[str, Any], Any]:
     """Project a complete recipe without changing its residual or solver axis."""
     size, n = state.size, state.size // 2
-    tolerance = options.tolerance(state)
     simultaneous = options.projection == 'simultaneous_state_multiplier'
-    midpoint = options.name in ('ABBA2Midpoint', 'BM4Midpoint')
     def evaluate(unknown: Any) -> Any:
         mu = unknown[2*size:] if simultaneous else unknown
         mapped, trace = compose(time, jnp.concatenate((state + mu, state - mu)), step, dynamics, options)
@@ -117,25 +116,27 @@ def extended_step(time: Any, state: Any, step: Any, dynamics: JaxDynamics,
         else:
             residual = first - second + 2 * mu
         return residual, (mapped, trace)
-    if midpoint:
+    if options.solve is None:
         mapped, trace = compose(time, jnp.concatenate((state, state)), step, dynamics, options)
         after = (mapped[:size] + mapped[size:]) / 2
         statistics = {'copy_separation_norms': infinity_norm(mapped[:size] - mapped[size:])}
         valid = jnp.array(True)
     else:
+        solve = options.solve
+        tolerance = solve.tolerance(state)
         identity = jnp.broadcast_to(jnp.eye(2), (n, 2, 2))
         identity4 = jnp.broadcast_to(jnp.eye(4), (n, 4, 4))
         normal = jnp.concatenate((identity, -identity), axis=1)
         constraint = jnp.swapaxes(normal, -1, -2)
         def correction(unknown: Any, residual: Any, payload: Any) -> Any:
             _, trace = payload
-            if options.jacobian == 'analytic':
+            if solve.jacobian == 'analytic':
                 base = composition_jacobian(trace, dynamics, options)
             else:
                 mu = unknown[2*size:] if simultaneous else unknown
                 initial = jnp.concatenate((state + mu, state - mu))
                 base = particle_finite_difference(lambda z: compose(time, z, step, dynamics, options)[0],
-                                                 initial, 4, options.relative_step)
+                                                 initial, 4, solve.relative_step)
             if simultaneous:
                 matrix = jnp.concatenate((
                     jnp.concatenate((identity4, -(identity4 + base) @ normal), axis=2),
@@ -149,16 +150,16 @@ def extended_step(time: Any, state: Any, step: Any, dynamics: JaxDynamics,
             mapped, trace = compose(time, jnp.concatenate((state, state)), step, dynamics, options)
             initial = jnp.concatenate((mapped, initial))
             cached = (jnp.concatenate((jnp.zeros(2*size), mapped[:size] - mapped[size:])), (mapped, trace))
-        if options.solver == 'broyden':
+        if solve.solver == 'broyden':
             if simultaneous:
                 ident = jnp.eye(size)
                 norm = jnp.concatenate((ident, -ident), axis=0)
                 matrix = jnp.block([[jnp.eye(2*size), -2*norm], [norm.T, jnp.zeros((size, size))]])
             else:
                 matrix = 4 * jnp.eye(size)
-            root = broyden(evaluate, initial, matrix, tolerance, options.max_iterations, initial_evaluation=cached)
+            root = broyden(evaluate, initial, matrix, tolerance, solve.max_iterations, initial_evaluation=cached)
         else:
-            root = newton(evaluate, initial, correction, tolerance, options.max_iterations, initial_evaluation=cached)
+            root = newton(evaluate, initial, correction, tolerance, solve.max_iterations, initial_evaluation=cached)
         mapped, trace = root.payload
         mu = root.unknown[2*size:] if simultaneous else root.unknown
         if simultaneous:
@@ -168,7 +169,7 @@ def extended_step(time: Any, state: Any, step: Any, dynamics: JaxDynamics,
         statistics = {'nonlinear_iterations': root.iterations, 'residual_evaluations': root.evaluations,
                       'nonlinear_residual_norms': root.norm, 'nonlinear_tolerances': tolerance,
                       'projection_multiplier_norms': infinity_norm(mu)}
-        if options.name in ('ABBA4Implicit', 'ABBA6Implicit'):
+        if options.publish_substeps:
             statistics.update({f'substep_{key}': jnp.reshape(value, (1,)) for key, value in statistics.items()})
         valid = root.converged
     increment = energy_increment(trace, dynamics) if options.track_energy else jnp.zeros(n)

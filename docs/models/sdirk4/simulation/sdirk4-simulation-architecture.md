@@ -137,3 +137,57 @@ above remain inside this execution boundary.
 `Execution_Modal` now implements this boundary for remote NumPy/SciPy CPU
 integrations. Results return to the local machine for validation and subsequent
 persistence; see the [Modal executor guide](../../../simulation/modal-execution.md).
+
+## Initial-state ownership
+
+`InitialValueProblem` captures the validated physical state, particle count, and
+independent layout at construction. A later edit to the original initial-state
+provider does not change this run's formulation. Physical layouts are owned by
+`contracts.state_layout`; compatible external providers need no inheritance from
+initial-condition classes. Built-in dynamics keep their physical parameters
+immutable. See the shared [layout and ownership contract](../../../dynamics/protocols.md#physical-layouts-and-problem-ownership).
+
+## Shared Newton control and iteration callbacks
+
+The stage equations, predictors, and method-specific corrections remain local.
+`methods._nonlinear._solve_newton` owns the common stopping rule, correction
+limit, residual evaluation count, and optional iteration callback. Tolerances,
+initial evaluations, and acceptance thresholds retain their existing meaning;
+HBVM keeps its distinct matrix residual norm and backtracking algorithm.
+
+The optional keyword-only `newton_observer` receives
+`contracts.nonlinear.NewtonIteration` records from each already evaluated
+iterate, including the initial guess and final root. Gauss unknowns concatenate
+its two physical stage vectors. SDIRK exposes one physical stage vector and its
+zero-based `stage_index`; `time` and `duration` identify the complete physical
+step. Every array in the record is an independent read-only copy. No additional
+numerical evaluations are made. The callback is local to the method instance;
+its exceptions propagate without modifying other runs.
+
+Direct advances and off-grid output solves emit iterates. Physical `map_state`
+callbacks provided to step observers omit Newton callbacks, preventing later
+diagnostic replay from appending integration history. Compiled JAX and remote
+Modal execution reject these optional Python callbacks.
+
+Analytic particle corrections use `methods._linear._solve_particle_systems`
+with matrices `(N,d,d)` and vectors `(N,d)`. Its explicit singleton
+right-hand-side axis preserves batch semantics under NumPy 1.x and 2.x.
+
+
+### Shared comparison records
+
+The three-, four-, and five-method comparison campaigns share method construction,
+alignment checks, and metric reductions in `studies._comparison`; their public
+study entry points remain unchanged. Reference, accuracy, summary, and execution
+records belong to `contracts.comparison`, and CSV readers reconstruct those same
+record types without importing study orchestration. Energy-bound and parallel
+BM4 archive records belong to `contracts.study_results`, with explicit re-exports
+from their established study modules. See the
+[record ownership contract](../../../simulation/integration-architecture.md#comparison-and-archive-record-ownership).
+
+## Compiled fixed-step contract
+
+Fixed-step methods inherit `CompiledFixedMethod` and provide a JAX adapter that
+returns `contracts.compiled.CompiledStep`. The shared `integration/jax_fixed.py`
+loop knows no concrete numerical method; each method owns its compiled stages
+and statistics. See [JAX execution](../../../simulation/jax-execution.md).

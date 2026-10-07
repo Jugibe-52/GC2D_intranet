@@ -9,7 +9,7 @@ from time import perf_counter, time
 from contracts.execution_options import ExecutionOptions
 from contracts.problem import InitialValueProblem
 from contracts.request import SimulationRequest
-from contracts.result import IntegrationData
+from contracts.result import DiagnosticValue, IntegrationData
 from execution.execution import Execution
 from methods.base import NumericalMethod
 
@@ -33,8 +33,9 @@ def validate_job(
     choice = ExecutionOptions() if options is None else options
     if choice.device != "cpu":
         raise NotImplementedError("Modal execution currently supports CPU devices only.")
-    if getattr(method, "step_observer", None) is not None or getattr(method, "progress", False):
-        raise NotImplementedError("Modal execution requires step_observer=None and progress=False.")
+    if (getattr(method, "step_observer", None) is not None or getattr(method, "progress", False)
+        or getattr(method, "newton_observer", None) is not None):
+        raise NotImplementedError("Modal execution requires step_observer=None, newton_observer=None and progress=False.")
     if getattr(method, "_status", "configuration") != "configuration":
         raise ValueError("Submit a configured method, not an initialized or completed run.")
     return choice
@@ -85,7 +86,7 @@ def execute_cycle_payload(payload: bytes) -> tuple[int, str, IntegrationData]:
 
     started_unix, started = time(), perf_counter()
     version, digest, data = execute_payload(payload)
-    diagnostics = {key: value for key, value in data.diagnostics.items()
+    diagnostics: dict[str, DiagnosticValue] = {key: value for key, value in data.diagnostics.items()
                    if not isinstance(value, np.ndarray)}
     diagnostics.update(worker_wall_seconds=perf_counter() - started,
                        worker_started_unix_seconds=started_unix,

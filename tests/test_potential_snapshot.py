@@ -12,7 +12,7 @@ from contracts.request import SimulationRequest
 from dynamics.gc import GuidingCenterDynamics
 from initial_conditions import GCInitialConfiguration
 from methods.extended.bm4 import BM4Implicit
-from potential.gc2d_h5 import GC2DH5Metadata
+from potential.load import GC2DH5Metadata
 from potential.grid import Grid
 from potential.potential import Potential
 from simulation.runner import simulate

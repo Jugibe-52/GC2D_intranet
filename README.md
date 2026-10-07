@@ -133,9 +133,9 @@ The primary GC2D field format stores a real mean potential and complex
 positive-frequency modes in HDF5. Load it through the public potential API:
 
 ```python
-from potential import load_gc2d_h5_potential
+from potential import Potential
 
-potential = load_gc2d_h5_potential(
+potential = Potential.load(
     "data/potential/V1/PHI_2.h5",
     characteristic_length=0.06,
     interpolation_order=3,

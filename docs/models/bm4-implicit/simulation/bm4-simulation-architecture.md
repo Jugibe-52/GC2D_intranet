@@ -109,3 +109,41 @@ the field fingerprint, scientific settings and aligned cycle times. The eight
 gap probes have IDs 41–48, with two positions per gap selected at rho=0.30 and
 reused for all eleven rho values. See the
 [batch and persistence protocol](../../../simulation/modal-execution.md#additional-particles-inside-saved-poincare-gaps).
+
+## Initial-state ownership
+
+`InitialValueProblem` captures the validated physical state, particle count, and
+independent layout at construction. A later edit to the original initial-state
+provider does not change this run's formulation. Physical layouts are owned by
+`contracts.state_layout`; compatible external providers need no inheritance from
+initial-condition classes. Built-in dynamics keep their physical parameters
+immutable. See the shared [layout and ownership contract](../../../dynamics/protocols.md#physical-layouts-and-problem-ownership).
+
+## Newton iterate callbacks
+
+The keyword-only `newton_observer` receives independent read-only
+`contracts.nonlinear.NewtonIteration` snapshots, including the physical
+projection multiplier. It observes already computed residuals and supports
+independent or nested runs without global instrumentation. Direct advances and
+off-grid output solves emit iterates; diagnostic `map_state` replay does not.
+Broyden, compiled JAX, and remote Modal execution reject this optional Python
+callback. See the [shared callback and particle-solve contract](../../extended/simulation/extended-simulation-architecture.md#explicit-newton-iteration-observation).
+
+
+### Shared comparison records
+
+The three-, four-, and five-method comparison campaigns share method construction,
+alignment checks, and metric reductions in `studies._comparison`; their public
+study entry points remain unchanged. Reference, accuracy, summary, and execution
+records belong to `contracts.comparison`, and CSV readers reconstruct those same
+record types without importing study orchestration. Energy-bound and parallel
+BM4 archive records belong to `contracts.study_results`, with explicit re-exports
+from their established study modules. See the
+[record ownership contract](../../../simulation/integration-architecture.md#comparison-and-archive-record-ownership).
+
+## Compiled fixed-step contract
+
+Fixed-step methods inherit `CompiledFixedMethod` and provide a JAX adapter that
+returns `contracts.compiled.CompiledStep`. The shared `integration/jax_fixed.py`
+loop knows no concrete numerical method; each method owns its compiled stages
+and statistics. See [JAX execution](../../../simulation/jax-execution.md).

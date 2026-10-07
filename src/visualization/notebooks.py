@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from html import escape
 import subprocess
 from typing import Any, TypeAlias
@@ -35,7 +35,7 @@ def records_table_html(
 	*,
 	columns: Sequence[TableColumn],
 ) -> str:
-	"""Render attribute-based records as one compact HTML table.
+	"""Render attribute-based records or named mappings as one compact HTML table.
 
 	Each column is ``(attribute_name, heading, format_spec)``. A ``None`` format
 	uses the value's normal string representation.
@@ -54,11 +54,16 @@ def records_table_html(
 	for record in rows:
 		cells: list[str] = []
 		for attribute, _, format_spec in column_values:
-			if not hasattr(record, attribute):
+			if isinstance(record, Mapping):
+				if attribute not in record:
+					raise KeyError(f"Table record has no field {attribute!r}.")
+				value: Any = record[attribute]
+			elif hasattr(record, attribute):
+				value = getattr(record, attribute)
+			else:
 				raise AttributeError(
 					f"{type(record).__name__} has no table attribute {attribute!r}."
 				)
-			value: Any = getattr(record, attribute)
 			text = str(value) if format_spec is None else format(value, format_spec)
 			cells.append(f"<td>{escape(text)}</td>")
 		body_rows.append(f"<tr>{''.join(cells)}</tr>")
@@ -74,7 +79,7 @@ def display_records_table(
 	*,
 	columns: Sequence[TableColumn],
 ) -> None:
-	"""Display attribute-based records as an HTML table in a notebook."""
+	"""Display attribute-based records or mappings as an HTML table in a notebook."""
 	from IPython.display import HTML, display
 
 	display(HTML(records_table_html(records, columns=columns)))

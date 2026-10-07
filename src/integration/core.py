@@ -300,12 +300,8 @@ class IntegrationMethod(ABC, Generic[Detail]):
 		return FixedStepController()
 
 	def _integrate_jax(self, execution: ExecutionOptions) -> IntegrationData:
-		"""Select the optional device driver without duplicating public methods."""
-		try:
-			from integration.jax_fixed import integrate_fixed
-		except ImportError as exc:
-			raise ImportError("JAX integration requires the optional 'jax' extra: pip install -e '.[jax]'.") from exc
-		return integrate_fixed(self, execution)
+		"""Require an explicit backend implementation from the numerical method."""
+		raise NotImplementedError(f"{self.method_name} does not provide JAX integration.")
 
 	def integrate(self, problem: InitialValueProblem, request: SimulationRequest,
 	              *, execution: ExecutionOptions | None = None) -> IntegrationData:

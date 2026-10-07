@@ -13,7 +13,7 @@ def plot_stored_gc_solution(record: StoredSolution) -> Figure:
     """Show GC trajectories and physical energy from a stored base potential."""
     if record.potential is None:
         raise ValueError("A saved potential is required for the field background.")
-    if record.solution.source.layout.state_dimension != 2:
+    if record.solution.layout.state_dimension != 2:
         raise ValueError("This plot requires a guiding-center solution.")
     if record.metadata.get("potential_role") != "base_before_gyroaverage":
         raise ValueError("Metadata must identify the saved field as the base potential.")

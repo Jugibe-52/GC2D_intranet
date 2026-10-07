@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from collections.abc import Callable
-from typing import TypeAlias
+from typing import Protocol
 
 import numpy as np
 
+from contracts.nonlinear import NewtonObserver
 from methods._nonlinear import SolveStats
 from formulations.gc import _EnergyQuadraturePoint
 
@@ -106,4 +106,11 @@ def step_statistics(result: ProjectedMapResult, *, include_substeps: bool) -> di
 __all__: list[str] = []
 
 
-ProjectedMap: TypeAlias = Callable[[float, np.ndarray, float], ProjectedMapResult]
+class ProjectedMap(Protocol):
+    """One physical projection with an explicitly scoped Newton callback."""
+
+    def __call__(
+        self, t: float, state: np.ndarray, h: float, *,
+        newton_observer: NewtonObserver | None = None,
+    ) -> ProjectedMapResult:
+        """Evaluate a map; diagnostic callers omit the optional callback."""

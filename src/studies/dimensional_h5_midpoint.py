@@ -13,7 +13,7 @@ from contracts.request import SimulationRequest
 from dynamics import GuidingCenterDynamics
 from initial_conditions import GCInitialConfiguration
 from methods.extended.bm4 import BM4Midpoint
-from potential import Grid, Potential, load_gc2d_h5_potential
+from potential import Grid, Potential
 from simulation.runner import simulate
 from solution import Solution
 
@@ -66,7 +66,7 @@ def load_dimensional_h5_field(
     inverted exactly at the sample level; no spatial resampling is requested.
     Time remains normalized by the selected mode's physical period.
     """
-    normalized = load_gc2d_h5_potential(
+    normalized = Potential.load(
         resolve_h5_source(source), B=magnetic_field, characteristic_length=characteristic_length,
         indx=selectors, interpolation_order=interpolation_order,
     )

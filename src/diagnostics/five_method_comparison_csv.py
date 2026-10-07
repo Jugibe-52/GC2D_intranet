@@ -10,8 +10,8 @@ import json
 import os
 from pathlib import Path
 import tempfile
-from types import MappingProxyType, SimpleNamespace
-from typing import Any, TYPE_CHECKING
+from types import MappingProxyType
+from typing import Any
 
 import numpy as np
 
@@ -20,8 +20,24 @@ from diagnostics.output import _json_default
 from initial_conditions import GCInitialConfiguration
 from solution import Solution
 
-if TYPE_CHECKING:
-	from studies import FiveMethodComparisonResult
+from contracts.comparison import (
+	AdaptiveReference, TrajectoryAccuracySeries, EnergyAccuracySeries,
+	ExecutionLogEntry, FiveMethodComparisonSummary, FiveMethodNonlinearWorkSummary,
+	ComparisonReadView,
+)
+from typing import Protocol
+
+
+class _WritableComparison(ComparisonReadView, Protocol):
+	"""Additional numerical controls required to preserve the CSV schema."""
+
+	@property
+	def config(self) -> _ComparisonConfigView: ...
+
+
+class _ComparisonConfigView(Protocol):
+	@property
+	def step_count(self) -> int: ...
 
 
 FIVE_METHOD_COMPARISON_CSV_SCHEMA_VERSION = 1
@@ -92,16 +108,16 @@ class StoredFiveMethodComparison:
 		*,
 		path: Path,
 		metadata: Mapping[str, Any],
-		reference: SimpleNamespace,
+		reference: AdaptiveReference,
 		solutions: Mapping[str, Solution],
-		accuracy: Mapping[str, SimpleNamespace],
-		energy_accuracy: Mapping[str, SimpleNamespace],
+		accuracy: Mapping[str, TrajectoryAccuracySeries],
+		energy_accuracy: Mapping[str, EnergyAccuracySeries],
 		reference_energy_errors: np.ndarray,
 		runtime_samples: Mapping[str, np.ndarray],
 		wall_runtime_seconds: float,
-		execution_log: tuple[SimpleNamespace, ...],
-		summaries: tuple[SimpleNamespace, ...],
-		nonlinear_summaries: tuple[SimpleNamespace, ...],
+		execution_log: tuple[ExecutionLogEntry, ...],
+		summaries: tuple[FiveMethodComparisonSummary, ...],
+		nonlinear_summaries: tuple[FiveMethodNonlinearWorkSummary, ...],
 	) -> None:
 		"""Own immutable mappings while preserving plotting-compatible views."""
 		self.path = Path(path)
@@ -129,11 +145,11 @@ class StoredFiveMethodComparison:
 		"""Return the persisted complete study runtime."""
 		return self.wall_runtime_seconds
 
-	def summaries(self) -> tuple[SimpleNamespace, ...]:
+	def summaries(self) -> tuple[FiveMethodComparisonSummary, ...]:
 		"""Return persisted accuracy, energy, and runtime summaries."""
 		return self._summaries
 
-	def nonlinear_work_summaries(self) -> tuple[SimpleNamespace, ...]:
+	def nonlinear_work_summaries(self) -> tuple[FiveMethodNonlinearWorkSummary, ...]:
 		"""Return persisted Newton-work summaries for implicit methods."""
 		return self._nonlinear_summaries
 
@@ -148,7 +164,7 @@ def _readonly_array(value: np.ndarray) -> np.ndarray:
 
 
 def _reference_columns(
-	result: FiveMethodComparisonResult, particle_count: int, sample_count: int,
+	result: _WritableComparison, particle_count: int, sample_count: int,
 ) -> dict[str, tuple[np.ndarray, int]]:
 	"""Prepare reference positions and audit histories aligned with saved samples."""
 	columns: dict[str, tuple[np.ndarray, int]] = {}
@@ -196,10 +212,6 @@ def _append_step_diagnostic_columns(
 	substeps: dict[str, int] = {}
 	for diagnostic_name in _STEP_DIAGNOSTICS:
 		source_name = diagnostic_name
-		if diagnostic_name == "residual_evaluations" and (
-			source_name not in solution.diagnostics
-		):
-			source_name = "residual_evaluations_per_step"
 		if source_name not in solution.diagnostics:
 			continue
 		values = np.asarray(solution.diagnostics[source_name])
@@ -217,7 +229,7 @@ def _append_step_diagnostic_columns(
 
 
 def _append_method_columns(
-	result: FiveMethodComparisonResult, method_names: tuple[str, ...],
+	result: _WritableComparison, method_names: tuple[str, ...],
 	particle_count: int, sample_count: int, columns: dict[str, tuple[np.ndarray, int]],
 ) -> tuple[dict[str, list[str]], dict[str, dict[str, int]]]:
 	"""Append aligned method histories and describe the stored substep diagnostics."""
@@ -259,7 +271,7 @@ def _append_method_columns(
 
 
 def write_five_method_comparison_csv(
-	result: FiveMethodComparisonResult,
+	result: _WritableComparison,
 	path: str | Path,
 	*,
 	metadata: Mapping[str, Any] | None = None,
@@ -476,7 +488,7 @@ def _states_from_columns(
 def _reference_from_columns(
 	columns: Mapping[str, np.ndarray], payload: Mapping[str, Any],
 	times: np.ndarray, particle_count: int,
-) -> tuple[SimpleNamespace, np.ndarray]:
+) -> tuple[AdaptiveReference, np.ndarray]:
 	"""Reconstruct finite immutable reference histories and their audit discrepancy."""
 	reference_states = _states_from_columns(columns, "reference.dop853", particle_count)
 	audit_states = _states_from_columns(columns, "reference.radau", particle_count)
@@ -495,16 +507,12 @@ def _reference_from_columns(
 	for values in (reference_states, audit_states, audit_distances, reference_energy_errors):
 		if not np.all(np.isfinite(values)):
 			raise ValueError("Comparison CSV contains incomplete reference histories.")
-	duration = float(times[-1] - times[0])
 	reference_metadata = payload["reference"]
-	reference = SimpleNamespace(
+	reference = AdaptiveReference(
 		times=_readonly_array(times),
 		states=_readonly_array(reference_states),
 		audit_states=_readonly_array(audit_states),
 		audit_distances=_readonly_array(audit_distances),
-		time_integrated_rms_floor=float(
-			np.sqrt(np.trapz(np.mean(audit_distances**2, axis=0), times) / duration)
-		),
 		dop853_runtime_seconds=float(reference_metadata["dop853_runtime_seconds"]),
 		radau_runtime_seconds=float(reference_metadata["radau_runtime_seconds"]),
 		dop853_function_evaluations=int(
@@ -555,8 +563,8 @@ def load_five_method_comparison_csv(path: str | Path) -> StoredFiveMethodCompari
 	reference, reference_energy_errors = _reference_from_columns(columns, payload, times, particle_count)
 
 	solutions: dict[str, Solution] = {}
-	accuracy: dict[str, SimpleNamespace] = {}
-	energy_accuracy: dict[str, SimpleNamespace] = {}
+	accuracy: dict[str, TrajectoryAccuracySeries] = {}
+	energy_accuracy: dict[str, EnergyAccuracySeries] = {}
 	source: GCInitialConfiguration | None = None
 	for method_name in method_names:
 		states = _states_from_columns(columns, method_name, particle_count)
@@ -582,7 +590,7 @@ def load_five_method_comparison_csv(path: str | Path) -> StoredFiveMethodCompari
 			quantity="distance",
 			particle_count=particle_count,
 		)
-		accuracy[method_name] = SimpleNamespace(
+		accuracy[method_name] = TrajectoryAccuracySeries(
 			method_name=method_name,
 			distances=_readonly_array(distances),
 			rms_distance=_readonly_array(columns[f"{method_name}.rms_distance"]),
@@ -595,16 +603,11 @@ def load_five_method_comparison_csv(path: str | Path) -> StoredFiveMethodCompari
 			quantity="energy_error",
 			particle_count=particle_count,
 		)
-		maximum_energy_error = np.max(np.abs(energy_errors), axis=0)
-		energy_accuracy[method_name] = SimpleNamespace(
+		energy_accuracy[method_name] = EnergyAccuracySeries(
 			method_name=method_name,
-			errors=_readonly_array(energy_errors),
-			rms_error=_readonly_array(np.sqrt(np.mean(energy_errors**2, axis=0))),
-			maximum_absolute_error=_readonly_array(maximum_energy_error),
-			running_maximum_absolute_error=_readonly_array(
-				np.maximum.accumulate(maximum_energy_error)
-			),
+			errors=energy_errors,
 		)
+
 	assert source is not None
 	source_initial_state = source.initial_state
 	assert source_initial_state is not None
@@ -624,10 +627,10 @@ def load_five_method_comparison_csv(path: str | Path) -> StoredFiveMethodCompari
 			for name in method_names
 		},
 		wall_runtime_seconds=float(payload["wall_runtime_seconds"]),
-		execution_log=tuple(SimpleNamespace(**row) for row in payload["execution_log"]),
-		summaries=tuple(SimpleNamespace(**row) for row in payload["summaries"]),
+		execution_log=tuple(ExecutionLogEntry(**row) for row in payload["execution_log"]),
+		summaries=tuple(FiveMethodComparisonSummary(**row) for row in payload["summaries"]),
 		nonlinear_summaries=tuple(
-			SimpleNamespace(**row) for row in payload["nonlinear_summaries"]
+			FiveMethodNonlinearWorkSummary(**row) for row in payload["nonlinear_summaries"]
 		),
 	)
 

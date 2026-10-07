@@ -14,13 +14,12 @@ from diagnostics._validation import optional_relative_step, positive_integer
 
 from initial_conditions import Area
 from contracts.observation import IntegrationStage
-from diagnostics.output import write_diagnostic_block
+from diagnostics.buffering import DiagnosticBuffer
 from diagnostics.symplecticity import (
 	central_difference_jacobian,
 	gc_physical_symplectic_form,
 )
 from diagnostics.paths import (
-	next_block_index,
 	notebook_output_directory,
 	validate_block_name,
 )
@@ -158,15 +157,17 @@ class ProjectedSymplecticityAreaObserver:
 		self._expected_step = 0
 		self._expected_stage = 0
 		self._initialized = False
-		self._closed = False
 		self._last_completed: (
 			tuple[int, float, np.ndarray, np.ndarray, np.ndarray] | None
 		) = None
 		self._last_recorded_step = -2
 		self._records: list[ProjectedAreaRecord] = []
-		self._buffer: list[_BufferedProjection] = []
-		self._output_blocks: list[ProjectedAreaOutputBlock] = []
-		self._next_index = next_block_index(self.output_directory, self.block_name)
+		self._output = DiagnosticBuffer[_BufferedProjection, ProjectedAreaOutputBlock](
+			output_directory=self.output_directory,
+			block_name=self.block_name,
+			chunk_size=self.chunk_size,
+			write_block=self._write_block,
+		)
 
 	@property
 	def records(self) -> tuple[ProjectedAreaRecord, ...]:
@@ -176,19 +177,24 @@ class ProjectedSymplecticityAreaObserver:
 	@property
 	def output_blocks(self) -> tuple[ProjectedAreaOutputBlock, ...]:
 		"""Return all synchronized file blocks written by this observer."""
-		return tuple(self._output_blocks)
+		return self._output.blocks
 
 	def __enter__(self) -> ProjectedSymplecticityAreaObserver:
 		"""Use a context manager to persist the final partial block."""
 		return self
 
-	def __exit__(self, *_exception: object) -> None:
-		"""Close the observer even when integration or diagnostics raise."""
-		self.close()
+	def __exit__(
+		self,
+		exception_type: type[BaseException] | None,
+		exception: BaseException | None,
+		_traceback: object,
+	) -> None:
+		"""Flush output without replacing an active integration exception."""
+		self._output.exit(exception_type, exception, self._record_final_sample)
 
 	def __call__(self, stage: IntegrationStage) -> None:
 		"""Advance the cumulative tangent with one consecutive BM4 stage."""
-		if self._closed:
+		if self._output.closed:
 			raise RuntimeError("This projected symplecticity observer is already closed.")
 		if stage.dynamics_name != "GuidingCenterDynamics":
 			raise TypeError(
@@ -336,7 +342,7 @@ class ProjectedSymplecticityAreaObserver:
 			relative_copy_separation=copy_separation / state_scale,
 		)
 		self._records.append(record)
-		self._buffer.append(
+		self._output.append(
 			_BufferedProjection(
 				record=record,
 				projected_state=projected_state,
@@ -353,41 +359,41 @@ class ProjectedSymplecticityAreaObserver:
 				f"relative_area_error={record.relative_area_error:+.3e} "
 				f"copy_separation={record.copy_separation:.3e}"
 			)
-		if len(self._buffer) >= self.chunk_size:
-			self.flush()
+		self._output.flush_if_full()
 
 	def flush(self) -> ProjectedAreaOutputBlock | None:
+		"""Write pending samples through the shared diagnostic buffer."""
+		return self._output.flush()
+
+	def _write_block(
+		self, block_index: int, samples: tuple[_BufferedProjection, ...],
+	) -> ProjectedAreaOutputBlock:
 		"""Write buffered projected states and Jacobians as one indexed block."""
-		if not self._buffer:
-			return None
-		block_index = self._next_index
-		rows = [asdict(sample.record) for sample in self._buffer]
-		paths = write_diagnostic_block(
-			output_directory=self.output_directory,
-			block_name=self.block_name,
+		rows = [asdict(sample.record) for sample in samples]
+		paths = self._output.write(
 			block_index=block_index,
 			rows=rows,
 			arrays={
 				"local_projected_jacobians": np.stack(
-					[sample.local_projected_jacobian for sample in self._buffer]
+					[sample.local_projected_jacobian for sample in samples]
 				),
 				"projected_jacobians": np.stack(
-				[sample.projected_jacobian for sample in self._buffer]
+				[sample.projected_jacobian for sample in samples]
 			),
 				"projected_states": np.stack(
-				[sample.projected_state for sample in self._buffer]
+				[sample.projected_state for sample in samples]
 			),
 				"observation_indices": np.asarray(
-				[sample.record.observation_index for sample in self._buffer], dtype=int
+				[sample.record.observation_index for sample in samples], dtype=int
 			),
 				"step_indices": np.asarray(
-				[sample.record.step_index for sample in self._buffer], dtype=int
+				[sample.record.step_index for sample in samples], dtype=int
 			),
 				"times": np.asarray(
-					[sample.record.time for sample in self._buffer]
+					[sample.record.time for sample in samples]
 				),
 				"signed_areas": np.asarray(
-				[sample.record.signed_area for sample in self._buffer]
+				[sample.record.signed_area for sample in samples]
 			),
 			},
 			metadata={
@@ -407,20 +413,19 @@ class ProjectedSymplecticityAreaObserver:
 
 		block = ProjectedAreaOutputBlock(
 			index=block_index,
-			sample_count=len(self._buffer),
+			sample_count=len(samples),
 			summary_path=paths.summary,
 			jacobians_path=paths.arrays,
 			metadata_path=paths.metadata,
 		)
-		self._output_blocks.append(block)
-		self._buffer.clear()
-		self._next_index += 1
 		return block
 
 	def close(self) -> None:
-		"""Record the final completed step, flush it and reject further events."""
-		if self._closed:
-			return
+		"""Flush the final partial block and reject further events."""
+		self._output.close(self._record_final_sample)
+
+	def _record_final_sample(self) -> None:
+		"""Queue the final completed step when cadence did not select it."""
 		if self._last_completed is not None:
 			(
 				step_index,
@@ -437,8 +442,6 @@ class ProjectedSymplecticityAreaObserver:
 					local_projected_jacobian=local_projected_jacobian,
 					projected_jacobian=projected_jacobian,
 				)
-		self.flush()
-		self._closed = True
 
 __all__ = [
 	"ProjectedAreaOutputBlock",

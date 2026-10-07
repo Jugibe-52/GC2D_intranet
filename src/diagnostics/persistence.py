@@ -18,11 +18,12 @@ import scipy
 
 from contracts.configuration import InitialConfiguration
 from contracts.result import DiagnosticValue
+from contracts.state_layout import FCStateLayout, GCStateLayout
 from diagnostics.paths import solution_destination
 from diagnostics.storage import ArtifactStore, StorageError
-from initial_conditions.fc import FCInitialConfiguration, FCStateLayout
-from initial_conditions.gc import GCInitialConfiguration, GCStateLayout
-from potential.gc2d_h5 import GC2DH5Metadata
+from initial_conditions.fc import FCInitialConfiguration
+from initial_conditions.gc import GCInitialConfiguration
+from potential.load import GC2DH5Metadata
 from potential.grid import Grid
 from potential.potential import Potential
 from solution import Solution
@@ -70,7 +71,7 @@ def _write_archive(
     potential: Potential | None,
 ) -> None:
     """Encode physical layout, diagnostics and the actual sampled potential."""
-    layout = solution.source.layout
+    layout = solution.layout
     if type(layout) is GCStateLayout:
         layout_name = "gc_component_major_xy"
     elif type(layout) is FCStateLayout:
@@ -78,7 +79,7 @@ def _write_archive(
     else:
         raise TypeError("Persistence currently supports the canonical GC and FC layouts.")
     arrays = {"t": solution.t, "states": solution.states}
-    initial_state = solution.source.initial_state
+    initial_state = solution.initial_state
     if initial_state is not None:
         arrays["initial_state"] = initial_state
     diagnostics: dict[str, Any] = {}

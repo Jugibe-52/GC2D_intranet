@@ -1,5 +1,7 @@
 """Finite-horizon energy-envelope study for one measured guiding-center orbit."""
 
+from contracts.study_results import GCEnergyBoundResult, GC_ENERGY_BOUND_METHODS as METHODS
+
 from dataclasses import asdict, dataclass, replace
 from typing import Any
 from time import perf_counter
@@ -20,9 +22,6 @@ from simulation.runner import simulate
 from ._trajectory_distances import particle_distances
 from ._validation import integer_ratio
 from .reference_trajectory import potential_fingerprint
-
-
-METHODS = ("BM4Implicit", "RK4")
 
 
 @dataclass(frozen=True)
@@ -58,16 +57,6 @@ class GCEnergyBoundConfig:
                 raise ValueError(f"{name} must be an integer >= {minimum}.")
 
 
-@dataclass
-class GCEnergyBoundResult:
-    """Every accepted node and independently auditable summary records."""
-
-    arrays: dict[str, np.ndarray]
-    metadata: dict[str, Any]
-    summary: list[dict[str, Any]]
-    envelopes: list[dict[str, Any]]
-    blocks: list[dict[str, Any]]
-    orders: list[dict[str, Any]]
 
 
 def time_rms(values: np.ndarray, times: np.ndarray) -> float:

@@ -82,8 +82,8 @@ saved study metadata as before.
 Remote execution accepts NumPy/SciPy and JAX CPU jobs. JAX requires a deployment
 that installs the optional dependency and enables float64 before importing JAX;
 select it explicitly with `options=ExecutionOptions(backend="jax", device="cpu")`.
-GPU jobs are rejected before submission. Methods must have `progress=False`
-and `step_observer=None`; this prevents local callbacks being silently moved
+GPU jobs are rejected before submission. Methods must have `progress=False`,
+`step_observer=None` and `newton_observer=None`; this prevents local callbacks being silently moved
 to another machine. Configured method instances are accepted, while initialized
 or completed run instances are rejected. Numerical algorithms and the default
 local/JAX execution paths are unchanged.

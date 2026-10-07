@@ -2,39 +2,10 @@
 
 from __future__ import annotations
 
-from typing import NamedTuple
-
 import numpy as np
 
-from .base import PackedStateLayout, StateConfiguration
-
-
-class GCState(NamedTuple):
-	"""Guiding-centre coordinates with matching particle/sample dimensions.
-
-	Each field has shape ``(N, *sample_axes)``: axis zero identifies the
-	particle (or contour vertex) and trailing axes identify solution samples.
-	"""
-
-	x: np.ndarray
-	y: np.ndarray
-
-
-class GCStateLayout(PackedStateLayout):
-	"""Interpret packed guiding-centre coordinates in ``[x, y]`` order."""
-
-	__slots__ = ()
-	state_dimension = 2
-
-	def split(self, state: np.ndarray) -> GCState:
-		"""Return named ``x`` and ``y`` blocks, preserving sample axes."""
-		x, y = super().split(state)
-		return GCState(x, y)
-
-	def positions(self, state: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-		"""Return the two guiding-centre coordinate blocks."""
-		components = self.split(state)
-		return components.x, components.y
+from contracts.state_layout import GCState, GCStateLayout
+from .base import StateConfiguration
 
 
 _GC_STATE_LAYOUT = GCStateLayout()

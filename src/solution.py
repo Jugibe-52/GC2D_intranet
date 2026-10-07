@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from copy import deepcopy
 from types import MappingProxyType
 
 import numpy as np
@@ -29,14 +30,11 @@ def _readonly_array(
 def _validated_history(
 	t: np.ndarray,
 	states: np.ndarray,
-	source: InitialConfiguration,
+	layout: StateLayout,
 ) -> tuple[np.ndarray, np.ndarray]:
 	"""Own finite ``(T,)`` times and ``(state_size, T)`` states for one layout."""
-	if not isinstance(source, InitialConfiguration):
-		raise TypeError("`source` must implement InitialConfiguration.")
-	layout = source.layout
 	if not isinstance(layout, StateLayout):
-		raise TypeError("`source.layout` must implement StateLayout.")
+		raise TypeError("`layout` must implement StateLayout.")
 	times = _readonly_array(t, dtype=float)
 	state_history = _readonly_array(states)
 	if (
@@ -75,16 +73,16 @@ class Solution:
 	"""Immutable sampled physical trajectory and named numerical diagnostics.
 
 	``t`` has shape ``(saved_times,)`` and ``states`` has shape
-	``(physical_state_size, saved_times)``. ``source`` owns the initial-state
-	layout used to interpret each state column. Diagnostic arrays are copied and
-	marked read-only when the result is created.
+	``(physical_state_size, saved_times)``. ``source`` preserves initial-condition
+	provenance; an independent layout snapshot interprets the result. The optional
+	initial state and diagnostic arrays are copied when the result is created.
 
 	Read-only ``y``, ``trajectory``, ``n_steps``, ``k`` and ``err`` properties
 	remain available while versioned experiment notebooks migrate to canonical
 	names.
 	"""
 
-	__slots__ = ("_diagnostics", "_source", "_states", "_t")
+	__slots__ = ("_diagnostics", "_source", "_states", "_t", "_layout", "_initial_state")
 
 	def __init__(
 		self,
@@ -93,13 +91,25 @@ class Solution:
 		states: np.ndarray,
 		source: InitialConfiguration,
 		diagnostics: Mapping[str, DiagnosticValue] | None = None,
+		layout: StateLayout | None = None,
+		initial_state: np.ndarray | None = None,
 	) -> None:
 		"""Validate, own and freeze one complete physical result."""
-		times, state_history = _validated_history(t, states, source)
+		if not isinstance(source, InitialConfiguration):
+			raise TypeError("`source` must implement InitialConfiguration.")
+		layout_snapshot = deepcopy(source.layout if layout is None else layout)
+		times, state_history = _validated_history(t, states, layout_snapshot)
+		initial = source.initial_state if initial_state is None else initial_state
+		if initial is not None:
+			initial = _readonly_array(initial, dtype=float)
+			if initial.shape != (state_history.shape[0],) or not np.all(np.isfinite(initial)):
+				raise ValueError("The initial-state snapshot must match the physical history.")
 		normalized_diagnostics = _readonly_diagnostics(diagnostics)
 		self._t = times
 		self._states = state_history
 		self._source = source
+		self._layout = layout_snapshot
+		self._initial_state = initial
 		self._diagnostics = normalized_diagnostics
 
 	@property
@@ -114,8 +124,18 @@ class Solution:
 
 	@property
 	def source(self) -> InitialConfiguration:
-		"""Initial configuration that defines the physical state layout."""
+		"""Original initial configuration retained as result provenance."""
 		return self._source
+
+	@property
+	def layout(self) -> StateLayout:
+		"""Independent copy of the physical layout captured for this trajectory."""
+		return deepcopy(self._layout)
+
+	@property
+	def initial_state(self) -> np.ndarray | None:
+		"""Independent initial-state snapshot, or None for histories without one."""
+		return None if self._initial_state is None else self._initial_state.copy()
 
 	@property
 	def diagnostics(self) -> Mapping[str, DiagnosticValue]:
@@ -154,16 +174,16 @@ class Solution:
 		layout: StateLayout | None = None,
 	) -> tuple[np.ndarray, ...]:
 		"""Return physical component blocks over the complete time history."""
-		selected = self.source.layout if layout is None else layout
+		selected = self._layout if layout is None else layout
 		if not isinstance(selected, StateLayout):
 			raise TypeError("`layout` must implement StateLayout.")
-		if selected.state_dimension != self.source.layout.state_dimension:
+		if selected.state_dimension != self._layout.state_dimension:
 			raise TypeError("The supplied layout is incompatible with this solution.")
 		return selected.split(self.states)
 
 	def positions(self) -> tuple[np.ndarray, np.ndarray]:
 		"""Return both physical position histories."""
-		return self.source.layout.positions(self.states)
+		return self._layout.positions(self.states)
 
 
 __all__ = ["Solution"]

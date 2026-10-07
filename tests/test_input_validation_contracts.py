@@ -10,7 +10,6 @@ import h5py
 import numpy as np
 
 from initial_conditions.star import radial_star, ranked_radial_star
-from potential.gc2d_h5 import load_gc2d_h5_potential
 from potential.grid import Grid
 from potential.potential import Potential
 
@@ -43,9 +42,9 @@ class InputValidationContractsTests(unittest.TestCase):
 		with tempfile.TemporaryDirectory() as directory:
 			missing = Path(directory) / "missing.h5"
 			with self.assertRaisesRegex(ValueError, "`B` must be finite and non-zero"):
-				load_gc2d_h5_potential(missing, B=0.0, denoising=1)
+				Potential.load(missing, B=0.0, denoising=1)
 			with self.assertRaisesRegex(TypeError, "`denoising` must be boolean"):
-				load_gc2d_h5_potential(missing, B=1.5, denoising=1)
+				Potential.load(missing, B=1.5, denoising=1)
 
 	def test_field_selection_retains_integer_conversion_and_frozen_provenance(self) -> None:
 		with tempfile.TemporaryDirectory() as directory:
@@ -56,8 +55,8 @@ class InputValidationContractsTests(unittest.TestCase):
 				stream["freqs"] = np.asarray([0.0, 2.0])
 				stream["fields"] = np.stack((np.ones((8, 8)), np.eye(8))).astype(complex)
 				stream.attrs["scale"] = np.asarray([2.0])
-			converted = load_gc2d_h5_potential(path, B=1.5, indx=[0.9, 1.9])
-			integer = load_gc2d_h5_potential(path, B=1.5, indx=[0, 1])
+			converted = Potential.load(path, B=1.5, indx=[0.9, 1.9])
+			integer = Potential.load(path, B=1.5, indx=[0, 1])
 		np.testing.assert_array_equal(converted.mean, integer.mean)
 		np.testing.assert_array_equal(converted.modes, integer.modes)
 		self.assertFalse(converted.metadata.source_field_indices.flags.writeable)

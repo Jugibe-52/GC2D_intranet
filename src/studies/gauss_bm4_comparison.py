@@ -29,16 +29,10 @@ from contracts.request import SimulationRequest
 from solution import Solution
 from simulation.runner import simulate
 
-from ._gauss_legendre4_common import (
-	AdaptiveReference,
-	build_adaptive_reference,
-	readonly_runtime_samples,
-)
-from ._trajectory_accuracy import (
-	TrajectoryAccuracySeries,
-	accuracy_series,
-	validated_refinement_steps,
-)
+from contracts.comparison import AdaptiveReference
+from ._gauss_legendre4_common import (build_adaptive_reference, readonly_runtime_samples)
+from contracts.comparison import TrajectoryAccuracySeries
+from ._trajectory_accuracy import (accuracy_series, validated_refinement_steps)
 
 
 GAUSS_BM4_METHODS: tuple[str, ...] = ("GaussLegendre4", "BM4Implicit")

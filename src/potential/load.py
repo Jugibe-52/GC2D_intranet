@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from os import PathLike
 from pathlib import Path
 from types import MappingProxyType
-from typing import TYPE_CHECKING, Any, Literal
+from typing import Any, Literal
 
 import h5py
 import numpy as np
@@ -25,10 +25,6 @@ from scipy import ndimage
 from .grid import Grid, _validate_periodic_sizes
 from ._periodic_spline import _build_periodic_spline
 from .prepared import _readonly_array
-
-if TYPE_CHECKING:
-	from .potential import Potential
-
 
 DEFAULT_CHARACTERISTIC_LENGTH = 0.06
 SpatialNormalization = Literal["characteristic_length", "unit_box"]
@@ -287,124 +283,6 @@ def _resample_fields(
 	return x_resampled, y_resampled, resampled_mean, resampled_modes
 
 
-def load_gc2d_h5_potential(
-	filename: str | PathLike[str],
-	*,
-	B: float = 1.5,
-	characteristic_length: float = DEFAULT_CHARACTERISTIC_LENGTH,
-	characteristic_frequency: float | None = None,
-	indx: int | Sequence[int] | np.ndarray | None = (0, 1),
-	nx: int | None = None,
-	ny: int | None = None,
-	denoising: bool = False,
-	sigma: float = 1.0,
-	interpolation_order: int = 3,
-	spatial_normalization: SpatialNormalization = "characteristic_length",
-) -> Potential:
-	"""Load a GC2D HDF5 field set and prepare it for runtime evaluation.
-
-	The source file must contain one-dimensional ``Rcells`` and ``Zcells``
-	coordinate datasets, a one-dimensional ``freqs`` dataset, and a ``fields``
-	dataset with shape ``(len(freqs), len(Zcells), len(Rcells))``. A field whose
-	frequency is numerically zero is interpreted as the time-independent mean
-	potential. Strictly positive-frequency fields are the complex coefficients of
-	the oscillatory potential; negative-frequency fields are omitted because their
-	contribution is supplied by taking twice the real part during reconstruction.
-
-	The loader performs the following operations, in order:
-
-	1. Validate the physical scales and the uniformly spaced source axes.
-	2. Use the first zero-frequency field as the mean potential, when present.
-	3. Discard zero and negative frequencies from the mode collection.
-	4. Sort the positive-frequency fields by decreasing spatial peak-to-peak
-	   range. The public ``indx`` selectors refer to this sorted collection, not
-	   to the original positions in the HDF5 ``fields`` dataset.
-	5. Choose the characteristic frequency, normalize the fields and frequencies,
-	   and map the physical coordinates to the selected runtime coordinates.
-	6. Apply ``indx``, optional Gaussian denoising, and optional periodic
-	   resampling before constructing interpolation splines.
-
-	Parameters
-	----------
-	filename:
-		Path to the source HDF5 file.
-	B:
-		Finite, non-zero magnetic-field scale used in the potential normalization.
-		Its sign is retained. The default is ``1.5``.
-	characteristic_length:
-		Positive physical length ``lambda`` represented by ``2*pi`` in runtime
-		coordinates. It must use the same length units as ``Rcells`` and ``Zcells``.
-		The coordinate mapping is ``x_hat = 2*pi*(R-Rcells[0])/lambda`` and
-		``y_hat = 2*pi*(Z-Zcells[0])/lambda``. The default is ``0.06``.
-	characteristic_frequency:
-		Optional positive source angular frequency ``omega0``. When omitted, the
-		frequency of the first mode after amplitude sorting is used. Runtime
-		frequencies are ``omega_j/omega0`` and the corresponding physical period is
-		``T0 = 2*pi/omega0``.
-	indx:
-		Field selectors in the loader's public convention. ``0`` selects the mean;
-		``1`` selects the largest retained mode; ``2`` selects the next one,
-		and so forth. The default ``(0, 1)`` selects the mean and dominant
-		mode. ``None`` selects the mean and every retained mode. The
-		order and repetitions in an explicit selector are preserved.
-	nx, ny:
-		Optional output grid sizes. Supply both to periodically resample every
-		selected field, or leave both as ``None`` to retain the source resolution.
-		The resampled cell does not duplicate its periodic upper endpoint.
-	denoising:
-		If true, apply a Gaussian filter before optional resampling. Complex
-		modes are filtered component-wise so that their real and imaginary
-		parts remain separate.
-	sigma:
-		Non-negative standard deviation passed to the Gaussian filter. It is
-		expressed in grid-sample units and is ignored when ``denoising`` is false.
-	interpolation_order:
-		Degree of the periodic rectangular splines used for resampling and runtime
-		evaluation.
-	spatial_normalization:
-		Runtime coordinate convention. ``"characteristic_length"`` maps one
-		physical characteristic length to ``2*pi``. ``"unit_box"`` maps the
-		complete sampled period of each source axis to ``1``. The default is
-		``"characteristic_length"``.
-
-	Returns
-	-------
-	Potential
-		A dimensionless, periodically interpolated potential. It evaluates
-
-		``Phi_hat(t_hat, x_hat, y_hat) = Phi_hat_0 +``
-		``2*Re(sum_j(C_hat_j*exp(i*2*pi*f_hat_j*t_hat)))``.
-
-		The object retains the original axes, frequencies, HDF5 field indices,
-		attributes, source path, and normalization scales for provenance.
-
-	Notes
-	-----
-	The mean and modes are divided by
-	``normalization_factor = omega0*lambda**2*B/(2*pi)**2``. Equivalently,
-	``Phi_hat = (2*pi)**2*Phi/(omega0*lambda**2*B)``. If the source has no
-	positive-frequency fields and no explicit ``characteristic_frequency``, the
-	normalization factor remains one because no temporal scale can be inferred.
-	"""
-	# Resolve the runtime class only at construction time: the data preparation
-	# module must also be importable by Potential without a circular import.
-	from .potential import Potential
-
-	return Potential.from_gc2d_h5(
-		filename,
-		B=B,
-		characteristic_length=characteristic_length,
-		characteristic_frequency=characteristic_frequency,
-		indx=indx,
-		nx=nx,
-		ny=ny,
-		denoising=denoising,
-		sigma=sigma,
-		interpolation_order=interpolation_order,
-		spatial_normalization=spatial_normalization,
-	)
-
-
 def _validated_import_controls(
 	B: float,
 	characteristic_length: float,
@@ -453,7 +331,7 @@ def _validated_field_selection(
 	return selected
 
 
-def _load_gc2d_h5_data(
+def _load_data(
 	filename: str | PathLike[str],
 	*,
 	B: float,
@@ -647,5 +525,4 @@ __all__ = [
 	"DEFAULT_CHARACTERISTIC_LENGTH",
 	"GC2DH5Metadata",
 	"SpatialNormalization",
-	"load_gc2d_h5_potential",
 ]

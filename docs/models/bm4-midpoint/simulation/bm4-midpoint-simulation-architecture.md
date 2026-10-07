@@ -377,3 +377,19 @@ the field fingerprint, scientific settings and aligned cycle times. The eight
 gap probes have IDs 41–48, with two positions per gap selected at rho=0.30 and
 reused for all eleven rho values. See the
 [batch and persistence protocol](../../../simulation/modal-execution.md#additional-particles-inside-saved-poincare-gaps).
+
+## Initial-state ownership
+
+`InitialValueProblem` captures the validated physical state, particle count, and
+independent layout at construction. A later edit to the original initial-state
+provider does not change this run's formulation. Physical layouts are owned by
+`contracts.state_layout`; compatible external providers need no inheritance from
+initial-condition classes. Built-in dynamics keep their physical parameters
+immutable. See the shared [layout and ownership contract](../../../dynamics/protocols.md#physical-layouts-and-problem-ownership).
+
+## Compiled fixed-step contract
+
+Fixed-step methods inherit `CompiledFixedMethod` and provide a JAX adapter that
+returns `contracts.compiled.CompiledStep`. The shared `integration/jax_fixed.py`
+loop knows no concrete numerical method; each method owns its compiled stages
+and statistics. See [JAX execution](../../../simulation/jax-execution.md).

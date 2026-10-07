@@ -2,16 +2,14 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from contracts.comparison import EnergyAccuracySeries
 import numpy as np
 
 from initial_conditions.gc import GCInitialConfiguration
 from solution import Solution
 from ._gauss_legendre4_common import readonly_runtime_samples
-from ._trajectory_accuracy import TrajectoryAccuracySeries
+from contracts.comparison import TrajectoryAccuracySeries
 
-if TYPE_CHECKING:
-	from .three_method_newton_comparison import EnergyAccuracySeries
 
 
 def validate_comparison_solution(

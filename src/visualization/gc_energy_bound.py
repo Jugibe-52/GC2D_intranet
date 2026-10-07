@@ -1,6 +1,5 @@
 """Plots of physical accuracy, extended balance, temporal envelopes and cost."""
 
-from types import SimpleNamespace
 from typing import Any
 
 import numpy as np
@@ -8,7 +7,7 @@ import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
 from matplotlib.animation import FuncAnimation
 
-from studies.gc_energy_bound import GCEnergyBoundResult, METHODS
+from contracts.study_results import GCEnergyBoundResult, GC_ENERGY_BOUND_METHODS as METHODS
 from .notebooks import display_records_table
 
 COLORS = {"BM4Implicit": "#007F86", "RK4": "#C95132", "DOP853": "#333F55"}
@@ -16,7 +15,7 @@ COLORS = {"BM4Implicit": "#007F86", "RK4": "#C95132", "DOP853": "#333F55"}
 
 def show_energy_table(rows: list[dict[str, Any]], columns: tuple[str, ...]) -> None:
     """Display selected records with scientific notation for nonzero small errors."""
-    prepared = [SimpleNamespace(**{key: row.get(key) for key in columns}) for row in rows]
+    prepared = [{key: row.get(key) for key in columns} for row in rows]
     formatted = tuple((key, key.replace("_", " "),
                        ".5e" if all(isinstance(row.get(key), (float, np.floating)) for row in rows) else None)
                       for key in columns)

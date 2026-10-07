@@ -16,7 +16,7 @@ from dynamics.gc import GuidingCenterDynamics
 from execution.execution import Execution
 from initial_conditions.gc import GCInitialConfiguration
 from methods.extended.bm4 import BM4Midpoint
-from potential import Potential, load_gc2d_h5_potential
+from potential import Potential
 from simulation.runner import simulate
 from studies.dimensional_h5_midpoint import resolve_h5_source
 
@@ -134,7 +134,7 @@ def prepare_radial_cycle(source, baseline_metadata, config):
         source_sha = file_digest(handle, "sha256").hexdigest()
     if source_sha != baseline["field_provenance"]["source_hdf5_sha256"]:
         raise ValueError("Original HDF5 checksum mismatch.")
-    potential = load_gc2d_h5_potential(
+    potential = Potential.load(
         source, B=config.magnetic_field, characteristic_length=config.characteristic_length,
         indx=config.source_selection, interpolation_order=config.interpolation_order,
     )

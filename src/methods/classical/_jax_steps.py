@@ -10,14 +10,15 @@ import jax
 import jax.numpy as jnp
 
 from dynamics._jax import JaxDynamics
-from methods._jax_common import MethodOptions, newton, particle_finite_difference, solve_particle_blocks
+from methods._jax_common import newton, particle_finite_difference, solve_particle_blocks
+from methods._jax_options import ExplicitOptions, ImplicitOptions, NonlinearOptions
 from methods.classical._rk4_core import physical_step, momentum_increment
 from methods.classical.gauss_legendre import _GAUSS_MATRIX, _GAUSS_NODES
 from methods.classical.sdirk import SDIRK4_TABLEAU_A, SDIRK4_TABLEAU_B, SDIRK4_TABLEAU_C
 from methods.hbvm.order4 import _HBVM42_NODES, _HBVM42_WEIGHTS, _HBVM42_LEGENDRE, _HBVM42_INTEGRALS
 
 
-def field_jacobian(dynamics: JaxDynamics, time: Any, state: Any, options: MethodOptions) -> Any:
+def field_jacobian(dynamics: JaxDynamics, time: Any, state: Any, options: NonlinearOptions) -> Any:
     """Honor analytic or finite-difference selection without a dense N² matrix."""
     if options.jacobian == 'analytic':
         return dynamics.particle_jacobians(time, state)
@@ -36,9 +37,9 @@ def coupled_matrix(jacobians: Any, coefficients: Any, step: Any) -> Any:
 
 
 def gauss_step(time: Any, state: Any, step: Any, dynamics: JaxDynamics,
-               options: MethodOptions) -> tuple[Any, Any, dict[str, Any], Any]:
+               options: ImplicitOptions) -> tuple[Any, Any, dict[str, Any], Any]:
     """Two coupled collocation stages and their accepted physical quadrature."""
-    tolerance = options.tolerance(state)
+    tolerance = options.solve.tolerance(state)
     nodes = jnp.asarray(_GAUSS_NODES)
     matrix = jnp.asarray(_GAUSS_MATRIX)
     guess = state + step * nodes[:, None] * dynamics.vector_field(time, state)
@@ -47,9 +48,9 @@ def gauss_step(time: Any, state: Any, step: Any, dynamics: JaxDynamics,
         residual = stages - state - step * (matrix @ fields)
         return residual, fields
     def correction(stages: Any, residual: Any, fields: Any) -> Any:
-        jacobians = jax.vmap(lambda t, z: field_jacobian(dynamics, t, z, options))(time + step * nodes, stages)
+        jacobians = jax.vmap(lambda t, z: field_jacobian(dynamics, t, z, options.solve))(time + step * nodes, stages)
         return solve_particle_blocks(coupled_matrix(jacobians, matrix, step), -residual)
-    root = newton(evaluate, guess, correction, tolerance, options.max_iterations)
+    root = newton(evaluate, guess, correction, tolerance, options.solve.max_iterations)
     after = state + step * .5 * (root.payload[0] + root.payload[1])
     increment = jnp.zeros(state.size // dynamics.dimension)
     if options.track_energy:
@@ -62,9 +63,9 @@ def gauss_step(time: Any, state: Any, step: Any, dynamics: JaxDynamics,
 
 
 def sdirk_step(time: Any, state: Any, step: Any, dynamics: JaxDynamics,
-               options: MethodOptions) -> tuple[Any, Any, dict[str, Any], Any]:
+               options: ImplicitOptions) -> tuple[Any, Any, dict[str, Any], Any]:
     """Five sequential S54b solves with batched particle Newton corrections."""
-    tolerance = options.tolerance(state)
+    tolerance = options.solve.tolerance(state)
     a, b, c = map(jnp.asarray, (SDIRK4_TABLEAU_A, SDIRK4_TABLEAU_B, SDIRK4_TABLEAU_C))
     initial_field = dynamics.vector_field(time, state)
     count = state.size // dynamics.dimension
@@ -78,9 +79,9 @@ def sdirk_step(time: Any, state: Any, step: Any, dynamics: JaxDynamics,
             field = dynamics.vector_field(stage_time, z)
             return z - rhs - step * .25 * field, field
         def correction(z: Any, residual: Any, field: Any) -> Any:
-            matrix = identity - step * .25 * field_jacobian(dynamics, stage_time, z, options)
+            matrix = identity - step * .25 * field_jacobian(dynamics, stage_time, z, options.solve)
             return solve_particle_blocks(matrix, -residual)
-        root = newton(evaluate, guess, correction, tolerance, options.max_iterations)
+        root = newton(evaluate, guess, correction, tolerance, options.solve.max_iterations)
         fields = fields.at[index].set(root.payload)
         return (fields, valid & root.converged), (root.unknown, root.iterations, root.evaluations, root.norm)
     (fields, valid), (stages, iterations, evaluations, norms) = jax.lax.scan(
@@ -99,7 +100,7 @@ def sdirk_step(time: Any, state: Any, step: Any, dynamics: JaxDynamics,
 
 
 def hbvm_step(time: Any, state: Any, step: Any, dynamics: JaxDynamics,
-              options: MethodOptions) -> tuple[Any, Any, dict[str, Any], Any]:
+              options: ImplicitOptions) -> tuple[Any, Any, dict[str, Any], Any]:
     """Rank-two Legendre solve, preserving HBVM's matrix norm and damping."""
     nodes, weights, legendre, integrals = map(jnp.asarray, (
         _HBVM42_NODES, _HBVM42_WEIGHTS, _HBVM42_LEGENDRE, _HBVM42_INTEGRALS))
@@ -107,7 +108,7 @@ def hbvm_step(time: Any, state: Any, step: Any, dynamics: JaxDynamics,
     predicted = state + step * nodes[:, None] * dynamics.vector_field(time, state)
     fields = jax.vmap(dynamics.vector_field)(stage_times, predicted)
     guess = legendre.T @ (weights[:, None] * fields)
-    tolerance = options.tolerance(state)
+    tolerance = options.solve.tolerance(state)
     def evaluate(coefficients: Any) -> Any:
         stages = state + step * (integrals @ coefficients)
         fields = jax.vmap(dynamics.vector_field)(stage_times, stages)
@@ -115,7 +116,7 @@ def hbvm_step(time: Any, state: Any, step: Any, dynamics: JaxDynamics,
         return coefficients - projected, (stages, projected)
     def correction(coefficients: Any, residual: Any, payload: Any) -> Any:
         stages, _ = payload
-        jacobians = jax.vmap(lambda t, z: field_jacobian(dynamics, t, z, options))(stage_times, stages)
+        jacobians = jax.vmap(lambda t, z: field_jacobian(dynamics, t, z, options.solve))(stage_times, stages)
         identity = jnp.broadcast_to(jnp.eye(dynamics.dimension), jacobians.shape[1:])
         rows = []
         for i in range(2):
@@ -126,7 +127,7 @@ def hbvm_step(time: Any, state: Any, step: Any, dynamics: JaxDynamics,
             rows.append(jnp.concatenate(row, axis=-1))
         return solve_particle_blocks(jnp.concatenate(rows, axis=-2), -residual)
     # CPU HBVM uses ||R||_infinity on its (2, state_size) coefficient matrix.
-    root = newton(evaluate, guess, correction, tolerance, options.max_iterations,
+    root = newton(evaluate, guess, correction, tolerance, options.solve.max_iterations,
                   norm=lambda r: jnp.max(jnp.sum(jnp.abs(r), axis=1)), backtracking=True)
     stages, projected = root.payload
     after = state + step * projected[0]
@@ -134,35 +135,31 @@ def hbvm_step(time: Any, state: Any, step: Any, dynamics: JaxDynamics,
     if options.track_energy:
         rates = jax.vmap(dynamics.momentum_rate)(stage_times, stages)
         increment = step * sum(weights[k] * rates[k] for k in range(4))
-    fd_calls = 8 * dynamics.dimension * root.iterations if options.jacobian == 'finite_difference' else 0
+    fd_calls = 8 * dynamics.dimension * root.iterations if options.solve.jacobian == 'finite_difference' else 0
     return after, increment, {
         'nonlinear_iterations': root.iterations, 'nonlinear_residual_norms': root.norm,
-        'nonlinear_tolerances': tolerance, 'residual_evaluations_per_step': root.evaluations,
+        'nonlinear_tolerances': tolerance, 'residual_evaluations': root.evaluations,
+        'residual_evaluations_per_step': root.evaluations,
         'jacobian_evaluations_per_step': root.iterations,
         'vector_field_evaluations_per_step': 5 + 4 * root.evaluations + fd_calls,
     }, root.converged
 
 
-def classical_step(time: Any, state: Any, step: Any, dynamics: JaxDynamics,
-                   options: MethodOptions) -> tuple[Any, Any, dict[str, Any], Any]:
-    """Dispatch on a static method identity, with no branches at runtime."""
-    if options.name == 'GaussLegendre4':
-        return gauss_step(time, state, step, dynamics, options)
-    if options.name == 'SDIRK4':
-        return sdirk_step(time, state, step, dynamics, options)
-    if options.name == 'HBVM42':
-        return hbvm_step(time, state, step, dynamics, options)
-    increment = jnp.zeros(state.size // dynamics.dimension)
-    if options.name == 'RK4':
-        after, stages = physical_step(dynamics.vector_field, time, state, step)
-        if options.track_energy:
-            increment = momentum_increment(dynamics.momentum_rate, time, step, stages)
-    elif options.name == 'ExplicitEuler':
-        after = state + step * dynamics.vector_field(time, state)
-        if options.track_energy:
-            increment = step * dynamics.momentum_rate(time, state)
-    else:
-        raise TypeError('Unsupported classical JAX method.')
+def rk4_step(time: Any, state: Any, step: Any, dynamics: JaxDynamics,
+             options: ExplicitOptions) -> tuple[Any, Any, dict[str, Any], Any]:
+    """Apply the shared RK4 map and its optional passive quadrature."""
+    after, stages = physical_step(dynamics.vector_field, time, state, step)
+    increment = (momentum_increment(dynamics.momentum_rate, time, step, stages)
+                 if options.track_energy else jnp.zeros(state.size // dynamics.dimension))
+    return after, increment, {}, jnp.array(True)
+
+
+def euler_step(time: Any, state: Any, step: Any, dynamics: JaxDynamics,
+               options: ExplicitOptions) -> tuple[Any, Any, dict[str, Any], Any]:
+    """Apply the physical Euler map with the same initial-stage energy rate."""
+    after = state + step * dynamics.vector_field(time, state)
+    increment = (step * dynamics.momentum_rate(time, state)
+                 if options.track_energy else jnp.zeros(state.size // dynamics.dimension))
     return after, increment, {}, jnp.array(True)
 
 

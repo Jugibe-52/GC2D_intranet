@@ -7,7 +7,7 @@ from pathlib import Path
 from diagnostics.bm4_comparison import load_bm4_comparison, save_bm4_comparison
 from diagnostics import load_reference_trajectory
 from diagnostics.paths import find_project_root
-from potential import load_gc2d_h5_potential
+from potential import Potential
 from studies.bm4_projection_comparison import (
 	BM4ProjectionComparisonConfig, radial_configuration, run_bm4_projection_comparison,
 	audit_saved_reference_refinement,
@@ -31,7 +31,7 @@ def main() -> None:
 		output = root / "notebooks/developements/bm4_projection_comparison/standard_t35"
 	source = root / "data/potential/V1/PHI_2.h5"
 	potential_parameters = dict(B=1.5, characteristic_length=0.06, indx=(0, 1), interpolation_order=3)
-	potential = load_gc2d_h5_potential(source, **potential_parameters)
+	potential = Potential.load(source, **potential_parameters)
 	if args.render_only:
 		arrays, metadata = load_bm4_comparison(output / "results.npz")
 	elif args.standard_reference:
