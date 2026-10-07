@@ -1,0 +1,3 @@
+interface:
+  display_name: "Review Lines"
+  short_description: "Explain selected lines and suggest small improvements"

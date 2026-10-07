@@ -13,6 +13,21 @@
   pauses or cancels it. Follow-up questions do not expand its scope; new
   implementation tasks require their own `implements:` prefix.
 
+## Project memory
+
+- Read the repository-root `MEMORY.md` before starting project work and apply
+  the entries relevant to the current task. Verify potentially stale facts
+  against the current code; memory does not override explicit user instructions
+  or these repository guidelines.
+- Use the `memory` skill at `.agents/skills/memory/SKILL.md` to preserve confirmed
+  reusable development patterns, decisions, and corrections learned during an
+  authorized implementation. In consultation mode, propose memory updates
+  without writing them; invoking the skill alone does not authorize changes.
+- Keep `MEMORY.md` at no more than 300 total lines, including headings and blank
+  lines. Consolidate duplicates, summarize, and remove obsolete information
+  before saving an update that would exceed this limit. Keep entries in English
+  and avoid duplicating the rules in this file.
+
 ## Project Structure & Module Organization
 
 GC2D simulates particle trajectories in time-dependent electrostatic potentials.

@@ -91,3 +91,26 @@ and retain every applicable control and diagnostic below.
   trajectory error, smallest space-time RMS physical-energy error, least total
   Newton work, and smallest peak projection-multiplier norm, and summarize the
   SDIRK4 and classical-RK4 long-time results explicitly.
+
+## Scalar validation in potential imports
+
+In `src/potential/load.py`, prefer named scalar validators to keep
+`_validated_import_controls` consistent in abstraction level, even with a single
+caller. Required positive scales should use a validator returning `float`;
+avoid an optional validator followed by `assert`.
+
+## HDF5 coordinate convention
+
+`Potential.load` uses only `2*pi*(X-X0)/characteristic_length`; the loader's
+spatial-mode argument and `SpatialNormalization` type are removed. Keep the
+length configurable: a 0.18 m cell at length 0.06 m has period `6*pi`.
+`RhoStarConfig.spatial_normalization` is a separate study setting: dimensional
+studies restore meters after loading, and folded unit-cell viewers transform
+results afterward. See `docs/dynamics/gc2d-h5-import.md` for archive migration.
+
+## Optional HDF5 smoothing
+
+`Potential.load` uses `sigma=None` to disable Gaussian smoothing; a finite
+non-negative width enables it in grid samples (zero leaves fields unchanged).
+The separate `denoising` argument is removed. Migrate disabled calls to
+`sigma=None` and enabled calls to their previous width (formerly default `1.0`).

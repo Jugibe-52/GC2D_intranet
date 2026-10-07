@@ -42,9 +42,11 @@ class InputValidationContractsTests(unittest.TestCase):
 		with tempfile.TemporaryDirectory() as directory:
 			missing = Path(directory) / "missing.h5"
 			with self.assertRaisesRegex(ValueError, "`B` must be finite and non-zero"):
-				Potential.load(missing, B=0.0, denoising=1)
-			with self.assertRaisesRegex(TypeError, "`denoising` must be boolean"):
-				Potential.load(missing, B=1.5, denoising=1)
+				Potential.load(missing, B=0.0, sigma=-1.0)
+			for sigma in (-1.0, np.nan, np.inf, -np.inf):
+				with self.subTest(sigma=sigma):
+					with self.assertRaisesRegex(ValueError, "`sigma` must be finite and non-negative"):
+						Potential.load(missing, B=1.5, sigma=sigma)
 
 	def test_field_selection_retains_integer_conversion_and_frozen_provenance(self) -> None:
 		with tempfile.TemporaryDirectory() as directory:

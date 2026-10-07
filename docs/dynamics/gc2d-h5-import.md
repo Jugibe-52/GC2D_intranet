@@ -56,7 +56,6 @@ from potential import Potential
 potential = Potential.load(
     "data/potential/V1/PHI_2.h5",
     characteristic_length=0.06,
-    spatial_normalization="unit_box",
     interpolation_order=3,
 )
 ```
@@ -78,10 +77,8 @@ The HDF5 class method accepts the following options:
 | `characteristic_frequency` | `None` | Positive source angular frequency `omega0=2*pi/T0`; the dominant sorted mode is used when omitted. |
 | `indx` | `(0, 1)` | Selected mean and mode indices after amplitude ordering. |
 | `nx`, `ny` | `None` | Optional target sizes for periodic resampling. They must be supplied together. |
-| `denoising` | `False` | Enables Gaussian filtering before optional resampling. |
-| `sigma` | `1.0` | Non-negative standard deviation used by the Gaussian filter. |
+| `sigma` | `None` | Gaussian standard deviation in grid samples on each axis; `None` disables filtering, and finite non-negative values enable it before resampling. |
 | `interpolation_order` | `3` | Spatial spline degree, restricted to values from 2 to 5. |
-| `spatial_normalization` | `"characteristic_length"` | Runtime coordinate mode: characteristic-length scaling or a unit spatial box. |
 
 `indx` uses the GC2D HDF5 selection semantics:
 
@@ -124,9 +121,7 @@ Before opening the file, the loader requires:
 - finite, non-zero `B`;
 - finite, positive `characteristic_length`;
 - finite, positive `characteristic_frequency` when explicitly supplied;
-- a Boolean `denoising` value;
-- finite, non-negative `sigma`;
-- `spatial_normalization` equal to `"characteristic_length"` or `"unit_box"`.
+- `sigma=None` or a finite, non-negative Gaussian width.
 
 The interpolation order is validated later, when resampling or constructing
 the runtime potential, and must be an integer from 2 to 5.
@@ -168,19 +163,18 @@ f_hat_j = omega_j/omega0
 Phi_hat = (2*pi)**2*Phi/(omega0*lambda**2*B)
 ```
 
-This is the default `spatial_normalization="characteristic_length"` coordinate
-mode. With `spatial_normalization="unit_box"`, the potential values and temporal
-normalization are unchanged, while each complete sampled source period is
-mapped independently to one:
+Characteristic-length scaling is the only HDF5 coordinate convention. Both
+axes start at zero and use the same factor `2*pi/lambda`; a complete source
+period `P` becomes `2*pi*P/lambda`, which equals `2*pi` only when `P=lambda`.
+The loader does not infer `lambda` from the source cell size. Spatial derivatives
+and gyroaverage radii use these dimensionless runtime coordinates.
 
-```text
-x_unit = (x - x[0])/(len(x)*dx)
-y_unit = (y - y[0])/(len(y)*dy)
-```
-
-The periodic runtime axes then lie in `[0, 1)` and both use a period of `1`.
-Spatial derivatives and gyroaverage radii are expressed in the selected runtime
-coordinate convention.
+The `spatial_normalization` argument and metadata field, the `SpatialNormalization`
+export, and the `unit_box` loading mode have been removed. Existing calls that
+explicitly selected `"characteristic_length"` should omit that keyword. Consumers
+of the former `unit_box` mode must adapt coordinates, radii and any Hamiltonian
+scaling to the characteristic-length convention. A unit-cell display can still
+be constructed as postprocessing, without changing integration coordinates.
 
 The implementation retains a divisor-style provenance value,
 
@@ -211,12 +205,15 @@ order is preserved. Runtime `frequencies`, dimensional `source_frequencies`,
 
 ### 6. Apply optional denoising
 
-When `denoising=True`, `scipy.ndimage.gaussian_filter` is applied to:
+When `sigma` is not `None`, `scipy.ndimage.gaussian_filter` is applied to:
 
 - the real mean field, when present;
 - the real and imaginary parts of each mode separately.
 
 Denoising takes place after normalization and selection but before resampling.
+A width of zero leaves the fields unchanged. The `denoising` argument has been
+removed: migrate `denoising=False` to `sigma=None`, and `denoising=True` to
+`sigma=1.0` (or the previously supplied width).
 
 ### 7. Apply optional resampling
 
@@ -248,9 +245,17 @@ provenance information:
 - characteristic length, frequency, and period;
 - original HDF5 field indices;
 - normalization factor;
-- spatial normalization mode;
 - root attributes;
 - source path.
+
+New saved-solution archives omit the redundant spatial-mode field from HDF5
+provenance. The archive reader accepts older provenance explicitly marked
+`"characteristic_length"` and removes that redundant marker when reconstructing
+metadata. It rejects older `"unit_box"` provenance with a migration error; those
+results must be regenerated with the supported convention rather than relabeled.
+Old pickled metadata containing the removed constructor argument must likewise
+be regenerated. Other experiment metadata, including a study's own coordinate
+representation, is retained.
 
 It then constructs the common `Potential` from the processed runtime arrays,
 the single metadata value, and the interpolation order:
@@ -291,10 +296,9 @@ The common representation provides the following behavior:
 - runtime interpolation is periodic for every potential origin.
 
 The associated `Grid` period is the complete runtime source-box length. In the
-default coordinate mode it is not necessarily `2*pi`; for the primary file and
-default characteristic length, the period is `6*pi` because the `0.18` source
-box contains three characteristic lengths of `0.06`. In `"unit_box"` mode the
-period is exactly `1` on both axes.
+characteristic-length convention it is not necessarily `2*pi`; for the primary
+file and default characteristic length, the period is `6*pi` because the `0.18`
+source box contains three characteristic lengths of `0.06`.
 
 ## Time reconstruction and derivatives
 

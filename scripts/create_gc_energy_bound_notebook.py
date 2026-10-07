@@ -194,7 +194,7 @@ code('''
 potential = Potential.load(
     H5_PATH, B=MAGNETIC_FIELD, characteristic_length=CHARACTERISTIC_LENGTH,
     indx=FIELD_INDICES, interpolation_order=INTERPOLATION_ORDER,
-    nx=None, ny=None, denoising=False, spatial_normalization="characteristic_length",
+    nx=None, ny=None, sigma=None,
 )
 configuration = radial_gc_configuration(
     potential, radial_fractions=(INITIAL_RADIUS_FRACTION,), angle=INITIAL_ANGLE,

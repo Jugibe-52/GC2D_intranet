@@ -246,6 +246,13 @@ def load_solution(source: str | Path) -> StoredSolution:
             provenance = field["provenance"]
             with np.load(directory / "potential.npz", allow_pickle=False) as saved:
                 if field["provenance_kind"] == "gc2d_h5":
+                    # Older archives recorded the loader's coordinate choice.
+                    # Only the characteristic-length convention is supported now.
+                    if provenance.pop("spatial_normalization", "characteristic_length") != "characteristic_length":
+                        raise ValueError(
+                            "Legacy HDF5 spatial_normalization is unsupported; regenerate "
+                            "the result using characteristic-length coordinates."
+                        )
                     if provenance["source_path"] is not None:
                         provenance["source_path"] = Path(provenance["source_path"])
                     provenance["attributes"] = {

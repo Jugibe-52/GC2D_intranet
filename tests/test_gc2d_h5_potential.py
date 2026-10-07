@@ -173,34 +173,29 @@ class GC2DH5ImportTests(unittest.TestCase):
 		self.assertIsInstance(potential.metadata, GC2DH5Metadata)
 		self.assertTrue(np.all(np.isfinite(potential.evaluate_grid(0.37))))
 
-	def test_unit_box_spatial_normalization_maps_both_periods_to_one(self) -> None:
-		"""Map the complete source box to a unit period on both spatial axes."""
-		potential = Potential.load(
-			self.path,
-			characteristic_length=self.characteristic_length,
-			spatial_normalization="unit_box",
-		)
+	def test_characteristic_length_sets_scale_independently_of_cell_period(self) -> None:
+		"""One third of the source period produces a 6*pi cell, preserving physical fields."""
+		reference = Potential.load(self.path, characteristic_length=self.characteristic_length)
+		length_scale = self.characteristic_length / 3.0
+		potential = Potential.load(self.path, characteristic_length=length_scale)
 
-		self.assertEqual(potential.grid.period, 1.0)
-		np.testing.assert_allclose(potential.grid.x, np.arange(6) / 6.0)
-		np.testing.assert_allclose(potential.grid.y, np.arange(6) / 6.0)
+		self.assertAlmostEqual(reference.grid.period, 2.0 * np.pi)
+		self.assertAlmostEqual(potential.grid.period, 6.0 * np.pi)
+		np.testing.assert_allclose(potential.grid.x, 3.0 * self.runtime_x)
+		np.testing.assert_allclose(potential.grid.y, 3.0 * self.runtime_y)
 		metadata = potential.metadata
 		assert isinstance(metadata, GC2DH5Metadata)
-		self.assertEqual(metadata.spatial_normalization, "unit_box")
-
-		default_coordinates = Potential.load(
-			self.path,
-			characteristic_length=self.characteristic_length,
+		self.assertEqual(metadata.characteristic_length, length_scale)
+		self.assertNotIn("spatial_normalization", metadata.__dataclass_fields__)
+		self.assertAlmostEqual(
+			metadata.normalization_factor, reference.metadata.normalization_factor / 9.0,
 		)
-		x_unit = np.asarray([0.17, 0.63])
-		y_unit = np.asarray([0.28, 0.91])
+		np.testing.assert_array_equal(potential.frequencies, reference.frequencies)
+		x = np.asarray([0.17, 0.63]) * reference.grid.period
+		y = np.asarray([0.28, 0.91]) * reference.grid.period
 		np.testing.assert_allclose(
-			potential.evaluate(0.37, x_unit, y_unit),
-			default_coordinates.evaluate(
-				0.37,
-				x_unit * default_coordinates.grid.period,
-				y_unit * default_coordinates.grid.period,
-			),
+			potential.evaluate(0.37, 3.0 * x, 3.0 * y) * metadata.normalization_factor,
+			reference.evaluate(0.37, x, y) * reference.metadata.normalization_factor,
 		)
 
 	def test_filter_sort_selection_normalization_and_positive_phase(self) -> None:
@@ -300,6 +295,15 @@ class GC2DH5ImportTests(unittest.TestCase):
 		np.testing.assert_allclose(potential.mean, self.mean / normalization)
 		self.assertEqual(potential.frequencies.size, 0)
 
+	def test_optional_sigma_preserves_unsmoothed_fields(self) -> None:
+		"""Default, explicit None, and zero width preserve mean and complex modes."""
+		default = Potential.load(self.path)
+		for sigma in (None, 0.0):
+			with self.subTest(sigma=sigma):
+				potential = Potential.load(self.path, sigma=sigma)
+				np.testing.assert_array_equal(potential.mean, default.mean)
+				np.testing.assert_array_equal(potential.modes, default.modes)
+
 	def test_denoising_and_resampling_match_both_hdf5_interpolation_stages(self) -> None:
 		"""Keep filtering before periodic resampling of dimensionless fields."""
 		B = 2.0
@@ -311,7 +315,6 @@ class GC2DH5ImportTests(unittest.TestCase):
 			indx=(0, 1),
 			nx=8,
 			ny=8,
-			denoising=True,
 			sigma=sigma,
 			interpolation_order=3,
 		)
@@ -632,8 +635,10 @@ class GC2DH5ImportTests(unittest.TestCase):
 			Potential.load(self.path, characteristic_length=0.0)
 		with self.assertRaisesRegex(ValueError, "characteristic_frequency"):
 			Potential.load(self.path, characteristic_frequency=-1.0)
-		with self.assertRaisesRegex(ValueError, "spatial_normalization"):
-			Potential.load(self.path, spatial_normalization="source")
+		for removed_mode in ("characteristic_length", "unit_box"):
+			with self.subTest(removed_mode=removed_mode):
+				with self.assertRaisesRegex(TypeError, "spatial_normalization"):
+					Potential.load(self.path, spatial_normalization=removed_mode)
 
 
 if __name__ == "__main__":

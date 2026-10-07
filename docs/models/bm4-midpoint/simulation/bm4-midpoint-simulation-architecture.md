@@ -306,6 +306,18 @@ loads all completed values into a single folded viewer with a rho selector.
 
 ### Spatially normalized repeat
 
+HDF5 filtering is controlled by `Potential.load(..., sigma=None)`: `None`
+disables smoothing, while a finite non-negative width enables Gaussian filtering
+in grid samples. The separate `denoising` argument has been removed.
+
+The HDF5 loader always maps coordinates by `2*pi/characteristic_length`;
+it has no spatial-mode argument. The study's `RhoStarConfig.spatial_normalization`
+is a separate choice applied after `load_dimensional_h5_field` restores the
+physical source axes and amplitudes. The original rho sweep and folded radial
+study therefore continue integrating unwrapped meter coordinates. Their
+0.18 m square corresponds to a `6*pi` square at characteristic length 0.06 m;
+folding positions into `[0,1)` remains postprocessing.
+
 `RhoStarConfig.spatial_normalization="characteristic_length"` repeats the same
 physical experiment with `q = s*(X-X0)`, `s = 2*pi/characteristic_length`, where
 `X0` is the lower corner of the measured cell. The default remains `"none"`

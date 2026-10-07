@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from hashlib import sha256
 import json
 from pathlib import Path
 import shutil
@@ -102,6 +103,29 @@ class SolutionPersistenceTests(unittest.TestCase):
         for name in provenance.attributes:
             np.testing.assert_array_equal(loaded.metadata.attributes[name], provenance.attributes[name])
         np.testing.assert_array_equal(loaded.modes, field.modes)
+
+        # Reconstruct an old archive, updating its manifest as the old writer did.
+        metadata_path = location / "metadata.json"
+        description = json.loads(metadata_path.read_text())
+        self.assertNotIn("spatial_normalization", description["potential"]["provenance"])
+        manifest_path = location / "manifest.json"
+        manifest = json.loads(manifest_path.read_text())
+        for convention in ("characteristic_length", "unit_box"):
+            with self.subTest(legacy_convention=convention):
+                description["potential"]["provenance"]["spatial_normalization"] = convention
+                payload = json.dumps(description).encode("utf-8")
+                metadata_path.write_bytes(payload)
+                manifest["files"]["metadata.json"] = {"bytes": len(payload), "sha256": sha256(payload).hexdigest()}
+                manifest_path.write_text(json.dumps(manifest))
+                if convention == "unit_box":
+                    with self.assertRaisesRegex(ValueError, "spatial_normalization.*unsupported"):
+                        load_solution(location)
+                else:
+                    restored = load_solution(location).potential
+                    assert restored is not None
+                    self.assertEqual(restored.grid, field.grid)
+                    np.testing.assert_array_equal(restored.modes, field.modes)
+                    np.testing.assert_array_equal(restored.metadata.source_x, provenance.source_x)
 
     def test_no_potential_and_no_initial_configuration_state(self) -> None:
         original = self.solution()

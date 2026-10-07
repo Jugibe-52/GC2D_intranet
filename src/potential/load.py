@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from os import PathLike
 from pathlib import Path
 from types import MappingProxyType
-from typing import Any, Literal
+from typing import Any
 
 import h5py
 import numpy as np
@@ -27,7 +27,6 @@ from ._periodic_spline import _build_periodic_spline
 from .prepared import _readonly_array
 
 DEFAULT_CHARACTERISTIC_LENGTH = 0.06
-SpatialNormalization = Literal["characteristic_length", "unit_box"]
 
 
 def _validated_axis(values: Any, *, name: str) -> np.ndarray:
@@ -45,6 +44,22 @@ def _validated_axis(values: Any, *, name: str) -> np.ndarray:
 	if not np.allclose(spacing, spacing[0]):
 		raise ValueError(f"`{name}` must be uniformly spaced.")
 	return _readonly_array(axis, dtype=float)
+
+
+def _finite_positive(value: float, *, name: str) -> float:
+	"""Convert a scalar to float and require a finite positive value."""
+	number = float(value)
+	if not np.isfinite(number) or number <= 0:
+		raise ValueError(f"`{name}` must be finite and positive.")
+	return number
+
+
+def _finite_nonnegative(value: float, *, name: str) -> float:
+	"""Convert a scalar to float and require a finite non-negative value."""
+	number = float(value)
+	if not np.isfinite(number) or number < 0:
+		raise ValueError(f"`{name}` must be finite and non-negative.")
+	return number
 
 
 def _optional_positive(value: float | None, *, name: str) -> float | None:
@@ -90,14 +105,6 @@ def _finite_nonzero(value: float, *, name: str) -> float:
 	return number
 
 
-def _validate_spatial_normalization(value: SpatialNormalization) -> None:
-	"""Check the spatial convention shared by import options and provenance."""
-	if not isinstance(value, str) or value not in ("characteristic_length", "unit_box"):
-		raise ValueError(
-			"`spatial_normalization` must be 'characteristic_length' or 'unit_box'."
-		)
-
-
 def _readonly_attributes(attributes: Mapping[str, Any]) -> dict[str, np.ndarray]:
 	"""Own each provenance attribute before wrapping the complete mapping."""
 	values: dict[str, np.ndarray] = {}
@@ -119,7 +126,6 @@ class GC2DH5Metadata:
 	normalization_factor: float
 	attributes: Mapping[str, Any]
 	source_path: Path | None = None
-	spatial_normalization: SpatialNormalization = "characteristic_length"
 
 	def __post_init__(self) -> None:
 		"""Validate, own, and freeze every provenance value."""
@@ -166,7 +172,6 @@ class GC2DH5Metadata:
 			),
 		)
 		object.__setattr__(self, "normalization_factor", normalization)
-		_validate_spatial_normalization(self.spatial_normalization)
 		object.__setattr__(
 			self,
 			"attributes",
@@ -199,7 +204,6 @@ class GC2DH5Metadata:
 				self.normalization_factor,
 				dict(self.attributes),
 				self.source_path,
-				self.spatial_normalization,
 			),
 		)
 
@@ -284,27 +288,24 @@ def _resample_fields(
 
 
 def _validated_import_controls(
+	# Signed, finite nonzero magnetic field used to normalize field amplitudes.
 	B: float,
+	# Finite positive length scale in the same units as the source coordinates.
 	characteristic_length: float,
+	# Positive frequency scale in source units; None defers its choice to loading.
 	characteristic_frequency: float | None,
-	denoising: bool,
-	sigma: float,
-	spatial_normalization: SpatialNormalization,
-) -> tuple[float, float, float | None, float]:
+	# Gaussian standard deviation in grid samples; None disables smoothing.
+	sigma: float | None,
+) -> tuple[float, float, float | None, float | None]:
 	"""Normalize dimensional scales and filtering options before opening the file."""
 	# Convert public numeric inputs once. The validated local names below carry
 	# their physical meaning and avoid repeating implicit scalar conversions.
 	magnetic_field = _finite_nonzero(B, name="B")
-	length_scale = float(characteristic_length)
-	if not np.isfinite(length_scale) or length_scale <= 0:
-		raise ValueError("`characteristic_length` must be finite and positive.")
+	length_scale = _finite_positive(
+		characteristic_length, name="characteristic_length",
+	)
 	frequency_scale = _optional_positive(characteristic_frequency, name="characteristic_frequency")
-	if not isinstance(denoising, (bool, np.bool_)):
-		raise TypeError("`denoising` must be boolean.")
-	_validate_spatial_normalization(spatial_normalization)
-	denoising_sigma = float(sigma)
-	if not np.isfinite(denoising_sigma) or denoising_sigma < 0:
-		raise ValueError("`sigma` must be finite and non-negative.")
+	denoising_sigma = None if sigma is None else _finite_nonnegative(sigma, name="sigma")
 
 	return magnetic_field, length_scale, frequency_scale, denoising_sigma
 
@@ -340,14 +341,12 @@ def _load_data(
 	indx: int | Sequence[int] | np.ndarray | None,
 	nx: int | None,
 	ny: int | None,
-	denoising: bool,
-	sigma: float,
+	sigma: float | None,
 	interpolation_order: int,
-	spatial_normalization: SpatialNormalization,
 ) -> _GC2DH5Data:
 	"""Read and normalize GC2D fields without constructing a runtime potential."""
 	magnetic_field, length_scale, frequency_scale, denoising_sigma = _validated_import_controls(
-		B, characteristic_length, characteristic_frequency, denoising, sigma, spatial_normalization,
+		B, characteristic_length, characteristic_frequency, sigma,
 	)
 
 	# Read all source metadata while the HDF5 handle is open. Field samples remain
@@ -439,18 +438,11 @@ def _load_data(
 	retained_source_frequencies = retained_frequencies.copy()
 	if frequency_scale is not None:
 		retained_frequencies = retained_frequencies / frequency_scale
-	# Shift each physical axis to start at zero. The established convention maps
-	# one characteristic length to 2*pi; the opt-in unit-box convention maps each
-	# complete sampled source period to one.
-	if spatial_normalization == "characteristic_length":
-		coordinate_scale = 2.0 * np.pi / length_scale
-		x = (np.asarray(x) - float(x[0])) * coordinate_scale
-		y = (np.asarray(y) - float(y[0])) * coordinate_scale
-	else:
-		x_period = x.size * (x[1] - x[0])
-		y_period = y.size * (y[1] - y[0])
-		x = (np.asarray(x) - float(x[0])) / x_period
-		y = (np.asarray(y) - float(y[0])) / y_period
+	# Shift each physical axis to zero and map one characteristic length to 2*pi.
+	# The full source period may contain several characteristic lengths.
+	coordinate_scale = 2.0 * np.pi / length_scale
+	x = (np.asarray(x) - float(x[0])) * coordinate_scale
+	y = (np.asarray(y) - float(y[0])) * coordinate_scale
 
 	selected = _validated_field_selection(indx, len(retained_frequencies))
 
@@ -470,7 +462,7 @@ def _load_data(
 
 	# Filter only selected data. Treat real and imaginary components independently
 	# rather than relying on complex-valued behavior inside scipy.ndimage.
-	if denoising and selected_modes is not None:
+	if denoising_sigma is not None and selected_modes is not None:
 		selected_modes = np.asarray(
 			[
 				ndimage.gaussian_filter(field.real, sigma=denoising_sigma)
@@ -479,7 +471,7 @@ def _load_data(
 			],
 			dtype=np.complex128,
 		)
-	if denoising and selected_mean is not None:
+	if denoising_sigma is not None and selected_mean is not None:
 		selected_mean = ndimage.gaussian_filter(
 			selected_mean,
 			sigma=denoising_sigma,
@@ -510,7 +502,6 @@ def _load_data(
 		normalization_factor=normalization_factor,
 		attributes=attributes,
 		source_path=path,
-		spatial_normalization=spatial_normalization,
 	)
 	return _GC2DH5Data(
 		_grid_from_validated_axes(x, y),
@@ -524,5 +515,4 @@ def _load_data(
 __all__ = [
 	"DEFAULT_CHARACTERISTIC_LENGTH",
 	"GC2DH5Metadata",
-	"SpatialNormalization",
 ]

@@ -27,7 +27,6 @@ from contracts.execution_options import ExecutionOptions
 from .grid import Grid
 from .load import (
 	DEFAULT_CHARACTERISTIC_LENGTH,
-	SpatialNormalization,
 	_load_data,
 )
 from .prepared import PreparedPotential
@@ -227,17 +226,19 @@ class Potential:
 		indx: int | Sequence[int] | np.ndarray | None = (0, 1),
 		nx: int | None = None,
 		ny: int | None = None,
-		denoising: bool = False,
-		sigma: float = 1.0,
+		sigma: float | None = None,
 		interpolation_order: int = 3,
-		spatial_normalization: SpatialNormalization = "characteristic_length",
 	) -> Self:
 		"""Construct a potential from measured GC2D HDF5 fields.
+
+		Set ``sigma`` to a finite non-negative Gaussian width in grid samples
+		to smooth the fields; ``None`` (the default) disables smoothing.
 
 		The source schema, selection options, and normalization are described
 		in ``docs/dynamics/gc2d-h5-import.md``.
 		By default, select the mean and dominant positive-frequency mode with
-		``B=1.5`` and characteristic length ``0.06``. The HDF5 adapter handles
+		``B=1.5`` and characteristic length ``0.06``. Coordinates always use
+		``2*pi*(X-X0)/characteristic_length``. The HDF5 adapter handles
 		selection, normalization, optional filtering and resampling; this class
 		prepares the common runtime representation and retains source metadata.
 		"""
@@ -249,10 +250,8 @@ class Potential:
 			indx=indx,
 			nx=nx,
 			ny=ny,
-			denoising=denoising,
 			sigma=sigma,
 			interpolation_order=interpolation_order,
-			spatial_normalization=spatial_normalization,
 		)
 		return cls(
 			data.grid,

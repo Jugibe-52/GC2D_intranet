@@ -3,7 +3,6 @@
 from .load import (
 	DEFAULT_CHARACTERISTIC_LENGTH,
 	GC2DH5Metadata,
-	SpatialNormalization,
 )
 from .grid import Grid
 from .potential import Potential
@@ -19,5 +18,4 @@ __all__ = [
 	"Potential",
 	"PreparedPotential",
 	"ScipyPotentialEvaluator",
-	"SpatialNormalization",
 ]

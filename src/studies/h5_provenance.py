@@ -39,8 +39,8 @@ def prepare_verified_h5_field(
             raise ValueError(f'Physical setting differs from the original experiment: {key}.')
     potential = Potential.load(resolved, B=magnetic_field,
         characteristic_length=characteristic_length, indx=source_selection,
-        interpolation_order=interpolation_order, spatial_normalization='characteristic_length',
-        denoising=False)
+        interpolation_order=interpolation_order,
+        sigma=None)
     provenance = potential.metadata
     assert isinstance(provenance, GC2DH5Metadata)
     assert provenance.characteristic_period is not None
