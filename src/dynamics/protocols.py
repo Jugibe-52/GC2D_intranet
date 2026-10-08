@@ -10,7 +10,8 @@ class DynamicalSystem(Protocol):
 	"""Physical equations consumable by a general ODE method.
 
 	Array inputs and outputs may be NumPy arrays or JAX arrays/tracers. Built-in
-	dynamics preserve NumPy unless time or state selects JAX.
+	dynamics use their potential class for field evaluation. JAX execution
+	binds those equations to JaxPotential before tracing.
 	"""
 
 	state_dimension: ClassVar[int]

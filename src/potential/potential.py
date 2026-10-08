@@ -176,7 +176,7 @@ class Potential:
 
 	@property
 	def grid(self) -> Grid:
-		"""Periodic spatial grid shared by both evaluation paths."""
+		"""Periodic spatial grid of the sampled potential."""
 		return self._grid
 
 	@property
@@ -218,7 +218,7 @@ class Potential:
 		ny: int,
 		seed: int = 27,
 		interpolation_order: int = 3,
-	) -> Potential:
+	) -> Self:
 		"""Create the reproducible periodic potential used in the notebooks.
 
 		``A`` controls the spectral amplitude and ``M`` the maximum radial
@@ -318,16 +318,13 @@ class Potential:
 	def evaluate(
 		self, t: Any, x: Any, y: Any, *, dx: int = 0, dy: int = 0, dt: int = 0,
 	) -> Any:
-		"""Evaluate matching paired coordinates with their array backend.
+		"""Evaluate matching paired coordinates with NumPy and SciPy splines.
 
-		A JAX argument (including time or a tracer) selects JAX; otherwise the
-		result is NumPy. Time broadcasts against the common coordinate shape.
+		Time broadcasts against the common coordinate shape. Use JaxPotential
+		for JAX arrays, compilation and automatic differentiation.
 		Spatial orders must be below the spline degree; time orders are 0, 1, 2.
 		"""
 		validate_derivatives(self.interpolation_order, dx, dy, dt)
-		if uses_jax(t, x, y):
-			from ._jax import evaluate_jax
-			return evaluate_jax(self, t, x, y, int(dx), int(dy), int(dt))
 		time, x, y = np.asarray(t), np.asarray(x), np.asarray(y)
 		if x.shape != y.shape:
 			raise ValueError("`x` and `y` must have the same shape.")
@@ -350,16 +347,18 @@ class Potential:
 		return cast(np.ndarray, reconstruct(time, fields, self.frequencies, int(dt), xp=np))
 
 	def electric_field(self, t: Any, x: Any = None, y: Any = None) -> tuple[Any, Any]:
-		"""Return (-phi_x, -phi_y), using NumPy for omitted grid coordinates."""
+		"""Return (-phi_x, -phi_y) through this instance's evaluate method.
+
+		Omitted coordinates use the full spatial grid; the evaluation backend
+		still follows the potential class.
+		"""
 		if x is None and y is None:
-			if uses_jax(t):
-				raise TypeError("Grid evaluation requires NumPy time; convert concrete JAX arrays explicitly with np.asarray.")
 			x, y = np.meshgrid(self.grid.x, self.grid.y, indexing="ij")
 		elif x is None or y is None:
 			raise ValueError("`x` and `y` must be provided together.")
 		return -self.evaluate(t, x, y, dx=1), -self.evaluate(t, x, y, dy=1)
 
-	def gyroaverage(self, rho: float) -> Potential:
+	def gyroaverage(self, rho: float) -> Self:
 		"""Return the Larmor-circle average of every field at radius ``rho``.
 
 		A circular average multiplies each Fourier mode by ``J_0(rho |k|)``.
@@ -390,7 +389,7 @@ class Potential:
 				dtype=np.complex128,
 			)
 		)
-		return Potential(
+		return type(self)(
 			self.grid,
 			mean=mean,
 			modes=modes,

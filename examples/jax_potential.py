@@ -8,6 +8,7 @@ import jax
 import numpy as np
 
 from potential.potential import Potential
+from potential.jax_potential import JaxPotential
 
 
 def _median_seconds(call: Callable[[], object], repeats: int) -> float:
@@ -36,8 +37,8 @@ def main() -> None:
 
     jax.config.update("jax_enable_x64", True)
     potential = (
-        Potential.load(args.h5, characteristic_frequency=args.characteristic_frequency)
-        if args.h5 else Potential.random(A=0.7, M=8, nx=64, ny=64, seed=27, interpolation_order=3)
+        JaxPotential.load(args.h5, characteristic_frequency=args.characteristic_frequency)
+        if args.h5 else JaxPotential.random(A=0.7, M=8, nx=64, ny=64, seed=27, interpolation_order=3)
     ).gyroaverage(0.3)
     started = perf_counter()
     device = jax.devices(args.device)[0]
@@ -64,9 +65,9 @@ def main() -> None:
         result = potential.evaluate(td, xd, yd, **derivative)
         result.block_until_ready()
         first_seconds = perf_counter() - started
-        expected = potential.evaluate(time, x, y, **derivative)
+        expected = Potential.evaluate(potential, time, x, y, **derivative)
         np.testing.assert_allclose(result, expected, rtol=3e-11, atol=3e-11)
-        cpu = _median_seconds(lambda: potential.evaluate(time, x, y, **derivative), args.repeats)
+        cpu = _median_seconds(lambda: Potential.evaluate(potential, time, x, y, **derivative), args.repeats)
         resident = _median_seconds(
             lambda: potential.evaluate(td, xd, yd, **derivative).block_until_ready(), args.repeats,
         )

@@ -9,7 +9,7 @@ import jax.numpy as jnp
 from contracts.compiled import CompiledStep
 from contracts.execution_options import ExecutionOptions
 from dynamics.protocols import HamiltonianSystem
-from execution._jax import require_builtin_dynamics, resolve_device
+from execution._jax import prepare_dynamics, resolve_device
 from integration.core import IntegrationMethod
 from methods._jax_options import CompositionOptions, ExplicitOptions, ImplicitOptions, NonlinearOptions
 from methods.classical._jax_steps import euler_step, gauss_step, hbvm_step, rk4_step, sdirk_step
@@ -133,7 +133,7 @@ def prepare_step(method: IntegrationMethod[Any], execution: ExecutionOptions) ->
 	"""Select an adapter once, refusing to discard overrides of built-in methods."""
 	if type(method) not in _SUPPORTED:
 		raise TypeError("JAX fixed integration requires a supported built-in method; subclass overrides are not compiled.")
-	dynamics = require_builtin_dynamics(method.problem.dynamics)
+	dynamics = prepare_dynamics(method.problem.dynamics)
 	device = resolve_device(execution)
 	if isinstance(method, (ExplicitEuler, RK4)):
 		return _explicit(method, dynamics, device)

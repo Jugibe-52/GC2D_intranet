@@ -140,12 +140,16 @@ See `docs/dynamics/gc2d-h5-import.md` for notebook and study migration.
 
 ## Potential and execution separation
 
-`Potential` directly owns read-only physical fields and canonical SciPy splines.
-`evaluate` and paired-coordinate `electric_field` select JAX when any argument
-(including time) is a JAX array or tracer; otherwise they return NumPy arrays.
-`evaluate_grid` and coordinate-free `electric_field` are NumPy-only and reject
-JAX time inputs. There is no `execution=` keyword or separate prepared/evaluator
-class. Shared GC/FC dynamics and state layouts preserve the same array backend.
+`Potential` directly owns read-only physical fields and canonical SciPy splines,
+and its `evaluate` uses NumPy/SciPy. `JaxPotential` in `potential.jax_potential`
+(publicly re-exported from `potential`) inherits that representation and overrides
+only `evaluate`, containing the JAX implementation directly. Class choice selects
+the evaluation backend, including scalar/NumPy inputs. Inherited `electric_field`
+calls `self.evaluate`, including omitted coordinates. `evaluate_grid` stays
+NumPy-only and rejects JAX time. `load`, `random` and `gyroaverage` preserve the
+class. There is no `execution=` keyword or separate prepared/evaluator class.
+JAX execution preparation binds shared GC/FC equations to JAX potentials sharing
+existing samples and splines without refitting or mutating the source dynamics.
 
 Execution preparation selects devices and caches compiled runs; DOP853/Radau
 retain an explicit NumPy/JAX boundary. Reuse spline coefficients without

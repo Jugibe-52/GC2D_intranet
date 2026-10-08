@@ -64,10 +64,10 @@ for device support and the fixed versus adaptive integration distinction.
 The lower-level method API retains its `execution` keyword for backend options:
 `method.integrate(problem, request, execution=options)`. It accepts
 `ExecutionOptions`, not an executor. `Potential` accepts no execution options:
-`evaluate` and coordinate-based `electric_field` select NumPy or JAX from their
-arguments, while full-grid evaluations remain NumPy-only. Simulation preparation
-places arrays on the selected device and compiles the same GC/FC dynamics used
-by the NumPy path. Existing study helpers also retain their backend-selection
+`Potential.evaluate` uses NumPy/SciPy and `JaxPotential.evaluate` uses JAX.
+Inherited electric fields follow the instance; `evaluate_grid` stays NumPy-only.
+Simulation preparation binds the same GC/FC equations to JAX potentials sharing
+the existing splines, places arrays on the selected device and compiles them. Existing study helpers also retain their backend-selection
 arguments: `run_rk4_execution_comparison(..., executions=(options, ...))` and
 `run_poincare_star(..., execution=options)`.
 

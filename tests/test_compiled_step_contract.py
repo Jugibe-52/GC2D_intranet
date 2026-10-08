@@ -74,7 +74,8 @@ class CompiledStepContractTests(unittest.TestCase):
 		np.testing.assert_array_equal(repeated["nonlinear_tolerances"], statistics["nonlinear_tolerances"])
 		self.assertTrue(converged)
 
-	def test_runs_reuse_original_dynamics_and_bounded_compilation(self) -> None:
+	def test_runs_reuse_prepared_dynamics_and_bounded_compilation(self) -> None:
+		from execution._jax import prepare_dynamics
 		from integration.jax_fixed import _compiled_integrator
 		from methods._jax_dispatch import PreparedJaxStep, prepare_step
 
@@ -84,7 +85,8 @@ class CompiledStepContractTests(unittest.TestCase):
 		kernel = prepare_step(run, self.execution)
 		self.assertIsInstance(kernel, PreparedJaxStep)
 		assert isinstance(kernel, PreparedJaxStep)
-		self.assertIs(kernel.dynamics, self.problem.dynamics)
+		self.assertIs(kernel.dynamics, prepare_dynamics(self.problem.dynamics))
+		self.assertIsNot(kernel.dynamics, self.problem.dynamics)
 		compiled = _compiled_integrator(kernel)
 		repeated = RK4().new_run(self.problem, self.request, execution=self.execution)
 		self.assertIs(_compiled_integrator(prepare_step(repeated, self.execution)), compiled)

@@ -32,11 +32,12 @@ Evaluating a Hamiltonian directly remains possible without enabling tracking.
 
 ## NumPy and JAX arrays
 
-The same built-in GC/FC dynamics instance accepts NumPy or JAX arguments. A JAX
-array or tracer in the time or state selects JAX calculations; mixed inputs
-are converted to JAX. Vector fields, Hamiltonians, passive momentum derivatives
-and analytic particle Jacobians preserve that backend and support compiled
-calls. NumPy calls remain independent of the optional JAX installation.
+Built-in GC/FC equations work with either potential class. Direct compiled or
+differentiated calls require dynamics constructed with `JaxPotential`.
+`Potential` supplies the NumPy/SciPy evaluation path. JAX simulation preparation
+binds the equations to JAX potentials sharing the same fitted splines, without
+mutating the original dynamics. NumPy calls remain independent of the optional
+JAX installation.
 
 State layouts preserve the array backend when reshaping, splitting and packing
 component-major blocks. The physical dimensions and ordering do not change.
@@ -44,8 +45,8 @@ Integration preparation selects devices and compilation; the dynamics do not
 accept execution options or own a second JAX implementation. The SciPy adaptive
 controller has an explicit adapter for transfers when JAX execution is selected.
 Saved `Solution` arrays remain NumPy. See the
-[shared potential contract](jax-potential-evaluation.md) for dispatch and device
-placement, including the NumPy-only full-grid evaluation interface.
+[shared potential contract](jax-potential-evaluation.md) for class selection and device
+placement, including NumPy-only `evaluate_grid` reconstruction.
 
 ## Physical layouts and problem ownership
 

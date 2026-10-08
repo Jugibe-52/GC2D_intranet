@@ -5,16 +5,16 @@ GC2D numerical integrators. It is independent of any particular time-integration
 model; model documentation states only which capabilities it consumes.
 
 The [execution configuration](jax-potential-evaluation.md) selects SciPy/CPU or
-JAX/CPU/GPU at simulation preparation. `Potential.evaluate` selects SciPy or JAX
-from its time and coordinate arguments, using the same fitted spline data,
-periodic wrapping and harmonic reconstruction. Full-grid evaluation remains
-NumPy-only. The same GC/FC dynamics and state layouts preserve the input array
-backend; the HDF5 import pipeline remains on CPU.
+JAX/CPU/GPU at simulation preparation. `Potential.evaluate` uses NumPy/SciPy;
+`JaxPotential` inherits the data representation and overrides only `evaluate`
+with JAX. Simulation preparation shares existing splines with JAX potentials.
+`evaluate_grid` remains NumPy-only; inherited electric fields follow the
+potential class. The HDF5 import pipeline remains on CPU.
 
 The HDF5 import path loads the primary GC2D field format into the potential and
 simulation APIs. Its implementation lives in
 [`src/potential/load.py`](../../src/potential/load.py), and the package
-exports `Potential` and `GC2DH5Metadata` from
+exports `Potential`, `JaxPotential` and `GC2DH5Metadata` from
 [`src/potential/__init__.py`](../../src/potential/__init__.py).
 
 The corresponding component and data-flow diagram is
@@ -307,8 +307,9 @@ provenance is accessed explicitly through attributes such as
 
 ## Runtime representation
 
-[`Potential`](../../src/potential/potential.py) is the only runtime potential
-class. Artificial construction and HDF5 loading produce the same mean-plus-modes
+[`Potential`](../../src/potential/potential.py) owns the runtime representation;
+[`JaxPotential`](../../src/potential/jax_potential.py) inherits it and overrides
+only pointwise evaluation. Artificial construction and HDF5 loading produce the same mean-plus-modes
 representation; their origin differs only through optional provenance metadata.
 
 The common representation provides the following behavior:

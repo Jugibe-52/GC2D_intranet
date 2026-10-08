@@ -52,8 +52,8 @@ it does not claim that the complete adaptive solver runs on GPU.
 All routes return the same immutable NumPy `Solution`, with component-major
 physical states and canonical energy histories. Initial field preparation,
 gyroaveraging and spline fitting stay on CPU. `Potential` owns the canonical
-splines and selects SciPy or JAX from its arguments, with both paths using the
-same knots and coefficients. Built-in GC dynamics are supported by every
+splines. Preparation binds the shared equations to `JaxPotential` instances
+sharing those knots and coefficients without refitting or mutating the source. Built-in GC dynamics are supported by every
 method. FC dynamics are supported by the classical and adaptive methods;
 ABBA/BM4 retain their existing planar-GC restriction. Custom dynamics and method
 subclasses are rejected rather than silently replacing their equations.
@@ -123,7 +123,7 @@ independent shortened maps for off-grid output, preserving the CPU endpoint
 matching rules. Only requested states and small accepted-step statistics are
 retained. Integration preparation reuses compiled function identities through
 bounded caches across runs with compatible fields, shapes and settings.
-`Potential` reuses concrete device coefficients without refitting its splines;
+`JaxPotential` reuses concrete device coefficients without refitting its splines;
 traced constants are never retained in persistent caches.
 
 Fixed JAX methods require `progress=False`, `step_observer=None` and

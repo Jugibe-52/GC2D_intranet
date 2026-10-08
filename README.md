@@ -57,14 +57,15 @@ save; see the [Modal deployment and recovery guide](docs/simulation/modal-execut
 `Solution` checks array structure and owns immutable
 copies; `simulate` checks agreement with the requested times and initial state.
 
-`Potential.evaluate(t, x, y)` selects JAX when any argument is a JAX array or
-tracer; NumPy arrays, lists and Python scalars use SciPy. Coordinate-based
-`electric_field` follows the same rule, while `evaluate_grid` and full-grid
-electric fields remain NumPy-only. Place inputs with `jax.device_put` to select
-a device. `Potential` accepts no execution options and owns the shared spline
-preparation directly; separate prepared-potential and evaluator classes have
-been removed. GC/FC dynamics use the same physical methods with either array
-backend. All built-in methods select their simulation backend using
+`Potential.evaluate(t, x, y)` uses NumPy/SciPy. Its subclass `JaxPotential`
+overrides only `evaluate` and returns JAX arrays even for scalar or NumPy inputs.
+Import either class from `potential`; their inherited `load`, `random` and
+`gyroaverage` methods preserve the class. `electric_field` follows the instance's
+evaluation method, while `evaluate_grid` remains NumPy-only. Place JAX inputs with
+`jax.device_put` to select a device. Simulation preparation binds the shared GC/FC
+equations to JAX potentials without refitting splines or changing the source
+objects. Neither potential class accepts execution options.
+All built-in methods select their simulation backend using
 `ExecutionOptions` from `contracts.execution_options`
 through `simulate(problem, method, request, options=ExecutionOptions(backend="jax", device="cpu"))`.
 Enable `jax_enable_x64` first; select `device="gpu"` on a compatible installation.

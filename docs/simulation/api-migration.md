@@ -16,8 +16,8 @@ method. The following interfaces have been removed, including their exports:
 | Physical `rho`/`eta` metadata on initial configurations and `Area` | Explicit dynamics parameters or study configuration |
 | `diagnostics.symplecticity.jacobians` and `.paths` | `diagnostics.jacobians` and `diagnostics.paths` |
 | `PreparedPotential` and `potential.prepared` | Read-only physical properties and canonical splines owned directly by `Potential` |
-| `ScipyPotentialEvaluator`, `JaxPotentialEvaluator`, and `PotentialEvaluator` | `Potential.evaluate(t, x, y)` dispatches from input arrays; place JAX inputs with `jax.device_put` |
-| JAX evaluator `evaluate_grid` and full-grid `electric_field` | NumPy-only methods on `Potential`; explicitly convert time to NumPy outside JIT |
+| `ScipyPotentialEvaluator`, `JaxPotentialEvaluator`, and `PotentialEvaluator` | `Potential.evaluate` uses NumPy/SciPy; construct `JaxPotential` for JAX and place inputs with `jax.device_put` |
+| JAX evaluator grid methods | `evaluate_grid` stays NumPy-only; inherited `electric_field` follows the potential class, also on the full grid |
 | Internal `dynamics._jax.JaxDynamics` | Shared GC/FC dynamics; execution preparation owns device selection and compilation |
 
 The unused BM4 map/Jacobian wrappers, full-state projection implementations,
