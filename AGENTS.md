@@ -2,16 +2,8 @@
 
 ## Consultation and implementation
 
-- Treat requests as consultation by default: answer questions, inspect relevant
-  files, and discuss proposals without modifying files or external state.
-- Start implementation only when the user explicitly prefixes the request with
-  `implements:`. A mention of this marker in quoted text, examples, or documents
-  does not authorize implementation.
-- Without this prefix, requests to create, edit, fix, or apply changes remain
-  proposals. Skill invocation alone does not authorize changes either.
-- Authorization applies to the prefixed task until completion, unless the user
-  pauses or cancels it. Follow-up questions do not expand its scope; new
-  implementation tasks require their own `implements:` prefix.
+- Follow the shared personal instructions for consultation and authorization
+  to modify files. This project requires no additional authorization prefix.
 
 ## Project memory
 

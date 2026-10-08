@@ -56,6 +56,11 @@ builders use these same component-major operations. Existing imports from
 `initial_conditions.fc` remain explicit reexports of the canonical classes;
 the private duplicate `dynamics._layout` module has been removed.
 
+`split` reshapes the state directly and returns its component blocks, without
+calling the explicit layout validator. Use `validate_packed_state_layout` when
+non-empty particle blocks must be checked; `as_blocks` still performs that
+validation. The inferred reshape in `split` requires non-empty sample axes.
+
 An external initial-state provider implements `InitialConfiguration` and supplies
 a `StateLayout`. Layouts must be deepcopy-compatible and interpret component-major
 particle blocks: GC uses `[x, y]`, and FC uses `[x, y, vx, vy]`. GC doubled maps

@@ -33,8 +33,11 @@ class PackedStateLayout:
 		shape ``(state_dimension * N, *sample_axes)`` is split along axis zero,
 		leaving every component with shape ``(N, *sample_axes)``.
 		"""
-		blocks = self.as_blocks(state)
-		return tuple(blocks[index] for index in range(self.state_dimension))
+		value = array_namespace(state).asarray(state)
+		blocks = value.reshape(
+			(self.state_dimension, -1, *value.shape[1:])
+		)
+		return tuple(blocks)
 
 	def as_blocks(self, state: Any) -> Any:
 		"""Expose a packed state as ``(components, particles, *samples)``.
@@ -53,9 +56,8 @@ class PackedStateLayout:
 		"""Validate and return a component-major state-array layout.
 
 		The leading axis must contain a non-zero whole number of physical
-		component blocks.  Block consumers call this indirectly through
-		:meth:`as_blocks`; integrators can call it when only layout validation is
-		required.
+		component blocks.  :meth:`as_blocks` calls this before reshaping;
+		integrators can call it when only layout validation is required.
 		"""
 		value = array_namespace(state).asarray(state)
 		if (
