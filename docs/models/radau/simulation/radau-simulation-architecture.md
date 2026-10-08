@@ -146,3 +146,11 @@ provider does not change this run's formulation. Physical layouts are owned by
 `contracts.state_layout`; compatible external providers need no inheritance from
 initial-condition classes. Built-in dynamics keep their physical parameters
 immutable. See the shared [layout and ownership contract](../../../dynamics/protocols.md#physical-layouts-and-problem-ownership).
+
+## Potential evaluation boundary
+
+`Potential` performs standalone SciPy evaluation without execution options.
+During JAX simulation preparation, the dynamics binding constructs and reuses a
+`JaxPotentialEvaluator` from the existing prepared splines; it does not refit them.
+Backend selection remains a simulation concern. See the
+[shared potential contract](../../../dynamics/jax-potential-evaluation.md).

@@ -20,7 +20,6 @@ from typing import Any
 
 import h5py
 import numpy as np
-from scipy import ndimage
 
 from .grid import Grid, _validate_periodic_sizes
 from ._periodic_spline import _build_periodic_spline
@@ -294,11 +293,11 @@ def _validated_import_controls(
 	B: float,
 	# Finite positive length scale in the same units as the source coordinates.
 	characteristic_length: float,
-	# Positive frequency scale in source units; None defers its choice to loading.
-	characteristic_frequency: float | None,
+	# Required positive angular-frequency scale in source units.
+	characteristic_frequency: float,
 	# Gaussian standard deviation in grid samples; None disables smoothing.
 	sigma: float | None,
-) -> tuple[float, float, float | None, float | None]:
+) -> tuple[float, float, float, float | None]:
 	"""Normalize dimensional scales and filtering options before opening the file."""
 	# Convert public numeric inputs once. The validated local names below carry
 	# their physical meaning and avoid repeating implicit scalar conversions.
@@ -306,7 +305,9 @@ def _validated_import_controls(
 	length_scale = _finite_positive(
 		characteristic_length, name="characteristic_length",
 	)
-	frequency_scale = _optional_positive(characteristic_frequency, name="characteristic_frequency")
+	if characteristic_frequency is None:
+		raise TypeError("`characteristic_frequency` must be a finite positive number, not None.")
+	frequency_scale = _finite_positive(characteristic_frequency, name="characteristic_frequency")
 	denoising_sigma = None if sigma is None else _finite_nonnegative(sigma, name="sigma")
 
 	return magnetic_field, length_scale, frequency_scale, denoising_sigma
@@ -337,7 +338,7 @@ def _load_data(
 	*,
 	B: float,
 	characteristic_length: float,
-	characteristic_frequency: float | None,
+	characteristic_frequency: float,
 	indx: int | Sequence[int] | np.ndarray | None,
 	nx: int | None,
 	ny: int | None,
@@ -345,6 +346,9 @@ def _load_data(
 	interpolation_order: int,
 ) -> _GC2DH5Data:
 	"""Read and normalize GC2D fields without constructing a runtime potential."""
+	# Defer this import because Potential imports the HDF5 adapter at module load.
+	from .potential import _denoise_fields
+
 	magnetic_field, length_scale, frequency_scale, denoising_sigma = _validated_import_controls(
 		B, characteristic_length, characteristic_frequency, sigma,
 	)
@@ -383,22 +387,16 @@ def _load_data(
 			np.asarray([fields[int(index)] for index in selected_source_indices], dtype=np.complex128)
 			if selected_source_indices.size else None
 		)
-		if frequency_scale is None and selected_source_frequencies.size:
-			frequency_scale = float(selected_source_frequencies[0])
-		normalization_factor = (
-			1.0 if frequency_scale is None else float(
-				frequency_scale * length_scale**2 * magnetic_field / (2.0 * np.pi) ** 2
-			)
+		normalization_factor = float(
+			frequency_scale * length_scale**2 * magnetic_field / (2.0 * np.pi) ** 2
 		)
 		selected_mean = selected_mean / normalization_factor
 		if selected_modes is not None:
 			selected_modes = selected_modes / normalization_factor
 
 	# Source frequencies remain dimensional; runtime frequencies count cycles
-	# per characteristic period, set by the first selected mode unless overridden.
-	selected_frequencies = selected_source_frequencies.copy()
-	if frequency_scale is not None:
-		selected_frequencies = selected_frequencies / frequency_scale
+	# per explicitly supplied characteristic period.
+	selected_frequencies = selected_source_frequencies / frequency_scale
 
 	# Shift each physical axis to zero and map one characteristic length to 2*pi.
 	# The full source period may contain several characteristic lengths.
@@ -406,22 +404,9 @@ def _load_data(
 	x = (np.asarray(x) - float(x[0])) * coordinate_scale
 	y = (np.asarray(y) - float(y[0])) * coordinate_scale
 
-	# Filter only selected data. Treat real and imaginary components independently
-	# rather than relying on complex-valued behavior inside scipy.ndimage.
-	if denoising_sigma is not None and selected_modes is not None:
-		selected_modes = np.asarray(
-			[
-				ndimage.gaussian_filter(field.real, sigma=denoising_sigma)
-				+ 1j * ndimage.gaussian_filter(field.imag, sigma=denoising_sigma)
-				for field in selected_modes
-			],
-			dtype=np.complex128,
-		)
-	if denoising_sigma is not None:
-		selected_mean = ndimage.gaussian_filter(
-			selected_mean,
-			sigma=denoising_sigma,
-		)
+	selected_mean, selected_modes = _denoise_fields(
+		selected_mean, selected_modes, sigma=denoising_sigma,
+	)
 
 	# Optional resampling uses periodic splines and returns the original arrays
 	# unchanged when both requested sizes are None.
@@ -442,9 +427,7 @@ def _load_data(
 		source_y=source_y,
 		source_frequencies=selected_source_frequencies,
 		characteristic_length=length_scale,
-		characteristic_period=(
-			None if frequency_scale is None else 2.0 * np.pi / frequency_scale
-		),
+		characteristic_period=2.0 * np.pi / frequency_scale,
 		normalization_factor=normalization_factor,
 		attributes=attributes,
 		source_path=path,

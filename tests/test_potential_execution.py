@@ -1,4 +1,4 @@
-"""Public execution selection, shared preparation, and device-cache lifetime."""
+"""Simulation execution selection and backend-independent potential data."""
 
 from dataclasses import FrozenInstanceError
 import importlib.util
@@ -9,7 +9,7 @@ from unittest.mock import patch
 import numpy as np
 
 from contracts.execution_options import ExecutionOptions
-from potential import Grid, Potential, ScipyPotentialEvaluator
+from potential import Grid, Potential, ScipyPotentialEvaluator, JaxPotentialEvaluator
 
 
 def _field() -> Potential:
@@ -45,18 +45,14 @@ class ExecutionTests(unittest.TestCase):
 class ScipyExecutionTests(unittest.TestCase):
     """The default public API preserves its CPU behavior and read-only data."""
 
-    def test_default_and_explicit_scipy_share_preparation(self) -> None:
+    def test_default_scipy_shares_preparation(self) -> None:
         potential = _field()
         direct = ScipyPotentialEvaluator(potential.prepared)
-        expected = direct.evaluate(0.3, 0.4, 0.5, dx=1)
-        for execution in (None, ExecutionOptions()):
-            result = potential.evaluate(0.3, 0.4, 0.5, dx=1, execution=execution)
-            self.assertIsInstance(result, np.ndarray)
-            np.testing.assert_array_equal(result, expected)
-            np.testing.assert_array_equal(potential.electric_field(0.3, execution=execution),
-                                          direct.electric_field(0.3))
-            np.testing.assert_array_equal(potential.evaluate_grid(0.3, execution=execution),
-                                          direct.evaluate_grid(0.3))
+        result = potential.evaluate(0.3, 0.4, 0.5, dx=1)
+        self.assertIsInstance(result, np.ndarray)
+        np.testing.assert_array_equal(result, direct.evaluate(0.3, 0.4, 0.5, dx=1))
+        np.testing.assert_array_equal(potential.electric_field(0.3), direct.electric_field(0.3))
+        np.testing.assert_array_equal(potential.evaluate_grid(0.3), direct.evaluate_grid(0.3))
 
     def test_prepared_arrays_and_public_physical_attributes_are_readonly(self) -> None:
         potential = _field()
@@ -69,18 +65,18 @@ class ScipyExecutionTests(unittest.TestCase):
         with self.assertRaises(FrozenInstanceError):
             potential.prepared.interpolation_order = 2
 
-    def test_execution_type_validation_is_consistent(self) -> None:
+    def test_potential_does_not_accept_execution_options(self) -> None:
         potential = _field()
         for call in (lambda: potential.evaluate(0., 0., 0., execution="jax"),
                      lambda: potential.evaluate_grid(0., execution="jax"),
                      lambda: potential.electric_field(0., execution="jax")):
-            with self.assertRaisesRegex(TypeError, "ExecutionOptions instance"):
+            with self.assertRaisesRegex(TypeError, "unexpected keyword argument"):
                 call()
 
 
 @unittest.skipUnless(importlib.util.find_spec("jax"), "Optional JAX is not installed")
 class JaxExecutionTests(unittest.TestCase):
-    """Reuse native evaluators through Potential without changing its defaults."""
+    """Bind native evaluators once without changing the physical potential."""
 
     @classmethod
     def setUpClass(cls) -> None:
@@ -94,15 +90,21 @@ class JaxExecutionTests(unittest.TestCase):
     def tearDownClass(cls) -> None:
         cls.jax.config.update("jax_enable_x64", cls.previous_x64)
 
-    def test_equivalent_configurations_reuse_one_evaluator_for_all_operations(self) -> None:
-        from potential.jax_evaluator import JaxPotentialEvaluator
+    def test_equivalent_simulations_reuse_the_bound_evaluator_without_refitting(self) -> None:
+        from dynamics.gc import GuidingCenterDynamics
+        from dynamics._jax import bind_dynamics
 
         potential = _field()
-        with patch("potential.jax_evaluator.JaxPotentialEvaluator", wraps=JaxPotentialEvaluator) as constructor:
-            result = potential.evaluate(0.3, 0.4, 0.5, execution=ExecutionOptions(backend="jax"))
-            field = potential.electric_field(0.3, 0.4, 0.5, execution=ExecutionOptions(backend="jax"))
-            grid = potential.evaluate_grid(0.3, execution=ExecutionOptions(backend="jax"))
-            self.assertEqual(constructor.call_count, 1)
+        dynamics = GuidingCenterDynamics(potential)
+        with patch("potential.prepared._build_periodic_spline", side_effect=AssertionError("Refitted spline")):
+            bound = bind_dynamics(dynamics, ExecutionOptions(backend="jax"))
+            repeated = bind_dynamics(dynamics, ExecutionOptions(backend="jax"))
+            self.assertIs(bound, repeated)
+            evaluator = bound.evaluator
+            self.assertIs(evaluator.prepared, potential.prepared)
+            result = evaluator.evaluate(0.3, 0.4, 0.5)
+            field = evaluator.electric_field(0.3, 0.4, 0.5)
+            grid = evaluator.evaluate_grid(0.3)
         for value in (result, *field, grid):
             self.assertIsInstance(value, self.jax.Array)
             self.assertEqual(value.dtype, np.dtype("float64"))
@@ -118,43 +120,39 @@ class JaxExecutionTests(unittest.TestCase):
             expected = 2 * np.real(potential.modes[0, ..., None] * np.exp(1j * omega * time) * (1j * omega)**dt)
             if dt == 0:
                 expected += potential.mean[..., None]
-            for execution in (ExecutionOptions(), ExecutionOptions(backend="jax")):
-                np.testing.assert_allclose(potential.evaluate_grid(time, dt=dt, execution=execution),
+            for evaluator in (potential, JaxPotentialEvaluator(potential)):
+                np.testing.assert_allclose(evaluator.evaluate_grid(time, dt=dt),
                                            expected, rtol=3e-12, atol=3e-12)
 
-    def test_first_call_inside_jit_does_not_cache_tracers(self) -> None:
+    def test_construction_inside_jit_does_not_leak_tracers(self) -> None:
         potential = _field()
-        execution = ExecutionOptions(backend="jax")
+        evaluator = JaxPotentialEvaluator(potential)
         with self.jax.checking_leaks():
-            compiled = self.jax.jit(lambda t, x, y: potential.evaluate(t, x, y, dx=1, execution=execution))
+            compiled = self.jax.jit(lambda t, x, y: JaxPotentialEvaluator(potential).evaluate(t, x, y, dx=1))
             first = compiled(0.3, 0.4, 0.5)
             first.block_until_ready()
-        # A later untraced call must be usable after the first trace has ended.
-        np.testing.assert_allclose(first, potential.evaluate(0.3, 0.4, 0.5, dx=1, execution=execution), atol=3e-12)
+        # Traced construction must agree with an independently prepared evaluator.
+        np.testing.assert_allclose(first, evaluator.evaluate(0.3, 0.4, 0.5, dx=1), atol=3e-12)
         np.testing.assert_allclose(first, potential.evaluate(0.3, 0.4, 0.5, dx=1), atol=3e-12)
 
-    def test_serialization_excludes_device_cache_and_rebuilds_readonly_data(self) -> None:
-        from potential.jax_evaluator import JaxPotentialEvaluator
-
+    def test_serialization_rebuilds_readonly_data_for_either_evaluator(self) -> None:
         potential = _field()
-        execution = ExecutionOptions(backend="jax")
-        expected = potential.evaluate(0.3, 0.4, 0.5, execution=execution)
+        evaluator = JaxPotentialEvaluator(potential)
+        expected = evaluator.evaluate(0.3, 0.4, 0.5)
         restored = pickle.loads(pickle.dumps(potential))
         self.assertFalse(restored.mean.flags.writeable)
         self.assertIsInstance(restored.evaluate(0.3, 0.4, 0.5), np.ndarray)
-        with patch("potential.jax_evaluator.JaxPotentialEvaluator", wraps=JaxPotentialEvaluator) as constructor:
-            actual = restored.evaluate(0.3, 0.4, 0.5, execution=execution)
-            self.assertEqual(constructor.call_count, 1)
+        actual = JaxPotentialEvaluator(restored).evaluate(0.3, 0.4, 0.5)
         np.testing.assert_array_equal(expected, actual)
 
     def test_cached_evaluation_rejects_disabled_float64_and_does_not_poison_default(self) -> None:
         potential = _field()
-        execution = ExecutionOptions(backend="jax")
-        potential.evaluate(0.3, 0.4, 0.5, execution=execution).block_until_ready()
+        evaluator = JaxPotentialEvaluator(potential)
+        evaluator.evaluate(0.3, 0.4, 0.5).block_until_ready()
         self.jax.config.update("jax_enable_x64", False)
         try:
             with self.assertRaisesRegex(RuntimeError, "requires float64"):
-                potential.evaluate(0.3, 0.4, 0.5, execution=execution)
+                evaluator.evaluate(0.3, 0.4, 0.5)
             self.assertIsInstance(potential.evaluate(0.3, 0.4, 0.5), np.ndarray)
         finally:
             self.jax.config.update("jax_enable_x64", True)
@@ -163,7 +161,7 @@ class JaxExecutionTests(unittest.TestCase):
         potential = _field()
         with patch.object(self.jax, "devices", side_effect=RuntimeError("Unavailable")):
             with self.assertRaisesRegex(RuntimeError, "gpu.*unavailable"):
-                potential.evaluate(0.3, 0.4, 0.5, execution=ExecutionOptions(backend="jax", device="gpu"))
+                JaxPotentialEvaluator(potential, device="gpu")
         self.assertIsInstance(potential.evaluate(0.3, 0.4, 0.5), np.ndarray)
 
 

@@ -138,6 +138,7 @@ def prepare_radial_cycle(source, baseline_metadata, config):
     potential = Potential.load(
         source, B=config.magnetic_field, characteristic_length=config.characteristic_length,
         indx=config.source_selection, interpolation_order=config.interpolation_order,
+        characteristic_frequency=2 * np.pi / baseline["field_provenance"]["characteristic_period_s"],
     )
     return build_radial_cycle(potential, config, baseline, source_sha256=source_sha,
                               baseline_sha256=baseline_sha)

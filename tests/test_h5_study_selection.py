@@ -36,8 +36,8 @@ class H5StudySelectionTests(unittest.TestCase):
 		self.directory.cleanup()
 
 	def test_verified_field_uses_original_indices_in_historical_provenance(self) -> None:
-		"""The old (0, 1) rank label does not change the reconstructed field."""
-		potential = Potential.load(self.path)
+		"""Recover the recorded time scale even when it differs from the source mode."""
+		potential = Potential.load(self.path, characteristic_frequency=14.0)
 		metadata = potential.metadata
 		with self.path.open("rb") as stream:
 			digest = hashlib.file_digest(stream, "sha256").hexdigest()

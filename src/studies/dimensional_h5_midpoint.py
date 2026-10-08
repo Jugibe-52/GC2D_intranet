@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 import re
 
+import h5py
 import numpy as np
 
 from contracts.problem import InitialValueProblem
@@ -68,8 +69,15 @@ def load_dimensional_h5_field(
     inverted exactly at the sample level; no spatial resampling is requested.
     Time remains normalized by the selected mode's physical period.
     """
+    resolved = resolve_h5_source(source)
+    if not selectors:
+        raise ValueError("A positive-frequency H5 mode is required to normalize time.")
+    # This study uses the first selected mode's period as its explicit time unit.
+    with h5py.File(resolved, "r") as h5:
+        characteristic_frequency = float(h5["freqs"][selectors[0]])
     normalized = Potential.load(
-        resolve_h5_source(source), B=magnetic_field, characteristic_length=characteristic_length,
+        resolved, B=magnetic_field, characteristic_length=characteristic_length,
+        characteristic_frequency=characteristic_frequency,
         indx=selectors, interpolation_order=interpolation_order,
     )
     metadata = normalized.metadata

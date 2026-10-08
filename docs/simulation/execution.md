@@ -61,10 +61,12 @@ forwards the immutable choice to the existing numerical implementation. JAX is
 never imported by the default execution path. See the [JAX execution guide](jax-execution.md)
 for device support and the fixed versus adaptive integration distinction.
 
-The lower-level method and potential APIs retain their `execution` keyword for
-backend options: `method.integrate(problem, request, execution=options)` and
-`potential.evaluate(t, x, y, execution=options)`. It accepts `ExecutionOptions`,
-not an executor. Existing study helpers also retain their backend-selection
+The lower-level method API retains its `execution` keyword for backend options:
+`method.integrate(problem, request, execution=options)`. It accepts
+`ExecutionOptions`, not an executor. `Potential` evaluation methods use SciPy
+and do not accept execution options. Standalone JAX evaluation uses a reusable
+`JaxPotentialEvaluator(potential, device="cpu")`; simulation preparation binds
+its own evaluator once. Existing study helpers also retain their backend-selection
 arguments: `run_rk4_execution_comparison(..., executions=(options, ...))` and
 `run_poincare_star(..., execution=options)`.
 

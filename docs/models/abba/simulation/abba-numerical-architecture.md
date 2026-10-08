@@ -99,3 +99,11 @@ Fixed-step methods inherit `CompiledFixedMethod` and provide a JAX adapter that
 returns `contracts.compiled.CompiledStep`. The shared `integration/jax_fixed.py`
 loop knows no concrete numerical method; each method owns its compiled stages
 and statistics. See [JAX execution](../../../simulation/jax-execution.md).
+
+## Potential evaluation boundary
+
+`Potential` performs standalone SciPy evaluation without execution options.
+During JAX simulation preparation, the dynamics binding constructs and reuses a
+`JaxPotentialEvaluator` from the existing prepared splines; it does not refit them.
+Backend selection remains a simulation concern. See the
+[shared potential contract](../../../dynamics/jax-potential-evaluation.md).

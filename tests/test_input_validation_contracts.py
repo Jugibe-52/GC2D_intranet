@@ -42,11 +42,24 @@ class InputValidationContractsTests(unittest.TestCase):
 		with tempfile.TemporaryDirectory() as directory:
 			missing = Path(directory) / "missing.h5"
 			with self.assertRaisesRegex(ValueError, "`B` must be finite and non-zero"):
-				Potential.load(missing, B=0.0, sigma=-1.0)
+				Potential.load(missing, characteristic_frequency=2.0, B=0.0, sigma=-1.0)
 			for sigma in (-1.0, np.nan, np.inf, -np.inf):
 				with self.subTest(sigma=sigma):
 					with self.assertRaisesRegex(ValueError, "`sigma` must be finite and non-negative"):
-						Potential.load(missing, B=1.5, sigma=sigma)
+						Potential.load(missing, characteristic_frequency=2.0, B=1.5, sigma=sigma)
+
+	def test_import_requires_explicit_positive_frequency_before_file_access(self) -> None:
+		"""Missing and invalid scales fail before attempting to open the source."""
+		with tempfile.TemporaryDirectory() as directory:
+			missing = Path(directory) / "missing.h5"
+			with self.assertRaisesRegex(TypeError, "characteristic_frequency"):
+				Potential.load(missing)
+			with self.assertRaisesRegex(TypeError, "characteristic_frequency"):
+				Potential.load(missing, characteristic_frequency=None)
+			for frequency in (0.0, -1.0, np.nan, np.inf, -np.inf):
+				with self.subTest(frequency=frequency):
+					with self.assertRaisesRegex(ValueError, "characteristic_frequency"):
+						Potential.load(missing, characteristic_frequency=frequency)
 
 	def test_field_selection_requires_integers_and_keeps_frozen_provenance(self) -> None:
 		with tempfile.TemporaryDirectory() as directory:
@@ -58,9 +71,9 @@ class InputValidationContractsTests(unittest.TestCase):
 				stream["fields"] = np.stack((np.ones((8, 8)), np.eye(8))).astype(complex)
 				stream.attrs["scale"] = np.asarray([2.0])
 			with self.assertRaisesRegex(ValueError, "integer source field indices"):
-				Potential.load(path, B=1.5, indx=[1.9])
-			converted = Potential.load(path, B=1.5, indx=np.array([1]))
-			integer = Potential.load(path, B=1.5, indx=[1])
+				Potential.load(path, characteristic_frequency=2.0, B=1.5, indx=[1.9])
+			converted = Potential.load(path, characteristic_frequency=2.0, B=1.5, indx=np.array([1]))
+			integer = Potential.load(path, characteristic_frequency=2.0, B=1.5, indx=[1])
 		np.testing.assert_array_equal(converted.mean, integer.mean)
 		np.testing.assert_array_equal(converted.modes, integer.modes)
 		self.assertFalse(converted.metadata.source_field_indices.flags.writeable)

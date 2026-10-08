@@ -23,10 +23,10 @@ class JaxDynamics:
 
     def __init__(self, potential: Potential, execution: ExecutionOptions, dimension: int,
                  velocity_scale: float, electric_scale: float, frequency: float) -> None:
-        # Reuse the potential's existing device buffers and canonical spline data.
-        evaluator = potential._evaluator(execution)
-        assert isinstance(evaluator, JaxPotentialEvaluator)
-        self.evaluator = evaluator
+        # Bind once per dynamics snapshot; reuse the already fitted CPU splines.
+        self.evaluator = JaxPotentialEvaluator(
+            potential.prepared, device=execution.device, device_index=execution.device_index,
+        )
         self.dimension = dimension
         self.velocity_scale = velocity_scale
         self.electric_scale = electric_scale

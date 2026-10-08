@@ -131,8 +131,8 @@ class GC2DH5ImportTests(unittest.TestCase):
 		self.temporary_directory.cleanup()
 
 	def test_defaults_select_mean_and_source_field_15_with_B_1_5(self) -> None:
-		"""Use the primary-file defaults when no loader options are supplied."""
-		potential = Potential.load(self.path)
+		"""Use the primary-file defaults with an explicit frequency and otherwise default options."""
+		potential = Potential.load(self.path, characteristic_frequency=7.0)
 		length_scale = 0.06
 		normalization = 7.0 * length_scale**2 * 1.5 / (2.0 * np.pi) ** 2
 
@@ -164,23 +164,23 @@ class GC2DH5ImportTests(unittest.TestCase):
 			potential.evaluate(0.37 + 1.0, query_x, query_y),
 		)
 
-	def test_direct_order_sets_default_frequency_and_keeps_pairs(self) -> None:
+	def test_direct_order_keeps_pairs_with_explicit_frequency(self) -> None:
 		"""Source order is explicit and does not depend on field amplitude."""
 		for indices, frequencies, fields in (
 			((2, 3), [3.0, 7.0], [self.low_mode, self.high_mode]),
 			((3, 2), [7.0, 3.0], [self.high_mode, self.low_mode]),
 		):
 			with self.subTest(indices=indices):
-				potential = Potential.load(self.path, indx=indices)
+				potential = Potential.load(self.path, characteristic_frequency=7.0, indx=indices)
 				metadata = potential.metadata
 				np.testing.assert_array_equal(metadata.source_field_indices, indices)
 				np.testing.assert_array_equal(metadata.source_frequencies, frequencies)
-				np.testing.assert_allclose(potential.frequencies, np.asarray(frequencies) / frequencies[0])
+				np.testing.assert_allclose(potential.frequencies, np.asarray(frequencies) / 7.0)
 				np.testing.assert_allclose(potential.modes * metadata.normalization_factor, fields)
 				np.testing.assert_allclose(potential.mean * metadata.normalization_factor, self.mean)
 		with h5py.File(self.path, "r+") as h5:
 			h5["fields"][3] = self.high_mode * 100
-		self.assertEqual(Potential.load(self.path).metadata.source_field_indices.tolist(), [15])
+		self.assertEqual(Potential.load(self.path, characteristic_frequency=7.0).metadata.source_field_indices.tolist(), [15])
 
 	def test_selected_frequencies_must_be_finite_and_strictly_positive(self) -> None:
 		"""Explicit invalid fields raise instead of being silently filtered out."""
@@ -189,14 +189,14 @@ class GC2DH5ImportTests(unittest.TestCase):
 				with h5py.File(self.path, "r+") as h5:
 					h5["freqs"][15] = frequency
 				with self.assertRaisesRegex(ValueError, "strictly positive"):
-					Potential.load(self.path)
+					Potential.load(self.path, characteristic_frequency=7.0)
 		for index in (0, 1):
 			with self.subTest(index=index):
 				with self.assertRaisesRegex(ValueError, "strictly positive"):
-					Potential.load(self.path, indx=index)
+					Potential.load(self.path, characteristic_frequency=7.0, indx=index)
 		with h5py.File(self.path, "r+") as h5:
 			h5["freqs"][15] = 1e-12
-		self.assertEqual(Potential.load(self.path).metadata.source_frequencies[0], 1e-12)
+		self.assertEqual(Potential.load(self.path, characteristic_frequency=7.0).metadata.source_frequencies[0], 1e-12)
 
 	def test_first_frequency_must_be_exactly_zero(self) -> None:
 		"""A later zero-frequency field cannot replace an invalid first field."""
@@ -206,44 +206,44 @@ class GC2DH5ImportTests(unittest.TestCase):
 					h5["freqs"][0] = frequency
 					h5["freqs"][1] = 0
 				with self.assertRaisesRegex(ValueError, "first source frequency.*exactly zero"):
-					Potential.load(self.path)
+					Potential.load(self.path, characteristic_frequency=7.0)
 
 	def test_all_positive_fields_and_constant_only_selection(self) -> None:
 		"""None selects eligible fields in source order; an empty tuple keeps only the mean."""
-		potential = Potential.load(self.path, indx=None)
+		potential = Potential.load(self.path, characteristic_frequency=7.0, indx=None)
 		np.testing.assert_array_equal(potential.metadata.source_field_indices, [2, 3, 15])
-		np.testing.assert_allclose(potential.frequencies, [1.0, 7.0 / 3.0, 7.0 / 3.0])
-		constant = Potential.load(self.path, indx=())
-		np.testing.assert_array_equal(constant.mean, self.mean)
+		np.testing.assert_allclose(potential.frequencies, [3.0 / 7.0, 1.0, 1.0])
+		constant = Potential.load(self.path, characteristic_frequency=7.0, indx=())
+		np.testing.assert_allclose(constant.mean * constant.metadata.normalization_factor, self.mean)
 		self.assertEqual(constant.modes.shape[0], 0)
-		self.assertEqual(constant.metadata.normalization_factor, 1.0)
-		self.assertIsNone(constant.metadata.characteristic_period)
+		self.assertAlmostEqual(constant.metadata.normalization_factor, 7.0 * 0.06**2 * 1.5 / (2 * np.pi)**2)
+		self.assertAlmostEqual(constant.metadata.characteristic_period, 2 * np.pi / 7.0)
 
 	def test_invalid_source_indices_are_not_coerced(self) -> None:
 		"""Reject noninteger, multidimensional, and out-of-range source selectors."""
 		for indices in ((-1,), (16,), (2.5,), (True,), ((2, 3),), "15"):
 			with self.subTest(indices=indices):
 				with self.assertRaises(ValueError):
-					Potential.load(self.path, indx=indices)
+					Potential.load(self.path, characteristic_frequency=7.0, indx=indices)
 		for indices in (15, [15], np.array([15]), np.int64(15)):
 			with self.subTest(indices=indices):
-				np.testing.assert_array_equal(Potential.load(self.path, indx=indices).metadata.source_field_indices, [15])
+				np.testing.assert_array_equal(Potential.load(self.path, characteristic_frequency=7.0, indx=indices).metadata.source_field_indices, [15])
 
 	def test_load_preserves_subclass(self) -> None:
 		"""Loading initializes the requested runtime class."""
 		class MeasuredPotential(Potential):
 			"""A potential with the standard constructor contract."""
 
-		potential = MeasuredPotential.load(self.path)
+		potential = MeasuredPotential.load(self.path, characteristic_frequency=7.0)
 		self.assertIs(type(potential), MeasuredPotential)
 		self.assertIsInstance(potential.metadata, GC2DH5Metadata)
 		self.assertTrue(np.all(np.isfinite(potential.evaluate_grid(0.37))))
 
 	def test_characteristic_length_sets_scale_independently_of_cell_period(self) -> None:
 		"""One third of the source period produces a 6*pi cell, preserving physical fields."""
-		reference = Potential.load(self.path, characteristic_length=self.characteristic_length)
+		reference = Potential.load(self.path, characteristic_frequency=7.0, characteristic_length=self.characteristic_length)
 		length_scale = self.characteristic_length / 3.0
-		potential = Potential.load(self.path, characteristic_length=length_scale)
+		potential = Potential.load(self.path, characteristic_frequency=7.0, characteristic_length=length_scale)
 
 		self.assertAlmostEqual(reference.grid.period, 2.0 * np.pi)
 		self.assertAlmostEqual(potential.grid.period, 6.0 * np.pi)
@@ -364,10 +364,10 @@ class GC2DH5ImportTests(unittest.TestCase):
 
 	def test_optional_sigma_preserves_unsmoothed_fields(self) -> None:
 		"""Default, explicit None, and zero width preserve mean and complex modes."""
-		default = Potential.load(self.path)
+		default = Potential.load(self.path, characteristic_frequency=7.0)
 		for sigma in (None, 0.0):
 			with self.subTest(sigma=sigma):
-				potential = Potential.load(self.path, sigma=sigma)
+				potential = Potential.load(self.path, characteristic_frequency=7.0, sigma=sigma)
 				np.testing.assert_array_equal(potential.mean, default.mean)
 				np.testing.assert_array_equal(potential.modes, default.modes)
 
@@ -376,7 +376,7 @@ class GC2DH5ImportTests(unittest.TestCase):
 		B = 2.0
 		sigma = 0.6
 		potential = Potential.load(
-			self.path,
+			self.path, characteristic_frequency=7.0,
 			B=B,
 			characteristic_length=self.characteristic_length,
 			indx=(3,),
@@ -439,8 +439,8 @@ class GC2DH5ImportTests(unittest.TestCase):
 		for degree in range(2, 6):
 			with self.subTest(degree=degree):
 				options = dict(indx=(3, 2), interpolation_order=degree)
-				original = Potential.load(self.path, **options)
-				resampled = Potential.load(self.path, nx=6, ny=6, **options)
+				original = Potential.load(self.path, characteristic_frequency=7.0, **options)
+				resampled = Potential.load(self.path, characteristic_frequency=7.0, nx=6, ny=6, **options)
 				np.testing.assert_allclose(resampled.mean, original.mean, rtol=1e-13, atol=1e-10)
 				np.testing.assert_allclose(resampled.modes, original.modes, rtol=1e-13, atol=1e-10)
 				np.testing.assert_allclose(
@@ -451,7 +451,7 @@ class GC2DH5ImportTests(unittest.TestCase):
 	def test_spatial_hessians_time_derivative_and_periodic_wrapping(self) -> None:
 		"""Expose exact spline derivatives on the periodic normalized domain."""
 		potential = Potential.load(
-			self.path,
+			self.path, characteristic_frequency=7.0,
 			B=1.5,
 			characteristic_length=self.characteristic_length,
 			indx=(3,),
@@ -647,7 +647,7 @@ class GC2DH5ImportTests(unittest.TestCase):
 	def test_zero_gyroaverage_and_abba4_implicit_are_compatible(self) -> None:
 		"""Pass the strict Potential check and supply Hessians to implicit ABBA4."""
 		potential = Potential.load(
-			self.path,
+			self.path, characteristic_frequency=7.0,
 			B=1.5,
 			characteristic_length=self.characteristic_length,
 			indx=(3,),
@@ -695,19 +695,19 @@ class GC2DH5ImportTests(unittest.TestCase):
 	def test_invalid_selection_and_incomplete_resampling_are_rejected(self) -> None:
 		"""Give concise errors for common HDF5-loader configuration mistakes."""
 		with self.assertRaisesRegex(ValueError, "range"):
-			Potential.load(self.path, indx=(16,))
+			Potential.load(self.path, characteristic_frequency=7.0, indx=(16,))
 		with self.assertRaisesRegex(ValueError, "both"):
-			Potential.load(self.path, nx=8)
+			Potential.load(self.path, characteristic_frequency=7.0, nx=8)
 		with self.assertRaisesRegex(ValueError, "non-zero"):
-			Potential.load(self.path, B=0.0)
+			Potential.load(self.path, characteristic_frequency=7.0, B=0.0)
 		with self.assertRaisesRegex(ValueError, "characteristic_length"):
-			Potential.load(self.path, characteristic_length=0.0)
+			Potential.load(self.path, characteristic_frequency=7.0, characteristic_length=0.0)
 		with self.assertRaisesRegex(ValueError, "characteristic_frequency"):
 			Potential.load(self.path, characteristic_frequency=-1.0)
 		for removed_mode in ("characteristic_length", "unit_box"):
 			with self.subTest(removed_mode=removed_mode):
 				with self.assertRaisesRegex(TypeError, "spatial_normalization"):
-					Potential.load(self.path, spatial_normalization=removed_mode)
+					Potential.load(self.path, characteristic_frequency=7.0, spatial_normalization=removed_mode)
 
 
 if __name__ == "__main__":

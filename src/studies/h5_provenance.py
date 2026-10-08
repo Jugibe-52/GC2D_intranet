@@ -65,6 +65,7 @@ def prepare_verified_h5_field(
     # above identify the same physical fields under the direct-index API.
     potential = Potential.load(resolved, B=magnetic_field,
         characteristic_length=characteristic_length, indx=source_selection,
+        characteristic_frequency=2 * np.pi / original["characteristic_period_s"],
         interpolation_order=interpolation_order,
         sigma=None)
     provenance = potential.metadata

@@ -126,8 +126,10 @@ The separate `denoising` argument is removed. Migrate disabled calls to
 defaulting to `(15,)` via `potential.load.DEFAULT_FIELD_INDICES`; selected
 frequencies must be finite and strictly positive. Keep the requested order and
 pair each field with its original frequency, without amplitude sorting or
-one-based index conversion. The first selected frequency supplies the default
-normalization scale. `indx=()` loads only the constant field; `None` selects
+one-based index conversion. `Potential.load` requires an explicit finite positive
+`characteristic_frequency`; omission and `None` are rejected. This scale controls
+time and amplitudes even for constant-only selections. Studies may explicitly
+read a chosen source frequency or recover it from an archived period. `indx=()` loads only the constant field; `None` selects
 all finite positive-frequency fields in source order.
 
 For the original `PHI_2.h5`, the old `(0, 1)` selection and new `(15,)` produce
@@ -135,3 +137,12 @@ identical fields, normalized frequencies, normalization factor, and potential
 fingerprint. Archive readers use recorded `source_field_indices` to recover
 historical rank selections; never reinterpret old ranks as raw HDF5 indices.
 See `docs/dynamics/gc2d-h5-import.md` for notebook and study migration.
+
+## Potential and execution separation
+
+`Potential.evaluate`, `evaluate_grid`, and `electric_field` always use SciPy and
+return NumPy arrays; they no longer accept `execution=`. For standalone JAX
+calculations, construct and reuse `JaxPotentialEvaluator(potential, device=...)`.
+Simulation preparation owns its JAX evaluator through the bounded dynamics
+binding cache in `dynamics/_jax.py`. Reuse `potential.prepared` so adaptation
+never refits spatial splines. Keep backend selection out of `Potential`.

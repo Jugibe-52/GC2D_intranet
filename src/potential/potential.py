@@ -16,13 +16,12 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from os import PathLike
-from typing import Any, Self, overload
+from typing import Any, Self, cast
 
 import numpy as np
 from numpy.fft import fft2, fftfreq, ifft2
+from scipy import ndimage
 from scipy.special import jv
-
-from contracts.execution_options import ExecutionOptions
 
 from .grid import Grid
 from .load import (
@@ -31,10 +30,35 @@ from .load import (
 	_load_data,
 )
 from .prepared import PreparedPotential
-from ._evaluation import PotentialEvaluator
 from .scipy_evaluator import ScipyPotentialEvaluator
 
-_DEFAULT_EXECUTION = ExecutionOptions()
+
+def _denoise_fields(
+	mean: np.ndarray,
+	modes: np.ndarray | None,
+	*,
+	sigma: float | None,
+) -> tuple[np.ndarray, np.ndarray | None]:
+	"""Smooth selected fields without modifying the input samples.
+
+	``mean`` has shape (ny, nx) and ``modes`` has shape (mode_count, ny, nx)
+	in source-grid order. ``sigma`` is a validated finite, non-negative width
+	in grid samples; ``None`` returns the inputs unchanged. Gaussian filtering
+	uses SciPy's default reflected boundaries, independently for each mode.
+	"""
+	if sigma is None:
+		return mean, modes
+	# Filter complex components separately without mixing harmonic modes.
+	if modes is not None:
+		modes = np.asarray(
+			[
+				ndimage.gaussian_filter(field.real, sigma=sigma)
+				+ 1j * ndimage.gaussian_filter(field.imag, sigma=sigma)
+				for field in modes
+			],
+			dtype=np.complex128,
+		)
+	return ndimage.gaussian_filter(mean, sigma=sigma), modes
 
 
 def _validated_random_parameters(A: float, M: int, seed: int) -> tuple[float, int, int]:
@@ -126,7 +150,7 @@ class Potential:
 		"""
 		self._prepared = PreparedPotential.build(grid, mean, modes, frequencies, interpolation_order)
 		self.metadata = metadata
-		self._evaluators: dict[ExecutionOptions, PotentialEvaluator] = {}
+		self._scipy = ScipyPotentialEvaluator(self._prepared)
 
 	@property
 	def prepared(self) -> PreparedPotential:
@@ -158,27 +182,13 @@ class Potential:
 		"""Read-only positive harmonic frequencies in cycles per normalized time."""
 		return self._prepared.frequencies
 
-	def _evaluator(self, execution: ExecutionOptions | None) -> PotentialEvaluator:
-		"""Resolve a per-call choice and reuse the matching prepared evaluator."""
-		choice = _DEFAULT_EXECUTION if execution is None else execution
-		if not isinstance(choice, ExecutionOptions):
-			raise TypeError("`execution` must be an ExecutionOptions instance or None.")
-		if choice not in self._evaluators:
-			if choice.backend == "scipy":
-				evaluator: PotentialEvaluator = ScipyPotentialEvaluator(self.prepared)
-			else:
-				from .jax_evaluator import JaxPotentialEvaluator
-				evaluator = JaxPotentialEvaluator(self.prepared, device=choice.device, device_index=choice.device_index)
-			self._evaluators[choice] = evaluator
-		return self._evaluators[choice]
-
 	def __getstate__(self) -> dict[str, Any]:
 		"""Serialize physical data only; device buffers and compiled functions are local."""
 		return dict(grid=self.grid, mean=self.mean, modes=self.modes, frequencies=self.frequencies,
 		            metadata=self.metadata, interpolation_order=self.interpolation_order)
 
 	def __setstate__(self, state: dict[str, Any]) -> None:
-		"""Rebuild CPU splines and an empty device cache in the receiving process."""
+		"""Rebuild CPU splines and their evaluator in the receiving process."""
 		Potential.__init__(self, **state)
 
 	@classmethod
@@ -223,7 +233,7 @@ class Potential:
 		*,
 		B: float = 1.5,
 		characteristic_length: float = DEFAULT_CHARACTERISTIC_LENGTH,
-		characteristic_frequency: float | None = None,
+		characteristic_frequency: float,
 		indx: int | Sequence[int] | np.ndarray | None = DEFAULT_FIELD_INDICES,
 		nx: int | None = None,
 		ny: int | None = None,
@@ -241,8 +251,9 @@ class Potential:
 		be exactly zero. ``indx`` selects original HDF5 variable-field indices,
 		defaulting to ``(15,)``. Their frequencies must be finite and positive.
 		Use ``()`` for the constant field alone or ``None`` for all positive
-		finite-frequency fields in source order. The first selected frequency
-		sets the time scale unless ``characteristic_frequency`` is supplied.
+		finite-frequency fields in source order. ``characteristic_frequency`` is
+		required, finite and positive, even for constant-only fields. It sets
+		the time and amplitude scales; ``None`` is not accepted.
 		Defaults use ``B=1.5`` and characteristic length ``0.06``. Coordinates use
 		``2*pi*(X-X0)/characteristic_length``. The HDF5 adapter handles
 		selection, normalization, optional filtering and resampling; this class
@@ -268,46 +279,24 @@ class Potential:
 			interpolation_order=interpolation_order,
 		)
 
-	@overload
-	def evaluate(self, t: Any, x: Any, y: Any, *, dx: int = 0, dy: int = 0, dt: int = 0,
-	             execution: None = None) -> np.ndarray: ...
-
-	@overload
-	def evaluate(self, t: Any, x: Any, y: Any, *, dx: int = 0, dy: int = 0, dt: int = 0,
-	             execution: ExecutionOptions) -> Any: ...
-
-	def evaluate(self, t: Any, x: Any, y: Any, *, dx: int = 0, dy: int = 0, dt: int = 0,
-	             execution: ExecutionOptions | None = None) -> Any:
-		"""Evaluate paired points or derivatives using one explicit execution choice.
+	def evaluate(
+		self, t: Any, x: Any, y: Any, *, dx: int = 0, dy: int = 0, dt: int = 0,
+	) -> np.ndarray:
+		"""Evaluate paired points or derivatives as NumPy arrays.
 
 		Coordinates must have the same shape; time broadcasts against that shape.
-		Omitting execution always selects SciPy/CPU and returns a NumPy array.
-		JAX returns a device array. A choice never changes later default calls.
+		Spatial derivative orders must be below the interpolation degree; temporal
+		orders are 0, 1, or 2. Simulation execution is configured separately.
 		"""
-		return self._evaluator(execution).evaluate(t, x, y, dx=dx, dy=dy, dt=dt)
+		return cast(np.ndarray, self._scipy.evaluate(t, x, y, dx=dx, dy=dy, dt=dt))
 
-	@overload
-	def evaluate_grid(self, t: Any, *, dt: int = 0, execution: None = None) -> np.ndarray: ...
+	def evaluate_grid(self, t: Any, *, dt: int = 0) -> np.ndarray:
+		"""Return NumPy grid values with spatial axes before the time axes."""
+		return cast(np.ndarray, self._scipy.evaluate_grid(t, dt=dt))
 
-	@overload
-	def evaluate_grid(self, t: Any, *, dt: int = 0, execution: ExecutionOptions) -> Any: ...
-
-	def evaluate_grid(self, t: Any, *, dt: int = 0, execution: ExecutionOptions | None = None) -> Any:
-		"""Return grid values with spatial axes preceding any axes contributed by time."""
-		return self._evaluator(execution).evaluate_grid(t, dt=dt)
-
-	@overload
-	def electric_field(self, t: Any, x: Any = None, y: Any = None,
-	                   *, execution: None = None) -> tuple[np.ndarray, np.ndarray]: ...
-
-	@overload
-	def electric_field(self, t: Any, x: Any = None, y: Any = None,
-	                   *, execution: ExecutionOptions) -> tuple[Any, Any]: ...
-
-	def electric_field(self, t: Any, x: Any = None, y: Any = None,
-	                   *, execution: ExecutionOptions | None = None) -> tuple[Any, Any]:
-		"""Return (-phi_x, -phi_y) at paired points, or on the grid if both are omitted."""
-		return self._evaluator(execution).electric_field(t, x, y)
+	def electric_field(self, t: Any, x: Any = None, y: Any = None) -> tuple[np.ndarray, np.ndarray]:
+		"""Return (-phi_x, -phi_y) at paired points, or on the full grid."""
+		return self._scipy.electric_field(t, x, y)
 
 	def gyroaverage(self, rho: float) -> Potential:
 		"""Return the Larmor-circle average of every field at radius ``rho``.

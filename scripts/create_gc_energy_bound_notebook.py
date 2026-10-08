@@ -190,8 +190,13 @@ print("Reference saved states:", reference_config.output_sample_count)
 ''')
 
 code('''
+import h5py
+
+with h5py.File(H5_PATH, "r") as h5:
+    characteristic_frequency = float(h5["freqs"][FIELD_INDICES[0]])
 potential = Potential.load(
     H5_PATH, B=MAGNETIC_FIELD, characteristic_length=CHARACTERISTIC_LENGTH,
+    characteristic_frequency=characteristic_frequency,
     indx=FIELD_INDICES, interpolation_order=INTERPOLATION_ORDER,
     nx=None, ny=None, sigma=None,
 )

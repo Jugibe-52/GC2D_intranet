@@ -5,10 +5,10 @@ GC2D numerical integrators. It is independent of any particular time-integration
 model; model documentation states only which capabilities it consumes.
 
 The [execution configuration](jax-potential-evaluation.md) selects SciPy/CPU or
-JAX/CPU/GPU through `Potential.evaluate(..., execution=ExecutionOptions(...))`, with
-the same option for `electric_field` and `evaluate_grid`. Both evaluators share
-prepared data, validation, periodic wrapping, and harmonic reconstruction. The
-import pipeline and NumPy-based dynamics and integration contracts are unchanged.
+JAX/CPU/GPU at simulation preparation. `Potential` itself evaluates with SciPy;
+standalone device calculations use `JaxPotentialEvaluator(potential)`.
+Both evaluators share prepared data, validation, periodic wrapping, and harmonic
+reconstruction. The import pipeline and NumPy-based dynamics contracts are unchanged.
 
 The HDF5 import path loads the primary GC2D field format into the potential and
 simulation APIs. Its implementation lives in
@@ -53,8 +53,15 @@ These helpers preserve the field conventions.
 ```python
 from potential import Potential
 
+# Choose the time unit explicitly from the desired source mode.
+import h5py
+
+source_path = "data/potential/V1/PHI_2.h5"
+with h5py.File(source_path, "r") as source:
+    omega0 = float(source["freqs"][15])
 potential = Potential.load(
-    "data/potential/V1/PHI_2.h5",
+    source_path,
+    characteristic_frequency=omega0,
     characteristic_length=0.06,
     interpolation_order=3,
 )
@@ -74,7 +81,7 @@ The HDF5 class method accepts the following options:
 | `filename` | Required | Path to the GC2D HDF5 file. |
 | `B` | `1.5` | Non-zero magnetic-field normalization parameter. |
 | `characteristic_length` | `0.06` | Physical mode length `lambda` mapped to `2*pi`. |
-| `characteristic_frequency` | `None` | Positive source angular frequency `omega0=2*pi/T0`; the first selected variable field is used when omitted. |
+| `characteristic_frequency` | Required | Finite positive source angular frequency `omega0=2*pi/T0`; `None` is rejected. |
 | `indx` | `(15,)` | Original HDF5 indices of variable fields; source field 0 is always the constant term. |
 | `nx`, `ny` | `None` | Optional target sizes for periodic resampling. They must be supplied together. |
 | `sigma` | `None` | Gaussian standard deviation in grid samples on each axis; `None` disables filtering, and finite non-negative values enable it before resampling. |
@@ -140,7 +147,7 @@ Before opening the file, the loader requires:
 
 - finite, non-zero `B`;
 - finite, positive `characteristic_length`;
-- finite, positive `characteristic_frequency` when explicitly supplied;
+- required finite, positive `characteristic_frequency`; omission or `None` raises `TypeError`;
 - `sigma=None` or a finite, non-negative Gaussian width.
 
 The interpolation order is validated later, when resampling or constructing
@@ -165,8 +172,8 @@ needed. An empty selection leaves the constant field alone.
 ### 4. Nondimensionalize space, time, and the fields
 
 Let `lambda` be `characteristic_length`. Let `omega0` be
-`characteristic_frequency`, or the frequency of the first selected variable field
-when the argument is omitted. The characteristic period is
+`characteristic_frequency`, which must be supplied explicitly even for a
+constant-only selection. The characteristic period is
 `T0 = 2*pi/omega0`. Runtime time counts complete characteristic periods:
 
 ```text
@@ -197,19 +204,23 @@ normalization_factor = omega0*lambda**2*B/(2*pi)**2,
 ```
 
 and divides the mean field and every retained mode by that value. The
-first selected mode therefore completes one cycle per normalized time unit and has
-temporal period `1`. The complete `PHI_2.h5` spatial box has length `0.18`, so
+first selected mode completes one cycle per normalized time unit and has
+temporal period `1` only when its source frequency equals `omega0`. The complete `PHI_2.h5` spatial box has length `0.18`, so
 the default `lambda=0.06` maps it to a dimensionless box of length `6*pi`.
 
-With the default single-mode selection, the complete potential is therefore
-exactly periodic in runtime time with period `1`. If several modes are
+With the default single-mode selection and `omega0` equal to that source
+frequency, the complete potential is periodic in runtime time with period `1`. If several modes are
 selected, a finite common temporal period exists only when all normalized
 frequency ratios are commensurate; `1` need not then be a period of the
 combined field.
 
-If no variable field is selected, the normalization factor defaults to `1.0`
-unless a characteristic frequency is supplied; the constant field remains.
+If no variable field is selected, the required characteristic frequency still
+sets the normalization factor and characteristic period; the constant field remains.
 A missing default source index 15 is an error, not a fallback to another mode.
+
+Existing callers that relied on automatic frequency selection must now pass
+the desired source frequency explicitly. Selection order no longer determines
+the normalization scale.
 
 ### 5. Preserve selected-field provenance
 
@@ -217,6 +228,10 @@ The constant field is always present. Variable-field selection order is preserve
 `modes`, and `source_field_indices` remain aligned.
 
 ### 6. Apply optional denoising
+
+The adapter delegates filtering to `_denoise_fields` in
+[`src/potential/potential.py`](../../src/potential/potential.py), preserving
+the source samples and SciPy's default reflected boundary handling.
 
 When `sigma` is not `None`, `scipy.ndimage.gaussian_filter` is applied to:
 
@@ -397,8 +412,15 @@ from initial_conditions import GCInitialConfiguration
 from potential import Potential
 from simulation import ABBA4Implicit, InitialValueProblem, SimulationRequest, simulate
 
+# Choose the time unit explicitly from the desired source mode.
+import h5py
+
+source_path = "data/potential/V1/PHI_2.h5"
+with h5py.File(source_path, "r") as source:
+    omega0 = float(source["freqs"][15])
 potential = Potential.load(
-    "data/potential/V1/PHI_2.h5",
+    source_path,
+    characteristic_frequency=omega0,
     characteristic_length=0.06,
     interpolation_order=3,
 )

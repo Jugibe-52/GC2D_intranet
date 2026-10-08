@@ -48,7 +48,7 @@ class JaxPotentialEvaluator(PotentialEvaluator):
         import jax.numpy as jnp
 
         self.namespace = jnp
-        # A first call can occur while tracing Potential.evaluate. Eagerly
+        # Construction can occur inside an outer JIT trace. Eagerly
         # materialize constant buffers so the persistent cache never captures
         # tracers from that temporary JIT trace.
         with jax.ensure_compile_time_eval():

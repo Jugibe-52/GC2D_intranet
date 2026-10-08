@@ -4,6 +4,8 @@ import argparse
 from dataclasses import asdict
 from pathlib import Path
 
+import h5py
+
 from diagnostics.bm4_comparison import load_bm4_comparison, save_bm4_comparison
 from diagnostics import load_reference_trajectory
 from diagnostics.paths import find_project_root
@@ -31,6 +33,8 @@ def main() -> None:
 		output = root / "notebooks/developements/bm4_projection_comparison/standard_t35"
 	source = root / "data/potential/V1/PHI_2.h5"
 	potential_parameters = dict(B=1.5, characteristic_length=0.06, indx=(15,), interpolation_order=3)
+	with h5py.File(source, "r") as h5:
+		potential_parameters["characteristic_frequency"] = float(h5["freqs"][15])
 	potential = Potential.load(source, **potential_parameters)
 	if args.render_only:
 		arrays, metadata = load_bm4_comparison(output / "results.npz")

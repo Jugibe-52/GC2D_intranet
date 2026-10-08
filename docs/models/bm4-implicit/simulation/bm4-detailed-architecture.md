@@ -153,3 +153,11 @@ above remain inside this execution boundary.
 `Execution_Modal` now implements this boundary for remote NumPy/SciPy CPU
 integrations. Results return to the local machine for validation and subsequent
 persistence; see the [Modal executor guide](../../../simulation/modal-execution.md).
+
+## Potential evaluation boundary
+
+`Potential` performs standalone SciPy evaluation without execution options.
+During JAX simulation preparation, the dynamics binding constructs and reuses a
+`JaxPotentialEvaluator` from the existing prepared splines; it does not refit them.
+Backend selection remains a simulation concern. See the
+[shared potential contract](../../../dynamics/jax-potential-evaluation.md).

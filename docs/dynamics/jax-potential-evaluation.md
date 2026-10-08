@@ -1,9 +1,10 @@
 # Optional JAX potential evaluation
 
-`Potential.evaluate`, `electric_field`, and `evaluate_grid` accept a keyword-only
-`execution` argument. Import its immutable configuration from
-`contracts.execution_options.ExecutionOptions`. Omitting it always selects SciPy on CPU and
-returns NumPy arrays. An explicit JAX choice returns native JAX arrays.
+`Potential.evaluate`, `electric_field`, and `evaluate_grid` always use SciPy on
+CPU and return NumPy arrays. They do not accept execution options. For standalone
+JAX calculations, construct `JaxPotentialEvaluator(potential, device="cpu")` once
+and reuse its matching methods. Simulation backend choices belong to
+`contracts.execution_options.ExecutionOptions`:
 
 ```python
 from contracts.execution_options import ExecutionOptions
@@ -17,7 +18,7 @@ jax_gpu = ExecutionOptions(backend="jax", device="gpu", device_index=0)
 initializing hardware. SciPy supports CPU index 0 only. Device availability is
 checked when the selected evaluator is first used. The same contract now selects
 execution for all built-in methods through `simulation.runner.simulate(problem,
-method, request, execution=execution)`. Fixed methods run on the device;
+method, request, options=execution)`. Fixed methods run on the device;
 DOP853/Radau use JAX fields with a SciPy adaptive controller. CPU process counts
 are not part of this contract. See the [execution guide](../simulation/jax-execution.md).
 
@@ -37,22 +38,26 @@ for that machine; the CPU extra alone does not configure GPU support.
 ```python
 import jax
 import numpy as np
-from contracts.execution_options import ExecutionOptions
-from potential import Potential
+from potential import Potential, JaxPotentialEvaluator
 
 # Configure precision once, before preparing or compiling calculations.
 jax.config.update("jax_enable_x64", True)
-potential = Potential.load("data/potential/V1/PHI_2.h5")
+import h5py
+
+source_path = "data/potential/V1/PHI_2.h5"
+with h5py.File(source_path, "r") as source:
+    omega0 = float(source["freqs"][15])
+potential = Potential.load(source_path, characteristic_frequency=omega0)
 effective = potential.gyroaverage(0.3)
-execution = ExecutionOptions(backend="jax", device="cpu")
+evaluator = JaxPotentialEvaluator(effective, device="cpu")
 # For a configured accelerator: device="gpu", device_index=0.
 
 x = np.array([0.1, 0.2, 0.3])
 y = np.array([0.4, 0.5, 0.6])
-phi = effective.evaluate(0.25, x, y, execution=execution)
-ex, ey = effective.electric_field(0.25, x, y, execution=execution)
-phi_xy = effective.evaluate(0.25, x, y, dx=1, dy=1, execution=execution)
-phi_t = effective.evaluate(0.25, x, y, dt=1, execution=execution)
+phi = evaluator.evaluate(0.25, x, y)
+ex, ey = evaluator.electric_field(0.25, x, y)
+phi_xy = evaluator.evaluate(0.25, x, y, dx=1, dy=1)
+phi_t = evaluator.evaluate(0.25, x, y, dt=1)
 
 # Copy only when host-side analysis or persistence actually needs the values.
 host_phi = np.asarray(phi)
@@ -89,16 +94,19 @@ field definition. Periodic wrapping and harmonic reconstruction are shared
 functions, used by the NumPy code and inside JAX compilation. Spatial spline
 evaluation and device placement remain backend-specific.
 
-Normal callers use `Potential` methods directly. The explicit evaluator classes
-remain available for advanced use and accept either a `Potential` or its
-`PreparedPotential` record. Their package exports are explicit; no import
-aliases or retired compatibility modules are introduced.
+Use `Potential` directly for NumPy calculations and an explicit
+`JaxPotentialEvaluator` for device calculations. Both evaluator classes accept
+either a `Potential` or its `PreparedPotential` record. Existing public class
+names and imports remain available. The former `execution=` keyword on the
+three `Potential` evaluation methods has been removed; replace those calls
+with methods on a reusable JAX evaluator, or omit the keyword for SciPy.
 
-Evaluators are cached per potential and equal `ExecutionOptions` values. Reusing the
-configuration across value, grid, and electric-field calls reuses the device
-buffers. A JAX call never changes the default of a subsequent call without
-`execution`. Initialization inside an outer `jax.jit` materializes constant
-buffers eagerly, so the persistent cache cannot retain transient tracers.
+`Potential` owns only its SciPy evaluator. It neither selects a backend nor
+stores device resources. Simulation preparation constructs the JAX evaluator
+in `dynamics/_jax.py`; the bounded dynamics binding cache reuses it for repeated
+runs with the same field and settings. Standalone callers retain their evaluator
+explicitly. Construction inside an outer `jax.jit` materializes constant buffers
+eagerly so no transient tracers are retained.
 
 Public physical attributes (`grid`, `mean`, `modes`, `frequencies`, and
 `interpolation_order`) are now read-only properties backed by the prepared
@@ -106,7 +114,7 @@ record. Construct a new potential when changing physical data; gyroaveraging
 already returns its own potential for nonzero radii. This prevents cached
 evaluators from silently using obsolete arrays. Pickling a `Potential` stores
 physical inputs and metadata only: receiving processes rebuild CPU splines and
-start with an empty evaluator cache. JAX modules and device buffers are excluded.
+create a SciPy evaluator. JAX modules and device buffers are excluded.
 
 ## Mathematical equivalence
 
@@ -131,7 +139,8 @@ and periodic seams. CPU and GPU need not be bitwise identical.
 ## Scope and performance
 
 Selecting JAX for a standalone potential call does not change the default of
-subsequent simulations. Pass `execution` to `simulate` to compile a complete
+subsequent simulations. Pass `options=ExecutionOptions(backend="jax")` to
+`simulate` to compile a complete
 fixed-step run, including batched particle dynamics, stages, nonlinear solves,
 sequential time loop and optional energy quadrature. The built-in GC/FC equations
 are supported within each method's physical scope. DOP853/Radau instead retain
@@ -140,24 +149,27 @@ the usual NumPy `Solution`; see the [execution guide](../simulation/jax-executio
 
 The NumPy and JAX dynamics reuse the algebra in `dynamics/_equations.py`.
 `dynamics/_jax.py` binds an immutable field and scalar-parameter snapshot,
-reusing the potential's cached evaluator. A bounded binding cache preserves
+owning the selected JAX evaluator. A bounded binding cache preserves
 compiled function identities across repeated runs with the same field and
 settings. Arbitrary custom dynamics and subclass overrides are rejected by the
 compiled driver, so their equations cannot be silently replaced.
 
-The first call prepares the selected evaluator and compiles for the input
-shapes and derivative orders. Measure subsequent calls separately and
+Construction prepares the selected evaluator; the first evaluation compiles
+for the input shapes and derivative orders. Measure subsequent calls separately and
 synchronize them with `block_until_ready()`. Conversions to NumPy are explicit;
 transferring data at every CPU integration stage can outweigh faster GPU work.
 
 The example compares SciPy, resident JAX inputs/output, and the complete NumPy
-input/output boundary through the same public methods for 256 particles:
+input/output boundary through the matching evaluation methods for 256 particles:
 
 ```bash
 python examples/jax_potential.py --device cpu --particles 256
 python examples/jax_potential.py --device gpu --particles 256
-python examples/jax_potential.py --device cpu --particles 256 --h5 data/potential/V1/PHI_2.h5
+python examples/jax_potential.py --device cpu --particles 256 --h5 data/potential/V1/PHI_2.h5 --characteristic-frequency "$OMEGA0"
 ```
+
+Set `OMEGA0` to the desired finite positive source angular-frequency scale
+before running the HDF5 example.
 
 Without `--h5`, the example uses a clearly identified synthetic field. A Git LFS
 pointer is not a usable HDF5 input. These evaluator timings do not predict

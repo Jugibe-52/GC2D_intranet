@@ -41,12 +41,11 @@ def without_jax(name, *args, **kwargs):
     return original(name, *args, **kwargs)
 builtins.__import__ = without_jax
 import simulation
-from contracts.execution_options import ExecutionOptions
 from potential import Grid, Potential, JaxPotentialEvaluator
 p = Potential(Grid.periodic(8, 8))
 assert p.evaluate(0., 0., 0.) == 0.
 try:
-    p.evaluate(0., 0., 0., execution=ExecutionOptions(backend='jax'))
+    JaxPotentialEvaluator(p)
 except ImportError as exc:
     assert "optional 'jax' extra" in str(exc)
 else:
@@ -157,7 +156,7 @@ class JaxPotentialTests(unittest.TestCase):
                 h5["Rcells"], h5["Zcells"] = axis, axis
                 h5["freqs"] = np.array([0., 2., 3.])
                 h5["fields"] = np.stack((x + y, np.sin(x + y) + 1j * np.cos(y), np.cos(x) + 1j * y))
-            potential = Potential.load(path, indx=(1, 2)).gyroaverage(0.3)
+            potential = Potential.load(path, characteristic_frequency=2.0, indx=(1, 2)).gyroaverage(0.3)
             evaluator = JaxPotentialEvaluator(potential)
             for dx, dy in ((0, 0), (1, 0), (0, 1), (2, 0), (1, 1), (0, 2)):
                 np.testing.assert_allclose(evaluator.evaluate(0.3, 0.4, 0.5, dx=dx, dy=dy),

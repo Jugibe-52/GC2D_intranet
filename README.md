@@ -57,10 +57,11 @@ save; see the [Modal deployment and recovery guide](docs/simulation/modal-execut
 `Solution` checks array structure and owns immutable
 copies; `simulate` checks agreement with the requested times and initial state.
 
-Standalone potential calls accept an optional `ExecutionOptions` configuration from
-`contracts.execution_options`: `potential.evaluate(t, x, y, execution=ExecutionOptions(backend="jax", device="cpu"))`.
-The same option is supported by `electric_field` and `evaluate_grid`. Omitting
-it preserves SciPy/CPU execution. All built-in methods accept the same choice
+Standalone `Potential` evaluation methods always use SciPy/CPU. For JAX, prepare
+`JaxPotentialEvaluator(potential, device="cpu")` from `potential` once and reuse
+its `evaluate`, `electric_field`, and `evaluate_grid` methods. The former
+`execution=` keyword on `Potential` is removed. All built-in methods select their
+simulation backend using `ExecutionOptions` from `contracts.execution_options`
 through `simulate(problem, method, request, options=ExecutionOptions(backend="jax", device="cpu"))`.
 Enable `jax_enable_x64` first; select `device="gpu"` on a compatible installation.
 The eleven fixed-step methods compile their stages, nonlinear/projection solves
@@ -135,8 +136,15 @@ positive-frequency modes in HDF5. Load it through the public potential API:
 ```python
 from potential import Potential
 
+# Choose the time unit explicitly from the desired source mode.
+import h5py
+
+source_path = "data/potential/V1/PHI_2.h5"
+with h5py.File(source_path, "r") as source:
+    omega0 = float(source["freqs"][15])
 potential = Potential.load(
-    "data/potential/V1/PHI_2.h5",
+    source_path,
+    characteristic_frequency=omega0,
     characteristic_length=0.06,
     interpolation_order=3,
 )

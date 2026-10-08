@@ -408,7 +408,17 @@ and statistics. See [JAX execution](../../../simulation/jax-execution.md).
 
 HDF5 variable-field indices refer directly to the original file; no amplitude
 ranking is applied. The first source frequency must be exactly zero and every
-selected variable frequency must be finite and positive. The default time
-scale comes from the first selected variable field. See the shared
+selected variable frequency must be finite and positive. `Potential.load`
+requires an explicit finite positive `characteristic_frequency`. Dimensional
+studies pass the first selected source frequency; archived reconstructions
+recover it from the recorded characteristic period. See the shared
 [HDF5 contract](../../../dynamics/gc2d-h5-import.md) for selection and archive
 migration, including recovery from recorded original source indices.
+
+## Potential evaluation boundary
+
+`Potential` performs standalone SciPy evaluation without execution options.
+During JAX simulation preparation, the dynamics binding constructs and reuses a
+`JaxPotentialEvaluator` from the existing prepared splines; it does not refit them.
+Backend selection remains a simulation concern. See the
+[shared potential contract](../../../dynamics/jax-potential-evaluation.md).
