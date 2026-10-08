@@ -5,10 +5,11 @@ GC2D numerical integrators. It is independent of any particular time-integration
 model; model documentation states only which capabilities it consumes.
 
 The [execution configuration](jax-potential-evaluation.md) selects SciPy/CPU or
-JAX/CPU/GPU at simulation preparation. `Potential` itself evaluates with SciPy;
-standalone device calculations use `JaxPotentialEvaluator(potential)`.
-Both evaluators share prepared data, validation, periodic wrapping, and harmonic
-reconstruction. The import pipeline and NumPy-based dynamics contracts are unchanged.
+JAX/CPU/GPU at simulation preparation. `Potential.evaluate` selects SciPy or JAX
+from its time and coordinate arguments, using the same fitted spline data,
+periodic wrapping and harmonic reconstruction. Full-grid evaluation remains
+NumPy-only. The same GC/FC dynamics and state layouts preserve the input array
+backend; the HDF5 import pipeline remains on CPU.
 
 The HDF5 import path loads the primary GC2D field format into the potential and
 simulation APIs. Its implementation lives in

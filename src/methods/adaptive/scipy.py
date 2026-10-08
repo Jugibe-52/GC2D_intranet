@@ -143,8 +143,8 @@ class _AdaptiveMethod(IntegrationMethod[_AdaptiveDetails]):
     def _integrate_jax(self, execution: ExecutionOptions) -> IntegrationData:
         """Keep SciPy acceptance/dense output while field batches execute in JAX."""
         data = integrate_method(self)
-        from dynamics._jax import bind_dynamics
-        device = bind_dynamics(self.dynamics, execution).evaluator.device
+        from execution._jax import resolve_device
+        device = resolve_device(execution)
         data.diagnostics.update({
             'execution_backend': 'jax', 'execution_device': execution.device,
             'execution_device_index': execution.device_index,

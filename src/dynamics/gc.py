@@ -3,19 +3,20 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import ClassVar
+from typing import Any, ClassVar
 
 import numpy as np
 
 from potential.potential import Potential
 
+from contracts.arrays import array_namespace
 from contracts.state_layout import GCStateLayout
 from ._equations import gc_velocity
 
 
 @dataclass(frozen=True, init=False, eq=False)
 class GuidingCenterDynamics:
-	"""Guiding-centre equations over a fixed gyroaveraged potential."""
+	"""GC equations over a fixed gyroaveraged potential, for NumPy or JAX arrays."""
 
 	state_dimension: ClassVar[int] = 2
 
@@ -34,7 +35,7 @@ class GuidingCenterDynamics:
 		object.__setattr__(self, "rho", rho)
 		object.__setattr__(self, "effective_potential", potential.gyroaverage(rho))
 
-	def vector_field(self, t: float | np.ndarray, state: np.ndarray) -> np.ndarray:
+	def vector_field(self, t: Any, state: Any) -> Any:
 		"""Evaluate GC drift at one time or broadcast times over a packed history."""
 		x, y = GCStateLayout().split(state)
 		ex, ey = self.effective_potential.electric_field(
@@ -46,9 +47,9 @@ class GuidingCenterDynamics:
 
 	def particle_vector_field_jacobians(
 		self,
-		t: float,
-		state: np.ndarray,
-	) -> np.ndarray:
+		t: Any,
+		state: Any,
+	) -> Any:
 		"""Return one exact two-by-two spatial Jacobian per GC particle.
 
 		For ``N`` particles the packed state is ``[x_1, ..., x_N, y_1, ...,
@@ -66,28 +67,29 @@ class GuidingCenterDynamics:
 		phi_xx = potential.evaluate(t, x, y, dx=2)
 		phi_xy = potential.evaluate(t, x, y, dx=1, dy=1)
 		phi_yy = potential.evaluate(t, x, y, dy=2)
-		return np.stack(
+		xp = array_namespace(t, state)
+		return xp.stack(
 			(
-				np.stack((-phi_xy, -phi_yy), axis=-1),
-				np.stack((phi_xx, phi_xy), axis=-1),
+				xp.stack((-phi_xy, -phi_yy), axis=-1),
+				xp.stack((phi_xx, phi_xy), axis=-1),
 			),
 			axis=-2,
 		)
 
 	def hamiltonian(
 		self,
-		t: float | np.ndarray,
-		state: np.ndarray,
-	) -> np.ndarray:
+		t: Any,
+		state: Any,
+	) -> Any:
 		"""Evaluate gyroaveraged Hamiltonian values."""
 		x, y = GCStateLayout().split(state)
 		return self.effective_potential.evaluate(t, x, y)
 
 	def extended_momentum_derivative(
 		self,
-		t: float,
-		state: np.ndarray,
-	) -> np.ndarray:
+		t: Any,
+		state: Any,
+	) -> Any:
 		"""Evaluate the time-conjugate momentum derivative."""
 		x, y = GCStateLayout().split(state)
 		return -self.effective_potential.evaluate(

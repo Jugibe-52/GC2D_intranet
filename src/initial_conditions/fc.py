@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import cast
+
 import numpy as np
 
 from contracts.state_layout import FCState, FCStateLayout
@@ -27,7 +29,7 @@ class FCInitialConfiguration(StateConfiguration):
 	@classmethod
 	def pack_components(cls, *components: np.ndarray) -> np.ndarray:
 		"""Compatibility façade for the full-cyclotron layout builder."""
-		return FCStateLayout.pack_components(*components)
+		return cast(np.ndarray, FCStateLayout.pack_components(*components))
 
 	@classmethod
 	def from_components(

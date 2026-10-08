@@ -122,9 +122,10 @@ float64 configuration and available hardware, with no automatic fallback.
 Both routes use the canonical RK4 stages and passive quadrature in
 `methods/classical/_rk4_core.py`. The default controller retains its Python
 lifecycle. For JAX, the shared `IntegrationMethod.integrate` creates a fresh run
-and selects the common fixed-step compiled driver in `integration/jax_fixed.py`. The physical
-equations are shared in `dynamics/_equations.py`; a device snapshot binds the
-existing potential evaluator and its actual SciPy spline coefficients.
+and selects the common fixed-step compiled driver in `integration/jax_fixed.py`.
+Both paths call the same GC/FC dynamics methods and the physical equations in
+`dynamics/_equations.py`. JAX arrays select device evaluation in `Potential`,
+using its actual SciPy spline coefficients without refitting.
 
 The driver compiles the complete time loop using `jax.lax.scan`. Particle
 operations are batched within each stage; stages and successive time steps
@@ -268,8 +269,9 @@ and statistics. See [JAX execution](../../../simulation/jax-execution.md).
 
 ## Potential evaluation boundary
 
-`Potential` performs standalone SciPy evaluation without execution options.
-During JAX simulation preparation, the dynamics binding constructs and reuses a
-`JaxPotentialEvaluator` from the existing prepared splines; it does not refit them.
-Backend selection remains a simulation concern. See the
+`Potential.evaluate` selects SciPy or JAX from its time and coordinate arrays,
+using the same fitted splines. The built-in GC/FC dynamics preserve the array
+backend and provide the same physical equations to both execution paths.
+Simulation preparation selects the device and compiles those shared methods;
+`evaluate_grid` remains NumPy-only. See the
 [shared potential contract](../../../dynamics/jax-potential-evaluation.md).

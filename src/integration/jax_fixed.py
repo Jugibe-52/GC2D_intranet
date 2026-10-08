@@ -4,7 +4,8 @@ Only an explicitly selected JAX run imports this module. The time loop is
 sequential, while every field evaluation and RK stage batches all particles.
 """
 
-from functools import partial
+from functools import lru_cache, partial
+from collections.abc import Callable
 from typing import Any, TYPE_CHECKING
 
 import jax
@@ -21,7 +22,6 @@ if TYPE_CHECKING:
     from integration.core import IntegrationMethod
 
 
-@partial(jax.jit, static_argnames=("kernel",))
 def _integrate(
     initial: Any, starts: Any, step: Any, times: Any,
     offsets: Any, modes: Any, durations: Any, *,
@@ -70,6 +70,12 @@ def _integrate(
     return history, energy, valid & jnp.all(jnp.isfinite(energy)), converged, statistics
 
 
+@lru_cache(maxsize=16)
+def _compiled_integrator(kernel: CompiledStep) -> Callable[..., Any]:
+    """Bound compilation reuse by physical dynamics, device and step controls."""
+    return jax.jit(partial(_integrate, kernel=kernel))
+
+
 def integrate_fixed(method: "IntegrationMethod[Any]", execution: ExecutionOptions,
                     kernel: CompiledStep) -> IntegrationData:
     """Run one fresh fixed-step method instance and transfer the finished result to NumPy.
@@ -99,11 +105,10 @@ def integrate_fixed(method: "IntegrationMethod[Any]", execution: ExecutionOption
         device = kernel.device
         inputs = (method.initial_state, starts, np.asarray(step), times,
                   offsets.astype(np.int32), modes.astype(np.int32), durations)
-        # All inputs and spline buffers are committed to the requested device.
+        # Inputs select the execution device; spline constants follow compilation.
         # device_get synchronizes timing and copies only completed output.
-        history, energy, valid, converged, statistics = jax.device_get(_integrate(
+        history, energy, valid, converged, statistics = jax.device_get(_compiled_integrator(kernel)(
             *(jax.device_put(value, device) for value in inputs),
-            kernel=kernel,
         ))
         if not bool(valid):
             raise ValueError("A numerical step or output sample became non-finite.")

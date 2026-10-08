@@ -5,7 +5,7 @@ from typing import Any
 import jax
 import jax.numpy as jnp
 
-from dynamics._jax import JaxDynamics
+from dynamics.protocols import HamiltonianSystem, GuidingCenterJacobianSystem
 from formulations.gc import _COUPLING_BASE, _COUPLING_COS, _COUPLING_SIN
 from methods._jax_options import CompositionOptions
 from methods._jax_common import (
@@ -23,7 +23,7 @@ def coupling_matrix(duration: Any, frequency: float | None) -> Any:
             + jnp.sin(angle) * jnp.asarray(_COUPLING_SIN)) / 2
 
 
-def compose(time: Any, state: Any, step: Any, dynamics: JaxDynamics,
+def compose(time: Any, state: Any, step: Any, dynamics: HamiltonianSystem,
             options: CompositionOptions) -> tuple[Any, Any]:
     """Traverse signed adjoint/direct stages and retain their two shear sources.
 
@@ -64,15 +64,17 @@ def compose(time: Any, state: Any, step: Any, dynamics: JaxDynamics,
     return after, trace
 
 
-def composition_jacobian(trace: Any, dynamics: JaxDynamics, options: CompositionOptions) -> Any:
+def composition_jacobian(trace: Any, dynamics: HamiltonianSystem, options: CompositionOptions) -> Any:
     """Multiply analytic shear tangents in the original signed stage order."""
+    if not isinstance(dynamics, GuidingCenterJacobianSystem):
+        raise TypeError("Analytic particle Jacobians require GC dynamics.")
     times, durations, sources = trace
     n = sources.shape[-1] // 2
     identity = jnp.broadcast_to(jnp.eye(4), (n, 4, 4))
     def stage(total: Any, inputs: Any) -> Any:
         index, time, duration, pair = inputs
-        first = duration * dynamics.particle_jacobians(time, pair[0])
-        second = duration * dynamics.particle_jacobians(time, pair[1])
+        first = duration * dynamics.particle_vector_field_jacobians(time, pair[0])
+        second = duration * dynamics.particle_vector_field_jacobians(time, pair[1])
         coupling = coupling_matrix(duration, options.coupling)
         def forward() -> Any:
             a = identity.at[:, 2:, :2].set(first)
@@ -88,10 +90,10 @@ def composition_jacobian(trace: Any, dynamics: JaxDynamics, options: Composition
     return total
 
 
-def energy_increment(trace: Any, dynamics: JaxDynamics) -> Any:
+def energy_increment(trace: Any, dynamics: HamiltonianSystem) -> Any:
     """Integrate physical kappa, including the doubled-Hamiltonian factor 1/2."""
     times, durations, sources = trace
-    rates = jax.vmap(lambda t, pair: jax.vmap(lambda z: dynamics.momentum_rate(t, z))(pair))(times, sources)
+    rates = jax.vmap(lambda t, pair: jax.vmap(lambda z: dynamics.extended_momentum_derivative(t, z))(pair))(times, sources)
     # A scan retains the CPU's sequential addition of signed shear contributions.
     contributions = (durations[:, None, None] * rates).reshape(-1, sources.shape[-1] // 2)
     def add(total: Any, value: Any) -> Any:
@@ -100,7 +102,7 @@ def energy_increment(trace: Any, dynamics: JaxDynamics) -> Any:
     return total / 2
 
 
-def extended_step(time: Any, state: Any, step: Any, dynamics: JaxDynamics,
+def extended_step(time: Any, state: Any, step: Any, dynamics: HamiltonianSystem,
                   options: CompositionOptions) -> tuple[Any, Any, dict[str, Any], Any]:
     """Project a complete recipe without changing its residual or solver axis."""
     size, n = state.size, state.size // 2

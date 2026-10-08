@@ -3,19 +3,20 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import ClassVar
+from typing import Any, ClassVar
 
 import numpy as np
 
 from potential.potential import Potential
 
+from contracts.arrays import array_namespace
 from contracts.state_layout import FCStateLayout
 from ._equations import fc_velocity, fc_hamiltonian
 
 
 @dataclass(frozen=True, init=False, eq=False)
 class FullCyclotronDynamics:
-	"""Full-cyclotron equations for fixed physical parameters."""
+	"""FC equations for fixed physical parameters, for NumPy or JAX arrays."""
 
 	state_dimension: ClassVar[int] = 4
 
@@ -54,15 +55,15 @@ class FullCyclotronDynamics:
 
 	def electric_acceleration(
 		self,
-		t: float,
-		x: np.ndarray,
-		y: np.ndarray,
-	) -> tuple[np.ndarray, np.ndarray]:
+		t: Any,
+		x: Any,
+		y: Any,
+	) -> tuple[Any, Any]:
 		"""Evaluate electric acceleration at paired positions."""
 		ex, ey = self.potential.electric_field(t, x, y)
 		return self.electric_scale * ex, self.electric_scale * ey
 
-	def vector_field(self, t: float, state: np.ndarray) -> np.ndarray:
+	def vector_field(self, t: Any, state: Any) -> Any:
 		"""Evaluate FC equations in packed ``[x, y, vx, vy]`` order."""
 		x, y, vx, vy = FCStateLayout().split(state)
 		acceleration_x, acceleration_y = self.electric_acceleration(t, x, y)
@@ -73,24 +74,24 @@ class FullCyclotronDynamics:
 
 	def hamiltonian(
 		self,
-		t: float | np.ndarray,
-		state: np.ndarray,
-	) -> np.ndarray:
+		t: Any,
+		state: Any,
+	) -> Any:
 		"""Evaluate kinetic plus scaled electrostatic energy."""
 		x, y, vx, vy = FCStateLayout().split(state)
-		return np.asarray(fc_hamiltonian(
+		return array_namespace(t, state).asarray(fc_hamiltonian(
 			self.potential.evaluate(t, x, y), vx, vy,
 			velocity_scale=self.velocity_scale, electric_scale=self.electric_scale,
 		))
 
 	def extended_momentum_derivative(
 		self,
-		t: float,
-		state: np.ndarray,
-	) -> np.ndarray:
+		t: Any,
+		state: Any,
+	) -> Any:
 		"""Evaluate the time-conjugate momentum derivative."""
 		x, y, *_ = FCStateLayout().split(state)
-		return np.asarray(
+		return array_namespace(t, state).asarray(
 			-self.electric_scale
 			* self.potential.evaluate(t, x, y, dt=1)
 		)

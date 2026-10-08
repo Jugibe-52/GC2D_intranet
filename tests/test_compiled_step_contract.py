@@ -74,6 +74,40 @@ class CompiledStepContractTests(unittest.TestCase):
 		np.testing.assert_array_equal(repeated["nonlinear_tolerances"], statistics["nonlinear_tolerances"])
 		self.assertTrue(converged)
 
+	def test_runs_reuse_original_dynamics_and_bounded_compilation(self) -> None:
+		from integration.jax_fixed import _compiled_integrator
+		from methods._jax_dispatch import PreparedJaxStep, prepare_step
+
+		_compiled_integrator.cache_clear()
+		self.addCleanup(_compiled_integrator.cache_clear)
+		run = RK4().new_run(self.problem, self.request, execution=self.execution)
+		kernel = prepare_step(run, self.execution)
+		self.assertIsInstance(kernel, PreparedJaxStep)
+		assert isinstance(kernel, PreparedJaxStep)
+		self.assertIs(kernel.dynamics, self.problem.dynamics)
+		compiled = _compiled_integrator(kernel)
+		repeated = RK4().new_run(self.problem, self.request, execution=self.execution)
+		self.assertIs(_compiled_integrator(prepare_step(repeated, self.execution)), compiled)
+
+		# New physical objects must not retain an unbounded list of JIT closures.
+		for _ in range(17):
+			problem = InitialValueProblem(
+				GuidingCenterDynamics(self.problem.dynamics.potential),
+				self.problem.initial_configuration,
+			)
+			run = RK4().new_run(problem, self.request, execution=self.execution)
+			_compiled_integrator(prepare_step(run, self.execution))
+		self.assertEqual(_compiled_integrator.cache_info().currsize, 16)
+		self.assertIsNot(_compiled_integrator(kernel), compiled)
+
+	def test_device_index_is_validated_before_compilation(self) -> None:
+		from methods._jax_dispatch import prepare_step
+
+		execution = ExecutionOptions(backend="jax", device_index=len(self.jax.devices("cpu")))
+		run = RK4().new_run(self.problem, self.request, execution=execution)
+		with self.assertRaisesRegex(ValueError, "device index.*unavailable"):
+			prepare_step(run, execution)
+
 	def test_python_newton_callbacks_are_rejected_before_compilation(self) -> None:
 		events = []
 		run = GaussLegendre4(newton_observer=events.append).new_run(

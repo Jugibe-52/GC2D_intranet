@@ -8,12 +8,11 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from unittest.mock import patch
 
 import h5py
 import numpy as np
 
-from potential import Grid, JaxPotentialEvaluator, Potential
+from potential import Grid, Potential
 
 
 def _potential(degree: int = 3) -> Potential:
@@ -41,11 +40,13 @@ def without_jax(name, *args, **kwargs):
     return original(name, *args, **kwargs)
 builtins.__import__ = without_jax
 import simulation
-from potential import Grid, Potential, JaxPotentialEvaluator
+from potential import Grid, Potential
 p = Potential(Grid.periodic(8, 8))
 assert p.evaluate(0., 0., 0.) == 0.
 try:
-    JaxPotentialEvaluator(p)
+    from execution._jax import resolve_device
+    from contracts.execution_options import ExecutionOptions
+    resolve_device(ExecutionOptions(backend="jax"))
 except ImportError as exc:
     assert "optional 'jax' extra" in str(exc)
 else:
@@ -68,7 +69,7 @@ class JaxPotentialTests(unittest.TestCase):
         cls.previous_x64 = jax.config.x64_enabled
         jax.config.update("jax_enable_x64", True)
         cls.potential = _potential()
-        cls.evaluator = JaxPotentialEvaluator(cls.potential)
+
 
     @classmethod
     def tearDownClass(cls) -> None:
@@ -80,21 +81,20 @@ class JaxPotentialTests(unittest.TestCase):
         for dx, dy, dt in ((0, 0, 0), (1, 0, 0), (0, 1, 0), (2, 0, 0),
                            (1, 1, 0), (0, 2, 0), (0, 0, 1), (0, 0, 2), (1, 1, 2)):
             with self.subTest(dx=dx, dy=dy, dt=dt):
-                actual = self.evaluator.evaluate(0.23, x, y, dx=dx, dy=dy, dt=dt)
+                actual = self.potential.evaluate(self.jax.numpy.asarray(0.23), x, y, dx=dx, dy=dy, dt=dt)
                 expected = self.potential.evaluate(0.23, x, y, dx=dx, dy=dy, dt=dt)
                 self.assertIsInstance(actual, self.jax.Array)
                 self.assertEqual(actual.dtype, np.dtype("float64"))
-                self.assertEqual(actual.devices(), {self.evaluator.device})
+                self.assertEqual(actual.devices(), {self.jax.devices("cpu")[0]})
                 np.testing.assert_allclose(actual, expected, rtol=3e-12, atol=3e-12)
 
     def test_all_supported_degrees_and_high_derivatives(self) -> None:
         for degree in (2, 3, 4, 5):
             potential = _potential(degree)
-            evaluator = JaxPotentialEvaluator(potential)
             for dx, dy in ((0, 0), (1, 1), (degree - 1, 0), (0, degree - 1)):
                 with self.subTest(degree=degree, dx=dx, dy=dy):
                     np.testing.assert_allclose(
-                        evaluator.evaluate(0.71, np.array([0.12, 2.4]), np.array([1.1, 3.7]), dx=dx, dy=dy),
+                        potential.evaluate(self.jax.numpy.asarray(0.71), np.array([0.12, 2.4]), np.array([1.1, 3.7]), dx=dx, dy=dy),
                         potential.evaluate(0.71, np.array([0.12, 2.4]), np.array([1.1, 3.7]), dx=dx, dy=dy),
                         rtol=2e-10, atol=2e-10,
                     )
@@ -106,48 +106,49 @@ class JaxPotentialTests(unittest.TestCase):
         y = np.full_like(x, grid.ymin)
         for dx, dy in ((0, 0), (1, 0), (1, 1), (0, 2)):
             np.testing.assert_allclose(
-                self.evaluator.evaluate(0.4, x, y, dx=dx, dy=dy),
+                self.potential.evaluate(self.jax.numpy.asarray(0.4), x, y, dx=dx, dy=dy),
                 self.potential.evaluate(0.4, x, y, dx=dx, dy=dy), rtol=3e-12, atol=3e-12,
             )
         np.testing.assert_allclose(
-            self.evaluator.evaluate(0.4, x + 3 * grid.period, y - 2 * grid.period),
-            self.evaluator.evaluate(0.4, x, y), rtol=3e-12, atol=3e-12,
+            self.potential.evaluate(self.jax.numpy.asarray(0.4), x + 3 * grid.period, y - 2 * grid.period),
+            self.potential.evaluate(0.4, x, y), rtol=3e-12, atol=3e-12,
         )
 
     def test_scalars_broadcasting_grid_and_empty_points(self) -> None:
         for time, x, y in ((0.2, 0.3, 0.4),
                            (np.array([[0.1], [0.2]]), np.array([[0.3, 0.4]]), np.array([[0.5, 0.6]])),
                            (0.2, np.empty(0), np.empty(0))):
-            actual = self.evaluator.evaluate(time, x, y)
+            actual = self.potential.evaluate(self.jax.numpy.asarray(time), x, y)
             expected = self.potential.evaluate(time, x, y)
             self.assertEqual(actual.shape, expected.shape)
             np.testing.assert_allclose(actual, expected, rtol=3e-12, atol=3e-12)
         for time in (0.3, np.array([0.2, 0.3]), np.array([[0.2], [0.3]])):
             for dt in (0, 1, 2):
-                np.testing.assert_allclose(self.evaluator.evaluate_grid(time, dt=dt),
-                                           self.potential.evaluate_grid(time, dt=dt), rtol=3e-12, atol=3e-12)
-        for x, y in ((None, None), (np.array([0.1, 0.2]), np.array([0.3, 0.4]))):
-            np.testing.assert_allclose(self.evaluator.electric_field(0.2, x, y),
-                                       self.potential.electric_field(0.2, x, y), rtol=3e-12, atol=3e-12)
+                self.assertIsInstance(self.potential.evaluate_grid(time, dt=dt), np.ndarray)
+                with self.assertRaisesRegex(TypeError, "NumPy time"):
+                    self.potential.evaluate_grid(self.jax.numpy.asarray(time), dt=dt)
+        x, y = np.array([0.1, 0.2]), np.array([0.3, 0.4])
+        np.testing.assert_allclose(self.potential.electric_field(self.jax.numpy.asarray(0.2), x, y),
+                                   self.potential.electric_field(0.2, x, y), rtol=3e-12, atol=3e-12)
+        self.assertIsInstance(self.potential.electric_field(0.2)[0], np.ndarray)
+        with self.assertRaisesRegex(TypeError, "NumPy time"):
+            self.potential.electric_field(self.jax.numpy.asarray(0.2))
 
     def test_no_modes_and_gyroaveraged_potential(self) -> None:
         for potential in (Potential(self.potential.grid, mean=self.potential.mean),
                           Potential(self.potential.grid), self.potential.gyroaverage(0.3)):
-            evaluator = JaxPotentialEvaluator(potential)
             for dt in (0, 1, 2):
-                np.testing.assert_allclose(evaluator.evaluate(0.3, 0.2, 0.4, dt=dt),
+                np.testing.assert_allclose(potential.evaluate(self.jax.numpy.asarray(0.3), 0.2, 0.4, dt=dt),
                                            potential.evaluate(0.3, 0.2, 0.4, dt=dt), rtol=3e-12, atol=3e-12)
-                np.testing.assert_allclose(evaluator.evaluate_grid(np.array([0., 0.2]), dt=dt),
-                                           potential.evaluate_grid(np.array([0., 0.2]), dt=dt), rtol=3e-12, atol=3e-12)
 
     def test_jit_and_automatic_spatial_derivative(self) -> None:
-        compiled = self.jax.jit(lambda t, x, y: self.evaluator.evaluate(t, x, y, dx=1))
+        compiled = self.jax.jit(lambda t, x, y: self.potential.evaluate(t, x, y, dx=1))
         np.testing.assert_allclose(compiled(0.2, 0.3, 0.4),
                                    self.potential.evaluate(0.2, 0.3, 0.4, dx=1), atol=3e-12)
-        derivative = self.jax.grad(lambda x: self.evaluator.evaluate(0.2, x, 0.4))(0.3)
+        derivative = self.jax.grad(lambda x: self.potential.evaluate(0.2, x, 0.4))(0.3)
         np.testing.assert_allclose(derivative, compiled(0.2, 0.3, 0.4), atol=3e-12)
 
-    def test_hdf5_loaded_field_uses_the_same_evaluator(self) -> None:
+    def test_hdf5_loaded_field_uses_the_same_splines(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "field.h5"
             axis = np.arange(8) * 0.01
@@ -157,36 +158,25 @@ class JaxPotentialTests(unittest.TestCase):
                 h5["freqs"] = np.array([0., 2., 3.])
                 h5["fields"] = np.stack((x + y, np.sin(x + y) + 1j * np.cos(y), np.cos(x) + 1j * y))
             potential = Potential.load(path, characteristic_frequency=2.0, indx=(1, 2)).gyroaverage(0.3)
-            evaluator = JaxPotentialEvaluator(potential)
             for dx, dy in ((0, 0), (1, 0), (0, 1), (2, 0), (1, 1), (0, 2)):
-                np.testing.assert_allclose(evaluator.evaluate(0.3, 0.4, 0.5, dx=dx, dy=dy),
+                np.testing.assert_allclose(potential.evaluate(self.jax.numpy.asarray(0.3), 0.4, 0.5, dx=dx, dy=dy),
                                            potential.evaluate(0.3, 0.4, 0.5, dx=dx, dy=dy), rtol=1e-11, atol=1e-10)
 
-    def test_invalid_requests_and_explicit_device_failure(self) -> None:
-        for kwargs in ({"dx": True}, {"dy": -1}, {"dx": 3}, {"dt": 3}, {"dt": 0.5}):
-            with self.assertRaises(ValueError):
-                self.evaluator.evaluate(0., 0., 0., **kwargs)
-        with self.assertRaises(ValueError):
-            self.evaluator.evaluate(0., np.zeros(2), np.zeros(3))
-        with self.assertRaises(ValueError):
-            self.evaluator.electric_field(0., x=0.)
-        for kwargs in ({"device": "tpu"}, {"device_index": -1}, {"device_index": True}):
-            with self.assertRaises(ValueError):
-                JaxPotentialEvaluator(self.potential, **kwargs)
-        with patch.object(self.jax, "devices", side_effect=RuntimeError("Unavailable")):
-            with self.assertRaisesRegex(RuntimeError, "gpu.*unavailable"):
-                JaxPotentialEvaluator(self.potential, device="gpu")
-        with patch.object(self.jax, "devices", return_value=[]):
-            with self.assertRaisesRegex(ValueError, "index 0 is unavailable"):
-                JaxPotentialEvaluator(self.potential)
+    def test_invalid_requests_on_both_backends(self) -> None:
+        for time in (0., self.jax.numpy.asarray(0.)):
+            for kwargs in ({"dx": True}, {"dy": -1}, {"dx": 3}, {"dt": 3}, {"dt": 0.5}):
+                with self.subTest(time_type=type(time), derivative=kwargs), self.assertRaises(ValueError):
+                    self.potential.evaluate(time, 0., 0., **kwargs)
+            with self.assertRaisesRegex(ValueError, "same shape"):
+                self.potential.evaluate(time, np.zeros(2), np.zeros(3))
+            with self.assertRaisesRegex(ValueError, "provided together"):
+                self.potential.electric_field(time, x=0.)
 
     def test_float32_is_rejected_without_changing_global_configuration(self) -> None:
         self.jax.config.update("jax_enable_x64", False)
         try:
             with self.assertRaisesRegex(RuntimeError, "requires float64"):
-                JaxPotentialEvaluator(self.potential)
-            with self.assertRaisesRegex(RuntimeError, "requires float64"):
-                self.evaluator.evaluate(0., 0., 0.)
+                self.potential.evaluate(self.jax.numpy.asarray(0.), 0., 0.)
             self.assertFalse(self.jax.config.x64_enabled)
         finally:
             self.jax.config.update("jax_enable_x64", True)
@@ -198,10 +188,9 @@ class JaxPotentialTests(unittest.TestCase):
             devices = []
         if not devices:
             self.skipTest("No JAX GPU device is available")
-        evaluator = JaxPotentialEvaluator(self.potential, device="gpu")
         x, y = np.linspace(-1., 7., 256), np.linspace(7., -1., 256)
         for dx, dy in ((0, 0), (1, 0), (0, 1), (2, 0), (1, 1), (0, 2)):
-            actual = evaluator.evaluate(0.2, x, y, dx=dx, dy=dy)
+            actual = self.potential.evaluate(0.2, self.jax.device_put(x, devices[0]), self.jax.device_put(y, devices[0]), dx=dx, dy=dy)
             self.assertEqual(actual.devices(), {devices[0]})
             np.testing.assert_allclose(actual, self.potential.evaluate(0.2, x, y, dx=dx, dy=dy),
                                        rtol=3e-12, atol=3e-12)

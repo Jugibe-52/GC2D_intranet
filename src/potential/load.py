@@ -23,7 +23,7 @@ import numpy as np
 
 from .grid import Grid, _validate_periodic_sizes
 from ._periodic_spline import _build_periodic_spline
-from .prepared import _readonly_array
+from ._validation import _readonly_array
 
 DEFAULT_CHARACTERISTIC_LENGTH = 0.06
 # Original HDF5 variable-field indices; field zero is always the constant term.

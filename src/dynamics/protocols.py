@@ -2,18 +2,20 @@
 
 from __future__ import annotations
 
-from typing import ClassVar, Protocol, runtime_checkable
-
-import numpy as np
+from typing import Any, ClassVar, Protocol, runtime_checkable
 
 
 @runtime_checkable
 class DynamicalSystem(Protocol):
-	"""Physical equations consumable by a general ODE method."""
+	"""Physical equations consumable by a general ODE method.
+
+	Array inputs and outputs may be NumPy arrays or JAX arrays/tracers. Built-in
+	dynamics preserve NumPy unless time or state selects JAX.
+	"""
 
 	state_dimension: ClassVar[int]
 
-	def vector_field(self, t: float, state: np.ndarray) -> np.ndarray:
+	def vector_field(self, t: Any, state: Any) -> Any:
 		"""Return a derivative with the same packed layout as ``state``."""
 
 
@@ -28,16 +30,16 @@ class HamiltonianSystem(DynamicalSystem, Protocol):
 
 	def hamiltonian(
 		self,
-		t: float | np.ndarray,
-		state: np.ndarray,
-	) -> np.ndarray:
+		t: Any,
+		state: Any,
+	) -> Any:
 		"""Return one Hamiltonian value per particle and optional saved time."""
 
 	def extended_momentum_derivative(
 		self,
-		t: float,
-		state: np.ndarray,
-	) -> np.ndarray:
+		t: Any,
+		state: Any,
+	) -> Any:
 		"""Return minus the explicit time derivative of the Hamiltonian."""
 
 
@@ -52,9 +54,9 @@ class GuidingCenterJacobianSystem(DynamicalSystem, Protocol):
 
 	def particle_vector_field_jacobians(
 		self,
-		t: float,
-		state: np.ndarray,
-	) -> np.ndarray:
+		t: Any,
+		state: Any,
+	) -> Any:
 		"""Return one ``(2, 2)`` vector-field Jacobian per packed particle."""
 
 
@@ -71,10 +73,10 @@ class CyclotronSplitSystem(DynamicalSystem, Protocol):
 
 	def electric_acceleration(
 		self,
-		t: float,
-		x: np.ndarray,
-		y: np.ndarray,
-	) -> tuple[np.ndarray, np.ndarray]:
+		t: Any,
+		x: Any,
+		y: Any,
+	) -> tuple[Any, Any]:
 		"""Return electric acceleration at paired particle positions."""
 
 

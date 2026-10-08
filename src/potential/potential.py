@@ -16,6 +16,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from os import PathLike
+from functools import cached_property
 from typing import Any, Self, cast
 
 import numpy as np
@@ -29,8 +30,11 @@ from .load import (
 	DEFAULT_FIELD_INDICES,
 	_load_data,
 )
-from .prepared import PreparedPotential
-from .scipy_evaluator import ScipyPotentialEvaluator
+from contracts.arrays import uses_jax
+
+from ._validation import _readonly_array, _validated_potential_data
+from ._periodic_spline import _build_periodic_spline
+from ._evaluation import validate_derivatives, normalize_coordinates, reconstruct
 
 
 def _denoise_fields(
@@ -148,39 +152,52 @@ class Potential:
 		``interpolation_order`` is the polynomial degree used independently on both
 		spatial axes.  It affects off-grid evaluations but not the stored samples.
 		"""
-		self._prepared = PreparedPotential.build(grid, mean, modes, frequencies, interpolation_order)
+		if not isinstance(grid, Grid):
+			raise TypeError("`grid` must be a Grid instance.")
+		if (isinstance(interpolation_order, (bool, np.bool_))
+			or not isinstance(interpolation_order, (int, np.integer))
+			or not 2 <= int(interpolation_order) <= 5):
+			raise ValueError("`interpolation_order` must be an integer from 2 to 5.")
+		self._grid = grid
+		self._interpolation_order = int(interpolation_order)
+		self._mean, self._modes, self._frequencies = _validated_potential_data(
+			grid, mean, modes, frequencies,
+		)
+		self._splines = tuple(
+			_build_periodic_spline(
+				grid.x, grid.y, field, spacing=(grid.dx, grid.dy),
+				interpolation_order=self.interpolation_order,
+			)
+			for field in (self.mean, *self.modes)
+		)
 		self.metadata = metadata
-		self._scipy = ScipyPotentialEvaluator(self._prepared)
-
-	@property
-	def prepared(self) -> PreparedPotential:
-		"""Shared immutable data from which all evaluators are prepared."""
-		return self._prepared
+		# Concrete device constants only; traced calls never populate this cache.
+		self._jax_buffers: dict[Any, tuple[Any, ...]] = {}
 
 	@property
 	def grid(self) -> Grid:
-		"""Periodic spatial grid shared by every evaluator."""
-		return self._prepared.grid
+		"""Periodic spatial grid shared by both evaluation paths."""
+		return self._grid
 
 	@property
 	def interpolation_order(self) -> int:
 		"""Polynomial degree of the prepared spatial splines."""
-		return self._prepared.interpolation_order
+		return self._interpolation_order
 
 	@property
 	def mean(self) -> np.ndarray:
 		"""Read-only mean samples with shape (nx, ny)."""
-		return self._prepared.mean
+		return self._mean
 
 	@property
 	def modes(self) -> np.ndarray:
 		"""Read-only complex samples with shape (mode_count, nx, ny)."""
-		return self._prepared.modes
+		return self._modes
 
 	@property
 	def frequencies(self) -> np.ndarray:
 		"""Read-only positive harmonic frequencies in cycles per normalized time."""
-		return self._prepared.frequencies
+		return self._frequencies
 
 	def __getstate__(self) -> dict[str, Any]:
 		"""Serialize physical data only; device buffers and compiled functions are local."""
@@ -188,7 +205,7 @@ class Potential:
 		            metadata=self.metadata, interpolation_order=self.interpolation_order)
 
 	def __setstate__(self, state: dict[str, Any]) -> None:
-		"""Rebuild CPU splines and their evaluator in the receiving process."""
+		"""Rebuild CPU splines and empty device caches in the receiving process."""
 		Potential.__init__(self, **state)
 
 	@classmethod
@@ -279,24 +296,68 @@ class Potential:
 			interpolation_order=interpolation_order,
 		)
 
+	@cached_property
+	def _spline_data(self) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+		"""Export shared knots and coefficients once, without refitting splines.
+
+		Coefficients have shape ``(1 + mode_count, ncoeff_x, ncoeff_y)``;
+		the first component is the mean and the others are complex harmonics.
+		"""
+		tx, ty = self._splines[0].real.get_knots()
+		shape = (tx.size - self.interpolation_order - 1, ty.size - self.interpolation_order - 1)
+		coefficients = []
+		for spline in self._splines:
+			for component in (spline.real, spline.imag):
+				kx, ky = component.get_knots()
+				if not (np.array_equal(kx, tx) and np.array_equal(ky, ty)):
+					raise ValueError("Potential components must share the same spline knots.")
+			coefficients.append((spline.real.get_coeffs() + 1j * spline.imag.get_coeffs()).reshape(shape))
+		return (_readonly_array(tx, dtype=float), _readonly_array(ty, dtype=float),
+			_readonly_array(np.stack(coefficients), dtype=np.complex128))
+
 	def evaluate(
 		self, t: Any, x: Any, y: Any, *, dx: int = 0, dy: int = 0, dt: int = 0,
-	) -> np.ndarray:
-		"""Evaluate paired points or derivatives as NumPy arrays.
+	) -> Any:
+		"""Evaluate matching paired coordinates with their array backend.
 
-		Coordinates must have the same shape; time broadcasts against that shape.
-		Spatial derivative orders must be below the interpolation degree; temporal
-		orders are 0, 1, or 2. Simulation execution is configured separately.
+		A JAX argument (including time or a tracer) selects JAX; otherwise the
+		result is NumPy. Time broadcasts against the common coordinate shape.
+		Spatial orders must be below the spline degree; time orders are 0, 1, 2.
 		"""
-		return cast(np.ndarray, self._scipy.evaluate(t, x, y, dx=dx, dy=dy, dt=dt))
+		validate_derivatives(self.interpolation_order, dx, dy, dt)
+		if uses_jax(t, x, y):
+			from ._jax import evaluate_jax
+			return evaluate_jax(self, t, x, y, int(dx), int(dy), int(dt))
+		time, x, y = np.asarray(t), np.asarray(x), np.asarray(y)
+		if x.shape != y.shape:
+			raise ValueError("`x` and `y` must have the same shape.")
+		x, y = normalize_coordinates(x, y, (self.grid.xmin, self.grid.ymin), self.grid.period)
+		fields = np.stack([spline.evaluate(x, y, dx=int(dx), dy=int(dy)) for spline in self._splines])
+		return reconstruct(time, fields, self.frequencies, int(dt), xp=np)
 
 	def evaluate_grid(self, t: Any, *, dt: int = 0) -> np.ndarray:
-		"""Return NumPy grid values with spatial axes before the time axes."""
-		return cast(np.ndarray, self._scipy.evaluate_grid(t, dt=dt))
+		"""Return NumPy grid values with spatial axes before the time axes.
 
-	def electric_field(self, t: Any, x: Any = None, y: Any = None) -> tuple[np.ndarray, np.ndarray]:
-		"""Return (-phi_x, -phi_y) at paired points, or on the full grid."""
-		return self._scipy.electric_field(t, x, y)
+		This host-only operation rejects JAX arrays and tracers. Convert concrete
+		JAX time arrays explicitly with ``np.asarray`` before requesting a grid.
+		"""
+		if uses_jax(t):
+			raise TypeError("Grid evaluation requires NumPy time; convert concrete JAX arrays explicitly with np.asarray.")
+		validate_derivatives(self.interpolation_order, 0, 0, dt)
+		time = np.asarray(t)
+		fields = np.concatenate((self.mean[None], self.modes))
+		fields = fields.reshape(fields.shape + (1,) * time.ndim)
+		return cast(np.ndarray, reconstruct(time, fields, self.frequencies, int(dt), xp=np))
+
+	def electric_field(self, t: Any, x: Any = None, y: Any = None) -> tuple[Any, Any]:
+		"""Return (-phi_x, -phi_y), using NumPy for omitted grid coordinates."""
+		if x is None and y is None:
+			if uses_jax(t):
+				raise TypeError("Grid evaluation requires NumPy time; convert concrete JAX arrays explicitly with np.asarray.")
+			x, y = np.meshgrid(self.grid.x, self.grid.y, indexing="ij")
+		elif x is None or y is None:
+			raise ValueError("`x` and `y` must be provided together.")
+		return -self.evaluate(t, x, y, dx=1), -self.evaluate(t, x, y, dy=1)
 
 	def gyroaverage(self, rho: float) -> Potential:
 		"""Return the Larmor-circle average of every field at radius ``rho``.

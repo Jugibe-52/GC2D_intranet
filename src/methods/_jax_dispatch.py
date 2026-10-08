@@ -8,7 +8,8 @@ import jax.numpy as jnp
 
 from contracts.compiled import CompiledStep
 from contracts.execution_options import ExecutionOptions
-from dynamics._jax import JaxDynamics, bind_dynamics
+from dynamics.protocols import HamiltonianSystem
+from execution._jax import require_builtin_dynamics, resolve_device
 from integration.core import IntegrationMethod
 from methods._jax_options import CompositionOptions, ExplicitOptions, ImplicitOptions, NonlinearOptions
 from methods.classical._jax_steps import euler_step, gauss_step, hbvm_step, rk4_step, sdirk_step
@@ -34,17 +35,14 @@ _SUPPORTED = (
 class PreparedJaxStep(Generic[Options]):
 	"""Hashable physical kernel and controls, with one common state-finishing map."""
 
-	dynamics: JaxDynamics
+	dynamics: HamiltonianSystem
+	device: Any
 	options: Options
-	kernel: Callable[[Any, Any, Any, JaxDynamics, Options], tuple[Any, Any, dict[str, Any], Any]]
-
-	@property
-	def device(self) -> Any:
-		return self.dynamics.evaluator.device
+	kernel: Callable[[Any, Any, Any, HamiltonianSystem, Options], tuple[Any, Any, dict[str, Any], Any]]
 
 	@property
 	def physical_dimension(self) -> int:
-		return self.dynamics.dimension
+		return self.dynamics.state_dimension
 
 	@property
 	def copies(self) -> int:
@@ -75,13 +73,13 @@ class PreparedJaxStep(Generic[Options]):
 		return jnp.concatenate(parts), statistics, valid
 
 
-def _explicit(method: ExplicitEuler | RK4, dynamics: JaxDynamics) -> CompiledStep:
+def _explicit(method: ExplicitEuler | RK4, dynamics: HamiltonianSystem, device: Any) -> CompiledStep:
 	"""Explicit kernels have no nonlinear or projection options."""
 	kernel = rk4_step if isinstance(method, RK4) else euler_step
-	return PreparedJaxStep(dynamics, ExplicitOptions(method.track_energy), kernel)
+	return PreparedJaxStep(dynamics, device, ExplicitOptions(method.track_energy), kernel)
 
 
-def _classical(method: GaussLegendre4 | SDIRK4, dynamics: JaxDynamics) -> CompiledStep:
+def _classical(method: GaussLegendre4 | SDIRK4, dynamics: HamiltonianSystem, device: Any) -> CompiledStep:
 	"""Use the Jacobian capability resolved during CPU-side run preparation."""
 	solve = NonlinearOptions(
 		method.newton_absolute_tolerance, method.newton_relative_tolerance,
@@ -89,68 +87,68 @@ def _classical(method: GaussLegendre4 | SDIRK4, dynamics: JaxDynamics) -> Compil
 		method.newton_jacobian_relative_step,
 	)
 	kernel = gauss_step if isinstance(method, GaussLegendre4) else sdirk_step
-	return PreparedJaxStep(dynamics, ImplicitOptions(method.track_energy, solve), kernel)
+	return PreparedJaxStep(dynamics, device, ImplicitOptions(method.track_energy, solve), kernel)
 
 
-def _hbvm(method: HBVM42, dynamics: JaxDynamics) -> CompiledStep:
+def _hbvm(method: HBVM42, dynamics: HamiltonianSystem, device: Any) -> CompiledStep:
 	"""Keep HBVM's own damping and norm in its kernel, resolving only controls."""
 	jacobian = method.jacobian_method
 	if jacobian == "auto":
-		jacobian = "analytic" if dynamics.dimension == 2 else "finite_difference"
+		jacobian = "analytic" if dynamics.state_dimension == 2 else "finite_difference"
 	solve = NonlinearOptions(method.absolute_tolerance, method.relative_tolerance,
 		method.max_iterations, jacobian, method.jacobian_relative_step)
-	return PreparedJaxStep(dynamics, ImplicitOptions(method.track_energy, solve), hbvm_step)
+	return PreparedJaxStep(dynamics, device, ImplicitOptions(method.track_energy, solve), hbvm_step)
 
 
 def _abba(method: ABBA2Implicit | ABBA4Implicit | ABBA6Implicit,
-		dynamics: JaxDynamics) -> CompiledStep:
+		dynamics: HamiltonianSystem, device: Any) -> CompiledStep:
 	"""Bind the actual signed recipe and one outer projection."""
 	solve = NonlinearOptions(method.newton_absolute_tolerance, method.newton_relative_tolerance,
 		method.newton_max_iterations, "analytic", 0., method.nonlinear_solver)
 	options = CompositionOptions(method.track_energy, method.recipe.coefficients, None,
 		method.projection_formulation, solve, publish_substeps=method.order != 2)
-	return PreparedJaxStep(dynamics, options, extended_step)
+	return PreparedJaxStep(dynamics, device, options, extended_step)
 
 
-def _bm4(method: BM4Implicit, dynamics: JaxDynamics) -> CompiledStep:
+def _bm4(method: BM4Implicit, dynamics: HamiltonianSystem, device: Any) -> CompiledStep:
 	"""Bind BM4's coupling and explicit Jacobian selection."""
 	solve = NonlinearOptions(method.newton_absolute_tolerance, method.newton_relative_tolerance,
 		method.newton_max_iterations, method.newton_jacobian_method,
 		method.newton_jacobian_relative_step, method.nonlinear_solver)
 	options = CompositionOptions(method.track_energy, BM4.coefficients, method.coupling_frequency,
 		"reduced_multiplier", solve)
-	return PreparedJaxStep(dynamics, options, extended_step)
+	return PreparedJaxStep(dynamics, device, options, extended_step)
 
 
-def _midpoint(method: ABBA2Midpoint | BM4Midpoint, dynamics: JaxDynamics) -> CompiledStep:
+def _midpoint(method: ABBA2Midpoint | BM4Midpoint, dynamics: HamiltonianSystem, device: Any) -> CompiledStep:
 	"""Arithmetic projection has no nonlinear solver configuration."""
 	recipe = BM4 if isinstance(method, BM4Midpoint) else ABBA2
 	coupling = method.coupling_frequency if isinstance(method, BM4Midpoint) else None
 	options = CompositionOptions(method.track_energy, recipe.coefficients, coupling,
 		"reduced_multiplier", None)
-	return PreparedJaxStep(dynamics, options, extended_step)
+	return PreparedJaxStep(dynamics, device, options, extended_step)
 
 
 def prepare_step(method: IntegrationMethod[Any], execution: ExecutionOptions) -> CompiledStep:
 	"""Select an adapter once, refusing to discard overrides of built-in methods."""
 	if type(method) not in _SUPPORTED:
 		raise TypeError("JAX fixed integration requires a supported built-in method; subclass overrides are not compiled.")
-	dynamics = bind_dynamics(method.problem.dynamics, execution)
-	dynamics.evaluator.check_ready()
+	dynamics = require_builtin_dynamics(method.problem.dynamics)
+	device = resolve_device(execution)
 	if isinstance(method, (ExplicitEuler, RK4)):
-		return _explicit(method, dynamics)
+		return _explicit(method, dynamics, device)
 	if isinstance(method, (GaussLegendre4, SDIRK4)):
-		return _classical(method, dynamics)
+		return _classical(method, dynamics, device)
 	if isinstance(method, HBVM42):
-		return _hbvm(method, dynamics)
-	if dynamics.dimension != 2:
+		return _hbvm(method, dynamics, device)
+	if dynamics.state_dimension != 2:
 		raise TypeError("Extended GC compositions require planar guiding-centre dynamics.")
 	if isinstance(method, (ABBA2Implicit, ABBA4Implicit, ABBA6Implicit)):
-		return _abba(method, dynamics)
+		return _abba(method, dynamics, device)
 	if isinstance(method, BM4Implicit):
-		return _bm4(method, dynamics)
+		return _bm4(method, dynamics, device)
 	if isinstance(method, (ABBA2Midpoint, BM4Midpoint)):
-		return _midpoint(method, dynamics)
+		return _midpoint(method, dynamics, device)
 	raise TypeError("The supported method has no compiled family adapter.")
 
 

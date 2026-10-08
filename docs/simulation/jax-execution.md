@@ -51,8 +51,9 @@ it does not claim that the complete adaptive solver runs on GPU.
 
 All routes return the same immutable NumPy `Solution`, with component-major
 physical states and canonical energy histories. Initial field preparation,
-gyroaveraging and spline fitting stay on CPU. Both evaluators consume the same
-prepared spline coefficients. Built-in GC dynamics are supported by every
+gyroaveraging and spline fitting stay on CPU. `Potential` owns the canonical
+splines and selects SciPy or JAX from its arguments, with both paths using the
+same knots and coefficients. Built-in GC dynamics are supported by every
 method. FC dynamics are supported by the classical and adaptive methods;
 ABBA/BM4 retain their existing planar-GC restriction. Custom dynamics and method
 subclasses are rejected rather than silently replacing their equations.
@@ -98,8 +99,12 @@ not universal bitwise equality or identical adaptive step grids.
 
 Fixed methods inherit `methods._compiled.CompiledFixedMethod`. Its optional
 backend entry point selects a typed family adapter in `methods._jax_dispatch`.
-The adapter binds a physical kernel, prepared dynamics and immutable controls;
-explicit, classical implicit and composition methods have separate option types.
+The adapter binds a physical kernel, the shared GC/FC dynamics and immutable
+controls; explicit, classical implicit and composition methods have separate
+option types. State layouts and dynamics preserve the input array backend, so
+compiled kernels call the same field, energy and analytic-Jacobian methods as
+NumPy execution. Device preparation belongs to integration and does not replace
+the physical dynamics with a second implementation.
 Arithmetic projection carries no nonlinear configuration. Kernel selection is
 completed before tracing, rather than repeated through method-name strings.
 
@@ -116,8 +121,10 @@ initialization. Configured method instances remain reusable and do not retain
 run states. The common fixed JAX driver uses `lax.scan` for accepted steps and
 independent shortened maps for off-grid output, preserving the CPU endpoint
 matching rules. Only requested states and small accepted-step statistics are
-retained. Device field bindings and compiled function identities are reused
-across runs with compatible shapes and settings.
+retained. Integration preparation reuses compiled function identities through
+bounded caches across runs with compatible fields, shapes and settings.
+`Potential` reuses concrete device coefficients without refitting its splines;
+traced constants are never retained in persistent caches.
 
 Fixed JAX methods require `progress=False`, `step_observer=None` and
 `newton_observer=None`. Python

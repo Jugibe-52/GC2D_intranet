@@ -10,6 +10,8 @@ class CompiledStep(Protocol):
 	so it must not inspect concrete numerical methods or reconstruct their options.
 	"""
 
+	def __hash__(self) -> int: ...
+
 	@property
 	def device(self) -> Any: ...
 

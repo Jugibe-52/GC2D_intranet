@@ -1,6 +1,6 @@
 """Compiled evaluation of the existing tensor-product potential splines.
 
-Only the optional JAX evaluator imports this module. Spline construction stays
+Only the optional JAX evaluation path imports this module. Spline construction stays
 in SciPy; these kernels use its knots and coefficients without refitting data.
 """
 
@@ -65,13 +65,6 @@ def evaluate_splines(
     iy, wy = _basis(knots_y, y, degree, dy)
     local = coefficients[:, ix[..., :, None], iy[..., None, :]]
     fields = jnp.sum(local * wx[..., :, None] * wy[..., None, :], axis=(-2, -1))
-    return reconstruct(time, fields, frequencies, dt, xp=jnp)
-
-
-@partial(jax.jit, static_argnames=("dt",))
-def evaluate_samples(time: Any, fields: Any, frequencies: Any, *, dt: int) -> Any:
-    """Reconstruct stored grid samples with time axes after the spatial axes."""
-    fields = fields.reshape(fields.shape + (1,) * time.ndim)
     return reconstruct(time, fields, frequencies, dt, xp=jnp)
 
 

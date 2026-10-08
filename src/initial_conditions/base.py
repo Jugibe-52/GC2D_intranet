@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import cast
+
 from abc import ABC, abstractmethod
 
 import numpy as np
@@ -62,7 +64,7 @@ class StateConfiguration(ABC):
 
 	def validate_packed_state_layout(self, state: np.ndarray) -> np.ndarray:
 		"""Delegate packed-layout validation to :attr:`layout`."""
-		return self.layout.validate_packed_state_layout(state)
+		return cast(np.ndarray, self.layout.validate_packed_state_layout(state))
 
 	def split(self, state: np.ndarray) -> tuple[np.ndarray, ...]:
 		"""Delegate component splitting to :attr:`layout`."""
@@ -70,11 +72,11 @@ class StateConfiguration(ABC):
 
 	def as_blocks(self, state: np.ndarray) -> np.ndarray:
 		"""Delegate explicit block exposure to :attr:`layout`."""
-		return self.layout.as_blocks(state)
+		return cast(np.ndarray, self.layout.as_blocks(state))
 
 	def from_blocks(self, blocks: np.ndarray) -> np.ndarray:
 		"""Delegate block flattening to :attr:`layout`."""
-		return self.layout.from_blocks(blocks)
+		return cast(np.ndarray, self.layout.from_blocks(blocks))
 
 	def particle_count(self, state: np.ndarray) -> int:
 		"""Delegate particle counting to :attr:`layout`."""

@@ -132,8 +132,9 @@ and statistics. See [JAX execution](../../../simulation/jax-execution.md).
 
 ## Potential evaluation boundary
 
-`Potential` performs standalone SciPy evaluation without execution options.
-During JAX simulation preparation, the dynamics binding constructs and reuses a
-`JaxPotentialEvaluator` from the existing prepared splines; it does not refit them.
-Backend selection remains a simulation concern. See the
+`Potential.evaluate` selects SciPy or JAX from its time and coordinate arrays,
+using the same fitted splines. The built-in GC/FC dynamics preserve the array
+backend and provide the same physical equations to both execution paths.
+Simulation preparation selects the device and compiles those shared methods;
+`evaluate_grid` remains NumPy-only. See the
 [shared potential contract](../../../dynamics/jax-potential-evaluation.md).

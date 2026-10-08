@@ -30,6 +30,23 @@ that previously supplied only `hamiltonian` must also supply the basic dynamics
 members and `extended_momentum_derivative` to satisfy the unified contract.
 Evaluating a Hamiltonian directly remains possible without enabling tracking.
 
+## NumPy and JAX arrays
+
+The same built-in GC/FC dynamics instance accepts NumPy or JAX arguments. A JAX
+array or tracer in the time or state selects JAX calculations; mixed inputs
+are converted to JAX. Vector fields, Hamiltonians, passive momentum derivatives
+and analytic particle Jacobians preserve that backend and support compiled
+calls. NumPy calls remain independent of the optional JAX installation.
+
+State layouts preserve the array backend when reshaping, splitting and packing
+component-major blocks. The physical dimensions and ordering do not change.
+Integration preparation selects devices and compilation; the dynamics do not
+accept execution options or own a second JAX implementation. The SciPy adaptive
+controller has an explicit adapter for transfers when JAX execution is selected.
+Saved `Solution` arrays remain NumPy. See the
+[shared potential contract](jax-potential-evaluation.md) for dispatch and device
+placement, including the NumPy-only full-grid evaluation interface.
+
 ## Physical layouts and problem ownership
 
 `contracts.state_layout` owns `PackedStateLayout`, `GCState`, `GCStateLayout`,
@@ -58,7 +75,7 @@ initial condition.
 
 Built-in GC and FC dynamics freeze their physical parameters. Construct a new
 `GuidingCenterDynamics` or `FullCyclotronDynamics` for a different potential,
-`rho`, or `eta`; this keeps the GC gyroaveraged field and JAX parameter snapshots
+`rho`, or `eta`; this keeps the GC gyroaveraged field and compiled calculations
 consistent with the declared system. These objects and problem snapshots remain
 pickle-compatible for process and Modal execution. Custom dynamical systems
 remain responsible for keeping their own physical parameters stable during a run.

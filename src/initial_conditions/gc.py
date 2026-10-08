@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import cast
+
 import numpy as np
 
 from contracts.state_layout import GCState, GCStateLayout
@@ -27,7 +29,7 @@ class GCInitialConfiguration(StateConfiguration):
 	@classmethod
 	def pack_components(cls, *components: np.ndarray) -> np.ndarray:
 		"""Compatibility façade for the guiding-centre layout builder."""
-		return GCStateLayout.pack_components(*components)
+		return cast(np.ndarray, GCStateLayout.pack_components(*components))
 
 	@classmethod
 	def from_components(
