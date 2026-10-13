@@ -1,0 +1,4 @@
+interface:
+  display_name: "GC2D SDD"
+  short_description: "Specify, plan, and track GC2D changes with SDD"
+  default_prompt: "Use $sdd prepare to create a GC2D change with spec.md, plan.md, and tasks.md for joint review."

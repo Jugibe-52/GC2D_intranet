@@ -20,6 +20,28 @@
   before saving an update that would exceed this limit. Keep entries in English
   and avoid duplicating the rules in this file.
 
+## Specification-driven development
+
+- Use the repository-local `sdd` skill at `.agents/skills/sdd/SKILL.md` for
+  substantial functionality, public-contract, numerical-algorithm, and study
+  changes. Small corrections may retain the ordinary workflow.
+- Follow `specs/README.md`: prepare `spec.md`, `plan.md`, and `tasks.md` under
+  `specs/changes/<change-id>/`. Use `spec`, `plan`, and `tasks` for individual
+  steps or `prepare` for all three. Review specification and plan together,
+  with tasks available, before implementation; no intermediate approvals are
+  required. Existing acceptance and implementation authorization remain valid
+  for their scope; do not request them again.
+- Skill selection does not expand write permissions. Consultation and status
+  requests stay read-only, and preparing a change does not authorize its
+  implementation. Material scope changes return to review.
+- Keep `specs/current/` aligned with accepted, implemented behavior and retain
+  change records in `specs/changes/`. Verify acceptance criteria with actual
+  evidence before closing a change. Run `python scripts/check_sdd.py` after
+  editing records; it validates structure and references, not scientific truth.
+- Keep state and approval in `spec.md`, design in `plan.md`, and task completion
+  and evidence in `tasks.md`. Reconcile downstream documents after substantive
+  spec or plan revisions before updating their recorded revision references.
+
 ## Project Structure & Module Organization
 
 GC2D simulates particle trajectories in time-dependent electrostatic potentials.
@@ -110,6 +132,11 @@ outputs. Regenerate affected notebook figures and animations when they contain
 non-English labels. When editing existing non-English prose, translate it into
 English. Keep established identifiers stable unless a rename is explicitly
 requested; proper names and mathematical notation do not require translation.
+
+This language rule applies to canonical project content. Local Spanish Markdown
+reading copies named `*.es.md` or `*.es.<number>.md` are permitted under the shared
+personal translation instructions. They do not replace canonical documents or
+count as specification records.
 
 ## Model architecture documentation
 

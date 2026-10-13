@@ -156,3 +156,18 @@ retain an explicit NumPy/JAX boundary. Reuse spline coefficients without
 refitting. Persistent potential device caches must contain concrete arrays only:
 zero-argument JIT closures over JAX arrays can trace conversions even when the
 original arguments are not tracers. See `docs/dynamics/jax-potential-evaluation.md`.
+
+## SDD record references
+
+The SDD schema and lifecycle are maintained in `specs/README.md`. Machine-checked
+file references must already exist, even in drafts; describe planned new files
+in the proposal prose until implementation creates them. Reserve new requirement
+IDs through the change's `proposed_requirements`, then establish them in current
+contracts before verification. Keep prior outcomes in the narrative when a
+scope revision resets approval or evidence. The checker uses Python's standard
+library and inspects test selectors statically without importing test modules.
+Current contracts retain schema version 1. Change records use version 2 in
+`specs/changes/<id>/{spec,plan,tasks}.md`; migrate their layout without rewriting
+historical acceptance or results. Declared upstream revisions expose stale
+plans/tasks: warnings in drafts, errors after approval. The skill must review
+semantic changes; revision numbers alone do not prove alignment.
