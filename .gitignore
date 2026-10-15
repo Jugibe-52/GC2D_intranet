@@ -33,3 +33,9 @@ docs/**/*.fdb_latexmk
 docs/**/*.fls
 docs/**/*.out
 docs/**/*.synctex.gz
+
+# Local Spanish reading copies and their synchronization conflict copies.
+*.es.md
+*.es.[0-9]*.md
+*.es.md.conflict*
+*.es.[0-9]*.md.conflict*
