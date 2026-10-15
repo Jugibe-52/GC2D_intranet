@@ -2,7 +2,12 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    import numpy as np
+    import pandas as pd
+    from potential import Potential
 
 from datetime import datetime, timezone
 import fcntl
@@ -18,23 +23,23 @@ import zipfile
 ROOT = Path(__file__).resolve().parent
 
 
-def utc_now():
+def utc_now() -> str:
     """Return an unambiguous timestamp for execution records."""
     return datetime.now(timezone.utc).isoformat()
 
 
-def new_run_id():
+def new_run_id() -> str:
     return datetime.now(timezone.utc).strftime('run_%Y%m%dT%H%M%S_%fZ')
 
 
-def validate_run_id(value):
+def validate_run_id(value: object) -> str:
     """Keep every run inside its package results directory."""
     if not isinstance(value, str) or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_-]{0,95}', value):
         raise ValueError('Run ID must contain 1-96 letters, numbers, underscores or hyphens.')
     return value
 
 
-def digest(path):
+def digest(path: str | Path) -> str:
     result = hashlib.sha256()
     with Path(path).open('rb') as stream:
         for block in iter(lambda: stream.read(1024 * 1024), b''):
@@ -42,7 +47,7 @@ def digest(path):
     return result.hexdigest()
 
 
-def atomic_json(path, data):
+def atomic_json(path: str | Path, data: object) -> None:
     """Publish a complete JSON file using a same-filesystem rename."""
     path = Path(path)
     temporary = path.with_name('.' + path.name + '.tmp')
@@ -50,7 +55,7 @@ def atomic_json(path, data):
     temporary.replace(path)
 
 
-def load_snapshot():
+def load_snapshot() -> tuple[Potential, dict[str, Any], str]:
     """Verify the bundled field and source before importing the exact frozen code."""
     manifest = json.loads((ROOT / 'assets' / 'snapshot.json').read_text())
     archive_path = ROOT / 'assets' / 'gc2d_snapshot.zip'
@@ -61,7 +66,8 @@ def load_snapshot():
     runtime.mkdir(parents=True, exist_ok=True)
     for package in ('potential', 'dynamics', 'initial_conditions', 'simulation'):
         loaded = sys.modules.get(package)
-        if loaded is not None and not Path(loaded.__file__).resolve().is_relative_to(runtime):
+        if loaded is not None and (loaded.__file__ is None
+                                   or not Path(loaded.__file__).resolve().is_relative_to(runtime)):
             raise RuntimeError('Restart the kernel before loading the frozen project implementation.')
     # Serialize extraction, and never rewrite a verified file being imported
     # by another worker. The parent materializes this cache before spawning.
@@ -93,7 +99,7 @@ def load_snapshot():
     return potential, provenance, expected
 
 
-def begin_calculation(run_id, parameters):
+def begin_calculation(run_id: str, parameters: dict[str, Any]) -> Path:
     """Reserve a new calculation without overwriting an earlier attempt."""
     run_id = validate_run_id(run_id)
     directory = ROOT / 'resultados' / run_id
@@ -112,7 +118,9 @@ def begin_calculation(run_id, parameters):
     return directory
 
 
-def publish_calculation(directory, metadata, arrays, positions, initial_positions):
+def publish_calculation(directory: str | Path, metadata: dict[str, Any],
+                        arrays: dict[str, np.ndarray], positions: pd.DataFrame,
+                        initial_positions: pd.DataFrame) -> None:
     """Save numeric products, then publish a checksum manifest as the commit marker."""
     import numpy as np
     directory = Path(directory)
@@ -152,7 +160,7 @@ def publish_calculation(directory, metadata, arrays, positions, initial_position
         atomic_json(ROOT / 'resultados' / 'latest_success.json', {'run_id': directory.name})
 
 
-def load_calculation(run_id=None):
+def load_calculation(run_id: str | None = None) -> tuple[Path, dict[str, Any], dict[str, np.ndarray], pd.DataFrame, pd.DataFrame]:
     """Read completed artifacts only, without importing or running the integrator."""
     import numpy as np
     import pandas as pd

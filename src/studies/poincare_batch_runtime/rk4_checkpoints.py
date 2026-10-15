@@ -9,7 +9,8 @@ from study_io import assert_checkpoint_file, load_snapshot, digest, atomic_json,
 class CheckpointTestInterruption(RuntimeError):
     """Intentional interruption for validation only."""
 
-def calculate_checkpointed_group(indices,initial_xy,settings):
+def calculate_checkpointed_group(indices: np.ndarray, initial_xy: np.ndarray,
+                                 settings: dict[str, Any]) -> dict[str, Any]:
     """Resume immutable chunks without changing their public-integrator schedule."""
     from threadpoolctl import threadpool_limits,threadpool_info
     potential,_,snapshot=load_snapshot()

@@ -1,6 +1,7 @@
 """Plot archived radial cycle-time results without integrating trajectories."""
 
 from pathlib import Path
+from diagnostics.persistence import StoredSolution
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -8,7 +9,7 @@ import numpy as np
 from visualization.poincare_selector import export_poincare_selector
 
 
-def render_radial_cycle(saved, directory):
+def render_radial_cycle(saved: StoredSolution, directory: str | Path) -> Path:
     """Export B-style wrapped returns, initial positions and copy separation."""
     directory = Path(directory)
     directory.mkdir(parents=True, exist_ok=True)

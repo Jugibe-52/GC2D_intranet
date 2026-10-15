@@ -1,5 +1,7 @@
 """Render saved cloud Poincare products without loading an integrator."""
 import numpy as np
+from pathlib import Path
+from typing import cast
 import matplotlib.pyplot as plt
 from matplotlib.colors import ListedColormap, BoundaryNorm
 from matplotlib.cm import ScalarMappable
@@ -7,7 +9,7 @@ from study_io import ROOT, load_calculation
 from poincare_selector import export_poincare_selector
 
 
-def render_saved(run_id=None):
+def render_saved(run_id: str | None = None) -> Path:
     """Create static plots and a self-contained selector with original IDs."""
     directory, meta, arrays, positions, initial = load_calculation(run_id)
     output = ROOT/'figuras'/directory.name
@@ -51,4 +53,4 @@ def render_saved(run_id=None):
         fig.savefig(output/'diagnostics.png',dpi=160,bbox_inches='tight');plt.close(fig)
     html=export_poincare_selector(output/'poincare_selector.html',xy,ids,arrays['colors_hex'],title=title,subtitle=subtitle)
     print(f'Saved plots and particle selector: {output}')
-    return html
+    return cast(Path, html)

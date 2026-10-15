@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from pathlib import Path
+from typing import Any
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -13,7 +14,7 @@ from matplotlib.figure import Figure
 from potential import Potential
 
 
-def format_dimensional_h5_metadata(metadata: Mapping[str, object], potential: Potential) -> str:
+def format_dimensional_h5_metadata(metadata: Mapping[str, Any], potential: Potential) -> str:
     """Format saved field and trajectory settings as a notebook Markdown table."""
     grid = potential.grid
     rows = [

@@ -1,9 +1,10 @@
 """Same-phase return and finite-horizon periodicity diagnostics for one BM4 orbit."""
 
 import numpy as np
+from contracts.study_results import ParallelBM4RecurrenceResult
 
 
-def periodicity_records(result, *, period):
+def periodicity_records(result: ParallelBM4RecurrenceResult, *, period: float) -> tuple[list[dict[str, float]], list[dict[str, float]]]:
     """Measure initial returns and shifted-trajectory agreement at integer lags.
 
     Each lag uses every saved step in the overlapping time interval. Distances

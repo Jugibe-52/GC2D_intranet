@@ -2,10 +2,11 @@
 from concurrent.futures import ProcessPoolExecutor
 import multiprocessing as mp
 import json
+from typing import Any
 import numpy as np
 from study_io import ROOT,load_calculation,load_snapshot,atomic_json,utc_now
 
-def baseline(indices,xy,meta):
+def baseline(indices: np.ndarray, xy: np.ndarray, meta: dict[str, Any]) -> tuple[np.ndarray, np.ndarray, dict]:
     from threadpoolctl import threadpool_limits
     potential,_,_=load_snapshot()
     from dynamics import GuidingCenterDynamics
@@ -18,6 +19,7 @@ def baseline(indices,xy,meta):
     initial=GCInitialConfiguration.from_components(x=xy[indices,0],y=xy[indices,1])
     problem=InitialValueProblem(GuidingCenterDynamics(potential,rho=meta['rho']),initial)
     request=SimulationRequest.uniform(t_span=tuple(meta['t_span']),max_step=meta['step'],sample_count=meta['complete_steps']+1)
+    method: BM4Implicit | BM4Midpoint
     if meta['method']=='BM4Implicit':
         method=BM4Implicit(coupling_frequency=meta['coupling_frequency'],newton_absolute_tolerance=meta['newton_atol'],newton_relative_tolerance=meta['newton_rtol'],newton_max_iterations=meta['newton_max_iterations'],newton_jacobian_relative_step=meta['jacobian_relative_step'],newton_jacobian_method='analytic',nonlinear_solver='newton',progress=False)
     else:
@@ -25,7 +27,7 @@ def baseline(indices,xy,meta):
     with threadpool_limits(limits=1): solution=simulate(problem,method,request)
     return solution.t,np.stack(solution.positions(),axis=-1).transpose(1,0,2),dict(solution.diagnostics)
 
-def main():
+def main() -> None:
     folder,meta,a,positions,initial=load_calculation('checkpoint_resume_test')
     n=meta['particle_count']; steps=meta['complete_steps']
     assert meta['validation_run'] and meta['cycles']==2 and meta['process_count']==16

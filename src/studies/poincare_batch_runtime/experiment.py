@@ -1,6 +1,7 @@
 """Compose a reproducible fixed-grid Poincare experiment from frozen source."""
 
 from typing import Any
+from pathlib import Path
 import importlib.metadata
 import json
 import os
@@ -11,7 +12,7 @@ from study_io import ROOT, digest, load_snapshot, begin_calculation, publish_cal
 from parallel_calculation import simulate_parallel
 
 
-def compute_and_save(parameters, run_id, validation_run=False):
+def compute_and_save(parameters: dict[str, Any], run_id: str, validation_run: bool = False) -> Path:
     """Integrate only the requested original particle IDs and commit all products."""
     p = dict(parameters)
     cfg = json.loads((ROOT / 'experiment.json').read_text())
@@ -34,7 +35,7 @@ def compute_and_save(parameters, run_id, validation_run=False):
     params = {**p, 't_span':[t0,tf], 'step':h, 'particle_count':n, 'snapshot_sha256':snapshot,
               'versions':versions, 'validation_run':validation_run, 'reference_computed':False,
               'original_particles_sha256':digest(ROOT/'assets/original_particles.json')}
-    output = begin_calculation(run_id, params)
+    output: Path = begin_calculation(run_id, params)
     settings = dict(rho=p['rho'], coupling_frequency=p['coupling_frequency'],
                     newton_atol=p['newton_atol'], newton_rtol=p['newton_rtol'],
                     newton_max_iterations=p['newton_max_iterations'],

@@ -9,14 +9,16 @@ from aws.cloud_job import CheckpointStore
 from study_io import digest, atomic_json, utc_now
 
 class FakeS3:
-    def __init__(self): self.objects = {}; self.calls = []
-    def upload_file(self,file,bucket,key):
+    def __init__(self) -> None:
+        self.objects: dict[str, bytes] = {}
+        self.calls: list[str] = []
+    def upload_file(self, file: str, bucket: str, key: str) -> None:
         if key.endswith('.json'):
             assert key[:-5]+'.npz' in self.objects
         self.objects[key] = Path(file).read_bytes(); self.calls.append(key)
-    def download_file(self,bucket,key,file): Path(file).write_bytes(self.objects[key])
-    def get_paginator(self,name): return self
-    def paginate(self,**kwargs):
+    def download_file(self, bucket: str, key: str, file: str) -> None: Path(file).write_bytes(self.objects[key])
+    def get_paginator(self, name: str) -> 'FakeS3': return self
+    def paginate(self, **kwargs: str) -> list[dict[str, list[dict[str, str]]]]:
         return [{'Contents':[{'Key':key} for key in self.objects if key.startswith(kwargs['Prefix'])]}]
 
 client=FakeS3()

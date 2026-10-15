@@ -1,10 +1,11 @@
 """Portable, pickle-free persistence for the DOP853 energy-balance study."""
 import json
 from pathlib import Path
+from typing import Any
 import numpy as np
 
 
-def save_energy_balance(path, arrays, metadata):
+def save_energy_balance(path: str | Path, arrays: dict[str, np.ndarray], metadata: dict[str, Any]) -> None:
     """Atomically replace one complete study archive with explicit metadata."""
     path = Path(path)
     temporary = path.with_suffix('.tmp.npz')
@@ -12,7 +13,7 @@ def save_energy_balance(path, arrays, metadata):
     temporary.replace(path)
 
 
-def load_energy_balance(path):
+def load_energy_balance(path: str | Path) -> tuple[dict[str, np.ndarray], dict[str, Any]]:
     """Read numeric arrays and JSON without executing serialized Python objects."""
     with np.load(path, allow_pickle=False) as data:
         metadata = json.loads(str(data['metadata_json']))

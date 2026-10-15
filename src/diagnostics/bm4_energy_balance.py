@@ -1,7 +1,8 @@
 """Sample BM4 conjugate momentum and particle multipliers at output nodes."""
 from dataclasses import replace
 import numpy as np
-from contracts.observation import ImplicitBM4IntegrationStep
+from contracts.observation import ImplicitBM4IntegrationStep, IntegrationStep
+from dynamics import GuidingCenterDynamics
 from .energy.observer import _bm4_stage_kappa_increment
 
 
@@ -12,7 +13,7 @@ class BM4EnergyBalanceObserver:
     statistics include every accepted step, including unsaved intermediate peaks.
     """
 
-    def __init__(self, dynamics, particle_count, save_stride):
+    def __init__(self, dynamics: GuidingCenterDynamics, particle_count: int, save_stride: int) -> None:
         self.dynamics = dynamics
         self.count = particle_count
         self.stride = save_stride
@@ -23,10 +24,10 @@ class BM4EnergyBalanceObserver:
         self.mu_rms = [np.zeros(particle_count)]
         self.mu_mean = [np.zeros(particle_count)]
         self.global_statistics = [np.zeros(4)]
-        self.block = []
+        self.block: list[np.ndarray] = []
         self.step_count = 0
 
-    def __call__(self, record):
+    def __call__(self, record: IntegrationStep) -> None:
         """Accumulate exact BM4 stage increments and infinity norms per particle."""
         if not isinstance(record, ImplicitBM4IntegrationStep):
             raise TypeError("Expected a BM4 accepted-step record.")

@@ -15,7 +15,7 @@ from dynamics import GuidingCenterDynamics
 from initial_conditions import GCInitialConfiguration
 from methods.extended.bm4 import BM4Midpoint
 from potential.load import DEFAULT_FIELD_INDICES
-from potential import Grid, Potential
+from potential import GC2DH5Metadata, Grid, Potential
 from simulation.runner import simulate
 from solution import Solution
 
@@ -81,7 +81,7 @@ def load_dimensional_h5_field(
         indx=selectors, interpolation_order=interpolation_order,
     )
     metadata = normalized.metadata
-    if metadata is None or metadata.characteristic_period is None:
+    if not isinstance(metadata, GC2DH5Metadata) or metadata.characteristic_period is None:
         raise ValueError("A positive-frequency H5 mode is required to normalize time.")
     x, y = metadata.source_x, metadata.source_y
     period_x = len(x) * (x[1] - x[0])

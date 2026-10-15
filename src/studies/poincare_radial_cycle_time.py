@@ -4,6 +4,8 @@ from dataclasses import asdict, dataclass
 from hashlib import file_digest
 import json
 from pathlib import Path
+from typing import Any
+from solution import Solution
 
 import numpy as np
 
@@ -38,7 +40,7 @@ class RadialCycleConfig:
     interpolation_order: int = 3
     stream_scale: float = 2 * np.pi
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         radii = np.asarray(self.radial_fractions)
         if (radii.ndim != 1 or radii.size < 2 or not np.isfinite(radii).all()
                 or radii[0] != 0 or np.any(np.diff(radii) <= 0) or radii[-1] >= .5):
@@ -64,7 +66,8 @@ class PreparedRadialCycle:
     metadata: dict
 
 
-def build_radial_cycle(potential, config, baseline, *, source_sha256, baseline_sha256):
+def build_radial_cycle(potential: Potential, config: RadialCycleConfig, baseline: dict[str, Any],
+                       *, source_sha256: str, baseline_sha256: str) -> PreparedRadialCycle:
     """Scale both field components and reconstruct B's documented initial radius."""
     provenance = baseline["field_provenance"]
     expected = (provenance["B_tesla"], provenance["characteristic_length_m"],
@@ -120,7 +123,8 @@ def build_radial_cycle(potential, config, baseline, *, source_sha256, baseline_s
                                request, metadata)
 
 
-def prepare_radial_cycle(source, baseline_metadata, config):
+def prepare_radial_cycle(source: str | Path, baseline_metadata: str | Path,
+                         config: RadialCycleConfig) -> PreparedRadialCycle:
     """Verify archived provenance and load the original normalized HDF5 samples."""
     baseline_metadata = Path(baseline_metadata)
     raw = baseline_metadata.read_bytes()
@@ -144,7 +148,7 @@ def prepare_radial_cycle(source, baseline_metadata, config):
                               baseline_sha256=baseline_sha)
 
 
-def validate_radial_solution(solution, prepared):
+def validate_radial_solution(solution: Solution, prepared: PreparedRadialCycle) -> None:
     """Require every complete step and the explicit arithmetic projection."""
     c, d = prepared.config, solution.diagnostics
     count = c.cycles * c.steps_per_cycle
@@ -159,7 +163,8 @@ def validate_radial_solution(solution, prepared):
         raise ValueError("Saved trajectory does not satisfy the radial study contract.")
 
 
-def run_and_save_radial_cycle(prepared, destination, *, options=ExecutionOptions()):
+def run_and_save_radial_cycle(prepared: PreparedRadialCycle, destination: str | Path,
+                             *, options: ExecutionOptions = ExecutionOptions()) -> StoredSolution:
     """Run locally, preserving all states and diagnostics; reuse matching archives."""
     # Match JSON representation before comparing archived tuples and scalars.
     expected = json.loads(json.dumps(prepared.metadata))
@@ -183,7 +188,10 @@ def run_and_save_radial_cycle(prepared, destination, *, options=ExecutionOptions
                         prepared.request, execution=Execution(), options=options)
     validate_radial_solution(solution, prepared)
     metadata = {**expected, "execution_options": asdict(options)}
-    potential = prepared.problem.dynamics.potential
+    dynamics = prepared.problem.dynamics
+    if not isinstance(dynamics, GuidingCenterDynamics):
+        raise TypeError("The radial study requires guiding-center dynamics.")
+    potential = dynamics.potential
     save_solution(solution, destination, metadata=metadata, potential=potential)
     return StoredSolution(solution, metadata, potential)
 

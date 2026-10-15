@@ -1,6 +1,7 @@
 """Global/particle energy figures and a standalone selectable trajectory player."""
 import json
 import uuid
+from matplotlib.figure import Figure
 import numpy as np
 from scipy.integrate import trapezoid
 import matplotlib.pyplot as plt
@@ -10,12 +11,12 @@ from studies.dop853_energy_balance import METHODS
 COLORS = dict(zip(METHODS, ('black', 'tab:green', 'tab:orange', 'tab:purple')))
 
 
-def summary_rows(arrays, particle=None):
+def summary_rows(arrays: dict[str, np.ndarray], particle: int | None = None) -> list[dict[str, str | float]]:
     """Report time-weighted RMS, peak and final errors without cancellation."""
     t = arrays['times']
-    rows = []
+    rows: list[dict[str, str | float]] = []
     for name in METHODS:
-        row = {'method': name}
+        row: dict[str, str | float] = {'method': name}
         for field in ('balance', 'distance'):
             values = arrays[name+'.'+field]
             if particle is not None:
@@ -27,7 +28,7 @@ def summary_rows(arrays, particle=None):
     return rows
 
 
-def plot_analysis(arrays, particle=None):
+def plot_analysis(arrays: dict[str, np.ndarray], particle: int | None = None) -> Figure:
     """Show physical energy, signed/absolute balance, and periodic distance."""
     t = arrays['times']
     fig, axes = plt.subplots(2, 2, figsize=(13, 8), constrained_layout=True)
@@ -56,7 +57,7 @@ def plot_analysis(arrays, particle=None):
     return fig
 
 
-def plot_mu(arrays):
+def plot_mu(arrays: dict[str, np.ndarray]) -> Figure:
     """Display endpoint and within-save-block peak norms at ten saves/cycle."""
     t = arrays['times'][1:]
     fig, axes = plt.subplots(2, 2, figsize=(13, 7), constrained_layout=True)
@@ -72,9 +73,9 @@ def plot_mu(arrays):
     return fig
 
 
-def mu_summary_rows(arrays):
+def mu_summary_rows(arrays: dict[str, np.ndarray]) -> list[dict[str, str | float]]:
     """Summarize every accepted step using equal-size block sufficient statistics."""
-    rows = []
+    rows: list[dict[str, str | float]] = []
     for p in range(3):
         rows.append(dict(particle=f'Particle {p+1}',
                          mean=float(np.mean(arrays['BM4Implicit.mu_mean'][p, 1:])),
@@ -88,7 +89,7 @@ def mu_summary_rows(arrays):
     return rows
 
 
-def plot_paths(arrays, particle=None):
+def plot_paths(arrays: dict[str, np.ndarray], particle: int | None = None) -> Figure:
     """Plot all saved paths and break lines at periodic boundary crossings."""
     xmin, ymin, period = arrays['domain']
     fig, ax = plt.subplots(figsize=(7, 7), constrained_layout=True)
@@ -110,7 +111,7 @@ def plot_paths(arrays, particle=None):
     return fig
 
 
-def trajectory_player(arrays):
+def trajectory_player(arrays: dict[str, np.ndarray]) -> HTML:
     """Self-contained HTML animation with method toggles, seek, trail and speed."""
     ident = 'player_' + uuid.uuid4().hex
     payload = json.dumps(dict(times=arrays['times'].tolist(), domain=arrays['domain'].tolist(),

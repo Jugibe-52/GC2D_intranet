@@ -5,6 +5,9 @@ import hashlib
 from pathlib import Path
 import time
 from typing import Callable
+from collections.abc import Mapping
+from contracts.observation import IntegrationStep
+from contracts.result import DiagnosticValue
 
 import numpy as np
 import scipy
@@ -92,7 +95,8 @@ def integrate_region_probes(potential: Potential, settings: RegionProbeSettings,
     dynamics = GuidingCenterDynamics(potential, rho=settings.rho)
     batch = count if settings.method == 'BM4Midpoint' else settings.chunk_steps
     started = time.perf_counter()
-    diagnostics = {}
+    diagnostics: Mapping[str, DiagnosticValue] = {}
+    method: BM4Midpoint | RK4
     for start in range(0, count, batch):
         end = min(count, start + batch)
         initial = GCInitialConfiguration.from_components(x=xy[start, :, 0], y=xy[start, :, 1])
@@ -100,10 +104,11 @@ def integrate_region_probes(potential: Potential, settings: RegionProbeSettings,
                                            max_step=step, sample_count=end - start + 1)
         if settings.method == 'BM4Midpoint':
             # Progress is observational only; it neither changes the map nor its clock.
-            def report(event):
+            def report(event: IntegrationStep) -> None:
                 completed = event.step_index + 1
                 if progress is not None and (completed % settings.chunk_steps == 0 or completed == count):
                     progress(completed, count)
+            assert settings.coupling_frequency is not None
             method = BM4Midpoint(coupling_frequency=settings.coupling_frequency,
                                  step_observer=report if progress else None)
         else:

@@ -1,9 +1,10 @@
 """Validate local RK4 products without integrating trajectories."""
 import argparse,json
+from typing import Any
 import numpy as np
 from study_io import ROOT,load_calculation,atomic_json,utc_now,digest
 
-def validate(run):
+def validate(run: str) -> dict[str, Any]:
     folder,meta,a,positions,initial=load_calculation(run)
     cfg=json.loads((ROOT/'experiment.json').read_text());cycles=2 if meta['validation_run'] else cfg['cycles'];n=len(cfg['particle_ids']);steps=cycles*cfg['steps_per_cycle']
     for key,value in dict(method='RK4',particle_count=n,process_count=4,cycles=cycles,steps_per_cycle=20,complete_steps=steps,newton_history_recorded=False,reference_computed=False).items():assert meta[key]==value,key

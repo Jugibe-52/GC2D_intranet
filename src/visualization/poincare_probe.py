@@ -11,6 +11,11 @@ from urllib.parse import quote, unquote, urlsplit
 
 import matplotlib.pyplot as plt
 import numpy as np
+from collections.abc import Mapping, Sequence
+from typing import Any
+from matplotlib.figure import Figure
+from studies.poincare_periodicity import SavedPoincareSection
+from studies.poincare_probe import RK4ProbeSettings
 
 
 _VIEWER_SERVERS: dict[Path, ThreadingHTTPServer] = {}
@@ -65,8 +70,9 @@ def display_notebook_viewer_link(path: Path, notebook_name: str) -> str:
     return url
 
 
-def plot_probe_context(background, settings, *, view: tuple[float, float, float],
-                       positions: np.ndarray | None = None, method: str = 'RK4'):
+def plot_probe_context(background: SavedPoincareSection, settings: RK4ProbeSettings, *,
+                       view: tuple[float, float, float], positions: np.ndarray | None = None,
+                       method: str = 'RK4') -> Figure:
     """Show original returns and the probe at the same square spatial scale."""
     figure, axis = plt.subplots(figsize=(7, 7), layout='constrained')
     x, y, span = view
@@ -74,9 +80,9 @@ def plot_probe_context(background, settings, *, view: tuple[float, float, float]
         points = background.positions[1:, j]
         inside = ((points[:, 0] >= x) & (points[:, 0] <= x + span)
                   & (points[:, 1] >= y) & (points[:, 1] <= y + span))
-        axis.scatter(*points[inside].T, s=2, color=color, alpha=.35, rasterized=True)
+        axis.scatter(points[inside, 0], points[inside, 1], s=2, color=color, alpha=.35, rasterized=True)
     if positions is not None:
-        axis.scatter(*positions[1:, 0].T, s=7, color=settings.color,
+        axis.scatter(positions[1:, 0, 0], positions[1:, 0, 1], s=7, color=settings.color,
                      label=f'Particle {settings.particle_id}: cycle returns', zorder=3)
     axis.scatter(*settings.initial_xy_over_L, s=110, marker='*', color=settings.color,
                  edgecolors='black', linewidths=.7, zorder=4,
@@ -105,7 +111,10 @@ def display_probe_viewer(path: Path, *, height: int = 1000, local_url: str | Non
                  f'srcdoc="{escape(path.read_text(encoding="utf-8"), quote=True)}"></iframe>'))
 
 
-def plot_region_sections(backgrounds, probes, regions, *, panels=None):
+def plot_region_sections(backgrounds: Mapping[str, SavedPoincareSection],
+                         probes: Mapping[int, Mapping[str, Any]],
+                         regions: Sequence[Mapping[str, Any]], *,
+                         panels: Mapping[str, Mapping[str, Any]] | None = None) -> Figure:
     """Compare original samples and matching seeds in each requested region.
 
     Rows are regions; columns are methods. Optional panels use the same complete
@@ -125,13 +134,13 @@ def plot_region_sections(backgrounds, probes, regions, *, panels=None):
                 points = background.positions[1:, j]
                 inside = ((points[:, 0] >= x) & (points[:, 0] <= x + span)
                           & (points[:, 1] >= y) & (points[:, 1] <= y + span))
-                axis.scatter(*points[inside].T, s=4, color=color, alpha=.4, rasterized=True)
+                axis.scatter(points[inside, 0], points[inside, 1], s=4, color=color, alpha=.4, rasterized=True)
             if panels is not None:
                 panel = panels[method]
                 points = panel['coordinates'][:, panel['particle_ids'].index(pid)]
-                axis.scatter(*points.T, s=7, color=probe['color'], zorder=3,
+                axis.scatter(points[:, 0], points[:, 1], s=7, color=probe['color'], zorder=3,
                              label=f'Particle {pid}: cycle returns', rasterized=True)
-            axis.scatter(*probe['initial_xy_over_L'], s=110, marker='*', color=probe['color'],
+            axis.scatter(probe['initial_xy_over_L'][0], probe['initial_xy_over_L'][1], s=110, marker='*', color=probe['color'],
                          edgecolors='white' if probe['color'] == '#111111' else 'black',
                          linewidths=.7, zorder=4, label=f'Particle {pid}: initial state')
             axis.set(xlim=(x, x + span), ylim=(y, y + span), aspect='equal', xlabel='x / L',

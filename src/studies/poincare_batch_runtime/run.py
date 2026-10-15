@@ -8,11 +8,15 @@ import json
 import os
 import sys
 import traceback
+from typing import Any, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from nbformat import NotebookNode
 
 from study_io import ROOT, atomic_json, load_calculation, new_run_id, utc_now, validate_run_id
 
 
-def main():
+def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('stage', choices=('calculate', 'visualize'))
     parser.add_argument('--run-id', help='Unique calculation ID, or saved ID to visualize.')
@@ -69,30 +73,34 @@ def main():
               'status': 'running', 'validation_run': args.smoke, 'python': sys.executable}
     atomic_json(status_path, record)
     with (directory / 'execution.log').open('a' if args.resume else 'w', encoding='utf-8', buffering=1) as log:
-        def write(message):
+        def write(message: str) -> None:
             log.write(message)
             print(message, end='', flush=True)
 
         class LoggedNotebookClient(NotebookClient):
             """Mirror kernel stream output to the cloud log while a cell runs."""
 
-            def process_message(self, msg, cell, cell_index):
+            def process_message(self, msg: dict[str, Any], cell: NotebookNode,
+                                cell_index: int) -> NotebookNode | None:
                 if msg['msg_type'] == 'stream':
                     write(msg['content']['text'])
                 return super().process_message(msg, cell, cell_index)
 
-        def on_cell_start(cell, cell_index, **kwargs):
+        def on_cell_start(cell: NotebookNode, cell_index: int, **kwargs: Any) -> None:
             if cell.cell_type == 'code':
                 label = ','.join(cell.metadata.get('tags', [])) or str(cell_index)
                 write(f'\n[{utc_now()}] Cell {cell_index}: {label}\n')
 
-        def on_cell_executed(**kwargs):
+        def on_cell_executed(**kwargs: Any) -> None:
             nbformat.write(notebook, executed_path)
 
         manager = KernelManager(kernel_name='python3')
         # Run in the exact interpreter used for this command, independent of
         # whichever Jupyter kernelspec happens to be installed on the host.
-        manager.kernel_spec.argv = [sys.executable, '-m', 'ipykernel_launcher', '-f', '{connection_file}']
+        kernel_spec = manager.kernel_spec
+        if kernel_spec is None:
+            raise RuntimeError('The Python notebook kernel specification is unavailable.')
+        kernel_spec.argv = [sys.executable, '-m', 'ipykernel_launcher', '-f', '{connection_file}']
         backend = 'Agg' if args.stage == 'calculate' else 'module://matplotlib_inline.backend_inline'
         (ROOT / '.cache' / 'matplotlib').mkdir(parents=True, exist_ok=True)
         (ROOT / '.cache' / 'ipython').mkdir(parents=True, exist_ok=True)

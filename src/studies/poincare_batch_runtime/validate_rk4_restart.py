@@ -4,7 +4,7 @@ import numpy as np
 from study_io import ROOT,load_snapshot,load_calculation,atomic_json,utc_now
 from rk4_checkpoints import calculate_checkpointed_group
 
-def main():
+def main() -> None:
     _,m,a,_,_=load_calculation('checkpoint_resume_test');assert all(w['resumed_steps']==10 and w['new_steps']==30 for w in m['workers'])
     settings={k:m[k] for k in ('rho','coupling_frequency','newton_atol','newton_rtol','newton_max_iterations','jacobian_relative_step','t_span','step','method','particle_ids','checkpoint_steps')};settings.update(n_steps=40,record_newton_history=False,test_stop_after_chunks=0)
     potential,_,_=load_snapshot()

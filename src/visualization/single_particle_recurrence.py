@@ -88,9 +88,9 @@ def plot_particle_return_zoom(arrays: dict[str, np.ndarray], metadata: dict[str,
     axes[1].scatter(*cycle_delta, color='darkorange', s=45, label=f't = {target_cycle}')
     rows = [r for r in metadata['returns'] if abs(r['time'] - target_cycle) <= half_width]
     for index, row in enumerate(rows):
-        label = 'Spatial minimum' if index == 0 else None
-        axes[0].scatter(row['time'], row['distance'], color='crimson', marker='v', zorder=5, label=label)
-        axes[1].scatter(row['dx'], row['dy'], color='crimson', marker='v', zorder=5, label=label)
+        minimum_label = 'Spatial minimum' if index == 0 else None
+        axes[0].scatter(row['time'], row['distance'], color='crimson', marker='v', zorder=5, label=minimum_label)
+        axes[1].scatter(row['dx'], row['dy'], color='crimson', marker='v', zorder=5, label=minimum_label)
         axes[1].plot([0, row['dx']], [0, row['dy']], color='crimson', ls=':', lw=1)
     axes[0].axvline(target_cycle, color='black', ls=':', lw=1)
     axes[0].set(xlabel='Time [forcing cycles]', ylabel='Periodic distance', title='Return-time detail')

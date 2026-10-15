@@ -77,7 +77,7 @@ def _update_summary(report: dict[str, Any]) -> None:
     precede starts at the same instant, so touching intervals do not overlap.
     """
     now = time()
-    events = []
+    events: list[tuple[float, int]] = []
     interval_count = 0
     for row in report["jobs"]:
         start = row.get("worker_started_unix_seconds")

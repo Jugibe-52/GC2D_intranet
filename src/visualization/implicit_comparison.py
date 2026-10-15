@@ -328,8 +328,10 @@ def animate_implicit_method_trajectories(
 		selector = CheckButtons(selector_axis, labels, [True] * len(labels))
 		selector_axis.set_title("Visible models", fontsize="small")
 
-		def toggle_method(label: str) -> None:
+		def toggle_method(label: str | None) -> None:
 			"""Show or hide a method in the current and later animation frames."""
+			if label is None:
+				return
 			is_visible = not collections[label].get_visible()
 			collections[label].set_visible(is_visible)
 			markers[label].set_visible(is_visible)

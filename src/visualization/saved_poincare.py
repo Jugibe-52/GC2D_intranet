@@ -9,7 +9,7 @@ from diagnostics.poincare_section import load_poincare_cycle_csv
 from visualization.poincare_selector import export_poincare_selector
 
 
-def render_saved_section(study_directory, run_id):
+def render_saved_section(study_directory: str | Path, run_id: str) -> Path:
     """Save a static section and an offline selector, preserving IDs and colors."""
     metadata, points, colors = load_poincare_cycle_csv(study_directory, run_id)
     output = Path(study_directory) / 'figuras' / run_id
@@ -39,7 +39,7 @@ def render_saved_section(study_directory, run_id):
     return selector
 
 
-def display_saved_section(selector):
+def display_saved_section(selector: str | Path) -> None:
     """Embed the offline selector so notebook servers need no local-file URL."""
     from IPython.display import HTML, Image, display
 

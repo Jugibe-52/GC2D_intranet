@@ -5,9 +5,10 @@ from typing import Any
 import base64
 import json
 import numpy as np
+from numpy.typing import ArrayLike
 
 
-def _encode_field(field):
+def _encode_field(field: Mapping[str, Any]) -> dict[str, Any]:
     """Encode a periodic Hamiltonian raster and its collocated velocity grid."""
     potential = np.asarray(field['potential'], dtype=float)
     velocity = np.asarray(field['velocity'], dtype=float)
@@ -51,12 +52,12 @@ def _validated_panel(
     return xy, static, ids, colors
 
 
-def _encode_panels(panels, bounds):
+def _encode_panels(panels: Sequence[Mapping[str, Any]], bounds: np.ndarray) -> tuple[list[dict[str, Any]], int]:
     """Validate aligned samples and encode browser copies in their original units."""
     if not panels:
         raise ValueError("At least one comparison panel is required.")
     lower, upper = bounds[:2], bounds[:2] + bounds[2]
-    encoded_panels = []
+    encoded_panels: list[dict[str, Any]] = []
     cycle_count = None
     for panel in panels:
         xy, static, ids, colors = _validated_panel(panel, lower, upper)
@@ -182,15 +183,18 @@ def _selection_settings(
     return config
 
 
-def export_poincare_panel_comparison(path, panels, cycles_per_frame=25, *,
-                                    initial_view=None, initial_cycle=1,
-                                    highlight_particle=None, title=None,
-                                    regions=None, highlight_particles=None,
-                                    coordinate_bounds=None, axis_labels=None,
-                                    description=None, particle_groups=None,
-                                    datasets=None, dataset_label="Dataset",
-                                    selected_dataset=None, particle_labels=None,
-                                    first_cycle=1, field_placement="panel") -> Path:
+def export_poincare_panel_comparison(
+    path: str | Path, panels: Sequence[Mapping[str, Any]], cycles_per_frame: int = 25, *,
+    initial_view: ArrayLike | None = None, initial_cycle: int = 1,
+    highlight_particle: int | None = None, title: str | None = None,
+    regions: Sequence[Mapping[str, Any]] | None = None,
+    highlight_particles: Sequence[int] | None = None,
+    coordinate_bounds: ArrayLike | None = None, axis_labels: Sequence[str] | None = None,
+    description: str | None = None, particle_groups: Sequence[Mapping[str, Any]] | None = None,
+    datasets: Sequence[Mapping[str, Any]] | None = None, dataset_label: str = "Dataset",
+    selected_dataset: object = None, particle_labels: Mapping[int, str] | None = None,
+    first_cycle: int = 1, field_placement: str = "panel",
+) -> Path:
     """Export aligned panels with optional selection between completed datasets.
 
     Coordinates default to the unit cell. ``coordinate_bounds=(x0,y0,span)``
@@ -212,7 +216,7 @@ def export_poincare_panel_comparison(path, panels, cycles_per_frame=25, *,
     field_indices = _validated_playback(
         encoded_panels, cycle_count, field_placement, cycles_per_frame, first_cycle, initial_cycle,
     )
-    config = dict(panels=encoded_panels, step=int(cycles_per_frame), initialCycle=int(initial_cycle),
+    config: dict[str, Any] = dict(panels=encoded_panels, step=int(cycles_per_frame), initialCycle=int(initial_cycle),
                   firstCycle=int(first_cycle), fieldPlacement=field_placement)
     config['coordinateBounds'] = dict(x=float(bounds[0]), y=float(bounds[1]), span=float(bounds[2]))
     if datasets is not None:
@@ -238,7 +242,10 @@ def export_poincare_panel_comparison(path, panels, cycles_per_frame=25, *,
     return Path(path)
 
 
-def export_poincare_comparison(path, coordinates, particle_ids, colors, titles, cycles_per_frame=25):
+def export_poincare_comparison(path: str | Path, coordinates: ArrayLike,
+                              particle_ids: Sequence[int] | np.ndarray,
+                              colors: Sequence[str] | np.ndarray, titles: Sequence[str],
+                              cycles_per_frame: int = 25) -> Path:
     """Export (method, cycle, particle, xy) normalized returns as interactive HTML.
 
     Display coordinates use float32; source calculation files remain unchanged.

@@ -1,6 +1,10 @@
 """Load, reuse and assemble matched saved probe runs without reintegration."""
 
 from pathlib import Path
+from collections.abc import Mapping, Sequence
+from typing import Any
+from potential import Potential
+from studies.poincare_periodicity import SavedPoincareSection
 
 from diagnostics.poincare_probe import load_poincare_probe, save_poincare_probe
 from studies.poincare_region_probe import (
@@ -8,7 +12,8 @@ from studies.poincare_region_probe import (
 )
 
 
-def calculate_region_probe_run(potential, settings, directory, *, contract):
+def calculate_region_probe_run(potential: Potential, settings: RegionProbeSettings,
+                               directory: Path, *, contract: dict[str, Any]) -> dict[str, Any]:
     """Reuse a complete matching run or calculate and persist the requested batch."""
     directory = Path(directory)
     if (directory / 'COMPLETE.json').exists():
@@ -16,7 +21,7 @@ def calculate_region_probe_run(potential, settings, directory, *, contract):
         print(f'{settings.method}: loaded the complete matching probe run.')
         return result
 
-    def report(done, total):
+    def report(done: int, total: int) -> None:
         if done % (250 * settings.steps_per_cycle) == 0 or done == total:
             print(f'{settings.method}: {done // settings.steps_per_cycle}/{settings.cycles} cycles', flush=True)
 
@@ -26,7 +31,7 @@ def calculate_region_probe_run(potential, settings, directory, *, contract):
     return result
 
 
-def load_region_probe_batch(directory, *, background):
+def load_region_probe_batch(directory: Path, *, background: SavedPoincareSection) -> tuple[RegionProbeSettings, dict[str, Any], dict[str, Any]]:
     """Read a batch or the original single-particle RK4 record and verify its context.
 
     Software hashes describe the saved calculation and are not replaced by the
@@ -50,7 +55,8 @@ def load_region_probe_batch(directory, *, background):
     return settings, result, metadata
 
 
-def load_saved_region_panels(backgrounds, batch_directories):
+def load_saved_region_panels(backgrounds: Mapping[str, SavedPoincareSection],
+                             batch_directories: Mapping[str, Sequence[Path]]) -> dict[str, dict[str, Any]]:
     """Assemble one panel per method from checksum-verified, cycle-aligned batches."""
     panels = {}
     for method, background in backgrounds.items():

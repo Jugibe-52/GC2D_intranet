@@ -3,6 +3,9 @@
 from dataclasses import asdict
 from pathlib import Path
 from typing import Any, Mapping
+from collections.abc import Iterable
+from matplotlib.figure import Figure
+from contracts.result import DiagnosticValue
 
 import numpy as np
 
@@ -17,9 +20,9 @@ from visualization.poincare_gap_overlay import (
 )
 
 
-def _saved_method(record, diagnostics):
+def _saved_method(record: Mapping[str, Any], diagnostics: Mapping[str, DiagnosticValue]) -> str:
     """Check the archived method identity before labeling its trajectories."""
-    method = record['config'].get('method', 'BM4Midpoint')
+    method: str = record['config'].get('method', 'BM4Midpoint')
     study = record.get('study')
     valid_study = study == 'poincare_ranked_star_rho_sweep' or (
         method == 'BM4Midpoint' and study == 'poincare_bm4midpoint_ranked_star_rho_sweep')
@@ -47,7 +50,7 @@ def _saved_method(record, diagnostics):
     return method
 
 
-def _rho_labels(rho_values):
+def _rho_labels(rho_values: Iterable[float]) -> dict[float, str]:
     """Preserve exact rho selection while keeping familiar two-decimal labels."""
     labels = {}
     for rho in rho_values:
@@ -58,7 +61,7 @@ def _rho_labels(rho_values):
     return labels
 
 
-def _coordinate_metadata(metadata):
+def _coordinate_metadata(metadata: Mapping[str, Any]) -> dict[str, Any]:
     """Read runtime geometry, including older archives that only stored meters."""
     normalized = metadata['spatial_normalization'] == 'characteristic_length'
     if metadata['spatial_normalization'] not in ('none', 'characteristic_length'):
@@ -81,7 +84,7 @@ def radius_colors(count: int, *, colormap: str = 'viridis',
     return [to_hex(colormaps[colormap](value)) for value in np.linspace(*color_range, count)]
 
 
-def plot_initial_rho_star(prepared: PreparedRhoStar):
+def plot_initial_rho_star(prepared: PreparedRhoStar) -> Figure:
     """Show the runtime cell and radial particle IDs before cloud submission."""
     import matplotlib.pyplot as plt
     metadata = prepared.metadata
@@ -231,7 +234,7 @@ def export_rho_sweep(runs: Mapping[float, StoredSolution], path: str | Path, *,
     axes = ('(R - R0) / L', '(Z - Z0) / L') if fold_to_cell else coords['axes']
     datasets = []
     for rho in rho_values:
-        item = {'key': rho_labels[rho], 'label': rho_labels[rho]}
+        item: dict[str, Any] = {'key': rho_labels[rho], 'label': rho_labels[rho]}
         if rho in runs:
             common = dict(particle_ids=ids, colors=colors)
             item['panels'] = [

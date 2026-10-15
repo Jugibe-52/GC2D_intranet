@@ -5,6 +5,8 @@ import json
 import re
 from pathlib import Path
 from typing import Any
+from collections.abc import Sequence
+from numpy.typing import ArrayLike
 
 import numpy as np
 
@@ -26,7 +28,9 @@ def _selector_arrays(positions: Any, particle_ids: Any, colors: Any) -> tuple[np
     return xy, ids, colors
 
 
-def export_poincare_selector(path, positions, particle_ids, colors, *, title, subtitle):
+def export_poincare_selector(path: str | Path, positions: ArrayLike,
+                             particle_ids: Sequence[int] | np.ndarray,
+                             colors: Sequence[str | None] | np.ndarray, *, title: str, subtitle: str) -> Path:
     """Write an offline HTML figure with independent particle visibility.
 
     ``positions`` has shape (returns, particles, 2), already wrapped and

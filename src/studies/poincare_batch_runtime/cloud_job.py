@@ -1,6 +1,7 @@
 """Run both notebooks and synchronize immutable checkpoints to private S3."""
 
-from typing import Any
+from collections.abc import Iterable
+from typing import Any, Protocol
 import argparse
 import json
 from pathlib import Path
@@ -16,15 +17,29 @@ sys.path.insert(0, str(ROOT))
 from study_io import assert_checkpoint_file, atomic_json, digest, utc_now, validate_run_id
 
 
+class S3Paginator(Protocol):
+    """Object-listing interface used by checkpoint restoration."""
+
+    def paginate(self, **kwargs: str) -> Iterable[dict[str, Any]]: ...
+
+
+class S3Client(Protocol):
+    """File-transfer interface shared by S3 and offline checkpoint tests."""
+
+    def upload_file(self, file: str, bucket: str, key: str) -> None: ...
+    def download_file(self, bucket: str, key: str, file: str) -> None: ...
+    def get_paginator(self, name: str) -> S3Paginator: ...
+
+
 class CheckpointStore:
     """Publish data before commit markers; restore only verified committed pairs."""
-    def __init__(self, client, bucket, prefix, directory):
+    def __init__(self, client: S3Client, bucket: str, prefix: str, directory: str | Path) -> None:
         self.client, self.bucket = client, bucket
         self.prefix = prefix.rstrip('/') + '/checkpoints/'
         self.directory = Path(directory)
-        self.uploaded = set()
+        self.uploaded: set[str] = set()
 
-    def restore(self):
+    def restore(self) -> None:
         pages = self.client.get_paginator('list_objects_v2').paginate(Bucket=self.bucket, Prefix=self.prefix)
         keys = [obj['Key'] for page in pages for obj in page.get('Contents', [])]
         for key in sorted(keys):
@@ -48,7 +63,7 @@ class CheckpointStore:
             temporary.replace(marker)
             self.uploaded.add(relative)
 
-    def sync(self):
+    def sync(self) -> list[int]:
         completed = [0] * 16
         for marker in sorted(self.directory.glob('worker_*/chunk_*.json')):
             relative = marker.relative_to(self.directory).as_posix()
@@ -66,7 +81,7 @@ class CheckpointStore:
         return completed
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--run-id', required=True)
     parser.add_argument('--bucket', required=True)
@@ -89,11 +104,11 @@ def main():
     stopped = threading.Event()
     sync_thread = None
 
-    def publish_status():
+    def publish_status() -> None:
         atomic_json(status_path, status)
         client.upload_file(str(status_path), args.bucket, prefix+'/cloud_status.json')
 
-    def sync_progress():
+    def sync_progress() -> None:
         completed = store.sync()
         progress = {'run_id':run, 'updated_utc':utc_now(), 'worker_completed_steps':completed,
                     'total_steps_per_worker':nsteps, 'minimum_completed_cycles':min(completed)/cfg['steps_per_cycle'],
@@ -107,7 +122,7 @@ def main():
         if log.exists():
             client.upload_file(str(log), args.bucket, prefix+'/calculation.log')
 
-    def background_sync():
+    def background_sync() -> None:
         while not stopped.wait(30):
             try:
                 sync_progress()

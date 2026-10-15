@@ -3,6 +3,9 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from IPython.display import HTML
 
 from diagnostics import StoredReferenceTrajectory
 from potential import Potential
@@ -68,7 +71,7 @@ def animate_radial_reference(
     reference: StoredReferenceTrajectory,
     frames: int = 201,
     fps: float = 10.0,
-):
+) -> "HTML":
     """Return standalone HTML playback with independent particle/solver filters.
 
     Display uniformly sampled saved states in unwrapped normalized coordinates;

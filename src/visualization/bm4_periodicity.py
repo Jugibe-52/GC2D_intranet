@@ -2,9 +2,12 @@
 
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib.figure import Figure
+from contracts.study_results import ParallelBM4RecurrenceResult
 
 
-def plot_bm4_periodicity(result, *, period, particle_number, threshold_fraction, candidate_cycle):
+def plot_bm4_periodicity(result: ParallelBM4RecurrenceResult, *, period: float, particle_number: int,
+                         threshold_fraction: float, candidate_cycle: int) -> Figure:
     """Show integer returns and compare the trajectory with an integer-time shift."""
     states = result.positions[0]
     stride = result.config.saved_samples_per_cycle

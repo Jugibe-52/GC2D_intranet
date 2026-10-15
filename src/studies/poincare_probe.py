@@ -138,7 +138,7 @@ def probe_clearance(background: SavedPoincareSection, points: np.ndarray) -> np.
     inaccessible, nor a certified trajectory-error bound.
     """
     tree = cKDTree(background.positions[1:].reshape(-1, 2) % 1, boxsize=1.0)
-    return tree.query(np.asarray(points).reshape(-1, 2) % 1)[0]
+    return np.asarray(tree.query(np.asarray(points).reshape(-1, 2) % 1)[0])
 
 
 def probe_comparison_panel(background: SavedPoincareSection, positions: np.ndarray,
