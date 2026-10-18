@@ -28,16 +28,13 @@ def main() -> None:
     parser.add_argument("--particles", type=int, default=256)
     parser.add_argument("--repeats", type=int, default=30)
     parser.add_argument("--h5", help="Optional real HDF5 input; otherwise use a synthetic field.")
-    parser.add_argument("--characteristic-frequency", type=float, help="Required angular-frequency scale for --h5.")
     args = parser.parse_args()
-    if args.h5 and args.characteristic_frequency is None:
-        parser.error("--h5 requires --characteristic-frequency.")
     if args.particles < 1 or args.repeats < 1:
         parser.error("Particle and repetition counts must be positive.")
 
     jax.config.update("jax_enable_x64", True)
     potential = (
-        JaxPotential.load(args.h5, characteristic_frequency=args.characteristic_frequency)
+        JaxPotential.load(args.h5)
         if args.h5 else JaxPotential.random(A=0.7, M=8, nx=64, ny=64, seed=27, interpolation_order=3)
     ).gyroaverage(0.3)
     started = perf_counter()

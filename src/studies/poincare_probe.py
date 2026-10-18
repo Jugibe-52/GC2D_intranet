@@ -62,9 +62,13 @@ def load_probe_field(snapshot: Path, *, expected_sha256: str,
         for key, expected in physical_settings.items():
             if provenance.get(key) != expected:
                 raise ValueError(f'Field setting differs from the explicit notebook control: {key}')
+        convention = provenance.get('frequency_convention', 'cycles')
+        if convention not in ('angular', 'cycles'):
+            raise ValueError('Unknown snapshot frequency convention.')
+        frequency_scale = 1.0 / (2 * np.pi) if convention == 'angular' else 1.0
         with np.load(io.BytesIO(archive.read('field.npz')), allow_pickle=False) as arrays:
             potential = Potential(Grid(**provenance['grid']), mean=arrays['mean'],
-                                  modes=arrays['modes'], frequencies=arrays['frequencies'],
+                                  modes=arrays['modes'], frequencies=arrays['frequencies'] * frequency_scale,
                                   interpolation_order=provenance['interpolation_order'])
     return potential, provenance
 

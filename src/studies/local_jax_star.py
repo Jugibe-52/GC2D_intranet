@@ -194,8 +194,8 @@ def _validated_local_star_geometry(
 	if (fraction.shape != (2,) or not np.isfinite(fraction).all()
 			or np.any(fraction - outer < 0) or np.any(fraction + outer > 1)):
 		raise ValueError('The full initial star must lie inside the periodic cell.')
-	if potential.frequencies.shape != (1,) or not np.allclose(potential.frequencies, [1.], rtol=0, atol=1e-14):
-		raise ValueError('Integer-cycle sections require one mode with normalized frequency one.')
+	if potential.frequencies.shape != (1,) or not np.allclose(potential.frequencies, [1.0], rtol=0, atol=1e-14):
+		raise ValueError('Integer-cycle sections require one mode with cyclic frequency 1.')
 	return fraction, outer
 
 

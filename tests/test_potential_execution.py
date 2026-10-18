@@ -143,7 +143,7 @@ class JaxExecutionTests(unittest.TestCase):
         from execution._jax import prepare_dynamics
 
         potential = _field()
-        for source in (GuidingCenterDynamics(potential, rho=0.3),
+        for source in (GuidingCenterDynamics(potential, rho=0.3, B=1.7),
                        FullCyclotronDynamics(potential, rho=0.3, eta=-0.4)):
             with patch("potential.potential._build_periodic_spline", side_effect=AssertionError("Refitted spline")):
                 prepared = prepare_dynamics(source)
@@ -156,6 +156,10 @@ class JaxExecutionTests(unittest.TestCase):
             if isinstance(source, GuidingCenterDynamics):
                 self.assertIs(prepared.effective_potential._splines, source.effective_potential._splines)
                 self.assertEqual(prepared.rho, source.rho)
+                self.assertEqual(prepared.B, source.B)
+                state = np.array([.4, .5])
+                np.testing.assert_allclose(prepared.vector_field(.3, state),
+                                           source.vector_field(.3, state), rtol=1e-10, atol=1e-10)
             else:
                 self.assertEqual((prepared.rho, prepared.eta), (source.rho, source.eta))
         explicit = GuidingCenterDynamics(_field(JaxPotential), rho=0.3)

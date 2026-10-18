@@ -9,7 +9,7 @@ import h5py
 from diagnostics.bm4_comparison import load_bm4_comparison, save_bm4_comparison
 from diagnostics import load_reference_trajectory
 from diagnostics.paths import find_project_root
-from potential import Potential
+from studies.historical_h5 import historical_h5_hamiltonian
 from studies.bm4_projection_comparison import (
 	BM4ProjectionComparisonConfig, radial_configuration, run_bm4_projection_comparison,
 	audit_saved_reference_refinement,
@@ -35,7 +35,13 @@ def main() -> None:
 	potential_parameters = dict(B=1.5, characteristic_length=0.06, indx=(15,), interpolation_order=3)
 	with h5py.File(source, "r") as h5:
 		potential_parameters["characteristic_frequency"] = float(h5["freqs"][15])
-	potential = Potential.load(source, **potential_parameters)
+	potential = historical_h5_hamiltonian(
+		source, magnetic_field=potential_parameters["B"],
+		length=potential_parameters["characteristic_length"],
+		angular_reference=potential_parameters["characteristic_frequency"],
+		indx=potential_parameters["indx"],
+		interpolation_order=potential_parameters["interpolation_order"],
+	)
 	if args.render_only:
 		arrays, metadata = load_bm4_comparison(output / "results.npz")
 	elif args.standard_reference:

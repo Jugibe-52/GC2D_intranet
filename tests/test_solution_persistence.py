@@ -136,6 +136,42 @@ class SolutionPersistenceTests(unittest.TestCase):
         self.assertIsNone(restored.potential)
         self.assertIsNone(restored.solution.source.initial_state)
 
+    def test_legacy_cyclic_rates_decode_once_and_unknown_conventions_fail(self) -> None:
+        """Exercise the old writer's arrays and manifest without production archives."""
+        location = self.directory / "legacy-frequency"
+        save_solution(self.solution(), location, metadata={}, potential=self.field)
+        path = location / "potential.npz"
+        with np.load(path) as stored:
+            arrays = {name: stored[name] for name in stored.files}
+        original_frequencies = arrays["frequencies"].copy()
+        np.savez_compressed(path, **arrays)
+        metadata_path = location / "metadata.json"
+        description = json.loads(metadata_path.read_text())
+        description["potential"].pop("frequency_convention")
+        manifest_path = location / "manifest.json"
+        manifest = json.loads(manifest_path.read_text())
+        for convention in (None, "angular", "unknown"):
+            arrays["frequencies"] = original_frequencies * (2 * np.pi if convention == "angular" else 1.0)
+            np.savez_compressed(path, **arrays)
+            if convention is not None:
+                description["potential"]["frequency_convention"] = convention
+            metadata_path.write_text(json.dumps(description))
+            for name in ("metadata.json", "potential.npz"):
+                payload = (location / name).read_bytes()
+                manifest["files"][name] = {"bytes": len(payload), "sha256": sha256(payload).hexdigest()}
+            manifest_path.write_text(json.dumps(manifest))
+            if convention == "unknown":
+                with self.assertRaisesRegex(ValueError, "frequency convention"):
+                    load_solution(location)
+            else:
+                restored = load_solution(location).potential
+                assert restored is not None
+                np.testing.assert_array_equal(restored.mean, self.field.mean)
+                np.testing.assert_array_equal(restored.modes, self.field.modes)
+                for dt in (0, 1, 2):
+                    np.testing.assert_allclose(restored.evaluate_grid(.37, dt=dt),
+                                               self.field.evaluate_grid(.37, dt=dt), rtol=1e-12, atol=1e-12)
+
     def test_collision_corruption_and_incomplete_run_are_rejected(self) -> None:
         location = self.directory / "run"
         save_solution(self.solution(), location, metadata={})

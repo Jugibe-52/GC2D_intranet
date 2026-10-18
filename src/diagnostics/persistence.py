@@ -116,6 +116,7 @@ def _write_archive(
         else:
             provenance_kind = "json"
         potential_record = {
+            "frequency_convention": "cycles",
             "grid": asdict(potential.grid),
             "interpolation_order": potential.interpolation_order,
             "provenance_kind": provenance_kind, "provenance": provenance,
@@ -261,8 +262,14 @@ def load_solution(source: str | Path) -> StoredSolution:
                     provenance = GC2DH5Metadata(**provenance)
                 elif field["provenance_kind"] != "json":
                     raise ValueError("Unsupported potential provenance.")
+                convention = field.get("frequency_convention", "cycles")
+                if convention not in ("angular", "cycles"):
+                    raise ValueError("Unsupported stored frequency convention.")
+                frequencies = saved["frequencies"]
+                if convention == "angular":
+                    frequencies = frequencies / (2 * np.pi)
                 potential = Potential(Grid(**field["grid"]), mean=saved["mean"],
-                                      modes=saved["modes"], frequencies=saved["frequencies"],
+                                      modes=saved["modes"], frequencies=frequencies,
                                       interpolation_order=field["interpolation_order"],
                                       metadata=provenance)
         return StoredSolution(solution, description["experiment"], potential)

@@ -95,22 +95,36 @@ and retain every applicable control and diagnostic below.
 
 ## Scalar validation in potential imports
 
-In `src/potential/load.py`, prefer named scalar validators to keep
-`_validated_import_controls` consistent in abstraction level, even with a single
-caller. Required positive scales should use a validator returning `float`;
-avoid an optional validator followed by `assert`.
+In `src/potential/load.py`, prefer named scalar validators returning the
+required concrete type. Validate Boolean rescaling controls and optional sigma
+before opening the file; do not use an optional validator followed by assert
+for a required scale.
 
-## HDF5 coordinate convention
+## HDF5 coordinates and cyclic source frequencies
 
-The source `freqs` dataset is always one-dimensional, with shape `(n,)`.
-Read it with `np.asarray(..., dtype=float)` without scalar promotion.
+The producer uses fftfreq with dt declared in seconds: source `freqs` is a
+one-dimensional array of cyclic f in Hz, not angular omega. All Potential
+constructors store cycles per runtime time unit; reconstruction uses
+exp(i*2*pi*f*t). Random fields store f=1/(2*pi) to preserve omega=1.
+Known unmarked processed archives are cyclic; explicitly angular processed
+arrays divide by 2*pi once at their read boundary. Preserve their actual phase
+and validate original hashes before conversion, regardless of source provenance.
 
-`Potential.load` uses only `2*pi*(X-X0)/characteristic_length`; the loader's
-spatial-mode argument and `SpatialNormalization` type are removed. Keep the
-length configurable: a 0.18 m cell at length 0.06 m has period `6*pi`.
-`RhoStarConfig.spatial_normalization` is a separate study setting: dimensional
-studies restore meters after loading, and folded unit-cell viewers transform
-results afterward. See `docs/dynamics/gc2d-h5-import.md` for archive migration.
+`Potential.load` defaults to raw samples, axes and f. Independent flags apply
+q=(X-X0)/L, u=t/T with T=1/f_ref, and P=(T/L**2)*Phi when both are enabled;
+use s=1 or T=1 for disabled flags and store f*T. The reference is the first
+selected mode. Preserve matrix orientation. B belongs to GC dynamics, H=P/B.
+Source units and physical/legacy time conventions have separate metadata;
+missing old provenance stays legacy_unspecified.
+
+Historical studies retain their recorded clock 2*pi/f_ref. The radial
+Hamiltonian Phi/(f_ref*B) equals the corrected physical-cycle Hamiltonian as a
+function of cycle index, but archived seconds must not be silently relabeled.
+The legacy cycle_time Hamiltonian is 2*pi times radial. Keep the radial extra
+1/(2*pi) inside the historical construction with its unchanged upstream clock.
+Use `studies/historical_h5.py` for recorded length, custom clock, B and sampling;
+its result is already Hamiltonian. Keep RhoStarConfig coordinates separate from
+loader flags and folded display. See `docs/dynamics/gc2d-h5-import.md`.
 
 ## Optional HDF5 smoothing
 
@@ -126,15 +140,13 @@ The separate `denoising` argument is removed. Migrate disabled calls to
 defaulting to `(15,)` via `potential.load.DEFAULT_FIELD_INDICES`; selected
 frequencies must be finite and strictly positive. Keep the requested order and
 pair each field with its original frequency, without amplitude sorting or
-one-based index conversion. `Potential.load` requires an explicit finite positive
-`characteristic_frequency`; omission and `None` are rejected. This scale controls
-time and amplitudes even for constant-only selections. Studies may explicitly
-read a chosen source frequency or recover it from an archived period. `indx=()` loads only the constant field; `None` selects
-all finite positive-frequency fields in source order.
+one-based index conversion. `indx=()` loads only the constant field without
+temporal rescaling; `None` selects all finite positive-frequency fields in
+source order. Temporal rescaling requires a selected positive-frequency mode.
 
-For the original `PHI_2.h5`, the old `(0, 1)` selection and new `(15,)` produce
-identical fields, normalized frequencies, normalization factor, and potential
-fingerprint. Archive readers use recorded `source_field_indices` to recover
+For historical reconstruction of `PHI_2.h5`, the old `(0, 1)` rank selection
+corresponds to original index `(15,)`; preserve the recorded study scales and
+field fingerprint. Archive readers use recorded `source_field_indices` to recover
 historical rank selections; never reinterpret old ranks as raw HDF5 indices.
 See `docs/dynamics/gc2d-h5-import.md` for notebook and study migration.
 
@@ -171,3 +183,18 @@ Current contracts retain schema version 1. Change records use version 2 in
 historical acceptance or results. Declared upstream revisions expose stale
 plans/tasks: warnings in drafts, errors after approval. The skill must review
 semantic changes; revision numbers alone do not prove alignment.
+
+## Fixed 48-particle Poincare automation
+
+Use `studies.poincare_automation`, `studies.poincare_automation_io` and
+`visualization.poincare_automation` through `$simular-poincare` or
+`scripts/run_poincare_automation.py`. The fixed reference set is the ranked
+40-particle star plus eight literal probes, integrated jointly; keep IDs 1-48
+and the original 40-star colors plus eight probe colors. Defaults are 5000
+cycles, 50 complete steps/cycle, B=1.5 and both loader rescalings enabled.
+Requested rho retains rho_m=rho*0.06/(2*pi), not a cell-width fraction.
+The new physical-cycle study applies B only in GC dynamics; do not reconstruct
+it through a historical clock and then undo scaling. One viewer contains all
+cases and all particles, using the existing panel renderer. Prepare/run/view
+are separate operations; validated complete archives are reused and failed
+cases remain explicit. See `docs/studies/poincare-automation.md`.

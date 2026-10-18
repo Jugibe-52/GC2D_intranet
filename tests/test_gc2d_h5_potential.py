@@ -1,6 +1,8 @@
-"""Contracts for primary GC2D HDF5 potential loading and dynamics use."""
+"""Regression contracts for explicitly reconstructed historical HDF5 studies."""
 
 from __future__ import annotations
+
+from studies.historical_h5 import historical_h5_hamiltonian, sample_study_grid
 
 from pathlib import Path
 import tempfile
@@ -132,7 +134,7 @@ class GC2DH5ImportTests(unittest.TestCase):
 
 	def test_defaults_select_mean_and_source_field_15_with_B_1_5(self) -> None:
 		"""Use the primary-file defaults with an explicit frequency and otherwise default options."""
-		potential = Potential.load(self.path, characteristic_frequency=7.0)
+		potential = historical_h5_hamiltonian(self.path, angular_reference=7.0)
 		length_scale = 0.06
 		normalization = 7.0 * length_scale**2 * 1.5 / (2.0 * np.pi) ** 2
 
@@ -171,7 +173,7 @@ class GC2DH5ImportTests(unittest.TestCase):
 			((3, 2), [7.0, 3.0], [self.high_mode, self.low_mode]),
 		):
 			with self.subTest(indices=indices):
-				potential = Potential.load(self.path, characteristic_frequency=7.0, indx=indices)
+				potential = historical_h5_hamiltonian(self.path, angular_reference=7.0, indx=indices)
 				metadata = potential.metadata
 				np.testing.assert_array_equal(metadata.source_field_indices, indices)
 				np.testing.assert_array_equal(metadata.source_frequencies, frequencies)
@@ -180,7 +182,7 @@ class GC2DH5ImportTests(unittest.TestCase):
 				np.testing.assert_allclose(potential.mean * metadata.normalization_factor, self.mean)
 		with h5py.File(self.path, "r+") as h5:
 			h5["fields"][3] = self.high_mode * 100
-		self.assertEqual(Potential.load(self.path, characteristic_frequency=7.0).metadata.source_field_indices.tolist(), [15])
+		self.assertEqual(historical_h5_hamiltonian(self.path, angular_reference=7.0).metadata.source_field_indices.tolist(), [15])
 
 	def test_selected_frequencies_must_be_finite_and_strictly_positive(self) -> None:
 		"""Explicit invalid fields raise instead of being silently filtered out."""
@@ -189,14 +191,14 @@ class GC2DH5ImportTests(unittest.TestCase):
 				with h5py.File(self.path, "r+") as h5:
 					h5["freqs"][15] = frequency
 				with self.assertRaisesRegex(ValueError, "strictly positive"):
-					Potential.load(self.path, characteristic_frequency=7.0)
+					historical_h5_hamiltonian(self.path, angular_reference=7.0)
 		for index in (0, 1):
 			with self.subTest(index=index):
 				with self.assertRaisesRegex(ValueError, "strictly positive"):
-					Potential.load(self.path, characteristic_frequency=7.0, indx=index)
+					historical_h5_hamiltonian(self.path, angular_reference=7.0, indx=index)
 		with h5py.File(self.path, "r+") as h5:
 			h5["freqs"][15] = 1e-12
-		self.assertEqual(Potential.load(self.path, characteristic_frequency=7.0).metadata.source_frequencies[0], 1e-12)
+		self.assertEqual(historical_h5_hamiltonian(self.path, angular_reference=7.0).metadata.source_frequencies[0], 1e-12)
 
 	def test_first_frequency_must_be_exactly_zero(self) -> None:
 		"""A later zero-frequency field cannot replace an invalid first field."""
@@ -206,14 +208,14 @@ class GC2DH5ImportTests(unittest.TestCase):
 					h5["freqs"][0] = frequency
 					h5["freqs"][1] = 0
 				with self.assertRaisesRegex(ValueError, "first source frequency.*exactly zero"):
-					Potential.load(self.path, characteristic_frequency=7.0)
+					historical_h5_hamiltonian(self.path, angular_reference=7.0)
 
 	def test_all_positive_fields_and_constant_only_selection(self) -> None:
 		"""None selects eligible fields in source order; an empty tuple keeps only the mean."""
-		potential = Potential.load(self.path, characteristic_frequency=7.0, indx=None)
+		potential = historical_h5_hamiltonian(self.path, angular_reference=7.0, indx=None)
 		np.testing.assert_array_equal(potential.metadata.source_field_indices, [2, 3, 15])
-		np.testing.assert_allclose(potential.frequencies, [3.0 / 7.0, 1.0, 1.0])
-		constant = Potential.load(self.path, characteristic_frequency=7.0, indx=())
+		np.testing.assert_allclose(potential.frequencies, np.array([3.0 / 7.0, 1.0, 1.0]))
+		constant = historical_h5_hamiltonian(self.path, angular_reference=7.0, indx=())
 		np.testing.assert_allclose(constant.mean * constant.metadata.normalization_factor, self.mean)
 		self.assertEqual(constant.modes.shape[0], 0)
 		self.assertAlmostEqual(constant.metadata.normalization_factor, 7.0 * 0.06**2 * 1.5 / (2 * np.pi)**2)
@@ -224,26 +226,26 @@ class GC2DH5ImportTests(unittest.TestCase):
 		for indices in ((-1,), (16,), (2.5,), (True,), ((2, 3),), "15"):
 			with self.subTest(indices=indices):
 				with self.assertRaises(ValueError):
-					Potential.load(self.path, characteristic_frequency=7.0, indx=indices)
+					historical_h5_hamiltonian(self.path, angular_reference=7.0, indx=indices)
 		for indices in (15, [15], np.array([15]), np.int64(15)):
 			with self.subTest(indices=indices):
-				np.testing.assert_array_equal(Potential.load(self.path, characteristic_frequency=7.0, indx=indices).metadata.source_field_indices, [15])
+				np.testing.assert_array_equal(historical_h5_hamiltonian(self.path, angular_reference=7.0, indx=indices).metadata.source_field_indices, [15])
 
 	def test_load_preserves_subclass(self) -> None:
 		"""Loading initializes the requested runtime class."""
 		class MeasuredPotential(Potential):
 			"""A potential with the standard constructor contract."""
 
-		potential = MeasuredPotential.load(self.path, characteristic_frequency=7.0)
+		potential = historical_h5_hamiltonian(self.path, angular_reference=7.0, potential_class=MeasuredPotential)
 		self.assertIs(type(potential), MeasuredPotential)
 		self.assertIsInstance(potential.metadata, GC2DH5Metadata)
 		self.assertTrue(np.all(np.isfinite(potential.evaluate_grid(0.37))))
 
 	def test_characteristic_length_sets_scale_independently_of_cell_period(self) -> None:
 		"""One third of the source period produces a 6*pi cell, preserving physical fields."""
-		reference = Potential.load(self.path, characteristic_frequency=7.0, characteristic_length=self.characteristic_length)
+		reference = historical_h5_hamiltonian(self.path, angular_reference=7.0, length=self.characteristic_length)
 		length_scale = self.characteristic_length / 3.0
-		potential = Potential.load(self.path, characteristic_frequency=7.0, characteristic_length=length_scale)
+		potential = historical_h5_hamiltonian(self.path, angular_reference=7.0, length=length_scale)
 
 		self.assertAlmostEqual(reference.grid.period, 2.0 * np.pi)
 		self.assertAlmostEqual(potential.grid.period, 6.0 * np.pi)
@@ -267,14 +269,7 @@ class GC2DH5ImportTests(unittest.TestCase):
 	def test_direct_selection_normalization_and_positive_phase(self) -> None:
 		"""Match HDF5 indices, normalization, and cycle-based positive phase."""
 		B = 1.5
-		potential = Potential.load(
-			self.path,
-			B=B,
-			characteristic_length=self.characteristic_length,
-			indx=(2, 3),
-			characteristic_frequency=7.0,
-			interpolation_order=3,
-		)
+		potential = historical_h5_hamiltonian(self.path, magnetic_field=B, length=self.characteristic_length, indx=(2, 3), angular_reference=7.0, interpolation_order=3)
 		normalization = (
 			7.0 * self.characteristic_length**2 * B / (2.0 * np.pi) ** 2
 		)
@@ -285,7 +280,7 @@ class GC2DH5ImportTests(unittest.TestCase):
 		self.assertAlmostEqual(metadata.normalization_factor, normalization)
 		np.testing.assert_array_equal(metadata.source_field_indices, [2, 3])
 		np.testing.assert_allclose(metadata.source_frequencies, [3.0, 7.0])
-		np.testing.assert_allclose(potential.frequencies, [3.0 / 7.0, 1.0])
+		np.testing.assert_allclose(potential.frequencies, np.array([3.0 / 7.0, 1.0]))
 		# No transpose is applied: the deliberately asymmetric raw array is retained.
 		np.testing.assert_allclose(potential.mean, self.mean / normalization)
 		np.testing.assert_allclose(potential.modes[0], self.low_mode / normalization)
@@ -308,13 +303,7 @@ class GC2DH5ImportTests(unittest.TestCase):
 	def test_explicit_characteristic_frequency_controls_time_and_amplitude(self) -> None:
 		"""Honor an explicitly supplied source frequency instead of the first selected mode."""
 		frequency_scale = 14.0
-		potential = Potential.load(
-			self.path,
-			B=1.5,
-			characteristic_length=self.characteristic_length,
-			characteristic_frequency=frequency_scale,
-			indx=(3,),
-		)
+		potential = historical_h5_hamiltonian(self.path, magnetic_field=1.5, length=self.characteristic_length, angular_reference=frequency_scale, indx=(3,))
 		normalization = (
 			frequency_scale
 			* self.characteristic_length**2
@@ -344,13 +333,7 @@ class GC2DH5ImportTests(unittest.TestCase):
 				"fields",
 				data=np.asarray([self.mean], dtype=np.complex128),
 			)
-		potential = Potential.load(
-			path,
-			B=2.0,
-			characteristic_length=self.characteristic_length,
-			characteristic_frequency=5.0,
-			indx=(),
-		)
+		potential = historical_h5_hamiltonian(path, magnetic_field=2.0, length=self.characteristic_length, angular_reference=5.0, indx=())
 		normalization = (
 			5.0 * self.characteristic_length**2 * 2.0 / (2.0 * np.pi) ** 2
 		)
@@ -364,10 +347,10 @@ class GC2DH5ImportTests(unittest.TestCase):
 
 	def test_optional_sigma_preserves_unsmoothed_fields(self) -> None:
 		"""Default, explicit None, and zero width preserve mean and complex modes."""
-		default = Potential.load(self.path, characteristic_frequency=7.0)
+		default = historical_h5_hamiltonian(self.path, angular_reference=7.0)
 		for sigma in (None, 0.0):
 			with self.subTest(sigma=sigma):
-				potential = Potential.load(self.path, characteristic_frequency=7.0, sigma=sigma)
+				potential = historical_h5_hamiltonian(self.path, angular_reference=7.0, sigma=sigma)
 				np.testing.assert_array_equal(potential.mean, default.mean)
 				np.testing.assert_array_equal(potential.modes, default.modes)
 
@@ -375,16 +358,7 @@ class GC2DH5ImportTests(unittest.TestCase):
 		"""Keep filtering before periodic resampling of dimensionless fields."""
 		B = 2.0
 		sigma = 0.6
-		potential = Potential.load(
-			self.path, characteristic_frequency=7.0,
-			B=B,
-			characteristic_length=self.characteristic_length,
-			indx=(3,),
-			nx=8,
-			ny=8,
-			sigma=sigma,
-			interpolation_order=3,
-		)
+		potential = sample_study_grid(historical_h5_hamiltonian(self.path, angular_reference=7.0, magnetic_field=B, length=self.characteristic_length, indx=(3,), sigma=sigma, interpolation_order=3), 8, 8)
 		normalization = (
 			7.0 * self.characteristic_length**2 * B / (2.0 * np.pi) ** 2
 		)
@@ -439,8 +413,8 @@ class GC2DH5ImportTests(unittest.TestCase):
 		for degree in range(2, 6):
 			with self.subTest(degree=degree):
 				options = dict(indx=(3, 2), interpolation_order=degree)
-				original = Potential.load(self.path, characteristic_frequency=7.0, **options)
-				resampled = Potential.load(self.path, characteristic_frequency=7.0, nx=6, ny=6, **options)
+				original = historical_h5_hamiltonian(self.path, angular_reference=7.0, **options)
+				resampled = sample_study_grid(historical_h5_hamiltonian(self.path, angular_reference=7.0, **options), 6, 6)
 				np.testing.assert_allclose(resampled.mean, original.mean, rtol=1e-13, atol=1e-10)
 				np.testing.assert_allclose(resampled.modes, original.modes, rtol=1e-13, atol=1e-10)
 				np.testing.assert_allclose(
@@ -450,13 +424,7 @@ class GC2DH5ImportTests(unittest.TestCase):
 
 	def test_spatial_hessians_time_derivative_and_periodic_wrapping(self) -> None:
 		"""Expose exact spline derivatives on the periodic normalized domain."""
-		potential = Potential.load(
-			self.path, characteristic_frequency=7.0,
-			B=1.5,
-			characteristic_length=self.characteristic_length,
-			indx=(3,),
-			interpolation_order=3,
-		)
+		potential = historical_h5_hamiltonian(self.path, angular_reference=7.0, magnetic_field=1.5, length=self.characteristic_length, indx=(3,), interpolation_order=3)
 		frequency = float(potential.frequencies[0])
 		time = 0.021
 		period = potential.grid.period
@@ -487,7 +455,7 @@ class GC2DH5ImportTests(unittest.TestCase):
 				dx=dx,
 				dy=dy,
 			)
-			angular_frequency = 2.0 * np.pi * frequency
+			angular_frequency = 2 * np.pi * frequency
 			expected = mean + 2.0 * np.real(
 				mode * np.exp(1j * angular_frequency * time)
 			)
@@ -545,14 +513,7 @@ class GC2DH5ImportTests(unittest.TestCase):
 
 	def test_outside_domain_gc_jacobian_matches_periodic_vector_field(self) -> None:
 		"""Differentiate the periodically wrapped field seen by GC dynamics."""
-		potential = Potential.load(
-			self.path,
-			B=1.5,
-			characteristic_length=self.characteristic_length,
-			indx=(2, 3),
-			characteristic_frequency=7.0,
-			interpolation_order=3,
-		)
+		potential = historical_h5_hamiltonian(self.path, magnetic_field=1.5, length=self.characteristic_length, indx=(2, 3), angular_reference=7.0, interpolation_order=3)
 		dynamics = GuidingCenterDynamics(potential, rho=0.0)
 		time = 0.029
 		period = potential.grid.period
@@ -589,14 +550,7 @@ class GC2DH5ImportTests(unittest.TestCase):
 		self,
 	) -> None:
 		"""Differentiate a mean plus two non-unit HDF5 frequencies exactly."""
-		potential = Potential.load(
-			self.path,
-			B=1.5,
-			characteristic_length=self.characteristic_length,
-			indx=(2, 3),
-			characteristic_frequency=7.0,
-			interpolation_order=3,
-		)
+		potential = historical_h5_hamiltonian(self.path, magnetic_field=1.5, length=self.characteristic_length, indx=(2, 3), angular_reference=7.0, interpolation_order=3)
 		time = 0.037
 		query_x = np.asarray([potential.grid.x[2] + 0.013])
 		query_y = np.asarray([potential.grid.y[3] - 0.009])
@@ -613,7 +567,7 @@ class GC2DH5ImportTests(unittest.TestCase):
 				query_x,
 				query_y,
 			)
-			angular_frequency = 2.0 * np.pi * float(frequency)
+			angular_frequency = 2 * np.pi * float(frequency)
 			expected_second += 2.0 * np.real(
 				mode
 				* (1j * angular_frequency) ** 2
@@ -646,13 +600,7 @@ class GC2DH5ImportTests(unittest.TestCase):
 
 	def test_zero_gyroaverage_and_abba4_implicit_are_compatible(self) -> None:
 		"""Pass the strict Potential check and supply Hessians to implicit ABBA4."""
-		potential = Potential.load(
-			self.path, characteristic_frequency=7.0,
-			B=1.5,
-			characteristic_length=self.characteristic_length,
-			indx=(3,),
-			interpolation_order=3,
-		)
+		potential = historical_h5_hamiltonian(self.path, angular_reference=7.0, magnetic_field=1.5, length=self.characteristic_length, indx=(3,), interpolation_order=3)
 		self.assertIs(potential.gyroaverage(0.0), potential)
 		averaged = potential.gyroaverage(0.01)
 		self.assertIsInstance(averaged, Potential)
@@ -695,19 +643,19 @@ class GC2DH5ImportTests(unittest.TestCase):
 	def test_invalid_selection_and_incomplete_resampling_are_rejected(self) -> None:
 		"""Give concise errors for common HDF5-loader configuration mistakes."""
 		with self.assertRaisesRegex(ValueError, "range"):
-			Potential.load(self.path, characteristic_frequency=7.0, indx=(16,))
-		with self.assertRaisesRegex(ValueError, "both"):
-			Potential.load(self.path, characteristic_frequency=7.0, nx=8)
+			historical_h5_hamiltonian(self.path, angular_reference=7.0, indx=(16,))
+		with self.assertRaisesRegex(ValueError, "Both"):
+			sample_study_grid(historical_h5_hamiltonian(self.path, angular_reference=7.0), 8, None)
 		with self.assertRaisesRegex(ValueError, "non-zero"):
-			Potential.load(self.path, characteristic_frequency=7.0, B=0.0)
-		with self.assertRaisesRegex(ValueError, "characteristic_length"):
-			Potential.load(self.path, characteristic_frequency=7.0, characteristic_length=0.0)
-		with self.assertRaisesRegex(ValueError, "characteristic_frequency"):
-			Potential.load(self.path, characteristic_frequency=-1.0)
+			historical_h5_hamiltonian(self.path, angular_reference=7.0, magnetic_field=0.0)
+		with self.assertRaisesRegex(ValueError, "Historical length"):
+			historical_h5_hamiltonian(self.path, angular_reference=7.0, length=0.0)
+		with self.assertRaisesRegex(ValueError, "angular reference"):
+			historical_h5_hamiltonian(self.path, angular_reference=-1.0)
 		for removed_mode in ("characteristic_length", "unit_box"):
 			with self.subTest(removed_mode=removed_mode):
 				with self.assertRaisesRegex(TypeError, "spatial_normalization"):
-					Potential.load(self.path, characteristic_frequency=7.0, spatial_normalization=removed_mode)
+					historical_h5_hamiltonian(self.path, angular_reference=7.0, spatial_normalization=removed_mode)
 
 
 if __name__ == "__main__":

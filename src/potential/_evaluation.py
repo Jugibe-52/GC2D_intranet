@@ -29,6 +29,7 @@ def reconstruct(time: Any, fields: Any, frequencies: Any, dt: int, *, xp: Any) -
     ``fields`` has shape ``(1 + modes, *coordinate_shape)`` and time broadcasts
     against ``coordinate_shape``. Sequential mode addition preserves the CPU
     summation convention and is unrolled for a fixed mode count under JAX JIT.
+    Public frequencies count cycles per time unit; angular factors belong here.
     The same formula differentiates time by multiplying each harmonic phase.
     """
     shape = np.broadcast_shapes(fields.shape[1:], time.shape)
@@ -36,7 +37,7 @@ def reconstruct(time: Any, fields: Any, frequencies: Any, dt: int, *, xp: Any) -
     if dt == 0:
         result = result + xp.real(fields[0])
     for index in range(frequencies.shape[0]):
-        angular = 2.0 * np.pi * frequencies[index]
+        angular = 2 * np.pi * frequencies[index]
         phase = xp.exp(1j * angular * time) * (1j * angular) ** dt
         result = result + 2.0 * xp.real(fields[index + 1] * phase)
     # NumPy scalar arithmetic may collapse a zero-dimensional array to a scalar;

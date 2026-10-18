@@ -95,7 +95,7 @@ from diagnostics.paths import find_project_root, notebook_output_directory
 from diagnostics.reference_trajectory import load_reference_trajectory
 from diagnostics.reference_progress import reference_progress_log
 from diagnostics.gc_energy_bound import save_energy_bound_result, load_energy_bound_result
-from potential import Potential
+from studies.historical_h5 import historical_h5_hamiltonian
 from dynamics import GuidingCenterDynamics
 from studies.initial_conditions import radial_gc_configuration, domain_center
 from studies.reference_trajectory import HighPrecisionReferenceConfig, run_high_precision_reference_trajectory
@@ -193,12 +193,12 @@ code('''
 import h5py
 
 with h5py.File(H5_PATH, "r") as h5:
-    characteristic_frequency = float(h5["freqs"][FIELD_INDICES[0]])
-potential = Potential.load(
-    H5_PATH, B=MAGNETIC_FIELD, characteristic_length=CHARACTERISTIC_LENGTH,
-    characteristic_frequency=characteristic_frequency,
+    characteristic_frequency = float(h5["freqs"][FIELD_INDICES[0] if FIELD_INDICES else 15])
+potential = historical_h5_hamiltonian(
+    H5_PATH, magnetic_field=MAGNETIC_FIELD, length=CHARACTERISTIC_LENGTH,
+    angular_reference=characteristic_frequency,
     indx=FIELD_INDICES, interpolation_order=INTERPOLATION_ORDER,
-    nx=None, ny=None, sigma=None,
+    sigma=None,
 )
 configuration = radial_gc_configuration(
     potential, radial_fractions=(INITIAL_RADIUS_FRACTION,), angle=INITIAL_ANGLE,
@@ -221,6 +221,8 @@ potential_metadata = {
     "characteristic_frequency": source.characteristic_frequency,
     "normalization_factor": source.normalization_factor,
     "runtime_frequencies": potential.frequencies.tolist(),
+    "frequency_convention": "cycles", "source_frequency_unit": "Hz",
+    "time_convention": "legacy_cycles",
     "grid_shape": list(potential.grid.shape), "cell_period": potential.grid.period,
 }
 initial_metadata = {"geometry": "one point on one radius from cell center",

@@ -1,5 +1,7 @@
 """Repeat the radial BM4Midpoint study with a cycle-time stream function."""
 
+from studies.historical_h5 import historical_h5_hamiltonian
+
 from dataclasses import asdict, dataclass
 from hashlib import file_digest
 import json
@@ -85,7 +87,7 @@ def build_radial_cycle(potential: Potential, config: RadialCycleConfig, baseline
     np.testing.assert_allclose([grid.x0, grid.y0, grid.period],
                                [old_grid["x0"], old_grid["y0"], old_grid["period"]],
                                rtol=1e-11, atol=1e-13)
-    np.testing.assert_allclose(potential.frequencies, [1.], rtol=0, atol=1e-14)
+    np.testing.assert_allclose(potential.frequencies, [1.0], rtol=0, atol=1e-14)
     # Preserve B's documented geometry using its archived period, not a new grid.
     origin = np.array([old_grid["x0"], old_grid["y0"]])
     length = old_grid["period"]
@@ -93,7 +95,7 @@ def build_radial_cycle(potential: Potential, config: RadialCycleConfig, baseline
     direction = np.array([np.cos(config.radial_angle), np.sin(config.radial_angle)])
     xy = origin + length / 2 + radii[:, None] * direction
     initial = GCInitialConfiguration.from_components(x=xy[:, 0], y=xy[:, 1])
-    # The forcing frequencies stay in cycles per normalized time. Only the
+    # The forcing cyclic frequencies stay in cycles per normalized time. Only the
     # drift amplitude changes: H = 2*pi*Phi_hat at tau = t/T0.
     stream = Potential(grid, mean=config.stream_scale * potential.mean,
                        modes=config.stream_scale * potential.modes,
@@ -139,10 +141,10 @@ def prepare_radial_cycle(source: str | Path, baseline_metadata: str | Path,
         source_sha = file_digest(handle, "sha256").hexdigest()
     if source_sha != baseline["field_provenance"]["source_hdf5_sha256"]:
         raise ValueError("Original HDF5 checksum mismatch.")
-    potential = Potential.load(
-        source, B=config.magnetic_field, characteristic_length=config.characteristic_length,
+    potential = historical_h5_hamiltonian(
+        source, magnetic_field=config.magnetic_field, length=config.characteristic_length,
         indx=config.source_selection, interpolation_order=config.interpolation_order,
-        characteristic_frequency=2 * np.pi / baseline["field_provenance"]["characteristic_period_s"],
+        angular_reference=2 * np.pi / baseline["field_provenance"]["characteristic_period_s"],
     )
     return build_radial_cycle(potential, config, baseline, source_sha256=source_sha,
                               baseline_sha256=baseline_sha)

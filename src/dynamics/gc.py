@@ -22,18 +22,29 @@ class GuidingCenterDynamics:
 
 	potential: Potential
 	rho: float
+	B: float
 	effective_potential: Potential
 
-	def __init__(self, potential: Potential, *, rho: float = 0.0) -> None:
-		"""Create physical GC dynamics for one normalized Larmor radius."""
+	def __init__(self, potential: Potential, *, rho: float = 0.0, B: float = 1.0) -> None:
+		"""Create GC dynamics for a runtime Larmor radius and signed magnetic field."""
 		if not isinstance(potential, Potential):
 			raise TypeError("`potential` must be a Potential instance.")
+		B = float(B)
+		if not np.isfinite(B) or B == 0:
+			raise ValueError("`B` must be finite and non-zero.")
 		rho = float(rho)
 		if not np.isfinite(rho) or rho < 0:
 			raise ValueError("`rho` must be finite and non-negative.")
 		object.__setattr__(self, "potential", potential)
 		object.__setattr__(self, "rho", rho)
-		object.__setattr__(self, "effective_potential", potential.gyroaverage(rho))
+		object.__setattr__(self, "B", B)
+		averaged = potential.gyroaverage(rho)
+		# H=P/B drives all equations, including Jacobians and time derivatives.
+		if B != 1.0:
+			averaged = type(averaged)(averaged.grid, mean=averaged.mean / B,
+				modes=averaged.modes / B, frequencies=averaged.frequencies,
+				interpolation_order=averaged.interpolation_order)
+		object.__setattr__(self, "effective_potential", averaged)
 
 	def vector_field(self, t: Any, state: Any) -> Any:
 		"""Evaluate GC drift at one time or broadcast times over a packed history."""

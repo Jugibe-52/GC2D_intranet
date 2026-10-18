@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 import re
 
@@ -62,46 +62,33 @@ def load_dimensional_h5_field(
     selectors: tuple[int, ...] = DEFAULT_FIELD_INDICES,
     interpolation_order: int = 3,
 ) -> DimensionalH5Field:
-    """Restore original H5 samples after the canonical selection procedure.
+    """Read original samples and compose the explicit cycle-time GC dynamics.
 
     The public H5 loader always includes field zero and selects variable fields
-    by their original source indices, preserving the requested order. Its normalization is
-    inverted exactly at the sample level; no spatial resampling is requested.
-    Time remains normalized by the selected mode's physical period.
+    by their original source indices, preserving the requested order. No normalization is applied and undone during import.
+    Time retains the archived clock 2*pi/f_ref, not the corrected physical period.
     """
     resolved = resolve_h5_source(source)
     if not selectors:
         raise ValueError("A positive-frequency H5 mode is required to normalize time.")
-    # This study uses the first selected mode's period as its explicit time unit.
-    with h5py.File(resolved, "r") as h5:
-        characteristic_frequency = float(h5["freqs"][selectors[0]])
-    normalized = Potential.load(
-        resolved, B=magnetic_field, characteristic_length=characteristic_length,
-        characteristic_frequency=characteristic_frequency,
-        indx=selectors, interpolation_order=interpolation_order,
-    )
-    metadata = normalized.metadata
-    if not isinstance(metadata, GC2DH5Metadata) or metadata.characteristic_period is None:
-        raise ValueError("A positive-frequency H5 mode is required to normalize time.")
-    x, y = metadata.source_x, metadata.source_y
-    period_x = len(x) * (x[1] - x[0])
-    period_y = len(y) * (y[1] - y[0])
-    if not np.isclose(period_x, period_y):
-        raise ValueError("The source H5 axes must have the same periodic span.")
-    grid = Grid(float(x[0]), float(y[0]), float(x[1] - x[0]),
-                float(y[1] - y[0]), len(x), len(y), float(period_x))
-    scale = metadata.normalization_factor
-    raw = Potential(grid, mean=normalized.mean * scale,
-                    modes=normalized.modes * scale,
-                    frequencies=normalized.frequencies,
-                    interpolation_order=interpolation_order)
-    # With tau=t/T0, d(R,Z)/d tau = (T0/B) J grad(Phi).
-    flow_scale = metadata.characteristic_period / magnetic_field
-    stream = Potential(grid, mean=raw.mean * flow_scale,
-                       modes=raw.modes * flow_scale,
-                       frequencies=raw.frequencies,
-                       interpolation_order=interpolation_order)
-    return DimensionalH5Field(raw, stream, metadata.characteristic_period,
+    raw_seconds = Potential.load(resolved, indx=selectors,
+                                 interpolation_order=interpolation_order)
+    metadata = raw_seconds.metadata
+    if not isinstance(metadata, GC2DH5Metadata):
+        raise ValueError("The field requires HDF5 provenance.")
+    period = float(2 * np.pi / metadata.source_frequencies[0])
+    # Keep the established raw contract: physical amplitudes/space, cycle time.
+    cyclic_rates = metadata.source_frequencies / metadata.source_frequencies[0]
+    legacy_metadata = replace(metadata, characteristic_period=period, time_scale=period,
+                              temporal_rescaling=True, time_convention="legacy_cycles")
+    raw = Potential(raw_seconds.grid, mean=raw_seconds.mean, modes=raw_seconds.modes,
+                    frequencies=cyclic_rates, metadata=legacy_metadata, interpolation_order=interpolation_order)
+    cycle_potential = Potential(raw.grid, mean=raw.mean * period,
+                               modes=raw.modes * period, frequencies=raw.frequencies,
+                               metadata=replace(legacy_metadata, normalization_factor=1.0/period),
+                               interpolation_order=interpolation_order)
+    stream = GuidingCenterDynamics(cycle_potential, B=magnetic_field).effective_potential
+    return DimensionalH5Field(raw, stream, period,
                               magnetic_field, tuple(int(v) for v in metadata.source_field_indices))
 
 

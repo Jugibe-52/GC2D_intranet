@@ -21,6 +21,7 @@ class _H5PotentialSnapshot:
 	frequencies: np.ndarray
 	metadata: GC2DH5Metadata
 	interpolation_order: int
+	frequency_convention: str = "cycles"
 
 	@classmethod
 	def from_potential(
@@ -37,15 +38,19 @@ class _H5PotentialSnapshot:
 			frequencies=potential.frequencies,
 			metadata=potential.metadata,
 			interpolation_order=potential.interpolation_order,
+			frequency_convention="cycles",
 		)
 
 	def restore(self) -> Potential:
 		"""Rebuild runtime splines once inside one worker process."""
+		convention = getattr(self, "frequency_convention", "cycles")
+		if convention not in ("cycles", "angular"):
+			raise ValueError("Unsupported snapshot frequency convention.")
 		return Potential(
 			self.grid,
 			mean=self.mean,
 			modes=self.modes,
-			frequencies=self.frequencies,
+			frequencies=self.frequencies / (2 * np.pi) if convention == "angular" else self.frequencies,
 			metadata=self.metadata,
 			interpolation_order=self.interpolation_order,
 		)

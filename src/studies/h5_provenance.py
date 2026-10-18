@@ -1,5 +1,7 @@
 """Reconstruct a measured HDF5 field against a prior experiment's provenance."""
 
+from studies.historical_h5 import historical_h5_hamiltonian
+
 from collections.abc import Mapping
 from dataclasses import asdict
 import hashlib
@@ -63,9 +65,9 @@ def prepare_verified_h5_field(
             raise ValueError(f'Physical setting differs from the original experiment: {key}.')
     # Archived selectors referred to amplitude ranks; original source indices
     # above identify the same physical fields under the direct-index API.
-    potential = Potential.load(resolved, B=magnetic_field,
-        characteristic_length=characteristic_length, indx=source_selection,
-        characteristic_frequency=2 * np.pi / original["characteristic_period_s"],
+    potential = historical_h5_hamiltonian(resolved, magnetic_field=magnetic_field,
+        length=characteristic_length, indx=source_selection,
+        angular_reference=2 * np.pi / original["characteristic_period_s"],
         interpolation_order=interpolation_order,
         sigma=None)
     provenance = potential.metadata
@@ -81,6 +83,8 @@ def prepare_verified_h5_field(
         'field_fingerprint': potential_fingerprint(potential),
         'length_scale_m': characteristic_length / (2 * np.pi),
         'time_scale_s': provenance.characteristic_period,
+        'frequency_convention': 'cycles', 'source_frequency_unit': 'Hz',
+        'time_convention': 'legacy_cycles',
         'source_origin_m': original['source_origin_m'],
         'field_construction': 'Original HDF5, normalized mean and first selected positive-frequency mode; no resampling or denoising.',
     }

@@ -21,7 +21,7 @@ class "GC2D HDF5 file" as HDF5Source <<data>> {
   produced by GC2D.
 }
 
-rectangle "<b>Potential.load</b>\n<i>src/potential/potential.py + load.py</i>\n\nReads constant field 0 and variable source indices\n(default 15), validates their frequencies, optionally\nfilters fields, and rescales the physical quantities,\nmaps coordinates by characteristic length,\nand builds an interpolation-ready potential." as ImportPipeline
+rectangle "<b>Potential.load</b>\n<i>src/potential/potential.py + load.py</i>\n\nReads constant field 0 and variable source indices\n(default 15), validates their frequencies, optionally\nfilters fields and optionally changes variables,\nscaling all amplitudes by T/s^2,\nand builds an interpolation-ready potential." as ImportPipeline
 
 class "GC2DH5Metadata" as H5Metadata <<src/potential/load.py>> {
   Groups immutable dimensional provenance:
@@ -50,7 +50,7 @@ class "GuidingCenterDynamics" as GCDynamics <<src/dynamics/gc.py>> {
   --
   Provides the vector field, its Jacobians and the
   Hamiltonian quantities required by integrators.
-  Uses a gyroaveraged potential when rho is nonzero.
+  Uses the gyroaveraged Hamiltonian H=P/B.
 }
 
 class "Grid" as GridSupport <<src/potential/grid.py>> {

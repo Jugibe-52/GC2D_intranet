@@ -135,43 +135,32 @@ development directory hierarchy; see [Cloudflare Pages publication](docs/visuali
 
 ## GC2D HDF5 potential
 
-The primary GC2D field format stores a real mean potential and complex
-positive-frequency modes in HDF5. Load it through the public potential API:
+The measured HDF5 format contains a real mean and complex variable modes.
+Defaults preserve source samples, coordinates and cyclic frequencies:
 
 ```python
 from potential import Potential
+from dynamics import GuidingCenterDynamics
 
-# Choose the time unit explicitly from the desired source mode.
-import h5py
-
-source_path = "data/potential/V1/PHI_2.h5"
-with h5py.File(source_path, "r") as source:
-    omega0 = float(source["freqs"][15])
-potential = Potential.load(
-    source_path,
-    characteristic_frequency=omega0,
-    characteristic_length=0.06,
-    interpolation_order=3,
-)
+potential = Potential.load("data/potential/V1/PHI_2.h5", indx=(15,))
+dynamics = GuidingCenterDynamics(potential, B=1.5)
 ```
 
-The primary-file defaults are `B=1.5`, `characteristic_length=0.06`, and
-`indx=(0, 1)`, selecting the mean field and its dominant declared
-positive-frequency mode. The loader maps that dominant frequency to one cycle
-per normalized time unit, so its temporal period is `1`, and maps each
-characteristic spatial length to `2*pi`.
+Field 0 is always the real mean; `indx` selects original variable indices.
+The default `(15,)` selects source field 15. Runtime phase is `exp(i*2*pi*f*t)`.
+Optional `spatial_rescaling=True` maps the full cell to `[0,1)`;
+`temporal_rescaling=True` uses the first selected mode's period as the time unit.
+Both default to false. Equivalent variable changes multiply **all** amplitudes
+by `T/s**2`; B belongs to dynamics. Loading no longer accepts B, characteristic
+length/frequency or resampling counts. `sigma=None` disables optional smoothing.
 
-Loaded and artificial fields are instances of the same `Potential` class. Both
-use a real mean plus complex positive-frequency modes with runtime phase
-`exp(+i*2*pi*f*t)`; HDF5-specific provenance is retained in
-`potential.metadata`.
+Source frequencies are Hz for time in seconds. The physical reference period
+is `T=1/f_ref`; normalization stores `f*T`. Unscaled import preserves amplitude.
 
-See the
-[HDF5 import contract](docs/dynamics/gc2d-h5-import.md)
-and its
-[architecture diagram](docs/dynamics/gc2d-h5-potential-architecture.puml)
-for the dataset schema, normalization, interpolation, gyroaveraging, and
-guiding-center integration.
+
+See the [HDF5 import contract](docs/dynamics/gc2d-h5-import.md) and
+[architecture diagram](docs/dynamics/gc2d-h5-potential-architecture.puml) for
+units, derivatives, provenance and explicit preservation of historical studies.
 
 ## Guiding-center example
 

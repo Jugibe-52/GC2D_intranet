@@ -5,7 +5,7 @@
 
 The GC2D HDF5 format stores one real mean field and one or more complex
 positive-frequency fields. This module defines their selection,
-nondimensionalization, periodic resampling and provenance metadata. Runtime
+independent coordinate transformations and provenance metadata. Runtime
 reconstruction is provided by :class:`~potential.Potential`.
 """
 
@@ -21,8 +21,7 @@ from typing import Any
 import h5py
 import numpy as np
 
-from .grid import Grid, _validate_periodic_sizes
-from ._periodic_spline import _build_periodic_spline
+from .grid import Grid
 from ._validation import _readonly_array
 
 DEFAULT_CHARACTERISTIC_LENGTH = 0.06
@@ -127,14 +126,33 @@ class GC2DH5Metadata:
 	normalization_factor: float
 	attributes: Mapping[str, Any]
 	source_path: Path | None = None
+	# Physical coordinates/time per runtime unit; amplitudes divide by normalization_factor.
+	spatial_scale: float = 1.0
+	time_scale: float = 1.0
+	spatial_rescaling: bool = False
+	temporal_rescaling: bool = False
+	sigma: float | None = None
+	# Missing fields in old archives must not assert corrected physical time units.
+	source_frequency_unit: str = "legacy_unspecified"
+	time_convention: str = "legacy_unspecified"
 
 	def __post_init__(self) -> None:
 		"""Validate, own, and freeze every provenance value."""
+		if self.source_frequency_unit not in ("Hz", "legacy_unspecified"):
+			raise ValueError("Unsupported source frequency unit.")
+		if self.time_convention not in ("physical_seconds", "physical_cycles", "legacy_cycles", "legacy_unspecified"):
+			raise ValueError("Unsupported time convention.")
 		source_indices, source_frequencies = _validated_source_fields(
 			self.source_field_indices, self.source_frequencies,
 		)
 		normalization = _finite_nonzero(self.normalization_factor, name="normalization_factor")
 		attribute_values = _readonly_attributes(self.attributes)
+		for name in ("spatial_scale", "time_scale"):
+			object.__setattr__(self, name, _finite_positive(getattr(self, name), name=name))
+		for name in ("spatial_rescaling", "temporal_rescaling"):
+			object.__setattr__(self, name, _validated_boolean(getattr(self, name), name=name))
+		if self.sigma is not None:
+			object.__setattr__(self, "sigma", _finite_nonnegative(self.sigma, name="sigma"))
 
 		object.__setattr__(
 			self,
@@ -205,6 +223,13 @@ class GC2DH5Metadata:
 				self.normalization_factor,
 				dict(self.attributes),
 				self.source_path,
+				self.spatial_scale,
+				self.time_scale,
+				self.spatial_rescaling,
+				self.temporal_rescaling,
+				self.sigma,
+				self.source_frequency_unit,
+				self.time_convention,
 			),
 		)
 
@@ -214,7 +239,7 @@ class _GC2DH5Data:
 	"""Normalized samples and provenance, before runtime spline preparation.
 
 	Mean samples use (nx, ny), modes use (mode_count, nx, ny), and frequencies
-	are cycles per normalized time, following the common potential convention.
+	count cycles per runtime time unit.
 	"""
 
 	grid: Grid
@@ -243,74 +268,11 @@ def _grid_from_validated_axes(x: np.ndarray, y: np.ndarray) -> Grid:
 	)
 
 
-def _resample_fields(
-	x: np.ndarray,
-	y: np.ndarray,
-	mean: np.ndarray | None,
-	modes: np.ndarray | None,
-	*,
-	nx: int | None,
-	ny: int | None,
-	interpolation_order: int,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray | None, np.ndarray | None]:
-	"""Resample periodic HDF5 fields without duplicating the upper endpoint."""
-	if nx is None and ny is None:
-		return x, y, mean, modes
-	if nx is None or ny is None:
-		raise ValueError("`nx` and `ny` must either both be set or both be None.")
-	_validate_periodic_sizes(nx, ny)
-
-	period_x = x.size * (x[1] - x[0])
-	period_y = y.size * (y[1] - y[0])
-	x_resampled = x[0] + period_x * np.arange(int(nx), dtype=float) / int(nx)
-	y_resampled = y[0] + period_y * np.arange(int(ny), dtype=float) / int(ny)
-
-	def interpolate(field: np.ndarray) -> np.ndarray:
-		interpolator = _build_periodic_spline(
-			x,
-			y,
-			np.asarray(field, dtype=np.complex128),
-			spacing=(float(x[1] - x[0]), float(y[1] - y[0])),
-			interpolation_order=interpolation_order,
-		)
-		x_mesh, y_mesh = np.meshgrid(x_resampled, y_resampled, indexing="ij")
-		return interpolator.evaluate(x_mesh, y_mesh)
-
-	resampled_mean = None
-	if mean is not None:
-		resampled_mean = np.asarray(interpolate(mean).real)
-	resampled_modes = None
-	if modes is not None:
-		resampled_modes = np.asarray(
-			[interpolate(field) for field in modes],
-			dtype=np.complex128,
-		)
-	return x_resampled, y_resampled, resampled_mean, resampled_modes
-
-
-def _validated_import_controls(
-	# Signed, finite nonzero magnetic field used to normalize field amplitudes.
-	B: float,
-	# Finite positive length scale in the same units as the source coordinates.
-	characteristic_length: float,
-	# Required positive angular-frequency scale in source units.
-	characteristic_frequency: float,
-	# Gaussian standard deviation in grid samples; None disables smoothing.
-	sigma: float | None,
-) -> tuple[float, float, float, float | None]:
-	"""Normalize dimensional scales and filtering options before opening the file."""
-	# Convert public numeric inputs once. The validated local names below carry
-	# their physical meaning and avoid repeating implicit scalar conversions.
-	magnetic_field = _finite_nonzero(B, name="B")
-	length_scale = _finite_positive(
-		characteristic_length, name="characteristic_length",
-	)
-	if characteristic_frequency is None:
-		raise TypeError("`characteristic_frequency` must be a finite positive number, not None.")
-	frequency_scale = _finite_positive(characteristic_frequency, name="characteristic_frequency")
-	denoising_sigma = None if sigma is None else _finite_nonnegative(sigma, name="sigma")
-
-	return magnetic_field, length_scale, frequency_scale, denoising_sigma
+def _validated_boolean(value: bool, *, name: str) -> bool:
+	"""Require an actual Boolean rather than coercing arbitrary truth values."""
+	if not isinstance(value, (bool, np.bool_)):
+		raise TypeError(f"`{name}` must be a Boolean.")
+	return bool(value)
 
 
 def _validated_field_selection(
@@ -336,113 +298,70 @@ def _validated_field_selection(
 def _load_data(
 	filename: str | PathLike[str],
 	*,
-	B: float,
-	characteristic_length: float,
-	characteristic_frequency: float,
 	indx: int | Sequence[int] | np.ndarray | None,
-	nx: int | None,
-	ny: int | None,
+	spatial_rescaling: bool,
+	temporal_rescaling: bool,
 	sigma: float | None,
-	interpolation_order: int,
 ) -> _GC2DH5Data:
-	"""Read and normalize GC2D fields without constructing a runtime potential."""
-	# Defer this import because Potential imports the HDF5 adapter at module load.
+	"""Read samples unchanged by default; apply equivalent variable changes on request.
+
+	Source frequencies are cyclic (Hz for seconds). The historical matrix orientation is retained
+	without transposition; only square sampled fields are supported by this import.
+	For x=x0+s*q and t=T*u, all amplitudes acquire T/s**2, independently of B.
+	"""
 	from .potential import _denoise_fields
 
-	magnetic_field, length_scale, frequency_scale, denoising_sigma = _validated_import_controls(
-		B, characteristic_length, characteristic_frequency, sigma,
-	)
-
-	# Read all source metadata while the HDF5 handle is open. Field samples remain
-	# lazy until their selected slices are converted to NumPy arrays below.
+	spatial = _validated_boolean(spatial_rescaling, name="spatial_rescaling")
+	temporal = _validated_boolean(temporal_rescaling, name="temporal_rescaling")
+	width = None if sigma is None else _finite_nonnegative(sigma, name="sigma")
 	path = Path(filename)
 	with h5py.File(path, "r") as h5:
-		# Preserve the dimensional coordinate arrays as provenance. The separate
-		# ``x`` and ``y`` values are validated immutable working copies.
-		source_x = np.asarray(h5["Rcells"][()], dtype=float)
-		source_y = np.asarray(h5["Zcells"][()], dtype=float)
-		x = _validated_axis(source_x, name="Rcells")
-		y = _validated_axis(source_y, name="Zcells")
-		all_frequencies = np.asarray(h5["freqs"][()], dtype=float)
+		x = _validated_axis(h5["Rcells"][()], name="Rcells")
+		y = _validated_axis(h5["Zcells"][()], name="Zcells")
+		frequencies = np.asarray(h5["freqs"][()], dtype=float)
+		if frequencies.ndim != 1:
+			raise ValueError("`freqs` must be one-dimensional.")
 		fields = h5["fields"]
+		expected_shape = (frequencies.size, y.size, x.size)
+		if fields.shape != expected_shape:
+			raise ValueError(f"Shape of `fields` is {fields.shape}, but expected {expected_shape}.")
+		if x.size != y.size:
+			raise ValueError("HDF5 loading preserves the existing orientation and requires square sampled fields.")
+		if not frequencies.size or frequencies[0] != 0:
+			raise ValueError("The first source frequency must be exactly zero for the constant field.")
+		indices = _validated_field_selection(indx, frequencies)
+		source_f = frequencies[indices]
+		mean = np.asarray(fields[0].real, dtype=float)
+		modes = np.asarray([fields[int(i)] for i in indices], dtype=np.complex128) if indices.size else None
 		attributes = {name: np.asarray(value) for name, value in h5.attrs.items()}
 
-		# GC2D stores one two-dimensional field for each frequency. Rejecting a
-		# mismatched layout here prevents a later mode or coordinate misalignment.
-		expected_shape = (len(all_frequencies), len(y), len(x))
-		if fields.shape != expected_shape:
-			raise ValueError(
-				f"Shape of `fields` in {path} is {fields.shape}, "
-				f"but expected {expected_shape}."
-			)
-
-		if not all_frequencies.size or all_frequencies[0] != 0:
-			raise ValueError("The first source frequency must be exactly zero for the constant field.")
-		selected_source_indices = _validated_field_selection(indx, all_frequencies)
-		selected_source_frequencies = all_frequencies[selected_source_indices]
-		selected_mean = np.asarray(fields[0].real, dtype=float)
-		# Read only the requested source slices. Each coefficient stays paired with
-		# its own frequency, including when the caller requests a non-sorted order.
-		selected_modes = (
-			np.asarray([fields[int(index)] for index in selected_source_indices], dtype=np.complex128)
-			if selected_source_indices.size else None
-		)
-		normalization_factor = float(
-			frequency_scale * length_scale**2 * magnetic_field / (2.0 * np.pi) ** 2
-		)
-		selected_mean = selected_mean / normalization_factor
-		if selected_modes is not None:
-			selected_modes = selected_modes / normalization_factor
-
-	# Source frequencies remain dimensional; runtime frequencies count cycles
-	# per explicitly supplied characteristic period.
-	selected_frequencies = selected_source_frequencies / frequency_scale
-
-	# Shift each physical axis to zero and map one characteristic length to 2*pi.
-	# The full source period may contain several characteristic lengths.
-	coordinate_scale = 2.0 * np.pi / length_scale
-	x = (np.asarray(x) - float(x[0])) * coordinate_scale
-	y = (np.asarray(y) - float(y[0])) * coordinate_scale
-
-	selected_mean, selected_modes = _denoise_fields(
-		selected_mean, selected_modes, sigma=denoising_sigma,
-	)
-
-	# Optional resampling uses periodic splines and returns the original arrays
-	# unchanged when both requested sizes are None.
-	x, y, resampled_mean, selected_modes = _resample_fields(
-		x,
-		y,
-		selected_mean,
-		selected_modes,
-		nx=nx,
-		ny=ny,
-		interpolation_order=interpolation_order,
-	)
-	# Keep dimensional provenance alongside the normalized samples; the runtime
-	# constructor prepares persistent periodic splines from these data.
+	grid = _grid_from_validated_axes(x, y)
+	mean, modes = _denoise_fields(mean, modes, sigma=width)
+	length = grid.period if spatial else 1.0
+	period = None
+	if temporal:
+		if not source_f.size:
+			raise ValueError("Temporal rescaling requires a selected positive-frequency mode.")
+		period = float(1.0 / source_f[0])
+	time_scale = period if period is not None else 1.0
+	# This factor follows Hamilton's change of variables and applies to the mean too.
+	amplitude_scale = time_scale / length**2
+	if amplitude_scale != 1.0:
+		mean = mean * amplitude_scale
+		if modes is not None:
+			modes = modes * amplitude_scale
+	if spatial:
+		grid = Grid.periodic(grid.nx, grid.ny, period=1.0)
 	metadata = GC2DH5Metadata(
-		source_field_indices=selected_source_indices,
-		source_x=source_x,
-		source_y=source_y,
-		source_frequencies=selected_source_frequencies,
-		characteristic_length=length_scale,
-		characteristic_period=2.0 * np.pi / frequency_scale,
-		normalization_factor=normalization_factor,
-		attributes=attributes,
-		source_path=path,
+		source_field_indices=indices, source_x=x, source_y=y,
+		source_frequencies=source_f, characteristic_length=None,
+		characteristic_period=period, normalization_factor=1.0 / amplitude_scale,
+		attributes=attributes, source_path=path, spatial_scale=length,
+		time_scale=time_scale, spatial_rescaling=spatial, temporal_rescaling=temporal,
+		sigma=width, source_frequency_unit="Hz",
+		time_convention="physical_cycles" if temporal else "physical_seconds",
 	)
-	return _GC2DH5Data(
-		_grid_from_validated_axes(x, y),
-		mean=resampled_mean,
-		modes=selected_modes,
-		frequencies=selected_frequencies,
-		metadata=metadata,
-	)
+	return _GC2DH5Data(grid, mean, modes, source_f * time_scale, metadata)
 
 
-__all__ = [
-	"DEFAULT_CHARACTERISTIC_LENGTH",
-	"DEFAULT_FIELD_INDICES",
-	"GC2DH5Metadata",
-]
+__all__ = ["DEFAULT_CHARACTERISTIC_LENGTH", "DEFAULT_FIELD_INDICES", "GC2DH5Metadata"]

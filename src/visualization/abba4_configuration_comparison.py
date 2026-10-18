@@ -209,14 +209,14 @@ def _closed_spatial_limits(potential: Potential) -> tuple[float, float, float, f
 
 
 def _fundamental_frequency(potential: Potential) -> float:
-	"""Return the first normalized HDF5 cycle frequency, or the unit default."""
+	"""Return the first angular frequency, or the unit-cycle default."""
 	frequencies = getattr(potential, "frequencies", None)
 	if frequencies is None:
-		return 1.0
+		return 2 * np.pi
 	values = np.asarray(frequencies, dtype=float)
 	if values.ndim != 1 or not values.size or not np.all(np.isfinite(values)):
-		return 1.0
-	return float(values[0])
+		return 2 * np.pi
+	return float(2 * np.pi * values[0])
 
 
 def animate_abba4_configuration_trajectories(
@@ -375,7 +375,7 @@ def animate_abba4_configuration_trajectories(
 			)
 			artists.extend((paths[key], markers[key]))
 		time = float(times[sample_index])
-		phase = float(np.mod(2.0 * np.pi * frequency * time, 2.0 * np.pi))
+		phase = float(np.mod(frequency * time, 2.0 * np.pi))
 		suptitle.set_text(
 			f"{len(variants)} ABBA4 configurations × {particle_count} shared initial "
 			f"conditions ({len(variants) * particle_count} trajectories) — "

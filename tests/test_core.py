@@ -85,7 +85,7 @@ class PotentialTests(unittest.TestCase):
 
 		np.testing.assert_array_equal(first.mean, np.zeros(first.grid.shape))
 		self.assertEqual(first.modes.shape, (1, *first.grid.shape))
-		np.testing.assert_allclose(first.frequencies, [1.0 / (2.0 * np.pi)])
+		np.testing.assert_allclose(first.frequencies, [1.0 / (2 * np.pi)])
 		self.assertIsNone(first.metadata)
 		np.testing.assert_allclose(first.evaluate_grid(0.3), second.evaluate_grid(0.3))
 		times = np.asarray([0.0, 0.2, 0.5])

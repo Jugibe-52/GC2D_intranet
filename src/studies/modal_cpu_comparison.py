@@ -201,7 +201,7 @@ def _validated_cpu_star_geometry(potential: Potential, config: ModalCPUStarConfi
 	if not np.isfinite([config.equivalence_rtol, config.equivalence_atol]).all() or min(
 			config.equivalence_rtol, config.equivalence_atol) < 0:
 		raise ValueError('Equivalence tolerances must be finite and non-negative.')
-	if potential.frequencies.shape != (1,) or not np.allclose(potential.frequencies, [1.], rtol=0, atol=1e-14):
+	if potential.frequencies.shape != (1,) or not np.allclose(potential.frequencies, [1.0], rtol=0, atol=1e-14):
 		raise ValueError('The study requires one mode with normalized forcing period one.')
 	return center
 

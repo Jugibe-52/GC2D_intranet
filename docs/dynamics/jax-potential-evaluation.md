@@ -156,11 +156,10 @@ resident JAX inputs/output, and explicit input/output transfers for 256 particle
 ```bash
 python examples/jax_potential.py --device cpu --particles 256
 python examples/jax_potential.py --device gpu --particles 256
-python examples/jax_potential.py --device cpu --particles 256 --h5 data/potential/V1/PHI_2.h5 --characteristic-frequency "$OMEGA0"
+python examples/jax_potential.py --device cpu --particles 256 --h5 data/potential/V1/PHI_2.h5
 ```
 
-Set `OMEGA0` to the desired finite positive source angular-frequency scale
-before running the HDF5 example. Without `--h5`, the example uses a clearly
+HDF5 defaults preserve source amplitudes, coordinates and cyclic frequencies. Without `--h5`, the example uses a clearly
 identified synthetic field. A Git LFS pointer is not a usable HDF5 input.
 Potential-evaluation timings do not predict complete BM4/ABBA integration
 performance.

@@ -1,5 +1,7 @@
 """Direct source selections and reconstruction of historical HDF5 studies."""
 
+from studies.historical_h5 import historical_h5_hamiltonian, sample_study_grid
+
 from dataclasses import asdict
 import hashlib
 import json
@@ -37,7 +39,7 @@ class H5StudySelectionTests(unittest.TestCase):
 
 	def test_verified_field_uses_original_indices_in_historical_provenance(self) -> None:
 		"""Recover the recorded time scale even when it differs from the source mode."""
-		potential = Potential.load(self.path, characteristic_frequency=14.0)
+		potential = historical_h5_hamiltonian(self.path, angular_reference=14.0)
 		metadata = potential.metadata
 		with self.path.open("rb") as stream:
 			digest = hashlib.file_digest(stream, "sha256").hexdigest()

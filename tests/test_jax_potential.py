@@ -163,7 +163,7 @@ class JaxPotentialTests(unittest.TestCase):
                 h5["Rcells"], h5["Zcells"] = axis, axis
                 h5["freqs"] = np.array([0., 2., 3.])
                 h5["fields"] = np.stack((x + y, np.sin(x + y) + 1j * np.cos(y), np.cos(x) + 1j * y))
-            potential = JaxPotential.load(path, characteristic_frequency=2.0, indx=(1, 2)).gyroaverage(0.3)
+            potential = JaxPotential.load(path, indx=(1, 2)).gyroaverage(0.3)
             self.assertIsInstance(potential, JaxPotential)
             for dx, dy in ((0, 0), (1, 0), (0, 1), (2, 0), (1, 1), (0, 2)):
                 np.testing.assert_allclose(potential.evaluate(self.jax.numpy.asarray(0.3), 0.4, 0.5, dx=dx, dy=dy),

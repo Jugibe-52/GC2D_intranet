@@ -1,0 +1,4 @@
+interface:
+  display_name: "GC2D Poincare simulations"
+  short_description: "Run fixed 48-particle studies in one shared viewer"
+  default_prompt: "Use $simular-poincare to run BM4Midpoint with rho=0.3 and B=1.5."

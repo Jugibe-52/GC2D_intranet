@@ -310,13 +310,15 @@ HDF5 filtering is controlled by `Potential.load(..., sigma=None)`: `None`
 disables smoothing, while a finite non-negative width enables Gaussian filtering
 in grid samples. The separate `denoising` argument has been removed.
 
-The HDF5 loader always maps coordinates by `2*pi/characteristic_length`;
-it has no spatial-mode argument. The study's `RhoStarConfig.spatial_normalization`
-is a separate choice applied after `load_dimensional_h5_field` restores the
-physical source axes and amplitudes. The original rho sweep and folded radial
-study therefore continue integrating unwrapped meter coordinates. Their
-0.18 m square corresponds to a `6*pi` square at characteristic length 0.06 m;
-folding positions into `[0,1)` remains postprocessing.
+The HDF5 loader preserves physical coordinates and amplitudes by default.
+`load_dimensional_h5_field` constructs the cycle-time Hamiltonian `(T0/B)*Phi`
+directly from these samples, using B in `GuidingCenterDynamics`. The study's
+`RhoStarConfig.spatial_normalization` remains a separate choice. The original
+rho sweep and folded radial study continue integrating unwrapped meter
+coordinates. Their 0.18 m square corresponds to a `6*pi` square at characteristic
+length 0.06 m; folding into `[0,1)` remains postprocessing. The radial convention
+retains its additional `1/(2*pi)` amplitude factor and its original forcing
+period, preserving historical viewer dynamics.
 
 `RhoStarConfig.spatial_normalization="characteristic_length"` repeats the same
 physical experiment with `q = s*(X-X0)`, `s = 2*pi/characteristic_length`, where
@@ -409,11 +411,18 @@ and statistics. See [JAX execution](../../../simulation/jax-execution.md).
 HDF5 variable-field indices refer directly to the original file; no amplitude
 ranking is applied. The first source frequency must be exactly zero and every
 selected variable frequency must be finite and positive. `Potential.load`
-requires an explicit finite positive `characteristic_frequency`. Dimensional
-studies pass the first selected source frequency; archived reconstructions
-recover it from the recorded characteristic period. See the shared
+uses source cyclic frequencies directly. Optional temporal rescaling uses the
+first selected mode as reference; archived study reconstructions use their
+recorded characteristic period explicitly outside the loader. See the shared
 [HDF5 contract](../../../dynamics/gc2d-h5-import.md) for selection and archive
 migration, including recovery from recorded original source indices.
+
+The physical loader uses `T=1/f_ref`, with public cyclic frequencies and phase
+`exp(i*2*pi*f*t)`. Historical dimensional and radial studies retain the recorded
+clock `T0=2*pi/f_ref`. Their radial Hamiltonian equals the corrected physical-cycle
+Hamiltonian as a function of cycle index, but stored legacy seconds are not
+relabeled. New study provenance marks `time_convention="legacy_cycles"`.
+
 
 ## Potential evaluation boundary
 
