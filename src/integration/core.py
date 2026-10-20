@@ -11,7 +11,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Callable, Iterator, Mapping
 from dataclasses import is_dataclass, replace
 from types import MappingProxyType
-from typing import Any, Generic, Protocol, Self, TypeVar
+from typing import Any, ClassVar, Generic, Literal, Protocol, Self, TypeVar
 
 import numpy as np
 
@@ -19,7 +19,7 @@ from integration.state import IntegrationState
 from integration._fixed import _Progress, _step_count
 from contracts.result import DiagnosticValue
 from states.history import States
-from contracts.execution_options import ExecutionOptions
+from dynamics.protocols import DynamicalSystem
 from contracts.step import StepInfo, StepResult, StepValue
 from contracts.problem import InitialValueProblem
 from request import SimulationRequest
@@ -127,6 +127,7 @@ def _record_sample(method: IntegrationMethod[Any], result: States, time: float, 
 def integrate_method(
 	method: IntegrationMethod[Detail],
 	*, controller: StepController[Detail] | None = None,
+	metadata: Mapping[str, DiagnosticValue] | None = None,
 ) -> States:
 	"""Coordinate accepted steps, sampling, observation and physical output.
 
@@ -181,7 +182,7 @@ def integrate_method(
 			progress.close()
 	if output_index != request.output_times.size or abs(previous_end - tf) > tolerance:
 		raise RuntimeError("The integration did not cover the requested interval.")
-	diagnostics = dict(method.metadata)
+	diagnostics = {**method.metadata, **(metadata or {})}
 	if method.state_formulation is not None:
 		diagnostics.update(method.state_formulation.diagnose_history(saved.times, saved.values, dict(saved.auxiliary)))
 	diagnostics["output_interpolation_count"] = interior_sample_count
@@ -206,14 +207,16 @@ class IntegrationMethod(ABC, Generic[Detail]):
 	step_observer: Callable[[Any], None] | None
 	_status: str = "configuration"
 	state_formulation: PhysicalFormulation | None = None
-	execution: ExecutionOptions
+	# Capabilities select a driver; methods never resolve an execution device.
+	jax_mode: ClassVar[Literal["unsupported", "device_resident", "hybrid_scipy_controller"]] = "unsupported"
+	evaluated_dynamics: DynamicalSystem
 
 	@property
 	def method_name(self) -> str:
 		return type(self).__name__
 
 	def new_run(self, problem: InitialValueProblem, request: SimulationRequest,
-	            *, execution: ExecutionOptions | None = None) -> Self:
+	            *, evaluated_dynamics: DynamicalSystem | None = None) -> Self:
 		"""Create an isolated run of this class, copying only constructor options.
 
 		Dataclass replacement reconstructs the configuration and excludes all
@@ -223,9 +226,7 @@ class IntegrationMethod(ABC, Generic[Detail]):
 		if not is_dataclass(self):
 			raise TypeError("Numerical methods must declare their options as dataclass fields.")
 		method = replace(self)
-		if execution is not None and not isinstance(execution, ExecutionOptions):
-			raise TypeError("`execution` must be an ExecutionOptions instance or None.")
-		method.execution = ExecutionOptions() if execution is None else execution
+		method.evaluated_dynamics = problem.dynamics if evaluated_dynamics is None else evaluated_dynamics
 		method.problem = problem
 		method.request = request
 		method.metadata = {}
@@ -265,20 +266,6 @@ class IntegrationMethod(ABC, Generic[Detail]):
 	def controller(self) -> StepController[Detail]:
 		"""Select fixed scheduling; adaptive methods override this operation."""
 		return FixedStepController()
-
-	def _integrate_jax(self, execution: ExecutionOptions) -> States:
-		"""Require an explicit backend implementation from the numerical method."""
-		raise NotImplementedError(f"{self.method_name} does not provide JAX integration.")
-
-	def integrate(self, problem: InitialValueProblem, request: SimulationRequest,
-	              *, execution: ExecutionOptions | None = None) -> States:
-		"""Run a fresh instance through the shared controller and result storage."""
-		if execution is not None and not isinstance(execution, ExecutionOptions):
-			raise TypeError("`execution` must be an ExecutionOptions instance or None.")
-		run = self.new_run(problem, request, execution=execution)
-		if execution is not None and execution.backend == "jax":
-			return run._integrate_jax(execution)
-		return integrate_method(run)
 
 
 __all__ = [

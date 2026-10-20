@@ -123,11 +123,11 @@ float64 configuration and available hardware, with no automatic fallback.
 
 Both routes use the canonical RK4 stages and passive quadrature in
 `methods/classical/_rk4_core.py`. The default controller retains its Python
-lifecycle. For JAX, the shared `IntegrationMethod.integrate` creates a fresh run
-and selects the common fixed-step compiled driver in `integration/jax_fixed.py`.
-Both paths call the same GC/FC dynamics methods and the physical equations in
-`dynamics/_equations.py`. JAX arrays select device evaluation in `Potential`,
-using its actual SciPy spline coefficients without refitting.
+lifecycle. For JAX, `Execution.run` prepares a fresh run and selects the common
+fixed-step compiled driver in `integration/jax_fixed.py`. Both paths call the same
+GC/FC dynamics methods and physical equations in `dynamics/_equations.py`.
+Execution preparation binds JAX field evaluation through `JaxPotential`, reusing
+the existing SciPy spline coefficients without refitting.
 
 The driver compiles the complete time loop using `jax.lax.scan`. Particle
 operations are batched within each stage; stages and successive time steps
@@ -209,14 +209,14 @@ also compared with the migrated implementations on short nonautonomous runs.
 ## Complete integration executor
 
 `simulate(problem, method, request, execution=Execution())` delegates the complete
-integration to `Execution.run`. Import the executor with `from execution import
-Execution`. It uses the existing local method implementation and does not
-configure runtime resources. A subclass can replace the whole integration while
-`simulate` retains validation of the completed `States` returned by integration. Backend choices
-remain separate in `options=ExecutionOptions(...)`. See the
-[executor contract](../../../simulation/execution.md) for the extension interface.
-The numerical stages, projection equations and integration controllers described
-above remain inside this execution boundary.
+job to `Execution.run`. Import the executor with `from execution import Execution`.
+The executor prepares a fresh numerical run and the requested environment, then
+starts the shared integration driver. It does not change thread counts, affinity
+or global JAX settings. Subclasses can execute the same job elsewhere, while
+`simulate` validates the completed `States`. Backend choices remain separate in
+`options=ExecutionOptions(...)`. See the [executor contract](../../../simulation/execution.md).
+Numerical stages, projection equations and step controllers retain their own
+implementations inside this execution boundary.
 
 `Execution_Modal` implements this boundary for remote NumPy/SciPy or JAX CPU
 integrations. Results return to the local machine for validation and subsequent
@@ -263,10 +263,12 @@ from their established study modules. See the
 
 ## Compiled fixed-step contract
 
-Fixed-step methods inherit `CompiledFixedMethod` and provide a JAX adapter that
-returns `contracts.compiled.CompiledStep`. The shared `integration/jax_fixed.py`
-loop knows no concrete numerical method; each method owns its compiled stages
-and statistics. See [JAX execution](../../../simulation/jax-execution.md).
+Fixed-step methods inherit `IntegrationMethod` and declare `jax_mode="device_resident"`.
+The executor resolves the device and prepares the dynamics; a numerical family
+adapter binds the method's controls into `contracts.compiled.CompiledStep`.
+The executor starts the shared `integration/jax_fixed.py` loop, which knows no
+concrete numerical method. Each method retains its compiled stages and statistics.
+See [JAX execution](../../../simulation/jax-execution.md).
 
 ## Potential evaluation boundary
 

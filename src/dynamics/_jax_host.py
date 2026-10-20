@@ -11,11 +11,10 @@ from typing import Any, ClassVar
 import jax
 import numpy as np
 
-from contracts.execution_options import ExecutionOptions
 from dynamics.fc import FullCyclotronDynamics
 from dynamics.gc import GuidingCenterDynamics
 from dynamics.protocols import DynamicalSystem
-from execution._jax import check_precision, prepare_dynamics, resolve_device
+from execution._jax import check_precision
 
 
 class _HostGC:
@@ -59,10 +58,9 @@ def _host(dynamics: GuidingCenterDynamics | FullCyclotronDynamics, device: Any) 
 	return (_HostGC if dynamics.state_dimension == 2 else _HostFC)(dynamics, device)
 
 
-def bind_host_dynamics(dynamics: DynamicalSystem, execution: ExecutionOptions) -> DynamicalSystem:
+def bind_host_dynamics(dynamics: GuidingCenterDynamics | FullCyclotronDynamics, device: Any) -> DynamicalSystem:
 	"""Reuse compiled ordinary equations, checking precision on every call."""
-	physical = prepare_dynamics(dynamics)
-	return _host(physical, resolve_device(execution))
+	return _host(dynamics, device)
 
 
 __all__: list[str] = []

@@ -12,7 +12,7 @@ from dynamics import (
 	GuidingCenterJacobianSystem,
 )
 
-from methods._compiled import CompiledFixedMethod
+from integration.core import IntegrationMethod
 from contracts.step import StepInfo, StepResult
 from contracts.result import DiagnosticValue
 from formulations.state import PhysicalFormulation
@@ -257,8 +257,10 @@ def _solve_sdirk_step(
 
 
 @dataclass(slots=True)
-class SDIRK4(CompiledFixedMethod[_SDIRKStepResult]):
+class SDIRK4(IntegrationMethod[_SDIRKStepResult]):
 	"""Skvortsov S54b: five-stage, fourth-order non-geometric SDIRK."""
+
+	jax_mode = "device_resident"
 
 	track_energy: bool = False
 	newton_absolute_tolerance: float = 1e-14

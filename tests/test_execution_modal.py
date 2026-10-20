@@ -10,6 +10,8 @@ import subprocess
 import sys
 import tempfile
 from types import SimpleNamespace
+from execution import Execution
+
 import unittest
 from unittest.mock import Mock, patch
 
@@ -213,7 +215,9 @@ class ModalExecutionTests(unittest.TestCase):
 
     def test_unserializable_job_fails_before_sdk(self):
         class LocalMethod:
-            def integrate(self, problem, request):
+            jax_mode = "unsupported"
+
+            def new_run(self, problem, request, *, evaluated_dynamics=None):
                 raise AssertionError("Not called")
 
         with self.assertRaises((AttributeError, pickle.PicklingError)):
@@ -276,7 +280,7 @@ class ModalWorkerTests(unittest.TestCase):
         )
         result = subprocess.run([sys.executable, "-c", script], input=payload, capture_output=True, check=True)
         _, _, data = pickle.loads(result.stdout)
-        reference = BM4Implicit().integrate(problem, request)
+        reference = Execution().run(problem, BM4Implicit(), request)
         np.testing.assert_allclose(data.states, reference.states, rtol=1e-13, atol=1e-14)
 
     def test_worker_rejects_incompatible_payload_version(self):

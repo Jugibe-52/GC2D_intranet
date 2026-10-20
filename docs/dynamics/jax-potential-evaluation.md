@@ -131,7 +131,7 @@ while separating or packing component-major states. Vector fields,
 Hamiltonians, passive momentum derivatives and analytic particle Jacobians do
 not force JAX states back to NumPy.
 
-Integration preparation selects the device and binds these shared methods to
+Execution preparation selects the device and binds these shared methods to
 `JaxPotential` instances. For a base `Potential`, it shares the read-only samples
 and existing splines in a separate instance, including the GC gyroaveraged
 potential. It neither refits splines nor mutates the original dynamics; repeated

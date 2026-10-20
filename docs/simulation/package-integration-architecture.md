@@ -1,5 +1,7 @@
 # Detailed package and integration architecture
 
+The linked rendered diagrams and their sources are retained as historical artifacts. Their method-owned integration entry points and former state containers are superseded by the executor-owned lifecycle described in this text.
+
 ![Historical detailed package architecture](package-integration-architecture.svg)
 
 Open the scalable [SVG](package-integration-architecture.svg), the
@@ -28,7 +30,7 @@ and capabilities rather than extra execution stages.
 ## Runtime sequence
 
 1. The caller builds dynamics and a physical initial array with its layout, then supplies a method and `request.SimulationRequest`.
-2. `simulate` delegates the complete job to `Execution.run`, which calls the method's integration entry point and prepares a fresh run and formulation.
+2. `simulate` delegates the complete job to `Execution.run`, which prepares the environment and a fresh run through `method.new_run`, then invokes the shared integration driver.
 3. The controller manages `IntegrationState(time, values)` for accepted internal endpoints. `integrate_method` prepares `States` and records the initial physical sample.
 4. Each accepted interval produces main-step statistics and any requested samples. Fixed shadow maps start independently from its left endpoint; adaptive methods evaluate accepted dense output. The formulation extracts physical values before `States.record` copies them.
 5. The formulation evaluates diagnostics over saved physical samples and auxiliaries. `States.finalize` checks coverage and seals the same recording object.

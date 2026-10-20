@@ -9,6 +9,7 @@ from formulations.layout import GCStateLayout
 
 import unittest
 from types import SimpleNamespace
+from execution import Execution
 
 import numpy as np
 
@@ -62,17 +63,19 @@ class _TimePolynomialDynamics:
 		return np.asarray([t**4, 0.0])
 
 
-class _FixedOutputMethod:
-	"""Minimal third-party-like method returning a predetermined history."""
+class _FixedOutputExecution(Execution):
+	"""External executor returning a predetermined history for boundary validation."""
 
 	def __init__(self, states: np.ndarray, times: np.ndarray | None = None) -> None:
 		self.states = states
 		self.times = times
 
-	def integrate(
+	def run(
 		self,
 		_problem: InitialValueProblem,
+		method,
 		request: SimulationRequest,
+		*, options=None,
 	) -> States:
 		return States(layout=_problem.layout, initial_state=_problem.initial_state,
 			t=request.output_times if self.times is None else self.times,
@@ -321,8 +324,9 @@ class ExtensibleArchitectureTests(unittest.TestCase):
 				with self.assertRaises(ValueError):
 					simulate(
 						problem,
-						_FixedOutputMethod(states),
+						RK4(),
 						request,
+						execution=_FixedOutputExecution(states),
 					)
 
 	def test_runner_rejects_output_times_that_do_not_match_the_request(self) -> None:
@@ -337,7 +341,7 @@ class ExtensibleArchitectureTests(unittest.TestCase):
 		):
 			with self.subTest(times=times):
 				with self.assertRaises(ValueError):
-					simulate(problem, _FixedOutputMethod(states, times), request)
+					simulate(problem, RK4(), request, execution=_FixedOutputExecution(states, times))
 
 	def test_gc_and_fc_split_maps_preserve_physical_motion_and_reverse_momentum(self) -> None:
 		potential = deterministic_potential()

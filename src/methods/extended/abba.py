@@ -16,7 +16,7 @@ from contracts.step import StepInfo, StepResult
 from dynamics import DynamicalSystem, GuidingCenterJacobianSystem
 from formulations.gc import GCDoubledMaps
 from formulations.state import DoubledFormulation
-from methods._compiled import CompiledFixedMethod
+from integration.core import IntegrationMethod
 from methods._nonlinear import NonlinearSolver, SolverOptions, _validate_nonlinear_solver
 from methods.extended.configuration import (
     ProjectionFormulation, ProjectionPlacement, StateExtension,
@@ -34,8 +34,10 @@ from methods.extended.observations import EventBuilder, bind_event_builder
 
 
 @dataclass(slots=True)
-class _ABBAImplicitMethod(CompiledFixedMethod[ProjectedMapResult]):
+class _ABBAImplicitMethod(IntegrationMethod[ProjectedMapResult]):
     """Project one complete palindromic recipe; concrete methods select its order."""
+
+    jax_mode = "device_resident"
 
     projection_formulation: ProjectionFormulation = "reduced_multiplier"
     state_extension: StateExtension = "physical"
@@ -177,7 +179,7 @@ class ABBA6Implicit(_ComposedABBAImplicit):
     order: ClassVar[Literal[2, 4, 6]] = 6
     recipe: ClassVar[Composition] = ABBA6
 @dataclass(slots=True)
-class ABBA2Midpoint(CompiledFixedMethod[MidpointResult]):
+class ABBA2Midpoint(IntegrationMethod[MidpointResult]):
 	"""Second-order midpoint ABBA with optional physical energy tracking.
 
 	The method duplicates only the physical state, applies
@@ -186,6 +188,8 @@ class ABBA2Midpoint(CompiledFixedMethod[MidpointResult]):
 	not feed back into this map. Midpoint has no residual-formulation or
 	nonlinear-solver axis.
 	"""
+
+	jax_mode = "device_resident"
 
 	state_extension: StateExtension = "physical"
 	progress: bool = False

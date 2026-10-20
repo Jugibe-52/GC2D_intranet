@@ -27,6 +27,7 @@ from potential import Potential
 from methods.adaptive.scipy import DOP853, Radau
 from contracts.observation import AdaptiveIntegrationStep
 from contracts.problem import InitialValueProblem
+from simulation.runner import simulate
 from request import SimulationRequest
 
 from ._trajectory_distances import (
@@ -234,7 +235,7 @@ def _solve_adaptive(
 		step_observer=report if progress_callback is not None else None)
 	problem = InitialValueProblem(dynamics, np.array(np.asarray(initial_state, dtype=float), dtype=float, copy=True), layout=GCStateLayout())
 	request = SimulationRequest((float(times[0]), float(times[-1])), maximum_step, times)
-	result = configured.integrate(problem, request)
+	result = simulate(problem, configured, request)
 
 	runtime = perf_counter() - started
 	states = np.array(result.states, dtype=float, copy=True)

@@ -5,15 +5,15 @@ sequential, while every field evaluation and RK stage batches all particles.
 """
 
 from functools import lru_cache, partial
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from typing import Any, TYPE_CHECKING
 
 import jax
 import jax.numpy as jnp
 import numpy as np
 
-from contracts.execution_options import ExecutionOptions
 from states.history import States
+from contracts.result import DiagnosticValue
 from contracts.compiled import CompiledStep
 from integration._fixed import _step_count
 from integration.core import _time_tolerance, NEWTON_ALIASES
@@ -76,11 +76,11 @@ def _compiled_integrator(kernel: CompiledStep) -> Callable[..., Any]:
     return jax.jit(partial(_integrate, kernel=kernel))
 
 
-def integrate_fixed(method: "IntegrationMethod[Any]", execution: ExecutionOptions,
-                    kernel: CompiledStep) -> States:
+def integrate_fixed(method: "IntegrationMethod[Any]", kernel: CompiledStep,
+                    *, metadata: Mapping[str, DiagnosticValue] | None = None) -> States:
     """Run one fresh fixed-step method instance and transfer the finished result to NumPy.
 
-    The method adapter validates host-only callbacks and progress before
+    The executor validates host-only callbacks and progress before
     invoking this coordinator. The compiled loop performs no Python callbacks.
     Potential construction and schedule validation remain on the host.
     """
@@ -118,12 +118,8 @@ def integrate_fixed(method: "IntegrationMethod[Any]", execution: ExecutionOption
         states, auxiliary = method.state_formulation.extract_history(
             times, history, energy=energy if kernel.track_energy else None,
         )
-        diagnostics = dict(method.metadata)
+        diagnostics = {**method.metadata, **(metadata or {})}
         diagnostics.update({
-            "execution_backend": "jax", "execution_device": execution.device,
-            "execution_mode": "device_resident",
-            "execution_device_index": execution.device_index,
-            "execution_device_kind": str(device.device_kind),
             "step_count": count, "step_start_times": starts, "step_times": ends,
             "step_sizes": np.full(count, step),
             "output_interpolation_count": int(np.count_nonzero(modes[1:] == 2)),

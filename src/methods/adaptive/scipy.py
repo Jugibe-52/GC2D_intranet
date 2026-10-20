@@ -19,9 +19,7 @@ from dynamics.protocols import DynamicalSystem
 
 from formulations.state import PhysicalFormulation
 from integration.state import IntegrationState
-from integration.core import IntegrationMethod, integrate_method
-from contracts.execution_options import ExecutionOptions
-from states.history import States
+from integration.core import IntegrationMethod
 from contracts.step import StepInfo, StepResult
 from contracts.observation import AdaptiveIntegrationStep, AdaptiveStepObserver
 from contracts.problem import InitialValueProblem
@@ -68,6 +66,8 @@ class ScipyAdaptiveController:
 class _AdaptiveMethod(IntegrationMethod[_AdaptiveDetails]):
     """Shared controls and run operations; the concrete class selects the solver."""
 
+    jax_mode = "hybrid_scipy_controller"
+
     relative_tolerance: float = 1e-10
     absolute_tolerance: float = 1e-12
     first_step: float | None = None
@@ -112,15 +112,6 @@ class _AdaptiveMethod(IntegrationMethod[_AdaptiveDetails]):
     def initialize(self, problem: InitialValueProblem, request: SimulationRequest) -> None:
         """Initialize this run's vector field, internal state and live solver."""
         self.dynamics = problem.dynamics
-        self.evaluated_dynamics = self.dynamics
-        if self.execution.backend == 'jax':
-            if type(self) not in (DOP853, Radau):
-                raise TypeError('Hybrid JAX execution requires a built-in adaptive method.')
-            try:
-                from dynamics._jax_host import bind_host_dynamics
-            except ImportError as exc:
-                raise ImportError("JAX integration requires the optional 'jax' extra: pip install -e '.[jax]'.") from exc
-            self.evaluated_dynamics = bind_host_dynamics(self.dynamics, self.execution)
         self.physical_size = problem.initial_state.size
         self.particle_count = problem.particle_count
         evaluated_problem = InitialValueProblem(self.evaluated_dynamics, problem.initial_state, layout=problem.layout)
@@ -140,19 +131,6 @@ class _AdaptiveMethod(IntegrationMethod[_AdaptiveDetails]):
         )
         self.previous_counts = np.zeros(3, dtype=int)
         self.accepted_steps = 0
-
-    def _integrate_jax(self, execution: ExecutionOptions) -> States:
-        """Keep SciPy acceptance/dense output while field batches execute in JAX."""
-        data = integrate_method(self)
-        from execution._jax import resolve_device
-        device = resolve_device(execution)
-        return data.with_diagnostics({
-            'execution_backend': 'jax', 'execution_device': execution.device,
-            'execution_device_index': execution.device_index,
-            'execution_device_kind': str(device.device_kind),
-            'execution_mode': 'hybrid_scipy_controller',
-            'adaptive_controller': 'scipy',
-        })
 
     def controller(self) -> ScipyAdaptiveController:
         """Use the live solver's accepted times and its dense interpolants."""

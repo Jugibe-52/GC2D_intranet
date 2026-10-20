@@ -140,9 +140,9 @@ The common state conventions are specified below.
 \section{Method instances and diagnostic meaning}
 
 The public class inherits initialization, advance, observation and output
-extraction from the common ABBA numerical class. Inherited
-\texttt{IntegrationMethod.integrate} creates a fresh instance of the same
-concrete class for each execution, then uses the common driver. The instance
+extraction from the common ABBA numerical class. The executor calls
+\texttt{IntegrationMethod.new\_run} to create a fresh instance of the same
+concrete class for each execution, then starts the common driver. The instance
 owns its concrete state formulation, spatial projection equation and coefficients; no separate context
 or callback-based method record is needed. Each advance returns accepted state,
 small statistics and the typed trace of its single outer projection.

@@ -2,25 +2,33 @@
 
 from __future__ import annotations
 
-from typing import Protocol, runtime_checkable
+from typing import Any, Literal, Protocol, TYPE_CHECKING, runtime_checkable
 
-from contracts.execution_options import ExecutionOptions
-from states.history import States
 from contracts.problem import InitialValueProblem
+from dynamics.protocols import DynamicalSystem
 from request import SimulationRequest
+
+if TYPE_CHECKING:
+	from integration.core import IntegrationMethod
 
 
 @runtime_checkable
 class NumericalMethod(Protocol):
-	"""Advance an initial-value problem and return physical integration data."""
+	"""Prepare numerical operations for an executor-owned integration."""
 
-	def integrate(
+	@property
+	def jax_mode(self) -> Literal["unsupported", "device_resident", "hybrid_scipy_controller"]:
+		"""Declare an optional execution capability without selecting a device."""
+		...
+
+	def new_run(
 		self,
 		problem: InitialValueProblem,
 		request: SimulationRequest,
-		*, execution: ExecutionOptions | None = None,
-	) -> States:
-		"""Integrate one problem under one temporal request."""
+		*, evaluated_dynamics: DynamicalSystem | None = None,
+	) -> IntegrationMethod[Any]:
+		"""Return a fresh run, optionally using executor-prepared field evaluations."""
+		...
 
 
 __all__ = ["NumericalMethod"]

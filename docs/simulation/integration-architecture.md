@@ -1,8 +1,9 @@
 # Integration and the four state formulations
 
-All 13 public methods use `IntegrationMethod.new_run` and `integrate_method`.
-Dynamics defines physics; formulation defines coordinates; method defines one
-numerical step; integration controls accepted intervals and collects output.
+All 13 public methods use executor-owned preparation through `IntegrationMethod.new_run`.
+Execution selects the host or device driver. Dynamics defines physics; formulation
+defines coordinates; the method defines numerical operations; integration controls
+accepted intervals and collects output.
 
 `request.py` owns temporal configuration; `contracts/` owns problem and step contracts. `formulations.layout` owns physical layouts, while reusable formulations define internal coordinates and extraction independently of method choice. `methods/` implements numerical steps. `integration/` manages accepted `IntegrationState` snapshots and sampling. `states/` owns the physical recording container and completed result. `simulation/runner.py` validates that result against the inputs and returns the same object. Internal consumers import directly from each defining module.
 
@@ -55,7 +56,7 @@ with its [SVG](integration-architecture_old.svg) and
 The diagram is a historical rendering, retained without regeneration. Its collector/result split and old module routes have been superseded. The current flow is:
 
 1. Build `InitialValueProblem` from dynamics, a physical array and its layout. Set t0 and output times in `SimulationRequest`.
-2. The method prepares a reusable formulation and fresh run. The controller initializes `IntegrationState(t0, internal_values)`; `States.prepare(...)` reserves physical output columns.
+2. The executor prepares the environment and asks the method for a fresh run and formulation. The controller initializes `IntegrationState(t0, internal_values)`; `States.prepare(...)` reserves physical output columns.
 3. Advance one main interval and retain both accepted endpoint snapshots. Record accepted-step statistics on their own axis.
 4. For each requested time in that interval, reuse an endpoint or calculate an independent shadow/dense sample. The formulation extracts physical values and optional momentum; `States.record` copies them.
 5. Evaluate energy diagnostics over the saved physical history and auxiliary data. `States.finalize` checks completeness and seals this same object.
@@ -97,22 +98,20 @@ removed; see the [API migration guide](api-migration.md).
 
 ## Execution and state ownership
 
-The `simulate` function owns the stateless simulation entry point and delegates
-each complete integration to an `execution.execution.Execution` instance.
-The local executor calls `method.integrate`; subclasses can replace the whole
-execution without moving numerical algorithms out of their existing packages.
-See the [executor contract](execution.md). `States` validates and
-copies the physical arrays, including their dimensions, finite values and
-packed layout. The entry point then checks that the saved times, state size and
-initial state agree with the request and problem. Each check has one owner.
+The `simulate` function validates its inputs and delegates each complete job to
+`execution.execution.Execution`. The local executor prepares a fresh run through
+`new_run` and starts the shared driver. Subclasses may perform the whole job
+elsewhere. See the [executor contract](execution.md). `States` validates and copies
+physical arrays, including dimensions, finite values and packed layout. The entry
+point checks saved times, state size and initial data against the request and
+problem and returns the same completed object.
 
 `simulate(..., options=ExecutionOptions(...))` optionally selects JAX for every
-built-in method. The inherited entry point binds the execution choice before
-initializing a fresh run. Fixed methods use a common device driver for the time
-loop, stages and nonlinear solves; DOP853/Radau retain SciPy control and use
-compiled field/energy batches. Both return the usual NumPy `States`. Omission
-preserves the default CPU controller shown above. See the
-[JAX execution contract](jax-execution.md) for the exact scope and limitations.
+built-in method. The executor resolves the device, prepares field evaluation and
+creates a fresh run. Fixed methods expose a device map used by the common compiled
+driver; DOP853/Radau receive prepared field/energy callbacks and retain SciPy control.
+Both return NumPy `States`. Omitting options preserves the default CPU controller.
+See the [JAX execution contract](jax-execution.md) for scope and limitations.
 
 Gauss--Legendre and SDIRK share field validation, analytic particle Jacobians,
 centered finite differences and Jacobian selection in

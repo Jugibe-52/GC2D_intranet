@@ -1,8 +1,8 @@
 # Complete integration execution
 
-`Execution` is the local executor for one complete numerical integration. Its
-canonical implementation is `execution.execution.Execution`; the public package
-explicitly re-exports it as `from execution import Execution`.
+`Execution` prepares and coordinates one complete local integration. Its canonical
+implementation is `execution.execution.Execution`, publicly exported as
+`from execution import Execution`.
 
 ```python
 from execution import Execution
@@ -13,28 +13,35 @@ executor = Execution()
 solution = simulate(problem, RK4(), request, execution=executor)
 ```
 
-Omitting `execution` creates a local executor. It delegates to the method's
-existing integration implementation, including its full time loop, potential
-evaluations, nonlinear solves, observations and diagnostics. It keeps no run
-state, so the same executor can serve successive integrations. It does not set
-thread counts, CPU affinity, worker processes or JAX global options. The default
-remains NumPy/SciPy on the host CPU; a single physical core is not enforced.
+Omitting `execution` creates a local executor. It prepares a fresh numerical run,
+selects the shared integration driver and supplies execution metadata. Methods own
+their numerical operations; controllers own accepted steps and sampling; `States`
+owns physical recording and the completed result. The executor retains no per-run
+state and can be reused. It does not change thread counts, CPU affinity, worker
+processes or global JAX options. The default is NumPy/SciPy on the host CPU; a
+single physical core is not enforced.
 
 ## Job and result boundary
 
 `run(problem, method, request, *, options=None)` receives:
 
 - `InitialValueProblem`: physical dynamics, initial array and layout.
-- `NumericalMethod`: the integration algorithm and its numerical parameters.
+- `NumericalMethod`: a reusable provider of fresh numerical runs and capabilities.
 - `SimulationRequest`: time interval, step limit and requested saved times.
-- Optional `ExecutionOptions`: the existing backend/device selection for this job.
+- Optional `ExecutionOptions`: backend and device selection for this job.
 
-It returns a completed `states.States` with physical values, saved times, an independent layout and initial snapshot, and read-only diagnostics. Values have shape `(physical_state_size, saved_time_count)`. `simulation.runner.simulate` calls the executor once, requires a complete result, checks agreement with the requested times and initial values, and returns that same object. It does not build a second result container. These checks also apply to executor subclasses.
+The executor calls `method.new_run` and starts `integrate_method` for host control
+or `integrate_fixed` for a prepared device map. Execution metadata enters the driver
+before finalization, avoiding a second physical-history copy. Numerical formulas,
+nonlinear solves, observations and convergence checks keep their existing owners.
+The executor does not call `simulate`, which would re-enter the same boundary.
+Failures propagate without a local fallback, and consumed runs become finished.
 
-The execution path is `simulate -> Execution.run -> method.integrate`.
-Numerical steps remain in the methods and integration packages. The executor
-does not call `simulate`, which would recurse into the same execution boundary.
-Exceptions propagate to the caller without retrying through a local fallback.
+The returned `states.States` contains physical arrays of shape
+`(physical_state_size, saved_time_count)`, saved times, an independent layout and
+initial snapshot, and read-only diagnostics. `simulate` calls the executor once,
+requires a complete result, checks exact requested times and initial values, and
+returns that same object. These checks also apply to executor subclasses.
 
 ## Independent backend options
 
@@ -50,40 +57,62 @@ solution = simulate(
 )
 ```
 
-The caller opts into JAX and prepares its global configuration. The executor
-forwards the immutable choice to the existing numerical implementation. JAX is
-never imported by the default execution path. See the [JAX execution guide](jax-execution.md)
-for device support and the fixed versus adaptive integration distinction.
+The caller opts into JAX and prepares global precision. Execution resolves the
+device once and prepares shared physical dynamics without refitting splines or
+mutating the source. Fixed JAX methods use a device-resident map; DOP853/Radau
+receive prepared field/energy callbacks while SciPy retains adaptive control.
+JAX is never imported by the default path. See the [JAX guide](jax-execution.md)
+for supported devices, callbacks and failure contracts.
 
-The lower-level method API retains its `execution` keyword for backend options:
-`method.integrate(problem, request, execution=options)`. It accepts
-`ExecutionOptions`, not an executor. `Potential` accepts no execution options:
 `Potential.evaluate` uses NumPy/SciPy and `JaxPotential.evaluate` uses JAX.
 Inherited electric fields follow the instance; `evaluate_grid` stays NumPy-only.
-Simulation preparation binds the same GC/FC equations to JAX potentials sharing
-the existing splines, places arrays on the selected device and compiles them. Existing study helpers also retain their backend-selection
-arguments: `run_rk4_execution_comparison(..., executions=(options, ...))` and
-`run_poincare_star(..., execution=options)`.
+Neither potential class accepts execution options. Existing study helpers keep
+`run_rk4_execution_comparison(..., executions=(options, ...))` and
+`run_poincare_star(..., execution=options)` for their backend selections.
+
+## Method preparation contract
+
+`NumericalMethod` requires `new_run(problem, request, *, evaluated_dynamics=None)`
+and a `jax_mode` capability: `"unsupported"`, `"device_resident"` or
+`"hybrid_scipy_controller"`. `new_run` returns a fresh, ready `IntegrationMethod`
+with independent resources, an immutable initial snapshot and numerical metadata.
+The base implementation copies dataclass constructor options and calls `initialize`.
+The optional evaluated dynamics is an environment-prepared evaluation interface;
+the physical problem remains unchanged. CPU extensions can inherit IntegrationMethod
+or provide the structural protocol and return a supported prepared run.
+
+`IntegrationMethod` retains `initialize`, `advance`, `build_observation`,
+`export_history` and `controller`. The default JAX capability is unsupported.
+Built-in fixed methods declare device-resident execution; adaptive methods declare
+hybrid control. Numerical family adapters retain explicit supported-type checks,
+so declaring a mode alone does not authorize compiling unknown subclass overrides.
+Executors use capabilities rather than branches on concrete numerical methods.
 
 ## Extending execution
 
-`Execution_Modal(Execution)` overrides the same `run` signature, transfers the
-complete job to a deployed Modal Function, and returns `States` to the
-local machine. It uses durable call IDs for recovery and leaves any subsequent
-Backblaze upload to local persistence. Remote execution supports NumPy/SciPy and
-JAX CPU jobs with a suitably configured image. See the [Modal executor guide](modal-execution.md) for the
-separate deployment example, recovery contract and limitations. Individual steps,
-potential evaluations and Newton corrections stay within the environment
-performing the integration.
-Executors must accept the optional `options` keyword, preserve the requested
-method and sampling contract, and propagate failures.
+`Execution_Modal(Execution)` overrides the same `run` signature, serializes the
+complete job and sends it to a deployed Modal Function. Its worker uses
+`Execution.run` to prepare and drive the integration in the remote environment.
+It returns `States` locally, uses durable call IDs for recovery and leaves later
+Backblaze uploads to local persistence. Remote execution supports NumPy/SciPy and
+JAX CPU jobs with an appropriately configured image. See the
+[Modal guide](modal-execution.md) for deployment, recovery and limitations.
+Individual steps, field evaluations and Newton corrections stay in the environment
+performing the integration. Executors accept `options`, preserve numerical and
+sampling controls, and propagate failures.
 
 ## Migration
 
-The old `contracts.execution.Execution` configuration class and its module have
-been removed. Use `Execution` from `execution` for the executor and
-`ExecutionOptions` from `contracts.execution_options` for backend choices.
-Replace `simulate(..., execution=Execution(backend="jax"))` with
-`simulate(..., options=ExecutionOptions(backend="jax"))`.
-No compatibility import aliases are provided. Development notebook consumers
-are migrated locally; versioned experiment notebooks remain outside this change.
+Replace `method.integrate(problem, request, execution=options)` with
+`simulate(problem, method, request, options=options)` or
+`Execution().run(problem, method, request, options=options)`.
+`IntegrationMethod.integrate`, `_integrate_jax`, `CompiledFixedMethod` and its
+`methods._compiled` module are removed. `new_run(execution=...)` is also retired:
+backend selection belongs to the executor. External integrate-only methods must
+implement the preparation protocol. No compatibility aliases are retained.
+
+The older `contracts.execution.Execution` configuration class remains removed.
+Use `Execution` for the executor and `ExecutionOptions` from
+`contracts.execution_options` for backend choices. The signatures of `simulate`,
+executors and numerical constructors, archive formats and notebook outputs are
+unchanged. Supported direct callers are migrated; no long notebook run is required.

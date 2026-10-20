@@ -171,8 +171,9 @@ Current module responsibilities and diagrams are documented in
 \path{docs/models/extended/simulation/extended-simulation-architecture.md}.
 
 \section{Common integration lifecycle}
-Each integration initializes a fresh numerical instance through
-\texttt{IntegrationMethod.integrate}. Implicit orders share a family base.
+The executor initializes a fresh numerical instance through
+\texttt{IntegrationMethod.new\_run} and starts the shared integration driver.
+Implicit orders share a family base.
 The fixed controller supplies accepted intervals and independent shadow
 samples; the coordinator owns progress, collection and event dispatch.
 Only sampled states and accepted metric rows are retained by the collector.

@@ -2,7 +2,7 @@
 schema_version = 1
 kind = "spec"
 id = "simulation"
-sources = ["src/simulation/runner.py", "src/contracts/problem.py", "src/request.py", "src/execution/execution.py"]
+sources = ["src/simulation/runner.py", "src/contracts/problem.py", "src/request.py", "src/execution/execution.py", "src/execution/_jax_run.py", "src/methods/base.py"]
 documents = ["docs/simulation/integration-architecture.md", "docs/simulation/execution.md", "docs/simulation/jax-execution.md"]
 
 [[requirements]]
@@ -15,7 +15,7 @@ tests = ["tests/test_core.py::SimulationTests.test_problem_and_request_validate_
 
 [[requirements]]
 id = "SIM-003"
-tests = ["tests/test_execution.py::ExecutionTests.test_default_and_explicit_executor_produce_the_same_solution", "tests/test_execution.py::ExecutionTests.test_simulation_dispatches_one_complete_job_to_the_subclass", "tests/test_execution.py::ExecutionTests.test_local_executor_passes_explicit_backend_options_to_the_method", "tests/test_execution.py::ExecutionTests.test_executor_failure_propagates_without_local_fallback"]
+tests = ["tests/test_execution.py::ExecutionTests.test_default_and_explicit_executor_produce_the_same_solution", "tests/test_execution.py::ExecutionTests.test_simulation_dispatches_one_complete_job_to_the_subclass", "tests/test_execution.py::ExecutionTests.test_local_executor_owns_preparation_and_drives_the_controller", "tests/test_execution.py::ExecutionTests.test_executor_failure_propagates_without_local_fallback", "tests/test_execution.py::ExecutionTests.test_external_provider_prepares_a_run_without_an_integration_entry_point", "tests/test_execution.py::ExecutionTests.test_controller_preparation_failure_consumes_only_the_fresh_run", "tests/test_jax_methods.py"]
 
 [[requirements]]
 id = "SIM-004"
@@ -49,12 +49,23 @@ validates the request; it does not relax the runner's output equality contract.
 
 ## SIM-003: One complete execution job
 
-`simulate` validates its orchestration inputs and delegates the complete job
-to `Execution.run`. Omitting `execution` selects local execution. Omitting
-backend options selects the default NumPy/SciPy path. Backend options are
-separate from the executor and are forwarded without moving numerical methods
-into the orchestration layer. A custom executor's failure propagates; the runner
-does not silently repeat the integration locally.
+`simulate` validates its orchestration inputs and delegates one complete job to
+`Execution.run`. Omitting the executor selects local execution; omitting options
+selects NumPy/SciPy without importing JAX. The executor prepares the environment
+and a fresh numerical run, selects the shared integration driver, and supplies
+execution metadata before result construction. Fixed JAX methods use a compiled
+device map; DOP853/Radau retain SciPy control with prepared JAX field evaluations.
+Methods own numerical operations and controllers own accepted intervals/sampling.
+
+`NumericalMethod` requires `new_run(problem, request, *, evaluated_dynamics=None)`
+and `jax_mode` (unsupported, device_resident or hybrid_scipy_controller). Prepared
+runs are fresh ready IntegrationMethod instances with independent resources.
+Methods no longer expose integrate or _integrate_jax; CompiledFixedMethod and
+methods._compiled are removed. A capability declaration does not bypass supported
+compiled-type checks. Custom providers use the preparation contract; complete
+external jobs use the executor extension boundary. Configurations remain reusable,
+consumed runs finish on success or failure, and errors propagate without a local
+fallback. simulate and executor signatures and numerical controls are unchanged.
 
 ## SIM-004: Output agreement with the request and initial state
 

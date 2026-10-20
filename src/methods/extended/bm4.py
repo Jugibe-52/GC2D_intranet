@@ -6,7 +6,7 @@ from typing import Literal, TypeAlias
 import numpy as np
 from formulations.state import DoubledFormulation
 from formulations.gc import GCDoubledMaps
-from methods._compiled import CompiledFixedMethod
+from integration.core import IntegrationMethod
 from contracts.step import StepInfo, StepResult
 from contracts.result import DiagnosticValue
 from contracts.observation import ImplicitBM4IntegrationStep, StepObserver
@@ -34,7 +34,7 @@ NEWTON_JACOBIAN_METHODS: tuple[NewtonJacobianMethod, ...] = ('analytic', 'finite
 
 
 @dataclass(slots=True)
-class BM4Implicit(CompiledFixedMethod[_ProjectedBM4Step]):
+class BM4Implicit(IntegrationMethod[_ProjectedBM4Step]):
 	"""Configure physical BM4 with one reduced Hairer projection per cycle.
 
 	The class has no projection-placement or state-extension modes.  Every call
@@ -70,6 +70,8 @@ class BM4Implicit(CompiledFixedMethod[_ProjectedBM4Step]):
 		Optional callback receiving one :class:`ImplicitBM4IntegrationStep` per
 		accepted main-grid step.  Output-only shadow steps are not observed.
 	"""
+
+	jax_mode = "device_resident"
 
 	# Harmonic coupling of the two temporary physical copies.
 	coupling_frequency: float = 0.0
@@ -183,7 +185,7 @@ class BM4Implicit(CompiledFixedMethod[_ProjectedBM4Step]):
 
 
 @dataclass(slots=True)
-class BM4Midpoint(CompiledFixedMethod[MidpointResult]):
+class BM4Midpoint(IntegrationMethod[MidpointResult]):
 	"""Fourth-order BM4 followed by arithmetic-mean diagonal projection.
 
 	Configuration and observer semantics follow ABBA2Midpoint. Physical mode
@@ -192,6 +194,8 @@ class BM4Midpoint(CompiledFixedMethod[MidpointResult]):
 	The temporary copies use the same harmonic coupling frequency as BM4Implicit.
 	Arithmetic projection does not imply exact symplecticity or reversibility.
 	"""
+
+	jax_mode = "device_resident"
 
 	state_extension: StateExtension = "physical"
 	progress: bool = False

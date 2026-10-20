@@ -56,11 +56,12 @@ def _methods():
 class MethodIntegrationTests(unittest.TestCase):
 	"""Protect shared orchestration without replacing model-level accuracy tests."""
 
-	def test_all_methods_share_integrate_and_preparation_does_not_advance(self) -> None:
+	def test_all_methods_prepare_without_advancing_or_owning_integration(self) -> None:
 		problem = _problem()
 		for method in _methods():
 			with self.subTest(method=method):
-				self.assertIs(type(method).integrate, IntegrationMethod.integrate)
+				self.assertFalse(hasattr(method, "integrate"))
+				self.assertFalse(hasattr(method, "_integrate_jax"))
 				events = []
 				run = replace(method, step_observer=events.append).new_run(problem, _request())
 				self.assertIs(type(run), type(method))

@@ -15,6 +15,7 @@ from diagnostics.adaptive_trajectory import AdaptiveTrajectoryObserver
 
 from methods.adaptive.scipy import DOP853, Radau
 from contracts.problem import InitialValueProblem
+from simulation.runner import simulate
 from request import SimulationRequest
 from dynamics import GuidingCenterDynamics
 from potential import Potential
@@ -177,7 +178,7 @@ def run_single_particle_recurrence(
         configured = (Radau(**controls, jacobian=lambda t, z: dynamics.particle_vector_field_jacobians(t, z)[0])
                       if method == 'Radau' else DOP853(**controls))
         problem = InitialValueProblem(dynamics, np.array(initial, dtype=float, copy=True), layout=GCStateLayout())
-        data = configured.integrate(problem, SimulationRequest(
+        data = simulate(problem, configured, SimulationRequest(
             t_span=(0.0, config.final_time), max_step=options['max_step'], output_times=times))
         dense = observer.evaluate
         solutions[label] = dense

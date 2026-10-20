@@ -68,10 +68,10 @@ class ExecutionTests(unittest.TestCase):
         self.assertFalse(explicit.states.flags.writeable)
 
     def test_simulation_dispatches_one_complete_job_to_the_subclass(self):
-        data = self.method.integrate(self.problem, self.request)
+        data = Execution().run(self.problem, self.method, self.request)
         executor = ReturnedExecution(data)
         options = ExecutionOptions(backend="jax")
-        with patch.object(RK4, "integrate", side_effect=AssertionError("Unexpected local calculation")):
+        with patch.object(RK4, "new_run", side_effect=AssertionError("Unexpected local calculation")):
             solution = simulate(self.problem, self.method, self.request,
                                 execution=executor, options=options)
         self.assertEqual(len(executor.jobs), 1)
@@ -84,7 +84,7 @@ class ExecutionTests(unittest.TestCase):
             data.states[0, -1] = 99.
 
     def test_subclass_results_still_undergo_simulation_validation(self):
-        data = self.method.integrate(self.problem, self.request)
+        data = Execution().run(self.problem, self.method, self.request)
         bad_initial = data.states.copy()
         bad_initial[0, 0] += 1.
         nonfinite = data.states.copy()
@@ -106,29 +106,55 @@ class ExecutionTests(unittest.TestCase):
             with self.subTest(layout=layout, initial=initial), self.assertRaises(ValueError):
                 simulate(problem, self.method, self.request, execution=ReturnedExecution(invalid))
 
-    def test_local_executor_passes_explicit_backend_options_to_the_method(self):
-        options = ExecutionOptions(backend="jax")
-        data = self.method.integrate(self.problem, self.request)
-        with patch.object(RK4, "integrate", return_value=data) as integrate:
-            result = Execution().run(self.problem, self.method, self.request, options=options)
-        integrate.assert_called_once_with(self.problem, self.request, execution=options)
-        self.assertIs(result, data)
+    def test_local_executor_owns_preparation_and_drives_the_controller(self):
+        from integration.core import FixedStepController
+        run = self.method.new_run(self.problem, self.request)
+        with patch.object(RK4, "new_run", return_value=run) as prepare:
+            with patch.object(run, "controller", wraps=run.controller) as controller:
+                result = Execution().run(self.problem, self.method, self.request)
+        prepare.assert_called_once_with(self.problem, self.request)
+        controller.assert_called_once_with()
+        self.assertEqual(run._status, "finished")
+        self.assertEqual(result.diagnostics["execution_backend"], "scipy")
+        np.testing.assert_allclose(result.values[:, -1], [np.cos(.2), -np.sin(.2)], atol=1e-10)
 
-    def test_external_cpu_method_keeps_its_two_argument_interface(self):
-        data = self.method.integrate(self.problem, self.request)
+    def test_external_provider_prepares_a_run_without_an_integration_entry_point(self):
+        calls = []
 
         class ExternalMethod:
-            def integrate(self, problem, request):
-                return data
+            jax_mode = "unsupported"
+
+            def new_run(self, problem, request, *, evaluated_dynamics=None):
+                calls.append((problem, request, evaluated_dynamics))
+                return RK4().new_run(problem, request, evaluated_dynamics=evaluated_dynamics)
 
         for options in (None, ExecutionOptions()):
             with self.subTest(options=options):
-                result = simulate(self.problem, ExternalMethod(), self.request,
-                                  execution=Execution(), options=options)
-                np.testing.assert_array_equal(result.states, data.states)
+                result = simulate(self.problem, ExternalMethod(), self.request, options=options)
+                np.testing.assert_allclose(result.values[:, -1], [np.cos(.2), -np.sin(.2)], atol=1e-10)
+        self.assertEqual(len(calls), 2)
+        self.assertIs(calls[0][0], self.problem)
+
+    def test_retired_integrate_only_provider_is_rejected(self):
+        class RetiredMethod:
+            def integrate(self, problem, request):
+                raise AssertionError("Retired entry point must not be used")
+
+        with self.assertRaisesRegex(TypeError, "NumericalMethod"):
+            simulate(self.problem, RetiredMethod(), self.request)
+
+    def test_controller_preparation_failure_consumes_only_the_fresh_run(self):
+        run = self.method.new_run(self.problem, self.request)
+        with patch.object(RK4, "new_run", return_value=run):
+            with patch.object(run, "controller", side_effect=RuntimeError("Controller unavailable")):
+                with self.assertRaisesRegex(RuntimeError, "Controller unavailable"):
+                    Execution().run(self.problem, self.method, self.request)
+        self.assertEqual(run._status, "finished")
+        self.assertEqual(self.method._status, "configuration")
+        self.assertTrue(Execution().run(self.problem, self.method, self.request).complete)
 
     def test_wrong_executor_and_options_are_rejected_before_local_calculation(self):
-        with patch.object(RK4, "integrate", side_effect=AssertionError("Unexpected calculation")):
+        with patch.object(RK4, "new_run", side_effect=AssertionError("Unexpected calculation")):
             with self.assertRaisesRegex(TypeError, "Execution instance"):
                 simulate(self.problem, self.method, self.request, execution=ExecutionOptions())
             with self.assertRaisesRegex(TypeError, "ExecutionOptions instance"):
@@ -139,7 +165,7 @@ class ExecutionTests(unittest.TestCase):
             def run(self, problem, method, request, *, options=None):
                 raise RuntimeError("Execution failed")
 
-        with patch.object(RK4, "integrate", side_effect=AssertionError("Unexpected fallback")):
+        with patch.object(RK4, "new_run", side_effect=AssertionError("Unexpected fallback")):
             with self.assertRaisesRegex(RuntimeError, "Execution failed"):
                 simulate(self.problem, self.method, self.request, execution=FailedExecution())
 

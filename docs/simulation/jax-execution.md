@@ -1,6 +1,6 @@
 # JAX execution across numerical methods
 
-Every built-in numerical method accepts the same optional backend selection.
+Every built-in numerical method can run through the same executor backend selection.
 `simulate` delegates the complete job to an `Execution` (local by default),
 independently of these options; see the [executor contract](execution.md).
 
@@ -97,33 +97,31 @@ not universal bitwise equality or identical adaptive step grids.
 
 ## Lifecycle, callbacks and measurement
 
-Fixed methods inherit `methods._compiled.CompiledFixedMethod`. Its optional
-backend entry point selects a typed family adapter in `methods._jax_dispatch`.
-The adapter binds a physical kernel, the shared GC/FC dynamics and immutable
-controls; explicit, classical implicit and composition methods have separate
-option types. State layouts and dynamics preserve the input array backend, so
-compiled kernels call the same field, energy and analytic-Jacobian methods as
-NumPy execution. Device preparation belongs to integration and does not replace
-the physical dynamics with a second implementation.
-Arithmetic projection carries no nonlinear configuration. Kernel selection is
-completed before tracing, rather than repeated through method-name strings.
+Fixed methods inherit `IntegrationMethod` and declare `jax_mode="device_resident"`;
+adaptive methods declare `"hybrid_scipy_controller"`. The executor resolves the
+device and prepares shared GC/FC dynamics, then calls a typed family adapter in
+`methods._jax_dispatch`. The adapter binds numerical kernels and immutable controls;
+explicit, classical implicit and composition methods have separate option types.
+Layouts and dynamics preserve the array backend, so compiled kernels use the same
+field, energy and analytic-Jacobian equations as NumPy. Device preparation belongs
+to execution. Arithmetic projection carries no nonlinear controls. Kernel selection
+is complete before tracing, with explicit rejection of unsupported subclass overrides.
 
-The coordinator receives only `contracts.compiled.CompiledStep`. This contract
-owns device selection, the internal-state map and optional physical energy;
-`integration.jax_fixed` owns scheduling, sampling, convergence checks and result
-collection. It does not import concrete methods or discover their attributes.
-Preparing a map snapshots its controls, so later edits to a configured method do
-not alter that map. Exact built-in type checks continue to reject unsupported
-subclass overrides explicitly.
+The coordinator receives `contracts.compiled.CompiledStep`, carrying the resolved
+device, internal-state map and optional physical energy. `integration.jax_fixed`
+owns scheduling, sampling, convergence checks and result collection. It does not
+import concrete methods or discover their attributes. The executor supplies
+execution metadata to the driver before result construction. Prepared maps snapshot
+their controls, so later edits to a configured method do not change that map.
 
-`IntegrationMethod.new_run` binds an immutable `ExecutionOptions` choice before method
-initialization. Configured method instances remain reusable and do not retain
-run states. The common fixed JAX driver uses `lax.scan` for accepted steps and
-independent shortened maps for off-grid output, preserving the CPU endpoint
-matching rules. Only requested states and small accepted-step statistics are
-retained. Integration preparation reuses compiled function identities through
-bounded caches across runs with compatible fields, shapes and settings.
-`JaxPotential` reuses concrete device coefficients without refitting its splines;
+`IntegrationMethod.new_run` creates an isolated numerical run and accepts optional
+`evaluated_dynamics` already prepared by execution. Methods store no ExecutionOptions
+and have no integration entry point. Configured instances remain reusable and do
+not retain run states. The fixed JAX driver uses `lax.scan` for accepted steps and
+independent shortened maps for off-grid output, preserving CPU endpoint matching.
+Only requested states and small accepted-step statistics are retained. Bounded
+caches reuse compiled identities across compatible fields, shapes and controls.
+`JaxPotential` reuses concrete device coefficients without refitting splines;
 traced constants are never retained in persistent caches.
 
 Fixed JAX methods require `progress=False`, `step_observer=None` and

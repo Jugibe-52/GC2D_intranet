@@ -9,7 +9,7 @@ import numpy as np
 
 from dynamics import DynamicalSystem
 
-from methods._compiled import CompiledFixedMethod
+from integration.core import IntegrationMethod
 from contracts.step import StepInfo, StepResult
 from formulations.state import PhysicalFormulation
 from contracts.observation import IntegrationStep, StepObserver
@@ -31,8 +31,10 @@ def _checked_vector_field(
 
 
 @dataclass(slots=True)
-class RK4(CompiledFixedMethod[None]):
+class RK4(IntegrationMethod[None]):
 	"""Classical RK4 with an output-independent uniform main grid."""
+
+	jax_mode = "device_resident"
 
 	track_energy: bool = False
 	progress: bool = False
@@ -47,8 +49,7 @@ class RK4(CompiledFixedMethod[None]):
 		self.dynamics = problem.dynamics
 		self.state_formulation = PhysicalFormulation(problem, request.t_span[0], self.track_energy)
 		self.initial_state = self.state_formulation.initial_state
-		self.metadata = {"execution_backend": "scipy", "execution_device": "cpu",
-		                 "execution_device_index": 0}
+		self.metadata = {}
 
 	def _physical_step(self, t: float, candidate: np.ndarray, step: float) -> tuple[np.ndarray, tuple[np.ndarray, ...]]:
 		"""Return the physical RK4 map and its four accepted quadrature states."""

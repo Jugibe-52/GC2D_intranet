@@ -82,11 +82,12 @@ class AdaptiveIntegrationTests(unittest.TestCase):
                 self.assertEqual(result.n_steps, 1)
                 self.assertEqual(rate.call_count, 8)
 
-    def test_every_method_uses_the_same_public_integrate(self):
+    def test_every_method_exposes_preparation_without_integrating(self):
         for cls in (DOP853, Radau, ABBA2Implicit, ABBA2Midpoint, ABBA4Implicit,
                     ABBA6Implicit, BM4Implicit, BM4Midpoint, ExplicitEuler, RK4,
                     GaussLegendre4, SDIRK4, HBVM42):
-            self.assertIs(cls.integrate, IntegrationMethod.integrate)
+            self.assertIs(cls.new_run, IntegrationMethod.new_run)
+            self.assertFalse(hasattr(cls, "integrate"))
 
     def test_states_work_and_accepted_intervals_match_scipy(self):
         for cls in (DOP853, Radau):

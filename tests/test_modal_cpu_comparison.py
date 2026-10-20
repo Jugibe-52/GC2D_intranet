@@ -7,6 +7,8 @@ import importlib.util
 import json
 from pathlib import Path
 import tempfile
+from execution import Execution
+
 import unittest
 from unittest.mock import patch
 
@@ -83,7 +85,7 @@ class ModalCPUComparisonTests(unittest.TestCase):
             def run(self, problem, method, request, *, options):
                 # Numerical work uses the real local NumPy method; only the
                 # transport and timer are substituted in this orchestration test.
-                data = method.integrate(problem, request)
+                data = Execution().run(problem, method, request)
                 diagnostics = dict(data.diagnostics)
                 diagnostics.update(benchmark_cpu_cores=self.cores, benchmark_repetitions=3,
                                    benchmark_wall_seconds=np.array([3., 2., 4.]) / self.cores,

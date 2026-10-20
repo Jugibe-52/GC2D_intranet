@@ -127,14 +127,14 @@ for supported physical systems, solver details, timing scope and validation.
 ## Complete integration executor
 
 `simulate(problem, method, request, execution=Execution())` delegates the complete
-integration to `Execution.run`. Import the executor with `from execution import
-Execution`. It uses the existing local method implementation and does not
-configure runtime resources. A subclass can replace the whole integration while
-`simulate` retains validation of the completed `States` returned by integration. Backend choices
-remain separate in `options=ExecutionOptions(...)`. See the
-[executor contract](../../../simulation/execution.md) for the extension interface.
-The numerical stages, projection equations and integration controllers described
-above remain inside this execution boundary.
+job to `Execution.run`. Import the executor with `from execution import Execution`.
+The executor prepares a fresh numerical run and the requested environment, then
+starts the shared integration driver. It does not change thread counts, affinity
+or global JAX settings. Subclasses can execute the same job elsewhere, while
+`simulate` validates the completed `States`. Backend choices remain separate in
+`options=ExecutionOptions(...)`. See the [executor contract](../../../simulation/execution.md).
+Numerical stages, projection equations and step controllers retain their own
+implementations inside this execution boundary.
 
 `Execution_Modal` now implements this boundary for remote NumPy/SciPy CPU
 integrations. Results return to the local machine for validation and subsequent

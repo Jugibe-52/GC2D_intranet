@@ -348,8 +348,8 @@ def _reference_solution(
 ) -> np.ndarray:
 	"""Compute an independent high-accuracy DOP853 reference on fixed times."""
 	request = SimulationRequest((float(times[0]), float(times[-1])), maximum_step, times)
-	return DOP853(relative_tolerance=relative_tolerance,
-		absolute_tolerance=absolute_tolerance).integrate(problem, request).states
+	return simulate(problem, DOP853(relative_tolerance=relative_tolerance,
+		absolute_tolerance=absolute_tolerance), request).states
 
 
 def _hbvm_method(

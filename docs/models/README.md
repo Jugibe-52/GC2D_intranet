@@ -1,6 +1,6 @@
 # Numerical model documentation
 
-All 13 methods share `IntegrationMethod.integrate`, method-specific preparation
+All 13 methods share executor-owned orchestration, method-specific preparation
 and the [integration contract](../simulation/integration-architecture.md).
 Eleven methods use fixed control; DOP853 and Radau supply adaptive control.
 Every model retains its own numerical theory and detailed simulation diagram.

@@ -12,7 +12,7 @@ from dynamics import (
 	GuidingCenterJacobianSystem,
 )
 
-from methods._compiled import CompiledFixedMethod
+from integration.core import IntegrationMethod
 from contracts.step import StepInfo, StepResult
 from contracts.result import DiagnosticValue
 from formulations.state import PhysicalFormulation
@@ -313,8 +313,10 @@ def _solve_gauss_step(
 
 
 @dataclass(slots=True)
-class GaussLegendre4(CompiledFixedMethod[_GaussStepResult]):
+class GaussLegendre4(IntegrationMethod[_GaussStepResult]):
 	"""Two-stage, fourth-order symmetric Gauss--Legendre Runge--Kutta method."""
+
+	jax_mode = "device_resident"
 
 	track_energy: bool = False
 	newton_absolute_tolerance: float = 1e-14

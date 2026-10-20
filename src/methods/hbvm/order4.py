@@ -10,7 +10,7 @@ import numpy as np
 from dynamics import GuidingCenterJacobianSystem
 
 from formulations.state import PhysicalFormulation
-from methods._compiled import CompiledFixedMethod
+from integration.core import IntegrationMethod
 from contracts.step import StepInfo, StepResult
 from contracts.observation import IntegrationStep, StepObserver
 from contracts.problem import InitialValueProblem
@@ -360,7 +360,7 @@ def _advance_hbvm42(
 
 
 @dataclass(slots=True)
-class HBVM42(CompiledFixedMethod[_HBVMStepResult]):
+class HBVM42(IntegrationMethod[_HBVMStepResult]):
 	"""Fourth-order energy-preserving HBVM(4,2).
 
 	The four Gauss--Legendre nodes approximate the Hamiltonian line integral,
@@ -370,6 +370,8 @@ class HBVM42(CompiledFixedMethod[_HBVMStepResult]):
 	error. Unlike the Gauss method HBVM(2,2), HBVM(4,2) is not generally
 	symplectic.
 	"""
+
+	jax_mode = "device_resident"
 
 	absolute_tolerance: float = 1e-13
 	relative_tolerance: float = 1e-12
