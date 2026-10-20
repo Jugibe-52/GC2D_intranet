@@ -198,3 +198,14 @@ it through a historical clock and then undo scaling. One viewer contains all
 cases and all particles, using the existing panel renderer. Prepare/run/view
 are separate operations; validated complete archives are reused and failed
 cases remain explicit. See `docs/studies/poincare-automation.md`.
+
+## Unified physical states
+
+Use `states.State(values, layout=...)` for owned instantaneous snapshots, with
+`GCStateLayout` or `FCStateLayout`; GCState/FCState remain component tuples.
+Use State accessors without an array argument; layout operations handle other
+arrays and histories while preserving NumPy/JAX. Generators live in
+`states.generators`, and signed area lives in `diagnostics.geometry`. The
+`initial_conditions` package and `contracts.state_layout` imports are retired.
+Geometry labels belong in study metadata; persisted `initial_conditions`
+metadata keys and archive schemas are unchanged. See docs/simulation/api-migration.md.

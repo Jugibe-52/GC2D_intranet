@@ -11,7 +11,7 @@ from threadpoolctl import threadpool_limits
 
 from diagnostics import GCGeneralizedEnergyObserver, StoredReferenceTrajectory
 from dynamics import GuidingCenterDynamics
-from initial_conditions import GCInitialConfiguration
+from states.state import State
 from potential import Potential
 from methods.extended.bm4 import BM4Implicit
 from methods.classical.rk4 import RK4
@@ -124,7 +124,7 @@ def _validate_reference(
 
 
 def run_gc_energy_bound_study(
-    potential: Potential, configuration: GCInitialConfiguration, *,
+    potential: Potential, configuration: State, *,
     config: GCEnergyBoundConfig, reference: StoredReferenceTrajectory,
 ) -> GCEnergyBoundResult:
     """Compare physical accuracy and stage-resolved energy balance at fixed h.
@@ -336,7 +336,7 @@ def energy_bound_conclusions(result: GCEnergyBoundResult) -> str:
 
 
 def audit_initial_step_geometry(
-    potential: Potential, configuration: GCInitialConfiguration, *, config: GCEnergyBoundConfig,
+    potential: Potential, configuration: State, *, config: GCEnergyBoundConfig,
 ) -> list[dict[str, Any]]:
     """Measure the physical one-step symplectic defect at two FD resolutions.
 

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from states import generators as state_generators
+
 from pathlib import Path
 import tempfile
 import unittest
@@ -9,7 +11,7 @@ import unittest
 import numpy as np
 
 from dynamics import GuidingCenterDynamics
-from initial_conditions import Area
+from states.state import State
 from potential import Potential
 from simulation import (
 	IntegrationStage,
@@ -37,8 +39,8 @@ class ProjectionDiagnosticTests(unittest.TestCase):
 		np.testing.assert_allclose(form @ form, -np.eye(6))
 
 	def test_identity_stages_preserve_projected_symplecticity_and_area(self) -> None:
-		area = Area.square(center=(1.0, 1.0), side=0.5, points_per_side=1)
-		physical_state = area.state
+		area = state_generators.square(center=(1.0, 1.0), side=0.5, points_per_side=1)
+		physical_state = area.values
 		assert physical_state is not None
 		extended_state = np.concatenate((physical_state, physical_state))
 

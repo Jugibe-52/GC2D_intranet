@@ -13,7 +13,7 @@ from typing import Any, ClassVar, Mapping, TypeVar
 import numpy as np
 
 from dynamics import GuidingCenterDynamics
-from initial_conditions import Area
+from states.state import State
 from potential import Potential
 from contracts.problem import InitialValueProblem
 from contracts.observation import IntegrationStep, StepObserver
@@ -100,7 +100,7 @@ class GCSymplecticityResult:
 	"""GC solutions, physical-flow Jacobians and diagnostic summaries."""
 
 	dynamics: GuidingCenterDynamics
-	area: Area
+	area: State
 	steps: tuple[AreaStep, ...]
 	solutions: Mapping[str, Solution]
 	records: Mapping[str, tuple[GCAreaSymplecticityRecord, ...]]
@@ -277,7 +277,7 @@ _ResultT = TypeVar("_ResultT", bound=GCSymplecticityResult)
 
 def _run_gc_symplecticity_study(
 	potential: Potential,
-	area: Area,
+	area: State,
 	*,
 	notebook_path: str | Path,
 	config: GCSymplecticityConfig,
@@ -301,7 +301,7 @@ def _run_gc_symplecticity_study(
 	common_metadata = {
 		**dict(metadata or {}),
 		"method": method_name,
-		"geometry": area.shape,
+		"geometry": dict(metadata or {}).get("geometry", "polygon"),
 		"particle_count": area.layout.particle_count(initial_state),
 		"rho": rho,
 	}
@@ -378,7 +378,7 @@ def _run_gc_symplecticity_study(
 
 def _run_gc_symplecticity_observers(
 	potential: Potential,
-	area: Area,
+	area: State,
 	*,
 	notebook_path: str | Path,
 	config: GCSymplecticityConfig,
@@ -407,7 +407,7 @@ def _run_gc_symplecticity_observers(
 	common_metadata = {
 		**dict(metadata or {}),
 		"method": method_name,
-		"geometry": area.shape,
+		"geometry": dict(metadata or {}).get("geometry", "polygon"),
 		"particle_count": area.layout.particle_count(initial_state),
 		"rho": rho,
 	}
@@ -513,13 +513,13 @@ def _run_gc_symplecticity_observers(
 
 
 def _validate_gc_study_inputs(
-	potential: Potential, area: Area, config: GCSymplecticityConfig,
+	potential: Potential, area: State, config: GCSymplecticityConfig,
 ) -> None:
 	"""Check the shared physical, geometric, and study contracts of both runners."""
 	if not isinstance(potential, Potential):
 		raise TypeError("`potential` must be a Potential instance.")
-	if not isinstance(area, Area):
-		raise TypeError("`area` must be an Area instance.")
+	if not (isinstance(area, State) and area.layout.state_dimension == 2 and area.particle_count >= 3):
+		raise TypeError("`area` must be a GC State with at least three ordered boundary vertices.")
 	if not isinstance(config, GCSymplecticityConfig):
 		raise TypeError("`config` must be a GCSymplecticityConfig instance.")
 

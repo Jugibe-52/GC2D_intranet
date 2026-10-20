@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from states.layout import GCStateLayout
+
 from inspect import signature
 import subprocess
 import unittest
@@ -14,7 +16,7 @@ from matplotlib.collections import LineCollection
 from matplotlib.quiver import Quiver
 from matplotlib.text import Text
 
-from initial_conditions import GCInitialConfiguration
+from states.state import State
 from potential import Potential
 from simulation import Solution
 from visualization import (
@@ -136,9 +138,10 @@ class NotebookPresentationTests(unittest.TestCase):
 			seed=7,
 			interpolation_order=3,
 		)
-		source = GCInitialConfiguration.from_components(
-			x=np.asarray([1.0]),
-			y=np.asarray([1.2]),
+		source = State.from_components(
+			np.asarray([1.0]),
+			np.asarray([1.2]),
+			layout=GCStateLayout(),
 		)
 		solution = Solution(
 			t=np.asarray([0.0, 0.1, 0.2]),
@@ -181,9 +184,10 @@ class NotebookPresentationTests(unittest.TestCase):
 			seed=7,
 			interpolation_order=3,
 		)
-		source = GCInitialConfiguration.from_components(
-			x=np.asarray([1.0, 1.4]),
-			y=np.asarray([1.2, 1.6]),
+		source = State.from_components(
+			np.asarray([1.0, 1.4]),
+			np.asarray([1.2, 1.6]),
+			layout=GCStateLayout(),
 		)
 		solution = Solution(
 			t=np.asarray([0.0, 0.1, 0.2]),

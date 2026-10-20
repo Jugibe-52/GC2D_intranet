@@ -1,5 +1,7 @@
 """Repeat the radial BM4Midpoint study with a cycle-time stream function."""
 
+from states.layout import GCStateLayout
+
 from studies.historical_h5 import historical_h5_hamiltonian
 
 from dataclasses import asdict, dataclass
@@ -18,7 +20,7 @@ from diagnostics.persistence import StoredSolution, load_solution, save_solution
 from diagnostics.storage import ArtifactStore
 from dynamics.gc import GuidingCenterDynamics
 from execution.execution import Execution
-from initial_conditions.gc import GCInitialConfiguration
+from states.state import State
 from methods.extended.bm4 import BM4Midpoint
 from potential.load import DEFAULT_FIELD_INDICES
 from potential import Potential
@@ -94,7 +96,7 @@ def build_radial_cycle(potential: Potential, config: RadialCycleConfig, baseline
     radii = np.asarray(config.radial_fractions) * length
     direction = np.array([np.cos(config.radial_angle), np.sin(config.radial_angle)])
     xy = origin + length / 2 + radii[:, None] * direction
-    initial = GCInitialConfiguration.from_components(x=xy[:, 0], y=xy[:, 1])
+    initial = State.from_components(xy[:, 0], xy[:, 1], layout=GCStateLayout())
     # The forcing cyclic frequencies stay in cycles per normalized time. Only the
     # drift amplitude changes: H = 2*pi*Phi_hat at tau = t/T0.
     stream = Potential(grid, mean=config.stream_scale * potential.mean,

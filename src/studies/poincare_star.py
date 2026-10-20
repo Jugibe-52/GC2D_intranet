@@ -12,7 +12,7 @@ from contracts.execution_options import ExecutionOptions
 from contracts.problem import InitialValueProblem
 from contracts.request import SimulationRequest
 from dynamics.gc import GuidingCenterDynamics
-from initial_conditions.star import radial_star
+from states.generators import radial_star
 from methods.extended.bm4 import BM4Midpoint
 from potential.load import DEFAULT_FIELD_INDICES
 from potential.potential import Potential
@@ -95,7 +95,7 @@ def run_poincare_star(source: str | Path, config: PoincareStarConfig, *,
             or solution.diagnostics["output_interpolation_count"] != 0
             or solution.diagnostics["projection_kind"] != "arithmetic_mean"):
         raise RuntimeError("The calculation did not preserve the configured BM4 cycle sampling.")
-    x, y = initial.positions(problem.initial_state)
+    x, y = initial.layout.positions(problem.initial_state)
     metadata = {
         "study": "poincare_star_bm4_midpoint", "config": asdict(config),
         "source": str(Path(source).resolve()), "source_sha256": sha256(resolved.read_bytes()).hexdigest(),

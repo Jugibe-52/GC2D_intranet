@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from states import generators as state_generators
+from states.layout import GCStateLayout
+
 from collections.abc import Callable
 import csv
 import json
@@ -26,8 +29,7 @@ from diagnostics.symplecticity.observer import SymplecticityObserver
 from diagnostics.trajectory_symplecticity.jacobians import abba2_implicit_step_particle_jacobians
 from diagnostics.trajectory_symplecticity.observer import GCTrajectorySymplecticityObserver
 from dynamics.gc import GuidingCenterDynamics
-from initial_conditions.area import Area
-from initial_conditions.gc import GCInitialConfiguration
+from states.state import State
 from methods.extended.abba import ABBA2Implicit
 from potential.potential import Potential
 from simulation.runner import simulate
@@ -97,13 +99,13 @@ class DiagnosticBufferingTests(unittest.TestCase):
 		}
 		potential = Potential.random(A=0.02, M=2, nx=8, ny=8)
 		dynamics = GuidingCenterDynamics(potential)
-		configuration = GCInitialConfiguration(np.array([1.0, 0.7]))
+		configuration = State(np.array([1.0, 0.7]), layout=GCStateLayout())
 		problem = InitialValueProblem(dynamics, configuration)
 		events: list[IntegrationStep] = []
 		simulate(problem, ABBA2Implicit(step_observer=events.append),
 			SimulationRequest.uniform(t_span=(0.0, 0.01), max_step=0.01, sample_count=2))
 		event = events[0]
-		area = Area.square(center=(1.0, 0.7), side=0.1)
+		area = state_generators.square(center=(1.0, 0.7), side=0.1)
 		area_state = area.initial_state
 		assert area_state is not None
 		area_step = IntegrationStep(

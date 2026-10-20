@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+
 from dataclasses import FrozenInstanceError
 import pickle
 from pathlib import Path
@@ -13,14 +14,13 @@ import numpy as np
 
 from contracts.problem import InitialValueProblem
 from contracts.request import SimulationRequest
-from contracts.state_layout import FCStateLayout, GCStateLayout, PackedStateLayout
+from states.layout import FCStateLayout, GCStateLayout, PackedStateLayout
 from dynamics.fc import FullCyclotronDynamics
 from dynamics.gc import GuidingCenterDynamics
 from formulations.fc import FCSplitFormulation
 from formulations.gc import GCDoubledMaps, GCExtendedFormulation, GCStageProjectedFormulation
 from formulations.state import DoubledFormulation, PhysicalFormulation
-from initial_conditions.fc import FCInitialConfiguration
-from initial_conditions.gc import GCInitialConfiguration
+from states.state import State
 from potential.potential import Potential
 from methods.classical.rk4 import RK4
 from simulation.runner import simulate
@@ -80,10 +80,10 @@ class StateOwnershipTests(unittest.TestCase):
 		cls.potential = Potential.random(A=0.04, M=2, nx=8, ny=8)
 
 	def test_public_layout_routes_reexport_one_canonical_implementation(self) -> None:
-		from initial_conditions import FCStateLayout as PublicFC, GCStateLayout as PublicGC
-		from initial_conditions.base import PackedStateLayout as PublicPacked
-		from initial_conditions.fc import FCStateLayout as ModuleFC
-		from initial_conditions.gc import GCStateLayout as ModuleGC
+		from states import FCStateLayout as PublicFC, GCStateLayout as PublicGC
+		from states import PackedStateLayout as PublicPacked
+		from states.layout import FCStateLayout as ModuleFC
+		from states.layout import GCStateLayout as ModuleGC
 
 		self.assertIs(PublicFC, FCStateLayout)
 		self.assertIs(ModuleFC, FCStateLayout)
@@ -95,7 +95,7 @@ class StateOwnershipTests(unittest.TestCase):
 		state = np.array([1.0, 1.2, 0.7, 0.8])
 		dynamics = GuidingCenterDynamics(self.potential, rho=0.1)
 		external = InitialValueProblem(dynamics, _ExternalConfiguration(state, _ExternalGCLayout()))
-		builtin = InitialValueProblem(dynamics, GCInitialConfiguration(state))
+		builtin = InitialValueProblem(dynamics, State(state, layout=GCStateLayout()))
 		for formulation in (GCExtendedFormulation(), GCStageProjectedFormulation()):
 			for tracking in (False, True):
 				with self.subTest(formulation=type(formulation).__name__, tracking=tracking):
@@ -111,7 +111,7 @@ class StateOwnershipTests(unittest.TestCase):
 		state = np.array([1.0, 1.2, 0.7, 0.8, 0.1, 0.2, -0.2, 0.3])
 		dynamics = FullCyclotronDynamics(self.potential, rho=0.2, eta=-0.1)
 		external = InitialValueProblem(dynamics, _ExternalConfiguration(state, _ExternalFCLayout()))
-		builtin = InitialValueProblem(dynamics, FCInitialConfiguration(state))
+		builtin = InitialValueProblem(dynamics, State(state, layout=FCStateLayout()))
 		for tracking in (False, True):
 			actual = FCSplitFormulation().prepare(external, track_energy=tracking)
 			expected = FCSplitFormulation().prepare(builtin, track_energy=tracking)
@@ -149,10 +149,10 @@ class StateOwnershipTests(unittest.TestCase):
 
 	def test_problem_snapshot_survives_pickle_after_source_changes(self) -> None:
 		state = np.array([1.0, 0.7])
-		source = GCInitialConfiguration(state)
+		source = _ExternalConfiguration(state, _ExternalGCLayout())
 		problem = InitialValueProblem(GuidingCenterDynamics(self.potential, rho=0.1), source)
 		expected = problem.dynamics.vector_field(0.3, state)
-		source.set_initial_state(np.array([1.0, 1.1, 0.7, 0.8]))
+		source.state = np.array([1.0, 1.1, 0.7, 0.8])
 		restored = pickle.loads(pickle.dumps(problem))
 		np.testing.assert_array_equal(restored.initial_state, state)
 		self.assertEqual(restored.particle_count, 1)
@@ -178,10 +178,10 @@ class StateOwnershipTests(unittest.TestCase):
 		from diagnostics.persistence import load_solution, save_solution
 
 		state = np.array([1.0, 0.7])
-		source = GCInitialConfiguration(state)
+		source = _ExternalConfiguration(state, GCStateLayout())
 		problem = InitialValueProblem(GuidingCenterDynamics(self.potential), source)
 		solution = simulate(problem, RK4(), SimulationRequest.uniform(t_span=(0.0, 0.01), sample_count=2))
-		source.set_initial_state(np.array([1.0, 1.1, 0.7, 0.8]))
+		source.state = np.array([1.0, 1.1, 0.7, 0.8])
 		with tempfile.TemporaryDirectory() as directory:
 			location = Path(directory) / "trajectory"
 			save_solution(solution, location, metadata={})

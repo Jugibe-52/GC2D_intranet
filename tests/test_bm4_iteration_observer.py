@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from states.layout import GCStateLayout
+
 from pathlib import Path
 import tempfile
 import unittest
@@ -14,7 +16,7 @@ import numpy as np
 
 from diagnostics import ImplicitBM4IterationObserver
 from dynamics import GuidingCenterDynamics
-from initial_conditions import GCInitialConfiguration
+from states.state import State
 from potential import Potential
 from simulation import (
 	BM4Implicit,
@@ -37,11 +39,12 @@ def _potential() -> Potential:
 	return Potential.random(A=0.08, M=3, nx=16, ny=16, seed=27)
 
 
-def _configuration() -> GCInitialConfiguration:
+def _configuration() -> State:
 	"""Return one planar guiding-centre particle."""
-	return GCInitialConfiguration.from_components(
-		x=np.asarray([1.0]),
-		y=np.asarray([1.2]),
+	return State.from_components(
+		np.asarray([1.0]),
+		np.asarray([1.2]),
+		layout=GCStateLayout(),
 	)
 
 

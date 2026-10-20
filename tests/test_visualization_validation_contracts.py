@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from states import generators as state_generators
+from states.layout import GCStateLayout
+
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
@@ -10,7 +13,7 @@ import unittest
 import matplotlib.pyplot as plt
 import numpy as np
 
-from initial_conditions import Area, GCInitialConfiguration
+from states.state import State
 from potential import Potential
 from solution import Solution
 from visualization.gauss_legendre4 import plot_gauss_legendre4_energy
@@ -58,7 +61,7 @@ class VisualizationValidationContracts(unittest.TestCase):
 	def test_iteration_history_alignment_fails_before_figure_creation(self) -> None:
 		times = np.array([0.0, 1.0, 2.0])
 		states = np.array([[1.0, 1.1, 1.2], [1.2, 1.3, 1.4]])
-		source = GCInitialConfiguration(states[:, 0])
+		source = State(states[:, 0], layout=GCStateLayout())
 		good = dict(nonlinear_iterations=np.ones(2), residual_evaluations=np.ones(2),
 			nonlinear_residual_norms=np.ones(2), nonlinear_tolerances=np.ones(2))
 		bad = dict(good, nonlinear_iterations=np.ones(1))
@@ -73,7 +76,7 @@ class VisualizationValidationContracts(unittest.TestCase):
 		potential = Potential.random(A=0.03, M=2, nx=8, ny=8, seed=9)
 		times = np.array([0.0, 0.1, 0.2])
 		states = np.array([[1.0, 1.1, 1.2], [1.2, 1.3, 1.4]])
-		solution = Solution(t=times, states=states, source=GCInitialConfiguration(states[:, 0]), diagnostics={})
+		solution = Solution(t=times, states=states, source=State(states[:, 0], layout=GCStateLayout()), diagnostics={})
 		animation = animate_gc_particle_solution(potential, solution, frames=np.int64(2), interval=200.5)
 		animation._draw_was_started = True
 		self.assertEqual(animation._save_count, 2)
@@ -87,7 +90,7 @@ class VisualizationValidationContracts(unittest.TestCase):
 
 	def test_area_animation_caps_frames_but_keeps_strict_interval_validation(self) -> None:
 		potential = Potential.random(A=0.03, M=2, nx=8, ny=8, seed=9)
-		area = Area.square(center=(1.0, 1.0), side=0.5, points_per_side=1)
+		area = state_generators.square(center=(1.0, 1.0), side=0.5, points_per_side=1)
 		initial = area.initial_state
 		assert initial is not None
 		times = np.array([0.0, 0.1, 0.2])

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from states.layout import GCStateLayout
+
 from collections.abc import Mapping
 from concurrent.futures import FIRST_COMPLETED, Future, ProcessPoolExecutor, wait
 from dataclasses import dataclass, replace
@@ -27,7 +29,7 @@ from threadpoolctl import ThreadpoolController
 
 from diagnostics import StoredReferenceTrajectory
 from dynamics import GuidingCenterDynamics
-from initial_conditions import GCInitialConfiguration
+from states.state import State
 from potential import GC2DH5Metadata, Potential
 from methods.extended.abba import ABBA4Implicit
 from contracts.problem import InitialValueProblem
@@ -333,7 +335,7 @@ def _validated_configuration_trajectory(
 	"""Check one particle trajectory against its configuration and common grid."""
 	if not isinstance(solution, Solution):
 		raise TypeError("Every configuration trajectory must be a Solution.")
-	if not isinstance(solution.source, GCInitialConfiguration):
+	if not (isinstance(solution.source, State) and solution.source.layout.state_dimension == 2):
 		raise TypeError("Every solution must use a GC initial configuration.")
 	expected_initial = np.asarray(
 		(initial_x[particle], initial_y[particle]),
@@ -379,7 +381,7 @@ class ABBA4ConfigurationComparisonResult:
 
 	potential: Potential
 	dynamics: GuidingCenterDynamics
-	initial_configuration: GCInitialConfiguration
+	initial_configuration: State
 	reference: StoredReferenceTrajectory
 	config: ABBA4ConfigurationComparisonConfig
 	reference_sample_indices: np.ndarray
@@ -618,9 +620,10 @@ def _initialize_abba4_worker(
 		sample_count=config.output_sample_count,
 	)
 	particle_configurations = tuple(
-		GCInitialConfiguration.from_components(
-			x=np.asarray([x], dtype=float),
-			y=np.asarray([y], dtype=float),
+		State.from_components(
+			np.asarray([x], dtype=float),
+			np.asarray([y], dtype=float),
+			layout=GCStateLayout(),
 		)
 		for x, y in particle_coordinates
 	)
@@ -668,7 +671,7 @@ def _run_abba4_trajectory_task(
 def _validated_reference_samples(
 	potential: Potential,
 	dynamics: GuidingCenterDynamics,
-	initial_configuration: GCInitialConfiguration,
+	initial_configuration: State,
 	reference: StoredReferenceTrajectory,
 	config: ABBA4ConfigurationComparisonConfig,
 	request: SimulationRequest,
@@ -853,7 +856,7 @@ def _report_parallel_progress(
 
 def _run_sequential_trajectories(
 	dynamics: GuidingCenterDynamics,
-	particle_configurations: tuple[GCInitialConfiguration, ...],
+	particle_configurations: tuple[State, ...],
 	request: SimulationRequest,
 	config: ABBA4ConfigurationComparisonConfig,
 	*,
@@ -904,7 +907,7 @@ def _run_sequential_trajectories(
 
 def _run_parallel_trajectories(
 	potential: Potential,
-	particle_configurations: tuple[GCInitialConfiguration, ...],
+	particle_configurations: tuple[State, ...],
 	config: ABBA4ConfigurationComparisonConfig,
 	*,
 	study_started: float,
@@ -916,7 +919,7 @@ def _run_parallel_trajectories(
 	for particle_configuration in particle_configurations:
 		initial_state = particle_configuration.initial_state
 		assert initial_state is not None
-		x, y = particle_configuration.positions(initial_state)
+		x, y = particle_configuration.layout.positions(initial_state)
 		particle_coordinates.append((float(x[0]), float(y[0])))
 
 	solution_rows, runtime_rows = _empty_trajectory_rows(config.particle_count)
@@ -1013,7 +1016,7 @@ def _run_parallel_trajectories(
 
 def run_abba4_configuration_comparison(
 	potential: Potential,
-	initial_configuration: GCInitialConfiguration,
+	initial_configuration: State,
 	reference: StoredReferenceTrajectory,
 	*,
 	config: ABBA4ConfigurationComparisonConfig,
@@ -1021,8 +1024,8 @@ def run_abba4_configuration_comparison(
 	"""Run eight configurations for each configured initial condition."""
 	if not isinstance(potential, Potential):
 		raise TypeError("`potential` must be a Potential instance.")
-	if not isinstance(initial_configuration, GCInitialConfiguration):
-		raise TypeError("`initial_configuration` must be GCInitialConfiguration.")
+	if not (isinstance(initial_configuration, State) and initial_configuration.layout.state_dimension == 2):
+		raise TypeError("`initial_configuration` must be State.")
 	if not isinstance(reference, StoredReferenceTrajectory):
 		raise TypeError("`reference` must be a StoredReferenceTrajectory.")
 	if not isinstance(config, ABBA4ConfigurationComparisonConfig):
@@ -1050,11 +1053,12 @@ def run_abba4_configuration_comparison(
 		config,
 		request,
 	)
-	initial_x, initial_y = initial_configuration.positions(initial_state)
+	initial_x, initial_y = initial_configuration.layout.positions(initial_state)
 	particle_configurations = tuple(
-		GCInitialConfiguration.from_components(
-			x=np.asarray([initial_x[particle]], dtype=float),
-			y=np.asarray([initial_y[particle]], dtype=float),
+		State.from_components(
+			np.asarray([initial_x[particle]], dtype=float),
+			np.asarray([initial_y[particle]], dtype=float),
+			layout=GCStateLayout(),
 		)
 		for particle in range(config.particle_count)
 	)
@@ -1118,7 +1122,7 @@ def run_abba4_configuration_comparison(
 
 def _validate_configuration_inputs(
 	potential: Potential, dynamics: GuidingCenterDynamics,
-	initial_configuration: GCInitialConfiguration, reference: StoredReferenceTrajectory,
+	initial_configuration: State, reference: StoredReferenceTrajectory,
 	config: ABBA4ConfigurationComparisonConfig,
 	solutions: Mapping[str, tuple[Solution, ...]], runtimes: Mapping[str, np.ndarray],
 ) -> None:
@@ -1127,8 +1131,8 @@ def _validate_configuration_inputs(
 		raise TypeError("`potential` must be a Potential instance.")
 	if not isinstance(dynamics, GuidingCenterDynamics):
 		raise TypeError("`dynamics` must be GuidingCenterDynamics.")
-	if not isinstance(initial_configuration, GCInitialConfiguration):
-		raise TypeError("`initial_configuration` must be GCInitialConfiguration.")
+	if not (isinstance(initial_configuration, State) and initial_configuration.layout.state_dimension == 2):
+		raise TypeError("`initial_configuration` must be State.")
 	if not isinstance(reference, StoredReferenceTrajectory):
 		raise TypeError("`reference` must be a StoredReferenceTrajectory.")
 	if not isinstance(config, ABBA4ConfigurationComparisonConfig):
@@ -1140,7 +1144,7 @@ def _validate_configuration_inputs(
 
 
 def _configuration_initial_positions(
-	initial_configuration: GCInitialConfiguration, config: ABBA4ConfigurationComparisonConfig,
+	initial_configuration: State, config: ABBA4ConfigurationComparisonConfig,
 ) -> tuple[int, np.ndarray, np.ndarray]:
 	"""Resolve the exact configured particle count and its packed initial planar positions."""
 	initial_state = initial_configuration.initial_state
@@ -1155,7 +1159,7 @@ def _configuration_initial_positions(
 			"The initial configuration must contain exactly "
 			f"particle_count={particle_count} initial conditions."
 		)
-	initial_x, initial_y = initial_configuration.positions(initial_state)
+	initial_x, initial_y = initial_configuration.layout.positions(initial_state)
 	return particle_count, initial_x, initial_y
 
 

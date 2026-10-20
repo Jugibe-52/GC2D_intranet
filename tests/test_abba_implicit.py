@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from states.layout import GCStateLayout
+
 import tempfile
 import unittest
 from pathlib import Path
@@ -11,7 +13,7 @@ import numpy as np
 from diagnostics.symplecticity import (
 	central_difference_jacobian,
 )
-from initial_conditions import GCInitialConfiguration
+from states.state import State
 from simulation import ABBA_PROJECTION_FORMULATIONS, ABBA_STATE_EXTENSIONS, ABBA2Implicit, ABBA4Implicit, ABBA6Implicit, InitialValueProblem, SimulationRequest, simulate
 from tests._extended_reference.abba_maps import (
 	_differentiate_stages,
@@ -167,7 +169,7 @@ class ImplicitABBAFormulationTests(unittest.TestCase):
 		state = np.asarray([1.0, 1.4, 1.2, 1.6])
 		problem = InitialValueProblem(
 			dynamics,
-			GCInitialConfiguration(state),
+			State(state, layout=GCStateLayout()),
 		)
 		request = SimulationRequest.uniform(
 			t_span=(0.0, 0.2),

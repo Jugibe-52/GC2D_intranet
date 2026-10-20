@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from states import generators as state_generators
+
 from datetime import date
 import json
 from pathlib import Path
@@ -10,7 +12,7 @@ import unittest
 
 import numpy as np
 
-from initial_conditions import Area
+from states.state import State
 from simulation import (
 	IntegrationStage,
 	IntegrationStep,
@@ -182,7 +184,7 @@ class SymplecticityDiagnosticTests(unittest.TestCase):
 			observer.close()
 
 	def test_physical_area_observer_accumulates_complete_step_jacobians(self) -> None:
-		area = Area.square(
+		area = state_generators.square(
 			center=(1.0, 1.0),
 			side=0.5,
 			points_per_side=1,
@@ -238,7 +240,7 @@ class SymplecticityDiagnosticTests(unittest.TestCase):
 	def test_physical_area_observer_rejects_analytic_method_without_abba_data(
 		self,
 	) -> None:
-		area = Area.square(
+		area = state_generators.square(
 			center=(1.0, 1.0),
 			side=0.5,
 			points_per_side=1,

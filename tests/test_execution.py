@@ -1,5 +1,7 @@
 """Complete-job execution, subclass dispatch and result validation contracts."""
 
+from states.layout import GCStateLayout
+
 import unittest
 from unittest.mock import patch
 
@@ -11,7 +13,7 @@ from contracts.request import SimulationRequest
 from contracts.result import IntegrationData
 from execution import Execution
 from execution.execution import Execution as CanonicalExecution
-from initial_conditions.gc import GCInitialConfiguration
+from states.state import State
 from methods.classical.rk4 import RK4
 from simulation.runner import simulate
 
@@ -42,7 +44,7 @@ class ExecutionTests(unittest.TestCase):
     def setUp(self):
         self.problem = InitialValueProblem(
             RotationDynamics(),
-            GCInitialConfiguration.from_components(x=np.array([1.]), y=np.array([0.])),
+            State.from_components(np.array([1.]), np.array([0.]), layout=GCStateLayout()),
         )
         self.method = RK4()
         self.request = SimulationRequest.uniform(

@@ -15,7 +15,7 @@ import formulations
 import integration
 import execution
 from dynamics import GuidingCenterDynamics
-from initial_conditions import GCInitialConfiguration
+from states.state import State
 from potential import Potential
 from simulation import ABBA2Midpoint, ABBA2Implicit, ABBA4Implicit, ABBA6Implicit, ABBA4_PROJECTION_PLACEMENTS, ABBA_PROJECTION_FORMULATIONS, ABBA_STATE_EXTENSIONS, BM4Implicit, BM4Midpoint, ExplicitEuler, RK4
 from methods import extended, classical
@@ -33,7 +33,7 @@ class PackageLayoutTests(unittest.TestCase):
 			"dynamics",
 			"execution",
 			"formulations",
-			"initial_conditions",
+			"states",
 			"integration",
 			"methods",
 			"potential",
@@ -49,7 +49,7 @@ class PackageLayoutTests(unittest.TestCase):
 			self.assertFalse((source_root / removed).exists())
 
 		self.assertIsNotNone(GuidingCenterDynamics)
-		self.assertIsNotNone(GCInitialConfiguration)
+		self.assertIsNotNone(State)
 		self.assertIsNotNone(Potential)
 		self.assertIsNotNone(ABBA2Midpoint)
 		self.assertIsNotNone(ABBA2Implicit)
@@ -160,7 +160,7 @@ class PackageLayoutTests(unittest.TestCase):
 		for package, names in {
 			"simulation": ("SimulationRunner", "ABBA4ImplicitSingleProjection",
 				"FullyExtendedImplicitIntegrationStep", "FullyExtendedBaseMap"),
-			"initial_conditions": ("Trajectory", "TrajectoryGC", "TrajectoryFC"),
+			"states": ("Trajectory", "TrajectoryGC", "TrajectoryFC"),
 			"studies": ("run_fully_extended_implicit_study", "centered_gc_trajectory",
 				"run_abba4_projection_comparison_study"),
 		}.items():
@@ -184,12 +184,12 @@ def import_without_matplotlib(name, *args, **kwargs):
 
 builtins.__import__ = import_without_matplotlib
 import dynamics
-import initial_conditions
+import states
 import potential
 import simulation
 import studies
 assert dynamics.GuidingCenterDynamics is not None
-assert initial_conditions.GCInitialConfiguration is not None
+assert states.State is not None
 assert potential.Potential is not None
 assert simulation.RK4 is not None
 assert simulation.ExplicitEuler is not None

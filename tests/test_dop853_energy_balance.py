@@ -1,11 +1,13 @@
 """Energy reconstruction, sampling and persistence tests for the new study."""
+
+from states.layout import GCStateLayout
 import tempfile
 import unittest
 from pathlib import Path
 import numpy as np
 from potential import Potential
 from dynamics import GuidingCenterDynamics
-from initial_conditions import GCInitialConfiguration
+from states.state import State
 from simulation import BM4Implicit, InitialValueProblem, SimulationRequest, simulate
 from diagnostics import GCGeneralizedEnergyObserver
 from diagnostics.bm4_energy_balance import BM4EnergyBalanceObserver
@@ -34,7 +36,7 @@ class EnergyBalanceTests(unittest.TestCase):
         for p in range(3):
             z = self.configuration.initial_state[[p, p+3]]
             scalar = GCGeneralizedEnergyObserver(dynamics, initial_time=0., initial_state=z)
-            simulate(InitialValueProblem(dynamics, GCInitialConfiguration(z)),
+            simulate(InitialValueProblem(dynamics, State(z, layout=GCStateLayout())),
                      BM4Implicit(step_observer=scalar), request)
             np.testing.assert_allclose(np.asarray(observer.momenta)[:, p],
                                        [r.kappa for r in scalar.records][::2], atol=2e-14, rtol=1e-10)

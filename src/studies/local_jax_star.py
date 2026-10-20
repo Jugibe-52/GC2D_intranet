@@ -1,5 +1,7 @@
 """Local BM4Midpoint star study with consecutive JAX blocks and live logging."""
 
+from states.layout import GCStateLayout
+
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from time import perf_counter
@@ -15,8 +17,8 @@ from diagnostics.persistence import save_solution
 from diagnostics.run_progress import RunProgress, progress_log
 from dynamics.gc import GuidingCenterDynamics
 from execution.execution import Execution
-from initial_conditions.gc import GCInitialConfiguration
-from initial_conditions.star import radial_star
+from states.state import State
+from states.generators import radial_star
 from methods.extended.bm4 import BM4Midpoint
 from potential.load import DEFAULT_FIELD_INDICES
 from potential.potential import Potential
@@ -105,7 +107,7 @@ def integrate_local_star(
         if first == 0:
             phase += ' (first JAX compilation included)'
         progress.phase(phase)
-        block_problem = InitialValueProblem(problem.dynamics, GCInitialConfiguration(states[:, first]))
+        block_problem = InitialValueProblem(problem.dynamics, State(states[:, first], layout=GCStateLayout()))
         request = SimulationRequest((float(first_cycle), float(last_cycle)),
                                     1. / config.steps_per_cycle, times[first:last + 1])
         start = perf_counter()

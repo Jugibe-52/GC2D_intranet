@@ -9,7 +9,7 @@ import unittest
 import h5py
 import numpy as np
 
-from initial_conditions.star import radial_star, ranked_radial_star
+from states.generators import radial_star, ranked_radial_star
 from potential.grid import Grid
 from potential.potential import Potential
 
@@ -82,7 +82,7 @@ class InputValidationContractsTests(unittest.TestCase):
 		star = ranked_radial_star(center=(0.0, 0.0), outer_radius=1.0, particles=4, arms=2)
 		state = star.initial_state
 		assert state is not None
-		x, y = star.positions(state)
+		x, y = star.layout.positions(state)
 		np.testing.assert_allclose(np.hypot(x, y), np.linspace(0.0, 1.0, 4))
 
 

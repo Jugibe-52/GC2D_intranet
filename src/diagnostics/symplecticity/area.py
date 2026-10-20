@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from diagnostics.geometry import calculate_area
+
 from dataclasses import asdict, dataclass
 from datetime import date
 from pathlib import Path
@@ -11,7 +13,7 @@ import numpy as np
 
 from diagnostics._validation import optional_relative_step, positive_integer
 
-from initial_conditions import Area
+from states.state import State
 from contracts.observation import ABBA2ImplicitIntegrationStep, IntegrationStep
 from diagnostics.buffering import DiagnosticBuffer
 
@@ -84,7 +86,7 @@ class GCAreaSymplecticityObserver:
 		self,
 		*,
 		notebook_path: str | Path,
-		area: Area,
+		area: State,
 		period: float | None = None,
 		project_root: str | Path | None = None,
 		run_date: date | str | None = None,
@@ -97,8 +99,8 @@ class GCAreaSymplecticityObserver:
 		metadata: Mapping[str, Any] | None = None,
 	) -> None:
 		"""Configure physical GC diagnostics and notebook-derived persistence."""
-		if not isinstance(area, Area):
-			raise TypeError("`area` must be an Area instance.")
+		if not (isinstance(area, State) and area.layout.state_dimension == 2 and area.particle_count >= 3):
+			raise TypeError("`area` must be a GC State with at least three ordered boundary vertices.")
 		record_every = positive_integer(record_every, "record_every")
 		chunk_size = positive_integer(chunk_size, "chunk_size")
 		relative_step = optional_relative_step(relative_step)
@@ -122,7 +124,7 @@ class GCAreaSymplecticityObserver:
 		self.period = period
 		self.form = gc_physical_symplectic_form(self.particle_count)
 		self.form_norm = float(np.linalg.norm(self.form, ord="fro"))
-		self.initial_area = float(area.calculate_area(initial_state, period=period))
+		self.initial_area = float(calculate_area(initial_state, period=period, layout=area.layout))
 		if (
 			not np.isfinite(self.initial_area)
 			or abs(self.initial_area) <= np.finfo(float).eps
@@ -269,7 +271,7 @@ class GCAreaSymplecticityObserver:
 		accumulated_jacobian: np.ndarray,
 	) -> None:
 		"""Calculate scalar diagnostics and buffer one physical observation."""
-		area = float(self.area.calculate_area(state, period=self.period))
+		area = float(calculate_area(state, period=self.period, layout=self.area.layout))
 		area_error = area - self.initial_area
 		local_defect = local_jacobian.T @ self.form @ local_jacobian - self.form
 		defect = (

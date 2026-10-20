@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from states.layout import GCStateLayout
+
 from collections.abc import Mapping
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
@@ -16,13 +18,12 @@ from typing import Any
 import numpy as np
 import scipy
 
-from contracts.configuration import InitialConfiguration
+from contracts.configuration import InitialConfiguration, StateLayout
 from contracts.result import DiagnosticValue
-from contracts.state_layout import FCStateLayout, GCStateLayout
+from states.layout import FCStateLayout
 from diagnostics.paths import solution_destination
 from diagnostics.storage import ArtifactStore, StorageError
-from initial_conditions.fc import FCInitialConfiguration
-from initial_conditions.gc import GCInitialConfiguration
+from states.state import State
 from potential.load import GC2DH5Metadata
 from potential.grid import Grid
 from potential.potential import Potential
@@ -198,6 +199,14 @@ def _manifest_inventory(manifest: Mapping[str, Any]) -> dict[str, Any]:
     return dict(records)
 
 
+@dataclass(frozen=True)
+class _HistorySource:
+    """Archive provenance when the saved history has no initial-state snapshot."""
+
+    layout: StateLayout
+    initial_state: None = None
+
+
 def _load_solution_arrays(directory: Path, description: Mapping[str, Any]) -> Solution:
     """Validate solution metadata and reconstruct its canonical state layout."""
     if description.get("schema_version") != 1 or description.get("artifact_kind") != "gc2d_solution":
@@ -206,11 +215,12 @@ def _load_solution_arrays(directory: Path, description: Mapping[str, Any]) -> So
         initial = saved["initial_state"] if description["has_initial_state"] else None
         configuration: InitialConfiguration
         if description["layout"] == "gc_component_major_xy":
-            configuration = GCInitialConfiguration(initial)
+            layout: StateLayout = GCStateLayout()
         elif description["layout"] == "fc_component_major_xyvxvy":
-            configuration = FCInitialConfiguration(initial)
+            layout = FCStateLayout()
         else:
             raise ValueError("Unsupported saved state layout.")
+        configuration = State(initial, layout=layout) if initial is not None else _HistorySource(layout)
         diagnostics: dict[str, DiagnosticValue] = {
             name: saved[value["array"]] if "array" in value else value["scalar"]
             for name, value in description["diagnostics"].items()

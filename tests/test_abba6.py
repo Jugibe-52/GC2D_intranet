@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from states.layout import GCStateLayout
+
 from pathlib import Path
 import tempfile
 import unittest
@@ -14,7 +16,7 @@ from diagnostics import (
 	central_difference_jacobian,
 )
 
-from initial_conditions import GCInitialConfiguration
+from states.state import State
 from simulation import (
 	ABBA6Implicit,
 	ABBA6ImplicitIntegrationStep,
@@ -211,9 +213,10 @@ class ABBA6MethodTests(unittest.TestCase):
 		np.testing.assert_allclose(backward.state, state, rtol=0.0, atol=5e-15)
 
 	def test_sixth_order_composition_uses_signed_non_autonomous_times(self) -> None:
-		configuration = GCInitialConfiguration.from_components(
-			x=np.asarray([0.0]),
-			y=np.asarray([0.0]),
+		configuration = State.from_components(
+			np.asarray([0.0]),
+			np.asarray([0.0]),
+			layout=GCStateLayout(),
 		)
 		problem = InitialValueProblem(_SixthDegreeTimeDynamics(), configuration)
 		errors = []

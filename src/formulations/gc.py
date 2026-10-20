@@ -13,7 +13,7 @@ import numpy as np
 
 from dynamics.protocols import DynamicalSystem, HamiltonianSystem
 from contracts.configuration import InitialConfiguration, StateLayout
-from contracts.state_layout import GCStateLayout
+from states.layout import GCStateLayout
 
 from contracts.problem import InitialValueProblem
 from formulations.base import _updated_momentum

@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
+from states import generators as state_generators
+from states.layout import GCStateLayout
+
 import numpy as np
 
-from initial_conditions import (
-	Area,
-	GCInitialConfiguration,
-)
+from states.state import State
 from potential import Potential
 from ._validation import nonnegative_integer, positive_integer
 
@@ -25,7 +25,7 @@ def radial_gc_configuration(
 	*,
 	radial_fractions: tuple[float, ...] = (0.1, 0.2, 0.3),
 	angle: float = 0.0,
-) -> GCInitialConfiguration:
+) -> State:
 	"""Place guiding centers along one radius, in fractions of the cell period.
 
 	The angle is in radians from +x. Distances are strictly increasing and
@@ -42,7 +42,7 @@ def radial_gc_configuration(
 		raise ValueError("The radial angle must be finite.")
 	direction = np.asarray((np.cos(angle), np.sin(angle)))
 	positions = center[:, None] + potential.grid.period * direction[:, None] * radii
-	return GCInitialConfiguration.from_components(x=positions[0], y=positions[1])
+	return State.from_components(positions[0], positions[1], layout=GCStateLayout())
 
 
 def centered_circle(
@@ -50,9 +50,9 @@ def centered_circle(
 	*,
 	radius: float,
 	points: int = 128,
-) -> Area:
+) -> State:
 	"""Create a circular GC boundary centered in the periodic base cell."""
-	return Area.circle(
+	return state_generators.circle(
 		center=domain_center(potential),
 		radius=radius,
 		points=points,
@@ -65,9 +65,9 @@ def centered_square(
 	*,
 	side: float,
 	points_per_side: int = 1,
-) -> Area:
+) -> State:
 	"""Create a square GC boundary centered in the periodic base cell."""
-	return Area.square(
+	return state_generators.square(
 		center=domain_center(potential),
 		side=side,
 		points_per_side=points_per_side,
@@ -75,12 +75,13 @@ def centered_square(
 	)
 
 
-def centered_gc_configuration(potential: Potential) -> GCInitialConfiguration:
+def centered_gc_configuration(potential: Potential) -> State:
 	"""Create one canonical GC initial state at the periodic-cell center."""
 	center_x, center_y = domain_center(potential)
-	return GCInitialConfiguration.from_components(
-		x=np.asarray([center_x]),
-		y=np.asarray([center_y]),
+	return State.from_components(
+		np.asarray([center_x]),
+		np.asarray([center_y]),
+		layout=GCStateLayout(),
 	)
 
 
@@ -111,7 +112,7 @@ def random_gc_configuration(
 	seed: int,
 	x_bounds: tuple[float, float] | None = None,
 	y_bounds: tuple[float, float] | None = None,
-) -> GCInitialConfiguration:
+) -> State:
 	"""Sample reproducible independent GC positions inside the periodic cell.
 
 	Bounds default to the complete base cell and use NumPy's half-open uniform
@@ -136,9 +137,10 @@ def random_gc_configuration(
 		"y_bounds",
 	)
 	random = np.random.default_rng(int(seed))
-	return GCInitialConfiguration.from_components(
-		x=random.uniform(*x_interval, size=int(particle_count)),
-		y=random.uniform(*y_interval, size=int(particle_count)),
+	return State.from_components(
+		random.uniform(*x_interval, size=int(particle_count)),
+		random.uniform(*y_interval, size=int(particle_count)),
+		layout=GCStateLayout(),
 	)
 
 
@@ -148,7 +150,7 @@ def latin_hypercube_gc_configuration(
 	particle_count: int,
 	seed: int,
 	domain_margin_fraction: float = 0.0,
-) -> GCInitialConfiguration:
+) -> State:
 	"""Place a reproducible heterogeneous sample across the grid extent.
 
 	Each spatial axis is divided into ``particle_count`` equally sized strata.
@@ -177,9 +179,10 @@ def latin_hypercube_gc_configuration(
 	unit_y = (np.arange(count) + random.random(count)) / count
 	random.shuffle(unit_x)
 	random.shuffle(unit_y)
-	return GCInitialConfiguration.from_components(
-		x=sampling_min[0] + unit_x * (sampling_max[0] - sampling_min[0]),
-		y=sampling_min[1] + unit_y * (sampling_max[1] - sampling_min[1]),
+	return State.from_components(
+		sampling_min[0] + unit_x * (sampling_max[0] - sampling_min[0]),
+		sampling_min[1] + unit_y * (sampling_max[1] - sampling_min[1]),
+		layout=GCStateLayout(),
 	)
 
 
@@ -190,7 +193,7 @@ def latin_hypercube_gc_configuration_with_near_center(
 	seed: int,
 	center_offset_fraction: tuple[float, float],
 	domain_margin_fraction: float = 0.0,
-) -> GCInitialConfiguration:
+) -> State:
 	"""Move trajectory one near the cell center in a reproducible LHS sample.
 
 	The remaining trajectories retain their seeded Latin-hypercube positions.
@@ -218,7 +221,7 @@ def latin_hypercube_gc_configuration_with_near_center(
 	center_x, center_y = domain_center(potential)
 	x[0] = center_x + offset_fraction[0] * potential.grid.period
 	y[0] = center_y + offset_fraction[1] * potential.grid.period
-	return GCInitialConfiguration.from_components(x=x, y=y)
+	return State.from_components(x, y, layout=GCStateLayout())
 
 
 __all__ = [

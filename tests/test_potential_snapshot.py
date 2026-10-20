@@ -1,5 +1,7 @@
 """Processed HDF5 fields survive serialization and spawned study execution."""
 
+from states.layout import GCStateLayout
+
 from pathlib import Path
 import pickle
 import tempfile
@@ -10,7 +12,7 @@ import numpy as np
 from contracts.problem import InitialValueProblem
 from contracts.request import SimulationRequest
 from dynamics.gc import GuidingCenterDynamics
-from initial_conditions import GCInitialConfiguration
+from states.state import State
 from methods.extended.bm4 import BM4Implicit
 from potential.load import GC2DH5Metadata
 from potential.grid import Grid
@@ -87,8 +89,9 @@ class PotentialSnapshotTests(unittest.TestCase):
 	def test_bm4_spawned_workers_match_direct_trajectories(self) -> None:
 		with tempfile.TemporaryDirectory() as directory:
 			potential = _potential(Path(directory) / "absent.h5")
-			configuration = GCInitialConfiguration.from_components(
-				x=np.asarray([1.1, 1.7]), y=np.asarray([1.3, 0.8]),
+			configuration = State.from_components(
+				np.asarray([1.1, 1.7]), np.asarray([1.3, 0.8]),
+				layout=GCStateLayout(),
 			)
 			config = ParallelBM4RecurrenceConfig(
 				particle_count=2, t_span=(0.0, 1.0), steps_per_cycle=4,
@@ -103,7 +106,7 @@ class PotentialSnapshotTests(unittest.TestCase):
 			for particle, (x, y) in enumerate(result.initial_positions):
 				problem = InitialValueProblem(
 					dynamics,
-					GCInitialConfiguration.from_components(x=np.asarray([x]), y=np.asarray([y])),
+					State.from_components(np.asarray([x]), np.asarray([y]), layout=GCStateLayout()),
 				)
 				solution = simulate(
 					problem,

@@ -12,7 +12,7 @@ from matplotlib.animation import FuncAnimation
 from matplotlib.collections import LineCollection
 from matplotlib.lines import Line2D
 
-from initial_conditions import FCInitialConfiguration, GCInitialConfiguration
+from states.state import State
 from potential import Potential
 from solution import Solution
 
@@ -71,7 +71,7 @@ def _animate_particle_solution(
 	potential: Potential,
 	solution: Solution,
 	*,
-	configuration_type: type[FCInitialConfiguration | GCInitialConfiguration],
+	configuration_type: type[State | State],
 	frames: int | None = None,
 	interval: int = 200,
 	cmap: str = "RdBu_r",
@@ -220,7 +220,7 @@ def animate_fc_particle_solution(
 	return _animate_particle_solution(
 		potential,
 		solution,
-		configuration_type=FCInitialConfiguration,
+		configuration_type=State,
 		frames=frames,
 		interval=interval,
 		cmap=cmap,
@@ -247,7 +247,7 @@ def animate_gc_particle_solution(
 	return _animate_particle_solution(
 		potential,
 		solution,
-		configuration_type=GCInitialConfiguration,
+		configuration_type=State,
 		frames=frames,
 		interval=interval,
 		cmap=cmap,
@@ -280,7 +280,7 @@ def animate_gc_particle_trajectories(
 		raise TypeError("`potential` must be a Potential instance.")
 	if not isinstance(solution, Solution):
 		raise TypeError("`solution` must be a Solution instance.")
-	if not isinstance(solution.source, GCInitialConfiguration):
+	if not (isinstance(solution.source, State) and solution.source.layout.state_dimension == 2):
 		raise TypeError("`solution` must use a GC initial configuration.")
 	interval = positive_interval(interval)
 	for value, name in (

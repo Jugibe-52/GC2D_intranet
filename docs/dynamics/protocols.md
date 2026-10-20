@@ -50,12 +50,8 @@ placement, including NumPy-only `evaluate_grid` reconstruction.
 
 ## Physical layouts and problem ownership
 
-`contracts.state_layout` owns `PackedStateLayout`, `GCState`, `GCStateLayout`,
-`FCState`, and `FCStateLayout`. Dynamics, formulations, and initial-condition
-builders use these same component-major operations. Existing imports from
-`initial_conditions`, `initial_conditions.base`, `initial_conditions.gc`, and
-`initial_conditions.fc` remain explicit reexports of the canonical classes;
-the private duplicate `dynamics._layout` module has been removed.
+`states.layout` owns `PackedStateLayout`, `GCState`, `GCStateLayout`, `FCState` and `FCStateLayout`. Dynamics, formulations and generators use these same component-major operations. The public `states` package explicitly reexports them and the single immutable `State` snapshot class. The retired `initial_conditions` package and `contracts.state_layout` module have no compatibility reexports. Structural external providers remain supported.
+
 
 `split` reshapes the state directly and returns its component blocks, without
 calling the explicit layout validator. Use `validate_packed_state_layout` when

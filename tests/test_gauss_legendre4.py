@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from states.layout import GCStateLayout
+
 import unittest
 
 import numpy as np
@@ -12,7 +14,7 @@ from diagnostics import (
 )
 from diagnostics.symplecticity import gc_physical_symplectic_form
 from dynamics import GuidingCenterDynamics
-from initial_conditions import GCInitialConfiguration
+from states.state import State
 from potential import Potential
 from simulation import (
 	GAUSS_JACOBIAN_METHODS,
@@ -120,7 +122,7 @@ def _rotation_problem(*, particles: int = 1) -> InitialValueProblem:
 	state = np.concatenate((np.cos(angles), np.sin(angles)))
 	return InitialValueProblem(
 		_RotationHamiltonian(),
-		GCInitialConfiguration(state),
+		State(state, layout=GCStateLayout()),
 	)
 
 
@@ -161,7 +163,7 @@ class GaussLegendre4Tests(unittest.TestCase):
 	def test_generic_time_dependent_field_uses_gauss_stage_times(self) -> None:
 		problem = InitialValueProblem(
 			_CubicTimeField(),
-			GCInitialConfiguration(np.zeros(2)),
+			State(np.zeros(2), layout=GCStateLayout()),
 		)
 		solution = simulate(
 			problem,
@@ -199,7 +201,7 @@ class GaussLegendre4Tests(unittest.TestCase):
 		)
 		problem = InitialValueProblem(
 			GuidingCenterDynamics(potential, rho=0.05),
-			GCInitialConfiguration(np.asarray((1.0, 1.2))),
+			State(np.asarray((1.0, 1.2)), layout=GCStateLayout()),
 		)
 		request = SimulationRequest.uniform(
 			t_span=(0.0, 0.02),
@@ -254,7 +256,7 @@ class GaussLegendre4Tests(unittest.TestCase):
 		)
 		problem = InitialValueProblem(
 			GuidingCenterDynamics(potential, rho=0.05),
-			GCInitialConfiguration(np.asarray((1.0, 2.0, 1.2, 2.1))),
+			State(np.asarray((1.0, 2.0, 1.2, 2.1)), layout=GCStateLayout()),
 		)
 		events: list[GaussLegendre4IntegrationStep] = []
 		simulate(
@@ -302,7 +304,7 @@ class GaussLegendre4Tests(unittest.TestCase):
 		initial_state = np.asarray((1.0, 0.0))
 		problem = InitialValueProblem(
 			_ExponentialRotationHamiltonian(),
-			GCInitialConfiguration(initial_state),
+			State(initial_state, layout=GCStateLayout()),
 		)
 		errors: list[float] = []
 		finest = None
@@ -348,7 +350,7 @@ class GaussLegendre4Tests(unittest.TestCase):
 		)
 		problem = InitialValueProblem(
 			GuidingCenterDynamics(potential, rho=0.05),
-			GCInitialConfiguration(np.asarray((1.0, 1.2))),
+			State(np.asarray((1.0, 1.2)), layout=GCStateLayout()),
 		)
 		events: list[GaussLegendre4IntegrationStep] = []
 		solution = simulate(

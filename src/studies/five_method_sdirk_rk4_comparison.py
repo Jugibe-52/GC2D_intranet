@@ -22,7 +22,7 @@ import numpy as np
 
 
 from dynamics import GuidingCenterDynamics
-from initial_conditions import GCInitialConfiguration
+from states.state import State
 from potential import Potential
 from contracts.problem import InitialValueProblem
 from contracts.request import SimulationRequest
@@ -86,7 +86,7 @@ def _print_progress(enabled: bool, message: str) -> None:
 
 def run_five_method_comparison(
 	potential: Potential,
-	initial_configuration: GCInitialConfiguration,
+	initial_configuration: State,
 	*,
 	config: FiveMethodComparisonConfig,
 	method_names: tuple[str, ...] = FIVE_METHOD_COMPARISON_METHODS,
@@ -100,8 +100,8 @@ def run_five_method_comparison(
 	passing a reused reference. Its times and initial states are checked here."""
 	if not isinstance(potential, Potential):
 		raise TypeError("`potential` must be a Potential instance.")
-	if not isinstance(initial_configuration, GCInitialConfiguration):
-		raise TypeError("`initial_configuration` must be GCInitialConfiguration.")
+	if not (isinstance(initial_configuration, State) and initial_configuration.layout.state_dimension == 2):
+		raise TypeError("`initial_configuration` must be State.")
 	if not isinstance(config, FiveMethodComparisonConfig):
 		raise TypeError("`config` must be FiveMethodComparisonConfig.")
 	method_names = tuple(method_names)

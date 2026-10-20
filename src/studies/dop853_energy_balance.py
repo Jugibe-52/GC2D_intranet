@@ -1,4 +1,6 @@
 """Single-run energy-balance and trajectory study with a DOP853 reference."""
+
+from states.layout import GCStateLayout
 from collections.abc import Mapping, Sequence
 from typing import Any
 
@@ -7,7 +9,7 @@ from potential import Potential
 from methods.adaptive.scipy import DOP853
 from methods.base import NumericalMethod
 from dynamics import GuidingCenterDynamics
-from initial_conditions import GCInitialConfiguration
+from states.state import State
 from contracts.problem import InitialValueProblem
 from contracts.request import SimulationRequest
 from methods.extended.bm4 import BM4Implicit
@@ -19,19 +21,19 @@ from diagnostics.bm4_energy_balance import BM4EnergyBalanceObserver
 METHODS = ("DOP853", "BM4Implicit", "GaussLegendre4", "RK4")
 
 
-def horizontal_configuration(potential: Potential, x_fractions: Sequence[float], y_fraction: float) -> GCInitialConfiguration:
+def horizontal_configuration(potential: Potential, x_fractions: Sequence[float], y_fraction: float) -> State:
     """Place three equidistant particles on one horizontal periodic-cell line."""
     x = np.asarray(x_fractions, dtype=float)
     if x.shape != (3,) or not np.all((x > 0) & (x < 1)) or not 0 < y_fraction < 1:
         raise ValueError("Use three interior x fractions and one interior y fraction.")
     if not np.all(np.diff(x) > 0) or not np.isclose(*np.diff(x)):
         raise ValueError("The three x fractions must increase with equal spacing.")
-    return GCInitialConfiguration.from_components(
-        x=potential.grid.xmin + potential.grid.period*x,
-        y=np.full(3, potential.grid.ymin + potential.grid.period*y_fraction))
+    return State.from_components(
+        potential.grid.xmin + potential.grid.period*x,
+        np.full(3, potential.grid.ymin + potential.grid.period*y_fraction), layout=GCStateLayout())
 
 
-def run_energy_balance(potential: Potential, configuration: GCInitialConfiguration, config: Mapping[str, Any]) -> dict[str, np.ndarray]:
+def run_energy_balance(potential: Potential, configuration: State, config: Mapping[str, Any]) -> dict[str, np.ndarray]:
     """Integrate each method once; advance energy at stages, then save sparsely.
 
     DOP853 controls the augmented (x,y,kappa) system adaptively with max_step=h.

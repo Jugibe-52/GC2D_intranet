@@ -31,7 +31,7 @@ from diagnostics import (
 	abba2_midpoint_step_particle_jacobians,
 )
 from dynamics import GuidingCenterDynamics
-from initial_conditions import GCInitialConfiguration
+from states.state import State
 from potential import Potential
 from methods.extended.abba import ABBA4Implicit
 from methods.extended.bm4 import BM4Implicit
@@ -203,7 +203,7 @@ class TrajectorySymplecticityResult:
 
 	potential: Potential
 	dynamics: GuidingCenterDynamics
-	initial_configuration: GCInitialConfiguration
+	initial_configuration: State
 	method_name: str
 	jacobian_method: str
 	steps: tuple[AreaStep, ...]
@@ -307,7 +307,7 @@ _MethodFactory = Callable[[StepObserver], NumericalMethod]
 
 def _run_trajectory_symplecticity_study(
 	potential: Potential,
-	initial_configuration: GCInitialConfiguration,
+	initial_configuration: State,
 	*,
 	notebook_path: str | Path,
 	config: TrajectorySymplecticityConfig,
@@ -322,7 +322,7 @@ def _run_trajectory_symplecticity_study(
 	"""Run one method on the same initial trajectories for every step size."""
 	if not isinstance(potential, Potential):
 		raise TypeError("`potential` must be a Potential instance.")
-	if not isinstance(initial_configuration, GCInitialConfiguration):
+	if not (isinstance(initial_configuration, State) and initial_configuration.layout.state_dimension == 2):
 		raise TypeError("`initial_configuration` must be a GC configuration.")
 	if not isinstance(config, TrajectorySymplecticityConfig):
 		raise TypeError("`config` must be a TrajectorySymplecticityConfig.")
@@ -399,7 +399,7 @@ def _run_trajectory_symplecticity_study(
 
 def run_abba2_midpoint_trajectory_symplecticity_study(
 	potential: Potential,
-	initial_configuration: GCInitialConfiguration,
+	initial_configuration: State,
 	*,
 	notebook_path: str | Path,
 	config: TrajectorySymplecticityConfig,
@@ -431,7 +431,7 @@ def run_abba2_midpoint_trajectory_symplecticity_study(
 
 def run_abba2_reduced_multiplier_trajectory_symplecticity_study(
 	potential: Potential,
-	initial_configuration: GCInitialConfiguration,
+	initial_configuration: State,
 	*,
 	notebook_path: str | Path,
 	config: TrajectorySymplecticityConfig,
@@ -467,7 +467,7 @@ def run_abba2_reduced_multiplier_trajectory_symplecticity_study(
 
 def run_abba4_implicit_trajectory_symplecticity_study(
 	potential: Potential,
-	initial_configuration: GCInitialConfiguration,
+	initial_configuration: State,
 	*,
 	notebook_path: str | Path,
 	config: TrajectorySymplecticityConfig,
@@ -510,7 +510,7 @@ def run_abba4_implicit_trajectory_symplecticity_study(
 
 def run_bm4_implicit_trajectory_symplecticity_study(
 	potential: Potential,
-	initial_configuration: GCInitialConfiguration,
+	initial_configuration: State,
 	*,
 	notebook_path: str | Path,
 	config: TrajectorySymplecticityConfig,

@@ -1,5 +1,7 @@
 """Offline contracts for remote integration, receipts and safe recovery."""
 
+from states.layout import GCStateLayout
+
 import importlib.util
 import json
 from pathlib import Path
@@ -21,7 +23,7 @@ from diagnostics.persistence import load_solution, save_solution
 from dynamics.gc import GuidingCenterDynamics
 from execution import Execution, Execution_Modal
 from execution._modal_worker import encode_job, execute_payload
-from initial_conditions.gc import GCInitialConfiguration
+from states.state import State
 from methods import BM4Implicit, DOP853, RK4, Radau
 from potential.potential import Potential
 from simulation.runner import simulate
@@ -32,7 +34,7 @@ def make_problem():
     potential = Potential.random(A=.1, M=3, nx=16, ny=16, seed=27)
     return InitialValueProblem(
         GuidingCenterDynamics(potential, rho=.3),
-        GCInitialConfiguration.from_components(x=np.array([.2, .4]), y=np.array([.3, .5])),
+        State.from_components(np.array([.2, .4]), np.array([.3, .5]), layout=GCStateLayout()),
     )
 
 

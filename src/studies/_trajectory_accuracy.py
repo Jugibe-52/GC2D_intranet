@@ -12,7 +12,7 @@ import numpy as np
 
 from diagnostics import StoredReferenceTrajectory
 from dynamics import GuidingCenterDynamics
-from initial_conditions import GCInitialConfiguration
+from states.state import State
 from potential import Potential
 
 from ._trajectory_distances import DistanceConvention, normalized_distance_convention, particle_distances
@@ -90,7 +90,7 @@ def reference_distance_convention(
 
 def validate_reference_identity(
 	potential: Potential,
-	initial_configuration: GCInitialConfiguration,
+	initial_configuration: State,
 	reference: StoredReferenceTrajectory,
 	config: ReferenceAccuracyConfig,
 	*,

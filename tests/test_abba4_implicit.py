@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from states.layout import GCStateLayout
+
 from dataclasses import replace
 from pathlib import Path
 import tempfile
@@ -14,7 +16,7 @@ from diagnostics import (
 	abba4_implicit_step_particle_jacobians,
 	central_difference_jacobian,
 )
-from initial_conditions import GCInitialConfiguration
+from states.state import State
 from simulation import (
 	ABBA4Implicit,
 	ABBA4ImplicitIntegrationStep,
@@ -90,9 +92,10 @@ class _PolynomialTimeDynamics:
 
 def _rotation_problem() -> InitialValueProblem:
 	"""Return one oscillator trajectory starting from ``(1, 0)``."""
-	configuration = GCInitialConfiguration.from_components(
-		x=np.asarray([1.0]),
-		y=np.asarray([0.0]),
+	configuration = State.from_components(
+		np.asarray([1.0]),
+		np.asarray([0.0]),
+		layout=GCStateLayout(),
 	)
 	return InitialValueProblem(_LinearRotationDynamics(), configuration)
 
@@ -248,9 +251,10 @@ class ABBA4ImplicitMethodTests(unittest.TestCase):
 		np.testing.assert_allclose(backward.state, state, rtol=0.0, atol=2e-15)
 
 	def test_fourth_order_composition_uses_signed_non_autonomous_times(self) -> None:
-		configuration = GCInitialConfiguration.from_components(
-			x=np.asarray([0.0]),
-			y=np.asarray([0.0]),
+		configuration = State.from_components(
+			np.asarray([0.0]),
+			np.asarray([0.0]),
+			layout=GCStateLayout(),
 		)
 		problem = InitialValueProblem(_PolynomialTimeDynamics(), configuration)
 		errors = []
@@ -273,9 +277,10 @@ class ABBA4ImplicitMethodTests(unittest.TestCase):
 			self.assertLess(float(gain), 16.1)
 
 	def test_exact_composed_jacobian_matches_centered_difference(self) -> None:
-		configuration = GCInitialConfiguration.from_components(
-			x=np.asarray([1.0, 1.4]),
-			y=np.asarray([0.2, 0.6]),
+		configuration = State.from_components(
+			np.asarray([1.0, 1.4]),
+			np.asarray([0.2, 0.6]),
+			layout=GCStateLayout(),
 		)
 		problem = InitialValueProblem(_LinearRotationDynamics(), configuration)
 		events = []

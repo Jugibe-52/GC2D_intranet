@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from states.layout import GCStateLayout
+
 from dataclasses import dataclass, replace
 from pathlib import Path
 import re
@@ -12,7 +14,7 @@ import numpy as np
 from contracts.problem import InitialValueProblem
 from contracts.request import SimulationRequest
 from dynamics import GuidingCenterDynamics
-from initial_conditions import GCInitialConfiguration
+from states.state import State
 from methods.extended.bm4 import BM4Midpoint
 from potential.load import DEFAULT_FIELD_INDICES
 from potential import GC2DH5Metadata, Grid, Potential
@@ -101,8 +103,8 @@ def run_dimensional_bm4_midpoint(
     if cycles < 1 or steps_per_cycle < 1:
         raise ValueError("Cycles and steps per cycle must be positive.")
     x0, y0 = (float(value) for value in initial_xy)
-    initial = GCInitialConfiguration.from_components(
-        x=np.asarray([x0]), y=np.asarray([y0]))
+    initial = State.from_components(
+        np.asarray([x0]), np.asarray([y0]), layout=GCStateLayout())
     problem = InitialValueProblem(GuidingCenterDynamics(field.stream, rho=rho), initial)
     count = cycles * steps_per_cycle
     request = SimulationRequest.uniform(t_span=(0.0, float(cycles)),

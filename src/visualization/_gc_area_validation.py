@@ -6,7 +6,7 @@ from collections.abc import Mapping, Sequence
 
 import numpy as np
 
-from initial_conditions import Area
+from states.state import State
 from solution import Solution
 
 
@@ -14,13 +14,13 @@ AreaDiagnostics = tuple[np.ndarray, np.ndarray, np.ndarray | None]
 
 
 def validated_solution_series(
-	configuration: Area,
+	configuration: State,
 	solutions: Sequence[Solution],
 ) -> tuple[np.ndarray, tuple[np.ndarray, ...]]:
 	"""Validate solutions sampled at common times for direct comparison."""
 	if not solutions:
 		raise ValueError("At least one solution is required for an area animation.")
-	initial_state = configuration.state
+	initial_state = configuration.values
 	assert initial_state is not None
 	reference_times: np.ndarray | None = None
 	state_series: list[np.ndarray] = []

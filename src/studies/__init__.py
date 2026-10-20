@@ -153,15 +153,7 @@ from .five_method_sdirk_rk4_comparison import (
 	FiveMethodNonlinearWorkSummary,
 	run_five_method_comparison,
 )
-from .initial_conditions import (
-	centered_circle,
-	centered_gc_configuration,
-	centered_square,
-	domain_center,
-	latin_hypercube_gc_configuration,
-	latin_hypercube_gc_configuration_with_near_center,
-	random_gc_configuration,
-)
+from .initial_conditions import centered_circle, centered_gc_configuration, centered_square, domain_center, latin_hypercube_gc_configuration, latin_hypercube_gc_configuration_with_near_center, random_gc_configuration
 from .implicit_trajectory_comparison import (
 	IMPLICIT_METHOD_NAMES,
 	ImplicitIterationSummary,

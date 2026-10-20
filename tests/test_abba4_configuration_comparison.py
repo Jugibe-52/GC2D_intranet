@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from states.layout import GCStateLayout
+
 from contextlib import redirect_stderr
 from dataclasses import replace
 import io
@@ -16,7 +18,7 @@ from scipy.integrate import solve_ivp
 import studies.abba4_configuration_comparison as comparison_module
 from diagnostics import ReferenceTrajectoryPaths, StoredReferenceTrajectory
 from dynamics import GuidingCenterDynamics
-from initial_conditions import GCInitialConfiguration
+from states.state import State
 from potential import GC2DH5Metadata, Grid, Potential
 from studies.abba4_configuration_comparison import (
 	ABBA4_CONFIGURATION_KEYS,
@@ -41,17 +43,18 @@ def _potential() -> Potential:
 	)
 
 
-def _configuration(*, particle_count: int = 10) -> GCInitialConfiguration:
+def _configuration(*, particle_count: int = 10) -> State:
 	"""Place deterministic independent guiding centers inside the base cell."""
-	return GCInitialConfiguration.from_components(
-		x=np.linspace(0.8, 1.4, particle_count),
-		y=np.linspace(1.0, 1.6, particle_count),
+	return State.from_components(
+		np.linspace(0.8, 1.4, particle_count),
+		np.linspace(1.0, 1.6, particle_count),
+		layout=GCStateLayout(),
 	)
 
 
 def _reference(
 	potential: Potential,
-	configuration: GCInitialConfiguration,
+	configuration: State,
 	*,
 	distance_convention: str = "euclidean",
 	fingerprint: str | None = None,
@@ -108,7 +111,7 @@ class ABBA4ConfigurationComparisonTests(unittest.TestCase):
 	"""Verify orchestration, metrics, dimensions, and reference semantics."""
 
 	potential: ClassVar[Potential]
-	configuration: ClassVar[GCInitialConfiguration]
+	configuration: ClassVar[State]
 	reference: ClassVar[StoredReferenceTrajectory]
 	config: ClassVar[ABBA4ConfigurationComparisonConfig]
 	result: ClassVar[ABBA4ConfigurationComparisonResult]
@@ -221,7 +224,7 @@ class ABBA4ConfigurationComparisonTests(unittest.TestCase):
 		initial_state = self.configuration.initial_state
 		assert initial_state is not None
 		expected = np.column_stack(
-			self.configuration.positions(initial_state)
+			self.configuration.layout.positions(initial_state)
 		)
 		for key in ABBA4_CONFIGURATION_KEYS:
 			actual = np.stack(
@@ -565,9 +568,10 @@ class ABBA4ConfigurationComparisonTests(unittest.TestCase):
 			),
 			interpolation_order=3,
 		)
-		configuration = GCInitialConfiguration.from_components(
-			x=np.asarray([1.1]),
-			y=np.asarray([1.3]),
+		configuration = State.from_components(
+			np.asarray([1.1]),
+			np.asarray([1.3]),
+			layout=GCStateLayout(),
 		)
 		reference = _reference(
 			potential,

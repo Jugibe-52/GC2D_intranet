@@ -1,6 +1,8 @@
 """Structural and numerical contracts of the common extended-space engine."""
 from __future__ import annotations
 
+from states.layout import GCStateLayout
+
 from dataclasses import replace
 import importlib
 import unittest
@@ -8,7 +10,7 @@ from unittest.mock import patch
 import numpy as np
 
 from dynamics import GuidingCenterDynamics
-from initial_conditions import GCInitialConfiguration
+from states.state import State
 from potential import Potential
 from simulation import (ABBA2Implicit, ABBA4Implicit, ABBA6Implicit, ABBA2Midpoint,
                         BM4Implicit, BM4Midpoint, InitialValueProblem, SimulationRequest, simulate)
@@ -22,7 +24,7 @@ def problem(count: int = 3) -> InitialValueProblem:
     """Small reproducible nonautonomous field with analytic spatial derivatives."""
     return InitialValueProblem(
         GuidingCenterDynamics(Potential.random(A=.08, M=3, nx=16, ny=16, seed=27, interpolation_order=5), rho=.05),
-        GCInitialConfiguration.from_components(x=np.linspace(1, 1.2, count), y=np.linspace(1.2, 1.4, count)),
+        State.from_components(np.linspace(1, 1.2, count), np.linspace(1.2, 1.4, count), layout=GCStateLayout()),
     )
 
 

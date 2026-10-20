@@ -14,7 +14,7 @@ from types import MappingProxyType
 from typing import ClassVar, Mapping
 
 
-from initial_conditions import GCInitialConfiguration
+from states.state import State
 from potential import Potential
 
 
@@ -49,7 +49,7 @@ class ThreeMethodNewtonComparisonResult(ComparisonResult):
 
 def run_three_method_newton_comparison(
 	potential: Potential,
-	initial_configuration: GCInitialConfiguration,
+	initial_configuration: State,
 	*,
 	config: ThreeMethodNewtonComparisonConfig,
 ) -> ThreeMethodNewtonComparisonResult:

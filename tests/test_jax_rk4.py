@@ -1,5 +1,8 @@
 """Numerical and execution contracts of device-resident classical RK4."""
 
+from states.layout import FCStateLayout
+from states.layout import GCStateLayout
+
 import importlib.util
 import subprocess
 import sys
@@ -12,8 +15,7 @@ from contracts.problem import InitialValueProblem
 from contracts.request import SimulationRequest
 from dynamics.gc import GuidingCenterDynamics
 from dynamics.fc import FullCyclotronDynamics
-from initial_conditions.gc import GCInitialConfiguration
-from initial_conditions.fc import FCInitialConfiguration
+from states.state import State
 from methods.classical.rk4 import RK4
 from potential.grid import Grid
 from potential.potential import Potential
@@ -29,10 +31,10 @@ def problem(fc=False):
     x, y = np.array([-.03, 2., 6.3]), np.array([6.27, .4, -.02])
     if fc:
         dynamics = FullCyclotronDynamics(potential, rho=.3, eta=-.4)
-        initial = FCInitialConfiguration.from_components(x=x, y=y, vx=x*.1, vy=y*.05)
+        initial = State.from_components(x, y, x*.1, y*.05, layout=FCStateLayout())
     else:
         dynamics = GuidingCenterDynamics(potential, rho=.3)
-        initial = GCInitialConfiguration.from_components(x=x, y=y)
+        initial = State.from_components(x, y, layout=GCStateLayout())
     return InitialValueProblem(dynamics, initial)
 
 
@@ -122,7 +124,7 @@ class JaxRK4Tests(unittest.TestCase):
                                    rtol=1e-14, atol=1e-14)
         x, y = p.initial_configuration.layout.split(p.initial_state)
         for i in range(3):
-            one = InitialValueProblem(p.dynamics, GCInitialConfiguration.from_components(x=x[i:i+1], y=y[i:i+1]))
+            one = InitialValueProblem(p.dynamics, State.from_components(x[i:i+1], y[i:i+1], layout=GCStateLayout()))
             solo = simulate(one, RK4(), SimulationRequest((0., .5), .1, sparse.t))
             np.testing.assert_allclose(sparse.states[[i, i+3]], solo.states, rtol=1e-13, atol=1e-13)
 
@@ -131,7 +133,7 @@ class JaxRK4Tests(unittest.TestCase):
         mode = .05 * np.sin(grid.x[:, None]) * np.ones((1, grid.ny))
         potential = Potential(grid, modes=mode[None], frequencies=np.array([.7]))
         p = InitialValueProblem(GuidingCenterDynamics(potential),
-                                GCInitialConfiguration.from_components(x=np.array([.73]), y=np.array([.4])))
+                                State.from_components(np.array([.73]), np.array([.4]), layout=GCStateLayout()))
         # Phi is independent of y: x stays fixed and y' is a cosine in time.
         amplitude = potential.evaluate(0., np.array([.73]), np.array([.4]), dx=1)[0]
         exact = .4 + amplitude * np.sin(2*np.pi*.7) / (2*np.pi*.7)
@@ -166,8 +168,9 @@ class JaxRK4Tests(unittest.TestCase):
         self.assert_equivalent(p, SimulationRequest((0., .2), .1, times), True)
         # A finite initial FC state can still overflow during unsaved steps.
         fc = FullCyclotronDynamics(p.dynamics.potential, rho=1., eta=1e-100)
-        initial = FCInitialConfiguration.from_components(
-            x=np.array([0.]), y=np.array([0.]), vx=np.array([1e200]), vy=np.array([1e200]),
+        initial = State.from_components(
+            np.array([0.]), np.array([0.]), np.array([1e200]), np.array([1e200]),
+            layout=FCStateLayout(),
         )
         with self.assertRaisesRegex(ValueError, "non-finite"):
             simulate(InitialValueProblem(fc, initial), RK4(),

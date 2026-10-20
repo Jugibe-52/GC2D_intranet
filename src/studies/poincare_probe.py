@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from states.layout import GCStateLayout
+
 from dataclasses import asdict, dataclass
 import hashlib
 import io
@@ -16,7 +18,7 @@ import scipy
 from scipy.spatial import cKDTree
 
 from dynamics import GuidingCenterDynamics
-from initial_conditions import GCInitialConfiguration
+from states.state import State
 from potential import Grid, Potential
 from contracts.problem import InitialValueProblem
 from methods.classical.rk4 import RK4
@@ -80,7 +82,7 @@ def probe_contract(settings: RK4ProbeSettings, *, snapshot_sha256: str,
     meta = background.metadata
     source = Path(__file__).resolve().parents[1]
     paths = [Path(__file__)]
-    for package in ('potential', 'dynamics', 'initial_conditions', 'simulation'):
+    for package in ('potential', 'dynamics', 'states', 'simulation'):
         paths.extend(sorted((source / package).rglob('*.py')))
     hashes = {str(path.relative_to(source)): hashlib.sha256(path.read_bytes()).hexdigest()
               for path in paths}
@@ -108,7 +110,7 @@ def integrate_rk4_probe(potential: Potential, settings: RK4ProbeSettings, *,
     started = time.perf_counter()
     for start in range(0, count, settings.chunk_steps):
         end = min(count, start + settings.chunk_steps)
-        initial = GCInitialConfiguration.from_components(x=xy[start, :, 0], y=xy[start, :, 1])
+        initial = State.from_components(xy[start, :, 0], xy[start, :, 1], layout=GCStateLayout())
         request = SimulationRequest.uniform(t_span=(times[start], times[end]),
                                            max_step=step, sample_count=end - start + 1)
         solution = simulate(InitialValueProblem(dynamics, initial), RK4(), request)

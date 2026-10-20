@@ -10,7 +10,7 @@ problem, request, state-layout, step and observation types;
 `src/methods/` implements numerical steps; and `src/integration/` controls
 accepted steps and output collection. `src/simulation/runner.py` validates the
 assembled run and returns the immutable `src/solution.py` result. Concrete
-initial geometry stays in `src/initial_conditions/`. The `simulation` package
+initial geometry stays in `src/states/`. The `simulation` package
 continues to export the established public names through explicit imports and
 `__all__`. Internal consumers import directly from the defining modules.
 
@@ -62,11 +62,11 @@ with its [SVG](integration-architecture_old.svg) and
 [PNG](integration-architecture_old.png) renderings.
 
 The upper row follows the source responsibility order:
-`potential -> dynamics -> initial_conditions -> formulations -> methods -> integration -> simulation -> solution`.
+`potential -> dynamics -> states -> formulations -> methods -> integration -> simulation -> solution`.
 These are responsibility headings, not successive runtime calls. In particular:
 
 - `potential` supplies the physical field consumed by `dynamics`.
-- `dynamics` and `initial_conditions` are independent inputs to
+- `dynamics` and `states` are independent inputs to
   `contracts.problem.InitialValueProblem`.
 - Each method prepares its formulation during initialization. Formulations
   define internal coordinates, physical extraction and applicable split maps.
@@ -221,3 +221,5 @@ import study orchestration or execute a simulation. Existing energy and parallel
 recurrence archive schemas are unchanged. Scalar configuration rules shared with
 those records live in `contracts._study_validation`; study-specific geometry,
 reference identity, and execution policies remain in `studies`.
+
+The existing diagram is a historical rendering: its initial_conditions column now corresponds to states, with generators in states.generators. The diagram has not been regenerated for this API migration.

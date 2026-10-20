@@ -14,7 +14,7 @@ from types import MappingProxyType
 from typing import ClassVar, Mapping
 
 
-from initial_conditions import GCInitialConfiguration
+from states.state import State
 from potential import Potential
 
 
@@ -55,7 +55,7 @@ class FourMethodSDIRKComparisonResult(ComparisonResult):
 
 def run_four_method_sdirk_comparison(
 	potential: Potential,
-	initial_configuration: GCInitialConfiguration,
+	initial_configuration: State,
 	*,
 	config: FourMethodSDIRKComparisonConfig,
 ) -> FourMethodSDIRKComparisonResult:

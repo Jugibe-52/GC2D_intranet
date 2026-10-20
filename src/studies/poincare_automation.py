@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from states.layout import GCStateLayout
+
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass
 from hashlib import file_digest, sha256
@@ -18,8 +20,8 @@ from contracts.request import SimulationRequest
 from contracts.result import DiagnosticValue
 from dynamics.gc import GuidingCenterDynamics
 from execution.execution import Execution
-from initial_conditions.gc import GCInitialConfiguration
-from initial_conditions.star import ranked_radial_star
+from states.state import State
+from states.generators import ranked_radial_star
 from methods.base import NumericalMethod
 from methods.classical.gauss_legendre import GaussLegendre4
 from methods.classical.rk4 import RK4
@@ -43,7 +45,7 @@ def fixed_particle_fractions() -> np.ndarray:
 	star = ranked_radial_star(center=(.5, .5), outer_radius=.425,
 		particles=40, arms=8, first_angle=0.)
 	assert star.initial_state is not None
-	x, y = star.positions(star.initial_state)
+	x, y = star.layout.positions(star.initial_state)
 	return np.vstack((np.column_stack((x, y)), np.asarray(PROBE_FRACTIONS)))
 
 
@@ -215,7 +217,7 @@ def prepare_automation_case(config: AutomationConfig, case: AutomationCase,
 	rho_m = case.rho * config.reference_length / (2*np.pi)
 	period = 1 / float(m.source_frequencies[0])
 	cycle_duration = period / m.time_scale
-	initial = GCInitialConfiguration.from_components(x=xy[:, 0], y=xy[:, 1])
+	initial = State.from_components(xy[:, 0], xy[:, 1], layout=GCStateLayout())
 	dynamics = GuidingCenterDynamics(p, rho=rho_m / m.spatial_scale, B=case.B)
 	problem = InitialValueProblem(dynamics, initial)
 	times = cycle_duration * np.arange(config.cycles + 1, dtype=float)

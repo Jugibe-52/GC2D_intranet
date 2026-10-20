@@ -8,7 +8,7 @@ from typing import Any, ClassVar, Mapping, cast
 
 import numpy as np
 
-from initial_conditions import Area
+from states.state import State
 from potential import Potential
 from methods.extended.abba import ABBA2Midpoint
 from solution import Solution
@@ -151,7 +151,7 @@ class ABBA2MidpointSymplecticityResult(GCSymplecticityResult):
 
 def run_abba2_midpoint_symplecticity_study(
 	potential: Potential,
-	area: Area,
+	area: State,
 	*,
 	notebook_path: str | Path,
 	config: ABBA2MidpointSymplecticityConfig,

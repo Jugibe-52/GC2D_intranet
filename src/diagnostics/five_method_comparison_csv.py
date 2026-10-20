@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from states.layout import GCStateLayout
+
 from collections.abc import Mapping
 import csv
 from dataclasses import asdict, is_dataclass
@@ -17,7 +19,7 @@ import numpy as np
 
 from diagnostics.output import _json_default
 
-from initial_conditions import GCInitialConfiguration
+from states.state import State
 from solution import Solution
 
 from contracts.comparison import (
@@ -565,13 +567,13 @@ def load_five_method_comparison_csv(path: str | Path) -> StoredFiveMethodCompari
 	solutions: dict[str, Solution] = {}
 	accuracy: dict[str, TrajectoryAccuracySeries] = {}
 	energy_accuracy: dict[str, EnergyAccuracySeries] = {}
-	source: GCInitialConfiguration | None = None
+	source: State | None = None
 	for method_name in method_names:
 		states = _states_from_columns(columns, method_name, particle_count)
 		if not np.all(np.isfinite(states)):
 			raise ValueError(f"Comparison CSV has incomplete {method_name} states.")
 		if source is None:
-			source = GCInitialConfiguration(states[:, 0])
+			source = State(states[:, 0], layout=GCStateLayout())
 		else:
 			source_initial_state = source.initial_state
 			assert source_initial_state is not None

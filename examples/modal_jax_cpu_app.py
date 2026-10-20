@@ -17,7 +17,7 @@ image = (
                                extra_options="-c /tmp/gc2d-constraints.txt")
     .env({"JAX_ENABLE_X64": "true", "JAX_PLATFORMS": "cpu"})
     .add_local_python_source("contracts", "dynamics", "execution", "formulations",
-                             "initial_conditions", "integration", "methods", "potential", "solution")
+                             "states", "integration", "methods", "potential", "solution")
 )
 app = modal.App("gc2d-jax-cpu-comparison")
 REPETITIONS = 3

@@ -1,5 +1,7 @@
 """Matched RK4 and BM4Midpoint probe batches for sampled Poincare gaps."""
 
+from states.layout import GCStateLayout
+
 from dataclasses import asdict, dataclass
 import hashlib
 from pathlib import Path
@@ -13,7 +15,7 @@ import numpy as np
 import scipy
 
 from dynamics import GuidingCenterDynamics
-from initial_conditions import GCInitialConfiguration
+from states.state import State
 from potential import Potential
 from methods.extended.bm4 import BM4Midpoint
 from contracts.problem import InitialValueProblem
@@ -64,7 +66,7 @@ def region_probe_contract(settings: RegionProbeSettings, *, snapshot_sha256: str
     meta = background.metadata
     source = Path(__file__).resolve().parents[1]
     paths = [Path(__file__), source / 'studies/poincare_probe.py']
-    for package in ('potential', 'dynamics', 'initial_conditions', 'simulation'):
+    for package in ('potential', 'dynamics', 'states', 'simulation'):
         paths.extend(sorted((source / package).rglob('*.py')))
     hashes = {str(path.relative_to(source)): hashlib.sha256(path.read_bytes()).hexdigest()
               for path in paths}
@@ -99,7 +101,7 @@ def integrate_region_probes(potential: Potential, settings: RegionProbeSettings,
     method: BM4Midpoint | RK4
     for start in range(0, count, batch):
         end = min(count, start + batch)
-        initial = GCInitialConfiguration.from_components(x=xy[start, :, 0], y=xy[start, :, 1])
+        initial = State.from_components(xy[start, :, 0], xy[start, :, 1], layout=GCStateLayout())
         request = SimulationRequest.uniform(t_span=(times[start], times[end]),
                                            max_step=step, sample_count=end - start + 1)
         if settings.method == 'BM4Midpoint':

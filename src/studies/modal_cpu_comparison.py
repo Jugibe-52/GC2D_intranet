@@ -14,7 +14,7 @@ from contracts.request import SimulationRequest
 from diagnostics.persistence import load_solution, save_solution
 from dynamics.gc import GuidingCenterDynamics
 from execution.execution_modal import Execution_Modal
-from initial_conditions.star import radial_star
+from states.generators import radial_star
 from methods.extended.bm4 import BM4Midpoint
 from potential.load import DEFAULT_FIELD_INDICES
 from potential.potential import Potential

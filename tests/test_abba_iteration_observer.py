@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from states.layout import GCStateLayout
+
 import json
 from pathlib import Path
 import tempfile
@@ -15,7 +17,7 @@ import numpy as np
 
 from diagnostics import ImplicitABBAIterationObserver
 from dynamics import GuidingCenterDynamics
-from initial_conditions import GCInitialConfiguration
+from states.state import State
 from potential import Potential
 from simulation import (
 	ABBA_PROJECTION_FORMULATIONS,
@@ -47,11 +49,12 @@ def _potential() -> Potential:
 	)
 
 
-def _configuration() -> GCInitialConfiguration:
+def _configuration() -> State:
 	"""Return one planar guiding-centre particle."""
-	return GCInitialConfiguration.from_components(
-		x=np.asarray([1.0]),
-		y=np.asarray([1.2]),
+	return State.from_components(
+		np.asarray([1.0]),
+		np.asarray([1.2]),
+		layout=GCStateLayout(),
 	)
 
 

@@ -1,5 +1,7 @@
 """Short matched-method checks for multi-region probe studies."""
 
+from states.layout import GCStateLayout
+
 from dataclasses import replace
 from pathlib import Path
 import tempfile
@@ -11,7 +13,7 @@ import numpy as np
 from diagnostics.poincare_probe import load_poincare_probe, save_poincare_probe
 from potential import Grid, Potential
 from simulation import BM4Midpoint, InitialValueProblem, SimulationRequest, simulate
-from initial_conditions import GCInitialConfiguration
+from states.state import State
 from dynamics import GuidingCenterDynamics
 from studies.poincare_region_probe import (
     RegionProbeSettings, integrate_region_probes, region_probe_section, region_probe_panel,
@@ -31,7 +33,7 @@ class RegionProbeTests(unittest.TestCase):
         actual=integrate_region_probes(self.potential,self.settings,progress=lambda a,b:events.append((a,b)))
         initial=np.asarray(self.settings.initial_xy_over_L)*self.potential.grid.period
         problem=InitialValueProblem(GuidingCenterDynamics(self.potential,rho=0.),
-            GCInitialConfiguration.from_components(x=initial[:,0],y=initial[:,1]))
+            State.from_components(initial[:,0],initial[:,1], layout=GCStateLayout()))
         expected=simulate(problem,BM4Midpoint(coupling_frequency=np.pi/8),
             SimulationRequest.uniform(t_span=(0,3),max_step=.05,sample_count=61))
         np.testing.assert_array_equal(actual['xy'],np.stack(expected.positions(),axis=-1).transpose(1,0,2))

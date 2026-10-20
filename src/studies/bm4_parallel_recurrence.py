@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from states.layout import GCStateLayout
+
 from contracts.study_results import ParallelBM4RecurrenceConfig, ParallelBM4RecurrenceResult
 
 from concurrent.futures import FIRST_COMPLETED, Future, ProcessPoolExecutor, wait
@@ -16,7 +18,7 @@ import numpy as np
 from threadpoolctl import ThreadpoolController
 
 from dynamics import GuidingCenterDynamics
-from initial_conditions import GCInitialConfiguration
+from states.state import State
 from potential import GC2DH5Metadata, Potential
 from methods.extended.bm4 import BM4Implicit
 from contracts.problem import InitialValueProblem
@@ -97,9 +99,10 @@ def _run_particle(particle: int) -> _ParticlePayload:
 	if context is None:
 		raise RuntimeError("The parallel BM4 worker was not initialized.")
 	x, y = context.coordinates[particle]
-	initial_configuration = GCInitialConfiguration.from_components(
-		x=np.asarray([x], dtype=float),
-		y=np.asarray([y], dtype=float),
+	initial_configuration = State.from_components(
+		np.asarray([x], dtype=float),
+		np.asarray([y], dtype=float),
+		layout=GCStateLayout(),
 	)
 	problem = InitialValueProblem(context.dynamics, initial_configuration)
 	method = BM4Implicit(
@@ -156,15 +159,15 @@ def _progress_message(
 
 def run_parallel_bm4_recurrence(
 	potential: Potential,
-	initial_configuration: GCInitialConfiguration,
+	initial_configuration: State,
 	*,
 	config: ParallelBM4RecurrenceConfig,
 ) -> ParallelBM4RecurrenceResult:
 	"""Run one independent single-particle BM4 integration per process task."""
 	if not isinstance(potential, Potential):
 		raise TypeError("`potential` must be a Potential instance.")
-	if not isinstance(initial_configuration, GCInitialConfiguration):
-		raise TypeError("`initial_configuration` must be GCInitialConfiguration.")
+	if not (isinstance(initial_configuration, State) and initial_configuration.layout.state_dimension == 2):
+		raise TypeError("`initial_configuration` must be State.")
 	if not isinstance(config, ParallelBM4RecurrenceConfig):
 		raise TypeError("`config` must be ParallelBM4RecurrenceConfig.")
 	coordinates = _validated_campaign_coordinates(initial_configuration, config.particle_count)
@@ -261,13 +264,13 @@ def run_parallel_bm4_recurrence(
 
 
 def _validated_campaign_coordinates(
-	initial_configuration: GCInitialConfiguration, particle_count: int,
+	initial_configuration: State, particle_count: int,
 ) -> np.ndarray:
 	"""Resolve concrete initial positions with exactly the campaign particle count."""
 	initial_state = initial_configuration.initial_state
 	if initial_state is None:
 		raise ValueError("The initial configuration must contain an initial state.")
-	initial_x, initial_y = initial_configuration.positions(initial_state)
+	initial_x, initial_y = initial_configuration.layout.positions(initial_state)
 	if initial_x.size != particle_count:
 		raise ValueError(
 			"The initial configuration particle count must match the campaign."

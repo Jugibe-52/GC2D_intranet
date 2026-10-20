@@ -1,5 +1,8 @@
 """Cross-backend contracts for every supported numerical method and solver axis."""
 
+from states.layout import FCStateLayout
+from states.layout import GCStateLayout
+
 from dataclasses import replace
 import importlib.util
 import unittest
@@ -11,8 +14,7 @@ from contracts.problem import InitialValueProblem
 from contracts.request import SimulationRequest
 from dynamics.gc import GuidingCenterDynamics
 from dynamics.fc import FullCyclotronDynamics
-from initial_conditions.gc import GCInitialConfiguration
-from initial_conditions.fc import FCInitialConfiguration
+from states.state import State
 from methods import (
     ExplicitEuler, RK4, GaussLegendre4, SDIRK4, HBVM42,
     ABBA2Implicit, ABBA4Implicit, ABBA6Implicit, ABBA2Midpoint,
@@ -33,10 +35,10 @@ class JaxMethodTests(unittest.TestCase):
         cls.execution = ExecutionOptions(backend='jax')
         cls.potential = Potential.random(A=.2, M=3, nx=16, ny=16, seed=27)
         cls.gc = InitialValueProblem(GuidingCenterDynamics(cls.potential, rho=.05),
-            GCInitialConfiguration.from_components(x=np.array([-.02, 1.8, 6.3]), y=np.array([6.25, .9, -.01])))
+            State.from_components(np.array([-.02, 1.8, 6.3]), np.array([6.25, .9, -.01]), layout=GCStateLayout()))
         cls.fc = InitialValueProblem(FullCyclotronDynamics(cls.potential, rho=.3, eta=-.4),
-            FCInitialConfiguration.from_components(x=np.array([-.02, 1.8, 6.3]), y=np.array([6.25, .9, -.01]),
-                                                  vx=np.array([.2, -.1, .3]), vy=np.array([-.1, .1, .2])))
+            State.from_components(np.array([-.02, 1.8, 6.3]), np.array([6.25, .9, -.01]),
+                                                  np.array([.2, -.1, .3]), np.array([-.1, .1, .2]), layout=FCStateLayout()))
         cls.request = SimulationRequest((.3, .4), .05, np.array([.3, .305, .35, .371, .4]))
 
     @classmethod

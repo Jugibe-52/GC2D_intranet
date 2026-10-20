@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from states.layout import GCStateLayout
+
 import unittest
 
 import matplotlib.pyplot as plt
@@ -13,7 +15,7 @@ from diagnostics import (
 	gc_time_extended_symplectic_form,
 )
 from dynamics import GuidingCenterDynamics
-from initial_conditions import GCInitialConfiguration
+from states.state import State
 from potential import Potential
 from simulation import (
 	BM4Implicit,
@@ -37,7 +39,7 @@ from visualization import (
 )
 
 
-def _problem() -> tuple[Potential, GCInitialConfiguration, InitialValueProblem]:
+def _problem() -> tuple[Potential, State, InitialValueProblem]:
 	"""Return one inexpensive time-dependent GC problem with exact Hessians."""
 	potential = Potential.random(
 		A=0.08,
@@ -47,9 +49,10 @@ def _problem() -> tuple[Potential, GCInitialConfiguration, InitialValueProblem]:
 		seed=27,
 		interpolation_order=5,
 	)
-	configuration = GCInitialConfiguration.from_components(
-		x=np.asarray([1.0]),
-		y=np.asarray([1.2]),
+	configuration = State.from_components(
+		np.asarray([1.0]),
+		np.asarray([1.2]),
+		layout=GCStateLayout(),
 	)
 	dynamics = GuidingCenterDynamics(potential, rho=0.05)
 	return potential, configuration, InitialValueProblem(dynamics, configuration)

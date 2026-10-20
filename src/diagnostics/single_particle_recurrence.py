@@ -26,7 +26,7 @@ def recurrence_identity(project_root: Path, *, source_archive: Path, potential_p
                         potential_specification: dict[str, Any]) -> dict[str, Any]:
     """Fingerprint the source particle, interpolated ODE implementation and controls."""
     source_files = ("src/studies/single_particle_recurrence.py", "src/dynamics/gc.py",
-                    "src/contracts/state_layout.py", "src/potential/potential.py",
+                    "src/states/layout.py", "src/potential/potential.py",
                     "src/potential/load.py", "src/potential/grid.py")
     return dict(particle_number=2, initial_state=np.asarray(initial).tolist(),
                 config=config, potential=potential_specification,

@@ -1,5 +1,7 @@
 """Reproducible RK4 backend equivalence and end-to-end timing study."""
 
+from states.layout import GCStateLayout
+
 from dataclasses import asdict, dataclass
 from pathlib import Path
 import platform
@@ -14,7 +16,7 @@ from contracts.problem import InitialValueProblem
 from contracts.request import SimulationRequest
 from diagnostics.persistence import load_solution, save_solution
 from dynamics.gc import GuidingCenterDynamics
-from initial_conditions.gc import GCInitialConfiguration
+from states.state import State
 from methods.classical.rk4 import RK4
 from potential.potential import Potential
 from simulation.runner import simulate
@@ -82,9 +84,10 @@ def run_rk4_execution_comparison(
     )
     grid = potential.grid
     rng = np.random.default_rng(config.particle_seed)
-    initial = GCInitialConfiguration.from_components(
-        x=grid.xmin + grid.period * rng.random(config.particle_count),
-        y=grid.ymin + grid.period * rng.random(config.particle_count),
+    initial = State.from_components(
+        grid.xmin + grid.period * rng.random(config.particle_count),
+        grid.ymin + grid.period * rng.random(config.particle_count),
+        layout=GCStateLayout(),
     )
     problem = InitialValueProblem(GuidingCenterDynamics(potential, rho=config.rho), initial)
     request = SimulationRequest.uniform(t_span=config.t_span, max_step=config.max_step,

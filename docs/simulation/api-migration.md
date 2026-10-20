@@ -11,7 +11,7 @@ method. The following interfaces have been removed, including their exports:
 | `ABBA4ImplicitSingleProjection(...)` | `ABBA4Implicit(...)` |
 | `ABBA4ImplicitSingleProjectionIntegrationStep` | `ABBA4ImplicitIntegrationStep`, describing one outer projection |
 | `abba4_implicit_single_projection_step_particle_jacobians` | `abba4_implicit_step_particle_jacobians` |
-| `Trajectory`, `TrajectoryGC`, `TrajectoryFC` | `StateConfiguration`, `GCInitialConfiguration`, `FCInitialConfiguration` |
+| `Trajectory`, `TrajectoryGC`, `TrajectoryFC` | `State(values, layout=...)` |
 | `centered_gc_trajectory` | `centered_gc_configuration` |
 | Physical `rho`/`eta` metadata on initial configurations and `Area` | Explicit dynamics parameters or study configuration |
 | `diagnostics.symplecticity.jacobians` and `.paths` | `diagnostics.jacobians` and `diagnostics.paths` |
@@ -26,11 +26,13 @@ projection comparison studies have been removed. Tests of physical-field and
 passive-energy derivatives now exercise the active dynamics directly.
 
 ```python
+
+from states import GCStateLayout
 from dynamics import GuidingCenterDynamics
-from initial_conditions import GCInitialConfiguration
+from states import State
 from simulation import ABBA4Implicit, InitialValueProblem, SimulationRequest, simulate
 
-configuration = GCInitialConfiguration.from_components(x=x0, y=y0)
+configuration = State.from_components(x0, y0, layout=GCStateLayout())
 problem = InitialValueProblem(GuidingCenterDynamics(potential, rho=0.3), configuration)
 request = SimulationRequest.uniform(t_span=(0.0, 1.0), max_step=0.01, sample_count=101)
 solution = simulate(problem, ABBA4Implicit(track_energy=True), request)
@@ -112,3 +114,9 @@ Its substep work arrays change from `(steps, 7)` to `(steps, 1)`. The ABBA6 even
 now owns one multiplier and seven unprojected snapshots, sharing the ABBA4 event
 structure. Exact tangents are available through
 `diagnostics.abba6_implicit_step_particle_jacobians`.
+
+## Unified states (2026-10-20)
+
+Use `from states import State, GCStateLayout, FCStateLayout`. Replace GC/FC configuration constructors with `State(values, layout=GCStateLayout())` or the FC layout. Build from components with `State.from_components(x, y, layout=GCStateLayout())`; FC adds `vx, vy` before the layout keyword. A state is a required, immutable snapshot: replace empty configuration/setter sequences with construction after all components are available. Use `.values`, `.split()`, `.positions()`, `.velocities()` and `.particle_count` for that snapshot; use `.layout` operations for other arrays or histories.
+
+The `initial_conditions` package and `contracts.state_layout` module are removed. Import `circle`, `square`, `radial_star` and `ranked_radial_star` from `states.generators`; generators are not State methods. Import `calculate_area` from `diagnostics.geometry` and pass the state array and layout explicitly. Supply known geometry labels in study metadata; otherwise studies record `polygon`. `InitialValueProblem.initial_configuration`, the structural protocols, `Solution` arrays and saved archive schemas remain unchanged. Legacy archives without an initial snapshot retain that absence when loaded.

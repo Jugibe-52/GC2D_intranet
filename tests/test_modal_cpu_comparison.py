@@ -15,7 +15,7 @@ from contracts.result import IntegrationData
 from execution._modal_benchmark import benchmark_payload
 from execution._modal_worker import encode_job, execute_payload
 from execution.execution import Execution
-from initial_conditions.star import radial_star
+from states.generators import radial_star
 from methods.extended.bm4 import BM4Midpoint
 from potential.potential import Potential
 from studies.modal_cpu_comparison import (
@@ -55,7 +55,7 @@ class ModalCPUComparisonTests(unittest.TestCase):
 
     def test_default_star_radii_remain_unchanged_and_invalid_inner_radius_fails(self):
         initial = radial_star(center=(0, 0), arm_length=3, arms=2, particles_per_arm=3)
-        x, y = initial.positions(initial.initial_state)
+        x, y = initial.layout.positions(initial.initial_state)
         np.testing.assert_allclose(np.hypot(x, y), [1, 2, 3, 1, 2, 3])
         for radius in (0., -1., 4., np.nan):
             with self.subTest(radius=radius), self.assertRaises(ValueError):

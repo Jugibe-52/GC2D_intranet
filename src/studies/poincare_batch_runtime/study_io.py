@@ -64,7 +64,7 @@ def load_snapshot() -> tuple[Potential, dict[str, Any], str]:
         raise ValueError('The numerical snapshot checksum does not match.')
     runtime = ROOT / '.runtime' / expected
     runtime.mkdir(parents=True, exist_ok=True)
-    for package in ('potential', 'dynamics', 'initial_conditions', 'simulation'):
+    for package in ('potential', 'dynamics', 'states', 'simulation'):
         loaded = sys.modules.get(package)
         if loaded is not None and (loaded.__file__ is None
                                    or not Path(loaded.__file__).resolve().is_relative_to(runtime)):

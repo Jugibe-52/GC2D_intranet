@@ -19,7 +19,7 @@ from ._validation import (
 )
 
 from dynamics import GuidingCenterDynamics
-from initial_conditions import GCInitialConfiguration
+from states.state import State
 from potential import Potential
 from methods.extended.bm4 import BM4Implicit
 from methods.classical.gauss_legendre import GaussLegendre4
@@ -182,7 +182,7 @@ class GaussBM4ComparisonResult:
 
 	potential: Potential
 	dynamics: GuidingCenterDynamics
-	initial_configuration: GCInitialConfiguration
+	initial_configuration: State
 	config: GaussBM4ComparisonConfig
 	reference: AdaptiveReference
 	solutions: Mapping[str, Mapping[float, Solution]]
@@ -414,15 +414,15 @@ def _method(
 
 def run_gauss_bm4_comparison(
 	potential: Potential,
-	initial_configuration: GCInitialConfiguration,
+	initial_configuration: State,
 	*,
 	config: GaussBM4ComparisonConfig,
 ) -> GaussBM4ComparisonResult:
 	"""Run aligned accuracy refinements and alternated robust timings."""
 	if not isinstance(potential, Potential):
 		raise TypeError("`potential` must be a Potential instance.")
-	if not isinstance(initial_configuration, GCInitialConfiguration):
-		raise TypeError("`initial_configuration` must be GCInitialConfiguration.")
+	if not (isinstance(initial_configuration, State) and initial_configuration.layout.state_dimension == 2):
+		raise TypeError("`initial_configuration` must be State.")
 	if not isinstance(config, GaussBM4ComparisonConfig):
 		raise TypeError("`config` must be GaussBM4ComparisonConfig.")
 	dynamics = GuidingCenterDynamics(potential, rho=config.rho)

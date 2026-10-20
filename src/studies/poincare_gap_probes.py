@@ -7,6 +7,8 @@ not establish an invariant empty region at other rho values.
 
 from __future__ import annotations
 
+from states.layout import GCStateLayout
+
 from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 from typing import Any
@@ -16,7 +18,7 @@ import numpy as np
 from contracts.execution_options import ExecutionOptions
 from contracts.problem import InitialValueProblem
 from diagnostics.persistence import StoredSolution
-from initial_conditions.gc import GCInitialConfiguration
+from states.state import State
 from solution import Solution
 from studies.dimensional_h5_midpoint import DimensionalH5Field
 from studies.poincare_rho_sweep import (
@@ -75,7 +77,7 @@ def _replace_star_initial_positions(prepared: PreparedRhoStar, seeds: GapProbeSe
     cell = np.asarray(metadata["cell_bounds_m"], dtype=float)
     physical_xy = cell[:2] + cell[2] * np.asarray(seeds.fractions)
     xy = (physical_xy - np.asarray(metadata["spatial_origin_m"])) * metadata["spatial_scale_per_m"]
-    initial = GCInitialConfiguration.from_components(x=xy[:, 0], y=xy[:, 1])
+    initial = State.from_components(xy[:, 0], xy[:, 1], layout=GCStateLayout())
     problem = InitialValueProblem(prepared.problem.dynamics, initial)
     for name in ("star_center_m", "cell_radius_m", "initial_radii_m", "initial_radius_fraction",
                  "star_center", "initial_radii", "arm_id"):
@@ -135,7 +137,7 @@ def validate_saved_gap_probes(stored: StoredSolution, *,
     if metadata.get("study") != "poincare_gap_probes":
         raise ValueError("Expected a saved explicit gap-probe study.")
     seeds, config, xy = _validated_saved_probe_geometry(metadata)
-    initial = GCInitialConfiguration.from_components(x=xy[:, 0], y=xy[:, 1])
+    initial = State.from_components(xy[:, 0], xy[:, 1], layout=GCStateLayout())
     initial_state = initial.initial_state
     assert initial_state is not None
     options = None

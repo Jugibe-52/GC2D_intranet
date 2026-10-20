@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from diagnostics.geometry import calculate_area
+
 from pathlib import Path
 import tempfile
 import unittest
@@ -19,10 +21,7 @@ from visualization.gc_symplecticity import (
 	plot_rk4_convergence,
 )
 
-from initial_conditions import (
-	Area,
-	GCInitialConfiguration,
-)
+from states.state import State
 from studies import (
 	ABBASymplecticityConfig,
 	ABBASymplecticityResult,
@@ -75,7 +74,7 @@ class InitializationStudyTests(unittest.TestCase):
 		expected_center = domain_center(potential)
 
 		trajectory = centered_gc_configuration(potential)
-		self.assertIsInstance(trajectory, GCInitialConfiguration)
+		self.assertIsInstance(trajectory, State)
 		state = trajectory.initial_state
 		assert state is not None
 		x, y = trajectory.layout.positions(state)
@@ -93,10 +92,10 @@ class InitializationStudyTests(unittest.TestCase):
 			points_per_side=2,
 
 		)
-		self.assertIsInstance(circle, Area)
-		self.assertIsInstance(square, Area)
+		self.assertIsInstance(circle, State)
+		self.assertIsInstance(square, State)
 		self.assertEqual(circle.layout.particle_count(circle.initial_state), 8)
-		self.assertAlmostEqual(float(square.calculate_area()), 1.0)
+		self.assertAlmostEqual(float(calculate_area(square.values, layout=square.layout)), 1.0)
 
 	def test_latin_hypercube_conditions_are_reproducible_and_stratified(self) -> None:
 		potential = small_potential_config().build()

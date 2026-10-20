@@ -22,7 +22,7 @@ from ._validation import (
 
 from studies._trajectory_distances import minimum_image_displacement
 
-from initial_conditions import Area
+from states.state import State
 from potential import Potential
 from solution import Solution
 
@@ -172,7 +172,7 @@ class ABBAComparisonResult:
 	"""Three ABBA studies plus runtime and physical-trajectory comparisons."""
 
 	potential: Potential
-	area: Area
+	area: State
 	config: ABBAComparisonConfig
 	studies: Mapping[str, ABBAComparisonStudy]
 	runtimes: Mapping[str, float]
@@ -181,8 +181,8 @@ class ABBAComparisonResult:
 		"""Require one aligned result and one positive runtime per ABBA method."""
 		if not isinstance(self.potential, Potential):
 			raise TypeError("`potential` must be a Potential instance.")
-		if not isinstance(self.area, Area):
-			raise TypeError("`area` must be an Area instance.")
+		if not (isinstance(self.area, State) and self.area.layout.state_dimension == 2 and self.area.particle_count >= 3):
+			raise TypeError("`area` must be a GC State with at least three ordered boundary vertices.")
 		if not isinstance(self.config, ABBAComparisonConfig):
 			raise TypeError("`config` must be an ABBAComparisonConfig instance.")
 		if tuple(self.studies) != ABBA_METHOD_NAMES:
@@ -307,7 +307,7 @@ class ABBAComparisonResult:
 
 def run_abba_comparison(
 	potential: Potential,
-	area: Area,
+	area: State,
 	*,
 	notebook_path: str | Path,
 	config: ABBAComparisonConfig,
@@ -317,8 +317,8 @@ def run_abba_comparison(
 	"""Run each ABBA method once and measure complete diagnostic wall time."""
 	if not isinstance(potential, Potential):
 		raise TypeError("`potential` must be a Potential instance.")
-	if not isinstance(area, Area):
-		raise TypeError("`area` must be an Area instance.")
+	if not (isinstance(area, State) and area.layout.state_dimension == 2 and area.particle_count >= 3):
+		raise TypeError("`area` must be a GC State with at least three ordered boundary vertices.")
 	if not isinstance(config, ABBAComparisonConfig):
 		raise TypeError("`config` must be an ABBAComparisonConfig instance.")
 

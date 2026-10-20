@@ -69,3 +69,5 @@ output times exactly, the physical state dimension equals the problem's initial
 state size, and the first saved column equals that initial state exactly.
 Incompatible output raises `ValueError`. Shapes and storage guarantees are
 specified by [SOL-001 through SOL-003](results.md).
+
+The built-in provider is `states.State`, an immutable instantaneous snapshot with an explicit layout; custom mutable structural providers remain supported. Generators live in `states.generators`. See [state contracts](states.md).

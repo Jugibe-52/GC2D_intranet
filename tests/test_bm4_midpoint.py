@@ -1,12 +1,14 @@
 """Numerical accuracy and runtime contracts for arithmetic-projected BM4."""
 
+from states.layout import GCStateLayout
+
 import unittest
 
 import numpy as np
 from scipy.integrate import solve_ivp
 
 from dynamics import GuidingCenterDynamics
-from initial_conditions import GCInitialConfiguration
+from states.state import State
 from potential import Potential
 from simulation import BM4Midpoint, InitialValueProblem, SimulationRequest, simulate
 from formulations import GCExtendedFormulation
@@ -27,8 +29,9 @@ def _gc_problem(state: np.ndarray | None = None) -> InitialValueProblem:
 	dynamics = GuidingCenterDynamics(Potential.random(
 		A=0.08, M=3, nx=16, ny=16, seed=27, interpolation_order=5,
 	), rho=0.05)
-	return InitialValueProblem(dynamics, GCInitialConfiguration(
+	return InitialValueProblem(dynamics, State(
 		np.asarray([1.0, 1.2]) if state is None else state,
+		layout=GCStateLayout(),
 	))
 
 
@@ -60,7 +63,7 @@ class BM4MidpointTests(unittest.TestCase):
 		self.assertEqual(solution.diagnostics["nonlinear_unknown_dimension"], 0)
 
 	def test_fourth_order_against_exact_rotation(self) -> None:
-		problem = InitialValueProblem(_Rotation(), GCInitialConfiguration(np.asarray([1., 0.])))
+		problem = InitialValueProblem(_Rotation(), State(np.asarray([1., 0.]), layout=GCStateLayout()))
 		errors = []
 		for step in (0.2, 0.1):
 			solution = simulate(problem, BM4Midpoint(), SimulationRequest.uniform(
@@ -92,7 +95,7 @@ class BM4MidpointTests(unittest.TestCase):
 		for particle in range(2):
 			indices = [particle, particle + 2]
 			scalar = simulate(InitialValueProblem(problem.dynamics,
-				GCInitialConfiguration(problem.initial_state[indices])), BM4Midpoint(track_energy=True), request)
+				State(problem.initial_state[indices], layout=GCStateLayout())), BM4Midpoint(track_energy=True), request)
 			np.testing.assert_allclose(tracked.states[indices], scalar.states, atol=2e-15)
 			np.testing.assert_allclose(tracked.diagnostics["extended_momentum"][particle],
 				scalar.diagnostics["extended_momentum"][0], atol=2e-15)
@@ -136,7 +139,7 @@ class BM4MidpointTests(unittest.TestCase):
 			BM4Midpoint("fully_extended")
 		request = SimulationRequest.uniform(t_span=(0., 0.1), max_step=0.1, sample_count=2)
 		with self.assertRaises(TypeError):
-			simulate(InitialValueProblem(_Rotation(), GCInitialConfiguration(np.asarray([1., 0.]))),
+			simulate(InitialValueProblem(_Rotation(), State(np.asarray([1., 0.]), layout=GCStateLayout())),
 				BM4Midpoint(track_energy=True), request)
 		with self.assertRaises(ValueError):
 			simulate(_gc_problem(np.asarray([1., 1.1, 1.2, 0.9])), BM4Midpoint("fully_extended"), request)

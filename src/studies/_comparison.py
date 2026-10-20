@@ -14,7 +14,7 @@ from contracts.comparison import (
 from contracts.problem import InitialValueProblem
 from contracts.request import SimulationRequest
 from dynamics.gc import GuidingCenterDynamics
-from initial_conditions.gc import GCInitialConfiguration
+from states.state import State
 from methods.base import NumericalMethod
 from methods.extended.abba import ABBA4Implicit
 from methods.extended.bm4 import BM4Implicit
@@ -174,7 +174,7 @@ class ComparisonResult:
 
 	potential: Potential
 	dynamics: GuidingCenterDynamics
-	initial_configuration: GCInitialConfiguration
+	initial_configuration: State
 	config: ComparisonConfig
 	reference: AdaptiveReference
 	solutions: Mapping[str, Solution]
@@ -195,8 +195,8 @@ class ComparisonResult:
 			raise TypeError("`potential` must be a Potential instance.")
 		if not isinstance(self.dynamics, GuidingCenterDynamics):
 			raise TypeError("`dynamics` must be GuidingCenterDynamics.")
-		if not isinstance(self.initial_configuration, GCInitialConfiguration):
-			raise TypeError("`initial_configuration` must be GCInitialConfiguration.")
+		if not (isinstance(self.initial_configuration, State) and self.initial_configuration.layout.state_dimension == 2):
+			raise TypeError("`initial_configuration` must be State.")
 		if not isinstance(self.config, self.config_type):
 			raise TypeError(f"`config` must be {self.config_type.__name__}.")
 		names = tuple(self.solutions)
@@ -450,7 +450,7 @@ _ComparisonResultT = TypeVar("_ComparisonResultT", bound=ComparisonResult)
 
 def run_alternating_comparison(
 	potential: Potential,
-	initial_configuration: GCInitialConfiguration,
+	initial_configuration: State,
 	*,
 	config: ComparisonConfig,
 	method_names: tuple[str, ...],
@@ -459,8 +459,8 @@ def run_alternating_comparison(
 	"""Run three aligned Newton integrations and an independently audited reference."""
 	if not isinstance(potential, Potential):
 		raise TypeError("`potential` must be a Potential instance.")
-	if not isinstance(initial_configuration, GCInitialConfiguration):
-		raise TypeError("`initial_configuration` must be GCInitialConfiguration.")
+	if not (isinstance(initial_configuration, State) and initial_configuration.layout.state_dimension == 2):
+		raise TypeError("`initial_configuration` must be State.")
 	if not isinstance(config, ComparisonConfig):
 		raise TypeError("`config` must be ComparisonConfig.")
 	study_started = perf_counter()

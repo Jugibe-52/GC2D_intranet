@@ -10,7 +10,7 @@ from typing import Any, Mapping
 import numpy as np
 
 from diagnostics import StoredReferenceTrajectory
-from initial_conditions import GCInitialConfiguration
+from states.state import State
 from potential import Potential
 
 from contracts.comparison import TrajectoryAccuracySeries
@@ -281,7 +281,7 @@ class TenMethodAccuracyRefinementResult:
 
 def run_ten_method_accuracy_study(
 	potential: Potential,
-	initial_configuration: GCInitialConfiguration,
+	initial_configuration: State,
 	reference: StoredReferenceTrajectory,
 	*,
 	config: TenMethodTrajectoryComparisonConfig,
@@ -291,8 +291,8 @@ def run_ten_method_accuracy_study(
 	"""Run all seven variants and measure their periodic distance to the reference."""
 	if not isinstance(potential, Potential):
 		raise TypeError("`potential` must be a Potential instance.")
-	if not isinstance(initial_configuration, GCInitialConfiguration):
-		raise TypeError("`initial_configuration` must be GCInitialConfiguration.")
+	if not (isinstance(initial_configuration, State) and initial_configuration.layout.state_dimension == 2):
+		raise TypeError("`initial_configuration` must be State.")
 	if not isinstance(reference, StoredReferenceTrajectory):
 		raise TypeError("`reference` must be a StoredReferenceTrajectory.")
 	if not isinstance(config, TenMethodTrajectoryComparisonConfig):
@@ -335,7 +335,7 @@ def run_ten_method_accuracy_study(
 
 def run_ten_method_accuracy_refinement_study(
 	potential: Potential,
-	initial_configuration: GCInitialConfiguration,
+	initial_configuration: State,
 	reference: StoredReferenceTrajectory,
 	*,
 	base_config: TenMethodTrajectoryComparisonConfig,

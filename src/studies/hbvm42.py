@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from states.layout import GCStateLayout
+
 from dataclasses import dataclass
 from time import perf_counter
 from types import MappingProxyType
@@ -11,7 +13,7 @@ import numpy as np
 from methods.adaptive.scipy import DOP853
 
 from dynamics import DynamicalSystem, GuidingCenterDynamics, HamiltonianSystem
-from initial_conditions import GCInitialConfiguration
+from states.state import State
 from methods.extended.bm4 import BM4Implicit
 from methods.hbvm.order4 import HBVM42, HBVMJacobianMethod, _validated_jacobian_method
 from contracts.problem import InitialValueProblem
@@ -98,14 +100,15 @@ def quartic_oscillator_configuration(
 	*,
 	position: float = 1.0,
 	momentum: float = 0.0,
-) -> GCInitialConfiguration:
+) -> State:
 	"""Build the one-oscillator configuration used by both HBVM notebooks."""
 	values = np.asarray((position, momentum), dtype=float)
 	if not np.all(np.isfinite(values)):
 		raise ValueError("Initial position and momentum must be finite.")
-	return GCInitialConfiguration.from_components(
-		x=values[:1],
-		y=values[1:],
+	return State.from_components(
+		values[:1],
+		values[1:],
+		layout=GCStateLayout(),
 	)
 
 
@@ -223,7 +226,7 @@ class HBVM42EvaluationResult:
 
 	config: HBVM42EvaluationConfig
 	dynamics: DynamicalSystem
-	initial_configuration: GCInitialConfiguration
+	initial_configuration: State
 	times: np.ndarray
 	reference_states: np.ndarray
 	solutions: Mapping[float, Solution]
@@ -306,7 +309,7 @@ class HBVM42BM4ComparisonResult:
 
 	config: HBVM42BM4ComparisonConfig
 	dynamics: DynamicalSystem
-	initial_configuration: GCInitialConfiguration
+	initial_configuration: State
 	reference_final_state: np.ndarray
 	summary_rows: tuple[HBVM42BM4Summary, ...]
 
@@ -317,7 +320,7 @@ class HBVM42BM4ComparisonResult:
 
 def _validated_problem(
 	dynamics: DynamicalSystem,
-	configuration: GCInitialConfiguration,
+	configuration: State,
 	*,
 	require_hamiltonian: bool,
 	require_guiding_center: bool = False,
@@ -331,8 +334,8 @@ def _validated_problem(
 		raise TypeError(
 			"The HBVM/BM4Implicit comparison requires GuidingCenterDynamics."
 		)
-	if not isinstance(configuration, GCInitialConfiguration):
-		raise TypeError("`configuration` must be a GCInitialConfiguration.")
+	if not (isinstance(configuration, State) and configuration.layout.state_dimension == 2):
+		raise TypeError("`configuration` must be a State.")
 	problem = InitialValueProblem(dynamics, configuration)
 	if problem.particle_count != 1 or problem.initial_state.size != 2:
 		raise ValueError("HBVM notebook studies require one planar trajectory.")
@@ -415,7 +418,7 @@ def _flow_jacobian(
 			perturbed[column] += sign * increment
 			perturbed_problem = InitialValueProblem(
 				problem.dynamics,
-				GCInitialConfiguration(perturbed),
+				State(perturbed, layout=GCStateLayout()),
 			)
 			endpoints.append(
 				simulate(
@@ -455,7 +458,7 @@ def _empirical_order(
 
 def run_hbvm42_evaluation(
 	dynamics: DynamicalSystem,
-	configuration: GCInitialConfiguration,
+	configuration: State,
 	*,
 	config: HBVM42EvaluationConfig,
 ) -> HBVM42EvaluationResult:
@@ -592,7 +595,7 @@ def run_hbvm42_evaluation(
 
 def run_hbvm42_bm4_comparison(
 	dynamics: DynamicalSystem,
-	configuration: GCInitialConfiguration,
+	configuration: State,
 	*,
 	config: HBVM42BM4ComparisonConfig,
 ) -> HBVM42BM4ComparisonResult:

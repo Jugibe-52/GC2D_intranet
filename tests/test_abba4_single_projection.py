@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from states.layout import GCStateLayout
+
 from pathlib import Path
 import tempfile
 import unittest
@@ -13,7 +15,7 @@ from diagnostics import (
 	abba4_implicit_step_particle_jacobians,
 	central_difference_jacobian,
 )
-from initial_conditions import GCInitialConfiguration
+from states.state import State
 from simulation import (
 	ABBA4Implicit,
 	InitialValueProblem,
@@ -105,7 +107,7 @@ def _problem(
 	"""Build a packed planar initial-value problem for custom test dynamics."""
 	return InitialValueProblem(
 		dynamics,
-		GCInitialConfiguration.from_components(x=x, y=y),
+		State.from_components(x, y, layout=GCStateLayout()),
 	)
 
 

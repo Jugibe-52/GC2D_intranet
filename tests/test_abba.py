@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from states.layout import FCStateLayout
+from states.layout import GCStateLayout
+
 import json
 from pathlib import Path
 import tempfile
@@ -16,10 +19,7 @@ from dynamics import (
 	FullCyclotronDynamics,
 	GuidingCenterDynamics,
 )
-from initial_conditions import (
-	FCInitialConfiguration,
-	GCInitialConfiguration,
-)
+from states.state import State
 from potential import Potential
 from simulation import (
 	ABBA2Implicit,
@@ -178,7 +178,7 @@ class ABBA2ImplicitTests(unittest.TestCase):
 		solution = simulate(
 			InitialValueProblem(
 				dynamics,
-				GCInitialConfiguration(initial_state),
+				State(initial_state, layout=GCStateLayout()),
 			),
 			ABBA2Implicit(step_observer=lambda _step: None),
 			SimulationRequest.uniform(
@@ -209,7 +209,7 @@ class ABBA2ImplicitTests(unittest.TestCase):
 		simulate(
 			InitialValueProblem(
 				unobserved_dynamics,
-				GCInitialConfiguration(initial_state),
+				State(initial_state, layout=GCStateLayout()),
 			),
 			ABBA2Implicit(),
 			SimulationRequest.uniform(
@@ -295,7 +295,7 @@ class ABBA2ImplicitTests(unittest.TestCase):
 
 	def test_method_has_second_order_global_accuracy(self) -> None:
 		dynamics = gc_dynamics()
-		source = GCInitialConfiguration(np.asarray([1.0, 1.2]))
+		source = State(np.asarray([1.0, 1.2]), layout=GCStateLayout())
 		problem = InitialValueProblem(dynamics, source)
 
 		def final_state(step: float) -> np.ndarray:
@@ -320,7 +320,7 @@ class ABBA2ImplicitTests(unittest.TestCase):
 
 	def test_observation_and_diagnostics_ignore_shadow_steps(self) -> None:
 		dynamics = gc_dynamics()
-		source = GCInitialConfiguration(np.asarray([1.0, 1.2]))
+		source = State(np.asarray([1.0, 1.2]), layout=GCStateLayout())
 		problem = InitialValueProblem(dynamics, source)
 		events = []
 		observed = simulate(
@@ -362,7 +362,7 @@ class ABBA2ImplicitTests(unittest.TestCase):
 			seed=27,
 			interpolation_order=3,
 		)
-		source = GCInitialConfiguration(np.asarray([1.0, 1.2]))
+		source = State(np.asarray([1.0, 1.2]), layout=GCStateLayout())
 		zero_problem = InitialValueProblem(
 			GuidingCenterDynamics(zero_potential, rho=0.05),
 			source,
@@ -389,8 +389,9 @@ class ABBA2ImplicitTests(unittest.TestCase):
 		with self.assertRaises(ValueError):
 			ABBA2Implicit(newton_max_iterations=0)
 
-		fc_source = FCInitialConfiguration(
+		fc_source = State(
 			np.asarray([1.0, 1.2, 0.4, -0.3]),
+			layout=FCStateLayout(),
 		)
 		fc_problem = InitialValueProblem(
 			FullCyclotronDynamics(
@@ -414,7 +415,7 @@ class ABBA2ImplicitTests(unittest.TestCase):
 	def test_nonconvergence_reports_time_step_and_residual(self) -> None:
 		problem = InitialValueProblem(
 			gc_dynamics(),
-			GCInitialConfiguration(np.asarray([1.0, 1.2])),
+			State(np.asarray([1.0, 1.2]), layout=GCStateLayout()),
 		)
 		with self.assertRaisesRegex(
 			RuntimeError,

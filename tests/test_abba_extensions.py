@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
+from states.layout import GCStateLayout
+
 import unittest
 from typing import ClassVar
 
 import numpy as np
 
 from dynamics import GuidingCenterDynamics
-from initial_conditions import GCInitialConfiguration
+from states.state import State
 from potential import Potential
 from simulation import ABBA2Implicit, ABBA2Midpoint, ABBA4Implicit, ABBA6Implicit, ABBA_PROJECTION_FORMULATIONS, ABBA_STATE_EXTENSIONS, InitialValueProblem, SimulationRequest, simulate
 
@@ -73,9 +75,10 @@ def _problem(*, particle_count: int = 1) -> InitialValueProblem:
 		seed=27,
 		interpolation_order=5,
 	)
-	configuration = GCInitialConfiguration.from_components(
-		x=np.linspace(1.0, 1.1, particle_count),
-		y=np.linspace(1.2, 1.3, particle_count),
+	configuration = State.from_components(
+		np.linspace(1.0, 1.1, particle_count),
+		np.linspace(1.2, 1.3, particle_count),
+		layout=GCStateLayout(),
 	)
 	return InitialValueProblem(
 		GuidingCenterDynamics(potential, rho=0.05),
@@ -166,9 +169,10 @@ class ABBAStateExtensionTests(unittest.TestCase):
 	def test_physical_tracking_has_the_exact_conjugate_sign_and_factor(self) -> None:
 		particle_count = 3
 		slope = 1.75
-		configuration = GCInitialConfiguration.from_components(
-			x=np.linspace(0.8, 1.0, particle_count),
-			y=np.linspace(1.1, 1.3, particle_count),
+		configuration = State.from_components(
+			np.linspace(0.8, 1.0, particle_count),
+			np.linspace(1.1, 1.3, particle_count),
+			layout=GCStateLayout(),
 		)
 		problem = InitialValueProblem(
 			_LinearTimeHamiltonian(slope),
@@ -202,9 +206,10 @@ class ABBAStateExtensionTests(unittest.TestCase):
 				)
 
 	def test_non_finite_momentum_increment_is_rejected_immediately(self) -> None:
-		configuration = GCInitialConfiguration.from_components(
-			x=np.asarray([0.8]),
-			y=np.asarray([1.1]),
+		configuration = State.from_components(
+			np.asarray([0.8]),
+			np.asarray([1.1]),
+			layout=GCStateLayout(),
 		)
 		problem = InitialValueProblem(
 			_LinearTimeHamiltonian(float(np.finfo(float).max)),

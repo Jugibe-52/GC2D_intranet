@@ -21,7 +21,7 @@ from ._validation import (
 
 from diagnostics import GCGeneralizedEnergyObserver
 from dynamics import GuidingCenterDynamics
-from initial_conditions import GCInitialConfiguration
+from states.state import State
 from potential import Potential
 from methods.extended.bm4 import BM4Implicit
 from contracts.problem import InitialValueProblem
@@ -150,16 +150,16 @@ class GeneralizedEnergyResult:
 
 def run_generalized_energy_comparison(
 	potential: Potential,
-	configuration: GCInitialConfiguration,
+	configuration: State,
 	*,
 	config: GeneralizedEnergyConfig,
 ) -> GeneralizedEnergyResult:
 	"""Integrate one centered GC state at several steps and compare ``H + k``."""
 	if not isinstance(potential, Potential):
 		raise TypeError("`potential` must be a Potential instance.")
-	if not isinstance(configuration, GCInitialConfiguration):
+	if not (isinstance(configuration, State) and configuration.layout.state_dimension == 2):
 		raise TypeError(
-			"`configuration` must be a GCInitialConfiguration instance."
+			"`configuration` must be a State instance."
 		)
 	if not isinstance(config, GeneralizedEnergyConfig):
 		raise TypeError("`config` must be a GeneralizedEnergyConfig instance.")

@@ -28,7 +28,7 @@ include = [
 	"dynamics*",
 	"execution*",
 	"formulations*",
-	"initial_conditions*",
+	"states*",
 	"integration*",
 	"methods*",
 	"potential*",

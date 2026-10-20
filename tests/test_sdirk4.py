@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+from states.layout import GCStateLayout
+
 import unittest
 
 import numpy as np
 
-from initial_conditions import GCInitialConfiguration
+from states.state import State
 from simulation import (
 	SDIRK4_TABLEAU_A,
 	SDIRK4_TABLEAU_B,
@@ -74,7 +76,7 @@ def _rotation_problem(*, particles: int = 1) -> InitialValueProblem:
 	state = np.concatenate((np.cos(angles), np.sin(angles)))
 	return InitialValueProblem(
 		_RotationHamiltonian(),
-		GCInitialConfiguration(state),
+		State(state, layout=GCStateLayout()),
 	)
 
 
@@ -175,7 +177,7 @@ class SDIRK4Tests(unittest.TestCase):
 	def test_generic_time_dependent_field_uses_sdirk_stage_times(self) -> None:
 		problem = InitialValueProblem(
 			_CubicTimeField(),
-			GCInitialConfiguration(np.zeros(2)),
+			State(np.zeros(2), layout=GCStateLayout()),
 		)
 		solution = simulate(
 			problem,

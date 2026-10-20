@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from states import generators as state_generators
+from states.layout import GCStateLayout
+
 import json
 from pathlib import Path
 import tempfile
@@ -17,7 +20,7 @@ from diagnostics.symplecticity import (
 	stage_increment_step_jacobian,
 )
 from dynamics import GuidingCenterDynamics
-from initial_conditions import Area, GCInitialConfiguration
+from states.state import State
 from potential import Potential
 from simulation import (
 	ABBA_PROJECTION_FORMULATIONS,
@@ -86,7 +89,7 @@ class ImplicitABBAJacobianTests(unittest.TestCase):
 		initial_state = np.asarray([1.0, 1.4, 1.2, 1.6])
 		problem = InitialValueProblem(
 			dynamics,
-			GCInitialConfiguration(initial_state),
+			State(initial_state, layout=GCStateLayout()),
 		)
 		request = SimulationRequest.uniform(
 			t_span=(0.0, 0.05),
@@ -161,7 +164,7 @@ class ImplicitABBAJacobianTests(unittest.TestCase):
 		simulate(
 			InitialValueProblem(
 				dynamics,
-				GCInitialConfiguration(np.asarray([1.0, 1.2])),
+				State(np.asarray([1.0, 1.2]), layout=GCStateLayout()),
 			),
 			ABBA2Implicit(step_observer=events.append),
 			SimulationRequest.uniform(
@@ -270,7 +273,7 @@ class ImplicitABBAObserverStudyTests(unittest.TestCase):
 		self.assertLess(comparison.maximum_state_differences()["step"], 1e-14)
 
 	def test_generic_observer_defaults_to_finite_differences(self) -> None:
-		area = Area.square(
+		area = state_generators.square(
 			center=(1.0, 1.0),
 			side=0.5,
 			points_per_side=1,

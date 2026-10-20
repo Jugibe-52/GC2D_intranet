@@ -10,7 +10,7 @@ import numpy as np
 
 from diagnostics import StoredReferenceTrajectory
 from dynamics import GuidingCenterDynamics
-from initial_conditions import GCInitialConfiguration
+from states.state import State
 from potential import Potential
 from methods.extended.abba import ABBA6Implicit
 from contracts.problem import InitialValueProblem
@@ -54,7 +54,7 @@ class ABBA6AccuracyResult(ABBA4ImplicitAccuracyResult):
 
 def run_abba6_accuracy_study(
 	potential: Potential,
-	initial_configuration: GCInitialConfiguration,
+	initial_configuration: State,
 	reference: StoredReferenceTrajectory,
 	*,
 	config: ABBA6AccuracyConfig,
@@ -64,8 +64,8 @@ def run_abba6_accuracy_study(
 	"""Run ABBA6Implicit on nested steps and compare saved states to one reference."""
 	if not isinstance(potential, Potential):
 		raise TypeError("`potential` must be a Potential instance.")
-	if not isinstance(initial_configuration, GCInitialConfiguration):
-		raise TypeError("`initial_configuration` must be GCInitialConfiguration.")
+	if not (isinstance(initial_configuration, State) and initial_configuration.layout.state_dimension == 2):
+		raise TypeError("`initial_configuration` must be State.")
 	if not isinstance(reference, StoredReferenceTrajectory):
 		raise TypeError("`reference` must be a StoredReferenceTrajectory.")
 	if not isinstance(config, ABBA6AccuracyConfig):

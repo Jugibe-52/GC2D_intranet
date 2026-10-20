@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from states.layout import GCStateLayout
+
 from dataclasses import asdict, dataclass
 import hashlib
 import json
@@ -20,7 +22,7 @@ from diagnostics import (
 	write_reference_trajectory,
 )
 from dynamics import GuidingCenterDynamics
-from initial_conditions import GCInitialConfiguration
+from states.state import State
 from potential import Potential
 from methods.adaptive.scipy import DOP853, Radau
 from contracts.observation import AdaptiveIntegrationStep
@@ -230,7 +232,7 @@ def _solve_adaptive(
 	configured = method_type(relative_tolerance=relative_tolerance,
 		absolute_tolerance=absolute_tolerance,
 		step_observer=report if progress_callback is not None else None)
-	problem = InitialValueProblem(dynamics, GCInitialConfiguration(np.asarray(initial_state, dtype=float)))
+	problem = InitialValueProblem(dynamics, State(np.asarray(initial_state, dtype=float), layout=GCStateLayout()))
 	request = SimulationRequest((float(times[0]), float(times[-1])), maximum_step, times)
 	result = configured.integrate(problem, request)
 
@@ -365,7 +367,7 @@ gyroaveraged sampled and off-grid interpolated electric field.
 
 def run_high_precision_reference_trajectory(
 	potential: Potential,
-	initial_configuration: GCInitialConfiguration,
+	initial_configuration: State,
 	*,
 	notebook_path: str | Path,
 	config: HighPrecisionReferenceConfig,
@@ -385,8 +387,8 @@ def run_high_precision_reference_trajectory(
 	"""
 	if not isinstance(potential, Potential):
 		raise TypeError("`potential` must be a Potential instance.")
-	if not isinstance(initial_configuration, GCInitialConfiguration):
-		raise TypeError("`initial_configuration` must be GCInitialConfiguration.")
+	if not (isinstance(initial_configuration, State) and initial_configuration.layout.state_dimension == 2):
+		raise TypeError("`initial_configuration` must be State.")
 	if not isinstance(config, HighPrecisionReferenceConfig):
 		raise TypeError("`config` must be a HighPrecisionReferenceConfig.")
 	initial_state = _validated_reference_initial_state(
@@ -481,7 +483,7 @@ def run_high_precision_reference_trajectory(
 
 
 def _validated_reference_initial_state(
-	initial_configuration: GCInitialConfiguration, *,
+	initial_configuration: State, *,
 	potential_metadata: Mapping[str, Any], initial_condition_metadata: Mapping[str, Any],
 ) -> np.ndarray:
 	"""Require reproducibility metadata and a concrete initial state before reference solves."""

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from states.layout import GCStateLayout
+
 import csv
 from pathlib import Path
 import tempfile
@@ -22,7 +24,7 @@ from diagnostics import (
 	abba2_midpoint_step_particle_jacobians,
 )
 from dynamics import GuidingCenterDynamics
-from initial_conditions import GCInitialConfiguration
+from states.state import State
 from potential import Potential
 from simulation import (
 	BM4Implicit,
@@ -55,9 +57,10 @@ def _problem() -> InitialValueProblem:
 		interpolation_order=5,
 	)
 	dynamics = GuidingCenterDynamics(potential, rho=0.05)
-	configuration = GCInitialConfiguration.from_components(
-		x=np.asarray([1.0, 1.4]),
-		y=np.asarray([1.2, 1.6]),
+	configuration = State.from_components(
+		np.asarray([1.0, 1.4]),
+		np.asarray([1.2, 1.6]),
+		layout=GCStateLayout(),
 	)
 	return InitialValueProblem(dynamics, configuration)
 

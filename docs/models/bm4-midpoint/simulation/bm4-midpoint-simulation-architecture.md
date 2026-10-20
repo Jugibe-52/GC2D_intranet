@@ -87,9 +87,9 @@ The local calculation notebook at
 `notebooks/developements/poincare_section/bm4_midpoint_jax_star/calculation.ipynb`
 uses `studies.poincare_star.PoincareStarConfig` and `run_poincare_star` to compose
 the existing dimensional HDF5 field with BM4Midpoint and JAX. The generic
-`initial_conditions.star.radial_star` constructor places equally spaced
+`states.generators.radial_star` constructor places equally spaced
 particles on equally spaced straight arms, excluding repeated center points.
-Its canonical import is from `initial_conditions.star`.
+Its canonical import is from `states.generators`.
 
 The example has eight arms of 16 particles, each extending 40% of the source
 cell width from its center. Coordinates remain in meters; time is `tau=t/T0`.
@@ -129,7 +129,7 @@ resource settings belong to `examples/modal_jax_cpu_app.py`.
 It compares JAX float64 on CPU allocations of 1, 2 and 4 cores with identical
 48-particle inputs: eight arms, six inclusive radii from 0.05 to 0.35 of the
 cell radius R=L/2, centered in the periodic cell, first arm along +x. The generic
-`initial_conditions.star.radial_star` accepts an optional `inner_radius`; its
+`states.generators.radial_star` accepts an optional `inner_radius`; its
 existing default spacing is unchanged.
 
 The field is reconstructed from the verified PHI_2 HDF5 data with B=1.5,
@@ -186,7 +186,7 @@ does not extrapolate a short accuracy reference or certify 5000-cycle accuracy.
 
 `studies.poincare_rho_sweep` assembles 40 particles at distinct, linearly spaced
 radii from zero to 0.85 times the half-width of the original HDF5 cell. Particle
-IDs increase with radius. `initial_conditions.star.ranked_radial_star` assigns
+IDs increase with radius. `states.generators.ranked_radial_star` assigns
 successive radial ranks to alternating arms, with eight arms and five assigned
 particles per arm. The first particle is the only particle at the center.
 
@@ -397,7 +397,7 @@ reused for all eleven rho values. See the
 `InitialValueProblem` captures the validated physical state, particle count, and
 independent layout at construction. A later edit to the original initial-state
 provider does not change this run's formulation. Physical layouts are owned by
-`contracts.state_layout`; compatible external providers need no inheritance from
+`states.layout`; compatible external providers need no inheritance from
 initial-condition classes. Built-in dynamics keep their physical parameters
 immutable. See the shared [layout and ownership contract](../../../dynamics/protocols.md#physical-layouts-and-problem-ownership).
 
@@ -432,3 +432,5 @@ GC/FC equations to JAX potentials sharing the existing splines, including the
 gyroaveraged field, without refitting or mutating the source dynamics. Inherited
 electric fields follow the potential class; `evaluate_grid` remains NumPy-only. See the
 [shared potential contract](../../../dynamics/jax-potential-evaluation.md).
+
+The built-in initial provider is now `states.State(values, layout=...)`, with `GCStateLayout` or `FCStateLayout` as appropriate. Generators in `states.generators` return that same class. Numerical stages continue to operate on arrays; no State object is created at each step.

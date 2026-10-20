@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from states.layout import GCStateLayout
+
 from dataclasses import asdict, dataclass
 import hashlib
 from pathlib import Path
@@ -12,7 +14,7 @@ from contracts.problem import InitialValueProblem
 from contracts.request import SimulationRequest
 from diagnostics.persistence import save_solution
 from dynamics.gc import GuidingCenterDynamics
-from initial_conditions.gc import GCInitialConfiguration
+from states.state import State
 from methods.classical.rk4 import RK4
 from potential.potential import Potential
 from simulation.runner import simulate
@@ -58,9 +60,10 @@ def run_persistence_demo(
             or not np.isfinite(config.angle_radians)):
         raise ValueError("Use finite radial fractions in [0, 0.5) and a finite angle.")
     radii = fractions * grid.period
-    initial = GCInitialConfiguration.from_components(
-        x=grid.x0 + grid.period / 2 + radii * np.cos(config.angle_radians),
-        y=grid.y0 + grid.period / 2 + radii * np.sin(config.angle_radians),
+    initial = State.from_components(
+        grid.x0 + grid.period / 2 + radii * np.cos(config.angle_radians),
+        grid.y0 + grid.period / 2 + radii * np.sin(config.angle_radians),
+        layout=GCStateLayout(),
     )
     dynamics = GuidingCenterDynamics(potential, rho=config.rho)
     request = SimulationRequest.uniform(t_span=config.t_span, max_step=config.max_step,

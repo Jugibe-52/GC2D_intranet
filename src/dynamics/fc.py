@@ -10,7 +10,7 @@ import numpy as np
 from potential.potential import Potential
 
 from contracts.arrays import array_namespace
-from contracts.state_layout import FCStateLayout
+from states.layout import FCStateLayout
 from ._equations import fc_velocity, fc_hamiltonian
 
 

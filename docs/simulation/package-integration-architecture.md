@@ -15,7 +15,7 @@ remain available unchanged.
 ## Reading the diagram
 
 The eight columns follow the source organization: `potential/`, `dynamics/`,
-`initial_conditions/`, `formulations/`, `methods/`, `integration/`, `simulation/`,
+`states/`, `formulations/`, `methods/`, `integration/`, `simulation/`,
 and the `solution.py` module. Each card identifies its implementation owner and
 describes inputs, operations, outputs or invariants. Column order describes
 responsibilities; the numbered **EXECUTION** cards identify runtime order.
@@ -92,3 +92,5 @@ node scripts/render_detailed_architecture.cjs
 The renderer creates the matching SVG and PNG from that single source. It writes
 only `package-integration-architecture.svg` and `.png`; the compact and archived
 diagrams have independent sources and renderings.
+
+The existing diagram is a historical rendering: its initial_conditions column now corresponds to states, with generators in states.generators. The diagram has not been regenerated for this API migration.

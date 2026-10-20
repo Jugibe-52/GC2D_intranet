@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from states.layout import GCStateLayout
+
 from collections.abc import Mapping
 from dataclasses import asdict, dataclass
 from hashlib import file_digest
@@ -21,8 +23,8 @@ from diagnostics.storage import ArtifactStore
 from dynamics.gc import GuidingCenterDynamics
 from execution.execution import Execution
 from execution.execution_modal import Execution_Modal
-from initial_conditions.star import ranked_radial_star
-from initial_conditions import GCInitialConfiguration
+from states.generators import ranked_radial_star
+from states.state import State
 from methods.classical.gauss_legendre import GaussLegendre4
 from methods.classical.rk4 import RK4
 from methods.extended.bm4 import BM4Implicit, BM4Midpoint
@@ -123,8 +125,8 @@ def build_rho_star(field: DimensionalH5Field, config: RhoStarConfig, *,
         center=tuple(center), outer_radius=float(radii[-1]), particles=config.particles,
         arms=config.arms, first_angle=config.first_angle,
     )
-    assert initial.state is not None
-    physical_xy = np.column_stack(initial.positions(initial.state))
+    assert initial.values is not None
+    physical_xy = np.column_stack(initial.layout.positions(initial.values))
     # rho_hat is invariant across representations; the physical radius is meters.
     rho_m = config.rho_hat * config.characteristic_length / (2 * np.pi)
     stream, runtime_rho = field.stream, rho_m
@@ -150,14 +152,14 @@ def build_rho_star(field: DimensionalH5Field, config: RhoStarConfig, *,
                            frequencies=stream.frequencies,
                            interpolation_order=stream.interpolation_order)
         xy = (physical_xy - spatial_origin) * spatial_scale
-        initial = GCInitialConfiguration.from_components(x=xy[:, 0], y=xy[:, 1])
+        initial = State.from_components(xy[:, 0], xy[:, 1], layout=GCStateLayout())
         runtime_rho = config.rho_hat
     problem = InitialValueProblem(GuidingCenterDynamics(stream, rho=runtime_rho), initial)
     request = SimulationRequest(
         t_span=(0.0, float(config.cycles)), max_step=1.0 / config.steps_per_cycle,
         output_times=np.arange(config.cycles + 1, dtype=float),
     )
-    x, y = initial.positions(problem.initial_state)
+    x, y = initial.layout.positions(problem.initial_state)
     metadata = {
         "study": ("poincare_bm4midpoint_ranked_star_rho_sweep" if config.method == "BM4Midpoint"
                   else "poincare_ranked_star_rho_sweep"),

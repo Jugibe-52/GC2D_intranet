@@ -2,6 +2,11 @@
 
 from __future__ import annotations
 
+from diagnostics.geometry import calculate_area
+from states import generators as state_generators
+from states.layout import FCStateLayout
+from states.layout import GCStateLayout
+
 import unittest
 from types import SimpleNamespace
 
@@ -11,11 +16,7 @@ from dynamics import (
 	FullCyclotronDynamics,
 	GuidingCenterDynamics,
 )
-from initial_conditions import (
-	Area,
-	FCInitialConfiguration,
-	GCInitialConfiguration,
-)
+from states.state import State
 from potential import Potential
 from simulation import (
 	FCSplitFormulation,
@@ -120,11 +121,13 @@ class ExtensibleArchitectureTests(unittest.TestCase):
 
 	def test_physical_dynamics_expose_required_capabilities(self) -> None:
 		potential = deterministic_potential()
-		gc_configuration = GCInitialConfiguration(
+		gc_configuration = State(
 			np.asarray([1.0, 1.2]),
+			layout=GCStateLayout(),
 		)
-		fc_configuration = FCInitialConfiguration(
+		fc_configuration = State(
 			np.asarray([1.0, 1.2, 0.4, -0.3]),
+			layout=FCStateLayout(),
 		)
 
 		for dynamics, state in (
@@ -161,7 +164,7 @@ class ExtensibleArchitectureTests(unittest.TestCase):
 
 
 	def test_rk4_has_fourth_order_convergence_without_a_formulation(self) -> None:
-		source = GCInitialConfiguration(np.asarray([1.0, 0.0]))
+		source = State(np.asarray([1.0, 0.0]), layout=GCStateLayout())
 		problem = InitialValueProblem(_RotationDynamics(), source)
 		exact = np.asarray([np.cos(1.0), -np.sin(1.0)])
 		errors = []
@@ -180,7 +183,7 @@ class ExtensibleArchitectureTests(unittest.TestCase):
 		self.assertLess(errors[0] / errors[1], 18.0)
 
 	def test_rk4_uses_non_autonomous_stage_times(self) -> None:
-		source = GCInitialConfiguration(np.asarray([0.0, 0.0]))
+		source = State(np.asarray([0.0, 0.0]), layout=GCStateLayout())
 		solution = simulate(
 			InitialValueProblem(_TimePolynomialDynamics(), source),
 			RK4(),
@@ -194,7 +197,7 @@ class ExtensibleArchitectureTests(unittest.TestCase):
 		self.assertEqual(float(solution.states[1, -1]), 0.0)
 
 	def test_rk4_step_observer_receives_only_main_grid_steps(self) -> None:
-		source = GCInitialConfiguration(np.asarray([1.0, 0.0]))
+		source = State(np.asarray([1.0, 0.0]), layout=GCStateLayout())
 		problem = InitialValueProblem(_RotationDynamics(), source)
 		events = []
 		solution = simulate(
@@ -228,13 +231,14 @@ class ExtensibleArchitectureTests(unittest.TestCase):
 		cases = (
 			(
 				GuidingCenterDynamics(potential, rho=0.05),
-				GCInitialConfiguration(np.asarray([1.0, 1.2])),
+				State(np.asarray([1.0, 1.2]), layout=GCStateLayout()),
 				2,
 			),
 			(
 				FullCyclotronDynamics(potential, rho=0.2, eta=0.1),
-				FCInitialConfiguration(
+				State(
 					np.asarray([1.0, 1.2, 0.4, -0.3]),
+					layout=FCStateLayout(),
 				),
 				4,
 			),
@@ -255,9 +259,10 @@ class ExtensibleArchitectureTests(unittest.TestCase):
 
 	def test_incompatible_combinations_fail_before_stepping(self) -> None:
 		potential = deterministic_potential()
-		gc_source = GCInitialConfiguration(np.asarray([1.0, 1.2]))
-		fc_source = FCInitialConfiguration(
+		gc_source = State(np.asarray([1.0, 1.2]), layout=GCStateLayout())
+		fc_source = State(
 			np.asarray([1.0, 1.2, 0.4, -0.3]),
+			layout=FCStateLayout(),
 		)
 		gc_dynamics = GuidingCenterDynamics(potential, rho=0.05)
 		fc_dynamics = FullCyclotronDynamics(potential, rho=0.2, eta=0.1)
@@ -287,7 +292,7 @@ class ExtensibleArchitectureTests(unittest.TestCase):
 
 	def test_area_is_source_of_the_temporal_solution(self) -> None:
 		potential = deterministic_potential()
-		area = Area.circle(
+		area = state_generators.circle(
 			center=(np.pi, np.pi),
 			radius=0.2,
 			points=16,
@@ -314,13 +319,13 @@ class ExtensibleArchitectureTests(unittest.TestCase):
 		self.assertIs(solution.source, area)
 		self.assertIs(solution.trajectory, area)
 		self.assertIs(solution.y, solution.states)
-		self.assertEqual(area.calculate_area(solution.states).shape, (3,))
+		self.assertEqual(calculate_area(solution.states, layout=area.layout).shape, (3,))
 		self.assertEqual(solution.positions()[0].shape, (16, 3))
 
 
 
 	def test_runner_rejects_invalid_method_output(self) -> None:
-		source = GCInitialConfiguration(np.asarray([1.0, 0.0]))
+		source = State(np.asarray([1.0, 0.0]), layout=GCStateLayout())
 		problem = InitialValueProblem(_RotationDynamics(), source)
 		request = SimulationRequest.uniform(
 			t_span=(0.0, 0.1),
@@ -348,7 +353,7 @@ class ExtensibleArchitectureTests(unittest.TestCase):
 
 	def test_runner_rejects_output_times_that_do_not_match_the_request(self) -> None:
 		problem = InitialValueProblem(
-			_RotationDynamics(), GCInitialConfiguration(np.asarray([1.0, 0.0])),
+			_RotationDynamics(), State(np.asarray([1.0, 0.0]), layout=GCStateLayout()),
 		)
 		request = SimulationRequest.uniform(t_span=(0.0, 0.1), max_step=0.1, sample_count=2)
 		states = np.asarray([[1.0, 0.9], [0.0, -0.1]])
@@ -368,12 +373,12 @@ class ExtensibleArchitectureTests(unittest.TestCase):
 			(
 				GCExtendedFormulation(),
 				GuidingCenterDynamics(potential, rho=0.05),
-				GCInitialConfiguration(np.asarray([1.0, 1.1, 1.2, 1.3])),
+				State(np.asarray([1.0, 1.1, 1.2, 1.3]), layout=GCStateLayout()),
 			),
 			(
 				FCSplitFormulation(),
 				FullCyclotronDynamics(potential, rho=0.2, eta=0.1),
-				FCInitialConfiguration(np.asarray([1.0, 1.1, 1.2, 1.3, 0.4, 0.3, -0.3, -0.2])),
+				State(np.asarray([1.0, 1.1, 1.2, 1.3, 0.4, 0.3, -0.3, -0.2]), layout=FCStateLayout()),
 			),
 		)
 		for formulation, dynamics, source in cases:
@@ -399,7 +404,7 @@ class ExtensibleArchitectureTests(unittest.TestCase):
 			)
 
 	def test_solution_is_immutable_and_preserves_read_only_aliases(self) -> None:
-		source = GCInitialConfiguration(np.asarray([1.0, 0.0]))
+		source = State(np.asarray([1.0, 0.0]), layout=GCStateLayout())
 		times = np.asarray([0.0, 0.1])
 		states = np.asarray([[1.0, 0.9], [0.0, -0.1]])
 		momentum = np.asarray([[0.0, 0.01]])

@@ -6,7 +6,7 @@ grouped by responsibility:
 
 - `potential`: GC2D HDF5 imports and periodic electrostatic fields;
 - `dynamics`: guiding-center and full-cyclotron equations;
-- `initial_conditions`: state layouts and initial geometry;
+- `states`: physical state snapshots, layouts and geometry generators;
 - `contracts`: shared problem, request, state-layout, step, and observation types;
 - `formulations`: numerical coordinates and split maps;
 - `methods`: numerical methods, including the shared `extended` family;
@@ -36,7 +36,7 @@ In `src/`, `contracts/` holds shared input and step types, `formulations/`
 defines numerical state representations, `methods/` implements steps, and
 `integration/` schedules and collects them. `simulation/` remains the public
 execution facade; `solution.py` owns the returned result. Initial geometry
-stays in `initial_conditions/`.
+stays in `states/`.
 
 Public imports such as `from simulation import ABBA4Implicit, BM4Implicit,
 simulate` keep their established names. Package exports are explicit; internal
@@ -165,10 +165,12 @@ units, derivatives, provenance and explicit preservation of historical studies.
 ## Guiding-center example
 
 ```python
+
+from states import GCStateLayout
 import numpy as np
 
 from dynamics import GuidingCenterDynamics
-from initial_conditions import GCInitialConfiguration
+from states import State
 from potential import Potential
 from simulation import (
     BM4Implicit,
@@ -185,9 +187,10 @@ potential = Potential.random(
     seed=27,
     interpolation_order=5,
 )
-configuration = GCInitialConfiguration.from_components(
-    x=np.asarray([np.pi]),
-    y=np.asarray([np.pi]),
+configuration = State.from_components(
+    np.asarray([np.pi]),
+    np.asarray([np.pi]),
+    layout=GCStateLayout(),
 )
 problem = InitialValueProblem(
     GuidingCenterDynamics(potential, rho=0.3),
@@ -431,15 +434,18 @@ See the model-specific
 ## Full-cyclotron example
 
 ```python
+
+from states import FCStateLayout
 from dynamics import FullCyclotronDynamics
-from initial_conditions import FCInitialConfiguration
+from states import State
 from simulation import InitialValueProblem, RK4, SimulationRequest, simulate
 
-configuration = FCInitialConfiguration.from_components(
-    x=np.asarray([np.pi]),
-    y=np.asarray([np.pi]),
-    vx=np.asarray([1.0]),
-    vy=np.asarray([0.0]),
+configuration = State.from_components(
+    np.asarray([np.pi]),
+    np.asarray([np.pi]),
+    np.asarray([1.0]),
+    np.asarray([0.0]),
+    layout=FCStateLayout(),
 )
 problem = InitialValueProblem(
     FullCyclotronDynamics(potential, rho=0.3, eta=0.01),
@@ -470,21 +476,21 @@ Named constructors hide this ordering. `as_blocks(...)` exposes a view with
 shape `(components, particles, *sample_axes)`, while `from_blocks(...)`
 performs the inverse transformation.
 
-`Area` is a guiding-center initial configuration with square or circular
-boundary geometry:
+External functions in `states.generators` build plain `State` objects with square or circular boundary coordinates:
 
 ```python
-from initial_conditions import Area
 
-area = Area.circle(center=(np.pi, np.pi), radius=0.5, points=64)
+from states import generators as state_generators
+from states import State
+
+area = state_generators.circle(center=(np.pi, np.pi), radius=0.5, points=64)
 problem = InitialValueProblem(
     GuidingCenterDynamics(potential, rho=0.3),
     area,
 )
 ```
 
-`Area.calculate_area(...)` applies the shoelace formula and can unwrap
-periodic boundary crossings when a period is supplied.
+`diagnostics.geometry.calculate_area(area.values, layout=area.layout, period=...)` applies the shoelace formula and can unwrap periodic boundary crossings. Geometry labels belong in study metadata, for example `metadata={"geometry": "circle"}`, rather than on `State`.
 
 ## Reusable studies
 
@@ -522,7 +528,7 @@ result = run_area_comparison(
     area,
     notebook_path="notebooks/experiments/area_study.ipynb",
     config=config,
-    metadata=potential_config.metadata(),
+    metadata={**potential_config.metadata(), "geometry": "circle"},
 )
 ```
 

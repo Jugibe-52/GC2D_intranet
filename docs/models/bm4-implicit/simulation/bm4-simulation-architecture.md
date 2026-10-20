@@ -115,7 +115,7 @@ reused for all eleven rho values. See the
 `InitialValueProblem` captures the validated physical state, particle count, and
 independent layout at construction. A later edit to the original initial-state
 provider does not change this run's formulation. Physical layouts are owned by
-`contracts.state_layout`; compatible external providers need no inheritance from
+`states.layout`; compatible external providers need no inheritance from
 initial-condition classes. Built-in dynamics keep their physical parameters
 immutable. See the shared [layout and ownership contract](../../../dynamics/protocols.md#physical-layouts-and-problem-ownership).
 
@@ -156,3 +156,5 @@ GC/FC equations to JAX potentials sharing the existing splines, including the
 gyroaveraged field, without refitting or mutating the source dynamics. Inherited
 electric fields follow the potential class; `evaluate_grid` remains NumPy-only. See the
 [shared potential contract](../../../dynamics/jax-potential-evaluation.md).
+
+The built-in initial provider is now `states.State(values, layout=...)`, with `GCStateLayout` or `FCStateLayout` as appropriate. Generators in `states.generators` return that same class. Numerical stages continue to operate on arrays; no State object is created at each step.

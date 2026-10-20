@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from states.layout import GCStateLayout
+
 import json
 from pathlib import Path
 import tempfile
@@ -13,7 +15,7 @@ import numpy as np
 from visualization.gc_symplecticity import plot_abba_midpoint_convergence
 
 from dynamics import GuidingCenterDynamics
-from initial_conditions import GCInitialConfiguration
+from states.state import State
 from potential import Potential
 from simulation import (
 	ABBA2Midpoint,
@@ -98,7 +100,7 @@ class ABBA2MidpointTests(unittest.TestCase):
 		dynamics = _TimeOnlyPlanarDynamics()
 		problem = InitialValueProblem(
 			dynamics,
-			GCInitialConfiguration(np.asarray([1.0, 1.2])),
+			State(np.asarray([1.0, 1.2]), layout=GCStateLayout()),
 		)
 		with self.assertRaisesRegex(TypeError, "HamiltonianSystem"):
 			simulate(
@@ -119,7 +121,7 @@ class ABBA2MidpointTests(unittest.TestCase):
 		solution = simulate(
 			InitialValueProblem(
 				dynamics,
-				GCInitialConfiguration(initial_state),
+				State(initial_state, layout=GCStateLayout()),
 			),
 			ABBA2Midpoint(),
 			SimulationRequest.uniform(
@@ -167,7 +169,7 @@ class ABBA2MidpointTests(unittest.TestCase):
 	def test_method_has_second_order_global_accuracy(self) -> None:
 		problem = InitialValueProblem(
 			_deterministic_gc_dynamics(),
-			GCInitialConfiguration(np.asarray([1.0, 1.2])),
+			State(np.asarray([1.0, 1.2]), layout=GCStateLayout()),
 		)
 
 		def final_state(step: float) -> np.ndarray:
@@ -191,7 +193,7 @@ class ABBA2MidpointTests(unittest.TestCase):
 	def test_observations_and_diagnostics_ignore_shadow_steps(self) -> None:
 		problem = InitialValueProblem(
 			_deterministic_gc_dynamics(),
-			GCInitialConfiguration(np.asarray([1.0, 1.2])),
+			State(np.asarray([1.0, 1.2]), layout=GCStateLayout()),
 		)
 		events = []
 		observed = simulate(

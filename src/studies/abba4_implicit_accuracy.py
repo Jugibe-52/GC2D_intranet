@@ -21,7 +21,7 @@ from ._validation import (
 
 from diagnostics import StoredReferenceTrajectory
 from dynamics import GuidingCenterDynamics
-from initial_conditions import GCInitialConfiguration
+from states.state import State
 from potential import Potential
 from methods.extended.abba import ABBA4Implicit
 from methods._nonlinear import NONLINEAR_SOLVERS, NonlinearSolver
@@ -151,7 +151,7 @@ class ABBA4ImplicitAccuracyResult:
 
 	potential: Potential
 	dynamics: GuidingCenterDynamics
-	initial_configuration: GCInitialConfiguration
+	initial_configuration: State
 	reference: StoredReferenceTrajectory
 	config: ABBA4ImplicitAccuracyConfig
 	reference_sample_indices: np.ndarray
@@ -308,7 +308,7 @@ class ABBA4ImplicitAccuracyResult:
 
 def run_abba4_implicit_accuracy_study(
 	potential: Potential,
-	initial_configuration: GCInitialConfiguration,
+	initial_configuration: State,
 	reference: StoredReferenceTrajectory,
 	*,
 	config: ABBA4ImplicitAccuracyConfig,
@@ -318,8 +318,8 @@ def run_abba4_implicit_accuracy_study(
 	"""Run ABBA4 on nested steps and compare every saved state to the reference."""
 	if not isinstance(potential, Potential):
 		raise TypeError("`potential` must be a Potential instance.")
-	if not isinstance(initial_configuration, GCInitialConfiguration):
-		raise TypeError("`initial_configuration` must be GCInitialConfiguration.")
+	if not (isinstance(initial_configuration, State) and initial_configuration.layout.state_dimension == 2):
+		raise TypeError("`initial_configuration` must be State.")
 	if not isinstance(reference, StoredReferenceTrajectory):
 		raise TypeError("`reference` must be a StoredReferenceTrajectory.")
 	if not isinstance(config, ABBA4ImplicitAccuracyConfig):
@@ -386,7 +386,7 @@ def run_abba4_implicit_accuracy_study(
 
 
 def _validated_accuracy_trajectory(
-	solution: Solution, initial_configuration: GCInitialConfiguration, *,
+	solution: Solution, initial_configuration: State, *,
 	step: float, particle_count: int, reference_times: np.ndarray | None,
 	series: Mapping[float, TrajectoryAccuracySeries], runtimes: Mapping[float, float],
 ) -> np.ndarray:

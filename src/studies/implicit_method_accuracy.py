@@ -21,7 +21,7 @@ from ._validation import (
 
 from diagnostics import StoredReferenceTrajectory
 from dynamics import GuidingCenterDynamics
-from initial_conditions import GCInitialConfiguration
+from states.state import State
 from potential import Potential
 from methods.extended.abba import ABBA4Implicit
 from methods.extended.bm4 import BM4Implicit
@@ -263,7 +263,7 @@ class ImplicitMethodAccuracyResult:
 
 	potential: Potential
 	dynamics: GuidingCenterDynamics
-	initial_configuration: GCInitialConfiguration
+	initial_configuration: State
 	reference: StoredReferenceTrajectory
 	config: ImplicitMethodAccuracyConfig
 	reference_sample_indices: np.ndarray
@@ -561,7 +561,7 @@ class ImplicitMethodAccuracyResult:
 
 def run_implicit_method_accuracy_study(
 	potential: Potential,
-	initial_configuration: GCInitialConfiguration,
+	initial_configuration: State,
 	reference: StoredReferenceTrajectory,
 	*,
 	config: ImplicitMethodAccuracyConfig,
@@ -571,8 +571,8 @@ def run_implicit_method_accuracy_study(
 	"""Run four Newton methods on nested steps and compare with one reference."""
 	if not isinstance(potential, Potential):
 		raise TypeError("`potential` must be a Potential instance.")
-	if not isinstance(initial_configuration, GCInitialConfiguration):
-		raise TypeError("`initial_configuration` must be GCInitialConfiguration.")
+	if not (isinstance(initial_configuration, State) and initial_configuration.layout.state_dimension == 2):
+		raise TypeError("`initial_configuration` must be State.")
 	if not isinstance(reference, StoredReferenceTrajectory):
 		raise TypeError("`reference` must be a StoredReferenceTrajectory.")
 	if not isinstance(config, ImplicitMethodAccuracyConfig):
@@ -640,7 +640,7 @@ def run_implicit_method_accuracy_study(
 
 
 def _validated_refinement_trajectory(
-	solution: Solution, initial_configuration: GCInitialConfiguration, *,
+	solution: Solution, initial_configuration: State, *,
 	method_name: str, step: float, step_count: int, particle_count: int,
 	common_times: np.ndarray | None,
 	series: Mapping[str, Mapping[float, TrajectoryAccuracySeries]],

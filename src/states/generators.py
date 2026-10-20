@@ -2,7 +2,8 @@
 
 import numpy as np
 
-from initial_conditions.gc import GCInitialConfiguration
+from states.state import State
+from states.layout import GCStateLayout
 
 
 def _validated_radial_star_origin(
@@ -27,7 +28,7 @@ def radial_star(*, center: tuple[float, float], arm_length: float,
                 arms: int, particles_per_arm: int,
                 first_angle: float = 0.0,
                 inner_radius: float | None = None,
-                include_center: bool = False) -> GCInitialConfiguration:
+                include_center: bool = False) -> State:
     """Build a star in the caller's coordinate units, without normalizing space.
 
     Particle order is arm-major, then increasing radius. Arm k has angle
@@ -52,7 +53,7 @@ def radial_star(*, center: tuple[float, float], arm_length: float,
     x, y = x.ravel(), y.ravel()
     if include_center:
         x, y = np.r_[origin[0], x], np.r_[origin[1], y]
-    return GCInitialConfiguration.from_components(x=x, y=y)
+    return State.from_components(x, y, layout=GCStateLayout())
 
 
 def _validated_ranked_star_origin(
@@ -75,7 +76,7 @@ def _validated_ranked_star_origin(
 
 def ranked_radial_star(*, center: tuple[float, float], outer_radius: float,
                        particles: int, arms: int,
-                       first_angle: float = 0.0) -> GCInitialConfiguration:
+                       first_angle: float = 0.0) -> State:
     """Place distinct, increasing radii on alternating arms, including one center.
 
     Particle i (zero based) has radius outer_radius*i/(particles-1) and arm
@@ -85,10 +86,113 @@ def ranked_radial_star(*, center: tuple[float, float], outer_radius: float,
     origin = _validated_ranked_star_origin(center, outer_radius, particles, arms, first_angle)
     radii = np.linspace(0.0, outer_radius, particles)
     angles = first_angle + 2 * np.pi * (np.arange(particles) % arms) / arms
-    return GCInitialConfiguration.from_components(
-        x=origin[0] + radii * np.cos(angles),
-        y=origin[1] + radii * np.sin(angles),
+    return State.from_components(
+        origin[0] + radii * np.cos(angles),
+        origin[1] + radii * np.sin(angles),
+        layout=GCStateLayout(),
     )
 
 
-__all__ = ["radial_star", "ranked_radial_star"]
+
+def _validate_center(center: tuple[float, float]) -> tuple[float, float]:
+	"""Normalize a finite two-dimensional centre."""
+	try:
+		center_x, center_y = center
+	except (TypeError, ValueError) as exc:
+		raise ValueError("`center` must contain exactly two coordinates.") from exc
+	values = np.asarray((center_x, center_y), dtype=float)
+	if not np.all(np.isfinite(values)):
+		raise ValueError("`center` must contain finite coordinates.")
+	return float(values[0]), float(values[1])
+
+
+def _positive_finite(value: float, name: str) -> float:
+	"""Normalize a scalar geometric parameter and enforce positivity."""
+	try:
+		result = float(value)
+	except (TypeError, ValueError) as exc:
+		raise ValueError(f"`{name}` must be positive and finite.") from exc
+	if not np.isfinite(result) or result <= 0:
+		raise ValueError(f"`{name}` must be positive and finite.")
+	return result
+
+
+def square(
+	*,
+	center: tuple[float, float],
+	side: float,
+	points_per_side: int = 1,
+) -> State:
+	"""Sample a square counter-clockwise with equal density on every edge.
+
+	``center`` locates the geometric centre, ``side`` is its full side
+	length, and ``points_per_side`` controls boundary resolution.  The final
+	state contains ``4 * points_per_side`` vertices.
+	"""
+	center_x, center_y = _validate_center(center)
+	side = _positive_finite(side, "side")
+	if (
+		isinstance(points_per_side, (bool, np.bool_))
+		or not isinstance(points_per_side, (int, np.integer))
+		or points_per_side < 1
+	):
+		raise ValueError("`points_per_side` must be a positive integer.")
+
+	# These four bounds describe the geometry; ``edge`` below is a local
+	# coordinate measured from the first corner of each oriented side.
+	half_side = side / 2
+	left = center_x - half_side
+	right = center_x + half_side
+	bottom = center_y - half_side
+	top = center_y + half_side
+	# Omitting each edge endpoint prevents duplicate corners: the following
+	# edge supplies that corner, and polygon closure supplies the final one.
+	edge = np.linspace(0.0, side, int(points_per_side), endpoint=False)
+	x = np.concatenate(
+		(
+			left + edge,
+			np.full_like(edge, right),
+			right - edge,
+			np.full_like(edge, left),
+		)
+	)
+	y = np.concatenate(
+		(
+			np.full_like(edge, bottom),
+			bottom + edge,
+			np.full_like(edge, top),
+			top - edge,
+		)
+	)
+	return State(np.concatenate((x, y)), layout=GCStateLayout())
+
+
+def circle(
+	*,
+	center: tuple[float, float],
+	radius: float,
+	points: int = 128,
+) -> State:
+	"""Sample a counter-clockwise circle without repeating its first point.
+
+	``center`` and ``radius`` define the initial geometry, while ``points``
+	is the total number of boundary vertices rather than a density per arc.
+	"""
+	center_x, center_y = _validate_center(center)
+	radius = _positive_finite(radius, "radius")
+	if (
+		isinstance(points, (bool, np.bool_))
+		or not isinstance(points, (int, np.integer))
+		or points < 3
+	):
+		raise ValueError("`points` must be an integer of at least 3.")
+
+	# The shoelace formula closes the polygon, so sampling 2π again would add
+	# a redundant copy of the vertex at angle zero.
+	angle = np.linspace(0.0, 2 * np.pi, int(points), endpoint=False)
+	x = center_x + radius * np.cos(angle)
+	y = center_y + radius * np.sin(angle)
+	return State(np.concatenate((x, y)), layout=GCStateLayout())
+
+
+__all__ = ["radial_star", "ranked_radial_star", "square", "circle"]

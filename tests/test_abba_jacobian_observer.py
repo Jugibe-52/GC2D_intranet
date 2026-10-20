@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from states.layout import GCStateLayout
+
 import json
 from pathlib import Path
 import tempfile
@@ -19,7 +21,7 @@ from diagnostics.abba_jacobian import (
 	line_angle,
 )
 from dynamics import GuidingCenterDynamics
-from initial_conditions import GCInitialConfiguration
+from states.state import State
 from potential import Potential
 from simulation import (
 	ABBA_PROJECTION_FORMULATIONS,
@@ -91,9 +93,10 @@ class ImplicitABBAJacobianObserverTests(unittest.TestCase):
 	def test_observer_analyzes_both_implicit_formulations_without_symplecticity(
 		self,
 	) -> None:
-		configuration = GCInitialConfiguration.from_components(
-			x=np.asarray([1.0, 1.4]),
-			y=np.asarray([1.2, 1.6]),
+		configuration = State.from_components(
+			np.asarray([1.0, 1.4]),
+			np.asarray([1.2, 1.6]),
+			layout=GCStateLayout(),
 		)
 		request = SimulationRequest.uniform(
 			t_span=(0.0, 0.04),
@@ -143,9 +146,10 @@ class ImplicitABBAJacobianObserverTests(unittest.TestCase):
 				self.assertNotIn("symplectic", json.dumps(metadata).lower())
 
 	def test_study_and_all_jacobian_plots_run_for_one_particle(self) -> None:
-		configuration = GCInitialConfiguration.from_components(
-			x=np.asarray([1.0]),
-			y=np.asarray([1.2]),
+		configuration = State.from_components(
+			np.asarray([1.0]),
+			np.asarray([1.2]),
+			layout=GCStateLayout(),
 		)
 		config = ImplicitABBAJacobianStudyConfig(
 			rho=0.05,

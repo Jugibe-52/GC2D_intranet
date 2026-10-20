@@ -5,7 +5,7 @@ id = "2026-10-18-poincare-simulation-skill"
 revision = 1
 status = "verified"
 approval = "2026-10-18: User accepted specification revision 1 and plan revision 1 and explicitly requested implementation with the skill-creation authorization prefix."
-sources = ["src/studies/poincare_rho_sweep.py", "src/studies/poincare_gap_probes.py", "src/initial_conditions/star.py", "src/potential/load.py", "src/dynamics/gc.py", "src/visualization/poincare_rho_sweep.py", "src/visualization/poincare_comparison.py", "src/visualization/poincare_gap_overlay.py", "src/diagnostics/persistence.py"]
+sources = ["src/studies/poincare_rho_sweep.py", "src/studies/poincare_gap_probes.py", "src/states/generators.py", "src/potential/load.py", "src/dynamics/gc.py", "src/visualization/poincare_rho_sweep.py", "src/visualization/poincare_comparison.py", "src/visualization/poincare_gap_overlay.py", "src/diagnostics/persistence.py"]
 documents = ["AGENTS.md", "MEMORY.md", "specs/README.md", "specs/current/potential-import.md", "specs/current/simulation.md", "specs/current/results.md", "docs/dynamics/gc2d-h5-import.md"]
 requirements = ["PNC-001", "PNC-002", "PNC-003", "PNC-004", "POT-004", "POT-005", "SIM-001", "SIM-002", "SIM-003", "SIM-004", "SOL-001"]
 proposed_requirements = ["PNC-001", "PNC-002", "PNC-003", "PNC-004"]
@@ -235,3 +235,5 @@ viewing existing results rebuilds/opens their one viewer without integration.
 An execution request through the skill authorizes its necessary outputs, but
 consultation and status remain read-only. Installing/creating the skill does
 not itself launch the 5000-cycle default experiment.
+
+Source references were updated for the 2026-10-20 states migration; prior recorded outcomes are unchanged.

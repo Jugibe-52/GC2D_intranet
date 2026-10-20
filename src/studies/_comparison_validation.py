@@ -5,7 +5,7 @@ from __future__ import annotations
 from contracts.comparison import EnergyAccuracySeries
 import numpy as np
 
-from initial_conditions.gc import GCInitialConfiguration
+from states.state import State
 from solution import Solution
 from ._gauss_legendre4_common import readonly_runtime_samples
 from contracts.comparison import TrajectoryAccuracySeries
@@ -13,7 +13,7 @@ from contracts.comparison import TrajectoryAccuracySeries
 
 
 def validate_comparison_solution(
-	solution: Solution, initial_configuration: GCInitialConfiguration,
+	solution: Solution, initial_configuration: State,
 	times: np.ndarray, step_count: int,
 ) -> None:
 	"""Require one physical source and the exact common integration/output grid."""

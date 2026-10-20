@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from states.layout import FCStateLayout, GCStateLayout
+
 from dataclasses import replace
 from hashlib import sha256
 import json
@@ -10,6 +12,7 @@ import shutil
 import subprocess
 import tempfile
 import unittest
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import numpy as np
@@ -17,8 +20,7 @@ import numpy as np
 from diagnostics.persistence import load_solution, save_solution
 from diagnostics.paths import solution_destination
 from diagnostics.storage import StorageError
-from initial_conditions.fc import FCInitialConfiguration
-from initial_conditions.gc import GCInitialConfiguration
+from states.state import State
 from potential.load import GC2DH5Metadata
 from potential.potential import Potential
 from solution import Solution
@@ -33,11 +35,11 @@ class SolutionPersistenceTests(unittest.TestCase):
         self.field = Potential.random(A=0.1, M=2, nx=12, ny=12, seed=17)
 
     def solution(self, full: bool = False) -> Solution:
-        configuration = FCInitialConfiguration if full else GCInitialConfiguration
+        layout = FCStateLayout() if full else GCStateLayout()
         state = np.arange(8 if full else 4, dtype=float) / 10
         return Solution(t=np.array([0.0, 0.1, 0.2]),
                         states=np.column_stack([state, state + 0.01, state + 0.02]),
-                        source=configuration(state),
+                        source=State(state, layout=layout),
                         diagnostics={"step_count": 2, "label": "example", "enabled": True,
                                      "error": 1e-5, "work": np.array([1, 2], dtype=np.int64),
                                      "complex": np.array([1 + 2j]), "missing": np.array([np.nan])})
@@ -129,7 +131,7 @@ class SolutionPersistenceTests(unittest.TestCase):
 
     def test_no_potential_and_no_initial_configuration_state(self) -> None:
         original = self.solution()
-        solution = Solution(t=original.t, states=original.states, source=GCInitialConfiguration())
+        solution = Solution(t=original.t, states=original.states, source=SimpleNamespace(initial_state=None, layout=GCStateLayout()))
         location = self.directory / "plain"
         save_solution(solution, location, metadata={})
         restored = load_solution(location)

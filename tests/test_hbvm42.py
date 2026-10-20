@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from states.layout import GCStateLayout
+
 import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -12,7 +14,7 @@ from scipy.integrate import solve_ivp
 
 import simulation
 from dynamics import GuidingCenterDynamics
-from initial_conditions import GCInitialConfiguration
+from states.state import State
 from potential import Potential
 from simulation import HBVM42, InitialValueProblem, SimulationRequest, simulate
 from methods.hbvm.order4 import (
@@ -159,9 +161,10 @@ class HBVM42MethodTests(unittest.TestCase):
 				),
 				rho=0.05,
 			),
-			GCInitialConfiguration.from_components(
-				x=np.asarray((1.0,)),
-				y=np.asarray((1.2,)),
+			State.from_components(
+				np.asarray((1.0,)),
+				np.asarray((1.2,)),
+				layout=GCStateLayout(),
 			),
 		)
 		request = SimulationRequest.uniform(
@@ -237,9 +240,10 @@ class HBVM42StudyTests(unittest.TestCase):
 			),
 			rho=0.05,
 		)
-		gc_configuration = GCInitialConfiguration.from_components(
-			x=np.asarray((1.0,)),
-			y=np.asarray((1.2,)),
+		gc_configuration = State.from_components(
+			np.asarray((1.0,)),
+			np.asarray((1.2,)),
+			layout=GCStateLayout(),
 		)
 		comparison = run_hbvm42_bm4_comparison(
 			gc_dynamics,

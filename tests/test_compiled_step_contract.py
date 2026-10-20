@@ -1,5 +1,7 @@
 """Prepared device maps are independent of the coordinator's method vocabulary."""
 
+from states.layout import GCStateLayout
+
 from dataclasses import dataclass
 import importlib.util
 import unittest
@@ -11,7 +13,7 @@ from contracts.execution_options import ExecutionOptions
 from contracts.problem import InitialValueProblem
 from contracts.request import SimulationRequest
 from dynamics.gc import GuidingCenterDynamics
-from initial_conditions.gc import GCInitialConfiguration
+from states.state import State
 from methods.classical.gauss_legendre import GaussLegendre4
 from methods.classical.rk4 import RK4
 from potential.potential import Potential
@@ -29,7 +31,7 @@ class CompiledStepContractTests(unittest.TestCase):
 		self.addCleanup(jax.config.update, "jax_enable_x64", previous)
 		potential = Potential.random(A=.1, M=2, nx=12, ny=12, seed=19)
 		self.problem = InitialValueProblem(GuidingCenterDynamics(potential),
-			GCInitialConfiguration(np.array([.2, .3])))
+			State(np.array([.2, .3]), layout=GCStateLayout()))
 		self.request = SimulationRequest((0., .2), .1, np.array([0., .03, .1, .2]))
 		self.execution = ExecutionOptions(backend="jax")
 

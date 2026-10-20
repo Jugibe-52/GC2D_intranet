@@ -1,5 +1,7 @@
 """Checkpoint orchestration using the frozen public classical RK4 integrator."""
 
+from states.layout import GCStateLayout
+
 from typing import Any
 from pathlib import Path
 import hashlib,json,os,time
@@ -15,7 +17,7 @@ def calculate_checkpointed_group(indices: np.ndarray, initial_xy: np.ndarray,
     from threadpoolctl import threadpool_limits,threadpool_info
     potential,_,snapshot=load_snapshot()
     from dynamics import GuidingCenterDynamics
-    from initial_conditions import GCInitialConfiguration
+    from states.state import State
     from methods.classical.rk4 import RK4
     from contracts.problem import InitialValueProblem
     from contracts.request import SimulationRequest
@@ -39,7 +41,7 @@ def calculate_checkpointed_group(indices: np.ndarray, initial_xy: np.ndarray,
         resumed=completed;new_chunks=0
         while completed<total:
             end=min(total,completed+settings['checkpoint_steps']);length=end-completed
-            initial=GCInitialConfiguration.from_components(x=value[:count],y=value[count:])
+            initial=State.from_components(value[:count],value[count:], layout=GCStateLayout())
             problem=InitialValueProblem(field,initial)
             request=SimulationRequest.uniform(t_span=(t0+completed*h,t0+end*h),max_step=h,sample_count=length+1)
             solution=simulate(problem,RK4(progress=False),request)

@@ -23,7 +23,7 @@ from ._validation import (
 from diagnostics import calculate_step_jacobian, central_difference_jacobian
 from diagnostics.symplecticity import gc_physical_symplectic_form
 from dynamics import GuidingCenterDynamics
-from initial_conditions import GCInitialConfiguration
+from states.state import State
 from potential import Potential
 from methods.classical.gauss_legendre import GaussLegendre4
 from contracts.observation import GaussLegendre4IntegrationStep, IntegrationStep
@@ -249,7 +249,7 @@ class GaussLegendre4EvaluationResult:
 
 	potential: Potential
 	dynamics: GuidingCenterDynamics
-	initial_configuration: GCInitialConfiguration
+	initial_configuration: State
 	config: GaussLegendre4EvaluationConfig
 	reference: AdaptiveReference
 	solutions: Mapping[float, Solution]
@@ -503,15 +503,15 @@ class _SymplecticityCollector:
 
 def run_gauss_legendre4_evaluation(
 	potential: Potential,
-	initial_configuration: GCInitialConfiguration,
+	initial_configuration: State,
 	*,
 	config: GaussLegendre4EvaluationConfig,
 ) -> GaussLegendre4EvaluationResult:
 	"""Run one complete individual Gauss4 evaluation over nested refinements."""
 	if not isinstance(potential, Potential):
 		raise TypeError("`potential` must be a Potential instance.")
-	if not isinstance(initial_configuration, GCInitialConfiguration):
-		raise TypeError("`initial_configuration` must be GCInitialConfiguration.")
+	if not (isinstance(initial_configuration, State) and initial_configuration.layout.state_dimension == 2):
+		raise TypeError("`initial_configuration` must be State.")
 	if not isinstance(config, GaussLegendre4EvaluationConfig):
 		raise TypeError("`config` must be GaussLegendre4EvaluationConfig.")
 	dynamics = GuidingCenterDynamics(potential, rho=config.rho)

@@ -18,7 +18,7 @@ from diagnostics.paths import (
 	validate_block_name,
 )
 from dynamics import GuidingCenterJacobianSystem
-from initial_conditions import GCInitialConfiguration
+from states.state import State
 from contracts.observation import IntegrationStep
 
 
@@ -102,7 +102,7 @@ def _particle_metrics(jacobians: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
 
 def _validated_observer_initial_state(
 	dynamics: GuidingCenterJacobianSystem,
-	initial_configuration: GCInitialConfiguration,
+	initial_configuration: State,
 	method_name: str,
 	jacobian_method: str,
 	jacobian_calculator: TrajectoryJacobianCalculator,
@@ -112,7 +112,7 @@ def _validated_observer_initial_state(
 		raise TypeError(
 			"GCTrajectorySymplecticityObserver requires exact GC Jacobians."
 		)
-	if not isinstance(initial_configuration, GCInitialConfiguration):
+	if not (isinstance(initial_configuration, State) and initial_configuration.layout.state_dimension == 2):
 		raise TypeError("`initial_configuration` must be a GC configuration.")
 	initial_state = initial_configuration.initial_state
 	if initial_state is None:
@@ -133,7 +133,7 @@ class GCTrajectorySymplecticityObserver:
 		self,
 		*,
 		dynamics: GuidingCenterJacobianSystem,
-		initial_configuration: GCInitialConfiguration,
+		initial_configuration: State,
 		method_name: str,
 		jacobian_method: str,
 		jacobian_calculator: TrajectoryJacobianCalculator,

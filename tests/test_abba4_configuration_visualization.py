@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from states.layout import GCStateLayout
+
 from types import SimpleNamespace
 import unittest
 
@@ -12,7 +14,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.collections import LineCollection, PathCollection
 
-from initial_conditions import GCInitialConfiguration
+from states.state import State
 from potential import GC2DH5Metadata, Grid, Potential
 from simulation import Solution
 from studies.abba4_configuration_comparison import (
@@ -84,9 +86,10 @@ def _solution(
 	model_shift = 2e-4 * variant * time_values
 	x = x0 + 0.015 * time_values + model_shift
 	y = y0 - 0.010 * time_values - 0.5 * model_shift
-	source = GCInitialConfiguration.from_components(
-		x=np.asarray([x0]),
-		y=np.asarray([y0]),
+	source = State.from_components(
+		np.asarray([x0]),
+		np.asarray([y0]),
+		layout=GCStateLayout(),
 	)
 	return Solution(
 		t=time_values,

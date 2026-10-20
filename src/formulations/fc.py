@@ -11,7 +11,7 @@ import numpy as np
 
 from dynamics.protocols import CyclotronSplitSystem, HamiltonianSystem
 from contracts.configuration import InitialConfiguration, StateLayout
-from contracts.state_layout import FCState, FCStateLayout
+from states.layout import FCState, FCStateLayout
 
 from contracts.problem import InitialValueProblem
 from formulations.base import _updated_momentum
