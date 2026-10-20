@@ -14,7 +14,10 @@ import numpy as np
 
 from dynamics.protocols import HamiltonianSystem
 from contracts.result import DiagnosticValue
-from contracts.problem import InitialValueProblem
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+	from contracts.problem import InitialValueProblem
 
 
 @dataclass(frozen=True)
@@ -124,22 +127,25 @@ class PhysicalFormulation:
             "energy_feedback": False,
         }
 
-    def extract_history(self, times: np.ndarray, history: np.ndarray,
-                        *, energy: np.ndarray | None = None,
-                        ) -> tuple[np.ndarray, dict[str, DiagnosticValue]]:
-        """Expose physical samples and energy, optionally evaluated on a device."""
-        physical = self.physical(history)
-        momentum = self.momentum(history)
+    def extract_sample(self, time: float, state: np.ndarray) -> tuple[np.ndarray, dict[str, np.ndarray]]:
+        """Extract one physical sample without retaining doubled work coordinates."""
+        momentum = self.momentum(state)
         if momentum is None:
-            return physical, {}
-        particle_times = self.time(history)
+            return self.physical(state), {}
+        particle_times = self.time(state)
         assert particle_times is not None
-        output_times = np.broadcast_to(times, particle_times.shape)
-        # Endpoint arithmetic can differ by round-off. Layout-specific checks
-        # and output alignment belong here, leaving the collector generic.
-        tolerance = float(16 * np.finfo(float).eps * max(1.0, float(np.max(np.abs(times)))))
-        if not np.allclose(particle_times, output_times, rtol=0.0, atol=tolerance):
-            raise ValueError("Each particle time must match the output times within round-off.")
+        tolerance = float(16 * np.finfo(float).eps * max(1.0, abs(time)))
+        if not np.allclose(particle_times, time, rtol=0.0, atol=tolerance):
+            raise ValueError("Each particle time must match the sample time within round-off.")
+        return self.physical(state), {"extended_momentum": momentum}
+
+    def diagnose_history(self, times: np.ndarray, physical: np.ndarray,
+                         auxiliary: dict[str, np.ndarray], *, energy: np.ndarray | None = None,
+                         ) -> dict[str, DiagnosticValue]:
+        """Evaluate energy once on saved physical data; several methods share this representation."""
+        momentum = auxiliary.get("extended_momentum")
+        if momentum is None:
+            return {}
         dynamics = self.problem.dynamics
         assert isinstance(dynamics, HamiltonianSystem)
         energy = np.asarray(dynamics.hamiltonian(times, physical) if energy is None else energy, dtype=float)
@@ -149,8 +155,8 @@ class PhysicalFormulation:
             raise ValueError("Hamiltonian history must be finite with shape (particles, times).")
         balance = energy + momentum
         error = balance - balance[:, :1]
-        return physical, {
-            "extended_time": output_times.copy(),
+        return {
+            "extended_time": np.broadcast_to(times, momentum.shape).copy(),
             "extended_momentum": momentum,
             "extended_momentum_normalization": "physical_kappa",
             "physical_hamiltonian": energy,
@@ -160,6 +166,21 @@ class PhysicalFormulation:
             "generalized_energy_error": error,
             "energy_error": float(np.max(np.abs(error))),
         }
+
+    def extract_history(self, times: np.ndarray, history: np.ndarray,
+                        *, energy: np.ndarray | None = None,
+                        ) -> tuple[np.ndarray, dict[str, DiagnosticValue]]:
+        """Export completed device arrays using the same physical diagnostic rules."""
+        physical = self.physical(history)
+        momentum = self.momentum(history)
+        if momentum is None:
+            return physical, {}
+        particle_times = self.time(history)
+        assert particle_times is not None
+        tolerance = float(16 * np.finfo(float).eps * max(1.0, float(np.max(np.abs(times)))))
+        if not np.allclose(particle_times, np.broadcast_to(times, momentum.shape), rtol=0.0, atol=tolerance):
+            raise ValueError("Each particle time must match the output times within round-off.")
+        return physical, self.diagnose_history(times, physical, {"extended_momentum": momentum}, energy=energy)
 
 
 @dataclass(frozen=True)

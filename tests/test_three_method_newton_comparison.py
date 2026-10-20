@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from formulations.layout import GCStateLayout
+
 import unittest
 
 import matplotlib.pyplot as plt
@@ -77,10 +79,10 @@ class ThreeMethodNewtonComparisonTests(unittest.TestCase):
 		self.assertEqual(tuple(result.accuracy), expected_methods)
 		self.assertEqual(tuple(result.energy_accuracy), expected_methods)
 		self.assertEqual(tuple(result.runtime_samples), expected_methods)
-		initial_state = result.initial_configuration.initial_state
+		initial_state = result.initial_configuration
 		assert initial_state is not None
 		self.assertEqual(
-			result.initial_configuration.layout.particle_count(initial_state),
+			GCStateLayout().particle_count(initial_state),
 			3,
 		)
 		self.assertEqual(result.reference.times.size, 3)

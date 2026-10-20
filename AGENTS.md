@@ -48,8 +48,8 @@ GC2D simulates particle trajectories in time-dependent electrostatic potentials.
 Python packages live directly under `src/`: `potential/` and `dynamics/` define
 physics; `contracts/` and `formulations/` define shared types and coordinates;
 `methods/` implements numerical steps; `integration/` schedules and collects
-them. `simulation/` exposes the public facade, and `solution.py` owns immutable
-results. Keep experiment composition in `studies/`, observers in `diagnostics/`,
+them. `simulation/` exposes the public facade, and `states/` owns physical recording and completed results; `request.py` owns
+temporal configuration. Keep experiment composition in `studies/`, observers in `diagnostics/`,
 and plotting in `visualization/`.
 
 Tests live in `tests/`, runnable examples in `examples/`, and supporting scripts
@@ -106,7 +106,7 @@ imports, dynamic module aliases, or import hooks to preserve removed paths.
 Each class and function has one canonical implementation. Public facades may
 re-export it, while internal consumers import from its defining module.
 Use `simulation.runner` when studies need the execution entry point, and import
-shared types from `contracts` submodules or `solution`.
+shared types from `contracts` submodules, `request`, `formulations.layout`, or `states.history`.
 
 Preserve established public names unless a rename is requested. When moving
 modules, migrate supported consumers and tests before deleting the old adapters;

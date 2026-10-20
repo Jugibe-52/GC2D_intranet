@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from formulations.layout import GCStateLayout
+
 from diagnostics.geometry import calculate_area
 
 from collections.abc import Mapping, Sequence
@@ -14,8 +16,8 @@ import numpy as np
 from matplotlib.animation import FuncAnimation
 
 from potential import Potential
-from solution import Solution
-from states.state import State
+from states.history import States
+
 
 from ._animation_validation import (
 	positive_interval,
@@ -33,8 +35,8 @@ from ._gc_area_validation import (
 
 def animate_gc_area(
 	potential: Potential,
-	trajectory: State,
-	solutions: Sequence[Solution],
+	trajectory: np.ndarray,
+	solutions: Sequence[States],
 	*,
 	labels: Sequence[str],
 	frames: int | None,
@@ -68,7 +70,7 @@ def animate_gc_area(
 	# Each array has one signed polygon area per common saved time. Normalizing by
 	# the positive initial magnitude preserves the direction of each area change.
 	area_values = tuple(
-		calculate_area(states, period=potential.grid.period, layout=trajectory.layout)
+		calculate_area(states, period=potential.grid.period, layout=GCStateLayout())
 		for states in state_series
 	)
 	initial_areas = tuple(float(values[0]) for values in area_values)
@@ -326,7 +328,7 @@ def animate_gc_area(
 
 	# Every component block has shape (boundary vertices, saved times). Periodic
 	# wrapping is applied independently so each numerical contour remains legible.
-	component_series = tuple(trajectory.layout.split(states) for states in state_series)
+	component_series = tuple(GCStateLayout().split(states) for states in state_series)
 	period = potential.grid.period
 	xmin = potential.grid.xmin
 	ymin = potential.grid.ymin
@@ -514,8 +516,8 @@ def animate_gc_area(
 
 def animate_gc_area_solution(
 	potential: Potential,
-	area: State,
-	solution: Solution,
+	area: np.ndarray,
+	solution: States,
 	*,
 	frames: int | None = None,
 	interval: int = 200,
@@ -527,8 +529,8 @@ def animate_gc_area_solution(
 	**pcolormesh_kwargs: Any,
 ) -> FuncAnimation:
 	"""Animate one transported GC area and optional numerical diagnostics."""
-	if not (isinstance(area, State) and area.layout.state_dimension == 2 and area.particle_count >= 3):
-		raise TypeError("`area` must be a GC State with at least three ordered boundary vertices.")
+	if not (isinstance(area, np.ndarray) and GCStateLayout().state_dimension == 2 and GCStateLayout().particle_count(area) >= 3):
+		raise TypeError("`area` must be a GC np.ndarray with at least three ordered boundary vertices.")
 	return animate_gc_area(
 		potential,
 		area,
@@ -547,8 +549,8 @@ def animate_gc_area_solution(
 
 def animate_gc_area_comparison(
 	potential: Potential,
-	area: State,
-	solutions: Mapping[str, Solution],
+	area: np.ndarray,
+	solutions: Mapping[str, States],
 	*,
 	diagnostic_times: Mapping[str, np.ndarray] | None = None,
 	relative_symplecticity_errors: Mapping[str, np.ndarray] | None = None,
@@ -560,8 +562,8 @@ def animate_gc_area_comparison(
 	**pcolormesh_kwargs: Any,
 ) -> FuncAnimation:
 	"""Animate several labeled GC area solutions on synchronized panels."""
-	if not (isinstance(area, State) and area.layout.state_dimension == 2 and area.particle_count >= 3):
-		raise TypeError("`area` must be a GC State with at least three ordered boundary vertices.")
+	if not (isinstance(area, np.ndarray) and GCStateLayout().state_dimension == 2 and GCStateLayout().particle_count(area) >= 3):
+		raise TypeError("`area` must be a GC np.ndarray with at least three ordered boundary vertices.")
 	if not isinstance(solutions, Mapping) or len(solutions) < 2:
 		raise ValueError("`solutions` must map at least two labels to solutions.")
 	labels = tuple(solutions)

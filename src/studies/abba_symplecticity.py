@@ -8,7 +8,7 @@ from typing import Any, ClassVar, Mapping, cast
 
 import numpy as np
 
-from states.state import State
+
 from potential import Potential
 from methods.extended.abba import ABBA2Implicit
 
@@ -144,7 +144,7 @@ class ABBASymplecticityResult(GCSymplecticityResult):
 
 def run_abba_symplecticity_study(
 	potential: Potential,
-	area: State,
+	area: np.ndarray,
 	*,
 	notebook_path: str | Path,
 	config: ABBASymplecticityConfig,

@@ -27,11 +27,11 @@ from diagnostics import (
 from dynamics import GuidingCenterDynamics
 from potential import Potential
 from methods.extended.bm4 import BM4Implicit
-from contracts.configuration import InitialConfiguration
+
 from contracts.problem import InitialValueProblem
 from methods._nonlinear import NonlinearSolver
-from contracts.request import SimulationRequest
-from solution import Solution
+from request import SimulationRequest
+from states.history import States
 from simulation.runner import simulate
 
 
@@ -109,7 +109,7 @@ class BM4ImplicitIterationStudyResult:
 
 	config: BM4ImplicitIterationStudyConfig
 	dynamics: GuidingCenterDynamics
-	solution: Solution
+	solution: States
 	records: tuple[ImplicitBM4IterationRecord, ...]
 	output_blocks: tuple[ImplicitBM4IterationOutputBlock, ...]
 	output_directory: Path
@@ -184,7 +184,7 @@ class BM4ImplicitIterationStudyResult:
 
 def run_bm4_implicit_iteration_study(
 	potential: Potential,
-	initial_configuration: InitialConfiguration,
+	initial_configuration: np.ndarray,
 	*,
 	notebook_path: str | Path,
 	config: BM4ImplicitIterationStudyConfig,
@@ -194,9 +194,9 @@ def run_bm4_implicit_iteration_study(
 	"""Run projected BM4 while recording every selected nonlinear solve."""
 	if not isinstance(potential, Potential):
 		raise TypeError("`potential` must be a Potential instance.")
-	if not isinstance(initial_configuration, InitialConfiguration):
+	if not isinstance(initial_configuration, np.ndarray):
 		raise TypeError(
-			"`initial_configuration` must implement InitialConfiguration."
+			"`initial_configuration` must implement np.ndarray."
 		)
 	if not isinstance(config, BM4ImplicitIterationStudyConfig):
 		raise TypeError("`config` must be a BM4ImplicitIterationStudyConfig.")

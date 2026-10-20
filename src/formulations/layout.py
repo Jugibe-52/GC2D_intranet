@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import numpy as np
+
 from typing import Any, ClassVar, NamedTuple
 
 from contracts.arrays import array_namespace
@@ -109,7 +111,7 @@ class PackedStateLayout:
 		xp = array_namespace(*components)
 		values = tuple(xp.asarray(component) for component in components)
 		if not values or values[0].ndim == 0 or values[0].shape[0] == 0:
-			raise ValueError("State components must be non-empty arrays.")
+			raise ValueError("Physical components must be non-empty arrays.")
 		if any(value.shape != values[0].shape for value in values[1:]):
 			raise ValueError("All state components must have the same shape.")
 		# Stack once to make the component axis explicit, then flatten that axis and

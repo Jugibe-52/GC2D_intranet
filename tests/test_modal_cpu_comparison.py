@@ -1,5 +1,7 @@
 """Scientific geometry, synchronized JAX timing and archive roundtrip controls."""
 
+from formulations.layout import GCStateLayout
+
 from dataclasses import replace
 import importlib.util
 import json
@@ -11,7 +13,7 @@ from unittest.mock import patch
 import numpy as np
 
 from contracts.execution_options import ExecutionOptions
-from contracts.result import IntegrationData
+from states.history import States
 from execution._modal_benchmark import benchmark_payload
 from execution._modal_worker import encode_job, execute_payload
 from execution.execution import Execution
@@ -41,7 +43,7 @@ class ModalCPUComparisonTests(unittest.TestCase):
     def test_star_spans_cell_radius_fractions_and_preserves_arm_order(self):
         potential, config = field(), settings()
         problem, request = build_star_problem(potential, config)
-        x, y = problem.initial_configuration.layout.positions(problem.initial_state)
+        x, y = GCStateLayout().positions(problem.initial_state)
         relative = np.column_stack((x, y)) / potential.grid.period - .5
         radii = np.linalg.norm(relative, axis=1).reshape(8, 6) / .5
         np.testing.assert_allclose(radii, np.tile([.05, .11, .17, .23, .29, .35], (8, 1)))
@@ -55,7 +57,7 @@ class ModalCPUComparisonTests(unittest.TestCase):
 
     def test_default_star_radii_remain_unchanged_and_invalid_inner_radius_fails(self):
         initial = radial_star(center=(0, 0), arm_length=3, arms=2, particles_per_arm=3)
-        x, y = initial.layout.positions(initial.initial_state)
+        x, y = GCStateLayout().positions(initial)
         np.testing.assert_allclose(np.hypot(x, y), [1, 2, 3, 1, 2, 3])
         for radius in (0., -1., 4., np.nan):
             with self.subTest(radius=radius), self.assertRaises(ValueError):
@@ -86,7 +88,7 @@ class ModalCPUComparisonTests(unittest.TestCase):
                 diagnostics.update(benchmark_cpu_cores=self.cores, benchmark_repetitions=3,
                                    benchmark_wall_seconds=np.array([3., 2., 4.]) / self.cores,
                                    benchmark_first_seconds=8., benchmark_environment='{}')
-                return IntegrationData(data.t, data.states, diagnostics)
+                return data.with_diagnostics(diagnostics)
 
         with tempfile.TemporaryDirectory() as temporary, patch('studies.modal_cpu_comparison.Execution_Modal', Worker):
             comparison = run_cpu_star_comparison(potential, config, {}, app_name='offline', record_directory=temporary)

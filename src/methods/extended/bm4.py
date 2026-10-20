@@ -11,7 +11,7 @@ from contracts.step import StepInfo, StepResult
 from contracts.result import DiagnosticValue
 from contracts.observation import ImplicitBM4IntegrationStep, StepObserver
 from contracts.problem import InitialValueProblem
-from contracts.request import SimulationRequest
+from request import SimulationRequest
 from methods._nonlinear import NonlinearSolver, SolverOptions, _validate_nonlinear_solver
 from methods._validation import _positive_finite, _positive_integer, _nonnegative_finite
 from methods.extended.configuration import (
@@ -73,7 +73,7 @@ class BM4Implicit(CompiledFixedMethod[_ProjectedBM4Step]):
 
 	# Harmonic coupling of the two temporary physical copies.
 	coupling_frequency: float = 0.0
-	# State-scaled stopping threshold and common nonlinear correction limit.
+	# np.ndarray-scaled stopping threshold and common nonlinear correction limit.
 	newton_absolute_tolerance: float = 1e-13
 	newton_relative_tolerance: float = 1e-12
 	newton_max_iterations: int = 12

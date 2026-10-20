@@ -13,7 +13,7 @@ import jax.numpy as jnp
 import numpy as np
 
 from contracts.execution_options import ExecutionOptions
-from contracts.result import IntegrationData
+from states.history import States
 from contracts.compiled import CompiledStep
 from integration._fixed import _step_count
 from integration.core import _time_tolerance, NEWTON_ALIASES
@@ -77,7 +77,7 @@ def _compiled_integrator(kernel: CompiledStep) -> Callable[..., Any]:
 
 
 def integrate_fixed(method: "IntegrationMethod[Any]", execution: ExecutionOptions,
-                    kernel: CompiledStep) -> IntegrationData:
+                    kernel: CompiledStep) -> States:
     """Run one fresh fixed-step method instance and transfer the finished result to NumPy.
 
     The method adapter validates host-only callbacks and progress before
@@ -135,7 +135,7 @@ def integrate_fixed(method: "IntegrationMethod[Any]", execution: ExecutionOption
                 diagnostics[alias] = diagnostics[canonical]
         if kernel.finite_difference:
             diagnostics['finite_difference_batching'] = 'independent_particle_columns'
-        return IntegrationData(times, states, diagnostics)
+        return States(times, states, diagnostics, layout=method.problem.layout, initial_state=method.problem.initial_state)
     finally:
         method._status = "finished"
 

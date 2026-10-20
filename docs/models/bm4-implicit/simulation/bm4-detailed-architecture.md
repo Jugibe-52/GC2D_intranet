@@ -91,7 +91,7 @@ Constructing these events reuses the accepted trace. Calling their diagnostic
 
 History export produces physical samples `[2N, T]` and saved-time energy arrays.
 Nonlinear-work arrays follow accepted main steps. The public `simulate` function
-constructs `Solution` and verifies its saved times and initial state.
+returns the completed `States` and verifies its saved times and initial state.
 
 ## BM4Midpoint comparison
 
@@ -128,7 +128,7 @@ diagrams retain their independent sources and renderings.
 This model supports `simulate(..., options=ExecutionOptions(backend="jax", device="cpu"))`
 (or a configured `device="gpu"`) with explicit float64. The complete fixed time
 loop, particle stages, applicable nonlinear/projection solves and passive energy
-quadrature remain on that device until final NumPy `Solution` export. Its
+quadrature remain on that device until final NumPy `States` export. Its
 coefficients, physical-state tolerance scaling and sampling conventions are
 unchanged. JAX rejects unconverged solves explicitly. Diagnostics report
 `execution_mode="device_resident"`. Python step observers and progress reporting
@@ -144,7 +144,7 @@ for supported physical systems, solver details, timing scope and validation.
 integration to `Execution.run`. Import the executor with `from execution import
 Execution`. It uses the existing local method implementation and does not
 configure runtime resources. A subclass can replace the whole integration while
-`simulate` retains final `Solution` construction and validation. Backend choices
+`simulate` retains validation of the completed `States` returned by integration. Backend choices
 remain separate in `options=ExecutionOptions(...)`. See the
 [executor contract](../../../simulation/execution.md) for the extension interface.
 The numerical stages, projection equations and integration controllers described

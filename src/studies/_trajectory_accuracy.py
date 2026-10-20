@@ -12,7 +12,7 @@ import numpy as np
 
 from diagnostics import StoredReferenceTrajectory
 from dynamics import GuidingCenterDynamics
-from states.state import State
+
 from potential import Potential
 
 from ._trajectory_distances import DistanceConvention, normalized_distance_convention, particle_distances
@@ -90,7 +90,7 @@ def reference_distance_convention(
 
 def validate_reference_identity(
 	potential: Potential,
-	initial_configuration: State,
+	initial_configuration: np.ndarray,
 	reference: StoredReferenceTrajectory,
 	config: ReferenceAccuracyConfig,
 	*,
@@ -98,7 +98,7 @@ def validate_reference_identity(
 	initial_condition_metadata: Mapping[str, object],
 ) -> None:
 	"""Reject mismatched ODEs, initial states, parameters, and time grids."""
-	initial_state = initial_configuration.initial_state
+	initial_state = initial_configuration
 	if initial_state is None or not np.array_equal(initial_state, reference.initial_state):
 		raise ValueError("The comparison initial state differs from the reference.")
 	metadata = reference.metadata

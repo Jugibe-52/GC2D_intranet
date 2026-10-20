@@ -79,8 +79,10 @@ adaptive execution path, where their values can change during integration.
 `simulate(problem, method, request)` creates a fresh run via `new_run`, validates
 its formulation and calls the shared `integrate_method`. Each `advance` returns
 an internal state, small work counters and method-specific accepted details.
-The common collector retains samples and counters; the formulation extracts the
-physical trajectory and diagnostic histories. Run resources are isolated.
+The controller owns `IntegrationState(time, values)`. Each requested sample is
+extracted into physical coordinates and copied into `States`. Main-step counters
+keep their separate axis; the formulation diagnoses the completed physical
+history. Finalization seals the same `States` object. Run resources are isolated.
 
 Fixed methods use independent shortened maps for off-grid samples. Adaptive
 methods retain one live SciPy solver whose state is always physical. Their
@@ -92,7 +94,7 @@ not change with tracking. All energy histories have shape `(N, saved_times)`,
 including `extended_time` even for a single particle. Diagnostic arrays
 `extended_time`, `extended_momentum`,
 `physical_hamiltonian`, `generalized_energy` and `generalized_energy_error` follow
-`Solution.t`; nonlinear and runtime work arrays follow `step_times`.
+`States.t`; nonlinear and runtime work arrays follow `step_times`.
 `extended_momentum_normalization` is `physical_kappa` and `energy_error` is the
 maximum absolute sampled balance error over all particles.
 
@@ -129,7 +131,7 @@ for supported physical systems, solver details, timing scope and validation.
 integration to `Execution.run`. Import the executor with `from execution import
 Execution`. It uses the existing local method implementation and does not
 configure runtime resources. A subclass can replace the whole integration while
-`simulate` retains final `Solution` construction and validation. Backend choices
+`simulate` retains validation of the completed `States` returned by integration. Backend choices
 remain separate in `options=ExecutionOptions(...)`. See the
 [executor contract](../../../simulation/execution.md) for the extension interface.
 The numerical stages, projection equations and integration controllers described
@@ -141,11 +143,10 @@ persistence; see the [Modal executor guide](../../../simulation/modal-execution.
 
 ## Initial-state ownership
 
-`InitialValueProblem` captures the validated physical state, particle count, and
-independent layout at construction. A later edit to the original initial-state
-provider does not change this run's formulation. Physical layouts are owned by
-`states.layout`; compatible external providers need no inheritance from
-initial-condition classes. Built-in dynamics keep their physical parameters
+`InitialValueProblem(dynamics, initial_state, layout=...)` captures a validated
+physical array, particle count and independent layout. Later edits to the input
+array do not change the prepared formulation. Physical layouts belong to
+`formulations.layout`; compatible structural layouts require no inheritance. Built-in dynamics keep their physical parameters
 immutable. See the shared [layout and ownership contract](../../../dynamics/protocols.md#physical-layouts-and-problem-ownership).
 
 ## Potential evaluation boundary
@@ -157,4 +158,4 @@ gyroaveraged field, without refitting or mutating the source dynamics. Inherited
 electric fields follow the potential class; `evaluate_grid` remains NumPy-only. See the
 [shared potential contract](../../../dynamics/jax-potential-evaluation.md).
 
-The built-in initial provider is now `states.State(values, layout=...)`, with `GCStateLayout` or `FCStateLayout` as appropriate. Generators in `states.generators` return that same class. Numerical stages continue to operate on arrays; no State object is created at each step.
+Initial data are packed NumPy arrays, including the output of `states.generators`. `formulations.layout` supplies GC/FC layouts; `request.SimulationRequest` owns the initial time and output schedule. Controllers manage the current internal `IntegrationState`; `states.States` stores physical samples and becomes the completed result. Several methods can share a formulation. See the [migration guide](../../../simulation/api-migration.md).

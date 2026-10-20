@@ -1,6 +1,6 @@
 """Audited accuracy, serial timings and multipliers for the two BM4 methods."""
 
-from states.layout import GCStateLayout
+from formulations.layout import GCStateLayout
 
 from dataclasses import dataclass, replace
 from collections.abc import Mapping
@@ -12,14 +12,14 @@ from threadpoolctl import threadpool_limits
 
 from dynamics import GuidingCenterDynamics
 from diagnostics import StoredReferenceTrajectory
-from states.state import State
+
 from potential import Potential
 from methods.extended.bm4 import BM4Implicit
 from methods.extended.bm4 import BM4Midpoint
 from contracts.observation import ImplicitBM4IntegrationStep, IntegrationStep
 from contracts.problem import InitialValueProblem
 from methods.base import NumericalMethod
-from contracts.request import SimulationRequest
+from request import SimulationRequest
 from simulation.runner import simulate
 from contracts.comparison import AdaptiveReference
 from ._gauss_legendre4_common import (build_adaptive_reference)
@@ -87,7 +87,7 @@ def radial_configuration(
 	*,
 	radius_fractions: tuple[float, ...] = (0.1, 0.25, 0.4),
 	angle: float = 0.0,
-) -> State:
+) -> np.ndarray:
 	"""Place particles along one radius; fractions use the cell half-width."""
 	radii = np.asarray(radius_fractions, dtype=float)
 	if (radii.ndim != 1 or radii.size == 0 or not np.all(np.isfinite(radii))
@@ -96,11 +96,7 @@ def radial_configuration(
 		raise ValueError("Use finite increasing radius fractions in [0,1) and a finite angle.")
 	grid = potential.grid
 	radii = radii * grid.period / 2.0
-	return State.from_components(
-		grid.xmin + grid.period / 2 + radii * np.cos(angle),
-		grid.ymin + grid.period / 2 + radii * np.sin(angle),
-		layout=GCStateLayout(),
-	)
+	return np.asarray(GCStateLayout().pack_components(grid.xmin + grid.period / 2 + radii * np.cos(angle), grid.ymin + grid.period / 2 + radii * np.sin(angle)))
 
 
 def _rms(values: np.ndarray, times: np.ndarray) -> float:
@@ -121,7 +117,7 @@ def saved_sample_indices(reference: StoredReferenceTrajectory, times: np.ndarray
 
 
 def audit_saved_reference_refinement(
-	potential: Potential, configuration: State,
+	potential: Potential, configuration: np.ndarray,
 	reference: StoredReferenceTrajectory, coarse: StoredReferenceTrajectory,
 	*, config: BM4ProjectionComparisonConfig,
 	potential_metadata: Mapping[str, object], initial_condition_metadata: Mapping[str, object],
@@ -168,7 +164,7 @@ def audit_saved_reference_refinement(
 
 def run_bm4_projection_comparison(
 	potential: Potential,
-	configuration: State,
+	configuration: np.ndarray,
 	*,
 	config: BM4ProjectionComparisonConfig,
 	saved_reference: StoredReferenceTrajectory | None = None,
@@ -182,7 +178,7 @@ def run_bm4_projection_comparison(
 	order. Arrays retain all accepted step diagnostics and saved trajectories.
 	"""
 	dynamics = GuidingCenterDynamics(potential, rho=config.rho)
-	problem = InitialValueProblem(dynamics, configuration)
+	problem = InitialValueProblem(dynamics, configuration, layout=GCStateLayout())
 	request = SimulationRequest.uniform(t_span=config.t_span, max_step=config.integration_step,
 		sample_count=config.output_sample_count)
 	times = request.output_times

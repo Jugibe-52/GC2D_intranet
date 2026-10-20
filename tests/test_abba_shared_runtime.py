@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from states.layout import GCStateLayout
+from formulations.layout import GCStateLayout
 
 from itertools import product
 import unittest
@@ -11,7 +11,7 @@ from unittest.mock import patch
 import numpy as np
 
 from dynamics import GuidingCenterDynamics
-from states.state import State
+
 from potential import Potential
 from simulation import ABBA2Implicit, ABBA4Implicit, ABBA6Implicit, InitialValueProblem, SimulationRequest, simulate
 from methods._nonlinear import _solve_newton
@@ -22,10 +22,7 @@ from contracts.step import StepInfo
 def _problem() -> InitialValueProblem:
 	"""One inexpensive smooth non-autonomous particle."""
 	potential = Potential.random(A=0.08, M=3, nx=16, ny=16, seed=27, interpolation_order=5)
-	return InitialValueProblem(
-		GuidingCenterDynamics(potential, rho=0.05),
-		State.from_components([1.0], [1.2], layout=GCStateLayout()),
-	)
+	return InitialValueProblem(GuidingCenterDynamics(potential, rho=0.05), GCStateLayout().pack_components([1.0], [1.2]), layout=GCStateLayout())
 
 
 def _request(times: list[float]) -> SimulationRequest:

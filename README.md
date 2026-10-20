@@ -6,13 +6,13 @@ grouped by responsibility:
 
 - `potential`: GC2D HDF5 imports and periodic electrostatic fields;
 - `dynamics`: guiding-center and full-cyclotron equations;
-- `states`: physical state snapshots, layouts and geometry generators;
-- `contracts`: shared problem, request, state-layout, step, and observation types;
-- `formulations`: numerical coordinates and split maps;
+- `states`: physical sampled histories, completed results and geometry generators;
+- `contracts`: shared problem, layout protocols, step and observation types;
+- `formulations`: reusable physical layouts, internal coordinates and split maps;
 - `methods`: numerical methods, including the shared `extended` family;
 - `integration`: step scheduling, sampling, and collection;
 - `simulation`: public execution facade;
-- `solution.py`: immutable computed trajectories;
+- `request.py`: temporal configuration;
 - `diagnostics`: opt-in numerical observers and persistence;
 - `studies`: reusable experiment composition;
 - `visualization`: optional Matplotlib presentation.
@@ -23,8 +23,8 @@ algorithm, temporal request, and computed result separate:
 ```text
 Potential -> Dynamics --\
                        +-> InitialValueProblem --\
-InitialConfiguration -/                         \
-                                                  -> simulate -> Solution
+Initial values + layout -/                         \
+                                                  -> simulate -> States
 NumericalMethod ---------------------------------/
 SimulationRequest -------------------------------/
 ```
@@ -35,7 +35,7 @@ also has its own detailed diagram in the [method catalog](docs/models/README.md)
 In `src/`, `contracts/` holds shared input and step types, `formulations/`
 defines numerical state representations, `methods/` implements steps, and
 `integration/` schedules and collects them. `simulation/` remains the public
-execution facade; `solution.py` owns the returned result. Initial geometry
+execution facade; `states/` owns the returned result. Initial geometry
 stays in `states/`.
 
 Public imports such as `from simulation import ABBA4Implicit, BM4Implicit,
@@ -54,7 +54,7 @@ resources; backend options remain separate. See the
 Use `Execution_Modal` from `execution` for complete NumPy/SciPy or JAX CPU integrations on
 a deployed Modal Function. Results return locally before an explicit bucket
 save; see the [Modal deployment and recovery guide](docs/simulation/modal-execution.md).
-`Solution` checks array structure and owns immutable
+`States` checks array structure and owns immutable
 copies; `simulate` checks agreement with the requested times and initial state.
 
 `Potential.evaluate(t, x, y)` uses NumPy/SciPy. Its subclass `JaxPotential`
@@ -72,13 +72,10 @@ Enable `jax_enable_x64` first; select `device="gpu"` on a compatible installatio
 The eleven fixed-step methods compile their stages, nonlinear/projection solves
 and time loop. DOP853/Radau retain SciPy adaptive control and use JAX for batched
 field/energy evaluations, explicitly reporting hybrid execution. Results keep
-the immutable NumPy `Solution` contract. See the [execution guide](docs/simulation/jax-execution.md)
+the immutable NumPy `States` contract. See the [execution guide](docs/simulation/jax-execution.md)
 for supported dynamics, callbacks, nonlinear controls and timing scope.
 
-`Solution` is an immutable computed trajectory. Its initial configuration is
-available as `solution.source`, while diagnostics are attached as read-only
-data. Shared physical dynamics are documented independently of the numerical
-models:
+`States` records physical samples and becomes the read-only computed trajectory. Controllers keep the current internal `IntegrationState(time, values)` separately. `solution.initial_state` and `solution.layout` expose independent snapshots, and diagnostics are read-only. `request.SimulationRequest` owns the initial time, maximum step and output schedule. Shared physical dynamics are documented independently of numerical models:
 
 - [GC2D HDF5 potential and guiding-center dynamics](docs/dynamics/gc2d-h5-import.md).
 - [Optional JAX potential evaluation on CPU or GPU](docs/dynamics/jax-potential-evaluation.md).
@@ -166,11 +163,10 @@ units, derivatives, provenance and explicit preservation of historical studies.
 
 ```python
 
-from states import GCStateLayout
+from formulations.layout import GCStateLayout
 import numpy as np
 
 from dynamics import GuidingCenterDynamics
-from states import State
 from potential import Potential
 from simulation import (
     BM4Implicit,
@@ -187,10 +183,9 @@ potential = Potential.random(
     seed=27,
     interpolation_order=5,
 )
-configuration = State.from_components(
+configuration = GCStateLayout().pack_components(
     np.asarray([np.pi]),
     np.asarray([np.pi]),
-    layout=GCStateLayout(),
 )
 problem = InitialValueProblem(
     GuidingCenterDynamics(potential, rho=0.3),
@@ -295,7 +290,7 @@ nonlinear solve per step and three base maps per residual evaluation.
 Every public method accepts `track_energy=True`, including `ExplicitEuler`,
 `HBVM42` and `BM4Implicit`. The concrete `PhysicalFormulation` and
 `DoubledFormulation` classes own the layouts. Accepted duplicated states store
-equal spatial copies. `Solution.states` and observer maps expose physical
+equal spatial copies. `States.states` and observer maps expose physical
 coordinates only. For FC classical methods the physical size is 4N, or 6N
 with tracking. Every component block has N entries, so
 `formulation.components(state)` has shape `(coordinates, N, *sample_axes)`.
@@ -312,9 +307,9 @@ unknown for a single particle.
 The auxiliary obeys `kappa'=-partial_t H`, starting from zero. Every family
 reports the same normalization: `physical_kappa`. The histories
 `extended_time`, `extended_momentum`, `physical_hamiltonian`,
-`generalized_energy` and `generalized_energy_error` follow `Solution.t`.
+`generalized_energy` and `generalized_energy_error` follow `States.t`.
 All have shape `(N, saved_times)`, including `extended_time` for one particle.
-Use `Solution.t` when a one-dimensional integration grid is needed.
+Use `States.t` when a one-dimensional integration grid is needed.
 `energy_error` is the maximum sampled absolute change in `H+kappa`.
 Physical H need not be conserved in a time-dependent potential.
 
@@ -343,7 +338,7 @@ Solver-neutral diagnostics include `projection_formulation`,
 `nonlinear_unknown_dimension`, plus `observer_state_dimension` and
 `observer_state_kind`. Energy-tracked physical runs expose
 `extended_momentum`, `energy_error`, and the `kappa_equals_k_over_2`
-normalization; their time coordinate is the ordinary `Solution.t`. Fully
+normalization; their time coordinate is the ordinary `States.t`. Fully
 extended runs expose direct `extended_momentum`, `extended_time`, the same
 scalar `energy_error`, and detailed generalized-energy histories.
 
@@ -352,13 +347,13 @@ scalar `energy_error`, and detailed generalized-energy histories.
 Every method inherits `IntegrationMethod.integrate`. Its `new_run` creates an instance of the same numerical class. Its `initialize`,
 `advance`, `build_observation` and `export_history` own the method behavior.
 `integrate_method` owns one run;
-`IntegrationCollector` stores samples and accepted-step metrics. Method-specific
+`States` stores samples and accepted-step metrics. Method-specific
 traces are consumed only when an observer needs them.
 
 `DOP853` and `Radau` are public methods with `relative_tolerance`,
 `absolute_tolerance`, `first_step`, `dense_output` and optional energy tracking.
 They retain one live SciPy solver over the complete interval and share the same
-collector and result boundary as all fixed methods. Accepted steps can vary;
+States recording and result boundary as all fixed methods. Accepted steps can vary;
 requested samples use dense output. `AdaptiveIntegrationStep` exposes an accepted
 interpolant instead of a fixed-step `map_state`.
 
@@ -435,17 +430,15 @@ See the model-specific
 
 ```python
 
-from states import FCStateLayout
+from formulations.layout import FCStateLayout
 from dynamics import FullCyclotronDynamics
-from states import State
 from simulation import InitialValueProblem, RK4, SimulationRequest, simulate
 
-configuration = State.from_components(
+configuration = FCStateLayout().pack_components(
     np.asarray([np.pi]),
     np.asarray([np.pi]),
     np.asarray([1.0]),
     np.asarray([0.0]),
-    layout=FCStateLayout(),
 )
 problem = InitialValueProblem(
     FullCyclotronDynamics(potential, rho=0.3, eta=0.01),
@@ -476,12 +469,11 @@ Named constructors hide this ordering. `as_blocks(...)` exposes a view with
 shape `(components, particles, *sample_axes)`, while `from_blocks(...)`
 performs the inverse transformation.
 
-External functions in `states.generators` build plain `State` objects with square or circular boundary coordinates:
+External functions in `states.generators` return packed NumPy arrays with square or circular boundary coordinates:
 
 ```python
 
 from states import generators as state_generators
-from states import State
 
 area = state_generators.circle(center=(np.pi, np.pi), radius=0.5, points=64)
 problem = InitialValueProblem(
@@ -490,7 +482,7 @@ problem = InitialValueProblem(
 )
 ```
 
-`diagnostics.geometry.calculate_area(area.values, layout=area.layout, period=...)` applies the shoelace formula and can unwrap periodic boundary crossings. Geometry labels belong in study metadata, for example `metadata={"geometry": "circle"}`, rather than on `State`.
+`diagnostics.geometry.calculate_area(area, layout=GCStateLayout(), period=...)` applies the shoelace formula and can unwrap periodic boundary crossings. Geometry labels belong in study metadata, for example `metadata={"geometry": "circle"}`, and do not change the physical array.
 
 ## Reusable studies
 
@@ -606,9 +598,9 @@ runtime ratios at equal trajectory accuracy.
 
 The result interface provides:
 
-- `solution.t`: read-only saved times;
-- `solution.states`: read-only physical states;
-- `solution.source`: initial configuration and state layout;
+- `solution.times` (`solution.t`): read-only saved times;
+- `solution.values` (`solution.states`): read-only physical states;
+- `solution.initial_state` and `solution.layout`: independent initial-value and layout snapshots;
 - `solution.diagnostics`: read-only numerical diagnostics;
 - `solution.components()` and `solution.positions()`: physical views.
 

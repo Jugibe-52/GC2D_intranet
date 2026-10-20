@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from formulations.layout import GCStateLayout
+
 from diagnostics.geometry import calculate_area
 
 from pathlib import Path
@@ -21,7 +23,7 @@ from visualization.gc_symplecticity import (
 	plot_rk4_convergence,
 )
 
-from states.state import State
+
 from studies import (
 	ABBASymplecticityConfig,
 	ABBASymplecticityResult,
@@ -74,10 +76,10 @@ class InitializationStudyTests(unittest.TestCase):
 		expected_center = domain_center(potential)
 
 		trajectory = centered_gc_configuration(potential)
-		self.assertIsInstance(trajectory, State)
-		state = trajectory.initial_state
+		self.assertIsInstance(trajectory, np.ndarray)
+		state = trajectory
 		assert state is not None
-		x, y = trajectory.layout.positions(state)
+		x, y = GCStateLayout().positions(state)
 		np.testing.assert_allclose((x[0], y[0]), expected_center)
 
 		circle = centered_circle(
@@ -92,10 +94,10 @@ class InitializationStudyTests(unittest.TestCase):
 			points_per_side=2,
 
 		)
-		self.assertIsInstance(circle, State)
-		self.assertIsInstance(square, State)
-		self.assertEqual(circle.layout.particle_count(circle.initial_state), 8)
-		self.assertAlmostEqual(float(calculate_area(square.values, layout=square.layout)), 1.0)
+		self.assertIsInstance(circle, np.ndarray)
+		self.assertIsInstance(square, np.ndarray)
+		self.assertEqual(GCStateLayout().particle_count(circle), 8)
+		self.assertAlmostEqual(float(calculate_area(square, layout=GCStateLayout())), 1.0)
 
 	def test_latin_hypercube_conditions_are_reproducible_and_stratified(self) -> None:
 		potential = small_potential_config().build()
@@ -111,10 +113,10 @@ class InitializationStudyTests(unittest.TestCase):
 			seed=20260827,
 			domain_margin_fraction=0.05,
 		)
-		assert first.initial_state is not None
-		assert second.initial_state is not None
-		np.testing.assert_array_equal(first.initial_state, second.initial_state)
-		x, y = first.layout.positions(first.initial_state)
+		assert first is not None
+		assert second is not None
+		np.testing.assert_array_equal(first, second)
+		x, y = GCStateLayout().positions(first)
 		grid = potential.grid
 		domain_min = np.asarray((grid.xmin, grid.ymin))
 		domain_max = np.asarray((grid.xmax, grid.ymax))
@@ -148,10 +150,10 @@ class InitializationStudyTests(unittest.TestCase):
 			center_offset_fraction=tuple(offset_fraction),
 			domain_margin_fraction=0.05,
 		)
-		assert baseline.initial_state is not None
-		assert centered.initial_state is not None
-		baseline_x, baseline_y = baseline.layout.positions(baseline.initial_state)
-		centered_x, centered_y = centered.layout.positions(centered.initial_state)
+		assert baseline is not None
+		assert centered is not None
+		baseline_x, baseline_y = GCStateLayout().positions(baseline)
+		centered_x, centered_y = GCStateLayout().positions(centered)
 		expected = np.asarray(domain_center(potential)) + offset_fraction * potential.grid.period
 		np.testing.assert_allclose((centered_x[0], centered_y[0]), expected)
 		np.testing.assert_array_equal(centered_x[1:], baseline_x[1:])

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from states.layout import GCStateLayout
+from formulations.layout import GCStateLayout
 
 from contextlib import redirect_stderr
 from dataclasses import replace
@@ -18,7 +18,7 @@ from scipy.integrate import solve_ivp
 import studies.abba4_configuration_comparison as comparison_module
 from diagnostics import ReferenceTrajectoryPaths, StoredReferenceTrajectory
 from dynamics import GuidingCenterDynamics
-from states.state import State
+
 from potential import GC2DH5Metadata, Grid, Potential
 from studies.abba4_configuration_comparison import (
 	ABBA4_CONFIGURATION_KEYS,
@@ -43,26 +43,22 @@ def _potential() -> Potential:
 	)
 
 
-def _configuration(*, particle_count: int = 10) -> State:
+def _configuration(*, particle_count: int = 10) -> np.ndarray:
 	"""Place deterministic independent guiding centers inside the base cell."""
-	return State.from_components(
-		np.linspace(0.8, 1.4, particle_count),
-		np.linspace(1.0, 1.6, particle_count),
-		layout=GCStateLayout(),
-	)
+	return GCStateLayout().pack_components(np.linspace(0.8, 1.4, particle_count), np.linspace(1.0, 1.6, particle_count))
 
 
 def _reference(
 	potential: Potential,
-	configuration: State,
+	configuration: np.ndarray,
 	*,
 	distance_convention: str = "euclidean",
 	fingerprint: str | None = None,
 ) -> StoredReferenceTrajectory:
 	"""Construct an in-memory DOP853 reference containing a longer prefix."""
-	initial_state = configuration.initial_state
+	initial_state = configuration
 	assert initial_state is not None
-	particle_count = configuration.layout.particle_count(initial_state)
+	particle_count = GCStateLayout().particle_count(initial_state)
 	dynamics = GuidingCenterDynamics(potential, rho=0.0)
 	times = np.linspace(0.0, 0.04, 5)
 	solve = solve_ivp(
@@ -111,7 +107,7 @@ class ABBA4ConfigurationComparisonTests(unittest.TestCase):
 	"""Verify orchestration, metrics, dimensions, and reference semantics."""
 
 	potential: ClassVar[Potential]
-	configuration: ClassVar[State]
+	configuration: ClassVar[np.ndarray]
 	reference: ClassVar[StoredReferenceTrajectory]
 	config: ClassVar[ABBA4ConfigurationComparisonConfig]
 	result: ClassVar[ABBA4ConfigurationComparisonResult]
@@ -183,8 +179,8 @@ class ABBA4ConfigurationComparisonTests(unittest.TestCase):
 				np.testing.assert_array_equal(parallel.t, sequential.t)
 				np.testing.assert_array_equal(parallel.states, sequential.states)
 				np.testing.assert_array_equal(
-					parallel.source.initial_state,
-					sequential.source.initial_state,
+					parallel.initial_state,
+					sequential.initial_state,
 				)
 				self.assertEqual(
 					tuple(parallel.diagnostics),
@@ -221,10 +217,10 @@ class ABBA4ConfigurationComparisonTests(unittest.TestCase):
 
 	def test_parallel_results_restore_stable_particle_order(self) -> None:
 		"""Completion order must not leak into public variant or particle rows."""
-		initial_state = self.configuration.initial_state
+		initial_state = self.configuration
 		assert initial_state is not None
 		expected = np.column_stack(
-			self.configuration.layout.positions(initial_state)
+			GCStateLayout().positions(initial_state)
 		)
 		for key in ABBA4_CONFIGURATION_KEYS:
 			actual = np.stack(
@@ -493,10 +489,10 @@ class ABBA4ConfigurationComparisonTests(unittest.TestCase):
 			self.assertEqual(len(result.solutions[key]), 3)
 			self.assertEqual(result.runtimes[key].shape, (3,))
 			for solution in result.solutions[key]:
-				source_state = solution.source.initial_state
+				source_state = solution.initial_state
 				assert source_state is not None
 				self.assertEqual(
-					solution.source.layout.particle_count(source_state),
+					solution.layout.particle_count(source_state),
 					1,
 				)
 
@@ -568,11 +564,7 @@ class ABBA4ConfigurationComparisonTests(unittest.TestCase):
 			),
 			interpolation_order=3,
 		)
-		configuration = State.from_components(
-			np.asarray([1.1]),
-			np.asarray([1.3]),
-			layout=GCStateLayout(),
-		)
+		configuration = GCStateLayout().pack_components(np.asarray([1.1]), np.asarray([1.3]))
 		reference = _reference(
 			potential,
 			configuration,

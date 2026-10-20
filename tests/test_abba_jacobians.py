@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from states import generators as state_generators
-from states.layout import GCStateLayout
+from formulations.layout import GCStateLayout
 
 import json
 from pathlib import Path
@@ -20,7 +20,7 @@ from diagnostics.symplecticity import (
 	stage_increment_step_jacobian,
 )
 from dynamics import GuidingCenterDynamics
-from states.state import State
+
 from potential import Potential
 from simulation import (
 	ABBA_PROJECTION_FORMULATIONS,
@@ -87,10 +87,7 @@ class ImplicitABBAJacobianTests(unittest.TestCase):
 	def test_analytic_jacobians_match_each_other_and_finite_differences(self) -> None:
 		dynamics = GuidingCenterDynamics(deterministic_potential(), rho=0.05)
 		initial_state = np.asarray([1.0, 1.4, 1.2, 1.6])
-		problem = InitialValueProblem(
-			dynamics,
-			State(initial_state, layout=GCStateLayout()),
-		)
+		problem = InitialValueProblem(dynamics, np.array(initial_state, dtype=float, copy=True), layout=GCStateLayout())
 		request = SimulationRequest.uniform(
 			t_span=(0.0, 0.05),
 			max_step=0.05,
@@ -162,10 +159,7 @@ class ImplicitABBAJacobianTests(unittest.TestCase):
 		duration = 0.1
 		events = []
 		simulate(
-			InitialValueProblem(
-				dynamics,
-				State(np.asarray([1.0, 1.2]), layout=GCStateLayout()),
-			),
+			InitialValueProblem(dynamics, np.array(np.asarray([1.0, 1.2]), dtype=float, copy=True), layout=GCStateLayout()),
 			ABBA2Implicit(step_observer=events.append),
 			SimulationRequest.uniform(
 				t_span=(start, start + duration),
@@ -279,7 +273,7 @@ class ImplicitABBAObserverStudyTests(unittest.TestCase):
 			points_per_side=1,
 
 		)
-		state = area.initial_state
+		state = area
 		assert state is not None
 		with tempfile.TemporaryDirectory(dir="/tmp") as temporary:
 			with GCAreaSymplecticityObserver(

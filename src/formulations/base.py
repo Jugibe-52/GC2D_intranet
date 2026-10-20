@@ -8,7 +8,10 @@ import numpy as np
 
 from dynamics.protocols import DynamicalSystem, HamiltonianSystem
 from contracts.result import DiagnosticValue
-from contracts.problem import InitialValueProblem
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+	from contracts.problem import InitialValueProblem
 
 
 Projection: TypeAlias = tuple[np.ndarray, dict[str, DiagnosticValue]]

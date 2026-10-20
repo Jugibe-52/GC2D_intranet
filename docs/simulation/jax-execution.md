@@ -49,7 +49,7 @@ the NumPy/device boundary. A user-supplied Radau Jacobian retains its original
 host callback semantics. This route can be slower than CPU for small batches;
 it does not claim that the complete adaptive solver runs on GPU.
 
-All routes return the same immutable NumPy `Solution`, with component-major
+All routes return the same immutable NumPy `States`, with component-major
 physical states and canonical energy histories. Initial field preparation,
 gyroaveraging and spline fitting stay on CPU. `Potential` owns the canonical
 splines. Preparation binds the shared equations to `JaxPotential` instances
@@ -89,7 +89,7 @@ that solver is scientifically appropriate. No solver is changed automatically.
 
 The JAX driver checks every accepted and sampled state for finite values and
 tracks nonlinear convergence even for unsaved main steps and shadow samples.
-Failed solves raise an error without returning a successful `Solution`.
+Failed solves raise an error without returning a successful `States`.
 Nonlinear histories retain their existing names, shapes and legacy Newton aliases.
 Floating-point reassociation may change the correction count at a tolerance
 boundary; equivalence means compatible trajectories and converged residuals,

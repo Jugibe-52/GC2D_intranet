@@ -2,8 +2,8 @@
 
 import numpy as np
 
-from states.state import State
-from states.layout import GCStateLayout
+
+from formulations.layout import GCStateLayout
 
 
 def _validated_radial_star_origin(
@@ -28,7 +28,7 @@ def radial_star(*, center: tuple[float, float], arm_length: float,
                 arms: int, particles_per_arm: int,
                 first_angle: float = 0.0,
                 inner_radius: float | None = None,
-                include_center: bool = False) -> State:
+                include_center: bool = False) -> np.ndarray:
     """Build a star in the caller's coordinate units, without normalizing space.
 
     Particle order is arm-major, then increasing radius. Arm k has angle
@@ -53,7 +53,7 @@ def radial_star(*, center: tuple[float, float], arm_length: float,
     x, y = x.ravel(), y.ravel()
     if include_center:
         x, y = np.r_[origin[0], x], np.r_[origin[1], y]
-    return State.from_components(x, y, layout=GCStateLayout())
+    return np.asarray(GCStateLayout().pack_components(x, y))
 
 
 def _validated_ranked_star_origin(
@@ -76,7 +76,7 @@ def _validated_ranked_star_origin(
 
 def ranked_radial_star(*, center: tuple[float, float], outer_radius: float,
                        particles: int, arms: int,
-                       first_angle: float = 0.0) -> State:
+                       first_angle: float = 0.0) -> np.ndarray:
     """Place distinct, increasing radii on alternating arms, including one center.
 
     Particle i (zero based) has radius outer_radius*i/(particles-1) and arm
@@ -86,11 +86,7 @@ def ranked_radial_star(*, center: tuple[float, float], outer_radius: float,
     origin = _validated_ranked_star_origin(center, outer_radius, particles, arms, first_angle)
     radii = np.linspace(0.0, outer_radius, particles)
     angles = first_angle + 2 * np.pi * (np.arange(particles) % arms) / arms
-    return State.from_components(
-        origin[0] + radii * np.cos(angles),
-        origin[1] + radii * np.sin(angles),
-        layout=GCStateLayout(),
-    )
+    return np.asarray(GCStateLayout().pack_components(origin[0] + radii * np.cos(angles), origin[1] + radii * np.sin(angles)))
 
 
 
@@ -122,7 +118,7 @@ def square(
 	center: tuple[float, float],
 	side: float,
 	points_per_side: int = 1,
-) -> State:
+) -> np.ndarray:
 	"""Sample a square counter-clockwise with equal density on every edge.
 
 	``center`` locates the geometric centre, ``side`` is its full side
@@ -164,7 +160,7 @@ def square(
 			top - edge,
 		)
 	)
-	return State(np.concatenate((x, y)), layout=GCStateLayout())
+	return np.array(np.concatenate((x, y)), dtype=float, copy=True)
 
 
 def circle(
@@ -172,7 +168,7 @@ def circle(
 	center: tuple[float, float],
 	radius: float,
 	points: int = 128,
-) -> State:
+) -> np.ndarray:
 	"""Sample a counter-clockwise circle without repeating its first point.
 
 	``center`` and ``radius`` define the initial geometry, while ``points``
@@ -192,7 +188,7 @@ def circle(
 	angle = np.linspace(0.0, 2 * np.pi, int(points), endpoint=False)
 	x = center_x + radius * np.cos(angle)
 	y = center_y + radius * np.sin(angle)
-	return State(np.concatenate((x, y)), layout=GCStateLayout())
+	return np.array(np.concatenate((x, y)), dtype=float, copy=True)
 
 
 __all__ = ["radial_star", "ranked_radial_star", "square", "circle"]

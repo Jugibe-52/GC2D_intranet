@@ -18,7 +18,7 @@ class StepResult(Generic[Detail]):
 	"""One complete internal-state map and its observer-free metrics.
 
 	``state`` uses the method's packed internal coordinates. ``details`` belongs
-	to that method and is never interpreted or retained by the collector.
+	to that method and is never interpreted or retained by States.
 	"""
 
 	state: np.ndarray

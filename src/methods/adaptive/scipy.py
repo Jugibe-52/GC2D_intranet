@@ -3,7 +3,7 @@
 Each method run owns
 one live SciPy solver, preserving its rejected trials, stage reuse and step-size
 history. Accepted intervals and their dense interpolants use the same common
-collector and coordinator as fixed methods.
+States history and coordinator as fixed methods.
 """
 
 from __future__ import annotations
@@ -18,13 +18,14 @@ from scipy.integrate import DOP853 as ScipyDOP853, Radau as ScipyRadau
 from dynamics.protocols import DynamicalSystem
 
 from formulations.state import PhysicalFormulation
+from integration.state import IntegrationState
 from integration.core import IntegrationMethod, integrate_method
 from contracts.execution_options import ExecutionOptions
-from contracts.result import IntegrationData
+from states.history import States
 from contracts.step import StepInfo, StepResult
 from contracts.observation import AdaptiveIntegrationStep, AdaptiveStepObserver
 from contracts.problem import InitialValueProblem
-from contracts.request import SimulationRequest
+from request import SimulationRequest
 from methods._validation import _positive_finite
 
 
@@ -37,7 +38,7 @@ _ENERGY_WEIGHTS = _weights / 2.
 
 @dataclass(frozen=True, slots=True)
 class _AdaptiveDetails:
-    """Dense output of one accepted step; never retained by the collector."""
+    """Dense output of one accepted step; never retained by States."""
 
     dense_state: Callable[[float | np.ndarray], np.ndarray]
 
@@ -52,7 +53,7 @@ class ScipyAdaptiveController:
         index = 0
         while method.solver.status == 'running':
             start = float(method.solver.t)
-            before = method.current_state.copy()
+            before = method.current_state.values.copy()
             result = method.advance(start, before, request.max_step)
             end = float(method.solver.t)
             yield StepInfo(index, start, end - start, end, before), result
@@ -79,7 +80,7 @@ class _AdaptiveMethod(IntegrationMethod[_AdaptiveDetails]):
 
     # Resources owned by one run; excluded from constructor options.
     state_formulation: PhysicalFormulation = field(init=False, repr=False, compare=False)
-    current_state: np.ndarray = field(init=False, repr=False, compare=False)
+    current_state: IntegrationState = field(init=False, repr=False, compare=False)
     solver: Any = field(init=False, repr=False, compare=False)
     previous_counts: np.ndarray = field(init=False, repr=False, compare=False)
     accepted_steps: int = field(init=False, repr=False, compare=False)
@@ -122,10 +123,10 @@ class _AdaptiveMethod(IntegrationMethod[_AdaptiveDetails]):
             self.evaluated_dynamics = bind_host_dynamics(self.dynamics, self.execution)
         self.physical_size = problem.initial_state.size
         self.particle_count = problem.particle_count
-        evaluated_problem = InitialValueProblem(self.evaluated_dynamics, problem.initial_configuration)
+        evaluated_problem = InitialValueProblem(self.evaluated_dynamics, problem.initial_state, layout=problem.layout)
         self.state_formulation = PhysicalFormulation(evaluated_problem, request.t_span[0], self.track_energy)
         self.initial_state = self.state_formulation.initial_state
-        self.current_state = self.initial_state.copy()
+        self.current_state = IntegrationState(request.t_span[0], self.initial_state)
         self.metadata = {
             'step_control': 'adaptive', 'method_order': self.order,
             'relative_tolerance': self.relative_tolerance,
@@ -140,19 +141,18 @@ class _AdaptiveMethod(IntegrationMethod[_AdaptiveDetails]):
         self.previous_counts = np.zeros(3, dtype=int)
         self.accepted_steps = 0
 
-    def _integrate_jax(self, execution: ExecutionOptions) -> IntegrationData:
+    def _integrate_jax(self, execution: ExecutionOptions) -> States:
         """Keep SciPy acceptance/dense output while field batches execute in JAX."""
         data = integrate_method(self)
         from execution._jax import resolve_device
         device = resolve_device(execution)
-        data.diagnostics.update({
+        return data.with_diagnostics({
             'execution_backend': 'jax', 'execution_device': execution.device,
             'execution_device_index': execution.device_index,
             'execution_device_kind': str(device.device_kind),
             'execution_mode': 'hybrid_scipy_controller',
             'adaptive_controller': 'scipy',
         })
-        return data
 
     def controller(self) -> ScipyAdaptiveController:
         """Use the live solver's accepted times and its dense interpolants."""
@@ -240,7 +240,7 @@ class _AdaptiveMethod(IntegrationMethod[_AdaptiveDetails]):
 
         momentum_after = momentum_at(end)
         after = self.state_formulation.pack(np.asarray(solver.y), end, momentum_after)
-        self.current_state = after.copy()
+        self.current_state = IntegrationState(float(self.solver.t), after)
         return StepResult(after, {
             'function_evaluations': int(work[0]),
             'jacobian_evaluations': int(work[1]),

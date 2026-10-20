@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from states.layout import GCStateLayout
+from formulations.layout import GCStateLayout
 
 from dataclasses import dataclass
 from types import MappingProxyType
@@ -30,15 +30,15 @@ from diagnostics import (
 	GCTimeExtendedSymplecticityRecord,
 )
 from dynamics import GuidingCenterDynamics
-from states.state import State
+
 from potential import Potential
 from methods.extended.abba import ABBA4Implicit
 from methods.extended.bm4 import BM4Implicit
 from methods.extended.abba import ABBA2Implicit
 from contracts.problem import InitialValueProblem
 from methods.base import NumericalMethod
-from contracts.request import SimulationRequest
-from solution import Solution
+from request import SimulationRequest
+from states.history import States
 from contracts.observation import IntegrationStep
 from simulation.runner import simulate
 
@@ -136,7 +136,7 @@ class ImplicitGeneralizedEnergyRun:
 
 	step: float
 	actual_step: float
-	solution: Solution
+	solution: States
 	records: tuple[GCGeneralizedEnergyRecord, ...]
 	extended_symplecticity_records: tuple[
 		GCTimeExtendedSymplecticityRecord,
@@ -306,7 +306,7 @@ class ImplicitGeneralizedEnergyResult:
 
 	potential: Potential
 	dynamics: GuidingCenterDynamics
-	initial_configuration: State
+	initial_configuration: np.ndarray
 	method: ImplicitEnergyMethod
 	runs: tuple[ImplicitGeneralizedEnergyRun, ...]
 
@@ -469,7 +469,7 @@ def _method_for_run(
 
 def run_implicit_generalized_energy_study(
 	potential: Potential,
-	configuration: State,
+	configuration: np.ndarray,
 	*,
 	method: ImplicitEnergyMethod,
 	config: ImplicitGeneralizedEnergyConfig,
@@ -477,8 +477,8 @@ def run_implicit_generalized_energy_study(
 	"""Run accepted-stage generalized-energy reconstruction at several steps."""
 	if not isinstance(potential, Potential):
 		raise TypeError("`potential` must be a Potential instance.")
-	if not (isinstance(configuration, State) and configuration.layout.state_dimension == 2):
-		raise TypeError("`configuration` must be a State instance.")
+	if not (isinstance(configuration, np.ndarray) and GCStateLayout().state_dimension == 2):
+		raise TypeError("`configuration` must be a np.ndarray instance.")
 	if not isinstance(config, ImplicitGeneralizedEnergyConfig):
 		raise TypeError("`config` must be ImplicitGeneralizedEnergyConfig.")
 	method_name = _validated_method(method)
@@ -488,7 +488,7 @@ def run_implicit_generalized_energy_study(
 		potential,
 		rho=resolve_rho(config.rho),
 	)
-	problem = InitialValueProblem(dynamics, configuration)
+	problem = InitialValueProblem(dynamics, configuration, layout=GCStateLayout())
 	runs: list[ImplicitGeneralizedEnergyRun] = []
 	for step in config.steps:
 		energy_observer = GCGeneralizedEnergyObserver(
@@ -507,12 +507,8 @@ def run_implicit_generalized_energy_study(
 			duration: float,
 		) -> tuple[np.ndarray, float]:
 			candidate_state = np.asarray(state, dtype=float)
-			candidate_configuration = State.from_components(
-				np.asarray([candidate_state[0]], dtype=float),
-				np.asarray([candidate_state[1]], dtype=float),
-				layout=GCStateLayout(),
-			)
-			candidate_problem = InitialValueProblem(dynamics, candidate_configuration)
+			candidate_configuration = GCStateLayout().pack_components(np.asarray([candidate_state[0]], dtype=float), np.asarray([candidate_state[1]], dtype=float))
+			candidate_problem = InitialValueProblem(dynamics, candidate_configuration, layout=GCStateLayout())
 			candidate_energy_observer = GCGeneralizedEnergyObserver(
 				dynamics,
 				initial_time=start_time,

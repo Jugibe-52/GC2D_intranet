@@ -30,10 +30,10 @@ from dynamics import GuidingCenterDynamics
 from potential import Potential
 from methods.extended.configuration import ABBA_PROJECTION_FORMULATIONS, ProjectionFormulation
 from methods.extended.abba import ABBA2Implicit
-from contracts.configuration import InitialConfiguration
+
 from contracts.problem import InitialValueProblem
-from contracts.request import SimulationRequest
-from solution import Solution
+from request import SimulationRequest
+from states.history import States
 from simulation.runner import simulate
 
 
@@ -127,11 +127,11 @@ class ImplicitABBAJacobianStudyConfig:
 
 @dataclass(frozen=True, slots=True)
 class ImplicitABBAJacobianStudyResult:
-	"""Solution and local per-step Jacobian analyses from one implicit ABBA run."""
+	"""States and local per-step Jacobian analyses from one implicit ABBA run."""
 
 	config: ImplicitABBAJacobianStudyConfig
 	dynamics: GuidingCenterDynamics
-	solution: Solution
+	solution: States
 	samples: tuple[ImplicitABBAJacobianSample, ...]
 	records: tuple[ImplicitABBAJacobianRecord, ...]
 	output_blocks: tuple[ImplicitABBAJacobianOutputBlock, ...]
@@ -262,7 +262,7 @@ class ImplicitABBAJacobianStudyResult:
 
 def run_implicit_abba_jacobian_study(
 	potential: Potential,
-	initial_configuration: InitialConfiguration,
+	initial_configuration: np.ndarray,
 	*,
 	notebook_path: str | Path,
 	config: ImplicitABBAJacobianStudyConfig,
@@ -272,9 +272,9 @@ def run_implicit_abba_jacobian_study(
 	"""Run one implicit ABBA trajectory with local Jacobian observations."""
 	if not isinstance(potential, Potential):
 		raise TypeError("`potential` must be a Potential instance.")
-	if not isinstance(initial_configuration, InitialConfiguration):
+	if not isinstance(initial_configuration, np.ndarray):
 		raise TypeError(
-			"`initial_configuration` must implement InitialConfiguration."
+			"`initial_configuration` must implement np.ndarray."
 		)
 	if not isinstance(config, ImplicitABBAJacobianStudyConfig):
 		raise TypeError("`config` must be an ImplicitABBAJacobianStudyConfig.")

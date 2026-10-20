@@ -25,11 +25,11 @@ from dynamics import GuidingCenterDynamics
 from potential import Potential
 from methods.extended.abba import ABBA4Implicit
 from methods.extended.abba import ABBA2Implicit
-from contracts.configuration import InitialConfiguration
+
 from contracts.problem import InitialValueProblem
 from methods._nonlinear import NONLINEAR_SOLVERS, NonlinearSolver
-from contracts.request import SimulationRequest
-from solution import Solution
+from request import SimulationRequest
+from states.history import States
 from simulation.runner import simulate
 
 
@@ -93,7 +93,7 @@ class ImplicitABBAReversibilityStudyResult:
 
 	config: ImplicitABBAReversibilityStudyConfig
 	dynamics: GuidingCenterDynamics
-	solution: Solution
+	solution: States
 	samples: tuple[ImplicitABBAReversibilitySample, ...]
 	runtime_seconds: float
 
@@ -126,15 +126,15 @@ class ImplicitABBAReversibilityStudyResult:
 
 def run_implicit_abba_reversibility_study(
 	potential: Potential,
-	initial_configuration: InitialConfiguration,
+	initial_configuration: np.ndarray,
 	*,
 	config: ImplicitABBAReversibilityStudyConfig,
 ) -> ImplicitABBAReversibilityStudyResult:
 	"""Run ABBA while independently solving and differentiating every reverse step."""
 	if not isinstance(potential, Potential):
 		raise TypeError("`potential` must be a Potential instance.")
-	if not isinstance(initial_configuration, InitialConfiguration):
-		raise TypeError("`initial_configuration` must implement InitialConfiguration.")
+	if not isinstance(initial_configuration, np.ndarray):
+		raise TypeError("`initial_configuration` must implement np.ndarray.")
 	if not isinstance(config, ImplicitABBAReversibilityStudyConfig):
 		raise TypeError(
 			"`config` must be an ImplicitABBAReversibilityStudyConfig."

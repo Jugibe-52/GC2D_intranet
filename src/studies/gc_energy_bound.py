@@ -1,5 +1,7 @@
 """Finite-horizon energy-envelope study for one measured guiding-center orbit."""
 
+from formulations.layout import GCStateLayout
+
 from contracts.study_results import GCEnergyBoundResult, GC_ENERGY_BOUND_METHODS as METHODS
 
 from dataclasses import asdict, dataclass, replace
@@ -11,13 +13,13 @@ from threadpoolctl import threadpool_limits
 
 from diagnostics import GCGeneralizedEnergyObserver, StoredReferenceTrajectory
 from dynamics import GuidingCenterDynamics
-from states.state import State
+
 from potential import Potential
 from methods.extended.bm4 import BM4Implicit
 from methods.classical.rk4 import RK4
 from contracts.problem import InitialValueProblem
 from methods.base import NumericalMethod
-from contracts.request import SimulationRequest
+from request import SimulationRequest
 from simulation.runner import simulate
 from ._trajectory_distances import particle_distances
 from ._validation import integer_ratio
@@ -124,7 +126,7 @@ def _validate_reference(
 
 
 def run_gc_energy_bound_study(
-    potential: Potential, configuration: State, *,
+    potential: Potential, configuration: np.ndarray, *,
     config: GCEnergyBoundConfig, reference: StoredReferenceTrajectory,
 ) -> GCEnergyBoundResult:
     """Compare physical accuracy and stage-resolved energy balance at fixed h.
@@ -134,7 +136,7 @@ def run_gc_energy_bound_study(
     reproduce the timed trajectory. Reference generation is always excluded.
     """
     dynamics = GuidingCenterDynamics(potential, rho=config.rho)
-    problem = InitialValueProblem(dynamics, configuration)
+    problem = InitialValueProblem(dynamics, configuration, layout=GCStateLayout())
     _validate_reference(reference, dynamics, problem.initial_state, config)
     tref = reference.times
     href = np.asarray(dynamics.hamiltonian(tref, reference.states)).reshape(-1)
@@ -336,7 +338,7 @@ def energy_bound_conclusions(result: GCEnergyBoundResult) -> str:
 
 
 def audit_initial_step_geometry(
-    potential: Potential, configuration: State, *, config: GCEnergyBoundConfig,
+    potential: Potential, configuration: np.ndarray, *, config: GCEnergyBoundConfig,
 ) -> list[dict[str, Any]]:
     """Measure the physical one-step symplectic defect at two FD resolutions.
 
@@ -348,7 +350,7 @@ def audit_initial_step_geometry(
     from contracts.observation import IntegrationStep, ImplicitBM4IntegrationStep
 
     dynamics = GuidingCenterDynamics(potential, rho=config.rho)
-    problem = InitialValueProblem(dynamics, configuration)
+    problem = InitialValueProblem(dynamics, configuration, layout=GCStateLayout())
     if problem.initial_state.shape != (2,):
         raise ValueError("The local geometry audit requires one planar trajectory.")
     h = config.steps[0]

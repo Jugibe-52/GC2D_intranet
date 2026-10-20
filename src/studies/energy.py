@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from formulations.layout import GCStateLayout
+
 from dataclasses import dataclass
 from types import MappingProxyType
 from typing import Mapping
@@ -21,12 +23,12 @@ from ._validation import (
 
 from diagnostics import GCGeneralizedEnergyObserver
 from dynamics import GuidingCenterDynamics
-from states.state import State
+
 from potential import Potential
 from methods.extended.bm4 import BM4Implicit
 from contracts.problem import InitialValueProblem
-from contracts.request import SimulationRequest
-from solution import Solution
+from request import SimulationRequest
+from states.history import States
 from simulation.runner import simulate
 
 
@@ -113,7 +115,7 @@ class GeneralizedEnergyResult:
 
 	dynamics: GuidingCenterDynamics
 	steps: tuple[float, ...]
-	solutions: Mapping[float, Solution]
+	solutions: Mapping[float, States]
 	generalized_energies: Mapping[float, np.ndarray]
 	relative_errors: Mapping[float, np.ndarray]
 
@@ -150,16 +152,16 @@ class GeneralizedEnergyResult:
 
 def run_generalized_energy_comparison(
 	potential: Potential,
-	configuration: State,
+	configuration: np.ndarray,
 	*,
 	config: GeneralizedEnergyConfig,
 ) -> GeneralizedEnergyResult:
 	"""Integrate one centered GC state at several steps and compare ``H + k``."""
 	if not isinstance(potential, Potential):
 		raise TypeError("`potential` must be a Potential instance.")
-	if not (isinstance(configuration, State) and configuration.layout.state_dimension == 2):
+	if not (isinstance(configuration, np.ndarray) and GCStateLayout().state_dimension == 2):
 		raise TypeError(
-			"`configuration` must be a State instance."
+			"`configuration` must be a np.ndarray instance."
 		)
 	if not isinstance(config, GeneralizedEnergyConfig):
 		raise TypeError("`config` must be a GeneralizedEnergyConfig instance.")
@@ -167,11 +169,8 @@ def run_generalized_energy_comparison(
 
 	rho = resolve_rho(config.rho)
 	dynamics = GuidingCenterDynamics(potential, rho=rho)
-	problem = InitialValueProblem(
-		dynamics,
-		configuration,
-	)
-	solutions: dict[float, Solution] = {}
+	problem = InitialValueProblem(dynamics, configuration, layout=GCStateLayout())
+	solutions: dict[float, States] = {}
 	energies: dict[float, np.ndarray] = {}
 	relative_errors: dict[float, np.ndarray] = {}
 
@@ -252,11 +251,7 @@ def run_generalized_energy_comparison(
 			[record.relative_error for record in selected_records],
 			dtype=float,
 		)
-		solution = Solution(
-			t=raw_solution.t,
-			states=raw_solution.states,
-			source=raw_solution.source,
-			diagnostics={
+		solution = States(layout=raw_solution.layout, t=raw_solution.t, states=raw_solution.states, initial_state=raw_solution.initial_state, diagnostics={
 				**dict(raw_solution.diagnostics),
 				"track_energy": True,
 				"hamiltonian": hamiltonian[np.newaxis, :],
@@ -267,8 +262,7 @@ def run_generalized_energy_comparison(
 				"energy_error": float(
 					np.max(np.abs(generalized_energy_error))
 				),
-			},
-		)
+			})
 
 		solutions[step] = solution
 		energies[step] = generalized_energy

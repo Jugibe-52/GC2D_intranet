@@ -1,7 +1,7 @@
 """Cross-backend contracts for every supported numerical method and solver axis."""
 
-from states.layout import FCStateLayout
-from states.layout import GCStateLayout
+from formulations.layout import FCStateLayout
+from formulations.layout import GCStateLayout
 
 from dataclasses import replace
 import importlib.util
@@ -11,10 +11,10 @@ import numpy as np
 
 from contracts.execution_options import ExecutionOptions
 from contracts.problem import InitialValueProblem
-from contracts.request import SimulationRequest
+from request import SimulationRequest
 from dynamics.gc import GuidingCenterDynamics
 from dynamics.fc import FullCyclotronDynamics
-from states.state import State
+
 from methods import (
     ExplicitEuler, RK4, GaussLegendre4, SDIRK4, HBVM42,
     ABBA2Implicit, ABBA4Implicit, ABBA6Implicit, ABBA2Midpoint,
@@ -34,11 +34,8 @@ class JaxMethodTests(unittest.TestCase):
         jax.config.update('jax_enable_x64', True)
         cls.execution = ExecutionOptions(backend='jax')
         cls.potential = Potential.random(A=.2, M=3, nx=16, ny=16, seed=27)
-        cls.gc = InitialValueProblem(GuidingCenterDynamics(cls.potential, rho=.05),
-            State.from_components(np.array([-.02, 1.8, 6.3]), np.array([6.25, .9, -.01]), layout=GCStateLayout()))
-        cls.fc = InitialValueProblem(FullCyclotronDynamics(cls.potential, rho=.3, eta=-.4),
-            State.from_components(np.array([-.02, 1.8, 6.3]), np.array([6.25, .9, -.01]),
-                                                  np.array([.2, -.1, .3]), np.array([-.1, .1, .2]), layout=FCStateLayout()))
+        cls.gc = InitialValueProblem(GuidingCenterDynamics(cls.potential, rho=.05), GCStateLayout().pack_components(np.array([-.02, 1.8, 6.3]), np.array([6.25, .9, -.01])), layout=GCStateLayout())
+        cls.fc = InitialValueProblem(FullCyclotronDynamics(cls.potential, rho=.3, eta=-.4), FCStateLayout().pack_components(np.array([-.02, 1.8, 6.3]), np.array([6.25, .9, -.01]), np.array([.2, -.1, .3]), np.array([-.1, .1, .2])), layout=FCStateLayout())
         cls.request = SimulationRequest((.3, .4), .05, np.array([.3, .305, .35, .371, .4]))
 
     @classmethod

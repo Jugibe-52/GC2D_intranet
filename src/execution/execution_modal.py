@@ -15,8 +15,8 @@ from uuid import uuid4
 
 from contracts.execution_options import ExecutionOptions
 from contracts.problem import InitialValueProblem
-from contracts.request import SimulationRequest
-from contracts.result import IntegrationData
+from request import SimulationRequest
+from states.history import States
 from execution._modal_worker import PAYLOAD_VERSION, encode_job
 from execution.execution import Execution
 from methods.base import NumericalMethod
@@ -66,10 +66,10 @@ def _validate_endpoint_options(
 			raise ValueError("`wait_timeout` must be finite and non-negative, or None.")
 
 
-def _validated_remote_result(result: object, digest: str) -> IntegrationData:
+def _validated_remote_result(result: object, digest: str) -> States:
 	"""Require a versioned result from the exact serialized job being recovered."""
 	if (not isinstance(result, tuple) or len(result) != 3
-			or result[0] != PAYLOAD_VERSION or not isinstance(result[2], IntegrationData)):
+			or result[0] != PAYLOAD_VERSION or not isinstance(result[2], States)):
 		raise TypeError("Modal returned an incompatible integration result.")
 	if result[1] != digest:
 		raise ValueError("The Modal result belongs to a different serialized job; use the original inputs.")
@@ -78,7 +78,7 @@ def _validated_remote_result(result: object, digest: str) -> IntegrationData:
 
 
 class Execution_Modal(Execution):
-    """Run a complete job remotely, returning IntegrationData locally.
+    """Run a complete job remotely, returning States locally.
 
     The deployed Function owns its image, CPU, memory, duration and retry
     settings. This adapter only selects an endpoint and controls local waiting.
@@ -126,7 +126,7 @@ class Execution_Modal(Execution):
     def run(
         self, problem: InitialValueProblem, method: NumericalMethod, request: SimulationRequest,
         *, options: ExecutionOptions | None = None,
-    ) -> IntegrationData:
+    ) -> States:
         """Submit once, save its ID, then fetch the result without local fallback.
 
         Resumption verifies the digest of the exact serialized job before
@@ -164,7 +164,7 @@ class Execution_Modal(Execution):
                 call = modal.FunctionCall.from_id(self.resume_call_id)
             result = call.get(timeout=self.wait_timeout)
             data = _validated_remote_result(result, digest)
-            return IntegrationData(data.t, data.states, {
+            return data.with_diagnostics({
                 **data.diagnostics, "execution_executor": "modal", "execution_call_id": self.last_call_id,
             })
         except BaseException as exc:

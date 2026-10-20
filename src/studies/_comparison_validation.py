@@ -5,21 +5,22 @@ from __future__ import annotations
 from contracts.comparison import EnergyAccuracySeries
 import numpy as np
 
-from states.state import State
-from solution import Solution
+
+from states.history import States
 from ._gauss_legendre4_common import readonly_runtime_samples
 from contracts.comparison import TrajectoryAccuracySeries
 
 
 
 def validate_comparison_solution(
-	solution: Solution, initial_configuration: State,
+	solution: States, initial_configuration: np.ndarray,
 	times: np.ndarray, step_count: int,
 ) -> None:
 	"""Require one physical source and the exact common integration/output grid."""
-	if not isinstance(solution, Solution):
-		raise TypeError("Every comparison value must be a Solution.")
-	if solution.source is not initial_configuration:
+	if not isinstance(solution, States):
+		raise TypeError("Every comparison value must be a States.")
+	initial_snapshot = solution.initial_state
+	if initial_snapshot is None or not np.array_equal(initial_snapshot, initial_configuration):
 		raise ValueError("All methods must share one initial configuration.")
 	if not np.array_equal(solution.t, times):
 		raise ValueError("Every method must share the reference output grid.")

@@ -10,7 +10,7 @@ import numpy as np
 from contracts.observation import IntegrationStep, StepObserver
 from contracts.nonlinear import NewtonObserver
 from contracts.problem import InitialValueProblem
-from contracts.request import SimulationRequest
+from request import SimulationRequest
 from contracts.result import DiagnosticValue
 from contracts.step import StepInfo, StepResult
 from dynamics import DynamicalSystem, GuidingCenterJacobianSystem

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from formulations.layout import GCStateLayout
+
 from dataclasses import dataclass
 from time import perf_counter
 from types import MappingProxyType
@@ -19,14 +21,14 @@ from ._validation import (
 )
 
 from dynamics import GuidingCenterDynamics
-from states.state import State
+
 from potential import Potential
 from methods.extended.bm4 import BM4Implicit
 from methods.classical.gauss_legendre import GaussLegendre4
 from contracts.problem import InitialValueProblem
 from methods.base import NumericalMethod
-from contracts.request import SimulationRequest
-from solution import Solution
+from request import SimulationRequest
+from states.history import States
 from simulation.runner import simulate
 
 from contracts.comparison import AdaptiveReference
@@ -182,10 +184,10 @@ class GaussBM4ComparisonResult:
 
 	potential: Potential
 	dynamics: GuidingCenterDynamics
-	initial_configuration: State
+	initial_configuration: np.ndarray
 	config: GaussBM4ComparisonConfig
 	reference: AdaptiveReference
-	solutions: Mapping[str, Mapping[float, Solution]]
+	solutions: Mapping[str, Mapping[float, States]]
 	accuracy: Mapping[str, Mapping[float, TrajectoryAccuracySeries]]
 	runtime_samples: Mapping[str, Mapping[float, np.ndarray]]
 
@@ -414,19 +416,19 @@ def _method(
 
 def run_gauss_bm4_comparison(
 	potential: Potential,
-	initial_configuration: State,
+	initial_configuration: np.ndarray,
 	*,
 	config: GaussBM4ComparisonConfig,
 ) -> GaussBM4ComparisonResult:
 	"""Run aligned accuracy refinements and alternated robust timings."""
 	if not isinstance(potential, Potential):
 		raise TypeError("`potential` must be a Potential instance.")
-	if not (isinstance(initial_configuration, State) and initial_configuration.layout.state_dimension == 2):
-		raise TypeError("`initial_configuration` must be State.")
+	if not (isinstance(initial_configuration, np.ndarray) and GCStateLayout().state_dimension == 2):
+		raise TypeError("`initial_configuration` must be np.ndarray.")
 	if not isinstance(config, GaussBM4ComparisonConfig):
 		raise TypeError("`config` must be GaussBM4ComparisonConfig.")
 	dynamics = GuidingCenterDynamics(potential, rho=config.rho)
-	problem = InitialValueProblem(dynamics, initial_configuration)
+	problem = InitialValueProblem(dynamics, initial_configuration, layout=GCStateLayout())
 	base_request = SimulationRequest.uniform(
 		t_span=config.t_span,
 		max_step=config.integration_steps[-1],
@@ -444,7 +446,7 @@ def run_gauss_bm4_comparison(
 		audit_absolute_tolerance=config.audit_absolute_tolerance,
 		audit_maximum_step=config.audit_maximum_step,
 	)
-	solutions: dict[str, dict[float, Solution]] = {
+	solutions: dict[str, dict[float, States]] = {
 		name: {} for name in GAUSS_BM4_METHODS
 	}
 	accuracy_by_method: dict[str, dict[float, TrajectoryAccuracySeries]] = {

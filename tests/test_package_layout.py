@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import numpy as np
+
 import ast
 import importlib.util
 from pathlib import Path
@@ -15,7 +17,7 @@ import formulations
 import integration
 import execution
 from dynamics import GuidingCenterDynamics
-from states.state import State
+
 from potential import Potential
 from simulation import ABBA2Midpoint, ABBA2Implicit, ABBA4Implicit, ABBA6Implicit, ABBA4_PROJECTION_PLACEMENTS, ABBA_PROJECTION_FORMULATIONS, ABBA_STATE_EXTENSIONS, BM4Implicit, BM4Midpoint, ExplicitEuler, RK4
 from methods import extended, classical
@@ -42,14 +44,14 @@ class PackageLayoutTests(unittest.TestCase):
 			"visualization",
 		):
 			self.assertTrue((source_root / package / "__init__.py").is_file())
-		self.assertTrue((source_root / "solution.py").is_file())
+		self.assertTrue((source_root / "request.py").is_file())
 		self.assertFalse((source_root / "simulation" / "methods").exists())
 		self.assertFalse((source_root / "simulation" / "formulations").exists())
 		for removed in ("gc2d", "classes", "research", "workflows"):
 			self.assertFalse((source_root / removed).exists())
 
 		self.assertIsNotNone(GuidingCenterDynamics)
-		self.assertIsNotNone(State)
+		self.assertIsNotNone(np.ndarray)
 		self.assertIsNotNone(Potential)
 		self.assertIsNotNone(ABBA2Midpoint)
 		self.assertIsNotNone(ABBA2Implicit)
@@ -76,11 +78,11 @@ class PackageLayoutTests(unittest.TestCase):
 			self.assertIs(getattr(extended, name), getattr(methods, name))
 		self.assertIs(classical.RK4, RK4)
 		for module in (
-			"contracts.configuration", "contracts.problem", "contracts.request", "contracts.execution_options",
+			"contracts.configuration", "contracts.problem", "request", "contracts.execution_options",
 			"contracts.observation", "contracts.result", "contracts.step",
 			"formulations.gc", "formulations.fc", "formulations.state",
 			"integration.core", "methods.extended", "methods.classical",
-			"methods.adaptive", "methods.hbvm", "execution.execution", "simulation.runner", "solution",
+			"methods.adaptive", "methods.hbvm", "execution.execution", "simulation.runner", "states.history", "integration.state", "formulations.layout",
 		):
 			with self.subTest(module=module):
 				self.assertIsNotNone(importlib.util.find_spec(module))
@@ -189,7 +191,7 @@ import potential
 import simulation
 import studies
 assert dynamics.GuidingCenterDynamics is not None
-assert states.State is not None
+assert states.States is not None
 assert potential.Potential is not None
 assert simulation.RK4 is not None
 assert simulation.ExplicitEuler is not None

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from states.layout import GCStateLayout
+from formulations.layout import GCStateLayout
 
 from collections.abc import Mapping
 from dataclasses import asdict, dataclass
@@ -16,7 +16,7 @@ import numpy as np
 
 from contracts.execution_options import ExecutionOptions
 from contracts.problem import InitialValueProblem
-from contracts.request import SimulationRequest
+from request import SimulationRequest
 from contracts.result import DiagnosticValue
 from diagnostics.persistence import StoredSolution, load_solution, save_solution
 from diagnostics.storage import ArtifactStore
@@ -24,14 +24,14 @@ from dynamics.gc import GuidingCenterDynamics
 from execution.execution import Execution
 from execution.execution_modal import Execution_Modal
 from states.generators import ranked_radial_star
-from states.state import State
+
 from methods.classical.gauss_legendre import GaussLegendre4
 from methods.classical.rk4 import RK4
 from methods.extended.bm4 import BM4Implicit, BM4Midpoint
 from potential.load import DEFAULT_FIELD_INDICES
 from potential import Grid, Potential
 from simulation.runner import simulate
-from solution import Solution
+from states.history import States
 from studies.dimensional_h5_midpoint import (
     DimensionalH5Field, load_dimensional_h5_field, resolve_h5_source,
 )
@@ -125,8 +125,8 @@ def build_rho_star(field: DimensionalH5Field, config: RhoStarConfig, *,
         center=tuple(center), outer_radius=float(radii[-1]), particles=config.particles,
         arms=config.arms, first_angle=config.first_angle,
     )
-    assert initial.values is not None
-    physical_xy = np.column_stack(initial.layout.positions(initial.values))
+    assert initial is not None
+    physical_xy = np.column_stack(GCStateLayout().positions(initial))
     # rho_hat is invariant across representations; the physical radius is meters.
     rho_m = config.rho_hat * config.characteristic_length / (2 * np.pi)
     stream, runtime_rho = field.stream, rho_m
@@ -152,14 +152,14 @@ def build_rho_star(field: DimensionalH5Field, config: RhoStarConfig, *,
                            frequencies=stream.frequencies,
                            interpolation_order=stream.interpolation_order)
         xy = (physical_xy - spatial_origin) * spatial_scale
-        initial = State.from_components(xy[:, 0], xy[:, 1], layout=GCStateLayout())
+        initial = GCStateLayout().pack_components(xy[:, 0], xy[:, 1])
         runtime_rho = config.rho_hat
-    problem = InitialValueProblem(GuidingCenterDynamics(stream, rho=runtime_rho), initial)
+    problem = InitialValueProblem(GuidingCenterDynamics(stream, rho=runtime_rho), initial, layout=GCStateLayout())
     request = SimulationRequest(
         t_span=(0.0, float(config.cycles)), max_step=1.0 / config.steps_per_cycle,
         output_times=np.arange(config.cycles + 1, dtype=float),
     )
-    x, y = initial.layout.positions(problem.initial_state)
+    x, y = GCStateLayout().positions(problem.initial_state)
     metadata = {
         "study": ("poincare_bm4midpoint_ranked_star_rho_sweep" if config.method == "BM4Midpoint"
                   else "poincare_ranked_star_rho_sweep"),
@@ -242,7 +242,7 @@ def sample_rho_dynamics(prepared: PreparedRhoStar, *, grid_size: int = 64,
                 bounds=np.array((x0, y0, length)))
 
 
-def validate_rho_solution(solution: Solution, prepared: PreparedRhoStar, *,
+def validate_rho_solution(solution: States, prepared: PreparedRhoStar, *,
                           options: ExecutionOptions | None = None) -> None:
     """Check complete float64 cycle samples and the selected method's contract."""
     _validate_rho_cycle_solution(solution, prepared.config,
@@ -250,7 +250,7 @@ def validate_rho_solution(solution: Solution, prepared: PreparedRhoStar, *,
                                 initial_state=prepared.problem.initial_state, options=options)
 
 
-def _validate_rho_cycle_solution(solution: Solution, config: RhoStarConfig, *,
+def _validate_rho_cycle_solution(solution: States, config: RhoStarConfig, *,
                                 output_times: np.ndarray, initial_state: np.ndarray,
                                 options: ExecutionOptions | None = None) -> None:
     """Share cycle and solver checks with explicit-seed saved-data consumers."""
@@ -320,7 +320,7 @@ def _rho_star_method(config: RhoStarConfig) -> BM4Midpoint | BM4Implicit | RK4 |
     )
 
 
-def folded_rho_positions(solution: Solution, metadata: dict[str, Any]) -> tuple[np.ndarray, np.ndarray]:
+def folded_rho_positions(solution: States, metadata: dict[str, Any]) -> tuple[np.ndarray, np.ndarray]:
     """Return folded cycle positions in runtime units and cell fractions.
 
     Both arrays have shape (saved cycles including zero, particles, xy).
@@ -356,8 +356,7 @@ def run_rho_star(prepared: PreparedRhoStar, *, executor: Execution,
     if save_folded_returns:
         wrapped, fractions = folded_rho_positions(solution, prepared.metadata)
         diagnostics.update(cycle_positions_wrapped=wrapped, cycle_positions_cell_fraction=fractions)
-    solution = Solution(t=solution.t, states=solution.states,
-                        source=solution.source, diagnostics=diagnostics)
+    solution = States(layout=solution.layout, t=solution.t, states=solution.states, initial_state=solution.initial_state, diagnostics=diagnostics)
     metadata = {**prepared.metadata, "execution_options": asdict(options),
                 "client_wall_seconds": perf_counter() - started,
                 "execution_executor": "modal" if isinstance(executor, Execution_Modal) else "local"}

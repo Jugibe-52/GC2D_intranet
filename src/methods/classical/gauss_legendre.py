@@ -19,7 +19,7 @@ from formulations.state import PhysicalFormulation
 from contracts.observation import GaussLegendre4IntegrationStep, StepObserver
 from contracts.nonlinear import NewtonObserver
 from contracts.problem import InitialValueProblem
-from contracts.request import SimulationRequest
+from request import SimulationRequest
 from methods._validation import _positive_finite, _positive_integer
 from methods._linear import _solve_particle_systems
 from methods._nonlinear import _bind_newton_observer, _solve_newton

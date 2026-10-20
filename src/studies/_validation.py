@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from formulations.layout import GCStateLayout
+
 from contracts._study_validation import (
 	positive_finite, nonnegative_finite, positive_integer, integer_ratio, finite_time_span,
 )
@@ -11,7 +13,7 @@ import re
 
 import numpy as np
 
-from states.state import State
+
 
 
 
@@ -93,10 +95,10 @@ def validate_sampling_grid(
 		integer_ratio(save_interval, step, "save_interval / integration_step")
 
 
-def single_gc_state(configuration: State, *, message: str) -> np.ndarray:
+def single_gc_state(configuration: np.ndarray, *, message: str) -> np.ndarray:
 	"""Return the one packed GC state required by single-trajectory studies."""
-	initial_state = configuration.initial_state
-	if initial_state is None or configuration.layout.particle_count(initial_state) != 1:
+	initial_state = configuration
+	if initial_state is None or GCStateLayout().particle_count(initial_state) != 1:
 		raise ValueError(message)
 	return initial_state
 

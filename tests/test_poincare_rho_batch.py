@@ -1,3 +1,4 @@
+from formulations.layout import GCStateLayout
 """Offline checks for parallel submissions, failure isolation and batch recovery."""
 
 from dataclasses import replace
@@ -13,7 +14,7 @@ from unittest.mock import patch
 
 import numpy as np
 
-from contracts.result import IntegrationData
+from states.history import States
 from execution._modal_worker import execute_cycle_payload
 from studies.poincare_rho_batch import RhoBatchJob, run_modal_rho_batch, _update_summary
 from studies.poincare_rho_sweep import RhoStarConfig
@@ -155,8 +156,7 @@ class RhoBatchTests(unittest.TestCase):
         self.assertEqual(report["measured_peak_worker_overlap"], 1)
 
     def test_worker_keeps_observations_and_times_but_removes_per_step_arrays(self):
-        data = IntegrationData(np.array([0., 1.]), np.zeros((2, 2)),
-                               {"execution_backend": "jax", "corrections": np.ones(50)})
+        data = States(np.array([0., 1.]), np.zeros((2, 2)), {"execution_backend": "jax", "corrections": np.ones(50)}, layout=GCStateLayout())
         with patch("execution._modal_worker.execute_payload", return_value=(1, "digest", data)):
             version, digest, reduced = execute_cycle_payload(b"opaque")
         self.assertEqual((version, digest), (1, "digest"))

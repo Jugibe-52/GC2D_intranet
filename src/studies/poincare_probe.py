@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from states.layout import GCStateLayout
+from formulations.layout import GCStateLayout
 
 from dataclasses import asdict, dataclass
 import hashlib
@@ -18,11 +18,11 @@ import scipy
 from scipy.spatial import cKDTree
 
 from dynamics import GuidingCenterDynamics
-from states.state import State
+
 from potential import Grid, Potential
 from contracts.problem import InitialValueProblem
 from methods.classical.rk4 import RK4
-from contracts.request import SimulationRequest
+from request import SimulationRequest
 from simulation.runner import simulate
 from studies.poincare_periodicity import SavedPoincareSection
 
@@ -110,10 +110,10 @@ def integrate_rk4_probe(potential: Potential, settings: RK4ProbeSettings, *,
     started = time.perf_counter()
     for start in range(0, count, settings.chunk_steps):
         end = min(count, start + settings.chunk_steps)
-        initial = State.from_components(xy[start, :, 0], xy[start, :, 1], layout=GCStateLayout())
+        initial = GCStateLayout().pack_components(xy[start, :, 0], xy[start, :, 1])
         request = SimulationRequest.uniform(t_span=(times[start], times[end]),
                                            max_step=step, sample_count=end - start + 1)
-        solution = simulate(InitialValueProblem(dynamics, initial), RK4(), request)
+        solution = simulate(InitialValueProblem(dynamics, initial, layout=GCStateLayout()), RK4(), request)
         if solution.diagnostics['step_count'] != end - start:
             raise RuntimeError('RK4 did not preserve the requested number of steps.')
         xy[start:end + 1, 0] = solution.states.T

@@ -1,5 +1,7 @@
 """BM4Midpoint star trajectories and matched Modal JAX CPU timing records."""
 
+from formulations.layout import GCStateLayout
+
 from dataclasses import asdict, dataclass, field
 import json
 from pathlib import Path
@@ -10,7 +12,7 @@ import numpy as np
 
 from contracts.execution_options import ExecutionOptions
 from contracts.problem import InitialValueProblem
-from contracts.request import SimulationRequest
+from request import SimulationRequest
 from diagnostics.persistence import load_solution, save_solution
 from dynamics.gc import GuidingCenterDynamics
 from execution.execution_modal import Execution_Modal
@@ -19,7 +21,7 @@ from methods.extended.bm4 import BM4Midpoint
 from potential.load import DEFAULT_FIELD_INDICES
 from potential.potential import Potential
 from simulation.runner import simulate
-from solution import Solution
+from states.history import States
 from studies.h5_provenance import prepare_verified_h5_field
 from studies.reference_trajectory import potential_fingerprint
 
@@ -58,7 +60,7 @@ class ModalCPUStarConfig:
 class ModalCPUComparison:
     """Complete saved solutions and shared measured comparison metadata."""
 
-    solutions: dict[int, Solution]
+    solutions: dict[int, States]
     potential: Potential
     metadata: dict[str, Any]
 
@@ -74,7 +76,7 @@ def build_star_problem(potential: Potential, config: ModalCPUStarConfig) -> tupl
                           inner_radius=radius * config.inner_radius_fraction,
                           arms=config.arms, particles_per_arm=config.particles_per_arm,
                           first_angle=config.first_angle)
-    problem = InitialValueProblem(GuidingCenterDynamics(potential, rho=config.rho), initial)
+    problem = InitialValueProblem(GuidingCenterDynamics(potential, rho=config.rho), initial, layout=GCStateLayout())
     steps = config.cycles * config.steps_per_cycle
     request = SimulationRequest((0., float(config.cycles)), 1. / config.steps_per_cycle,
                                 np.arange(steps + 1, dtype=float) / config.steps_per_cycle)
@@ -155,7 +157,7 @@ def run_cpu_star_comparison(
         'effective_field_fingerprint': potential_fingerprint(problem.dynamics.effective_potential),
         'arithmetic': 'float64', 'reference_computed': False, 'accuracy_certified': False,
         'timing_scope': 'Worker complete integration after first-call warmup; NumPy output synchronizes JAX.',
-        'client_timing_scope': 'Submission, provisioning, transfers, first and repeated runs, and local Solution validation.',
+        'client_timing_scope': 'Submission, provisioning, transfers, first and repeated runs, and local States validation.',
         'method': 'BM4Midpoint', 'projection': 'arithmetic_mean', 'newton_solves': 0,
     }
     return ModalCPUComparison(solutions, potential, metadata)

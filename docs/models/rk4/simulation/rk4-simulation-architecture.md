@@ -67,8 +67,10 @@ outside the physical solver counters; reported wall time still includes them.
 By default, `simulate(problem, method, request)` creates a fresh run via `new_run`, validates
 its formulation and calls the shared `integrate_method`. Each `advance` returns
 an internal state, small work counters and method-specific accepted details.
-The common collector retains samples and counters; the formulation extracts the
-physical trajectory and diagnostic histories. Run resources are isolated.
+The controller owns `IntegrationState(time, values)`. Each requested sample is
+extracted into physical coordinates and copied into `States`. Main-step counters
+keep their separate axis; the formulation diagnoses the completed physical
+history. Finalization seals the same `States` object. Run resources are isolated.
 
 Fixed methods use independent shortened maps for off-grid samples. Adaptive
 methods retain one live SciPy solver whose state is always physical. Their
@@ -80,7 +82,7 @@ not change with tracking. All energy histories have shape `(N, saved_times)`,
 including `extended_time` even for a single particle. Diagnostic arrays
 `extended_time`, `extended_momentum`,
 `physical_hamiltonian`, `generalized_energy` and `generalized_energy_error` follow
-`Solution.t`; nonlinear and runtime work arrays follow `step_times`.
+`States.t`; nonlinear and runtime work arrays follow `step_times`.
 `extended_momentum_normalization` is `physical_kappa` and `energy_error` is the
 maximum absolute sampled balance error over all particles.
 
@@ -140,7 +142,7 @@ Tracking uses the same four physical stage states for `-partial_t H` on the
 device. Physical Hamiltonian histories are also evaluated there, then the
 standard formulation constructs energy diagnostics after one synchronized
 transfer of the completed output. The result remains an immutable NumPy
-`Solution` with identical layouts, sampling and diagnostic definitions.
+`States` with identical layouts, sampling and diagnostic definitions.
 Execution metadata reports backend, device, index and the JAX device kind.
 
 The compiled route supports the built-in `GuidingCenterDynamics` and
@@ -160,14 +162,14 @@ energy tracking and three alternating timing repetitions. It deliberately
 tests backend equivalence rather than the long-time method-comparison protocol.
 The calculation delegates composition to `studies.rk4_execution`, asserts
 trajectory and energy agreement and saves all trajectories, parameters, raw
-timings, software versions and field samples through canonical Solution archives.
+timings, software versions and field samples through canonical States archives.
 The visualisation delegates plots to `visualization.rk4_execution` and only
 loads saved data. Both derive the same destination with `solution_destination`:
 bucket storage is the default; `storage="local"` is an explicit alternative.
 
 First-call timing includes device preparation and compilation when required.
 Warmed timings include complete integration, transfers, energy diagnostics and
-Solution creation; input field preparation is excluded. Changing particle count
+States creation; input field preparation is excluded. Changing particle count
 or output shapes can trigger recompilation. Reusing a kernel can make another
 first call warm. CPU timing results do not establish GPU performance.
 
@@ -179,7 +181,7 @@ round-trips canonical archives and keeps visualisation independent of integratio
 
 ## Migration and verification
 
-RK4 returns the canonical in-memory `Solution` through `simulation.runner`.
+RK4 returns the canonical in-memory `States` through `simulation.runner`.
 Optional persistence is a subsequent operation:
 `diagnostics.persistence.save_solution(solution, destination, metadata=..., potential=...)`.
 Omitting `destination` and supplying `experiment_path` and `run_id` selects the
@@ -210,7 +212,7 @@ also compared with the migrated implementations on short nonautonomous runs.
 integration to `Execution.run`. Import the executor with `from execution import
 Execution`. It uses the existing local method implementation and does not
 configure runtime resources. A subclass can replace the whole integration while
-`simulate` retains final `Solution` construction and validation. Backend choices
+`simulate` retains validation of the completed `States` returned by integration. Backend choices
 remain separate in `options=ExecutionOptions(...)`. See the
 [executor contract](../../../simulation/execution.md) for the extension interface.
 The numerical stages, projection equations and integration controllers described
@@ -241,11 +243,10 @@ reused for all eleven rho values. See the
 
 ## Initial-state ownership
 
-`InitialValueProblem` captures the validated physical state, particle count, and
-independent layout at construction. A later edit to the original initial-state
-provider does not change this run's formulation. Physical layouts are owned by
-`states.layout`; compatible external providers need no inheritance from
-initial-condition classes. Built-in dynamics keep their physical parameters
+`InitialValueProblem(dynamics, initial_state, layout=...)` captures a validated
+physical array, particle count and independent layout. Later edits to the input
+array do not change the prepared formulation. Physical layouts belong to
+`formulations.layout`; compatible structural layouts require no inheritance. Built-in dynamics keep their physical parameters
 immutable. See the shared [layout and ownership contract](../../../dynamics/protocols.md#physical-layouts-and-problem-ownership).
 
 
@@ -276,4 +277,4 @@ gyroaveraged field, without refitting or mutating the source dynamics. Inherited
 electric fields follow the potential class; `evaluate_grid` remains NumPy-only. See the
 [shared potential contract](../../../dynamics/jax-potential-evaluation.md).
 
-The built-in initial provider is now `states.State(values, layout=...)`, with `GCStateLayout` or `FCStateLayout` as appropriate. Generators in `states.generators` return that same class. Numerical stages continue to operate on arrays; no State object is created at each step.
+Initial data are packed NumPy arrays, including the output of `states.generators`. `formulations.layout` supplies GC/FC layouts; `request.SimulationRequest` owns the initial time and output schedule. Controllers manage the current internal `IntegrationState`; `states.States` stores physical samples and becomes the completed result. Several methods can share a formulation. See the [migration guide](../../../simulation/api-migration.md).

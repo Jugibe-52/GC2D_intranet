@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+import numpy as np
+
 import argparse
 from datetime import UTC, datetime
 import json
@@ -155,7 +157,7 @@ def instance_state(
             "--instance-ids",
             instance_id,
             "--query",
-            "Reservations[0].Instances[0].State.Name",
+            "Reservations[0].Instances[0].np.ndarray.Name",
             "--output",
             "text",
         ],
@@ -244,7 +246,7 @@ def run_aws(config: dict[str, Any]) -> None:
     region = str(aws["region"])
     instance = find_worker(aws_executable, region, str(aws["instance_name"]))
     instance_id = str(instance["InstanceId"])
-    state = str(instance["State"]["Name"])
+    state = str(instance["np.ndarray"]["Name"])
     run_id = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
     result_root = f"{str(aws['result_prefix']).rstrip('/')}/{run_id}"
     status_key = f"{result_root}/status.json"

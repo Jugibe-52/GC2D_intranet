@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from states.layout import GCStateLayout
+from formulations.layout import GCStateLayout
 
 from inspect import signature
 import subprocess
@@ -16,9 +16,9 @@ from matplotlib.collections import LineCollection
 from matplotlib.quiver import Quiver
 from matplotlib.text import Text
 
-from states.state import State
+
 from potential import Potential
-from simulation import Solution
+from simulation import States
 from visualization import (
 	animate_abba4_configuration_trajectories,
 	animate_fc_particle_solution,
@@ -138,21 +138,13 @@ class NotebookPresentationTests(unittest.TestCase):
 			seed=7,
 			interpolation_order=3,
 		)
-		source = State.from_components(
-			np.asarray([1.0]),
-			np.asarray([1.2]),
-			layout=GCStateLayout(),
-		)
-		solution = Solution(
-			t=np.asarray([0.0, 0.1, 0.2]),
-			states=np.asarray(
+		source = GCStateLayout().pack_components(np.asarray([1.0]), np.asarray([1.2]))
+		solution = States(t=np.asarray([0.0, 0.1, 0.2]), states=np.asarray(
 				[
 					[1.0, 1.1, 1.2],
 					[1.2, 1.25, 1.3],
 				]
-			),
-			source=source,
-		)
+			), initial_state=source, layout=GCStateLayout())
 
 		animation = animate_gc_particle_solution(
 			potential,
@@ -184,23 +176,15 @@ class NotebookPresentationTests(unittest.TestCase):
 			seed=7,
 			interpolation_order=3,
 		)
-		source = State.from_components(
-			np.asarray([1.0, 1.4]),
-			np.asarray([1.2, 1.6]),
-			layout=GCStateLayout(),
-		)
-		solution = Solution(
-			t=np.asarray([0.0, 0.1, 0.2]),
-			states=np.asarray(
+		source = GCStateLayout().pack_components(np.asarray([1.0, 1.4]), np.asarray([1.2, 1.6]))
+		solution = States(t=np.asarray([0.0, 0.1, 0.2]), states=np.asarray(
 				[
 					[1.0, 1.1, 1.2],
 					[1.4, 1.5, 1.6],
 					[1.2, 1.25, 1.3],
 					[1.6, 1.65, 1.7],
 				]
-			),
-			source=source,
-		)
+			), initial_state=source, layout=GCStateLayout())
 
 		animation = animate_gc_particle_trajectories(
 			potential,

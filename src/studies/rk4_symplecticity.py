@@ -8,7 +8,7 @@ from typing import Any, ClassVar, Mapping, cast
 
 import numpy as np
 
-from states.state import State
+
 from potential import Potential
 from methods.classical.rk4 import RK4
 
@@ -90,7 +90,7 @@ class RK4SymplecticityResult(GCSymplecticityResult):
 
 def run_rk4_symplecticity_study(
 	potential: Potential,
-	area: State,
+	area: np.ndarray,
 	*,
 	notebook_path: str | Path,
 	config: RK4SymplecticityConfig,

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from states.layout import GCStateLayout
+from formulations.layout import GCStateLayout
 
 from collections.abc import Mapping
 import csv
@@ -19,8 +19,8 @@ import numpy as np
 
 from diagnostics.output import _json_default
 
-from states.state import State
-from solution import Solution
+
+from states.history import States
 
 from contracts.comparison import (
 	AdaptiveReference, TrajectoryAccuracySeries, EnergyAccuracySeries,
@@ -60,7 +60,7 @@ def _record_dictionary(value: object) -> dict[str, object]:
 	return dict(asdict(value))
 
 
-def _scalar_diagnostics(solution: Solution) -> dict[str, object]:
+def _scalar_diagnostics(solution: States) -> dict[str, object]:
 	"""Retain self-describing scalar diagnostics with the numeric series."""
 	return {
 		name: value.item() if isinstance(value, np.generic) else value
@@ -111,7 +111,7 @@ class StoredFiveMethodComparison:
 		path: Path,
 		metadata: Mapping[str, Any],
 		reference: AdaptiveReference,
-		solutions: Mapping[str, Solution],
+		solutions: Mapping[str, States],
 		accuracy: Mapping[str, TrajectoryAccuracySeries],
 		energy_accuracy: Mapping[str, EnergyAccuracySeries],
 		reference_energy_errors: np.ndarray,
@@ -206,7 +206,7 @@ def _reference_columns(
 
 
 def _append_step_diagnostic_columns(
-	solution: Solution, method_name: str, step_count: int, sample_count: int,
+	solution: States, method_name: str, step_count: int, sample_count: int,
 	columns: dict[str, tuple[np.ndarray, int]],
 ) -> tuple[list[str], dict[str, int]]:
 	"""Align complete-step diagnostics with saved intervals and retain substep offsets."""
@@ -564,28 +564,23 @@ def load_five_method_comparison_csv(path: str | Path) -> StoredFiveMethodCompari
 
 	reference, reference_energy_errors = _reference_from_columns(columns, payload, times, particle_count)
 
-	solutions: dict[str, Solution] = {}
+	solutions: dict[str, States] = {}
 	accuracy: dict[str, TrajectoryAccuracySeries] = {}
 	energy_accuracy: dict[str, EnergyAccuracySeries] = {}
-	source: State | None = None
+	source: np.ndarray | None = None
 	for method_name in method_names:
 		states = _states_from_columns(columns, method_name, particle_count)
 		if not np.all(np.isfinite(states)):
 			raise ValueError(f"Comparison CSV has incomplete {method_name} states.")
 		if source is None:
-			source = State(states[:, 0], layout=GCStateLayout())
+			source = np.array(states[:, 0], dtype=float, copy=True)
 		else:
-			source_initial_state = source.initial_state
+			source_initial_state = source
 			assert source_initial_state is not None
 			if not np.array_equal(states[:, 0], source_initial_state):
 				raise ValueError("Stored method trajectories have different origins.")
 		diagnostics = _diagnostics_from_columns(columns, payload, method_name)
-		solutions[method_name] = Solution(
-			t=times,
-			states=states,
-			source=source,
-			diagnostics=diagnostics,
-		)
+		solutions[method_name] = States(t=times, states=states, initial_state=source, diagnostics=diagnostics, layout=GCStateLayout())
 		distances = _stack_particle_columns(
 			columns,
 			scope=method_name,
@@ -611,7 +606,7 @@ def load_five_method_comparison_csv(path: str | Path) -> StoredFiveMethodCompari
 		)
 
 	assert source is not None
-	source_initial_state = source.initial_state
+	source_initial_state = source
 	assert source_initial_state is not None
 	if not np.array_equal(reference.states[:, 0], source_initial_state):
 		raise ValueError("Stored reference and method trajectories have different origins.")

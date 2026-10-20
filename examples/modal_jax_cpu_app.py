@@ -5,7 +5,7 @@ import sys
 
 import modal
 
-from contracts.result import IntegrationData
+from states.history import States
 from execution._modal_benchmark import benchmark_payload
 
 
@@ -25,20 +25,20 @@ REPETITIONS = 3
 
 @app.function(image=image, cpu=(1., 1.), memory=(2048, 4096), timeout=600,
               retries=0, max_containers=1, scaledown_window=60)
-def integrate_cpu_1(payload: bytes) -> tuple[int, str, IntegrationData]:
+def integrate_cpu_1(payload: bytes) -> tuple[int, str, States]:
     """Run the complete job with a one-core CPU request and limit."""
     return benchmark_payload(payload, cpu_cores=1, repetitions=REPETITIONS)
 
 
 @app.function(image=image, cpu=(2., 2.), memory=(2048, 4096), timeout=600,
               retries=0, max_containers=1, scaledown_window=60)
-def integrate_cpu_2(payload: bytes) -> tuple[int, str, IntegrationData]:
+def integrate_cpu_2(payload: bytes) -> tuple[int, str, States]:
     """Run the same job with a two-core CPU request and limit."""
     return benchmark_payload(payload, cpu_cores=2, repetitions=REPETITIONS)
 
 
 @app.function(image=image, cpu=(4., 4.), memory=(2048, 4096), timeout=600,
               retries=0, max_containers=1, scaledown_window=60)
-def integrate_cpu_4(payload: bytes) -> tuple[int, str, IntegrationData]:
+def integrate_cpu_4(payload: bytes) -> tuple[int, str, States]:
     """Run the same job with a four-core CPU request and limit."""
     return benchmark_payload(payload, cpu_cores=4, repetitions=REPETITIONS)

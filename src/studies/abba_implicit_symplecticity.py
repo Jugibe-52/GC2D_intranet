@@ -11,7 +11,7 @@ from typing import Any, ClassVar, Mapping, TypeAlias
 import numpy as np
 
 from diagnostics.symplecticity import StepJacobianMethod
-from states.state import State
+
 from potential import Potential
 from methods.extended.configuration import ABBA_PROJECTION_FORMULATIONS, ProjectionFormulation
 from methods.extended.abba import ABBA2Implicit
@@ -220,7 +220,7 @@ def _implicit_study_metadata(
 
 def run_abba2_reduced_multiplier_symplecticity_study(
 	potential: Potential,
-	area: State,
+	area: np.ndarray,
 	*,
 	notebook_path: str | Path,
 	config: ImplicitABBASymplecticityConfig,
@@ -270,7 +270,7 @@ def run_abba2_reduced_multiplier_symplecticity_study(
 
 def run_abba2_simultaneous_state_multiplier_symplecticity_study(
 	potential: Potential,
-	area: State,
+	area: np.ndarray,
 	*,
 	notebook_path: str | Path,
 	config: ImplicitABBASymplecticityConfig,
@@ -320,7 +320,7 @@ def run_abba2_simultaneous_state_multiplier_symplecticity_study(
 
 def _run_formulation_observers(
 	potential: Potential,
-	area: State,
+	area: np.ndarray,
 	*,
 	notebook_path: str | Path,
 	config: ImplicitABBASymplecticityConfig,
@@ -379,7 +379,7 @@ def _run_formulation_observers(
 
 def run_implicit_abba_symplecticity_study(
 	potential: Potential,
-	area: State,
+	area: np.ndarray,
 	*,
 	notebook_path: str | Path,
 	config: ImplicitABBASymplecticityConfig,

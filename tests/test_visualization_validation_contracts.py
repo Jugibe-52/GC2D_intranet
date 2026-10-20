@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from states import generators as state_generators
-from states.layout import GCStateLayout
+from formulations.layout import GCStateLayout
 
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -13,9 +13,9 @@ import unittest
 import matplotlib.pyplot as plt
 import numpy as np
 
-from states.state import State
+
 from potential import Potential
-from solution import Solution
+from states.history import States
 from visualization.gauss_legendre4 import plot_gauss_legendre4_energy
 from visualization.gc_area import animate_gc_area_solution
 from visualization.implicit_comparison import plot_implicit_method_iterations
@@ -61,14 +61,14 @@ class VisualizationValidationContracts(unittest.TestCase):
 	def test_iteration_history_alignment_fails_before_figure_creation(self) -> None:
 		times = np.array([0.0, 1.0, 2.0])
 		states = np.array([[1.0, 1.1, 1.2], [1.2, 1.3, 1.4]])
-		source = State(states[:, 0], layout=GCStateLayout())
+		source = np.array(states[:, 0], dtype=float, copy=True)
 		good = dict(nonlinear_iterations=np.ones(2), residual_evaluations=np.ones(2),
 			nonlinear_residual_norms=np.ones(2), nonlinear_tolerances=np.ones(2))
 		bad = dict(good, nonlinear_iterations=np.ones(1))
 		with self.assertRaisesRegex(ValueError, "complete integration step count"):
 			plot_implicit_method_iterations({
-				"first": Solution(t=times, states=states, source=source, diagnostics=good),
-				"second": Solution(t=times, states=states, source=source, diagnostics=bad),
+				"first": States(t=times, states=states, initial_state=source, diagnostics=good, layout=GCStateLayout()),
+				"second": States(t=times, states=states, initial_state=source, diagnostics=bad, layout=GCStateLayout()),
 			})
 		self.assertEqual(plt.get_fignums(), [])
 
@@ -76,7 +76,7 @@ class VisualizationValidationContracts(unittest.TestCase):
 		potential = Potential.random(A=0.03, M=2, nx=8, ny=8, seed=9)
 		times = np.array([0.0, 0.1, 0.2])
 		states = np.array([[1.0, 1.1, 1.2], [1.2, 1.3, 1.4]])
-		solution = Solution(t=times, states=states, source=State(states[:, 0], layout=GCStateLayout()), diagnostics={})
+		solution = States(t=times, states=states, initial_state=np.array(states[:, 0], dtype=float, copy=True), diagnostics={}, layout=GCStateLayout())
 		animation = animate_gc_particle_solution(potential, solution, frames=np.int64(2), interval=200.5)
 		animation._draw_was_started = True
 		self.assertEqual(animation._save_count, 2)
@@ -91,11 +91,11 @@ class VisualizationValidationContracts(unittest.TestCase):
 	def test_area_animation_caps_frames_but_keeps_strict_interval_validation(self) -> None:
 		potential = Potential.random(A=0.03, M=2, nx=8, ny=8, seed=9)
 		area = state_generators.square(center=(1.0, 1.0), side=0.5, points_per_side=1)
-		initial = area.initial_state
+		initial = area
 		assert initial is not None
 		times = np.array([0.0, 0.1, 0.2])
 		states = np.repeat(initial[:, np.newaxis], 3, axis=1)
-		solution = Solution(t=times, states=states, source=area, diagnostics={})
+		solution = States(t=times, states=states, initial_state=area, diagnostics={}, layout=GCStateLayout())
 		animation = animate_gc_area_solution(potential, area, solution, frames=np.int64(20))
 		animation._draw_was_started = True
 		self.assertEqual(animation._save_count, 3)

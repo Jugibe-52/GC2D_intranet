@@ -1,6 +1,6 @@
 """Compare resumed trajectories against uninterrupted frozen public integrators."""
 
-from states.layout import GCStateLayout
+from formulations.layout import GCStateLayout
 from concurrent.futures import ProcessPoolExecutor
 import multiprocessing as mp
 import json
@@ -12,14 +12,14 @@ def baseline(indices: np.ndarray, xy: np.ndarray, meta: dict[str, Any]) -> tuple
     from threadpoolctl import threadpool_limits
     potential,_,_=load_snapshot()
     from dynamics import GuidingCenterDynamics
-    from states.state import State
+    import numpy as np
     from methods.extended.bm4 import BM4Implicit
     from methods.extended.bm4 import BM4Midpoint
     from contracts.problem import InitialValueProblem
-    from contracts.request import SimulationRequest
+    from request import SimulationRequest
     from simulation.runner import simulate
-    initial=State.from_components(xy[indices,0],xy[indices,1], layout=GCStateLayout())
-    problem=InitialValueProblem(GuidingCenterDynamics(potential,rho=meta['rho']),initial)
+    initial=GCStateLayout().pack_components(xy[indices,0], xy[indices,1])
+    problem=InitialValueProblem(GuidingCenterDynamics(potential,rho=meta['rho']), initial, layout=GCStateLayout())
     request=SimulationRequest.uniform(t_span=tuple(meta['t_span']),max_step=meta['step'],sample_count=meta['complete_steps']+1)
     method: BM4Implicit | BM4Midpoint
     if meta['method']=='BM4Implicit':

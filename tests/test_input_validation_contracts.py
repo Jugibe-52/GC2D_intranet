@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from formulations.layout import GCStateLayout
+
 from pathlib import Path
 import tempfile
 import unittest
@@ -80,9 +82,9 @@ class InputValidationContractsTests(unittest.TestCase):
 		with self.assertRaisesRegex(ValueError, "equal count per arm"):
 			ranked_radial_star(center=(float("nan"), 0.0), outer_radius=1.0, particles=3, arms=2)
 		star = ranked_radial_star(center=(0.0, 0.0), outer_radius=1.0, particles=4, arms=2)
-		state = star.initial_state
+		state = star
 		assert state is not None
-		x, y = star.layout.positions(state)
+		x, y = GCStateLayout().positions(state)
 		np.testing.assert_allclose(np.hypot(x, y), np.linspace(0.0, 1.0, 4))
 
 

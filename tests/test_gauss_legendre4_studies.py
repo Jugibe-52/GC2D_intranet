@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
-from states.layout import GCStateLayout
+from formulations.layout import GCStateLayout
 
 import unittest
 
 import matplotlib.pyplot as plt
 import numpy as np
 
-from states.state import State
+
 from potential import Potential
 from studies import (
 	GAUSS_BM4_METHODS,
@@ -27,7 +27,7 @@ from visualization import (
 )
 
 
-def _problem_data() -> tuple[Potential, State]:
+def _problem_data() -> tuple[Potential, np.ndarray]:
 	"""Return the compact deterministic field and one GC initial point."""
 	return (
 		Potential.random(
@@ -38,7 +38,7 @@ def _problem_data() -> tuple[Potential, State]:
 			seed=27,
 			interpolation_order=3,
 		),
-		State(np.asarray((1.0, 1.2)), layout=GCStateLayout()),
+		np.array(np.asarray((1.0, 1.2)), dtype=float, copy=True),
 	)
 
 

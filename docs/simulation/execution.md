@@ -24,18 +24,12 @@ remains NumPy/SciPy on the host CPU; a single physical core is not enforced.
 
 `run(problem, method, request, *, options=None)` receives:
 
-- `InitialValueProblem`: physical dynamics and the initial configuration.
+- `InitialValueProblem`: physical dynamics, initial array and layout.
 - `NumericalMethod`: the integration algorithm and its numerical parameters.
 - `SimulationRequest`: time interval, step limit and requested saved times.
 - Optional `ExecutionOptions`: the existing backend/device selection for this job.
 
-It returns `contracts.result.IntegrationData`, containing `t`, physical `states`
-and integration diagnostics. States use the existing component-major layout,
-with shape `(physical_state_size, saved_time_count)`. `simulation.runner.simulate`
-validates the inputs, calls the executor once and constructs `Solution`.
-`Solution` owns immutable output storage and structural validation; `simulate`
-checks alignment with the requested times and initial state, including results
-from executor subclasses.
+It returns a completed `states.States` with physical values, saved times, an independent layout and initial snapshot, and read-only diagnostics. Values have shape `(physical_state_size, saved_time_count)`. `simulation.runner.simulate` calls the executor once, requires a complete result, checks agreement with the requested times and initial values, and returns that same object. It does not build a second result container. These checks also apply to executor subclasses.
 
 The execution path is `simulate -> Execution.run -> method.integrate`.
 Numerical steps remain in the methods and integration packages. The executor
@@ -74,7 +68,7 @@ arguments: `run_rk4_execution_comparison(..., executions=(options, ...))` and
 ## Extending execution
 
 `Execution_Modal(Execution)` overrides the same `run` signature, transfers the
-complete job to a deployed Modal Function, and returns `IntegrationData` to the
+complete job to a deployed Modal Function, and returns `States` to the
 local machine. It uses durable call IDs for recovery and leaves any subsequent
 Backblaze upload to local persistence. Remote execution supports NumPy/SciPy and
 JAX CPU jobs with a suitably configured image. See the [Modal executor guide](modal-execution.md) for the

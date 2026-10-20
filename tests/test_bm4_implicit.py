@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from states.layout import GCStateLayout
+from formulations.layout import GCStateLayout
 
 from pathlib import Path
 import tempfile
@@ -12,7 +12,7 @@ from unittest.mock import patch
 import numpy as np
 
 from dynamics import GuidingCenterDynamics
-from states.state import State
+
 from potential import Potential
 from simulation import (
 	BM4Implicit,
@@ -47,10 +47,7 @@ def _potential(*, amplitude: float = 0.08) -> Potential:
 def _problem() -> InitialValueProblem:
 	"""Build one planar guiding-centre initial-value problem."""
 	potential = _potential()
-	return InitialValueProblem(
-		GuidingCenterDynamics(potential, rho=0.05),
-		State(np.asarray([1.0, 1.2]), layout=GCStateLayout()),
-	)
+	return InitialValueProblem(GuidingCenterDynamics(potential, rho=0.05), np.array(np.asarray([1.0, 1.2]), dtype=float, copy=True), layout=GCStateLayout())
 
 
 class BM4ImplicitMethodTests(unittest.TestCase):
@@ -59,14 +56,7 @@ class BM4ImplicitMethodTests(unittest.TestCase):
 	def test_energy_reuses_converged_shears_without_extra_spatial_work(self) -> None:
 		"""Compare traced quadrature with an independent energy-augmented replay."""
 		for particles, coupling in ((1, 0.0), (3, 0.4)):
-			problem = InitialValueProblem(
-				GuidingCenterDynamics(_potential(), rho=0.05),
-				State.from_components(
-					np.linspace(1.0, 1.2, particles),
-					np.linspace(1.2, 1.4, particles),
-					layout=GCStateLayout(),
-				),
-			)
+			problem = InitialValueProblem(GuidingCenterDynamics(_potential(), rho=0.05), GCStateLayout().pack_components(np.linspace(1.0, 1.2, particles), np.linspace(1.2, 1.4, particles)), layout=GCStateLayout())
 			request = SimulationRequest.uniform(t_span=(0.3, 0.5), max_step=0.2, sample_count=2)
 			for solver, jacobian in (('newton', 'analytic'), ('newton', 'finite_difference'), ('broyden', 'analytic')):
 				for step in (0.2, -0.2):
@@ -183,10 +173,7 @@ class BM4ImplicitMethodTests(unittest.TestCase):
 		self.assertLess(coarse_error / fine_error, 17.0)
 
 	def test_analytic_and_finite_difference_newton_jacobians_agree(self) -> None:
-		problem = InitialValueProblem(
-			GuidingCenterDynamics(_potential(), rho=0.05),
-			State(np.asarray([1.0, 1.2, 1.1, 0.9]), layout=GCStateLayout()),
-		)
+		problem = InitialValueProblem(GuidingCenterDynamics(_potential(), rho=0.05), np.array(np.asarray([1.0, 1.2, 1.1, 0.9]), dtype=float, copy=True), layout=GCStateLayout())
 		request = SimulationRequest.uniform(
 			t_span=(0.0, 0.1),
 			max_step=0.05,

@@ -1,4 +1,4 @@
-"""Structural contracts for initial states and packed state layouts."""
+"""Structural interpretation of packed physical state components."""
 
 from __future__ import annotations
 
@@ -13,8 +13,8 @@ class StateLayout(Protocol):
 
 	Layouts contain coordinate interpretation only, support ``deepcopy``, and do
 	not own the initial state or physical parameters. A problem copies the layout
-	when it snapshots its source. Built-in implementations live in
-	``states.layout``; external implementations need no inheritance.
+	when it snapshots its initial values. Built-in implementations live in
+	``formulations.layout``; external implementations need no inheritance.
 	"""
 
 	state_dimension: ClassVar[int]
@@ -32,17 +32,4 @@ class StateLayout(Protocol):
 		"""Return both physical position blocks."""
 
 
-@runtime_checkable
-class InitialConfiguration(Protocol):
-	"""Provide an optional initial physical state and its independent layout."""
-
-	@property
-	def initial_state(self) -> np.ndarray | None:
-		"""Return an independent initial-state copy, or ``None`` when unset."""
-
-	@property
-	def layout(self) -> StateLayout:
-		"""Return the layout used to interpret the physical state."""
-
-
-__all__ = ["InitialConfiguration", "StateLayout"]
+__all__ = ["StateLayout"]

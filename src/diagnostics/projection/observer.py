@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from formulations.layout import GCStateLayout
+
 from diagnostics.geometry import calculate_area
 
 from dataclasses import asdict, dataclass
@@ -14,7 +16,7 @@ import numpy as np
 from diagnostics._validation import optional_relative_step, positive_integer
 
 
-from states.state import State
+
 from contracts.observation import IntegrationStage
 from diagnostics.buffering import DiagnosticBuffer
 from diagnostics.symplecticity import (
@@ -102,14 +104,14 @@ class ProjectedSymplecticityAreaObserver:
 
 	All stage Jacobians must be evaluated to propagate the cumulative tangent.
 	``record_every`` reduces only persisted observations, not differentiation cost.
-	The observer requires ``track_energy=False`` and an GC State with ordered boundary vertices.
+	The observer requires ``track_energy=False`` and an GC np.ndarray with ordered boundary vertices.
 	"""
 
 	def __init__(
 		self,
 		*,
 		notebook_path: str | Path,
-		area: State,
+		area: np.ndarray,
 		period: float | None = None,
 		project_root: str | Path | None = None,
 		run_date: date | str | None = None,
@@ -121,17 +123,17 @@ class ProjectedSymplecticityAreaObserver:
 		metadata: Mapping[str, Any] | None = None,
 	) -> None:
 		"""Configure cumulative tangent propagation and notebook-derived output."""
-		if not (isinstance(area, State) and area.layout.state_dimension == 2 and area.particle_count >= 3):
-			raise TypeError("`area` must be a GC State with at least three ordered boundary vertices.")
+		if not (isinstance(area, np.ndarray) and GCStateLayout().state_dimension == 2 and GCStateLayout().particle_count(area) >= 3):
+			raise TypeError("`area` must be a GC np.ndarray with at least three ordered boundary vertices.")
 		record_every = positive_integer(record_every, "record_every")
 		chunk_size = positive_integer(chunk_size, "chunk_size")
 		relative_step = optional_relative_step(relative_step)
 
-		initial_state = area.values
+		initial_state = area
 		assert initial_state is not None
 		self.area = area
 		self.initial_state = initial_state.copy()
-		self.particle_count = area.layout.particle_count(initial_state)
+		self.particle_count = GCStateLayout().particle_count(initial_state)
 		self.physical_size = 2 * self.particle_count
 		self.extended_size = 2 * self.physical_size
 		self.period = period
@@ -141,7 +143,7 @@ class ProjectedSymplecticityAreaObserver:
 		self._extended_tangent = self.embedding.copy()
 		self._local_extended_tangent = self.embedding.copy()
 
-		self.initial_area = float(calculate_area(initial_state, period=period, layout=area.layout))
+		self.initial_area = float(calculate_area(initial_state, period=period, layout=GCStateLayout()))
 		if not np.isfinite(self.initial_area) or abs(self.initial_area) <= np.finfo(float).eps:
 			raise ValueError("The initial projected boundary must have non-zero finite area.")
 		self.output_directory = notebook_output_directory(
@@ -299,7 +301,7 @@ class ProjectedSymplecticityAreaObserver:
 			float(np.linalg.norm(projected_state)),
 			float(np.finfo(float).eps),
 		)
-		area = float(calculate_area(projected_state, period=self.period, layout=self.area.layout))
+		area = float(calculate_area(projected_state, period=self.period, layout=GCStateLayout()))
 		area_error = area - self.initial_area
 		local_defect = (
 			local_projected_jacobian.T

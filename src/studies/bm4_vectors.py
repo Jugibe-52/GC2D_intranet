@@ -5,8 +5,8 @@ import numpy as np
 from diagnostics.bm4_vectors import BM4VectorObserver
 from methods.extended.bm4 import BM4Implicit
 from contracts.problem import InitialValueProblem
-from contracts.request import SimulationRequest
-from solution import Solution
+from request import SimulationRequest
+from states.history import States
 from simulation.runner import simulate
 
 
@@ -37,7 +37,7 @@ def vector_angles(vectors: np.ndarray, floor: float) -> tuple[np.ndarray, np.nda
 class BM4VectorStudy:
     """Arrays use (step, particle[, xy]); angles are in radians."""
 
-    solution: Solution
+    solution: States
     times: np.ndarray
     mu: np.ndarray
     delta: np.ndarray

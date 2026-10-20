@@ -1,6 +1,6 @@
 # Detailed package and integration architecture
 
-![Detailed current package architecture](package-integration-architecture.svg)
+![Historical detailed package architecture](package-integration-architecture.svg)
 
 Open the scalable [SVG](package-integration-architecture.svg), the
 [PNG](package-integration-architecture.png), or the canonical
@@ -14,14 +14,9 @@ remain available unchanged.
 
 ## Reading the diagram
 
-The eight columns follow the source organization: `potential/`, `dynamics/`,
-`states/`, `formulations/`, `methods/`, `integration/`, `simulation/`,
-and the `solution.py` module. Each card identifies its implementation owner and
-describes inputs, operations, outputs or invariants. Column order describes
-responsibilities; the numbered **EXECUTION** cards identify runtime order.
+The image records the previous package organization, including the retired initial-provider, collector and result owners. Its module labels are historical. The current owners are documented in the [integration guide](integration-architecture.md): `request.py` owns temporal configuration, `formulations.layout` owns physical layouts, `integration` owns current-state control and `states` owns physical recording and results.
 
-The `contracts/` band contains shared problem, request, layout, step, result and
-observation interfaces. Physical capability protocols belong to
+The historical `contracts/` band groups shared data interfaces. Physical capability protocols belong to
 `dynamics/protocols.py`, split-map protocols to `formulations/base.py`, and the
 public method protocol to `methods/base.py`.
 
@@ -32,26 +27,12 @@ and capabilities rather than extra execution stages.
 
 ## Runtime sequence
 
-1. The caller assembles the potential, dynamics and initial configuration.
-   `InitialValueProblem` combines dynamics with initial geometry and validates
-   their compatibility. The caller also selects a method and `SimulationRequest`.
-2. `simulate` validates the public input contracts and calls `method.integrate`.
-   The inherited implementation creates a fresh instance through `new_run`,
-   calls the concrete method's `initialize`, and freezes its prepared snapshots.
-3. `integrate_method` selects the controller and creates a collector. The
-   controller calls `advance` for each accepted interval. The coordinator
-   validates returned states, records statistics, dispatches optional observations
-   and saves the requested samples.
-4. Fixed controllers use a uniform effective step and independent shortened maps
-   for interior output samples. Adaptive controllers keep a live SciPy session
-   and evaluate its accepted dense output. Accepted steps and saved times are
-   separate grids.
-5. At completion, `export_history` delegates to the state formulation. Physical
-   states and auxiliary diagnostics are combined with metadata and accepted-step
-   metrics into `IntegrationData`.
-6. The original `simulate` call resumes, constructs `Solution`, and checks its
-   saved times and initial physical state against the inputs. `Solution` owns
-   structural validation and copied, read-only output arrays.
+1. The caller builds dynamics and a physical initial array with its layout, then supplies a method and `request.SimulationRequest`.
+2. `simulate` delegates the complete job to `Execution.run`, which calls the method's integration entry point and prepares a fresh run and formulation.
+3. The controller manages `IntegrationState(time, values)` for accepted internal endpoints. `integrate_method` prepares `States` and records the initial physical sample.
+4. Each accepted interval produces main-step statistics and any requested samples. Fixed shadow maps start independently from its left endpoint; adaptive methods evaluate accepted dense output. The formulation extracts physical values before `States.record` copies them.
+5. The formulation evaluates diagnostics over saved physical samples and auxiliaries. `States.finalize` checks coverage and seals the same recording object.
+6. `simulate` verifies time, layout dimension and initial-state agreement and returns the completed `States` directly. JAX constructs that same result type at the host boundary from device arrays.
 
 ## Extended-family detail
 
@@ -92,5 +73,3 @@ node scripts/render_detailed_architecture.cjs
 The renderer creates the matching SVG and PNG from that single source. It writes
 only `package-integration-architecture.svg` and `.png`; the compact and archived
 diagrams have independent sources and renderings.
-
-The existing diagram is a historical rendering: its initial_conditions column now corresponds to states, with generators in states.generators. The diagram has not been regenerated for this API migration.

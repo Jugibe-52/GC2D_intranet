@@ -7,7 +7,7 @@ not establish an invariant empty region at other rho values.
 
 from __future__ import annotations
 
-from states.layout import GCStateLayout
+from formulations.layout import GCStateLayout
 
 from dataclasses import asdict, dataclass, replace
 from pathlib import Path
@@ -18,8 +18,8 @@ import numpy as np
 from contracts.execution_options import ExecutionOptions
 from contracts.problem import InitialValueProblem
 from diagnostics.persistence import StoredSolution
-from states.state import State
-from solution import Solution
+
+from states.history import States
 from studies.dimensional_h5_midpoint import DimensionalH5Field
 from studies.poincare_rho_sweep import (
     PreparedRhoStar, RhoStarConfig, _validate_rho_cycle_solution,
@@ -77,8 +77,8 @@ def _replace_star_initial_positions(prepared: PreparedRhoStar, seeds: GapProbeSe
     cell = np.asarray(metadata["cell_bounds_m"], dtype=float)
     physical_xy = cell[:2] + cell[2] * np.asarray(seeds.fractions)
     xy = (physical_xy - np.asarray(metadata["spatial_origin_m"])) * metadata["spatial_scale_per_m"]
-    initial = State.from_components(xy[:, 0], xy[:, 1], layout=GCStateLayout())
-    problem = InitialValueProblem(prepared.problem.dynamics, initial)
+    initial = GCStateLayout().pack_components(xy[:, 0], xy[:, 1])
+    problem = InitialValueProblem(prepared.problem.dynamics, initial, layout=GCStateLayout())
     for name in ("star_center_m", "cell_radius_m", "initial_radii_m", "initial_radius_fraction",
                  "star_center", "initial_radii", "arm_id"):
         metadata.pop(name, None)
@@ -111,7 +111,7 @@ def prepare_gap_probes(source: str | Path, config: RhoStarConfig, *,
     return _replace_star_initial_positions(prepare_rho_star(source, config), seeds)
 
 
-def validate_gap_solution(solution: Solution, prepared: PreparedRhoStar, *,
+def validate_gap_solution(solution: States, prepared: PreparedRhoStar, *,
                           options: ExecutionOptions | None = None) -> None:
     """Audit a new probe integration against its complete prepared inputs."""
     if prepared.metadata.get("study") != "poincare_gap_probes":
@@ -137,15 +137,15 @@ def validate_saved_gap_probes(stored: StoredSolution, *,
     if metadata.get("study") != "poincare_gap_probes":
         raise ValueError("Expected a saved explicit gap-probe study.")
     seeds, config, xy = _validated_saved_probe_geometry(metadata)
-    initial = State.from_components(xy[:, 0], xy[:, 1], layout=GCStateLayout())
-    initial_state = initial.initial_state
+    initial = GCStateLayout().pack_components(xy[:, 0], xy[:, 1])
+    initial_state = initial
     assert initial_state is not None
     options = None
     if metadata.get("execution_options", {}).get("backend") == "jax":
         options = ExecutionOptions(backend="jax", device=metadata["execution_options"].get("device", "cpu"))
     _validate_rho_cycle_solution(solution, config, output_times=np.arange(config.cycles + 1, dtype=float),
                                 initial_state=initial_state, options=options)
-    saved_initial_state = solution.source.initial_state
+    saved_initial_state = solution.initial_state
     if saved_initial_state is None or not np.array_equal(saved_initial_state, initial_state):
         raise ValueError("The saved probes' source configuration differs from their explicit seeds.")
     wrapped, fractions = folded_rho_positions(solution, metadata)
@@ -160,7 +160,7 @@ def validate_saved_gap_probes(stored: StoredSolution, *,
 
 
 def _validate_gap_background(
-	background: StoredSolution | None, config: RhoStarConfig, solution: Solution,
+	background: StoredSolution | None, config: RhoStarConfig, solution: States,
 	metadata: dict[str, Any], seeds: GapProbeSeeds,
 ) -> None:
 	"""Require appended probes to share scientific inputs and cycles while preserving distinct IDs."""

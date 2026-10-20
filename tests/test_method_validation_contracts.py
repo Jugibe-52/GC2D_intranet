@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from states.layout import GCStateLayout
+from formulations.layout import GCStateLayout
 
 from dataclasses import dataclass, field
 from typing import Any
@@ -11,8 +11,8 @@ import unittest
 import numpy as np
 
 from contracts.problem import InitialValueProblem
-from contracts.request import SimulationRequest
-from states.state import State
+from request import SimulationRequest
+
 from methods._nonlinear import _solve_broyden, _solve_newton
 from methods.adaptive.scipy import DOP853, Radau
 from methods.classical.gauss_legendre import GaussLegendre4
@@ -21,7 +21,7 @@ from methods.classical.sdirk import SDIRK4
 from methods.extended.abba import ABBA2Implicit, ABBA4Implicit, ABBA6Implicit
 from methods.extended.bm4 import BM4Implicit, BM4Midpoint
 from methods.hbvm.order4 import HBVM42
-from solution import Solution
+from states.history import States
 
 
 class _CountingDynamics:
@@ -122,10 +122,7 @@ class MethodValidationContractTests(unittest.TestCase):
 		times = np.asarray((0.0, 1.0))
 		states = np.asarray(((0, 1), (1, 2)), dtype=np.int16)
 		metric = np.asarray((1, 2), dtype=np.int64)
-		solution = Solution(
-			t=times, states=states, source=State(states[:, 0], layout=GCStateLayout()),
-			diagnostics={"metric": metric},
-		)
+		solution = States(t=times, states=states, initial_state=np.array(states[:, 0], dtype=float, copy=True), diagnostics={"metric": metric}, layout=GCStateLayout())
 		times[0], states[0, 0], metric[0] = -1.0, -1, -1
 		self.assertEqual(solution.t[0], 0.0)
 		self.assertEqual(solution.states[0, 0], 0)
@@ -138,7 +135,7 @@ class MethodValidationContractTests(unittest.TestCase):
 			solution.diagnostics["other"] = 1  # type: ignore[index]
 
 	def test_run_owns_initial_state_and_metadata_arrays(self) -> None:
-		problem = InitialValueProblem(_CountingDynamics(), State(np.asarray((1.0, 0.0)), layout=GCStateLayout()))
+		problem = InitialValueProblem(_CountingDynamics(), np.array(np.asarray((1.0, 0.0)), dtype=float, copy=True), layout=GCStateLayout())
 		request = SimulationRequest.uniform(t_span=(0.0, 0.1), sample_count=2)
 		method = _ArrayMetadataRK4()
 		run = method.new_run(problem, request)
@@ -180,7 +177,7 @@ class MethodValidationContractTests(unittest.TestCase):
 
 	def test_hbvm_capability_error_stays_after_initial_field_work(self) -> None:
 		dynamics = _CountingDynamics()
-		problem = InitialValueProblem(dynamics, State(np.asarray((1.0, 0.0)), layout=GCStateLayout()))
+		problem = InitialValueProblem(dynamics, np.array(np.asarray((1.0, 0.0)), dtype=float, copy=True), layout=GCStateLayout())
 		request = SimulationRequest.uniform(t_span=(0.0, 0.1), sample_count=2)
 		run = HBVM42(jacobian_method="analytic").new_run(problem, request)
 		self.assertEqual(dynamics.evaluations, 0)

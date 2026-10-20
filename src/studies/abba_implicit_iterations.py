@@ -28,11 +28,11 @@ from dynamics import GuidingCenterDynamics
 from potential import Potential
 from methods.extended.configuration import ABBA_PROJECTION_FORMULATIONS, ProjectionFormulation
 from methods.extended.abba import ABBA2Implicit
-from contracts.configuration import InitialConfiguration
+
 from contracts.problem import InitialValueProblem
 from methods._nonlinear import NonlinearSolver
-from contracts.request import SimulationRequest
-from solution import Solution
+from request import SimulationRequest
+from states.history import States
 from simulation.runner import simulate
 
 
@@ -110,7 +110,7 @@ class ImplicitABBAIterationStudyResult:
 
 	config: ImplicitABBAIterationStudyConfig
 	dynamics: GuidingCenterDynamics
-	solution: Solution
+	solution: States
 	records: tuple[ImplicitABBAIterationRecord, ...]
 	output_blocks: tuple[ImplicitABBAIterationOutputBlock, ...]
 	output_directory: Path
@@ -185,7 +185,7 @@ class ImplicitABBAIterationStudyResult:
 
 def run_implicit_abba_iteration_study(
 	potential: Potential,
-	initial_configuration: InitialConfiguration,
+	initial_configuration: np.ndarray,
 	*,
 	notebook_path: str | Path,
 	config: ImplicitABBAIterationStudyConfig,
@@ -195,9 +195,9 @@ def run_implicit_abba_iteration_study(
 	"""Run one implicit ABBA trajectory while recording nonlinear-solver work."""
 	if not isinstance(potential, Potential):
 		raise TypeError("`potential` must be a Potential instance.")
-	if not isinstance(initial_configuration, InitialConfiguration):
+	if not isinstance(initial_configuration, np.ndarray):
 		raise TypeError(
-			"`initial_configuration` must implement InitialConfiguration."
+			"`initial_configuration` must implement np.ndarray."
 		)
 	if not isinstance(config, ImplicitABBAIterationStudyConfig):
 		raise TypeError("`config` must be an ImplicitABBAIterationStudyConfig.")

@@ -14,7 +14,7 @@ from contracts.step import StepInfo, StepResult
 from formulations.state import PhysicalFormulation
 from contracts.observation import IntegrationStep, StepObserver
 from contracts.problem import InitialValueProblem
-from contracts.request import SimulationRequest
+from request import SimulationRequest
 from methods.classical._rk4_core import physical_step, momentum_increment
 
 

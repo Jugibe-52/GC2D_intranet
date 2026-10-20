@@ -1,6 +1,6 @@
 """Reproducible RK4 backend equivalence and end-to-end timing study."""
 
-from states.layout import GCStateLayout
+from formulations.layout import GCStateLayout
 
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -13,14 +13,14 @@ import scipy
 
 from contracts.execution_options import ExecutionOptions
 from contracts.problem import InitialValueProblem
-from contracts.request import SimulationRequest
+from request import SimulationRequest
 from diagnostics.persistence import load_solution, save_solution
 from dynamics.gc import GuidingCenterDynamics
-from states.state import State
+
 from methods.classical.rk4 import RK4
 from potential.potential import Potential
 from simulation.runner import simulate
-from solution import Solution
+from states.history import States
 
 
 @dataclass(frozen=True)
@@ -54,12 +54,12 @@ class RK4ExecutionConfig:
 class RK4ExecutionComparison:
     """Complete trajectories and timing/validation records ready for storage."""
 
-    solutions: dict[str, Solution]
+    solutions: dict[str, States]
     potential: Potential
     metadata: dict[str, Any]
 
 
-def periodic_discrepancy(reference: Solution, candidate: Solution, period: float) -> np.ndarray:
+def periodic_discrepancy(reference: States, candidate: States, period: float) -> np.ndarray:
     """Per-particle minimum-image distance, shaped (particles, saved_times)."""
     delta = candidate.states - reference.states
     delta = (delta + period / 2) % period - period / 2
@@ -74,7 +74,7 @@ def run_rk4_execution_comparison(
 
     Potential construction and gyroaveraging are excluded. First calls include
     any device preparation and compilation; steady timings include transfers,
-    integration, energy diagnostics and immutable NumPy Solution creation.
+    integration, energy diagnostics and immutable NumPy States creation.
     Explicit device requests fail if unavailable, without substitution.
     """
     _validate_execution_comparison(config, executions)
@@ -84,17 +84,13 @@ def run_rk4_execution_comparison(
     )
     grid = potential.grid
     rng = np.random.default_rng(config.particle_seed)
-    initial = State.from_components(
-        grid.xmin + grid.period * rng.random(config.particle_count),
-        grid.ymin + grid.period * rng.random(config.particle_count),
-        layout=GCStateLayout(),
-    )
-    problem = InitialValueProblem(GuidingCenterDynamics(potential, rho=config.rho), initial)
+    initial = GCStateLayout().pack_components(grid.xmin + grid.period * rng.random(config.particle_count), grid.ymin + grid.period * rng.random(config.particle_count))
+    problem = InitialValueProblem(GuidingCenterDynamics(potential, rho=config.rho), initial, layout=GCStateLayout())
     request = SimulationRequest.uniform(t_span=config.t_span, max_step=config.max_step,
                                         sample_count=config.sample_count)
     method = RK4(track_energy=config.track_energy)
     selected = {f"{item.backend}_{item.device}_{item.device_index}": item for item in executions}
-    solutions: dict[str, Solution] = {}
+    solutions: dict[str, States] = {}
     first_calls: dict[str, float] = {}
     timings: dict[str, list[float]] = {key: [] for key in selected}
     for key, execution in selected.items():
@@ -146,12 +142,12 @@ def run_rk4_execution_comparison(
         "arithmetic": "float64", "initial_geometry": "uniform_periodic_cell",
         "potential_role": "base_before_gyroaverage", "baseline": "scipy_cpu_0",
         "purpose": "Backend equivalence and timing, not an integrator accuracy comparison.",
-        "timing_scope": "Complete simulate calls, including transfers and Solution construction.",
+        "timing_scope": "Complete simulate calls, including transfers and States construction.",
     })
 
 
 def save_rk4_execution_comparison(comparison: RK4ExecutionComparison, destination: str | Path) -> str:
-    """Persist canonical NPZ/JSON Solution archives; report any upload failure."""
+    """Persist canonical NPZ/JSON States archives; report any upload failure."""
     base = str(destination).rstrip("/")
     # Publish the baseline last so readers cannot mistake a partial run for a
     # complete comparison. Each child retains the canonical integrity manifest.

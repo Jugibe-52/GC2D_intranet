@@ -4,15 +4,7 @@ All 13 public methods use `IntegrationMethod.new_run` and `integrate_method`.
 Dynamics defines physics; formulation defines coordinates; method defines one
 numerical step; integration controls accepted intervals and collects output.
 
-The source packages follow that ownership: `src/contracts/` holds the shared
-problem, request, state-layout, step and observation types;
-`src/formulations/` defines physical and doubled state representations;
-`src/methods/` implements numerical steps; and `src/integration/` controls
-accepted steps and output collection. `src/simulation/runner.py` validates the
-assembled run and returns the immutable `src/solution.py` result. Concrete
-initial geometry stays in `src/states/`. The `simulation` package
-continues to export the established public names through explicit imports and
-`__all__`. Internal consumers import directly from the defining modules.
+`request.py` owns temporal configuration; `contracts/` owns problem and step contracts. `formulations.layout` owns physical layouts, while reusable formulations define internal coordinates and extraction independently of method choice. `methods/` implements numerical steps. `integration/` manages accepted `IntegrationState` snapshots and sampling. `states/` owns the physical recording container and completed result. `simulation/runner.py` validates that result against the inputs and returns the same object. Internal consumers import directly from each defining module.
 
 Validation follows the same ownership: `InitialValueProblem` checks the dynamics
 protocol and compatible initial layout; state formulations check the Hamiltonian
@@ -23,7 +15,7 @@ capability checks. `IntegrationMethod.new_run` owns immutable run snapshots.
 Long validation blocks are organized as private preparation functions within
 their owning modules. `SimulationRequest` separates interval validation from
 output-schedule normalization, and reuses the interval rule in `uniform`.
-`Solution` prepares the physical history and immutable diagnostics separately;
+`States` prepares the physical history and immutable diagnostics separately;
 the runner retains responsibility for agreement with the requested initial state
 and saved times. Run preparation similarly separates initial-state ownership
 and metadata freezing from the method lifecycle.
@@ -34,8 +26,7 @@ values are rejected before conversion to floating point. Newton and Broyden
 separate validated entry data from their iterations and reuse residual checks
 without repeating a cached evaluation. Checks on convergence, singular systems,
 accepted-step continuity, and newly computed non-finite values remain next to
-the numerical operation that produces them. No public names or signatures are
-changed by these internal boundaries.
+the numerical operation that produces them. These validation helpers do not alter the numerical algorithms.
 
 The downstream packages follow the same ownership convention. Studies share
 scalar and sampling rules in `studies._validation` and aligned comparison
@@ -61,34 +52,16 @@ The previous detailed integration lifecycle is preserved as
 with its [SVG](integration-architecture_old.svg) and
 [PNG](integration-architecture_old.png) renderings.
 
-The upper row follows the source responsibility order:
-`potential -> dynamics -> states -> formulations -> methods -> integration -> simulation -> solution`.
-These are responsibility headings, not successive runtime calls. In particular:
+The diagram is a historical rendering, retained without regeneration. Its collector/result split and old module routes have been superseded. The current flow is:
 
-- `potential` supplies the physical field consumed by `dynamics`.
-- `dynamics` and `states` are independent inputs to
-  `contracts.problem.InitialValueProblem`.
-- Each method prepares its formulation during initialization. Formulations
-  define internal coordinates, physical extraction and applicable split maps.
-- `simulation.runner.simulate` delegates a complete problem, method and request
-  to `Execution.run`, which executes locally by default. The method's inherited
-  `integrate` prepares a fresh run and invokes
-  the common integration coordinator. Its controller calls `advance` repeatedly;
-  the coordinator requests output samples from the controller and collects the results.
-- History export returns `IntegrationData` to `simulate`, which constructs and
-  validates the final `Solution`. Its implementation is `src/solution.py`.
+1. Build `InitialValueProblem` from dynamics, a physical array and its layout. Set t0 and output times in `SimulationRequest`.
+2. The method prepares a reusable formulation and fresh run. The controller initializes `IntegrationState(t0, internal_values)`; `States.prepare(...)` reserves physical output columns.
+3. Advance one main interval and retain both accepted endpoint snapshots. Record accepted-step statistics on their own axis.
+4. For each requested time in that interval, reuse an endpoint or calculate an independent shadow/dense sample. The formulation extracts physical values and optional momentum; `States.record` copies them.
+5. Evaluate energy diagnostics over the saved physical history and auxiliary data. `States.finalize` checks completeness and seals this same object.
+6. `Execution.run` returns it to `simulate`, which checks request and initial-data agreement and returns it directly.
 
-The shared `contracts/` band identifies the data exchanged across these owners.
-The lower detail follows ABBA/BM4 composition through `direct_map` and
-`adjoint_map` to the physical dynamics. Other numerical families share the same
-execution lifecycle with their own step algorithms.
-
-The diagram's content and layout are maintained in
-`scripts/render_package_workflow.py`. Regenerate all three formats together:
-
-```bash
-MPLCONFIGDIR=/tmp/gc2d-mpl .venv/bin/python scripts/render_package_workflow.py
-```
+The initial state and a saved sample can have identical values while serving different roles. No sample becomes the next main state. Formulations are shared across methods; layout, time control and numerical stepping remain separate responsibilities. JAX retains functional device arrays inside compiled loops and creates completed `States` at the host boundary.
 
 ## Public API and imports
 
@@ -108,9 +81,10 @@ The following old routes have been removed after migrating supported consumers:
 | `simulation.methods.*` | `methods.*` |
 | `simulation.formulations.*` | `formulations.*` |
 | `simulation.integration`, `simulation._fixed` | `integration.core`, `integration._fixed` |
-| `simulation.configuration`, `.problem`, `.request`, `.observation` | Corresponding `contracts` submodules |
+| `simulation.configuration`, `.problem`, `.observation` | Corresponding `contracts` submodules |
+| `simulation.request`, `contracts.request` | `request` |
 | `simulation._result` | `contracts.result` |
-| `simulation.solution` | `solution` |
+| `simulation.solution`, `solution` | `states.history` |
 | `methods.abba.*`, `methods.bm4.*` | `methods.extended` public exports and their defining modules |
 | `methods._abba_coefficients` | `methods.extended.core.composition` |
 | Full time/momentum projection modules | Removed; use spatial projection with `track_energy=True` for new studies |
@@ -127,7 +101,7 @@ The `simulate` function owns the stateless simulation entry point and delegates
 each complete integration to an `execution.execution.Execution` instance.
 The local executor calls `method.integrate`; subclasses can replace the whole
 execution without moving numerical algorithms out of their existing packages.
-See the [executor contract](execution.md). `Solution` validates and
+See the [executor contract](execution.md). `States` validates and
 copies the physical arrays, including their dimensions, finite values and
 packed layout. The entry point then checks that the saved times, state size and
 initial state agree with the request and problem. Each check has one owner.
@@ -136,7 +110,7 @@ initial state agree with the request and problem. Each check has one owner.
 built-in method. The inherited entry point binds the execution choice before
 initializing a fresh run. Fixed methods use a common device driver for the time
 loop, stages and nonlinear solves; DOP853/Radau retain SciPy control and use
-compiled field/energy batches. Both return the usual NumPy `Solution`. Omission
+compiled field/energy batches. Both return the usual NumPy `States`. Omission
 preserves the default CPU controller shown above. See the
 [JAX execution contract](jax-execution.md) for the exact scope and limitations.
 
@@ -160,14 +134,14 @@ time entry and one normalized momentum per particle. Projected methods
 store diagonal accepted copies and project spatial variables only. Every
 component block has N entries, and `components(state)` exposes a uniform
 `(coordinates, N, *sample_axes)` view. The time entries repeat the scalar
-integration time. `extended_time` has shape `(N, saved_times)`; `Solution.t`
+integration time. `extended_time` has shape `(N, saved_times)`; `States.t`
 remains the one-dimensional grid.
 
 `StepResult` and `StepInfo` live in `src/contracts/step.py`. Their states are
-internal; `Solution.states` and observer states are physical.
+internal; `States.states` and observer states are physical.
 `StepResult.statistics` contains accepted physical work. Details are transient
-unless an observer explicitly retains a copied event. `export_history` delegates
-to the formulation's common physical and energy extraction.
+unless an observer explicitly retains a copied event. `extract_sample` produces each physical column; `diagnose_history` computes
+energy diagnostics after recording. `extract_history` supports bulk JAX export.
 
 Tracking does not affect physical stages, Newton/Broyden scales or adaptive error
 control. DOP853 and Radau own physical-only SciPy solvers and use eight-point
@@ -183,7 +157,7 @@ Fixed controllers reuse accepted endpoint states and compute off-grid samples wi
 independent shortened maps; adaptive controllers evaluate accepted dense output.
 The formulation validates each
 particle time and aligns diagnostic times to the requested grid within round-off.
-The coordinator and collector do not inspect clock indices or tracking flags.
+The coordinator and `States` do not inspect clock indices or tracking flags.
 Observer snapshots cannot mutate
 samples or counters. Repeated runs own fresh solver resources.
 
@@ -221,5 +195,3 @@ import study orchestration or execute a simulation. Existing energy and parallel
 recurrence archive schemas are unchanged. Scalar configuration rules shared with
 those records live in `contracts._study_validation`; study-specific geometry,
 reference identity, and execution policies remain in `studies`.
-
-The existing diagram is a historical rendering: its initial_conditions column now corresponds to states, with generators in states.generators. The diagram has not been regenerated for this API migration.

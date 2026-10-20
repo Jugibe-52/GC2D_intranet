@@ -1,6 +1,6 @@
 """Checkpoint orchestration using the frozen public classical RK4 integrator."""
 
-from states.layout import GCStateLayout
+from formulations.layout import GCStateLayout
 
 from typing import Any
 from pathlib import Path
@@ -17,10 +17,10 @@ def calculate_checkpointed_group(indices: np.ndarray, initial_xy: np.ndarray,
     from threadpoolctl import threadpool_limits,threadpool_info
     potential,_,snapshot=load_snapshot()
     from dynamics import GuidingCenterDynamics
-    from states.state import State
+    import numpy as np
     from methods.classical.rk4 import RK4
     from contracts.problem import InitialValueProblem
-    from contracts.request import SimulationRequest
+    from request import SimulationRequest
     from simulation.runner import simulate
     import parallel_calculation
     indices=np.asarray(indices,dtype=int);ids=np.asarray(settings['particle_ids'])[indices]
@@ -41,8 +41,8 @@ def calculate_checkpointed_group(indices: np.ndarray, initial_xy: np.ndarray,
         resumed=completed;new_chunks=0
         while completed<total:
             end=min(total,completed+settings['checkpoint_steps']);length=end-completed
-            initial=State.from_components(value[:count],value[count:], layout=GCStateLayout())
-            problem=InitialValueProblem(field,initial)
+            initial=GCStateLayout().pack_components(value[:count], value[count:])
+            problem=InitialValueProblem(field, initial, layout=GCStateLayout())
             request=SimulationRequest.uniform(t_span=(t0+completed*h,t0+end*h),max_step=h,sample_count=length+1)
             solution=simulate(problem,RK4(progress=False),request)
             assert solution.diagnostics['step_count']==length

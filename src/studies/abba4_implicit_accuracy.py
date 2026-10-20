@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from formulations.layout import GCStateLayout
+
 from dataclasses import dataclass
 from time import perf_counter
 from types import MappingProxyType
@@ -21,13 +23,13 @@ from ._validation import (
 
 from diagnostics import StoredReferenceTrajectory
 from dynamics import GuidingCenterDynamics
-from states.state import State
+
 from potential import Potential
 from methods.extended.abba import ABBA4Implicit
 from methods._nonlinear import NONLINEAR_SOLVERS, NonlinearSolver
 from contracts.problem import InitialValueProblem
-from contracts.request import SimulationRequest
-from solution import Solution
+from request import SimulationRequest
+from states.history import States
 from simulation.runner import simulate
 
 from contracts.comparison import TrajectoryAccuracySeries
@@ -151,11 +153,11 @@ class ABBA4ImplicitAccuracyResult:
 
 	potential: Potential
 	dynamics: GuidingCenterDynamics
-	initial_configuration: State
+	initial_configuration: np.ndarray
 	reference: StoredReferenceTrajectory
 	config: ABBA4ImplicitAccuracyConfig
 	reference_sample_indices: np.ndarray
-	solutions: Mapping[float, Solution]
+	solutions: Mapping[float, States]
 	series: Mapping[float, TrajectoryAccuracySeries]
 	runtimes: Mapping[float, float]
 
@@ -169,10 +171,10 @@ class ABBA4ImplicitAccuracyResult:
 		):
 			raise ValueError("ABBA4 accuracy results must follow configured step order.")
 		indices = np.array(self.reference_sample_indices, dtype=np.int64, copy=True)
-		initial_state = self.initial_configuration.initial_state
+		initial_state = self.initial_configuration
 		if initial_state is None:
 			raise ValueError("The initial configuration must contain an initial state.")
-		particle_count = self.initial_configuration.layout.particle_count(initial_state)
+		particle_count = GCStateLayout().particle_count(initial_state)
 		reference_times: np.ndarray | None = None
 		for step in steps:
 			solution = self.solutions[step]
@@ -308,7 +310,7 @@ class ABBA4ImplicitAccuracyResult:
 
 def run_abba4_implicit_accuracy_study(
 	potential: Potential,
-	initial_configuration: State,
+	initial_configuration: np.ndarray,
 	reference: StoredReferenceTrajectory,
 	*,
 	config: ABBA4ImplicitAccuracyConfig,
@@ -318,8 +320,8 @@ def run_abba4_implicit_accuracy_study(
 	"""Run ABBA4 on nested steps and compare every saved state to the reference."""
 	if not isinstance(potential, Potential):
 		raise TypeError("`potential` must be a Potential instance.")
-	if not (isinstance(initial_configuration, State) and initial_configuration.layout.state_dimension == 2):
-		raise TypeError("`initial_configuration` must be State.")
+	if not (isinstance(initial_configuration, np.ndarray) and GCStateLayout().state_dimension == 2):
+		raise TypeError("`initial_configuration` must be np.ndarray.")
 	if not isinstance(reference, StoredReferenceTrajectory):
 		raise TypeError("`reference` must be a StoredReferenceTrajectory.")
 	if not isinstance(config, ABBA4ImplicitAccuracyConfig):
@@ -333,8 +335,8 @@ def run_abba4_implicit_accuracy_study(
 		initial_condition_metadata=initial_condition_metadata,
 	)
 	dynamics = GuidingCenterDynamics(potential, rho=config.rho)
-	problem = InitialValueProblem(dynamics, initial_configuration)
-	solutions: dict[float, Solution] = {}
+	problem = InitialValueProblem(dynamics, initial_configuration, layout=GCStateLayout())
+	solutions: dict[float, States] = {}
 	series: dict[float, TrajectoryAccuracySeries] = {}
 	runtimes: dict[float, float] = {}
 	reference_indices: np.ndarray | None = None
@@ -386,14 +388,15 @@ def run_abba4_implicit_accuracy_study(
 
 
 def _validated_accuracy_trajectory(
-	solution: Solution, initial_configuration: State, *,
+	solution: States, initial_configuration: np.ndarray, *,
 	step: float, particle_count: int, reference_times: np.ndarray | None,
 	series: Mapping[float, TrajectoryAccuracySeries], runtimes: Mapping[float, float],
 ) -> np.ndarray:
 	"""Check one ABBA4 refinement against the shared physical sample grid."""
-	if not isinstance(solution, Solution):
-		raise TypeError("Every ABBA4 refinement value must be a Solution.")
-	if solution.source is not initial_configuration:
+	if not isinstance(solution, States):
+		raise TypeError("Every ABBA4 refinement value must be a States.")
+	initial_snapshot = solution.initial_state
+	if initial_snapshot is None or not np.array_equal(initial_snapshot, initial_configuration):
 		raise ValueError("Every ABBA4 solution must share one configuration.")
 	if reference_times is None:
 		reference_times = solution.t

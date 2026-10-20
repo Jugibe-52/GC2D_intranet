@@ -143,7 +143,7 @@ DOP853/Radau retain an explicit host/device adapter for their SciPy controller.
 
 A standalone JAX evaluation does not change simulation defaults. Pass
 `options=ExecutionOptions(backend="jax", device="cpu")` to `simulate` to select
-JAX execution. Every route exports the usual NumPy `Solution`; see the
+JAX execution. Every route exports the usual NumPy `States`; see the
 [execution guide](../simulation/jax-execution.md).
 
 ## Timing and validation

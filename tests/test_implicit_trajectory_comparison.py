@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from formulations.layout import GCStateLayout
+
 import unittest
 
 import matplotlib
@@ -58,7 +60,7 @@ class ImplicitTrajectoryComparisonTests(unittest.TestCase):
 
 		self.assertEqual(tuple(result.solutions), IMPLICIT_METHOD_NAMES)
 		self.assertEqual(
-			configuration.layout.particle_count(configuration.initial_state),
+			GCStateLayout().particle_count(configuration),
 			10,
 		)
 		for solution in result.solutions.values():
@@ -139,7 +141,7 @@ class ImplicitTrajectoryComparisonTests(unittest.TestCase):
 		second = random_gc_configuration(
 			potential, particle_count=10, seed=17
 		)
-		np.testing.assert_array_equal(first.initial_state, second.initial_state)
+		np.testing.assert_array_equal(first, second)
 
 
 if __name__ == "__main__":

@@ -1,6 +1,6 @@
 """Offline contracts for remote integration, receipts and safe recovery."""
 
-from states.layout import GCStateLayout
+from formulations.layout import GCStateLayout
 
 import importlib.util
 import json
@@ -17,13 +17,13 @@ import numpy as np
 
 from contracts.execution_options import ExecutionOptions
 from contracts.problem import InitialValueProblem
-from contracts.request import SimulationRequest
-from contracts.result import IntegrationData
+from request import SimulationRequest
+from states.history import States
 from diagnostics.persistence import load_solution, save_solution
 from dynamics.gc import GuidingCenterDynamics
 from execution import Execution, Execution_Modal
 from execution._modal_worker import encode_job, execute_payload
-from states.state import State
+
 from methods import BM4Implicit, DOP853, RK4, Radau
 from potential.potential import Potential
 from simulation.runner import simulate
@@ -32,10 +32,7 @@ from simulation.runner import simulate
 def make_problem():
     """A small batched physical problem with reconstructible field data."""
     potential = Potential.random(A=.1, M=3, nx=16, ny=16, seed=27)
-    return InitialValueProblem(
-        GuidingCenterDynamics(potential, rho=.3),
-        State.from_components(np.array([.2, .4]), np.array([.3, .5]), layout=GCStateLayout()),
-    )
+    return InitialValueProblem(GuidingCenterDynamics(potential, rho=.3), GCStateLayout().pack_components(np.array([.2, .4]), np.array([.3, .5])), layout=GCStateLayout())
 
 
 class ModalExecutionTests(unittest.TestCase):
@@ -135,8 +132,7 @@ class ModalExecutionTests(unittest.TestCase):
     def test_resume_rejects_changed_method_or_physics_or_sampling(self):
         executor = self.executor()
         executor.run(self.problem, self.method, self.request)
-        other_problem = InitialValueProblem(GuidingCenterDynamics(self.problem.dynamics.potential, rho=.1),
-                                           self.problem.initial_configuration)
+        other_problem = InitialValueProblem(GuidingCenterDynamics(self.problem.dynamics.potential, rho=.1), self.problem.initial_state, layout=GCStateLayout())
         other_request = SimulationRequest.uniform(t_span=(0., .02), max_step=.005, sample_count=3)
         for problem, method, request in ((other_problem, self.method, self.request),
                                          (self.problem, BM4Implicit(), self.request),
@@ -201,7 +197,7 @@ class ModalExecutionTests(unittest.TestCase):
         self.assertIn(executor.last_call_id, caught.exception.__notes__[0])
         self.calls[executor.last_call_id].get.assert_not_called()
         resumed = self.executor(resume_call_id=executor.last_call_id)
-        self.assertIsInstance(resumed.run(self.problem, self.method, self.request), IntegrationData)
+        self.assertIsInstance(resumed.run(self.problem, self.method, self.request), States)
         self.function.spawn.assert_called_once()
 
     def test_unsupported_jobs_fail_before_sdk_or_submission(self):
@@ -250,7 +246,9 @@ class ModalExecutionTests(unittest.TestCase):
         def wrong_initial(payload):
             call = self.spawn(payload)
             version, digest, data = execute_payload(payload)
-            data.states[0, 0] += 1.
+            values = data.values.copy()
+            values[0, 0] += 1.
+            data = type(data)(data.times, values, data.diagnostics, layout=data.layout, initial_state=data.initial_state)
             call.get.side_effect = None
             call.get.return_value = (version, digest, data)
             return call
@@ -296,7 +294,7 @@ sys.meta_path.insert(0, Block())
 from execution import Execution, Execution_Modal
 from execution.execution_modal import _modal_sdk
 from test_jax_rk4 import problem as make_problem
-from contracts.request import SimulationRequest
+from request import SimulationRequest
 from methods import RK4
 from simulation.runner import simulate
 simulate(make_problem(), RK4(), SimulationRequest.uniform(t_span=(0., .01), max_step=.01))
@@ -319,7 +317,7 @@ else:
         self.assertEqual(namespace["app"].name, "gc2d-execution")
         payload = encode_job(make_problem(), RK4(), SimulationRequest.uniform(
             t_span=(0., .01), max_step=.01), None)
-        self.assertIsInstance(namespace["integrate"].local(payload)[2], IntegrationData)
+        self.assertIsInstance(namespace["integrate"].local(payload)[2], States)
 
 
 if __name__ == "__main__":

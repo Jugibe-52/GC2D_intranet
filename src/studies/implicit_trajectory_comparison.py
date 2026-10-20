@@ -24,12 +24,12 @@ from dynamics import GuidingCenterDynamics
 from potential import Potential
 from methods.extended.bm4 import BM4Implicit
 from methods.extended.abba import ABBA2Implicit
-from contracts.configuration import InitialConfiguration
+
 from contracts.problem import InitialValueProblem
 from methods._nonlinear import NonlinearSolver
 from methods.base import NumericalMethod
-from contracts.request import SimulationRequest
-from solution import Solution
+from request import SimulationRequest
+from states.history import States
 from simulation.runner import simulate
 
 
@@ -139,9 +139,9 @@ class ImplicitTrajectoryComparisonResult:
 
 	potential: Potential
 	dynamics: GuidingCenterDynamics
-	initial_configuration: InitialConfiguration
+	initial_configuration: np.ndarray
 	config: ImplicitTrajectoryComparisonConfig
-	solutions: Mapping[str, Solution]
+	solutions: Mapping[str, States]
 	runtimes: Mapping[str, float]
 
 	def __post_init__(self) -> None:
@@ -150,9 +150,9 @@ class ImplicitTrajectoryComparisonResult:
 			raise TypeError("`potential` must be a Potential instance.")
 		if not isinstance(self.dynamics, GuidingCenterDynamics):
 			raise TypeError("`dynamics` must be GuidingCenterDynamics.")
-		if not isinstance(self.initial_configuration, InitialConfiguration):
+		if not isinstance(self.initial_configuration, np.ndarray):
 			raise TypeError(
-				"`initial_configuration` must implement InitialConfiguration."
+				"`initial_configuration` must implement np.ndarray."
 			)
 		if not isinstance(self.config, ImplicitTrajectoryComparisonConfig):
 			raise TypeError("`config` must be an ImplicitTrajectoryComparisonConfig.")
@@ -255,16 +255,16 @@ class ImplicitTrajectoryComparisonResult:
 
 def run_implicit_trajectory_comparison(
 	potential: Potential,
-	initial_configuration: InitialConfiguration,
+	initial_configuration: np.ndarray,
 	*,
 	config: ImplicitTrajectoryComparisonConfig,
 ) -> ImplicitTrajectoryComparisonResult:
 	"""Run all three methods once with a common problem, grid, and solver controls."""
 	if not isinstance(potential, Potential):
 		raise TypeError("`potential` must be a Potential instance.")
-	if not isinstance(initial_configuration, InitialConfiguration):
+	if not isinstance(initial_configuration, np.ndarray):
 		raise TypeError(
-			"`initial_configuration` must implement InitialConfiguration."
+			"`initial_configuration` must implement np.ndarray."
 		)
 	if not isinstance(config, ImplicitTrajectoryComparisonConfig):
 		raise TypeError("`config` must be an ImplicitTrajectoryComparisonConfig.")
@@ -303,7 +303,7 @@ def run_implicit_trajectory_comparison(
 			progress=config.progress,
 		),
 	)
-	solutions: dict[str, Solution] = {}
+	solutions: dict[str, States] = {}
 	runtimes: dict[str, float] = {}
 	for method_name, method in zip(IMPLICIT_METHOD_NAMES, methods, strict=True):
 		started = perf_counter()
@@ -321,14 +321,15 @@ def run_implicit_trajectory_comparison(
 
 
 def _validated_implicit_comparison_entry(
-	solution: Solution, initial_configuration: InitialConfiguration,
+	solution: States, initial_configuration: np.ndarray,
 	config: ImplicitTrajectoryComparisonConfig, runtimes: Mapping[str, float], method_name: str,
 	reference_times: np.ndarray | None,
 ) -> np.ndarray:
 	"""Validate one solution and runtime while establishing the shared grid."""
-	if not isinstance(solution, Solution):
-		raise TypeError("Every implicit comparison result must be a Solution.")
-	if solution.source is not initial_configuration:
+	if not isinstance(solution, States):
+		raise TypeError("Every implicit comparison result must be a States.")
+	initial_snapshot = solution.initial_state
+	if initial_snapshot is None or not np.array_equal(initial_snapshot, initial_configuration):
 		raise ValueError("All solutions must share the initial configuration.")
 	if int(solution.diagnostics.get("step_count", -1)) != config.step_count:
 		raise ValueError("Every method must use the configured common step.")

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from formulations.layout import GCStateLayout
+
 from dataclasses import dataclass
 from time import perf_counter
 from types import MappingProxyType
@@ -23,13 +25,13 @@ from ._validation import (
 from diagnostics import calculate_step_jacobian, central_difference_jacobian
 from diagnostics.symplecticity import gc_physical_symplectic_form
 from dynamics import GuidingCenterDynamics
-from states.state import State
+
 from potential import Potential
 from methods.classical.gauss_legendre import GaussLegendre4
 from contracts.observation import GaussLegendre4IntegrationStep, IntegrationStep
 from contracts.problem import InitialValueProblem
-from contracts.request import SimulationRequest
-from solution import Solution
+from request import SimulationRequest
+from states.history import States
 from simulation.runner import simulate
 
 from contracts.comparison import AdaptiveReference
@@ -249,10 +251,10 @@ class GaussLegendre4EvaluationResult:
 
 	potential: Potential
 	dynamics: GuidingCenterDynamics
-	initial_configuration: State
+	initial_configuration: np.ndarray
 	config: GaussLegendre4EvaluationConfig
 	reference: AdaptiveReference
-	solutions: Mapping[float, Solution]
+	solutions: Mapping[float, States]
 	accuracy: Mapping[float, TrajectoryAccuracySeries]
 	runtime_samples: Mapping[float, np.ndarray]
 	newton_audits: Mapping[float, GaussLegendre4NewtonAudit]
@@ -503,19 +505,19 @@ class _SymplecticityCollector:
 
 def run_gauss_legendre4_evaluation(
 	potential: Potential,
-	initial_configuration: State,
+	initial_configuration: np.ndarray,
 	*,
 	config: GaussLegendre4EvaluationConfig,
 ) -> GaussLegendre4EvaluationResult:
 	"""Run one complete individual Gauss4 evaluation over nested refinements."""
 	if not isinstance(potential, Potential):
 		raise TypeError("`potential` must be a Potential instance.")
-	if not (isinstance(initial_configuration, State) and initial_configuration.layout.state_dimension == 2):
-		raise TypeError("`initial_configuration` must be State.")
+	if not (isinstance(initial_configuration, np.ndarray) and GCStateLayout().state_dimension == 2):
+		raise TypeError("`initial_configuration` must be np.ndarray.")
 	if not isinstance(config, GaussLegendre4EvaluationConfig):
 		raise TypeError("`config` must be GaussLegendre4EvaluationConfig.")
 	dynamics = GuidingCenterDynamics(potential, rho=config.rho)
-	problem = InitialValueProblem(dynamics, initial_configuration)
+	problem = InitialValueProblem(dynamics, initial_configuration, layout=GCStateLayout())
 	request = SimulationRequest.uniform(
 		t_span=config.t_span,
 		max_step=config.integration_steps[-1],
@@ -533,7 +535,7 @@ def run_gauss_legendre4_evaluation(
 		audit_absolute_tolerance=config.audit_absolute_tolerance,
 		audit_maximum_step=config.audit_maximum_step,
 	)
-	solutions: dict[float, Solution] = {}
+	solutions: dict[float, States] = {}
 	accuracy_by_step: dict[float, TrajectoryAccuracySeries] = {}
 	runtimes_by_step: dict[float, np.ndarray] = {}
 	newton_audits_by_step: dict[float, GaussLegendre4NewtonAudit] = {}

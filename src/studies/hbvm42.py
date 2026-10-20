@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from states.layout import GCStateLayout
+from formulations.layout import GCStateLayout
 
 from dataclasses import dataclass
 from time import perf_counter
@@ -13,13 +13,13 @@ import numpy as np
 from methods.adaptive.scipy import DOP853
 
 from dynamics import DynamicalSystem, GuidingCenterDynamics, HamiltonianSystem
-from states.state import State
+
 from methods.extended.bm4 import BM4Implicit
 from methods.hbvm.order4 import HBVM42, HBVMJacobianMethod, _validated_jacobian_method
 from contracts.problem import InitialValueProblem
 from methods.base import NumericalMethod
-from contracts.request import SimulationRequest
-from solution import Solution
+from request import SimulationRequest
+from states.history import States
 from simulation.runner import simulate
 
 from ._validation import finite_time_span, integer_ratio, nonnegative_integer, positive_finite, positive_integer
@@ -100,16 +100,12 @@ def quartic_oscillator_configuration(
 	*,
 	position: float = 1.0,
 	momentum: float = 0.0,
-) -> State:
+) -> np.ndarray:
 	"""Build the one-oscillator configuration used by both HBVM notebooks."""
 	values = np.asarray((position, momentum), dtype=float)
 	if not np.all(np.isfinite(values)):
 		raise ValueError("Initial position and momentum must be finite.")
-	return State.from_components(
-		values[:1],
-		values[1:],
-		layout=GCStateLayout(),
-	)
+	return np.asarray(GCStateLayout().pack_components(values[:1], values[1:]))
 
 
 def _validated_steps(
@@ -226,10 +222,10 @@ class HBVM42EvaluationResult:
 
 	config: HBVM42EvaluationConfig
 	dynamics: DynamicalSystem
-	initial_configuration: State
+	initial_configuration: np.ndarray
 	times: np.ndarray
 	reference_states: np.ndarray
-	solutions: Mapping[float, Solution]
+	solutions: Mapping[float, States]
 	summary_rows: tuple[HBVM42EvaluationSummary, ...]
 	order_rows: tuple[HBVM42OrderSummary, ...]
 
@@ -309,7 +305,7 @@ class HBVM42BM4ComparisonResult:
 
 	config: HBVM42BM4ComparisonConfig
 	dynamics: DynamicalSystem
-	initial_configuration: State
+	initial_configuration: np.ndarray
 	reference_final_state: np.ndarray
 	summary_rows: tuple[HBVM42BM4Summary, ...]
 
@@ -320,7 +316,7 @@ class HBVM42BM4ComparisonResult:
 
 def _validated_problem(
 	dynamics: DynamicalSystem,
-	configuration: State,
+	configuration: np.ndarray,
 	*,
 	require_hamiltonian: bool,
 	require_guiding_center: bool = False,
@@ -334,9 +330,9 @@ def _validated_problem(
 		raise TypeError(
 			"The HBVM/BM4Implicit comparison requires GuidingCenterDynamics."
 		)
-	if not (isinstance(configuration, State) and configuration.layout.state_dimension == 2):
-		raise TypeError("`configuration` must be a State.")
-	problem = InitialValueProblem(dynamics, configuration)
+	if not (isinstance(configuration, np.ndarray) and GCStateLayout().state_dimension == 2):
+		raise TypeError("`configuration` must be a np.ndarray.")
+	problem = InitialValueProblem(dynamics, configuration, layout=GCStateLayout())
 	if problem.particle_count != 1 or problem.initial_state.size != 2:
 		raise ValueError("HBVM notebook studies require one planar trajectory.")
 	return problem
@@ -380,12 +376,12 @@ def _timed_simulations(
 	*,
 	warmups: int,
 	repeats: int,
-) -> tuple[float, float, Solution]:
+) -> tuple[float, float, States]:
 	"""Return median/minimum wall time and the last repeated solution."""
 	for _ in range(warmups):
 		simulate(problem, method_factory(), request)
 	timings = np.empty(repeats, dtype=float)
-	last_solution: Solution | None = None
+	last_solution: States | None = None
 	for index in range(repeats):
 		started = perf_counter()
 		last_solution = simulate(problem, method_factory(), request)
@@ -416,10 +412,7 @@ def _flow_jacobian(
 		for sign in (1.0, -1.0):
 			perturbed = initial_state.copy()
 			perturbed[column] += sign * increment
-			perturbed_problem = InitialValueProblem(
-				problem.dynamics,
-				State(perturbed, layout=GCStateLayout()),
-			)
+			perturbed_problem = InitialValueProblem(problem.dynamics, np.array(perturbed, dtype=float, copy=True), layout=GCStateLayout())
 			endpoints.append(
 				simulate(
 					perturbed_problem,
@@ -458,7 +451,7 @@ def _empirical_order(
 
 def run_hbvm42_evaluation(
 	dynamics: DynamicalSystem,
-	configuration: State,
+	configuration: np.ndarray,
 	*,
 	config: HBVM42EvaluationConfig,
 ) -> HBVM42EvaluationResult:
@@ -479,7 +472,7 @@ def run_hbvm42_evaluation(
 		absolute_tolerance=config.reference_absolute_tolerance,
 		maximum_step=config.reference_maximum_step,
 	)
-	solutions: dict[float, Solution] = {}
+	solutions: dict[float, States] = {}
 	rows: list[HBVM42EvaluationSummary] = []
 	for step in config.steps:
 		request = SimulationRequest(
@@ -595,7 +588,7 @@ def run_hbvm42_evaluation(
 
 def run_hbvm42_bm4_comparison(
 	dynamics: DynamicalSystem,
-	configuration: State,
+	configuration: np.ndarray,
 	*,
 	config: HBVM42BM4ComparisonConfig,
 ) -> HBVM42BM4ComparisonResult:

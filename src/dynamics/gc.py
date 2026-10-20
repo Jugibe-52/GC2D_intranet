@@ -10,7 +10,7 @@ import numpy as np
 from potential.potential import Potential
 
 from contracts.arrays import array_namespace
-from states.layout import GCStateLayout
+from formulations.layout import GCStateLayout
 from ._equations import gc_velocity
 
 

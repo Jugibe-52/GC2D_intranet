@@ -1,11 +1,13 @@
 # Modal integration execution
 
 `Execution_Modal` inherits from `Execution` and executes one complete integration
-on a deployed Modal Function. It returns `IntegrationData` to the local machine;
-`simulate` then constructs and validates the immutable NumPy `Solution`.
+on a deployed Modal Function. It returns `States` to the local machine;
+`simulate` validates and returns that completed NumPy `States` object.
 The notebook or study can subsequently save it through the existing persistence
 API to the configured Backblaze bucket. The remote worker does not upload results
 or receive bucket credentials.
+
+Deploy workers from the same code revision as the client after the state/result API migration. Job serialization now refers to `request.SimulationRequest` and results use `states.States`; a worker deployed with the retired modules is not a compatible execution target. The numerical archive schema remains unchanged.
 
 The adapter keeps endpoint-option validation and remote-result validation in
 private functions in `execution.execution_modal`. The constructor checks names
@@ -75,7 +77,7 @@ save_solution(
 `developements/my_study`. `solution_destination` preserves that hierarchy and
 defaults to `gc2d_data:gc2d-notebooks-data`. Select `storage="local"` explicitly
 only when local result storage is desired. A failed upload remains a failure;
-it does not invalidate the already retrieved local `Solution` or cause another
+it does not invalidate the already retrieved local `States` or cause another
 remote integration. Keep all scientific parameters in the notebook and its
 saved study metadata as before.
 
@@ -247,12 +249,12 @@ every `run`; construct a fresh executor to start a new integration.
   and `last_call_id` still expose the ID. Recover by that ID without resubmitting.
 - Numerical and SDK exceptions keep their original type, cause and traceback.
   Notes add the call ID and receipt path. The adapter does not retry, return a
-  partial `Solution`, or fall back to local execution.
+  partial `States`, or fall back to local execution.
 - `wait_timeout` limits local waiting in seconds. `None` waits indefinitely and
   zero polls once. A wait expiry or local interrupt does not cancel the remote
   job. A remote execution-duration failure is a separate Modal exception.
 - Malformed result envelopes or a mismatched input digest are rejected before
-  `simulation` sees the result. `Solution` and `simulate` retain their existing
+  `simulation` sees the result. `States` and `simulate` retain their existing
   structural, sampling and initial-state validation responsibilities.
 
 See the official [FunctionCall API](https://modal.com/docs/sdk/py/latest/FunctionCall)

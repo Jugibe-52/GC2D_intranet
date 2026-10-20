@@ -53,7 +53,7 @@ def main() -> None:
 			reference_maximum_step=.0025, audit_relative_tolerance=5e-14,
 			audit_absolute_tolerance=5e-16, audit_maximum_step=.00125)
 		configuration = radial_gc_configuration(potential, radial_fractions=(.1, .2, .3), angle=0.)
-		x, y = configuration.positions(configuration.initial_state)
+		x, y = configuration.positions(configuration)
 		initial_metadata = {"geometry": "one radial segment", "center": list(domain_center(potential)),
 			"radial_fractions": [.1, .2, .3], "angle_radians": 0., "x": x.tolist(), "y": y.tolist()}
 		potential_metadata = {"source": str(source), **potential_parameters}

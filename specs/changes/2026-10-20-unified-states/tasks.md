@@ -4,7 +4,7 @@ kind = "change-tasks"
 spec_revision = 2
 plan_revision = 2
 id = "2026-10-20-unified-states"
-sources = ["src/states/state.py", "src/diagnostics/geometry.py", "src/states/generators.py", "src/states/layout.py", "src/contracts/configuration.py", "src/contracts/problem.py", "src/solution.py"]
+sources = ["src/states/history.py", "src/diagnostics/geometry.py", "src/states/generators.py", "src/formulations/layout.py", "src/contracts/configuration.py", "src/contracts/problem.py"]
 documents = ["specs/current/simulation.md", "specs/current/results.md", "docs/simulation/integration-architecture.md"]
 open_questions = []
 
@@ -111,3 +111,5 @@ The first full run exercised 562 tests and exposed five migration failures; the 
 ## Final verification — 2026-10-20
 
 584 tests completed in 419.114 s: all passed except 3 GPU-only skips because no JAX GPU is available. The public facade identity test was also rerun successfully after clarifying its import route. Ten tracked notebooks retain exactly the same outputs, execution counters and cell metadata; reduced validation ran only in memory. The repository memory records the new API in 211 lines, with its Spanish copy updated.
+
+Source references above follow the module moves in `2026-10-20-integration-state-results`. The earlier design and recorded verification remain historical evidence of the State-based API.

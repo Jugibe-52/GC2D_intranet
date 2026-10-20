@@ -12,9 +12,9 @@ from matplotlib.animation import FuncAnimation
 from matplotlib.collections import LineCollection
 from matplotlib.lines import Line2D
 
-from states.state import State
+
 from potential import Potential
-from solution import Solution
+from states.history import States
 
 from ._animation_validation import (
 	boolean_control,
@@ -36,7 +36,7 @@ def _field_normalization(fields: np.ndarray) -> mcolors.Normalize:
 
 
 def _particle_history(
-	solution: Solution, *, single_particle: bool,
+	solution: States, *, single_particle: bool,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
 	"""Read time-aligned positions using the animator's particle-count contract."""
 	times = np.asarray(solution.t, dtype=float)
@@ -69,9 +69,9 @@ def _frame_annotations(
 
 def _animate_particle_solution(
 	potential: Potential,
-	solution: Solution,
+	solution: States,
 	*,
-	configuration_type: type[State | State],
+	configuration_type: type[np.ndarray | np.ndarray],
 	frames: int | None = None,
 	interval: int = 200,
 	cmap: str = "RdBu_r",
@@ -88,9 +88,9 @@ def _animate_particle_solution(
 	"""
 	if not isinstance(potential, Potential):
 		raise TypeError("`potential` must be a Potential instance.")
-	if not isinstance(solution, Solution):
-		raise TypeError("`solution` must be a Solution instance.")
-	if not isinstance(solution.source, configuration_type):
+	if not isinstance(solution, States):
+		raise TypeError("`solution` must be a States instance.")
+	if not isinstance(solution.initial_state, configuration_type):
 		raise TypeError(
 			"`solution` has an incompatible initial-configuration type for this animation."
 		)
@@ -206,7 +206,7 @@ def _animate_particle_solution(
 
 def animate_fc_particle_solution(
 	potential: Potential,
-	solution: Solution,
+	solution: States,
 	*,
 	frames: int | None = None,
 	interval: int = 200,
@@ -220,7 +220,7 @@ def animate_fc_particle_solution(
 	return _animate_particle_solution(
 		potential,
 		solution,
-		configuration_type=State,
+		configuration_type=np.ndarray,
 		frames=frames,
 		interval=interval,
 		cmap=cmap,
@@ -233,7 +233,7 @@ def animate_fc_particle_solution(
 
 def animate_gc_particle_solution(
 	potential: Potential,
-	solution: Solution,
+	solution: States,
 	*,
 	frames: int | None = None,
 	interval: int = 200,
@@ -247,7 +247,7 @@ def animate_gc_particle_solution(
 	return _animate_particle_solution(
 		potential,
 		solution,
-		configuration_type=State,
+		configuration_type=np.ndarray,
 		frames=frames,
 		interval=interval,
 		cmap=cmap,
@@ -260,7 +260,7 @@ def animate_gc_particle_solution(
 
 def animate_gc_particle_trajectories(
 	potential: Potential,
-	solution: Solution,
+	solution: States,
 	*,
 	frames: int | None = None,
 	interval: int = 200,
@@ -278,9 +278,9 @@ def animate_gc_particle_trajectories(
 	"""
 	if not isinstance(potential, Potential):
 		raise TypeError("`potential` must be a Potential instance.")
-	if not isinstance(solution, Solution):
-		raise TypeError("`solution` must be a Solution instance.")
-	if not (isinstance(solution.source, State) and solution.source.layout.state_dimension == 2):
+	if not isinstance(solution, States):
+		raise TypeError("`solution` must be a States instance.")
+	if not (isinstance(solution.initial_state, np.ndarray) and solution.layout.state_dimension == 2):
 		raise TypeError("`solution` must use a GC initial configuration.")
 	interval = positive_interval(interval)
 	for value, name in (

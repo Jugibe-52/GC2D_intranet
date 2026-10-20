@@ -11,7 +11,7 @@ method. The following interfaces have been removed, including their exports:
 | `ABBA4ImplicitSingleProjection(...)` | `ABBA4Implicit(...)` |
 | `ABBA4ImplicitSingleProjectionIntegrationStep` | `ABBA4ImplicitIntegrationStep`, describing one outer projection |
 | `abba4_implicit_single_projection_step_particle_jacobians` | `abba4_implicit_step_particle_jacobians` |
-| `Trajectory`, `TrajectoryGC`, `TrajectoryFC` | `State(values, layout=...)` |
+| `Trajectory`, `TrajectoryGC`, `TrajectoryFC` | `InitialValueProblem(dynamics, values, layout=...)` |
 | `centered_gc_trajectory` | `centered_gc_configuration` |
 | Physical `rho`/`eta` metadata on initial configurations and `Area` | Explicit dynamics parameters or study configuration |
 | `diagnostics.symplecticity.jacobians` and `.paths` | `diagnostics.jacobians` and `diagnostics.paths` |
@@ -27,12 +27,11 @@ passive-energy derivatives now exercise the active dynamics directly.
 
 ```python
 
-from states import GCStateLayout
+from formulations.layout import GCStateLayout
 from dynamics import GuidingCenterDynamics
-from states import State
 from simulation import ABBA4Implicit, InitialValueProblem, SimulationRequest, simulate
 
-configuration = State.from_components(x0, y0, layout=GCStateLayout())
+configuration = GCStateLayout().pack_components(x0, y0)
 problem = InitialValueProblem(GuidingCenterDynamics(potential, rho=0.3), configuration)
 request = SimulationRequest.uniform(t_span=(0.0, 1.0), max_step=0.01, sample_count=101)
 solution = simulate(problem, ABBA4Implicit(track_energy=True), request)
@@ -115,8 +114,12 @@ now owns one multiplier and seven unprojected snapshots, sharing the ABBA4 event
 structure. Exact tangents are available through
 `diagnostics.abba6_implicit_step_particle_jacobians`.
 
-## Unified states (2026-10-20)
+## Current state and saved states (2026-10-20)
 
-Use `from states import State, GCStateLayout, FCStateLayout`. Replace GC/FC configuration constructors with `State(values, layout=GCStateLayout())` or the FC layout. Build from components with `State.from_components(x, y, layout=GCStateLayout())`; FC adds `vx, vy` before the layout keyword. A state is a required, immutable snapshot: replace empty configuration/setter sequences with construction after all components are available. Use `.values`, `.split()`, `.positions()`, `.velocities()` and `.particle_count` for that snapshot; use `.layout` operations for other arrays or histories.
+Initial configurations are now packed NumPy arrays. Use `from formulations.layout import GCStateLayout, FCStateLayout` and `GCStateLayout().pack_components(x, y)` (FC adds vx and vy). External functions in `states.generators` return those arrays. Pass them to `InitialValueProblem(dynamics, values, layout=...)`; canonical GC/FC layouts may be omitted. Replace snapshot-method calls with explicit layout operations on arrays. Physical inputs retain their units, ordering and validation.
 
-The `initial_conditions` package and `contracts.state_layout` module are removed. Import `circle`, `square`, `radial_star` and `ranked_radial_star` from `states.generators`; generators are not State methods. Import `calculate_area` from `diagnostics.geometry` and pass the state array and layout explicitly. Supply known geometry labels in study metadata; otherwise studies record `polygon`. `InitialValueProblem.initial_configuration`, the structural protocols, `Solution` arrays and saved archive schemas remain unchanged. Legacy archives without an initial snapshot retain that absence when loaded.
+`request.SimulationRequest` owns the initial time, integration span, maximum step and output times; its `simulation` re-export remains supported. `integration.state.IntegrationState` contains current internal time and values. `states.States` records physical samples and becomes the completed result returned by methods, executors and `simulate`. Use `.times`, `.values`, `.components()`, `.positions()` and `.velocities()`; `.t` and `.states` remain read-only aliases. `.initial_state` and `.layout` return independent snapshots. `.select(...)` keeps original sample times and whole-run diagnostics. Step statistics keep their own axes.
+
+Remove imports of `states.State`, `solution.Solution`, `contracts.result.IntegrationData`, `integration.IntegrationCollector`, `states.layout` and `contracts.request`. There are no compatibility modules. `InitialValueProblem.initial_configuration`, result `.source`, `.y` and `.trajectory` are removed. Compare initial snapshots by value rather than object identity. An executor must return complete `States`; `simulate` validates and returns it without creating another container. For changes to diagnostic metadata, use `.with_diagnostics(...)`.
+
+`save_solution` and `load_solution` keep their names and numerical archive schemas. Legacy files remain readable, including those without an initial snapshot. `calculate_area(values, layout=..., period=...)` stays in `diagnostics.geometry`. Geometry labels remain study metadata. Fixed shadow samples never replace the main state; adaptive dense output and the numerical algorithms are unchanged. JAX constructs the same `States` at its host boundary.

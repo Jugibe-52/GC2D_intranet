@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from typing import Mapping, Protocol
 
 import numpy as np
-from solution import Solution
+from states.history import States
 
 
 @dataclass(frozen=True, slots=True)
@@ -252,7 +252,7 @@ class ComparisonReadView(Protocol):
 	@property
 	def reference(self) -> AdaptiveReference: ...
 	@property
-	def solutions(self) -> Mapping[str, Solution]: ...
+	def solutions(self) -> Mapping[str, States]: ...
 	@property
 	def accuracy(self) -> Mapping[str, TrajectoryAccuracySeries]: ...
 	@property

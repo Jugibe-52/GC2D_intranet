@@ -18,7 +18,7 @@ dependencies = [
 [tool.setuptools]
 package-dir = {"" = "src"}
 include-package-data = true
-py-modules = ["solution"]
+py-modules = ["request"]
 
 [tool.setuptools.packages.find]
 where = ["src"]

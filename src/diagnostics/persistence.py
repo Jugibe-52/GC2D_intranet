@@ -1,8 +1,8 @@
-"""Versioned, pickle-free Solution archives on disk or configured buckets."""
+"""Versioned, pickle-free States archives on disk or configured buckets."""
 
 from __future__ import annotations
 
-from states.layout import GCStateLayout
+from formulations.layout import GCStateLayout
 
 from collections.abc import Mapping
 from dataclasses import asdict, dataclass
@@ -18,16 +18,16 @@ from typing import Any
 import numpy as np
 import scipy
 
-from contracts.configuration import InitialConfiguration, StateLayout
+from contracts.configuration import StateLayout
 from contracts.result import DiagnosticValue
-from states.layout import FCStateLayout
+from formulations.layout import FCStateLayout
 from diagnostics.paths import solution_destination
 from diagnostics.storage import ArtifactStore, StorageError
-from states.state import State
+
 from potential.load import GC2DH5Metadata
 from potential.grid import Grid
 from potential.potential import Potential
-from solution import Solution
+from states.history import States
 
 
 @dataclass(frozen=True)
@@ -39,7 +39,7 @@ class StoredSolution:
     the reader can then reconstruct the effective field without double averaging.
     """
 
-    solution: Solution
+    solution: States
     metadata: dict[str, Any]
     potential: Potential | None
 
@@ -68,7 +68,7 @@ def _digest(path: Path) -> str:
 
 
 def _write_archive(
-    directory: Path, solution: Solution, metadata: Mapping[str, Any],
+    directory: Path, solution: States, metadata: Mapping[str, Any],
     potential: Potential | None,
 ) -> None:
     """Encode physical layout, diagnostics and the actual sampled potential."""
@@ -143,7 +143,7 @@ def _write_archive(
 
 
 def save_solution(
-    solution: Solution, destination: str | Path | None = None, *,
+    solution: States, destination: str | Path | None = None, *,
     metadata: Mapping[str, Any], potential: Potential | None = None,
     experiment_path: str | Path | None = None, run_id: str | None = None,
 ) -> str:
@@ -156,6 +156,8 @@ def save_solution(
     Failed remote transfers retain a complete local archive for manual retry.
     Concurrent writers must use distinct run prefixes.
     """
+    if not isinstance(solution, States) or not solution.complete:
+        raise ValueError("Only completed States can be saved as a simulation result.")
     if destination is None:
         if experiment_path is None or run_id is None:
             raise ValueError("Default bucket storage requires experiment_path and run_id.")
@@ -199,34 +201,23 @@ def _manifest_inventory(manifest: Mapping[str, Any]) -> dict[str, Any]:
     return dict(records)
 
 
-@dataclass(frozen=True)
-class _HistorySource:
-    """Archive provenance when the saved history has no initial-state snapshot."""
-
-    layout: StateLayout
-    initial_state: None = None
-
-
-def _load_solution_arrays(directory: Path, description: Mapping[str, Any]) -> Solution:
+def _load_solution_arrays(directory: Path, description: Mapping[str, Any]) -> States:
     """Validate solution metadata and reconstruct its canonical state layout."""
     if description.get("schema_version") != 1 or description.get("artifact_kind") != "gc2d_solution":
         raise ValueError("Unsupported solution metadata.")
     with np.load(directory / "solution.npz", allow_pickle=False) as saved:
         initial = saved["initial_state"] if description["has_initial_state"] else None
-        configuration: InitialConfiguration
         if description["layout"] == "gc_component_major_xy":
             layout: StateLayout = GCStateLayout()
         elif description["layout"] == "fc_component_major_xyvxvy":
             layout = FCStateLayout()
         else:
             raise ValueError("Unsupported saved state layout.")
-        configuration = State(initial, layout=layout) if initial is not None else _HistorySource(layout)
         diagnostics: dict[str, DiagnosticValue] = {
             name: saved[value["array"]] if "array" in value else value["scalar"]
             for name, value in description["diagnostics"].items()
         }
-        solution = Solution(t=saved["t"], states=saved["states"],
-                            source=configuration, diagnostics=diagnostics)
+        solution = States(t=saved["t"], states=saved["states"], initial_state=initial, layout=layout, diagnostics=diagnostics)
     return solution
 
 

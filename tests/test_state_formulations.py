@@ -1,12 +1,12 @@
 """Four state layouts, passive energy and unchanged physical solver decisions."""
 
-from states.layout import FCStateLayout
-from states.layout import GCStateLayout
+from formulations.layout import FCStateLayout
+from formulations.layout import GCStateLayout
 import unittest
 from types import SimpleNamespace
 import numpy as np
 from dynamics import DynamicalSystem, FullCyclotronDynamics, HamiltonianSystem
-from states.state import State
+
 from simulation import (
     ExplicitEuler, RK4, GaussLegendre4, SDIRK4, HBVM42, DOP853, Radau,
     ABBA2Midpoint, ABBA2Implicit, ABBA4Implicit, ABBA6Implicit, BM4Midpoint, BM4Implicit,
@@ -62,7 +62,7 @@ class FourStateFormulationTests(unittest.TestCase):
                 vector_field=source.dynamics.vector_field,
                 particle_vector_field_jacobians=source.dynamics.particle_vector_field_jacobians,
                 **energy_members)
-            problem = InitialValueProblem(dynamics, source.initial_configuration)
+            problem = InitialValueProblem(dynamics, source.initial_state, layout=GCStateLayout())
             self.assertIsInstance(dynamics, DynamicalSystem)
             self.assertNotIsInstance(dynamics, HamiltonianSystem)
             for cls in CLASSICAL + DUPLICATED:
@@ -77,8 +77,7 @@ class FourStateFormulationTests(unittest.TestCase):
         source = _problem()
         request = SimulationRequest.uniform(t_span=(.3, .38), max_step=.02, sample_count=9)
         for particles in (1, 3):
-            problem = InitialValueProblem(source.dynamics, State.from_components(
-                np.linspace(1., 1.2, particles), np.linspace(1.2, 1.4, particles), layout=GCStateLayout()))
+            problem = InitialValueProblem(source.dynamics, GCStateLayout().pack_components(np.linspace(1., 1.2, particles), np.linspace(1.2, 1.4, particles)), layout=GCStateLayout())
             for cls in CLASSICAL + DUPLICATED:
                 with self.subTest(method=cls.__name__, particles=particles):
                     plain = simulate(problem, cls(), request)
@@ -114,7 +113,7 @@ class FourStateFormulationTests(unittest.TestCase):
                             np.testing.assert_array_equal(step[:2*particles], step[2*particles:4*particles])
 
     def test_adaptive_auxiliary_does_not_change_grid_jacobian_or_work(self):
-        problem = InitialValueProblem(RotatingHamiltonian(), State([1., .2], layout=GCStateLayout()))
+        problem = InitialValueProblem(RotatingHamiltonian(), np.array([1., .2], dtype=float, copy=True), layout=GCStateLayout())
         for cls in (DOP853, Radau):
             options = {'jacobian': lambda t,z: np.array([[0.,-1.],[1.,0.]])} if cls is Radau else {}
             for count in (2, 29):
@@ -147,8 +146,7 @@ class FourStateFormulationTests(unittest.TestCase):
 
     def test_uniform_components_keep_particle_coordinates_together(self):
         source = _problem()
-        problem = InitialValueProblem(source.dynamics, State.from_components(
-            [1., 2., 3.], [4., 5., 6.], layout=GCStateLayout()))
+        problem = InitialValueProblem(source.dynamics, GCStateLayout().pack_components([1., 2., 3.], [4., 5., 6.]), layout=GCStateLayout())
         for cls in (PhysicalFormulation, DoubledFormulation):
             for tracking in (False, True):
                 form = cls(problem, .3, tracking)
@@ -161,8 +159,7 @@ class FourStateFormulationTests(unittest.TestCase):
 
     def test_formulation_aligns_roundoff_and_rejects_a_divergent_particle_time(self):
         source = _problem()
-        problem = InitialValueProblem(source.dynamics, State.from_components(
-            [1., 1.1, 1.2], [1.2, 1.3, 1.4], layout=GCStateLayout()))
+        problem = InitialValueProblem(source.dynamics, GCStateLayout().pack_components([1., 1.1, 1.2], [1.2, 1.3, 1.4]), layout=GCStateLayout())
         times = np.array([.3, .32, .34])
         for cls in (PhysicalFormulation, DoubledFormulation):
             form = cls(problem, .3, True)
@@ -178,8 +175,7 @@ class FourStateFormulationTests(unittest.TestCase):
 
     def test_full_cyclotron_keeps_six_coordinates_per_particle_with_energy(self):
         dynamics = FullCyclotronDynamics(_problem().dynamics.potential, rho=.2, eta=.1)
-        problem = InitialValueProblem(dynamics, State.from_components(
-            [1., 1.1, 1.2], [1.2, 1.3, 1.4], [.1, .2, .3], [-.1, -.2, -.3], layout=FCStateLayout()))
+        problem = InitialValueProblem(dynamics, FCStateLayout().pack_components([1., 1.1, 1.2], [1.2, 1.3, 1.4], [.1, .2, .3], [-.1, -.2, -.3]), layout=FCStateLayout())
         request = SimulationRequest.uniform(t_span=(.3, .34), max_step=.01, sample_count=5)
         run = RK4(track_energy=True).new_run(problem, request)
         self.assertEqual(run.state_formulation.components(run.initial_state).shape, (6, 3))

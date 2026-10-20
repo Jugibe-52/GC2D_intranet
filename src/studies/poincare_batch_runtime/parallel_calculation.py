@@ -6,7 +6,7 @@ is unchanged; each group uses its own state norm for Newton's stopping rule.
 
 from __future__ import annotations
 
-from states.layout import GCStateLayout
+from formulations.layout import GCStateLayout
 
 from typing import Any
 
@@ -41,16 +41,16 @@ def calculate_group(
 
     potential, _, snapshot_hash = load_snapshot()
     from dynamics import GuidingCenterDynamics
-    from states.state import State
+    import numpy as np
     from methods.extended.bm4 import BM4Implicit
     from contracts.problem import InitialValueProblem
-    from contracts.request import SimulationRequest
+    from request import SimulationRequest
     from simulation.runner import simulate
 
     indices = np.asarray(indices, dtype=int)
     xy0 = np.asarray(initial_xy, dtype=np.float64)[indices]
-    initial = State.from_components(xy0[:, 0], xy0[:, 1], layout=GCStateLayout())
-    problem = InitialValueProblem(GuidingCenterDynamics(potential, rho=settings['rho']), initial)
+    initial = GCStateLayout().pack_components(xy0[:, 0], xy0[:, 1])
+    problem = InitialValueProblem(GuidingCenterDynamics(potential, rho=settings['rho']), initial, layout=GCStateLayout())
     request = SimulationRequest.uniform(
         t_span=tuple(settings['t_span']), max_step=settings['step'],
         sample_count=settings['n_steps'] + 1,

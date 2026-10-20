@@ -15,7 +15,7 @@ from contracts.execution_options import ExecutionOptions
 from diagnostics.persistence import load_solution
 from execution.execution import Execution
 from potential import Grid, Potential
-from solution import Solution
+from states.history import States
 from studies.dimensional_h5_midpoint import DimensionalH5Field
 from studies.poincare_rho_sweep import (
     RhoStarConfig, build_rho_star, run_rho_star, run_and_save_rho_star,
@@ -159,8 +159,7 @@ class RhoSweepTests(unittest.TestCase):
             states = saved.solution.states.copy()
             states[:40, 1:] = np.array([.09, .315])
             states[40:, 1:] = np.array([-.135, -.225])
-            synthetic = Solution(t=saved.solution.t, states=states,
-                                 source=saved.solution.source, diagnostics=saved.solution.diagnostics)
+            synthetic = States(layout=saved.solution.layout, t=saved.solution.t, states=states, initial_state=saved.solution.initial_state, diagnostics=saved.solution.diagnostics)
             wrapped, fractions = folded_rho_positions(synthetic, saved.metadata)
             np.testing.assert_allclose(wrapped[1:, 0], [[-.09, .045], [-.045, -.045]], atol=1e-15)
             np.testing.assert_allclose(fractions[1:, 0], [[0., .75], [.25, .25]], atol=1e-14)

@@ -1,6 +1,6 @@
 """Repeat the radial BM4Midpoint study with a cycle-time stream function."""
 
-from states.layout import GCStateLayout
+from formulations.layout import GCStateLayout
 
 from studies.historical_h5 import historical_h5_hamiltonian
 
@@ -9,18 +9,18 @@ from hashlib import file_digest
 import json
 from pathlib import Path
 from typing import Any
-from solution import Solution
+from states.history import States
 
 import numpy as np
 
 from contracts.execution_options import ExecutionOptions
 from contracts.problem import InitialValueProblem
-from contracts.request import SimulationRequest
+from request import SimulationRequest
 from diagnostics.persistence import StoredSolution, load_solution, save_solution
 from diagnostics.storage import ArtifactStore
 from dynamics.gc import GuidingCenterDynamics
 from execution.execution import Execution
-from states.state import State
+
 from methods.extended.bm4 import BM4Midpoint
 from potential.load import DEFAULT_FIELD_INDICES
 from potential import Potential
@@ -96,7 +96,7 @@ def build_radial_cycle(potential: Potential, config: RadialCycleConfig, baseline
     radii = np.asarray(config.radial_fractions) * length
     direction = np.array([np.cos(config.radial_angle), np.sin(config.radial_angle)])
     xy = origin + length / 2 + radii[:, None] * direction
-    initial = State.from_components(xy[:, 0], xy[:, 1], layout=GCStateLayout())
+    initial = GCStateLayout().pack_components(xy[:, 0], xy[:, 1])
     # The forcing cyclic frequencies stay in cycles per normalized time. Only the
     # drift amplitude changes: H = 2*pi*Phi_hat at tau = t/T0.
     stream = Potential(grid, mean=config.stream_scale * potential.mean,
@@ -123,7 +123,7 @@ def build_radial_cycle(potential: Potential, config: RadialCycleConfig, baseline
         trajectory_accuracy_certified=False,
         execution_note="Current implementation; jointly integrated particles, not the frozen 16-process runtime.",
     )
-    return PreparedRadialCycle(config, InitialValueProblem(GuidingCenterDynamics(stream, rho=config.rho), initial),
+    return PreparedRadialCycle(config, InitialValueProblem(GuidingCenterDynamics(stream, rho=config.rho), initial, layout=GCStateLayout()),
                                request, metadata)
 
 
@@ -152,7 +152,7 @@ def prepare_radial_cycle(source: str | Path, baseline_metadata: str | Path,
                               baseline_sha256=baseline_sha)
 
 
-def validate_radial_solution(solution: Solution, prepared: PreparedRadialCycle) -> None:
+def validate_radial_solution(solution: States, prepared: PreparedRadialCycle) -> None:
     """Require every complete step and the explicit arithmetic projection."""
     c, d = prepared.config, solution.diagnostics
     count = c.cycles * c.steps_per_cycle

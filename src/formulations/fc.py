@@ -10,10 +10,13 @@ from dataclasses import dataclass
 import numpy as np
 
 from dynamics.protocols import CyclotronSplitSystem, HamiltonianSystem
-from contracts.configuration import InitialConfiguration, StateLayout
-from states.layout import FCState, FCStateLayout
+from contracts.configuration import StateLayout
+from formulations.layout import FCState, FCStateLayout
 
-from contracts.problem import InitialValueProblem
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+	from contracts.problem import InitialValueProblem
 from formulations.base import _updated_momentum
 from formulations.base import PreparedDirectAdjointFormulation, Projection
 
@@ -47,7 +50,7 @@ class _PreparedFC:
 	"""Immutable FC split maps bound to one problem."""
 
 	dynamics: CyclotronSplitSystem
-	configuration: InitialConfiguration
+	configuration: np.ndarray
 	layout: StateLayout
 	physical_size: int
 	particle_count: int
@@ -187,7 +190,7 @@ class FCSplitFormulation:
 		initial_internal_state.setflags(write=False)
 		return _PreparedFC(
 			dynamics=problem.dynamics,
-			configuration=problem.initial_configuration,
+			configuration=problem.initial_state,
 			layout=layout,
 			physical_size=physical.size,
 			particle_count=particle_count,

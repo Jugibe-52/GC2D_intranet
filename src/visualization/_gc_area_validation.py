@@ -6,29 +6,29 @@ from collections.abc import Mapping, Sequence
 
 import numpy as np
 
-from states.state import State
-from solution import Solution
+
+from states.history import States
 
 
 AreaDiagnostics = tuple[np.ndarray, np.ndarray, np.ndarray | None]
 
 
 def validated_solution_series(
-	configuration: State,
-	solutions: Sequence[Solution],
+	configuration: np.ndarray,
+	solutions: Sequence[States],
 ) -> tuple[np.ndarray, tuple[np.ndarray, ...]]:
 	"""Validate solutions sampled at common times for direct comparison."""
 	if not solutions:
 		raise ValueError("At least one solution is required for an area animation.")
-	initial_state = configuration.values
+	initial_state = configuration
 	assert initial_state is not None
 	reference_times: np.ndarray | None = None
 	state_series: list[np.ndarray] = []
 	for solution in solutions:
-		if not isinstance(solution, Solution):
-			raise TypeError("Every animated solution must be a Solution instance.")
+		if not isinstance(solution, States):
+			raise TypeError("Every animated solution must be a States instance.")
 		times = np.asarray(solution.t, dtype=float)
-		states = np.asarray(solution.y, dtype=float)
+		states = np.asarray(solution.values, dtype=float)
 		if (
 			times.ndim != 1
 			or times.size < 2

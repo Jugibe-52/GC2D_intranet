@@ -14,7 +14,7 @@ from methods._compiled import CompiledFixedMethod
 from contracts.step import StepInfo, StepResult
 from contracts.observation import IntegrationStep, StepObserver
 from contracts.problem import InitialValueProblem
-from contracts.request import SimulationRequest
+from request import SimulationRequest
 from methods._validation import _positive_finite, _positive_integer
 
 

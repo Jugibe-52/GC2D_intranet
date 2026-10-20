@@ -15,12 +15,14 @@ from typing import Any, Generic, Protocol, Self, TypeVar
 
 import numpy as np
 
+from integration.state import IntegrationState
 from integration._fixed import _Progress, _step_count
-from contracts.result import DiagnosticValue, IntegrationData
+from contracts.result import DiagnosticValue
+from states.history import States
 from contracts.execution_options import ExecutionOptions
 from contracts.step import StepInfo, StepResult, StepValue
 from contracts.problem import InitialValueProblem
-from contracts.request import SimulationRequest
+from request import SimulationRequest
 from formulations.state import PhysicalFormulation
 
 
@@ -90,12 +92,12 @@ class FixedStepController(Generic[Detail]):
 		t0, tf = request.t_span
 		count = _step_count(tf - t0, request.max_step)
 		h = (tf - t0) / count
-		state = method.initial_state.copy()
+		current = IntegrationState(t0, method.initial_state)
 		for index in range(count):
-			time = t0 + index * h
-			info = StepInfo(index, time, h, t0 + (index + 1) * h, state.copy())
-			result = method.advance(time, state, h)
-			state = np.asarray(result.state)
+			time = current.time
+			info = StepInfo(index, time, h, t0 + (index + 1) * h, current.values.copy())
+			result = method.advance(time, current.values.copy(), h)
+			current = IntegrationState(info.end_time, result.state)
 			yield info, result
 
 	def sample(
@@ -111,55 +113,25 @@ class FixedStepController(Generic[Detail]):
 		return method.advance(info.time, info.state_before.copy(), time - info.time).state
 
 
-class IntegrationCollector:
-	"""Own output samples and small per-step metrics for exactly one run."""
-
-	def __init__(self, initial: np.ndarray, times: np.ndarray) -> None:
-		self.history = np.empty((initial.size, times.size), dtype=initial.dtype)
-		self.history[:, 0] = initial
-		self._rows: dict[str, list[StepValue]] = {}
-		self._shapes: dict[str, tuple[int, ...]] = {}
-		self._starts: list[float] = []
-		self._ends: list[float] = []
-		self._sizes: list[float] = []
-
-	def record_step(self, info: StepInfo, statistics: Mapping[str, StepValue]) -> None:
-		"""Copy one stable metric schema, independently of observation events."""
-		if not self._starts:
-			self._rows = {key: [] for key in statistics}
-			self._shapes = {key: np.shape(value) for key, value in statistics.items()}
-		if statistics.keys() != self._rows.keys():
-			raise ValueError("Step statistic names changed during integration.")
-		for key, value in statistics.items():
-			if np.shape(value) != self._shapes[key]:
-				raise ValueError(f"The shape of step statistic {key!r} changed.")
-			self._rows[key].append(value.copy() if isinstance(value, np.ndarray) else value)
-		self._starts.append(info.time)
-		self._ends.append(info.end_time)
-		self._sizes.append(info.duration)
-
-	def finalize(self) -> dict[str, DiagnosticValue]:
-		"""Keep step times separate from the requested trajectory sample times."""
-		result: dict[str, DiagnosticValue] = {
-			key: np.asarray(values) for key, values in self._rows.items()
-		}
-		result.update({
-			"step_count": len(self._starts),
-			"step_start_times": np.asarray(self._starts),
-			"step_times": np.asarray(self._ends),
-			"step_sizes": np.asarray(self._sizes),
-		})
-		return result
+def _record_sample(method: IntegrationMethod[Any], result: States, time: float, sample: np.ndarray) -> None:
+	"""Export a physical sample before recording; never advance the work state."""
+	if sample.shape != method.initial_state.shape or not np.all(np.isfinite(sample)):
+		raise ValueError("An output sample changed shape or became non-finite.")
+	if method.state_formulation is None:
+		result.record(time, sample)
+	else:
+		physical, auxiliary = method.state_formulation.extract_sample(time, sample)
+		result.record(time, physical, auxiliary=auxiliary)
 
 
 def integrate_method(
 	method: IntegrationMethod[Detail],
 	*, controller: StepController[Detail] | None = None,
-) -> IntegrationData:
+) -> States:
 	"""Coordinate accepted steps, sampling, observation and physical output.
 
 	The supplied controller is per-run; the default is fixed. Neither the driver
-	nor the collector branches on the numerical method or its state extension.
+	nor the result container branches on the numerical method or its state extension.
 	Observer lifecycle and persistence remain owned by the caller.
 	"""
 	if method._status != "ready":
@@ -167,7 +139,8 @@ def integrate_method(
 	request = method.request
 	selected = controller if controller is not None else method.controller()
 	method._status = "running"
-	collector = IntegrationCollector(method.initial_state, request.output_times)
+	saved = States.prepare(request.output_times, method.problem.initial_state, layout=method.problem.layout)
+	_record_sample(method, saved, request.t_span[0], method.initial_state)
 	t0, tf = request.t_span
 	# Allow only float round-off when comparing interval and sampling endpoints;
 	# this is unrelated to an integrator's error or nonlinear-solver tolerance.
@@ -185,7 +158,7 @@ def integrate_method(
 				raise ValueError("The controller returned an invalid accepted interval.")
 			if result.state.shape != method.initial_state.shape or not np.all(np.isfinite(result.state)):
 				raise ValueError("A numerical step changed shape or became non-finite.")
-			collector.record_step(info, result.statistics)
+			saved.record_step(info, result.statistics)
 			if method.step_observer is not None:
 				method.step_observer(method.build_observation(info, result))
 			# One accepted step can cover several requested output times.
@@ -195,9 +168,7 @@ def integrate_method(
 			):
 				target = float(request.output_times[output_index])
 				sample = np.asarray(selected.sample(method, info, result, target))
-				if sample.shape != method.initial_state.shape or not np.all(np.isfinite(sample)):
-					raise ValueError("An output sample changed shape or became non-finite.")
-				collector.history[:, output_index] = sample
+				_record_sample(method, saved, target, sample)
 				if min(abs(target - info.time), abs(target - info.end_time)) > sampling_tolerance:
 					interior_sample_count += 1
 				output_index += 1
@@ -210,17 +181,13 @@ def integrate_method(
 			progress.close()
 	if output_index != request.output_times.size or abs(previous_end - tf) > tolerance:
 		raise RuntimeError("The integration did not cover the requested interval.")
-	states, auxiliary = method.export_history(request.output_times, collector.history)
 	diagnostics = dict(method.metadata)
-	diagnostics.update(collector.finalize())
-	diagnostics.update(auxiliary)
+	if method.state_formulation is not None:
+		diagnostics.update(method.state_formulation.diagnose_history(saved.times, saved.values, dict(saved.auxiliary)))
 	diagnostics["output_interpolation_count"] = interior_sample_count
 	# Only methods publishing the complete nonlinear contract expose legacy
 	# Newton names; a partial set belongs to other nonlinear algorithms.
-	if all(name in diagnostics for name in NEWTON_ALIASES.values()):
-		for alias, canonical in NEWTON_ALIASES.items():
-			diagnostics[alias] = diagnostics[canonical]
-	return IntegrationData(t=request.output_times, states=states, diagnostics=diagnostics)
+	return saved.finalize(diagnostics, aliases=NEWTON_ALIASES)
 
 
 class IntegrationMethod(ABC, Generic[Detail]):
@@ -299,13 +266,13 @@ class IntegrationMethod(ABC, Generic[Detail]):
 		"""Select fixed scheduling; adaptive methods override this operation."""
 		return FixedStepController()
 
-	def _integrate_jax(self, execution: ExecutionOptions) -> IntegrationData:
+	def _integrate_jax(self, execution: ExecutionOptions) -> States:
 		"""Require an explicit backend implementation from the numerical method."""
 		raise NotImplementedError(f"{self.method_name} does not provide JAX integration.")
 
 	def integrate(self, problem: InitialValueProblem, request: SimulationRequest,
-	              *, execution: ExecutionOptions | None = None) -> IntegrationData:
-		"""Run a fresh instance through the shared controller and collector."""
+	              *, execution: ExecutionOptions | None = None) -> States:
+		"""Run a fresh instance through the shared controller and result storage."""
 		if execution is not None and not isinstance(execution, ExecutionOptions):
 			raise TypeError("`execution` must be an ExecutionOptions instance or None.")
 		run = self.new_run(problem, request, execution=execution)
@@ -315,6 +282,6 @@ class IntegrationMethod(ABC, Generic[Detail]):
 
 
 __all__ = [
-	"FixedStepController", "IntegrationMethod", "IntegrationCollector",
+	"FixedStepController", "IntegrationMethod", "IntegrationState",
 	"StepController", "StepInfo", "StepResult", "integrate_method",
 ]

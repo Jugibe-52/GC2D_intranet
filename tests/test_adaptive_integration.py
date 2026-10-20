@@ -1,6 +1,6 @@
 """Adaptive methods share collection while preserving SciPy numerical sessions."""
 
-from states.layout import GCStateLayout
+from formulations.layout import GCStateLayout
 
 from dataclasses import replace
 import unittest
@@ -10,7 +10,7 @@ import numpy as np
 from scipy.integrate import solve_ivp
 
 from diagnostics import AdaptiveTrajectoryObserver
-from states.state import State
+
 from simulation import (
     DOP853, Radau, ABBA2Implicit, ABBA2Midpoint, ABBA4Implicit, ABBA6Implicit,
     BM4Implicit, BM4Midpoint, ExplicitEuler, RK4, GaussLegendre4, SDIRK4, HBVM42,
@@ -32,8 +32,7 @@ class TimeDependentRotation:
 
 class AdaptiveIntegrationTests(unittest.TestCase):
     def setUp(self):
-        self.problem = InitialValueProblem(TimeDependentRotation(),
-            State.from_components([1., .4, -.2], [0., .2, .5], layout=GCStateLayout()))
+        self.problem = InitialValueProblem(TimeDependentRotation(), GCStateLayout().pack_components([1., .4, -.2], [0., .2, .5]), layout=GCStateLayout())
         self.request = SimulationRequest.uniform(t_span=(.3, .8), max_step=.08, sample_count=31)
 
     def test_energy_endpoint_queries_reuse_quadrature_and_return_independent_arrays(self):
@@ -41,8 +40,7 @@ class AdaptiveIntegrationTests(unittest.TestCase):
         for cls in (DOP853, Radau):
             with self.subTest(method=cls.__name__):
                 source = _problem()
-                problem = InitialValueProblem(source.dynamics, State.from_components(
-                    [1., 1.1, 1.2], [1.2, 1.3, 1.4], layout=GCStateLayout()))
+                problem = InitialValueProblem(source.dynamics, GCStateLayout().pack_components([1., 1.1, 1.2], [1.2, 1.3, 1.4]), layout=GCStateLayout())
                 request = SimulationRequest.uniform(t_span=(.3, .34), max_step=.02, sample_count=3)
                 run = cls(track_energy=True, first_step=.02).new_run(problem, request)
                 with patch.object(type(problem.dynamics), 'extended_momentum_derivative', autospec=True,
@@ -213,7 +211,7 @@ class AdaptiveIntegrationTests(unittest.TestCase):
                     simulate(self.problem, cls(), self.request)
 
     def test_first_step_and_optional_radau_jacobian(self):
-        problem = InitialValueProblem(TimeDependentRotation(), State(np.array([1., 0.]), layout=GCStateLayout()))
+        problem = InitialValueProblem(TimeDependentRotation(), np.array(np.array([1., 0.]), dtype=float, copy=True), layout=GCStateLayout())
         method = Radau(first_step=.01, jacobian=lambda t, z: t * np.array([[0., -1.], [1., 0.]]))
         actual = simulate(problem, method, self.request)
         reference = solve_ivp(problem.dynamics.vector_field, self.request.t_span, problem.initial_state,

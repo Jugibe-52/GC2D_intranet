@@ -1,7 +1,7 @@
 """Public simulation facade over problems, methods, integration and results."""
 
 from formulations.state import PhysicalFormulation, DoubledFormulation
-from contracts.configuration import InitialConfiguration, StateLayout
+from contracts.configuration import StateLayout
 from formulations import (
 	DirectAdjointFormulation,
 	FCSplitFormulation,
@@ -44,7 +44,7 @@ from methods import (
 )
 from contracts.observation import AdaptiveIntegrationStep, AdaptiveStepObserver, ABBA4ImplicitIntegrationStep, GaussLegendre4IntegrationStep, ABBA6ImplicitIntegrationStep, ABBAImplicitCompositionIntegrationStep, ABBA2ImplicitIntegrationStep, ImplicitBM4IntegrationStep, ImplicitIntegrationStep, IntegrationStage, IntegrationStep, StageObserver, StepObserver, UnprojectedABBAIntegrationStep
 from contracts.problem import InitialValueProblem
-from contracts.request import (
+from request import (
 	DEFAULT_INTEGRATION_STEP,
 	DEFAULT_INTEGRATION_STEPS_PER_CYCLE,
 	DEFAULT_SAVED_STEPS_PER_CYCLE,
@@ -55,7 +55,7 @@ from contracts.request import (
 from .runner import (
 	simulate,
 )
-from solution import Solution
+from states.history import States
 
 __all__ = [
 	"PhysicalFormulation",
@@ -89,7 +89,6 @@ __all__ = [
 	"GCExtendedFormulation",
 	"GCStageProjectedFormulation",
 	"gc_coupling_matrix",
-	"InitialConfiguration",
 	"GaussLegendre4IntegrationStep",
 	"InitialValueProblem",
 	"ABBA6ImplicitIntegrationStep",
@@ -114,7 +113,7 @@ __all__ = [
 	"SDIRK4",
 	"SDIRKJacobianMethod",
 	"SimulationRequest",
-	"Solution",
+	"States",
 	"StageObserver",
 	"StepObserver",
 	"StageProjectedFormulation",

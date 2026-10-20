@@ -12,7 +12,7 @@ import unittest
 
 import numpy as np
 
-from states.state import State
+
 from simulation import (
 	IntegrationStage,
 	IntegrationStep,
@@ -190,7 +190,7 @@ class SymplecticityDiagnosticTests(unittest.TestCase):
 			points_per_side=1,
 
 		)
-		state = area.initial_state
+		state = area
 		assert state is not None
 		identity = np.eye(state.size)
 		with tempfile.TemporaryDirectory(dir="/tmp") as temporary:
@@ -246,7 +246,7 @@ class SymplecticityDiagnosticTests(unittest.TestCase):
 			points_per_side=1,
 
 		)
-		state = area.initial_state
+		state = area
 		assert state is not None
 		with tempfile.TemporaryDirectory(dir="/tmp") as temporary:
 			root = Path(temporary)

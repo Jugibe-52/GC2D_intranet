@@ -8,8 +8,9 @@ from time import perf_counter, time
 
 from contracts.execution_options import ExecutionOptions
 from contracts.problem import InitialValueProblem
-from contracts.request import SimulationRequest
-from contracts.result import DiagnosticValue, IntegrationData
+from request import SimulationRequest
+from contracts.result import DiagnosticValue
+from states.history import States
 from execution.execution import Execution
 from methods.base import NumericalMethod
 
@@ -63,7 +64,7 @@ def decode_job(payload: bytes) -> tuple[InitialValueProblem, NumericalMethod, Si
     return problem, method, request, choice
 
 
-def execute_payload(payload: bytes) -> tuple[int, str, IntegrationData]:
+def execute_payload(payload: bytes) -> tuple[int, str, States]:
     """Integrate an authenticated job and return data to the submitting machine.
 
     This is a trusted Python-pickle boundary, used only by the authenticated
@@ -71,12 +72,12 @@ def execute_payload(payload: bytes) -> tuple[int, str, IntegrationData]:
     """
     problem, method, request, choice = decode_job(payload)
     data = Execution().run(problem, method, request, options=choice)
-    if not isinstance(data, IntegrationData):
-        raise TypeError("The remote method must return IntegrationData.")
+    if not isinstance(data, States):
+        raise TypeError("The remote method must return States.")
     return PAYLOAD_VERSION, sha256(payload).hexdigest(), data
 
 
-def execute_cycle_payload(payload: bytes) -> tuple[int, str, IntegrationData]:
+def execute_cycle_payload(payload: bytes) -> tuple[int, str, States]:
     """Return cycle observations and scalar diagnostics with worker timing.
 
     Absolute Unix intervals allow the submitting batch to measure integration
@@ -91,7 +92,7 @@ def execute_cycle_payload(payload: bytes) -> tuple[int, str, IntegrationData]:
     diagnostics.update(worker_wall_seconds=perf_counter() - started,
                        worker_started_unix_seconds=started_unix,
                        worker_finished_unix_seconds=time())
-    return version, digest, IntegrationData(data.t, data.states, diagnostics)
+    return version, digest, data.with_diagnostics(diagnostics, replace=True)
 
 
 __all__: list[str] = []

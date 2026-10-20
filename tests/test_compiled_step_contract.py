@@ -1,6 +1,6 @@
 """Prepared device maps are independent of the coordinator's method vocabulary."""
 
-from states.layout import GCStateLayout
+from formulations.layout import GCStateLayout
 
 from dataclasses import dataclass
 import importlib.util
@@ -11,9 +11,9 @@ import numpy as np
 
 from contracts.execution_options import ExecutionOptions
 from contracts.problem import InitialValueProblem
-from contracts.request import SimulationRequest
+from request import SimulationRequest
 from dynamics.gc import GuidingCenterDynamics
-from states.state import State
+
 from methods.classical.gauss_legendre import GaussLegendre4
 from methods.classical.rk4 import RK4
 from potential.potential import Potential
@@ -30,8 +30,7 @@ class CompiledStepContractTests(unittest.TestCase):
 		jax.config.update("jax_enable_x64", True)
 		self.addCleanup(jax.config.update, "jax_enable_x64", previous)
 		potential = Potential.random(A=.1, M=2, nx=12, ny=12, seed=19)
-		self.problem = InitialValueProblem(GuidingCenterDynamics(potential),
-			State(np.array([.2, .3]), layout=GCStateLayout()))
+		self.problem = InitialValueProblem(GuidingCenterDynamics(potential), np.array(np.array([.2, .3]), dtype=float, copy=True), layout=GCStateLayout())
 		self.request = SimulationRequest((0., .2), .1, np.array([0., .03, .1, .2]))
 		self.execution = ExecutionOptions(backend="jax")
 
@@ -95,10 +94,7 @@ class CompiledStepContractTests(unittest.TestCase):
 
 		# New physical objects must not retain an unbounded list of JIT closures.
 		for _ in range(17):
-			problem = InitialValueProblem(
-				GuidingCenterDynamics(self.problem.dynamics.potential),
-				self.problem.initial_configuration,
-			)
+			problem = InitialValueProblem(GuidingCenterDynamics(self.problem.dynamics.potential), self.problem.initial_state, layout=GCStateLayout())
 			run = RK4().new_run(problem, self.request, execution=self.execution)
 			_compiled_integrator(prepare_step(run, self.execution))
 		self.assertEqual(_compiled_integrator.cache_info().currsize, 16)

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from formulations.layout import GCStateLayout
+
 from dataclasses import dataclass
 from pathlib import Path
 from types import MappingProxyType
@@ -20,12 +22,12 @@ from ._validation import (
 )
 
 from dynamics import GuidingCenterDynamics
-from states.state import State
+
 from potential import Potential
 from methods.extended.bm4 import BM4Implicit
 from contracts.problem import InitialValueProblem
-from contracts.request import SimulationRequest
-from solution import Solution
+from request import SimulationRequest
+from states.history import States
 from simulation.runner import simulate
 from diagnostics.symplecticity import (
 	GCAreaSymplecticityObserver,
@@ -174,9 +176,9 @@ class AreaComparisonResult:
 	"""Solutions and projected observations for one comparison."""
 
 	effective_potential: Potential
-	area: State
+	area: np.ndarray
 	steps: tuple[AreaStep, ...]
-	solutions: Mapping[str, Solution]
+	solutions: Mapping[str, States]
 	records: Mapping[str, tuple[GCAreaSymplecticityRecord, ...]]
 	output_directories: Mapping[str, Path]
 
@@ -245,7 +247,7 @@ class AreaComparisonResult:
 
 def run_area_comparison(
 	potential: Potential,
-	area: State,
+	area: np.ndarray,
 	*,
 	notebook_path: str | Path,
 	config: AreaComparisonConfig,
@@ -255,24 +257,24 @@ def run_area_comparison(
 	"""Run all configured GC methods and persist projected observations."""
 	if not isinstance(potential, Potential):
 		raise TypeError("`potential` must be a Potential instance.")
-	if not (isinstance(area, State) and area.layout.state_dimension == 2 and area.particle_count >= 3):
-		raise TypeError("`area` must be a GC State with at least three ordered boundary vertices.")
+	if not (isinstance(area, np.ndarray) and GCStateLayout().state_dimension == 2 and GCStateLayout().particle_count(area) >= 3):
+		raise TypeError("`area` must be a GC np.ndarray with at least three ordered boundary vertices.")
 	if not isinstance(config, AreaComparisonConfig):
 		raise TypeError("`config` must be an AreaComparisonConfig instance.")
 
 	rho = resolve_rho(config.rho)
 	dynamics = GuidingCenterDynamics(potential, rho=rho)
-	problem = InitialValueProblem(dynamics, area)
-	initial_state = area.initial_state
+	problem = InitialValueProblem(dynamics, area, layout=GCStateLayout())
+	initial_state = area
 	assert initial_state is not None
-	solutions: dict[str, Solution] = {}
+	solutions: dict[str, States] = {}
 	records_by_label: dict[str, tuple[GCAreaSymplecticityRecord, ...]] = {}
 	output_directories: dict[str, Path] = {}
 
 	common_metadata = {
 		**dict(metadata or {}),
 		"geometry": dict(metadata or {}).get("geometry", "polygon"),
-		"particle_count": area.layout.particle_count(initial_state),
+		"particle_count": GCStateLayout().particle_count(initial_state),
 		"coupling_frequency": config.coupling_frequency,
 		"method_name": "BM4Implicit",
 		"projection_scope": "one_complete_twelve_stage_cycle",

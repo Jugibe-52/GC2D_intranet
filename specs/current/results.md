@@ -2,7 +2,7 @@
 schema_version = 1
 kind = "spec"
 id = "results"
-sources = ["src/solution.py", "src/contracts/result.py", "src/simulation/runner.py"]
+sources = ["src/states/history.py", "src/contracts/result.py", "src/simulation/runner.py"]
 documents = ["docs/simulation/integration-architecture.md"]
 
 [[requirements]]
@@ -20,37 +20,16 @@ tests = ["tests/test_extensible_architecture.py::ExtensibleArchitectureTests.tes
 
 # Sampled physical results
 
-`Solution` is the canonical public result. This baseline covers its in-memory
-storage contract, not persisted archive formats or the meaning of each optional
-diagnostic. See [state ownership](../../docs/simulation/integration-architecture.md).
+`States` is the canonical public result and the recording container. This contract covers in-memory storage; diagnostic meaning belongs to its producer. See [state ownership](../../docs/simulation/integration-architecture.md).
 
 ## SOL-001: Finite physical history and layout
 
-Times have shape `(T,)` with at least two finite, strictly increasing samples.
-States have shape `(physical_state_size, T)`, with nonempty finite values and
-complete particle blocks accepted by the supplied layout. Components use the
-layout's block convention and the physical dynamics' coordinate normalization;
-the result does not convert units. Internal doubled coordinates are not the
-public physical history. Agreement with a particular request and initial state
-is owned by the simulation boundary, not by `Solution` alone.
+Times have shape `(T,)` with at least one finite, strictly increasing sample. Physical values have shape `(physical_state_size,T)`, with finite, nonempty complete particle blocks accepted by the layout. No unit conversion occurs. Internal duplicated coordinates are not stored as physical results. `States` validates structure; the simulation boundary checks agreement with the particular request, layout dimension and initial state. Simulation requests still require both endpoints and at least two samples.
 
-## SOL-002: Owned arrays, layout snapshot, and provenance
+## SOL-002: Owned arrays, layout and initial snapshot
 
-Construction copies time and state arrays and exposes them as read-only.
-Subsequent edits to input arrays do not change the result. The layout is copied,
-and the layout accessor returns an independent copy. When an initial state is
-present it is copied, validated against the history's first dimension, and
-returned through an independent copy. `source` retains the original initial
-configuration as provenance; it is not itself deeply frozen. Simulated results
-use the problem's captured layout and initial state even if that source later
-changes. Read-only NumPy flags describe the supported interface, not protection
-against deliberate low-level mutation.
+Recording copies samples; completed arrays are read-only. Construction from complete arrays preserves their numerical dtype. The layout is copied, and its accessor returns an independent copy. The optional initial array is copied, dimension-checked and independently returned. Simulated results preserve the problem's initial snapshot; loaded archives may lack it. There is no retained mutable provider identity. Read-only NumPy flags describe the supported interface, not protection against deliberate low-level mutation. Pickling a completed result restores these guarantees; incomplete results cannot cross that boundary.
 
-## SOL-003: Read-only diagnostic mapping and array values
+## SOL-003: Read-only diagnostics and explicit axes
 
-Diagnostic keys are nonempty strings. The mapping cannot be modified through
-the public accessor; NumPy diagnostic arrays are copied and exposed as read-only.
-This contract does not claim recursive freezing of arbitrary non-array objects.
-Diagnostic presence and numerical meaning belong to the producing method or
-observer. Existing `y`, `trajectory`, `n_steps`, `k`, and `err` compatibility
-properties remain read-only; adding SDD does not remove or rename them.
+Diagnostic keys are nonempty strings and values are scalars or NumPy arrays. The public mapping cannot be modified; diagnostic arrays are copied and read-only. Sample diagnostics follow the requested times; accepted-step diagnostics follow their own `step_times`, `step_start_times` and `step_sizes`. `select` keeps whole-run diagnostics unchanged. `.with_diagnostics(...)` makes a completed copy with added metadata or explicitly replaced diagnostics. `.t`/`.states` remain read-only aliases for `.times`/`.values`; `.n_steps`, `.k` and `.err` remain convenience accessors. `.y`, `.trajectory` and `.source` are removed.

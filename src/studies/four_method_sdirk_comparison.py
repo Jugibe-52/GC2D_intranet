@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import numpy as np
+
 from contracts.comparison import (ThreeMethodNewtonSummary)
 
 from ._comparison import (
@@ -14,7 +16,7 @@ from types import MappingProxyType
 from typing import ClassVar, Mapping
 
 
-from states.state import State
+
 from potential import Potential
 
 
@@ -55,7 +57,7 @@ class FourMethodSDIRKComparisonResult(ComparisonResult):
 
 def run_four_method_sdirk_comparison(
 	potential: Potential,
-	initial_configuration: State,
+	initial_configuration: np.ndarray,
 	*,
 	config: FourMethodSDIRKComparisonConfig,
 ) -> FourMethodSDIRKComparisonResult:

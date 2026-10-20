@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from states.layout import GCStateLayout
+from formulations.layout import GCStateLayout
 
 from dataclasses import asdict, dataclass
 import hashlib
@@ -22,12 +22,12 @@ from diagnostics import (
 	write_reference_trajectory,
 )
 from dynamics import GuidingCenterDynamics
-from states.state import State
+
 from potential import Potential
 from methods.adaptive.scipy import DOP853, Radau
 from contracts.observation import AdaptiveIntegrationStep
 from contracts.problem import InitialValueProblem
-from contracts.request import SimulationRequest
+from request import SimulationRequest
 
 from ._trajectory_distances import (
 	DistanceConvention,
@@ -232,12 +232,12 @@ def _solve_adaptive(
 	configured = method_type(relative_tolerance=relative_tolerance,
 		absolute_tolerance=absolute_tolerance,
 		step_observer=report if progress_callback is not None else None)
-	problem = InitialValueProblem(dynamics, State(np.asarray(initial_state, dtype=float), layout=GCStateLayout()))
+	problem = InitialValueProblem(dynamics, np.array(np.asarray(initial_state, dtype=float), dtype=float, copy=True), layout=GCStateLayout())
 	request = SimulationRequest((float(times[0]), float(times[-1])), maximum_step, times)
 	result = configured.integrate(problem, request)
 
 	runtime = perf_counter() - started
-	states = np.asarray(result.states, dtype=float)
+	states = np.array(result.states, dtype=float, copy=True)
 	if states.shape != (initial_state.size, times.size) or not np.all(
 		np.isfinite(states)
 	):
@@ -367,7 +367,7 @@ gyroaveraged sampled and off-grid interpolated electric field.
 
 def run_high_precision_reference_trajectory(
 	potential: Potential,
-	initial_configuration: State,
+	initial_configuration: np.ndarray,
 	*,
 	notebook_path: str | Path,
 	config: HighPrecisionReferenceConfig,
@@ -387,8 +387,8 @@ def run_high_precision_reference_trajectory(
 	"""
 	if not isinstance(potential, Potential):
 		raise TypeError("`potential` must be a Potential instance.")
-	if not (isinstance(initial_configuration, State) and initial_configuration.layout.state_dimension == 2):
-		raise TypeError("`initial_configuration` must be State.")
+	if not (isinstance(initial_configuration, np.ndarray) and GCStateLayout().state_dimension == 2):
+		raise TypeError("`initial_configuration` must be np.ndarray.")
 	if not isinstance(config, HighPrecisionReferenceConfig):
 		raise TypeError("`config` must be a HighPrecisionReferenceConfig.")
 	initial_state = _validated_reference_initial_state(
@@ -426,7 +426,7 @@ def run_high_precision_reference_trajectory(
 		period=potential.grid.period,
 	)
 	audit = _audit_summary(audit_distances, states, audit_states)
-	particle_count = initial_configuration.layout.particle_count(initial_state)
+	particle_count = GCStateLayout().particle_count(initial_state)
 	output_directory = reference_trajectory_output_directory(
 		notebook_path,
 		reference_name=reference_name,
@@ -483,7 +483,7 @@ def run_high_precision_reference_trajectory(
 
 
 def _validated_reference_initial_state(
-	initial_configuration: State, *,
+	initial_configuration: np.ndarray, *,
 	potential_metadata: Mapping[str, Any], initial_condition_metadata: Mapping[str, Any],
 ) -> np.ndarray:
 	"""Require reproducibility metadata and a concrete initial state before reference solves."""
@@ -491,7 +491,7 @@ def _validated_reference_initial_state(
 		raise ValueError("Non-empty potential reproducibility metadata is required.")
 	if not isinstance(initial_condition_metadata, Mapping) or not initial_condition_metadata:
 		raise ValueError("Non-empty initial-condition metadata is required.")
-	initial_state = initial_configuration.initial_state
+	initial_state = initial_configuration
 	if initial_state is None:
 		raise ValueError("The reference initial configuration has no state.")
 	return initial_state

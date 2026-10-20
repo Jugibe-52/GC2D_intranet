@@ -1,6 +1,6 @@
 """Restartable fixed-grid orchestration of frozen implicit and midpoint BM4."""
 
-from states.layout import GCStateLayout
+from formulations.layout import GCStateLayout
 
 from typing import Any
 from pathlib import Path
@@ -32,7 +32,7 @@ def calculate_checkpointed_group(
     from threadpoolctl import threadpool_info, threadpool_limits
     potential, _, snapshot = load_snapshot()
     from dynamics import GuidingCenterDynamics
-    from states.state import State
+    import numpy as np
     from contracts.problem import InitialValueProblem
     from formulations.gc import GCDoubledMaps
     from methods.extended.core.composition import BM4
@@ -43,8 +43,8 @@ def calculate_checkpointed_group(
 
     indices = np.asarray(indices, dtype=int)
     xy0 = np.asarray(initial_xy, dtype=float)[indices]
-    initial = State.from_components(xy0[:, 0], xy0[:, 1], layout=GCStateLayout())
-    problem = InitialValueProblem(GuidingCenterDynamics(potential, rho=settings['rho']), initial)
+    initial = GCStateLayout().pack_components(xy0[:, 0], xy0[:, 1])
+    problem = InitialValueProblem(GuidingCenterDynamics(potential, rho=settings['rho']), initial, layout=GCStateLayout())
     prepared = GCDoubledMaps(problem, coupling_frequency=settings['coupling_frequency'])
     implicit = settings['method'] == 'BM4Implicit'
     solver = SolverOptions('newton', settings['newton_atol'], settings['newton_rtol'],

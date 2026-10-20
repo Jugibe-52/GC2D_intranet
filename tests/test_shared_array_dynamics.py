@@ -8,7 +8,7 @@ import unittest
 
 import numpy as np
 
-from states.layout import FCStateLayout, GCStateLayout
+from formulations.layout import FCStateLayout, GCStateLayout
 from dynamics.fc import FullCyclotronDynamics
 from dynamics.gc import GuidingCenterDynamics
 from execution._jax import prepare_dynamics

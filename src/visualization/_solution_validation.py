@@ -6,11 +6,11 @@ from collections.abc import Mapping
 
 import numpy as np
 
-from solution import Solution
+from states.history import States
 
 
 def validated_solutions(
-	solutions: Mapping[str, Solution],
+	solutions: Mapping[str, States],
 	*,
 	expected_count: int | None = None,
 	alignment_error: str = "All solutions must share times and particle count.",
@@ -25,9 +25,9 @@ def validated_solutions(
 	particle_count: int | None = None
 	for label, solution in solutions.items():
 		if not isinstance(label, str) or not label:
-			raise ValueError("Solution labels must be non-empty strings.")
-		if not isinstance(solution, Solution):
-			raise TypeError("Every comparison value must be a Solution.")
+			raise ValueError("States labels must be non-empty strings.")
+		if not isinstance(solution, States):
+			raise TypeError("Every comparison value must be a States.")
 		times = np.asarray(solution.t, dtype=float)
 		x, y = solution.positions()
 		if x.shape != y.shape or x.ndim != 2 or x.shape[1] != times.size:

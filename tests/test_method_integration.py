@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from states.layout import GCStateLayout
+from formulations.layout import GCStateLayout
 
 from dataclasses import replace
 import unittest
@@ -11,7 +11,7 @@ from unittest.mock import patch
 import numpy as np
 
 from dynamics import GuidingCenterDynamics
-from states.state import State
+
 from potential import Potential
 from simulation import (
 	ABBA2Implicit, ABBA2Midpoint, ABBA4Implicit, ABBA6Implicit,
@@ -26,12 +26,9 @@ from integration import (
 
 def _problem() -> InitialValueProblem:
 	"""One smooth, non-autonomous particle exercises all internal state modes."""
-	return InitialValueProblem(
-		GuidingCenterDynamics(Potential.random(
+	return InitialValueProblem(GuidingCenterDynamics(Potential.random(
 			A=0.08, M=3, nx=16, ny=16, seed=27, interpolation_order=5,
-		), rho=0.05),
-		State.from_components([1.0], [1.2], layout=GCStateLayout()),
-	)
+		), rho=0.05), GCStateLayout().pack_components([1.0], [1.2]), layout=GCStateLayout())
 
 
 def _request(dense: bool = False) -> SimulationRequest:
@@ -153,7 +150,7 @@ class MethodIntegrationTests(unittest.TestCase):
 
 	def test_run_resources_are_isolated_and_a_completed_run_cannot_be_reused(self) -> None:
 		problem = _problem()
-		other = replace(problem, initial_configuration=State.from_components([1.1], [1.3], layout=GCStateLayout()))
+		other = InitialValueProblem(problem.dynamics, GCStateLayout().pack_components([1.1], [1.3]), layout=problem.layout)
 		for method in _methods():
 			with self.subTest(method=method):
 				first = method.new_run(problem, _request())

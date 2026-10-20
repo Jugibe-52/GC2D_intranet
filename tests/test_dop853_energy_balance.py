@@ -1,13 +1,13 @@
 """Energy reconstruction, sampling and persistence tests for the new study."""
 
-from states.layout import GCStateLayout
+from formulations.layout import GCStateLayout
 import tempfile
 import unittest
 from pathlib import Path
 import numpy as np
 from potential import Potential
 from dynamics import GuidingCenterDynamics
-from states.state import State
+
 from simulation import BM4Implicit, InitialValueProblem, SimulationRequest, simulate
 from diagnostics import GCGeneralizedEnergyObserver
 from diagnostics.bm4_energy_balance import BM4EnergyBalanceObserver
@@ -31,12 +31,12 @@ class EnergyBalanceTests(unittest.TestCase):
         dynamics = GuidingCenterDynamics(self.potential, rho=.05)
         request = SimulationRequest.uniform(t_span=(0., .02), max_step=.005, sample_count=3)
         observer = BM4EnergyBalanceObserver(dynamics, 3, 2)
-        simulate(InitialValueProblem(dynamics, self.configuration),
+        simulate(InitialValueProblem(dynamics, self.configuration, layout=GCStateLayout()),
                  BM4Implicit(step_observer=observer), request)
         for p in range(3):
-            z = self.configuration.initial_state[[p, p+3]]
+            z = self.configuration[[p, p+3]]
             scalar = GCGeneralizedEnergyObserver(dynamics, initial_time=0., initial_state=z)
-            simulate(InitialValueProblem(dynamics, State(z, layout=GCStateLayout())),
+            simulate(InitialValueProblem(dynamics, np.array(z, dtype=float, copy=True), layout=GCStateLayout()),
                      BM4Implicit(step_observer=scalar), request)
             np.testing.assert_allclose(np.asarray(observer.momenta)[:, p],
                                        [r.kappa for r in scalar.records][::2], atol=2e-14, rtol=1e-10)
@@ -48,7 +48,7 @@ class EnergyBalanceTests(unittest.TestCase):
         arrays = run_energy_balance(self.potential, self.configuration, self.config)
         for name in METHODS:
             np.testing.assert_allclose(arrays[name+'.balance'][:, 0], 0, atol=1e-15)
-            np.testing.assert_allclose(arrays[name+'.states'][:, 0], self.configuration.initial_state)
+            np.testing.assert_allclose(arrays[name+'.states'][:, 0], self.configuration)
         np.testing.assert_array_equal(arrays['DOP853.distance'], 0)
         self.assertLess(np.max(np.abs(arrays['DOP853.balance'])), 1e-9)
         with tempfile.TemporaryDirectory() as directory:

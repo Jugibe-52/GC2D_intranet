@@ -1,10 +1,12 @@
 # Numerical diagnostics
 
+Saving requires completed `States`; an unfinished recording is rejected before any archive or transfer is created.
+
 ## Complete solutions on disk or in a bucket
 
 `diagnostics.persistence.save_solution` and `load_solution` serialize the
-canonical `Solution` independently of the integration lifecycle. They are also
-explicitly exported by `diagnostics`. Numerical methods and `Solution` do not
+canonical `States` independently of the integration lifecycle. They are also
+explicitly exported by `diagnostics`. Numerical methods and `States` do not
 perform network operations. Both GC and FC component-major layouts are supported;
 other layout types are rejected rather than inferred from the state size.
 
@@ -63,7 +65,7 @@ The potential snapshot reconstructs the actual sampled field even when its
 original HDF5 file is unavailable. Pass the **base** field and record `rho` and
 the dynamics parameters to reconstruct the effective gyroaveraged field. Record
 the complete potential recipe, physical settings, method settings, initial
-geometry and code version in `experiment_metadata` as well: a `Solution` alone
+geometry and code version in `experiment_metadata` as well: a `States` alone
 does not own them. Reconstruction does not run the integrator. The archive records
 NumPy and SciPy versions; matching samples do not guarantee identical interpolation
 across different library implementations. Generic potential provenance must be
@@ -71,7 +73,7 @@ JSON-serializable; HDF5 attributes and numerical diagnostics must be pickle-free
 
 Completed results are never overwritten. Use a fresh run directory/prefix, and
 distinct prefixes for concurrent writers. The manifest is transferred last;
-loaders verify every file before constructing a `Solution`. A remote load always
+loaders verify every file before constructing a `States`. A remote load always
 downloads to a fresh temporary directory and removes it afterwards. If publication
 fails, the exception identifies a complete local staging directory that can be
 loaded directly or used for a manual retry, transferring the manifest last.

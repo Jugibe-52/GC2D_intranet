@@ -1,5 +1,7 @@
 """Shared-center geometry, consecutive JAX integration and progress lifecycle."""
 
+from formulations.layout import GCStateLayout
+
 from dataclasses import replace
 import importlib.util
 import io
@@ -12,7 +14,7 @@ from unittest.mock import patch
 import numpy as np
 
 from contracts.execution_options import ExecutionOptions
-from contracts.request import SimulationRequest
+from request import SimulationRequest
 from diagnostics.persistence import load_solution, save_solution
 from diagnostics.run_progress import RunProgress, progress_log
 from methods.extended.bm4 import BM4Midpoint
@@ -37,7 +39,7 @@ class LocalJAXStarTests(unittest.TestCase):
     def test_exactly_one_shared_center_and_five_radii_per_arm(self):
         potential = field()
         problem = build_local_star(potential, settings())
-        x, y = problem.initial_configuration.layout.positions(problem.initial_state)
+        x, y = GCStateLayout().positions(problem.initial_state)
         relative = np.column_stack((x, y)) / potential.grid.period - .5
         np.testing.assert_array_equal(relative[0], [0., 0.])
         self.assertEqual(np.count_nonzero(np.all(relative == 0., axis=1)), 1)

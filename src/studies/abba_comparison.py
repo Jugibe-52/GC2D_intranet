@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from formulations.layout import GCStateLayout
+
 from dataclasses import dataclass
 from itertools import combinations
 from pathlib import Path
@@ -22,9 +24,9 @@ from ._validation import (
 
 from studies._trajectory_distances import minimum_image_displacement
 
-from states.state import State
+
 from potential import Potential
-from solution import Solution
+from states.history import States
 
 from .abba_midpoint_symplecticity import (
 	ABBA2MidpointSymplecticityConfig,
@@ -172,7 +174,7 @@ class ABBAComparisonResult:
 	"""Three ABBA studies plus runtime and physical-trajectory comparisons."""
 
 	potential: Potential
-	area: State
+	area: np.ndarray
 	config: ABBAComparisonConfig
 	studies: Mapping[str, ABBAComparisonStudy]
 	runtimes: Mapping[str, float]
@@ -181,8 +183,8 @@ class ABBAComparisonResult:
 		"""Require one aligned result and one positive runtime per ABBA method."""
 		if not isinstance(self.potential, Potential):
 			raise TypeError("`potential` must be a Potential instance.")
-		if not (isinstance(self.area, State) and self.area.layout.state_dimension == 2 and self.area.particle_count >= 3):
-			raise TypeError("`area` must be a GC State with at least three ordered boundary vertices.")
+		if not (isinstance(self.area, np.ndarray) and GCStateLayout().state_dimension == 2 and GCStateLayout().particle_count(self.area) >= 3):
+			raise TypeError("`area` must be a GC np.ndarray with at least three ordered boundary vertices.")
 		if not isinstance(self.config, ABBAComparisonConfig):
 			raise TypeError("`config` must be an ABBAComparisonConfig instance.")
 		if tuple(self.studies) != ABBA_METHOD_NAMES:
@@ -197,13 +199,13 @@ class ABBAComparisonResult:
 		_validate_abba_output_grids((self._solution(name) for name in ABBA_METHOD_NAMES))
 
 	@property
-	def solutions(self) -> Mapping[str, Solution]:
+	def solutions(self) -> Mapping[str, States]:
 		"""Physical solutions indexed by ABBA method name."""
 		return MappingProxyType(
 			{method_name: self._solution(method_name) for method_name in ABBA_METHOD_NAMES}
 		)
 
-	def _solution(self, method_name: str) -> Solution:
+	def _solution(self, method_name: str) -> States:
 		"""Return the sole physical solution from one method study."""
 		if method_name not in self.studies:
 			raise KeyError(f"Unknown ABBA method: {method_name}")
@@ -307,7 +309,7 @@ class ABBAComparisonResult:
 
 def run_abba_comparison(
 	potential: Potential,
-	area: State,
+	area: np.ndarray,
 	*,
 	notebook_path: str | Path,
 	config: ABBAComparisonConfig,
@@ -317,8 +319,8 @@ def run_abba_comparison(
 	"""Run each ABBA method once and measure complete diagnostic wall time."""
 	if not isinstance(potential, Potential):
 		raise TypeError("`potential` must be a Potential instance.")
-	if not (isinstance(area, State) and area.layout.state_dimension == 2 and area.particle_count >= 3):
-		raise TypeError("`area` must be a GC State with at least three ordered boundary vertices.")
+	if not (isinstance(area, np.ndarray) and GCStateLayout().state_dimension == 2 and GCStateLayout().particle_count(area) >= 3):
+		raise TypeError("`area` must be a GC np.ndarray with at least three ordered boundary vertices.")
 	if not isinstance(config, ABBAComparisonConfig):
 		raise TypeError("`config` must be an ABBAComparisonConfig instance.")
 
@@ -399,7 +401,7 @@ def run_abba_comparison(
 	)
 
 
-def _validate_abba_output_grids(solutions: Iterable[Solution]) -> None:
+def _validate_abba_output_grids(solutions: Iterable[States]) -> None:
 	"""Keep the historical epsilon-scaled tolerance for common ABBA output grids."""
 	# Validate the common output grid eagerly so all later comparisons are direct.
 	reference_times: np.ndarray | None = None

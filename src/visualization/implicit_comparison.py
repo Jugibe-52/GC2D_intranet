@@ -18,7 +18,7 @@ from matplotlib.ticker import MaxNLocator
 from matplotlib.widgets import CheckButtons
 
 from potential import Potential
-from solution import Solution
+from states.history import States
 
 from ._animation_validation import (
 	boolean_control,
@@ -46,7 +46,7 @@ _METHOD_MARKER_SIZES = (42, 32, 23, 15)
 
 
 def _iteration_arrays(
-	solutions: Mapping[str, Solution], labels: tuple[str, ...], times: np.ndarray,
+	solutions: Mapping[str, States], labels: tuple[str, ...], times: np.ndarray,
 ) -> list[tuple[str, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]]:
 	"""Prepare complete-step work histories before allocating plotting resources."""
 	prepared: list[tuple[str, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]] = []
@@ -84,7 +84,7 @@ def _iteration_arrays(
 
 
 def plot_implicit_method_iterations(
-	solutions: Mapping[str, Solution],
+	solutions: Mapping[str, States],
 ) -> tuple[Figure, np.ndarray]:
 	"""Compare nonlinear corrections, residual evaluations, and convergence."""
 	labels, times, _ = validated_solutions(
@@ -128,7 +128,7 @@ def plot_implicit_method_iterations(
 
 def plot_implicit_trajectory_differences(
 	potential: Potential,
-	solutions: Mapping[str, Solution],
+	solutions: Mapping[str, States],
 ) -> tuple[Figure, Axes]:
 	"""Plot the mean periodic trajectory distance between every method pair."""
 	if not isinstance(potential, Potential):
@@ -200,7 +200,7 @@ def plot_implicit_trajectory_differences(
 
 def animate_implicit_method_trajectories(
 	potential: Potential,
-	solutions: Mapping[str, Solution],
+	solutions: Mapping[str, States],
 	*,
 	frames: int | None = None,
 	interval: int = 200,

@@ -1,11 +1,11 @@
 """Run a short symmetric-projected ABBA trajectory with exact field Jacobians."""
 
-from states.layout import GCStateLayout
+from formulations.layout import GCStateLayout
 
 import numpy as np
 
 from dynamics import GuidingCenterDynamics
-from states.state import State
+
 from potential import Potential
 from simulation import (
 	InitialValueProblem,
@@ -23,11 +23,8 @@ potential = Potential.random(
 	seed=27,
 	interpolation_order=5,
 )
-configuration = State(np.asarray([1.0, 1.2]), layout=GCStateLayout())
-problem = InitialValueProblem(
-	GuidingCenterDynamics(potential, rho=0.05),
-	configuration,
-)
+configuration = np.array(np.asarray([1.0, 1.2]), dtype=float, copy=True)
+problem = InitialValueProblem(GuidingCenterDynamics(potential, rho=0.05), configuration, layout=GCStateLayout())
 request = SimulationRequest.uniform(
 	t_span=(0.0, 0.2),
 	max_step=0.05,

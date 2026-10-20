@@ -1,5 +1,7 @@
 """BM4Midpoint Poincare calculation with dimensional HDF5 star positions."""
 
+from formulations.layout import GCStateLayout
+
 from dataclasses import asdict, dataclass, field
 from hashlib import sha256
 from pathlib import Path
@@ -10,14 +12,14 @@ import numpy as np
 
 from contracts.execution_options import ExecutionOptions
 from contracts.problem import InitialValueProblem
-from contracts.request import SimulationRequest
+from request import SimulationRequest
 from dynamics.gc import GuidingCenterDynamics
 from states.generators import radial_star
 from methods.extended.bm4 import BM4Midpoint
 from potential.load import DEFAULT_FIELD_INDICES
 from potential.potential import Potential
 from simulation.runner import simulate
-from solution import Solution
+from states.history import States
 from studies.dimensional_h5_midpoint import load_dimensional_h5_field, resolve_h5_source
 
 
@@ -48,7 +50,7 @@ class PoincareStarConfig:
 class PoincareStarResult:
     """Physical solution, original unaveraged potential and reproducibility data."""
 
-    solution: Solution
+    solution: States
     potential: Potential
     metadata: dict[str, Any]
 
@@ -79,7 +81,7 @@ def run_poincare_star(source: str | Path, config: PoincareStarConfig, *,
     initial = radial_star(center=(float(center[0]), float(center[1])), arm_length=length,
                           arms=config.arms, particles_per_arm=config.particles_per_arm,
                           first_angle=config.first_angle)
-    problem = InitialValueProblem(GuidingCenterDynamics(field.stream, rho=rho_m), initial)
+    problem = InitialValueProblem(GuidingCenterDynamics(field.stream, rho=rho_m), initial, layout=GCStateLayout())
     request = SimulationRequest(
         t_span=(0.0, float(config.cycles)), max_step=1.0 / config.steps_per_cycle,
         output_times=np.arange(config.cycles + 1, dtype=float),
@@ -95,7 +97,7 @@ def run_poincare_star(source: str | Path, config: PoincareStarConfig, *,
             or solution.diagnostics["output_interpolation_count"] != 0
             or solution.diagnostics["projection_kind"] != "arithmetic_mean"):
         raise RuntimeError("The calculation did not preserve the configured BM4 cycle sampling.")
-    x, y = initial.layout.positions(problem.initial_state)
+    x, y = GCStateLayout().positions(problem.initial_state)
     metadata = {
         "study": "poincare_star_bm4_midpoint", "config": asdict(config),
         "source": str(Path(source).resolve()), "source_sha256": sha256(resolved.read_bytes()).hexdigest(),

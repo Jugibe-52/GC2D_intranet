@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from formulations.layout import GCStateLayout
+
 from dataclasses import dataclass
 from time import perf_counter
 from typing import Any, ClassVar, Mapping
@@ -10,12 +12,12 @@ import numpy as np
 
 from diagnostics import StoredReferenceTrajectory
 from dynamics import GuidingCenterDynamics
-from states.state import State
+
 from potential import Potential
 from methods.extended.abba import ABBA6Implicit
 from contracts.problem import InitialValueProblem
-from contracts.request import SimulationRequest
-from solution import Solution
+from request import SimulationRequest
+from states.history import States
 from simulation.runner import simulate
 
 from contracts.comparison import TrajectoryAccuracySeries
@@ -54,7 +56,7 @@ class ABBA6AccuracyResult(ABBA4ImplicitAccuracyResult):
 
 def run_abba6_accuracy_study(
 	potential: Potential,
-	initial_configuration: State,
+	initial_configuration: np.ndarray,
 	reference: StoredReferenceTrajectory,
 	*,
 	config: ABBA6AccuracyConfig,
@@ -64,8 +66,8 @@ def run_abba6_accuracy_study(
 	"""Run ABBA6Implicit on nested steps and compare saved states to one reference."""
 	if not isinstance(potential, Potential):
 		raise TypeError("`potential` must be a Potential instance.")
-	if not (isinstance(initial_configuration, State) and initial_configuration.layout.state_dimension == 2):
-		raise TypeError("`initial_configuration` must be State.")
+	if not (isinstance(initial_configuration, np.ndarray) and GCStateLayout().state_dimension == 2):
+		raise TypeError("`initial_configuration` must be np.ndarray.")
 	if not isinstance(reference, StoredReferenceTrajectory):
 		raise TypeError("`reference` must be a StoredReferenceTrajectory.")
 	if not isinstance(config, ABBA6AccuracyConfig):
@@ -79,8 +81,8 @@ def run_abba6_accuracy_study(
 		initial_condition_metadata=initial_condition_metadata,
 	)
 	dynamics = GuidingCenterDynamics(potential, rho=config.rho)
-	problem = InitialValueProblem(dynamics, initial_configuration)
-	solutions: dict[float, Solution] = {}
+	problem = InitialValueProblem(dynamics, initial_configuration, layout=GCStateLayout())
+	solutions: dict[float, States] = {}
 	series: dict[float, TrajectoryAccuracySeries] = {}
 	runtimes: dict[float, float] = {}
 	reference_indices: np.ndarray | None = None

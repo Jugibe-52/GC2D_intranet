@@ -14,7 +14,7 @@ from matplotlib.collections import LineCollection
 from matplotlib.lines import Line2D
 
 from potential import Potential
-from solution import Solution
+from states.history import States
 
 from ._animation_validation import (
 	boolean_control,
@@ -148,8 +148,8 @@ def _aligned_positions(
 		x_rows: list[np.ndarray] = []
 		y_rows: list[np.ndarray] = []
 		for solution in trajectories:
-			if not isinstance(solution, Solution):
-				raise TypeError("Every trajectory must be a Solution instance.")
+			if not isinstance(solution, States):
+				raise TypeError("Every trajectory must be a States instance.")
 			times = np.asarray(solution.t, dtype=float)
 			x, y = solution.positions()
 			if x.shape != (1, times.size) or y.shape != x.shape:

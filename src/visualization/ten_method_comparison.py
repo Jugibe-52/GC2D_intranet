@@ -16,7 +16,7 @@ from matplotlib.lines import Line2D
 from matplotlib.ticker import MaxNLocator
 
 from potential import Potential
-from solution import Solution
+from states.history import States
 
 from ._animation_validation import (
 	frame_indices as _frame_indices,
@@ -48,7 +48,7 @@ TEN_METHOD_SHORT_LABELS: Mapping[str, str] = {
 
 def _mean_periodic_distance_matrix(
 	potential: Potential,
-	solutions: Mapping[str, Solution],
+	solutions: Mapping[str, States],
 ) -> tuple[tuple[str, ...], np.ndarray]:
 	"""Return the symmetric mean minimum-image distance matrix."""
 	labels, _, _ = _validated_solutions(solutions, expected_count=7)
@@ -69,7 +69,7 @@ def _mean_periodic_distance_matrix(
 
 def plot_ten_method_trajectory_differences(
 	potential: Potential,
-	solutions: Mapping[str, Solution],
+	solutions: Mapping[str, States],
 ) -> tuple[Figure, Axes]:
 	"""Plot the 7 x 7 mean periodic trajectory-distance matrix."""
 	if not isinstance(potential, Potential):
@@ -118,7 +118,7 @@ def plot_ten_method_trajectory_differences(
 
 
 def plot_ten_method_nonlinear_work(
-	solutions: Mapping[str, Solution],
+	solutions: Mapping[str, States],
 ) -> tuple[Figure, np.ndarray]:
 	"""Compare nonlinear corrections and residual work for six variants."""
 	labels, times, _ = _validated_solutions(solutions, expected_count=6)
@@ -203,7 +203,7 @@ def plot_ten_method_runtimes(
 
 def animate_trajectory_points(
 	potential: Potential,
-	solutions: Mapping[str, Solution],
+	solutions: Mapping[str, States],
 	*,
 	frames: int | None = None,
 	interval: int = 200,
@@ -305,7 +305,7 @@ def animate_trajectory_points(
 
 def animate_ten_method_trajectory_points(
 	potential: Potential,
-	solutions: Mapping[str, Solution],
+	solutions: Mapping[str, States],
 	*,
 	frames: int | None = None,
 	interval: int = 200,

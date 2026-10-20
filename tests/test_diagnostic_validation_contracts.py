@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from states.layout import GCStateLayout
+from formulations.layout import GCStateLayout
 
 from dataclasses import replace
 from pathlib import Path
@@ -18,7 +18,7 @@ from diagnostics.five_method_comparison_csv import load_five_method_comparison_c
 from diagnostics.reference_trajectory import ReferenceTrajectoryPaths, StoredReferenceTrajectory
 from diagnostics.symplecticity.observer import SymplecticityObserver, gc_physical_symplectic_form
 from dynamics import GuidingCenterDynamics
-from states.state import State
+
 from potential import Potential
 from simulation import ABBA2Implicit, InitialValueProblem, SimulationRequest, simulate
 
@@ -75,10 +75,10 @@ class DiagnosticValidationContracts(unittest.TestCase):
 	def test_sampling_skips_snapshot_checks_and_energy_rejection_is_atomic(self) -> None:
 		potential = Potential.random(A=0.03, M=2, nx=8, ny=8, seed=7, interpolation_order=5)
 		dynamics = GuidingCenterDynamics(potential, rho=0.02)
-		configuration = State.from_components(np.array([1.0]), np.array([1.2]), layout=GCStateLayout())
+		configuration = GCStateLayout().pack_components(np.array([1.0]), np.array([1.2]))
 		events: list[IntegrationStep] = []
 		simulate(
-			InitialValueProblem(dynamics, configuration),
+			InitialValueProblem(dynamics, configuration, layout=GCStateLayout()),
 			ABBA2Implicit(step_observer=events.append),
 			SimulationRequest.uniform(t_span=(0.0, 0.02), max_step=0.01, sample_count=3),
 		)

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from states.layout import GCStateLayout
+from formulations.layout import GCStateLayout
 
 import csv
 from pathlib import Path
@@ -24,7 +24,7 @@ from diagnostics import (
 	abba2_midpoint_step_particle_jacobians,
 )
 from dynamics import GuidingCenterDynamics
-from states.state import State
+
 from potential import Potential
 from simulation import (
 	BM4Implicit,
@@ -57,12 +57,8 @@ def _problem() -> InitialValueProblem:
 		interpolation_order=5,
 	)
 	dynamics = GuidingCenterDynamics(potential, rho=0.05)
-	configuration = State.from_components(
-		np.asarray([1.0, 1.4]),
-		np.asarray([1.2, 1.6]),
-		layout=GCStateLayout(),
-	)
-	return InitialValueProblem(dynamics, configuration)
+	configuration = GCStateLayout().pack_components(np.asarray([1.0, 1.4]), np.asarray([1.2, 1.6]))
+	return InitialValueProblem(dynamics, configuration, layout=GCStateLayout())
 
 
 def _dense(blocks: np.ndarray) -> np.ndarray:
@@ -185,7 +181,7 @@ class ExactTrajectoryJacobianTests(unittest.TestCase):
 						self.assertEqual(records[0].particle_count, 5)
 						np.testing.assert_array_equal(
 							solution.states[:, 0],
-							configuration.initial_state,
+							configuration,
 						)
 					output = result.output_directories[result.steps[0].label]
 					npz_path = sorted(output.glob("*_jacobians_*.npz"))[0]

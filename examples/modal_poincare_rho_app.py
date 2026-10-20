@@ -5,7 +5,7 @@ import sys
 
 import modal
 
-from contracts.result import IntegrationData
+from states.history import States
 from execution._modal_worker import execute_cycle_payload
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -23,6 +23,6 @@ app = modal.App("gc2d-poincare-rho-sweep")
 
 @app.function(image=image, cpu=(2.0, 2.0), memory=(2048, 4096), timeout=7200,
               retries=0, max_containers=10, scaledown_window=60)
-def integrate(payload: bytes) -> tuple[int, str, IntegrationData]:
+def integrate(payload: bytes) -> tuple[int, str, States]:
     """Run a single float64 integration, returning results to the local caller."""
     return execute_cycle_payload(payload)

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from states.layout import GCStateLayout
+from formulations.layout import GCStateLayout
 
 from dataclasses import replace
 import unittest
@@ -12,9 +12,9 @@ import numpy as np
 
 from contracts.nonlinear import NewtonIteration
 from contracts.problem import InitialValueProblem
-from contracts.request import SimulationRequest
+from request import SimulationRequest
 from dynamics.gc import GuidingCenterDynamics
-from states.state import State
+
 from methods._linear import _solve_particle_systems
 from methods._nonlinear import _bind_newton_observer, _solve_newton
 from methods.classical.gauss_legendre import GaussLegendre4
@@ -27,10 +27,7 @@ from simulation.runner import simulate
 
 def _problem(count: int = 3) -> InitialValueProblem:
 	"""Three independent nonlinear particles expose packed/batched shape errors."""
-	return InitialValueProblem(
-		GuidingCenterDynamics(Potential.random(A=.08, M=3, nx=16, ny=16, seed=27), rho=.05),
-		State.from_components(np.linspace(1., 1.2, count), np.linspace(1.2, 1.4, count), layout=GCStateLayout()),
-	)
+	return InitialValueProblem(GuidingCenterDynamics(Potential.random(A=.08, M=3, nx=16, ny=16, seed=27), rho=.05), GCStateLayout().pack_components(np.linspace(1., 1.2, count), np.linspace(1.2, 1.4, count)), layout=GCStateLayout())
 
 
 def _request(dense: bool = False) -> SimulationRequest:

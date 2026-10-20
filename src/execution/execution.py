@@ -2,8 +2,8 @@
 
 from contracts.execution_options import ExecutionOptions
 from contracts.problem import InitialValueProblem
-from contracts.request import SimulationRequest
-from contracts.result import IntegrationData
+from request import SimulationRequest
+from states.history import States
 from methods.base import NumericalMethod
 
 
@@ -22,12 +22,12 @@ class Execution:
         method: NumericalMethod,
         request: SimulationRequest,
         *, options: ExecutionOptions | None = None,
-    ) -> IntegrationData:
+    ) -> States:
         """Return the complete physical history and integration diagnostics.
 
         Backend options belong to this job, independently of its executor.
-        Omission uses the existing NumPy/SciPy path. The caller constructs
-        and validates the final Solution from the returned IntegrationData.
+        Omission uses the existing NumPy/SciPy path. The caller validates the returned States against the request without
+        constructing another result container.
         """
         if options is not None and not isinstance(options, ExecutionOptions):
             raise TypeError("`options` must be an ExecutionOptions instance or None.")

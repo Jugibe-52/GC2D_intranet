@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from states.layout import GCStateLayout
+from formulations.layout import GCStateLayout
 
 from studies.historical_h5 import historical_h5_hamiltonian, sample_study_grid
 
@@ -17,7 +17,7 @@ from scipy.interpolate import RectBivariateSpline
 
 from diagnostics import central_difference_jacobian
 from dynamics import GuidingCenterDynamics
-from states.state import State
+
 from potential import (
 	GC2DH5Metadata,
 	Potential,
@@ -618,21 +618,17 @@ class GC2DH5ImportTests(unittest.TestCase):
 		self.assertTrue(np.all(np.isfinite(averaged.evaluate_grid(0.02))))
 
 		angles = np.linspace(0.0, 2.0 * np.pi, 5, endpoint=False)
-		configuration = State.from_components(
-			0.22 + 0.005 * np.cos(angles),
-			0.15 + 0.005 * np.sin(angles),
-			layout=GCStateLayout(),
-		)
+		configuration = GCStateLayout().pack_components(0.22 + 0.005 * np.cos(angles), 0.15 + 0.005 * np.sin(angles))
 		dynamics = GuidingCenterDynamics(potential, rho=0.0)
 		jacobians = dynamics.particle_vector_field_jacobians(
 			0.0,
-			configuration.initial_state,
+			configuration,
 		)
 		self.assertEqual(jacobians.shape, (5, 2, 2))
 		self.assertTrue(np.all(np.isfinite(jacobians)))
 
 		solution = simulate(
-			InitialValueProblem(dynamics, configuration),
+			InitialValueProblem(dynamics, configuration, layout=GCStateLayout()),
 			ABBA4Implicit(newton_max_iterations=20),
 			SimulationRequest.uniform(
 				t_span=(0.0, 1e-3 / (2.0 * np.pi)),

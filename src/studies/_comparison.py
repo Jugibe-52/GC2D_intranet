@@ -1,6 +1,8 @@
 """Shared operations for the three-, four-, and five-method comparison families."""
 from __future__ import annotations
 
+from formulations.layout import GCStateLayout
+
 from dataclasses import asdict, dataclass
 from time import perf_counter
 from types import MappingProxyType
@@ -12,9 +14,9 @@ from contracts.comparison import (
 	FiveMethodComparisonSummary, FiveMethodNonlinearWorkSummary, ThreeMethodNewtonSummary,
 )
 from contracts.problem import InitialValueProblem
-from contracts.request import SimulationRequest
+from request import SimulationRequest
 from dynamics.gc import GuidingCenterDynamics
-from states.state import State
+
 from methods.base import NumericalMethod
 from methods.extended.abba import ABBA4Implicit
 from methods.extended.bm4 import BM4Implicit
@@ -22,7 +24,7 @@ from methods.classical.gauss_legendre import GaussLegendre4
 from methods.classical.sdirk import SDIRK4
 from methods.classical.rk4 import RK4
 from potential.potential import Potential
-from solution import Solution
+from states.history import States
 from simulation.runner import simulate
 from ._comparison_validation import comparison_runtime_samples, validate_comparison_solution, validate_trajectory_series, validate_energy_series
 from ._trajectory_distances import DistanceConvention, normalized_distance_convention
@@ -163,7 +165,7 @@ def time_integrated_particle_rms(values: np.ndarray, times: np.ndarray) -> float
 	)
 
 
-def solution_residual_evaluations(solution: Solution) -> np.ndarray:
+def solution_residual_evaluations(solution: States) -> np.ndarray:
 	"""Read the canonical complete-step residual-work series."""
 	return np.asarray(solution.diagnostics["residual_evaluations"], dtype=int)
 
@@ -174,10 +176,10 @@ class ComparisonResult:
 
 	potential: Potential
 	dynamics: GuidingCenterDynamics
-	initial_configuration: State
+	initial_configuration: np.ndarray
 	config: ComparisonConfig
 	reference: AdaptiveReference
-	solutions: Mapping[str, Solution]
+	solutions: Mapping[str, States]
 	accuracy: Mapping[str, TrajectoryAccuracySeries]
 	reference_energies: np.ndarray
 	audit_energies: np.ndarray
@@ -195,8 +197,8 @@ class ComparisonResult:
 			raise TypeError("`potential` must be a Potential instance.")
 		if not isinstance(self.dynamics, GuidingCenterDynamics):
 			raise TypeError("`dynamics` must be GuidingCenterDynamics.")
-		if not (isinstance(self.initial_configuration, State) and self.initial_configuration.layout.state_dimension == 2):
-			raise TypeError("`initial_configuration` must be State.")
+		if not (isinstance(self.initial_configuration, np.ndarray) and GCStateLayout().state_dimension == 2):
+			raise TypeError("`initial_configuration` must be np.ndarray.")
 		if not isinstance(self.config, self.config_type):
 			raise TypeError(f"`config` must be {self.config_type.__name__}.")
 		names = tuple(self.solutions)
@@ -450,7 +452,7 @@ _ComparisonResultT = TypeVar("_ComparisonResultT", bound=ComparisonResult)
 
 def run_alternating_comparison(
 	potential: Potential,
-	initial_configuration: State,
+	initial_configuration: np.ndarray,
 	*,
 	config: ComparisonConfig,
 	method_names: tuple[str, ...],
@@ -459,13 +461,13 @@ def run_alternating_comparison(
 	"""Run three aligned Newton integrations and an independently audited reference."""
 	if not isinstance(potential, Potential):
 		raise TypeError("`potential` must be a Potential instance.")
-	if not (isinstance(initial_configuration, State) and initial_configuration.layout.state_dimension == 2):
-		raise TypeError("`initial_configuration` must be State.")
+	if not (isinstance(initial_configuration, np.ndarray) and GCStateLayout().state_dimension == 2):
+		raise TypeError("`initial_configuration` must be np.ndarray.")
 	if not isinstance(config, ComparisonConfig):
 		raise TypeError("`config` must be ComparisonConfig.")
 	study_started = perf_counter()
 	dynamics = GuidingCenterDynamics(potential, rho=config.rho)
-	problem = InitialValueProblem(dynamics, initial_configuration)
+	problem = InitialValueProblem(dynamics, initial_configuration, layout=GCStateLayout())
 	request = SimulationRequest.uniform(
 		t_span=config.t_span,
 		max_step=config.integration_step,
@@ -501,7 +503,7 @@ def run_alternating_comparison(
 	for _ in range(config.timing_warmups):
 		for method_name in method_names:
 			simulate(problem, comparison_method(method_name, config), request)
-	solutions: dict[str, Solution] = {}
+	solutions: dict[str, States] = {}
 	runtime_values: dict[str, list[float]] = {
 		name: [] for name in method_names
 	}

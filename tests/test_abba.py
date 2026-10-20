@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from states.layout import FCStateLayout
-from states.layout import GCStateLayout
+from formulations.layout import FCStateLayout
+from formulations.layout import GCStateLayout
 
 import json
 from pathlib import Path
@@ -19,7 +19,7 @@ from dynamics import (
 	FullCyclotronDynamics,
 	GuidingCenterDynamics,
 )
-from states.state import State
+
 from potential import Potential
 from simulation import (
 	ABBA2Implicit,
@@ -176,10 +176,7 @@ class ABBA2ImplicitTests(unittest.TestCase):
 		start = 0.2
 		step = 0.1
 		solution = simulate(
-			InitialValueProblem(
-				dynamics,
-				State(initial_state, layout=GCStateLayout()),
-			),
+			InitialValueProblem(dynamics, np.array(initial_state, dtype=float, copy=True), layout=GCStateLayout()),
 			ABBA2Implicit(step_observer=lambda _step: None),
 			SimulationRequest.uniform(
 				t_span=(start, start + step),
@@ -207,10 +204,7 @@ class ABBA2ImplicitTests(unittest.TestCase):
 		# Without an observer, only the capability preflight needs a Hessian.
 		unobserved_dynamics = _TimeOnlyPlanarDynamics()
 		simulate(
-			InitialValueProblem(
-				unobserved_dynamics,
-				State(initial_state, layout=GCStateLayout()),
-			),
+			InitialValueProblem(unobserved_dynamics, np.array(initial_state, dtype=float, copy=True), layout=GCStateLayout()),
 			ABBA2Implicit(),
 			SimulationRequest.uniform(
 				t_span=(start, start + step),
@@ -295,8 +289,8 @@ class ABBA2ImplicitTests(unittest.TestCase):
 
 	def test_method_has_second_order_global_accuracy(self) -> None:
 		dynamics = gc_dynamics()
-		source = State(np.asarray([1.0, 1.2]), layout=GCStateLayout())
-		problem = InitialValueProblem(dynamics, source)
+		source = np.array(np.asarray([1.0, 1.2]), dtype=float, copy=True)
+		problem = InitialValueProblem(dynamics, source, layout=GCStateLayout())
 
 		def final_state(step: float) -> np.ndarray:
 			return simulate(
@@ -320,8 +314,8 @@ class ABBA2ImplicitTests(unittest.TestCase):
 
 	def test_observation_and_diagnostics_ignore_shadow_steps(self) -> None:
 		dynamics = gc_dynamics()
-		source = State(np.asarray([1.0, 1.2]), layout=GCStateLayout())
-		problem = InitialValueProblem(dynamics, source)
+		source = np.array(np.asarray([1.0, 1.2]), dtype=float, copy=True)
+		problem = InitialValueProblem(dynamics, source, layout=GCStateLayout())
 		events = []
 		observed = simulate(
 			problem,
@@ -362,11 +356,8 @@ class ABBA2ImplicitTests(unittest.TestCase):
 			seed=27,
 			interpolation_order=3,
 		)
-		source = State(np.asarray([1.0, 1.2]), layout=GCStateLayout())
-		zero_problem = InitialValueProblem(
-			GuidingCenterDynamics(zero_potential, rho=0.05),
-			source,
-		)
+		source = np.array(np.asarray([1.0, 1.2]), dtype=float, copy=True)
+		zero_problem = InitialValueProblem(GuidingCenterDynamics(zero_potential, rho=0.05), source, layout=GCStateLayout())
 		solution = simulate(
 			zero_problem,
 			ABBA2Implicit(),
@@ -378,7 +369,7 @@ class ABBA2ImplicitTests(unittest.TestCase):
 		)
 		np.testing.assert_array_equal(
 			solution.states,
-			np.repeat(source.initial_state[:, None], 3, axis=1),
+			np.repeat(source[:, None], 3, axis=1),
 		)
 		np.testing.assert_array_equal(solution.diagnostics["newton_iterations"], 0)
 
@@ -389,18 +380,12 @@ class ABBA2ImplicitTests(unittest.TestCase):
 		with self.assertRaises(ValueError):
 			ABBA2Implicit(newton_max_iterations=0)
 
-		fc_source = State(
-			np.asarray([1.0, 1.2, 0.4, -0.3]),
-			layout=FCStateLayout(),
-		)
-		fc_problem = InitialValueProblem(
-			FullCyclotronDynamics(
+		fc_source = np.array(np.asarray([1.0, 1.2, 0.4, -0.3]), dtype=float, copy=True)
+		fc_problem = InitialValueProblem(FullCyclotronDynamics(
 				deterministic_potential(),
 				rho=0.2,
 				eta=0.1,
-			),
-			fc_source,
-		)
+			), fc_source, layout=FCStateLayout())
 		with self.assertRaisesRegex(TypeError, "GuidingCenterJacobianSystem"):
 			simulate(
 				fc_problem,
@@ -413,10 +398,7 @@ class ABBA2ImplicitTests(unittest.TestCase):
 			)
 
 	def test_nonconvergence_reports_time_step_and_residual(self) -> None:
-		problem = InitialValueProblem(
-			gc_dynamics(),
-			State(np.asarray([1.0, 1.2]), layout=GCStateLayout()),
-		)
+		problem = InitialValueProblem(gc_dynamics(), np.array(np.asarray([1.0, 1.2]), dtype=float, copy=True), layout=GCStateLayout())
 		with self.assertRaisesRegex(
 			RuntimeError,
 			"t=.*step=.*residual norm",

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from formulations.layout import GCStateLayout
+
 from ._comparison import (
 	COMPARISON_LABELS, ComparisonConfig, ComparisonResult, comparison_method,
 	readonly_energy_history, accuracy_summaries, nonlinear_work_summaries,
@@ -22,11 +24,11 @@ import numpy as np
 
 
 from dynamics import GuidingCenterDynamics
-from states.state import State
+
 from potential import Potential
 from contracts.problem import InitialValueProblem
-from contracts.request import SimulationRequest
-from solution import Solution
+from request import SimulationRequest
+from states.history import States
 from simulation.runner import simulate
 
 from contracts.comparison import AdaptiveReference
@@ -86,7 +88,7 @@ def _print_progress(enabled: bool, message: str) -> None:
 
 def run_five_method_comparison(
 	potential: Potential,
-	initial_configuration: State,
+	initial_configuration: np.ndarray,
 	*,
 	config: FiveMethodComparisonConfig,
 	method_names: tuple[str, ...] = FIVE_METHOD_COMPARISON_METHODS,
@@ -100,8 +102,8 @@ def run_five_method_comparison(
 	passing a reused reference. Its times and initial states are checked here."""
 	if not isinstance(potential, Potential):
 		raise TypeError("`potential` must be a Potential instance.")
-	if not (isinstance(initial_configuration, State) and initial_configuration.layout.state_dimension == 2):
-		raise TypeError("`initial_configuration` must be State.")
+	if not (isinstance(initial_configuration, np.ndarray) and GCStateLayout().state_dimension == 2):
+		raise TypeError("`initial_configuration` must be np.ndarray.")
 	if not isinstance(config, FiveMethodComparisonConfig):
 		raise TypeError("`config` must be FiveMethodComparisonConfig.")
 	method_names = tuple(method_names)
@@ -111,7 +113,7 @@ def run_five_method_comparison(
 		raise ValueError("Select distinct supported comparison methods.")
 	study_started = perf_counter()
 	dynamics = GuidingCenterDynamics(potential, rho=config.rho)
-	problem = InitialValueProblem(dynamics, initial_configuration)
+	problem = InitialValueProblem(dynamics, initial_configuration, layout=GCStateLayout())
 	request = SimulationRequest.uniform(
 		t_span=config.t_span,
 		max_step=config.integration_step,
@@ -226,7 +228,7 @@ def run_five_method_comparison(
 		phase: str,
 		repeat: int,
 		repeat_count: int,
-	) -> tuple[Solution, float]:
+	) -> tuple[States, float]:
 		"""Execute and log one vectorized multi-trajectory integration."""
 		nonlocal completed_method_runs
 		label = FIVE_METHOD_COMPARISON_LABELS[method_name]
@@ -264,7 +266,7 @@ def run_five_method_comparison(
 			)
 		return solution, runtime_seconds
 
-	def execute_model_campaign(method_name: str) -> tuple[Solution, list[float]]:
+	def execute_model_campaign(method_name: str) -> tuple[States, list[float]]:
 		"""Run all repetitions for one model in its dedicated worker."""
 		for warmup in range(1, config.timing_warmups + 1):
 			executecomparison_method(
@@ -273,7 +275,7 @@ def run_five_method_comparison(
 				repeat=warmup,
 				repeat_count=config.timing_warmups,
 			)
-		latest_solution: Solution | None = None
+		latest_solution: States | None = None
 		runtimes: list[float] = []
 		for repeat in range(1, config.timing_repeats + 1):
 			latest_solution, runtime_seconds = executecomparison_method(

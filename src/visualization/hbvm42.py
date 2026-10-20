@@ -10,7 +10,7 @@ import numpy as np
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 
-from solution import Solution
+from states.history import States
 
 
 class HBVM42EvaluationSummaryView(Protocol):
@@ -179,7 +179,7 @@ def plot_hbvm42_evaluation(
 
 
 def plot_hbvm42_energy_errors(
-	solutions: Mapping[float, Solution],
+	solutions: Mapping[float, States],
 ) -> tuple[Figure, Axes]:
 	"""Plot signed physical-Hamiltonian drift for every evaluated HBVM step."""
 	if not solutions:

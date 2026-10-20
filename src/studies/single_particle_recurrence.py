@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from states.layout import GCStateLayout
+from formulations.layout import GCStateLayout
 
 from dataclasses import asdict, dataclass
 from time import perf_counter
@@ -12,10 +12,10 @@ import numpy as np
 from scipy.optimize import brentq
 
 from diagnostics.adaptive_trajectory import AdaptiveTrajectoryObserver
-from states.state import State
+
 from methods.adaptive.scipy import DOP853, Radau
 from contracts.problem import InitialValueProblem
-from contracts.request import SimulationRequest
+from request import SimulationRequest
 from dynamics import GuidingCenterDynamics
 from potential import Potential
 
@@ -176,7 +176,7 @@ def run_single_particle_recurrence(
                         dense_output=True, step_observer=observer)
         configured = (Radau(**controls, jacobian=lambda t, z: dynamics.particle_vector_field_jacobians(t, z)[0])
                       if method == 'Radau' else DOP853(**controls))
-        problem = InitialValueProblem(dynamics, State(initial, layout=GCStateLayout()))
+        problem = InitialValueProblem(dynamics, np.array(initial, dtype=float, copy=True), layout=GCStateLayout())
         data = configured.integrate(problem, SimulationRequest(
             t_span=(0.0, config.final_time), max_step=options['max_step'], output_times=times))
         dense = observer.evaluate

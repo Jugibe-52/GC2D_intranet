@@ -11,7 +11,7 @@ import sys
 import modal
 
 from execution._modal_worker import execute_payload
-from contracts.result import IntegrationData
+from states.history import States
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -28,6 +28,6 @@ app = modal.App("gc2d-execution")
 
 
 @app.function(image=image, timeout=3600, retries=0)
-def integrate(payload: bytes) -> tuple[int, str, IntegrationData]:
+def integrate(payload: bytes) -> tuple[int, str, States]:
     """Return a complete NumPy result; persistence happens on the caller."""
     return execute_payload(payload)

@@ -8,10 +8,10 @@ from typing import Any, ClassVar, Mapping, cast
 
 import numpy as np
 
-from states.state import State
+
 from potential import Potential
 from methods.extended.abba import ABBA2Midpoint
-from solution import Solution
+from states.history import States
 
 from ._gc_symplecticity import (
 	GCSymplecticityConfig,
@@ -46,7 +46,7 @@ class ABBA2MidpointDefectOrder:
 	copy_separation: float
 
 
-def _maximum_copy_separation(solution: Solution) -> float:
+def _maximum_copy_separation(solution: States) -> float:
 	"""Validate and reduce the per-step off-diagonal copy separation."""
 	values = np.asarray(solution.diagnostics.get("copy_separation_norms"))
 	step_count = int(solution.diagnostics.get("step_count", 0))
@@ -151,7 +151,7 @@ class ABBA2MidpointSymplecticityResult(GCSymplecticityResult):
 
 def run_abba2_midpoint_symplecticity_study(
 	potential: Potential,
-	area: State,
+	area: np.ndarray,
 	*,
 	notebook_path: str | Path,
 	config: ABBA2MidpointSymplecticityConfig,

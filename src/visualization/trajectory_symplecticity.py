@@ -10,7 +10,7 @@ import numpy as np
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 
-from solution import Solution
+from states.history import States
 
 if TYPE_CHECKING:
 	from studies.trajectory_symplecticity import TrajectorySymplecticityResult
@@ -124,14 +124,14 @@ def plot_trajectory_symplecticity(
 
 
 def plot_gc_trajectory_points(
-	solution: Solution,
+	solution: States,
 	*,
 	method_name: str,
 	step_label: str | None = None,
 ) -> tuple[Figure, Axes]:
 	"""Plot sampled planar trajectories as points without connecting lines."""
-	if not isinstance(solution, Solution):
-		raise TypeError("`solution` must be a Solution instance.")
+	if not isinstance(solution, States):
+		raise TypeError("`solution` must be a States instance.")
 	x, y = solution.positions()
 	if x.ndim != 2 or y.shape != x.shape:
 		raise ValueError("The solution must contain sampled planar trajectories.")

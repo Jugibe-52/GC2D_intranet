@@ -1,6 +1,5 @@
-"""Physical state snapshots and canonical component layouts."""
+"""Recorded physical samples and completed simulation results."""
 
-from states.layout import FCState, FCStateLayout, GCState, GCStateLayout, PackedStateLayout
-from states.state import State
+from states.history import States
 
-__all__ = ["State", "PackedStateLayout", "GCState", "GCStateLayout", "FCState", "FCStateLayout"]
+__all__ = ["States"]

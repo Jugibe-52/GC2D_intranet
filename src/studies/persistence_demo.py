@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from states.layout import GCStateLayout
+from formulations.layout import GCStateLayout
 
 from dataclasses import asdict, dataclass
 import hashlib
@@ -11,14 +11,14 @@ from pathlib import Path
 import numpy as np
 
 from contracts.problem import InitialValueProblem
-from contracts.request import SimulationRequest
+from request import SimulationRequest
 from diagnostics.persistence import save_solution
 from dynamics.gc import GuidingCenterDynamics
-from states.state import State
+
 from methods.classical.rk4 import RK4
 from potential.potential import Potential
 from simulation.runner import simulate
-from solution import Solution
+from states.history import States
 
 
 @dataclass(frozen=True)
@@ -46,7 +46,7 @@ class PersistenceDemoConfig:
 
 def run_persistence_demo(
     config: PersistenceDemoConfig, destination: str | Path,
-) -> tuple[Solution, str]:
+) -> tuple[States, str]:
     """Integrate all particles together and publish a self-contained result."""
     potential = Potential.random(
         A=config.amplitude, M=config.maximum_wave_number,
@@ -60,15 +60,11 @@ def run_persistence_demo(
             or not np.isfinite(config.angle_radians)):
         raise ValueError("Use finite radial fractions in [0, 0.5) and a finite angle.")
     radii = fractions * grid.period
-    initial = State.from_components(
-        grid.x0 + grid.period / 2 + radii * np.cos(config.angle_radians),
-        grid.y0 + grid.period / 2 + radii * np.sin(config.angle_radians),
-        layout=GCStateLayout(),
-    )
+    initial = GCStateLayout().pack_components(grid.x0 + grid.period / 2 + radii * np.cos(config.angle_radians), grid.y0 + grid.period / 2 + radii * np.sin(config.angle_radians))
     dynamics = GuidingCenterDynamics(potential, rho=config.rho)
     request = SimulationRequest.uniform(t_span=config.t_span, max_step=config.max_step,
                                         sample_count=config.sample_count)
-    solution = simulate(InitialValueProblem(dynamics, initial), RK4(track_energy=True), request)
+    solution = simulate(InitialValueProblem(dynamics, initial, layout=GCStateLayout()), RK4(track_energy=True), request)
     # Hash the source used for this run, including uncommitted implementation
     # changes; a Git commit alone would not identify a local development run.
     source_root = Path(__file__).resolve().parents[1]

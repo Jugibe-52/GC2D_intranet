@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from states.layout import GCStateLayout
+from formulations.layout import GCStateLayout
 
 from dataclasses import replace
 from pathlib import Path
@@ -16,7 +16,7 @@ from diagnostics import (
 	abba4_implicit_step_particle_jacobians,
 	central_difference_jacobian,
 )
-from states.state import State
+
 from simulation import (
 	ABBA4Implicit,
 	ABBA4ImplicitIntegrationStep,
@@ -92,12 +92,8 @@ class _PolynomialTimeDynamics:
 
 def _rotation_problem() -> InitialValueProblem:
 	"""Return one oscillator trajectory starting from ``(1, 0)``."""
-	configuration = State.from_components(
-		np.asarray([1.0]),
-		np.asarray([0.0]),
-		layout=GCStateLayout(),
-	)
-	return InitialValueProblem(_LinearRotationDynamics(), configuration)
+	configuration = GCStateLayout().pack_components(np.asarray([1.0]), np.asarray([0.0]))
+	return InitialValueProblem(_LinearRotationDynamics(), configuration, layout=GCStateLayout())
 
 
 def _dense(blocks: np.ndarray) -> np.ndarray:
@@ -251,12 +247,8 @@ class ABBA4ImplicitMethodTests(unittest.TestCase):
 		np.testing.assert_allclose(backward.state, state, rtol=0.0, atol=2e-15)
 
 	def test_fourth_order_composition_uses_signed_non_autonomous_times(self) -> None:
-		configuration = State.from_components(
-			np.asarray([0.0]),
-			np.asarray([0.0]),
-			layout=GCStateLayout(),
-		)
-		problem = InitialValueProblem(_PolynomialTimeDynamics(), configuration)
+		configuration = GCStateLayout().pack_components(np.asarray([0.0]), np.asarray([0.0]))
+		problem = InitialValueProblem(_PolynomialTimeDynamics(), configuration, layout=GCStateLayout())
 		errors = []
 		for step in (0.2, 0.1, 0.05, 0.025):
 			solution = simulate(
@@ -277,12 +269,8 @@ class ABBA4ImplicitMethodTests(unittest.TestCase):
 			self.assertLess(float(gain), 16.1)
 
 	def test_exact_composed_jacobian_matches_centered_difference(self) -> None:
-		configuration = State.from_components(
-			np.asarray([1.0, 1.4]),
-			np.asarray([0.2, 0.6]),
-			layout=GCStateLayout(),
-		)
-		problem = InitialValueProblem(_LinearRotationDynamics(), configuration)
+		configuration = GCStateLayout().pack_components(np.asarray([1.0, 1.4]), np.asarray([0.2, 0.6]))
+		problem = InitialValueProblem(_LinearRotationDynamics(), configuration, layout=GCStateLayout())
 		events = []
 		simulate(
 			problem,

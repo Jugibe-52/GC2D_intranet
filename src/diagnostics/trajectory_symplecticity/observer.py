@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from formulations.layout import GCStateLayout
+
 from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from datetime import date
@@ -18,7 +20,7 @@ from diagnostics.paths import (
 	validate_block_name,
 )
 from dynamics import GuidingCenterJacobianSystem
-from states.state import State
+
 from contracts.observation import IntegrationStep
 
 
@@ -102,7 +104,7 @@ def _particle_metrics(jacobians: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
 
 def _validated_observer_initial_state(
 	dynamics: GuidingCenterJacobianSystem,
-	initial_configuration: State,
+	initial_configuration: np.ndarray,
 	method_name: str,
 	jacobian_method: str,
 	jacobian_calculator: TrajectoryJacobianCalculator,
@@ -112,9 +114,9 @@ def _validated_observer_initial_state(
 		raise TypeError(
 			"GCTrajectorySymplecticityObserver requires exact GC Jacobians."
 		)
-	if not (isinstance(initial_configuration, State) and initial_configuration.layout.state_dimension == 2):
+	if not (isinstance(initial_configuration, np.ndarray) and GCStateLayout().state_dimension == 2):
 		raise TypeError("`initial_configuration` must be a GC configuration.")
-	initial_state = initial_configuration.initial_state
+	initial_state = initial_configuration
 	if initial_state is None:
 		raise ValueError("The GC initial configuration has no initial state.")
 	if not isinstance(method_name, str) or not method_name.strip():
@@ -133,7 +135,7 @@ class GCTrajectorySymplecticityObserver:
 		self,
 		*,
 		dynamics: GuidingCenterJacobianSystem,
-		initial_configuration: State,
+		initial_configuration: np.ndarray,
 		method_name: str,
 		jacobian_method: str,
 		jacobian_calculator: TrajectoryJacobianCalculator,
@@ -154,7 +156,7 @@ class GCTrajectorySymplecticityObserver:
 		self.dynamics = dynamics
 		self.initial_configuration = initial_configuration
 		self.initial_state = np.asarray(initial_state, dtype=float).copy()
-		self.particle_count = initial_configuration.layout.particle_count(initial_state)
+		self.particle_count = GCStateLayout().particle_count(initial_state)
 		self.method_name = method_name
 		self.jacobian_method = jacobian_method
 		self.jacobian_calculator = jacobian_calculator

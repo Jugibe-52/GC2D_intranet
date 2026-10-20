@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import numpy as np
+
 from ._comparison import (
 	COMPARISON_LABELS, ComparisonConfig, ComparisonResult,
 	implicit_summaries, run_alternating_comparison,
@@ -14,7 +16,7 @@ from types import MappingProxyType
 from typing import ClassVar, Mapping
 
 
-from states.state import State
+
 from potential import Potential
 
 
@@ -49,7 +51,7 @@ class ThreeMethodNewtonComparisonResult(ComparisonResult):
 
 def run_three_method_newton_comparison(
 	potential: Potential,
-	initial_configuration: State,
+	initial_configuration: np.ndarray,
 	*,
 	config: ThreeMethodNewtonComparisonConfig,
 ) -> ThreeMethodNewtonComparisonResult:

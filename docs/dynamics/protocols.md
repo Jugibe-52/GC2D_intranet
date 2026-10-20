@@ -44,36 +44,19 @@ component-major blocks. The physical dimensions and ordering do not change.
 Integration preparation selects devices and compilation; the dynamics do not
 accept execution options or own a second JAX implementation. The SciPy adaptive
 controller has an explicit adapter for transfers when JAX execution is selected.
-Saved `Solution` arrays remain NumPy. See the
+Saved `States` arrays remain NumPy. See the
 [shared potential contract](jax-potential-evaluation.md) for class selection and device
 placement, including NumPy-only `evaluate_grid` reconstruction.
 
 ## Physical layouts and problem ownership
 
-`states.layout` owns `PackedStateLayout`, `GCState`, `GCStateLayout`, `FCState` and `FCStateLayout`. Dynamics, formulations and generators use these same component-major operations. The public `states` package explicitly reexports them and the single immutable `State` snapshot class. The retired `initial_conditions` package and `contracts.state_layout` module have no compatibility reexports. Structural external providers remain supported.
+`formulations.layout` owns `PackedStateLayout`, `GCState`, `GCStateLayout`, `FCState` and `FCStateLayout`. Dynamics, formulations, generators and results share these component-major operations. `GCState` and `FCState` are named component tuples, not storage classes. The structural `StateLayout` protocol remains in `contracts.configuration` and requires no inheritance from a built-in layout.
 
+`split` reshapes the packed vector or history into component blocks without calling the explicit validator. `validate_packed_state_layout` checks nonempty complete blocks; `as_blocks` also validates them. The inferred reshape in `split` requires nonempty sample axes. Operations preserve NumPy/JAX backends.
 
-`split` reshapes the state directly and returns its component blocks, without
-calling the explicit layout validator. Use `validate_packed_state_layout` when
-non-empty particle blocks must be checked; `as_blocks` still performs that
-validation. The inferred reshape in `split` requires non-empty sample axes.
+`InitialValueProblem(dynamics, initial_state, layout=...)` accepts a finite one-dimensional physical array. It captures independent array and deepcopy-compatible layout snapshots and validates particle count and dynamics dimension. GC uses `[x, y]`; FC uses `[x, y, vx, vy]`. An omitted layout selects the canonical GC/FC layout from the dynamics dimension; other dimensions require an explicit structural layout. GC doubled maps require two physical components; FC split maps require four plus `CyclotronSplitSystem`. Hamiltonian capability is independent of this layout choice.
 
-An external initial-state provider implements `InitialConfiguration` and supplies
-a `StateLayout`. Layouts must be deepcopy-compatible and interpret component-major
-particle blocks: GC uses `[x, y]`, and FC uses `[x, y, vx, vy]`. GC doubled maps
-require two physical components; FC split maps require four components plus
-`CyclotronSplitSystem`. Neither requires inheritance from a built-in initial
-configuration. The optional Hamiltonian capability remains independent.
-
-`InitialValueProblem` captures and validates the state, layout, and particle count
-at construction. Its `initial_state` and `layout` properties return independent
-copies. `initial_configuration` retains the original provider for provenance;
-changing that provider afterward cannot change the problem or a formulation
-prepared from it. `Solution` similarly owns independent `layout` and `initial_state`
-snapshots while retaining its original `source` as provenance. Interpretation and
-persistence use those snapshots, so editing an initial-condition builder after a
-run cannot relabel its saved state. Construct a new problem to use a revised
-initial condition.
+Problem accessors return independent initial-array and layout copies. `States` similarly preserves an independent initial snapshot and layout alongside its physical history. There is no retained provider identity or `source` object. Construct a new problem to use revised initial values. The initial time belongs to `request.SimulationRequest`, and the integration controller manages current internal values and time through `IntegrationState`.
 
 Built-in GC and FC dynamics freeze their physical parameters. Construct a new
 `GuidingCenterDynamics` or `FullCyclotronDynamics` for a different potential,

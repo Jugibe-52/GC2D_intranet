@@ -9,12 +9,12 @@ from time import perf_counter, process_time
 
 import numpy as np
 
-from contracts.result import IntegrationData
+from states.history import States
 from execution._modal_worker import PAYLOAD_VERSION, decode_job
 from execution.execution import Execution
 
 
-def benchmark_payload(payload: bytes, *, cpu_cores: int, repetitions: int) -> tuple[int, str, IntegrationData]:
+def benchmark_payload(payload: bytes, *, cpu_cores: int, repetitions: int) -> tuple[int, str, States]:
     """Separate first-call setup/JIT from repeated integrations of the same job.
 
     The returned NumPy arrays synchronize the device on every invocation. Reuse
@@ -65,7 +65,7 @@ def benchmark_payload(payload: bytes, *, cpu_cores: int, repetitions: int) -> tu
         benchmark_first_seconds=first_seconds, benchmark_wall_seconds=np.asarray(wall),
         benchmark_process_seconds=np.asarray(cpu), benchmark_environment=json.dumps(environment),
     )
-    return PAYLOAD_VERSION, sha256(payload).hexdigest(), IntegrationData(data.t, data.states, diagnostics)
+    return PAYLOAD_VERSION, sha256(payload).hexdigest(), data.with_diagnostics(diagnostics)
 
 
 __all__: list[str] = []

@@ -1,6 +1,6 @@
 """Test exact restart and compare against unmodified public RK4."""
 
-from states.layout import GCStateLayout
+from formulations.layout import GCStateLayout
 import json,tempfile
 import numpy as np
 from study_io import ROOT,load_snapshot,load_calculation,atomic_json,utc_now
@@ -11,10 +11,10 @@ def main() -> None:
     settings={k:m[k] for k in ('rho','coupling_frequency','newton_atol','newton_rtol','newton_max_iterations','jacobian_relative_step','t_span','step','method','particle_ids','checkpoint_steps')};settings.update(n_steps=40,record_newton_history=False,test_stop_after_chunks=0)
     potential,_,_=load_snapshot()
     from dynamics import GuidingCenterDynamics
-    from states.state import State
+    import numpy as np
     from methods.classical.rk4 import RK4
     from contracts.problem import InitialValueProblem
-    from contracts.request import SimulationRequest
+    from request import SimulationRequest
     from simulation.runner import simulate
     discrepancies=[]
     with tempfile.TemporaryDirectory() as directory:
@@ -24,7 +24,7 @@ def main() -> None:
             baseline=calculate_checkpointed_group(ids,a['initial_positions'],settings)
             expected=np.stack((a['states'][ids].T,a['states'][48+ids].T),axis=-1)
             np.testing.assert_array_equal(baseline['xy'],expected)
-            problem=InitialValueProblem(GuidingCenterDynamics(potential,rho=.3),State.from_components(xy[:,0],xy[:,1], layout=GCStateLayout()))
+            problem=InitialValueProblem(GuidingCenterDynamics(potential,rho=.3), GCStateLayout().pack_components(xy[:,0], xy[:,1]), layout=GCStateLayout())
             solution=simulate(problem,RK4(),SimulationRequest.uniform(t_span=(0.,2.),max_step=.05,sample_count=41))
             full=np.stack(solution.positions(),axis=-1).transpose(1,0,2)
             discrepancies.append(float(np.max(np.abs(full-expected))))

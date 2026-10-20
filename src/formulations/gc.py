@@ -12,10 +12,13 @@ from typing import TypeAlias
 import numpy as np
 
 from dynamics.protocols import DynamicalSystem, HamiltonianSystem
-from contracts.configuration import InitialConfiguration, StateLayout
-from states.layout import GCStateLayout
+from contracts.configuration import StateLayout
+from formulations.layout import GCStateLayout
 
-from contracts.problem import InitialValueProblem
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+	from contracts.problem import InitialValueProblem
 from formulations.base import _updated_momentum
 from formulations.base import (
 	PreparedDirectAdjointFormulation,
@@ -103,7 +106,7 @@ class GCDoubledMaps:
 	"""
 
 	dynamics: DynamicalSystem
-	configuration: InitialConfiguration
+	configuration: np.ndarray
 	layout: StateLayout
 	coupling_frequency: float | None
 	physical_size: int
@@ -131,7 +134,7 @@ class GCDoubledMaps:
 		initial = _GCExtendedState(physical, physical, np.zeros(count) if track_energy else None).pack()
 		initial.setflags(write=False)
 		object.__setattr__(self, "dynamics", problem.dynamics)
-		object.__setattr__(self, "configuration", problem.initial_configuration)
+		object.__setattr__(self, "configuration", problem.initial_state)
 		object.__setattr__(self, "layout", layout)
 		object.__setattr__(self, "coupling_frequency", coupling_frequency)
 		object.__setattr__(self, "physical_size", physical.size)

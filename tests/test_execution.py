@@ -1,6 +1,6 @@
 """Complete-job execution, subclass dispatch and result validation contracts."""
 
-from states.layout import GCStateLayout
+from formulations.layout import GCStateLayout
 
 import unittest
 from unittest.mock import patch
@@ -9,11 +9,11 @@ import numpy as np
 
 from contracts.execution_options import ExecutionOptions
 from contracts.problem import InitialValueProblem
-from contracts.request import SimulationRequest
-from contracts.result import IntegrationData
+from request import SimulationRequest
+from states.history import States
 from execution import Execution
 from execution.execution import Execution as CanonicalExecution
-from states.state import State
+
 from methods.classical.rk4 import RK4
 from simulation.runner import simulate
 
@@ -42,10 +42,7 @@ class ReturnedExecution(Execution):
 
 class ExecutionTests(unittest.TestCase):
     def setUp(self):
-        self.problem = InitialValueProblem(
-            RotationDynamics(),
-            State.from_components(np.array([1.]), np.array([0.]), layout=GCStateLayout()),
-        )
+        self.problem = InitialValueProblem(RotationDynamics(), GCStateLayout().pack_components(np.array([1.]), np.array([0.])), layout=GCStateLayout())
         self.method = RK4()
         self.request = SimulationRequest.uniform(
             t_span=(0., .2), max_step=.01, sample_count=3,
@@ -56,7 +53,7 @@ class ExecutionTests(unittest.TestCase):
         executor = Execution()
         first = executor.run(self.problem, self.method, self.request)
         second = executor.run(self.problem, self.method, self.request)
-        self.assertIsInstance(first, IntegrationData)
+        self.assertIsInstance(first, States)
         np.testing.assert_array_equal(first.t, self.request.output_times)
         expected = np.array([np.cos(first.t), -np.sin(first.t)])
         np.testing.assert_allclose(first.states, expected, rtol=1e-9, atol=1e-10)
@@ -82,8 +79,9 @@ class ExecutionTests(unittest.TestCase):
                                       (self.problem, self.method, self.request, options)):
             self.assertIs(received, expected)
         np.testing.assert_array_equal(solution.states, data.states)
-        data.states[0, -1] = 99.
-        self.assertNotEqual(solution.states[0, -1], 99.)
+        self.assertIs(solution, data)
+        with self.assertRaises(ValueError):
+            data.states[0, -1] = 99.
 
     def test_subclass_results_still_undergo_simulation_validation(self):
         data = self.method.integrate(self.problem, self.request)
@@ -91,15 +89,22 @@ class ExecutionTests(unittest.TestCase):
         bad_initial[0, 0] += 1.
         nonfinite = data.states.copy()
         nonfinite[0, -1] = np.nan
-        cases = (
-            IntegrationData(data.t + 1., data.states, {}),
-            IntegrationData(data.t, bad_initial, {}),
-            IntegrationData(data.t, nonfinite, {}),
-        )
-        for invalid in cases:
-            with self.subTest(data=invalid), self.assertRaises(ValueError):
-                simulate(self.problem, self.method, self.request,
-                         execution=ReturnedExecution(invalid))
+        for times, values in ((data.t+1., data.states), (data.t, bad_initial), (data.t, nonfinite)):
+            with self.subTest(times=times), self.assertRaises(ValueError):
+                invalid = States(times, values, layout=self.problem.layout, initial_state=self.problem.initial_state)
+                simulate(self.problem, self.method, self.request, execution=ReturnedExecution(invalid))
+
+    def test_executor_cannot_relabel_a_valid_physical_history(self):
+        from formulations.layout import FCStateLayout
+        problem = InitialValueProblem(RotationDynamics(), np.array([1., 0., 2., 0.]))
+        # Two GC particles and one FC particle share four packed coordinates.
+        values = np.repeat(problem.initial_state[:, None], self.request.output_times.size, axis=1)
+        for layout, initial in ((FCStateLayout(), problem.initial_state),
+                                (GCStateLayout(), None),
+                                (GCStateLayout(), problem.initial_state + 1)):
+            invalid = States(self.request.output_times, values, layout=layout, initial_state=initial)
+            with self.subTest(layout=layout, initial=initial), self.assertRaises(ValueError):
+                simulate(problem, self.method, self.request, execution=ReturnedExecution(invalid))
 
     def test_local_executor_passes_explicit_backend_options_to_the_method(self):
         options = ExecutionOptions(backend="jax")

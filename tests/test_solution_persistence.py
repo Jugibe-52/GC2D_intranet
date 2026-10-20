@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from states.layout import FCStateLayout, GCStateLayout
+from formulations.layout import FCStateLayout, GCStateLayout
 
 from dataclasses import replace
 from hashlib import sha256
@@ -20,29 +20,34 @@ import numpy as np
 from diagnostics.persistence import load_solution, save_solution
 from diagnostics.paths import solution_destination
 from diagnostics.storage import StorageError
-from states.state import State
+
 from potential.load import GC2DH5Metadata
 from potential.potential import Potential
-from solution import Solution
+from states.history import States
 from studies.persistence_demo import PersistenceDemoConfig, run_persistence_demo
 
 
 class SolutionPersistenceTests(unittest.TestCase):
+    def test_incomplete_recording_is_rejected_before_creating_an_archive(self) -> None:
+        result = States.prepare(np.array([0., 1.]), np.array([1., 2.]), layout=GCStateLayout())
+        result.record(0., np.array([1., 2.]))
+        destination = self.directory / "partial"
+        with self.assertRaisesRegex(ValueError, "completed States"):
+            save_solution(result, destination, metadata={})
+        self.assertFalse(destination.exists())
+
     def setUp(self) -> None:
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
         self.directory = Path(self.temporary.name)
         self.field = Potential.random(A=0.1, M=2, nx=12, ny=12, seed=17)
 
-    def solution(self, full: bool = False) -> Solution:
+    def solution(self, full: bool = False) -> States:
         layout = FCStateLayout() if full else GCStateLayout()
         state = np.arange(8 if full else 4, dtype=float) / 10
-        return Solution(t=np.array([0.0, 0.1, 0.2]),
-                        states=np.column_stack([state, state + 0.01, state + 0.02]),
-                        source=State(state, layout=layout),
-                        diagnostics={"step_count": 2, "label": "example", "enabled": True,
+        return States(t=np.array([0.0, 0.1, 0.2]), states=np.column_stack([state, state + 0.01, state + 0.02]), initial_state=np.array(state, dtype=float, copy=True), diagnostics={"step_count": 2, "label": "example", "enabled": True,
                                      "error": 1e-5, "work": np.array([1, 2], dtype=np.int64),
-                                     "complex": np.array([1 + 2j]), "missing": np.array([np.nan])})
+                                     "complex": np.array([1 + 2j]), "missing": np.array([np.nan])}, layout=layout)
 
     def test_destination_defaults_to_bucket_and_local_is_explicit(self) -> None:
         self.assertEqual(solution_destination("developements/demo", "run_01"),
@@ -73,7 +78,7 @@ class SolutionPersistenceTests(unittest.TestCase):
                 stored = load_solution(location)
                 np.testing.assert_array_equal(stored.solution.states, solution.states)
                 np.testing.assert_array_equal(stored.solution.t, solution.t)
-                self.assertIs(type(stored.solution.source.layout), type(solution.source.layout))
+                self.assertIs(type(stored.solution.layout), type(solution.layout))
                 self.assertFalse(stored.solution.states.flags.writeable)
                 for name, value in solution.diagnostics.items():
                     np.testing.assert_array_equal(stored.solution.diagnostics[name], value)
@@ -131,12 +136,12 @@ class SolutionPersistenceTests(unittest.TestCase):
 
     def test_no_potential_and_no_initial_configuration_state(self) -> None:
         original = self.solution()
-        solution = Solution(t=original.t, states=original.states, source=SimpleNamespace(initial_state=None, layout=GCStateLayout()))
+        solution = States(t=original.t, states=original.states, initial_state=None, layout=GCStateLayout())
         location = self.directory / "plain"
         save_solution(solution, location, metadata={})
         restored = load_solution(location)
         self.assertIsNone(restored.potential)
-        self.assertIsNone(restored.solution.source.initial_state)
+        self.assertIsNone(restored.solution.initial_state)
 
     def test_legacy_cyclic_rates_decode_once_and_unknown_conventions_fail(self) -> None:
         """Exercise the old writer's arrays and manifest without production archives."""

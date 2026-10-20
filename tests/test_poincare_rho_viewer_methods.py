@@ -13,7 +13,7 @@ import numpy as np
 from contracts.execution_options import ExecutionOptions
 from execution.execution import Execution
 from potential import Grid, Potential
-from solution import Solution
+from states.history import States
 from studies.dimensional_h5_midpoint import DimensionalH5Field
 from studies.poincare_rho_sweep import RhoStarConfig, build_rho_star, run_rho_star
 from visualization.poincare_rho_sweep import export_rho_sweep
@@ -86,8 +86,7 @@ class RhoViewerMethodTests(unittest.TestCase):
         saved = self.runs['GaussLegendre4']
         diagnostics = dict(saved.solution.diagnostics)
         diagnostics['stage_count'] = 1
-        solution = Solution(t=saved.solution.t, states=saved.solution.states,
-                            source=saved.solution.source, diagnostics=diagnostics)
+        solution = States(layout=saved.solution.layout, t=saved.solution.t, states=saved.solution.states, initial_state=saved.solution.initial_state, diagnostics=diagnostics)
         with self.assertRaisesRegex(ValueError, 'diagnostics do not match'):
             self.viewer_config({.3: replace(saved, solution=solution)})
 

@@ -1,6 +1,6 @@
 """Local BM4Midpoint star study with consecutive JAX blocks and live logging."""
 
-from states.layout import GCStateLayout
+from formulations.layout import GCStateLayout
 
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -11,19 +11,19 @@ import numpy as np
 
 from contracts.execution_options import ExecutionOptions
 from contracts.problem import InitialValueProblem
-from contracts.request import SimulationRequest
+from request import SimulationRequest
 from contracts.result import DiagnosticValue
 from diagnostics.persistence import save_solution
 from diagnostics.run_progress import RunProgress, progress_log
 from dynamics.gc import GuidingCenterDynamics
 from execution.execution import Execution
-from states.state import State
+
 from states.generators import radial_star
 from methods.extended.bm4 import BM4Midpoint
 from potential.load import DEFAULT_FIELD_INDICES
 from potential.potential import Potential
 from simulation.runner import simulate
-from solution import Solution
+from states.history import States
 from studies.h5_provenance import prepare_verified_h5_field
 from studies.reference_trajectory import potential_fingerprint
 
@@ -59,7 +59,7 @@ class LocalJAXStarConfig:
 class LocalJAXStarResult:
     """Every saved step, the unaveraged field and reproducibility metadata."""
 
-    solution: Solution
+    solution: States
     potential: Potential
     metadata: dict[str, Any]
 
@@ -72,7 +72,7 @@ def build_local_star(potential: Potential, config: LocalJAXStarConfig) -> Initia
         arm_length=outer * potential.grid.period, arms=config.arms,
         particles_per_arm=config.particles_per_arm, first_angle=config.first_angle,
         include_center=config.include_center)
-    return InitialValueProblem(GuidingCenterDynamics(potential, rho=config.rho), initial)
+    return InitialValueProblem(GuidingCenterDynamics(potential, rho=config.rho), initial, layout=GCStateLayout())
 
 
 def integrate_local_star(
@@ -107,7 +107,7 @@ def integrate_local_star(
         if first == 0:
             phase += ' (first JAX compilation included)'
         progress.phase(phase)
-        block_problem = InitialValueProblem(problem.dynamics, State(states[:, first], layout=GCStateLayout()))
+        block_problem = InitialValueProblem(problem.dynamics, np.array(states[:, first], dtype=float, copy=True), layout=GCStateLayout())
         request = SimulationRequest((float(first_cycle), float(last_cycle)),
                                     1. / config.steps_per_cycle, times[first:last + 1])
         start = perf_counter()
@@ -136,7 +136,7 @@ def integrate_local_star(
                        execution_block_cycles=config.block_cycles,
                        execution_block_end_cycles=np.asarray(block_ends),
                        execution_block_wall_seconds=np.asarray(block_seconds))
-    solution = Solution(t=times, states=states, source=problem.initial_configuration, diagnostics=diagnostics)
+    solution = States(t=times, states=states, initial_state=problem.initial_state, diagnostics=diagnostics, layout=GCStateLayout())
     x, y = problem.layout.positions(problem.initial_state)
     arms = np.repeat(np.arange(config.arms), config.particles_per_arm)
     if config.include_center:

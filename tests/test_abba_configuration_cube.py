@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from states.layout import GCStateLayout
+from formulations.layout import GCStateLayout
 
 from itertools import product
 import unittest
@@ -11,7 +11,7 @@ import numpy as np
 
 from diagnostics import abba4_implicit_step_particle_jacobians, central_difference_jacobian
 from dynamics import GuidingCenterDynamics
-from states.state import State
+
 from potential import Potential
 from simulation import ABBA2Implicit, ABBA2Midpoint, ABBA4Implicit, ABBA6Implicit, ABBA_PROJECTION_FORMULATIONS, InitialValueProblem, SimulationRequest, simulate
 
@@ -64,15 +64,8 @@ def _problem(*, particle_count: int = 1) -> InitialValueProblem:
 		seed=27,
 		interpolation_order=5,
 	)
-	configuration = State.from_components(
-		np.linspace(1.0, 1.1, particle_count),
-		np.linspace(1.2, 1.3, particle_count),
-		layout=GCStateLayout(),
-	)
-	return InitialValueProblem(
-		GuidingCenterDynamics(potential, rho=0.05),
-		configuration,
-	)
+	configuration = GCStateLayout().pack_components(np.linspace(1.0, 1.1, particle_count), np.linspace(1.2, 1.3, particle_count))
+	return InitialValueProblem(GuidingCenterDynamics(potential, rho=0.05), configuration, layout=GCStateLayout())
 
 
 def _request() -> SimulationRequest:

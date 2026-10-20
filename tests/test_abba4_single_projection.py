@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from states.layout import GCStateLayout
+from formulations.layout import GCStateLayout
 
 from pathlib import Path
 import tempfile
@@ -15,7 +15,7 @@ from diagnostics import (
 	abba4_implicit_step_particle_jacobians,
 	central_difference_jacobian,
 )
-from states.state import State
+
 from simulation import (
 	ABBA4Implicit,
 	InitialValueProblem,
@@ -105,10 +105,7 @@ def _problem(
 	y: np.ndarray,
 ) -> InitialValueProblem:
 	"""Build a packed planar initial-value problem for custom test dynamics."""
-	return InitialValueProblem(
-		dynamics,
-		State.from_components(x, y, layout=GCStateLayout()),
-	)
+	return InitialValueProblem(dynamics, GCStateLayout().pack_components(x, y), layout=GCStateLayout())
 
 
 def _dense_particle_blocks(blocks: np.ndarray) -> np.ndarray:

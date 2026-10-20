@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from states.layout import GCStateLayout
+from formulations.layout import GCStateLayout
 
 import unittest
 
 import numpy as np
 
-from states.state import State
+
 from simulation import (
 	SDIRK4_TABLEAU_A,
 	SDIRK4_TABLEAU_B,
@@ -74,10 +74,7 @@ def _rotation_problem(*, particles: int = 1) -> InitialValueProblem:
 	"""Return packed oscillators with distinct initial phases."""
 	angles = np.linspace(0.0, 0.4, particles)
 	state = np.concatenate((np.cos(angles), np.sin(angles)))
-	return InitialValueProblem(
-		_RotationHamiltonian(),
-		State(state, layout=GCStateLayout()),
-	)
+	return InitialValueProblem(_RotationHamiltonian(), np.array(state, dtype=float, copy=True), layout=GCStateLayout())
 
 
 class SDIRK4Tests(unittest.TestCase):
@@ -175,10 +172,7 @@ class SDIRK4Tests(unittest.TestCase):
 		)
 
 	def test_generic_time_dependent_field_uses_sdirk_stage_times(self) -> None:
-		problem = InitialValueProblem(
-			_CubicTimeField(),
-			State(np.zeros(2), layout=GCStateLayout()),
-		)
+		problem = InitialValueProblem(_CubicTimeField(), np.array(np.zeros(2), dtype=float, copy=True), layout=GCStateLayout())
 		solution = simulate(
 			problem,
 			SDIRK4(newton_jacobian_method="auto"),

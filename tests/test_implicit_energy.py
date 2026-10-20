@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from states.layout import GCStateLayout
+from formulations.layout import GCStateLayout
 
 import unittest
 
@@ -15,7 +15,7 @@ from diagnostics import (
 	gc_time_extended_symplectic_form,
 )
 from dynamics import GuidingCenterDynamics
-from states.state import State
+
 from potential import Potential
 from simulation import (
 	BM4Implicit,
@@ -39,7 +39,7 @@ from visualization import (
 )
 
 
-def _problem() -> tuple[Potential, State, InitialValueProblem]:
+def _problem() -> tuple[Potential, np.ndarray, InitialValueProblem]:
 	"""Return one inexpensive time-dependent GC problem with exact Hessians."""
 	potential = Potential.random(
 		A=0.08,
@@ -49,13 +49,9 @@ def _problem() -> tuple[Potential, State, InitialValueProblem]:
 		seed=27,
 		interpolation_order=5,
 	)
-	configuration = State.from_components(
-		np.asarray([1.0]),
-		np.asarray([1.2]),
-		layout=GCStateLayout(),
-	)
+	configuration = GCStateLayout().pack_components(np.asarray([1.0]), np.asarray([1.2]))
 	dynamics = GuidingCenterDynamics(potential, rho=0.05)
-	return potential, configuration, InitialValueProblem(dynamics, configuration)
+	return potential, configuration, InitialValueProblem(dynamics, configuration, layout=GCStateLayout())
 
 
 class GeneralizedEnergyObserverTests(unittest.TestCase):
@@ -103,7 +99,7 @@ class GeneralizedEnergyObserverTests(unittest.TestCase):
 				rtol=2e-14,
 				atol=2e-14,
 			)
-		self.assertEqual(configuration.layout.particle_count(problem.initial_state), 1)
+		self.assertEqual(GCStateLayout().particle_count(problem.initial_state), 1)
 		self.assertAlmostEqual(observer.records[-1].kappa, augmented[-1] / 2.0)
 
 

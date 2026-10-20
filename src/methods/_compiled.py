@@ -3,7 +3,7 @@
 from typing import Generic, TypeVar
 
 from contracts.execution_options import ExecutionOptions
-from contracts.result import IntegrationData
+from states.history import States
 from integration.core import IntegrationMethod
 
 
@@ -13,7 +13,7 @@ Detail = TypeVar("Detail")
 class CompiledFixedMethod(IntegrationMethod[Detail], Generic[Detail]):
 	"""Prepare a method-owned device map before entering the generic coordinator."""
 
-	def _integrate_jax(self, execution: ExecutionOptions) -> IntegrationData:
+	def _integrate_jax(self, execution: ExecutionOptions) -> States:
 		"""Bind only supported built-in equations without silently dropping hooks."""
 		if self._status != "ready":
 			raise RuntimeError("Integration requires a fresh method.new_run(problem, request).")

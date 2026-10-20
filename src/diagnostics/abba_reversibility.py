@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from states.layout import GCStateLayout
+from formulations.layout import GCStateLayout
 
 from dataclasses import dataclass, replace
 from functools import partial
@@ -25,7 +25,7 @@ from methods.extended.configuration import _validate_projection_formulation
 from methods.extended.observations import bind_event_builder
 from contracts.problem import InitialValueProblem
 from formulations.gc import GCDoubledMaps
-from states.state import State
+
 from methods.extended.core.composition import ABBA2, ABBA4, ABBA6
 from methods.extended.core.projection import solve_projection
 from contracts.observation import ABBA6ImplicitIntegrationStep
@@ -215,7 +215,7 @@ class ImplicitABBAReversibilityObserver:
 			recipe, order = ABBA4, 4
 		elif isinstance(step, ABBA6ImplicitIntegrationStep):
 			recipe, order = ABBA6, 6
-		problem = InitialValueProblem(dynamics, State(step.state_after, layout=GCStateLayout()))
+		problem = InitialValueProblem(dynamics, np.array(step.state_after, dtype=float, copy=True), layout=GCStateLayout())
 		options = SolverOptions(self.nonlinear_solver, self.newton_absolute_tolerance,
 			self.newton_relative_tolerance, self.newton_max_iterations)
 		project = partial(solve_projection, GCDoubledMaps(problem, coupling_frequency=None),

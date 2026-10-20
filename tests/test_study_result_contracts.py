@@ -1,6 +1,6 @@
 """Persisted study records must remain readable without campaign orchestration."""
 
-from states.layout import GCStateLayout
+from formulations.layout import GCStateLayout
 
 from dataclasses import asdict, replace
 from pathlib import Path
@@ -23,7 +23,7 @@ from diagnostics.five_method_comparison_csv import (
 )
 from diagnostics.gc_energy_bound import save_energy_bound_result
 from diagnostics.parallel_bm4_recurrence_npz import write_parallel_bm4_recurrence_npz
-from states.state import State
+
 from potential import Grid, Potential
 from studies.five_method_sdirk_rk4_comparison import FiveMethodComparisonConfig, run_five_method_comparison
 from studies.four_method_sdirk_comparison import FourMethodSDIRKComparisonConfig, run_four_method_sdirk_comparison
@@ -37,7 +37,7 @@ class StudyResultContractTests(unittest.TestCase):
 	def test_comparison_families_preserve_shared_trajectories_and_metrics(self) -> None:
 		grid = Grid.periodic(8, 8)
 		potential = Potential(grid, mean=0.1 * np.cos(grid.x)[:, None] * np.ones(grid.shape))
-		initial = State.from_components(np.array([0.2]), np.array([0.3]), layout=GCStateLayout())
+		initial = GCStateLayout().pack_components(np.array([0.2]), np.array([0.3]))
 		config = ThreeMethodNewtonComparisonConfig(t_span=(0.0, 0.02), integration_step=0.01,
 			timing_warmups=0, timing_repeats=1)
 		three = run_three_method_newton_comparison(potential, initial, config=config)
@@ -64,7 +64,7 @@ class StudyResultContractTests(unittest.TestCase):
 	def test_typed_csv_and_independent_energy_and_recurrence_loaders(self) -> None:
 		grid = Grid.periodic(8, 8)
 		potential = Potential(grid, mean=0.1 * np.cos(grid.x)[:, None] * np.ones(grid.shape))
-		initial = State.from_components(np.array([0.2]), np.array([0.3]), layout=GCStateLayout())
+		initial = GCStateLayout().pack_components(np.array([0.2]), np.array([0.3]))
 		config = FiveMethodComparisonConfig(t_span=(0.0, 0.02), integration_step=0.01,
 			timing_warmups=0, timing_repeats=1)
 		live = run_five_method_comparison(potential, initial, config=config, method_names=("RK4",))

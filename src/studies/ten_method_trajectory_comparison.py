@@ -25,13 +25,13 @@ from potential import Potential
 from methods.extended.configuration import ABBA_PROJECTION_FORMULATIONS, ProjectionFormulation
 from methods.extended.bm4 import BM4Implicit
 from methods.extended.abba import ABBA2Implicit
-from contracts.configuration import InitialConfiguration
+
 from contracts.problem import InitialValueProblem
 from methods.extended.abba import ABBA2Midpoint
 from methods._nonlinear import NonlinearSolver
 from methods.base import NumericalMethod
-from contracts.request import SimulationRequest
-from solution import Solution
+from request import SimulationRequest
+from states.history import States
 from simulation.runner import simulate
 
 
@@ -248,9 +248,9 @@ class TenMethodTrajectoryComparisonResult:
 
 	potential: Potential
 	dynamics: GuidingCenterDynamics
-	initial_configuration: InitialConfiguration
+	initial_configuration: np.ndarray
 	config: TenMethodTrajectoryComparisonConfig
-	solutions: Mapping[str, Solution]
+	solutions: Mapping[str, States]
 	runtimes: Mapping[str, float]
 
 	def __post_init__(self) -> None:
@@ -259,8 +259,8 @@ class TenMethodTrajectoryComparisonResult:
 			raise TypeError("`potential` must be a Potential instance.")
 		if not isinstance(self.dynamics, GuidingCenterDynamics):
 			raise TypeError("`dynamics` must be GuidingCenterDynamics.")
-		if not isinstance(self.initial_configuration, InitialConfiguration):
-			raise TypeError("`initial_configuration` must implement InitialConfiguration.")
+		if not isinstance(self.initial_configuration, np.ndarray):
+			raise TypeError("`initial_configuration` must implement np.ndarray.")
 		if not isinstance(self.config, TenMethodTrajectoryComparisonConfig):
 			raise TypeError("`config` must be a TenMethodTrajectoryComparisonConfig.")
 		if tuple(self.solutions) != TEN_METHOD_LABELS:
@@ -285,7 +285,7 @@ class TenMethodTrajectoryComparisonResult:
 		return self.dynamics.effective_potential
 
 	@property
-	def implicit_solutions(self) -> Mapping[str, Solution]:
+	def implicit_solutions(self) -> Mapping[str, States]:
 		"""Return the six variants with nonlinear diagnostics."""
 		return MappingProxyType(
 			{
@@ -375,15 +375,15 @@ class TenMethodTrajectoryComparisonResult:
 
 def run_ten_method_trajectory_comparison(
 	potential: Potential,
-	initial_configuration: InitialConfiguration,
+	initial_configuration: np.ndarray,
 	*,
 	config: TenMethodTrajectoryComparisonConfig,
 ) -> TenMethodTrajectoryComparisonResult:
 	"""Run all seven variants once on one common problem and saved-time grid."""
 	if not isinstance(potential, Potential):
 		raise TypeError("`potential` must be a Potential instance.")
-	if not isinstance(initial_configuration, InitialConfiguration):
-		raise TypeError("`initial_configuration` must implement InitialConfiguration.")
+	if not isinstance(initial_configuration, np.ndarray):
+		raise TypeError("`initial_configuration` must implement np.ndarray.")
 	if not isinstance(config, TenMethodTrajectoryComparisonConfig):
 		raise TypeError("`config` must be a TenMethodTrajectoryComparisonConfig.")
 
@@ -394,7 +394,7 @@ def run_ten_method_trajectory_comparison(
 		max_step=config.integration_step,
 		sample_count=config.output_sample_count,
 	)
-	solutions: dict[str, Solution] = {}
+	solutions: dict[str, States] = {}
 	runtimes: dict[str, float] = {}
 	for variant in TEN_METHOD_VARIANTS:
 		method = _method_for_variant(variant, config)
@@ -413,14 +413,15 @@ def run_ten_method_trajectory_comparison(
 
 
 def _validated_variant_comparison_entry(
-	solution: Solution, initial_configuration: InitialConfiguration,
+	solution: States, initial_configuration: np.ndarray,
 	config: TenMethodTrajectoryComparisonConfig, variant: TrajectoryMethodVariant,
 	runtimes: Mapping[str, float], method_name: str, reference_times: np.ndarray | None,
 ) -> np.ndarray:
 	"""Validate one solution and runtime while establishing the shared grid."""
-	if not isinstance(solution, Solution):
-		raise TypeError("Every trajectory comparison value must be a Solution.")
-	if solution.source is not initial_configuration:
+	if not isinstance(solution, States):
+		raise TypeError("Every trajectory comparison value must be a States.")
+	initial_snapshot = solution.initial_state
+	if initial_snapshot is None or not np.array_equal(initial_snapshot, initial_configuration):
 		raise ValueError("All solutions must share the initial configuration.")
 	if int(solution.diagnostics.get("step_count", -1)) != config.step_count:
 		raise ValueError("Every variant must use the configured common step.")

@@ -199,13 +199,20 @@ cases and all particles, using the existing panel renderer. Prepare/run/view
 are separate operations; validated complete archives are reused and failed
 cases remain explicit. See `docs/studies/poincare-automation.md`.
 
-## Unified physical states
+## Current state and saved physical states
 
-Use `states.State(values, layout=...)` for owned instantaneous snapshots, with
-`GCStateLayout` or `FCStateLayout`; GCState/FCState remain component tuples.
-Use State accessors without an array argument; layout operations handle other
-arrays and histories while preserving NumPy/JAX. Generators live in
-`states.generators`, and signed area lives in `diagnostics.geometry`. The
-`initial_conditions` package and `contracts.state_layout` imports are retired.
-Geometry labels belong in study metadata; persisted `initial_conditions`
-metadata keys and archive schemas are unchanged. See docs/simulation/api-migration.md.
+Initial values are packed NumPy arrays; `states.generators` returns arrays.
+`InitialValueProblem` snapshots values and a structural layout. Physical GC/FC
+layouts live in `formulations.layout` and preserve NumPy/JAX operations; named
+GCState/FCState tuples are component views, not container subclasses.
+`request.SimulationRequest` alone owns the initial time and output schedule.
+Controllers manage current internal `IntegrationState(time, values)` snapshots.
+`states.States` records physical samples and separate accepted-step statistics,
+then becomes the completed read-only result returned directly by `simulate`.
+Shadow samples start independently from an accepted interval's left endpoint;
+they never replace the main state. JAX keeps functional device arrays inside JIT.
+Initial snapshots compare by value, not provider identity. Retired State,
+Solution and IntegrationCollector routes have no aliases. Archive schemas and
+save_solution/load_solution stay unchanged; old archives may lack initial data.
+Area remains in `diagnostics.geometry`, geometry labels in study metadata.
+See `docs/simulation/api-migration.md` and `specs/current/states.md`.

@@ -7,7 +7,7 @@ from typing import Any, Mapping
 
 import numpy as np
 
-from solution import Solution
+from states.history import States
 from diagnostics.persistence import StoredSolution
 from studies.poincare_rho_sweep import (
     RhoStarConfig, rho_config_from_metadata, folded_rho_positions, prepare_rho_star, sample_rho_dynamics,
@@ -88,7 +88,7 @@ def _available_comparison_rhos(
 
 
 def _validated_method_config(
-    record: Mapping[str, Any], solution: Solution, method: str, rho: float,
+    record: Mapping[str, Any], solution: States, method: str, rho: float,
     shared_config: Mapping[str, Any], implicit_controls: Mapping[str, Any],
     reference_metadata: Mapping[str, Any], prepared_metadata: Mapping[str, Any],
 ) -> RhoStarConfig:

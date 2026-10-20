@@ -2,7 +2,7 @@
 schema_version = 1
 kind = "spec"
 id = "simulation"
-sources = ["src/simulation/runner.py", "src/contracts/problem.py", "src/contracts/request.py", "src/execution/execution.py"]
+sources = ["src/simulation/runner.py", "src/contracts/problem.py", "src/request.py", "src/execution/execution.py"]
 documents = ["docs/simulation/integration-architecture.md", "docs/simulation/execution.md", "docs/simulation/jax-execution.md"]
 
 [[requirements]]
@@ -25,19 +25,14 @@ tests = ["tests/test_extensible_architecture.py::ExtensibleArchitectureTests.tes
 # Simulation boundary
 
 The public call is `simulate(problem, method, request, *, execution=None,
-options=None) -> Solution`. This baseline covers orchestration, not a particular
+options=None) -> States`. This baseline covers orchestration, not a particular
 integrator's accuracy or convergence. Detailed ownership remains in the
 [integration architecture](../../docs/simulation/integration-architecture.md)
 and [executor contract](../../docs/simulation/execution.md).
 
 ## SIM-001: Validated problem snapshot
 
-`InitialValueProblem` binds compatible dynamics and initial configuration
-protocols. Its packed initial state is finite, one-dimensional, and contains
-complete blocks for a positive number of particles. The layout's state
-dimension matches the dynamics. The problem owns state and layout snapshots;
-later edits to the original configuration do not change them. The source
-configuration remains provenance, not the live owner of the problem's state.
+`InitialValueProblem(dynamics, initial_state, layout=...)` binds compatible dynamics, a raw physical array and a structural layout. The initial vector must be finite, one-dimensional and contain complete particle blocks. The layout dimension matches the dynamics. State and layout snapshots are owned, with no retained provider identity. When omitted, the layout is selected for canonical GC/FC dimensions; other dimensions require an explicit layout. The initial time belongs exclusively to `request.SimulationRequest` and may be nonzero. Generators in `states.generators` return arrays. See [state contracts](states.md).
 
 ## SIM-002: Complete, increasing output schedule
 
@@ -63,11 +58,4 @@ does not silently repeat the integration locally.
 
 ## SIM-004: Output agreement with the request and initial state
 
-Every execution result, including one from a custom executor, is converted to a
-`Solution` and undergoes its structural checks. Saved times equal the requested
-output times exactly, the physical state dimension equals the problem's initial
-state size, and the first saved column equals that initial state exactly.
-Incompatible output raises `ValueError`. Shapes and storage guarantees are
-specified by [SOL-001 through SOL-003](results.md).
-
-The built-in provider is `states.State`, an immutable instantaneous snapshot with an explicit layout; custom mutable structural providers remain supported. Generators live in `states.generators`. See [state contracts](states.md).
+Every execution, including custom executors, must return completed `States`. The runner validates exact saved times, physical state size, layout dimension, independent initial snapshot and first saved column against the request and problem. It returns the same result object without conversion to another container. Incompatible output raises `ValueError`. Structural storage guarantees are specified by [SOL-001 through SOL-003](results.md).

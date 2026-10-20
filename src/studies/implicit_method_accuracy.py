@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from formulations.layout import GCStateLayout
+
 from dataclasses import dataclass
 from time import perf_counter
 from types import MappingProxyType
@@ -21,15 +23,15 @@ from ._validation import (
 
 from diagnostics import StoredReferenceTrajectory
 from dynamics import GuidingCenterDynamics
-from states.state import State
+
 from potential import Potential
 from methods.extended.abba import ABBA4Implicit
 from methods.extended.bm4 import BM4Implicit
 from methods.extended.abba import ABBA2Implicit
 from contracts.problem import InitialValueProblem
 from methods.base import NumericalMethod
-from contracts.request import SimulationRequest
-from solution import Solution
+from request import SimulationRequest
+from states.history import States
 from simulation.runner import simulate
 
 from contracts.comparison import TrajectoryAccuracySeries
@@ -263,11 +265,11 @@ class ImplicitMethodAccuracyResult:
 
 	potential: Potential
 	dynamics: GuidingCenterDynamics
-	initial_configuration: State
+	initial_configuration: np.ndarray
 	reference: StoredReferenceTrajectory
 	config: ImplicitMethodAccuracyConfig
 	reference_sample_indices: np.ndarray
-	solutions: Mapping[str, Mapping[float, Solution]]
+	solutions: Mapping[str, Mapping[float, States]]
 	series: Mapping[str, Mapping[float, TrajectoryAccuracySeries]]
 	runtimes: Mapping[str, Mapping[float, float]]
 
@@ -277,10 +279,10 @@ class ImplicitMethodAccuracyResult:
 			if tuple(values) != IMPLICIT_ACCURACY_METHOD_NAMES:
 				raise ValueError("Results must follow the implicit method order.")
 		indices = np.array(self.reference_sample_indices, dtype=np.int64, copy=True)
-		initial_state = self.initial_configuration.initial_state
+		initial_state = self.initial_configuration
 		if initial_state is None:
 			raise ValueError("The initial configuration must contain an initial state.")
-		particle_count = self.initial_configuration.layout.particle_count(initial_state)
+		particle_count = GCStateLayout().particle_count(initial_state)
 		common_times: np.ndarray | None = None
 		for method_name in IMPLICIT_ACCURACY_METHOD_NAMES:
 			if any(
@@ -561,7 +563,7 @@ class ImplicitMethodAccuracyResult:
 
 def run_implicit_method_accuracy_study(
 	potential: Potential,
-	initial_configuration: State,
+	initial_configuration: np.ndarray,
 	reference: StoredReferenceTrajectory,
 	*,
 	config: ImplicitMethodAccuracyConfig,
@@ -571,8 +573,8 @@ def run_implicit_method_accuracy_study(
 	"""Run four Newton methods on nested steps and compare with one reference."""
 	if not isinstance(potential, Potential):
 		raise TypeError("`potential` must be a Potential instance.")
-	if not (isinstance(initial_configuration, State) and initial_configuration.layout.state_dimension == 2):
-		raise TypeError("`initial_configuration` must be State.")
+	if not (isinstance(initial_configuration, np.ndarray) and GCStateLayout().state_dimension == 2):
+		raise TypeError("`initial_configuration` must be np.ndarray.")
 	if not isinstance(reference, StoredReferenceTrajectory):
 		raise TypeError("`reference` must be a StoredReferenceTrajectory.")
 	if not isinstance(config, ImplicitMethodAccuracyConfig):
@@ -586,9 +588,9 @@ def run_implicit_method_accuracy_study(
 		initial_condition_metadata=initial_condition_metadata,
 	)
 	dynamics = GuidingCenterDynamics(potential, rho=config.rho)
-	problem = InitialValueProblem(dynamics, initial_configuration)
+	problem = InitialValueProblem(dynamics, initial_configuration, layout=GCStateLayout())
 	distance_convention = reference_distance_convention(reference)
-	solutions: dict[str, dict[float, Solution]] = {
+	solutions: dict[str, dict[float, States]] = {
 		method_name: {} for method_name in IMPLICIT_ACCURACY_METHOD_NAMES
 	}
 	series: dict[str, dict[float, TrajectoryAccuracySeries]] = {
@@ -640,16 +642,17 @@ def run_implicit_method_accuracy_study(
 
 
 def _validated_refinement_trajectory(
-	solution: Solution, initial_configuration: State, *,
+	solution: States, initial_configuration: np.ndarray, *,
 	method_name: str, step: float, step_count: int, particle_count: int,
 	common_times: np.ndarray | None,
 	series: Mapping[str, Mapping[float, TrajectoryAccuracySeries]],
 	runtimes: Mapping[str, Mapping[float, float]],
 ) -> np.ndarray:
 	"""Validate one refinement and its aligned accuracy and runtime entries."""
-	if not isinstance(solution, Solution):
-		raise TypeError("Every implicit accuracy trajectory must be a Solution.")
-	if solution.source is not initial_configuration:
+	if not isinstance(solution, States):
+		raise TypeError("Every implicit accuracy trajectory must be a States.")
+	initial_snapshot = solution.initial_state
+	if initial_snapshot is None or not np.array_equal(initial_snapshot, initial_configuration):
 		raise ValueError("Every solution must share one initial configuration.")
 	if int(solution.diagnostics.get("step_count", -1)) != (
 		step_count

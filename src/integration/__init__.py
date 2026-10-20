@@ -2,7 +2,7 @@
 
 from .core import (
 	FixedStepController,
-	IntegrationCollector,
+	IntegrationState,
 	IntegrationMethod,
 	NEWTON_ALIASES,
 	StepController,
@@ -11,7 +11,7 @@ from .core import (
 from contracts.step import StepInfo, StepResult, StepValue
 
 __all__ = [
-	"FixedStepController", "IntegrationCollector", "IntegrationMethod",
+	"FixedStepController", "IntegrationState", "IntegrationMethod",
 	"NEWTON_ALIASES", "StepController", "StepInfo", "StepResult",
 	"StepValue", "integrate_method",
 ]

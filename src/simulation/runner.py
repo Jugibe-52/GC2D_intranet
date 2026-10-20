@@ -7,9 +7,9 @@ import numpy as np
 from methods.base import NumericalMethod
 from contracts.execution_options import ExecutionOptions
 from contracts.problem import InitialValueProblem
-from contracts.request import SimulationRequest
+from request import SimulationRequest
 from execution.execution import Execution
-from solution import Solution
+from states.history import States
 
 
 def _validate_simulation_inputs(
@@ -30,7 +30,7 @@ def _validate_simulation_inputs(
 
 
 def _validate_solution_matches_request(
-	solution: Solution,
+	solution: States,
 	problem: InitialValueProblem,
 	request: SimulationRequest,
 ) -> None:
@@ -39,8 +39,12 @@ def _validate_solution_matches_request(
 	if (
 		not np.array_equal(solution.t, request.output_times)
 		or solution.states.shape[0] != initial_state.size
+		or solution.layout.state_dimension != problem.layout.state_dimension
 	):
 		raise ValueError("The numerical method returned incompatible physical output.")
+	snapshot = solution.initial_state
+	if snapshot is None or not np.array_equal(snapshot, initial_state):
+		raise ValueError("The numerical method returned an incompatible initial state snapshot.")
 	if not np.array_equal(solution.states[:, 0], initial_state):
 		raise ValueError("The numerical method did not preserve the initial state.")
 
@@ -51,10 +55,10 @@ def simulate(
 	request: SimulationRequest,
 	*, execution: Execution | None = None,
 	options: ExecutionOptions | None = None,
-) -> Solution:
+) -> States:
 	"""Integrate one problem and verify that its solution matches the request.
 
-	Solution owns structural validation and immutable output storage. This
+	States owns structural validation and immutable output storage. This
 	boundary checks agreement with the requested times and initial state.
 	The executor receives the complete job; backend options are separate from
 	where it runs. Omission selects local NumPy/SciPy execution.
@@ -62,14 +66,9 @@ def simulate(
 	_validate_simulation_inputs(problem, method, request, execution)
 	executor = Execution() if execution is None else execution
 	data = executor.run(problem, method, request, options=options)
-	solution = Solution(
-		t=data.t,
-		states=data.states,
-		source=problem.initial_configuration,
-		layout=problem.layout,
-		initial_state=problem.initial_state,
-		diagnostics=data.diagnostics,
-	)
+	if not isinstance(data, States) or not data.complete:
+		raise ValueError("The executor must return completed States.")
+	solution = data
 	_validate_solution_matches_request(solution, problem, request)
 	return solution
 

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from formulations.layout import GCStateLayout
+
 from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -31,7 +33,7 @@ from diagnostics import (
 	abba2_midpoint_step_particle_jacobians,
 )
 from dynamics import GuidingCenterDynamics
-from states.state import State
+
 from potential import Potential
 from methods.extended.abba import ABBA4Implicit
 from methods.extended.bm4 import BM4Implicit
@@ -39,8 +41,8 @@ from methods.extended.abba import ABBA2Implicit
 from contracts.problem import InitialValueProblem
 from methods.extended.abba import ABBA2Midpoint
 from methods.base import NumericalMethod
-from contracts.request import SimulationRequest
-from solution import Solution
+from request import SimulationRequest
+from states.history import States
 from contracts.observation import StepObserver
 from simulation.runner import simulate
 
@@ -171,7 +173,7 @@ def _empirical_order(
 
 
 def _solver_summary(
-	solution: Solution,
+	solution: States,
 ) -> tuple[int | None, float | None, float | None]:
 	"""Reduce optional Newton iteration and residual arrays."""
 	iterations_value = solution.diagnostics.get("newton_iterations")
@@ -203,11 +205,11 @@ class TrajectorySymplecticityResult:
 
 	potential: Potential
 	dynamics: GuidingCenterDynamics
-	initial_configuration: State
+	initial_configuration: np.ndarray
 	method_name: str
 	jacobian_method: str
 	steps: tuple[AreaStep, ...]
-	solutions: Mapping[str, Solution]
+	solutions: Mapping[str, States]
 	records: Mapping[str, tuple[TrajectorySymplecticityRecord, ...]]
 	output_directories: Mapping[str, Path]
 
@@ -307,7 +309,7 @@ _MethodFactory = Callable[[StepObserver], NumericalMethod]
 
 def _run_trajectory_symplecticity_study(
 	potential: Potential,
-	initial_configuration: State,
+	initial_configuration: np.ndarray,
 	*,
 	notebook_path: str | Path,
 	config: TrajectorySymplecticityConfig,
@@ -322,19 +324,19 @@ def _run_trajectory_symplecticity_study(
 	"""Run one method on the same initial trajectories for every step size."""
 	if not isinstance(potential, Potential):
 		raise TypeError("`potential` must be a Potential instance.")
-	if not (isinstance(initial_configuration, State) and initial_configuration.layout.state_dimension == 2):
+	if not (isinstance(initial_configuration, np.ndarray) and GCStateLayout().state_dimension == 2):
 		raise TypeError("`initial_configuration` must be a GC configuration.")
 	if not isinstance(config, TrajectorySymplecticityConfig):
 		raise TypeError("`config` must be a TrajectorySymplecticityConfig.")
-	initial_state = initial_configuration.initial_state
+	initial_state = initial_configuration
 	if initial_state is None:
 		raise ValueError("The GC initial configuration has no initial state.")
 	if potential.interpolation_order < 3:
 		raise ValueError("Exact GC Jacobians require interpolation_order >= 3.")
 
 	dynamics = GuidingCenterDynamics(potential, rho=config.rho)
-	problem = InitialValueProblem(dynamics, initial_configuration)
-	trajectory_count = initial_configuration.layout.particle_count(initial_state)
+	problem = InitialValueProblem(dynamics, initial_configuration, layout=GCStateLayout())
+	trajectory_count = GCStateLayout().particle_count(initial_state)
 	common_metadata = {
 		**dict(metadata or {}),
 		"method": method_name,
@@ -348,7 +350,7 @@ def _run_trajectory_symplecticity_study(
 			"arithmetic_mean_of_per_trajectory_relative_defects"
 		),
 	}
-	solutions: dict[str, Solution] = {}
+	solutions: dict[str, States] = {}
 	records: dict[str, tuple[TrajectorySymplecticityRecord, ...]] = {}
 	output_directories: dict[str, Path] = {}
 	for step in config.steps:
@@ -399,7 +401,7 @@ def _run_trajectory_symplecticity_study(
 
 def run_abba2_midpoint_trajectory_symplecticity_study(
 	potential: Potential,
-	initial_configuration: State,
+	initial_configuration: np.ndarray,
 	*,
 	notebook_path: str | Path,
 	config: TrajectorySymplecticityConfig,
@@ -431,7 +433,7 @@ def run_abba2_midpoint_trajectory_symplecticity_study(
 
 def run_abba2_reduced_multiplier_trajectory_symplecticity_study(
 	potential: Potential,
-	initial_configuration: State,
+	initial_configuration: np.ndarray,
 	*,
 	notebook_path: str | Path,
 	config: TrajectorySymplecticityConfig,
@@ -467,7 +469,7 @@ def run_abba2_reduced_multiplier_trajectory_symplecticity_study(
 
 def run_abba4_implicit_trajectory_symplecticity_study(
 	potential: Potential,
-	initial_configuration: State,
+	initial_configuration: np.ndarray,
 	*,
 	notebook_path: str | Path,
 	config: TrajectorySymplecticityConfig,
@@ -510,7 +512,7 @@ def run_abba4_implicit_trajectory_symplecticity_study(
 
 def run_bm4_implicit_trajectory_symplecticity_study(
 	potential: Potential,
-	initial_configuration: State,
+	initial_configuration: np.ndarray,
 	*,
 	notebook_path: str | Path,
 	config: TrajectorySymplecticityConfig,

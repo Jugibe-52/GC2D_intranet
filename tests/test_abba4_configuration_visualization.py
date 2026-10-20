@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from states.layout import GCStateLayout
+from formulations.layout import GCStateLayout
 
 from types import SimpleNamespace
 import unittest
@@ -14,9 +14,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.collections import LineCollection, PathCollection
 
-from states.state import State
+
 from potential import GC2DH5Metadata, Grid, Potential
-from simulation import Solution
+from simulation import States
 from studies.abba4_configuration_comparison import (
 	ABBA4_CONFIGURATION_VARIANTS,
 	ABBA4ConfigurationVariant,
@@ -78,7 +78,7 @@ def _solution(
 	variant: int,
 	*,
 	times: np.ndarray | None = None,
-) -> Solution:
+) -> States:
 	"""Build one finite trajectory with a model-independent initial position."""
 	time_values = np.asarray([0.0, 0.1, 0.2] if times is None else times, dtype=float)
 	x0 = 0.18 + 0.045 * particle
@@ -86,16 +86,8 @@ def _solution(
 	model_shift = 2e-4 * variant * time_values
 	x = x0 + 0.015 * time_values + model_shift
 	y = y0 - 0.010 * time_values - 0.5 * model_shift
-	source = State.from_components(
-		np.asarray([x0]),
-		np.asarray([y0]),
-		layout=GCStateLayout(),
-	)
-	return Solution(
-		t=time_values,
-		states=np.vstack((x, y)),
-		source=source,
-	)
+	source = GCStateLayout().pack_components(np.asarray([x0]), np.asarray([y0]))
+	return States(t=time_values, states=np.vstack((x, y)), initial_state=source, layout=GCStateLayout())
 
 
 def _result(*, particle_count: int = 10) -> SimpleNamespace:

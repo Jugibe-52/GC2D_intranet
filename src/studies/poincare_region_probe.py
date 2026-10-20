@@ -1,6 +1,6 @@
 """Matched RK4 and BM4Midpoint probe batches for sampled Poincare gaps."""
 
-from states.layout import GCStateLayout
+from formulations.layout import GCStateLayout
 
 from dataclasses import asdict, dataclass
 import hashlib
@@ -15,12 +15,12 @@ import numpy as np
 import scipy
 
 from dynamics import GuidingCenterDynamics
-from states.state import State
+
 from potential import Potential
 from methods.extended.bm4 import BM4Midpoint
 from contracts.problem import InitialValueProblem
 from methods.classical.rk4 import RK4
-from contracts.request import SimulationRequest
+from request import SimulationRequest
 from simulation.runner import simulate
 from studies.poincare_periodicity import SavedPoincareSection
 from studies.poincare_probe import _validate_probe_parameters
@@ -101,7 +101,7 @@ def integrate_region_probes(potential: Potential, settings: RegionProbeSettings,
     method: BM4Midpoint | RK4
     for start in range(0, count, batch):
         end = min(count, start + batch)
-        initial = State.from_components(xy[start, :, 0], xy[start, :, 1], layout=GCStateLayout())
+        initial = GCStateLayout().pack_components(xy[start, :, 0], xy[start, :, 1])
         request = SimulationRequest.uniform(t_span=(times[start], times[end]),
                                            max_step=step, sample_count=end - start + 1)
         if settings.method == 'BM4Midpoint':
@@ -115,7 +115,7 @@ def integrate_region_probes(potential: Potential, settings: RegionProbeSettings,
                                  step_observer=report if progress else None)
         else:
             method = RK4()
-        solution = simulate(InitialValueProblem(dynamics, initial), method, request)
+        solution = simulate(InitialValueProblem(dynamics, initial, layout=GCStateLayout()), method, request)
         if solution.diagnostics['step_count'] != end - start or solution.diagnostics['output_interpolation_count'] != 0:
             raise RuntimeError('The method did not preserve the requested complete-step grid.')
         xy[start:end + 1] = np.stack(solution.positions(), axis=-1).transpose(1, 0, 2)

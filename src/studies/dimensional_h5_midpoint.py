@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from states.layout import GCStateLayout
+from formulations.layout import GCStateLayout
 
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -12,14 +12,14 @@ import h5py
 import numpy as np
 
 from contracts.problem import InitialValueProblem
-from contracts.request import SimulationRequest
+from request import SimulationRequest
 from dynamics import GuidingCenterDynamics
-from states.state import State
+
 from methods.extended.bm4 import BM4Midpoint
 from potential.load import DEFAULT_FIELD_INDICES
 from potential import GC2DH5Metadata, Grid, Potential
 from simulation.runner import simulate
-from solution import Solution
+from states.history import States
 
 
 @dataclass(frozen=True, slots=True)
@@ -98,14 +98,13 @@ def run_dimensional_bm4_midpoint(
     field: DimensionalH5Field, *, cycles: int = 5, steps_per_cycle: int = 40,
     initial_xy: tuple[float, float], rho: float = 0.0,
     coupling_frequency: float = float(np.pi / 8),
-) -> Solution:
+) -> States:
     """Integrate one particle on every complete normalized-time BM4 step."""
     if cycles < 1 or steps_per_cycle < 1:
         raise ValueError("Cycles and steps per cycle must be positive.")
     x0, y0 = (float(value) for value in initial_xy)
-    initial = State.from_components(
-        np.asarray([x0]), np.asarray([y0]), layout=GCStateLayout())
-    problem = InitialValueProblem(GuidingCenterDynamics(field.stream, rho=rho), initial)
+    initial = GCStateLayout().pack_components(np.asarray([x0]), np.asarray([y0]))
+    problem = InitialValueProblem(GuidingCenterDynamics(field.stream, rho=rho), initial, layout=GCStateLayout())
     count = cycles * steps_per_cycle
     request = SimulationRequest.uniform(t_span=(0.0, float(cycles)),
                                         max_step=1.0 / steps_per_cycle,

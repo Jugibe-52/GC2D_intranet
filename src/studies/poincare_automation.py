@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from states.layout import GCStateLayout
+from formulations.layout import GCStateLayout
 
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass
@@ -16,11 +16,11 @@ import numpy as np
 
 from contracts.execution_options import ExecutionOptions
 from contracts.problem import InitialValueProblem
-from contracts.request import SimulationRequest
+from request import SimulationRequest
 from contracts.result import DiagnosticValue
 from dynamics.gc import GuidingCenterDynamics
 from execution.execution import Execution
-from states.state import State
+
 from states.generators import ranked_radial_star
 from methods.base import NumericalMethod
 from methods.classical.gauss_legendre import GaussLegendre4
@@ -29,7 +29,7 @@ from methods.extended.bm4 import BM4Implicit, BM4Midpoint
 from potential.load import GC2DH5Metadata
 from potential.potential import Potential
 from simulation.runner import simulate
-from solution import Solution
+from states.history import States
 from diagnostics.persistence import StoredSolution
 
 PARTICLE_SET = "ranked-star-40-gap-probes-8-v1"
@@ -44,8 +44,8 @@ def fixed_particle_fractions() -> np.ndarray:
 	"""Return owned (48, xy) fractions from the reference viewer's lower cell corner."""
 	star = ranked_radial_star(center=(.5, .5), outer_radius=.425,
 		particles=40, arms=8, first_angle=0.)
-	assert star.initial_state is not None
-	x, y = star.layout.positions(star.initial_state)
+	assert star is not None
+	x, y = GCStateLayout().positions(star)
 	return np.vstack((np.column_stack((x, y)), np.asarray(PROBE_FRACTIONS)))
 
 
@@ -217,9 +217,9 @@ def prepare_automation_case(config: AutomationConfig, case: AutomationCase,
 	rho_m = case.rho * config.reference_length / (2*np.pi)
 	period = 1 / float(m.source_frequencies[0])
 	cycle_duration = period / m.time_scale
-	initial = State.from_components(xy[:, 0], xy[:, 1], layout=GCStateLayout())
+	initial = GCStateLayout().pack_components(xy[:, 0], xy[:, 1])
 	dynamics = GuidingCenterDynamics(p, rho=rho_m / m.spatial_scale, B=case.B)
-	problem = InitialValueProblem(dynamics, initial)
+	problem = InitialValueProblem(dynamics, initial, layout=GCStateLayout())
 	times = cycle_duration * np.arange(config.cycles + 1, dtype=float)
 	request = SimulationRequest(t_span=(0., float(times[-1])),
 		max_step=cycle_duration/config.steps_per_cycle, output_times=times)
@@ -270,7 +270,7 @@ def automation_method(prepared: PreparedAutomationCase) -> NumericalMethod:
 	return GaussLegendre4(**kwargs)
 
 
-def validate_automation_solution(solution: Solution, prepared: PreparedAutomationCase) -> None:
+def validate_automation_solution(solution: States, prepared: PreparedAutomationCase) -> None:
 	"""Require complete cycle samples, exact initial identity and method diagnostics."""
 	c, d, method = prepared.config, solution.diagnostics, prepared.case.method
 	if (solution.states.shape != (96, c.cycles+1) or solution.states.dtype != np.float64
@@ -331,7 +331,7 @@ def run_automation_case(prepared: PreparedAutomationCase, *,
 	validate_automation_solution(solution, prepared)
 	diagnostics: dict[str, DiagnosticValue] = {k: v for k, v in solution.diagnostics.items()
 		if not isinstance(v, np.ndarray)}
-	trimmed = Solution(t=solution.t, states=solution.states, source=solution.source, diagnostics=diagnostics)
+	trimmed = States(layout=solution.layout, t=solution.t, states=solution.states, initial_state=solution.initial_state, diagnostics=diagnostics)
 	metadata = {**prepared.metadata, "execution_executor": f"{type(executor).__module__}.{type(executor).__qualname__}"}
 	return StoredSolution(trimmed, metadata, None)
 

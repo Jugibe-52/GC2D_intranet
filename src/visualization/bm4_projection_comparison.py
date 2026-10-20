@@ -204,7 +204,7 @@ def write_bm4_report(
 <h2>Trajectory and physical-energy errors against DOP853</h2>
 {table(["Particle", "Method", "Trajectory RMS", "Final distance", "Max distance", "Energy RMS", "Max absolute energy error"], accuracy)}
 <p>Trajectory error uses minimum-image periodic distance. RMS is the trapezoidal time integral of squared error divided by elapsed time, then square-rooted. Energy error compares the physical Hamiltonian history, not conservation.</p>
-<h2>Initial and final positions (normalized, unwrapped)</h2>{table(["Particle", "State / method at final time", "x", "y"], positions)}
+<h2>Initial and final positions (normalized, unwrapped)</h2>{table(["Particle", "np.ndarray / method at final time", "x", "y"], positions)}
 <h2>BM4Implicit multiplier infinity norm per particle</h2>{table(["Particle", "Mean", "RMS", "Maximum", "Final"], mu)}
 <p>Multiplier statistics use all accepted steps. BM4Midpoint has no multiplier. Projection occurs once after each complete twelve-stage BM4 map.</p>
 <h2>Joint runtime: all three particles</h2>{table(["Method", "Median seconds", "Q1 seconds", "Q3 seconds"], runtime)}

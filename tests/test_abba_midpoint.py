@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from states.layout import GCStateLayout
+from formulations.layout import GCStateLayout
 
 import json
 from pathlib import Path
@@ -15,7 +15,7 @@ import numpy as np
 from visualization.gc_symplecticity import plot_abba_midpoint_convergence
 
 from dynamics import GuidingCenterDynamics
-from states.state import State
+
 from potential import Potential
 from simulation import (
 	ABBA2Midpoint,
@@ -98,10 +98,7 @@ class ABBA2MidpointTests(unittest.TestCase):
 
 	def test_energy_tracking_requires_extended_hamiltonian_capability(self) -> None:
 		dynamics = _TimeOnlyPlanarDynamics()
-		problem = InitialValueProblem(
-			dynamics,
-			State(np.asarray([1.0, 1.2]), layout=GCStateLayout()),
-		)
+		problem = InitialValueProblem(dynamics, np.array(np.asarray([1.0, 1.2]), dtype=float, copy=True), layout=GCStateLayout())
 		with self.assertRaisesRegex(TypeError, "HamiltonianSystem"):
 			simulate(
 				problem,
@@ -119,10 +116,7 @@ class ABBA2MidpointTests(unittest.TestCase):
 		start = 0.2
 		step = 0.1
 		solution = simulate(
-			InitialValueProblem(
-				dynamics,
-				State(initial_state, layout=GCStateLayout()),
-			),
+			InitialValueProblem(dynamics, np.array(initial_state, dtype=float, copy=True), layout=GCStateLayout()),
 			ABBA2Midpoint(),
 			SimulationRequest.uniform(
 				t_span=(start, start + step),
@@ -167,10 +161,7 @@ class ABBA2MidpointTests(unittest.TestCase):
 		)
 
 	def test_method_has_second_order_global_accuracy(self) -> None:
-		problem = InitialValueProblem(
-			_deterministic_gc_dynamics(),
-			State(np.asarray([1.0, 1.2]), layout=GCStateLayout()),
-		)
+		problem = InitialValueProblem(_deterministic_gc_dynamics(), np.array(np.asarray([1.0, 1.2]), dtype=float, copy=True), layout=GCStateLayout())
 
 		def final_state(step: float) -> np.ndarray:
 			"""Return one final state on a fixed integration interval."""
@@ -191,10 +182,7 @@ class ABBA2MidpointTests(unittest.TestCase):
 		self.assertLess(coarse_error / fine_error, 4.2)
 
 	def test_observations_and_diagnostics_ignore_shadow_steps(self) -> None:
-		problem = InitialValueProblem(
-			_deterministic_gc_dynamics(),
-			State(np.asarray([1.0, 1.2]), layout=GCStateLayout()),
-		)
+		problem = InitialValueProblem(_deterministic_gc_dynamics(), np.array(np.asarray([1.0, 1.2]), dtype=float, copy=True), layout=GCStateLayout())
 		events = []
 		observed = simulate(
 			problem,

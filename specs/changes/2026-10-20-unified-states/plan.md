@@ -4,7 +4,7 @@ kind = "change-plan"
 revision = 2
 spec_revision = 2
 id = "2026-10-20-unified-states"
-sources = ["src/states/state.py", "src/diagnostics/geometry.py", "src/states/generators.py", "src/states/layout.py", "src/contracts/configuration.py", "src/contracts/problem.py", "src/solution.py"]
+sources = ["src/states/history.py", "src/diagnostics/geometry.py", "src/states/generators.py", "src/formulations/layout.py", "src/contracts/configuration.py", "src/contracts/problem.py"]
 documents = ["specs/current/simulation.md", "specs/current/results.md", "docs/simulation/integration-architecture.md"]
 open_questions = []
 +++

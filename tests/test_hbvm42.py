@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from states.layout import GCStateLayout
+from formulations.layout import GCStateLayout
 
 import unittest
 from types import SimpleNamespace
@@ -14,7 +14,7 @@ from scipy.integrate import solve_ivp
 
 import simulation
 from dynamics import GuidingCenterDynamics
-from states.state import State
+
 from potential import Potential
 from simulation import HBVM42, InitialValueProblem, SimulationRequest, simulate
 from methods.hbvm.order4 import (
@@ -68,7 +68,7 @@ class HBVM42MethodTests(unittest.TestCase):
 			momentum=0.0,
 		)
 		self.dynamics = QuarticOscillatorDynamics(quartic_strength=1.0)
-		self.problem = InitialValueProblem(self.dynamics, self.configuration)
+		self.problem = InitialValueProblem(self.dynamics, self.configuration, layout=GCStateLayout())
 
 	def test_public_export_and_rank_two_runge_kutta_coefficients(self) -> None:
 		self.assertIs(simulation.HBVM42, HBVM42)
@@ -121,7 +121,7 @@ class HBVM42MethodTests(unittest.TestCase):
 		self.assertLess(errors[0] / errors[1], 18.0)
 
 	def test_auto_jacobian_falls_back_to_centered_finite_differences(self) -> None:
-		problem = InitialValueProblem(_QuarticWithoutJacobian(), self.configuration)
+		problem = InitialValueProblem(_QuarticWithoutJacobian(), self.configuration, layout=GCStateLayout())
 		solution = simulate(
 			problem,
 			HBVM42(jacobian_method="auto", track_energy=True),
@@ -149,8 +149,7 @@ class HBVM42MethodTests(unittest.TestCase):
 
 	def test_exact_and_finite_difference_jacobians_agree_for_gc_dynamics(self) -> None:
 		"""Exercise HBVM on the repository's nonautonomous guiding-center model."""
-		problem = InitialValueProblem(
-			GuidingCenterDynamics(
+		problem = InitialValueProblem(GuidingCenterDynamics(
 				Potential.random(
 					A=0.08,
 					M=3,
@@ -160,13 +159,7 @@ class HBVM42MethodTests(unittest.TestCase):
 					interpolation_order=5,
 				),
 				rho=0.05,
-			),
-			State.from_components(
-				np.asarray((1.0,)),
-				np.asarray((1.2,)),
-				layout=GCStateLayout(),
-			),
-		)
+			), GCStateLayout().pack_components(np.asarray((1.0,)), np.asarray((1.2,))), layout=GCStateLayout())
 		request = SimulationRequest.uniform(
 			t_span=(0.0, 0.2),
 			max_step=0.05,
@@ -240,11 +233,7 @@ class HBVM42StudyTests(unittest.TestCase):
 			),
 			rho=0.05,
 		)
-		gc_configuration = State.from_components(
-			np.asarray((1.0,)),
-			np.asarray((1.2,)),
-			layout=GCStateLayout(),
-		)
+		gc_configuration = GCStateLayout().pack_components(np.asarray((1.0,)), np.asarray((1.2,)))
 		comparison = run_hbvm42_bm4_comparison(
 			gc_dynamics,
 			gc_configuration,
