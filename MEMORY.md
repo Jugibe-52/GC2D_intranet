@@ -219,21 +219,29 @@ See `docs/simulation/api-migration.md` and `specs/current/states.md`.
 
 ## Executor-owned integration
 
-`Execution.run` owns environment preparation, fresh runs and driver selection;
-`simulate` validates the complete job/result boundary. `NumericalMethod` exposes
-`new_run(problem, request, evaluated_dynamics=...)` and `jax_mode`, not integrate.
-`methods.base.IntegrationMethod` retains isolated preparation, numerical advancement,
-observations and controller access. CompiledFixedMethod and method integration
-entry points are retired; call simulate or Execution.run for complete jobs.
-Execution resolves devices and supplies metadata to the driver before finalizing
-States. Numerical adapters receive prepared dynamics/device and bind algorithm
-controls; fixed JAX uses execution._jax_fixed, adaptive JAX keeps SciPy control with
-prepared field callbacks. Keep executors generic and reject unsupported compiled
-overrides explicitly. See `docs/simulation/execution.md` for extension/migration.
+`Execution.run` owns environment preparation, fresh-run validation, running/finished
+transitions and one States.prepare/finalize boundary; simulate validates the job
+and completed result. Host and JAX run_steps workers fill that open recorder and
+return numerical diagnostics without finalizing or changing run status. Use
+States.record_history for complete bulk physical arrays from JAX; it requires an
+empty recorder and validates before writing. Preserve independent shadow samples.
 
-The integration package is retired. execution._host contains host control and
-sampling; execution._jax_fixed contains the compiled loop; execution.state owns
-IntegrationState. Import the numerical base from methods and controller/state
-extensions from execution. Methods use type-only references and local controller
-or snapshot imports to avoid package-initialization cycles. Keep complete jobs
-at simulate/Execution.run; internal drivers are not extra public entry points.
+NumericalMethod exposes new_run(problem, request, evaluated_dynamics=...) and
+jax_mode; methods.base.IntegrationMethod retains numerical preparation, advancement,
+observations and controller access. Keep exact-type JAX adapters beside algorithms;
+do not repeat their fixed-method support list. Unknown overrides fail explicitly.
+Configured methods are reusable; consumed runs finish on success and failure.
+
+execution._jax owns optional environment preparation and the cached SciPy/JAX host
+adapter. Dynamics has no dependency on execution. JaxPotential stays independently
+usable, with its own precision guards and tracing-safe concrete caches; executor
+preparation shares physical samples/splines without refitting or mutation.
+execution._host owns host control, sampling, progress and step-count helpers;
+execution._jax_fixed owns the compiled loop; execution.state owns IntegrationState.
+
+The integration package, execution._fixed, execution._jax_run, dynamics._jax_host,
+CompiledFixedMethod and complete integrate_method/integrate_fixed functions are
+retired without aliases. Use simulate/Execution.run for complete jobs. Import
+numerical bases from methods and controller/state extensions from execution.
+Methods use type-only references and local controller/snapshot imports to avoid
+package-initialization cycles. See docs/simulation/execution.md.

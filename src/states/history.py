@@ -107,6 +107,23 @@ class States:
 			self._auxiliary[key][..., self._count] = part
 		self._count += 1
 
+	def record_history(self, values: np.ndarray) -> None:
+		"""Copy a complete physical history into an empty, still-open recorder.
+
+		Compiled execution returns shape (state_size, samples) in one transfer.
+		Diagnostics are supplied at finalization; this operation never seals the
+		result or overwrites samples already recorded by a streaming controller.
+		"""
+		self._require_recording()
+		if self._count:
+			raise RuntimeError("Bulk history recording requires an empty States recorder.")
+		value = np.asarray(values)
+		if value.shape != self._values.shape or not np.all(np.isfinite(value)):
+			raise ValueError("Physical states must be finite with shape (state_size, samples).")
+		self._layout.validate_packed_state_layout(value)
+		self._values[:] = value
+		self._count = self._times.size
+
 	def record_step(self, info: StepInfo, statistics: Mapping[str, StepValue]) -> None:
 		"""Record main-step metrics on their own axis, independently of samples."""
 		self._require_recording()

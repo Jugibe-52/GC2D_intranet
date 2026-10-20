@@ -17,7 +17,8 @@ from simulation import (
     InitialValueProblem, SimulationRequest, simulate,
 )
 from methods.base import IntegrationMethod
-from execution._host import integrate_method
+from execution import Execution
+from unittest.mock import patch
 from tests.test_method_integration import _problem
 
 
@@ -132,9 +133,10 @@ class AdaptiveIntegrationTests(unittest.TestCase):
             run = cls(step_observer=mutate).new_run(self.problem, self.request)
             self.assertEqual(events, [])
             plain = simulate(self.problem, cls(), self.request)
-            first = integrate_method(run)
+            with patch.object(cls, "new_run", return_value=run):
+                first = Execution().run(self.problem, run, self.request)
             count = len(events)
-            second = integrate_method(run.new_run(self.problem, self.request))
+            second = simulate(self.problem, cls(step_observer=mutate), self.request)
             self.assertEqual(len(events), 2 * count)
             np.testing.assert_array_equal(first.states, plain.states)
             np.testing.assert_array_equal(second.states, first.states)

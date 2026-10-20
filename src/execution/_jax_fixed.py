@@ -5,7 +5,7 @@ sequential, while every field evaluation and RK stage batches all particles.
 """
 
 from functools import lru_cache, partial
-from collections.abc import Callable, Mapping
+from collections.abc import Callable
 from typing import Any, TYPE_CHECKING
 
 import jax
@@ -15,8 +15,7 @@ import numpy as np
 from states.history import States
 from contracts.result import DiagnosticValue
 from contracts.compiled import CompiledStep
-from execution._fixed import _step_count
-from execution._host import _time_tolerance, NEWTON_ALIASES
+from execution._host import _step_count, _time_tolerance
 
 if TYPE_CHECKING:
     from methods.base import IntegrationMethod
@@ -76,64 +75,57 @@ def _compiled_integrator(kernel: CompiledStep) -> Callable[..., Any]:
     return jax.jit(partial(_integrate, kernel=kernel))
 
 
-def integrate_fixed(method: "IntegrationMethod[Any]", kernel: CompiledStep,
-                    *, metadata: Mapping[str, DiagnosticValue] | None = None) -> States:
-    """Run one fresh fixed-step method instance and transfer the finished result to NumPy.
+def run_steps(method: "IntegrationMethod[Any]", kernel: CompiledStep,
+              saved: States) -> dict[str, DiagnosticValue]:
+    """Advance a prepared map and record its complete physical history in bulk.
 
     The executor validates host-only callbacks and progress before
-    invoking this coordinator. The compiled loop performs no Python callbacks.
+    invoking this worker. The compiled loop performs no Python callbacks.
     Potential construction and schedule validation remain on the host.
     """
-    if method._status != "ready":
-        raise RuntimeError("Integration requires a fresh method.new_run(problem, request).")
-    method._status = "running"
-    try:
-        request = method.request
-        t0, tf = request.t_span
-        count = _step_count(tf - t0, request.max_step)
-        step = (tf - t0) / count
-        starts = t0 + np.arange(count) * step
-        ends = t0 + np.arange(1, count + 1) * step
-        times = request.output_times
-        tolerance = _time_tolerance(request.t_span)
-        # Reproduce FixedStepController's endpoint priority and tolerance.
-        owners = np.minimum(np.searchsorted(ends + tolerance, times), count - 1)
-        modes = np.where(np.abs(times - ends[owners]) <= tolerance, 1,
-                         np.where(np.abs(times - starts[owners]) <= tolerance, 0, 2))
-        durations = times - starts[owners]
-        offsets = np.concatenate(([1], 1 + np.searchsorted(times[1:], ends + tolerance, side="right")))
-        device = kernel.device
-        inputs = (method.initial_state, starts, np.asarray(step), times,
-                  offsets.astype(np.int32), modes.astype(np.int32), durations)
-        # Inputs select the execution device; spline constants follow compilation.
-        # device_get synchronizes timing and copies only completed output.
-        history, energy, valid, converged, statistics = jax.device_get(_compiled_integrator(kernel)(
-            *(jax.device_put(value, device) for value in inputs),
-        ))
-        if not bool(valid):
-            raise ValueError("A numerical step or output sample became non-finite.")
-        if not bool(converged):
-            raise RuntimeError(f"{method.method_name} nonlinear solve did not converge within its tolerance and iteration limit.")
-        assert method.state_formulation is not None
-        states, auxiliary = method.state_formulation.extract_history(
-            times, history, energy=energy if kernel.track_energy else None,
-        )
-        diagnostics = {**method.metadata, **(metadata or {})}
-        diagnostics.update({
-            "step_count": count, "step_start_times": starts, "step_times": ends,
-            "step_sizes": np.full(count, step),
-            "output_interpolation_count": int(np.count_nonzero(modes[1:] == 2)),
-        })
-        diagnostics.update(statistics)
-        diagnostics.update(auxiliary)
-        if all(name in diagnostics for name in NEWTON_ALIASES.values()):
-            for alias, canonical in NEWTON_ALIASES.items():
-                diagnostics[alias] = diagnostics[canonical]
-        if kernel.finite_difference:
-            diagnostics['finite_difference_batching'] = 'independent_particle_columns'
-        return States(times, states, diagnostics, layout=method.problem.layout, initial_state=method.problem.initial_state)
-    finally:
-        method._status = "finished"
+    request = method.request
+    t0, tf = request.t_span
+    count = _step_count(tf - t0, request.max_step)
+    step = (tf - t0) / count
+    starts = t0 + np.arange(count) * step
+    ends = t0 + np.arange(1, count + 1) * step
+    times = request.output_times
+    tolerance = _time_tolerance(request.t_span)
+    # Reproduce FixedStepController's endpoint priority and tolerance.
+    owners = np.minimum(np.searchsorted(ends + tolerance, times), count - 1)
+    modes = np.where(np.abs(times - ends[owners]) <= tolerance, 1,
+                     np.where(np.abs(times - starts[owners]) <= tolerance, 0, 2))
+    durations = times - starts[owners]
+    offsets = np.concatenate(([1], 1 + np.searchsorted(times[1:], ends + tolerance, side="right")))
+    device = kernel.device
+    inputs = (method.initial_state, starts, np.asarray(step), times,
+              offsets.astype(np.int32), modes.astype(np.int32), durations)
+    # Inputs select the execution device; spline constants follow compilation.
+    # device_get synchronizes timing and copies only completed output.
+    history, energy, valid, converged, statistics = jax.device_get(_compiled_integrator(kernel)(
+        *(jax.device_put(value, device) for value in inputs),
+    ))
+    if not bool(valid):
+        raise ValueError("A numerical step or output sample became non-finite.")
+    if not bool(converged):
+        raise RuntimeError(f"{method.method_name} nonlinear solve did not converge within its tolerance and iteration limit.")
+    assert method.state_formulation is not None
+    states, auxiliary = method.state_formulation.extract_history(
+        times, history, energy=energy if kernel.track_energy else None,
+    )
+    diagnostics: dict[str, DiagnosticValue] = {}
+    diagnostics.update({
+        "step_count": count, "step_start_times": starts, "step_times": ends,
+        "step_sizes": np.full(count, step),
+        "output_interpolation_count": int(np.count_nonzero(modes[1:] == 2)),
+    })
+    diagnostics.update(statistics)
+    diagnostics.update(auxiliary)
+    if kernel.finite_difference:
+        diagnostics['finite_difference_batching'] = 'independent_particle_columns'
+    saved.record_history(states)
+    return diagnostics
+
 
 
 __all__: list[str] = []

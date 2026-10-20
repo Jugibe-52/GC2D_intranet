@@ -43,7 +43,6 @@ class CompiledStepContractTests(unittest.TestCase):
 
 	def test_coordinator_accepts_an_independent_prepared_map(self) -> None:
 		import jax.numpy as jnp
-		from execution._jax_fixed import integrate_fixed
 
 		@dataclass(frozen=True)
 		class ConstantDrift:
@@ -62,12 +61,44 @@ class CompiledStepContractTests(unittest.TestCase):
 				raise AssertionError("An untracked map must not evaluate energy.")
 
 		run = RK4().new_run(self.problem, self.request)
-		data = integrate_fixed(run, ConstantDrift(self.jax.devices("cpu")[0]))
+		with patch.object(RK4, "new_run", return_value=run):
+			with patch("methods._jax_dispatch.prepare_step", return_value=ConstantDrift(self.jax.devices("cpu")[0])):
+				data = Execution().run(self.problem, RK4(), self.request, options=self.execution)
 		expected = self.problem.initial_state[:, None] + np.array([2., -1.])[:, None] * data.t
 		np.testing.assert_allclose(data.states, expected, rtol=0., atol=1e-15)
 		self.assertEqual(data.diagnostics["step_count"], 2)
 		self.assertEqual(data.diagnostics["output_interpolation_count"], 1)
 		self.assertEqual(run._status, "finished")
+
+	def test_fixed_and_hybrid_runs_finalize_the_allocated_result_once(self) -> None:
+		from methods.adaptive.scipy import Radau
+		from states import States
+		for method in (RK4(track_energy=True), Radau(track_energy=True)):
+			with self.subTest(method=type(method).__name__):
+				recorders, finalized, runs = [], [], []
+				prepare, finalize, new_run = States.prepare, States.finalize, method.new_run
+				def allocate(*args, **kwargs):
+					recorder = prepare(*args, **kwargs)
+					recorders.append(recorder)
+					return recorder
+				def finish(recorder, *args, **kwargs):
+					self.assertFalse(recorder.complete)
+					self.assertEqual(runs[0]._status, "running")
+					finalized.append(recorder)
+					return finalize(recorder, *args, **kwargs)
+				def prepare_run(*args, **kwargs):
+					run = new_run(*args, **kwargs)
+					runs.append(run)
+					return run
+				with patch.object(States, "prepare", side_effect=allocate), patch.object(States, "finalize", finish):
+					with patch.object(type(method), "new_run", side_effect=prepare_run):
+						result = Execution().run(self.problem, method, self.request, options=self.execution)
+				self.assertEqual(len(recorders), 1)
+				self.assertEqual(len(finalized), 1)
+				self.assertIs(recorders[0], result)
+				self.assertIs(finalized[0], result)
+				self.assertEqual(runs[0]._status, "finished")
+				self.assertEqual(method._status, "configuration")
 
 	def test_prepared_controls_do_not_follow_mutable_method_options(self) -> None:
 		from methods._jax_dispatch import prepare_step

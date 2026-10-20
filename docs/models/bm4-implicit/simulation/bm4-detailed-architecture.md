@@ -84,7 +84,7 @@ physical result into both copies and appends the new time and momentum.
 
 `FixedStepController` owns the main grid. Interior output samples use independent
 shortened BM4 maps, which do not change main-step statistics or events.
-`integrate_method` collects results and dispatches an observer only when one is
+The host worker in `execution._host` records samples and dispatches an observer only when one is
 installed. `ImplicitBM4IntegrationStep` contains the multiplier, physical
 before/after states and twelve copied base stages. The base-stage states have
 `4N` spatial components; the step snapshots have `2N` physical components.
@@ -144,8 +144,7 @@ for supported physical systems, solver details, timing scope and validation.
 
 `simulate(problem, method, request, execution=Execution())` delegates the complete
 job to `Execution.run`. Import the executor with `from execution import Execution`.
-The executor prepares a fresh numerical run and the requested environment, then
-starts the shared integration driver. It does not change thread counts, affinity
+The executor prepares the requested environment and a fresh numerical run, allocates one recorder, invokes the host or compiled worker and finalizes the result once. It owns run status on success and failure. It does not change thread counts, affinity
 or global JAX settings. Subclasses can execute the same job elsewhere, while
 `simulate` validates the completed `States`. Backend choices remain separate in
 `options=ExecutionOptions(...)`. See the [executor contract](../../../simulation/execution.md).

@@ -74,13 +74,15 @@ shared with Gauss--Legendre: field validation, centered finite differences,
 analytic particle-block validation and automatic Jacobian selection. The
 sequential SDIRK stage equations and corrections remain in `sdirk.py`.
 
-`simulate(problem, method, request)` creates a fresh run via `new_run`, validates
-its formulation and calls the shared `integrate_method`. Each `advance` returns
-an internal state, small work counters and method-specific accepted details.
-The controller owns `IntegrationState(time, values)`. Each requested sample is
-extracted into physical coordinates and copied into `States`. Main-step counters
-keep their separate axis; the formulation diagnoses the completed physical
-history. Finalization seals the same `States` object. Run resources are isolated.
+By default, `simulate(problem, method, request)` delegates to `Execution.run`,
+which prepares a fresh run via `new_run` and allocates one physical recorder.
+The host worker advances and samples through the method's controller. Each
+`advance` returns an internal state, work counters and accepted details.
+The controller owns `IntegrationState(time, values)`. Requested samples are
+extracted into physical coordinates and copied into `States`; step counters keep
+their separate axis. The formulation diagnoses the saved physical history.
+Execution finalizes the same recorder once and closes the run on success or
+failure. Configured methods remain reusable with isolated run resources.
 
 Fixed methods use independent shortened maps for off-grid samples. Adaptive
 methods retain one live SciPy solver whose state is always physical. Their
@@ -128,8 +130,7 @@ for supported physical systems, solver details, timing scope and validation.
 
 `simulate(problem, method, request, execution=Execution())` delegates the complete
 job to `Execution.run`. Import the executor with `from execution import Execution`.
-The executor prepares a fresh numerical run and the requested environment, then
-starts the shared integration driver. It does not change thread counts, affinity
+The executor prepares the requested environment and a fresh numerical run, allocates one recorder, invokes the host or compiled worker and finalizes the result once. It owns run status on success and failure. It does not change thread counts, affinity
 or global JAX settings. Subclasses can execute the same job elsewhere, while
 `simulate` validates the completed `States`. Backend choices remain separate in
 `options=ExecutionOptions(...)`. See the [executor contract](../../../simulation/execution.md).

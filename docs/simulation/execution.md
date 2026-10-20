@@ -13,13 +13,13 @@ executor = Execution()
 solution = simulate(problem, RK4(), request, execution=executor)
 ```
 
-Omitting `execution` creates a local executor. It prepares a fresh numerical run,
-selects the shared integration driver and supplies execution metadata. Methods own
-their numerical operations; controllers own accepted steps and sampling; `States`
-owns physical recording and the completed result. The executor retains no per-run
-state and can be reused. It does not change thread counts, CPU affinity, worker
-processes or global JAX options. The default is NumPy/SciPy on the host CPU; a
-single physical core is not enforced.
+Omitting `execution` creates a reusable local executor. It prepares a fresh
+numerical run, allocates one physical recorder and owns status transitions,
+result finalization and execution metadata. Methods own numerical operations;
+controllers own accepted steps and sampling; `States` owns physical recording
+and the completed result. The executor retains no per-run state and does not
+change thread counts, CPU affinity, worker processes or global JAX options.
+The default is NumPy/SciPy on the host CPU; a single physical core is not enforced.
 
 ## Job and result boundary
 
@@ -30,12 +30,17 @@ single physical core is not enforced.
 - `SimulationRequest`: time interval, step limit and requested saved times.
 - Optional `ExecutionOptions`: backend and device selection for this job.
 
-The executor calls `method.new_run` and starts `integrate_method` for host control
-or `integrate_fixed` for a prepared device map. Execution metadata enters the driver
-before finalization, avoiding a second physical-history copy. Numerical formulas,
-nonlinear solves, observations and convergence checks keep their existing owners.
-The executor does not call `simulate`, which would re-enter the same boundary.
-Failures propagate without a local fallback, and consumed runs become finished.
+The executor calls `method.new_run`, validates the fresh run once and owns its
+running/finished transitions, including kernel preparation and result failures.
+It allocates one result with `States.prepare`. The `run_steps` worker in
+`execution._host` records streaming samples; the worker in `execution._jax_fixed`
+records a validated physical history through `States.record_history`, without a
+Python loop over output columns. Both return numerical diagnostics without
+sealing the result. Execution combines metadata and diagnostics and calls
+`States.finalize` once, applying the same legacy aliases to both paths.
+Numerical formulas, nonlinear solves, observations and convergence checks retain
+their owners. The executor does not call `simulate`. Failures propagate without
+a local fallback, and consumed runs become finished.
 
 The returned `states.States` contains physical arrays of shape
 `(physical_state_size, saved_time_count)`, saved times, an independent layout and
@@ -119,11 +124,13 @@ unchanged. Supported direct callers are migrated; no long notebook run is requir
 
 ## Unified execution package
 
-`execution` owns the complete runtime lifecycle. Its internal `execution._host`
-function handles host control, sampling, progress and collection; `execution._jax_fixed`
-keeps the compiled device loop. `execution._fixed` shares step-count/progress helpers,
-and `execution.state` defines the accepted internal snapshot. These are implementation
-parts of the executor, not another public integration subsystem.
+`execution.execution.Execution.run` is the single complete local coordinator.
+`execution._jax` prepares the optional device environment and contains the cached
+SciPy/JAX evaluation adapter. `execution._host` owns host advancement, sampling,
+progress and shared step-count rules; `execution._jax_fixed` owns the compiled
+device loop and numerical export. `execution.state` defines accepted internal
+snapshots. Workers receive an open recorder and never own run status or finalize
+results. These are internal implementation functions, not additional executors.
 
 `methods.base.IntegrationMethod` defines isolated numerical preparation and operations,
 alongside the structural `NumericalMethod` protocol. Import the base with
@@ -136,7 +143,16 @@ is not exported as a second public execution entry point.
 The `integration` package has been removed. Migrate `integration.core.IntegrationMethod`
 to `methods.base.IntegrationMethod`, controller imports to `execution`, and
 `integration.state.IntegrationState` to `execution.state.IntegrationState`.
-Internal driver users migrate `integration.core.integrate_method` to
-`execution._host.integrate_method` and `integration.jax_fixed` to `execution._jax_fixed`.
-There are no compatibility modules. Saved physical-result formats remain unchanged;
-serialized live run snapshots using removed module paths are not a supported archive format.
+The private complete coordinators `integrate_method` and `integrate_fixed` are
+also removed; complete callers use `simulate` or `Execution.run`. The former
+`execution._jax_run`, `execution._fixed` and `dynamics._jax_host` modules are
+retired without compatibility aliases. Saved physical-result formats remain
+unchanged; serialized live snapshots using removed paths are not supported archives.
+
+Simulation preparation in `execution._jax` binds the requested device and shared
+GC/FC equations to `JaxPotential` automatically. A simulation caller can keep a
+base `Potential`; no manual backend-specific potential construction is required.
+Standalone `JaxPotential` retains its own evaluation guards, device coefficient
+cache and input placement rules. Numerical JIT kernels remain beside their
+algorithms. Physics modules do not import execution; the hybrid SciPy/JAX bridge
+belongs to `execution._jax`.

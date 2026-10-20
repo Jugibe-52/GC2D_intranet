@@ -107,12 +107,15 @@ field, energy and analytic-Jacobian equations as NumPy. Device preparation belon
 to execution. Arithmetic projection carries no nonlinear controls. Kernel selection
 is complete before tracing, with explicit rejection of unsupported subclass overrides.
 
-The coordinator receives `contracts.compiled.CompiledStep`, carrying the resolved
-device, internal-state map and optional physical energy. `execution._jax_fixed`
-owns scheduling, sampling, convergence checks and result collection. It does not
-import concrete methods or discover their attributes. The executor supplies
-execution metadata to the driver before result construction. Prepared maps snapshot
+The compiled worker receives `contracts.compiled.CompiledStep`, carrying the
+resolved device, internal-state map and optional physical energy.
+`execution._jax_fixed` owns scheduling, sampling, convergence checks and bulk
+physical export. It does not import concrete methods or discover their attributes.
+`Execution.run` allocates the recorder, owns run status and finalizes that same
+result with execution metadata and numerical diagnostics. Prepared maps snapshot
 their controls, so later edits to a configured method do not change that map.
+The exact-type adapter branches define supported fixed methods without a second
+whitelist. The capability declaration remains part of the preparation contract.
 
 `IntegrationMethod.new_run` creates an isolated numerical run and accepts optional
 `evaluated_dynamics` already prepared by execution. Methods store no ExecutionOptions

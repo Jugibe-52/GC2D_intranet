@@ -344,14 +344,15 @@ scalar `energy_error`, and detailed generalized-energy histories.
 
 ### Method instances, collection and adaptive methods
 
-`Execution.run` prepares a fresh run through `method.new_run` and starts the
-appropriate shared integration driver. Methods inherit `IntegrationMethod`;
-`initialize`, `advance`, `build_observation` and `export_history` own numerical
-behavior. Methods have no `integrate` or `_integrate_jax` entry point.
-`integrate_method` coordinates host runs; `States` stores physical samples and
-accepted-step metrics. Method-specific traces are consumed only when an observer
-needs them. See the [executor contract](docs/simulation/execution.md) for migration
-and extension through the preparation protocol.
+`Execution.run` prepares a fresh run through `method.new_run`, allocates one
+`States` recorder and owns the run lifecycle and finalization. Internal host and
+JAX workers advance, sample and fill that recorder. Methods inherit
+`IntegrationMethod`; `initialize`, `advance`, `build_observation` and
+`export_history` own numerical behavior. Methods have no `integrate` or
+`_integrate_jax` entry point. `States` stores physical samples and accepted-step
+metrics. Method-specific traces are consumed only when an observer needs them.
+See the [executor contract](docs/simulation/execution.md) for migration and
+extension through the preparation protocol.
 
 `DOP853` and `Radau` are public methods with `relative_tolerance`,
 `absolute_tolerance`, `first_step`, `dense_output` and optional energy tracking.

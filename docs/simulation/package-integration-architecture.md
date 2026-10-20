@@ -30,11 +30,11 @@ and capabilities rather than extra execution stages.
 ## Runtime sequence
 
 1. The caller builds dynamics and a physical initial array with its layout, then supplies a method and `request.SimulationRequest`.
-2. `simulate` delegates the complete job to `Execution.run`, which prepares the environment and a fresh run through `method.new_run`, then invokes the shared integration driver.
-3. The controller manages `IntegrationState(time, values)` for accepted internal endpoints. `integrate_method` prepares `States` and records the initial physical sample.
-4. Each accepted interval produces main-step statistics and any requested samples. Fixed shadow maps start independently from its left endpoint; adaptive methods evaluate accepted dense output. The formulation extracts physical values before `States.record` copies them.
-5. The formulation evaluates diagnostics over saved physical samples and auxiliaries. `States.finalize` checks coverage and seals the same recording object.
-6. `simulate` verifies time, layout dimension and initial-state agreement and returns the completed `States` directly. JAX constructs that same result type at the host boundary from device arrays.
+2. `simulate` delegates to `Execution.run`, which prepares the environment and a fresh run through `method.new_run`, then allocates `States` and owns the running/finished transitions.
+3. On the host, the controller manages `IntegrationState(time, values)` for accepted endpoints and the worker records the initial physical sample.
+4. Each accepted interval produces statistics and requested samples. Fixed shadow maps start independently from its left endpoint; adaptive methods evaluate accepted dense output. The formulation extracts physical values before recording. JAX computes on the device and records its physical history in bulk with `States.record_history`.
+5. Formulations provide diagnostics over physical samples and auxiliaries. `Execution.run` combines them with metadata and calls `States.finalize` once on its recorder.
+6. `simulate` verifies time, layout dimension and initial-state agreement and returns the completed `States` directly.
 
 ## Extended-family detail
 

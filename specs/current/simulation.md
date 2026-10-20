@@ -2,7 +2,7 @@
 schema_version = 1
 kind = "spec"
 id = "simulation"
-sources = ["src/simulation/runner.py", "src/contracts/problem.py", "src/request.py", "src/execution/execution.py", "src/execution/_jax_run.py", "src/methods/base.py"]
+sources = ["src/simulation/runner.py", "src/contracts/problem.py", "src/request.py", "src/execution/execution.py", "src/execution/_jax.py", "src/methods/base.py"]
 documents = ["docs/simulation/integration-architecture.md", "docs/simulation/execution.md", "docs/simulation/jax-execution.md"]
 
 [[requirements]]
@@ -15,7 +15,7 @@ tests = ["tests/test_core.py::SimulationTests.test_problem_and_request_validate_
 
 [[requirements]]
 id = "SIM-003"
-tests = ["tests/test_execution.py::ExecutionTests.test_default_and_explicit_executor_produce_the_same_solution", "tests/test_execution.py::ExecutionTests.test_simulation_dispatches_one_complete_job_to_the_subclass", "tests/test_execution.py::ExecutionTests.test_local_executor_owns_preparation_and_drives_the_controller", "tests/test_execution.py::ExecutionTests.test_executor_failure_propagates_without_local_fallback", "tests/test_execution.py::ExecutionTests.test_external_provider_prepares_a_run_without_an_integration_entry_point", "tests/test_execution.py::ExecutionTests.test_controller_preparation_failure_consumes_only_the_fresh_run", "tests/test_jax_methods.py"]
+tests = ["tests/test_execution.py::ExecutionTests.test_default_and_explicit_executor_produce_the_same_solution", "tests/test_execution.py::ExecutionTests.test_result_preparation_and_finalization_failures_consume_only_the_run", "tests/test_compiled_step_contract.py::CompiledStepContractTests.test_fixed_and_hybrid_runs_finalize_the_allocated_result_once", "tests/test_execution.py::ExecutionTests.test_simulation_dispatches_one_complete_job_to_the_subclass", "tests/test_execution.py::ExecutionTests.test_local_executor_owns_preparation_and_drives_the_controller", "tests/test_execution.py::ExecutionTests.test_executor_failure_propagates_without_local_fallback", "tests/test_execution.py::ExecutionTests.test_external_provider_prepares_a_run_without_an_integration_entry_point", "tests/test_execution.py::ExecutionTests.test_controller_preparation_failure_consumes_only_the_fresh_run", "tests/test_jax_methods.py"]
 
 [[requirements]]
 id = "SIM-004"
@@ -51,11 +51,14 @@ validates the request; it does not relax the runner's output equality contract.
 
 `simulate` validates its orchestration inputs and delegates one complete job to
 `Execution.run`. Omitting the executor selects local execution; omitting options
-selects NumPy/SciPy without importing JAX. The executor prepares the environment
-and a fresh numerical run, selects the shared integration driver, and supplies
-execution metadata before result construction. Fixed JAX methods use a compiled
-device map; DOP853/Radau retain SciPy control with prepared JAX field evaluations.
-Methods own numerical operations and controllers own accepted intervals/sampling.
+selects NumPy/SciPy without importing JAX. Execution owns environment preparation,
+fresh-run validation, running/finished transitions, one States allocation and
+one finalization. Internal host and compiled workers fill the open recorder and
+return numerical diagnostics. Fixed JAX uses bulk recording; DOP853/Radau retain
+SciPy control with JAX field callbacks prepared in execution._jax. Methods own
+numerical operations and controllers own accepted intervals/sampling. Physics
+modules have no dependency on execution. Standalone JaxPotential remains usable
+with its own evaluation guards and caches.
 
 `NumericalMethod` requires `new_run(problem, request, *, evaluated_dynamics=None)`
 and `jax_mode` (unsupported, device_resident or hybrid_scipy_controller). Prepared

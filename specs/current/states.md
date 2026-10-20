@@ -39,3 +39,10 @@ Canonical layouts belong to `formulations.layout` and share the `StateLayout` pr
 `execution.state.IntegrationState(time, values)` owns a finite scalar time and a finite nonempty one-dimensional internal snapshot. A controller manages successive accepted states; the class has no stepping or storage algorithm. Internal coordinates may contain duplicates and passive auxiliaries. Only formulation-extracted physical values enter `States`; auxiliary sample data feed energy diagnostics at finalization.
 
 Fixed off-grid samples use independent shortened maps from the same accepted interval start, never a prior shadow or the next main state. Endpoints reuse accepted states. Adaptive sampling uses accepted dense output. Sample times and main-step statistics retain separate axes. JAX carries equivalent functional device arrays inside compiled loops and constructs completed `States` at the host boundary. Saved histories, observers and serialized results must not alias mutable solver work arrays.
+
+`States.record_history(values)` copies a complete physical history into an empty
+open recorder, validating shape, finite values and packed layout before writing.
+Invalid input leaves it empty; partially recorded or completed histories cannot
+be overwritten. Recording does not finalize the result. Compiled execution uses
+this bulk operation and the executor then applies the same finalization boundary
+as streaming CPU recording.

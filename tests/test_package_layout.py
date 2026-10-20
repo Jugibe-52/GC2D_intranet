@@ -156,6 +156,7 @@ assert not any(name.split(".")[0] in ("jax", "modal", "integration")
 		for package in ("gc2d", "classes", "research", "workflows", "integration"):
 			self.assertIsNone(importlib.util.find_spec(package), package)
 		for module in (
+			"execution._fixed", "execution._jax_run", "dynamics._jax_host",
 			"contracts.execution", "integration.core", "integration.state", "integration.jax_fixed",
 			"simulation.methods", "simulation.formulations", "simulation.integration",
 			"simulation.configuration", "simulation.problem", "simulation.request",

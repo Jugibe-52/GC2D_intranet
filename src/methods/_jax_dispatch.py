@@ -24,10 +24,7 @@ from methods.extended.core.composition import ABBA2, BM4
 
 
 Options = TypeVar("Options", ExplicitOptions, ImplicitOptions, CompositionOptions)
-_SUPPORTED = (
-	ExplicitEuler, RK4, GaussLegendre4, SDIRK4, HBVM42,
-	ABBA2Implicit, ABBA4Implicit, ABBA6Implicit, ABBA2Midpoint, BM4Implicit, BM4Midpoint,
-)
+
 
 
 @dataclass(frozen=True)
@@ -136,23 +133,22 @@ def validate_hybrid_method(method: object) -> None:
 
 def prepare_step(method: IntegrationMethod[Any], dynamics: HamiltonianSystem, device: Any) -> CompiledStep:
 	"""Select an adapter once, refusing to discard overrides of built-in methods."""
-	if type(method) not in _SUPPORTED:
-		raise TypeError("JAX fixed integration requires a supported built-in method; subclass overrides are not compiled.")
-	if isinstance(method, (ExplicitEuler, RK4)):
+	if type(method) in (ExplicitEuler, RK4) and isinstance(method, (ExplicitEuler, RK4)):
 		return _explicit(method, dynamics, device)
-	if isinstance(method, (GaussLegendre4, SDIRK4)):
+	if type(method) in (GaussLegendre4, SDIRK4) and isinstance(method, (GaussLegendre4, SDIRK4)):
 		return _classical(method, dynamics, device)
-	if isinstance(method, HBVM42):
+	if type(method) is HBVM42:
 		return _hbvm(method, dynamics, device)
-	if dynamics.state_dimension != 2:
-		raise TypeError("Extended GC compositions require planar guiding-centre dynamics.")
-	if isinstance(method, (ABBA2Implicit, ABBA4Implicit, ABBA6Implicit)):
-		return _abba(method, dynamics, device)
-	if isinstance(method, BM4Implicit):
-		return _bm4(method, dynamics, device)
-	if isinstance(method, (ABBA2Midpoint, BM4Midpoint)):
-		return _midpoint(method, dynamics, device)
-	raise TypeError("The supported method has no compiled family adapter.")
+	if type(method) in (ABBA2Implicit, ABBA4Implicit, ABBA6Implicit, BM4Implicit, ABBA2Midpoint, BM4Midpoint):
+		if dynamics.state_dimension != 2:
+			raise TypeError("Extended GC compositions require planar guiding-centre dynamics.")
+		if isinstance(method, (ABBA2Implicit, ABBA4Implicit, ABBA6Implicit)):
+			return _abba(method, dynamics, device)
+		if isinstance(method, BM4Implicit):
+			return _bm4(method, dynamics, device)
+		if isinstance(method, (ABBA2Midpoint, BM4Midpoint)):
+			return _midpoint(method, dynamics, device)
+	raise TypeError("JAX fixed integration requires a supported built-in method; subclass overrides are not compiled.")
 
 
 __all__: list[str] = []

@@ -153,6 +153,34 @@ class ExecutionTests(unittest.TestCase):
         self.assertEqual(self.method._status, "configuration")
         self.assertTrue(Execution().run(self.problem, self.method, self.request).complete)
 
+    def test_result_preparation_and_finalization_failures_consume_only_the_run(self):
+        for operation in ("prepare", "finalize"):
+            run = self.method.new_run(self.problem, self.request)
+            with self.subTest(operation=operation), patch.object(RK4, "new_run", return_value=run):
+                with patch.object(States, operation, side_effect=RuntimeError("Result failure")):
+                    with self.assertRaisesRegex(RuntimeError, "Result failure"):
+                        Execution().run(self.problem, self.method, self.request)
+                self.assertEqual(run._status, "finished")
+                with self.assertRaisesRegex(TypeError, "fresh"):
+                    Execution().run(self.problem, self.method, self.request)
+            self.assertEqual(self.method._status, "configuration")
+        self.assertTrue(Execution().run(self.problem, self.method, self.request).complete)
+
+    def test_host_result_is_finalized_once_while_the_run_is_active(self):
+        run = self.method.new_run(self.problem, self.request)
+        finalize = States.finalize
+        finished = []
+        def finish(result, *args, **kwargs):
+            self.assertEqual(run._status, "running")
+            self.assertFalse(result.complete)
+            finished.append(result)
+            return finalize(result, *args, **kwargs)
+        with patch.object(RK4, "new_run", return_value=run), patch.object(States, "finalize", finish):
+            result = Execution().run(self.problem, self.method, self.request)
+        self.assertEqual(len(finished), 1)
+        self.assertIs(finished[0], result)
+        self.assertEqual(run._status, "finished")
+
     def test_wrong_executor_and_options_are_rejected_before_local_calculation(self):
         with patch.object(RK4, "new_run", side_effect=AssertionError("Unexpected calculation")):
             with self.assertRaisesRegex(TypeError, "Execution instance"):

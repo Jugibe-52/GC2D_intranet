@@ -20,7 +20,17 @@ from simulation import (
 )
 from methods.base import IntegrationMethod
 from contracts.step import StepInfo, StepResult
-from execution._host import FixedStepController, integrate_method
+from execution._host import FixedStepController
+from execution import Execution
+
+
+def _execute_prepared(run, *, controller=None):
+	"""Inspect a specific prepared run through the complete execution boundary."""
+	with patch.object(type(run), "new_run", return_value=run):
+		if controller is None:
+			return Execution().run(run.problem, run, run.request)
+		with patch.object(run, "controller", return_value=controller):
+			return Execution().run(run.problem, run, run.request)
 
 
 def _problem() -> InitialValueProblem:
@@ -82,10 +92,10 @@ class MethodIntegrationTests(unittest.TestCase):
 				self.assertEqual(events, [])
 				np.testing.assert_array_equal(initial, run.initial_state)
 				np.testing.assert_array_equal(first.state, run.advance(0.3, initial, 0.02).state)
-				dense = integrate_method(run)
+				dense = _execute_prepared(run)
 				self.assertEqual(len(events), 2)
 				events.clear()
-				again = integrate_method(run.new_run(problem, _request(True)))
+				again = _execute_prepared(run.new_run(problem, _request(True)))
 				self.assertEqual(len(events), 2)
 				for key in dense.diagnostics:
 					np.testing.assert_equal(dense.diagnostics[key], again.diagnostics[key])
@@ -130,7 +140,7 @@ class MethodIntegrationTests(unittest.TestCase):
 					yield info, result
 					state = result.state
 		run = BM4Implicit().new_run(_problem(), _request(True))
-		data = integrate_method(run, controller=PrescribedController())
+		data = _execute_prepared(run, controller=PrescribedController())
 		state = run.initial_state.copy()
 		for t, end in zip((0.3, 0.31, 0.33), (0.31, 0.33, 0.34)):
 			state = run.advance(t, state, end - t).state
@@ -145,7 +155,7 @@ class MethodIntegrationTests(unittest.TestCase):
 			raise RuntimeError("Nonlinear solve failed")
 		with patch.object(run, "advance", side_effect=fail):
 			with self.assertRaisesRegex(RuntimeError, "Nonlinear solve failed"):
-				integrate_method(run)
+				_execute_prepared(run)
 		self.assertEqual(events, [])
 
 	def test_run_resources_are_isolated_and_a_completed_run_cannot_be_reused(self) -> None:
@@ -159,11 +169,11 @@ class MethodIntegrationTests(unittest.TestCase):
 				self.assertIs(second.problem, other)
 				self.assertFalse(np.shares_memory(first.initial_state, second.initial_state))
 				self.assertFalse(hasattr(method, "initial_state"))
-				result = integrate_method(first)
-				integrate_method(second)
+				result = _execute_prepared(first)
+				_execute_prepared(second)
 				np.testing.assert_array_equal(result.states, simulate(problem, method, _request()).states)
-				with self.assertRaisesRegex(RuntimeError, "fresh"):
-					integrate_method(first)
+				with self.assertRaisesRegex(TypeError, "fresh"):
+					_execute_prepared(first)
 
 
 if __name__ == "__main__":

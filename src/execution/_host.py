@@ -1,3 +1,6 @@
+# Copyright (c) 2023, Cristel Chandre
+# SPDX-License-Identifier: BSD-2-Clause
+
 """Host time stepping, sampling and result collection inside execution.
 
 Controllers provide accepted intervals and samples; numerical maps remain in
@@ -6,16 +9,17 @@ methods. This private driver serves fixed and adaptive runs without method dispa
 
 from __future__ import annotations
 
-from collections.abc import Iterator, Mapping
-from types import MappingProxyType
+from collections.abc import Iterator
 from typing import Any, Generic, Protocol, TYPE_CHECKING, TypeVar
+
+import math
+import sys
 
 import numpy as np
 
 from contracts.result import DiagnosticValue
 from contracts.step import StepInfo, StepResult
 from execution.state import IntegrationState
-from execution._fixed import _Progress, _step_count
 from request import SimulationRequest
 from states.history import States
 
@@ -24,13 +28,55 @@ if TYPE_CHECKING:
 
 
 Detail = TypeVar("Detail")
-NEWTON_ALIASES: Mapping[str, str] = MappingProxyType({
-	"newton_iterations": "nonlinear_iterations",
-	"newton_residual_norms": "nonlinear_residual_norms",
-	"newton_absolute_tolerance": "nonlinear_absolute_tolerance",
-	"newton_relative_tolerance": "nonlinear_relative_tolerance",
-	"newton_max_iterations": "nonlinear_max_iterations",
-})
+class _Progress:
+	"""Small stderr progress indicator counting complete integration steps."""
+
+	def __init__(self, label: str, total: int, *, t_span: tuple[float, float] | None = None) -> None:
+		self.label = label
+		self.total = max(total, 1)
+		self.every = max(self.total // 100, 1)
+		self.steps = 0
+		self.t_span = t_span
+		self._last_percent = -1
+
+	def update(self, t: float) -> None:
+		"""Advance and occasionally redraw the same terminal line."""
+		self.steps += 1
+		if self.t_span is None and self.steps % self.every and self.steps < self.total:
+			return
+		fraction = min(self.steps / self.total, 1.0)
+		if self.t_span is not None:
+			start, end = self.t_span
+			fraction = min(max((t - start) / (end - start), 0.0), 1.0)
+		percent = int(100 * fraction)
+		if percent == self._last_percent:
+			return
+		self._last_percent = percent
+		width = 30
+		filled = int(width * fraction)
+		bar = "=" * filled
+		if filled < width:
+			bar += ">" + " " * (width - filled - 1)
+		print(
+			f"\r{self.label} [{bar}] {fraction:6.1%} "
+			+ (f"({self.steps} accepted steps, t={t:.6g})" if self.t_span is not None
+			 else f"({self.steps}/{self.total}, t={t:.6g})"),
+			end="",
+			file=sys.stderr,
+			flush=True,
+		)
+
+	def close(self) -> None:
+		"""Terminate the in-place progress display."""
+		print(file=sys.stderr, flush=True)
+
+
+def _step_count(duration: float, max_step: float) -> int:
+	"""Return the fewest uniform steps respecting ``max_step``."""
+	ratio = duration / max_step
+	return max(1, math.ceil(math.nextafter(ratio, -math.inf)))
+
+
 
 
 def _time_tolerance(t_span: tuple[float, float]) -> float:
@@ -101,23 +147,16 @@ def _record_sample(method: IntegrationMethod[Any], result: States, time: float, 
 		result.record(time, physical, auxiliary=auxiliary)
 
 
-def integrate_method(
-	method: IntegrationMethod[Detail],
-	*, controller: StepController[Detail] | None = None,
-	metadata: Mapping[str, DiagnosticValue] | None = None,
-) -> States:
-	"""Coordinate accepted steps, sampling, observation and physical output.
+def run_steps(
+	method: IntegrationMethod[Detail], saved: States,
+) -> dict[str, DiagnosticValue]:
+	"""Record accepted steps and samples in the executor's open result.
 
-	The supplied controller is per-run; the default is fixed. Neither the driver
-	nor the result container branches on the numerical method or its state extension.
+	Controllers own step policy; the executor owns run status and finalization.
 	Observer lifecycle and persistence remain owned by the caller.
 	"""
-	if method._status != "ready":
-		raise RuntimeError("Integration requires a fresh method.new_run(problem, request).")
 	request = method.request
-	selected = controller if controller is not None else method.controller()
-	method._status = "running"
-	saved = States.prepare(request.output_times, method.problem.initial_state, layout=method.problem.layout)
+	selected = method.controller()
 	_record_sample(method, saved, request.t_span[0], method.initial_state)
 	t0, tf = request.t_span
 	# Allow only float round-off when comparing interval and sampling endpoints;
@@ -154,18 +193,15 @@ def integrate_method(
 			if progress is not None:
 				progress.update(info.end_time)
 	finally:
-		method._status = "finished"
 		if progress is not None:
 			progress.close()
 	if output_index != request.output_times.size or abs(previous_end - tf) > tolerance:
 		raise RuntimeError("The integration did not cover the requested interval.")
-	diagnostics = {**method.metadata, **(metadata or {})}
+	diagnostics: dict[str, DiagnosticValue] = {}
 	if method.state_formulation is not None:
 		diagnostics.update(method.state_formulation.diagnose_history(saved.times, saved.values, dict(saved.auxiliary)))
 	diagnostics["output_interpolation_count"] = interior_sample_count
-	# Only methods publishing the complete nonlinear contract expose legacy
-	# Newton names; a partial set belongs to other nonlinear algorithms.
-	return saved.finalize(diagnostics, aliases=NEWTON_ALIASES)
+	return diagnostics
 
 
 __all__: list[str] = []

@@ -62,7 +62,7 @@ The diagram is a historical rendering, retained without regeneration. Its collec
 5. Evaluate energy diagnostics over the saved physical history and auxiliary data. `States.finalize` checks completeness and seals this same object.
 6. `Execution.run` returns it to `simulate`, which checks request and initial-data agreement and returns it directly.
 
-The initial state and a saved sample can have identical values while serving different roles. No sample becomes the next main state. Formulations are shared across methods; layout, time control and numerical stepping remain separate responsibilities. JAX retains functional device arrays inside compiled loops and creates completed `States` at the host boundary.
+The initial state and a saved sample can have identical values while serving different roles. No sample becomes the next main state. Formulations are shared across methods; layout, time control and numerical stepping remain separate responsibilities. JAX retains functional device arrays inside compiled loops and records its exported physical history with `States.record_history`. `Execution.run` owns the single allocation and finalization boundary for both workers.
 
 ## Public API and imports
 
@@ -81,7 +81,7 @@ The following old routes have been removed after migrating supported consumers:
 | `contracts.execution.Execution` | `execution.Execution` for the executor; `contracts.execution_options.ExecutionOptions` for backend choices |
 | `simulation.methods.*` | `methods.*` |
 | `simulation.formulations.*` | `formulations.*` |
-| `simulation.integration`, `simulation._fixed` | `methods.base`, `execution._host`, `execution._fixed` |
+| `simulation.integration`, `simulation._fixed` | `methods.base`, `execution._host` |
 | `simulation.configuration`, `.problem`, `.observation` | Corresponding `contracts` submodules |
 | `simulation.request`, `contracts.request` | `request` |
 | `simulation._result` | `contracts.result` |
@@ -100,7 +100,7 @@ removed; see the [API migration guide](api-migration.md).
 
 The `simulate` function validates its inputs and delegates each complete job to
 `execution.execution.Execution`. The local executor prepares a fresh run through
-`new_run` and starts the shared driver. Subclasses may perform the whole job
+`new_run`, allocates one recorder, invokes the host or compiled worker and finalizes that same result. Subclasses may perform the whole job
 elsewhere. See the [executor contract](execution.md). `States` validates and copies
 physical arrays, including dimensions, finite values and packed layout. The entry
 point checks saved times, state size and initial data against the request and
