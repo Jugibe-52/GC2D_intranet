@@ -6,7 +6,7 @@ from typing import Literal, TypeAlias
 import numpy as np
 from formulations.state import DoubledFormulation
 from formulations.gc import GCDoubledMaps
-from integration.core import IntegrationMethod
+from methods.base import IntegrationMethod
 from contracts.step import StepInfo, StepResult
 from contracts.result import DiagnosticValue
 from contracts.observation import ImplicitBM4IntegrationStep, StepObserver

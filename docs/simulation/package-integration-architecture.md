@@ -16,7 +16,7 @@ remain available unchanged.
 
 ## Reading the diagram
 
-The image records the previous package organization, including the retired initial-provider, collector and result owners. Its module labels are historical. The current owners are documented in the [integration guide](integration-architecture.md): `request.py` owns temporal configuration, `formulations.layout` owns physical layouts, `integration` owns current-state control and `states` owns physical recording and results.
+The image records the previous package organization, including the retired initial-provider, collector and result owners. Its module labels are historical. The current owners are documented in the [integration guide](integration-architecture.md): `request.py` owns temporal configuration, `formulations.layout` owns physical layouts, `execution` owns preparation and current-state control and `states` owns physical recording and results.
 
 The historical `contracts/` band groups shared data interfaces. Physical capability protocols belong to
 `dynamics/protocols.py`, split-map protocols to `formulations/base.py`, and the

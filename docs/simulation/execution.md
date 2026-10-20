@@ -116,3 +116,27 @@ Use `Execution` for the executor and `ExecutionOptions` from
 `contracts.execution_options` for backend choices. The signatures of `simulate`,
 executors and numerical constructors, archive formats and notebook outputs are
 unchanged. Supported direct callers are migrated; no long notebook run is required.
+
+## Unified execution package
+
+`execution` owns the complete runtime lifecycle. Its internal `execution._host`
+function handles host control, sampling, progress and collection; `execution._jax_fixed`
+keeps the compiled device loop. `execution._fixed` shares step-count/progress helpers,
+and `execution.state` defines the accepted internal snapshot. These are implementation
+parts of the executor, not another public integration subsystem.
+
+`methods.base.IntegrationMethod` defines isolated numerical preparation and operations,
+alongside the structural `NumericalMethod` protocol. Import the base with
+`from methods import IntegrationMethod`. Controller extensions use
+`from execution import FixedStepController, StepController, IntegrationState`.
+The SciPy controller remains next to its method-specific live solver adapter.
+Complete simulations use `simulate` or `Execution.run`; the private host driver
+is not exported as a second public execution entry point.
+
+The `integration` package has been removed. Migrate `integration.core.IntegrationMethod`
+to `methods.base.IntegrationMethod`, controller imports to `execution`, and
+`integration.state.IntegrationState` to `execution.state.IntegrationState`.
+Internal driver users migrate `integration.core.integrate_method` to
+`execution._host.integrate_method` and `integration.jax_fixed` to `execution._jax_fixed`.
+There are no compatibility modules. Saved physical-result formats remain unchanged;
+serialized live run snapshots using removed module paths are not a supported archive format.

@@ -34,7 +34,7 @@ shows the complete six-phase lifecycle, shared by all 13 methods. Each model
 also has its own detailed diagram in the [method catalog](docs/models/README.md).
 In `src/`, `contracts/` holds shared input and step types, `formulations/`
 defines numerical state representations, `methods/` implements steps, and
-`integration/` schedules and collects them. `simulation/` remains the public
+`execution/` prepares runs, schedules steps and collects results. `simulation/` remains the public
 execution facade; `states/` owns the returned result. Initial geometry
 stays in `states/`.
 

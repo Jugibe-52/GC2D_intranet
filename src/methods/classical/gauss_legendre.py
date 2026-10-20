@@ -12,7 +12,7 @@ from dynamics import (
 	GuidingCenterJacobianSystem,
 )
 
-from integration.core import IntegrationMethod
+from methods.base import IntegrationMethod
 from contracts.step import StepInfo, StepResult
 from contracts.result import DiagnosticValue
 from formulations.state import PhysicalFormulation

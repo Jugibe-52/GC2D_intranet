@@ -5,7 +5,7 @@ revision = 1
 status = "verified"
 approval = "2026-10-20: User accepted the executor-owned integration design discussed in this task and explicitly invoked SDD to prepare and execute it."
 id = "2026-10-20-executor-owned-integration"
-sources = ["src/execution/execution.py", "src/integration/core.py", "src/methods/base.py", "src/methods/adaptive/scipy.py", "src/methods/_jax_dispatch.py"]
+sources = ["src/execution/execution.py", "src/execution/_host.py", "src/methods/base.py", "src/methods/adaptive/scipy.py", "src/methods/_jax_dispatch.py"]
 documents = ["specs/current/simulation.md", "specs/current/states.md", "docs/simulation/execution.md", "docs/simulation/jax-execution.md"]
 requirements = ["SIM-003", "SIM-004", "STA-003"]
 proposed_requirements = []
@@ -54,3 +54,6 @@ Execution prepares a fresh method run, validates the requested execution capabil
 The default path remains local NumPy/SciPy without importing JAX. Fixed JAX paths retain device-resident loops; DOP853/Radau retain SciPy acceptance and dense output with prepared JAX field evaluations. Device resolution and execution metadata belong to execution. Numerical adapters retain algorithm-specific kernel construction and explicit rejection of unsupported overrides. Executors select generic execution capabilities rather than branching on BM4 or RK4 identities.
 
 Saved physical arrays remain (d*N,T), with GC components x,y and FC x,y,vx,vy, unchanged normalization and strictly identical requested times. Configurations remain reusable; per-run resources are independent. Fixed samples inside a step remain independent shortened maps from its left endpoint. Nonlinear tolerances and convergence criteria are unchanged. Compare deterministic before/after results on identical inputs; bitwise equality is expected where the arithmetic is unchanged. Cross-backend tests retain their existing scientific tolerances.
+
+
+Reference note (2026-10-20): source references now resolve to methods.base and execution after the package merger. Historical design and results in this record retain their original execution context.

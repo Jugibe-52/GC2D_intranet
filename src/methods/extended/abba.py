@@ -16,7 +16,7 @@ from contracts.step import StepInfo, StepResult
 from dynamics import DynamicalSystem, GuidingCenterJacobianSystem
 from formulations.gc import GCDoubledMaps
 from formulations.state import DoubledFormulation
-from integration.core import IntegrationMethod
+from methods.base import IntegrationMethod
 from methods._nonlinear import NonlinearSolver, SolverOptions, _validate_nonlinear_solver
 from methods.extended.configuration import (
     ProjectionFormulation, ProjectionPlacement, StateExtension,

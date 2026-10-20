@@ -8,7 +8,7 @@ import jax.numpy as jnp
 
 from contracts.compiled import CompiledStep
 from dynamics.protocols import HamiltonianSystem
-from integration.core import IntegrationMethod
+from methods.base import IntegrationMethod
 from methods._jax_options import CompositionOptions, ExplicitOptions, ImplicitOptions, NonlinearOptions
 from methods.classical._jax_steps import euler_step, gauss_step, hbvm_step, rk4_step, sdirk_step
 from methods.extended.core._jax_projection import extended_step

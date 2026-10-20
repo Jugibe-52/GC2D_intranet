@@ -15,11 +15,11 @@ import numpy as np
 from states.history import States
 from contracts.result import DiagnosticValue
 from contracts.compiled import CompiledStep
-from integration._fixed import _step_count
-from integration.core import _time_tolerance, NEWTON_ALIASES
+from execution._fixed import _step_count
+from execution._host import _time_tolerance, NEWTON_ALIASES
 
 if TYPE_CHECKING:
-    from integration.core import IntegrationMethod
+    from methods.base import IntegrationMethod
 
 
 def _integrate(

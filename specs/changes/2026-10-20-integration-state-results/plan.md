@@ -4,7 +4,7 @@ kind = "change-plan"
 revision = 1
 spec_revision = 1
 id = "2026-10-20-integration-state-results"
-sources = ["src/integration/core.py", "src/integration/state.py", "src/states/history.py", "src/formulations/layout.py", "src/request.py", "src/contracts/problem.py"]
+sources = ["src/methods/base.py", "src/execution/_host.py", "src/execution/state.py", "src/states/history.py", "src/formulations/layout.py", "src/request.py", "src/contracts/problem.py"]
 documents = ["specs/current/states.md", "specs/current/results.md", "specs/current/simulation.md"]
 open_questions = []
 +++
@@ -23,3 +23,6 @@ Migrate all current Python consumers and affected tracked/development notebook s
 ## Verification plan
 
 Capture deterministic GC/FC runs before edits with nonzero t0, off-grid samples, RK4, GC BM4Implicit and DOP853, energy diagnostics and archives. Require exact equality where numerical arithmetic is unchanged. Check recording isolation, incomplete finalization, immutable output, separate diagnostic axes, arbitrary t0, output-density independence and repeated-run isolation. Run CPU/JAX and archive coverage, complete unit tests, mypy, both examples, build and extracted-wheel imports. Audit notebook source syntax and execute reduced representative cells in memory. Validate SDD records and compile the thesis with latexmk -pdf main.tex.
+
+
+Reference note (2026-10-20): source references now resolve to methods.base and execution after the package merger. Historical design and results in this record retain their original execution context.

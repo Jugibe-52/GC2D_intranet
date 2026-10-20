@@ -16,7 +16,8 @@ from simulation import (
     BM4Implicit, BM4Midpoint, ExplicitEuler, RK4, GaussLegendre4, SDIRK4, HBVM42,
     InitialValueProblem, SimulationRequest, simulate,
 )
-from integration import IntegrationMethod, integrate_method
+from methods.base import IntegrationMethod
+from execution._host import integrate_method
 from tests.test_method_integration import _problem
 
 

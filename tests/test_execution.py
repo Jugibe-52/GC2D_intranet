@@ -107,7 +107,7 @@ class ExecutionTests(unittest.TestCase):
                 simulate(problem, self.method, self.request, execution=ReturnedExecution(invalid))
 
     def test_local_executor_owns_preparation_and_drives_the_controller(self):
-        from integration.core import FixedStepController
+        from execution._host import FixedStepController
         run = self.method.new_run(self.problem, self.request)
         with patch.object(RK4, "new_run", return_value=run) as prepare:
             with patch.object(run, "controller", wraps=run.controller) as controller:

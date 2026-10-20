@@ -4,7 +4,7 @@ kind = "change-tasks"
 spec_revision = 1
 plan_revision = 1
 id = "2026-10-20-executor-owned-integration"
-sources = ["src/execution/execution.py", "src/integration/core.py", "src/methods/base.py", "src/methods/adaptive/scipy.py", "src/methods/_jax_dispatch.py"]
+sources = ["src/execution/execution.py", "src/execution/_host.py", "src/methods/base.py", "src/methods/adaptive/scipy.py", "src/methods/_jax_dispatch.py"]
 documents = ["specs/current/simulation.md", "specs/current/states.md", "docs/simulation/execution.md", "docs/simulation/jax-execution.md"]
 open_questions = []
 
@@ -106,3 +106,6 @@ diagrams and their sources remain historical; current Markdown describes the new
 execution ownership. ABBA and ABBA4 theory sources and PDFs include the updated
 entry point. No TFM files, numerical equations, deployment or stored study data
 were changed. No commit or push was made.
+
+
+Reference note (2026-10-20): source references now resolve to methods.base and execution after the package merger. Historical design and results in this record retain their original execution context.

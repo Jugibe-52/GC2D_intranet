@@ -8,7 +8,7 @@ ABBA and BM4 share the numerical implementation in
 The public method names and exports from `simulation`, `methods`, and
 `methods.extended` remain available. ABBA6 now uses one outer projection,
 matching ABBA4; its numerical map and observation structure change accordingly.
-The canonical package is `methods.extended`; `formulations`, `integration`,
+The canonical package is `methods.extended`; `formulations`, `execution`,
 and `contracts` are sibling packages. Old `simulation.methods.*`,
 `methods.abba.*`, and `methods.bm4.*` routes have been removed. Explicit public
 exports refer to the canonical implementation, without module aliases or import
@@ -208,7 +208,9 @@ or global JAX settings. Subclasses can execute the same job elsewhere, while
 `simulate` validates the completed `States`. Backend choices remain separate in
 `options=ExecutionOptions(...)`. See the [executor contract](../../../simulation/execution.md).
 Numerical stages, projection equations and step controllers retain their own
-implementations inside this execution boundary.
+implementations inside this execution boundary. The base class is
+`methods.base.IntegrationMethod`; time loops and sampling live inside `execution`,
+with no separate integration package.
 
 `Execution_Modal` now implements this boundary for remote NumPy/SciPy CPU
 integrations. Results return to the local machine for validation and subsequent
@@ -262,7 +264,7 @@ right-hand-side axis for `numpy.linalg.solve`, preserving behavior with NumPy
 Fixed-step methods inherit `IntegrationMethod` and declare `jax_mode="device_resident"`.
 The executor resolves the device and prepares the dynamics; a numerical family
 adapter binds the method's controls into `contracts.compiled.CompiledStep`.
-The executor starts the shared `integration/jax_fixed.py` loop, which knows no
+The executor starts the shared `execution/_jax_fixed.py` loop, which knows no
 concrete numerical method. Each method retains its compiled stages and statistics.
 See [JAX execution](../../../simulation/jax-execution.md).
 

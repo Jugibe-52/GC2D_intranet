@@ -43,7 +43,7 @@ class CompiledStepContractTests(unittest.TestCase):
 
 	def test_coordinator_accepts_an_independent_prepared_map(self) -> None:
 		import jax.numpy as jnp
-		from integration.jax_fixed import integrate_fixed
+		from execution._jax_fixed import integrate_fixed
 
 		@dataclass(frozen=True)
 		class ConstantDrift:
@@ -84,7 +84,7 @@ class CompiledStepContractTests(unittest.TestCase):
 
 	def test_runs_reuse_prepared_dynamics_and_bounded_compilation(self) -> None:
 		from execution._jax import prepare_dynamics
-		from integration.jax_fixed import _compiled_integrator
+		from execution._jax_fixed import _compiled_integrator
 		from methods._jax_dispatch import PreparedJaxStep, prepare_step
 
 		_compiled_integrator.cache_clear()

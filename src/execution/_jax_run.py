@@ -7,7 +7,7 @@ from contracts.execution_options import ExecutionOptions
 from contracts.problem import InitialValueProblem
 from contracts.result import DiagnosticValue
 from execution._jax import prepare_dynamics, resolve_device
-from integration.core import IntegrationMethod
+from methods.base import IntegrationMethod
 from methods.base import NumericalMethod
 from request import SimulationRequest
 

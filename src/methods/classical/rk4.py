@@ -9,7 +9,7 @@ import numpy as np
 
 from dynamics import DynamicalSystem
 
-from integration.core import IntegrationMethod
+from methods.base import IntegrationMethod
 from contracts.step import StepInfo, StepResult
 from formulations.state import PhysicalFormulation
 from contracts.observation import IntegrationStep, StepObserver

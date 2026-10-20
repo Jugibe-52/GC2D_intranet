@@ -14,7 +14,6 @@ import unittest
 import simulation
 import methods
 import formulations
-import integration
 import execution
 from dynamics import GuidingCenterDynamics
 
@@ -36,7 +35,6 @@ class PackageLayoutTests(unittest.TestCase):
 			"execution",
 			"formulations",
 			"states",
-			"integration",
 			"methods",
 			"potential",
 			"simulation",
@@ -47,7 +45,7 @@ class PackageLayoutTests(unittest.TestCase):
 		self.assertTrue((source_root / "request.py").is_file())
 		self.assertFalse((source_root / "simulation" / "methods").exists())
 		self.assertFalse((source_root / "simulation" / "formulations").exists())
-		for removed in ("gc2d", "classes", "research", "workflows"):
+		for removed in ("gc2d", "classes", "research", "workflows", "integration"):
 			self.assertFalse((source_root / removed).exists())
 
 		self.assertIsNotNone(GuidingCenterDynamics)
@@ -81,19 +79,67 @@ class PackageLayoutTests(unittest.TestCase):
 			"contracts.configuration", "contracts.problem", "request", "contracts.execution_options",
 			"contracts.observation", "contracts.result", "contracts.step",
 			"formulations.gc", "formulations.fc", "formulations.state",
-			"integration.core", "methods.extended", "methods.classical",
-			"methods.adaptive", "methods.hbvm", "execution.execution", "simulation.runner", "states.history", "integration.state", "formulations.layout",
+			"execution._host", "methods.base", "methods.extended", "methods.classical",
+			"methods.adaptive", "methods.hbvm", "execution.execution", "simulation.runner", "states.history", "execution.state", "formulations.layout",
 		):
 			with self.subTest(module=module):
 				self.assertIsNotNone(importlib.util.find_spec(module))
 
 	def test_public_exports_are_explicit_and_resolve(self) -> None:
-		for namespace in (simulation, methods, extended, classical, formulations, integration, execution):
+		for namespace in (simulation, methods, extended, classical, formulations, execution):
 			with self.subTest(namespace=namespace.__name__):
 				self.assertEqual(len(namespace.__all__), len(set(namespace.__all__)))
 				for name in namespace.__all__:
 					self.assertFalse(name.startswith("_"), name)
 					self.assertTrue(hasattr(namespace, name), name)
+
+	def test_method_and_execution_import_orders_without_optional_backends(self) -> None:
+		"""Preparation and controller imports must not create package cycles."""
+		project_root = Path(__file__).resolve().parents[1]
+		script = """
+import builtins
+import importlib
+import pickle
+import sys
+import numpy as np
+
+original_import = builtins.__import__
+def without_optional_backends(name, *args, **kwargs):
+    if name.split(".")[0] in ("jax", "modal"):
+        raise ModuleNotFoundError("optional backend intentionally unavailable")
+    return original_import(name, *args, **kwargs)
+builtins.__import__ = without_optional_backends
+importlib.import_module(sys.argv[1])
+from execution import Execution, FixedStepController, IntegrationState
+from methods import DOP853, IntegrationMethod, RK4
+from potential import Potential
+from dynamics import GuidingCenterDynamics
+from contracts.problem import InitialValueProblem
+from request import SimulationRequest
+
+problem = InitialValueProblem(GuidingCenterDynamics(
+    Potential.random(A=.01, M=2, nx=8, ny=8, seed=3), rho=.01),
+    np.array([1., 1.1]))
+request = SimulationRequest((0., .02), .01, np.array([0., .005, .02]))
+for method in (RK4(), DOP853()):
+    restored = pickle.loads(pickle.dumps(method))
+    run = restored.new_run(problem, request)
+    assert isinstance(run, IntegrationMethod)
+    result = Execution().run(problem, restored, request)
+    np.testing.assert_array_equal(result.times, request.output_times)
+assert isinstance(RK4().controller(), FixedStepController)
+state = pickle.loads(pickle.dumps(IntegrationState(0., np.array([1., 2.]))))
+assert not state.values.flags.writeable
+assert not any(name.split(".")[0] in ("jax", "modal", "integration")
+               for name in sys.modules)
+"""
+		for first in ("methods", "execution", "methods.base", "execution.state", "simulation"):
+			with self.subTest(first=first):
+				completed = subprocess.run(
+					[sys.executable, "-c", script, first], cwd=project_root,
+					check=False, capture_output=True, text=True,
+				)
+				self.assertEqual(completed.returncode, 0, completed.stderr)
 
 	def test_internal_imports_do_not_reenter_the_public_simulation_facade(self) -> None:
 		"""Keep the execution facade above its implementation dependencies."""
@@ -107,10 +153,10 @@ class PackageLayoutTests(unittest.TestCase):
 					self.assertTrue(all(alias.name != "simulation" for alias in node.names), str(path))
 
 	def test_removed_namespaces_are_not_importable(self) -> None:
-		for package in ("gc2d", "classes", "research", "workflows"):
+		for package in ("gc2d", "classes", "research", "workflows", "integration"):
 			self.assertIsNone(importlib.util.find_spec(package), package)
 		for module in (
-			"contracts.execution",
+			"contracts.execution", "integration.core", "integration.state", "integration.jax_fixed",
 			"simulation.methods", "simulation.formulations", "simulation.integration",
 			"simulation.configuration", "simulation.problem", "simulation.request",
 			"simulation.observation", "simulation.solution", "simulation._result",

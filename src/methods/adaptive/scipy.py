@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
-from typing import Any, ClassVar
+from typing import Any, ClassVar, TYPE_CHECKING
 
 import numpy as np
 from scipy.integrate import DOP853 as ScipyDOP853, Radau as ScipyRadau
@@ -18,13 +18,16 @@ from scipy.integrate import DOP853 as ScipyDOP853, Radau as ScipyRadau
 from dynamics.protocols import DynamicalSystem
 
 from formulations.state import PhysicalFormulation
-from integration.state import IntegrationState
-from integration.core import IntegrationMethod
+from methods.base import IntegrationMethod
 from contracts.step import StepInfo, StepResult
 from contracts.observation import AdaptiveIntegrationStep, AdaptiveStepObserver
 from contracts.problem import InitialValueProblem
 from request import SimulationRequest
 from methods._validation import _positive_finite
+
+
+if TYPE_CHECKING:
+    from execution.state import IntegrationState
 
 
 # Fixed eight-point Gauss quadrature of -partial_t H along accepted dense output.
@@ -111,6 +114,8 @@ class _AdaptiveMethod(IntegrationMethod[_AdaptiveDetails]):
 
     def initialize(self, problem: InitialValueProblem, request: SimulationRequest) -> None:
         """Initialize this run's vector field, internal state and live solver."""
+        from execution.state import IntegrationState
+
         self.dynamics = problem.dynamics
         self.physical_size = problem.initial_state.size
         self.particle_count = problem.particle_count
@@ -155,6 +160,8 @@ class _AdaptiveMethod(IntegrationMethod[_AdaptiveDetails]):
         end time is solver.t and can be earlier than time + step. Output-only
         interpolation work is included; extra observer work is excluded.
         """
+        from execution.state import IntegrationState
+
         solver = self.solver
         if time != solver.t or not np.array_equal(self.state_formulation.physical(state), solver.y):
             raise ValueError('Adaptive advance must start at the live solver state.')

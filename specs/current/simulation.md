@@ -67,6 +67,12 @@ external jobs use the executor extension boundary. Configurations remain reusabl
 consumed runs finish on success or failure, and errors propagate without a local
 fallback. simulate and executor signatures and numerical controls are unchanged.
 
+
+The numerical base is defined in methods.base and exported as methods.IntegrationMethod.
+Execution contains its own private host and compiled JAX loops, fixed control,
+sampling and current snapshots. Controller/state extension types are exported
+from execution. There is no separate integration package or compatibility import.
+
 ## SIM-004: Output agreement with the request and initial state
 
 Every execution, including custom executors, must return completed `States`. The runner validates exact saved times, physical state size, layout dimension, independent initial snapshot and first saved column against the request and problem. It returns the same result object without conversion to another container. Incompatible output raises `ValueError`. Structural storage guarantees are specified by [SOL-001 through SOL-003](results.md).

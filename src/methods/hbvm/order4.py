@@ -10,7 +10,7 @@ import numpy as np
 from dynamics import GuidingCenterJacobianSystem
 
 from formulations.state import PhysicalFormulation
-from integration.core import IntegrationMethod
+from methods.base import IntegrationMethod
 from contracts.step import StepInfo, StepResult
 from contracts.observation import IntegrationStep, StepObserver
 from contracts.problem import InitialValueProblem

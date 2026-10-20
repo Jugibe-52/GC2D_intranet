@@ -4,7 +4,7 @@ kind = "change-tasks"
 spec_revision = 1
 plan_revision = 1
 id = "2026-10-20-integration-state-results"
-sources = ["src/integration/core.py", "src/integration/state.py", "src/states/history.py", "src/formulations/layout.py", "src/request.py", "src/contracts/problem.py"]
+sources = ["src/methods/base.py", "src/execution/_host.py", "src/execution/state.py", "src/states/history.py", "src/formulations/layout.py", "src/request.py", "src/contracts/problem.py"]
 documents = ["specs/current/states.md", "specs/current/results.md", "specs/current/simulation.md"]
 open_questions = []
 
@@ -98,3 +98,6 @@ Run the repository commands from AGENTS.md for unittest, mypy, examples and buil
 ## Outcome and limitations
 
 No JAX GPU was available, so three GPU-only checks are skipped. CPU/JAX and local worker/serialization tests passed; no Modal deployments, cloud integrations, bucket uploads, commits or synchronization were performed. Notebook validation used reduced setup/calculation cells, not full scientific campaigns. The TFM PDF was rebuilt in its repository root, as used by TeXstudio.
+
+
+Reference note (2026-10-20): source references now resolve to methods.base and execution after the package merger. Historical design and results in this record retain their original execution context.

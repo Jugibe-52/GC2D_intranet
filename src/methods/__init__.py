@@ -16,7 +16,7 @@ from methods.extended import (
 	ProjectionFormulation,
 	StateExtension,
 )
-from methods.base import NumericalMethod
+from methods.base import IntegrationMethod, NumericalMethod
 from methods.classical import (
 	ExplicitEuler,
 	GAUSS_JACOBIAN_METHODS,
@@ -53,6 +53,7 @@ __all__ = [
 	"NONLINEAR_SOLVERS",
 	"NonlinearSolver",
 	"NumericalMethod",
+	"IntegrationMethod",
 	"ProjectionPlacement",
 	"ProjectionFormulation",
 	"StateExtension",

@@ -4,18 +4,18 @@ from contracts.compiled import CompiledStep
 from contracts.execution_options import ExecutionOptions
 from contracts.problem import InitialValueProblem
 from contracts.result import DiagnosticValue
-from integration.core import IntegrationMethod, integrate_method
+from execution._host import integrate_method
 from request import SimulationRequest
 from states.history import States
-from methods.base import NumericalMethod
+from methods.base import IntegrationMethod, NumericalMethod
 
 
 class Execution:
     """Own run preparation and driver selection without changing global settings.
 
     Subclasses override ``run`` to perform the same complete job elsewhere.
-    Methods and integration retain ownership of numerical steps, field
-    evaluations and nonlinear solves. This executor keeps no per-run state
+    Methods own numerical steps, field evaluations and nonlinear solves;
+    internal execution drivers own time control and sampling. This executor keeps no per-run state
     and does not configure threads, affinity, workers or JAX global settings.
     """
 
@@ -54,7 +54,7 @@ class Execution:
         try:
             if kernel is None:
                 return integrate_method(run, metadata=metadata)
-            from integration.jax_fixed import integrate_fixed
+            from execution._jax_fixed import integrate_fixed
             return integrate_fixed(run, kernel, metadata=metadata)
         finally:
             # Include failures during controller or output preparation.

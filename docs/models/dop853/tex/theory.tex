@@ -62,7 +62,7 @@ the actual accepted endpoint. A run instance belongs to one execution; repeating
 \texttt{simulate} creates a fresh instance and solver.
 \section{Implementation and verification}
 The adapter is in \path{src/methods/adaptive/scipy.py}; shared
-coordination and collection are in \path{src/integration/core.py}.
+coordination and collection are in \path{src/execution/_host.py}.
 The current state and execution contracts are documented in its \texttt{simulation/} directory. Tests compare sampled states and work counters with the same
 SciPy solver, check a known non-autonomous rotation, and verify optional energy,
 dense retention, repeated runs, observation isolation and failure handling.

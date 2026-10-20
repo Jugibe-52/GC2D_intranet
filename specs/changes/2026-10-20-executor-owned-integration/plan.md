@@ -4,7 +4,7 @@ kind = "change-plan"
 revision = 1
 spec_revision = 1
 id = "2026-10-20-executor-owned-integration"
-sources = ["src/execution/execution.py", "src/integration/core.py", "src/methods/base.py", "src/methods/adaptive/scipy.py", "src/methods/_jax_dispatch.py"]
+sources = ["src/execution/execution.py", "src/execution/_host.py", "src/methods/base.py", "src/methods/adaptive/scipy.py", "src/methods/_jax_dispatch.py"]
 documents = ["specs/current/simulation.md", "specs/current/states.md", "docs/simulation/execution.md", "docs/simulation/jax-execution.md"]
 open_questions = []
 +++
@@ -30,3 +30,6 @@ Update affected source callers, tests, examples and any directly affected notebo
 Capture deterministic baseline histories and diagnostics before source edits for all built-in CPU methods, representative FC methods and BM4/RK4/adaptive JAX runs, including nonzero initial time, irregular output and energy tracking. Require exact before/after arrays and unchanged diagnostic values, allowing only explicitly documented metadata additions. Existing tests establish convergence, projection residuals, adaptive solver agreement, cross-backend accuracy and immutable snapshots.
 
 Exercise structural method providers, executor ownership, callback rejection, unavailable devices, unsupported subclasses, repeat-run isolation, consumed failed runs, optional imports and mocked Modal round trips. Audit direct consumers, notebook syntax and shipped imports. Run mypy, the full headless test suite (including available JAX), supported examples, package build and SDD checker. Report unavailable GPU validation and do not claim a real Modal deployment test.
+
+
+Reference note (2026-10-20): source references now resolve to methods.base and execution after the package merger. Historical design and results in this record retain their original execution context.

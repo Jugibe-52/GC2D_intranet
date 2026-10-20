@@ -88,7 +88,9 @@ or global JAX settings. Subclasses can execute the same job elsewhere, while
 `simulate` validates the completed `States`. Backend choices remain separate in
 `options=ExecutionOptions(...)`. See the [executor contract](../../../simulation/execution.md).
 Numerical stages, projection equations and step controllers retain their own
-implementations inside this execution boundary.
+implementations inside this execution boundary. The base class is
+`methods.base.IntegrationMethod`; time loops and sampling live inside `execution`,
+with no separate integration package.
 
 `Execution_Modal` now implements this boundary for remote NumPy/SciPy CPU
 integrations. Results return to the local machine for validation and subsequent
@@ -117,7 +119,7 @@ callback. See the [shared callback and particle-solve contract](../../extended/s
 Fixed-step methods inherit `IntegrationMethod` and declare `jax_mode="device_resident"`.
 The executor resolves the device and prepares the dynamics; a numerical family
 adapter binds the method's controls into `contracts.compiled.CompiledStep`.
-The executor starts the shared `integration/jax_fixed.py` loop, which knows no
+The executor starts the shared `execution/_jax_fixed.py` loop, which knows no
 concrete numerical method. Each method retains its compiled stages and statistics.
 See [JAX execution](../../../simulation/jax-execution.md).
 

@@ -47,8 +47,8 @@
 GC2D simulates particle trajectories in time-dependent electrostatic potentials.
 Python packages live directly under `src/`: `potential/` and `dynamics/` define
 physics; `contracts/` and `formulations/` define shared types and coordinates;
-`methods/` implements numerical steps; `integration/` schedules and collects
-them. `simulation/` exposes the public facade, and `states/` owns physical recording and completed results; `request.py` owns
+`methods/` owns the numerical base and steps; `execution/` prepares runs,
+schedules steps, samples and collects results. `simulation/` exposes the public facade, and `states/` owns physical recording and completed results; `request.py` owns
 temporal configuration. Keep experiment composition in `studies/`, observers in `diagnostics/`,
 and plotting in `visualization/`.
 

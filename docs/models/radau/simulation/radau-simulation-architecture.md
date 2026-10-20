@@ -134,7 +134,9 @@ or global JAX settings. Subclasses can execute the same job elsewhere, while
 `simulate` validates the completed `States`. Backend choices remain separate in
 `options=ExecutionOptions(...)`. See the [executor contract](../../../simulation/execution.md).
 Numerical stages, projection equations and step controllers retain their own
-implementations inside this execution boundary.
+implementations inside this execution boundary. The base class is
+`methods.base.IntegrationMethod`; time loops and sampling live inside `execution`,
+with no separate integration package.
 
 `Execution_Modal` now implements this boundary for remote NumPy/SciPy CPU
 integrations. Results return to the local machine for validation and subsequent

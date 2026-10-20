@@ -5,7 +5,7 @@ revision = 1
 status = "verified"
 approval = "2026-10-20: User reviewed the architecture and integration-flow proposal in conversation and explicitly requested SDD preparation and execution of this scope."
 id = "2026-10-20-integration-state-results"
-sources = ["src/integration/core.py", "src/integration/state.py", "src/states/history.py", "src/formulations/layout.py", "src/request.py", "src/contracts/problem.py"]
+sources = ["src/methods/base.py", "src/execution/_host.py", "src/execution/state.py", "src/states/history.py", "src/formulations/layout.py", "src/request.py", "src/contracts/problem.py"]
 documents = ["specs/current/states.md", "specs/current/results.md", "specs/current/simulation.md"]
 open_questions = []
 requirements = ["SIM-001", "SIM-002", "SIM-003", "SIM-004", "SOL-001", "SOL-002", "SOL-003", "STA-001", "STA-002", "STA-003"]
@@ -55,3 +55,6 @@ IntegrationState owns a finite one-dimensional internal vector and its finite ti
 States records physical arrays of shape (d*N,T), times (T,), and optional per-sample auxiliary arrays. GC order is x then y; FC appends vx then vy, in existing units. Recording checks order, shapes, finiteness and completeness. Only recorded columns are readable; finalization prevents further writes and freezes diagnostics. Main-step statistics retain their own time axis. Preserve existing read-only t/states result access alongside clearer times/values names; remove retired class/module routes rather than aliasing them. Source identity is replaced by an independent initial-array snapshot. A loaded archive may explicitly have no initial snapshot. Layouts remain reusable NumPy/JAX operations; formulations are shared by multiple methods.
 
 Eliminate Solution, IntegrationCollector and the initial State wrapper. Methods and execution return States; the runner validates the returned result against request and initial values without constructing another container. Distinguish internal samples and physical/auxiliary extraction; States has no numerical map or formulation-specific logic.
+
+
+Reference note (2026-10-20): source references now resolve to methods.base and execution after the package merger. Historical design and results in this record retain their original execution context.

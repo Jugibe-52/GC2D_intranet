@@ -18,10 +18,9 @@ from simulation import (
 	BM4Implicit, BM4Midpoint, ExplicitEuler, RK4, GaussLegendre4, SDIRK4, HBVM42,
 	InitialValueProblem, SimulationRequest, simulate,
 )
-from integration import (
-	FixedStepController, IntegrationMethod, StepInfo, StepResult,
-	integrate_method,
-)
+from methods.base import IntegrationMethod
+from contracts.step import StepInfo, StepResult
+from execution._host import FixedStepController, integrate_method
 
 
 def _problem() -> InitialValueProblem:

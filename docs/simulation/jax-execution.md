@@ -108,7 +108,7 @@ to execution. Arithmetic projection carries no nonlinear controls. Kernel select
 is complete before tracing, with explicit rejection of unsupported subclass overrides.
 
 The coordinator receives `contracts.compiled.CompiledStep`, carrying the resolved
-device, internal-state map and optional physical energy. `integration.jax_fixed`
+device, internal-state map and optional physical energy. `execution._jax_fixed`
 owns scheduling, sampling, convergence checks and result collection. It does not
 import concrete methods or discover their attributes. The executor supplies
 execution metadata to the driver before result construction. Prepared maps snapshot

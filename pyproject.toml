@@ -29,7 +29,6 @@ include = [
 	"execution*",
 	"formulations*",
 	"states*",
-	"integration*",
 	"methods*",
 	"potential*",
 	"simulation*",

@@ -2,7 +2,7 @@
 schema_version = 1
 kind = "spec"
 id = "states"
-sources = ["src/integration/state.py", "src/states/history.py", "src/formulations/layout.py", "src/states/generators.py", "src/diagnostics/geometry.py"]
+sources = ["src/execution/state.py", "src/states/history.py", "src/formulations/layout.py", "src/states/generators.py", "src/diagnostics/geometry.py"]
 documents = ["docs/simulation/api-migration.md", "docs/dynamics/protocols.md"]
 
 [[requirements]]
@@ -36,6 +36,6 @@ Canonical layouts belong to `formulations.layout` and share the `StateLayout` pr
 
 ## STA-003: Current internal state and independent sampling
 
-`integration.state.IntegrationState(time, values)` owns a finite scalar time and a finite nonempty one-dimensional internal snapshot. A controller manages successive accepted states; the class has no stepping or storage algorithm. Internal coordinates may contain duplicates and passive auxiliaries. Only formulation-extracted physical values enter `States`; auxiliary sample data feed energy diagnostics at finalization.
+`execution.state.IntegrationState(time, values)` owns a finite scalar time and a finite nonempty one-dimensional internal snapshot. A controller manages successive accepted states; the class has no stepping or storage algorithm. Internal coordinates may contain duplicates and passive auxiliaries. Only formulation-extracted physical values enter `States`; auxiliary sample data feed energy diagnostics at finalization.
 
 Fixed off-grid samples use independent shortened maps from the same accepted interval start, never a prior shadow or the next main state. Endpoints reuse accepted states. Adaptive sampling uses accepted dense output. Sample times and main-step statistics retain separate axes. JAX carries equivalent functional device arrays inside compiled loops and constructs completed `States` at the host boundary. Saved histories, observers and serialized results must not alias mutable solver work arrays.

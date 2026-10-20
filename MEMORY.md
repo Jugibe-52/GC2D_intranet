@@ -222,11 +222,18 @@ See `docs/simulation/api-migration.md` and `specs/current/states.md`.
 `Execution.run` owns environment preparation, fresh runs and driver selection;
 `simulate` validates the complete job/result boundary. `NumericalMethod` exposes
 `new_run(problem, request, evaluated_dynamics=...)` and `jax_mode`, not integrate.
-`IntegrationMethod` retains isolated preparation, numerical advancement,
+`methods.base.IntegrationMethod` retains isolated preparation, numerical advancement,
 observations and controller access. CompiledFixedMethod and method integration
 entry points are retired; call simulate or Execution.run for complete jobs.
 Execution resolves devices and supplies metadata to the driver before finalizing
 States. Numerical adapters receive prepared dynamics/device and bind algorithm
-controls; fixed JAX uses integrate_fixed, adaptive JAX keeps SciPy control with
+controls; fixed JAX uses execution._jax_fixed, adaptive JAX keeps SciPy control with
 prepared field callbacks. Keep executors generic and reject unsupported compiled
 overrides explicitly. See `docs/simulation/execution.md` for extension/migration.
+
+The integration package is retired. execution._host contains host control and
+sampling; execution._jax_fixed contains the compiled loop; execution.state owns
+IntegrationState. Import the numerical base from methods and controller/state
+extensions from execution. Methods use type-only references and local controller
+or snapshot imports to avoid package-initialization cycles. Keep complete jobs
+at simulate/Execution.run; internal drivers are not extra public entry points.

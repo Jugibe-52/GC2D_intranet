@@ -2,10 +2,10 @@
 
 All 13 public methods use executor-owned preparation through `IntegrationMethod.new_run`.
 Execution selects the host or device driver. Dynamics defines physics; formulation
-defines coordinates; the method defines numerical operations; integration controls
+defines coordinates; the method defines numerical operations; execution controls
 accepted intervals and collects output.
 
-`request.py` owns temporal configuration; `contracts/` owns problem and step contracts. `formulations.layout` owns physical layouts, while reusable formulations define internal coordinates and extraction independently of method choice. `methods/` implements numerical steps. `integration/` manages accepted `IntegrationState` snapshots and sampling. `states/` owns the physical recording container and completed result. `simulation/runner.py` validates that result against the inputs and returns the same object. Internal consumers import directly from each defining module.
+`request.py` owns temporal configuration; `contracts/` owns problem and step contracts. `formulations.layout` owns physical layouts, while reusable formulations define internal coordinates and extraction independently of method choice. `methods/` implements numerical steps. `execution/` owns preparation, accepted `IntegrationState` snapshots, sampling and host/device loops; `methods.base` owns numerical preparation. `states/` owns the physical recording container and completed result. `simulation/runner.py` validates that result against the inputs and returns the same object. Internal consumers import directly from each defining module.
 
 Validation follows the same ownership: `InitialValueProblem` checks the dynamics
 protocol and compatible initial layout; state formulations check the Hamiltonian
@@ -67,7 +67,7 @@ The initial state and a saved sample can have identical values while serving dif
 ## Public API and imports
 
 Use `from simulation import ABBA4Implicit, BM4Implicit, simulate` for the public
-execution API. `methods`, `methods.extended`, `formulations`, and `integration`
+execution API. `methods`, `methods.extended`, `formulations`, and `execution`
 also declare their supported exports explicitly. `contracts` exposes types from
 its individual submodules; its package initializer deliberately exports no names.
 Every exported class or function has one implementation; public re-exports refer
@@ -81,7 +81,7 @@ The following old routes have been removed after migrating supported consumers:
 | `contracts.execution.Execution` | `execution.Execution` for the executor; `contracts.execution_options.ExecutionOptions` for backend choices |
 | `simulation.methods.*` | `methods.*` |
 | `simulation.formulations.*` | `formulations.*` |
-| `simulation.integration`, `simulation._fixed` | `integration.core`, `integration._fixed` |
+| `simulation.integration`, `simulation._fixed` | `methods.base`, `execution._host`, `execution._fixed` |
 | `simulation.configuration`, `.problem`, `.observation` | Corresponding `contracts` submodules |
 | `simulation.request`, `contracts.request` | `request` |
 | `simulation._result` | `contracts.result` |
