@@ -20,27 +20,28 @@
   before saving an update that would exceed this limit. Keep entries in English
   and avoid duplicating the rules in this file.
 
-## Specification-driven development
+## Preparing and carrying out changes
 
 - Use the repository-local `sdd` skill at `.agents/skills/sdd/SKILL.md` for
-  substantial functionality, public-contract, numerical-algorithm, and study
-  changes. Small corrections may retain the ordinary workflow.
-- Follow `specs/README.md`: prepare `spec.md`, `plan.md`, and `tasks.md` under
-  `specs/changes/<change-id>/`. Use `spec`, `plan`, and `tasks` for individual
-  steps or `prepare` for all three. Review specification and plan together,
-  with tasks available, before implementation; no intermediate approvals are
-  required. Existing acceptance and implementation authorization remain valid
-  for their scope; do not request them again.
+  substantial functionality, public behavior, numerical methods, and studies.
+  Small corrections may retain the ordinary workflow.
+- Follow `specs/README.md`. `prepare` / `prepara` writes `goal.md`,
+  `proposal.md`, `impact.md`, and `steps.md` under `specs/changes/<change>/`.
+  Present those four documents together before implementation.
+- `execute` / `ejecuta` accepts the presented proposal, implements it, checks
+  the outcome, and creates `results.md`; update progress in `steps.md`.
+  Honor existing acceptance and authorization without asking again.
+- Keep the five documents brief and readable, with no requirement codes,
+  metadata blocks, or revision counters. Explain necessary scientific details.
+  Record actual checks and limitations; never infer success from file presence.
 - Skill selection does not expand write permissions. Consultation and status
-  requests stay read-only, and preparing a change does not authorize its
-  implementation. Material scope changes return to review.
-- Keep `specs/current/` aligned with accepted, implemented behavior and retain
-  change records in `specs/changes/`. Verify acceptance criteria with actual
-  evidence before closing a change. Run `python scripts/check_sdd.py` after
-  editing records; it validates structure and references, not scientific truth.
-- Keep state and approval in `spec.md`, design in `plan.md`, and task completion
-  and evidence in `tasks.md`. Reconcile downstream documents after substantive
-  spec or plan revisions before updating their recorded revision references.
+  requests are read-only; preparation alone does not authorize implementation.
+  Material scope changes return to review.
+- Keep affected `specs/current/` and permanent documentation aligned with
+  accepted, implemented behavior. Retain older change records in their existing
+  format and preserve valid acceptance and evidence when resuming them.
+- Run `python scripts/check_sdd.py` after editing records. It checks document
+  structure and legacy references, not scientific correctness or execution.
 
 ## Project Structure & Module Organization
 

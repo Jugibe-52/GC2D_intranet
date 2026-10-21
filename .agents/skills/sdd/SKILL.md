@@ -1,136 +1,108 @@
 ---
 name: sdd
-description: Prepare, implement, verify, or inspect specification-driven changes in GC2D. Use for substantial behavior, public-contract, numerical-algorithm, and study changes, or explicit SDD requests. Small corrections and read-only code explanations do not require the full workflow.
+description: Prepare or carry out substantial GC2D changes using short, readable documents. Use for functionality, numerical methods, public behavior, and studies; small fixes and explanations can use the ordinary workflow.
 ---
 
-# GC2D specification-driven development
+# Plan and carry out a GC2D change
 
-Read the repository instructions and memory, then the
-[SDD guide and record schema](../../../specs/README.md). Read only the current
-contracts and existing change records relevant to the request. The guide owns
-the lifecycle and schema; the templates provide the editable document shape.
+Read the repository instructions, memory, and [change guide](../../../specs/README.md).
+Inspect only the code, tests, and existing documents relevant to the request.
 
-## Select the operation
+## Two operations
 
-| Operation | Requested work |
+- **`prepare` / `prepara`:** investigate the request and write the first four
+  documents below. Present them together and stop before implementation.
+- **`execute` / `ejecuta`:** implement the prepared proposal, check the outcome,
+  and create the fifth document. An explicit request to execute the proposal
+  already presented to the user accepts that scope and authorizes its
+  implementation; do not ask for the same approval again.
+
+Accept equivalent natural language. Find an existing change before creating
+another; infer the target from the conversation when unambiguous. Questions
+about progress are read-only, even when the skill is named. Follow the personal
+permission rules: choosing this skill yourself does not grant write permission,
+and editing the skill does not authorize running it. Preparation alone never
+means implementation is accepted.
+
+## Five short documents
+
+Use one folder under `specs/changes/`, named `YYYY-MM-DD-short-description`.
+Use these templates as writing prompts, replacing their guidance with concrete
+content. Choose headings that help the reader; there are no mandatory section
+names, requirement codes, metadata blocks, or revision numbers.
+
+| File | Explain |
 | --- | --- |
-| `$sdd spec <request>` | Investigate and write the proposed behavior in `spec.md` |
-| `$sdd plan <change-id>` | Derive the implementation design in `plan.md` |
-| `$sdd tasks <change-id>` | Derive ordered tasks and checks in `tasks.md` |
-| `$sdd prepare <request>` | Perform `spec`, `plan`, and `tasks` together |
-| `$sdd implement <change-id>` | Execute accepted work |
-| `$sdd verify <change-id>` | Validate and reconcile accepted work |
-| `$sdd status [change-id]` | Inspect progress without edits |
+| [goal.md](assets/goal.md) | The problem and why it is worth solving. |
+| [proposal.md](assets/proposal.md) | What will change and how it should work, with an example when helpful. |
+| [impact.md](assets/impact.md) | Which parts are affected, directly or indirectly, and why. Include relevant tests, documentation, notebooks, ways of using the program, and saved data. |
+| [steps.md](assets/steps.md) | A short, ordered checklist of concrete work, including how to check the proposed behavior. |
+| [results.md](assets/results.md) | What was implemented, what was checked, the observed results, and anything unfinished or limited. Create this during execution. |
 
-Accept equivalent natural language. To revise an existing proposal, accept its
-ID plus the requested revision with `spec` or `prepare`. Use `prepare` for an
-unplanned substantial change. Find an existing record before creating another;
-if several match, clarify the target. Read all existing parts when resuming.
+Write brief, direct prose in the project's required language and maintain its
+Spanish reading copies. Use everyday words; explain an unavoidable technical
+term on first use. Mention files or functions only when they clarify the impact
+or the work. Avoid repeating information across documents. Link to existing
+mathematical and architecture explanations instead of copying them.
 
-Invocation authorizes only the requested operation, within existing permissions.
-Selecting this skill implicitly does not bypass the personal `&` rule. Editing
-the skill does not authorize executing its workflow. Consultation and Plan mode
-remain read-only. `status` is always read-only.
+For scientific changes, retain the physical assumptions, units, coordinates,
+array shapes, tolerances, and reference accuracy that determine correctness.
+Explain their significance. Distinguish requested solver tolerances from
+measured errors.
 
-## Prepare, or work through individual preparation steps
+## Prepare
 
-Read the guide's schema and revision rules. Save authorized proposals under
-`specs/changes/<change-id>/`, using an unused date-and-description ID. A draft
-may be incomplete: spec alone, then plan, then tasks. Separate operations do not
-introduce approval gates between these steps. When a prerequisite is missing,
-report the missing document and next operation; do not invent an accepted plan.
+Investigate the current behavior and likely consequences. Fill in `goal.md`,
+`proposal.md`, `impact.md`, and `steps.md`; do not create `results.md` for a new
+proposal. Describe the intended outcome and how it will be checked before any
+implementation. Keep unresolved decisions visible and ask only about information
+that materially affects the proposal and cannot be inferred.
 
-- **Spec:** inspect affected implementation, tests, and documentation. Use
-  [assets/spec.md](assets/spec.md) for problem, scope, exclusions, proposed
-  behavior, and measurable criteria. Distinguish current behavior from desired
-  changes and unresolved facts. Reference existing requirements; allocate unused
-  domain IDs through `proposed_requirements` for genuinely new contracts.
-  Include units, coordinates, shapes, tolerances, physical conditions, and
-  reference accuracy where they determine numerical correctness.
-- **Plan:** read the current proposal; use [assets/plan.md](assets/plan.md) for
-  design, compatibility, and the verification strategy. Record the specification
-  revision actually reviewed. Explain how checks will establish each criterion.
-  Essential unresolved decisions may remain explicit in a draft.
-- **Tasks:** read both preceding documents; use [assets/tasks.md](assets/tasks.md)
-  for concrete ordered tasks, their dependencies, and reproducible checks tied to
-  criteria. Record the reviewed specification and plan revisions. If the plan is
-  stale, reconcile it only when that work is authorized; otherwise report the
-  prerequisite. Retain valid completion and evidence when regenerating tasks.
-- **Prepare:** carry out those three steps, reconciling existing records instead
-  of replacing their history. Resolve decisions that can be inferred from the
-  request; ask only for material missing information.
+When revising a proposal, reconcile all four documents and preserve valid user
+edits. Keep any previous results as history, explaining which conclusions will
+need fresh checks if the revised work is executed. Preparation must not change
+implementation files or describe an unperformed check as passed.
 
-For a substantive spec or plan edit, increment its revision and inspect the
-impact on downstream documents and evidence. Leave unreconciled downstream
-revision references unchanged so `status` exposes them. Preserve prior outcomes
-in tasks.md and reset affected completion/checks; a material scope revision also
-returns spec.md to draft and clears approval. Do not merely change revision
-numbers to make validation pass. An operation limited to one phase does not
-silently complete the later phases or authorize implementation.
+Run `python scripts/check_sdd.py` after saving the documents. Present the goal,
+main change, affected parts, and steps together with links to the four files.
+Do not introduce separate approvals for each file.
 
-If a spec revision removes a criterion still referenced by tasks, report the
-resulting reference errors as well as revision warnings. Identify the pending
-plan/tasks reconciliation; do not complete unrequested phases merely to make
-the checker pass. Keep the proposal in draft while that work remains.
+## Execute
 
-Keep supplied file references valid; planned new files belong in prose until
-they exist. Use [assets/contract.md](assets/contract.md) only for an accepted,
-implemented current contract, not for a proposal. Run the structural checker on
-saved records and report draft revision warnings. Present prepared specification
-and plan together, with the tasks available, for the single review before
-implementation. Stop at draft unless the user has already accepted this exact
-scope and authorized implementation. In consultation, present the concrete
-proposal in the conversation without writing records.
+Read all the prepared documents and inspect the actual working tree. If the
+proposal is missing or has not been presented, prepare and present it first;
+continue only when the scope has been accepted and implementation authorized.
+Honor acceptance and authorization already given for that scope. Resolve
+material unanswered questions before depending on them.
 
-## Implement
+Carry out the steps and mark real progress in `steps.md`. Create `results.md`
+when execution begins and update it with the implementation and actual checks.
+Record the acceptance date and scope in a short sentence there. Keep incomplete
+work and failed checks visible; a results file does not mean the work succeeded.
+Resume accepted work without repeating approvals or completed steps.
 
-Read spec.md, plan.md, and tasks.md and inspect the actual working-tree changes.
-Confirm that the user has accepted the specification and plan and authorized this
-implementation. An explicit implementation request accepting a previously
-reviewed plan satisfies this step; do not ask again. If acceptance is missing,
-present the concrete proposal and request the missing decision, citing the
-guide's lifecycle. Never fill `approval` based only on a pre-existing status.
+Use the repository checks appropriate to the change and cover the promised
+behavior. Reuse confirmed results for unchanged work. For numerical changes,
+record measured discrepancies and relevant conditions; use reduced notebook
+checks under the repository policy. Update affected permanent documentation and
+`specs/current/` to describe accepted, implemented behavior, preserving their
+existing format. Keep the change folder as history.
 
-Ensure all three parts agree and checks cover every criterion. Record the
-acceptance date and scope in spec.md, clear resolved questions in all parts, and
-use `approved`, then `implementing` as work starts. Resume unfinished accepted
-work without repeating completed tasks or discarding user edits. If code and
-the recorded plan disagree, investigate before choosing which to change.
+Explain results in ordinary language, retaining enough procedure, command, or
+measurement detail to reproduce a check when needed. Report completion only
+when the promised behavior and relevant checks are satisfied. Finish with
+`python scripts/check_sdd.py`; it checks document structure, not scientific
+correctness or whether a recorded check actually ran.
 
-Carry out the accepted tasks and validation, recording progress in tasks.md.
-Incorporating an authorized material scope or contract revision returns to
-`draft` for review as described in the guide. Discussing a possible expansion
-alone does not authorize record edits or
-invalidate the existing approval. Routine technical choices within scope do not
-require renewed approval. Update affected evidence after edits. Keep failed or
-blocked checks visible and leave the change `implementing` until they pass.
-Continue directly into verification when it is part of the authorized work.
+A material change to the agreed scope needs a revised proposal and review;
+routine implementation decisions do not. Do not publish, commit, push, or change
+personal configuration as part of this workflow.
 
-## Verify
+## Existing history
 
-Match every criterion to the diff and observed evidence. Run its checks and
-the repository-required validation appropriate to the change. For a check
-already run against the unchanged implementation, reuse the confirmed result;
-do not rerun expensive integrations merely to repeat a status. Never treat a
-recorded command or a passing structural check as proof it was executed.
-
-Record each actual result, date, procedure and concise evidence in tasks.md,
-including measured numerical discrepancies and limitations. Reconcile current
-contracts and affected model documentation with accepted, implemented behavior. New
-requirement IDs must exist in current contracts before verification completes.
-Keep the change directory as history. Set spec.md to `verified` only when all
-tasks and checks are complete and semantic review agrees; run the structural
-checker again.
-
-Report the completed behavior and validation, or the exact outstanding work.
-Do not silently waive failed checks, publish, commit, push, install services, or
-change personal configuration as part of this workflow.
-
-## Status
-
-Read all available parts, or list change IDs and states if no ID is supplied.
-Run the checker when useful. Report missing phases, stale revision references,
-pending tasks, decisions, failed or missing evidence, and the next action. Do not
-edit metadata, grant approval, run the recorded verification procedures, or begin
-implementation merely to report status. Distinguish recorded results from checks
-performed in this operation.
+Keep older `spec.md`, `plan.md`, and `tasks.md` records and their outcomes intact;
+there is no bulk migration. When an unfinished older change is explicitly
+resumed, read and update its existing documents, retaining valid acceptance and
+evidence. Use the five-file format for new changes. A status request reads the
+available format and explains progress, outstanding decisions, and next steps
+without changing files or running the recorded checks.

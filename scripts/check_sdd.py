@@ -2,9 +2,9 @@
 """Check SDD records without importing project code or executing recorded checks.
 
 Only canonical Markdown records under specs/current and specs/changes are scanned;
-local Spanish reading copies are excluded by filename. Their
-TOML frontmatter is the machine-readable traceability contract; scientific
-correctness and the authenticity of approvals/evidence require human review.
+local Spanish reading copies are excluded by filename. New changes use plain
+Markdown; current specifications and older changes retain their existing checks.
+Scientific correctness and the authenticity of approvals/evidence require review.
 """
 
 from __future__ import annotations
@@ -30,6 +30,9 @@ CHANGE_SECTIONS = {
 	"tasks": ("Execution", "Outcome and limitations"),
 }
 COMMON_FIELDS = {"schema_version", "kind", "id", "sources", "documents"}
+PREPARATION_FILES = {"goal.md", "proposal.md", "impact.md", "steps.md"}
+PLAIN_CHANGE_FILES = PREPARATION_FILES | {"results.md"}
+LEGACY_CHANGE_FILES = {"spec.md", "plan.md", "tasks.md"}
 
 
 @dataclass(frozen=True)
@@ -180,6 +183,26 @@ class Checker:
 				self.string(record, requirement, "verification")
 			if not requirement.get("tests") and not requirement.get("verification"):
 				self.error(record.path, f"{identifier}: provide tests or a manual verification procedure")
+
+	def plain_change(self, folder: Path, paths: list[Path]) -> None:
+		"""Check readable preparation documents without interpreting their prose."""
+		names = {path.name for path in paths}
+		for name in sorted(PREPARATION_FILES - names):
+			self.error(folder, f"change is missing {name}")
+		for path in paths:
+			try:
+				if not path.resolve().is_relative_to(self.root):
+					raise ValueError("record must remain inside the repository")
+				body = path.read_text(encoding="utf-8")
+				lines = body.strip().splitlines()
+				if lines and lines[0] in ("+++", "---"):
+					raise ValueError("use plain Markdown without a metadata block")
+				if not any(line.strip() and not line.lstrip().startswith("#") for line in lines):
+					raise ValueError("document must contain text beyond a title")
+			except (OSError, ValueError, RuntimeError) as error:
+				self.error(path, f"cannot read document: {error}")
+				continue
+			self.records.append(Record(path, {}, body))
 
 	def revision(self, record: Record, key: str) -> int:
 		"""Read an explicit document revision; bool is not an integer revision."""
@@ -334,7 +357,7 @@ class Checker:
 				self.error(record.path, f"criterion {identifier} has no verification check")
 
 	def run(self) -> list[str]:
-		"""Resolve current requirements, then collect the three parts per change."""
+		"""Check plain changes alongside existing specifications and history."""
 		identifiers: set[str] = set()
 		proposals: set[str] = set()
 		for directory in ("current", "changes"):
@@ -348,11 +371,15 @@ class Checker:
 			if directory == "current" and not paths:
 				self.error(folder, "no current specifications found")
 			groups: dict[str, dict[str, Record]] = {}
+			plain_groups: dict[Path, list[Path]] = {}
 			for path in paths:
 				if directory == "changes":
 					relative = path.relative_to(folder)
-					if len(relative.parts) != 2 or path.name not in ("spec.md", "plan.md", "tasks.md"):
-						self.error(path, "expected changes/<id>/{spec,plan,tasks}.md; migrate legacy flat records")
+					if len(relative.parts) != 2 or path.name not in PLAIN_CHANGE_FILES | LEGACY_CHANGE_FILES:
+						self.error(path, "expected changes/<change>/{goal,proposal,impact,steps,results}.md or an existing three-file record; migrate legacy flat records")
+						continue
+					if path.name in PLAIN_CHANGE_FILES:
+						plain_groups.setdefault(path.parent, []).append(path)
 						continue
 				record = self.read(path, "spec" if directory == "current" else f"change-{path.stem}")
 				if record is None:
@@ -377,6 +404,14 @@ class Checker:
 					if requirement in proposals:
 						self.error(record.path, f"requirement {requirement} is proposed by multiple changes")
 					proposals.add(requirement)
+			for change_folder, plain_paths in plain_groups.items():
+				identifier = change_folder.name
+				if identifier in groups:
+					self.error(change_folder, "cannot mix plain and legacy change documents in one folder")
+				elif identifier in identifiers:
+					self.error(change_folder, f"duplicate document id {identifier!r}")
+				identifiers.add(identifier)
+				self.plain_change(change_folder, plain_paths)
 		return self.errors
 
 

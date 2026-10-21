@@ -1,4 +1,4 @@
-"""Behavioral checks for SDD traceability, lifecycle gates, and read-only CLI."""
+"""Check plain SDD documents, preserved history, and the read-only CLI."""
 
 from __future__ import annotations
 
@@ -97,6 +97,20 @@ class SDDTests(unittest.TestCase):
 
 	def errors(self) -> str:
 		return "\n".join(Checker(self.root).run())
+
+	def save_plain_change(self) -> Path:
+		"""Prepare a new change alongside an older one in the same repository."""
+		folder = self.root / "specs/changes/plain-change"
+		folder.mkdir(exist_ok=True)
+		contents = {
+			"goal.md": "# Easier field selection\n\nUsers need to choose the input fields explicitly.\n",
+			"proposal.md": "Allow an ordered list of field indices and preserve that order.\n",
+			"impact.md": "The loader, its tests, and example notebooks need updates.\n",
+			"steps.md": "- [ ] Accept a list of indices.\n- [ ] Check reordered and empty selections.\n",
+		}
+		for name, content in contents.items():
+			(folder / name).write_text(content, encoding="utf-8")
+		return folder
 
 	def approve(self, status: str = "approved") -> None:
 		self.change["status"] = status
@@ -319,16 +333,85 @@ class SDDTests(unittest.TestCase):
 		(self.root / "specs/current").rmdir()
 		self.assertIn("required directory is missing", self.errors())
 
-	def test_templates_support_progressive_preparation(self) -> None:
+	def test_templates_support_four_preparation_files_and_later_results(self) -> None:
 		folder = self.root / "specs/changes/new-change"
 		folder.mkdir()
-		for name in ("spec", "plan", "tasks"):
+		for name in ("goal", "proposal", "impact", "steps"):
 			content = (REPOSITORY / f".agents/skills/sdd/assets/{name}.md").read_text(encoding="utf-8")
 			(folder / f"{name}.md").write_text(content, encoding="utf-8")
-			self.assertEqual(self.errors(), "")
+		self.assertEqual(self.errors(), "")
+		self.assertFalse((folder / "results.md").exists())
+		content = (REPOSITORY / ".agents/skills/sdd/assets/results.md").read_text(encoding="utf-8")
+		(folder / "results.md").write_text(content, encoding="utf-8")
+		self.assertEqual(self.errors(), "")
 		content = (REPOSITORY / ".agents/skills/sdd/assets/contract.md").read_text(encoding="utf-8")
 		(self.root / "specs/current/new-contract.md").write_text(content, encoding="utf-8")
 		self.assertEqual(self.errors(), "")
+
+	def test_plain_preparation_coexists_with_history_without_fixed_headings(self) -> None:
+		folder = self.save_plain_change()
+		checker = Checker(self.root)
+		self.assertEqual(checker.run(), [])
+		self.assertEqual(len(checker.records), 8)
+		self.assertFalse((folder / "results.md").exists())
+		# The document checker must not misrepresent failed scientific work as done.
+		(folder / "results.md").write_text(
+			"The loader was updated. Reordered selection passed; empty selection failed.\n"
+			"Implementation remains incomplete.\n", encoding="utf-8",
+		)
+		checker = Checker(self.root)
+		self.assertEqual(checker.run(), [])
+		self.assertEqual(len(checker.records), 9)
+
+	def test_results_and_translations_cannot_replace_preparation_files(self) -> None:
+		folder = self.save_plain_change()
+		for name in ("goal", "proposal", "impact", "steps"):
+			(folder / f"{name}.md").rename(folder / f"{name}.es.md")
+		(folder / "results.md").write_text("Execution is blocked: the proposal is missing.\n", encoding="utf-8")
+		errors = self.errors()
+		for name in ("goal", "proposal", "impact", "steps"):
+			self.assertIn(f"change is missing {name}.md", errors)
+
+	def test_plain_documents_need_content_but_no_metadata(self) -> None:
+		folder = self.save_plain_change()
+		for content in ("", " \n", "# Only a title\n\n", "+++\nstatus='draft'\n+++\nText\n"):
+			with self.subTest(content=content):
+				(folder / "goal.md").write_text(content, encoding="utf-8")
+				self.assertIn("goal.md: cannot read document", self.errors())
+
+	def test_plain_reading_copies_are_ignored_and_formats_cannot_be_mixed(self) -> None:
+		folder = self.save_plain_change()
+		for name in ("goal", "proposal", "impact", "steps", "results"):
+			for suffix in ("es.md", "es.2.md"):
+				(folder / f"{name}.{suffix}").write_text("+++\nNot canonical metadata\n", encoding="utf-8")
+		checker = Checker(self.root)
+		self.assertEqual(checker.run(), [])
+		self.assertEqual(len(checker.records), 8)
+		(folder / "spec.md").write_bytes((self.folder / "spec.md").read_bytes())
+		self.assertIn("cannot mix plain and legacy", self.errors())
+
+	def test_plain_documents_reject_external_files_and_extra_documents(self) -> None:
+		folder = self.save_plain_change()
+		with tempfile.TemporaryDirectory() as outside:
+			path = Path(outside) / "external.md"
+			path.write_text("External content must not be inspected.\n", encoding="utf-8")
+			(folder / "goal.md").unlink()
+			(folder / "goal.md").symlink_to(path)
+			self.assertIn("record must remain inside the repository", self.errors())
+		(folder / "extra.md").write_text("Unexpected extra document.\n", encoding="utf-8")
+		self.assertIn("extra.md: expected changes/", self.errors())
+
+	def test_plain_cli_never_writes_or_executes_documented_commands(self) -> None:
+		folder = self.save_plain_change()
+		(folder / "results.md").write_text("Pending check: `touch should-not-exist`.\n", encoding="utf-8")
+		before = {p.relative_to(self.root): (p.read_bytes(), p.stat().st_mtime_ns) for p in self.root.rglob("*") if p.is_file()}
+		completed = subprocess.run(
+			[sys.executable, "-B", str(REPOSITORY / "scripts/check_sdd.py"), "--root", str(self.root)],
+			cwd=self.root, capture_output=True, text=True, check=False,
+		)
+		self.assertEqual(completed.returncode, 0, completed.stderr)
+		after = {p.relative_to(self.root): (p.read_bytes(), p.stat().st_mtime_ns) for p in self.root.rglob("*") if p.is_file()}
+		self.assertEqual(before, after)
 
 	def test_draft_may_omit_downstream_phases_but_approval_requires_all_three(self) -> None:
 		for name in ("tasks", "plan"):

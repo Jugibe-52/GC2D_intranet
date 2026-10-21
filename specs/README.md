@@ -1,170 +1,91 @@
-# Specification-driven development
+# Preparing and carrying out changes
 
-SDD connects substantial GC2D changes to explicit requirements, a reviewed plan,
-and recorded verification. Begin with the relevant current contract, inspect
-its implementation and tests, and specify the proposed difference before
-changing scientific behavior. Small corrections may use the ordinary workflow.
+Use the [sdd skill](../.agents/skills/sdd/SKILL.md) for substantial changes to
+GC2D. Small corrections can be made and checked without a change folder.
+The aim is to agree on the intended result, understand what it affects, and
+check the work afterwards.
 
-## Entry points
+## Prepare
 
-Use the repository-local [sdd skill](../.agents/skills/sdd/SKILL.md):
+Ask `$sdd prepare <request>` or `$sdd prepara <request>`. The skill investigates
+the request and creates four short documents in
+`specs/changes/YYYY-MM-DD-short-description/`:
 
-- `$sdd prepare <request>` investigates and prepares a change for review.
-- `$sdd implement <change-id>` implements an accepted specification and plan.
-- `$sdd verify <change-id>` checks acceptance criteria and closes completed work.
-- `$sdd status [change-id]` reports progress and missing evidence without edits.
+| File | What you will find |
+| --- | --- |
+| `goal.md` | The problem and why we want to solve it. |
+| `proposal.md` | What will change, how it should work, and an example if useful. |
+| `impact.md` | The affected parts and consequences, including related uses, tests, documentation, notebooks, and saved data where relevant. |
+| `steps.md` | A short checklist of work and how to check the expected behavior. |
 
-Natural-language requests are supported. If the request is only a consultation,
-discuss the proposal without saving it. Automatic skill selection does not
-grant permission to write. Follow the existing personal authorization rules;
-an explicit skill invocation authorizes only the requested operation and scope.
-Preparing a change never authorizes implementing it. An implementation request
-that already accepts the reviewed specification and plan needs no second
-confirmation. Plan mode remains read-only regardless of skill invocation.
+Read the four documents together. Preparation stops here: it does not change
+the implementation or create a results file. Important unanswered questions
+are stated plainly. Revising a proposal updates these documents together.
 
-Run the structural check from any working directory by passing the script path:
+## Execute
+
+Ask `$sdd execute <change>` or `$sdd ejecuta <change>` after reviewing the
+proposal. This accepts the presented scope and requests its implementation;
+there is no additional approval for each file or routine technical decision.
+The change can be identified by its folder name or unambiguous conversation
+context. Equivalent natural-language requests are also supported.
+
+Execution marks progress in `steps.md` and creates the fifth document,
+`results.md`. It records what was implemented, how it was checked, the actual
+outcome, and any remaining work or limitations. It includes a short sentence
+with the acceptance date and scope. If work stops or a check fails, the document
+says so; its existence does not imply success.
+
+If no proposal has been presented, the skill prepares one for review before
+implementation, unless that exact scope is already accepted and authorized.
+A material scope change requires review; existing acceptance remains valid for
+its original scope. Asking about progress is read-only. Creating or editing the
+skill does not run this workflow. Personal authorization rules still apply.
+
+## Keep the documents easy to read
+
+Use short paragraphs, useful examples, and a short checklist. Each file has a
+single purpose. No requirement codes, metadata blocks, revision counters, or
+fixed section headings are needed. The [templates](../.agents/skills/sdd/assets/)
+are writing aids, not forms to fill with boilerplate.
+
+Use everyday language and explain necessary technical terms. Scientific work
+still needs clear physical assumptions, units, coordinates, array shapes,
+tolerances, and reference accuracy when these affect the result. Explain why
+those details matter and distinguish measured errors from requested tolerances.
+Put planned checks in `steps.md` and their observed outcomes in `results.md`.
+
+Canonical documents use English under the project language rule. Local Spanish
+reading copies use `name.es.md`; they are auxiliary copies of the same five
+documents and are excluded from Git and from the checker.
+
+## Permanent documentation and history
+
+Keep detailed mathematical and architecture explanations in `docs/` and link to
+them. Update affected descriptions in `specs/current/` only for accepted,
+implemented behavior, retaining their existing format and stable references.
+New change documents do not need to copy that format or repeat those details.
+
+Keep completed change folders as history. Older changes with `spec.md`,
+`plan.md`, and `tasks.md` remain readable and checked in their existing format.
+There is no automatic conversion. When resuming an unfinished older change,
+preserve its acceptance and results and update its existing documents.
+
+## Document check
+
+After saving changes, run:
 
 ```bash
 python scripts/check_sdd.py
-python scripts/check_sdd.py --root /path/to/GC2D_codigo
 ```
 
-The script defaults to its own repository root. It needs Python 3.11 or later
-and only the standard library. CI runs the same check, independently of the
-scientific tests. It never runs commands found in records or changes files.
+From another working directory, use the script's absolute path; `--root` can
+select a different repository. The script uses Python 3.11 or later and the
+standard library. CI runs the same check.
 
-## Current contracts and change history
-
-The initial baseline is deliberately limited to:
-
-| Contract | Requirement IDs | Existing detailed documentation |
-| --- | --- | --- |
-| [Potential import](current/potential-import.md) | POT-001 through POT-005 | [HDF5 import](../docs/dynamics/gc2d-h5-import.md) |
-| [Simulation](current/simulation.md) | SIM-001 through SIM-004 | [Integration](../docs/simulation/integration-architecture.md), [execution](../docs/simulation/execution.md) |
-| [Results](current/results.md) | SOL-001 through SOL-003 | [Integration and state ownership](../docs/simulation/integration-architecture.md) |
-
-`current/` describes accepted, implemented behavior. `changes/` contains one
-Markdown file per change, named after its ID, conventionally
-`YYYY-MM-DD-short-description`. Completed records stay in that directory as
-history. Do not move an unimplemented proposal into the current contracts.
-Detailed mathematical derivations and architecture keep their existing owners
-under `docs/`; link to them instead of duplicating them here.
-
-Requirement IDs are stable references, not line numbers. Allocate a new ID for
-a distinct capability. Preserve an existing ID when refining the same contract.
-For a removed requirement, retain its ID and a retirement explanation in the
-current specification, with a manual compatibility verification procedure when
-its old tests no longer apply. Preserve historical results when a file moves;
-update reference paths and explain the move without rewriting past outcomes.
-
-The [README HDF5 selection proposal](changes/2026-10-13-readme-hdf5-selection/spec.md)
-is a draft awaiting review. Its existence does not authorize the correction.
-
-## Lifecycle
-
-| State | Meaning | Next action |
-| --- | --- | --- |
-| `draft` | Investigated proposal; unresolved questions may remain | Present specification and plan together |
-| `approved` | User accepted both for this scope | Implement when the request authorizes it |
-| `implementing` | Accepted work is in progress or validation is incomplete | Continue tasks and collect evidence |
-| `verified` | All criteria checked, tasks completed, current contracts reconciled | Retain as history |
-
-Record a concise approval date and description, never invent acceptance or copy
-conversation transcripts. Approval is a recorded human decision, not something
-the checker can authenticate. Re-read the record and actual diff when resuming.
-An unfinished implementation resumes within its existing accepted scope.
-
-When an authorized revision incorporates a material change to behavior, scope,
-API compatibility, or acceptance criteria, return the record to `draft`:
-explain the revision, clear `approval`, and reset
-affected checks to `pending` with empty evidence/date. Preserve previous outcomes
-in the narrative. A routine implementation choice within the accepted plan does
-not require another approval. Discussing a possible expansion does not itself
-authorize edits or invalidate the existing approval. Editing code after verification invalidates the
-affected evidence; rerun those checks before closing again. Failures and missing
-dependencies remain visible and cannot be counted as passes.
-
-## Record format (version 1)
-
-All scanned records start with TOML between two lines containing exactly `+++`,
-followed by Markdown. Use the [specification template](../.agents/skills/sdd/assets/spec.md)
-or [change template](../.agents/skills/sdd/assets/change-spec.md). Templates are outside
-the scanned directories and are not current contracts.
-
-Common metadata: `schema_version = 1`, `kind` (`spec` or `change`), `id`,
-`sources`, and `documents`. The two reference arrays contain existing files,
-using repository-relative POSIX paths. The filename stem equals `id`; document
-IDs are unique throughout both directories. Unknown metadata fields are errors.
-
-### Current specifications
-
-Each `[[requirements]]` table has `id` and `tests`. IDs use an uppercase domain
-and at least three digits, such as `POT-001`, and are globally unique. Define
-the behavior under a matching `## POT-001: Title` heading in the Markdown.
-For every requirement, provide test references or a non-empty `verification`
-string describing a manual procedure. Existing tests are references to evidence
-locations, not a claim that those tests have just run or cover every assertion.
-
-A test reference is an existing Python file under `tests/`, optionally followed
-by `::TestClass.test_method` or `::test_function`. Selectors must name definitions
-directly in that file; inherited or generated tests can use a file reference.
-The checker inspects syntax without importing the test module.
-
-### Changes
-
-In addition to common fields, a change contains:
-
-| Field | Meaning |
-| --- | --- |
-| `status`, `approval` | Lifecycle state and acceptance note; approval is empty before acceptance |
-| `requirements` | All current or newly proposed requirement IDs affected by the change |
-| `proposed_requirements` | Subset introduced by this change; may be absent from current contracts until verification |
-| `open_questions` | Unresolved decisions; must be empty after approval |
-| `[[criteria]]` | Unique local `id`, `description`, and affected `requirements` array |
-| `[[tasks]]` | Unique local `id`, `description`, and Boolean `done` |
-| `[[checks]]` | Unique local `id`, covered `criteria`, `procedure`, existing `tests`, `result`, `evidence`, and `checked_on` |
-
-Use `AC-001`, `T-001`, and `V-001` for local criterion, task, and check IDs.
-Results are `pending`, `passed`, `failed`, or `blocked`. Pending evidence and date
-may be empty strings. Every other result requires a concise factual evidence
-description and a quoted ISO date (`"2026-10-13"`). Procedures may be commands or
-manual inspections; no command is executed by the checker. Record counts,
-measured values/tolerances, relevant environment, and inspected artifacts in the
-evidence as appropriate. Do not replace observed results with expected results.
-
-At approval, require non-empty criteria, tasks, and checks; every affected
-requirement must map to a criterion, and every criterion to a check. A process-only
-change may have an empty requirement list. Before verification, all tasks must
-be done, every check must have passed with evidence, and new requirements must
-exist in the current contracts. Requirements can be proposed by only one change.
-
-New files described in the plan need not exist yet. Keep them in the Markdown
-design or procedure; add them to checked file references only after creation.
-Drafts may have empty table arrays (`criteria = []`, `tasks = []`, `checks = []`)
-and explicit open questions. References supplied even in drafts must resolve.
-
-Accepted changes use the template's non-empty sections: Problem, Scope,
-Proposed behavior, Design, Compatibility, Verification plan, and Outcome and
-limitations. Structured metadata owns task completion and verification status;
-avoid maintaining a second checklist with conflicting states in the prose.
-
-## Scientific review and validation
-
-For a numerical change, state the applicable physical model, coordinates and
-units, array shapes, tolerances, reference method, and measurable acceptance
-criteria. Distinguish requested solver tolerances from measured errors. Reuse
-existing deterministic tests where they cover the contract; add tests for
-changed behavior or genuine gaps, not to duplicate implementation details.
-
-The skill reviews semantic agreement among requirements, code, tests, and
-results. The checker validates frontmatter and its references, not arbitrary
-Markdown links, numerical correctness, approval authenticity, or test execution.
-Passing it alone is insufficient to close a change. CI checks existing records;
-it does not require every code diff to have a specification.
-
-Follow the repository's focused tests and required CI checks. Run optional
-backend comparisons when affected. Validate notebooks with a representative
-reduced subset; do not overwrite canonical outputs with reduced results.
-At closure, update the relevant current contracts and detailed documentation,
-run the checker, and report remaining limitations explicitly. No commits,
-pushes, deployments, or personal configuration changes are implied by SDD.
+For the new format, the checker checks the four preparation files, optional
+`results.md`, and readable content, without requiring fixed headings or parsing
+prose as approval or proof. It rejects mixed old/new formats within one folder
+and keeps the existing checks for older records and current specifications.
+It does not edit files or execute recorded commands. A passing result does not
+establish scientific correctness or prove that implementation and checks ran.
