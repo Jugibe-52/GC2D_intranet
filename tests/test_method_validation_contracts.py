@@ -71,11 +71,11 @@ class MethodValidationContractTests(unittest.TestCase):
 					with self.assertRaisesRegex(ValueError, "`newton_absolute_tolerance` must be positive and finite"):
 						constructor(newton_absolute_tolerance=value)
 
-	def test_boolean_coupling_and_optional_first_step_policies_remain_distinct(self) -> None:
-		for value in (False, True, np.bool_(False), np.bool_(True)):
-			self.assertEqual(BM4Midpoint(coupling_frequency=value).coupling_frequency, float(value))
-			with self.assertRaisesRegex(ValueError, "`coupling_frequency` must be non-negative and finite"):
-				BM4Implicit(coupling_frequency=value)
+	def test_removed_coupling_and_optional_first_step_controls(self) -> None:
+		for constructor in (BM4Midpoint, BM4Implicit):
+			for value in (0., .4, False, True, np.bool_(False), np.bool_(True)):
+				with self.assertRaises(TypeError):
+					constructor(coupling_frequency=value)
 		for constructor in (DOP853, Radau):
 			self.assertIsNone(constructor(first_step=None).first_step)
 			self.assertEqual(constructor(first_step=True).first_step, 1.0)

@@ -38,7 +38,7 @@ class RadialCycleTests(unittest.TestCase):
             run_id="original", particle_ids=list(range(1, 49)),
             colours={str(i): "#123456" for i in range(1, 49)},
             radial_fractions=list(self.config.radial_fractions), rho=.3,
-            coupling_frequency=np.pi/8, radial_angle_rad=0.,
+            coupling_frequency=0.0, radial_angle_rad=0.,
             field_provenance=dict(B_tesla=1.5, characteristic_length_m=.06,
                 source_selection=[0, 1], source_field_indices=[15], interpolation_order=3, source_hdf5_sha256="synthetic",
                 grid=dict(x0=0., y0=0., period=length*s), source_origin_m=[0., 0.],
@@ -50,7 +50,7 @@ class RadialCycleTests(unittest.TestCase):
     def test_same_vector_field_and_cycle_returns_as_A(self):
         star = build_rho_star(self.field, RhoStarConfig(
             rho_hat=.3, particles=48, arms=1, outer_radius_fraction=.98,
-            cycles=2, steps_per_cycle=20, coupling_frequency=np.pi/8,
+            cycles=2, steps_per_cycle=20, coupling_frequency=0.0,
             spatial_normalization="characteristic_length"), source_sha256="synthetic")
         p = self.prepared.problem
         np.testing.assert_allclose(p.initial_state, star.problem.initial_state, atol=1e-14)

@@ -20,8 +20,8 @@ from methods.classical.sdirk import SDIRK4
 from methods.hbvm.order4 import HBVM42
 from methods.extended.abba import ABBA2Implicit, ABBA4Implicit, ABBA6Implicit, ABBA2Midpoint
 from methods.extended.bm4 import BM4Implicit, BM4Midpoint
-from methods.extended.core.composition import ABBA2, BM4
-from formulations.projection import resolve_projection
+from methods.extended.palindromic import PalindromicImplicit, PalindromicMidpoint
+from formulations.projection import ProjectionName, resolve_projection
 
 
 Options = TypeVar("Options", ExplicitOptions, ImplicitOptions, CompositionOptions)
@@ -102,27 +102,42 @@ def _abba(method: ABBA2Implicit | ABBA4Implicit | ABBA6Implicit,
 	"""Bind the actual signed recipe and one outer projection."""
 	solve = NonlinearOptions(method.newton_absolute_tolerance, method.newton_relative_tolerance,
 		method.newton_max_iterations, "analytic", 0., method.nonlinear_solver)
-	options = CompositionOptions(method.track_energy, method.recipe.coefficients, None,
+	options = CompositionOptions(method.track_energy, method.recipe, None,
 		resolve_projection(method.projection_formulation).name, solve, publish_substeps=method.order != 2)
 	return PreparedJaxStep(dynamics, device, options, extended_step)
 
 
 def _bm4(method: BM4Implicit, dynamics: HamiltonianSystem, device: Any) -> CompiledStep:
-	"""Bind BM4's coupling and explicit Jacobian selection."""
+	"""Bind uncoupled BM4 with its explicit Jacobian selection."""
 	solve = NonlinearOptions(method.newton_absolute_tolerance, method.newton_relative_tolerance,
 		method.newton_max_iterations, method.newton_jacobian_method,
 		method.newton_jacobian_relative_step, method.nonlinear_solver)
-	options = CompositionOptions(method.track_energy, BM4.coefficients, method.coupling_frequency,
+	options = CompositionOptions(method.track_energy, method.recipe, None,
 		"reduced_multiplier", solve)
 	return PreparedJaxStep(dynamics, device, options, extended_step)
 
 
 def _midpoint(method: ABBA2Midpoint | BM4Midpoint, dynamics: HamiltonianSystem, device: Any) -> CompiledStep:
 	"""Arithmetic projection has no nonlinear solver configuration."""
-	recipe = BM4 if isinstance(method, BM4Midpoint) else ABBA2
-	coupling = method.coupling_frequency if isinstance(method, BM4Midpoint) else None
-	options = CompositionOptions(method.track_energy, recipe.coefficients, coupling,
+	recipe = method.recipe
+	options = CompositionOptions(method.track_energy, recipe, None,
 		"reduced_multiplier", None)
+	return PreparedJaxStep(dynamics, device, options, extended_step)
+
+
+def _palindromic(method: PalindromicImplicit | PalindromicMidpoint,
+                 dynamics: HamiltonianSystem, device: Any) -> CompiledStep:
+	"""Compile a user-supplied recipe without inferring its numerical order."""
+	solve = None
+	projection: ProjectionName = 'reduced_multiplier'
+	if isinstance(method, PalindromicImplicit):
+		projection = resolve_projection(method.projection_formulation).name
+		solve = NonlinearOptions(method.newton_absolute_tolerance, method.newton_relative_tolerance,
+			method.newton_max_iterations, method.newton_jacobian_method,
+			method.newton_jacobian_relative_step, method.nonlinear_solver)
+	options = CompositionOptions(method.track_energy, method.recipe,
+		None if method.coupling is None else method.coupling.frequency,
+		resolve_projection(projection).name, solve)
 	return PreparedJaxStep(dynamics, device, options, extended_step)
 
 
@@ -140,9 +155,11 @@ def prepare_step(method: IntegrationMethod[Any], dynamics: HamiltonianSystem, de
 		return _classical(method, dynamics, device)
 	if type(method) is HBVM42:
 		return _hbvm(method, dynamics, device)
-	if type(method) in (ABBA2Implicit, ABBA4Implicit, ABBA6Implicit, BM4Implicit, ABBA2Midpoint, BM4Midpoint):
+	if type(method) in (ABBA2Implicit, ABBA4Implicit, ABBA6Implicit, BM4Implicit, ABBA2Midpoint, BM4Midpoint, PalindromicImplicit, PalindromicMidpoint):
 		if dynamics.state_dimension != 2:
 			raise TypeError("Extended GC compositions require planar guiding-centre dynamics.")
+		if isinstance(method, (PalindromicImplicit, PalindromicMidpoint)):
+			return _palindromic(method, dynamics, device)
 		if isinstance(method, (ABBA2Implicit, ABBA4Implicit, ABBA6Implicit)):
 			return _abba(method, dynamics, device)
 		if isinstance(method, BM4Implicit):

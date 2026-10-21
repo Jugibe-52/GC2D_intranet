@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from contracts._study_validation import require_uncoupled_bm4
+
 from formulations.layout import GCStateLayout
 
 from dataclasses import dataclass
@@ -84,6 +86,7 @@ class ImplicitMethodAccuracyConfig:
 
 	def __post_init__(self) -> None:
 		"""Require nested complete-step grids aligned with every saved time."""
+		require_uncoupled_bm4(self.coupling_frequency)
 		steps = validated_refinement_steps(self.integration_steps)
 		object.__setattr__(self, "integration_steps", steps)
 		object.__setattr__(
@@ -248,7 +251,6 @@ def _configured_method(
 		)
 	if method_name == "BM4Implicit":
 		return BM4Implicit(
-			coupling_frequency=config.coupling_frequency,
 			newton_absolute_tolerance=config.absolute_tolerance,
 			newton_relative_tolerance=config.relative_tolerance,
 			newton_max_iterations=config.max_iterations,

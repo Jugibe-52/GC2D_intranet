@@ -20,9 +20,40 @@
 {\large Common composition, spatial projection and passive energy}
 \end{center}
 
+\section*{Explicit palindromic operations}
+All ABBA and BM4 presets inherit \texttt{PalindromicMethod}. For signed
+$d=c h$, the elementary operations are
+\[
+ A_d(u,v,t)=(u+d f(t,v),v,t),\qquad
+ B_d(u,v,t)=(u,v+d f(t,u),t),\qquad
+ T_d(u,v,t)=(u,v,t+d).
+\]
+Only $T$ advances time. A coefficient $c=1/2$ means duration $h/2$;
+there is no additional half inside $A$ or $B$. The optional exact $C$ flow
+rotates the copy difference and requires an independent coupling object.
+Both BM4 presets omit $C$.
+
+In chronological order, standard ABBA2 is
+$A_{h/2},B_{h/2},T_{h/2},T_{h/2},B_{h/2},A_{h/2}$.
+The distinct symmetric variant
+$T_{h/2},A_{h/2},B_{h/2},B_{h/2},A_{h/2},T_{h/2}$
+evaluates every spatial shear at the midpoint time. Both exhibit second
+order on the tested nonautonomous rotation. Arbitrary palindromes do not
+inherit fourth or sixth order, and an arithmetic projection need not be
+reversible or symplectic.
+
+\texttt{Composition.from\_half} reflects a supplied half sequence.
+The generic \texttt{PalindromicImplicit} and \texttt{PalindromicMidpoint}
+methods select one exterior Hairer projection or a final arithmetic mean.
+The standard signed ABBA/BM4 recipes, grouped observations and passive
+momentum normalization remain unchanged. NumPy and JAX execute the same
+explicit operations and differentiate their retained shear inputs.
+See \path{docs/models/extended/simulation/palindromic-operations.md}.
+
+
 \section{Scope and public methods}
 The directory \path{src/methods/extended/} contains the common
-implementation of the existing ABBA and BM4 methods. It introduces no public
+implementation of ABBA, BM4 and generic palindromic methods. It introduces no public
 method named Extended. Public class names and exports from \texttt{simulation} are retained. ABBA6
 now uses the same single outer projection as ABBA4. Its observed substeps
 become unprojected pairs and its work arrays have one column per step.
@@ -46,17 +77,17 @@ for nonautonomous dynamics. A recipe with $2r$ stages is
 \]
 In execution order the stages alternate adjoint, direct. The weights obey
 $b_j=b_{2r+1-j}$ and $\sum_j b_j=1$. Reflection exchanges each map with its
-adjoint. These properties are checked by the recipe constructor; additional
-order conditions remain necessary for higher-order accuracy.
+adjoint. The direct/adjoint builder checks these weights and expands them into
+elementary operations. The resulting recipe checks reflected operation pairs
+and unit A, B and T totals; higher-order conditions remain necessary.
 
 With stage clock $\tau$ and signed duration $s=b_jh$, the adjoint evaluates at
 $\tau$, the direct map at $\tau+s$, and the clock subsequently becomes
 $\tau+s$. Negative coefficients reverse the clock as well as the subflow.
 For uncoupled GC maps, the pair with weights $(1/2,1/2)$ reproduces the
 endpoint-time A--B--B--A construction. Each direct or adjoint map contains two
-spatial shears. BM4 can additionally apply the existing exact harmonic
-coupling of the two spatial copies, in reversed operation order for the
-adjoint.
+spatial shears. Both BM4 variants also omit harmonic coupling. The exact C flow remains
+independently available through \texttt{HarmonicCoupling}, outside BM4.
 
 ABBA4 uses three unprojected ABBA pairs scaled by
 \[
@@ -72,7 +103,6 @@ Each weight is repeated twice after division by two, producing fourteen
 direct/adjoint stages. One symmetric projection encloses the complete
 composition. This deliberately replaces the former seven-projection map.
 
-\clearpage
 \section{One common spatial projection equation}
 Write $m=2N$, $Ez=(z,z)$, $G=[I,-I]$ and $N_0=G^{\mathsf T}$. The reduced
 Hairer projection finds $\mu\in\R^m$ such that
@@ -127,7 +157,6 @@ Independence of the particles gives $4\times4$ blocks for $M$, $2\times2$
 reduced Newton blocks, and $6\times6$ simultaneous blocks. BM4 also retains
 its optional dense centered-difference differentiation of the complete map.
 
-\clearpage
 \section{Passive energy from accepted stages}
 The dynamics supply $H(t,z)$ and $-\partial_tH(t,z)$. For the accepted spatial
 trace, let $(t_j,s_j,z_j)$ denote the evaluation time, signed duration and
@@ -154,9 +183,10 @@ ordinary implicit execution is
 \[
  \texttt{advance}\;\longrightarrow\;\texttt{solve\_projection}
  \;\longrightarrow\;\texttt{compose}
- \;\longrightarrow\;\texttt{direct\_map / adjoint\_map}.
+ \;\longrightarrow\;\texttt{A/B/T/C}.
 \]
-ABBA4 and ABBA6 share this execution exactly; only their recipes differ.
+All ABBA and BM4 presets inherit their advance from the shared palindromic
+classes; the recipe selects their elementary operations.
 Public configurations live in \texttt{abba.py} and \texttt{bm4.py}; common
 numerical operations live in \texttt{core/}, and optional event conversion
 lives in \texttt{observations.py}. The general

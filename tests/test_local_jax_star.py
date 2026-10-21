@@ -26,7 +26,7 @@ from visualization.local_jax_star import export_local_star_poincare, local_star_
 
 def settings() -> LocalJAXStarConfig:
     """Keep the requested geometry but use a tiny, uneven final test block."""
-    return LocalJAXStarConfig(1.5, .06, 3, .3, np.pi / 8,
+    return LocalJAXStarConfig(1.5, .06, 3, .3, 0.0,
                              8, 5, True, .5, .7, (.5, .5), 0., 3, 4, 2)
 
 

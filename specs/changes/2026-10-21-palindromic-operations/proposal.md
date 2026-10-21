@@ -1,0 +1,11 @@
+# Explicit operations and shared methods
+
+Introduce immutable A, B, T and C operations, each carrying an explicit coefficient multiplying the complete step h. A updates the first copy from the second; B updates the second from the first. They evaluate the field at the current clock and leave that clock fixed. T advances only the clock. C applies the independently configured HarmonicCoupling without advancing time. There is no hidden factor 0.5 in either spatial operation.
+
+A Composition stores the complete palindrome, validates reflected operation/coefficient pairs and total A, B and T weights of one, and can construct the second half automatically. For example, the chronological half (T(0.5), A(0.5), B(0.5)) generates T/2, A/2, B/2, B/2, A/2, T/2. The existing ABBA2 instead has T in the middle. Palindromy establishes symmetry of the unprojected flow, not its order or symmetry after arbitrary projection.
+
+All ABBA and BM4 methods inherit a common PalindromicMethod implementation. Shared implicit and midpoint variants apply one exterior Hairer projection or final arithmetic mean. Concrete presets select their recipe and retain existing public controls and observation adapters. Generic PalindromicImplicit and PalindromicMidpoint configurations accept a Composition for experiments; subclasses may select a recipe without copying an integration loop. Generic C use requires both explicit C operations and a coupling object. BM4 presets never include C.
+
+Migrate NumPy execution, exact particle Jacobians, passive momentum and JAX execution to the same operation sequence. Keep standard ABBA/BM4 coefficients, evaluation times, physical outputs and solver tolerances unchanged. Reconstruct existing grouped stage observations from the elementary trace. Validate a second-order ABBA variant with T at both ends on a nonautonomous problem; do not attribute fourth or sixth order to arbitrary rearrangements.
+
+States remain component-major (u_x, u_y, v_x, v_y), length 4N, with physical output length 2N. Time is scalar in runtime units; operation durations are signed. The passive physical momentum retains the factor 1/2 for the doubled Hamiltonian and is not part of the projection unknowns.

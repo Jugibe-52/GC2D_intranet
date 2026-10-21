@@ -1,6 +1,8 @@
 """Shared operations for the three-, four-, and five-method comparison families."""
 from __future__ import annotations
 
+from contracts._study_validation import require_uncoupled_bm4
+
 from formulations.layout import GCStateLayout
 
 from dataclasses import asdict, dataclass
@@ -67,6 +69,7 @@ class ComparisonConfig:
 
 	def __post_init__(self) -> None:
 		"""Validate every parameter that affects reproducibility."""
+		require_uncoupled_bm4(self.coupling_frequency)
 		object.__setattr__(
 			self, "t_span",
 			finite_time_span(self.t_span, message="`t_span` must contain two finite increasing times."),
@@ -316,7 +319,6 @@ def comparison_method(
 		)
 	if method_name == "BM4Implicit":
 		return BM4Implicit(
-			coupling_frequency=config.coupling_frequency,
 			newton_absolute_tolerance=config.absolute_tolerance,
 			newton_relative_tolerance=config.relative_tolerance,
 			newton_max_iterations=config.max_iterations,

@@ -37,7 +37,7 @@ class BM4MidpointTests(unittest.TestCase):
 
 	def test_one_step_matches_independent_twelve_stage_replay(self) -> None:
 		problem = _gc_problem()
-		prepared = GCExtendedFormulation(0.7).prepare(problem, track_energy=False)
+		prepared = GCExtendedFormulation(0.0).prepare(problem, track_energy=False)
 		# Independent coefficient/order traversal catches changes to the shared
 		# cycle, time convention, and accidental projection between stages.
 		half = [0.0792036964311957, 0.1303114101821663, 0.2228614958676077,
@@ -51,7 +51,7 @@ class BM4MidpointTests(unittest.TestCase):
 			else:
 				value = prepared.adjoint_map(duration, time, value)
 			time += duration
-		solution = simulate(problem, BM4Midpoint(coupling_frequency=0.7),
+		solution = simulate(problem, BM4Midpoint(),
 			SimulationRequest.uniform(t_span=(0.3, 0.5), max_step=0.2, sample_count=2))
 		np.testing.assert_allclose(solution.states[:, -1], (value[:2] + value[2:]) / 2, atol=1e-15)
 		np.testing.assert_allclose(solution.diagnostics["copy_separation_norms"],
@@ -124,8 +124,8 @@ class BM4MidpointTests(unittest.TestCase):
 					self.assertEqual(dense.diagnostics["extended_momentum_normalization"], "physical_kappa")
 
 	def test_invalid_configuration_and_energy_capability(self) -> None:
-		for frequency in (-1., np.nan, np.inf):
-			with self.assertRaises(ValueError):
+		for frequency in (0., .7, -1., np.nan, np.inf):
+			with self.assertRaises(TypeError):
 				BM4Midpoint(coupling_frequency=frequency)
 		with self.assertRaises(ValueError):
 			BM4Midpoint(state_extension="invalid")

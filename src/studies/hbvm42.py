@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from contracts._study_validation import require_uncoupled_bm4
+
 from formulations.layout import GCStateLayout
 
 from dataclasses import dataclass
@@ -259,6 +261,7 @@ class HBVM42BM4ComparisonConfig:
 
 	def __post_init__(self) -> None:
 		"""Validate common grids, solver controls, and benchmark repetition counts."""
+		require_uncoupled_bm4(self.coupling_frequency)
 		span = finite_time_span(self.t_span, message="`t_span` must contain two finite, increasing times.")
 		steps = _validated_steps(tuple(self.steps), duration=span[1] - span[0])
 		object.__setattr__(self, "t_span", span)
@@ -617,7 +620,6 @@ def run_hbvm42_bm4_comparison(
 		(
 			BM4_LABEL,
 			lambda: BM4Implicit(
-				coupling_frequency=config.coupling_frequency,
 				newton_absolute_tolerance=config.absolute_tolerance,
 				newton_relative_tolerance=config.relative_tolerance,
 				newton_max_iterations=config.max_iterations,

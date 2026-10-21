@@ -1,5 +1,7 @@
 """Matched RK4 and BM4Midpoint probe batches for sampled Poincare gaps."""
 
+from contracts._study_validation import require_uncoupled_bm4
+
 from formulations.layout import GCStateLayout
 
 from dataclasses import asdict, dataclass
@@ -43,6 +45,7 @@ class RegionProbeSettings:
     coupling_frequency: float | None = None
 
     def __post_init__(self) -> None:
+        require_uncoupled_bm4(self.coupling_frequency)
         if self.method not in ('RK4', 'BM4Midpoint'):
             raise ValueError('Supported probe methods are RK4 and BM4Midpoint.')
         if (not self.particle_ids or len(set(self.particle_ids)) != len(self.particle_ids)
@@ -53,8 +56,8 @@ class RegionProbeSettings:
             _validate_probe_parameters(pid, xy, color, self.cycles, self.steps_per_cycle,
                              self.chunk_steps, self.rho, self.t0, self.cycle_duration)
         if self.method == 'BM4Midpoint':
-            if self.coupling_frequency is None or not np.isfinite(self.coupling_frequency) or self.coupling_frequency < 0:
-                raise ValueError('BM4Midpoint requires an explicit finite nonnegative coupling frequency.')
+            if self.coupling_frequency is None:
+                object.__setattr__(self, 'coupling_frequency', 0.0)
         elif self.coupling_frequency is not None:
             raise ValueError('RK4 does not use doubled-copy coupling.')
 
@@ -111,7 +114,7 @@ def integrate_region_probes(potential: Potential, settings: RegionProbeSettings,
                 if progress is not None and (completed % settings.chunk_steps == 0 or completed == count):
                     progress(completed, count)
             assert settings.coupling_frequency is not None
-            method = BM4Midpoint(coupling_frequency=settings.coupling_frequency,
+            method = BM4Midpoint(
                                  step_observer=report if progress else None)
         else:
             method = RK4()

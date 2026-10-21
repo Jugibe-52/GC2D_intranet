@@ -1,10 +1,18 @@
 # Shared extended-space implementation
 
-The linked rendered diagrams and their sources are retained as historical artifacts. Their method-owned integration entry points and former state containers are superseded by the executor-owned lifecycle described in this text.
+All presets now inherit PalindromicMethod and execute explicit A/B/T operations.
+See [palindromic methods and time placement](palindromic-operations.md) for the common classes, generic recipes and independent C.
+
+Both BM4 variants use uncoupled maps and have no coupling-frequency option.
+See [uncoupled BM4 and independent C](uncoupled-bm4.md) for migration and historical-data handling.
+
+
+The compact diagrams describe the current shared numerical execution and executor-owned lifecycle. Older detailed diagrams explicitly marked as historical retain their original ownership conventions.
 
 ABBA and BM4 share the numerical implementation in
 [`src/methods/extended/`](../../../../src/methods/extended/).
-`extended` names an internal implementation family, not a new public method.
+`extended` names the implementation family. Generic PalindromicImplicit and
+PalindromicMidpoint methods accept explicit compositions for experiments.
 The public method names and exports from `simulation`, `methods`, and
 `methods.extended` remain available. ABBA6 now uses one outer projection,
 matching ABBA4; its numerical map and observation structure change accordingly.
@@ -26,7 +34,7 @@ node-and-edge specification; an external Graphviz executable is not required.
 ## Execution and responsibilities
 
 The ordinary implicit path is `advance -> solve_projection -> compose ->
-direct_map / adjoint_map`. Initialization binds the recipe, spatial formulation,
+A/B/T/C operations`. Initialization binds the recipe, spatial formulation,
 solver options and Jacobian strategy once. The generic integration coordinator
 continues to own step scheduling, output sampling, observer dispatch and history
 collection. No per-order forwarding modules or separate ABBA composition drivers
@@ -41,7 +49,9 @@ observation and integration use the same convergence threshold.
 
 | Module or component | Responsibility |
 |---|---|
-| `extended/core/composition.py` | Validated immutable signed recipes and one direct/adjoint traversal |
+| `extended/palindromic.py` | Common method inheritance, preparation, implicit/midpoint advancement and passive finishing |
+| `extended/core/operations.py` | Immutable A/B/T/C operation coefficients |
+| `extended/core/composition.py` | Complete validated operation palindromes and their chronological execution |
 | `extended/core/projection.py` | Bind a composition, projection equations and algebraic solver |
 | `formulations/projection.py` | Reduced and simultaneous residuals, Jacobians, guesses and reconstruction |
 | `solvers/nonlinear.py` | Shared Newton/Broyden convergence, iteration limits and counters |
@@ -49,7 +59,7 @@ observation and integration use the same convergence threshold.
 | `extended/core/energy.py` | Passive normalized momentum quadrature from accepted shear inputs |
 | `extended/core/records.py` | Numerical stage traces, projection results and per-solve statistics |
 | `extended/core/midpoint.py` | Explicit arithmetic projection after the complete composition |
-| `extended/abba.py`, `extended/bm4.py` | Public implicit and midpoint configurations and accepted-step operations |
+| `extended/abba.py`, `extended/bm4.py` | Preset recipes, public controls and observation adapters |
 | `extended/configuration.py` | Shared selectors and configuration validation |
 | `extended/observations.py` | On-demand ABBA pair and BM4 stage events from common numerical traces |
 | `formulations/gc.py` | `GCDoubledMaps`: spatial direct/adjoint maps and optional coupling |
@@ -63,10 +73,12 @@ extended/
   abba.py
   bm4.py
   configuration.py
+  palindromic.py
   observations.py
   core/
     __init__.py
     composition.py
+    operations.py
     projection.py
     midpoint.py
     jacobians.py
@@ -92,15 +104,14 @@ adapter modules are not recreated as compatibility routes.
 | `ABBA2Midpoint` | One ABBA pair | One arithmetic mean |
 | `BM4Midpoint` | Complete twelve-stage BM4 recipe | One arithmetic mean |
 
-`ABBA4Implicit` is the fourth-order public configuration. ABBA uses uncoupled maps. BM4 preserves its configurable harmonic
-coupling and defaults (`0` for implicit BM4, `pi/8` for midpoint BM4).
+`ABBA4Implicit` is the fourth-order public configuration. ABBA uses uncoupled maps. Both BM4 variants also use uncoupled maps. HarmonicCoupling remains an independent C operation for future compositions.
 
-In execution order, even-indexed stages are adjoint and odd-indexed stages are
-direct. If `s = coefficient * h`, an adjoint evaluates at the current stage
-clock and a direct map at `clock + s`; then the clock advances by `s`. Negative
-weights reverse both the signed subflow and its clock. Reflection exchanges
-adjoint and direct maps. Palindromic weights and unit total duration are checked,
-but they alone do not prove fourth- or sixth-order accuracy.
+The preset recipes expand each adjoint group into A,B,T and each direct group
+into T,B,A, all with the original signed weight. The executor traverses those
+explicit operations; only T changes the clock. This preserves endpoint times
+and negative substeps without a parity-based clock rule. Reflected operations
+and unit totals for A, B and T are checked separately. Higher orders still
+require their additional order conditions.
 
 Projection placement is part of method identity. ABBA6 intentionally changes
 from seven projected pairs to one projection around fourteen stages. Historical

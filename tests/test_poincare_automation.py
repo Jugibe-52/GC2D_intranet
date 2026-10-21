@@ -177,12 +177,42 @@ class AutomationTests(unittest.TestCase):
 		self.assertEqual(preserved[0].read_text(),'preserve this partial output')
 		load_completed_case(d,p)
 
-	def test_coupling_rate_transforms_with_runtime_period(self):
+	def test_coupling_is_disabled_for_every_runtime_period(self):
 		from studies.poincare_automation import automation_method
 		for temporal in (True,False):
-			c=replace(self.config,methods=('BM4Midpoint',),coupling_frequency=.25,temporal_rescaling=temporal)
+			historical=replace(self.config,methods=('BM4Midpoint',),coupling_frequency=.25,temporal_rescaling=temporal)
+			with self.assertRaisesRegex(ValueError, 'no longer supports harmonic coupling'):
+				prepare_automation(historical,self.root,self.root/'rejected')
+			self.assertFalse((self.root/'rejected').exists())
+			archived=self.prepared(historical)
+			self.assertGreater(archived.metadata['coupling_runtime'], 0.)
+			with self.assertRaisesRegex(ValueError, 'no longer supports harmonic coupling'):
+				automation_method(archived)
+			c=replace(self.config,methods=('BM4Midpoint',),temporal_rescaling=temporal)
 			p=self.prepared(c)
-			self.assertAlmostEqual(automation_method(p).coupling_frequency*p.metadata['runtime_cycle_duration'],.25)
+			self.assertFalse(hasattr(automation_method(p), 'coupling_frequency'))
+			self.assertEqual(p.metadata['coupling_runtime'], 0.)
+
+	def test_historical_coupled_manifest_can_be_read_but_not_resumed(self):
+		current=replace(self.config,methods=('BM4Midpoint',))
+		directory=prepare_automation(current,self.root,self.root/'historical')
+		historical=replace(current,coupling_frequency=.25)
+		configuration=json.loads((directory/'configuration.json').read_text())
+		configuration['configuration']=historical.to_dict()
+		(directory/'configuration.json').write_text(json.dumps(configuration))
+		manifest=json.loads((directory/'cases.json').read_text())
+		manifest['cases']={case_key(historical,case): manifest['cases'][case_key(current,case)]
+			for case in historical.cases()}
+		(directory/'cases.json').write_text(json.dumps(manifest))
+		before=(directory/'cases.json').read_text()
+		loaded,root,actual=read_automation(directory)
+		self.assertEqual(loaded.coupling_frequency,.25)
+		self.assertEqual(root,self.root)
+		self.assertEqual(actual,manifest)
+		with patch('studies.poincare_automation_io.verified_automation_field',side_effect=AssertionError('no field read')):
+			with self.assertRaisesRegex(ValueError,'no longer supports harmonic coupling'):
+				run_automation(directory)
+		self.assertEqual((directory/'cases.json').read_text(),before)
 
 	@unittest.skipUnless(importlib.util.find_spec('jax'),'JAX is optional')
 	def test_unavailable_backend_preflight_never_integrates(self):

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from contracts._study_validation import require_uncoupled_bm4
+
 from formulations.layout import GCStateLayout
 
 from contracts.study_results import ParallelBM4RecurrenceConfig, ParallelBM4RecurrenceResult
@@ -72,6 +74,7 @@ def _initialize_worker(
 	config: ParallelBM4RecurrenceConfig,
 ) -> None:
 	"""Initialize one single-threaded process-local BM4 environment."""
+	require_uncoupled_bm4(config.coupling_frequency)
 	global _WORKER_CONTEXT, _WORKER_THREADPOOL_LIMITER
 	_WORKER_THREADPOOL_LIMITER = ThreadpoolController().limit(limits=1)
 	potential = (
@@ -102,7 +105,6 @@ def _run_particle(particle: int) -> _ParticlePayload:
 	initial_configuration = GCStateLayout().pack_components(np.asarray([x], dtype=float), np.asarray([y], dtype=float))
 	problem = InitialValueProblem(context.dynamics, initial_configuration, layout=GCStateLayout())
 	method = BM4Implicit(
-		coupling_frequency=context.config.coupling_frequency,
 		newton_absolute_tolerance=context.config.absolute_tolerance,
 		newton_relative_tolerance=context.config.relative_tolerance,
 		newton_max_iterations=context.config.max_iterations,
@@ -166,6 +168,7 @@ def run_parallel_bm4_recurrence(
 		raise TypeError("`initial_configuration` must be np.ndarray.")
 	if not isinstance(config, ParallelBM4RecurrenceConfig):
 		raise TypeError("`config` must be ParallelBM4RecurrenceConfig.")
+	require_uncoupled_bm4(config.coupling_frequency)
 	coordinates = _validated_campaign_coordinates(initial_configuration, config.particle_count)
 	worker_count = min(config.worker_count, config.particle_count)
 	started = perf_counter()

@@ -1,8 +1,15 @@
 # BM4Midpoint: shared extended-space execution
 
-The linked rendered diagrams and their sources are retained as historical artifacts. Their method-owned integration entry points and former state containers are superseded by the executor-owned lifecycle described in this text.
+All presets now inherit PalindromicMethod and execute explicit A/B/T operations.
+See [palindromic methods and time placement](../../extended/simulation/palindromic-operations.md) for the common classes, generic recipes and independent C.
 
-Twelve alternating signed stages; Optional harmonic coupling. Arithmetic mean after the full cycle; No nonlinear solve.
+Both BM4 variants use uncoupled maps and have no coupling-frequency option.
+See [uncoupled BM4 and independent C](../../extended/simulation/uncoupled-bm4.md) for migration and historical-data handling.
+
+
+The compact diagrams describe the current shared numerical execution and executor-owned lifecycle. Older detailed diagrams explicitly marked as historical retain their original ownership conventions.
+
+Twelve alternating signed stages; No harmonic coupling. Arithmetic mean after the full cycle; No nonlinear solve.
 
 ![BM4Midpoint architecture](bm4-midpoint-simulation-architecture.svg)
 
@@ -21,13 +28,11 @@ remains [theory.tex](../tex/theory.tex), with its compiled
 
 ## Numerical path
 
-Coupling-frequency normalization uses the private scalar helpers in
-`methods._validation` and retains the midpoint constructor's existing float
-conversion policy. State-extension validation stays in
+BM4Midpoint has no coupling-frequency option. State-extension validation stays in
 `methods.extended.configuration`; stage-state checks stay with the composed map.
 
 Initialization binds this model's recipe and options. The ordinary implicit
-path is `advance -> solve_projection -> compose -> direct_map / adjoint_map`.
+path is `advance -> solve_projection -> compose -> A/B/T/C operations`.
 Explicit midpoint methods use `midpoint_step` in place of the nonlinear
 projection. ABBA4 and ABBA6 both project once around the complete
 unprojected composition; their recipes contain six and fourteen stages.
@@ -38,8 +43,7 @@ reversibility.
 
 The shared composition keeps signed durations and the nonautonomous stage
 clock: adjoint maps evaluate at the start of their substep and direct maps at
-its end. ABBA uses no harmonic coupling. BM4 retains its configurable coupling
-and the existing defaults for each public class.
+its end. ABBA uses no harmonic coupling. Both BM4 variants also use no harmonic coupling; C remains available independently through HarmonicCoupling.
 
 ## Accepted states and diagnostics
 

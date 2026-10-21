@@ -1,5 +1,7 @@
 """BM4Midpoint Poincare calculation with dimensional HDF5 star positions."""
 
+from contracts._study_validation import require_uncoupled_bm4
+
 from formulations.layout import GCStateLayout
 
 from dataclasses import asdict, dataclass, field
@@ -45,6 +47,10 @@ class PoincareStarConfig:
     steps_per_cycle: int
     coupling_frequency: float
 
+    def __post_init__(self) -> None:
+        """Require uncoupled BM4 for new calculations."""
+        require_uncoupled_bm4(self.coupling_frequency)
+
 
 @dataclass(frozen=True)
 class PoincareStarResult:
@@ -86,7 +92,7 @@ def run_poincare_star(source: str | Path, config: PoincareStarConfig, *,
         t_span=(0.0, float(config.cycles)), max_step=1.0 / config.steps_per_cycle,
         output_times=np.arange(config.cycles + 1, dtype=float),
     )
-    method = BM4Midpoint(coupling_frequency=config.coupling_frequency,
+    method = BM4Midpoint(
                          track_energy=False, progress=False, step_observer=None)
     start = perf_counter()
     solution = simulate(problem, method, request, options=execution)

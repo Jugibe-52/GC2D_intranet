@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from contracts._study_validation import require_uncoupled_bm4
+
 from formulations.layout import GCStateLayout
 
 from collections.abc import Callable
@@ -69,6 +71,7 @@ class TrajectorySymplecticityConfig:
 
 	def __post_init__(self) -> None:
 		"""Validate aligned output grids and nonlinear solver controls."""
+		require_uncoupled_bm4(self.coupling_frequency)
 		steps = _validated_area_steps(
 			self.steps, minimum=1, label_message="Integration-step labels must be unique.",
 		)
@@ -532,7 +535,6 @@ def run_bm4_implicit_trajectory_symplecticity_study(
 		),
 		jacobian_calculator=bm4_implicit_step_particle_jacobians,
 		method_factory=lambda observer: BM4Implicit(
-			coupling_frequency=config.coupling_frequency,
 			newton_absolute_tolerance=config.newton_absolute_tolerance,
 			newton_relative_tolerance=config.newton_relative_tolerance,
 			newton_max_iterations=config.newton_max_iterations,

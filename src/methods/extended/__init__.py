@@ -11,7 +11,12 @@ from methods.extended.configuration import (
 from methods.extended.abba import ABBA2Implicit, ABBA4Implicit, ABBA6Implicit, ABBA2Midpoint
 from methods.extended.bm4 import BM4Implicit, BM4Midpoint
 
+from methods.extended.palindromic import PalindromicMethod, PalindromicImplicit, PalindromicMidpoint
+from methods.extended.core.composition import Composition
+from methods.extended.core.operations import Operation, A, B, T, C
+
 __all__ = [
+	'PalindromicMethod', 'PalindromicImplicit', 'PalindromicMidpoint', 'Composition', 'Operation', 'A', 'B', 'T', 'C',
 	"BM4Implicit",
 	"BM4Midpoint",
 	"ABBA2Midpoint",

@@ -1,5 +1,7 @@
 """Restartable fixed-grid orchestration of frozen implicit and midpoint BM4."""
 
+from contracts._study_validation import require_uncoupled_bm4
+
 from formulations.layout import GCStateLayout
 
 from typing import Any
@@ -29,6 +31,7 @@ def calculate_checkpointed_group(
     Every multiplier starts at zero, as in the original integrator. Checkpoints
     contain every accepted state, per-step diagnostics and all Newton iterates.
     """
+    require_uncoupled_bm4(settings.get('coupling_frequency', 0.0))
     from threadpoolctl import threadpool_info, threadpool_limits
     potential, _, snapshot = load_snapshot()
     from dynamics import GuidingCenterDynamics
@@ -45,7 +48,7 @@ def calculate_checkpointed_group(
     xy0 = np.asarray(initial_xy, dtype=float)[indices]
     initial = GCStateLayout().pack_components(xy0[:, 0], xy0[:, 1])
     problem = InitialValueProblem(GuidingCenterDynamics(potential, rho=settings['rho']), initial, layout=GCStateLayout())
-    prepared = GCDoubledMaps(problem, coupling_frequency=settings['coupling_frequency'])
+    prepared = GCDoubledMaps(problem, coupling_frequency=None)
     implicit = settings['method'] == 'BM4Implicit'
     solver = SolverOptions('newton', settings['newton_atol'], settings['newton_rtol'],
                            settings['newton_max_iterations'])

@@ -183,14 +183,14 @@ def run_bm4_projection_comparison(
 		sample_count=config.output_sample_count)
 	times = request.output_times
 	period = potential.grid.period if config.distance_convention == "periodic" else None
-	implicit = BM4Implicit(coupling_frequency=config.coupling_frequency,
+	implicit = BM4Implicit(
 		newton_absolute_tolerance=config.absolute_tolerance,
 		newton_relative_tolerance=config.relative_tolerance,
 		newton_max_iterations=config.max_iterations,
 		newton_jacobian_relative_step=config.jacobian_relative_step,
 		newton_jacobian_method="analytic")
 	methods: dict[str, NumericalMethod] = {
-		"BM4Midpoint": BM4Midpoint(coupling_frequency=config.coupling_frequency),
+		"BM4Midpoint": BM4Midpoint(),
 		"BM4Implicit": implicit,
 	}
 	arrays: dict[str, np.ndarray] = {

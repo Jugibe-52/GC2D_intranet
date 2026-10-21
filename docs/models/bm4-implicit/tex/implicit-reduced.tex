@@ -48,6 +48,14 @@
 
 \vspace{0.5em}
 
+\section*{Scope of the retained coupled derivation}
+This derivation retains the historical generalized map with harmonic coupling.
+Current BM4Implicit and BM4Midpoint use its uncoupled specialization
+$\omega=0$ and omit C entirely in execution. Coupled formulas and the recorded
+$\omega=\pi/8$ experiment below describe the earlier configuration, not the
+current public constructors. The independent C operation remains available
+as \texttt{HarmonicCoupling}; see \texttt{theory.tex} for the current entry point.
+
 \section{Scope}
 
 The method studied here is denoted \texttt{BM4Implicit}.  It applies Hairer's

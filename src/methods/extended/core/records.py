@@ -10,6 +10,23 @@ import numpy as np
 from contracts.nonlinear import NewtonObserver
 from solvers.nonlinear import SolveStats
 from formulations.gc import _EnergyQuadraturePoint
+from methods.extended.core.operations import OperationName
+
+
+@dataclass(frozen=True, slots=True)
+class OperationStage:
+    """One elementary flow; a spatial source is retained only for A or B."""
+
+    operation: OperationName
+    time: float
+    duration: float
+    state_before: np.ndarray
+    state_after: np.ndarray
+    source: np.ndarray | None
+
+    @property
+    def end_time(self) -> float:
+        return self.time + self.duration if self.operation == 'T' else self.time
 
 
 @dataclass(frozen=True, slots=True)
@@ -34,11 +51,14 @@ class CompositionTrace:
     state_before: np.ndarray
     state: np.ndarray
     stages: tuple[MapStage, ...]
+    operations: tuple[OperationStage, ...]
+    time: float
 
     @property
     def energy_points(self) -> tuple[_EnergyQuadraturePoint, ...]:
         """Expose signed shear inputs in their original execution order."""
-        return tuple(point for stage in self.stages for point in stage.energy_points)
+        return tuple((stage.time, stage.duration, stage.source)
+                     for stage in self.operations if stage.source is not None)
 
 
 @dataclass(frozen=True, slots=True)

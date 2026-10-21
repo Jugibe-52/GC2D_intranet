@@ -198,7 +198,7 @@ request = SimulationRequest.uniform(
 )
 solution = simulate(
     problem,
-    BM4Implicit(coupling_frequency=2.0),
+    BM4Implicit(),
     request,
 )
 ```
@@ -661,3 +661,5 @@ ABBA and BM4 retain their public names and exports from `simulation` and share t
 `src/methods/extended/` engine for signed direct/adjoint composition,
 spatial projection, analytic tangents and passive energy. See the
 [family architecture and diagram](docs/models/extended/simulation/extended-simulation-architecture.md).
+
+Explicit A/B/T/C recipes and generic palindromic methods are described in [the palindromic operation guide](docs/models/extended/simulation/palindromic-operations.md); see `examples/palindromic_time.py` for center/end time placement.

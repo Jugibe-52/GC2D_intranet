@@ -1,5 +1,7 @@
 # BM4 implicit: code walkthrough
 
+Current BM4 advancement is inherited from ProjectedPalindromicMethod in `extended/palindromic.py`. The complete recipe executes explicit A/B/T operations. See [the current operation architecture](../../extended/simulation/palindromic-operations.md).
+
 The public `BM4Implicit` class is implemented in
 [`extended/bm4.py`](../../../../src/methods/extended/bm4.py).
 The former `methods.bm4` import adapters have been removed; public names remain
@@ -14,7 +16,7 @@ available through explicit exports. See the
    `z` as `(z+mu,z-mu)` and evaluates the complete recipe with `compose`.
 3. The spatial residual is `u_final-v_final+2*mu`. Newton forms its tangent
    using the retained shear sources, or centered differences when selected.
-   Broyden starts from `4I` and updates by secants. Both use `_nonlinear.py`.
+   Broyden starts from `4I` and updates by secants. Both use `solvers.nonlinear`.
 4. Only the converged trace is accepted. Its corrected copies are averaged;
    optional `momentum_increment` accumulates signed shear quadrature once,
    normalized by one half. No time or momentum variable enters the root.
@@ -26,7 +28,7 @@ available through explicit exports. See the
 
 The analytic path solves independent 2-by-2 reduced particle blocks. The
 finite-difference path retains its dense complete-map differentiation. Neither
-choice changes the reduced equation, signed coefficients, coupling setting,
+choice changes the reduced equation, signed coefficients,
 projection placement or public result contract.
 
 ## Initial data and numerical components
@@ -36,5 +38,5 @@ packed-array callers remain supported. See the [component interface](../../../si
 for ownership, array shapes and unchanged request/result boundaries.
 
 BM4 uses `ReducedProjection` for its existing 2N multiplier system and accepts
-`solver=NewtonSolver(...)` or `solver=BroydenSolver(...)`. Composition, coupling,
+`solver=NewtonSolver(...)` or `solver=BroydenSolver(...)`. Composition,
 physical scaling and the single outer projection remain unchanged.

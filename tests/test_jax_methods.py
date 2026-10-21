@@ -83,7 +83,7 @@ class JaxMethodTests(unittest.TestCase):
         self.compare(SDIRK4(newton_jacobian_method='finite_difference'))
         self.compare(HBVM42(jacobian_method='finite_difference'))
 
-    def test_projection_formulations_broyden_and_mixing(self):
+    def test_projection_formulations_broyden_and_uncoupled_bm4(self):
         for method in (
             ABBA2Implicit(projection_formulation='simultaneous_state_multiplier'),
             ABBA4Implicit(projection_formulation='simultaneous_state_multiplier', track_energy=True),
@@ -91,9 +91,9 @@ class JaxMethodTests(unittest.TestCase):
             ABBA2Implicit(nonlinear_solver='broyden'),
             ABBA4Implicit(nonlinear_solver='broyden', projection_formulation='simultaneous_state_multiplier'),
             ABBA6Implicit(nonlinear_solver='broyden'),
-            BM4Implicit(nonlinear_solver='broyden', coupling_frequency=.4, track_energy=True),
-            BM4Implicit(newton_jacobian_method='finite_difference', coupling_frequency=.4),
-            BM4Implicit(coupling_frequency=.4, track_energy=True),
+            BM4Implicit(nonlinear_solver='broyden', track_energy=True),
+            BM4Implicit(newton_jacobian_method='finite_difference'),
+            BM4Implicit(track_energy=True),
         ):
             with self.subTest(method=method):
                 result = self.compare(method)

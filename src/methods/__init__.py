@@ -3,6 +3,7 @@
 from solvers.nonlinear import NONLINEAR_SOLVERS, NonlinearSolver
 from methods.adaptive import DOP853, Radau
 from methods.extended import (
+	PalindromicMethod, PalindromicImplicit, PalindromicMidpoint, Composition, Operation, A, B, T, C,
 	BM4Implicit,
 	BM4Midpoint,
 	ABBA2Midpoint,
@@ -33,6 +34,7 @@ from methods.classical import (
 from methods.hbvm import HBVM42, HBVMJacobianMethod
 
 __all__ = [
+	'PalindromicMethod', 'PalindromicImplicit', 'PalindromicMidpoint', 'Composition', 'Operation', 'A', 'B', 'T', 'C',
 	"DOP853",
 	"Radau",
 	"ABBA2Midpoint",

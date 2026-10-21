@@ -1,6 +1,9 @@
 # ABBA family: shared extended-space execution
 
-The linked rendered diagrams and their sources are retained as historical artifacts. Their method-owned integration entry points and former state containers are superseded by the executor-owned lifecycle described in this text.
+All presets now inherit PalindromicMethod and execute explicit A/B/T operations.
+See [palindromic methods and time placement](../../extended/simulation/palindromic-operations.md) for the common classes, generic recipes and independent C.
+
+The compact diagrams describe the current shared numerical execution and executor-owned lifecycle. Older detailed diagrams explicitly marked as historical retain their original ownership conventions.
 
 ABBA2 pair; ABBA4 triple jump; ABBA6: seven signed ABBA2 steps. ABBA4 and ABBA6 both project once around their complete compositions.
 
@@ -29,7 +32,7 @@ Broyden share initial-vector, stopping-control and residual validation in
 singularity, stagnation and convergence checks stay inside the numerical loops.
 
 Initialization binds this model's recipe and options. The ordinary implicit
-path is `advance -> solve_projection -> compose -> direct_map / adjoint_map`.
+path is `advance -> solve_projection -> compose -> A/B/T/C operations`.
 Explicit midpoint methods use `midpoint_step` in place of the nonlinear
 projection. ABBA4 and ABBA6 both project once around the complete
 unprojected composition; their recipes contain six and fourteen stages.

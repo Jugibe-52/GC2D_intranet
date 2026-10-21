@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from contracts._study_validation import require_uncoupled_bm4
+
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from time import perf_counter
@@ -71,6 +73,7 @@ class BM4ImplicitIterationStudyConfig:
 
 	def __post_init__(self) -> None:
 		"""Normalize all controls that affect the reproduced experiment."""
+		require_uncoupled_bm4(self.coupling_frequency)
 		if self.nonlinear_solver not in ("newton", "broyden"):
 			raise ValueError("Unknown nonlinear solver for the BM4 iteration study.")
 		object.__setattr__(
@@ -225,7 +228,6 @@ def run_bm4_implicit_iteration_study(
 		solution = simulate(
 			problem,
 			BM4Implicit(
-				coupling_frequency=config.coupling_frequency,
 				newton_absolute_tolerance=config.newton_absolute_tolerance,
 				newton_relative_tolerance=config.newton_relative_tolerance,
 				newton_max_iterations=config.newton_max_iterations,

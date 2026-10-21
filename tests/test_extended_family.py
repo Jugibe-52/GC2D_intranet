@@ -51,7 +51,7 @@ class ExtendedFamilyTests(unittest.TestCase):
     def test_recipes_reject_invalid_palindromes_and_total_durations(self) -> None:
         for weights in ((1.,), (.2, .8), (.2, .2), (float('nan'), float('nan'))):
             with self.assertRaises(ValueError):
-                Composition('invalid', weights)
+                Composition.from_direct_adjoint('invalid', weights)
         self.assertEqual([len(r.coefficients) for r in (ABBA2, ABBA4, ABBA6, BM4)], [2, 6, 14, 12])
 
     def test_abba_pairs_match_independent_endpoint_shear_equations(self) -> None:
@@ -70,7 +70,7 @@ class ExtendedFamilyTests(unittest.TestCase):
     def test_signed_nonauto_compositions_reverse_and_have_correct_tangents(self) -> None:
         p = problem()
         initial = np.concatenate((p.initial_state + .003, p.initial_state - .003))
-        for recipe, coupling in ((ABBA2, None), (ABBA4, None), (ABBA6, None), (BM4, 0.), (BM4, .4)):
+        for recipe, coupling in ((ABBA2, None), (ABBA4, None), (ABBA6, None), (BM4, 0.), (Composition.from_direct_adjoint('coupled-BM4', BM4.coefficients, coupled=True), .4)):
             maps = GCDoubledMaps(p, coupling_frequency=coupling)
             for h in (.15, -.15):
                 with self.subTest(recipe=recipe.name, coupling=coupling, h=h):
@@ -92,8 +92,8 @@ class ExtendedFamilyTests(unittest.TestCase):
         p = problem()
         request = SimulationRequest.uniform(t_span=(.3, .34), max_step=(.34 - .3) / 2, sample_count=3)
         for method in (ABBA2Implicit(nonlinear_solver='broyden'), ABBA4Implicit(nonlinear_solver='broyden'),
-                       ABBA6Implicit(nonlinear_solver='broyden'), BM4Implicit(nonlinear_solver='broyden', coupling_frequency=.4),
-                       ABBA2Midpoint(), BM4Midpoint(coupling_frequency=.4)):
+                       ABBA6Implicit(nonlinear_solver='broyden'), BM4Implicit(nonlinear_solver='broyden'),
+                       ABBA2Midpoint(), BM4Midpoint()):
             results, counts = [], []
             for enabled in (False, True):
                 observed = []

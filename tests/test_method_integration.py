@@ -54,8 +54,8 @@ def _methods():
 	for method in (RK4, GaussLegendre4, SDIRK4, HBVM42):
 		for tracking in (False, True):
 			yield method(track_energy=tracking)
-	yield BM4Implicit(coupling_frequency=0.2)
-	yield BM4Implicit(coupling_frequency=0.2, track_energy=True)
+	yield BM4Implicit()
+	yield BM4Implicit(track_energy=True)
 	for method in (BM4Midpoint, ABBA2Midpoint, ABBA2Implicit, ABBA4Implicit, ABBA6Implicit):
 		for extension, tracking in (("physical", False), ("physical", True)):
 			yield method(state_extension=extension, track_energy=tracking)
@@ -77,7 +77,7 @@ class MethodIntegrationTests(unittest.TestCase):
 				self.assertIsNot(run, method)
 				self.assertEqual(events, [])
 				self.assertFalse(run.initial_state.flags.writeable)
-		with patch("methods.extended.bm4.solve_projection", side_effect=AssertionError("Unexpected solve")):
+		with patch("methods.extended.palindromic.solve_projection", side_effect=AssertionError("Unexpected solve")):
 			BM4Implicit().new_run(problem, _request())
 
 	def test_run_advances_and_shadow_samples_do_not_emit_or_accumulate(self) -> None:

@@ -55,7 +55,7 @@ and retain every applicable control and diagnostic below.
   per-particle audit discrepancy. Report the measured discrepancy rather than
   treating requested tolerances as a guaranteed trajectory error. A focused
   viewing notebook may use a shorter, explicitly documented time interval.
-- Use `rho = 0.3`, coupling frequency `pi/8`, and 200 normalized cycles with ten
+- Use `rho = 0.3`, no BM4 harmonic coupling, and 200 normalized cycles with ten
   complete steps per cycle. Save every effective step, producing 2000 steps and
   2001 aligned states. Use minimum-image periodic distance for trajectory error.
 - Use Newton absolute tolerance `1e-12`, relative tolerance `1e-11`, at most 40
@@ -256,3 +256,28 @@ retired without aliases. Use simulate/Execution.run for complete jobs. Import
 numerical bases from methods and controller/state extensions from execution.
 Methods use type-only references and local controller/snapshot imports to avoid
 package-initialization cycles. See docs/simulation/execution.md.
+
+## Uncoupled BM4 and reusable C
+
+BM4Implicit and BM4Midpoint have no coupling_frequency constructor option and
+bind uncoupled maps on CPU/JAX. Keep their signed weights, endpoint clock and
+projections. HarmonicCoupling in formulations.gc (re-exported by formulations)
+provides the independent spatial C flow for future compositions. Retained study
+schema rates must be zero for new calculations; never relabel or resume coupled
+historical trajectories through the current methods. Observer rates stay zero.
+
+## Explicit palindromic methods
+
+All ABBA/BM4 presets inherit PalindromicMethod; shared implicit and midpoint
+bases own advancement. Composition.from_half reflects explicit operations:
+A updates u from v, B updates v from u, only T moves the clock, and C applies
+independent HarmonicCoupling. Each coefficient multiplies h directly, without
+an extra half. Generic PalindromicImplicit/Midpoint accept recipes on CPU/JAX;
+arbitrary subclasses remain outside exact-type JAX dispatch. C operations and
+a coupling object must be supplied together; BM4 presets remain uncoupled.
+Preserve named recipes and grouped observations. Elementary traces drive
+derivatives and passive energy without replaying the map. Operation coefficients
+are scalar JSON metadata: block consumers reserve diagnostic arrays for histories.
+Moving T creates a different method; palindromy alone proves no higher order,
+and arithmetic projection need not preserve reversal or symplecticity. See
+docs/models/extended/simulation/palindromic-operations.md.

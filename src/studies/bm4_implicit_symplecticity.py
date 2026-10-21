@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from contracts._study_validation import require_uncoupled_bm4
+
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, ClassVar, Mapping, cast
@@ -36,6 +38,7 @@ class BM4ImplicitSymplecticityConfig(GCSymplecticityConfig):
 
 	def __post_init__(self) -> None:
 		"""Validate common study grids and projected-BM4 solver controls."""
+		require_uncoupled_bm4(self.coupling_frequency)
 		GCSymplecticityConfig.__post_init__(self)
 		object.__setattr__(
 			self,
@@ -106,7 +109,6 @@ def run_bm4_implicit_symplecticity_study(
 		notebook_path=notebook_path,
 		config=config,
 		method_factory=lambda observer: BM4Implicit(
-			coupling_frequency=config.coupling_frequency,
 			newton_absolute_tolerance=config.newton_absolute_tolerance,
 			newton_relative_tolerance=config.newton_relative_tolerance,
 			newton_max_iterations=config.newton_max_iterations,

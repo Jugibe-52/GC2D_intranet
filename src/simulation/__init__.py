@@ -11,6 +11,7 @@ from formulations import (
 	gc_coupling_matrix,
 )
 from methods import (
+	PalindromicMethod, PalindromicImplicit, PalindromicMidpoint, Composition, Operation, A, B, T, C,
 	DOP853,
 	Radau,
 	ABBA2Midpoint,
@@ -61,6 +62,7 @@ from solvers.nonlinear import NewtonSolver, BroydenSolver
 from formulations.projection import ReducedProjection, SimultaneousProjection
 
 __all__ = [
+	'PalindromicMethod', 'PalindromicImplicit', 'PalindromicMidpoint', 'Composition', 'Operation', 'A', 'B', 'T', 'C',
 	"InitialConditions", "NewtonSolver", "BroydenSolver", "ReducedProjection", "SimultaneousProjection",
 	"PhysicalFormulation",
 	"DoubledFormulation",

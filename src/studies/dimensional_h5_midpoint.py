@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from contracts._study_validation import require_uncoupled_bm4
+
 from formulations.layout import GCStateLayout
 
 from dataclasses import dataclass, replace
@@ -97,9 +99,10 @@ def load_dimensional_h5_field(
 def run_dimensional_bm4_midpoint(
     field: DimensionalH5Field, *, cycles: int = 5, steps_per_cycle: int = 40,
     initial_xy: tuple[float, float], rho: float = 0.0,
-    coupling_frequency: float = float(np.pi / 8),
+    coupling_frequency: float = 0.0,
 ) -> States:
     """Integrate one particle on every complete normalized-time BM4 step."""
+    require_uncoupled_bm4(coupling_frequency)
     if cycles < 1 or steps_per_cycle < 1:
         raise ValueError("Cycles and steps per cycle must be positive.")
     x0, y0 = (float(value) for value in initial_xy)
@@ -109,7 +112,7 @@ def run_dimensional_bm4_midpoint(
     request = SimulationRequest.uniform(t_span=(0.0, float(cycles)),
                                         max_step=1.0 / steps_per_cycle,
                                         sample_count=count + 1)
-    solution = simulate(problem, BM4Midpoint(coupling_frequency=coupling_frequency), request)
+    solution = simulate(problem, BM4Midpoint(), request)
     if solution.diagnostics["step_count"] != count or solution.states.shape != (2, count + 1):
         raise RuntimeError("BM4Midpoint did not save every complete step.")
     return solution

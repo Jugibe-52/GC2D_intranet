@@ -1,5 +1,7 @@
 """Repeat the radial BM4Midpoint study with a cycle-time stream function."""
 
+from contracts._study_validation import require_uncoupled_bm4
+
 from formulations.layout import GCStateLayout
 
 from studies.historical_h5 import historical_h5_hamiltonian
@@ -37,7 +39,7 @@ class RadialCycleConfig:
     steps_per_cycle: int = 20
     radial_angle: float = 0.0
     rho: float = 0.3
-    coupling_frequency: float = np.pi / 8
+    coupling_frequency: float = 0.0
     magnetic_field: float = 1.5
     characteristic_length: float = 0.06
     source_selection: tuple[int, ...] = DEFAULT_FIELD_INDICES
@@ -45,6 +47,7 @@ class RadialCycleConfig:
     stream_scale: float = 2 * np.pi
 
     def __post_init__(self) -> None:
+        require_uncoupled_bm4(self.coupling_frequency)
         radii = np.asarray(self.radial_fractions)
         if (radii.ndim != 1 or radii.size < 2 or not np.isfinite(radii).all()
                 or radii[0] != 0 or np.any(np.diff(radii) <= 0) or radii[-1] >= .5):
@@ -188,7 +191,7 @@ def run_and_save_radial_cycle(prepared: PreparedRadialCycle, destination: str | 
             raise ValueError("Destination contains a different experiment; choose a new run ID.")
         validate_radial_solution(saved.solution, prepared)
         return saved
-    solution = simulate(prepared.problem, BM4Midpoint(coupling_frequency=prepared.config.coupling_frequency),
+    solution = simulate(prepared.problem, BM4Midpoint(),
                         prepared.request, execution=Execution(), options=options)
     validate_radial_solution(solution, prepared)
     metadata = {**expected, "execution_options": asdict(options)}

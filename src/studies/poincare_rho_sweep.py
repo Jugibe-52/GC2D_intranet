@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from contracts._study_validation import require_uncoupled_bm4
+
 from formulations.layout import GCStateLayout
 
 from collections.abc import Mapping
@@ -65,6 +67,7 @@ class RhoStarConfig:
 
     def __post_init__(self) -> None:
         """Reject invalid scientific inputs before creating a remote job."""
+        require_uncoupled_bm4(self.coupling_frequency)
         _validate_rho_star_modes(
             self.spatial_normalization, self.hamiltonian_convention,
             self.method, self.newton_jacobian_method,
@@ -299,12 +302,11 @@ def _validate_rho_cycle_solution(solution: States, config: RhoStarConfig, *,
 def _rho_star_method(config: RhoStarConfig) -> BM4Midpoint | BM4Implicit | RK4 | GaussLegendre4:
     """Bind the explicit scientific method selection to its canonical class."""
     if config.method == "BM4Midpoint":
-        return BM4Midpoint(coupling_frequency=config.coupling_frequency)
+        return BM4Midpoint()
     if config.method == "RK4":
         return RK4()
     if config.method == "BM4Implicit":
         return BM4Implicit(
-            coupling_frequency=config.coupling_frequency,
             newton_absolute_tolerance=config.newton_absolute_tolerance,
             newton_relative_tolerance=config.newton_relative_tolerance,
             newton_max_iterations=config.newton_max_iterations,

@@ -17,6 +17,45 @@
  \vspace{0.35em}{\large Physical state and one reduced Hairer projection per complete cycle}
 \end{center}
 
+\section*{Explicit palindromic operations}
+All ABBA and BM4 presets inherit \texttt{PalindromicMethod}. For signed
+$d=c h$, the elementary operations are
+\[
+ A_d(u,v,t)=(u+d f(t,v),v,t),\qquad
+ B_d(u,v,t)=(u,v+d f(t,u),t),\qquad
+ T_d(u,v,t)=(u,v,t+d).
+\]
+Only $T$ advances time. A coefficient $c=1/2$ means duration $h/2$;
+there is no additional half inside $A$ or $B$. The optional exact $C$ flow
+rotates the copy difference and requires an independent coupling object.
+Both BM4 presets omit $C$.
+
+In chronological order, standard ABBA2 is
+$A_{h/2},B_{h/2},T_{h/2},T_{h/2},B_{h/2},A_{h/2}$.
+The distinct symmetric variant
+$T_{h/2},A_{h/2},B_{h/2},B_{h/2},A_{h/2},T_{h/2}$
+evaluates every spatial shear at the midpoint time. Both exhibit second
+order on the tested nonautonomous rotation. Arbitrary palindromes do not
+inherit fourth or sixth order, and an arithmetic projection need not be
+reversible or symplectic.
+
+\texttt{Composition.from\_half} reflects a supplied half sequence.
+The generic \texttt{PalindromicImplicit} and \texttt{PalindromicMidpoint}
+methods select one exterior Hairer projection or a final arithmetic mean.
+The standard signed ABBA/BM4 recipes, grouped observations and passive
+momentum normalization remain unchanged. NumPy and JAX execute the same
+explicit operations and differentiate their retained shear inputs.
+See \path{docs/models/extended/simulation/palindromic-operations.md}.
+
+
+\section*{Current uncoupled configuration}
+Both \texttt{BM4Implicit} and \texttt{BM4Midpoint} omit the harmonic
+coupling flow and no longer accept a coupling-frequency constructor argument.
+Their twelve coefficients, signed clock and projection placement are unchanged.
+The independent operation \texttt{HarmonicCoupling} retains C for future
+compositions. Existing observer/archive rates are fixed at zero for new runs;
+nonzero historical calculations require their original frozen implementation.
+
 \section{Twelve-stage BM4 base map}
 
 Let $\chi_h$ be a first-order map and $\chi_h^*=\chi_{-h}^{-1}$ its
@@ -85,10 +124,10 @@ Its twelve-stage recipe is defined in \texttt{composition.py}, and its
 reduced equation uses \texttt{projection.py}. See \texttt{implicit-reduced.tex}
 for the projection derivation. The former BM4 import adapters have been removed.
 
-The public names, constructor defaults and exports from \texttt{simulation}
-remain unchanged. Internal imports use the defining modules; old import
+The public names and exports from \texttt{simulation} remain unchanged.
+Both BM4 constructors now omit harmonic coupling. Internal imports use the defining modules; old import
 adapters have been removed. The ordinary implicit path is \texttt{advance}, \texttt{solve\_projection},
-\texttt{compose}, then \texttt{direct\_map} or \texttt{adjoint\_map}.
+\texttt{compose}, then explicit $A/B/T/C$ operations.
 Arithmetic midpoint variants use one explicit average instead of a nonlinear
 projection. Adjoint stages evaluate at the start of their signed substep;
 direct stages evaluate at its end.
@@ -103,7 +142,6 @@ the retired full time/momentum projection.
 Current module responsibilities and diagrams are documented in
 \path{docs/models/extended/simulation/extended-simulation-architecture.md}.
 
-\clearpage
 \section{Four state formulations and passive energy tracking}
 For one planar particle the supported internal representations are
 \[

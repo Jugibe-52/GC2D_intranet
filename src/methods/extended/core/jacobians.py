@@ -20,21 +20,22 @@ def particle_jacobians(maps: GCDoubledMaps, trace: CompositionTrace) -> np.ndarr
     count = maps.particle_count
     identity = np.broadcast_to(np.eye(4), (count, 4, 4))
     total = identity.copy()
-    for stage in trace.stages:
-        factors = []
-        for _, duration, source in stage.energy_points:
-            field = _checked_vector_field_jacobian(dynamics, stage.time, source)
-            factors.append(duration * field)
-        if len(factors) != 2:
-            raise ValueError("A GC stage must retain two shear sources for differentiation.")
-        first, second = identity.copy(), identity.copy()
-        coupling = np.eye(4) if maps.coupling_frequency is None else gc_coupling_matrix(stage.duration, maps.coupling_frequency)
-        if stage.direct:
-            first[:, 2:, :2], second[:, :2, 2:] = factors
-            factor = coupling @ second @ first
+    for stage in trace.operations:
+        if stage.operation == 'T':
+            continue
+        if stage.operation == 'C':
+            if maps.coupling_frequency is None:
+                raise ValueError('A C tangent requires a configured coupling rate.')
+            factor = gc_coupling_matrix(stage.duration, maps.coupling_frequency)
         else:
-            first[:, :2, 2:], second[:, 2:, :2] = factors
-            factor = second @ first @ coupling
+            if stage.source is None:
+                raise ValueError('A spatial shear must retain its source for differentiation.')
+            field = stage.duration * _checked_vector_field_jacobian(dynamics, stage.time, stage.source)
+            factor = identity.copy()
+            if stage.operation == 'A':
+                factor[:, :2, 2:] = field
+            else:
+                factor[:, 2:, :2] = field
         total = factor @ total
     if not np.all(np.isfinite(total)):
         raise ValueError("The composition Jacobian became non-finite.")

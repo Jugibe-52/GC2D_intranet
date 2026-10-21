@@ -1,5 +1,7 @@
 """BM4Midpoint star trajectories and matched Modal JAX CPU timing records."""
 
+from contracts._study_validation import require_uncoupled_bm4
+
 from formulations.layout import GCStateLayout
 
 from dataclasses import asdict, dataclass, field
@@ -55,6 +57,10 @@ class ModalCPUStarConfig:
     equivalence_rtol: float
     equivalence_atol: float
 
+    def __post_init__(self) -> None:
+        """Require uncoupled BM4 for new calculations."""
+        require_uncoupled_bm4(self.coupling_frequency)
+
 
 @dataclass(frozen=True)
 class ModalCPUComparison:
@@ -99,7 +105,7 @@ def run_cpu_star_comparison(
 ) -> ModalCPUComparison:
     """Collect each complete remote job locally and compare measured results."""
     problem, request = build_star_problem(potential, config)
-    method = BM4Midpoint(coupling_frequency=config.coupling_frequency, track_energy=False,
+    method = BM4Midpoint(track_energy=False,
                          progress=False, step_observer=None)
     options = ExecutionOptions(backend='jax', device='cpu')
     solutions, records = {}, {}

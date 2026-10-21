@@ -55,7 +55,7 @@ class BM4ImplicitMethodTests(unittest.TestCase):
 
 	def test_energy_reuses_converged_shears_without_extra_spatial_work(self) -> None:
 		"""Compare traced quadrature with an independent energy-augmented replay."""
-		for particles, coupling in ((1, 0.0), (3, 0.4)):
+		for particles, coupling in ((1, 0.0), (3, 0.0)):
 			problem = InitialValueProblem(GuidingCenterDynamics(_potential(), rho=0.05), GCStateLayout().pack_components(np.linspace(1.0, 1.2, particles), np.linspace(1.2, 1.4, particles)), layout=GCStateLayout())
 			request = SimulationRequest.uniform(t_span=(0.3, 0.5), max_step=0.2, sample_count=2)
 			for solver, jacobian in (('newton', 'analytic'), ('newton', 'finite_difference'), ('broyden', 'analytic')):
@@ -65,7 +65,7 @@ class BM4ImplicitMethodTests(unittest.TestCase):
 						field_counts = []
 						for tracking in (False, True):
 							run = BM4Implicit(
-								track_energy=tracking, coupling_frequency=coupling,
+								track_energy=tracking,
 								nonlinear_solver=solver, newton_jacobian_method=jacobian,
 								newton_absolute_tolerance=1e-14, newton_relative_tolerance=1e-14,
 							).new_run(problem, request)
@@ -227,8 +227,8 @@ class BM4ImplicitMethodTests(unittest.TestCase):
 			)
 
 	def test_invalid_solver_parameters_fail_during_configuration(self) -> None:
-		with self.assertRaises(ValueError):
-			BM4Implicit(coupling_frequency=-1.0)
+		with self.assertRaises(TypeError):
+			BM4Implicit(coupling_frequency=0.0)
 		with self.assertRaises(ValueError):
 			BM4Implicit(newton_absolute_tolerance=0.0)
 		with self.assertRaises(ValueError):

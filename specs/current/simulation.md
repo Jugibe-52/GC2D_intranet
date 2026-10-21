@@ -102,3 +102,15 @@ names; their shared equations own 2N/6N unknowns, residuals and reconstruction i
 both CPU and JAX paths. Physical scales, work counters, HBVM norms/backtracking,
 particle blocks and independent shadow samples retain their numerical meaning.
 See [component interface](../../docs/simulation/initial-solvers-formulations.md).
+
+## Uncoupled BM4 and independent C
+
+Both BM4 constructors omit coupling_frequency and bind uncoupled CPU/JAX maps.
+Their weights, endpoint clock and projections stay unchanged. Independent C
+remains available through formulations.HarmonicCoupling. Legacy calculation
+rates must be zero; stored coupled results retain their original metadata.
+See [the migration guide](../../docs/models/extended/simulation/uncoupled-bm4.md).
+
+## Explicit palindromic operations
+
+All ABBA/BM4 presets inherit PalindromicMethod. Composition stores explicit A/B/T/C operations with signed full-step coefficients; only T advances the clock. Generic PalindromicImplicit and PalindromicMidpoint accept validated recipes for experiments. Existing presets keep their maps, grouped observations and solver controls. Generic C requires an explicit operation and HarmonicCoupling; BM4 stays uncoupled. See [the operation architecture](../../docs/models/extended/simulation/palindromic-operations.md).

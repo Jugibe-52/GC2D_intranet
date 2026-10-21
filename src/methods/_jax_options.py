@@ -5,6 +5,8 @@ from typing import Any, ClassVar, Literal
 
 import jax.numpy as jnp
 
+from methods.extended.core.composition import Composition
+
 
 @dataclass(frozen=True)
 class NonlinearOptions:
@@ -44,7 +46,7 @@ class CompositionOptions:
 	"""A signed recipe with arithmetic averaging or one outer nonlinear solve."""
 
 	track_energy: bool
-	coefficients: tuple[float, ...]
+	recipe: Composition
 	coupling: float | None
 	projection: Literal["reduced_multiplier", "simultaneous_state_multiplier"]
 	solve: NonlinearOptions | None

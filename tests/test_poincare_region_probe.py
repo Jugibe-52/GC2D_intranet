@@ -24,7 +24,7 @@ from visualization.poincare_comparison import export_poincare_panel_comparison
 class RegionProbeTests(unittest.TestCase):
     def setUp(self):
         self.settings = RegionProbeSettings('BM4Midpoint', (50,51), ((.25,.05),(.75,.95)),
-            ('#a000d4','#111111'), 3, 20, 40, 0., coupling_frequency=np.pi/8)
+            ('#a000d4','#111111'), 3, 20, 40, 0., coupling_frequency=0.0)
         grid=Grid.periodic(32,16)
         self.potential=Potential(grid,mean=np.cos(grid.x)[:,None]*np.ones(grid.shape))
 
@@ -33,7 +33,7 @@ class RegionProbeTests(unittest.TestCase):
         actual=integrate_region_probes(self.potential,self.settings,progress=lambda a,b:events.append((a,b)))
         initial=np.asarray(self.settings.initial_xy_over_L)*self.potential.grid.period
         problem=InitialValueProblem(GuidingCenterDynamics(self.potential,rho=0.), GCStateLayout().pack_components(initial[:,0], initial[:,1]), layout=GCStateLayout())
-        expected=simulate(problem,BM4Midpoint(coupling_frequency=np.pi/8),
+        expected=simulate(problem,BM4Midpoint(),
             SimulationRequest.uniform(t_span=(0,3),max_step=.05,sample_count=61))
         np.testing.assert_array_equal(actual['xy'],np.stack(expected.positions(),axis=-1).transpose(1,0,2))
         self.assertEqual(events,[(40,60),(60,60)])

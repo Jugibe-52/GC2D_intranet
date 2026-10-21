@@ -16,6 +16,37 @@
  \vspace{0.35em}{\large One symmetric projection around a Yoshida composition}
 \end{center}
 
+\section*{Explicit palindromic operations}
+All ABBA and BM4 presets inherit \texttt{PalindromicMethod}. For signed
+$d=c h$, the elementary operations are
+\[
+ A_d(u,v,t)=(u+d f(t,v),v,t),\qquad
+ B_d(u,v,t)=(u,v+d f(t,u),t),\qquad
+ T_d(u,v,t)=(u,v,t+d).
+\]
+Only $T$ advances time. A coefficient $c=1/2$ means duration $h/2$;
+there is no additional half inside $A$ or $B$. The optional exact $C$ flow
+rotates the copy difference and requires an independent coupling object.
+Both BM4 presets omit $C$.
+
+In chronological order, standard ABBA2 is
+$A_{h/2},B_{h/2},T_{h/2},T_{h/2},B_{h/2},A_{h/2}$.
+The distinct symmetric variant
+$T_{h/2},A_{h/2},B_{h/2},B_{h/2},A_{h/2},T_{h/2}$
+evaluates every spatial shear at the midpoint time. Both exhibit second
+order on the tested nonautonomous rotation. Arbitrary palindromes do not
+inherit fourth or sixth order, and an arithmetic projection need not be
+reversible or symplectic.
+
+\texttt{Composition.from\_half} reflects a supplied half sequence.
+The generic \texttt{PalindromicImplicit} and \texttt{PalindromicMidpoint}
+methods select one exterior Hairer projection or a final arithmetic mean.
+The standard signed ABBA/BM4 recipes, grouped observations and passive
+momentum normalization remain unchanged. NumPy and JAX execute the same
+explicit operations and differentiate their retained shear inputs.
+See \path{docs/models/extended/simulation/palindromic-operations.md}.
+
+
 \section{Unprojected seven-pair composition}
 Let $S_{q,t}$ denote the symmetric second-order ABBA map on two spatial
 copies, with signed duration $q$ and start time $t$. Set
@@ -92,7 +123,7 @@ The public class is in \path{src/methods/extended/abba.py}; it inherits the
 same initialization, advance and placement validation as ABBA4. Recipes and
 weights live in \path{src/methods/extended/core/composition.py}. The path is
 \texttt{advance}, \texttt{solve\_projection}, \texttt{compose}, then
-\texttt{direct\_map} or \texttt{adjoint\_map}. Common Newton/Broyden services,
+explicit $A/B/T/C$ operations. Common Newton/Broyden services,
 particle-block tangents and energy quadrature are shared with BM4.
 Public method names remain unchanged; no forwarding modules preserve retired
 internal paths. Event conversion lives in \texttt{extended/observations.py}.

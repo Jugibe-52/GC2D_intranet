@@ -26,77 +26,72 @@ def coupling_matrix(duration: Any, frequency: float | None) -> Any:
 
 def compose(time: Any, state: Any, step: Any, dynamics: HamiltonianSystem,
             options: CompositionOptions) -> tuple[Any, Any]:
-    """Traverse signed adjoint/direct stages and retain their two shear sources.
+    """Execute the same explicit A/B/T/C recipe as NumPy inside one scan.
 
-    The trace consists of (stage_times, durations, sources). Sources have shape
-    (stages, 2, 2*N), in execution order, matching CPU energy/Jacobian records.
+    The trace holds one time, signed duration and source per operation. Only
+    spatial shear entries are used for energy quadrature; no field is sampled
+    by T or C. The clock changes exclusively in the T branch.
     """
     size = state.size // 2
-    def stage(carry: Any, inputs: Any) -> Any:
+    codes = tuple(('A', 'B', 'T', 'C').index(op.name) for op in options.recipe.operations)
+    weights = tuple(op.coefficient for op in options.recipe.operations)
+    def operation(carry: Any, inputs: Any) -> Any:
         current, clock = carry
-        index, coefficient = inputs
+        code, coefficient = inputs
         duration = coefficient * step
-        direct = index % 2 == 1
-        evaluation_time = jnp.where(direct, clock + duration, clock)
-        matrix = coupling_matrix(duration, options.coupling)
-        def couple(z: Any) -> Any:
-            if options.coupling is None:
-                return z
-            return (matrix @ z.reshape(4, -1)).reshape(-1)
-        def forward(z: Any) -> Any:
-            first, second = z[:size], z[size:]
-            source1 = first
-            second = second + duration * dynamics.vector_field(evaluation_time, first)
-            source2 = second
-            first = first + duration * dynamics.vector_field(evaluation_time, second)
-            return couple(jnp.concatenate((first, second))), jnp.stack((source1, source2))
-        def adjoint(z: Any) -> Any:
-            z = couple(z)
-            first, second = z[:size], z[size:]
-            source1 = second
-            first = first + duration * dynamics.vector_field(evaluation_time, second)
-            source2 = first
-            second = second + duration * dynamics.vector_field(evaluation_time, first)
-            return jnp.concatenate((first, second)), jnp.stack((source1, source2))
-        current, sources = jax.lax.cond(direct, forward, adjoint, current)
-        return (current, clock + duration), (evaluation_time, duration, sources)
-    (after, _), trace = jax.lax.scan(stage, (state, time),
-        (jnp.arange(len(options.coefficients)), jnp.asarray(options.coefficients)))
+        empty = jnp.zeros(size)
+        def shear_a() -> Any:
+            source = current[size:]
+            first = current[:size] + duration * dynamics.vector_field(clock, source)
+            return jnp.concatenate((first, source)), clock, source
+        def shear_b() -> Any:
+            source = current[:size]
+            second = current[size:] + duration * dynamics.vector_field(clock, source)
+            return jnp.concatenate((source, second)), clock, source
+        def translate() -> Any:
+            return current, clock + duration, empty
+        def couple() -> Any:
+            matrix = coupling_matrix(duration, options.coupling)
+            return (matrix @ current.reshape(4, -1)).reshape(-1), clock, empty
+        after, new_clock, source = jax.lax.switch(code, (shear_a, shear_b, translate, couple))
+        return (after, new_clock), (clock, duration, source)
+    (after, _), trace = jax.lax.scan(operation, (state, time), (jnp.asarray(codes), jnp.asarray(weights)))
     return after, trace
 
 
 def composition_jacobian(trace: Any, dynamics: HamiltonianSystem, options: CompositionOptions) -> Any:
-    """Multiply analytic shear tangents in the original signed stage order."""
+    """Differentiate each elementary flow in its actual execution order."""
     if not isinstance(dynamics, GuidingCenterJacobianSystem):
-        raise TypeError("Analytic particle Jacobians require GC dynamics.")
+        raise TypeError('Analytic particle Jacobians require GC dynamics.')
     times, durations, sources = trace
     n = sources.shape[-1] // 2
     identity = jnp.broadcast_to(jnp.eye(4), (n, 4, 4))
-    def stage(total: Any, inputs: Any) -> Any:
-        index, time, duration, pair = inputs
-        first = duration * dynamics.particle_vector_field_jacobians(time, pair[0])
-        second = duration * dynamics.particle_vector_field_jacobians(time, pair[1])
-        coupling = coupling_matrix(duration, options.coupling)
-        def forward() -> Any:
-            a = identity.at[:, 2:, :2].set(first)
-            b = identity.at[:, :2, 2:].set(second)
-            return coupling @ b @ a
-        def adjoint() -> Any:
-            a = identity.at[:, :2, 2:].set(first)
-            b = identity.at[:, 2:, :2].set(second)
-            return b @ a @ coupling
-        factor = jax.lax.cond(index % 2 == 1, forward, adjoint)
+    codes = jnp.asarray(tuple(('A', 'B', 'T', 'C').index(op.name) for op in options.recipe.operations))
+    def operation(total: Any, inputs: Any) -> Any:
+        code, time, duration, source = inputs
+        def shear_a() -> Any:
+            field = duration * dynamics.particle_vector_field_jacobians(time, source)
+            return identity.at[:, :2, 2:].set(field)
+        def shear_b() -> Any:
+            field = duration * dynamics.particle_vector_field_jacobians(time, source)
+            return identity.at[:, 2:, :2].set(field)
+        def translate() -> Any:
+            return identity
+        def couple() -> Any:
+            return jnp.broadcast_to(coupling_matrix(duration, options.coupling), identity.shape)
+        factor = jax.lax.switch(code, (shear_a, shear_b, translate, couple))
         return factor @ total, None
-    total, _ = jax.lax.scan(stage, identity, (jnp.arange(times.size), times, durations, sources))
+    total, _ = jax.lax.scan(operation, identity, (codes, times, durations, sources))
     return total
 
 
-def energy_increment(trace: Any, dynamics: HamiltonianSystem) -> Any:
-    """Integrate physical kappa, including the doubled-Hamiltonian factor 1/2."""
+def energy_increment(trace: Any, dynamics: HamiltonianSystem, options: CompositionOptions) -> Any:
+    """Accumulate accepted A/B sources with the physical momentum factor 1/2."""
     times, durations, sources = trace
-    rates = jax.vmap(lambda t, pair: jax.vmap(lambda z: dynamics.extended_momentum_derivative(t, z))(pair))(times, sources)
-    # A scan retains the CPU's sequential addition of signed shear contributions.
-    contributions = (durations[:, None, None] * rates).reshape(-1, sources.shape[-1] // 2)
+    indices = jnp.asarray(tuple(i for i, op in enumerate(options.recipe.operations) if op.name in ('A', 'B')))
+    times, durations, sources = times[indices], durations[indices], sources[indices]
+    rates = jax.vmap(dynamics.extended_momentum_derivative)(times, sources)
+    contributions = durations[:, None] * rates
     def add(total: Any, value: Any) -> Any:
         return total + value, None
     total, _ = jax.lax.scan(add, jnp.zeros(contributions.shape[-1]), contributions)
@@ -150,7 +145,7 @@ def extended_step(time: Any, state: Any, step: Any, dynamics: HamiltonianSystem,
         if options.publish_substeps:
             statistics.update({f'substep_{key}': jnp.reshape(value, (1,)) for key, value in statistics.items()})
         valid = root.converged
-    increment = energy_increment(trace, dynamics) if options.track_energy else jnp.zeros(n)
+    increment = energy_increment(trace, dynamics, options) if options.track_energy else jnp.zeros(n)
     return after, increment, statistics, valid
 
 

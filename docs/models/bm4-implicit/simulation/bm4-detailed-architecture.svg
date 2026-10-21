@@ -390,14 +390,14 @@
 <text xml:space="preserve" text-anchor="start" x="1226" y="-2222.26" font-family="DejaVu Sans" font-weight="bold" font-size="15.00">GCDoubledMaps</text>
 <text xml:space="preserve" text-anchor="start" x="1226" y="-2211.76" font-family="DejaVu Sans" font-size="10.00" fill="#62748c">src/formulations/gc.py</text>
 <text xml:space="preserve" text-anchor="start" x="1226" y="-2184.86" font-family="DejaVu Sans" font-weight="bold" font-size="11.00">Construction</text>
-<text xml:space="preserve" text-anchor="start" x="1226" y="-2173.86" font-family="DejaVu Sans" font-size="11.00">GCDoubledMaps(problem, coupling_frequency).</text>
+<text xml:space="preserve" text-anchor="start" x="1226" y="-2173.86" font-family="DejaVu Sans" font-size="11.00">GCDoubledMaps(problem, coupling_frequency=None).</text>
 <text xml:space="preserve" text-anchor="start" x="1226" y="-2162.86" font-family="DejaVu Sans" font-size="11.00">BM4 binds spatial maps without internal energy variables.</text>
 <text xml:space="preserve" text-anchor="start" x="1226" y="-2135.86" font-family="DejaVu Sans" font-weight="bold" font-size="11.00">Operations</text>
 <text xml:space="preserve" text-anchor="start" x="1226" y="-2124.86" font-family="DejaVu Sans" font-size="11.00">direct_map(delta, tau, (u,v))</text>
 <text xml:space="preserve" text-anchor="start" x="1226" y="-2113.86" font-family="DejaVu Sans" font-size="11.00">adjoint_map(delta, tau, (u,v))</text>
 <text xml:space="preserve" text-anchor="start" x="1226" y="-2086.86" font-family="DejaVu Sans" font-weight="bold" font-size="11.00">Coupling</text>
-<text xml:space="preserve" text-anchor="start" x="1226" y="-2075.86" font-family="DejaVu Sans" font-size="11.00">Exact harmonic mixing C_delta uses angle 2*w*delta.</text>
-<text xml:space="preserve" text-anchor="start" x="1226" y="-2064.86" font-family="DejaVu Sans" font-size="11.00">w = 0 gives identity coupling.</text>
+<text xml:space="preserve" text-anchor="start" x="1226" y="-2075.86" font-family="DejaVu Sans" font-size="11.00">Independent HarmonicCoupling uses angle 2*w*delta.</text>
+<text xml:space="preserve" text-anchor="start" x="1226" y="-2064.86" font-family="DejaVu Sans" font-size="11.00">BM4 never invokes this operation.</text>
 <text xml:space="preserve" text-anchor="start" x="1226" y="-2053.86" font-family="DejaVu Sans" font-size="11.00">Signed durations are preserved.</text>
 <polygon fill="#c4cfdc" stroke="#c4cfdc" points="1218,-2152.76 1218,-2152.76 1568,-2152.76 1568,-2152.76 1218,-2152.76"/>
 <polygon fill="#c4cfdc" stroke="#c4cfdc" points="1218,-2103.76 1218,-2103.76 1568,-2103.76 1568,-2103.76 1218,-2103.76"/>
@@ -520,7 +520,7 @@
 <text xml:space="preserve" text-anchor="start" x="1668" y="-2465.14" font-family="DejaVu Sans" font-weight="bold" font-size="15.00">BM4Implicit</text>
 <text xml:space="preserve" text-anchor="start" x="1668" y="-2454.64" font-family="DejaVu Sans" font-size="10.00" fill="#62748c">src/methods/extended/bm4.py</text>
 <text xml:space="preserve" text-anchor="start" x="1668" y="-2427.74" font-family="DejaVu Sans" font-weight="bold" font-size="11.00">Default spatial / solver options</text>
-<text xml:space="preserve" text-anchor="start" x="1668" y="-2416.74" font-family="DejaVu Sans" font-size="11.00">coupling_frequency = 0.0.</text>
+<text xml:space="preserve" text-anchor="start" x="1668" y="-2416.74" font-family="DejaVu Sans" font-size="11.00">No coupling&#45;frequency constructor option.</text>
 <text xml:space="preserve" text-anchor="start" x="1668" y="-2405.74" font-family="DejaVu Sans" font-size="11.00">nonlinear_solver = newton; Jacobian = analytic.</text>
 <text xml:space="preserve" text-anchor="start" x="1668" y="-2378.74" font-family="DejaVu Sans" font-weight="bold" font-size="11.00">Convergence defaults</text>
 <text xml:space="preserve" text-anchor="start" x="1668" y="-2367.74" font-family="DejaVu Sans" font-size="11.00">atol = 1e&#45;13; rtol = 1e&#45;12; max corrections = 12.</text>
@@ -830,7 +830,7 @@
 <text xml:space="preserve" text-anchor="start" x="1645" y="-892.66" font-family="DejaVu Sans" font-size="11.00">J_r = G * D(Phi_h) * L + 2I.</text>
 <text xml:space="preserve" text-anchor="start" x="1645" y="-881.66" font-family="DejaVu Sans" font-size="11.00">G = [I,&#45;I]; L = [I;&#45;I]; I has size 2N.</text>
 <text xml:space="preserve" text-anchor="start" x="1645" y="-854.66" font-family="DejaVu Sans" font-weight="bold" font-size="11.00">Analytic</text>
-<text xml:space="preserve" text-anchor="start" x="1645" y="-843.66" font-family="DejaVu Sans" font-size="11.00">Ordered shear/coupling products: [N,4,4].</text>
+<text xml:space="preserve" text-anchor="start" x="1645" y="-843.66" font-family="DejaVu Sans" font-size="11.00">Ordered shear products: [N,4,4].</text>
 <text xml:space="preserve" text-anchor="start" x="1645" y="-832.66" font-family="DejaVu Sans" font-size="11.00">Solve independent reduced [N,2,2] particle blocks.</text>
 <text xml:space="preserve" text-anchor="start" x="1645" y="-821.66" font-family="DejaVu Sans" font-size="11.00">Retained shear inputs avoid spatial replay.</text>
 <text xml:space="preserve" text-anchor="start" x="1645" y="-794.66" font-family="DejaVu Sans" font-weight="bold" font-size="11.00">Finite differences</text>
@@ -1309,9 +1309,9 @@
 <text xml:space="preserve" text-anchor="start" x="1416" y="-373.1" font-family="DejaVu Sans" font-size="11.00">compose starts at (z,z); z_next=(u+v)/2 after all twelve stages.</text>
 <text xml:space="preserve" text-anchor="start" x="1416" y="-362.1" font-family="DejaVu Sans" font-size="11.00">No multiplier equation or nonlinear solver. Diagnostic: copy_separation_norms.</text>
 <text xml:space="preserve" text-anchor="start" x="1416" y="-335.1" font-family="DejaVu Sans" font-weight="bold" font-size="11.00">Defaults and structure</text>
-<text xml:space="preserve" text-anchor="start" x="1416" y="-324.1" font-family="DejaVu Sans" font-size="11.00">coupling_frequency = pi/8, while BM4Implicit defaults to 0.0.</text>
+<text xml:space="preserve" text-anchor="start" x="1416" y="-324.1" font-family="DejaVu Sans" font-size="11.00">Both BM4 variants omit harmonic coupling.</text>
 <text xml:space="preserve" text-anchor="start" x="1416" y="-313.1" font-family="DejaVu Sans" font-size="11.00">Both share DoubledFormulation, composition, maps and passive energy.</text>
-<text xml:space="preserve" text-anchor="start" x="1416" y="-302.1" font-family="DejaVu Sans" font-size="11.00">Use explicit matching options when comparing the methods.</text>
+<text xml:space="preserve" text-anchor="start" x="1416" y="-302.1" font-family="DejaVu Sans" font-size="11.00">C remains independently available as HarmonicCoupling.</text>
 <text xml:space="preserve" text-anchor="start" x="1416" y="-275.1" font-family="DejaVu Sans" font-weight="bold" font-size="11.00">Numerical distinction</text>
 <text xml:space="preserve" text-anchor="start" x="1416" y="-264.1" font-family="DejaVu Sans" font-size="11.00">Arithmetic averaging does not imply exact symplecticity or reversibility.</text>
 <text xml:space="preserve" text-anchor="start" x="1416" y="-253.1" font-family="DejaVu Sans" font-size="11.00">Observer type: IntegrationStep with physical states; no implicit BM4 solve event.</text>

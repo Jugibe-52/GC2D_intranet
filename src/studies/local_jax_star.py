@@ -1,5 +1,7 @@
 """Local BM4Midpoint star study with consecutive JAX blocks and live logging."""
 
+from contracts._study_validation import require_uncoupled_bm4
+
 from formulations.layout import GCStateLayout
 
 from dataclasses import asdict, dataclass, field
@@ -54,6 +56,10 @@ class LocalJAXStarConfig:
     steps_per_cycle: int
     block_cycles: int
 
+    def __post_init__(self) -> None:
+        """Require uncoupled BM4 for new calculations."""
+        require_uncoupled_bm4(self.coupling_frequency)
+
 
 @dataclass(frozen=True)
 class LocalJAXStarResult:
@@ -96,7 +102,7 @@ def integrate_local_star(
     step_arrays: dict[str, np.ndarray] = {}
     diagnostics: dict[str, DiagnosticValue] = {}
     block_seconds, block_ends = [], []
-    method = BM4Midpoint(coupling_frequency=config.coupling_frequency, track_energy=False,
+    method = BM4Midpoint(track_energy=False,
                          progress=False, step_observer=None)
     executor, options = Execution(), ExecutionOptions(backend='jax', device='cpu')
     started = perf_counter()

@@ -1,5 +1,7 @@
 """Finite-horizon energy-envelope study for one measured guiding-center orbit."""
 
+from contracts._study_validation import require_uncoupled_bm4
+
 from formulations.layout import GCStateLayout
 
 from contracts.study_results import GCEnergyBoundResult, GC_ENERGY_BOUND_METHODS as METHODS
@@ -46,6 +48,7 @@ class GCEnergyBoundConfig:
 
     def __post_init__(self) -> None:
         """Reject grids that would change the effective step or miss a horizon."""
+        require_uncoupled_bm4(self.coupling_frequency)
         _validate_energy_bound_grid(self.t_span, self.steps, self.horizons)
         for name in ("newton_atol", "newton_rtol", "jacobian_relative_step"):
             if not np.isfinite(getattr(self, name)) or getattr(self, name) <= 0:
@@ -155,7 +158,6 @@ def run_gc_energy_bound_study(
     envelopes: list[dict[str, Any]] = []
     blocks: list[dict[str, Any]] = []
     bm4 = BM4Implicit(
-        coupling_frequency=config.coupling_frequency,
         newton_absolute_tolerance=config.newton_atol,
         newton_relative_tolerance=config.newton_rtol,
         newton_max_iterations=config.newton_max_iterations,
@@ -360,7 +362,7 @@ def audit_initial_step_geometry(
     form = gc_physical_symplectic_form(1)
     for name in METHODS:
         events: list[IntegrationStep] = []
-        method = (BM4Implicit(coupling_frequency=config.coupling_frequency,
+        method = (BM4Implicit(
             newton_absolute_tolerance=config.newton_atol, newton_relative_tolerance=config.newton_rtol,
             newton_max_iterations=config.newton_max_iterations, newton_jacobian_method="analytic",
             newton_jacobian_relative_step=config.jacobian_relative_step, step_observer=events.append)

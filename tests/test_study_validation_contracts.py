@@ -48,16 +48,14 @@ class StudyValidationContractTests(unittest.TestCase):
 		with self.assertRaisesRegex(ValueError, "integer of at least two"):
 			ImplicitABBAIterationStudyConfig(sample_count=floating_count)
 
-	def test_coupling_boolean_policy_is_not_broadened(self) -> None:
-		"""Historical float-converting area controls differ from strict trajectory controls."""
+	def test_studies_reject_nonzero_legacy_coupling(self) -> None:
+		"""A saved nonzero rate must never become an uncoupled new calculation."""
 		steps = (AreaStep("coarse", 0.1), AreaStep("fine", 0.05))
-		area = AreaComparisonConfig(steps=steps, t_span=(0.0, 1.0), save_interval=0.1, coupling_frequency=True)
-		self.assertEqual(area.coupling_frequency, 1.0)
-		with self.assertRaisesRegex(ValueError, "finite and non-negative"):
-			TrajectorySymplecticityConfig(
-				steps=steps, t_span=(0.0, 1.0), save_interval=0.1,
-				rho=0.0, coupling_frequency=True,
-			)
+		for constructor in (AreaComparisonConfig, TrajectorySymplecticityConfig):
+			for frequency in (.4, True, np.nan, np.inf, -1.):
+				with self.assertRaisesRegex(ValueError, "no longer supports harmonic coupling"):
+					constructor(steps=steps, t_span=(0., 1.), save_interval=.1,
+						rho=0., coupling_frequency=frequency)
 
 	def test_numpy_integer_particle_contracts_remain_distinct(self) -> None:
 		"""Rho stars accept NumPy integers while both probe APIs retain Python integer checks."""

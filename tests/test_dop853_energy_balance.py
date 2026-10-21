@@ -21,7 +21,7 @@ class EnergyBalanceTests(unittest.TestCase):
         self.potential = Potential.random(A=.08, M=3, nx=16, ny=16, seed=27, interpolation_order=5)
         self.configuration = horizontal_configuration(self.potential, [.25, .5, .75], .5)
         self.config = dict(cycles=1, cycle_duration=.02, steps_per_cycle=4, saves_per_cycle=2,
-                           rho=.05, coupling_frequency=float(np.pi/8), newton_atol=1e-13,
+                           rho=.05, coupling_frequency=0.0, newton_atol=1e-13,
                            newton_rtol=1e-12, newton_max_iterations=40,
                            jacobian_relative_step=float(np.cbrt(np.finfo(float).eps)),
                            reference_rtol=1e-10, reference_atol=1e-12)

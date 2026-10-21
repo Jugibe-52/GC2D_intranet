@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from contracts._study_validation import require_uncoupled_bm4
+
 from formulations.layout import GCStateLayout
 
 from contextlib import contextmanager
@@ -252,13 +254,14 @@ class _NewtonControls(TypedDict):
 
 
 def automation_method(prepared: PreparedAutomationCase) -> NumericalMethod:
-	"""Construct a canonical integrator; coupling is a rate per runtime time unit."""
+	"""Construct a canonical integrator without doubled-copy coupling."""
 	c, name = prepared.config, prepared.case.method
-	coupling = prepared.metadata["coupling_runtime"]
+	# Historical configurations remain readable, but cannot select new coupled runs.
+	require_uncoupled_bm4(c.coupling_frequency)
 	if name == "RK4":
 		return RK4()
 	if name == "BM4Midpoint":
-		return BM4Midpoint(coupling_frequency=coupling)
+		return BM4Midpoint()
 	kwargs: _NewtonControls = dict(newton_absolute_tolerance=c.newton_absolute_tolerance,
 		newton_relative_tolerance=c.newton_relative_tolerance,
 		newton_max_iterations=c.newton_max_iterations,
@@ -266,7 +269,7 @@ def automation_method(prepared: PreparedAutomationCase) -> NumericalMethod:
 		newton_jacobian_method="analytic")
 	# Explicit branches keep each constructor's numerical contract visible.
 	if name == "BM4Implicit":
-		return BM4Implicit(coupling_frequency=coupling, **kwargs)
+		return BM4Implicit(**kwargs)
 	return GaussLegendre4(**kwargs)
 
 

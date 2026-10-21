@@ -1,5 +1,7 @@
 # BM4: detailed execution architecture
 
+Current BM4 advancement is inherited from ProjectedPalindromicMethod in `extended/palindromic.py`. The complete recipe executes explicit A/B/T operations. See [the current operation architecture](../../extended/simulation/palindromic-operations.md).
+
 The linked rendered diagrams and their sources are retained as historical artifacts. Their method-owned integration entry points and former state containers are superseded by the executor-owned lifecycle described in this text.
 
 ![BM4 detailed architecture](bm4-detailed-architecture.svg)
@@ -54,8 +56,8 @@ the stage start time and the direct map its signed endpoint; the stage clock
 then advances by `delta`.
 
 The direct map updates the second copy, updates the first using that new second
-copy, and applies harmonic coupling. The adjoint map applies coupling first,
-then updates the first and second copies in the reversed shear order. Both
+copy. The adjoint map updates the first and second copies in the reversed
+shear order. Neither BM4 variant invokes C. Both
 retain two physical shear sources. A complete composition therefore makes
 24 vector-field evaluations, before any additional nonlinear iterations or
 finite-difference work.
@@ -63,7 +65,7 @@ finite-difference work.
 Newton and Broyden solve the same reduced residual:
 
 - Analytic Newton propagates ordered `4 x 4` particle tangents through the
-  shears and coupling, then solves independent reduced `2 x 2` particle systems.
+  shears, then solves independent reduced `2 x 2` particle systems.
 - Finite-difference Newton differentiates the full doubled spatial map and
   assembles a dense `2N x 2N` reduced system. Those extra spatial map evaluations
   are separate from the recorded residual-evaluation count.
@@ -102,12 +104,12 @@ returns the completed `States` and verifies its saved times and initial state.
 | Spatial recipe | Twelve signed stages | Same recipe |
 | Projection | Reduced Hairer equation | One arithmetic mean after the recipe |
 | Nonlinear unknown | `2N` multiplier entries | None |
-| Default coupling frequency | `0.0` | `pi/8` |
+| Harmonic coupling | Absent | Absent |
 | Additional step metric | Multiplier norm and solve work | Copy-separation norm |
 | Observer event | `ImplicitBM4IntegrationStep` | `IntegrationStep` |
 
 Both methods share the state formulation, stage maps, composition and passive
-energy implementation. Set matching coupling values explicitly in comparisons.
+energy implementation. HarmonicCoupling is available independently for future compositions.
 Arithmetic averaging alone does not imply exact symplecticity or reversibility.
 The model's canonical mathematical reference remains
 [theory.tex](../tex/theory.tex) and its [compiled PDF](../tex/theory.pdf).
@@ -173,7 +175,7 @@ packed-array callers remain supported. See the [component interface](../../../si
 for ownership, array shapes and unchanged request/result boundaries.
 
 BM4 uses `ReducedProjection` for its existing 2N multiplier system and accepts
-`solver=NewtonSolver(...)` or `solver=BroydenSolver(...)`. Composition, coupling,
+`solver=NewtonSolver(...)` or `solver=BroydenSolver(...)`. Composition,
 physical scaling and the single outer projection remain unchanged.
 
 ## Current component diagram

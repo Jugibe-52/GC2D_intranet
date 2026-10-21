@@ -1,8 +1,15 @@
 # BM4Implicit: shared extended-space execution
 
-The linked rendered diagrams and their sources are retained as historical artifacts. Their method-owned integration entry points and former state containers are superseded by the executor-owned lifecycle described in this text.
+All presets now inherit PalindromicMethod and execute explicit A/B/T operations.
+See [palindromic methods and time placement](../../extended/simulation/palindromic-operations.md) for the common classes, generic recipes and independent C.
 
-Twelve alternating signed stages; Optional harmonic coupling. One reduced projection per cycle; Analytic or finite-difference Newton.
+Both BM4 variants use uncoupled maps and have no coupling-frequency option.
+See [uncoupled BM4 and independent C](../../extended/simulation/uncoupled-bm4.md) for migration and historical-data handling.
+
+
+The compact diagrams describe the current shared numerical execution and executor-owned lifecycle. Older detailed diagrams explicitly marked as historical retain their original ownership conventions.
+
+Twelve alternating signed stages; No harmonic coupling. One reduced projection per cycle; Analytic or finite-difference Newton.
 
 ![BM4Implicit architecture](bm4-simulation-architecture.svg)
 
@@ -28,13 +35,13 @@ remains [theory.tex](../tex/theory.tex), with its compiled
 ## Numerical path
 
 Constructor controls use the typed scalar validators in `methods._validation`,
-including rejection of boolean tolerances and coupling frequencies. Shared
+including rejection of boolean tolerances. Neither BM4 constructor accepts a coupling frequency. Shared
 Newton/Broyden input and cached-residual checks live in `solvers.nonlinear`;
 they preserve ownership of the initial arrays and do not add residual evaluations.
 Numerical convergence and singularity guards remain in their solve loops.
 
 Initialization binds this model's recipe and options. The ordinary implicit
-path is `advance -> solve_projection -> compose -> direct_map / adjoint_map`.
+path is `advance -> solve_projection -> compose -> A/B/T/C operations`.
 Explicit midpoint methods use `midpoint_step` in place of the nonlinear
 projection. ABBA4 and ABBA6 both project once around the complete
 unprojected composition; their recipes contain six and fourteen stages.
@@ -45,8 +52,7 @@ reduced equation without analytic Jacobians.
 
 The shared composition keeps signed durations and the nonautonomous stage
 clock: adjoint maps evaluate at the start of their substep and direct maps at
-its end. ABBA uses no harmonic coupling. BM4 retains its configurable coupling
-and the existing defaults for each public class.
+its end. ABBA uses no harmonic coupling. Both BM4 variants also use no harmonic coupling; C remains available independently through HarmonicCoupling.
 
 ## Accepted states and diagnostics
 
@@ -170,5 +176,5 @@ packed-array callers remain supported. See the [component interface](../../../si
 for ownership, array shapes and unchanged request/result boundaries.
 
 BM4 uses `ReducedProjection` for its existing 2N multiplier system and accepts
-`solver=NewtonSolver(...)` or `solver=BroydenSolver(...)`. Composition, coupling,
+`solver=NewtonSolver(...)` or `solver=BroydenSolver(...)`. Composition,
 physical scaling and the single outer projection remain unchanged.

@@ -1,5 +1,7 @@
 """Compare resumed trajectories against uninterrupted frozen public integrators."""
 
+from contracts._study_validation import require_uncoupled_bm4
+
 from formulations.layout import GCStateLayout
 from concurrent.futures import ProcessPoolExecutor
 import multiprocessing as mp
@@ -9,6 +11,7 @@ import numpy as np
 from study_io import ROOT,load_calculation,load_snapshot,atomic_json,utc_now
 
 def baseline(indices: np.ndarray, xy: np.ndarray, meta: dict[str, Any]) -> tuple[np.ndarray, np.ndarray, dict]:
+    require_uncoupled_bm4(meta.get('coupling_frequency', 0.0))
     from threadpoolctl import threadpool_limits
     potential,_,_=load_snapshot()
     from dynamics import GuidingCenterDynamics
@@ -23,9 +26,9 @@ def baseline(indices: np.ndarray, xy: np.ndarray, meta: dict[str, Any]) -> tuple
     request=SimulationRequest.uniform(t_span=tuple(meta['t_span']),max_step=meta['step'],sample_count=meta['complete_steps']+1)
     method: BM4Implicit | BM4Midpoint
     if meta['method']=='BM4Implicit':
-        method=BM4Implicit(coupling_frequency=meta['coupling_frequency'],newton_absolute_tolerance=meta['newton_atol'],newton_relative_tolerance=meta['newton_rtol'],newton_max_iterations=meta['newton_max_iterations'],newton_jacobian_relative_step=meta['jacobian_relative_step'],newton_jacobian_method='analytic',nonlinear_solver='newton',progress=False)
+        method=BM4Implicit(newton_absolute_tolerance=meta['newton_atol'],newton_relative_tolerance=meta['newton_rtol'],newton_max_iterations=meta['newton_max_iterations'],newton_jacobian_relative_step=meta['jacobian_relative_step'],newton_jacobian_method='analytic',nonlinear_solver='newton',progress=False)
     else:
-        method=BM4Midpoint(coupling_frequency=meta['coupling_frequency'],progress=False)
+        method=BM4Midpoint(progress=False)
     with threadpool_limits(limits=1): solution=simulate(problem,method,request)
     return solution.t,np.stack(solution.positions(),axis=-1).transpose(1,0,2),dict(solution.diagnostics)
 

@@ -4,6 +4,18 @@ from __future__ import annotations
 import numpy as np
 
 
+def require_uncoupled_bm4(value: float | None) -> None:
+	"""Reject coupled legacy calculation requests without relabeling archives.
+
+	Study formats may retain a zero rate (or None for methods with no rate).
+	Stored-result readers keep historical metadata without invoking this guard.
+	"""
+	if value is not None and (
+		isinstance(value, (bool, np.bool_)) or not np.isfinite(float(value)) or float(value) != 0.0
+	):
+		raise ValueError("BM4 no longer supports harmonic coupling; use coupling_frequency=0 for new calculations.")
+
+
 def positive_finite(value: float, name: str) -> float:
 	"""Normalize a positive finite study parameter."""
 	if isinstance(value, (bool, np.bool_)):
@@ -58,4 +70,3 @@ def finite_time_span(
 	if span.shape != (2,) or not np.all(np.isfinite(span)) or span[0] >= span[1]:
 		raise ValueError(message)
 	return float(span[0]), float(span[1])
-

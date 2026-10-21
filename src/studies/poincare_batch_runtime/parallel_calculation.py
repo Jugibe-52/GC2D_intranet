@@ -6,6 +6,8 @@ is unchanged; each group uses its own state norm for Newton's stopping rule.
 
 from __future__ import annotations
 
+from contracts._study_validation import require_uncoupled_bm4
+
 from formulations.layout import GCStateLayout
 
 from typing import Any
@@ -37,6 +39,7 @@ def calculate_group(
     indices: np.ndarray, initial_xy: np.ndarray, settings: dict[str, Any],
 ) -> dict[str, Any]:
     """Integrate a particle group; reusable serially for partition validation."""
+    require_uncoupled_bm4(settings.get('coupling_frequency', 0.0))
     from threadpoolctl import threadpool_info, threadpool_limits
 
     potential, _, snapshot_hash = load_snapshot()
@@ -58,7 +61,6 @@ def calculate_group(
     history = (NewtonHistory(settings['n_steps'], settings.get('progress_every', 1000))
                if settings.get('record_newton_history', True) else None)
     method = BM4Implicit(
-        coupling_frequency=settings['coupling_frequency'],
         newton_absolute_tolerance=settings['newton_atol'],
         newton_relative_tolerance=settings['newton_rtol'],
         newton_max_iterations=settings['newton_max_iterations'],

@@ -10,12 +10,14 @@ from formulations.base import (
 )
 from formulations.fc import FCSplitFormulation
 from formulations.gc import (
+	HarmonicCoupling,
 	GCExtendedFormulation,
 	GCStageProjectedFormulation,
 	gc_coupling_matrix,
 )
 
 __all__ = [
+	"HarmonicCoupling",
 	"ProjectionFormulation", "ReducedProjection", "SimultaneousProjection",
 	"PhysicalFormulation", "DoubledFormulation",
 	"DirectAdjointFormulation",

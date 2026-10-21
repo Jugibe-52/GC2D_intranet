@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from functools import lru_cache
-from typing import TypeAlias
+from typing import Literal, TypeAlias
 
 import numpy as np
 
@@ -84,6 +84,36 @@ def gc_coupling_matrix(duration: float, frequency: float) -> np.ndarray:
 
 
 @dataclass(frozen=True, slots=True)
+class HarmonicCoupling:
+	"""Independent C flow for packed doubled planar states of shape (4*N,).
+
+	The component order is (u_x, u_y, v_x, v_y), each block of length N.
+	The copy mean is fixed; their difference rotates by 2*frequency*duration.
+	Frequency has inverse runtime-time units. Time and passive momentum are
+	managed by the caller and are not part of this spatial array.
+	"""
+
+	frequency: float
+
+	def __post_init__(self) -> None:
+		"""Validate the reusable coupling rate independently of any method."""
+		rate = float(self.frequency)
+		if not np.isfinite(rate) or rate < 0:
+			raise ValueError("`frequency` must be finite and non-negative.")
+		object.__setattr__(self, "frequency", rate)
+
+	def apply(self, state: np.ndarray, duration: float) -> np.ndarray:
+		"""Return the exact signed C flow without modifying the input array."""
+		value = np.asarray(state, dtype=float)
+		if value.ndim != 1 or value.size == 0 or value.size % 4 or not np.all(np.isfinite(value)):
+			raise ValueError("C requires a finite doubled planar vector of length 4*N.")
+		step = float(duration)
+		if not np.isfinite(step):
+			raise ValueError("`duration` must be finite.")
+		return np.asarray((_coupling_matrix(step, self.frequency) @ value.reshape(4, -1)).reshape(-1))
+
+
+@dataclass(frozen=True, slots=True)
 class _GCExtendedState:
 	"""Two physical copies and optional time-conjugate momentum."""
 
@@ -109,6 +139,7 @@ class GCDoubledMaps:
 	configuration: np.ndarray
 	layout: StateLayout
 	coupling_frequency: float | None
+	coupling: HarmonicCoupling | None
 	physical_size: int
 	particle_count: int
 	track_energy: bool
@@ -137,6 +168,7 @@ class GCDoubledMaps:
 		object.__setattr__(self, "configuration", problem.initial_state)
 		object.__setattr__(self, "layout", layout)
 		object.__setattr__(self, "coupling_frequency", coupling_frequency)
+		object.__setattr__(self, "coupling", None if coupling_frequency is None else HarmonicCoupling(coupling_frequency))
 		object.__setattr__(self, "physical_size", physical.size)
 		object.__setattr__(self, "particle_count", count)
 		object.__setattr__(self, "track_energy", bool(track_energy))
@@ -162,19 +194,13 @@ class GCDoubledMaps:
 		duration: float,
 		state: _GCExtendedState,
 	) -> _GCExtendedState:
-		frequency = self.coupling_frequency
-		if frequency is None:
+		coupling = self.coupling
+		if coupling is None:
 			raise TypeError("The uncoupled GC formulation has no coupling flow.")
 		first = self.layout.split(state.first)
 		second = self.layout.split(state.second)
 		blocks = np.stack((*first, *second), axis=0)
-		coupled = np.asarray(
-			np.einsum(
-				"ij,j...->i...",
-				_coupling_matrix(duration, frequency),
-				blocks,
-			)
-		)
+		coupled = coupling.apply(blocks.reshape(-1), duration).reshape(blocks.shape)
 		return _GCExtendedState(
 			first=GCStateLayout().from_blocks(coupled[:2]),
 			second=GCStateLayout().from_blocks(coupled[2:]),
@@ -190,23 +216,11 @@ class GCDoubledMaps:
 		energy_points: list[_EnergyQuadraturePoint] | None = None,
 	) -> np.ndarray:
 		"""Update both copies, optionally retaining energy quadrature states."""
-		current = self._unpack(state)
-		second = spatial_shear(self.dynamics, t, current.second, current.first, duration)
-		momentum = _updated_momentum(
-			self.dynamics,
-			current.momentum,
-			duration,
-			t,
-			current.first,
-		)
-		first = spatial_shear(self.dynamics, t, current.first, second, duration)
-		momentum = _updated_momentum(self.dynamics, momentum, duration, t, second)
-		if energy_points is not None:
-			energy_points.extend(((t, duration, current.first), (t, duration, second)))
-		updated = _GCExtendedState(first, second, momentum)
+		updated = self.apply_spatial('B', duration, t, state, energy_points=energy_points)
+		updated = self.apply_spatial('A', duration, t, updated, energy_points=energy_points)
 		if self.coupling_frequency is None:
-			return updated.pack()
-		return self._couple(duration, updated).pack()
+			return updated
+		return self.apply_spatial('C', duration, t, updated)
 
 	def adjoint_map(
 		self,
@@ -217,21 +231,36 @@ class GCDoubledMaps:
 		energy_points: list[_EnergyQuadraturePoint] | None = None,
 	) -> np.ndarray:
 		"""Couple and update both copies, optionally retaining quadrature states."""
-		current = self._unpack(state)
+		current = state
 		if self.coupling_frequency is not None:
-			current = self._couple(duration, current)
-		first = spatial_shear(self.dynamics, t, current.first, current.second, duration)
-		momentum = _updated_momentum(
-			self.dynamics,
-			current.momentum,
-			duration,
-			t,
-			current.second,
-		)
-		second = spatial_shear(self.dynamics, t, current.second, first, duration)
-		momentum = _updated_momentum(self.dynamics, momentum, duration, t, first)
+			current = self.apply_spatial('C', duration, t, current)
+		current = self.apply_spatial('A', duration, t, current, energy_points=energy_points)
+		return self.apply_spatial('B', duration, t, current, energy_points=energy_points)
+
+	def apply_spatial(
+		self, operation: Literal['A', 'B', 'C'], duration: float, t: float,
+		state: np.ndarray, *, energy_points: list[_EnergyQuadraturePoint] | None = None,
+	) -> np.ndarray:
+		"""Apply one exact spatial flow at fixed time, with no hidden half-step.
+
+		A updates the first copy from the second, B updates the second from the
+		first, and C rotates their difference. The caller owns time translation.
+		"""
+		current = self._unpack(state)
+		if operation == 'C':
+			return self._couple(duration, current).pack()
+		first, second = current.first, current.second
+		if operation == 'A':
+			source = second
+			first = spatial_shear(self.dynamics, t, first, source, duration)
+		elif operation == 'B':
+			source = first
+			second = spatial_shear(self.dynamics, t, second, source, duration)
+		else:
+			raise ValueError('A spatial operation must be A, B or C.')
+		momentum = _updated_momentum(self.dynamics, current.momentum, duration, t, source)
 		if energy_points is not None:
-			energy_points.extend(((t, duration, current.second), (t, duration, first)))
+			energy_points.append((t, duration, source))
 		return _GCExtendedState(first, second, momentum).pack()
 
 	def project_internal_state(self, state: np.ndarray) -> np.ndarray:
@@ -305,6 +334,7 @@ class GCStageProjectedFormulation:
 
 
 __all__ = [
+	"HarmonicCoupling",
 	"GCExtendedFormulation",
 	"GCDoubledMaps",
 	"GCStageProjectedFormulation",

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from contracts._study_validation import require_uncoupled_bm4
+
 from dataclasses import dataclass
 from itertools import combinations
 from time import perf_counter
@@ -58,6 +60,7 @@ class ImplicitTrajectoryComparisonConfig:
 
 	def __post_init__(self) -> None:
 		"""Normalize every parameter that affects numerical reproducibility."""
+		require_uncoupled_bm4(self.coupling_frequency)
 		object.__setattr__(
 			self, "t_span",
 			finite_time_span(self.t_span, message="`t_span` must contain two finite, increasing times."),
@@ -294,7 +297,6 @@ def run_implicit_trajectory_comparison(
 			progress=config.progress,
 		),
 		BM4Implicit(
-			coupling_frequency=config.coupling_frequency,
 			newton_absolute_tolerance=config.absolute_tolerance,
 			newton_relative_tolerance=config.relative_tolerance,
 			newton_max_iterations=config.max_iterations,

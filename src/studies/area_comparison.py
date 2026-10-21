@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from contracts._study_validation import require_uncoupled_bm4
+
 from formulations.layout import GCStateLayout
 
 from dataclasses import dataclass
@@ -103,6 +105,7 @@ class AreaComparisonConfig:
 
 	def __post_init__(self) -> None:
 		"""Validate synchronized step, output and diagnostic grids."""
+		require_uncoupled_bm4(self.coupling_frequency)
 		steps = _validated_area_steps(
 			self.steps, minimum=2, label_message="Area-step labels must be unique.",
 		)
@@ -309,7 +312,6 @@ def run_area_comparison(
 				sample_count=config.output_sample_count,
 			)
 			method = BM4Implicit(
-				coupling_frequency=config.coupling_frequency,
 				newton_absolute_tolerance=config.newton_absolute_tolerance,
 				newton_relative_tolerance=config.newton_relative_tolerance,
 				newton_max_iterations=config.newton_max_iterations,

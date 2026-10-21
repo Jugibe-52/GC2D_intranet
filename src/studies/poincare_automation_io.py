@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any, Iterator
 from uuid import uuid4
 
+from contracts._study_validation import require_uncoupled_bm4
 from diagnostics.persistence import load_solution, save_solution, StoredSolution
 from execution.execution import Execution
 from studies.poincare_automation import (
@@ -51,6 +52,7 @@ def _run_lock(directory: Path) -> Iterator[None]:
 def prepare_automation(config: AutomationConfig, project_root: Path,
 		destination: Path | None = None) -> Path:
 	"""Save resolved cases without opening the source or running any integrator."""
+	require_uncoupled_bm4(config.coupling_frequency)
 	root = project_root.resolve()
 	if destination is None:
 		stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
@@ -118,6 +120,7 @@ def run_automation(directory: Path, *, execution: Execution | None = None) -> di
 	"""
 	with _run_lock(directory):
 		config, root, manifest = read_automation(directory)
+		require_uncoupled_bm4(config.coupling_frequency)
 		with automation_execution_context(config, execution):
 			pass  # Resolve local optional backend/device before loading fields or submitting cases.
 		field = verified_automation_field(config, root, manifest)

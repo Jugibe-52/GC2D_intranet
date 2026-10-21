@@ -11,6 +11,45 @@
 \setlength{\emergencystretch}{3em}
 \begin{document}
 \maketitle
+
+\section*{Explicit palindromic operations}
+All ABBA and BM4 presets inherit \texttt{PalindromicMethod}. For signed
+$d=c h$, the elementary operations are
+\[
+ A_d(u,v,t)=(u+d f(t,v),v,t),\qquad
+ B_d(u,v,t)=(u,v+d f(t,u),t),\qquad
+ T_d(u,v,t)=(u,v,t+d).
+\]
+Only $T$ advances time. A coefficient $c=1/2$ means duration $h/2$;
+there is no additional half inside $A$ or $B$. The optional exact $C$ flow
+rotates the copy difference and requires an independent coupling object.
+Both BM4 presets omit $C$.
+
+In chronological order, standard ABBA2 is
+$A_{h/2},B_{h/2},T_{h/2},T_{h/2},B_{h/2},A_{h/2}$.
+The distinct symmetric variant
+$T_{h/2},A_{h/2},B_{h/2},B_{h/2},A_{h/2},T_{h/2}$
+evaluates every spatial shear at the midpoint time. Both exhibit second
+order on the tested nonautonomous rotation. Arbitrary palindromes do not
+inherit fourth or sixth order, and an arithmetic projection need not be
+reversible or symplectic.
+
+\texttt{Composition.from\_half} reflects a supplied half sequence.
+The generic \texttt{PalindromicImplicit} and \texttt{PalindromicMidpoint}
+methods select one exterior Hairer projection or a final arithmetic mean.
+The standard signed ABBA/BM4 recipes, grouped observations and passive
+momentum normalization remain unchanged. NumPy and JAX execute the same
+explicit operations and differentiate their retained shear inputs.
+See \path{docs/models/extended/simulation/palindromic-operations.md}.
+
+\section*{Current uncoupled configuration}
+Both \texttt{BM4Implicit} and \texttt{BM4Midpoint} omit the harmonic
+coupling flow and no longer accept a coupling-frequency constructor argument.
+Their twelve coefficients, signed clock and projection placement are unchanged.
+The independent operation \texttt{HarmonicCoupling} retains C for future
+compositions. Existing observer/archive rates are fixed at zero for new runs;
+nonzero historical calculations require their original frozen implementation.
+
 \section{Complete-cycle definition}
 For $\dot z=f(t,z)$, embed the accepted state as $E z=(z,z)$ and define
 $P(u,v)=(u+v)/2$. One step is
@@ -34,13 +73,13 @@ $s_j+d_j$. The negative coefficient also moves the stage clock backwards.
 
 At the chosen evaluation time, let
 \[
-A_d(u,v)=(u,v+d f(t,u)),\qquad
-B_d(u,v)=(u+d f(t,v),v).
+A_d(u,v)=(u+d f(t,v),v),\qquad
+B_d(u,v)=(u,v+d f(t,u)).
 \]
-Let $C_d$ be the exact GC harmonic mixing flow: it preserves the copy mean
-and rotates the spatial difference through angle $2\omega d$.
-The direct map is $C_d\circ B_d\circ A_d$; its adjoint is
-$B_d\circ A_d\circ C_d$. Each stage evaluates the vector field twice.
+The spatial direct map is $A_d\circ B_d$ and its adjoint is
+$B_d\circ A_d$. Neither includes harmonic coupling. The time translations
+remain in the complete direct/adjoint stage as specified above.
+Each stage evaluates the vector field twice.
 Thus one complete step uses 24 evaluations and one arithmetic projection.
 
 \section{State and energy conventions}
@@ -117,14 +156,14 @@ samples leave main states and counters unchanged. Adaptive energy quadrature
 uses accepted dense output; its backend state and Jacobian remain physical.
 
 
-\clearpage
 \section{Shared extended-space implementation}
-The public method names and constructor defaults are unchanged. Their code now
+Public method names remain unchanged; both BM4 constructors now omit harmonic
+coupling. Their code
 lives in \path{src/methods/extended/}. Public exports from \texttt{simulation}
 remain available; former ABBA and BM4 import adapters have been removed.
 The shared execution is
 \texttt{advance}, \texttt{solve\_projection}, \texttt{compose}, then
-\texttt{direct\_map} or \texttt{adjoint\_map}. Arithmetic midpoint variants
+explicit $A/B/T/C$ operations. Arithmetic midpoint variants
 replace the nonlinear projection by one final average.
 
 The composition retains signed shear inputs for exact particle-block tangents,

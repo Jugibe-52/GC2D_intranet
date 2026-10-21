@@ -83,7 +83,7 @@ class ImplicitMethodAccuracyTests(unittest.TestCase):
 				t_span=(0.0, 0.1),
 				save_interval=0.05,
 				rho=0.05,
-				coupling_frequency=0.2,
+				coupling_frequency=0.0,
 				absolute_tolerance=1e-12,
 				relative_tolerance=1e-11,
 				max_iterations=20,

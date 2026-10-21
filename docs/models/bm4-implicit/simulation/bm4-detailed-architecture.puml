@@ -130,9 +130,9 @@ digraph BM4DetailedArchitecture {
     Maps [label=<
       <TABLE WIDTH="350" BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
         <TR><TD WIDTH="350" BALIGN="LEFT" ALIGN="LEFT" BGCOLOR="#E2F1E9"><FONT POINT-SIZE="9">PER-RUN SPATIAL MAPS</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>GCDoubledMaps</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/formulations/gc.py</FONT></TD></TR>
-        <TR><TD WIDTH="350" BALIGN="LEFT" ALIGN="LEFT"><B>Construction</B><BR ALIGN="LEFT"/>GCDoubledMaps(problem, coupling_frequency).<BR ALIGN="LEFT"/>BM4 binds spatial maps without internal energy variables.</TD></TR><HR/>
+        <TR><TD WIDTH="350" BALIGN="LEFT" ALIGN="LEFT"><B>Construction</B><BR ALIGN="LEFT"/>GCDoubledMaps(problem, coupling_frequency=None).<BR ALIGN="LEFT"/>BM4 binds spatial maps without internal energy variables.</TD></TR><HR/>
         <TR><TD WIDTH="350" BALIGN="LEFT" ALIGN="LEFT"><B>Operations</B><BR ALIGN="LEFT"/>direct_map(delta, tau, (u,v))<BR ALIGN="LEFT"/>adjoint_map(delta, tau, (u,v))</TD></TR><HR/>
-        <TR><TD WIDTH="350" BALIGN="LEFT" ALIGN="LEFT"><B>Coupling</B><BR ALIGN="LEFT"/>Exact harmonic mixing C_delta uses angle 2*w*delta.<BR ALIGN="LEFT"/>w = 0 gives identity coupling.<BR ALIGN="LEFT"/>Signed durations are preserved.</TD></TR>
+        <TR><TD WIDTH="350" BALIGN="LEFT" ALIGN="LEFT"><B>Coupling</B><BR ALIGN="LEFT"/>Independent HarmonicCoupling uses angle 2*w*delta.<BR ALIGN="LEFT"/>BM4 never invokes this operation.<BR ALIGN="LEFT"/>Signed durations are preserved.</TD></TR>
       </TABLE>
     >];
     Direct [label=<
@@ -168,7 +168,7 @@ digraph BM4DetailedArchitecture {
     Config [label=<
       <TABLE WIDTH="350" BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
         <TR><TD WIDTH="350" BALIGN="LEFT" ALIGN="LEFT" BGCOLOR="#FBE0C7"><FONT POINT-SIZE="9">REUSABLE PUBLIC CONFIGURATION</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>BM4Implicit</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/methods/extended/bm4.py</FONT></TD></TR>
-        <TR><TD WIDTH="350" BALIGN="LEFT" ALIGN="LEFT"><B>Default spatial / solver options</B><BR ALIGN="LEFT"/>coupling_frequency = 0.0.<BR ALIGN="LEFT"/>nonlinear_solver = newton; Jacobian = analytic.</TD></TR><HR/>
+        <TR><TD WIDTH="350" BALIGN="LEFT" ALIGN="LEFT"><B>Default spatial / solver options</B><BR ALIGN="LEFT"/>No coupling-frequency constructor option.<BR ALIGN="LEFT"/>nonlinear_solver = newton; Jacobian = analytic.</TD></TR><HR/>
         <TR><TD WIDTH="350" BALIGN="LEFT" ALIGN="LEFT"><B>Convergence defaults</B><BR ALIGN="LEFT"/>atol = 1e-13; rtol = 1e-12; max corrections = 12.<BR ALIGN="LEFT"/>FD relative step = cube root of machine epsilon.</TD></TR><HR/>
         <TR><TD WIDTH="350" BALIGN="LEFT" ALIGN="LEFT"><B>Optional controls</B><BR ALIGN="LEFT"/>track_energy=False; progress=False; step_observer=None.<BR ALIGN="LEFT"/>Constructor validates numerical and solver choices.</TD></TR>
       </TABLE>
@@ -384,7 +384,7 @@ digraph BM4DetailedArchitecture {
       <TABLE WIDTH="350" BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
         <TR><TD WIDTH="350" BALIGN="LEFT" ALIGN="LEFT" BGCOLOR="#E2F1E9"><FONT POINT-SIZE="9">NEWTON JACOBIAN STRATEGIES</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>particle_jacobians / centered FD</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/methods/extended/core/jacobians.py; projection.py</FONT></TD></TR>
         <TR><TD WIDTH="350" BALIGN="LEFT" ALIGN="LEFT"><B>Reduced Jacobian</B><BR ALIGN="LEFT"/>J_r = G * D(Phi_h) * L + 2I.<BR ALIGN="LEFT"/>G = [I,-I]; L = [I;-I]; I has size 2N.</TD></TR><HR/>
-        <TR><TD WIDTH="350" BALIGN="LEFT" ALIGN="LEFT"><B>Analytic</B><BR ALIGN="LEFT"/>Ordered shear/coupling products: [N,4,4].<BR ALIGN="LEFT"/>Solve independent reduced [N,2,2] particle blocks.<BR ALIGN="LEFT"/>Retained shear inputs avoid spatial replay.</TD></TR><HR/>
+        <TR><TD WIDTH="350" BALIGN="LEFT" ALIGN="LEFT"><B>Analytic</B><BR ALIGN="LEFT"/>Ordered shear products: [N,4,4].<BR ALIGN="LEFT"/>Solve independent reduced [N,2,2] particle blocks.<BR ALIGN="LEFT"/>Retained shear inputs avoid spatial replay.</TD></TR><HR/>
         <TR><TD WIDTH="350" BALIGN="LEFT" ALIGN="LEFT"><B>Finite differences</B><BR ALIGN="LEFT"/>Perturb the full doubled input in both directions.<BR ALIGN="LEFT"/>Differentiate Phi_h; assemble a dense 2N system.<BR ALIGN="LEFT"/>Extra map calls are not residual-evaluation counts.</TD></TR>
       </TABLE>
     >];
@@ -457,7 +457,7 @@ digraph BM4DetailedArchitecture {
       <TABLE WIDTH="670" BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8">
         <TR><TD WIDTH="670" BALIGN="LEFT" ALIGN="LEFT" BGCOLOR="#FBE0C7"><FONT POINT-SIZE="9">ALTERNATIVE PUBLIC BM4 METHOD</FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="15"><B>BM4Midpoint: shared recipe, arithmetic projection</B></FONT><BR ALIGN="LEFT"/><FONT POINT-SIZE="10" COLOR="#62748C">src/methods/extended/bm4.py; extended/core/midpoint.py</FONT></TD></TR>
         <TR><TD WIDTH="670" BALIGN="LEFT" ALIGN="LEFT"><B>Same spatial maps and time clock</B><BR ALIGN="LEFT"/>compose starts at (z,z); z_next=(u+v)/2 after all twelve stages.<BR ALIGN="LEFT"/>No multiplier equation or nonlinear solver. Diagnostic: copy_separation_norms.</TD></TR><HR/>
-        <TR><TD WIDTH="670" BALIGN="LEFT" ALIGN="LEFT"><B>Defaults and structure</B><BR ALIGN="LEFT"/>coupling_frequency = pi/8, while BM4Implicit defaults to 0.0.<BR ALIGN="LEFT"/>Both share DoubledFormulation, composition, maps and passive energy.<BR ALIGN="LEFT"/>Use explicit matching options when comparing the methods.</TD></TR><HR/>
+        <TR><TD WIDTH="670" BALIGN="LEFT" ALIGN="LEFT"><B>Defaults and structure</B><BR ALIGN="LEFT"/>Both BM4 variants omit harmonic coupling.<BR ALIGN="LEFT"/>Both share DoubledFormulation, composition, maps and passive energy.<BR ALIGN="LEFT"/>C remains independently available as HarmonicCoupling.</TD></TR><HR/>
         <TR><TD WIDTH="670" BALIGN="LEFT" ALIGN="LEFT"><B>Numerical distinction</B><BR ALIGN="LEFT"/>Arithmetic averaging does not imply exact symplecticity or reversibility.<BR ALIGN="LEFT"/>Observer type: IntegrationStep with physical states; no implicit BM4 solve event.</TD></TR>
       </TABLE>
     >];

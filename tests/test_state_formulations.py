@@ -191,7 +191,7 @@ class FourStateFormulationTests(unittest.TestCase):
         request = SimulationRequest.uniform(t_span=(.3,.4),max_step=(.4-.3)/5,sample_count=6)
         for solver in ('newton','broyden'):
             events=[]
-            method=BM4Implicit(track_energy=True, nonlinear_solver=solver, coupling_frequency=.4, step_observer=events.append)
+            method=BM4Implicit(track_energy=True, nonlinear_solver=solver, step_observer=events.append)
             result=simulate(problem,method,request)
             # The independent diagnostic reconstructs accepted spatial stages.
             obs=GCGeneralizedEnergyObserver(problem.dynamics, initial_state=problem.initial_state, initial_time=.3)

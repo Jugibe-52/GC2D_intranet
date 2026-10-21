@@ -1,5 +1,7 @@
 """Single-run energy-balance and trajectory study with a DOP853 reference."""
 
+from contracts._study_validation import require_uncoupled_bm4
+
 from formulations.layout import GCStateLayout
 from collections.abc import Mapping, Sequence
 from typing import Any
@@ -37,6 +39,7 @@ def run_energy_balance(potential: Potential, configuration: np.ndarray, config: 
     DOP853 controls the augmented (x,y,kappa) system adaptively with max_step=h.
     Fixed methods take exactly h. All persisted arrays use the same output grid.
     """
+    require_uncoupled_bm4(config.get('coupling_frequency', 0.0))
     cycles = config['cycles']
     steps = config['steps_per_cycle']
     saves = config['saves_per_cycle']
@@ -66,7 +69,7 @@ def run_energy_balance(potential: Potential, configuration: np.ndarray, config: 
                   newton_jacobian_relative_step=config['jacobian_relative_step'])
     observer = BM4EnergyBalanceObserver(dynamics, n, steps//saves)
     methods: dict[str, NumericalMethod] = {
-        'BM4Implicit': BM4Implicit(**common, coupling_frequency=config['coupling_frequency'], step_observer=observer),
+        'BM4Implicit': BM4Implicit(**common, step_observer=observer),
         'GaussLegendre4': GaussLegendre4(**common, track_energy=True),
         'RK4': RK4(track_energy=True),
     }

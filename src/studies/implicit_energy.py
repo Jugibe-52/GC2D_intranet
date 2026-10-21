@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from contracts._study_validation import require_uncoupled_bm4
+
 from formulations.layout import GCStateLayout
 
 from dataclasses import dataclass
@@ -94,6 +96,7 @@ class ImplicitGeneralizedEnergyConfig:
 
 	def __post_init__(self) -> None:
 		"""Validate all controls before running the four refinements."""
+		require_uncoupled_bm4(self.coupling_frequency)
 		object.__setattr__(self, "steps", _validated_steps(tuple(self.steps)))
 		start, stop = unpacked_time_span(self.t_span)
 		object.__setattr__(self, "t_span", (start, stop))
@@ -457,7 +460,6 @@ def _method_for_run(
 			step_observer=observer,
 		)
 	return BM4Implicit(
-		coupling_frequency=config.coupling_frequency,
 		newton_absolute_tolerance=config.newton_absolute_tolerance,
 		newton_relative_tolerance=config.newton_relative_tolerance,
 		newton_max_iterations=config.newton_max_iterations,
