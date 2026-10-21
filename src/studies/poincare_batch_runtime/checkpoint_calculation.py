@@ -38,7 +38,7 @@ def calculate_checkpointed_group(
     from methods.extended.core.composition import BM4
     from methods.extended.core.projection import solve_projection
     from methods.extended.core.midpoint import midpoint_step
-    from methods._nonlinear import SolverOptions
+    from solvers.nonlinear import SolverOptions
     import parallel_calculation
 
     indices = np.asarray(indices, dtype=int)

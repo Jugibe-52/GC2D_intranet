@@ -25,7 +25,7 @@ Scalar option validators are defined in `methods._validation`; projection and
 state-extension selectors remain in `methods.extended.configuration`. Internal
 consumers import numeric validators from their defining module. Newton and
 Broyden share initial-vector, stopping-control and residual validation in
-`methods._nonlinear`. Cached residuals are checked without another evaluation;
+`solvers.nonlinear`. Cached residuals are checked without another evaluation;
 singularity, stagnation and convergence checks stay inside the numerical loops.
 
 Initialization binds this model's recipe and options. The ordinary implicit
@@ -114,3 +114,15 @@ electric fields follow the potential class; `evaluate_grid` remains NumPy-only. 
 [shared potential contract](../../../dynamics/jax-potential-evaluation.md).
 
 Initial data are packed NumPy arrays, including the output of `states.generators`. `formulations.layout` supplies GC/FC layouts; `request.SimulationRequest` owns the initial time and output schedule. Controllers manage the current internal `IntegrationState`; `states.States` stores physical samples and becomes the completed result. Several methods can share a formulation. See the [migration guide](../../../simulation/api-migration.md).
+
+## Initial data and numerical components
+
+The public problem constructor also accepts `states.InitialConditions`; existing
+packed-array callers remain supported. See the [component interface](../../../simulation/initial-solvers-formulations.md)
+for ownership, array shapes and unchanged request/result boundaries.
+
+ABBA separates `ReducedProjection` and `SimultaneousProjection` in
+`formulations.projection`; the method provides the composition and its derivative.
+The equation object owns the 2N/6N residual and reconstruction. `solver=` accepts
+NewtonSolver or BroydenSolver; the existing string choices and tolerance keywords
+remain supported. CPU and JAX use the same equation classes.

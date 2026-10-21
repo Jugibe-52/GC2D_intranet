@@ -1,8 +1,7 @@
 """Run a short guiding-center trajectory through the canonical public API."""
 
-from formulations.layout import GCStateLayout
+from states import InitialConditions
 
-import numpy as np
 
 from dynamics import GuidingCenterDynamics
 
@@ -23,8 +22,8 @@ potential = Potential.random(
 	seed=27,
 	interpolation_order=5,
 )
-configuration = GCStateLayout().pack_components(np.asarray([1.0]), np.asarray([1.2]))
-problem = InitialValueProblem(GuidingCenterDynamics(potential, rho=0.05), configuration, layout=GCStateLayout())
+configuration = InitialConditions.gc(x=[1.0], y=[1.2])
+problem = InitialValueProblem(GuidingCenterDynamics(potential, rho=0.05), configuration)
 request = SimulationRequest.uniform(
 	t_span=(0.0, 0.2),
 	max_step=0.01,

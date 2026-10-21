@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from typing import Literal, TypeAlias
+from formulations.projection import ProjectionChoice, resolve_projection
 
 
 ProjectionFormulation: TypeAlias = Literal[
@@ -29,14 +30,9 @@ ABBA_STATE_EXTENSIONS: tuple[StateExtension, ...] = (
 )
 
 
-def _validate_projection_formulation(value: str) -> ProjectionFormulation:
-	"""Return one supported implicit-projection formulation."""
-	if value not in ABBA_PROJECTION_FORMULATIONS:
-		raise ValueError(
-			"`projection_formulation` must be 'reduced_multiplier' or "
-			"'simultaneous_state_multiplier'."
-		)
-	return value
+def _validate_projection_formulation(value: ProjectionChoice) -> ProjectionFormulation:
+	"""Normalize a public equation object or its established string name."""
+	return resolve_projection(value).name
 
 
 def _validate_projection_placement(value: str) -> ProjectionPlacement:

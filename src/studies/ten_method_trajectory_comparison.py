@@ -28,7 +28,7 @@ from methods.extended.abba import ABBA2Implicit
 
 from contracts.problem import InitialValueProblem
 from methods.extended.abba import ABBA2Midpoint
-from methods._nonlinear import NonlinearSolver
+from solvers.nonlinear import NonlinearSolver
 from methods.base import NumericalMethod
 from request import SimulationRequest
 from states.history import States

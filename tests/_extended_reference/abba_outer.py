@@ -6,9 +6,9 @@ from methods.extended.observations import abba_pairs
 from methods.extended.core.projection import solve_projection
 from methods.extended.core.composition import ABBA4
 from tests._extended_reference.abba_maps import uncoupled_maps
-from methods._nonlinear import SolverOptions
+from solvers.nonlinear import SolverOptions
 from dynamics import GuidingCenterJacobianSystem
-from methods._nonlinear import NonlinearSolver, _solve_broyden, _solve_newton
+from solvers.nonlinear import NonlinearSolver, _solve_broyden, _solve_newton
 from methods.extended.core.composition import _ABBA4_COEFFICIENTS
 from methods.extended.configuration import ProjectionFormulation
 from tests._extended_reference.abba_maps import _ABBAStages, _evaluate_unprojected_stages, _differentiate_stages

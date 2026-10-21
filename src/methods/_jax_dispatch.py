@@ -21,6 +21,7 @@ from methods.hbvm.order4 import HBVM42
 from methods.extended.abba import ABBA2Implicit, ABBA4Implicit, ABBA6Implicit, ABBA2Midpoint
 from methods.extended.bm4 import BM4Implicit, BM4Midpoint
 from methods.extended.core.composition import ABBA2, BM4
+from formulations.projection import resolve_projection
 
 
 Options = TypeVar("Options", ExplicitOptions, ImplicitOptions, CompositionOptions)
@@ -102,7 +103,7 @@ def _abba(method: ABBA2Implicit | ABBA4Implicit | ABBA6Implicit,
 	solve = NonlinearOptions(method.newton_absolute_tolerance, method.newton_relative_tolerance,
 		method.newton_max_iterations, "analytic", 0., method.nonlinear_solver)
 	options = CompositionOptions(method.track_energy, method.recipe.coefficients, None,
-		method.projection_formulation, solve, publish_substeps=method.order != 2)
+		resolve_projection(method.projection_formulation).name, solve, publish_substeps=method.order != 2)
 	return PreparedJaxStep(dynamics, device, options, extended_step)
 
 

@@ -33,7 +33,7 @@ from dynamics import GuidingCenterDynamics
 from potential import GC2DH5Metadata, Potential
 from methods.extended.abba import ABBA4Implicit
 from contracts.problem import InitialValueProblem
-from methods._nonlinear import NonlinearSolver
+from solvers.nonlinear import NonlinearSolver
 from methods.base import NumericalMethod
 from methods.extended.configuration import ProjectionFormulation, StateExtension
 from request import SimulationRequest

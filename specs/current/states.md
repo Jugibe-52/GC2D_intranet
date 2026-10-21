@@ -2,12 +2,12 @@
 schema_version = 1
 kind = "spec"
 id = "states"
-sources = ["src/execution/state.py", "src/states/history.py", "src/formulations/layout.py", "src/states/generators.py", "src/diagnostics/geometry.py"]
-documents = ["docs/simulation/api-migration.md", "docs/dynamics/protocols.md"]
+sources = ["src/states/initial.py", "src/execution/state.py", "src/states/history.py", "src/formulations/layout.py", "src/states/generators.py", "src/diagnostics/geometry.py"]
+documents = ["docs/simulation/initial-solvers-formulations.md", "docs/simulation/api-migration.md", "docs/dynamics/protocols.md"]
 
 [[requirements]]
 id = "STA-001"
-tests = ["tests/test_states.py", "tests/test_state_ownership.py", "tests/test_core.py"]
+tests = ["tests/test_initial_solvers_formulations.py", "tests/test_states.py", "tests/test_state_ownership.py", "tests/test_core.py"]
 
 [[requirements]]
 id = "STA-002"
@@ -46,3 +46,15 @@ Invalid input leaves it empty; partially recorded or completed histories cannot
 be overwritten. Recording does not finalize the result. Compiled execution uses
 this bulk operation and the executor then applies the same finalization boundary
 as streaming CPU recording.
+
+## Explicit physical initial conditions
+
+`states.InitialConditions` owns a validated packed array and copied structural
+layout. GC/FC factories accept one-dimensional component arrays; all public data
+access returns independent copies. The class is immutable and remains protected
+after pickle. `InitialValueProblem.initial_conditions` owns this input; a supplied
+object already carries its layout, so an additional layout argument is rejected.
+Raw arrays remain accepted and normalize through the same class. Compatibility
+with dynamics is checked by the problem; `initial_state` still returns an array.
+Time, generated geometries, internal integration state and saved results retain
+their existing contracts.

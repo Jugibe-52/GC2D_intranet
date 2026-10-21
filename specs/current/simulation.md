@@ -2,12 +2,12 @@
 schema_version = 1
 kind = "spec"
 id = "simulation"
-sources = ["src/simulation/runner.py", "src/contracts/problem.py", "src/request.py", "src/execution/execution.py", "src/execution/_jax.py", "src/methods/base.py"]
-documents = ["docs/simulation/integration-architecture.md", "docs/simulation/execution.md", "docs/simulation/jax-execution.md"]
+sources = ["src/states/initial.py", "src/solvers/nonlinear.py", "src/formulations/projection.py", "src/simulation/runner.py", "src/contracts/problem.py", "src/request.py", "src/execution/execution.py", "src/execution/_jax.py", "src/methods/base.py"]
+documents = ["docs/simulation/initial-solvers-formulations.md", "docs/simulation/integration-architecture.md", "docs/simulation/execution.md", "docs/simulation/jax-execution.md"]
 
 [[requirements]]
 id = "SIM-001"
-tests = ["tests/test_core.py::SimulationTests.test_problem_and_request_validate_initial_state_and_time_span", "tests/test_state_ownership.py::StateOwnershipTests.test_problem_and_prepared_formulations_own_state_and_layout_snapshots"]
+tests = ["tests/test_initial_solvers_formulations.py", "tests/test_core.py::SimulationTests.test_problem_and_request_validate_initial_state_and_time_span", "tests/test_state_ownership.py::StateOwnershipTests.test_problem_and_prepared_formulations_own_state_and_layout_snapshots"]
 
 [[requirements]]
 id = "SIM-002"
@@ -32,7 +32,18 @@ and [executor contract](../../docs/simulation/execution.md).
 
 ## SIM-001: Validated problem snapshot
 
-`InitialValueProblem(dynamics, initial_state, layout=...)` binds compatible dynamics, a raw physical array and a structural layout. The initial vector must be finite, one-dimensional and contain complete particle blocks. The layout dimension matches the dynamics. State and layout snapshots are owned, with no retained provider identity. When omitted, the layout is selected for canonical GC/FC dimensions; other dimensions require an explicit layout. The initial time belongs exclusively to `request.SimulationRequest` and may be nonzero. Generators in `states.generators` return arrays. See [state contracts](states.md).
+`InitialValueProblem(dynamics, initial_state, layout=...)` associates compatible
+dynamics with `states.InitialConditions` or a packed physical array. The initial
+vector is finite, one-dimensional and contains complete particle blocks; its
+layout dimension matches the dynamics. InitialConditions owns copies of the
+values and layout, remains immutable after pickle, and returns independent data.
+A supplied object already carries its layout, so an additional layout argument
+is rejected. Raw arrays normalize through the same owner, using canonical GC/FC
+layouts when omitted; other dimensions require an explicit layout.
+`initial_conditions` exposes the immutable owner and `initial_state` returns a
+fresh array. The initial time belongs exclusively to `request.SimulationRequest`
+and may be nonzero. Geometry generators still return arrays. See the
+[state contracts](states.md).
 
 ## SIM-002: Complete, increasing output schedule
 
@@ -79,3 +90,15 @@ from execution. There is no separate integration package or compatibility import
 ## SIM-004: Output agreement with the request and initial state
 
 Every execution, including custom executors, must return completed `States`. The runner validates exact saved times, physical state size, layout dimension, independent initial snapshot and first saved column against the request and problem. It returns the same result object without conversion to another container. Incompatible output raises `ValueError`. Structural storage guarantees are specified by [SOL-001 through SOL-003](results.md).
+
+## Configurable nonlinear resolution
+
+Local implicit methods accept immutable `solver=` configurations. Explicit objects
+supply their tolerances and limits; omission preserves existing defaults. Newton
+supports Gauss, SDIRK, HBVM and projections; Broyden supports ABBA/BM4 projections.
+Unsupported solver classes and combinations fail explicitly. Each solve has its
+own work state. ABBA accepts ReducedProjection/SimultaneousProjection or legacy
+names; their shared equations own 2N/6N unknowns, residuals and reconstruction in
+both CPU and JAX paths. Physical scales, work counters, HBVM norms/backtracking,
+particle blocks and independent shadow samples retain their numerical meaning.
+See [component interface](../../docs/simulation/initial-solvers-formulations.md).

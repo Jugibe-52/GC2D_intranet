@@ -169,20 +169,14 @@ refitting. Persistent potential device caches must contain concrete arrays only:
 zero-argument JIT closures over JAX arrays can trace conversions even when the
 original arguments are not tracers. See `docs/dynamics/jax-potential-evaluation.md`.
 
-## SDD record references
+## SDD documents
 
-The SDD schema and lifecycle are maintained in `specs/README.md`. Machine-checked
-file references must already exist, even in drafts; describe planned new files
-in the proposal prose until implementation creates them. Reserve new requirement
-IDs through the change's `proposed_requirements`, then establish them in current
-contracts before verification. Keep prior outcomes in the narrative when a
-scope revision resets approval or evidence. The checker uses Python's standard
-library and inspects test selectors statically without importing test modules.
-Current contracts retain schema version 1. Change records use version 2 in
-`specs/changes/<id>/{spec,plan,tasks}.md`; migrate their layout without rewriting
-historical acceptance or results. Declared upstream revisions expose stale
-plans/tasks: warnings in drafts, errors after approval. The skill must review
-semantic changes; revision numbers alone do not prove alignment.
+See `specs/README.md` for the readable change workflow. The checker accepts new
+plain Markdown changes alongside older three-part records and current contracts;
+it never executes recorded procedures. Keep historical records in their existing
+format, preserving acceptance and results rather than converting them merely to
+report status. Spanish reading copies are excluded from document checks. File
+presence and structural validation do not establish that work was completed.
 
 ## Fixed 48-particle Poincare automation
 
@@ -201,8 +195,10 @@ cases remain explicit. See `docs/studies/poincare-automation.md`.
 
 ## Current state and saved physical states
 
-Initial values are packed NumPy arrays; `states.generators` returns arrays.
-`InitialValueProblem` snapshots values and a structural layout. Physical GC/FC
+`states.initial.InitialConditions` owns physical values and a copied structural
+layout, with GC/FC factories and independent public arrays. `InitialValueProblem`
+associates it with compatible dynamics; array input and array-valued initial_state
+remain supported. `states.generators` still returns arrays. Physical GC/FC
 layouts live in `formulations.layout` and preserve NumPy/JAX operations; named
 GCState/FCState tuples are component views, not container subclasses.
 `request.SimulationRequest` alone owns the initial time and output schedule.
@@ -216,6 +212,21 @@ Solution and IntegrationCollector routes have no aliases. Archive schemas and
 save_solution/load_solution stay unchanged; old archives may lack initial data.
 Area remains in `diagnostics.geometry`, geometry labels in study metadata.
 See `docs/simulation/api-migration.md` and `specs/current/states.md`.
+
+## Reusable solvers and projection equations
+
+`solvers` owns immutable NewtonSolver/BroydenSolver configurations and shared
+algebraic operations; each solve owns its work arrays. Explicit solver= controls
+tolerances and iteration limits; omitted solvers retain legacy method defaults.
+Gauss, SDIRK and HBVM accept Newton; ABBA/BM4 also accept Broyden. Preserve HBVM's
+matrix infinity norm, damping and initial-residual-before-Jacobian validation.
+`formulations.projection` owns ReducedProjection (2N unknowns) and
+SimultaneousProjection (6N), including guesses, residuals, Jacobian assembly and
+reconstruction. Methods supply compositions/derivatives; Gauss keeps its stage
+equations. ABBA accepts both classes or legacy strings; BM4 remains reduced.
+Use canonical solvers.nonlinear/linear/_jax imports, not retired methods private
+modules. Built-in solver/formulation types are exact to preserve CPU/JAX behavior.
+See `docs/simulation/initial-solvers-formulations.md` for contracts and examples.
 
 ## Executor-owned integration
 

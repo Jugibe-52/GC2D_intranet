@@ -29,7 +29,7 @@ remains [theory.tex](../tex/theory.tex), with its compiled
 
 Constructor controls use the typed scalar validators in `methods._validation`,
 including rejection of boolean tolerances and coupling frequencies. Shared
-Newton/Broyden input and cached-residual checks live in `methods._nonlinear`;
+Newton/Broyden input and cached-residual checks live in `solvers.nonlinear`;
 they preserve ownership of the initial arrays and do not add residual evaluations.
 Numerical convergence and singularity guards remain in their solve loops.
 
@@ -162,3 +162,13 @@ electric fields follow the potential class; `evaluate_grid` remains NumPy-only. 
 [shared potential contract](../../../dynamics/jax-potential-evaluation.md).
 
 Initial data are packed NumPy arrays, including the output of `states.generators`. `formulations.layout` supplies GC/FC layouts; `request.SimulationRequest` owns the initial time and output schedule. Controllers manage the current internal `IntegrationState`; `states.States` stores physical samples and becomes the completed result. Several methods can share a formulation. See the [migration guide](../../../simulation/api-migration.md).
+
+## Initial data and numerical components
+
+The public problem constructor also accepts `states.InitialConditions`; existing
+packed-array callers remain supported. See the [component interface](../../../simulation/initial-solvers-formulations.md)
+for ownership, array shapes and unchanged request/result boundaries.
+
+BM4 uses `ReducedProjection` for its existing 2N multiplier system and accepts
+`solver=NewtonSolver(...)` or `solver=BroydenSolver(...)`. Composition, coupling,
+physical scaling and the single outer projection remain unchanged.

@@ -56,8 +56,12 @@ from .runner import (
 	simulate,
 )
 from states.history import States
+from states.initial import InitialConditions
+from solvers.nonlinear import NewtonSolver, BroydenSolver
+from formulations.projection import ReducedProjection, SimultaneousProjection
 
 __all__ = [
+	"InitialConditions", "NewtonSolver", "BroydenSolver", "ReducedProjection", "SimultaneousProjection",
 	"PhysicalFormulation",
 	"DoubledFormulation",
 	"DOP853",

@@ -6,22 +6,23 @@ import numpy as np
 
 from contracts.nonlinear import NewtonObserver
 from formulations.gc import GCDoubledMaps
-from methods._linear import _solve_particle_systems
-from methods._nonlinear import SolverOptions, SolveStats, _bind_newton_observer, _solve_broyden, _solve_newton
+from solvers.linear import _solve_particle_systems
+from solvers.nonlinear import SolverOptions, SolveStats, _bind_newton_observer, configured_solver, NewtonSolver, BroydenSolver, AlgebraicSolver
 from methods.extended.core.composition import Composition, compose
-from methods.extended.configuration import ProjectionFormulation
+from formulations.projection import ProjectionChoice, resolve_projection
 from methods.extended.core.jacobians import central_difference_jacobian, particle_jacobians
 from methods.extended.core.records import CompositionTrace, ProjectedMapResult
 
 
 def solve_projection(
     maps: GCDoubledMaps, recipe: Composition, options: SolverOptions,
-    formulation: ProjectionFormulation,
+    formulation: ProjectionChoice,
     t: float, state: np.ndarray, h: float, *,
     jacobian_method: Literal['analytic', 'finite_difference'] = 'analytic',
     jacobian_relative_step: float = float(np.cbrt(np.finfo(float).eps)),
     retain_energy_points: bool = False,
     newton_observer: NewtonObserver | None = None,
+    solver: AlgebraicSolver | None = None,
 ) -> ProjectedMapResult:
     """Solve the selected equation around one complete unprojected recipe.
 
@@ -33,24 +34,19 @@ def solve_projection(
     if value.ndim != 1 or value.size != maps.physical_size or not np.all(np.isfinite(value)):
         raise ValueError("The projection requires a finite packed physical state.")
     size = value.size
-    simultaneous = formulation == 'simultaneous_state_multiplier'
-    if formulation not in ('reduced_multiplier', 'simultaneous_state_multiplier'):
-        raise ValueError("Unknown projection formulation.")
+    equations = resolve_projection(formulation)
+    selected_solver = solver or configured_solver(options.solver, options.absolute_tolerance,
+        options.relative_tolerance, options.max_iterations)
     tolerance = options.tolerance(value)
-    context = f'{recipe.name} {formulation} at t={t:.16g} with step={h:.16g}'
+    context = f'{recipe.name} {equations.name} at t={t:.16g} with step={h:.16g}'
     if newton_observer is not None and options.solver != 'newton':
         raise ValueError('A newton_observer requires nonlinear_solver="newton".')
 
     def evaluate(unknown: np.ndarray) -> tuple[np.ndarray, CompositionTrace]:
         """Evaluate a spatial residual and retain that exact map's trace."""
-        mu = unknown[2 * size:] if simultaneous else unknown
+        mu = equations.multiplier(unknown, size)
         trace = compose(maps, recipe, t, np.concatenate((value + mu, value - mu)), h)
-        first, second = trace.state[:size], trace.state[size:]
-        if simultaneous:
-            u, v = unknown[:size], unknown[size:2 * size]
-            residual = np.concatenate((u - mu - first, v + mu - second, u - v))
-        else:
-            residual = first - second + 2 * mu
+        residual = equations.residual(unknown, trace.state, size)
         return residual, trace
 
     def newton_update(unknown: np.ndarray, residual: np.ndarray, trace: CompositionTrace) -> np.ndarray:
@@ -58,17 +54,7 @@ def solve_projection(
         if jacobian_method == 'analytic':
             base = particle_jacobians(maps, trace)
             count = maps.particle_count
-            identity = np.broadcast_to(np.eye(2), (count, 2, 2))
-            if simultaneous:
-                normal = np.concatenate((identity, -identity), axis=1)
-                constraint = np.concatenate((identity, -identity), axis=2)
-                identity4 = np.broadcast_to(np.eye(4), (count, 4, 4))
-                matrix = np.concatenate((
-                    np.concatenate((identity4, -(identity4 + base) @ normal), axis=2),
-                    np.concatenate((constraint, np.zeros((count, 2, 2))), axis=2),
-                ), axis=1)
-            else:
-                matrix = base[:, :2, :2] - base[:, :2, 2:] - base[:, 2:, :2] + base[:, 2:, 2:] + 2 * identity
+            matrix = equations.particle_jacobian(base)
             rhs = residual.reshape(-1, count).T
             correction = _solve_particle_systems(
                 matrix, rhs, singular_message=f'The projection Jacobian is singular for {context}.',
@@ -78,16 +64,7 @@ def solve_projection(
                 lambda candidate: compose(maps, recipe, t, candidate, h).state,
                 trace.state_before, relative_step=jacobian_relative_step,
             )
-            identity_dense = np.eye(size)
-            normal_dense = np.concatenate((identity_dense, -identity_dense), axis=0)
-            constraint_dense = normal_dense.T
-            if simultaneous:
-                matrix_dense = np.block([
-                    [np.eye(2 * size), -(np.eye(2 * size) + base_dense) @ normal_dense],
-                    [constraint_dense, np.zeros((size, size))],
-                ])
-            else:
-                matrix_dense = constraint_dense @ base_dense @ normal_dense + 2 * identity_dense
+            matrix_dense = equations.dense_jacobian(base_dense, size)
             try:
                 correction = np.linalg.solve(matrix_dense, residual)
             except np.linalg.LinAlgError as exc:
@@ -96,43 +73,27 @@ def solve_projection(
             raise ValueError('Unknown projection Jacobian method.')
         return np.asarray(unknown - correction)
 
-    initial = np.zeros(size)
-    cached = None
-    if simultaneous:
-        trace = compose(maps, recipe, t, np.concatenate((value, value)), h)
-        initial = np.concatenate((trace.state, initial))
-        cached = (np.concatenate((np.zeros(2 * size), trace.state[:size] - trace.state[size:])), trace)
-    if options.solver == 'broyden':
-        if simultaneous:
-            identity = np.eye(size)
-            normal = np.concatenate((identity, -identity), axis=0)
-            initial_jacobian = np.block([
-                [np.eye(2 * size), -2 * normal],
-                [normal.T, np.zeros((size, size))],
-            ])
-        else:
-            # D r(0) = G I N + 2I = 4I at zero step for every recipe.
-            initial_jacobian = 4 * np.eye(size)
-        result = _solve_broyden(evaluate, initial, initial_jacobian,
-            tolerance=tolerance, max_iterations=options.max_iterations,
-            context=context, initial_evaluation=cached)
-    elif options.solver == 'newton':
-        result = _solve_newton(evaluate, initial, newton_update,
-            tolerance=tolerance, max_iterations=options.max_iterations,
+    def initial_map(candidate: np.ndarray) -> tuple[np.ndarray, CompositionTrace]:
+        trace = compose(maps, recipe, t, candidate, h)
+        return trace.state, trace
+
+    initial, cached = equations.prepare(value, initial_map)
+    if isinstance(selected_solver, BroydenSolver):
+        result = selected_solver.solve(evaluate, initial, equations.initial_jacobian(value),
+            scale=value, context=context, initial_evaluation=cached)
+    elif isinstance(selected_solver, NewtonSolver):
+        result = selected_solver.solve(evaluate, initial, newton_update,
+            scale=value,
             context=context, initial_evaluation=cached,
             iteration_observer=_bind_newton_observer(
                 newton_observer, time=t, duration=h, tolerance=tolerance,
-                multiplier_slice=slice(2 * size, None) if simultaneous else slice(None),
+                multiplier_slice=equations.multiplier_slice(size),
             ))
     else:
         raise ValueError('Unknown nonlinear solver for spatial projection.')
-    if simultaneous:
-        first, second = result.unknown[:size], result.unknown[size:2 * size]
-        mu = result.unknown[2 * size:]
-    else:
-        mu = result.unknown
-        first, second = result.payload.state[:size] + mu, result.payload.state[size:] - mu
-    return ProjectedMapResult(t, h, value.copy(), (first + second) / 2, mu.copy(),
+    mu = equations.multiplier(result.unknown, size)
+    physical = equations.reconstruct(result.unknown, result.payload.state, size)
+    return ProjectedMapResult(t, h, value.copy(), physical, mu.copy(),
         SolveStats(options.solver, result.iterations, result.residual_evaluations,
             float(np.linalg.norm(result.residual, ord=np.inf)), tolerance), result.payload,
         retain_energy_points)

@@ -1,6 +1,6 @@
 """Interoperable numerical methods."""
 
-from methods._nonlinear import NONLINEAR_SOLVERS, NonlinearSolver
+from solvers.nonlinear import NONLINEAR_SOLVERS, NonlinearSolver
 from methods.adaptive import DOP853, Radau
 from methods.extended import (
 	BM4Implicit,

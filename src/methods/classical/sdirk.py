@@ -1,6 +1,7 @@
 """Five-stage, fourth-order singly diagonally implicit Runge--Kutta method."""
 
 from __future__ import annotations
+from solvers.nonlinear import NewtonSolver, AlgebraicSolver, validate_solver
 
 from dataclasses import dataclass, field
 
@@ -21,8 +22,8 @@ from contracts.nonlinear import NewtonObserver
 from contracts.problem import InitialValueProblem
 from request import SimulationRequest
 from methods._validation import _positive_finite, _positive_integer
-from methods._linear import _solve_particle_systems
-from methods._nonlinear import _bind_newton_observer, _solve_newton
+from solvers.linear import _solve_particle_systems
+from solvers.nonlinear import _bind_newton_observer
 from ._jacobians import (
 	JacobianMethod as SDIRKJacobianMethod,
 	ResolvedJacobianMethod as ResolvedSDIRKJacobianMethod,
@@ -130,6 +131,8 @@ def _solve_stage(
 	newton_observer: NewtonObserver | None = None,
 	stage_index: int | None = None,
 	step_time: float | None = None,
+	solver: NewtonSolver,
+	scale: np.ndarray,
 ) -> _StageResult:
 	"""Solve one diagonal stage with full Newton corrections."""
 	def evaluate(stage_state: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
@@ -167,9 +170,8 @@ def _solve_stage(
 			raise RuntimeError("The SDIRK Newton correction became non-finite.")
 		return np.asarray(stage_state + correction)
 
-	root = _solve_newton(
-		evaluate, initial_guess, update,
-		tolerance=tolerance, max_iterations=max_iterations,
+	root = solver.solve(
+		evaluate, initial_guess, update, scale=scale,
 		context=f"SDIRK4 at stage time t={stage_time:.16g} with h={step:.16g}",
 		iteration_observer=_bind_newton_observer(
 			newton_observer, time=stage_time if step_time is None else step_time,
@@ -195,6 +197,7 @@ def _solve_sdirk_step(
 	jacobian_method: ResolvedSDIRKJacobianMethod,
 	jacobian_relative_step: float,
 	newton_observer: NewtonObserver | None = None,
+	solver: NewtonSolver | None = None,
 ) -> _SDIRKStepResult:
 	"""Advance one S54b step through five sequential implicit solves."""
 	value = np.asarray(state, dtype=float)
@@ -205,6 +208,7 @@ def _solve_sdirk_step(
 		1.0,
 		float(np.linalg.norm(value, ord=np.inf)),
 	)
+	selected_solver = solver or NewtonSolver(absolute_tolerance, relative_tolerance, max_iterations)
 	stage_states: list[np.ndarray] = []
 	stage_fields: list[np.ndarray] = []
 	stage_iterations: list[int] = []
@@ -230,6 +234,7 @@ def _solve_sdirk_step(
 			jacobian_method=jacobian_method,
 			jacobian_relative_step=jacobian_relative_step,
 			newton_observer=newton_observer, stage_index=stage_index, step_time=time,
+			solver=selected_solver, scale=value,
 		)
 		stage_states.append(result.state)
 		stage_fields.append(result.field)
@@ -262,6 +267,8 @@ class SDIRK4(IntegrationMethod[_SDIRKStepResult]):
 
 	jax_mode = "device_resident"
 
+	solver: AlgebraicSolver | None = field(default=None, kw_only=True)
+
 	track_energy: bool = False
 	newton_absolute_tolerance: float = 1e-14
 	newton_relative_tolerance: float = 1e-13
@@ -280,6 +287,12 @@ class SDIRK4(IntegrationMethod[_SDIRKStepResult]):
 
 	def __post_init__(self) -> None:
 		"""Validate nonlinear and differentiation controls before integration."""
+		if self.solver is not None:
+			validate_solver(self.solver, newton_only=True)
+			self.newton_absolute_tolerance = self.solver.absolute_tolerance
+			self.newton_relative_tolerance = self.solver.relative_tolerance
+			self.newton_max_iterations = self.solver.max_iterations
+
 		self.newton_absolute_tolerance = _positive_finite(
 			self.newton_absolute_tolerance, "newton_absolute_tolerance", allow_boolean=True,
 		)
@@ -336,6 +349,7 @@ class SDIRK4(IntegrationMethod[_SDIRKStepResult]):
 		step: float,
 		*, newton_observer: NewtonObserver | None = None,
 	) -> _SDIRKStepResult:
+		assert self.solver is None or isinstance(self.solver, NewtonSolver)
 		return _solve_sdirk_step(
 			self.dynamics,
 			time,
@@ -346,7 +360,7 @@ class SDIRK4(IntegrationMethod[_SDIRKStepResult]):
 			max_iterations=self.newton_max_iterations,
 			jacobian_method=self.resolved_jacobian_method,
 			jacobian_relative_step=self.newton_jacobian_relative_step,
-			newton_observer=newton_observer,
+			newton_observer=newton_observer, solver=self.solver,
 		)
 
 	def advance(self, time: float, value: np.ndarray, step: float) -> StepResult[_SDIRKStepResult]:

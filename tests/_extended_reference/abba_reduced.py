@@ -7,11 +7,11 @@ from methods.extended.observations import abba_pairs
 from methods.extended.core.projection import solve_projection
 from methods.extended.core.composition import ABBA2
 from tests._extended_reference.abba_maps import uncoupled_maps
-from methods._nonlinear import SolverOptions
+from solvers.nonlinear import SolverOptions
 
 from dynamics import GuidingCenterJacobianSystem
 
-from methods._nonlinear import NonlinearSolver, _solve_broyden, _solve_newton
+from solvers.nonlinear import NonlinearSolver, _solve_broyden, _solve_newton
 from tests._extended_reference.abba_maps import _ProjectedStep
 from tests._extended_reference.abba_maps import (
 	_ABBAStages,

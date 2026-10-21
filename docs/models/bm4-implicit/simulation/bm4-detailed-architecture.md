@@ -165,3 +165,23 @@ GC/FC equations to JAX potentials sharing the existing splines, including the
 gyroaveraged field, without refitting or mutating the source dynamics. Inherited
 electric fields follow the potential class; `evaluate_grid` remains NumPy-only. See the
 [shared potential contract](../../../dynamics/jax-potential-evaluation.md).
+
+## Initial data and numerical components
+
+The public problem constructor also accepts `states.InitialConditions`; existing
+packed-array callers remain supported. See the [component interface](../../../simulation/initial-solvers-formulations.md)
+for ownership, array shapes and unchanged request/result boundaries.
+
+BM4 uses `ReducedProjection` for its existing 2N multiplier system and accepts
+`solver=NewtonSolver(...)` or `solver=BroydenSolver(...)`. Composition, coupling,
+physical scaling and the single outer projection remain unchanged.
+
+## Current component diagram
+
+The following model-specific diagram shows the current InitialConditions,
+executor-owned lifecycle, ReducedProjection and algebraic solver objects. The
+older detailed diagram above remains a historical artifact.
+
+![Current BM4 components](bm4-components.svg)
+
+[Diagram source](bm4-components.puml) and [PNG](bm4-components.png).

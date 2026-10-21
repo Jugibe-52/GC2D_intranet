@@ -123,3 +123,10 @@ Initial configurations are now packed NumPy arrays. Use `from formulations.layou
 Remove imports of `states.State`, `solution.Solution`, `contracts.result.IntegrationData`, `integration.IntegrationCollector`, `states.layout` and `contracts.request`. There are no compatibility modules. `InitialValueProblem.initial_configuration`, result `.source`, `.y` and `.trajectory` are removed. Compare initial snapshots by value rather than object identity. An executor must return complete `States`; `simulate` validates and returns it without creating another container. For changes to diagnostic metadata, use `.with_diagnostics(...)`.
 
 `save_solution` and `load_solution` keep their names and numerical archive schemas. Legacy files remain readable, including those without an initial snapshot. `calculate_area(values, layout=..., period=...)` stays in `diagnostics.geometry`. Geometry labels remain study metadata. Fixed shadow samples never replace the main state; adaptive dense output and the numerical algorithms are unchanged. JAX constructs the same `States` at its host boundary.
+
+## Explicit initial, solver and projection objects
+
+See [initial data and numerical components](initial-solvers-formulations.md) for
+`InitialConditions`, reusable NewtonSolver/BroydenSolver configurations and the
+two projection classes. Existing array inputs, method names, tolerance controls,
+simulate/executor signatures and stored result formats remain supported.

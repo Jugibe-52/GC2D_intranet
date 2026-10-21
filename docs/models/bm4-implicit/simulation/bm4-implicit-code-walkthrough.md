@@ -28,3 +28,13 @@ The analytic path solves independent 2-by-2 reduced particle blocks. The
 finite-difference path retains its dense complete-map differentiation. Neither
 choice changes the reduced equation, signed coefficients, coupling setting,
 projection placement or public result contract.
+
+## Initial data and numerical components
+
+The public problem constructor also accepts `states.InitialConditions`; existing
+packed-array callers remain supported. See the [component interface](../../../simulation/initial-solvers-formulations.md)
+for ownership, array shapes and unchanged request/result boundaries.
+
+BM4 uses `ReducedProjection` for its existing 2N multiplier system and accepts
+`solver=NewtonSolver(...)` or `solver=BroydenSolver(...)`. Composition, coupling,
+physical scaling and the single outer projection remain unchanged.

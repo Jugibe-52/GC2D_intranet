@@ -77,6 +77,8 @@ class Execution:
 				kernel = prepare_step(run, prepared, device)
 			saved = States.prepare(request.output_times, problem.initial_state, layout=problem.layout)
 			if kernel is None:
+				# Record physical samples and step statistics in saved; return a dictionary
+				# with output_interpolation_count and optional formulation diagnostics.
 				details = run_steps(run, saved)
 			else:
 				from execution._jax_fixed import run_steps as run_compiled_steps

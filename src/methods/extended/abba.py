@@ -1,5 +1,6 @@
 """Public ABBA configurations sharing one composition and outer projection."""
 from __future__ import annotations
+from solvers.nonlinear import NewtonSolver, AlgebraicSolver, validate_solver
 
 from dataclasses import dataclass, field
 from functools import partial
@@ -15,9 +16,10 @@ from contracts.result import DiagnosticValue
 from contracts.step import StepInfo, StepResult
 from dynamics import DynamicalSystem, GuidingCenterJacobianSystem
 from formulations.gc import GCDoubledMaps
+from formulations.projection import ProjectionChoice
 from formulations.state import DoubledFormulation
 from methods.base import IntegrationMethod
-from methods._nonlinear import NonlinearSolver, SolverOptions, _validate_nonlinear_solver
+from solvers.nonlinear import NonlinearSolver, SolverOptions, _validate_nonlinear_solver
 from methods.extended.configuration import (
     ProjectionFormulation, ProjectionPlacement, StateExtension,
     _state_dimension_diagnostics, _validate_projection_formulation,
@@ -39,7 +41,9 @@ class _ABBAImplicitMethod(IntegrationMethod[ProjectedMapResult]):
 
     jax_mode = "device_resident"
 
-    projection_formulation: ProjectionFormulation = "reduced_multiplier"
+    solver: AlgebraicSolver | None = field(default=None, kw_only=True)
+
+    projection_formulation: ProjectionChoice = "reduced_multiplier"
     state_extension: StateExtension = "physical"
     newton_absolute_tolerance: float = 1e-13
     newton_relative_tolerance: float = 1e-12
@@ -58,7 +62,14 @@ class _ABBAImplicitMethod(IntegrationMethod[ProjectedMapResult]):
 
     def __post_init__(self) -> None:
         """Validate the common spatial projection and nonlinear solver controls."""
-        self.projection_formulation = _validate_projection_formulation(self.projection_formulation)
+        if self.solver is not None:
+            validate_solver(self.solver, newton_only=False)
+            self.newton_absolute_tolerance = self.solver.absolute_tolerance
+            self.newton_relative_tolerance = self.solver.relative_tolerance
+            self.newton_max_iterations = self.solver.max_iterations
+            self.nonlinear_solver = self.solver.name
+
+        _validate_projection_formulation(self.projection_formulation)
         self.state_extension = _validate_state_extension(self.state_extension)
         self.track_energy = bool(self.track_energy)
         self.newton_absolute_tolerance = _positive_finite(self.newton_absolute_tolerance, 'newton_absolute_tolerance')
@@ -80,6 +91,7 @@ class _ABBAImplicitMethod(IntegrationMethod[ProjectedMapResult]):
         self.project = partial(
             solve_projection, GCDoubledMaps(problem, coupling_frequency=None),
             self.recipe, options, self.projection_formulation,
+            solver=self.solver,
             retain_energy_points=self.track_energy,
         )
         if options.solver == "newton":
@@ -90,7 +102,7 @@ class _ABBAImplicitMethod(IntegrationMethod[ProjectedMapResult]):
         self.build_event = None
         if self.step_observer is not None:
             self.build_event = bind_event_builder(
-                dynamics, name, self.projection_formulation, order=self.order,
+                dynamics, name, _validate_projection_formulation(self.projection_formulation), order=self.order,
                 coefficients=coefficients, project=self.project,
             )
         metadata: dict[str, DiagnosticValue] = {
@@ -99,14 +111,14 @@ class _ABBAImplicitMethod(IntegrationMethod[ProjectedMapResult]):
             "nonlinear_absolute_tolerance": options.absolute_tolerance,
             "nonlinear_relative_tolerance": options.relative_tolerance,
             "nonlinear_max_iterations": options.max_iterations,
-            "projection_formulation": self.projection_formulation,
+            "projection_formulation": _validate_projection_formulation(self.projection_formulation),
             "projection_placement": "around_complete_composition",
             "state_extension": self.state_extension,
             "track_energy": self.track_energy,
             "composition_stage_count": len(self.recipe.coefficients),
         }
         metadata.update(_state_dimension_diagnostics(
-            self.projection_formulation,
+            _validate_projection_formulation(self.projection_formulation),
             particle_count=problem.particle_count,
         ))
         if self.order != 2:

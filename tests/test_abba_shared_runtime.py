@@ -14,7 +14,7 @@ from dynamics import GuidingCenterDynamics
 
 from potential import Potential
 from simulation import ABBA2Implicit, ABBA4Implicit, ABBA6Implicit, InitialValueProblem, SimulationRequest, simulate
-from methods._nonlinear import _solve_newton
+from solvers.nonlinear import _solve_newton
 from methods.extended.core.records import CompositionTrace, ProjectedMapResult
 from contracts.step import StepInfo
 

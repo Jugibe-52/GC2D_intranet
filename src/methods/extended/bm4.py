@@ -1,5 +1,6 @@
 """BM4 configuration and observation adapters on the shared extended engine."""
 from __future__ import annotations
+from solvers.nonlinear import NewtonSolver, AlgebraicSolver, validate_solver
 from dataclasses import dataclass, field
 from functools import partial
 from typing import Literal, TypeAlias
@@ -12,7 +13,7 @@ from contracts.result import DiagnosticValue
 from contracts.observation import ImplicitBM4IntegrationStep, StepObserver
 from contracts.problem import InitialValueProblem
 from request import SimulationRequest
-from methods._nonlinear import NonlinearSolver, SolverOptions, _validate_nonlinear_solver
+from solvers.nonlinear import NonlinearSolver, SolverOptions, _validate_nonlinear_solver
 from methods._validation import _positive_finite, _positive_integer, _nonnegative_finite
 from methods.extended.configuration import (
     StateExtension,
@@ -73,6 +74,8 @@ class BM4Implicit(IntegrationMethod[_ProjectedBM4Step]):
 
 	jax_mode = "device_resident"
 
+	solver: AlgebraicSolver | None = field(default=None, kw_only=True)
+
 	# Harmonic coupling of the two temporary physical copies.
 	coupling_frequency: float = 0.0
 	# np.ndarray-scaled stopping threshold and common nonlinear correction limit.
@@ -96,6 +99,13 @@ class BM4Implicit(IntegrationMethod[_ProjectedBM4Step]):
 
 	def __post_init__(self) -> None:
 		"""Validate and normalize all numeric and enumerated solver controls."""
+		if self.solver is not None:
+			validate_solver(self.solver, newton_only=False)
+			self.newton_absolute_tolerance = self.solver.absolute_tolerance
+			self.newton_relative_tolerance = self.solver.relative_tolerance
+			self.newton_max_iterations = self.solver.max_iterations
+			self.nonlinear_solver = self.solver.name
+
 		# Normalize controls before they are copied into individual runs.
 		self.coupling_frequency = _nonnegative_finite(self.coupling_frequency, 'coupling_frequency')
 		self.newton_absolute_tolerance = _positive_finite(self.newton_absolute_tolerance, 'newton_absolute_tolerance')
@@ -120,7 +130,7 @@ class BM4Implicit(IntegrationMethod[_ProjectedBM4Step]):
 		self.project = partial(solve_projection, self.formulation, BM4,
 		    SolverOptions(self.nonlinear_solver, self.newton_absolute_tolerance,
 		                  self.newton_relative_tolerance, self.newton_max_iterations),
-		    'reduced_multiplier', jacobian_method=self.newton_jacobian_method,
+		    'reduced_multiplier', solver=self.solver, jacobian_method=self.newton_jacobian_method,
 		    jacobian_relative_step=self.newton_jacobian_relative_step,
 		    retain_energy_points=self.track_energy)
 		metadata: dict[str, DiagnosticValue] = {

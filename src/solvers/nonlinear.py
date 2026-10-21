@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Generic, Literal, TypeAlias, TypeVar
+from typing import ClassVar, Generic, Literal, TypeAlias, TypeVar
 
 import numpy as np
 
@@ -250,6 +250,9 @@ def _solve_newton(
 	context: str,
 	initial_evaluation: tuple[np.ndarray, _Payload] | None = None,
 	iteration_observer: _IterateObserver | None = None,
+	norm: Callable[[np.ndarray], float] | None = None,
+	backtracking: bool = False,
+	update_returns_correction: bool = False,
 ) -> _NonlinearResult[_Payload]:
 	"""Share convergence and counters while the formulation owns Newton algebra.
 
@@ -259,25 +262,46 @@ def _solve_newton(
 	"""
 	unknown = _validated_initial_unknown(initial_unknown, "Newton")
 	_validate_solver_controls(tolerance, max_iterations, "Newton")
+	measure = _infinity_norm if norm is None else norm
+	if backtracking and not update_returns_correction:
+		raise ValueError("Backtracking requires an additive Newton correction.")
+	evaluations = 0
+	cached = initial_evaluation
 	for iteration in range(int(max_iterations) + 1):
-		if iteration == 0 and initial_evaluation is not None:
-			residual, payload = initial_evaluation
+		if cached is not None:
+			residual, payload = cached
 			residual = _validated_residual(
 				residual, unknown, "The cached Newton residual must be finite and match the unknown.",
 			)
+			if iteration == 0:
+				evaluations += 1
+			cached = None
 		else:
 			residual, payload = _checked_residual_evaluation(residual_function, unknown)
-		residual_norm = float(np.linalg.norm(residual, ord=np.inf))
+			evaluations += 1
+		residual_norm = measure(residual)
 		if iteration_observer is not None:
 			iteration_observer(iteration, unknown, residual, residual_norm)
 		if residual_norm <= tolerance:
 			return _NonlinearResult(
 				unknown=unknown.copy(), residual=residual.copy(), payload=payload,
-				iterations=iteration, residual_evaluations=iteration + 1,
+				iterations=iteration, residual_evaluations=evaluations,
 			)
 		if iteration == max_iterations:
 			break
 		next_unknown = np.asarray(update(unknown, residual, payload), dtype=float)
+		if update_returns_correction:
+			correction = next_unknown
+			damping = 1.0
+			while True:
+				next_unknown = unknown + damping * correction
+				if not backtracking:
+					break
+				cached = _checked_residual_evaluation(residual_function, next_unknown)
+				evaluations += 1
+				if measure(cached[0]) < residual_norm or damping <= 1.0 / 128.0:
+					break
+				damping /= 2.0
 		if next_unknown.shape != unknown.shape or not np.all(np.isfinite(next_unknown)):
 			raise RuntimeError(f"The Newton correction became invalid for {context}.")
 		unknown = next_unknown
@@ -287,4 +311,99 @@ def _solve_newton(
 	)
 
 
-__all__ = ["NONLINEAR_SOLVERS", "NonlinearSolver"]
+def _infinity_norm(value: np.ndarray) -> float:
+	return float(np.linalg.norm(value, ord=np.inf))
+
+
+@dataclass(frozen=True, slots=True)
+class _SolverConfiguration:
+	"""Immutable controls; all work arrays belong to individual solve calls."""
+
+	absolute_tolerance: float = 1e-13
+	relative_tolerance: float = 1e-12
+	max_iterations: int = 12
+
+	def __post_init__(self) -> None:
+		for name in ('absolute_tolerance', 'relative_tolerance'):
+			value = getattr(self, name)
+			if isinstance(value, (bool, np.bool_)) or not np.isfinite(value) or value <= 0:
+				raise ValueError(f"`{name}` must be positive and finite.")
+			object.__setattr__(self, name, float(value))
+		_validate_solver_controls(self.absolute_tolerance, self.max_iterations, 'nonlinear')
+		object.__setattr__(self, 'max_iterations', int(self.max_iterations))
+
+	def tolerance(self, scale: np.ndarray) -> float:
+		"""Use the supplied physical-state scale, independent of root coordinates."""
+		return self.absolute_tolerance + self.relative_tolerance * max(1.0, _infinity_norm(scale))
+
+
+@dataclass(frozen=True, slots=True)
+class NewtonSolver(_SolverConfiguration):
+	"""Newton iteration with a supplied Jacobian or specialized update."""
+
+	name: ClassVar[Literal['newton']] = 'newton'
+
+	def solve(
+		self, evaluate: _ResidualFunction[_Payload], initial: np.ndarray,
+		update: Callable[[np.ndarray, np.ndarray, _Payload], np.ndarray] | None = None,
+		*, scale: np.ndarray,
+		jacobian: Callable[[np.ndarray], np.ndarray] | None = None,
+		context: str = 'nonlinear system',
+		initial_evaluation: tuple[np.ndarray, _Payload] | None = None,
+		iteration_observer: _IterateObserver | None = None,
+		norm: Callable[[np.ndarray], float] | None = None,
+		backtracking: bool = False,
+		update_returns_correction: bool = False,
+	) -> _NonlinearResult[_Payload]:
+		"""Solve without interpreting stages, particles, multipliers or physical time."""
+		if (update is None) == (jacobian is None):
+			raise ValueError("Supply exactly one of `update` or `jacobian`.")
+		if update is None:
+			assert jacobian is not None
+			def linear_correction(value: np.ndarray, residual: np.ndarray, payload: _Payload) -> np.ndarray:
+				assert jacobian is not None
+				return np.asarray(np.linalg.solve(jacobian(value), -residual))
+			update = linear_correction
+			update_returns_correction = True
+		return _solve_newton(evaluate, initial, update, tolerance=self.tolerance(scale),
+			max_iterations=self.max_iterations, context=context, initial_evaluation=initial_evaluation,
+			iteration_observer=iteration_observer, norm=norm, backtracking=backtracking,
+			update_returns_correction=update_returns_correction)
+
+
+@dataclass(frozen=True, slots=True)
+class BroydenSolver(_SolverConfiguration):
+	"""Good Broyden iteration initialized by the equation's Jacobian estimate."""
+
+	name: ClassVar[Literal['broyden']] = 'broyden'
+
+	def solve(
+		self, evaluate: _ResidualFunction[_Payload], initial: np.ndarray,
+		initial_jacobian: np.ndarray, *, scale: np.ndarray,
+		context: str = 'nonlinear system',
+		initial_evaluation: tuple[np.ndarray, _Payload] | None = None,
+	) -> _NonlinearResult[_Payload]:
+		"""Keep a fresh Jacobian approximation and iterate state for each solve."""
+		return _solve_broyden(evaluate, initial, initial_jacobian, tolerance=self.tolerance(scale),
+			max_iterations=self.max_iterations, context=context, initial_evaluation=initial_evaluation)
+
+
+AlgebraicSolver: TypeAlias = NewtonSolver | BroydenSolver
+
+
+def configured_solver(name: NonlinearSolver, absolute_tolerance: float,
+		relative_tolerance: float, max_iterations: int) -> AlgebraicSolver:
+	"""Normalize supported legacy controls into a reusable solver configuration."""
+	selected = NewtonSolver if _validate_nonlinear_solver(name) == 'newton' else BroydenSolver
+	return selected(absolute_tolerance, relative_tolerance, max_iterations)
+
+
+def validate_solver(solver: AlgebraicSolver, *, newton_only: bool = False) -> None:
+	"""Reject unsupported algorithms or subclass overrides before backend dispatch."""
+	if type(solver) not in (NewtonSolver, BroydenSolver):
+		raise TypeError("`solver` must be a built-in NewtonSolver or BroydenSolver.")
+	if newton_only and type(solver) is not NewtonSolver:
+		raise ValueError("This method supports NewtonSolver only.")
+
+
+__all__ = ["NewtonSolver", "BroydenSolver", "NONLINEAR_SOLVERS", "NonlinearSolver"]

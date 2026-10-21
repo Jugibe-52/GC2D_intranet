@@ -30,7 +30,7 @@ from methods.extended.configuration import ABBA_PROJECTION_FORMULATIONS, Project
 from methods.extended.abba import ABBA2Implicit
 
 from contracts.problem import InitialValueProblem
-from methods._nonlinear import NonlinearSolver
+from solvers.nonlinear import NonlinearSolver
 from request import SimulationRequest
 from states.history import States
 from simulation.runner import simulate

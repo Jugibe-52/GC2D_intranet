@@ -42,8 +42,9 @@ observation and integration use the same convergence threshold.
 | Module or component | Responsibility |
 |---|---|
 | `extended/core/composition.py` | Validated immutable signed recipes and one direct/adjoint traversal |
-| `extended/core/projection.py` | Reduced and simultaneous spatial Hairer equations for any recipe |
-| `methods/_nonlinear.py` | Shared Newton/Broyden convergence, iteration limits and counters |
+| `extended/core/projection.py` | Bind a composition, projection equations and algebraic solver |
+| `formulations/projection.py` | Reduced and simultaneous residuals, Jacobians, guesses and reconstruction |
+| `solvers/nonlinear.py` | Shared Newton/Broyden convergence, iteration limits and counters |
 | `extended/core/jacobians.py` | Exact ordered particle-block tangents and centered-difference fallback |
 | `extended/core/energy.py` | Passive normalized momentum quadrature from accepted shear inputs |
 | `extended/core/records.py` | Numerical stage traces, projection results and per-solve statistics |
@@ -253,7 +254,7 @@ than silently discarded. Observer exceptions propagate out of the run; no
 global restoration is needed, and other method instances remain independent.
 
 Gauss, SDIRK, and analytic spatial projection share
-`methods._linear._solve_particle_systems`: matrices have shape `(N,d,d)` and
+`solvers.linear._solve_particle_systems`: matrices have shape `(N,d,d)` and
 right-hand-side vectors have shape `(N,d)`. The helper inserts one explicit
 right-hand-side axis for `numpy.linalg.solve`, preserving behavior with NumPy
 1.x and 2.x. The projection equations and particle ordering are unchanged.
@@ -277,3 +278,15 @@ electric fields follow the potential class; `evaluate_grid` remains NumPy-only. 
 [shared potential contract](../../../dynamics/jax-potential-evaluation.md).
 
 Initial data are packed NumPy arrays, including the output of `states.generators`. `formulations.layout` supplies GC/FC layouts; `request.SimulationRequest` owns the initial time and output schedule. Controllers manage the current internal `IntegrationState`; `states.States` stores physical samples and becomes the completed result. Several methods can share a formulation. See the [migration guide](../../../simulation/api-migration.md).
+
+## Initial data and numerical components
+
+The public problem constructor also accepts `states.InitialConditions`; existing
+packed-array callers remain supported. See the [component interface](../../../simulation/initial-solvers-formulations.md)
+for ownership, array shapes and unchanged request/result boundaries.
+
+ABBA separates `ReducedProjection` and `SimultaneousProjection` in
+`formulations.projection`; the method provides the composition and its derivative.
+The equation object owns the 2N/6N residual and reconstruction. `solver=` accepts
+NewtonSolver or BroydenSolver; the existing string choices and tolerance keywords
+remain supported. CPU and JAX use the same equation classes.

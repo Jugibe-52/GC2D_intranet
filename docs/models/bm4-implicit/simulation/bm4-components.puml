@@ -1,0 +1,65 @@
+@startdot
+digraph BM4DetailedArchitecture {
+  // Canonical source; render with scripts/render_detailed_architecture.cjs <this-file>.
+  graph [rankdir=TB, bgcolor="white", pad=0.35, nodesep=0.35, ranksep=0.7,
+    fontname="Arial", fontsize=22, labelloc=t,
+    label="BM4Implicit: data, execution and one reduced projection\nN particles; physical state z in R^(2N); temporary doubled map in R^(4N)"];
+  node [shape=box, style="rounded,filled", color="#B9C7D8", fillcolor="#F2F6FC",
+    fontname="Arial", fontsize=12, margin="0.18,0.14"];
+  edge [color="#65758B", fontname="Arial", fontsize=10];
+
+  subgraph cluster_inputs {
+    label="Physical input and reusable configuration"; color="#D4DEEB";
+    potential [label="potential.Potential\nRead-only samples and periodic interpolation\nField derivatives and gyroaverage"];
+    dynamics [label="dynamics.GuidingCenterDynamics\nPhysical vector field and Hamiltonian\nB, rho and analytic particle Jacobians"];
+    initial [label="states.InitialConditions\nOwned initial values and copied layout\nGC component order: [x_1 ... x_N, y_1 ... y_N]\nExisting packed arrays remain accepted"];
+    problem [label="contracts.problem.InitialValueProblem\nCompatible dynamics + initial conditions\nNo integration clock or solver state"];
+    request [label="request.SimulationRequest\nInitial/final time, maximum step\nRequested physical output times"];
+    method [fillcolor="#FFF0DE", label="methods.extended.bm4.BM4Implicit\nReusable method, coupling and solver controls\nsolver=NewtonSolver(...) or BroydenSolver(...)\nOne reduced projection around the full composition"];
+    potential -> dynamics;
+    dynamics -> problem;
+    initial -> problem;
+  }
+
+  subgraph cluster_execution {
+    label="Complete run and accepted physical recording"; color="#D4DEEB";
+    simulate [label="simulation.runner.simulate\nValidate inputs; delegate the complete job\nCheck completed result against problem/request"];
+    execution [label="execution.Execution.run\nPrepare backend; create a fresh method run\nAllocate States once; finalize once\nSuccess or failure consumes that run"];
+    worker [label="execution._host / execution._jax_fixed\nAccepted steps and requested samples\nIndependent off-grid shadow samples on CPU\nCompiled functional state on JAX"];
+    states [label="states.States\nPhysical history [2N,T] and times [T]\nOptional passive-energy samples\nSeparate accepted-step work statistics\nCompleted result is read-only"];
+    simulate -> execution [label="complete job"];
+    execution -> worker [label="advance and record"];
+    worker -> states [label="physical samples"];
+    execution -> states [label="prepare / finalize", style=dashed];
+  }
+  problem -> simulate;
+  request -> simulate;
+  method -> simulate;
+
+  subgraph cluster_numerics {
+    label="One BM4 step: composition, equation and algebraic solution";
+    color="#BCD9CA";
+    node [fillcolor="#EAF5EF"];
+    advance [label="BM4Implicit.advance\nExtract physical z; solve one projection\nFinish accepted copies and passive auxiliaries"];
+    adapter [label="methods.extended.core.projection.solve_projection\nBind method composition to equation operations\nReuse the accepted CompositionTrace\nPreserve analytic particle-block or dense FD corrections"];
+    composition [label="methods.extended.core.composition\nBM4: twelve signed direct/adjoint stages\nGCDoubledMaps supplies physical shears and coupling\nPsi_h acts on (z+mu, z-mu)"];
+    equations [label="formulations.projection.ReducedProjection\nUnknown mu in R^(2N), initially zero\nF(mu) = u(mu) - v(mu) + 2 mu\nAssemble Jacobian from the composition derivative\nRecover z_next = ((u+mu) + (v-mu))/2"];
+    solver [label="solvers.nonlinear\nNewtonSolver / BroydenSolver\nFresh iterates and matrices for each solve\nTolerance: atol + rtol max(1, ||z||_inf)\nIteration limits, residual counts and explicit failures"];
+    linear [label="solvers.linear / optional solvers._jax\nIndependent 2x2 Newton blocks per GC particle\nBroyden retains the full secant approximation\nCPU/JAX use the same projection equation class"];
+    energy [label="methods.extended.core.energy\nPassive momentum from retained shear inputs\nEnergy variables never enter the projection root\nNo repeated composition after convergence"];
+    advance -> adapter [label="one root solve"];
+    adapter -> composition [label="map evaluations"];
+    adapter -> equations [label="initial, residual, Jacobian, reconstruction"];
+    adapter -> solver [label="equation callbacks"];
+    solver -> linear [label="linear corrections"];
+    advance -> energy [label="accepted trace, if requested"];
+  }
+  worker -> advance [label="numerical step"];
+  method -> advance [style=dashed, label="prepared configuration"];
+  dynamics -> composition [style=dashed, label="field and derivatives", constraint=false];
+
+  diagnostics [shape=note, fillcolor="#F2EEFA",
+    label="Optional diagnostics and presentation\nObservers receive accepted step/stage snapshots\nStudies compose experiments; visualization presents results\nPersistence operates on completed States"];
+  states -> diagnostics;
+}
+@enddot

@@ -13,7 +13,7 @@ import numpy as np
 from contracts.problem import InitialValueProblem
 from request import SimulationRequest
 
-from methods._nonlinear import _solve_broyden, _solve_newton
+from solvers.nonlinear import _solve_broyden, _solve_newton
 from methods.adaptive.scipy import DOP853, Radau
 from methods.classical.gauss_legendre import GaussLegendre4
 from methods.classical.rk4 import RK4

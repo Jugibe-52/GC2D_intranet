@@ -156,3 +156,10 @@ Standalone `JaxPotential` retains its own evaluation guards, device coefficient
 cache and input placement rules. Numerical JIT kernels remain beside their
 algorithms. Physics modules do not import execution; the hybrid SciPy/JAX bridge
 belongs to `execution._jax`.
+
+## Explicit initial, solver and projection objects
+
+See [initial data and numerical components](initial-solvers-formulations.md) for
+`InitialConditions`, reusable NewtonSolver/BroydenSolver configurations and the
+two projection classes. Existing array inputs, method names, tolerance controls,
+simulate/executor signatures and stored result formats remain supported.

@@ -7,8 +7,9 @@ import jax.numpy as jnp
 
 from dynamics.protocols import HamiltonianSystem, GuidingCenterJacobianSystem
 from formulations.gc import _COUPLING_BASE, _COUPLING_COS, _COUPLING_SIN
+from formulations.projection import resolve_projection
 from methods._jax_options import CompositionOptions
-from methods._jax_common import (
+from solvers._jax import (
     newton, broyden, particle_finite_difference,
     solve_particle_blocks, infinity_norm,
 )
@@ -106,17 +107,11 @@ def extended_step(time: Any, state: Any, step: Any, dynamics: HamiltonianSystem,
                   options: CompositionOptions) -> tuple[Any, Any, dict[str, Any], Any]:
     """Project a complete recipe without changing its residual or solver axis."""
     size, n = state.size, state.size // 2
-    simultaneous = options.projection == 'simultaneous_state_multiplier'
+    equations = resolve_projection(options.projection)
     def evaluate(unknown: Any) -> Any:
-        mu = unknown[2*size:] if simultaneous else unknown
+        mu = equations.multiplier(unknown, size)
         mapped, trace = compose(time, jnp.concatenate((state + mu, state - mu)), step, dynamics, options)
-        first, second = mapped[:size], mapped[size:]
-        if simultaneous:
-            residual = jnp.concatenate((unknown[:size] - mu - first,
-                                        unknown[size:2*size] + mu - second,
-                                        unknown[:size] - unknown[size:2*size]))
-        else:
-            residual = first - second + 2 * mu
+        residual = equations.residual(unknown, mapped, size)
         return residual, (mapped, trace)
     if options.solve is None:
         mapped, trace = compose(time, jnp.concatenate((state, state)), step, dynamics, options)
@@ -126,48 +121,29 @@ def extended_step(time: Any, state: Any, step: Any, dynamics: HamiltonianSystem,
     else:
         solve = options.solve
         tolerance = solve.tolerance(state)
-        identity = jnp.broadcast_to(jnp.eye(2), (n, 2, 2))
-        identity4 = jnp.broadcast_to(jnp.eye(4), (n, 4, 4))
-        normal = jnp.concatenate((identity, -identity), axis=1)
-        constraint = jnp.swapaxes(normal, -1, -2)
         def correction(unknown: Any, residual: Any, payload: Any) -> Any:
             _, trace = payload
             if solve.jacobian == 'analytic':
                 base = composition_jacobian(trace, dynamics, options)
             else:
-                mu = unknown[2*size:] if simultaneous else unknown
+                mu = equations.multiplier(unknown, size)
                 initial = jnp.concatenate((state + mu, state - mu))
                 base = particle_finite_difference(lambda z: compose(time, z, step, dynamics, options)[0],
                                                  initial, 4, solve.relative_step)
-            if simultaneous:
-                matrix = jnp.concatenate((
-                    jnp.concatenate((identity4, -(identity4 + base) @ normal), axis=2),
-                    jnp.concatenate((constraint, jnp.zeros((n, 2, 2))), axis=2)), axis=1)
-            else:
-                matrix = base[:, :2, :2] - base[:, :2, 2:] - base[:, 2:, :2] + base[:, 2:, 2:] + 2 * identity
+            matrix = equations.particle_jacobian(base)
             return solve_particle_blocks(matrix, -residual)
-        initial = jnp.zeros(size)
-        cached = None
-        if simultaneous:
-            mapped, trace = compose(time, jnp.concatenate((state, state)), step, dynamics, options)
-            initial = jnp.concatenate((mapped, initial))
-            cached = (jnp.concatenate((jnp.zeros(2*size), mapped[:size] - mapped[size:])), (mapped, trace))
+        def initial_map(candidate: Any) -> Any:
+            mapped, trace = compose(time, candidate, step, dynamics, options)
+            return mapped, (mapped, trace)
+        initial, cached = equations.prepare(state, initial_map)
         if solve.solver == 'broyden':
-            if simultaneous:
-                ident = jnp.eye(size)
-                norm = jnp.concatenate((ident, -ident), axis=0)
-                matrix = jnp.block([[jnp.eye(2*size), -2*norm], [norm.T, jnp.zeros((size, size))]])
-            else:
-                matrix = 4 * jnp.eye(size)
+            matrix = equations.initial_jacobian(state)
             root = broyden(evaluate, initial, matrix, tolerance, solve.max_iterations, initial_evaluation=cached)
         else:
             root = newton(evaluate, initial, correction, tolerance, solve.max_iterations, initial_evaluation=cached)
         mapped, trace = root.payload
-        mu = root.unknown[2*size:] if simultaneous else root.unknown
-        if simultaneous:
-            after = (root.unknown[:size] + root.unknown[size:2*size]) / 2
-        else:
-            after = ((mapped[:size] + mu) + (mapped[size:] - mu)) / 2
+        mu = equations.multiplier(root.unknown, size)
+        after = equations.reconstruct(root.unknown, mapped, size)
         statistics = {'nonlinear_iterations': root.iterations, 'residual_evaluations': root.evaluations,
                       'nonlinear_residual_norms': root.norm, 'nonlinear_tolerances': tolerance,
                       'projection_multiplier_norms': infinity_norm(mu)}

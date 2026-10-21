@@ -1,5 +1,6 @@
 """Reusable numerical formulations for structure-preserving methods."""
 
+from formulations.projection import ProjectionFormulation, ReducedProjection, SimultaneousProjection
 from formulations.state import PhysicalFormulation, DoubledFormulation
 from formulations.base import (
 	DirectAdjointFormulation,
@@ -15,6 +16,7 @@ from formulations.gc import (
 )
 
 __all__ = [
+	"ProjectionFormulation", "ReducedProjection", "SimultaneousProjection",
 	"PhysicalFormulation", "DoubledFormulation",
 	"DirectAdjointFormulation",
 	"FCSplitFormulation",

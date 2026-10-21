@@ -1,8 +1,9 @@
 """Run a short symmetric-projected ABBA trajectory with exact field Jacobians."""
 
-from formulations.layout import GCStateLayout
+from states import InitialConditions
+from solvers import NewtonSolver
+from formulations import ReducedProjection
 
-import numpy as np
 
 from dynamics import GuidingCenterDynamics
 
@@ -23,8 +24,8 @@ potential = Potential.random(
 	seed=27,
 	interpolation_order=5,
 )
-configuration = np.array(np.asarray([1.0, 1.2]), dtype=float, copy=True)
-problem = InitialValueProblem(GuidingCenterDynamics(potential, rho=0.05), configuration, layout=GCStateLayout())
+configuration = InitialConditions.gc(x=[1.0], y=[1.2])
+problem = InitialValueProblem(GuidingCenterDynamics(potential, rho=0.05), configuration)
 request = SimulationRequest.uniform(
 	t_span=(0.0, 0.2),
 	max_step=0.05,
@@ -32,7 +33,7 @@ request = SimulationRequest.uniform(
 )
 solution = simulate(
 	problem,
-	ABBA2Implicit(projection_formulation="reduced_multiplier"),
+	ABBA2Implicit(projection_formulation=ReducedProjection(), solver=NewtonSolver()),
 	request,
 )
 

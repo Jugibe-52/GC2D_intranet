@@ -19,8 +19,8 @@ from contracts.observation import (
 	ABBA2ImplicitIntegrationStep,
 	IntegrationStep,
 )
-from methods._nonlinear import NONLINEAR_SOLVERS, NonlinearSolver
-from methods._nonlinear import SolverOptions
+from solvers.nonlinear import NONLINEAR_SOLVERS, NonlinearSolver
+from solvers.nonlinear import SolverOptions
 from methods.extended.configuration import _validate_projection_formulation
 from methods.extended.observations import bind_event_builder
 from contracts.problem import InitialValueProblem

@@ -1,6 +1,7 @@
 """Fourth-order HBVM(4,2) with a reduced Legendre-stage solve."""
 
 from __future__ import annotations
+from solvers.nonlinear import NewtonSolver, AlgebraicSolver, validate_solver
 
 from dataclasses import dataclass, field
 from typing import Literal, TypeAlias
@@ -233,6 +234,7 @@ def _advance_hbvm42(
 	max_iterations: int,
 	jacobian_method: HBVMJacobianMethod,
 	jacobian_relative_step: float,
+	solver: NewtonSolver | None = None,
 ) -> _HBVMStepResult:
 	"""Solve the two-coefficient HBVM(4,2) equation for one complete step."""
 	initial_state = np.asarray(state, dtype=float)
@@ -287,28 +289,17 @@ def _advance_hbvm42(
 		residual_evaluations += 1
 		return candidate - projected, _ResidualPayload(stages, fields, projected)
 
-	current_residual, payload = residual(coefficients)
-	residual_norm = float(np.linalg.norm(current_residual, ord=np.inf))
+	def evaluate_flat(candidate: np.ndarray) -> tuple[np.ndarray, _ResidualPayload]:
+		value, data = residual(candidate.reshape(2, state_size))
+		return value.reshape(-1), data
+
+	# Preserve the established capability-check boundary after the first residual.
+	cached = evaluate_flat(coefficients.reshape(-1))
 	selected_jacobian_method = _resolved_jacobian_method(dynamics, jacobian_method)
 
-	for iteration in range(max_iterations + 1):
-		if residual_norm <= tolerance:
-			# The quadrature update is the Runge--Kutta definition. At convergence
-			# it equals y_n + h*gamma_0 up to the accepted nonlinear residual.
-			accepted = initial_state + step * payload.projected_coefficients[0]
-			return _HBVMStepResult(
-				state=np.asarray(accepted),
-				stage_states=payload.stages,
-				iterations=iteration,
-				residual_norm=residual_norm,
-				tolerance=tolerance,
-				residual_evaluations=residual_evaluations,
-				jacobian_evaluations=jacobian_evaluations,
-				vector_field_evaluations=counter.vector_field_evaluations,
-			)
-		if iteration == max_iterations:
-			break
-
+	def correction(unknown: np.ndarray, current_residual: np.ndarray, payload: _ResidualPayload) -> np.ndarray:
+		"""Keep HBVM's stage Jacobian and field counters beside its equations."""
+		nonlocal jacobian_evaluations
 		if selected_jacobian_method == "analytic":
 			assert isinstance(dynamics, GuidingCenterJacobianSystem)
 			stage_jacobians = _analytic_stage_jacobians(
@@ -329,34 +320,28 @@ def _advance_hbvm42(
 		try:
 			correction = np.linalg.solve(
 				jacobian,
-				-current_residual.reshape(-1),
-			).reshape(2, state_size)
+				-current_residual,
+			)
 		except np.linalg.LinAlgError as exc:
 			raise RuntimeError("The HBVM42 Newton Jacobian is singular.") from exc
 		if not np.all(np.isfinite(correction)):
 			raise RuntimeError("The HBVM42 Newton correction became non-finite.")
 
-		# Backtracking is only activated when a full Newton step increases the
-		# residual. It makes coarse-step notebook sweeps robust without changing
-		# the local quadratic convergence near the root.
-		damping = 1.0
-		while True:
-			candidate = coefficients + damping * correction
-			next_residual, next_payload = residual(candidate)
-			next_norm = float(np.linalg.norm(next_residual, ord=np.inf))
-			if next_norm < residual_norm or damping <= 1.0 / 128.0:
-				break
-			damping /= 2.0
-		coefficients = candidate
-		current_residual = next_residual
-		payload = next_payload
-		residual_norm = next_norm
+		return np.asarray(correction)
 
-	raise RuntimeError(
-		f"HBVM42 Newton solve did not converge at t={time:.8g}: residual norm "
-		f"{residual_norm:.3e} exceeds {tolerance:.3e} after "
-		f"{max_iterations} iterations."
-	)
+	selected_solver = solver or NewtonSolver(absolute_tolerance, relative_tolerance, max_iterations)
+	root = selected_solver.solve(evaluate_flat, coefficients.reshape(-1), correction,
+		scale=initial_state, context=f"HBVM42 at t={time:.8g}",
+		initial_evaluation=cached,
+		norm=lambda r: float(np.linalg.norm(r.reshape(2, state_size), ord=np.inf)),
+		backtracking=True, update_returns_correction=True)
+	payload = root.payload
+	accepted = initial_state + step * payload.projected_coefficients[0]
+	return _HBVMStepResult(state=np.asarray(accepted), stage_states=payload.stages,
+		iterations=root.iterations,
+		residual_norm=float(np.linalg.norm(root.residual.reshape(2, state_size), ord=np.inf)),
+		tolerance=tolerance, residual_evaluations=root.residual_evaluations,
+		jacobian_evaluations=jacobian_evaluations, vector_field_evaluations=counter.vector_field_evaluations)
 
 
 @dataclass(slots=True)
@@ -373,6 +358,8 @@ class HBVM42(IntegrationMethod[_HBVMStepResult]):
 
 	jax_mode = "device_resident"
 
+	solver: AlgebraicSolver | None = field(default=None, kw_only=True)
+
 	absolute_tolerance: float = 1e-13
 	relative_tolerance: float = 1e-12
 	max_iterations: int = 12
@@ -384,6 +371,12 @@ class HBVM42(IntegrationMethod[_HBVMStepResult]):
 
 	def __post_init__(self) -> None:
 		"""Validate nonlinear controls and normalize scalar fields."""
+		if self.solver is not None:
+			validate_solver(self.solver, newton_only=True)
+			self.absolute_tolerance = self.solver.absolute_tolerance
+			self.relative_tolerance = self.solver.relative_tolerance
+			self.max_iterations = self.solver.max_iterations
+
 		self.absolute_tolerance = _positive_finite(
 			self.absolute_tolerance, "absolute_tolerance", allow_boolean=True,
 		)
@@ -407,6 +400,7 @@ class HBVM42(IntegrationMethod[_HBVMStepResult]):
 
 	def advance(self, time: float, state: np.ndarray, step: float) -> StepResult[_HBVMStepResult]:
 		"""Return one accepted coefficient solve and its local work counters."""
+		assert self.solver is None or isinstance(self.solver, NewtonSolver)
 		result = _advance_hbvm42(
 			self.problem.dynamics,
 			time,
@@ -416,7 +410,7 @@ class HBVM42(IntegrationMethod[_HBVMStepResult]):
 			relative_tolerance=self.relative_tolerance,
 			max_iterations=self.max_iterations,
 			jacobian_method=self.jacobian_method,
-			jacobian_relative_step=self.jacobian_relative_step,
+			jacobian_relative_step=self.jacobian_relative_step, solver=self.solver,
 		)
 		increment = None
 		if self.track_energy:

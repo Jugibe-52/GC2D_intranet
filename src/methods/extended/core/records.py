@@ -8,7 +8,7 @@ from typing import Protocol
 import numpy as np
 
 from contracts.nonlinear import NewtonObserver
-from methods._nonlinear import SolveStats
+from solvers.nonlinear import SolveStats
 from formulations.gc import _EnergyQuadraturePoint
 
 

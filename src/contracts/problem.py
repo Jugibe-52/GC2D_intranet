@@ -1,12 +1,12 @@
-"""Validated physical initial arrays bound to their dynamics and layout."""
+"""Owned physical initial conditions associated with compatible dynamics."""
 
 from __future__ import annotations
-from copy import deepcopy
 from dataclasses import dataclass, field
 import numpy as np
 from dynamics.protocols import DynamicalSystem
 from contracts.configuration import StateLayout
 from formulations.layout import GCStateLayout, FCStateLayout
+from states.initial import InitialConditions
 
 
 @dataclass(frozen=True, slots=True, init=False)
@@ -18,14 +18,28 @@ class InitialValueProblem:
 	"""
 
 	dynamics: DynamicalSystem
-	_initial_state: np.ndarray = field(init=False, repr=False)
-	_layout: StateLayout = field(init=False, repr=False)
+	initial_conditions: InitialConditions = field(init=False)
 	particle_count: int = field(init=False)
 
-	def __init__(self, dynamics: DynamicalSystem, initial_state: np.ndarray,
+	def __init__(self, dynamics: DynamicalSystem, initial_state: np.ndarray | InitialConditions,
 	             *, layout: StateLayout | None = None) -> None:
 		if not isinstance(dynamics, DynamicalSystem):
 			raise TypeError("`dynamics` must implement DynamicalSystem.")
+		if isinstance(initial_state, InitialConditions):
+			if layout is not None:
+				raise ValueError("InitialConditions already owns its layout; omit `layout`.")
+			initial = initial_state
+		else:
+			initial = self._from_array(dynamics, initial_state, layout)
+		if initial.layout.state_dimension != dynamics.state_dimension:
+			raise TypeError("The initial layout is incompatible with the dynamics.")
+		object.__setattr__(self, 'dynamics', dynamics)
+		object.__setattr__(self, 'initial_conditions', initial)
+		object.__setattr__(self, 'particle_count', initial.particle_count)
+
+	@staticmethod
+	def _from_array(dynamics: DynamicalSystem, values: np.ndarray, layout: StateLayout | None) -> InitialConditions:
+		"""Normalize the established array constructor through the same owner."""
 		if layout is None:
 			if dynamics.state_dimension == 2:
 				layout = GCStateLayout()
@@ -33,33 +47,16 @@ class InitialValueProblem:
 				layout = FCStateLayout()
 			else:
 				raise TypeError("Supply an explicit layout for these dynamics.")
-		if not isinstance(layout, StateLayout):
-			raise TypeError("`layout` must implement StateLayout.")
-		layout = deepcopy(layout)
-		value = np.array(initial_state, dtype=float, copy=True)
-		if value.ndim != 1 or value.size == 0 or not np.all(np.isfinite(value)):
-			raise ValueError("The initial state must be a finite non-empty vector.")
-		layout.validate_packed_state_layout(value)
-		if layout.state_dimension != dynamics.state_dimension:
-			raise TypeError("The initial layout is incompatible with the dynamics.")
-		count = layout.particle_count(value)
-		if (isinstance(count, (bool, np.bool_)) or not isinstance(count, (int, np.integer))
-			or count <= 0 or value.size != count * layout.state_dimension):
-			raise ValueError("The layout must describe complete particle blocks.")
-		value.setflags(write=False)
-		object.__setattr__(self, 'dynamics', dynamics)
-		object.__setattr__(self, '_initial_state', value)
-		object.__setattr__(self, '_layout', layout)
-		object.__setattr__(self, 'particle_count', int(count))
+		return InitialConditions(values, layout=layout)
 
 	@property
 	def initial_state(self) -> np.ndarray:
 		"""Independent initial snapshot, safe to pass to mutable numerical work."""
-		return self._initial_state.copy()
+		return self.initial_conditions.values
 
 	@property
 	def layout(self) -> StateLayout:
-		return deepcopy(self._layout)
+		return self.initial_conditions.layout
 
 
 __all__ = ["InitialValueProblem"]

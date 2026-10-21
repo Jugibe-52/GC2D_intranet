@@ -105,8 +105,12 @@ All spatial roots use the unchanged stopping threshold
 \[
  \mathrm{atol}+\mathrm{rtol}\max(1,\|z\|_\infty).
 \]
+The equation classes \texttt{ReducedProjection} and
+\texttt{SimultaneousProjection} in \path{src/formulations/projection.py}
+construct these residuals and their Jacobians. The numerical method supplies
+its composition; the algebraic solver receives the resulting system.
 Newton and good Broyden share the convergence machinery in
-\path{src/methods/_nonlinear.py}. Broyden's initial reduced
+\path{src/solvers/nonlinear.py}. Broyden's initial reduced
 Jacobian is $4I$, the exact zero-step value of $Dr$. The simultaneous
 zero-step block matrix is
 \[

@@ -1,6 +1,7 @@
 """Implicit two-stage, fourth-order Gauss--Legendre collocation method."""
 
 from __future__ import annotations
+from solvers.nonlinear import NewtonSolver, AlgebraicSolver, validate_solver
 
 from dataclasses import dataclass, field
 
@@ -21,8 +22,8 @@ from contracts.nonlinear import NewtonObserver
 from contracts.problem import InitialValueProblem
 from request import SimulationRequest
 from methods._validation import _positive_finite, _positive_integer
-from methods._linear import _solve_particle_systems
-from methods._nonlinear import _bind_newton_observer, _solve_newton
+from solvers.linear import _solve_particle_systems
+from solvers.nonlinear import _bind_newton_observer
 from ._jacobians import (
 	JacobianMethod as GaussJacobianMethod,
 	ResolvedJacobianMethod as ResolvedGaussJacobianMethod,
@@ -247,6 +248,7 @@ def _solve_gauss_step(
 	jacobian_method: ResolvedGaussJacobianMethod,
 	jacobian_relative_step: float,
 	newton_observer: NewtonObserver | None = None,
+	solver: NewtonSolver | None = None,
 ) -> _GaussStepResult:
 	"""Solve the two coupled collocation stages with full Newton corrections."""
 	value = np.asarray(state, dtype=float)
@@ -293,9 +295,9 @@ def _solve_gauss_step(
 			raise RuntimeError("The Gauss Newton correction became non-finite.")
 		return np.asarray(unknown + np.concatenate(corrections))
 
-	root = _solve_newton(
-		evaluate, np.concatenate(stage_states), update,
-		tolerance=tolerance, max_iterations=max_iterations,
+	selected_solver = solver or NewtonSolver(absolute_tolerance, relative_tolerance, max_iterations)
+	root = selected_solver.solve(
+		evaluate, np.concatenate(stage_states), update, scale=value,
 		context=f"GaussLegendre4 at t={time:.16g} with h={step:.16g}",
 		iteration_observer=_bind_newton_observer(
 			newton_observer, time=time, duration=step, tolerance=tolerance,
@@ -318,6 +320,8 @@ class GaussLegendre4(IntegrationMethod[_GaussStepResult]):
 
 	jax_mode = "device_resident"
 
+	solver: AlgebraicSolver | None = field(default=None, kw_only=True)
+
 	track_energy: bool = False
 	newton_absolute_tolerance: float = 1e-14
 	newton_relative_tolerance: float = 1e-13
@@ -336,6 +340,12 @@ class GaussLegendre4(IntegrationMethod[_GaussStepResult]):
 
 	def __post_init__(self) -> None:
 		"""Validate nonlinear and differentiation controls before integration."""
+		if self.solver is not None:
+			validate_solver(self.solver, newton_only=True)
+			self.newton_absolute_tolerance = self.solver.absolute_tolerance
+			self.newton_relative_tolerance = self.solver.relative_tolerance
+			self.newton_max_iterations = self.solver.max_iterations
+
 		self.newton_absolute_tolerance = _positive_finite(
 			self.newton_absolute_tolerance, "newton_absolute_tolerance", allow_boolean=True,
 		)
@@ -387,6 +397,7 @@ class GaussLegendre4(IntegrationMethod[_GaussStepResult]):
 		step: float,
 		*, newton_observer: NewtonObserver | None = None,
 	) -> _GaussStepResult:
+		assert self.solver is None or isinstance(self.solver, NewtonSolver)
 		return _solve_gauss_step(
 			self.dynamics,
 			time,
@@ -397,7 +408,7 @@ class GaussLegendre4(IntegrationMethod[_GaussStepResult]):
 			max_iterations=self.newton_max_iterations,
 			jacobian_method=self.resolved_jacobian_method,
 			jacobian_relative_step=self.newton_jacobian_relative_step,
-			newton_observer=newton_observer,
+			newton_observer=newton_observer, solver=self.solver,
 		)
 
 	def advance(self, time: float, value: np.ndarray, step: float) -> StepResult[_GaussStepResult]:

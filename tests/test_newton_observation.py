@@ -15,8 +15,8 @@ from contracts.problem import InitialValueProblem
 from request import SimulationRequest
 from dynamics.gc import GuidingCenterDynamics
 
-from methods._linear import _solve_particle_systems
-from methods._nonlinear import _bind_newton_observer, _solve_newton
+from solvers.linear import _solve_particle_systems
+from solvers.nonlinear import _bind_newton_observer, _solve_newton
 from methods.classical.gauss_legendre import GaussLegendre4
 from methods.classical.sdirk import SDIRK4
 from methods.extended.abba import ABBA2Implicit, ABBA4Implicit, ABBA6Implicit
