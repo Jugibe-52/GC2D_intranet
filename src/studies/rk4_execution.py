@@ -6,7 +6,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 import platform
 from time import perf_counter
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 import numpy as np
 import scipy
@@ -21,6 +21,10 @@ from methods.classical.rk4 import RK4
 from potential.potential import Potential
 from simulation.runner import simulate
 from states.history import States
+
+
+if TYPE_CHECKING:
+	from diagnostics.persistence import StoredSolution
 
 
 @dataclass(frozen=True)
@@ -63,6 +67,8 @@ def periodic_discrepancy(reference: States, candidate: States, period: float) ->
     """Per-particle minimum-image distance, shaped (particles, saved_times)."""
     delta = candidate.states - reference.states
     delta = (delta + period / 2) % period - period / 2
+    dx: np.ndarray
+    dy: np.ndarray
     dx, dy = reference.layout.split(delta)
     return np.hypot(dx, dy)
 
@@ -78,28 +84,28 @@ def run_rk4_execution_comparison(
     Explicit device requests fail if unavailable, without substitution.
     """
     _validate_execution_comparison(config, executions)
-    potential = Potential.random(
+    potential: Potential = Potential.random(
         A=config.amplitude, M=config.maximum_wave_number, nx=config.nx, ny=config.ny,
         seed=config.potential_seed, interpolation_order=config.interpolation_order,
     )
     grid = potential.grid
-    rng = np.random.default_rng(config.particle_seed)
-    initial = GCStateLayout().pack_components(grid.xmin + grid.period * rng.random(config.particle_count), grid.ymin + grid.period * rng.random(config.particle_count))
-    problem = InitialValueProblem(GuidingCenterDynamics(potential, rho=config.rho), initial, layout=GCStateLayout())
-    request = SimulationRequest.uniform(t_span=config.t_span, max_step=config.max_step,
+    rng: np.random.Generator = np.random.default_rng(config.particle_seed)
+    initial: np.ndarray = GCStateLayout().pack_components(grid.xmin + grid.period * rng.random(config.particle_count), grid.ymin + grid.period * rng.random(config.particle_count))
+    problem: InitialValueProblem = InitialValueProblem(GuidingCenterDynamics(potential, rho=config.rho), initial, layout=GCStateLayout())
+    request: SimulationRequest = SimulationRequest.uniform(t_span=config.t_span, max_step=config.max_step,
                                         sample_count=config.sample_count)
-    method = RK4(track_energy=config.track_energy)
+    method: RK4 = RK4(track_energy=config.track_energy)
     selected = {f"{item.backend}_{item.device}_{item.device_index}": item for item in executions}
     solutions: dict[str, States] = {}
     first_calls: dict[str, float] = {}
     timings: dict[str, list[float]] = {key: [] for key in selected}
     for key, execution in selected.items():
-        start = perf_counter()
+        start: float = perf_counter()
         solutions[key] = simulate(problem, method, request, options=execution)
         first_calls[key] = perf_counter() - start
     orders = []
     for repetition in range(config.repetitions):
-        order = list(selected) if repetition % 2 == 0 else list(reversed(selected))
+        order: list[str] = list(selected) if repetition % 2 == 0 else list(reversed(selected))
         orders.append(order)
         for key in order:
             start = perf_counter()
@@ -118,7 +124,10 @@ def run_rk4_execution_comparison(
             for name in ("extended_momentum", "physical_hamiltonian", "generalized_energy_error"):
                 np.testing.assert_allclose(np.asarray(solution.diagnostics[name]), np.asarray(baseline.diagnostics[name]),
                                            rtol=config.equivalence_rtol, atol=config.equivalence_atol)
-        discrepancy = periodic_discrepancy(baseline, solution, grid.period)
+        discrepancy: np.ndarray = periodic_discrepancy(baseline, solution, grid.period)
+        q25: Any
+        median: Any
+        q75: Any
         q25, median, q75 = np.percentile(timings[key], [25, 50, 75])
         records[key] = {
             "execution": asdict(selected[key]), "first_call_seconds": first_calls[key],
@@ -148,7 +157,7 @@ def run_rk4_execution_comparison(
 
 def save_rk4_execution_comparison(comparison: RK4ExecutionComparison, destination: str | Path) -> str:
     """Persist canonical NPZ/JSON States archives; report any upload failure."""
-    base = str(destination).rstrip("/")
+    base: str = str(destination).rstrip("/")
     # Publish the baseline last so readers cannot mistake a partial run for a
     # complete comparison. Each child retains the canonical integrity manifest.
     keys = [key for key in comparison.solutions if key != "scipy_cpu_0"] + ["scipy_cpu_0"]
@@ -160,8 +169,8 @@ def save_rk4_execution_comparison(comparison: RK4ExecutionComparison, destinatio
 
 def load_rk4_execution_comparison(source: str | Path) -> RK4ExecutionComparison:
     """Load a completed local/bucket comparison without recomputing dynamics."""
-    base = str(source).rstrip("/")
-    baseline = load_solution(f"{base}/scipy_cpu_0")
+    base: str = str(source).rstrip("/")
+    baseline: StoredSolution = load_solution(f"{base}/scipy_cpu_0")
     if baseline.metadata.get("study") != "rk4_execution" or baseline.potential is None:
         raise ValueError("The source is not an RK4 execution comparison.")
     solutions = {"scipy_cpu_0": baseline.solution}
@@ -176,7 +185,7 @@ def _validate_execution_comparison(
 ) -> None:
 	"""Require valid timing controls and a distinct execution set containing the CPU baseline."""
 	for name in ("particle_count", "repetitions"):
-		value = getattr(config, name)
+		value: Any = getattr(config, name)
 		if isinstance(value, bool) or not isinstance(value, (int, np.integer)) or value < 1:
 			raise ValueError(f"{name} must be a positive integer.")
 	if config.repetitions < 3:

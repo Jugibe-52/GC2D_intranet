@@ -8,7 +8,7 @@ from dataclasses import asdict, dataclass, field
 from hashlib import sha256
 from pathlib import Path
 from time import perf_counter
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 import numpy as np
 
@@ -23,6 +23,10 @@ from potential.potential import Potential
 from simulation.runner import simulate
 from states.history import States
 from studies.dimensional_h5_midpoint import load_dimensional_h5_field, resolve_h5_source
+
+
+if TYPE_CHECKING:
+	from studies.dimensional_h5_midpoint import DimensionalH5Field
 
 
 @dataclass(frozen=True)
@@ -70,9 +74,9 @@ def run_poincare_star(source: str | Path, config: PoincareStarConfig, *,
     is applied. Field construction is excluded from integration_seconds;
     device setup, any JIT compilation and final synchronization are included.
     """
-    fraction = _validated_star_center(config)
-    resolved = resolve_h5_source(source)
-    field = load_dimensional_h5_field(
+    fraction: np.ndarray = _validated_star_center(config)
+    resolved: Path = resolve_h5_source(source)
+    field: DimensionalH5Field = load_dimensional_h5_field(
         resolved, magnetic_field=config.magnetic_field,
         characteristic_length=config.characteristic_length,
         selectors=config.selectors, interpolation_order=config.interpolation_order,
@@ -84,18 +88,18 @@ def run_poincare_star(source: str | Path, config: PoincareStarConfig, *,
     center = np.array([grid.x0, grid.y0]) + grid.period * fraction
     length = config.arm_length_fraction * grid.period
     rho_m = config.rho_hat * config.characteristic_length / (2 * np.pi)
-    initial = radial_star(center=(float(center[0]), float(center[1])), arm_length=length,
+    initial: np.ndarray = radial_star(center=(float(center[0]), float(center[1])), arm_length=length,
                           arms=config.arms, particles_per_arm=config.particles_per_arm,
                           first_angle=config.first_angle)
-    problem = InitialValueProblem(GuidingCenterDynamics(field.stream, rho=rho_m), initial, layout=GCStateLayout())
-    request = SimulationRequest(
+    problem: InitialValueProblem = InitialValueProblem(GuidingCenterDynamics(field.stream, rho=rho_m), initial, layout=GCStateLayout())
+    request: SimulationRequest = SimulationRequest(
         t_span=(0.0, float(config.cycles)), max_step=1.0 / config.steps_per_cycle,
         output_times=np.arange(config.cycles + 1, dtype=float),
     )
-    method = BM4Midpoint(
+    method: BM4Midpoint = BM4Midpoint(
                          track_energy=False, progress=False, step_observer=None)
-    start = perf_counter()
-    solution = simulate(problem, method, request, options=execution)
+    start: float = perf_counter()
+    solution: States = simulate(problem, method, request, options=execution)
     elapsed = perf_counter() - start
     particles = config.arms * config.particles_per_arm
     if (solution.states.shape != (2 * particles, config.cycles + 1)
@@ -103,6 +107,8 @@ def run_poincare_star(source: str | Path, config: PoincareStarConfig, *,
             or solution.diagnostics["output_interpolation_count"] != 0
             or solution.diagnostics["projection_kind"] != "arithmetic_mean"):
         raise RuntimeError("The calculation did not preserve the configured BM4 cycle sampling.")
+    x: np.ndarray
+    y: np.ndarray
     x, y = GCStateLayout().positions(problem.initial_state)
     metadata = {
         "study": "poincare_star_bm4_midpoint", "config": asdict(config),
@@ -134,10 +140,10 @@ def run_poincare_star(source: str | Path, config: PoincareStarConfig, *,
 def _validated_star_center(config: PoincareStarConfig) -> np.ndarray:
 	"""Check cycle counts and the full stellar extent before loading the physical field."""
 	for name in ("cycles", "steps_per_cycle"):
-		value = getattr(config, name)
+		value: Any = getattr(config, name)
 		if isinstance(value, (bool, np.bool_)) or not isinstance(value, (int, np.integer)) or value < 1:
 			raise ValueError(f"{name} must be a positive integer.")
-	fraction = np.asarray(config.center_fraction, dtype=float)
+	fraction: np.ndarray = np.asarray(config.center_fraction, dtype=float)
 	if fraction.shape != (2,) or not np.all(np.isfinite(fraction)):
 		raise ValueError("center_fraction must contain two finite coordinates.")
 	if (not np.isfinite(config.arm_length_fraction) or config.arm_length_fraction <= 0

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Callable
+from typing import Callable, TYPE_CHECKING
 
 import numpy as np
 
@@ -27,13 +27,17 @@ from .observer import (
 )
 
 
+if TYPE_CHECKING:
+	from typing import Literal
+
+
 ExtendedMap = Callable[[np.ndarray], np.ndarray]
 ReducedStepMap = Callable[[float, np.ndarray, float], tuple[np.ndarray, float]]
 
 
 def _finite_extended_state(state: np.ndarray) -> np.ndarray:
 	"""Return a copied finite one-particle state in ``(u, v, t, k)`` order."""
-	value = np.asarray(state, dtype=float)
+	value: np.ndarray = np.asarray(state, dtype=float)
 	if value.shape != (6,) or not np.all(np.isfinite(value)):
 		raise ValueError("A time-extended one-particle state must have shape (6,).")
 	return value.copy()
@@ -45,7 +49,7 @@ def _momentum_derivative(
 	state: np.ndarray,
 ) -> float:
 	"""Return the scalar ``-partial_t h`` for one physical GC copy."""
-	value = np.asarray(
+	value: np.ndarray = np.asarray(
 		dynamics.extended_momentum_derivative(float(time), state),
 		dtype=float,
 	)
@@ -59,15 +63,15 @@ def _abba_extended_map(
 	dynamics: GuidingCenterDynamics,
 ) -> ExtendedMap:
 	"""Return the accepted unprojected ABBA splitting on ``R^6``."""
-	duration = float(record.duration)
+	duration: float = float(record.duration)
 	half_step = duration / 2.0
 
 	def map_state(candidate: np.ndarray) -> np.ndarray:
-		value = _finite_extended_state(candidate)
-		u = value[:2].copy()
-		v = value[2:4].copy()
-		time = float(value[4])
-		momentum = float(value[5])
+		value: np.ndarray = _finite_extended_state(candidate)
+		u: np.ndarray = value[:2].copy()
+		v: np.ndarray = value[2:4].copy()
+		time: float = float(value[4])
+		momentum: float = float(value[5])
 
 		u += half_step * dynamics.vector_field(time, v)
 		momentum += half_step * _momentum_derivative(dynamics, time, v)
@@ -92,11 +96,11 @@ def _bm4_extended_stage(
 	dynamics: GuidingCenterDynamics,
 ) -> np.ndarray:
 	"""Apply one direct or adjoint BM4 base stage on ``(u, v, t, k)``."""
-	value = _finite_extended_state(candidate)
-	u = value[:2].copy()
-	v = value[2:4].copy()
-	time = float(value[4])
-	momentum = float(value[5])
+	value: np.ndarray = _finite_extended_state(candidate)
+	u: np.ndarray = value[:2].copy()
+	v: np.ndarray = value[2:4].copy()
+	time: float = float(value[4])
+	momentum: float = float(value[5])
 
 	if flow_name == "flow":
 		time += duration
@@ -128,13 +132,13 @@ def _bm4_extended_map(
 	dynamics: GuidingCenterDynamics,
 ) -> ExtendedMap:
 	"""Return the complete accepted unprojected twelve-stage BM4 cycle."""
-	stage_specs = tuple(
+	stage_specs: tuple[tuple[Literal['flow'] | Literal['adjoint_flow'], float], ...] = tuple(
 		(stage.flow_name, float(stage.duration)) for stage in record.base_stages
 	)
-	frequency = float(record.coupling_frequency)
+	frequency: float = float(record.coupling_frequency)
 
 	def map_state(candidate: np.ndarray) -> np.ndarray:
-		value = _finite_extended_state(candidate)
+		value: np.ndarray = _finite_extended_state(candidate)
 		for flow_name, duration in stage_specs:
 			value = _bm4_extended_stage(
 				value,
@@ -173,13 +177,13 @@ def _measure_symplectic_map(
 	relative_step: float | None,
 ) -> tuple[float, float, float, float, float]:
 	"""Return defect, determinant, and conditioning metrics for one map."""
-	jacobian = central_difference_jacobian(
+	jacobian: np.ndarray = central_difference_jacobian(
 		map_state,
 		state,
 		relative_step=relative_step,
 	)
 	defect = jacobian.T @ form @ jacobian - form
-	defect_frobenius = float(np.linalg.norm(defect, ord="fro"))
+	defect_frobenius: float = float(np.linalg.norm(defect, ord="fro"))
 	return (
 		defect_frobenius / float(np.linalg.norm(form, ord="fro")),
 		defect_frobenius,
@@ -230,8 +234,8 @@ class GCTimeExtendedSymplecticityObserver:
 		maps_and_states: list[tuple[ExtendedMap, np.ndarray]] = []
 		if isinstance(record, ABBA4ImplicitIntegrationStep):
 			for substep in record.substeps:
-				map_state = _abba_extended_map(substep, self._dynamics)
-				state = np.concatenate(
+				map_state: Callable[[np.ndarray], np.ndarray] = _abba_extended_map(substep, self._dynamics)
+				state: np.ndarray = np.concatenate(
 					(substep.u_initial, substep.v_initial, (substep.start_time, 0.0))
 				)
 				maps_and_states.append((map_state, state))
@@ -261,7 +265,7 @@ class GCTimeExtendedSymplecticityObserver:
 				"BM4Implicit step records."
 			)
 
-		metrics = np.asarray(
+		metrics: np.ndarray = np.asarray(
 			[
 				_measure_symplectic_map(
 					map_state,
@@ -345,24 +349,26 @@ class GCReducedTimeExtendedSymplecticityObserver:
 			raise ValueError("The observed step belongs to a different GC system.")
 		if record.step_index != len(self._records):
 			raise ValueError("Reduced symplecticity records must be sequential.")
-		state_before = np.asarray(record.state_before, dtype=float)
+		state_before: np.ndarray = np.asarray(record.state_before, dtype=float)
 		if state_before.shape != (2,) or not np.all(np.isfinite(state_before)):
 			raise ValueError("Reduced symplecticity requires one planar GC state.")
-		duration = float(record.duration)
+		duration: float = float(record.duration)
 
 		def map_state(candidate: np.ndarray) -> np.ndarray:
-			value = np.asarray(candidate, dtype=float)
+			value: np.ndarray = np.asarray(candidate, dtype=float)
 			if value.shape != (4,) or not np.all(np.isfinite(value)):
 				raise ValueError(
 					"A reduced time-extended GC state must have shape (4,)."
 				)
+			physical_after: np.ndarray
+			kappa_increment: float
 			physical_after, kappa_increment = self._step_map(
 				float(value[2]),
 				value[:2],
 				duration,
 			)
-			physical = np.asarray(physical_after, dtype=float)
-			increment = float(kappa_increment)
+			physical: np.ndarray = np.asarray(physical_after, dtype=float)
+			increment: float = float(kappa_increment)
 			if (
 				physical.shape != (2,)
 				or not np.all(np.isfinite(physical))
@@ -373,9 +379,9 @@ class GCReducedTimeExtendedSymplecticityObserver:
 				(physical, (float(value[2]) + duration, float(value[3]) + increment))
 			)
 
-		initial = np.concatenate((state_before, (record.start_time, 0.0)))
+		initial: np.ndarray = np.concatenate((state_before, (record.start_time, 0.0)))
 		if not self._records:
-			mapped_initial = map_state(initial)
+			mapped_initial: np.ndarray = map_state(initial)
 			if not np.allclose(
 				mapped_initial[:2],
 				record.state_after,
@@ -385,7 +391,7 @@ class GCReducedTimeExtendedSymplecticityObserver:
 				raise RuntimeError(
 					"The replayed reduced map differs from the accepted physical step."
 				)
-		metrics = _measure_symplectic_map(
+		metrics: tuple[float, float, float, float, float] = _measure_symplectic_map(
 			map_state,
 			initial,
 			form=gc_reduced_time_extended_symplectic_form(),

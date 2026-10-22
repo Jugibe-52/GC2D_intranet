@@ -9,7 +9,7 @@ from formulations.layout import GCStateLayout
 from dataclasses import dataclass
 from time import perf_counter
 from types import MappingProxyType
-from typing import Any, Mapping
+from typing import Any, Mapping, TYPE_CHECKING
 
 import numpy as np
 
@@ -38,6 +38,10 @@ from simulation.runner import simulate
 
 from contracts.comparison import TrajectoryAccuracySeries
 from ._trajectory_accuracy import (accuracy_series, reference_distance_convention, reference_indices_for_times, validate_reference_identity, validated_refinement_steps)
+
+
+if TYPE_CHECKING:
+	from typing import Literal
 
 
 IMPLICIT_ACCURACY_METHOD_NAMES: tuple[str, ...] = (
@@ -87,7 +91,7 @@ class ImplicitMethodAccuracyConfig:
 	def __post_init__(self) -> None:
 		"""Require nested complete-step grids aligned with every saved time."""
 		require_uncoupled_bm4(self.coupling_frequency)
-		steps = validated_refinement_steps(self.integration_steps)
+		steps: tuple[float, ...] = validated_refinement_steps(self.integration_steps)
 		object.__setattr__(self, "integration_steps", steps)
 		object.__setattr__(
 			self, "t_span",
@@ -148,7 +152,7 @@ class ImplicitMethodAccuracyConfig:
 
 	def step_count(self, integration_step: float) -> int:
 		"""Return the number of complete steps for one configured refinement."""
-		step = positive_finite(integration_step, "integration_step")
+		step: float = positive_finite(integration_step, "integration_step")
 		if step not in self.integration_steps:
 			raise ValueError("`integration_step` must belong to the refinement grid.")
 		return integer_ratio(
@@ -280,11 +284,11 @@ class ImplicitMethodAccuracyResult:
 		for values in (self.solutions, self.series, self.runtimes):
 			if tuple(values) != IMPLICIT_ACCURACY_METHOD_NAMES:
 				raise ValueError("Results must follow the implicit method order.")
-		indices = np.array(self.reference_sample_indices, dtype=np.int64, copy=True)
+		indices: np.ndarray = np.array(self.reference_sample_indices, dtype=np.int64, copy=True)
 		initial_state = self.initial_configuration
 		if initial_state is None:
 			raise ValueError("The initial configuration must contain an initial state.")
-		particle_count = GCStateLayout().particle_count(initial_state)
+		particle_count: int = GCStateLayout().particle_count(initial_state)
 		common_times: np.ndarray | None = None
 		for method_name in IMPLICIT_ACCURACY_METHOD_NAMES:
 			if any(
@@ -348,14 +352,16 @@ class ImplicitMethodAccuracyResult:
 		if integration_step not in self.config.integration_steps:
 			raise ValueError("Unknown implicit accuracy integration step.")
 		diagnostics = self.solutions[method_name][integration_step].diagnostics
-		step_iterations = np.asarray(diagnostics["nonlinear_iterations"], dtype=int)
-		iterations = np.asarray(
+		step_iterations: np.ndarray = np.asarray(diagnostics["nonlinear_iterations"], dtype=int)
+		iterations: np.ndarray = np.asarray(
 			diagnostics.get(
 				"substep_nonlinear_iterations",
 				step_iterations[:, np.newaxis],
 			),
 			dtype=int,
 		).ravel()
+		values: np.ndarray
+		counts: np.ndarray
 		values, counts = np.unique(iterations, return_counts=True)
 		return MappingProxyType(
 			{int(value): int(count) for value, count in zip(values, counts)}
@@ -364,23 +370,23 @@ class ImplicitMethodAccuracyResult:
 	def summaries(self) -> tuple[ImplicitMethodAccuracySummary, ...]:
 		"""Return accuracy and Newton convergence metrics for every complete run."""
 		rows: list[ImplicitMethodAccuracySummary] = []
-		duration = float(self.times[-1] - self.times[0])
-		floor = max(self.reference_floor, float(np.finfo(float).eps))
+		duration: float = float(self.times[-1] - self.times[0])
+		floor: float = max(self.reference_floor, float(np.finfo(float).eps))
 		for step in self.config.integration_steps:
 			for method_name in IMPLICIT_ACCURACY_METHOD_NAMES:
 				solution = self.solutions[method_name][step]
 				accuracy = self.series[method_name][step]
 				diagnostics = solution.diagnostics
-				step_iterations = np.asarray(
+				step_iterations: np.ndarray = np.asarray(
 					diagnostics["nonlinear_iterations"], dtype=int
 				)
-				step_residual_evaluations = np.asarray(
+				step_residual_evaluations: np.ndarray = np.asarray(
 					diagnostics["residual_evaluations"], dtype=int
 				)
-				step_residuals = np.asarray(
+				step_residuals: np.ndarray = np.asarray(
 					diagnostics["nonlinear_residual_norms"], dtype=float
 				)
-				step_tolerances = np.asarray(
+				step_tolerances: np.ndarray = np.asarray(
 					diagnostics["nonlinear_tolerances"], dtype=float
 				)
 				expected_shape = (self.config.step_count(step),)
@@ -394,28 +400,28 @@ class ImplicitMethodAccuracyResult:
 					)
 				):
 					raise ValueError("Per-step Newton diagnostics are not aligned.")
-				iterations = np.asarray(
+				iterations: np.ndarray = np.asarray(
 					diagnostics.get(
 						"substep_nonlinear_iterations",
 						step_iterations[:, np.newaxis],
 					),
 					dtype=int,
 				)
-				residual_evaluations = np.asarray(
+				residual_evaluations: np.ndarray = np.asarray(
 					diagnostics.get(
 						"substep_residual_evaluations",
 						step_residual_evaluations[:, np.newaxis],
 					),
 					dtype=int,
 				)
-				residuals = np.asarray(
+				residuals: np.ndarray = np.asarray(
 					diagnostics.get(
 						"substep_nonlinear_residual_norms",
 						step_residuals[:, np.newaxis],
 					),
 					dtype=float,
 				)
-				tolerances = np.asarray(
+				tolerances: np.ndarray = np.asarray(
 					diagnostics.get(
 						"substep_nonlinear_tolerances",
 						step_tolerances[:, np.newaxis],
@@ -433,14 +439,14 @@ class ImplicitMethodAccuracyResult:
 					or np.any(tolerances <= 0.0)
 				):
 					raise ValueError("Per-solve Newton diagnostics are inconsistent.")
-				nonlinear_solves = int(
+				nonlinear_solves: int = int(
 					diagnostics.get("nonlinear_solves_per_step", iterations.shape[1])
 				)
 				if nonlinear_solves != iterations.shape[1]:
 					raise ValueError("The nonlinear-solve count is inconsistent.")
-				flat_iterations = iterations.ravel()
+				flat_iterations: np.ndarray = iterations.ravel()
 				residual_ratios = residuals / tolerances
-				time_rms = float(
+				time_rms: float = float(
 					np.sqrt(
 						np.trapz(accuracy.rms_distance**2, self.times) / duration
 					)
@@ -494,8 +500,8 @@ class ImplicitMethodAccuracyResult:
 		summaries = {
 			(row.method_name, row.integration_step): row for row in self.summaries()
 		}
-		time_floor = max(self.reference_floor, float(np.finfo(float).eps))
-		final_floor = max(self.final_reference_floor, float(np.finfo(float).eps))
+		time_floor: float = max(self.reference_floor, float(np.finfo(float).eps))
+		final_floor: float = max(self.final_reference_floor, float(np.finfo(float).eps))
 		rows: list[ImplicitMethodAccuracyOrder] = []
 		for coarse_step, fine_step in zip(
 			self.config.integration_steps,
@@ -515,12 +521,12 @@ class ImplicitMethodAccuracyResult:
 					fine.final_rms_distance > 10.0 * final_floor
 					and final_gain > 0.0
 				)
-				time_order = (
+				time_order: float = (
 					float(np.log(time_gain) / np.log(step_ratio))
 					if time_resolved
 					else float("nan")
 				)
-				final_order = (
+				final_order: float = (
 					float(np.log(final_gain) / np.log(step_ratio))
 					if final_resolved
 					else float("nan")
@@ -589,9 +595,9 @@ def run_implicit_method_accuracy_study(
 		potential_metadata=potential_metadata,
 		initial_condition_metadata=initial_condition_metadata,
 	)
-	dynamics = GuidingCenterDynamics(potential, rho=config.rho)
-	problem = InitialValueProblem(dynamics, initial_configuration, layout=GCStateLayout())
-	distance_convention = reference_distance_convention(reference)
+	dynamics: GuidingCenterDynamics = GuidingCenterDynamics(potential, rho=config.rho)
+	problem: InitialValueProblem = InitialValueProblem(dynamics, initial_configuration, layout=GCStateLayout())
+	distance_convention: Literal['euclidean'] | Literal['periodic'] = reference_distance_convention(reference)
 	solutions: dict[str, dict[float, States]] = {
 		method_name: {} for method_name in IMPLICIT_ACCURACY_METHOD_NAMES
 	}
@@ -603,21 +609,21 @@ def run_implicit_method_accuracy_study(
 	}
 	reference_indices: np.ndarray | None = None
 	for step in config.integration_steps:
-		request = SimulationRequest.uniform(
+		request: SimulationRequest = SimulationRequest.uniform(
 			t_span=config.t_span,
 			max_step=step,
 			sample_count=config.output_sample_count,
 		)
 		for method_name in IMPLICIT_ACCURACY_METHOD_NAMES:
-			started = perf_counter()
-			solution = simulate(
+			started: float = perf_counter()
+			solution: States = simulate(
 				problem,
 				_configured_method(method_name, config),
 				request,
 			)
 			runtimes[method_name][step] = perf_counter() - started
 			solutions[method_name][step] = solution
-			indices = reference_indices_for_times(reference, solution.t)
+			indices: np.ndarray = reference_indices_for_times(reference, solution.t)
 			if reference_indices is None:
 				reference_indices = indices
 			elif not np.array_equal(indices, reference_indices):
@@ -672,7 +678,7 @@ def _validated_refinement_trajectory(
 		solution.t.size,
 	):
 		raise ValueError("An accuracy series is inconsistent with its solution.")
-	runtime = float(runtimes[method_name][step])
+	runtime: float = float(runtimes[method_name][step])
 	if not np.isfinite(runtime) or runtime <= 0.0:
 		raise ValueError("Every runtime must be positive and finite.")
 	return common_times

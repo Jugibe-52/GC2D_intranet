@@ -6,6 +6,11 @@ from pathlib import Path
 
 import numpy as np
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from typing import Any
+
 
 def _digest(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
@@ -14,11 +19,11 @@ def _digest(path: Path) -> str:
 def load_poincare_probe(directory: Path, *, expected_contract: dict | None = None) -> tuple[dict, dict]:
     """Read complete products and optionally require identical inputs and source."""
     directory = Path(directory)
-    complete = json.loads((directory / 'COMPLETE.json').read_text())
+    complete: Any = json.loads((directory / 'COMPLETE.json').read_text())
     for name in ('trajectory.npz', 'metadata.json'):
         if _digest(directory / name) != complete['sha256'][name]:
             raise ValueError(f'Probe product checksum mismatch: {name}')
-    metadata = json.loads((directory / 'metadata.json').read_text())
+    metadata: Any = json.loads((directory / 'metadata.json').read_text())
     if expected_contract is not None and metadata['contract'] != json.loads(json.dumps(expected_contract)):
         raise ValueError('Saved probe uses different settings or source. Choose a new run directory.')
     with np.load(directory / 'trajectory.npz', allow_pickle=False) as arrays:
@@ -42,7 +47,7 @@ def save_poincare_probe(directory: Path, result: dict, *, contract: dict) -> Pat
             raise ValueError('Persist finite float64 trajectories only.')
     arrays = {name: result[name] for name in ('times', 'xy')}
     if contract.get('method') == 'BM4Midpoint':
-        separation = np.asarray(result['copy_separation_norms'])
+        separation: np.ndarray = np.asarray(result['copy_separation_norms'])
         if (separation.shape != (result['step_count'],) or not np.isfinite(separation).all()
                 or np.any(separation < 0)):
             raise ValueError('BM4Midpoint requires finite nonnegative separation at every step.')
@@ -51,13 +56,13 @@ def save_poincare_probe(directory: Path, result: dict, *, contract: dict) -> Pat
     with temporary.open('wb') as stream:
         np.savez_compressed(stream, **arrays)
     temporary.replace(directory / 'trajectory.npz')
-    metadata = dict(contract=contract, runtime_seconds=result['runtime_seconds'],
+    metadata: dict[str, Any] = dict(contract=contract, runtime_seconds=result['runtime_seconds'],
                     step_count=result['step_count'], coordinate_layout='(step, particle, xy), unwrapped',
                     initial_state_included=True, sample_scope='Every complete step, including initial state')
     if 'method_diagnostics' in result:
         metadata['method_diagnostics'] = result['method_diagnostics']
     (directory / 'metadata.json').write_text(json.dumps(metadata, indent=2) + '\n')
-    complete = dict(sha256={name: _digest(directory / name) for name in ('trajectory.npz', 'metadata.json')})
+    complete: dict[str, dict[str, str]] = dict(sha256={name: _digest(directory / name) for name in ('trajectory.npz', 'metadata.json')})
     marker = directory / 'COMPLETE.json.tmp'
     marker.write_text(json.dumps(complete, indent=2) + '\n')
     marker.replace(directory / 'COMPLETE.json')

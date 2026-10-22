@@ -8,7 +8,7 @@ import numpy as np
 def save_energy_balance(path: str | Path, arrays: dict[str, np.ndarray], metadata: dict[str, Any]) -> None:
     """Atomically replace one complete study archive with explicit metadata."""
     path = Path(path)
-    temporary = path.with_suffix('.tmp.npz')
+    temporary: Path = path.with_suffix('.tmp.npz')
     np.savez_compressed(temporary, metadata_json=json.dumps(metadata), **arrays)
     temporary.replace(path)
 
@@ -16,7 +16,7 @@ def save_energy_balance(path: str | Path, arrays: dict[str, np.ndarray], metadat
 def load_energy_balance(path: str | Path) -> tuple[dict[str, np.ndarray], dict[str, Any]]:
     """Read numeric arrays and JSON without executing serialized Python objects."""
     with np.load(path, allow_pickle=False) as data:
-        metadata = json.loads(str(data['metadata_json']))
+        metadata: Any = json.loads(str(data['metadata_json']))
         arrays = {key: data[key].copy() for key in data.files if key != 'metadata_json'}
     if metadata.get('schema_version') != 1:
         raise ValueError('Unsupported energy-balance archive schema.')

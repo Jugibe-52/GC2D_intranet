@@ -164,8 +164,8 @@ def save_solution(
         destination = solution_destination(experiment_path, run_id)
     elif experiment_path is not None or run_id is not None:
         raise ValueError("Supply either destination or experiment_path and run_id.")
-    store = ArtifactStore(destination)
-    staging = Path(tempfile.mkdtemp(prefix="gc2d-solution-"))
+    store: ArtifactStore = ArtifactStore(destination)
+    staging: Path = Path(tempfile.mkdtemp(prefix="gc2d-solution-"))
     preserve = False
     try:
         _write_archive(staging, solution, metadata, potential)
@@ -194,7 +194,7 @@ def _manifest_inventory(manifest: Mapping[str, Any]) -> dict[str, Any]:
     """Validate a solution manifest and return its fixed artifact inventory."""
     if manifest.get("schema_version") != 1 or manifest.get("artifact_kind") != "gc2d_solution":
         raise ValueError("Unsupported solution manifest.")
-    records = manifest.get("files", {})
+    records: Any = manifest.get("files", {})
     required = {"solution.npz", "metadata.json"}
     if set(records) not in (required, required | {"potential.npz"}):
         raise ValueError("Incomplete or unsupported manifest file inventory.")
@@ -217,7 +217,7 @@ def _load_solution_arrays(directory: Path, description: Mapping[str, Any]) -> St
             name: saved[value["array"]] if "array" in value else value["scalar"]
             for name, value in description["diagnostics"].items()
         }
-        solution = States(t=saved["t"], states=saved["states"], initial_state=initial, layout=layout, diagnostics=diagnostics)
+        solution: States = States(t=saved["t"], states=saved["states"], initial_state=initial, layout=layout, diagnostics=diagnostics)
     return solution
 
 
@@ -227,25 +227,25 @@ def load_solution(source: str | Path) -> StoredSolution:
     Every remote load downloads into a fresh temporary directory; it cannot
     silently use a stale local result. Only fixed schema filenames are accepted.
     """
-    store = ArtifactStore(source)
+    store: ArtifactStore = ArtifactStore(source)
     with tempfile.TemporaryDirectory(prefix="gc2d-load-") as temporary:
-        directory = Path(temporary)
+        directory: Path = Path(temporary)
         store.get("manifest.json", directory / "manifest.json")
-        manifest = json.loads((directory / "manifest.json").read_text(encoding="utf-8"))
-        records = _manifest_inventory(manifest)
+        manifest: Any = json.loads((directory / "manifest.json").read_text(encoding="utf-8"))
+        records: dict[str, Any] = _manifest_inventory(manifest)
         for name, record in records.items():
             path = directory / name
             store.get(name, path)
             if path.stat().st_size != record["bytes"] or _digest(path) != record["sha256"]:
                 raise ValueError(f"Artifact integrity check failed: {name}.")
-        description = json.loads((directory / "metadata.json").read_text(encoding="utf-8"))
-        solution = _load_solution_arrays(directory, description)
-        potential = None
+        description: Any = json.loads((directory / "metadata.json").read_text(encoding="utf-8"))
+        solution: States = _load_solution_arrays(directory, description)
+        potential: Potential | None = None
         field = description["potential"]
         if (field is not None) != ("potential.npz" in records):
             raise ValueError("Potential metadata and manifest disagree.")
         if field is not None:
-            provenance = field["provenance"]
+            provenance: Any = field["provenance"]
             with np.load(directory / "potential.npz", allow_pickle=False) as saved:
                 if field["provenance_kind"] == "gc2d_h5":
                     # Older archives recorded the loader's coordinate choice.
@@ -263,7 +263,7 @@ def load_solution(source: str | Path) -> StoredSolution:
                     provenance = GC2DH5Metadata(**provenance)
                 elif field["provenance_kind"] != "json":
                     raise ValueError("Unsupported potential provenance.")
-                convention = field.get("frequency_convention", "cycles")
+                convention: Any = field.get("frequency_convention", "cycles")
                 if convention not in ("angular", "cycles"):
                     raise ValueError("Unsupported stored frequency convention.")
                 frequencies = saved["frequencies"]

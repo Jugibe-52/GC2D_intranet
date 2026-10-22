@@ -12,15 +12,19 @@ from matplotlib.figure import Figure
 
 from visualization.gc_area import animate_gc_area_solution
 
+
 if TYPE_CHECKING:
-	from studies.abba_comparison import ABBAComparisonResult
+	from matplotlib.container import BarContainer
+	from studies.abba_comparison import ABBAComparisonResult, ABBARuntimeSummary
 
 
 def plot_abba_runtime_comparison(result: ABBAComparisonResult) -> tuple[Figure, Axes]:
 	"""Plot simulation runtime after subtracting symplecticity callbacks."""
-	rows = result.runtime_summaries()
+	rows: tuple[ABBARuntimeSummary, ...] = result.runtime_summaries()
+	figure: Figure
+	axis: Axes
 	figure, axis = plt.subplots(figsize=(9, 4.8), constrained_layout=True)
-	bars = axis.bar(
+	bars: BarContainer = axis.bar(
 		[row.method_name for row in rows],
 		[row.seconds for row in rows],
 		color=("C0", "C1", "C2"),
@@ -36,6 +40,8 @@ def plot_abba_runtime_comparison(result: ABBAComparisonResult) -> tuple[Figure, 
 
 def plot_abba_trajectory_differences(result: ABBAComparisonResult) -> tuple[Figure, Axes]:
 	"""Plot pairwise RMS and maximum periodic particle displacement over time."""
+	figure: Figure
+	axis: Axes
 	figure, axis = plt.subplots(figsize=(10, 5.5), constrained_layout=True)
 	floor = np.finfo(float).eps * result.potential.grid.period
 	for index, series in enumerate(result.trajectory_difference_series()):

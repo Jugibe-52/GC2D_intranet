@@ -54,7 +54,7 @@ def _digest(path: Path) -> str:
 def _particle_ids(values: Sequence[int]) -> tuple[int, ...]:
     if not len(values) or any(isinstance(p, (bool, np.bool_)) or int(p) != p for p in values):
         raise ValueError('Select a nonempty sequence of integer particle IDs.')
-    ids = tuple(int(p) for p in values)
+    ids: tuple[int, ...] = tuple(int(p) for p in values)
     if len(set(ids)) != len(ids):
         raise ValueError('Particle IDs must be unique.')
     return ids
@@ -69,16 +69,21 @@ def load_saved_poincare_section(
     the original-particle manifest hash. Missing, repeated or misaligned samples
     are errors. Git LFS pointer files must first be materialized by the caller.
     """
-    ids = _particle_ids(particle_ids)
+    ids: tuple[int, ...] = _particle_ids(particle_ids)
     if not run_id or Path(run_id).name != run_id or run_id in ('.', '..'):
         raise ValueError('run_id must be a single directory name.')
-    root = Path(study_directory)
+    root: Path = Path(study_directory)
     directory = root / 'resultados' / run_id
+    meta: dict[str, Any]
+    hashes: dict[str, str]
+    original: dict[int, Any]
+    period: float
     meta, hashes, original, period = _verified_section_metadata(root, directory, run_id, ids)
-    cycles = int(meta['cycles'])
-    points = np.full((cycles + 1, len(ids), 2), np.nan)
-    seen = np.zeros((cycles + 1, len(ids)), dtype=bool)
+    cycles: int = int(meta['cycles'])
+    points: np.ndarray = np.full((cycles + 1, len(ids), 2), np.nan)
+    seen: np.ndarray = np.zeros((cycles + 1, len(ids)), dtype=bool)
     initial = []
+    pid: int
     for j, pid in enumerate(ids):
         p = original[pid]
         points[0, j] = np.array([p['x'], p['y']]) / period
@@ -93,6 +98,8 @@ def load_saved_poincare_section(
             if pid not in indices:
                 continue
             j = indices[pid]
+            n: int
+            coordinates: np.ndarray
             n, coordinates = _validated_cycle_row(row, pid, j, cycles, seen, meta, original, period)
             points[n, j] = coordinates
             seen[n, j] = True
@@ -107,25 +114,31 @@ def section_distances(first: np.ndarray, second: np.ndarray) -> np.ndarray:
     first, second = np.asarray(first), np.asarray(second)
     if first.shape != second.shape or first.ndim != 3 or first.shape[-1] != 2:
         raise ValueError('Expected matching (samples, particles, 2) arrays.')
+    samples: int
+    particles: int
     samples, particles, _ = first.shape
     # Reuse the GC component-major distance contract [x_1..x_N, y_1..y_N].
-    packed_a = first.transpose(2, 1, 0).reshape(2 * particles, samples)
-    packed_b = second.transpose(2, 1, 0).reshape(2 * particles, samples)
+    packed_a: np.ndarray = first.transpose(2, 1, 0).reshape(2 * particles, samples)
+    packed_b: np.ndarray = second.transpose(2, 1, 0).reshape(2 * particles, samples)
     return periodic_particle_distances(packed_a, packed_b, period=1.0).T
 
 
 def _spectrum(points: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     angle = 2 * np.pi * points
-    observables = np.concatenate((np.sin(angle), np.cos(angle)), axis=-1)
+    observables: np.ndarray = np.concatenate((np.sin(angle), np.cos(angle)), axis=-1)
     # Remove the mean explicitly so constant orbits have exactly zero power.
     observables -= observables[:1]
     observables -= observables.mean(axis=0)
+    frequency: np.ndarray
+    power: np.ndarray
     frequency, power = periodogram(observables, fs=1.0, window='hann',
                                    detrend=False, axis=0, scaling='spectrum')
     return frequency, power.sum(axis=-1)
 
 
 def _dominant_frequency(spectrum: tuple[np.ndarray, np.ndarray], particle: int) -> float | None:
+    frequency: np.ndarray
+    power: np.ndarray
     frequency, power = spectrum
     peak = 1 + int(np.argmax(power[1:, particle]))
     return float(frequency[peak]) if power[peak, particle] > 0 else None
@@ -142,31 +155,41 @@ def analyze_poincare_periodicity(
     minimizes RMS over all overlapping pairs, not distance to the initial point.
     Threshold tests use the maximum defect and do not estimate numerical error.
     """
+    ids: tuple[int, ...]
+    z: np.ndarray
+    thresholds: tuple[float, ...]
+    cycles: int
+    limit: int
     ids, z, thresholds, cycles, limit = _validated_periodicity_inputs(
         positions, particle_ids, max_lag, minimum_repetitions, threshold_fractions,
     )
-    lags = np.arange(1, limit + 1)
+    lags: np.ndarray = np.arange(1, limit + 1)
     half = cycles // 2
-    metrics = np.empty((limit, len(ids), 5))
+    metrics: np.ndarray = np.empty((limit, len(ids), 5))
+    q: Any
     for k, q in enumerate(lags):
-        distances = section_distances(z[q:], z[:-q])
-        first = section_distances(z[q:half + 1], z[:half + 1 - q])
-        second = section_distances(z[half + q:], z[half:-q])
+        distances: np.ndarray = section_distances(z[q:], z[:-q])
+        first: np.ndarray = section_distances(z[q:half + 1], z[:half + 1 - q])
+        second: np.ndarray = section_distances(z[half + q:], z[half:-q])
         metrics[k] = np.stack((np.sqrt(np.mean(distances**2, axis=0)),
                                np.quantile(distances, .95, axis=0), distances.max(axis=0),
                                np.sqrt(np.mean(first**2, axis=0)),
                                np.sqrt(np.mean(second**2, axis=0))), axis=-1)
     # Exclude t=0 for spectra; the two spectral windows have no shared samples.
-    spectra = dict(full=_spectrum(z[1:]), first_half=_spectrum(z[1:half + 1]),
+    spectra: dict[str, tuple[np.ndarray, np.ndarray]] = dict(full=_spectrum(z[1:]), first_half=_spectrum(z[1:half + 1]),
                    second_half=_spectrum(z[half + 1:]))
-    initial_distances = section_distances(z, np.broadcast_to(z[:1], z.shape))
+    initial_distances: np.ndarray = section_distances(z, np.broadcast_to(z[:1], z.shape))
+    summary: list[dict[str, float | None]]
+    accepted: list[dict[str, float | int | None]]
+    candidates: list[dict[str, float]]
+    defects: list[np.ndarray]
     summary, accepted, candidates, defects = [], [], [], []
     for j, pid in enumerate(ids):
-        best = int(np.argmin(metrics[:, j, 0]))
+        best: int = int(np.argmin(metrics[:, j, 0]))
         q = int(lags[best])
         closest = 1 + int(np.argmin(initial_distances[1:, j]))
-        frequency = _dominant_frequency(spectra['full'], j)
-        row = dict(particle=pid, best_q=q, rms_over_L=float(metrics[best, j, 0]),
+        frequency: float | None = _dominant_frequency(spectra['full'], j)
+        row: dict[str, float | None] = dict(particle=pid, best_q=q, rms_over_L=float(metrics[best, j, 0]),
                    p95_over_L=float(metrics[best, j, 1]), max_over_L=float(metrics[best, j, 2]),
                    first_half_rms=float(metrics[best, j, 3]), second_half_rms=float(metrics[best, j, 4]),
                    first_half_best_q=int(lags[np.argmin(metrics[:, j, 3])]),
@@ -197,7 +220,7 @@ def periodicity_interpretation(result: PoincarePeriodicity) -> str:
     lines = []
     for row in result.summary:
         accepted = [r for r in result.thresholds if r['particle'] == row['particle'] and r['smallest_q'] is not None]
-        verdict = ('; '.join(f"smallest q={r['smallest_q']} at {r['threshold_over_L']:g} L" for r in accepted)
+        verdict: str = ('; '.join(f"smallest q={r['smallest_q']} at {r['threshold_over_L']:g} L" for r in accepted)
                    if accepted else 'No tested lag passes any selected maximum-distance threshold.')
         spectral = (f"Dominant spectral timescale: {row['oscillation_cycles']:.6g} cycles. "
                     if row['oscillation_cycles'] else 'No nonzero-frequency spectral power. ')
@@ -237,12 +260,12 @@ def _rotation_crossings(points: np.ndarray) -> tuple[np.ndarray, str]:
     if (np.max(np.abs(displacement)) >= .45
             or np.min(np.linalg.norm(displacement, axis=1)) < 1e-10):
         return np.empty(0), 'No localized angular clock about the circular centroid.'
-    phase = np.unwrap(np.arctan2(displacement[:, 1], displacement[:, 0]))
-    direction = np.sign(phase[-1] - phase[0])
+    phase: np.ndarray = np.unwrap(np.arctan2(displacement[:, 1], displacement[:, 0]))
+    direction: Any = np.sign(phase[-1] - phase[0])
     turns = direction * (phase - phase[0]) / (2 * np.pi)
     if direction == 0 or np.any(np.diff(turns) <= 0) or turns[-1] < 3:
         return np.empty(0), 'Angular motion is not resolved as strictly monotone complete turns.'
-    levels = np.arange(1, int(np.floor(turns[-1])) + 1)
+    levels: np.ndarray = np.arange(1, int(np.floor(turns[-1])) + 1)
     return np.interp(levels, turns, np.arange(len(points))), 'Resolved monotone angular clock.'
 
 
@@ -260,31 +283,46 @@ def analyze_short_periodicity(
     the normalized inner product of centered sin/cos spatial observables over
     overlapping samples. Coordinate errors retain the minimum-image convention.
     """
+    ids: tuple[int, ...]
+    z: np.ndarray
+    cycles: int
+    thresholds: tuple[float, ...]
     ids, z, cycles, max_lag, candidate_max_lag, multiple_count, block_cycles, thresholds = (
         _validated_short_periodicity_inputs(
             positions, particle_ids, max_lag, candidate_max_lag, peak_height,
             peak_prominence, multiple_count, block_cycles, threshold_fractions,
         )
     )
-    obs = np.concatenate((np.sin(2 * np.pi * z), np.cos(2 * np.pi * z)), axis=-1)
+    obs: np.ndarray = np.concatenate((np.sin(2 * np.pi * z), np.cos(2 * np.pi * z)), axis=-1)
     centered = obs - obs[:1]
     centered -= centered.mean(axis=0)
-    correlations = np.full((max_lag + 1, len(ids)), np.nan)
+    correlations: np.ndarray = np.full((max_lag + 1, len(ids)), np.nan)
     for scan_lag in range(max_lag + 1):
+        a: Any
+        b: Any
         a, b = (centered[scan_lag:], centered[:-scan_lag]) if scan_lag else (centered, centered)
-        norm = np.sqrt(np.sum(a*a, axis=(0, 2)) * np.sum(b*b, axis=(0, 2)))
+        norm: Any = np.sqrt(np.sum(a*a, axis=(0, 2)) * np.sum(b*b, axis=(0, 2)))
         np.divide(np.sum(a*b, axis=(0, 2)), norm, out=correlations[scan_lag], where=norm > 0)
+    summary: list[dict[str, Any]]
+    peaks: list[dict[str, float | int | None]]
+    multiples: list[dict[str, float]]
+    blocks: list[dict[str, float | None]]
+    revolutions: list[dict[str, float]]
+    accepted: list[dict[str, float]]
     summary, peaks, multiples, blocks, revolutions, accepted = [], [], [], [], [], []
     for j, pid in enumerate(ids):
+        locations: Any
         locations, _ = find_peaks(correlations[:, j], height=peak_height, prominence=peak_prominence)
         eligible = locations[locations <= candidate_max_lag]
-        q = int(eligible[0]) if len(eligible) else None
+        q: int | None = int(eligible[0]) if len(eligible) else None
         for k, lag in enumerate(locations):
             peaks.append(dict(particle=pid, peak_number=k + 1, lag=int(lag),
                               correlation=float(correlations[lag, j]),
                               interval_from_previous=int(lag - locations[k - 1]) if k else None))
+        crossings: np.ndarray
+        clock_status: str
         crossings, clock_status = _rotation_crossings(z[:, j])
-        periods = np.diff(crossings)
+        periods: np.ndarray = np.diff(crossings)
         for k, duration in enumerate(periods):
             revolutions.append(dict(particle=pid, start_cycle=float(crossings[k]),
                                     end_cycle=float(crossings[k + 1]), duration_cycles=float(duration)))
@@ -307,18 +345,20 @@ def analyze_short_periodicity(
             # This tests persistence of the candidate, not an independently selected period.
             split = len(z) // 2
             labels = np.arange(len(z)) % q
+            training: Any
+            testing: Any
             training, testing = obs[:split, j], obs[split:, j]
-            template = np.stack([training[labels[:split] == r].mean(axis=0) for r in range(q)])
-            baseline = np.sum((testing - training.mean(axis=0))**2)
+            template: np.ndarray = np.stack([training[labels[:split] == r].mean(axis=0) for r in range(q)])
+            baseline: Any = np.sum((testing - training.mean(axis=0))**2)
             if baseline > 0:
                 row['heldout_template_score'] = float(1 - np.sum((testing - template[labels[split:]])**2) / baseline)
             for k in range(1, min(multiple_count, cycles // (2*q)) + 1):
                 lag = k*q
-                d = section_distances(z[lag:, j:j+1], z[:-lag, j:j+1])[:, 0]
+                d: np.ndarray = section_distances(z[lag:, j:j+1], z[:-lag, j:j+1])[:, 0]
                 multiples.append(dict(particle=pid, multiple=k, lag=lag,
                                       rms_over_L=float(np.sqrt(np.mean(d*d))), max_over_L=float(d.max())))
         for start in range(0, cycles, block_cycles):
-            stop = min(start + block_cycles, cycles)
+            stop: int = min(start + block_cycles, cycles)
             # Block positions are disjoint; comparisons never cross a block boundary.
             block = z[start:stop, j:j+1]
             if len(block) <= max_lag:
@@ -328,7 +368,7 @@ def analyze_short_periodicity(
             if q is not None:
                 d = section_distances(block[q:], block[:-q])[:, 0]
                 a, b = centered[start+q:stop, j], centered[start:stop-q, j]
-                corr = float(np.sum(a*b) / np.sqrt(np.sum(a*a)*np.sum(b*b)))
+                corr: float = float(np.sum(a*b) / np.sqrt(np.sum(a*a)*np.sum(b*b)))
             else:
                 d, corr = np.array([np.nan]), float('nan')
             blocks.append(dict(particle=pid, start_cycle=start, stop_cycle_exclusive=stop,
@@ -373,19 +413,19 @@ def _validated_periodicity_inputs(
 	minimum_repetitions: int, threshold_fractions: Sequence[float],
 ) -> tuple[tuple[int, ...], np.ndarray, tuple[float, ...], int, int]:
 	"""Normalize a long-period scan while retaining its distinct-threshold and repetition rules."""
-	ids = _particle_ids(particle_ids)
-	z = np.asarray(positions, dtype=float)
+	ids: tuple[int, ...] = _particle_ids(particle_ids)
+	z: np.ndarray = np.asarray(positions, dtype=float)
 	if z.ndim != 3 or z.shape[1:] != (len(ids), 2) or len(z) < 11 or not np.isfinite(z).all():
 		raise ValueError('Require finite (cycles + 1, particles, 2) data with at least ten cycles.')
 	for name, value, lower in (('max_lag', max_lag, 1), ('minimum_repetitions', minimum_repetitions, 3)):
 		if isinstance(value, (bool, np.bool_)) or int(value) != value or value < lower:
 			raise ValueError(f'{name} must be an integer >= {lower}.')
-	thresholds = tuple(float(v) for v in threshold_fractions)
+	thresholds: tuple[float, ...] = tuple(float(v) for v in threshold_fractions)
 	if not thresholds or len(set(thresholds)) != len(thresholds) or any(
 			not np.isfinite(v) or not 0 < v < .5 for v in thresholds):
 		raise ValueError('Thresholds must be distinct fractions strictly between zero and 0.5.')
 	cycles = len(z) - 1
-	limit = min(int(max_lag), cycles // int(minimum_repetitions))
+	limit: int = min(int(max_lag), cycles // int(minimum_repetitions))
 	if limit < 1:
 		raise ValueError('The record is too short for minimum_repetitions.')
 	return ids, z, thresholds, cycles, limit
@@ -397,8 +437,8 @@ def _validated_short_periodicity_inputs(
 	multiple_count: int, block_cycles: int, threshold_fractions: Sequence[float],
 ) -> tuple[tuple[int, ...], np.ndarray, int, int, int, int, int, tuple[float, ...]]:
 	"""Normalize the short-rhythm scan with its own record, lag, peak, and threshold limits."""
-	ids = _particle_ids(particle_ids)
-	z = np.asarray(positions, dtype=float)
+	ids: tuple[int, ...] = _particle_ids(particle_ids)
+	z: np.ndarray = np.asarray(positions, dtype=float)
 	if z.ndim != 3 or z.shape[1:] != (len(ids), 2) or len(z) < 21 or not np.isfinite(z).all():
 		raise ValueError('Require finite (cycles + 1, particles, 2) data with at least 20 cycles.')
 	for name, value, lower in (('max_lag', max_lag, 3), ('candidate_max_lag', candidate_max_lag, 2),
@@ -414,7 +454,7 @@ def _validated_short_periodicity_inputs(
 						 'and block_cycles <= cycles.')
 	if not np.isfinite([peak_height, peak_prominence]).all() or not 0 < peak_height < 1 or not 0 < peak_prominence < 2:
 		raise ValueError('Peak height must be in (0,1) and prominence in (0,2).')
-	thresholds = tuple(float(eps) for eps in threshold_fractions)
+	thresholds: tuple[float, ...] = tuple(float(eps) for eps in threshold_fractions)
 	if not thresholds or any(not np.isfinite(eps) or not 0 < eps < .5 for eps in thresholds):
 		raise ValueError('Threshold fractions must lie in (0,0.5).')
 	return ids, z, cycles, max_lag, candidate_max_lag, multiple_count, block_cycles, thresholds
@@ -424,7 +464,7 @@ def _verified_section_metadata(
 	root: Path, directory: Path, run_id: str, ids: tuple[int, ...],
 ) -> tuple[dict[str, Any], dict[str, str], dict[int, Any], float]:
 	"""Read and verify completion, particle provenance, and the physical cell period."""
-	complete = json.loads((directory / 'COMPLETE.json').read_text())
+	complete: Any = json.loads((directory / 'COMPLETE.json').read_text())
 	if complete['run_id'] != run_id:
 		raise ValueError('Completion manifest belongs to another run.')
 	hashes = {}
@@ -432,7 +472,7 @@ def _verified_section_metadata(
 		hashes[name] = _digest(directory / name)
 		if hashes[name] != complete['sha256'][name]:
 			raise ValueError(f'Checksum mismatch or unmaterialized Git LFS file: {name}')
-	meta = json.loads((directory / 'metadata.json').read_text())
+	meta: Any = json.loads((directory / 'metadata.json').read_text())
 	if meta['run_id'] != run_id or not set(ids).issubset(meta['particle_ids']):
 		raise ValueError('Requested run or particle IDs do not match saved metadata.')
 	manifest = root / 'assets' / 'original_particles.json'
@@ -440,7 +480,7 @@ def _verified_section_metadata(
 	if hashes['original_particles.json'] != meta['original_particles_sha256']:
 		raise ValueError('Original-particle manifest checksum mismatch.')
 	original = {int(p['particle']): p for p in json.loads(manifest.read_text())['particles']}
-	period = float(meta['field_provenance']['grid']['period'])
+	period: float = float(meta['field_provenance']['grid']['period'])
 	if not np.isfinite(period) or period <= 0:
 		raise ValueError('Cell period must be finite and positive.')
 	return meta, hashes, original, period
@@ -451,13 +491,13 @@ def _validated_cycle_row(
 	meta: dict[str, Any], original: dict[int, Any], period: float,
 ) -> tuple[int, np.ndarray]:
 	"""Validate one selected cycle row before it is committed to the assembled section."""
-	n = int(row['cycle'])
+	n: int = int(row['cycle'])
 	if not 1 <= n <= cycles or seen[n, j]:
 		raise ValueError('Saved cycles must occur exactly once per selected particle.')
 	expected_time = meta['t0'] + n * meta['cycle_duration']
 	if not np.isclose(float(row['time_normalized']), expected_time, rtol=0, atol=1e-10):
 		raise ValueError('Saved times do not match the forcing-cycle grid.')
-	coordinates = np.array([float(row['x_over_L']), float(row['y_over_L'])])
+	coordinates: np.ndarray = np.array([float(row['x_over_L']), float(row['y_over_L'])])
 	wrapped = np.array([float(row['x_wrapped']), float(row['y_wrapped'])]) / period
 	if (not np.isfinite(coordinates).all() or np.any((coordinates < 0) | (coordinates > 1))
 			or not np.allclose(coordinates, wrapped, rtol=0, atol=1e-12)):

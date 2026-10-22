@@ -10,6 +10,11 @@ from potential.load import GC2DH5Metadata
 from potential.grid import Grid
 from potential.potential import Potential
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+	from typing import Any
+
 
 @dataclass(frozen=True, slots=True)
 class _H5PotentialSnapshot:
@@ -43,7 +48,7 @@ class _H5PotentialSnapshot:
 
 	def restore(self) -> Potential:
 		"""Rebuild runtime splines once inside one worker process."""
-		convention = getattr(self, "frequency_convention", "cycles")
+		convention: Any | str = getattr(self, "frequency_convention", "cycles")
 		if convention not in ("cycles", "angular"):
 			raise ValueError("Unsupported snapshot frequency convention.")
 		return Potential(

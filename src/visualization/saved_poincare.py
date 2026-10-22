@@ -8,9 +8,20 @@ import matplotlib.pyplot as plt
 from diagnostics.poincare_section import load_poincare_cycle_csv
 from visualization.poincare_selector import export_poincare_selector
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from matplotlib.axes import Axes
+    from matplotlib.figure import Figure
+    from numpy import ndarray
+    from typing import Any
+
 
 def render_saved_section(study_directory: str | Path, run_id: str) -> Path:
     """Save a static section and an offline selector, preserving IDs and colors."""
+    metadata: dict[str, Any]
+    points: ndarray
+    colors: list[str | None]
     metadata, points, colors = load_poincare_cycle_csv(study_directory, run_id)
     output = Path(study_directory) / 'figuras' / run_id
     output.mkdir(parents=True, exist_ok=True)
@@ -18,10 +29,12 @@ def render_saved_section(study_directory: str | Path, run_id: str) -> Path:
     title = f'Hamiltonian Poincare section | {metadata["method"]}'
     subtitle = (f'{len(ids)} particles · {len(points)} cycles · '
                 f'{metadata["steps_per_cycle"]} steps/cycle')
-    selector = export_poincare_selector(
+    selector: Path = export_poincare_selector(
         output / 'poincare_selector.html', points, ids, colors,
         title=title, subtitle=subtitle,
     )
+    fig: Figure
+    ax: Axes
     fig, ax = plt.subplots(figsize=(10, 8), layout='constrained')
     try:
         for j, (pid, color) in enumerate(zip(ids, colors)):
@@ -45,6 +58,6 @@ def display_saved_section(selector: str | Path) -> None:
 
     selector = Path(selector)
     display(Image(filename=str(selector.with_name('poincare_section.png'))))
-    document = escape(selector.read_text(encoding='utf-8'), quote=True)
+    document: str = escape(selector.read_text(encoding='utf-8'), quote=True)
     display(HTML(f'<iframe srcdoc="{document}" title="Poincare particle selector" '
                  'width="100%" height="1100" style="border:0"></iframe>'))

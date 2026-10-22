@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 from datetime import date
 from pathlib import Path
-from typing import Any, Literal, Mapping, TypeAlias
+from typing import Any, Literal, Mapping, TYPE_CHECKING, TypeAlias
 
 import numpy as np
 
@@ -27,6 +27,10 @@ from .analysis import (
 	analyze_particle_jacobian,
 	particle_jacobian_blocks,
 )
+
+
+if TYPE_CHECKING:
+	from diagnostics.output import DiagnosticBlockPaths
 
 
 ImplicitABBAJacobianMethod: TypeAlias = Literal[
@@ -174,8 +178,8 @@ def _validated_observed_states(
 	step: ABBA2ImplicitIntegrationStep,
 ) -> tuple[np.ndarray, np.ndarray]:
 	"""Read matching finite component-major planar states from an ABBA snapshot."""
-	state_before = np.asarray(step.state_before, dtype=float)
-	state_after = np.asarray(step.state_after, dtype=float)
+	state_before: np.ndarray = np.asarray(step.state_before, dtype=float)
+	state_after: np.ndarray = np.asarray(step.state_after, dtype=float)
 	if (
 		state_before.ndim != 1
 		or state_before.size == 0
@@ -218,7 +222,7 @@ class ImplicitABBAJacobianObserver:
 			raise ValueError(
 				"`jacobian_method` must be 'implicit_function' or 'stage_increment'."
 			)
-		tolerance = float(discriminant_relative_tolerance)
+		tolerance: float = float(discriminant_relative_tolerance)
 		if not np.isfinite(tolerance) or tolerance <= 0.0:
 			raise ValueError(
 				"`discriminant_relative_tolerance` must be positive and finite."
@@ -293,6 +297,8 @@ class ImplicitABBAJacobianObserver:
 		if step.step_index % self.sample_every:
 			return
 
+		state_before: np.ndarray
+		state_after: np.ndarray
 		state_before, state_after = _validated_observed_states(step)
 		particle_count = state_before.size // 2
 		if self._particle_count is None:
@@ -305,9 +311,9 @@ class ImplicitABBAJacobianObserver:
 			if self.jacobian_method == "implicit_function"
 			else stage_increment_step_jacobian
 		)
-		jacobian = calculator(step)
-		particle_jacobians = particle_jacobian_blocks(jacobian, particle_count)
-		analyses = tuple(
+		jacobian: np.ndarray = calculator(step)
+		particle_jacobians: np.ndarray = particle_jacobian_blocks(jacobian, particle_count)
+		analyses: tuple[ParticleJacobianAnalysis, ...] = tuple(
 			analyze_particle_jacobian(
 				block,
 				discriminant_relative_tolerance=(
@@ -316,7 +322,7 @@ class ImplicitABBAJacobianObserver:
 			)
 			for block in particle_jacobians
 		)
-		sample = ImplicitABBAJacobianSample(
+		sample: ImplicitABBAJacobianSample = ImplicitABBAJacobianSample(
 			observation_index=len(self._samples),
 			step_index=step.step_index,
 			start_time=float(step.start_time),
@@ -342,7 +348,7 @@ class ImplicitABBAJacobianObserver:
 		)
 		self._output.append(sample)
 		if self.verbose:
-			classes = ",".join(analysis.spectral_class for analysis in analyses)
+			classes: str = ",".join(analysis.spectral_class for analysis in analyses)
 			print(
 				f"[implicit-abba-jacobian] step={step.step_index:05d} "
 				f"t={step.time:.6g} classes={classes}"
@@ -366,7 +372,7 @@ class ImplicitABBAJacobianObserver:
 			if record.observation_index in buffer_observations
 		]
 		analyses = [sample.particle_analyses for sample in samples]
-		paths = self._output.write(
+		paths: DiagnosticBlockPaths = self._output.write(
 			block_index=block_index,
 			rows=[asdict(record) for record in buffer_records],
 			arrays={
@@ -443,7 +449,7 @@ class ImplicitABBAJacobianObserver:
 				"metadata": self.metadata,
 			},
 		)
-		block = ImplicitABBAJacobianOutputBlock(
+		block: ImplicitABBAJacobianOutputBlock = ImplicitABBAJacobianOutputBlock(
 			index=block_index,
 			step_count=len(samples),
 			record_count=len(buffer_records),

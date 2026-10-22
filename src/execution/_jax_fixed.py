@@ -35,20 +35,34 @@ def _integrate(
     n = initial.size // (kernel.physical_dimension * kernel.copies + (2 if kernel.track_energy else 0))
     physical_size = n * kernel.physical_dimension
 
-    history = jnp.zeros((initial.size, times.size), dtype=initial.dtype).at[:, 0].set(initial)
+    history: jax.Array = jnp.zeros((initial.size, times.size), dtype=initial.dtype).at[:, 0].set(initial)
 
     def shadow(time: Any, state: Any, duration: Any) -> Any:
+        value: Any
+        valid: Any
         value, _, valid = kernel(time, state, duration)
         return value, valid
 
     def accepted(carry: Any, index: Any) -> tuple[Any, Any]:
+        before: Any
+        saved: Any
+        valid: Any
+        converged: Any
         before, saved, valid, converged = carry
+        after: Any
+        statistics: dict[str, Any]
+        solved: Any
         after, statistics, solved = kernel(starts[index], before, step)
         converged = converged & solved
         valid = valid & jnp.all(jnp.isfinite(after))
 
         def sample(output_index: Any, collected: Any) -> Any:
+            values: Any
+            finite: Any
+            solved: Any
             values, finite, solved = collected
+            value: Any
+            success: Any
             value, success = jax.lax.switch(modes[output_index], (
                 lambda: (before, jnp.array(True)),
                 lambda: (after, jnp.array(True)),
@@ -61,10 +75,13 @@ def _integrate(
             offsets[index], offsets[index + 1], sample, (saved, valid, converged))
         return (after, saved, valid, converged), statistics
 
+    valid: jax.Array
+    converged: jax.Array
+    statistics: Any
     (_, history, valid, converged), statistics = jax.lax.scan(
         accepted, (initial, history, jnp.array(True), jnp.array(True)), jnp.arange(starts.size),
     )
-    energy = (kernel.energy(times, history[:physical_size])
+    energy: Any | jax.Array = (kernel.energy(times, history[:physical_size])
               if kernel.track_energy else jnp.empty((0,), dtype=initial.dtype))
     return history, energy, valid & jnp.all(jnp.isfinite(energy)), converged, statistics
 
@@ -84,24 +101,31 @@ def run_steps(method: "IntegrationMethod[Any]", kernel: CompiledStep,
     Potential construction and schedule validation remain on the host.
     """
     request = method.request
+    t0: float
+    tf: float
     t0, tf = request.t_span
-    count = _step_count(tf - t0, request.max_step)
+    count: int = _step_count(tf - t0, request.max_step)
     step = (tf - t0) / count
     starts = t0 + np.arange(count) * step
     ends = t0 + np.arange(1, count + 1) * step
     times = request.output_times
-    tolerance = _time_tolerance(request.t_span)
+    tolerance: float = _time_tolerance(request.t_span)
     # Reproduce FixedStepController's endpoint priority and tolerance.
-    owners = np.minimum(np.searchsorted(ends + tolerance, times), count - 1)
-    modes = np.where(np.abs(times - ends[owners]) <= tolerance, 1,
+    owners: np.ndarray = np.minimum(np.searchsorted(ends + tolerance, times), count - 1)
+    modes: np.ndarray = np.where(np.abs(times - ends[owners]) <= tolerance, 1,
                      np.where(np.abs(times - starts[owners]) <= tolerance, 0, 2))
     durations = times - starts[owners]
-    offsets = np.concatenate(([1], 1 + np.searchsorted(times[1:], ends + tolerance, side="right")))
+    offsets: np.ndarray = np.concatenate(([1], 1 + np.searchsorted(times[1:], ends + tolerance, side="right")))
     device = kernel.device
     inputs = (method.initial_state, starts, np.asarray(step), times,
               offsets.astype(np.int32), modes.astype(np.int32), durations)
     # Inputs select the execution device; spline constants follow compilation.
     # device_get synchronizes timing and copies only completed output.
+    history: Any
+    energy: Any
+    valid: Any
+    converged: Any
+    statistics: Any
     history, energy, valid, converged, statistics = jax.device_get(_compiled_integrator(kernel)(
         *(jax.device_put(value, device) for value in inputs),
     ))
@@ -110,6 +134,8 @@ def run_steps(method: "IntegrationMethod[Any]", kernel: CompiledStep,
     if not bool(converged):
         raise RuntimeError(f"{method.method_name} nonlinear solve did not converge within its tolerance and iteration limit.")
     assert method.state_formulation is not None
+    states: np.ndarray
+    auxiliary: dict[str, DiagnosticValue]
     states, auxiliary = method.state_formulation.extract_history(
         times, history, energy=energy if kernel.track_energy else None,
     )
@@ -125,7 +151,6 @@ def run_steps(method: "IntegrationMethod[Any]", kernel: CompiledStep,
         diagnostics['finite_difference_batching'] = 'independent_particle_columns'
     saved.record_history(states)
     return diagnostics
-
 
 
 __all__: list[str] = []

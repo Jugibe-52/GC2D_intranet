@@ -82,10 +82,12 @@ class ABBAComparisonConfig:
 		if not isinstance(self.step_label, str) or not self.step_label.strip():
 			raise ValueError("`step_label` must be a non-empty string.")
 
+		start: float
+		stop: float
 		start, stop = unpacked_time_span(self.t_span)
 		object.__setattr__(self, "t_span", (start, stop))
 
-		save_interval = positive_finite(self.save_interval, "save_interval")
+		save_interval: float = positive_finite(self.save_interval, "save_interval")
 		object.__setattr__(self, "save_interval", save_interval)
 		if self.rho is not None:
 			object.__setattr__(self, "rho", nonnegative_finite(self.rho, "rho"))
@@ -216,7 +218,7 @@ class ABBAComparisonResult:
 
 	def runtime_summaries(self) -> tuple[ABBARuntimeSummary, ...]:
 		"""Return measured wall times relative to the fastest complete run."""
-		fastest = min(float(value) for value in self.runtimes.values())
+		fastest: float = min(float(value) for value in self.runtimes.values())
 		return tuple(
 			ABBARuntimeSummary(
 				method_name=method_name,
@@ -233,13 +235,17 @@ class ABBAComparisonResult:
 		series: list[ABBATrajectoryDifferenceSeries] = []
 		period = self.potential.grid.period
 		for first_method, second_method in combinations(ABBA_METHOD_NAMES, 2):
-			first = self._solution(first_method)
-			second = self._solution(second_method)
+			first: States = self._solution(first_method)
+			second: States = self._solution(second_method)
+			first_x: np.ndarray
+			first_y: np.ndarray
 			first_x, first_y = first.positions()
+			second_x: np.ndarray
+			second_y: np.ndarray
 			second_x, second_y = second.positions()
-			delta_x = minimum_image_displacement(first_x - second_x, period)
-			delta_y = minimum_image_displacement(first_y - second_y, period)
-			distances = np.hypot(delta_x, delta_y)
+			delta_x: np.ndarray = minimum_image_displacement(first_x - second_x, period)
+			delta_y: np.ndarray = minimum_image_displacement(first_y - second_y, period)
+			distances: np.ndarray = np.hypot(delta_x, delta_y)
 			series.append(
 				ABBATrajectoryDifferenceSeries(
 					first_method=first_method,
@@ -325,7 +331,7 @@ def run_abba_comparison(
 		raise TypeError("`config` must be an ABBAComparisonConfig instance.")
 
 	step = (AreaStep(label=config.step_label, value=config.integration_step),)
-	midpoint_config = ABBA2MidpointSymplecticityConfig(
+	midpoint_config: ABBA2MidpointSymplecticityConfig = ABBA2MidpointSymplecticityConfig(
 		steps=step,
 		t_span=config.t_span,
 		save_interval=config.save_interval,
@@ -335,7 +341,7 @@ def run_abba_comparison(
 		block_prefix=f"{config.block_prefix}_midpoint",
 		finite_difference_relative_step=config.finite_difference_relative_step,
 	)
-	implicit_config = ImplicitABBASymplecticityConfig(
+	implicit_config: ImplicitABBASymplecticityConfig = ImplicitABBASymplecticityConfig(
 		steps=step,
 		t_span=config.t_span,
 		save_interval=config.save_interval,
@@ -354,7 +360,7 @@ def run_abba_comparison(
 		"timing_scope": "simulation_excluding_symplecticity_observer",
 	}
 
-	midpoint_result = run_abba2_midpoint_symplecticity_study(
+	midpoint_result: ABBA2MidpointSymplecticityResult = run_abba2_midpoint_symplecticity_study(
 		potential,
 		area,
 		notebook_path=notebook_path,
@@ -363,7 +369,7 @@ def run_abba_comparison(
 		metadata=common_metadata,
 	)
 
-	reduced_result = run_abba2_reduced_multiplier_symplecticity_study(
+	reduced_result: ABBA2ReducedMultiplierSymplecticityResult = run_abba2_reduced_multiplier_symplecticity_study(
 		potential,
 		area,
 		notebook_path=notebook_path,
@@ -372,7 +378,7 @@ def run_abba_comparison(
 		metadata=common_metadata,
 	)
 
-	simultaneous_result = run_abba2_simultaneous_state_multiplier_symplecticity_study(
+	simultaneous_result: ABBA2SimultaneousStateMultiplierSymplecticityResult = run_abba2_simultaneous_state_multiplier_symplecticity_study(
 		potential,
 		area,
 		notebook_path=notebook_path,
@@ -409,9 +415,9 @@ def _validate_abba_output_grids(solutions: Iterable[States]) -> None:
 		if reference_times is None:
 			reference_times = np.asarray(solution.t, dtype=float)
 		else:
-			candidate_times = np.asarray(solution.t, dtype=float)
-			time_scale = max(1.0, float(np.max(np.abs(reference_times))))
-			tolerance = float(32 * np.finfo(float).eps * time_scale)
+			candidate_times: np.ndarray = np.asarray(solution.t, dtype=float)
+			time_scale: float = max(1.0, float(np.max(np.abs(reference_times))))
+			tolerance: float = float(32 * np.finfo(float).eps * time_scale)
 			if candidate_times.shape != reference_times.shape or not np.allclose(
 				candidate_times,
 				reference_times,

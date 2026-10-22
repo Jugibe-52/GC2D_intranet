@@ -1,7 +1,7 @@
 """Plots and measured summaries for the saved Modal CPU star comparison."""
 
 from pathlib import Path
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 import matplotlib.pyplot as plt
 from matplotlib.colors import to_hex
@@ -12,14 +12,25 @@ from studies.modal_cpu_comparison import ModalCPUComparison, ModalCPUStarConfig,
 from visualization.poincare_comparison import export_poincare_panel_comparison
 
 
+if TYPE_CHECKING:
+    from contracts.problem import InitialValueProblem
+    from matplotlib.axes import Axes
+    from matplotlib.figure import Figure
+
+
 def plot_initial_star(potential: Potential, config: ModalCPUStarConfig) -> Any:
     """Show the initial positions in cell-period units, colored by arm."""
+    problem: InitialValueProblem
     problem, _ = build_star_problem(potential, config)
+    x: np.ndarray
+    y: np.ndarray
     x, y = problem.layout.positions(problem.initial_state)
     grid = potential.grid
+    fig: Figure
+    ax: Axes
     fig, ax = plt.subplots(figsize=(6, 6), layout='constrained')
     for arm in range(config.arms):
-        selected = slice(arm * config.particles_per_arm, (arm + 1) * config.particles_per_arm)
+        selected: slice[int, int, Any] = slice(arm * config.particles_per_arm, (arm + 1) * config.particles_per_arm)
         ax.plot((x[selected] - grid.x0) / grid.period, (y[selected] - grid.y0) / grid.period,
                 'o-', ms=5, lw=1, label=f'Arm {arm + 1}')
     ax.set(xlim=(0, 1), ylim=(0, 1), aspect='equal', xlabel='x / L', ylabel='y / L',
@@ -38,7 +49,7 @@ def comparison_table(comparison: ModalCPUComparison) -> str:
         lines.append(f'| {cores} | {record["first_seconds"]:.3f} | {record["median_seconds"]:.6f} | '
                      f'{record["q25_seconds"]:.6f}–{record["q75_seconds"]:.6f} | '
                      f'{record["speedup"]:.2f}× | {record["maximum_periodic_discrepancy"]:.3e} |')
-    fastest = min(comparison.metadata['runs'], key=lambda key: comparison.metadata['runs'][key]['median_seconds'])
+    fastest: Any = min(comparison.metadata['runs'], key=lambda key: comparison.metadata['runs'][key]['median_seconds'])
     lines.extend(['', f'The lowest measured warm median used **{fastest} CPU core(s)**.', '',
                   'First-run time includes JAX setup and compilation. Warm times cover complete integrations '
                   f'with synchronized NumPy outputs; each configuration has {comparison.metadata["config"]["repetitions"]} measured repetitions. '
@@ -53,11 +64,13 @@ def comparison_table(comparison: ModalCPUComparison) -> str:
 
 def plot_cpu_comparison(comparison: ModalCPUComparison) -> Any:
     """Compare complete-run timings and all saved states against the 1-core run."""
-    cores = list(comparison.solutions)
+    cores: list[int] = list(comparison.solutions)
     records = [comparison.metadata['runs'][str(core)] for core in cores]
-    medians = np.array([r['median_seconds'] for r in records])
-    errors = np.array([[r['median_seconds'] - r['q25_seconds'] for r in records],
+    medians: np.ndarray = np.array([r['median_seconds'] for r in records])
+    errors: np.ndarray = np.array([[r['median_seconds'] - r['q25_seconds'] for r in records],
                        [r['q75_seconds'] - r['median_seconds'] for r in records]])
+    fig: Figure
+    axes: np.ndarray
     fig, axes = plt.subplots(1, 3, figsize=(14, 4), layout='constrained')
     axes[0].bar(range(len(cores)), medians, yerr=errors, capsize=5, color='#4486a4')
     axes[0].set(xticks=range(len(cores)), xticklabels=cores, xlabel='CPU cores',
@@ -69,6 +82,8 @@ def plot_cpu_comparison(comparison: ModalCPUComparison) -> Any:
     period = comparison.potential.grid.period
     for core, solution in comparison.solutions.items():
         delta = (solution.states - baseline.states + period / 2) % period - period / 2
+        dx: np.ndarray
+        dy: np.ndarray
         dx, dy = solution.layout.positions(delta)
         axes[2].plot(solution.t, np.max(np.hypot(dx, dy), axis=0), label=f'{core} core(s)')
     axes[2].set(xlabel='Normalized time / forcing cycles', ylabel='Maximum periodic distance',
@@ -84,15 +99,17 @@ def export_cpu_star_poincare(comparison: ModalCPUComparison, path: str | Path) -
     metadata = comparison.metadata
     grid = comparison.potential.grid
     ids = metadata['particle_ids']
-    arm_ids = np.asarray(metadata['arm_ids'])
+    arm_ids: np.ndarray = np.asarray(metadata['arm_ids'])
     colors = [to_hex(plt.get_cmap('tab10')(int(arm) % 10)) for arm in arm_ids]
     initial = (np.asarray(metadata['initial_positions']) - [grid.x0, grid.y0]) / grid.period
     panels = [dict(coordinates=initial[None], particle_ids=ids, colors=colors,
                    title='Initial star', static=True)]
     step = metadata['config']['steps_per_cycle']
     for cores, solution in comparison.solutions.items():
+        x: np.ndarray
+        y: np.ndarray
         x, y = solution.layout.positions(solution.states[:, step::step])
-        coordinates = np.stack(((x.T - grid.x0) / grid.period % 1,
+        coordinates: np.ndarray = np.stack(((x.T - grid.x0) / grid.period % 1,
                                 (y.T - grid.y0) / grid.period % 1), axis=-1)
         panels.append(dict(coordinates=coordinates, particle_ids=ids, colors=colors,
                            title=f'JAX CPU: {cores} core(s)'))

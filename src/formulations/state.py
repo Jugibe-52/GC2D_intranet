@@ -8,13 +8,12 @@ Neither auxiliary coordinate belongs to a spatial projection or a physical solve
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import ClassVar
+from typing import ClassVar, TYPE_CHECKING
 
 import numpy as np
 
 from dynamics.protocols import HamiltonianSystem
 from contracts.result import DiagnosticValue
-from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
 	from contracts.problem import InitialValueProblem
@@ -66,7 +65,7 @@ class PhysicalFormulation:
         Projected methods retain identical accepted spatial copies;
         off-diagonal states exist only inside maps.
         """
-        value = np.asarray(physical)
+        value: np.ndarray = np.asarray(physical)
         parts = [value] * self.copies
         if self.track_energy:
             if momentum is None or momentum.shape != (self.particle_count, *value.shape[1:]):
@@ -80,7 +79,7 @@ class PhysicalFormulation:
         With tracking, the last two coordinate rows are always time and
         momentum. This convention also applies to full-cyclotron states.
         """
-        value = np.asarray(state)
+        value: np.ndarray = np.asarray(state)
         coordinates = self.dimension // self.particle_count
         return value.reshape(coordinates, self.particle_count, *value.shape[1:])
 
@@ -98,7 +97,7 @@ class PhysicalFormulation:
         """Evaluate the passive energy-balance derivative in physical units."""
         dynamics = self.problem.dynamics
         assert isinstance(dynamics, HamiltonianSystem)
-        rate = np.asarray(dynamics.extended_momentum_derivative(time, physical), dtype=float)
+        rate: np.ndarray = np.asarray(dynamics.extended_momentum_derivative(time, physical), dtype=float)
         if rate.shape != (self.particle_count,) or not np.all(np.isfinite(rate)):
             raise ValueError("The momentum derivative must be finite with one value per particle.")
         return rate
@@ -106,7 +105,7 @@ class PhysicalFormulation:
     def finish(self, before: np.ndarray, physical: np.ndarray, end_time: float,
                increment: np.ndarray | None = None) -> np.ndarray:
         """Accept physical coordinates and update only the passive momentum."""
-        momentum = self.momentum(before)
+        momentum: np.ndarray | None = self.momentum(before)
         if momentum is not None:
             if increment is None:
                 raise ValueError("An energy-tracked step must supply its momentum increment.")
@@ -129,12 +128,12 @@ class PhysicalFormulation:
 
     def extract_sample(self, time: float, state: np.ndarray) -> tuple[np.ndarray, dict[str, np.ndarray]]:
         """Extract one physical sample without retaining doubled work coordinates."""
-        momentum = self.momentum(state)
+        momentum: np.ndarray | None = self.momentum(state)
         if momentum is None:
             return self.physical(state), {}
-        particle_times = self.time(state)
+        particle_times: np.ndarray | None = self.time(state)
         assert particle_times is not None
-        tolerance = float(16 * np.finfo(float).eps * max(1.0, abs(time)))
+        tolerance: float = float(16 * np.finfo(float).eps * max(1.0, abs(time)))
         if not np.allclose(particle_times, time, rtol=0.0, atol=tolerance):
             raise ValueError("Each particle time must match the sample time within round-off.")
         return self.physical(state), {"extended_momentum": momentum}
@@ -143,7 +142,7 @@ class PhysicalFormulation:
                          auxiliary: dict[str, np.ndarray], *, energy: np.ndarray | None = None,
                          ) -> dict[str, DiagnosticValue]:
         """Evaluate energy once on saved physical data; several methods share this representation."""
-        momentum = auxiliary.get("extended_momentum")
+        momentum: np.ndarray | None = auxiliary.get("extended_momentum")
         if momentum is None:
             return {}
         dynamics = self.problem.dynamics
@@ -171,13 +170,13 @@ class PhysicalFormulation:
                         *, energy: np.ndarray | None = None,
                         ) -> tuple[np.ndarray, dict[str, DiagnosticValue]]:
         """Export completed device arrays using the same physical diagnostic rules."""
-        physical = self.physical(history)
-        momentum = self.momentum(history)
+        physical: np.ndarray = self.physical(history)
+        momentum: np.ndarray | None = self.momentum(history)
         if momentum is None:
             return physical, {}
-        particle_times = self.time(history)
+        particle_times: np.ndarray | None = self.time(history)
         assert particle_times is not None
-        tolerance = float(16 * np.finfo(float).eps * max(1.0, float(np.max(np.abs(times)))))
+        tolerance: float = float(16 * np.finfo(float).eps * max(1.0, float(np.max(np.abs(times)))))
         if not np.allclose(particle_times, np.broadcast_to(times, momentum.shape), rtol=0.0, atol=tolerance):
             raise ValueError("Each particle time must match the output times within round-off.")
         return physical, self.diagnose_history(times, physical, {"extended_momentum": momentum}, energy=energy)

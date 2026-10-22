@@ -9,8 +9,10 @@ from typing import TYPE_CHECKING, TypedDict
 import numpy as np
 import pandas as pd
 
+
 if TYPE_CHECKING:
     from contracts.nonlinear import NewtonIteration
+    from typing import Any
 
 
 class DiagnosticTableMetadata(TypedDict):
@@ -45,7 +47,7 @@ class NewtonHistory:
             self.offsets.append(len(self.residuals))
         self.residuals.append(residual_norm)
         self.mu_norms.append(float(np.linalg.norm(multiplier, ord=np.inf)))
-        number = len(self.offsets)
+        number: int = len(self.offsets)
         if residual_norm <= threshold and self.progress_every and (
             number % self.progress_every == 0 or number == self.expected_steps
         ):
@@ -76,16 +78,16 @@ def write_diagnostic_tables(
             residual = arrays['nonlinear_residuals'][w]
             tolerance = arrays['nonlinear_tolerances'][w]
             offsets = arrays['newton_history_offsets'][w]
-            counts = np.diff(offsets)
+            counts: np.ndarray = np.diff(offsets)
             np.testing.assert_array_equal(counts, iterations[w] + 1)
-            selected = slice(offsets[0], offsets[-1])
+            selected: slice[Any, Any, Any] = slice(offsets[0], offsets[-1])
             history_residual = arrays['newton_history_residuals'][selected]
             history_mu = arrays['newton_history_mu_norms'][selected]
             local_offsets = offsets - offsets[0]
             final = local_offsets[1:] - 1
             np.testing.assert_array_equal(history_residual[final], residual)
             np.testing.assert_array_equal(history_mu[final], arrays['projection_multiplier_norms'][w])
-            frame = pd.DataFrame({
+            frame: Any = pd.DataFrame({
                 'worker': w + 1, 'step': np.arange(1, n + 1),
                 'cycle': (np.arange(n) // metadata['steps_per_cycle']) + 1,
                 'time_normalized': times, 'time_s': times * metadata['time_scale_s'],
@@ -97,7 +99,7 @@ def write_diagnostic_tables(
                 'converged': residual <= tolerance,
             })
             frame.to_csv(steps_file, index=False, header=w == 0, float_format='%.17g')
-            step_indices = np.repeat(np.arange(n), counts)
+            step_indices: np.ndarray = np.repeat(np.arange(n), counts)
             iterate = np.arange(len(history_residual)) - np.repeat(local_offsets[:-1], counts)
             pd.DataFrame({
                 'worker': w + 1, 'step': step_indices + 1,

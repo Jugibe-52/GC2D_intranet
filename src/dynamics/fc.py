@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, ClassVar
+from typing import Any, ClassVar, TYPE_CHECKING
 
 import numpy as np
 
@@ -12,6 +12,10 @@ from potential.potential import Potential
 from contracts.arrays import array_namespace
 from formulations.layout import FCStateLayout
 from ._equations import fc_velocity, fc_hamiltonian
+
+
+if TYPE_CHECKING:
+	from contracts.arrays import BackendArray
 
 
 def _validated_parameters(potential: Potential, rho: float, eta: float) -> tuple[float, float]:
@@ -66,12 +70,20 @@ class FullCyclotronDynamics:
 		y: Any,
 	) -> tuple[Any, Any]:
 		"""Evaluate electric acceleration at paired positions."""
+		ex: BackendArray
+		ey: BackendArray
 		ex, ey = self.potential.electric_field(t, x, y)
 		return self.electric_scale * ex, self.electric_scale * ey
 
 	def vector_field(self, t: Any, state: Any) -> Any:
 		"""Evaluate FC equations in packed ``[x, y, vx, vy]`` order."""
+		x: BackendArray
+		y: BackendArray
+		vx: BackendArray
+		vy: BackendArray
 		x, y, vx, vy = FCStateLayout().split(state)
+		acceleration_x: BackendArray
+		acceleration_y: BackendArray
 		acceleration_x, acceleration_y = self.electric_acceleration(t, x, y)
 		return FCStateLayout.pack_components(*fc_velocity(
 			acceleration_x, acceleration_y, vx, vy, velocity_scale=self.velocity_scale,
@@ -84,6 +96,10 @@ class FullCyclotronDynamics:
 		state: Any,
 	) -> Any:
 		"""Evaluate kinetic plus scaled electrostatic energy."""
+		x: BackendArray
+		y: BackendArray
+		vx: BackendArray
+		vy: BackendArray
 		x, y, vx, vy = FCStateLayout().split(state)
 		return array_namespace(t, state).asarray(fc_hamiltonian(
 			self.potential.evaluate(t, x, y), vx, vy,
@@ -96,6 +112,8 @@ class FullCyclotronDynamics:
 		state: Any,
 	) -> Any:
 		"""Evaluate the time-conjugate momentum derivative."""
+		x: BackendArray
+		y: BackendArray
 		x, y, *_ = FCStateLayout().split(state)
 		return array_namespace(t, state).asarray(
 			-self.electric_scale

@@ -44,16 +44,18 @@ class _Progress:
 		self.steps += 1
 		if self.t_span is None and self.steps % self.every and self.steps < self.total:
 			return
-		fraction = min(self.steps / self.total, 1.0)
+		fraction: float = min(self.steps / self.total, 1.0)
 		if self.t_span is not None:
+			start: float
+			end: float
 			start, end = self.t_span
 			fraction = min(max((t - start) / (end - start), 0.0), 1.0)
-		percent = int(100 * fraction)
+		percent: int = int(100 * fraction)
 		if percent == self._last_percent:
 			return
 		self._last_percent = percent
 		width = 30
-		filled = int(width * fraction)
+		filled: int = int(width * fraction)
 		bar = "=" * filled
 		if filled < width:
 			bar += ">" + " " * (width - filled - 1)
@@ -77,10 +79,10 @@ def _step_count(duration: float, max_step: float) -> int:
 	return max(1, math.ceil(math.nextafter(ratio, -math.inf)))
 
 
-
-
 def _time_tolerance(t_span: tuple[float, float]) -> float:
 	"""Allow float round-off when matching requested and accepted times."""
+	t0: float
+	tf: float
 	t0, tf = t_span
 	return float(16 * np.finfo(float).eps * max(1.0, abs(t0), abs(tf)))
 
@@ -112,14 +114,16 @@ class FixedStepController(Generic[Detail]):
 		self, method: IntegrationMethod[Detail], request: SimulationRequest,
 	) -> Iterator[tuple[StepInfo, StepResult[Detail]]]:
 		"""Advance main nodes without observing, collecting or exporting data."""
+		t0: float
+		tf: float
 		t0, tf = request.t_span
-		count = _step_count(tf - t0, request.max_step)
+		count: int = _step_count(tf - t0, request.max_step)
 		h = (tf - t0) / count
-		current = IntegrationState(t0, method.initial_state)
+		current: IntegrationState = IntegrationState(t0, method.initial_state)
 		for index in range(count):
 			time = current.time
-			info = StepInfo(index, time, h, t0 + (index + 1) * h, current.values.copy())
-			result = method.advance(time, current.values.copy(), h)
+			info: StepInfo = StepInfo(index, time, h, t0 + (index + 1) * h, current.values.copy())
+			result: StepResult[Detail] = method.advance(time, current.values.copy(), h)
 			current = IntegrationState(info.end_time, result.state)
 			yield info, result
 
@@ -128,7 +132,7 @@ class FixedStepController(Generic[Detail]):
 		result: StepResult[Detail], time: float,
 	) -> np.ndarray:
 		"""Reuse accepted endpoints or take an independent partial step."""
-		tolerance = _time_tolerance(method.request.t_span)
+		tolerance: float = _time_tolerance(method.request.t_span)
 		if abs(time - info.end_time) <= tolerance:
 			return result.state
 		if abs(time - info.time) <= tolerance:
@@ -143,6 +147,8 @@ def _record_sample(method: IntegrationMethod[Any], result: States, time: float, 
 	if method.state_formulation is None:
 		result.record(time, sample)
 	else:
+		physical: np.ndarray
+		auxiliary: dict[str, np.ndarray]
 		physical, auxiliary = method.state_formulation.extract_sample(time, sample)
 		result.record(time, physical, auxiliary=auxiliary)
 
@@ -156,15 +162,17 @@ def run_steps(
 	Observer lifecycle and persistence remain owned by the caller.
 	"""
 	request = method.request
-	selected = method.controller()
+	selected: StepController[Detail] = method.controller()
 	_record_sample(method, saved, request.t_span[0], method.initial_state)
+	t0: float
+	tf: float
 	t0, tf = request.t_span
 	# Allow only float round-off when comparing interval and sampling endpoints;
 	# this is unrelated to an integrator's error or nonlinear-solver tolerance.
-	tolerance = _time_tolerance(request.t_span)
-	sampling_tolerance = getattr(selected, 'sampling_tolerance', tolerance)
+	tolerance: float = _time_tolerance(request.t_span)
+	sampling_tolerance: Any | float = getattr(selected, 'sampling_tolerance', tolerance)
 	# Estimate the fixed-step count for the display; its percentage uses accepted time.
-	progress = _Progress(method.method_name, _step_count(tf - t0, request.max_step), t_span=request.t_span) if method.progress else None
+	progress: _Progress | None = _Progress(method.method_name, _step_count(tf - t0, request.max_step), t_span=request.t_span) if method.progress else None
 	output_index = 1
 	interior_sample_count = 0
 	previous_end = t0
@@ -183,8 +191,8 @@ def run_steps(
 				output_index < request.output_times.size
 				and request.output_times[output_index] <= info.end_time + sampling_tolerance
 			):
-				target = float(request.output_times[output_index])
-				sample = np.asarray(selected.sample(method, info, result, target))
+				target: float = float(request.output_times[output_index])
+				sample: np.ndarray = np.asarray(selected.sample(method, info, result, target))
 				_record_sample(method, saved, target, sample)
 				if min(abs(target - info.time), abs(target - info.end_time)) > sampling_tolerance:
 					interior_sample_count += 1

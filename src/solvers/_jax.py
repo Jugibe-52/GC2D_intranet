@@ -32,32 +32,59 @@ def newton(residual: Callable[..., Any], initial: Any, correction: Callable[...,
     decomposed into independent blocks, so particles share the same iteration
     count and accepted residual criterion as the CPU calculation.
     """
+    r: jax.Array
+    payload: Any
     r, payload = residual(initial) if initial_evaluation is None else initial_evaluation
     def active(carry: Any) -> Any:
+        u: jax.Array
+        r: jax.Array
+        p: Any
+        iteration: jax.Array
+        evaluations: jax.Array
         u, r, p, iteration, evaluations = carry
         return (iteration < limit) & (norm(r) > tolerance) & jnp.all(jnp.isfinite(r)) & jnp.all(jnp.isfinite(u))
     def update(carry: Any) -> Any:
+        u: jax.Array
+        r: jax.Array
+        payload: Any
+        iteration: jax.Array
+        evaluations: jax.Array
         u, r, payload, iteration, evaluations = carry
-        delta = correction(u, r, payload)
-        candidate = u + delta
+        delta: jax.Array = correction(u, r, payload)
+        candidate: jax.Array = u + delta
+        new_r: jax.Array
+        new_payload: Any
         new_r, new_payload = residual(candidate)
         evaluations += 1
         if backtracking:
             def needs_damping(trial: Any) -> Any:
+                damping: jax.Array
+                candidate: jax.Array
+                new_r: jax.Array
+                new_payload: Any
+                evaluations: jax.Array
                 damping, candidate, new_r, new_payload, evaluations = trial
                 return ~(norm(new_r) < norm(r)) & (damping > 1. / 128.)
             def damp(trial: Any) -> Any:
+                damping: jax.Array
+                evaluations: jax.Array
                 damping, _, _, _, evaluations = trial
                 damping = damping / 2
                 candidate = u + damping * delta
+                new_r: jax.Array
+                new_payload: Any
                 new_r, new_payload = residual(candidate)
                 return damping, candidate, new_r, new_payload, evaluations + 1
             _, candidate, new_r, new_payload, evaluations = jax.lax.while_loop(
                 needs_damping, damp, (jnp.array(1.), candidate, new_r, new_payload, evaluations))
         return candidate, new_r, new_payload, iteration + 1, evaluations
+    u: jax.Array
+    p: Any
+    iterations: jax.Array
+    evaluations: jax.Array
     u, r, p, iterations, evaluations = jax.lax.while_loop(
         active, update, (initial, r, payload, jnp.array(0), jnp.array(1)))
-    size = norm(r)
+    size: jax.Array = norm(r)
     return Root(u, r, p, iterations, evaluations, size,
                 (size <= tolerance) & jnp.all(jnp.isfinite(u)))
 
@@ -69,14 +96,30 @@ def broyden(residual: Callable[..., Any], initial: Any, matrix: Any,
     A per-particle rank-one update would be a different iteration. The full
     matrix is deliberately retained for this explicitly requested solver.
     """
+    r: jax.Array
+    payload: Any
     r, payload = residual(initial) if initial_evaluation is None else initial_evaluation
     def active(carry: Any) -> Any:
+        u: jax.Array
+        r: jax.Array
+        p: Any
+        matrix: jax.Array
+        iteration: jax.Array
+        valid: jax.Array
         u, r, p, matrix, iteration, valid = carry
         return valid & (iteration < limit) & (infinity_norm(r) > tolerance)
     def update(carry: Any) -> Any:
+        u: jax.Array
+        r: jax.Array
+        p: Any
+        matrix: jax.Array
+        iteration: jax.Array
+        valid: jax.Array
         u, r, p, matrix, iteration, valid = carry
-        delta = jnp.linalg.solve(matrix, -r)
+        delta: jax.Array = jnp.linalg.solve(matrix, -r)
         candidate = u + delta
+        new_r: jax.Array
+        new_p: Any
         new_r, new_p = residual(candidate)
         denominator = delta @ delta
         safe = denominator > jnp.finfo(jnp.float64).tiny
@@ -84,9 +127,13 @@ def broyden(residual: Callable[..., Any], initial: Any, matrix: Any,
         matrix = matrix + jnp.where(safe, increment, 0.)
         valid = jnp.all(jnp.isfinite(new_r)) & jnp.all(jnp.isfinite(candidate)) & (safe | (infinity_norm(new_r) <= tolerance))
         return candidate, new_r, new_p, matrix, iteration + 1, valid
+    u: jax.Array
+    p: Any
+    iterations: jax.Array
+    valid: jax.Array
     u, r, p, _, iterations, valid = jax.lax.while_loop(
         active, update, (initial, r, payload, matrix, jnp.array(0), jnp.all(jnp.isfinite(r))))
-    size = infinity_norm(r)
+    size: jax.Array = infinity_norm(r)
     return Root(u, r, p, iterations, iterations + 1, size, valid & (size <= tolerance))
 
 
@@ -98,12 +145,12 @@ def particle_finite_difference(function: Callable[..., Any], state: Any,
     of every particle; independence makes the resulting (N,d,d) blocks exact
     counterparts of the CPU's full finite-difference matrix diagonal blocks.
     """
-    blocks = state.reshape(components, -1)
+    blocks: jax.Array = state.reshape(components, -1)
     columns = []
     for column in range(components):
         delta = relative_step * jnp.maximum(1., jnp.abs(blocks[column]))
-        perturbation = jnp.zeros_like(blocks).at[column].set(delta).reshape(-1)
-        derivative = (function(state + perturbation) - function(state - perturbation)).reshape(components, -1)
+        perturbation: jax.Array = jnp.zeros_like(blocks).at[column].set(delta).reshape(-1)
+        derivative: jax.Array = (function(state + perturbation) - function(state - perturbation)).reshape(components, -1)
         columns.append((derivative / (2 * delta)).T)
     return jnp.stack(columns, axis=-1)
 

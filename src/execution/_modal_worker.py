@@ -14,6 +14,11 @@ from states.history import States
 from execution.execution import Execution
 from methods.base import NumericalMethod
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from typing import Any
+
 
 PAYLOAD_VERSION = 1
 
@@ -31,7 +36,7 @@ def validate_job(
         raise TypeError("`request` must be a SimulationRequest.")
     if options is not None and not isinstance(options, ExecutionOptions):
         raise TypeError("`options` must be an ExecutionOptions instance or None.")
-    choice = ExecutionOptions() if options is None else options
+    choice: ExecutionOptions = ExecutionOptions() if options is None else options
     if choice.device != "cpu":
         raise NotImplementedError("Modal execution currently supports CPU devices only.")
     if (getattr(method, "step_observer", None) is not None or getattr(method, "progress", False)
@@ -51,16 +56,21 @@ def encode_job(
     Potential's pickle contract transfers field samples and recreates its
     interpolation resources in the worker. No source HDF5 path is required.
     """
-    choice = validate_job(problem, method, request, options)
+    choice: ExecutionOptions = validate_job(problem, method, request, options)
     return pickle.dumps((PAYLOAD_VERSION, problem, method, request, choice), protocol=5)
 
 
 def decode_job(payload: bytes) -> tuple[InitialValueProblem, NumericalMethod, SimulationRequest, ExecutionOptions]:
     """Restore and validate a trusted job once for one or several integrations."""
+    version: Any
+    problem: Any
+    method: Any
+    request: Any
+    options: Any
     version, problem, method, request, options = pickle.loads(payload)
     if version != PAYLOAD_VERSION:
         raise ValueError("Unsupported Modal integration payload version.")
-    choice = validate_job(problem, method, request, options)
+    choice: ExecutionOptions = validate_job(problem, method, request, options)
     return problem, method, request, choice
 
 
@@ -70,8 +80,12 @@ def execute_payload(payload: bytes) -> tuple[int, str, States]:
     This is a trusted Python-pickle boundary, used only by the authenticated
     Modal Function. It must never be exposed as an unauthenticated endpoint.
     """
+    problem: InitialValueProblem
+    method: NumericalMethod
+    request: SimulationRequest
+    choice: ExecutionOptions
     problem, method, request, choice = decode_job(payload)
-    data = Execution().run(problem, method, request, options=choice)
+    data: States = Execution().run(problem, method, request, options=choice)
     if not isinstance(data, States):
         raise TypeError("The remote method must return States.")
     return PAYLOAD_VERSION, sha256(payload).hexdigest(), data
@@ -85,7 +99,12 @@ def execute_cycle_payload(payload: bytes) -> tuple[int, str, States]:
     """
     import numpy as np
 
+    started_unix: float
+    started: float
     started_unix, started = time(), perf_counter()
+    version: int
+    digest: str
+    data: States
     version, digest, data = execute_payload(payload)
     diagnostics: dict[str, DiagnosticValue] = {key: value for key, value in data.diagnostics.items()
                    if not isinstance(value, np.ndarray)}

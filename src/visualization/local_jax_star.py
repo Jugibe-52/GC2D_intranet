@@ -1,7 +1,7 @@
 """Read-only initial geometry, block timing and Poincare views of local runs."""
 
 from pathlib import Path
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 import matplotlib.pyplot as plt
 from matplotlib.colors import to_hex
@@ -9,6 +9,11 @@ import numpy as np
 
 from diagnostics.persistence import StoredSolution
 from visualization.poincare_comparison import export_poincare_panel_comparison
+
+
+if TYPE_CHECKING:
+    from matplotlib.figure import Figure
+    from potential.grid import Grid
 
 
 def _check(saved: StoredSolution) -> None:
@@ -43,7 +48,9 @@ def plot_local_star(saved: StoredSolution) -> Any:
     assert saved.potential is not None
     grid = saved.potential.grid
     initial = (np.asarray(saved.metadata['initial_positions']) - [grid.x0, grid.y0]) / grid.period
-    arms = np.asarray(saved.metadata['arm_ids'])
+    arms: np.ndarray = np.asarray(saved.metadata['arm_ids'])
+    fig: Figure
+    axes: np.ndarray
     fig, axes = plt.subplots(1, 2, figsize=(12, 5), layout='constrained')
     for arm in np.unique(arms):
         selected = arms == arm
@@ -65,16 +72,22 @@ def export_local_star_poincare(saved: StoredSolution, path: str | Path, *, cycle
     """Export the fixed initial geometry and every saved integer-cycle return."""
     _check(saved)
     assert saved.potential is not None
+    metadata: dict[str, Any]
+    grid: Grid
     metadata, grid = saved.metadata, saved.potential.grid
     config = metadata['config']
+    ids: np.ndarray
+    arms: np.ndarray
     ids, arms = np.asarray(metadata['particle_ids']), np.asarray(metadata['arm_ids'])
     colors = ['#111111' if arm < 0 else to_hex(plt.get_cmap('tab10')(int(arm) % 10)) for arm in arms]
     # Only display arrays are wrapped and converted to the viewer's float32.
+    x: np.ndarray
+    y: np.ndarray
     x, y = saved.solution.positions()
     step = config['steps_per_cycle']
-    positions = np.stack(((x[:, ::step].T - grid.x0) / grid.period % 1,
+    positions: np.ndarray = np.stack(((x[:, ::step].T - grid.x0) / grid.period % 1,
                           (y[:, ::step].T - grid.y0) / grid.period % 1), axis=-1)
-    common = dict(particle_ids=ids, colors=colors)
+    common: dict[str, object] = dict(particle_ids=ids, colors=colors)
     panels = [dict(common, title='Initial star', coordinates=positions[:1], static=True),
               dict(common, title='BM4Midpoint: local JAX CPU', coordinates=positions[1:])]
     groups = [dict(label='Shared center' if arm < 0 else f'Arm {arm + 1}',

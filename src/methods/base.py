@@ -46,7 +46,7 @@ Detail = TypeVar("Detail")
 
 def _readonly_initial_state(state: np.ndarray) -> np.ndarray:
 	"""Own a finite, nonempty internal vector before a run becomes ready."""
-	initial = np.array(state, dtype=float, copy=True)
+	initial: np.ndarray = np.array(state, dtype=float, copy=True)
 	if initial.ndim != 1 or initial.size == 0 or not np.all(np.isfinite(initial)):
 		raise ValueError("The initial internal state must be a finite vector.")
 	initial.setflags(write=False)
@@ -55,7 +55,8 @@ def _readonly_initial_state(state: np.ndarray) -> np.ndarray:
 
 def _readonly_metadata(metadata: Mapping[str, DiagnosticValue]) -> Mapping[str, DiagnosticValue]:
 	"""Copy metadata arrays so reusable run preparation cannot mutate them."""
-	owned = dict(metadata)
+	owned: dict[str, np.ndarray | float | int | str] = dict(metadata)
+	value: np.ndarray | float | int | str
 	for name, value in owned.items():
 		if isinstance(value, np.ndarray):
 			value = value.copy()
@@ -98,7 +99,7 @@ class IntegrationMethod(ABC, Generic[Detail]):
 		"""
 		if not is_dataclass(self):
 			raise TypeError("Numerical methods must declare their options as dataclass fields.")
-		method = replace(self)
+		method: Self = replace(self)
 		method.evaluated_dynamics = problem.dynamics if evaluated_dynamics is None else evaluated_dynamics
 		method.problem = problem
 		method.request = request

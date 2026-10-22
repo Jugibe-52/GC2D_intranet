@@ -33,6 +33,12 @@ from ._jacobians import (
 	_resolved_jacobian_method,
 )
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+	from solvers.nonlinear import _NonlinearResult
+	from typing import Any
+
 
 SDIRK_JACOBIAN_METHODS: tuple[SDIRKJacobianMethod, ...] = (
 	"auto",
@@ -43,7 +49,7 @@ SDIRK_JACOBIAN_METHODS: tuple[SDIRKJacobianMethod, ...] = (
 # Skvortsov's S54b scheme has a common diagonal gamma=1/4.  Its fifth row is
 # also the output formula, so the accepted state equals the last stage up to
 # the nonlinear solve tolerance.
-SDIRK4_TABLEAU_A = np.asarray(
+SDIRK4_TABLEAU_A: 'np.ndarray' = np.asarray(
 	(
 		(1.0 / 4.0, 0.0, 0.0, 0.0, 0.0),
 		(-1.0 / 4.0, 1.0 / 4.0, 0.0, 0.0, 0.0),
@@ -53,11 +59,11 @@ SDIRK4_TABLEAU_A = np.asarray(
 	),
 	dtype=float,
 )
-SDIRK4_TABLEAU_B = np.asarray(
+SDIRK4_TABLEAU_B: 'np.ndarray' = np.asarray(
 	(0.0, 1.0 / 6.0, 2.0 / 3.0, -1.0 / 12.0, 1.0 / 4.0),
 	dtype=float,
 )
-SDIRK4_TABLEAU_C = np.sum(SDIRK4_TABLEAU_A, axis=1)
+SDIRK4_TABLEAU_C: 'np.ndarray' = np.sum(SDIRK4_TABLEAU_A, axis=1)
 for _coefficient_array in (
 	SDIRK4_TABLEAU_A,
 	SDIRK4_TABLEAU_B,
@@ -65,8 +71,8 @@ for _coefficient_array in (
 ):
 	_coefficient_array.setflags(write=False)
 
-_SDIRK_DIAGONAL = float(SDIRK4_TABLEAU_A[0, 0])
-_STAGE_COUNT = int(SDIRK4_TABLEAU_B.size)
+_SDIRK_DIAGONAL: 'float' = float(SDIRK4_TABLEAU_A[0, 0])
+_STAGE_COUNT: 'int' = int(SDIRK4_TABLEAU_B.size)
 
 
 @dataclass(frozen=True, slots=True)
@@ -104,11 +110,11 @@ def _analytic_newton_correction(
 		np.broadcast_to(np.eye(2), (particle_count, 2, 2))
 		- step * _SDIRK_DIAGONAL * jacobians
 	)
-	particle_residuals = np.stack(
+	particle_residuals: np.ndarray = np.stack(
 		(residual[:particle_count], residual[particle_count:]),
 		axis=-1,
 	)
-	particle_corrections = _solve_particle_systems(
+	particle_corrections: np.ndarray = _solve_particle_systems(
 		matrix, -particle_residuals,
 		singular_message="A per-particle SDIRK Newton matrix is singular.",
 	)
@@ -137,7 +143,7 @@ def _solve_stage(
 	"""Solve one diagonal stage with full Newton corrections."""
 	def evaluate(stage_state: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
 		"""Retain the field paired with this exact diagonal-stage residual."""
-		field = _checked_vector_field(dynamics, stage_time, stage_state)
+		field: np.ndarray = _checked_vector_field(dynamics, stage_time, stage_state)
 		return stage_state - right_side - step * _SDIRK_DIAGONAL * field, field
 
 	def update(stage_state: np.ndarray, residual: np.ndarray, field: np.ndarray) -> np.ndarray:
@@ -147,13 +153,13 @@ def _solve_stage(
 				raise TypeError(
 					"Analytic SDIRK Jacobians require GuidingCenterJacobianSystem."
 				)
-			correction = _analytic_newton_correction(
+			correction: np.ndarray = _analytic_newton_correction(
 				step,
 				residual,
 				_checked_analytic_jacobians(dynamics, stage_time, stage_state),
 			)
 		else:
-			jacobian = _dense_finite_difference_jacobian(
+			jacobian: np.ndarray = _dense_finite_difference_jacobian(
 				dynamics,
 				stage_time,
 				stage_state,
@@ -170,7 +176,7 @@ def _solve_stage(
 			raise RuntimeError("The SDIRK Newton correction became non-finite.")
 		return np.asarray(stage_state + correction)
 
-	root = solver.solve(
+	root: _NonlinearResult[np.ndarray] = solver.solve(
 		evaluate, initial_guess, update, scale=scale,
 		context=f"SDIRK4 at stage time t={stage_time:.16g} with h={step:.16g}",
 		iteration_observer=_bind_newton_observer(
@@ -200,10 +206,10 @@ def _solve_sdirk_step(
 	solver: NewtonSolver | None = None,
 ) -> _SDIRKStepResult:
 	"""Advance one S54b step through five sequential implicit solves."""
-	value = np.asarray(state, dtype=float)
+	value: np.ndarray = np.asarray(state, dtype=float)
 	if value.ndim != 1 or value.size == 0 or not np.all(np.isfinite(value)):
 		raise ValueError("The SDIRK physical state must be a finite vector.")
-	initial_field = _checked_vector_field(dynamics, time, value)
+	initial_field: np.ndarray = _checked_vector_field(dynamics, time, value)
 	tolerance = absolute_tolerance + relative_tolerance * max(
 		1.0,
 		float(np.linalg.norm(value, ord=np.inf)),
@@ -223,7 +229,7 @@ def _solve_sdirk_step(
 		initial_guess = value + (
 			step * SDIRK4_TABLEAU_C[stage_index] * initial_field
 		)
-		result = _solve_stage(
+		result: _StageResult = _solve_stage(
 			dynamics,
 			time + step * SDIRK4_TABLEAU_C[stage_index],
 			right_side,
@@ -353,8 +359,8 @@ class SDIRK4(IntegrationMethod[_SDIRKStepResult]):
 
 	def advance(self, time: float, value: np.ndarray, step: float) -> StepResult[_SDIRKStepResult]:
 		"""Solve one complete physical step and finish its auxiliary state."""
-		physical_before = np.asarray(value[:self.physical_size], dtype=float)
-		result = self._solve_physical(time, physical_before, step, newton_observer=self.newton_observer)
+		physical_before: np.ndarray = np.asarray(value[:self.physical_size], dtype=float)
+		result: _SDIRKStepResult = self._solve_physical(time, physical_before, step, newton_observer=self.newton_observer)
 		statistics: dict[str, np.ndarray | float | int] = {
 			'nonlinear_iterations': int(np.sum(result.stage_iterations)),
 			'residual_evaluations': int(np.sum(result.stage_residual_evaluations)),
@@ -366,7 +372,7 @@ class SDIRK4(IntegrationMethod[_SDIRKStepResult]):
 		}
 		if not self.track_energy:
 			return StepResult(result.state, statistics, result)
-		momentum_derivatives = tuple(
+		momentum_derivatives: tuple[np.ndarray, ...] = tuple(
 			self.state_formulation.momentum_rate(
 				time + step * SDIRK4_TABLEAU_C[index], result.stage_states[index],
 			)
@@ -376,7 +382,7 @@ class SDIRK4(IntegrationMethod[_SDIRKStepResult]):
 			SDIRK4_TABLEAU_B[index] * momentum_derivatives[index]
 			for index in range(_STAGE_COUNT)
 		)
-		after = self.state_formulation.finish(value, result.state, time + step, increment)
+		after: np.ndarray = self.state_formulation.finish(value, result.state, time + step, increment)
 		return StepResult(after, statistics, result)
 
 	def build_observation(self, info: StepInfo, step: StepResult[_SDIRKStepResult]) -> IntegrationStep:

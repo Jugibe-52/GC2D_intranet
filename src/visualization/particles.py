@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
@@ -23,10 +23,19 @@ from ._animation_validation import (
 )
 
 
+if TYPE_CHECKING:
+	from matplotlib.axes import Axes
+	from matplotlib.collections import PathCollection
+	from matplotlib.figure import Figure
+	from matplotlib.image import AxesImage
+	from matplotlib.quiver import Quiver
+	from matplotlib.text import Text
+
+
 def _field_normalization(fields: np.ndarray) -> mcolors.Normalize:
 	"""Return a stable color scale for every frame of a potential animation."""
-	minimum = float(np.min(fields))
-	maximum = float(np.max(fields))
+	minimum: float = float(np.min(fields))
+	maximum: float = float(np.max(fields))
 	if minimum < 0 < maximum:
 		return mcolors.TwoSlopeNorm(vmin=minimum, vcenter=0.0, vmax=maximum)
 	if np.isclose(minimum, maximum):
@@ -39,7 +48,9 @@ def _particle_history(
 	solution: States, *, single_particle: bool,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
 	"""Read time-aligned positions using the animator's particle-count contract."""
-	times = np.asarray(solution.t, dtype=float)
+	times: np.ndarray = np.asarray(solution.t, dtype=float)
+	x: np.ndarray
+	y: np.ndarray
 	x, y = solution.positions()
 	if single_particle:
 		if x.shape != (1, times.size) or y.shape != (1, times.size):
@@ -97,23 +108,26 @@ def _animate_particle_solution(
 	interval = positive_interval(interval)
 	show_electric_field = boolean_control(show_electric_field, "show_electric_field")
 
+	times: np.ndarray
+	x: np.ndarray
+	y: np.ndarray
 	times, x, y = _particle_history(solution, single_particle=True)
-	annotations = _frame_annotations(frame_annotations, times.size)
-	indices = _frame_indices(times.size, frames)
+	annotations: tuple[str, ...] | None = _frame_annotations(frame_annotations, times.size)
+	indices: np.ndarray = _frame_indices(times.size, frames)
 	frame_times = times[indices]
-	fields = np.asarray(potential.evaluate_grid(frame_times), dtype=float)
+	fields: np.ndarray = np.asarray(potential.evaluate_grid(frame_times), dtype=float)
 	if fields.shape != (*potential.grid.shape, indices.size):
 		raise ValueError("Potential evaluation returned an unexpected animation shape.")
 
 	grid = potential.grid
-	quiver = None
+	quiver: Quiver | None = None
 	electric_fields: tuple[tuple[np.ndarray, np.ndarray], ...] = ()
 	quiver_x: np.ndarray | None = None
 	quiver_y: np.ndarray | None = None
 	quiver_scale: float | None = None
 	if show_electric_field:
 		# Roughly twenty arrows per axis keep the field legible over the potential.
-		stride = max(1, int(np.ceil(max(grid.shape) / 20)))
+		stride: int = max(1, int(np.ceil(max(grid.shape) / 20)))
 		quiver_x, quiver_y = np.meshgrid(
 			grid.x[::stride],
 			grid.y[::stride],
@@ -123,7 +137,7 @@ def _animate_particle_solution(
 			potential.electric_field(time, quiver_x, quiver_y)
 			for time in frame_times
 		)
-		max_magnitude = max(
+		max_magnitude: float = max(
 			float(np.max(np.hypot(field_x, field_y)))
 			for field_x, field_y in electric_fields
 		)
@@ -132,8 +146,10 @@ def _animate_particle_solution(
 			None if np.isclose(max_magnitude, 0.0) else max_magnitude / arrow_length
 		)
 
+	figure: Figure
+	axis: Axes
 	figure, axis = plt.subplots(figsize=(7, 6), constrained_layout=True)
-	image = axis.imshow(
+	image: AxesImage = axis.imshow(
 		fields[:, :, 0].T,
 		origin="lower",
 		extent=(grid.xmin, grid.xmin + grid.period, grid.ymin, grid.ymin + grid.period),
@@ -142,7 +158,9 @@ def _animate_particle_solution(
 		norm=_field_normalization(fields),
 		**imshow_kwargs,
 	)
+	path: Line2D
 	(path,) = axis.plot([], [], color="black", linewidth=1.5, label="Orbit")
+	marker: Line2D
 	(marker,) = axis.plot(
 		[], [], marker="o", color="white", markeredgecolor="black", markersize=7,
 		label="Particle",
@@ -160,7 +178,7 @@ def _animate_particle_solution(
 			width=0.003,
 			alpha=0.75,
 		)
-	annotation = None
+	annotation: Text | None = None
 	if annotations is not None:
 		annotation = axis.text(
 			0.02,
@@ -176,7 +194,7 @@ def _animate_particle_solution(
 
 	def update(frame: int) -> tuple[Any, ...]:
 		"""Update field, accumulated orbit, and particle marker for one frame."""
-		sample_index = int(indices[frame])
+		sample_index: int = int(indices[frame])
 		image.set_data(fields[:, :, frame].T)
 		if quiver is not None:
 			quiver.set_UVC(*electric_fields[frame])
@@ -289,22 +307,27 @@ def animate_gc_particle_trajectories(
 	):
 		boolean_control(value, name)
 
+	times: np.ndarray
+	x: np.ndarray
+	y: np.ndarray
 	times, x, y = _particle_history(solution, single_particle=False)
 	particle_count = x.shape[0]
-	indices = _frame_indices(times.size, frames)
+	indices: np.ndarray = _frame_indices(times.size, frames)
 	frame_times = times[indices]
-	fields = np.asarray(potential.evaluate_grid(frame_times), dtype=float)
+	fields: np.ndarray = np.asarray(potential.evaluate_grid(frame_times), dtype=float)
 	if fields.shape != (*potential.grid.shape, indices.size):
 		raise ValueError("Potential evaluation returned an unexpected animation shape.")
 
 	grid = potential.grid
-	stride = max(1, int(np.ceil(max(grid.shape) / 18)))
+	stride: int = max(1, int(np.ceil(max(grid.shape) / 18)))
+	quiver_x: np.ndarray
+	quiver_y: np.ndarray
 	quiver_x, quiver_y = np.meshgrid(
 		grid.x[::stride],
 		grid.y[::stride],
 		indexing="ij",
 	)
-	electric_fields = (
+	electric_fields: tuple[tuple[Any, Any], ...] = (
 		tuple(
 			potential.electric_field(time, quiver_x, quiver_y)
 			for time in frame_times
@@ -315,29 +338,33 @@ def animate_gc_particle_trajectories(
 	particle_drift_values: list[tuple[np.ndarray, np.ndarray]] = []
 	if show_perpendicular_drift:
 		for time, sample_index in zip(frame_times, indices, strict=True):
+			field_x: Any
+			field_y: Any
 			field_x, field_y = potential.electric_field(
 				time,
 				x[:, int(sample_index)],
 				y[:, int(sample_index)],
 			)
 			particle_drift_values.append((field_y, -field_x))
-	particle_drifts = tuple(particle_drift_values)
+	particle_drifts: tuple[tuple[np.ndarray, np.ndarray], ...] = tuple(particle_drift_values)
 
 	# A common scale makes the field and its rotated drift directly comparable.
 	vector_magnitudes = [
 		float(np.max(np.hypot(field_x, field_y)))
 		for field_x, field_y in (*electric_fields, *particle_drifts)
 	]
-	maximum_magnitude = max(vector_magnitudes, default=0.0)
+	maximum_magnitude: float = max(vector_magnitudes, default=0.0)
 	arrow_length = 0.7 * stride * min(grid.dx, grid.dy)
-	quiver_scale = (
+	quiver_scale: None | float = (
 		None
 		if np.isclose(maximum_magnitude, 0.0)
 		else maximum_magnitude / arrow_length
 	)
 
+	figure: Figure
+	axis: Axes
 	figure, axis = plt.subplots(figsize=(9, 8), constrained_layout=True)
-	image = axis.imshow(
+	image: AxesImage = axis.imshow(
 		fields[:, :, 0].T,
 		origin="lower",
 		extent=(grid.xmin, grid.xmin + grid.period, grid.ymin, grid.ymin + grid.period),
@@ -347,7 +374,7 @@ def animate_gc_particle_trajectories(
 		**imshow_kwargs,
 	)
 	colors = [f"C{index % 10}" for index in range(particle_count)]
-	paths = LineCollection(
+	paths: LineCollection = LineCollection(
 		[],
 		colors=colors,
 		linewidths=1.4,
@@ -355,7 +382,7 @@ def animate_gc_particle_trajectories(
 		zorder=3,
 	)
 	axis.add_collection(paths)
-	current_particles = axis.scatter(
+	current_particles: PathCollection = axis.scatter(
 		x[:, 0],
 		y[:, 0],
 		s=38,
@@ -374,7 +401,7 @@ def animate_gc_particle_trajectories(
 		zorder=4,
 	)
 
-	electric_quiver = None
+	electric_quiver: Quiver | None = None
 	if show_electric_field:
 		electric_quiver = axis.quiver(
 			quiver_x,
@@ -388,7 +415,7 @@ def animate_gc_particle_trajectories(
 			alpha=0.62,
 			zorder=2,
 		)
-	drift_quiver = None
+	drift_quiver: Quiver | None = None
 	if show_perpendicular_drift:
 		drift_quiver = axis.quiver(
 			x[:, 0],
@@ -446,7 +473,7 @@ def animate_gc_particle_trajectories(
 
 	def update(frame: int) -> tuple[Any, ...]:
 		"""Update the potential, fields, accumulated paths, and particles."""
-		sample_index = int(indices[frame])
+		sample_index: int = int(indices[frame])
 		image.set_data(fields[:, :, frame].T)
 		paths.set_segments(
 			[
@@ -456,7 +483,7 @@ def animate_gc_particle_trajectories(
 				for particle in range(particle_count)
 			]
 		)
-		current_positions = np.column_stack(
+		current_positions: np.ndarray = np.column_stack(
 			(x[:, sample_index], y[:, sample_index])
 		)
 		current_particles.set_offsets(current_positions)

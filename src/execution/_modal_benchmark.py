@@ -13,6 +13,14 @@ from states.history import States
 from execution._modal_worker import PAYLOAD_VERSION, decode_job
 from execution.execution import Execution
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from contracts.execution_options import ExecutionOptions
+    from contracts.problem import InitialValueProblem
+    from methods.base import NumericalMethod
+    from request import SimulationRequest
+
 
 def benchmark_payload(payload: bytes, *, cpu_cores: int, repetitions: int) -> tuple[int, str, States]:
     """Separate first-call setup/JIT from repeated integrations of the same job.
@@ -23,6 +31,10 @@ def benchmark_payload(payload: bytes, *, cpu_cores: int, repetitions: int) -> tu
     """
     if repetitions < 3 or cpu_cores not in (1, 2, 4):
         raise ValueError("Use at least three repetitions and 1, 2 or 4 CPU cores.")
+    problem: InitialValueProblem
+    method: NumericalMethod
+    request: SimulationRequest
+    options: ExecutionOptions
     problem, method, request, options = decode_job(payload)
     if options.backend != "jax" or options.device != "cpu":
         raise ValueError("This benchmark requires explicit JAX CPU options.")
@@ -30,24 +42,27 @@ def benchmark_payload(payload: bytes, *, cpu_cores: int, repetitions: int) -> tu
     import jaxlib
     import scipy
 
-    executor = Execution()
-    start = perf_counter()
-    first = executor.run(problem, method, request, options=options)
+    executor: Execution = Execution()
+    start: float = perf_counter()
+    first: States = executor.run(problem, method, request, options=options)
     first_seconds = perf_counter() - start
+    wall: list[float]
+    cpu: list[float]
     wall, cpu = [], []
     for _ in range(repetitions):
+        cpu_start: float
         start, cpu_start = perf_counter(), process_time()
-        data = executor.run(problem, method, request, options=options)
+        data: States = executor.run(problem, method, request, options=options)
         cpu.append(process_time() - cpu_start)
         wall.append(perf_counter() - start)
         np.testing.assert_array_equal(data.t, first.t)
         np.testing.assert_allclose(data.states, first.states, rtol=1e-12, atol=1e-12)
-    cpu_model = platform.processor()
-    cpu_info = Path('/proc/cpuinfo')
+    cpu_model: str = platform.processor()
+    cpu_info: Path = Path('/proc/cpuinfo')
     if cpu_info.exists():
         cpu_model = next((line.split(':', 1)[1].strip() for line in cpu_info.read_text().splitlines()
                           if line.startswith('model name')), cpu_model)
-    quota = Path('/sys/fs/cgroup/cpu.max')
+    quota: Path = Path('/sys/fs/cgroup/cpu.max')
     environment = {
         "cpu_model": cpu_model, "platform": platform.platform(),
         "python": platform.python_version(), "numpy": np.__version__, "scipy": scipy.__version__,
@@ -59,7 +74,7 @@ def benchmark_payload(payload: bytes, *, cpu_cores: int, repetitions: int) -> tu
         "threads": {name: os.environ.get(name) for name in
                     ('OMP_NUM_THREADS', 'OPENBLAS_NUM_THREADS', 'MKL_NUM_THREADS', 'XLA_FLAGS')},
     }
-    diagnostics = dict(data.diagnostics)
+    diagnostics: dict[str, np.ndarray | float | int | str] = dict(data.diagnostics)
     diagnostics.update(
         benchmark_cpu_cores=cpu_cores, benchmark_repetitions=repetitions,
         benchmark_first_seconds=first_seconds, benchmark_wall_seconds=np.asarray(wall),

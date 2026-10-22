@@ -17,6 +17,11 @@ from contracts.problem import InitialValueProblem
 from request import SimulationRequest
 from methods.classical._rk4_core import physical_step, momentum_increment
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+	from typing import Any
+
 
 def _checked_vector_field(
 	dynamics: DynamicalSystem,
@@ -24,7 +29,7 @@ def _checked_vector_field(
 	state: np.ndarray,
 ) -> np.ndarray:
 	"""Evaluate and shape-check one physical vector field."""
-	derivative = np.asarray(dynamics.vector_field(t, state))
+	derivative: np.ndarray = np.asarray(dynamics.vector_field(t, state))
 	if derivative.shape != state.shape:
 		raise ValueError("The vector field changed the physical state shape.")
 	return derivative
@@ -57,8 +62,10 @@ class RK4(IntegrationMethod[None]):
 
 	def advance(self, t: float, state: np.ndarray, step: float) -> StepResult[None]:
 		"""Advance physical stages, then the passive energy quadrature if requested."""
+		physical: np.ndarray
+		stages: tuple[np.ndarray, ...]
 		physical, stages = self._physical_step(t, self.state_formulation.physical(state), step)
-		increment = None
+		increment: np.ndarray | None = None
 		if self.track_energy:
 			increment = momentum_increment(self.state_formulation.momentum_rate, t, step, stages)
 		return StepResult(self.state_formulation.finish(state, physical, t + step, increment), {}, None)

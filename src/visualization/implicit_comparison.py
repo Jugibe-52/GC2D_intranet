@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -29,6 +29,10 @@ from .particles import _field_normalization
 from ._solution_validation import validated_solutions
 
 
+if TYPE_CHECKING:
+	from matplotlib.image import AxesImage
+
+
 IMPLICIT_METHOD_COLORS: Mapping[str, str] = {
 	"ABBA2Implicit[reduced_multiplier]": "tab:blue",
 	"ABBA2Implicit[simultaneous_state_multiplier]": "tab:orange",
@@ -52,7 +56,7 @@ def _iteration_arrays(
 	prepared: list[tuple[str, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]] = []
 	for label in labels:
 		solution = solutions[label]
-		iterations = np.asarray(
+		iterations: np.ndarray = np.asarray(
 			solution.diagnostics["nonlinear_iterations"], dtype=int
 		)
 		residual_key = (
@@ -60,16 +64,16 @@ def _iteration_arrays(
 			if "residual_evaluations" in solution.diagnostics
 			else "residual_evaluations_per_step"
 		)
-		residual_evaluations = np.asarray(
+		residual_evaluations: np.ndarray = np.asarray(
 			solution.diagnostics[residual_key], dtype=int
 		)
-		residuals = np.asarray(
+		residuals: np.ndarray = np.asarray(
 			solution.diagnostics["nonlinear_residual_norms"], dtype=float
 		)
-		tolerances = np.asarray(
+		tolerances: np.ndarray = np.asarray(
 			solution.diagnostics["nonlinear_tolerances"], dtype=float
 		)
-		step_count = int(solution.diagnostics.get("step_count", times.size - 1))
+		step_count: int = int(solution.diagnostics.get("step_count", times.size - 1))
 		step_times = np.linspace(times[0], times[-1], step_count + 1)[1:]
 		expected_shape = (step_count,)
 		if any(
@@ -87,13 +91,17 @@ def plot_implicit_method_iterations(
 	solutions: Mapping[str, States],
 ) -> tuple[Figure, np.ndarray]:
 	"""Compare nonlinear corrections, residual evaluations, and convergence."""
+	labels: tuple[str, ...]
+	times: np.ndarray
 	labels, times, _ = validated_solutions(
 		solutions, alignment_error="All compared solutions must share times and particle count.",
 	)
-	prepared = _iteration_arrays(solutions, labels, times)
+	prepared: list[tuple[str, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]] = _iteration_arrays(solutions, labels, times)
+	figure: Figure
+	axes: np.ndarray
 	figure, axes = plt.subplots(3, 1, figsize=(12, 9), constrained_layout=True)
 	for index, (label, step_times, iterations, residual_evaluations, residuals, tolerances) in enumerate(prepared):
-		color = IMPLICIT_METHOD_COLORS.get(label, f"C{index}")
+		color: str = IMPLICIT_METHOD_COLORS.get(label, f"C{index}")
 		axes[0].step(
 			step_times, iterations, where="mid", color=color, label=label
 		)
@@ -133,39 +141,46 @@ def plot_implicit_trajectory_differences(
 	"""Plot the mean periodic trajectory distance between every method pair."""
 	if not isinstance(potential, Potential):
 		raise TypeError("`potential` must be a Potential instance.")
+	labels: tuple[str, ...]
 	labels, _, _ = validated_solutions(
 		solutions, alignment_error="All compared solutions must share times and particle count.",
 	)
 	if len(labels) < 2:
 		raise ValueError("The distance matrix requires at least two solutions.")
 
-	period = float(potential.grid.period)
+	period: float = float(potential.grid.period)
 	positions = {label: solutions[label].positions() for label in labels}
 	# A minimum-image displacement measures physical separation across periodic edges.
-	distance_matrix = np.zeros((len(labels), len(labels)), dtype=float)
+	distance_matrix: np.ndarray = np.zeros((len(labels), len(labels)), dtype=float)
 	for first_index, first_label in enumerate(labels):
+		first_x: np.ndarray
+		first_y: np.ndarray
 		first_x, first_y = positions[first_label]
 		for second_index in range(first_index + 1, len(labels)):
+			second_x: np.ndarray
+			second_y: np.ndarray
 			second_x, second_y = positions[labels[second_index]]
 			delta_x = (second_x - first_x + 0.5 * period) % period - 0.5 * period
 			delta_y = (second_y - first_y + 0.5 * period) % period - 0.5 * period
-			mean_distance = float(np.mean(np.hypot(delta_x, delta_y)))
+			mean_distance: float = float(np.mean(np.hypot(delta_x, delta_y)))
 			distance_matrix[first_index, second_index] = mean_distance
 			distance_matrix[second_index, first_index] = mean_distance
 
 	positive_distances = distance_matrix[distance_matrix > 0.0]
-	plot_floor = float(np.finfo(float).eps * max(period, 1.0))
+	plot_floor: float = float(np.finfo(float).eps * max(period, 1.0))
 	if positive_distances.size:
-		minimum_positive = float(np.min(positive_distances))
+		minimum_positive: float = float(np.min(positive_distances))
 		vmin = minimum_positive if minimum_positive > plot_floor else plot_floor
 	else:
 		vmin = plot_floor
-	maximum_distance = float(np.max(distance_matrix))
+	maximum_distance: float = float(np.max(distance_matrix))
 	vmax = maximum_distance if maximum_distance > vmin else vmin * 10.0
-	plot_values = np.maximum(distance_matrix, vmin)
+	plot_values: np.ndarray = np.maximum(distance_matrix, vmin)
 
+	figure: Figure
+	axis: Axes
 	figure, axis = plt.subplots(figsize=(9, 8), constrained_layout=True)
-	image = axis.imshow(
+	image: AxesImage = axis.imshow(
 		plot_values,
 		cmap="viridis",
 		norm=LogNorm(vmin=vmin, vmax=vmax),
@@ -184,7 +199,7 @@ def plot_implicit_trajectory_differences(
 	axis.axvline(1.5, color="white", linewidth=2.0)
 	for row in range(len(labels)):
 		for column in range(len(labels)):
-			normalized = float(image.norm(plot_values[row, column]))
+			normalized: float = float(image.norm(plot_values[row, column]))
 			axis.text(
 				column,
 				row,
@@ -221,19 +236,22 @@ def animate_implicit_method_trajectories(
 		raise TypeError("`potential` must be a Potential instance.")
 	interval = positive_interval(interval)
 	selectable = boolean_control(selectable, "selectable", numpy_scalar=False)
-	family = str(title_family).strip()
+	family: str = str(title_family).strip()
 	if not family:
 		raise ValueError("`title_family` must not be empty.")
+	labels: tuple[str, ...]
+	times: np.ndarray
+	particle_count: int
 	labels, times, particle_count = validated_solutions(
 		solutions, alignment_error="All compared solutions must share times and particle count.",
 	)
-	method_count_label = {3: "Three", 4: "Four", 5: "Five"}.get(
+	method_count_label: str = {3: "Three", 4: "Four", 5: "Five"}.get(
 		len(labels),
 		str(len(labels)),
 	)
-	indices = _frame_indices(times.size, frames)
+	indices: np.ndarray = _frame_indices(times.size, frames)
 	frame_times = times[indices]
-	fields = np.asarray(potential.evaluate_grid(frame_times), dtype=float)
+	fields: np.ndarray = np.asarray(potential.evaluate_grid(frame_times), dtype=float)
 	if fields.shape != (*potential.grid.shape, indices.size):
 		raise ValueError("Potential evaluation returned an unexpected animation shape.")
 	positions = {label: solutions[label].positions() for label in labels}
@@ -241,11 +259,13 @@ def animate_implicit_method_trajectories(
 	grid = potential.grid
 	xmax = grid.xmin + grid.period
 	ymax = grid.ymin + grid.period
+	figure: Figure
+	axis: Axes
 	figure, axis = plt.subplots(
 		figsize=(8, 7),
 		constrained_layout=not selectable,
 	)
-	image = axis.imshow(
+	image: AxesImage = axis.imshow(
 		fields[:, :, 0].T,
 		origin="lower",
 		extent=(grid.xmin, xmax, grid.ymin, ymax),
@@ -258,8 +278,8 @@ def animate_implicit_method_trajectories(
 	markers: dict[str, Any] = {}
 	legend_handles: list[Line2D] = []
 	for index, label in enumerate(labels):
-		color = IMPLICIT_METHOD_COLORS.get(label, f"C{index}")
-		collection = LineCollection(
+		color: str = IMPLICIT_METHOD_COLORS.get(label, f"C{index}")
+		collection: LineCollection = LineCollection(
 			[],
 			colors=color,
 			linewidths=_METHOD_LINEWIDTHS[index % len(_METHOD_LINEWIDTHS)],
@@ -289,6 +309,8 @@ def animate_implicit_method_trajectories(
 				label=label,
 			)
 		)
+	initial_x: np.ndarray
+	initial_y: np.ndarray
 	initial_x, initial_y = positions[labels[0]]
 	axis.scatter(
 		initial_x[:, 0],
@@ -324,7 +346,7 @@ def animate_implicit_method_trajectories(
 	if selectable:
 		# Reserve a narrow margin for controls without obscuring the data or legend.
 		figure.subplots_adjust(right=0.79)
-		selector_axis = figure.add_axes((0.81, 0.38, 0.17, 0.24))
+		selector_axis: Axes = figure.add_axes((0.81, 0.38, 0.17, 0.24))
 		selector = CheckButtons(selector_axis, labels, [True] * len(labels))
 		selector_axis.set_title("Visible models", fontsize="small")
 
@@ -341,10 +363,12 @@ def animate_implicit_method_trajectories(
 
 	def update(frame: int) -> tuple[Any, ...]:
 		"""Update the field, accumulated paths, and markers for each method."""
-		sample_index = int(indices[frame])
+		sample_index: int = int(indices[frame])
 		image.set_data(fields[:, :, frame].T)
 		artists: list[Any] = [image]
 		for label in labels:
+			x: np.ndarray
+			y: np.ndarray
 			x, y = positions[label]
 			segments = [
 				np.column_stack(
@@ -363,7 +387,7 @@ def animate_implicit_method_trajectories(
 		)
 		return tuple(artists)
 
-	animation = FuncAnimation(
+	animation: FuncAnimation = FuncAnimation(
 		figure,
 		update,
 		frames=indices.size,

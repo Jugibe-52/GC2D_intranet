@@ -163,3 +163,12 @@ See [initial data and numerical components](initial-solvers-formulations.md) for
 `InitialConditions`, reusable NewtonSolver/BroydenSolver configurations and the
 two projection classes. Existing array inputs, method names, tolerance controls,
 simulate/executor signatures and stored result formats remain supported.
+
+## Visible preparation results
+
+Result assignments follow the [source typing convention](../development/typing.md):
+one receiving variable is annotated inline, and new unpacked names are declared
+before assignment. Existing optional initializations retain their union with `None`.
+`prepare_environment` returns `tuple[HamiltonianSystem, jax.Device]`, and
+`resolve_device` returns `jax.Device`. Device imports used only for annotations
+stay under `TYPE_CHECKING`; ordinary CPU imports still do not load JAX.

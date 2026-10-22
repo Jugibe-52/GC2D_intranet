@@ -12,7 +12,7 @@ from pathlib import Path
 import re
 from tempfile import NamedTemporaryFile
 from time import time
-from typing import Any, Literal
+from typing import Any, Literal, TYPE_CHECKING
 
 from contracts.execution_options import ExecutionOptions
 from diagnostics.paths import DEFAULT_RESULTS_BUCKET, solution_destination
@@ -22,6 +22,12 @@ from studies.poincare_gap_probes import GapProbeSeeds, build_gap_probes
 from studies.poincare_rho_sweep import (
     RhoStarConfig, build_rho_star, modal_rho_executor, run_and_save_rho_star,
 )
+
+
+if TYPE_CHECKING:
+	from diagnostics.persistence import StoredSolution
+	from execution.execution_modal import Execution_Modal
+	from studies.poincare_rho_sweep import PreparedRhoStar
 
 
 @dataclass(frozen=True)
@@ -56,7 +62,7 @@ def _field_key(config: RhoStarConfig) -> tuple:
 def _write_progress(path: Path, report: dict[str, Any]) -> None:
     """Replace complete metadata snapshots atomically; never persist credentials."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = None
+    temporary: Path | None = None
     try:
         with NamedTemporaryFile(mode="w", encoding="utf-8", dir=path.parent,
                                 prefix=f".{path.name}.", suffix=".tmp", delete=False) as stream:
@@ -76,20 +82,23 @@ def _update_summary(report: dict[str, Any]) -> None:
     a resumed integration already running at launch still contributes. Finishes
     precede starts at the same instant, so touching intervals do not overlap.
     """
-    now = time()
+    now: float = time()
     events: list[tuple[float, int]] = []
     interval_count = 0
     for row in report["jobs"]:
-        start = row.get("worker_started_unix_seconds")
-        end = row.get("worker_finished_unix_seconds")
+        start: Any = row.get("worker_started_unix_seconds")
+        end: Any = row.get("worker_finished_unix_seconds")
         if start is None or end is None:
             continue
         if not (math.isfinite(start) and math.isfinite(end) and end >= start):
             continue
         interval_count += 1
+        left: Any
+        right: Any
         left, right = max(start, report["started_unix_seconds"]), min(end, now)
         if right > left:
             events.extend(((left, 1), (right, -1)))
+    peak: int
     active = peak = 0
     for _, delta in sorted(events):
         active += delta
@@ -127,18 +136,18 @@ def run_modal_rho_batch(
     ) for job in jobs]
     if len(set(destinations)) != len(jobs):
         raise ValueError("Every batch job must have a distinct saved destination.")
-    directory = Path(record_directory).expanduser().resolve()
-    progress = directory / "progress.json" if progress_path is None else Path(progress_path)
+    directory: Path = Path(record_directory).expanduser().resolve()
+    progress: Path = directory / "progress.json" if progress_path is None else Path(progress_path)
     # HDF5 access and fingerprinting precede submissions. Thread workers share
     # immutable source arrays, but build independent dynamics and execution state.
-    resolved = resolve_h5_source(source)
+    resolved: Path = resolve_h5_source(source)
     with resolved.open("rb") as stream:
-        digest = file_digest(stream, "sha256").hexdigest()
+        digest: str = file_digest(stream, "sha256").hexdigest()
     if expected_source_sha256 is not None and digest != expected_source_sha256:
         raise ValueError("The HDF5 source does not match expected_source_sha256.")
     fields = {}
     for job in jobs:
-        key = _field_key(job.config)
+        key: tuple[Any, ...] = _field_key(job.config)
         if key not in fields:
             fields[key] = load_dimensional_h5_field(
                 resolved, magnetic_field=job.config.magnetic_field,
@@ -162,16 +171,16 @@ def run_modal_rho_batch(
 
     def run_one(job: RhoBatchJob, destination: str) -> dict[str, Any]:
         """Keep credentials and exception messages outside the progress archive."""
-        executor = None
+        executor: Execution_Modal | None = None
         try:
             if job.probe_seeds is None:
-                prepared = build_rho_star(fields[_field_key(job.config)], job.config,
+                prepared: PreparedRhoStar = build_rho_star(fields[_field_key(job.config)], job.config,
                                           source_sha256=digest)
             else:
                 prepared = build_gap_probes(fields[_field_key(job.config)], job.config,
                                             source_sha256=digest, seeds=job.probe_seeds)
             executor = modal_rho_executor(directory / job.job_id, app_name=app_name)
-            stored = run_and_save_rho_star(
+            stored: StoredSolution = run_and_save_rho_star(
                 prepared, destination, executor=executor,
                 options=ExecutionOptions(backend="jax", device="cpu"),
                 save_folded_returns=save_folded_returns,
@@ -179,7 +188,7 @@ def run_modal_rho_batch(
             diagnostics = stored.solution.diagnostics
             if diagnostics.get("execution_backend") != "jax":
                 raise ValueError("The saved result does not report JAX execution.")
-            result = dict(status="completed", execution_backend="jax",
+            result: dict[str, str | Any | None] = dict(status="completed", execution_backend="jax",
                           modal_call_id=stored.metadata.get("modal_call_id"),
                           modal_receipt=stored.metadata.get("modal_receipt"))
             for name in ("step_count", "worker_wall_seconds", "worker_started_unix_seconds",
@@ -193,7 +202,7 @@ def run_modal_rho_batch(
             if isinstance(exc, StorageError):
                 # Only this fixed persistence message is copied; remote error
                 # text may contain account details and is deliberately omitted.
-                match = re.fullmatch(r"Publication failed\. Complete local archive retained at (.+)\.", str(exc))
+                match: re.Match[str] | None = re.fullmatch(r"Publication failed\. Complete local archive retained at (.+)\.", str(exc))
                 if match and Path(match.group(1)).is_dir():
                     result["recovery_archive"] = match.group(1)
             if executor is not None:

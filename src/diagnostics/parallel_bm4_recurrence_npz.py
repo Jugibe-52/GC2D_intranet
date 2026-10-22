@@ -19,7 +19,7 @@ from contracts.study_results import ParallelBM4RecurrenceConfig, ParallelBM4Recu
 
 
 PARALLEL_BM4_RECURRENCE_NPZ_SCHEMA_VERSION = 1
-_ARCHIVE_KEYS = frozenset(
+_ARCHIVE_KEYS: 'frozenset[str]' = frozenset(
 	(
 		"metadata_json",
 		"times",
@@ -61,7 +61,7 @@ def write_parallel_bm4_recurrence_npz(
 	"""Atomically persist a complete parallel BM4 recurrence result."""
 	if not isinstance(result, ParallelBM4RecurrenceResult):
 		raise TypeError("`result` must be ParallelBM4RecurrenceResult.")
-	target = Path(path)
+	target: Path = Path(path)
 	if target.suffix.lower() != ".npz":
 		raise ValueError("The parallel BM4 recurrence path must use the .npz suffix.")
 	if target.exists() and not overwrite:
@@ -72,7 +72,7 @@ def write_parallel_bm4_recurrence_npz(
 		"config": asdict(result.config),
 		"experiment": dict(metadata or {}),
 	}
-	metadata_json = json.dumps(
+	metadata_json: str = json.dumps(
 		metadata_document,
 		default=_json_default,
 		sort_keys=True,
@@ -80,13 +80,15 @@ def write_parallel_bm4_recurrence_npz(
 	)
 
 	target.parent.mkdir(parents=True, exist_ok=True)
+	descriptor: int
+	temporary_name: str
 	descriptor, temporary_name = tempfile.mkstemp(
 		prefix=f".{target.name}.",
 		suffix=".tmp",
 		dir=target.parent,
 	)
 	os.close(descriptor)
-	temporary_path = Path(temporary_name)
+	temporary_path: Path = Path(temporary_name)
 	try:
 		with temporary_path.open("wb") as stream:
 			np.savez_compressed(
@@ -116,7 +118,7 @@ def _validated_recurrence_config(
 		raise ValueError("Parallel BM4 metadata must decode to a JSON object.")
 	if metadata_document.get("schema_version") != PARALLEL_BM4_RECURRENCE_NPZ_SCHEMA_VERSION:
 		raise ValueError("Unsupported parallel BM4 recurrence archive schema version.")
-	config_values = metadata_document.get("config")
+	config_values: Any | None = metadata_document.get("config")
 	if not isinstance(config_values, dict):
 		raise ValueError("Parallel BM4 metadata does not contain a valid configuration.")
 	config_values = dict(config_values)
@@ -130,34 +132,34 @@ def load_parallel_bm4_recurrence_npz(
 	path: str | Path,
 ) -> StoredParallelBM4Recurrence:
 	"""Load and validate a complete parallel BM4 recurrence archive."""
-	source = Path(path)
+	source: Path = Path(path)
 	if source.suffix.lower() != ".npz":
 		raise ValueError("The parallel BM4 recurrence path must use the .npz suffix.")
 	if not source.is_file():
 		raise FileNotFoundError(f"Parallel BM4 recurrence archive not found: {source}")
 
 	with np.load(source, allow_pickle=False) as archive:
-		missing = _ARCHIVE_KEYS.difference(archive.files)
+		missing: frozenset[str] = _ARCHIVE_KEYS.difference(archive.files)
 		if missing:
 			raise ValueError(
 				"Parallel BM4 recurrence archive is missing fields: "
 				+ ", ".join(sorted(missing))
 			)
-		metadata_value = np.asarray(archive["metadata_json"])
+		metadata_value: np.ndarray = np.asarray(archive["metadata_json"])
 		if metadata_value.shape != ():
 			raise ValueError("Parallel BM4 metadata must be one JSON scalar.")
-		metadata_document = json.loads(str(metadata_value.item()))
+		metadata_document: Any = json.loads(str(metadata_value.item()))
 		arrays = {
 			name: np.array(archive[name], copy=True)
 			for name in _ARCHIVE_KEYS
 			if name not in {"metadata_json", "wall_runtime_seconds"}
 		}
-		wall_runtime_value = np.asarray(archive["wall_runtime_seconds"], dtype=float)
+		wall_runtime_value: np.ndarray = np.asarray(archive["wall_runtime_seconds"], dtype=float)
 
-	config_values = _validated_recurrence_config(metadata_document, wall_runtime_value)
+	config_values: dict[str, Any] = _validated_recurrence_config(metadata_document, wall_runtime_value)
 
-	config = ParallelBM4RecurrenceConfig(**config_values)
-	result = ParallelBM4RecurrenceResult(
+	config: ParallelBM4RecurrenceConfig = ParallelBM4RecurrenceConfig(**config_values)
+	result: ParallelBM4RecurrenceResult = ParallelBM4RecurrenceResult(
 		config=config,
 		times=arrays["times"],
 		initial_positions=arrays["initial_positions"],

@@ -8,6 +8,15 @@ import numpy as np
 
 from diagnostics.persistence import StoredSolution
 
+from typing import TYPE_CHECKING
+
+
+if TYPE_CHECKING:
+    from matplotlib.collections import QuadMesh
+    from matplotlib.lines import Line2D
+    from potential.potential import Potential
+    from typing import Any
+
 
 def plot_stored_gc_solution(record: StoredSolution) -> Figure:
     """Show GC trajectories and physical energy from a stored base potential."""
@@ -18,22 +27,31 @@ def plot_stored_gc_solution(record: StoredSolution) -> Figure:
     if record.metadata.get("potential_role") != "base_before_gyroaverage":
         raise ValueError("Metadata must identify the saved field as the base potential.")
     rho = record.metadata["dynamics"]["rho"]
-    field = record.potential.gyroaverage(rho)
+    field: Potential = record.potential.gyroaverage(rho)
     solution = record.solution
+    x: np.ndarray
+    y: np.ndarray
     x, y = solution.positions()  # (particles, saved_times), normalized coordinates.
+    figure: Figure
+    axes: np.ndarray
     figure, axes = plt.subplots(1, 2, figsize=(12, 4.5), constrained_layout=True)
-    background = axes[0].pcolormesh(field.grid.x, field.grid.y,
+    background: QuadMesh = axes[0].pcolormesh(field.grid.x, field.grid.y,
                                    field.evaluate_grid(float(solution.t[0])).T,
                                    shading="auto", cmap="viridis")
     figure.colorbar(background, ax=axes[0], label="Effective potential at initial time")
+    wrapped_x: np.ndarray
+    wrapped_y: np.ndarray
     wrapped_x, wrapped_y = field.grid.normalize(x, y)
-    energy = field.evaluate(solution.t, x, y)
+    energy: Any = field.evaluate(solution.t, x, y)
     for particle in range(x.shape[0]):
         label = f"Particle {particle + 1}"
         # Break curves at periodic jumps instead of drawing across the cell.
         jumps = np.hypot(np.diff(wrapped_x[particle]), np.diff(wrapped_y[particle])) > field.grid.period / 2
+        px: Any
+        py: Any
         px, py = wrapped_x[particle].copy(), wrapped_y[particle].copy()
         px[1:][jumps], py[1:][jumps] = np.nan, np.nan
+        line: Line2D
         line, = axes[0].plot(px, py, label=label)
         axes[0].scatter(wrapped_x[particle, 0], wrapped_y[particle, 0],
                         color=line.get_color(), marker="o", edgecolor="white")

@@ -55,13 +55,13 @@ def write_diagnostic_block(
 		raise ValueError("`arrays_kind` must contain only lowercase ASCII letters.")
 	output_directory.mkdir(parents=True, exist_ok=True)
 	stem = f"{block_name}_{{kind}}_{block_index:05d}"
-	paths = DiagnosticBlockPaths(
+	paths: DiagnosticBlockPaths = DiagnosticBlockPaths(
 		summary=output_directory / f"{stem.format(kind='summary')}.csv",
 		arrays=output_directory / f"{stem.format(kind=arrays_kind)}.npz",
 		metadata=output_directory / f"{stem.format(kind='metadata')}.json",
 	)
 	with paths.summary.open("w", encoding="utf-8", newline="") as stream:
-		writer = csv.DictWriter(stream, fieldnames=list(rows[0]))
+		writer: csv.DictWriter[str] = csv.DictWriter(stream, fieldnames=list(rows[0]))
 		writer.writeheader()
 		writer.writerows(rows)
 	np.savez_compressed(paths.arrays, **arrays)

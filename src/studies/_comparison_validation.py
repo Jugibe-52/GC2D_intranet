@@ -11,7 +11,6 @@ from ._gauss_legendre4_common import readonly_runtime_samples
 from contracts.comparison import TrajectoryAccuracySeries
 
 
-
 def validate_comparison_solution(
 	solution: States, initial_configuration: np.ndarray,
 	times: np.ndarray, step_count: int,
@@ -53,7 +52,7 @@ def validate_energy_series(
 
 def comparison_runtime_samples(values: np.ndarray, repeats: int) -> np.ndarray:
 	"""Copy, validate, and freeze measured repeats exactly once per method."""
-	samples = readonly_runtime_samples(values)
+	samples: np.ndarray = readonly_runtime_samples(values)
 	if samples.size != repeats:
 		raise ValueError("Every method must contain all measured timing repeats.")
 	return samples

@@ -1,9 +1,12 @@
 """Shared evaluation contracts, validation, and backend-independent physics."""
 
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 import numpy as np
 
+
+if TYPE_CHECKING:
+    from contracts.arrays import BackendArray
 
 
 def validate_derivatives(degree: int, dx: int, dy: int, dt: int) -> None:
@@ -32,8 +35,8 @@ def reconstruct(time: Any, fields: Any, frequencies: Any, dt: int, *, xp: Any) -
     Public frequencies count cycles per time unit; angular factors belong here.
     The same formula differentiates time by multiplying each harmonic phase.
     """
-    shape = np.broadcast_shapes(fields.shape[1:], time.shape)
-    result = xp.zeros(shape, dtype=float)
+    shape: tuple[int, ...] = np.broadcast_shapes(fields.shape[1:], time.shape)
+    result: BackendArray = xp.zeros(shape, dtype=float)
     if dt == 0:
         result = result + xp.real(fields[0])
     for index in range(frequencies.shape[0]):

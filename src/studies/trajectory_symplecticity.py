@@ -48,8 +48,7 @@ from states.history import States
 from contracts.observation import StepObserver
 from simulation.runner import simulate
 
-
-
+from typing import TYPE_CHECKING
 
 
 @dataclass(frozen=True, slots=True)
@@ -72,7 +71,7 @@ class TrajectorySymplecticityConfig:
 	def __post_init__(self) -> None:
 		"""Validate aligned output grids and nonlinear solver controls."""
 		require_uncoupled_bm4(self.coupling_frequency)
-		steps = _validated_area_steps(
+		steps: tuple[AreaStep, ...] = _validated_area_steps(
 			self.steps, minimum=1, label_message="Integration-step labels must be unique.",
 		)
 		if len({step.value for step in steps}) != len(steps):
@@ -81,6 +80,8 @@ class TrajectorySymplecticityConfig:
 			raise ValueError("Steps must be ordered from coarsest to finest.")
 		object.__setattr__(self, "steps", steps)
 
+		start: float
+		stop: float
 		start, stop = unpacked_time_span(self.t_span)
 		object.__setattr__(self, "t_span", (start, stop))
 		object.__setattr__(
@@ -179,14 +180,14 @@ def _solver_summary(
 	solution: States,
 ) -> tuple[int | None, float | None, float | None]:
 	"""Reduce optional Newton iteration and residual arrays."""
-	iterations_value = solution.diagnostics.get("newton_iterations")
-	residuals_value = solution.diagnostics.get("newton_residual_norms")
+	iterations_value: np.ndarray | float | int | str | None = solution.diagnostics.get("newton_iterations")
+	residuals_value: np.ndarray | float | int | str | None = solution.diagnostics.get("newton_residual_norms")
 	if iterations_value is None and residuals_value is None:
 		return None, None, None
 	if iterations_value is None or residuals_value is None:
 		raise ValueError("Newton iterations and residuals must be provided together.")
-	iterations = np.asarray(iterations_value, dtype=float)
-	residuals = np.asarray(residuals_value, dtype=float)
+	iterations: np.ndarray = np.asarray(iterations_value, dtype=float)
+	residuals: np.ndarray = np.asarray(residuals_value, dtype=float)
 	if (
 		iterations.ndim != 1
 		or residuals.shape != iterations.shape
@@ -224,6 +225,9 @@ class TrajectorySymplecticityResult:
 			if not records:
 				raise ValueError(f"No records exist for {step.label!r}.")
 			solution = self.solutions[step.label]
+			max_iterations: int | None
+			mean_iterations: float | None
+			max_residual: float | None
 			max_iterations, mean_iterations, max_residual = _solver_summary(solution)
 			rows.append(
 				TrajectorySymplecticitySummary(
@@ -252,7 +256,7 @@ class TrajectorySymplecticityResult:
 
 	def convergence_orders(self) -> tuple[TrajectoryDefectOrder, ...]:
 		"""Estimate accumulated-defect slopes under step refinement."""
-		rows = self.summaries()
+		rows: tuple[TrajectorySymplecticitySummary, ...] = self.summaries()
 		return tuple(
 			TrajectoryDefectOrder(
 				coarse_label=coarse.label,
@@ -281,7 +285,7 @@ class TrajectorySymplecticityResult:
 			f"{'max mean local':>18} {'max mean flow':>18} "
 			f"{'final mean flow':>18} {'max trajectory':>18}"
 		)
-		rows = self.summaries()
+		rows: tuple[TrajectorySymplecticitySummary, ...] = self.summaries()
 		for row in rows:
 			print(
 				f"{row.label:>12} {row.step_count:8d} {row.trajectory_count:7d} "
@@ -337,9 +341,9 @@ def _run_trajectory_symplecticity_study(
 	if potential.interpolation_order < 3:
 		raise ValueError("Exact GC Jacobians require interpolation_order >= 3.")
 
-	dynamics = GuidingCenterDynamics(potential, rho=config.rho)
-	problem = InitialValueProblem(dynamics, initial_configuration, layout=GCStateLayout())
-	trajectory_count = GCStateLayout().particle_count(initial_state)
+	dynamics: GuidingCenterDynamics = GuidingCenterDynamics(potential, rho=config.rho)
+	problem: InitialValueProblem = InitialValueProblem(dynamics, initial_configuration, layout=GCStateLayout())
+	trajectory_count: int = GCStateLayout().particle_count(initial_state)
 	common_metadata = {
 		**dict(metadata or {}),
 		"method": method_name,
@@ -357,13 +361,13 @@ def _run_trajectory_symplecticity_study(
 	records: dict[str, tuple[TrajectorySymplecticityRecord, ...]] = {}
 	output_directories: dict[str, Path] = {}
 	for step in config.steps:
-		record_every = integer_ratio(
+		record_every: int = integer_ratio(
 			config.save_interval,
 			step.value,
 			f"save_interval / step for {step.label}",
 		)
-		step_tag = f"{step.value:.8f}".replace(".", "p")
-		observer = GCTrajectorySymplecticityObserver(
+		step_tag: str = f"{step.value:.8f}".replace(".", "p")
+		observer: GCTrajectorySymplecticityObserver = GCTrajectorySymplecticityObserver(
 			dynamics=dynamics,
 			initial_configuration=initial_configuration,
 			method_name=method_name,
@@ -379,13 +383,13 @@ def _run_trajectory_symplecticity_study(
 			verbose=False,
 			metadata={**common_metadata, "integration_step": step.value},
 		)
-		request = SimulationRequest.uniform(
+		request: SimulationRequest = SimulationRequest.uniform(
 			t_span=config.t_span,
 			max_step=step.value,
 			sample_count=config.output_sample_count,
 		)
 		with observer:
-			solution = simulate(problem, method_factory(observer), request)
+			solution: States = simulate(problem, method_factory(observer), request)
 		solutions[step.label] = solution
 		records[step.label] = observer.records
 		output_directories[step.label] = observer.output_directory
@@ -480,7 +484,7 @@ def run_abba4_implicit_trajectory_symplecticity_study(
 	metadata: Mapping[str, Any] | None = None,
 ) -> TrajectorySymplecticityResult:
 	"""Run reduced ABBA4 and compose its three exact physical tangents."""
-	root_two = float(np.cbrt(2.0))
+	root_two: float = float(np.cbrt(2.0))
 	gamma = 1.0 / (2.0 - root_two)
 	delta = -root_two / (2.0 - root_two)
 	return _run_trajectory_symplecticity_study(

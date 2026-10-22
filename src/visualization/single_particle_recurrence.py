@@ -2,13 +2,17 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.figure import Figure
 
 from studies.single_particle_recurrence import distance_to_initial, minimum_image
+
+
+if TYPE_CHECKING:
+    from matplotlib.collections import PathCollection
 
 
 def display_recurrence_records(records: Any, *, columns: Any) -> None:
@@ -33,12 +37,14 @@ def plot_particle_recurrence(arrays: dict[str, np.ndarray], metadata: dict[str, 
     initial = arrays['initial_state']
     times = arrays['times']
     delta = minimum_image(arrays['DOP853_refined.states'] - initial[:, None], period) / period
-    path = delta.copy()
+    path: Any = delta.copy()
     path[:, np.r_[False, np.any(np.abs(np.diff(path, axis=1)) > .5, axis=0)]] = np.nan
+    figure: Figure
+    axes: np.ndarray
     figure, axes = plt.subplots(1, 2, figsize=(13, 4.8), constrained_layout=True)
     axes[0].plot(*path, lw=.8, color='steelblue', alpha=.8, label='Refined reference')
     cycle_delta = minimum_image(arrays['DOP853_refined.cycle_states'] - initial[:, None], period) / period
-    points = axes[0].scatter(*cycle_delta, c=arrays['cycle_times'], cmap='viridis', s=20, zorder=3)
+    points: PathCollection = axes[0].scatter(*cycle_delta, c=arrays['cycle_times'], cmap='viridis', s=20, zorder=3)
     axes[0].scatter(0, 0, color='black', marker='+', s=100, label='Initial state', zorder=4)
     axes[0].add_patch(plt.Circle((0, 0), .01, fill=False, color='grey', ls='--'))
     axes[0].set(xlabel=r'$\Delta x/L$', ylabel=r'$\Delta y/L$',
@@ -68,23 +74,27 @@ def plot_particle_return_zoom(arrays: dict[str, np.ndarray], metadata: dict[str,
                               original_times: np.ndarray, original_states: np.ndarray,
                               *, target_cycle: int, half_width: float = .5) -> Figure:
     """Resolve the selected cycle in time and in its local spatial coordinates."""
+    period: Any
+    initial: np.ndarray
     period, initial = metadata['period'], arrays['initial_state']
     times = arrays['times']
     mask = np.abs(times - target_cycle) <= half_width
     source_mask = np.abs(original_times - target_cycle) <= half_width
+    figure: Figure
+    axes: np.ndarray
     figure, axes = plt.subplots(1, 3, figsize=(15, 4.4), constrained_layout=True)
     colors = {'DOP853': 'darkorange', 'DOP853_refined': 'steelblue', 'Radau': 'seagreen'}
     for label, color in colors.items():
         state = arrays[label + '.states'][:, mask]
-        distance = distance_to_initial(state, initial, period)
+        distance: np.ndarray = distance_to_initial(state, initial, period)
         axes[0].semilogy(times[mask], _positive(distance), color=color, label=label, lw=1.2)
     axes[0].semilogy(original_times[source_mask], _positive(distance_to_initial(
         original_states[:, source_mask], initial, period)), 'o', ms=4, color='grey', label='Original BM4')
-    delta = minimum_image(arrays['DOP853_refined.states'][:, mask] - initial[:, None], period)
+    delta: np.ndarray = minimum_image(arrays['DOP853_refined.states'][:, mask] - initial[:, None], period)
     axes[1].plot(*delta, color='steelblue', lw=1.2)
     axes[1].scatter(0, 0, color='black', marker='+', s=100, label='Initial state')
-    cycle_index = int(np.flatnonzero(arrays['cycle_times'] == target_cycle)[0])
-    cycle_delta = minimum_image(arrays['DOP853_refined.cycle_states'][:, cycle_index] - initial, period)
+    cycle_index: int = int(np.flatnonzero(arrays['cycle_times'] == target_cycle)[0])
+    cycle_delta: np.ndarray = minimum_image(arrays['DOP853_refined.cycle_states'][:, cycle_index] - initial, period)
     axes[1].scatter(*cycle_delta, color='darkorange', s=45, label=f't = {target_cycle}')
     rows = [r for r in metadata['returns'] if abs(r['time'] - target_cycle) <= half_width]
     for index, row in enumerate(rows):
@@ -108,14 +118,18 @@ def plot_particle_return_zoom(arrays: dict[str, np.ndarray], metadata: dict[str,
 def plot_particle_reference_audit(arrays: dict[str, np.ndarray], metadata: dict[str, Any],
                                   original_times: np.ndarray, original_states: np.ndarray) -> Figure:
     """Separate BM4 trajectory error, reference agreement, and velocity return."""
+    times: np.ndarray
+    period: Any
     times, period = arrays['times'], metadata['period']
+    figure: Figure
+    axes: np.ndarray
     figure, axes = plt.subplots(1, 2, figsize=(13, 4.5), constrained_layout=True)
     for label, color in (('DOP853', 'darkorange'), ('Radau', 'seagreen')):
         axes[0].semilogy(times[1:], _positive(arrays[label + '.reference_discrepancy'][1:]),
                          lw=1, color=color, label=f'{label} vs refined DOP853')
-    indices = np.rint(original_times / (times[1] - times[0])).astype(int)
+    indices: Any = np.rint(original_times / (times[1] - times[0])).astype(int)
     if np.all(indices < len(times)) and np.allclose(times[indices], original_times, rtol=0, atol=1e-12):
-        error = np.linalg.norm(minimum_image(
+        error: np.ndarray = np.linalg.norm(minimum_image(
             original_states - arrays['DOP853_refined.states'][:, indices], period), axis=0)
         axes[0].semilogy(original_times[1:], _positive(error[1:]), color='grey', label='Original BM4 vs reference')
     axes[0].set(xlabel='Time [forcing cycles]', ylabel='Periodic trajectory discrepancy',

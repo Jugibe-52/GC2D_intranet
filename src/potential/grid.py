@@ -65,7 +65,7 @@ class Grid:
 	def __post_init__(self) -> None:
 		"""Validate and normalize the values stored by the frozen dataclass."""
 		for name in ("x0", "y0", "dx", "dy"):
-			value = float(getattr(self, name))
+			value: float = float(getattr(self, name))
 			if not np.isfinite(value):
 				raise ValueError(f"`{name}` must be finite.")
 			object.__setattr__(self, name, value)
@@ -75,7 +75,7 @@ class Grid:
 		for name in ("nx", "ny"):
 			object.__setattr__(self, name, _normalized_grid_size(getattr(self, name), name))
 
-		period = _validated_period(self.period, nx=self.nx, ny=self.ny, dx=self.dx, dy=self.dy)
+		period: float = _validated_period(self.period, nx=self.nx, ny=self.ny, dx=self.dx, dy=self.dy)
 		object.__setattr__(self, "period", period)
 
 	@classmethod
@@ -136,8 +136,8 @@ class Grid:
 		the operation changes their representative modulo ``period``, not their
 		physical location on the periodic domain.
 		"""
-		x_array = np.asarray(x)
-		y_array = np.asarray(y)
+		x_array: np.ndarray = np.asarray(x)
+		y_array: np.ndarray = np.asarray(y)
 		return (
 			((x_array - self.xmin) % self.period) + self.xmin,
 			((y_array - self.ymin) % self.period) + self.ymin,

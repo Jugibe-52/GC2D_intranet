@@ -13,12 +13,18 @@ from matplotlib.figure import Figure
 
 from studies.poincare_periodicity import section_distances
 
+
 if TYPE_CHECKING:
+    from matplotlib.axes import Axes
+    from matplotlib.collections import PathCollection
     from studies.poincare_periodicity import PoincarePeriodicity, SavedPoincareSection, ShortPeriodicity
+    from typing import Any
 
 
 def _panels(section: SavedPoincareSection) -> tuple[Figure, np.ndarray]:
-    count = len(section.particle_ids)
+    count: int = len(section.particle_ids)
+    figure: Figure
+    axes: np.ndarray
     figure, axes = plt.subplots((count + 1) // 2, 2, figsize=(12, 4 * ((count + 1) // 2)),
                                 squeeze=False, layout='constrained')
     for axis in axes.flat[count:]:
@@ -31,6 +37,8 @@ def _panels(section: SavedPoincareSection) -> tuple[Figure, np.ndarray]:
 
 def plot_section_initial_positions(section: SavedPoincareSection) -> Figure:
     """Display the original geometry and IDs in the full periodic cell."""
+    figure: Figure
+    axis: Axes
     figure, axis = plt.subplots(figsize=(7, 6), layout='constrained')
     for j, pid in enumerate(section.particle_ids):
         point = section.positions[0, j] % 1
@@ -49,11 +57,13 @@ def plot_periodicity_diagnostic(
     """Show sections, initial returns, lag defects, best-lag histories or spectra."""
     if diagnostic not in ('sections', 'initial_returns', 'lag_scan', 'best_history', 'spectra'):
         raise ValueError('Unknown periodicity diagnostic.')
+    figure: Figure
+    axes: np.ndarray
     figure, axes = _panels(section)
     for j, (axis, row) in enumerate(zip(axes, result.summary)):
         if diagnostic == 'sections':
             points = section.positions[:, j] % 1
-            scatter = axis.scatter(*points[1:].T, c=np.arange(1, len(points)), s=3,
+            scatter: PathCollection = axis.scatter(*points[1:].T, c=np.arange(1, len(points)), s=3,
                                    cmap='viridis', rasterized=True)
             axis.scatter(*points[0], marker='x', color='red', s=55, label='Initial state')
             axis.set(xlabel='x / L', ylabel='y / L', aspect='equal')
@@ -94,9 +104,11 @@ def plot_residue_section(section: SavedPoincareSection, *, particle_id: int,
             or not 1 <= candidate_q < len(section.positions)
             or isinstance(residue, bool) or int(residue) != residue or not 0 <= residue < candidate_q):
         raise ValueError('Require an integer lag within the record and 0 <= residue < lag.')
-    j = section.particle_ids.index(particle_id)
+    j: int = section.particle_ids.index(particle_id)
     points = section.positions[:, j] % 1
-    cycles = np.arange(len(points))
+    cycles: np.ndarray = np.arange(len(points))
+    figure: Figure
+    axes: np.ndarray
     figure, axes = plt.subplots(1, 3, figsize=(16, 4.5), layout='constrained')
     for r in range(candidate_q):
         selected = cycles % candidate_q == r
@@ -105,7 +117,7 @@ def plot_residue_section(section: SavedPoincareSection, *, particle_id: int,
     axes[0].legend(title='Residue', ncol=4, fontsize=8,
                    loc='upper center', bbox_to_anchor=(.5, -.16))
     selected = cycles % candidate_q == residue
-    scatter = axes[1].scatter(*points[selected].T, c=cycles[selected], s=9, cmap='viridis')
+    scatter: PathCollection = axes[1].scatter(*points[selected].T, c=cycles[selected], s=9, cmap='viridis')
     axes[1].set(title=f'Zoom: n modulo {candidate_q} = {residue}')
     figure.colorbar(scatter, ax=axes[1], label='Forcing cycle')
     for axis in axes[:2]:
@@ -140,7 +152,7 @@ def export_interval_recurrence_viewer(
     The complete once-per-cycle record is embedded in a self-contained page.
     """
     positions = np.asarray(section.positions, dtype='<f4') % 1
-    distances = np.asarray(result.initial_distances, dtype='<f4')
+    distances: np.ndarray = np.asarray(result.initial_distances, dtype='<f4')
     expected = (len(positions), len(section.particle_ids))
     if positions.ndim != 3 or positions.shape[1:] != (expected[1], 2):
         raise ValueError('Section positions must have shape (cycles, particles, 2).')
@@ -151,19 +163,19 @@ def export_interval_recurrence_viewer(
 
     panels = []
     for j, particle_id in enumerate(section.particle_ids):
-        coordinates = np.ascontiguousarray(positions[:, j], dtype='<f4')
-        values = np.ascontiguousarray(distances[:, j], dtype='<f4')
+        coordinates: np.ndarray = np.ascontiguousarray(positions[:, j], dtype='<f4')
+        values: np.ndarray = np.ascontiguousarray(distances[:, j], dtype='<f4')
         panels.append(dict(
             particle=int(particle_id), color=str(section.colors[j]), samples=len(coordinates),
             coordinates=base64.b64encode(coordinates.tobytes()).decode('ascii'),
             distances=base64.b64encode(values.tobytes()).decode('ascii'),
         ))
-    payload = json.dumps(
+    payload: str = json.dumps(
         dict(title=str(title), maximum_cycle=len(positions) - 1, panels=panels),
         separators=(',', ':'),
     ).replace('<', '\\u003c')
-    template = Path(__file__).with_name('_poincare_interval_viewer.html').read_text(encoding='utf-8')
-    destination = Path(path)
+    template: str = Path(__file__).with_name('_poincare_interval_viewer.html').read_text(encoding='utf-8')
+    destination: Path = Path(path)
     destination.parent.mkdir(parents=True, exist_ok=True)
     destination.write_text(template.replace('__POINCARE_INTERVAL_DATA__', payload), encoding='utf-8')
     return destination
@@ -174,11 +186,15 @@ def plot_short_periodicity(section: SavedPoincareSection, result: ShortPeriodici
     """Display recurrence cadence, repeated shifts, temporal stability or phase classes."""
     if diagnostic not in ('signals', 'correlations', 'multiples', 'blocks', 'phase_classes'):
         raise ValueError('Unknown short-periodicity diagnostic.')
+    figure: Figure
+    axes: np.ndarray
     figure, axes = _panels(section)
     for j, (axis, row) in enumerate(zip(axes, result.summary)):
+        q: Any
+        pid: Any
         q, pid = row['short_q'], row['particle']
         if diagnostic == 'signals':
-            stop = min(len(section.positions), preview_cycles+1)
+            stop: int = min(len(section.positions), preview_cycles+1)
             for coordinate, label in enumerate(('x / L', 'y / L')):
                 axis.plot(np.arange(stop), section.positions[:stop, j, coordinate],
                           '.-', ms=3, lw=.8, label=label)
@@ -220,7 +236,7 @@ def plot_short_periodicity(section: SavedPoincareSection, result: ShortPeriodici
                 axis.text(.5, .5, 'No short candidate', transform=axis.transAxes, ha='center')
                 continue
             points = section.positions[:, j] % 1
-            scatter = axis.scatter(*points.T, c=np.arange(len(points)) % q,
+            scatter: PathCollection = axis.scatter(*points.T, c=np.arange(len(points)) % q,
                                    cmap=plt.get_cmap('tab10', q), vmin=-.5, vmax=q-.5, s=4,
                                    rasterized=True)
             figure.colorbar(scatter, ax=axis, ticks=np.arange(q), label=f'Cycle n modulo {q}')
@@ -249,12 +265,12 @@ def export_phase_class_selector(path: str | Path, section: SavedPoincareSection,
         q = rows[int(particle_id)]['short_q']
         if q is None or isinstance(q, bool) or int(q) != q or int(q) < 1:
             raise ValueError(f'Particle {particle_id} has no integer short-period candidate.')
-        coordinates = np.ascontiguousarray(positions[:, j], dtype='<f4')
+        coordinates: np.ndarray = np.ascontiguousarray(positions[:, j], dtype='<f4')
         panels.append(dict(particle=int(particle_id), q=int(q), samples=len(coordinates),
                            coordinates=base64.b64encode(coordinates.tobytes()).decode('ascii')))
-    payload = json.dumps(dict(title=str(title), panels=panels), separators=(',', ':')).replace('<', '\\u003c')
-    template = Path(__file__).with_name('_phase_class_selector.html').read_text(encoding='utf-8')
-    destination = Path(path)
+    payload: str = json.dumps(dict(title=str(title), panels=panels), separators=(',', ':')).replace('<', '\\u003c')
+    template: str = Path(__file__).with_name('_phase_class_selector.html').read_text(encoding='utf-8')
+    destination: Path = Path(path)
     destination.parent.mkdir(parents=True, exist_ok=True)
     destination.write_text(template.replace('__PHASE_CLASS_DATA__', payload), encoding='utf-8')
     return destination

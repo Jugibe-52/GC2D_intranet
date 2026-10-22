@@ -10,7 +10,7 @@ import io
 import json
 from pathlib import Path
 import time
-from typing import Callable
+from typing import Callable, TYPE_CHECKING
 import zipfile
 
 import numpy as np
@@ -25,6 +25,11 @@ from methods.classical.rk4 import RK4
 from request import SimulationRequest
 from simulation.runner import simulate
 from studies.poincare_periodicity import SavedPoincareSection
+
+
+if TYPE_CHECKING:
+	from states.history import States
+	from typing import Any
 
 
 @dataclass(frozen=True)
@@ -56,20 +61,20 @@ def load_probe_field(snapshot: Path, *, expected_sha256: str,
     hashes are recorded separately so equal physical inputs do not imply equal
     software versions.
     """
-    content = Path(snapshot).read_bytes()
+    content: bytes = Path(snapshot).read_bytes()
     if hashlib.sha256(content).hexdigest() != expected_sha256:
         raise ValueError('Field snapshot checksum mismatch or unmaterialized Git LFS file.')
     with zipfile.ZipFile(io.BytesIO(content)) as archive:
-        provenance = json.loads(archive.read('provenance.json'))
+        provenance: Any = json.loads(archive.read('provenance.json'))
         for key, expected in physical_settings.items():
             if provenance.get(key) != expected:
                 raise ValueError(f'Field setting differs from the explicit notebook control: {key}')
-        convention = provenance.get('frequency_convention', 'cycles')
+        convention: Any = provenance.get('frequency_convention', 'cycles')
         if convention not in ('angular', 'cycles'):
             raise ValueError('Unknown snapshot frequency convention.')
         frequency_scale = 1.0 / (2 * np.pi) if convention == 'angular' else 1.0
         with np.load(io.BytesIO(archive.read('field.npz')), allow_pickle=False) as arrays:
-            potential = Potential(Grid(**provenance['grid']), mean=arrays['mean'],
+            potential: Potential = Potential(Grid(**provenance['grid']), mean=arrays['mean'],
                                   modes=arrays['modes'], frequencies=arrays['frequencies'] * frequency_scale,
                                   interpolation_order=provenance['interpolation_order'])
     return potential, provenance
@@ -104,16 +109,16 @@ def integrate_rk4_probe(potential: Potential, settings: RK4ProbeSettings, *,
     count = settings.cycles * settings.steps_per_cycle
     step = settings.cycle_duration / settings.steps_per_cycle
     times = settings.t0 + np.arange(count + 1) * step
-    xy = np.empty((count + 1, 1, 2), dtype=np.float64)
+    xy: np.ndarray = np.empty((count + 1, 1, 2), dtype=np.float64)
     xy[0, 0] = np.asarray(settings.initial_xy_over_L) * potential.grid.period
-    dynamics = GuidingCenterDynamics(potential, rho=settings.rho)
-    started = time.perf_counter()
+    dynamics: GuidingCenterDynamics = GuidingCenterDynamics(potential, rho=settings.rho)
+    started: float = time.perf_counter()
     for start in range(0, count, settings.chunk_steps):
-        end = min(count, start + settings.chunk_steps)
-        initial = GCStateLayout().pack_components(xy[start, :, 0], xy[start, :, 1])
-        request = SimulationRequest.uniform(t_span=(times[start], times[end]),
+        end: int = min(count, start + settings.chunk_steps)
+        initial: np.ndarray = GCStateLayout().pack_components(xy[start, :, 0], xy[start, :, 1])
+        request: SimulationRequest = SimulationRequest.uniform(t_span=(times[start], times[end]),
                                            max_step=step, sample_count=end - start + 1)
-        solution = simulate(InitialValueProblem(dynamics, initial, layout=GCStateLayout()), RK4(), request)
+        solution: States = simulate(InitialValueProblem(dynamics, initial, layout=GCStateLayout()), RK4(), request)
         if solution.diagnostics['step_count'] != end - start:
             raise RuntimeError('RK4 did not preserve the requested number of steps.')
         xy[start:end + 1, 0] = solution.states.T
@@ -125,7 +130,7 @@ def integrate_rk4_probe(potential: Potential, settings: RK4ProbeSettings, *,
 
 def probe_section(result: dict, settings: RK4ProbeSettings, period: float) -> np.ndarray:
     """Return normalized, wrapped cycle samples, including the initial state."""
-    xy = np.asarray(result['xy'])
+    xy: np.ndarray = np.asarray(result['xy'])
     count = settings.cycles * settings.steps_per_cycle + 1
     if xy.shape != (count, 1, 2) or not np.isfinite(xy).all():
         raise ValueError('Probe trajectory shape or values are invalid.')
@@ -143,7 +148,7 @@ def probe_clearance(background: SavedPoincareSection, points: np.ndarray) -> np.
     A finite-record clearance is not evidence that the continuous region is
     inaccessible, nor a certified trajectory-error bound.
     """
-    tree = cKDTree(background.positions[1:].reshape(-1, 2) % 1, boxsize=1.0)
+    tree: Any = cKDTree(background.positions[1:].reshape(-1, 2) % 1, boxsize=1.0)
     return np.asarray(tree.query(np.asarray(points).reshape(-1, 2) % 1)[0])
 
 
@@ -171,7 +176,7 @@ def _validate_probe_parameters(
 						('steps_per_cycle', steps_per_cycle), ('chunk_steps', chunk_steps)):
 		if isinstance(value, bool) or not isinstance(value, int) or value < 1:
 			raise ValueError(f'{name} must be a positive integer.')
-	xy = np.asarray(initial_xy_over_L, dtype=float)
+	xy: np.ndarray = np.asarray(initial_xy_over_L, dtype=float)
 	if xy.shape != (2,) or not np.isfinite(xy).all() or np.any((xy < 0) | (xy >= 1)):
 		raise ValueError('Initial coordinates must be two finite fractions in [0, 1).')
 	if chunk_steps % steps_per_cycle:

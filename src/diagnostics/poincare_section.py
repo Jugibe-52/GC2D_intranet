@@ -28,14 +28,18 @@ def _read_cycle_returns(
     directory: Path, indices: Mapping[int, int], cycles: int,
 ) -> tuple[np.ndarray, list[str | None]]:
     """Read one complete return per particle and cycle without reordering IDs."""
-    points = np.full((cycles, len(indices), 2), np.nan)
-    seen = np.zeros((cycles, len(indices)), dtype=bool)
+    points: np.ndarray = np.full((cycles, len(indices), 2), np.nan)
+    seen: np.ndarray = np.zeros((cycles, len(indices)), dtype=bool)
     colors: list[str | None] = [None] * len(indices)
     with (directory / 'positions_after_each_cycle.csv').open(newline='') as stream:
         for row in csv.DictReader(stream):
+            pid: int
+            cycle: int
             pid, cycle = int(row['particle']), int(row['cycle'])
             if pid not in indices or not 1 <= cycle <= cycles:
                 raise ValueError('Unexpected particle or cycle in saved returns.')
+            j: int
+            k: int
             j, k = indices[pid], cycle - 1
             if seen[k, j]:
                 raise ValueError('Duplicate particle return in a saved cycle.')
@@ -60,15 +64,19 @@ def load_poincare_cycle_csv(
     if not isinstance(run_id, str) or not run_id or Path(run_id).name != run_id or run_id in ('.', '..'):
         raise ValueError('run_id must be a single directory name.')
     directory = Path(study_directory) / 'resultados' / run_id
-    manifest = json.loads((directory / 'COMPLETE.json').read_text())
+    manifest: Any = json.loads((directory / 'COMPLETE.json').read_text())
     if manifest.get('schema_version') != 1 or manifest.get('run_id') != run_id:
         raise ValueError('Unsupported or mismatched result manifest.')
     for name in ('metadata.json', 'positions_after_each_cycle.csv'):
         with (directory / name).open('rb') as stream:
-            digest = hashlib.file_digest(stream, 'sha256').hexdigest()
+            digest: str = hashlib.file_digest(stream, 'sha256').hexdigest()
         if digest != manifest.get('sha256', {}).get(name):
             raise ValueError(f'Result checksum mismatch: {name}')
-    metadata = json.loads((directory / 'metadata.json').read_text())
+    metadata: Any = json.loads((directory / 'metadata.json').read_text())
+    indices: dict[int, int]
+    cycles: int
     indices, cycles = _validated_cycle_metadata(metadata, run_id)
+    points: np.ndarray
+    colors: list[str | None]
     points, colors = _read_cycle_returns(directory, indices, cycles)
     return metadata, points, colors

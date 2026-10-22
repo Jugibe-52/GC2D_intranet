@@ -35,6 +35,8 @@ class RunProgress:
     def report(self) -> None:
         """Emit a flushed heartbeat from the latest completed boundary."""
         with self._lock:
+            completed: int
+            phase: str
             completed, phase = self.completed, self.current_phase
         elapsed = perf_counter() - self.started
         remaining = f'{elapsed * (self.total - completed) / completed:.1f}s' if completed else 'pending'
@@ -58,21 +60,21 @@ def progress_log(path: str | Path, *, total: int, unit: str = 'cycles',
         raise ValueError('heartbeat_seconds must be positive and finite.')
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    logger = logging.getLogger(f'gc2d.run.{uuid4().hex}')
+    logger: logging.Logger = logging.getLogger(f'gc2d.run.{uuid4().hex}')
     logger.setLevel(logging.INFO)
     logger.propagate = False
     handlers: list[logging.Handler] = [logging.FileHandler(path, encoding='utf-8'), logging.StreamHandler(sys.stdout)]
     for handler in handlers:
         handler.setFormatter(logging.Formatter('%(asctime)s | %(levelname)s | %(message)s'))
         logger.addHandler(handler)
-    progress = RunProgress(logger, total, unit)
-    stop = Event()
+    progress: RunProgress = RunProgress(logger, total, unit)
+    stop: Event = Event()
 
     def heartbeat() -> None:
         while not stop.wait(heartbeat_seconds):
             progress.report()
 
-    worker = Thread(target=heartbeat, daemon=True, name='gc2d-progress')
+    worker: Thread = Thread(target=heartbeat, daemon=True, name='gc2d-progress')
     try:
         logger.info('START | log=%s', path.resolve())
         worker.start()

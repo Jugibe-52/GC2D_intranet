@@ -17,6 +17,7 @@ def calculate_region_probe_run(potential: Potential, settings: RegionProbeSettin
     """Reuse a complete matching run or calculate and persist the requested batch."""
     directory = Path(directory)
     if (directory / 'COMPLETE.json').exists():
+        result: dict[Any, Any]
         result, _ = load_poincare_probe(directory, expected_contract=contract)
         print(f'{settings.method}: loaded the complete matching probe run.')
         return result
@@ -38,16 +39,18 @@ def load_region_probe_batch(directory: Path, *, background: SavedPoincareSection
     viewer's current source. The physical field, method and background file hashes
     must still match. This permits viewing earlier completed calculations.
     """
+    result: dict[Any, Any]
+    metadata: dict[Any, Any]
     result, metadata = load_poincare_probe(directory)
     contract = metadata['contract']
-    controls = dict(contract['settings'])
+    controls: dict[Any, Any] = dict(contract['settings'])
     if 'particle_id' in controls:
         controls['particle_ids'] = (controls.pop('particle_id'),)
         controls['initial_xy_over_L'] = (controls['initial_xy_over_L'],)
         controls['colors'] = (controls.pop('color'),)
     controls['method'] = contract['method']
-    settings = RegionProbeSettings(**controls)
-    current = region_probe_contract(settings, snapshot_sha256=contract['snapshot_sha256'],
+    settings: RegionProbeSettings = RegionProbeSettings(**controls)
+    current: dict[Any, Any] = region_probe_contract(settings, snapshot_sha256=contract['snapshot_sha256'],
                                     provenance=contract['field_provenance'], background=background)
     for key in ('background_run_id', 'background_sha256'):
         if current[key] != contract[key]:
@@ -62,6 +65,8 @@ def load_saved_region_panels(backgrounds: Mapping[str, SavedPoincareSection],
     for method, background in backgrounds.items():
         batches = []
         for directory in batch_directories[method]:
+            settings: RegionProbeSettings
+            result: dict[str, Any]
             settings, result, _ = load_region_probe_batch(directory, background=background)
             batches.append((settings, result))
         panels[method] = region_probe_panel(background, batches)

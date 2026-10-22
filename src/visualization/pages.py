@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from html import escape
 from pathlib import Path
 from collections.abc import Mapping
-from typing import Any
+from typing import Any, TYPE_CHECKING
 import shutil
 import subprocess
 import tempfile
@@ -15,6 +15,10 @@ import tomllib
 from urllib.parse import quote, urlsplit
 
 from diagnostics.paths import find_project_root
+
+
+if TYPE_CHECKING:
+    from urllib.parse import SplitResult
 
 
 __all__ = ["PagesSite", "prepare_pages_site", "publish_pages_site"]
@@ -39,18 +43,18 @@ class PagesSite:
 
 def _validated_pages_config(config: Mapping[str, Any]) -> tuple[str, str, str, list[Any]]:
     """Normalize publication settings and check the configured export list."""
-    project_name = str(config.get("project_name", "")).strip()
-    production_branch = str(config.get("production_branch", "main")).strip()
-    base_url = str(config.get("base_url", "")).strip().rstrip("/")
+    project_name: str = str(config.get("project_name", "")).strip()
+    production_branch: str = str(config.get("production_branch", "main")).strip()
+    base_url: str = str(config.get("base_url", "")).strip().rstrip("/")
     if not production_branch:
         raise ValueError("production_branch must not be empty.")
     if base_url:
-        parsed = urlsplit(base_url)
+        parsed: SplitResult = urlsplit(base_url)
         if (parsed.scheme != "https" or not parsed.hostname or parsed.path
                 or parsed.query or parsed.fragment or parsed.username or parsed.password):
             raise ValueError("base_url must be an HTTPS site origin without a path.")
 
-    exports = config.get("html_files")
+    exports: Any | None = config.get("html_files")
     if not isinstance(exports, list) or not exports:
         raise ValueError("html_files must list at least one standalone HTML export.")
     return project_name, production_branch, base_url, exports
@@ -64,7 +68,7 @@ def _validated_export_sources(root: Path, exports: list[Any]) -> dict[Path, Path
     for entry in exports:
         if not isinstance(entry, str) or Path(entry).is_absolute():
             raise ValueError("html_files entries must be paths relative to the project root.")
-        source = (root / entry).resolve()
+        source: Path = (root / entry).resolve()
         if not source.is_relative_to(development_root):
             raise ValueError("HTML exports must be inside notebooks/developements/.")
         if source.suffix.lower() != ".html" or not source.is_file():
@@ -86,24 +90,28 @@ def prepare_pages_site(config_path: str | Path | None = None) -> PagesSite:
     to the project root; only development exports are supported. All sources
     are checked before a new snapshot is created under ignored ``build/``.
     """
-    config_file = (
+    config_file: Path = (
         find_project_root(Path.cwd()) / "conf" / "visualization_pages.toml"
         if config_path is None
         else Path(config_path).expanduser().resolve()
     )
-    root = find_project_root(config_file)
+    root: Path = find_project_root(config_file)
     with config_file.open("rb") as stream:
-        config = tomllib.load(stream)
+        config: dict[str, Any] = tomllib.load(stream)
 
+    project_name: str
+    production_branch: str
+    base_url: str
+    exports: list[Any]
     project_name, production_branch, base_url, exports = _validated_pages_config(config)
 
-    sources = _validated_export_sources(root, exports)
+    sources: dict[Path, Path] = _validated_export_sources(root, exports)
 
     # Rebuild the complete catalog on every deployment: a Pages deployment
     # replaces the site's snapshot, so uploading just one page loses others.
     build_root = root / "build" / "cloudflare-pages"
     build_root.mkdir(parents=True, exist_ok=True)
-    directory = Path(tempfile.mkdtemp(prefix="site-", dir=build_root))
+    directory: Path = Path(tempfile.mkdtemp(prefix="site-", dir=build_root))
     routes: list[str] = []
     links: list[str] = []
     try:
@@ -152,10 +160,10 @@ def publish_pages_site(config_path: str | Path | None = None) -> PagesSite:
     This is an explicit network operation; failed uploads raise an exception.
     Each call rebuilds the full configured set using the latest HTML exports.
     """
-    executable = shutil.which("wrangler")
+    executable: str | None = shutil.which("wrangler")
     if executable is None:
         raise RuntimeError("Install Wrangler and run 'wrangler login' before publishing.")
-    site = prepare_pages_site(config_path)
+    site: PagesSite = prepare_pages_site(config_path)
     if not site.project_name or not site.urls:
         raise ValueError("Set project_name and base_url in visualization_pages.toml before publishing.")
     subprocess.run(
@@ -169,11 +177,11 @@ def publish_pages_site(config_path: str | Path | None = None) -> PagesSite:
 
 def _main() -> None:
     """Prepare locally by default; publish only with the explicit deploy flag."""
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser: argparse.ArgumentParser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", type=Path, help="Pages TOML configuration path.")
     parser.add_argument("--deploy", action="store_true", help="Publish the full configured site.")
-    arguments = parser.parse_args()
-    site = (publish_pages_site if arguments.deploy else prepare_pages_site)(arguments.config)
+    arguments: argparse.Namespace = parser.parse_args()
+    site: PagesSite = (publish_pages_site if arguments.deploy else prepare_pages_site)(arguments.config)
     print(f"Prepared site: {site.directory}")
     label = "Published URL" if arguments.deploy else "Planned URL"
     for url in site.urls:

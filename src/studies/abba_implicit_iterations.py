@@ -35,6 +35,7 @@ from request import SimulationRequest
 from states.history import States
 from simulation.runner import simulate
 
+from typing import TYPE_CHECKING
 
 
 ABBAIterationFormulation: TypeAlias = ProjectionFormulation
@@ -43,14 +44,14 @@ ABBA_ITERATION_FORMULATIONS = ABBA_PROJECTION_FORMULATIONS
 
 def _readonly_float_array(value: np.ndarray) -> np.ndarray:
 	"""Own and freeze one floating-point series returned by the study."""
-	result = np.asarray(value, dtype=float).copy()
+	result: np.ndarray = np.asarray(value, dtype=float).copy()
 	result.setflags(write=False)
 	return result
 
 
 def _readonly_int_array(value: np.ndarray) -> np.ndarray:
 	"""Own and freeze one integer series returned by the study."""
-	result = np.asarray(value, dtype=int).copy()
+	result: np.ndarray = np.asarray(value, dtype=int).copy()
 	result.setflags(write=False)
 	return result
 
@@ -155,6 +156,8 @@ class ImplicitABBAIterationStudyResult:
 
 	def iteration_frequencies(self) -> Mapping[int, int]:
 		"""Count how many observed steps required each iteration count."""
+		values: np.ndarray
+		counts: np.ndarray
 		values, counts = np.unique(self.iteration_counts, return_counts=True)
 		return MappingProxyType(
 			{
@@ -202,9 +205,9 @@ def run_implicit_abba_iteration_study(
 	if not isinstance(config, ImplicitABBAIterationStudyConfig):
 		raise TypeError("`config` must be an ImplicitABBAIterationStudyConfig.")
 
-	dynamics = GuidingCenterDynamics(potential, rho=config.rho)
-	problem = InitialValueProblem(dynamics, initial_configuration)
-	request = SimulationRequest.uniform(
+	dynamics: GuidingCenterDynamics = GuidingCenterDynamics(potential, rho=config.rho)
+	problem: InitialValueProblem = InitialValueProblem(dynamics, initial_configuration)
+	request: SimulationRequest = SimulationRequest.uniform(
 		t_span=config.t_span,
 		max_step=config.max_step,
 		sample_count=config.sample_count,
@@ -221,8 +224,8 @@ def run_implicit_abba_iteration_study(
 			**dict(metadata or {}),
 		},
 	) as observer:
-		started = perf_counter()
-		solution = simulate(
+		started: float = perf_counter()
+		solution: States = simulate(
 			problem,
 			ABBA2Implicit(
 				projection_formulation=config.formulation,

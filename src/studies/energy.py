@@ -33,10 +33,12 @@ from request import SimulationRequest
 from states.history import States
 from simulation.runner import simulate
 
+from typing import TYPE_CHECKING
+
 
 def _validated_steps(steps: tuple[float, ...]) -> tuple[float, ...]:
 	"""Normalize a non-empty collection of distinct positive step sizes."""
-	values = tuple(float(step) for step in steps)
+	values: tuple[float, ...] = tuple(float(step) for step in steps)
 	if not values or any(not np.isfinite(step) or step <= 0 for step in values):
 		raise ValueError("`steps` must contain positive finite values.")
 	if len(set(values)) != len(values):
@@ -63,6 +65,8 @@ class GeneralizedEnergyConfig:
 		"""Validate integration parameters before an expensive comparison."""
 		require_uncoupled_bm4(self.coupling_frequency)
 		object.__setattr__(self, "steps", _validated_steps(tuple(self.steps)))
+		start: float
+		stop: float
 		start, stop = unpacked_time_span(self.t_span)
 		object.__setattr__(self, "t_span", (start, stop))
 		if (
@@ -81,7 +85,7 @@ class GeneralizedEnergyConfig:
 			)
 		if self.rho is not None:
 			object.__setattr__(self, "rho", nonnegative_finite(self.rho, "rho"))
-		frequency = float(self.coupling_frequency)
+		frequency: float = float(self.coupling_frequency)
 		if not np.isfinite(frequency) or frequency < 0:
 			raise ValueError("`coupling_frequency` must be finite and non-negative.")
 		object.__setattr__(self, "coupling_frequency", frequency)
@@ -168,27 +172,27 @@ def run_generalized_energy_comparison(
 		)
 	if not isinstance(config, GeneralizedEnergyConfig):
 		raise TypeError("`config` must be a GeneralizedEnergyConfig instance.")
-	initial_state = single_gc_state(configuration, message="The generalized-energy study requires exactly one initial GC state.")
+	initial_state: np.ndarray = single_gc_state(configuration, message="The generalized-energy study requires exactly one initial GC state.")
 
-	rho = resolve_rho(config.rho)
-	dynamics = GuidingCenterDynamics(potential, rho=rho)
-	problem = InitialValueProblem(dynamics, configuration, layout=GCStateLayout())
+	rho: float = resolve_rho(config.rho)
+	dynamics: GuidingCenterDynamics = GuidingCenterDynamics(potential, rho=rho)
+	problem: InitialValueProblem = InitialValueProblem(dynamics, configuration, layout=GCStateLayout())
 	solutions: dict[float, States] = {}
 	energies: dict[float, np.ndarray] = {}
 	relative_errors: dict[float, np.ndarray] = {}
 
 	for step in config.steps:
-		request = SimulationRequest.uniform(
+		request: SimulationRequest = SimulationRequest.uniform(
 			t_span=config.t_span,
 			max_step=step,
 			sample_count=config.output_sample_count,
 		)
-		energy_observer = GCGeneralizedEnergyObserver(
+		energy_observer: GCGeneralizedEnergyObserver = GCGeneralizedEnergyObserver(
 			dynamics,
 			initial_time=config.t_span[0],
 			initial_state=initial_state,
 		)
-		method = BM4Implicit(
+		method: BM4Implicit = BM4Implicit(
 			newton_absolute_tolerance=config.newton_absolute_tolerance,
 			newton_relative_tolerance=config.newton_relative_tolerance,
 			newton_max_iterations=config.newton_max_iterations,
@@ -198,7 +202,7 @@ def run_generalized_energy_comparison(
 			progress=config.progress,
 			step_observer=energy_observer,
 		)
-		raw_solution = simulate(problem, method, request)
+		raw_solution: States = simulate(problem, method, request)
 		records = energy_observer.records
 		if len(records) != raw_solution.n_steps + 1:
 			raise RuntimeError(
@@ -207,7 +211,7 @@ def run_generalized_energy_comparison(
 		output_interval = (config.t_span[1] - config.t_span[0]) / (
 			config.output_sample_count - 1
 		)
-		record_stride = integer_ratio(
+		record_stride: int = integer_ratio(
 			output_interval,
 			step,
 			f"output interval / step for {step:g}",
@@ -217,8 +221,8 @@ def run_generalized_energy_comparison(
 			raise RuntimeError(
 				"Energy records do not align with the requested output grid."
 			)
-		record_times = np.asarray([record.time for record in selected_records])
-		time_tolerance = float(
+		record_times: np.ndarray = np.asarray([record.time for record in selected_records])
+		time_tolerance: float = float(
 			64.0
 			* np.finfo(float).eps
 			* max(
@@ -236,24 +240,24 @@ def run_generalized_energy_comparison(
 			raise RuntimeError(
 				"Energy-record times do not match the requested output times."
 			)
-		hamiltonian = np.asarray(
+		hamiltonian: np.ndarray = np.asarray(
 			[record.hamiltonian for record in selected_records],
 			dtype=float,
 		)
-		extended_momentum = np.asarray(
+		extended_momentum: np.ndarray = np.asarray(
 			[record.kappa for record in selected_records],
 			dtype=float,
 		)
-		generalized_energy = np.asarray(
+		generalized_energy: np.ndarray = np.asarray(
 			[record.generalized_energy for record in selected_records],
 			dtype=float,
 		)
 		generalized_energy_error = generalized_energy - generalized_energy[0]
-		relative_error = np.asarray(
+		relative_error: np.ndarray = np.asarray(
 			[record.relative_error for record in selected_records],
 			dtype=float,
 		)
-		solution = States(layout=raw_solution.layout, t=raw_solution.t, states=raw_solution.states, initial_state=raw_solution.initial_state, diagnostics={
+		solution: States = States(layout=raw_solution.layout, t=raw_solution.t, states=raw_solution.states, initial_state=raw_solution.initial_state, diagnostics={
 				**dict(raw_solution.diagnostics),
 				"track_energy": True,
 				"hamiltonian": hamiltonian[np.newaxis, :],

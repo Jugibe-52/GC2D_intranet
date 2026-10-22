@@ -1,6 +1,9 @@
 """Backend-neutral boundary for a prepared, device-resident fixed-step map."""
 
-from typing import Any, Protocol
+from typing import Any, Protocol, TYPE_CHECKING
+
+if TYPE_CHECKING:
+	from jax import Device
 
 
 class CompiledStep(Protocol):
@@ -13,7 +16,7 @@ class CompiledStep(Protocol):
 	def __hash__(self) -> int: ...
 
 	@property
-	def device(self) -> Any: ...
+	def device(self) -> "Device": ...
 
 	@property
 	def physical_dimension(self) -> int: ...

@@ -54,7 +54,7 @@ class RK4SymplecticityResult(GCSymplecticityResult):
 
 	def convergence_orders(self) -> tuple[RK4ConvergenceOrder, ...]:
 		"""Estimate the order of the maximum accumulated symplecticity defect."""
-		summaries = self.summaries()
+		summaries: tuple[RK4SymplecticitySummary, ...] = self.summaries()
 		orders: list[RK4ConvergenceOrder] = []
 		for coarse, fine in zip(summaries, summaries[1:]):
 			if (
@@ -62,7 +62,7 @@ class RK4SymplecticityResult(GCSymplecticityResult):
 				or fine.max_flow_defect <= 0
 				or np.isclose(coarse.step, fine.step)
 			):
-				value = float("nan")
+				value: float = float("nan")
 			else:
 				value = float(
 					np.log(coarse.max_flow_defect / fine.max_flow_defect)

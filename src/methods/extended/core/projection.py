@@ -1,7 +1,7 @@
 """Shared spatial Hairer equations for palindromic extended-space maps."""
 from __future__ import annotations
 
-from typing import Literal
+from typing import Literal, TYPE_CHECKING
 import numpy as np
 
 from contracts.nonlinear import NewtonObserver
@@ -12,6 +12,12 @@ from methods.extended.core.composition import Composition, compose
 from formulations.projection import ProjectionChoice, resolve_projection
 from methods.extended.core.jacobians import central_difference_jacobian, particle_jacobians
 from methods.extended.core.records import CompositionTrace, ProjectedMapResult
+
+
+if TYPE_CHECKING:
+    from formulations.projection import ProjectionFormulation
+    from solvers.nonlinear import _NonlinearResult
+    from typing import Any
 
 
 def solve_projection(
@@ -30,41 +36,41 @@ def solve_projection(
     Simultaneous unknowns are ``(u_out, v_out, mu)`` (6N components). Time and
     passive momentum never enter either root or its state-scaled tolerance.
     """
-    value = np.asarray(state, dtype=float)
+    value: np.ndarray = np.asarray(state, dtype=float)
     if value.ndim != 1 or value.size != maps.physical_size or not np.all(np.isfinite(value)):
         raise ValueError("The projection requires a finite packed physical state.")
     size = value.size
-    equations = resolve_projection(formulation)
+    equations: ProjectionFormulation = resolve_projection(formulation)
     selected_solver = solver or configured_solver(options.solver, options.absolute_tolerance,
         options.relative_tolerance, options.max_iterations)
-    tolerance = options.tolerance(value)
+    tolerance: float = options.tolerance(value)
     context = f'{recipe.name} {equations.name} at t={t:.16g} with step={h:.16g}'
     if newton_observer is not None and options.solver != 'newton':
         raise ValueError('A newton_observer requires nonlinear_solver="newton".')
 
     def evaluate(unknown: np.ndarray) -> tuple[np.ndarray, CompositionTrace]:
         """Evaluate a spatial residual and retain that exact map's trace."""
-        mu = equations.multiplier(unknown, size)
-        trace = compose(maps, recipe, t, np.concatenate((value + mu, value - mu)), h)
-        residual = equations.residual(unknown, trace.state, size)
+        mu: Any = equations.multiplier(unknown, size)
+        trace: CompositionTrace = compose(maps, recipe, t, np.concatenate((value + mu, value - mu)), h)
+        residual: Any = equations.residual(unknown, trace.state, size)
         return residual, trace
 
     def newton_update(unknown: np.ndarray, residual: np.ndarray, trace: CompositionTrace) -> np.ndarray:
         """Solve independent analytic particle blocks, or the dense FD system."""
         if jacobian_method == 'analytic':
-            base = particle_jacobians(maps, trace)
+            base: np.ndarray = particle_jacobians(maps, trace)
             count = maps.particle_count
-            matrix = equations.particle_jacobian(base)
+            matrix: Any = equations.particle_jacobian(base)
             rhs = residual.reshape(-1, count).T
-            correction = _solve_particle_systems(
+            correction: np.ndarray = _solve_particle_systems(
                 matrix, rhs, singular_message=f'The projection Jacobian is singular for {context}.',
             ).T.reshape(-1)
         elif jacobian_method == 'finite_difference':
-            base_dense = central_difference_jacobian(
+            base_dense: np.ndarray = central_difference_jacobian(
                 lambda candidate: compose(maps, recipe, t, candidate, h).state,
                 trace.state_before, relative_step=jacobian_relative_step,
             )
-            matrix_dense = equations.dense_jacobian(base_dense, size)
+            matrix_dense: Any = equations.dense_jacobian(base_dense, size)
             try:
                 correction = np.linalg.solve(matrix_dense, residual)
             except np.linalg.LinAlgError as exc:
@@ -74,12 +80,14 @@ def solve_projection(
         return np.asarray(unknown - correction)
 
     def initial_map(candidate: np.ndarray) -> tuple[np.ndarray, CompositionTrace]:
-        trace = compose(maps, recipe, t, candidate, h)
+        trace: CompositionTrace = compose(maps, recipe, t, candidate, h)
         return trace.state, trace
 
+    initial: Any
+    cached: Any
     initial, cached = equations.prepare(value, initial_map)
     if isinstance(selected_solver, BroydenSolver):
-        result = selected_solver.solve(evaluate, initial, equations.initial_jacobian(value),
+        result: _NonlinearResult[Any] = selected_solver.solve(evaluate, initial, equations.initial_jacobian(value),
             scale=value, context=context, initial_evaluation=cached)
     elif isinstance(selected_solver, NewtonSolver):
         result = selected_solver.solve(evaluate, initial, newton_update,
@@ -91,8 +99,8 @@ def solve_projection(
             ))
     else:
         raise ValueError('Unknown nonlinear solver for spatial projection.')
-    mu = equations.multiplier(result.unknown, size)
-    physical = equations.reconstruct(result.unknown, result.payload.state, size)
+    mu: Any = equations.multiplier(result.unknown, size)
+    physical: Any = equations.reconstruct(result.unknown, result.payload.state, size)
     return ProjectedMapResult(t, h, value.copy(), physical, mu.copy(),
         SolveStats(options.solver, result.iterations, result.residual_evaluations,
             float(np.linalg.norm(result.residual, ord=np.inf)), tolerance), result.payload,

@@ -19,7 +19,7 @@ def _checked_vector_field(
 	state: np.ndarray,
 ) -> np.ndarray:
 	"""Evaluate one finite vector field without allowing a shape change."""
-	result = np.asarray(dynamics.vector_field(time, state), dtype=float)
+	result: np.ndarray = np.asarray(dynamics.vector_field(time, state), dtype=float)
 	if result.shape != state.shape or not np.all(np.isfinite(result)):
 		raise ValueError("The vector field must be finite and preserve state shape.")
 	return result
@@ -34,13 +34,13 @@ def _dense_finite_difference_jacobian(
 ) -> np.ndarray:
 	"""Differentiate a vector field with scale-aware centered differences."""
 	dimension = state.size
-	jacobian = np.empty((dimension, dimension), dtype=float)
+	jacobian: np.ndarray = np.empty((dimension, dimension), dtype=float)
 	for column in range(dimension):
 		increment = relative_step * max(1.0, abs(float(state[column])))
-		perturbation = np.zeros_like(state)
+		perturbation: np.ndarray = np.zeros_like(state)
 		perturbation[column] = increment
-		forward = _checked_vector_field(dynamics, time, state + perturbation)
-		backward = _checked_vector_field(dynamics, time, state - perturbation)
+		forward: np.ndarray = _checked_vector_field(dynamics, time, state + perturbation)
+		backward: np.ndarray = _checked_vector_field(dynamics, time, state - perturbation)
 		jacobian[:, column] = (forward - backward) / (2.0 * increment)
 	if not np.all(np.isfinite(jacobian)):
 		raise ValueError("The finite-difference vector-field Jacobian is non-finite.")
@@ -56,7 +56,7 @@ def _checked_analytic_jacobians(
 	if state.size % 2:
 		raise ValueError("Analytic GC Jacobians require an even physical state size.")
 	particle_count = state.size // 2
-	result = np.asarray(
+	result: np.ndarray = np.asarray(
 		dynamics.particle_vector_field_jacobians(time, state),
 		dtype=float,
 	)

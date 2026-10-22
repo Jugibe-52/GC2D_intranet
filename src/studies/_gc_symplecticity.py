@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from time import perf_counter
 from types import MappingProxyType
-from typing import Any, ClassVar, Mapping, TypeVar
+from typing import Any, ClassVar, Mapping, TYPE_CHECKING, TypeVar
 
 import numpy as np
 
@@ -32,6 +32,10 @@ from diagnostics.symplecticity import (
 from ._gc_symplecticity_models import GCSymplecticityConfig, GCSymplecticitySummary
 from ._validation import integer_ratio, resolve_rho
 from .area_comparison import AreaStep
+
+
+if TYPE_CHECKING:
+	from typing import Literal
 
 
 _SOLVER_DIAGNOSTICS = (
@@ -70,7 +74,7 @@ class _TimedStepObserver:
 		traceback: object,
 	) -> None:
 		"""Include final record construction and disk flushing in the timing."""
-		started = perf_counter()
+		started: float = perf_counter()
 		try:
 			self.observer.__exit__(exception_type, exception, traceback)
 		finally:
@@ -78,7 +82,7 @@ class _TimedStepObserver:
 
 	def __call__(self, step: IntegrationStep) -> None:
 		"""Forward one step and accumulate time spent inside the observer."""
-		started = perf_counter()
+		started: float = perf_counter()
 		try:
 			self.observer(step)
 		finally:
@@ -137,7 +141,7 @@ class GCSymplecticityResult:
 			label = step.label
 			solution = self.solutions[label]
 			records = self.records[label]
-			solver = _solver_summary(solution)
+			solver: _SolverSummary | None = _solver_summary(solution)
 			rows.append(
 				self.summary_type(
 					label=label,
@@ -171,7 +175,7 @@ class GCSymplecticityResult:
 
 	def print_summary(self) -> None:
 		"""Print physical errors and optional nonlinear-solver statistics."""
-		summaries = self.summaries()
+		summaries: tuple[GCSymplecticitySummary, ...] = self.summaries()
 		print(
 			f"{'step':>22} {(self.method_name + ' steps'):>28} "
 			f"{'max |area error|':>20} "
@@ -186,7 +190,7 @@ class GCSymplecticityResult:
 				f"{row.max_determinant_error:16.8e}"
 			)
 
-		solver_rows = tuple(_summary_solver_values(row) for row in summaries)
+		solver_rows: tuple[tuple[int, float, float, float] | None, ...] = tuple(_summary_solver_values(row) for row in summaries)
 		if all(values is None for values in solver_rows):
 			return
 		if any(values is None for values in solver_rows):
@@ -196,6 +200,10 @@ class GCSymplecticityResult:
 		print("\nNonlinear projection solve per main integration step:")
 		for row, values in zip(summaries, solver_rows, strict=True):
 			assert values is not None
+			max_iterations: int
+			mean_iterations: float
+			max_residual: float
+			max_multiplier: float
 			max_iterations, mean_iterations, max_residual, max_multiplier = values
 			print(
 				f"  {row.label}: max/mean iterations="
@@ -207,10 +215,10 @@ class GCSymplecticityResult:
 
 def _optional_diagnostic(solution: States, name: str) -> np.ndarray | None:
 	"""Return one non-empty finite numerical diagnostic when available."""
-	value = solution.diagnostics.get(name)
+	value: np.ndarray | float | int | str | None = solution.diagnostics.get(name)
 	if value is None:
 		return None
-	result = np.asarray(value)
+	result: np.ndarray = np.asarray(value)
 	if result.size == 0:
 		return None
 	if result.ndim != 1:
@@ -222,7 +230,7 @@ def _optional_diagnostic(solution: States, name: str) -> np.ndarray | None:
 
 def _solver_summary(solution: States) -> _SolverSummary | None:
 	"""Validate all-or-none Newton diagnostics and aggregate their values."""
-	arrays = tuple(_optional_diagnostic(solution, name) for name in _SOLVER_DIAGNOSTICS)
+	arrays: tuple[np.ndarray | None, ...] = tuple(_optional_diagnostic(solution, name) for name in _SOLVER_DIAGNOSTICS)
 	if all(values is None for values in arrays):
 		return None
 	if any(values is None for values in arrays):
@@ -230,13 +238,16 @@ def _solver_summary(solution: States) -> _SolverSummary | None:
 			"Newton diagnostics must provide iterations, residuals and multipliers "
 			"together."
 		)
+	iterations: np.ndarray | None
+	residuals: np.ndarray | None
+	multipliers: np.ndarray | None
 	iterations, residuals, multipliers = arrays
 	assert iterations is not None
 	assert residuals is not None
 	assert multipliers is not None
 	if not (iterations.size == residuals.size == multipliers.size):
 		raise ValueError("Newton diagnostic arrays must have equal lengths.")
-	step_count = int(solution.diagnostics.get("step_count", 0))
+	step_count: int = int(solution.diagnostics.get("step_count", 0))
 	if iterations.size != step_count:
 		raise ValueError("Newton diagnostic arrays must contain one value per step.")
 	if not np.all(np.equal(iterations, np.floor(iterations))) or np.any(iterations < 0):
@@ -265,6 +276,10 @@ def _summary_solver_values(
 		return None
 	if any(value is None for value in values):
 		raise ValueError("A solver summary must provide all Newton statistics together.")
+	max_iterations: int | None
+	mean_iterations: float | None
+	max_residual: float | None
+	max_multiplier: float | None
 	max_iterations, mean_iterations, max_residual, max_multiplier = values
 	assert max_iterations is not None
 	assert mean_iterations is not None
@@ -295,9 +310,9 @@ def _run_gc_symplecticity_study(
 	if not isinstance(method_name, str) or not method_name.strip():
 		raise ValueError("The result type must define a non-empty method name.")
 
-	rho = resolve_rho(config.rho)
-	dynamics = GuidingCenterDynamics(potential, rho=rho)
-	problem = InitialValueProblem(dynamics, area, layout=GCStateLayout())
+	rho: float = resolve_rho(config.rho)
+	dynamics: GuidingCenterDynamics = GuidingCenterDynamics(potential, rho=rho)
+	problem: InitialValueProblem = InitialValueProblem(dynamics, area, layout=GCStateLayout())
 	initial_state = area
 	assert initial_state is not None
 	common_metadata = {
@@ -314,13 +329,13 @@ def _run_gc_symplecticity_study(
 	symplecticity_runtimes: dict[str, float] = {}
 
 	for step in config.steps:
-		record_every = integer_ratio(
+		record_every: int = integer_ratio(
 			config.save_interval,
 			step.value,
 			f"save_interval / step for {step.label}",
 		)
-		step_tag = f"{step.value:.8f}".replace(".", "p")
-		observer = GCAreaSymplecticityObserver(
+		step_tag: str = f"{step.value:.8f}".replace(".", "p")
+		observer: GCAreaSymplecticityObserver = GCAreaSymplecticityObserver(
 			notebook_path=notebook_path,
 			area=area,
 			period=potential.grid.period,
@@ -341,13 +356,13 @@ def _run_gc_symplecticity_study(
 			},
 		)
 		with _TimedStepObserver(observer) as timed_observer:
-			request = SimulationRequest.uniform(
+			request: SimulationRequest = SimulationRequest.uniform(
 				t_span=config.t_span,
 				max_step=step.value,
 				sample_count=config.output_sample_count,
 			)
-			started = perf_counter()
-			solution = simulate(
+			started: float = perf_counter()
+			solution: States = simulate(
 				problem,
 				method_factory(timed_observer),
 				request,
@@ -392,7 +407,7 @@ def _run_gc_symplecticity_observers(
 ) -> Mapping[str, _ResultT]:
 	"""Run one trajectory per step while fan-out observers use distinct Jacobians."""
 	_validate_gc_study_inputs(potential, area, config)
-	methods = dict(jacobian_methods)
+	methods: dict[str, Literal['finite_difference'] | Literal['implicit_function'] | Literal['stage_increment']] = dict(jacobian_methods)
 	if not methods:
 		raise ValueError("`jacobian_methods` must configure at least one observer.")
 	if any(not label or not label.strip() for label in methods):
@@ -401,9 +416,9 @@ def _run_gc_symplecticity_observers(
 	if not isinstance(method_name, str) or not method_name.strip():
 		raise ValueError("The result type must define a non-empty method name.")
 
-	rho = resolve_rho(config.rho)
-	dynamics = GuidingCenterDynamics(potential, rho=rho)
-	problem = InitialValueProblem(dynamics, area, layout=GCStateLayout())
+	rho: float = resolve_rho(config.rho)
+	dynamics: GuidingCenterDynamics = GuidingCenterDynamics(potential, rho=rho)
+	problem: InitialValueProblem = InitialValueProblem(dynamics, area, layout=GCStateLayout())
 	initial_state = area
 	assert initial_state is not None
 	common_metadata = {
@@ -427,17 +442,17 @@ def _run_gc_symplecticity_observers(
 	}
 
 	for step in config.steps:
-		record_every = integer_ratio(
+		record_every: int = integer_ratio(
 			config.save_interval,
 			step.value,
 			f"save_interval / step for {step.label}",
 		)
-		step_tag = f"{step.value:.8f}".replace(".", "p")
+		step_tag: str = f"{step.value:.8f}".replace(".", "p")
 		observers: dict[str, GCAreaSymplecticityObserver] = {}
 		timed_observers: dict[str, _TimedStepObserver] = {}
 		with ExitStack() as stack:
 			for label, jacobian_method in methods.items():
-				observer = GCAreaSymplecticityObserver(
+				observer: GCAreaSymplecticityObserver = GCAreaSymplecticityObserver(
 					notebook_path=notebook_path,
 					area=area,
 					period=potential.grid.period,
@@ -469,16 +484,16 @@ def _run_gc_symplecticity_observers(
 					_TimedStepObserver(observer)
 				)
 
-			request = SimulationRequest.uniform(
+			request: SimulationRequest = SimulationRequest.uniform(
 				t_span=config.t_span,
 				max_step=step.value,
 				sample_count=config.output_sample_count,
 			)
-			fanout = _StepObserverFanout(tuple(timed_observers.values()))
-			started = perf_counter()
-			solution = simulate(problem, method_factory(fanout), request)
+			fanout: _StepObserverFanout = _StepObserverFanout(tuple(timed_observers.values()))
+			started: float = perf_counter()
+			solution: States = simulate(problem, method_factory(fanout), request)
 			total_simulation_time = perf_counter() - started
-			observer_time = sum(
+			observer_time: float | Literal[0] = sum(
 				timed.elapsed_seconds for timed in timed_observers.values()
 			)
 			method_runtime = total_simulation_time - observer_time
@@ -495,8 +510,8 @@ def _run_gc_symplecticity_observers(
 			output_directories[label][step.label] = observer.output_directory
 			observer_runtimes[label][step.label] = timed_observers[label].elapsed_seconds
 
-	shared_solutions = MappingProxyType(solutions)
-	shared_simulation_runtimes = MappingProxyType(simulation_runtimes)
+	shared_solutions: MappingProxyType[str, States] = MappingProxyType(solutions)
+	shared_simulation_runtimes: MappingProxyType[str, float] = MappingProxyType(simulation_runtimes)
 	results = {
 		label: result_type(
 			dynamics=dynamics,

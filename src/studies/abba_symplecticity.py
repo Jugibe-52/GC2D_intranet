@@ -91,7 +91,7 @@ class ABBASymplecticityResult(GCSymplecticityResult):
 		self,
 	) -> tuple[ABBAProjectionMultiplierOrder, ...]:
 		"""Estimate the expected cubic small-step scaling of ``mu``."""
-		rows = self.summaries()
+		rows: tuple[ABBASymplecticitySummary, ...] = self.summaries()
 		orders: list[ABBAProjectionMultiplierOrder] = []
 		for coarse, fine in zip(rows, rows[1:]):
 			coarse_norm = coarse.max_projection_multiplier_norm
@@ -103,7 +103,7 @@ class ABBASymplecticityResult(GCSymplecticityResult):
 				or fine_norm <= 0
 				or np.isclose(coarse.step, fine.step)
 			):
-				value = float("nan")
+				value: float = float("nan")
 			else:
 				value = float(
 					np.log(coarse_norm / fine_norm)

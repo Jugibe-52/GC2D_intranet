@@ -6,7 +6,7 @@ from formulations.layout import GCStateLayout
 
 from dataclasses import dataclass, replace
 from functools import partial
-from typing import Literal
+from typing import Literal, TYPE_CHECKING
 
 import numpy as np
 
@@ -37,16 +37,22 @@ from .trajectory_symplecticity.jacobians import (
 )
 
 
+if TYPE_CHECKING:
+	from collections.abc import Callable
+	from methods.extended.core.composition import Composition
+	from methods.extended.core.records import ProjectedMapResult
+
+
 _ObservedStep = ABBA2ImplicitIntegrationStep | ABBA4ImplicitIntegrationStep | ABBA6ImplicitIntegrationStep
 
 
 def _dense_component_major_jacobian(blocks: np.ndarray) -> np.ndarray:
 	"""Expand independent planar blocks into the packed physical layout."""
-	values = np.asarray(blocks, dtype=float)
+	values: np.ndarray = np.asarray(blocks, dtype=float)
 	if values.ndim != 3 or values.shape[1:] != (2, 2):
 		raise ValueError("Planar Jacobian blocks must have shape (N, 2, 2).")
 	particle_count = values.shape[0]
-	result = np.zeros((2 * particle_count, 2 * particle_count), dtype=float)
+	result: np.ndarray = np.zeros((2 * particle_count, 2 * particle_count), dtype=float)
 	for particle in range(particle_count):
 		indices = (particle, particle_count + particle)
 		result[np.ix_(indices, indices)] = values[particle]
@@ -108,7 +114,7 @@ def _positive_finite(value: float, name: str) -> float:
 	"""Normalize one strictly positive finite solver parameter."""
 	if isinstance(value, (bool, np.bool_)):
 		raise ValueError(f"`{name}` must be positive and finite.")
-	result = float(value)
+	result: float = float(value)
 	if not np.isfinite(result) or result <= 0.0:
 		raise ValueError(f"`{name}` must be positive and finite.")
 	return result
@@ -116,7 +122,7 @@ def _positive_finite(value: float, name: str) -> float:
 
 def _finite_vector(value: np.ndarray, shape: tuple[int, ...], name: str) -> np.ndarray:
 	"""Validate one packed vector without changing its coordinate layout."""
-	result = np.asarray(value, dtype=float)
+	result: np.ndarray = np.asarray(value, dtype=float)
 	if result.shape != shape or not np.all(np.isfinite(result)):
 		raise ValueError(f"`{name}` must be finite and have shape {shape}.")
 	return result
@@ -132,7 +138,7 @@ def _validated_reversibility_states(
 			"Implicit ABBA reversibility requires GuidingCenterJacobianSystem dynamics."
 		)
 
-	state_before = np.asarray(step.state_before, dtype=float)
+	state_before: np.ndarray = np.asarray(step.state_before, dtype=float)
 	if (
 		state_before.ndim != 1
 		or state_before.size == 0
@@ -141,7 +147,7 @@ def _validated_reversibility_states(
 	):
 		raise ValueError("The observed physical state must be finite and planar.")
 	shape = state_before.shape
-	state_after = _finite_vector(step.state_after, shape, "state_after")
+	state_after: np.ndarray = _finite_vector(step.state_after, shape, "state_after")
 	if not np.isclose(
 		step.time,
 		step.start_time + step.duration,
@@ -208,22 +214,22 @@ class ImplicitABBAReversibilityObserver:
 		"""Recompute one signed outer projection with the observed method's recipe."""
 		if step.formulation_name not in ABBA_PROJECTION_FORMULATIONS:
 			raise TypeError("The observed ABBA step has an unknown formulation.")
-		formulation = _validate_projection_formulation(step.formulation_name)
-		recipe = ABBA2
+		formulation: Literal['reduced_multiplier'] | Literal['simultaneous_state_multiplier'] = _validate_projection_formulation(step.formulation_name)
+		recipe: Composition = ABBA2
 		order: Literal[2, 4, 6] = 2
 		if isinstance(step, ABBA4ImplicitIntegrationStep):
 			recipe, order = ABBA4, 4
 		elif isinstance(step, ABBA6ImplicitIntegrationStep):
 			recipe, order = ABBA6, 6
-		problem = InitialValueProblem(dynamics, np.array(step.state_after, dtype=float, copy=True), layout=GCStateLayout())
-		options = SolverOptions(self.nonlinear_solver, self.newton_absolute_tolerance,
+		problem: InitialValueProblem = InitialValueProblem(dynamics, np.array(step.state_after, dtype=float, copy=True), layout=GCStateLayout())
+		options: SolverOptions = SolverOptions(self.nonlinear_solver, self.newton_absolute_tolerance,
 			self.newton_relative_tolerance, self.newton_max_iterations)
-		project = partial(solve_projection, GCDoubledMaps(problem, coupling_frequency=None),
+		project: partial[ProjectedMapResult] = partial(solve_projection, GCDoubledMaps(problem, coupling_frequency=None),
 			recipe, options, formulation)
-		result = project(step.time, step.state_after, -step.duration)
-		builder = bind_event_builder(dynamics, step.method_name, formulation, order=order,
+		result: ProjectedMapResult = project(step.time, step.state_after, -step.duration)
+		builder: Callable[[float, float, int, np.ndarray, ProjectedMapResult], IntegrationStep] = bind_event_builder(dynamics, step.method_name, formulation, order=order,
 			coefficients=tuple(2 * c for c in recipe.coefficients[::2]), project=project)
-		event = builder(step.time, -step.duration, step.step_index, step.state_after, result)
+		event: IntegrationStep = builder(step.time, -step.duration, step.step_index, step.state_after, result)
 		assert isinstance(event, (ABBA2ImplicitIntegrationStep, ABBA4ImplicitIntegrationStep,
 			ABBA6ImplicitIntegrationStep))
 		return replace(event, time=float(step.start_time))
@@ -247,34 +253,37 @@ class ImplicitABBAReversibilityObserver:
 			raise ValueError(
 				"Forward and backward ABBA steps must use the same nonlinear solver."
 			)
+		dynamics: GuidingCenterJacobianSystem
+		state_before: np.ndarray
+		state_after: np.ndarray
 		dynamics, state_before, state_after = _validated_reversibility_states(step)
 		shape = state_before.shape
 
-		forward_jacobian = _complete_step_jacobian(step)
-		reverse_step = self._solve_reverse_step(step, dynamics)
-		backward_jacobian = _complete_step_jacobian(reverse_step)
-		backward_state = _finite_vector(
+		forward_jacobian: np.ndarray = _complete_step_jacobian(step)
+		reverse_step: ABBA2ImplicitIntegrationStep | ABBA4ImplicitIntegrationStep | ABBA6ImplicitIntegrationStep = self._solve_reverse_step(step, dynamics)
+		backward_jacobian: np.ndarray = _complete_step_jacobian(reverse_step)
+		backward_state: np.ndarray = _finite_vector(
 			reverse_step.state_after,
 			shape,
 			"backward_state",
 		)
-		velocity_before = _finite_vector(
+		velocity_before: np.ndarray = _finite_vector(
 			dynamics.vector_field(float(step.start_time), state_before),
 			shape,
 			"velocity_before",
 		)
-		velocity_after = _finite_vector(
+		velocity_after: np.ndarray = _finite_vector(
 			dynamics.vector_field(float(step.time), state_after),
 			shape,
 			"velocity_after",
 		)
 
-		identity = np.eye(state_before.size)
+		identity: np.ndarray = np.eye(state_before.size)
 		jacobian_defect = backward_jacobian @ forward_jacobian - identity
 		forward_action = forward_jacobian @ velocity_before
 		backward_final_action = backward_jacobian @ velocity_after
 		action_difference = forward_action - backward_final_action
-		duration = float(step.duration)
+		duration: float = float(step.duration)
 		forward_increment = (
 			duration * velocity_before
 			+ 0.5 * duration**2 * forward_action
@@ -286,10 +295,10 @@ class ImplicitABBAReversibilityObserver:
 		increment_direct_difference = forward_increment - backward_increment
 		increment_closure = forward_increment + backward_increment
 		backward_state_error = backward_state - state_before
-		forward_increment_norm = float(np.linalg.norm(forward_increment))
-		backward_increment_norm = float(np.linalg.norm(backward_increment))
-		increment_closure_norm = float(np.linalg.norm(increment_closure))
-		increment_closure_scale = max(
+		forward_increment_norm: float = float(np.linalg.norm(forward_increment))
+		backward_increment_norm: float = float(np.linalg.norm(backward_increment))
+		increment_closure_norm: float = float(np.linalg.norm(increment_closure))
+		increment_closure_scale: float = max(
 			forward_increment_norm,
 			backward_increment_norm,
 		)
@@ -299,7 +308,7 @@ class ImplicitABBAReversibilityObserver:
 			else 0.0
 		)
 
-		sample = ImplicitABBAReversibilitySample(
+		sample: ImplicitABBAReversibilitySample = ImplicitABBAReversibilitySample(
 			observation_index=len(self._samples),
 			step_index=step.step_index,
 			start_time=float(step.start_time),

@@ -12,8 +12,10 @@ from matplotlib.figure import Figure
 
 from .implicit_comparison import IMPLICIT_METHOD_COLORS
 
+
 if TYPE_CHECKING:
 	from studies.energy import GeneralizedEnergyResult
+	from typing import Any
 
 
 class GeneralizedEnergyRunView(Protocol):
@@ -138,11 +140,11 @@ def _validated_runs(
 	runs: Sequence[GeneralizedEnergyRunView],
 ) -> tuple[GeneralizedEnergyRunView, ...]:
 	"""Require non-empty, shape-consistent finite energy histories."""
-	values = tuple(runs)
+	values: tuple[GeneralizedEnergyRunView, ...] = tuple(runs)
 	if not values:
 		raise ValueError("At least one generalized-energy run is required.")
 	for run in values:
-		times = np.asarray(run.times, dtype=float)
+		times: np.ndarray = np.asarray(run.times, dtype=float)
 		arrays = (
 			np.asarray(run.hamiltonian, dtype=float),
 			np.asarray(run.kappa, dtype=float),
@@ -170,13 +172,15 @@ def plot_generalized_energy_components(
 ) -> tuple[Figure, np.ndarray]:
 	"""Show physical-energy variation, conjugate compensation, and residual drift."""
 	_validated_runs((run,))
-	symbol = str(momentum_symbol).strip()
+	symbol: str = str(momentum_symbol).strip()
 	if not symbol:
 		raise ValueError("`momentum_symbol` must not be empty.")
-	times = np.asarray(run.times, dtype=float)
-	hamiltonian = np.asarray(run.hamiltonian, dtype=float)
-	kappa = np.asarray(run.kappa, dtype=float)
-	energy = np.asarray(run.generalized_energy, dtype=float)
+	times: np.ndarray = np.asarray(run.times, dtype=float)
+	hamiltonian: np.ndarray = np.asarray(run.hamiltonian, dtype=float)
+	kappa: np.ndarray = np.asarray(run.kappa, dtype=float)
+	energy: np.ndarray = np.asarray(run.generalized_energy, dtype=float)
+	figure: Figure
+	axes: np.ndarray
 	figure, axes = plt.subplots(
 		2,
 		1,
@@ -217,14 +221,14 @@ def _generalized_error_arrays(
 	runs: Sequence[GeneralizedEnergyRunView],
 ) -> tuple[list[tuple[np.ndarray, np.ndarray, np.ndarray, float]], float, float, float]:
 	"""Prepare every error curve and logarithmic scale before allocating a figure."""
-	values = _validated_runs(runs)
+	values: tuple[GeneralizedEnergyRunView, ...] = _validated_runs(runs)
 	prepared: list[tuple[np.ndarray, np.ndarray, np.ndarray, float]] = []
 	positive_envelopes: list[np.ndarray] = []
 	peaks: list[float] = []
 	for run in values:
-		times = np.asarray(run.times, dtype=float)
-		relative_error = np.asarray(run.relative_errors, dtype=float)
-		envelope = np.asarray(run.running_max_relative_errors, dtype=float)
+		times: np.ndarray = np.asarray(run.times, dtype=float)
+		relative_error: np.ndarray = np.asarray(run.relative_errors, dtype=float)
+		envelope: np.ndarray = np.asarray(run.running_max_relative_errors, dtype=float)
 		prepared.append((times, relative_error, envelope, run.actual_step))
 		positive_envelopes.append(envelope[envelope > 0.0])
 		peaks.append(float(np.max(np.abs(relative_error))))
@@ -241,7 +245,13 @@ def plot_generalized_energy_errors(
 	method_name: str,
 ) -> tuple[Figure, np.ndarray]:
 	"""Plot signed relative error and its running envelope for all refinements."""
+	prepared: list[tuple[np.ndarray, np.ndarray, np.ndarray, float]]
+	positive_floor: float
+	linear_threshold: float
+	maximum_peak: float
 	prepared, positive_floor, linear_threshold, maximum_peak = _generalized_error_arrays(runs)
+	figure: Figure
+	axes: np.ndarray
 	figure, axes = plt.subplots(
 		2,
 		1,
@@ -275,7 +285,7 @@ def _energy_accuracy_arrays(
 	times: np.ndarray, series: Mapping[str, EnergyAccuracySeriesView], reference_energy_errors: np.ndarray,
 ) -> tuple[np.ndarray, list[tuple[str, np.ndarray, np.ndarray]], np.ndarray, np.ndarray, float]:
 	"""Align energy errors and derive a logarithmic floor without creating a figure."""
-	time_values = np.asarray(times, dtype=float)
+	time_values: np.ndarray = np.asarray(times, dtype=float)
 	if (
 		time_values.ndim != 1
 		or time_values.size < 2
@@ -285,7 +295,7 @@ def _energy_accuracy_arrays(
 		raise ValueError("Energy-accuracy times must be finite and increasing.")
 	if not series:
 		raise ValueError("At least one energy-accuracy series is required.")
-	reference_errors = np.asarray(reference_energy_errors, dtype=float)
+	reference_errors: np.ndarray = np.asarray(reference_energy_errors, dtype=float)
 	if (
 		reference_errors.ndim != 2
 		or reference_errors.shape[1] != time_values.size
@@ -293,20 +303,20 @@ def _energy_accuracy_arrays(
 	):
 		raise ValueError("Reference energy errors must share the particle-time grid.")
 
-	reference_rms = np.asarray(
+	reference_rms: np.ndarray = np.asarray(
 		np.sqrt(np.mean(reference_errors**2, axis=0)),
 		dtype=float,
 	)
-	reference_running = np.asarray(
+	reference_running: np.ndarray = np.asarray(
 		np.maximum.accumulate(np.max(np.abs(reference_errors), axis=0)),
 		dtype=float,
 	)
 	prepared: list[tuple[str, np.ndarray, np.ndarray]] = []
 	positive_values: list[np.ndarray] = []
 	for label, values in series.items():
-		errors = np.asarray(values.errors, dtype=float)
-		rms = np.asarray(values.rms_error, dtype=float)
-		running = np.asarray(values.running_maximum_absolute_error, dtype=float)
+		errors: np.ndarray = np.asarray(values.errors, dtype=float)
+		rms: np.ndarray = np.asarray(values.rms_error, dtype=float)
+		running: np.ndarray = np.asarray(values.running_maximum_absolute_error, dtype=float)
 		if (
 			errors.ndim != 2
 			or errors.shape[1] != time_values.size
@@ -323,7 +333,7 @@ def _energy_accuracy_arrays(
 		(reference_rms[reference_rms > 0.0], reference_running[reference_running > 0.0])
 	)
 	nonempty = [values for values in positive_values if values.size]
-	plot_floor = (
+	plot_floor: float = (
 		min(float(np.min(values)) for values in nonempty) / 2.0
 		if nonempty
 		else float(np.finfo(float).tiny)
@@ -338,10 +348,17 @@ def plot_energy_accuracy_over_time(
 	reference_energy_errors: np.ndarray,
 ) -> tuple[Figure, np.ndarray]:
 	"""Plot Hamiltonian-observable errors against DOP853 and its Radau audit."""
+	time_values: np.ndarray
+	prepared: list[tuple[str, np.ndarray, np.ndarray]]
+	reference_rms: np.ndarray
+	reference_running: np.ndarray
+	plot_floor: float
 	time_values, prepared, reference_rms, reference_running, plot_floor = _energy_accuracy_arrays(
 		times, series, reference_energy_errors,
 	)
 
+	figure: Figure
+	axes: np.ndarray
 	figure, axes = plt.subplots(
 		2,
 		1,
@@ -350,7 +367,7 @@ def plot_energy_accuracy_over_time(
 		constrained_layout=True,
 	)
 	for index, (label, rms, running) in enumerate(prepared):
-		color = IMPLICIT_METHOD_COLORS.get(label, f"C{index}")
+		color: str = IMPLICIT_METHOD_COLORS.get(label, f"C{index}")
 		axes[0].semilogy(
 			time_values,
 			np.maximum(rms, plot_floor),
@@ -394,14 +411,14 @@ def _generalized_energy_refinement(
 	summaries: Sequence[GeneralizedEnergySummaryView], expected_order: float,
 ) -> tuple[np.ndarray, np.ndarray, float]:
 	"""Prepare finite positive decreasing steps and their generalized-energy drift."""
-	rows = tuple(summaries)
+	rows: tuple[GeneralizedEnergySummaryView, ...] = tuple(summaries)
 	if len(rows) < 2:
 		raise ValueError("At least two energy summaries are required.")
-	order = float(expected_order)
+	order: float = float(expected_order)
 	if not np.isfinite(order) or order <= 0.0:
 		raise ValueError("`expected_order` must be positive and finite.")
-	steps = np.asarray([row.actual_step for row in rows], dtype=float)
-	errors = np.asarray([row.max_absolute_error for row in rows], dtype=float)
+	steps: np.ndarray = np.asarray([row.actual_step for row in rows], dtype=float)
+	errors: np.ndarray = np.asarray([row.max_absolute_error for row in rows], dtype=float)
 	if (
 		not np.all(np.isfinite(steps))
 		or np.any(steps <= 0.0)
@@ -420,8 +437,13 @@ def plot_generalized_energy_convergence(
 	expected_order: float,
 ) -> tuple[Figure, Axes]:
 	"""Plot maximum generalized-energy drift against step with an order guide."""
+	steps: np.ndarray
+	errors: np.ndarray
+	order: float
 	steps, errors, order = _generalized_energy_refinement(summaries, expected_order)
 	reference = errors[0] * (steps / steps[0]) ** order
+	figure: Figure
+	axis: Axes
 	figure, axis = plt.subplots(figsize=(8, 6), constrained_layout=True)
 	axis.loglog(steps, errors, marker="o", label="Measured max $|K_n-K_0|$")
 	axis.loglog(
@@ -465,14 +487,14 @@ def _extended_symplecticity_arrays(
 	runs: Sequence[ExtendedSymplecticityRunView],
 ) -> list[tuple[np.ndarray, np.ndarray, np.ndarray, float]]:
 	"""Prepare every extended run in display order."""
-	values = tuple(runs)
+	values: tuple[ExtendedSymplecticityRunView, ...] = tuple(runs)
 	if not values:
 		raise ValueError("At least one extended-symplecticity run is required.")
 	prepared = []
 	for run in values:
-		times = np.asarray(run.extended_symplecticity_times, dtype=float)
-		defects = np.asarray(run.extended_relative_defects, dtype=float)
-		determinants = np.asarray(run.extended_determinant_errors, dtype=float)
+		times: np.ndarray = np.asarray(run.extended_symplecticity_times, dtype=float)
+		defects: np.ndarray = np.asarray(run.extended_relative_defects, dtype=float)
+		determinants: np.ndarray = np.asarray(run.extended_determinant_errors, dtype=float)
 		_validate_symplecticity_arrays(times, defects, determinants, message="Extended-symplecticity histories must be finite and aligned.")
 		prepared.append((times, defects, determinants, run.actual_step))
 	return prepared
@@ -482,14 +504,14 @@ def _reduced_extended_symplecticity_arrays(
 	runs: Sequence[ReducedExtendedSymplecticityRunView],
 ) -> list[tuple[np.ndarray, np.ndarray, np.ndarray, float]]:
 	"""Prepare every reduced extended run in display order."""
-	values = tuple(runs)
+	values: tuple[ReducedExtendedSymplecticityRunView, ...] = tuple(runs)
 	if not values:
 		raise ValueError("At least one reduced extended run is required.")
 	prepared = []
 	for run in values:
-		times = np.asarray(run.reduced_extended_symplecticity_times, dtype=float)
-		defects = np.asarray(run.reduced_extended_relative_defects, dtype=float)
-		determinants = np.asarray(run.reduced_extended_determinant_errors, dtype=float)
+		times: np.ndarray = np.asarray(run.reduced_extended_symplecticity_times, dtype=float)
+		defects: np.ndarray = np.asarray(run.reduced_extended_relative_defects, dtype=float)
+		determinants: np.ndarray = np.asarray(run.reduced_extended_determinant_errors, dtype=float)
 		_validate_symplecticity_arrays(times, defects, determinants, message="Reduced extended histories must be finite and aligned.")
 		prepared.append((times, defects, determinants, run.actual_step))
 	return prepared
@@ -501,7 +523,9 @@ def plot_time_extended_symplecticity(
 	method_name: str,
 ) -> tuple[Figure, np.ndarray]:
 	"""Plot ``R^6`` splitting symplecticity and determinant defects over time."""
-	prepared = _extended_symplecticity_arrays(runs)
+	prepared: list[tuple[np.ndarray, np.ndarray, np.ndarray, float]] = _extended_symplecticity_arrays(runs)
+	figure: Figure
+	axes: np.ndarray
 	figure, axes = plt.subplots(
 		2,
 		1,
@@ -509,7 +533,7 @@ def plot_time_extended_symplecticity(
 		sharex=True,
 		constrained_layout=True,
 	)
-	floor = float(np.finfo(float).eps)
+	floor: float = float(np.finfo(float).eps)
 	for times, defects, determinants, actual_step in prepared:
 		label = rf"$h={actual_step:g}$"
 		axes[0].semilogy(times, np.maximum(defects, floor), label=label)
@@ -535,7 +559,9 @@ def plot_reduced_time_extended_symplecticity(
 	method_name: str,
 ) -> tuple[Figure, np.ndarray]:
 	"""Plot the complete projected method's defect on ``(x, y, t, kappa)``."""
-	prepared = _reduced_extended_symplecticity_arrays(runs)
+	prepared: list[tuple[np.ndarray, np.ndarray, np.ndarray, float]] = _reduced_extended_symplecticity_arrays(runs)
+	figure: Figure
+	axes: np.ndarray
 	figure, axes = plt.subplots(
 		2,
 		1,
@@ -543,7 +569,7 @@ def plot_reduced_time_extended_symplecticity(
 		sharex=True,
 		constrained_layout=True,
 	)
-	floor = float(np.finfo(float).eps)
+	floor: float = float(np.finfo(float).eps)
 	for times, defects, determinants, actual_step in prepared:
 		label = rf"$h={actual_step:g}$"
 		axes[0].semilogy(times, np.maximum(defects, floor), label=label)
@@ -567,11 +593,13 @@ def plot_reduced_time_extended_symplecticity(
 
 def plot_generalized_energy_comparison(result: GeneralizedEnergyResult) -> tuple[Figure, Axes]:
 	"""Plot the relative generalized-energy error for every step size."""
+	figure: Figure
+	axes: Axes
 	figure, axes = plt.subplots(figsize=(9, 5), constrained_layout=True)
 	for step in result.steps:
 		solution = result.solutions[step]
 		error = result.relative_errors[step]
-		max_error = np.max(np.abs(error))
+		max_error: Any = np.max(np.abs(error))
 		axes.plot(
 			solution.t,
 			error,

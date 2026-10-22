@@ -20,6 +20,12 @@ from potential.potential import Potential
 from simulation.runner import simulate
 from states.history import States
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from _hashlib import HASH
+    from typing import Any
+
 
 @dataclass(frozen=True)
 class PersistenceDemoConfig:
@@ -48,27 +54,27 @@ def run_persistence_demo(
     config: PersistenceDemoConfig, destination: str | Path,
 ) -> tuple[States, str]:
     """Integrate all particles together and publish a self-contained result."""
-    potential = Potential.random(
+    potential: Potential = Potential.random(
         A=config.amplitude, M=config.maximum_wave_number,
         nx=config.nx, ny=config.ny, seed=config.seed,
         interpolation_order=config.interpolation_order,
     )
     grid = potential.grid
-    fractions = np.asarray(config.radial_fractions, dtype=float)
+    fractions: np.ndarray = np.asarray(config.radial_fractions, dtype=float)
     if (fractions.ndim != 1 or not fractions.size or not np.all(np.isfinite(fractions))
             or np.any(fractions < 0) or np.any(fractions >= 0.5)
             or not np.isfinite(config.angle_radians)):
         raise ValueError("Use finite radial fractions in [0, 0.5) and a finite angle.")
     radii = fractions * grid.period
-    initial = GCStateLayout().pack_components(grid.x0 + grid.period / 2 + radii * np.cos(config.angle_radians), grid.y0 + grid.period / 2 + radii * np.sin(config.angle_radians))
-    dynamics = GuidingCenterDynamics(potential, rho=config.rho)
-    request = SimulationRequest.uniform(t_span=config.t_span, max_step=config.max_step,
+    initial: np.ndarray = GCStateLayout().pack_components(grid.x0 + grid.period / 2 + radii * np.cos(config.angle_radians), grid.y0 + grid.period / 2 + radii * np.sin(config.angle_radians))
+    dynamics: GuidingCenterDynamics = GuidingCenterDynamics(potential, rho=config.rho)
+    request: SimulationRequest = SimulationRequest.uniform(t_span=config.t_span, max_step=config.max_step,
                                         sample_count=config.sample_count)
-    solution = simulate(InitialValueProblem(dynamics, initial, layout=GCStateLayout()), RK4(track_energy=True), request)
+    solution: States = simulate(InitialValueProblem(dynamics, initial, layout=GCStateLayout()), RK4(track_energy=True), request)
     # Hash the source used for this run, including uncommitted implementation
     # changes; a Git commit alone would not identify a local development run.
     source_root = Path(__file__).resolve().parents[1]
-    digest = hashlib.sha256()
+    digest: HASH = hashlib.sha256()
     for path in sorted(source_root.rglob("*.py")):
         digest.update(path.relative_to(source_root).as_posix().encode())
         digest.update(b"\0")
@@ -85,7 +91,7 @@ def run_persistence_demo(
         "source_sha256": digest.hexdigest(),
         "purpose": "Storage smoke test; not a method accuracy comparison.",
     }
-    location = save_solution(solution, destination, metadata=metadata, potential=potential)
+    location: str = save_solution(solution, destination, metadata=metadata, potential=potential)
     return solution, location
 
 

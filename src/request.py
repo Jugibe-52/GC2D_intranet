@@ -21,7 +21,7 @@ DEFAULT_SAVE_INTERVAL = (
 
 def _validated_time_span(t_span: tuple[float, float]) -> np.ndarray:
 	"""Normalize the two finite, increasing endpoints without changing their order."""
-	span = np.asarray(t_span, dtype=float)
+	span: np.ndarray = np.asarray(t_span, dtype=float)
 	if span.shape != (2,) or not np.all(np.isfinite(span)) or span[0] >= span[1]:
 		raise ValueError("`t_span` must contain two finite, increasing times.")
 	return span
@@ -29,7 +29,7 @@ def _validated_time_span(t_span: tuple[float, float]) -> np.ndarray:
 
 def _validated_output_times(output_times: np.ndarray, span: np.ndarray) -> np.ndarray:
 	"""Own an increasing schedule, snapping round-off-level endpoints to the span."""
-	times = np.asarray(output_times, dtype=float)
+	times: np.ndarray = np.asarray(output_times, dtype=float)
 	if (
 		times.ndim != 1
 		or times.size < 2
@@ -39,6 +39,8 @@ def _validated_output_times(output_times: np.ndarray, span: np.ndarray) -> np.nd
 		raise ValueError(
 			"`output_times` must contain at least two finite, increasing times."
 		)
+	t0: float
+	tf: float
 	t0, tf = float(span[0]), float(span[1])
 	tolerance = 16 * np.finfo(float).eps * max(1.0, abs(t0), abs(tf))
 	if abs(float(times[0]) - t0) > tolerance or abs(float(times[-1]) - tf) > tolerance:
@@ -46,7 +48,7 @@ def _validated_output_times(output_times: np.ndarray, span: np.ndarray) -> np.nd
 	if float(times[0]) < t0 - tolerance or float(times[-1]) > tf + tolerance:
 		raise ValueError("`output_times` must lie inside `t_span`.")
 
-	normalized_times = times.copy()
+	normalized_times: np.ndarray = times.copy()
 	normalized_times[0] = t0
 	normalized_times[-1] = tf
 	# Endpoint normalization must not turn a tolerance-level outlier into a
@@ -69,14 +71,14 @@ class SimulationRequest:
 
 	def __post_init__(self) -> None:
 		"""Normalize values and enforce a complete increasing output schedule."""
-		span = _validated_time_span(self.t_span)
+		span: np.ndarray = _validated_time_span(self.t_span)
 		if isinstance(self.max_step, (bool, np.bool_)):
 			raise ValueError("`max_step` must be positive and finite.")
-		max_step = float(self.max_step)
+		max_step: float = float(self.max_step)
 		if not np.isfinite(max_step) or max_step <= 0:
 			raise ValueError("`max_step` must be positive and finite.")
 
-		normalized_times = _validated_output_times(self.output_times, span)
+		normalized_times: np.ndarray = _validated_output_times(self.output_times, span)
 		object.__setattr__(self, "t_span", (float(span[0]), float(span[1])))
 		object.__setattr__(self, "max_step", max_step)
 		object.__setattr__(self, "output_times", normalized_times)
@@ -97,12 +99,12 @@ class SimulationRequest:
 		When ``sample_count`` is omitted for a longer span, the same saved-step
 		density is retained.
 		"""
-		span = _validated_time_span(t_span)
-		duration = float(span[1] - span[0])
+		span: np.ndarray = _validated_time_span(t_span)
+		duration: float = float(span[1] - span[0])
 		if sample_count is None:
 			# Round downward only at a floating-point integer boundary. Otherwise,
 			# ceil keeps the output spacing at or below one saved step per 1/10 cycle.
-			output_interval_count = max(
+			output_interval_count: int = max(
 				1,
 				math.ceil(
 					math.nextafter(

@@ -2,13 +2,12 @@
 
 from __future__ import annotations
 
-from typing import Protocol, TypeAlias, runtime_checkable
+from typing import Protocol, TYPE_CHECKING, TypeAlias, runtime_checkable
 
 import numpy as np
 
 from dynamics.protocols import DynamicalSystem, HamiltonianSystem
 from contracts.result import DiagnosticValue
-from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
 	from contracts.problem import InitialValueProblem
@@ -32,7 +31,7 @@ def _updated_momentum(
 	if momentum is None:
 		return None
 	assert isinstance(dynamics, HamiltonianSystem)
-	derivative = np.asarray(dynamics.extended_momentum_derivative(t, state))
+	derivative: np.ndarray = np.asarray(dynamics.extended_momentum_derivative(t, state))
 	if derivative.shape != momentum.shape:
 		raise ValueError("The extended-momentum derivative changed its shape.")
 	return np.asarray(momentum + duration * derivative)

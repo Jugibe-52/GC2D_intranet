@@ -4,11 +4,15 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import ClassVar, Generic, Literal, TypeAlias, TypeVar
+from typing import ClassVar, Generic, Literal, TYPE_CHECKING, TypeAlias, TypeVar
 
 import numpy as np
 
 from contracts.nonlinear import NewtonIteration, NewtonObserver
+
+
+if TYPE_CHECKING:
+	from typing import Any
 
 
 NonlinearSolver: TypeAlias = Literal["newton", "broyden"]
@@ -94,7 +98,7 @@ def _validate_nonlinear_solver(value: str) -> NonlinearSolver:
 
 def _validated_initial_unknown(initial_unknown: np.ndarray, solver: str) -> np.ndarray:
 	"""Own the finite, nonempty vector whose coordinates the solver will update."""
-	unknown = np.asarray(initial_unknown, dtype=float).copy()
+	unknown: np.ndarray = np.asarray(initial_unknown, dtype=float).copy()
 	if unknown.ndim != 1 or unknown.size == 0 or not np.all(np.isfinite(unknown)):
 		raise ValueError(f"The initial {solver} unknown must be a finite vector.")
 	return unknown
@@ -114,7 +118,7 @@ def _validate_solver_controls(tolerance: float, max_iterations: int, solver: str
 
 def _validated_broyden_jacobian(initial_jacobian: np.ndarray, unknown: np.ndarray) -> np.ndarray:
 	"""Own a finite square initial approximation in the unknown's coordinates."""
-	jacobian = np.asarray(initial_jacobian, dtype=float).copy()
+	jacobian: np.ndarray = np.asarray(initial_jacobian, dtype=float).copy()
 	expected_shape = (unknown.size, unknown.size)
 	if jacobian.shape != expected_shape or not np.all(np.isfinite(jacobian)):
 		raise ValueError(
@@ -126,7 +130,7 @@ def _validated_broyden_jacobian(initial_jacobian: np.ndarray, unknown: np.ndarra
 
 def _validated_residual(residual: np.ndarray, unknown: np.ndarray, message: str) -> np.ndarray:
 	"""Normalize one finite residual without re-evaluating its paired payload."""
-	value = np.asarray(residual, dtype=float)
+	value: np.ndarray = np.asarray(residual, dtype=float)
 	if value.shape != unknown.shape or not np.all(np.isfinite(value)):
 		raise ValueError(message)
 	return value
@@ -137,8 +141,10 @@ def _checked_residual_evaluation(
 	unknown: np.ndarray,
 ) -> tuple[np.ndarray, _Payload]:
 	"""Evaluate a residual without allowing shape changes or non-finite values."""
+	residual: np.ndarray
+	payload: _Payload
 	residual, payload = residual_function(unknown)
-	value = _validated_residual(
+	value: np.ndarray = _validated_residual(
 		residual, unknown, "The nonlinear residual must be finite and match the unknown shape.",
 	)
 	return value, payload
@@ -162,25 +168,28 @@ def _solve_broyden(
 	corrections, so a root at the initial guess reports zero iterations and one
 	residual evaluation.
 	"""
-	unknown = _validated_initial_unknown(initial_unknown, "Broyden")
-	jacobian = _validated_broyden_jacobian(initial_jacobian, unknown)
+	unknown: np.ndarray = _validated_initial_unknown(initial_unknown, "Broyden")
+	jacobian: np.ndarray = _validated_broyden_jacobian(initial_jacobian, unknown)
 	_validate_solver_controls(tolerance, max_iterations, "Broyden")
 	if not isinstance(context, str) or not context:
 		raise ValueError("The Broyden solve context must be a non-empty string.")
 
 	if initial_evaluation is None:
+		residual: np.ndarray
+		payload: _Payload
 		residual, payload = _checked_residual_evaluation(
 			residual_function,
 			unknown,
 		)
 	else:
+		initial_residual: np.ndarray
 		initial_residual, payload = initial_evaluation
 		residual = _validated_residual(
 			initial_residual, unknown,
 			"The cached initial residual must be finite and match the unknown shape.",
 		)
 	residual_evaluations = 1
-	residual_norm = float(np.linalg.norm(residual, ord=np.inf))
+	residual_norm: float = float(np.linalg.norm(residual, ord=np.inf))
 
 	for iteration in range(int(max_iterations) + 1):
 		if residual_norm <= tolerance:
@@ -194,7 +203,7 @@ def _solve_broyden(
 		if iteration == max_iterations:
 			break
 		try:
-			increment = np.linalg.solve(jacobian, -residual)
+			increment: np.ndarray = np.linalg.solve(jacobian, -residual)
 		except np.linalg.LinAlgError as exc:
 			raise RuntimeError(
 				f"The Broyden Jacobian approximation is singular for {context}."
@@ -205,15 +214,17 @@ def _solve_broyden(
 			)
 
 		next_unknown = unknown + increment
+		next_residual: np.ndarray
+		next_payload: _Payload
 		next_residual, next_payload = _checked_residual_evaluation(
 			residual_function,
 			next_unknown,
 		)
 		residual_evaluations += 1
 		residual_change = next_residual - residual
-		denominator = float(increment @ increment)
+		denominator: float = float(increment @ increment)
 		if denominator <= np.finfo(float).tiny:
-			next_norm = float(np.linalg.norm(next_residual, ord=np.inf))
+			next_norm: float = float(np.linalg.norm(next_residual, ord=np.inf))
 			if next_norm > tolerance:
 				raise RuntimeError(
 					"The Broyden correction became too small before convergence for "
@@ -260,15 +271,17 @@ def _solve_newton(
 	subtraction/addition convention, particle packing and specialized block solve.
 	A supplied initial evaluation counts once and is never recomputed.
 	"""
-	unknown = _validated_initial_unknown(initial_unknown, "Newton")
+	unknown: np.ndarray = _validated_initial_unknown(initial_unknown, "Newton")
 	_validate_solver_controls(tolerance, max_iterations, "Newton")
 	measure = _infinity_norm if norm is None else norm
 	if backtracking and not update_returns_correction:
 		raise ValueError("Backtracking requires an additive Newton correction.")
 	evaluations = 0
-	cached = initial_evaluation
+	cached: tuple[np.ndarray, _Payload] | None = initial_evaluation
 	for iteration in range(int(max_iterations) + 1):
 		if cached is not None:
+			residual: np.ndarray
+			payload: _Payload
 			residual, payload = cached
 			residual = _validated_residual(
 				residual, unknown, "The cached Newton residual must be finite and match the unknown.",
@@ -279,7 +292,7 @@ def _solve_newton(
 		else:
 			residual, payload = _checked_residual_evaluation(residual_function, unknown)
 			evaluations += 1
-		residual_norm = measure(residual)
+		residual_norm: float = measure(residual)
 		if iteration_observer is not None:
 			iteration_observer(iteration, unknown, residual, residual_norm)
 		if residual_norm <= tolerance:
@@ -289,7 +302,7 @@ def _solve_newton(
 			)
 		if iteration == max_iterations:
 			break
-		next_unknown = np.asarray(update(unknown, residual, payload), dtype=float)
+		next_unknown: np.ndarray = np.asarray(update(unknown, residual, payload), dtype=float)
 		if update_returns_correction:
 			correction = next_unknown
 			damping = 1.0
@@ -325,7 +338,7 @@ class _SolverConfiguration:
 
 	def __post_init__(self) -> None:
 		for name in ('absolute_tolerance', 'relative_tolerance'):
-			value = getattr(self, name)
+			value: Any = getattr(self, name)
 			if isinstance(value, (bool, np.bool_)) or not np.isfinite(value) or value <= 0:
 				raise ValueError(f"`{name}` must be positive and finite.")
 			object.__setattr__(self, name, float(value))
@@ -394,7 +407,7 @@ AlgebraicSolver: TypeAlias = NewtonSolver | BroydenSolver
 def configured_solver(name: NonlinearSolver, absolute_tolerance: float,
 		relative_tolerance: float, max_iterations: int) -> AlgebraicSolver:
 	"""Normalize supported legacy controls into a reusable solver configuration."""
-	selected = NewtonSolver if _validate_nonlinear_solver(name) == 'newton' else BroydenSolver
+	selected: type[NewtonSolver] | type[BroydenSolver] = NewtonSolver if _validate_nonlinear_solver(name) == 'newton' else BroydenSolver
 	return selected(absolute_tolerance, relative_tolerance, max_iterations)
 
 

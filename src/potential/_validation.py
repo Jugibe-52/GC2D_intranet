@@ -9,7 +9,7 @@ from .grid import Grid
 
 def _readonly_array(values: Any, *, dtype: Any) -> np.ndarray:
 	"""Return an owned, immutable array with the requested dtype."""
-	array = np.array(values, dtype=dtype, copy=True)
+	array: np.ndarray = np.array(values, dtype=dtype, copy=True)
 	array.setflags(write=False)
 	return array
 
@@ -23,7 +23,7 @@ def _validated_potential_data(
 	"""Validate and own the mutually dependent runtime potential fields."""
 	shape = grid.shape
 	if mean is None:
-		mean_values = np.zeros(shape, dtype=float)
+		mean_values: np.ndarray = np.zeros(shape, dtype=float)
 	else:
 		mean_values = np.asarray(mean, dtype=float)
 		if mean_values.shape != shape:
@@ -34,7 +34,7 @@ def _validated_potential_data(
 			raise ValueError("The mean field must contain finite values.")
 
 	if frequencies is None:
-		frequency_values = np.empty(0, dtype=float)
+		frequency_values: np.ndarray = np.empty(0, dtype=float)
 	elif not isinstance(frequencies, np.ndarray):
 		raise TypeError("`frequencies` must be a NumPy array or None.")
 	else:
@@ -45,7 +45,7 @@ def _validated_potential_data(
 		raise ValueError("`frequencies` must contain finite positive values.")
 
 	if modes is None:
-		mode_values = np.empty((0, *shape), dtype=np.complex128)
+		mode_values: np.ndarray = np.empty((0, *shape), dtype=np.complex128)
 	else:
 		mode_values = np.asarray(modes, dtype=np.complex128)
 		if mode_values.ndim != 3 or mode_values.shape[1:] != shape:

@@ -8,7 +8,7 @@ from formulations.layout import GCStateLayout
 from dataclasses import asdict, dataclass
 from time import perf_counter
 from types import MappingProxyType
-from typing import ClassVar, Mapping, TypeVar
+from typing import ClassVar, Mapping, TYPE_CHECKING, TypeVar
 import numpy as np
 
 from contracts.comparison import (
@@ -33,6 +33,11 @@ from ._trajectory_distances import DistanceConvention, normalized_distance_conve
 from ._trajectory_accuracy import accuracy_series
 from ._gauss_legendre4_common import build_adaptive_reference
 from ._validation import finite_time_span, nonnegative_integer, integer_ratio, nonnegative_finite, positive_finite, positive_integer
+
+
+if TYPE_CHECKING:
+	from typing import Any
+
 
 COMPARISON_LABELS: Mapping[str, str] = MappingProxyType({
 	"ABBA4Implicit": "Single-projection implicit ABBA4",
@@ -125,7 +130,7 @@ class ComparisonConfig:
 			"distance_convention",
 			normalized_distance_convention(self.distance_convention),
 		)
-		save_interval = (
+		save_interval: float = (
 			self.integration_step
 			if self.save_interval is None
 			else positive_finite(self.save_interval, "save_interval")
@@ -166,7 +171,7 @@ def readonly_energy_history(
 	expected_shape: tuple[int, int],
 ) -> np.ndarray:
 	"""Validate, own, and freeze one particle-energy history."""
-	result = np.array(values, dtype=float, copy=True)
+	result: np.ndarray = np.array(values, dtype=float, copy=True)
 	if result.shape != expected_shape or not np.all(np.isfinite(result)):
 		raise ValueError("Hamiltonian histories must share one finite particle-time grid.")
 	result.setflags(write=False)
@@ -194,7 +199,7 @@ def _validate_comparison_methods(
 	required_methods: tuple[str, ...] | None,
 ) -> None:
 	"""Require supported methods with the same order across every result table."""
-	names = tuple(solutions)
+	names: tuple[str, ...] = tuple(solutions)
 	if not names or any(name not in COMPARISON_LABELS for name in names):
 		raise ValueError("The result must contain supported numerical methods.")
 	if required_methods is not None and names != required_methods:
@@ -261,9 +266,9 @@ class ComparisonResult:
 			self.solutions, self.accuracy, self.energy_accuracy, self.runtime_samples, self.required_methods,
 		)
 		shape = (self.reference.states.shape[0] // 2, self.reference.times.size)
-		reference_energies = readonly_energy_history(self.reference_energies, expected_shape=shape)
-		audit_energies = readonly_energy_history(self.audit_energies, expected_shape=shape)
-		runtimes = _prepared_comparison_runs(
+		reference_energies: np.ndarray = readonly_energy_history(self.reference_energies, expected_shape=shape)
+		audit_energies: np.ndarray = readonly_energy_history(self.audit_energies, expected_shape=shape)
+		runtimes: dict[str, np.ndarray] = _prepared_comparison_runs(
 			self.solutions, self.accuracy, self.energy_accuracy, self.runtime_samples,
 			initial_configuration=self.initial_configuration, reference=self.reference, config=self.config,
 			shape=shape, allow_missing_solver=self.allow_missing_solver,
@@ -383,12 +388,12 @@ def comparison_method(
 def accuracy_summaries(result: ComparisonResult) -> tuple[FiveMethodComparisonSummary, ...]:
 	"""Reduce the common accuracy, energy, and timing metrics."""
 	times = result.reference.times
-	duration = float(times[-1] - times[0])
-	floor = max(
+	duration: float = float(times[-1] - times[0])
+	floor: float = max(
 		result.reference.time_integrated_rms_floor,
 		float(np.finfo(float).eps),
 	)
-	energy_floor = max(
+	energy_floor: float = max(
 		result.energy_reference_time_integrated_rms_floor,
 		float(np.finfo(float).tiny),
 	)
@@ -400,10 +405,10 @@ def accuracy_summaries(result: ComparisonResult) -> tuple[FiveMethodComparisonSu
 		series = result.accuracy[method_name]
 		energy_series = result.energy_accuracy[method_name]
 		runtime_samples = result.runtime_samples[method_name]
-		time_rms = float(
+		time_rms: float = float(
 			np.sqrt(np.trapz(series.rms_distance**2, times) / duration)
 		)
-		energy_time_rms = time_integrated_particle_rms(
+		energy_time_rms: float = time_integrated_particle_rms(
 			energy_series.errors,
 			times,
 		)
@@ -450,16 +455,16 @@ def nonlinear_work_summaries(result: ComparisonResult) -> tuple[FiveMethodNonlin
 		if method_name == "RK4":
 			continue
 		solution = result.solutions[method_name]
-		iterations = np.asarray(
+		iterations: np.ndarray = np.asarray(
 			solution.diagnostics["nonlinear_iterations"],
 			dtype=int,
 		)
-		residual_evaluations = solution_residual_evaluations(solution)
-		residuals = np.asarray(
+		residual_evaluations: np.ndarray = solution_residual_evaluations(solution)
+		residuals: np.ndarray = np.asarray(
 			solution.diagnostics["nonlinear_residual_norms"],
 			dtype=float,
 		)
-		tolerances = np.asarray(
+		tolerances: np.ndarray = np.asarray(
 			solution.diagnostics["nonlinear_tolerances"],
 			dtype=float,
 		)
@@ -508,15 +513,15 @@ def run_alternating_comparison(
 		raise TypeError("`initial_configuration` must be np.ndarray.")
 	if not isinstance(config, ComparisonConfig):
 		raise TypeError("`config` must be ComparisonConfig.")
-	study_started = perf_counter()
-	dynamics = GuidingCenterDynamics(potential, rho=config.rho)
-	problem = InitialValueProblem(dynamics, initial_configuration, layout=GCStateLayout())
-	request = SimulationRequest.uniform(
+	study_started: float = perf_counter()
+	dynamics: GuidingCenterDynamics = GuidingCenterDynamics(potential, rho=config.rho)
+	problem: InitialValueProblem = InitialValueProblem(dynamics, initial_configuration, layout=GCStateLayout())
+	request: SimulationRequest = SimulationRequest.uniform(
 		t_span=config.t_span,
 		max_step=config.integration_step,
 		sample_count=config.output_sample_count,
 	)
-	reference = build_adaptive_reference(
+	reference: AdaptiveReference = build_adaptive_reference(
 		dynamics,
 		problem.initial_state,
 		request.output_times,
@@ -535,11 +540,11 @@ def run_alternating_comparison(
 	)
 	particle_count = problem.initial_state.size // 2
 	energy_shape = (particle_count, request.output_times.size)
-	reference_energies = readonly_energy_history(
+	reference_energies: np.ndarray = readonly_energy_history(
 		dynamics.hamiltonian(request.output_times, reference.states),
 		expected_shape=energy_shape,
 	)
-	audit_energies = readonly_energy_history(
+	audit_energies: np.ndarray = readonly_energy_history(
 		dynamics.hamiltonian(request.output_times, reference.audit_states),
 		expected_shape=energy_shape,
 	)
@@ -551,13 +556,13 @@ def run_alternating_comparison(
 		name: [] for name in method_names
 	}
 	for repeat in range(config.timing_repeats):
-		order = (
+		order: tuple[str, ...] = (
 			method_names
 			if repeat % 2 == 0
 			else tuple(reversed(method_names))
 		)
 		for method_name in order:
-			started = perf_counter()
+			started: float = perf_counter()
 			solutions[method_name] = simulate(
 				problem,
 				comparison_method(method_name, config),
@@ -579,7 +584,7 @@ def run_alternating_comparison(
 			),
 			distance_convention=config.distance_convention,
 		)
-		method_energies = readonly_energy_history(
+		method_energies: np.ndarray = readonly_energy_history(
 			dynamics.hamiltonian(request.output_times, solution.states),
 			expected_shape=energy_shape,
 		)
@@ -606,7 +611,6 @@ def run_alternating_comparison(
 	)
 
 
-
 _SummaryT = TypeVar("_SummaryT", bound=ThreeMethodNewtonSummary)
 
 
@@ -616,7 +620,7 @@ def implicit_summaries(
 	"""Join shared accuracy and work metrics into the implicit-family public record."""
 	rows = []
 	for accuracy, work in zip(accuracy_summaries(result), nonlinear_work_summaries(result), strict=True):
-		values = asdict(accuracy)
+		values: dict[str, Any] = asdict(accuracy)
 		values["nonlinear_solver"] = values.pop("solver")
 		values.update({name: value for name, value in asdict(work).items()
 			if name not in {"method_name", "method_label", "step_count", "nonlinear_solves_per_step"}})

@@ -17,12 +17,12 @@ def _owned_initial_values(values: ArrayLike, layout: StateLayout) -> tuple[np.nd
 	"""Prepare a finite packed vector and its independent structural layout."""
 	if not isinstance(layout, StateLayout):
 		raise TypeError("`layout` must implement StateLayout.")
-	owned_layout = deepcopy(layout)
-	value = np.array(values, dtype=float, copy=True)
+	owned_layout: StateLayout = deepcopy(layout)
+	value: np.ndarray = np.array(values, dtype=float, copy=True)
 	if value.ndim != 1 or value.size == 0 or not np.all(np.isfinite(value)):
 		raise ValueError("The initial state must be a finite non-empty vector.")
 	owned_layout.validate_packed_state_layout(value)
-	count = owned_layout.particle_count(value)
+	count: int = owned_layout.particle_count(value)
 	if (isinstance(count, (bool, np.bool_)) or not isinstance(count, (int, np.integer))
 		or count <= 0 or value.size != count * owned_layout.state_dimension):
 		raise ValueError("The layout must describe complete particle blocks.")
@@ -43,6 +43,9 @@ class InitialConditions:
 	particle_count: int
 
 	def __init__(self, values: ArrayLike, *, layout: StateLayout) -> None:
+		value: np.ndarray
+		owned_layout: StateLayout
+		count: int
 		value, owned_layout, count = _owned_initial_values(values, layout)
 		object.__setattr__(self, '_values', value)
 		object.__setattr__(self, '_layout', owned_layout)
@@ -78,7 +81,7 @@ class InitialConditions:
 
 	def velocities(self) -> tuple[np.ndarray, np.ndarray]:
 		"""Return named velocity components; GC has no stored velocities."""
-		components = self.components()
+		components: tuple[np.ndarray, ...] = self.components()
 		if not hasattr(components, 'vx') or not hasattr(components, 'vy'):
 			raise ValueError("This initial layout has no named velocity components.")
 		return np.asarray(components.vx), np.asarray(components.vy)

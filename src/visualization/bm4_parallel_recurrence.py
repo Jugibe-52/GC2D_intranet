@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -22,6 +22,11 @@ from ._animation_validation import (
 )
 
 
+if TYPE_CHECKING:
+	from matplotlib.collections import PathCollection
+	from matplotlib.image import AxesImage
+
+
 def _validate_result(result: object) -> None:
 	"""Validate a recurrence result without creating a package import cycle."""
 	if not isinstance(result, ParallelBM4RecurrenceResult):
@@ -36,7 +41,7 @@ def _periodic_path(
 	"""Insert NaN breaks where a wrapped path crosses a periodic boundary."""
 	if coordinates.shape[0] < 2:
 		return coordinates
-	jumps = np.any(np.abs(np.diff(coordinates, axis=0)) > 0.5 * period, axis=1)
+	jumps: np.ndarray = np.any(np.abs(np.diff(coordinates, axis=0)) > 0.5 * period, axis=1)
 	if not np.any(jumps):
 		return coordinates
 	path: list[np.ndarray] = [coordinates[0]]
@@ -64,25 +69,27 @@ def animate_parallel_bm4_trajectories(
 	repeat = boolean_control(repeat, "repeat")
 
 	grid = potential.grid
-	period = float(grid.period)
+	period: float = float(grid.period)
 	particle_count = result.config.particle_count
-	times = np.asarray(result.times, dtype=float)
-	positions = np.asarray(result.positions, dtype=float)
+	times: np.ndarray = np.asarray(result.times, dtype=float)
+	positions: np.ndarray = np.asarray(result.positions, dtype=float)
 	wrapped_x = grid.xmin + (positions[:, 0] - grid.xmin) % period
 	wrapped_y = grid.ymin + (positions[:, 1] - grid.ymin) % period
-	fields = np.asarray(potential.evaluate_grid(times), dtype=float)
+	fields: np.ndarray = np.asarray(potential.evaluate_grid(times), dtype=float)
 	if fields.shape != (*grid.shape, times.size):
 		raise ValueError("Potential evaluation returned an unexpected animation shape.")
 
-	trajectory_norm = Normalize(vmin=1.0, vmax=float(particle_count))
+	trajectory_norm: Normalize = Normalize(vmin=1.0, vmax=float(particle_count))
 	trajectory_colormap = plt.colormaps[trajectory_cmap]
-	trajectory_numbers = np.arange(1, particle_count + 1, dtype=float)
-	trajectory_colors = trajectory_colormap(trajectory_norm(trajectory_numbers))
-	field_minimum = float(np.min(fields))
-	field_maximum = float(np.max(fields))
+	trajectory_numbers: np.ndarray = np.arange(1, particle_count + 1, dtype=float)
+	trajectory_colors: Any = trajectory_colormap(trajectory_norm(trajectory_numbers))
+	field_minimum: float = float(np.min(fields))
+	field_maximum: float = float(np.max(fields))
 
+	figure: Figure
+	axis: Axes
 	figure, axis = plt.subplots(figsize=(9.5, 7.5), constrained_layout=True)
-	image = axis.imshow(
+	image: AxesImage = axis.imshow(
 		fields[:, :, 0].T,
 		origin="lower",
 		extent=(grid.xmin, grid.xmin + period, grid.ymin, grid.ymin + period),
@@ -91,7 +98,7 @@ def animate_parallel_bm4_trajectories(
 		vmax=field_maximum,
 		aspect="equal",
 	)
-	paths = LineCollection(
+	paths: LineCollection = LineCollection(
 		[],
 		colors=trajectory_colors,
 		linewidths=1.2,
@@ -99,7 +106,7 @@ def animate_parallel_bm4_trajectories(
 		zorder=3,
 	)
 	axis.add_collection(paths)
-	current_points = axis.scatter(
+	current_points: PathCollection = axis.scatter(
 		wrapped_x[:, 0],
 		wrapped_y[:, 0],
 		c=trajectory_numbers,
@@ -168,10 +175,10 @@ def plot_parallel_bm4_recurrence_stack(
 ) -> tuple[Figure, np.ndarray]:
 	"""Plot one vertically stacked distance-to-initial panel per trajectory."""
 	_validate_result(result)
-	cell_period = float(period)
+	cell_period: float = float(period)
 	if not np.isfinite(cell_period) or cell_period <= 0.0:
 		raise ValueError("`period` must be positive and finite.")
-	tolerance_fraction = float(recurrence_tolerance_fraction)
+	tolerance_fraction: float = float(recurrence_tolerance_fraction)
 	if (
 		not np.isfinite(tolerance_fraction)
 		or tolerance_fraction <= 0.0
@@ -182,14 +189,16 @@ def plot_parallel_bm4_recurrence_stack(
 		)
 	if not np.allclose(np.diff(result.times), 1.0):
 		raise ValueError("The stacked recurrence plot requires one saved state per cycle.")
-	distances = result.recurrence_distances(period=cell_period)
+	distances: np.ndarray = result.recurrence_distances(period=cell_period)
 	particle_count = result.config.particle_count
 	if distances.shape != (particle_count, result.times.size):
 		raise ValueError("Recurrence distances do not match the campaign shape.")
 	# Cycle zero is identically zero and would collapse every logarithmic axis.
 	cycle_times = result.times[1:]
-	display_floor = float(np.finfo(float).eps * cell_period)
+	display_floor: float = float(np.finfo(float).eps * cell_period)
 	tolerance = tolerance_fraction * cell_period
+	figure: Figure
+	axes: np.ndarray
 	figure, axes = plt.subplots(
 		particle_count,
 		1,
@@ -198,17 +207,17 @@ def plot_parallel_bm4_recurrence_stack(
 		constrained_layout=True,
 		squeeze=False,
 	)
-	axis_values = np.asarray(axes[:, 0], dtype=object)
-	colors = plt.colormaps["viridis"](
+	axis_values: np.ndarray = np.asarray(axes[:, 0], dtype=object)
+	colors: Any = plt.colormaps["viridis"](
 		np.linspace(0.06, 0.94, particle_count)
 	)
 	for particle, axis in enumerate(axis_values):
 		assert isinstance(axis, Axes)
 		values = distances[particle, 1:]
-		nearest_offset = int(np.argmin(values))
-		nearest_cycle = int(round(float(cycle_times[nearest_offset])))
-		nearest_distance = float(values[nearest_offset])
-		nearest_display_distance = float(max(nearest_distance, display_floor))
+		nearest_offset: int = int(np.argmin(values))
+		nearest_cycle: int = int(round(float(cycle_times[nearest_offset])))
+		nearest_distance: float = float(values[nearest_offset])
+		nearest_display_distance: float = float(max(nearest_distance, display_floor))
 		axis.semilogy(
 			cycle_times,
 			np.maximum(values, display_floor),
@@ -225,6 +234,8 @@ def plot_parallel_bm4_recurrence_stack(
 			s=18,
 			zorder=4,
 		)
+		x_initial: Any
+		y_initial: Any
 		x_initial, y_initial = result.initial_positions[particle]
 		axis.set_ylabel(f"{particle + 1:02d}", rotation=0, labelpad=16)
 		axis.set_title(

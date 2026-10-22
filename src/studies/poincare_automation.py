@@ -12,7 +12,7 @@ from hashlib import file_digest, sha256
 from itertools import product
 import json
 from pathlib import Path
-from typing import Any, Iterator, Literal, TypedDict, cast
+from typing import Any, Iterator, Literal, TYPE_CHECKING, TypedDict, cast
 
 import numpy as np
 
@@ -34,6 +34,11 @@ from simulation.runner import simulate
 from states.history import States
 from diagnostics.persistence import StoredSolution
 
+
+if TYPE_CHECKING:
+	from typing import Mapping
+
+
 PARTICLE_SET = "ranked-star-40-gap-probes-8-v1"
 METHODS = ("BM4Midpoint", "BM4Implicit", "RK4", "GaussLegendre4")
 PROBE_FRACTIONS = ((.4407, .5817), (.4417, .5896), (.6073, .5675), (.6030, .5753),
@@ -44,9 +49,11 @@ PROBE_GAPS = ("northwest", "northwest", "northeast", "northeast",
 
 def fixed_particle_fractions() -> np.ndarray:
 	"""Return owned (48, xy) fractions from the reference viewer's lower cell corner."""
-	star = ranked_radial_star(center=(.5, .5), outer_radius=.425,
+	star: np.ndarray = ranked_radial_star(center=(.5, .5), outer_radius=.425,
 		particles=40, arms=8, first_angle=0.)
 	assert star is not None
+	x: np.ndarray
+	y: np.ndarray
 	x, y = GCStateLayout().positions(star)
 	return np.vstack((np.column_stack((x, y)), np.asarray(PROBE_FRACTIONS)))
 
@@ -59,7 +66,7 @@ def canonical_json(value: Any) -> str:
 def _number(value: Any, name: str) -> float:
 	if isinstance(value, (bool, str)) or not isinstance(value, (int, float, np.number)):
 		raise ValueError(f"{name} must be a finite number.")
-	number = float(value)
+	number: float = float(value)
 	if not np.isfinite(number):
 		raise ValueError(f"{name} must be a finite number.")
 	return number
@@ -67,10 +74,10 @@ def _number(value: Any, name: str) -> float:
 
 def _validated_parameter_values(values: tuple[float, ...], name: str) -> tuple[float, ...]:
 	"""Freeze one distinct rho or signed-field sweep without coercing strings."""
-	numbers = tuple(_number(value, name) for value in values)
+	numbers: tuple[float, ...] = tuple(_number(value, name) for value in values)
 	if not numbers or len(set(numbers)) != len(numbers):
 		raise ValueError(f"{name} must contain unique values and cannot be empty.")
-	invalid = any(value < 0 for value in numbers) if name == "rhos" else any(value == 0 for value in numbers)
+	invalid: bool = any(value < 0 for value in numbers) if name == "rhos" else any(value == 0 for value in numbers)
 	if invalid:
 		raise ValueError("rho must be nonnegative and B must be nonzero.")
 	return numbers
@@ -78,7 +85,7 @@ def _validated_parameter_values(values: tuple[float, ...], name: str) -> tuple[f
 
 def _validated_methods(values: tuple[str, ...]) -> tuple[str, ...]:
 	"""Freeze the ordered, nonempty set of supported study methods."""
-	methods = tuple(values)
+	methods: tuple[str, ...] = tuple(values)
 	if not methods or len(set(methods)) != len(methods) or any(method not in METHODS for method in methods):
 		raise ValueError(f"Select distinct supported methods: {METHODS}.")
 	return methods
@@ -92,7 +99,7 @@ def _validate_positive_count(value: int, name: str) -> None:
 
 def _positive_number(value: float, name: str) -> float:
 	"""Normalize a positive study scale with the strict numeric-input policy."""
-	number = _number(value, name)
+	number: float = _number(value, name)
 	if number <= 0:
 		raise ValueError(f"{name} must be positive.")
 	return number
@@ -100,7 +107,7 @@ def _positive_number(value: float, name: str) -> float:
 
 def _validated_coupling(value: float, methods: tuple[str, ...]) -> float:
 	"""Check the legacy coupling field against the selected method family."""
-	coupling = _number(value, "coupling_frequency")
+	coupling: float = _number(value, "coupling_frequency")
 	if coupling < 0 or (coupling != 0 and any(method in ("RK4", "GaussLegendre4") for method in methods)):
 		raise ValueError("Coupling must be nonnegative and zero for classical methods.")
 	return coupling
@@ -108,7 +115,7 @@ def _validated_coupling(value: float, methods: tuple[str, ...]) -> float:
 
 def _validated_sigma(value: float) -> float:
 	"""Normalize an explicitly supplied nonnegative smoothing width."""
-	width = _number(value, "sigma")
+	width: float = _number(value, "sigma")
 	if width < 0:
 		raise ValueError("sigma must be nonnegative.")
 	return width
@@ -146,7 +153,7 @@ class AutomationConfig:
 		"""Freeze JSON sequences and validate inputs before accessing source data."""
 		for name in ("rhos", "magnetic_fields"):
 			object.__setattr__(self, name, _validated_parameter_values(getattr(self, name), name))
-		methods = _validated_methods(self.methods)
+		methods: tuple[str, ...] = _validated_methods(self.methods)
 		object.__setattr__(self, "methods", methods)
 		for name in ("source_index", "cycles", "steps_per_cycle", "newton_max_iterations",
 				"cycles_per_frame", "field_grid_size", "vector_grid_size", "interpolation_order"):
@@ -203,11 +210,11 @@ class AutomationField:
 
 
 def load_automation_field(config: AutomationConfig, project_root: Path) -> AutomationField:
-	path = Path(config.source).expanduser()
+	path: Path = Path(config.source).expanduser()
 	path = (project_root / path).resolve() if not path.is_absolute() else path.resolve()
 	with path.open("rb") as stream:
-		digest = file_digest(stream, "sha256").hexdigest()
-	potential = Potential.load(path, indx=(config.source_index,),
+		digest: str = file_digest(stream, "sha256").hexdigest()
+	potential: Potential = Potential.load(path, indx=(config.source_index,),
 		spatial_rescaling=config.spatial_rescaling, temporal_rescaling=config.temporal_rescaling,
 		sigma=config.sigma, interpolation_order=config.interpolation_order)
 	return AutomationField(potential, path, digest)
@@ -242,21 +249,21 @@ def prepare_automation_case(config: AutomationConfig, case: AutomationCase,
 			or p.interpolation_order != config.interpolation_order):
 		raise ValueError("Loaded field controls do not match the configuration.")
 	length = len(m.source_x) * float(m.source_x[1] - m.source_x[0])
-	origin = np.array((m.source_x[0], m.source_y[0]))
-	fractions = fixed_particle_fractions()
+	origin: np.ndarray = np.array((m.source_x[0], m.source_y[0]))
+	fractions: np.ndarray = fixed_particle_fractions()
 	physical_xy = origin + length * fractions
-	runtime_origin = origin if config.spatial_rescaling else np.zeros(2)
+	runtime_origin: np.ndarray = origin if config.spatial_rescaling else np.zeros(2)
 	xy = (physical_xy - runtime_origin) / m.spatial_scale
 	rho_m = case.rho * config.reference_length / (2*np.pi)
 	period = 1 / float(m.source_frequencies[0])
 	cycle_duration = period / m.time_scale
-	initial = GCStateLayout().pack_components(xy[:, 0], xy[:, 1])
-	dynamics = GuidingCenterDynamics(p, rho=rho_m / m.spatial_scale, B=case.B)
-	problem = InitialValueProblem(dynamics, initial, layout=GCStateLayout())
+	initial: np.ndarray = GCStateLayout().pack_components(xy[:, 0], xy[:, 1])
+	dynamics: GuidingCenterDynamics = GuidingCenterDynamics(p, rho=rho_m / m.spatial_scale, B=case.B)
+	problem: InitialValueProblem = InitialValueProblem(dynamics, initial, layout=GCStateLayout())
 	times = cycle_duration * np.arange(config.cycles + 1, dtype=float)
-	request = SimulationRequest(t_span=(0., float(times[-1])),
+	request: SimulationRequest = SimulationRequest(t_span=(0., float(times[-1])),
 		max_step=cycle_duration/config.steps_per_cycle, output_times=times)
-	metadata = dict(schema_version=1, study="poincare_automation", particle_set=PARTICLE_SET,
+	metadata: dict[str, Any] = dict(schema_version=1, study="poincare_automation", particle_set=PARTICLE_SET,
 		config=config.to_dict(), case=asdict(case), source_sha256=field.source_sha256,
 		source_path=str(field.source_path), source_field_indices=m.source_field_indices.tolist(),
 		source_frequencies=m.source_frequencies.tolist(), source_frequency_unit=m.source_frequency_unit,
@@ -286,6 +293,8 @@ class _NewtonControls(TypedDict):
 
 def automation_method(prepared: PreparedAutomationCase) -> NumericalMethod:
 	"""Construct a canonical integrator without doubled-copy coupling."""
+	c: AutomationConfig
+	name: str
 	c, name = prepared.config, prepared.case.method
 	# Historical configurations remain readable, but cannot select new coupled runs.
 	require_uncoupled_bm4(c.coupling_frequency)
@@ -306,6 +315,9 @@ def automation_method(prepared: PreparedAutomationCase) -> NumericalMethod:
 
 def validate_automation_solution(solution: States, prepared: PreparedAutomationCase) -> None:
 	"""Require complete cycle samples, exact initial identity and method diagnostics."""
+	c: AutomationConfig
+	d: Mapping[str, DiagnosticValue]
+	method: str
 	c, d, method = prepared.config, solution.diagnostics, prepared.case.method
 	if (solution.states.shape != (96, c.cycles+1) or solution.states.dtype != np.float64
 			or not np.isfinite(solution.states).all()
@@ -324,7 +336,7 @@ def validate_automation_solution(solution: States, prepared: PreparedAutomationC
 	if method == "BM4Implicit" and d.get("projection_solver_formulation") != "bm4_implicit_reduced":
 		raise ValueError("Expected reduced implicit BM4 projection.")
 	if method in ("BM4Implicit", "GaussLegendre4"):
-		expected = dict(nonlinear_solver="newton", nonlinear_solves_per_step=1,
+		expected: dict[str, object] = dict(nonlinear_solver="newton", nonlinear_solves_per_step=1,
 			nonlinear_absolute_tolerance=c.newton_absolute_tolerance,
 			nonlinear_relative_tolerance=c.newton_relative_tolerance,
 			nonlinear_max_iterations=c.newton_max_iterations, newton_jacobian_method="analytic",
@@ -358,14 +370,14 @@ def automation_execution_context(config: AutomationConfig, execution: Execution 
 def run_automation_case(prepared: PreparedAutomationCase, *,
 		execution: Execution | None = None) -> StoredSolution:
 	"""Integrate all particles jointly and retain only cycle states/scalar diagnostics."""
-	executor = Execution() if execution is None else execution
+	executor: Execution = Execution() if execution is None else execution
 	with automation_execution_context(prepared.config, execution):
-		solution = simulate(prepared.problem, automation_method(prepared), prepared.request,
+		solution: States = simulate(prepared.problem, automation_method(prepared), prepared.request,
 			execution=executor, options=prepared.config.execution_options())
 	validate_automation_solution(solution, prepared)
 	diagnostics: dict[str, DiagnosticValue] = {k: v for k, v in solution.diagnostics.items()
 		if not isinstance(v, np.ndarray)}
-	trimmed = States(layout=solution.layout, t=solution.t, states=solution.states, initial_state=solution.initial_state, diagnostics=diagnostics)
+	trimmed: States = States(layout=solution.layout, t=solution.t, states=solution.states, initial_state=solution.initial_state, diagnostics=diagnostics)
 	metadata = {**prepared.metadata, "execution_executor": f"{type(executor).__module__}.{type(executor).__qualname__}"}
 	return StoredSolution(trimmed, metadata, None)
 

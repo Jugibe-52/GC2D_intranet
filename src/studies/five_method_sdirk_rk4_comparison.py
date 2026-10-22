@@ -18,7 +18,7 @@ import sys
 from threading import Lock
 from time import perf_counter
 from types import MappingProxyType
-from typing import ClassVar, Mapping
+from typing import ClassVar, Mapping, TYPE_CHECKING
 
 import numpy as np
 
@@ -35,6 +35,10 @@ from contracts.comparison import AdaptiveReference
 from ._gauss_legendre4_common import (build_adaptive_reference, build_dop853_reference_with_reused_audit)
 from contracts.comparison import TrajectoryAccuracySeries
 from ._trajectory_accuracy import (accuracy_series)
+
+
+if TYPE_CHECKING:
+	from _thread import LockType
 
 
 FIVE_METHOD_COMPARISON_METHODS: tuple[str, ...] = (
@@ -66,7 +70,7 @@ class FiveMethodComparisonResult(ComparisonResult):
 	def __post_init__(self) -> None:
 		"""Add validated campaign completion records to the shared result contract."""
 		ComparisonResult.__post_init__(self)
-		entries = tuple(self.execution_log)
+		entries: tuple[ExecutionLogEntry, ...] = tuple(self.execution_log)
 		if not entries or any(not isinstance(entry, ExecutionLogEntry) for entry in entries):
 			raise TypeError("`execution_log` must contain completion records.")
 		object.__setattr__(self, "execution_log", entries)
@@ -111,10 +115,10 @@ def run_five_method_comparison(
 		name not in FIVE_METHOD_COMPARISON_METHODS for name in method_names
 	):
 		raise ValueError("Select distinct supported comparison methods.")
-	study_started = perf_counter()
-	dynamics = GuidingCenterDynamics(potential, rho=config.rho)
-	problem = InitialValueProblem(dynamics, initial_configuration, layout=GCStateLayout())
-	request = SimulationRequest.uniform(
+	study_started: float = perf_counter()
+	dynamics: GuidingCenterDynamics = GuidingCenterDynamics(potential, rho=config.rho)
+	problem: InitialValueProblem = InitialValueProblem(dynamics, initial_configuration, layout=GCStateLayout())
+	request: SimulationRequest = SimulationRequest.uniform(
 		t_span=config.t_span,
 		max_step=config.integration_step,
 		sample_count=config.output_sample_count,
@@ -131,8 +135,8 @@ def run_five_method_comparison(
 			f"{trajectory_count} trajectories on [{config.t_span[0]:g}, "
 			f"{config.t_span[1]:g}].",
 		)
-		reference_started = perf_counter()
-		reference = build_adaptive_reference(
+		reference_started: float = perf_counter()
+		reference: AdaptiveReference = build_adaptive_reference(
 			dynamics,
 			problem.initial_state,
 			request.output_times,
@@ -206,11 +210,11 @@ def run_five_method_comparison(
 		)
 
 	energy_shape = (trajectory_count, request.output_times.size)
-	reference_energies = readonly_energy_history(
+	reference_energies: np.ndarray = readonly_energy_history(
 		dynamics.hamiltonian(request.output_times, reference.states),
 		expected_shape=energy_shape,
 	)
-	audit_energies = readonly_energy_history(
+	audit_energies: np.ndarray = readonly_energy_history(
 		dynamics.hamiltonian(request.output_times, reference.audit_states),
 		expected_shape=energy_shape,
 	)
@@ -219,8 +223,8 @@ def run_five_method_comparison(
 		config.timing_warmups + config.timing_repeats
 	)
 	completed_method_runs = 0
-	method_campaign_started = perf_counter()
-	progress_lock = Lock()
+	method_campaign_started: float = perf_counter()
+	progress_lock: LockType = Lock()
 
 	def executecomparison_method(
 		method_name: str,
@@ -237,8 +241,8 @@ def run_five_method_comparison(
 			f"Starting {phase} {repeat}/{repeat_count}: {label}; "
 			f"{trajectory_count} trajectories together, {config.step_count} steps.",
 		)
-		started = perf_counter()
-		solution = simulate(problem, comparison_method(method_name, config), request)
+		started: float = perf_counter()
+		solution: States = simulate(problem, comparison_method(method_name, config), request)
 		runtime_seconds = perf_counter() - started
 		with progress_lock:
 			completed_method_runs += 1
@@ -278,6 +282,7 @@ def run_five_method_comparison(
 		latest_solution: States | None = None
 		runtimes: list[float] = []
 		for repeat in range(1, config.timing_repeats + 1):
+			runtime_seconds: float
 			latest_solution, runtime_seconds = executecomparison_method(
 				method_name,
 				phase="timing",
@@ -322,7 +327,7 @@ def run_five_method_comparison(
 			),
 			distance_convention=config.distance_convention,
 		)
-		method_energies = readonly_energy_history(
+		method_energies: np.ndarray = readonly_energy_history(
 			dynamics.hamiltonian(request.output_times, solution.states),
 			expected_shape=energy_shape,
 		)

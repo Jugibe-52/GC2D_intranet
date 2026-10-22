@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from pathlib import Path
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -12,6 +12,10 @@ from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 
 from potential import Potential
+
+
+if TYPE_CHECKING:
+    from matplotlib.collections import PathCollection, QuadMesh
 
 
 def format_dimensional_h5_metadata(metadata: Mapping[str, Any], potential: Potential) -> str:
@@ -55,20 +59,26 @@ def plot_particle_in_potential(
     if times.ndim != 1 or states.shape != (2, times.size):
         raise ValueError("Expected times (samples,) and one-particle states (2, samples).")
     grid = potential.grid
-    field = potential.evaluate_grid(snapshot_time)
+    field: np.ndarray = potential.evaluate_grid(snapshot_time)
+    wrapped_x: np.ndarray
+    wrapped_y: np.ndarray
     wrapped_x, wrapped_y = grid.normalize(states[0], states[1])
     # Break the plotted line at periodic crossings instead of drawing across
     # the whole cell, which would suggest a spurious long particle displacement.
     jumps = (np.abs(np.diff(wrapped_x)) > grid.period / 2) | (
         np.abs(np.diff(wrapped_y)) > grid.period / 2)
+    plot_x: np.ndarray
+    plot_y: np.ndarray
     plot_x, plot_y = wrapped_x.copy(), wrapped_y.copy()
     plot_x[1:][jumps] = np.nan
     plot_y[1:][jumps] = np.nan
+    figure: Figure
+    axis: Axes
     figure, axis = plt.subplots(figsize=(7, 6), constrained_layout=True)
-    mesh = axis.pcolormesh(grid.x, grid.y, field.T, shading="auto", cmap="RdBu_r")
+    mesh: QuadMesh = axis.pcolormesh(grid.x, grid.y, field.T, shading="auto", cmap="RdBu_r")
     figure.colorbar(mesh, ax=axis, label="Potential (H5 units)")
     axis.plot(plot_x, plot_y, color="black", lw=1.2, alpha=0.85)
-    points = axis.scatter(wrapped_x, wrapped_y, c=times, s=9, cmap="viridis", zorder=3)
+    points: PathCollection = axis.scatter(wrapped_x, wrapped_y, c=times, s=9, cmap="viridis", zorder=3)
     figure.colorbar(points, ax=axis, label="Normalized time / cycles")
     axis.scatter(wrapped_x[0], wrapped_y[0], marker="o", s=85,
                  facecolor="white", edgecolor="black", label="Start", zorder=4)

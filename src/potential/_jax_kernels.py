@@ -21,7 +21,7 @@ def _basis(knots: Any, points: Any, degree: int, derivative: int) -> tuple[Any, 
     knot differences are constant, and each linear factor contributes a signed
     multiple of the preceding derivative. No finite differences are used.
     """
-    span = jnp.searchsorted(knots, points, side="right") - 1
+    span: jax.Array = jnp.searchsorted(knots, points, side="right") - 1
     span = jnp.clip(span, degree, knots.size - degree - 2)
     weights = [[jnp.ones_like(points)] + [jnp.zeros_like(points)] * derivative]
     for level in range(1, degree + 1):
@@ -32,7 +32,7 @@ def _basis(knots: Any, points: Any, degree: int, derivative: int) -> tuple[Any, 
             right = knots[span + index + 1] - points
             denominator = knots[span + index + 1] - knots[span + 1 - level + index]
             # A repeated knot contributes zero, rather than a 0/0 basis term.
-            safe = jnp.where(denominator != 0, denominator, 1.0)
+            safe: jax.Array = jnp.where(denominator != 0, denominator, 1.0)
             terms = [jnp.where(denominator != 0, value / safe, 0.0)
                      for value in weights[index]]
             updated.append([
@@ -61,10 +61,14 @@ def evaluate_splines(
     """
     time, x, y = jnp.broadcast_arrays(time, x, y)
     x, y = normalize_coordinates(x, y, origin, period)
+    ix: jax.Array
+    wx: jax.Array
     ix, wx = _basis(knots_x, x, degree, dx)
+    iy: jax.Array
+    wy: jax.Array
     iy, wy = _basis(knots_y, y, degree, dy)
     local = coefficients[:, ix[..., :, None], iy[..., None, :]]
-    fields = jnp.sum(local * wx[..., :, None] * wy[..., None, :], axis=(-2, -1))
+    fields: jax.Array = jnp.sum(local * wx[..., :, None] * wy[..., None, :], axis=(-2, -1))
     return reconstruct(time, fields, frequencies, dt, xp=jnp)
 
 

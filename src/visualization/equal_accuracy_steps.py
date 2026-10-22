@@ -6,9 +6,13 @@ from matplotlib.figure import Figure
 from matplotlib.axes import Axes
 from studies.equal_accuracy_steps import EqualAccuracyStep
 
+from typing import TYPE_CHECKING
+
 
 def plot_equal_accuracy_steps(rows_by_variant: Mapping[str, Sequence[EqualAccuracyStep]]) -> tuple[Figure, Axes]:
     """Plot h_ABBA4/h_BM4 without filling gaps in unsupported targets."""
+    figure: Figure
+    axis: Axes
     figure, axis = plt.subplots(figsize=(9, 5), constrained_layout=True)
     for label, rows in rows_by_variant.items():
         if rows:

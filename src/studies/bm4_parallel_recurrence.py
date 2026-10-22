@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from multiprocessing import get_context
 import sys
 from time import perf_counter
-from typing import Any, TypeAlias
+from typing import Any, TYPE_CHECKING, TypeAlias
 
 import numpy as np
 
@@ -28,6 +28,10 @@ from request import SimulationRequest
 from simulation.runner import simulate
 
 from ._potential_snapshot import _H5PotentialSnapshot
+
+
+if TYPE_CHECKING:
+	from states.history import States
 
 
 _PotentialPayload: TypeAlias = Potential | _H5PotentialSnapshot
@@ -77,13 +81,13 @@ def _initialize_worker(
 	require_uncoupled_bm4(config.coupling_frequency)
 	global _WORKER_CONTEXT, _WORKER_THREADPOOL_LIMITER
 	_WORKER_THREADPOOL_LIMITER = ThreadpoolController().limit(limits=1)
-	potential = (
+	potential: Potential = (
 		potential_payload.restore()
 		if isinstance(potential_payload, _H5PotentialSnapshot)
 		else potential_payload
 	)
-	dynamics = GuidingCenterDynamics(potential, rho=config.rho)
-	request = SimulationRequest.uniform(
+	dynamics: GuidingCenterDynamics = GuidingCenterDynamics(potential, rho=config.rho)
+	request: SimulationRequest = SimulationRequest.uniform(
 		t_span=config.t_span,
 		max_step=config.integration_step,
 		sample_count=config.output_sample_count,
@@ -101,10 +105,12 @@ def _run_particle(particle: int) -> _ParticlePayload:
 	context = _WORKER_CONTEXT
 	if context is None:
 		raise RuntimeError("The parallel BM4 worker was not initialized.")
+	x: Any
+	y: Any
 	x, y = context.coordinates[particle]
-	initial_configuration = GCStateLayout().pack_components(np.asarray([x], dtype=float), np.asarray([y], dtype=float))
-	problem = InitialValueProblem(context.dynamics, initial_configuration, layout=GCStateLayout())
-	method = BM4Implicit(
+	initial_configuration: np.ndarray = GCStateLayout().pack_components(np.asarray([x], dtype=float), np.asarray([y], dtype=float))
+	problem: InitialValueProblem = InitialValueProblem(context.dynamics, initial_configuration, layout=GCStateLayout())
+	method: BM4Implicit = BM4Implicit(
 		newton_absolute_tolerance=context.config.absolute_tolerance,
 		newton_relative_tolerance=context.config.relative_tolerance,
 		newton_max_iterations=context.config.max_iterations,
@@ -112,15 +118,17 @@ def _run_particle(particle: int) -> _ParticlePayload:
 		newton_jacobian_relative_step=context.config.jacobian_relative_step,
 		progress=False,
 	)
-	started = perf_counter()
-	solution = simulate(problem, method, context.request)
+	started: float = perf_counter()
+	solution: States = simulate(problem, method, context.request)
 	runtime = perf_counter() - started
+	position_x: np.ndarray
+	position_y: np.ndarray
 	position_x, position_y = solution.positions()
-	positions = np.stack((position_x[0], position_y[0]), axis=0)
+	positions: np.ndarray = np.stack((position_x[0], position_y[0]), axis=0)
 	diagnostics = solution.diagnostics
-	iterations = np.asarray(diagnostics["nonlinear_iterations"], dtype=int)
-	residuals = np.asarray(diagnostics["nonlinear_residual_norms"], dtype=float)
-	tolerances = np.asarray(diagnostics["nonlinear_tolerances"], dtype=float)
+	iterations: np.ndarray = np.asarray(diagnostics["nonlinear_iterations"], dtype=int)
+	residuals: np.ndarray = np.asarray(diagnostics["nonlinear_residual_norms"], dtype=float)
+	tolerances: np.ndarray = np.asarray(diagnostics["nonlinear_tolerances"], dtype=float)
 	if iterations.shape != (context.config.step_count,):
 		raise ValueError("BM4 iteration history does not cover every complete step.")
 	return _ParticlePayload(
@@ -169,9 +177,9 @@ def run_parallel_bm4_recurrence(
 	if not isinstance(config, ParallelBM4RecurrenceConfig):
 		raise TypeError("`config` must be ParallelBM4RecurrenceConfig.")
 	require_uncoupled_bm4(config.coupling_frequency)
-	coordinates = _validated_campaign_coordinates(initial_configuration, config.particle_count)
-	worker_count = min(config.worker_count, config.particle_count)
-	started = perf_counter()
+	coordinates: np.ndarray = _validated_campaign_coordinates(initial_configuration, config.particle_count)
+	worker_count: int = min(config.worker_count, config.particle_count)
+	started: float = perf_counter()
 	payloads: dict[int, _ParticlePayload] = {}
 	if config.progress:
 		_progress_message(
@@ -190,9 +198,10 @@ def run_parallel_bm4_recurrence(
 			executor.submit(_run_particle, particle): particle
 			for particle in range(config.particle_count)
 		}
-		pending = set(future_particles)
+		pending: set[Future[_ParticlePayload]] = set(future_particles)
 		try:
 			while pending:
+				completed_futures: set[Future[_ParticlePayload]]
 				completed_futures, pending = wait(
 					pending,
 					timeout=30.0,
@@ -210,7 +219,7 @@ def run_parallel_bm4_recurrence(
 				for future in completed_futures:
 					particle = future_particles[future]
 					try:
-						payload = future.result()
+						payload: _ParticlePayload = future.result()
 					except Exception as exc:
 						raise RuntimeError(
 							f"Parallel BM4 failed for trajectory {particle + 1}."
@@ -229,7 +238,7 @@ def run_parallel_bm4_recurrence(
 			for future in future_particles:
 				future.cancel()
 			raise
-	ordered = tuple(payloads[particle] for particle in range(config.particle_count))
+	ordered: tuple[_ParticlePayload, ...] = tuple(payloads[particle] for particle in range(config.particle_count))
 	times = ordered[0].times
 	if any(not np.array_equal(payload.times, times) for payload in ordered[1:]):
 		raise ValueError("Parallel trajectories returned different saved-time grids.")
@@ -269,12 +278,14 @@ def _validated_campaign_coordinates(
 	initial_state = initial_configuration
 	if initial_state is None:
 		raise ValueError("The initial configuration must contain an initial state.")
+	initial_x: np.ndarray
+	initial_y: np.ndarray
 	initial_x, initial_y = GCStateLayout().positions(initial_state)
 	if initial_x.size != particle_count:
 		raise ValueError(
 			"The initial configuration particle count must match the campaign."
 		)
-	coordinates = np.column_stack((initial_x, initial_y))
+	coordinates: np.ndarray = np.column_stack((initial_x, initial_y))
 	return coordinates
 
 

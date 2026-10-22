@@ -18,9 +18,6 @@ from ._validation import (
 )
 
 
-
-
-
 @dataclass(frozen=True, slots=True)
 class GCSymplecticityConfig:
 	"""Common numerical, diagnostic and persistence parameters for a GC study."""
@@ -36,15 +33,17 @@ class GCSymplecticityConfig:
 
 	def __post_init__(self) -> None:
 		"""Validate synchronized integration and observation grids."""
-		steps = _validated_area_steps(
+		steps: tuple[AreaStep, ...] = _validated_area_steps(
 			self.steps, minimum=1, label_message="GC integration-step labels must be unique.",
 		)
 		object.__setattr__(self, "steps", steps)
 
+		start: float
+		stop: float
 		start, stop = unpacked_time_span(self.t_span)
 		object.__setattr__(self, "t_span", (start, stop))
 
-		save_interval = positive_finite(self.save_interval, "save_interval")
+		save_interval: float = positive_finite(self.save_interval, "save_interval")
 		object.__setattr__(self, "save_interval", save_interval)
 		if self.rho is not None:
 			object.__setattr__(self, "rho", nonnegative_finite(self.rho, "rho"))

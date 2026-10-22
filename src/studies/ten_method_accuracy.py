@@ -7,7 +7,7 @@ from formulations.layout import GCStateLayout
 from collections.abc import Sequence
 from dataclasses import dataclass, replace
 from types import MappingProxyType
-from typing import Any, Mapping
+from typing import Any, Mapping, TYPE_CHECKING
 
 import numpy as np
 
@@ -25,6 +25,10 @@ from .ten_method_trajectory_comparison import (
 	TenMethodTrajectoryComparisonResult,
 	run_ten_method_trajectory_comparison,
 )
+
+
+if TYPE_CHECKING:
+	from typing import Literal
 
 
 @dataclass(frozen=True, slots=True)
@@ -89,7 +93,7 @@ class TenMethodAccuracyResult:
 		"""Require complete label coverage and exact sample alignment."""
 		if tuple(self.series) != TEN_METHOD_LABELS:
 			raise ValueError("Accuracy results must contain all seven variants.")
-		indices = np.array(self.reference_sample_indices, dtype=np.int64, copy=True)
+		indices: np.ndarray = np.array(self.reference_sample_indices, dtype=np.int64, copy=True)
 		comparison_times = next(iter(self.comparison.solutions.values())).t
 		_validate_accuracy_samples(indices, self.reference, comparison_times, self.series)
 		indices.setflags(write=False)
@@ -107,7 +111,7 @@ class TenMethodAccuracyResult:
 		distances = self.reference.audit_distances[
 			:, self.reference_sample_indices
 		]
-		floor = float(np.sqrt(np.mean(distances**2)))
+		floor: float = float(np.sqrt(np.mean(distances**2)))
 		if not np.isfinite(floor) or floor < 0.0:
 			raise ValueError("Reference audit floor is invalid.")
 		return floor
@@ -115,17 +119,17 @@ class TenMethodAccuracyResult:
 	def summaries(self) -> tuple[TenMethodAccuracySummary, ...]:
 		"""Return accuracy, resolution margin, and runtime in stable order."""
 		rows: list[TenMethodAccuracySummary] = []
-		period = float(self.comparison.potential.grid.period)
+		period: float = float(self.comparison.potential.grid.period)
 		times = self.times
-		duration = float(times[-1] - times[0])
-		floor = max(
+		duration: float = float(times[-1] - times[0])
+		floor: float = max(
 			self.reference_floor,
 			float(np.finfo(float).eps) * max(1.0, period),
 		)
 		for variant in TEN_METHOD_VARIANTS:
 			series = self.series[variant.label]
-			global_rms = float(np.sqrt(np.mean(series.distances**2)))
-			time_rms = float(
+			global_rms: float = float(np.sqrt(np.mean(series.distances**2)))
+			time_rms: float = float(
 				np.sqrt(np.trapz(series.rms_distance**2, times) / duration)
 			)
 			ratio = global_rms / floor
@@ -158,7 +162,7 @@ class TenMethodAccuracyRefinementResult:
 
 	def __post_init__(self) -> None:
 		"""Require coarse-to-fine steps, stable keys, and identical saved times."""
-		steps = _validated_refinement_steps(self.integration_steps)
+		steps: tuple[float, ...] = _validated_refinement_steps(self.integration_steps)
 		if tuple(self.results) != steps:
 			raise ValueError("Refinement results must follow the configured step order.")
 		_validate_accuracy_refinements(self.results, self.reference)
@@ -176,7 +180,7 @@ class TenMethodAccuracyRefinementResult:
 		indices = self.finest_result.reference_sample_indices
 		times = self.finest_result.times
 		distances = self.reference.audit_distances[:, indices]
-		particle_rms_squared = np.mean(distances**2, axis=0)
+		particle_rms_squared: np.ndarray = np.mean(distances**2, axis=0)
 		return float(
 			np.sqrt(
 				np.trapz(particle_rms_squared, times)
@@ -194,7 +198,7 @@ class TenMethodAccuracyRefinementResult:
 	def summaries(self) -> tuple[TenMethodStepAccuracySummary, ...]:
 		"""Flatten step and method metrics for notebook tables and plots."""
 		rows: list[TenMethodStepAccuracySummary] = []
-		floor = max(self.reference_floor, float(np.finfo(float).eps))
+		floor: float = max(self.reference_floor, float(np.finfo(float).eps))
 		for step in self.integration_steps:
 			for summary in self.results[step].summaries():
 				rows.append(
@@ -226,8 +230,8 @@ class TenMethodAccuracyRefinementResult:
 			for step in self.integration_steps
 			for row in self.results[step].summaries()
 		}
-		time_floor = max(self.reference_floor, float(np.finfo(float).eps))
-		final_floor = max(self.final_reference_floor, float(np.finfo(float).eps))
+		time_floor: float = max(self.reference_floor, float(np.finfo(float).eps))
+		final_floor: float = max(self.final_reference_floor, float(np.finfo(float).eps))
 		rows: list[TenMethodAccuracyOrder] = []
 		for coarse_step, fine_step in zip(
 			self.integration_steps,
@@ -246,22 +250,22 @@ class TenMethodAccuracyRefinementResult:
 					and coarse.final_rms_distance > 0.0
 				)
 				if fine.time_integrated_rms_distance > 0.0:
-					time_gain = (
+					time_gain: float = (
 						coarse.time_integrated_rms_distance
 						/ fine.time_integrated_rms_distance
 					)
 				else:
 					time_gain = float("nan")
 				if fine.final_rms_distance > 0.0:
-					final_gain = coarse.final_rms_distance / fine.final_rms_distance
+					final_gain: float = coarse.final_rms_distance / fine.final_rms_distance
 				else:
 					final_gain = float("nan")
 				if time_resolved:
-					time_order = np.log(time_gain) / np.log(step_ratio)
+					time_order: Any = np.log(time_gain) / np.log(step_ratio)
 				else:
 					time_order = float("nan")
 				if final_resolved:
-					final_order = np.log(final_gain) / np.log(step_ratio)
+					final_order: Any = np.log(final_gain) / np.log(step_ratio)
 				else:
 					final_order = float("nan")
 				rows.append(
@@ -307,16 +311,16 @@ def run_ten_method_accuracy_study(
 		potential_metadata=potential_metadata,
 		initial_condition_metadata=initial_condition_metadata,
 	)
-	comparison = run_ten_method_trajectory_comparison(
+	comparison: TenMethodTrajectoryComparisonResult = run_ten_method_trajectory_comparison(
 		potential,
 		initial_configuration,
 		config=config,
 	)
 	comparison_times = next(iter(comparison.solutions.values())).t
-	reference_indices = _reference_indices_for_times(reference, comparison_times)
+	reference_indices: np.ndarray = _reference_indices_for_times(reference, comparison_times)
 	reference_states = reference.states[:, reference_indices]
-	period = float(potential.grid.period)
-	distance_convention = _reference_distance_convention(reference)
+	period: float = float(potential.grid.period)
+	distance_convention: Literal['euclidean'] | Literal['periodic'] = _reference_distance_convention(reference)
 	series = {
 		label: _accuracy_series(
 			label,
@@ -348,10 +352,10 @@ def run_ten_method_accuracy_refinement_study(
 	"""Run all seven variants on nested steps and one main-grid-aligned cadence."""
 	if not isinstance(base_config, TenMethodTrajectoryComparisonConfig):
 		raise TypeError("`base_config` must be a TenMethodTrajectoryComparisonConfig.")
-	steps = _validated_refinement_steps(integration_steps)
+	steps: tuple[float, ...] = _validated_refinement_steps(integration_steps)
 	results: dict[float, TenMethodAccuracyResult] = {}
 	for step in steps:
-		config = replace(base_config, integration_step=step)
+		config: TenMethodTrajectoryComparisonConfig = replace(base_config, integration_step=step)
 		results[step] = run_ten_method_accuracy_study(
 			potential,
 			initial_configuration,

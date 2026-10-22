@@ -2,7 +2,7 @@
 
 from dataclasses import asdict
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Mapping, TYPE_CHECKING
 from collections.abc import Iterable
 from matplotlib.figure import Figure
 from contracts.result import DiagnosticValue
@@ -20,10 +20,15 @@ from visualization.poincare_gap_overlay import (
 )
 
 
+if TYPE_CHECKING:
+    from matplotlib.axes import Axes
+    from states.history import States
+
+
 def _saved_method(record: Mapping[str, Any], diagnostics: Mapping[str, DiagnosticValue]) -> str:
     """Check the archived method identity before labeling its trajectories."""
     method: str = record['config'].get('method', 'BM4Midpoint')
-    study = record.get('study')
+    study: Any | None = record.get('study')
     valid_study = study == 'poincare_ranked_star_rho_sweep' or (
         method == 'BM4Midpoint' and study == 'poincare_bm4midpoint_ranked_star_rho_sweep')
     if not valid_study or record.get('method', 'BM4Midpoint') != method:
@@ -88,11 +93,16 @@ def plot_initial_rho_star(prepared: PreparedRhoStar) -> Figure:
     """Show the runtime cell and radial particle IDs before cloud submission."""
     import matplotlib.pyplot as plt
     metadata = prepared.metadata
-    coords = _coordinate_metadata(metadata)
+    coords: dict[str, Any] = _coordinate_metadata(metadata)
     xy = coords['initial']
-    colors = radius_colors(len(xy))
+    colors: list[str] = radius_colors(len(xy))
+    x0: Any
+    y0: Any
+    length: Any
     x0, y0, length = coords['cell']
     center = coords['center']
+    fig: Figure
+    ax: Axes
     fig, ax = plt.subplots(figsize=(8, 7))
     for arm in range(prepared.config.arms):
         angle = prepared.config.first_angle + 2 * np.pi * arm / prepared.config.arms
@@ -111,7 +121,7 @@ def plot_initial_rho_star(prepared: PreparedRhoStar) -> Figure:
 def initial_star_table(prepared: PreparedRhoStar) -> str:
     """Tabulate IDs, arms, physical radii and runtime coordinates."""
     m = prepared.metadata
-    coords = _coordinate_metadata(m)
+    coords: dict[str, Any] = _coordinate_metadata(m)
     rows = [f"| Particle | Arm | Radius / cell radius | Radius (m) | {coords['axes'][0]} | {coords['axes'][1]} |",
             '|---:|---:|---:|---:|---:|---:|']
     for pid, arm, fraction, radius, xy in zip(m['particle_id'], m['arm_id'],
@@ -125,7 +135,7 @@ def load_available_rho_runs(destinations: Mapping[float, str]) -> dict[float, St
     runs = {}
     for rho, destination in destinations.items():
         if ArtifactStore(destination).exists('manifest.json'):
-            stored = load_solution(destination)
+            stored: StoredSolution = load_solution(destination)
             if not np.isclose(stored.metadata['config']['rho_hat'], rho, rtol=0, atol=1e-14):
                 raise ValueError('The archive rho does not match its requested label.')
             runs[rho] = stored
@@ -136,7 +146,7 @@ def load_available_rho_runs(destinations: Mapping[float, str]) -> dict[float, St
 
 def _comparable_config(record: Mapping[str, Any]) -> dict[str, Any]:
     """Treat JSON selector lists and in-memory selector tuples identically."""
-    config = asdict(rho_config_from_metadata(record))
+    config: dict[str, Any] = asdict(rho_config_from_metadata(record))
     config.pop('rho_hat')
     config['source_selection'] = tuple(config['source_selection'])
     return config
@@ -147,7 +157,11 @@ def _comparable_rho_positions(
     reference_metadata: Mapping[str, Any], expected_config: Mapping[str, Any], star_ids: np.ndarray,
 ) -> np.ndarray:
     """Validate scientific provenance, saved identities and cycle coordinates for one rho."""
+    record: dict[str, Any]
+    solution: States
     record, solution = saved.metadata, saved.solution
+    initial: Any
+    cell: Any
     initial, cell = coords['initial'], coords['cell']
     if (_saved_method(record, solution.diagnostics) != method
             or record.get('space_unit') != ('dimensionless' if coords['normalized'] else 'm')
@@ -157,6 +171,8 @@ def _comparable_rho_positions(
             or _comparable_config(record) != expected_config
             or not np.isclose(record['config']['rho_hat'], rho, rtol=0, atol=1e-14)):
         raise ValueError('Only comparable star runs from one method with the same spatial units can share this viewer.')
+    x: np.ndarray
+    y: np.ndarray
     x, y = solution.positions()
     xy: np.ndarray = np.stack((x.T, y.T), axis=-1)
     if xy.shape != (record['config']['cycles'] + 1, len(star_ids), 2) or not np.isfinite(xy).all():
@@ -192,28 +208,34 @@ def export_rho_sweep(runs: Mapping[float, StoredSolution], path: str | Path, *,
             or len(set(rho_values)) != len(rho_values)
             or not np.isfinite(rho_values).all() or np.any(np.asarray(rho_values) < 0)):
         raise ValueError('Provide completed runs labeled by unique requested rho values.')
-    rho_labels = _rho_labels(rho_values)
+    rho_labels: dict[float, str] = _rho_labels(rho_values)
     if selected_rho not in runs:
         selected_rho = next(iter(runs))
     reference = runs[selected_rho]
     m = reference.metadata
-    method = _saved_method(m, reference.solution.diagnostics)
-    ids = np.asarray(m['particle_id'], dtype=int)
-    colors = radius_colors(len(ids), colormap=colormap, color_range=color_range)
-    star_ids = ids.copy()
-    probes = None
+    method: str = _saved_method(m, reference.solution.diagnostics)
+    ids: np.ndarray = np.asarray(m['particle_id'], dtype=int)
+    colors: list[str] = radius_colors(len(ids), colormap=colormap, color_range=color_range)
+    star_ids: np.ndarray = ids.copy()
+    probes: dict[Any, Any] | None = None
     if probe_runs is not None:
         probes = gap_probe_presentation(validate_gap_probe_overlay(runs, probe_runs))
         ids = np.concatenate((star_ids, probes['particle_ids']))
         colors += probes['colors']
-    coords = _coordinate_metadata(m)
+    coords: dict[str, Any] = _coordinate_metadata(m)
+    initial: Any
+    cell: Any
     initial, cell = coords['initial'], coords['cell']
+    lower: Any
+    upper: Any
     lower, upper = cell[:2].copy(), cell[:2] + cell[2]
     coordinates = {}
-    expected_config = _comparable_config(m)
+    expected_config: dict[str, Any] = _comparable_config(m)
     for rho, saved in runs.items():
+        record: dict[str, Any]
+        solution: States
         record, solution = saved.metadata, saved.solution
-        xy = _comparable_rho_positions(
+        xy: np.ndarray = _comparable_rho_positions(
             saved, rho, method=method, coords=coords, reference_metadata=m,
             expected_config=expected_config, star_ids=star_ids,
         )
@@ -230,13 +252,13 @@ def export_rho_sweep(runs: Mapping[float, StoredSolution], path: str | Path, *,
     bounds = (float(lower[0]), float(lower[1]), span)
     if fold_to_cell:
         bounds = (0., 0., 1.)
-    view = bounds if fold_to_cell else tuple(cell)
+    view: tuple[Any, ...] = bounds if fold_to_cell else tuple(cell)
     axes = ('(R - R0) / L', '(Z - Z0) / L') if fold_to_cell else coords['axes']
     datasets = []
     for rho in rho_values:
         item: dict[str, Any] = {'key': rho_labels[rho], 'label': rho_labels[rho]}
         if rho in runs:
-            common = dict(particle_ids=ids, colors=colors)
+            common: dict[str, object] = dict(particle_ids=ids, colors=colors)
             item['panels'] = [
                 dict(common, title=('Initial star and gap probes (cycle 0)' if probes else 'Initial star (cycle 0)'),
                      coordinates=coordinates[rho][:1], static=True),
@@ -244,10 +266,10 @@ def export_rho_sweep(runs: Mapping[float, StoredSolution], path: str | Path, *,
             ]
             record = runs[rho].metadata
             if source is not None:
-                prepared = prepare_rho_star(source, rho_config_from_metadata(record))
+                prepared: PreparedRhoStar = prepare_rho_star(source, rho_config_from_metadata(record))
                 if prepared.metadata['source_sha256'] != record['source_sha256']:
                     raise ValueError('The viewer source does not match the saved field fingerprint.')
-                field = sample_rho_dynamics(prepared, grid_size=field_grid_size,
+                field: dict[Any, Any] = sample_rho_dynamics(prepared, grid_size=field_grid_size,
                                            vector_grid_size=vector_grid_size, phase_steps=phase_steps)
                 # In cell fractions q=(X-X0)/L, Hq=HX/L² and dq/dtau=vX/L.
                 if fold_to_cell:
@@ -264,7 +286,7 @@ def export_rho_sweep(runs: Mapping[float, StoredSolution], path: str | Path, *,
                             f"{record['config']['coupling_frequency']:g} · Hamiltonian: "
                             f"{record['config'].get('hamiltonian_convention', 'cycle_time')}")
         datasets.append(item)
-    selected = next(d for d in datasets if d['key'] == rho_labels[selected_rho])
+    selected: dict[str, Any] = next(d for d in datasets if d['key'] == rho_labels[selected_rho])
     labels = {int(pid): f"#{pid} · {100*fraction:.2f}% · {1000*radius:.2f} mm"
               for pid, fraction, radius in zip(star_ids, m['initial_radius_fraction'], m['initial_radii_m'])}
     groups = [dict(label=f'Arm {arm}', particle_ids=star_ids[np.asarray(m['arm_id']) == arm])

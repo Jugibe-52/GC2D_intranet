@@ -6,7 +6,7 @@ from formulations.layout import GCStateLayout
 
 from dataclasses import dataclass
 from time import perf_counter
-from typing import Any, ClassVar, Mapping
+from typing import Any, ClassVar, Mapping, TYPE_CHECKING
 
 import numpy as np
 
@@ -28,6 +28,10 @@ from .abba4_implicit_accuracy import (
 	ABBA4ImplicitAccuracyResult,
 	ABBA4ImplicitAccuracySummary,
 )
+
+
+if TYPE_CHECKING:
+	from typing import Literal
 
 
 @dataclass(frozen=True, slots=True)
@@ -80,21 +84,21 @@ def run_abba6_accuracy_study(
 		potential_metadata=potential_metadata,
 		initial_condition_metadata=initial_condition_metadata,
 	)
-	dynamics = GuidingCenterDynamics(potential, rho=config.rho)
-	problem = InitialValueProblem(dynamics, initial_configuration, layout=GCStateLayout())
+	dynamics: GuidingCenterDynamics = GuidingCenterDynamics(potential, rho=config.rho)
+	problem: InitialValueProblem = InitialValueProblem(dynamics, initial_configuration, layout=GCStateLayout())
 	solutions: dict[float, States] = {}
 	series: dict[float, TrajectoryAccuracySeries] = {}
 	runtimes: dict[float, float] = {}
 	reference_indices: np.ndarray | None = None
-	distance_convention = reference_distance_convention(reference)
+	distance_convention: Literal['euclidean'] | Literal['periodic'] = reference_distance_convention(reference)
 	for step in config.integration_steps:
-		request = SimulationRequest.uniform(
+		request: SimulationRequest = SimulationRequest.uniform(
 			t_span=config.t_span,
 			max_step=step,
 			sample_count=config.output_sample_count,
 		)
-		started = perf_counter()
-		solution = simulate(
+		started: float = perf_counter()
+		solution: States = simulate(
 			problem,
 			ABBA6Implicit(
 				newton_absolute_tolerance=config.absolute_tolerance,
@@ -107,7 +111,7 @@ def run_abba6_accuracy_study(
 		)
 		runtimes[step] = perf_counter() - started
 		solutions[step] = solution
-		indices = reference_indices_for_times(reference, solution.t)
+		indices: np.ndarray = reference_indices_for_times(reference, solution.t)
 		if reference_indices is None:
 			reference_indices = indices
 		elif not np.array_equal(indices, reference_indices):

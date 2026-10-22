@@ -290,3 +290,10 @@ are scalar JSON metadata: block consumers reserve diagnostic arrays for historie
 Moving T creates a different method; palindromy alone proves no higher order,
 and arithmetic projection need not preserve reversal or symplecticity. See
 docs/models/extended/simulation/palindromic-operations.md.
+
+## Visible result types
+
+In src/, annotate one receiving name inline and declare new unpacked names before
+assignment. Declare each name once per scope, including earlier optional values;
+keep return annotations and optional imports lazy. Use existing result types and
+NumPy/JAX distinctions. See docs/development/typing.md for scope and examples.

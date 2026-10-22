@@ -12,6 +12,9 @@ import tarfile
 import threading
 import traceback
 
+from typing import TYPE_CHECKING
+
+
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from study_io import assert_checkpoint_file, atomic_json, digest, utc_now, validate_run_id
@@ -40,7 +43,7 @@ class CheckpointStore:
         self.uploaded: set[str] = set()
 
     def restore(self) -> None:
-        pages = self.client.get_paginator('list_objects_v2').paginate(Bucket=self.bucket, Prefix=self.prefix)
+        pages: Iterable[dict[str, Any]] = self.client.get_paginator('list_objects_v2').paginate(Bucket=self.bucket, Prefix=self.prefix)
         keys = [obj['Key'] for page in pages for obj in page.get('Contents', [])]
         for key in sorted(keys):
             relative = key[len(self.prefix):]
@@ -48,13 +51,13 @@ class CheckpointStore:
                 continue
             marker = self.directory / relative
             marker.parent.mkdir(parents=True, exist_ok=True)
-            temporary = marker.with_suffix('.json.restore')
+            temporary: Path = marker.with_suffix('.json.restore')
             self.client.download_file(self.bucket, key, str(temporary))
-            record = json.loads(temporary.read_text())
-            file = marker.with_suffix('.npz')
+            record: Any = json.loads(temporary.read_text())
+            file: Path = marker.with_suffix('.npz')
             assert record['file'] == file.name
             if not file.exists() or digest(file) != record['sha256']:
-                data_tmp = file.with_suffix('.npz.restore')
+                data_tmp: Path = file.with_suffix('.npz.restore')
                 self.client.download_file(self.bucket, key[:-5] + '.npz', str(data_tmp))
                 assert digest(data_tmp) == record['sha256'], 'Remote checkpoint checksum mismatch.'
                 data_tmp.replace(file)
@@ -66,13 +69,13 @@ class CheckpointStore:
     def sync(self) -> list[int]:
         completed = [0] * 16
         for marker in sorted(self.directory.glob('worker_*/chunk_*.json')):
-            relative = marker.relative_to(self.directory).as_posix()
+            relative: str = marker.relative_to(self.directory).as_posix()
             assert re.fullmatch(r'worker_\d{2}/chunk_\d{8}\.json', relative)
-            record = json.loads(marker.read_text())
-            worker = int(marker.parent.name.split('_')[1])
+            record: Any = json.loads(marker.read_text())
+            worker: int = int(marker.parent.name.split('_')[1])
             assert 1 <= worker <= 16
             if relative not in self.uploaded:
-                file = marker.with_suffix('.npz')
+                file: Path = marker.with_suffix('.npz')
                 assert_checkpoint_file(file, record)
                 self.client.upload_file(str(file), self.bucket, self.prefix + relative[:-5] + '.npz')
                 self.client.upload_file(str(marker), self.bucket, self.prefix + relative)
@@ -82,34 +85,36 @@ class CheckpointStore:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser: argparse.ArgumentParser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--run-id', required=True)
     parser.add_argument('--bucket', required=True)
     parser.add_argument('--region', default='eu-central-1')
-    args = parser.parse_args()
+    args: argparse.Namespace = parser.parse_args()
     import boto3
     from botocore.config import Config
-    run = validate_run_id(args.run_id)
-    client = boto3.client('s3', region_name=args.region,
+    run: str = validate_run_id(args.run_id)
+    client: Any = boto3.client('s3', region_name=args.region,
                          config=Config(retries={'max_attempts':5,'mode':'standard'},
                                        connect_timeout=10, read_timeout=30))
     prefix = f'runs/{run}'
+    numeric: Any
+    figures: Any
     numeric, figures = ROOT/'resultados'/run, ROOT/'figuras'/run
     status_path = ROOT/'aws/cloud_status.json'
-    cfg = json.loads((ROOT/'experiment.json').read_text())
+    cfg: Any = json.loads((ROOT/'experiment.json').read_text())
     nsteps = cfg['cycles'] * cfg['steps_per_cycle']
     status = {'run_id':run, 'status':'running', 'started_utc':utc_now(),
               'particles':len(cfg['particle_ids']), 'workers':16, 'cycles':cfg['cycles'], 'steps_per_cycle':cfg['steps_per_cycle'], 'method':cfg['method']}
-    store = CheckpointStore(client, args.bucket, prefix, numeric/'checkpoints')
-    stopped = threading.Event()
-    sync_thread = None
+    store: CheckpointStore = CheckpointStore(client, args.bucket, prefix, numeric/'checkpoints')
+    stopped: threading.Event = threading.Event()
+    sync_thread: threading.Thread | None = None
 
     def publish_status() -> None:
         atomic_json(status_path, status)
         client.upload_file(str(status_path), args.bucket, prefix+'/cloud_status.json')
 
     def sync_progress() -> None:
-        completed = store.sync()
+        completed: list[int] = store.sync()
         progress = {'run_id':run, 'updated_utc':utc_now(), 'worker_completed_steps':completed,
                     'total_steps_per_worker':nsteps, 'minimum_completed_cycles':min(completed)/cfg['steps_per_cycle'],
                     'maximum_completed_cycles':max(completed)/cfg['steps_per_cycle'],
@@ -146,14 +151,14 @@ def main() -> None:
         stopped.set()
         sync_thread.join()
         sync_progress()
-        meta = _validate_cloud_products(numeric, figures, cfg, store, nsteps)
+        meta: dict[str, Any] = _validate_cloud_products(numeric, figures, cfg, store, nsteps)
         archive = ROOT.parent/f'{run}_results.tar.gz'
         with tarfile.open(archive,'w:gz') as tar:
             for path in (numeric, figures, ROOT/'resultados/latest_success.json'):
                 tar.add(path, arcname=str(path.relative_to(ROOT)),
                         filter=lambda member: None if 'checkpoints' in Path(member.name).parts else member)
-        checksum = digest(archive)
-        sidecar = archive.with_name(archive.name+'.sha256')
+        checksum: str = digest(archive)
+        sidecar: Path = archive.with_name(archive.name+'.sha256')
         sidecar.write_text(checksum+'  '+archive.name+'\n')
         for path in (archive,sidecar):
             client.upload_file(str(path),args.bucket,prefix+'/'+path.name)
@@ -179,7 +184,7 @@ def _validate_cloud_products(
 	"""Verify completed calculations, checksums, scientific identity, and uploaded checkpoint coverage."""
 	for directory in (numeric, figures):
 		assert json.loads((directory/'execution_status.json').read_text())['status'] == 'success'
-	manifest = json.loads((numeric/'COMPLETE.json').read_text())
+	manifest: Any = json.loads((numeric/'COMPLETE.json').read_text())
 	for name, expected in manifest['sha256'].items():
 		assert digest(numeric/name) == expected
 	meta: dict[str, Any] = json.loads((numeric/'metadata.json').read_text())

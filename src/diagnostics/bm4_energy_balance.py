@@ -5,6 +5,12 @@ from contracts.observation import ImplicitBM4IntegrationStep, IntegrationStep
 from dynamics import GuidingCenterDynamics
 from .energy.observer import _bm4_stage_kappa_increment
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from contracts.observation import IntegrationStage
+    from typing import Any
+
 
 class BM4EnergyBalanceObserver:
     """Reuse accepted-stage energy reconstruction independently for each particle.
@@ -38,22 +44,22 @@ class BM4EnergyBalanceObserver:
             indices = [p, n + p, 2*n + p, 3*n + p]
             for stage in record.base_stages:
                 # The scalar reconstruction reads only stage snapshots and times.
-                scalar_stage = replace(stage, state_before=stage.state_before[indices],
+                scalar_stage: IntegrationStage = replace(stage, state_before=stage.state_before[indices],
                                        state_after=stage.state_after[indices])
                 self.kappa[p] += _bm4_stage_kappa_increment(
                     scalar_stage, self.dynamics, coupling_frequency=record.coupling_frequency)
-        mu = np.max(np.abs(record.multiplier.reshape(2, n)), axis=0)
+        mu: np.ndarray = np.max(np.abs(record.multiplier.reshape(2, n)), axis=0)
         np.testing.assert_allclose(np.max(mu), record.projection_multiplier_norm)
         self.block.append(mu)
         self.step_count += 1
         if self.step_count % self.stride == 0:
-            values = np.asarray(self.block)
+            values: np.ndarray = np.asarray(self.block)
             self.momenta.append(self.kappa.copy())
             self.mu_endpoint.append(mu.copy())
             self.mu_max.append(values.max(axis=0))
             self.mu_rms.append(np.sqrt(np.mean(values**2, axis=0)))
             self.mu_mean.append(values.mean(axis=0))
-            global_norm = values.max(axis=1)
+            global_norm: np.ndarray = values.max(axis=1)
             self.global_statistics.append(np.array([global_norm[-1], global_norm.max(),
                                                     np.sqrt(np.mean(global_norm**2)), global_norm.mean()]))
             self.block.clear()

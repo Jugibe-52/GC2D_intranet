@@ -114,3 +114,10 @@ See [the migration guide](../../docs/models/extended/simulation/uncoupled-bm4.md
 ## Explicit palindromic operations
 
 All ABBA/BM4 presets inherit PalindromicMethod. Composition stores explicit A/B/T/C operations with signed full-step coefficients; only T advances the clock. Generic PalindromicImplicit and PalindromicMidpoint accept validated recipes for experiments. Existing presets keep their maps, grouped observations and solver controls. Generic C requires an explicit operation and HarmonicCoupling; BM4 stays uncoupled. See [the operation architecture](../../docs/models/extended/simulation/palindromic-operations.md).
+
+## Preparation result types
+
+Source result assignments follow the [typing convention](../../docs/development/typing.md).
+The JAX preparation boundary returns the prepared `HamiltonianSystem` and a
+`jax.Device`; device resolution returns the same device type. Type-only imports
+preserve optional JAX loading and existing execution behavior.

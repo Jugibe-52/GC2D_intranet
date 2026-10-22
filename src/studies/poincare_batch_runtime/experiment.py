@@ -1,6 +1,6 @@
 """Compose a reproducible fixed-grid Poincare experiment from frozen source."""
 
-from typing import Any
+from typing import Any, TYPE_CHECKING
 from pathlib import Path
 import importlib.metadata
 import json
@@ -12,21 +12,43 @@ from study_io import ROOT, digest, load_snapshot, begin_calculation, publish_cal
 from parallel_calculation import simulate_parallel
 
 
+if TYPE_CHECKING:
+	from parallel_calculation import ParallelSolution
+	from potential.potential import Potential
+
+
 def compute_and_save(parameters: dict[str, Any], run_id: str, validation_run: bool = False) -> Path:
     """Integrate only the requested original particle IDs and commit all products."""
-    p = dict(parameters)
-    cfg = json.loads((ROOT / 'experiment.json').read_text())
+    p: dict[str, Any] = dict(parameters)
+    cfg: Any = json.loads((ROOT / 'experiment.json').read_text())
     if not validation_run:
         for key in ('method', 'particle_ids', 'cycles', 'steps_per_cycle', 'process_count', 'checkpoint_steps'):
             assert p[key] == cfg[key], f'Notebook/deployment mismatch: {key}'
+    potential: Potential
+    provenance: dict[str, Any]
+    snapshot: str
     potential, provenance, snapshot = load_snapshot()
     from dynamics import GuidingCenterDynamics
-    source = json.loads((ROOT / 'assets' / 'original_particles.json').read_text())
+    source: Any = json.loads((ROOT / 'assets' / 'original_particles.json').read_text())
+    ids: np.ndarray
+    xy0: np.ndarray
+    colors: np.ndarray
+    hexcolors: list[str]
+    radii: np.ndarray
     ids, xy0, colors, hexcolors, radii = _validated_original_particles(p, source)
+    n: int
+    cycles: Any
+    spc: Any
+    workers: Any
     n, cycles, spc, workers = len(ids), p['cycles'], p['steps_per_cycle'], p['process_count']
+    implicit: bool
+    steps: int
+    h: float
+    t0: float
+    tf: float
     implicit, steps, h, t0, tf = _validated_experiment_schedule(p, potential, n, cycles, spc, workers)
-    field = GuidingCenterDynamics(potential, rho=p['rho'])
-    initial_state = np.concatenate((xy0[:, 0], xy0[:, 1]))
+    field: GuidingCenterDynamics = GuidingCenterDynamics(potential, rho=p['rho'])
+    initial_state: np.ndarray = np.concatenate((xy0[:, 0], xy0[:, 1]))
     for phase in (0, .173, .637):
         np.testing.assert_allclose(field.vector_field(phase, initial_state),
                                    field.vector_field(phase+1, initial_state), rtol=1e-12, atol=1e-12)
@@ -36,7 +58,7 @@ def compute_and_save(parameters: dict[str, Any], run_id: str, validation_run: bo
               'versions':versions, 'validation_run':validation_run, 'reference_computed':False,
               'original_particles_sha256':digest(ROOT/'assets/original_particles.json')}
     output: Path = begin_calculation(run_id, params)
-    settings = dict(rho=p['rho'], coupling_frequency=p['coupling_frequency'],
+    settings: dict[str, Any] = dict(rho=p['rho'], coupling_frequency=p['coupling_frequency'],
                     newton_atol=p['newton_atol'], newton_rtol=p['newton_rtol'],
                     newton_max_iterations=p['newton_max_iterations'],
                     jacobian_relative_step=p['jacobian_relative_step'], t_span=[t0,tf],
@@ -44,16 +66,20 @@ def compute_and_save(parameters: dict[str, Any], run_id: str, validation_run: bo
                     record_newton_history=implicit, checkpoint_steps=p['checkpoint_steps'],
                     checkpoint_directory=str(output/'checkpoints'),
                     test_stop_after_chunks=int(os.environ.get('POINCARE_TEST_STOP_AFTER_CHUNKS','0')) if validation_run else 0)
-    solution = simulate_parallel(xy0, settings, processes=workers)
+    solution: ParallelSolution = simulate_parallel(xy0, settings, processes=workers)
+    states: Any
+    times: Any
     states, times = solution.states, solution.t
+    cycle_xy: np.ndarray
+    cycle_times: np.ndarray
     cycle_xy, cycle_times = _validated_cycle_samples(states, times, initial_state, n, steps, spc, cycles)
     L = potential.grid.period
-    origin = np.array([potential.grid.xmin, potential.grid.ymin])
+    origin: np.ndarray = np.array([potential.grid.xmin, potential.grid.ymin])
     wrapped = (cycle_xy-origin) % L + origin
     time_scale = provenance['characteristic_period_s']
     length_scale = provenance['characteristic_length_m'] / (2*np.pi)
     physical = wrapped*length_scale + np.array(provenance['source_origin_m'])
-    tables = pd.DataFrame({'cycle':np.repeat(np.arange(cycles+1),n),
+    tables: Any = pd.DataFrame({'cycle':np.repeat(np.arange(cycles+1),n),
         'time_normalized':np.repeat(cycle_times,n),'time_s':np.repeat(cycle_times*time_scale,n),
         'particle':np.tile(ids,cycles+1),'color':np.tile(hexcolors,cycles+1),
         'initial_radius_over_L':np.tile(radii,cycles+1),
@@ -61,7 +87,7 @@ def compute_and_save(parameters: dict[str, Any], run_id: str, validation_run: bo
         'x_wrapped':wrapped[:,:,0].ravel(),'y_wrapped':wrapped[:,:,1].ravel(),
         'x_over_L':wrapped[:,:,0].ravel()/L,'y_over_L':wrapped[:,:,1].ravel()/L,
         'R_wrapped_m':physical[:,:,0].ravel(),'Z_wrapped_m':physical[:,:,1].ravel()})
-    arrays = dict(times=times,states=states,cycle_times=cycle_times,cycle_positions=cycle_xy,
+    arrays: dict[str, Any] = dict(times=times,states=states,cycle_times=cycle_times,cycle_positions=cycle_xy,
                   cycle_positions_wrapped=wrapped, initial_positions=xy0,particle_ids=ids,
                   colors_rgba=colors, colors_hex=np.array(hexcolors))
     diag = solution.diagnostics
@@ -107,14 +133,14 @@ def _validated_original_particles(
 	p: dict[str, Any], source: dict[str, Any],
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, list[str], np.ndarray]:
 	"""Resolve original particle identities, coordinates, colors, and radial order."""
-	ids = np.asarray(p['particle_ids'], dtype=int)
+	ids: np.ndarray = np.asarray(p['particle_ids'], dtype=int)
 	assert len(set(ids)) == len(ids) and np.all(np.diff(ids) > 0)
 	original = {r['particle']: r for r in source['particles']}
 	selected = [original[int(i)] for i in ids]
-	xy0 = np.array([[r['x'], r['y']] for r in selected])
-	colors = np.array([r['rgba'] for r in selected])
+	xy0: np.ndarray = np.array([[r['x'], r['y']] for r in selected])
+	colors: np.ndarray = np.array([r['rgba'] for r in selected])
 	hexcolors = [r['color'] for r in selected]
-	radii = np.array([r['radius_over_L'] for r in selected])
+	radii: np.ndarray = np.array([r['radius_over_L'] for r in selected])
 	assert len(set(hexcolors)) == len(ids)
 	assert p['radial_angle_rad'] == source['radial_angle_rad'] == 0.0
 	np.testing.assert_array_equal(radii, np.asarray(p['radial_fractions']))
@@ -130,6 +156,8 @@ def _validated_experiment_schedule(
 	assert p['method'] in ('BM4Implicit','BM4Midpoint','RK4')
 	steps = cycles * spc
 	h = p['cycle_duration'] / spc
+	t0: Any
+	tf: Any
 	t0, tf = p['t0'], p['t0'] + cycles * p['cycle_duration']
 	assert t0 == 0 and p['cycle_duration'] == 1
 	np.testing.assert_allclose(potential.frequencies * p['cycle_duration'], [1.], rtol=0, atol=1e-14)
@@ -143,7 +171,7 @@ def _validated_cycle_samples(
 	"""Require finite complete histories and the original cycle grid before creating products."""
 	assert states.shape == (2*n, steps+1) and np.isfinite(states).all()
 	np.testing.assert_array_equal(states[:, 0], initial_state)
-	cycle_xy = np.stack((states[:n, ::spc].T, states[n:, ::spc].T), axis=-1)
+	cycle_xy: np.ndarray = np.stack((states[:n, ::spc].T, states[n:, ::spc].T), axis=-1)
 	cycle_times = times[::spc]
 	np.testing.assert_allclose(cycle_times, np.arange(cycles+1), rtol=0, atol=1e-12)
 	return cycle_xy, cycle_times

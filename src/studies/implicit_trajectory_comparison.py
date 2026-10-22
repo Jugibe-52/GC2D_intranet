@@ -34,6 +34,7 @@ from request import SimulationRequest
 from states.history import States
 from simulation.runner import simulate
 
+from typing import TYPE_CHECKING
 
 
 IMPLICIT_METHOD_NAMES: tuple[str, ...] = (
@@ -187,11 +188,15 @@ class ImplicitTrajectoryComparisonResult:
 		rows: list[ImplicitTrajectoryDifferenceSummary] = []
 		period = self.potential.grid.period
 		for first_method, second_method in combinations(IMPLICIT_METHOD_NAMES, 2):
+			first_x: np.ndarray
+			first_y: np.ndarray
 			first_x, first_y = self.solutions[first_method].positions()
+			second_x: np.ndarray
+			second_y: np.ndarray
 			second_x, second_y = self.solutions[second_method].positions()
-			delta_x = minimum_image_displacement(first_x - second_x, period)
-			delta_y = minimum_image_displacement(first_y - second_y, period)
-			distances = np.hypot(delta_x, delta_y)
+			delta_x: np.ndarray = minimum_image_displacement(first_x - second_x, period)
+			delta_y: np.ndarray = minimum_image_displacement(first_y - second_y, period)
+			distances: np.ndarray = np.hypot(delta_x, delta_y)
 			rows.append(
 				ImplicitTrajectoryDifferenceSummary(
 					first_method=first_method,
@@ -211,16 +216,16 @@ class ImplicitTrajectoryComparisonResult:
 		rows: list[ImplicitIterationSummary] = []
 		for method_name in IMPLICIT_METHOD_NAMES:
 			solution = self.solutions[method_name]
-			iterations = np.asarray(
+			iterations: np.ndarray = np.asarray(
 				solution.diagnostics["nonlinear_iterations"], dtype=int
 			)
-			residual_evaluations = np.asarray(
+			residual_evaluations: np.ndarray = np.asarray(
 				solution.diagnostics["residual_evaluations"], dtype=int
 			)
-			residuals = np.asarray(
+			residuals: np.ndarray = np.asarray(
 				solution.diagnostics["nonlinear_residual_norms"], dtype=float
 			)
-			tolerances = np.asarray(
+			tolerances: np.ndarray = np.asarray(
 				solution.diagnostics["nonlinear_tolerances"], dtype=float
 			)
 			expected_shape = (self.config.step_count,)
@@ -272,9 +277,9 @@ def run_implicit_trajectory_comparison(
 	if not isinstance(config, ImplicitTrajectoryComparisonConfig):
 		raise TypeError("`config` must be an ImplicitTrajectoryComparisonConfig.")
 
-	dynamics = GuidingCenterDynamics(potential, rho=config.rho)
-	problem = InitialValueProblem(dynamics, initial_configuration)
-	request = SimulationRequest.uniform(
+	dynamics: GuidingCenterDynamics = GuidingCenterDynamics(potential, rho=config.rho)
+	problem: InitialValueProblem = InitialValueProblem(dynamics, initial_configuration)
+	request: SimulationRequest = SimulationRequest.uniform(
 		t_span=config.t_span,
 		max_step=config.integration_step,
 		sample_count=config.output_sample_count,
@@ -308,7 +313,7 @@ def run_implicit_trajectory_comparison(
 	solutions: dict[str, States] = {}
 	runtimes: dict[str, float] = {}
 	for method_name, method in zip(IMPLICIT_METHOD_NAMES, methods, strict=True):
-		started = perf_counter()
+		started: float = perf_counter()
 		solutions[method_name] = simulate(problem, method, request)
 		runtimes[method_name] = perf_counter() - started
 
@@ -337,12 +342,12 @@ def _validated_implicit_comparison_entry(
 		raise ValueError("Every method must use the configured common step.")
 	if solution.diagnostics.get("nonlinear_solver") != config.nonlinear_solver:
 		raise ValueError("Every method must use the configured nonlinear solver.")
-	candidate_times = np.asarray(solution.t, dtype=float)
+	candidate_times: np.ndarray = np.asarray(solution.t, dtype=float)
 	if reference_times is None:
 		reference_times = candidate_times
 	elif not np.array_equal(candidate_times, reference_times):
 		raise ValueError("All implicit solutions must share the saved-time grid.")
-	seconds = float(runtimes[method_name])
+	seconds: float = float(runtimes[method_name])
 	if not np.isfinite(seconds) or seconds <= 0.0:
 		raise ValueError("Every method runtime must be positive and finite.")
 	return reference_times

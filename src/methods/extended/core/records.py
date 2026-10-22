@@ -102,7 +102,7 @@ class ProjectedMapResult:
 def step_statistics(result: ProjectedMapResult, *, include_substeps: bool) -> dict[str, np.ndarray | float | int]:
 	"""Extract the single outer solve's metrics without building observer events."""
 	stats = result.stats
-	multiplier_norm = float(np.linalg.norm(result.multiplier, ord=np.inf))
+	multiplier_norm: float = float(np.linalg.norm(result.multiplier, ord=np.inf))
 	metrics: dict[str, np.ndarray | float | int] = {
 		"nonlinear_iterations": stats.iterations,
 		"residual_evaluations": stats.residual_evaluations,

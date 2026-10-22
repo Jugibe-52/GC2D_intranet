@@ -10,12 +10,17 @@ import numpy as np
 
 from diagnostics import ImplicitABBAReversibilitySample
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+	from typing import Any
+
 
 def _validated_samples(
 	samples: Sequence[ImplicitABBAReversibilitySample],
 ) -> tuple[ImplicitABBAReversibilitySample, ...]:
 	"""Return a non-empty, time-ordered sequence of comparison samples."""
-	values = tuple(samples)
+	values: tuple[ImplicitABBAReversibilitySample, ...] = tuple(samples)
 	if not values:
 		raise ValueError("At least one implicit ABBA reversibility sample is required.")
 	if any(
@@ -33,9 +38,11 @@ def plot_implicit_abba_reversibility_diagnostics(
 	samples: Sequence[ImplicitABBAReversibilitySample],
 ) -> tuple[Figure, np.ndarray]:
 	"""Plot matrix reversibility and normalized proposed-increment closure."""
-	values = _validated_samples(samples)
-	times = np.asarray([item.end_time for item in values])
+	values: tuple[ImplicitABBAReversibilitySample, ...] = _validated_samples(samples)
+	times: np.ndarray = np.asarray([item.end_time for item in values])
 	method_name = values[0].method_name
+	figure: Figure
+	axes: np.ndarray
 	figure, axes = plt.subplots(2, 1, figsize=(11, 7), constrained_layout=True)
 
 	axes[0].semilogy(
@@ -77,18 +84,20 @@ def plot_implicit_abba_transport_components(
 	particle_index: int = 0,
 ) -> tuple[Figure, np.ndarray]:
 	"""Compare action and signed-increment components for one planar particle."""
-	values = _validated_samples(samples)
+	values: tuple[ImplicitABBAReversibilitySample, ...] = _validated_samples(samples)
 	if isinstance(particle_index, (bool, np.bool_)) or not isinstance(
 		particle_index,
 		(int, np.integer),
 	):
 		raise TypeError("`particle_index` must be an integer.")
 	particle_count = values[0].state_before.size // 2
-	index = int(particle_index)
+	index: int = int(particle_index)
 	if not 0 <= index < particle_count:
 		raise IndexError("`particle_index` is outside the observed particle range.")
 	indices = (index, particle_count + index)
-	times = np.asarray([item.end_time for item in values])
+	times: np.ndarray = np.asarray([item.end_time for item in values])
+	figure: Figure
+	axes: np.ndarray
 	figure, axes = plt.subplots(1, 2, figsize=(13, 4), constrained_layout=True)
 	component_labels = ("x", "y")
 	for column, (component, label) in enumerate(zip(indices, component_labels, strict=True)):

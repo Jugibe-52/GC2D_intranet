@@ -36,8 +36,7 @@ from diagnostics.symplecticity import (
 	GCAreaSymplecticityRecord,
 )
 
-
-
+from typing import TYPE_CHECKING
 
 
 @dataclass(frozen=True, slots=True)
@@ -58,7 +57,7 @@ def _validated_area_steps(
 	values: tuple[AreaStep, ...], *, minimum: int, label_message: str,
 ) -> tuple[AreaStep, ...]:
 	"""Return typed steps with stable, unique labels for area diagnostics."""
-	steps = tuple(values)
+	steps: tuple[AreaStep, ...] = tuple(values)
 	if len(steps) < minimum or any(not isinstance(step, AreaStep) for step in steps):
 		message = (
 			"`steps` must contain at least two AreaStep values."
@@ -76,7 +75,7 @@ def pi_area_steps(*denominators: int) -> tuple[AreaStep, ...]:
 		raise ValueError("At least two step denominators are required.")
 	steps: list[AreaStep] = []
 	for denominator in denominators:
-		value = positive_integer(denominator, "denominator")
+		value: int = positive_integer(denominator, "denominator")
 		steps.append(
 			AreaStep(
 				label=rf"$\Delta t=\pi/{value}$",
@@ -106,15 +105,17 @@ class AreaComparisonConfig:
 	def __post_init__(self) -> None:
 		"""Validate synchronized step, output and diagnostic grids."""
 		require_uncoupled_bm4(self.coupling_frequency)
-		steps = _validated_area_steps(
+		steps: tuple[AreaStep, ...] = _validated_area_steps(
 			self.steps, minimum=2, label_message="Area-step labels must be unique.",
 		)
 		object.__setattr__(self, "steps", steps)
 
+		start: float
+		stop: float
 		start, stop = unpacked_time_span(self.t_span)
 		object.__setattr__(self, "t_span", (start, stop))
 
-		save_interval = positive_finite(self.save_interval, "save_interval")
+		save_interval: float = positive_finite(self.save_interval, "save_interval")
 		object.__setattr__(self, "save_interval", save_interval)
 		if self.rho is not None:
 			object.__setattr__(self, "rho", nonnegative_finite(self.rho, "rho"))
@@ -126,7 +127,7 @@ class AreaComparisonConfig:
 				f"save_interval / step for {step.label}",
 			)
 
-		frequency = float(self.coupling_frequency)
+		frequency: float = float(self.coupling_frequency)
 		if not np.isfinite(frequency) or frequency < 0:
 			raise ValueError("`coupling_frequency` must be finite and non-negative.")
 		object.__setattr__(self, "coupling_frequency", frequency)
@@ -265,9 +266,9 @@ def run_area_comparison(
 	if not isinstance(config, AreaComparisonConfig):
 		raise TypeError("`config` must be an AreaComparisonConfig instance.")
 
-	rho = resolve_rho(config.rho)
-	dynamics = GuidingCenterDynamics(potential, rho=rho)
-	problem = InitialValueProblem(dynamics, area, layout=GCStateLayout())
+	rho: float = resolve_rho(config.rho)
+	dynamics: GuidingCenterDynamics = GuidingCenterDynamics(potential, rho=rho)
+	problem: InitialValueProblem = InitialValueProblem(dynamics, area, layout=GCStateLayout())
 	initial_state = area
 	assert initial_state is not None
 	solutions: dict[str, States] = {}
@@ -285,12 +286,12 @@ def run_area_comparison(
 		"rho": rho,
 	}
 	for step in config.steps:
-		record_every = integer_ratio(
+		record_every: int = integer_ratio(
 			config.save_interval,
 			step.value,
 			f"save_interval / step for {step.label}",
 		)
-		step_tag = f"{step.value:.8f}".replace(".", "p")
+		step_tag: str = f"{step.value:.8f}".replace(".", "p")
 		with GCAreaSymplecticityObserver(
 			notebook_path=notebook_path,
 			area=area,
@@ -306,12 +307,12 @@ def run_area_comparison(
 				"integration_step": step.value,
 			},
 		) as observer:
-			request = SimulationRequest.uniform(
+			request: SimulationRequest = SimulationRequest.uniform(
 				t_span=config.t_span,
 				max_step=step.value,
 				sample_count=config.output_sample_count,
 			)
-			method = BM4Implicit(
+			method: BM4Implicit = BM4Implicit(
 				newton_absolute_tolerance=config.newton_absolute_tolerance,
 				newton_relative_tolerance=config.newton_relative_tolerance,
 				newton_max_iterations=config.newton_max_iterations,
@@ -323,7 +324,7 @@ def run_area_comparison(
 				progress=config.progress,
 				step_observer=observer,
 			)
-			solution = simulate(problem, method, request)
+			solution: States = simulate(problem, method, request)
 		solutions[step.label] = solution
 		records_by_label[step.label] = observer.records
 		output_directories[step.label] = observer.output_directory

@@ -13,8 +13,8 @@ import numpy as np
 
 def _selector_arrays(positions: Any, particle_ids: Any, colors: Any) -> tuple[np.ndarray, np.ndarray, list[str]]:
     """Prepare finite unit-cell returns, integer identities and hexadecimal colors."""
-    xy = np.asarray(positions, dtype='<f8')
-    ids = np.asarray(particle_ids)
+    xy: np.ndarray = np.asarray(positions, dtype='<f8')
+    ids: np.ndarray = np.asarray(particle_ids)
     colors = list(colors)
     if xy.ndim != 3 or xy.shape[2] != 2 or not xy.shape[0]:
         raise ValueError('Expected nonempty (returns, particles, 2) coordinates.')
@@ -37,15 +37,17 @@ def export_poincare_selector(path: str | Path, positions: ArrayLike,
     normalized into [0, 1]. Every saved return is embedded as float64; no
     trajectory integration or point subsampling occurs in this function.
     """
+    xy: np.ndarray
+    ids: np.ndarray
     xy, ids, colors = _selector_arrays(positions, particle_ids, colors)
     # Particle-major order permits drawing selected particles without scanning others.
-    packed = np.ascontiguousarray(xy.transpose(1, 0, 2), dtype='<f8')
-    payload = dict(ids=ids.tolist(), colors=colors, returns=xy.shape[0],
+    packed: np.ndarray = np.ascontiguousarray(xy.transpose(1, 0, 2), dtype='<f8')
+    payload: dict[str, Any] = dict(ids=ids.tolist(), colors=colors, returns=xy.shape[0],
                    title=str(title), subtitle=str(subtitle),
                    coordinates=base64.b64encode(packed.tobytes()).decode('ascii'))
-    serialized = json.dumps(payload).replace('<', '\\u003c')
-    template = Path(__file__).with_name('_poincare_selector.html').read_text()
-    destination = Path(path)
+    serialized: str = json.dumps(payload).replace('<', '\\u003c')
+    template: str = Path(__file__).with_name('_poincare_selector.html').read_text()
+    destination: Path = Path(path)
     destination.parent.mkdir(parents=True, exist_ok=True)
     destination.write_text(template.replace('__POINCARE_DATA__', serialized), encoding='utf-8')
     return destination

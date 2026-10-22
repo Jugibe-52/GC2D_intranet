@@ -17,10 +17,15 @@ from contracts.observation import (
 )
 from formulations.gc import gc_coupling_matrix
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+	from typing import Any
+
 
 def _scalar_value(value: np.ndarray, name: str) -> float:
 	"""Return the unique finite scalar produced by a one-particle evaluation."""
-	array = np.asarray(value, dtype=float)
+	array: np.ndarray = np.asarray(value, dtype=float)
 	if array.size != 1 or not np.all(np.isfinite(array)):
 		raise ValueError(f"The one-particle {name} must be one finite scalar.")
 	return float(array.reshape(-1)[0])
@@ -59,7 +64,7 @@ def _abba_kappa_increment(
 
 def _split_doubled_state(state: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
 	"""Split one duplicated one-particle GC state into its two physical copies."""
-	value = np.asarray(state, dtype=float)
+	value: np.ndarray = np.asarray(state, dtype=float)
 	if value.shape != (4,) or not np.all(np.isfinite(value)):
 		raise ValueError("A one-particle doubled GC state must have shape (4,).")
 	return value[:2], value[2:]
@@ -72,6 +77,8 @@ def _bm4_stage_kappa_increment(
 	coupling_frequency: float,
 ) -> float:
 	"""Reconstruct ``Delta kappa`` for one direct or adjoint BM4 stage."""
+	first: np.ndarray
+	second: np.ndarray
 	first, second = _split_doubled_state(stage.state_before)
 	duration = stage.duration
 	time = stage.time
@@ -85,6 +92,8 @@ def _bm4_stage_kappa_increment(
 		blocks = gc_coupling_matrix(duration, coupling_frequency) @ np.concatenate(
 			(first, second)
 		)
+		coupled_first: Any
+		coupled_second: Any
 		coupled_first, coupled_second = blocks[:2], blocks[2:]
 		first_after = coupled_first + duration * dynamics.vector_field(
 			time,
@@ -162,13 +171,13 @@ class GCGeneralizedEnergyObserver:
 		"""Initialize the normalized conjugate momentum with ``kappa(0)=0``."""
 		if not isinstance(dynamics, GuidingCenterDynamics):
 			raise TypeError("`dynamics` must be GuidingCenterDynamics.")
-		state = np.asarray(initial_state, dtype=float)
+		state: np.ndarray = np.asarray(initial_state, dtype=float)
 		if state.shape != (2,) or not np.all(np.isfinite(state)):
 			raise ValueError("Energy reconstruction requires one finite planar state.")
-		time = float(initial_time)
+		time: float = float(initial_time)
 		if not np.isfinite(time):
 			raise ValueError("`initial_time` must be finite.")
-		hamiltonian = _scalar_value(
+		hamiltonian: float = _scalar_value(
 			dynamics.hamiltonian(time, state),
 			"Hamiltonian",
 		)
@@ -222,7 +231,7 @@ class GCGeneralizedEnergyObserver:
 		self._validate_next_record(record)
 
 		self._kappa += _kappa_increment(record, self._dynamics)
-		hamiltonian = _scalar_value(
+		hamiltonian: float = _scalar_value(
 			self._dynamics.hamiltonian(record.time, record.state_after),
 			"Hamiltonian",
 		)

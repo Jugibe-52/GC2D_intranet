@@ -15,8 +15,12 @@ from formulations.layout import FCState, FCStateLayout
 
 from typing import TYPE_CHECKING
 
+
 if TYPE_CHECKING:
 	from contracts.problem import InitialValueProblem
+	from typing import Any
+
+
 from formulations.base import _updated_momentum
 from formulations.base import PreparedDirectAdjointFormulation, Projection
 
@@ -29,7 +33,7 @@ class _FCExtendedState:
 	momentum: np.ndarray | None = None
 
 	def pack(self) -> np.ndarray:
-		physical = FCStateLayout.pack_components(*self.physical)
+		physical: np.ndarray = FCStateLayout.pack_components(*self.physical)
 		return self.pack_array(physical)
 
 	def pack_array(self, physical: np.ndarray) -> np.ndarray:
@@ -64,7 +68,7 @@ class _PreparedFC:
 		)
 		if value.ndim == 0 or value.shape[0] != expected:
 			raise ValueError("The FC split map changed the internal state shape.")
-		physical = FCState(*self.layout.split(value[: self.physical_size]))
+		physical: FCState = FCState(*self.layout.split(value[: self.physical_size]))
 		momentum = value[self.physical_size :] if self.track_energy else None
 		return _FCExtendedState(physical=physical, momentum=momentum)
 
@@ -72,7 +76,9 @@ class _PreparedFC:
 		"""Advance the exactly solvable field-free cyclotron subflow."""
 		# Multiplication by the precomputed frequency preserves the established
 		# floating-point path as well as the analytical rotation.
-		rotation = np.exp(-1j * duration * self.dynamics.larmor_frequency)
+		rotation: Any = np.exp(-1j * duration * self.dynamics.larmor_frequency)
+		x: np.ndarray
+		y: np.ndarray
 		x, y = _real_imaginary(
 			state.x
 			+ 1j * state.y
@@ -82,6 +88,8 @@ class _PreparedFC:
 			* (rotation - 1)
 			* (state.vx + 1j * state.vy)
 		)
+		vx: np.ndarray
+		vy: np.ndarray
 		vx, vy = _real_imaginary(rotation * (state.vx + 1j * state.vy))
 		return FCState(x, y, vx, vy)
 
@@ -92,8 +100,10 @@ class _PreparedFC:
 		state: np.ndarray,
 	) -> np.ndarray:
 		"""Apply exact cyclotron motion followed by an electric kick."""
-		current = self._unpack(state)
-		physical = self._cyclotron_step(current.physical, duration)
+		current: _FCExtendedState = self._unpack(state)
+		physical: FCState = self._cyclotron_step(current.physical, duration)
+		acceleration_x: Any
+		acceleration_y: Any
 		acceleration_x, acceleration_y = self.dynamics.electric_acceleration(
 			t,
 			physical.x,
@@ -105,8 +115,8 @@ class _PreparedFC:
 			physical.vx + duration * acceleration_x,
 			physical.vy + duration * acceleration_y,
 		)
-		physical_array = FCStateLayout.pack_components(*physical)
-		momentum = _updated_momentum(
+		physical_array: np.ndarray = FCStateLayout.pack_components(*physical)
+		momentum: np.ndarray | None = _updated_momentum(
 			self.dynamics,
 			current.momentum,
 			duration,
@@ -122,21 +132,23 @@ class _PreparedFC:
 		state: np.ndarray,
 	) -> np.ndarray:
 		"""Apply an electric kick followed by exact cyclotron motion."""
-		current = self._unpack(state)
+		current: _FCExtendedState = self._unpack(state)
+		acceleration_x: Any
+		acceleration_y: Any
 		acceleration_x, acceleration_y = self.dynamics.electric_acceleration(
 			t,
 			current.physical.x,
 			current.physical.y,
 		)
-		physical = FCState(
+		physical: FCState = FCState(
 			current.physical.x,
 			current.physical.y,
 			current.physical.vx + duration * acceleration_x,
 			current.physical.vy + duration * acceleration_y,
 		)
-		momentum = current.momentum
+		momentum: np.ndarray | None = current.momentum
 		if momentum is not None:
-			pre_cyclotron = FCStateLayout.pack_components(*physical)
+			pre_cyclotron: np.ndarray = FCStateLayout.pack_components(*physical)
 			momentum = _updated_momentum(
 				self.dynamics,
 				momentum,
@@ -149,8 +161,8 @@ class _PreparedFC:
 
 	def project(self, internal_history: np.ndarray) -> Projection:
 		"""Strip optional extended momentum from the physical FC history."""
-		final_state = self._unpack(internal_history)
-		states = FCStateLayout.pack_components(*final_state.physical)
+		final_state: _FCExtendedState = self._unpack(internal_history)
+		states: np.ndarray = FCStateLayout.pack_components(*final_state.physical)
 		diagnostics: dict[str, np.ndarray | float | int | str | bool] = {}
 		if final_state.momentum is not None:
 			diagnostics["extended_momentum"] = final_state.momentum
@@ -182,11 +194,11 @@ class FCSplitFormulation:
 			raise TypeError("Energy tracking requires HamiltonianSystem.")
 		physical = problem.initial_state
 		particle_count = problem.particle_count
-		initial = _FCExtendedState(
+		initial: _FCExtendedState = _FCExtendedState(
 			physical=FCState(*layout.split(physical)),
 			momentum=np.zeros(particle_count) if track_energy else None,
 		)
-		initial_internal_state = initial.pack()
+		initial_internal_state: np.ndarray = initial.pack()
 		initial_internal_state.setflags(write=False)
 		return _PreparedFC(
 			dynamics=problem.dynamics,

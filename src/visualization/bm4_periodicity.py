@@ -5,6 +5,11 @@ import numpy as np
 from matplotlib.figure import Figure
 from contracts.study_results import ParallelBM4RecurrenceResult
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from typing import Any
+
 
 def plot_bm4_periodicity(result: ParallelBM4RecurrenceResult, *, period: float, particle_number: int,
                          threshold_fraction: float, candidate_cycle: int) -> Figure:
@@ -13,7 +18,9 @@ def plot_bm4_periodicity(result: ParallelBM4RecurrenceResult, *, period: float, 
     stride = result.config.saved_samples_per_cycle
     cycle_times = result.times[stride::stride]
     delta = (states - states[:, :1] + period / 2) % period - period / 2
-    distances = np.linalg.norm(delta, axis=0)
+    distances: np.ndarray = np.linalg.norm(delta, axis=0)
+    figure: Figure
+    axes: np.ndarray
     figure, axes = plt.subplots(1, 2, figsize=(12, 4.5), constrained_layout=True)
     axes[0].semilogy(cycle_times, np.maximum(distances[stride::stride] / period, 1e-16), 'o-', ms=4)
     axes[0].axhline(threshold_fraction, ls='--', color='grey', label='Return threshold')
@@ -23,7 +30,7 @@ def plot_bm4_periodicity(result: ParallelBM4RecurrenceResult, *, period: float, 
     shift = candidate_cycle * stride
     if shift < states.shape[1] - 1:
         difference = (states[:, shift:] - states[:, :-shift] + period / 2) % period - period / 2
-        error = np.linalg.norm(difference, axis=0)
+        error: np.ndarray = np.linalg.norm(difference, axis=0)
         axes[1].plot(result.times[:-shift], error / period)
         axes[1].axhline(threshold_fraction, ls='--', color='grey')
         axes[1].set(xlabel='Time t [forcing cycles]', ylabel=f'Distance between z(t+{candidate_cycle}) and z(t) / L',

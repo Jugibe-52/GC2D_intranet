@@ -8,7 +8,7 @@ from dataclasses import asdict, dataclass, field
 import json
 from pathlib import Path
 from time import perf_counter
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 import numpy as np
 
@@ -26,6 +26,10 @@ from simulation.runner import simulate
 from states.history import States
 from studies.h5_provenance import prepare_verified_h5_field
 from studies.reference_trajectory import potential_fingerprint
+
+
+if TYPE_CHECKING:
+	from diagnostics.persistence import StoredSolution
 
 
 @dataclass(frozen=True)
@@ -73,18 +77,18 @@ class ModalCPUComparison:
 
 def build_star_problem(potential: Potential, config: ModalCPUStarConfig) -> tuple[InitialValueProblem, SimulationRequest]:
     """Assemble the common physical job without selecting execution resources."""
-    center = _validated_cpu_star_geometry(potential, config)
+    center: np.ndarray = _validated_cpu_star_geometry(potential, config)
     grid = potential.grid
     origin = np.array([grid.x0, grid.y0]) + center * grid.period
     radius = config.radius_over_period * grid.period
-    initial = radial_star(center=(float(origin[0]), float(origin[1])),
+    initial: np.ndarray = radial_star(center=(float(origin[0]), float(origin[1])),
                           arm_length=radius * config.outer_radius_fraction,
                           inner_radius=radius * config.inner_radius_fraction,
                           arms=config.arms, particles_per_arm=config.particles_per_arm,
                           first_angle=config.first_angle)
-    problem = InitialValueProblem(GuidingCenterDynamics(potential, rho=config.rho), initial, layout=GCStateLayout())
+    problem: InitialValueProblem = InitialValueProblem(GuidingCenterDynamics(potential, rho=config.rho), initial, layout=GCStateLayout())
     steps = config.cycles * config.steps_per_cycle
-    request = SimulationRequest((0., float(config.cycles)), 1. / config.steps_per_cycle,
+    request: SimulationRequest = SimulationRequest((0., float(config.cycles)), 1. / config.steps_per_cycle,
                                 np.arange(steps + 1, dtype=float) / config.steps_per_cycle)
     return problem, request
 
@@ -104,18 +108,22 @@ def run_cpu_star_comparison(
     resume_records: dict[int, str] | None = None,
 ) -> ModalCPUComparison:
     """Collect each complete remote job locally and compare measured results."""
+    problem: InitialValueProblem
+    request: SimulationRequest
     problem, request = build_star_problem(potential, config)
-    method = BM4Midpoint(track_energy=False,
+    method: BM4Midpoint = BM4Midpoint(track_energy=False,
                          progress=False, step_observer=None)
-    options = ExecutionOptions(backend='jax', device='cpu')
+    options: ExecutionOptions = ExecutionOptions(backend='jax', device='cpu')
+    solutions: dict[int, States]
+    records: dict[str, dict[str, Any]]
     solutions, records = {}, {}
     for cores in config.cpu_counts:
-        executor = (Execution_Modal.from_record(resume_records[cores])
+        executor: Execution_Modal = (Execution_Modal.from_record(resume_records[cores])
                     if resume_records and cores in resume_records else
                     Execution_Modal(app_name, f'integrate_cpu_{cores}', record_directory=record_directory))
         print(f'Running Modal JAX CPU benchmark: {cores} core(s).', flush=True)
-        start = perf_counter()
-        solution = simulate(problem, method, request, execution=executor, options=options)
+        start: float = perf_counter()
+        solution: States = simulate(problem, method, request, execution=executor, options=options)
         total_seconds = perf_counter() - start
         diagnostics = solution.diagnostics
         if (diagnostics['step_count'] != config.cycles * config.steps_per_cycle
@@ -124,9 +132,12 @@ def run_cpu_star_comparison(
                 or diagnostics['benchmark_cpu_cores'] != cores
                 or diagnostics['benchmark_repetitions'] != config.repetitions):
             raise ValueError('Remote method, sampling or benchmark controls do not match the requested study.')
-        times = np.asarray(diagnostics['benchmark_wall_seconds'])
+        times: np.ndarray = np.asarray(diagnostics['benchmark_wall_seconds'])
         if times.shape != (config.repetitions,) or np.any(times <= 0) or not np.isfinite(times).all():
             raise ValueError('Invalid complete-integration timing samples.')
+        q25: Any
+        median: Any
+        q75: Any
         q25, median, q75 = np.percentile(times, [25, 50, 75])
         solutions[cores] = solution
         records[str(cores)] = {
@@ -144,13 +155,17 @@ def run_cpu_star_comparison(
         np.testing.assert_allclose(solution.states, baseline.states,
                                    rtol=config.equivalence_rtol, atol=config.equivalence_atol)
         delta = (solution.states - baseline.states + period / 2) % period - period / 2
+        dx: np.ndarray
+        dy: np.ndarray
         dx, dy = solution.layout.split(delta)
-        distances = np.hypot(dx, dy)
+        distances: np.ndarray = np.hypot(dx, dy)
         records[str(cores)].update(
             maximum_periodic_discrepancy=float(np.max(distances)),
             rms_periodic_discrepancy=float(np.sqrt(np.mean(distances**2))),
             speedup=records['1']['median_seconds'] / records[str(cores)]['median_seconds'],
         )
+    x: np.ndarray
+    y: np.ndarray
     x, y = problem.layout.positions(problem.initial_state)
     assert isinstance(problem.dynamics, GuidingCenterDynamics)
     metadata = {
@@ -178,12 +193,12 @@ def save_cpu_star_comparison(comparison: ModalCPUComparison, destination: str) -
 
 def load_cpu_star_comparison(source: str) -> ModalCPUComparison:
     """Load saved data independently of Modal and the calculation notebook."""
-    stored = load_solution(f'{source}/cpu_1')
+    stored: StoredSolution = load_solution(f'{source}/cpu_1')
     if stored.metadata.get('study') != 'modal_jax_cpu_star' or stored.potential is None:
         raise ValueError('The archive is not a Modal JAX CPU star comparison.')
     solutions = {1: stored.solution}
     for cores in (2, 4):
-        other = load_solution(f'{source}/cpu_{cores}')
+        other: StoredSolution = load_solution(f'{source}/cpu_{cores}')
         if other.metadata != stored.metadata:
             raise ValueError('The CPU archives have inconsistent study metadata.')
         solutions[cores] = other.solution
@@ -193,7 +208,7 @@ def load_cpu_star_comparison(source: str) -> ModalCPUComparison:
 def _validated_cpu_star_geometry(potential: Potential, config: ModalCPUStarConfig) -> np.ndarray:
 	"""Validate the benchmark, forcing, and complete star extent before assembling the problem."""
 	for name in ('arms', 'particles_per_arm', 'cycles', 'steps_per_cycle', 'repetitions'):
-		value = getattr(config, name)
+		value: Any = getattr(config, name)
 		if isinstance(value, bool) or not isinstance(value, int) or value < 1:
 			raise ValueError(f'{name} must be a positive integer.')
 	if config.repetitions < 3 or config.cpu_counts != (1, 2, 4):
@@ -201,7 +216,7 @@ def _validated_cpu_star_geometry(potential: Potential, config: ModalCPUStarConfi
 	if not (0 < config.radius_over_period <= .5
 			and 0 < config.inner_radius_fraction < config.outer_radius_fraction <= 1):
 		raise ValueError('Require a positive radius no greater than L/2 and 0 < inner < outer <= 1.')
-	center = np.asarray(config.center_fraction, dtype=float)
+	center: np.ndarray = np.asarray(config.center_fraction, dtype=float)
 	outer = config.radius_over_period * config.outer_radius_fraction
 	if (center.shape != (2,) or not np.isfinite(center).all()
 			or np.any(center - outer < 0) or np.any(center + outer > 1)):

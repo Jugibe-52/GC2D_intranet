@@ -40,13 +40,13 @@ def records_table_html(
 	Each column is ``(attribute_name, heading, format_spec)``. A ``None`` format
 	uses the value's normal string representation.
 	"""
-	rows = tuple(records)
-	column_values = tuple(columns)
+	rows: tuple[object, ...] = tuple(records)
+	column_values: tuple[tuple[str, str, str | None], ...] = tuple(columns)
 	if not rows:
 		raise ValueError("At least one table record is required.")
 	column_values = _table_columns(column_values)
 
-	header = "".join(
+	header: str = "".join(
 		f"<th style='text-align:left'>{escape(heading)}</th>"
 		for _, heading, _ in column_values
 	)
@@ -64,7 +64,7 @@ def records_table_html(
 				raise AttributeError(
 					f"{type(record).__name__} has no table attribute {attribute!r}."
 				)
-			text = str(value) if format_spec is None else format(value, format_spec)
+			text: str = str(value) if format_spec is None else format(value, format_spec)
 			cells.append(f"<td>{escape(text)}</td>")
 		body_rows.append(f"<tr>{''.join(cells)}</tr>")
 	return (
@@ -98,7 +98,7 @@ def display_animation(
 	"""
 	if not isinstance(animation, Animation):
 		raise TypeError("`animation` must be a Matplotlib Animation instance.")
-	limit = float(embed_limit_mb)
+	limit: float = float(embed_limit_mb)
 	if limit <= 0:
 		raise ValueError("`embed_limit_mb` must be positive.")
 	if not isinstance(interactive, bool):
@@ -111,7 +111,7 @@ def display_animation(
 
 	mpl.rcParams["animation.embed_limit"] = limit
 	if interactive:
-		html = animation.to_jshtml(default_mode="loop")
+		html: str = animation.to_jshtml(default_mode="loop")
 		# Supplying only the HTML MIME representation prevents text or image
 		# fallbacks from appearing in LaTeX/PDF exports.
 		display({"text/html": html}, raw=True)
@@ -128,7 +128,7 @@ def display_animation(
 		display(HTML(html))
 	# Inline backends otherwise emit the animation's first frame as an unrelated
 	# static figure after the HTML animation has already been displayed.
-	figure = getattr(animation, "_fig", None)
+	figure: Any | None = getattr(animation, "_fig", None)
 	if figure is not None:
 		plt.close(figure)
 

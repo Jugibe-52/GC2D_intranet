@@ -3,6 +3,12 @@ import json
 from pathlib import Path
 import sys
 import tempfile
+
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from typing import Any
+
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT))
 from aws.cloud_job import CheckpointStore
@@ -21,18 +27,18 @@ class FakeS3:
     def paginate(self, **kwargs: str) -> list[dict[str, list[dict[str, str]]]]:
         return [{'Contents':[{'Key':key} for key in self.objects if key.startswith(kwargs['Prefix'])]}]
 
-client=FakeS3()
+client: 'FakeS3'=FakeS3()
 source=ROOT/'resultados/checkpoint_resume_test/checkpoints'
-meta=json.loads((source.parent/'metadata.json').read_text())
+meta: 'Any'=json.loads((source.parent/'metadata.json').read_text())
 steps=meta['complete_steps']
-pairs=len(list(source.glob('worker_*/chunk_*.json')))
-store=CheckpointStore(client,'test','runs/test',source)
+pairs: 'int'=len(list(source.glob('worker_*/chunk_*.json')))
+store: 'Any'=CheckpointStore(client,'test','runs/test',source)
 assert store.sync()==[steps]*16
 assert len(client.calls)==2*pairs
 store.sync()
 assert len(client.calls)==2*pairs
 with tempfile.TemporaryDirectory() as directory:
-    restored=CheckpointStore(client,'test','runs/test',directory)
+    restored: 'Any'=CheckpointStore(client,'test','runs/test',directory)
     restored.restore()
     for marker in source.glob('worker_*/chunk_*.json'):
         target=Path(directory)/marker.relative_to(source)
@@ -40,7 +46,7 @@ with tempfile.TemporaryDirectory() as directory:
         assert digest(target.with_suffix('.npz'))==digest(marker.with_suffix('.npz'))
     assert restored.sync()==[steps]*16 and len(client.calls)==2*pairs
     # Corrupt remote data must never become a committed local checkpoint.
-    key=next(k for k in client.objects if k.endswith('.npz'))
+    key: 'str'=next(k for k in client.objects if k.endswith('.npz'))
     client.objects[key]=b'corrupted payload'
     with tempfile.TemporaryDirectory() as damaged:
         try: CheckpointStore(client,'test','runs/test',damaged).restore()

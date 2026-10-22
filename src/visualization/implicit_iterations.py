@@ -11,12 +11,17 @@ from matplotlib.ticker import MaxNLocator
 
 from diagnostics import ImplicitIterationRecord
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+	from typing import Any
+
 
 def _record_arrays(
 	records: Sequence[ImplicitIterationRecord],
 ) -> dict[str, np.ndarray]:
 	"""Validate ordered records and return consistently shaped plot arrays."""
-	values = tuple(records)
+	values: tuple[ImplicitIterationRecord, ...] = tuple(records)
 	if not values:
 		raise ValueError("At least one implicit ABBA iteration record is required.")
 	if any(
@@ -56,7 +61,9 @@ def plot_implicit_iteration_diagnostics(
 	records: Sequence[ImplicitIterationRecord],
 ) -> tuple[Figure, np.ndarray]:
 	"""Plot per-step iterations, frequencies, convergence, and multiplier size."""
-	data = _record_arrays(records)
+	data: dict[str, np.ndarray] = _record_arrays(records)
+	figure: Figure
+	axes: np.ndarray
 	figure, axes = plt.subplots(2, 2, figsize=(14, 8), constrained_layout=True)
 
 	axes[0, 0].step(
@@ -73,6 +80,8 @@ def plot_implicit_iteration_diagnostics(
 	)
 	axes[0, 0].yaxis.set_major_locator(MaxNLocator(integer=True))
 
+	iteration_values: np.ndarray
+	frequencies: np.ndarray
 	iteration_values, frequencies = np.unique(
 		data["iterations"], return_counts=True
 	)
@@ -130,7 +139,7 @@ def _comparison_record_arrays(
 	for label, records in records_by_label.items():
 		if not isinstance(label, str) or not label:
 			raise ValueError("Iteration comparison labels must be non-empty strings.")
-		data = _record_arrays(records)
+		data: dict[str, np.ndarray] = _record_arrays(records)
 		prepared.append((label, data))
 	return prepared
 
@@ -139,7 +148,9 @@ def plot_implicit_iteration_comparison(
 	records_by_label: Mapping[str, Sequence[ImplicitIterationRecord]],
 ) -> tuple[Figure, np.ndarray]:
 	"""Compare step work and normalized residuals across formulations."""
-	prepared = _comparison_record_arrays(records_by_label)
+	prepared: list[tuple[str, dict[str, np.ndarray]]] = _comparison_record_arrays(records_by_label)
+	figure: Figure
+	axes: np.ndarray
 	figure, axes = plt.subplots(2, 1, figsize=(12, 7), constrained_layout=True)
 	for label, data in prepared:
 		axes[0].step(

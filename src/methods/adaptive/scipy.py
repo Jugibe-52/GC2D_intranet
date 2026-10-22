@@ -32,6 +32,8 @@ if TYPE_CHECKING:
 
 # Fixed eight-point Gauss quadrature of -partial_t H along accepted dense output.
 # This is diagnostic work and never contributes to physical solver statistics.
+_nodes: 'np.ndarray'
+_weights: 'np.ndarray'
 _nodes, _weights = np.polynomial.legendre.leggauss(8)
 _ENERGY_NODES = (_nodes + 1.) / 2.
 _ENERGY_WEIGHTS = _weights / 2.
@@ -53,10 +55,10 @@ class ScipyAdaptiveController:
         assert isinstance(method, _AdaptiveMethod)
         index = 0
         while method.solver.status == 'running':
-            start = float(method.solver.t)
-            before = method.current_state.values.copy()
-            result = method.advance(start, before, request.max_step)
-            end = float(method.solver.t)
+            start: float = float(method.solver.t)
+            before: np.ndarray = method.current_state.values.copy()
+            result: StepResult[_AdaptiveDetails] = method.advance(start, before, request.max_step)
+            end: float = float(method.solver.t)
             yield StepInfo(index, start, end - start, end, before), result
             index += 1
 
@@ -119,7 +121,7 @@ class _AdaptiveMethod(IntegrationMethod[_AdaptiveDetails]):
         self.dynamics = problem.dynamics
         self.physical_size = problem.initial_state.size
         self.particle_count = problem.particle_count
-        evaluated_problem = InitialValueProblem(self.evaluated_dynamics, problem.initial_state, layout=problem.layout)
+        evaluated_problem: InitialValueProblem = InitialValueProblem(self.evaluated_dynamics, problem.initial_state, layout=problem.layout)
         self.state_formulation = PhysicalFormulation(evaluated_problem, request.t_span[0], self.track_energy)
         self.initial_state = self.state_formulation.initial_state
         self.current_state = IntegrationState(request.t_span[0], self.initial_state)
@@ -143,7 +145,7 @@ class _AdaptiveMethod(IntegrationMethod[_AdaptiveDetails]):
 
     def _derivative(self, time: float, state: np.ndarray) -> np.ndarray:
         physical = state[:self.physical_size]
-        field = np.asarray(self.evaluated_dynamics.vector_field(time, physical), dtype=float)
+        field: np.ndarray = np.asarray(self.evaluated_dynamics.vector_field(time, physical), dtype=float)
         if field.shape != physical.shape or not np.all(np.isfinite(field)):
             raise ValueError('The adaptive vector field changed shape or became non-finite.')
         return field
@@ -170,18 +172,18 @@ class _AdaptiveMethod(IntegrationMethod[_AdaptiveDetails]):
         if solver.status != 'running':
             raise RuntimeError('This adaptive run has no remaining accepted steps.')
         solver.max_step = step
-        message = solver.step()
+        message: Any = solver.step()
         if solver.status == 'failed':
             raise RuntimeError(f'{type(solver).__name__} integration failed: {message}')
-        counts = np.asarray((solver.nfev, solver.njev, solver.nlu), dtype=int)
+        counts: np.ndarray = np.asarray((solver.nfev, solver.njev, solver.nlu), dtype=int)
         work = counts - self.previous_counts
-        end = float(solver.t)
-        left = 0 if self.accepted_steps == 0 else np.searchsorted(self.request.output_times, time, side='right')
-        right = np.searchsorted(self.request.output_times, end, side='right')
-        interpolant = None
+        end: float = float(solver.t)
+        left: int | np.intp = 0 if self.accepted_steps == 0 else np.searchsorted(self.request.output_times, time, side='right')
+        right: np.intp = np.searchsorted(self.request.output_times, end, side='right')
+        interpolant: Any | None = None
         if self.dense_output or right > left or self.step_observer is not None or self.track_energy:
             interpolant = solver.dense_output()
-            updated = np.asarray((solver.nfev, solver.njev, solver.nlu), dtype=int)
+            updated: np.ndarray = np.asarray((solver.nfev, solver.njev, solver.nlu), dtype=int)
             if self.dense_output or right > left:
                 work += updated - counts
             counts = updated
@@ -190,7 +192,7 @@ class _AdaptiveMethod(IntegrationMethod[_AdaptiveDetails]):
 
         # Diagnostic quadrature is evaluated only after acceptance. SciPy owns
         # a purely physical state, so energy cannot affect its error norm or Newton.
-        momentum_before = self.state_formulation.momentum(state)
+        momentum_before: np.ndarray | None = self.state_formulation.momentum(state)
         if momentum_before is not None:
             momentum_before = momentum_before.copy()
         momentum_after: np.ndarray | None = None
@@ -200,7 +202,7 @@ class _AdaptiveMethod(IntegrationMethod[_AdaptiveDetails]):
             if momentum_before is None:
                 return None
             assert interpolant is not None
-            queries = np.asarray(query, dtype=float)
+            queries: np.ndarray = np.asarray(query, dtype=float)
             values = []
             for endpoint in queries.reshape(-1):
                 # Endpoint sampling and observers must not repeat accepted quadrature.
@@ -210,7 +212,7 @@ class _AdaptiveMethod(IntegrationMethod[_AdaptiveDetails]):
                 if endpoint == end and momentum_after is not None:
                     values.append(momentum_after)
                     continue
-                duration = float(endpoint - time)
+                duration: float = float(endpoint - time)
                 rates = [self.state_formulation.momentum_rate(time + duration * node,
                              np.asarray(interpolant(time + duration * node))) for node in _ENERGY_NODES]
                 values.append(momentum_before + duration * sum(w * rate for w, rate in zip(_ENERGY_WEIGHTS, rates)))
@@ -224,7 +226,7 @@ class _AdaptiveMethod(IntegrationMethod[_AdaptiveDetails]):
             return self.state_formulation.pack(np.asarray(interpolant(query)), query, momentum_at(query))
 
         momentum_after = momentum_at(end)
-        after = self.state_formulation.pack(np.asarray(solver.y), end, momentum_after)
+        after: np.ndarray = self.state_formulation.pack(np.asarray(solver.y), end, momentum_after)
         self.current_state = IntegrationState(float(self.solver.t), after)
         return StepResult(after, {
             'function_evaluations': int(work[0]),

@@ -9,7 +9,7 @@ import hashlib
 import json
 from pathlib import Path
 from time import perf_counter
-from typing import Any, Callable, Literal, Mapping
+from typing import Any, Callable, Literal, Mapping, TYPE_CHECKING
 
 import numpy as np
 
@@ -35,6 +35,11 @@ from ._trajectory_distances import (
 	normalized_distance_convention,
 	particle_distances,
 )
+
+
+if TYPE_CHECKING:
+	from _hashlib import HASH
+	from states.history import States
 
 
 @dataclass(frozen=True, slots=True)
@@ -147,9 +152,9 @@ def potential_fingerprint(potential: Potential) -> str:
 	if not isinstance(potential, Potential):
 		raise TypeError("`potential` must be a Potential instance.")
 	grid = potential.grid
-	digest = hashlib.sha256()
+	digest: HASH = hashlib.sha256()
 	digest.update(b"gc2d-sampled-potential-v1")
-	grid_values = np.asarray(
+	grid_values: np.ndarray = np.asarray(
 		(
 			grid.x0,
 			grid.y0,
@@ -164,7 +169,7 @@ def potential_fingerprint(potential: Potential) -> str:
 	)
 	digest.update(grid_values.tobytes())
 	for time in (0.0, np.pi / 2.0):
-		sample = np.ascontiguousarray(potential.evaluate_grid(time), dtype=np.float64)
+		sample: np.ndarray = np.ascontiguousarray(potential.evaluate_grid(time), dtype=np.float64)
 		digest.update(str(sample.shape).encode("ascii"))
 		digest.update(sample.tobytes())
 	probe_x = grid.xmin + grid.period * np.asarray(
@@ -219,7 +224,7 @@ def _solve_adaptive(
 	progress_callback: Callable[[str, float, int, str], None] | None = None,
 ) -> tuple[np.ndarray, AdaptiveReferenceSolveSummary]:
 	"""Run one adaptive reference or cross-check solve on prescribed times."""
-	started = perf_counter()
+	started: float = perf_counter()
 	method_type = DOP853 if method == "DOP853" else Radau
 	function_evaluations = 0
 	def report(step: AdaptiveIntegrationStep) -> None:
@@ -230,15 +235,15 @@ def _solve_adaptive(
 			"finished" if step.time == float(times[-1]) else "running")
 	if progress_callback is not None:
 		progress_callback(method, float(times[0]), 0, "started")
-	configured = method_type(relative_tolerance=relative_tolerance,
+	configured: DOP853 | Radau = method_type(relative_tolerance=relative_tolerance,
 		absolute_tolerance=absolute_tolerance,
 		step_observer=report if progress_callback is not None else None)
-	problem = InitialValueProblem(dynamics, np.array(np.asarray(initial_state, dtype=float), dtype=float, copy=True), layout=GCStateLayout())
-	request = SimulationRequest((float(times[0]), float(times[-1])), maximum_step, times)
-	result = simulate(problem, configured, request)
+	problem: InitialValueProblem = InitialValueProblem(dynamics, np.array(np.asarray(initial_state, dtype=float), dtype=float, copy=True), layout=GCStateLayout())
+	request: SimulationRequest = SimulationRequest((float(times[0]), float(times[-1])), maximum_step, times)
+	result: States = simulate(problem, configured, request)
 
 	runtime = perf_counter() - started
-	states = np.array(result.states, dtype=float, copy=True)
+	states: np.ndarray = np.array(result.states, dtype=float, copy=True)
 	if states.shape != (initial_state.size, times.size) or not np.all(
 		np.isfinite(states)
 	):
@@ -291,13 +296,13 @@ def _reference_explanation(
 			return value.tolist()
 		raise TypeError(f"Cannot serialize {type(value).__name__} in the explanation.")
 
-	potential_json = json.dumps(
+	potential_json: str = json.dumps(
 		dict(potential_metadata),
 		indent=2,
 		sort_keys=True,
 		default=json_default,
 	)
-	initial_json = json.dumps(
+	initial_json: str = json.dumps(
 		dict(initial_condition_metadata),
 		indent=2,
 		sort_keys=True,
@@ -392,14 +397,16 @@ def run_high_precision_reference_trajectory(
 		raise TypeError("`initial_configuration` must be np.ndarray.")
 	if not isinstance(config, HighPrecisionReferenceConfig):
 		raise TypeError("`config` must be a HighPrecisionReferenceConfig.")
-	initial_state = _validated_reference_initial_state(
+	initial_state: np.ndarray = _validated_reference_initial_state(
 		initial_configuration, potential_metadata=potential_metadata,
 		initial_condition_metadata=initial_condition_metadata,
 	)
 
-	dynamics = GuidingCenterDynamics(potential, rho=config.rho)
+	dynamics: GuidingCenterDynamics = GuidingCenterDynamics(potential, rho=config.rho)
 	effective_potential = dynamics.effective_potential
-	times = _output_times(config)
+	times: np.ndarray = _output_times(config)
+	audit_states: np.ndarray
+	audit_solve: AdaptiveReferenceSolveSummary
 	audit_states, audit_solve = _solve_adaptive(
 		dynamics,
 		initial_state,
@@ -410,6 +417,8 @@ def run_high_precision_reference_trajectory(
 		method="Radau",
 		progress_callback=progress_callback,
 	)
+	states: np.ndarray
+	reference_solve: AdaptiveReferenceSolveSummary
 	states, reference_solve = _solve_adaptive(
 		dynamics,
 		initial_state,
@@ -420,15 +429,15 @@ def run_high_precision_reference_trajectory(
 		method="DOP853",
 		progress_callback=progress_callback,
 	)
-	audit_distances = particle_distances(
+	audit_distances: np.ndarray = particle_distances(
 		states,
 		audit_states,
 		distance_convention=config.distance_convention,
 		period=potential.grid.period,
 	)
-	audit = _audit_summary(audit_distances, states, audit_states)
-	particle_count = GCStateLayout().particle_count(initial_state)
-	output_directory = reference_trajectory_output_directory(
+	audit: ReferenceTrajectoryAuditSummary = _audit_summary(audit_distances, states, audit_states)
+	particle_count: int = GCStateLayout().particle_count(initial_state)
+	output_directory: Path = reference_trajectory_output_directory(
 		notebook_path,
 		reference_name=reference_name,
 		version=version,
@@ -455,7 +464,7 @@ def run_high_precision_reference_trajectory(
 		"scipy_version": scipy.__version__,
 		"source_notebook": str(notebook_path),
 	}
-	trajectory = write_reference_trajectory(
+	trajectory: StoredReferenceTrajectory = write_reference_trajectory(
 		output_directory=output_directory,
 		times=times,
 		states=states,

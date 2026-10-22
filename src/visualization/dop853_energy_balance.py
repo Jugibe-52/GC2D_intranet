@@ -8,7 +8,14 @@ import matplotlib.pyplot as plt
 from IPython.display import HTML
 from studies.dop853_energy_balance import METHODS
 
-COLORS = dict(zip(METHODS, ('black', 'tab:green', 'tab:orange', 'tab:purple')))
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from matplotlib.axes import Axes
+    from typing import Any
+
+
+COLORS: 'dict[str, str]' = dict(zip(METHODS, ('black', 'tab:green', 'tab:orange', 'tab:purple')))
 
 
 def summary_rows(arrays: dict[str, np.ndarray], particle: int | None = None) -> list[dict[str, str | float]]:
@@ -31,6 +38,8 @@ def summary_rows(arrays: dict[str, np.ndarray], particle: int | None = None) -> 
 def plot_analysis(arrays: dict[str, np.ndarray], particle: int | None = None) -> Figure:
     """Show physical energy, signed/absolute balance, and periodic distance."""
     t = arrays['times']
+    fig: Figure
+    axes: np.ndarray
     fig, axes = plt.subplots(2, 2, figsize=(13, 8), constrained_layout=True)
     scope = 'Global: particle RMS' if particle is None else f'Particle {particle+1}'
     for name in METHODS:
@@ -60,11 +69,13 @@ def plot_analysis(arrays: dict[str, np.ndarray], particle: int | None = None) ->
 def plot_mu(arrays: dict[str, np.ndarray]) -> Figure:
     """Display endpoint and within-save-block peak norms at ten saves/cycle."""
     t = arrays['times'][1:]
+    fig: Figure
+    axes: np.ndarray
     fig, axes = plt.subplots(2, 2, figsize=(13, 7), constrained_layout=True)
     for index, ax in enumerate(axes.flat):
         for kind, label in [('endpoint', 'Endpoint infinity norm'), ('max', 'Peak within output block')]:
             values = arrays['BM4Implicit.mu_'+kind][:, 1:]
-            y = values.max(axis=0) if index == 0 else values[index-1]
+            y: Any = values.max(axis=0) if index == 0 else values[index-1]
             ax.plot(t, y, label=label)
         ax.set(title='Global infinity norm' if index == 0 else f'Particle {index}', xlabel='Normalized cycles', ylabel='BM4 multiplier norm')
         ax.set_yscale('symlog', linthresh=1e-16)
@@ -82,6 +93,10 @@ def mu_summary_rows(arrays: dict[str, np.ndarray]) -> list[dict[str, str | float
                          rms=float(np.sqrt(np.mean(arrays['BM4Implicit.mu_rms'][p, 1:]**2))),
                          maximum=float(np.max(arrays['BM4Implicit.mu_max'][p, 1:])),
                          final=float(arrays['BM4Implicit.mu_endpoint'][p, -1])))
+    endpoint: Any
+    peak: Any
+    rms: Any
+    mean: Any
     endpoint, peak, rms, mean = arrays['BM4Implicit.mu_global_statistics'][:, 1:]
     rows.insert(0, dict(particle='Global', mean=float(mean.mean()),
                         rms=float(np.sqrt(np.mean(rms**2))), maximum=float(peak.max()),
@@ -91,13 +106,18 @@ def mu_summary_rows(arrays: dict[str, np.ndarray]) -> list[dict[str, str | float
 
 def plot_paths(arrays: dict[str, np.ndarray], particle: int | None = None) -> Figure:
     """Plot all saved paths and break lines at periodic boundary crossings."""
+    xmin: Any
+    ymin: Any
+    period: Any
     xmin, ymin, period = arrays['domain']
+    fig: Figure
+    ax: Axes
     fig, ax = plt.subplots(figsize=(7, 7), constrained_layout=True)
     for name in METHODS:
         states = arrays[name+'.states']
         for p in range(3) if particle is None else [particle]:
-            x = (states[p]-xmin) % period + xmin
-            y = (states[3+p]-ymin) % period + ymin
+            x: Any = (states[p]-xmin) % period + xmin
+            y: Any = (states[3+p]-ymin) % period + ymin
             jumps = np.r_[False, (np.abs(np.diff(x)) > period/2) | (np.abs(np.diff(y)) > period/2)]
             x = np.where(jumps, np.nan, x)
             y = np.where(jumps, np.nan, y)
@@ -114,7 +134,7 @@ def plot_paths(arrays: dict[str, np.ndarray], particle: int | None = None) -> Fi
 def trajectory_player(arrays: dict[str, np.ndarray]) -> HTML:
     """Self-contained HTML animation with method toggles, seek, trail and speed."""
     ident = 'player_' + uuid.uuid4().hex
-    payload = json.dumps(dict(times=arrays['times'].tolist(), domain=arrays['domain'].tolist(),
+    payload: str = json.dumps(dict(times=arrays['times'].tolist(), domain=arrays['domain'].tolist(),
                               states={name: arrays[name+'.states'].tolist() for name in METHODS}))
     html = '''<div id="ID" style="max-width:820px;font-family:sans-serif">
 <div class="checks"></div><button class="play">Play</button>

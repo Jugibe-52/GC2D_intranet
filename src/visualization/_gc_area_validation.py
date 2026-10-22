@@ -9,6 +9,11 @@ import numpy as np
 
 from states.history import States
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+	from typing import Any
+
 
 AreaDiagnostics = tuple[np.ndarray, np.ndarray, np.ndarray | None]
 
@@ -27,8 +32,8 @@ def validated_solution_series(
 	for solution in solutions:
 		if not isinstance(solution, States):
 			raise TypeError("Every animated solution must be a States instance.")
-		times = np.asarray(solution.t, dtype=float)
-		states = np.asarray(solution.values, dtype=float)
+		times: np.ndarray = np.asarray(solution.t, dtype=float)
+		states: np.ndarray = np.asarray(solution.values, dtype=float)
 		if (
 			times.ndim != 1
 			or times.size < 2
@@ -49,8 +54,8 @@ def validated_solution_series(
 		if reference_times is None:
 			reference_times = times
 		else:
-			time_scale = max(1.0, float(np.max(np.abs(reference_times))))
-			tolerance = float(32 * np.finfo(float).eps * time_scale)
+			time_scale: float = max(1.0, float(np.max(np.abs(reference_times))))
+			tolerance: float = float(32 * np.finfo(float).eps * time_scale)
 			if times.shape != reference_times.shape or not np.allclose(
 				times,
 				reference_times,
@@ -67,7 +72,7 @@ def validated_solution_series(
 
 def validated_labels(labels: Sequence[str], series_count: int) -> tuple[str, ...]:
 	"""Require one distinct, non-empty display label per solution."""
-	values = tuple(labels)
+	values: tuple[str, ...] = tuple(labels)
 	if (
 		len(values) != series_count
 		or any(not isinstance(label, str) or not label.strip() for label in values)
@@ -94,9 +99,9 @@ def validated_relative_diagnostics(
 			"`diagnostic_times` and `relative_symplecticity_errors` "
 			"must be provided together."
 		)
-	times = np.asarray(diagnostic_times, dtype=float)
-	symplecticity_errors = np.asarray(relative_symplecticity_errors, dtype=float)
-	copy_separations = (
+	times: np.ndarray = np.asarray(diagnostic_times, dtype=float)
+	symplecticity_errors: np.ndarray = np.asarray(relative_symplecticity_errors, dtype=float)
+	copy_separations: None | np.ndarray = (
 		None
 		if relative_copy_separations is None
 		else np.asarray(relative_copy_separations, dtype=float)
@@ -140,7 +145,7 @@ def validated_diagnostic_series(
 		== series_count
 	):
 		raise ValueError("Diagnostic sequences must match the number of solutions.")
-	validated = tuple(
+	validated: tuple[AreaDiagnostics | None, ...] = tuple(
 		validated_relative_diagnostics(times, defects, separations)
 		for times, defects, separations in zip(
 			diagnostic_times,
@@ -153,7 +158,7 @@ def validated_diagnostic_series(
 		return None
 	if any(item is None for item in validated):
 		raise ValueError("Area diagnostics are required for every comparison.")
-	result = tuple(item for item in validated if item is not None)
+	result: tuple[tuple[np.ndarray, np.ndarray, np.ndarray | None], ...] = tuple(item for item in validated if item is not None)
 	if len({item[2] is None for item in result}) != 1:
 		raise ValueError(
 			"Copy-separation diagnostics must be present for every series or none."
@@ -163,11 +168,11 @@ def validated_diagnostic_series(
 
 def positive_log_limits(values: Sequence[np.ndarray]) -> tuple[float, float]:
 	"""Return stable global log limits, including diagnostics that begin at zero."""
-	combined = np.concatenate(tuple(values))
+	combined: np.ndarray = np.concatenate(tuple(values))
 	positive = combined[combined > 0]
 	if positive.size:
-		lower = max(float(np.min(positive)) / 2, float(np.finfo(float).tiny))
-		upper = max(float(np.max(positive)) * 2, lower * 10)
+		lower: float = max(float(np.min(positive)) / 2, float(np.finfo(float).tiny))
+		upper: float = max(float(np.max(positive)) * 2, lower * 10)
 	else:
 		lower = float(np.finfo(float).eps)
 		upper = 10 * lower
@@ -176,10 +181,10 @@ def positive_log_limits(values: Sequence[np.ndarray]) -> tuple[float, float]:
 
 def linear_limits(values: Sequence[np.ndarray]) -> tuple[float, float]:
 	"""Return padded global limits for several signed linear diagnostics."""
-	lower = min(float(np.min(value)) for value in values)
-	upper = max(float(np.max(value)) for value in values)
+	lower: float = min(float(np.min(value)) for value in values)
+	upper: float = max(float(np.max(value)) for value in values)
 	span = upper - lower
-	padding = float(
+	padding: float = float(
 		0.05 * span
 		if span > 0
 		else 0.05 * abs(lower) or float(np.finfo(float).eps)

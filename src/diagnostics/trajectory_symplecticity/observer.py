@@ -8,7 +8,7 @@ from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from datetime import date
 from pathlib import Path
-from typing import Any, Mapping, TypeAlias
+from typing import Any, Mapping, TYPE_CHECKING, TypeAlias
 
 import numpy as np
 
@@ -22,6 +22,10 @@ from diagnostics.paths import (
 from dynamics import GuidingCenterJacobianSystem
 
 from contracts.observation import IntegrationStep
+
+
+if TYPE_CHECKING:
+	from diagnostics.output import DiagnosticBlockPaths
 
 
 TrajectoryJacobianCalculator: TypeAlias = Callable[[IntegrationStep], np.ndarray]
@@ -85,7 +89,7 @@ class _BufferedSample:
 
 def _particle_metrics(jacobians: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
 	"""Return canonical relative defects and determinant errors per particle."""
-	values = np.asarray(jacobians, dtype=float)
+	values: np.ndarray = np.asarray(jacobians, dtype=float)
 	if (
 		values.ndim != 3
 		or values.shape[0] == 0
@@ -93,10 +97,10 @@ def _particle_metrics(jacobians: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
 		or not np.all(np.isfinite(values))
 	):
 		raise ValueError("Particle Jacobians must be finite with shape (N, 2, 2).")
-	form = np.asarray([[0.0, 1.0], [-1.0, 0.0]])
+	form: np.ndarray = np.asarray([[0.0, 1.0], [-1.0, 0.0]])
 	defects = np.swapaxes(values, -1, -2) @ form @ values - form
 	relative = np.linalg.norm(defects, axis=(-2, -1)) / np.sqrt(2.0)
-	determinants = np.abs(np.linalg.det(values) - 1.0)
+	determinants: Any = np.abs(np.linalg.det(values) - 1.0)
 	if not np.all(np.isfinite(relative)) or not np.all(np.isfinite(determinants)):
 		raise ValueError("The trajectory symplecticity metrics are non-finite.")
 	return relative, determinants
@@ -149,7 +153,7 @@ class GCTrajectorySymplecticityObserver:
 		metadata: Mapping[str, Any] | None = None,
 	) -> None:
 		"""Configure one exact complete-step tangent stream."""
-		initial_state = _validated_observer_initial_state(
+		initial_state: np.ndarray = _validated_observer_initial_state(
 			dynamics, initial_configuration, method_name, jacobian_method, jacobian_calculator,
 		)
 
@@ -214,12 +218,12 @@ class GCTrajectorySymplecticityObserver:
 		self, step: IntegrationStep,
 	) -> tuple[np.ndarray, np.ndarray]:
 		"""Read finite physical states and require continuity with the previous step."""
-		state_before = self._validated_state(step.state_before)
-		state_after = self._validated_state(step.state_after)
+		state_before: np.ndarray = self._validated_state(step.state_before)
+		state_after: np.ndarray = self._validated_state(step.state_after)
 		if not np.array_equal(state_before, self._last_state):
 			raise ValueError("Observed complete-step states are not continuous.")
 		if self._last_time is not None:
-			tolerance = float(
+			tolerance: float = float(
 				64.0
 				* np.finfo(float).eps
 				* max(1.0, abs(self._last_time), abs(step.start_time))
@@ -249,6 +253,8 @@ class GCTrajectorySymplecticityObserver:
 			)
 		if step.step_index != self._expected_step:
 			raise ValueError("Complete steps must be observed consecutively.")
+		state_before: np.ndarray
+		state_after: np.ndarray
 		state_before, state_after = self._validated_continuous_states(step)
 		if not self._records:
 			self._append_sample(
@@ -262,7 +268,7 @@ class GCTrajectorySymplecticityObserver:
 				)
 			)
 
-		local = np.asarray(self.jacobian_calculator(step), dtype=float)
+		local: np.ndarray = np.asarray(self.jacobian_calculator(step), dtype=float)
 		expected_shape = (self.particle_count, 2, 2)
 		if local.shape != expected_shape or not np.all(np.isfinite(local)):
 			raise ValueError(
@@ -270,7 +276,7 @@ class GCTrajectorySymplecticityObserver:
 				f"shape {expected_shape}."
 			)
 		self._accumulated = local @ self._accumulated
-		completed = _CompletedStep(
+		completed: _CompletedStep = _CompletedStep(
 			step_index=step.step_index,
 			time=float(step.time),
 			duration=float(step.duration),
@@ -287,7 +293,7 @@ class GCTrajectorySymplecticityObserver:
 
 	def _validated_state(self, state: np.ndarray) -> np.ndarray:
 		"""Require a finite physical component-major state with 2N entries."""
-		value = np.asarray(state, dtype=float)
+		value: np.ndarray = np.asarray(state, dtype=float)
 		if (
 			value.shape != self.initial_state.shape
 			or not np.all(np.isfinite(value))
@@ -297,13 +303,17 @@ class GCTrajectorySymplecticityObserver:
 
 	def _append_sample(self, sample: _CompletedStep) -> None:
 		"""Calculate trajectory metrics and buffer one selected sample."""
+		local_defects: np.ndarray
+		local_determinants: np.ndarray
 		local_defects, local_determinants = _particle_metrics(
 			sample.local_jacobians
 		)
+		flow_defects: np.ndarray
+		flow_determinants: np.ndarray
 		flow_defects, flow_determinants = _particle_metrics(
 			sample.accumulated_jacobians
 		)
-		record = TrajectorySymplecticityRecord(
+		record: TrajectorySymplecticityRecord = TrajectorySymplecticityRecord(
 			observation_index=len(self._records),
 			step_index=sample.step_index,
 			time=sample.time,
@@ -351,7 +361,7 @@ class GCTrajectorySymplecticityObserver:
 		self, index: int, samples: tuple[_BufferedSample, ...],
 	) -> TrajectorySymplecticityOutputBlock:
 		"""Persist the pending scalar records and particle arrays."""
-		paths = self._output.write(
+		paths: DiagnosticBlockPaths = self._output.write(
 			block_index=index,
 			rows=[asdict(sample.record) for sample in samples],
 			arrays={
@@ -404,7 +414,7 @@ class GCTrajectorySymplecticityObserver:
 				"metadata": self.metadata,
 			},
 		)
-		block = TrajectorySymplecticityOutputBlock(
+		block: TrajectorySymplecticityOutputBlock = TrajectorySymplecticityOutputBlock(
 			index=index,
 			sample_count=len(samples),
 			summary_path=paths.summary,

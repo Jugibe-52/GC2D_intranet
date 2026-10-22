@@ -8,7 +8,7 @@ from formulations.layout import GCStateLayout
 
 from dataclasses import dataclass
 from types import MappingProxyType
-from typing import Callable, Literal, Mapping
+from typing import Callable, Literal, Mapping, TYPE_CHECKING
 
 import numpy as np
 
@@ -44,6 +44,9 @@ from states.history import States
 from contracts.observation import IntegrationStep
 from simulation.runner import simulate
 
+
+if TYPE_CHECKING:
+	from typing import Any
 
 
 ImplicitEnergyMethod = Literal[
@@ -98,6 +101,8 @@ class ImplicitGeneralizedEnergyConfig:
 		"""Validate all controls before running the four refinements."""
 		require_uncoupled_bm4(self.coupling_frequency)
 		object.__setattr__(self, "steps", _validated_steps(tuple(self.steps)))
+		start: float
+		stop: float
 		start, stop = unpacked_time_span(self.t_span)
 		object.__setattr__(self, "t_span", (start, stop))
 		object.__setattr__(
@@ -328,15 +333,15 @@ class ImplicitGeneralizedEnergyResult:
 		rows: list[ImplicitGeneralizedEnergySummary] = []
 		for run in self.runs:
 			errors = run.energy_errors
-			absolute_errors = np.abs(errors)
-			max_absolute_error = float(np.max(absolute_errors))
+			absolute_errors: Any = np.abs(errors)
+			max_absolute_error: float = float(np.max(absolute_errors))
 			duration = run.times - run.times[0]
-			linear_drift_rate = float(np.polyfit(duration, errors, deg=1)[0])
-			iterations = np.asarray(
+			linear_drift_rate: float = float(np.polyfit(duration, errors, deg=1)[0])
+			iterations: np.ndarray = np.asarray(
 				run.solution.diagnostics["newton_iterations"],
 				dtype=float,
 			)
-			residuals = np.asarray(
+			residuals: np.ndarray = np.asarray(
 				run.solution.diagnostics["newton_residual_norms"],
 				dtype=float,
 			)
@@ -392,7 +397,7 @@ class ImplicitGeneralizedEnergyResult:
 
 	def convergence_orders(self) -> tuple[ImplicitGeneralizedEnergyOrder, ...]:
 		"""Return adjacent max-energy-error refinement orders."""
-		summaries = self.summaries()
+		summaries: tuple[ImplicitGeneralizedEnergySummary, ...] = self.summaries()
 		return tuple(
 			ImplicitGeneralizedEnergyOrder(
 				coarse_step=coarse.actual_step,
@@ -483,22 +488,22 @@ def run_implicit_generalized_energy_study(
 		raise TypeError("`configuration` must be a np.ndarray instance.")
 	if not isinstance(config, ImplicitGeneralizedEnergyConfig):
 		raise TypeError("`config` must be ImplicitGeneralizedEnergyConfig.")
-	method_name = _validated_method(method)
-	initial_state = single_gc_state(configuration, message="The implicit energy study requires exactly one GC state.")
+	method_name: Literal['abba2_implicit_reduced_multiplier'] | Literal['abba4_implicit'] | Literal['bm4_implicit'] = _validated_method(method)
+	initial_state: np.ndarray = single_gc_state(configuration, message="The implicit energy study requires exactly one GC state.")
 
-	dynamics = GuidingCenterDynamics(
+	dynamics: GuidingCenterDynamics = GuidingCenterDynamics(
 		potential,
 		rho=resolve_rho(config.rho),
 	)
-	problem = InitialValueProblem(dynamics, configuration, layout=GCStateLayout())
+	problem: InitialValueProblem = InitialValueProblem(dynamics, configuration, layout=GCStateLayout())
 	runs: list[ImplicitGeneralizedEnergyRun] = []
 	for step in config.steps:
-		energy_observer = GCGeneralizedEnergyObserver(
+		energy_observer: GCGeneralizedEnergyObserver = GCGeneralizedEnergyObserver(
 			dynamics,
 			initial_time=config.t_span[0],
 			initial_state=initial_state,
 		)
-		symplecticity_observer = GCTimeExtendedSymplecticityObserver(
+		symplecticity_observer: GCTimeExtendedSymplecticityObserver = GCTimeExtendedSymplecticityObserver(
 			dynamics,
 			relative_step=config.symplecticity_jacobian_relative_step,
 		)
@@ -508,15 +513,15 @@ def run_implicit_generalized_energy_study(
 			state: np.ndarray,
 			duration: float,
 		) -> tuple[np.ndarray, float]:
-			candidate_state = np.asarray(state, dtype=float)
-			candidate_configuration = GCStateLayout().pack_components(np.asarray([candidate_state[0]], dtype=float), np.asarray([candidate_state[1]], dtype=float))
-			candidate_problem = InitialValueProblem(dynamics, candidate_configuration, layout=GCStateLayout())
-			candidate_energy_observer = GCGeneralizedEnergyObserver(
+			candidate_state: np.ndarray = np.asarray(state, dtype=float)
+			candidate_configuration: np.ndarray = GCStateLayout().pack_components(np.asarray([candidate_state[0]], dtype=float), np.asarray([candidate_state[1]], dtype=float))
+			candidate_problem: InitialValueProblem = InitialValueProblem(dynamics, candidate_configuration, layout=GCStateLayout())
+			candidate_energy_observer: GCGeneralizedEnergyObserver = GCGeneralizedEnergyObserver(
 				dynamics,
 				initial_time=start_time,
 				initial_state=candidate_state,
 			)
-			candidate_solution = simulate(
+			candidate_solution: States = simulate(
 				candidate_problem,
 				_method_for_run(
 					method_name,
@@ -534,7 +539,7 @@ def run_implicit_generalized_energy_study(
 				float(candidate_energy_observer.records[-1].kappa),
 			)
 
-		reduced_symplecticity_observer = (
+		reduced_symplecticity_observer: GCReducedTimeExtendedSymplecticityObserver = (
 			GCReducedTimeExtendedSymplecticityObserver(
 				dynamics,
 				step_map=reduced_step_map,
@@ -547,12 +552,12 @@ def run_implicit_generalized_energy_study(
 			symplecticity_observer(record)
 			reduced_symplecticity_observer(record)
 
-		request = SimulationRequest.uniform(
+		request: SimulationRequest = SimulationRequest.uniform(
 			t_span=config.t_span,
 			max_step=step,
 			sample_count=config.output_sample_count,
 		)
-		solution = simulate(
+		solution: States = simulate(
 			problem,
 			_method_for_run(method_name, config, observer),
 			request,
@@ -570,7 +575,7 @@ def run_implicit_generalized_energy_study(
 			raise RuntimeError(
 				"Reduced extended records do not match the accepted step count."
 			)
-		actual_step = float(records[1].duration)
+		actual_step: float = float(records[1].duration)
 		runs.append(
 			ImplicitGeneralizedEnergyRun(
 				step=step,

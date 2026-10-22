@@ -12,8 +12,10 @@ from matplotlib.figure import Figure
 
 from states.history import States
 
+
 if TYPE_CHECKING:
 	from studies.trajectory_symplecticity import TrajectorySymplecticityResult
+	from typing import Any
 
 
 class TrajectorySymplecticityRecordView(Protocol):
@@ -28,11 +30,11 @@ class TrajectorySymplecticityRecordView(Protocol):
 
 def _positive(values: np.ndarray) -> np.ndarray:
 	"""Validate non-negative data and floor only exact zeros for log axes."""
-	result = np.asarray(values, dtype=float)
+	result: np.ndarray = np.asarray(values, dtype=float)
 	if not np.all(np.isfinite(result)) or np.any(result < 0.0):
 		raise ValueError("Symplecticity errors must be finite and non-negative.")
 	positive = result[result > 0.0]
-	floor = (
+	floor: float = (
 		float(np.min(positive)) / 10.0
 		if positive.size
 		else float(np.finfo(float).eps)
@@ -48,10 +50,10 @@ def _symplecticity_series(
 	prepared: list[tuple[str, np.ndarray, tuple[tuple[np.ndarray, np.ndarray, np.ndarray], ...]]] = []
 	reference_times: np.ndarray | None = None
 	for label in ordered_labels:
-		rows = tuple(records[label])
+		rows: tuple[TrajectorySymplecticityRecordView, ...] = tuple(records[label])
 		if not rows:
 			raise ValueError(f"The record series for {label!r} is empty.")
-		times = np.asarray([row.time for row in rows], dtype=float)
+		times: np.ndarray = np.asarray([row.time for row in rows], dtype=float)
 		if not np.all(np.isfinite(times)) or np.any(np.diff(times) <= 0.0):
 			raise ValueError("Diagnostic times must be finite and strictly increasing.")
 		if reference_times is None:
@@ -69,8 +71,8 @@ def _symplecticity_series(
 			raise ValueError("Compared records must share one saved-time grid.")
 		metrics: list[tuple[np.ndarray, np.ndarray, np.ndarray]] = []
 		for mean_field, std_field, _title in fields:
-			means = np.asarray([getattr(row, mean_field) for row in rows], dtype=float)
-			std = np.asarray([getattr(row, std_field) for row in rows], dtype=float)
+			means: np.ndarray = np.asarray([getattr(row, mean_field) for row in rows], dtype=float)
+			std: np.ndarray = np.asarray([getattr(row, std_field) for row in rows], dtype=float)
 			_positive(std)
 			metrics.append((
 				_positive(means),
@@ -88,7 +90,7 @@ def plot_trajectory_symplecticity(
 	method_name: str,
 ) -> tuple[Figure, np.ndarray]:
 	"""Plot mean local and accumulated errors for one numerical method."""
-	ordered_labels = tuple(records) if labels is None else tuple(labels)
+	ordered_labels: tuple[str, ...] = tuple(records) if labels is None else tuple(labels)
 	if not ordered_labels or any(label not in records for label in ordered_labels):
 		raise ValueError("`labels` must select at least one available series.")
 	fields = (
@@ -103,7 +105,9 @@ def plot_trajectory_symplecticity(
 			f"{method_name}: mean accumulated-flow symplecticity error",
 		),
 	)
-	prepared = _symplecticity_series(records, ordered_labels, fields)
+	prepared: list[tuple[str, np.ndarray, tuple[tuple[np.ndarray, np.ndarray, np.ndarray], ...]]] = _symplecticity_series(records, ordered_labels, fields)
+	figure: Figure
+	axes: np.ndarray
 	figure, axes = plt.subplots(
 		2,
 		1,
@@ -132,9 +136,13 @@ def plot_gc_trajectory_points(
 	"""Plot sampled planar trajectories as points without connecting lines."""
 	if not isinstance(solution, States):
 		raise TypeError("`solution` must be a States instance.")
+	x: np.ndarray
+	y: np.ndarray
 	x, y = solution.positions()
 	if x.ndim != 2 or y.shape != x.shape:
 		raise ValueError("The solution must contain sampled planar trajectories.")
+	figure: Figure
+	axis: Axes
 	figure, axis = plt.subplots(figsize=(7, 6), constrained_layout=True)
 	for particle, (x_values, y_values) in enumerate(zip(x, y, strict=True), start=1):
 		line = axis.plot(
@@ -191,7 +199,7 @@ def plot_trajectory_symplecticity_trajectories(
 	label: str | None = None,
 ) -> tuple[Figure, Axes]:
 	"""Plot study trajectories as points, using the finest step by default."""
-	selected = (
+	selected: str = (
 		min(result.steps, key=lambda step: step.value).label
 		if label is None
 		else label

@@ -12,10 +12,14 @@ from urllib.parse import quote, unquote, urlsplit
 import matplotlib.pyplot as plt
 import numpy as np
 from collections.abc import Mapping, Sequence
-from typing import Any
+from typing import Any, TYPE_CHECKING
 from matplotlib.figure import Figure
 from studies.poincare_periodicity import SavedPoincareSection
 from studies.poincare_probe import RK4ProbeSettings
+
+
+if TYPE_CHECKING:
+    from matplotlib.axes import Axes
 
 
 _VIEWER_SERVERS: dict[Path, ThreadingHTTPServer] = {}
@@ -31,13 +35,13 @@ def serve_probe_viewer(path: Path, *, notebook_name: str | None = None) -> str:
     """
     path = Path(path).resolve(strict=True)
     directory = path.parent
-    aliases = _VIEWER_ALIASES.setdefault(directory, {})
+    aliases: dict[str, str] = _VIEWER_ALIASES.setdefault(directory, {})
     url_basename = path.name
     if notebook_name is not None:
         if not re.fullmatch(r'[A-Za-z0-9_-]+', notebook_name):
             raise ValueError('notebook_name must contain only letters, numbers, underscores, and hyphens.')
         url_basename = f'{notebook_name}.html'
-        previous = aliases.get(url_basename)
+        previous: str | None = aliases.get(url_basename)
         if previous is not None and previous != path.name:
             raise ValueError('The notebook URL name is already assigned to another viewer.')
         aliases[url_basename] = path.name
@@ -46,13 +50,13 @@ def serve_probe_viewer(path: Path, *, notebook_name: str | None = None) -> str:
             """Map notebook-specific URL basenames to saved HTML artifacts."""
 
             def translate_path(self, request_path: str) -> str:
-                requested = unquote(urlsplit(request_path).path.lstrip('/'))
+                requested: str = unquote(urlsplit(request_path).path.lstrip('/'))
                 if requested in aliases:
                     return str(directory / aliases[requested])
                 return super().translate_path(request_path)
 
-        handler = partial(ViewerHandler, directory=str(directory))
-        server = ThreadingHTTPServer(('127.0.0.1', 0), handler)
+        handler: partial[ViewerHandler] = partial(ViewerHandler, directory=str(directory))
+        server: ThreadingHTTPServer = ThreadingHTTPServer(('127.0.0.1', 0), handler)
         Thread(target=server.serve_forever, daemon=True).start()
         _VIEWER_SERVERS[directory] = server
     port = _VIEWER_SERVERS[directory].server_port
@@ -63,7 +67,7 @@ def display_notebook_viewer_link(path: Path, notebook_name: str) -> str:
     """Show a clickable, notebook-named local URL for a saved HTML viewer."""
     from IPython.display import HTML, display
 
-    url = serve_probe_viewer(path, notebook_name=notebook_name)
+    url: str = serve_probe_viewer(path, notebook_name=notebook_name)
     print(f'Local viewer URL ({notebook_name}): {url}')
     display(HTML(f'<a href="{escape(url)}" target="_blank" rel="noopener">'
                  f'Open {escape(notebook_name)} in a new tab</a>'))
@@ -74,7 +78,12 @@ def plot_probe_context(background: SavedPoincareSection, settings: RK4ProbeSetti
                        view: tuple[float, float, float], positions: np.ndarray | None = None,
                        method: str = 'RK4') -> Figure:
     """Show original returns and the probe at the same square spatial scale."""
+    figure: Figure
+    axis: Axes
     figure, axis = plt.subplots(figsize=(7, 7), layout='constrained')
+    x: float
+    y: float
+    span: float
     x, y, span = view
     for j, color in enumerate(background.colors):
         points = background.positions[1:, j]
@@ -121,14 +130,21 @@ def plot_region_sections(backgrounds: Mapping[str, SavedPoincareSection],
     cycle returns exported to HTML, so figures never substitute dense trajectories
     for once-per-cycle Poincare samples.
     """
-    methods = list(backgrounds)
+    methods: list[str] = list(backgrounds)
+    figure: Figure
+    axes: np.ndarray
     figure, axes = plt.subplots(len(regions), len(methods), squeeze=False,
                                 figsize=(6 * len(methods), 5.5 * len(regions)), layout='constrained')
     for row, region in enumerate(regions):
+        x: Any
+        y: Any
+        span: Any
         x, y, span = region['view']
         pid = region['particle_id']
         probe = probes[pid]
         for col, method in enumerate(methods):
+            axis: Any
+            background: SavedPoincareSection
             axis, background = axes[row, col], backgrounds[method]
             for j, color in enumerate(background.colors):
                 points = background.positions[1:, j]

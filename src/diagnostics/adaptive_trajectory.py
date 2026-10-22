@@ -34,17 +34,17 @@ class AdaptiveTrajectoryObserver:
 
     def evaluate(self, time: float | np.ndarray) -> np.ndarray:
         """Evaluate scalar or one-dimensional times within the retained span."""
-        times = np.asarray(time, dtype=float)
+        times: np.ndarray = np.asarray(time, dtype=float)
         if times.ndim > 1 or not np.all(np.isfinite(times)):
             raise ValueError('Dense query times must be finite scalars or vectors.')
         if not self._interpolants:
             raise ValueError('No adaptive trajectory has been observed.')
         if np.any(times < self._bounds[0]) or np.any(times > self._bounds[-1]):
             raise ValueError('Dense query times must lie within the retained span.')
-        flat = times.reshape(-1)
-        indices = np.clip(np.searchsorted(self._bounds, flat, side='left') - 1,
+        flat: np.ndarray = times.reshape(-1)
+        indices: np.ndarray = np.clip(np.searchsorted(self._bounds, flat, side='left') - 1,
                           0, len(self._interpolants) - 1)
-        states = np.empty((self._dimension, flat.size))
+        states: np.ndarray = np.empty((self._dimension, flat.size))
         for index in np.unique(indices):
             mask = indices == index
             states[:, mask] = self._interpolants[int(index)](flat[mask])

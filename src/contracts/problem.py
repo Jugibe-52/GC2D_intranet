@@ -28,7 +28,7 @@ class InitialValueProblem:
 		if isinstance(initial_state, InitialConditions):
 			if layout is not None:
 				raise ValueError("InitialConditions already owns its layout; omit `layout`.")
-			initial = initial_state
+			initial: InitialConditions = initial_state
 		else:
 			initial = self._from_array(dynamics, initial_state, layout)
 		if initial.layout.state_dimension != dynamics.state_dimension:

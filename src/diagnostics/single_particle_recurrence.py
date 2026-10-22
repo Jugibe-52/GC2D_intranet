@@ -6,15 +6,19 @@ import hashlib
 import csv
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 import numpy as np
 import scipy
 
 
+if TYPE_CHECKING:
+    from _hashlib import HASH
+
+
 def file_sha256(path: str | Path) -> str:
     """Hash an input or source file without loading the complete file at once."""
-    digest = hashlib.sha256()
+    digest: HASH = hashlib.sha256()
     with Path(path).open("rb") as stream:
         for block in iter(lambda: stream.read(1024 * 1024), b""):
             digest.update(block)
@@ -41,7 +45,7 @@ def save_recurrence(path: str | Path, arrays: dict[str, np.ndarray],
     """Atomically persist numerical results and the complete calculation identity."""
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_suffix(".tmp.npz")
+    temporary: Path = path.with_suffix(".tmp.npz")
     record = {"schema_version": 1, "identity": identity, "result": metadata}
     np.savez_compressed(temporary, metadata_json=json.dumps(record, allow_nan=False), **arrays)
     temporary.replace(path)
@@ -50,7 +54,7 @@ def save_recurrence(path: str | Path, arrays: dict[str, np.ndarray],
 def load_recurrence(path: str | Path, identity: dict[str, Any]) -> tuple[dict[str, np.ndarray], dict[str, Any]]:
     """Reject stale inputs, settings, code or library versions before reuse."""
     with np.load(path, allow_pickle=False) as archive:
-        record = json.loads(str(archive["metadata_json"]))
+        record: Any = json.loads(str(archive["metadata_json"]))
         if record.get("schema_version") != 1 or record.get("identity") != json.loads(json.dumps(identity)):
             raise ValueError("Recurrence cache identity changed; set recompute=True and rerun.")
         arrays = {key: archive[key].copy() for key in archive.files if key != "metadata_json"}
@@ -77,7 +81,7 @@ def export_recurrence_tables(directory: str | Path, metadata: dict[str, Any],
                        ("threshold_windows", windows)):
         if rows:
             with (directory / f"{name}.csv").open('w', newline='', encoding='utf-8') as stream:
-                writer = csv.DictWriter(stream, fieldnames=list(rows[0]))
+                writer: csv.DictWriter[Any] = csv.DictWriter(stream, fieldnames=list(rows[0]))
                 writer.writeheader()
                 writer.writerows(rows)
     (directory / 'metadata.json').write_text(

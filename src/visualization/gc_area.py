@@ -7,7 +7,7 @@ from formulations.layout import GCStateLayout
 from diagnostics.geometry import calculate_area
 
 from collections.abc import Mapping, Sequence
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
@@ -33,6 +33,16 @@ from ._gc_area_validation import (
 )
 
 
+if TYPE_CHECKING:
+	from formulations.layout import GCState
+	from matplotlib.axes import Axes
+	from matplotlib.collections import QuadMesh
+	from matplotlib.figure import Figure
+	from matplotlib.gridspec import GridSpec
+	from matplotlib.quiver import Quiver
+	from visualization._gc_area_validation import AreaDiagnostics
+
+
 def animate_gc_area(
 	potential: Potential,
 	trajectory: np.ndarray,
@@ -55,12 +65,14 @@ def animate_gc_area(
 	symplecticity panel; doubled-state studies may additionally provide normalized
 	separation of their two internal trajectories.
 	"""
+	times: np.ndarray
+	state_series: tuple[np.ndarray, ...]
 	times, state_series = validated_solution_series(trajectory, solutions)
-	series_count = len(state_series)
-	series_labels = validated_labels(labels, series_count)
+	series_count: int = len(state_series)
+	series_labels: tuple[str, ...] = validated_labels(labels, series_count)
 	frames = unbounded_frame_count(frames)
 	interval = positive_interval(interval, strict=True)
-	diagnostics = validated_diagnostic_series(
+	diagnostics: tuple[AreaDiagnostics, ...] | None = validated_diagnostic_series(
 		diagnostic_times,
 		relative_symplecticity_errors,
 		relative_copy_separations,
@@ -69,26 +81,26 @@ def animate_gc_area(
 
 	# Each array has one signed polygon area per common saved time. Normalizing by
 	# the positive initial magnitude preserves the direction of each area change.
-	area_values = tuple(
+	area_values: tuple[np.ndarray, ...] = tuple(
 		calculate_area(states, period=potential.grid.period, layout=GCStateLayout())
 		for states in state_series
 	)
-	initial_areas = tuple(float(values[0]) for values in area_values)
+	initial_areas: tuple[float, ...] = tuple(float(values[0]) for values in area_values)
 	if any(initial_area == 0.0 for initial_area in initial_areas):
 		raise ValueError("Every initial area must be non-zero.")
-	relative_area_errors = tuple(
+	relative_area_errors: tuple[np.ndarray, ...] = tuple(
 		(values - initial_area) / abs(initial_area)
 		for values, initial_area in zip(area_values, initial_areas, strict=True)
 	)
 
 	# Subsampling changes only displayed frames. Every diagnostic retains its full
 	# temporal resolution and is revealed up to the current animation time.
-	frame_count = times.size if frames is None else min(int(frames), times.size)
-	frame_indices = np.linspace(0, times.size - 1, frame_count, dtype=int)
+	frame_count: int = times.size if frames is None else min(int(frames), times.size)
+	frame_indices: np.ndarray = np.linspace(0, times.size - 1, frame_count, dtype=int)
 	frame_times = times[frame_indices]
 	fields = [potential.evaluate_grid(time) for time in frame_times]
-	vmin = min(float(np.min(field)) for field in fields)
-	vmax = max(float(np.max(field)) for field in fields)
+	vmin: float = min(float(np.min(field)) for field in fields)
+	vmax: float = max(float(np.max(field)) for field in fields)
 	if vmin < 0 < vmax:
 		norm: mcolors.Normalize = mcolors.TwoSlopeNorm(
 			vmin=vmin,
@@ -103,7 +115,9 @@ def animate_gc_area(
 
 	# Roughly twenty arrows per axis retain field direction without hiding the
 	# compared contours. One global scale makes magnitudes comparable over time.
-	quiver_stride = max(1, int(np.ceil(max(potential.grid.shape) / 20)))
+	quiver_stride: int = max(1, int(np.ceil(max(potential.grid.shape) / 20)))
+	quiver_x: np.ndarray
+	quiver_y: np.ndarray
 	quiver_x, quiver_y = np.meshgrid(
 		potential.grid.x[::quiver_stride],
 		potential.grid.y[::quiver_stride],
@@ -112,12 +126,12 @@ def animate_gc_area(
 	electric_fields = [
 		potential.electric_field(time, quiver_x, quiver_y) for time in frame_times
 	]
-	max_magnitude = max(
+	max_magnitude: float = max(
 		float(np.max(np.hypot(field_x, field_y)))
 		for field_x, field_y in electric_fields
 	)
 	arrow_length = 0.75 * quiver_stride * min(potential.grid.dx, potential.grid.dy)
-	quiver_scale = (
+	quiver_scale: None | float = (
 		None if np.isclose(max_magnitude, 0.0) else max_magnitude / arrow_length
 	)
 
@@ -125,19 +139,22 @@ def animate_gc_area(
 		diagnostics is not None and diagnostics[0][2] is not None
 	)
 	if diagnostics is None:
+		fig: Figure
+		ax_field: Axes
+		ax_area: Axes
 		fig, (ax_field, ax_area) = plt.subplots(
 			1,
 			2,
 			figsize=(12, 5),
 			constrained_layout=True,
 		)
-		ax_symplecticity = None
-		ax_separation = None
+		ax_symplecticity: Axes | None = None
+		ax_separation: Axes | None = None
 	else:
 		row_count = 3 if has_copy_separation else 2
 		figsize = (14, 9) if has_copy_separation else (14, 7)
 		fig = plt.figure(figsize=figsize, constrained_layout=True)
-		grid = fig.add_gridspec(row_count, 2, width_ratios=(1.2, 1.0))
+		grid: GridSpec = fig.add_gridspec(row_count, 2, width_ratios=(1.2, 1.0))
 		ax_field = fig.add_subplot(grid[:, 0])
 		ax_area = fig.add_subplot(grid[0, 1])
 		ax_symplecticity = fig.add_subplot(grid[1, 1])
@@ -145,7 +162,7 @@ def animate_gc_area(
 			fig.add_subplot(grid[2, 1]) if has_copy_separation else None
 		)
 
-	mesh = ax_field.pcolormesh(
+	mesh: QuadMesh = ax_field.pcolormesh(
 		potential.grid.x,
 		potential.grid.y,
 		fields[0].T,
@@ -155,7 +172,7 @@ def animate_gc_area(
 		**pcolormesh_kwargs,
 	)
 	fig.colorbar(mesh, ax=ax_field, label=r"$\phi_{\mathrm{eff}}$")
-	quiver = ax_field.quiver(
+	quiver: Quiver = ax_field.quiver(
 		quiver_x,
 		quiver_y,
 		*electric_fields[0],
@@ -166,13 +183,13 @@ def animate_gc_area(
 		width=0.003,
 	)
 	comparison = series_count > 1
-	shared_colors = tuple(f"C{index}" for index in range(series_count))
+	shared_colors: tuple[str, ...] = tuple(f"C{index}" for index in range(series_count))
 	contour_colors = shared_colors if comparison else ("lime",)
 	area_colors = shared_colors if comparison else ("tab:red",)
 	symplecticity_colors = shared_colors if comparison else ("tab:purple",)
 	separation_colors = shared_colors if comparison else ("tab:blue",)
 
-	contours = tuple(
+	contours: tuple[Any, ...] = tuple(
 		ax_field.plot(
 			[],
 			[],
@@ -192,7 +209,7 @@ def animate_gc_area(
 	if comparison:
 		ax_field.legend(title="Integration step", loc="upper right")
 
-	area_lines = tuple(
+	area_lines: tuple[Any, ...] = tuple(
 		ax_area.plot(
 			[],
 			[],
@@ -202,7 +219,7 @@ def animate_gc_area(
 		)[0]
 		for color, label in zip(area_colors, series_labels, strict=True)
 	)
-	area_markers = tuple(
+	area_markers: tuple[Any, ...] = tuple(
 		ax_area.plot(
 			[],
 			[],
@@ -237,7 +254,7 @@ def animate_gc_area(
 	if diagnostics is not None:
 		diagnostic_plot_times = tuple(item[0] for item in diagnostics)
 		relative_symplecticity_values = tuple(item[1] for item in diagnostics)
-		symplecticity_limits = positive_log_limits(relative_symplecticity_values)
+		symplecticity_limits: tuple[float, float] = positive_log_limits(relative_symplecticity_values)
 		plot_symplecticity_values = tuple(
 			np.maximum(values, symplecticity_limits[0])
 			for values in relative_symplecticity_values
@@ -281,7 +298,7 @@ def animate_gc_area(
 			relative_copy_values = tuple(
 				item[2] for item in diagnostics if item[2] is not None
 			)
-			separation_limits = positive_log_limits(relative_copy_values)
+			separation_limits: tuple[float, float] = positive_log_limits(relative_copy_values)
 			plot_copy_values = tuple(
 				np.maximum(values, separation_limits[0])
 				for values in relative_copy_values
@@ -328,7 +345,7 @@ def animate_gc_area(
 
 	# Every component block has shape (boundary vertices, saved times). Periodic
 	# wrapping is applied independently so each numerical contour remains legible.
-	component_series = tuple(GCStateLayout().split(states) for states in state_series)
+	component_series: tuple[GCState, ...] = tuple(GCStateLayout().split(states) for states in state_series)
 	period = potential.grid.period
 	xmin = potential.grid.xmin
 	ymin = potential.grid.ymin
@@ -357,7 +374,7 @@ def animate_gc_area(
 
 	def update(index: int) -> tuple[Any, ...]:
 		"""Reveal every trajectory and diagnostic up to one common saved time."""
-		solution_index = int(frame_indices[index])
+		solution_index: int = int(frame_indices[index])
 		mesh.set_array(fields[index].T)
 		quiver.set_UVC(*electric_fields[index])
 		for series_index, contour in enumerate(contours):
@@ -381,7 +398,7 @@ def animate_gc_area(
 				rf"GC contour comparison, $t={times[solution_index]:.3f}$"
 			)
 		else:
-			running_max_error = float(
+			running_max_error: float = float(
 				np.max(np.abs(relative_area_errors[0][: solution_index + 1]))
 			)
 			ax_area.set_title(
@@ -405,10 +422,10 @@ def animate_gc_area(
 			assert relative_symplecticity_values is not None
 			assert plot_symplecticity_values is not None
 			assert ax_symplecticity is not None
-			current_time = float(times[solution_index])
+			current_time: float = float(times[solution_index])
 			time_tolerance = 32 * np.finfo(float).eps * max(1.0, abs(current_time))
 			for series_index in range(series_count):
-				diagnostic_stop = int(
+				diagnostic_stop: int = int(
 					np.searchsorted(
 						diagnostic_plot_times[series_index],
 						current_time + time_tolerance,
@@ -463,7 +480,7 @@ def animate_gc_area(
 						separation_line.set_data([], [])
 						separation_marker.set_data([], [])
 				if not comparison and diagnostic_stop:
-					current_symplecticity = float(
+					current_symplecticity: float = float(
 						relative_symplecticity_values[0][diagnostic_stop - 1]
 					)
 					ax_symplecticity.set_title(
@@ -474,7 +491,7 @@ def animate_gc_area(
 					if has_copy_separation:
 						assert relative_copy_values is not None
 						assert ax_separation is not None
-						current_separation = float(
+						current_separation: float = float(
 							relative_copy_values[0][diagnostic_stop - 1]
 						)
 						ax_separation.set_title(
@@ -502,7 +519,7 @@ def animate_gc_area(
 		return tuple(artists)
 
 	update(0)
-	animation = FuncAnimation(
+	animation: FuncAnimation = FuncAnimation(
 		fig,
 		update,
 		frames=frame_count,
@@ -566,7 +583,10 @@ def animate_gc_area_comparison(
 		raise TypeError("`area` must be a GC np.ndarray with at least three ordered boundary vertices.")
 	if not isinstance(solutions, Mapping) or len(solutions) < 2:
 		raise ValueError("`solutions` must map at least two labels to solutions.")
-	labels = tuple(solutions)
+	labels: tuple[str, ...] = tuple(solutions)
+	ordered_times: tuple[np.ndarray | None, ...]
+	ordered_errors: tuple[np.ndarray | None, ...]
+	ordered_separations: tuple[np.ndarray | None, ...]
 	ordered_times, ordered_errors, ordered_separations = validated_diagnostic_mappings(
 		labels, diagnostic_times, relative_symplecticity_errors, relative_copy_separations,
 	)

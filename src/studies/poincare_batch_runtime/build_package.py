@@ -2,11 +2,17 @@
 from pathlib import Path
 import sys
 import tarfile
+
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from typing import Any
+
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT))
 from study_io import digest, atomic_json, utc_now
 import json
-cfg=json.loads((ROOT/'experiment.json').read_text())
+cfg: 'Any'=json.loads((ROOT/'experiment.json').read_text())
 run=cfg['run_id']
 bucket=cfg['bucket']
 files=['calculo.ipynb','visualizacion.ipynb','run.py','study_io.py','parallel_calculation.py',
@@ -18,13 +24,13 @@ files=['calculo.ipynb','visualizacion.ipynb','run.py','study_io.py','parallel_ca
 archive=ROOT/'aws'/f'{ROOT.name}_aws.tar.gz'
 with tarfile.open(archive,'w:gz') as tar:
     for name in files: tar.add(ROOT/name,arcname=f'{ROOT.name}/{name}')
-sha=digest(archive)
+sha: 'str'=digest(archive)
 atomic_json(ROOT/'aws/input_manifest.json',{'created_utc':utc_now(),'run_id':run,'archive':archive.name,
     'sha256':sha,'bytes':archive.stat().st_size,'bucket':bucket,'key':'inputs/'+archive.name,
     'instance_type':'c8a.4xlarge','market':'spot','region':'eu-central-1','processes':16,
     'configuration':cfg,
     'source_sha256':{name:digest(ROOT/name) for name in files if (ROOT/name).is_file()}})
-script=r'''#!/usr/bin/env bash
+script: 'str'=r'''#!/usr/bin/env bash
 set -euo pipefail
 exec > >(tee -a /var/log/poincare-bootstrap.log) 2>&1
 trap '/usr/sbin/shutdown -h now' ERR

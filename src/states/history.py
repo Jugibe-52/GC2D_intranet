@@ -15,7 +15,7 @@ from contracts.step import StepInfo, StepValue
 
 
 def _readonly(value: np.ndarray) -> np.ndarray:
-	owned = np.array(value, copy=True)
+	owned: np.ndarray = np.array(value, copy=True)
 	owned.setflags(write=False)
 	return owned
 
@@ -26,10 +26,10 @@ def _prepared_recording_inputs(
 	"""Own the ordered schedule and validate the independent packed layout."""
 	if not isinstance(layout, StateLayout):
 		raise TypeError("`layout` must implement StateLayout.")
-	t = np.array(times, dtype=float, copy=True)
+	t: np.ndarray = np.array(times, dtype=float, copy=True)
 	if t.ndim != 1 or not t.size or not np.all(np.isfinite(t)) or np.any(np.diff(t) <= 0):
 		raise ValueError("Sample times must be a finite non-empty increasing vector.")
-	owned_layout = deepcopy(layout)
+	owned_layout: StateLayout = deepcopy(layout)
 	owned_layout.validate_packed_state_layout(
 		np.asarray(initial) if initial is not None else np.zeros(state_size)
 	)
@@ -38,7 +38,7 @@ def _prepared_recording_inputs(
 
 def _validated_history(values: np.ndarray, shape: tuple[int, ...], layout: StateLayout) -> np.ndarray:
 	"""Validate a complete physical history without converting its dtype."""
-	value = np.asarray(values)
+	value: np.ndarray = np.asarray(values)
 	if value.shape != shape or not np.all(np.isfinite(value)):
 		raise ValueError("Physical states must be finite with shape (state_size, samples).")
 	layout.validate_packed_state_layout(value)
@@ -47,7 +47,7 @@ def _validated_history(values: np.ndarray, shape: tuple[int, ...], layout: State
 
 def _owned_initial_snapshot(initial: np.ndarray | None, state_size: int) -> np.ndarray | None:
 	"""Copy the optional physical snapshot independently of recorded samples."""
-	value = None if initial is None else _readonly(np.asarray(initial))
+	value: None | np.ndarray = None if initial is None else _readonly(np.asarray(initial))
 	if value is not None and (value.shape != (state_size,) or not np.all(np.isfinite(value))):
 		raise ValueError("The initial snapshot must match the physical state dimension.")
 	return value
@@ -81,13 +81,15 @@ class States:
 	             layout: StateLayout, initial_state: np.ndarray | None = None) -> None:
 		self._allocate(t, layout, np.asarray(states).dtype,
 		               np.asarray(states).shape[0] if np.ndim(states) else 0, initial_state)
-		value = _validated_history(states, self._values.shape, self._layout)
+		value: np.ndarray = _validated_history(states, self._values.shape, self._layout)
 		self._values[:] = value
 		self._count = self._times.size
 		self.finalize(diagnostics)
 
 	def _allocate(self, times: np.ndarray, layout: StateLayout, dtype: Any,
 	              state_size: int, initial: np.ndarray | None) -> None:
+		t: np.ndarray
+		owned_layout: StateLayout
 		t, owned_layout = _prepared_recording_inputs(times, layout, state_size, initial)
 		self._times = t
 		self._values = np.empty((state_size, t.size), dtype=dtype)
@@ -106,10 +108,10 @@ class States:
 	@classmethod
 	def prepare(cls, times: np.ndarray, initial: np.ndarray, *, layout: StateLayout) -> States:
 		"""Reserve one result without publishing any unrecorded columns."""
-		value = np.asarray(initial, dtype=float)
+		value: np.ndarray = np.asarray(initial, dtype=float)
 		if value.ndim != 1 or not value.size or not np.all(np.isfinite(value)):
 			raise ValueError("The initial physical state must be a finite non-empty vector.")
-		result = cls.__new__(cls)
+		result: States = cls.__new__(cls)
 		result._allocate(times, layout, value.dtype, value.size, value)
 		return result
 
@@ -123,10 +125,10 @@ class States:
 		self._require_recording()
 		if self._count >= self._times.size or time != self._times[self._count]:
 			raise ValueError("Record samples in the requested time order.")
-		value = np.asarray(values)
+		value: np.ndarray = np.asarray(values)
 		if value.shape != (self._values.shape[0],) or not np.all(np.isfinite(value)):
 			raise ValueError("A physical sample changed shape or became non-finite.")
-		parts = dict(auxiliary or {})
+		parts: dict[str, np.ndarray] = dict(auxiliary or {})
 		if self._count == 0:
 			self._auxiliary = {key: np.empty((*np.shape(part), self._times.size), dtype=np.asarray(part).dtype)
 			                   for key, part in parts.items()}
@@ -150,7 +152,7 @@ class States:
 		self._require_recording()
 		if self._count:
 			raise RuntimeError("Bulk history recording requires an empty States recorder.")
-		value = _validated_history(values, self._values.shape, self._layout)
+		value: np.ndarray = _validated_history(values, self._values.shape, self._layout)
 		self._values[:] = value
 		self._count = self._times.size
 
@@ -267,7 +269,7 @@ class States:
 
 	Whole-run diagnostics remain attached unchanged; they have independent axes.
 	"""
-		chosen = np.atleast_1d(np.arange(self._count)[indices])
+		chosen: np.ndarray = np.atleast_1d(np.arange(self._count)[indices])
 		return States(self.times[chosen], self.values[:, chosen], self.diagnostics, layout=self._layout, initial_state=self._initial)
 
 	def with_diagnostics(self, diagnostics: Mapping[str, DiagnosticValue], *, replace: bool = False) -> States:
@@ -283,12 +285,12 @@ class States:
 
 	@property
 	def k(self) -> np.ndarray | None:
-		value = self._diagnostics.get("extended_momentum")
+		value: np.ndarray | float | int | str | None = self._diagnostics.get("extended_momentum")
 		return None if value is None else np.asarray(value)
 
 	@property
 	def err(self) -> float | None:
-		value = self._diagnostics.get("energy_error")
+		value: np.ndarray | float | int | str | None = self._diagnostics.get("energy_error")
 		return None if value is None else float(value)
 
 

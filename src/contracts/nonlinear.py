@@ -4,9 +4,13 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import TypeAlias
+from typing import TYPE_CHECKING, TypeAlias
 
 import numpy as np
+
+
+if TYPE_CHECKING:
+	from typing import Any
 
 
 @dataclass(frozen=True, slots=True)
@@ -34,9 +38,9 @@ class NewtonIteration:
 	def __post_init__(self) -> None:
 		"""Keep retained or modified observations independent of solver storage."""
 		for name in ("unknown", "residual", "multiplier"):
-			value = getattr(self, name)
+			value: Any = getattr(self, name)
 			if value is not None:
-				owned = np.asarray(value, dtype=float).copy()
+				owned: np.ndarray = np.asarray(value, dtype=float).copy()
 				owned.setflags(write=False)
 				object.__setattr__(self, name, owned)
 

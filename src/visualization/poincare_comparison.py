@@ -10,10 +10,10 @@ from numpy.typing import ArrayLike
 
 def _encode_field(field: Mapping[str, Any]) -> dict[str, Any]:
     """Encode a periodic Hamiltonian raster and its collocated velocity grid."""
-    potential = np.asarray(field['potential'], dtype=float)
-    velocity = np.asarray(field['velocity'], dtype=float)
-    phases = np.asarray(field['phases'], dtype=float)
-    bounds = np.asarray(field['bounds'], dtype=float)
+    potential: np.ndarray = np.asarray(field['potential'], dtype=float)
+    velocity: np.ndarray = np.asarray(field['velocity'], dtype=float)
+    phases: np.ndarray = np.asarray(field['phases'], dtype=float)
+    bounds: np.ndarray = np.asarray(field['bounds'], dtype=float)
     if (potential.ndim != 3 or potential.shape[1] != potential.shape[2]
             or velocity.ndim != 4 or velocity.shape[1] != velocity.shape[2]
             or velocity.shape[-1] != 2 or potential.shape[0] != len(phases)
@@ -35,10 +35,10 @@ def _validated_panel(
     panel: Mapping[str, Any], lower: np.ndarray, upper: np.ndarray,
 ) -> tuple[np.ndarray, bool, list[int], list[Any]]:
     """Normalize one panel and validate positions, particle labels and sample count."""
-    xy = np.asarray(panel["coordinates"], dtype=float)
-    static = bool(panel.get("static", False))
-    ids = list(map(int, panel["particle_ids"]))
-    colors = list(panel["colors"])
+    xy: np.ndarray = np.asarray(panel["coordinates"], dtype=float)
+    static: bool = bool(panel.get("static", False))
+    ids: list[int] = list(map(int, panel["particle_ids"]))
+    colors: list[Any] = list(panel["colors"])
     if xy.ndim != 3 or xy.shape[-1] != 2:
         raise ValueError("Each panel must have coordinates shaped (cycles, particles, 2).")
     if not np.isfinite(xy).all() or np.any((xy < lower) | (xy > upper)):
@@ -56,10 +56,16 @@ def _encode_panels(panels: Sequence[Mapping[str, Any]], bounds: np.ndarray) -> t
     """Validate aligned samples and encode browser copies in their original units."""
     if not panels:
         raise ValueError("At least one comparison panel is required.")
+    lower: np.ndarray
+    upper: Any
     lower, upper = bounds[:2], bounds[:2] + bounds[2]
     encoded_panels: list[dict[str, Any]] = []
     cycle_count = None
     for panel in panels:
+        xy: np.ndarray
+        static: bool
+        ids: list[int]
+        colors: list[Any]
         xy, static, ids, colors = _validated_panel(panel, lower, upper)
         if not static:
             if cycle_count is None:
@@ -110,14 +116,16 @@ def _validated_datasets(
 ) -> tuple[list[dict[str, Any]], str]:
     """Encode alternative datasets only when their panel identities and cycles align."""
     encoded_datasets: list[dict[str, Any]] = []
-    seen = set()
+    seen: set[str] = set()
     for dataset in datasets:
-        key = str(dataset['key'])
+        key: str = str(dataset['key'])
         if key in seen:
             raise ValueError('Dataset keys must be unique.')
         seen.add(key)
         item: dict[str, Any] = dict(key=key, label=str(dataset['label']), note=str(dataset.get('note', '')))
         if dataset.get('panels') is not None:
+            encoded: list[dict[str, Any]]
+            count: int
             encoded, count = _encode_panels(dataset['panels'], bounds)
             if count != cycle_count or len(encoded) != len(encoded_panels) or any(
                 any(a[k] != b[k] for k in ('shape', 'ids', 'colors', 'static'))
@@ -129,7 +137,7 @@ def _validated_datasets(
                 raise ValueError('Datasets must keep the shared field in the same panel.')
             item['panels'] = encoded
         encoded_datasets.append(item)
-    selected = str(selected_dataset)
+    selected: str = str(selected_dataset)
     if not any(d['key'] == selected and 'panels' in d for d in encoded_datasets):
         raise ValueError('The selected dataset must contain completed panels.')
     return encoded_datasets, selected
@@ -144,7 +152,7 @@ def _selection_settings(
     """Prepare valid particle selections and named square views within coordinate bounds."""
     config: dict[str, Any] = {}
     if initial_view is not None:
-        view = np.asarray(initial_view, dtype=float)
+        view: np.ndarray = np.asarray(initial_view, dtype=float)
         if (view.shape != (3,) or not np.isfinite(view).all() or view[2] <= 0
                 or np.any(view[:2] < lower) or np.any(view[:2] + view[2] > upper)):
             raise ValueError('initial_view must be a positive square contained in coordinate_bounds.')
@@ -159,7 +167,7 @@ def _selection_settings(
     if particle_groups is not None:
         config['particleGroups'] = []
         for group in particle_groups:
-            ids = list(map(int, group['particle_ids']))
+            ids: list[int] = list(map(int, group['particle_ids']))
             if not ids or not set(ids).issubset(all_ids):
                 raise ValueError('Particle groups must contain existing particle identifiers.')
             config['particleGroups'].append(dict(label=str(group['label']), ids=ids))
@@ -208,18 +216,24 @@ def export_poincare_panel_comparison(
     its phase controls below particle selection, keeping the trajectory panels
     together in their original order. Every control still shares one state.
     """
-    bounds = np.asarray((0., 0., 1.) if coordinate_bounds is None else coordinate_bounds, dtype=float)
+    bounds: np.ndarray = np.asarray((0., 0., 1.) if coordinate_bounds is None else coordinate_bounds, dtype=float)
     if bounds.shape != (3,) or not np.isfinite(bounds).all() or bounds[2] <= 0:
         raise ValueError('coordinate_bounds must describe a finite positive square.')
+    lower: np.ndarray
+    upper: Any
     lower, upper = bounds[:2], bounds[:2] + bounds[2]
+    encoded_panels: list[dict[str, Any]]
+    cycle_count: int
     encoded_panels, cycle_count = _encode_panels(panels, bounds)
-    field_indices = _validated_playback(
+    field_indices: list[int] = _validated_playback(
         encoded_panels, cycle_count, field_placement, cycles_per_frame, first_cycle, initial_cycle,
     )
     config: dict[str, Any] = dict(panels=encoded_panels, step=int(cycles_per_frame), initialCycle=int(initial_cycle),
                   firstCycle=int(first_cycle), fieldPlacement=field_placement)
     config['coordinateBounds'] = dict(x=float(bounds[0]), y=float(bounds[1]), span=float(bounds[2]))
     if datasets is not None:
+        encoded_datasets: list[dict[str, Any]]
+        selected: str
         encoded_datasets, selected = _validated_datasets(
             datasets, bounds, cycle_count, encoded_panels, field_placement, field_indices, selected_dataset,
         )
@@ -236,8 +250,8 @@ def export_poincare_panel_comparison(
         encoded_panels, lower, upper, initial_view, highlight_particle, title,
         particle_groups, highlight_particles, regions,
     ))
-    template = Path(__file__).with_name("_poincare_comparison.html").read_text()
-    payload = json.dumps(config).replace('<', '\\u003c')
+    template: str = Path(__file__).with_name("_poincare_comparison.html").read_text()
+    payload: str = json.dumps(config).replace('<', '\\u003c')
     Path(path).write_text(template.replace("__CONFIG__", payload), encoding="utf-8")
     return Path(path)
 
@@ -251,7 +265,7 @@ def export_poincare_comparison(path: str | Path, coordinates: ArrayLike,
     Display coordinates use float32; source calculation files remain unchanged.
     Every saved return is retained, even when playback advances several cycles.
     """
-    xy = np.asarray(coordinates, dtype="<f4")
+    xy: np.ndarray = np.asarray(coordinates, dtype="<f4")
     if xy.ndim != 4 or xy.shape[0] != 3 or xy.shape[-1] != 2:
         raise ValueError("Expected coordinates with shape (3, cycles, particles, 2).")
     if not np.isfinite(xy).all() or np.any((xy < 0) | (xy > 1)):

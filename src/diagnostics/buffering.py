@@ -67,7 +67,7 @@ class DiagnosticBuffer(Generic[Sample, Block]):
 		"""
 		if not self._pending:
 			return None
-		block = self._write_block(self._next_index, tuple(self._pending))
+		block: Block = self._write_block(self._next_index, tuple(self._pending))
 		self._blocks.append(block)
 		self._pending.clear()
 		self._next_index += 1

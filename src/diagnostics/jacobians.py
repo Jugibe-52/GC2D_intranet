@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal, TypeAlias
+from typing import Literal, TYPE_CHECKING, TypeAlias
 
 import numpy as np
 
@@ -14,6 +14,10 @@ from contracts.observation import (
 	IntegrationStep,
 	StateMap,
 )
+
+
+if TYPE_CHECKING:
+	from typing import Any
 
 
 StepJacobianMethod: TypeAlias = Literal[
@@ -35,10 +39,10 @@ def central_difference_jacobian(
 	relative_step: float | None = None,
 ) -> np.ndarray:
 	"""Differentiate a packed state map using centered finite differences."""
-	value = np.asarray(state, dtype=float)
+	value: np.ndarray = np.asarray(state, dtype=float)
 	if value.ndim != 1 or value.size == 0 or not np.all(np.isfinite(value)):
 		raise ValueError("The differentiated state must be a finite, non-empty vector.")
-	scale = (
+	scale: float = (
 		float(np.cbrt(np.finfo(float).eps))
 		if relative_step is None
 		else float(relative_step)
@@ -47,13 +51,13 @@ def central_difference_jacobian(
 		raise ValueError("`relative_step` must be positive and finite.")
 
 	dimension = value.size
-	jacobian = np.empty((dimension, dimension), dtype=float)
+	jacobian: np.ndarray = np.empty((dimension, dimension), dtype=float)
 	for column in range(dimension):
 		increment = scale * max(1.0, abs(float(value[column])))
-		perturbation = np.zeros_like(value)
+		perturbation: np.ndarray = np.zeros_like(value)
 		perturbation[column] = increment
-		forward = np.asarray(map_state(value + perturbation), dtype=float)
-		backward = np.asarray(map_state(value - perturbation), dtype=float)
+		forward: np.ndarray = np.asarray(map_state(value + perturbation), dtype=float)
+		backward: np.ndarray = np.asarray(map_state(value - perturbation), dtype=float)
 		if forward.shape != value.shape or backward.shape != value.shape:
 			raise ValueError("The differentiated map changed the state shape.")
 		jacobian[:, column] = (forward - backward) / (2 * increment)
@@ -85,7 +89,7 @@ def _validated_stage_state(
 	name: str,
 ) -> np.ndarray:
 	"""Validate one packed stage snapshot against the physical input layout."""
-	value = np.asarray(state, dtype=float)
+	value: np.ndarray = np.asarray(state, dtype=float)
 	if value.shape != step.state_before.shape or not np.all(np.isfinite(value)):
 		raise ValueError(
 			f"Implicit ABBA diagnostic stage `{name}` must be finite and have "
@@ -101,7 +105,7 @@ def _checked_vector_field_jacobians(
 	particle_count: int,
 ) -> np.ndarray:
 	"""Evaluate one finite two-by-two field Jacobian per GC particle."""
-	result = np.asarray(
+	result: np.ndarray = np.asarray(
 		dynamics.particle_vector_field_jacobians(time, state),
 		dtype=float,
 	)
@@ -129,7 +133,7 @@ def _validated_implicit_abba_step(
 			"Analytic implicit-ABBA Jacobians require "
 			"GuidingCenterJacobianSystem dynamics."
 		)
-	state = np.asarray(step.state_before, dtype=float)
+	state: np.ndarray = np.asarray(step.state_before, dtype=float)
 	if (
 		state.ndim != 1
 		or state.size == 0
@@ -153,37 +157,39 @@ def _validated_implicit_abba_step(
 
 def _implicit_abba_blocks(step: IntegrationStep) -> _ImplicitABBABlocks:
 	"""Evaluate the converged ABBA stage blocks required by analytic tangents."""
+	dynamics: GuidingCenterJacobianSystem
+	state: np.ndarray
 	step, dynamics, state = _validated_implicit_abba_step(step)
 
 	particle_count = state.size // 2
-	v_initial = _validated_stage_state(step, step.v_initial, "v_initial")
-	u_first = _validated_stage_state(step, step.u_first, "u_first")
-	v_final = _validated_stage_state(step, step.v_final, "v_final")
-	w_1 = _checked_vector_field_jacobians(
+	v_initial: np.ndarray = _validated_stage_state(step, step.v_initial, "v_initial")
+	u_first: np.ndarray = _validated_stage_state(step, step.u_first, "u_first")
+	v_final: np.ndarray = _validated_stage_state(step, step.v_final, "v_final")
+	w_1: np.ndarray = _checked_vector_field_jacobians(
 		dynamics,
 		step.start_time,
 		v_initial,
 		particle_count,
 	)
-	w_2 = _checked_vector_field_jacobians(
+	w_2: np.ndarray = _checked_vector_field_jacobians(
 		dynamics,
 		step.start_time,
 		u_first,
 		particle_count,
 	)
-	w_3 = _checked_vector_field_jacobians(
+	w_3: np.ndarray = _checked_vector_field_jacobians(
 		dynamics,
 		step.time,
 		u_first,
 		particle_count,
 	)
-	w_4 = _checked_vector_field_jacobians(
+	w_4: np.ndarray = _checked_vector_field_jacobians(
 		dynamics,
 		step.time,
 		v_final,
 		particle_count,
 	)
-	identity = np.broadcast_to(np.eye(2), (particle_count, 2, 2))
+	identity: np.ndarray = np.broadcast_to(np.eye(2), (particle_count, 2, 2))
 	half_step = step.duration / 2.0
 	central = w_2 + w_3
 	# Matrix order is fixed because stage Jacobians generally do not commute.
@@ -235,7 +241,7 @@ def _multiplier_state_jacobian(blocks: _ImplicitABBABlocks) -> np.ndarray:
 def _dense_component_major_jacobian(blocks: np.ndarray) -> np.ndarray:
 	"""Expand independent particle blocks into the packed physical layout."""
 	particle_count = blocks.shape[0]
-	result = np.zeros((2 * particle_count, 2 * particle_count), dtype=float)
+	result: np.ndarray = np.zeros((2 * particle_count, 2 * particle_count), dtype=float)
 	for particle in range(particle_count):
 		indices = (particle, particle_count + particle)
 		result[np.ix_(indices, indices)] = blocks[particle]
@@ -261,8 +267,8 @@ def _validated_gauss_stages(
 			"Analytic Gauss Jacobians require planar "
 			"GuidingCenterJacobianSystem dynamics."
 		)
-	root_three_over_six = float(np.sqrt(3.0) / 6.0)
-	times = np.asarray(
+	root_three_over_six: float = float(np.sqrt(3.0) / 6.0)
+	times: np.ndarray = np.asarray(
 		(
 			step.start_time,
 			step.time,
@@ -274,14 +280,14 @@ def _validated_gauss_stages(
 	)
 	if not np.all(np.isfinite(times)):
 		raise ValueError("Analytic Gauss diagnostics require finite step times.")
-	expected_times = np.asarray(
+	expected_times: np.ndarray = np.asarray(
 		(
 			step.start_time + step.duration,
 			step.start_time + step.duration * (0.5 - root_three_over_six),
 			step.start_time + step.duration * (0.5 + root_three_over_six),
 		)
 	)
-	tolerance = float(
+	tolerance: float = float(
 		32.0
 		* np.finfo(float).eps
 		* max(1.0, float(np.max(np.abs(times))))
@@ -293,7 +299,7 @@ def _validated_gauss_stages(
 		atol=tolerance,
 	):
 		raise ValueError("Gauss stage times are inconsistent with the observed step.")
-	state = np.asarray(step.state_before, dtype=float)
+	state: np.ndarray = np.asarray(step.state_before, dtype=float)
 	if (
 		state.ndim != 1
 		or state.size == 0
@@ -304,8 +310,8 @@ def _validated_gauss_stages(
 			"Analytic Gauss diagnostics require a finite component-major planar state."
 		)
 	particle_count = state.size // 2
-	first_stage = np.asarray(step.first_stage_state, dtype=float)
-	second_stage = np.asarray(step.second_stage_state, dtype=float)
+	first_stage: np.ndarray = np.asarray(step.first_stage_state, dtype=float)
+	second_stage: np.ndarray = np.asarray(step.second_stage_state, dtype=float)
 	if any(
 		value.shape != state.shape or not np.all(np.isfinite(value))
 		for value in (first_stage, second_stage)
@@ -316,46 +322,50 @@ def _validated_gauss_stages(
 
 def gauss_legendre4_step_jacobian(step: IntegrationStep) -> np.ndarray:
 	"""Differentiate the ideal root of one two-stage Gauss collocation step."""
+	dynamics: GuidingCenterJacobianSystem
+	particle_count: int
+	first_stage: np.ndarray
+	second_stage: np.ndarray
 	step, dynamics, particle_count, first_stage, second_stage = _validated_gauss_stages(step)
-	root_three_over_six = float(np.sqrt(3.0) / 6.0)
-	first_jacobian = _checked_vector_field_jacobians(
+	root_three_over_six: float = float(np.sqrt(3.0) / 6.0)
+	first_jacobian: np.ndarray = _checked_vector_field_jacobians(
 		dynamics,
 		step.first_stage_time,
 		first_stage,
 		particle_count,
 	)
-	second_jacobian = _checked_vector_field_jacobians(
+	second_jacobian: np.ndarray = _checked_vector_field_jacobians(
 		dynamics,
 		step.second_stage_time,
 		second_stage,
 		particle_count,
 	)
-	matrix = np.asarray(
+	matrix: np.ndarray = np.asarray(
 		(
 			(0.25, 0.25 - root_three_over_six),
 			(0.25 + root_three_over_six, 0.25),
 		),
 		dtype=float,
 	)
-	identity = np.broadcast_to(np.eye(2), (particle_count, 2, 2))
-	top = np.concatenate(
+	identity: np.ndarray = np.broadcast_to(np.eye(2), (particle_count, 2, 2))
+	top: np.ndarray = np.concatenate(
 		(
 			identity - step.duration * matrix[0, 0] * first_jacobian,
 			-step.duration * matrix[0, 1] * second_jacobian,
 		),
 		axis=-1,
 	)
-	bottom = np.concatenate(
+	bottom: np.ndarray = np.concatenate(
 		(
 			-step.duration * matrix[1, 0] * first_jacobian,
 			identity - step.duration * matrix[1, 1] * second_jacobian,
 		),
 		axis=-1,
 	)
-	stage_matrix = np.concatenate((top, bottom), axis=-2)
-	right_hand_side = np.concatenate((identity, identity), axis=-2)
+	stage_matrix: np.ndarray = np.concatenate((top, bottom), axis=-2)
+	right_hand_side: np.ndarray = np.concatenate((identity, identity), axis=-2)
 	try:
-		stage_sensitivities = np.linalg.solve(stage_matrix, right_hand_side)
+		stage_sensitivities: np.ndarray = np.linalg.solve(stage_matrix, right_hand_side)
 	except np.linalg.LinAlgError as exc:
 		raise RuntimeError(
 			"The Gauss collocation matrix is singular while differentiating the step."
@@ -373,8 +383,8 @@ def implicit_function_step_jacobian(step: IntegrationStep) -> np.ndarray:
 	"""Calculate an ideal-root tangent by implicit differentiation."""
 	if isinstance(step, GaussLegendre4IntegrationStep):
 		return gauss_legendre4_step_jacobian(step)
-	blocks = _implicit_abba_blocks(step)
-	multiplier_jacobian = _multiplier_state_jacobian(blocks)
+	blocks: _ImplicitABBABlocks = _implicit_abba_blocks(step)
+	multiplier_jacobian: np.ndarray = _multiplier_state_jacobian(blocks)
 	direct = blocks.top_left + blocks.top_right
 	implicit_weight = blocks.top_left - blocks.top_right + blocks.identity
 	physical_blocks = direct + implicit_weight @ multiplier_jacobian
@@ -385,8 +395,8 @@ def stage_increment_step_jacobian(step: IntegrationStep) -> np.ndarray:
 	"""Calculate an ideal-root tangent from differentiated stage increments."""
 	if isinstance(step, GaussLegendre4IntegrationStep):
 		return gauss_legendre4_step_jacobian(step)
-	blocks = _implicit_abba_blocks(step)
-	multiplier_jacobian = _multiplier_state_jacobian(blocks)
+	blocks: _ImplicitABBABlocks = _implicit_abba_blocks(step)
+	multiplier_jacobian: np.ndarray = _multiplier_state_jacobian(blocks)
 	half_step = step.duration / 2.0
 	dk_1 = blocks.w_1 @ (blocks.identity - multiplier_jacobian)
 	du_first = blocks.identity + multiplier_jacobian + half_step * dk_1

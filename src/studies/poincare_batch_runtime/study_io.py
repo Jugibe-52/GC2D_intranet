@@ -4,10 +4,14 @@ from __future__ import annotations
 
 from typing import Any, TYPE_CHECKING
 
+
 if TYPE_CHECKING:
-    import numpy as np
-    import pandas as pd
-    from potential import Potential
+	import numpy as np
+	import pandas as pd
+	from _hashlib import HASH
+	from potential import Potential
+	from types import ModuleType
+
 
 from datetime import datetime, timezone
 import fcntl
@@ -40,7 +44,7 @@ def validate_run_id(value: object) -> str:
 
 
 def digest(path: str | Path) -> str:
-    result = hashlib.sha256()
+    result: HASH = hashlib.sha256()
     with Path(path).open('rb') as stream:
         for block in iter(lambda: stream.read(1024 * 1024), b''):
             result.update(block)
@@ -50,14 +54,14 @@ def digest(path: str | Path) -> str:
 def atomic_json(path: str | Path, data: object) -> None:
     """Publish a complete JSON file using a same-filesystem rename."""
     path = Path(path)
-    temporary = path.with_name('.' + path.name + '.tmp')
+    temporary: Path = path.with_name('.' + path.name + '.tmp')
     temporary.write_text(json.dumps(data, indent=2, allow_nan=False) + '\n', encoding='utf-8')
     temporary.replace(path)
 
 
 def load_snapshot() -> tuple[Potential, dict[str, Any], str]:
     """Verify the bundled field and source before importing the exact frozen code."""
-    manifest = json.loads((ROOT / 'assets' / 'snapshot.json').read_text())
+    manifest: Any = json.loads((ROOT / 'assets' / 'snapshot.json').read_text())
     archive_path = ROOT / 'assets' / 'gc2d_snapshot.zip'
     expected = manifest['sha256']
     if digest(archive_path) != expected:
@@ -65,7 +69,7 @@ def load_snapshot() -> tuple[Potential, dict[str, Any], str]:
     runtime = ROOT / '.runtime' / expected
     runtime.mkdir(parents=True, exist_ok=True)
     for package in ('potential', 'dynamics', 'states', 'simulation'):
-        loaded = sys.modules.get(package)
+        loaded: ModuleType | None = sys.modules.get(package)
         if loaded is not None and (loaded.__file__ is None
                                    or not Path(loaded.__file__).resolve().is_relative_to(runtime)):
             raise RuntimeError('Restart the kernel before loading the frozen project implementation.')
@@ -75,14 +79,14 @@ def load_snapshot() -> tuple[Potential, dict[str, Any], str]:
         fcntl.flock(lock, fcntl.LOCK_EX)
         with zipfile.ZipFile(archive_path) as archive:
             for member in archive.infolist():
-                relative = Path(member.filename)
+                relative: Path = Path(member.filename)
                 if relative.is_absolute() or '..' in relative.parts:
                     raise ValueError('Invalid snapshot member.')
                 target = runtime / relative
                 target.parent.mkdir(parents=True, exist_ok=True)
-                content = archive.read(member)
+                content: bytes = archive.read(member)
                 if not target.exists() or target.read_bytes() != content:
-                    temporary = target.with_name('.' + target.name + '.tmp')
+                    temporary: Path = target.with_name('.' + target.name + '.tmp')
                     temporary.write_bytes(content)
                     temporary.replace(target)
         fcntl.flock(lock, fcntl.LOCK_UN)
@@ -91,9 +95,9 @@ def load_snapshot() -> tuple[Potential, dict[str, Any], str]:
     importlib.invalidate_caches()
     import numpy as np
     from potential import Grid, Potential
-    provenance = json.loads((runtime / 'provenance.json').read_text())
+    provenance: Any = json.loads((runtime / 'provenance.json').read_text())
     with np.load(runtime / 'field.npz', allow_pickle=False) as saved:
-        potential = Potential(Grid(**provenance['grid']), mean=saved['mean'],
+        potential: Potential = Potential(Grid(**provenance['grid']), mean=saved['mean'],
                               modes=saved['modes'], frequencies=saved['frequencies'],
                               interpolation_order=provenance['interpolation_order'])
     return potential, provenance, expected
@@ -107,7 +111,7 @@ def begin_calculation(run_id: str, parameters: dict[str, Any]) -> Path:
     import os
     existing = directory / 'run_parameters.json'
     if existing.exists() and os.environ.get('POINCARE_RESUME') == '1':
-        saved = json.loads(existing.read_text())
+        saved: Any = json.loads(existing.read_text())
         saved.pop('created_utc', None)
         if saved != parameters:
             raise ValueError('Cannot resume: scientific parameters or versions changed.')
@@ -137,12 +141,14 @@ def publish_calculation(directory: str | Path, metadata: dict[str, Any],
     atomic_json(directory / 'metadata.json', metadata)
     from newton_diagnostics import write_diagnostic_tables
     if metadata['method'] == 'BM4Implicit':
-        diagnostic_files = write_diagnostic_tables(directory, metadata, arrays)
+        diagnostic_files: Any = write_diagnostic_tables(directory, metadata, arrays)
     elif metadata['method']=='BM4Midpoint':
         import pandas as pd
         gap = arrays['copy_separation_norms']
+        workers: int
+        steps: int
         workers, steps = gap.shape
-        table = pd.DataFrame({'worker': np.repeat(np.arange(1, workers + 1), steps),
+        table: Any = pd.DataFrame({'worker': np.repeat(np.arange(1, workers + 1), steps),
                               'step': np.tile(np.arange(1, steps + 1), workers),
                               'time_normalized': np.tile(arrays['times'][1:], workers),
                               'copy_separation_inf': gap.ravel()})
@@ -173,15 +179,15 @@ def load_calculation(run_id: str | None = None) -> tuple[Path, dict[str, Any], d
     marker = directory / 'COMPLETE.json'
     if not marker.is_file():
         raise FileNotFoundError(f'No complete result manifest: {marker}')
-    manifest = json.loads(marker.read_text())
-    metadata = json.loads((directory / 'metadata.json').read_text())
+    manifest: Any = json.loads(marker.read_text())
+    metadata: Any = json.loads((directory / 'metadata.json').read_text())
     trajectory_file = 'rk4_trajectory.npz' if metadata['method']=='RK4' else 'bm4_trajectory.npz'
     _validate_result_manifest(directory, run_id, manifest, metadata, trajectory_file)
     metadata = json.loads((directory / 'metadata.json').read_text())
     with np.load(directory / trajectory_file, allow_pickle=False) as saved:
         arrays = {name: saved[name] for name in saved.files}
-    positions = pd.read_csv(directory / 'positions_after_each_cycle.csv', float_precision='round_trip')
-    initial_positions = pd.read_csv(directory / 'initial_positions.csv', float_precision='round_trip')
+    positions: pd.DataFrame = pd.read_csv(directory / 'positions_after_each_cycle.csv', float_precision='round_trip')
+    initial_positions: pd.DataFrame = pd.read_csv(directory / 'initial_positions.csv', float_precision='round_trip')
     return directory, metadata, arrays, positions, initial_positions
 
 

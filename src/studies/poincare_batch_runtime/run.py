@@ -10,6 +10,7 @@ import sys
 import traceback
 from typing import Any, TYPE_CHECKING
 
+
 if TYPE_CHECKING:
     from nbformat import NotebookNode
 
@@ -17,14 +18,14 @@ from study_io import ROOT, atomic_json, load_calculation, new_run_id, utc_now, v
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser: argparse.ArgumentParser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('stage', choices=('calculate', 'visualize'))
     parser.add_argument('--run-id', help='Unique calculation ID, or saved ID to visualize.')
     parser.add_argument('--resume', action='store_true', help='Resume the same run from verified checkpoints.')
     parser.add_argument('--smoke', action='store_true', help='Calculation only: two cycles with the experiment particle IDs and step size.')
     parser.add_argument('--timeout', type=int, default=21600, help='Timeout per notebook cell, in seconds.')
     parser.add_argument('--dry-run', action='store_true', help='Print paths and overrides without executing or creating files.')
-    args = parser.parse_args()
+    args: argparse.Namespace = parser.parse_args()
     if args.timeout <= 0:
         parser.error('--timeout must be positive.')
     if args.smoke and args.stage != 'calculate':
@@ -34,7 +35,7 @@ def main() -> int:
         if not pointer.is_file():
             parser.error('No completed default calculation. Specify --run-id.')
         args.run_id = json.loads(pointer.read_text())['run_id']
-    run_id = validate_run_id(args.run_id or new_run_id())
+    run_id: str = validate_run_id(args.run_id or new_run_id())
     source = ROOT / ('calculo.ipynb' if args.stage == 'calculate' else 'visualizacion.ipynb')
     directory = ROOT / ('resultados' if args.stage == 'calculate' else 'figuras') / run_id
     if args.dry_run:
@@ -59,9 +60,9 @@ def main() -> int:
     else:
         load_calculation(run_id)  # Fail before touching figure outputs on incomplete data.
         directory.mkdir(parents=True, exist_ok=True)
-    notebook = nbformat.read(source, as_version=4)
+    notebook: Any = nbformat.read(source, as_version=4)
     if args.smoke:
-        parameter_index = next(i for i, cell in enumerate(notebook.cells)
+        parameter_index: int = next(i for i, cell in enumerate(notebook.cells)
                                if 'parameters' in cell.metadata.get('tags', []))
         notebook.cells.insert(parameter_index + 1, nbformat.v4.new_code_cell(
             '# Temporary validation overrides: original notebook remains unchanged.\n'
@@ -94,7 +95,7 @@ def main() -> int:
         def on_cell_executed(**kwargs: Any) -> None:
             nbformat.write(notebook, executed_path)
 
-        manager = KernelManager(kernel_name='python3')
+        manager: KernelManager = KernelManager(kernel_name='python3')
         # Run in the exact interpreter used for this command, independent of
         # whichever Jupyter kernelspec happens to be installed on the host.
         kernel_spec = manager.kernel_spec
@@ -104,11 +105,11 @@ def main() -> int:
         backend = 'Agg' if args.stage == 'calculate' else 'module://matplotlib_inline.backend_inline'
         (ROOT / '.cache' / 'matplotlib').mkdir(parents=True, exist_ok=True)
         (ROOT / '.cache' / 'ipython').mkdir(parents=True, exist_ok=True)
-        environment = dict(os.environ, POINCARE_RUN_ID=run_id, POINCARE_RESUME='1' if args.resume else '0', MPLBACKEND=backend,
+        environment: dict[str, Any] = dict(os.environ, POINCARE_RUN_ID=run_id, POINCARE_RESUME='1' if args.resume else '0', MPLBACKEND=backend,
                            MPLCONFIGDIR=str(ROOT / '.cache' / 'matplotlib'),
                            IPYTHONDIR=str(ROOT / '.cache' / 'ipython'),
                            OPENBLAS_NUM_THREADS='1', OMP_NUM_THREADS='1', MKL_NUM_THREADS='1')
-        client = LoggedNotebookClient(
+        client: LoggedNotebookClient = LoggedNotebookClient(
             notebook, km=manager, timeout=args.timeout, startup_timeout=60,
             resources={'metadata': {'path': str(ROOT)}},
             on_cell_start=on_cell_start, on_cell_executed=on_cell_executed,

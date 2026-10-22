@@ -21,12 +21,14 @@ def reference_progress_log(
     and excludes the other solver and artifact writing. A log is not a restart
     checkpoint. The context must surround integration and persistence.
     """
+    t0: float
+    end: float
     t0, end = t_span
     if not (math.isfinite(t0) and math.isfinite(end) and end > t0):
         raise ValueError("The progress time span must be finite and increasing.")
     if not math.isfinite(interval_seconds) or interval_seconds <= 0:
         raise ValueError("The log interval must be finite and positive.")
-    destination = Path(path)
+    destination: Path = Path(path)
     destination.parent.mkdir(parents=True, exist_ok=True)
     with destination.open("x", encoding="utf-8") as stream:
         starts: dict[str, float] = {}
@@ -39,12 +41,12 @@ def reference_progress_log(
             stream.flush()
 
         def report(method: str, time: float, nfev: int, status: str) -> None:
-            now = perf_counter()
+            now: float = perf_counter()
             starts.setdefault(method, now)
             if status == "running" and now - last.get(method, -math.inf) < interval_seconds:
                 return
             last[method] = now
-            fraction = min(1.0, max(0.0, (time - t0) / (end - t0)))
+            fraction: float = min(1.0, max(0.0, (time - t0) / (end - t0)))
             elapsed = now - starts[method]
             eta = f"{elapsed * (1 - fraction) / fraction:.1f}s" if fraction > 0 else "pending"
             phase = "1/2 audit" if method == "Radau" else "2/2 reference"

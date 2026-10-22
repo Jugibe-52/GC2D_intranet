@@ -50,9 +50,13 @@ def abba_pairs(trace: CompositionTrace) -> tuple[PhysicalBaseMapTrace, ...]:
     pairs = []
     for first, last in zip(trace.stages[::2], trace.stages[1::2], strict=True):
         size = first.state_before.size // 2
+        u0: np.ndarray
+        v0: np.ndarray
         u0, v0 = first.state_before[:size], first.state_before[size:]
+        uf: np.ndarray
+        vf: np.ndarray
         uf, vf = last.state_after[:size], last.state_after[size:]
-        stages = _ABBAStages(u0, v0, first.energy_points[1][2], vf, uf, uf - vf)
+        stages: _ABBAStages = _ABBAStages(u0, v0, first.energy_points[1][2], vf, uf, uf - vf)
         pairs.append(PhysicalBaseMapTrace(first.start_time, first.duration + last.duration, stages))
     return tuple(pairs)
 
@@ -125,7 +129,7 @@ def bind_event_builder(
 		)
 		trace = result.trace
 		assert isinstance(trace, CompositionTrace)
-		substeps = tuple(
+		substeps: tuple[UnprojectedABBAIntegrationStep, ...] = tuple(
 			UnprojectedABBAIntegrationStep(
 				start_time=m.start_time, time=m.start_time + m.duration,
 				duration=m.duration, u_initial=m.stages.u_initial.copy(),
@@ -153,6 +157,8 @@ def stage_events(
 ) -> tuple[IntegrationStage, ...]:
     """Copy accepted stage records without replaying the numerical composition."""
     events: list[IntegrationStage] = []
+    direct: Callable[[float, float, np.ndarray], np.ndarray]
+    adjoint: Callable[[float, float, np.ndarray], np.ndarray]
     direct, adjoint = stage_maps or (prepared.direct_map, prepared.adjoint_map)
     for index, stage in enumerate(trace.stages):
         mapper = direct if stage.direct else adjoint

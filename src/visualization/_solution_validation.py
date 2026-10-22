@@ -18,7 +18,7 @@ def validated_solutions(
 	"""Validate an aligned non-empty collection of planar solutions."""
 	if not solutions:
 		raise ValueError("At least one labeled solution is required.")
-	labels = tuple(solutions)
+	labels: tuple[str, ...] = tuple(solutions)
 	if expected_count is not None and len(labels) != expected_count:
 		raise ValueError(f"The plot requires exactly {expected_count} solutions.")
 	reference_times: np.ndarray | None = None
@@ -28,7 +28,9 @@ def validated_solutions(
 			raise ValueError("States labels must be non-empty strings.")
 		if not isinstance(solution, States):
 			raise TypeError("Every comparison value must be a States.")
-		times = np.asarray(solution.t, dtype=float)
+		times: np.ndarray = np.asarray(solution.t, dtype=float)
+		x: np.ndarray
+		y: np.ndarray
 		x, y = solution.positions()
 		if x.shape != y.shape or x.ndim != 2 or x.shape[1] != times.size:
 			raise ValueError("Every solution must contain aligned planar trajectories.")

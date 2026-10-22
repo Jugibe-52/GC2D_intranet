@@ -19,12 +19,14 @@ class EqualAccuracyStep:
 
 def _segments(steps: Sequence[float], errors: Sequence[float], floor: float) -> list[tuple[float, float, float, float]]:
     """Keep adjacent increasing error brackets above the reference threshold."""
+    h: np.ndarray
+    e: np.ndarray
     h, e = np.asarray(steps, dtype=float), np.asarray(errors, dtype=float)
     if h.ndim != 1 or h.size < 2 or h.shape != e.shape:
         raise ValueError("Steps and errors must be matching vectors with at least two entries.")
     if not np.all(np.isfinite(h)) or np.any(h <= 0) or np.unique(h).size != h.size:
         raise ValueError("Steps must be finite, positive and unique.")
-    indices = np.argsort(h)
+    indices: np.ndarray = np.argsort(h)
     h, e = h[indices], e[indices]
     # Do not bridge a failed, unresolved, or nonmonotone refinement point.
     return [(float(h0), float(h1), float(e0), float(e1))
@@ -37,8 +39,8 @@ def _inverse(segments: list[tuple[float, float, float, float]], target: float) -
     candidates = []
     for h0, h1, e0, e1 in segments:
         if e0 <= target <= e1:
-            order = float(np.log(e1 / e0) / np.log(h1 / h0))
-            step = float(h0 * np.exp(np.log(target / e0) / order))
+            order: float = float(np.log(e1 / e0) / np.log(h1 / h0))
+            step: float = float(h0 * np.exp(np.log(target / e0) / order))
             candidates.append((step, order))
     if not candidates:
         return None
@@ -65,16 +67,16 @@ def equal_accuracy_steps(
         raise ValueError("Floor factor must be finite and at least one.")
     if isinstance(target_count, bool) or not isinstance(target_count, int) or target_count < 2:
         raise ValueError("Target count must be an integer of at least two.")
-    floor = max(float(reference_floor * floor_factor), float(np.finfo(float).tiny))
-    bm = _segments(steps, bm4_errors, floor)
-    ab = _segments(steps, abba4_errors, floor)
+    floor: float = max(float(reference_floor * floor_factor), float(np.finfo(float).tiny))
+    bm: list[tuple[float, float, float, float]] = _segments(steps, bm4_errors, floor)
+    ab: list[tuple[float, float, float, float]] = _segments(steps, abba4_errors, floor)
     if targets is not None:
-        target_values = np.asarray(targets, dtype=float)
+        target_values: np.ndarray = np.asarray(targets, dtype=float)
         if target_values.ndim != 1 or not np.all(np.isfinite(target_values)) or np.any(target_values <= 0):
             raise ValueError("Targets must be a vector of finite positive errors.")
     elif bm and ab:
-        low = max(min(s[2] for s in bm), min(s[2] for s in ab))
-        high = min(max(s[3] for s in bm), max(s[3] for s in ab))
+        low: float = max(min(s[2] for s in bm), min(s[2] for s in ab))
+        high: float = min(max(s[3] for s in bm), max(s[3] for s in ab))
         if low > high:
             return ()
         target_values = np.geomspace(low, high, target_count) if low < high else np.array([low])
@@ -82,6 +84,8 @@ def equal_accuracy_steps(
         return ()
     rows = []
     for target in target_values:
+        b: tuple[float, float] | None
+        a: tuple[float, float] | None
         b, a = _inverse(bm, float(target)), _inverse(ab, float(target))
         if b is not None and a is not None:
             rows.append(EqualAccuracyStep(float(target), b[0], a[0], a[0] / b[0], b[1], a[1]))

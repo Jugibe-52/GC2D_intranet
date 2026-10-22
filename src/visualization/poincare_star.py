@@ -1,12 +1,18 @@
 """Inspect saved dimensional star trajectories with the shared Poincare viewer."""
 
 from pathlib import Path
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 import numpy as np
 
 from diagnostics.persistence import StoredSolution
 from visualization.poincare_comparison import export_poincare_panel_comparison
+
+
+if TYPE_CHECKING:
+    from contracts.result import DiagnosticValue
+    from states.history import States
+    from typing import Mapping
 
 
 _ARM_COLORS = ("#1f77b4", "#ff7f0e", "#2ca02c", "#d62728",
@@ -15,6 +21,8 @@ _ARM_COLORS = ("#1f77b4", "#ff7f0e", "#2ca02c", "#d62728",
 
 def _star_record(saved: StoredSolution) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Check saved study identity, particle labels and once-per-cycle sampling."""
+    metadata: dict[str, Any]
+    solution: States
     metadata, solution = saved.metadata, saved.solution
     if metadata.get("study") != "poincare_star_bm4_midpoint" or saved.potential is None:
         raise ValueError("Load a complete BM4Midpoint star archive, including its potential.")
@@ -22,11 +30,13 @@ def _star_record(saved: StoredSolution) -> tuple[np.ndarray, np.ndarray, np.ndar
         raise ValueError("The star viewer requires saved physical coordinates in meters.")
     if solution.diagnostics.get("projection_kind") != "arithmetic_mean":
         raise ValueError("The saved run does not identify BM4 midpoint projection.")
-    ids = np.asarray(metadata["particle_id"], dtype=int)
-    arms = np.asarray(metadata["arm_id"], dtype=int)
+    ids: np.ndarray = np.asarray(metadata["particle_id"], dtype=int)
+    arms: np.ndarray = np.asarray(metadata["arm_id"], dtype=int)
+    x: np.ndarray
+    y: np.ndarray
     x, y = solution.positions()
     # Coordinates have (sample, particle, R/Z) order; sample zero is initialization.
-    coordinates = np.stack((x.T, y.T), axis=-1)
+    coordinates: np.ndarray = np.stack((x.T, y.T), axis=-1)
     config = metadata["config"]
     expected = config["arms"] * config["particles_per_arm"]
     if (coordinates.shape != (config["cycles"] + 1, expected, 2)
@@ -43,7 +53,10 @@ def _star_record(saved: StoredSolution) -> tuple[np.ndarray, np.ndarray, np.ndar
 
 def star_summary(saved: StoredSolution) -> str:
     """Describe the saved record without creating or advancing a numerical method."""
+    ids: np.ndarray
     _, ids, _ = _star_record(saved)
+    m: dict[str, Any]
+    d: Mapping[str, DiagnosticValue]
     m, d = saved.metadata, saved.solution.diagnostics
     config = m["config"]
     return "\n".join((
@@ -67,18 +80,21 @@ def export_star_poincare(saved: StoredSolution, path: str | Path, *,
     Display coordinates use float32, following the comparison viewer; numerical
     archives retain their original float64 precision.
     """
+    coordinates: np.ndarray
+    ids: np.ndarray
+    arms: np.ndarray
     coordinates, ids, arms = _star_record(saved)
     assert saved.potential is not None
     grid = saved.potential.grid
-    origin = np.array([grid.x0, grid.y0])
+    origin: np.ndarray = np.array([grid.x0, grid.y0])
     if wrap_periodic:
         coordinates = origin + np.remainder(coordinates - origin, grid.period)
         bounds = (grid.x0, grid.y0, grid.period)
         coordinate_note = "Display positions are folded into the periodic HDF5 cell; axes remain in meters."
     else:
-        lower = np.minimum(origin, coordinates.min(axis=(0, 1)))
-        upper = np.maximum(origin + grid.period, coordinates.max(axis=(0, 1)))
-        span = float(np.max(upper - lower))
+        lower: np.ndarray = np.minimum(origin, coordinates.min(axis=(0, 1)))
+        upper: np.ndarray = np.maximum(origin + grid.period, coordinates.max(axis=(0, 1)))
+        span: float = float(np.max(upper - lower))
         lower = (lower + upper) / 2 - span / 2
         bounds = (float(lower[0]), float(lower[1]), span)
         coordinate_note = "Unwrapped saved positions are displayed in meters. Full view includes every saved position."

@@ -64,8 +64,8 @@ def simulate(
 	where it runs. Omission selects local NumPy/SciPy execution.
 	"""
 	_validate_simulation_inputs(problem, method, request, execution)
-	executor = Execution() if execution is None else execution
-	data = executor.run(problem, method, request, options=options)
+	executor: Execution = Execution() if execution is None else execution
+	data: States = executor.run(problem, method, request, options=options)
 	if not isinstance(data, States) or not data.complete:
 		raise ValueError("The executor must return completed States.")
 	solution = data

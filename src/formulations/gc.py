@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from functools import lru_cache
-from typing import Literal, TypeAlias
+from typing import Literal, TYPE_CHECKING, TypeAlias
 
 import numpy as np
 
@@ -15,10 +15,12 @@ from dynamics.protocols import DynamicalSystem, HamiltonianSystem
 from contracts.configuration import StateLayout
 from formulations.layout import GCStateLayout
 
-from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
 	from contracts.problem import InitialValueProblem
+	from typing import Any
+
+
 from formulations.base import _updated_momentum
 from formulations.base import (
 	PreparedDirectAdjointFormulation,
@@ -39,21 +41,21 @@ def spatial_shear(dynamics: DynamicalSystem, time: float, target: np.ndarray,
 	Both arrays use the same component-major physical layout. The method supplies
 	the signed duration and actual evaluation time; no auxiliary participates.
 	"""
-	derivative = np.asarray(dynamics.vector_field(time, source), dtype=float)
+	derivative: np.ndarray = np.asarray(dynamics.vector_field(time, source), dtype=float)
 	if derivative.shape != source.shape or not np.all(np.isfinite(derivative)):
 		raise ValueError("The vector field changed shape or became non-finite.")
 	return np.asarray(target + duration * derivative)
 
 
-_COUPLING_BASE = np.asarray(
+_COUPLING_BASE: 'np.ndarray' = np.asarray(
 	[[1, 0, 1, 0], [0, 1, 0, 1], [1, 0, 1, 0], [0, 1, 0, 1]],
 	dtype=float,
 )
-_COUPLING_COS = np.asarray(
+_COUPLING_COS: 'np.ndarray' = np.asarray(
 	[[1, 0, -1, 0], [0, 1, 0, -1], [-1, 0, 1, 0], [0, -1, 0, 1]],
 	dtype=float,
 )
-_COUPLING_SIN = np.asarray(
+_COUPLING_SIN: 'np.ndarray' = np.asarray(
 	[[0, -1, 0, 1], [1, 0, -1, 0], [0, 1, 0, -1], [-1, 0, 1, 0]],
 	dtype=float,
 )
@@ -74,8 +76,8 @@ def _coupling_matrix(duration: float, frequency: float) -> np.ndarray:
 
 def gc_coupling_matrix(duration: float, frequency: float) -> np.ndarray:
 	"""Return a safe copy of the exact doubled-GC coupling matrix."""
-	step = float(duration)
-	rate = float(frequency)
+	step: float = float(duration)
+	rate: float = float(frequency)
 	if not np.isfinite(step):
 		raise ValueError("`duration` must be finite.")
 	if not np.isfinite(rate) or rate < 0.0:
@@ -97,17 +99,17 @@ class HarmonicCoupling:
 
 	def __post_init__(self) -> None:
 		"""Validate the reusable coupling rate independently of any method."""
-		rate = float(self.frequency)
+		rate: float = float(self.frequency)
 		if not np.isfinite(rate) or rate < 0:
 			raise ValueError("`frequency` must be finite and non-negative.")
 		object.__setattr__(self, "frequency", rate)
 
 	def apply(self, state: np.ndarray, duration: float) -> np.ndarray:
 		"""Return the exact signed C flow without modifying the input array."""
-		value = np.asarray(state, dtype=float)
+		value: np.ndarray = np.asarray(state, dtype=float)
 		if value.ndim != 1 or value.size == 0 or value.size % 4 or not np.all(np.isfinite(value)):
 			raise ValueError("C requires a finite doubled planar vector of length 4*N.")
-		step = float(duration)
+		step: float = float(duration)
 		if not np.isfinite(step):
 			raise ValueError("`duration` must be finite.")
 		return np.asarray((_coupling_matrix(step, self.frequency) @ value.reshape(4, -1)).reshape(-1))
@@ -154,7 +156,7 @@ class GCDoubledMaps:
 		if layout.state_dimension != 2:
 			raise TypeError("GC doubled maps require a planar component-major layout.")
 		if coupling_frequency is not None:
-			frequency = float(coupling_frequency)
+			frequency: float = float(coupling_frequency)
 			if not np.isfinite(frequency) or frequency < 0:
 				raise ValueError("`coupling_frequency` must be finite and non-negative.")
 			coupling_frequency = frequency
@@ -162,7 +164,7 @@ class GCDoubledMaps:
 			raise TypeError("Energy tracking requires HamiltonianSystem.")
 		physical = problem.initial_state
 		count = problem.particle_count
-		initial = _GCExtendedState(physical, physical, np.zeros(count) if track_energy else None).pack()
+		initial: np.ndarray = _GCExtendedState(physical, physical, np.zeros(count) if track_energy else None).pack()
 		initial.setflags(write=False)
 		object.__setattr__(self, "dynamics", problem.dynamics)
 		object.__setattr__(self, "configuration", problem.initial_state)
@@ -197,10 +199,10 @@ class GCDoubledMaps:
 		coupling = self.coupling
 		if coupling is None:
 			raise TypeError("The uncoupled GC formulation has no coupling flow.")
-		first = self.layout.split(state.first)
-		second = self.layout.split(state.second)
-		blocks = np.stack((*first, *second), axis=0)
-		coupled = coupling.apply(blocks.reshape(-1), duration).reshape(blocks.shape)
+		first: tuple[np.ndarray, ...] = self.layout.split(state.first)
+		second: tuple[np.ndarray, ...] = self.layout.split(state.second)
+		blocks: np.ndarray = np.stack((*first, *second), axis=0)
+		coupled: np.ndarray = coupling.apply(blocks.reshape(-1), duration).reshape(blocks.shape)
 		return _GCExtendedState(
 			first=GCStateLayout().from_blocks(coupled[:2]),
 			second=GCStateLayout().from_blocks(coupled[2:]),
@@ -216,7 +218,7 @@ class GCDoubledMaps:
 		energy_points: list[_EnergyQuadraturePoint] | None = None,
 	) -> np.ndarray:
 		"""Update both copies, optionally retaining energy quadrature states."""
-		updated = self.apply_spatial('B', duration, t, state, energy_points=energy_points)
+		updated: np.ndarray = self.apply_spatial('B', duration, t, state, energy_points=energy_points)
 		updated = self.apply_spatial('A', duration, t, updated, energy_points=energy_points)
 		if self.coupling_frequency is None:
 			return updated
@@ -231,7 +233,7 @@ class GCDoubledMaps:
 		energy_points: list[_EnergyQuadraturePoint] | None = None,
 	) -> np.ndarray:
 		"""Couple and update both copies, optionally retaining quadrature states."""
-		current = state
+		current: np.ndarray = state
 		if self.coupling_frequency is not None:
 			current = self.apply_spatial('C', duration, t, current)
 		current = self.apply_spatial('A', duration, t, current, energy_points=energy_points)
@@ -246,9 +248,11 @@ class GCDoubledMaps:
 		A updates the first copy from the second, B updates the second from the
 		first, and C rotates their difference. The caller owns time translation.
 		"""
-		current = self._unpack(state)
+		current: _GCExtendedState = self._unpack(state)
 		if operation == 'C':
 			return self._couple(duration, current).pack()
+		first: np.ndarray
+		second: np.ndarray
 		first, second = current.first, current.second
 		if operation == 'A':
 			source = second
@@ -258,7 +262,7 @@ class GCDoubledMaps:
 			second = spatial_shear(self.dynamics, t, second, source, duration)
 		else:
 			raise ValueError('A spatial operation must be A, B or C.')
-		momentum = _updated_momentum(self.dynamics, current.momentum, duration, t, source)
+		momentum: np.ndarray | None = _updated_momentum(self.dynamics, current.momentum, duration, t, source)
 		if energy_points is not None:
 			energy_points.append((t, duration, source))
 		return _GCExtendedState(first, second, momentum).pack()
@@ -269,8 +273,8 @@ class GCDoubledMaps:
 			raise TypeError(
 				"This prepared formulation does not permit stage projection."
 			)
-		current = self._unpack(state)
-		mean = np.asarray((current.first + current.second) / 2)
+		current: _GCExtendedState = self._unpack(state)
+		mean: np.ndarray = np.asarray((current.first + current.second) / 2)
 		return _GCExtendedState(
 			first=mean,
 			second=mean,
@@ -279,8 +283,8 @@ class GCDoubledMaps:
 
 	def project(self, internal_history: np.ndarray) -> Projection:
 		"""Average both copies and expose projected extended momentum."""
-		final_state = self._unpack(internal_history)
-		states = np.asarray((final_state.first + final_state.second) / 2)
+		final_state: _GCExtendedState = self._unpack(internal_history)
+		states: np.ndarray = np.asarray((final_state.first + final_state.second) / 2)
 		diagnostics: dict[str, np.ndarray | float | int | str | bool] = {}
 		if final_state.momentum is not None:
 			diagnostics["extended_momentum"] = final_state.momentum / 2
@@ -294,7 +298,7 @@ class GCExtendedFormulation:
 	coupling_frequency: float = np.pi / 8
 
 	def __post_init__(self) -> None:
-		frequency = float(self.coupling_frequency)
+		frequency: float = float(self.coupling_frequency)
 		if not np.isfinite(frequency) or frequency < 0:
 			raise ValueError("`coupling_frequency` must be finite and non-negative.")
 		object.__setattr__(self, "coupling_frequency", frequency)

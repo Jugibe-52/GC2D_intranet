@@ -18,7 +18,7 @@ class IntegrationState:
 	values: np.ndarray
 
 	def __post_init__(self) -> None:
-		value = np.array(self.values, copy=True)
+		value: np.ndarray = np.array(self.values, copy=True)
 		if not np.isfinite(self.time) or value.ndim != 1 or not value.size or not np.all(np.isfinite(value)):
 			raise ValueError("An integration state needs a finite time and finite non-empty vector.")
 		value.setflags(write=False)

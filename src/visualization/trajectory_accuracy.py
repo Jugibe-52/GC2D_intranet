@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from typing import Protocol
+from typing import Protocol, TYPE_CHECKING
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -13,6 +13,10 @@ from matplotlib.figure import Figure
 from diagnostics import StoredReferenceTrajectory
 
 from .ten_method_comparison import TEN_METHOD_COLORS, TEN_METHOD_SHORT_LABELS
+
+
+if TYPE_CHECKING:
+	from typing import Any
 
 
 class AccuracySeriesView(Protocol):
@@ -103,7 +107,7 @@ class StepAccuracySummaryView(Protocol):
 
 def _positive(values: np.ndarray, *, floor: float) -> np.ndarray:
 	"""Validate distances and floor exact zeros only for logarithmic axes."""
-	array = np.asarray(values, dtype=float)
+	array: np.ndarray = np.asarray(values, dtype=float)
 	if not np.all(np.isfinite(array)) or np.any(array < 0.0):
 		raise ValueError("Accuracy distances must be finite and non-negative.")
 	return np.where(array == 0.0, floor, array)
@@ -120,6 +124,8 @@ def plot_reference_trajectory_points(
 	particle_count = reference.states.shape[0] // 2
 	x = reference.states[:particle_count]
 	y = reference.states[particle_count:]
+	figure: Figure
+	axis: Axes
 	figure, axis = plt.subplots(figsize=(8, 7), constrained_layout=True)
 	for particle in range(particle_count):
 		line = axis.plot(
@@ -162,7 +168,7 @@ def _accuracy_time_series(
 	times: np.ndarray, series: Mapping[str, AccuracySeriesView], reference_floor: float,
 ) -> tuple[np.ndarray, list[tuple[str, tuple[np.ndarray, ...]]]]:
 	"""Align both accuracy metrics and apply their shared logarithmic floor."""
-	time_values = np.asarray(times, dtype=float)
+	time_values: np.ndarray = np.asarray(times, dtype=float)
 	if (
 		time_values.ndim != 1
 		or time_values.size < 2
@@ -174,12 +180,12 @@ def _accuracy_time_series(
 		raise ValueError("At least one accuracy series is required.")
 	if not np.isfinite(reference_floor) or reference_floor < 0.0:
 		raise ValueError("`reference_floor` must be finite and non-negative.")
-	plot_floor = max(reference_floor / 10.0, float(np.finfo(float).tiny))
+	plot_floor: float = max(reference_floor / 10.0, float(np.finfo(float).tiny))
 	prepared: list[tuple[str, tuple[np.ndarray, ...]]] = []
 	for label, values in series.items():
 		distances: list[np.ndarray] = []
 		for distance in (values.rms_distance, values.maximum_distance):
-			array = np.asarray(distance, dtype=float)
+			array: np.ndarray = np.asarray(distance, dtype=float)
 			if array.shape != time_values.shape:
 				raise ValueError("Every accuracy series must match the time grid.")
 			distances.append(_positive(array, floor=plot_floor))
@@ -194,7 +200,11 @@ def plot_trajectory_accuracy_over_time(
 	reference_floor: float,
 ) -> tuple[Figure, np.ndarray]:
 	"""Plot particle-RMS and maximum reference error for labeled trajectories."""
+	time_values: np.ndarray
+	prepared: list[tuple[str, tuple[np.ndarray, ...]]]
 	time_values, prepared = _accuracy_time_series(times, series, reference_floor)
+	figure: Figure
+	axes: np.ndarray
 	figure, axes = plt.subplots(
 		2,
 		1,
@@ -203,7 +213,7 @@ def plot_trajectory_accuracy_over_time(
 		constrained_layout=True,
 	)
 	for index, (label, distances) in enumerate(prepared):
-		color = TEN_METHOD_COLORS.get(label, f"C{index}")
+		color: str = TEN_METHOD_COLORS.get(label, f"C{index}")
 		linestyle = "--" if "Broyden" in label else "-"
 		for axis, distance in zip(axes, distances, strict=True):
 			axis.semilogy(
@@ -251,20 +261,20 @@ def _single_method_refinement(
 	summaries: Sequence[StepAccuracySummaryView], expected_order: float, reference_floor: float,
 ) -> tuple[str, np.ndarray, np.ndarray, float, float]:
 	"""Prepare ordered positive refinement data and its reference plotting controls."""
-	rows = tuple(summaries)
+	rows: tuple[StepAccuracySummaryView, ...] = tuple(summaries)
 	if len(rows) < 2:
 		raise ValueError("At least two refinement summaries are required.")
 	method_names = {row.method_name for row in rows}
 	if len(method_names) != 1:
 		raise ValueError("Single-method refinement requires one method label.")
-	order = float(expected_order)
+	order: float = float(expected_order)
 	if not np.isfinite(order) or order <= 0.0:
 		raise ValueError("`expected_order` must be positive and finite.")
-	floor = float(reference_floor)
+	floor: float = float(reference_floor)
 	if not np.isfinite(floor) or floor < 0.0:
 		raise ValueError("`reference_floor` must be finite and non-negative.")
-	steps = np.asarray([row.integration_step for row in rows], dtype=float)
-	errors = np.asarray(
+	steps: np.ndarray = np.asarray([row.integration_step for row in rows], dtype=float)
+	errors: np.ndarray = np.asarray(
 		[row.time_integrated_rms_distance for row in rows],
 		dtype=float,
 	)
@@ -286,10 +296,17 @@ def plot_single_method_accuracy_refinement(
 	reference_floor: float = 0.0,
 ) -> tuple[Figure, Axes]:
 	"""Plot one method's step refinement with an anchored order guide."""
+	method_label: str
+	steps: np.ndarray
+	errors: np.ndarray
+	order: float
+	floor: float
 	method_label, steps, errors, order, floor = _single_method_refinement(
 		summaries, expected_order, reference_floor,
 	)
 	reference = errors[0] * (steps / steps[0]) ** order
+	figure: Figure
+	axis: Axes
 	figure, axis = plt.subplots(figsize=(8, 6), constrained_layout=True)
 	axis.loglog(
 		steps,
@@ -328,12 +345,12 @@ def plot_accuracy_summary(
 	summaries: Sequence[AccuracySummaryView],
 ) -> tuple[Figure, Axes]:
 	"""Compare global and final RMS reference errors for labeled methods."""
-	rows = tuple(summaries)
+	rows: tuple[AccuracySummaryView, ...] = tuple(summaries)
 	if not rows:
 		raise ValueError("At least one accuracy summary is required.")
 	labels = [row.method_name for row in rows]
-	global_errors = np.asarray([row.global_rms_distance for row in rows], dtype=float)
-	final_errors = np.asarray([row.final_rms_distance for row in rows], dtype=float)
+	global_errors: np.ndarray = np.asarray([row.global_rms_distance for row in rows], dtype=float)
+	final_errors: np.ndarray = np.asarray([row.final_rms_distance for row in rows], dtype=float)
 	if (
 		not np.all(np.isfinite(global_errors))
 		or not np.all(np.isfinite(final_errors))
@@ -341,7 +358,9 @@ def plot_accuracy_summary(
 		or np.any(final_errors <= 0.0)
 	):
 		raise ValueError("Summary RMS errors must be positive and finite.")
-	positions = np.arange(len(rows))
+	positions: np.ndarray = np.arange(len(rows))
+	figure: Figure
+	axis: Axes
 	figure, axis = plt.subplots(figsize=(12, 8), constrained_layout=True)
 	axis.barh(
 		positions - 0.18,
@@ -376,7 +395,7 @@ def plot_ten_method_accuracy_summary(
 	summaries: Sequence[AccuracySummaryView],
 ) -> tuple[Figure, Axes]:
 	"""Compare the seven established variants through the generic summary plot."""
-	rows = tuple(summaries)
+	rows: tuple[AccuracySummaryView, ...] = tuple(summaries)
 	if len(rows) != 7:
 		raise ValueError("The accuracy summary plot requires exactly seven variants.")
 	return plot_accuracy_summary(rows)
@@ -384,7 +403,7 @@ def plot_ten_method_accuracy_summary(
 
 def _accuracy_runtime_rows(summaries: Sequence[AccuracySummaryView]) -> tuple[AccuracySummaryView, ...]:
 	"""Require positive finite measured runtimes and RMS errors for every row."""
-	rows = tuple(summaries)
+	rows: tuple[AccuracySummaryView, ...] = tuple(summaries)
 	if not rows:
 		raise ValueError("At least one accuracy summary is required.")
 	for row in rows:
@@ -402,10 +421,12 @@ def plot_accuracy_runtime_tradeoff(
 	summaries: Sequence[AccuracySummaryView],
 ) -> tuple[Figure, Axes]:
 	"""Plot global RMS error against measured wall-clock runtime."""
-	rows = _accuracy_runtime_rows(summaries)
+	rows: tuple[AccuracySummaryView, ...] = _accuracy_runtime_rows(summaries)
+	figure: Figure
+	axis: Axes
 	figure, axis = plt.subplots(figsize=(10, 7), constrained_layout=True)
 	for index, row in enumerate(rows):
-		color = TEN_METHOD_COLORS.get(row.method_name, f"C{index}")
+		color: str = TEN_METHOD_COLORS.get(row.method_name, f"C{index}")
 		axis.scatter(
 			row.runtime_seconds,
 			row.global_rms_distance,
@@ -435,15 +456,15 @@ def _runtime_quartiles(
 	summaries: Sequence[RuntimeSummaryView],
 ) -> tuple[tuple[RuntimeSummaryView, ...], np.ndarray, np.ndarray, np.ndarray]:
 	"""Validate positive ordered runtime quartiles before arranging comparison bars."""
-	rows = tuple(summaries)
+	rows: tuple[RuntimeSummaryView, ...] = tuple(summaries)
 	if not rows:
 		raise ValueError("At least one runtime summary is required.")
-	medians = np.asarray([row.runtime_seconds for row in rows], dtype=float)
-	first_quartiles = np.asarray(
+	medians: np.ndarray = np.asarray([row.runtime_seconds for row in rows], dtype=float)
+	first_quartiles: np.ndarray = np.asarray(
 		[row.runtime_first_quartile_seconds for row in rows],
 		dtype=float,
 	)
-	third_quartiles = np.asarray(
+	third_quartiles: np.ndarray = np.asarray(
 		[row.runtime_third_quartile_seconds for row in rows],
 		dtype=float,
 	)
@@ -463,8 +484,12 @@ def plot_runtime_comparison(
 	summaries: Sequence[RuntimeSummaryView],
 ) -> tuple[Figure, np.ndarray]:
 	"""Compare absolute median runtimes and slowdown relative to the fastest."""
+	rows: tuple[RuntimeSummaryView, ...]
+	medians: np.ndarray
+	first_quartiles: np.ndarray
+	third_quartiles: np.ndarray
 	rows, medians, first_quartiles, third_quartiles = _runtime_quartiles(summaries)
-	positions = np.arange(len(rows), dtype=float)
+	positions: np.ndarray = np.arange(len(rows), dtype=float)
 	labels = [row.method_label for row in rows]
 	colors = [
 		{
@@ -476,8 +501,10 @@ def plot_runtime_comparison(
 		}.get(row.method_name, f"C{index}")
 		for index, row in enumerate(rows)
 	]
+	figure: Figure
+	axes: np.ndarray
 	figure, axes = plt.subplots(1, 2, figsize=(14, 6), constrained_layout=True)
-	quartile_errors = np.vstack(
+	quartile_errors: np.ndarray = np.vstack(
 		(medians - first_quartiles, third_quartiles - medians)
 	)
 	axes[0].bar(positions, medians, color=colors, alpha=0.9)
@@ -520,14 +547,14 @@ def _grouped_refinement(
 	summaries: Sequence[StepAccuracySummaryView],
 ) -> tuple[tuple[str, ...], dict[str, dict[float, float]], tuple[float, ...]]:
 	"""Prepare the common coarse-to-fine grid and reject repeated method-step rows."""
-	rows = tuple(summaries)
+	rows: tuple[StepAccuracySummaryView, ...] = tuple(summaries)
 	if not rows:
 		raise ValueError("At least one step-accuracy summary is required.")
-	labels = tuple(TEN_METHOD_COLORS)
+	labels: tuple[str, ...] = tuple(TEN_METHOD_COLORS)
 	grouped: dict[str, dict[float, float]] = {label: {} for label in labels}
 	for row in rows:
-		step = float(row.integration_step)
-		error = float(row.time_integrated_rms_distance)
+		step: float = float(row.integration_step)
+		error: float = float(row.time_integrated_rms_distance)
 		if (
 			row.method_name not in grouped
 			or not np.isfinite(step)
@@ -539,7 +566,7 @@ def _grouped_refinement(
 		if step in grouped[row.method_name]:
 			raise ValueError("Each method may contain only one result per step.")
 		grouped[row.method_name][step] = error
-	step_values = tuple(
+	step_values: tuple[float, ...] = tuple(
 		sorted(
 			{step for values in grouped.values() for step in values},
 			reverse=True,
@@ -556,8 +583,13 @@ def plot_ten_method_accuracy_refinement(
 	summaries: Sequence[StepAccuracySummaryView],
 ) -> tuple[Figure, np.ndarray]:
 	"""Plot time-integrated RMS error against step for both method families."""
+	labels: tuple[str, ...]
+	grouped: dict[str, dict[float, float]]
+	step_values: tuple[float, ...]
 	labels, grouped, step_values = _grouped_refinement(summaries)
 
+	figure: Figure
+	axes: np.ndarray
 	figure, axes = plt.subplots(
 		1,
 		2,

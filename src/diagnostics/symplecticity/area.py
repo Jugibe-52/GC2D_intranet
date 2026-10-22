@@ -9,7 +9,7 @@ from diagnostics.geometry import calculate_area
 from dataclasses import asdict, dataclass
 from datetime import date
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Mapping, TYPE_CHECKING
 
 import numpy as np
 
@@ -29,6 +29,10 @@ from diagnostics.paths import (
 	notebook_output_directory,
 	validate_block_name,
 )
+
+
+if TYPE_CHECKING:
+	from diagnostics.output import DiagnosticBlockPaths
 
 
 @dataclass(frozen=True, slots=True)
@@ -194,8 +198,8 @@ class GCAreaSymplecticityObserver:
 		if step.step_index != self._expected_step:
 			raise ValueError("Numerical steps must be observed consecutively.")
 
-		state_before = self._validated_state(step.state_before)
-		state_after = self._validated_state(step.state_after)
+		state_before: np.ndarray = self._validated_state(step.state_before)
+		state_after: np.ndarray = self._validated_state(step.state_after)
 		if not self._initialized:
 			if not np.allclose(
 				state_before,
@@ -206,7 +210,7 @@ class GCAreaSymplecticityObserver:
 				raise ValueError(
 					"The observed problem and `area` must share the initial state."
 				)
-			identity = np.eye(self.physical_size)
+			identity: np.ndarray = np.eye(self.physical_size)
 			self._append_record(
 				step_index=-1,
 				time=(
@@ -221,7 +225,7 @@ class GCAreaSymplecticityObserver:
 			)
 			self._initialized = True
 
-		local_jacobian = calculate_step_jacobian(
+		local_jacobian: np.ndarray = calculate_step_jacobian(
 			step,
 			method=self.jacobian_method,
 			relative_step=self.relative_step,
@@ -250,7 +254,7 @@ class GCAreaSymplecticityObserver:
 
 	def _validated_state(self, state: np.ndarray) -> np.ndarray:
 		"""Require a finite physical GC state with component-major layout."""
-		value = np.asarray(state, dtype=float)
+		value: np.ndarray = np.asarray(state, dtype=float)
 		if (
 			value.ndim != 1
 			or value.size != self.physical_size
@@ -273,20 +277,24 @@ class GCAreaSymplecticityObserver:
 		accumulated_jacobian: np.ndarray,
 	) -> None:
 		"""Calculate scalar diagnostics and buffer one physical observation."""
-		area = float(calculate_area(state, period=self.period, layout=GCStateLayout()))
+		area: float = float(calculate_area(state, period=self.period, layout=GCStateLayout()))
 		area_error = area - self.initial_area
 		local_defect = local_jacobian.T @ self.form @ local_jacobian - self.form
 		defect = (
 			accumulated_jacobian.T @ self.form @ accumulated_jacobian - self.form
 		)
+		local_sign: Any
+		local_log_abs_determinant: Any
 		local_sign, local_log_abs_determinant = np.linalg.slogdet(local_jacobian)
+		sign: Any
+		log_abs_determinant: Any
 		sign, log_abs_determinant = np.linalg.slogdet(accumulated_jacobian)
-		local_determinant = float(
+		local_determinant: float = float(
 			local_sign * np.exp(local_log_abs_determinant)
 		)
-		determinant = float(sign * np.exp(log_abs_determinant))
-		defect_frobenius = float(np.linalg.norm(defect, ord="fro"))
-		record = GCAreaSymplecticityRecord(
+		determinant: float = float(sign * np.exp(log_abs_determinant))
+		defect_frobenius: float = float(np.linalg.norm(defect, ord="fro"))
+		record: GCAreaSymplecticityRecord = GCAreaSymplecticityRecord(
 			observation_index=len(self._records),
 			step_index=step_index,
 			time=float(time),
@@ -336,7 +344,7 @@ class GCAreaSymplecticityObserver:
 	) -> GCAreaSymplecticityOutputBlock:
 		"""Write the current matrix buffer as one indexed output block."""
 		rows = [asdict(sample.record) for sample in samples]
-		paths = self._output.write(
+		paths: DiagnosticBlockPaths = self._output.write(
 			block_index=block_index,
 			rows=rows,
 			arrays={
@@ -379,7 +387,7 @@ class GCAreaSymplecticityObserver:
 			},
 		)
 
-		block = GCAreaSymplecticityOutputBlock(
+		block: GCAreaSymplecticityOutputBlock = GCAreaSymplecticityOutputBlock(
 			index=block_index,
 			sample_count=len(samples),
 			summary_path=paths.summary,
@@ -395,6 +403,12 @@ class GCAreaSymplecticityObserver:
 	def _record_final_sample(self) -> None:
 		"""Queue the final completed step when cadence did not select it."""
 		if self._last_completed is not None:
+			accumulated_jacobian: np.ndarray
+			duration: float
+			local_jacobian: np.ndarray
+			state: np.ndarray
+			step_index: int
+			time: float
 			(
 				step_index,
 				time,

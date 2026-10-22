@@ -26,11 +26,12 @@ class ArtifactStore:
             re.match(r"^[A-Za-z0-9_-]+:", location)
         )
         if self.remote:
+            prefix: str
             _, prefix = self.location.split(":", 1)
             if not prefix.strip("/") or ".." in prefix.split("/"):
                 raise ValueError("A remote destination requires a bucket and safe prefix.")
             self.location = self.location.rstrip("/")
-            executable = shutil.which("rclone")
+            executable: str | None = shutil.which("rclone")
             user_executable = Path.home() / ".local/bin/rclone"
             if executable is None and user_executable.is_file():
                 executable = str(user_executable)
@@ -46,7 +47,7 @@ class ArtifactStore:
     def _run(self, *arguments: str, missing_ok: bool = False) -> str | None:
         """Use bounded transfers and omit process output that might contain secrets."""
         try:
-            result = subprocess.run(
+            result: subprocess.CompletedProcess[str] = subprocess.run(
                 [self.executable, *arguments, "--retries", "2", "--low-level-retries", "3",
                  "--contimeout", "15s", "--timeout", "60s", "--stats", "0"],
                 capture_output=True, text=True, timeout=300, check=False,
@@ -67,7 +68,7 @@ class ArtifactStore:
         if self.remote:
             # B2 can report a nonexistent object as a synthetic directory when
             # using --stat. Listing actual files in the run avoids false hits.
-            listing = self._run("lsjson", self.location, "--files-only",
+            listing: str | None = self._run("lsjson", self.location, "--files-only",
                                 "--max-depth", "1", missing_ok=True)
             if listing is None:
                 return False

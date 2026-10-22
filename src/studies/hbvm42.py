@@ -9,7 +9,7 @@ from formulations.layout import GCStateLayout
 from dataclasses import dataclass
 from time import perf_counter
 from types import MappingProxyType
-from typing import Callable, Mapping
+from typing import Callable, Mapping, TYPE_CHECKING
 
 import numpy as np
 from methods.adaptive.scipy import DOP853
@@ -25,6 +25,11 @@ from states.history import States
 from simulation.runner import simulate
 
 from ._validation import finite_time_span, integer_ratio, nonnegative_integer, positive_finite, positive_integer
+
+
+if TYPE_CHECKING:
+	from _typeshed import SupportsDunderGT, SupportsDunderLT
+	from typing import Any
 
 
 HBVM42_LABEL = "HBVM(4,2)"
@@ -52,7 +57,7 @@ class QuarticOscillatorDynamics:
 	@staticmethod
 	def _split(state: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
 		"""Return component-major position and momentum blocks."""
-		value = np.asarray(state, dtype=float)
+		value: np.ndarray = np.asarray(state, dtype=float)
 		if value.ndim == 0 or value.shape[0] == 0 or value.shape[0] % 2:
 			raise ValueError("Quartic oscillator states require equal q and p blocks.")
 		particle_count = value.shape[0] // 2
@@ -61,6 +66,8 @@ class QuarticOscillatorDynamics:
 	def vector_field(self, t: float, state: np.ndarray) -> np.ndarray:
 		"""Evaluate ``q'=p`` and ``p'=-a*q^3``."""
 		del t
+		position: np.ndarray
+		momentum: np.ndarray
 		position, momentum = self._split(state)
 		return np.concatenate(
 			(momentum, -self.quartic_strength * position**3),
@@ -74,8 +81,9 @@ class QuarticOscillatorDynamics:
 	) -> np.ndarray:
 		"""Return one exact canonical two-by-two field Jacobian per oscillator."""
 		del t
+		position: np.ndarray
 		position, _ = self._split(state)
-		result = np.zeros((position.shape[0], 2, 2), dtype=float)
+		result: np.ndarray = np.zeros((position.shape[0], 2, 2), dtype=float)
 		result[:, 0, 1] = 1.0
 		result[:, 1, 0] = -3.0 * self.quartic_strength * position**2
 		return result
@@ -87,6 +95,8 @@ class QuarticOscillatorDynamics:
 	) -> np.ndarray:
 		"""Evaluate the autonomous quartic Hamiltonian for every oscillator."""
 		del t
+		position: np.ndarray
+		momentum: np.ndarray
 		position, momentum = self._split(state)
 		return (
 			0.5 * momentum**2
@@ -104,7 +114,7 @@ def quartic_oscillator_configuration(
 	momentum: float = 0.0,
 ) -> np.ndarray:
 	"""Build the one-oscillator configuration used by both HBVM notebooks."""
-	values = np.asarray((position, momentum), dtype=float)
+	values: np.ndarray = np.asarray((position, momentum), dtype=float)
 	if not np.all(np.isfinite(values)):
 		raise ValueError("Initial position and momentum must be finite.")
 	return np.asarray(GCStateLayout().pack_components(values[:1], values[1:]))
@@ -116,7 +126,7 @@ def _validated_steps(
 	duration: float,
 ) -> tuple[float, ...]:
 	"""Return strictly decreasing complete step sizes spanning the interval."""
-	values = tuple(positive_finite(step, "step") for step in steps)
+	values: tuple[float, ...] = tuple(positive_finite(step, "step") for step in steps)
 	if len(values) < 2 or any(coarse <= fine for coarse, fine in zip(values, values[1:])):
 		raise ValueError("`steps` must contain at least two strictly decreasing values.")
 	for step in values:
@@ -146,10 +156,10 @@ class HBVM42EvaluationConfig:
 
 	def __post_init__(self) -> None:
 		"""Validate a nested fixed-grid study before any integration begins."""
-		span = finite_time_span(self.t_span, message="`t_span` must contain two finite, increasing times.")
+		span: tuple[float, float] = finite_time_span(self.t_span, message="`t_span` must contain two finite, increasing times.")
 		duration = span[1] - span[0]
-		steps = _validated_steps(tuple(self.steps), duration=duration)
-		save_interval = positive_finite(self.save_interval, "save_interval")
+		steps: tuple[float, ...] = _validated_steps(tuple(self.steps), duration=duration)
+		save_interval: float = positive_finite(self.save_interval, "save_interval")
 		integer_ratio(duration, save_interval, "duration / save_interval")
 		for step in steps:
 			integer_ratio(save_interval, step, "save_interval / step")
@@ -262,8 +272,8 @@ class HBVM42BM4ComparisonConfig:
 	def __post_init__(self) -> None:
 		"""Validate common grids, solver controls, and benchmark repetition counts."""
 		require_uncoupled_bm4(self.coupling_frequency)
-		span = finite_time_span(self.t_span, message="`t_span` must contain two finite, increasing times.")
-		steps = _validated_steps(tuple(self.steps), duration=span[1] - span[0])
+		span: tuple[float, float] = finite_time_span(self.t_span, message="`t_span` must contain two finite, increasing times.")
+		steps: tuple[float, ...] = _validated_steps(tuple(self.steps), duration=span[1] - span[0])
 		object.__setattr__(self, "t_span", span)
 		object.__setattr__(self, "steps", steps)
 		for name in (
@@ -281,7 +291,7 @@ class HBVM42BM4ComparisonConfig:
 			"jacobian_method",
 			_validated_jacobian_method(self.jacobian_method),
 		)
-		frequency = float(self.coupling_frequency)
+		frequency: float = float(self.coupling_frequency)
 		if not np.isfinite(frequency) or frequency < 0.0:
 			raise ValueError("`coupling_frequency` must be finite and non-negative.")
 		object.__setattr__(self, "coupling_frequency", frequency)
@@ -335,7 +345,7 @@ def _validated_problem(
 		)
 	if not (isinstance(configuration, np.ndarray) and GCStateLayout().state_dimension == 2):
 		raise TypeError("`configuration` must be a np.ndarray.")
-	problem = InitialValueProblem(dynamics, configuration, layout=GCStateLayout())
+	problem: InitialValueProblem = InitialValueProblem(dynamics, configuration, layout=GCStateLayout())
 	if problem.particle_count != 1 or problem.initial_state.size != 2:
 		raise ValueError("HBVM notebook studies require one planar trajectory.")
 	return problem
@@ -350,7 +360,7 @@ def _reference_solution(
 	maximum_step: float,
 ) -> np.ndarray:
 	"""Compute an independent high-accuracy DOP853 reference on fixed times."""
-	request = SimulationRequest((float(times[0]), float(times[-1])), maximum_step, times)
+	request: SimulationRequest = SimulationRequest((float(times[0]), float(times[-1])), maximum_step, times)
 	return simulate(problem, DOP853(relative_tolerance=relative_tolerance,
 		absolute_tolerance=absolute_tolerance), request).states
 
@@ -383,10 +393,10 @@ def _timed_simulations(
 	"""Return median/minimum wall time and the last repeated solution."""
 	for _ in range(warmups):
 		simulate(problem, method_factory(), request)
-	timings = np.empty(repeats, dtype=float)
+	timings: np.ndarray = np.empty(repeats, dtype=float)
 	last_solution: States | None = None
 	for index in range(repeats):
-		started = perf_counter()
+		started: float = perf_counter()
 		last_solution = simulate(problem, method_factory(), request)
 		timings[index] = perf_counter() - started
 	assert last_solution is not None
@@ -403,8 +413,8 @@ def _flow_jacobian(
 ) -> np.ndarray:
 	"""Differentiate one complete numerical flow by centered initial states."""
 	initial_state = problem.initial_state
-	jacobian = np.empty((2, 2), dtype=float)
-	request = SimulationRequest.uniform(
+	jacobian: np.ndarray = np.empty((2, 2), dtype=float)
+	request: SimulationRequest = SimulationRequest.uniform(
 		t_span=t_span,
 		max_step=step,
 		sample_count=2,
@@ -413,9 +423,9 @@ def _flow_jacobian(
 		increment = relative_step * max(1.0, abs(float(initial_state[column])))
 		endpoints: list[np.ndarray] = []
 		for sign in (1.0, -1.0):
-			perturbed = initial_state.copy()
+			perturbed: np.ndarray = initial_state.copy()
 			perturbed[column] += sign * increment
-			perturbed_problem = InitialValueProblem(problem.dynamics, np.array(perturbed, dtype=float, copy=True), layout=GCStateLayout())
+			perturbed_problem: InitialValueProblem = InitialValueProblem(problem.dynamics, np.array(perturbed, dtype=float, copy=True), layout=GCStateLayout())
 			endpoints.append(
 				simulate(
 					perturbed_problem,
@@ -429,7 +439,7 @@ def _flow_jacobian(
 
 def _symplecticity_metrics(jacobian: np.ndarray) -> tuple[float, float]:
 	"""Return relative canonical-form defect and absolute determinant error."""
-	symplectic_form = np.asarray(((0.0, 1.0), (-1.0, 0.0)))
+	symplectic_form: np.ndarray = np.asarray(((0.0, 1.0), (-1.0, 0.0)))
 	defect = jacobian.T @ symplectic_form @ jacobian - symplectic_form
 	return (
 		float(np.linalg.norm(defect, ord="fro") / np.linalg.norm(symplectic_form, ord="fro")),
@@ -461,14 +471,14 @@ def run_hbvm42_evaluation(
 	"""Evaluate HBVM(4,2) accuracy, cost, energy, geometry, and order."""
 	if not isinstance(config, HBVM42EvaluationConfig):
 		raise TypeError("`config` must be an HBVM42EvaluationConfig.")
-	problem = _validated_problem(dynamics, configuration, require_hamiltonian=True)
+	problem: InitialValueProblem = _validated_problem(dynamics, configuration, require_hamiltonian=True)
 	assert isinstance(dynamics, HamiltonianSystem)
 	times = SimulationRequest.uniform(
 		t_span=config.t_span,
 		max_step=config.save_interval,
 		sample_count=config.output_sample_count,
 	).output_times
-	reference_states = _reference_solution(
+	reference_states: np.ndarray = _reference_solution(
 		problem,
 		times,
 		relative_tolerance=config.reference_relative_tolerance,
@@ -478,28 +488,30 @@ def run_hbvm42_evaluation(
 	solutions: dict[float, States] = {}
 	rows: list[HBVM42EvaluationSummary] = []
 	for step in config.steps:
-		request = SimulationRequest(
+		request: SimulationRequest = SimulationRequest(
 			t_span=config.t_span,
 			max_step=step,
 			output_times=times,
 		)
-		solution = simulate(problem, _hbvm_method(config, track_energy=True), request)
+		solution: States = simulate(problem, _hbvm_method(config, track_energy=True), request)
 		solutions[step] = solution
 		differences = solution.states - reference_states
-		distances = np.linalg.norm(differences, axis=0)
-		trajectory_rms_error = float(
+		distances: np.ndarray = np.linalg.norm(differences, axis=0)
+		trajectory_rms_error: float = float(
 			np.sqrt(
 				np.trapz(distances**2, times)
 				/ (config.t_span[1] - config.t_span[0])
 			)
 		)
-		final_error = float(distances[-1])
+		final_error: float = float(distances[-1])
 
-		benchmark_request = SimulationRequest.uniform(
+		benchmark_request: SimulationRequest = SimulationRequest.uniform(
 			t_span=config.t_span,
 			max_step=step,
 			sample_count=2,
 		)
+		median_runtime: float
+		minimum_runtime: float
 		median_runtime, minimum_runtime, _ = _timed_simulations(
 			problem,
 			lambda: _hbvm_method(config, track_energy=False),
@@ -508,26 +520,30 @@ def run_hbvm42_evaluation(
 			repeats=config.runtime_repeats,
 		)
 
-		local_jacobian = _flow_jacobian(
+		local_jacobian: np.ndarray = _flow_jacobian(
 			problem,
 			lambda: _hbvm_method(config, track_energy=False),
 			t_span=(config.t_span[0], config.t_span[0] + step),
 			step=step,
 			relative_step=config.symplecticity_relative_step,
 		)
-		flow_jacobian = _flow_jacobian(
+		flow_jacobian: np.ndarray = _flow_jacobian(
 			problem,
 			lambda: _hbvm_method(config, track_energy=False),
 			t_span=config.t_span,
 			step=step,
 			relative_step=config.symplecticity_relative_step,
 		)
+		local_defect: float
+		local_determinant_error: float
 		local_defect, local_determinant_error = _symplecticity_metrics(local_jacobian)
+		flow_defect: float
+		flow_determinant_error: float
 		flow_defect, flow_determinant_error = _symplecticity_metrics(flow_jacobian)
-		energies = np.asarray(solution.diagnostics["hamiltonian"], dtype=float)
-		energy_scale = max(abs(float(energies[0, 0])), np.finfo(float).eps)
-		iterations = np.asarray(solution.diagnostics["nonlinear_iterations"], dtype=float)
-		field_evaluations = np.asarray(
+		energies: np.ndarray = np.asarray(solution.diagnostics["hamiltonian"], dtype=float)
+		energy_scale: SupportsDunderLT[Any] | SupportsDunderGT[Any] = max(abs(float(energies[0, 0])), np.finfo(float).eps)
+		iterations: np.ndarray = np.asarray(solution.diagnostics["nonlinear_iterations"], dtype=float)
+		field_evaluations: np.ndarray = np.asarray(
 			solution.diagnostics["vector_field_evaluations_per_step"],
 			dtype=float,
 		)
@@ -555,13 +571,13 @@ def run_hbvm42_evaluation(
 
 	orders: list[HBVM42OrderSummary] = []
 	for coarse, fine in zip(rows, rows[1:]):
-		trajectory_order = _empirical_order(
+		trajectory_order: float = _empirical_order(
 			coarse.trajectory_rms_error,
 			fine.trajectory_rms_error,
 			coarse.step,
 			fine.step,
 		)
-		final_order = _empirical_order(
+		final_order: float = _empirical_order(
 			coarse.final_error,
 			fine.final_error,
 			coarse.step,
@@ -598,13 +614,13 @@ def run_hbvm42_bm4_comparison(
 	"""Compare fourth-order endpoint accuracy and runtime on identical grids."""
 	if not isinstance(config, HBVM42BM4ComparisonConfig):
 		raise TypeError("`config` must be an HBVM42BM4ComparisonConfig.")
-	problem = _validated_problem(
+	problem: InitialValueProblem = _validated_problem(
 		dynamics,
 		configuration,
 		require_hamiltonian=False,
 		require_guiding_center=True,
 	)
-	reference_times = np.asarray(config.t_span, dtype=float)
+	reference_times: np.ndarray = np.asarray(config.t_span, dtype=float)
 	reference_final_state = _reference_solution(
 		problem,
 		reference_times,
@@ -632,12 +648,15 @@ def run_hbvm42_bm4_comparison(
 	)
 	rows: list[HBVM42BM4Summary] = []
 	for step in config.steps:
-		request = SimulationRequest.uniform(
+		request: SimulationRequest = SimulationRequest.uniform(
 			t_span=config.t_span,
 			max_step=step,
 			sample_count=2,
 		)
 		for method_label, method_factory in method_factories:
+			median_runtime: float
+			minimum_runtime: float
+			solution: States
 			median_runtime, minimum_runtime, solution = _timed_simulations(
 				problem,
 				method_factory,

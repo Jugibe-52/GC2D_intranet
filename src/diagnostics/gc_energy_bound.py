@@ -24,7 +24,7 @@ def _json_value(value: Any) -> Any:
 
 def save_energy_bound_result(path: str | Path, result: "GCEnergyBoundResult") -> Path:
     """Save full aligned histories and the audited reference in a new artifact."""
-    destination = Path(path)
+    destination: Path = Path(path)
     destination.parent.mkdir(parents=True, exist_ok=True)
     tables = {name: getattr(result, name) for name in ("summary", "envelopes", "blocks", "orders")}
     with h5py.File(destination, "x") as archive:
@@ -35,9 +35,9 @@ def save_energy_bound_result(path: str | Path, result: "GCEnergyBoundResult") ->
             archive.create_dataset(name, data=values, compression="gzip", shuffle=True)
     for name, rows in tables.items():
         if rows:
-            columns = list(dict.fromkeys(key for row in rows for key in row))
+            columns: list[Any] = list(dict.fromkeys(key for row in rows for key in row))
             with destination.with_name(f"{destination.stem}_{name}.csv").open("w", newline="", encoding="utf-8") as stream:
-                writer = csv.DictWriter(stream, fieldnames=columns)
+                writer: csv.DictWriter[Any] = csv.DictWriter(stream, fieldnames=columns)
                 writer.writeheader()
                 writer.writerows(rows)
     return destination
@@ -49,8 +49,8 @@ def load_energy_bound_result(path: str | Path) -> "GCEnergyBoundResult":
     with h5py.File(path, "r") as archive:
         if archive.attrs.get("schema") != "gc-energy-bound-v1":
             raise ValueError("Unrecognized GC energy-bound artifact.")
-        metadata = json.loads(archive.attrs["metadata_json"])
-        tables = json.loads(archive.attrs["tables_json"])
+        metadata: Any = json.loads(archive.attrs["metadata_json"])
+        tables: Any = json.loads(archive.attrs["tables_json"])
 
         def collect(name: str, value: Any) -> None:
             if isinstance(value, h5py.Dataset):

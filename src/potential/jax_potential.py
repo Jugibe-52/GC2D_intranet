@@ -14,7 +14,7 @@ def _input_device(values: tuple[Any, ...]) -> Any:
 
 	arrays = [value for value in values if isinstance(value, jax.Array)]
 	committed = [value for value in arrays if value.committed]
-	devices = set().union(*(value.devices() for value in committed))
+	devices: set[Any] = set().union(*(value.devices() for value in committed))
 	if len(devices) > 1:
 		raise ValueError("JAX evaluation requires input arrays on one compatible device.")
 	if devices:
@@ -59,10 +59,11 @@ class JaxPotential(Potential):
 				"JAX potential evaluation requires float64. Enable it before use: "
 				"jax.config.update('jax_enable_x64', True)"
 			)
-		leaves = tuple(jax.tree.leaves((t, x, y)))
-		traced = any(isinstance(value, jax.core.Tracer) for value in leaves)
-		device = None if traced else _input_device(leaves)
+		leaves: tuple[Any, ...] = tuple(jax.tree.leaves((t, x, y)))
+		traced: bool = any(isinstance(value, jax.core.Tracer) for value in leaves)
+		device: None | Any = None if traced else _input_device(leaves)
 		if traced:
+			time: jax.Array
 			time, x, y = (jnp.asarray(value, dtype=jnp.float64) for value in (t, x, y))
 		else:
 			time, x, y = (
@@ -79,8 +80,11 @@ class JaxPotential(Potential):
 		if x.shape != y.shape:
 			raise ValueError("`x` and `y` must have the same shape.")
 		if not traced and device in self._jax_buffers:
-			buffers = self._jax_buffers[device]
+			buffers: tuple[Any, ...] = self._jax_buffers[device]
 		else:
+			knots_x: np.ndarray
+			knots_y: np.ndarray
+			coefficients: np.ndarray
 			knots_x, knots_y, coefficients = self._spline_data
 			host_data = (
 				knots_x, knots_y, coefficients, self.frequencies,

@@ -5,7 +5,7 @@ from formulations.layout import GCStateLayout
 from dataclasses import dataclass, replace
 from collections.abc import Mapping
 from time import perf_counter
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 import numpy as np
 from threadpoolctl import threadpool_limits
@@ -29,6 +29,10 @@ from .reference_trajectory import potential_fingerprint
 from ._comparison import ComparisonConfig
 
 
+if TYPE_CHECKING:
+	from states.history import States
+
+
 BM4_PROJECTION_METHODS = ("BM4Midpoint", "BM4Implicit")
 
 
@@ -36,7 +40,7 @@ def summarize_bm4_particles(arrays: dict[str, np.ndarray]) -> list[dict[str, Any
 	"""Summarize each trajectory separately, without allocating joint runtimes."""
 	times = arrays["times"]
 	n = arrays["initial_state"].size // 2
-	mu = arrays["BM4Implicit.mu"].reshape(2, n, -1)
+	mu: np.ndarray = arrays["BM4Implicit.mu"].reshape(2, n, -1)
 	def rms(values: np.ndarray, grid: np.ndarray) -> float:
 		return float(np.sqrt(np.trapz(values**2, grid) / (grid[-1] - grid[0])))
 	rows = []
@@ -55,7 +59,7 @@ def summarize_bm4_particles(arrays: dict[str, np.ndarray]) -> list[dict[str, Any
 		row["positions"] = {"initial": arrays["initial_state"].reshape(2, n)[:, j].tolist()}
 		for name in ("DOP853", *BM4_PROJECTION_METHODS):
 			row["positions"][name] = arrays[f"{name}.states"].reshape(2, n, -1)[:, j, -1].tolist()
-		norm = np.max(np.abs(mu[:, j]), axis=0)
+		norm: np.ndarray = np.max(np.abs(mu[:, j]), axis=0)
 		row["mu"] = {"mean": float(np.mean(norm)), "rms": float(np.sqrt(np.mean(norm**2))),
 			"maximum": float(np.max(norm)), "final": float(norm[-1])}
 		if "reference.refinement_distance" in arrays:
@@ -89,7 +93,7 @@ def radial_configuration(
 	angle: float = 0.0,
 ) -> np.ndarray:
 	"""Place particles along one radius; fractions use the cell half-width."""
-	radii = np.asarray(radius_fractions, dtype=float)
+	radii: np.ndarray = np.asarray(radius_fractions, dtype=float)
 	if (radii.ndim != 1 or radii.size == 0 or not np.all(np.isfinite(radii))
 		or np.any(radii < 0) or np.any(radii >= 1) or np.any(np.diff(radii) <= 0)
 		or not np.isfinite(angle)):
@@ -106,11 +110,11 @@ def _rms(values: np.ndarray, times: np.ndarray) -> float:
 
 def saved_sample_indices(reference: StoredReferenceTrajectory, times: np.ndarray) -> np.ndarray:
 	"""Select saved nodes to roundoff, never interpolate or extrapolate."""
-	spacing = float(reference.times[1] - reference.times[0])
-	indices = np.rint((times - reference.times[0]) / spacing).astype(np.int64)
+	spacing: float = float(reference.times[1] - reference.times[0])
+	indices: Any = np.rint((times - reference.times[0]) / spacing).astype(np.int64)
 	if np.any(indices < 0) or np.any(indices >= reference.times.size):
 		raise ValueError("Requested times extend beyond the saved reference.")
-	tolerance = float(64 * np.finfo(float).eps * max(1., float(np.max(np.abs(times)))))
+	tolerance: float = float(64 * np.finfo(float).eps * max(1., float(np.max(np.abs(times)))))
 	if not np.allclose(reference.times[indices], times, rtol=0, atol=tolerance):
 		raise ValueError("Requested times must coincide with saved reference samples.")
 	return np.asarray(indices, dtype=np.int64)
@@ -135,12 +139,14 @@ def audit_saved_reference_refinement(
 			potential_metadata=potential_metadata, initial_condition_metadata=initial_condition_metadata)
 		if stored.metadata.get("solver") != "DOP853":
 			raise ValueError("The refinement pair must contain DOP853 trajectories.")
+	fine_config: Any
+	coarse_config: Any
 	fine_config, coarse_config = reference.metadata["config"], coarse.metadata["config"]
 	for key in ("relative_tolerance", "absolute_tolerance", "maximum_step"):
 		if fine_config[key] >= coarse_config[key]:
 			raise ValueError("The standard reference must refine step and both tolerances.")
-	indices = saved_sample_indices(coarse, reference.times)
-	distance = particle_distances(reference.states, coarse.states[:, indices],
+	indices: np.ndarray = saved_sample_indices(coarse, reference.times)
+	distance: np.ndarray = particle_distances(reference.states, coarse.states[:, indices],
 		period=potential.grid.period, distance_convention=config.distance_convention)
 	arrays = {"reference.full_times": reference.times,
 		"reference.full_audit_distance": reference.audit_distances,
@@ -177,13 +183,13 @@ def run_bm4_projection_comparison(
 	advances all particles jointly, with one BLAS thread and alternating method
 	order. Arrays retain all accepted step diagnostics and saved trajectories.
 	"""
-	dynamics = GuidingCenterDynamics(potential, rho=config.rho)
-	problem = InitialValueProblem(dynamics, configuration, layout=GCStateLayout())
-	request = SimulationRequest.uniform(t_span=config.t_span, max_step=config.integration_step,
+	dynamics: GuidingCenterDynamics = GuidingCenterDynamics(potential, rho=config.rho)
+	problem: InitialValueProblem = InitialValueProblem(dynamics, configuration, layout=GCStateLayout())
+	request: SimulationRequest = SimulationRequest.uniform(t_span=config.t_span, max_step=config.integration_step,
 		sample_count=config.output_sample_count)
 	times = request.output_times
 	period = potential.grid.period if config.distance_convention == "periodic" else None
-	implicit = BM4Implicit(
+	implicit: BM4Implicit = BM4Implicit(
 		newton_absolute_tolerance=config.absolute_tolerance,
 		newton_relative_tolerance=config.relative_tolerance,
 		newton_max_iterations=config.max_iterations,
@@ -205,7 +211,7 @@ def run_bm4_projection_comparison(
 	with threadpool_limits(limits=1):
 		if saved_reference is None:
 			log("Computing DOP853 reference and independent Radau audit.")
-			reference = build_adaptive_reference(dynamics, problem.initial_state, times,
+			reference: AdaptiveReference = build_adaptive_reference(dynamics, problem.initial_state, times,
 				period=period, distance_convention=config.distance_convention,
 				relative_tolerance=config.reference_relative_tolerance,
 				absolute_tolerance=config.reference_absolute_tolerance,
@@ -226,7 +232,7 @@ def run_bm4_projection_comparison(
 				("audit_absolute_tolerance", "audit_absolute_tolerance"), ("audit_maximum_step", "audit_maximum_step")):
 				if getattr(config, field) != saved_reference.metadata["config"][key]:
 					raise ValueError(f"Saved reference setting differs: {field}.")
-			indices = saved_sample_indices(saved_reference, times)
+			indices: np.ndarray = saved_sample_indices(saved_reference, times)
 			reference = AdaptiveReference(times, saved_reference.states[:, indices],
 				saved_reference.audit_states[:, indices], saved_reference.audit_distances[:, indices],
 				0.0, 0.0, 0, 0)
@@ -245,8 +251,8 @@ def run_bm4_projection_comparison(
 		for repeat in range(config.timing_repeats):
 			order = BM4_PROJECTION_METHODS if repeat % 2 == 0 else BM4_PROJECTION_METHODS[::-1]
 			for name in order:
-				start = perf_counter()
-				solution = simulate(problem, methods[name], request)
+				start: float = perf_counter()
+				solution: States = simulate(problem, methods[name], request)
 				elapsed = perf_counter() - start
 				assert solution.diagnostics["step_count"] == config.step_count
 				assert np.array_equal(solution.t, times)
@@ -261,7 +267,7 @@ def run_bm4_projection_comparison(
 			assert len(event.base_stages) == 12
 			multipliers.append(event.multiplier.copy())
 		log("Capturing signed per-particle multipliers in an untimed replay.")
-		replay = simulate(problem, replace(implicit, step_observer=observe), request)
+		replay: States = simulate(problem, replace(implicit, step_observer=observe), request)
 		np.testing.assert_array_equal(replay.states, solutions["BM4Implicit"].states)
 		arrays["BM4Implicit.mu"] = np.stack(multipliers, axis=1)
 
@@ -291,6 +297,9 @@ def run_bm4_projection_comparison(
 		for key, value in solution.diagnostics.items():
 			if isinstance(value, np.ndarray):
 				arrays[f"{name}.{key}"] = value
+		q1: Any
+		median: Any
+		q3: Any
 		q1, median, q3 = np.quantile(runtime_samples[name], [.25, .5, .75])
 		method_summaries[name] = {
 			"runtime_median_seconds": float(median), "runtime_q1_seconds": float(q1), "runtime_q3_seconds": float(q3),
@@ -305,10 +314,10 @@ def run_bm4_projection_comparison(
 	diag = solutions["BM4Implicit"].diagnostics
 	assert diag["projection_solver_formulation"] == "bm4_implicit_reduced"
 	assert diag["newton_jacobian_method"] == "analytic" and diag["nonlinear_solver"] == "newton"
-	mu_norm = np.max(np.abs(arrays["BM4Implicit.mu"]), axis=0)
+	mu_norm: np.ndarray = np.max(np.abs(arrays["BM4Implicit.mu"]), axis=0)
 	np.testing.assert_allclose(mu_norm, np.asarray(diag["projection_multiplier_norms"]), rtol=0, atol=0)
-	iterations = np.asarray(diag["nonlinear_iterations"])
-	evaluations = np.asarray(diag["residual_evaluations"])
+	iterations: np.ndarray = np.asarray(diag["nonlinear_iterations"])
+	evaluations: np.ndarray = np.asarray(diag["residual_evaluations"])
 	assert iterations.shape == evaluations.shape == mu_norm.shape == (config.step_count,)
 	summary["methods"] = method_summaries
 	summary["mu"] = {"mean": float(np.mean(mu_norm)), "rms": float(np.sqrt(np.mean(mu_norm**2))),

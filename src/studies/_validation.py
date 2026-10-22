@@ -14,12 +14,6 @@ import re
 import numpy as np
 
 
-
-
-
-
-
-
 def resolve_rho(explicit: float | None) -> float:
 	"""Require physical gyro-radius in the study rather than its geometry."""
 	if explicit is None:
@@ -27,13 +21,9 @@ def resolve_rho(explicit: float | None) -> float:
 	return nonnegative_finite(explicit, "rho")
 
 
-
-
-
-
 def refinement_steps(steps: tuple[float, ...]) -> tuple[float, ...]:
 	"""Normalize distinct positive steps ordered from coarsest to finest."""
-	values = tuple(float(step) for step in steps)
+	values: tuple[float, ...] = tuple(float(step) for step in steps)
 	if not values or any(not np.isfinite(step) or step <= 0.0 for step in values):
 		raise ValueError("`steps` must contain positive finite values.")
 	if len(set(values)) != len(values):
@@ -43,12 +33,12 @@ def refinement_steps(steps: tuple[float, ...]) -> tuple[float, ...]:
 	return values
 
 
-
-
 def unpacked_time_span(values: tuple[float, float]) -> tuple[float, float]:
 	"""Normalize an iterable pair, reporting conversion errors as span errors."""
 	message = "`t_span` must contain two finite increasing times."
 	try:
+		start: float
+		stop: float
 		start, stop = (float(value) for value in values)
 	except (TypeError, ValueError) as exc:
 		raise ValueError(message) from exc

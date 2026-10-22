@@ -11,6 +11,11 @@ import numpy as np
 from potential import Potential
 from ._validation import nonnegative_integer, positive_integer
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+	from typing import Any
+
 
 def domain_center(potential: Potential) -> tuple[float, float]:
 	"""Return the geometric center of the potential's periodic base cell."""
@@ -32,15 +37,15 @@ def radial_gc_configuration(
 	below half a period so all positions stay inside the centered base cell.
 	These spatial distances are independent of the dynamics' gyro-radius.
 	"""
-	center = np.asarray(domain_center(potential))
-	radii = np.asarray(radial_fractions, dtype=float)
+	center: np.ndarray = np.asarray(domain_center(potential))
+	radii: np.ndarray = np.asarray(radial_fractions, dtype=float)
 	if (radii.ndim != 1 or radii.size == 0 or not np.all(np.isfinite(radii))
 		or np.any(radii < 0) or np.any(radii >= 0.5)
 		or np.any(np.diff(radii) <= 0)):
 		raise ValueError("Radial fractions must increase strictly within [0, 0.5).")
 	if not np.isfinite(angle):
 		raise ValueError("The radial angle must be finite.")
-	direction = np.asarray((np.cos(angle), np.sin(angle)))
+	direction: np.ndarray = np.asarray((np.cos(angle), np.sin(angle)))
 	positions = center[:, None] + potential.grid.period * direction[:, None] * radii
 	return np.asarray(GCStateLayout().pack_components(positions[0], positions[1]))
 
@@ -77,6 +82,8 @@ def centered_square(
 
 def centered_gc_configuration(potential: Potential) -> np.ndarray:
 	"""Create one canonical GC initial state at the periodic-cell center."""
+	center_x: float
+	center_y: float
 	center_x, center_y = domain_center(potential)
 	return np.asarray(GCStateLayout().pack_components(np.asarray([center_x]), np.asarray([center_y])))
 
@@ -87,7 +94,7 @@ def _normalized_bounds(
 	name: str,
 ) -> tuple[float, float]:
 	"""Validate one sampling interval inside the periodic base cell."""
-	candidate = np.asarray(cell_bounds if bounds is None else bounds, dtype=float)
+	candidate: np.ndarray = np.asarray(cell_bounds if bounds is None else bounds, dtype=float)
 	if (
 		candidate.shape != (2,)
 		or not np.all(np.isfinite(candidate))
@@ -122,17 +129,17 @@ def random_gc_configuration(
 	grid = potential.grid
 
 
-	x_interval = _normalized_bounds(
+	x_interval: tuple[float, float] = _normalized_bounds(
 		x_bounds,
 		(grid.xmin, grid.xmin + grid.period),
 		"x_bounds",
 	)
-	y_interval = _normalized_bounds(
+	y_interval: tuple[float, float] = _normalized_bounds(
 		y_bounds,
 		(grid.ymin, grid.ymin + grid.period),
 		"y_bounds",
 	)
-	random = np.random.default_rng(int(seed))
+	random: np.random.Generator = np.random.default_rng(int(seed))
 	return np.asarray(GCStateLayout().pack_components(random.uniform(*x_interval, size=int(particle_count)), random.uniform(*y_interval, size=int(particle_count))))
 
 
@@ -155,18 +162,18 @@ def latin_hypercube_gc_configuration(
 		raise TypeError("`potential` must be a Potential instance.")
 	positive_integer(particle_count, "particle_count")
 	nonnegative_integer(seed, "seed")
-	margin = float(domain_margin_fraction)
+	margin: float = float(domain_margin_fraction)
 	if not np.isfinite(margin) or margin < 0.0 or margin >= 0.5:
 		raise ValueError("`domain_margin_fraction` must lie in [0, 0.5).")
 
 	grid = potential.grid
-	domain_min = np.asarray((grid.xmin, grid.ymin), dtype=float)
-	domain_max = np.asarray((grid.xmax, grid.ymax), dtype=float)
+	domain_min: np.ndarray = np.asarray((grid.xmin, grid.ymin), dtype=float)
+	domain_max: np.ndarray = np.asarray((grid.xmax, grid.ymax), dtype=float)
 	domain_span = domain_max - domain_min
 	sampling_min = domain_min + margin * domain_span
 	sampling_max = domain_max - margin * domain_span
-	random = np.random.default_rng(int(seed))
-	count = int(particle_count)
+	random: np.random.Generator = np.random.default_rng(int(seed))
+	count: int = int(particle_count)
 	unit_x = (np.arange(count) + random.random(count)) / count
 	unit_y = (np.arange(count) + random.random(count)) / count
 	random.shuffle(unit_x)
@@ -188,7 +195,7 @@ def latin_hypercube_gc_configuration_with_near_center(
 	The displacement is expressed as fractions of the periodic-cell width on
 	each axis and must keep the selected point within half a period of the center.
 	"""
-	offset_fraction = np.asarray(center_offset_fraction, dtype=float)
+	offset_fraction: np.ndarray = np.asarray(center_offset_fraction, dtype=float)
 	if (
 		offset_fraction.shape != (2,)
 		or not np.all(np.isfinite(offset_fraction))
@@ -197,7 +204,7 @@ def latin_hypercube_gc_configuration_with_near_center(
 		raise ValueError(
 			"`center_offset_fraction` must contain two finite values in (-0.5, 0.5)."
 		)
-	configuration = latin_hypercube_gc_configuration(
+	configuration: np.ndarray = latin_hypercube_gc_configuration(
 		potential,
 		particle_count=particle_count,
 		seed=seed,
@@ -205,7 +212,11 @@ def latin_hypercube_gc_configuration_with_near_center(
 	)
 	state = configuration
 	assert state is not None
+	x: np.ndarray
+	y: np.ndarray
 	x, y = GCStateLayout().positions(state)
+	center_x: float
+	center_y: float
 	center_x, center_y = domain_center(potential)
 	x[0] = center_x + offset_fraction[0] * potential.grid.period
 	y[0] = center_y + offset_fraction[1] * potential.grid.period

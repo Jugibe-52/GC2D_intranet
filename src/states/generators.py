@@ -5,6 +5,11 @@ import numpy as np
 
 from formulations.layout import GCStateLayout
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+	from typing import Any
+
 
 def _validated_radial_star_origin(
 	center: tuple[float, float], arm_length: float, arms: int,
@@ -14,7 +19,7 @@ def _validated_radial_star_origin(
 	for name, value in (("arms", arms), ("particles_per_arm", particles_per_arm)):
 		if isinstance(value, (bool, np.bool_)) or not isinstance(value, (int, np.integer)) or value < 1:
 			raise ValueError(f"{name} must be a positive integer.")
-	origin = np.asarray(center, dtype=float)
+	origin: np.ndarray = np.asarray(center, dtype=float)
 	if origin.shape != (2,) or not np.all(np.isfinite(origin)):
 		raise ValueError("center must contain two finite coordinates.")
 	if not np.isfinite(arm_length) or arm_length <= 0 or not np.isfinite(first_angle):
@@ -39,17 +44,17 @@ def radial_star(*, center: tuple[float, float], arm_length: float,
     include_center prepends exactly one shared central particle, followed by
     the positive-radius arm particles in the same established order.
     """
-    origin = _validated_radial_star_origin(
+    origin: np.ndarray = _validated_radial_star_origin(
         center, arm_length, arms, particles_per_arm, first_angle, include_center,
     )
     angles = first_angle + 2 * np.pi * np.arange(arms) / arms
-    radii = arm_length * np.arange(1, particles_per_arm + 1) / particles_per_arm
+    radii: np.ndarray = arm_length * np.arange(1, particles_per_arm + 1) / particles_per_arm
     if inner_radius is not None:
         if not np.isfinite(inner_radius) or not 0 < inner_radius <= arm_length:
             raise ValueError("inner_radius must be positive and no greater than arm_length.")
         radii = np.linspace(inner_radius, arm_length, particles_per_arm)
-    x = origin[0] + np.cos(angles[:, None]) * radii
-    y = origin[1] + np.sin(angles[:, None]) * radii
+    x: Any = origin[0] + np.cos(angles[:, None]) * radii
+    y: Any = origin[1] + np.sin(angles[:, None]) * radii
     x, y = x.ravel(), y.ravel()
     if include_center:
         x, y = np.r_[origin[0], x], np.r_[origin[1], y]
@@ -66,7 +71,7 @@ def _validated_ranked_star_origin(
 			raise ValueError(f"{name} must be a positive integer.")
 	if particles < 2 or particles % arms:
 		raise ValueError("Use at least two particles and an equal count per arm.")
-	origin = np.asarray(center, dtype=float)
+	origin: np.ndarray = np.asarray(center, dtype=float)
 	if origin.shape != (2,) or not np.all(np.isfinite(origin)):
 		raise ValueError("center must contain two finite coordinates.")
 	if not np.isfinite(outer_radius) or outer_radius <= 0 or not np.isfinite(first_angle):
@@ -83,20 +88,21 @@ def ranked_radial_star(*, center: tuple[float, float], outer_radius: float,
     i modulo arms. IDs therefore increase strictly with distance from center.
     All distances use the caller's coordinate units.
     """
-    origin = _validated_ranked_star_origin(center, outer_radius, particles, arms, first_angle)
-    radii = np.linspace(0.0, outer_radius, particles)
+    origin: np.ndarray = _validated_ranked_star_origin(center, outer_radius, particles, arms, first_angle)
+    radii: np.ndarray = np.linspace(0.0, outer_radius, particles)
     angles = first_angle + 2 * np.pi * (np.arange(particles) % arms) / arms
     return np.asarray(GCStateLayout().pack_components(origin[0] + radii * np.cos(angles), origin[1] + radii * np.sin(angles)))
-
 
 
 def _validate_center(center: tuple[float, float]) -> tuple[float, float]:
 	"""Normalize a finite two-dimensional centre."""
 	try:
+		center_x: float
+		center_y: float
 		center_x, center_y = center
 	except (TypeError, ValueError) as exc:
 		raise ValueError("`center` must contain exactly two coordinates.") from exc
-	values = np.asarray((center_x, center_y), dtype=float)
+	values: np.ndarray = np.asarray((center_x, center_y), dtype=float)
 	if not np.all(np.isfinite(values)):
 		raise ValueError("`center` must contain finite coordinates.")
 	return float(values[0]), float(values[1])
@@ -105,7 +111,7 @@ def _validate_center(center: tuple[float, float]) -> tuple[float, float]:
 def _positive_finite(value: float, name: str) -> float:
 	"""Normalize a scalar geometric parameter and enforce positivity."""
 	try:
-		result = float(value)
+		result: float = float(value)
 	except (TypeError, ValueError) as exc:
 		raise ValueError(f"`{name}` must be positive and finite.") from exc
 	if not np.isfinite(result) or result <= 0:
@@ -125,6 +131,8 @@ def square(
 	length, and ``points_per_side`` controls boundary resolution.  The final
 	state contains ``4 * points_per_side`` vertices.
 	"""
+	center_x: float
+	center_y: float
 	center_x, center_y = _validate_center(center)
 	side = _positive_finite(side, "side")
 	if (
@@ -143,8 +151,8 @@ def square(
 	top = center_y + half_side
 	# Omitting each edge endpoint prevents duplicate corners: the following
 	# edge supplies that corner, and polygon closure supplies the final one.
-	edge = np.linspace(0.0, side, int(points_per_side), endpoint=False)
-	x = np.concatenate(
+	edge: np.ndarray = np.linspace(0.0, side, int(points_per_side), endpoint=False)
+	x: np.ndarray = np.concatenate(
 		(
 			left + edge,
 			np.full_like(edge, right),
@@ -152,7 +160,7 @@ def square(
 			np.full_like(edge, left),
 		)
 	)
-	y = np.concatenate(
+	y: np.ndarray = np.concatenate(
 		(
 			np.full_like(edge, bottom),
 			bottom + edge,
@@ -174,6 +182,8 @@ def circle(
 	``center`` and ``radius`` define the initial geometry, while ``points``
 	is the total number of boundary vertices rather than a density per arc.
 	"""
+	center_x: float
+	center_y: float
 	center_x, center_y = _validate_center(center)
 	radius = _positive_finite(radius, "radius")
 	if (
@@ -185,7 +195,7 @@ def circle(
 
 	# The shoelace formula closes the polygon, so sampling 2π again would add
 	# a redundant copy of the vertex at angle zero.
-	angle = np.linspace(0.0, 2 * np.pi, int(points), endpoint=False)
+	angle: np.ndarray = np.linspace(0.0, 2 * np.pi, int(points), endpoint=False)
 	x = center_x + radius * np.cos(angle)
 	y = center_y + radius * np.sin(angle)
 	return np.array(np.concatenate((x, y)), dtype=float, copy=True)

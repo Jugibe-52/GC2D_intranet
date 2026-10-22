@@ -8,22 +8,38 @@ import numpy as np
 
 from visualization.poincare_selector import export_poincare_selector
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from matplotlib.axes import Axes
+    from matplotlib.figure import Figure
+    from states.history import States
+    from typing import Any
+
 
 def render_radial_cycle(saved: StoredSolution, directory: str | Path) -> Path:
     """Export B-style wrapped returns, initial positions and copy separation."""
     directory = Path(directory)
     directory.mkdir(parents=True, exist_ok=True)
+    meta: dict[str, Any]
+    solution: States
     meta, solution = saved.metadata, saved.solution
     c = meta["config"]
+    x: np.ndarray
+    y: np.ndarray
     x, y = solution.positions()
     stride = c["steps_per_cycle"]
-    cycle_xy = np.stack((x[:, stride::stride].T, y[:, stride::stride].T), axis=-1)
+    cycle_xy: np.ndarray = np.stack((x[:, stride::stride].T, y[:, stride::stride].T), axis=-1)
     points = ((cycle_xy - meta["cell_origin"]) % meta["cell_period"]) / meta["cell_period"]
+    ids: Any
+    colors: Any
     ids, colors = meta["particle_ids"], meta["colors"]
     title = "BM4Midpoint | cycle-time stream H = 2*pi*Phi_hat"
     subtitle = f'{len(ids)} particles | {c["cycles"]} cycles | {stride} steps/cycle'
     initial = (np.asarray(meta["initial_positions"]) - meta["cell_origin"]) / meta["cell_period"]
     for name, xy in (("poincare_section", points), ("initial_positions", initial[None])):
+        fig: Figure
+        ax: Axes
         fig, ax = plt.subplots(figsize=(10, 8), layout="constrained")
         try:
             for j, (pid, color) in enumerate(zip(ids, colors)):

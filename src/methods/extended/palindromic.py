@@ -54,7 +54,7 @@ class PalindromicMethod(IntegrationMethod[Detail], Generic[Detail]):
 		"""Bind fresh spatial maps and require C and its rate to be explicit together."""
 		if not isinstance(self.recipe, Composition):
 			raise TypeError('A palindromic method requires a Composition.')
-		coupling = self._configured_coupling()
+		coupling: HarmonicCoupling | None = self._configured_coupling()
 		if coupling is not None and not isinstance(coupling, HarmonicCoupling):
 			raise TypeError('Coupling must be a HarmonicCoupling or None.')
 		if self.recipe.has_coupling != (coupling is not None):
@@ -65,7 +65,7 @@ class PalindromicMethod(IntegrationMethod[Detail], Generic[Detail]):
 		self.initial_state = self.state_formulation.initial_state
 
 	def _operation_metadata(self) -> dict[str, DiagnosticValue]:
-		coupling = self._configured_coupling()
+		coupling: HarmonicCoupling | None = self._configured_coupling()
 		return {
 			'composition_name': self.recipe.name,
 			'operation_sequence': ''.join(op.name for op in self.recipe.operations),
@@ -78,7 +78,7 @@ class PalindromicMethod(IntegrationMethod[Detail], Generic[Detail]):
 
 	def _finish(self, state: np.ndarray, physical: np.ndarray, time: float, step: float,
 	            points: tuple[_EnergyQuadraturePoint, ...]) -> np.ndarray:
-		increment = momentum_increment(self.state_formulation, points) if self.track_energy else None
+		increment: np.ndarray | None = momentum_increment(self.state_formulation, points) if self.track_energy else None
 		return self.state_formulation.finish(state, physical, time + step, increment)
 
 
@@ -114,7 +114,7 @@ class ProjectedPalindromicMethod(PalindromicMethod[ProjectedMapResult]):
 	                        relative_step: float = float(np.cbrt(np.finfo(float).eps))) -> SolverOptions:
 		"""Bind one exterior spatial projection without advancing the initial state."""
 		self._prepare_maps(problem, request)
-		options = SolverOptions(self.nonlinear_solver, self.newton_absolute_tolerance,
+		options: SolverOptions = SolverOptions(self.nonlinear_solver, self.newton_absolute_tolerance,
 		                        self.newton_relative_tolerance, self.newton_max_iterations)
 		self.project = partial(solve_projection, self.formulation, self.recipe, options, projection,
 		                       solver=self.solver, jacobian_method=jacobian,
@@ -126,9 +126,9 @@ class ProjectedPalindromicMethod(PalindromicMethod[ProjectedMapResult]):
 
 	def advance(self, t: float, state: np.ndarray, h: float) -> StepResult[ProjectedMapResult]:
 		"""Project the complete palindrome and finish passive state after convergence."""
-		physical = self.state_formulation.physical(state)
-		result = self.project(t, physical, h, newton_observer=self.newton_observer)
-		after = self._finish(state, result.state, t, h, result.energy_points)
+		physical: np.ndarray = self.state_formulation.physical(state)
+		result: ProjectedMapResult = self.project(t, physical, h, newton_observer=self.newton_observer)
+		after: np.ndarray = self._finish(state, result.state, t, h, result.energy_points)
 		return StepResult(after, step_statistics(result, include_substeps=self._publish_substeps()), result)
 
 	def build_observation(self, info: StepInfo, step: StepResult[ProjectedMapResult]) -> IntegrationStep:
@@ -166,8 +166,8 @@ class MidpointPalindromicMethod(PalindromicMethod[MidpointResult]):
 
 	def advance(self, t: float, state: np.ndarray, h: float) -> StepResult[MidpointResult]:
 		"""Average the copies once, after all explicit operations have executed."""
-		result = midpoint_step(self.formulation, self.recipe, t, self.state_formulation.physical(state), h)
-		after = self._finish(state, result.state, t, h, result.trace.energy_points)
+		result: MidpointResult = midpoint_step(self.formulation, self.recipe, t, self.state_formulation.physical(state), h)
+		after: np.ndarray = self._finish(state, result.state, t, h, result.trace.energy_points)
 		return StepResult(after, {'copy_separation_norms': result.copy_separation_norm}, result)
 
 	def build_observation(self, info: StepInfo, step: StepResult[MidpointResult]) -> IntegrationStep:
@@ -226,7 +226,7 @@ class PalindromicImplicit(ProjectedPalindromicMethod):
 
 	def initialize(self, problem: InitialValueProblem, request: SimulationRequest) -> None:
 		"""Bind the selected equation and verify the requested derivative contract."""
-		options = self._prepare_projection(problem, request, self.projection_formulation,
+		options: SolverOptions = self._prepare_projection(problem, request, self.projection_formulation,
 			jacobian=self.newton_jacobian_method, relative_step=self.newton_jacobian_relative_step)
 		if self.nonlinear_solver == 'newton' and self.newton_jacobian_method == 'analytic':
 			if not isinstance(self.dynamics, GuidingCenterJacobianSystem):

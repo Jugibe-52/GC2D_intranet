@@ -3,7 +3,7 @@
 from pathlib import Path
 import html
 import json
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
@@ -14,6 +14,13 @@ from dynamics import GuidingCenterDynamics
 from studies.bm4_projection_comparison import summarize_bm4_particles
 
 
+if TYPE_CHECKING:
+	from matplotlib.axes import Axes
+	from matplotlib.figure import Figure
+	from matplotlib.lines import Line2D
+	from matplotlib.text import Text
+
+
 _METHODS = ("BM4Midpoint", "BM4Implicit")
 _COLORS = ("#1565c0", "#d84315", "#00897b")
 
@@ -22,14 +29,23 @@ def plot_bm4_comparison(
 	arrays: dict[str, np.ndarray], metadata: dict[str, Any],
 ) -> dict[str, Any]:
 	"""Show coverage, reference-audited errors, timing, mu and nonlinear work."""
+	times: np.ndarray
+	step_times: np.ndarray
 	times, step_times = arrays["times"], arrays["step_times"]
 	n = arrays["initial_state"].size // 2
 	summary = metadata["summary"]
 	figures = {}
+	fig: Figure
+	ax: Axes
 	fig, ax = plt.subplots(figsize=(6, 5), layout="constrained")
+	xmin: Any
+	ymin: Any
+	period: Any
 	xmin, ymin, period = arrays["domain"]
+	x: Any
+	y: Any
 	x, y = arrays["initial_state"].reshape(2, n)
-	center = np.asarray([xmin + period / 2, ymin + period / 2])
+	center: np.ndarray = np.asarray([xmin + period / 2, ymin + period / 2])
 	ax.plot([center[0], x[-1]], [center[1], y[-1]], color="0.65", zorder=1)
 	ax.scatter(center[0], center[1], marker="+", color="black", s=100, label="Cell center")
 	for j in range(n):
@@ -38,6 +54,7 @@ def plot_bm4_comparison(
 		xlabel="x (normalized)", ylabel="y (normalized)", title="Initial particles on one radius")
 	ax.legend(fontsize=8)
 	figures["initial_particles"] = fig
+	axes: np.ndarray
 	fig, axes = plt.subplots(n, 2, figsize=(12, 3*n), layout="constrained", squeeze=False)
 	for j in range(n):
 		for name, color in zip(_METHODS, _COLORS):
@@ -54,6 +71,9 @@ def plot_bm4_comparison(
 	baseline = summary["methods"]["BM4Midpoint"]["runtime_median_seconds"]
 	for i, (name, color) in enumerate(zip(_METHODS, _COLORS)):
 		samples = arrays[f"{name}.runtime_samples"]
+		q1: Any
+		median: Any
+		q3: Any
 		q1, median, q3 = np.quantile(samples, [.25, .5, .75])
 		axes[0].bar(name, median, yerr=np.asarray([[median-q1], [q3-median]]), capsize=6, color=color)
 		axes[0].scatter(np.full(samples.size, i), samples, color="black", s=15, zorder=4)
@@ -63,7 +83,7 @@ def plot_bm4_comparison(
 	axes[1].set(ylabel="Runtime / BM4Midpoint runtime", title="Relative execution time")
 	figures["runtime"] = fig
 	fig, axes = plt.subplots(n, 3, figsize=(13, 2.8*n), layout="constrained", squeeze=False)
-	mu = arrays["BM4Implicit.mu"].reshape(2, n, -1)
+	mu: np.ndarray = arrays["BM4Implicit.mu"].reshape(2, n, -1)
 	for j in range(n):
 		for component, label in enumerate(("mu_x", "mu_y")):
 			axes[j, component].plot(step_times, mu[component, j], lw=1, color=_COLORS[j % 3])
@@ -101,23 +121,38 @@ def animate_bm4_comparison(
 	"""Animate all three particles with stable colors and periodic path breaks."""
 	names = ("DOP853", *_METHODS)
 	times = arrays["times"]
-	indices = np.unique(np.linspace(0, times.size-1, min(frames, times.size)).round().astype(int))
+	indices: np.ndarray = np.unique(np.linspace(0, times.size-1, min(frames, times.size)).round().astype(int))
+	xmin: Any
+	ymin: Any
+	period: Any
 	xmin, ymin, period = arrays["domain"]
 	# Evaluate the evolving measured potential only at displayed frame times.
 	fields = np.asarray(potential.evaluate_grid(times[indices]))[::2, ::2]
+	vmin: float
+	vmax: float
 	vmin, vmax = float(np.min(fields)), float(np.max(fields))
+	fig: Figure
+	axes: np.ndarray
 	fig, axes = plt.subplots(1, 3, figsize=(13, 4.5), layout="constrained", sharex=True, sharey=True)
+	paths: list[list[Any]]
+	markers: list[list[Any]]
+	images: list[Any]
+	positions: list[np.ndarray]
 	paths, markers, images, positions = [], [], [], []
 	for ax, name in zip(axes, names):
 		images.append(ax.imshow(fields[:, :, 0].T, origin="lower", extent=(xmin, xmin+period, ymin, ymin+period),
 			cmap="RdBu_r", vmin=vmin, vmax=vmax, alpha=.65))
-		xy = arrays[f"{name}.states"].reshape(2, -1, times.size).copy()
+		xy: np.ndarray = arrays[f"{name}.states"].reshape(2, -1, times.size).copy()
 		xy[0] = xmin + (xy[0] - xmin) % period
 		xy[1] = ymin + (xy[1] - ymin) % period
 		positions.append(xy)
+		lines: list[Any]
+		dots: list[Any]
 		lines, dots = [], []
 		for j in range(xy.shape[1]):
+			line: Line2D
 			line, = ax.plot([], [], color=_COLORS[j % 3], lw=1.25, label=f"P{j+1}")
+			dot: Line2D
 			dot, = ax.plot([], [], "o", color=_COLORS[j % 3], ms=5)
 			ax.scatter(*xy[:, j, 0], marker="x", color=_COLORS[j % 3], s=40)
 			lines.append(line)
@@ -128,7 +163,7 @@ def animate_bm4_comparison(
 		ax.legend(loc="upper left", fontsize=8)
 	axes[0].set_ylabel("y (normalized)")
 	fig.colorbar(images[0], ax=axes, shrink=.7, label="Potential at current time")
-	title = fig.suptitle("")
+	title: Text = fig.suptitle("")
 
 	def update(frame: int) -> list[Any]:
 		index = indices[frame]
@@ -136,6 +171,8 @@ def animate_bm4_comparison(
 		for panel, xy in enumerate(positions):
 			images[panel].set_data(fields[:, :, frame].T)
 			for j in range(xy.shape[1]):
+				x: Any
+				y: Any
 				x, y = xy[:, j, :index+1].copy()
 				breaks = np.flatnonzero((np.abs(np.diff(x)) > period/2) | (np.abs(np.diff(y)) > period/2)) + 1
 				x[breaks], y[breaks] = np.nan, np.nan
@@ -156,14 +193,14 @@ def render_bm4_comparison(
 	render_animation: bool = True,
 ) -> None:
 	"""Export static scientific figures and an H.264 animation from stored data."""
-	directory = Path(output_directory)
+	directory: Path = Path(output_directory)
 	directory.mkdir(parents=True, exist_ok=True)
 	for name, figure in plot_bm4_comparison(arrays, metadata).items():
 		figure.savefig(directory / f"{name}.png", dpi=160)
 		plt.close(figure)
 	if render_animation or not (directory / "trajectories.mp4").exists():
 		effective = GuidingCenterDynamics(potential, rho=metadata["config"]["rho"]).effective_potential
-		animation = animate_bm4_comparison(effective, arrays, frames=frames, fps=fps)
+		animation: FuncAnimation = animate_bm4_comparison(effective, arrays, frames=frames, fps=fps)
 		animation.save(str(directory / "trajectories.mp4"), writer="ffmpeg", fps=fps, dpi=120,
 			extra_args=["-pix_fmt", "yuv420p", "-movflags", "+faststart"])
 		plt.close(animation._fig)  # type: ignore[attr-defined]
@@ -174,8 +211,8 @@ def write_bm4_report(
 	arrays: dict[str, np.ndarray], metadata: dict[str, Any], directory: str | Path,
 ) -> None:
 	"""Write per-particle results; keep full numerical provenance in the NPZ."""
-	target = Path(directory)
-	particles = summarize_bm4_particles(arrays)
+	target: Path = Path(directory)
+	particles: list[dict[str, Any]] = summarize_bm4_particles(arrays)
 	def table(headings: list[str], values: list[list[str]]) -> str:
 		return "<table><tr>" + "".join(f"<th>{html.escape(v)}</th>" for v in headings) + "</tr>" + "".join("<tr>" + "".join(f"<td>{html.escape(v)}</td>" for v in row) + "</tr>" for row in values) + "</table>"
 	accuracy = []
@@ -195,8 +232,8 @@ def write_bm4_report(
 		"joint_runtime_seconds": {name: {k: v for k, v in metadata["summary"]["methods"][name].items() if k.startswith("runtime_")} for name in _METHODS},
 		"joint_nonlinear_work": metadata["summary"]["nonlinear_work"],
 	}
-	figures = "".join(f'<figure><img src="{name}.png" alt="{name.replace("_", " ")}"></figure>' for name in ("initial_particles", "accuracy", "runtime", "multipliers", "nonlinear_work"))
-	ref_section = ("<h2>DOP853 reference refinement per particle</h2>" + table(["Particle", "RMS discrepancy", "Maximum discrepancy"], refinement) + '<img src="reference_validation.png" alt="DOP853 refinement">') if refinement else ""
+	figures: str = "".join(f'<figure><img src="{name}.png" alt="{name.replace("_", " ")}"></figure>' for name in ("initial_particles", "accuracy", "runtime", "multipliers", "nonlinear_work"))
+	ref_section: str = ("<h2>DOP853 reference refinement per particle</h2>" + table(["Particle", "RMS discrepancy", "Maximum discrepancy"], refinement) + '<img src="reference_validation.png" alt="DOP853 refinement">') if refinement else ""
 	page = f'''<!doctype html><html lang="en"><meta charset="utf-8"><title>BM4 per-particle comparison</title>
 <style>body{{font:16px system-ui;max-width:1300px;margin:40px auto;padding:0 24px;color:#172b3a}}table{{border-collapse:collapse;width:100%;font-size:14px}}th,td{{padding:8px;border-bottom:1px solid #ccd5db;text-align:right}}img,video{{width:100%}}pre{{white-space:pre-wrap}}p{{line-height:1.6}}</style>
 <h1>BM4Midpoint versus BM4Implicit: per-particle results</h1>

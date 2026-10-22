@@ -34,7 +34,7 @@ IMPLICIT_ABBA_JACOBIAN_METHODS: tuple[StepJacobianMethod, ...] = (
 	"implicit_function",
 	"stage_increment",
 )
-_LABEL = re.compile(r"^[A-Za-z0-9_-]+$")
+_LABEL: 're.Pattern[str]' = re.compile(r"^[A-Za-z0-9_-]+$")
 
 
 @dataclass(frozen=True, slots=True)
@@ -57,7 +57,7 @@ class ImplicitABBAObserverConfig:
 			raise ValueError("Unknown implicit ABBA Jacobian method.")
 
 
-DEFAULT_IMPLICIT_ABBA_OBSERVERS = tuple(
+DEFAULT_IMPLICIT_ABBA_OBSERVERS: 'tuple[ImplicitABBAObserverConfig, ...]' = tuple(
 	ImplicitABBAObserverConfig(
 		label=f"{formulation}_{jacobian_method}",
 		formulation=formulation,
@@ -80,7 +80,7 @@ class ImplicitABBASymplecticityConfig(ABBASymplecticityConfig):
 	def __post_init__(self) -> None:
 		"""Validate common controls and require unique configured observers."""
 		ABBASymplecticityConfig.__post_init__(self)
-		observers = tuple(self.observers)
+		observers: tuple[ImplicitABBAObserverConfig, ...] = tuple(self.observers)
 		if not observers or any(
 			not isinstance(observer, ImplicitABBAObserverConfig)
 			for observer in observers
@@ -135,7 +135,7 @@ class ImplicitABBASymplecticityComparison:
 
 	def __post_init__(self) -> None:
 		"""Require results that match every configured formulation and diagnostic."""
-		labels = tuple(observer.label for observer in self.observers)
+		labels: tuple[str, ...] = tuple(observer.label for observer in self.observers)
 		if tuple(self.results) != labels:
 			raise ValueError("`results` must follow the configured observer order.")
 		for observer in self.observers:
@@ -233,7 +233,7 @@ def run_abba2_reduced_multiplier_symplecticity_study(
 		raise TypeError(
 			"`config` must be an ImplicitABBASymplecticityConfig instance."
 		)
-	method_config = replace(
+	method_config: ImplicitABBASymplecticityConfig = replace(
 		config,
 		block_prefix=(
 			f"{config.block_prefix}_reduced_multiplier_{jacobian_method}"
@@ -283,7 +283,7 @@ def run_abba2_simultaneous_state_multiplier_symplecticity_study(
 		raise TypeError(
 			"`config` must be an ImplicitABBASymplecticityConfig instance."
 		)
-	method_config = replace(
+	method_config: ImplicitABBASymplecticityConfig = replace(
 		config,
 		block_prefix=(
 			f"{config.block_prefix}_simultaneous_state_multiplier_{jacobian_method}"
@@ -330,7 +330,7 @@ def _run_formulation_observers(
 	metadata: Mapping[str, Any] | None,
 ) -> Mapping[str, ImplicitABBAStudyResult]:
 	"""Run all observers for one formulation against the same trajectories."""
-	method_config = replace(
+	method_config: ImplicitABBASymplecticityConfig = replace(
 		config,
 		block_prefix=f"{config.block_prefix}_{formulation}",
 	)

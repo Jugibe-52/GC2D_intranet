@@ -7,7 +7,7 @@ from formulations.layout import GCStateLayout
 from dataclasses import dataclass
 from time import perf_counter
 from types import MappingProxyType
-from typing import Mapping
+from typing import Mapping, TYPE_CHECKING
 
 import numpy as np
 
@@ -41,6 +41,10 @@ from ._trajectory_accuracy import (accuracy_series)
 from ._trajectory_accuracy import validated_refinement_steps
 
 
+if TYPE_CHECKING:
+	from typing import Any
+
+
 @dataclass(frozen=True, slots=True)
 class GaussLegendre4EvaluationConfig:
 	"""Complete reproducible controls for one Gauss4 refinement study."""
@@ -71,7 +75,7 @@ class GaussLegendre4EvaluationConfig:
 
 	def __post_init__(self) -> None:
 		"""Validate nested steps, common outputs, tolerances, and timing controls."""
-		steps = validated_refinement_steps(self.integration_steps)
+		steps: tuple[float, ...] = validated_refinement_steps(self.integration_steps)
 		object.__setattr__(self, "integration_steps", steps)
 		object.__setattr__(
 			self, "t_span",
@@ -96,11 +100,11 @@ class GaussLegendre4EvaluationConfig:
 				name,
 				positive_finite(getattr(self, name), name),
 			)
-		threshold = float(self.order_reduction_threshold)
+		threshold: float = float(self.order_reduction_threshold)
 		if not np.isfinite(threshold) or threshold < 0.0:
 			raise ValueError("`order_reduction_threshold` must be finite and non-negative.")
 		object.__setattr__(self, "order_reduction_threshold", threshold)
-		audit_factor = float(self.newton_audit_tolerance_factor)
+		audit_factor: float = float(self.newton_audit_tolerance_factor)
 		if not np.isfinite(audit_factor) or not 0.0 < audit_factor < 1.0:
 			raise ValueError(
 				"`newton_audit_tolerance_factor` must be finite and lie in (0, 1)."
@@ -150,7 +154,7 @@ class GaussLegendre4SymplecticitySeries:
 
 	def __post_init__(self) -> None:
 		"""Own immutable finite non-negative diagnostic arrays."""
-		arrays = tuple(
+		arrays: tuple[np.ndarray, ...] = tuple(
 			np.array(value, dtype=float, copy=True)
 			for value in (
 				self.times,
@@ -194,7 +198,7 @@ class GaussLegendre4NewtonAudit:
 			"final_rms_difference",
 			"maximum_distance",
 		):
-			value = float(getattr(self, name))
+			value: float = float(getattr(self, name))
 			if not np.isfinite(value) or value < 0.0:
 				raise ValueError("Newton-audit differences must be finite and non-negative.")
 			object.__setattr__(self, name, value)
@@ -270,32 +274,32 @@ class GaussLegendre4EvaluationResult:
 	def summaries(self) -> tuple[GaussLegendre4EvaluationSummary, ...]:
 		"""Return one scalar row per configured integration step."""
 		rows: list[GaussLegendre4EvaluationSummary] = []
-		duration = float(self.times[-1] - self.times[0])
-		floor = max(
+		duration: float = float(self.times[-1] - self.times[0])
+		floor: float = max(
 			self.reference.time_integrated_rms_floor,
 			float(np.finfo(float).eps),
 		)
 		for step in self.config.integration_steps:
 			solution = self.solutions[step]
 			series = self.accuracy[step]
-			time_rms = float(
+			time_rms: float = float(
 				np.sqrt(np.trapz(series.rms_distance**2, self.times) / duration)
 			)
 			runtimes = self.runtime_samples[step]
 			energy = self.generalized_energies[step]
-			energy_error = np.abs(energy - energy[:, :1])
-			energy_scale = np.maximum(
+			energy_error: Any = np.abs(energy - energy[:, :1])
+			energy_scale: Any = np.maximum(
 				np.abs(energy[:, :1]),
 				np.finfo(float).eps,
 			)
-			iterations = np.asarray(solution.diagnostics["nonlinear_iterations"])
-			residual_evaluations = np.asarray(
+			iterations: np.ndarray = np.asarray(solution.diagnostics["nonlinear_iterations"])
+			residual_evaluations: np.ndarray = np.asarray(
 				solution.diagnostics["residual_evaluations"]
 			)
-			residuals = np.asarray(
+			residuals: np.ndarray = np.asarray(
 				solution.diagnostics["nonlinear_residual_norms"]
 			)
-			tolerances = np.asarray(solution.diagnostics["nonlinear_tolerances"])
+			tolerances: np.ndarray = np.asarray(solution.diagnostics["nonlinear_tolerances"])
 			geometry = self.symplecticity[step]
 			newton_audit = self.newton_audits[step]
 			rows.append(
@@ -350,11 +354,11 @@ class GaussLegendre4EvaluationResult:
 	def observed_orders(self) -> tuple[GaussLegendre4ObservedOrder, ...]:
 		"""Estimate resolved adjacent orders and explicit deficits from order four."""
 		summaries = {row.integration_step: row for row in self.summaries()}
-		time_floor = max(
+		time_floor: float = max(
 			self.reference.time_integrated_rms_floor,
 			float(np.finfo(float).eps),
 		)
-		final_floor = max(
+		final_floor: float = max(
 			self.reference.final_rms_floor,
 			float(np.finfo(float).eps),
 		)
@@ -374,7 +378,7 @@ class GaussLegendre4EvaluationResult:
 				final_floor,
 				fine.newton_audit_final_rms_difference,
 			)
-			time_order = (
+			time_order: float = (
 				float(
 					np.log(
 						coarse.time_integrated_rms_distance
@@ -385,7 +389,7 @@ class GaussLegendre4EvaluationResult:
 				if time_resolved and fine.time_integrated_rms_distance > 0.0
 				else float("nan")
 			)
-			final_order = (
+			final_order: float = (
 				float(np.log(coarse.final_rms_distance / fine.final_rms_distance) / np.log(ratio))
 				if final_resolved and fine.final_rms_distance > 0.0
 				else float("nan")
@@ -416,7 +420,7 @@ class GaussLegendre4EvaluationResult:
 
 	def persistent_order_reduction(self) -> bool:
 		"""Return true only for two adjacent resolved reductions in either norm."""
-		orders = self.observed_orders()
+		orders: tuple[GaussLegendre4ObservedOrder, ...] = self.observed_orders()
 		return any(
 			(first.time_integrated_reduction_detected and second.time_integrated_reduction_detected)
 			or (first.final_reduction_detected and second.final_reduction_detected)
@@ -453,7 +457,7 @@ class _SymplecticityCollector:
 			raise TypeError(
 				"Gauss4 symplecticity requires GaussLegendre4IntegrationStep data."
 			)
-		analytic = calculate_step_jacobian(step, method="implicit_function")
+		analytic: np.ndarray = calculate_step_jacobian(step, method="implicit_function")
 		local_defect = analytic.T @ self.form @ analytic - self.form
 		self.accumulated = analytic @ self.accumulated
 		flow_defect = self.accumulated.T @ self.form @ self.accumulated - self.form
@@ -469,7 +473,7 @@ class _SymplecticityCollector:
 		)
 		if step.step_index % self.audit_stride:
 			return
-		numerical = central_difference_jacobian(
+		numerical: np.ndarray = central_difference_jacobian(
 			step.map_state,
 			step.state_before,
 			relative_step=self.finite_difference_relative_step,
@@ -516,14 +520,14 @@ def run_gauss_legendre4_evaluation(
 		raise TypeError("`initial_configuration` must be np.ndarray.")
 	if not isinstance(config, GaussLegendre4EvaluationConfig):
 		raise TypeError("`config` must be GaussLegendre4EvaluationConfig.")
-	dynamics = GuidingCenterDynamics(potential, rho=config.rho)
-	problem = InitialValueProblem(dynamics, initial_configuration, layout=GCStateLayout())
-	request = SimulationRequest.uniform(
+	dynamics: GuidingCenterDynamics = GuidingCenterDynamics(potential, rho=config.rho)
+	problem: InitialValueProblem = InitialValueProblem(dynamics, initial_configuration, layout=GCStateLayout())
+	request: SimulationRequest = SimulationRequest.uniform(
 		t_span=config.t_span,
 		max_step=config.integration_steps[-1],
 		sample_count=config.output_sample_count,
 	)
-	reference = build_adaptive_reference(
+	reference: AdaptiveReference = build_adaptive_reference(
 		dynamics,
 		problem.initial_state,
 		request.output_times,
@@ -545,19 +549,19 @@ def run_gauss_legendre4_evaluation(
 	particle_count = problem.particle_count
 
 	for step in config.integration_steps:
-		step_request = SimulationRequest.uniform(
+		step_request: SimulationRequest = SimulationRequest.uniform(
 			t_span=config.t_span,
 			max_step=step,
 			sample_count=config.output_sample_count,
 		)
-		collector = _SymplecticityCollector(
+		collector: _SymplecticityCollector = _SymplecticityCollector(
 			particle_count=particle_count,
 			audit_stride=config.symplecticity_audit_stride,
 			finite_difference_relative_step=(
 				config.symplecticity_finite_difference_relative_step
 			),
 		)
-		method = GaussLegendre4(
+		method: GaussLegendre4 = GaussLegendre4(
 			track_energy=False,
 			newton_absolute_tolerance=config.absolute_tolerance,
 			newton_relative_tolerance=config.relative_tolerance,
@@ -566,7 +570,7 @@ def run_gauss_legendre4_evaluation(
 			progress=config.progress,
 			step_observer=collector,
 		)
-		solution = simulate(problem, method, step_request)
+		solution: States = simulate(problem, method, step_request)
 		solutions[step] = solution
 		accuracy_by_step[step] = accuracy_series(
 			"GaussLegendre4",
@@ -575,7 +579,7 @@ def run_gauss_legendre4_evaluation(
 			period=potential.grid.period,
 			distance_convention="periodic",
 		)
-		energy_request = SimulationRequest.uniform(
+		energy_request: SimulationRequest = SimulationRequest.uniform(
 			t_span=config.t_span,
 			max_step=step,
 			sample_count=(
@@ -587,7 +591,7 @@ def run_gauss_legendre4_evaluation(
 				+ 1
 			),
 		)
-		energy_solution = simulate(
+		energy_solution: States = simulate(
 			problem,
 			GaussLegendre4(
 				track_energy=True,
@@ -608,7 +612,7 @@ def run_gauss_legendre4_evaluation(
 			dtype=float,
 		)
 		geometry_by_step[step] = collector.result()
-		newton_audit_solution = simulate(
+		newton_audit_solution: States = simulate(
 			problem,
 			GaussLegendre4(
 				track_energy=False,
@@ -626,14 +630,14 @@ def run_gauss_legendre4_evaluation(
 			),
 			step_request,
 		)
-		newton_audit_series = accuracy_series(
+		newton_audit_series: TrajectoryAccuracySeries = accuracy_series(
 			"GaussLegendre4 tighter Newton audit",
 			solution.states,
 			newton_audit_solution.states,
 			period=potential.grid.period,
 			distance_convention="periodic",
 		)
-		duration = float(reference.times[-1] - reference.times[0])
+		duration: float = float(reference.times[-1] - reference.times[0])
 		newton_audits_by_step[step] = GaussLegendre4NewtonAudit(
 			time_integrated_rms_difference=float(
 				np.sqrt(
@@ -645,7 +649,7 @@ def run_gauss_legendre4_evaluation(
 			maximum_distance=float(np.max(newton_audit_series.distances)),
 		)
 
-		timing_method = GaussLegendre4(
+		timing_method: GaussLegendre4 = GaussLegendre4(
 			track_energy=False,
 			newton_absolute_tolerance=config.absolute_tolerance,
 			newton_relative_tolerance=config.relative_tolerance,
@@ -657,7 +661,7 @@ def run_gauss_legendre4_evaluation(
 			simulate(problem, timing_method, step_request)
 		timing_samples: list[float] = []
 		for _ in range(config.timing_repeats):
-			started = perf_counter()
+			started: float = perf_counter()
 			simulate(problem, timing_method, step_request)
 			timing_samples.append(perf_counter() - started)
 		runtimes_by_step[step] = readonly_runtime_samples(

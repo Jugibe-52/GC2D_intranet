@@ -10,7 +10,7 @@ from dataclasses import asdict, dataclass
 from hashlib import file_digest
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, TYPE_CHECKING
 from states.history import States
 
 import numpy as np
@@ -28,6 +28,11 @@ from potential.load import DEFAULT_FIELD_INDICES
 from potential import Potential
 from simulation.runner import simulate
 from studies.dimensional_h5_midpoint import resolve_h5_source
+
+
+if TYPE_CHECKING:
+    from contracts.result import DiagnosticValue
+    from typing import Mapping
 
 
 @dataclass(frozen=True)
@@ -48,12 +53,12 @@ class RadialCycleConfig:
 
     def __post_init__(self) -> None:
         require_uncoupled_bm4(self.coupling_frequency)
-        radii = np.asarray(self.radial_fractions)
+        radii: np.ndarray = np.asarray(self.radial_fractions)
         if (radii.ndim != 1 or radii.size < 2 or not np.isfinite(radii).all()
                 or radii[0] != 0 or np.any(np.diff(radii) <= 0) or radii[-1] >= .5):
             raise ValueError("Radii must increase from zero to less than half the cell width.")
         for name in ("cycles", "steps_per_cycle"):
-            value = getattr(self, name)
+            value: Any = getattr(self, name)
             if isinstance(value, bool) or not isinstance(value, int) or value < 1:
                 raise ValueError(f"{name} must be a positive integer.")
         for name in ("rho", "coupling_frequency"):
@@ -94,23 +99,23 @@ def build_radial_cycle(potential: Potential, config: RadialCycleConfig, baseline
                                rtol=1e-11, atol=1e-13)
     np.testing.assert_allclose(potential.frequencies, [1.0], rtol=0, atol=1e-14)
     # Preserve B's documented geometry using its archived period, not a new grid.
-    origin = np.array([old_grid["x0"], old_grid["y0"]])
+    origin: np.ndarray = np.array([old_grid["x0"], old_grid["y0"]])
     length = old_grid["period"]
     radii = np.asarray(config.radial_fractions) * length
-    direction = np.array([np.cos(config.radial_angle), np.sin(config.radial_angle)])
+    direction: np.ndarray = np.array([np.cos(config.radial_angle), np.sin(config.radial_angle)])
     xy = origin + length / 2 + radii[:, None] * direction
-    initial = GCStateLayout().pack_components(xy[:, 0], xy[:, 1])
+    initial: np.ndarray = GCStateLayout().pack_components(xy[:, 0], xy[:, 1])
     # The forcing cyclic frequencies stay in cycles per normalized time. Only the
     # drift amplitude changes: H = 2*pi*Phi_hat at tau = t/T0.
-    stream = Potential(grid, mean=config.stream_scale * potential.mean,
+    stream: Potential = Potential(grid, mean=config.stream_scale * potential.mean,
                        modes=config.stream_scale * potential.modes,
                        frequencies=potential.frequencies,
                        interpolation_order=potential.interpolation_order)
     count = config.cycles * config.steps_per_cycle
-    request = SimulationRequest(t_span=(0., float(config.cycles)),
+    request: SimulationRequest = SimulationRequest(t_span=(0., float(config.cycles)),
                                 max_step=1 / config.steps_per_cycle,
                                 output_times=np.arange(count + 1) / config.steps_per_cycle)
-    metadata = dict(
+    metadata: dict[str, Any] = dict(
         study="bm4midpoint_radial_cycle_time", config=asdict(config),
         source_sha256=source_sha256, baseline_metadata_sha256=baseline_sha256,
         baseline_run_id=baseline["run_id"], particle_ids=baseline["particle_ids"],
@@ -134,19 +139,19 @@ def prepare_radial_cycle(source: str | Path, baseline_metadata: str | Path,
                          config: RadialCycleConfig) -> PreparedRadialCycle:
     """Verify archived provenance and load the original normalized HDF5 samples."""
     baseline_metadata = Path(baseline_metadata)
-    raw = baseline_metadata.read_bytes()
+    raw: bytes = baseline_metadata.read_bytes()
     import hashlib
-    baseline_sha = hashlib.sha256(raw).hexdigest()
-    marker = json.loads(baseline_metadata.with_name("COMPLETE.json").read_text())
+    baseline_sha: str = hashlib.sha256(raw).hexdigest()
+    marker: Any = json.loads(baseline_metadata.with_name("COMPLETE.json").read_text())
     if marker["sha256"]["metadata.json"] != baseline_sha:
         raise ValueError("Original metadata checksum mismatch.")
-    baseline = json.loads(raw)
+    baseline: Any = json.loads(raw)
     source = resolve_h5_source(source)
     with source.open("rb") as handle:
-        source_sha = file_digest(handle, "sha256").hexdigest()
+        source_sha: str = file_digest(handle, "sha256").hexdigest()
     if source_sha != baseline["field_provenance"]["source_hdf5_sha256"]:
         raise ValueError("Original HDF5 checksum mismatch.")
-    potential = historical_h5_hamiltonian(
+    potential: Potential = historical_h5_hamiltonian(
         source, magnetic_field=config.magnetic_field, length=config.characteristic_length,
         indx=config.source_selection, interpolation_order=config.interpolation_order,
         angular_reference=2 * np.pi / baseline["field_provenance"]["characteristic_period_s"],
@@ -157,6 +162,8 @@ def prepare_radial_cycle(source: str | Path, baseline_metadata: str | Path,
 
 def validate_radial_solution(solution: States, prepared: PreparedRadialCycle) -> None:
     """Require every complete step and the explicit arithmetic projection."""
+    c: RadialCycleConfig
+    d: Mapping[str, DiagnosticValue]
     c, d = prepared.config, solution.diagnostics
     count = c.cycles * c.steps_per_cycle
     np.testing.assert_array_equal(solution.t, prepared.request.output_times)
@@ -174,11 +181,11 @@ def run_and_save_radial_cycle(prepared: PreparedRadialCycle, destination: str | 
                              *, options: ExecutionOptions = ExecutionOptions()) -> StoredSolution:
     """Run locally, preserving all states and diagnostics; reuse matching archives."""
     # Match JSON representation before comparing archived tuples and scalars.
-    expected = json.loads(json.dumps(prepared.metadata))
+    expected: Any = json.loads(json.dumps(prepared.metadata))
     if ArtifactStore(destination).exists("manifest.json"):
-        saved = load_solution(destination)
-        actual = dict(saved.metadata)
-        old_config = dict(actual.get("config", {}))
+        saved: StoredSolution = load_solution(destination)
+        actual: dict[str, Any] = dict(saved.metadata)
+        old_config: dict[Any, Any] = dict(actual.get("config", {}))
         if (0 in old_config.get("source_selection", ())
                 and actual.get("baseline_metadata_sha256") == expected["baseline_metadata_sha256"]
                 and actual.get("source_sha256") == expected["source_sha256"]):
@@ -191,7 +198,7 @@ def run_and_save_radial_cycle(prepared: PreparedRadialCycle, destination: str | 
             raise ValueError("Destination contains a different experiment; choose a new run ID.")
         validate_radial_solution(saved.solution, prepared)
         return saved
-    solution = simulate(prepared.problem, BM4Midpoint(),
+    solution: States = simulate(prepared.problem, BM4Midpoint(),
                         prepared.request, execution=Execution(), options=options)
     validate_radial_solution(solution, prepared)
     metadata = {**expected, "execution_options": asdict(options)}

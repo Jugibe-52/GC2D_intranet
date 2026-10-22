@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 from datetime import date
 from pathlib import Path
-from typing import Any, ClassVar, Mapping, Self
+from typing import Any, ClassVar, Mapping, Self, TYPE_CHECKING
 
 import numpy as np
 
@@ -23,6 +23,10 @@ from .paths import (
 	notebook_output_directory,
 	validate_block_name,
 )
+
+
+if TYPE_CHECKING:
+	from diagnostics.output import DiagnosticBlockPaths
 
 
 @dataclass(frozen=True, slots=True)
@@ -104,9 +108,9 @@ def _record_from_step(
 			"Residual evaluations must include the initial residual and every "
 			"nonlinear correction."
 		)
-	residual = float(step.newton_residual_norm)
-	tolerance = float(step.newton_tolerance)
-	multiplier = float(step.projection_multiplier_norm)
+	residual: float = float(step.newton_residual_norm)
+	tolerance: float = float(step.newton_tolerance)
+	multiplier: float = float(step.projection_multiplier_norm)
 	if not np.isfinite(residual) or residual < 0.0:
 		raise ValueError("The final nonlinear residual must be finite and non-negative.")
 	if not np.isfinite(tolerance) or tolerance <= 0.0:
@@ -212,7 +216,7 @@ class _ImplicitIterationObserver:
 		if implicit_step.step_index % self.sample_every:
 			return
 
-		record = _record_from_step(implicit_step, len(self._records))
+		record: ImplicitIterationRecord = _record_from_step(implicit_step, len(self._records))
 		self._records.append(record)
 		self._output.append(record)
 		if self.verbose:
@@ -232,7 +236,7 @@ class _ImplicitIterationObserver:
 		self, block_index: int, samples: tuple[ImplicitIterationRecord, ...],
 	) -> ImplicitIterationOutputBlock:
 		"""Write the buffered records as one indexed diagnostic block."""
-		paths = self._output.write(
+		paths: DiagnosticBlockPaths = self._output.write(
 			block_index=block_index,
 			rows=[asdict(record) for record in samples],
 			arrays={
@@ -287,7 +291,7 @@ class _ImplicitIterationObserver:
 			},
 			arrays_kind="iterations",
 		)
-		block = ImplicitIterationOutputBlock(
+		block: ImplicitIterationOutputBlock = ImplicitIterationOutputBlock(
 			index=block_index,
 			record_count=len(samples),
 			summary_path=paths.summary,

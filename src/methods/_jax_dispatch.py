@@ -2,8 +2,9 @@
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Generic, TypeVar
+from typing import Any, Generic, TypeAlias, TypeVar
 
+from jax import Array, Device
 import jax.numpy as jnp
 
 from contracts.compiled import CompiledStep
@@ -25,7 +26,10 @@ from formulations.projection import ProjectionName, resolve_projection
 
 
 Options = TypeVar("Options", ExplicitOptions, ImplicitOptions, CompositionOptions)
-
+StepKernel: TypeAlias = Callable[
+	[Any, Any, Any, HamiltonianSystem, Options],
+	tuple[Any, Any, dict[str, Any], Any],
+]
 
 
 @dataclass(frozen=True)
@@ -33,9 +37,9 @@ class PreparedJaxStep(Generic[Options]):
 	"""Hashable physical kernel and controls, with one common state-finishing map."""
 
 	dynamics: HamiltonianSystem
-	device: Any
+	device: Device
 	options: Options
-	kernel: Callable[[Any, Any, Any, HamiltonianSystem, Options], tuple[Any, Any, dict[str, Any], Any]]
+	kernel: StepKernel[Options]
 
 	@property
 	def physical_dimension(self) -> int:
@@ -63,6 +67,10 @@ class PreparedJaxStep(Generic[Options]):
 		"""Finish accepted copies and passive momentum without inspecting a method."""
 		n = state.size // (self.copies * self.physical_dimension + (2 if self.track_energy else 0))
 		physical = state[:self.physical_dimension * n]
+		after: Array
+		increment: Array
+		statistics: dict[str, Array]
+		valid: Array
 		after, increment, statistics, valid = self.kernel(time, physical, step, self.dynamics, self.options)
 		parts = [after] * self.copies
 		if self.track_energy:
@@ -70,72 +78,72 @@ class PreparedJaxStep(Generic[Options]):
 		return jnp.concatenate(parts), statistics, valid
 
 
-def _explicit(method: ExplicitEuler | RK4, dynamics: HamiltonianSystem, device: Any) -> CompiledStep:
+def _explicit(method: ExplicitEuler | RK4, dynamics: HamiltonianSystem, device: Device) -> CompiledStep:
 	"""Explicit kernels have no nonlinear or projection options."""
-	kernel = rk4_step if isinstance(method, RK4) else euler_step
+	kernel: StepKernel[ExplicitOptions] = rk4_step if isinstance(method, RK4) else euler_step
 	return PreparedJaxStep(dynamics, device, ExplicitOptions(method.track_energy), kernel)
 
 
-def _classical(method: GaussLegendre4 | SDIRK4, dynamics: HamiltonianSystem, device: Any) -> CompiledStep:
+def _classical(method: GaussLegendre4 | SDIRK4, dynamics: HamiltonianSystem, device: Device) -> CompiledStep:
 	"""Use the Jacobian capability resolved during CPU-side run preparation."""
-	solve = NonlinearOptions(
+	solve: NonlinearOptions = NonlinearOptions(
 		method.newton_absolute_tolerance, method.newton_relative_tolerance,
 		method.newton_max_iterations, method.resolved_jacobian_method,
 		method.newton_jacobian_relative_step,
 	)
-	kernel = gauss_step if isinstance(method, GaussLegendre4) else sdirk_step
+	kernel: StepKernel[ImplicitOptions] = gauss_step if isinstance(method, GaussLegendre4) else sdirk_step
 	return PreparedJaxStep(dynamics, device, ImplicitOptions(method.track_energy, solve), kernel)
 
 
-def _hbvm(method: HBVM42, dynamics: HamiltonianSystem, device: Any) -> CompiledStep:
+def _hbvm(method: HBVM42, dynamics: HamiltonianSystem, device: Device) -> CompiledStep:
 	"""Keep HBVM's own damping and norm in its kernel, resolving only controls."""
 	jacobian = method.jacobian_method
 	if jacobian == "auto":
 		jacobian = "analytic" if dynamics.state_dimension == 2 else "finite_difference"
-	solve = NonlinearOptions(method.absolute_tolerance, method.relative_tolerance,
+	solve: NonlinearOptions = NonlinearOptions(method.absolute_tolerance, method.relative_tolerance,
 		method.max_iterations, jacobian, method.jacobian_relative_step)
 	return PreparedJaxStep(dynamics, device, ImplicitOptions(method.track_energy, solve), hbvm_step)
 
 
 def _abba(method: ABBA2Implicit | ABBA4Implicit | ABBA6Implicit,
-		dynamics: HamiltonianSystem, device: Any) -> CompiledStep:
+		dynamics: HamiltonianSystem, device: Device) -> CompiledStep:
 	"""Bind the actual signed recipe and one outer projection."""
-	solve = NonlinearOptions(method.newton_absolute_tolerance, method.newton_relative_tolerance,
+	solve: NonlinearOptions = NonlinearOptions(method.newton_absolute_tolerance, method.newton_relative_tolerance,
 		method.newton_max_iterations, "analytic", 0., method.nonlinear_solver)
-	options = CompositionOptions(method.track_energy, method.recipe, None,
+	options: CompositionOptions = CompositionOptions(method.track_energy, method.recipe, None,
 		resolve_projection(method.projection_formulation).name, solve, publish_substeps=method.order != 2)
 	return PreparedJaxStep(dynamics, device, options, extended_step)
 
 
-def _bm4(method: BM4Implicit, dynamics: HamiltonianSystem, device: Any) -> CompiledStep:
+def _bm4(method: BM4Implicit, dynamics: HamiltonianSystem, device: Device) -> CompiledStep:
 	"""Bind uncoupled BM4 with its explicit Jacobian selection."""
-	solve = NonlinearOptions(method.newton_absolute_tolerance, method.newton_relative_tolerance,
+	solve: NonlinearOptions = NonlinearOptions(method.newton_absolute_tolerance, method.newton_relative_tolerance,
 		method.newton_max_iterations, method.newton_jacobian_method,
 		method.newton_jacobian_relative_step, method.nonlinear_solver)
-	options = CompositionOptions(method.track_energy, method.recipe, None,
+	options: CompositionOptions = CompositionOptions(method.track_energy, method.recipe, None,
 		"reduced_multiplier", solve)
 	return PreparedJaxStep(dynamics, device, options, extended_step)
 
 
-def _midpoint(method: ABBA2Midpoint | BM4Midpoint, dynamics: HamiltonianSystem, device: Any) -> CompiledStep:
+def _midpoint(method: ABBA2Midpoint | BM4Midpoint, dynamics: HamiltonianSystem, device: Device) -> CompiledStep:
 	"""Arithmetic projection has no nonlinear solver configuration."""
 	recipe = method.recipe
-	options = CompositionOptions(method.track_energy, recipe, None,
+	options: CompositionOptions = CompositionOptions(method.track_energy, recipe, None,
 		"reduced_multiplier", None)
 	return PreparedJaxStep(dynamics, device, options, extended_step)
 
 
 def _palindromic(method: PalindromicImplicit | PalindromicMidpoint,
-                 dynamics: HamiltonianSystem, device: Any) -> CompiledStep:
+                 dynamics: HamiltonianSystem, device: Device) -> CompiledStep:
 	"""Compile a user-supplied recipe without inferring its numerical order."""
-	solve = None
+	solve: NonlinearOptions | None = None
 	projection: ProjectionName = 'reduced_multiplier'
 	if isinstance(method, PalindromicImplicit):
 		projection = resolve_projection(method.projection_formulation).name
 		solve = NonlinearOptions(method.newton_absolute_tolerance, method.newton_relative_tolerance,
 			method.newton_max_iterations, method.newton_jacobian_method,
 			method.newton_jacobian_relative_step, method.nonlinear_solver)
-	options = CompositionOptions(method.track_energy, method.recipe,
+	options: CompositionOptions = CompositionOptions(method.track_energy, method.recipe,
 		None if method.coupling is None else method.coupling.frequency,
 		resolve_projection(projection).name, solve)
 	return PreparedJaxStep(dynamics, device, options, extended_step)
@@ -147,7 +155,7 @@ def validate_hybrid_method(method: object) -> None:
 		raise TypeError("Hybrid JAX execution requires a built-in adaptive method.")
 
 
-def prepare_step(method: IntegrationMethod[Any], dynamics: HamiltonianSystem, device: Any) -> CompiledStep:
+def prepare_step(method: IntegrationMethod[Any], dynamics: HamiltonianSystem, device: Device) -> CompiledStep:
 	"""Select an adapter once, refusing to discard overrides of built-in methods."""
 	if type(method) in (ExplicitEuler, RK4) and isinstance(method, (ExplicitEuler, RK4)):
 		return _explicit(method, dynamics, device)

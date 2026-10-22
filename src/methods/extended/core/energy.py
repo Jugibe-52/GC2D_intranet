@@ -14,7 +14,7 @@ def momentum_increment(
     The doubled Hamiltonian uses summed momentum k=2*kappa. Its passive
     quadrature never changes spatial states or nonlinear stopping criteria.
     """
-    increment = np.zeros(formulation.particle_count)
+    increment: np.ndarray = np.zeros(formulation.particle_count)
     with np.errstate(over="ignore", invalid="ignore"):
         for time, duration, state in points:
             increment += duration * formulation.momentum_rate(time, state)

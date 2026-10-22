@@ -22,7 +22,7 @@ def _checked_vector_field(
 	state: np.ndarray,
 ) -> np.ndarray:
 	"""Evaluate one finite vector field with the physical state shape."""
-	derivative = np.asarray(dynamics.vector_field(time, state), dtype=float)
+	derivative: np.ndarray = np.asarray(dynamics.vector_field(time, state), dtype=float)
 	if derivative.shape != state.shape or not np.all(np.isfinite(derivative)):
 		raise ValueError("The vector field changed shape or became non-finite.")
 	return derivative
@@ -50,14 +50,14 @@ class ExplicitEuler(IntegrationMethod[None]):
 
 	def _apply_step(self, time: float, state: np.ndarray, step: float) -> np.ndarray:
 		"""Apply one forward Euler step to an independent physical state."""
-		value = np.asarray(state, dtype=float)
+		value: np.ndarray = np.asarray(state, dtype=float)
 		return np.asarray(value + step * _checked_vector_field(self.dynamics, time, value), dtype=float)
 
 	def advance(self, time: float, state: np.ndarray, step: float) -> StepResult[None]:
 		"""Return one forward Euler step without collection or observation."""
-		physical = self.state_formulation.physical(state)
-		increment = step * self.state_formulation.momentum_rate(time, physical) if self.track_energy else None
-		after = self.state_formulation.finish(state, self._apply_step(time, physical, step), time + step, increment)
+		physical: np.ndarray = self.state_formulation.physical(state)
+		increment: np.ndarray | None = step * self.state_formulation.momentum_rate(time, physical) if self.track_energy else None
+		after: np.ndarray = self.state_formulation.finish(state, self._apply_step(time, physical, step), time + step, increment)
 		return StepResult(after, {}, None)
 
 	def build_observation(self, info: StepInfo, result: StepResult[None]) -> IntegrationStep:

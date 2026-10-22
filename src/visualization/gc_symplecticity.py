@@ -13,17 +13,22 @@ from matplotlib.figure import Figure
 from studies._gc_symplecticity import _summary_solver_values
 from visualization.gc_area import animate_gc_area_comparison
 
+
 if TYPE_CHECKING:
 	from studies._gc_symplecticity import GCSymplecticityResult
-	from studies.abba_midpoint_symplecticity import ABBA2MidpointSymplecticityResult
+	from studies._gc_symplecticity_models import GCSymplecticitySummary
+	from studies.abba_midpoint_symplecticity import ABBA2MidpointSymplecticityResult, ABBA2MidpointSymplecticitySummary
 	from studies.abba_symplecticity import ABBASymplecticityResult
 	from studies.rk4_symplecticity import RK4SymplecticityResult
+	from typing import Any
 
 
 def plot_gc_symplecticity_diagnostics(
 	result: GCSymplecticityResult,
 ) -> tuple[Figure, np.ndarray]:
 	"""Plot area, local and accumulated symplecticity, and determinant drift."""
+	figure: Figure
+	axes: np.ndarray
 	figure, axes = plt.subplots(
 		2,
 		2,
@@ -33,17 +38,17 @@ def plot_gc_symplecticity_diagnostics(
 	for step in result.steps:
 		label = step.label
 		records = result.records[label]
-		times = np.asarray([record.time for record in records])
-		area_errors = np.asarray(
+		times: np.ndarray = np.asarray([record.time for record in records])
+		area_errors: np.ndarray = np.asarray(
 			[record.relative_area_error for record in records]
 		)
-		local_defects = np.asarray(
+		local_defects: np.ndarray = np.asarray(
 			[record.local_relative_defect for record in records]
 		)
-		flow_defects = np.asarray(
+		flow_defects: np.ndarray = np.asarray(
 			[record.relative_defect for record in records]
 		)
-		determinant_errors = np.asarray(
+		determinant_errors: np.ndarray = np.asarray(
 			[record.determinant_error for record in records]
 		)
 		axes[0, 0].plot(times, area_errors, label=label)
@@ -97,10 +102,12 @@ def _plot_step_defects(
 	xlabel: str,
 ) -> tuple[Figure, Axes]:
 	"""Plot maximum measured symplecticity defects against step size."""
-	summaries = result.summaries()
-	steps = np.asarray([row.step for row in summaries])
-	local_errors = np.asarray([row.max_local_defect for row in summaries])
-	flow_errors = np.asarray([row.max_flow_defect for row in summaries])
+	summaries: tuple[GCSymplecticitySummary, ...] = result.summaries()
+	steps: np.ndarray = np.asarray([row.step for row in summaries])
+	local_errors: np.ndarray = np.asarray([row.max_local_defect for row in summaries])
+	flow_errors: np.ndarray = np.asarray([row.max_flow_defect for row in summaries])
+	figure: Figure
+	axes: Axes
 	figure, axes = plt.subplots(figsize=(8, 5), constrained_layout=True)
 	axes.loglog(steps, local_errors, "o-", label="Maximum local-step defect")
 	axes.loglog(steps, flow_errors, "s-", label="Maximum accumulated defect")
@@ -119,8 +126,8 @@ def plot_gc_solver_diagnostics(
 	result: GCSymplecticityResult,
 ) -> tuple[Figure, np.ndarray]:
 	"""Plot main-step nonlinear-solve work, residuals and multipliers."""
-	summaries = result.summaries()
-	solver_rows = tuple(_summary_solver_values(row) for row in summaries)
+	summaries: tuple[GCSymplecticitySummary, ...] = result.summaries()
+	solver_rows: tuple[tuple[int, float, float, float] | None, ...] = tuple(_summary_solver_values(row) for row in summaries)
 	if all(values is None for values in solver_rows):
 		raise ValueError(
 			f"{result.method_name} does not provide nonlinear-solver diagnostics."
@@ -130,12 +137,14 @@ def plot_gc_solver_diagnostics(
 			"Nonlinear-solver summaries must be available for every step or none."
 		)
 
-	steps = np.asarray([row.step for row in summaries])
-	complete_rows = tuple(values for values in solver_rows if values is not None)
-	max_iterations = np.asarray([values[0] for values in complete_rows])
-	mean_iterations = np.asarray([values[1] for values in complete_rows])
-	max_residuals = np.asarray([values[2] for values in complete_rows])
-	max_multipliers = np.asarray([values[3] for values in complete_rows])
+	steps: np.ndarray = np.asarray([row.step for row in summaries])
+	complete_rows: tuple[tuple[int, float, float, float], ...] = tuple(values for values in solver_rows if values is not None)
+	max_iterations: np.ndarray = np.asarray([values[0] for values in complete_rows])
+	mean_iterations: np.ndarray = np.asarray([values[1] for values in complete_rows])
+	max_residuals: np.ndarray = np.asarray([values[2] for values in complete_rows])
+	max_multipliers: np.ndarray = np.asarray([values[3] for values in complete_rows])
+	figure: Figure
+	axes: np.ndarray
 	figure, axes = plt.subplots(
 		1,
 		2,
@@ -195,9 +204,9 @@ def animate_gc_symplecticity(
 
 def _positive_for_log(values: np.ndarray) -> np.ndarray:
 	"""Replace exact zeros by a local positive floor for logarithmic display."""
-	result = np.asarray(values, dtype=float)
+	result: np.ndarray = np.asarray(values, dtype=float)
 	positive = result[result > 0]
-	floor = (
+	floor: float = (
 		float(np.min(positive)) / 10
 		if positive.size
 		else float(np.finfo(float).eps)
@@ -209,12 +218,14 @@ def plot_abba_midpoint_convergence(
 	result: ABBA2MidpointSymplecticityResult,
 ) -> tuple[Figure, Axes]:
 	"""Plot defects and pre-projection copy separation against step size."""
+	figure: Figure
+	axis: Axes
 	figure, axis = _plot_step_defects(
 		result,
 		title="Midpoint ABBA symplecticity-defect convergence",
 		xlabel=r"Midpoint ABBA step $\Delta t$",
 	)
-	rows = result.summaries()
+	rows: tuple[ABBA2MidpointSymplecticitySummary, ...] = result.summaries()
 	axis.loglog(
 		[row.step for row in rows],
 		[row.max_copy_separation_norm for row in rows],

@@ -114,8 +114,8 @@ class Execution_Modal(Execution):
     @classmethod
     def from_record(cls, path: str | Path, *, wait_timeout: float | None = None) -> Execution_Modal:
         """Recover a submitted call after restarting the local process."""
-        record_path = Path(path)
-        record = json.loads(record_path.read_text(encoding="utf-8"))
+        record_path: Path = Path(path)
+        record: Any = json.loads(record_path.read_text(encoding="utf-8"))
         if record.get("version") != PAYLOAD_VERSION or not record.get("call_id"):
             raise ValueError("The receipt has no confirmed Modal call ID; inspect Modal before resubmitting.")
         return cls(record["app_name"], record["function_name"],
@@ -136,9 +136,9 @@ class Execution_Modal(Execution):
         """
         self.last_call_id = None
         self.last_record_path = None
-        payload = encode_job(problem, method, request, options)
-        digest = sha256(payload).hexdigest()
-        modal = _modal_sdk()
+        payload: bytes = encode_job(problem, method, request, options)
+        digest: str = sha256(payload).hexdigest()
+        modal: ModuleType = _modal_sdk()
         self.record_directory.mkdir(parents=True, exist_ok=True)
         self.last_record_path = self.record_directory / f"{uuid4().hex}.json"
         record = {
@@ -152,18 +152,18 @@ class Execution_Modal(Execution):
         _write_record(self.last_record_path, record)
         try:
             if self.resume_call_id is None:
-                function = modal.Function.from_name(
+                function: Any = modal.Function.from_name(
                     self.app_name, self.function_name, environment_name=self.environment_name,
                 )
-                call = function.spawn(payload)
+                call: Any = function.spawn(payload)
                 self.last_call_id = call.object_id
                 record.update(call_id=self.last_call_id, submission="confirmed")
                 _write_record(self.last_record_path, record)
             else:
                 self.last_call_id = self.resume_call_id
                 call = modal.FunctionCall.from_id(self.resume_call_id)
-            result = call.get(timeout=self.wait_timeout)
-            data = _validated_remote_result(result, digest)
+            result: Any = call.get(timeout=self.wait_timeout)
+            data: States = _validated_remote_result(result, digest)
             return data.with_diagnostics({
                 **data.diagnostics, "execution_executor": "modal", "execution_call_id": self.last_call_id,
             })

@@ -8,7 +8,7 @@ import re
 from typing import Literal
 
 
-_BLOCK_NAME = re.compile(r"^[A-Za-z0-9_-]+$")
+_BLOCK_NAME: 're.Pattern[str]' = re.compile(r"^[A-Za-z0-9_-]+$")
 DEFAULT_RESULTS_BUCKET = "gc2d_data:gc2d-notebooks-data"
 
 
@@ -26,7 +26,7 @@ def solution_destination(
 	explicitly to use ``outputs/``. For example, an experiment path of
 	``developements/my_study`` preserves that hierarchy in either destination.
 	"""
-	path = Path(experiment_path)
+	path: Path = Path(experiment_path)
 	if (path.is_absolute() or len(path.parts) < 2 or ".." in path.parts
 		or path.parts[0] == "notebooks" or ":" in str(path) or "\\" in str(path)):
 		raise ValueError("Use an experiment directory relative to notebooks/, such as developements/my_study.")
@@ -37,14 +37,14 @@ def solution_destination(
 			raise ValueError("bucket_root must have the form 'remote:bucket'.")
 		return f"{bucket_root}/{path.as_posix()}/{run_id}"
 	if storage == "local":
-		root = find_project_root(Path.cwd()) if project_root is None else Path(project_root).expanduser().resolve()
+		root: Path = find_project_root(Path.cwd()) if project_root is None else Path(project_root).expanduser().resolve()
 		return str(root / "outputs" / path / run_id)
 	raise ValueError("storage must be 'bucket' or 'local'.")
 
 
 def find_project_root(start: str | Path) -> Path:
 	"""Find the nearest ancestor containing the project configuration."""
-	location = Path(start).expanduser().resolve()
+	location: Path = Path(start).expanduser().resolve()
 	if location.is_file():
 		location = location.parent
 	for candidate in (location, *location.parents):
@@ -66,24 +66,24 @@ def notebook_output_directory(
 	under this project's ``notebooks`` tree so unrelated paths cannot write into
 	the diagnostic output hierarchy accidentally.
 	"""
-	root = (
+	root: Path = (
 		find_project_root(Path.cwd())
 		if project_root is None
 		else Path(project_root).expanduser().resolve()
 	)
-	notebook = Path(notebook_path).expanduser()
+	notebook: Path = Path(notebook_path).expanduser()
 	if not notebook.is_absolute():
 		notebook = root / notebook
 	notebook = notebook.resolve()
 	try:
-		relative = notebook.relative_to(root / "notebooks")
+		relative: Path = notebook.relative_to(root / "notebooks")
 	except ValueError as exc:
 		raise ValueError("The notebook must be located below the project notebooks directory.") from exc
 	if relative.suffix != ".ipynb":
 		raise ValueError("`notebook_path` must identify an .ipynb file.")
 
 	if run_date is None:
-		date_label = date.today().isoformat()
+		date_label: str = date.today().isoformat()
 	elif isinstance(run_date, date):
 		date_label = run_date.isoformat()
 	else:
@@ -100,12 +100,12 @@ def validate_block_name(block_name: str) -> str:
 
 def next_block_index(output_directory: Path, block_name: str) -> int:
 	"""Return the next unused five-digit index across all files in a block."""
-	name = validate_block_name(block_name)
+	name: str = validate_block_name(block_name)
 	indices: list[int] = []
-	pattern = re.compile(rf"^{re.escape(name)}_[a-z]+_(\d{{5}})\.[^.]+$")
+	pattern: re.Pattern[str] = re.compile(rf"^{re.escape(name)}_[a-z]+_(\d{{5}})\.[^.]+$")
 	if output_directory.exists():
 		for path in output_directory.iterdir():
-			match = pattern.match(path.name)
+			match: re.Match[str] | None = pattern.match(path.name)
 			if match is not None:
 				indices.append(int(match.group(1)))
 	return max(indices, default=-1) + 1

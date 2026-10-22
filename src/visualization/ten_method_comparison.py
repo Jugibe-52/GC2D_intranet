@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -24,6 +24,10 @@ from ._animation_validation import (
 )
 from .particles import _field_normalization
 from ._solution_validation import validated_solutions as _validated_solutions
+
+
+if TYPE_CHECKING:
+	from matplotlib.image import AxesImage
 
 
 TEN_METHOD_COLORS: Mapping[str, str] = {
@@ -51,17 +55,22 @@ def _mean_periodic_distance_matrix(
 	solutions: Mapping[str, States],
 ) -> tuple[tuple[str, ...], np.ndarray]:
 	"""Return the symmetric mean minimum-image distance matrix."""
+	labels: tuple[str, ...]
 	labels, _, _ = _validated_solutions(solutions, expected_count=7)
-	period = float(potential.grid.period)
+	period: float = float(potential.grid.period)
 	positions = {label: solutions[label].positions() for label in labels}
-	matrix = np.zeros((len(labels), len(labels)), dtype=float)
+	matrix: np.ndarray = np.zeros((len(labels), len(labels)), dtype=float)
 	for first_index, first_label in enumerate(labels):
+		first_x: np.ndarray
+		first_y: np.ndarray
 		first_x, first_y = positions[first_label]
 		for second_index in range(first_index + 1, len(labels)):
+			second_x: np.ndarray
+			second_y: np.ndarray
 			second_x, second_y = positions[labels[second_index]]
 			delta_x = (second_x - first_x + 0.5 * period) % period - 0.5 * period
 			delta_y = (second_y - first_y + 0.5 * period) % period - 0.5 * period
-			mean_distance = float(np.mean(np.hypot(delta_x, delta_y)))
+			mean_distance: float = float(np.mean(np.hypot(delta_x, delta_y)))
 			matrix[first_index, second_index] = mean_distance
 			matrix[second_index, first_index] = mean_distance
 	return labels, matrix
@@ -74,15 +83,19 @@ def plot_ten_method_trajectory_differences(
 	"""Plot the 7 x 7 mean periodic trajectory-distance matrix."""
 	if not isinstance(potential, Potential):
 		raise TypeError("`potential` must be a Potential instance.")
+	labels: tuple[str, ...]
+	distance_matrix: np.ndarray
 	labels, distance_matrix = _mean_periodic_distance_matrix(potential, solutions)
-	plot_floor = float(np.finfo(float).eps * max(potential.grid.period, 1.0))
+	plot_floor: float = float(np.finfo(float).eps * max(potential.grid.period, 1.0))
 	positive = distance_matrix[distance_matrix > 0.0]
-	vmin = max(plot_floor, float(np.min(positive))) if positive.size else plot_floor
-	vmax = max(float(np.max(distance_matrix)), 10.0 * vmin)
-	plot_values = np.maximum(distance_matrix, vmin)
+	vmin: float = max(plot_floor, float(np.min(positive))) if positive.size else plot_floor
+	vmax: float = max(float(np.max(distance_matrix)), 10.0 * vmin)
+	plot_values: np.ndarray = np.maximum(distance_matrix, vmin)
 
+	figure: Figure
+	axis: Axes
 	figure, axis = plt.subplots(figsize=(12, 10), constrained_layout=True)
-	image = axis.imshow(
+	image: AxesImage = axis.imshow(
 		plot_values,
 		cmap="viridis",
 		norm=LogNorm(vmin=vmin, vmax=vmax),
@@ -103,7 +116,7 @@ def plot_ten_method_trajectory_differences(
 		axis.axvline(boundary, color="white", linewidth=2.0)
 	for row in range(len(labels)):
 		for column in range(len(labels)):
-			normalized = float(image.norm(plot_values[row, column]))
+			normalized: float = float(image.norm(plot_values[row, column]))
 			axis.text(
 				column,
 				row,
@@ -121,18 +134,20 @@ def _nonlinear_work_arrays(
 	solutions: Mapping[str, States],
 ) -> tuple[np.ndarray, list[tuple[str, np.ndarray, np.ndarray, np.ndarray, np.ndarray]]]:
 	"""Align all complete-step diagnostics before plotting the method variants."""
+	labels: tuple[str, ...]
+	times: np.ndarray
 	labels, times, _ = _validated_solutions(solutions, expected_count=6)
 	prepared: list[tuple[str, np.ndarray, np.ndarray, np.ndarray, np.ndarray]] = []
 	for label in labels:
 		solution = solutions[label]
-		iterations = np.asarray(solution.diagnostics["nonlinear_iterations"], dtype=int)
-		residual_evaluations = np.asarray(
+		iterations: np.ndarray = np.asarray(solution.diagnostics["nonlinear_iterations"], dtype=int)
+		residual_evaluations: np.ndarray = np.asarray(
 			solution.diagnostics["residual_evaluations"], dtype=int
 		)
-		residuals = np.asarray(
+		residuals: np.ndarray = np.asarray(
 			solution.diagnostics["nonlinear_residual_norms"], dtype=float
 		)
-		tolerances = np.asarray(solution.diagnostics["nonlinear_tolerances"], dtype=float)
+		tolerances: np.ndarray = np.asarray(solution.diagnostics["nonlinear_tolerances"], dtype=float)
 		expected_shape = (times.size - 1,)
 		if any(
 			value.shape != expected_shape
@@ -147,10 +162,14 @@ def plot_ten_method_nonlinear_work(
 	solutions: Mapping[str, States],
 ) -> tuple[Figure, np.ndarray]:
 	"""Compare nonlinear corrections and residual work for six variants."""
+	times: np.ndarray
+	prepared: list[tuple[str, np.ndarray, np.ndarray, np.ndarray, np.ndarray]]
 	times, prepared = _nonlinear_work_arrays(solutions)
+	figure: Figure
+	axes: np.ndarray
 	figure, axes = plt.subplots(3, 1, figsize=(13, 10), constrained_layout=True)
 	for index, (label, iterations, residual_evaluations, residuals, tolerances) in enumerate(prepared):
-		color = TEN_METHOD_COLORS.get(label, f"C{index}")
+		color: str = TEN_METHOD_COLORS.get(label, f"C{index}")
 		linestyle = "--" if "Broyden" in label else "-"
 		axes[0].step(
 			times[1:], iterations, where="mid", color=color, linestyle=linestyle, label=label
@@ -191,12 +210,14 @@ def plot_ten_method_runtimes(
 	"""Plot wall-clock integration times for all seven variants."""
 	if len(runtimes) != 7:
 		raise ValueError("The runtime plot requires exactly seven variants.")
-	labels = tuple(runtimes)
-	values = np.asarray([runtimes[label] for label in labels], dtype=float)
+	labels: tuple[str, ...] = tuple(runtimes)
+	values: np.ndarray = np.asarray([runtimes[label] for label in labels], dtype=float)
 	if not np.all(np.isfinite(values)) or np.any(values <= 0.0):
 		raise ValueError("Every runtime must be positive and finite.")
+	figure: Figure
+	axis: Axes
 	figure, axis = plt.subplots(figsize=(11, 7), constrained_layout=True)
-	positions = np.arange(len(labels))
+	positions: np.ndarray = np.arange(len(labels))
 	axis.barh(
 		positions,
 		values,
@@ -226,17 +247,22 @@ def animate_trajectory_points(
 	if not isinstance(potential, Potential):
 		raise TypeError("`potential` must be a Potential instance.")
 	interval = positive_interval(interval)
+	labels: tuple[str, ...]
+	times: np.ndarray
+	particle_count: int
 	labels, times, particle_count = _validated_solutions(solutions)
-	indices = _frame_indices(times.size, frames)
+	indices: np.ndarray = _frame_indices(times.size, frames)
 	frame_times = times[indices]
-	fields = np.asarray(potential.evaluate_grid(frame_times), dtype=float)
+	fields: np.ndarray = np.asarray(potential.evaluate_grid(frame_times), dtype=float)
 	if fields.shape != (*potential.grid.shape, indices.size):
 		raise ValueError("Potential evaluation returned an unexpected animation shape.")
 	positions = {label: solutions[label].positions() for label in labels}
 
 	grid = potential.grid
+	figure: Figure
+	axis: Axes
 	figure, axis = plt.subplots(figsize=(9, 8), constrained_layout=True)
-	image = axis.imshow(
+	image: AxesImage = axis.imshow(
 		fields[:, :, 0].T,
 		origin="lower",
 		extent=(grid.xmin, grid.xmin + grid.period, grid.ymin, grid.ymin + grid.period),
@@ -249,7 +275,7 @@ def animate_trajectory_points(
 	current_markers: dict[str, Any] = {}
 	legend_handles: list[Line2D] = []
 	for index, label in enumerate(labels):
-		color = TEN_METHOD_COLORS.get(label, f"C{index}")
+		color: str = TEN_METHOD_COLORS.get(label, f"C{index}")
 		point_clouds[label] = axis.scatter(
 			[], [], s=7, marker=".", color=color, alpha=0.38, zorder=2 + index
 		)
@@ -260,6 +286,8 @@ def animate_trajectory_points(
 		legend_handles.append(
 			Line2D([0], [0], color=color, marker=".", linestyle="none", label=label)
 		)
+	initial_x: np.ndarray
+	initial_y: np.ndarray
 	initial_x, initial_y = positions[labels[0]]
 	axis.scatter(
 		initial_x[:, 0],
@@ -287,10 +315,12 @@ def animate_trajectory_points(
 
 	def update(frame: int) -> tuple[Any, ...]:
 		"""Update the field, accumulated point clouds, and current positions."""
-		sample_index = int(indices[frame])
+		sample_index: int = int(indices[frame])
 		image.set_data(fields[:, :, frame].T)
 		artists: list[Any] = [image]
 		for label in labels:
+			x: np.ndarray
+			y: np.ndarray
 			x, y = positions[label]
 			point_clouds[label].set_offsets(
 				np.column_stack(

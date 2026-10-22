@@ -11,10 +11,13 @@ from matplotlib.figure import Figure
 
 from diagnostics.abba_jacobian import ImplicitABBAJacobianSample
 
+
 if TYPE_CHECKING:
-	from studies.abba_implicit_jacobian import (
-		ImplicitABBAJacobianParticleStepSeries,
-	)
+	from _typeshed import SupportsDunderGT, SupportsDunderLT
+	from matplotlib.artist import Artist
+	from matplotlib.collections import PathCollection
+	from studies.abba_implicit_jacobian import ImplicitABBAJacobianParticleStepSeries
+	from typing import Any
 
 
 _CLASS_COLORS = {
@@ -29,15 +32,15 @@ def _validated_samples(
 	particle_index: int,
 ) -> tuple[ImplicitABBAJacobianSample, ...]:
 	"""Require non-empty ordered samples containing the selected particle."""
-	values = tuple(samples)
+	values: tuple[ImplicitABBAJacobianSample, ...] = tuple(samples)
 	if not values:
 		raise ValueError("At least one implicit ABBA Jacobian sample is required.")
 	if isinstance(particle_index, (bool, np.bool_)) or not isinstance(
 		particle_index, (int, np.integer)
 	):
 		raise TypeError("`particle_index` must be an integer.")
-	index = int(particle_index)
-	particle_count = len(values[0].particle_analyses)
+	index: int = int(particle_index)
+	particle_count: int = len(values[0].particle_analyses)
 	if not 0 <= index < particle_count:
 		raise IndexError("`particle_index` is outside the analyzed particle range.")
 	for previous, current in zip(values, values[1:]):
@@ -88,7 +91,7 @@ def _positive_for_log(values: np.ndarray) -> np.ndarray:
 
 def _line_angles_for_plot(values: np.ndarray) -> np.ndarray:
 	"""Break curves at branch-cut jumps of an unoriented line angle."""
-	angles = np.asarray(values, dtype=float).copy()
+	angles: np.ndarray = np.asarray(values, dtype=float).copy()
 	finite_pairs = np.isfinite(angles[:-1]) & np.isfinite(angles[1:])
 	jumps = finite_pairs & (np.abs(np.diff(angles)) > np.pi / 2.0)
 	angles[1:][jumps] = np.nan
@@ -101,7 +104,7 @@ def _representative_snapshot_indices(
 	count: int,
 ) -> np.ndarray:
 	"""Select time-spanning snapshots while representing every spectral class."""
-	classes = np.asarray(
+	classes: np.ndarray = np.asarray(
 		[
 			sample.particle_analyses[particle_index].spectral_class
 			for sample in samples
@@ -112,8 +115,8 @@ def _representative_snapshot_indices(
 		for spectral_class in np.unique(classes)
 		if (indices := np.flatnonzero(classes == spectral_class)).size
 	}
-	baseline = list(np.linspace(0, len(samples) - 1, count, dtype=int))
-	selected = set(required)
+	baseline: list[Any] = list(np.linspace(0, len(samples) - 1, count, dtype=int))
+	selected: set[int] = set(required)
 	for index in baseline:
 		if len(selected) >= count:
 			break
@@ -124,10 +127,10 @@ def _representative_snapshot_indices(
 				break
 			selected.add(index)
 	if len(selected) > count:
-		optional = sorted(selected - required)
-		keep_optional = max(0, count - len(required))
+		optional: list[int] = sorted(selected - required)
+		keep_optional: int = max(0, count - len(required))
 		if keep_optional:
-			positions = np.linspace(0, len(optional) - 1, keep_optional, dtype=int)
+			positions: np.ndarray = np.linspace(0, len(optional) - 1, keep_optional, dtype=int)
 			selected = required | {optional[int(position)] for position in positions}
 		else:
 			selected = set(sorted(required)[:count])
@@ -138,14 +141,14 @@ def plot_implicit_abba_particle_step_series(
 	series: ImplicitABBAJacobianParticleStepSeries,
 ) -> tuple[Figure, np.ndarray]:
 	"""Plot endpoint fields and finite-increment magnitude and direction."""
-	times = np.asarray(series.end_times, dtype=float)
-	electric_fields = np.asarray(
+	times: np.ndarray = np.asarray(series.end_times, dtype=float)
+	electric_fields: np.ndarray = np.asarray(
 		series.effective_electric_fields_after,
 		dtype=float,
 	)
-	increments = np.asarray(series.state_increments, dtype=float)
-	increment_norms = np.asarray(series.state_increment_norms, dtype=float)
-	increment_angles = np.asarray(series.state_increment_angles, dtype=float)
+	increments: np.ndarray = np.asarray(series.state_increments, dtype=float)
+	increment_norms: np.ndarray = np.asarray(series.state_increment_norms, dtype=float)
+	increment_angles: np.ndarray = np.asarray(series.state_increment_angles, dtype=float)
 	if (
 		times.ndim != 1
 		or electric_fields.shape != (2, times.size)
@@ -158,6 +161,8 @@ def plot_implicit_abba_particle_step_series(
 		or not np.all(np.isfinite(increment_angles) | np.isnan(increment_angles))
 	):
 		raise ValueError("Particle step series contains invalid array shapes.")
+	figure: Figure
+	axes: np.ndarray
 	figure, axes = plt.subplots(3, 1, figsize=(12, 10), constrained_layout=True)
 
 	for component, label in enumerate(
@@ -195,7 +200,7 @@ def plot_implicit_abba_particle_step_series(
 	)
 	axes[1].legend()
 
-	finite_directions = np.isfinite(increment_angles)
+	finite_directions: Any = np.isfinite(increment_angles)
 	axes[2].scatter(
 		times[finite_directions],
 		increment_angles[finite_directions],
@@ -228,10 +233,12 @@ def plot_implicit_abba_jacobian_matrices(
 	particle_index: int = 0,
 ) -> tuple[Figure, np.ndarray]:
 	"""Plot matrix entries and scalar invariants for one particle over time."""
-	values = _validated_samples(samples, particle_index)
-	data = _particle_arrays(values, particle_index)
+	values: tuple[ImplicitABBAJacobianSample, ...] = _validated_samples(samples, particle_index)
+	data: dict[str, np.ndarray] = _particle_arrays(values, particle_index)
 	times = data["times"]
 	matrices = data["jacobians"] - np.eye(2)[None, :, :]
+	figure: Figure
+	axes: np.ndarray
 	figure, axes = plt.subplots(2, 3, figsize=(16, 8), constrained_layout=True)
 	for row in range(2):
 		for column in range(2):
@@ -262,7 +269,7 @@ def plot_implicit_abba_jacobian_matrices(
 	)
 
 	discriminants = data["discriminants"]
-	linthresh = max(
+	linthresh: SupportsDunderLT[Any] | SupportsDunderGT[Any] = max(
 		float(np.max(data["discriminant_tolerances"])),
 		np.finfo(float).eps,
 	)
@@ -311,17 +318,19 @@ def plot_implicit_abba_jacobian_spectrum(
 	particle_index: int = 0,
 ) -> tuple[Figure, np.ndarray]:
 	"""Plot eigenvalues, spectral rates, and singular values over time."""
-	values = _validated_samples(samples, particle_index)
-	data = _particle_arrays(values, particle_index)
+	values: tuple[ImplicitABBAJacobianSample, ...] = _validated_samples(samples, particle_index)
+	data: dict[str, np.ndarray] = _particle_arrays(values, particle_index)
 	times = data["times"]
-	durations = np.abs(data["durations"])
+	durations: Any = np.abs(data["durations"])
 	eigenvalues = data["eigenvalues"]
+	figure: Figure
+	axes: np.ndarray
 	figure, axes = plt.subplots(2, 2, figsize=(13, 9), constrained_layout=True)
 
-	colors = np.repeat(times, 2)
-	points = eigenvalues.reshape(-1)
+	colors: np.ndarray = np.repeat(times, 2)
+	points: np.ndarray = eigenvalues.reshape(-1)
 	offsets = points - 1.0
-	scatter = axes[0, 0].scatter(
+	scatter: PathCollection = axes[0, 0].scatter(
 		offsets.real,
 		offsets.imag,
 		c=colors,
@@ -388,9 +397,11 @@ def plot_implicit_abba_jacobian_directions(
 	particle_index: int = 0,
 ) -> tuple[Figure, np.ndarray]:
 	"""Plot available real eigenlines and principal singular directions."""
-	values = _validated_samples(samples, particle_index)
-	data = _particle_arrays(values, particle_index)
+	values: tuple[ImplicitABBAJacobianSample, ...] = _validated_samples(samples, particle_index)
+	data: dict[str, np.ndarray] = _particle_arrays(values, particle_index)
 	times = data["times"]
+	figure: Figure
+	axes: np.ndarray
 	figure, axes = plt.subplots(2, 1, figsize=(12, 7), constrained_layout=True)
 
 	eigen_angles = data["eigenline_angles"]
@@ -453,15 +464,17 @@ def plot_implicit_abba_jacobian_polar_snapshots(
 	snapshot_count: int = 6,
 ) -> tuple[Figure, np.ndarray]:
 	"""Show real eigenlines and singular directions at selected step snapshots."""
-	values = _validated_samples(samples, particle_index)
+	values: tuple[ImplicitABBAJacobianSample, ...] = _validated_samples(samples, particle_index)
 	if (
 		isinstance(snapshot_count, (bool, np.bool_))
 		or not isinstance(snapshot_count, (int, np.integer))
 		or snapshot_count < 1
 	):
 		raise ValueError("`snapshot_count` must be a positive integer.")
-	count = min(int(snapshot_count), len(values))
-	indices = _representative_snapshot_indices(values, particle_index, count)
+	count: int = min(int(snapshot_count), len(values))
+	indices: np.ndarray = _representative_snapshot_indices(values, particle_index, count)
+	figure: Figure
+	axes: np.ndarray
 	figure, axes = plt.subplots(
 		1,
 		len(indices),
@@ -515,6 +528,8 @@ def plot_implicit_abba_jacobian_polar_snapshots(
 					label=label,
 				)
 	if len(polar_axes):
+		handles: list[Artist]
+		labels: list[str]
 		handles, labels = polar_axes[0].get_legend_handles_labels()
 		if handles:
 			figure.legend(handles, labels, loc="outside lower center", ncol=4)

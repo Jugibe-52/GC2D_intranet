@@ -3,12 +3,16 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import Protocol, TypeAlias
+from typing import Protocol, TYPE_CHECKING, TypeAlias
 
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
+
+
+if TYPE_CHECKING:
+	from typing import Any
 
 
 IMPLICIT_ACCURACY_COLORS = {
@@ -64,16 +68,16 @@ def _group_summaries(
 	summaries: Sequence[ImplicitMethodAccuracySummaryView],
 ) -> tuple[tuple[str, ...], tuple[float, ...], _SummaryGrid]:
 	"""Group a complete method-by-step table while preserving display order."""
-	rows = tuple(summaries)
+	rows: tuple[ImplicitMethodAccuracySummaryView, ...] = tuple(summaries)
 	if not rows:
 		raise ValueError("At least one implicit accuracy summary is required.")
-	methods = tuple(dict.fromkeys(row.method_name for row in rows))
-	steps = tuple(dict.fromkeys(float(row.integration_step) for row in rows))
+	methods: tuple[str, ...] = tuple(dict.fromkeys(row.method_name for row in rows))
+	steps: tuple[float, ...] = tuple(dict.fromkeys(float(row.integration_step) for row in rows))
 	grouped: dict[str, dict[float, ImplicitMethodAccuracySummaryView]] = {
 		method: {} for method in methods
 	}
 	for row in rows:
-		step = float(row.integration_step)
+		step: float = float(row.integration_step)
 		if step in grouped[row.method_name]:
 			raise ValueError("Implicit accuracy summaries contain a duplicate run.")
 		grouped[row.method_name][step] = row
@@ -95,7 +99,7 @@ def _refinement_error_arrays(grouped: _SummaryGrid, steps: tuple[float, ...]) ->
 	method_errors: dict[str, np.ndarray] = {}
 	for method in grouped:
 		rows = grouped[method]
-		errors = np.asarray(
+		errors: np.ndarray = np.asarray(
 			[rows[step].time_integrated_rms_distance for step in steps],
 			dtype=float,
 		)
@@ -113,7 +117,7 @@ def _newton_summary_arrays(
 	for method, method_rows in grouped.items():
 		prepared[method] = {}
 		for field, _ in _NEWTON_FIELDS:
-			values = np.asarray(
+			values: np.ndarray = np.asarray(
 				[getattr(method_rows[step], field) for step in steps],
 				dtype=float,
 			)
@@ -130,8 +134,8 @@ def _accuracy_cost_arrays(
 	prepared: dict[str, tuple[np.ndarray, np.ndarray]] = {}
 	for method in grouped:
 		rows = grouped[method]
-		runtimes = np.asarray([rows[step].runtime_seconds for step in steps], dtype=float)
-		errors = np.asarray(
+		runtimes: np.ndarray = np.asarray([rows[step].runtime_seconds for step in steps], dtype=float)
+		errors: np.ndarray = np.asarray(
 			[rows[step].time_integrated_rms_distance for step in steps], dtype=float
 		)
 		if (
@@ -151,13 +155,18 @@ def plot_implicit_method_accuracy_refinement(
 	reference_floor: float,
 ) -> tuple[Figure, Axes]:
 	"""Plot time-integrated reference error and second/fourth-order guides."""
+	methods: tuple[str, ...]
+	steps: tuple[float, ...]
+	grouped: _SummaryGrid
 	methods, steps, grouped = _group_summaries(summaries)
-	step_values = np.asarray(steps, dtype=float)
-	positions = np.arange(len(steps), dtype=float)
-	floor = float(reference_floor)
+	step_values: np.ndarray = np.asarray(steps, dtype=float)
+	positions: np.ndarray = np.arange(len(steps), dtype=float)
+	floor: float = float(reference_floor)
 	if not np.isfinite(floor) or floor < 0.0:
 		raise ValueError("`reference_floor` must be finite and non-negative.")
-	method_errors = _refinement_error_arrays(grouped, steps)
+	method_errors: dict[str, np.ndarray] = _refinement_error_arrays(grouped, steps)
+	figure: Figure
+	axis: Axes
 	figure, axis = plt.subplots(figsize=(10, 7), constrained_layout=True)
 	for method in methods:
 		rows = grouped[method]
@@ -219,14 +228,14 @@ def plot_implicit_method_observed_orders(
 	orders: Sequence[ImplicitMethodAccuracyOrderView],
 ) -> tuple[Figure, np.ndarray]:
 	"""Plot time-integrated and final RMS orders against designed orders."""
-	rows = tuple(orders)
+	rows: tuple[ImplicitMethodAccuracyOrderView, ...] = tuple(orders)
 	if not rows:
 		raise ValueError("At least one implicit accuracy order is required.")
-	methods = tuple(dict.fromkeys(row.method_name for row in rows))
-	step_values = tuple(
+	methods: tuple[str, ...] = tuple(dict.fromkeys(row.method_name for row in rows))
+	step_values: tuple[float, ...] = tuple(
 		sorted({float(row.fine_step) for row in rows}, reverse=True)
 	)
-	positions = np.arange(len(step_values), dtype=float)
+	positions: np.ndarray = np.arange(len(step_values), dtype=float)
 	position_by_step = {
 		step: position for step, position in zip(step_values, positions, strict=True)
 	}
@@ -238,6 +247,8 @@ def plot_implicit_method_observed_orders(
 			strict=True,
 		)
 	}
+	figure: Figure
+	axes: np.ndarray
 	figure, axes = plt.subplots(
 		2,
 		1,
@@ -246,25 +257,25 @@ def plot_implicit_method_observed_orders(
 		constrained_layout=True,
 	)
 	for method in methods:
-		method_rows = sorted(
+		method_rows: list[ImplicitMethodAccuracyOrderView] = sorted(
 			(row for row in rows if row.method_name == method),
 			key=lambda row: row.fine_step,
 			reverse=True,
 		)
-		method_positions = np.asarray(
+		method_positions: np.ndarray = np.asarray(
 			[
 				position_by_step[float(row.fine_step)] + jitter_by_method[method]
 				for row in method_rows
 			],
 			dtype=float,
 		)
-		color = IMPLICIT_ACCURACY_COLORS.get(method)
+		color: str | None = IMPLICIT_ACCURACY_COLORS.get(method)
 		for axis, field, title in (
 			(axes[0], "time_integrated_rms_order", "Time-integrated RMS"),
 			(axes[1], "final_rms_order", "Final RMS"),
 		):
-			values = np.asarray([getattr(row, field) for row in method_rows], dtype=float)
-			mask = np.isfinite(values)
+			values: np.ndarray = np.asarray([getattr(row, field) for row in method_rows], dtype=float)
+			mask: Any = np.isfinite(values)
 			axis.plot(
 				method_positions[mask],
 				values[mask],
@@ -296,8 +307,11 @@ def plot_implicit_method_newton_refinement(
 	summaries: Sequence[ImplicitMethodAccuracySummaryView],
 ) -> tuple[Figure, np.ndarray]:
 	"""Compare Newton corrections, residual work, and accepted residuals."""
+	methods: tuple[str, ...]
+	steps: tuple[float, ...]
+	grouped: _SummaryGrid
 	methods, steps, grouped = _group_summaries(summaries)
-	positions = np.arange(len(steps), dtype=float)
+	positions: np.ndarray = np.arange(len(steps), dtype=float)
 	jitter_by_method = {
 		method: jitter
 		for method, jitter in zip(
@@ -306,7 +320,9 @@ def plot_implicit_method_newton_refinement(
 			strict=True,
 		)
 	}
-	prepared = _newton_summary_arrays(grouped, steps)
+	prepared: dict[str, dict[str, np.ndarray]] = _newton_summary_arrays(grouped, steps)
+	figure: Figure
+	axes: np.ndarray
 	figure, axes = plt.subplots(
 		2,
 		2,
@@ -345,8 +361,13 @@ def plot_implicit_method_accuracy_cost(
 	summaries: Sequence[ImplicitMethodAccuracySummaryView],
 ) -> tuple[Figure, Axes]:
 	"""Plot the runtime/error trajectory traced by every step refinement."""
+	methods: tuple[str, ...]
+	steps: tuple[float, ...]
+	grouped: _SummaryGrid
 	methods, steps, grouped = _group_summaries(summaries)
-	prepared = _accuracy_cost_arrays(grouped, steps)
+	prepared: dict[str, tuple[np.ndarray, np.ndarray]] = _accuracy_cost_arrays(grouped, steps)
+	figure: Figure
+	axis: Axes
 	figure, axis = plt.subplots(figsize=(9, 7), constrained_layout=True)
 	annotation_offsets = {
 		"ABBA2Implicit[reduced_multiplier]": (5, 5),
@@ -356,6 +377,8 @@ def plot_implicit_method_accuracy_cost(
 	}
 	for method in methods:
 		rows = grouped[method]
+		runtimes: np.ndarray
+		errors: np.ndarray
 		runtimes, errors = prepared[method]
 		axis.loglog(
 			runtimes,

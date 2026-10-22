@@ -1,12 +1,23 @@
 """Validate local RK4 products without integrating trajectories."""
 import argparse,json
-from typing import Any
+from typing import Any, TYPE_CHECKING
 import numpy as np
 from study_io import ROOT,load_calculation,atomic_json,utc_now,digest
 
+
+if TYPE_CHECKING:
+    from pandas import DataFrame
+    from pathlib import Path
+
+
 def validate(run: str) -> dict[str, Any]:
+    folder: Path
+    meta: dict[str, Any]
+    a: dict[str, np.ndarray]
+    positions: DataFrame
+    initial: DataFrame
     folder,meta,a,positions,initial=load_calculation(run)
-    cfg=json.loads((ROOT/'experiment.json').read_text());cycles=2 if meta['validation_run'] else cfg['cycles'];n=len(cfg['particle_ids']);steps=cycles*cfg['steps_per_cycle']
+    cfg: Any=json.loads((ROOT/'experiment.json').read_text());cycles=2 if meta['validation_run'] else cfg['cycles'];n: int=len(cfg['particle_ids']);steps=cycles*cfg['steps_per_cycle']
     for key,value in dict(method='RK4',particle_count=n,process_count=4,cycles=cycles,steps_per_cycle=20,complete_steps=steps,newton_history_recorded=False,reference_computed=False).items():assert meta[key]==value,key
     eq=np.testing.assert_array_equal;original=json.loads((ROOT/'assets/original_particles.json').read_text())['particles']
     eq(a['particle_ids'],cfg['particle_ids']);eq(a['initial_positions'],[[p['x'],p['y']] for p in original]);eq(a['colors_rgba'],[p['rgba'] for p in original]);eq(a['colors_hex'],[p['color'] for p in original])
@@ -27,8 +38,8 @@ def validate(run: str) -> dict[str, Any]:
         for cell in json.loads((directory/notebook).read_text())['cells']:
             if cell['cell_type']=='code' and ''.join(cell['source']).strip():assert cell['execution_count'] is not None
             assert not any(o.get('output_type')=='error' for o in cell.get('outputs',[]))
-    report=dict(verified_utc=utc_now(),run_id=run,method='RK4',particles=48,cycles=cycles,steps_per_cycle=20,processes=4,return_position_rows=len(positions),numeric_manifest_verified=True,original_ids_positions_colors_preserved=True,executed_notebooks_verified=True)
+    report: dict[str, Any]=dict(verified_utc=utc_now(),run_id=run,method='RK4',particles=48,cycles=cycles,steps_per_cycle=20,processes=4,return_position_rows=len(positions),numeric_manifest_verified=True,original_ids_positions_colors_preserved=True,executed_notebooks_verified=True)
     atomic_json(ROOT/'validation'/f'{run}_products.json',report)
     print(json.dumps(report,indent=2));return report
 if __name__=='__main__':
-    parser=argparse.ArgumentParser();parser.add_argument('--run-id',required=True);validate(parser.parse_args().run_id)
+    parser: 'argparse.ArgumentParser'=argparse.ArgumentParser();parser.add_argument('--run-id',required=True);validate(parser.parse_args().run_id)

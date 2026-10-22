@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import ClassVar, Literal
+from typing import ClassVar, Literal, TYPE_CHECKING
 import numpy as np
 
 from contracts.nonlinear import NewtonObserver
@@ -24,6 +24,10 @@ from methods.extended.core.jacobians import _checked_vector_field_jacobian
 from methods.extended.core.records import ProjectedMap, ProjectedMapResult
 from methods.extended.observations import EventBuilder, bind_event_builder
 from methods.extended.palindromic import ProjectedPalindromicMethod, MidpointPalindromicMethod
+
+
+if TYPE_CHECKING:
+	from solvers.nonlinear import SolverOptions
 
 
 @dataclass(slots=True)
@@ -63,12 +67,12 @@ class _ABBAImplicitMethod(ProjectedPalindromicMethod):
 		name = type(self).__name__
 		if not isinstance(dynamics, GuidingCenterJacobianSystem) or dynamics.state_dimension != 2:
 			raise TypeError(f"{name} requires planar GuidingCenterJacobianSystem dynamics.")
-		options = self._prepare_projection(problem, request, self.projection_formulation)
+		options: SolverOptions = self._prepare_projection(problem, request, self.projection_formulation)
 		if options.solver == "newton":
 			_checked_vector_field_jacobian(dynamics, request.t_span[0], problem.initial_state)
 		# Each ABBA pair contains equal adjoint/direct weights. Pair durations
 		# describe unprojected stages, never independent nonlinear solves.
-		coefficients = tuple(2 * c for c in self.recipe.coefficients[::2])
+		coefficients: tuple[float, ...] = tuple(2 * c for c in self.recipe.coefficients[::2])
 		self.build_event = None
 		if self.step_observer is not None:
 			self.build_event = bind_event_builder(
@@ -92,7 +96,7 @@ class _ABBAImplicitMethod(ProjectedPalindromicMethod):
 			particle_count=problem.particle_count,
 		))
 		if self.order != 2:
-			coefficient_array = np.asarray(coefficients)
+			coefficient_array: np.ndarray = np.asarray(coefficients)
 			metadata.update({
 				"implicit_substeps_per_step": 1,
 				"composition_coefficients": coefficient_array,
@@ -112,7 +116,7 @@ class _ABBAImplicitMethod(ProjectedPalindromicMethod):
 	def build_observation(self, info: StepInfo, step: StepResult[ProjectedMapResult]) -> IntegrationStep:
 		"""Expose physical snapshots from the accepted projection trace."""
 		assert self.build_event is not None
-		before = self.state_formulation.physical(info.state_before)
+		before: np.ndarray = self.state_formulation.physical(info.state_before)
 		return self.build_event(info.time, info.duration, info.index, before, step.details)
 
 

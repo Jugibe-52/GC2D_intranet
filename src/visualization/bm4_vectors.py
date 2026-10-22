@@ -10,6 +10,8 @@ def plot_bm4_vectors(study: BM4VectorStudy, labels: tuple[str, ...]) -> Figure:
     """Compare lengths, absolute directions, relative rotations and norm ratios."""
     if len(labels) != study.mu.shape[1]:
         raise ValueError("Provide one label per particle.")
+    figure: Figure
+    axes: np.ndarray
     figure, axes = plt.subplots(4, len(labels), figsize=(14, 12), squeeze=False,
                                 sharex=True, constrained_layout=True)
     for p, label in enumerate(labels):

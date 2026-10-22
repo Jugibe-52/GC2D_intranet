@@ -7,7 +7,7 @@ from formulations.layout import GCStateLayout
 from contracts.study_results import GCEnergyBoundResult, GC_ENERGY_BOUND_METHODS as METHODS
 
 from dataclasses import asdict, dataclass, replace
-from typing import Any
+from typing import Any, TYPE_CHECKING
 from time import perf_counter
 
 import numpy as np
@@ -26,6 +26,10 @@ from simulation.runner import simulate
 from ._trajectory_distances import particle_distances
 from ._validation import integer_ratio
 from .reference_trajectory import potential_fingerprint
+
+
+if TYPE_CHECKING:
+	from states.history import States
 
 
 @dataclass(frozen=True)
@@ -57,11 +61,9 @@ class GCEnergyBoundConfig:
             if not np.isfinite(getattr(self, name)) or getattr(self, name) < 0:
                 raise ValueError(f"{name} must be finite and nonnegative.")
         for name, minimum in (("timing_repeats", 3), ("block_count", 2), ("newton_max_iterations", 1)):
-            value = getattr(self, name)
+            value: Any = getattr(self, name)
             if isinstance(value, bool) or not isinstance(value, int) or value < minimum:
                 raise ValueError(f"{name} must be an integer >= {minimum}.")
-
-
 
 
 def time_rms(values: np.ndarray, times: np.ndarray) -> float:
@@ -78,15 +80,15 @@ def envelope_statistics(
             or not np.isfinite(times).all() or not np.isfinite(errors).all()
             or np.any(np.diff(times) <= 0)):
         raise ValueError("Envelope inputs must be finite, aligned and increasing.")
-    maxima = np.maximum.accumulate(np.abs(errors))
+    maxima: np.ndarray = np.maximum.accumulate(np.abs(errors))
     records: list[dict[str, float | None]] = []
     previous: float | None = None
     for horizon in horizons:
         target = times[0]+horizon
-        index = int(np.argmin(np.abs(times-target)))
+        index: int = int(np.argmin(np.abs(times-target)))
         if not np.isclose(times[index], target, rtol=0, atol=1e-11*max(1, abs(target))):
             raise ValueError("Every requested horizon must be an accepted node.")
-        value = float(maxima[index])
+        value: float = float(maxima[index])
         ratio = value/previous if previous is not None and previous > 0 else None
         records.append({"horizon": float(horizon), "maximum": value, "growth_ratio": ratio})
         previous = value
@@ -95,10 +97,10 @@ def envelope_statistics(
 
 def matching_reference_nodes(times: np.ndarray, reference_times: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     """Return coincident method/reference indices without interpolating either orbit."""
-    right = np.searchsorted(reference_times, times).clip(0, len(reference_times)-1)
-    left = (right-1).clip(0)
-    nearest = np.where(np.abs(reference_times[left]-times) < np.abs(reference_times[right]-times), left, right)
-    selected = np.flatnonzero(np.isclose(times, reference_times[nearest], rtol=0, atol=1e-12))
+    right: np.ndarray = np.searchsorted(reference_times, times).clip(0, len(reference_times)-1)
+    left: np.ndarray = (right-1).clip(0)
+    nearest: np.ndarray = np.where(np.abs(reference_times[left]-times) < np.abs(reference_times[right]-times), left, right)
+    selected: np.ndarray = np.flatnonzero(np.isclose(times, reference_times[nearest], rtol=0, atol=1e-12))
     if selected.size < 2 or selected[0] != 0 or selected[-1] != len(times)-1:
         raise ValueError("Method and reference must share both endpoints and at least two nodes.")
     return selected, nearest[selected]
@@ -114,8 +116,9 @@ def _validate_reference(
     if not np.allclose(reference.times[[0, -1]], config.t_span, rtol=0, atol=1e-12):
         raise ValueError("The reference must cover the requested interval exactly.")
     for step in config.steps:
-        count = integer_ratio(config.t_span[1]-config.t_span[0], step, "duration / step")
-        times = np.linspace(*config.t_span, count+1)
+        count: int = integer_ratio(config.t_span[1]-config.t_span[0], step, "duration / step")
+        times: np.ndarray = np.linspace(*config.t_span, count+1)
+        indices: np.ndarray
         indices, _ = matching_reference_nodes(times, reference.times)
         for horizon in config.horizons:
             if not np.any(np.isclose(times[indices], config.t_span[0]+horizon, rtol=0, atol=1e-12)):
@@ -138,13 +141,13 @@ def run_gc_energy_bound_study(
     Energy observers are enabled only in an untimed replay, which is required to
     reproduce the timed trajectory. Reference generation is always excluded.
     """
-    dynamics = GuidingCenterDynamics(potential, rho=config.rho)
-    problem = InitialValueProblem(dynamics, configuration, layout=GCStateLayout())
+    dynamics: GuidingCenterDynamics = GuidingCenterDynamics(potential, rho=config.rho)
+    problem: InitialValueProblem = InitialValueProblem(dynamics, configuration, layout=GCStateLayout())
     _validate_reference(reference, dynamics, problem.initial_state, config)
     tref = reference.times
-    href = np.asarray(dynamics.hamiltonian(tref, reference.states)).reshape(-1)
-    haudit = np.asarray(dynamics.hamiltonian(tref, reference.audit_states)).reshape(-1)
-    energy_scale = max(float(np.max(np.abs(href))), float(np.finfo(float).eps))
+    href: np.ndarray = np.asarray(dynamics.hamiltonian(tref, reference.states)).reshape(-1)
+    haudit: np.ndarray = np.asarray(dynamics.hamiltonian(tref, reference.audit_states)).reshape(-1)
+    energy_scale: float = max(float(np.max(np.abs(href))), float(np.finfo(float).eps))
     arrays = {
         "reference/times": tref, "reference/states": reference.states,
         "reference/audit_states": reference.audit_states,
@@ -157,7 +160,7 @@ def run_gc_energy_bound_study(
     summary: list[dict[str, Any]] = []
     envelopes: list[dict[str, Any]] = []
     blocks: list[dict[str, Any]] = []
-    bm4 = BM4Implicit(
+    bm4: BM4Implicit = BM4Implicit(
         newton_absolute_tolerance=config.newton_atol,
         newton_relative_tolerance=config.newton_rtol,
         newton_max_iterations=config.newton_max_iterations,
@@ -172,9 +175,11 @@ def run_gc_energy_bound_study(
 
     with threadpool_limits(limits=1):
         for level, step in enumerate(config.steps):
-            count = integer_ratio(config.t_span[1]-config.t_span[0], step, "duration / step")
-            request = SimulationRequest.uniform(t_span=config.t_span, max_step=step, sample_count=count+1)
+            count: int = integer_ratio(config.t_span[1]-config.t_span[0], step, "duration / step")
+            request: SimulationRequest = SimulationRequest.uniform(t_span=config.t_span, max_step=step, sample_count=count+1)
             times = request.output_times
+            method_indices: np.ndarray
+            reference_indices: np.ndarray
             method_indices, reference_indices = matching_reference_nodes(times, tref)
             comparison_times = times[method_indices]
             ref_states = reference.states[:, reference_indices]
@@ -189,8 +194,8 @@ def run_gc_energy_bound_study(
             # The initial diagnostic/reference cell has already exercised the field.
             for repeat in range(config.timing_repeats):
                 for name in METHODS if repeat % 2 == 0 else METHODS[::-1]:
-                    started = perf_counter()
-                    solution = simulate(problem, methods[name], request)
+                    started: float = perf_counter()
+                    solution: States = simulate(problem, methods[name], request)
                     elapsed = perf_counter()-started
                     assert solution.diagnostics["step_count"] == count
                     assert solution.states.shape == (2, count+1)
@@ -198,11 +203,11 @@ def run_gc_energy_bound_study(
                     solutions[name] = solution
                     timing[name].append(elapsed)
                     log(f"  repeat {repeat+1}: {name} {elapsed:.2f} s")
-            observer = GCGeneralizedEnergyObserver(
+            observer: GCGeneralizedEnergyObserver = GCGeneralizedEnergyObserver(
                 dynamics, initial_time=config.t_span[0], initial_state=problem.initial_state)
             log("  Collecting energy at every accepted step in untimed replays.")
-            observed_bm4 = simulate(problem, replace(bm4, step_observer=observer), request)
-            observed_rk4 = simulate(problem, RK4(track_energy=True), request)
+            observed_bm4: States = simulate(problem, replace(bm4, step_observer=observer), request)
+            observed_rk4: States = simulate(problem, RK4(track_energy=True), request)
             np.testing.assert_array_equal(observed_bm4.states, solutions["BM4Implicit"].states)
             np.testing.assert_allclose(observed_rk4.states, solutions["RK4"].states, rtol=1e-13, atol=1e-13)
             assert len(observer.records) == count+1
@@ -213,12 +218,13 @@ def run_gc_energy_bound_study(
             }
             for name in METHODS:
                 solution = solutions[name]
-                H = np.asarray(dynamics.hamiltonian(times, solution.states)).reshape(-1)
+                H: np.ndarray = np.asarray(dynamics.hamiltonian(times, solution.states)).reshape(-1)
                 K_error = H+momenta[name]-H[0]
                 H_error = H[method_indices]-ref_H
                 distance = particle_distances(solution.states[:, method_indices], ref_states,
                     distance_convention="periodic", period=potential.grid.period)[0]
                 prefix = f"h{level}/{name}"
+                values: Any
                 for label, values in {
                     "states": solution.states, "H": H, "H_change": H-H[0],
                     "kappa": momenta[name], "K_error": K_error,
@@ -228,7 +234,7 @@ def run_gc_energy_bound_study(
                     "runtime_samples": np.asarray(timing[name]),
                 }.items():
                     arrays[f"{prefix}/{label}"] = values
-                quartiles = np.percentile(timing[name], [25, 50, 75])
+                quartiles: np.ndarray = np.percentile(timing[name], [25, 50, 75])
                 record: dict[str, Any] = {
                     "method": name, "step": step, "steps": count,
                     "comparison_sample_count": len(comparison_times),
@@ -285,7 +291,7 @@ def run_gc_energy_bound_study(
                 selected = [r for r in envelopes if r["method"] == name and r["metric"] == metric and r["horizon"] == horizon]
                 hs = np.array([r["step"] for r in selected])[-3:]
                 errors = np.array([r["maximum"] for r in selected])[-3:]
-                slope = float(np.polyfit(np.log(hs), np.log(errors), 1)[0]) if np.all(errors > 0) else None
+                slope: float | None = float(np.polyfit(np.log(hs), np.log(errors), 1)[0]) if np.all(errors > 0) else None
                 orders.append({"method": name, "metric": metric, "horizon": horizon, "slope": slope})
     if not all(np.isfinite(value).all() for value in arrays.values()):
         raise FloatingPointError("The study produced a nonfinite diagnostic array.")
@@ -310,8 +316,8 @@ def energy_bound_conclusions(result: GCEnergyBoundResult) -> str:
     tolerance = config["plateau_relative_growth"]
     lines = [f"At h={step:g}, over {duration:g} normalized time units:"]
     for name in METHODS:
-        row = next(r for r in result.summary if r["method"] == name and r["step"] == step)
-        last = next(r for r in result.envelopes if r["method"] == name and r["step"] == step
+        row: dict[str, Any] = next(r for r in result.summary if r["method"] == name and r["step"] == step)
+        last: dict[str, Any] = next(r for r in result.envelopes if r["method"] == name and r["step"] == step
                     and r["metric"] == "K" and r["horizon"] == duration)
         ratio = last["growth_ratio"]
         verdict = ("undefined growth ratio (previous envelope was zero)" if ratio is None else
@@ -331,7 +337,7 @@ def energy_bound_conclusions(result: GCEnergyBoundResult) -> str:
     for key, label in (("runtime_median", "Fastest median physical integration"),
                        ("trajectory_rms", "Smallest time-RMS trajectory error"),
                        ("H_error_rms", "Smallest time-RMS physical-energy error")):
-        best = min(candidates, key=lambda row: row[key])
+        best: dict[str, Any] = min(candidates, key=lambda row: row[key])
         lines.append(f"- {label}: {best['method']} ({best[key]:.6e}).")
     lines.append("A finite-window plateau is evidence, not a proof of a time-uniform bound. "
                  "Check the reference floor, step refinement, spline regularity and Newton tolerance. "
@@ -351,18 +357,18 @@ def audit_initial_step_geometry(
     from diagnostics.symplecticity.observer import gc_physical_symplectic_form
     from contracts.observation import IntegrationStep, ImplicitBM4IntegrationStep
 
-    dynamics = GuidingCenterDynamics(potential, rho=config.rho)
-    problem = InitialValueProblem(dynamics, configuration, layout=GCStateLayout())
+    dynamics: GuidingCenterDynamics = GuidingCenterDynamics(potential, rho=config.rho)
+    problem: InitialValueProblem = InitialValueProblem(dynamics, configuration, layout=GCStateLayout())
     if problem.initial_state.shape != (2,):
         raise ValueError("The local geometry audit requires one planar trajectory.")
     h = config.steps[0]
-    request = SimulationRequest.uniform(t_span=(config.t_span[0], config.t_span[0]+h),
+    request: SimulationRequest = SimulationRequest.uniform(t_span=(config.t_span[0], config.t_span[0]+h),
                                         max_step=h, sample_count=2)
     rows: list[dict[str, Any]] = []
-    form = gc_physical_symplectic_form(1)
+    form: np.ndarray = gc_physical_symplectic_form(1)
     for name in METHODS:
         events: list[IntegrationStep] = []
-        method = (BM4Implicit(
+        method: BM4Implicit | RK4 = (BM4Implicit(
             newton_absolute_tolerance=config.newton_atol, newton_relative_tolerance=config.newton_rtol,
             newton_max_iterations=config.newton_max_iterations, newton_jacobian_method="analytic",
             newton_jacobian_relative_step=config.jacobian_relative_step, step_observer=events.append)
@@ -374,7 +380,7 @@ def audit_initial_step_geometry(
             assert isinstance(event, ImplicitBM4IntegrationStep)
             assert len(event.base_stages) == 12
         for scale in (config.jacobian_relative_step, config.jacobian_relative_step/2):
-            jac = central_difference_jacobian(event.map_state, event.state_before, relative_step=scale)
+            jac: np.ndarray = central_difference_jacobian(event.map_state, event.state_before, relative_step=scale)
             rows.append({"method": name, "step": h, "fd_relative_step": scale,
                 "determinant": float(np.linalg.det(jac)),
                 "symplectic_defect": float(np.linalg.norm(jac.T@form@jac-form, ord="fro"))})
@@ -385,6 +391,8 @@ def _validate_energy_bound_grid(
 	t_span: tuple[float, float], steps: tuple[float, ...], horizons: tuple[float, ...],
 ) -> None:
 	"""Require nested integration steps with every energy horizon on each complete-step grid."""
+	start: float
+	stop: float
 	start, stop = t_span
 	if not np.isfinite([start, stop]).all() or stop <= start:
 		raise ValueError("t_span must be finite and increasing.")

@@ -4,7 +4,7 @@ from contracts._study_validation import require_uncoupled_bm4
 
 from formulations.layout import GCStateLayout
 
-from typing import Any
+from typing import Any, TYPE_CHECKING
 from pathlib import Path
 import hashlib
 import json
@@ -15,6 +15,12 @@ import numpy as np
 
 from newton_diagnostics import NewtonHistory
 from study_io import assert_checkpoint_file, ROOT, atomic_json, digest, load_snapshot, utc_now
+
+
+if TYPE_CHECKING:
+	from methods.extended.core.midpoint import MidpointResult
+	from methods.extended.core.records import ProjectedMapResult
+	from potential.potential import Potential
 
 
 class CheckpointTestInterruption(RuntimeError):
@@ -33,6 +39,8 @@ def calculate_checkpointed_group(
     """
     require_uncoupled_bm4(settings.get('coupling_frequency', 0.0))
     from threadpoolctl import threadpool_info, threadpool_limits
+    potential: Potential
+    snapshot: str
     potential, _, snapshot = load_snapshot()
     from dynamics import GuidingCenterDynamics
     import numpy as np
@@ -46,14 +54,16 @@ def calculate_checkpointed_group(
 
     indices = np.asarray(indices, dtype=int)
     xy0 = np.asarray(initial_xy, dtype=float)[indices]
-    initial = GCStateLayout().pack_components(xy0[:, 0], xy0[:, 1])
-    problem = InitialValueProblem(GuidingCenterDynamics(potential, rho=settings['rho']), initial, layout=GCStateLayout())
-    prepared = GCDoubledMaps(problem, coupling_frequency=None)
+    initial: np.ndarray = GCStateLayout().pack_components(xy0[:, 0], xy0[:, 1])
+    problem: InitialValueProblem = InitialValueProblem(GuidingCenterDynamics(potential, rho=settings['rho']), initial, layout=GCStateLayout())
+    prepared: GCDoubledMaps = GCDoubledMaps(problem, coupling_frequency=None)
     implicit = settings['method'] == 'BM4Implicit'
-    solver = SolverOptions('newton', settings['newton_atol'], settings['newton_rtol'],
+    solver: SolverOptions = SolverOptions('newton', settings['newton_atol'], settings['newton_rtol'],
                            settings['newton_max_iterations'])
     particle_ids = np.asarray(settings['particle_ids'])[indices]
     n = settings['n_steps']
+    t0: Any
+    tf: Any
     t0, tf = settings['t_span']
     h = (tf - t0) / n
     assert h == settings['step']
@@ -70,20 +80,22 @@ def calculate_checkpointed_group(
         'observer_sha256': digest(ROOT / 'newton_diagnostics.py'),
         'numpy_version': np.__version__,
     }
-    fingerprint = hashlib.sha256(json.dumps(contract, sort_keys=True).encode()).hexdigest()
+    fingerprint: str = hashlib.sha256(json.dumps(contract, sort_keys=True).encode()).hexdigest()
     parts = []
     completed = 0
-    value = problem.initial_state.copy()
+    value: np.ndarray = problem.initial_state.copy()
     loaded = 0
     with threadpool_limits(limits=1):
-        pools = threadpool_info()
+        pools: Any = threadpool_info()
         assert all(p['num_threads'] == 1 for p in pools)
         if parallel_calculation._START_BARRIER is not None:
             parallel_calculation._START_BARRIER.wait(timeout=180)
-        started_utc = utc_now()
-        started = time.perf_counter()
-        cpu_started = time.process_time()
+        started_utc: str = utc_now()
+        started: float = time.perf_counter()
+        cpu_started: float = time.process_time()
         for marker in sorted(folder.glob('chunk_*.json')):
+            record: dict[str, Any]
+            part: dict[str, np.ndarray]
             record, part = _load_verified_bm4_checkpoint(marker, fingerprint, completed, n, value)
             parts.append(part)
             value = part['states'][:, -1].copy()
@@ -94,20 +106,20 @@ def calculate_checkpointed_group(
             print(f'Worker {indices[0] + 1}: resumed verified step {completed}/{n}', flush=True)
         new_chunks = 0
         while completed < n:
-            end = min(completed + chunk_size, n)
+            end: Any = min(completed + chunk_size, n)
             length = end - completed
-            states = np.empty((len(value), length + 1))
+            states: np.ndarray = np.empty((len(value), length + 1))
             states[:, 0] = value
-            counters = np.empty(length, dtype=np.int64)
-            residuals = np.empty(length)
-            tolerances = np.empty(length)
-            mu = np.empty(length)
-            history = NewtonHistory(length, progress_every=0) if implicit else None
+            counters: np.ndarray = np.empty(length, dtype=np.int64)
+            residuals: np.ndarray = np.empty(length)
+            tolerances: np.ndarray = np.empty(length)
+            mu: np.ndarray = np.empty(length)
+            history: Any | None = NewtonHistory(length, progress_every=0) if implicit else None
             for local, k in enumerate(range(completed, end)):
                 if implicit:
                     threshold = settings['newton_atol'] + settings['newton_rtol'] * max(
                         1.0, float(np.linalg.norm(value, ord=np.inf)))
-                    result = solve_projection(
+                    result: ProjectedMapResult = solve_projection(
                         prepared, BM4, solver, 'reduced_multiplier', t0 + k * h, value, h,
                         jacobian_relative_step=settings['jacobian_relative_step'],
                         jacobian_method='analytic', newton_observer=history)
@@ -119,14 +131,14 @@ def calculate_checkpointed_group(
                     tolerances[local] = threshold
                     mu[local] = np.linalg.norm(result.multiplier, ord=np.inf)
                 else:
-                    midpoint = midpoint_step(prepared, BM4, t0 + k * h, value, h)
+                    midpoint: MidpointResult = midpoint_step(prepared, BM4, t0 + k * h, value, h)
                     value = midpoint.state
                     assert np.isfinite(value).all()
                     states[:, local + 1] = value
                     mu[local] = midpoint.copy_separation_norm
             if implicit:
                 assert history is not None
-                hist = history.arrays()
+                hist: Any = history.arrays()
                 part = {'states': states, 'nonlinear_iterations': counters,
                         'nonlinear_residual_norms': residuals, 'nonlinear_tolerances': tolerances,
                         'projection_multiplier_norms': mu,
@@ -135,7 +147,7 @@ def calculate_checkpointed_group(
             else:
                 part = {'states': states, 'copy_separation_norms': mu}
             file = folder / f'chunk_{end:08d}.npz'
-            temporary = file.with_suffix('.npz.tmp')
+            temporary: Path = file.with_suffix('.npz.tmp')
             with temporary.open('wb') as stream:
                 np.savez_compressed(stream, **part)
                 stream.flush()
@@ -155,15 +167,15 @@ def calculate_checkpointed_group(
             if settings.get('test_stop_after_chunks') == new_chunks:
                 raise CheckpointTestInterruption('Simulated interruption after a durable checkpoint.')
         cpu_seconds = time.process_time() - cpu_started
-        finished = time.perf_counter()
-        finished_utc = utc_now()
+        finished: float = time.perf_counter()
+        finished_utc: str = utc_now()
     states = np.concatenate([parts[0]['states']] + [p['states'][:, 1:] for p in parts[1:]], axis=1)
     history_result = None
     if implicit:
         diagnostics = {k: np.concatenate([p[k] for p in parts]) for k in (
             'nonlinear_iterations', 'nonlinear_residual_norms', 'nonlinear_tolerances', 'projection_multiplier_norms')}
-        bases = np.cumsum([0] + [len(p['history_residuals']) for p in parts[:-1]])
-        offsets = np.concatenate([p['history_offsets'][:-1] + b for p, b in zip(parts, bases)] +
+        bases: np.ndarray = np.cumsum([0] + [len(p['history_residuals']) for p in parts[:-1]])
+        offsets: np.ndarray = np.concatenate([p['history_offsets'][:-1] + b for p, b in zip(parts, bases)] +
                                  [np.array([sum(len(p['history_residuals']) for p in parts)])])
         np.testing.assert_array_equal(np.diff(offsets), diagnostics['nonlinear_iterations'] + 1)
         history_result = {'offsets': offsets,
@@ -171,7 +183,7 @@ def calculate_checkpointed_group(
                           'mu_norms': np.concatenate([p['history_mu_norms'] for p in parts])}
     else:
         diagnostics = {'copy_separation_norms': np.concatenate([p['copy_separation_norms'] for p in parts])}
-    xy = np.stack([states[:len(indices)].T, states[len(indices):].T], axis=-1)
+    xy: np.ndarray = np.stack([states[:len(indices)].T, states[len(indices):].T], axis=-1)
     return {
         'indices': indices, 'times': t0 + np.arange(n + 1) * h, 'xy': xy,
         'newton_history': history_result,
@@ -192,10 +204,10 @@ def _load_verified_bm4_checkpoint(
 	marker: Path, fingerprint: str, completed: int, n: int, value: np.ndarray,
 ) -> tuple[dict[str, Any], dict[str, np.ndarray]]:
 	"""Load one committed BM4 chunk after checking identity, continuity, checksum, and state shape."""
-	record = json.loads(marker.read_text())
+	record: Any = json.loads(marker.read_text())
 	assert record['fingerprint'] == fingerprint, 'Checkpoint parameters/source mismatch.'
 	assert record['start_step'] == completed and completed < record['end_step'] <= n
-	file = marker.with_suffix('.npz')
+	file: Path = marker.with_suffix('.npz')
 	assert_checkpoint_file(file, record, message='Checkpoint checksum mismatch.')
 	with np.load(file, allow_pickle=False) as saved:
 		part = {k: saved[k] for k in saved.files}

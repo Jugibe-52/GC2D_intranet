@@ -11,7 +11,7 @@ from pathlib import Path
 import re
 import tempfile
 from types import MappingProxyType
-from typing import Any, Mapping
+from typing import Any, Mapping, TYPE_CHECKING
 
 import numpy as np
 
@@ -20,8 +20,12 @@ from diagnostics.output import _json_default
 from .paths import find_project_root
 
 
-_REFERENCE_NAME = re.compile(r"^[A-Za-z0-9_-]+$")
-_VERSION = re.compile(r"^v[1-9][0-9]*$")
+if TYPE_CHECKING:
+	from _hashlib import HASH
+
+
+_REFERENCE_NAME: 're.Pattern[str]' = re.compile(r"^[A-Za-z0-9_-]+$")
+_VERSION: 're.Pattern[str]' = re.compile(r"^v[1-9][0-9]*$")
 
 
 @dataclass(frozen=True, slots=True)
@@ -98,6 +102,11 @@ class StoredReferenceTrajectory:
 
 	def __post_init__(self) -> None:
 		"""Own immutable arrays after validating the packed time history."""
+		times: np.ndarray
+		states: np.ndarray
+		initial_state: np.ndarray
+		audit_states: np.ndarray
+		audit_distances: np.ndarray
 		times, states, initial_state, audit_states, audit_distances = _validated_reference_arrays(
 			self.times,
 			self.states,
@@ -150,17 +159,17 @@ def reference_trajectory_output_directory(
 		raise ValueError("`reference_name` must contain only letters, numbers, '_' and '-'.")
 	if not isinstance(version, str) or not _VERSION.fullmatch(version):
 		raise ValueError("`version` must have the form 'v1', 'v2', and so on.")
-	root = (
+	root: Path = (
 		find_project_root(Path.cwd())
 		if project_root is None
 		else Path(project_root).expanduser().resolve()
 	)
-	notebook = Path(notebook_path).expanduser()
+	notebook: Path = Path(notebook_path).expanduser()
 	if not notebook.is_absolute():
 		notebook = root / notebook
 	notebook = notebook.resolve()
 	try:
-		relative = notebook.relative_to(root / "notebooks")
+		relative: Path = notebook.relative_to(root / "notebooks")
 	except ValueError as exc:
 		raise ValueError("The notebook must be located below the project notebooks directory.") from exc
 	if relative.suffix != ".ipynb":
@@ -178,7 +187,7 @@ def _array_digest(
 	audit_array_name: str = "audit_distances",
 ) -> str:
 	"""Hash array names, shapes, dtypes, and values in a stable order."""
-	digest = hashlib.sha256()
+	digest: HASH = hashlib.sha256()
 	for name, value in (
 		("times", times),
 		("states", states),
@@ -186,7 +195,7 @@ def _array_digest(
 		("audit_states", audit_states),
 		(audit_array_name, audit_distances),
 	):
-		array = np.ascontiguousarray(value)
+		array: np.ndarray = np.ascontiguousarray(value)
 		digest.update(name.encode("ascii"))
 		digest.update(str(array.dtype).encode("ascii"))
 		digest.update(json.dumps(array.shape).encode("ascii"))
@@ -219,13 +228,13 @@ def write_reference_trajectory(
 		else audit_periodic_distances
 	)
 	assert selected_audit_distances is not None
-	paths = ReferenceTrajectoryPaths(
+	paths: ReferenceTrajectoryPaths = ReferenceTrajectoryPaths(
 		directory=Path(output_directory),
 		trajectory=Path(output_directory) / "trajectory.npz",
 		metadata=Path(output_directory) / "metadata.json",
 		readme=Path(output_directory) / "README.md",
 	)
-	artifact = StoredReferenceTrajectory(
+	artifact: StoredReferenceTrajectory = StoredReferenceTrajectory(
 		times=times,
 		states=states,
 		initial_state=initial_state,
@@ -274,7 +283,7 @@ def write_reference_trajectory(
 			suffix=".npz",
 			delete=False,
 		) as temporary:
-			temporary_trajectory = Path(temporary.name)
+			temporary_trajectory: Path = Path(temporary.name)
 		temporary_paths.append(temporary_trajectory)
 		np.savez_compressed(
 			temporary_trajectory,
@@ -293,7 +302,7 @@ def write_reference_trajectory(
 			delete=False,
 		) as temporary:
 			temporary.write(serialized_readme)
-			temporary_readme = Path(temporary.name)
+			temporary_readme: Path = Path(temporary.name)
 		temporary_paths.append(temporary_readme)
 		with tempfile.NamedTemporaryFile(
 			mode="w",
@@ -304,7 +313,7 @@ def write_reference_trajectory(
 			delete=False,
 		) as temporary:
 			temporary.write(serialized_metadata)
-			temporary_metadata = Path(temporary.name)
+			temporary_metadata: Path = Path(temporary.name)
 		temporary_paths.append(temporary_metadata)
 
 		os.replace(temporary_trajectory, paths.trajectory)
@@ -320,7 +329,7 @@ def _reference_audit_array_name(metadata: Any) -> str:
 	"""Validate the supported reference schema and resolve its audit-distance key."""
 	if not isinstance(metadata, dict) or metadata.get("schema_version") not in (1, 2):
 		raise ValueError("Unsupported reference metadata schema.")
-	schema_version = int(metadata["schema_version"])
+	schema_version: int = int(metadata["schema_version"])
 	audit_array_name = (
 		"audit_periodic_distances" if schema_version == 1 else "audit_distances"
 	)
@@ -331,8 +340,8 @@ def load_reference_trajectory(
 	output_directory: str | Path,
 ) -> StoredReferenceTrajectory:
 	"""Load a versioned reference and verify its manifest checksum."""
-	directory = Path(output_directory).expanduser().resolve()
-	paths = ReferenceTrajectoryPaths(
+	directory: Path = Path(output_directory).expanduser().resolve()
+	paths: ReferenceTrajectoryPaths = ReferenceTrajectoryPaths(
 		directory=directory,
 		trajectory=directory / "trajectory.npz",
 		metadata=directory / "metadata.json",
@@ -342,8 +351,8 @@ def load_reference_trajectory(
 		if not path.is_file():
 			raise FileNotFoundError(f"Reference artifact file not found: {path}")
 	with paths.metadata.open(encoding="utf-8") as stream:
-		metadata = json.load(stream)
-	audit_array_name = _reference_audit_array_name(metadata)
+		metadata: Any = json.load(stream)
+	audit_array_name: str = _reference_audit_array_name(metadata)
 	with np.load(paths.trajectory, allow_pickle=False) as archive:
 		required = {
 			"times",
@@ -354,13 +363,13 @@ def load_reference_trajectory(
 		}
 		if set(archive.files) != required:
 			raise ValueError("The reference NPZ contains an unexpected array schema.")
-		times = np.asarray(archive["times"], dtype=float)
-		states = np.asarray(archive["states"], dtype=float)
-		initial_state = np.asarray(archive["initial_state"], dtype=float)
-		audit_states = np.asarray(archive["audit_states"], dtype=float)
-		audit_distances = np.asarray(archive[audit_array_name], dtype=float)
-	expected_digest = metadata.get("trajectory_sha256")
-	actual_digest = _array_digest(
+		times: np.ndarray = np.asarray(archive["times"], dtype=float)
+		states: np.ndarray = np.asarray(archive["states"], dtype=float)
+		initial_state: np.ndarray = np.asarray(archive["initial_state"], dtype=float)
+		audit_states: np.ndarray = np.asarray(archive["audit_states"], dtype=float)
+		audit_distances: np.ndarray = np.asarray(archive[audit_array_name], dtype=float)
+	expected_digest: Any = metadata.get("trajectory_sha256")
+	actual_digest: str = _array_digest(
 		times=times,
 		states=states,
 		initial_state=initial_state,

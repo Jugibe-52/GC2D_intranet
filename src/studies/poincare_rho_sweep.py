@@ -38,6 +38,8 @@ from studies.dimensional_h5_midpoint import (
     DimensionalH5Field, load_dimensional_h5_field, resolve_h5_source,
 )
 
+from typing import TYPE_CHECKING
+
 
 @dataclass(frozen=True)
 class RhoStarConfig:
@@ -73,7 +75,7 @@ class RhoStarConfig:
             self.method, self.newton_jacobian_method,
         )
         for name in ("particles", "arms", "cycles", "steps_per_cycle", "newton_max_iterations"):
-            value = getattr(self, name)
+            value: Any = getattr(self, name)
             if isinstance(value, (bool, np.bool_)) or not isinstance(value, (int, np.integer)) or value < 1:
                 raise ValueError(f"{name} must be a positive integer.")
         if self.particles < 2 or self.particles % self.arms:
@@ -103,8 +105,8 @@ class PreparedRhoStar:
 
 def rho_config_from_metadata(metadata: Mapping[str, Any]) -> RhoStarConfig:
     """Restore archived selectors using recorded original HDF5 field indices."""
-    values = dict(metadata["config"])
-    selection = tuple(values.get("source_selection", DEFAULT_FIELD_INDICES))
+    values: dict[Any, Any] = dict(metadata["config"])
+    selection: tuple[Any, ...] = tuple(values.get("source_selection", DEFAULT_FIELD_INDICES))
     if 0 in selection:
         # Old selectors included the constant field and ranked the variable
         # modes. Never reinterpret those ranks as original HDF5 indices.
@@ -123,15 +125,17 @@ def build_rho_star(field: DimensionalH5Field, config: RhoStarConfig, *,
     grid = field.raw.grid
     center = np.asarray((grid.x0, grid.y0)) + grid.period / 2
     cell_radius = grid.period / 2
-    radii = np.linspace(0.0, config.outer_radius_fraction * cell_radius, config.particles)
-    initial = ranked_radial_star(
+    radii: np.ndarray = np.linspace(0.0, config.outer_radius_fraction * cell_radius, config.particles)
+    initial: np.ndarray = ranked_radial_star(
         center=tuple(center), outer_radius=float(radii[-1]), particles=config.particles,
         arms=config.arms, first_angle=config.first_angle,
     )
     assert initial is not None
-    physical_xy = np.column_stack(GCStateLayout().positions(initial))
+    physical_xy: np.ndarray = np.column_stack(GCStateLayout().positions(initial))
     # rho_hat is invariant across representations; the physical radius is meters.
     rho_m = config.rho_hat * config.characteristic_length / (2 * np.pi)
+    stream: Potential
+    runtime_rho: float
     stream, runtime_rho = field.stream, rho_m
     # The historical radial study advances Phi_hat at unit forcing period.
     # In meters this is H_X=(T0/B)*Phi/(2*pi); it changes drift, not forcing time.
@@ -141,12 +145,14 @@ def build_rho_star(field: DimensionalH5Field, config: RhoStarConfig, *,
                            modes=stream.modes * hamiltonian_scale,
                            frequencies=stream.frequencies,
                            interpolation_order=stream.interpolation_order)
+    spatial_scale: float
+    spatial_origin: np.ndarray
     spatial_scale, spatial_origin = 1.0, np.zeros(2)
     normalized = config.spatial_normalization == "characteristic_length"
     if normalized:
         spatial_scale = 2 * np.pi / config.characteristic_length
         spatial_origin = np.asarray((grid.x0, grid.y0))
-        normalized_grid = Grid(0., 0., grid.dx * spatial_scale, grid.dy * spatial_scale,
+        normalized_grid: Grid = Grid(0., 0., grid.dx * spatial_scale, grid.dy * spatial_scale,
                                grid.nx, grid.ny, grid.period * spatial_scale)
         # At unchanged tau=t/T0, q=s*(X-X0) requires H_q=s^2*H_X:
         # J grad_q(H_q) = s J grad_X(H_X). Rescaling coordinates alone is wrong.
@@ -157,11 +163,13 @@ def build_rho_star(field: DimensionalH5Field, config: RhoStarConfig, *,
         xy = (physical_xy - spatial_origin) * spatial_scale
         initial = GCStateLayout().pack_components(xy[:, 0], xy[:, 1])
         runtime_rho = config.rho_hat
-    problem = InitialValueProblem(GuidingCenterDynamics(stream, rho=runtime_rho), initial, layout=GCStateLayout())
-    request = SimulationRequest(
+    problem: InitialValueProblem = InitialValueProblem(GuidingCenterDynamics(stream, rho=runtime_rho), initial, layout=GCStateLayout())
+    request: SimulationRequest = SimulationRequest(
         t_span=(0.0, float(config.cycles)), max_step=1.0 / config.steps_per_cycle,
         output_times=np.arange(config.cycles + 1, dtype=float),
     )
+    x: np.ndarray
+    y: np.ndarray
     x, y = GCStateLayout().positions(problem.initial_state)
     metadata = {
         "study": ("poincare_bm4midpoint_ranked_star_rho_sweep" if config.method == "BM4Midpoint"
@@ -200,10 +208,10 @@ def build_rho_star(field: DimensionalH5Field, config: RhoStarConfig, *,
 
 def prepare_rho_star(source: str | Path, config: RhoStarConfig) -> PreparedRhoStar:
     """Load verified HDF5 samples in physical units without spatial resampling."""
-    resolved = resolve_h5_source(source)
+    resolved: Path = resolve_h5_source(source)
     with resolved.open("rb") as stream:
-        digest = file_digest(stream, "sha256").hexdigest()
-    field = load_dimensional_h5_field(
+        digest: str = file_digest(stream, "sha256").hexdigest()
+    field: DimensionalH5Field = load_dimensional_h5_field(
         resolved, magnetic_field=config.magnetic_field,
         characteristic_length=config.characteristic_length,
         selectors=config.source_selection, interpolation_order=config.interpolation_order,
@@ -222,18 +230,25 @@ def sample_rho_dynamics(prepared: PreparedRhoStar, *, grid_size: int = 64,
     for value in (grid_size, vector_grid_size, phase_steps):
         if isinstance(value, bool) or not isinstance(value, int) or value < 2:
             raise ValueError('Field sampling sizes must be integers of at least two.')
+    x0: Any
+    y0: Any
+    length: Any
     x0, y0, length = prepared.metadata['cell_bounds']
-    phases = np.linspace(0., 1., phase_steps + 1)
+    phases: np.ndarray = np.linspace(0., 1., phase_steps + 1)
     # Cell-centred grids avoid duplicate spatial endpoints in the heatmap.
     q = (np.arange(grid_size) + .5) / grid_size
+    xx: np.ndarray
+    yy: np.ndarray
     xx, yy = np.meshgrid(x0 + length*q, y0 + length*q)
     vq = (np.arange(vector_grid_size) + .5) / vector_grid_size
+    vx: np.ndarray
+    vy: np.ndarray
     vx, vy = np.meshgrid(x0 + length*vq, y0 + length*vq)
-    state = np.concatenate((vx.ravel(), vy.ravel()))
+    state: np.ndarray = np.concatenate((vx.ravel(), vy.ravel()))
     dynamics = prepared.problem.dynamics
     assert isinstance(dynamics, GuidingCenterDynamics)
-    potential = np.stack([dynamics.effective_potential.evaluate(t, xx, yy) for t in phases])
-    velocity = np.stack([dynamics.vector_field(t, state).reshape(2, vector_grid_size, vector_grid_size)
+    potential: np.ndarray = np.stack([dynamics.effective_potential.evaluate(t, xx, yy) for t in phases])
+    velocity: np.ndarray = np.stack([dynamics.vector_field(t, state).reshape(2, vector_grid_size, vector_grid_size)
                          .transpose(1, 2, 0) for t in phases])
     for values in (potential, velocity):
         if not np.isfinite(values).all():
@@ -329,11 +344,13 @@ def folded_rho_positions(solution: States, metadata: dict[str, Any]) -> tuple[np
     Folding is postprocessing only; the integrated states remain unwrapped.
     Cell fractions measure displacement from the lower corner, divided by L.
     """
-    cell = np.asarray(metadata.get("cell_bounds", metadata["cell_bounds_m"]), dtype=float)
+    cell: np.ndarray = np.asarray(metadata.get("cell_bounds", metadata["cell_bounds_m"]), dtype=float)
     if cell.shape != (3,) or not np.isfinite(cell).all() or cell[2] <= 0:
         raise ValueError("Cell bounds must describe a finite positive square.")
+    x: np.ndarray
+    y: np.ndarray
     x, y = solution.positions()
-    xy = np.stack((x.T, y.T), axis=-1)
+    xy: np.ndarray = np.stack((x.T, y.T), axis=-1)
     if not np.isfinite(xy).all():
         raise ValueError("Cycle positions must be finite before periodic folding.")
     offsets = (xy - cell[:2]) % cell[2]
@@ -343,8 +360,8 @@ def folded_rho_positions(solution: States, metadata: dict[str, Any]) -> tuple[np
 def run_rho_star(prepared: PreparedRhoStar, *, executor: Execution,
                  options: ExecutionOptions, save_folded_returns: bool = False) -> StoredSolution:
     """Integrate once and retain cycle states, optionally with folded copies."""
-    started = perf_counter()
-    solution = simulate(
+    started: float = perf_counter()
+    solution: States = simulate(
         prepared.problem, _rho_star_method(prepared.config),
         prepared.request, execution=executor, options=options,
     )
@@ -356,6 +373,8 @@ def run_rho_star(prepared: PreparedRhoStar, *, executor: Execution,
         if not isinstance(value, np.ndarray)
     }
     if save_folded_returns:
+        wrapped: np.ndarray
+        fractions: np.ndarray
         wrapped, fractions = folded_rho_positions(solution, prepared.metadata)
         diagnostics.update(cycle_positions_wrapped=wrapped, cycle_positions_cell_fraction=fractions)
     solution = States(layout=solution.layout, t=solution.t, states=solution.states, initial_state=solution.initial_state, diagnostics=diagnostics)
@@ -380,16 +399,16 @@ def run_and_save_rho_star(prepared: PreparedRhoStar, destination: str | Path, *,
                           save_folded_returns: bool = False) -> StoredSolution:
     """Reuse a matching archive or run once, optionally saving folded returns."""
     if ArtifactStore(destination).exists("manifest.json"):
-        stored = load_solution(destination)
+        stored: StoredSolution = load_solution(destination)
         # JSON arrays replace config tuples when reading a saved archive.
-        expected = dict(asdict(prepared.config))
+        expected: dict[str, Any] = dict(asdict(prepared.config))
         expected["source_selection"] = list(expected["source_selection"])
-        actual = dict(stored.metadata.get("config", {}))
+        actual: dict[Any, Any] = dict(stored.metadata.get("config", {}))
         if 0 in actual.get("source_selection", ()):
             actual["source_selection"] = list(rho_config_from_metadata(stored.metadata).source_selection)
         actual.setdefault("spatial_normalization", "none")
         actual.setdefault("hamiltonian_convention", "cycle_time")
-        defaults = asdict(RhoStarConfig(rho_hat=0.0))
+        defaults: dict[str, Any] = asdict(RhoStarConfig(rho_hat=0.0))
         for key in ("method", "newton_absolute_tolerance", "newton_relative_tolerance",
                     "newton_max_iterations", "newton_jacobian_relative_step", "newton_jacobian_method"):
             actual.setdefault(key, defaults[key])
@@ -400,10 +419,12 @@ def run_and_save_rho_star(prepared: PreparedRhoStar, destination: str | Path, *,
             raise ValueError("The completed destination belongs to different scientific inputs.")
         validate_rho_solution(stored.solution, prepared, options=options)
         if save_folded_returns:
+            wrapped: np.ndarray
+            fractions: np.ndarray
             wrapped, fractions = folded_rho_positions(stored.solution, stored.metadata)
             for name, expected_array in (("cycle_positions_wrapped", wrapped),
                                          ("cycle_positions_cell_fraction", fractions)):
-                actual_array = stored.solution.diagnostics.get(name)
+                actual_array: np.ndarray | float | int | str | None = stored.solution.diagnostics.get(name)
                 if not isinstance(actual_array, np.ndarray) or not np.array_equal(actual_array, expected_array):
                     raise ValueError("The completed archive has missing or inconsistent folded returns.")
         return stored
@@ -417,7 +438,7 @@ def modal_rho_executor(record_directory: str | Path, *,
                        app_name: str = "gc2d-poincare-rho-sweep",
                        resume_record: str | Path | None = None) -> Execution_Modal:
     """Resume an existing confirmed job instead of duplicating a long calculation."""
-    directory = Path(record_directory)
+    directory: Path = Path(record_directory)
     if resume_record is not None:
         return Execution_Modal.from_record(resume_record)
     records = [(path, json.loads(path.read_text())) for path in sorted(directory.glob('*.json'))]
@@ -425,6 +446,8 @@ def modal_rho_executor(record_directory: str | Path, *,
         call_ids = {record.get('call_id') for _, record in records}
         if None in call_ids or len(call_ids) != 1:
             raise ValueError('Inspect existing Modal receipts and select resume_record explicitly before continuing.')
+        path: Path
+        record: Any
         path, record = records[-1]
         if record['app_name'] != app_name or record['function_name'] != 'integrate':
             raise ValueError('The existing receipt belongs to another Modal worker.')

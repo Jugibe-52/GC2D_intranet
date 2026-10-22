@@ -30,7 +30,7 @@ def case_key(config: AutomationConfig, case: AutomationCase) -> str:
 
 def _write_json(path: Path, record: Any) -> None:
 	"""Publish a whole JSON record atomically in its destination directory."""
-	temporary = path.with_name(path.name + ".tmp")
+	temporary: Path = path.with_name(path.name + ".tmp")
 	temporary.write_text(json.dumps(record, indent=2, sort_keys=True, allow_nan=False) + "\n")
 	temporary.replace(path)
 
@@ -53,12 +53,12 @@ def prepare_automation(config: AutomationConfig, project_root: Path,
 		destination: Path | None = None) -> Path:
 	"""Save resolved cases without opening the source or running any integrator."""
 	require_uncoupled_bm4(config.coupling_frequency)
-	root = project_root.resolve()
+	root: Path = project_root.resolve()
 	if destination is None:
-		stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+		stamp: str = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
 		destination = root / "notebooks/developements/poincare_section" / f"automation-{stamp}-{uuid4().hex[:8]}"
-	directory = destination.expanduser().resolve()
-	expected = dict(schema_version=1, particle_set=PARTICLE_SET,
+	directory: Path = destination.expanduser().resolve()
+	expected: dict[str, object] = dict(schema_version=1, particle_set=PARTICLE_SET,
 		project_root=str(root), configuration=config.to_dict())
 	if directory.exists():
 		if not (directory / "configuration.json").is_file():
@@ -77,11 +77,11 @@ def prepare_automation(config: AutomationConfig, project_root: Path,
 
 def read_automation(directory: Path) -> tuple[AutomationConfig, Path, dict[str, Any]]:
 	"""Read without creating files; reject altered case inventories and unsafe records."""
-	record = json.loads((directory / "configuration.json").read_text())
+	record: Any = json.loads((directory / "configuration.json").read_text())
 	if record.get("schema_version") != 1 or record.get("particle_set") != PARTICLE_SET:
 		raise ValueError("Unsupported automation configuration.")
-	config = AutomationConfig(**record["configuration"])
-	manifest = json.loads((directory / "cases.json").read_text())
+	config: AutomationConfig = AutomationConfig(**record["configuration"])
+	manifest: Any = json.loads((directory / "cases.json").read_text())
 	if manifest.get("schema_version") != 1:
 		raise ValueError("Unsupported automation manifest.")
 	expected = {case_key(config, c): asdict(c) for c in config.cases()}
@@ -95,7 +95,7 @@ def read_automation(directory: Path) -> tuple[AutomationConfig, Path, dict[str, 
 
 def verified_automation_field(config: AutomationConfig, root: Path,
 		manifest: dict[str, Any]) -> AutomationField:
-	field = load_automation_field(config, root)
+	field: AutomationField = load_automation_field(config, root)
 	if manifest.get("source_sha256") not in (None, field.source_sha256):
 		raise ValueError("The source file changed since this study started; choose a new study.")
 	return field
@@ -106,8 +106,8 @@ def _archive_path(directory: Path, key: str, prepared: PreparedAutomationCase) -
 
 
 def load_completed_case(directory: Path, prepared: PreparedAutomationCase) -> StoredSolution:
-	path = _archive_path(directory, case_key(prepared.config, prepared.case), prepared)
-	stored = load_solution(path)
+	path: Path = _archive_path(directory, case_key(prepared.config, prepared.case), prepared)
+	stored: StoredSolution = load_solution(path)
 	validate_saved_automation(stored, prepared)
 	return stored
 
@@ -119,18 +119,21 @@ def run_automation(directory: Path, *, execution: Execution | None = None) -> di
 	line uses local execution only; it never provisions or silently falls back.
 	"""
 	with _run_lock(directory):
+		config: AutomationConfig
+		root: Path
+		manifest: dict[str, Any]
 		config, root, manifest = read_automation(directory)
 		require_uncoupled_bm4(config.coupling_frequency)
 		with automation_execution_context(config, execution):
 			pass  # Resolve local optional backend/device before loading fields or submitting cases.
-		field = verified_automation_field(config, root, manifest)
+		field: AutomationField = verified_automation_field(config, root, manifest)
 		manifest["source_sha256"] = field.source_sha256
 		_write_json(directory / "cases.json", manifest)
 		for case in config.cases():
-			key = case_key(config, case)
+			key: str = case_key(config, case)
 			record = manifest["cases"][key]
-			prepared = prepare_automation_case(config, case, field)
-			path = _archive_path(directory, key, prepared)
+			prepared: PreparedAutomationCase = prepare_automation_case(config, case, field)
+			path: Path = _archive_path(directory, key, prepared)
 			print(f"{case.method}: rho={case.rho:g}, B={case.B:g}", flush=True)
 			try:
 				if (path / "manifest.json").is_file():
@@ -144,7 +147,7 @@ def run_automation(directory: Path, *, execution: Execution | None = None) -> di
 						path.rename(path.with_name(path.name + ".incomplete-" + uuid4().hex[:8]))
 					record.update(status="running", error="")
 					_write_json(directory / "cases.json", manifest)
-					stored = run_automation_case(prepared, execution=execution)
+					stored: StoredSolution = run_automation_case(prepared, execution=execution)
 					save_solution(stored.solution, path, metadata=stored.metadata)
 					load_completed_case(directory, prepared)
 					record.update(status="complete", error="")

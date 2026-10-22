@@ -23,7 +23,7 @@ def validate_gap_probe_overlay(
         raise ValueError('Gap probes must cover exactly the available background rho values.')
     seeds = expected_seeds
     for rho, background in runs.items():
-        current = validate_saved_gap_probes(probe_runs[rho], background=background)
+        current: GapProbeSeeds = validate_saved_gap_probes(probe_runs[rho], background=background)
         if seeds is None:
             seeds = current
         if current != seeds:
@@ -36,7 +36,7 @@ def validate_gap_probe_overlay(
 
 def gap_probe_presentation(seeds: GapProbeSeeds) -> dict:
     """Assign stable labels, colors and region groups to the eight added probes."""
-    ids = np.asarray(seeds.particle_ids, dtype=int)
+    ids: np.ndarray = np.asarray(seeds.particle_ids, dtype=int)
     if len(ids) != len(_PROBE_COLORS):
         raise ValueError('The gap overlay requires eight explicit probe particles.')
     groups = [dict(label='All gap probes', particle_ids=ids)]
@@ -58,8 +58,11 @@ def append_gap_probe_coordinates(
 ) -> np.ndarray:
     """Join particle axes of aligned viewer arrays in the requested coordinates."""
     if fold_to_cell:
+        xy: np.ndarray
         _, xy = folded_rho_positions(probes.solution, probes.metadata)
     else:
+        x: np.ndarray
+        y: np.ndarray
         x, y = probes.solution.positions()
         xy = np.stack((x.T, y.T), axis=-1)
     return np.concatenate((coordinates, xy), axis=1)

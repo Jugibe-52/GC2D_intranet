@@ -4,7 +4,7 @@ from __future__ import annotations
 from solvers.nonlinear import NewtonSolver, AlgebraicSolver, validate_solver
 
 from dataclasses import dataclass, field
-from typing import Literal, TypeAlias
+from typing import Literal, TYPE_CHECKING, TypeAlias
 
 import numpy as np
 
@@ -19,21 +19,28 @@ from request import SimulationRequest
 from methods._validation import _positive_finite, _positive_integer
 
 
+if TYPE_CHECKING:
+	from solvers.nonlinear import _NonlinearResult
+	from typing import Any
+
+
 HBVMJacobianMethod: TypeAlias = Literal["auto", "analytic", "finite_difference"]
 
 # Four-point Gauss--Legendre quadrature on [0, 1].  HBVM(4,2) uses the first
 # two orthonormal shifted Legendre polynomials; the resulting Runge--Kutta
 # matrix has rank two even though four quadrature stages sample the line integral.
+_GAUSS_NODES: 'np.ndarray'
+_GAUSS_WEIGHTS: 'np.ndarray'
 _GAUSS_NODES, _GAUSS_WEIGHTS = np.polynomial.legendre.leggauss(4)
-_HBVM42_NODES = np.asarray((_GAUSS_NODES + 1.0) / 2.0, dtype=float)
-_HBVM42_WEIGHTS = np.asarray(_GAUSS_WEIGHTS / 2.0, dtype=float)
-_HBVM42_LEGENDRE = np.column_stack(
+_HBVM42_NODES: 'np.ndarray' = np.asarray((_GAUSS_NODES + 1.0) / 2.0, dtype=float)
+_HBVM42_WEIGHTS: 'np.ndarray' = np.asarray(_GAUSS_WEIGHTS / 2.0, dtype=float)
+_HBVM42_LEGENDRE: 'np.ndarray' = np.column_stack(
 	(
 		np.ones(4, dtype=float),
 		np.sqrt(3.0) * (2.0 * _HBVM42_NODES - 1.0),
 	)
 )
-_HBVM42_INTEGRALS = np.column_stack(
+_HBVM42_INTEGRALS: 'np.ndarray' = np.column_stack(
 	(
 		_HBVM42_NODES,
 		np.sqrt(3.0) * (_HBVM42_NODES**2 - _HBVM42_NODES),
@@ -98,7 +105,7 @@ def _resolved_jacobian_method(
 	requested: HBVMJacobianMethod,
 ) -> HBVMJacobianMethod:
 	"""Resolve HBVM's capability-based strategy without probing field Jacobians."""
-	selected = requested
+	selected: HBVMJacobianMethod = requested
 	if selected == "auto":
 		selected = (
 			"analytic"
@@ -119,10 +126,10 @@ def _evaluate_vector_field(
 	counter: _EvaluationCounter,
 ) -> np.ndarray:
 	"""Evaluate one shape-preserving finite vector field and update its counter."""
-	evaluate = getattr(dynamics, "vector_field", None)
+	evaluate: Any | None = getattr(dynamics, "vector_field", None)
 	if not callable(evaluate):
 		raise TypeError("HBVM42 requires dynamics with a callable vector field.")
-	value = np.asarray(evaluate(time, state), dtype=float)
+	value: np.ndarray = np.asarray(evaluate(time, state), dtype=float)
 	counter.vector_field_evaluations += 1
 	if value.shape != state.shape or not np.all(np.isfinite(value)):
 		raise ValueError(
@@ -139,13 +146,13 @@ def _complete_particle_jacobian(
 	if state_size % 2:
 		raise ValueError("Analytic HBVM Jacobians require an even physical state size.")
 	particle_count = state_size // 2
-	blocks = np.asarray(particle_blocks, dtype=float)
+	blocks: np.ndarray = np.asarray(particle_blocks, dtype=float)
 	if blocks.shape != (particle_count, 2, 2) or not np.all(np.isfinite(blocks)):
 		raise ValueError(
 			"Particle vector-field Jacobians must have shape (particle_count, 2, 2)."
 		)
-	result = np.zeros((state_size, state_size), dtype=float)
-	particles = np.arange(particle_count)
+	result: np.ndarray = np.zeros((state_size, state_size), dtype=float)
+	particles: np.ndarray = np.arange(particle_count)
 	x_indices = particles
 	y_indices = particle_count + particles
 	result[x_indices, x_indices] = blocks[:, 0, 0]
@@ -182,11 +189,11 @@ def _finite_difference_stage_jacobians(
 	jacobians: list[np.ndarray] = []
 	for time, stage in zip(times, stages, strict=True):
 		state_size = stage.size
-		jacobian = np.empty((state_size, state_size), dtype=float)
+		jacobian: np.ndarray = np.empty((state_size, state_size), dtype=float)
 		for column in range(state_size):
 			increment = relative_step * max(1.0, abs(float(stage[column])))
-			plus = stage.copy()
-			minus = stage.copy()
+			plus: Any = stage.copy()
+			minus: Any = stage.copy()
 			plus[column] += increment
 			minus[column] -= increment
 			jacobian[:, column] = (
@@ -203,12 +210,12 @@ def _reduced_residual_jacobian(
 ) -> np.ndarray:
 	"""Assemble the two-by-two block Jacobian of the Legendre residual."""
 	state_size = stage_jacobians[0].shape[0]
-	identity = np.eye(state_size)
+	identity: np.ndarray = np.eye(state_size)
 	blocks: list[list[np.ndarray]] = []
 	for legendre_index in range(2):
 		row: list[np.ndarray] = []
 		for integral_index in range(2):
-			weighted = sum(
+			weighted: Any = sum(
 				_HBVM42_WEIGHTS[stage_index]
 				* _HBVM42_LEGENDRE[stage_index, legendre_index]
 				* _HBVM42_INTEGRALS[stage_index, integral_index]
@@ -237,19 +244,19 @@ def _advance_hbvm42(
 	solver: NewtonSolver | None = None,
 ) -> _HBVMStepResult:
 	"""Solve the two-coefficient HBVM(4,2) equation for one complete step."""
-	initial_state = np.asarray(state, dtype=float)
+	initial_state: np.ndarray = np.asarray(state, dtype=float)
 	state_size = initial_state.size
-	counter = _EvaluationCounter()
+	counter: _EvaluationCounter = _EvaluationCounter()
 	stage_times = time + step * _HBVM42_NODES
 
 	# A first-order stage predictor supplies a substantially better Legendre
 	# initial guess than (f(y_n), 0) while retaining a small fixed setup cost.
-	initial_field = _evaluate_vector_field(dynamics, time, initial_state, counter)
+	initial_field: np.ndarray = _evaluate_vector_field(dynamics, time, initial_state, counter)
 	predicted_stages = initial_state + step * np.outer(
 		_HBVM42_NODES,
 		initial_field,
 	)
-	predicted_fields = np.stack(
+	predicted_fields: np.ndarray = np.stack(
 		[
 			_evaluate_vector_field(dynamics, float(stage_time), stage, counter)
 			for stage_time, stage in zip(
@@ -276,7 +283,7 @@ def _advance_hbvm42(
 		"""Evaluate the rank-two HBVM stage equation."""
 		nonlocal residual_evaluations
 		stages = initial_state + step * (_HBVM42_INTEGRALS @ candidate)
-		fields = np.stack(
+		fields: np.ndarray = np.stack(
 			[
 				_evaluate_vector_field(dynamics, float(stage_time), stage, counter)
 				for stage_time, stage in zip(stage_times, stages, strict=True)
@@ -290,19 +297,21 @@ def _advance_hbvm42(
 		return candidate - projected, _ResidualPayload(stages, fields, projected)
 
 	def evaluate_flat(candidate: np.ndarray) -> tuple[np.ndarray, _ResidualPayload]:
+		value: np.ndarray
+		data: _ResidualPayload
 		value, data = residual(candidate.reshape(2, state_size))
 		return value.reshape(-1), data
 
 	# Preserve the established capability-check boundary after the first residual.
-	cached = evaluate_flat(coefficients.reshape(-1))
-	selected_jacobian_method = _resolved_jacobian_method(dynamics, jacobian_method)
+	cached: tuple[np.ndarray, _ResidualPayload] = evaluate_flat(coefficients.reshape(-1))
+	selected_jacobian_method: Literal['auto'] | Literal['analytic'] | Literal['finite_difference'] = _resolved_jacobian_method(dynamics, jacobian_method)
 
 	def correction(unknown: np.ndarray, current_residual: np.ndarray, payload: _ResidualPayload) -> np.ndarray:
 		"""Keep HBVM's stage Jacobian and field counters beside its equations."""
 		nonlocal jacobian_evaluations
 		if selected_jacobian_method == "analytic":
 			assert isinstance(dynamics, GuidingCenterJacobianSystem)
-			stage_jacobians = _analytic_stage_jacobians(
+			stage_jacobians: tuple[np.ndarray, ...] = _analytic_stage_jacobians(
 				dynamics,
 				stage_times,
 				payload.stages,
@@ -316,9 +325,9 @@ def _advance_hbvm42(
 				counter=counter,
 			)
 		jacobian_evaluations += 1
-		jacobian = _reduced_residual_jacobian(stage_jacobians, step)
+		jacobian: np.ndarray = _reduced_residual_jacobian(stage_jacobians, step)
 		try:
-			correction = np.linalg.solve(
+			correction: np.ndarray = np.linalg.solve(
 				jacobian,
 				-current_residual,
 			)
@@ -330,7 +339,7 @@ def _advance_hbvm42(
 		return np.asarray(correction)
 
 	selected_solver = solver or NewtonSolver(absolute_tolerance, relative_tolerance, max_iterations)
-	root = selected_solver.solve(evaluate_flat, coefficients.reshape(-1), correction,
+	root: _NonlinearResult[_ResidualPayload] = selected_solver.solve(evaluate_flat, coefficients.reshape(-1), correction,
 		scale=initial_state, context=f"HBVM42 at t={time:.8g}",
 		initial_evaluation=cached,
 		norm=lambda r: float(np.linalg.norm(r.reshape(2, state_size), ord=np.inf)),
@@ -401,7 +410,7 @@ class HBVM42(IntegrationMethod[_HBVMStepResult]):
 	def advance(self, time: float, state: np.ndarray, step: float) -> StepResult[_HBVMStepResult]:
 		"""Return one accepted coefficient solve and its local work counters."""
 		assert self.solver is None or isinstance(self.solver, NewtonSolver)
-		result = _advance_hbvm42(
+		result: _HBVMStepResult = _advance_hbvm42(
 			self.problem.dynamics,
 			time,
 			self.state_formulation.physical(state),
@@ -416,7 +425,7 @@ class HBVM42(IntegrationMethod[_HBVMStepResult]):
 		if self.track_energy:
 			increment = step * sum(weight * self.state_formulation.momentum_rate(time + step * node, stage)
 			    for node, weight, stage in zip(_HBVM42_NODES, _HBVM42_WEIGHTS, result.stage_states))
-		after = self.state_formulation.finish(state, result.state, time + step, increment)
+		after: np.ndarray = self.state_formulation.finish(state, result.state, time + step, increment)
 		return StepResult(after, {
 			'nonlinear_iterations': result.iterations,
 			'nonlinear_residual_norms': result.residual_norm,
@@ -429,7 +438,7 @@ class HBVM42(IntegrationMethod[_HBVMStepResult]):
 
 	def build_observation(self, info: StepInfo, result: StepResult[_HBVMStepResult]) -> IntegrationStep:
 		def map_state(candidate: np.ndarray) -> np.ndarray:
-			internal = self.state_formulation.pack(candidate, info.time, self.state_formulation.momentum(info.state_before))
+			internal: np.ndarray = self.state_formulation.pack(candidate, info.time, self.state_formulation.momentum(info.state_before))
 			return self.state_formulation.physical(self.advance(info.time, internal, info.duration).state)
 		return IntegrationStep(
 			dynamics_name=type(self.problem.dynamics).__name__, method_name=type(self).__name__,

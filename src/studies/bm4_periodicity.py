@@ -3,6 +3,11 @@
 import numpy as np
 from contracts.study_results import ParallelBM4RecurrenceResult
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from typing import Any
+
 
 def periodicity_records(result: ParallelBM4RecurrenceResult, *, period: float) -> tuple[list[dict[str, float]], list[dict[str, float]]]:
     """Measure initial returns and shifted-trajectory agreement at integer lags.
@@ -15,7 +20,9 @@ def periodicity_records(result: ParallelBM4RecurrenceResult, *, period: float) -
     samples = result.config.saved_samples_per_cycle
     states = result.positions[0]  # (2, samples), dimensionless x and y.
     delta = (states - states[:, :1] + period / 2) % period - period / 2
-    distances = np.linalg.norm(delta, axis=0)
+    distances: np.ndarray = np.linalg.norm(delta, axis=0)
+    returns: list[dict[str, float]]
+    lags: list[dict[str, float]]
     returns, lags = [], []
     for cycle in range(1, result.config.cycle_count + 1):
         index = cycle * samples
@@ -24,7 +31,7 @@ def periodicity_records(result: ParallelBM4RecurrenceResult, *, period: float) -
                             dx=float(delta[0, index]), dy=float(delta[1, index])))
         if index < states.shape[1] - 1:
             difference = (states[:, index:] - states[:, :-index] + period / 2) % period - period / 2
-            errors = np.linalg.norm(difference, axis=0)
+            errors: np.ndarray = np.linalg.norm(difference, axis=0)
             lags.append(dict(cycle=cycle, overlap_cycles=result.config.cycle_count - cycle,
                              pairs=int(errors.size), rms=float(np.sqrt(np.mean(errors**2))),
                              maximum=float(np.max(errors)), maximum_fraction=float(np.max(errors) / period)))

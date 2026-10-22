@@ -18,15 +18,15 @@ def particle_jacobians(maps: GCDoubledMaps, trace: CompositionTrace) -> np.ndarr
     if not isinstance(dynamics, GuidingCenterJacobianSystem):
         raise TypeError("Analytic composition Jacobians require planar GC Jacobians.")
     count = maps.particle_count
-    identity = np.broadcast_to(np.eye(4), (count, 4, 4))
-    total = identity.copy()
+    identity: np.ndarray = np.broadcast_to(np.eye(4), (count, 4, 4))
+    total: np.ndarray = identity.copy()
     for stage in trace.operations:
         if stage.operation == 'T':
             continue
         if stage.operation == 'C':
             if maps.coupling_frequency is None:
                 raise ValueError('A C tangent requires a configured coupling rate.')
-            factor = gc_coupling_matrix(stage.duration, maps.coupling_frequency)
+            factor: np.ndarray = gc_coupling_matrix(stage.duration, maps.coupling_frequency)
         else:
             if stage.source is None:
                 raise ValueError('A spatial shear must retain its source for differentiation.')
@@ -44,8 +44,10 @@ def particle_jacobians(maps: GCDoubledMaps, trace: CompositionTrace) -> np.ndarr
 
 def packed_jacobian(blocks: np.ndarray) -> np.ndarray:
     """Embed independent particle blocks in the global component-major layout."""
+    count: int
+    dimension: int
     count, dimension, _ = blocks.shape
-    result = np.zeros((dimension * count, dimension * count))
+    result: np.ndarray = np.zeros((dimension * count, dimension * count))
     for particle in range(count):
         indices = particle + count * np.arange(dimension)
         result[np.ix_(indices, indices)] = blocks[particle]
@@ -56,12 +58,14 @@ def central_difference_jacobian(
     map_state: Callable[[np.ndarray], np.ndarray], state: np.ndarray, *, relative_step: float,
 ) -> np.ndarray:
     """Differentiate the complete map with scale-aware centered differences."""
-    value = np.asarray(state, dtype=float)
-    result = np.empty((value.size, value.size))
+    value: np.ndarray = np.asarray(state, dtype=float)
+    result: np.ndarray = np.empty((value.size, value.size))
     for column in range(value.size):
         delta = relative_step * max(1, abs(float(value[column])))
-        perturbation = np.zeros_like(value)
+        perturbation: np.ndarray = np.zeros_like(value)
         perturbation[column] = delta
+        forward: np.ndarray
+        backward: np.ndarray
         forward, backward = map_state(value + perturbation), map_state(value - perturbation)
         if forward.shape != value.shape or backward.shape != value.shape:
             raise ValueError("The differentiated map changed the state shape.")
@@ -77,7 +81,7 @@ def _checked_vector_field_jacobian(
 	state: np.ndarray,
 ) -> np.ndarray:
 	"""Evaluate batched exact GC Jacobians with one matrix per particle."""
-	result = np.asarray(
+	result: np.ndarray = np.asarray(
 		dynamics.particle_vector_field_jacobians(t, state),
 		dtype=float,
 	)

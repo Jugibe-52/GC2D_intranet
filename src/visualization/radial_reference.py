@@ -4,8 +4,13 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
 from typing import TYPE_CHECKING
+
+
 if TYPE_CHECKING:
     from IPython.display import HTML
+    from matplotlib.axes import Axes
+    from typing import Any
+
 
 from diagnostics import StoredReferenceTrajectory
 from potential import Potential
@@ -19,6 +24,8 @@ def plot_reference_discrepancy_until(
     if not np.isfinite(end_time) or end_time <= reference.times[0]:
         raise ValueError("End time must be finite and greater than the initial time.")
     selected = reference.times <= end_time
+    figure: Figure
+    axis: Axes
     figure, axis = plt.subplots(figsize=(9, 4), constrained_layout=True)
     for i, distances in enumerate(reference.audit_distances):
         axis.plot(reference.times[selected], distances[selected], label=f"Particle {i + 1}")
@@ -40,7 +47,11 @@ def plot_radial_reference_audit(
     if center is None:
         center = np.asarray(reference.metadata["initial_conditions"]["center"])
     count = reference.initial_state.size // 2
+    x: Any
+    y: Any
     x, y = reference.initial_state.reshape(2, count)
+    figure: Figure
+    axes: np.ndarray
     figure, axes = plt.subplots(1, 2, figsize=(12, 4), constrained_layout=True)
     axes[0].plot([center[0], x[-1]], [center[1], y[-1]], "k--", alpha=0.4)
     axes[0].scatter(*center, marker="+", color="black", label="Cell center")
@@ -50,6 +61,9 @@ def plot_radial_reference_audit(
         axes[1].plot(reference.times, reference.audit_distances[i], label=f"Particle {i + 1}")
     if potential is None:
         grid = reference.metadata["potential_grid"]
+        xmin: Any
+        ymin: Any
+        period: Any
         xmin, ymin, period = grid["xmin"], grid["ymin"], grid["period"]
     else:
         grid = potential.grid
@@ -85,13 +99,13 @@ def animate_radial_reference(
         raise ValueError("Frames must be an integer of at least two.")
     if not np.isfinite(fps) or fps <= 0:
         raise ValueError("FPS must be finite and positive.")
-    indices = np.unique(np.linspace(0, reference.times.size - 1,
+    indices: np.ndarray = np.unique(np.linspace(0, reference.times.size - 1,
                                     min(frames, reference.times.size), dtype=int))
     count = reference.initial_state.size // 2
     # Packed histories contain all x coordinates followed by all y coordinates.
-    histories = np.stack([reference.states, reference.audit_states])
+    histories: np.ndarray = np.stack([reference.states, reference.audit_states])
     histories = histories.reshape(2, 2, count, -1)[..., indices]
-    payload = json.dumps(dict(times=reference.times[indices].tolist(),
+    payload: str = json.dumps(dict(times=reference.times[indices].tolist(),
                               states=histories.tolist(), count=count, fps=float(fps)))
     template = r'''
 <div id="__ID__" style="max-width:850px;font-family:sans-serif">

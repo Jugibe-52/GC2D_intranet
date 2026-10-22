@@ -3,7 +3,7 @@
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, replace
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Mapping, TYPE_CHECKING
 
 import numpy as np
 
@@ -21,6 +21,11 @@ from visualization.poincare_rho_sweep import (
     _coordinate_metadata, _rho_labels, _saved_method, load_available_rho_runs,
     radius_colors,
 )
+
+
+if TYPE_CHECKING:
+    from studies.poincare_gap_probes import GapProbeSeeds
+    from studies.poincare_rho_sweep import PreparedRhoStar
 
 
 _METHODS = ('BM4Midpoint', 'BM4Implicit', 'RK4', 'GaussLegendre4')
@@ -41,7 +46,7 @@ def load_rho_method_runs(
 
 def _comparison_config(record: Mapping[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
     """Separate shared scientific inputs from method identity and Newton controls."""
-    config = asdict(rho_config_from_metadata(record))
+    config: dict[str, Any] = asdict(rho_config_from_metadata(record))
     controls = {name: config.pop(name) for name in tuple(config) if name.startswith('newton_')}
     config.pop('method')
     config.pop('rho_hat')
@@ -78,7 +83,7 @@ def _available_comparison_rhos(
     """Require all supported methods to expose one common nonempty requested rho set."""
     if set(runs_by_method) != set(_METHODS):
         raise ValueError('Provide saved runs for all four supported star methods.')
-    available = set(runs_by_method[_METHODS[0]])
+    available: set[float] = set(runs_by_method[_METHODS[0]])
     if (not available or not available.issubset(rho_values)
             or len(set(rho_values)) != len(rho_values)
             or not np.isfinite(rho_values).all() or np.any(np.asarray(rho_values) < 0)
@@ -93,7 +98,9 @@ def _validated_method_config(
     reference_metadata: Mapping[str, Any], prepared_metadata: Mapping[str, Any],
 ) -> RhoStarConfig:
     """Check method identity, scientific controls and provenance before overlaying a run."""
-    config = rho_config_from_metadata(record)
+    config: RhoStarConfig = rho_config_from_metadata(record)
+    actual_config: dict[str, Any]
+    controls: dict[str, Any]
     actual_config, controls = _comparison_config(record)
     if (_saved_method(record, solution.diagnostics) != method
             or actual_config != shared_config
@@ -124,22 +131,24 @@ def export_rho_method_comparison(
     Optional probe archives add the same eight explicit seeds to each method,
     retaining the original star palette and all independently saved returns.
     """
-    available = _available_comparison_rhos(runs_by_method, rho_values)
-    labels = _rho_labels(rho_values)
+    available: set[float] = _available_comparison_rhos(runs_by_method, rho_values)
+    labels: dict[float, str] = _rho_labels(rho_values)
     if selected_rho not in available:
         selected_rho = next(rho for rho in rho_values if rho in available)
     reference = runs_by_method[_METHODS[0]][selected_rho]
     metadata = reference.metadata
+    shared_config: dict[str, Any]
     shared_config, _ = _comparison_config(metadata)
+    implicit_controls: dict[str, Any]
     _, implicit_controls = _comparison_config(runs_by_method['BM4Implicit'][selected_rho].metadata)
-    ids = np.asarray(metadata['particle_id'], dtype=int)
-    colors = radius_colors(len(ids), colormap=colormap, color_range=color_range)
-    star_ids = ids.copy()
-    probes = None
+    ids: np.ndarray = np.asarray(metadata['particle_id'], dtype=int)
+    colors: list[str] = radius_colors(len(ids), colormap=colormap, color_range=color_range)
+    star_ids: np.ndarray = ids.copy()
+    probes: dict[Any, Any] | None = None
     if probe_runs_by_method is not None:
         if set(probe_runs_by_method) != set(_METHODS):
             raise ValueError('Provide gap probes for all four supported methods.')
-        seeds = None
+        seeds: GapProbeSeeds | None = None
         for method in _METHODS:
             seeds = validate_gap_probe_overlay(runs_by_method[method], probe_runs_by_method[method],
                                               expected_seeds=seeds)
@@ -156,24 +165,26 @@ def export_rho_method_comparison(
         panels: list[dict[str, Any]] = []
         # Preparing the first method only reconstructs the physical field and
         # initial condition. It does not invoke an execution backend.
-        record = runs_by_method[_METHODS[0]][rho].metadata
-        prepared = prepare_rho_star(source, rho_config_from_metadata(record))
+        record: dict[str, Any] = runs_by_method[_METHODS[0]][rho].metadata
+        prepared: PreparedRhoStar = prepare_rho_star(source, rho_config_from_metadata(record))
         _require_matching_metadata(record, prepared.metadata, include_rho=True)
         for method in _METHODS:
             saved = runs_by_method[method][rho]
+            solution: States
             record, solution = saved.metadata, saved.solution
-            config = _validated_method_config(
+            config: RhoStarConfig = _validated_method_config(
                 record, solution, method, rho, shared_config, implicit_controls, metadata, prepared.metadata,
             )
             # Reuse the study's executable method and cycle-sampling contract
             # against the independently reconstructed common initial state.
             validate_rho_solution(solution, replace(prepared, config=config))
+            xy: np.ndarray
             _, xy = folded_rho_positions(solution, record)
             if probe_runs_by_method is not None:
                 xy = append_gap_probe_coordinates(xy, probe_runs_by_method[method][rho], fold_to_cell=True)
             panels.append(dict(title=method, coordinates=xy, particle_ids=ids, colors=colors))
         cell = _coordinate_metadata(record)['cell']
-        field = sample_rho_dynamics(prepared, grid_size=field_grid_size,
+        field: dict[Any, Any] = sample_rho_dynamics(prepared, grid_size=field_grid_size,
                                     vector_grid_size=vector_grid_size, phase_steps=phase_steps)
         # With q=(X-X0)/L and unchanged cycle time, Hq=HX/L² and dq/dtau=vX/L.
         field['potential'] /= cell[2]**2
@@ -188,7 +199,7 @@ def export_rho_method_comparison(
                            f"physical gyro-radius: {record['rho_m']:.9g} m · "
                            f"Hamiltonian: {config.hamiltonian_convention}")
         datasets.append(dataset)
-    selected = next(item for item in datasets if item['key'] == labels[selected_rho])
+    selected: dict[str, Any] = next(item for item in datasets if item['key'] == labels[selected_rho])
     particle_labels = {
         int(pid): f"#{pid} · {100*fraction:.2f}% · {1000*radius:.2f} mm"
         for pid, fraction, radius in zip(star_ids, metadata['initial_radius_fraction'], metadata['initial_radii_m'])

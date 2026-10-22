@@ -47,6 +47,8 @@ from ._trajectory_accuracy import (
 )
 from .reference_trajectory import potential_fingerprint
 
+from typing import TYPE_CHECKING
+
 
 ABBA4ConfigurationMethod: TypeAlias = Literal["ABBA4Implicit"]
 
@@ -110,7 +112,7 @@ def _configuration_variant(
 	nonlinear_solver: NonlinearSolver,
 ) -> ABBA4ConfigurationVariant:
 	"""Construct one public descriptor from the four orthogonal axes."""
-	key = "__".join(
+	key: str = "__".join(
 		(
 			_METHOD_SLUGS[method_name],
 			state_extension,
@@ -118,7 +120,7 @@ def _configuration_variant(
 			nonlinear_solver,
 		)
 	)
-	label = " | ".join(
+	label: str = " | ".join(
 		(
 			_METHOD_LABELS[method_name],
 			_EXTENSION_LABELS[state_extension],
@@ -279,7 +281,7 @@ def _readonly_runtime_array(
 	particle_count: int,
 ) -> np.ndarray:
 	"""Own and freeze one positive wall-clock measurement per particle."""
-	array = np.array(value, dtype=float, copy=True)
+	array: np.ndarray = np.array(value, dtype=float, copy=True)
 	if array.shape != (particle_count,):
 		raise ValueError(
 			"Every configuration must contain one runtime sample per particle."
@@ -306,11 +308,11 @@ def _generalized_energy_history(
 	interval using the accepted spatial trajectory and its energy history.
 	"""
 	diagnostics = solution.diagnostics
-	hamiltonian = np.asarray(
+	hamiltonian: np.ndarray = np.asarray(
 		dynamics.hamiltonian(solution.t, solution.states),
 		dtype=float,
 	).reshape(-1)
-	momentum = np.asarray(
+	momentum: np.ndarray = np.asarray(
 		diagnostics["extended_momentum"],
 		dtype=float,
 	).reshape(-1)
@@ -337,7 +339,7 @@ def _validated_configuration_trajectory(
 		raise TypeError("Every configuration trajectory must be a States.")
 	if not (isinstance(solution.initial_state, np.ndarray) and solution.layout.state_dimension == 2):
 		raise TypeError("Every solution must use a GC initial configuration.")
-	expected_initial = np.asarray(
+	expected_initial: np.ndarray = np.asarray(
 		(initial_x[particle], initial_y[particle]),
 		dtype=float,
 	)
@@ -362,7 +364,7 @@ def _validated_configuration_trajectory(
 		raise ValueError("A trajectory used the wrong projection formulation.")
 	if diagnostics.get("nonlinear_solver") != variant.nonlinear_solver:
 		raise ValueError("A trajectory used the wrong nonlinear solver.")
-	actual_dimensions = tuple(
+	actual_dimensions: tuple[int, ...] = tuple(
 		int(diagnostics[name])
 		for name in (
 			"accepted_internal_state_dimension",
@@ -395,6 +397,9 @@ class ABBA4ConfigurationComparisonResult:
 			self.config, self.solutions, self.runtimes,
 		)
 
+		particle_count: int
+		initial_x: np.ndarray
+		initial_y: np.ndarray
 		particle_count, initial_x, initial_y = _configuration_initial_positions(
 			self.initial_configuration, self.config,
 		)
@@ -402,12 +407,12 @@ class ABBA4ConfigurationComparisonResult:
 		frozen_solutions: dict[str, tuple[States, ...]] = {}
 		frozen_runtimes: dict[str, np.ndarray] = {}
 		for variant in ABBA4_CONFIGURATION_VARIANTS:
-			trajectory_solutions = tuple(self.solutions[variant.key])
+			trajectory_solutions: tuple[States, ...] = tuple(self.solutions[variant.key])
 			if len(trajectory_solutions) != particle_count:
 				raise ValueError(
 					"Every configuration must contain one solution per particle."
 				)
-			expected_dimensions = _expected_dimensions(variant)
+			expected_dimensions: tuple[int, int, int] = _expected_dimensions(variant)
 			for particle, solution in enumerate(trajectory_solutions):
 				common_times = _validated_configuration_trajectory(
 					solution, variant, particle=particle,
@@ -421,7 +426,7 @@ class ABBA4ConfigurationComparisonResult:
 			)
 
 		assert common_times is not None
-		indices = np.array(self.reference_sample_indices, dtype=np.int64, copy=True)
+		indices: np.ndarray = np.array(self.reference_sample_indices, dtype=np.int64, copy=True)
 		indices = freeze_reference_indices(
 			indices, self.reference.times, common_times, message="Saved times do not align with the certified reference.",
 		)
@@ -447,7 +452,7 @@ class ABBA4ConfigurationComparisonResult:
 		"""Return Euclidean errors with shape ``(particles, saved_times)``."""
 		particle_count = self.config.particle_count
 		reference = self.reference.states[:, self.reference_sample_indices]
-		distances = np.empty(
+		distances: np.ndarray = np.empty(
 			(particle_count, self.times.size),
 			dtype=float,
 		)
@@ -462,17 +467,19 @@ class ABBA4ConfigurationComparisonResult:
 		variant: ABBA4ConfigurationVariant,
 	) -> np.ndarray:
 		"""Return normalized absolute generalized-energy errors for all paths."""
-		values = np.empty(
+		values: np.ndarray = np.empty(
 			(self.config.particle_count, self.times.size),
 			dtype=float,
 		)
 		for particle, solution in enumerate(self.solutions[variant.key]):
+			generalized: np.ndarray
+			error: np.ndarray
 			generalized, error = _generalized_energy_history(
 				self.dynamics,
 				variant,
 				solution,
 			)
-			scale = max(abs(float(generalized[0])), float(np.finfo(float).eps))
+			scale: float = max(abs(float(generalized[0])), float(np.finfo(float).eps))
 			values[particle] = np.abs(error) / scale
 		return values
 
@@ -480,24 +487,24 @@ class ABBA4ConfigurationComparisonResult:
 		"""Return eight rows, including aggregate trajectory-task runtime."""
 		rows: list[ABBA4ConfigurationComparisonSummary] = []
 		for variant in ABBA4_CONFIGURATION_VARIANTS:
-			distances = self._trajectory_distances(variant.key)
+			distances: np.ndarray = self._trajectory_distances(variant.key)
 			total_iterations = 0
 			total_solves = 0
 			for solution in self.solutions[variant.key]:
 				diagnostics = solution.diagnostics
-				step_count = int(diagnostics["step_count"])
-				iterations = np.asarray(
+				step_count: int = int(diagnostics["step_count"])
+				iterations: np.ndarray = np.asarray(
 					diagnostics["nonlinear_iterations"],
 					dtype=int,
 				)
 				if iterations.shape != (step_count,) or np.any(iterations < 0):
 					raise ValueError("Nonlinear-iteration histories are not aligned.")
-				solves_per_step = int(diagnostics["nonlinear_solves_per_step"])
+				solves_per_step: int = int(diagnostics["nonlinear_solves_per_step"])
 				if solves_per_step < 1:
 					raise ValueError("Every implicit step must contain a nonlinear solve.")
 				total_iterations += int(np.sum(iterations))
 				total_solves += step_count * solves_per_step
-			energy_errors = self._relative_energy_errors(variant)
+			energy_errors: np.ndarray = self._relative_energy_errors(variant)
 			rows.append(
 				ABBA4ConfigurationComparisonSummary(
 					key=variant.key,
@@ -608,22 +615,22 @@ def _initialize_abba4_worker(
 	# therefore prevent process-by-BLAS oversubscription more reliably than
 	# environment variables set by the calling notebook.
 	_ABBA4_WORKER_THREADPOOL_LIMITER = ThreadpoolController().limit(limits=1)
-	potential = (
+	potential: Potential = (
 		potential_payload.restore()
 		if isinstance(potential_payload, _H5PotentialSnapshot)
 		else potential_payload
 	)
-	dynamics = GuidingCenterDynamics(potential, rho=config.rho)
-	request = SimulationRequest.uniform(
+	dynamics: GuidingCenterDynamics = GuidingCenterDynamics(potential, rho=config.rho)
+	request: SimulationRequest = SimulationRequest.uniform(
 		t_span=config.t_span,
 		max_step=config.integration_step,
 		sample_count=config.output_sample_count,
 	)
-	particle_configurations = tuple(
+	particle_configurations: tuple[Any, ...] = tuple(
 		GCStateLayout().pack_components(np.asarray([x], dtype=float), np.asarray([y], dtype=float))
 		for x, y in particle_coordinates
 	)
-	worker_config = replace(config, progress=False)
+	worker_config: ABBA4ConfigurationComparisonConfig = replace(config, progress=False)
 	_ABBA4_WORKER_CONTEXT = _ABBA4WorkerContext(
 		dynamics=dynamics,
 		request=request,
@@ -646,8 +653,8 @@ def _run_abba4_trajectory_task(
 	if context is None:
 		raise RuntimeError("The ABBA4 worker process was not initialized.")
 	variant = _ABBA4_CONFIGURATION_VARIANTS_BY_KEY[task.variant_key]
-	started = perf_counter()
-	solution = simulate(
+	started: float = perf_counter()
+	solution: States = simulate(
 		context.problems[task.particle],
 		context.methods[task.variant_key],
 		context.request,
@@ -676,10 +683,10 @@ def _validated_reference_samples(
 	initial_state = initial_configuration
 	if initial_state is None or not np.array_equal(initial_state, reference.initial_state):
 		raise ValueError("The comparison initial state differs from the reference.")
-	reference_particle_count = reference.metadata.get("particle_count")
+	reference_particle_count: Any | None = reference.metadata.get("particle_count")
 	if reference_particle_count is not None:
 		try:
-			stored_particle_count = positive_integer(
+			stored_particle_count: int = positive_integer(
 				reference_particle_count,
 				"reference particle_count",
 			)
@@ -691,7 +698,7 @@ def _validated_reference_samples(
 			)
 	if reference_distance_convention(reference) != "euclidean":
 		raise ValueError("The real HDF5 comparison requires Euclidean reference errors.")
-	reference_config = reference.metadata.get("config")
+	reference_config: Any | None = reference.metadata.get("config")
 	if not isinstance(reference_config, Mapping):
 		raise ValueError("Reference numerical configuration is missing.")
 	if "rho" not in reference_config or float(reference_config["rho"]) != config.rho:
@@ -701,10 +708,10 @@ def _validated_reference_samples(
 			"The comparison interval must start at the reference initial time; "
 			"only aligned reference prefixes are supported."
 		)
-	indices = reference_indices_for_times(reference, request.output_times)
+	indices: np.ndarray = reference_indices_for_times(reference, request.output_times)
 	if "dynamics_fingerprint_sha256" in reference.metadata:
 		stored_fingerprint = reference.metadata["dynamics_fingerprint_sha256"]
-		actual_fingerprint = potential_fingerprint(dynamics.effective_potential)
+		actual_fingerprint: str = potential_fingerprint(dynamics.effective_potential)
 		if stored_fingerprint != actual_fingerprint:
 			raise ValueError("The interpolated comparison dynamics differs from the reference.")
 	if potential is not dynamics.potential:
@@ -733,7 +740,7 @@ def _sequential_task_schedule(
 	for schedule_index, particle in enumerate(
 		_alternating_particle_order(particle_count)
 	):
-		variant_order = (
+		variant_order: tuple[ABBA4ConfigurationVariant, ...] = (
 			ABBA4_CONFIGURATION_VARIANTS
 			if schedule_index % 2 == 0
 			else tuple(reversed(ABBA4_CONFIGURATION_VARIANTS))
@@ -749,7 +756,7 @@ def _parallel_task_schedule(
 	particle_count: int,
 ) -> tuple[_ABBA4TrajectoryTask, ...]:
 	"""Submit heavier Newton trajectories before shorter Broyden work."""
-	variant_order = tuple(
+	variant_order: tuple[ABBA4ConfigurationVariant, ...] = tuple(
 		sorted(
 			ABBA4_CONFIGURATION_VARIANTS,
 			key=lambda variant: (
@@ -761,7 +768,7 @@ def _parallel_task_schedule(
 			reverse=True,
 		)
 	)
-	particle_order = _alternating_particle_order(particle_count)
+	particle_order: tuple[int, ...] = _alternating_particle_order(particle_count)
 	return tuple(
 		_ABBA4TrajectoryTask(variant.key, particle)
 		for variant in variant_order
@@ -775,7 +782,7 @@ def _trajectory_progress_bar(
 ) -> str:
 	"""Return the fixed-width global trajectory progress bar."""
 	completion_fraction = completed_run_count / total_run_count
-	filled_width = min(
+	filled_width: int = min(
 		_PARALLEL_PROGRESS_BAR_WIDTH,
 		int(completion_fraction * _PARALLEL_PROGRESS_BAR_WIDTH),
 	)
@@ -801,7 +808,7 @@ def _report_trajectory_completion(
 		* (total_run_count - completed_run_count)
 		/ completed_run_count
 	)
-	progress_bar = _trajectory_progress_bar(
+	progress_bar: str = _trajectory_progress_bar(
 		completed_run_count,
 		total_run_count,
 	)
@@ -829,7 +836,7 @@ def _report_parallel_progress(
 	"""Print a periodic parent-owned heartbeat for a parallel campaign."""
 	elapsed_seconds = perf_counter() - study_started
 	completion_fraction = completed_run_count / total_run_count
-	progress_bar = _trajectory_progress_bar(
+	progress_bar: str = _trajectory_progress_bar(
 		completed_run_count,
 		total_run_count,
 	)
@@ -859,7 +866,7 @@ def _run_sequential_trajectories(
 	study_started: float,
 ) -> tuple[dict[str, dict[int, States]], dict[str, np.ndarray]]:
 	"""Run serially with one process and per-method progress."""
-	problems = tuple(
+	problems: tuple[InitialValueProblem, ...] = tuple(
 		InitialValueProblem(dynamics, particle_configuration)
 		for particle_configuration in particle_configurations
 	)
@@ -867,8 +874,10 @@ def _run_sequential_trajectories(
 		variant.key: _method_for_variant(variant, config)
 		for variant in ABBA4_CONFIGURATION_VARIANTS
 	}
+	solution_rows: dict[str, dict[int, States]]
+	runtime_rows: dict[str, np.ndarray]
 	solution_rows, runtime_rows = _empty_trajectory_rows(config.particle_count)
-	tasks = _sequential_task_schedule(config.particle_count)
+	tasks: tuple[_ABBA4TrajectoryTask, ...] = _sequential_task_schedule(config.particle_count)
 	for completed_before, task in enumerate(tasks):
 		variant = _ABBA4_CONFIGURATION_VARIANTS_BY_KEY[task.variant_key]
 		if config.progress:
@@ -879,8 +888,8 @@ def _run_sequential_trajectories(
 				file=sys.stderr,
 				flush=True,
 			)
-		started = perf_counter()
-		solution = simulate(
+		started: float = perf_counter()
+		solution: States = simulate(
 			problems[task.particle],
 			methods[task.variant_key],
 			request,
@@ -909,15 +918,19 @@ def _run_parallel_trajectories(
 	study_started: float,
 ) -> tuple[dict[str, dict[int, States]], dict[str, np.ndarray]]:
 	"""Run complete trajectories in spawn-safe, single-threaded workers."""
-	tasks = _parallel_task_schedule(config.particle_count)
-	worker_count = min(config.worker_count, len(tasks))
+	tasks: tuple[_ABBA4TrajectoryTask, ...] = _parallel_task_schedule(config.particle_count)
+	worker_count: int = min(config.worker_count, len(tasks))
 	particle_coordinates: list[tuple[float, float]] = []
 	for particle_configuration in particle_configurations:
 		initial_state = particle_configuration
 		assert initial_state is not None
+		x: np.ndarray
+		y: np.ndarray
 		x, y = GCStateLayout().positions(initial_state)
 		particle_coordinates.append((float(x[0]), float(y[0])))
 
+	solution_rows: dict[str, dict[int, States]]
+	runtime_rows: dict[str, np.ndarray]
 	solution_rows, runtime_rows = _empty_trajectory_rows(config.particle_count)
 	with ProcessPoolExecutor(
 		max_workers=worker_count,
@@ -938,7 +951,7 @@ def _run_parallel_trajectories(
 				future_tasks[
 					executor.submit(_run_abba4_trajectory_task, task)
 				] = task
-			pending_futures = set(future_tasks)
+			pending_futures: set[Future[_ABBA4TrajectoryPayload]] = set(future_tasks)
 			completed_run_count = 0
 			if config.progress:
 				_report_parallel_progress(
@@ -949,6 +962,7 @@ def _run_parallel_trajectories(
 					study_started=study_started,
 				)
 			while pending_futures:
+				completed_futures: set[Future[_ABBA4TrajectoryPayload]]
 				completed_futures, pending_futures = wait(
 					pending_futures,
 					timeout=_PARALLEL_PROGRESS_HEARTBEAT_SECONDS,
@@ -970,7 +984,7 @@ def _run_parallel_trajectories(
 						task.variant_key
 					]
 					try:
-						payload = future.result()
+						payload: _ABBA4TrajectoryPayload = future.result()
 					except Exception as exc:
 						raise RuntimeError(
 							"ABBA4 comparison failed for particle "
@@ -1030,13 +1044,13 @@ def run_abba4_configuration_comparison(
 			f"particle_count={config.particle_count} initial conditions."
 		)
 
-	dynamics = GuidingCenterDynamics(potential, rho=config.rho)
-	request = SimulationRequest.uniform(
+	dynamics: GuidingCenterDynamics = GuidingCenterDynamics(potential, rho=config.rho)
+	request: SimulationRequest = SimulationRequest.uniform(
 		t_span=config.t_span,
 		max_step=config.integration_step,
 		sample_count=config.output_sample_count,
 	)
-	reference_indices = _validated_reference_samples(
+	reference_indices: np.ndarray = _validated_reference_samples(
 		potential,
 		dynamics,
 		initial_configuration,
@@ -1044,14 +1058,16 @@ def run_abba4_configuration_comparison(
 		config,
 		request,
 	)
+	initial_x: np.ndarray
+	initial_y: np.ndarray
 	initial_x, initial_y = GCStateLayout().positions(initial_state)
-	particle_configurations = tuple(
+	particle_configurations: tuple[Any, ...] = tuple(
 		GCStateLayout().pack_components(np.asarray([initial_x[particle]], dtype=float), np.asarray([initial_y[particle]], dtype=float))
 		for particle in range(config.particle_count)
 	)
 	total_run_count = len(ABBA4_CONFIGURATION_VARIANTS) * config.particle_count
-	effective_worker_count = min(config.worker_count, total_run_count)
-	study_started = perf_counter()
+	effective_worker_count: int = min(config.worker_count, total_run_count)
+	study_started: float = perf_counter()
 	if config.progress:
 		worker_label = (
 			"worker process"
@@ -1067,6 +1083,8 @@ def run_abba4_configuration_comparison(
 			flush=True,
 		)
 	if config.worker_count == 1:
+		solution_rows: dict[str, dict[int, States]]
+		runtime_rows: dict[str, np.ndarray]
 		solution_rows, runtime_rows = _run_sequential_trajectories(
 			dynamics,
 			particle_configurations,
@@ -1146,6 +1164,8 @@ def _configuration_initial_positions(
 			"The initial configuration must contain exactly "
 			f"particle_count={particle_count} initial conditions."
 		)
+	initial_x: np.ndarray
+	initial_y: np.ndarray
 	initial_x, initial_y = GCStateLayout().positions(initial_state)
 	return particle_count, initial_x, initial_y
 

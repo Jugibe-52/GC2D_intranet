@@ -21,7 +21,7 @@ def _positive_finite(
 	error = message if message is not None else f"`{name}` must be positive and finite."
 	if not allow_boolean and isinstance(value, (bool, np.bool_)):
 		raise ValueError(error)
-	result = float(value)
+	result: float = float(value)
 	if not np.isfinite(result) or result <= 0:
 		raise ValueError(error)
 	return result
@@ -38,7 +38,7 @@ def _nonnegative_finite(
 	error = message if message is not None else f"`{name}` must be non-negative and finite."
 	if not allow_boolean and isinstance(value, (bool, np.bool_)):
 		raise ValueError(error)
-	result = float(value)
+	result: float = float(value)
 	if not np.isfinite(result) or result < 0:
 		raise ValueError(error)
 	return result

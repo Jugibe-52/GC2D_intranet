@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
@@ -24,6 +24,14 @@ from ._animation_validation import (
 from .particles import _field_normalization
 
 
+if TYPE_CHECKING:
+	from matplotlib.collections import PathCollection
+	from matplotlib.figure import Figure
+	from matplotlib.image import AxesImage
+	from matplotlib.text import Text
+	from matplotlib.typing import ColorType
+
+
 _ROW_COORDINATES = (
 	("ABBA4Implicit", "physical", "ABBA4 · 1 outer projection\nspatial copies + energy · R6"),
 )
@@ -33,16 +41,16 @@ _COLUMN_COORDINATES = (
 	("simultaneous_state_multiplier", "newton", "Simultaneous\nNewton"),
 	("simultaneous_state_multiplier", "broyden", "Simultaneous\nBroyden"),
 )
-_INITIAL_CONDITION_COLORS = tuple(mcolors.TABLEAU_COLORS.values())
-_MAX_PARTICLE_COUNT = len(_INITIAL_CONDITION_COLORS)
+_INITIAL_CONDITION_COLORS: 'tuple[ColorType, ...]' = tuple(mcolors.TABLEAU_COLORS.values())
+_MAX_PARTICLE_COUNT: 'int' = len(_INITIAL_CONDITION_COLORS)
 
 
 def _effective_potential(result: object) -> Potential:
 	"""Return the exact potential used by every compared numerical trajectory."""
-	candidate = getattr(result, "effective_potential", None)
+	candidate: Any | None = getattr(result, "effective_potential", None)
 	if isinstance(candidate, Potential):
 		return candidate
-	dynamics = getattr(result, "dynamics", None)
+	dynamics: Any | None = getattr(result, "dynamics", None)
 	candidate = getattr(dynamics, "effective_potential", None)
 	if isinstance(candidate, Potential):
 		return candidate
@@ -64,7 +72,7 @@ def _variant_coordinate(variant: object) -> tuple[str, str, str, str]:
 		"projection_formulation",
 		"nonlinear_solver",
 	):
-		value = getattr(variant, name, None)
+		value: Any | None = getattr(variant, name, None)
 		if not isinstance(value, str) or not value:
 			raise ValueError(f"Every variant must provide a non-empty `{name}`.")
 		values.append(value)
@@ -73,29 +81,29 @@ def _variant_coordinate(variant: object) -> tuple[str, str, str, str]:
 
 def _ordered_variants(result: object) -> tuple[object, ...]:
 	"""Place a complete, unique configuration cube in its visual grid order."""
-	variants_value = getattr(result, "variants", None)
+	variants_value: Any | None = getattr(result, "variants", None)
 	if isinstance(variants_value, (str, bytes)) or not isinstance(
 		variants_value, Sequence
 	):
 		raise TypeError("`result.variants` must be a sequence of configuration records.")
-	variants = tuple(variants_value)
+	variants: tuple[Any, ...] = tuple(variants_value)
 	if len(variants) != 4:
 		raise ValueError("The animation requires four current ABBA4 variants.")
 
 	by_coordinate: dict[tuple[str, str, str, str], object] = {}
 	for variant in variants:
-		coordinate = _variant_coordinate(variant)
+		coordinate: tuple[str, str, str, str] = _variant_coordinate(variant)
 		if coordinate in by_coordinate:
 			raise ValueError(f"Duplicate ABBA4 configuration coordinate {coordinate!r}.")
 		by_coordinate[coordinate] = variant
 
-	expected = tuple(
+	expected: tuple[tuple[str, str, str, str], ...] = tuple(
 		(method, extension, formulation, solver)
 		for method, extension, _ in _ROW_COORDINATES
 		for formulation, solver, _ in _COLUMN_COORDINATES
 	)
-	missing = tuple(coordinate for coordinate in expected if coordinate not in by_coordinate)
-	unexpected = tuple(coordinate for coordinate in by_coordinate if coordinate not in expected)
+	missing: tuple[tuple[str, str, str, str], ...] = tuple(coordinate for coordinate in expected if coordinate not in by_coordinate)
+	unexpected: tuple[tuple[str, str, str, str], ...] = tuple(coordinate for coordinate in by_coordinate if coordinate not in expected)
 	if missing or unexpected:
 		raise ValueError(
 			"The variants do not form the required complete ABBA4 configuration grid; "
@@ -109,7 +117,7 @@ def _aligned_positions(
 	variants: Sequence[object],
 ) -> tuple[np.ndarray, dict[str, tuple[np.ndarray, np.ndarray]], int]:
 	"""Collect aligned arrays sharing one inferred particle count and order."""
-	solutions_value = getattr(result, "solutions", None)
+	solutions_value: Any | None = getattr(result, "solutions", None)
 	if not isinstance(solutions_value, Mapping):
 		raise TypeError("`result.solutions` must map variant keys to trajectories.")
 	variant_keys: list[str] = []
@@ -119,7 +127,7 @@ def _aligned_positions(
 	positions: dict[str, tuple[np.ndarray, np.ndarray]] = {}
 
 	for variant in variants:
-		key = getattr(variant, "key", None)
+		key: Any | None = getattr(variant, "key", None)
 		if not isinstance(key, str) or not key:
 			raise ValueError("Every variant must provide a non-empty `key`.")
 		if key in variant_keys:
@@ -132,7 +140,7 @@ def _aligned_positions(
 			trajectory_value, Sequence
 		):
 			raise TypeError("Every variant value must be a sequence of Solutions.")
-		trajectories = tuple(trajectory_value)
+		trajectories: tuple[Any, ...] = tuple(trajectory_value)
 		if particle_count is None:
 			particle_count = len(trajectories)
 			if not 1 <= particle_count <= _MAX_PARTICLE_COUNT:
@@ -150,7 +158,9 @@ def _aligned_positions(
 		for solution in trajectories:
 			if not isinstance(solution, States):
 				raise TypeError("Every trajectory must be a States instance.")
-			times = np.asarray(solution.t, dtype=float)
+			times: np.ndarray = np.asarray(solution.t, dtype=float)
+			x: np.ndarray
+			y: np.ndarray
 			x, y = solution.positions()
 			if x.shape != (1, times.size) or y.shape != x.shape:
 				raise ValueError(
@@ -165,11 +175,11 @@ def _aligned_positions(
 			x_rows.append(np.asarray(x[0], dtype=float))
 			y_rows.append(np.asarray(y[0], dtype=float))
 
-		x_values = np.asarray(x_rows, dtype=float)
-		y_values = np.asarray(y_rows, dtype=float)
+		x_values: np.ndarray = np.asarray(x_rows, dtype=float)
+		y_values: np.ndarray = np.asarray(y_rows, dtype=float)
 		if not np.all(np.isfinite(x_values)) or not np.all(np.isfinite(y_values)):
 			raise ValueError("Trajectory positions must be finite.")
-		initial_positions = np.column_stack((x_values[:, 0], y_values[:, 0]))
+		initial_positions: np.ndarray = np.column_stack((x_values[:, 0], y_values[:, 0]))
 		if reference_initial_positions is None:
 			reference_initial_positions = initial_positions
 		elif not np.array_equal(initial_positions, reference_initial_positions):
@@ -187,8 +197,8 @@ def _aligned_positions(
 
 def _closed_spatial_limits(potential: Potential) -> tuple[float, float, float, float]:
 	"""Return sampled closed bounds without applying periodic endpoint wrapping."""
-	x_values = np.asarray(potential.grid.x, dtype=float)
-	y_values = np.asarray(potential.grid.y, dtype=float)
+	x_values: np.ndarray = np.asarray(potential.grid.x, dtype=float)
+	y_values: np.ndarray = np.asarray(potential.grid.y, dtype=float)
 	if (
 		x_values.ndim != 1
 		or y_values.ndim != 1
@@ -210,10 +220,10 @@ def _closed_spatial_limits(potential: Potential) -> tuple[float, float, float, f
 
 def _fundamental_frequency(potential: Potential) -> float:
 	"""Return the first angular frequency, or the unit-cycle default."""
-	frequencies = getattr(potential, "frequencies", None)
+	frequencies: Any | None = getattr(potential, "frequencies", None)
 	if frequencies is None:
 		return 2 * np.pi
-	values = np.asarray(frequencies, dtype=float)
+	values: np.ndarray = np.asarray(frequencies, dtype=float)
 	if values.ndim != 1 or not values.size or not np.all(np.isfinite(values)):
 		return 2 * np.pi
 	return float(2 * np.pi * values[0])
@@ -238,15 +248,22 @@ def animate_abba4_configuration_trajectories(
 	"""
 	interval = positive_interval(interval, strict=True)
 	repeat = boolean_control(repeat, "repeat")
-	variants = _ordered_variants(result)
+	variants: tuple[object, ...] = _ordered_variants(result)
+	times: np.ndarray
+	positions: dict[str, tuple[np.ndarray, np.ndarray]]
+	particle_count: int
 	times, positions, particle_count = _aligned_positions(result, variants)
 	particle_colors = _INITIAL_CONDITION_COLORS[:particle_count]
-	indices = _frame_indices(times.size, frames)
+	indices: np.ndarray = _frame_indices(times.size, frames)
 	frame_times = times[indices]
-	potential = _effective_potential(result)
-	fields = np.asarray(potential.evaluate_grid(frame_times), dtype=float)
+	potential: Potential = _effective_potential(result)
+	fields: np.ndarray = np.asarray(potential.evaluate_grid(frame_times), dtype=float)
 	if fields.shape != (*potential.grid.shape, indices.size):
 		raise ValueError("Potential evaluation returned an unexpected animation shape.")
+	xmin: float
+	xmax: float
+	ymin: float
+	ymax: float
 	xmin, xmax, ymin, ymax = _closed_spatial_limits(potential)
 
 	image_options: dict[str, Any] = {
@@ -259,6 +276,8 @@ def animate_abba4_configuration_trajectories(
 	}
 	image_options.update(imshow_kwargs)
 	rows = _ROW_COORDINATES
+	figure: Figure
+	axes: np.ndarray
 	figure, axes = plt.subplots(
 		len(rows),
 		4,
@@ -274,10 +293,12 @@ def animate_abba4_configuration_trajectories(
 	for index, (axis, variant) in enumerate(
 		zip(axes.flat, variants, strict=True)
 	):
-		key = str(getattr(variant, "key"))
+		key: str = str(getattr(variant, "key"))
+		x_values: np.ndarray
+		y_values: np.ndarray
 		x_values, y_values = positions[key]
-		image = axis.imshow(fields[:, :, 0].T, **image_options)
-		path = LineCollection(
+		image: AxesImage = axis.imshow(fields[:, :, 0].T, **image_options)
+		path: LineCollection = LineCollection(
 			[],
 			colors=particle_colors,
 			linewidths=1.0,
@@ -285,7 +306,7 @@ def animate_abba4_configuration_trajectories(
 			zorder=3,
 		)
 		axis.add_collection(path)
-		marker = axis.scatter(
+		marker: PathCollection = axis.scatter(
 			x_values[:, 0],
 			y_values[:, 0],
 			s=22,
@@ -344,18 +365,20 @@ def animate_abba4_configuration_trajectories(
 		fontsize=8,
 		framealpha=0.9,
 	)
-	frequency = _fundamental_frequency(potential)
-	suptitle = figure.suptitle("")
+	frequency: float = _fundamental_frequency(potential)
+	suptitle: Text = figure.suptitle("")
 
 	def update(frame: int) -> tuple[Any, ...]:
 		"""Update one shared field and every accumulated trajectory."""
-		sample_index = int(indices[frame])
+		sample_index: int = int(indices[frame])
 		artists: list[Any] = []
 		for image in images:
 			image.set_data(fields[:, :, frame].T)
 			artists.append(image)
 		for variant in variants:
-			key = str(getattr(variant, "key"))
+			key: str = str(getattr(variant, "key"))
+			x_values: np.ndarray
+			y_values: np.ndarray
 			x_values, y_values = positions[key]
 			paths[key].set_segments(
 				[
@@ -374,8 +397,8 @@ def animate_abba4_configuration_trajectories(
 				)
 			)
 			artists.extend((paths[key], markers[key]))
-		time = float(times[sample_index])
-		phase = float(np.mod(frequency * time, 2.0 * np.pi))
+		time: float = float(times[sample_index])
+		phase: float = float(np.mod(frequency * time, 2.0 * np.pi))
 		suptitle.set_text(
 			f"{len(variants)} ABBA4 configurations × {particle_count} shared initial "
 			f"conditions ({len(variants) * particle_count} trajectories) — "

@@ -4,7 +4,7 @@ from contracts._study_validation import require_uncoupled_bm4
 
 from formulations.layout import GCStateLayout
 from collections.abc import Mapping, Sequence
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 import numpy as np
 from potential import Potential
@@ -20,12 +20,17 @@ from methods.classical.rk4 import RK4
 from simulation.runner import simulate
 from diagnostics.bm4_energy_balance import BM4EnergyBalanceObserver
 
+
+if TYPE_CHECKING:
+    from states.history import States
+
+
 METHODS = ("DOP853", "BM4Implicit", "GaussLegendre4", "RK4")
 
 
 def horizontal_configuration(potential: Potential, x_fractions: Sequence[float], y_fraction: float) -> np.ndarray:
     """Place three equidistant particles on one horizontal periodic-cell line."""
-    x = np.asarray(x_fractions, dtype=float)
+    x: np.ndarray = np.asarray(x_fractions, dtype=float)
     if x.shape != (3,) or not np.all((x > 0) & (x < 1)) or not 0 < y_fraction < 1:
         raise ValueError("Use three interior x fractions and one interior y fraction.")
     if not np.all(np.diff(x) > 0) or not np.isclose(*np.diff(x)):
@@ -47,27 +52,27 @@ def run_energy_balance(potential: Potential, configuration: np.ndarray, config: 
         raise ValueError("Positive integer cycles and step counts with steps divisible by saves are required.")
     h = config['cycle_duration']/steps
     duration = cycles*config['cycle_duration']
-    times = np.linspace(0, duration, int(cycles*saves)+1)
-    dynamics = GuidingCenterDynamics(potential, rho=config['rho'])
-    problem = InitialValueProblem(dynamics, configuration, layout=GCStateLayout())
+    times: np.ndarray = np.linspace(0, duration, int(cycles*saves)+1)
+    dynamics: GuidingCenterDynamics = GuidingCenterDynamics(potential, rho=config['rho'])
+    problem: InitialValueProblem = InitialValueProblem(dynamics, configuration, layout=GCStateLayout())
     z0 = problem.initial_state
     n = z0.size//2
     if n != 3:
         raise ValueError("This study requires three particles.")
-    request = SimulationRequest((0., duration), h, times)
+    request: SimulationRequest = SimulationRequest((0., duration), h, times)
     arrays = {'times': times, 'initial_state': z0,
               'domain': np.array([potential.grid.xmin, potential.grid.ymin, potential.grid.period])}
     print('Starting DOP853', flush=True)
-    reference = simulate(problem, DOP853(track_energy=True,
+    reference: States = simulate(problem, DOP853(track_energy=True,
         relative_tolerance=config['reference_rtol'], absolute_tolerance=config['reference_atol']), request)
     arrays['DOP853.states'] = reference.states
     arrays['DOP853.kappa'] = np.asarray(reference.diagnostics['extended_momentum'])
-    common = dict(newton_absolute_tolerance=config['newton_atol'],
+    common: dict[str, Any] = dict(newton_absolute_tolerance=config['newton_atol'],
                   newton_relative_tolerance=config['newton_rtol'],
                   newton_max_iterations=config['newton_max_iterations'],
                   newton_jacobian_method='analytic',
                   newton_jacobian_relative_step=config['jacobian_relative_step'])
-    observer = BM4EnergyBalanceObserver(dynamics, n, steps//saves)
+    observer: BM4EnergyBalanceObserver = BM4EnergyBalanceObserver(dynamics, n, steps//saves)
     methods: dict[str, NumericalMethod] = {
         'BM4Implicit': BM4Implicit(**common, step_observer=observer),
         'GaussLegendre4': GaussLegendre4(**common, track_energy=True),
@@ -75,7 +80,7 @@ def run_energy_balance(potential: Potential, configuration: np.ndarray, config: 
     }
     for name, method in methods.items():
         print(f'Starting {name}', flush=True)
-        solution = simulate(problem, method, request)
+        solution: States = simulate(problem, method, request)
         assert solution.diagnostics['step_count'] == cycles*steps
         arrays[name+'.states'] = solution.states
         if name == 'BM4Implicit':
@@ -88,7 +93,7 @@ def run_energy_balance(potential: Potential, configuration: np.ndarray, config: 
             arrays[name+'.kappa'] = np.asarray(solution.diagnostics['extended_momentum'])
     for name in METHODS:
         states = arrays[name+'.states']
-        energy = dynamics.hamiltonian(times, states)
+        energy: Any = dynamics.hamiltonian(times, states)
         arrays[name+'.H'] = energy
         arrays[name+'.balance'] = energy + arrays[name+'.kappa'] - energy[:, :1]
         delta = states - arrays['DOP853.states']

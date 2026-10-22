@@ -38,6 +38,8 @@ from ._gauss_legendre4_common import (build_adaptive_reference, readonly_runtime
 from contracts.comparison import TrajectoryAccuracySeries
 from ._trajectory_accuracy import (accuracy_series, validated_refinement_steps)
 
+from typing import TYPE_CHECKING
+
 
 GAUSS_BM4_METHODS: tuple[str, ...] = ("GaussLegendre4", "BM4Implicit")
 GAUSS_BM4_LABELS: Mapping[str, str] = MappingProxyType(
@@ -74,7 +76,7 @@ class GaussBM4ComparisonConfig:
 	def __post_init__(self) -> None:
 		"""Validate one nested, aligned comparison configuration."""
 		require_uncoupled_bm4(self.coupling_frequency)
-		steps = validated_refinement_steps(self.integration_steps)
+		steps: tuple[float, ...] = validated_refinement_steps(self.integration_steps)
 		object.__setattr__(self, "integration_steps", steps)
 		object.__setattr__(
 			self, "t_span",
@@ -202,8 +204,8 @@ class GaussBM4ComparisonResult:
 	def summaries(self) -> tuple[GaussBM4ComparisonSummary, ...]:
 		"""Return step-major, method-minor accuracy and timing rows."""
 		rows: list[GaussBM4ComparisonSummary] = []
-		duration = float(self.times[-1] - self.times[0])
-		floor = max(
+		duration: float = float(self.times[-1] - self.times[0])
+		floor: float = max(
 			self.reference.time_integrated_rms_floor,
 			float(np.finfo(float).eps),
 		)
@@ -211,20 +213,20 @@ class GaussBM4ComparisonResult:
 			for method_name in GAUSS_BM4_METHODS:
 				solution = self.solutions[method_name][step]
 				series = self.accuracy[method_name][step]
-				time_rms = float(
+				time_rms: float = float(
 					np.sqrt(np.trapz(series.rms_distance**2, self.times) / duration)
 				)
 				runtimes = self.runtime_samples[method_name][step]
-				iterations = np.asarray(
+				iterations: np.ndarray = np.asarray(
 					solution.diagnostics["nonlinear_iterations"], dtype=float
 				)
-				residual_evaluations = np.asarray(
+				residual_evaluations: np.ndarray = np.asarray(
 					solution.diagnostics["residual_evaluations"], dtype=float
 				)
-				residuals = np.asarray(
+				residuals: np.ndarray = np.asarray(
 					solution.diagnostics["nonlinear_residual_norms"], dtype=float
 				)
-				tolerances = np.asarray(
+				tolerances: np.ndarray = np.asarray(
 					solution.diagnostics["nonlinear_tolerances"], dtype=float
 				)
 				rows.append(
@@ -262,11 +264,11 @@ class GaussBM4ComparisonResult:
 		summaries = {
 			(row.method_name, row.integration_step): row for row in self.summaries()
 		}
-		time_floor = max(
+		time_floor: float = max(
 			self.reference.time_integrated_rms_floor,
 			float(np.finfo(float).eps),
 		)
-		final_floor = max(
+		final_floor: float = max(
 			self.reference.final_rms_floor,
 			float(np.finfo(float).eps),
 		)
@@ -281,7 +283,7 @@ class GaussBM4ComparisonResult:
 				fine = summaries[(method_name, fine_step)]
 				time_resolved = fine.time_integrated_rms_distance > 10.0 * time_floor
 				final_resolved = fine.final_rms_distance > 10.0 * final_floor
-				time_order = (
+				time_order: float = (
 					float(
 						np.log(
 							coarse.time_integrated_rms_distance
@@ -292,7 +294,7 @@ class GaussBM4ComparisonResult:
 					if time_resolved
 					else float("nan")
 				)
-				final_order = (
+				final_order: float = (
 					float(
 						np.log(coarse.final_rms_distance / fine.final_rms_distance)
 						/ np.log(ratio)
@@ -336,35 +338,37 @@ class GaussBM4ComparisonResult:
 
 	def equal_accuracy_ratios(self) -> tuple[GaussBM4EqualAccuracyRatio, ...]:
 		"""Interpolate both work--precision curves at three shared errors."""
-		rows = self.summaries()
+		rows: tuple[GaussBM4ComparisonSummary, ...] = self.summaries()
 		curves: dict[str, tuple[np.ndarray, np.ndarray]] = {}
 		for method_name in GAUSS_BM4_METHODS:
-			method_rows = tuple(row for row in rows if row.method_name == method_name)
-			positive_rows = tuple(
+			method_rows: tuple[GaussBM4ComparisonSummary, ...] = tuple(row for row in rows if row.method_name == method_name)
+			positive_rows: tuple[GaussBM4ComparisonSummary, ...] = tuple(
 				row
 				for row in method_rows
 				if row.time_integrated_rms_distance > 0.0 and row.runtime_seconds > 0.0
 			)
 			if len(positive_rows) < 2:
 				return ()
-			sorted_rows = sorted(
+			sorted_rows: list[GaussBM4ComparisonSummary] = sorted(
 				positive_rows,
 				key=lambda row: row.time_integrated_rms_distance,
 			)
-			errors = np.asarray(
+			errors: np.ndarray = np.asarray(
 				[row.time_integrated_rms_distance for row in sorted_rows]
 			)
-			runtimes = np.asarray([row.runtime_seconds for row in sorted_rows])
+			runtimes: np.ndarray = np.asarray([row.runtime_seconds for row in sorted_rows])
 			if np.any(np.diff(errors) <= 0.0):
 				return ()
 			curves[method_name] = errors, runtimes
-		lower = max(float(np.min(curves[name][0])) for name in GAUSS_BM4_METHODS)
-		upper = min(float(np.max(curves[name][0])) for name in GAUSS_BM4_METHODS)
+		lower: float = max(float(np.min(curves[name][0])) for name in GAUSS_BM4_METHODS)
+		upper: float = min(float(np.max(curves[name][0])) for name in GAUSS_BM4_METHODS)
 		if lower >= upper:
 			return ()
 		targets = np.exp(np.linspace(np.log(lower), np.log(upper), 5)[1:-1])[::-1]
 
 		def interpolated_runtime(method_name: str, target: float) -> float:
+			errors: np.ndarray
+			runtimes: np.ndarray
 			errors, runtimes = curves[method_name]
 			return float(
 				np.exp(
@@ -378,8 +382,8 @@ class GaussBM4ComparisonResult:
 
 		result: list[GaussBM4EqualAccuracyRatio] = []
 		for target in targets:
-			gauss_runtime = interpolated_runtime("GaussLegendre4", float(target))
-			bm4_runtime = interpolated_runtime("BM4Implicit", float(target))
+			gauss_runtime: float = interpolated_runtime("GaussLegendre4", float(target))
+			bm4_runtime: float = interpolated_runtime("BM4Implicit", float(target))
 			result.append(
 				GaussBM4EqualAccuracyRatio(
 					target_time_integrated_rms_distance=float(target),
@@ -429,14 +433,14 @@ def run_gauss_bm4_comparison(
 		raise TypeError("`initial_configuration` must be np.ndarray.")
 	if not isinstance(config, GaussBM4ComparisonConfig):
 		raise TypeError("`config` must be GaussBM4ComparisonConfig.")
-	dynamics = GuidingCenterDynamics(potential, rho=config.rho)
-	problem = InitialValueProblem(dynamics, initial_configuration, layout=GCStateLayout())
-	base_request = SimulationRequest.uniform(
+	dynamics: GuidingCenterDynamics = GuidingCenterDynamics(potential, rho=config.rho)
+	problem: InitialValueProblem = InitialValueProblem(dynamics, initial_configuration, layout=GCStateLayout())
+	base_request: SimulationRequest = SimulationRequest.uniform(
 		t_span=config.t_span,
 		max_step=config.integration_steps[-1],
 		sample_count=config.output_sample_count,
 	)
-	reference = build_adaptive_reference(
+	reference: AdaptiveReference = build_adaptive_reference(
 		dynamics,
 		problem.initial_state,
 		base_request.output_times,
@@ -459,13 +463,13 @@ def run_gauss_bm4_comparison(
 	}
 
 	for step_index, step in enumerate(config.integration_steps):
-		request = SimulationRequest.uniform(
+		request: SimulationRequest = SimulationRequest.uniform(
 			t_span=config.t_span,
 			max_step=step,
 			sample_count=config.output_sample_count,
 		)
 		for method_name in GAUSS_BM4_METHODS:
-			solution = simulate(problem, _method(method_name, config), request)
+			solution: States = simulate(problem, _method(method_name, config), request)
 			solutions[method_name][step] = solution
 			accuracy_by_method[method_name][step] = accuracy_series(
 				method_name,
@@ -483,13 +487,13 @@ def run_gauss_bm4_comparison(
 				simulate(problem, timing_methods[method_name], request)
 		samples: dict[str, list[float]] = {name: [] for name in GAUSS_BM4_METHODS}
 		for repeat in range(config.timing_repeats):
-			order = (
+			order: tuple[str, ...] = (
 				GAUSS_BM4_METHODS
 				if (step_index + repeat) % 2 == 0
 				else tuple(reversed(GAUSS_BM4_METHODS))
 			)
 			for method_name in order:
-				started = perf_counter()
+				started: float = perf_counter()
 				simulate(problem, timing_methods[method_name], request)
 				samples[method_name].append(perf_counter() - started)
 		for method_name in GAUSS_BM4_METHODS:

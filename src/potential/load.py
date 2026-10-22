@@ -31,14 +31,14 @@ DEFAULT_FIELD_INDICES: tuple[int, ...] = (15,)
 
 def _validated_axis(values: Any, *, name: str) -> np.ndarray:
 	"""Validate one uniformly spaced HDF5 coordinate axis."""
-	axis = np.asarray(values, dtype=float)
+	axis: np.ndarray = np.asarray(values, dtype=float)
 	if axis.ndim != 1:
 		raise ValueError(f"`{name}` must be one-dimensional.")
 	if axis.size < 2:
 		raise ValueError(f"`{name}` must contain at least two coordinates.")
 	if not np.all(np.isfinite(axis)):
 		raise ValueError(f"`{name}` must contain finite coordinates.")
-	spacing = np.diff(axis)
+	spacing: np.ndarray = np.diff(axis)
 	if np.any(spacing <= 0):
 		raise ValueError(f"`{name}` must be strictly increasing.")
 	if not np.allclose(spacing, spacing[0]):
@@ -48,7 +48,7 @@ def _validated_axis(values: Any, *, name: str) -> np.ndarray:
 
 def _finite_positive(value: float, *, name: str) -> float:
 	"""Convert a scalar to float and require a finite positive value."""
-	number = float(value)
+	number: float = float(value)
 	if not np.isfinite(number) or number <= 0:
 		raise ValueError(f"`{name}` must be finite and positive.")
 	return number
@@ -56,7 +56,7 @@ def _finite_positive(value: float, *, name: str) -> float:
 
 def _finite_nonnegative(value: float, *, name: str) -> float:
 	"""Convert a scalar to float and require a finite non-negative value."""
-	number = float(value)
+	number: float = float(value)
 	if not np.isfinite(number) or number < 0:
 		raise ValueError(f"`{name}` must be finite and non-negative.")
 	return number
@@ -66,7 +66,7 @@ def _optional_positive(value: float | None, *, name: str) -> float | None:
 	"""Validate one optional positive dimensional scale."""
 	if value is None:
 		return None
-	number = float(value)
+	number: float = float(value)
 	if not np.isfinite(number) or number <= 0:
 		raise ValueError(f"`{name}` must be finite and positive when supplied.")
 	return number
@@ -76,14 +76,14 @@ def _validated_source_fields(
 	indices: np.ndarray, frequencies: np.ndarray,
 ) -> tuple[np.ndarray, np.ndarray]:
 	"""Check one positive dimensional frequency per original HDF5 field index."""
-	source_indices = np.asarray(indices)
+	source_indices: np.ndarray = np.asarray(indices)
 	if source_indices.ndim != 1:
 		raise ValueError("`source_field_indices` must be one-dimensional.")
 	if not np.issubdtype(source_indices.dtype, np.integer):
 		raise TypeError("`source_field_indices` must contain integers.")
 	if np.any(source_indices < 0):
 		raise ValueError("`source_field_indices` must be non-negative.")
-	source_frequencies = np.atleast_1d(np.asarray(frequencies, dtype=float))
+	source_frequencies: np.ndarray = np.atleast_1d(np.asarray(frequencies, dtype=float))
 	if (
 		source_frequencies.ndim != 1
 		or source_frequencies.size != source_indices.size
@@ -99,7 +99,7 @@ def _validated_source_fields(
 
 def _finite_nonzero(value: float, *, name: str) -> float:
 	"""Normalize a signed physical factor without accepting zero or infinity."""
-	number = float(value)
+	number: float = float(value)
 	if not np.isfinite(number) or number == 0:
 		raise ValueError(f"`{name}` must be finite and non-zero.")
 	return number
@@ -142,11 +142,13 @@ class GC2DH5Metadata:
 			raise ValueError("Unsupported source frequency unit.")
 		if self.time_convention not in ("physical_seconds", "physical_cycles", "legacy_cycles", "legacy_unspecified"):
 			raise ValueError("Unsupported time convention.")
+		source_indices: np.ndarray
+		source_frequencies: np.ndarray
 		source_indices, source_frequencies = _validated_source_fields(
 			self.source_field_indices, self.source_frequencies,
 		)
-		normalization = _finite_nonzero(self.normalization_factor, name="normalization_factor")
-		attribute_values = _readonly_attributes(self.attributes)
+		normalization: float = _finite_nonzero(self.normalization_factor, name="normalization_factor")
+		attribute_values: dict[str, np.ndarray] = _readonly_attributes(self.attributes)
 		for name in ("spatial_scale", "time_scale"):
 			object.__setattr__(self, name, _finite_positive(getattr(self, name), name=name))
 		for name in ("spatial_rescaling", "temporal_rescaling"):
@@ -280,7 +282,7 @@ def _validated_field_selection(
 ) -> np.ndarray:
 	"""Validate original HDF5 indices of variable fields, preserving their order."""
 	if indx is None:
-		selected = np.flatnonzero(np.isfinite(frequencies) & (frequencies > 0))
+		selected: np.ndarray = np.flatnonzero(np.isfinite(frequencies) & (frequencies > 0))
 	else:
 		selected = np.atleast_1d(np.asarray(indx))
 		if selected.ndim != 1 or (selected.size and not np.issubdtype(selected.dtype, np.integer)):
@@ -311,14 +313,14 @@ def _load_data(
 	"""
 	from .potential import _denoise_fields
 
-	spatial = _validated_boolean(spatial_rescaling, name="spatial_rescaling")
-	temporal = _validated_boolean(temporal_rescaling, name="temporal_rescaling")
-	width = None if sigma is None else _finite_nonnegative(sigma, name="sigma")
-	path = Path(filename)
+	spatial: bool = _validated_boolean(spatial_rescaling, name="spatial_rescaling")
+	temporal: bool = _validated_boolean(temporal_rescaling, name="temporal_rescaling")
+	width: None | float = None if sigma is None else _finite_nonnegative(sigma, name="sigma")
+	path: Path = Path(filename)
 	with h5py.File(path, "r") as h5:
-		x = _validated_axis(h5["Rcells"][()], name="Rcells")
-		y = _validated_axis(h5["Zcells"][()], name="Zcells")
-		frequencies = np.asarray(h5["freqs"][()], dtype=float)
+		x: np.ndarray = _validated_axis(h5["Rcells"][()], name="Rcells")
+		y: np.ndarray = _validated_axis(h5["Zcells"][()], name="Zcells")
+		frequencies: np.ndarray = np.asarray(h5["freqs"][()], dtype=float)
 		if frequencies.ndim != 1:
 			raise ValueError("`freqs` must be one-dimensional.")
 		fields = h5["fields"]
@@ -329,16 +331,16 @@ def _load_data(
 			raise ValueError("HDF5 loading preserves the existing orientation and requires square sampled fields.")
 		if not frequencies.size or frequencies[0] != 0:
 			raise ValueError("The first source frequency must be exactly zero for the constant field.")
-		indices = _validated_field_selection(indx, frequencies)
+		indices: np.ndarray = _validated_field_selection(indx, frequencies)
 		source_f = frequencies[indices]
-		mean = np.asarray(fields[0].real, dtype=float)
-		modes = np.asarray([fields[int(i)] for i in indices], dtype=np.complex128) if indices.size else None
+		mean: np.ndarray = np.asarray(fields[0].real, dtype=float)
+		modes: np.ndarray | None = np.asarray([fields[int(i)] for i in indices], dtype=np.complex128) if indices.size else None
 		attributes = {name: np.asarray(value) for name, value in h5.attrs.items()}
 
-	grid = _grid_from_validated_axes(x, y)
+	grid: Grid = _grid_from_validated_axes(x, y)
 	mean, modes = _denoise_fields(mean, modes, sigma=width)
 	length = grid.period if spatial else 1.0
-	period = None
+	period: float | None = None
 	if temporal:
 		if not source_f.size:
 			raise ValueError("Temporal rescaling requires a selected positive-frequency mode.")
@@ -352,7 +354,7 @@ def _load_data(
 			modes = modes * amplitude_scale
 	if spatial:
 		grid = Grid.periodic(grid.nx, grid.ny, period=1.0)
-	metadata = GC2DH5Metadata(
+	metadata: GC2DH5Metadata = GC2DH5Metadata(
 		source_field_indices=indices, source_x=x, source_y=y,
 		source_frequencies=source_f, characteristic_length=None,
 		characteristic_period=period, normalization_factor=1.0 / amplitude_scale,

@@ -1,6 +1,6 @@
 """Plots of physical accuracy, extended balance, temporal envelopes and cost."""
 
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -10,13 +10,18 @@ from matplotlib.animation import FuncAnimation
 from contracts.study_results import GCEnergyBoundResult, GC_ENERGY_BOUND_METHODS as METHODS
 from .notebooks import display_records_table
 
+
+if TYPE_CHECKING:
+    from matplotlib.axes import Axes
+
+
 COLORS = {"BM4Implicit": "#007F86", "RK4": "#C95132", "DOP853": "#333F55"}
 
 
 def show_energy_table(rows: list[dict[str, Any]], columns: tuple[str, ...]) -> None:
     """Display selected records with scientific notation for nonzero small errors."""
     prepared = [{key: row.get(key) for key in columns} for row in rows]
-    formatted = tuple((key, key.replace("_", " "),
+    formatted: tuple[tuple[str, str, str | None], ...] = tuple((key, key.replace("_", " "),
                        ".5e" if all(isinstance(row.get(key), (float, np.floating)) for row in rows) else None)
                       for key in columns)
     display_records_table(prepared, columns=formatted)
@@ -31,6 +36,8 @@ def plot_energy_histories(result: GCEnergyBoundResult, *, level: int = 0) -> Fig
     """Separate physical energy, reference error, extended drift and its envelope."""
     a = result.arrays
     t = a[f"h{level}/times"]
+    fig: Figure
+    axes: np.ndarray
     fig, axes = plt.subplots(2, 2, figsize=(12, 7), constrained_layout=True)
     axes[0, 0].plot(a["reference/times"], a["reference/H"], color=COLORS["DOP853"], label="DOP853")
     for name in METHODS:
@@ -52,6 +59,8 @@ def plot_energy_histories(result: GCEnergyBoundResult, *, level: int = 0) -> Fig
 
 def plot_energy_refinement(result: GCEnergyBoundResult) -> Figure:
     """Show every h-dependent temporal envelope and fixed-horizon error scaling."""
+    fig: Figure
+    axes: np.ndarray
     fig, axes = plt.subplots(2, 2, figsize=(12, 7), constrained_layout=True)
     steps = result.metadata["config"]["steps"]
     stop = result.metadata["config"]["horizons"][-1]
@@ -63,7 +72,7 @@ def plot_energy_refinement(result: GCEnergyBoundResult) -> Figure:
         axes[0, j].set(title=name+": all step sizes", ylabel="max |K - K(0)|", xlabel="Horizon T")
         for metric, marker in (("K", "o"), ("H_reference", "s")):
             rows = [r for r in result.envelopes if r["method"] == name and r["metric"] == metric and r["horizon"] == stop]
-            hs = np.array([r["step"] for r in rows]); es = np.array([r["maximum"] for r in rows])
+            hs: np.ndarray = np.array([r["step"] for r in rows]); es: np.ndarray = np.array([r["maximum"] for r in rows])
             axes[1, j].loglog(hs, _positive(es), marker+"-", label=metric)
             if metric == "K" and es[-1] > 0:
                 axes[1, j].loglog(hs, es[-1]*(hs/hs[-1])**4, "k:", label="h^4 guide (not a fitted bound)")
@@ -76,6 +85,8 @@ def plot_energy_refinement(result: GCEnergyBoundResult) -> Figure:
 def plot_energy_blocks(result: GCEnergyBoundResult, *, level: int = 0) -> Figure:
     """Display the signed K-error range and mean of consecutive time blocks."""
     step = result.metadata["config"]["steps"][level]
+    fig: Figure
+    axes: np.ndarray
     fig, axes = plt.subplots(1, 2, figsize=(12, 4), constrained_layout=True)
     for ax, name in zip(axes, METHODS):
         rows = [r for r in result.blocks if r["method"] == name and r["step"] == step]
@@ -92,6 +103,8 @@ def plot_gc_accuracy_and_cost(result: GCEnergyBoundResult, *, level: int = 0) ->
     """Show the orbit, full periodic-distance history, and timing tradeoffs."""
     a = result.arrays
     t = a[f"h{level}/times"]
+    fig: Figure
+    axes: np.ndarray
     fig, axes = plt.subplots(2, 2, figsize=(12, 8), constrained_layout=True)
     axes[0, 0].plot(*a["reference/states"], color=COLORS["DOP853"], label="DOP853")
     axes[0, 0].scatter(*a["initial_state"], marker="*", color="black", s=80, label="Initial state")
@@ -100,7 +113,7 @@ def plot_gc_accuracy_and_cost(result: GCEnergyBoundResult, *, level: int = 0) ->
         axes[0, 0].plot(*a[p+"/states"], lw=1, color=COLORS[name], label=name)
         axes[0, 1].semilogy(a.get(f"h{level}/comparison_times", t), _positive(a[p+"/distance"]), color=COLORS[name], label=name)
         rows = [r for r in result.summary if r["method"] == name]
-        xs = np.array([r["runtime_median"] for r in rows])
+        xs: np.ndarray = np.array([r["runtime_median"] for r in rows])
         low = xs-np.array([r["runtime_q25"] for r in rows])
         high = np.array([r["runtime_q75"] for r in rows])-xs
         axes[1, 0].errorbar(xs, [r["trajectory_rms"] for r in rows], xerr=np.array([low, high]),
@@ -111,11 +124,13 @@ def plot_gc_accuracy_and_cost(result: GCEnergyBoundResult, *, level: int = 0) ->
     axes[0, 0].set(title="One GC orbit (unwrapped coordinates)", xlabel="x", ylabel="y", aspect="equal")
     # Equal coordinate spans keep short, almost vertical orbits from collapsing
     # the axes to a thin strip and obscuring tick labels and the legend.
-    plotted_states = np.concatenate([a["reference/states"],
+    plotted_states: np.ndarray = np.concatenate([a["reference/states"],
         *(a[f"h{level}/{name}/states"] for name in METHODS)], axis=1)
+    lower: Any
+    upper: Any
     lower, upper = plotted_states.min(axis=1), plotted_states.max(axis=1)
     center = (lower+upper)/2
-    radius = max(float(np.max(upper-lower))*.6, .1)
+    radius: float = max(float(np.max(upper-lower))*.6, .1)
     axes[0, 0].set_xlim(center[0]-radius, center[0]+radius)
     axes[0, 0].set_ylim(center[1]-radius, center[1]+radius)
     axes[0, 1].set(title="Trajectory error at shared saved nodes", xlabel="Normalized time", ylabel="Minimum-image distance")
@@ -131,6 +146,8 @@ def plot_bm4_nonlinear_work(result: GCEnergyBoundResult, *, level: int = 0) -> F
     """Display per-step Newton work and the complete projection-norm history."""
     a = result.arrays; p = f"h{level}/BM4Implicit"
     t = a[f"h{level}/times"][1:]
+    fig: Figure
+    axes: np.ndarray
     fig, axes = plt.subplots(1, 3, figsize=(13, 3.8), constrained_layout=True)
     axes[0].plot(t, a[p+"/nonlinear_iterations"], label="Newton corrections")
     axes[0].plot(t, a[p+"/residual_evaluations"], label="Residual evaluations", alpha=.7)
@@ -160,12 +177,16 @@ def animate_energy_orbit(result: GCEnergyBoundResult, *, level: int = 0,
         stride = (len(a["reference/times"])-1)//(len(times)-1)
         states = {"DOP853": a["reference/states"][:, ::stride],
                   **{name: a[f"h{level}/{name}/states"] for name in METHODS}}
-    frames = np.unique(np.linspace(0, len(times)-1, min(frame_count, len(times)), dtype=int))
+    frames: np.ndarray = np.unique(np.linspace(0, len(times)-1, min(frame_count, len(times)), dtype=int))
+    fig: Figure
+    ax: Axes
     fig, ax = plt.subplots(figsize=(6, 6), constrained_layout=True)
-    all_states = np.concatenate(list(states.values()), axis=1)
+    all_states: np.ndarray = np.concatenate(list(states.values()), axis=1)
+    lower: Any
+    upper: Any
     lower, upper = all_states.min(axis=1), all_states.max(axis=1)
     center = (lower+upper)/2
-    radius = max(float(np.max(upper-lower))*.6, .1)
+    radius: float = max(float(np.max(upper-lower))*.6, .1)
     ax.set(xlim=(center[0]-radius, center[0]+radius),
            ylim=(center[1]-radius, center[1]+radius), xlabel="x", ylabel="y", aspect="equal")
     lines = {name: ax.plot([], [], color=COLORS[name], label=name)[0] for name in states}

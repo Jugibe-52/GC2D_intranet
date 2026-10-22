@@ -3,9 +3,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal, TypeAlias
+from typing import Literal, TYPE_CHECKING, TypeAlias
 
 import numpy as np
+
+
+if TYPE_CHECKING:
+	from typing import Any
 
 
 SpectralClass: TypeAlias = Literal["hyperbolic", "elliptic", "parabolic"]
@@ -18,24 +22,24 @@ SPECTRAL_CLASSES: tuple[SpectralClass, ...] = (
 
 def line_angle(vector: np.ndarray) -> float:
 	"""Return an unoriented planar line angle in ``[-pi/2, pi/2)``."""
-	value = np.asarray(vector, dtype=float)
+	value: np.ndarray = np.asarray(vector, dtype=float)
 	if value.shape != (2,) or not np.all(np.isfinite(value)):
 		raise ValueError("A line direction must be a finite planar vector.")
-	norm = float(np.linalg.norm(value))
+	norm: float = float(np.linalg.norm(value))
 	if norm <= np.finfo(float).tiny:
 		raise ValueError("A line direction must be non-zero.")
-	angle = float(np.arctan2(value[1], value[0]))
+	angle: float = float(np.arctan2(value[1], value[0]))
 	return float((angle + np.pi / 2.0) % np.pi - np.pi / 2.0)
 
 
 def _canonical_complex_vector(vector: np.ndarray) -> np.ndarray:
 	"""Normalize one eigenvector and remove its arbitrary complex phase."""
-	value = np.asarray(vector, dtype=complex)
-	norm = float(np.linalg.norm(value))
+	value: np.ndarray = np.asarray(vector, dtype=complex)
+	norm: float = float(np.linalg.norm(value))
 	if not np.isfinite(norm) or norm <= np.finfo(float).tiny:
 		raise ValueError("An eigenvector must have a finite non-zero norm.")
 	value = value / norm
-	pivot = int(np.argmax(np.abs(value)))
+	pivot: int = int(np.argmax(np.abs(value)))
 	value = value * np.exp(-1j * np.angle(value[pivot]))
 	# Removing insignificant imaginary residue makes real eigendirections stable.
 	threshold = 64.0 * np.finfo(float).eps
@@ -49,11 +53,13 @@ def _ordered_eigensystem(
 	spectral_class: SpectralClass,
 ) -> tuple[np.ndarray, np.ndarray]:
 	"""Return deterministically ordered eigenvalues and column eigenvectors."""
+	eigenvalues: np.ndarray
+	eigenvectors: np.ndarray
 	eigenvalues, eigenvectors = np.linalg.eig(matrix)
 	eigenvalues = np.asarray(eigenvalues, dtype=complex)
 	eigenvectors = np.asarray(eigenvectors, dtype=complex)
 	if spectral_class == "hyperbolic":
-		order = np.argsort(np.abs(eigenvalues), kind="stable")
+		order: np.ndarray = np.argsort(np.abs(eigenvalues), kind="stable")
 	elif spectral_class == "elliptic":
 		# The positive-imaginary member represents the reported rotation branch.
 		order = np.argsort(-eigenvalues.imag, kind="stable")
@@ -70,9 +76,9 @@ def _ordered_eigensystem(
 
 def _canonical_right_singular_vectors(vectors: np.ndarray) -> np.ndarray:
 	"""Fix the arbitrary sign of each real right singular vector."""
-	result = np.asarray(vectors, dtype=float).copy()
+	result: np.ndarray = np.asarray(vectors, dtype=float).copy()
 	for column in range(2):
-		pivot = int(np.argmax(np.abs(result[:, column])))
+		pivot: int = int(np.argmax(np.abs(result[:, column])))
 		if result[pivot, column] < 0.0:
 			result[:, column] *= -1.0
 	return result
@@ -113,19 +119,19 @@ def analyze_particle_jacobian(
 	terms. Near a repeated eigenvalue the result is deliberately classified as
 	parabolic because eigendirections are not numerically reliable there.
 	"""
-	matrix = np.asarray(jacobian, dtype=float)
+	matrix: np.ndarray = np.asarray(jacobian, dtype=float)
 	if matrix.shape != (2, 2) or not np.all(np.isfinite(matrix)):
 		raise ValueError("A particle Jacobian must be a finite real 2 x 2 matrix.")
-	tolerance = float(discriminant_relative_tolerance)
+	tolerance: float = float(discriminant_relative_tolerance)
 	if not np.isfinite(tolerance) or tolerance <= 0.0:
 		raise ValueError(
 			"`discriminant_relative_tolerance` must be positive and finite."
 		)
 
-	trace = float(np.trace(matrix))
-	determinant = float(np.linalg.det(matrix))
+	trace: float = float(np.trace(matrix))
+	determinant: float = float(np.linalg.det(matrix))
 	discriminant = trace**2 - 4.0 * determinant
-	discriminant_scale = max(1.0, trace**2, 4.0 * abs(determinant))
+	discriminant_scale: float = max(1.0, trace**2, 4.0 * abs(determinant))
 	discriminant_tolerance = tolerance * discriminant_scale
 	if discriminant > discriminant_tolerance:
 		spectral_class: SpectralClass = "hyperbolic"
@@ -134,8 +140,10 @@ def analyze_particle_jacobian(
 	else:
 		spectral_class = "parabolic"
 
+	eigenvalues: np.ndarray
+	eigenvectors: np.ndarray
 	eigenvalues, eigenvectors = _ordered_eigensystem(matrix, spectral_class)
-	eigenvector_line_angles = np.full(2, np.nan, dtype=float)
+	eigenvector_line_angles: np.ndarray = np.full(2, np.nan, dtype=float)
 	eigendirections_defined = spectral_class == "hyperbolic"
 	if eigendirections_defined:
 		for column in range(2):
@@ -147,22 +155,24 @@ def analyze_particle_jacobian(
 	if not eigendirections_defined:
 		eigenvector_line_angles.fill(np.nan)
 
+	singular_values: np.ndarray
+	right_transpose: np.ndarray
 	_, singular_values, right_transpose = np.linalg.svd(matrix)
-	right_singular_vectors = _canonical_right_singular_vectors(
+	right_singular_vectors: np.ndarray = _canonical_right_singular_vectors(
 		right_transpose.T
 	)
-	singular_gap = float(singular_values[0] - singular_values[1])
+	singular_gap: float = float(singular_values[0] - singular_values[1])
 	singular_tolerance = tolerance * max(1.0, float(singular_values[0]))
 	singular_directions_defined = singular_gap > singular_tolerance
-	singular_vector_line_angles = np.full(2, np.nan, dtype=float)
+	singular_vector_line_angles: np.ndarray = np.full(2, np.nan, dtype=float)
 	if singular_directions_defined:
 		for column in range(2):
 			singular_vector_line_angles[column] = line_angle(
 				right_singular_vectors[:, column]
 			)
 
-	eigenvalue_scale = max(1.0, float(np.max(np.abs(eigenvalues))))
-	eigenvalue_separation = float(
+	eigenvalue_scale: float = max(1.0, float(np.max(np.abs(eigenvalues))))
+	eigenvalue_separation: float = float(
 		abs(eigenvalues[1] - eigenvalues[0]) / eigenvalue_scale
 	)
 	return ParticleJacobianAnalysis(
@@ -198,12 +208,12 @@ def particle_jacobian_blocks(
 		or particle_count < 1
 	):
 		raise ValueError("`particle_count` must be a positive integer.")
-	count = int(particle_count)
-	matrix = np.asarray(jacobian, dtype=float)
+	count: int = int(particle_count)
+	matrix: np.ndarray = np.asarray(jacobian, dtype=float)
 	expected = (2 * count, 2 * count)
 	if matrix.shape != expected or not np.all(np.isfinite(matrix)):
 		raise ValueError(f"The packed Jacobian must be finite and have shape {expected}.")
-	blocks = np.empty((count, 2, 2), dtype=float)
+	blocks: np.ndarray = np.empty((count, 2, 2), dtype=float)
 	for particle in range(count):
 		indices = (particle, count + particle)
 		blocks[particle] = matrix[np.ix_(indices, indices)]

@@ -3,10 +3,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Mapping, Protocol
+from typing import Mapping, Protocol, TYPE_CHECKING
 
 import numpy as np
 from states.history import States
+
+
+if TYPE_CHECKING:
+	from typing import Any
 
 
 @dataclass(frozen=True, slots=True)
@@ -24,10 +28,10 @@ class AdaptiveReference:
 
 	def __post_init__(self) -> None:
 		"""Own immutable, aligned reference and audit arrays."""
-		times = np.array(self.times, dtype=float, copy=True)
-		states = np.array(self.states, dtype=float, copy=True)
-		audit_states = np.array(self.audit_states, dtype=float, copy=True)
-		distances = np.array(self.audit_distances, dtype=float, copy=True)
+		times: np.ndarray = np.array(self.times, dtype=float, copy=True)
+		states: np.ndarray = np.array(self.states, dtype=float, copy=True)
+		audit_states: np.ndarray = np.array(self.audit_states, dtype=float, copy=True)
+		distances: np.ndarray = np.array(self.audit_distances, dtype=float, copy=True)
 		_freeze_reference_arrays(times, states, audit_states, distances)
 		object.__setattr__(self, "times", times)
 		object.__setattr__(self, "states", states)
@@ -37,7 +41,7 @@ class AdaptiveReference:
 	@property
 	def time_integrated_rms_floor(self) -> float:
 		"""Return the time-integrated particle-RMS DOP853/Radau discrepancy."""
-		particle_rms_squared = np.mean(self.audit_distances**2, axis=0)
+		particle_rms_squared: np.ndarray = np.mean(self.audit_distances**2, axis=0)
 		return float(
 			np.sqrt(
 				np.trapz(particle_rms_squared, self.times)
@@ -49,7 +53,6 @@ class AdaptiveReference:
 	def final_rms_floor(self) -> float:
 		"""Return the final-time particle-RMS DOP853/Radau discrepancy."""
 		return float(np.sqrt(np.mean(self.audit_distances[:, -1] ** 2)))
-
 
 
 def _freeze_reference_arrays(
@@ -73,7 +76,6 @@ def _freeze_reference_arrays(
 		raise ValueError("Adaptive reference arrays are invalid or misaligned.")
 	for value in (times, states, audit_states, distances):
 		value.setflags(write=False)
-
 
 
 def _owned_accuracy_arrays(
@@ -108,6 +110,10 @@ class TrajectoryAccuracySeries:
 
 	def __post_init__(self) -> None:
 		"""Own immutable finite non-negative accuracy arrays."""
+		distances: np.ndarray
+		rms: np.ndarray
+		mean: np.ndarray
+		maximum: np.ndarray
 		distances, rms, mean, maximum = _owned_accuracy_arrays(
 			self.distances, self.rms_distance, self.mean_distance, self.maximum_distance,
 		)
@@ -115,7 +121,6 @@ class TrajectoryAccuracySeries:
 		object.__setattr__(self, "rms_distance", rms)
 		object.__setattr__(self, "mean_distance", mean)
 		object.__setattr__(self, "maximum_distance", maximum)
-
 
 
 def _owned_energy_errors(method_name: str, errors: np.ndarray) -> np.ndarray:
@@ -138,7 +143,7 @@ class EnergyAccuracySeries:
 
 	def __post_init__(self) -> None:
 		"""Own one immutable finite ``(particles, samples)`` error history."""
-		errors = _owned_energy_errors(self.method_name, self.errors)
+		errors: np.ndarray = _owned_energy_errors(self.method_name, self.errors)
 		object.__setattr__(self, "errors", errors)
 
 	@property
@@ -155,7 +160,6 @@ class EnergyAccuracySeries:
 	def running_maximum_absolute_error(self) -> np.ndarray:
 		"""Return the running worst particle-energy error through time."""
 		return np.maximum.accumulate(self.maximum_absolute_error)
-
 
 
 @dataclass(frozen=True, slots=True)
@@ -191,7 +195,6 @@ class ThreeMethodNewtonSummary:
 	maximum_residual_to_tolerance: float
 
 
-
 @dataclass(frozen=True, slots=True)
 class ExecutionLogEntry:
 	"""One completed reference, warm-up, or timed execution."""
@@ -214,7 +217,6 @@ class ExecutionLogEntry:
 			raise ValueError("Execution-log counts must be non-negative and valid.")
 		if not np.isfinite(self.runtime_seconds) or self.runtime_seconds <= 0.0:
 			raise ValueError("Execution-log runtime must be positive and finite.")
-
 
 
 @dataclass(frozen=True, slots=True)
@@ -243,7 +245,6 @@ class FiveMethodComparisonSummary:
 	runtime_maximum_seconds: float
 
 
-
 @dataclass(frozen=True, slots=True)
 class FiveMethodNonlinearWorkSummary:
 	"""Newton work for one of the four implicit methods."""
@@ -259,7 +260,6 @@ class FiveMethodNonlinearWorkSummary:
 	mean_residual_evaluations: float
 	total_residual_evaluations: int
 	maximum_residual_to_tolerance: float
-
 
 
 class ComparisonReadView(Protocol):

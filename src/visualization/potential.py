@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
@@ -15,10 +15,15 @@ from matplotlib.figure import Figure
 from potential import Potential
 
 
+if TYPE_CHECKING:
+	from matplotlib.collections import QuadMesh
+	from matplotlib.quiver import Quiver
+
+
 def _colour_scale(field: np.ndarray) -> mcolors.Normalize:
 	"""Choose a stable normalization centered on zero when appropriate."""
-	vmin = float(np.nanmin(field))
-	vmax = float(np.nanmax(field))
+	vmin: float = float(np.nanmin(field))
+	vmax: float = float(np.nanmax(field))
 	if vmin < 0 < vmax:
 		return mcolors.TwoSlopeNorm(vmin=vmin, vcenter=0.0, vmax=vmax)
 	if np.isclose(vmin, vmax):
@@ -39,9 +44,11 @@ def plot_potential(
 	"""Plot one potential field without coupling presentation to the model."""
 	if not isinstance(potential, Potential):
 		raise TypeError("`potential` must be a Potential instance.")
-	field = potential.evaluate_grid(t)
+	field: np.ndarray = potential.evaluate_grid(t)
+	figure: Figure
+	axis: Axes
 	figure, axis = plt.subplots(figsize=(6, 5), constrained_layout=True)
-	mesh = axis.pcolormesh(
+	mesh: QuadMesh = axis.pcolormesh(
 		potential.grid.x,
 		potential.grid.y,
 		field.T,
@@ -82,12 +89,12 @@ def _potential_frame_times(t_max: float, frames: int | None) -> np.ndarray:
 	if frames is None:
 		# A normalized cycle has length one. Ceil retains at least 10 saved
 		# frames per cycle when the requested horizon is not an integer.
-		frame_count = max(2, int(np.ceil(10.0 * t_max)))
+		frame_count: int = max(2, int(np.ceil(10.0 * t_max)))
 	elif not isinstance(frames, int) or isinstance(frames, bool) or frames < 2:
 		raise ValueError("`frames` must be None or an integer of at least 2.")
 	else:
 		frame_count = frames
-	times = np.linspace(0.0, t_max, frame_count, endpoint=False)
+	times: np.ndarray = np.linspace(0.0, t_max, frame_count, endpoint=False)
 	return times
 
 
@@ -104,9 +111,11 @@ def animate_potential(
 	"""Animate normalized cycles with 10 frames per cycle at 5 fps."""
 	if not isinstance(potential, Potential):
 		raise TypeError("`potential` must be a Potential instance.")
-	times = _potential_frame_times(t_max, frames)
+	times: np.ndarray = _potential_frame_times(t_max, frames)
 	fields = [potential.evaluate_grid(time) for time in times]
-	stride = max(1, int(np.ceil(max(potential.grid.shape) / 20)))
+	stride: int = max(1, int(np.ceil(max(potential.grid.shape) / 20)))
+	quiver_x: np.ndarray
+	quiver_y: np.ndarray
 	quiver_x, quiver_y = np.meshgrid(
 		potential.grid.x[::stride],
 		potential.grid.y[::stride],
@@ -115,15 +124,17 @@ def animate_potential(
 	electric_fields = [
 		potential.electric_field(time, quiver_x, quiver_y) for time in times
 	]
-	vmin = min(float(np.min(field)) for field in fields)
-	vmax = max(float(np.max(field)) for field in fields)
-	norm = (
+	vmin: float = min(float(np.min(field)) for field in fields)
+	vmax: float = max(float(np.max(field)) for field in fields)
+	norm: mcolors.Normalize = (
 		mcolors.TwoSlopeNorm(vmin=vmin, vcenter=0.0, vmax=vmax)
 		if vmin < 0 < vmax
 		else _colour_scale(np.asarray([vmin, vmax]))
 	)
+	figure: Figure
+	axis: Axes
 	figure, axis = plt.subplots(figsize=(6, 5), constrained_layout=True)
-	mesh = axis.pcolormesh(
+	mesh: QuadMesh = axis.pcolormesh(
 		potential.grid.x,
 		potential.grid.y,
 		fields[0].T,
@@ -133,7 +144,7 @@ def animate_potential(
 		**pcolormesh_kwargs,
 	)
 	figure.colorbar(mesh, ax=axis, label=r"$\phi$")
-	quiver = axis.quiver(
+	quiver: Quiver = axis.quiver(
 		quiver_x,
 		quiver_y,
 		*electric_fields[0],
@@ -155,7 +166,7 @@ def animate_potential(
 		return mesh, quiver, axis.title
 
 	update(0)
-	animation = FuncAnimation(
+	animation: FuncAnimation = FuncAnimation(
 		figure,
 		update,
 		frames=times.size,

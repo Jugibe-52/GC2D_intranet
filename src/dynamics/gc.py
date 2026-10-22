@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, ClassVar
+from typing import Any, ClassVar, TYPE_CHECKING
 
 import numpy as np
 
@@ -12,6 +12,11 @@ from potential.potential import Potential
 from contracts.arrays import array_namespace
 from formulations.layout import GCStateLayout
 from ._equations import gc_velocity
+
+
+if TYPE_CHECKING:
+	from contracts.arrays import BackendArray
+	from types import ModuleType
 
 
 def _validated_parameters(potential: Potential, rho: float, B: float) -> tuple[float, float]:
@@ -44,7 +49,7 @@ class GuidingCenterDynamics:
 		object.__setattr__(self, "potential", potential)
 		object.__setattr__(self, "rho", rho)
 		object.__setattr__(self, "B", B)
-		averaged = potential.gyroaverage(rho)
+		averaged: Potential = potential.gyroaverage(rho)
 		# H=P/B drives all equations, including Jacobians and time derivatives.
 		if B != 1.0:
 			averaged = type(averaged)(averaged.grid, mean=averaged.mean / B,
@@ -54,7 +59,11 @@ class GuidingCenterDynamics:
 
 	def vector_field(self, t: Any, state: Any) -> Any:
 		"""Evaluate GC drift at one time or broadcast times over a packed history."""
+		x: BackendArray
+		y: BackendArray
 		x, y = GCStateLayout().split(state)
+		ex: BackendArray
+		ey: BackendArray
 		ex, ey = self.effective_potential.electric_field(
 			t,
 			x,
@@ -75,16 +84,18 @@ class GuidingCenterDynamics:
 		a sparse ``(2N, 2N)`` matrix. With ``f = (-phi_y, phi_x)``, the rows are
 		``(-phi_xy, -phi_yy)`` and ``(phi_xx, phi_xy)``.
 		"""
+		x: BackendArray
+		y: BackendArray
 		x, y = GCStateLayout().split(state)
 		potential = self.effective_potential
 		if potential.interpolation_order < 3:
 			raise ValueError(
 				"Exact GC vector-field Jacobians require interpolation_order >= 3."
 			)
-		phi_xx = potential.evaluate(t, x, y, dx=2)
-		phi_xy = potential.evaluate(t, x, y, dx=1, dy=1)
-		phi_yy = potential.evaluate(t, x, y, dy=2)
-		xp = array_namespace(t, state)
+		phi_xx: BackendArray = potential.evaluate(t, x, y, dx=2)
+		phi_xy: BackendArray = potential.evaluate(t, x, y, dx=1, dy=1)
+		phi_yy: BackendArray = potential.evaluate(t, x, y, dy=2)
+		xp: ModuleType = array_namespace(t, state)
 		return xp.stack(
 			(
 				xp.stack((-phi_xy, -phi_yy), axis=-1),
@@ -99,6 +110,8 @@ class GuidingCenterDynamics:
 		state: Any,
 	) -> Any:
 		"""Evaluate gyroaveraged Hamiltonian values."""
+		x: BackendArray
+		y: BackendArray
 		x, y = GCStateLayout().split(state)
 		return self.effective_potential.evaluate(t, x, y)
 
@@ -108,6 +121,8 @@ class GuidingCenterDynamics:
 		state: Any,
 	) -> Any:
 		"""Evaluate the time-conjugate momentum derivative."""
+		x: BackendArray
+		y: BackendArray
 		x, y = GCStateLayout().split(state)
 		return -self.effective_potential.evaluate(
 			t,

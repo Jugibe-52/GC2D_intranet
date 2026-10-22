@@ -60,7 +60,7 @@ def accuracy_series(
 	distance_convention: DistanceConvention = "periodic",
 ) -> TrajectoryAccuracySeries:
 	"""Build per-time reductions without averaging coordinate components first."""
-	distances = particle_distances(
+	distances: np.ndarray = particle_distances(
 		states,
 		reference_states,
 		distance_convention=distance_convention,
@@ -79,10 +79,10 @@ def reference_distance_convention(
 	reference: StoredReferenceTrajectory,
 ) -> DistanceConvention:
 	"""Read the reference metric, defaulting schema-v1 artifacts to periodic."""
-	config = reference.metadata.get("config")
+	config: Any | None = reference.metadata.get("config")
 	if not isinstance(config, Mapping):
 		raise ValueError("Reference numerical configuration is missing.")
-	value = config.get("distance_convention", "periodic")
+	value: Any = config.get("distance_convention", "periodic")
 	if not isinstance(value, str):
 		raise ValueError("Reference distance convention must be textual.")
 	return normalized_distance_convention(value)
@@ -106,7 +106,7 @@ def validate_reference_identity(
 		metadata, potential_metadata=potential_metadata,
 		initial_condition_metadata=initial_condition_metadata,
 	)
-	reference_config = metadata.get("config")
+	reference_config: Any | None = metadata.get("config")
 	if not isinstance(reference_config, Mapping):
 		raise ValueError("Reference numerical configuration is missing.")
 	reference_distance_convention(reference)
@@ -123,8 +123,8 @@ def reference_indices_for_times(
 	times: np.ndarray,
 ) -> np.ndarray:
 	"""Locate fixed-step main-grid nodes exactly in the stored reference grid."""
-	values = np.asarray(times, dtype=float)
-	indices = np.searchsorted(reference.times, values)
+	values: np.ndarray = np.asarray(times, dtype=float)
+	indices: np.ndarray = np.searchsorted(reference.times, values)
 	if (
 		indices.shape != values.shape
 		or np.any(indices >= reference.times.size)
@@ -138,7 +138,7 @@ def validated_refinement_steps(
 	integration_steps: Sequence[float],
 ) -> tuple[float, ...]:
 	"""Normalize a coarse-to-fine sequence whose main grids are nested."""
-	steps = tuple(
+	steps: tuple[float, ...] = tuple(
 		positive_finite(step, "integration_steps") for step in integration_steps
 	)
 	if len(steps) < 2 or any(
@@ -170,7 +170,7 @@ def _validate_reference_sampling(
 	reference_config: Mapping[str, Any],
 ) -> None:
 	"""Require the full stored time grid and an exactly divisible comparison cadence."""
-	reference_interval = float(reference_config["save_interval"])
+	reference_interval: float = float(reference_config["save_interval"])
 	comparison_interval = config.save_interval
 	if comparison_interval is None:
 		raise ValueError("The comparison saved interval must be configured.")
@@ -195,7 +195,7 @@ def _validate_reference_dynamics(
 	potential: Potential, metadata: Mapping[str, object], rho: float,
 ) -> None:
 	"""Require the same interpolation grid and sampled effective-potential fingerprint."""
-	grid_metadata = metadata.get("potential_grid")
+	grid_metadata: object = metadata.get("potential_grid")
 	grid = potential.grid
 	actual_grid_metadata = {
 		"xmin": grid.xmin,
@@ -214,8 +214,8 @@ def _validate_reference_dynamics(
 		"gc2d-sampled-potential-v1-sha256"
 	):
 		raise ValueError("The reference dynamics fingerprint algorithm is unsupported.")
-	stored_fingerprint = metadata.get("dynamics_fingerprint_sha256")
-	actual_fingerprint = potential_fingerprint(
+	stored_fingerprint: object = metadata.get("dynamics_fingerprint_sha256")
+	actual_fingerprint: str = potential_fingerprint(
 		GuidingCenterDynamics(potential, rho=rho).effective_potential
 	)
 	if stored_fingerprint != actual_fingerprint:

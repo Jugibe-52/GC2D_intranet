@@ -9,12 +9,11 @@ from diagnostics.geometry import calculate_area
 from dataclasses import asdict, dataclass
 from datetime import date
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Mapping, TYPE_CHECKING
 
 import numpy as np
 
 from diagnostics._validation import optional_relative_step, positive_integer
-
 
 
 from contracts.observation import IntegrationStage
@@ -29,18 +28,22 @@ from diagnostics.paths import (
 )
 
 
+if TYPE_CHECKING:
+	from diagnostics.output import DiagnosticBlockPaths
+
+
 _BM4_STAGE_COUNT = 12
 
 
 def gc_diagonal_embedding(particle_count: int) -> np.ndarray:
 	"""Return ``E: z -> (z, z)`` from physical to doubled GC coordinates."""
-	physical_identity = np.eye(2 * positive_integer(particle_count, "particle_count"))
+	physical_identity: np.ndarray = np.eye(2 * positive_integer(particle_count, "particle_count"))
 	return np.vstack((physical_identity, physical_identity))
 
 
 def gc_average_projection(particle_count: int) -> np.ndarray:
 	"""Return ``P: (z_first, z_second) -> (z_first + z_second) / 2``."""
-	physical_identity = np.eye(2 * positive_integer(particle_count, "particle_count"))
+	physical_identity: np.ndarray = np.eye(2 * positive_integer(particle_count, "particle_count"))
 	return np.hstack((physical_identity, physical_identity)) / 2
 
 
@@ -211,8 +214,8 @@ class ProjectedSymplecticityAreaObserver:
 		):
 			raise ValueError("Projection stages must be observed consecutively in BM4 order.")
 
-		state_before = self._validated_extended_state(stage.state_before)
-		state_after = self._validated_extended_state(stage.state_after)
+		state_before: np.ndarray = self._validated_extended_state(stage.state_before)
+		state_after: np.ndarray = self._validated_extended_state(stage.state_after)
 		if not self._initialized:
 			first = state_before[: self.physical_size]
 			second = state_before[self.physical_size :]
@@ -231,7 +234,7 @@ class ProjectedSymplecticityAreaObserver:
 			)
 			self._initialized = True
 
-		stage_jacobian = central_difference_jacobian(
+		stage_jacobian: np.ndarray = central_difference_jacobian(
 			stage.map_state,
 			state_before,
 			relative_step=self.relative_step,
@@ -271,7 +274,7 @@ class ProjectedSymplecticityAreaObserver:
 
 	def _validated_extended_state(self, state: np.ndarray) -> np.ndarray:
 		"""Require the doubled physical layout and reject energy augmentation."""
-		value = np.asarray(state, dtype=float)
+		value: np.ndarray = np.asarray(state, dtype=float)
 		if (
 			value.ndim != 1
 			or value.size != self.extended_size
@@ -296,12 +299,12 @@ class ProjectedSymplecticityAreaObserver:
 		projected_state = self.projection @ extended_state
 		first = extended_state[: self.physical_size]
 		second = extended_state[self.physical_size :]
-		copy_separation = float(np.linalg.norm(first - second))
-		state_scale = max(
+		copy_separation: float = float(np.linalg.norm(first - second))
+		state_scale: float = max(
 			float(np.linalg.norm(projected_state)),
 			float(np.finfo(float).eps),
 		)
-		area = float(calculate_area(projected_state, period=self.period, layout=GCStateLayout()))
+		area: float = float(calculate_area(projected_state, period=self.period, layout=GCStateLayout()))
 		area_error = area - self.initial_area
 		local_defect = (
 			local_projected_jacobian.T
@@ -313,17 +316,21 @@ class ProjectedSymplecticityAreaObserver:
 			projected_jacobian.T @ self.physical_form @ projected_jacobian
 			- self.physical_form
 		)
+		local_sign: Any
+		local_log_abs_determinant: Any
 		local_sign, local_log_abs_determinant = np.linalg.slogdet(
 			local_projected_jacobian
 		)
+		sign: Any
+		log_abs_determinant: Any
 		sign, log_abs_determinant = np.linalg.slogdet(projected_jacobian)
-		local_determinant = float(
+		local_determinant: float = float(
 			local_sign * np.exp(local_log_abs_determinant)
 		)
-		determinant = float(sign * np.exp(log_abs_determinant))
-		defect_frobenius = float(np.linalg.norm(defect, ord="fro"))
-		form_norm = float(np.linalg.norm(self.physical_form, ord="fro"))
-		record = ProjectedAreaRecord(
+		determinant: float = float(sign * np.exp(log_abs_determinant))
+		defect_frobenius: float = float(np.linalg.norm(defect, ord="fro"))
+		form_norm: float = float(np.linalg.norm(self.physical_form, ord="fro"))
+		record: ProjectedAreaRecord = ProjectedAreaRecord(
 			observation_index=len(self._records),
 			step_index=step_index,
 			time=float(time),
@@ -374,7 +381,7 @@ class ProjectedSymplecticityAreaObserver:
 	) -> ProjectedAreaOutputBlock:
 		"""Write buffered projected states and Jacobians as one indexed block."""
 		rows = [asdict(sample.record) for sample in samples]
-		paths = self._output.write(
+		paths: DiagnosticBlockPaths = self._output.write(
 			block_index=block_index,
 			rows=rows,
 			arrays={
@@ -415,7 +422,7 @@ class ProjectedSymplecticityAreaObserver:
 			},
 		)
 
-		block = ProjectedAreaOutputBlock(
+		block: ProjectedAreaOutputBlock = ProjectedAreaOutputBlock(
 			index=block_index,
 			sample_count=len(samples),
 			summary_path=paths.summary,
@@ -431,6 +438,11 @@ class ProjectedSymplecticityAreaObserver:
 	def _record_final_sample(self) -> None:
 		"""Queue the final completed step when cadence did not select it."""
 		if self._last_completed is not None:
+			extended_state: np.ndarray
+			local_projected_jacobian: np.ndarray
+			projected_jacobian: np.ndarray
+			step_index: int
+			time: float
 			(
 				step_index,
 				time,

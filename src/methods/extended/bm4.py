@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Literal, TypeAlias
+from typing import Literal, TYPE_CHECKING, TypeAlias
 import numpy as np
 
 from contracts.nonlinear import NewtonObserver
@@ -20,6 +20,11 @@ from methods.extended.core.composition import BM4, Composition
 from methods.extended.core.records import ProjectedMap, ProjectedMapResult as _ProjectedBM4Step
 from methods.extended.observations import stage_events
 from methods.extended.palindromic import ProjectedPalindromicMethod, MidpointPalindromicMethod
+
+
+if TYPE_CHECKING:
+	from contracts.observation import IntegrationStage
+
 
 NewtonJacobianMethod: TypeAlias = Literal['analytic', 'finite_difference']
 NEWTON_JACOBIAN_METHODS: tuple[NewtonJacobianMethod, ...] = ('analytic', 'finite_difference')
@@ -118,7 +123,7 @@ class BM4Implicit(ProjectedPalindromicMethod):
 	def build_observation(self, info: StepInfo, step: StepResult[_ProjectedBM4Step]) -> ImplicitBM4IntegrationStep:
 		"""Reconstruct converged stage snapshots only for a requested event."""
 		result = step.details
-		base_stages = stage_events(self.formulation, result.trace,
+		base_stages: tuple[IntegrationStage, ...] = stage_events(self.formulation, result.trace,
 		    step_index=info.index, formulation_name="GCExtendedFormulation",
 		    method_name=type(self).__name__)
 

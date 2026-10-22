@@ -3,11 +3,17 @@ import fcntl,json,subprocess,sys,os,traceback
 from study_io import ROOT,atomic_json,utc_now
 from validate_products import validate
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from typing import Any
+
+
 def main() -> None:
-    cfg=json.loads((ROOT/'experiment.json').read_text());run=cfg['run_id']
+    cfg: Any=json.loads((ROOT/'experiment.json').read_text());run=cfg['run_id']
     with (ROOT/'.local_job.lock').open('w') as lock:
         fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
-        status=dict(run_id=run,status='running',pid=os.getpid(),started_utc=utc_now(),processes=4)
+        status: dict[str, Any]=dict(run_id=run,status='running',pid=os.getpid(),started_utc=utc_now(),processes=4)
         atomic_json(ROOT/'local_status.json',status)
         try:
             for stage in ('calculate','visualize'):

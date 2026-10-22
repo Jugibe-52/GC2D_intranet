@@ -48,8 +48,8 @@ class ABBA2MidpointDefectOrder:
 
 def _maximum_copy_separation(solution: States) -> float:
 	"""Validate and reduce the per-step off-diagonal copy separation."""
-	values = np.asarray(solution.diagnostics.get("copy_separation_norms"))
-	step_count = int(solution.diagnostics.get("step_count", 0))
+	values: np.ndarray = np.asarray(solution.diagnostics.get("copy_separation_norms"))
+	step_count: int = int(solution.diagnostics.get("step_count", 0))
 	if values.shape != (step_count,):
 		raise ValueError(
 			"`copy_separation_norms` must contain one value per integration step."
@@ -89,7 +89,7 @@ class ABBA2MidpointSymplecticityResult(GCSymplecticityResult):
 
 	def summaries(self) -> tuple[ABBA2MidpointSymplecticitySummary, ...]:
 		"""Return geometric summaries augmented by the maximum copy separation."""
-		base_rows = cast(
+		base_rows: tuple[ABBA2MidpointSymplecticitySummary, ...] = cast(
 			tuple[ABBA2MidpointSymplecticitySummary, ...],
 			GCSymplecticityResult.summaries(self),
 		)
@@ -105,7 +105,7 @@ class ABBA2MidpointSymplecticityResult(GCSymplecticityResult):
 
 	def convergence_orders(self) -> tuple[ABBA2MidpointDefectOrder, ...]:
 		"""Estimate defect and copy-separation orders between consecutive steps."""
-		rows = self.summaries()
+		rows: tuple[ABBA2MidpointSymplecticitySummary, ...] = self.summaries()
 		orders: list[ABBA2MidpointDefectOrder] = []
 		for coarse, fine in zip(rows, rows[1:]):
 			orders.append(

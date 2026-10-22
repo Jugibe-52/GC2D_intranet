@@ -84,15 +84,13 @@ class ParallelBM4RecurrenceConfig:
 		return self.cycle_count * self.saved_samples_per_cycle + 1
 
 
-
 def _readonly(values: np.ndarray, *, dtype: Any = float) -> np.ndarray:
 	"""Own and freeze one validated result array."""
-	result = np.array(values, dtype=dtype, copy=True)
+	result: np.ndarray = np.array(values, dtype=dtype, copy=True)
 	if not np.all(np.isfinite(result)):
 		raise ValueError("Parallel BM4 output arrays must be finite.")
 	result.setflags(write=False)
 	return result
-
 
 
 @dataclass(frozen=True, slots=True)
@@ -116,19 +114,19 @@ class ParallelBM4RecurrenceResult:
 			raise TypeError("`config` must be ParallelBM4RecurrenceConfig.")
 		count = self.config.particle_count
 		samples = self.config.output_sample_count
-		times = _readonly(self.times)
-		initial_positions = _readonly(self.initial_positions)
-		positions = _readonly(self.positions)
-		runtimes = _readonly(self.runtime_seconds)
-		total_iterations = _readonly(self.total_newton_iterations, dtype=int)
-		mean_iterations = _readonly(self.mean_newton_iterations)
-		maximum_iterations = _readonly(self.maximum_newton_iterations, dtype=int)
-		residual_ratios = _readonly(self.maximum_residual_to_tolerance)
+		times: np.ndarray = _readonly(self.times)
+		initial_positions: np.ndarray = _readonly(self.initial_positions)
+		positions: np.ndarray = _readonly(self.positions)
+		runtimes: np.ndarray = _readonly(self.runtime_seconds)
+		total_iterations: np.ndarray = _readonly(self.total_newton_iterations, dtype=int)
+		mean_iterations: np.ndarray = _readonly(self.mean_newton_iterations)
+		maximum_iterations: np.ndarray = _readonly(self.maximum_newton_iterations, dtype=int)
+		residual_ratios: np.ndarray = _readonly(self.maximum_residual_to_tolerance)
 		_validate_parallel_trajectories(times, initial_positions, positions, count=count, samples=samples)
 		_validate_parallel_work(
 			runtimes, total_iterations, mean_iterations, maximum_iterations, residual_ratios, count=count,
 		)
-		wall_runtime = positive_finite(
+		wall_runtime: float = positive_finite(
 			self.wall_runtime_seconds,
 			"wall_runtime_seconds",
 		)
@@ -144,17 +142,16 @@ class ParallelBM4RecurrenceResult:
 
 	def recurrence_distances(self, *, period: float) -> np.ndarray:
 		"""Return minimum-image distance to each trajectory's initial point."""
-		cell_period = positive_finite(period, "period")
+		cell_period: float = positive_finite(period, "period")
 		displacement = self.positions - self.initial_positions[:, :, None]
 		periodic = (
 			(displacement + 0.5 * cell_period) % cell_period
 			- 0.5 * cell_period
 		)
-		distances = np.asarray(np.linalg.norm(periodic, axis=1), dtype=float)
+		distances: np.ndarray = np.asarray(np.linalg.norm(periodic, axis=1), dtype=float)
 		distances[:, 0] = 0.0
 		distances.setflags(write=False)
 		return distances
-
 
 
 def _validate_parallel_trajectories(
@@ -174,7 +171,6 @@ def _validate_parallel_trajectories(
 		raise ValueError("Every returned trajectory must preserve its initial state.")
 
 
-
 def _validate_parallel_work(
 	runtimes: np.ndarray, total_iterations: np.ndarray, mean_iterations: np.ndarray,
 	maximum_iterations: np.ndarray, residual_ratios: np.ndarray, *, count: int,
@@ -191,7 +187,6 @@ def _validate_parallel_work(
 			raise ValueError("Every particle must have one work summary.")
 	if np.any(runtimes <= 0.0) or np.any(total_iterations < 0):
 		raise ValueError("Runtime and iteration summaries must be non-negative.")
-
 
 
 @dataclass

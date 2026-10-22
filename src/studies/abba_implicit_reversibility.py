@@ -32,6 +32,7 @@ from request import SimulationRequest
 from states.history import States
 from simulation.runner import simulate
 
+from typing import TYPE_CHECKING
 
 
 ABBAReversibilityFormulation: TypeAlias = Literal[
@@ -139,14 +140,14 @@ def run_implicit_abba_reversibility_study(
 		raise TypeError(
 			"`config` must be an ImplicitABBAReversibilityStudyConfig."
 		)
-	dynamics = GuidingCenterDynamics(potential, rho=config.rho)
-	problem = InitialValueProblem(dynamics, initial_configuration)
-	request = SimulationRequest.uniform(
+	dynamics: GuidingCenterDynamics = GuidingCenterDynamics(potential, rho=config.rho)
+	problem: InitialValueProblem = InitialValueProblem(dynamics, initial_configuration)
+	request: SimulationRequest = SimulationRequest.uniform(
 		t_span=config.t_span,
 		max_step=config.max_step,
 		sample_count=config.sample_count,
 	)
-	observer = ImplicitABBAReversibilityObserver(
+	observer: ImplicitABBAReversibilityObserver = ImplicitABBAReversibilityObserver(
 		newton_absolute_tolerance=config.newton_absolute_tolerance,
 		newton_relative_tolerance=config.newton_relative_tolerance,
 		newton_max_iterations=config.newton_max_iterations,
@@ -154,7 +155,7 @@ def run_implicit_abba_reversibility_study(
 		sample_every=config.observer_sample_every,
 		verbose=config.verbose_observer,
 	)
-	method = (
+	method: ABBA4Implicit | ABBA2Implicit = (
 		ABBA4Implicit(
 			newton_absolute_tolerance=config.newton_absolute_tolerance,
 			newton_relative_tolerance=config.newton_relative_tolerance,
@@ -186,8 +187,8 @@ def run_implicit_abba_reversibility_study(
 			)
 		)
 	)
-	started = perf_counter()
-	solution = simulate(
+	started: float = perf_counter()
+	solution: States = simulate(
 		problem,
 		method,
 		request,

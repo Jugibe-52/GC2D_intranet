@@ -19,6 +19,11 @@ from contracts.observation import (
 from formulations.gc import gc_coupling_matrix
 from methods.extended.core.composition import _ABBA4_COEFFICIENTS, _ABBA6_COEFFICIENTS
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+	from typing import Any
+
 
 _BM4_STAGE_COUNT = 12
 
@@ -40,8 +45,8 @@ def _validated_step(
 		)
 	if dynamics.state_dimension != 2:
 		raise TypeError("Exact trajectory Jacobians require planar dynamics.")
-	state_before = np.asarray(step.state_before, dtype=float)
-	state_after = np.asarray(step.state_after, dtype=float)
+	state_before: np.ndarray = np.asarray(step.state_before, dtype=float)
+	state_after: np.ndarray = np.asarray(step.state_after, dtype=float)
 	if (
 		state_before.ndim != 1
 		or state_before.size == 0
@@ -56,7 +61,7 @@ def _validated_step(
 		for value in (step.start_time, step.time, step.duration)
 	):
 		raise ValueError("Integration-step times and duration must be finite.")
-	tolerance = float(
+	tolerance: float = float(
 		64.0
 		* np.finfo(float).eps
 		* max(1.0, abs(step.start_time), abs(step.time), abs(step.duration))
@@ -77,7 +82,7 @@ def _checked_field(
 	state: np.ndarray,
 ) -> np.ndarray:
 	"""Evaluate a finite vector field without changing packed layout."""
-	result = np.asarray(dynamics.vector_field(time, state), dtype=float)
+	result: np.ndarray = np.asarray(dynamics.vector_field(time, state), dtype=float)
 	if result.shape != state.shape or not np.all(np.isfinite(result)):
 		raise ValueError("The GC vector field changed shape or became non-finite.")
 	return result
@@ -90,7 +95,7 @@ def _checked_field_jacobians(
 	particle_count: int,
 ) -> np.ndarray:
 	"""Evaluate one exact finite ``2 x 2`` field Jacobian per particle."""
-	result = np.asarray(
+	result: np.ndarray = np.asarray(
 		dynamics.particle_vector_field_jacobians(time, state),
 		dtype=float,
 	)
@@ -105,7 +110,7 @@ def _checked_field_jacobians(
 
 def _packed_planar_states(blocks: np.ndarray) -> np.ndarray:
 	"""Pack particle-major ``(N, 2)`` values into component-major order."""
-	values = np.asarray(blocks, dtype=float)
+	values: np.ndarray = np.asarray(blocks, dtype=float)
 	if values.ndim != 2 or values.shape[1] != 2:
 		raise ValueError("Planar particle blocks must have shape (N, 2).")
 	return np.concatenate((values[:, 0], values[:, 1]))
@@ -113,7 +118,7 @@ def _packed_planar_states(blocks: np.ndarray) -> np.ndarray:
 
 def _doubled_particle_blocks(state: np.ndarray, particle_count: int) -> np.ndarray:
 	"""Return doubled component-major state as particle-major ``(N, 4)``."""
-	value = np.asarray(state, dtype=float)
+	value: np.ndarray = np.asarray(state, dtype=float)
 	if value.shape != (4 * particle_count,):
 		raise ValueError("The doubled GC state must contain 4N entries.")
 	return np.column_stack(
@@ -130,6 +135,10 @@ def abba2_midpoint_step_particle_jacobians(
 	step: IntegrationStep,
 ) -> np.ndarray:
 	"""Return the exact arithmetic-midpoint ABBA map Jacobian per particle."""
+	dynamics: GuidingCenterJacobianSystem
+	state: np.ndarray
+	state_after: np.ndarray
+	particle_count: int
 	dynamics, state, state_after, particle_count = _validated_step(
 		step,
 		method_name="ABBA2Midpoint",
@@ -157,31 +166,31 @@ def abba2_midpoint_step_particle_jacobians(
 			"The midpoint-ABBA stage reconstruction differs from the observed map."
 		)
 
-	w_1 = _checked_field_jacobians(
+	w_1: np.ndarray = _checked_field_jacobians(
 		dynamics,
 		start_time,
 		state,
 		particle_count,
 	)
-	w_2 = _checked_field_jacobians(
+	w_2: np.ndarray = _checked_field_jacobians(
 		dynamics,
 		start_time,
 		u_first,
 		particle_count,
 	)
-	w_3 = _checked_field_jacobians(
+	w_3: np.ndarray = _checked_field_jacobians(
 		dynamics,
 		final_time,
 		u_first,
 		particle_count,
 	)
-	w_4 = _checked_field_jacobians(
+	w_4: np.ndarray = _checked_field_jacobians(
 		dynamics,
 		final_time,
 		v_final,
 		particle_count,
 	)
-	identity = np.broadcast_to(np.eye(2), (particle_count, 2, 2))
+	identity: np.ndarray = np.broadcast_to(np.eye(2), (particle_count, 2, 2))
 	du_first = identity + half_step * w_1
 	dv_first = identity + half_step * (w_2 @ du_first)
 	dv_final = dv_first + half_step * (w_3 @ du_first)
@@ -196,6 +205,7 @@ def abba2_implicit_step_particle_jacobians(
 	step: IntegrationStep,
 ) -> np.ndarray:
 	"""Return exact ideal-root ABBA2 Jacobians for either solve formulation."""
+	particle_count: int
 	_, _, _, particle_count = _validated_step(
 		step,
 		method_name="ABBA2Implicit",
@@ -206,7 +216,7 @@ def abba2_implicit_step_particle_jacobians(
 		)
 	if step.formulation_name not in ABBA_PROJECTION_FORMULATIONS:
 		raise TypeError("The observed step has an unknown ABBA2 formulation.")
-	dense = implicit_function_step_jacobian(step)
+	dense: np.ndarray = implicit_function_step_jacobian(step)
 	return particle_jacobian_blocks(dense, particle_count)
 
 
@@ -217,31 +227,31 @@ def _unprojected_abba_step_particle_jacobians(
 ) -> np.ndarray:
 	"""Return one exact doubled ABBA tangent from stored stage points."""
 	half_step = step.duration / 2.0
-	w_1 = _checked_field_jacobians(
+	w_1: np.ndarray = _checked_field_jacobians(
 		dynamics,
 		step.start_time,
 		step.v_initial,
 		particle_count,
 	)
-	w_2 = _checked_field_jacobians(
+	w_2: np.ndarray = _checked_field_jacobians(
 		dynamics,
 		step.start_time,
 		step.u_first,
 		particle_count,
 	)
-	w_3 = _checked_field_jacobians(
+	w_3: np.ndarray = _checked_field_jacobians(
 		dynamics,
 		step.time,
 		step.u_first,
 		particle_count,
 	)
-	w_4 = _checked_field_jacobians(
+	w_4: np.ndarray = _checked_field_jacobians(
 		dynamics,
 		step.time,
 		step.v_final,
 		particle_count,
 	)
-	identity = np.broadcast_to(np.eye(2), (particle_count, 2, 2))
+	identity: np.ndarray = np.broadcast_to(np.eye(2), (particle_count, 2, 2))
 	central = w_2 + w_3
 	top_left = identity + half_step**2 * (w_4 @ central)
 	top_right = (
@@ -286,8 +296,8 @@ def _validated_abba_composition(
 		raise TypeError(
 			"The observed step has an unknown single-projection ABBA formulation."
 		)
-	coefficients = np.asarray(step.composition_coefficients, dtype=float)
-	coefficient_tolerance = float(
+	coefficients: np.ndarray = np.asarray(step.composition_coefficients, dtype=float)
+	coefficient_tolerance: float = float(
 		64.0
 		* np.finfo(float).eps
 		* max(1.0, float(np.max(np.abs(expected_coefficients))))
@@ -299,10 +309,10 @@ def _validated_abba_composition(
 		atol=coefficient_tolerance,
 	):
 		raise ValueError("The ABBA single-projection coefficients are inconsistent.")
-	multiplier = np.asarray(step.multiplier, dtype=float)
+	multiplier: np.ndarray = np.asarray(step.multiplier, dtype=float)
 	if multiplier.shape != state.shape or not np.all(np.isfinite(multiplier)):
 		raise ValueError("The outer projection multiplier must be a finite 2N vector.")
-	substeps = tuple(step.substeps)
+	substeps: tuple[UnprojectedABBAIntegrationStep, ...] = tuple(step.substeps)
 	if len(substeps) != len(expected_coefficients):
 		raise ValueError("The unprojected ABBA base map must contain one substep per coefficient.")
 	return step, coefficients, multiplier, substeps
@@ -312,26 +322,33 @@ def _composed_abba_particle_jacobians(
 	step: IntegrationStep, method_name: str, expected_coefficients: np.ndarray,
 ) -> np.ndarray:
 	"""Apply the chain rule through all pairs, then differentiate one outer root."""
+	dynamics: GuidingCenterJacobianSystem
+	state: np.ndarray
+	state_after: np.ndarray
+	particle_count: int
 	dynamics, state, state_after, particle_count = _validated_step(
 		step,
 		method_name=method_name,
 	)
+	coefficients: np.ndarray
+	multiplier: np.ndarray
+	substeps: tuple[UnprojectedABBAIntegrationStep, ...]
 	step, coefficients, multiplier, substeps = _validated_abba_composition(step, state, expected_coefficients)
 
-	base_tangent = np.broadcast_to(
+	base_tangent: np.ndarray = np.broadcast_to(
 		np.eye(4),
 		(particle_count, 4, 4),
 	).copy()
-	u_previous = state + multiplier
-	v_previous = state - multiplier
-	current_time = float(step.start_time)
+	u_previous: Any = state + multiplier
+	v_previous: Any = state - multiplier
+	current_time: float = float(step.start_time)
 	for index, (coefficient, substep) in enumerate(
 		zip(coefficients, substeps, strict=True)
 	):
 		if not isinstance(substep, UnprojectedABBAIntegrationStep):
 			raise TypeError("Every base-map entry must expose unprojected ABBA stages.")
-		expected_duration = float(coefficient * step.duration)
-		tolerance = float(
+		expected_duration: float = float(coefficient * step.duration)
+		tolerance: float = float(
 			64.0
 			* np.finfo(float).eps
 			* max(
@@ -366,7 +383,7 @@ def _composed_abba_particle_jacobians(
 			raise ValueError(
 				f"Unprojected ABBA substep {index} is inconsistent with its base map."
 			)
-		factor = _unprojected_abba_step_particle_jacobians(
+		factor: np.ndarray = _unprojected_abba_step_particle_jacobians(
 			substep,
 			dynamics,
 			particle_count,
@@ -377,7 +394,7 @@ def _composed_abba_particle_jacobians(
 		current_time = float(substep.time)
 
 	projected = (u_previous + v_previous) / 2.0
-	projection_tolerance = max(
+	projection_tolerance: float = max(
 		float(step.newton_tolerance),
 		float(
 			64.0
@@ -392,7 +409,7 @@ def _composed_abba_particle_jacobians(
 		atol=projection_tolerance,
 	):
 		raise ValueError("The unprojected ABBA output and physical state disagree.")
-	identity = np.broadcast_to(np.eye(2), (particle_count, 2, 2))
+	identity: np.ndarray = np.broadcast_to(np.eye(2), (particle_count, 2, 2))
 	top_left = base_tangent[:, :2, :2]
 	top_right = base_tangent[:, :2, 2:]
 	bottom_left = base_tangent[:, 2:, :2]
@@ -432,8 +449,8 @@ def _validated_coupled_stage_states(
 		raise TypeError("Coupled BM4 Jacobians require IntegrationStage data.")
 	if stage.dynamics is not dynamics:
 		raise ValueError("The BM4 stage and Jacobian dynamics instances differ.")
-	state_before = np.asarray(stage.state_before, dtype=float)
-	state_after = np.asarray(stage.state_after, dtype=float)
+	state_before: np.ndarray = np.asarray(stage.state_before, dtype=float)
+	state_after: np.ndarray = np.asarray(stage.state_after, dtype=float)
 	if (
 		state_before.ndim != 1
 		or state_before.size == 0
@@ -454,34 +471,37 @@ def coupled_bm4_stage_particle_jacobians(
 	coupling_frequency: float,
 ) -> np.ndarray:
 	"""Return one exact coupled-BM4 ``4 x 4`` stage factor per particle."""
+	state_before: np.ndarray
+	state_after: np.ndarray
+	particle_count: int
 	state_before, state_after, particle_count = _validated_coupled_stage_states(stage, dynamics)
-	before = _doubled_particle_blocks(state_before, particle_count)
-	after = _doubled_particle_blocks(state_after, particle_count)
-	duration = float(stage.duration)
-	coupling = gc_coupling_matrix(duration, coupling_frequency)
-	identity = np.broadcast_to(np.eye(2), (particle_count, 2, 2))
+	before: np.ndarray = _doubled_particle_blocks(state_before, particle_count)
+	after: np.ndarray = _doubled_particle_blocks(state_after, particle_count)
+	duration: float = float(stage.duration)
+	coupling: np.ndarray = gc_coupling_matrix(duration, coupling_frequency)
+	identity: np.ndarray = np.broadcast_to(np.eye(2), (particle_count, 2, 2))
 
 	if stage.flow_name == "flow":
 		# Direct stages shear first and apply the exact coupling rotation last.
 		uncoupled_after = np.linalg.solve(coupling, after.T).T
-		w_first = _checked_field_jacobians(
+		w_first: np.ndarray = _checked_field_jacobians(
 			dynamics,
 			stage.time,
 			_packed_planar_states(before[:, :2]),
 			particle_count,
 		)
-		w_second = _checked_field_jacobians(
+		w_second: np.ndarray = _checked_field_jacobians(
 			dynamics,
 			stage.time,
 			_packed_planar_states(uncoupled_after[:, 2:]),
 			particle_count,
 		)
-		shear = np.empty((particle_count, 4, 4), dtype=float)
+		shear: np.ndarray = np.empty((particle_count, 4, 4), dtype=float)
 		shear[:, :2, :2] = identity + duration**2 * (w_second @ w_first)
 		shear[:, :2, 2:] = duration * w_second
 		shear[:, 2:, :2] = duration * w_first
 		shear[:, 2:, 2:] = identity
-		result = np.einsum("ij,njk->nik", coupling, shear)
+		result: np.ndarray = np.einsum("ij,njk->nik", coupling, shear)
 	elif stage.flow_name == "adjoint_flow":
 		# Adjoint stages couple first and then apply the two triangular shears.
 		coupled_before = before @ coupling.T
@@ -518,10 +538,10 @@ def _validated_bm4_base_cycle(
 		raise TypeError("BM4Implicit exact Jacobians require base-stage snapshots.")
 	if step.formulation_name != "bm4_implicit_reduced":
 		raise TypeError("The observed step is not reduced-projection BM4Implicit.")
-	stages = tuple(step.base_stages)
+	stages: tuple[IntegrationStage, ...] = tuple(step.base_stages)
 	if len(stages) != _BM4_STAGE_COUNT:
 		raise ValueError("A complete implicit BM4 base cycle has twelve stages.")
-	multiplier = np.asarray(step.multiplier, dtype=float)
+	multiplier: np.ndarray = np.asarray(step.multiplier, dtype=float)
 	if multiplier.shape != state.shape or not np.all(np.isfinite(multiplier)):
 		raise ValueError("The projected-BM4 multiplier must be a finite 2N vector.")
 	return step, stages, multiplier
@@ -531,15 +551,21 @@ def bm4_implicit_step_particle_jacobians(
 	step: IntegrationStep,
 ) -> np.ndarray:
 	"""Differentiate the ideal reduced Hairer projection by exact stages."""
+	dynamics: GuidingCenterJacobianSystem
+	state: np.ndarray
+	state_after: np.ndarray
+	particle_count: int
 	dynamics, state, state_after, particle_count = _validated_step(
 		step,
 		method_name="BM4Implicit",
 	)
+	stages: tuple[IntegrationStage, ...]
+	multiplier: np.ndarray
 	step, stages, multiplier = _validated_bm4_base_cycle(step, state)
-	expected_input = np.concatenate((state + multiplier, state - multiplier))
-	time_cursor = float(step.start_time)
+	expected_input: np.ndarray = np.concatenate((state + multiplier, state - multiplier))
+	time_cursor: float = float(step.start_time)
 	previous_after: np.ndarray | None = None
-	base_tangent = np.broadcast_to(
+	base_tangent: np.ndarray = np.broadcast_to(
 		np.eye(4),
 		(particle_count, 4, 4),
 	).copy()
@@ -554,8 +580,8 @@ def bm4_implicit_step_particle_jacobians(
 			or stage.dynamics is not dynamics
 		):
 			raise ValueError("Implicit BM4 stages are not one ordered base cycle.")
-		before = np.asarray(stage.state_before, dtype=float)
-		after = np.asarray(stage.state_after, dtype=float)
+		before: np.ndarray = np.asarray(stage.state_before, dtype=float)
+		after: np.ndarray = np.asarray(stage.state_after, dtype=float)
 		if stage_index == 0 and not np.array_equal(before, expected_input):
 			raise ValueError("The BM4 base cycle did not start at the projected input.")
 		if previous_after is not None and not np.array_equal(before, previous_after):
@@ -565,14 +591,14 @@ def bm4_implicit_step_particle_jacobians(
 			if stage.flow_name == "flow"
 			else time_cursor
 		)
-		tolerance = float(
+		tolerance: float = float(
 			64.0
 			* np.finfo(float).eps
 			* max(1.0, abs(time_cursor), abs(expected_time), abs(stage.time))
 		)
 		if not np.isclose(stage.time, expected_time, rtol=0.0, atol=tolerance):
 			raise ValueError("Implicit BM4 stage evaluation times are inconsistent.")
-		factor = coupled_bm4_stage_particle_jacobians(
+		factor: np.ndarray = coupled_bm4_stage_particle_jacobians(
 			stage,
 			dynamics,
 			coupling_frequency=step.coupling_frequency,
@@ -596,10 +622,10 @@ def bm4_implicit_step_particle_jacobians(
 	if not np.allclose(projected, state_after, rtol=0.0, atol=2e-13):
 		raise ValueError("The BM4 base output and physical projection disagree.")
 
-	identity = np.eye(2)
-	embedding = np.vstack((identity, identity))
-	normal = np.vstack((identity, -identity))
-	constraint = np.hstack((identity, -identity))
+	identity: np.ndarray = np.eye(2)
+	embedding: np.ndarray = np.vstack((identity, identity))
+	normal: np.ndarray = np.vstack((identity, -identity))
+	constraint: np.ndarray = np.hstack((identity, -identity))
 	projection = np.hstack((identity, identity)) / 2.0
 	residual_multiplier = constraint @ base_tangent @ normal + 2.0 * identity
 	residual_state = constraint @ base_tangent @ embedding

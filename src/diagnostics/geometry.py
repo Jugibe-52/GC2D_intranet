@@ -8,7 +8,7 @@ from contracts.configuration import StateLayout
 def _positive_finite(value: float, name: str) -> float:
 	"""Normalize a scalar geometric parameter and enforce positivity."""
 	try:
-		result = float(value)
+		result: float = float(value)
 	except (TypeError, ValueError) as exc:
 		raise ValueError(f"`{name}` must be positive and finite.") from exc
 	if not np.isfinite(result) or result <= 0:
@@ -33,11 +33,13 @@ def calculate_area(
 	"""
 	if layout.state_dimension != 2:
 		raise ValueError("Area calculation requires a two-component position layout.")
-	value = np.asarray(layout.validate_packed_state_layout(state), dtype=float)
+	value: np.ndarray = np.asarray(layout.validate_packed_state_layout(state), dtype=float)
 	if not np.all(np.isfinite(value)):
 		raise ValueError("The area state must contain only finite values.")
 	# Here axis zero enumerates successive boundary vertices; any trailing
 	# axes are independent contour snapshots, commonly integration times.
+	x: np.ndarray
+	y: np.ndarray
 	x, y = layout.positions(value)
 	if x.shape[0] < 3:
 		raise ValueError("An area boundary requires at least three points.")

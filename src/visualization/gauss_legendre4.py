@@ -3,11 +3,15 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from typing import Protocol
+from typing import Protocol, TYPE_CHECKING
 
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.figure import Figure
+
+
+if TYPE_CHECKING:
+	from typing import Any
 
 
 GAUSS_BM4_COLORS: Mapping[str, str] = {
@@ -79,9 +83,9 @@ class GaussBM4OrderView(Protocol):
 
 def _positive(values: np.ndarray) -> np.ndarray:
 	"""Replace exact zeros by a data-dependent floor for logarithmic axes."""
-	result = np.asarray(values, dtype=float)
+	result: np.ndarray = np.asarray(values, dtype=float)
 	positive = result[result > 0.0]
-	floor = (
+	floor: float = (
 		float(np.min(positive)) / 10.0
 		if positive.size
 		else float(np.finfo(float).eps)
@@ -96,14 +100,16 @@ def plot_gauss_legendre4_evaluation(
 	reference_floor: float = 0.0,
 ) -> tuple[Figure, np.ndarray]:
 	"""Plot accuracy, runtime, generalized energy, and geometric defects."""
-	rows = tuple(sorted(summaries, key=lambda row: row.integration_step, reverse=True))
+	rows: tuple[GaussEvaluationSummaryView, ...] = tuple(sorted(summaries, key=lambda row: row.integration_step, reverse=True))
 	if len(rows) < 2:
 		raise ValueError("At least two Gauss4 refinement summaries are required.")
-	steps = np.asarray([row.integration_step for row in rows], dtype=float)
-	time_errors = np.asarray(
+	steps: np.ndarray = np.asarray([row.integration_step for row in rows], dtype=float)
+	time_errors: np.ndarray = np.asarray(
 		[row.time_integrated_rms_distance for row in rows], dtype=float
 	)
-	final_errors = np.asarray([row.final_rms_distance for row in rows], dtype=float)
+	final_errors: np.ndarray = np.asarray([row.final_rms_distance for row in rows], dtype=float)
+	figure: Figure
+	axes: np.ndarray
 	figure, axes = plt.subplots(2, 2, figsize=(13, 9), constrained_layout=True)
 	axes[0, 0].loglog(steps, time_errors, "o-", label="Time-integrated RMS")
 	axes[0, 0].loglog(steps, final_errors, "s--", label="Final RMS")
@@ -122,9 +128,9 @@ def plot_gauss_legendre4_evaluation(
 			linestyle="--",
 			label="DOP853/Radau audit floor",
 		)
-	median = np.asarray([row.runtime_seconds for row in rows])
-	first = np.asarray([row.runtime_first_quartile_seconds for row in rows])
-	third = np.asarray([row.runtime_third_quartile_seconds for row in rows])
+	median: np.ndarray = np.asarray([row.runtime_seconds for row in rows])
+	first: np.ndarray = np.asarray([row.runtime_first_quartile_seconds for row in rows])
+	third: np.ndarray = np.asarray([row.runtime_third_quartile_seconds for row in rows])
 	axes[0, 1].errorbar(
 		steps,
 		median,
@@ -134,7 +140,7 @@ def plot_gauss_legendre4_evaluation(
 	)
 	axes[0, 1].set_xscale("log")
 	axes[0, 1].set_yscale("log")
-	energy = _positive(
+	energy: np.ndarray = _positive(
 		np.asarray([row.maximum_relative_generalized_energy_error for row in rows])
 	)
 	axes[1, 0].loglog(steps, energy, "o-", color="tab:green")
@@ -151,7 +157,7 @@ def plot_gauss_legendre4_evaluation(
 			"Finite-stopping map audit",
 		),
 	):
-		values = _positive(np.asarray([getattr(row, field) for row in rows]))
+		values: np.ndarray = _positive(np.asarray([getattr(row, field) for row in rows]))
 		axes[1, 1].loglog(steps, values, marker=marker, label=label)
 	for axis in axes.flat:
 		axis.invert_xaxis()
@@ -188,10 +194,12 @@ def plot_gauss_legendre4_observed_order(
 	reduction_threshold: float = 0.5,
 ) -> tuple[Figure, np.ndarray]:
 	"""Plot observed accuracy orders and their deficit from the design."""
-	rows = tuple(sorted(orders, key=lambda row: row.fine_step, reverse=True))
+	rows: tuple[GaussOrderView, ...] = tuple(sorted(orders, key=lambda row: row.fine_step, reverse=True))
 	if not rows:
 		raise ValueError("At least one observed-order row is required.")
-	steps = np.asarray([row.fine_step for row in rows])
+	steps: np.ndarray = np.asarray([row.fine_step for row in rows])
+	figure: Figure
+	axes: np.ndarray
 	figure, axes = plt.subplots(2, 1, figsize=(9, 8), sharex=True, constrained_layout=True)
 	for order_field, deficit_field, flag_field, linestyle, label in (
 		(
@@ -209,9 +217,9 @@ def plot_gauss_legendre4_observed_order(
 			"Final RMS",
 		),
 	):
-		order_values = np.asarray([getattr(row, order_field) for row in rows])
-		deficits = np.asarray([getattr(row, deficit_field) for row in rows])
-		mask = np.isfinite(order_values)
+		order_values: np.ndarray = np.asarray([getattr(row, order_field) for row in rows])
+		deficits: np.ndarray = np.asarray([getattr(row, deficit_field) for row in rows])
+		mask: Any = np.isfinite(order_values)
 		axes[0].plot(steps[mask], order_values[mask], "o", linestyle=linestyle, label=label)
 		axes[1].plot(steps[mask], deficits[mask], "o", linestyle=linestyle, label=label)
 		flagged = mask & np.asarray([getattr(row, flag_field) for row in rows], dtype=bool)
@@ -244,6 +252,8 @@ def plot_gauss_legendre4_symplecticity(
 	"""Plot ideal-root evolution and sparse finite-stopping-rule audits."""
 	if not series_by_step:
 		raise ValueError("At least one Gauss4 symplecticity series is required.")
+	figure: Figure
+	axes: np.ndarray
 	figure, axes = plt.subplots(2, 2, figsize=(13, 8), constrained_layout=True)
 	for step in sorted(series_by_step, reverse=True):
 		series = series_by_step[step]
@@ -301,16 +311,16 @@ def _generalized_energy_histories(
 		raise ValueError("Energy histories and time grids must use the same steps.")
 	prepared: list[tuple[float, np.ndarray, np.ndarray, np.ndarray]] = []
 	for step in sorted(energies_by_step, reverse=True):
-		time_values = np.asarray(times_by_step[step], dtype=float)
+		time_values: np.ndarray = np.asarray(times_by_step[step], dtype=float)
 		if time_values.ndim != 1 or time_values.size < 2:
 			raise ValueError("Energy times must be vectors with at least two samples.")
-		energy = np.asarray(energies_by_step[step], dtype=float)
+		energy: np.ndarray = np.asarray(energies_by_step[step], dtype=float)
 		if energy.ndim == 1:
 			energy = energy[np.newaxis, :]
 		if energy.ndim != 2 or energy.shape[1] != time_values.size:
 			raise ValueError("Generalized-energy histories must align with saved times.")
-		error = np.max(np.abs(energy - energy[:, :1]), axis=0)
-		scale = np.maximum(np.max(np.abs(energy[:, :1])), np.finfo(float).eps)
+		error: np.ndarray = np.max(np.abs(energy - energy[:, :1]), axis=0)
+		scale: Any = np.maximum(np.max(np.abs(energy[:, :1])), np.finfo(float).eps)
 		prepared.append((step, time_values, _positive(error), _positive(error / scale)))
 	return prepared
 
@@ -320,7 +330,9 @@ def plot_gauss_legendre4_energy(
 	energies_by_step: Mapping[float, np.ndarray],
 ) -> tuple[Figure, np.ndarray]:
 	"""Plot generalized-energy drift over every complete node of each grid."""
-	prepared = _generalized_energy_histories(times_by_step, energies_by_step)
+	prepared: list[tuple[float, np.ndarray, np.ndarray, np.ndarray]] = _generalized_energy_histories(times_by_step, energies_by_step)
+	figure: Figure
+	axes: np.ndarray
 	figure, axes = plt.subplots(2, 1, figsize=(10, 8), sharex=True, constrained_layout=True)
 	for step, time_values, absolute, relative in prepared:
 		label = f"h={step:g}"
@@ -346,31 +358,33 @@ def plot_gauss_bm4_accuracy_runtime(
 	reference_floor: float = 0.0,
 ) -> tuple[Figure, np.ndarray]:
 	"""Plot equal-step accuracy, timing, efficiency, and observed order."""
-	rows = tuple(summaries)
+	rows: tuple[GaussBM4SummaryView, ...] = tuple(summaries)
 	if not rows:
 		raise ValueError("At least one Gauss4/BM4 summary is required.")
-	methods = tuple(dict.fromkeys(row.method_name for row in rows))
-	steps = tuple(sorted({row.integration_step for row in rows}, reverse=True))
+	methods: tuple[str, ...] = tuple(dict.fromkeys(row.method_name for row in rows))
+	steps: tuple[float, ...] = tuple(sorted({row.integration_step for row in rows}, reverse=True))
 	if len(methods) != 2 or len(steps) < 2:
 		raise ValueError("The comparison requires two methods and two steps.")
 	grouped = {
 		method: {row.integration_step: row for row in rows if row.method_name == method}
 		for method in methods
 	}
+	figure: Figure
+	axes: np.ndarray
 	figure, axes = plt.subplots(2, 2, figsize=(13, 9), constrained_layout=True)
-	step_values = np.asarray(steps)
+	step_values: np.ndarray = np.asarray(steps)
 	for method in methods:
 		method_rows = grouped[method]
-		color = GAUSS_BM4_COLORS.get(method)
+		color: str | None = GAUSS_BM4_COLORS.get(method)
 		label = method_rows[steps[0]].method_label
-		errors = np.asarray(
+		errors: np.ndarray = np.asarray(
 			[method_rows[step].time_integrated_rms_distance for step in steps]
 		)
-		runtime = np.asarray([method_rows[step].runtime_seconds for step in steps])
-		first = np.asarray(
+		runtime: np.ndarray = np.asarray([method_rows[step].runtime_seconds for step in steps])
+		first: np.ndarray = np.asarray(
 			[method_rows[step].runtime_first_quartile_seconds for step in steps]
 		)
-		third = np.asarray(
+		third: np.ndarray = np.asarray(
 			[method_rows[step].runtime_third_quartile_seconds for step in steps]
 		)
 		axes[0, 0].loglog(step_values, errors, "o-", color=color, label=label)
@@ -384,16 +398,16 @@ def plot_gauss_bm4_accuracy_runtime(
 			label=label,
 		)
 		axes[1, 0].loglog(runtime, errors, "o-", color=color, label=label)
-		method_orders = sorted(
+		method_orders: list[GaussBM4OrderView] = sorted(
 			(row for row in orders if row.method_name == method),
 			key=lambda row: row.fine_step,
 			reverse=True,
 		)
-		order_steps = np.asarray([row.fine_step for row in method_orders])
-		order_values = np.asarray(
+		order_steps: np.ndarray = np.asarray([row.fine_step for row in method_orders])
+		order_values: np.ndarray = np.asarray(
 			[row.time_integrated_rms_order for row in method_orders]
 		)
-		mask = np.isfinite(order_values)
+		mask: Any = np.isfinite(order_values)
 		axes[1, 1].plot(
 			order_steps[mask],
 			order_values[mask],
@@ -401,7 +415,7 @@ def plot_gauss_bm4_accuracy_runtime(
 			color=color,
 			label=label,
 		)
-	guide_anchor = max(
+	guide_anchor: float = max(
 		grouped[method][steps[0]].time_integrated_rms_distance for method in methods
 	)
 	axes[0, 0].loglog(

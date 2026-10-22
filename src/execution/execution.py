@@ -2,6 +2,9 @@
 
 from collections.abc import Mapping
 from types import MappingProxyType
+from typing import TYPE_CHECKING
+
+from dynamics.protocols import HamiltonianSystem
 
 from contracts.compiled import CompiledStep
 from contracts.execution_options import ExecutionOptions
@@ -13,6 +16,11 @@ from states.history import States
 from methods.base import IntegrationMethod, NumericalMethod
 
 
+if TYPE_CHECKING:
+	from jax import Device
+	from typing import Any
+
+
 NEWTON_ALIASES: Mapping[str, str] = MappingProxyType({
 	"newton_iterations": "nonlinear_iterations",
 	"newton_residual_norms": "nonlinear_residual_norms",
@@ -20,7 +28,6 @@ NEWTON_ALIASES: Mapping[str, str] = MappingProxyType({
 	"newton_relative_tolerance": "nonlinear_relative_tolerance",
 	"newton_max_iterations": "nonlinear_max_iterations",
 })
-
 
 
 class Execution:
@@ -40,13 +47,13 @@ class Execution:
 			raise TypeError("`options` must be an ExecutionOptions instance or None.")
 		if not isinstance(method, NumericalMethod):
 			raise TypeError("`method` must implement NumericalMethod preparation.")
-		choice = ExecutionOptions() if options is None else options
+		choice: ExecutionOptions = ExecutionOptions() if options is None else options
 		metadata: dict[str, DiagnosticValue] = {
 			"execution_backend": choice.backend, "execution_device": choice.device,
 			"execution_device_index": choice.device_index,
 		}
-		prepared = None
-		device = None
+		prepared: HamiltonianSystem | None = None
+		device: Device | None = None
 		mode = "unsupported"
 		if choice.backend == "jax":
 			from execution._jax import prepare_environment
@@ -55,7 +62,7 @@ class Execution:
 			metadata.update(execution_mode=mode, execution_device_kind=str(device.device_kind))
 			if mode == "hybrid_scipy_controller":
 				metadata["adaptive_controller"] = "scipy"
-			run = method.new_run(problem, request,
+			run: IntegrationMethod[Any] = method.new_run(problem, request,
 				evaluated_dynamics=prepared if mode == "hybrid_scipy_controller" else None)
 		else:
 			run = method.new_run(problem, request)
@@ -75,11 +82,11 @@ class Execution:
 					)
 				assert prepared is not None
 				kernel = prepare_step(run, prepared, device)
-			saved = States.prepare(request.output_times, problem.initial_state, layout=problem.layout)
+			saved: States = States.prepare(request.output_times, problem.initial_state, layout=problem.layout)
 			if kernel is None:
 				# Record physical samples and step statistics in saved; return a dictionary
 				# with output_interpolation_count and optional formulation diagnostics.
-				details = run_steps(run, saved)
+				details: dict[str, DiagnosticValue] = run_steps(run, saved)
 			else:
 				from execution._jax_fixed import run_steps as run_compiled_steps
 				details = run_compiled_steps(run, kernel, saved)

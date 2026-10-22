@@ -5,6 +5,11 @@ from dataclasses import replace
 import numpy as np
 from diagnostics import StoredReferenceTrajectory
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from typing import Any
+
 
 def select_reference_particle(reference: StoredReferenceTrajectory, particle: int) -> StoredReferenceTrajectory:
     """Extract one zero-based particle without resampling; preserve parent provenance."""
@@ -12,13 +17,15 @@ def select_reference_particle(reference: StoredReferenceTrajectory, particle: in
     if not isinstance(particle, int) or not 0 <= particle < count:
         raise ValueError("Particle index is outside the saved reference.")
     rows = [particle, count + particle]
-    metadata = deepcopy(dict(reference.metadata))
+    metadata: dict[str, Any] = deepcopy(dict(reference.metadata))
     metadata["parent_trajectory_sha256"] = metadata.pop("trajectory_sha256", None)
     metadata["selected_particle_index"] = particle
     metadata["particle_count"] = 1
     metadata["state_layout"] = "component_major_[x_1,y_1]"
     metadata["selection"] = "In-memory particle selection; paths identify the parent artifact."
     distances = reference.audit_distances[particle:particle+1]
+    states: np.ndarray
+    audit: np.ndarray
     states, audit = reference.states[rows], reference.audit_states[rows]
     metadata["audit"] = {
         "global_rms_distance": float(np.sqrt(np.mean(distances**2))),

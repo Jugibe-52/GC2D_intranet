@@ -36,6 +36,7 @@ from request import SimulationRequest
 from states.history import States
 from simulation.runner import simulate
 
+from typing import TYPE_CHECKING
 
 
 ABBAJacobianFormulation: TypeAlias = ProjectionFormulation
@@ -44,7 +45,7 @@ ABBA_JACOBIAN_FORMULATIONS = ABBA_PROJECTION_FORMULATIONS
 
 def _readonly_float_array(value: np.ndarray) -> np.ndarray:
 	"""Own and freeze one floating-point study result array."""
-	result = np.asarray(value, dtype=float).copy()
+	result: np.ndarray = np.asarray(value, dtype=float).copy()
 	result.setflags(write=False)
 	return result
 
@@ -168,36 +169,38 @@ class ImplicitABBAJacobianStudyResult:
 			(int, np.integer),
 		):
 			raise TypeError("`particle_index` must be an integer.")
-		index = int(particle_index)
+		index: int = int(particle_index)
 		if not 0 <= index < self.particle_count:
 			raise IndexError("`particle_index` is outside the analyzed particle range.")
 
 		count = self.particle_count
 		component_indices = (index, count + index)
-		states_before = np.column_stack(
+		states_before: np.ndarray = np.column_stack(
 			[
 				sample.state_before[list(component_indices)]
 				for sample in self.samples
 			]
 		)
-		states_after = np.column_stack(
+		states_after: np.ndarray = np.column_stack(
 			[
 				sample.state_after[list(component_indices)]
 				for sample in self.samples
 			]
 		)
-		start_times = np.asarray([sample.start_time for sample in self.samples])
-		end_times = np.asarray([sample.end_time for sample in self.samples])
-		durations = np.asarray([sample.duration for sample in self.samples])
+		start_times: np.ndarray = np.asarray([sample.start_time for sample in self.samples])
+		end_times: np.ndarray = np.asarray([sample.end_time for sample in self.samples])
+		durations: np.ndarray = np.asarray([sample.duration for sample in self.samples])
+		field_x: Any
+		field_y: Any
 		field_x, field_y = self.dynamics.effective_potential.electric_field(
 			end_times,
 			states_after[0],
 			states_after[1],
 		)
-		electric_fields = np.vstack((field_x, field_y))
+		electric_fields: np.ndarray = np.vstack((field_x, field_y))
 		state_increments = states_after - states_before
-		state_increment_norms = np.linalg.norm(state_increments, axis=0)
-		state_increment_angles = np.arctan2(
+		state_increment_norms: np.ndarray = np.linalg.norm(state_increments, axis=0)
+		state_increment_angles: Any = np.arctan2(
 			state_increments[1],
 			state_increments[0],
 		)
@@ -220,9 +223,9 @@ class ImplicitABBAJacobianStudyResult:
 
 	def print_summary(self) -> None:
 		"""Print a concise local-Jacobian run summary."""
-		counts = self.spectral_class_counts()
-		maximum_condition = max(record.condition_number for record in self.records)
-		maximum_radius = max(record.spectral_radius for record in self.records)
+		counts: Mapping[str, int] = self.spectral_class_counts()
+		maximum_condition: float = max(record.condition_number for record in self.records)
+		maximum_radius: float = max(record.spectral_radius for record in self.records)
 		print(
 			f"{self.solution.diagnostics['projection_formulation']} / "
 			f"{self.config.jacobian_method}"
@@ -237,11 +240,11 @@ class ImplicitABBAJacobianStudyResult:
 		)
 		print(f"max condition number={maximum_condition:.8e}")
 		print(f"max spectral radius={maximum_radius:.8e}")
-		step_series = tuple(
+		step_series: tuple[ImplicitABBAJacobianParticleStepSeries, ...] = tuple(
 			self.particle_step_series(particle_index=index)
 			for index in range(self.particle_count)
 		)
-		maximum_field = max(
+		maximum_field: float = max(
 			float(
 				np.max(
 					np.linalg.norm(
@@ -252,7 +255,7 @@ class ImplicitABBAJacobianStudyResult:
 			)
 			for item in step_series
 		)
-		maximum_increment = max(
+		maximum_increment: float = max(
 			float(np.max(item.state_increment_norms)) for item in step_series
 		)
 		print(f"max effective electric-field magnitude={maximum_field:.8e}")
@@ -278,9 +281,9 @@ def run_implicit_abba_jacobian_study(
 		)
 	if not isinstance(config, ImplicitABBAJacobianStudyConfig):
 		raise TypeError("`config` must be an ImplicitABBAJacobianStudyConfig.")
-	dynamics = GuidingCenterDynamics(potential, rho=config.rho)
-	problem = InitialValueProblem(dynamics, initial_configuration)
-	request = SimulationRequest.uniform(
+	dynamics: GuidingCenterDynamics = GuidingCenterDynamics(potential, rho=config.rho)
+	problem: InitialValueProblem = InitialValueProblem(dynamics, initial_configuration)
+	request: SimulationRequest = SimulationRequest.uniform(
 		t_span=config.t_span,
 		max_step=config.max_step,
 		sample_count=config.sample_count,
@@ -299,8 +302,8 @@ def run_implicit_abba_jacobian_study(
 			**dict(metadata or {}),
 		},
 	) as observer:
-		started = perf_counter()
-		solution = simulate(
+		started: float = perf_counter()
+		solution: States = simulate(
 			problem,
 			ABBA2Implicit(
 				projection_formulation=config.formulation,

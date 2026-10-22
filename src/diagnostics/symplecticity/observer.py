@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 from datetime import date
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Mapping, TYPE_CHECKING
 
 import numpy as np
 
@@ -21,12 +21,16 @@ from diagnostics.paths import (
 )
 
 
+if TYPE_CHECKING:
+	from diagnostics.output import DiagnosticBlockPaths
+
+
 def gc_physical_symplectic_form(particle_count: int) -> np.ndarray:
 	"""Return the canonical form for physical GC component-major coordinates."""
 	particle_count = positive_integer(particle_count, "particle_count")
-	count = int(particle_count)
-	identity = np.eye(count)
-	zero = np.zeros_like(identity)
+	count: int = int(particle_count)
+	identity: np.ndarray = np.eye(count)
+	zero: np.ndarray = np.zeros_like(identity)
 	return np.block([[zero, identity], [-identity, zero]])
 
 
@@ -39,9 +43,9 @@ def gc_extended_symplectic_form(particle_count: int) -> np.ndarray:
 	than two diagonal canonical forms. The result has shape ``(4N, 4N)``.
 	"""
 	particle_count = positive_integer(particle_count, "particle_count")
-	count = int(particle_count)
-	physical_form = gc_physical_symplectic_form(count)
-	copy_zero = np.zeros_like(physical_form)
+	count: int = int(particle_count)
+	physical_form: np.ndarray = gc_physical_symplectic_form(count)
+	copy_zero: np.ndarray = np.zeros_like(physical_form)
 	return np.block(
 		[[copy_zero, physical_form], [physical_form, copy_zero]]
 	)
@@ -56,8 +60,8 @@ def gc_time_extended_symplectic_form() -> np.ndarray:
 	which the associated Poisson tensor produces ``t_dot = partial_k H`` and
 	``k_dot = -partial_t H`` together with the GC convention used by the code.
 	"""
-	duplicated_form = gc_extended_symplectic_form(1)
-	time_momentum_form = np.asarray(((0.0, -1.0), (1.0, 0.0)))
+	duplicated_form: np.ndarray = gc_extended_symplectic_form(1)
+	time_momentum_form: np.ndarray = np.asarray(((0.0, -1.0), (1.0, 0.0)))
 	return np.block(
 		[
 			[duplicated_form, np.zeros((4, 2))],
@@ -210,23 +214,25 @@ class SymplecticityObserver:
 			raise TypeError(
 				"SymplecticityObserver only supports guiding-centre dynamics."
 			)
-		state = np.asarray(stage.state_before, dtype=float)
+		state: np.ndarray = np.asarray(stage.state_before, dtype=float)
 		if state.ndim != 1 or state.size != 4 * self.particle_count:
 			raise ValueError(
 				"GC symplecticity requires the 4N doubled physical state; "
 				"run the method with `track_energy=False`."
 			)
-		jacobian = central_difference_jacobian(
+		jacobian: np.ndarray = central_difference_jacobian(
 			stage.map_state,
 			state,
 			relative_step=self.relative_step,
 		)
-		form = gc_extended_symplectic_form(self.particle_count)
+		form: np.ndarray = gc_extended_symplectic_form(self.particle_count)
 		defect = jacobian.T @ form @ jacobian - form
+		sign: Any
+		log_abs_determinant: Any
 		sign, log_abs_determinant = np.linalg.slogdet(jacobian)
-		determinant = float(sign * np.exp(log_abs_determinant))
-		defect_frobenius = float(np.linalg.norm(defect, ord="fro"))
-		record = SymplecticityRecord(
+		determinant: float = float(sign * np.exp(log_abs_determinant))
+		defect_frobenius: float = float(np.linalg.norm(defect, ord="fro"))
+		record: SymplecticityRecord = SymplecticityRecord(
 			observation_index=len(self._records),
 			step_index=stage.step_index,
 			stage_index=stage.stage_index,
@@ -270,7 +276,7 @@ class SymplecticityObserver:
 	) -> OutputBlock:
 		"""Write the current matrix buffer as one indexed output block."""
 		rows = [asdict(sample.record) for sample in samples]
-		paths = self._output.write(
+		paths: DiagnosticBlockPaths = self._output.write(
 			block_index=block_index,
 			rows=rows,
 			arrays={
@@ -315,7 +321,7 @@ class SymplecticityObserver:
 			},
 		)
 
-		block = OutputBlock(
+		block: OutputBlock = OutputBlock(
 			index=block_index,
 			sample_count=len(samples),
 			summary_path=paths.summary,

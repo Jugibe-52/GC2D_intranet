@@ -2,7 +2,8 @@
 
 from copy import copy
 from functools import lru_cache
-from typing import Any, ClassVar
+from types import ModuleType
+from typing import Any, ClassVar, TYPE_CHECKING
 
 import numpy as np
 
@@ -15,7 +16,11 @@ from potential.potential import Potential
 from potential.jax_potential import JaxPotential
 
 
-def _import_jax() -> Any:
+if TYPE_CHECKING:
+	from jax import Device
+
+
+def _import_jax() -> ModuleType:
 	"""Keep optional-dependency errors actionable for direct preparation calls."""
 	try:
 		import jax
@@ -29,7 +34,7 @@ def _import_jax() -> Any:
 
 def check_precision() -> None:
 	"""Require explicit float64 opt-in without changing global JAX settings."""
-	jax = _import_jax()
+	jax: ModuleType = _import_jax()
 
 	if not jax.config.read("jax_enable_x64"):
 		raise RuntimeError(
@@ -38,13 +43,13 @@ def check_precision() -> None:
 		)
 
 
-def resolve_device(execution: ExecutionOptions) -> Any:
+def resolve_device(execution: ExecutionOptions) -> "Device":
 	"""Validate current precision and resolve the requested integration device."""
-	jax = _import_jax()
+	jax: ModuleType = _import_jax()
 
 	check_precision()
 	try:
-		devices = jax.devices(execution.device)
+		devices: list[Device] = jax.devices(execution.device)
 	except RuntimeError as exc:
 		raise RuntimeError(f"Requested JAX device '{execution.device}' is unavailable.") from exc
 	if execution.device_index >= len(devices):
@@ -69,7 +74,7 @@ def _jax_potential(potential: Potential) -> JaxPotential:
 		raise TypeError("JAX execution requires a built-in Potential or JaxPotential; subclass overrides are not compiled.")
 	# Bypass construction only for the known base representation. Keep device
 	# caches local while sharing read-only samples and already fitted splines.
-	prepared = object.__new__(JaxPotential)
+	prepared: JaxPotential = object.__new__(JaxPotential)
 	prepared.__dict__.update(potential.__dict__)
 	prepared._jax_buffers = {}
 	return prepared
@@ -85,10 +90,10 @@ def _prepare_dynamics(
 	physical: GuidingCenterDynamics | FullCyclotronDynamics,
 ) -> GuidingCenterDynamics | FullCyclotronDynamics:
 	"""Bind shared GC/FC equations to JAX potentials without mutating the source."""
-	potential = _jax_potential(physical.potential)
+	potential: JaxPotential = _jax_potential(physical.potential)
 	prepared: GuidingCenterDynamics | FullCyclotronDynamics
 	if isinstance(physical, GuidingCenterDynamics):
-		effective = potential if physical.effective_potential is physical.potential else _jax_potential(physical.effective_potential)
+		effective: JaxPotential = potential if physical.effective_potential is physical.potential else _jax_potential(physical.effective_potential)
 		if potential is physical.potential and effective is physical.effective_potential:
 			return physical
 		prepared = copy(physical)
@@ -106,10 +111,10 @@ class _HostGC:
 
 	state_dimension: ClassVar[int] = 2
 
-	def __init__(self, dynamics: GuidingCenterDynamics | FullCyclotronDynamics, device: Any) -> None:
+	def __init__(self, dynamics: GuidingCenterDynamics | FullCyclotronDynamics, device: "Device") -> None:
 		self.dynamics = dynamics
 		self.device = device
-		jax = _import_jax()
+		jax: ModuleType = _import_jax()
 		self._field = jax.jit(dynamics.vector_field)
 		self._energy = jax.jit(dynamics.hamiltonian)
 		self._momentum = jax.jit(dynamics.extended_momentum_derivative)
@@ -117,8 +122,8 @@ class _HostGC:
 	def _evaluate(self, function: Any, time: Any, state: Any) -> np.ndarray:
 		"""Place host arguments explicitly and synchronize the SciPy result."""
 		check_precision()
-		jax = _import_jax()
-		inputs = tuple(jax.device_put(np.asarray(value, dtype=np.float64), self.device)
+		jax: ModuleType = _import_jax()
+		inputs: tuple[Any, ...] = tuple(jax.device_put(np.asarray(value, dtype=np.float64), self.device)
 			for value in (time, state))
 		return np.asarray(function(*inputs))
 
@@ -139,19 +144,19 @@ class _HostFC(_HostGC):
 
 
 @lru_cache(maxsize=16)
-def _host(dynamics: GuidingCenterDynamics | FullCyclotronDynamics, device: Any) -> _HostGC:
+def _host(dynamics: GuidingCenterDynamics | FullCyclotronDynamics, device: "Device") -> _HostGC:
 	"""Bound reuse of compiled host callbacks by physical object and device."""
 	return (_HostGC if dynamics.state_dimension == 2 else _HostFC)(dynamics, device)
 
 
-def bind_host_dynamics(dynamics: GuidingCenterDynamics | FullCyclotronDynamics, device: Any) -> HamiltonianSystem:
+def bind_host_dynamics(dynamics: GuidingCenterDynamics | FullCyclotronDynamics, device: "Device") -> HamiltonianSystem:
 	"""Reuse compiled ordinary equations, checking precision on every call."""
 	return _host(dynamics, device)
 
 
 def prepare_environment(
 	dynamics: DynamicalSystem, method: NumericalMethod, options: ExecutionOptions,
-) -> tuple[HamiltonianSystem, Any]:
+) -> tuple[HamiltonianSystem, "Device"]:
 	"""Resolve a simulation's device and physical evaluation mode once.
 
 	Fixed maps retain device-native equations. Adaptive SciPy solvers receive
@@ -160,8 +165,8 @@ def prepare_environment(
 	mode = method.jax_mode
 	if mode not in ("device_resident", "hybrid_scipy_controller"):
 		raise NotImplementedError(f"{type(method).__name__} does not provide JAX execution.")
-	device = resolve_device(options)
-	prepared = prepare_dynamics(dynamics)
+	device: Device = resolve_device(options)
+	prepared: GuidingCenterDynamics | FullCyclotronDynamics = prepare_dynamics(dynamics)
 	if mode == "hybrid_scipy_controller":
 		from methods._jax_dispatch import validate_hybrid_method
 		validate_hybrid_method(method)

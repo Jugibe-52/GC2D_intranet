@@ -33,6 +33,12 @@ from ._jacobians import (
 	_resolved_jacobian_method,
 )
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+	from solvers.nonlinear import _NonlinearResult
+	from typing import Any
+
 
 GAUSS_JACOBIAN_METHODS: tuple[GaussJacobianMethod, ...] = (
 	"auto",
@@ -40,12 +46,12 @@ GAUSS_JACOBIAN_METHODS: tuple[GaussJacobianMethod, ...] = (
 	"finite_difference",
 )
 
-_ROOT_THREE_OVER_SIX = float(np.sqrt(3.0) / 6.0)
-_GAUSS_NODES = np.asarray(
+_ROOT_THREE_OVER_SIX: 'float' = float(np.sqrt(3.0) / 6.0)
+_GAUSS_NODES: 'np.ndarray' = np.asarray(
 	(0.5 - _ROOT_THREE_OVER_SIX, 0.5 + _ROOT_THREE_OVER_SIX),
 	dtype=float,
 )
-_GAUSS_MATRIX = np.asarray(
+_GAUSS_MATRIX: 'np.ndarray' = np.asarray(
 	(
 		(0.25, 0.25 - _ROOT_THREE_OVER_SIX),
 		(0.25 + _ROOT_THREE_OVER_SIX, 0.25),
@@ -82,7 +88,7 @@ def _stage_evaluation(
 ) -> _StageEvaluation:
 	"""Evaluate both fields and coupled collocation residuals."""
 	stage_times = time + step * _GAUSS_NODES
-	fields = tuple(
+	fields: tuple[np.ndarray, ...] = tuple(
 		_checked_vector_field(dynamics, float(stage_time), stage_state)
 		for stage_time, stage_state in zip(
 			stage_times,
@@ -90,7 +96,7 @@ def _stage_evaluation(
 			strict=True,
 		)
 	)
-	residuals = tuple(
+	residuals: tuple[Any, ...] = tuple(
 		stage_states[index]
 		- state
 		- step
@@ -122,7 +128,7 @@ def _stage_jacobians(
 			raise TypeError(
 				"Analytic Gauss Jacobians require GuidingCenterJacobianSystem."
 			)
-		jacobians = tuple(
+		jacobians: tuple[np.ndarray, ...] = tuple(
 			_checked_analytic_jacobians(
 				dynamics,
 				float(stage_time),
@@ -181,26 +187,28 @@ def _analytic_newton_correction(
 	jacobians: tuple[np.ndarray, np.ndarray],
 ) -> tuple[np.ndarray, np.ndarray]:
 	"""Solve independent ``4 x 4`` Gauss Newton systems for every particle."""
+	blocks_1: np.ndarray
+	blocks_2: np.ndarray
 	blocks_1, blocks_2 = jacobians
 	particle_count = blocks_1.shape[0]
-	identity = np.broadcast_to(np.eye(2), (particle_count, 2, 2))
-	top = np.concatenate(
+	identity: np.ndarray = np.broadcast_to(np.eye(2), (particle_count, 2, 2))
+	top: np.ndarray = np.concatenate(
 		(
 			identity - step * _GAUSS_MATRIX[0, 0] * blocks_1,
 			-step * _GAUSS_MATRIX[0, 1] * blocks_2,
 		),
 		axis=-1,
 	)
-	bottom = np.concatenate(
+	bottom: np.ndarray = np.concatenate(
 		(
 			-step * _GAUSS_MATRIX[1, 0] * blocks_1,
 			identity - step * _GAUSS_MATRIX[1, 1] * blocks_2,
 		),
 		axis=-1,
 	)
-	matrix = np.concatenate((top, bottom), axis=-2)
-	residual = _particle_vectors(*evaluation.residuals)
-	corrections = _solve_particle_systems(
+	matrix: np.ndarray = np.concatenate((top, bottom), axis=-2)
+	residual: np.ndarray = _particle_vectors(*evaluation.residuals)
+	corrections: np.ndarray = _solve_particle_systems(
 		matrix, -residual,
 		singular_message="The per-particle Gauss Newton matrix is singular.",
 	)
@@ -213,9 +221,11 @@ def _dense_newton_correction(
 	jacobians: tuple[np.ndarray, np.ndarray],
 ) -> tuple[np.ndarray, np.ndarray]:
 	"""Solve the generic dense coupled-stage Newton equation."""
-	identity = np.eye(evaluation.residuals[0].size)
+	identity: np.ndarray = np.eye(evaluation.residuals[0].size)
+	first_jacobian: np.ndarray
+	second_jacobian: np.ndarray
 	first_jacobian, second_jacobian = jacobians
-	matrix = np.block(
+	matrix: np.ndarray = np.block(
 		[
 			[
 				identity - step * _GAUSS_MATRIX[0, 0] * first_jacobian,
@@ -227,9 +237,9 @@ def _dense_newton_correction(
 			],
 		]
 	)
-	residual = np.concatenate(evaluation.residuals)
+	residual: np.ndarray = np.concatenate(evaluation.residuals)
 	try:
-		correction = np.linalg.solve(matrix, -residual)
+		correction: np.ndarray = np.linalg.solve(matrix, -residual)
 	except np.linalg.LinAlgError as exc:
 		raise RuntimeError("The Gauss Newton matrix is singular.") from exc
 	dimension = identity.shape[0]
@@ -251,10 +261,10 @@ def _solve_gauss_step(
 	solver: NewtonSolver | None = None,
 ) -> _GaussStepResult:
 	"""Solve the two coupled collocation stages with full Newton corrections."""
-	value = np.asarray(state, dtype=float)
+	value: np.ndarray = np.asarray(state, dtype=float)
 	if value.ndim != 1 or value.size == 0 or not np.all(np.isfinite(value)):
 		raise ValueError("The Gauss physical state must be a finite vector.")
-	initial_field = _checked_vector_field(dynamics, time, value)
+	initial_field: np.ndarray = _checked_vector_field(dynamics, time, value)
 	stage_states = (
 		value + step * _GAUSS_NODES[0] * initial_field,
 		value + step * _GAUSS_NODES[1] * initial_field,
@@ -267,14 +277,14 @@ def _solve_gauss_step(
 
 	def evaluate(unknown: np.ndarray) -> tuple[np.ndarray, _StageEvaluation]:
 		"""Pack both stage residuals without changing their infinity norm."""
-		evaluation = _stage_evaluation(
+		evaluation: _StageEvaluation = _stage_evaluation(
 			dynamics, time, value, step, (unknown[:size], unknown[size:]),
 		)
 		return np.concatenate(evaluation.residuals), evaluation
 
 	def update(unknown: np.ndarray, residual: np.ndarray, evaluation: _StageEvaluation) -> np.ndarray:
 		"""Keep the collocation-specific block algebra beside its stage equations."""
-		jacobians = _stage_jacobians(
+		jacobians: tuple[np.ndarray, np.ndarray] = _stage_jacobians(
 			dynamics,
 			time,
 			step,
@@ -284,7 +294,7 @@ def _solve_gauss_step(
 		)
 		if jacobian_method == "analytic":
 			assert isinstance(dynamics, GuidingCenterJacobianSystem)
-			corrections = _analytic_newton_correction(
+			corrections: tuple[np.ndarray, np.ndarray] = _analytic_newton_correction(
 				step,
 				evaluation,
 				jacobians,
@@ -296,7 +306,7 @@ def _solve_gauss_step(
 		return np.asarray(unknown + np.concatenate(corrections))
 
 	selected_solver = solver or NewtonSolver(absolute_tolerance, relative_tolerance, max_iterations)
-	root = selected_solver.solve(
+	root: _NonlinearResult[_StageEvaluation] = selected_solver.solve(
 		evaluate, np.concatenate(stage_states), update, scale=value,
 		context=f"GaussLegendre4 at t={time:.16g} with h={step:.16g}",
 		iteration_observer=_bind_newton_observer(
@@ -401,8 +411,8 @@ class GaussLegendre4(IntegrationMethod[_GaussStepResult]):
 
 	def advance(self, time: float, value: np.ndarray, step: float) -> StepResult[_GaussStepResult]:
 		"""Solve one complete physical step and finish its auxiliary state."""
-		physical_before = np.asarray(value[:self.physical_size], dtype=float)
-		result = self._solve_physical(time, physical_before, step, newton_observer=self.newton_observer)
+		physical_before: np.ndarray = np.asarray(value[:self.physical_size], dtype=float)
+		result: _GaussStepResult = self._solve_physical(time, physical_before, step, newton_observer=self.newton_observer)
 		tolerance = self.newton_absolute_tolerance + (
 			self.newton_relative_tolerance * max(1.0, float(np.linalg.norm(physical_before, ord=np.inf)))
 		)
@@ -414,7 +424,7 @@ class GaussLegendre4(IntegrationMethod[_GaussStepResult]):
 		}
 		if not self.track_energy:
 			return StepResult(result.state, statistics, result)
-		momentum_derivatives = tuple(
+		momentum_derivatives: tuple[np.ndarray, ...] = tuple(
 			self.state_formulation.momentum_rate(
 				time + step * _GAUSS_NODES[index], result.stage_states[index],
 			)
@@ -423,7 +433,7 @@ class GaussLegendre4(IntegrationMethod[_GaussStepResult]):
 		increment = step * 0.5 * (
 			momentum_derivatives[0] + momentum_derivatives[1]
 		)
-		after = self.state_formulation.finish(value, result.state, time + step, increment)
+		after: np.ndarray = self.state_formulation.finish(value, result.state, time + step, increment)
 		return StepResult(after, statistics, result)
 
 	def build_observation(self, info: StepInfo, step: StepResult[_GaussStepResult]) -> GaussLegendre4IntegrationStep:

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from typing import Protocol
+from typing import Protocol, TYPE_CHECKING
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -11,6 +11,10 @@ from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 
 from states.history import States
+
+
+if TYPE_CHECKING:
+	from typing import Any
 
 
 class HBVM42EvaluationSummaryView(Protocol):
@@ -58,11 +62,13 @@ def plot_hbvm42_evaluation(
 	orders: Sequence[HBVM42OrderSummaryView],
 ) -> tuple[Figure, np.ndarray]:
 	"""Plot accuracy, cost, energy, geometry, order reduction, and solver work."""
-	rows = tuple(summaries)
-	order_rows = tuple(orders)
+	rows: tuple[HBVM42EvaluationSummaryView, ...] = tuple(summaries)
+	order_rows: tuple[HBVM42OrderSummaryView, ...] = tuple(orders)
 	if len(rows) < 2 or len(order_rows) != len(rows) - 1:
 		raise ValueError("HBVM evaluation plots require aligned refinement rows.")
-	steps = np.asarray([row.step for row in rows])
+	steps: np.ndarray = np.asarray([row.step for row in rows])
+	figure: Figure
+	axes: np.ndarray
 	figure, axes = plt.subplots(2, 3, figsize=(16, 9), constrained_layout=True)
 
 	axes[0, 0].loglog(
@@ -133,7 +139,7 @@ def plot_hbvm42_evaluation(
 	)
 	axes[1, 0].legend()
 
-	fine_steps = np.asarray([row.fine_step for row in order_rows])
+	fine_steps: np.ndarray = np.asarray([row.fine_step for row in order_rows])
 	axes[1, 1].semilogx(
 		fine_steps,
 		np.asarray([row.trajectory_order_reduction for row in order_rows]),
@@ -184,10 +190,10 @@ def _energy_error_arrays(solutions: Mapping[float, States]) -> list[tuple[float,
 		raise ValueError("At least one HBVM solution is required.")
 	prepared: list[tuple[float, np.ndarray, np.ndarray]] = []
 	for step, solution in solutions.items():
-		energy_drift = solution.diagnostics.get("energy_drift")
+		energy_drift: np.ndarray | float | int | str | None = solution.diagnostics.get("energy_drift")
 		if energy_drift is None:
 			raise ValueError("Every solution must contain HBVM energy diagnostics.")
-		values = np.asarray(energy_drift, dtype=float)
+		values: np.ndarray = np.asarray(energy_drift, dtype=float)
 		if values.shape != (1, solution.t.size):
 			raise ValueError("The energy plot requires one planar trajectory.")
 		prepared.append((step, solution.t, values[0]))
@@ -198,7 +204,9 @@ def plot_hbvm42_energy_errors(
 	solutions: Mapping[float, States],
 ) -> tuple[Figure, Axes]:
 	"""Plot signed physical-Hamiltonian drift for every evaluated HBVM step."""
-	prepared = _energy_error_arrays(solutions)
+	prepared: list[tuple[float, np.ndarray, np.ndarray]] = _energy_error_arrays(solutions)
+	figure: Figure
+	axis: Axes
 	figure, axis = plt.subplots(figsize=(9, 5), constrained_layout=True)
 	for step, times, drift in prepared:
 		axis.plot(times, drift, label=rf"$h={step:g}$")
@@ -218,20 +226,22 @@ def plot_hbvm42_bm4_comparison(
 	summaries: Sequence[HBVM42BM4SummaryView],
 ) -> tuple[Figure, np.ndarray]:
 	"""Plot endpoint accuracy, runtime, and work--precision for both methods."""
-	rows = tuple(summaries)
-	methods = tuple(dict.fromkeys(row.method for row in rows))
+	rows: tuple[HBVM42BM4SummaryView, ...] = tuple(summaries)
+	methods: tuple[str, ...] = tuple(dict.fromkeys(row.method for row in rows))
 	if len(methods) != 2:
 		raise ValueError("The comparison plot requires exactly two methods.")
+	figure: Figure
+	axes: np.ndarray
 	figure, axes = plt.subplots(1, 3, figsize=(16, 4.8), constrained_layout=True)
 	markers = ("o", "s")
 	for method, marker in zip(methods, markers, strict=True):
-		method_rows = tuple(row for row in rows if row.method == method)
-		steps = np.asarray([row.step for row in method_rows])
-		errors = _positive(np.asarray([row.final_error for row in method_rows]))
-		median_times = _positive(
+		method_rows: tuple[HBVM42BM4SummaryView, ...] = tuple(row for row in rows if row.method == method)
+		steps: np.ndarray = np.asarray([row.step for row in method_rows])
+		errors: np.ndarray = _positive(np.asarray([row.final_error for row in method_rows]))
+		median_times: np.ndarray = _positive(
 			np.asarray([row.median_runtime_seconds for row in method_rows])
 		)
-		minimum_times = _positive(
+		minimum_times: np.ndarray = _positive(
 			np.asarray([row.minimum_runtime_seconds for row in method_rows])
 		)
 		axes[0].loglog(steps, errors, marker=marker, label=method)

@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Literal, TYPE_CHECKING
 
 import numpy as np
+
+
+if TYPE_CHECKING:
+	from typing import Any
 
 
 DistanceConvention = Literal["euclidean", "periodic"]
@@ -37,12 +41,12 @@ def particle_distances(
 	minimum-image convention independently to both coordinates; Euclidean
 	distances retain the physical displacement represented by the histories.
 	"""
-	first = np.asarray(states, dtype=float)
-	second = np.asarray(reference_states, dtype=float)
+	first: np.ndarray = np.asarray(states, dtype=float)
+	second: np.ndarray = np.asarray(reference_states, dtype=float)
 	if first.shape != second.shape or first.ndim != 2 or first.shape[0] % 2:
 		raise ValueError("Compared GC histories must have one matching packed shape.")
-	convention = normalized_distance_convention(distance_convention)
-	difference = first - second
+	convention: Literal['euclidean'] | Literal['periodic'] = normalized_distance_convention(distance_convention)
+	difference: Any = first - second
 	if convention == "periodic":
 		if period is None or not np.isfinite(period) or period <= 0.0:
 			raise ValueError("`period` must be positive and finite for periodic distances.")

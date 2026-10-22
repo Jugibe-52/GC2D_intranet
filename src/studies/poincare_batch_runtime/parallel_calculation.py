@@ -10,7 +10,7 @@ from contracts._study_validation import require_uncoupled_bm4
 
 from formulations.layout import GCStateLayout
 
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import dataclass
@@ -24,6 +24,11 @@ import time
 import numpy as np
 
 from study_io import load_snapshot, utc_now
+
+
+if TYPE_CHECKING:
+	from potential.potential import Potential
+	from states.history import States
 
 
 _START_BARRIER: Barrier | None = None
@@ -42,6 +47,8 @@ def calculate_group(
     require_uncoupled_bm4(settings.get('coupling_frequency', 0.0))
     from threadpoolctl import threadpool_info, threadpool_limits
 
+    potential: Potential
+    snapshot_hash: str
     potential, _, snapshot_hash = load_snapshot()
     from dynamics import GuidingCenterDynamics
     import numpy as np
@@ -52,15 +59,15 @@ def calculate_group(
 
     indices = np.asarray(indices, dtype=int)
     xy0 = np.asarray(initial_xy, dtype=np.float64)[indices]
-    initial = GCStateLayout().pack_components(xy0[:, 0], xy0[:, 1])
-    problem = InitialValueProblem(GuidingCenterDynamics(potential, rho=settings['rho']), initial, layout=GCStateLayout())
-    request = SimulationRequest.uniform(
+    initial: np.ndarray = GCStateLayout().pack_components(xy0[:, 0], xy0[:, 1])
+    problem: InitialValueProblem = InitialValueProblem(GuidingCenterDynamics(potential, rho=settings['rho']), initial, layout=GCStateLayout())
+    request: SimulationRequest = SimulationRequest.uniform(
         t_span=tuple(settings['t_span']), max_step=settings['step'],
         sample_count=settings['n_steps'] + 1,
     )
-    history = (NewtonHistory(settings['n_steps'], settings.get('progress_every', 1000))
+    history: Any | None = (NewtonHistory(settings['n_steps'], settings.get('progress_every', 1000))
                if settings.get('record_newton_history', True) else None)
-    method = BM4Implicit(
+    method: BM4Implicit = BM4Implicit(
         newton_absolute_tolerance=settings['newton_atol'],
         newton_relative_tolerance=settings['newton_rtol'],
         newton_max_iterations=settings['newton_max_iterations'],
@@ -69,21 +76,24 @@ def calculate_group(
         newton_observer=history,
     )
     with threadpool_limits(limits=1):
-        pools = threadpool_info()
+        pools: Any = threadpool_info()
         assert all(item['num_threads'] == 1 for item in pools)
         # Exactly one task per process; the barrier proves all workers are ready
         # before any integration starts, even for very short validation runs.
         if _START_BARRIER is not None:
             _START_BARRIER.wait(timeout=180)
-        started_utc = utc_now()
-        started = time.perf_counter()
-        cpu_started = time.process_time()
-        solution = simulate(problem, method, request)
-        history_arrays = history.arrays() if history is not None else None
+        started_utc: str = utc_now()
+        started: float = time.perf_counter()
+        cpu_started: float = time.process_time()
+        solution: States = simulate(problem, method, request)
+        history_arrays: Any | None = history.arrays() if history is not None else None
         cpu_seconds = time.process_time() - cpu_started
-        finished = time.perf_counter()
-        finished_utc = utc_now()
+        finished: float = time.perf_counter()
+        finished_utc: str = utc_now()
     diagnostics = solution.diagnostics
+    xy: np.ndarray
+    residuals: np.ndarray
+    tolerances: np.ndarray
     xy, residuals, tolerances = _validated_worker_trajectory(solution, diagnostics, settings, xy0)
     return {
         'indices': indices, 'times': solution.t, 'xy': xy,
@@ -124,7 +134,7 @@ def simulate_parallel(
     initial_xy: np.ndarray, settings: dict[str, Any], processes: int = 16,
 ) -> ParallelSolution:
     """Partition by round-robin ID, spawn all workers, and restore global order."""
-    xy0 = np.asarray(initial_xy, dtype=np.float64)
+    xy0: np.ndarray = np.asarray(initial_xy, dtype=np.float64)
     if isinstance(processes, bool) or not isinstance(processes, int) or not 1 <= processes <= len(xy0):
         raise ValueError('Process count must be an integer between 1 and the particle count.')
     load_snapshot()  # Materialize and verify the immutable source before spawning.
@@ -133,9 +143,9 @@ def simulate_parallel(
     else:
         from checkpoint_calculation import calculate_checkpointed_group
     groups = [np.arange(i, len(xy0), processes) for i in range(processes)]
-    context = mp.get_context('spawn')
-    barrier = context.Barrier(processes)
-    started = time.perf_counter()
+    context: mp.context.SpawnContext = mp.get_context('spawn')
+    barrier: Barrier = context.Barrier(processes)
+    started: float = time.perf_counter()
     outputs = {}
     with ProcessPoolExecutor(max_workers=processes, mp_context=context,
                              initializer=_initialize_worker, initargs=(barrier,)) as pool:
@@ -149,7 +159,7 @@ def simulate_parallel(
                   f"{item['particle_count']} particles, {item['integration_seconds']:.2f} s", flush=True)
     ordered = [outputs[i] for i in range(processes)]
     times = ordered[0]['times']
-    xy = np.empty((len(times), len(xy0), 2), dtype=np.float64)
+    xy: np.ndarray = np.empty((len(times), len(xy0), 2), dtype=np.float64)
     for item in ordered:
         np.testing.assert_array_equal(item['times'], times)
         xy[:, item['indices'], :] = item['xy']
@@ -163,7 +173,7 @@ def simulate_parallel(
     }
     if settings.get('record_newton_history', True):
         histories = [item['newton_history'] for item in ordered]
-        bases = np.cumsum([0] + [len(h['residuals']) for h in histories[:-1]])
+        bases: np.ndarray = np.cumsum([0] + [len(h['residuals']) for h in histories[:-1]])
         diagnostics['newton_history_offsets'] = np.stack([
             h['offsets'] + base for h, base in zip(histories, bases)])
         diagnostics['newton_history_residuals'] = np.concatenate([h['residuals'] for h in histories])
@@ -171,7 +181,7 @@ def simulate_parallel(
     diagnostics.update(step_count=settings['n_steps'],
                        projection_solver_formulation='bm4_implicit_reduced' if settings['method'] == 'BM4Implicit' else ('bm4_midpoint' if settings['method']=='BM4Midpoint' else None),
                        newton_jacobian_method='analytic' if settings['method'] == 'BM4Implicit' else None)
-    states = np.concatenate((xy[..., 0].T, xy[..., 1].T), axis=0)
+    states: np.ndarray = np.concatenate((xy[..., 0].T, xy[..., 1].T), axis=0)
     wall_seconds = time.perf_counter() - started
     return ParallelSolution(times, states, diagnostics, workers, wall_seconds, overlap)
 
@@ -185,8 +195,8 @@ def _validated_worker_trajectory(
 	assert diagnostics['newton_jacobian_method'] == 'analytic'
 	xy: np.ndarray = np.stack(solution.positions(), axis=-1).transpose(1, 0, 2)
 	np.testing.assert_array_equal(xy[0], xy0)
-	residuals = np.asarray(diagnostics['nonlinear_residual_norms'])
-	tolerances = np.asarray(diagnostics['nonlinear_tolerances'])
+	residuals: np.ndarray = np.asarray(diagnostics['nonlinear_residual_norms'])
+	tolerances: np.ndarray = np.asarray(diagnostics['nonlinear_tolerances'])
 	assert residuals.shape == tolerances.shape == (settings['n_steps'],)
 	assert np.isfinite(xy).all() and np.isfinite(residuals).all()
 	assert np.all(tolerances > 0)

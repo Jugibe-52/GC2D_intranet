@@ -17,7 +17,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from os import PathLike
 from functools import cached_property
-from typing import Any, Self, cast
+from typing import Any, Self, TYPE_CHECKING, cast
 
 import numpy as np
 from numpy.fft import fft2, fftfreq, ifft2
@@ -34,6 +34,10 @@ from contracts.arrays import uses_jax
 from ._validation import _readonly_array, _validated_potential_data
 from ._periodic_spline import _build_periodic_spline
 from ._evaluation import validate_derivatives, normalize_coordinates, reconstruct
+
+
+if TYPE_CHECKING:
+	from potential.load import _GC2DH5Data
 
 
 def _denoise_fields(
@@ -91,12 +95,14 @@ def _random_positive_frequency_mode(
 	seed: int,
 ) -> np.ndarray:
 	"""Generate the canonical positive-frequency mode for a random potential."""
+	wave_x: np.ndarray
+	wave_y: np.ndarray
 	wave_x, wave_y = np.meshgrid(
 		np.arange(maximum_wave_number + 1),
 		np.arange(maximum_wave_number + 1),
 		indexing="ij",
 	)
-	spectrum = np.zeros(
+	spectrum: np.ndarray = np.zeros(
 		(maximum_wave_number + 1, maximum_wave_number + 1),
 		dtype=np.complex128,
 	)
@@ -112,16 +118,20 @@ def _random_positive_frequency_mode(
 	# privileging diagonal spatial modes.
 	spectrum[np.hypot(wave_x, wave_y) > maximum_wave_number] = 0
 
+	mode_x: np.ndarray
+	mode_y: np.ndarray
 	mode_x, mode_y = np.indices(spectrum.shape)
+	x_mesh: np.ndarray
+	y_mesh: np.ndarray
 	x_mesh, y_mesh = np.meshgrid(grid.x, grid.y, indexing="ij")
-	phase = np.exp(
+	phase: Any = np.exp(
 		1j
 		* (
 			mode_x[:, :, None, None] * x_mesh[None, None, :, :]
 			+ mode_y[:, :, None, None] * y_mesh[None, None, :, :]
 		)
 	)
-	legacy_coefficient = np.asarray(np.einsum("nm,nm...->...", spectrum, phase))
+	legacy_coefficient: np.ndarray = np.asarray(np.einsum("nm,nm...->...", spectrum, phase))
 	# Re(C exp(-i*t)) equals 2*Re((conj(C)/2) exp(+i*t)); omega=1.
 	return np.asarray(0.5 * np.conjugate(legacy_coefficient))
 
@@ -206,7 +216,7 @@ class Potential:
 	def __setstate__(self, state: dict[str, Any]) -> None:
 		"""Rebuild CPU splines and empty device caches in the receiving process."""
 		state = dict(state)
-		convention = state.pop("frequency_convention", "cycles")
+		convention: Any = state.pop("frequency_convention", "cycles")
 		if convention == "angular":
 			state["frequencies"] = np.asarray(state["frequencies"]) / (2 * np.pi)
 		elif convention != "cycles":
@@ -234,8 +244,8 @@ class Potential:
 		"""
 		A, M, seed = _validated_random_parameters(A, M, seed)
 
-		grid = Grid.periodic(nx, ny)
-		mode = _random_positive_frequency_mode(
+		grid: Grid = Grid.periodic(nx, ny)
+		mode: np.ndarray = _random_positive_frequency_mode(
 			grid,
 			amplitude=A,
 			maximum_wave_number=int(M),
@@ -267,7 +277,7 @@ class Potential:
 		included in every component when the respective flags are enabled.
 		B belongs to GuidingCenterDynamics, never to this loader.
 		"""
-		data = _load_data(filename, indx=indx, spatial_rescaling=spatial_rescaling,
+		data: _GC2DH5Data = _load_data(filename, indx=indx, spatial_rescaling=spatial_rescaling,
 			temporal_rescaling=temporal_rescaling, sigma=sigma)
 		return cls(data.grid, mean=data.mean, modes=data.modes,
 			frequencies=data.frequencies, metadata=data.metadata,
@@ -280,11 +290,15 @@ class Potential:
 		Coefficients have shape ``(1 + mode_count, ncoeff_x, ncoeff_y)``;
 		the first component is the mean and the others are complex harmonics.
 		"""
+		tx: np.ndarray
+		ty: np.ndarray
 		tx, ty = self._splines[0].real.get_knots()
 		shape = (tx.size - self.interpolation_order - 1, ty.size - self.interpolation_order - 1)
 		coefficients = []
 		for spline in self._splines:
 			for component in (spline.real, spline.imag):
+				kx: np.ndarray
+				ky: np.ndarray
 				kx, ky = component.get_knots()
 				if not (np.array_equal(kx, tx) and np.array_equal(ky, ty)):
 					raise ValueError("Potential components must share the same spline knots.")
@@ -302,11 +316,12 @@ class Potential:
 		Spatial orders must be below the spline degree; time orders are 0, 1, 2.
 		"""
 		validate_derivatives(self.interpolation_order, dx, dy, dt)
+		time: np.ndarray
 		time, x, y = np.asarray(t), np.asarray(x), np.asarray(y)
 		if x.shape != y.shape:
 			raise ValueError("`x` and `y` must have the same shape.")
 		x, y = normalize_coordinates(x, y, (self.grid.xmin, self.grid.ymin), self.grid.period)
-		fields = np.stack([spline.evaluate(x, y, dx=int(dx), dy=int(dy)) for spline in self._splines])
+		fields: np.ndarray = np.stack([spline.evaluate(x, y, dx=int(dx), dy=int(dy)) for spline in self._splines])
 		return reconstruct(time, fields, self.frequencies, int(dt), xp=np)
 
 	def evaluate_grid(self, t: Any, *, dt: int = 0) -> np.ndarray:
@@ -318,8 +333,8 @@ class Potential:
 		if uses_jax(t):
 			raise TypeError("Grid evaluation requires NumPy time; convert concrete JAX arrays explicitly with np.asarray.")
 		validate_derivatives(self.interpolation_order, 0, 0, dt)
-		time = np.asarray(t)
-		fields = np.concatenate((self.mean[None], self.modes))
+		time: np.ndarray = np.asarray(t)
+		fields: np.ndarray = np.concatenate((self.mean[None], self.modes))
 		fields = fields.reshape(fields.shape + (1,) * time.ndim)
 		return cast(np.ndarray, reconstruct(time, fields, self.frequencies, int(dt), xp=np))
 
@@ -343,22 +358,24 @@ class Potential:
 		``rho`` uses the same length scale as the grid coordinates, making
 		``rho |k|`` dimensionless.
 		"""
-		radius = float(rho)
+		radius: float = float(rho)
 		if not np.isfinite(radius) or radius < 0:
 			raise ValueError("`rho` must be finite and non-negative.")
 		if radius == 0:
 			return self
 		# ``fftfreq`` returns cycles per unit length; multiplying its norm by
 		# ``2*pi`` below converts it to the angular wave number used by J_0.
-		kx = fftfreq(self.grid.nx, d=self.grid.dx)
-		ky = fftfreq(self.grid.ny, d=self.grid.dy)
+		kx: np.ndarray = fftfreq(self.grid.nx, d=self.grid.dx)
+		ky: np.ndarray = fftfreq(self.grid.ny, d=self.grid.dy)
+		kx_mesh: np.ndarray
+		ky_mesh: np.ndarray
 		kx_mesh, ky_mesh = np.meshgrid(kx, ky, indexing="ij")
 		# ``factor`` has shape ``(nx, ny)`` and attenuates each discrete spatial
 		# Fourier coefficient without mixing modes.
-		wave_number_norm = np.sqrt(kx_mesh**2 + ky_mesh**2)
-		factor = jv(0, 2 * np.pi * radius * wave_number_norm)
-		mean = np.asarray(ifft2(fft2(self.mean) * factor).real)
-		modes = (
+		wave_number_norm: np.ndarray = np.sqrt(kx_mesh**2 + ky_mesh**2)
+		factor: Any = jv(0, 2 * np.pi * radius * wave_number_norm)
+		mean: np.ndarray = np.asarray(ifft2(fft2(self.mean) * factor).real)
+		modes: np.ndarray = (
 			self.modes.copy()
 			if self.modes.shape[0] == 0
 			else np.asarray(

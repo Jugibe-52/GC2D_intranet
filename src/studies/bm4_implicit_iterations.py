@@ -36,17 +36,19 @@ from request import SimulationRequest
 from states.history import States
 from simulation.runner import simulate
 
+from typing import TYPE_CHECKING
+
 
 def _readonly_float_array(value: np.ndarray) -> np.ndarray:
 	"""Own and freeze one floating-point result series."""
-	result = np.asarray(value, dtype=float).copy()
+	result: np.ndarray = np.asarray(value, dtype=float).copy()
 	result.setflags(write=False)
 	return result
 
 
 def _readonly_int_array(value: np.ndarray) -> np.ndarray:
 	"""Own and freeze one integer result series."""
-	result = np.asarray(value, dtype=int).copy()
+	result: np.ndarray = np.asarray(value, dtype=int).copy()
 	result.setflags(write=False)
 	return result
 
@@ -157,6 +159,8 @@ class BM4ImplicitIterationStudyResult:
 
 	def iteration_frequencies(self) -> Mapping[int, int]:
 		"""Count how many observed steps required each iteration count."""
+		values: np.ndarray
+		counts: np.ndarray
 		values, counts = np.unique(self.iteration_counts, return_counts=True)
 		return MappingProxyType(
 			{
@@ -204,9 +208,9 @@ def run_bm4_implicit_iteration_study(
 	if not isinstance(config, BM4ImplicitIterationStudyConfig):
 		raise TypeError("`config` must be a BM4ImplicitIterationStudyConfig.")
 
-	dynamics = GuidingCenterDynamics(potential, rho=config.rho)
-	problem = InitialValueProblem(dynamics, initial_configuration)
-	request = SimulationRequest.uniform(
+	dynamics: GuidingCenterDynamics = GuidingCenterDynamics(potential, rho=config.rho)
+	problem: InitialValueProblem = InitialValueProblem(dynamics, initial_configuration)
+	request: SimulationRequest = SimulationRequest.uniform(
 		t_span=config.t_span,
 		max_step=config.max_step,
 		sample_count=config.sample_count,
@@ -224,8 +228,8 @@ def run_bm4_implicit_iteration_study(
 			**dict(metadata or {}),
 		},
 	) as observer:
-		started = perf_counter()
-		solution = simulate(
+		started: float = perf_counter()
+		solution: States = simulate(
 			problem,
 			BM4Implicit(
 				newton_absolute_tolerance=config.newton_absolute_tolerance,

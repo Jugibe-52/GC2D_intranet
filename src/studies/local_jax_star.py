@@ -72,9 +72,11 @@ class LocalJAXStarResult:
 
 def build_local_star(potential: Potential, config: LocalJAXStarConfig) -> InitialValueProblem:
     """Validate the cycle schedule and assemble one central/shared-arm geometry."""
+    fraction: np.ndarray
+    outer: float
     fraction, outer = _validated_local_star_geometry(potential, config)
     origin = np.array([potential.grid.x0, potential.grid.y0]) + fraction * potential.grid.period
-    initial = radial_star(center=(float(origin[0]), float(origin[1])),
+    initial: np.ndarray = radial_star(center=(float(origin[0]), float(origin[1])),
         arm_length=outer * potential.grid.period, arms=config.arms,
         particles_per_arm=config.particles_per_arm, first_angle=config.first_angle,
         include_center=config.include_center)
@@ -92,32 +94,38 @@ def integrate_local_star(
     they neither reset forcing phase nor carry a hidden nonlinear solver state.
     The same dynamics object preserves compiled JAX bindings across blocks.
     """
-    problem = build_local_star(potential, config)
+    problem: InitialValueProblem = build_local_star(potential, config)
     total_steps = config.cycles * config.steps_per_cycle
     # Component-major history: (2*N, total_steps+1), float64. Preallocation avoids
     # retaining a second list of all completed blocks before concatenation.
     times = np.arange(total_steps + 1, dtype=float) / config.steps_per_cycle
-    states = np.empty((problem.initial_state.size, times.size), dtype=np.float64)
+    states: np.ndarray = np.empty((problem.initial_state.size, times.size), dtype=np.float64)
     states[:, 0] = problem.initial_state
     step_arrays: dict[str, np.ndarray] = {}
     diagnostics: dict[str, DiagnosticValue] = {}
+    block_seconds: list[float]
+    block_ends: list[int]
     block_seconds, block_ends = [], []
-    method = BM4Midpoint(track_energy=False,
+    method: BM4Midpoint = BM4Midpoint(track_energy=False,
                          progress=False, step_observer=None)
+    executor: Execution
+    options: ExecutionOptions
     executor, options = Execution(), ExecutionOptions(backend='jax', device='cpu')
-    started = perf_counter()
+    started: float = perf_counter()
     for first_cycle in range(0, config.cycles, config.block_cycles):
-        last_cycle = min(first_cycle + config.block_cycles, config.cycles)
+        last_cycle: int = min(first_cycle + config.block_cycles, config.cycles)
+        first: int
+        last: int
         first, last = first_cycle * config.steps_per_cycle, last_cycle * config.steps_per_cycle
         phase = f'Integrating cycles {first_cycle}–{last_cycle}'
         if first == 0:
             phase += ' (first JAX compilation included)'
         progress.phase(phase)
-        block_problem = InitialValueProblem(problem.dynamics, np.array(states[:, first], dtype=float, copy=True), layout=GCStateLayout())
-        request = SimulationRequest((float(first_cycle), float(last_cycle)),
+        block_problem: InitialValueProblem = InitialValueProblem(problem.dynamics, np.array(states[:, first], dtype=float, copy=True), layout=GCStateLayout())
+        request: SimulationRequest = SimulationRequest((float(first_cycle), float(last_cycle)),
                                     1. / config.steps_per_cycle, times[first:last + 1])
-        start = perf_counter()
-        block = simulate(block_problem, method, request, execution=executor, options=options)
+        start: float = perf_counter()
+        block: States = simulate(block_problem, method, request, execution=executor, options=options)
         seconds = perf_counter() - start  # NumPy output has synchronized JAX.
         data = block.diagnostics
         if (data['step_count'] != last - first or data['output_interpolation_count'] != 0
@@ -142,9 +150,11 @@ def integrate_local_star(
                        execution_block_cycles=config.block_cycles,
                        execution_block_end_cycles=np.asarray(block_ends),
                        execution_block_wall_seconds=np.asarray(block_seconds))
-    solution = States(t=times, states=states, initial_state=problem.initial_state, diagnostics=diagnostics, layout=GCStateLayout())
+    solution: States = States(t=times, states=states, initial_state=problem.initial_state, diagnostics=diagnostics, layout=GCStateLayout())
+    x: np.ndarray
+    y: np.ndarray
     x, y = problem.layout.positions(problem.initial_state)
-    arms = np.repeat(np.arange(config.arms), config.particles_per_arm)
+    arms: np.ndarray = np.repeat(np.arange(config.arms), config.particles_per_arm)
     if config.include_center:
         arms = np.r_[-1, arms]  # -1 denotes the unique shared central particle.
     assert isinstance(problem.dynamics, GuidingCenterDynamics)
@@ -172,6 +182,8 @@ def calculate_local_star(
     """Prepare, compute locally and publish; log and propagate every failure."""
     with progress_log(log_path, total=config.cycles, heartbeat_seconds=heartbeat_seconds) as progress:
         progress.phase('Verifying source checksum and loading the HDF5 field')
+        potential: Potential
+        provenance: dict[str, Any]
         potential, provenance = prepare_verified_h5_field(
             source, magnetic_field=config.magnetic_field, characteristic_length=config.characteristic_length,
             source_selection=config.source_selection, interpolation_order=config.interpolation_order,
@@ -179,7 +191,7 @@ def calculate_local_star(
         import jax
         progress.logger.info('Local CPU | JAX=%s | x64=%s | destination=%s',
                              jax.__version__, jax.config.read('jax_enable_x64'), destination)
-        result = integrate_local_star(potential, config, progress=progress)
+        result: LocalJAXStarResult = integrate_local_star(potential, config, progress=progress)
         result.metadata.update(provenance, log_path=str(Path(log_path).resolve()))
         progress.phase('Integration complete; serializing and publishing the archive')
         save_solution(result.solution, destination, metadata=result.metadata, potential=potential)
@@ -192,12 +204,12 @@ def _validated_local_star_geometry(
 ) -> tuple[np.ndarray, float]:
 	"""Require a valid cycle schedule and a full star within the periodic cell."""
 	for name in ('arms', 'particles_per_arm', 'cycles', 'steps_per_cycle', 'block_cycles'):
-		value = getattr(config, name)
+		value: Any = getattr(config, name)
 		if isinstance(value, bool) or not isinstance(value, int) or value < 1:
 			raise ValueError(f'{name} must be a positive integer.')
 	if not (0 < config.radius_over_period <= .5 and 0 < config.outer_radius_fraction <= 1):
 		raise ValueError('Require 0 < R/L <= 0.5 and 0 < outer_radius_fraction <= 1.')
-	fraction = np.asarray(config.center_fraction)
+	fraction: np.ndarray = np.asarray(config.center_fraction)
 	outer = config.radius_over_period * config.outer_radius_fraction
 	if (fraction.shape != (2,) or not np.isfinite(fraction).all()
 			or np.any(fraction - outer < 0) or np.any(fraction + outer > 1)):

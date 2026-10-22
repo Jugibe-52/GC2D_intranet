@@ -7,7 +7,7 @@ from formulations.layout import GCStateLayout
 from dataclasses import dataclass
 from time import perf_counter
 from types import MappingProxyType
-from typing import Any, ClassVar, Mapping
+from typing import Any, ClassVar, Mapping, TYPE_CHECKING
 
 import numpy as np
 
@@ -36,6 +36,10 @@ from contracts.comparison import TrajectoryAccuracySeries
 from ._trajectory_accuracy import (accuracy_series, reference_indices_for_times, reference_distance_convention, validate_reference_identity, validated_refinement_steps)
 
 
+if TYPE_CHECKING:
+	from typing import Literal
+
+
 @dataclass(frozen=True, slots=True)
 class ABBA4ImplicitAccuracyConfig:
 	"""Physical, nonlinear, integration, and sampling controls."""
@@ -52,7 +56,7 @@ class ABBA4ImplicitAccuracyConfig:
 
 	def __post_init__(self) -> None:
 		"""Require nested complete steps and one common main-grid cadence."""
-		steps = validated_refinement_steps(self.integration_steps)
+		steps: tuple[float, ...] = validated_refinement_steps(self.integration_steps)
 		object.__setattr__(self, "integration_steps", steps)
 		object.__setattr__(
 			self, "t_span",
@@ -170,11 +174,11 @@ class ABBA4ImplicitAccuracyResult:
 			or tuple(self.runtimes) != steps
 		):
 			raise ValueError("ABBA4 accuracy results must follow configured step order.")
-		indices = np.array(self.reference_sample_indices, dtype=np.int64, copy=True)
+		indices: np.ndarray = np.array(self.reference_sample_indices, dtype=np.int64, copy=True)
 		initial_state = self.initial_configuration
 		if initial_state is None:
 			raise ValueError("The initial configuration must contain an initial state.")
-		particle_count = GCStateLayout().particle_count(initial_state)
+		particle_count: int = GCStateLayout().particle_count(initial_state)
 		reference_times: np.ndarray | None = None
 		for step in steps:
 			solution = self.solutions[step]
@@ -202,7 +206,7 @@ class ABBA4ImplicitAccuracyResult:
 		distances = self.reference.audit_distances[
 			:, self.reference_sample_indices
 		]
-		mean_squared = np.mean(distances**2, axis=0)
+		mean_squared: np.ndarray = np.mean(distances**2, axis=0)
 		return float(
 			np.sqrt(
 				np.trapz(mean_squared, self.times)
@@ -221,26 +225,26 @@ class ABBA4ImplicitAccuracyResult:
 	def summaries(self) -> tuple[ABBA4ImplicitAccuracySummary, ...]:
 		"""Return error, work, and runtime metrics from coarse to fine."""
 		rows: list[ABBA4ImplicitAccuracySummary] = []
-		period = float(self.potential.grid.period)
-		floor = max(self.reference_floor, float(np.finfo(float).eps))
-		duration = float(self.times[-1] - self.times[0])
+		period: float = float(self.potential.grid.period)
+		floor: float = max(self.reference_floor, float(np.finfo(float).eps))
+		duration: float = float(self.times[-1] - self.times[0])
 		for step in self.config.integration_steps:
 			solution = self.solutions[step]
 			values = self.series[step]
-			iterations = np.asarray(
+			iterations: np.ndarray = np.asarray(
 				solution.diagnostics["nonlinear_iterations"],
 				dtype=int,
 			)
-			substep_iterations = np.asarray(
+			substep_iterations: np.ndarray = np.asarray(
 				solution.diagnostics["substep_nonlinear_iterations"],
 				dtype=int,
 			)
-			residual_evaluations = np.asarray(
+			residual_evaluations: np.ndarray = np.asarray(
 				solution.diagnostics["residual_evaluations"],
 				dtype=int,
 			)
-			global_rms = float(np.sqrt(np.mean(values.distances**2)))
-			time_rms = float(
+			global_rms: float = float(np.sqrt(np.mean(values.distances**2)))
+			time_rms: float = float(
 				np.sqrt(
 					np.trapz(values.rms_distance**2, self.times) / duration
 				)
@@ -269,8 +273,8 @@ class ABBA4ImplicitAccuracyResult:
 	def convergence_orders(self) -> tuple[ABBA4ImplicitAccuracyOrder, ...]:
 		"""Estimate time-integrated and final RMS orders under step halving."""
 		summaries = {row.integration_step: row for row in self.summaries()}
-		time_floor = max(self.reference_floor, float(np.finfo(float).eps))
-		final_floor = max(self.final_reference_floor, float(np.finfo(float).eps))
+		time_floor: float = max(self.reference_floor, float(np.finfo(float).eps))
+		final_floor: float = max(self.final_reference_floor, float(np.finfo(float).eps))
 		rows: list[ABBA4ImplicitAccuracyOrder] = []
 		for coarse_step, fine_step in zip(
 			self.config.integration_steps,
@@ -334,21 +338,21 @@ def run_abba4_implicit_accuracy_study(
 		potential_metadata=potential_metadata,
 		initial_condition_metadata=initial_condition_metadata,
 	)
-	dynamics = GuidingCenterDynamics(potential, rho=config.rho)
-	problem = InitialValueProblem(dynamics, initial_configuration, layout=GCStateLayout())
+	dynamics: GuidingCenterDynamics = GuidingCenterDynamics(potential, rho=config.rho)
+	problem: InitialValueProblem = InitialValueProblem(dynamics, initial_configuration, layout=GCStateLayout())
 	solutions: dict[float, States] = {}
 	series: dict[float, TrajectoryAccuracySeries] = {}
 	runtimes: dict[float, float] = {}
 	reference_indices: np.ndarray | None = None
-	distance_convention = reference_distance_convention(reference)
+	distance_convention: Literal['euclidean'] | Literal['periodic'] = reference_distance_convention(reference)
 	for step in config.integration_steps:
-		request = SimulationRequest.uniform(
+		request: SimulationRequest = SimulationRequest.uniform(
 			t_span=config.t_span,
 			max_step=step,
 			sample_count=config.output_sample_count,
 		)
-		started = perf_counter()
-		solution = simulate(
+		started: float = perf_counter()
+		solution: States = simulate(
 			problem,
 			ABBA4Implicit(
 				newton_absolute_tolerance=config.absolute_tolerance,
@@ -361,7 +365,7 @@ def run_abba4_implicit_accuracy_study(
 		)
 		runtimes[step] = perf_counter() - started
 		solutions[step] = solution
-		indices = reference_indices_for_times(reference, solution.t)
+		indices: np.ndarray = reference_indices_for_times(reference, solution.t)
 		if reference_indices is None:
 			reference_indices = indices
 		elif not np.array_equal(indices, reference_indices):

@@ -4,9 +4,14 @@ from __future__ import annotations
 
 import numpy as np
 
-from typing import Any, ClassVar, NamedTuple
+from typing import Any, ClassVar, NamedTuple, TYPE_CHECKING
 
 from contracts.arrays import array_namespace
+
+
+if TYPE_CHECKING:
+	from contracts.arrays import BackendArray
+	from types import ModuleType
 
 
 class PackedStateLayout:
@@ -35,8 +40,8 @@ class PackedStateLayout:
 		shape ``(state_dimension * N, *sample_axes)`` is split along axis zero,
 		leaving every component with shape ``(N, *sample_axes)``.
 		"""
-		value = array_namespace(state).asarray(state)
-		blocks = value.reshape(
+		value: BackendArray = array_namespace(state).asarray(state)
+		blocks: BackendArray = value.reshape(
 			(self.state_dimension, -1, *value.shape[1:])
 		)
 		return tuple(blocks)
@@ -48,7 +53,7 @@ class PackedStateLayout:
 		memory layout.  Making both physical axes explicit avoids repeating manual
 		block offsets inside numerical algorithms.
 		"""
-		value = self.validate_packed_state_layout(state)
+		value: BackendArray = self.validate_packed_state_layout(state)
 		particle_count = value.shape[0] // self.state_dimension
 		return value.reshape(
 			(self.state_dimension, particle_count, *value.shape[1:])
@@ -61,7 +66,7 @@ class PackedStateLayout:
 		component blocks.  :meth:`as_blocks` calls this before reshaping;
 		integrators can call it when only layout validation is required.
 		"""
-		value = array_namespace(state).asarray(state)
+		value: BackendArray = array_namespace(state).asarray(state)
 		if (
 			value.ndim == 0
 			or value.shape[0] == 0
@@ -81,7 +86,7 @@ class PackedStateLayout:
 		and therefore need not concatenate them individually. The input backend
 		is preserved.
 		"""
-		value = array_namespace(blocks).asarray(blocks)
+		value: BackendArray = array_namespace(blocks).asarray(blocks)
 		if (
 			value.ndim < 2
 			or value.shape[0] != self.state_dimension
@@ -108,15 +113,15 @@ class PackedStateLayout:
 			raise ValueError(
 				f"{cls.__name__} requires {cls.state_dimension} components."
 			)
-		xp = array_namespace(*components)
-		values = tuple(xp.asarray(component) for component in components)
+		xp: ModuleType = array_namespace(*components)
+		values: tuple[Any, ...] = tuple(xp.asarray(component) for component in components)
 		if not values or values[0].ndim == 0 or values[0].shape[0] == 0:
 			raise ValueError("Physical components must be non-empty arrays.")
 		if any(value.shape != values[0].shape for value in values[1:]):
 			raise ValueError("All state components must have the same shape.")
 		# Stack once to make the component axis explicit, then flatten that axis and
 		# the particle axis through a view. This keeps packing as one allocation.
-		blocks = xp.stack(values, axis=0)
+		blocks: BackendArray = xp.stack(values, axis=0)
 		return blocks.reshape(
 			(cls.state_dimension * blocks.shape[1], *blocks.shape[2:])
 		)
@@ -144,12 +149,14 @@ class GCStateLayout(PackedStateLayout):
 
 	def split(self, state: Any) -> GCState:
 		"""Return named ``x`` and ``y`` blocks, preserving sample axes."""
+		x: BackendArray
+		y: BackendArray
 		x, y = super().split(state)
 		return GCState(x, y)
 
 	def positions(self, state: Any) -> tuple[Any, Any]:
 		"""Return the two guiding-centre coordinate blocks."""
-		components = self.split(state)
+		components: GCState = self.split(state)
 		return components.x, components.y
 
 
@@ -175,12 +182,16 @@ class FCStateLayout(PackedStateLayout):
 
 	def split(self, state: Any) -> FCState:
 		"""Return named position and velocity blocks, preserving sample axes."""
+		x: BackendArray
+		y: BackendArray
+		vx: BackendArray
+		vy: BackendArray
 		x, y, vx, vy = super().split(state)
 		return FCState(x, y, vx, vy)
 
 	def positions(self, state: Any) -> tuple[Any, Any]:
 		"""Return the two full-cyclotron position blocks."""
-		components = self.split(state)
+		components: FCState = self.split(state)
 		return components.x, components.y
 
 

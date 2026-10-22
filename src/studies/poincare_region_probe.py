@@ -8,7 +8,7 @@ from dataclasses import asdict, dataclass
 import hashlib
 from pathlib import Path
 import time
-from typing import Callable
+from typing import Callable, TYPE_CHECKING
 from collections.abc import Mapping
 from contracts.observation import IntegrationStep
 from contracts.result import DiagnosticValue
@@ -26,6 +26,11 @@ from request import SimulationRequest
 from simulation.runner import simulate
 from studies.poincare_periodicity import SavedPoincareSection
 from studies.poincare_probe import _validate_probe_parameters
+
+
+if TYPE_CHECKING:
+	from states.history import States
+	from typing import Any
 
 
 @dataclass(frozen=True)
@@ -92,20 +97,20 @@ def integrate_region_probes(potential: Potential, settings: RegionProbeSettings,
     solve. RK4 retains its saved context's chunk schedule.
     """
     count = settings.cycles * settings.steps_per_cycle
-    size = len(settings.particle_ids)
+    size: int = len(settings.particle_ids)
     step = settings.cycle_duration / settings.steps_per_cycle
     times = settings.t0 + np.arange(count + 1) * step
-    xy = np.empty((count + 1, size, 2), dtype=np.float64)
+    xy: np.ndarray = np.empty((count + 1, size, 2), dtype=np.float64)
     xy[0] = np.asarray(settings.initial_xy_over_L) * potential.grid.period
-    dynamics = GuidingCenterDynamics(potential, rho=settings.rho)
+    dynamics: GuidingCenterDynamics = GuidingCenterDynamics(potential, rho=settings.rho)
     batch = count if settings.method == 'BM4Midpoint' else settings.chunk_steps
-    started = time.perf_counter()
+    started: float = time.perf_counter()
     diagnostics: Mapping[str, DiagnosticValue] = {}
     method: BM4Midpoint | RK4
     for start in range(0, count, batch):
-        end = min(count, start + batch)
-        initial = GCStateLayout().pack_components(xy[start, :, 0], xy[start, :, 1])
-        request = SimulationRequest.uniform(t_span=(times[start], times[end]),
+        end: int = min(count, start + batch)
+        initial: np.ndarray = GCStateLayout().pack_components(xy[start, :, 0], xy[start, :, 1])
+        request: SimulationRequest = SimulationRequest.uniform(t_span=(times[start], times[end]),
                                            max_step=step, sample_count=end - start + 1)
         if settings.method == 'BM4Midpoint':
             # Progress is observational only; it neither changes the map nor its clock.
@@ -118,23 +123,23 @@ def integrate_region_probes(potential: Potential, settings: RegionProbeSettings,
                                  step_observer=report if progress else None)
         else:
             method = RK4()
-        solution = simulate(InitialValueProblem(dynamics, initial, layout=GCStateLayout()), method, request)
+        solution: States = simulate(InitialValueProblem(dynamics, initial, layout=GCStateLayout()), method, request)
         if solution.diagnostics['step_count'] != end - start or solution.diagnostics['output_interpolation_count'] != 0:
             raise RuntimeError('The method did not preserve the requested complete-step grid.')
         xy[start:end + 1] = np.stack(solution.positions(), axis=-1).transpose(1, 0, 2)
         if settings.method == 'RK4' and progress:
             progress(end, count)
         diagnostics = solution.diagnostics
-    result = dict(times=times, xy=xy, runtime_seconds=time.perf_counter() - started,
+    result: dict[str, object] = dict(times=times, xy=xy, runtime_seconds=time.perf_counter() - started,
                   step_count=count)
     if settings.method == 'BM4Midpoint':
-        expected = dict(composition_stage_count=12, projection_kind='arithmetic_mean',
+        expected: dict[str, object] = dict(composition_stage_count=12, projection_kind='arithmetic_mean',
                         nonlinear_unknown_dimension=0, vector_field_evaluations_per_step=24,
                         state_extension='physical', track_energy=False)
         for key, value in expected.items():
             if diagnostics[key] != value:
                 raise RuntimeError(f'Unexpected BM4Midpoint diagnostic: {key}')
-        separation = np.asarray(diagnostics['copy_separation_norms'])
+        separation: np.ndarray = np.asarray(diagnostics['copy_separation_norms'])
         if separation.shape != (count,) or not np.isfinite(separation).all() or np.any(separation < 0):
             raise RuntimeError('Invalid BM4Midpoint copy-separation history.')
         result.update(copy_separation_norms=separation,
@@ -146,7 +151,7 @@ def integrate_region_probes(potential: Potential, settings: RegionProbeSettings,
 def region_probe_section(result: dict, settings: RegionProbeSettings, period: float) -> np.ndarray:
     """Select once-per-cycle wrapped coordinates / L, including initial states."""
     count = settings.cycles * settings.steps_per_cycle + 1
-    xy = np.asarray(result['xy'])
+    xy: np.ndarray = np.asarray(result['xy'])
     if xy.shape != (count, len(settings.particle_ids), 2) or not np.isfinite(xy).all():
         raise ValueError('Invalid probe trajectory shape or values.')
     expected = settings.t0 + np.arange(count) * settings.cycle_duration / settings.steps_per_cycle
@@ -166,6 +171,8 @@ def region_probe_panel(background: SavedPoincareSection,
     if settings.cycles > background.metadata['cycles']:
         raise ValueError('The background does not cover the probe record.')
     coordinates = [background.positions[1:settings.cycles + 1]]
+    ids: list[int]
+    colors: list[str]
     ids, colors = list(background.particle_ids), list(background.colors)
     for controls, result in batches:
         for key in ('method', 'cycles', 'steps_per_cycle', 'rho', 't0', 'cycle_duration', 'coupling_frequency'):

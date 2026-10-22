@@ -51,7 +51,7 @@ def _build_periodic_spline(
 	padding = (margin, margin + 1)
 	# The extra upper sample represents the omitted periodic endpoint. Wrapped
 	# data give the interpolant local support across both periodic seams.
-	extended_axes = tuple(
+	extended_axes: tuple[np.ndarray, ...] = tuple(
 		np.pad(
 			axis,
 			padding,
@@ -63,7 +63,7 @@ def _build_periodic_spline(
 		)
 		for axis, step in zip((x, y), spacing, strict=True)
 	)
-	padded = np.pad(coefficient, (padding, padding), mode="wrap")
+	padded: np.ndarray = np.pad(coefficient, (padding, padding), mode="wrap")
 	# SciPy fits real fields; both components share axes and derivative rules.
 	return _ComplexSpline(
 		RectBivariateSpline(
