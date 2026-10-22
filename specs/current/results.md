@@ -15,7 +15,7 @@ tests = ["tests/test_extensible_architecture.py::ExtensibleArchitectureTests.tes
 
 [[requirements]]
 id = "SOL-003"
-tests = ["tests/test_extensible_architecture.py::ExtensibleArchitectureTests.test_solution_is_immutable_and_preserves_read_only_aliases"]
+tests = ["tests/test_extensible_architecture.py::ExtensibleArchitectureTests.test_solution_is_immutable_and_preserves_read_only_aliases", "tests/test_prepared_constructor_contracts.py::PreparedConstructorContractTests.test_failed_diagnostic_preparation_does_not_seal_the_recorder"]
 +++
 
 # Sampled physical results
@@ -33,3 +33,7 @@ Recording copies samples; completed arrays are read-only. Construction from comp
 ## SOL-003: Read-only diagnostics and explicit axes
 
 Diagnostic keys are nonempty strings and values are scalars or NumPy arrays. The public mapping cannot be modified; diagnostic arrays are copied and read-only. Sample diagnostics follow the requested times; accepted-step diagnostics follow their own `step_times`, `step_start_times` and `step_sizes`. `select` keeps whole-run diagnostics unchanged. `.with_diagnostics(...)` makes a completed copy with added metadata or explicitly replaced diagnostics. `.t`/`.states` remain read-only aliases for `.times`/`.values`; `.n_steps`, `.k` and `.err` remain convenience accessors. `.y`, `.trajectory` and `.source` are removed.
+
+Finalization delegates diagnostic validation and copying to a private preparation
+function. Rejected diagnostics leave the recorder open with no published
+diagnostics, so valid diagnostics can be supplied in a later finalization call.

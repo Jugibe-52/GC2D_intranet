@@ -1,7 +1,7 @@
 """Implicit two-stage, fourth-order Gauss--Legendre collocation method."""
 
 from __future__ import annotations
-from solvers.nonlinear import NewtonSolver, AlgebraicSolver, validate_solver
+from solvers.nonlinear import NewtonSolver, AlgebraicSolver
 
 from dataclasses import dataclass, field
 
@@ -21,7 +21,7 @@ from contracts.observation import GaussLegendre4IntegrationStep, StepObserver
 from contracts.nonlinear import NewtonObserver
 from contracts.problem import InitialValueProblem
 from request import SimulationRequest
-from methods._validation import _positive_finite, _positive_integer
+from ._configuration import _prepared_newton_controls
 from solvers.linear import _solve_particle_systems
 from solvers.nonlinear import _bind_newton_observer
 from ._jacobians import (
@@ -340,27 +340,15 @@ class GaussLegendre4(IntegrationMethod[_GaussStepResult]):
 
 	def __post_init__(self) -> None:
 		"""Validate nonlinear and differentiation controls before integration."""
-		if self.solver is not None:
-			validate_solver(self.solver, newton_only=True)
-			self.newton_absolute_tolerance = self.solver.absolute_tolerance
-			self.newton_relative_tolerance = self.solver.relative_tolerance
-			self.newton_max_iterations = self.solver.max_iterations
-
-		self.newton_absolute_tolerance = _positive_finite(
-			self.newton_absolute_tolerance, "newton_absolute_tolerance", allow_boolean=True,
+		(self.newton_absolute_tolerance, self.newton_relative_tolerance,
+		 self.newton_jacobian_relative_step, self.newton_max_iterations) = _prepared_newton_controls(
+			self.solver,
+			absolute_tolerance=self.newton_absolute_tolerance,
+			relative_tolerance=self.newton_relative_tolerance,
+			jacobian_relative_step=self.newton_jacobian_relative_step,
+			max_iterations=self.newton_max_iterations,
+			jacobian_method=self.newton_jacobian_method,
 		)
-		self.newton_relative_tolerance = _positive_finite(
-			self.newton_relative_tolerance, "newton_relative_tolerance", allow_boolean=True,
-		)
-		self.newton_jacobian_relative_step = _positive_finite(
-			self.newton_jacobian_relative_step, "newton_jacobian_relative_step", allow_boolean=True,
-		)
-		self.newton_max_iterations = _positive_integer(self.newton_max_iterations, "newton_max_iterations")
-		if self.newton_jacobian_method not in GAUSS_JACOBIAN_METHODS:
-			raise ValueError(
-				"`newton_jacobian_method` must be 'auto', 'analytic', or "
-				"'finite_difference'."
-			)
 
 	def initialize(self, problem: InitialValueProblem, request: SimulationRequest) -> None:
 		"""Bind the nonlinear map, physical observation and energy exporter."""

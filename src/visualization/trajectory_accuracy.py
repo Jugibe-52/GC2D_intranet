@@ -382,15 +382,12 @@ def plot_ten_method_accuracy_summary(
 	return plot_accuracy_summary(rows)
 
 
-def plot_accuracy_runtime_tradeoff(
-	summaries: Sequence[AccuracySummaryView],
-) -> tuple[Figure, Axes]:
-	"""Plot global RMS error against measured wall-clock runtime."""
+def _accuracy_runtime_rows(summaries: Sequence[AccuracySummaryView]) -> tuple[AccuracySummaryView, ...]:
+	"""Require positive finite measured runtimes and RMS errors for every row."""
 	rows = tuple(summaries)
 	if not rows:
 		raise ValueError("At least one accuracy summary is required.")
-	figure, axis = plt.subplots(figsize=(10, 7), constrained_layout=True)
-	for index, row in enumerate(rows):
+	for row in rows:
 		if (
 			not np.isfinite(row.runtime_seconds)
 			or row.runtime_seconds <= 0.0
@@ -398,6 +395,16 @@ def plot_accuracy_runtime_tradeoff(
 			or row.global_rms_distance <= 0.0
 		):
 			raise ValueError("Runtime and global RMS error must be positive and finite.")
+	return rows
+
+
+def plot_accuracy_runtime_tradeoff(
+	summaries: Sequence[AccuracySummaryView],
+) -> tuple[Figure, Axes]:
+	"""Plot global RMS error against measured wall-clock runtime."""
+	rows = _accuracy_runtime_rows(summaries)
+	figure, axis = plt.subplots(figsize=(10, 7), constrained_layout=True)
+	for index, row in enumerate(rows):
 		color = TEN_METHOD_COLORS.get(row.method_name, f"C{index}")
 		axis.scatter(
 			row.runtime_seconds,

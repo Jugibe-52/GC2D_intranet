@@ -43,6 +43,22 @@ COMPARISON_LABELS: Mapping[str, str] = MappingProxyType({
 })
 
 
+def _validate_comparison_sampling(
+	t_span: tuple[float, float], integration_step: float, save_interval: float, *,
+	reference_relative_tolerance: float, reference_absolute_tolerance: float,
+	audit_relative_tolerance: float, audit_absolute_tolerance: float,
+) -> None:
+	"""Require a reference audit at least as strict and an exact shared grid."""
+	if audit_relative_tolerance > reference_relative_tolerance:
+		raise ValueError("The Radau audit tolerance cannot be looser than DOP853.")
+	if audit_absolute_tolerance > reference_absolute_tolerance:
+		raise ValueError("The Radau audit tolerance cannot be looser than DOP853.")
+	duration = t_span[1] - t_span[0]
+	integer_ratio(duration, integration_step, "duration / integration_step")
+	integer_ratio(duration, save_interval, "duration / save_interval")
+	integer_ratio(save_interval, integration_step, "save_interval / integration_step")
+
+
 @dataclass(frozen=True, slots=True)
 class ComparisonConfig:
 	"""Common physical grid, Newton tolerances, and reference controls."""
@@ -115,14 +131,13 @@ class ComparisonConfig:
 			else positive_finite(self.save_interval, "save_interval")
 		)
 		object.__setattr__(self, "save_interval", save_interval)
-		if self.audit_relative_tolerance > self.reference_relative_tolerance:
-			raise ValueError("The Radau audit tolerance cannot be looser than DOP853.")
-		if self.audit_absolute_tolerance > self.reference_absolute_tolerance:
-			raise ValueError("The Radau audit tolerance cannot be looser than DOP853.")
-		duration = self.t_span[1] - self.t_span[0]
-		integer_ratio(duration, self.integration_step, "duration / integration_step")
-		integer_ratio(duration, save_interval, "duration / save_interval")
-		integer_ratio(save_interval, self.integration_step, "save_interval / integration_step")
+		_validate_comparison_sampling(
+			self.t_span, self.integration_step, save_interval,
+			reference_relative_tolerance=self.reference_relative_tolerance,
+			reference_absolute_tolerance=self.reference_absolute_tolerance,
+			audit_relative_tolerance=self.audit_relative_tolerance,
+			audit_absolute_tolerance=self.audit_absolute_tolerance,
+		)
 		object.__setattr__(self, "progress", bool(self.progress))
 
 	@property
@@ -173,6 +188,44 @@ def solution_residual_evaluations(solution: States) -> np.ndarray:
 	return np.asarray(solution.diagnostics["residual_evaluations"], dtype=int)
 
 
+def _validate_comparison_methods(
+	solutions: Mapping[str, States], accuracy: Mapping[str, TrajectoryAccuracySeries],
+	energy_accuracy: Mapping[str, EnergyAccuracySeries], runtime_samples: Mapping[str, np.ndarray],
+	required_methods: tuple[str, ...] | None,
+) -> None:
+	"""Require supported methods with the same order across every result table."""
+	names = tuple(solutions)
+	if not names or any(name not in COMPARISON_LABELS for name in names):
+		raise ValueError("The result must contain supported numerical methods.")
+	if required_methods is not None and names != required_methods:
+		raise ValueError("The result must contain every configured method in stable order.")
+	for values in (accuracy, energy_accuracy, runtime_samples):
+		if tuple(values) != names:
+			raise ValueError("Comparison histories must contain the same methods in stable order.")
+
+
+def _prepared_comparison_runs(
+	solutions: Mapping[str, States], accuracy: Mapping[str, TrajectoryAccuracySeries],
+	energy_accuracy: Mapping[str, EnergyAccuracySeries], runtime_samples: Mapping[str, np.ndarray], *,
+	initial_configuration: np.ndarray, reference: AdaptiveReference, config: ComparisonConfig,
+	shape: tuple[int, int], allow_missing_solver: bool,
+) -> dict[str, np.ndarray]:
+	"""Validate each method's aligned records and own its measured runtimes."""
+	runtimes: dict[str, np.ndarray] = {}
+	for name, solution in solutions.items():
+		validate_comparison_solution(solution, initial_configuration, reference.times, config.step_count)
+		if name != "RK4":
+			default = "newton" if allow_missing_solver else None
+			if solution.diagnostics.get("nonlinear_solver", default) != "newton":
+				raise ValueError("Every implicit method must use Newton.")
+		elif "nonlinear_solver" in solution.diagnostics:
+			raise ValueError("Classical RK4 must not report a nonlinear solver.")
+		validate_trajectory_series(name, accuracy[name], reference.times.size)
+		validate_energy_series(name, energy_accuracy[name], energy_type=EnergyAccuracySeries, energy_shape=shape)
+		runtimes[name] = comparison_runtime_samples(runtime_samples[name], config.timing_repeats)
+	return runtimes
+
+
 @dataclass(frozen=True, slots=True)
 class ComparisonResult:
 	"""Aligned comparison data and shared numerical invariants."""
@@ -204,29 +257,17 @@ class ComparisonResult:
 			raise TypeError("`initial_configuration` must be np.ndarray.")
 		if not isinstance(self.config, self.config_type):
 			raise TypeError(f"`config` must be {self.config_type.__name__}.")
-		names = tuple(self.solutions)
-		if not names or any(name not in COMPARISON_LABELS for name in names):
-			raise ValueError("The result must contain supported numerical methods.")
-		if self.required_methods is not None and names != self.required_methods:
-			raise ValueError("The result must contain every configured method in stable order.")
-		for values in (self.accuracy, self.energy_accuracy, self.runtime_samples):
-			if tuple(values) != names:
-				raise ValueError("Comparison histories must contain the same methods in stable order.")
+		_validate_comparison_methods(
+			self.solutions, self.accuracy, self.energy_accuracy, self.runtime_samples, self.required_methods,
+		)
 		shape = (self.reference.states.shape[0] // 2, self.reference.times.size)
 		reference_energies = readonly_energy_history(self.reference_energies, expected_shape=shape)
 		audit_energies = readonly_energy_history(self.audit_energies, expected_shape=shape)
-		runtimes: dict[str, np.ndarray] = {}
-		for name, solution in self.solutions.items():
-			validate_comparison_solution(solution, self.initial_configuration, self.reference.times, self.config.step_count)
-			if name != "RK4":
-				default = "newton" if self.allow_missing_solver else None
-				if solution.diagnostics.get("nonlinear_solver", default) != "newton":
-					raise ValueError("Every implicit method must use Newton.")
-			elif "nonlinear_solver" in solution.diagnostics:
-				raise ValueError("Classical RK4 must not report a nonlinear solver.")
-			validate_trajectory_series(name, self.accuracy[name], self.reference.times.size)
-			validate_energy_series(name, self.energy_accuracy[name], energy_type=EnergyAccuracySeries, energy_shape=shape)
-			runtimes[name] = comparison_runtime_samples(self.runtime_samples[name], self.config.timing_repeats)
+		runtimes = _prepared_comparison_runs(
+			self.solutions, self.accuracy, self.energy_accuracy, self.runtime_samples,
+			initial_configuration=self.initial_configuration, reference=self.reference, config=self.config,
+			shape=shape, allow_missing_solver=self.allow_missing_solver,
+		)
 		if not np.isfinite(self.wall_runtime_seconds) or self.wall_runtime_seconds <= 0:
 			raise ValueError("The complete study runtime must be positive and finite.")
 		object.__setattr__(self, "solutions", MappingProxyType(dict(self.solutions)))

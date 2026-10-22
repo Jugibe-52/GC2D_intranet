@@ -20,6 +20,52 @@ def _readonly(value: np.ndarray) -> np.ndarray:
 	return owned
 
 
+def _prepared_recording_inputs(
+	times: np.ndarray, layout: StateLayout, state_size: int, initial: np.ndarray | None,
+) -> tuple[np.ndarray, StateLayout]:
+	"""Own the ordered schedule and validate the independent packed layout."""
+	if not isinstance(layout, StateLayout):
+		raise TypeError("`layout` must implement StateLayout.")
+	t = np.array(times, dtype=float, copy=True)
+	if t.ndim != 1 or not t.size or not np.all(np.isfinite(t)) or np.any(np.diff(t) <= 0):
+		raise ValueError("Sample times must be a finite non-empty increasing vector.")
+	owned_layout = deepcopy(layout)
+	owned_layout.validate_packed_state_layout(
+		np.asarray(initial) if initial is not None else np.zeros(state_size)
+	)
+	return t, owned_layout
+
+
+def _validated_history(values: np.ndarray, shape: tuple[int, ...], layout: StateLayout) -> np.ndarray:
+	"""Validate a complete physical history without converting its dtype."""
+	value = np.asarray(values)
+	if value.shape != shape or not np.all(np.isfinite(value)):
+		raise ValueError("Physical states must be finite with shape (state_size, samples).")
+	layout.validate_packed_state_layout(value)
+	return value
+
+
+def _owned_initial_snapshot(initial: np.ndarray | None, state_size: int) -> np.ndarray | None:
+	"""Copy the optional physical snapshot independently of recorded samples."""
+	value = None if initial is None else _readonly(np.asarray(initial))
+	if value is not None and (value.shape != (state_size,) or not np.all(np.isfinite(value))):
+		raise ValueError("The initial snapshot must match the physical state dimension.")
+	return value
+
+
+def _owned_diagnostics(diagnostics: Mapping[str, DiagnosticValue]) -> dict[str, DiagnosticValue]:
+	"""Validate all entries before freezing independent diagnostic arrays."""
+	for name, value in diagnostics.items():
+		if not isinstance(name, str) or not name:
+			raise ValueError("Diagnostic names must be non-empty strings.")
+		if not isinstance(value, (np.ndarray, float, int, str, bool, np.number)):
+			raise TypeError("Diagnostics must be scalar values or NumPy arrays.")
+	return {
+		key: _readonly(value) if isinstance(value, np.ndarray) else value
+		for key, value in diagnostics.items()
+	}
+
+
 class States:
 	"""Own physical columns and timestamps, first recording and then read-only.
 
@@ -35,33 +81,20 @@ class States:
 	             layout: StateLayout, initial_state: np.ndarray | None = None) -> None:
 		self._allocate(t, layout, np.asarray(states).dtype,
 		               np.asarray(states).shape[0] if np.ndim(states) else 0, initial_state)
-		value = np.asarray(states)
-		if value.shape != self._values.shape or not np.all(np.isfinite(value)):
-			raise ValueError("Physical states must be finite with shape (state_size, samples).")
-		self._layout.validate_packed_state_layout(value)
+		value = _validated_history(states, self._values.shape, self._layout)
 		self._values[:] = value
 		self._count = self._times.size
 		self.finalize(diagnostics)
 
 	def _allocate(self, times: np.ndarray, layout: StateLayout, dtype: Any,
 	              state_size: int, initial: np.ndarray | None) -> None:
-		if not isinstance(layout, StateLayout):
-			raise TypeError("`layout` must implement StateLayout.")
-		t = np.array(times, dtype=float, copy=True)
-		if t.ndim != 1 or not t.size or not np.all(np.isfinite(t)) or np.any(np.diff(t) <= 0):
-			raise ValueError("Sample times must be a finite non-empty increasing vector.")
-		owned_layout = deepcopy(layout)
-		owned_layout.validate_packed_state_layout(
-			np.asarray(initial) if initial is not None else np.zeros(state_size)
-		)
+		t, owned_layout = _prepared_recording_inputs(times, layout, state_size, initial)
 		self._times = t
 		self._values = np.empty((state_size, t.size), dtype=dtype)
 		self._layout = owned_layout
 		self._count = 0
 		self._complete = False
-		self._initial = None if initial is None else _readonly(np.asarray(initial))
-		if self._initial is not None and (self._initial.shape != (state_size,) or not np.all(np.isfinite(self._initial))):
-			raise ValueError("The initial snapshot must match the physical state dimension.")
+		self._initial = _owned_initial_snapshot(initial, state_size)
 		self._diagnostics: dict[str, DiagnosticValue] = {}
 		self._auxiliary: dict[str, np.ndarray] = {}
 		self._rows: dict[str, list[StepValue]] = {}
@@ -117,10 +150,7 @@ class States:
 		self._require_recording()
 		if self._count:
 			raise RuntimeError("Bulk history recording requires an empty States recorder.")
-		value = np.asarray(values)
-		if value.shape != self._values.shape or not np.all(np.isfinite(value)):
-			raise ValueError("Physical states must be finite with shape (state_size, samples).")
-		self._layout.validate_packed_state_layout(value)
+		value = _validated_history(values, self._values.shape, self._layout)
 		self._values[:] = value
 		self._count = self._times.size
 
@@ -154,13 +184,7 @@ class States:
 			                step_times=np.asarray(self._ends), step_sizes=np.asarray(self._sizes))
 		if aliases and all(name in combined for name in aliases.values()):
 			combined.update({alias: combined[name] for alias, name in aliases.items()})
-		for name, value in combined.items():
-			if not isinstance(name, str) or not name:
-				raise ValueError("Diagnostic names must be non-empty strings.")
-			if not isinstance(value, (np.ndarray, float, int, str, bool, np.number)):
-				raise TypeError("Diagnostics must be scalar values or NumPy arrays.")
-		self._diagnostics = {key: _readonly(value) if isinstance(value, np.ndarray) else value
-		                     for key, value in combined.items()}
+		self._diagnostics = _owned_diagnostics(combined)
 		self._values.setflags(write=False)
 		self._times.setflags(write=False)
 		self._auxiliary = {}  # Formulation diagnostics now own needed auxiliary data.

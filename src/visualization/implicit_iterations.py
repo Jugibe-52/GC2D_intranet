@@ -120,17 +120,28 @@ def plot_implicit_iteration_diagnostics(
 	return figure, axes
 
 
-def plot_implicit_iteration_comparison(
+def _comparison_record_arrays(
 	records_by_label: Mapping[str, Sequence[ImplicitIterationRecord]],
-) -> tuple[Figure, np.ndarray]:
-	"""Compare step work and normalized residuals across formulations."""
+) -> list[tuple[str, dict[str, np.ndarray]]]:
+	"""Validate all labels and record sequences before opening a figure."""
 	if not records_by_label:
 		raise ValueError("At least one labeled iteration series is required.")
-	figure, axes = plt.subplots(2, 1, figsize=(12, 7), constrained_layout=True)
+	prepared: list[tuple[str, dict[str, np.ndarray]]] = []
 	for label, records in records_by_label.items():
 		if not isinstance(label, str) or not label:
 			raise ValueError("Iteration comparison labels must be non-empty strings.")
 		data = _record_arrays(records)
+		prepared.append((label, data))
+	return prepared
+
+
+def plot_implicit_iteration_comparison(
+	records_by_label: Mapping[str, Sequence[ImplicitIterationRecord]],
+) -> tuple[Figure, np.ndarray]:
+	"""Compare step work and normalized residuals across formulations."""
+	prepared = _comparison_record_arrays(records_by_label)
+	figure, axes = plt.subplots(2, 1, figsize=(12, 7), constrained_layout=True)
+	for label, data in prepared:
 		axes[0].step(
 			data["times"],
 			data["iterations"],

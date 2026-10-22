@@ -213,20 +213,11 @@ def plot_generalized_energy_components(
 	return figure, axes
 
 
-def plot_generalized_energy_errors(
+def _generalized_error_arrays(
 	runs: Sequence[GeneralizedEnergyRunView],
-	*,
-	method_name: str,
-) -> tuple[Figure, np.ndarray]:
-	"""Plot signed relative error and its running envelope for all refinements."""
+) -> tuple[list[tuple[np.ndarray, np.ndarray, np.ndarray, float]], float, float, float]:
+	"""Prepare every error curve and logarithmic scale before allocating a figure."""
 	values = _validated_runs(runs)
-	figure, axes = plt.subplots(
-		2,
-		1,
-		figsize=(10, 9),
-		sharex=True,
-		constrained_layout=True,
-	)
 	prepared: list[tuple[np.ndarray, np.ndarray, np.ndarray, float]] = []
 	positive_envelopes: list[np.ndarray] = []
 	peaks: list[float] = []
@@ -241,6 +232,23 @@ def plot_generalized_energy_errors(
 		raise ValueError("Every energy run must contain a non-zero error sample.")
 	positive_floor = min(float(np.min(values)) for values in positive_envelopes) / 2.0
 	linear_threshold = min(peaks) / 20.0
+	return prepared, positive_floor, linear_threshold, max(peaks)
+
+
+def plot_generalized_energy_errors(
+	runs: Sequence[GeneralizedEnergyRunView],
+	*,
+	method_name: str,
+) -> tuple[Figure, np.ndarray]:
+	"""Plot signed relative error and its running envelope for all refinements."""
+	prepared, positive_floor, linear_threshold, maximum_peak = _generalized_error_arrays(runs)
+	figure, axes = plt.subplots(
+		2,
+		1,
+		figsize=(10, 9),
+		sharex=True,
+		constrained_layout=True,
+	)
 	for times, relative_error, envelope, actual_step in prepared:
 		label = rf"$h={actual_step:g}$"
 		axes[0].plot(times, relative_error, label=label)
@@ -256,7 +264,7 @@ def plot_generalized_energy_errors(
 		xlabel="Time",
 		ylabel=r"$\max_{j\leq n}|\varepsilon_K(t_j)|$",
 	)
-	axes[1].set_ylim(positive_floor / 2.0, max(peaks) * 2.0)
+	axes[1].set_ylim(positive_floor / 2.0, maximum_peak * 2.0)
 	for axis in axes:
 		axis.grid(which="both", alpha=0.25)
 		axis.legend()
@@ -435,15 +443,65 @@ def plot_generalized_energy_convergence(
 	return figure, axis
 
 
+def _validate_symplecticity_arrays(
+	times: np.ndarray, defects: np.ndarray, determinants: np.ndarray, *, message: str,
+) -> None:
+	"""Require finite aligned scalar defect histories without imposing time ordering."""
+	if (
+		times.ndim != 1
+		or times.size == 0
+		or defects.shape != times.shape
+		or determinants.shape != times.shape
+		or not np.all(np.isfinite(times))
+		or not np.all(np.isfinite(defects))
+		or not np.all(np.isfinite(determinants))
+		or np.any(defects < 0.0)
+		or np.any(determinants < 0.0)
+	):
+		raise ValueError(message)
+
+
+def _extended_symplecticity_arrays(
+	runs: Sequence[ExtendedSymplecticityRunView],
+) -> list[tuple[np.ndarray, np.ndarray, np.ndarray, float]]:
+	"""Prepare every extended run in display order."""
+	values = tuple(runs)
+	if not values:
+		raise ValueError("At least one extended-symplecticity run is required.")
+	prepared = []
+	for run in values:
+		times = np.asarray(run.extended_symplecticity_times, dtype=float)
+		defects = np.asarray(run.extended_relative_defects, dtype=float)
+		determinants = np.asarray(run.extended_determinant_errors, dtype=float)
+		_validate_symplecticity_arrays(times, defects, determinants, message="Extended-symplecticity histories must be finite and aligned.")
+		prepared.append((times, defects, determinants, run.actual_step))
+	return prepared
+
+
+def _reduced_extended_symplecticity_arrays(
+	runs: Sequence[ReducedExtendedSymplecticityRunView],
+) -> list[tuple[np.ndarray, np.ndarray, np.ndarray, float]]:
+	"""Prepare every reduced extended run in display order."""
+	values = tuple(runs)
+	if not values:
+		raise ValueError("At least one reduced extended run is required.")
+	prepared = []
+	for run in values:
+		times = np.asarray(run.reduced_extended_symplecticity_times, dtype=float)
+		defects = np.asarray(run.reduced_extended_relative_defects, dtype=float)
+		determinants = np.asarray(run.reduced_extended_determinant_errors, dtype=float)
+		_validate_symplecticity_arrays(times, defects, determinants, message="Reduced extended histories must be finite and aligned.")
+		prepared.append((times, defects, determinants, run.actual_step))
+	return prepared
+
+
 def plot_time_extended_symplecticity(
 	runs: Sequence[ExtendedSymplecticityRunView],
 	*,
 	method_name: str,
 ) -> tuple[Figure, np.ndarray]:
 	"""Plot ``R^6`` splitting symplecticity and determinant defects over time."""
-	values = tuple(runs)
-	if not values:
-		raise ValueError("At least one extended-symplecticity run is required.")
+	prepared = _extended_symplecticity_arrays(runs)
 	figure, axes = plt.subplots(
 		2,
 		1,
@@ -452,23 +510,8 @@ def plot_time_extended_symplecticity(
 		constrained_layout=True,
 	)
 	floor = float(np.finfo(float).eps)
-	for run in values:
-		times = np.asarray(run.extended_symplecticity_times, dtype=float)
-		defects = np.asarray(run.extended_relative_defects, dtype=float)
-		determinants = np.asarray(run.extended_determinant_errors, dtype=float)
-		if (
-			times.ndim != 1
-			or times.size == 0
-			or defects.shape != times.shape
-			or determinants.shape != times.shape
-			or not np.all(np.isfinite(times))
-			or not np.all(np.isfinite(defects))
-			or not np.all(np.isfinite(determinants))
-			or np.any(defects < 0.0)
-			or np.any(determinants < 0.0)
-		):
-			raise ValueError("Extended-symplecticity histories must be finite and aligned.")
-		label = rf"$h={run.actual_step:g}$"
+	for times, defects, determinants, actual_step in prepared:
+		label = rf"$h={actual_step:g}$"
 		axes[0].semilogy(times, np.maximum(defects, floor), label=label)
 		axes[1].semilogy(times, np.maximum(determinants, floor), label=label)
 	axes[0].set(
@@ -492,9 +535,7 @@ def plot_reduced_time_extended_symplecticity(
 	method_name: str,
 ) -> tuple[Figure, np.ndarray]:
 	"""Plot the complete projected method's defect on ``(x, y, t, kappa)``."""
-	values = tuple(runs)
-	if not values:
-		raise ValueError("At least one reduced extended run is required.")
+	prepared = _reduced_extended_symplecticity_arrays(runs)
 	figure, axes = plt.subplots(
 		2,
 		1,
@@ -503,26 +544,8 @@ def plot_reduced_time_extended_symplecticity(
 		constrained_layout=True,
 	)
 	floor = float(np.finfo(float).eps)
-	for run in values:
-		times = np.asarray(run.reduced_extended_symplecticity_times, dtype=float)
-		defects = np.asarray(run.reduced_extended_relative_defects, dtype=float)
-		determinants = np.asarray(
-			run.reduced_extended_determinant_errors,
-			dtype=float,
-		)
-		if (
-			times.ndim != 1
-			or times.size == 0
-			or defects.shape != times.shape
-			or determinants.shape != times.shape
-			or not np.all(np.isfinite(times))
-			or not np.all(np.isfinite(defects))
-			or not np.all(np.isfinite(determinants))
-			or np.any(defects < 0.0)
-			or np.any(determinants < 0.0)
-		):
-			raise ValueError("Reduced extended histories must be finite and aligned.")
-		label = rf"$h={run.actual_step:g}$"
+	for times, defects, determinants, actual_step in prepared:
+		label = rf"$h={actual_step:g}$"
 		axes[0].semilogy(times, np.maximum(defects, floor), label=label)
 		axes[1].semilogy(times, np.maximum(determinants, floor), label=label)
 	axes[0].set(

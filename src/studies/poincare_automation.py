@@ -65,6 +65,55 @@ def _number(value: Any, name: str) -> float:
 	return number
 
 
+def _validated_parameter_values(values: tuple[float, ...], name: str) -> tuple[float, ...]:
+	"""Freeze one distinct rho or signed-field sweep without coercing strings."""
+	numbers = tuple(_number(value, name) for value in values)
+	if not numbers or len(set(numbers)) != len(numbers):
+		raise ValueError(f"{name} must contain unique values and cannot be empty.")
+	invalid = any(value < 0 for value in numbers) if name == "rhos" else any(value == 0 for value in numbers)
+	if invalid:
+		raise ValueError("rho must be nonnegative and B must be nonzero.")
+	return numbers
+
+
+def _validated_methods(values: tuple[str, ...]) -> tuple[str, ...]:
+	"""Freeze the ordered, nonempty set of supported study methods."""
+	methods = tuple(values)
+	if not methods or len(set(methods)) != len(methods) or any(method not in METHODS for method in methods):
+		raise ValueError(f"Select distinct supported methods: {METHODS}.")
+	return methods
+
+
+def _validate_positive_count(value: int, name: str) -> None:
+	"""Retain this study's Python-integer-only count policy."""
+	if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+		raise ValueError(f"{name} must be a positive integer.")
+
+
+def _positive_number(value: float, name: str) -> float:
+	"""Normalize a positive study scale with the strict numeric-input policy."""
+	number = _number(value, name)
+	if number <= 0:
+		raise ValueError(f"{name} must be positive.")
+	return number
+
+
+def _validated_coupling(value: float, methods: tuple[str, ...]) -> float:
+	"""Check the legacy coupling field against the selected method family."""
+	coupling = _number(value, "coupling_frequency")
+	if coupling < 0 or (coupling != 0 and any(method in ("RK4", "GaussLegendre4") for method in methods)):
+		raise ValueError("Coupling must be nonnegative and zero for classical methods.")
+	return coupling
+
+
+def _validated_sigma(value: float) -> float:
+	"""Normalize an explicitly supplied nonnegative smoothing width."""
+	width = _number(value, "sigma")
+	if width < 0:
+		raise ValueError("sigma must be nonnegative.")
+	return width
+
+
 @dataclass(frozen=True)
 class AutomationConfig:
 	"""Resolved common controls; requested rho means 2*pi*rho_m/reference_length."""
@@ -96,21 +145,12 @@ class AutomationConfig:
 	def __post_init__(self) -> None:
 		"""Freeze JSON sequences and validate inputs before accessing source data."""
 		for name in ("rhos", "magnetic_fields"):
-			values = tuple(_number(v, name) for v in getattr(self, name))
-			if not values or len(set(values)) != len(values):
-				raise ValueError(f"{name} must contain unique values and cannot be empty.")
-			if any(v < 0 for v in values) if name == "rhos" else any(v == 0 for v in values):
-				raise ValueError("rho must be nonnegative and B must be nonzero.")
-			object.__setattr__(self, name, values)
-		methods = tuple(self.methods)
-		if not methods or len(set(methods)) != len(methods) or any(m not in METHODS for m in methods):
-			raise ValueError(f"Select distinct supported methods: {METHODS}.")
+			object.__setattr__(self, name, _validated_parameter_values(getattr(self, name), name))
+		methods = _validated_methods(self.methods)
 		object.__setattr__(self, "methods", methods)
 		for name in ("source_index", "cycles", "steps_per_cycle", "newton_max_iterations",
 				"cycles_per_frame", "field_grid_size", "vector_grid_size", "interpolation_order"):
-			value = getattr(self, name)
-			if isinstance(value, bool) or not isinstance(value, int) or value < 1:
-				raise ValueError(f"{name} must be a positive integer.")
+			_validate_positive_count(getattr(self, name), name)
 		if self.interpolation_order not in (3, 5):
 			raise ValueError("Use cubic or quintic interpolation for this study.")
 		if min(self.field_grid_size, self.vector_grid_size) < 2:
@@ -120,19 +160,10 @@ class AutomationConfig:
 				raise ValueError(f"{name} must be Boolean.")
 		for name in ("reference_length", "newton_absolute_tolerance",
 				"newton_relative_tolerance", "newton_jacobian_relative_step"):
-			value = _number(getattr(self, name), name)
-			if value <= 0:
-				raise ValueError(f"{name} must be positive.")
-			object.__setattr__(self, name, value)
-		coupling = _number(self.coupling_frequency, "coupling_frequency")
-		if coupling < 0 or (coupling != 0 and any(m in ("RK4", "GaussLegendre4") for m in methods)):
-			raise ValueError("Coupling must be nonnegative and zero for classical methods.")
-		object.__setattr__(self, "coupling_frequency", coupling)
+			object.__setattr__(self, name, _positive_number(getattr(self, name), name))
+		object.__setattr__(self, "coupling_frequency", _validated_coupling(self.coupling_frequency, methods))
 		if self.sigma is not None:
-			width = _number(self.sigma, "sigma")
-			if width < 0:
-				raise ValueError("sigma must be nonnegative.")
-			object.__setattr__(self, "sigma", width)
+			object.__setattr__(self, "sigma", _validated_sigma(self.sigma))
 		if not isinstance(self.source, str) or not self.source.strip():
 			raise ValueError("source must name a local HDF5 file.")
 		self.execution_options()

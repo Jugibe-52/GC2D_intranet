@@ -14,6 +14,19 @@ from formulations.layout import FCStateLayout
 from ._equations import fc_velocity, fc_hamiltonian
 
 
+def _validated_parameters(potential: Potential, rho: float, eta: float) -> tuple[float, float]:
+	"""Normalize physical parameters in their established validation order."""
+	if not isinstance(potential, Potential):
+		raise TypeError("`potential` must be a Potential instance.")
+	rho = float(rho)
+	eta = float(eta)
+	if not np.isfinite(rho) or not np.isfinite(eta) or rho == 0 or eta == 0:
+		raise ValueError("FullCyclotronDynamics requires finite, non-zero parameters.")
+	if rho < 0:
+		raise ValueError("`rho` must be positive.")
+	return rho, eta
+
+
 @dataclass(frozen=True, init=False, eq=False)
 class FullCyclotronDynamics:
 	"""FC equations for fixed physical parameters, for NumPy or JAX arrays."""
@@ -26,14 +39,7 @@ class FullCyclotronDynamics:
 
 	def __init__(self, potential: Potential, *, rho: float, eta: float) -> None:
 		"""Create FC dynamics with finite, non-zero ``rho`` and ``eta``."""
-		if not isinstance(potential, Potential):
-			raise TypeError("`potential` must be a Potential instance.")
-		rho = float(rho)
-		eta = float(eta)
-		if not np.isfinite(rho) or not np.isfinite(eta) or rho == 0 or eta == 0:
-			raise ValueError("FullCyclotronDynamics requires finite, non-zero parameters.")
-		if rho < 0:
-			raise ValueError("`rho` must be positive.")
+		rho, eta = _validated_parameters(potential, rho, eta)
 		object.__setattr__(self, "potential", potential)
 		object.__setattr__(self, "rho", rho)
 		object.__setattr__(self, "eta", eta)

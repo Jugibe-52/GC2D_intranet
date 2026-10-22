@@ -76,6 +76,26 @@ def _freeze_reference_arrays(
 
 
 
+def _owned_accuracy_arrays(
+	distances: np.ndarray, rms: np.ndarray, mean: np.ndarray, maximum: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+	"""Own nonnegative particle distances and their aligned sample reductions."""
+	distances = np.array(distances, dtype=float, copy=True)
+	rms = np.array(rms, dtype=float, copy=True)
+	mean = np.array(mean, dtype=float, copy=True)
+	maximum = np.array(maximum, dtype=float, copy=True)
+	if distances.ndim != 2 or distances.size == 0:
+		raise ValueError("Accuracy distances must have shape (particles, samples).")
+	for value in (distances, rms, mean, maximum):
+		if not np.all(np.isfinite(value)) or np.any(value < 0.0):
+			raise ValueError("Accuracy distances must be finite and non-negative.")
+	if any(value.shape != (distances.shape[1],) for value in (rms, mean, maximum)):
+		raise ValueError("Reduced accuracy series must have one value per sample.")
+	for value in (distances, rms, mean, maximum):
+		value.setflags(write=False)
+	return distances, rms, mean, maximum
+
+
 @dataclass(frozen=True, slots=True)
 class TrajectoryAccuracySeries:
 	"""Per-particle planar distances and time-dependent reductions."""
@@ -88,24 +108,25 @@ class TrajectoryAccuracySeries:
 
 	def __post_init__(self) -> None:
 		"""Own immutable finite non-negative accuracy arrays."""
-		distances = np.array(self.distances, dtype=float, copy=True)
-		rms = np.array(self.rms_distance, dtype=float, copy=True)
-		mean = np.array(self.mean_distance, dtype=float, copy=True)
-		maximum = np.array(self.maximum_distance, dtype=float, copy=True)
-		if distances.ndim != 2 or distances.size == 0:
-			raise ValueError("Accuracy distances must have shape (particles, samples).")
-		for value in (distances, rms, mean, maximum):
-			if not np.all(np.isfinite(value)) or np.any(value < 0.0):
-				raise ValueError("Accuracy distances must be finite and non-negative.")
-		if any(value.shape != (distances.shape[1],) for value in (rms, mean, maximum)):
-			raise ValueError("Reduced accuracy series must have one value per sample.")
-		for value in (distances, rms, mean, maximum):
-			value.setflags(write=False)
+		distances, rms, mean, maximum = _owned_accuracy_arrays(
+			self.distances, self.rms_distance, self.mean_distance, self.maximum_distance,
+		)
 		object.__setattr__(self, "distances", distances)
 		object.__setattr__(self, "rms_distance", rms)
 		object.__setattr__(self, "mean_distance", mean)
 		object.__setattr__(self, "maximum_distance", maximum)
 
+
+
+def _owned_energy_errors(method_name: str, errors: np.ndarray) -> np.ndarray:
+	"""Own a named finite particle-time history while retaining signed errors."""
+	if not isinstance(method_name, str) or not method_name:
+		raise ValueError("`method_name` must be a non-empty string.")
+	errors = np.array(errors, dtype=float, copy=True)
+	if errors.ndim != 2 or errors.size == 0 or not np.all(np.isfinite(errors)):
+		raise ValueError("Energy errors must be one finite particle-time array.")
+	errors.setflags(write=False)
+	return errors
 
 
 @dataclass(frozen=True, slots=True)
@@ -117,12 +138,7 @@ class EnergyAccuracySeries:
 
 	def __post_init__(self) -> None:
 		"""Own one immutable finite ``(particles, samples)`` error history."""
-		if not isinstance(self.method_name, str) or not self.method_name:
-			raise ValueError("`method_name` must be a non-empty string.")
-		errors = np.array(self.errors, dtype=float, copy=True)
-		if errors.ndim != 2 or errors.size == 0 or not np.all(np.isfinite(errors)):
-			raise ValueError("Energy errors must be one finite particle-time array.")
-		errors.setflags(write=False)
+		errors = _owned_energy_errors(self.method_name, self.errors)
 		object.__setattr__(self, "errors", errors)
 
 	@property

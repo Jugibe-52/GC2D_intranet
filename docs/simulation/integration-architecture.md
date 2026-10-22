@@ -21,6 +21,13 @@ the runner retains responsibility for agreement with the requested initial state
 and saved times. Run preparation similarly separates initial-state ownership
 and metadata freezing from the method lifecycle.
 
+`InitialConditions` prepares its owned array, layout and particle count in one
+private function. `States` shares complete-history checks between construction
+and bulk recording without changing dtype; diagnostic preparation validates all
+entries before copying arrays. GC/FC parameter preparation retains signed B/eta
+and each model's radius constraints. Helpers return values rather than mutating
+the object being constructed.
+
 Scalar option rules shared by numerical families live in `methods._validation`.
 Callers retain their existing conversion policies, including whether Boolean
 values are rejected before conversion to floating point. Newton and Broyden
@@ -28,6 +35,11 @@ separate validated entry data from their iterations and reuse residual checks
 without repeating a cached evaluation. Checks on convergence, singular systems,
 accepted-step continuity, and newly computed non-finite values remain next to
 the numerical operation that produces them. These validation helpers do not alter the numerical algorithms.
+
+Gauss--Legendre and SDIRK share constructor normalization in
+`methods.classical._configuration`: supplied Newton solvers take precedence,
+Boolean tolerances remain accepted, and Jacobian scale is checked before the
+iteration count. Other method families retain their own policies.
 
 The downstream packages follow the same ownership convention. Studies share
 scalar and sampling rules in `studies._validation` and aligned comparison
@@ -40,6 +52,14 @@ validated series before creating figures and shares planar-solution and
 animation controls through private package modules, preserving each animator's
 frame-count policy. The separately packaged Poincare batch runtime keeps its
 validation helpers within the files shipped to workers.
+
+Common comparison preparation separates method-table alignment, per-run records
+and sampling/reference constraints. Poincare configuration keeps its stricter
+numeric and Python-integer policies in local helpers. Plot preparation includes
+every series, even a later one after a valid entry, before creating a figure;
+invalid energy, symplecticity, iteration and accuracy inputs therefore leave
+existing figures untouched. `tests/test_plot_input_preparation.py` checks this
+boundary and the curves produced for valid data.
 
 ## Package workflow diagram
 

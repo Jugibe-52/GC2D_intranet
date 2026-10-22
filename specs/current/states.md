@@ -58,3 +58,8 @@ Raw arrays remain accepted and normalize through the same class. Compatibility
 with dynamics is checked by the problem; `initial_state` still returns an array.
 Time, generated geometries, internal integration state and saved results retain
 their existing contracts.
+
+Private preparation functions own initial values and layouts before assignment.
+Complete-array construction and `record_history` share the same shape, finiteness
+and layout checks, preserving input dtype and the existing validation order.
+Recording lifecycle guards remain in `States`.

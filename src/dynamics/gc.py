@@ -14,6 +14,19 @@ from formulations.layout import GCStateLayout
 from ._equations import gc_velocity
 
 
+def _validated_parameters(potential: Potential, rho: float, B: float) -> tuple[float, float]:
+	"""Normalize physical parameters in their established validation order."""
+	if not isinstance(potential, Potential):
+		raise TypeError("`potential` must be a Potential instance.")
+	B = float(B)
+	if not np.isfinite(B) or B == 0:
+		raise ValueError("`B` must be finite and non-zero.")
+	rho = float(rho)
+	if not np.isfinite(rho) or rho < 0:
+		raise ValueError("`rho` must be finite and non-negative.")
+	return rho, B
+
+
 @dataclass(frozen=True, init=False, eq=False)
 class GuidingCenterDynamics:
 	"""GC equations over a fixed gyroaveraged potential, for NumPy or JAX arrays."""
@@ -27,14 +40,7 @@ class GuidingCenterDynamics:
 
 	def __init__(self, potential: Potential, *, rho: float = 0.0, B: float = 1.0) -> None:
 		"""Create GC dynamics for a runtime Larmor radius and signed magnetic field."""
-		if not isinstance(potential, Potential):
-			raise TypeError("`potential` must be a Potential instance.")
-		B = float(B)
-		if not np.isfinite(B) or B == 0:
-			raise ValueError("`B` must be finite and non-zero.")
-		rho = float(rho)
-		if not np.isfinite(rho) or rho < 0:
-			raise ValueError("`rho` must be finite and non-negative.")
+		rho, B = _validated_parameters(potential, rho, B)
 		object.__setattr__(self, "potential", potential)
 		object.__setattr__(self, "rho", rho)
 		object.__setattr__(self, "B", B)

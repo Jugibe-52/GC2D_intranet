@@ -117,13 +117,13 @@ def plot_ten_method_trajectory_differences(
 	return figure, axis
 
 
-def plot_ten_method_nonlinear_work(
+def _nonlinear_work_arrays(
 	solutions: Mapping[str, States],
-) -> tuple[Figure, np.ndarray]:
-	"""Compare nonlinear corrections and residual work for six variants."""
+) -> tuple[np.ndarray, list[tuple[str, np.ndarray, np.ndarray, np.ndarray, np.ndarray]]]:
+	"""Align all complete-step diagnostics before plotting the method variants."""
 	labels, times, _ = _validated_solutions(solutions, expected_count=6)
-	figure, axes = plt.subplots(3, 1, figsize=(13, 10), constrained_layout=True)
-	for index, label in enumerate(labels):
+	prepared: list[tuple[str, np.ndarray, np.ndarray, np.ndarray, np.ndarray]] = []
+	for label in labels:
 		solution = solutions[label]
 		iterations = np.asarray(solution.diagnostics["nonlinear_iterations"], dtype=int)
 		residual_evaluations = np.asarray(
@@ -139,6 +139,17 @@ def plot_ten_method_nonlinear_work(
 			for value in (iterations, residual_evaluations, residuals, tolerances)
 		):
 			raise ValueError("Implicit diagnostics must align with every saved step.")
+		prepared.append((label, iterations, residual_evaluations, residuals, tolerances))
+	return times, prepared
+
+
+def plot_ten_method_nonlinear_work(
+	solutions: Mapping[str, States],
+) -> tuple[Figure, np.ndarray]:
+	"""Compare nonlinear corrections and residual work for six variants."""
+	times, prepared = _nonlinear_work_arrays(solutions)
+	figure, axes = plt.subplots(3, 1, figsize=(13, 10), constrained_layout=True)
+	for index, (label, iterations, residual_evaluations, residuals, tolerances) in enumerate(prepared):
 		color = TEN_METHOD_COLORS.get(label, f"C{index}")
 		linestyle = "--" if "Broyden" in label else "-"
 		axes[0].step(

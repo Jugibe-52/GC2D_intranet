@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import Protocol
+from typing import Protocol, TypeAlias
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -57,9 +57,12 @@ class ImplicitMethodAccuracyOrderView(Protocol):
 	final_rms_order: float
 
 
+_SummaryGrid: TypeAlias = dict[str, dict[float, ImplicitMethodAccuracySummaryView]]
+
+
 def _group_summaries(
 	summaries: Sequence[ImplicitMethodAccuracySummaryView],
-) -> tuple[tuple[str, ...], tuple[float, ...], dict[str, dict[float, ImplicitMethodAccuracySummaryView]]]:
+) -> tuple[tuple[str, ...], tuple[float, ...], _SummaryGrid]:
 	"""Group a complete method-by-step table while preserving display order."""
 	rows = tuple(summaries)
 	if not rows:
@@ -79,6 +82,69 @@ def _group_summaries(
 	return methods, steps, grouped
 
 
+_NEWTON_FIELDS = (
+	("mean_iterations_per_solve", "Mean Newton corrections / solve"),
+	("maximum_iterations_per_solve", "Maximum Newton corrections / solve"),
+	("mean_residual_evaluations_per_solve", "Mean residual evaluations / solve"),
+	("maximum_residual_to_tolerance", "Maximum final residual / tolerance"),
+)
+
+
+def _refinement_error_arrays(grouped: _SummaryGrid, steps: tuple[float, ...]) -> dict[str, np.ndarray]:
+	"""Prepare positive finite errors for every method on the refinement grid."""
+	method_errors: dict[str, np.ndarray] = {}
+	for method in grouped:
+		rows = grouped[method]
+		errors = np.asarray(
+			[rows[step].time_integrated_rms_distance for step in steps],
+			dtype=float,
+		)
+		if not np.all(np.isfinite(errors)) or np.any(errors <= 0.0):
+			raise ValueError("Accuracy errors must be positive and finite.")
+		method_errors[method] = errors
+	return method_errors
+
+
+def _newton_summary_arrays(
+	grouped: _SummaryGrid, steps: tuple[float, ...],
+) -> dict[str, dict[str, np.ndarray]]:
+	"""Prepare nonnegative Newton metrics in method and panel order."""
+	prepared: dict[str, dict[str, np.ndarray]] = {}
+	for method, method_rows in grouped.items():
+		prepared[method] = {}
+		for field, _ in _NEWTON_FIELDS:
+			values = np.asarray(
+				[getattr(method_rows[step], field) for step in steps],
+				dtype=float,
+			)
+			if not np.all(np.isfinite(values)) or np.any(values < 0.0):
+				raise ValueError("Newton summaries must be finite and non-negative.")
+			prepared[method][field] = values
+	return prepared
+
+
+def _accuracy_cost_arrays(
+	grouped: _SummaryGrid, steps: tuple[float, ...],
+) -> dict[str, tuple[np.ndarray, np.ndarray]]:
+	"""Prepare each runtime/error curve before opening the cost plot."""
+	prepared: dict[str, tuple[np.ndarray, np.ndarray]] = {}
+	for method in grouped:
+		rows = grouped[method]
+		runtimes = np.asarray([rows[step].runtime_seconds for step in steps], dtype=float)
+		errors = np.asarray(
+			[rows[step].time_integrated_rms_distance for step in steps], dtype=float
+		)
+		if (
+			not np.all(np.isfinite(runtimes))
+			or np.any(runtimes <= 0.0)
+			or not np.all(np.isfinite(errors))
+			or np.any(errors <= 0.0)
+		):
+			raise ValueError("Accuracy-cost values must be positive and finite.")
+		prepared[method] = runtimes, errors
+	return prepared
+
+
 def plot_implicit_method_accuracy_refinement(
 	summaries: Sequence[ImplicitMethodAccuracySummaryView],
 	*,
@@ -91,17 +157,11 @@ def plot_implicit_method_accuracy_refinement(
 	floor = float(reference_floor)
 	if not np.isfinite(floor) or floor < 0.0:
 		raise ValueError("`reference_floor` must be finite and non-negative.")
+	method_errors = _refinement_error_arrays(grouped, steps)
 	figure, axis = plt.subplots(figsize=(10, 7), constrained_layout=True)
-	method_errors: dict[str, np.ndarray] = {}
 	for method in methods:
 		rows = grouped[method]
-		errors = np.asarray(
-			[rows[step].time_integrated_rms_distance for step in steps],
-			dtype=float,
-		)
-		if not np.all(np.isfinite(errors)) or np.any(errors <= 0.0):
-			raise ValueError("Accuracy errors must be positive and finite.")
-		method_errors[method] = errors
+		errors = method_errors[method]
 		axis.semilogy(
 			positions,
 			errors,
@@ -246,6 +306,7 @@ def plot_implicit_method_newton_refinement(
 			strict=True,
 		)
 	}
+	prepared = _newton_summary_arrays(grouped, steps)
 	figure, axes = plt.subplots(
 		2,
 		2,
@@ -253,22 +314,11 @@ def plot_implicit_method_newton_refinement(
 		sharex=True,
 		constrained_layout=True,
 	)
-	fields = (
-		("mean_iterations_per_solve", "Mean Newton corrections / solve"),
-		("maximum_iterations_per_solve", "Maximum Newton corrections / solve"),
-		("mean_residual_evaluations_per_solve", "Mean residual evaluations / solve"),
-		("maximum_residual_to_tolerance", "Maximum final residual / tolerance"),
-	)
 	for method in methods:
 		method_rows = grouped[method]
 		method_positions = positions + jitter_by_method[method]
-		for axis, (field, _) in zip(axes.flat, fields, strict=True):
-			values = np.asarray(
-				[getattr(method_rows[step], field) for step in steps],
-				dtype=float,
-			)
-			if not np.all(np.isfinite(values)) or np.any(values < 0.0):
-				raise ValueError("Newton summaries must be finite and non-negative.")
+		for axis, (field, _) in zip(axes.flat, _NEWTON_FIELDS, strict=True):
+			values = prepared[method][field]
 			axis.plot(
 				method_positions,
 				np.maximum(values, np.finfo(float).tiny),
@@ -277,7 +327,7 @@ def plot_implicit_method_newton_refinement(
 				color=IMPLICIT_ACCURACY_COLORS.get(method),
 				label=method_rows[steps[0]].method_label,
 			)
-	for axis, (_, title) in zip(axes.flat, fields, strict=True):
+	for axis, (_, title) in zip(axes.flat, _NEWTON_FIELDS, strict=True):
 		axis.set_title(title)
 		axis.set_xlim(-0.3, float(len(steps)) - 0.7)
 		axis.grid(alpha=0.25)
@@ -296,6 +346,7 @@ def plot_implicit_method_accuracy_cost(
 ) -> tuple[Figure, Axes]:
 	"""Plot the runtime/error trajectory traced by every step refinement."""
 	methods, steps, grouped = _group_summaries(summaries)
+	prepared = _accuracy_cost_arrays(grouped, steps)
 	figure, axis = plt.subplots(figsize=(9, 7), constrained_layout=True)
 	annotation_offsets = {
 		"ABBA2Implicit[reduced_multiplier]": (5, 5),
@@ -305,17 +356,7 @@ def plot_implicit_method_accuracy_cost(
 	}
 	for method in methods:
 		rows = grouped[method]
-		runtimes = np.asarray([rows[step].runtime_seconds for step in steps], dtype=float)
-		errors = np.asarray(
-			[rows[step].time_integrated_rms_distance for step in steps], dtype=float
-		)
-		if (
-			not np.all(np.isfinite(runtimes))
-			or np.any(runtimes <= 0.0)
-			or not np.all(np.isfinite(errors))
-			or np.any(errors <= 0.0)
-		):
-			raise ValueError("Accuracy-cost values must be positive and finite.")
+		runtimes, errors = prepared[method]
 		axis.loglog(
 			runtimes,
 			errors,

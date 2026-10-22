@@ -100,6 +100,15 @@ required concrete type. Validate Boolean rescaling controls and optional sigma
 before opening the file; do not use an optional validator followed by assert
 for a required scale.
 
+## Input preparation and plotting
+
+Keep constructor-specific conversion policies, error order and array ownership
+when extracting typed helpers. Gauss/SDIRK share methods.classical._configuration;
+Poincare automation deliberately has stricter numeric/count policies. Validate
+every plot series before creating a figure, including later invalid entries.
+See docs/simulation/integration-architecture.md and the plot-input and prepared-
+constructor contract tests; runtime numerical guards stay with their operation.
+
 ## HDF5 coordinates and cyclic source frequencies
 
 The producer uses fftfreq with dt declared in seconds: source `freqs` is a

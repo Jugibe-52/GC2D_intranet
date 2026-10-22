@@ -178,13 +178,11 @@ def plot_hbvm42_evaluation(
 	return figure, axes
 
 
-def plot_hbvm42_energy_errors(
-	solutions: Mapping[float, States],
-) -> tuple[Figure, Axes]:
-	"""Plot signed physical-Hamiltonian drift for every evaluated HBVM step."""
+def _energy_error_arrays(solutions: Mapping[float, States]) -> list[tuple[float, np.ndarray, np.ndarray]]:
+	"""Read every aligned single-particle energy history before plotting."""
 	if not solutions:
 		raise ValueError("At least one HBVM solution is required.")
-	figure, axis = plt.subplots(figsize=(9, 5), constrained_layout=True)
+	prepared: list[tuple[float, np.ndarray, np.ndarray]] = []
 	for step, solution in solutions.items():
 		energy_drift = solution.diagnostics.get("energy_drift")
 		if energy_drift is None:
@@ -192,7 +190,18 @@ def plot_hbvm42_energy_errors(
 		values = np.asarray(energy_drift, dtype=float)
 		if values.shape != (1, solution.t.size):
 			raise ValueError("The energy plot requires one planar trajectory.")
-		axis.plot(solution.t, values[0], label=rf"$h={step:g}$")
+		prepared.append((step, solution.t, values[0]))
+	return prepared
+
+
+def plot_hbvm42_energy_errors(
+	solutions: Mapping[float, States],
+) -> tuple[Figure, Axes]:
+	"""Plot signed physical-Hamiltonian drift for every evaluated HBVM step."""
+	prepared = _energy_error_arrays(solutions)
+	figure, axis = plt.subplots(figsize=(9, 5), constrained_layout=True)
+	for step, times, drift in prepared:
+		axis.plot(times, drift, label=rf"$h={step:g}$")
 	axis.axhline(0.0, color="0.4", linestyle=":", linewidth=1)
 	axis.set(
 		title="HBVM(4,2) Hamiltonian drift",
