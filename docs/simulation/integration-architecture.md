@@ -5,7 +5,7 @@ Execution selects the host or device driver. Dynamics defines physics; formulati
 defines coordinates; the method defines numerical operations; execution controls
 accepted intervals and collects output.
 
-`request.py` owns temporal configuration; `contracts/` owns problem and step contracts. `formulations.layout` owns physical layouts, while reusable formulations define internal coordinates and extraction independently of method choice. `methods/` implements numerical steps. `execution/` owns preparation, accepted `IntegrationState` snapshots, sampling and host/device loops; `methods.base` owns numerical preparation. `states/` owns the physical recording container and completed result. `simulation/runner.py` validates that result against the inputs and returns the same object. Internal consumers import directly from each defining module.
+`problem.py` owns physical initial-value problems; `request.py` owns temporal configuration; `contracts/` owns shared interfaces, step records and array compatibility. `formulations.layout` owns physical layouts, while reusable formulations define internal coordinates and extraction independently of method choice. `methods/` implements numerical steps. `execution/` owns preparation, accepted `IntegrationState` snapshots, sampling and host/device loops; `methods.base` owns numerical preparation. `states/` owns the physical recording container and completed result. `simulation/runner.py` validates that result against the inputs and returns the same object. Internal consumers import directly from each defining module.
 
 Validation follows the same ownership: `InitialValueProblem` checks the dynamics
 protocol and compatible initial layout; state formulations check the Hamiltonian
@@ -98,11 +98,13 @@ The following old routes have been removed after migrating supported consumers:
 
 | Removed route | Current owner |
 |---|---|
-| `contracts.execution.Execution` | `execution.Execution` for the executor; `contracts.execution_options.ExecutionOptions` for backend choices |
+| `contracts.execution.Execution` | `execution.Execution` for the executor; `execution.options.ExecutionOptions` for backend choices |
 | `simulation.methods.*` | `methods.*` |
 | `simulation.formulations.*` | `formulations.*` |
 | `simulation.integration`, `simulation._fixed` | `methods.base`, `execution._host` |
-| `simulation.configuration`, `.problem`, `.observation` | Corresponding `contracts` submodules |
+| `simulation.configuration`, `.observation` | Corresponding `contracts` submodules |
+| `simulation.problem`, `contracts.problem` | `problem` |
+| `contracts.execution_options` | `execution.options` |
 | `simulation.request`, `contracts.request` | `request` |
 | `simulation._result` | `contracts.result` |
 | `simulation.solution`, `solution` | `states.history` |
@@ -214,3 +216,27 @@ import study orchestration or execute a simulation. Existing energy and parallel
 recurrence archive schemas are unchanged. Scalar configuration rules shared with
 those records live in `contracts._study_validation`; study-specific geometry,
 reference identity, and execution policies remain in `studies`.
+
+## Problem, options and diagnostic ownership
+
+`problem.InitialValueProblem` associates compatible dynamics and initial values;
+`simulation` re-exports that same class. `execution.options.ExecutionOptions`
+owns backend/device choices and is also exported by `execution`. These objects
+retain their validation and snapshots. Importing the physical problem does not
+require the execution package.
+
+`diagnostics.comparison` owns reference RMS floors and physical-energy error
+reductions. `diagnostics.bm4_recurrence.recurrence_distances` owns periodic initial
+returns. Their input records stay in `contracts.comparison` and
+`contracts.study_results`, with validation and independent arrays but without
+analysis methods or imports from diagnostics. The calculation formulas and
+archive schemas are unchanged. See [API migration](api-migration.md).
+
+`studies._validation.require_uncoupled_bm4` applies the policy for new calculations;
+archive constructors retain historical coupling metadata. Shared scalar record
+validation remains in `contracts._study_validation`.
+
+`contracts.arrays` applies the shared NumPy/JAX compatibility agreement, including
+mixed values, nested sequences and tracers. It selects the array namespace, not
+a device or executor, and the NumPy path does not import JAX. This narrow semantic
+responsibility is retained rather than introducing a generic utilities package.

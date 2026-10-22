@@ -14,7 +14,7 @@ from unittest.mock import patch
 
 import numpy as np
 
-from contracts.execution_options import ExecutionOptions
+from execution.options import ExecutionOptions
 from states.history import States
 from execution._modal_benchmark import benchmark_payload
 from execution._modal_worker import encode_job, execute_payload

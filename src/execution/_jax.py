@@ -7,7 +7,7 @@ from typing import Any, ClassVar, TYPE_CHECKING
 
 import numpy as np
 
-from contracts.execution_options import ExecutionOptions
+from execution.options import ExecutionOptions
 from dynamics.fc import FullCyclotronDynamics
 from dynamics.gc import GuidingCenterDynamics
 from dynamics.protocols import DynamicalSystem, HamiltonianSystem

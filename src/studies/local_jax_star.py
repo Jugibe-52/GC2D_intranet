@@ -1,6 +1,6 @@
 """Local BM4Midpoint star study with consecutive JAX blocks and live logging."""
 
-from contracts._study_validation import require_uncoupled_bm4
+from studies._validation import require_uncoupled_bm4
 
 from formulations.layout import GCStateLayout
 
@@ -11,8 +11,8 @@ from typing import Any
 
 import numpy as np
 
-from contracts.execution_options import ExecutionOptions
-from contracts.problem import InitialValueProblem
+from execution.options import ExecutionOptions
+from problem import InitialValueProblem
 from request import SimulationRequest
 from contracts.result import DiagnosticValue
 from diagnostics.persistence import save_solution

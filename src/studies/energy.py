@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from contracts._study_validation import require_uncoupled_bm4
+from studies._validation import require_uncoupled_bm4
 
 from formulations.layout import GCStateLayout
 
@@ -28,7 +28,7 @@ from dynamics import GuidingCenterDynamics
 
 from potential import Potential
 from methods.extended.bm4 import BM4Implicit
-from contracts.problem import InitialValueProblem
+from problem import InitialValueProblem
 from request import SimulationRequest
 from states.history import States
 from simulation.runner import simulate

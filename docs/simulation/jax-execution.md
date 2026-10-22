@@ -6,7 +6,7 @@ independently of these options; see the [executor contract](execution.md).
 
 ```python
 import jax
-from contracts.execution_options import ExecutionOptions
+from execution.options import ExecutionOptions
 from methods.extended.bm4 import BM4Implicit
 from simulation.runner import simulate
 

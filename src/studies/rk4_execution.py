@@ -11,8 +11,8 @@ from typing import Any, TYPE_CHECKING
 import numpy as np
 import scipy
 
-from contracts.execution_options import ExecutionOptions
-from contracts.problem import InitialValueProblem
+from execution.options import ExecutionOptions
+from problem import InitialValueProblem
 from request import SimulationRequest
 from diagnostics.persistence import load_solution, save_solution
 from dynamics.gc import GuidingCenterDynamics

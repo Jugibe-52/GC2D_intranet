@@ -140,19 +140,6 @@ class ParallelBM4RecurrenceResult:
 		object.__setattr__(self, "maximum_residual_to_tolerance", residual_ratios)
 		object.__setattr__(self, "wall_runtime_seconds", wall_runtime)
 
-	def recurrence_distances(self, *, period: float) -> np.ndarray:
-		"""Return minimum-image distance to each trajectory's initial point."""
-		cell_period: float = positive_finite(period, "period")
-		displacement = self.positions - self.initial_positions[:, :, None]
-		periodic = (
-			(displacement + 0.5 * cell_period) % cell_period
-			- 0.5 * cell_period
-		)
-		distances: np.ndarray = np.asarray(np.linalg.norm(periodic, axis=1), dtype=float)
-		distances[:, 0] = 0.0
-		distances.setflags(write=False)
-		return distances
-
 
 def _validate_parallel_trajectories(
 	times: np.ndarray, initial_positions: np.ndarray, positions: np.ndarray,

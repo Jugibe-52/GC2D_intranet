@@ -15,8 +15,8 @@ from typing import Any
 
 import numpy as np
 
-from contracts.execution_options import ExecutionOptions
-from contracts.problem import InitialValueProblem
+from execution.options import ExecutionOptions
+from problem import InitialValueProblem
 from diagnostics.persistence import StoredSolution
 
 from states.history import States

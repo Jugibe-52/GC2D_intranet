@@ -4,7 +4,7 @@ kind = "change-plan"
 revision = 2
 spec_revision = 2
 id = "2026-10-20-unified-states"
-sources = ["src/states/history.py", "src/diagnostics/geometry.py", "src/states/generators.py", "src/formulations/layout.py", "src/contracts/configuration.py", "src/contracts/problem.py"]
+sources = ["src/states/history.py", "src/diagnostics/geometry.py", "src/states/generators.py", "src/formulations/layout.py", "src/contracts/configuration.py", "src/problem.py"]
 documents = ["specs/current/simulation.md", "specs/current/results.md", "docs/simulation/integration-architecture.md"]
 open_questions = []
 +++
@@ -30,3 +30,6 @@ Inventory callers relying on empty configurations or set_initial_state and repla
 AC-001/002 require copy isolation, invalid shape/value handling, named component access, exact pack/split and block round-trips on GC/FC snapshots and histories, and backend-preserving JAX traced operations. AC-003 compares generated coordinates exactly to captured current outputs and area values with existing test tolerances, including periodic seams and orientation. AC-004 uses existing ownership and persistence tests and deterministic before/after GC/FC trajectories with identical inputs; no scientific reference solver is needed for a representation-only change. AC-005 requires consumer/import and documentation audits, archive round-trips, reduced notebook checks and repository checks. Record actual commands and outcomes during implementation, not during preparation.
 
 Source references were updated for the 2026-10-20 states migration; prior recorded outcomes are unchanged.
+
+Source locations were updated on 2026-10-22 after the contract ownership move;
+the historical scope, acceptance and recorded checks above are unchanged.

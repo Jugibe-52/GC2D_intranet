@@ -9,7 +9,7 @@ import unittest
 
 import numpy as np
 
-from contracts.problem import InitialValueProblem
+from problem import InitialValueProblem
 from request import SimulationRequest
 from dynamics.gc import GuidingCenterDynamics
 

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from contracts._study_validation import require_uncoupled_bm4
+from studies._validation import require_uncoupled_bm4
 
 from formulations.layout import GCStateLayout
 
@@ -13,7 +13,7 @@ import re
 import h5py
 import numpy as np
 
-from contracts.problem import InitialValueProblem
+from problem import InitialValueProblem
 from request import SimulationRequest
 from dynamics import GuidingCenterDynamics
 

@@ -9,7 +9,7 @@ from unittest.mock import patch
 
 import numpy as np
 
-from contracts.execution_options import ExecutionOptions
+from execution.options import ExecutionOptions
 from studies.rk4_execution import (
     RK4ExecutionConfig, run_rk4_execution_comparison,
     save_rk4_execution_comparison, load_rk4_execution_comparison,

@@ -23,7 +23,7 @@ from solvers.nonlinear import NONLINEAR_SOLVERS, NonlinearSolver
 from solvers.nonlinear import SolverOptions
 from methods.extended.configuration import _validate_projection_formulation
 from methods.extended.observations import bind_event_builder
-from contracts.problem import InitialValueProblem
+from problem import InitialValueProblem
 from formulations.gc import GCDoubledMaps
 
 from methods.extended.core.composition import ABBA2, ABBA4, ABBA6

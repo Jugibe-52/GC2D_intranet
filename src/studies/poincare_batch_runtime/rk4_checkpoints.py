@@ -27,7 +27,7 @@ def calculate_checkpointed_group(indices: np.ndarray, initial_xy: np.ndarray,
     from dynamics import GuidingCenterDynamics
     import numpy as np
     from methods.classical.rk4 import RK4
-    from contracts.problem import InitialValueProblem
+    from problem import InitialValueProblem
     from request import SimulationRequest
     from simulation.runner import simulate
     import parallel_calculation

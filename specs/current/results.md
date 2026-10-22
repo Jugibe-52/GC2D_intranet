@@ -2,7 +2,7 @@
 schema_version = 1
 kind = "spec"
 id = "results"
-sources = ["src/states/history.py", "src/contracts/result.py", "src/simulation/runner.py"]
+sources = ["src/states/history.py", "src/contracts/result.py", "src/simulation/runner.py", "src/contracts/comparison.py", "src/contracts/study_results.py", "src/diagnostics/comparison.py", "src/diagnostics/bm4_recurrence.py"]
 documents = ["docs/simulation/integration-architecture.md"]
 
 [[requirements]]
@@ -37,3 +37,14 @@ Diagnostic keys are nonempty strings and values are scalars or NumPy arrays. The
 Finalization delegates diagnostic validation and copying to a private preparation
 function. Rejected diagnostics leave the recorder open with no published
 diagnostics, so valid diagnostics can be supplied in a later finalization call.
+
+## Shared study records and analysis
+
+Comparison and recurrence records remain in `contracts.comparison` and
+`contracts.study_results`. They own data validation and storage; reference RMS
+floors and energy reductions belong to `diagnostics.comparison`, and periodic
+initial-return distances to `diagnostics.bm4_recurrence`. Formulas, units and
+archive schemas are unchanged. Readers do not depend on study orchestration.
+`tests/test_comparison_diagnostics.py` checks known reductions, periodic wrapping,
+input/output ownership and independent record imports. Archive round trips are
+covered by `tests/test_study_result_contracts.py`.

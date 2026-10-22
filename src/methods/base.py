@@ -14,7 +14,7 @@ from contracts.result import DiagnosticValue
 from contracts.step import StepInfo, StepResult
 from formulations.state import PhysicalFormulation
 
-from contracts.problem import InitialValueProblem
+from problem import InitialValueProblem
 from dynamics.protocols import DynamicalSystem
 from request import SimulationRequest
 

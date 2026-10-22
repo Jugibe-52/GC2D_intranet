@@ -25,7 +25,7 @@ def main() -> None:
     from dynamics import GuidingCenterDynamics
     import numpy as np
     from methods.classical.rk4 import RK4
-    from contracts.problem import InitialValueProblem
+    from problem import InitialValueProblem
     from request import SimulationRequest
     from simulation.runner import simulate
     discrepancies=[]

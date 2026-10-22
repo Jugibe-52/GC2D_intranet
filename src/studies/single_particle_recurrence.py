@@ -14,7 +14,7 @@ from scipy.optimize import brentq
 from diagnostics.adaptive_trajectory import AdaptiveTrajectoryObserver
 
 from methods.adaptive.scipy import DOP853, Radau
-from contracts.problem import InitialValueProblem
+from problem import InitialValueProblem
 from simulation.runner import simulate
 from request import SimulationRequest
 from dynamics import GuidingCenterDynamics

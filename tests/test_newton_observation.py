@@ -11,7 +11,7 @@ from unittest.mock import patch
 import numpy as np
 
 from contracts.nonlinear import NewtonIteration
-from contracts.problem import InitialValueProblem
+from problem import InitialValueProblem
 from request import SimulationRequest
 from dynamics.gc import GuidingCenterDynamics
 

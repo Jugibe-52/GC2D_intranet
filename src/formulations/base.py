@@ -10,7 +10,7 @@ from dynamics.protocols import DynamicalSystem, HamiltonianSystem
 from contracts.result import DiagnosticValue
 
 if TYPE_CHECKING:
-	from contracts.problem import InitialValueProblem
+	from problem import InitialValueProblem
 
 
 Projection: TypeAlias = tuple[np.ndarray, dict[str, DiagnosticValue]]

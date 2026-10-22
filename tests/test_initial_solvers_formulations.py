@@ -6,7 +6,7 @@ import unittest
 
 import numpy as np
 
-from contracts.problem import InitialValueProblem
+from problem import InitialValueProblem
 from dynamics import GuidingCenterDynamics, FullCyclotronDynamics
 from formulations.layout import GCStateLayout
 from formulations.projection import ReducedProjection, SimultaneousProjection
@@ -155,7 +155,7 @@ class ConfiguredIntegrationTests(unittest.TestCase):
 			import jax
 		except ImportError:
 			self.skipTest('Optional JAX is unavailable')
-		from contracts.execution_options import ExecutionOptions
+		from execution.options import ExecutionOptions
 		with jax.experimental.enable_x64():
 			for method in (GaussLegendre4(solver=NewtonSolver()),
 				ABBA4Implicit(projection_formulation=ReducedProjection(), solver=NewtonSolver()),

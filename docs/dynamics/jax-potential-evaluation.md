@@ -18,7 +18,7 @@ execution options. `Potential.evaluate` no longer dispatches from argument types
 use `JaxPotential` for tracing, JIT compilation and automatic differentiation.
 
 Simulation backend and device choices remain in
-`contracts.execution_options.ExecutionOptions`. Fixed methods run their stages
+`execution.options.ExecutionOptions`. Fixed methods run their stages
 and time loop on the selected device; DOP853/Radau use JAX fields with a SciPy
 adaptive controller. See the [execution guide](../simulation/jax-execution.md).
 

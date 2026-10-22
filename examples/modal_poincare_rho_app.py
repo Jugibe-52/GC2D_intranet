@@ -16,7 +16,7 @@ image = (
                                extra_options="-c /tmp/gc2d-constraints.txt")
     .env({"JAX_ENABLE_X64": "true", "JAX_PLATFORMS": "cpu"})
     .add_local_python_source("contracts", "dynamics", "execution", "formulations",
-                             "states", "integration", "methods", "potential", "solution")
+                             "states", "methods", "potential", "solvers", "problem", "request")
 )
 app = modal.App("gc2d-poincare-rho-sweep")
 

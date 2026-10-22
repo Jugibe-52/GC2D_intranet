@@ -7,8 +7,8 @@ from typing import TYPE_CHECKING
 from dynamics.protocols import HamiltonianSystem
 
 from contracts.compiled import CompiledStep
-from contracts.execution_options import ExecutionOptions
-from contracts.problem import InitialValueProblem
+from execution.options import ExecutionOptions
+from problem import InitialValueProblem
 from contracts.result import DiagnosticValue
 from execution._host import run_steps
 from request import SimulationRequest

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from diagnostics.comparison import time_integrated_rms_floor
+
 from formulations.layout import GCStateLayout
 
 import unittest
@@ -83,7 +85,7 @@ class GaussLegendre4StudyTests(unittest.TestCase):
 			plot_gauss_legendre4_evaluation(
 				result.summaries(),
 				designed_order=config.designed_order,
-				reference_floor=result.reference.time_integrated_rms_floor,
+				reference_floor=time_integrated_rms_floor(result.reference),
 			)[0],
 			plot_gauss_legendre4_observed_order(
 				result.observed_orders(),
@@ -136,7 +138,7 @@ class GaussLegendre4StudyTests(unittest.TestCase):
 			result.summaries(),
 			result.observed_orders(),
 			designed_order=config.designed_order,
-			reference_floor=result.reference.time_integrated_rms_floor,
+			reference_floor=time_integrated_rms_floor(result.reference),
 		)
 		plt.close(figure)
 

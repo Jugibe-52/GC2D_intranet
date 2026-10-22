@@ -7,8 +7,8 @@ from unittest.mock import patch
 
 import numpy as np
 
-from contracts.execution_options import ExecutionOptions
-from contracts.problem import InitialValueProblem
+from execution.options import ExecutionOptions
+from problem import InitialValueProblem
 from request import SimulationRequest
 from states.history import States
 from execution import Execution

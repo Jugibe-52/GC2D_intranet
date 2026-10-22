@@ -44,7 +44,7 @@ from methods import (
 	SDIRKJacobianMethod,
 )
 from contracts.observation import AdaptiveIntegrationStep, AdaptiveStepObserver, ABBA4ImplicitIntegrationStep, GaussLegendre4IntegrationStep, ABBA6ImplicitIntegrationStep, ABBAImplicitCompositionIntegrationStep, ABBA2ImplicitIntegrationStep, ImplicitBM4IntegrationStep, ImplicitIntegrationStep, IntegrationStage, IntegrationStep, StageObserver, StepObserver, UnprojectedABBAIntegrationStep
-from contracts.problem import InitialValueProblem
+from problem import InitialValueProblem
 from request import (
 	DEFAULT_INTEGRATION_STEP,
 	DEFAULT_INTEGRATION_STEPS_PER_CYCLE,

@@ -52,7 +52,7 @@ returns that same object. These checks also apply to executor subclasses.
 
 ```python
 import jax
-from contracts.execution_options import ExecutionOptions
+from execution.options import ExecutionOptions
 
 jax.config.update("jax_enable_x64", True)
 solution = simulate(
@@ -118,7 +118,7 @@ implement the preparation protocol. No compatibility aliases are retained.
 
 The older `contracts.execution.Execution` configuration class remains removed.
 Use `Execution` for the executor and `ExecutionOptions` from
-`contracts.execution_options` for backend choices. The signatures of `simulate`,
+`execution.options` for backend choices. The signatures of `simulate`,
 executors and numerical constructors, archive formats and notebook outputs are
 unchanged. Supported direct callers are migrated; no long notebook run is required.
 

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from diagnostics.bm4_recurrence import recurrence_distances
+
 from typing import Any, TYPE_CHECKING
 
 import matplotlib.pyplot as plt
@@ -189,7 +191,7 @@ def plot_parallel_bm4_recurrence_stack(
 		)
 	if not np.allclose(np.diff(result.times), 1.0):
 		raise ValueError("The stacked recurrence plot requires one saved state per cycle.")
-	distances: np.ndarray = result.recurrence_distances(period=cell_period)
+	distances: np.ndarray = recurrence_distances(result, period=cell_period)
 	particle_count = result.config.particle_count
 	if distances.shape != (particle_count, result.times.size):
 		raise ValueError("Recurrence distances do not match the campaign shape.")

@@ -26,7 +26,7 @@ from dynamics import GuidingCenterDynamics
 from potential import Potential
 from methods.adaptive.scipy import DOP853, Radau
 from contracts.observation import AdaptiveIntegrationStep
-from contracts.problem import InitialValueProblem
+from problem import InitialValueProblem
 from simulation.runner import simulate
 from request import SimulationRequest
 

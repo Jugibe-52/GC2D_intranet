@@ -1,6 +1,6 @@
 """Matched RK4 and BM4Midpoint probe batches for sampled Poincare gaps."""
 
-from contracts._study_validation import require_uncoupled_bm4
+from studies._validation import require_uncoupled_bm4
 
 from formulations.layout import GCStateLayout
 
@@ -20,7 +20,7 @@ from dynamics import GuidingCenterDynamics
 
 from potential import Potential
 from methods.extended.bm4 import BM4Midpoint
-from contracts.problem import InitialValueProblem
+from problem import InitialValueProblem
 from methods.classical.rk4 import RK4
 from request import SimulationRequest
 from simulation.runner import simulate

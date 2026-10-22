@@ -138,7 +138,7 @@ unchanged. JAX rejects unconverged solves explicitly. Diagnostics report
 `execution_mode="device_resident"`. Python step observers and progress reporting
 require the default CPU path.
 
-Import `ExecutionOptions` from `contracts.execution_options`. Omission preserves existing
+Import `ExecutionOptions` from `execution.options`. Omission preserves existing
 SciPy/NumPy execution. See the [shared execution contract](../../../simulation/jax-execution.md)
 for supported physical systems, solver details, timing scope and validation.
 

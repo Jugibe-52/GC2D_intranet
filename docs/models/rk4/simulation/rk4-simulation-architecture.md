@@ -106,7 +106,7 @@ for the other study result views.
 
 ```python
 import jax
-from contracts.execution_options import ExecutionOptions
+from execution.options import ExecutionOptions
 from methods.classical.rk4 import RK4
 from simulation.runner import simulate
 

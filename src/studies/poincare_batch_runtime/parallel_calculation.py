@@ -6,7 +6,7 @@ is unchanged; each group uses its own state norm for Newton's stopping rule.
 
 from __future__ import annotations
 
-from contracts._study_validation import require_uncoupled_bm4
+from studies._validation import require_uncoupled_bm4
 
 from formulations.layout import GCStateLayout
 
@@ -53,7 +53,7 @@ def calculate_group(
     from dynamics import GuidingCenterDynamics
     import numpy as np
     from methods.extended.bm4 import BM4Implicit
-    from contracts.problem import InitialValueProblem
+    from problem import InitialValueProblem
     from request import SimulationRequest
     from simulation.runner import simulate
 

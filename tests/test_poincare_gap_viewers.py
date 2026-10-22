@@ -12,7 +12,7 @@ from unittest.mock import patch
 
 import numpy as np
 
-from contracts.execution_options import ExecutionOptions
+from execution.options import ExecutionOptions
 from execution.execution import Execution
 from potential import Grid, Potential
 from studies.dimensional_h5_midpoint import DimensionalH5Field

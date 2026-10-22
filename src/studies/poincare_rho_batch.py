@@ -14,7 +14,7 @@ from tempfile import NamedTemporaryFile
 from time import time
 from typing import Any, Literal, TYPE_CHECKING
 
-from contracts.execution_options import ExecutionOptions
+from execution.options import ExecutionOptions
 from diagnostics.paths import DEFAULT_RESULTS_BUCKET, solution_destination
 from diagnostics.storage import StorageError
 from studies.dimensional_h5_midpoint import load_dimensional_h5_field, resolve_h5_source

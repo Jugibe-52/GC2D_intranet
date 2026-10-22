@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from diagnostics.comparison import rms_error, running_maximum_absolute_error, time_integrated_rms_floor
+
 from formulations.layout import GCStateLayout
 
 import unittest
@@ -130,9 +132,9 @@ class ThreeMethodNewtonComparisonTests(unittest.TestCase):
 			self.assertEqual(energy_series.errors.shape, (3, 3))
 			self.assertFalse(energy_series.errors.flags.writeable)
 			np.testing.assert_array_equal(energy_series.errors[:, 0], 0.0)
-			self.assertTrue(np.all(energy_series.rms_error >= 0.0))
+			self.assertTrue(np.all(rms_error(energy_series.errors) >= 0.0))
 			self.assertTrue(
-				np.all(np.diff(energy_series.running_maximum_absolute_error) >= 0.0)
+				np.all(np.diff(running_maximum_absolute_error(energy_series.errors)) >= 0.0)
 			)
 
 		summaries = result.summaries()
@@ -158,7 +160,7 @@ class ThreeMethodNewtonComparisonTests(unittest.TestCase):
 		time_figure, time_axes = plot_trajectory_accuracy_over_time(
 			result.reference.times,
 			result.accuracy,
-			reference_floor=result.reference.time_integrated_rms_floor,
+			reference_floor=time_integrated_rms_floor(result.reference),
 		)
 		energy_figure, energy_axes = plot_energy_accuracy_over_time(
 			result.reference.times,

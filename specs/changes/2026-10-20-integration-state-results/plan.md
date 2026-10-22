@@ -4,7 +4,7 @@ kind = "change-plan"
 revision = 1
 spec_revision = 1
 id = "2026-10-20-integration-state-results"
-sources = ["src/methods/base.py", "src/execution/_host.py", "src/execution/state.py", "src/states/history.py", "src/formulations/layout.py", "src/request.py", "src/contracts/problem.py"]
+sources = ["src/methods/base.py", "src/execution/_host.py", "src/execution/state.py", "src/states/history.py", "src/formulations/layout.py", "src/request.py", "src/problem.py"]
 documents = ["specs/current/states.md", "specs/current/results.md", "specs/current/simulation.md"]
 open_questions = []
 +++
@@ -26,3 +26,6 @@ Capture deterministic GC/FC runs before edits with nonzero t0, off-grid samples,
 
 
 Reference note (2026-10-20): source references now resolve to methods.base and execution after the package merger. Historical design and results in this record retain their original execution context.
+
+Source locations were updated on 2026-10-22 after the contract ownership move;
+the historical scope, acceptance and recorded checks above are unchanged.

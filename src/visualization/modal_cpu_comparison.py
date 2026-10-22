@@ -13,7 +13,7 @@ from visualization.poincare_comparison import export_poincare_panel_comparison
 
 
 if TYPE_CHECKING:
-    from contracts.problem import InitialValueProblem
+    from problem import InitialValueProblem
     from matplotlib.axes import Axes
     from matplotlib.figure import Figure
 

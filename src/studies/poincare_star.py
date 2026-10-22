@@ -1,6 +1,6 @@
 """BM4Midpoint Poincare calculation with dimensional HDF5 star positions."""
 
-from contracts._study_validation import require_uncoupled_bm4
+from studies._validation import require_uncoupled_bm4
 
 from formulations.layout import GCStateLayout
 
@@ -12,8 +12,8 @@ from typing import Any, TYPE_CHECKING
 
 import numpy as np
 
-from contracts.execution_options import ExecutionOptions
-from contracts.problem import InitialValueProblem
+from execution.options import ExecutionOptions
+from problem import InitialValueProblem
 from request import SimulationRequest
 from dynamics.gc import GuidingCenterDynamics
 from states.generators import radial_star

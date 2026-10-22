@@ -26,7 +26,7 @@ from potential import Potential
 from methods.extended.abba import ABBA4Implicit
 from methods.extended.abba import ABBA2Implicit
 
-from contracts.problem import InitialValueProblem
+from problem import InitialValueProblem
 from solvers.nonlinear import NONLINEAR_SOLVERS, NonlinearSolver
 from request import SimulationRequest
 from states.history import States

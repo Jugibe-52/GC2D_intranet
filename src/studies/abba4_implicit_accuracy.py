@@ -27,7 +27,7 @@ from dynamics import GuidingCenterDynamics
 from potential import Potential
 from methods.extended.abba import ABBA4Implicit
 from solvers.nonlinear import NONLINEAR_SOLVERS, NonlinearSolver
-from contracts.problem import InitialValueProblem
+from problem import InitialValueProblem
 from request import SimulationRequest
 from states.history import States
 from simulation.runner import simulate

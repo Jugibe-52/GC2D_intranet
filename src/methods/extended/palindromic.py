@@ -11,7 +11,7 @@ import numpy as np
 
 from contracts.nonlinear import NewtonObserver
 from contracts.observation import IntegrationStep, StepObserver
-from contracts.problem import InitialValueProblem
+from problem import InitialValueProblem
 from contracts.result import DiagnosticValue
 from contracts.step import StepInfo, StepResult
 from dynamics.protocols import DynamicalSystem, GuidingCenterJacobianSystem

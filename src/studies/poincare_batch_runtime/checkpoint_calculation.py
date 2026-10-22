@@ -1,6 +1,6 @@
 """Restartable fixed-grid orchestration of frozen implicit and midpoint BM4."""
 
-from contracts._study_validation import require_uncoupled_bm4
+from studies._validation import require_uncoupled_bm4
 
 from formulations.layout import GCStateLayout
 
@@ -44,7 +44,7 @@ def calculate_checkpointed_group(
     potential, _, snapshot = load_snapshot()
     from dynamics import GuidingCenterDynamics
     import numpy as np
-    from contracts.problem import InitialValueProblem
+    from problem import InitialValueProblem
     from formulations.gc import GCDoubledMaps
     from methods.extended.core.composition import BM4
     from methods.extended.core.projection import solve_projection

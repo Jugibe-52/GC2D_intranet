@@ -4,7 +4,7 @@ kind = "change-plan"
 id = "2026-10-18-poincare-simulation-skill"
 revision = 1
 spec_revision = 1
-sources = ["src/studies/poincare_rho_sweep.py", "src/studies/poincare_gap_probes.py", "src/states/generators.py", "src/visualization/poincare_comparison.py", "src/visualization/_poincare_comparison.html", "src/visualization/poincare_gap_overlay.py", "src/diagnostics/persistence.py", "src/simulation/runner.py", "src/contracts/execution_options.py", "tests/test_poincare_rho_sweep.py", "tests/test_poincare_gap_viewers.py", "tests/test_h5_rescaling.py"]
+sources = ["src/studies/poincare_rho_sweep.py", "src/studies/poincare_gap_probes.py", "src/states/generators.py", "src/visualization/poincare_comparison.py", "src/visualization/_poincare_comparison.html", "src/visualization/poincare_gap_overlay.py", "src/diagnostics/persistence.py", "src/simulation/runner.py", "src/execution/options.py", "tests/test_poincare_rho_sweep.py", "tests/test_poincare_gap_viewers.py", "tests/test_h5_rescaling.py"]
 documents = ["specs/changes/2026-10-18-poincare-simulation-skill/spec.md", "docs/dynamics/gc2d-h5-import.md", "docs/simulation/execution.md", "AGENTS.md"]
 open_questions = []
 +++
@@ -179,3 +179,6 @@ implementation; record only results actually obtained. The structural SDD
 checker passing during preparation does not verify these scientific criteria.
 
 Source references were updated for the 2026-10-20 states migration; prior recorded outcomes are unchanged.
+
+Source locations were updated on 2026-10-22 after the contract ownership move;
+the historical scope, acceptance and recorded checks above are unchanged.

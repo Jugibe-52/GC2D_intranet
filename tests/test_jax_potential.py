@@ -52,7 +52,7 @@ p = Potential(Grid.periodic(8, 8))
 assert p.evaluate(0., 0., 0.) == 0.
 try:
     from execution._jax import resolve_device
-    from contracts.execution_options import ExecutionOptions
+    from execution.options import ExecutionOptions
     resolve_device(ExecutionOptions(backend="jax"))
 except ImportError as exc:
     assert "optional 'jax' extra" in str(exc)

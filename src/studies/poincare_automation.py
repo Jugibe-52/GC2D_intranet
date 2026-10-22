@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from contracts._study_validation import require_uncoupled_bm4
+from studies._validation import require_uncoupled_bm4
 
 from formulations.layout import GCStateLayout
 
@@ -16,8 +16,8 @@ from typing import Any, Iterator, Literal, TYPE_CHECKING, TypedDict, cast
 
 import numpy as np
 
-from contracts.execution_options import ExecutionOptions
-from contracts.problem import InitialValueProblem
+from execution.options import ExecutionOptions
+from problem import InitialValueProblem
 from request import SimulationRequest
 from contracts.result import DiagnosticValue
 from dynamics.gc import GuidingCenterDynamics

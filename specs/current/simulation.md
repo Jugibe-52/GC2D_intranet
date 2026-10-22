@@ -2,7 +2,7 @@
 schema_version = 1
 kind = "spec"
 id = "simulation"
-sources = ["src/states/initial.py", "src/solvers/nonlinear.py", "src/formulations/projection.py", "src/simulation/runner.py", "src/contracts/problem.py", "src/request.py", "src/execution/execution.py", "src/execution/_jax.py", "src/methods/base.py"]
+sources = ["src/states/initial.py", "src/solvers/nonlinear.py", "src/formulations/projection.py", "src/simulation/runner.py", "src/problem.py", "src/request.py", "src/execution/execution.py", "src/execution/_jax.py", "src/methods/base.py", "src/execution/options.py", "src/contracts/arrays.py"]
 documents = ["docs/simulation/initial-solvers-formulations.md", "docs/simulation/integration-architecture.md", "docs/simulation/execution.md", "docs/simulation/jax-execution.md"]
 
 [[requirements]]
@@ -121,3 +121,16 @@ Source result assignments follow the [typing convention](../../docs/development/
 The JAX preparation boundary returns the prepared `HamiltonianSystem` and a
 `jax.Device`; device resolution returns the same device type. Type-only imports
 preserve optional JAX loading and existing execution behavior.
+
+## Input owners and array compatibility
+
+`problem.InitialValueProblem` owns the validated physical problem and remains
+exported from `simulation`. Backend/device configuration belongs to
+`execution.options.ExecutionOptions`, re-exported from `execution`. The retired
+contract module paths have no aliases. Import order and new-object serialization
+are checked by `tests/test_package_layout.py`.
+
+`contracts.arrays` retains the shared NumPy/JAX compatibility rules, including
+mixed arrays, nested sequences and tracers, without device selection or eager
+JAX imports. `tests/test_shared_array_dynamics.py` checks layout and dynamics
+behavior; this ownership change does not modify those numerical operations.

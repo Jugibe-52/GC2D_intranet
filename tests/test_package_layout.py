@@ -43,6 +43,7 @@ class PackageLayoutTests(unittest.TestCase):
 		):
 			self.assertTrue((source_root / package / "__init__.py").is_file())
 		self.assertTrue((source_root / "request.py").is_file())
+		self.assertTrue((source_root / "problem.py").is_file())
 		self.assertFalse((source_root / "simulation" / "methods").exists())
 		self.assertFalse((source_root / "simulation" / "formulations").exists())
 		for removed in ("gc2d", "classes", "research", "workflows", "integration"):
@@ -76,7 +77,7 @@ class PackageLayoutTests(unittest.TestCase):
 			self.assertIs(getattr(extended, name), getattr(methods, name))
 		self.assertIs(classical.RK4, RK4)
 		for module in (
-			"contracts.configuration", "contracts.problem", "request", "contracts.execution_options",
+			"contracts.configuration", "problem", "request", "execution.options",
 			"contracts.observation", "contracts.result", "contracts.step",
 			"formulations.gc", "formulations.fc", "formulations.state",
 			"execution._host", "methods.base", "methods.extended", "methods.classical",
@@ -111,16 +112,20 @@ def without_optional_backends(name, *args, **kwargs):
 builtins.__import__ = without_optional_backends
 importlib.import_module(sys.argv[1])
 from execution import Execution, FixedStepController, IntegrationState
+from execution.options import ExecutionOptions
 from methods import DOP853, IntegrationMethod, RK4
 from potential import Potential
 from dynamics import GuidingCenterDynamics
-from contracts.problem import InitialValueProblem
+from problem import InitialValueProblem
 from request import SimulationRequest
 
 problem = InitialValueProblem(GuidingCenterDynamics(
     Potential.random(A=.01, M=2, nx=8, ny=8, seed=3), rho=.01),
     np.array([1., 1.1]))
 request = SimulationRequest((0., .02), .01, np.array([0., .005, .02]))
+assert pickle.loads(pickle.dumps(ExecutionOptions())) == ExecutionOptions()
+restored_problem = pickle.loads(pickle.dumps(problem))
+np.testing.assert_array_equal(restored_problem.initial_state, problem.initial_state)
 for method in (RK4(), DOP853()):
     restored = pickle.loads(pickle.dumps(method))
     run = restored.new_run(problem, request)
@@ -133,7 +138,7 @@ assert not state.values.flags.writeable
 assert not any(name.split(".")[0] in ("jax", "modal", "integration")
                for name in sys.modules)
 """
-		for first in ("methods", "execution", "methods.base", "execution.state", "simulation"):
+		for first in ("problem", "execution.options", "methods", "execution", "methods.base", "execution.state", "simulation"):
 			with self.subTest(first=first):
 				completed = subprocess.run(
 					[sys.executable, "-c", script, first], cwd=project_root,
@@ -156,6 +161,7 @@ assert not any(name.split(".")[0] in ("jax", "modal", "integration")
 		for package in ("gc2d", "classes", "research", "workflows", "integration"):
 			self.assertIsNone(importlib.util.find_spec(package), package)
 		for module in (
+			"contracts.problem", "contracts.execution_options",
 			"execution._fixed", "execution._jax_run", "dynamics._jax_host",
 			"contracts.execution", "integration.core", "integration.state", "integration.jax_fixed",
 			"simulation.methods", "simulation.formulations", "simulation.integration",

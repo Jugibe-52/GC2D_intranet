@@ -1,5 +1,7 @@
 """Audited accuracy, serial timings and multipliers for the two BM4 methods."""
 
+from diagnostics.comparison import final_rms_floor, time_integrated_rms_floor
+
 from formulations.layout import GCStateLayout
 
 from dataclasses import dataclass, replace
@@ -17,7 +19,7 @@ from potential import Potential
 from methods.extended.bm4 import BM4Implicit
 from methods.extended.bm4 import BM4Midpoint
 from contracts.observation import ImplicitBM4IntegrationStep, IntegrationStep
-from contracts.problem import InitialValueProblem
+from problem import InitialValueProblem
 from methods.base import NumericalMethod
 from request import SimulationRequest
 from simulation.runner import simulate
@@ -277,8 +279,8 @@ def run_bm4_projection_comparison(
 	summary: dict[str, object] = {
 		"potential_fingerprint": potential_fingerprint(potential),
 		"particle_count": problem.particle_count, "step_count": config.step_count,
-		"reference_rms_floor": reference.time_integrated_rms_floor,
-		"reference_final_floor": reference.final_rms_floor,
+		"reference_rms_floor": time_integrated_rms_floor(reference),
+		"reference_final_floor": final_rms_floor(reference),
 		"reference_energy_rms_floor": _rms(arrays["reference.energy_error"], times),
 		"reference_seconds": {"DOP853": reference.dop853_runtime_seconds, "Radau": reference.radau_runtime_seconds},
 		"reference_reused": saved_reference is not None,

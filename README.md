@@ -7,10 +7,11 @@ grouped by responsibility:
 - `potential`: GC2D HDF5 imports and periodic electrostatic fields;
 - `dynamics`: guiding-center and full-cyclotron equations;
 - `states`: physical sampled histories, completed results and geometry generators;
-- `contracts`: shared problem, layout protocols, step and observation types;
+- `contracts`: shared layout protocols, step/observation records and array compatibility;
+- `problem.py`: physical initial-value problems;
 - `formulations`: reusable physical layouts, internal coordinates and split maps;
 - `methods`: numerical methods, including the shared `extended` family;
-- `integration`: step scheduling, sampling, and collection;
+- `execution`: execution configuration, preparation, step scheduling and collection;
 - `simulation`: public execution facade;
 - `request.py`: temporal configuration;
 - `diagnostics`: opt-in numerical observers and persistence;
@@ -32,7 +33,8 @@ SimulationRequest -------------------------------/
 The [common integration architecture](docs/simulation/integration-architecture.md)
 shows the complete six-phase lifecycle, shared by all 13 methods. Each model
 also has its own detailed diagram in the [method catalog](docs/models/README.md).
-In `src/`, `contracts/` holds shared input and step types, `formulations/`
+In `src/`, `problem.py` owns initial-value problems, `contracts/` holds shared
+interfaces and records, and `formulations/`
 defines numerical state representations, `methods/` implements steps, and
 `execution/` prepares runs, schedules steps and collects results. `simulation/` remains the public
 execution facade; `states/` owns the returned result. Initial geometry
@@ -66,7 +68,7 @@ evaluation method, while `evaluate_grid` remains NumPy-only. Place JAX inputs wi
 equations to JAX potentials without refitting splines or changing the source
 objects. Neither potential class accepts execution options.
 All built-in methods select their simulation backend using
-`ExecutionOptions` from `contracts.execution_options`
+`ExecutionOptions` from `execution.options`
 through `simulate(problem, method, request, options=ExecutionOptions(backend="jax", device="cpu"))`.
 Enable `jax_enable_x64` first; select `device="gpu"` on a compatible installation.
 The eleven fixed-step methods compile their stages, nonlinear/projection solves

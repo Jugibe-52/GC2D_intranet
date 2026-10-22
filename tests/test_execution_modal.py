@@ -3,10 +3,12 @@
 from formulations.layout import GCStateLayout
 
 import importlib.util
+import ast
 import json
 from pathlib import Path
 import pickle
 import subprocess
+import shutil
 import sys
 import tempfile
 from types import SimpleNamespace
@@ -17,8 +19,8 @@ from unittest.mock import Mock, patch
 
 import numpy as np
 
-from contracts.execution_options import ExecutionOptions
-from contracts.problem import InitialValueProblem
+from execution.options import ExecutionOptions
+from problem import InitialValueProblem
 from request import SimulationRequest
 from states.history import States
 from diagnostics.persistence import load_solution, save_solution
@@ -322,6 +324,41 @@ else:
         payload = encode_job(make_problem(), RK4(), SimulationRequest.uniform(
             t_span=(0., .01), max_step=.01), None)
         self.assertIsInstance(namespace["integrate"].local(payload)[2], States)
+
+    def test_deployment_source_bundles_execute_a_job_without_the_checkout(self):
+        """Exercise exactly the source modules mounted by each deployment example."""
+        root = Path(__file__).resolve().parents[1]
+        payload = encode_job(make_problem(), RK4(), SimulationRequest.uniform(
+            t_span=(0., .01), max_step=.01), None)
+        script = '''
+import sys
+from pathlib import Path
+sys.path = [entry for entry in sys.path if Path(entry).resolve() != Path(sys.argv[2]).resolve()]
+sys.path.insert(0, sys.argv[1])
+from execution._modal_worker import execute_payload
+from execution._modal_benchmark import benchmark_payload
+result = execute_payload(Path(sys.argv[1], 'job.pickle').read_bytes())[2]
+assert result.complete and result.values.shape[1] >= 2
+'''
+        for example in sorted((root / 'examples').glob('modal*_app.py')):
+            calls = [node for node in ast.walk(ast.parse(example.read_text()))
+                     if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+                     and node.func.attr == 'add_local_python_source']
+            self.assertEqual(len(calls), 1, example)
+            with self.subTest(example=example.name), tempfile.TemporaryDirectory() as directory:
+                bundle = Path(directory)
+                for argument in calls[0].args:
+                    name = ast.literal_eval(argument)
+                    source = root / 'src' / name
+                    if source.is_dir():
+                        shutil.copytree(source, bundle / name, ignore=shutil.ignore_patterns('__pycache__'))
+                    else:
+                        shutil.copyfile(source.with_suffix('.py'), bundle / (name + '.py'))
+                (bundle / 'job.pickle').write_bytes(payload)
+                completed = subprocess.run([sys.executable, '-I', '-c', script,
+                                            str(bundle), str(root / 'src')], cwd=bundle,
+                                           capture_output=True, text=True)
+                self.assertEqual(completed.returncode, 0, completed.stderr)
 
 
 if __name__ == "__main__":

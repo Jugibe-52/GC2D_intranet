@@ -19,7 +19,7 @@ from contracts.result import DiagnosticValue
 from formulations.state import PhysicalFormulation
 from contracts.observation import IntegrationStep, StepObserver
 from contracts.nonlinear import NewtonObserver
-from contracts.problem import InitialValueProblem
+from problem import InitialValueProblem
 from request import SimulationRequest
 from ._configuration import _prepared_newton_controls
 from solvers.linear import _solve_particle_systems

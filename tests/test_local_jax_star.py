@@ -13,7 +13,7 @@ from unittest.mock import patch
 
 import numpy as np
 
-from contracts.execution_options import ExecutionOptions
+from execution.options import ExecutionOptions
 from request import SimulationRequest
 from diagnostics.persistence import load_solution, save_solution
 from diagnostics.run_progress import RunProgress, progress_log

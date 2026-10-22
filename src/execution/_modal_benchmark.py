@@ -16,8 +16,8 @@ from execution.execution import Execution
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from contracts.execution_options import ExecutionOptions
-    from contracts.problem import InitialValueProblem
+    from execution.options import ExecutionOptions
+    from problem import InitialValueProblem
     from methods.base import NumericalMethod
     from request import SimulationRequest
 

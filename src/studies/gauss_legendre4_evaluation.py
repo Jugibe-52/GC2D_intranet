@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from diagnostics.comparison import final_rms_floor, time_integrated_rms_floor
+
 from formulations.layout import GCStateLayout
 
 from dataclasses import dataclass
@@ -29,7 +31,7 @@ from dynamics import GuidingCenterDynamics
 from potential import Potential
 from methods.classical.gauss_legendre import GaussLegendre4
 from contracts.observation import GaussLegendre4IntegrationStep, IntegrationStep
-from contracts.problem import InitialValueProblem
+from problem import InitialValueProblem
 from request import SimulationRequest
 from states.history import States
 from simulation.runner import simulate
@@ -276,7 +278,7 @@ class GaussLegendre4EvaluationResult:
 		rows: list[GaussLegendre4EvaluationSummary] = []
 		duration: float = float(self.times[-1] - self.times[0])
 		floor: float = max(
-			self.reference.time_integrated_rms_floor,
+			time_integrated_rms_floor(self.reference),
 			float(np.finfo(float).eps),
 		)
 		for step in self.config.integration_steps:
@@ -355,11 +357,11 @@ class GaussLegendre4EvaluationResult:
 		"""Estimate resolved adjacent orders and explicit deficits from order four."""
 		summaries = {row.integration_step: row for row in self.summaries()}
 		time_floor: float = max(
-			self.reference.time_integrated_rms_floor,
+			time_integrated_rms_floor(self.reference),
 			float(np.finfo(float).eps),
 		)
 		final_floor: float = max(
-			self.reference.final_rms_floor,
+			final_rms_floor(self.reference),
 			float(np.finfo(float).eps),
 		)
 		rows: list[GaussLegendre4ObservedOrder] = []

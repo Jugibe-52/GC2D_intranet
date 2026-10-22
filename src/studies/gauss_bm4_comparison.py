@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from contracts._study_validation import require_uncoupled_bm4
+from diagnostics.comparison import final_rms_floor, time_integrated_rms_floor
+
+from studies._validation import require_uncoupled_bm4
 
 from formulations.layout import GCStateLayout
 
@@ -27,7 +29,7 @@ from dynamics import GuidingCenterDynamics
 from potential import Potential
 from methods.extended.bm4 import BM4Implicit
 from methods.classical.gauss_legendre import GaussLegendre4
-from contracts.problem import InitialValueProblem
+from problem import InitialValueProblem
 from methods.base import NumericalMethod
 from request import SimulationRequest
 from states.history import States
@@ -206,7 +208,7 @@ class GaussBM4ComparisonResult:
 		rows: list[GaussBM4ComparisonSummary] = []
 		duration: float = float(self.times[-1] - self.times[0])
 		floor: float = max(
-			self.reference.time_integrated_rms_floor,
+			time_integrated_rms_floor(self.reference),
 			float(np.finfo(float).eps),
 		)
 		for step in self.config.integration_steps:
@@ -265,11 +267,11 @@ class GaussBM4ComparisonResult:
 			(row.method_name, row.integration_step): row for row in self.summaries()
 		}
 		time_floor: float = max(
-			self.reference.time_integrated_rms_floor,
+			time_integrated_rms_floor(self.reference),
 			float(np.finfo(float).eps),
 		)
 		final_floor: float = max(
-			self.reference.final_rms_floor,
+			final_rms_floor(self.reference),
 			float(np.finfo(float).eps),
 		)
 		rows: list[GaussBM4ObservedOrder] = []

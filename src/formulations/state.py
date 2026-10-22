@@ -16,7 +16,7 @@ from dynamics.protocols import HamiltonianSystem
 from contracts.result import DiagnosticValue
 
 if TYPE_CHECKING:
-	from contracts.problem import InitialValueProblem
+	from problem import InitialValueProblem
 
 
 @dataclass(frozen=True)

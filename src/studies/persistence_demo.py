@@ -10,7 +10,7 @@ from pathlib import Path
 
 import numpy as np
 
-from contracts.problem import InitialValueProblem
+from problem import InitialValueProblem
 from request import SimulationRequest
 from diagnostics.persistence import save_solution
 from dynamics.gc import GuidingCenterDynamics

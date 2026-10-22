@@ -7,7 +7,7 @@ import numpy as np
 from methods.extended.observations import abba_pairs
 from dynamics import DynamicalSystem, GuidingCenterJacobianSystem
 from formulations.gc import spatial_shear, GCDoubledMaps
-from contracts.problem import InitialValueProblem
+from problem import InitialValueProblem
 
 from methods.extended.core.composition import ABBA2, compose
 

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from diagnostics.comparison import time_integrated_rms_floor
+
 from contextlib import redirect_stderr
 import io
 from pathlib import Path
@@ -162,8 +164,8 @@ class FiveMethodComparisonTests(unittest.TestCase):
 			result.summaries()[0].method_name,
 		)
 		self.assertAlmostEqual(
-			stored.reference.time_integrated_rms_floor,
-			result.reference.time_integrated_rms_floor,
+			time_integrated_rms_floor(stored.reference),
+			time_integrated_rms_floor(result.reference),
 		)
 		animation._draw_was_started = True
 		plt.close(runtime_figure)

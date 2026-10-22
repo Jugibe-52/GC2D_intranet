@@ -13,8 +13,8 @@ from types import ModuleType
 from typing import Any
 from uuid import uuid4
 
-from contracts.execution_options import ExecutionOptions
-from contracts.problem import InitialValueProblem
+from execution.options import ExecutionOptions
+from problem import InitialValueProblem
 from request import SimulationRequest
 from states.history import States
 from execution._modal_worker import PAYLOAD_VERSION, encode_job

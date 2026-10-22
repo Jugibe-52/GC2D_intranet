@@ -1,7 +1,9 @@
 """Shared operations for the three-, four-, and five-method comparison families."""
 from __future__ import annotations
 
-from contracts._study_validation import require_uncoupled_bm4
+from diagnostics.comparison import rms_error, time_integrated_rms_floor
+
+from studies._validation import require_uncoupled_bm4
 
 from formulations.layout import GCStateLayout
 
@@ -15,7 +17,7 @@ from contracts.comparison import (
 	AdaptiveReference, EnergyAccuracySeries, TrajectoryAccuracySeries,
 	FiveMethodComparisonSummary, FiveMethodNonlinearWorkSummary, ThreeMethodNewtonSummary,
 )
-from contracts.problem import InitialValueProblem
+from problem import InitialValueProblem
 from request import SimulationRequest
 from dynamics.gc import GuidingCenterDynamics
 
@@ -390,7 +392,7 @@ def accuracy_summaries(result: ComparisonResult) -> tuple[FiveMethodComparisonSu
 	times = result.reference.times
 	duration: float = float(times[-1] - times[0])
 	floor: float = max(
-		result.reference.time_integrated_rms_floor,
+		time_integrated_rms_floor(result.reference),
 		float(np.finfo(float).eps),
 	)
 	energy_floor: float = max(
@@ -428,7 +430,7 @@ def accuracy_summaries(result: ComparisonResult) -> tuple[FiveMethodComparisonSu
 				relative_time_integrated_rms_energy_error=(
 					energy_time_rms / result.reference_energy_scale
 				),
-				final_rms_energy_error=float(energy_series.rms_error[-1]),
+				final_rms_energy_error=float(rms_error(energy_series.errors)[-1]),
 				maximum_absolute_energy_error=float(
 					np.max(np.abs(energy_series.errors))
 				),

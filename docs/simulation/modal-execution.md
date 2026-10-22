@@ -269,3 +269,10 @@ wait timeouts, receipt-write failures, malformed output and wrong-job recovery.
 The deployment definition is registered and its worker is executed locally when
 the optional SDK is installed. These checks do not deploy an App, invoke Modal
 compute or upload scientific results to Backblaze.
+
+The contract ownership migration also serializes `problem.InitialValueProblem`
+and `execution.options.ExecutionOptions`. All four deployment examples include
+`problem`, `request` and `solvers` alongside the numerical packages. Update client
+and worker to the same revision before submitting new jobs; old in-flight jobs
+are not converted through aliases. This code migration does not deploy services
+automatically.

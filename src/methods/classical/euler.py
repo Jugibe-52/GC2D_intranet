@@ -12,7 +12,7 @@ from formulations.state import PhysicalFormulation
 from methods.base import IntegrationMethod
 from contracts.step import StepInfo, StepResult
 from contracts.observation import IntegrationStep, StepObserver
-from contracts.problem import InitialValueProblem
+from problem import InitialValueProblem
 from request import SimulationRequest
 
 

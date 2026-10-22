@@ -1,6 +1,6 @@
 """Repeat the radial BM4Midpoint study with a cycle-time stream function."""
 
-from contracts._study_validation import require_uncoupled_bm4
+from studies._validation import require_uncoupled_bm4
 
 from formulations.layout import GCStateLayout
 
@@ -15,8 +15,8 @@ from states.history import States
 
 import numpy as np
 
-from contracts.execution_options import ExecutionOptions
-from contracts.problem import InitialValueProblem
+from execution.options import ExecutionOptions
+from problem import InitialValueProblem
 from request import SimulationRequest
 from diagnostics.persistence import StoredSolution, load_solution, save_solution
 from diagnostics.storage import ArtifactStore

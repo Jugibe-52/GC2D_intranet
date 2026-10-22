@@ -1,6 +1,6 @@
 """Compare resumed trajectories against uninterrupted frozen public integrators."""
 
-from contracts._study_validation import require_uncoupled_bm4
+from studies._validation import require_uncoupled_bm4
 
 from formulations.layout import GCStateLayout
 from concurrent.futures import ProcessPoolExecutor
@@ -27,7 +27,7 @@ def baseline(indices: np.ndarray, xy: np.ndarray, meta: dict[str, Any]) -> tuple
     import numpy as np
     from methods.extended.bm4 import BM4Implicit
     from methods.extended.bm4 import BM4Midpoint
-    from contracts.problem import InitialValueProblem
+    from problem import InitialValueProblem
     from request import SimulationRequest
     from simulation.runner import simulate
     initial: np.ndarray=GCStateLayout().pack_components(xy[indices,0], xy[indices,1])

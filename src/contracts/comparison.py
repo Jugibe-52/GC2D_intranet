@@ -38,22 +38,6 @@ class AdaptiveReference:
 		object.__setattr__(self, "audit_states", audit_states)
 		object.__setattr__(self, "audit_distances", distances)
 
-	@property
-	def time_integrated_rms_floor(self) -> float:
-		"""Return the time-integrated particle-RMS DOP853/Radau discrepancy."""
-		particle_rms_squared: np.ndarray = np.mean(self.audit_distances**2, axis=0)
-		return float(
-			np.sqrt(
-				np.trapz(particle_rms_squared, self.times)
-				/ float(self.times[-1] - self.times[0])
-			)
-		)
-
-	@property
-	def final_rms_floor(self) -> float:
-		"""Return the final-time particle-RMS DOP853/Radau discrepancy."""
-		return float(np.sqrt(np.mean(self.audit_distances[:, -1] ** 2)))
-
 
 def _freeze_reference_arrays(
 	times: np.ndarray, states: np.ndarray, audit_states: np.ndarray, distances: np.ndarray,
@@ -145,21 +129,6 @@ class EnergyAccuracySeries:
 		"""Own one immutable finite ``(particles, samples)`` error history."""
 		errors: np.ndarray = _owned_energy_errors(self.method_name, self.errors)
 		object.__setattr__(self, "errors", errors)
-
-	@property
-	def rms_error(self) -> np.ndarray:
-		"""Return the particle-RMS physical-energy error at every saved time."""
-		return np.asarray(np.sqrt(np.mean(self.errors**2, axis=0)), dtype=float)
-
-	@property
-	def maximum_absolute_error(self) -> np.ndarray:
-		"""Return the worst absolute particle-energy error at every saved time."""
-		return np.asarray(np.max(np.abs(self.errors), axis=0), dtype=float)
-
-	@property
-	def running_maximum_absolute_error(self) -> np.ndarray:
-		"""Return the running worst particle-energy error through time."""
-		return np.maximum.accumulate(self.maximum_absolute_error)
 
 
 @dataclass(frozen=True, slots=True)

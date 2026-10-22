@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from diagnostics.comparison import rms_error, running_maximum_absolute_error
+
 from collections.abc import Mapping, Sequence
 from typing import TYPE_CHECKING, Protocol
 
@@ -77,16 +79,6 @@ class EnergyAccuracySeriesView(Protocol):
 	@property
 	def errors(self) -> np.ndarray:
 		"""Return signed particle-time Hamiltonian errors."""
-		...
-
-	@property
-	def rms_error(self) -> np.ndarray:
-		"""Return particle-RMS Hamiltonian errors over time."""
-		...
-
-	@property
-	def running_maximum_absolute_error(self) -> np.ndarray:
-		"""Return the running worst absolute particle error."""
 		...
 
 class ExtendedSymplecticityRunView(Protocol):
@@ -315,18 +307,14 @@ def _energy_accuracy_arrays(
 	positive_values: list[np.ndarray] = []
 	for label, values in series.items():
 		errors: np.ndarray = np.asarray(values.errors, dtype=float)
-		rms: np.ndarray = np.asarray(values.rms_error, dtype=float)
-		running: np.ndarray = np.asarray(values.running_maximum_absolute_error, dtype=float)
 		if (
 			errors.ndim != 2
 			or errors.shape[1] != time_values.size
-			or rms.shape != time_values.shape
-			or running.shape != time_values.shape
 			or not np.all(np.isfinite(errors))
-			or np.any(rms < 0.0)
-			or np.any(running < 0.0)
 		):
 			raise ValueError("Every energy series must share one finite time grid.")
+		rms: np.ndarray = rms_error(errors)
+		running: np.ndarray = running_maximum_absolute_error(errors)
 		prepared.append((label, rms, running))
 		positive_values.extend((rms[rms > 0.0], running[running > 0.0]))
 	positive_values.extend(

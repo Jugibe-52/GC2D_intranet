@@ -17,7 +17,7 @@ from formulations.layout import GCStateLayout
 
 
 if TYPE_CHECKING:
-	from contracts.problem import InitialValueProblem
+	from problem import InitialValueProblem
 	from typing import Any
 
 

@@ -1,6 +1,6 @@
 """Single-run energy-balance and trajectory study with a DOP853 reference."""
 
-from contracts._study_validation import require_uncoupled_bm4
+from studies._validation import require_uncoupled_bm4
 
 from formulations.layout import GCStateLayout
 from collections.abc import Mapping, Sequence
@@ -12,7 +12,7 @@ from methods.adaptive.scipy import DOP853
 from methods.base import NumericalMethod
 from dynamics import GuidingCenterDynamics
 
-from contracts.problem import InitialValueProblem
+from problem import InitialValueProblem
 from request import SimulationRequest
 from methods.extended.bm4 import BM4Implicit
 from methods.classical.gauss_legendre import GaussLegendre4

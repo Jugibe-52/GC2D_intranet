@@ -20,7 +20,7 @@ from scipy.spatial import cKDTree
 from dynamics import GuidingCenterDynamics
 
 from potential import Grid, Potential
-from contracts.problem import InitialValueProblem
+from problem import InitialValueProblem
 from methods.classical.rk4 import RK4
 from request import SimulationRequest
 from simulation.runner import simulate

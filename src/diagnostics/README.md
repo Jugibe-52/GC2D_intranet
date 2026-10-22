@@ -194,3 +194,17 @@ Interactive retention remains separate from pending-output buffering. In
 particular, `ImplicitABBAJacobianObserver.samples` intentionally retains every
 matrix-valued sample after writing; `chunk_size` controls pending writes and
 does not limit that documented history.
+
+## Comparison and recurrence calculations
+
+`diagnostics.comparison` reduces shared record data into reference RMS floors and
+physical-energy error histories. `time_integrated_rms_floor(reference)` uses the
+saved time weights; `final_rms_floor(reference)` uses the final saved node.
+`rms_error(errors)`, `maximum_absolute_error(errors)` and
+`running_maximum_absolute_error(errors)` consume validated signed
+`(particles, samples)` arrays in the recorded energy units.
+
+`diagnostics.bm4_recurrence.recurrence_distances(result, period=...)` returns an
+independent read-only `(particles, samples)` array using minimum-image spatial
+distance and exact zero at the initial sample. These calculations do not mutate
+the records or execute integrations. See [the API migration](../../docs/simulation/api-migration.md).

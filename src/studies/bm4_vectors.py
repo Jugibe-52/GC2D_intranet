@@ -4,7 +4,7 @@ from dataclasses import dataclass, replace
 import numpy as np
 from diagnostics.bm4_vectors import BM4VectorObserver
 from methods.extended.bm4 import BM4Implicit
-from contracts.problem import InitialValueProblem
+from problem import InitialValueProblem
 from request import SimulationRequest
 from states.history import States
 from simulation.runner import simulate

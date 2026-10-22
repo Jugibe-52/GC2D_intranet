@@ -1,4 +1,10 @@
-"""Array backend selection without importing the optional JAX runtime eagerly."""
+"""Apply the shared NumPy/JAX array compatibility contract.
+
+NumPy-only values select NumPy; any JAX array or tracer selects JAX, including
+mixed components and nested lists or tuples. These helpers identify array
+representations without selecting devices or preparing an execution environment.
+The NumPy path does not import the optional JAX runtime.
+"""
 
 import sys
 from typing import Any, TYPE_CHECKING, TypeAlias, Union

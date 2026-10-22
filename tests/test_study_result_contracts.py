@@ -91,7 +91,7 @@ class StudyResultContractTests(unittest.TestCase):
 				{"field": "synthetic"}, [{"method": "RK4"}], [], [], [])
 			save_energy_bound_result(root / "energy.h5", energy)
 			recurrence_config = ParallelBM4RecurrenceConfig(particle_count=1, t_span=(0.0, 1.0),
-				steps_per_cycle=1, saved_samples_per_cycle=1, worker_count=1)
+				steps_per_cycle=1, saved_samples_per_cycle=1, worker_count=1, coupling_frequency=0.3)
 			recurrence = ParallelBM4RecurrenceResult(recurrence_config, np.array([0.0, 1.0]),
 				np.array([[0.2, 0.3]]), np.array([[[0.2, 0.4], [0.3, 0.5]]]),
 				np.array([0.1]), np.array([2]), np.array([2.0]), np.array([2]), np.array([0.01]), 0.2)
@@ -115,7 +115,11 @@ root = Path(sys.argv[1])
 comparison = load_five_method_comparison_csv(root / 'comparison.csv')
 assert isinstance(comparison.reference, AdaptiveReference)
 assert isinstance(load_energy_bound_result(root / 'energy.h5'), GCEnergyBoundResult)
-assert isinstance(load_parallel_bm4_recurrence_npz(root / 'recurrence.npz').result, ParallelBM4RecurrenceResult)
+recurrence = load_parallel_bm4_recurrence_npz(root / 'recurrence.npz').result
+assert isinstance(recurrence, ParallelBM4RecurrenceResult)
+assert recurrence.config.coupling_frequency == 0.3
+from diagnostics.bm4_recurrence import recurrence_distances
+assert recurrence_distances(recurrence, period=6.).shape == (1, 2)
 assert not any(name == 'studies' or name.startswith('studies.') for name in sys.modules)
 """
 			completed = subprocess.run([sys.executable, "-c", script, str(root)],

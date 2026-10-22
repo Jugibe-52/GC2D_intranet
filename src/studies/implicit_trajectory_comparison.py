@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from contracts._study_validation import require_uncoupled_bm4
+from studies._validation import require_uncoupled_bm4
 
 from dataclasses import dataclass
 from itertools import combinations
@@ -27,7 +27,7 @@ from potential import Potential
 from methods.extended.bm4 import BM4Implicit
 from methods.extended.abba import ABBA2Implicit
 
-from contracts.problem import InitialValueProblem
+from problem import InitialValueProblem
 from solvers.nonlinear import NonlinearSolver
 from methods.base import NumericalMethod
 from request import SimulationRequest

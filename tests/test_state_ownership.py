@@ -12,7 +12,7 @@ import unittest
 
 import numpy as np
 
-from contracts.problem import InitialValueProblem
+from problem import InitialValueProblem
 from request import SimulationRequest
 from formulations.layout import FCStateLayout, GCStateLayout, PackedStateLayout
 from dynamics.fc import FullCyclotronDynamics

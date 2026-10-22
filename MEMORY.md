@@ -205,7 +205,7 @@ cases remain explicit. See `docs/studies/poincare-automation.md`.
 ## Current state and saved physical states
 
 `states.initial.InitialConditions` owns physical values and a copied structural
-layout, with GC/FC factories and independent public arrays. `InitialValueProblem`
+layout, with GC/FC factories and independent public arrays. `problem.InitialValueProblem`
 associates it with compatible dynamics; array input and array-valued initial_state
 remain supported. `states.generators` still returns arrays. Physical GC/FC
 layouts live in `formulations.layout` and preserve NumPy/JAX operations; named
@@ -239,32 +239,33 @@ See `docs/simulation/initial-solvers-formulations.md` for contracts and examples
 
 ## Executor-owned integration
 
-`Execution.run` owns environment preparation, fresh-run validation, running/finished
-transitions and one States.prepare/finalize boundary; simulate validates the job
-and completed result. Host and JAX run_steps workers fill that open recorder and
-return numerical diagnostics without finalizing or changing run status. Use
-States.record_history for complete bulk physical arrays from JAX; it requires an
-empty recorder and validates before writing. Preserve independent shadow samples.
+`Execution.run` owns environment preparation, fresh-run validation, running/finished transitions and one States.prepare/finalize boundary; simulate validates
+the job and completed result. Host and JAX run_steps workers fill that open recorder and return numerical diagnostics without finalizing or changing run status.
+Use States.record_history for complete bulk physical arrays from JAX; it requires an empty recorder and validates before writing. Preserve independent shadow
+samples.
 
-NumericalMethod exposes new_run(problem, request, evaluated_dynamics=...) and
-jax_mode; methods.base.IntegrationMethod retains numerical preparation, advancement,
-observations and controller access. Keep exact-type JAX adapters beside algorithms;
-do not repeat their fixed-method support list. Unknown overrides fail explicitly.
-Configured methods are reusable; consumed runs finish on success and failure.
+NumericalMethod exposes new_run(problem, request, evaluated_dynamics=...) and jax_mode; methods.base.IntegrationMethod retains numerical preparation,
+advancement, observations and controller access. Keep exact-type JAX adapters beside algorithms; do not repeat their fixed-method support list. Unknown
+overrides fail explicitly. Configured methods are reusable; consumed runs finish on success and failure.
 
-execution._jax owns optional environment preparation and the cached SciPy/JAX host
-adapter. Dynamics has no dependency on execution. JaxPotential stays independently
-usable, with its own precision guards and tracing-safe concrete caches; executor
-preparation shares physical samples/splines without refitting or mutation.
-execution._host owns host control, sampling, progress and step-count helpers;
-execution._jax_fixed owns the compiled loop; execution.state owns IntegrationState.
+execution._jax owns optional environment preparation and the cached SciPy/JAX host adapter. Dynamics has no dependency on execution. JaxPotential stays
+independently usable, with its own precision guards and tracing-safe concrete caches; executor preparation shares physical samples/splines without refitting or
+mutation. execution._host owns host control, sampling, progress and step-count helpers; execution._jax_fixed owns the compiled loop; execution.state owns
+IntegrationState.
 
-The integration package, execution._fixed, execution._jax_run, dynamics._jax_host,
-CompiledFixedMethod and complete integrate_method/integrate_fixed functions are
-retired without aliases. Use simulate/Execution.run for complete jobs. Import
-numerical bases from methods and controller/state extensions from execution.
-Methods use type-only references and local controller/snapshot imports to avoid
-package-initialization cycles. See docs/simulation/execution.md.
+The integration package, execution._fixed, execution._jax_run, dynamics._jax_host, CompiledFixedMethod and complete integrate_method/integrate_fixed functions
+are retired without aliases. Use simulate/Execution.run for complete jobs. Import numerical bases from methods and controller/state extensions from execution.
+Methods use type-only references and local controller/snapshot imports to avoid package-initialization cycles. See docs/simulation/execution.md.
+
+## Contract responsibilities
+
+`problem` owns InitialValueProblem (also exported by simulation); execution.options
+owns ExecutionOptions (also exported by execution). Old contract paths are removed.
+Shared records retain data/validation; diagnostics.comparison owns RMS/energy
+reductions and diagnostics.bm4_recurrence owns recurrence_distances. Use functions,
+not removed record properties/methods. studies._validation owns require_uncoupled_bm4;
+archive readers retain historical rates. contracts.arrays applies shared NumPy/JAX
+compatibility, including mixed arrays/tracers, without device or execution policy.
 
 ## Uncoupled BM4 and reusable C
 

@@ -10,7 +10,7 @@ import unittest
 
 import numpy as np
 
-from contracts.execution_options import ExecutionOptions
+from execution.options import ExecutionOptions
 from execution.execution import Execution
 from potential import Grid, Potential
 from states.history import States

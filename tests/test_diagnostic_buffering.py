@@ -17,7 +17,7 @@ from unittest.mock import patch
 import numpy as np
 
 from contracts.observation import IntegrationStage, IntegrationStep
-from contracts.problem import InitialValueProblem
+from problem import InitialValueProblem
 from request import SimulationRequest
 from diagnostics.abba_jacobian.observer import ImplicitABBAJacobianObserver
 from diagnostics.buffering import DiagnosticBuffer

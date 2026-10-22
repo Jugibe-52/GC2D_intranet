@@ -5,8 +5,8 @@ from __future__ import annotations
 import numpy as np
 
 from methods.base import NumericalMethod
-from contracts.execution_options import ExecutionOptions
-from contracts.problem import InitialValueProblem
+from execution.options import ExecutionOptions
+from problem import InitialValueProblem
 from request import SimulationRequest
 from execution.execution import Execution
 from states.history import States

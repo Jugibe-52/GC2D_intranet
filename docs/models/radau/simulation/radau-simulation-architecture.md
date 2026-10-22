@@ -122,7 +122,7 @@ on JAX with transfers at each evaluation. Diagnostics report
 `execution_mode="hybrid_scipy_controller"`; the existing host callback and
 optional Radau Jacobian contracts remain intact.
 
-Import `ExecutionOptions` from `contracts.execution_options`. Omission preserves existing
+Import `ExecutionOptions` from `execution.options`. Omission preserves existing
 SciPy/NumPy execution. See the [shared execution contract](../../../simulation/jax-execution.md)
 for supported physical systems, solver details, timing scope and validation.
 

@@ -10,8 +10,8 @@ import unittest
 
 import numpy as np
 
-from contracts.execution_options import ExecutionOptions
-from contracts.problem import InitialValueProblem
+from execution.options import ExecutionOptions
+from problem import InitialValueProblem
 from request import SimulationRequest
 from dynamics.gc import GuidingCenterDynamics
 from dynamics.fc import FullCyclotronDynamics
@@ -48,7 +48,7 @@ class Block:
         if fullname == "jax" or fullname.startswith("jax."):
             raise ImportError("JAX deliberately unavailable")
 sys.meta_path.insert(0, Block())
-from contracts.execution_options import ExecutionOptions
+from execution.options import ExecutionOptions
 from request import SimulationRequest
 from methods.classical.rk4 import RK4
 from simulation.runner import simulate

@@ -5,7 +5,7 @@ method. The following interfaces have been removed, including their exports:
 
 | Removed interface | Current interface |
 |---|---|
-| `contracts.execution.Execution` | `execution.Execution` executes complete jobs; `contracts.execution_options.ExecutionOptions` holds backend choices |
+| `contracts.execution.Execution` | `execution.Execution` executes complete jobs; `execution.options.ExecutionOptions` holds backend choices |
 | `simulate(..., execution=Execution(backend="jax"))` | `simulate(..., options=ExecutionOptions(backend="jax"))`; `execution` now selects an executor |
 | `SimulationRunner().simulate(...)` | `simulate(...)` |
 | `ABBA4ImplicitSingleProjection(...)` | `ABBA4Implicit(...)` |
@@ -130,3 +130,28 @@ See [initial data and numerical components](initial-solvers-formulations.md) for
 `InitialConditions`, reusable NewtonSolver/BroydenSolver configurations and the
 two projection classes. Existing array inputs, method names, tolerance controls,
 simulate/executor signatures and stored result formats remain supported.
+
+## Contract responsibilities (2026-10-22)
+
+Import `InitialValueProblem` from `problem` internally or from `simulation`
+publicly. Import `ExecutionOptions` from `execution.options` or `execution`.
+The old `contracts.problem` and `contracts.execution_options` modules are removed
+without aliases. CSV/NPZ/HDF5 schemas are unchanged; old Python pickles embedding
+removed module paths are outside this migration.
+
+Records retain their constructors and arrays. Call diagnostics explicitly:
+
+| Previous call | Current call | Import module |
+|---|---|---|
+| `reference.time_integrated_rms_floor` | `time_integrated_rms_floor(reference)` | `diagnostics.comparison` |
+| `reference.final_rms_floor` | `final_rms_floor(reference)` | `diagnostics.comparison` |
+| `series.rms_error` | `rms_error(series.errors)` | `diagnostics.comparison` |
+| `series.maximum_absolute_error` | `maximum_absolute_error(series.errors)` | `diagnostics.comparison` |
+| `series.running_maximum_absolute_error` | `running_maximum_absolute_error(series.errors)` | `diagnostics.comparison` |
+| `result.recurrence_distances(period=period)` | `recurrence_distances(result, period=period)` | `diagnostics.bm4_recurrence` |
+
+The removed record calculations have no forwarding methods. Energy plots now
+require only the signed `errors` array from their series view and calculate the
+reductions through diagnostics. `contracts.arrays` retains its existing imports
+and NumPy/JAX behavior. New-work BM4 validation belongs to `studies._validation`;
+reading historical coupled records remains supported.

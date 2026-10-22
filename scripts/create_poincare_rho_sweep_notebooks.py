@@ -85,7 +85,7 @@ an interrupted job resumes from its confirmed Modal receipt without resubmitting
             import matplotlib.pyplot as plt
             from IPython.display import Markdown, display
 
-            from contracts.execution_options import ExecutionOptions
+            from execution.options import ExecutionOptions
             from diagnostics.paths import find_project_root, solution_destination
             from studies.poincare_rho_sweep import (
                 RhoStarConfig, prepare_rho_star, modal_rho_executor, run_and_save_rho_star,

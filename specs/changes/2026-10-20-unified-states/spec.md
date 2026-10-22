@@ -5,7 +5,7 @@ revision = 2
 status = "verified"
 approval = "2026-10-20: User accepted revision 2 and explicitly requested SDD implementation."
 id = "2026-10-20-unified-states"
-sources = ["src/states/history.py", "src/diagnostics/geometry.py", "src/states/generators.py", "src/formulations/layout.py", "src/contracts/configuration.py", "src/contracts/problem.py"]
+sources = ["src/states/history.py", "src/diagnostics/geometry.py", "src/states/generators.py", "src/formulations/layout.py", "src/contracts/configuration.py", "src/problem.py"]
 documents = ["specs/current/simulation.md", "specs/current/results.md", "docs/simulation/integration-architecture.md"]
 requirements = ["SIM-001", "SOL-001", "SOL-002", "STA-001", "STA-002"]
 proposed_requirements = ["STA-001", "STA-002"]
@@ -58,3 +58,6 @@ STA-002: radial_star, ranked_radial_star, square and circle are external functio
 State can serve directly as initial data through the existing structural InitialConfiguration protocol. Its initial_state property is a compatibility accessor for the same snapshot. Preserve problem ownership and Solution history/provenance contracts. The integration core continues to operate on arrays without allocating State objects per numerical step; existing diagnostic replay may construct a problem snapshot. Coordinate units and particle identities remain unchanged.
 
 Source references were updated for the 2026-10-20 states migration; prior recorded outcomes are unchanged.
+
+Source locations were updated on 2026-10-22 after the contract ownership move;
+the historical scope, acceptance and recorded checks above are unchanged.
