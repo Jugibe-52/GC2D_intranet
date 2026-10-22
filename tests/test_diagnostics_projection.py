@@ -16,7 +16,7 @@ from potential import Potential
 from simulation import (
 	IntegrationStage,
 )
-from diagnostics.projection import (
+from diagnostics.formulations.projection import (
 	ProjectedSymplecticityAreaObserver,
 	gc_average_projection,
 	gc_diagonal_embedding,

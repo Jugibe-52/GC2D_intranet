@@ -9,7 +9,7 @@ from states import States
 from execution.state import IntegrationState
 from contracts.step import StepInfo
 from states.generators import circle, square
-from diagnostics.geometry import calculate_area
+from diagnostics.states.geometry import calculate_area
 
 
 class StateTests(unittest.TestCase):

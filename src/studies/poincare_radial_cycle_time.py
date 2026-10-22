@@ -18,8 +18,8 @@ import numpy as np
 from execution.options import ExecutionOptions
 from problem import InitialValueProblem
 from request import SimulationRequest
-from diagnostics.persistence import StoredSolution, load_solution, save_solution
-from diagnostics.storage import ArtifactStore
+from diagnostics.io.persistence import StoredSolution, load_solution, save_solution
+from diagnostics.io.storage import ArtifactStore
 from dynamics.gc import GuidingCenterDynamics
 from execution.execution import Execution
 

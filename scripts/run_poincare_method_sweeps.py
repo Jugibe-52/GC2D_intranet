@@ -5,7 +5,7 @@ import argparse
 import json
 from pathlib import Path
 
-from diagnostics.paths import find_project_root
+from diagnostics.io.paths import find_project_root
 from potential.load import DEFAULT_FIELD_INDICES
 from studies.h5_provenance import restore_h5_selection
 from studies.poincare_gap_probes import GapProbeSeeds

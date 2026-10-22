@@ -23,11 +23,11 @@ from methods.base import NumericalMethod
 from request import SimulationRequest
 from states.history import States
 from simulation.runner import simulate
-from diagnostics.symplecticity import (
+from diagnostics.methods.symplecticity.area import (
 	GCAreaSymplecticityObserver,
 	GCAreaSymplecticityRecord,
-	StepJacobianMethod,
 )
+from diagnostics.methods.jacobians import StepJacobianMethod
 
 from ._gc_symplecticity_models import GCSymplecticityConfig, GCSymplecticitySummary
 from ._validation import integer_ratio, resolve_rho

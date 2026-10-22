@@ -10,7 +10,7 @@ from pathlib import Path
 
 import numpy as np
 
-from diagnostics.symplecticity import (
+from diagnostics.methods.symplecticity import (
 	central_difference_jacobian,
 )
 

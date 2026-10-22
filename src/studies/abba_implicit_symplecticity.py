@@ -10,7 +10,7 @@ from typing import Any, ClassVar, Mapping, TypeAlias
 
 import numpy as np
 
-from diagnostics.symplecticity import StepJacobianMethod
+from diagnostics.methods.jacobians import StepJacobianMethod
 
 from potential import Potential
 from methods.extended.configuration import ABBA_PROJECTION_FORMULATIONS, ProjectionFormulation

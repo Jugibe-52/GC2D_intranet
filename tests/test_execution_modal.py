@@ -23,7 +23,7 @@ from execution.options import ExecutionOptions
 from problem import InitialValueProblem
 from request import SimulationRequest
 from states.history import States
-from diagnostics.persistence import load_solution, save_solution
+from diagnostics.io.persistence import load_solution, save_solution
 from dynamics.gc import GuidingCenterDynamics
 from execution import Execution, Execution_Modal
 from execution._modal_worker import encode_job, execute_payload

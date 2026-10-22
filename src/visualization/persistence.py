@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
 import numpy as np
 
-from diagnostics.persistence import StoredSolution
+from diagnostics.io.persistence import StoredSolution
 
 from typing import TYPE_CHECKING
 

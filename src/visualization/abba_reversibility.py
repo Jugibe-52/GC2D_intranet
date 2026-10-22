@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
 import numpy as np
 
-from diagnostics import ImplicitABBAReversibilitySample
+from diagnostics.methods.extended.abba_reversibility import ImplicitABBAReversibilitySample
 
 from typing import TYPE_CHECKING
 

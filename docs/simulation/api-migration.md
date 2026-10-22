@@ -14,7 +14,7 @@ method. The following interfaces have been removed, including their exports:
 | `Trajectory`, `TrajectoryGC`, `TrajectoryFC` | `InitialValueProblem(dynamics, values, layout=...)` |
 | `centered_gc_trajectory` | `centered_gc_configuration` |
 | Physical `rho`/`eta` metadata on initial configurations and `Area` | Explicit dynamics parameters or study configuration |
-| `diagnostics.symplecticity.jacobians` and `.paths` | `diagnostics.jacobians` and `diagnostics.paths` |
+| `diagnostics.symplecticity.jacobians` and `.paths` | `diagnostics.methods.jacobians` and `diagnostics.io.paths` |
 | `PreparedPotential` and `potential.prepared` | Read-only physical properties and canonical splines owned directly by `Potential` |
 | `ScipyPotentialEvaluator`, `JaxPotentialEvaluator`, and `PotentialEvaluator` | `Potential.evaluate` uses NumPy/SciPy; construct `JaxPotential` for JAX and place inputs with `jax.device_put` |
 | JAX evaluator grid methods | `evaluate_grid` stays NumPy-only; inherited `electric_field` follows the potential class, also on the full grid |
@@ -122,7 +122,7 @@ Initial configurations are now packed NumPy arrays. Use `from formulations.layou
 
 Remove imports of `states.State`, `solution.Solution`, `contracts.result.IntegrationData`, `integration.IntegrationCollector`, `states.layout` and `contracts.request`. There are no compatibility modules. `InitialValueProblem.initial_configuration`, result `.source`, `.y` and `.trajectory` are removed. Compare initial snapshots by value rather than object identity. An executor must return complete `States`; `simulate` validates and returns it without creating another container. For changes to diagnostic metadata, use `.with_diagnostics(...)`.
 
-`save_solution` and `load_solution` keep their names and numerical archive schemas. Legacy files remain readable, including those without an initial snapshot. `calculate_area(values, layout=..., period=...)` stays in `diagnostics.geometry`. Geometry labels remain study metadata. Fixed shadow samples never replace the main state; adaptive dense output and the numerical algorithms are unchanged. JAX constructs the same `States` at its host boundary.
+`save_solution` and `load_solution` keep their names and numerical archive schemas. Legacy files remain readable, including those without an initial snapshot. `calculate_area(values, layout=..., period=...)` stays in `diagnostics.states.geometry`. Geometry labels remain study metadata. Fixed shadow samples never replace the main state; adaptive dense output and the numerical algorithms are unchanged. JAX constructs the same `States` at its host boundary.
 
 ## Explicit initial, solver and projection objects
 
@@ -143,15 +143,27 @@ Records retain their constructors and arrays. Call diagnostics explicitly:
 
 | Previous call | Current call | Import module |
 |---|---|---|
-| `reference.time_integrated_rms_floor` | `time_integrated_rms_floor(reference)` | `diagnostics.comparison` |
-| `reference.final_rms_floor` | `final_rms_floor(reference)` | `diagnostics.comparison` |
-| `series.rms_error` | `rms_error(series.errors)` | `diagnostics.comparison` |
-| `series.maximum_absolute_error` | `maximum_absolute_error(series.errors)` | `diagnostics.comparison` |
-| `series.running_maximum_absolute_error` | `running_maximum_absolute_error(series.errors)` | `diagnostics.comparison` |
-| `result.recurrence_distances(period=period)` | `recurrence_distances(result, period=period)` | `diagnostics.bm4_recurrence` |
+| `reference.time_integrated_rms_floor` | `time_integrated_rms_floor(reference)` | `diagnostics.studies.comparison` |
+| `reference.final_rms_floor` | `final_rms_floor(reference)` | `diagnostics.studies.comparison` |
+| `series.rms_error` | `rms_error(series.errors)` | `diagnostics.studies.comparison` |
+| `series.maximum_absolute_error` | `maximum_absolute_error(series.errors)` | `diagnostics.studies.comparison` |
+| `series.running_maximum_absolute_error` | `running_maximum_absolute_error(series.errors)` | `diagnostics.studies.comparison` |
+| `result.recurrence_distances(period=period)` | `recurrence_distances(result, period=period)` | `diagnostics.studies.bm4_recurrence` |
 
 The removed record calculations have no forwarding methods. Energy plots now
 require only the signed `errors` array from their series view and calculate the
 reductions through diagnostics. `contracts.arrays` retains its existing imports
 and NumPy/JAX behavior. New-work BM4 validation belongs to `studies._validation`;
 reading historical coupled records remains supported.
+
+## Diagnostics by observed process (2026-10-22)
+
+Diagnostic implementations now live under `diagnostics.execution`,
+`diagnostics.methods`, `diagnostics.formulations`, `diagnostics.states`,
+`diagnostics.studies` and `diagnostics.io`. The existing top-level exports of
+`diagnostics` retain their names. Direct imports from former flat submodules
+must use the new process path; no compatibility modules are provided.
+See the [diagnostic package guide](../../src/diagnostics/README.md) for ownership
+and import examples. Numerical behavior, archive schemas and output destinations
+are unchanged. Working notebook imports have been migrated without replacing
+stored results; historical conflict copies retain their original references.

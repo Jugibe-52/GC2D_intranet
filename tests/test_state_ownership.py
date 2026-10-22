@@ -175,7 +175,7 @@ class StateOwnershipTests(unittest.TestCase):
 		np.testing.assert_array_equal(solution.positions()[0], solution.states[:1])
 
 	def test_saved_solution_uses_initial_snapshot_after_source_changes(self) -> None:
-		from diagnostics.persistence import load_solution, save_solution
+		from diagnostics.io.persistence import load_solution, save_solution
 
 		state = np.array([1.0, 0.7])
 		source = _ExternalConfiguration(state, GCStateLayout())

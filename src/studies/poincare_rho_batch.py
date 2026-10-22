@@ -15,8 +15,8 @@ from time import time
 from typing import Any, Literal, TYPE_CHECKING
 
 from execution.options import ExecutionOptions
-from diagnostics.paths import DEFAULT_RESULTS_BUCKET, solution_destination
-from diagnostics.storage import StorageError
+from diagnostics.io.paths import DEFAULT_RESULTS_BUCKET, solution_destination
+from diagnostics.io.storage import StorageError
 from studies.dimensional_h5_midpoint import load_dimensional_h5_field, resolve_h5_source
 from studies.poincare_gap_probes import GapProbeSeeds, build_gap_probes
 from studies.poincare_rho_sweep import (
@@ -25,7 +25,7 @@ from studies.poincare_rho_sweep import (
 
 
 if TYPE_CHECKING:
-	from diagnostics.persistence import StoredSolution
+	from diagnostics.io.persistence import StoredSolution
 	from execution.execution_modal import Execution_Modal
 	from studies.poincare_rho_sweep import PreparedRhoStar
 

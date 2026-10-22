@@ -57,6 +57,25 @@ Tests live in `tests/`, runnable examples in `examples/`, and supporting scripts
 in `scripts/`. Architecture and theory belong in `docs/`; field and trajectory
 data live in `data/`. Respect `.gitignore` when adding notebooks or outputs.
 
+## Diagnostic ownership
+
+- Organize `src/diagnostics/` by the process being observed, following the
+  corresponding `src/` responsibility: `execution/`, `methods/`,
+  `formulations/`, `states/` and `studies/`. Keep common output and transport in
+  `io/`; create other process packages only when they have an implementation.
+- Place method-family diagnostics under that family, such as
+  `diagnostics/methods/extended/`. Keep reusable metrics in one shared module.
+  Classify by the observed operation, not by the metric's name: iteration
+  summaries for complete steps belong to `methods/`, while observation of
+  individual algebraic iterations belongs to `solvers/` when introduced.
+- Keep study-specific analysis and archive formats under `diagnostics/studies/`;
+  experiment composition stays in `studies/`, and plotting in `visualization/`.
+- Numerical processes expose observations through `contracts` and must not
+  depend on diagnostic implementations. Keep `diagnostics` public exports
+  explicit and import defining modules internally. Update consumers when
+  relocating modules; do not recreate retired paths through aliases.
+- See `src/diagnostics/README.md` for the current layout and supported imports.
+
 ## Build, Test, and Development Commands
 
 Use Python 3.11 or later. Run from the repository root in a virtual environment:

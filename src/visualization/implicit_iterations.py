@@ -9,7 +9,7 @@ import numpy as np
 from matplotlib.figure import Figure
 from matplotlib.ticker import MaxNLocator
 
-from diagnostics import ImplicitIterationRecord
+from diagnostics.methods.implicit_iterations import ImplicitIterationRecord
 
 from typing import TYPE_CHECKING
 

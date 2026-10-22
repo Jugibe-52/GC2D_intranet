@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 from matplotlib.colors import to_hex
 import numpy as np
 
-from diagnostics.persistence import StoredSolution
+from diagnostics.io.persistence import StoredSolution
 from visualization.poincare_comparison import export_poincare_panel_comparison
 
 

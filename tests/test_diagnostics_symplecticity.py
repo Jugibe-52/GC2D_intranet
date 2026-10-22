@@ -17,7 +17,7 @@ from simulation import (
 	IntegrationStage,
 	IntegrationStep,
 )
-from diagnostics.symplecticity import (
+from diagnostics.methods.symplecticity import (
 	GCAreaSymplecticityObserver,
 	SymplecticityObserver,
 	central_difference_jacobian,

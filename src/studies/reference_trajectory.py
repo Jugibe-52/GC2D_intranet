@@ -16,7 +16,7 @@ import numpy as np
 from ._validation import finite_time_span, integer_ratio, nonnegative_finite, positive_finite
 import scipy
 
-from diagnostics import (
+from diagnostics.studies.reference_trajectory import (
 	StoredReferenceTrajectory,
 	reference_trajectory_output_directory,
 	write_reference_trajectory,

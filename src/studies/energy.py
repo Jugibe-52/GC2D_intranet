@@ -23,7 +23,7 @@ from ._validation import (
 )
 
 
-from diagnostics import GCGeneralizedEnergyObserver
+from diagnostics.methods.extended.energy.observer import GCGeneralizedEnergyObserver
 from dynamics import GuidingCenterDynamics
 
 from potential import Potential

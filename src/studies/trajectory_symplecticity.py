@@ -25,10 +25,12 @@ from ._validation import (
 	positive_integer,
 )
 
-from diagnostics import (
+from diagnostics.methods.trajectory_symplecticity.observer import (
 	GCTrajectorySymplecticityObserver,
 	TrajectoryJacobianCalculator,
 	TrajectorySymplecticityRecord,
+)
+from diagnostics.methods.trajectory_symplecticity.jacobians import (
 	abba4_implicit_step_particle_jacobians,
 	bm4_implicit_step_particle_jacobians,
 	abba2_implicit_step_particle_jacobians,

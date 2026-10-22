@@ -10,7 +10,7 @@ import numpy as np
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 
-from diagnostics import StoredReferenceTrajectory
+from diagnostics.studies.reference_trajectory import StoredReferenceTrajectory
 
 from .ten_method_comparison import TEN_METHOD_COLORS, TEN_METHOD_SHORT_LABELS
 

@@ -91,10 +91,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 from IPython.display import display, Markdown
 
-from diagnostics.paths import find_project_root, notebook_output_directory
-from diagnostics.reference_trajectory import load_reference_trajectory
-from diagnostics.reference_progress import reference_progress_log
-from diagnostics.gc_energy_bound import save_energy_bound_result, load_energy_bound_result
+from diagnostics.io.paths import find_project_root, notebook_output_directory
+from diagnostics.studies.reference_trajectory import load_reference_trajectory
+from diagnostics.execution.reference_progress import reference_progress_log
+from diagnostics.studies.gc_energy_bound import save_energy_bound_result, load_energy_bound_result
 from studies.historical_h5 import historical_h5_hamiltonian
 from dynamics import GuidingCenterDynamics
 from studies.initial_conditions import radial_gc_configuration, domain_center
@@ -412,7 +412,7 @@ md(r"""
 - [HDF5 import and units](../../docs/dynamics/gc2d-h5-import.md).
 - [Physical guiding-center dynamics](../../src/dynamics/gc.py).
 - [BM4Implicit method and projection](../../docs/models/bm4-implicit/simulation/bm4-simulation-architecture.md).
-- [BM4 accepted-stage energy observer](../../src/diagnostics/energy/observer.py).
+- [BM4 accepted-stage energy observer](../../src/diagnostics/methods/extended/energy/observer.py).
 - [Classical RK4 and optional momentum evolution](../../src/methods/classical/rk4.py).
 - [DOP853/Radau reference pipeline](../../src/studies/reference_trajectory.py).
 - Hairer, Lubich and Wanner, *Geometric Numerical Integration*, IX.8: the long-time

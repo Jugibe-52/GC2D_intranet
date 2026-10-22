@@ -1,6 +1,6 @@
 """Audited accuracy, serial timings and multipliers for the two BM4 methods."""
 
-from diagnostics.comparison import final_rms_floor, time_integrated_rms_floor
+from diagnostics.studies.comparison import final_rms_floor, time_integrated_rms_floor
 
 from formulations.layout import GCStateLayout
 
@@ -13,7 +13,7 @@ import numpy as np
 from threadpoolctl import threadpool_limits
 
 from dynamics import GuidingCenterDynamics
-from diagnostics import StoredReferenceTrajectory
+from diagnostics.studies.reference_trajectory import StoredReferenceTrajectory
 
 from potential import Potential
 from methods.extended.bm4 import BM4Implicit

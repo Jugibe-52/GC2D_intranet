@@ -19,15 +19,15 @@ import numpy as np
 from contracts.observation import IntegrationStage, IntegrationStep
 from problem import InitialValueProblem
 from request import SimulationRequest
-from diagnostics.abba_jacobian.observer import ImplicitABBAJacobianObserver
-from diagnostics.buffering import DiagnosticBuffer
-from diagnostics.implicit_iterations import ImplicitABBAIterationObserver
-from diagnostics.output import DiagnosticBlockPaths
-from diagnostics.projection.observer import ProjectedSymplecticityAreaObserver
-from diagnostics.symplecticity.area import GCAreaSymplecticityObserver
-from diagnostics.symplecticity.observer import SymplecticityObserver
-from diagnostics.trajectory_symplecticity.jacobians import abba2_implicit_step_particle_jacobians
-from diagnostics.trajectory_symplecticity.observer import GCTrajectorySymplecticityObserver
+from diagnostics.methods.extended.abba_jacobian.observer import ImplicitABBAJacobianObserver
+from diagnostics.io.buffering import DiagnosticBuffer
+from diagnostics.methods.implicit_iterations import ImplicitABBAIterationObserver
+from diagnostics.io.output import DiagnosticBlockPaths
+from diagnostics.formulations.projection.observer import ProjectedSymplecticityAreaObserver
+from diagnostics.methods.symplecticity.area import GCAreaSymplecticityObserver
+from diagnostics.methods.symplecticity.observer import SymplecticityObserver
+from diagnostics.methods.trajectory_symplecticity.jacobians import abba2_implicit_step_particle_jacobians
+from diagnostics.methods.trajectory_symplecticity.observer import GCTrajectorySymplecticityObserver
 from dynamics.gc import GuidingCenterDynamics
 
 from methods.extended.abba import ABBA2Implicit
@@ -79,7 +79,7 @@ class DiagnosticBufferingTests(unittest.TestCase):
 		with tempfile.TemporaryDirectory() as temporary:
 			output = _buffer(Path(temporary))
 			output.append(7)
-			with patch("diagnostics.buffering.write_diagnostic_block", side_effect=OSError("disk full")):
+			with patch("diagnostics.io.buffering.write_diagnostic_block", side_effect=OSError("disk full")):
 				with self.assertRaisesRegex(OSError, "disk full"):
 					output.close()
 			self.assertFalse(output.closed)
@@ -144,7 +144,7 @@ class DiagnosticBufferingTests(unittest.TestCase):
 			for observer, feed in self._observers(Path(temporary)):
 				with self.subTest(observer=type(observer).__name__):
 					error = RuntimeError("integration failed")
-					with patch("diagnostics.buffering.write_diagnostic_block", side_effect=OSError("disk full")) as write:
+					with patch("diagnostics.io.buffering.write_diagnostic_block", side_effect=OSError("disk full")) as write:
 						with self.assertRaises(RuntimeError) as raised:
 							with observer:
 								feed()

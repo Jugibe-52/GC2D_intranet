@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from formulations.layout import GCStateLayout
 
-from diagnostics.geometry import calculate_area
+from diagnostics.states.geometry import calculate_area
 
 from collections.abc import Mapping, Sequence
 from typing import Any, TYPE_CHECKING

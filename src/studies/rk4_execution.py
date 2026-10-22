@@ -14,7 +14,7 @@ import scipy
 from execution.options import ExecutionOptions
 from problem import InitialValueProblem
 from request import SimulationRequest
-from diagnostics.persistence import load_solution, save_solution
+from diagnostics.io.persistence import load_solution, save_solution
 from dynamics.gc import GuidingCenterDynamics
 
 from methods.classical.rk4 import RK4
@@ -24,7 +24,7 @@ from states.history import States
 
 
 if TYPE_CHECKING:
-	from diagnostics.persistence import StoredSolution
+	from diagnostics.io.persistence import StoredSolution
 
 
 @dataclass(frozen=True)

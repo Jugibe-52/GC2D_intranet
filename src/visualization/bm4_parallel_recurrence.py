@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from diagnostics.bm4_recurrence import recurrence_distances
+from diagnostics.studies.bm4_recurrence import recurrence_distances
 
 from typing import Any, TYPE_CHECKING
 

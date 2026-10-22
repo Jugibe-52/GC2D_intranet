@@ -13,7 +13,7 @@ from typing import Any, Iterator
 from uuid import uuid4
 
 from studies._validation import require_uncoupled_bm4
-from diagnostics.persistence import load_solution, save_solution, StoredSolution
+from diagnostics.io.persistence import load_solution, save_solution, StoredSolution
 from execution.execution import Execution
 from studies.poincare_automation import (
 	AutomationConfig, AutomationCase, AutomationField, PreparedAutomationCase, PARTICLE_SET,

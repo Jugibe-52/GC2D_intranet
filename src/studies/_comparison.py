@@ -1,7 +1,7 @@
 """Shared operations for the three-, four-, and five-method comparison families."""
 from __future__ import annotations
 
-from diagnostics.comparison import rms_error, time_integrated_rms_floor
+from diagnostics.studies.comparison import rms_error, time_integrated_rms_floor
 
 from studies._validation import require_uncoupled_bm4
 

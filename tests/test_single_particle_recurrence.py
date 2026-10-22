@@ -6,7 +6,7 @@ from pathlib import Path
 
 import numpy as np
 
-from diagnostics.single_particle_recurrence import load_recurrence, save_recurrence
+from diagnostics.studies.single_particle_recurrence import load_recurrence, save_recurrence
 from studies.single_particle_recurrence import (
     SingleParticleRecurrenceConfig, distance_to_initial, locate_returns,
     minimum_image, threshold_windows,

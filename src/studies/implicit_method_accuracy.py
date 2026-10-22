@@ -23,7 +23,7 @@ from ._validation import (
 	positive_integer,
 )
 
-from diagnostics import StoredReferenceTrajectory
+from diagnostics.studies.reference_trajectory import StoredReferenceTrajectory
 from dynamics import GuidingCenterDynamics
 
 from potential import Potential

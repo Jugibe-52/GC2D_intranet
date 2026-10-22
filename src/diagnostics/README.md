@@ -1,18 +1,67 @@
 # Numerical diagnostics
 
+## Find a diagnostic by its process
+
+The package follows the responsibilities of `src`. Shared calculations have
+one implementation; folders are created only for processes with diagnostics.
+
+| Package | Observed process and implementations |
+| --- | --- |
+| `execution` | Run progress and reference-integration progress. |
+| `methods` | Complete-step iteration summaries, shared step Jacobians, stage and trajectory symplecticity. |
+| `methods.adaptive` | Accepted dense trajectories (`trajectory.py`). |
+| `methods.extended` | ABBA Jacobians and reversibility, BM4 vectors and energy balance, generalized-energy reconstruction (`energy/`). |
+| `formulations.projection` | Physical projection of doubled states, transported area and projected symplecticity. |
+| `states` | Polygon area of physical state arrays (`geometry.py`). |
+| `studies` | Comparison reductions, recurrence distances, and study-specific CSV/NPZ/HDF5 artifacts, including reference trajectories and Poincare returns. |
+| `io` | Shared paths, buffered blocks, output writers, storage transports and complete `States` persistence. |
+
+Complete-step nonlinear-work summaries belong to `methods.implicit_iterations`:
+they consume accepted method steps, which can contain several algebraic solves.
+An observer of individual solver iterations would belong to `solvers/` when
+introduced. Shared sampling validation remains in `_validation.py`.
+
+Numerical processes emit neutral records through `contracts`; they do not
+import these diagnostic implementations. Diagnostics consume those records,
+physical states or completed study results. Experiment composition remains in
+`studies`, and plotting remains in `visualization`.
+
+### Imports after the reorganization
+
+The existing 63 names exported by `diagnostics` remain available, including
+`ImplicitABBAIterationObserver`, `GCGeneralizedEnergyObserver`, `save_solution`
+and `load_solution`. Internal consumers import their defining modules. Former
+implementation paths are removed without compatibility modules or import hooks.
+For example:
+
+```python
+from diagnostics import ImplicitABBAIterationObserver, load_solution
+from diagnostics.methods.implicit_iterations import ImplicitIterationRecord
+from diagnostics.states.geometry import calculate_area
+from diagnostics.io.paths import solution_destination
+```
+
+Imports formerly using `diagnostics.geometry`, `diagnostics.persistence`,
+`diagnostics.projection` or `diagnostics.abba_jacobian` now use
+`diagnostics.states.geometry`, `diagnostics.io.persistence`,
+`diagnostics.formulations.projection` or
+`diagnostics.methods.extended.abba_jacobian`, respectively. The package table
+also identifies the destination of the other former flat modules. Archive
+schemas, output destinations, diagnostic keys and numerical formulas are unchanged.
+
 Saving requires completed `States`; an unfinished recording is rejected before any archive or transfer is created.
 
 ## Complete solutions on disk or in a bucket
 
-`diagnostics.persistence.save_solution` and `load_solution` serialize the
+`diagnostics.io.persistence.save_solution` and `load_solution` serialize the
 canonical `States` independently of the integration lifecycle. They are also
 explicitly exported by `diagnostics`. Numerical methods and `States` do not
 perform network operations. Both GC and FC component-major layouts are supported;
 other layout types are rejected rather than inferred from the state size.
 
 ```python
-from diagnostics.persistence import load_solution, save_solution
-from diagnostics.paths import solution_destination
+from diagnostics.io.persistence import load_solution, save_solution
+from diagnostics.io.paths import solution_destination
 
 # Bucket storage is the default. Remote credentials stay outside the repository.
 location = save_solution(solution, experiment_path="developements/my_experiment",
@@ -127,7 +176,7 @@ single Hairer projection solve surrounding one complete twelve-stage BM4
 cycle. The observer does not perform additional BM4 maps or finite-difference
 Jacobians.
 
-`diagnostics.abba_jacobian.ImplicitABBAJacobianObserver` is independent of the
+`diagnostics.methods.extended.abba_jacobian.ImplicitABBAJacobianObserver` is independent of the
 symplecticity studies. It records the local physical Jacobian of selected
 complete implicit ABBA steps, extracts one `2 x 2` block per independent GC
 particle, classifies the characteristic discriminant, and persists eigenvalue,
@@ -135,7 +184,7 @@ eigenvector, and singular-value decompositions. Complex eigenvectors are kept
 in the NPZ arrays but are not assigned real line angles. The observer does not
 accumulate tangent maps and does not calculate area or symplecticity metrics.
 
-`diagnostics.symplecticity.SymplecticityObserver` studies the two-copy GC
+`diagnostics.methods.symplecticity.SymplecticityObserver` studies the two-copy GC
 state with `track_energy=False`. It writes indexed blocks below:
 
 ```text
@@ -143,16 +192,16 @@ outputs/<notebook folder>/<notebook stem>/<YYYY-MM-DD>/
 ```
 
 Each block consists of a scalar CSV summary, compressed arrays in NPZ format,
-and versioned JSON metadata. `diagnostics.output.write_diagnostic_block`
+and versioned JSON metadata. `diagnostics.io.output.write_diagnostic_block`
 provides the shared synchronized writer. Existing blocks are never overwritten.
 
-`diagnostics.projection.ProjectedSymplecticityAreaObserver` propagates the
+`diagnostics.formulations.projection.ProjectedSymplecticityAreaObserver` propagates the
 tangent of the complete physical map ``P Phi E`` from the initial GC boundary.
 At every selected complete BM4 step it records the projected Jacobian, its
 symplectic defect, the separation between internal copies, and the transported
 polygon area.
 
-`diagnostics.symplecticity.GCAreaSymplecticityObserver` differentiates
+`diagnostics.methods.symplecticity.GCAreaSymplecticityObserver` differentiates
 complete physical GC steps. It records both the local symplecticity defect of
 each numerical step and the accumulated defect, determinant drift, and
 transported area of the discrete flow. Its `jacobian_method` is one of
@@ -174,7 +223,7 @@ represent elapsed time under concurrent CPU load.
 
 ## Buffered observer lifecycle
 
-`diagnostics.buffering.DiagnosticBuffer` owns pending samples, output block
+`diagnostics.io.buffering.DiagnosticBuffer` owns pending samples, output block
 indices, the common writer, and finalization for stage symplecticity, physical
 area, projected area, local ABBA Jacobians, implicit iterations, and trajectory
 symplecticity. Each observer supplies only its diagnostic calculation and block
@@ -197,14 +246,14 @@ does not limit that documented history.
 
 ## Comparison and recurrence calculations
 
-`diagnostics.comparison` reduces shared record data into reference RMS floors and
+`diagnostics.studies.comparison` reduces shared record data into reference RMS floors and
 physical-energy error histories. `time_integrated_rms_floor(reference)` uses the
 saved time weights; `final_rms_floor(reference)` uses the final saved node.
 `rms_error(errors)`, `maximum_absolute_error(errors)` and
 `running_maximum_absolute_error(errors)` consume validated signed
 `(particles, samples)` arrays in the recorded energy units.
 
-`diagnostics.bm4_recurrence.recurrence_distances(result, period=...)` returns an
+`diagnostics.studies.bm4_recurrence.recurrence_distances(result, period=...)` returns an
 independent read-only `(particles, samples)` array using minimum-image spatial
 distance and exact zero at the initial sample. These calculations do not mutate
 the records or execute integrations. See [the API migration](../../docs/simulation/api-migration.md).

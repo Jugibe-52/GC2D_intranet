@@ -9,8 +9,8 @@ from contracts.result import DiagnosticValue
 
 import numpy as np
 
-from diagnostics.persistence import StoredSolution, load_solution
-from diagnostics.storage import ArtifactStore
+from diagnostics.io.persistence import StoredSolution, load_solution
+from diagnostics.io.storage import ArtifactStore
 from studies.poincare_rho_sweep import (
     PreparedRhoStar, rho_config_from_metadata, folded_rho_positions, prepare_rho_star, sample_rho_dynamics,
 )

@@ -4,7 +4,7 @@ kind = "change-plan"
 id = "2026-10-18-hdf5-frequency-units"
 revision = 1
 spec_revision = 2
-sources = ["src/potential/load.py", "src/potential/potential.py", "src/potential/_evaluation.py", "src/potential/jax_potential.py", "src/dynamics/gc.py", "src/studies/historical_h5.py", "src/studies/dimensional_h5_midpoint.py", "src/studies/poincare_rho_sweep.py", "src/studies/h5_provenance.py", "src/studies/_potential_snapshot.py", "src/studies/poincare_probe.py", "src/diagnostics/persistence.py", "tests/test_h5_rescaling.py", "tests/test_gc2d_h5_potential.py", "tests/test_potential_snapshot.py", "tests/test_solution_persistence.py"]
+sources = ["src/potential/load.py", "src/potential/potential.py", "src/potential/_evaluation.py", "src/potential/jax_potential.py", "src/dynamics/gc.py", "src/studies/historical_h5.py", "src/studies/dimensional_h5_midpoint.py", "src/studies/poincare_rho_sweep.py", "src/studies/h5_provenance.py", "src/studies/_potential_snapshot.py", "src/studies/poincare_probe.py", "src/diagnostics/io/persistence.py", "tests/test_h5_rescaling.py", "tests/test_gc2d_h5_potential.py", "tests/test_potential_snapshot.py", "tests/test_solution_persistence.py"]
 documents = ["specs/current/potential-import.md", "docs/dynamics/gc2d-h5-import.md", "specs/changes/2026-10-18-hdf5-independent-rescaling/spec.md", "specs/changes/2026-10-18-hdf5-independent-rescaling/plan.md", "specs/changes/2026-10-18-hdf5-independent-rescaling/tasks.md"]
 open_questions = []
 +++

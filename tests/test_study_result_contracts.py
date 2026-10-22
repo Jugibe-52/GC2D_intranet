@@ -18,11 +18,11 @@ from contracts.comparison import (
 from contracts.study_results import (
 	GCEnergyBoundResult, ParallelBM4RecurrenceConfig, ParallelBM4RecurrenceResult,
 )
-from diagnostics.five_method_comparison_csv import (
+from diagnostics.studies.five_method_comparison_csv import (
 	load_five_method_comparison_csv, write_five_method_comparison_csv,
 )
-from diagnostics.gc_energy_bound import save_energy_bound_result
-from diagnostics.parallel_bm4_recurrence_npz import write_parallel_bm4_recurrence_npz
+from diagnostics.studies.gc_energy_bound import save_energy_bound_result
+from diagnostics.studies.parallel_bm4_recurrence_npz import write_parallel_bm4_recurrence_npz
 
 from potential import Grid, Potential
 from studies.five_method_sdirk_rk4_comparison import FiveMethodComparisonConfig, run_five_method_comparison
@@ -106,9 +106,9 @@ def without_orchestration(name, *args, **kwargs):
         raise ImportError('Study orchestration must not be needed to read results: ' + name)
     return original(name, *args, **kwargs)
 builtins.__import__ = without_orchestration
-from diagnostics.five_method_comparison_csv import load_five_method_comparison_csv
-from diagnostics.gc_energy_bound import load_energy_bound_result
-from diagnostics.parallel_bm4_recurrence_npz import load_parallel_bm4_recurrence_npz
+from diagnostics.studies.five_method_comparison_csv import load_five_method_comparison_csv
+from diagnostics.studies.gc_energy_bound import load_energy_bound_result
+from diagnostics.studies.parallel_bm4_recurrence_npz import load_parallel_bm4_recurrence_npz
 from contracts.comparison import AdaptiveReference
 from contracts.study_results import GCEnergyBoundResult, ParallelBM4RecurrenceResult
 root = Path(sys.argv[1])
@@ -118,7 +118,7 @@ assert isinstance(load_energy_bound_result(root / 'energy.h5'), GCEnergyBoundRes
 recurrence = load_parallel_bm4_recurrence_npz(root / 'recurrence.npz').result
 assert isinstance(recurrence, ParallelBM4RecurrenceResult)
 assert recurrence.config.coupling_frequency == 0.3
-from diagnostics.bm4_recurrence import recurrence_distances
+from diagnostics.studies.bm4_recurrence import recurrence_distances
 assert recurrence_distances(recurrence, period=6.).shape == (1, 2)
 assert not any(name == 'studies' or name.startswith('studies.') for name in sys.modules)
 """

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from diagnostics.comparison import final_rms_floor, time_integrated_rms_floor
+from diagnostics.studies.comparison import final_rms_floor, time_integrated_rms_floor
 
 from studies._validation import require_uncoupled_bm4
 

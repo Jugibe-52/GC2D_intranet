@@ -17,7 +17,7 @@ import numpy as np
 
 from execution.options import ExecutionOptions
 from problem import InitialValueProblem
-from diagnostics.persistence import StoredSolution
+from diagnostics.io.persistence import StoredSolution
 
 from states.history import States
 from studies.dimensional_h5_midpoint import DimensionalH5Field

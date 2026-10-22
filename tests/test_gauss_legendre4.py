@@ -12,7 +12,7 @@ from diagnostics import (
 	calculate_step_jacobian,
 	central_difference_jacobian,
 )
-from diagnostics.symplecticity import gc_physical_symplectic_form
+from diagnostics.methods.symplecticity import gc_physical_symplectic_form
 from dynamics import GuidingCenterDynamics
 
 from potential import Potential

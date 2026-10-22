@@ -150,7 +150,7 @@ def create() -> Path:
         shared = f'''
             from pathlib import Path
             import numpy as np
-            from diagnostics.paths import find_project_root, solution_destination
+            from diagnostics.io.paths import find_project_root, solution_destination
             from studies.poincare_gap_probes import GapProbeSeeds
 
             ROOT = find_project_root(Path.cwd())

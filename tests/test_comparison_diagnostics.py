@@ -8,11 +8,11 @@ import numpy as np
 
 from contracts.comparison import AdaptiveReference, EnergyAccuracySeries
 from contracts.study_results import ParallelBM4RecurrenceConfig, ParallelBM4RecurrenceResult
-from diagnostics.comparison import (
+from diagnostics.studies.comparison import (
 	time_integrated_rms_floor, final_rms_floor, rms_error,
 	maximum_absolute_error, running_maximum_absolute_error,
 )
-from diagnostics.bm4_recurrence import recurrence_distances
+from diagnostics.studies.bm4_recurrence import recurrence_distances
 from studies._validation import require_uncoupled_bm4
 
 

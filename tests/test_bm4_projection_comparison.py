@@ -12,7 +12,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 
-from diagnostics.bm4_comparison import load_bm4_comparison, save_bm4_comparison
+from diagnostics.studies.bm4_comparison import load_bm4_comparison, save_bm4_comparison
 from potential import Potential
 from studies.bm4_projection_comparison import (
 	BM4ProjectionComparisonConfig, radial_configuration, run_bm4_projection_comparison,

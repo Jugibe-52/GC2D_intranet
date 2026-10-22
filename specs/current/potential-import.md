@@ -2,7 +2,7 @@
 schema_version = 1
 kind = "spec"
 id = "potential-import"
-sources = ["src/potential/potential.py", "src/potential/load.py", "src/dynamics/gc.py", "src/diagnostics/persistence.py"]
+sources = ["src/potential/potential.py", "src/potential/load.py", "src/dynamics/gc.py", "src/diagnostics/io/persistence.py"]
 documents = ["docs/dynamics/gc2d-h5-import.md"]
 
 [[requirements]]

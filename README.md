@@ -488,7 +488,7 @@ problem = InitialValueProblem(
 )
 ```
 
-`diagnostics.geometry.calculate_area(area, layout=GCStateLayout(), period=...)` applies the shoelace formula and can unwrap periodic boundary crossings. Geometry labels belong in study metadata, for example `metadata={"geometry": "circle"}`, and do not change the physical array.
+`diagnostics.states.geometry.calculate_area(area, layout=GCStateLayout(), period=...)` applies the shoelace formula and can unwrap periodic boundary crossings. Geometry labels belong in study metadata, for example `metadata={"geometry": "circle"}`, and do not change the physical array.
 
 ## Reusable studies
 
@@ -554,7 +554,7 @@ notebook remains local and ignored by Git.
 
 The reference runner accepts an optional `progress_callback(method, time,
 nfev, status)` observing accepted steps without changing adaptive integration.
-The viewer uses `diagnostics.reference_progress.reference_progress_log` to flush
+The viewer uses `diagnostics.execution.reference_progress.reference_progress_log` to flush
 progress to its cell output and a versioned `progress.log` every ten seconds
 after an accepted step. The log identifies Radau (phase 1/2) and DOP853 (phase
 2/2), accepted simulation time, percentage, elapsed wall time and approximate

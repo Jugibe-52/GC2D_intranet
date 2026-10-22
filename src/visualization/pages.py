@@ -14,7 +14,7 @@ import tempfile
 import tomllib
 from urllib.parse import quote, urlsplit
 
-from diagnostics.paths import find_project_root
+from diagnostics.io.paths import find_project_root
 
 
 if TYPE_CHECKING:

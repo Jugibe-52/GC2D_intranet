@@ -2,7 +2,7 @@
 schema_version = 1
 kind = "spec"
 id = "states"
-sources = ["src/states/initial.py", "src/execution/state.py", "src/states/history.py", "src/formulations/layout.py", "src/states/generators.py", "src/diagnostics/geometry.py"]
+sources = ["src/states/initial.py", "src/execution/state.py", "src/states/history.py", "src/formulations/layout.py", "src/states/generators.py", "src/diagnostics/states/geometry.py"]
 documents = ["docs/simulation/initial-solvers-formulations.md", "docs/simulation/api-migration.md", "docs/dynamics/protocols.md"]
 
 [[requirements]]
@@ -32,7 +32,7 @@ Canonical layouts belong to `formulations.layout` and share the `StateLayout` pr
 
 `states.generators` exposes `circle`, `square`, `radial_star` and `ranked_radial_star`, returning packed NumPy physical arrays. Generator parameters, defaults, validation, particle ordering, endpoint/center conventions and coordinate units remain unchanged. Arrays enter `InitialValueProblem` directly with an optional explicit layout; generators own no time.
 
-`diagnostics.geometry.calculate_area(values, layout=..., period=None)` evaluates signed polygon area for at least three ordered GC vertices, implicitly closing the contour. Histories retain trailing sample axes. A positive finite period enables minimum-image reconstruction, not a general rule for winding torus contours. Geometry labels belong in study metadata, defaulting to `polygon`. `save_solution` and `load_solution` retain their names and archive schemas and preserve absent initial snapshots when loading legacy archives.
+`diagnostics.states.geometry.calculate_area(values, layout=..., period=None)` evaluates signed polygon area for at least three ordered GC vertices, implicitly closing the contour. Histories retain trailing sample axes. A positive finite period enables minimum-image reconstruction, not a general rule for winding torus contours. Geometry labels belong in study metadata, defaulting to `polygon`. `save_solution` and `load_solution` retain their names and archive schemas and preserve absent initial snapshots when loading legacy archives.
 
 ## STA-003: Current internal state and independent sampling
 

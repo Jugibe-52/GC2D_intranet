@@ -55,8 +55,8 @@ separate container-crash recovery behavior. See Modal's
 ```python
 from execution import Execution_Modal
 from simulation.runner import simulate
-from diagnostics.paths import solution_destination
-from diagnostics.persistence import save_solution
+from diagnostics.io.paths import solution_destination
+from diagnostics.io.persistence import save_solution
 
 executor = Execution_Modal(
     app_name="gc2d-execution",

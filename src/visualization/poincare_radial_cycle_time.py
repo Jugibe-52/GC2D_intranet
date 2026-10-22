@@ -1,7 +1,7 @@
 """Plot archived radial cycle-time results without integrating trajectories."""
 
 from pathlib import Path
-from diagnostics.persistence import StoredSolution
+from diagnostics.io.persistence import StoredSolution
 
 import matplotlib.pyplot as plt
 import numpy as np

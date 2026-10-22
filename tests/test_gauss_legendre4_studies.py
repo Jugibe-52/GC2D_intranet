@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from diagnostics.comparison import time_integrated_rms_floor
+from diagnostics.studies.comparison import time_integrated_rms_floor
 
 from formulations.layout import GCStateLayout
 

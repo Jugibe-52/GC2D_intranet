@@ -12,7 +12,7 @@ if TYPE_CHECKING:
     from typing import Any
 
 
-from diagnostics import StoredReferenceTrajectory
+from diagnostics.studies.reference_trajectory import StoredReferenceTrajectory
 from potential import Potential
 
 

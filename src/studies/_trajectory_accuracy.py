@@ -10,7 +10,7 @@ from typing import Any, Protocol
 
 import numpy as np
 
-from diagnostics import StoredReferenceTrajectory
+from diagnostics.studies.reference_trajectory import StoredReferenceTrajectory
 from dynamics import GuidingCenterDynamics
 
 from potential import Potential

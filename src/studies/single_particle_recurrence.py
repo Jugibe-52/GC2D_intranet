@@ -11,7 +11,7 @@ from typing import Any, TYPE_CHECKING
 import numpy as np
 from scipy.optimize import brentq
 
-from diagnostics.adaptive_trajectory import AdaptiveTrajectoryObserver
+from diagnostics.methods.adaptive.trajectory import AdaptiveTrajectoryObserver
 
 from methods.adaptive.scipy import DOP853, Radau
 from problem import InitialValueProblem

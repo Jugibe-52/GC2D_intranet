@@ -15,7 +15,7 @@ import numpy as np
 from execution.options import ExecutionOptions
 from problem import InitialValueProblem
 from request import SimulationRequest
-from diagnostics.persistence import load_solution, save_solution
+from diagnostics.io.persistence import load_solution, save_solution
 from dynamics.gc import GuidingCenterDynamics
 from execution.execution_modal import Execution_Modal
 from states.generators import radial_star
@@ -29,7 +29,7 @@ from studies.reference_trajectory import potential_fingerprint
 
 
 if TYPE_CHECKING:
-	from diagnostics.persistence import StoredSolution
+	from diagnostics.io.persistence import StoredSolution
 
 
 @dataclass(frozen=True)

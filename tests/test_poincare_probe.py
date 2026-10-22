@@ -9,7 +9,7 @@ import unittest
 
 import numpy as np
 
-from diagnostics.poincare_probe import load_rk4_probe, save_rk4_probe
+from diagnostics.studies.poincare_probe import load_rk4_probe, save_rk4_probe
 from potential import Grid, Potential
 from studies.poincare_probe import (
     RK4ProbeSettings, integrate_rk4_probe, probe_section, probe_comparison_panel,

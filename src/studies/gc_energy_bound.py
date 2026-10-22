@@ -13,7 +13,8 @@ from time import perf_counter
 import numpy as np
 from threadpoolctl import threadpool_limits
 
-from diagnostics import GCGeneralizedEnergyObserver, StoredReferenceTrajectory
+from diagnostics.methods.extended.energy.observer import GCGeneralizedEnergyObserver
+from diagnostics.studies.reference_trajectory import StoredReferenceTrajectory
 from dynamics import GuidingCenterDynamics
 
 from potential import Potential
@@ -353,8 +354,8 @@ def audit_initial_step_geometry(
     This local diagnostic does not certify an autonomous extended map or an
     energy bound. Refining the finite-difference increment exposes its noise floor.
     """
-    from diagnostics.jacobians import central_difference_jacobian
-    from diagnostics.symplecticity.observer import gc_physical_symplectic_form
+    from diagnostics.methods.jacobians import central_difference_jacobian
+    from diagnostics.methods.symplecticity.observer import gc_physical_symplectic_form
     from contracts.observation import IntegrationStep, ImplicitBM4IntegrationStep
 
     dynamics: GuidingCenterDynamics = GuidingCenterDynamics(potential, rho=config.rho)

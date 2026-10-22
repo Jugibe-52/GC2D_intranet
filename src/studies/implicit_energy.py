@@ -23,9 +23,11 @@ from ._validation import (
 )
 
 
-from diagnostics import (
+from diagnostics.methods.extended.energy.observer import (
 	GCGeneralizedEnergyObserver,
 	GCGeneralizedEnergyRecord,
+)
+from diagnostics.methods.symplecticity.time_extended import (
 	GCReducedTimeExtendedSymplecticityObserver,
 	GCReducedTimeExtendedSymplecticityRecord,
 	GCTimeExtendedSymplecticityObserver,

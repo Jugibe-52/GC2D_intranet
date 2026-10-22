@@ -31,7 +31,7 @@ from problem import InitialValueProblem
 from request import SimulationRequest
 from states.history import States
 from simulation.runner import simulate
-from diagnostics.symplecticity import (
+from diagnostics.methods.symplecticity.area import (
 	GCAreaSymplecticityObserver,
 	GCAreaSymplecticityRecord,
 )

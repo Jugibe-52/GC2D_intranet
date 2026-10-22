@@ -17,7 +17,7 @@ from ._validation import (
 )
 
 
-from diagnostics import (
+from diagnostics.methods.extended.abba_reversibility import (
 	ImplicitABBAReversibilityObserver,
 	ImplicitABBAReversibilitySample,
 )

@@ -21,7 +21,7 @@ from ._validation import (
 )
 
 
-from diagnostics import (
+from diagnostics.methods.implicit_iterations import (
 	ImplicitBM4IterationObserver,
 	ImplicitBM4IterationOutputBlock,
 	ImplicitBM4IterationRecord,

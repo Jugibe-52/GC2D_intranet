@@ -19,7 +19,7 @@ from visualization.poincare_comparison import export_poincare_panel_comparison
 
 
 if TYPE_CHECKING:
-	from diagnostics.persistence import StoredSolution
+	from diagnostics.io.persistence import StoredSolution
 	from dynamics.gc import GuidingCenterDynamics
 	from studies.poincare_automation import AutomationConfig, AutomationField
 

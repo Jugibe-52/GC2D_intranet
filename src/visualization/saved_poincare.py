@@ -5,7 +5,7 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 
-from diagnostics.poincare_section import load_poincare_cycle_csv
+from diagnostics.studies.poincare_section import load_poincare_cycle_csv
 from visualization.poincare_selector import export_poincare_selector
 
 from typing import TYPE_CHECKING

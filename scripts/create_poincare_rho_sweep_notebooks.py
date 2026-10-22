@@ -86,7 +86,7 @@ an interrupted job resumes from its confirmed Modal receipt without resubmitting
             from IPython.display import Markdown, display
 
             from execution.options import ExecutionOptions
-            from diagnostics.paths import find_project_root, solution_destination
+            from diagnostics.io.paths import find_project_root, solution_destination
             from studies.poincare_rho_sweep import (
                 RhoStarConfig, prepare_rho_star, modal_rho_executor, run_and_save_rho_star,
             )
@@ -156,7 +156,7 @@ Particle IDs and colors increase with initial radius. Time labels count forcing 
         from pathlib import Path
         import os
         from IPython.display import IFrame, display
-        from diagnostics.paths import find_project_root, solution_destination
+        from diagnostics.io.paths import find_project_root, solution_destination
         from visualization.poincare_rho_sweep import load_available_rho_runs, export_rho_sweep
 
         ROOT = find_project_root(Path.cwd())

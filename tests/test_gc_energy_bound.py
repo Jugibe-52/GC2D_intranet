@@ -6,7 +6,7 @@ import unittest
 
 import numpy as np
 
-from diagnostics.gc_energy_bound import load_energy_bound_result, save_energy_bound_result
+from diagnostics.studies.gc_energy_bound import load_energy_bound_result, save_energy_bound_result
 from studies.gc_energy_bound import GCEnergyBoundConfig, GCEnergyBoundResult, envelope_statistics, time_rms, matching_reference_nodes
 
 

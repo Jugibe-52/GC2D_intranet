@@ -225,8 +225,8 @@ owns backend/device choices and is also exported by `execution`. These objects
 retain their validation and snapshots. Importing the physical problem does not
 require the execution package.
 
-`diagnostics.comparison` owns reference RMS floors and physical-energy error
-reductions. `diagnostics.bm4_recurrence.recurrence_distances` owns periodic initial
+`diagnostics.studies.comparison` owns reference RMS floors and physical-energy error
+reductions. `diagnostics.studies.bm4_recurrence.recurrence_distances` owns periodic initial
 returns. Their input records stay in `contracts.comparison` and
 `contracts.study_results`, with validation and independent arrays but without
 analysis methods or imports from diagnostics. The calculation formulas and

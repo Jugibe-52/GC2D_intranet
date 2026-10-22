@@ -12,11 +12,11 @@ import unittest
 import numpy as np
 
 from contracts.observation import IntegrationStep
-from diagnostics.abba_reversibility import ImplicitABBAReversibilityObserver
-from diagnostics.energy.observer import GCGeneralizedEnergyObserver
-from diagnostics.five_method_comparison_csv import load_five_method_comparison_csv
-from diagnostics.reference_trajectory import ReferenceTrajectoryPaths, StoredReferenceTrajectory
-from diagnostics.symplecticity.observer import SymplecticityObserver, gc_physical_symplectic_form
+from diagnostics.methods.extended.abba_reversibility import ImplicitABBAReversibilityObserver
+from diagnostics.methods.extended.energy.observer import GCGeneralizedEnergyObserver
+from diagnostics.studies.five_method_comparison_csv import load_five_method_comparison_csv
+from diagnostics.studies.reference_trajectory import ReferenceTrajectoryPaths, StoredReferenceTrajectory
+from diagnostics.methods.symplecticity.observer import SymplecticityObserver, gc_physical_symplectic_form
 from dynamics import GuidingCenterDynamics
 
 from potential import Potential

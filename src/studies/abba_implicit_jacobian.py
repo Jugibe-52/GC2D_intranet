@@ -19,7 +19,7 @@ from ._validation import (
 )
 
 
-from diagnostics.abba_jacobian import (
+from diagnostics.methods.extended.abba_jacobian.observer import (
 	ImplicitABBAJacobianMethod,
 	ImplicitABBAJacobianObserver,
 	ImplicitABBAJacobianOutputBlock,

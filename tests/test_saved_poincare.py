@@ -8,7 +8,7 @@ import unittest
 
 import numpy as np
 
-from diagnostics.poincare_section import load_poincare_cycle_csv
+from diagnostics.studies.poincare_section import load_poincare_cycle_csv
 from visualization.saved_poincare import render_saved_section
 
 

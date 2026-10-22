@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from diagnostics.comparison import final_rms_floor, time_integrated_rms_floor
+from diagnostics.studies.comparison import final_rms_floor, time_integrated_rms_floor
 
 from formulations.layout import GCStateLayout
 
@@ -24,8 +24,8 @@ from ._validation import (
 )
 
 
-from diagnostics import calculate_step_jacobian, central_difference_jacobian
-from diagnostics.symplecticity import gc_physical_symplectic_form
+from diagnostics.methods.jacobians import calculate_step_jacobian, central_difference_jacobian
+from diagnostics.methods.symplecticity.observer import gc_physical_symplectic_form
 from dynamics import GuidingCenterDynamics
 
 from potential import Potential

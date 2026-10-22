@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from diagnostics.comparison import rms_error, running_maximum_absolute_error
+from diagnostics.studies.comparison import rms_error, running_maximum_absolute_error
 
 from collections.abc import Mapping, Sequence
 from typing import TYPE_CHECKING, Protocol

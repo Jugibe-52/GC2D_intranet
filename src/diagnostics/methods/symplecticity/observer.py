@@ -1,0 +1,341 @@
+"""Observe numerical Jacobians and quantify GC stage symplecticity."""
+
+from __future__ import annotations
+
+from dataclasses import asdict, dataclass
+from datetime import date
+from pathlib import Path
+from typing import Any, Mapping, TYPE_CHECKING
+
+import numpy as np
+
+from diagnostics._validation import optional_relative_step, positive_integer
+
+from contracts.observation import IntegrationStage
+from diagnostics.io.buffering import DiagnosticBuffer
+
+from diagnostics.methods.jacobians import central_difference_jacobian
+from diagnostics.io.paths import notebook_output_directory, validate_block_name
+
+
+if TYPE_CHECKING:
+	from diagnostics.io.output import DiagnosticBlockPaths
+
+
+def gc_physical_symplectic_form(particle_count: int) -> np.ndarray:
+	"""Return the canonical form for physical GC component-major coordinates."""
+	particle_count = positive_integer(particle_count, "particle_count")
+	count: int = int(particle_count)
+	identity: np.ndarray = np.eye(count)
+	zero: np.ndarray = np.zeros_like(identity)
+	return np.block([[zero, identity], [-identity, zero]])
+
+
+def gc_extended_symplectic_form(particle_count: int) -> np.ndarray:
+	"""Return the cross-coupled form for two component-major GC copies.
+
+	The internal state order is ``[x_first, y_first, x_second, y_second]`` and
+	each block contains ``particle_count`` values. The triangular extended-phase
+	updates pair the two copies, giving ``[[0, omega_gc], [omega_gc, 0]]`` rather
+	than two diagonal canonical forms. The result has shape ``(4N, 4N)``.
+	"""
+	particle_count = positive_integer(particle_count, "particle_count")
+	count: int = int(particle_count)
+	physical_form: np.ndarray = gc_physical_symplectic_form(count)
+	copy_zero: np.ndarray = np.zeros_like(physical_form)
+	return np.block(
+		[[copy_zero, physical_form], [physical_form, copy_zero]]
+	)
+
+
+def gc_time_extended_symplectic_form() -> np.ndarray:
+	"""Return the autonomous one-particle GC form on ``(u, v, t, k)``.
+
+	The coordinate order is ``(u_x, u_y, v_x, v_y, t, k)``. The first
+	four coordinates use the cross-coupled duplicated form, while the last
+	two coordinates use ``-dt wedge dk``. This relative sign is the one for
+	which the associated Poisson tensor produces ``t_dot = partial_k H`` and
+	``k_dot = -partial_t H`` together with the GC convention used by the code.
+	"""
+	duplicated_form: np.ndarray = gc_extended_symplectic_form(1)
+	time_momentum_form: np.ndarray = np.asarray(((0.0, -1.0), (1.0, 0.0)))
+	return np.block(
+		[
+			[duplicated_form, np.zeros((4, 2))],
+			[np.zeros((2, 4)), time_momentum_form],
+		]
+	)
+
+
+def gc_reduced_time_extended_symplectic_form() -> np.ndarray:
+	"""Return the physical autonomous GC form on ``(x, y, t, kappa)``.
+
+	The upper block is the physical guiding-centre form and the lower block is
+	the time-momentum form for which ``t_dot = partial_kappa K`` and
+	``kappa_dot = -partial_t K``.
+	"""
+	return np.block(
+		[
+			[gc_physical_symplectic_form(1), np.zeros((2, 2))],
+			[
+				np.zeros((2, 2)),
+				np.asarray(((0.0, -1.0), (1.0, 0.0))),
+			],
+		]
+	)
+
+
+@dataclass(frozen=True, slots=True)
+class SymplecticityRecord:
+	"""Scalar diagnostics associated with one observed stage Jacobian."""
+
+	observation_index: int
+	step_index: int
+	stage_index: int
+	flow_name: str
+	time: float
+	duration: float
+	state_dimension: int
+	particle_count: int
+	determinant: float
+	determinant_error: float
+	log_abs_determinant: float
+	condition_number: float
+	defect_frobenius: float
+	relative_defect: float
+	max_abs_defect: float
+
+
+@dataclass(frozen=True, slots=True)
+class OutputBlock:
+	"""Three synchronized files written for one buffered observation block."""
+
+	index: int
+	sample_count: int
+	summary_path: Path
+	jacobians_path: Path
+	metadata_path: Path
+
+
+@dataclass(slots=True)
+class _BufferedSample:
+	"""Matrix-valued data retained only until the next disk flush."""
+
+	record: SymplecticityRecord
+	state_before: np.ndarray
+	state_after: np.ndarray
+	jacobian: np.ndarray
+
+
+class SymplecticityObserver:
+	"""Calculate, report and persist selected GC stage Jacobians.
+
+	A selected complete BM4 step contributes all twelve direct/adjoint stages.
+	``sample_every`` selects complete steps, while ``chunk_size`` limits the number
+	of full matrices held in memory before a synchronized CSV/NPZ/JSON block is
+	written. This observer expects ``track_energy=False`` because the GC diagnostic
+	form covers the two physical copies, not the optional momentum without its
+	explicit time coordinate.
+	"""
+
+	def __init__(
+		self,
+		*,
+		notebook_path: str | Path,
+		particle_count: int,
+		project_root: str | Path | None = None,
+		run_date: date | str | None = None,
+		block_name: str = "symplecticity",
+		sample_every: int = 1,
+		chunk_size: int = 24,
+		relative_step: float | None = None,
+		verbose: bool = True,
+		metadata: Mapping[str, Any] | None = None,
+	) -> None:
+		"""Configure notebook-derived storage and numerical differentiation."""
+		particle_count = positive_integer(particle_count, "particle_count")
+		sample_every = positive_integer(sample_every, "sample_every")
+		chunk_size = positive_integer(chunk_size, "chunk_size")
+		relative_step = optional_relative_step(relative_step)
+
+		self.output_directory = notebook_output_directory(
+			notebook_path,
+			project_root=project_root,
+			run_date=run_date,
+		)
+		self.block_name = validate_block_name(block_name)
+		self.particle_count = int(particle_count)
+		self.sample_every = int(sample_every)
+		self.chunk_size = int(chunk_size)
+		self.relative_step = relative_step
+		self.verbose = bool(verbose)
+		self.metadata = dict(metadata or {})
+		self._records: list[SymplecticityRecord] = []
+		self._output = DiagnosticBuffer[_BufferedSample, OutputBlock](
+			output_directory=self.output_directory,
+			block_name=self.block_name,
+			chunk_size=self.chunk_size,
+			write_block=self._write_block,
+		)
+
+	@property
+	def records(self) -> tuple[SymplecticityRecord, ...]:
+		"""Return all scalar records collected during this observer session."""
+		return tuple(self._records)
+
+	@property
+	def output_blocks(self) -> tuple[OutputBlock, ...]:
+		"""Return the synchronized file groups written by this session."""
+		return self._output.blocks
+
+	def __enter__(self) -> SymplecticityObserver:
+		"""Use the observer as a context manager so its final block is flushed."""
+		return self
+
+	def __exit__(
+		self,
+		exception_type: type[BaseException] | None,
+		exception: BaseException | None,
+		_traceback: object,
+	) -> None:
+		"""Flush output without replacing an active integration exception."""
+		self._output.exit(exception_type, exception)
+
+	def __call__(self, stage: IntegrationStage) -> None:
+		"""Observe every stage of each selected complete BM4 step."""
+		if self._output.closed:
+			raise RuntimeError("This symplecticity observer is already closed.")
+		if stage.step_index % self.sample_every:
+			return
+		if stage.dynamics_name != "GuidingCenterDynamics":
+			raise TypeError(
+				"SymplecticityObserver only supports guiding-centre dynamics."
+			)
+		state: np.ndarray = np.asarray(stage.state_before, dtype=float)
+		if state.ndim != 1 or state.size != 4 * self.particle_count:
+			raise ValueError(
+				"GC symplecticity requires the 4N doubled physical state; "
+				"run the method with `track_energy=False`."
+			)
+		jacobian: np.ndarray = central_difference_jacobian(
+			stage.map_state,
+			state,
+			relative_step=self.relative_step,
+		)
+		form: np.ndarray = gc_extended_symplectic_form(self.particle_count)
+		defect = jacobian.T @ form @ jacobian - form
+		sign: Any
+		log_abs_determinant: Any
+		sign, log_abs_determinant = np.linalg.slogdet(jacobian)
+		determinant: float = float(sign * np.exp(log_abs_determinant))
+		defect_frobenius: float = float(np.linalg.norm(defect, ord="fro"))
+		record: SymplecticityRecord = SymplecticityRecord(
+			observation_index=len(self._records),
+			step_index=stage.step_index,
+			stage_index=stage.stage_index,
+			flow_name=stage.flow_name,
+			time=stage.time,
+			duration=stage.duration,
+			state_dimension=state.size,
+			particle_count=self.particle_count,
+			determinant=determinant,
+			determinant_error=abs(determinant - 1.0),
+			log_abs_determinant=float(log_abs_determinant),
+			condition_number=float(np.linalg.cond(jacobian)),
+			defect_frobenius=defect_frobenius,
+			relative_defect=defect_frobenius / float(np.linalg.norm(form, ord="fro")),
+			max_abs_defect=float(np.max(np.abs(defect))),
+		)
+		self._records.append(record)
+		self._output.append(
+			_BufferedSample(
+				record=record,
+				state_before=state.copy(),
+				state_after=np.asarray(stage.state_after, dtype=float).copy(),
+				jacobian=jacobian,
+			)
+		)
+		if self.verbose:
+			print(
+				f"[symplecticity] step={record.step_index:05d} "
+				f"stage={record.stage_index:02d} {record.flow_name:<12} "
+				f"relative_defect={record.relative_defect:.3e} "
+				f"|det(J)-1|={record.determinant_error:.3e}"
+			)
+		self._output.flush_if_full()
+
+	def flush(self) -> OutputBlock | None:
+		"""Write pending samples through the shared diagnostic buffer."""
+		return self._output.flush()
+
+	def _write_block(
+		self, block_index: int, samples: tuple[_BufferedSample, ...],
+	) -> OutputBlock:
+		"""Write the current matrix buffer as one indexed output block."""
+		rows = [asdict(sample.record) for sample in samples]
+		paths: DiagnosticBlockPaths = self._output.write(
+			block_index=block_index,
+			rows=rows,
+			arrays={
+				"jacobians": np.stack(
+					[sample.jacobian for sample in samples]
+				),
+				"states_before": np.stack(
+					[sample.state_before for sample in samples]
+				),
+				"states_after": np.stack(
+					[sample.state_after for sample in samples]
+				),
+				"observation_indices": np.asarray(
+				[sample.record.observation_index for sample in samples], dtype=int
+			),
+				"step_indices": np.asarray(
+				[sample.record.step_index for sample in samples], dtype=int
+			),
+				"stage_indices": np.asarray(
+				[sample.record.stage_index for sample in samples], dtype=int
+			),
+				"flow_names": np.asarray(
+					[sample.record.flow_name for sample in samples]
+				),
+				"times": np.asarray(
+					[sample.record.time for sample in samples]
+				),
+				"durations": np.asarray(
+					[sample.record.duration for sample in samples]
+				),
+			},
+			metadata={
+				"objective": "GC direct/adjoint stage symplecticity",
+				"sample_every_complete_steps": self.sample_every,
+				"particle_count": self.particle_count,
+				"finite_difference_relative_step": (
+				float(np.cbrt(np.finfo(float).eps))
+				if self.relative_step is None
+				else float(self.relative_step)
+				),
+				"metadata": self.metadata,
+			},
+		)
+
+		block: OutputBlock = OutputBlock(
+			index=block_index,
+			sample_count=len(samples),
+			summary_path=paths.summary,
+			jacobians_path=paths.arrays,
+			metadata_path=paths.metadata,
+		)
+		return block
+
+	def close(self) -> None:
+		"""Flush the final partial block and reject further events."""
+		self._output.close()
+
+__all__ = [
+	"OutputBlock",
+	"SymplecticityObserver",
+	"SymplecticityRecord",
+	"central_difference_jacobian",
+	"gc_extended_symplectic_form",
+	"gc_physical_symplectic_form",
+]

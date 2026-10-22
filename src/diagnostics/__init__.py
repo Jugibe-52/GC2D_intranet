@@ -1,35 +1,37 @@
 """Opt-in diagnostics built around the stable simulation core."""
 
-from .adaptive_trajectory import AdaptiveTrajectoryObserver
-from .persistence import StoredSolution, load_solution, save_solution
-from .paths import DEFAULT_RESULTS_BUCKET, solution_destination
+from diagnostics.methods.adaptive.trajectory import AdaptiveTrajectoryObserver
+from diagnostics.io.persistence import StoredSolution, load_solution, save_solution
+from diagnostics.io.paths import DEFAULT_RESULTS_BUCKET, solution_destination
 
-from .abba_jacobian import (
+from diagnostics.methods.extended.abba_jacobian.observer import (
 	IMPLICIT_ABBA_JACOBIAN_METHODS,
 	ImplicitABBAJacobianMethod,
 	ImplicitABBAJacobianObserver,
 	ImplicitABBAJacobianOutputBlock,
 	ImplicitABBAJacobianRecord,
 	ImplicitABBAJacobianSample,
+)
+from diagnostics.methods.extended.abba_jacobian.analysis import (
 	ParticleJacobianAnalysis,
 	SpectralClass,
 	analyze_particle_jacobian,
 )
-from .abba_reversibility import (
+from diagnostics.methods.extended.abba_reversibility import (
 	ImplicitABBAReversibilityObserver,
 	ImplicitABBAReversibilitySample,
 )
-from .energy import (
+from diagnostics.methods.extended.energy.observer import (
 	GCGeneralizedEnergyObserver,
 	GCGeneralizedEnergyRecord,
 )
-from .five_method_comparison_csv import (
+from diagnostics.studies.five_method_comparison_csv import (
 	FIVE_METHOD_COMPARISON_CSV_SCHEMA_VERSION,
 	StoredFiveMethodComparison,
 	load_five_method_comparison_csv,
 	write_five_method_comparison_csv,
 )
-from .jacobians import (
+from diagnostics.methods.jacobians import (
 	STEP_JACOBIAN_METHODS,
 	StepJacobianMethod,
 	calculate_step_jacobian,
@@ -38,25 +40,27 @@ from .jacobians import (
 	implicit_function_step_jacobian,
 	stage_increment_step_jacobian,
 )
-from .parallel_bm4_recurrence_npz import (
+from diagnostics.studies.parallel_bm4_recurrence_npz import (
 	PARALLEL_BM4_RECURRENCE_NPZ_SCHEMA_VERSION,
 	StoredParallelBM4Recurrence,
 	load_parallel_bm4_recurrence_npz,
 	write_parallel_bm4_recurrence_npz,
 )
-from .trajectory_symplecticity import (
+from diagnostics.methods.trajectory_symplecticity.jacobians import (
 	abba4_implicit_step_particle_jacobians,
 	abba6_implicit_step_particle_jacobians,
-	GCTrajectorySymplecticityObserver,
-	TrajectoryJacobianCalculator,
-	TrajectorySymplecticityOutputBlock,
-	TrajectorySymplecticityRecord,
 	bm4_implicit_step_particle_jacobians,
 	coupled_bm4_stage_particle_jacobians,
 	abba2_implicit_step_particle_jacobians,
 	abba2_midpoint_step_particle_jacobians,
 )
-from .implicit_iterations import (
+from diagnostics.methods.trajectory_symplecticity.observer import (
+	GCTrajectorySymplecticityObserver,
+	TrajectoryJacobianCalculator,
+	TrajectorySymplecticityOutputBlock,
+	TrajectorySymplecticityRecord,
+)
+from diagnostics.methods.implicit_iterations import (
 	ImplicitABBAIterationObserver,
 	ImplicitABBAIterationOutputBlock,
 	ImplicitABBAIterationRecord,
@@ -66,18 +70,20 @@ from .implicit_iterations import (
 	ImplicitIterationOutputBlock,
 	ImplicitIterationRecord,
 )
-from .reference_trajectory import (
+from diagnostics.studies.reference_trajectory import (
 	ReferenceTrajectoryPaths,
 	StoredReferenceTrajectory,
 	load_reference_trajectory,
 	reference_trajectory_output_directory,
 	write_reference_trajectory,
 )
-from .symplecticity import (
+from diagnostics.methods.symplecticity.time_extended import (
 	GCReducedTimeExtendedSymplecticityObserver,
 	GCReducedTimeExtendedSymplecticityRecord,
 	GCTimeExtendedSymplecticityObserver,
 	GCTimeExtendedSymplecticityRecord,
+)
+from diagnostics.methods.symplecticity.observer import (
 	gc_time_extended_symplectic_form,
 	gc_reduced_time_extended_symplectic_form,
 )

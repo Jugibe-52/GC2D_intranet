@@ -9,7 +9,7 @@ from unittest.mock import patch
 import numpy as np
 
 from execution.options import ExecutionOptions
-from diagnostics.persistence import load_solution
+from diagnostics.io.persistence import load_solution
 from execution.execution import Execution
 from studies.poincare_gap_probes import (
     GapProbeSeeds, build_gap_probes, validate_gap_solution, validate_saved_gap_probes,

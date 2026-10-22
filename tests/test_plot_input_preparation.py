@@ -14,7 +14,7 @@ from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from numpy.typing import ArrayLike
 
-from diagnostics.implicit_iterations import ImplicitIterationRecord
+from diagnostics.methods.implicit_iterations import ImplicitIterationRecord
 from formulations.layout import GCStateLayout
 from states.history import States
 from visualization.energy import (

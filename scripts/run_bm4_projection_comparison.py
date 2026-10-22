@@ -6,9 +6,9 @@ from pathlib import Path
 
 import h5py
 
-from diagnostics.bm4_comparison import load_bm4_comparison, save_bm4_comparison
+from diagnostics.studies.bm4_comparison import load_bm4_comparison, save_bm4_comparison
 from diagnostics import load_reference_trajectory
-from diagnostics.paths import find_project_root
+from diagnostics.io.paths import find_project_root
 from studies.historical_h5 import historical_h5_hamiltonian
 from studies.bm4_projection_comparison import (
 	BM4ProjectionComparisonConfig, radial_configuration, run_bm4_projection_comparison,

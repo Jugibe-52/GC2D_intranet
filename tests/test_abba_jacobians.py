@@ -12,7 +12,7 @@ import unittest
 
 import numpy as np
 
-from diagnostics.symplecticity import (
+from diagnostics.methods.symplecticity import (
 	GCAreaSymplecticityObserver,
 	central_difference_jacobian,
 	gc_physical_symplectic_form,

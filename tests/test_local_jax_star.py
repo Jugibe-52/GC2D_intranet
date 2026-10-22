@@ -15,8 +15,8 @@ import numpy as np
 
 from execution.options import ExecutionOptions
 from request import SimulationRequest
-from diagnostics.persistence import load_solution, save_solution
-from diagnostics.run_progress import RunProgress, progress_log
+from diagnostics.io.persistence import load_solution, save_solution
+from diagnostics.execution.run_progress import RunProgress, progress_log
 from methods.extended.bm4 import BM4Midpoint
 from potential.potential import Potential
 from simulation.runner import simulate

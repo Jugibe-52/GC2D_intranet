@@ -17,9 +17,9 @@ from unittest.mock import patch
 
 import numpy as np
 
-from diagnostics.persistence import load_solution, save_solution
-from diagnostics.paths import solution_destination
-from diagnostics.storage import StorageError
+from diagnostics.io.persistence import load_solution, save_solution
+from diagnostics.io.paths import solution_destination
+from diagnostics.io.storage import StorageError
 
 from potential.load import GC2DH5Metadata
 from potential.potential import Potential
@@ -238,8 +238,8 @@ class SolutionPersistenceTests(unittest.TestCase):
                 uploaded.append(destination.rsplit("/", 1)[-1])
             return subprocess.CompletedProcess(args, 0)
 
-        with patch("diagnostics.storage.shutil.which", return_value="rclone"), \
-             patch("diagnostics.storage.subprocess.run", side_effect=command):
+        with patch("diagnostics.io.storage.shutil.which", return_value="rclone"), \
+             patch("diagnostics.io.storage.subprocess.run", side_effect=command):
             location = "test:bucket/experiment/run"
             save_solution(self.solution(), location, metadata={}, potential=self.field)
             self.assertEqual(uploaded[-1], "manifest.json")
@@ -255,8 +255,8 @@ class SolutionPersistenceTests(unittest.TestCase):
                                            self.solution().states)
 
     def test_authentication_failure_keeps_local_archive_and_does_not_publish(self) -> None:
-        with patch("diagnostics.storage.shutil.which", return_value="rclone"), \
-             patch("diagnostics.storage.subprocess.run", return_value=subprocess.CompletedProcess([], 7)) as run:
+        with patch("diagnostics.io.storage.shutil.which", return_value="rclone"), \
+             patch("diagnostics.io.storage.subprocess.run", return_value=subprocess.CompletedProcess([], 7)) as run:
             with self.assertRaises(StorageError) as caught:
                 save_solution(self.solution(), metadata={},
                               experiment_path="developements/demo", run_id="run_01")
@@ -268,8 +268,8 @@ class SolutionPersistenceTests(unittest.TestCase):
 
     def test_interrupted_upload_leaves_no_remote_manifest(self) -> None:
         responses = [subprocess.CompletedProcess([], code) for code in (4, 0, 7)]
-        with patch("diagnostics.storage.shutil.which", return_value="rclone"), \
-             patch("diagnostics.storage.subprocess.run", side_effect=responses) as run:
+        with patch("diagnostics.io.storage.shutil.which", return_value="rclone"), \
+             patch("diagnostics.io.storage.subprocess.run", side_effect=responses) as run:
             with self.assertRaises(StorageError) as caught:
                 save_solution(self.solution(), "test:bucket/run", metadata={})
             self.assertEqual(run.call_count, 3)

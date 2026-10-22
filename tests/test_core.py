@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from diagnostics.geometry import calculate_area
+from diagnostics.states.geometry import calculate_area
 from states import generators as state_generators
 from formulations.layout import GCStateLayout
 

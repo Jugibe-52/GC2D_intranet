@@ -62,7 +62,7 @@ def create(rho_values: tuple[float, ...], *, run_version: str = 'v1') -> Path:
                              run_id=run_id, config=job_config))
         shared = f'''
             from pathlib import Path
-            from diagnostics.paths import find_project_root, solution_destination
+            from diagnostics.io.paths import find_project_root, solution_destination
 
             ROOT = find_project_root(Path.cwd())
             EXPERIMENT_PATH = {experiment!r}

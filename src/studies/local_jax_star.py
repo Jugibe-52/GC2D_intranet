@@ -15,8 +15,8 @@ from execution.options import ExecutionOptions
 from problem import InitialValueProblem
 from request import SimulationRequest
 from contracts.result import DiagnosticValue
-from diagnostics.persistence import save_solution
-from diagnostics.run_progress import RunProgress, progress_log
+from diagnostics.io.persistence import save_solution
+from diagnostics.execution.run_progress import RunProgress, progress_log
 from dynamics.gc import GuidingCenterDynamics
 from execution.execution import Execution
 

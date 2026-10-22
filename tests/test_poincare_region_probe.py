@@ -10,7 +10,7 @@ import unittest
 
 import numpy as np
 
-from diagnostics.poincare_probe import load_poincare_probe, save_poincare_probe
+from diagnostics.studies.poincare_probe import load_poincare_probe, save_poincare_probe
 from potential import Grid, Potential
 from simulation import BM4Midpoint, InitialValueProblem, SimulationRequest, simulate
 

@@ -219,7 +219,7 @@ they never replace the main state. JAX keeps functional device arrays inside JIT
 Initial snapshots compare by value, not provider identity. Retired State,
 Solution and IntegrationCollector routes have no aliases. Archive schemas and
 save_solution/load_solution stay unchanged; old archives may lack initial data.
-Area remains in `diagnostics.geometry`, geometry labels in study metadata.
+Area remains in `diagnostics.states.geometry`, geometry labels in study metadata.
 See `docs/simulation/api-migration.md` and `specs/current/states.md`.
 
 ## Reusable solvers and projection equations
@@ -261,8 +261,8 @@ Methods use type-only references and local controller/snapshot imports to avoid 
 
 `problem` owns InitialValueProblem (also exported by simulation); execution.options
 owns ExecutionOptions (also exported by execution). Old contract paths are removed.
-Shared records retain data/validation; diagnostics.comparison owns RMS/energy
-reductions and diagnostics.bm4_recurrence owns recurrence_distances. Use functions,
+Shared records retain data/validation; diagnostics.studies.comparison owns RMS/energy
+reductions and diagnostics.studies.bm4_recurrence owns recurrence_distances. Use functions,
 not removed record properties/methods. studies._validation owns require_uncoupled_bm4;
 archive readers retain historical rates. contracts.arrays applies shared NumPy/JAX
 compatibility, including mixed arrays/tracers, without device or execution policy.

@@ -4,7 +4,7 @@ from typing import Mapping
 
 import numpy as np
 
-from diagnostics.persistence import StoredSolution
+from diagnostics.io.persistence import StoredSolution
 from studies.poincare_gap_probes import GapProbeSeeds, validate_saved_gap_probes
 from studies.poincare_rho_sweep import folded_rho_positions
 

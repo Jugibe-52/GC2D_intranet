@@ -8,7 +8,7 @@ from io import StringIO
 
 import numpy as np
 
-from diagnostics.reference_progress import reference_progress_log
+from diagnostics.execution.reference_progress import reference_progress_log
 from studies.reference_trajectory import _solve_adaptive
 
 

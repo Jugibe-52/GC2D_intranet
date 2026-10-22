@@ -20,8 +20,8 @@ from execution.options import ExecutionOptions
 from problem import InitialValueProblem
 from request import SimulationRequest
 from contracts.result import DiagnosticValue
-from diagnostics.persistence import StoredSolution, load_solution, save_solution
-from diagnostics.storage import ArtifactStore
+from diagnostics.io.persistence import StoredSolution, load_solution, save_solution
+from diagnostics.io.storage import ArtifactStore
 from dynamics.gc import GuidingCenterDynamics
 from execution.execution import Execution
 from execution.execution_modal import Execution_Modal

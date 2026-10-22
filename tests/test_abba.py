@@ -31,7 +31,7 @@ from tests._extended_reference.abba_reduced import (
 	_evaluate_residual,
 	_solve_reduced_multiplier_step,
 )
-from diagnostics.symplecticity import (
+from diagnostics.methods.symplecticity import (
 	central_difference_jacobian,
 	gc_physical_symplectic_form,
 )

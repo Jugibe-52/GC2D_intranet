@@ -6,7 +6,7 @@ from typing import Any
 from potential import Potential
 from studies.poincare_periodicity import SavedPoincareSection
 
-from diagnostics.poincare_probe import load_poincare_probe, save_poincare_probe
+from diagnostics.studies.poincare_probe import load_poincare_probe, save_poincare_probe
 from studies.poincare_region_probe import (
     RegionProbeSettings, integrate_region_probes, region_probe_contract, region_probe_panel,
 )

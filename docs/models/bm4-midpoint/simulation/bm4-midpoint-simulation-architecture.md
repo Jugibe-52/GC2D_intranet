@@ -173,7 +173,7 @@ differ from one uninterrupted compiled loop; no bitwise long-time equivalence
 is claimed. The study checks every block's step count, aligned output,
 arithmetic projection and absence of nonlinear unknowns.
 
-`diagnostics.run_progress.progress_log` writes flushed timestamped messages to
+`diagnostics.execution.run_progress.progress_log` writes flushed timestamped messages to
 the notebook and a local log file. It records completed cycles, percentage,
 block wall time, elapsed time and an estimated remaining time. A separate
 heartbeat thread reports during compilation, integration and upload, without
@@ -373,7 +373,7 @@ frozen AWS implementation and 16-worker partition. Thus this is a scientific
 repeat, not a bitwise reproduction of that historical runtime.
 
 All complete-step states, copy-separation diagnostics, the scaled potential
-and provenance are persisted with `diagnostics.persistence` in the default
+and provenance are persisted with `diagnostics.io.persistence` in the default
 bucket under the new experiment hierarchy. Compatible completed archives
 are reused; changed scientific inputs require a different run ID. The
 visualisation notebook loads the same destination without integrating.

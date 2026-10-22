@@ -15,6 +15,7 @@ import simulation
 import methods
 import formulations
 import execution
+import diagnostics
 from dynamics import GuidingCenterDynamics
 
 from potential import Potential
@@ -87,12 +88,74 @@ class PackageLayoutTests(unittest.TestCase):
 				self.assertIsNotNone(importlib.util.find_spec(module))
 
 	def test_public_exports_are_explicit_and_resolve(self) -> None:
-		for namespace in (simulation, methods, extended, classical, formulations, execution):
+		for namespace in (simulation, methods, extended, classical, formulations, execution, diagnostics):
 			with self.subTest(namespace=namespace.__name__):
 				self.assertEqual(len(namespace.__all__), len(set(namespace.__all__)))
 				for name in namespace.__all__:
 					self.assertFalse(name.startswith("_"), name)
 					self.assertTrue(hasattr(namespace, name), name)
+
+	def test_diagnostic_public_names_resolve_to_process_implementations(self) -> None:
+		"""Public observers and persistence keep one implementation after relocation."""
+		for name, module in {
+			"AdaptiveTrajectoryObserver": "methods.adaptive.trajectory",
+			"ImplicitABBAIterationObserver": "methods.implicit_iterations",
+			"ImplicitABBAJacobianObserver": "methods.extended.abba_jacobian.observer",
+			"ImplicitABBAReversibilityObserver": "methods.extended.abba_reversibility",
+			"GCGeneralizedEnergyObserver": "methods.extended.energy.observer",
+			"GCTrajectorySymplecticityObserver": "methods.trajectory_symplecticity.observer",
+			"load_solution": "io.persistence",
+			"save_solution": "io.persistence",
+			"load_reference_trajectory": "studies.reference_trajectory",
+		}.items():
+			with self.subTest(name=name):
+				implementation = importlib.import_module("diagnostics." + module)
+				self.assertIs(getattr(diagnostics, name), getattr(implementation, name))
+
+	def test_diagnostics_follow_processes_without_retired_flat_modules(self) -> None:
+		for module in (
+			"execution.run_progress", "execution.reference_progress",
+			"formulations.projection.observer", "states.geometry",
+			"studies.comparison", "studies.bm4_recurrence", "io.buffering", "io.storage",
+		):
+			with self.subTest(module=module):
+				self.assertIsNotNone(importlib.util.find_spec("diagnostics." + module))
+		for removed in (
+			"adaptive_trajectory", "abba_jacobian", "abba_reversibility",
+			"bm4_vectors", "bm4_energy_balance", "energy", "implicit_iterations",
+			"jacobians", "symplecticity", "trajectory_symplecticity", "projection",
+			"geometry", "run_progress", "reference_progress", "buffering", "output",
+			"paths", "storage", "persistence", "comparison", "bm4_comparison",
+			"bm4_recurrence", "dop853_energy_balance_npz", "five_method_comparison_csv",
+			"gc_energy_bound", "parallel_bm4_recurrence_npz", "poincare_periodicity",
+			"poincare_probe", "poincare_section", "reference_trajectory",
+			"single_particle_recurrence",
+		):
+			with self.subTest(removed=removed):
+				self.assertIsNone(importlib.util.find_spec("diagnostics." + removed))
+
+	def test_numerical_processes_do_not_load_diagnostic_implementations(self) -> None:
+		"""A core simulation must be importable even when diagnostics are unavailable."""
+		script = """
+import builtins
+import sys
+original_import = builtins.__import__
+def without_diagnostics(name, *args, **kwargs):
+    if name.split('.')[0] == 'diagnostics':
+        raise ModuleNotFoundError('diagnostics intentionally unavailable')
+    return original_import(name, *args, **kwargs)
+builtins.__import__ = without_diagnostics
+import simulation
+import solvers
+import contracts.observation
+assert not any(name == 'diagnostics' or name.startswith('diagnostics.') for name in sys.modules)
+"""
+		completed = subprocess.run(
+			[sys.executable, "-c", script],
+			cwd=Path(__file__).resolve().parents[1],
+			check=False, capture_output=True, text=True,
+		)
+		self.assertEqual(completed.returncode, 0, completed.stderr)
 
 	def test_method_and_execution_import_orders_without_optional_backends(self) -> None:
 		"""Preparation and controller imports must not create package cycles."""

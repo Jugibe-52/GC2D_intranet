@@ -12,7 +12,7 @@ import numpy as np
 
 from problem import InitialValueProblem
 from request import SimulationRequest
-from diagnostics.persistence import save_solution
+from diagnostics.io.persistence import save_solution
 from dynamics.gc import GuidingCenterDynamics
 
 from methods.classical.rk4 import RK4

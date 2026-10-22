@@ -11,7 +11,7 @@ from typing import Any, Mapping, TYPE_CHECKING
 
 import numpy as np
 
-from diagnostics import StoredReferenceTrajectory
+from diagnostics.studies.reference_trajectory import StoredReferenceTrajectory
 
 from potential import Potential
 

@@ -27,7 +27,7 @@ from ._validation import (
 )
 from threadpoolctl import ThreadpoolController
 
-from diagnostics import StoredReferenceTrajectory
+from diagnostics.studies.reference_trajectory import StoredReferenceTrajectory
 from dynamics import GuidingCenterDynamics
 
 from potential import GC2DH5Metadata, Potential

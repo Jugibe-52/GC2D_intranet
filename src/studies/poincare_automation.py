@@ -32,7 +32,7 @@ from potential.load import GC2DH5Metadata
 from potential.potential import Potential
 from simulation.runner import simulate
 from states.history import States
-from diagnostics.persistence import StoredSolution
+from diagnostics.io.persistence import StoredSolution
 
 
 if TYPE_CHECKING:

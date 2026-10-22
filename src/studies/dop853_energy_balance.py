@@ -18,7 +18,7 @@ from methods.extended.bm4 import BM4Implicit
 from methods.classical.gauss_legendre import GaussLegendre4
 from methods.classical.rk4 import RK4
 from simulation.runner import simulate
-from diagnostics.bm4_energy_balance import BM4EnergyBalanceObserver
+from diagnostics.methods.extended.bm4_energy_balance import BM4EnergyBalanceObserver
 
 
 if TYPE_CHECKING:

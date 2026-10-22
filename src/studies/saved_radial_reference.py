@@ -3,7 +3,7 @@
 from copy import deepcopy
 from dataclasses import replace
 import numpy as np
-from diagnostics import StoredReferenceTrajectory
+from diagnostics.studies.reference_trajectory import StoredReferenceTrajectory
 
 from typing import TYPE_CHECKING
 

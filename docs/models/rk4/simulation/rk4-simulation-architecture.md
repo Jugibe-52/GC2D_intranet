@@ -185,7 +185,7 @@ round-trips canonical archives and keeps visualisation independent of integratio
 
 RK4 returns the canonical in-memory `States` through `simulation.runner`.
 Optional persistence is a subsequent operation:
-`diagnostics.persistence.save_solution(solution, destination, metadata=..., potential=...)`.
+`diagnostics.io.persistence.save_solution(solution, destination, metadata=..., potential=...)`.
 Omitting `destination` and supplying `experiment_path` and `run_id` selects the
 configured data bucket by default. Local storage requires an explicit local
 destination, optionally built by `solution_destination(..., storage="local")`.

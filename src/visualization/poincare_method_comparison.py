@@ -8,7 +8,7 @@ from typing import Any, Mapping, TYPE_CHECKING
 import numpy as np
 
 from states.history import States
-from diagnostics.persistence import StoredSolution
+from diagnostics.io.persistence import StoredSolution
 from studies.poincare_rho_sweep import (
     RhoStarConfig, rho_config_from_metadata, folded_rho_positions, prepare_rho_star, sample_rho_dynamics,
     validate_rho_solution,

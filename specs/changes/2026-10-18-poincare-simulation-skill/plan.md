@@ -4,7 +4,7 @@ kind = "change-plan"
 id = "2026-10-18-poincare-simulation-skill"
 revision = 1
 spec_revision = 1
-sources = ["src/studies/poincare_rho_sweep.py", "src/studies/poincare_gap_probes.py", "src/states/generators.py", "src/visualization/poincare_comparison.py", "src/visualization/_poincare_comparison.html", "src/visualization/poincare_gap_overlay.py", "src/diagnostics/persistence.py", "src/simulation/runner.py", "src/execution/options.py", "tests/test_poincare_rho_sweep.py", "tests/test_poincare_gap_viewers.py", "tests/test_h5_rescaling.py"]
+sources = ["src/studies/poincare_rho_sweep.py", "src/studies/poincare_gap_probes.py", "src/states/generators.py", "src/visualization/poincare_comparison.py", "src/visualization/_poincare_comparison.html", "src/visualization/poincare_gap_overlay.py", "src/diagnostics/io/persistence.py", "src/simulation/runner.py", "src/execution/options.py", "tests/test_poincare_rho_sweep.py", "tests/test_poincare_gap_viewers.py", "tests/test_h5_rescaling.py"]
 documents = ["specs/changes/2026-10-18-poincare-simulation-skill/spec.md", "docs/dynamics/gc2d-h5-import.md", "docs/simulation/execution.md", "AGENTS.md"]
 open_questions = []
 +++
