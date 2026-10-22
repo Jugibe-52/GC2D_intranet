@@ -48,7 +48,7 @@ gauss = GaussLegendre4(solver=solver)
 ```
 
 `ReducedProjection` solves for mu in R^(2N). `SimultaneousProjection` solves for
-(u, v, mu) in R^(6N). Both implement `formulations.projection.ProjectionFormulation`
+(u, v, mu) in R^(6N). Both implement `contracts.formulations.projection.ProjectionFormulation`
 and own the initial guess, residual, Jacobian assembly and physical reconstruction.
 The method supplies its doubled composition and derivative; formulations do not
 import methods. Their array operations serve NumPy and JAX. ABBA accepts either

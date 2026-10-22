@@ -5,7 +5,8 @@ from formulations.layout import GCStateLayout
 import unittest
 from types import SimpleNamespace
 import numpy as np
-from dynamics import DynamicalSystem, FullCyclotronDynamics, HamiltonianSystem
+from contracts.dynamics.protocols import DynamicalSystem, HamiltonianSystem
+from dynamics import FullCyclotronDynamics
 
 from simulation import (
     ExplicitEuler, RK4, GaussLegendre4, SDIRK4, HBVM42, DOP853, Radau,

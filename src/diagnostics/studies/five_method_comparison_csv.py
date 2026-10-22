@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from contracts.diagnostics.studies.five_method_comparison_csv import _WritableComparison
+
 from formulations.layout import GCStateLayout
 
 from collections.abc import Mapping
@@ -13,7 +15,7 @@ import os
 from pathlib import Path
 import tempfile
 from types import MappingProxyType
-from typing import Any, Protocol, TYPE_CHECKING
+from typing import Any, TYPE_CHECKING
 
 import numpy as np
 
@@ -22,27 +24,19 @@ from diagnostics.io.output import _json_default
 
 from states.history import States
 
-from contracts.comparison import (
-	AdaptiveReference, TrajectoryAccuracySeries, EnergyAccuracySeries,
-	ExecutionLogEntry, FiveMethodComparisonSummary, FiveMethodNonlinearWorkSummary,
+from contracts.studies.comparison import (
+	AdaptiveReference,
+	TrajectoryAccuracySeries,
+	EnergyAccuracySeries,
+	ExecutionLogEntry,
+	FiveMethodComparisonSummary,
+	FiveMethodNonlinearWorkSummary,
 	ComparisonReadView,
 )
 
 
 if TYPE_CHECKING:
 	from _csv import Reader
-
-
-class _WritableComparison(ComparisonReadView, Protocol):
-	"""Additional numerical controls required to preserve the CSV schema."""
-
-	@property
-	def config(self) -> _ComparisonConfigView: ...
-
-
-class _ComparisonConfigView(Protocol):
-	@property
-	def step_count(self) -> int: ...
 
 
 FIVE_METHOD_COMPARISON_CSV_SCHEMA_VERSION = 1

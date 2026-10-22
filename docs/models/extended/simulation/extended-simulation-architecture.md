@@ -143,7 +143,7 @@ All roots retain the physical scale `atol + rtol * max(1, ||z||_inf)`.
 ## Energy, sampling and observation
 
 Implicit ABBA steps, like BM4 steps, place one `ProjectedMapResult` directly in
-`contracts.step.StepResult.details`. The common step contract owns the completed
+`contracts.methods.step.StepResult.details`. The common step contract owns the completed
 workspace; the projection record owns the physical state, solver statistics and
 accepted composition trace. The redundant private `core.records.StepResult`
 and its projection tuple have been removed. Observers and reverse-step diagnostics
@@ -238,7 +238,7 @@ immutable. See the shared [layout and ownership contract](../../../dynamics/prot
 ## Explicit Newton iteration observation
 
 Implicit ABBA and BM4 constructors accept the optional keyword-only
-`newton_observer` callback. It receives `contracts.nonlinear.NewtonIteration`
+`newton_observer` callback. It receives `contracts.solvers.nonlinear.NewtonIteration`
 records for every evaluated Newton iterate, including the initial guess, the
 accepted root, and the final unsuccessful iterate if the correction limit is
 reached. Residuals are observed after their normal evaluation; recording adds no
@@ -255,7 +255,7 @@ Use aligned complete-step outputs when recording one history per main step.
 The portable Poincare runtime passes its `NewtonHistory` directly to
 `BM4Implicit` or `solve_projection`, including checkpoint chunks.
 New portable bundles must freeze the matching numerical source, including
-`contracts.nonlinear`; the updated driver must not be combined with an older
+`contracts.solvers.nonlinear`; the updated driver must not be combined with an older
 snapshot that predates `newton_observer`. Historical immutable bundles remain
 self-contained and are not rewritten.
 
@@ -274,7 +274,7 @@ right-hand-side axis for `numpy.linalg.solve`, preserving behavior with NumPy
 
 Fixed-step methods inherit `IntegrationMethod` and declare `jax_mode="device_resident"`.
 The executor resolves the device and prepares the dynamics; a numerical family
-adapter binds the method's controls into `contracts.compiled.CompiledStep`.
+adapter binds the method's controls into `contracts.methods.compiled.CompiledStep`.
 The executor starts the shared `execution/_jax_fixed.py` loop, which knows no
 concrete numerical method. Each method retains its compiled stages and statistics.
 See [JAX execution](../../../simulation/jax-execution.md).

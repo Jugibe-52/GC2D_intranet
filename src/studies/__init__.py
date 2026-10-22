@@ -128,12 +128,11 @@ from .implicit_energy import (
 from .three_method_newton_comparison import (
 	THREE_METHOD_NEWTON_LABELS,
 	THREE_METHOD_NEWTON_METHODS,
-	EnergyAccuracySeries,
 	ThreeMethodNewtonComparisonConfig,
 	ThreeMethodNewtonComparisonResult,
-	ThreeMethodNewtonSummary,
 	run_three_method_newton_comparison,
 )
+from contracts.studies.comparison import EnergyAccuracySeries, ThreeMethodNewtonSummary
 from .four_method_sdirk_comparison import (
 	FOUR_METHOD_SDIRK_LABELS,
 	FOUR_METHOD_SDIRK_METHODS,
@@ -146,12 +145,14 @@ from .five_method_sdirk_rk4_comparison import (
 	FIVE_METHOD_COMPARISON_LABELS,
 	FIVE_METHOD_COMPARISON_METHODS,
 	FIVE_METHOD_IMPLICIT_METHODS,
-	ExecutionLogEntry,
 	FiveMethodComparisonConfig,
 	FiveMethodComparisonResult,
+	run_five_method_comparison,
+)
+from contracts.studies.comparison import (
+	ExecutionLogEntry,
 	FiveMethodComparisonSummary,
 	FiveMethodNonlinearWorkSummary,
-	run_five_method_comparison,
 )
 from .initial_conditions import centered_circle, centered_gc_configuration, centered_square, domain_center, latin_hypercube_gc_configuration, latin_hypercube_gc_configuration_with_near_center, random_gc_configuration
 from .implicit_trajectory_comparison import (
@@ -226,11 +227,11 @@ from .ten_method_accuracy import (
 	TenMethodAccuracyResult,
 	TenMethodAccuracySummary,
 	TenMethodStepAccuracySummary,
-	TrajectoryAccuracySeries,
 	periodic_particle_distances,
 	run_ten_method_accuracy_refinement_study,
 	run_ten_method_accuracy_study,
 )
+from contracts.studies.comparison import TrajectoryAccuracySeries
 from .gauss_legendre4_evaluation import (
 	GaussLegendre4EvaluationConfig,
 	GaussLegendre4EvaluationResult,

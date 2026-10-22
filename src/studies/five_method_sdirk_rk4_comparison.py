@@ -8,9 +8,13 @@ from ._comparison import (
 	COMPARISON_LABELS, ComparisonConfig, ComparisonResult, comparison_method,
 	readonly_energy_history, accuracy_summaries, nonlinear_work_summaries,
 )
-from contracts.comparison import EnergyAccuracySeries
+from contracts.studies.comparison import EnergyAccuracySeries
 
-from contracts.comparison import (ExecutionLogEntry, FiveMethodComparisonSummary, FiveMethodNonlinearWorkSummary,)
+from contracts.studies.comparison import (
+	ExecutionLogEntry,
+	FiveMethodComparisonSummary,
+	FiveMethodNonlinearWorkSummary,
+)
 
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
@@ -31,9 +35,9 @@ from request import SimulationRequest
 from states.history import States
 from simulation.runner import simulate
 
-from contracts.comparison import AdaptiveReference
+from contracts.studies.comparison import AdaptiveReference
 from ._gauss_legendre4_common import (build_adaptive_reference, build_dop853_reference_with_reused_audit)
-from contracts.comparison import TrajectoryAccuracySeries
+from contracts.studies.comparison import TrajectoryAccuracySeries
 from ._trajectory_accuracy import (accuracy_series)
 
 

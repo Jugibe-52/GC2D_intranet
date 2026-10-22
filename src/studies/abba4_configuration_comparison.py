@@ -18,7 +18,7 @@ import numpy as np
 
 from ._comparison_validation import freeze_reference_indices
 
-from ._validation import (
+from contracts.studies._validation import (
 	finite_time_span,
 	integer_ratio,
 	nonnegative_finite,
@@ -34,7 +34,7 @@ from potential import GC2DH5Metadata, Potential
 from methods.extended.abba import ABBA4Implicit
 from problem import InitialValueProblem
 from solvers.nonlinear import NonlinearSolver
-from methods.base import NumericalMethod
+from contracts.methods.base import NumericalMethod
 from methods.extended.configuration import ProjectionFormulation, StateExtension
 from request import SimulationRequest
 from states.history import States

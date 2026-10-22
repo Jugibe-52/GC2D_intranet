@@ -13,15 +13,19 @@ from types import MappingProxyType
 from typing import ClassVar, Mapping, TYPE_CHECKING, TypeVar
 import numpy as np
 
-from contracts.comparison import (
-	AdaptiveReference, EnergyAccuracySeries, TrajectoryAccuracySeries,
-	FiveMethodComparisonSummary, FiveMethodNonlinearWorkSummary, ThreeMethodNewtonSummary,
+from contracts.studies.comparison import (
+	AdaptiveReference,
+	EnergyAccuracySeries,
+	TrajectoryAccuracySeries,
+	FiveMethodComparisonSummary,
+	FiveMethodNonlinearWorkSummary,
+	ThreeMethodNewtonSummary,
 )
 from problem import InitialValueProblem
 from request import SimulationRequest
 from dynamics.gc import GuidingCenterDynamics
 
-from methods.base import NumericalMethod
+from contracts.methods.base import NumericalMethod
 from methods.extended.abba import ABBA4Implicit
 from methods.extended.bm4 import BM4Implicit
 from methods.classical.gauss_legendre import GaussLegendre4
@@ -34,7 +38,14 @@ from ._comparison_validation import comparison_runtime_samples, validate_compari
 from ._trajectory_distances import DistanceConvention, normalized_distance_convention
 from ._trajectory_accuracy import accuracy_series
 from ._gauss_legendre4_common import build_adaptive_reference
-from ._validation import finite_time_span, nonnegative_integer, integer_ratio, nonnegative_finite, positive_finite, positive_integer
+from contracts.studies._validation import (
+	finite_time_span,
+	integer_ratio,
+	nonnegative_finite,
+	positive_finite,
+	positive_integer,
+)
+from ._validation import nonnegative_integer
 
 
 if TYPE_CHECKING:

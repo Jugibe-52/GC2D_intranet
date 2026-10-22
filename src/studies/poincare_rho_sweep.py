@@ -19,7 +19,7 @@ import numpy as np
 from execution.options import ExecutionOptions
 from problem import InitialValueProblem
 from request import SimulationRequest
-from contracts.result import DiagnosticValue
+from contracts.states.history import DiagnosticValue
 from diagnostics.io.persistence import StoredSolution, load_solution, save_solution
 from diagnostics.io.storage import ArtifactStore
 from dynamics.gc import GuidingCenterDynamics

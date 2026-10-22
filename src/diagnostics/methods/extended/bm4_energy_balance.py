@@ -1,14 +1,15 @@
 """Sample BM4 conjugate momentum and particle multipliers at output nodes."""
 from dataclasses import replace
 import numpy as np
-from contracts.observation import ImplicitBM4IntegrationStep, IntegrationStep
+from contracts.methods.extended.bm4 import ImplicitBM4IntegrationStep
+from contracts.methods.observation import IntegrationStep
 from dynamics import GuidingCenterDynamics
 from diagnostics.methods.extended.energy.observer import _bm4_stage_kappa_increment
 
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from contracts.observation import IntegrationStage
+    from contracts.methods.observation import IntegrationStage
     from typing import Any
 
 

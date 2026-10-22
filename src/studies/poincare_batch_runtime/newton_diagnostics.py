@@ -1,27 +1,20 @@
 """Observe Newton iterates without repeating or changing BM4 map evaluations."""
+
+from contracts.studies.poincare_batch_runtime.newton_diagnostics import DiagnosticTableMetadata
 from array import array
 import gzip
 import os
 from pathlib import Path
 from collections.abc import Mapping
-from typing import TYPE_CHECKING, TypedDict
+from typing import TYPE_CHECKING
 
 import numpy as np
 import pandas as pd
 
 
 if TYPE_CHECKING:
-    from contracts.nonlinear import NewtonIteration
+    from contracts.solvers.nonlinear import NewtonIteration
     from typing import Any
-
-
-class DiagnosticTableMetadata(TypedDict):
-    """Scientific dimensions and time conversion used by the CSV exporters."""
-
-    complete_steps: int
-    process_count: int
-    steps_per_cycle: int
-    time_scale_s: float
 
 
 class NewtonHistory:

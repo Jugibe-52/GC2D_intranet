@@ -16,7 +16,7 @@ from potential import Potential
 from simulation import ABBA2Implicit, ABBA4Implicit, ABBA6Implicit, InitialValueProblem, SimulationRequest, simulate
 from solvers.nonlinear import _solve_newton
 from methods.extended.core.records import CompositionTrace, ProjectedMapResult
-from contracts.step import StepInfo
+from contracts.methods.step import StepInfo
 
 
 def _problem() -> InitialValueProblem:

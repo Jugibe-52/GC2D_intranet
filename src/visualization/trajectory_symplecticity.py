@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+from contracts.visualization.trajectory_symplecticity import TrajectorySymplecticityRecordView
+
 from collections.abc import Mapping, Sequence
-from typing import TYPE_CHECKING, Protocol, cast
+from typing import TYPE_CHECKING, cast
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -16,16 +18,6 @@ from states.history import States
 if TYPE_CHECKING:
 	from studies.trajectory_symplecticity import TrajectorySymplecticityResult
 	from typing import Any
-
-
-class TrajectorySymplecticityRecordView(Protocol):
-	"""Scalar record fields consumed by the comparison plot."""
-
-	time: float
-	mean_local_relative_defect: float
-	std_local_relative_defect: float
-	mean_accumulated_relative_defect: float
-	std_accumulated_relative_defect: float
 
 
 def _positive(values: np.ndarray) -> np.ndarray:

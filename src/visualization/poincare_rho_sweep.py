@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any, Mapping, TYPE_CHECKING
 from collections.abc import Iterable
 from matplotlib.figure import Figure
-from contracts.result import DiagnosticValue
+from contracts.states.history import DiagnosticValue
 
 import numpy as np
 

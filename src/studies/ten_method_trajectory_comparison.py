@@ -12,7 +12,7 @@ from typing import Mapping
 
 import numpy as np
 
-from ._validation import (
+from contracts.studies._validation import (
 	finite_time_span,
 	integer_ratio,
 	nonnegative_finite,
@@ -31,7 +31,7 @@ from methods.extended.abba import ABBA2Implicit
 from problem import InitialValueProblem
 from methods.extended.abba import ABBA2Midpoint
 from solvers.nonlinear import NonlinearSolver
-from methods.base import NumericalMethod
+from contracts.methods.base import NumericalMethod
 from request import SimulationRequest
 from states.history import States
 from simulation.runner import simulate

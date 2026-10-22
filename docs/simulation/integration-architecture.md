@@ -106,7 +106,7 @@ The following old routes have been removed after migrating supported consumers:
 | `simulation.problem`, `contracts.problem` | `problem` |
 | `contracts.execution_options` | `execution.options` |
 | `simulation.request`, `contracts.request` | `request` |
-| `simulation._result` | `contracts.result` |
+| `simulation._result` | `contracts.states.history` |
 | `simulation.solution`, `solution` | `states.history` |
 | `methods.abba.*`, `methods.bm4.*` | `methods.extended` public exports and their defining modules |
 | `methods._abba_coefficients` | `methods.extended.core.composition` |
@@ -158,7 +158,7 @@ component block has N entries, and `components(state)` exposes a uniform
 integration time. `extended_time` has shape `(N, saved_times)`; `States.t`
 remains the one-dimensional grid.
 
-`StepResult` and `StepInfo` live in `src/contracts/step.py`. Their states are
+`StepResult` and `StepInfo` live in `src/contracts/methods/step.py`. Their states are
 internal; `States.states` and observer states are physical.
 `StepResult.statistics` contains accepted physical work. Details are transient
 unless an observer explicitly retains a copied event. `extract_sample` produces each physical column; `diagnose_history` computes
@@ -200,7 +200,7 @@ three- and four-method runners retain their alternating timing order. The
 five-method runner retains reference reuse, optional parallel model campaigns,
 and completion logging.
 
-`contracts.comparison` owns immutable reference and accuracy series, execution
+`contracts.studies.comparison` owns immutable reference and accuracy series, execution
 records, and comparison summary records. `ComparisonReadView` describes the
 shared read interface of live five-method results and loaded CSV views. CSV
 loading constructs these concrete records rather than mutable attribute bags;
@@ -208,13 +208,14 @@ the existing CSV schema, public loader, and public study imports are preserved.
 New numerical consumers read the canonical `residual_evaluations` complete-step
 series.
 
-`contracts.study_results` owns `GCEnergyBoundResult`,
-`ParallelBM4RecurrenceConfig`, and `ParallelBM4RecurrenceResult`. The existing
+`contracts.studies.gc_energy_bound` owns `GCEnergyBoundResult`;
+`contracts.studies.bm4_parallel_recurrence` owns `ParallelBM4RecurrenceConfig`
+and `ParallelBM4RecurrenceResult`. The existing
 study modules explicitly re-export these classes. Their HDF5/NPZ loaders and
 visualizers import the record owners directly, so reading an archive does not
 import study orchestration or execute a simulation. Existing energy and parallel
 recurrence archive schemas are unchanged. Scalar configuration rules shared with
-those records live in `contracts._study_validation`; study-specific geometry,
+those records live in `contracts.studies._validation`; study-specific geometry,
 reference identity, and execution policies remain in `studies`.
 
 ## Problem, options and diagnostic ownership
@@ -227,16 +228,23 @@ require the execution package.
 
 `diagnostics.studies.comparison` owns reference RMS floors and physical-energy error
 reductions. `diagnostics.studies.bm4_recurrence.recurrence_distances` owns periodic initial
-returns. Their input records stay in `contracts.comparison` and
-`contracts.study_results`, with validation and independent arrays but without
+returns. Their input records stay in `contracts.studies.comparison` and
+`contracts.studies`, with validation and independent arrays but without
 analysis methods or imports from diagnostics. The calculation formulas and
 archive schemas are unchanged. See [API migration](api-migration.md).
 
 `studies._validation.require_uncoupled_bm4` applies the policy for new calculations;
 archive constructors retain historical coupling metadata. Shared scalar record
-validation remains in `contracts._study_validation`.
+validation remains in `contracts.studies._validation`.
 
 `contracts.arrays` applies the shared NumPy/JAX compatibility agreement, including
 mixed values, nested sequences and tracers. It selects the array namespace, not
 a device or executor, and the NumPy path does not import JAX. This narrow semantic
 responsibility is retained rather than introducing a generic utilities package.
+
+## Contract locations
+
+Existing structural interfaces and shared records follow the source hierarchy
+under `contracts/`. See the [domain map](contracts.md) for canonical imports.
+Implementations remain in their own packages; contract modules do not load them
+at runtime. Public facades retain their established exported names.

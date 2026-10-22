@@ -8,7 +8,7 @@ from typing import Any
 import h5py
 import numpy as np
 
-from contracts.study_results import GCEnergyBoundResult
+from contracts.studies.gc_energy_bound import GCEnergyBoundResult
 
 
 def _json_value(value: Any) -> Any:

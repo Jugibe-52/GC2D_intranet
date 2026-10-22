@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
-from contracts.comparison import (TrajectoryAccuracySeries,)
+from contracts.studies._trajectory_accuracy import ReferenceAccuracyConfig
+
+from contracts.studies.comparison import TrajectoryAccuracySeries
 
 from collections.abc import Mapping, Sequence
 import json
-from typing import Any, Protocol
+from typing import Any
 
 import numpy as np
 
@@ -16,27 +18,8 @@ from dynamics import GuidingCenterDynamics
 from potential import Potential
 
 from ._trajectory_distances import DistanceConvention, normalized_distance_convention, particle_distances
-from ._validation import integer_ratio, positive_finite
+from contracts.studies._validation import integer_ratio, positive_finite
 from .reference_trajectory import potential_fingerprint
-
-
-class ReferenceAccuracyConfig(Protocol):
-	"""Configuration fields required to validate a stored GC reference."""
-
-	@property
-	def rho(self) -> float:
-		"""Return the normalized gyroradius."""
-		...
-
-	@property
-	def t_span(self) -> tuple[float, float]:
-		"""Return the integration interval."""
-		...
-
-	@property
-	def save_interval(self) -> float | None:
-		"""Return the common saved-time interval after configuration validation."""
-		...
 
 
 def _json_canonical(value: object) -> str:

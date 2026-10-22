@@ -12,13 +12,10 @@ import numpy as np
 
 from diagnostics._validation import positive_integer as _positive_integer
 
-from dynamics import GuidingCenterJacobianSystem
+from contracts.dynamics.protocols import GuidingCenterJacobianSystem
 from methods.extended.configuration import ABBA_PROJECTION_FORMULATIONS
-from contracts.observation import (
-	ABBA4ImplicitIntegrationStep,
-	ABBA2ImplicitIntegrationStep,
-	IntegrationStep,
-)
+from contracts.methods.extended.abba import ABBA4ImplicitIntegrationStep, ABBA2ImplicitIntegrationStep
+from contracts.methods.observation import IntegrationStep
 from solvers.nonlinear import NONLINEAR_SOLVERS, NonlinearSolver
 from solvers.nonlinear import SolverOptions
 from methods.extended.configuration import _validate_projection_formulation
@@ -28,7 +25,7 @@ from formulations.gc import GCDoubledMaps
 
 from methods.extended.core.composition import ABBA2, ABBA4, ABBA6
 from methods.extended.core.projection import solve_projection
-from contracts.observation import ABBA6ImplicitIntegrationStep
+from contracts.methods.extended.abba import ABBA6ImplicitIntegrationStep
 
 from diagnostics.methods.jacobians import implicit_function_step_jacobian
 from diagnostics.methods.trajectory_symplecticity.jacobians import (

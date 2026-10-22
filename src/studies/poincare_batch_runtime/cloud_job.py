@@ -1,7 +1,7 @@
 """Run both notebooks and synchronize immutable checkpoints to private S3."""
 
 from collections.abc import Iterable
-from typing import Any, Protocol
+from typing import Any
 import argparse
 import json
 from pathlib import Path
@@ -17,21 +17,8 @@ from typing import TYPE_CHECKING
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
+from contracts.studies.poincare_batch_runtime.cloud_job import S3Client
 from study_io import assert_checkpoint_file, atomic_json, digest, utc_now, validate_run_id
-
-
-class S3Paginator(Protocol):
-    """Object-listing interface used by checkpoint restoration."""
-
-    def paginate(self, **kwargs: str) -> Iterable[dict[str, Any]]: ...
-
-
-class S3Client(Protocol):
-    """File-transfer interface shared by S3 and offline checkpoint tests."""
-
-    def upload_file(self, file: str, bucket: str, key: str) -> None: ...
-    def download_file(self, bucket: str, key: str, file: str) -> None: ...
-    def get_paginator(self, name: str) -> S3Paginator: ...
 
 
 class CheckpointStore:

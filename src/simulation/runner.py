@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from methods.base import NumericalMethod
+from contracts.methods.base import NumericalMethod
 from execution.options import ExecutionOptions
 from problem import InitialValueProblem
 from request import SimulationRequest

@@ -22,7 +22,7 @@ from ._gc_symplecticity_models import (
 	GCSymplecticityConfig,
 	GCSymplecticitySummary,
 )
-from ._validation import nonnegative_finite, positive_finite, positive_integer
+from contracts.studies._validation import nonnegative_finite, positive_finite, positive_integer
 
 
 @dataclass(frozen=True, slots=True)

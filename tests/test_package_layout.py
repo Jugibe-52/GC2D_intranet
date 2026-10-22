@@ -78,8 +78,8 @@ class PackageLayoutTests(unittest.TestCase):
 			self.assertIs(getattr(extended, name), getattr(methods, name))
 		self.assertIs(classical.RK4, RK4)
 		for module in (
-			"contracts.configuration", "problem", "request", "execution.options",
-			"contracts.observation", "contracts.result", "contracts.step",
+			"contracts.formulations.layout", "problem", "request", "execution.options",
+			"contracts.methods.observation", "contracts.states.history", "contracts.methods.step",
 			"formulations.gc", "formulations.fc", "formulations.state",
 			"execution._host", "methods.base", "methods.extended", "methods.classical",
 			"methods.adaptive", "methods.hbvm", "execution.execution", "simulation.runner", "states.history", "execution.state", "formulations.layout",
@@ -147,7 +147,7 @@ def without_diagnostics(name, *args, **kwargs):
 builtins.__import__ = without_diagnostics
 import simulation
 import solvers
-import contracts.observation
+import contracts.methods.observation
 assert not any(name == 'diagnostics' or name.startswith('diagnostics.') for name in sys.modules)
 """
 		completed = subprocess.run(
@@ -226,7 +226,7 @@ assert not any(name.split(".")[0] in ("jax", "modal", "integration")
 		for module in (
 			"contracts.problem", "contracts.execution_options",
 			"execution._fixed", "execution._jax_run", "dynamics._jax_host",
-			"contracts.execution", "integration.core", "integration.state", "integration.jax_fixed",
+			"integration.core", "integration.state", "integration.jax_fixed",
 			"simulation.methods", "simulation.formulations", "simulation.integration",
 			"simulation.configuration", "simulation.problem", "simulation.request",
 			"simulation.observation", "simulation.solution", "simulation._result",

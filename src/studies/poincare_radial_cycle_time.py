@@ -31,7 +31,7 @@ from studies.dimensional_h5_midpoint import resolve_h5_source
 
 
 if TYPE_CHECKING:
-    from contracts.result import DiagnosticValue
+    from contracts.states.history import DiagnosticValue
     from typing import Mapping
 
 

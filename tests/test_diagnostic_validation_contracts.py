@@ -11,7 +11,7 @@ import unittest
 
 import numpy as np
 
-from contracts.observation import IntegrationStep
+from contracts.methods.observation import IntegrationStep
 from diagnostics.methods.extended.abba_reversibility import ImplicitABBAReversibilityObserver
 from diagnostics.methods.extended.energy.observer import GCGeneralizedEnergyObserver
 from diagnostics.studies.five_method_comparison_csv import load_five_method_comparison_csv

@@ -9,16 +9,18 @@ methods. This private driver serves fixed and adaptive runs without method dispa
 
 from __future__ import annotations
 
+from contracts.execution.controllers import StepController
+
 from collections.abc import Iterator
-from typing import Any, Generic, Protocol, TYPE_CHECKING, TypeVar
+from typing import Any, Generic, TYPE_CHECKING, TypeVar
 
 import math
 import sys
 
 import numpy as np
 
-from contracts.result import DiagnosticValue
-from contracts.step import StepInfo, StepResult
+from contracts.states.history import DiagnosticValue
+from contracts.methods.step import StepInfo, StepResult
 from execution.state import IntegrationState
 from request import SimulationRequest
 from states.history import States
@@ -85,26 +87,6 @@ def _time_tolerance(t_span: tuple[float, float]) -> float:
 	tf: float
 	t0, tf = t_span
 	return float(16 * np.finfo(float).eps * max(1.0, abs(t0), abs(tf)))
-
-
-class StepController(Protocol[Detail]):
-	"""Deliver accepted intervals and evaluate output samples within them.
-
-	An adaptive implementation must handle its retries internally and expose
-	accepted intervals only. Its sampling operation can use dense output. The
-	SciPy-backed methods provide adaptive control; other methods use fixed steps.
-	"""
-
-	def steps(
-		self, method: IntegrationMethod[Detail], request: SimulationRequest,
-	) -> Iterator[tuple[StepInfo, StepResult[Detail]]]: ...
-
-	def sample(
-		self, method: IntegrationMethod[Detail], info: StepInfo,
-		result: StepResult[Detail], time: float,
-	) -> np.ndarray:
-		"""Return a state at any requested time in the interval, including its ends."""
-		...
 
 
 class FixedStepController(Generic[Detail]):

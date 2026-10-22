@@ -2,7 +2,7 @@
 schema_version = 1
 kind = "spec"
 id = "results"
-sources = ["src/states/history.py", "src/contracts/result.py", "src/simulation/runner.py", "src/contracts/comparison.py", "src/contracts/study_results.py", "src/diagnostics/studies/comparison.py", "src/diagnostics/studies/bm4_recurrence.py"]
+sources = ["src/states/history.py", "src/contracts/states/history.py", "src/simulation/runner.py", "src/contracts/studies/comparison.py", "src/contracts/studies/gc_energy_bound.py", "src/contracts/studies/bm4_parallel_recurrence.py", "src/diagnostics/studies/comparison.py", "src/diagnostics/studies/bm4_recurrence.py"]
 documents = ["docs/simulation/integration-architecture.md"]
 
 [[requirements]]
@@ -40,8 +40,8 @@ diagnostics, so valid diagnostics can be supplied in a later finalization call.
 
 ## Shared study records and analysis
 
-Comparison and recurrence records remain in `contracts.comparison` and
-`contracts.study_results`. They own data validation and storage; reference RMS
+Comparison and recurrence records remain in `contracts.studies.comparison` and
+`contracts.studies`. They own data validation and storage; reference RMS
 floors and energy reductions belong to `diagnostics.studies.comparison`, and periodic
 initial-return distances to `diagnostics.studies.bm4_recurrence`. Formulas, units and
 archive schemas are unchanged. Readers do not depend on study orchestration.

@@ -18,8 +18,8 @@ from typing import Any
 import numpy as np
 import scipy
 
-from contracts.configuration import StateLayout
-from contracts.result import DiagnosticValue
+from contracts.formulations.layout import StateLayout
+from contracts.states.history import DiagnosticValue
 from formulations.layout import FCStateLayout
 from diagnostics.io.paths import solution_destination
 from diagnostics.io.storage import ArtifactStore, StorageError

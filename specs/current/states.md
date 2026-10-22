@@ -26,7 +26,7 @@ tests = ["tests/test_states.py", "tests/test_method_integration.py", "tests/test
 
 Use `.times`, `.values`, `.components()`, `.split()`, `.positions()`, `.velocities()`, `.particle_count` and `.select(indices)`. Velocity access requires named velocity components and fails for GC. Selection retains original times, layout and initial snapshot; whole-run diagnostics remain attached on their own axes. `GCState` and `FCState` are named component tuples, not container subclasses.
 
-Canonical layouts belong to `formulations.layout` and share the `StateLayout` protocol from `contracts.configuration`. They handle packed `(d*N,*samples)`, component `(N,*samples)` and block `(d,N,*samples)` shapes while preserving NumPy/JAX backends, ordering and units. GC orders x then y; FC appends vx then vy. Layouts require no numerical-method dependency. Retired `State`, `Solution`, `IntegrationCollector`, `states.layout` and `contracts.request` have no compatibility aliases.
+Canonical layouts belong to `formulations.layout` and share the `StateLayout` protocol from `contracts.formulations.layout`. They handle packed `(d*N,*samples)`, component `(N,*samples)` and block `(d,N,*samples)` shapes while preserving NumPy/JAX backends, ordering and units. GC orders x then y; FC appends vx then vy. Layouts require no numerical-method dependency. Retired `State`, `Solution`, `IntegrationCollector`, `states.layout` and `contracts.request` have no compatibility aliases.
 
 ## STA-002: Independent initial geometry and diagnostics
 

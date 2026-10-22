@@ -5,7 +5,7 @@ from typing import Any, TYPE_CHECKING
 import jax
 import jax.numpy as jnp
 
-from dynamics.protocols import HamiltonianSystem, GuidingCenterJacobianSystem
+from contracts.dynamics.protocols import HamiltonianSystem, GuidingCenterJacobianSystem
 from formulations.gc import _COUPLING_BASE, _COUPLING_COS, _COUPLING_SIN
 from formulations.projection import resolve_projection
 from methods._jax_options import CompositionOptions
@@ -16,7 +16,7 @@ from solvers._jax import (
 
 
 if TYPE_CHECKING:
-    from formulations.projection import ProjectionFormulation
+    from contracts.formulations.projection import ProjectionFormulation
     from solvers._jax import Root
 
 

@@ -6,7 +6,7 @@ from studies._validation import require_uncoupled_bm4
 
 from formulations.layout import GCStateLayout
 
-from contracts.study_results import ParallelBM4RecurrenceConfig, ParallelBM4RecurrenceResult
+from contracts.studies.bm4_parallel_recurrence import ParallelBM4RecurrenceConfig, ParallelBM4RecurrenceResult
 
 from concurrent.futures import FIRST_COMPLETED, Future, ProcessPoolExecutor, wait
 from dataclasses import dataclass

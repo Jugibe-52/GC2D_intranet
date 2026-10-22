@@ -5,12 +5,12 @@ from dataclasses import dataclass, field
 from typing import ClassVar, Literal, TYPE_CHECKING
 import numpy as np
 
-from contracts.nonlinear import NewtonObserver
-from contracts.observation import IntegrationStep, StepObserver
+from contracts.solvers.nonlinear import NewtonObserver
+from contracts.methods.observation import IntegrationStep, StepObserver
 from problem import InitialValueProblem
-from contracts.result import DiagnosticValue
-from contracts.step import StepInfo, StepResult
-from dynamics.protocols import GuidingCenterJacobianSystem
+from contracts.states.history import DiagnosticValue
+from contracts.methods.step import StepInfo, StepResult
+from contracts.dynamics.protocols import GuidingCenterJacobianSystem
 from formulations.projection import ProjectionChoice
 from formulations.state import DoubledFormulation
 from request import SimulationRequest
@@ -21,7 +21,8 @@ from methods.extended.configuration import (
 )
 from methods.extended.core.composition import ABBA2, ABBA4, ABBA6, Composition
 from methods.extended.core.jacobians import _checked_vector_field_jacobian
-from methods.extended.core.records import ProjectedMap, ProjectedMapResult
+from contracts.methods.extended.core.records import ProjectedMap
+from methods.extended.core.records import ProjectedMapResult
 from methods.extended.observations import EventBuilder, bind_event_builder
 from methods.extended.palindromic import ProjectedPalindromicMethod, MidpointPalindromicMethod
 

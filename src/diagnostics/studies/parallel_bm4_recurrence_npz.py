@@ -15,7 +15,7 @@ import numpy as np
 
 from diagnostics.io.output import _json_default
 
-from contracts.study_results import ParallelBM4RecurrenceConfig, ParallelBM4RecurrenceResult
+from contracts.studies.bm4_parallel_recurrence import ParallelBM4RecurrenceConfig, ParallelBM4RecurrenceResult
 
 
 PARALLEL_BM4_RECURRENCE_NPZ_SCHEMA_VERSION = 1

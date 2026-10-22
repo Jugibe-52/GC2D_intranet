@@ -9,10 +9,10 @@ from time import perf_counter, time
 from execution.options import ExecutionOptions
 from problem import InitialValueProblem
 from request import SimulationRequest
-from contracts.result import DiagnosticValue
+from contracts.states.history import DiagnosticValue
 from states.history import States
 from execution.execution import Execution
-from methods.base import NumericalMethod
+from contracts.methods.base import NumericalMethod
 
 from typing import TYPE_CHECKING
 

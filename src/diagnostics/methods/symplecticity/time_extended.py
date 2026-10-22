@@ -10,13 +10,13 @@ import numpy as np
 from diagnostics._validation import optional_relative_step
 
 from dynamics import GuidingCenterDynamics
-from contracts.observation import (
+from contracts.methods.extended.abba import (
 	ABBA4ImplicitIntegrationStep,
 	UnprojectedABBAIntegrationStep,
 	ABBA2ImplicitIntegrationStep,
-	ImplicitBM4IntegrationStep,
-	IntegrationStep,
 )
+from contracts.methods.extended.bm4 import ImplicitBM4IntegrationStep
+from contracts.methods.observation import IntegrationStep
 from formulations.gc import gc_coupling_matrix
 
 from diagnostics.methods.jacobians import central_difference_jacobian

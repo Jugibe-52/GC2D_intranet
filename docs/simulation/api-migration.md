@@ -167,3 +167,21 @@ See the [diagnostic package guide](../../src/diagnostics/README.md) for ownershi
 and import examples. Numerical behavior, archive schemas and output destinations
 are unchanged. Working notebook imports have been migrated without replacing
 stored results; historical conflict copies retain their original references.
+
+## Contracts organized by source domain
+
+Import pure interfaces and shared records from the matching `contracts` domain;
+see the complete [contract map](contracts.md). For example, use
+`contracts.methods.base.NumericalMethod`, `contracts.formulations.layout.StateLayout`,
+and `contracts.dynamics.protocols.DynamicalSystem`. Common events live in
+`contracts.methods.observation`; adaptive, Gauss, ABBA, and BM4 events live beside
+their matching method paths. Public `simulation`, `methods`, `formulations`,
+`execution`, `dynamics`, and `visualization` exports keep their existing identities.
+
+The old flat contract modules and `dynamics.protocols` are removed, without
+compatibility modules. `contracts.execution` is now a domain package containing
+`controllers`, not the former execution-configuration module. Implementations such
+as `methods.base.IntegrationMethod` and `execution._host.FixedStepController`
+stay in their domains. Numerical archives keep their schemas; old Python pickles
+with removed module paths are not portable archives. Regenerate those objects
+with the current source before process or remote execution.

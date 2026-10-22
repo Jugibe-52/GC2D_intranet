@@ -17,7 +17,8 @@ from methods.extended import (
 	ProjectionFormulation,
 	StateExtension,
 )
-from methods.base import IntegrationMethod, NumericalMethod
+from methods.base import IntegrationMethod
+from contracts.methods.base import NumericalMethod
 from methods.classical import (
 	ExplicitEuler,
 	GAUSS_JACOBIAN_METHODS,

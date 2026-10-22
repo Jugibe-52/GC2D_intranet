@@ -5,11 +5,12 @@ from dataclasses import dataclass, field
 from typing import Literal, TYPE_CHECKING, TypeAlias
 import numpy as np
 
-from contracts.nonlinear import NewtonObserver
-from contracts.observation import ImplicitBM4IntegrationStep, StepObserver
+from contracts.solvers.nonlinear import NewtonObserver
+from contracts.methods.extended.bm4 import ImplicitBM4IntegrationStep
+from contracts.methods.observation import StepObserver
 from problem import InitialValueProblem
-from contracts.result import DiagnosticValue
-from contracts.step import StepInfo, StepResult
+from contracts.states.history import DiagnosticValue
+from contracts.methods.step import StepInfo, StepResult
 from formulations.gc import GCDoubledMaps
 from formulations.state import DoubledFormulation
 from request import SimulationRequest
@@ -17,13 +18,14 @@ from solvers.nonlinear import AlgebraicSolver, NonlinearSolver
 from methods._validation import _positive_finite
 from methods.extended.configuration import StateExtension
 from methods.extended.core.composition import BM4, Composition
-from methods.extended.core.records import ProjectedMap, ProjectedMapResult as _ProjectedBM4Step
+from contracts.methods.extended.core.records import ProjectedMap
+from methods.extended.core.records import ProjectedMapResult as _ProjectedBM4Step
 from methods.extended.observations import stage_events
 from methods.extended.palindromic import ProjectedPalindromicMethod, MidpointPalindromicMethod
 
 
 if TYPE_CHECKING:
-	from contracts.observation import IntegrationStage
+	from contracts.methods.observation import IntegrationStage
 
 
 NewtonJacobianMethod: TypeAlias = Literal['analytic', 'finite_difference']

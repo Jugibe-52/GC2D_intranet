@@ -2,8 +2,8 @@
 
 import numpy as np
 
-from contracts._study_validation import positive_finite
-from contracts.study_results import ParallelBM4RecurrenceResult
+from contracts.studies._validation import positive_finite
+from contracts.studies.bm4_parallel_recurrence import ParallelBM4RecurrenceResult
 
 
 def recurrence_distances(result: ParallelBM4RecurrenceResult, *, period: float) -> np.ndarray:

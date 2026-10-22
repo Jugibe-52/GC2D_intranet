@@ -15,12 +15,12 @@ from typing import Any, ClassVar, TYPE_CHECKING
 import numpy as np
 from scipy.integrate import DOP853 as ScipyDOP853, Radau as ScipyRadau
 
-from dynamics.protocols import DynamicalSystem
+from contracts.dynamics.protocols import DynamicalSystem
 
 from formulations.state import PhysicalFormulation
 from methods.base import IntegrationMethod
-from contracts.step import StepInfo, StepResult
-from contracts.observation import AdaptiveIntegrationStep, AdaptiveStepObserver
+from contracts.methods.step import StepInfo, StepResult
+from contracts.methods.adaptive.scipy import AdaptiveIntegrationStep, AdaptiveStepObserver
 from problem import InitialValueProblem
 from request import SimulationRequest
 from methods._validation import _positive_finite

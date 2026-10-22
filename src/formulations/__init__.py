@@ -1,8 +1,9 @@
 """Reusable numerical formulations for structure-preserving methods."""
 
-from formulations.projection import ProjectionFormulation, ReducedProjection, SimultaneousProjection
+from contracts.formulations.projection import ProjectionFormulation
+from formulations.projection import ReducedProjection, SimultaneousProjection
 from formulations.state import PhysicalFormulation, DoubledFormulation
-from formulations.base import (
+from contracts.formulations.base import (
 	DirectAdjointFormulation,
 	PreparedDirectAdjointFormulation,
 	PreparedStageProjectedFormulation,

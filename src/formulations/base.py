@@ -1,20 +1,12 @@
-"""Contracts and utilities for direct/adjoint numerical formulations."""
+"""Momentum updates shared by direct/adjoint numerical formulations."""
 
 from __future__ import annotations
 
-from typing import Protocol, TYPE_CHECKING, TypeAlias, runtime_checkable
+from contracts.formulations.base import PreparedDirectAdjointFormulation, PreparedStageProjectedFormulation, DirectAdjointFormulation, StageProjectedFormulation
 
 import numpy as np
 
-from dynamics.protocols import DynamicalSystem, HamiltonianSystem
-from contracts.result import DiagnosticValue
-
-if TYPE_CHECKING:
-	from problem import InitialValueProblem
-
-
-Projection: TypeAlias = tuple[np.ndarray, dict[str, DiagnosticValue]]
-
+from contracts.dynamics.protocols import DynamicalSystem, HamiltonianSystem
 
 def _updated_momentum(
 	dynamics: DynamicalSystem,
@@ -35,77 +27,6 @@ def _updated_momentum(
 	if derivative.shape != momentum.shape:
 		raise ValueError("The extended-momentum derivative changed its shape.")
 	return np.asarray(momentum + duration * derivative)
-
-
-class PreparedDirectAdjointFormulation(Protocol):
-	"""Per-run immutable maps consumed by a composition method."""
-
-	@property
-	def dynamics(self) -> DynamicalSystem:
-		"""Exact physical system bound to the prepared stage maps."""
-
-	@property
-	def dynamics_name(self) -> str:
-		"""Stable physical-dynamics label emitted with stage observations."""
-
-	@property
-	def initial_internal_state(self) -> np.ndarray:
-		"""Return the packed internal initial state for this prepared run."""
-
-	def direct_map(
-		self,
-		duration: float,
-		t: float,
-		state: np.ndarray,
-	) -> np.ndarray:
-		"""Apply one direct map."""
-
-	def adjoint_map(
-		self,
-		duration: float,
-		t: float,
-		state: np.ndarray,
-	) -> np.ndarray:
-		"""Apply one adjoint map."""
-
-	def project(self, internal_history: np.ndarray) -> Projection:
-		"""Return the physical history and formulation diagnostics."""
-
-
-class PreparedStageProjectedFormulation(PreparedDirectAdjointFormulation, Protocol):
-	"""Prepared maps with a projection applied after every composition stage."""
-
-	@property
-	def supports_stage_projection(self) -> bool:
-		"""Whether the prepared formulation permits end-of-stage projection."""
-
-	def project_internal_state(self, state: np.ndarray) -> np.ndarray:
-		"""Return the internal state to use at the start of the next stage."""
-
-
-@runtime_checkable
-class DirectAdjointFormulation(Protocol):
-	"""Reusable configuration that prepares direct and adjoint maps."""
-
-	def prepare(
-		self,
-		problem: InitialValueProblem,
-		*,
-		track_energy: bool,
-	) -> PreparedDirectAdjointFormulation:
-		"""Create immutable maps bound to one simulation problem."""
-
-
-class StageProjectedFormulation(DirectAdjointFormulation, Protocol):
-	"""Configuration that prepares maps with an end-of-stage projection."""
-
-	def prepare(
-		self,
-		problem: InitialValueProblem,
-		*,
-		track_energy: bool,
-	) -> PreparedStageProjectedFormulation:
-		"""Create maps and their internal end-of-stage projection."""
 
 
 __all__ = [

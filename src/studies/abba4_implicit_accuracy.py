@@ -13,7 +13,7 @@ import numpy as np
 
 from ._comparison_validation import freeze_reference_indices
 
-from ._validation import (
+from contracts.studies._validation import (
 	finite_time_span,
 	integer_ratio,
 	nonnegative_finite,
@@ -32,7 +32,7 @@ from request import SimulationRequest
 from states.history import States
 from simulation.runner import simulate
 
-from contracts.comparison import TrajectoryAccuracySeries
+from contracts.studies.comparison import TrajectoryAccuracySeries
 from ._trajectory_accuracy import (accuracy_series, reference_indices_for_times, reference_distance_convention, validate_reference_identity, validated_refinement_steps)
 
 

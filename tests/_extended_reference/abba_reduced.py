@@ -9,7 +9,7 @@ from methods.extended.core.composition import ABBA2
 from tests._extended_reference.abba_maps import uncoupled_maps
 from solvers.nonlinear import SolverOptions
 
-from dynamics import GuidingCenterJacobianSystem
+from contracts.dynamics.protocols import GuidingCenterJacobianSystem
 
 from solvers.nonlinear import NonlinearSolver, _solve_broyden, _solve_newton
 from tests._extended_reference.abba_maps import _ProjectedStep

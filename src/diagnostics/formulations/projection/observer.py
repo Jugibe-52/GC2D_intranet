@@ -16,7 +16,7 @@ import numpy as np
 from diagnostics._validation import optional_relative_step, positive_integer
 
 
-from contracts.observation import IntegrationStage
+from contracts.methods.observation import IntegrationStage
 from diagnostics.io.buffering import DiagnosticBuffer
 from diagnostics.methods.jacobians import central_difference_jacobian
 from diagnostics.methods.symplecticity.observer import gc_physical_symplectic_form

@@ -8,7 +8,7 @@ from typing import ClassVar, Generic, Literal, TYPE_CHECKING, TypeAlias, TypeVar
 
 import numpy as np
 
-from contracts.nonlinear import NewtonIteration, NewtonObserver
+from contracts.solvers.nonlinear import NewtonIteration, NewtonObserver
 
 
 if TYPE_CHECKING:

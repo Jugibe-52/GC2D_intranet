@@ -15,7 +15,7 @@ import numpy as np
 
 from ._comparison_validation import freeze_reference_indices
 
-from ._validation import (
+from contracts.studies._validation import (
 	finite_time_span,
 	integer_ratio,
 	nonnegative_finite,
@@ -31,12 +31,12 @@ from methods.extended.abba import ABBA4Implicit
 from methods.extended.bm4 import BM4Implicit
 from methods.extended.abba import ABBA2Implicit
 from problem import InitialValueProblem
-from methods.base import NumericalMethod
+from contracts.methods.base import NumericalMethod
 from request import SimulationRequest
 from states.history import States
 from simulation.runner import simulate
 
-from contracts.comparison import TrajectoryAccuracySeries
+from contracts.studies.comparison import TrajectoryAccuracySeries
 from ._trajectory_accuracy import (accuracy_series, reference_distance_convention, reference_indices_for_times, validate_reference_identity, validated_refinement_steps)
 
 

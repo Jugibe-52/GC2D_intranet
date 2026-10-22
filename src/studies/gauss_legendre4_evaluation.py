@@ -13,10 +13,9 @@ from typing import Mapping, TYPE_CHECKING
 
 import numpy as np
 
-from ._validation import (
-	validate_sampling_grid,
+from ._validation import validate_sampling_grid, nonnegative_integer
+from contracts.studies._validation import (
 	finite_time_span,
-	nonnegative_integer,
 	integer_ratio,
 	nonnegative_finite,
 	positive_finite,
@@ -30,15 +29,16 @@ from dynamics import GuidingCenterDynamics
 
 from potential import Potential
 from methods.classical.gauss_legendre import GaussLegendre4
-from contracts.observation import GaussLegendre4IntegrationStep, IntegrationStep
+from contracts.methods.classical.gauss_legendre import GaussLegendre4IntegrationStep
+from contracts.methods.observation import IntegrationStep
 from problem import InitialValueProblem
 from request import SimulationRequest
 from states.history import States
 from simulation.runner import simulate
 
-from contracts.comparison import AdaptiveReference
+from contracts.studies.comparison import AdaptiveReference
 from ._gauss_legendre4_common import (build_adaptive_reference, readonly_runtime_samples)
-from contracts.comparison import TrajectoryAccuracySeries
+from contracts.studies.comparison import TrajectoryAccuracySeries
 from ._trajectory_accuracy import (accuracy_series)
 from ._trajectory_accuracy import validated_refinement_steps
 

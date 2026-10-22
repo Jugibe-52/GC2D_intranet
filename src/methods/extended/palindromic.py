@@ -9,12 +9,12 @@ from typing import Generic, Literal, TypeVar
 
 import numpy as np
 
-from contracts.nonlinear import NewtonObserver
-from contracts.observation import IntegrationStep, StepObserver
+from contracts.solvers.nonlinear import NewtonObserver
+from contracts.methods.observation import IntegrationStep, StepObserver
 from problem import InitialValueProblem
-from contracts.result import DiagnosticValue
-from contracts.step import StepInfo, StepResult
-from dynamics.protocols import DynamicalSystem, GuidingCenterJacobianSystem
+from contracts.states.history import DiagnosticValue
+from contracts.methods.step import StepInfo, StepResult
+from contracts.dynamics.protocols import DynamicalSystem, GuidingCenterJacobianSystem
 from formulations.gc import GCDoubledMaps, HarmonicCoupling, _EnergyQuadraturePoint
 from formulations.projection import ProjectionChoice, resolve_projection
 from formulations.state import DoubledFormulation
@@ -26,7 +26,8 @@ from methods.extended.core.energy import momentum_increment
 from methods.extended.core.jacobians import _checked_vector_field_jacobian
 from methods.extended.core.midpoint import MidpointResult, midpoint_step
 from methods.extended.core.projection import solve_projection
-from methods.extended.core.records import ProjectedMap, ProjectedMapResult, step_statistics
+from contracts.methods.extended.core.records import ProjectedMap
+from methods.extended.core.records import ProjectedMapResult, step_statistics
 from request import SimulationRequest
 from solvers.nonlinear import AlgebraicSolver, NonlinearSolver, SolverOptions, _validate_nonlinear_solver, validate_solver
 

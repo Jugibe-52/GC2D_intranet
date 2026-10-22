@@ -109,7 +109,7 @@ immutable. See the shared [layout and ownership contract](../../../dynamics/prot
 ## Newton iterate callbacks
 
 The keyword-only `newton_observer` receives independent read-only
-`contracts.nonlinear.NewtonIteration` snapshots, including the physical
+`contracts.solvers.nonlinear.NewtonIteration` snapshots, including the physical
 projection multiplier. It observes already computed residuals and supports
 independent or nested runs without global instrumentation. Direct advances and
 off-grid output solves emit iterates; diagnostic `map_state` replay does not.
@@ -122,9 +122,9 @@ callback. See the [shared callback and particle-solve contract](../../extended/s
 The three-, four-, and five-method comparison campaigns share method construction,
 alignment checks, and metric reductions in `studies._comparison`; their public
 study entry points remain unchanged. Reference, accuracy, summary, and execution
-records belong to `contracts.comparison`, and CSV readers reconstruct those same
+records belong to `contracts.studies.comparison`, and CSV readers reconstruct those same
 record types without importing study orchestration. Energy-bound and parallel
-BM4 archive records belong to `contracts.study_results`, with explicit re-exports
+BM4 archive records belong to `contracts.studies`, with explicit re-exports
 from their established study modules. See the
 [record ownership contract](../../../simulation/integration-architecture.md#comparison-and-archive-record-ownership).
 
@@ -132,7 +132,7 @@ from their established study modules. See the
 
 Fixed-step methods inherit `IntegrationMethod` and declare `jax_mode="device_resident"`.
 The executor resolves the device and prepares the dynamics; a numerical family
-adapter binds the method's controls into `contracts.compiled.CompiledStep`.
+adapter binds the method's controls into `contracts.methods.compiled.CompiledStep`.
 The executor starts the shared `execution/_jax_fixed.py` loop, which knows no
 concrete numerical method. Each method retains its compiled stages and statistics.
 See [JAX execution](../../../simulation/jax-execution.md).

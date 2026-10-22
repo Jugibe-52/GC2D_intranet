@@ -8,7 +8,7 @@ digraph architecture {
   state [label="DoubledFormulation\nsrc/formulations/state.py\nTwo copies; optional time and kappa", fillcolor="#e5ecfa"];
   advance [label="Common advance\nextended/palindromic.py\nImplicit solve or final mean; passive finish", fillcolor="#e5ecfa"];
   energy [label="Passive energy and outputs\ncore/energy.py: accepted shear quadrature\nH + kappa; no feedback into the root", fillcolor="#e1f0e6"];
-  observe [label="Optional observations\nextended/observations.py: event adapters\nPublic records: contracts/observation.py", fillcolor="#f0e5f5"];
+  observe [label="Optional observations\nextended/observations.py: event adapters\nPublic records: contracts/methods/", fillcolor="#f0e5f5"];
   projection [label="midpoint_step\ncore/midpoint.py\nOne arithmetic diagonal average", fillcolor="#e1f0e6"];
   solver [label="Explicit projection\nAverage the two final copies\nNo Newton / Broyden calls", fillcolor="#fff0d9"];
   placement [label="Method identity\nArithmetic mean after the full cycle\nNo nonlinear solve", fillcolor="#fff0d9"];

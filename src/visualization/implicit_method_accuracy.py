@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+from contracts.visualization.implicit_method_accuracy import ImplicitMethodAccuracySummaryView, ImplicitMethodAccuracyOrderView
+
 from collections.abc import Sequence
-from typing import Protocol, TYPE_CHECKING, TypeAlias
+from typing import TYPE_CHECKING, TypeAlias
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -33,32 +35,6 @@ _MARKERS = {
 	"ABBA4Implicit": "+",
 	"BM4Implicit": "o",
 }
-
-
-class ImplicitMethodAccuracySummaryView(Protocol):
-	"""Step-summary fields consumed by implicit accuracy plots."""
-
-	method_name: str
-	method_label: str
-	designed_order: float
-	integration_step: float
-	time_integrated_rms_distance: float
-	mean_iterations_per_solve: float
-	maximum_iterations_per_solve: int
-	mean_residual_evaluations_per_solve: float
-	maximum_residual_to_tolerance: float
-	runtime_seconds: float
-
-
-class ImplicitMethodAccuracyOrderView(Protocol):
-	"""Adjacent-refinement fields consumed by the observed-order plot."""
-
-	method_name: str
-	method_label: str
-	designed_order: float
-	fine_step: float
-	time_integrated_rms_order: float
-	final_rms_order: float
 
 
 _SummaryGrid: TypeAlias = dict[str, dict[float, ImplicitMethodAccuracySummaryView]]

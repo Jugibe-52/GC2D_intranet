@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+from contracts.visualization.hbvm42 import HBVM42EvaluationSummaryView, HBVM42OrderSummaryView, HBVM42BM4SummaryView
+
 from collections.abc import Mapping, Sequence
-from typing import Protocol, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -15,41 +17,6 @@ from states.history import States
 
 if TYPE_CHECKING:
 	from typing import Any
-
-
-class HBVM42EvaluationSummaryView(Protocol):
-	"""Structural plotting view of one individual-evaluation row."""
-
-	step: float
-	trajectory_rms_error: float
-	final_error: float
-	median_runtime_seconds: float
-	minimum_runtime_seconds: float
-	maximum_absolute_energy_error: float
-	maximum_relative_energy_error: float
-	local_symplecticity_defect: float
-	flow_symplecticity_defect: float
-	maximum_nonlinear_iterations: int
-	mean_nonlinear_iterations: float
-	mean_vector_field_evaluations: float
-
-
-class HBVM42OrderSummaryView(Protocol):
-	"""Structural plotting view of one adjacent-step order row."""
-
-	fine_step: float
-	trajectory_order_reduction: float
-	final_order_reduction: float
-
-
-class HBVM42BM4SummaryView(Protocol):
-	"""Structural plotting view of one comparison row."""
-
-	method: str
-	step: float
-	final_error: float
-	median_runtime_seconds: float
-	minimum_runtime_seconds: float
 
 
 def _positive(values: np.ndarray) -> np.ndarray:

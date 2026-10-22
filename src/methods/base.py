@@ -2,43 +2,26 @@
 
 from __future__ import annotations
 
+from contracts.methods.base import NumericalMethod
+
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Mapping
 from dataclasses import is_dataclass, replace
 from types import MappingProxyType
-from typing import Any, ClassVar, Generic, Literal, Protocol, Self, TYPE_CHECKING, TypeVar, runtime_checkable
+from typing import Any, ClassVar, Generic, Literal, Self, TYPE_CHECKING, TypeVar
 
 import numpy as np
 
-from contracts.result import DiagnosticValue
-from contracts.step import StepInfo, StepResult
+from contracts.states.history import DiagnosticValue
+from contracts.methods.step import StepInfo, StepResult
 from formulations.state import PhysicalFormulation
 
 from problem import InitialValueProblem
-from dynamics.protocols import DynamicalSystem
+from contracts.dynamics.protocols import DynamicalSystem
 from request import SimulationRequest
 
 if TYPE_CHECKING:
-	from execution._host import StepController
-
-
-@runtime_checkable
-class NumericalMethod(Protocol):
-	"""Prepare numerical operations for an executor-owned integration."""
-
-	@property
-	def jax_mode(self) -> Literal["unsupported", "device_resident", "hybrid_scipy_controller"]:
-		"""Declare an optional execution capability without selecting a device."""
-		...
-
-	def new_run(
-		self,
-		problem: InitialValueProblem,
-		request: SimulationRequest,
-		*, evaluated_dynamics: DynamicalSystem | None = None,
-	) -> IntegrationMethod[Any]:
-		"""Return a fresh run, optionally using executor-prepared field evaluations."""
-		...
+	from contracts.execution.controllers import StepController
 
 
 Detail = TypeVar("Detail")

@@ -13,14 +13,8 @@ from typing import Any, Mapping
 import numpy as np
 from collections.abc import Iterable
 
-from ._validation import (
-	unpacked_time_span,
-	validate_block_prefix,
-	integer_ratio,
-	nonnegative_finite,
-	positive_finite,
-	positive_integer,
-)
+from ._validation import unpacked_time_span, validate_block_prefix
+from contracts.studies._validation import integer_ratio, nonnegative_finite, positive_finite, positive_integer
 
 from studies._trajectory_distances import minimum_image_displacement
 

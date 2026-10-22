@@ -2,7 +2,7 @@
 
 import numpy as np
 
-from contracts.comparison import AdaptiveReference
+from contracts.studies.comparison import AdaptiveReference
 
 
 def time_integrated_rms_floor(reference: AdaptiveReference) -> float:

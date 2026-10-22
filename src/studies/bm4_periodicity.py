@@ -1,7 +1,7 @@
 """Same-phase return and finite-horizon periodicity diagnostics for one BM4 orbit."""
 
 import numpy as np
-from contracts.study_results import ParallelBM4RecurrenceResult
+from contracts.studies.bm4_parallel_recurrence import ParallelBM4RecurrenceResult
 
 from typing import TYPE_CHECKING
 

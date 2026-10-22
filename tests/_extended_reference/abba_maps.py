@@ -5,7 +5,7 @@ from formulations.layout import GCStateLayout
 from dataclasses import dataclass
 import numpy as np
 from methods.extended.observations import abba_pairs
-from dynamics import DynamicalSystem, GuidingCenterJacobianSystem
+from contracts.dynamics.protocols import DynamicalSystem, GuidingCenterJacobianSystem
 from formulations.gc import spatial_shear, GCDoubledMaps
 from problem import InitialValueProblem
 

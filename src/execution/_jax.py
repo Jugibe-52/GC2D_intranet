@@ -10,8 +10,8 @@ import numpy as np
 from execution.options import ExecutionOptions
 from dynamics.fc import FullCyclotronDynamics
 from dynamics.gc import GuidingCenterDynamics
-from dynamics.protocols import DynamicalSystem, HamiltonianSystem
-from methods.base import NumericalMethod
+from contracts.dynamics.protocols import DynamicalSystem, HamiltonianSystem
+from contracts.methods.base import NumericalMethod
 from potential.potential import Potential
 from potential.jax_potential import JaxPotential
 

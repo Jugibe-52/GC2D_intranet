@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from execution.options import ExecutionOptions
     from problem import InitialValueProblem
-    from methods.base import NumericalMethod
+    from contracts.methods.base import NumericalMethod
     from request import SimulationRequest
 
 

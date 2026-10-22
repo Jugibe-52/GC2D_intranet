@@ -7,8 +7,8 @@ from typing import Any, Generic, TypeAlias, TypeVar
 from jax import Array, Device
 import jax.numpy as jnp
 
-from contracts.compiled import CompiledStep
-from dynamics.protocols import HamiltonianSystem
+from contracts.methods.compiled import CompiledStep
+from contracts.dynamics.protocols import HamiltonianSystem
 from methods.base import IntegrationMethod
 from methods._jax_options import CompositionOptions, ExplicitOptions, ImplicitOptions, NonlinearOptions
 from methods.classical._jax_steps import euler_step, gauss_step, hbvm_step, rk4_step, sdirk_step
@@ -22,7 +22,8 @@ from methods.hbvm.order4 import HBVM42
 from methods.extended.abba import ABBA2Implicit, ABBA4Implicit, ABBA6Implicit, ABBA2Midpoint
 from methods.extended.bm4 import BM4Implicit, BM4Midpoint
 from methods.extended.palindromic import PalindromicImplicit, PalindromicMidpoint
-from formulations.projection import ProjectionName, resolve_projection
+from contracts.formulations.projection import ProjectionName
+from formulations.projection import resolve_projection
 
 
 Options = TypeVar("Options", ExplicitOptions, ImplicitOptions, CompositionOptions)

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from contracts.comparison import (AdaptiveReference,)
+from contracts.studies.comparison import AdaptiveReference
 
 
 import numpy as np

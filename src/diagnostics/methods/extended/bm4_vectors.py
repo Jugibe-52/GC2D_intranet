@@ -1,7 +1,8 @@
 """Capture planar projection and displacement vectors on accepted BM4 steps."""
 
 import numpy as np
-from contracts.observation import ImplicitBM4IntegrationStep, IntegrationStep
+from contracts.methods.extended.bm4 import ImplicitBM4IntegrationStep
+from contracts.methods.observation import IntegrationStep
 
 
 class BM4VectorObserver:

@@ -9,7 +9,7 @@ from typing import Any
 import numpy as np
 from numpy.typing import ArrayLike
 
-from contracts.configuration import StateLayout
+from contracts.formulations.layout import StateLayout
 from formulations.layout import FCStateLayout, GCStateLayout
 
 

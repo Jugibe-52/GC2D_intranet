@@ -6,10 +6,10 @@ from dataclasses import dataclass
 from typing import Mapping, Protocol, TYPE_CHECKING
 
 import numpy as np
-from states.history import States
 
 
 if TYPE_CHECKING:
+	from states.history import States
 	from typing import Any
 
 

@@ -9,8 +9,8 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from dynamics.protocols import CyclotronSplitSystem, HamiltonianSystem
-from contracts.configuration import StateLayout
+from contracts.dynamics.protocols import CyclotronSplitSystem, HamiltonianSystem
+from contracts.formulations.layout import StateLayout
 from formulations.layout import FCState, FCStateLayout
 
 from typing import TYPE_CHECKING
@@ -22,7 +22,7 @@ if TYPE_CHECKING:
 
 
 from formulations.base import _updated_momentum
-from formulations.base import PreparedDirectAdjointFormulation, Projection
+from contracts.formulations.base import PreparedDirectAdjointFormulation, Projection
 
 
 @dataclass(frozen=True, slots=True)

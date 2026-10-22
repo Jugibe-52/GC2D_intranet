@@ -9,7 +9,8 @@ import numpy as np
 
 
 from potential import Potential
-from ._validation import nonnegative_integer, positive_integer
+from ._validation import nonnegative_integer
+from contracts.studies._validation import positive_integer
 
 from typing import TYPE_CHECKING
 

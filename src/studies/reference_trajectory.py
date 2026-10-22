@@ -13,7 +13,7 @@ from typing import Any, Callable, Literal, Mapping, TYPE_CHECKING
 
 import numpy as np
 
-from ._validation import finite_time_span, integer_ratio, nonnegative_finite, positive_finite
+from contracts.studies._validation import finite_time_span, integer_ratio, nonnegative_finite, positive_finite
 import scipy
 
 from diagnostics.studies.reference_trajectory import (
@@ -25,7 +25,7 @@ from dynamics import GuidingCenterDynamics
 
 from potential import Potential
 from methods.adaptive.scipy import DOP853, Radau
-from contracts.observation import AdaptiveIntegrationStep
+from contracts.methods.adaptive.scipy import AdaptiveIntegrationStep
 from problem import InitialValueProblem
 from simulation.runner import simulate
 from request import SimulationRequest

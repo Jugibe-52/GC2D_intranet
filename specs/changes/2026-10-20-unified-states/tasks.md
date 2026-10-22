@@ -4,7 +4,7 @@ kind = "change-tasks"
 spec_revision = 2
 plan_revision = 2
 id = "2026-10-20-unified-states"
-sources = ["src/states/history.py", "src/diagnostics/states/geometry.py", "src/states/generators.py", "src/formulations/layout.py", "src/contracts/configuration.py", "src/problem.py"]
+sources = ["src/states/history.py", "src/diagnostics/states/geometry.py", "src/states/generators.py", "src/formulations/layout.py", "src/contracts/formulations/layout.py", "src/problem.py"]
 documents = ["specs/current/simulation.md", "specs/current/results.md", "docs/simulation/integration-architecture.md"]
 open_questions = []
 

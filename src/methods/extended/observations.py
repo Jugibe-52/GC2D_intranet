@@ -2,26 +2,28 @@
 
 from __future__ import annotations
 
-from formulations.base import PreparedDirectAdjointFormulation
-from contracts.observation import IntegrationStage
+from contracts.formulations.base import PreparedDirectAdjointFormulation
+from contracts.methods.observation import IntegrationStage
 from methods.extended.core.composition import StageMap
 from dataclasses import dataclass
 from collections.abc import Callable
 from typing import Any, Literal, TypeAlias
 
 import numpy as np
-from dynamics import DynamicalSystem
+from contracts.dynamics.protocols import DynamicalSystem
 
-from contracts.observation import (
+from contracts.methods.extended.abba import (
 	ABBA2ImplicitIntegrationStep,
-	ABBA4ImplicitIntegrationStep, ABBA6ImplicitIntegrationStep,
-	IntegrationStep, UnprojectedABBAIntegrationStep,
+	ABBA4ImplicitIntegrationStep,
+	ABBA6ImplicitIntegrationStep,
+	UnprojectedABBAIntegrationStep,
 )
+from contracts.methods.observation import IntegrationStep
 from methods.extended.configuration import ProjectionFormulation
 from methods.extended.core.records import (
 	CompositionTrace, ProjectedMapResult,
 )
-from methods.extended.core.records import ProjectedMap
+from contracts.methods.extended.core.records import ProjectedMap
 
 
 @dataclass(frozen=True, slots=True)

@@ -133,7 +133,8 @@ snapshots. Workers receive an open recorder and never own run status or finalize
 results. These are internal implementation functions, not additional executors.
 
 `methods.base.IntegrationMethod` defines isolated numerical preparation and operations,
-alongside the structural `NumericalMethod` protocol. Import the base with
+while `contracts.methods.base` owns the structural `NumericalMethod` protocol.
+`contracts.execution.controllers` owns `StepController`. Import the base with
 `from methods import IntegrationMethod`. Controller extensions use
 `from execution import FixedStepController, StepController, IntegrationState`.
 The SciPy controller remains next to its method-specific live solver adapter.

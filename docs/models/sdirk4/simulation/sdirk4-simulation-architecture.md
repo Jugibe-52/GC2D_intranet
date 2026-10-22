@@ -160,7 +160,7 @@ initial evaluations, and acceptance thresholds retain their existing meaning;
 HBVM keeps its distinct matrix residual norm and backtracking algorithm.
 
 The optional keyword-only `newton_observer` receives
-`contracts.nonlinear.NewtonIteration` records from each already evaluated
+`contracts.solvers.nonlinear.NewtonIteration` records from each already evaluated
 iterate, including the initial guess and final root. Gauss unknowns concatenate
 its two physical stage vectors. SDIRK exposes one physical stage vector and its
 zero-based `stage_index`; `time` and `duration` identify the complete physical
@@ -183,9 +183,9 @@ right-hand-side axis preserves batch semantics under NumPy 1.x and 2.x.
 The three-, four-, and five-method comparison campaigns share method construction,
 alignment checks, and metric reductions in `studies._comparison`; their public
 study entry points remain unchanged. Reference, accuracy, summary, and execution
-records belong to `contracts.comparison`, and CSV readers reconstruct those same
+records belong to `contracts.studies.comparison`, and CSV readers reconstruct those same
 record types without importing study orchestration. Energy-bound and parallel
-BM4 archive records belong to `contracts.study_results`, with explicit re-exports
+BM4 archive records belong to `contracts.studies`, with explicit re-exports
 from their established study modules. See the
 [record ownership contract](../../../simulation/integration-architecture.md#comparison-and-archive-record-ownership).
 
@@ -193,7 +193,7 @@ from their established study modules. See the
 
 Fixed-step methods inherit `IntegrationMethod` and declare `jax_mode="device_resident"`.
 The executor resolves the device and prepares the dynamics; a numerical family
-adapter binds the method's controls into `contracts.compiled.CompiledStep`.
+adapter binds the method's controls into `contracts.methods.compiled.CompiledStep`.
 The executor starts the shared `execution/_jax_fixed.py` loop, which knows no
 concrete numerical method. Each method retains its compiled stages and statistics.
 See [JAX execution](../../../simulation/jax-execution.md).

@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
 from matplotlib.animation import FuncAnimation
 
-from contracts.study_results import GCEnergyBoundResult, GC_ENERGY_BOUND_METHODS as METHODS
+from contracts.studies.gc_energy_bound import GCEnergyBoundResult, GC_ENERGY_BOUND_METHODS as METHODS
 from .notebooks import display_records_table
 
 

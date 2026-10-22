@@ -6,7 +6,7 @@ from typing import Literal, TypeAlias
 
 import numpy as np
 
-from dynamics import DynamicalSystem, GuidingCenterJacobianSystem
+from contracts.dynamics.protocols import DynamicalSystem, GuidingCenterJacobianSystem
 
 
 JacobianMethod: TypeAlias = Literal["auto", "analytic", "finite_difference"]

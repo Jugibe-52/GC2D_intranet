@@ -5,7 +5,7 @@ import unittest
 
 import numpy as np
 
-from contracts.comparison import EnergyAccuracySeries, TrajectoryAccuracySeries
+from contracts.studies.comparison import EnergyAccuracySeries, TrajectoryAccuracySeries
 from dynamics.fc import FullCyclotronDynamics
 from dynamics.gc import GuidingCenterDynamics
 from formulations.layout import GCStateLayout

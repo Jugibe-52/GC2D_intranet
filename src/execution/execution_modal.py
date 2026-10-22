@@ -19,7 +19,7 @@ from request import SimulationRequest
 from states.history import States
 from execution._modal_worker import PAYLOAD_VERSION, encode_job
 from execution.execution import Execution
-from methods.base import NumericalMethod
+from contracts.methods.base import NumericalMethod
 
 
 def _modal_sdk() -> ModuleType:

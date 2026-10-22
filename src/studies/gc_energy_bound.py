@@ -4,7 +4,7 @@ from studies._validation import require_uncoupled_bm4
 
 from formulations.layout import GCStateLayout
 
-from contracts.study_results import GCEnergyBoundResult, GC_ENERGY_BOUND_METHODS as METHODS
+from contracts.studies.gc_energy_bound import GCEnergyBoundResult, GC_ENERGY_BOUND_METHODS as METHODS
 
 from dataclasses import asdict, dataclass, replace
 from typing import Any, TYPE_CHECKING
@@ -21,11 +21,11 @@ from potential import Potential
 from methods.extended.bm4 import BM4Implicit
 from methods.classical.rk4 import RK4
 from problem import InitialValueProblem
-from methods.base import NumericalMethod
+from contracts.methods.base import NumericalMethod
 from request import SimulationRequest
 from simulation.runner import simulate
 from ._trajectory_distances import particle_distances
-from ._validation import integer_ratio
+from contracts.studies._validation import integer_ratio
 from .reference_trajectory import potential_fingerprint
 
 
@@ -356,7 +356,8 @@ def audit_initial_step_geometry(
     """
     from diagnostics.methods.jacobians import central_difference_jacobian
     from diagnostics.methods.symplecticity.observer import gc_physical_symplectic_form
-    from contracts.observation import IntegrationStep, ImplicitBM4IntegrationStep
+    from contracts.methods.observation import IntegrationStep
+    from contracts.methods.extended.bm4 import ImplicitBM4IntegrationStep
 
     dynamics: GuidingCenterDynamics = GuidingCenterDynamics(potential, rho=config.rho)
     problem: InitialValueProblem = InitialValueProblem(dynamics, configuration, layout=GCStateLayout())

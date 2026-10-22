@@ -9,7 +9,7 @@ from typing import Any, TYPE_CHECKING
 import numpy as np
 from potential import Potential
 from methods.adaptive.scipy import DOP853
-from methods.base import NumericalMethod
+from contracts.methods.base import NumericalMethod
 from dynamics import GuidingCenterDynamics
 
 from problem import InitialValueProblem

@@ -2,7 +2,7 @@
 schema_version = 1
 kind = "spec"
 id = "simulation"
-sources = ["src/states/initial.py", "src/solvers/nonlinear.py", "src/formulations/projection.py", "src/simulation/runner.py", "src/problem.py", "src/request.py", "src/execution/execution.py", "src/execution/_jax.py", "src/methods/base.py", "src/execution/options.py", "src/contracts/arrays.py"]
+sources = ["src/states/initial.py", "src/solvers/nonlinear.py", "src/formulations/projection.py", "src/simulation/runner.py", "src/problem.py", "src/request.py", "src/execution/execution.py", "src/execution/_jax.py", "src/methods/base.py", "src/execution/options.py", "src/contracts/arrays.py", "src/contracts/methods/base.py", "src/contracts/execution/controllers.py", "src/contracts/dynamics/protocols.py", "src/contracts/formulations/base.py", "src/contracts/formulations/projection.py"]
 documents = ["docs/simulation/initial-solvers-formulations.md", "docs/simulation/integration-architecture.md", "docs/simulation/execution.md", "docs/simulation/jax-execution.md"]
 
 [[requirements]]
@@ -134,3 +134,11 @@ are checked by `tests/test_package_layout.py`.
 mixed arrays, nested sequences and tracers, without device selection or eager
 JAX imports. `tests/test_shared_array_dynamics.py` checks layout and dynamics
 behavior; this ownership change does not modify those numerical operations.
+
+## Domain contract ownership
+
+Existing pure interfaces live under `contracts` in the same domain/subdirectory
+hierarchy as `src`; shared records follow their consuming process or method family.
+See the [contract map](../../docs/simulation/contracts.md). Implementations and
+numerical operations remain in their original domains. Public facades re-export
+canonical contracts, and internal consumers import their defining modules.

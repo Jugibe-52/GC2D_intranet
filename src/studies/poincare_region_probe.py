@@ -10,8 +10,8 @@ from pathlib import Path
 import time
 from typing import Callable, TYPE_CHECKING
 from collections.abc import Mapping
-from contracts.observation import IntegrationStep
-from contracts.result import DiagnosticValue
+from contracts.methods.observation import IntegrationStep
+from contracts.states.history import DiagnosticValue
 
 import numpy as np
 import scipy

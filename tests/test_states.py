@@ -7,7 +7,7 @@ import numpy as np
 from formulations.layout import GCState, GCStateLayout, FCState, FCStateLayout
 from states import States
 from execution.state import IntegrationState
-from contracts.step import StepInfo
+from contracts.methods.step import StepInfo
 from states.generators import circle, square
 from diagnostics.states.geometry import calculate_area
 

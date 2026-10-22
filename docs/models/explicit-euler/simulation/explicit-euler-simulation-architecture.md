@@ -145,7 +145,7 @@ immutable. See the shared [layout and ownership contract](../../../dynamics/prot
 
 Fixed-step methods inherit `IntegrationMethod` and declare `jax_mode="device_resident"`.
 The executor resolves the device and prepares the dynamics; a numerical family
-adapter binds the method's controls into `contracts.compiled.CompiledStep`.
+adapter binds the method's controls into `contracts.methods.compiled.CompiledStep`.
 The executor starts the shared `execution/_jax_fixed.py` loop, which knows no
 concrete numerical method. Each method retains its compiled stages and statistics.
 See [JAX execution](../../../simulation/jax-execution.md).

@@ -1,17 +1,24 @@
 """Public simulation facade over problems, methods, integration and results."""
 
 from formulations.state import PhysicalFormulation, DoubledFormulation
-from contracts.configuration import StateLayout
+from contracts.formulations.layout import StateLayout
+from contracts.formulations.base import DirectAdjointFormulation, StageProjectedFormulation
 from formulations import (
-	DirectAdjointFormulation,
 	FCSplitFormulation,
 	GCExtendedFormulation,
 	GCStageProjectedFormulation,
-	StageProjectedFormulation,
 	gc_coupling_matrix,
 )
 from methods import (
-	PalindromicMethod, PalindromicImplicit, PalindromicMidpoint, Composition, Operation, A, B, T, C,
+	PalindromicMethod,
+	PalindromicImplicit,
+	PalindromicMidpoint,
+	Composition,
+	Operation,
+	A,
+	B,
+	T,
+	C,
 	DOP853,
 	Radau,
 	ABBA2Midpoint,
@@ -31,7 +38,6 @@ from methods import (
 	ABBA_STATE_EXTENSIONS,
 	NONLINEAR_SOLVERS,
 	NonlinearSolver,
-	NumericalMethod,
 	ProjectionPlacement,
 	ProjectionFormulation,
 	StateExtension,
@@ -43,7 +49,24 @@ from methods import (
 	SDIRK4,
 	SDIRKJacobianMethod,
 )
-from contracts.observation import AdaptiveIntegrationStep, AdaptiveStepObserver, ABBA4ImplicitIntegrationStep, GaussLegendre4IntegrationStep, ABBA6ImplicitIntegrationStep, ABBAImplicitCompositionIntegrationStep, ABBA2ImplicitIntegrationStep, ImplicitBM4IntegrationStep, ImplicitIntegrationStep, IntegrationStage, IntegrationStep, StageObserver, StepObserver, UnprojectedABBAIntegrationStep
+from contracts.methods.base import NumericalMethod
+from contracts.methods.adaptive.scipy import AdaptiveIntegrationStep, AdaptiveStepObserver
+from contracts.methods.extended.abba import (
+	ABBA4ImplicitIntegrationStep,
+	ABBA6ImplicitIntegrationStep,
+	ABBAImplicitCompositionIntegrationStep,
+	ABBA2ImplicitIntegrationStep,
+	UnprojectedABBAIntegrationStep,
+)
+from contracts.methods.classical.gauss_legendre import GaussLegendre4IntegrationStep
+from contracts.methods.extended.bm4 import ImplicitBM4IntegrationStep
+from contracts.methods.observation import (
+	ImplicitIntegrationStep,
+	IntegrationStage,
+	IntegrationStep,
+	StageObserver,
+	StepObserver,
+)
 from problem import InitialValueProblem
 from request import (
 	DEFAULT_INTEGRATION_STEP,

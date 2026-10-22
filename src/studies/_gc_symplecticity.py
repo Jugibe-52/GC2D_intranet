@@ -18,8 +18,8 @@ from dynamics import GuidingCenterDynamics
 
 from potential import Potential
 from problem import InitialValueProblem
-from contracts.observation import IntegrationStep, StepObserver
-from methods.base import NumericalMethod
+from contracts.methods.observation import IntegrationStep, StepObserver
+from contracts.methods.base import NumericalMethod
 from request import SimulationRequest
 from states.history import States
 from simulation.runner import simulate
@@ -30,7 +30,8 @@ from diagnostics.methods.symplecticity.area import (
 from diagnostics.methods.jacobians import StepJacobianMethod
 
 from ._gc_symplecticity_models import GCSymplecticityConfig, GCSymplecticitySummary
-from ._validation import integer_ratio, resolve_rho
+from contracts.studies._validation import integer_ratio
+from ._validation import resolve_rho
 from .area_comparison import AreaStep
 
 

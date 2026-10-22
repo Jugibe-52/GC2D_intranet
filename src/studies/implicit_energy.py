@@ -12,15 +12,8 @@ from typing import Callable, Literal, Mapping, TYPE_CHECKING
 
 import numpy as np
 
-from ._validation import (
-	single_gc_state,
-	unpacked_time_span,
-	nonnegative_finite,
-	positive_finite,
-	positive_integer,
-	refinement_steps as _validated_steps,
-	resolve_rho,
-)
+from ._validation import single_gc_state, unpacked_time_span, refinement_steps as _validated_steps, resolve_rho
+from contracts.studies._validation import nonnegative_finite, positive_finite, positive_integer
 
 
 from diagnostics.methods.extended.energy.observer import (
@@ -40,10 +33,10 @@ from methods.extended.abba import ABBA4Implicit
 from methods.extended.bm4 import BM4Implicit
 from methods.extended.abba import ABBA2Implicit
 from problem import InitialValueProblem
-from methods.base import NumericalMethod
+from contracts.methods.base import NumericalMethod
 from request import SimulationRequest
 from states.history import States
-from contracts.observation import IntegrationStep
+from contracts.methods.observation import IntegrationStep
 from simulation.runner import simulate
 
 

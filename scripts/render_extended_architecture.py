@@ -67,7 +67,7 @@ def render(model: Model) -> None:
         'state': (2.3, 6.5, 'DoubledFormulation', 'src/formulations/state.py\nTwo copies; optional time and kappa', '#e5ecfa'),
         'advance': (7.0, 6.5, 'Common advance', 'extended/palindromic.py\nImplicit solve or final mean; passive finish', '#e5ecfa'),
         'energy': (11.7, 6.5, 'Passive energy and outputs', 'core/energy.py: accepted shear quadrature\nH + kappa; no feedback into the root', '#e1f0e6'),
-        'observe': (2.3, 5.0, 'Optional observations', 'extended/observations.py: event adapters\nPublic records: contracts/observation.py', '#f0e5f5'),
+        'observe': (2.3, 5.0, 'Optional observations', 'extended/observations.py: event adapters\nPublic records: contracts/methods/', '#f0e5f5'),
         'projection': (7.0, 5.0, projection[0], projection[1], '#e1f0e6'),
         'solver': (11.7, 5.0, 'Newton / Broyden' if model.implicit else 'Explicit projection',
                    'solvers/nonlinear.py: convergence and work\nTime and momentum excluded from roots' if model.implicit else 'Average the two final copies\nNo Newton / Broyden calls', '#fff0d9'),

@@ -15,14 +15,14 @@ from typing import Mapping
 
 import numpy as np
 
-from ._validation import (
+from contracts.studies._validation import (
 	finite_time_span,
-	nonnegative_integer,
 	integer_ratio,
 	nonnegative_finite,
 	positive_finite,
 	positive_integer,
 )
+from ._validation import nonnegative_integer
 
 from dynamics import GuidingCenterDynamics
 
@@ -30,14 +30,14 @@ from potential import Potential
 from methods.extended.bm4 import BM4Implicit
 from methods.classical.gauss_legendre import GaussLegendre4
 from problem import InitialValueProblem
-from methods.base import NumericalMethod
+from contracts.methods.base import NumericalMethod
 from request import SimulationRequest
 from states.history import States
 from simulation.runner import simulate
 
-from contracts.comparison import AdaptiveReference
+from contracts.studies.comparison import AdaptiveReference
 from ._gauss_legendre4_common import (build_adaptive_reference, readonly_runtime_samples)
-from contracts.comparison import TrajectoryAccuracySeries
+from contracts.studies.comparison import TrajectoryAccuracySeries
 from ._trajectory_accuracy import (accuracy_series, validated_refinement_steps)
 
 from typing import TYPE_CHECKING

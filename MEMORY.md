@@ -244,7 +244,7 @@ the job and completed result. Host and JAX run_steps workers fill that open reco
 Use States.record_history for complete bulk physical arrays from JAX; it requires an empty recorder and validates before writing. Preserve independent shadow
 samples.
 
-NumericalMethod exposes new_run(problem, request, evaluated_dynamics=...) and jax_mode; methods.base.IntegrationMethod retains numerical preparation,
+contracts.methods.base.NumericalMethod exposes new_run(problem, request, evaluated_dynamics=...) and jax_mode; methods.base.IntegrationMethod retains numerical preparation,
 advancement, observations and controller access. Keep exact-type JAX adapters beside algorithms; do not repeat their fixed-method support list. Unknown
 overrides fail explicitly. Configured methods are reusable; consumed runs finish on success and failure.
 
@@ -259,13 +259,13 @@ Methods use type-only references and local controller/snapshot imports to avoid 
 
 ## Contract responsibilities
 
-`problem` owns InitialValueProblem (also exported by simulation); execution.options
-owns ExecutionOptions (also exported by execution). Old contract paths are removed.
-Shared records retain data/validation; diagnostics.studies.comparison owns RMS/energy
-reductions and diagnostics.studies.bm4_recurrence owns recurrence_distances. Use functions,
-not removed record properties/methods. studies._validation owns require_uncoupled_bm4;
-archive readers retain historical rates. contracts.arrays applies shared NumPy/JAX
-compatibility, including mixed arrays/tracers, without device or execution policy.
+Existing Protocol/TypedDict interfaces and shared records live under contracts in subpaths mirroring src domains.
+Import defining modules, retaining public facade exports; see docs/simulation/contracts.md. Concrete implementations
+stay in their domains; type-only references prevent runtime cycles. Standalone workers bundle lightweight contracts.
+problem owns InitialValueProblem; execution.options owns ExecutionOptions. Shared records retain validation;
+diagnostics.studies.comparison owns RMS/energy reductions, and diagnostics.studies.bm4_recurrence owns recurrence_distances.
+studies._validation owns require_uncoupled_bm4; archive readers retain historical rates. contracts.arrays keeps shared
+NumPy/JAX compatibility without device or execution policy.
 
 ## Uncoupled BM4 and reusable C
 

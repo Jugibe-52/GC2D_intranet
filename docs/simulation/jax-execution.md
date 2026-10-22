@@ -107,7 +107,7 @@ field, energy and analytic-Jacobian equations as NumPy. Device preparation belon
 to execution. Arithmetic projection carries no nonlinear controls. Kernel selection
 is complete before tracing, with explicit rejection of unsupported subclass overrides.
 
-The compiled worker receives `contracts.compiled.CompiledStep`, carrying the
+The compiled worker receives `contracts.methods.compiled.CompiledStep`, carrying the
 resolved device, internal-state map and optional physical energy.
 `execution._jax_fixed` owns scheduling, sampling, convergence checks and bulk
 physical export. It does not import concrete methods or discover their attributes.

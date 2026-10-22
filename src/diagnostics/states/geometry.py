@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import numpy as np
-from contracts.configuration import StateLayout
+from contracts.formulations.layout import StateLayout
 
 def _positive_finite(value: float, name: str) -> float:
 	"""Normalize a scalar geometric parameter and enforce positivity."""

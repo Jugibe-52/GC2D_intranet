@@ -55,19 +55,23 @@ from .implicit_comparison import (
 )
 from .implicit_method_accuracy import (
 	IMPLICIT_ACCURACY_COLORS,
-	ImplicitMethodAccuracyOrderView,
-	ImplicitMethodAccuracySummaryView,
 	plot_implicit_method_accuracy_cost,
 	plot_implicit_method_accuracy_refinement,
 	plot_implicit_method_newton_refinement,
 	plot_implicit_method_observed_orders,
 )
-from .energy import (
+from contracts.visualization.implicit_method_accuracy import (
+	ImplicitMethodAccuracyOrderView,
+	ImplicitMethodAccuracySummaryView,
+)
+from contracts.visualization.energy import (
 	EnergyAccuracySeriesView,
 	ExtendedSymplecticityRunView,
 	ReducedExtendedSymplecticityRunView,
 	GeneralizedEnergyRunView,
 	GeneralizedEnergySummaryView,
+)
+from .energy import (
 	plot_generalized_energy_comparison,
 	plot_generalized_energy_components,
 	plot_generalized_energy_convergence,
@@ -76,14 +80,12 @@ from .energy import (
 	plot_time_extended_symplecticity,
 	plot_reduced_time_extended_symplecticity,
 )
-from .hbvm42 import (
+from contracts.visualization.hbvm42 import (
 	HBVM42BM4SummaryView,
 	HBVM42EvaluationSummaryView,
 	HBVM42OrderSummaryView,
-	plot_hbvm42_bm4_comparison,
-	plot_hbvm42_energy_errors,
-	plot_hbvm42_evaluation,
 )
+from .hbvm42 import plot_hbvm42_bm4_comparison, plot_hbvm42_energy_errors, plot_hbvm42_evaluation
 from .notebooks import display_animation, display_records_table, records_table_html
 from .particles import (
 	animate_fc_particle_solution,
@@ -91,8 +93,8 @@ from .particles import (
 	animate_gc_particle_trajectories,
 )
 from .potential import animate_potential, plot_potential
+from contracts.visualization.trajectory_symplecticity import TrajectorySymplecticityRecordView
 from .trajectory_symplecticity import (
-	TrajectorySymplecticityRecordView,
 	plot_gc_trajectory_points,
 	plot_trajectory_symplecticity,
 	plot_trajectory_symplecticity_result,
@@ -107,11 +109,13 @@ from .ten_method_comparison import (
 	plot_ten_method_runtimes,
 	plot_ten_method_trajectory_differences,
 )
-from .trajectory_accuracy import (
+from contracts.visualization.trajectory_accuracy import (
 	AccuracySeriesView,
 	AccuracySummaryView,
 	RuntimeSummaryView,
 	StepAccuracySummaryView,
+)
+from .trajectory_accuracy import (
 	plot_accuracy_summary,
 	plot_accuracy_runtime_tradeoff,
 	plot_runtime_comparison,

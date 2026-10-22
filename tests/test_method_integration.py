@@ -19,7 +19,7 @@ from simulation import (
 	InitialValueProblem, SimulationRequest, simulate,
 )
 from methods.base import IntegrationMethod
-from contracts.step import StepInfo, StepResult
+from contracts.methods.step import StepInfo, StepResult
 from execution._host import FixedStepController
 from execution import Execution
 

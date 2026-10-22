@@ -12,15 +12,8 @@ from typing import Mapping
 
 import numpy as np
 
-from ._validation import (
-	single_gc_state,
-	unpacked_time_span,
-	integer_ratio,
-	nonnegative_finite,
-	positive_finite,
-	positive_integer,
-	resolve_rho,
-)
+from ._validation import single_gc_state, unpacked_time_span, resolve_rho
+from contracts.studies._validation import integer_ratio, nonnegative_finite, positive_finite, positive_integer
 
 
 from diagnostics.methods.extended.energy.observer import GCGeneralizedEnergyObserver

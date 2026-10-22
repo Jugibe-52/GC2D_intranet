@@ -16,9 +16,9 @@ from diagnostics._validation import positive_integer as _positive_integer
 
 from diagnostics.io.buffering import DiagnosticBuffer
 from diagnostics.io.paths import notebook_output_directory, validate_block_name
-from dynamics import GuidingCenterJacobianSystem
+from contracts.dynamics.protocols import GuidingCenterJacobianSystem
 
-from contracts.observation import IntegrationStep
+from contracts.methods.observation import IntegrationStep
 
 
 if TYPE_CHECKING:

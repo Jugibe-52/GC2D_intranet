@@ -9,9 +9,9 @@ from typing import Any
 
 import numpy as np
 
-from contracts.configuration import StateLayout
-from contracts.result import DiagnosticValue
-from contracts.step import StepInfo, StepValue
+from contracts.formulations.layout import StateLayout
+from contracts.states.history import DiagnosticValue
+from contracts.methods.step import StepInfo, StepValue
 
 
 def _readonly(value: np.ndarray) -> np.ndarray:

@@ -12,13 +12,8 @@ from typing import Any, Mapping
 
 import numpy as np
 
-from ._validation import (
-	sample_count as validated_sample_count,
-	finite_time_span,
-	nonnegative_finite,
-	positive_finite,
-	positive_integer,
-)
+from ._validation import sample_count as validated_sample_count
+from contracts.studies._validation import finite_time_span, nonnegative_finite, positive_finite, positive_integer
 
 
 from diagnostics.methods.implicit_iterations import (

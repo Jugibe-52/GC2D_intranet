@@ -4,7 +4,7 @@ from __future__ import annotations
 from typing import Literal, TYPE_CHECKING
 import numpy as np
 
-from contracts.nonlinear import NewtonObserver
+from contracts.solvers.nonlinear import NewtonObserver
 from formulations.gc import GCDoubledMaps
 from solvers.linear import _solve_particle_systems
 from solvers.nonlinear import SolverOptions, SolveStats, _bind_newton_observer, configured_solver, NewtonSolver, BroydenSolver, AlgebraicSolver
@@ -15,7 +15,7 @@ from methods.extended.core.records import CompositionTrace, ProjectedMapResult
 
 
 if TYPE_CHECKING:
-    from formulations.projection import ProjectionFormulation
+    from contracts.formulations.projection import ProjectionFormulation
     from solvers.nonlinear import _NonlinearResult
     from typing import Any
 

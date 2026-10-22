@@ -6,16 +6,17 @@ import numpy as np
 
 from diagnostics.methods.extended.abba_jacobian.analysis import particle_jacobian_blocks
 from diagnostics.methods.jacobians import implicit_function_step_jacobian
-from dynamics import GuidingCenterJacobianSystem
+from contracts.dynamics.protocols import GuidingCenterJacobianSystem
 from methods.extended.configuration import ABBA_PROJECTION_FORMULATIONS
-from contracts.observation import (
-	ABBA4ImplicitIntegrationStep, ABBA6ImplicitIntegrationStep, ABBAImplicitCompositionIntegrationStep,
+from contracts.methods.extended.abba import (
+	ABBA4ImplicitIntegrationStep,
+	ABBA6ImplicitIntegrationStep,
+	ABBAImplicitCompositionIntegrationStep,
 	ABBA2ImplicitIntegrationStep,
-	ImplicitBM4IntegrationStep,
-	IntegrationStage,
-	IntegrationStep,
 	UnprojectedABBAIntegrationStep,
 )
+from contracts.methods.extended.bm4 import ImplicitBM4IntegrationStep
+from contracts.methods.observation import IntegrationStage, IntegrationStep
 from formulations.gc import gc_coupling_matrix
 from methods.extended.core.composition import _ABBA4_COEFFICIENTS, _ABBA6_COEFFICIENTS
 

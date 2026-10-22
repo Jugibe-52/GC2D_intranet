@@ -11,13 +11,16 @@ import unittest
 
 import numpy as np
 
-from contracts.comparison import (
-	AdaptiveReference, ComparisonReadView, EnergyAccuracySeries,
-	ExecutionLogEntry, FiveMethodComparisonSummary, TrajectoryAccuracySeries,
+from contracts.studies.comparison import (
+	AdaptiveReference,
+	ComparisonReadView,
+	EnergyAccuracySeries,
+	ExecutionLogEntry,
+	FiveMethodComparisonSummary,
+	TrajectoryAccuracySeries,
 )
-from contracts.study_results import (
-	GCEnergyBoundResult, ParallelBM4RecurrenceConfig, ParallelBM4RecurrenceResult,
-)
+from contracts.studies.gc_energy_bound import GCEnergyBoundResult
+from contracts.studies.bm4_parallel_recurrence import ParallelBM4RecurrenceConfig, ParallelBM4RecurrenceResult
 from diagnostics.studies.five_method_comparison_csv import (
 	load_five_method_comparison_csv, write_five_method_comparison_csv,
 )
@@ -109,8 +112,9 @@ builtins.__import__ = without_orchestration
 from diagnostics.studies.five_method_comparison_csv import load_five_method_comparison_csv
 from diagnostics.studies.gc_energy_bound import load_energy_bound_result
 from diagnostics.studies.parallel_bm4_recurrence_npz import load_parallel_bm4_recurrence_npz
-from contracts.comparison import AdaptiveReference
-from contracts.study_results import GCEnergyBoundResult, ParallelBM4RecurrenceResult
+from contracts.studies.comparison import AdaptiveReference
+from contracts.studies.gc_energy_bound import GCEnergyBoundResult
+from contracts.studies.bm4_parallel_recurrence import ParallelBM4RecurrenceResult
 root = Path(sys.argv[1])
 comparison = load_five_method_comparison_csv(root / 'comparison.csv')
 assert isinstance(comparison.reference, AdaptiveReference)

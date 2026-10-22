@@ -2,7 +2,7 @@
 
 from .fc import FullCyclotronDynamics
 from .gc import GuidingCenterDynamics
-from .protocols import (
+from contracts.dynamics.protocols import (
 	CyclotronSplitSystem,
 	DynamicalSystem,
 	GuidingCenterJacobianSystem,

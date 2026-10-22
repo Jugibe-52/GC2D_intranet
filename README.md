@@ -7,7 +7,7 @@ grouped by responsibility:
 - `potential`: GC2D HDF5 imports and periodic electrostatic fields;
 - `dynamics`: guiding-center and full-cyclotron equations;
 - `states`: physical sampled histories, completed results and geometry generators;
-- `contracts`: shared layout protocols, step/observation records and array compatibility;
+- `contracts`: interfaces and shared records organized by source domain, plus array compatibility;
 - `problem.py`: physical initial-value problems;
 - `formulations`: reusable physical layouts, internal coordinates and split maps;
 - `methods`: numerical methods, including the shared `extended` family;
@@ -665,3 +665,5 @@ spatial projection, analytic tangents and passive energy. See the
 [family architecture and diagram](docs/models/extended/simulation/extended-simulation-architecture.md).
 
 Explicit A/B/T/C recipes and generic palindromic methods are described in [the palindromic operation guide](docs/models/extended/simulation/palindromic-operations.md); see `examples/palindromic_time.py` for center/end time placement.
+
+[Contract locations and canonical imports](docs/simulation/contracts.md).

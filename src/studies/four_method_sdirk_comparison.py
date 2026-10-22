@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from contracts.comparison import (ThreeMethodNewtonSummary)
+from contracts.studies.comparison import ThreeMethodNewtonSummary
 
 from ._comparison import (
 	COMPARISON_LABELS, ComparisonConfig, ComparisonResult,

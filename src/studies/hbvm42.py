@@ -14,17 +14,19 @@ from typing import Callable, Mapping, TYPE_CHECKING
 import numpy as np
 from methods.adaptive.scipy import DOP853
 
-from dynamics import DynamicalSystem, GuidingCenterDynamics, HamiltonianSystem
+from contracts.dynamics.protocols import DynamicalSystem, HamiltonianSystem
+from dynamics import GuidingCenterDynamics
 
 from methods.extended.bm4 import BM4Implicit
 from methods.hbvm.order4 import HBVM42, HBVMJacobianMethod, _validated_jacobian_method
 from problem import InitialValueProblem
-from methods.base import NumericalMethod
+from contracts.methods.base import NumericalMethod
 from request import SimulationRequest
 from states.history import States
 from simulation.runner import simulate
 
-from ._validation import finite_time_span, integer_ratio, nonnegative_integer, positive_finite, positive_integer
+from contracts.studies._validation import finite_time_span, integer_ratio, positive_finite, positive_integer
+from ._validation import nonnegative_integer
 
 
 if TYPE_CHECKING:

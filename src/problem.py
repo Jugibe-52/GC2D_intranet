@@ -3,8 +3,8 @@
 from __future__ import annotations
 from dataclasses import dataclass, field
 import numpy as np
-from dynamics.protocols import DynamicalSystem
-from contracts.configuration import StateLayout
+from contracts.dynamics.protocols import DynamicalSystem
+from contracts.formulations.layout import StateLayout
 from formulations.layout import GCStateLayout, FCStateLayout
 from states.initial import InitialConditions
 

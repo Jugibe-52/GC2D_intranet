@@ -3,6 +3,8 @@ from pathlib import Path
 import sys
 import tarfile
 
+import contracts
+
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -21,15 +23,27 @@ files=['calculo.ipynb','visualizacion.ipynb','run.py','study_io.py','parallel_ca
        'requirements.txt','README.md','validate_restart.py','assets',
        'aws/cloud_job.py','aws/validate_checkpoint_store.py',
        'aws/validation_restart.json','aws/validation_cloud_store.json']
+# Cloud transfer imports only standard-library worker contracts. Include the
+# complete package so that this bundle cannot shadow scientific contract modules.
+contract_root: Path = Path(contracts.__file__).resolve().parent
+contract_files: tuple[str, ...] = tuple(
+    path.relative_to(contract_root).as_posix()
+    for path in sorted(contract_root.rglob('*.py'))
+)
 archive=ROOT/'aws'/f'{ROOT.name}_aws.tar.gz'
 with tarfile.open(archive,'w:gz') as tar:
     for name in files: tar.add(ROOT/name,arcname=f'{ROOT.name}/{name}')
+    for name in contract_files:
+        tar.add(contract_root/name, arcname=f'{ROOT.name}/contracts/{name}')
 sha: 'str'=digest(archive)
 atomic_json(ROOT/'aws/input_manifest.json',{'created_utc':utc_now(),'run_id':run,'archive':archive.name,
     'sha256':sha,'bytes':archive.stat().st_size,'bucket':bucket,'key':'inputs/'+archive.name,
     'instance_type':'c8a.4xlarge','market':'spot','region':'eu-central-1','processes':16,
     'configuration':cfg,
-    'source_sha256':{name:digest(ROOT/name) for name in files if (ROOT/name).is_file()}})
+    'source_sha256':{
+        **{name:digest(ROOT/name) for name in files if (ROOT/name).is_file()},
+        **{'contracts/'+name:digest(contract_root/name) for name in contract_files},
+    }})
 script: 'str'=r'''#!/usr/bin/env bash
 set -euo pipefail
 exec > >(tee -a /var/log/poincare-bootstrap.log) 2>&1

@@ -11,8 +11,8 @@ from typing import Literal, TYPE_CHECKING, TypeAlias
 
 import numpy as np
 
-from dynamics.protocols import DynamicalSystem, HamiltonianSystem
-from contracts.configuration import StateLayout
+from contracts.dynamics.protocols import DynamicalSystem, HamiltonianSystem
+from contracts.formulations.layout import StateLayout
 from formulations.layout import GCStateLayout
 
 
@@ -22,7 +22,7 @@ if TYPE_CHECKING:
 
 
 from formulations.base import _updated_momentum
-from formulations.base import (
+from contracts.formulations.base import (
 	PreparedDirectAdjointFormulation,
 	PreparedStageProjectedFormulation,
 	Projection,

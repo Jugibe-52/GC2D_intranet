@@ -1,6 +1,6 @@
 # Physical dynamics contracts
 
-`src/dynamics/protocols.py` defines two general runtime-checkable protocols.
+`src/contracts/dynamics/protocols.py` defines two general runtime-checkable protocols.
 Implementations satisfy them structurally, without explicit inheritance.
 
 | Contract | Required members | Purpose |
@@ -50,7 +50,7 @@ placement, including NumPy-only `evaluate_grid` reconstruction.
 
 ## Physical layouts and problem ownership
 
-`formulations.layout` owns `PackedStateLayout`, `GCState`, `GCStateLayout`, `FCState` and `FCStateLayout`. Dynamics, formulations, generators and results share these component-major operations. `GCState` and `FCState` are named component tuples, not storage classes. The structural `StateLayout` protocol remains in `contracts.configuration` and requires no inheritance from a built-in layout.
+`formulations.layout` owns `PackedStateLayout`, `GCState`, `GCStateLayout`, `FCState` and `FCStateLayout`. Dynamics, formulations, generators and results share these component-major operations. `GCState` and `FCState` are named component tuples, not storage classes. The structural `StateLayout` protocol remains in `contracts.formulations.layout` and requires no inheritance from a built-in layout.
 
 `split` reshapes the packed vector or history into component blocks without calling the explicit validator. `validate_packed_state_layout` checks nonempty complete blocks; `as_blocks` also validates them. The inferred reshape in `split` requires nonempty sample axes. Operations preserve NumPy/JAX backends.
 

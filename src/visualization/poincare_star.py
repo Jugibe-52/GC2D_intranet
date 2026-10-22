@@ -10,7 +10,7 @@ from visualization.poincare_comparison import export_poincare_panel_comparison
 
 
 if TYPE_CHECKING:
-    from contracts.result import DiagnosticValue
+    from contracts.states.history import DiagnosticValue
     from states.history import States
     from typing import Mapping
 

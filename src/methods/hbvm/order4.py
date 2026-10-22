@@ -8,12 +8,12 @@ from typing import Literal, TYPE_CHECKING, TypeAlias
 
 import numpy as np
 
-from dynamics import GuidingCenterJacobianSystem
+from contracts.dynamics.protocols import GuidingCenterJacobianSystem
 
 from formulations.state import PhysicalFormulation
 from methods.base import IntegrationMethod
-from contracts.step import StepInfo, StepResult
-from contracts.observation import IntegrationStep, StepObserver
+from contracts.methods.step import StepInfo, StepResult
+from contracts.methods.observation import IntegrationStep, StepObserver
 from problem import InitialValueProblem
 from request import SimulationRequest
 from methods._validation import _positive_finite, _positive_integer

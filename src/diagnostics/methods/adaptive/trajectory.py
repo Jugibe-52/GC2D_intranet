@@ -4,7 +4,7 @@ from collections.abc import Callable
 
 import numpy as np
 
-from contracts.observation import AdaptiveIntegrationStep
+from contracts.methods.adaptive.scipy import AdaptiveIntegrationStep
 
 
 class AdaptiveTrajectoryObserver:

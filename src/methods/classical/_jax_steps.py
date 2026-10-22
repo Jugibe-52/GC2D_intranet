@@ -9,7 +9,7 @@ from typing import Any, TYPE_CHECKING
 import jax
 import jax.numpy as jnp
 
-from dynamics.protocols import HamiltonianSystem, GuidingCenterJacobianSystem
+from contracts.dynamics.protocols import HamiltonianSystem, GuidingCenterJacobianSystem
 from solvers._jax import newton, particle_finite_difference, solve_particle_blocks
 from methods._jax_options import ExplicitOptions, ImplicitOptions, NonlinearOptions
 from methods.classical._rk4_core import physical_step, momentum_increment

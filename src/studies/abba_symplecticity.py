@@ -18,7 +18,7 @@ from ._gc_symplecticity import (
 	GCSymplecticitySummary,
 	_run_gc_symplecticity_study,
 )
-from ._validation import positive_finite, positive_integer
+from contracts.studies._validation import positive_finite, positive_integer
 
 
 @dataclass(frozen=True, slots=True)

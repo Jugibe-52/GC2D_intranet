@@ -9,7 +9,7 @@ from ._comparison import (
 	implicit_summaries, run_alternating_comparison,
 )
 
-from contracts.comparison import (EnergyAccuracySeries, ThreeMethodNewtonSummary,)
+from contracts.studies.comparison import EnergyAccuracySeries, ThreeMethodNewtonSummary
 
 from dataclasses import dataclass
 from types import MappingProxyType

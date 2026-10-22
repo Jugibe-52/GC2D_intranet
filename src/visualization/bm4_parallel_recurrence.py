@@ -16,7 +16,7 @@ from matplotlib.colors import Normalize
 
 from potential import Potential
 
-from contracts.study_results import ParallelBM4RecurrenceResult
+from contracts.studies.bm4_parallel_recurrence import ParallelBM4RecurrenceResult
 
 from ._animation_validation import (
 	boolean_control,

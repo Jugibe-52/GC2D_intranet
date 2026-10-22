@@ -16,14 +16,8 @@ import numpy as np
 
 from .area_comparison import _validated_area_steps, AreaStep
 
-from ._validation import (
-	unpacked_time_span,
-	validate_block_prefix,
-	integer_ratio,
-	nonnegative_finite,
-	positive_finite,
-	positive_integer,
-)
+from ._validation import unpacked_time_span, validate_block_prefix
+from contracts.studies._validation import integer_ratio, nonnegative_finite, positive_finite, positive_integer
 
 from diagnostics.methods.trajectory_symplecticity.observer import (
 	GCTrajectorySymplecticityObserver,
@@ -44,10 +38,10 @@ from methods.extended.bm4 import BM4Implicit
 from methods.extended.abba import ABBA2Implicit
 from problem import InitialValueProblem
 from methods.extended.abba import ABBA2Midpoint
-from methods.base import NumericalMethod
+from contracts.methods.base import NumericalMethod
 from request import SimulationRequest
 from states.history import States
-from contracts.observation import StepObserver
+from contracts.methods.observation import StepObserver
 from simulation.runner import simulate
 
 from typing import TYPE_CHECKING

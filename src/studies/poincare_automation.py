@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from contracts.studies.poincare_automation import _NewtonControls
+
 from studies._validation import require_uncoupled_bm4
 
 from formulations.layout import GCStateLayout
@@ -12,19 +14,19 @@ from hashlib import file_digest, sha256
 from itertools import product
 import json
 from pathlib import Path
-from typing import Any, Iterator, Literal, TYPE_CHECKING, TypedDict, cast
+from typing import Any, Iterator, Literal, TYPE_CHECKING, cast
 
 import numpy as np
 
 from execution.options import ExecutionOptions
 from problem import InitialValueProblem
 from request import SimulationRequest
-from contracts.result import DiagnosticValue
+from contracts.states.history import DiagnosticValue
 from dynamics.gc import GuidingCenterDynamics
 from execution.execution import Execution
 
 from states.generators import ranked_radial_star
-from methods.base import NumericalMethod
+from contracts.methods.base import NumericalMethod
 from methods.classical.gauss_legendre import GaussLegendre4
 from methods.classical.rk4 import RK4
 from methods.extended.bm4 import BM4Implicit, BM4Midpoint
@@ -281,14 +283,6 @@ def prepare_automation_case(config: AutomationConfig, case: AutomationCase,
 		initial_state_saved=True, samples_per_cycle=1)
 	metadata["input_digest"] = sha256(canonical_json(metadata).encode()).hexdigest()
 	return PreparedAutomationCase(config, case, problem, request, metadata)
-
-
-class _NewtonControls(TypedDict):
-	newton_absolute_tolerance: float
-	newton_relative_tolerance: float
-	newton_max_iterations: int
-	newton_jacobian_relative_step: float
-	newton_jacobian_method: Literal["analytic"]
 
 
 def automation_method(prepared: PreparedAutomationCase) -> NumericalMethod:

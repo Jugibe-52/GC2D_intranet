@@ -17,7 +17,8 @@ from diagnostics.methods.jacobians import (
 )
 from diagnostics.io.buffering import DiagnosticBuffer
 from diagnostics.io.paths import notebook_output_directory, validate_block_name
-from contracts.observation import ABBA2ImplicitIntegrationStep, IntegrationStep
+from contracts.methods.extended.abba import ABBA2ImplicitIntegrationStep
+from contracts.methods.observation import IntegrationStep
 
 from diagnostics.methods.extended.abba_jacobian.analysis import (
 	ParticleJacobianAnalysis,

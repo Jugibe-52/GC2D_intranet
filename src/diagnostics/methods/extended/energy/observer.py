@@ -7,14 +7,13 @@ from dataclasses import dataclass
 import numpy as np
 
 from dynamics import GuidingCenterDynamics
-from contracts.observation import (
+from contracts.methods.extended.abba import (
 	ABBA4ImplicitIntegrationStep,
 	UnprojectedABBAIntegrationStep,
 	ABBA2ImplicitIntegrationStep,
-	ImplicitBM4IntegrationStep,
-	IntegrationStage,
-	IntegrationStep,
 )
+from contracts.methods.extended.bm4 import ImplicitBM4IntegrationStep
+from contracts.methods.observation import IntegrationStage, IntegrationStep
 from formulations.gc import gc_coupling_matrix
 
 from typing import TYPE_CHECKING

@@ -12,8 +12,8 @@ from typing import ClassVar, TYPE_CHECKING
 
 import numpy as np
 
-from dynamics.protocols import HamiltonianSystem
-from contracts.result import DiagnosticValue
+from contracts.dynamics.protocols import HamiltonianSystem
+from contracts.states.history import DiagnosticValue
 
 if TYPE_CHECKING:
 	from problem import InitialValueProblem

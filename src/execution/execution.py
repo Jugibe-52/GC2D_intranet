@@ -4,16 +4,17 @@ from collections.abc import Mapping
 from types import MappingProxyType
 from typing import TYPE_CHECKING
 
-from dynamics.protocols import HamiltonianSystem
+from contracts.dynamics.protocols import HamiltonianSystem
 
-from contracts.compiled import CompiledStep
+from contracts.methods.compiled import CompiledStep
 from execution.options import ExecutionOptions
 from problem import InitialValueProblem
-from contracts.result import DiagnosticValue
+from contracts.states.history import DiagnosticValue
 from execution._host import run_steps
 from request import SimulationRequest
 from states.history import States
-from methods.base import IntegrationMethod, NumericalMethod
+from methods.base import IntegrationMethod
+from contracts.methods.base import NumericalMethod
 
 
 if TYPE_CHECKING:

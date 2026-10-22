@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from contracts.comparison import EnergyAccuracySeries
+from contracts.studies.comparison import EnergyAccuracySeries
 import numpy as np
 
 
 from states.history import States
 from ._gauss_legendre4_common import readonly_runtime_samples
-from contracts.comparison import TrajectoryAccuracySeries
+from contracts.studies.comparison import TrajectoryAccuracySeries
 
 
 def validate_comparison_solution(

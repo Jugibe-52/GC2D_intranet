@@ -18,12 +18,13 @@ from diagnostics.studies.reference_trajectory import StoredReferenceTrajectory
 from potential import Potential
 from methods.extended.bm4 import BM4Implicit
 from methods.extended.bm4 import BM4Midpoint
-from contracts.observation import ImplicitBM4IntegrationStep, IntegrationStep
+from contracts.methods.extended.bm4 import ImplicitBM4IntegrationStep
+from contracts.methods.observation import IntegrationStep
 from problem import InitialValueProblem
-from methods.base import NumericalMethod
+from contracts.methods.base import NumericalMethod
 from request import SimulationRequest
 from simulation.runner import simulate
-from contracts.comparison import AdaptiveReference
+from contracts.studies.comparison import AdaptiveReference
 from ._gauss_legendre4_common import (build_adaptive_reference)
 from ._trajectory_accuracy import validate_reference_identity
 from ._trajectory_distances import particle_distances

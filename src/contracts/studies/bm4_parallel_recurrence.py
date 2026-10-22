@@ -1,15 +1,11 @@
-"""Energy and independent-particle recurrence records usable without study runners."""
+"""studies.bm4_parallel_recurrence configuration and result records."""
 
 from __future__ import annotations
+
 from dataclasses import dataclass
 from typing import Any
 import numpy as np
-from contracts._study_validation import (
-	positive_finite, nonnegative_finite, positive_integer, integer_ratio, finite_time_span,
-)
-
-
-GC_ENERGY_BOUND_METHODS = ("BM4Implicit", "RK4")
+from contracts.studies._validation import (positive_finite, nonnegative_finite, positive_integer, integer_ratio, finite_time_span)
 
 
 @dataclass(frozen=True, slots=True)
@@ -176,16 +172,4 @@ def _validate_parallel_work(
 		raise ValueError("Runtime and iteration summaries must be non-negative.")
 
 
-@dataclass
-class GCEnergyBoundResult:
-	"""Every accepted node and independently auditable summary records."""
-
-	arrays: dict[str, np.ndarray]
-	metadata: dict[str, Any]
-	summary: list[dict[str, Any]]
-	envelopes: list[dict[str, Any]]
-	blocks: list[dict[str, Any]]
-	orders: list[dict[str, Any]]
-
-
-__all__ = ["ParallelBM4RecurrenceConfig", "ParallelBM4RecurrenceResult", "GCEnergyBoundResult", "GC_ENERGY_BOUND_METHODS"]
+__all__ = ['ParallelBM4RecurrenceConfig', 'ParallelBM4RecurrenceResult']

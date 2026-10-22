@@ -4,8 +4,12 @@ from __future__ import annotations
 
 from formulations.layout import GCStateLayout
 
-from contracts._study_validation import (
-	positive_finite, nonnegative_finite, positive_integer, integer_ratio, finite_time_span,
+from contracts.studies._validation import (
+	positive_finite,
+	nonnegative_finite,
+	positive_integer,
+	integer_ratio,
+	finite_time_span,
 )
 
 from collections.abc import Iterable

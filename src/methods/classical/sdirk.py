@@ -7,18 +7,14 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
-from dynamics import (
-	DynamicalSystem,
-	HamiltonianSystem,
-	GuidingCenterJacobianSystem,
-)
+from contracts.dynamics.protocols import DynamicalSystem, HamiltonianSystem, GuidingCenterJacobianSystem
 
 from methods.base import IntegrationMethod
-from contracts.step import StepInfo, StepResult
-from contracts.result import DiagnosticValue
+from contracts.methods.step import StepInfo, StepResult
+from contracts.states.history import DiagnosticValue
 from formulations.state import PhysicalFormulation
-from contracts.observation import IntegrationStep, StepObserver
-from contracts.nonlinear import NewtonObserver
+from contracts.methods.observation import IntegrationStep, StepObserver
+from contracts.solvers.nonlinear import NewtonObserver
 from problem import InitialValueProblem
 from request import SimulationRequest
 from ._configuration import _prepared_newton_controls

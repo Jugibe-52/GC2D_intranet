@@ -8,14 +8,8 @@ import numpy as np
 
 from .area_comparison import _validated_area_steps, AreaStep
 
-from ._validation import (
-	unpacked_time_span,
-	validate_block_prefix,
-	integer_ratio,
-	nonnegative_finite,
-	positive_finite,
-	positive_integer,
-)
+from ._validation import unpacked_time_span, validate_block_prefix
+from contracts.studies._validation import integer_ratio, nonnegative_finite, positive_finite, positive_integer
 
 
 @dataclass(frozen=True, slots=True)

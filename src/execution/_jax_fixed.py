@@ -13,8 +13,8 @@ import jax.numpy as jnp
 import numpy as np
 
 from states.history import States
-from contracts.result import DiagnosticValue
-from contracts.compiled import CompiledStep
+from contracts.states.history import DiagnosticValue
+from contracts.methods.compiled import CompiledStep
 from execution._host import _step_count, _time_tolerance
 
 if TYPE_CHECKING:

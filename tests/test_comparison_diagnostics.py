@@ -6,8 +6,8 @@ import unittest
 
 import numpy as np
 
-from contracts.comparison import AdaptiveReference, EnergyAccuracySeries
-from contracts.study_results import ParallelBM4RecurrenceConfig, ParallelBM4RecurrenceResult
+from contracts.studies.comparison import AdaptiveReference, EnergyAccuracySeries
+from contracts.studies.bm4_parallel_recurrence import ParallelBM4RecurrenceConfig, ParallelBM4RecurrenceResult
 from diagnostics.studies.comparison import (
 	time_integrated_rms_floor, final_rms_floor, rms_error,
 	maximum_absolute_error, running_maximum_absolute_error,
@@ -72,8 +72,8 @@ def without_analysis(name, *args, **kwargs):
         raise ImportError('Records must not require analysis: ' + name)
     return original(name, *args, **kwargs)
 builtins.__import__ = without_analysis
-from contracts.comparison import AdaptiveReference, EnergyAccuracySeries
-from contracts.study_results import ParallelBM4RecurrenceResult
+from contracts.studies.comparison import AdaptiveReference, EnergyAccuracySeries
+from contracts.studies.bm4_parallel_recurrence import ParallelBM4RecurrenceResult
 assert not hasattr(AdaptiveReference, 'final_rms_floor')
 assert not hasattr(EnergyAccuracySeries, 'rms_error')
 assert not hasattr(ParallelBM4RecurrenceResult, 'recurrence_distances')
