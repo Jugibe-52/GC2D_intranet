@@ -35,7 +35,7 @@ class TimeDependentRotation:
 class AdaptiveIntegrationTests(unittest.TestCase):
     def setUp(self):
         self.problem = InitialValueProblem(TimeDependentRotation(), GCStateLayout().pack_components([1., .4, -.2], [0., .2, .5]), layout=GCStateLayout())
-        self.request = SimulationRequest.uniform(t_span=(.3, .8), max_step=.08, sample_count=31)
+        self.request = SimulationRequest.uniform(t_span=(.3, .8),  sample_count=31)
 
     def test_energy_endpoint_queries_reuse_quadrature_and_return_independent_arrays(self):
         """Repeated scalar/batched endpoints cost no energy evaluations or new solves."""
@@ -43,8 +43,8 @@ class AdaptiveIntegrationTests(unittest.TestCase):
             with self.subTest(method=cls.__name__):
                 source = _problem()
                 problem = InitialValueProblem(source.dynamics, GCStateLayout().pack_components([1., 1.1, 1.2], [1.2, 1.3, 1.4]), layout=GCStateLayout())
-                request = SimulationRequest.uniform(t_span=(.3, .34), max_step=.02, sample_count=3)
-                run = cls(track_energy=True, first_step=.02).new_run(problem, request)
+                request = SimulationRequest.uniform(t_span=(.3, .34),  sample_count=3)
+                run = replace(cls(track_energy=True, first_step=.02), max_step=0.02).new_run(problem, request)
                 with patch.object(type(problem.dynamics), 'extended_momentum_derivative', autospec=True,
                                   side_effect=type(problem.dynamics).extended_momentum_derivative) as rate:
                     result = run.advance(.3, run.initial_state, .02)
@@ -77,10 +77,10 @@ class AdaptiveIntegrationTests(unittest.TestCase):
             with self.subTest(method=cls.__name__):
                 problem = _problem()
                 step = .32 - .3
-                request = SimulationRequest.uniform(t_span=(.3, .32), max_step=step, sample_count=2)
+                request = SimulationRequest.uniform(t_span=(.3, .32),  sample_count=2)
                 with patch.object(type(problem.dynamics), 'extended_momentum_derivative', autospec=True,
                                   side_effect=type(problem.dynamics).extended_momentum_derivative) as rate:
-                    result = simulate(problem, cls(track_energy=True, first_step=step), request)
+                    result = simulate(problem, replace(cls(track_energy=True, first_step=step), max_step=step), request)
                 self.assertEqual(result.n_steps, 1)
                 self.assertEqual(rate.call_count, 8)
 
@@ -98,10 +98,10 @@ class AdaptiveIntegrationTests(unittest.TestCase):
                     request = replace(self.request, output_times=np.linspace(.3, .8, count))
                     reference = solve_ivp(self.problem.dynamics.vector_field, request.t_span,
                         self.problem.initial_state, method=cls.__name__, t_eval=request.output_times,
-                        max_step=request.max_step, rtol=1e-10, atol=1e-12)
+                        max_step=.08, rtol=1e-10, atol=1e-12)
                     events = []
-                    plain = simulate(self.problem, cls(), request)
-                    observed = simulate(self.problem, cls(step_observer=events.append), request)
+                    plain = simulate(self.problem, cls(max_step=.08), request)
+                    observed = simulate(self.problem, cls(max_step=.08, step_observer=events.append), request)
                     np.testing.assert_array_equal(plain.states, reference.y)
                     np.testing.assert_array_equal(observed.states, plain.states)
                     for key, total in zip(('function_evaluations', 'jacobian_evaluations', 'lu_decompositions'),
@@ -130,13 +130,13 @@ class AdaptiveIntegrationTests(unittest.TestCase):
                 event.dense_state(time)[:] = 999
                 np.testing.assert_array_equal(event.dense_state(time), expected)
                 events.append(event)
-            run = cls(step_observer=mutate).new_run(self.problem, self.request)
+            run = replace(cls(step_observer=mutate), max_step=0.08).new_run(self.problem, self.request)
             self.assertEqual(events, [])
-            plain = simulate(self.problem, cls(), self.request)
+            plain = simulate(self.problem, replace(cls(), max_step=0.08), self.request)
             with patch.object(cls, "new_run", return_value=run):
-                first = Execution().run(self.problem, run, self.request)
+                first = Execution().run(self.problem, replace(run, max_step=0.08), self.request)
             count = len(events)
-            second = simulate(self.problem, cls(step_observer=mutate), self.request)
+            second = simulate(self.problem, replace(cls(step_observer=mutate), max_step=0.08), self.request)
             self.assertEqual(len(events), 2 * count)
             np.testing.assert_array_equal(first.states, plain.states)
             np.testing.assert_array_equal(second.states, first.states)
@@ -145,7 +145,7 @@ class AdaptiveIntegrationTests(unittest.TestCase):
         for cls in (DOP853, Radau):
             observer = AdaptiveTrajectoryObserver()
             configured = cls(dense_output=True, step_observer=observer)
-            actual = simulate(self.problem, configured, self.request)
+            actual = simulate(self.problem, replace(configured, max_step=0.08), self.request)
             reference = solve_ivp(self.problem.dynamics.vector_field, self.request.t_span,
                 self.problem.initial_state, method=cls.__name__, max_step=.08,
                 rtol=1e-10, atol=1e-12, dense_output=True)
@@ -163,11 +163,11 @@ class AdaptiveIntegrationTests(unittest.TestCase):
             def derivative(t, z):
                 return np.r_[problem.dynamics.vector_field(t, z[:2]),
                              problem.dynamics.extended_momentum_derivative(t, z[:2])]
-            request = SimulationRequest.uniform(t_span=(.3, .34), max_step=.02, sample_count=5)
+            request = SimulationRequest.uniform(t_span=(.3, .34),  sample_count=5)
             reference = solve_ivp(derivative, request.t_span, np.r_[problem.initial_state, 0.],
                 method='DOP853', rtol=1e-13, atol=1e-15, max_step=.001, t_eval=request.output_times)
-            actual = simulate(problem, cls(track_energy=True), request)
-            plain = simulate(problem, cls(), request)
+            actual = simulate(problem, replace(cls(track_energy=True), max_step=0.02), request)
+            plain = simulate(problem, replace(cls(), max_step=0.02), request)
             np.testing.assert_array_equal(actual.states, plain.states)
             for key in ('step_times', 'function_evaluations', 'jacobian_evaluations', 'lu_decompositions'):
                 np.testing.assert_array_equal(actual.diagnostics[key], plain.diagnostics[key])
@@ -176,8 +176,8 @@ class AdaptiveIntegrationTests(unittest.TestCase):
 
     def test_advance_keeps_one_live_solver_and_independent_runs(self):
         for cls in (DOP853, Radau):
-            first = cls(dense_output=True).new_run(self.problem, self.request)
-            second = cls(dense_output=True).new_run(self.problem, self.request)
+            first = replace(cls(dense_output=True), max_step=0.08).new_run(self.problem, self.request)
+            second = replace(cls(dense_output=True), max_step=0.08).new_run(self.problem, self.request)
             self.assertIsNot(first.solver, second.solver)
             solver = first.solver
             reference = cls.solver_type(self.problem.dynamics.vector_field, .3,
@@ -206,18 +206,18 @@ class AdaptiveIntegrationTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     cls(**options)
             with self.assertRaises(TypeError):
-                cls(track_energy=True).new_run(self.problem, self.request)
+                replace(cls(track_energy=True), max_step=0.08).new_run(self.problem, self.request)
             def fail(solver):
                 solver.status = 'failed'
                 return 'injected failure'
             with patch.object(cls.solver_type, 'step', fail):
                 with self.assertRaisesRegex(RuntimeError, 'injected failure'):
-                    simulate(self.problem, cls(), self.request)
+                    simulate(self.problem, replace(cls(), max_step=0.08), self.request)
 
     def test_first_step_and_optional_radau_jacobian(self):
         problem = InitialValueProblem(TimeDependentRotation(), np.array(np.array([1., 0.]), dtype=float, copy=True), layout=GCStateLayout())
         method = Radau(first_step=.01, jacobian=lambda t, z: t * np.array([[0., -1.], [1., 0.]]))
-        actual = simulate(problem, method, self.request)
+        actual = simulate(problem, replace(method, max_step=0.08), self.request)
         reference = solve_ivp(problem.dynamics.vector_field, self.request.t_span, problem.initial_state,
             method='Radau', rtol=1e-10, atol=1e-12, max_step=.08, first_step=.01,
             jac=method.jacobian, t_eval=self.request.output_times)

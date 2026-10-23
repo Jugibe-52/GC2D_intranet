@@ -102,10 +102,9 @@ class ABBA2MidpointTests(unittest.TestCase):
 		with self.assertRaisesRegex(TypeError, "HamiltonianSystem"):
 			simulate(
 				problem,
-				ABBA2Midpoint(track_energy=True),
+				ABBA2Midpoint(step=0.1, track_energy=True),
 				SimulationRequest.uniform(
 					t_span=(0.0, 0.1),
-					max_step=0.1,
 					sample_count=2,
 				),
 			)
@@ -117,10 +116,9 @@ class ABBA2MidpointTests(unittest.TestCase):
 		step = 0.1
 		solution = simulate(
 			InitialValueProblem(dynamics, np.array(initial_state, dtype=float, copy=True), layout=GCStateLayout()),
-			ABBA2Midpoint(),
+			ABBA2Midpoint(step=step),
 			SimulationRequest.uniform(
 				t_span=(start, start + step),
-				max_step=step,
 				sample_count=2,
 			),
 		)
@@ -167,10 +165,9 @@ class ABBA2MidpointTests(unittest.TestCase):
 			"""Return one final state on a fixed integration interval."""
 			return simulate(
 				problem,
-				ABBA2Midpoint(),
+				ABBA2Midpoint(step=step),
 				SimulationRequest.uniform(
 					t_span=(0.0, 0.4),
-					max_step=step,
 					sample_count=2,
 				),
 			).states[:, -1]
@@ -186,19 +183,17 @@ class ABBA2MidpointTests(unittest.TestCase):
 		events = []
 		observed = simulate(
 			problem,
-			ABBA2Midpoint(step_observer=events.append),
+			ABBA2Midpoint(step=0.02, step_observer=events.append),
 			SimulationRequest.uniform(
 				t_span=(0.0, 0.05),
-				max_step=0.02,
 				sample_count=11,
 			),
 		)
 		sparse = simulate(
 			problem,
-			ABBA2Midpoint(),
+			ABBA2Midpoint(step=0.02),
 			SimulationRequest.uniform(
 				t_span=(0.0, 0.05),
-				max_step=0.02,
 				sample_count=3,
 			),
 		)

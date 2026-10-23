@@ -6,7 +6,7 @@ from studies._validation import require_uncoupled_bm4
 
 from formulations.layout import GCStateLayout
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from time import perf_counter
 from types import MappingProxyType
 from typing import Any, Mapping, TYPE_CHECKING
@@ -31,7 +31,7 @@ from methods.extended.abba import ABBA4Implicit
 from methods.extended.bm4 import BM4Implicit
 from methods.extended.abba import ABBA2Implicit
 from problem import InitialValueProblem
-from contracts.methods.base import NumericalMethod
+from methods.base import FixedStepMethod
 from request import SimulationRequest
 from states.history import States
 from simulation.runner import simulate
@@ -233,7 +233,7 @@ def _frozen_nested_mapping(
 def _configured_method(
 	method_name: str,
 	config: ImplicitMethodAccuracyConfig,
-) -> NumericalMethod:
+) -> FixedStepMethod[Any]:
 	"""Construct one Newton-solved method with the common tolerances."""
 	if method_name == "ABBA2Implicit[reduced_multiplier]":
 		return ABBA2Implicit(
@@ -611,14 +611,13 @@ def run_implicit_method_accuracy_study(
 	for step in config.integration_steps:
 		request: SimulationRequest = SimulationRequest.uniform(
 			t_span=config.t_span,
-			max_step=step,
 			sample_count=config.output_sample_count,
 		)
 		for method_name in IMPLICIT_ACCURACY_METHOD_NAMES:
 			started: float = perf_counter()
 			solution: States = simulate(
 				problem,
-				_configured_method(method_name, config),
+				replace(_configured_method(method_name, config), step=step),
 				request,
 			)
 			runtimes[method_name][step] = perf_counter() - started

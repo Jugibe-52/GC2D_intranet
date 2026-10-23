@@ -280,7 +280,6 @@ def run_implicit_abba_jacobian_study(
 	problem: InitialValueProblem = InitialValueProblem(dynamics, initial_configuration)
 	request: SimulationRequest = SimulationRequest.uniform(
 		t_span=config.t_span,
-		max_step=config.max_step,
 		sample_count=config.sample_count,
 	)
 	with ImplicitABBAJacobianObserver(
@@ -300,7 +299,7 @@ def run_implicit_abba_jacobian_study(
 		started: float = perf_counter()
 		solution: States = simulate(
 			problem,
-			ABBA2Implicit(
+			ABBA2Implicit(step=config.max_step,
 				projection_formulation=config.formulation,
 				newton_absolute_tolerance=config.newton_absolute_tolerance,
 				newton_relative_tolerance=config.newton_relative_tolerance,

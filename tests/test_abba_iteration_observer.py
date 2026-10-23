@@ -62,7 +62,6 @@ class ImplicitABBAIterationObserverTests(unittest.TestCase):
 	) -> None:
 		request = SimulationRequest.uniform(
 			t_span=(0.0, 0.04),
-			max_step=0.02,
 			sample_count=3,
 		)
 		for formulation in ABBA_PROJECTION_FORMULATIONS:
@@ -80,7 +79,7 @@ class ImplicitABBAIterationObserverTests(unittest.TestCase):
 				) as observer:
 					solution = simulate(
 						InitialValueProblem(GuidingCenterDynamics(_potential(), rho=0.05), _configuration(), layout=GCStateLayout()),
-						ABBA2Implicit(
+						ABBA2Implicit(step=0.02,
 							projection_formulation=formulation,
 							step_observer=observer,
 						),

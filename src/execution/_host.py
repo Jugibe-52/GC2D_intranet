@@ -75,10 +75,38 @@ class _Progress:
 		print(file=sys.stderr, flush=True)
 
 
-def _step_count(duration: float, max_step: float) -> int:
-	"""Return the fewest uniform steps respecting ``max_step``."""
-	ratio = duration / max_step
-	return max(1, math.ceil(math.nextafter(ratio, -math.inf)))
+def _step_count(duration: float, step: float) -> int:
+	"""Count nominal steps, allowing round-off at an integer quotient."""
+	ratio: float = duration / step
+	if not math.isfinite(ratio):
+		raise ValueError("The time span and step produce an unrepresentable step count.")
+	nearest: int = round(ratio)
+	if abs(ratio - nearest) <= 8 * np.finfo(float).eps * max(1.0, ratio):
+		return max(1, nearest)
+	return max(1, math.ceil(ratio))
+
+
+def _fixed_schedule(t_span: tuple[float, float], step: float) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+	"""Build a nominal grid with only its final duration clipped to the endpoint.
+
+	Integer-indexed starts avoid cumulative clock drift. All complete maps use
+	the configured duration; tiny clock differences remain float round-off.
+	"""
+	t0: float
+	tf: float
+	t0, tf = t_span
+	if not np.isfinite(step) or step <= 0:
+		raise ValueError("`step` must be positive and finite.")
+	if t0 + min(step, tf - t0) <= t0:
+		raise ValueError("The configured step cannot advance representable time.")
+	count: int = _step_count(tf - t0, step)
+	starts: np.ndarray = t0 + np.arange(count) * step
+	ends: np.ndarray = np.concatenate((starts[1:], np.asarray([tf])))
+	durations: np.ndarray = np.full(count, step)
+	durations[-1] = tf - starts[-1]
+	if np.any(ends <= starts):
+		raise ValueError("The configured step cannot advance representable time.")
+	return starts, ends, durations
 
 
 def _time_tolerance(t_span: tuple[float, float]) -> float:
@@ -90,22 +118,24 @@ def _time_tolerance(t_span: tuple[float, float]) -> float:
 
 
 class FixedStepController(Generic[Detail]):
-	"""Use the established uniform grid and independent shortened shadow maps."""
+	"""Use a fixed nominal step, a clipped final step and independent shadow maps."""
 
 	def steps(
 		self, method: IntegrationMethod[Detail], request: SimulationRequest,
 	) -> Iterator[tuple[StepInfo, StepResult[Detail]]]:
 		"""Advance main nodes without observing, collecting or exporting data."""
-		t0: float
-		tf: float
-		t0, tf = request.t_span
-		count: int = _step_count(tf - t0, request.max_step)
-		h = (tf - t0) / count
-		current: IntegrationState = IntegrationState(t0, method.initial_state)
-		for index in range(count):
-			time = current.time
-			info: StepInfo = StepInfo(index, time, h, t0 + (index + 1) * h, current.values.copy())
-			result: StepResult[Detail] = method.advance(time, current.values.copy(), h)
+		from methods.base import FixedStepMethod
+
+		if not isinstance(method, FixedStepMethod):
+			raise TypeError("FixedStepController requires a FixedStepMethod.")
+		starts: np.ndarray
+		ends: np.ndarray
+		durations: np.ndarray
+		starts, ends, durations = _fixed_schedule(request.t_span, method.step)
+		current: IntegrationState = IntegrationState(request.t_span[0], method.initial_state)
+		for index, (time, end, duration) in enumerate(zip(starts, ends, durations)):
+			info: StepInfo = StepInfo(index, float(time), float(duration), float(end), current.values.copy())
+			result: StepResult[Detail] = method.advance(info.time, current.values.copy(), info.duration)
 			current = IntegrationState(info.end_time, result.state)
 			yield info, result
 
@@ -153,8 +183,8 @@ def run_steps(
 	# this is unrelated to an integrator's error or nonlinear-solver tolerance.
 	tolerance: float = _time_tolerance(request.t_span)
 	sampling_tolerance: Any | float = getattr(selected, 'sampling_tolerance', tolerance)
-	# Estimate the fixed-step count for the display; its percentage uses accepted time.
-	progress: _Progress | None = _Progress(method.method_name, _step_count(tf - t0, request.max_step), t_span=request.t_span) if method.progress else None
+	# Progress uses accepted time for both fixed and adaptive controllers.
+	progress: _Progress | None = _Progress(method.method_name, 1, t_span=request.t_span) if method.progress else None
 	output_index = 1
 	interior_sample_count = 0
 	previous_end = t0
@@ -189,7 +219,7 @@ def run_steps(
 		raise RuntimeError("The integration did not cover the requested interval.")
 	diagnostics: dict[str, DiagnosticValue] = {}
 	if method.state_formulation is not None:
-		diagnostics.update(method.state_formulation.diagnose_history(saved.times, saved.values, dict(saved.auxiliary)))
+		diagnostics.update(method.diagnose_history(saved.times, saved.values, dict(saved.auxiliary)))
 	diagnostics["output_interpolation_count"] = interior_sample_count
 	return diagnostics
 

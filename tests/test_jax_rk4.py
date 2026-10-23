@@ -52,7 +52,7 @@ from execution.options import ExecutionOptions
 from request import SimulationRequest
 from methods.classical.rk4 import RK4
 from simulation.runner import simulate
-p, r = problem(), SimulationRequest.uniform(t_span=(0., .01), max_step=.01)
+p, r = problem(), SimulationRequest.uniform(t_span=(0., .01))
 simulate(p, RK4(), r, options=ExecutionOptions())
 try:
     simulate(p, RK4(), r, options=ExecutionOptions(backend="jax"))
@@ -66,7 +66,7 @@ else:
         self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_default_and_explicit_cpu_execution_match(self):
-        p, r = problem(), SimulationRequest.uniform(t_span=(0., .03), max_step=.01)
+        p, r = problem(), SimulationRequest.uniform(t_span=(0., .03))
         a, b = simulate(p, RK4(), r), simulate(p, RK4(), r, options=ExecutionOptions())
         np.testing.assert_array_equal(a.states, b.states)
         with self.assertRaisesRegex(TypeError, "ExecutionOptions"):
@@ -87,8 +87,8 @@ class JaxRK4Tests(unittest.TestCase):
     def tearDownClass(cls):
         cls.jax.config.update("jax_enable_x64", cls.previous_x64)
 
-    def assert_equivalent(self, p, request, tracking, execution=None):
-        method = RK4(track_energy=tracking)
+    def assert_equivalent(self, p, request, tracking, execution=None, *, step=.1):
+        method = RK4(step=step, track_energy=tracking)
         reference = simulate(p, method, request)
         result = simulate(p, method, request, options=execution or self.execution)
         np.testing.assert_allclose(result.states, reference.states, rtol=2e-12, atol=2e-12)
@@ -107,25 +107,25 @@ class JaxRK4Tests(unittest.TestCase):
         return result
 
     def test_gc_fc_energy_and_irregular_samples(self):
-        request = SimulationRequest(t_span=(.3, .5), max_step=.06,
+        request = SimulationRequest(t_span=(.3, .5),
                                     output_times=np.array([.3, .3001, .35, .371, .41, .49, .5]))
         for fc in (False, True):
             for tracking in (False, True):
                 with self.subTest(fc=fc, tracking=tracking):
-                    self.assert_equivalent(problem(fc), request, tracking)
+                    self.assert_equivalent(problem(fc), request, tracking, step=.06)
 
     def test_sparse_sampling_shadow_independence_and_particle_independence(self):
         p = problem()
         nodes = np.linspace(0., .5, 6)
         dense = np.unique(np.concatenate((nodes, [.02, .08, .21, .22, .49])))
-        sampled = simulate(p, RK4(), SimulationRequest((0., .5), .1, dense), options=self.execution)
-        sparse = self.assert_equivalent(p, SimulationRequest((0., .5), .1, nodes[[0, 2, 5]]), False)
+        sampled = simulate(p, RK4(step=0.1), SimulationRequest((0., .5),  dense), options=self.execution)
+        sparse = self.assert_equivalent(p, SimulationRequest((0., .5),  nodes[[0, 2, 5]]), False)
         np.testing.assert_allclose(sampled.states[:, np.searchsorted(dense, sparse.t)], sparse.states,
                                    rtol=1e-14, atol=1e-14)
         x, y = GCStateLayout().split(p.initial_state)
         for i in range(3):
             one = InitialValueProblem(p.dynamics, GCStateLayout().pack_components(x[i:i+1], y[i:i+1]), layout=GCStateLayout())
-            solo = simulate(one, RK4(), SimulationRequest((0., .5), .1, sparse.t))
+            solo = simulate(one, RK4(step=0.1), SimulationRequest((0., .5),  sparse.t))
             np.testing.assert_allclose(sparse.states[[i, i+3]], solo.states, rtol=1e-13, atol=1e-13)
 
     def test_fourth_order_against_an_exact_time_dependent_shear(self):
@@ -138,12 +138,12 @@ class JaxRK4Tests(unittest.TestCase):
         exact = .4 + amplitude * np.sin(2*np.pi*.7) / (2*np.pi*.7)
         errors = []
         for h in (.2, .1, .05):
-            result = simulate(p, RK4(), SimulationRequest((0., 1.), h, np.array([0., 1.])), options=self.execution)
+            result = simulate(p, RK4(step=h), SimulationRequest((0., 1.),  np.array([0., 1.])), options=self.execution)
             errors.append(abs(result.states[1, -1] - exact))
         self.assertTrue(all(14 < a/b < 18 for a, b in zip(errors[:-1], errors[1:])), errors)
 
     def test_precision_and_unsupported_capabilities_fail_explicitly(self):
-        p, r = problem(), SimulationRequest.uniform(t_span=(0., .02), max_step=.01)
+        p, r = problem(), SimulationRequest.uniform(t_span=(0., .02))
         simulate(p, RK4(), r, options=self.execution)
         try:
             self.jax.config.update("jax_enable_x64", False)
@@ -164,16 +164,16 @@ class JaxRK4Tests(unittest.TestCase):
     def test_near_endpoints_and_unsaved_nonfinite_states(self):
         p = problem()
         times = np.array([0., 1e-16, .1-1e-16, .1, .1+1e-16, .2])
-        self.assert_equivalent(p, SimulationRequest((0., .2), .1, times), True)
+        self.assert_equivalent(p, SimulationRequest((0., .2),  times), True)
         # A finite initial FC state can still overflow during unsaved steps.
         fc = FullCyclotronDynamics(p.dynamics.potential, rho=1., eta=1e-100)
         initial = FCStateLayout().pack_components(np.array([0.]), np.array([0.]), np.array([1e200]), np.array([1e200]))
         with self.assertRaisesRegex(ValueError, "non-finite"):
-            simulate(InitialValueProblem(fc, initial, layout=FCStateLayout()), RK4(),
-                     SimulationRequest((0., 1.), .1, np.array([0., 1.])), options=self.execution)
+            simulate(InitialValueProblem(fc, initial, layout=FCStateLayout()), RK4(step=0.1),
+                     SimulationRequest((0., 1.),  np.array([0., 1.])), options=self.execution)
 
     def test_gpu_equivalence_or_explicit_unavailability(self):
-        p, r = problem(), SimulationRequest.uniform(t_span=(0., .02), max_step=.01)
+        p, r = problem(), SimulationRequest.uniform(t_span=(0., .02))
         execution = ExecutionOptions(backend="jax", device="gpu")
         try:
             devices = self.jax.devices("gpu")

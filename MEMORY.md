@@ -204,21 +204,19 @@ cases remain explicit. See `docs/studies/poincare-automation.md`.
 
 ## Current state and saved physical states
 
-`states.initial.InitialConditions` owns physical values and a copied structural
-layout, with GC/FC factories and independent public arrays. `problem.InitialValueProblem`
-associates it with compatible dynamics; array input and array-valued initial_state
-remain supported. `states.generators` still returns arrays. Physical GC/FC
-layouts live in `formulations.layout` and preserve NumPy/JAX operations; named
-GCState/FCState tuples are component views, not container subclasses.
-`request.SimulationRequest` alone owns the initial time and output schedule.
-Controllers manage current internal `IntegrationState(time, values)` snapshots.
-`states.States` records physical samples and separate accepted-step statistics,
-then becomes the completed read-only result returned directly by `simulate`.
-Shadow samples start independently from an accepted interval's left endpoint;
-they never replace the main state. JAX keeps functional device arrays inside JIT.
-Initial snapshots compare by value, not provider identity. Retired State,
-Solution and IntegrationCollector routes have no aliases. Archive schemas and
-save_solution/load_solution stay unchanged; old archives may lack initial data.
+`states.initial.InitialConditions` owns physical values and a copied structural layout, with GC/FC factories and independent arrays.
+`problem.InitialValueProblem` associates it with compatible dynamics; array input and array-valued initial_state remain supported.
+`states.generators` returns arrays. `formulations.layout` owns GC/FC layouts and NumPy/JAX operations; GCState/FCState are component views.
+`SingleFormulation`/`DoubleFormulation` retain only layout, particle count and tracking. Retired PhysicalFormulation/DoubledFormulation have no aliases.
+Methods own initialization, zero passive momentum, per-step preparation, projection/solvers and energy evaluation.
+Use lift for equal complete physical copies, join_copies for shifted candidates, and pack for supplied time/momentum; auxiliaries are never duplicated.
+Accepted doubled snapshots remain diagonal; physical reads the first copy without averaging. Generic FC duplication does not extend GC-only methods.
+Formulations combine supplied energy arrays with momentum without evaluating dynamics. See docs/simulation/initial-solvers-formulations.md.
+`request.SimulationRequest` alone owns initial time and output schedule; controllers manage internal `IntegrationState(time, values)` snapshots. FixedStepMethod owns positive `step` (default 0.1); the common CPU/JAX grid clips only its last step. `advance` receives effective durations without changing configuration. Adaptive methods own `max_step`; requests no longer accept it.
+`states.States` records physical samples and separate accepted-step statistics, then becomes the read-only result returned directly by `simulate`.
+Shadow samples start independently from an accepted interval's left endpoint and never replace the main state. JAX keeps functional arrays inside JIT.
+Initial snapshots compare by value, not provider identity. Retired State, Solution and IntegrationCollector routes have no aliases.
+Archive schemas and save_solution/load_solution stay unchanged; old archives may lack initial data.
 Area remains in `diagnostics.states.geometry`, geometry labels in study metadata.
 See `docs/simulation/api-migration.md` and `specs/current/states.md`.
 

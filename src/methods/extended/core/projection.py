@@ -51,7 +51,8 @@ def solve_projection(
     def evaluate(unknown: np.ndarray) -> tuple[np.ndarray, CompositionTrace]:
         """Evaluate a spatial residual and retain that exact map's trace."""
         mu: Any = equations.multiplier(unknown, size)
-        trace: CompositionTrace = compose(maps, recipe, t, np.concatenate((value + mu, value - mu)), h)
+        candidate: np.ndarray = maps.state_formulation.join_copies(value + mu, value - mu)
+        trace: CompositionTrace = compose(maps, recipe, t, candidate, h)
         residual: Any = equations.residual(unknown, trace.state, size)
         return residual, trace
 

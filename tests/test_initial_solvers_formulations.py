@@ -1,6 +1,6 @@
 """Ownership and numerical interchangeability of initial, solver and equation objects."""
 
-from dataclasses import FrozenInstanceError
+from dataclasses import FrozenInstanceError, replace
 import pickle
 import unittest
 
@@ -119,7 +119,7 @@ class ConfiguredIntegrationTests(unittest.TestCase):
 		self.dynamics = GuidingCenterDynamics(Potential.random(A=.04, M=2, nx=12, ny=12, seed=41))
 		self.initial = InitialConditions.gc(x=[.2, .7], y=[.3, .6])
 		self.problem = InitialValueProblem(self.dynamics, self.initial)
-		self.request = SimulationRequest.uniform(t_span=(.2, .28), max_step=.02, sample_count=7)
+		self.request = SimulationRequest.uniform(t_span=(.2, .28),  sample_count=7)
 
 	def test_solver_objects_match_existing_controls_and_can_be_reused(self) -> None:
 		solver = NewtonSolver(1e-12, 1e-11, 30)
@@ -132,9 +132,9 @@ class ConfiguredIntegrationTests(unittest.TestCase):
 		cases += [(ABBA4Implicit(nonlinear_solver='broyden', **controls), ABBA4Implicit(solver=BroydenSolver(1e-12, 1e-11, 30)))]
 		for legacy, configured in cases:
 			with self.subTest(method=type(configured).__name__, projection=getattr(configured, 'projection_formulation', None)):
-				expected = simulate(self.problem, legacy, self.request)
+				expected = simulate(self.problem, replace(legacy, step=0.02), self.request)
 				for unused in range(2):
-					actual = simulate(self.problem, configured, self.request)
+					actual = simulate(self.problem, replace(configured, step=0.02), self.request)
 					np.testing.assert_array_equal(actual.states, expected.states)
 					for key in ('nonlinear_iterations', 'residual_evaluations'):
 						np.testing.assert_array_equal(actual.diagnostics[key], expected.diagnostics[key])
@@ -160,26 +160,26 @@ class ConfiguredIntegrationTests(unittest.TestCase):
 			for method in (GaussLegendre4(solver=NewtonSolver()),
 				ABBA4Implicit(projection_formulation=ReducedProjection(), solver=NewtonSolver()),
 				ABBA4Implicit(projection_formulation=SimultaneousProjection(), solver=NewtonSolver())):
-				expected = simulate(self.problem, method, self.request)
-				actual = simulate(self.problem, method, self.request, options=ExecutionOptions(backend='jax'))
+				expected = simulate(self.problem, replace(method, step=0.02), self.request)
+				actual = simulate(self.problem, replace(method, step=0.02), self.request, options=ExecutionOptions(backend='jax'))
 				np.testing.assert_allclose(actual.states, expected.states, atol=3e-12, rtol=0)
 				np.testing.assert_array_equal(actual.diagnostics['nonlinear_iterations'], expected.diagnostics['nonlinear_iterations'])
 
 	def test_configured_job_serialization_and_cpu_execution(self) -> None:
 		from execution._modal_worker import encode_job, decode_job, execute_payload
 		equation = SimultaneousProjection()
-		method = ABBA4Implicit(projection_formulation=equation, solver=NewtonSolver())
+		method = ABBA4Implicit(step=.02, projection_formulation=equation, solver=NewtonSolver())
 		self.assertIs(method.projection_formulation, equation)
 		payload = encode_job(self.problem, method, self.request, None)
 		problem, restored, request, options = decode_job(payload)
 		self.assertIsInstance(restored.projection_formulation, SimultaneousProjection)
 		self.assertIsInstance(problem.initial_conditions, InitialConditions)
-		expected = simulate(self.problem, method, self.request)
+		expected = simulate(self.problem, replace(method, step=0.02), self.request)
 		actual = execute_payload(payload)[2]
 		np.testing.assert_array_equal(actual.states, expected.states)
 
 	def test_projection_forms_recover_same_physical_map(self) -> None:
-		results = [simulate(self.problem, ABBA4Implicit(projection_formulation=form,
+		results = [simulate(self.problem, ABBA4Implicit(step=0.02, projection_formulation=form,
 			solver=NewtonSolver(1e-13, 1e-12, 30)), self.request) for form in (ReducedProjection(), SimultaneousProjection())]
 		np.testing.assert_allclose(results[0].states, results[1].states, rtol=0, atol=3e-12)
 		self.assertEqual(results[0].diagnostics['nonlinear_unknown_dimension'], 4)

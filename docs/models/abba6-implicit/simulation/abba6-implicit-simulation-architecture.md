@@ -149,3 +149,21 @@ ABBA separates `ReducedProjection` and `SimultaneousProjection` in
 The equation object owns the 2N/6N residual and reconstruction. `solver=` accepts
 NewtonSolver or BroydenSolver; the existing string choices and tolerance keywords
 remain supported. CPU and JAX use the same equation classes.
+
+## State representation and step preparation
+
+The method initializes its internal state from physical input and the request's
+time. `SingleFormulation`/`DoubleFormulation` retain only layout, particle count
+and tracking settings. Their `lift` operation prepares physical copies; `pack`
+adds caller-supplied time and momentum. The method selects projection and solver,
+updates passive momentum, and supplies Hamiltonian values for output diagnostics.
+Accepted doubled copies stay equal, with no additional copies across steps.
+See [representation operations](../../../simulation/initial-solvers-formulations.md#state-representations).
+
+## Integration step
+
+This method owns its positive `step` (default 0.1 in runtime time units).
+Complete steps retain that size; only the final accepted step is shortened.
+`advance` receives the effective duration without modifying the configured value.
+See the [shared scheduling contract](../../../simulation/execution.md#method-owned-integration-step)
+for independent output sampling and the common CPU/JAX grid.

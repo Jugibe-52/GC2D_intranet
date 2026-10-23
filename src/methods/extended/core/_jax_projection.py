@@ -8,6 +8,8 @@ import jax.numpy as jnp
 from contracts.dynamics.protocols import HamiltonianSystem, GuidingCenterJacobianSystem
 from formulations.gc import _COUPLING_BASE, _COUPLING_COS, _COUPLING_SIN
 from formulations.projection import resolve_projection
+from formulations.layout import GCStateLayout
+from formulations.state import DoubleFormulation
 from methods._jax_options import CompositionOptions
 from solvers._jax import (
     newton, broyden, particle_finite_difference,
@@ -130,18 +132,19 @@ def extended_step(time: Any, state: Any, step: Any, dynamics: HamiltonianSystem,
     size: int
     n: int
     size, n = state.size, state.size // 2
+    representation: DoubleFormulation = DoubleFormulation(GCStateLayout(), n)
     equations: ProjectionFormulation = resolve_projection(options.projection)
     def evaluate(unknown: Any) -> Any:
         mu: jax.Array = equations.multiplier(unknown, size)
         mapped: jax.Array
         trace: Any
-        mapped, trace = compose(time, jnp.concatenate((state + mu, state - mu)), step, dynamics, options)
+        mapped, trace = compose(time, representation.join_copies(state + mu, state - mu), step, dynamics, options)
         residual: jax.Array = equations.residual(unknown, mapped, size)
         return residual, (mapped, trace)
     if options.solve is None:
         mapped: jax.Array
         trace: Any
-        mapped, trace = compose(time, jnp.concatenate((state, state)), step, dynamics, options)
+        mapped, trace = compose(time, representation.lift(state), step, dynamics, options)
         after: jax.Array = (mapped[:size] + mapped[size:]) / 2
         statistics = {'copy_separation_norms': infinity_norm(mapped[:size] - mapped[size:])}
         valid: jax.Array = jnp.array(True)
@@ -155,7 +158,7 @@ def extended_step(time: Any, state: Any, step: Any, dynamics: HamiltonianSystem,
                 base: jax.Array = composition_jacobian(trace, dynamics, options)
             else:
                 mu: jax.Array = equations.multiplier(unknown, size)
-                initial: jax.Array = jnp.concatenate((state + mu, state - mu))
+                initial: jax.Array = representation.join_copies(state + mu, state - mu)
                 base = particle_finite_difference(lambda z: compose(time, z, step, dynamics, options)[0],
                                                  initial, 4, solve.relative_step)
             matrix: jax.Array = equations.particle_jacobian(base)

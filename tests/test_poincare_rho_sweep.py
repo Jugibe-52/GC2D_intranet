@@ -199,7 +199,7 @@ class RhoSweepTests(unittest.TestCase):
         np.testing.assert_allclose(np.exp(1j*angles), np.exp(1j*expected), atol=1e-15)
         self.assertAlmostEqual(prepared.problem.dynamics.rho, .3*.06/(2*np.pi))
         np.testing.assert_array_equal(prepared.request.output_times, np.arange(5001))
-        self.assertEqual(prepared.request.max_step, .02)
+        self.assertEqual(1.0 / prepared.config.steps_per_cycle, .02)
         self.assertEqual(m['expected_step_count'], 250000)
         # Spectral averaging must preserve the dimensionless product k*rho.
         scale = 2*np.pi/.06

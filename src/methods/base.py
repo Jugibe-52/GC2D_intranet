@@ -6,7 +6,7 @@ from contracts.methods.base import NumericalMethod
 
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Mapping
-from dataclasses import is_dataclass, replace
+from dataclasses import dataclass, is_dataclass, replace
 from types import MappingProxyType
 from typing import Any, ClassVar, Generic, Literal, Self, TYPE_CHECKING, TypeVar
 
@@ -14,11 +14,13 @@ import numpy as np
 
 from contracts.states.history import DiagnosticValue
 from contracts.methods.step import StepInfo, StepResult
-from formulations.state import PhysicalFormulation
+from formulations.state import SingleFormulation
+from contracts.dynamics.protocols import HamiltonianSystem
 
 from problem import InitialValueProblem
 from contracts.dynamics.protocols import DynamicalSystem
-from request import SimulationRequest
+from request import DEFAULT_INTEGRATION_STEP, SimulationRequest
+from methods._validation import _positive_finite
 
 if TYPE_CHECKING:
 	from contracts.execution.controllers import StepController
@@ -63,7 +65,8 @@ class IntegrationMethod(ABC, Generic[Detail]):
 	progress: bool
 	step_observer: Callable[[Any], None] | None
 	_status: str = "configuration"
-	state_formulation: PhysicalFormulation | None = None
+	state_formulation: SingleFormulation | None = None
+	_energy_dynamics: HamiltonianSystem | None = None
 	# Capabilities select a driver; methods never resolve an execution device.
 	jax_mode: ClassVar[Literal["unsupported", "device_resident", "hybrid_scipy_controller"]] = "unsupported"
 	evaluated_dynamics: DynamicalSystem
@@ -114,11 +117,64 @@ class IntegrationMethod(ABC, Generic[Detail]):
 	def build_observation(self, info: StepInfo, result: StepResult[Detail]) -> Any:
 		"""Construct an independent method-specific event for an accepted step."""
 
-	def export_history(self, times: np.ndarray, history: np.ndarray) -> tuple[np.ndarray, dict[str, DiagnosticValue]]:
+	def _initialize_state(self, problem: InitialValueProblem, request: SimulationRequest,
+		*, energy_dynamics: DynamicalSystem | None = None,
+	) -> np.ndarray:
+		"""Create this run's state explicitly from physical input and initial time."""
+		formulation: SingleFormulation | None = self.state_formulation
+		assert formulation is not None
+		dynamics: DynamicalSystem = problem.dynamics if energy_dynamics is None else energy_dynamics
+		self._energy_dynamics = None
+		if formulation.track_energy:
+			if not isinstance(dynamics, HamiltonianSystem):
+				raise TypeError("Energy tracking requires HamiltonianSystem.")
+			self._energy_dynamics = dynamics
+		momentum: np.ndarray | None = np.zeros(formulation.particle_count) if formulation.track_energy else None
+		copies: np.ndarray = formulation.lift(problem.initial_state)
+		return np.asarray(formulation.pack(copies, request.t_span[0], momentum))
+
+	def _momentum_rate(self, time: float, physical: np.ndarray) -> np.ndarray:
+		"""Evaluate the physical passive rate using this run's explicit capability."""
+		assert self._energy_dynamics is not None and self.state_formulation is not None
+		rate: np.ndarray = np.asarray(self._energy_dynamics.extended_momentum_derivative(time, physical), dtype=float)
+		if rate.shape != (self.state_formulation.particle_count,) or not np.all(np.isfinite(rate)):
+			raise ValueError("The momentum derivative must be finite with one value per particle.")
+		return rate
+
+	def _finish_state(self, before: np.ndarray, physical: np.ndarray, end_time: float,
+		increment: np.ndarray | None = None,
+	) -> np.ndarray:
+		"""Accept the projected physical result and update passive momentum once."""
+		formulation: SingleFormulation | None = self.state_formulation
+		assert formulation is not None
+		momentum: np.ndarray | None = formulation.momentum(before)
+		if momentum is not None:
+			if increment is None:
+				raise ValueError("An energy-tracked step must supply its momentum increment.")
+			momentum = momentum + increment
+		return np.asarray(formulation.pack(formulation.lift(physical), end_time, momentum))
+
+	def diagnose_history(self, times: np.ndarray, physical: np.ndarray,
+		auxiliary: dict[str, np.ndarray],
+	) -> dict[str, DiagnosticValue]:
+		"""Evaluate saved physical energy once and delegate output-array assembly."""
+		if self.state_formulation is None or "extended_momentum" not in auxiliary:
+			return {}
+		assert self._energy_dynamics is not None
+		energy: np.ndarray = np.asarray(self._energy_dynamics.hamiltonian(times, physical), dtype=float)
+		return self.state_formulation.diagnose_history(times, physical, auxiliary, energy=energy)
+
+	def export_history(self, times: np.ndarray, history: np.ndarray,
+		*, energy: np.ndarray | None = None,
+	) -> tuple[np.ndarray, dict[str, DiagnosticValue]]:
 		"""Extract physical samples and auxiliary diagnostics from internal history."""
 		if self.state_formulation is None:
 			return history, {}
-		return self.state_formulation.extract_history(times, history)
+		if self.state_formulation.track_energy and energy is None:
+			assert self._energy_dynamics is not None
+			physical: np.ndarray = self.state_formulation.physical(history)
+			energy = np.asarray(self._energy_dynamics.hamiltonian(times, physical), dtype=float)
+		return self.state_formulation.extract_history(times, history, energy=energy)
 
 	def controller(self) -> StepController[Detail]:
 		"""Select fixed scheduling; adaptive methods override this operation."""
@@ -126,4 +182,19 @@ class IntegrationMethod(ABC, Generic[Detail]):
 		return FixedStepController()
 
 
-__all__ = ["NumericalMethod", "IntegrationMethod"]
+@dataclass(kw_only=True)
+class FixedStepMethod(IntegrationMethod[Detail], Generic[Detail]):
+	"""Reusable fixed-step configuration in the problem's runtime time units.
+
+	The controller clips only the final accepted interval. Shadow sampling and
+	final clipping supply effective durations to advance without changing step.
+	"""
+
+	step: float = DEFAULT_INTEGRATION_STEP
+
+	def __post_init__(self) -> None:
+		"""Reject invalid nominal steps before constructing a run."""
+		self.step = _positive_finite(self.step, "step")
+
+
+__all__ = ["NumericalMethod", "IntegrationMethod", "FixedStepMethod"]

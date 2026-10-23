@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from formulations.layout import GCStateLayout
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any
 import unittest
 
@@ -108,15 +108,15 @@ class MethodValidationContractTests(unittest.TestCase):
 	def test_request_snaps_owned_endpoints_and_rechecks_increasing_times(self) -> None:
 		times = np.asarray((np.nextafter(0.0, -np.inf), 0.5, np.nextafter(1.0, np.inf)))
 		original = times.copy()
-		request = SimulationRequest((0.0, 1.0), 0.1, times)
+		request = SimulationRequest((0.0, 1.0),  times)
 		np.testing.assert_array_equal(request.output_times, (0.0, 0.5, 1.0))
 		np.testing.assert_array_equal(times, original)
 		self.assertFalse(request.output_times.flags.writeable)
 		self.assertFalse(np.shares_memory(request.output_times, times))
 		with self.assertRaisesRegex(ValueError, "must remain strictly increasing"):
-			SimulationRequest((0.0, 1.0), 0.1, np.asarray((-np.finfo(float).eps, 0.0, 1.0)))
+			SimulationRequest((0.0, 1.0),  np.asarray((-np.finfo(float).eps, 0.0, 1.0)))
 		with self.assertRaisesRegex(ValueError, "`t_span` must contain two finite, increasing times"):
-			SimulationRequest((1.0, 0.0), False, np.asarray((0.0, 1.0)))
+			SimulationRequest((1.0, 0.0),  np.asarray((0.0, 1.0)))
 
 	def test_solution_owns_readonly_history_and_diagnostics(self) -> None:
 		times = np.asarray((0.0, 1.0))
@@ -138,7 +138,7 @@ class MethodValidationContractTests(unittest.TestCase):
 		problem = InitialValueProblem(_CountingDynamics(), np.array(np.asarray((1.0, 0.0)), dtype=float, copy=True), layout=GCStateLayout())
 		request = SimulationRequest.uniform(t_span=(0.0, 0.1), sample_count=2)
 		method = _ArrayMetadataRK4()
-		run = method.new_run(problem, request)
+		run = replace(method, step=0.1).new_run(problem, request)
 		self.assertFalse(run.initial_state.flags.writeable)
 		stored = np.asarray(run.metadata["probe"])
 		self.assertFalse(stored.flags.writeable)
@@ -179,7 +179,7 @@ class MethodValidationContractTests(unittest.TestCase):
 		dynamics = _CountingDynamics()
 		problem = InitialValueProblem(dynamics, np.array(np.asarray((1.0, 0.0)), dtype=float, copy=True), layout=GCStateLayout())
 		request = SimulationRequest.uniform(t_span=(0.0, 0.1), sample_count=2)
-		run = HBVM42(jacobian_method="analytic").new_run(problem, request)
+		run = HBVM42(step=0.1, jacobian_method="analytic").new_run(problem, request)
 		self.assertEqual(dynamics.evaluations, 0)
 		with self.assertRaisesRegex(TypeError, "Analytic HBVM Jacobians require GuidingCenterJacobianSystem dynamics"):
 			run.advance(0.0, run.initial_state, 0.1)

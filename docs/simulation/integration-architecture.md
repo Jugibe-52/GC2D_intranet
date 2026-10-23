@@ -5,11 +5,11 @@ Execution selects the host or device driver. Dynamics defines physics; formulati
 defines coordinates; the method defines numerical operations; execution controls
 accepted intervals and collects output.
 
-`problem.py` owns physical initial-value problems; `request.py` owns temporal configuration; `contracts/` owns shared interfaces, step records and array compatibility. `formulations.layout` owns physical layouts, while reusable formulations define internal coordinates and extraction independently of method choice. `methods/` implements numerical steps. `execution/` owns preparation, accepted `IntegrationState` snapshots, sampling and host/device loops; `methods.base` owns numerical preparation. `states/` owns the physical recording container and completed result. `simulation/runner.py` validates that result against the inputs and returns the same object. Internal consumers import directly from each defining module.
+`problem.py` owns physical initial-value problems; `request.py` owns the interval and output times; `contracts/` owns shared interfaces, step records and array compatibility. `formulations.layout` owns physical layouts, while reusable formulations define internal coordinates and extraction independently of method choice. `methods/` implements numerical steps. `execution/` owns preparation, accepted `IntegrationState` snapshots, sampling and host/device loops; `methods.base` owns numerical preparation. `states/` owns the physical recording container and completed result. `simulation/runner.py` validates that result against the inputs and returns the same object. Internal consumers import directly from each defining module.
 
 Validation follows the same ownership: `InitialValueProblem` checks the dynamics
-protocol and compatible initial layout; state formulations check the Hamiltonian
-capability needed for energy tracking; method constructors check their numerical
+protocol and compatible initial layout; methods check the Hamiltonian
+capability needed for energy tracking and their numerical
 options. Methods reuse these validated inputs instead of repeating the same
 capability checks. `IntegrationMethod.new_run` owns immutable run snapshots.
 
@@ -149,7 +149,7 @@ update in `src/formulations/base.py`.
 | Spatially duplicated with energy | 6 | 6N |
 
 Use `track_energy=True` on any public method. Classical methods use
-`PhysicalFormulation`; ABBA and BM4 use `DoubledFormulation`. These concrete
+`SingleFormulation`; ABBA and BM4 use `DoubleFormulation`. These concrete
 objects live in `src/formulations/state.py`. Energy variants append one
 time entry and one normalized momentum per particle. Projected methods
 store diagonal accepted copies and project spatial variables only. Every
@@ -158,11 +158,19 @@ component block has N entries, and `components(state)` exposes a uniform
 integration time. `extended_time` has shape `(N, saved_times)`; `States.t`
 remains the one-dimensional grid.
 
+Both representations take `(layout, particle_count, track_energy=False)` and
+retain no problem, initial values or dynamics. Methods construct initial states
+and prepare each step using `lift` or `join_copies`, then `pack` supplied time
+and momentum. FC uses the same rules for all four physical components: single
+states have 4N/6N entries and doubled states 8N/10N. See the
+[representation operations](initial-solvers-formulations.md#state-representations).
+
 `StepResult` and `StepInfo` live in `src/contracts/methods/step.py`. Their states are
 internal; `States.states` and observer states are physical.
 `StepResult.statistics` contains accepted physical work. Details are transient
-unless an observer explicitly retains a copied event. `extract_sample` produces each physical column; `diagnose_history` computes
-energy diagnostics after recording. `extract_history` supports bulk JAX export.
+unless an observer explicitly retains a copied event. `extract_sample` produces each physical column. Methods evaluate the saved Hamiltonian;
+`diagnose_history` combines supplied energy and momentum after recording.
+`extract_history` supports bulk JAX export using pre-evaluated energy.
 
 Tracking does not affect physical stages, Newton/Broyden scales or adaptive error
 control. DOP853 and Radau own physical-only SciPy solvers and use eight-point
@@ -248,3 +256,20 @@ Existing structural interfaces and shared records follow the source hierarchy
 under `contracts/`. See the [domain map](contracts.md) for canonical imports.
 Implementations remain in their own packages; contract modules do not load them
 at runtime. Public facades retain their established exported names.
+
+## Method-owned integration step
+
+Configure fixed methods with `step`, for example `RK4(step=0.03)` (default 0.1
+in runtime time units). `SimulationRequest` supplies only the interval and
+output times. Complete main steps use the configured value; only the last step
+is shortened to reach the final time. The method's `step` remains unchanged.
+Independent shadow samples may use shorter durations without moving the main
+trajectory. Host and JAX use the same schedule and record effective durations
+in `step_sizes`. `advance` remains the numerical operation.
+
+DOP853/Radau instead own `max_step` (default 0.1), an upper bound for their
+adaptive controller. Move former request `max_step` arguments to the method:
+`step` for fixed methods, `max_step` for adaptive methods. Requests no longer
+accept a step argument. A non-divisible interval intentionally gives a different
+main grid from the former uniform rescaling policy; old saved results retain
+their recorded grids.

@@ -17,12 +17,12 @@ from scipy.integrate import DOP853 as ScipyDOP853, Radau as ScipyRadau
 
 from contracts.dynamics.protocols import DynamicalSystem
 
-from formulations.state import PhysicalFormulation
+from formulations.state import SingleFormulation
 from methods.base import IntegrationMethod
 from contracts.methods.step import StepInfo, StepResult
 from contracts.methods.adaptive.scipy import AdaptiveIntegrationStep, AdaptiveStepObserver
 from problem import InitialValueProblem
-from request import SimulationRequest
+from request import DEFAULT_INTEGRATION_STEP, SimulationRequest
 from methods._validation import _positive_finite
 
 
@@ -57,7 +57,7 @@ class ScipyAdaptiveController:
         while method.solver.status == 'running':
             start: float = float(method.solver.t)
             before: np.ndarray = method.current_state.values.copy()
-            result: StepResult[_AdaptiveDetails] = method.advance(start, before, request.max_step)
+            result: StepResult[_AdaptiveDetails] = method.advance(start, before, method.max_step)
             end: float = float(method.solver.t)
             yield StepInfo(index, start, end - start, end, before), result
             index += 1
@@ -75,6 +75,7 @@ class _AdaptiveMethod(IntegrationMethod[_AdaptiveDetails]):
 
     relative_tolerance: float = 1e-10
     absolute_tolerance: float = 1e-12
+    max_step: float = field(default=DEFAULT_INTEGRATION_STEP, kw_only=True)
     first_step: float | None = None
     dense_output: bool = False
     track_energy: bool = False
@@ -84,7 +85,7 @@ class _AdaptiveMethod(IntegrationMethod[_AdaptiveDetails]):
     order: ClassVar[int]
 
     # Resources owned by one run; excluded from constructor options.
-    state_formulation: PhysicalFormulation = field(init=False, repr=False, compare=False)
+    state_formulation: SingleFormulation = field(init=False, repr=False, compare=False)
     current_state: IntegrationState = field(init=False, repr=False, compare=False)
     solver: Any = field(init=False, repr=False, compare=False)
     previous_counts: np.ndarray = field(init=False, repr=False, compare=False)
@@ -96,6 +97,7 @@ class _AdaptiveMethod(IntegrationMethod[_AdaptiveDetails]):
 
     def __post_init__(self) -> None:
         """Normalize tolerance controls and an optional first-step bound."""
+        self.max_step = _positive_finite(self.max_step, "max_step")
         self.relative_tolerance = _positive_finite(
             self.relative_tolerance, 'relative_tolerance', allow_boolean=True,
             message='relative_tolerance must be finite and positive.',
@@ -121,9 +123,8 @@ class _AdaptiveMethod(IntegrationMethod[_AdaptiveDetails]):
         self.dynamics = problem.dynamics
         self.physical_size = problem.initial_state.size
         self.particle_count = problem.particle_count
-        evaluated_problem: InitialValueProblem = InitialValueProblem(self.evaluated_dynamics, problem.initial_state, layout=problem.layout)
-        self.state_formulation = PhysicalFormulation(evaluated_problem, request.t_span[0], self.track_energy)
-        self.initial_state = self.state_formulation.initial_state
+        self.state_formulation = SingleFormulation(problem.layout, problem.particle_count, self.track_energy)
+        self.initial_state = self._initialize_state(problem, request, energy_dynamics=self.evaluated_dynamics)
         self.current_state = IntegrationState(request.t_span[0], self.initial_state)
         self.metadata = {
             'step_control': 'adaptive', 'method_order': self.order,
@@ -134,7 +135,7 @@ class _AdaptiveMethod(IntegrationMethod[_AdaptiveDetails]):
             'backend': 'scipy', 'energy_quadrature_nodes': 8 if self.track_energy else 0,
         }
         self.solver = self._make_solver(
-            request.t_span[0], problem.initial_state, request.t_span[1], request.max_step,
+            request.t_span[0], problem.initial_state, request.t_span[1], self.max_step,
         )
         self.previous_counts = np.zeros(3, dtype=int)
         self.accepted_steps = 0
@@ -213,7 +214,7 @@ class _AdaptiveMethod(IntegrationMethod[_AdaptiveDetails]):
                     values.append(momentum_after)
                     continue
                 duration: float = float(endpoint - time)
-                rates = [self.state_formulation.momentum_rate(time + duration * node,
+                rates = [self._momentum_rate(time + duration * node,
                              np.asarray(interpolant(time + duration * node))) for node in _ENERGY_NODES]
                 values.append(momentum_before + duration * sum(w * rate for w, rate in zip(_ENERGY_WEIGHTS, rates)))
             if not values:
@@ -223,10 +224,10 @@ class _AdaptiveMethod(IntegrationMethod[_AdaptiveDetails]):
         def dense_state(query: float | np.ndarray) -> np.ndarray:
             if interpolant is None:
                 raise RuntimeError('No dense output was requested for this interval.')
-            return self.state_formulation.pack(np.asarray(interpolant(query)), query, momentum_at(query))
+            return np.asarray(self.state_formulation.pack(self.state_formulation.lift(np.asarray(interpolant(query))), query, momentum_at(query)))
 
         momentum_after = momentum_at(end)
-        after: np.ndarray = self.state_formulation.pack(np.asarray(solver.y), end, momentum_after)
+        after: np.ndarray = self.state_formulation.pack(self.state_formulation.lift(np.asarray(solver.y)), end, momentum_after)
         self.current_state = IntegrationState(float(self.solver.t), after)
         return StepResult(after, {
             'function_evaluations': int(work[0]),

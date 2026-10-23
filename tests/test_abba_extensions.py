@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 from formulations.layout import GCStateLayout
 
 import unittest
@@ -83,7 +85,6 @@ def _request(*, duration: float = 0.1) -> SimulationRequest:
 	"""Return one accepted step and both endpoint samples."""
 	return SimulationRequest.uniform(
 		t_span=(0.0, duration),
-		max_step=duration,
 		sample_count=2,
 	)
 
@@ -131,7 +132,7 @@ class ABBAStateExtensionTests(unittest.TestCase):
 				)
 			with self.subTest(method=method_type.__name__):
 				with self.assertRaisesRegex(ValueError, "track_energy=True"):
-					simulate(problem, method_type(**kwargs), request)
+					simulate(problem, replace(method_type(**kwargs), step=0.02), request)
 
 	def test_physical_energy_tracking_supports_multiple_particles(self) -> None:
 		problem = _problem(particle_count=3)
@@ -141,12 +142,12 @@ class ABBAStateExtensionTests(unittest.TestCase):
 			if method_type is not ABBA2Midpoint:
 				kwargs["projection_formulation"] = "reduced_multiplier"
 			with self.subTest(method=method_type.__name__):
-				tracked = simulate(problem, method_type(**kwargs), request)
+				tracked = simulate(problem, replace(method_type(**kwargs), step=0.02), request)
 				untracked_options = dict(kwargs)
 				untracked_options["track_energy"] = False
 				untracked = simulate(
 					problem,
-					method_type(**untracked_options),
+					replace(method_type(**untracked_options), step=0.02),
 					request,
 				)
 				np.testing.assert_array_equal(tracked.states, untracked.states)
@@ -166,14 +167,13 @@ class ABBAStateExtensionTests(unittest.TestCase):
 		problem = InitialValueProblem(_LinearTimeHamiltonian(slope), configuration, layout=GCStateLayout())
 		request = SimulationRequest.uniform(
 			t_span=(0.2, 0.5),
-			max_step=0.1,
 			sample_count=4,
 		)
 		for method_type in _ALL_METHODS:
 			with self.subTest(method=method_type.__name__):
 				solution = simulate(
 					problem,
-					method_type(track_energy=True),
+					replace(method_type(track_energy=True), step=0.1),
 					request,
 				)
 				expected = np.broadcast_to(
@@ -197,7 +197,7 @@ class ABBAStateExtensionTests(unittest.TestCase):
 		with self.assertRaisesRegex(ValueError, "momentum increment became non-finite"):
 			simulate(
 				problem,
-				ABBA2Midpoint(track_energy=True),
+				ABBA2Midpoint(step=1.0, track_energy=True),
 				_request(duration=1.0),
 			)
 
@@ -207,7 +207,7 @@ class ABBAStateExtensionTests(unittest.TestCase):
 				ABBA2Implicit(state_extension="fully_extended", projection_formulation=formulation)
 
 	def test_passive_diagnostics_close_the_generalized_energy_identity(self) -> None:
-		solution = simulate(_problem(), ABBA4Implicit(track_energy=True), _request())
+		solution = simulate(_problem(), ABBA4Implicit(step=0.1, track_energy=True), _request())
 		d = solution.diagnostics
 		np.testing.assert_array_equal(d["generalized_energy"], d["physical_hamiltonian"] + d["extended_momentum"])
 		np.testing.assert_array_equal(d["extended_time"], solution.t[None, :])
@@ -218,7 +218,7 @@ class ABBAStateExtensionTests(unittest.TestCase):
 				cls(state_extension="fully_extended")
 
 	def test_disabled_physical_tracking_has_no_momentum_diagnostics(self) -> None:
-		solution = simulate(_problem(), ABBA2Implicit(), _request())
+		solution = simulate(_problem(), ABBA2Implicit(step=0.1), _request())
 		self.assertIs(solution.diagnostics["track_energy"], False)
 		self.assertNotIn("extended_momentum", solution.diagnostics)
 		self.assertNotIn("energy_error", solution.diagnostics)

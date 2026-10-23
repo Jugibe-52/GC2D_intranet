@@ -12,7 +12,7 @@ from contracts.states.history import DiagnosticValue
 from contracts.methods.step import StepInfo, StepResult
 from contracts.dynamics.protocols import GuidingCenterJacobianSystem
 from formulations.projection import ProjectionChoice
-from formulations.state import DoubledFormulation
+from formulations.state import DoubleFormulation
 from request import SimulationRequest
 from solvers.nonlinear import AlgebraicSolver, NonlinearSolver
 from methods.extended.configuration import (
@@ -24,6 +24,7 @@ from methods.extended.core.jacobians import _checked_vector_field_jacobian
 from contracts.methods.extended.core.records import ProjectedMap
 from methods.extended.core.records import ProjectedMapResult
 from methods.extended.observations import EventBuilder, bind_event_builder
+from methods.base import FixedStepMethod
 from methods.extended.palindromic import ProjectedPalindromicMethod, MidpointPalindromicMethod
 
 
@@ -51,12 +52,13 @@ class _ABBAImplicitMethod(ProjectedPalindromicMethod):
 	newton_observer: NewtonObserver | None = field(default=None, kw_only=True)
 
 	order: ClassVar[Literal[2, 4, 6]]
-	state_formulation: DoubledFormulation = field(init=False, repr=False, compare=False)
+	state_formulation: DoubleFormulation = field(init=False, repr=False, compare=False)
 	build_event: EventBuilder | None = field(init=False, repr=False, compare=False)
 	project: ProjectedMap = field(init=False, repr=False, compare=False)
 
 	def __post_init__(self) -> None:
 		"""Validate public ABBA controls using the common projected-method base."""
+		FixedStepMethod.__post_init__(self)
 		self._validate_solver_controls()
 		_validate_projection_formulation(self.projection_formulation)
 		self.state_extension = _validate_state_extension(self.state_extension)
@@ -108,7 +110,6 @@ class _ABBAImplicitMethod(ProjectedPalindromicMethod):
 					else "unprojected_abba6_yoshida"
 				),
 			})
-		self.initial_state = self.state_formulation.initial_state
 		self.metadata = {**metadata, **self._operation_metadata()}
 
 	def _publish_substeps(self) -> bool:

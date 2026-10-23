@@ -50,7 +50,6 @@ class ImplicitBM4IterationObserverTests(unittest.TestCase):
 	def test_observer_matches_bm4_solution_diagnostics(self) -> None:
 		request = SimulationRequest.uniform(
 			t_span=(0.0, 0.04),
-			max_step=0.02,
 			sample_count=3,
 		)
 		with tempfile.TemporaryDirectory(dir="/tmp") as temporary:
@@ -64,7 +63,7 @@ class ImplicitBM4IterationObserverTests(unittest.TestCase):
 			) as observer:
 				solution = simulate(
 					InitialValueProblem(GuidingCenterDynamics(_potential(), rho=0.05), _configuration(), layout=GCStateLayout()),
-					BM4Implicit(step_observer=observer),
+					BM4Implicit(step=0.02, step_observer=observer),
 					request,
 				)
 			iterations = np.asarray(

@@ -8,8 +8,8 @@ import numpy as np
 
 from contracts.dynamics.protocols import DynamicalSystem
 
-from formulations.state import PhysicalFormulation
-from methods.base import IntegrationMethod
+from formulations.state import SingleFormulation
+from methods.base import FixedStepMethod
 from contracts.methods.step import StepInfo, StepResult
 from contracts.methods.observation import IntegrationStep, StepObserver
 from problem import InitialValueProblem
@@ -29,7 +29,7 @@ def _checked_vector_field(
 
 
 @dataclass(slots=True)
-class ExplicitEuler(IntegrationMethod[None]):
+class ExplicitEuler(FixedStepMethod[None]):
 	"""Classical forward Euler, ``z_next = z + h f(t, z)``."""
 
 	jax_mode = "device_resident"
@@ -39,14 +39,14 @@ class ExplicitEuler(IntegrationMethod[None]):
 	step_observer: StepObserver | None = None
 
 	# Resources owned by one run; excluded from constructor options.
-	state_formulation: PhysicalFormulation = field(init=False, repr=False, compare=False)
+	state_formulation: SingleFormulation = field(init=False, repr=False, compare=False)
 	dynamics: DynamicalSystem = field(init=False, repr=False, compare=False)
 
 	def initialize(self, problem: InitialValueProblem, request: SimulationRequest) -> None:
 		"""Bind the Euler map, its physical observation and output extraction."""
 		self.dynamics = problem.dynamics
-		self.state_formulation = PhysicalFormulation(problem, request.t_span[0], self.track_energy)
-		self.initial_state = self.state_formulation.initial_state
+		self.state_formulation = SingleFormulation(problem.layout, problem.particle_count, self.track_energy)
+		self.initial_state = self._initialize_state(problem, request)
 
 	def _apply_step(self, time: float, state: np.ndarray, step: float) -> np.ndarray:
 		"""Apply one forward Euler step to an independent physical state."""
@@ -56,8 +56,8 @@ class ExplicitEuler(IntegrationMethod[None]):
 	def advance(self, time: float, state: np.ndarray, step: float) -> StepResult[None]:
 		"""Return one forward Euler step without collection or observation."""
 		physical: np.ndarray = self.state_formulation.physical(state)
-		increment: np.ndarray | None = step * self.state_formulation.momentum_rate(time, physical) if self.track_energy else None
-		after: np.ndarray = self.state_formulation.finish(state, self._apply_step(time, physical, step), time + step, increment)
+		increment: np.ndarray | None = step * self._momentum_rate(time, physical) if self.track_energy else None
+		after: np.ndarray = self._finish_state(state, self._apply_step(time, physical, step), time + step, increment)
 		return StepResult(after, {}, None)
 
 	def build_observation(self, info: StepInfo, result: StepResult[None]) -> IntegrationStep:

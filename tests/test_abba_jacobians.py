@@ -90,7 +90,6 @@ class ImplicitABBAJacobianTests(unittest.TestCase):
 		problem = InitialValueProblem(dynamics, np.array(initial_state, dtype=float, copy=True), layout=GCStateLayout())
 		request = SimulationRequest.uniform(
 			t_span=(0.0, 0.05),
-			max_step=0.05,
 			sample_count=2,
 		)
 		form = gc_physical_symplectic_form(2)
@@ -99,7 +98,7 @@ class ImplicitABBAJacobianTests(unittest.TestCase):
 			events = []
 			solution = simulate(
 				problem,
-				ABBA2Implicit(
+				ABBA2Implicit(step=0.05,
 					projection_formulation=formulation,
 					newton_absolute_tolerance=1e-14,
 					newton_relative_tolerance=1e-14,
@@ -160,10 +159,9 @@ class ImplicitABBAJacobianTests(unittest.TestCase):
 		events = []
 		simulate(
 			InitialValueProblem(dynamics, np.array(np.asarray([1.0, 1.2]), dtype=float, copy=True), layout=GCStateLayout()),
-			ABBA2Implicit(step_observer=events.append),
+			ABBA2Implicit(step=duration, step_observer=events.append),
 			SimulationRequest.uniform(
 				t_span=(start, start + duration),
-				max_step=duration,
 				sample_count=2,
 			),
 		)

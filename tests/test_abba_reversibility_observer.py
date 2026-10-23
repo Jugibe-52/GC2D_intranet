@@ -43,7 +43,6 @@ class ImplicitABBAReversibilityObserverTests(unittest.TestCase):
 		problem = InitialValueProblem(gc_dynamics(), configuration, layout=GCStateLayout())
 		request = SimulationRequest.uniform(
 			t_span=(0.2, 0.34),
-			max_step=0.07,
 			sample_count=3,
 		)
 		solver = {
@@ -60,7 +59,7 @@ class ImplicitABBAReversibilityObserverTests(unittest.TestCase):
 			observer = ImplicitABBAReversibilityObserver(**solver)
 			solution = simulate(
 				problem,
-				replace(method, step_observer=observer),
+				replace(replace(method, step_observer=observer), step=0.07),
 				request,
 			)
 			self.assertEqual(len(observer.samples), solution.n_steps)

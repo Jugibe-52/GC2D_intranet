@@ -629,10 +629,9 @@ class GC2DH5ImportTests(unittest.TestCase):
 
 		solution = simulate(
 			InitialValueProblem(dynamics, configuration, layout=GCStateLayout()),
-			ABBA4Implicit(newton_max_iterations=20),
+			ABBA4Implicit(step=0.0005 / (2.0 * np.pi), newton_max_iterations=20),
 			SimulationRequest.uniform(
 				t_span=(0.0, 1e-3 / (2.0 * np.pi)),
-				max_step=5e-4 / (2.0 * np.pi),
 				sample_count=3,
 			),
 		)

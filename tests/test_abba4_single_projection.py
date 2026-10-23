@@ -149,14 +149,13 @@ class ABBA4ImplicitSingleProjectionTests(unittest.TestCase):
 		for step in (0.2, 0.1, 0.05):
 			solution = simulate(
 				problem,
-				ABBA4Implicit(
+				ABBA4Implicit(step=step,
 					projection_placement="around_complete_composition",
 					newton_absolute_tolerance=1e-14,
 					newton_relative_tolerance=1e-14,
 				),
 				SimulationRequest.uniform(
 					t_span=(start, end),
-					max_step=step,
 					sample_count=2,
 				),
 			)
@@ -173,7 +172,7 @@ class ABBA4ImplicitSingleProjectionTests(unittest.TestCase):
 				x=np.asarray([0.8]),
 				y=np.asarray([0.3]),
 			),
-			ABBA4Implicit(
+			ABBA4Implicit(step=0.1,
 				projection_placement="around_complete_composition",
 				newton_absolute_tolerance=1e-14,
 				newton_relative_tolerance=1e-14,
@@ -181,7 +180,6 @@ class ABBA4ImplicitSingleProjectionTests(unittest.TestCase):
 			),
 			SimulationRequest.uniform(
 				t_span=(0.0, 0.2),
-				max_step=0.1,
 				sample_count=3,
 			),
 		)
@@ -293,13 +291,12 @@ class ABBA4ImplicitSingleProjectionTests(unittest.TestCase):
 		)
 		request = SimulationRequest.uniform(
 			t_span=(0.2, 0.35),
-			max_step=0.15,
 			sample_count=2,
 		)
-		old = simulate(problem, ABBA4Implicit(), request).states[:, -1]
+		old = simulate(problem, ABBA4Implicit(step=0.15), request).states[:, -1]
 		new = simulate(
 			problem,
-			ABBA4Implicit(
+			ABBA4Implicit(step=0.15,
 				projection_placement="around_complete_composition",
 			),
 			request,
@@ -314,19 +311,18 @@ class ABBA4ImplicitSingleProjectionTests(unittest.TestCase):
 		)
 		request = SimulationRequest.uniform(
 			t_span=(0.0, 0.2),
-			max_step=0.1,
 			sample_count=3,
 		)
 		newton = simulate(
 			problem,
-			ABBA4Implicit(
+			ABBA4Implicit(step=0.1,
 				projection_placement="around_complete_composition",
 			),
 			request,
 		)
 		broyden = simulate(
 			problem,
-			ABBA4Implicit(
+			ABBA4Implicit(step=0.1,
 				projection_placement="around_complete_composition",
 				nonlinear_solver="broyden",
 			),

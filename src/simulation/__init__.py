@@ -1,6 +1,6 @@
 """Public simulation facade over problems, methods, integration and results."""
 
-from formulations.state import PhysicalFormulation, DoubledFormulation
+from formulations.state import SingleFormulation, DoubleFormulation
 from contracts.formulations.layout import StateLayout
 from contracts.formulations.base import DirectAdjointFormulation, StageProjectedFormulation
 from formulations import (
@@ -87,8 +87,8 @@ from formulations.projection import ReducedProjection, SimultaneousProjection
 __all__ = [
 	'PalindromicMethod', 'PalindromicImplicit', 'PalindromicMidpoint', 'Composition', 'Operation', 'A', 'B', 'T', 'C',
 	"InitialConditions", "NewtonSolver", "BroydenSolver", "ReducedProjection", "SimultaneousProjection",
-	"PhysicalFormulation",
-	"DoubledFormulation",
+	"SingleFormulation",
+	"DoubleFormulation",
 	"DOP853",
 	"Radau",
 	"AdaptiveIntegrationStep",

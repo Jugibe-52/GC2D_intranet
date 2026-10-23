@@ -177,10 +177,9 @@ class ABBA2ImplicitTests(unittest.TestCase):
 		step = 0.1
 		solution = simulate(
 			InitialValueProblem(dynamics, np.array(initial_state, dtype=float, copy=True), layout=GCStateLayout()),
-			ABBA2Implicit(step_observer=lambda _step: None),
+			ABBA2Implicit(step=step, step_observer=lambda _step: None),
 			SimulationRequest.uniform(
 				t_span=(start, start + step),
-				max_step=step,
 				sample_count=2,
 			),
 		)
@@ -205,10 +204,9 @@ class ABBA2ImplicitTests(unittest.TestCase):
 		unobserved_dynamics = _TimeOnlyPlanarDynamics()
 		simulate(
 			InitialValueProblem(unobserved_dynamics, np.array(initial_state, dtype=float, copy=True), layout=GCStateLayout()),
-			ABBA2Implicit(),
+			ABBA2Implicit(step=step),
 			SimulationRequest.uniform(
 				t_span=(start, start + step),
-				max_step=step,
 				sample_count=2,
 			),
 		)
@@ -295,13 +293,12 @@ class ABBA2ImplicitTests(unittest.TestCase):
 		def final_state(step: float) -> np.ndarray:
 			return simulate(
 				problem,
-				ABBA2Implicit(
+				ABBA2Implicit(step=step,
 					newton_absolute_tolerance=1e-14,
 					newton_relative_tolerance=1e-14,
 				),
 				SimulationRequest.uniform(
 					t_span=(0.0, 0.4),
-					max_step=step,
 					sample_count=2,
 				),
 			).states[:, -1]
@@ -319,19 +316,17 @@ class ABBA2ImplicitTests(unittest.TestCase):
 		events = []
 		observed = simulate(
 			problem,
-			ABBA2Implicit(step_observer=events.append),
+			ABBA2Implicit(step=0.02, step_observer=events.append),
 			SimulationRequest.uniform(
 				t_span=(0.0, 0.05),
-				max_step=0.02,
 				sample_count=11,
 			),
 		)
 		sparse = simulate(
 			problem,
-			ABBA2Implicit(),
+			ABBA2Implicit(step=0.02),
 			SimulationRequest.uniform(
 				t_span=(0.0, 0.05),
-				max_step=0.02,
 				sample_count=3,
 			),
 		)
@@ -360,10 +355,9 @@ class ABBA2ImplicitTests(unittest.TestCase):
 		zero_problem = InitialValueProblem(GuidingCenterDynamics(zero_potential, rho=0.05), source, layout=GCStateLayout())
 		solution = simulate(
 			zero_problem,
-			ABBA2Implicit(),
+			ABBA2Implicit(step=0.02),
 			SimulationRequest.uniform(
 				t_span=(0.0, 0.1),
-				max_step=0.02,
 				sample_count=3,
 			),
 		)
@@ -389,10 +383,9 @@ class ABBA2ImplicitTests(unittest.TestCase):
 		with self.assertRaisesRegex(TypeError, "GuidingCenterJacobianSystem"):
 			simulate(
 				fc_problem,
-				ABBA2Implicit(),
+				ABBA2Implicit(step=0.01),
 				SimulationRequest.uniform(
 					t_span=(0.0, 0.01),
-					max_step=0.01,
 					sample_count=2,
 				),
 			)
@@ -405,14 +398,13 @@ class ABBA2ImplicitTests(unittest.TestCase):
 		):
 			simulate(
 				problem,
-				ABBA2Implicit(
+				ABBA2Implicit(step=0.05,
 					newton_absolute_tolerance=1e-30,
 					newton_relative_tolerance=1e-30,
 					newton_max_iterations=1,
 				),
 				SimulationRequest.uniform(
 					t_span=(0.0, 0.05),
-					max_step=0.05,
 					sample_count=2,
 				),
 			)

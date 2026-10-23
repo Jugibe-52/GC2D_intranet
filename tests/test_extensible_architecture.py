@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 from diagnostics.states.geometry import calculate_area
 from states import generators as state_generators
 from formulations.layout import FCStateLayout
@@ -163,10 +165,9 @@ class ExtensibleArchitectureTests(unittest.TestCase):
 		for max_step in (0.1, 0.05):
 			solution = simulate(
 				problem,
-				RK4(),
+				RK4(step=max_step),
 				SimulationRequest.uniform(
 					t_span=(0.0, 1.0),
-					max_step=max_step,
 					sample_count=2,
 				),
 			)
@@ -178,10 +179,9 @@ class ExtensibleArchitectureTests(unittest.TestCase):
 		source = np.array(np.asarray([0.0, 0.0]), dtype=float, copy=True)
 		solution = simulate(
 			InitialValueProblem(_TimePolynomialDynamics(), source, layout=GCStateLayout()),
-			RK4(),
+			RK4(step=0.1),
 			SimulationRequest.uniform(
 				t_span=(0.0, 1.0),
-				max_step=0.1,
 				sample_count=2,
 			),
 		)
@@ -194,10 +194,9 @@ class ExtensibleArchitectureTests(unittest.TestCase):
 		events = []
 		solution = simulate(
 			problem,
-			RK4(step_observer=events.append),
+			RK4(step=0.01, step_observer=events.append),
 			SimulationRequest.uniform(
 				t_span=(0.0, 0.02),
-				max_step=0.01,
 				sample_count=5,
 			),
 		)
@@ -216,7 +215,6 @@ class ExtensibleArchitectureTests(unittest.TestCase):
 		potential = deterministic_potential()
 		request = SimulationRequest.uniform(
 			t_span=(0.0, 0.04),
-			max_step=0.01,
 			sample_count=5,
 		)
 		method = RK4()
@@ -236,7 +234,7 @@ class ExtensibleArchitectureTests(unittest.TestCase):
 			with self.subTest(dynamics=type(dynamics).__name__):
 				solution = simulate(
 					InitialValueProblem(dynamics, source),
-					method,
+					replace(method, step=0.01),
 					request,
 				)
 				self.assertEqual(solution.states.shape, (physical_size, 5))
@@ -280,10 +278,9 @@ class ExtensibleArchitectureTests(unittest.TestCase):
 		)
 		solution = simulate(
 			InitialValueProblem(GuidingCenterDynamics(potential, rho=0.05), area, layout=GCStateLayout()),
-			RK4(),
+			RK4(step=0.01),
 			SimulationRequest.uniform(
 				t_span=(0.0, 0.02),
-				max_step=0.01,
 				sample_count=3,
 			),
 		)
@@ -306,7 +303,6 @@ class ExtensibleArchitectureTests(unittest.TestCase):
 		problem = InitialValueProblem(_RotationDynamics(), source, layout=GCStateLayout())
 		request = SimulationRequest.uniform(
 			t_span=(0.0, 0.1),
-			max_step=0.1,
 			sample_count=2,
 		)
 		invalid_histories = (
@@ -324,14 +320,14 @@ class ExtensibleArchitectureTests(unittest.TestCase):
 				with self.assertRaises(ValueError):
 					simulate(
 						problem,
-						RK4(),
+						RK4(step=0.1),
 						request,
 						execution=_FixedOutputExecution(states),
 					)
 
 	def test_runner_rejects_output_times_that_do_not_match_the_request(self) -> None:
 		problem = InitialValueProblem(_RotationDynamics(), np.array(np.asarray([1.0, 0.0]), dtype=float, copy=True), layout=GCStateLayout())
-		request = SimulationRequest.uniform(t_span=(0.0, 0.1), max_step=0.1, sample_count=2)
+		request = SimulationRequest.uniform(t_span=(0.0, 0.1),  sample_count=2)
 		states = np.asarray([[1.0, 0.9], [0.0, -0.1]])
 		for times in (
 			np.asarray([0.0, 0.2]),
@@ -341,7 +337,7 @@ class ExtensibleArchitectureTests(unittest.TestCase):
 		):
 			with self.subTest(times=times):
 				with self.assertRaises(ValueError):
-					simulate(problem, RK4(), request, execution=_FixedOutputExecution(states, times))
+					simulate(problem, RK4(step=0.1), request, execution=_FixedOutputExecution(states, times))
 
 	def test_gc_and_fc_split_maps_preserve_physical_motion_and_reverse_momentum(self) -> None:
 		potential = deterministic_potential()
@@ -375,7 +371,6 @@ class ExtensibleArchitectureTests(unittest.TestCase):
 		with self.assertRaises(ValueError):
 			SimulationRequest(
 				t_span=(0.0, 1.0),
-				max_step=0.1,
 				output_times=np.asarray([0.0, 1.0 + 1e-15, 1.0 + 2e-15]),
 			)
 

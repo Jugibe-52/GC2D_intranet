@@ -2,7 +2,7 @@
 
 from contracts.formulations.projection import ProjectionFormulation
 from formulations.projection import ReducedProjection, SimultaneousProjection
-from formulations.state import PhysicalFormulation, DoubledFormulation
+from formulations.state import SingleFormulation, DoubleFormulation
 from contracts.formulations.base import (
 	DirectAdjointFormulation,
 	PreparedDirectAdjointFormulation,
@@ -20,7 +20,7 @@ from formulations.gc import (
 __all__ = [
 	"HarmonicCoupling",
 	"ProjectionFormulation", "ReducedProjection", "SimultaneousProjection",
-	"PhysicalFormulation", "DoubledFormulation",
+	"SingleFormulation", "DoubleFormulation",
 	"DirectAdjointFormulation",
 	"FCSplitFormulation",
 	"GCExtendedFormulation",

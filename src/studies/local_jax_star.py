@@ -4,7 +4,7 @@ from studies._validation import require_uncoupled_bm4
 
 from formulations.layout import GCStateLayout
 
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
 from time import perf_counter
 from typing import Any
@@ -123,9 +123,9 @@ def integrate_local_star(
         progress.phase(phase)
         block_problem: InitialValueProblem = InitialValueProblem(problem.dynamics, np.array(states[:, first], dtype=float, copy=True), layout=GCStateLayout())
         request: SimulationRequest = SimulationRequest((float(first_cycle), float(last_cycle)),
-                                    1. / config.steps_per_cycle, times[first:last + 1])
+                                     times[first:last + 1])
         start: float = perf_counter()
-        block: States = simulate(block_problem, method, request, execution=executor, options=options)
+        block: States = simulate(block_problem, replace(method, step=1.0 / config.steps_per_cycle), request, execution=executor, options=options)
         seconds = perf_counter() - start  # NumPy output has synchronized JAX.
         data = block.diagnostics
         if (data['step_count'] != last - first or data['output_interpolation_count'] != 0

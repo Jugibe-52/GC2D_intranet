@@ -3,10 +3,10 @@ digraph architecture {
   graph [rankdir=TB, bgcolor="#f8fafc"];
   node [shape=box, style="rounded,filled", fontname="DejaVu Sans"];
   recipe [label="Composition recipe\nSeven unprojected pairs; fourteen stages\nYoshida order-six coefficients", fillcolor="#fff0d9"];
-  method [label="ABBA6Implicit\nExports: simulation / methods.extended\nPresets inherit PalindromicMethod", fillcolor="#e5ecfa"];
-  driver [label="Simulation + execution\nsrc/simulation/runner.py and src/execution/\nMain steps, output sampling, collection", fillcolor="#e5ecfa"];
-  state [label="DoubledFormulation\nsrc/formulations/state.py\nTwo copies; optional time and kappa", fillcolor="#e5ecfa"];
-  advance [label="Common advance\nextended/palindromic.py\nImplicit solve or final mean; passive finish", fillcolor="#e5ecfa"];
+  method [label="ABBA6Implicit\nExports: simulation / methods.extended\nFixed step belongs to the method", fillcolor="#e5ecfa"];
+  driver [label="Simulation + execution\nsrc/simulation/runner.py and src/execution/\nMain steps (final clipped), sampling, collection", fillcolor="#e5ecfa"];
+  state [label="DoubleFormulation\nStructural layout and particle count\nlift copies; pack supplied time and kappa", fillcolor="#e5ecfa"];
+  advance [label="Common advance\nPrepare copies; solve or average\nAccept state and update passive momentum", fillcolor="#e5ecfa"];
   energy [label="Passive energy and outputs\ncore/energy.py: accepted shear quadrature\nH + kappa; no feedback into the root", fillcolor="#e1f0e6"];
   observe [label="Optional observations\nextended/observations.py: event adapters\nPublic records: contracts/methods/", fillcolor="#f0e5f5"];
   projection [label="solve_projection\ncore/projection.py\nSpatial Hairer equation", fillcolor="#e1f0e6"];

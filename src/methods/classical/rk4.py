@@ -9,9 +9,9 @@ import numpy as np
 
 from contracts.dynamics.protocols import DynamicalSystem
 
-from methods.base import IntegrationMethod
+from methods.base import FixedStepMethod
 from contracts.methods.step import StepInfo, StepResult
-from formulations.state import PhysicalFormulation
+from formulations.state import SingleFormulation
 from contracts.methods.observation import IntegrationStep, StepObserver
 from problem import InitialValueProblem
 from request import SimulationRequest
@@ -36,8 +36,8 @@ def _checked_vector_field(
 
 
 @dataclass(slots=True)
-class RK4(IntegrationMethod[None]):
-	"""Classical RK4 with an output-independent uniform main grid."""
+class RK4(FixedStepMethod[None]):
+	"""Classical RK4 with an output-independent fixed step and a clipped endpoint."""
 
 	jax_mode = "device_resident"
 
@@ -46,14 +46,14 @@ class RK4(IntegrationMethod[None]):
 	step_observer: StepObserver | None = None
 
 	# Resources owned by one run; excluded from constructor options.
-	state_formulation: PhysicalFormulation = field(init=False, repr=False, compare=False)
+	state_formulation: SingleFormulation = field(init=False, repr=False, compare=False)
 	dynamics: DynamicalSystem = field(init=False, repr=False, compare=False)
 
 	def initialize(self, problem: InitialValueProblem, request: SimulationRequest) -> None:
 		"""Bind the RK4 map on the physical or energy-augmented workspace."""
 		self.dynamics = problem.dynamics
-		self.state_formulation = PhysicalFormulation(problem, request.t_span[0], self.track_energy)
-		self.initial_state = self.state_formulation.initial_state
+		self.state_formulation = SingleFormulation(problem.layout, problem.particle_count, self.track_energy)
+		self.initial_state = self._initialize_state(problem, request)
 		self.metadata = {}
 
 	def _physical_step(self, t: float, candidate: np.ndarray, step: float) -> tuple[np.ndarray, tuple[np.ndarray, ...]]:
@@ -67,8 +67,8 @@ class RK4(IntegrationMethod[None]):
 		physical, stages = self._physical_step(t, self.state_formulation.physical(state), step)
 		increment: np.ndarray | None = None
 		if self.track_energy:
-			increment = momentum_increment(self.state_formulation.momentum_rate, t, step, stages)
-		return StepResult(self.state_formulation.finish(state, physical, t + step, increment), {}, None)
+			increment = momentum_increment(self._momentum_rate, t, step, stages)
+		return StepResult(self._finish_state(state, physical, t + step, increment), {}, None)
 
 	def build_observation(self, info: StepInfo, result: StepResult[None]) -> IntegrationStep:
 		def map_state(candidate: np.ndarray) -> np.ndarray:

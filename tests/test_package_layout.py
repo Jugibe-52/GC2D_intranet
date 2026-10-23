@@ -185,11 +185,11 @@ from request import SimulationRequest
 problem = InitialValueProblem(GuidingCenterDynamics(
     Potential.random(A=.01, M=2, nx=8, ny=8, seed=3), rho=.01),
     np.array([1., 1.1]))
-request = SimulationRequest((0., .02), .01, np.array([0., .005, .02]))
+request = SimulationRequest((0., .02), np.array([0., .005, .02]))
 assert pickle.loads(pickle.dumps(ExecutionOptions())) == ExecutionOptions()
 restored_problem = pickle.loads(pickle.dumps(problem))
 np.testing.assert_array_equal(restored_problem.initial_state, problem.initial_state)
-for method in (RK4(), DOP853()):
+for method in (RK4(step=.01), DOP853(max_step=.01)):
     restored = pickle.loads(pickle.dumps(method))
     run = restored.new_run(problem, request)
     assert isinstance(run, IntegrationMethod)

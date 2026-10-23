@@ -124,7 +124,6 @@ def run_five_method_comparison(
 	problem: InitialValueProblem = InitialValueProblem(dynamics, initial_configuration, layout=GCStateLayout())
 	request: SimulationRequest = SimulationRequest.uniform(
 		t_span=config.t_span,
-		max_step=config.integration_step,
 		sample_count=config.output_sample_count,
 	)
 	trajectory_count = problem.particle_count

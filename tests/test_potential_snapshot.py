@@ -97,14 +97,14 @@ class PotentialSnapshotTests(unittest.TestCase):
 			result = run_parallel_bm4_recurrence(potential, configuration, config=config)
 			dynamics = GuidingCenterDynamics(potential, rho=config.rho)
 			request = SimulationRequest.uniform(
-				t_span=config.t_span, max_step=config.integration_step,
+				t_span=config.t_span,
 				sample_count=config.output_sample_count,
 			)
 			for particle, (x, y) in enumerate(result.initial_positions):
 				problem = InitialValueProblem(dynamics, GCStateLayout().pack_components(np.asarray([x]), np.asarray([y])), layout=GCStateLayout())
 				solution = simulate(
 					problem,
-					BM4Implicit(
+					BM4Implicit(step=config.integration_step,
 						newton_absolute_tolerance=config.absolute_tolerance,
 						newton_relative_tolerance=config.relative_tolerance,
 						newton_max_iterations=config.max_iterations,

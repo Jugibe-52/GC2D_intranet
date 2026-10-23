@@ -21,7 +21,7 @@ from methods.extended.bm4 import BM4Midpoint
 from contracts.methods.extended.bm4 import ImplicitBM4IntegrationStep
 from contracts.methods.observation import IntegrationStep
 from problem import InitialValueProblem
-from contracts.methods.base import NumericalMethod
+from methods.base import FixedStepMethod
 from request import SimulationRequest
 from simulation.runner import simulate
 from contracts.studies.comparison import AdaptiveReference
@@ -188,7 +188,7 @@ def run_bm4_projection_comparison(
 	"""
 	dynamics: GuidingCenterDynamics = GuidingCenterDynamics(potential, rho=config.rho)
 	problem: InitialValueProblem = InitialValueProblem(dynamics, configuration, layout=GCStateLayout())
-	request: SimulationRequest = SimulationRequest.uniform(t_span=config.t_span, max_step=config.integration_step,
+	request: SimulationRequest = SimulationRequest.uniform(t_span=config.t_span,
 		sample_count=config.output_sample_count)
 	times = request.output_times
 	period = potential.grid.period if config.distance_convention == "periodic" else None
@@ -198,7 +198,7 @@ def run_bm4_projection_comparison(
 		newton_max_iterations=config.max_iterations,
 		newton_jacobian_relative_step=config.jacobian_relative_step,
 		newton_jacobian_method="analytic")
-	methods: dict[str, NumericalMethod] = {
+	methods: dict[str, FixedStepMethod[Any]] = {
 		"BM4Midpoint": BM4Midpoint(),
 		"BM4Implicit": implicit,
 	}
@@ -248,14 +248,14 @@ def run_bm4_projection_comparison(
 		for _ in range(config.timing_warmups):
 			for name in BM4_PROJECTION_METHODS:
 				log(f"Warming up {name}.")
-				simulate(problem, methods[name], request)
+				simulate(problem, replace(methods[name], step=config.integration_step), request)
 		runtime_samples: dict[str, list[float]] = {name: [] for name in methods}
 		solutions = {}
 		for repeat in range(config.timing_repeats):
 			order = BM4_PROJECTION_METHODS if repeat % 2 == 0 else BM4_PROJECTION_METHODS[::-1]
 			for name in order:
 				start: float = perf_counter()
-				solution: States = simulate(problem, methods[name], request)
+				solution: States = simulate(problem, replace(methods[name], step=config.integration_step), request)
 				elapsed = perf_counter() - start
 				assert solution.diagnostics["step_count"] == config.step_count
 				assert np.array_equal(solution.t, times)
@@ -270,7 +270,7 @@ def run_bm4_projection_comparison(
 			assert len(event.base_stages) == 12
 			multipliers.append(event.multiplier.copy())
 		log("Capturing signed per-particle multipliers in an untimed replay.")
-		replay: States = simulate(problem, replace(implicit, step_observer=observe), request)
+		replay: States = simulate(problem, replace(replace(implicit, step_observer=observe), step=config.integration_step), request)
 		np.testing.assert_array_equal(replay.states, solutions["BM4Implicit"].states)
 		arrays["BM4Implicit.mu"] = np.stack(multipliers, axis=1)
 

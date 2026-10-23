@@ -19,10 +19,10 @@ class MidpointResult:
 def midpoint_step(maps: GCDoubledMaps, recipe: Composition,
                   t: float, state: np.ndarray, h: float) -> MidpointResult:
     """Advance diagonal copies and average once after the complete recipe."""
-    trace: CompositionTrace = compose(maps, recipe, t, np.concatenate((state, state)), h)
-    size = state.size
+    candidate: np.ndarray = maps.state_formulation.lift(state)
+    trace: CompositionTrace = compose(maps, recipe, t, candidate, h)
     first: np.ndarray
     second: np.ndarray
-    first, second = trace.state[:size], trace.state[size:]
+    first, second = maps.state_formulation.split_copies(trace.state)
     return MidpointResult((first + second) / 2,
                           float(np.linalg.norm(first - second, ord=np.inf)), trace)

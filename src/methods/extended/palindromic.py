@@ -17,9 +17,9 @@ from contracts.methods.step import StepInfo, StepResult
 from contracts.dynamics.protocols import DynamicalSystem, GuidingCenterJacobianSystem
 from formulations.gc import GCDoubledMaps, HarmonicCoupling, _EnergyQuadraturePoint
 from formulations.projection import ProjectionChoice, resolve_projection
-from formulations.state import DoubledFormulation
+from formulations.state import DoubleFormulation
 from methods._validation import _positive_finite, _positive_integer
-from methods.base import IntegrationMethod
+from methods.base import FixedStepMethod
 from methods.extended.configuration import StateExtension, _state_dimension_diagnostics, _validate_state_extension
 from methods.extended.core.composition import Composition
 from methods.extended.core.energy import momentum_increment
@@ -34,7 +34,7 @@ from solvers.nonlinear import AlgebraicSolver, NonlinearSolver, SolverOptions, _
 Detail = TypeVar('Detail')
 
 
-class PalindromicMethod(IntegrationMethod[Detail], Generic[Detail]):
+class PalindromicMethod(FixedStepMethod[Detail], Generic[Detail]):
 	"""Shared run preparation and passive finishing; subclasses select a recipe.
 
 	The recipe owns every time translation. Projection policies act outside the
@@ -44,7 +44,7 @@ class PalindromicMethod(IntegrationMethod[Detail], Generic[Detail]):
 	jax_mode = 'device_resident'
 	recipe: Composition
 	track_energy: bool
-	state_formulation: DoubledFormulation
+	state_formulation: DoubleFormulation
 	formulation: GCDoubledMaps
 	dynamics: DynamicalSystem
 
@@ -61,9 +61,9 @@ class PalindromicMethod(IntegrationMethod[Detail], Generic[Detail]):
 		if self.recipe.has_coupling != (coupling is not None):
 			raise ValueError('Explicit C operations and a HarmonicCoupling must be configured together.')
 		self.dynamics = problem.dynamics
-		self.state_formulation = DoubledFormulation(problem, request.t_span[0], self.track_energy)
+		self.state_formulation = DoubleFormulation(problem.layout, problem.particle_count, self.track_energy)
 		self.formulation = GCDoubledMaps(problem, coupling_frequency=None if coupling is None else coupling.frequency)
-		self.initial_state = self.state_formulation.initial_state
+		self.initial_state = self._initialize_state(problem, request)
 
 	def _operation_metadata(self) -> dict[str, DiagnosticValue]:
 		coupling: HarmonicCoupling | None = self._configured_coupling()
@@ -79,8 +79,8 @@ class PalindromicMethod(IntegrationMethod[Detail], Generic[Detail]):
 
 	def _finish(self, state: np.ndarray, physical: np.ndarray, time: float, step: float,
 	            points: tuple[_EnergyQuadraturePoint, ...]) -> np.ndarray:
-		increment: np.ndarray | None = momentum_increment(self.state_formulation, points) if self.track_energy else None
-		return self.state_formulation.finish(state, physical, time + step, increment)
+		increment: np.ndarray | None = momentum_increment(self.state_formulation.particle_count, self._momentum_rate, points) if self.track_energy else None
+		return self._finish_state(state, physical, time + step, increment)
 
 
 class ProjectedPalindromicMethod(PalindromicMethod[ProjectedMapResult]):
@@ -148,6 +148,7 @@ class MidpointPalindromicMethod(PalindromicMethod[MidpointResult]):
 	state_extension: StateExtension
 
 	def __post_init__(self) -> None:
+		FixedStepMethod.__post_init__(self)
 		self.state_extension = _validate_state_extension(self.state_extension)
 		self.track_energy = bool(self.track_energy)
 
@@ -216,6 +217,7 @@ class PalindromicImplicit(ProjectedPalindromicMethod):
 	coupling: HarmonicCoupling | None = field(default=None, kw_only=True)
 
 	def __post_init__(self) -> None:
+		FixedStepMethod.__post_init__(self)
 		self._validate_solver_controls()
 		resolve_projection(self.projection_formulation)
 		if self.newton_jacobian_method not in ('analytic', 'finite_difference'):

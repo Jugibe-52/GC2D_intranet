@@ -14,6 +14,7 @@ import numpy as np
 from contracts.dynamics.protocols import DynamicalSystem, HamiltonianSystem
 from contracts.formulations.layout import StateLayout
 from formulations.layout import GCStateLayout
+from formulations.state import DoubleFormulation
 
 
 if TYPE_CHECKING:
@@ -123,9 +124,10 @@ class _GCExtendedState:
 	second: np.ndarray
 	momentum: np.ndarray | None = None
 
-	def pack(self) -> np.ndarray:
-		parts = (self.first, self.second)
-		return np.concatenate(parts if self.momentum is None else (*parts, self.momentum))
+	def pack(self, representation: DoubleFormulation) -> np.ndarray:
+		"""Pack spatial copies and the specialized map's summed momentum."""
+		spatial: np.ndarray = representation.join_copies(self.first, self.second)
+		return spatial if self.momentum is None else np.concatenate((spatial, self.momentum))
 
 
 @dataclass(frozen=True, slots=True, init=False)
@@ -134,12 +136,13 @@ class GCDoubledMaps:
 
 	The map vector holds two spatial copies and, optionally, a summed energy
 	accumulator. Its time is supplied separately by the composition. Accepted
-	R4/R6 states and normalized kappa are owned by DoubledFormulation.
+	R4/R6 states and normalized kappa are owned by DoubleFormulation.
 	"""
 
 	dynamics: DynamicalSystem
 	configuration: np.ndarray
 	layout: StateLayout
+	state_formulation: DoubleFormulation
 	coupling_frequency: float | None
 	coupling: HarmonicCoupling | None
 	physical_size: int
@@ -164,11 +167,17 @@ class GCDoubledMaps:
 			raise TypeError("Energy tracking requires HamiltonianSystem.")
 		physical = problem.initial_state
 		count = problem.particle_count
-		initial: np.ndarray = _GCExtendedState(physical, physical, np.zeros(count) if track_energy else None).pack()
+		representation: DoubleFormulation = DoubleFormulation(layout, count)
+		# This supported split-map snapshot is built only when the caller prepares
+		# maps. Per-step resets and shifted candidates belong to the method.
+		initial: np.ndarray = representation.lift(physical)
+		if track_energy:
+			initial = np.concatenate((initial, np.zeros(count)))
 		initial.setflags(write=False)
 		object.__setattr__(self, "dynamics", problem.dynamics)
 		object.__setattr__(self, "configuration", problem.initial_state)
 		object.__setattr__(self, "layout", layout)
+		object.__setattr__(self, "state_formulation", representation)
 		object.__setattr__(self, "coupling_frequency", coupling_frequency)
 		object.__setattr__(self, "coupling", None if coupling_frequency is None else HarmonicCoupling(coupling_frequency))
 		object.__setattr__(self, "physical_size", physical.size)
@@ -185,9 +194,12 @@ class GCDoubledMaps:
 		if value.ndim == 0 or value.shape[0] != expected:
 			raise ValueError("The GC extended map changed the internal state shape.")
 		momentum = value[2 * self.physical_size :] if self.track_energy else None
+		first: np.ndarray
+		second: np.ndarray
+		first, second = self.state_formulation.split_copies(value[:2 * self.physical_size])
 		return _GCExtendedState(
-			first=value[: self.physical_size],
-			second=value[self.physical_size : 2 * self.physical_size],
+			first=first,
+			second=second,
 			momentum=momentum,
 		)
 
@@ -250,7 +262,7 @@ class GCDoubledMaps:
 		"""
 		current: _GCExtendedState = self._unpack(state)
 		if operation == 'C':
-			return self._couple(duration, current).pack()
+			return self._couple(duration, current).pack(self.state_formulation)
 		first: np.ndarray
 		second: np.ndarray
 		first, second = current.first, current.second
@@ -265,7 +277,7 @@ class GCDoubledMaps:
 		momentum: np.ndarray | None = _updated_momentum(self.dynamics, current.momentum, duration, t, source)
 		if energy_points is not None:
 			energy_points.append((t, duration, source))
-		return _GCExtendedState(first, second, momentum).pack()
+		return _GCExtendedState(first, second, momentum).pack(self.state_formulation)
 
 	def project_internal_state(self, state: np.ndarray) -> np.ndarray:
 		"""Embed the mean of both physical copies back onto the diagonal."""
@@ -279,7 +291,7 @@ class GCDoubledMaps:
 			first=mean,
 			second=mean,
 			momentum=current.momentum,
-		).pack()
+		).pack(self.state_formulation)
 
 	def project(self, internal_history: np.ndarray) -> Projection:
 		"""Average both copies and expose projected extended momentum."""

@@ -1,4 +1,4 @@
-"""Validated time span, step bound, and requested output times."""
+"""Validated time span and requested output times."""
 
 from __future__ import annotations
 
@@ -66,21 +66,14 @@ class SimulationRequest:
 	"""Method-independent temporal configuration for one simulation."""
 
 	t_span: tuple[float, float]
-	max_step: float
 	output_times: np.ndarray
 
 	def __post_init__(self) -> None:
 		"""Normalize values and enforce a complete increasing output schedule."""
 		span: np.ndarray = _validated_time_span(self.t_span)
-		if isinstance(self.max_step, (bool, np.bool_)):
-			raise ValueError("`max_step` must be positive and finite.")
-		max_step: float = float(self.max_step)
-		if not np.isfinite(max_step) or max_step <= 0:
-			raise ValueError("`max_step` must be positive and finite.")
 
 		normalized_times: np.ndarray = _validated_output_times(self.output_times, span)
 		object.__setattr__(self, "t_span", (float(span[0]), float(span[1])))
-		object.__setattr__(self, "max_step", max_step)
 		object.__setattr__(self, "output_times", normalized_times)
 
 	@classmethod
@@ -88,13 +81,12 @@ class SimulationRequest:
 		cls,
 		*,
 		t_span: tuple[float, float] = (0.0, NORMALIZED_CYCLE_DURATION),
-		max_step: float = DEFAULT_INTEGRATION_STEP,
 		sample_count: int | None = None,
 	) -> SimulationRequest:
 		"""Create a request with uniformly spaced output samples.
 
-		By default, normalized time spans one unit cycle, integration uses 10
-		steps per cycle, and all 10 step endpoints per cycle are saved. The initial
+		By default, normalized time spans one unit cycle and 10 output intervals
+		per cycle are saved, independently of the numerical method. The initial
 		state is included separately, so one default cycle contains 11 samples.
 		When ``sample_count`` is omitted for a longer span, the same saved-step
 		density is retained.
@@ -122,7 +114,6 @@ class SimulationRequest:
 			raise ValueError("`sample_count` must be None or an integer of at least 2.")
 		return cls(
 			t_span=(float(span[0]), float(span[1])),
-			max_step=max_step,
 			output_times=np.linspace(
 				float(span[0]),
 				float(span[1]),

@@ -7,7 +7,7 @@ from studies._validation import require_uncoupled_bm4
 
 from formulations.layout import GCStateLayout
 
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from time import perf_counter
 from types import MappingProxyType
 from typing import ClassVar, Mapping, TYPE_CHECKING, TypeVar
@@ -25,7 +25,7 @@ from problem import InitialValueProblem
 from request import SimulationRequest
 from dynamics.gc import GuidingCenterDynamics
 
-from contracts.methods.base import NumericalMethod
+from methods.base import FixedStepMethod
 from methods.extended.abba import ABBA4Implicit
 from methods.extended.bm4 import BM4Implicit
 from methods.classical.gauss_legendre import GaussLegendre4
@@ -354,10 +354,10 @@ class ComparisonResult:
 def comparison_method(
 	method_name: str,
 	config: ComparisonConfig,
-) -> NumericalMethod:
+) -> FixedStepMethod[Any]:
 	"""Build one method with the common analytic-Newton controls."""
 	if method_name == "ABBA4Implicit":
-		return ABBA4Implicit(
+		return ABBA4Implicit(step=config.integration_step,
 			projection_placement="around_complete_composition",
 			projection_formulation="reduced_multiplier",
 			state_extension="physical",
@@ -368,7 +368,7 @@ def comparison_method(
 			progress=config.progress,
 		)
 	if method_name == "GaussLegendre4":
-		return GaussLegendre4(
+		return GaussLegendre4(step=config.integration_step,
 			newton_absolute_tolerance=config.absolute_tolerance,
 			newton_relative_tolerance=config.relative_tolerance,
 			newton_max_iterations=config.max_iterations,
@@ -377,7 +377,7 @@ def comparison_method(
 			progress=config.progress,
 		)
 	if method_name == "BM4Implicit":
-		return BM4Implicit(
+		return BM4Implicit(step=config.integration_step,
 			newton_absolute_tolerance=config.absolute_tolerance,
 			newton_relative_tolerance=config.relative_tolerance,
 			newton_max_iterations=config.max_iterations,
@@ -387,14 +387,14 @@ def comparison_method(
 			progress=config.progress,
 		)
 	if method_name == "SDIRK4":
-		return SDIRK4(newton_absolute_tolerance=config.absolute_tolerance,
+		return SDIRK4(step=config.integration_step, newton_absolute_tolerance=config.absolute_tolerance,
 			newton_relative_tolerance=config.relative_tolerance,
 			newton_max_iterations=config.max_iterations,
 			newton_jacobian_method="analytic",
 			newton_jacobian_relative_step=config.jacobian_relative_step,
 			progress=config.progress)
 	if method_name == "RK4":
-		return RK4(progress=config.progress)
+		return RK4(step=config.integration_step, progress=config.progress)
 	raise ValueError(f"Unknown comparison method {method_name!r}.")
 
 
@@ -531,7 +531,6 @@ def run_alternating_comparison(
 	problem: InitialValueProblem = InitialValueProblem(dynamics, initial_configuration, layout=GCStateLayout())
 	request: SimulationRequest = SimulationRequest.uniform(
 		t_span=config.t_span,
-		max_step=config.integration_step,
 		sample_count=config.output_sample_count,
 	)
 	reference: AdaptiveReference = build_adaptive_reference(
@@ -563,7 +562,7 @@ def run_alternating_comparison(
 	)
 	for _ in range(config.timing_warmups):
 		for method_name in method_names:
-			simulate(problem, comparison_method(method_name, config), request)
+			simulate(problem, replace(comparison_method(method_name, config), step=config.integration_step), request)
 	solutions: dict[str, States] = {}
 	runtime_values: dict[str, list[float]] = {
 		name: [] for name in method_names
@@ -578,7 +577,7 @@ def run_alternating_comparison(
 			started: float = perf_counter()
 			solutions[method_name] = simulate(
 				problem,
-				comparison_method(method_name, config),
+				replace(comparison_method(method_name, config), step=config.integration_step),
 				request,
 			)
 			runtime_values[method_name].append(perf_counter() - started)

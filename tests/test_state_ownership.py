@@ -19,7 +19,7 @@ from dynamics.fc import FullCyclotronDynamics
 from dynamics.gc import GuidingCenterDynamics
 from formulations.fc import FCSplitFormulation
 from formulations.gc import GCDoubledMaps, GCExtendedFormulation, GCStageProjectedFormulation
-from formulations.state import DoubledFormulation, PhysicalFormulation
+from formulations.state import DoubleFormulation, SingleFormulation
 
 from potential.potential import Potential
 from methods.classical.rk4 import RK4
@@ -126,8 +126,8 @@ class StateOwnershipTests(unittest.TestCase):
 		state = np.array([1.0, 0.7])
 		source = _ExternalConfiguration(state, _ExternalGCLayout())
 		problem = InitialValueProblem(GuidingCenterDynamics(self.potential), source.initial_state, layout=source.layout)
-		physical = PhysicalFormulation(problem, 0.3)
-		doubled = DoubledFormulation(problem, 0.3, True)
+		physical = SingleFormulation(problem.layout, problem.particle_count)
+		doubled = DoubleFormulation(problem.layout, problem.particle_count, True)
 		maps = GCDoubledMaps(problem)
 		initial_maps = maps.initial_internal_state.copy()
 		source.state = np.array([1.0, 1.1, 0.7, 0.8])
@@ -142,8 +142,8 @@ class StateOwnershipTests(unittest.TestCase):
 		np.testing.assert_array_equal(problem.initial_state, state)
 		self.assertEqual(problem.particle_count, 1)
 		self.assertEqual(problem.layout.particle_count(state), 1)
-		np.testing.assert_array_equal(physical.initial_state, state)
-		self.assertEqual(doubled.initial_state.shape, (6,))
+		np.testing.assert_array_equal(physical.lift(problem.initial_state), state)
+		self.assertEqual(doubled.pack(doubled.lift(problem.initial_state), .3, np.zeros(1)).shape, (6,))
 		np.testing.assert_array_equal(maps.initial_internal_state, initial_maps)
 		np.testing.assert_array_equal(GCDoubledMaps(problem).initial_internal_state, initial_maps)
 
@@ -165,7 +165,7 @@ class StateOwnershipTests(unittest.TestCase):
 		problem = InitialValueProblem(GuidingCenterDynamics(self.potential), source.initial_state, layout=source.layout)
 		source.state = np.array([1.0, 1.1, 0.7, 0.8])
 		source.layout.position_shift = 100.0
-		solution = simulate(problem, RK4(), SimulationRequest.uniform(t_span=(0.0, 0.01), sample_count=2))
+		solution = simulate(problem, RK4(step=0.1), SimulationRequest.uniform(t_span=(0.0, 0.01), sample_count=2))
 		self.assertFalse(np.shares_memory(solution.initial_state, source.state))
 		np.testing.assert_array_equal(solution.initial_state, state)
 		np.testing.assert_array_equal(solution.positions()[0], solution.states[:1])
@@ -180,7 +180,7 @@ class StateOwnershipTests(unittest.TestCase):
 		state = np.array([1.0, 0.7])
 		source = _ExternalConfiguration(state, GCStateLayout())
 		problem = InitialValueProblem(GuidingCenterDynamics(self.potential), source.initial_state, layout=source.layout)
-		solution = simulate(problem, RK4(), SimulationRequest.uniform(t_span=(0.0, 0.01), sample_count=2))
+		solution = simulate(problem, RK4(step=0.1), SimulationRequest.uniform(t_span=(0.0, 0.01), sample_count=2))
 		source.state = np.array([1.0, 1.1, 0.7, 0.8])
 		with tempfile.TemporaryDirectory() as directory:
 			location = Path(directory) / "trajectory"

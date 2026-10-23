@@ -63,3 +63,14 @@ Private preparation functions own initial values and layouts before assignment.
 Complete-array construction and `record_history` share the same shape, finiteness
 and layout checks, preserving input dtype and the existing validation order.
 Recording lifecycle guards remain in `States`.
+
+## Structural internal representations
+
+`SingleFormulation(layout, particle_count, track_energy)` and `DoubleFormulation`
+retain a copied structural layout. Their physical size is d*N and their internal
+size is copies*d*N plus 2*N when tracking energy. Double FC states include both
+velocity blocks. `lift` duplicates physical input; `join_copies` accepts explicit
+copies; `pack` appends caller-supplied time and momentum. Accepted double copies
+remain equal; extraction reads the first without implicit projection. Methods
+own initial values and all updates. Public physical States layouts, auxiliary
+history shapes and archive schemas are unchanged.

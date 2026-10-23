@@ -178,3 +178,21 @@ for ownership, array shapes and unchanged request/result boundaries.
 BM4 uses `ReducedProjection` for its existing 2N multiplier system and accepts
 `solver=NewtonSolver(...)` or `solver=BroydenSolver(...)`. Composition,
 physical scaling and the single outer projection remain unchanged.
+
+## State representation and step preparation
+
+The method initializes its internal state from physical input and the request's
+time. `SingleFormulation`/`DoubleFormulation` retain only layout, particle count
+and tracking settings. Their `lift` operation prepares physical copies; `pack`
+adds caller-supplied time and momentum. The method selects projection and solver,
+updates passive momentum, and supplies Hamiltonian values for output diagnostics.
+Accepted doubled copies stay equal, with no additional copies across steps.
+See [representation operations](../../../simulation/initial-solvers-formulations.md#state-representations).
+
+## Integration step
+
+This method owns its positive `step` (default 0.1 in runtime time units).
+Complete steps retain that size; only the final accepted step is shortened.
+`advance` receives the effective duration without modifying the configured value.
+See the [shared scheduling contract](../../../simulation/execution.md#method-owned-integration-step)
+for independent output sampling and the common CPU/JAX grid.

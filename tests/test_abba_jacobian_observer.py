@@ -96,7 +96,6 @@ class ImplicitABBAJacobianObserverTests(unittest.TestCase):
 		configuration = GCStateLayout().pack_components(np.asarray([1.0, 1.4]), np.asarray([1.2, 1.6]))
 		request = SimulationRequest.uniform(
 			t_span=(0.0, 0.04),
-			max_step=0.02,
 			sample_count=3,
 		)
 		for formulation in ABBA_PROJECTION_FORMULATIONS:
@@ -115,7 +114,7 @@ class ImplicitABBAJacobianObserverTests(unittest.TestCase):
 				) as observer:
 					solution = simulate(
 						InitialValueProblem(GuidingCenterDynamics(_potential(), rho=0.05), configuration, layout=GCStateLayout()),
-						ABBA2Implicit(
+						ABBA2Implicit(step=0.02,
 							projection_formulation=formulation,
 							step_observer=observer,
 						),

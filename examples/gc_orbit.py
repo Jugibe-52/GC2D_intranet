@@ -26,10 +26,9 @@ configuration = InitialConditions.gc(x=[1.0], y=[1.2])
 problem = InitialValueProblem(GuidingCenterDynamics(potential, rho=0.05), configuration)
 request = SimulationRequest.uniform(
 	t_span=(0.0, 0.2),
-	max_step=0.01,
 	sample_count=5,
 )
-solution = simulate(problem, RK4(), request)
+solution = simulate(problem, RK4(step=0.01), request)
 
 print(f"steps: {solution.diagnostics['step_count']}")
 print(f"final state: {solution.states[:, -1]}")

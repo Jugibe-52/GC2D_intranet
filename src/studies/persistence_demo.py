@@ -68,9 +68,9 @@ def run_persistence_demo(
     radii = fractions * grid.period
     initial: np.ndarray = GCStateLayout().pack_components(grid.x0 + grid.period / 2 + radii * np.cos(config.angle_radians), grid.y0 + grid.period / 2 + radii * np.sin(config.angle_radians))
     dynamics: GuidingCenterDynamics = GuidingCenterDynamics(potential, rho=config.rho)
-    request: SimulationRequest = SimulationRequest.uniform(t_span=config.t_span, max_step=config.max_step,
+    request: SimulationRequest = SimulationRequest.uniform(t_span=config.t_span,
                                         sample_count=config.sample_count)
-    solution: States = simulate(InitialValueProblem(dynamics, initial, layout=GCStateLayout()), RK4(track_energy=True), request)
+    solution: States = simulate(InitialValueProblem(dynamics, initial, layout=GCStateLayout()), RK4(step=config.max_step, track_energy=True), request)
     # Hash the source used for this run, including uncommitted implementation
     # changes; a Git commit alone would not identify a local development run.
     source_root = Path(__file__).resolve().parents[1]

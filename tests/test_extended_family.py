@@ -40,10 +40,10 @@ class ExtendedFamilyTests(unittest.TestCase):
 
     def test_presets_bind_one_projection_engine_and_preserve_placement(self) -> None:
         p = problem()
-        request = SimulationRequest.uniform(t_span=(.3, .34), max_step=(.34 - .3) / 2, sample_count=3)
+        request = SimulationRequest.uniform(t_span=(.3, .34),  sample_count=3)
         for cls, recipe, solves in ((ABBA2Implicit, ABBA2, 1), (ABBA4Implicit, ABBA4, 1),
                                    (ABBA6Implicit, ABBA6, 1), (BM4Implicit, BM4, 1)):
-            run = cls().new_run(p, request)
+            run = replace(cls(), step=(0.34 - 0.3) / 2).new_run(p, request)
             self.assertIs(run.project.func, solve_projection)
             self.assertIs(run.project.args[1], recipe)
             self.assertEqual(run.metadata['nonlinear_solves_per_step'], solves)
@@ -90,7 +90,7 @@ class ExtendedFamilyTests(unittest.TestCase):
 
     def test_tracking_and_observers_add_no_spatial_work_or_broyden_jacobians(self) -> None:
         p = problem()
-        request = SimulationRequest.uniform(t_span=(.3, .34), max_step=(.34 - .3) / 2, sample_count=3)
+        request = SimulationRequest.uniform(t_span=(.3, .34),  sample_count=3)
         for method in (ABBA2Implicit(nonlinear_solver='broyden'), ABBA4Implicit(nonlinear_solver='broyden'),
                        ABBA6Implicit(nonlinear_solver='broyden'), BM4Implicit(nonlinear_solver='broyden'),
                        ABBA2Midpoint(), BM4Midpoint()):
@@ -99,8 +99,8 @@ class ExtendedFamilyTests(unittest.TestCase):
                 observed = []
                 with patch.object(type(p.dynamics), 'vector_field', autospec=True, side_effect=type(p.dynamics).vector_field) as field, \
                      patch.object(type(p.dynamics), 'particle_vector_field_jacobians', autospec=True, side_effect=AssertionError('Unexpected Jacobian')):
-                    results.append(simulate(p, replace(method, track_energy=enabled,
-                                                      step_observer=observed.append if enabled else None), request))
+                    results.append(simulate(p, replace(replace(method, track_energy=enabled,
+                                                      step_observer=observed.append if enabled else None), step=(0.34 - 0.3) / 2), request))
                     counts.append(field.call_count)
                 if enabled:
                     self.assertEqual(len(observed), 2)

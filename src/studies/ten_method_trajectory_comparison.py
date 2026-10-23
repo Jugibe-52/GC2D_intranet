@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from studies._validation import require_uncoupled_bm4
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from itertools import combinations
 from time import perf_counter
 from types import MappingProxyType
@@ -31,7 +31,8 @@ from methods.extended.abba import ABBA2Implicit
 from problem import InitialValueProblem
 from methods.extended.abba import ABBA2Midpoint
 from solvers.nonlinear import NonlinearSolver
-from contracts.methods.base import NumericalMethod
+from methods.base import FixedStepMethod
+from typing import Any
 from request import SimulationRequest
 from states.history import States
 from simulation.runner import simulate
@@ -216,7 +217,7 @@ class TenMethodNonlinearWorkSummary:
 def _method_for_variant(
 	variant: TrajectoryMethodVariant,
 	config: TenMethodTrajectoryComparisonConfig,
-) -> NumericalMethod:
+) -> FixedStepMethod[Any]:
 	"""Build one configured method while keeping labels separate from class names."""
 	if variant.method_name == "ABBA2Midpoint":
 		return ABBA2Midpoint(progress=config.progress)
@@ -398,15 +399,14 @@ def run_ten_method_trajectory_comparison(
 	problem: InitialValueProblem = InitialValueProblem(dynamics, initial_configuration)
 	request: SimulationRequest = SimulationRequest.uniform(
 		t_span=config.t_span,
-		max_step=config.integration_step,
 		sample_count=config.output_sample_count,
 	)
 	solutions: dict[str, States] = {}
 	runtimes: dict[str, float] = {}
 	for variant in TEN_METHOD_VARIANTS:
-		method: NumericalMethod = _method_for_variant(variant, config)
+		method: FixedStepMethod[Any] = _method_for_variant(variant, config)
 		started: float = perf_counter()
-		solutions[variant.label] = simulate(problem, method, request)
+		solutions[variant.label] = simulate(problem, replace(method, step=config.integration_step), request)
 		runtimes[variant.label] = perf_counter() - started
 
 	return TenMethodTrajectoryComparisonResult(

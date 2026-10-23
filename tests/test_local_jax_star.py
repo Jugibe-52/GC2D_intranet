@@ -75,8 +75,8 @@ class LocalJAXStarTests(unittest.TestCase):
         with jax.experimental.enable_x64():
             result = integrate_local_star(potential, config, progress=progress)
             problem = build_local_star(potential, config)
-            request = SimulationRequest((0., 3.), .25, np.arange(13) / 4)
-            reference = simulate(problem, BM4Midpoint(), request, options=ExecutionOptions(backend='jax'))
+            request = SimulationRequest((0., 3.),  np.arange(13) / 4)
+            reference = simulate(problem, BM4Midpoint(step=0.25), request, options=ExecutionOptions(backend='jax'))
         np.testing.assert_array_equal(result.solution.t, reference.t)
         np.testing.assert_allclose(result.solution.states, reference.states, rtol=1e-13, atol=1e-13)
         for name in ('step_start_times', 'step_times', 'step_sizes', 'copy_separation_norms'):

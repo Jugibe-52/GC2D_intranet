@@ -136,14 +136,13 @@ class ABBA4ImplicitMethodTests(unittest.TestCase):
 		events = []
 		solution = simulate(
 			_rotation_problem(),
-			ABBA4Implicit(
+			ABBA4Implicit(step=0.1,
 				newton_absolute_tolerance=1e-14,
 				newton_relative_tolerance=1e-14,
 				step_observer=events.append,
 			),
 			SimulationRequest.uniform(
 				t_span=(0.0, 0.2),
-				max_step=0.1,
 				sample_count=5,
 			),
 		)
@@ -208,13 +207,12 @@ class ABBA4ImplicitMethodTests(unittest.TestCase):
 		for step in (0.2, 0.1, 0.05):
 			solution = simulate(
 				problem,
-				ABBA4Implicit(
+				ABBA4Implicit(step=step,
 					newton_absolute_tolerance=1e-14,
 					newton_relative_tolerance=1e-14,
 				),
 				SimulationRequest.uniform(
 					t_span=(0.0, 0.8),
-					max_step=step,
 					sample_count=2,
 				),
 			)
@@ -253,13 +251,12 @@ class ABBA4ImplicitMethodTests(unittest.TestCase):
 		for step in (0.2, 0.1, 0.05, 0.025):
 			solution = simulate(
 				problem,
-				ABBA4Implicit(
+				ABBA4Implicit(step=step,
 					newton_absolute_tolerance=1e-14,
 					newton_relative_tolerance=1e-14,
 				),
 				SimulationRequest.uniform(
 					t_span=(0.0, 1.0),
-					max_step=step,
 					sample_count=2,
 				),
 			)
@@ -274,14 +271,13 @@ class ABBA4ImplicitMethodTests(unittest.TestCase):
 		events = []
 		simulate(
 			problem,
-			ABBA4Implicit(
+			ABBA4Implicit(step=0.1,
 				newton_absolute_tolerance=1e-14,
 				newton_relative_tolerance=1e-14,
 				step_observer=events.append,
 			),
 			SimulationRequest.uniform(
 				t_span=(0.0, 0.1),
-				max_step=0.1,
 				sample_count=2,
 			),
 		)
@@ -308,13 +304,12 @@ class ABBA4ImplicitMethodTests(unittest.TestCase):
 	def test_broyden_path_matches_the_newton_root(self) -> None:
 		request = SimulationRequest.uniform(
 			t_span=(0.0, 0.4),
-			max_step=0.1,
 			sample_count=5,
 		)
-		newton = simulate(_rotation_problem(), ABBA4Implicit(), request)
+		newton = simulate(_rotation_problem(), ABBA4Implicit(step=0.1), request)
 		broyden = simulate(
 			_rotation_problem(),
-			ABBA4Implicit(nonlinear_solver="broyden"),
+			ABBA4Implicit(step=0.1, nonlinear_solver="broyden"),
 			request,
 		)
 		self.assertEqual(broyden.diagnostics["nonlinear_solver"], "broyden")

@@ -62,10 +62,10 @@ def render(model: Model) -> None:
     projection = ('solve_projection', 'core/projection.py\nSpatial Hairer equation') if model.implicit else ('midpoint_step', 'core/midpoint.py\nOne arithmetic diagonal average')
     nodes = {
         'recipe': (2.3, 8.0, 'Composition recipe', model.recipe, '#fff0d9'),
-        'method': (7.0, 8.0, model.name, 'Exports: simulation / methods.extended\nPresets inherit PalindromicMethod', '#e5ecfa'),
-        'driver': (11.7, 8.0, 'Simulation + execution', 'src/simulation/runner.py and src/execution/\nMain steps, output sampling, collection', '#e5ecfa'),
-        'state': (2.3, 6.5, 'DoubledFormulation', 'src/formulations/state.py\nTwo copies; optional time and kappa', '#e5ecfa'),
-        'advance': (7.0, 6.5, 'Common advance', 'extended/palindromic.py\nImplicit solve or final mean; passive finish', '#e5ecfa'),
+        'method': (7.0, 8.0, model.name, 'Exports: simulation / methods.extended\nFixed step belongs to the method', '#e5ecfa'),
+        'driver': (11.7, 8.0, 'Simulation + execution', 'src/simulation/runner.py and src/execution/\nMain steps (final clipped), sampling, collection', '#e5ecfa'),
+        'state': (2.3, 6.5, 'DoubleFormulation', 'Structural layout and particle count\nlift copies; pack supplied time and kappa', '#e5ecfa'),
+        'advance': (7.0, 6.5, 'Common advance', 'Prepare copies; solve or average\nAccept state and update passive momentum', '#e5ecfa'),
         'energy': (11.7, 6.5, 'Passive energy and outputs', 'core/energy.py: accepted shear quadrature\nH + kappa; no feedback into the root', '#e1f0e6'),
         'observe': (2.3, 5.0, 'Optional observations', 'extended/observations.py: event adapters\nPublic records: contracts/methods/', '#f0e5f5'),
         'projection': (7.0, 5.0, projection[0], projection[1], '#e1f0e6'),

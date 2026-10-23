@@ -4,7 +4,7 @@ from studies._validation import require_uncoupled_bm4
 
 from formulations.layout import GCStateLayout
 
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 import hashlib
 from pathlib import Path
 import time
@@ -111,7 +111,7 @@ def integrate_region_probes(potential: Potential, settings: RegionProbeSettings,
         end: int = min(count, start + batch)
         initial: np.ndarray = GCStateLayout().pack_components(xy[start, :, 0], xy[start, :, 1])
         request: SimulationRequest = SimulationRequest.uniform(t_span=(times[start], times[end]),
-                                           max_step=step, sample_count=end - start + 1)
+                                            sample_count=end - start + 1)
         if settings.method == 'BM4Midpoint':
             # Progress is observational only; it neither changes the map nor its clock.
             def report(event: IntegrationStep) -> None:
@@ -123,7 +123,7 @@ def integrate_region_probes(potential: Potential, settings: RegionProbeSettings,
                                  step_observer=report if progress else None)
         else:
             method = RK4()
-        solution: States = simulate(InitialValueProblem(dynamics, initial, layout=GCStateLayout()), method, request)
+        solution: States = simulate(InitialValueProblem(dynamics, initial, layout=GCStateLayout()), replace(method, step=step), request)
         if solution.diagnostics['step_count'] != end - start or solution.diagnostics['output_interpolation_count'] != 0:
             raise RuntimeError('The method did not preserve the requested complete-step grid.')
         xy[start:end + 1] = np.stack(solution.positions(), axis=-1).transpose(1, 0, 2)

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 from formulations.layout import GCStateLayout
 
 import csv
@@ -78,7 +80,6 @@ class ExactTrajectoryJacobianTests(unittest.TestCase):
 		problem = _problem()
 		request = SimulationRequest.uniform(
 			t_span=(0.0, 0.1),
-			max_step=0.1,
 			sample_count=2,
 		)
 		cases = (
@@ -95,7 +96,7 @@ class ExactTrajectoryJacobianTests(unittest.TestCase):
 						newton_absolute_tolerance=1e-14,
 						newton_relative_tolerance=1e-14,
 					)
-				simulate(problem, method_type(**kwargs), request)
+				simulate(problem, replace(method_type(**kwargs), step=0.1), request)
 				self.assertEqual(len(events), 1)
 				event = events[0]
 				exact = _dense(calculator(event))

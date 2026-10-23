@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 from formulations.layout import GCStateLayout
 
 from itertools import product
@@ -48,7 +50,6 @@ def _request() -> SimulationRequest:
 	"""Return one short accepted step."""
 	return SimulationRequest.uniform(
 		t_span=(0.0, 0.02),
-		max_step=0.02,
 		sample_count=2,
 	)
 
@@ -76,21 +77,21 @@ class ImplicitBroydenTests(unittest.TestCase):
 				events = []
 				newton = simulate(
 					_problem(particle_count=2),
-					method_type(
+					replace(method_type(
 						projection_formulation=formulation,
 						nonlinear_solver="newton",
 						**common,
-					),
+					), step=0.02),
 					_request(),
 				)
 				broyden = simulate(
 					_problem(particle_count=2),
-					method_type(
+					replace(method_type(
 						projection_formulation=formulation,
 						nonlinear_solver="broyden",
 						step_observer=events.append,
 						**common,
-					),
+					), step=0.02),
 					_request(),
 				)
 				np.testing.assert_allclose(
@@ -142,13 +143,13 @@ class ImplicitBroydenTests(unittest.TestCase):
 			):
 				solution = simulate(
 					problem,
-					method_type(
+					replace(method_type(
 						projection_formulation=formulation,
 						nonlinear_solver="broyden",
 						state_extension=extension,
 						track_energy=track_energy,
 						newton_max_iterations=50,
-					),
+					), step=0.02),
 					_request(),
 				)
 				self.assertEqual(solution.states.shape, (2, 2))
@@ -170,7 +171,7 @@ class ImplicitBroydenTests(unittest.TestCase):
 				with self.assertRaisesRegex(ValueError, "interpolation_order"):
 					simulate(
 						problem,
-						ABBA2Implicit(
+						ABBA2Implicit(step=0.02,
 							projection_formulation=formulation,
 							state_extension=extension,
 							track_energy=track_energy,

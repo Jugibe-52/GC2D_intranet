@@ -1,5 +1,7 @@
 """Offline contracts for remote integration, receipts and safe recovery."""
 
+from dataclasses import replace
+
 from formulations.layout import GCStateLayout
 
 import importlib.util
@@ -45,8 +47,8 @@ class ModalExecutionTests(unittest.TestCase):
         self.addCleanup(self.temporary.cleanup)
         self.records = Path(self.temporary.name) / "records"
         self.problem = make_problem()
-        self.method = RK4()
-        self.request = SimulationRequest.uniform(t_span=(0., .02), max_step=.01, sample_count=3)
+        self.method = RK4(step=.01)
+        self.request = SimulationRequest.uniform(t_span=(0., .02),  sample_count=3)
         self.calls = {}
         self.function = SimpleNamespace(spawn=Mock(side_effect=self.spawn))
         self.sdk = SimpleNamespace(
@@ -74,9 +76,9 @@ class ModalExecutionTests(unittest.TestCase):
     def test_complete_integrations_match_local_and_can_be_saved_locally(self):
         for method in (RK4(), BM4Implicit(), DOP853(), Radau()):
             with self.subTest(method=type(method).__name__):
-                reference = simulate(self.problem, method, self.request)
+                reference = simulate(self.problem, replace(method, **({"max_step": 0.01} if isinstance(method, (DOP853, Radau)) else {"step": 0.01})), self.request)
                 executor = self.executor()
-                result = simulate(self.problem, method, self.request, execution=executor)
+                result = simulate(self.problem, replace(method, **({"max_step": 0.01} if isinstance(method, (DOP853, Radau)) else {"step": 0.01})), self.request, execution=executor)
                 np.testing.assert_allclose(result.states, reference.states, rtol=1e-13, atol=1e-14)
                 np.testing.assert_array_equal(result.t, reference.t)
                 self.assertFalse(result.states.flags.writeable)
@@ -127,7 +129,7 @@ class ModalExecutionTests(unittest.TestCase):
         self.assertIn(executor.last_call_id, caught.exception.__notes__[0])
         recovered = Execution_Modal.from_record(executor.last_record_path)
         # Reconstructing the same physical inputs works after a local restart.
-        result = simulate(make_problem(), RK4(), self.request, execution=recovered)
+        result = simulate(make_problem(), RK4(step=0.01), self.request, execution=recovered)
         reference = simulate(self.problem, self.method, self.request)
         np.testing.assert_allclose(result.states, reference.states, rtol=1e-13, atol=1e-14)
         self.assertEqual(self.function.spawn.call_count, 1)
@@ -137,10 +139,10 @@ class ModalExecutionTests(unittest.TestCase):
         executor = self.executor()
         executor.run(self.problem, self.method, self.request)
         other_problem = InitialValueProblem(GuidingCenterDynamics(self.problem.dynamics.potential, rho=.1), self.problem.initial_state, layout=GCStateLayout())
-        other_request = SimulationRequest.uniform(t_span=(0., .02), max_step=.005, sample_count=3)
+        other_request = SimulationRequest.uniform(t_span=(0., .02),  sample_count=3)
         for problem, method, request in ((other_problem, self.method, self.request),
                                          (self.problem, BM4Implicit(), self.request),
-                                         (self.problem, self.method, other_request)):
+                                         (self.problem, replace(self.method, step=.005), other_request)):
             resumed = self.executor(resume_call_id=executor.last_call_id)
             with self.subTest(method=method), self.assertRaisesRegex(ValueError, "different serialized job"):
                 resumed.run(problem, method, request)
@@ -209,7 +211,7 @@ class ModalExecutionTests(unittest.TestCase):
                                 (RK4(progress=True), None),
                                 (RK4(step_observer=lambda event: None), None)):
             with self.subTest(method=method), self.assertRaises(NotImplementedError):
-                self.executor().run(self.problem, method, self.request, options=options)
+                self.executor().run(self.problem, replace(method, **({"max_step": 0.01} if isinstance(method, (DOP853, Radau)) else {"step": 0.01})), self.request, options=options)
         with self.assertRaises(TypeError):
             self.executor().run(self.problem, self.method, self.request, options="jax")
         self.loader.assert_not_called()
@@ -274,7 +276,7 @@ class ModalExecutionTests(unittest.TestCase):
 class ModalWorkerTests(unittest.TestCase):
     def test_worker_in_a_separate_process_and_serialized_result(self):
         problem = make_problem()
-        request = SimulationRequest.uniform(t_span=(0., .02), max_step=.01, sample_count=3)
+        request = SimulationRequest.uniform(t_span=(0., .02),  sample_count=3)
         payload = encode_job(problem, BM4Implicit(), request, None)
         script = (
             "import pickle, sys; from execution._modal_worker import execute_payload; "
@@ -282,7 +284,7 @@ class ModalWorkerTests(unittest.TestCase):
         )
         result = subprocess.run([sys.executable, "-c", script], input=payload, capture_output=True, check=True)
         _, _, data = pickle.loads(result.stdout)
-        reference = Execution().run(problem, BM4Implicit(), request)
+        reference = Execution().run(problem, BM4Implicit(step=0.01), request)
         np.testing.assert_allclose(data.states, reference.states, rtol=1e-13, atol=1e-14)
 
     def test_worker_rejects_incompatible_payload_version(self):
@@ -303,7 +305,7 @@ from test_jax_rk4 import problem as make_problem
 from request import SimulationRequest
 from methods import RK4
 from simulation.runner import simulate
-simulate(make_problem(), RK4(), SimulationRequest.uniform(t_span=(0., .01), max_step=.01))
+simulate(make_problem(), RK4(step=.01), SimulationRequest.uniform(t_span=(0., .01)))
 assert "modal" not in sys.modules
 Execution_Modal()
 try:
@@ -322,14 +324,14 @@ else:
         namespace = runpy.run_path("examples/modal_execution_app.py")
         self.assertEqual(namespace["app"].name, "gc2d-execution")
         payload = encode_job(make_problem(), RK4(), SimulationRequest.uniform(
-            t_span=(0., .01), max_step=.01), None)
+            t_span=(0., .01)), None)
         self.assertIsInstance(namespace["integrate"].local(payload)[2], States)
 
     def test_deployment_source_bundles_execute_a_job_without_the_checkout(self):
         """Exercise exactly the source modules mounted by each deployment example."""
         root = Path(__file__).resolve().parents[1]
         payload = encode_job(make_problem(), RK4(), SimulationRequest.uniform(
-            t_span=(0., .01), max_step=.01), None)
+            t_span=(0., .01)), None)
         script = '''
 import sys
 from pathlib import Path

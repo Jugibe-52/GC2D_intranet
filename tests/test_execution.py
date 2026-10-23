@@ -1,5 +1,6 @@
 """Complete-job execution, subclass dispatch and result validation contracts."""
 
+
 from formulations.layout import GCStateLayout
 
 import unittest
@@ -43,9 +44,9 @@ class ReturnedExecution(Execution):
 class ExecutionTests(unittest.TestCase):
     def setUp(self):
         self.problem = InitialValueProblem(RotationDynamics(), GCStateLayout().pack_components(np.array([1.]), np.array([0.])), layout=GCStateLayout())
-        self.method = RK4()
+        self.method = RK4(step=.01)
         self.request = SimulationRequest.uniform(
-            t_span=(0., .2), max_step=.01, sample_count=3,
+            t_span=(0., .2),  sample_count=3,
         )
 
     def test_local_executor_returns_complete_integration_and_can_be_reused(self):
@@ -126,7 +127,7 @@ class ExecutionTests(unittest.TestCase):
 
             def new_run(self, problem, request, *, evaluated_dynamics=None):
                 calls.append((problem, request, evaluated_dynamics))
-                return RK4().new_run(problem, request, evaluated_dynamics=evaluated_dynamics)
+                return RK4(step=.01).new_run(problem, request, evaluated_dynamics=evaluated_dynamics)
 
         for options in (None, ExecutionOptions()):
             with self.subTest(options=options):

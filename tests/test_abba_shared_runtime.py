@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 from formulations.layout import GCStateLayout
 
 from itertools import product
@@ -26,7 +28,7 @@ def _problem() -> InitialValueProblem:
 
 
 def _request(times: list[float]) -> SimulationRequest:
-	return SimulationRequest(t_span=(0.0, 0.04), max_step=0.02, output_times=np.asarray(times))
+	return SimulationRequest(t_span=(0.0, 0.04),  output_times=np.asarray(times))
 
 
 class SharedABBARuntimeTests(unittest.TestCase):
@@ -50,7 +52,7 @@ class SharedABBARuntimeTests(unittest.TestCase):
 				method = method_type(projection_formulation=formulation,
 					nonlinear_solver=solver, track_energy=track_energy,
 					newton_max_iterations=50, step_observer=lambda event: None)
-				prepared = method.new_run(problem, request)
+				prepared = replace(method, step=0.02).new_run(problem, request)
 				state = prepared.state_formulation.physical(prepared.initial_state)
 				step = prepared.advance(0.0, prepared.initial_state, 0.02)
 				result = step.details
@@ -93,9 +95,9 @@ class SharedABBARuntimeTests(unittest.TestCase):
 				options = dict(state_extension=extension, nonlinear_solver=solver,
 					projection_placement=placement, track_energy=True, newton_max_iterations=50)
 				main_events, dense_events = [], []
-				main = simulate(problem, ABBA4Implicit(**options, step_observer=main_events.append),
+				main = simulate(problem, ABBA4Implicit(step=0.02, **options, step_observer=main_events.append),
 					_request([0.0, 0.02, 0.04]))
-				dense = simulate(problem, ABBA4Implicit(**options, step_observer=dense_events.append),
+				dense = simulate(problem, ABBA4Implicit(step=0.02, **options, step_observer=dense_events.append),
 					_request([0.0, 0.009, 0.02, 0.031, 0.04]))
 				np.testing.assert_array_equal(main.states, dense.states[:, [0, 2, 4]])
 				for key in ("nonlinear_iterations", "residual_evaluations", "nonlinear_residual_norms",
@@ -113,14 +115,14 @@ class SharedABBARuntimeTests(unittest.TestCase):
 	def test_unobserved_compositions_do_not_construct_events(self) -> None:
 		with patch("methods.extended.observations.ABBA2ImplicitIntegrationStep",
 			side_effect=AssertionError("Unexpected observer allocation")):
-			result = simulate(_problem(), ABBA4Implicit(), _request([0.0, 0.04]))
+			result = simulate(_problem(), ABBA4Implicit(step=0.02), _request([0.0, 0.04]))
 		self.assertEqual(result.diagnostics["nonlinear_solves_per_step"], 1)
 		self.assertEqual(np.asarray(result.diagnostics["substep_nonlinear_iterations"]).shape, (2, 1))
 
 	def test_observer_snapshots_cannot_mutate_state_or_tracked_energy(self) -> None:
 		problem = _problem()
 		request = _request([0.0, 0.02, 0.04])
-		expected = simulate(problem, ABBA4Implicit(track_energy=True), request)
+		expected = simulate(problem, ABBA4Implicit(step=0.02, track_energy=True), request)
 
 		def mutate_snapshot(event):
 			event.state_after[:] = 999.0
@@ -129,7 +131,7 @@ class SharedABBARuntimeTests(unittest.TestCase):
 				substep.u_first[:] = 888.0
 				substep.u_initial[:] = 888.0
 
-		actual = simulate(problem, ABBA4Implicit(track_energy=True, step_observer=mutate_snapshot), request)
+		actual = simulate(problem, ABBA4Implicit(step=0.02, track_energy=True, step_observer=mutate_snapshot), request)
 		np.testing.assert_array_equal(expected.states, actual.states)
 		np.testing.assert_array_equal(
 			expected.diagnostics["extended_momentum"], actual.diagnostics["extended_momentum"],

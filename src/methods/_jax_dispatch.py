@@ -24,6 +24,9 @@ from methods.extended.bm4 import BM4Implicit, BM4Midpoint
 from methods.extended.palindromic import PalindromicImplicit, PalindromicMidpoint
 from contracts.formulations.projection import ProjectionName
 from formulations.projection import resolve_projection
+from contracts.formulations.layout import StateLayout
+from formulations.layout import GCStateLayout, FCStateLayout
+from formulations.state import SingleFormulation, DoubleFormulation
 
 
 Options = TypeVar("Options", ExplicitOptions, ImplicitOptions, CompositionOptions)
@@ -67,16 +70,19 @@ class PreparedJaxStep(Generic[Options]):
 	def __call__(self, time: Any, state: Any, step: Any) -> tuple[Any, dict[str, Any], Any]:
 		"""Finish accepted copies and passive momentum without inspecting a method."""
 		n = state.size // (self.copies * self.physical_dimension + (2 if self.track_energy else 0))
-		physical = state[:self.physical_dimension * n]
+		layout: StateLayout = GCStateLayout() if self.physical_dimension == 2 else FCStateLayout()
+		formulation_type: type[SingleFormulation] = SingleFormulation if self.copies == 1 else DoubleFormulation
+		representation: SingleFormulation = formulation_type(layout, n, self.track_energy)
+		physical: Array = representation.physical(state)
 		after: Array
 		increment: Array
 		statistics: dict[str, Array]
 		valid: Array
 		after, increment, statistics, valid = self.kernel(time, physical, step, self.dynamics, self.options)
-		parts = [after] * self.copies
+		momentum: Array | None = None
 		if self.track_energy:
-			parts += [jnp.full((n,), time + step), state[-n:] + increment]
-		return jnp.concatenate(parts), statistics, valid
+			momentum = representation.momentum(state) + increment
+		return representation.pack(representation.lift(after), time + step, momentum), statistics, valid
 
 
 def _explicit(method: ExplicitEuler | RK4, dynamics: HamiltonianSystem, device: Device) -> CompiledStep:

@@ -13,7 +13,7 @@ from formulations.layout import GCStateLayout
 from typing import Any, TYPE_CHECKING
 
 from concurrent.futures import ProcessPoolExecutor, as_completed
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import multiprocessing as mp
 from multiprocessing.synchronize import Barrier
 
@@ -62,7 +62,7 @@ def calculate_group(
     initial: np.ndarray = GCStateLayout().pack_components(xy0[:, 0], xy0[:, 1])
     problem: InitialValueProblem = InitialValueProblem(GuidingCenterDynamics(potential, rho=settings['rho']), initial, layout=GCStateLayout())
     request: SimulationRequest = SimulationRequest.uniform(
-        t_span=tuple(settings['t_span']), max_step=settings['step'],
+        t_span=tuple(settings['t_span']),
         sample_count=settings['n_steps'] + 1,
     )
     history: Any | None = (NewtonHistory(settings['n_steps'], settings.get('progress_every', 1000))
@@ -85,7 +85,7 @@ def calculate_group(
         started_utc: str = utc_now()
         started: float = time.perf_counter()
         cpu_started: float = time.process_time()
-        solution: States = simulate(problem, method, request)
+        solution: States = simulate(problem, replace(method, step=settings['step']), request)
         history_arrays: Any | None = history.arrays() if history is not None else None
         cpu_seconds = time.process_time() - cpu_started
         finished: float = time.perf_counter()

@@ -15,14 +15,14 @@ import numpy as np
 from states.history import States
 from contracts.states.history import DiagnosticValue
 from contracts.methods.compiled import CompiledStep
-from execution._host import _step_count, _time_tolerance
+from execution._host import _fixed_schedule, _time_tolerance
 
 if TYPE_CHECKING:
     from methods.base import IntegrationMethod
 
 
 def _integrate(
-    initial: Any, starts: Any, step: Any, times: Any,
+    initial: Any, starts: Any, steps: Any, times: Any,
     offsets: Any, modes: Any, durations: Any, *,
     kernel: CompiledStep,
 ) -> tuple[Any, Any, Any, Any, Any]:
@@ -52,7 +52,7 @@ def _integrate(
         after: Any
         statistics: dict[str, Any]
         solved: Any
-        after, statistics, solved = kernel(starts[index], before, step)
+        after, statistics, solved = kernel(starts[index], before, steps[index])
         converged = converged & solved
         valid = valid & jnp.all(jnp.isfinite(after))
 
@@ -104,10 +104,15 @@ def run_steps(method: "IntegrationMethod[Any]", kernel: CompiledStep,
     t0: float
     tf: float
     t0, tf = request.t_span
-    count: int = _step_count(tf - t0, request.max_step)
-    step = (tf - t0) / count
-    starts = t0 + np.arange(count) * step
-    ends = t0 + np.arange(1, count + 1) * step
+    from methods.base import FixedStepMethod
+
+    if not isinstance(method, FixedStepMethod):
+        raise TypeError("Compiled fixed integration requires a FixedStepMethod.")
+    starts: np.ndarray
+    ends: np.ndarray
+    steps: np.ndarray
+    starts, ends, steps = _fixed_schedule(request.t_span, method.step)
+    count: int = starts.size
     times = request.output_times
     tolerance: float = _time_tolerance(request.t_span)
     # Reproduce FixedStepController's endpoint priority and tolerance.
@@ -117,7 +122,7 @@ def run_steps(method: "IntegrationMethod[Any]", kernel: CompiledStep,
     durations = times - starts[owners]
     offsets: np.ndarray = np.concatenate(([1], 1 + np.searchsorted(times[1:], ends + tolerance, side="right")))
     device = kernel.device
-    inputs = (method.initial_state, starts, np.asarray(step), times,
+    inputs = (method.initial_state, starts, steps, times,
               offsets.astype(np.int32), modes.astype(np.int32), durations)
     # Inputs select the execution device; spline constants follow compilation.
     # device_get synchronizes timing and copies only completed output.
@@ -136,13 +141,13 @@ def run_steps(method: "IntegrationMethod[Any]", kernel: CompiledStep,
     assert method.state_formulation is not None
     states: np.ndarray
     auxiliary: dict[str, DiagnosticValue]
-    states, auxiliary = method.state_formulation.extract_history(
+    states, auxiliary = method.export_history(
         times, history, energy=energy if kernel.track_energy else None,
     )
     diagnostics: dict[str, DiagnosticValue] = {}
     diagnostics.update({
         "step_count": count, "step_start_times": starts, "step_times": ends,
-        "step_sizes": np.full(count, step),
+        "step_sizes": steps,
         "output_interpolation_count": int(np.count_nonzero(modes[1:] == 2)),
     })
     diagnostics.update(statistics)

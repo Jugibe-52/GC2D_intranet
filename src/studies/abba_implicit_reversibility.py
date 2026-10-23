@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from time import perf_counter
 from typing import Literal, TypeAlias
 
@@ -139,7 +139,6 @@ def run_implicit_abba_reversibility_study(
 	problem: InitialValueProblem = InitialValueProblem(dynamics, initial_configuration)
 	request: SimulationRequest = SimulationRequest.uniform(
 		t_span=config.t_span,
-		max_step=config.max_step,
 		sample_count=config.sample_count,
 	)
 	observer: ImplicitABBAReversibilityObserver = ImplicitABBAReversibilityObserver(
@@ -185,7 +184,7 @@ def run_implicit_abba_reversibility_study(
 	started: float = perf_counter()
 	solution: States = simulate(
 		problem,
-		method,
+		replace(method, step=config.max_step),
 		request,
 	)
 	runtime_seconds = perf_counter() - started

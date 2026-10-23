@@ -64,3 +64,13 @@ Built-in GC and FC dynamics freeze their physical parameters. Construct a new
 consistent with the declared system. These objects and problem snapshots remain
 pickle-compatible for process and Modal execution. Custom dynamical systems
 remain responsible for keeping their own physical parameters stable during a run.
+
+## Dynamics-independent state representation
+
+`SingleFormulation` and `DoubleFormulation` take structural layout and particle
+count, with optional energy tracking; neither retains dynamics or initial data.
+GC and FC therefore share the representation operations, while their elementary
+flows and method compatibility remain distinct. Methods validate the Hamiltonian
+capability, integrate passive momentum and evaluate saved physical energy.
+Representations assemble diagnostics only from supplied energy arrays. See
+[state representations](../simulation/initial-solvers-formulations.md#state-representations).

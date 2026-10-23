@@ -79,8 +79,8 @@ class DiagnosticValidationContracts(unittest.TestCase):
 		events: list[IntegrationStep] = []
 		simulate(
 			InitialValueProblem(dynamics, configuration, layout=GCStateLayout()),
-			ABBA2Implicit(step_observer=events.append),
-			SimulationRequest.uniform(t_span=(0.0, 0.02), max_step=0.01, sample_count=3),
+			ABBA2Implicit(step=0.01, step_observer=events.append),
+			SimulationRequest.uniform(t_span=(0.0, 0.02),  sample_count=3),
 		)
 		reversibility = ImplicitABBAReversibilityObserver(sample_every=2)
 		reversibility(events[0])

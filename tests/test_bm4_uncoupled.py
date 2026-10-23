@@ -1,5 +1,7 @@
 """BM4 excludes C while the independent exact harmonic flow remains usable."""
 
+from dataclasses import replace
+
 import unittest
 from unittest.mock import patch
 
@@ -20,7 +22,7 @@ class UncoupledBM4Tests(unittest.TestCase):
 	def test_both_methods_skip_c_and_match_zero_coupling_reference(self) -> None:
 		p = problem(3)
 		h, t = .15, .3
-		request = SimulationRequest.uniform(t_span=(t, t + h), max_step=h, sample_count=2)
+		request = SimulationRequest.uniform(t_span=(t, t + h),  sample_count=2)
 		old_maps = GCDoubledMaps(p, coupling_frequency=0.)
 		trace = compose(old_maps, BM4, t, np.tile(p.initial_state, 2), h)
 		size = p.initial_state.size
@@ -34,9 +36,9 @@ class UncoupledBM4Tests(unittest.TestCase):
 				with self.assertRaises(TypeError):
 					constructor(coupling_frequency=0.)
 				with patch.object(HarmonicCoupling, 'apply', side_effect=AssertionError('BM4 invoked C')):
-					run = constructor(track_energy=True).new_run(p, request)
+					run = replace(constructor(track_energy=True), step=h).new_run(p, request)
 					self.assertIsNone(run.formulation.coupling)
-					actual = simulate(p, constructor(track_energy=True), request)
+					actual = simulate(p, replace(constructor(track_energy=True), step=h), request)
 				np.testing.assert_allclose(actual.states[:, -1], expected, rtol=0., atol=3e-15)
 				self.assertEqual(actual.diagnostics['coupling_frequency'], 0.)
 

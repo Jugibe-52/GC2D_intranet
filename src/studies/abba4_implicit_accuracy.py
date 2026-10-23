@@ -348,13 +348,12 @@ def run_abba4_implicit_accuracy_study(
 	for step in config.integration_steps:
 		request: SimulationRequest = SimulationRequest.uniform(
 			t_span=config.t_span,
-			max_step=step,
 			sample_count=config.output_sample_count,
 		)
 		started: float = perf_counter()
 		solution: States = simulate(
 			problem,
-			ABBA4Implicit(
+			ABBA4Implicit(step=step,
 				newton_absolute_tolerance=config.absolute_tolerance,
 				newton_relative_tolerance=config.relative_tolerance,
 				newton_max_iterations=config.max_iterations,

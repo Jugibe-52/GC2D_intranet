@@ -78,11 +78,11 @@ class ABBA6MethodTests(unittest.TestCase):
 				with self.subTest(formulation=formulation, solver=solver):
 					errors = []
 					for h in (0.2, 0.1, 0.05):
-						result = simulate(problem, ABBA6Implicit(
+						result = simulate(problem, ABBA6Implicit(step=h,
 							projection_formulation=formulation, nonlinear_solver=solver,
 							newton_absolute_tolerance=1e-14, newton_relative_tolerance=1e-14,
 							newton_max_iterations=40), SimulationRequest.uniform(
-								t_span=(0.0, 0.8), max_step=h, sample_count=2))
+								t_span=(0.0, 0.8),  sample_count=2))
 						errors.append(np.linalg.norm(result.states[:, -1] - reference.y[:, -1]))
 						self.assertEqual(result.diagnostics["nonlinear_solves_per_step"], 1)
 						self.assertTrue(np.all(result.diagnostics["nonlinear_residual_norms"]
@@ -94,12 +94,12 @@ class ABBA6MethodTests(unittest.TestCase):
 	def test_outer_projection_tangent_symplecticity_and_reverse_observer(self) -> None:
 		problem = _problem(_NonlinearHamiltonianDynamics(),
 			x=np.asarray([1.0, 0.7]), y=np.asarray([0.2, -0.3]))
-		request = SimulationRequest.uniform(t_span=(0.3, 0.5), max_step=0.2, sample_count=2)
+		request = SimulationRequest.uniform(t_span=(0.3, 0.5),  sample_count=2)
 		for formulation in ("reduced_multiplier", "simultaneous_state_multiplier"):
 			for solver in ("newton", "broyden"):
 				with self.subTest(formulation=formulation, solver=solver):
 					events = []
-					simulate(problem, ABBA6Implicit(projection_formulation=formulation,
+					simulate(problem, ABBA6Implicit(step=0.2, projection_formulation=formulation,
 						nonlinear_solver=solver, newton_absolute_tolerance=1e-14,
 						newton_relative_tolerance=1e-14, newton_max_iterations=40,
 						step_observer=events.append), request)
@@ -131,14 +131,13 @@ class ABBA6MethodTests(unittest.TestCase):
 		events = []
 		solution = simulate(
 			_rotation_problem(),
-			ABBA6Implicit(
+			ABBA6Implicit(step=0.1,
 				newton_absolute_tolerance=1e-14,
 				newton_relative_tolerance=1e-14,
 				step_observer=events.append,
 			),
 			SimulationRequest.uniform(
 				t_span=(0.0, 0.2),
-				max_step=0.1,
 				sample_count=3,
 			),
 		)
@@ -189,13 +188,12 @@ class ABBA6MethodTests(unittest.TestCase):
 		for step in (0.2, 0.1, 0.05):
 			solution = simulate(
 				problem,
-				ABBA6Implicit(
+				ABBA6Implicit(step=step,
 					newton_absolute_tolerance=1e-14,
 					newton_relative_tolerance=1e-14,
 				),
 				SimulationRequest.uniform(
 					t_span=(0.0, 0.8),
-					max_step=step,
 					sample_count=2,
 				),
 			)
@@ -205,8 +203,8 @@ class ABBA6MethodTests(unittest.TestCase):
 			self.assertLess(float(gain), 68.0)
 
 		state = np.asarray([1.0, 0.2])
-		run = ABBA6Implicit(newton_absolute_tolerance=1e-14, newton_relative_tolerance=1e-14).new_run(
-			problem, SimulationRequest.uniform(t_span=(0.3, 0.5), max_step=0.2, sample_count=2))
+		run = ABBA6Implicit(step=0.2, newton_absolute_tolerance=1e-14, newton_relative_tolerance=1e-14).new_run(
+			problem, SimulationRequest.uniform(t_span=(0.3, 0.5),  sample_count=2))
 		forward = run.project(0.3, state, 0.2)
 		backward = run.project(0.5, forward.state, -0.2)
 
@@ -219,13 +217,12 @@ class ABBA6MethodTests(unittest.TestCase):
 		for step in (0.25, 0.125, 0.0625):
 			solution = simulate(
 				problem,
-				ABBA6Implicit(
+				ABBA6Implicit(step=step,
 					newton_absolute_tolerance=1e-14,
 					newton_relative_tolerance=1e-14,
 				),
 				SimulationRequest.uniform(
 					t_span=(0.0, 1.0),
-					max_step=step,
 					sample_count=2,
 				),
 			)

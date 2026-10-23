@@ -42,7 +42,7 @@ def _problem() -> InitialValueProblem:
 
 def _request(dense: bool = False) -> SimulationRequest:
 	return SimulationRequest(
-		t_span=(0.3, 0.34), max_step=(0.34 - 0.3) / 2,
+		t_span=(0.3, 0.34),
 		output_times=np.asarray([0.3, 0.305, 0.32, 0.333, 0.34] if dense else [0.3, 0.32, 0.34]),
 	)
 
@@ -72,20 +72,20 @@ class MethodIntegrationTests(unittest.TestCase):
 				self.assertFalse(hasattr(method, "integrate"))
 				self.assertFalse(hasattr(method, "_integrate_jax"))
 				events = []
-				run = replace(method, step_observer=events.append).new_run(problem, _request())
+				run = replace(replace(method, step_observer=events.append), step=(0.34 - 0.3) / 2).new_run(problem, _request())
 				self.assertIs(type(run), type(method))
 				self.assertIsNot(run, method)
 				self.assertEqual(events, [])
 				self.assertFalse(run.initial_state.flags.writeable)
 		with patch("methods.extended.palindromic.solve_projection", side_effect=AssertionError("Unexpected solve")):
-			BM4Implicit().new_run(problem, _request())
+			BM4Implicit(step=(0.34 - 0.3) / 2).new_run(problem, _request())
 
 	def test_run_advances_and_shadow_samples_do_not_emit_or_accumulate(self) -> None:
 		problem = _problem()
 		for method in _methods():
 			with self.subTest(method=method):
 				events = []
-				run = replace(method, step_observer=events.append).new_run(problem, _request(True))
+				run = replace(replace(method, step_observer=events.append), step=(0.34 - 0.3) / 2).new_run(problem, _request(True))
 				initial = run.initial_state.copy()
 				first = run.advance(0.3, initial, 0.02)
 				run.advance(0.3, initial, 0.005)
@@ -95,11 +95,11 @@ class MethodIntegrationTests(unittest.TestCase):
 				dense = _execute_prepared(run)
 				self.assertEqual(len(events), 2)
 				events.clear()
-				again = _execute_prepared(run.new_run(problem, _request(True)))
+				again = _execute_prepared(replace(run, step=(0.34 - 0.3) / 2).new_run(problem, _request(True)))
 				self.assertEqual(len(events), 2)
 				for key in dense.diagnostics:
 					np.testing.assert_equal(dense.diagnostics[key], again.diagnostics[key])
-				sparse = simulate(problem, method, _request())
+				sparse = simulate(problem, replace(method, step=(0.34 - 0.3) / 2), _request())
 				np.testing.assert_array_equal(dense.states[:, [0, 2, 4]], sparse.states)
 				for key in ("step_times", "step_start_times", "step_sizes"):
 					np.testing.assert_array_equal(dense.diagnostics[key], sparse.diagnostics[key])
@@ -118,15 +118,15 @@ class MethodIntegrationTests(unittest.TestCase):
 				stage.state_after[:] = 777
 		for method in _methods():
 			with self.subTest(method=method):
-				plain = simulate(problem, method, _request(True))
-				observed = simulate(problem, replace(method, step_observer=corrupt), _request(True))
+				plain = simulate(problem, replace(method, step=(0.34 - 0.3) / 2), _request(True))
+				observed = simulate(problem, replace(replace(method, step_observer=corrupt), step=(0.34 - 0.3) / 2), _request(True))
 				np.testing.assert_array_equal(plain.states, observed.states)
 				for key in plain.diagnostics:
 					np.testing.assert_equal(plain.diagnostics[key], observed.diagnostics[key])
 
 	def test_unobserved_bm4_does_not_replay_stage_events(self) -> None:
 		with patch("methods.extended.bm4.stage_events", side_effect=AssertionError("Unexpected event construction")):
-			simulate(_problem(), BM4Implicit(), _request(True))
+			simulate(_problem(), BM4Implicit(step=(0.34 - 0.3) / 2), _request(True))
 
 	def test_controller_can_supply_nonuniform_accepted_steps(self) -> None:
 		"""The coordinator uses accepted intervals, independent of step policy."""
@@ -139,7 +139,7 @@ class MethodIntegrationTests(unittest.TestCase):
 					result = run.advance(t, state, end - t)
 					yield info, result
 					state = result.state
-		run = BM4Implicit().new_run(_problem(), _request(True))
+		run = BM4Implicit(step=(0.34 - 0.3) / 2).new_run(_problem(), _request(True))
 		data = _execute_prepared(run, controller=PrescribedController())
 		state = run.initial_state.copy()
 		for t, end in zip((0.3, 0.31, 0.33), (0.31, 0.33, 0.34)):
@@ -150,7 +150,7 @@ class MethodIntegrationTests(unittest.TestCase):
 
 	def test_failed_step_is_not_observed_or_accepted(self) -> None:
 		events = []
-		run = BM4Implicit(step_observer=events.append).new_run(_problem(), _request())
+		run = BM4Implicit(step=(0.34 - 0.3) / 2, step_observer=events.append).new_run(_problem(), _request())
 		def fail(t, state, h):
 			raise RuntimeError("Nonlinear solve failed")
 		with patch.object(run, "advance", side_effect=fail):
@@ -163,15 +163,15 @@ class MethodIntegrationTests(unittest.TestCase):
 		other = InitialValueProblem(problem.dynamics, GCStateLayout().pack_components([1.1], [1.3]), layout=problem.layout)
 		for method in _methods():
 			with self.subTest(method=method):
-				first = method.new_run(problem, _request())
-				second = method.new_run(other, _request(True))
+				first = replace(method, step=(0.34 - 0.3) / 2).new_run(problem, _request())
+				second = replace(method, step=(0.34 - 0.3) / 2).new_run(other, _request(True))
 				self.assertIs(first.problem, problem)
 				self.assertIs(second.problem, other)
 				self.assertFalse(np.shares_memory(first.initial_state, second.initial_state))
 				self.assertFalse(hasattr(method, "initial_state"))
 				result = _execute_prepared(first)
 				_execute_prepared(second)
-				np.testing.assert_array_equal(result.states, simulate(problem, method, _request()).states)
+				np.testing.assert_array_equal(result.states, simulate(problem, replace(method, step=(0.34 - 0.3) / 2), _request()).states)
 				with self.assertRaisesRegex(TypeError, "fresh"):
 					_execute_prepared(first)
 

@@ -7,7 +7,7 @@ from studies._validation import require_uncoupled_bm4
 from formulations.layout import GCStateLayout
 
 from collections.abc import Callable
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 from types import MappingProxyType
 from typing import Any, Mapping
@@ -38,7 +38,7 @@ from methods.extended.bm4 import BM4Implicit
 from methods.extended.abba import ABBA2Implicit
 from problem import InitialValueProblem
 from methods.extended.abba import ABBA2Midpoint
-from contracts.methods.base import NumericalMethod
+from methods.base import FixedStepMethod
 from request import SimulationRequest
 from states.history import States
 from contracts.methods.observation import StepObserver
@@ -307,7 +307,7 @@ class TrajectorySymplecticityResult:
 			)
 
 
-_MethodFactory = Callable[[StepObserver], NumericalMethod]
+_MethodFactory = Callable[[StepObserver], FixedStepMethod[Any]]
 
 
 def _run_trajectory_symplecticity_study(
@@ -381,11 +381,10 @@ def _run_trajectory_symplecticity_study(
 		)
 		request: SimulationRequest = SimulationRequest.uniform(
 			t_span=config.t_span,
-			max_step=step.value,
 			sample_count=config.output_sample_count,
 		)
 		with observer:
-			solution: States = simulate(problem, method_factory(observer), request)
+			solution: States = simulate(problem, replace(method_factory(observer), step=step.value), request)
 		solutions[step.label] = solution
 		records[step.label] = observer.records
 		output_directories[step.label] = observer.output_directory

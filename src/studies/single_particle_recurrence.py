@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from formulations.layout import GCStateLayout
 
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from time import perf_counter
 from typing import Any, TYPE_CHECKING
 
@@ -184,8 +184,8 @@ def run_single_particle_recurrence(
         configured: Radau | DOP853 = (Radau(**controls, jacobian=lambda t, z: dynamics.particle_vector_field_jacobians(t, z)[0])
                       if method == 'Radau' else DOP853(**controls))
         problem: InitialValueProblem = InitialValueProblem(dynamics, np.array(initial, dtype=float, copy=True), layout=GCStateLayout())
-        data: States = simulate(problem, configured, SimulationRequest(
-            t_span=(0.0, config.final_time), max_step=options['max_step'], output_times=times))
+        data: States = simulate(problem, replace(configured, max_step=options['max_step']), SimulationRequest(
+            t_span=(0.0, config.final_time),  output_times=times))
         dense = observer.evaluate
         solutions[label] = dense
         arrays[label + ".states"] = data.states.copy()

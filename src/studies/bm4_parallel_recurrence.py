@@ -89,7 +89,6 @@ def _initialize_worker(
 	dynamics: GuidingCenterDynamics = GuidingCenterDynamics(potential, rho=config.rho)
 	request: SimulationRequest = SimulationRequest.uniform(
 		t_span=config.t_span,
-		max_step=config.integration_step,
 		sample_count=config.output_sample_count,
 	)
 	_WORKER_CONTEXT = _WorkerContext(
@@ -111,6 +110,7 @@ def _run_particle(particle: int) -> _ParticlePayload:
 	initial_configuration: np.ndarray = GCStateLayout().pack_components(np.asarray([x], dtype=float), np.asarray([y], dtype=float))
 	problem: InitialValueProblem = InitialValueProblem(context.dynamics, initial_configuration, layout=GCStateLayout())
 	method: BM4Implicit = BM4Implicit(
+		step=context.config.integration_step,
 		newton_absolute_tolerance=context.config.absolute_tolerance,
 		newton_relative_tolerance=context.config.relative_tolerance,
 		newton_max_iterations=context.config.max_iterations,

@@ -27,7 +27,7 @@ The default is NumPy/SciPy on the host CPU; a single physical core is not enforc
 
 - `InitialValueProblem`: physical dynamics, initial array and layout.
 - `NumericalMethod`: a reusable provider of fresh numerical runs and capabilities.
-- `SimulationRequest`: time interval, step limit and requested saved times.
+- `SimulationRequest`: time interval and requested saved times.
 - Optional `ExecutionOptions`: backend and device selection for this job.
 
 The executor calls `method.new_run`, validates the fresh run once and owns its
@@ -83,8 +83,9 @@ and a `jax_mode` capability: `"unsupported"`, `"device_resident"` or
 with independent resources, an immutable initial snapshot and numerical metadata.
 The base implementation copies dataclass constructor options and calls `initialize`.
 The optional evaluated dynamics is an environment-prepared evaluation interface;
-the physical problem remains unchanged. CPU extensions can inherit IntegrationMethod
-or provide the structural protocol and return a supported prepared run.
+the physical problem remains unchanged. CPU extensions can inherit `FixedStepMethod` for the default fixed controller,
+or `IntegrationMethod` with their own controller. Structural providers return
+a supported prepared run.
 
 `IntegrationMethod` retains `initialize`, `advance`, `build_observation`,
 `export_history` and `controller`. The default JAX capability is unsupported.
@@ -119,8 +120,8 @@ implement the preparation protocol. No compatibility aliases are retained.
 The older `contracts.execution.Execution` configuration class remains removed.
 Use `Execution` for the executor and `ExecutionOptions` from
 `execution.options` for backend choices. The signatures of `simulate`,
-executors and numerical constructors, archive formats and notebook outputs are
-unchanged. Supported direct callers are migrated; no long notebook run is required.
+executors and archive formats are unchanged by the execution migration.
+Method step controls follow the configuration contract below. Supported direct callers are migrated; no long notebook run is required.
 
 ## Unified execution package
 
@@ -173,3 +174,20 @@ before assignment. Existing optional initializations retain their union with `No
 `prepare_environment` returns `tuple[HamiltonianSystem, jax.Device]`, and
 `resolve_device` returns `jax.Device`. Device imports used only for annotations
 stay under `TYPE_CHECKING`; ordinary CPU imports still do not load JAX.
+
+## Method-owned integration step
+
+Configure fixed methods with `step`, for example `RK4(step=0.03)` (default 0.1
+in runtime time units). `SimulationRequest` supplies only the interval and
+output times. Complete main steps use the configured value; only the last step
+is shortened to reach the final time. The method's `step` remains unchanged.
+Independent shadow samples may use shorter durations without moving the main
+trajectory. Host and JAX use the same schedule and record effective durations
+in `step_sizes`. `advance` remains the numerical operation.
+
+DOP853/Radau instead own `max_step` (default 0.1), an upper bound for their
+adaptive controller. Move former request `max_step` arguments to the method:
+`step` for fixed methods, `max_step` for adaptive methods. Requests no longer
+accept a step argument. A non-divisible interval intentionally gives a different
+main grid from the former uniform rescaling policy; old saved results retain
+their recorded grids.

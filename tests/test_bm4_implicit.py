@@ -57,14 +57,14 @@ class BM4ImplicitMethodTests(unittest.TestCase):
 		"""Compare traced quadrature with an independent energy-augmented replay."""
 		for particles, coupling in ((1, 0.0), (3, 0.0)):
 			problem = InitialValueProblem(GuidingCenterDynamics(_potential(), rho=0.05), GCStateLayout().pack_components(np.linspace(1.0, 1.2, particles), np.linspace(1.2, 1.4, particles)), layout=GCStateLayout())
-			request = SimulationRequest.uniform(t_span=(0.3, 0.5), max_step=0.2, sample_count=2)
+			request = SimulationRequest.uniform(t_span=(0.3, 0.5),  sample_count=2)
 			for solver, jacobian in (('newton', 'analytic'), ('newton', 'finite_difference'), ('broyden', 'analytic')):
 				for step in (0.2, -0.2):
 					with self.subTest(particles=particles, coupling=coupling, solver=solver, jacobian=jacobian, step=step):
 						results = []
 						field_counts = []
 						for tracking in (False, True):
-							run = BM4Implicit(
+							run = BM4Implicit(step=0.2,
 								track_energy=tracking,
 								nonlinear_solver=solver, newton_jacobian_method=jacobian,
 								newton_absolute_tolerance=1e-14, newton_relative_tolerance=1e-14,
@@ -96,12 +96,11 @@ class BM4ImplicitMethodTests(unittest.TestCase):
 		events: list[ImplicitBM4IntegrationStep] = []
 		request = SimulationRequest.uniform(
 			t_span=(0.0, 0.2),
-			max_step=0.2,
 			sample_count=2,
 		)
 		solution = simulate(
 			problem,
-			BM4Implicit(
+			BM4Implicit(step=0.2,
 				newton_absolute_tolerance=1e-14,
 				newton_relative_tolerance=1e-14,
 				step_observer=events.append,
@@ -155,13 +154,12 @@ class BM4ImplicitMethodTests(unittest.TestCase):
 		def final_state(step: float) -> np.ndarray:
 			return simulate(
 				problem,
-				BM4Implicit(
+				BM4Implicit(step=step,
 					newton_absolute_tolerance=1e-14,
 					newton_relative_tolerance=1e-14,
 				),
 				SimulationRequest.uniform(
 					t_span=(0.0, 0.4),
-					max_step=step,
 					sample_count=2,
 				),
 			).states[:, -1]
@@ -176,7 +174,6 @@ class BM4ImplicitMethodTests(unittest.TestCase):
 		problem = InitialValueProblem(GuidingCenterDynamics(_potential(), rho=0.05), np.array(np.asarray([1.0, 1.2, 1.1, 0.9]), dtype=float, copy=True), layout=GCStateLayout())
 		request = SimulationRequest.uniform(
 			t_span=(0.0, 0.1),
-			max_step=0.05,
 			sample_count=3,
 		)
 		common = {
@@ -185,12 +182,12 @@ class BM4ImplicitMethodTests(unittest.TestCase):
 		}
 		analytic = simulate(
 			problem,
-			BM4Implicit(**common, newton_jacobian_method="analytic"),
+			BM4Implicit(step=0.05, **common, newton_jacobian_method="analytic"),
 			request,
 		)
 		finite_difference = simulate(
 			problem,
-			BM4Implicit(**common, newton_jacobian_method="finite_difference"),
+			BM4Implicit(step=0.05, **common, newton_jacobian_method="finite_difference"),
 			request,
 		)
 
@@ -210,10 +207,9 @@ class BM4ImplicitMethodTests(unittest.TestCase):
 		events = []
 		solution = simulate(
 			_problem(),
-			BM4Implicit(step_observer=events.append),
+			BM4Implicit(step=0.02, step_observer=events.append),
 			SimulationRequest.uniform(
 				t_span=(0.0, 0.05),
-				max_step=0.02,
 				sample_count=11,
 			),
 		)

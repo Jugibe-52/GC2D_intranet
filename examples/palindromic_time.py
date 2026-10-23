@@ -1,5 +1,7 @@
 """Compare explicit center/end time translations in a small GC simulation."""
 
+from dataclasses import replace
+
 import numpy as np
 
 from dynamics.gc import GuidingCenterDynamics
@@ -16,10 +18,10 @@ def main() -> None:
 	potential = Potential.random(A=.08, M=3, nx=16, ny=16, seed=27)
 	problem = InitialValueProblem(GuidingCenterDynamics(potential, rho=.05),
 		np.array([1., 1.2]), layout=GCStateLayout())
-	request = SimulationRequest.uniform(t_span=(0., .1), max_step=.01, sample_count=3)
+	request = SimulationRequest.uniform(t_span=(0., .1),  sample_count=3)
 	for method in (PalindromicImplicit, PalindromicMidpoint):
 		for recipe in (center, edges):
-			result = simulate(problem, method(recipe, track_energy=True), request)
+			result = simulate(problem, replace(method(recipe, track_energy=True), step=0.01), request)
 			operations = ' '.join(f'{op.name}({op.coefficient:g})' for op in recipe.operations)
 			print(f'{method.__name__}, {recipe.name}: {operations}')
 			print(f'Final physical state: {result.states[:, -1]}')

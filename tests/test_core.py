@@ -64,14 +64,12 @@ def fc_problem(
 
 def uniform_request(
 	*,
-	step: float,
 	t_span: tuple[float, float],
 	sample_count: int,
 ) -> SimulationRequest:
 	"""Build the common uniform temporal request used by contract tests."""
 	return SimulationRequest.uniform(
 		t_span=t_span,
-		max_step=step,
 		sample_count=sample_count,
 	)
 
@@ -309,9 +307,8 @@ class TrajectoryTests(unittest.TestCase):
 
 		solution = simulate(
 			gc_problem(square),
-			RK4(),
+			RK4(step=0.01),
 			uniform_request(
-				step=0.01,
 				t_span=(0.0, 0.02),
 				sample_count=3,
 			),
@@ -338,9 +335,8 @@ class SimulationTests(unittest.TestCase):
 		dynamics = GuidingCenterDynamics(random_potential(), rho=0.05)
 		solution = simulate(
 			InitialValueProblem(dynamics, area, layout=GCStateLayout()),
-			BM4Implicit(),
+			BM4Implicit(step=0.01),
 			uniform_request(
-				step=0.01,
 				t_span=(0.0, 0.02),
 				sample_count=3,
 			),
@@ -467,7 +463,6 @@ class SimulationTests(unittest.TestCase):
 		trajectory = np.array(np.asarray([1.0, 1.2]), dtype=float, copy=True)
 		with self.assertRaises(ValueError):
 			uniform_request(
-				step=0.01,
 				t_span=(1.0, 1.0),
 				sample_count=3,
 			)

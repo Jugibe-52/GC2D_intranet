@@ -6,7 +6,7 @@ from studies._validation import require_uncoupled_bm4
 
 from formulations.layout import GCStateLayout
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from time import perf_counter
 from types import MappingProxyType
 from typing import Callable, Mapping, TYPE_CHECKING
@@ -20,7 +20,7 @@ from dynamics import GuidingCenterDynamics
 from methods.extended.bm4 import BM4Implicit
 from methods.hbvm.order4 import HBVM42, HBVMJacobianMethod, _validated_jacobian_method
 from problem import InitialValueProblem
-from contracts.methods.base import NumericalMethod
+from methods.base import FixedStepMethod
 from request import SimulationRequest
 from states.history import States
 from simulation.runner import simulate
@@ -362,8 +362,8 @@ def _reference_solution(
 	maximum_step: float,
 ) -> np.ndarray:
 	"""Compute an independent high-accuracy DOP853 reference on fixed times."""
-	request: SimulationRequest = SimulationRequest((float(times[0]), float(times[-1])), maximum_step, times)
-	return simulate(problem, DOP853(relative_tolerance=relative_tolerance,
+	request: SimulationRequest = SimulationRequest((float(times[0]), float(times[-1])),  times)
+	return simulate(problem, DOP853(max_step=maximum_step, relative_tolerance=relative_tolerance,
 		absolute_tolerance=absolute_tolerance), request).states
 
 
@@ -386,20 +386,21 @@ def _hbvm_method(
 
 def _timed_simulations(
 	problem: InitialValueProblem,
-	method_factory: Callable[[], NumericalMethod],
+	method_factory: Callable[[], FixedStepMethod[Any]],
 	request: SimulationRequest,
 	*,
+	step: float,
 	warmups: int,
 	repeats: int,
 ) -> tuple[float, float, States]:
 	"""Return median/minimum wall time and the last repeated solution."""
 	for _ in range(warmups):
-		simulate(problem, method_factory(), request)
+		simulate(problem, replace(method_factory(), step=step), request)
 	timings: np.ndarray = np.empty(repeats, dtype=float)
 	last_solution: States | None = None
 	for index in range(repeats):
 		started: float = perf_counter()
-		last_solution = simulate(problem, method_factory(), request)
+		last_solution = simulate(problem, replace(method_factory(), step=step), request)
 		timings[index] = perf_counter() - started
 	assert last_solution is not None
 	return float(np.median(timings)), float(np.min(timings)), last_solution
@@ -407,7 +408,7 @@ def _timed_simulations(
 
 def _flow_jacobian(
 	problem: InitialValueProblem,
-	method_factory: Callable[[], NumericalMethod],
+	method_factory: Callable[[], FixedStepMethod[Any]],
 	*,
 	t_span: tuple[float, float],
 	step: float,
@@ -418,7 +419,6 @@ def _flow_jacobian(
 	jacobian: np.ndarray = np.empty((2, 2), dtype=float)
 	request: SimulationRequest = SimulationRequest.uniform(
 		t_span=t_span,
-		max_step=step,
 		sample_count=2,
 	)
 	for column in range(2):
@@ -431,7 +431,7 @@ def _flow_jacobian(
 			endpoints.append(
 				simulate(
 					perturbed_problem,
-					method_factory(),
+					replace(method_factory(), step=step),
 					request,
 				).states[:, -1]
 			)
@@ -477,7 +477,6 @@ def run_hbvm42_evaluation(
 	assert isinstance(dynamics, HamiltonianSystem)
 	times = SimulationRequest.uniform(
 		t_span=config.t_span,
-		max_step=config.save_interval,
 		sample_count=config.output_sample_count,
 	).output_times
 	reference_states: np.ndarray = _reference_solution(
@@ -492,10 +491,9 @@ def run_hbvm42_evaluation(
 	for step in config.steps:
 		request: SimulationRequest = SimulationRequest(
 			t_span=config.t_span,
-			max_step=step,
 			output_times=times,
 		)
-		solution: States = simulate(problem, _hbvm_method(config, track_energy=True), request)
+		solution: States = simulate(problem, replace(_hbvm_method(config, track_energy=True), step=step), request)
 		solutions[step] = solution
 		differences = solution.states - reference_states
 		distances: np.ndarray = np.linalg.norm(differences, axis=0)
@@ -509,7 +507,6 @@ def run_hbvm42_evaluation(
 
 		benchmark_request: SimulationRequest = SimulationRequest.uniform(
 			t_span=config.t_span,
-			max_step=step,
 			sample_count=2,
 		)
 		median_runtime: float
@@ -518,7 +515,7 @@ def run_hbvm42_evaluation(
 			problem,
 			lambda: _hbvm_method(config, track_energy=False),
 			benchmark_request,
-			warmups=config.runtime_warmups,
+			step=step, warmups=config.runtime_warmups,
 			repeats=config.runtime_repeats,
 		)
 
@@ -633,7 +630,7 @@ def run_hbvm42_bm4_comparison(
 	bm4_jacobian_method = (
 		"analytic" if config.jacobian_method == "auto" else config.jacobian_method
 	)
-	method_factories: tuple[tuple[str, Callable[[], NumericalMethod]], ...] = (
+	method_factories: tuple[tuple[str, Callable[[], FixedStepMethod[Any]]], ...] = (
 		(HBVM42_LABEL, lambda: _hbvm_method(config, track_energy=False)),
 		(
 			BM4_LABEL,
@@ -652,7 +649,6 @@ def run_hbvm42_bm4_comparison(
 	for step in config.steps:
 		request: SimulationRequest = SimulationRequest.uniform(
 			t_span=config.t_span,
-			max_step=step,
 			sample_count=2,
 		)
 		for method_label, method_factory in method_factories:
@@ -663,7 +659,7 @@ def run_hbvm42_bm4_comparison(
 				problem,
 				method_factory,
 				request,
-				warmups=config.runtime_warmups,
+				step=step, warmups=config.runtime_warmups,
 				repeats=config.runtime_repeats,
 			)
 			rows.append(

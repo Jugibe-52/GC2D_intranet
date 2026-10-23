@@ -12,7 +12,7 @@ from problem import InitialValueProblem
 from contracts.states.history import DiagnosticValue
 from contracts.methods.step import StepInfo, StepResult
 from formulations.gc import GCDoubledMaps
-from formulations.state import DoubledFormulation
+from formulations.state import DoubleFormulation
 from request import SimulationRequest
 from solvers.nonlinear import AlgebraicSolver, NonlinearSolver
 from methods._validation import _positive_finite
@@ -21,6 +21,7 @@ from methods.extended.core.composition import BM4, Composition
 from contracts.methods.extended.core.records import ProjectedMap
 from methods.extended.core.records import ProjectedMapResult as _ProjectedBM4Step
 from methods.extended.observations import stage_events
+from methods.base import FixedStepMethod
 from methods.extended.palindromic import ProjectedPalindromicMethod, MidpointPalindromicMethod
 
 
@@ -86,12 +87,13 @@ class BM4Implicit(ProjectedPalindromicMethod):
 	newton_observer: NewtonObserver | None = field(default=None, kw_only=True)
 
 	# Resources owned by one run; excluded from constructor options.
-	state_formulation: DoubledFormulation = field(init=False, repr=False, compare=False)
+	state_formulation: DoubleFormulation = field(init=False, repr=False, compare=False)
 	formulation: GCDoubledMaps = field(init=False, repr=False, compare=False)
 	project: ProjectedMap = field(init=False, repr=False, compare=False)
 
 	def __post_init__(self) -> None:
 		"""Validate and normalize all numeric and enumerated solver controls."""
+		FixedStepMethod.__post_init__(self)
 		self._validate_solver_controls()
 		self.newton_jacobian_relative_step = _positive_finite(self.newton_jacobian_relative_step, 'newton_jacobian_relative_step')
 		if self.newton_jacobian_method not in NEWTON_JACOBIAN_METHODS:
@@ -118,7 +120,6 @@ class BM4Implicit(ProjectedPalindromicMethod):
 			"nonlinear_unknown_dimension": problem.initial_state.size,
 			"nonlinear_solves_per_step": 1,
 		}
-		self.initial_state = self.state_formulation.initial_state
 		self.metadata = {**metadata, **self._operation_metadata()}
 
 

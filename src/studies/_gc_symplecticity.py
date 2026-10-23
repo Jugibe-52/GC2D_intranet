@@ -6,7 +6,7 @@ from formulations.layout import GCStateLayout
 
 from collections.abc import Callable
 from contextlib import ExitStack
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from time import perf_counter
 from types import MappingProxyType
@@ -19,7 +19,7 @@ from dynamics import GuidingCenterDynamics
 from potential import Potential
 from problem import InitialValueProblem
 from contracts.methods.observation import IntegrationStep, StepObserver
-from contracts.methods.base import NumericalMethod
+from methods.base import FixedStepMethod
 from request import SimulationRequest
 from states.history import States
 from simulation.runner import simulate
@@ -289,7 +289,7 @@ def _summary_solver_values(
 	return max_iterations, mean_iterations, max_residual, max_multiplier
 
 
-_MethodFactory = Callable[[StepObserver], NumericalMethod]
+_MethodFactory = Callable[[StepObserver], FixedStepMethod[Any]]
 _ResultT = TypeVar("_ResultT", bound=GCSymplecticityResult)
 
 
@@ -359,13 +359,12 @@ def _run_gc_symplecticity_study(
 		with _TimedStepObserver(observer) as timed_observer:
 			request: SimulationRequest = SimulationRequest.uniform(
 				t_span=config.t_span,
-				max_step=step.value,
 				sample_count=config.output_sample_count,
 			)
 			started: float = perf_counter()
 			solution: States = simulate(
 				problem,
-				method_factory(timed_observer),
+				replace(method_factory(timed_observer), step=step.value),
 				request,
 			)
 			total_simulation_time = perf_counter() - started
@@ -487,12 +486,11 @@ def _run_gc_symplecticity_observers(
 
 			request: SimulationRequest = SimulationRequest.uniform(
 				t_span=config.t_span,
-				max_step=step.value,
 				sample_count=config.output_sample_count,
 			)
 			fanout: _StepObserverFanout = _StepObserverFanout(tuple(timed_observers.values()))
 			started: float = perf_counter()
-			solution: States = simulate(problem, method_factory(fanout), request)
+			solution: States = simulate(problem, replace(method_factory(fanout), step=step.value), request)
 			total_simulation_time = perf_counter() - started
 			observer_time: float | Literal[0] = sum(
 				timed.elapsed_seconds for timed in timed_observers.values()

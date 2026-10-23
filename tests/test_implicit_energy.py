@@ -62,14 +62,13 @@ class GeneralizedEnergyObserverTests(unittest.TestCase):
 		events: list[ImplicitBM4IntegrationStep] = []
 		simulate(
 			problem,
-			BM4Implicit(
+			BM4Implicit(step=0.1,
 				newton_absolute_tolerance=1e-14,
 				newton_relative_tolerance=1e-14,
 				step_observer=events.append,
 			),
 			SimulationRequest.uniform(
 				t_span=(0.0, 0.1),
-				max_step=0.1,
 				sample_count=2,
 			),
 		)

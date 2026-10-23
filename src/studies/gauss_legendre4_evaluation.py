@@ -6,7 +6,7 @@ from diagnostics.studies.comparison import final_rms_floor, time_integrated_rms_
 
 from formulations.layout import GCStateLayout
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from time import perf_counter
 from types import MappingProxyType
 from typing import Mapping, TYPE_CHECKING
@@ -526,7 +526,6 @@ def run_gauss_legendre4_evaluation(
 	problem: InitialValueProblem = InitialValueProblem(dynamics, initial_configuration, layout=GCStateLayout())
 	request: SimulationRequest = SimulationRequest.uniform(
 		t_span=config.t_span,
-		max_step=config.integration_steps[-1],
 		sample_count=config.output_sample_count,
 	)
 	reference: AdaptiveReference = build_adaptive_reference(
@@ -553,7 +552,6 @@ def run_gauss_legendre4_evaluation(
 	for step in config.integration_steps:
 		step_request: SimulationRequest = SimulationRequest.uniform(
 			t_span=config.t_span,
-			max_step=step,
 			sample_count=config.output_sample_count,
 		)
 		collector: _SymplecticityCollector = _SymplecticityCollector(
@@ -572,7 +570,7 @@ def run_gauss_legendre4_evaluation(
 			progress=config.progress,
 			step_observer=collector,
 		)
-		solution: States = simulate(problem, method, step_request)
+		solution: States = simulate(problem, replace(method, step=step), step_request)
 		solutions[step] = solution
 		accuracy_by_step[step] = accuracy_series(
 			"GaussLegendre4",
@@ -583,7 +581,6 @@ def run_gauss_legendre4_evaluation(
 		)
 		energy_request: SimulationRequest = SimulationRequest.uniform(
 			t_span=config.t_span,
-			max_step=step,
 			sample_count=(
 				integer_ratio(
 					config.t_span[1] - config.t_span[0],
@@ -595,7 +592,7 @@ def run_gauss_legendre4_evaluation(
 		)
 		energy_solution: States = simulate(
 			problem,
-			GaussLegendre4(
+			GaussLegendre4(step=step,
 				track_energy=True,
 				newton_absolute_tolerance=config.absolute_tolerance,
 				newton_relative_tolerance=config.relative_tolerance,
@@ -616,7 +613,7 @@ def run_gauss_legendre4_evaluation(
 		geometry_by_step[step] = collector.result()
 		newton_audit_solution: States = simulate(
 			problem,
-			GaussLegendre4(
+			GaussLegendre4(step=step,
 				track_energy=False,
 				newton_absolute_tolerance=(
 					config.absolute_tolerance
@@ -660,11 +657,11 @@ def run_gauss_legendre4_evaluation(
 			progress=False,
 		)
 		for _ in range(config.timing_warmups):
-			simulate(problem, timing_method, step_request)
+			simulate(problem, replace(timing_method, step=step), step_request)
 		timing_samples: list[float] = []
 		for _ in range(config.timing_repeats):
 			started: float = perf_counter()
-			simulate(problem, timing_method, step_request)
+			simulate(problem, replace(timing_method, step=step), step_request)
 			timing_samples.append(perf_counter() - started)
 		runtimes_by_step[step] = readonly_runtime_samples(
 			np.asarray(timing_samples)

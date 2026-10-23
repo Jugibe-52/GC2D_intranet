@@ -170,13 +170,12 @@ class ImplicitABBAFormulationTests(unittest.TestCase):
 		problem = InitialValueProblem(dynamics, np.array(state, dtype=float, copy=True), layout=GCStateLayout())
 		request = SimulationRequest.uniform(
 			t_span=(0.0, 0.2),
-			max_step=0.05,
 			sample_count=5,
 		)
 		solutions = {
 			formulation: simulate(
 				problem,
-				ABBA2Implicit(projection_formulation=formulation),
+				ABBA2Implicit(step=0.05, projection_formulation=formulation),
 				request,
 			)
 			for formulation in ABBA_PROJECTION_FORMULATIONS

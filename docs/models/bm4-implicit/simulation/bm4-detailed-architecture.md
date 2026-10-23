@@ -23,7 +23,7 @@ composition, nonlinear solve, derivatives, passive energy and accepted records.
 ## One complete implicit step
 
 For `N` guiding-center particles, let `z` be the packed physical state of size
-`m = 2N`. The shared `DoubledFormulation` stores two identical accepted spatial
+`m = 2N`. The shared `DoubleFormulation` stores two identical accepted spatial
 copies, plus one time and one physical momentum per particle when tracking
 energy. Its accepted internal size is therefore `4N` or `6N`.
 
@@ -187,3 +187,21 @@ older detailed diagram above remains a historical artifact.
 ![Current BM4 components](bm4-components.svg)
 
 [Diagram source](bm4-components.puml) and [PNG](bm4-components.png).
+
+## State representation and step preparation
+
+The method initializes its internal state from physical input and the request's
+time. `SingleFormulation`/`DoubleFormulation` retain only layout, particle count
+and tracking settings. Their `lift` operation prepares physical copies; `pack`
+adds caller-supplied time and momentum. The method selects projection and solver,
+updates passive momentum, and supplies Hamiltonian values for output diagnostics.
+Accepted doubled copies stay equal, with no additional copies across steps.
+See [representation operations](../../../simulation/initial-solvers-formulations.md#state-representations).
+
+## Integration step
+
+This method owns its positive `step` (default 0.1 in runtime time units).
+Complete steps retain that size; only the final accepted step is shortened.
+`advance` receives the effective duration without modifying the configured value.
+See the [shared scheduling contract](../../../simulation/execution.md#method-owned-integration-step)
+for independent output sampling and the common CPU/JAX grid.

@@ -6,7 +6,7 @@ from studies._validation import require_uncoupled_bm4
 
 from formulations.layout import GCStateLayout
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from types import MappingProxyType
 from typing import Mapping
 
@@ -177,7 +177,6 @@ def run_generalized_energy_comparison(
 	for step in config.steps:
 		request: SimulationRequest = SimulationRequest.uniform(
 			t_span=config.t_span,
-			max_step=step,
 			sample_count=config.output_sample_count,
 		)
 		energy_observer: GCGeneralizedEnergyObserver = GCGeneralizedEnergyObserver(
@@ -195,7 +194,7 @@ def run_generalized_energy_comparison(
 			progress=config.progress,
 			step_observer=energy_observer,
 		)
-		raw_solution: States = simulate(problem, method, request)
+		raw_solution: States = simulate(problem, replace(method, step=step), request)
 		records = energy_observer.records
 		if len(records) != raw_solution.n_steps + 1:
 			raise RuntimeError(

@@ -117,9 +117,8 @@ def run_dimensional_bm4_midpoint(
     problem: InitialValueProblem = InitialValueProblem(GuidingCenterDynamics(field.stream, rho=rho), initial, layout=GCStateLayout())
     count = cycles * steps_per_cycle
     request: SimulationRequest = SimulationRequest.uniform(t_span=(0.0, float(cycles)),
-                                        max_step=1.0 / steps_per_cycle,
                                         sample_count=count + 1)
-    solution: States = simulate(problem, BM4Midpoint(), request)
+    solution: States = simulate(problem, BM4Midpoint(step=1.0 / steps_per_cycle), request)
     if solution.diagnostics["step_count"] != count or solution.states.shape != (2, count + 1):
         raise RuntimeError("BM4Midpoint did not save every complete step.")
     return solution

@@ -165,7 +165,7 @@ def build_rho_star(field: DimensionalH5Field, config: RhoStarConfig, *,
         runtime_rho = config.rho_hat
     problem: InitialValueProblem = InitialValueProblem(GuidingCenterDynamics(stream, rho=runtime_rho), initial, layout=GCStateLayout())
     request: SimulationRequest = SimulationRequest(
-        t_span=(0.0, float(config.cycles)), max_step=1.0 / config.steps_per_cycle,
+        t_span=(0.0, float(config.cycles)),
         output_times=np.arange(config.cycles + 1, dtype=float),
     )
     x: np.ndarray
@@ -317,18 +317,18 @@ def _validate_rho_cycle_solution(solution: States, config: RhoStarConfig, *,
 def _rho_star_method(config: RhoStarConfig) -> BM4Midpoint | BM4Implicit | RK4 | GaussLegendre4:
     """Bind the explicit scientific method selection to its canonical class."""
     if config.method == "BM4Midpoint":
-        return BM4Midpoint()
+        return BM4Midpoint(step=1.0 / config.steps_per_cycle)
     if config.method == "RK4":
-        return RK4()
+        return RK4(step=1.0 / config.steps_per_cycle)
     if config.method == "BM4Implicit":
-        return BM4Implicit(
+        return BM4Implicit(step=1.0 / config.steps_per_cycle,
             newton_absolute_tolerance=config.newton_absolute_tolerance,
             newton_relative_tolerance=config.newton_relative_tolerance,
             newton_max_iterations=config.newton_max_iterations,
             newton_jacobian_relative_step=config.newton_jacobian_relative_step,
             newton_jacobian_method="analytic",
         )
-    return GaussLegendre4(
+    return GaussLegendre4(step=1.0 / config.steps_per_cycle,
         newton_absolute_tolerance=config.newton_absolute_tolerance,
         newton_relative_tolerance=config.newton_relative_tolerance,
         newton_max_iterations=config.newton_max_iterations,

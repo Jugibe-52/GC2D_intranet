@@ -113,7 +113,6 @@ def build_radial_cycle(potential: Potential, config: RadialCycleConfig, baseline
                        interpolation_order=potential.interpolation_order)
     count = config.cycles * config.steps_per_cycle
     request: SimulationRequest = SimulationRequest(t_span=(0., float(config.cycles)),
-                                max_step=1 / config.steps_per_cycle,
                                 output_times=np.arange(count + 1) / config.steps_per_cycle)
     metadata: dict[str, Any] = dict(
         study="bm4midpoint_radial_cycle_time", config=asdict(config),
@@ -198,7 +197,7 @@ def run_and_save_radial_cycle(prepared: PreparedRadialCycle, destination: str | 
             raise ValueError("Destination contains a different experiment; choose a new run ID.")
         validate_radial_solution(saved.solution, prepared)
         return saved
-    solution: States = simulate(prepared.problem, BM4Midpoint(),
+    solution: States = simulate(prepared.problem, BM4Midpoint(step=1.0 / prepared.config.steps_per_cycle),
                         prepared.request, execution=Execution(), options=options)
     validate_radial_solution(solution, prepared)
     metadata = {**expected, "execution_options": asdict(options)}

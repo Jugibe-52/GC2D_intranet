@@ -48,3 +48,13 @@ archive schemas are unchanged. Readers do not depend on study orchestration.
 `tests/test_comparison_diagnostics.py` checks known reductions, periodic wrapping,
 input/output ownership and independent record imports. Archive round trips are
 covered by `tests/test_study_result_contracts.py`.
+
+## Energy extraction responsibility
+
+Host methods evaluate H on saved physical samples once. Compiled methods may
+supply their device-evaluated H directly through `export_history(..., energy=...)`.
+Single/double representations combine the supplied H with stored physical kappa;
+they never access a problem or evaluate dynamics. Energy-tracked direct
+`extract_history` requires an energy array. Preserved diagnostic names,
+normalization, saved-time alignment and independent accepted-step statistics
+require no archive migration.

@@ -2,12 +2,12 @@
 schema_version = 1
 kind = "spec"
 id = "simulation"
-sources = ["src/states/initial.py", "src/solvers/nonlinear.py", "src/formulations/projection.py", "src/simulation/runner.py", "src/problem.py", "src/request.py", "src/execution/execution.py", "src/execution/_jax.py", "src/methods/base.py", "src/execution/options.py", "src/contracts/arrays.py", "src/contracts/methods/base.py", "src/contracts/execution/controllers.py", "src/contracts/dynamics/protocols.py", "src/contracts/formulations/base.py", "src/contracts/formulations/projection.py"]
+sources = ["src/formulations/state.py", "src/states/initial.py", "src/solvers/nonlinear.py", "src/formulations/projection.py", "src/simulation/runner.py", "src/problem.py", "src/request.py", "src/execution/execution.py", "src/execution/_jax.py", "src/methods/base.py", "src/execution/options.py", "src/contracts/arrays.py", "src/contracts/methods/base.py", "src/contracts/execution/controllers.py", "src/contracts/dynamics/protocols.py", "src/contracts/formulations/base.py", "src/contracts/formulations/projection.py"]
 documents = ["docs/simulation/initial-solvers-formulations.md", "docs/simulation/integration-architecture.md", "docs/simulation/execution.md", "docs/simulation/jax-execution.md"]
 
 [[requirements]]
 id = "SIM-001"
-tests = ["tests/test_initial_solvers_formulations.py", "tests/test_core.py::SimulationTests.test_problem_and_request_validate_initial_state_and_time_span", "tests/test_state_ownership.py::StateOwnershipTests.test_problem_and_prepared_formulations_own_state_and_layout_snapshots"]
+tests = ["tests/test_independent_formulations.py", "tests/test_initial_solvers_formulations.py", "tests/test_core.py::SimulationTests.test_problem_and_request_validate_initial_state_and_time_span", "tests/test_state_ownership.py::StateOwnershipTests.test_problem_and_prepared_formulations_own_state_and_layout_snapshots"]
 
 [[requirements]]
 id = "SIM-002"
@@ -29,6 +29,23 @@ options=None) -> States`. This baseline covers orchestration, not a particular
 integrator's accuracy or convergence. Detailed ownership remains in the
 [integration architecture](../../docs/simulation/integration-architecture.md)
 and [executor contract](../../docs/simulation/execution.md).
+
+## Method-owned integration step
+
+Configure fixed methods with `step`, for example `RK4(step=0.03)` (default 0.1
+in runtime time units). `SimulationRequest` supplies only the interval and
+output times. Complete main steps use the configured value; only the last step
+is shortened to reach the final time. The method's `step` remains unchanged.
+Independent shadow samples may use shorter durations without moving the main
+trajectory. Host and JAX use the same schedule and record effective durations
+in `step_sizes`. `advance` remains the numerical operation.
+
+DOP853/Radau instead own `max_step` (default 0.1), an upper bound for their
+adaptive controller. Move former request `max_step` arguments to the method:
+`step` for fixed methods, `max_step` for adaptive methods. Requests no longer
+accept a step argument. A non-divisible interval intentionally gives a different
+main grid from the former uniform rescaling policy; old saved results retain
+their recorded grids.
 
 ## SIM-001: Validated problem snapshot
 
@@ -142,3 +159,16 @@ hierarchy as `src`; shared records follow their consuming process or method fami
 See the [contract map](../../docs/simulation/contracts.md). Implementations and
 numerical operations remain in their original domains. Public facades re-export
 canonical contracts, and internal consumers import their defining modules.
+
+## Independent state formulation and method preparation
+
+`SingleFormulation` and `DoubleFormulation` describe structural layouts and one
+or two physical copies independently of GC/FC dynamics. They retain particle
+count and tracking settings, but no problem, initial values, clock or solver.
+Methods own initial-state construction, zero initial passive momentum, per-step
+copy preparation, projection and nonlinear solves. Generic `lift`, `join_copies`
+and `pack` operations preserve NumPy/JAX backends. Methods evaluate physical
+energy; representations assemble diagnostics from supplied values. Existing
+implicit `solver=None` defaults, projection equations, supported physical models
+and diagnostic labels retain their meanings. See
+[the component interface](../../docs/simulation/initial-solvers-formulations.md#state-representations).

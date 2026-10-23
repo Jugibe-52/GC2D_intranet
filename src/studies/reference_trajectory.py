@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from formulations.layout import GCStateLayout
 
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 import hashlib
 import json
 from pathlib import Path
@@ -207,7 +207,6 @@ def _output_times(config: HighPrecisionReferenceConfig) -> np.ndarray:
 	"""Use the simulation request grid to match later fixed-step solutions exactly."""
 	return SimulationRequest.uniform(
 		t_span=config.t_span,
-		max_step=config.save_interval,
 		sample_count=config.output_sample_count,
 	).output_times
 
@@ -239,8 +238,8 @@ def _solve_adaptive(
 		absolute_tolerance=absolute_tolerance,
 		step_observer=report if progress_callback is not None else None)
 	problem: InitialValueProblem = InitialValueProblem(dynamics, np.array(np.asarray(initial_state, dtype=float), dtype=float, copy=True), layout=GCStateLayout())
-	request: SimulationRequest = SimulationRequest((float(times[0]), float(times[-1])), maximum_step, times)
-	result: States = simulate(problem, configured, request)
+	request: SimulationRequest = SimulationRequest((float(times[0]), float(times[-1])),  times)
+	result: States = simulate(problem, replace(configured, max_step=maximum_step), request)
 
 	runtime = perf_counter() - started
 	states: np.ndarray = np.array(result.states, dtype=float, copy=True)

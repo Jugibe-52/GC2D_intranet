@@ -6,7 +6,7 @@ from studies._validation import require_uncoupled_bm4
 
 from formulations.layout import GCStateLayout
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from types import MappingProxyType
 from typing import Callable, Literal, Mapping, TYPE_CHECKING
 
@@ -33,7 +33,7 @@ from methods.extended.abba import ABBA4Implicit
 from methods.extended.bm4 import BM4Implicit
 from methods.extended.abba import ABBA2Implicit
 from problem import InitialValueProblem
-from contracts.methods.base import NumericalMethod
+from methods.base import FixedStepMethod
 from request import SimulationRequest
 from states.history import States
 from contracts.methods.observation import IntegrationStep
@@ -440,7 +440,7 @@ def _method_for_run(
 	method: ImplicitEnergyMethod,
 	config: ImplicitGeneralizedEnergyConfig,
 	observer: Callable[[IntegrationStep], None],
-) -> NumericalMethod:
+) -> FixedStepMethod[Any]:
 	"""Construct one implicit method with one accepted-step observer."""
 	if method == "abba2_implicit_reduced_multiplier":
 		return ABBA2Implicit(
@@ -518,14 +518,13 @@ def run_implicit_generalized_energy_study(
 			)
 			candidate_solution: States = simulate(
 				candidate_problem,
-				_method_for_run(
+				replace(_method_for_run(
 					method_name,
 					config,
 					candidate_energy_observer,
-				),
+				), step=duration),
 				SimulationRequest.uniform(
 					t_span=(start_time, start_time + duration),
-					max_step=duration,
 					sample_count=2,
 				),
 			)
@@ -549,12 +548,11 @@ def run_implicit_generalized_energy_study(
 
 		request: SimulationRequest = SimulationRequest.uniform(
 			t_span=config.t_span,
-			max_step=step,
 			sample_count=config.output_sample_count,
 		)
 		solution: States = simulate(
 			problem,
-			_method_for_run(method_name, config, observer),
+			replace(_method_for_run(method_name, config, observer), step=step),
 			request,
 		)
 		records = energy_observer.records

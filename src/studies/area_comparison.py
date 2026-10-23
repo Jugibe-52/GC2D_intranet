@@ -6,7 +6,7 @@ from studies._validation import require_uncoupled_bm4
 
 from formulations.layout import GCStateLayout
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from types import MappingProxyType
 from typing import Any, Mapping
@@ -302,7 +302,6 @@ def run_area_comparison(
 		) as observer:
 			request: SimulationRequest = SimulationRequest.uniform(
 				t_span=config.t_span,
-				max_step=step.value,
 				sample_count=config.output_sample_count,
 			)
 			method: BM4Implicit = BM4Implicit(
@@ -317,7 +316,7 @@ def run_area_comparison(
 				progress=config.progress,
 				step_observer=observer,
 			)
-			solution: States = simulate(problem, method, request)
+			solution: States = simulate(problem, replace(method, step=step.value), request)
 		solutions[step.label] = solution
 		records_by_label[step.label] = observer.records
 		output_directories[step.label] = observer.output_directory

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 from formulations.layout import GCStateLayout
 
 from itertools import product
@@ -72,7 +74,6 @@ def _request() -> SimulationRequest:
 	"""Use one short accepted step for inexpensive matrix-wide contracts."""
 	return SimulationRequest.uniform(
 		t_span=(0.0, 0.02),
-		max_step=0.02,
 		sample_count=2,
 	)
 
@@ -117,7 +118,7 @@ class ABBAConfigurationCubeTests(unittest.TestCase):
 			try:
 				cls.implicit_solutions[key] = simulate(
 					problem,
-					method_type(
+					replace(method_type(
 						projection_formulation=formulation,
 						nonlinear_solver=solver,
 						state_extension=extension,
@@ -125,7 +126,7 @@ class ABBAConfigurationCubeTests(unittest.TestCase):
 						newton_absolute_tolerance=1e-12,
 						newton_relative_tolerance=1e-12,
 						newton_max_iterations=50,
-					),
+					), step=0.02),
 					request,
 				)
 			except Exception as exc:  # pragma: no cover - reported by the smoke test
@@ -135,10 +136,10 @@ class ABBAConfigurationCubeTests(unittest.TestCase):
 			try:
 				cls.midpoint_solutions[(extension, track_energy)] = simulate(
 					problem,
-					method_type(
+					replace(method_type(
 						state_extension=extension,
 						track_energy=track_energy,
-					),
+					), step=0.02),
 					request,
 				)
 			except Exception as exc:  # pragma: no cover - reported by the smoke test
@@ -410,7 +411,7 @@ class ABBAConfigurationCubeTests(unittest.TestCase):
 		):
 			solution = simulate(
 				problem,
-				ABBA2Implicit(projection_formulation=formulation),
+				ABBA2Implicit(step=0.02, projection_formulation=formulation),
 				_request(),
 			)
 			diagnostics = solution.diagnostics
@@ -422,7 +423,7 @@ class ABBAConfigurationCubeTests(unittest.TestCase):
 				expected_unknown,
 			)
 
-		midpoint = simulate(problem, ABBA2Midpoint(), _request())
+		midpoint = simulate(problem, ABBA2Midpoint(step=0.02), _request())
 		self.assertEqual(midpoint.diagnostics["accepted_internal_state_dimension"], 12)
 		self.assertEqual(midpoint.diagnostics["base_splitting_state_dimension"], 12)
 		self.assertEqual(midpoint.diagnostics["nonlinear_unknown_dimension"], 0)
@@ -466,13 +467,13 @@ class ABBAConfigurationCubeTests(unittest.TestCase):
 			events = []
 			simulate(
 				physical_problem,
-				method_type(
+				replace(method_type(
 					projection_formulation="simultaneous_state_multiplier",
 					state_extension="physical",
 					newton_absolute_tolerance=1e-13,
 					newton_relative_tolerance=1e-13,
 					step_observer=events.append,
-				),
+				), step=0.02),
 				_request(),
 			)
 			with self.subTest(method=method_type.__name__, extension="physical"):
@@ -494,7 +495,7 @@ class ABBAConfigurationCubeTests(unittest.TestCase):
 
 		# The energy variant exposes the same physical Jacobian domain.
 		events = []
-		simulate(_problem(), ABBA4Implicit(track_energy=True,
+		simulate(_problem(), ABBA4Implicit(step=0.02, track_energy=True,
 		    projection_formulation="simultaneous_state_multiplier", step_observer=events.append), _request())
 		self.assertEqual(events[0].state_before.shape, (2,))
 		analytic = _dense_component_major_jacobian(abba4_implicit_step_particle_jacobians(events[0]))

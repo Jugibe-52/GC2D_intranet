@@ -534,7 +534,7 @@ def _method_for_variant(
 	config: ABBA4ConfigurationComparisonConfig,
 ) -> NumericalMethod:
 	"""Construct one numerical method with common nonlinear controls."""
-	return ABBA4Implicit(
+	return ABBA4Implicit(step=config.integration_step,
 		state_extension=variant.state_extension,
 		track_energy=True,
 		projection_formulation=variant.projection_formulation,
@@ -623,7 +623,6 @@ def _initialize_abba4_worker(
 	dynamics: GuidingCenterDynamics = GuidingCenterDynamics(potential, rho=config.rho)
 	request: SimulationRequest = SimulationRequest.uniform(
 		t_span=config.t_span,
-		max_step=config.integration_step,
 		sample_count=config.output_sample_count,
 	)
 	particle_configurations: tuple[Any, ...] = tuple(
@@ -1047,7 +1046,6 @@ def run_abba4_configuration_comparison(
 	dynamics: GuidingCenterDynamics = GuidingCenterDynamics(potential, rho=config.rho)
 	request: SimulationRequest = SimulationRequest.uniform(
 		t_span=config.t_span,
-		max_step=config.integration_step,
 		sample_count=config.output_sample_count,
 	)
 	reference_indices: np.ndarray = _validated_reference_samples(

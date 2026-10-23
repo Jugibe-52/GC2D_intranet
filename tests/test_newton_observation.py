@@ -31,7 +31,7 @@ def _problem(count: int = 3) -> InitialValueProblem:
 
 
 def _request(dense: bool = False) -> SimulationRequest:
-	return SimulationRequest((.3, .34), (.34 - .3) / 2, np.asarray([.3, .31, .32, .34] if dense else [.3, .32, .34]))
+	return SimulationRequest((.3, .34),  np.asarray([.3, .31, .32, .34] if dense else [.3, .32, .34]))
 
 
 class NewtonObservationTests(unittest.TestCase):
@@ -46,10 +46,10 @@ class NewtonObservationTests(unittest.TestCase):
 				events: list[NewtonIteration] = []
 				with patch.object(type(problem.dynamics), 'vector_field', autospec=True,
 					side_effect=type(problem.dynamics).vector_field) as field:
-					plain = simulate(problem, method, _request())
+					plain = simulate(problem, replace(method, step=(0.34 - 0.3) / 2), _request())
 					plain_calls = field.call_count
 					field.reset_mock()
-					observed = simulate(problem, replace(method, newton_observer=events.append), _request())
+					observed = simulate(problem, replace(replace(method, newton_observer=events.append), step=(0.34 - 0.3) / 2), _request())
 					self.assertEqual(field.call_count, plain_calls)
 				np.testing.assert_array_equal(plain.states, observed.states)
 				for name in plain.diagnostics:
@@ -78,8 +78,8 @@ class NewtonObservationTests(unittest.TestCase):
 				def observe(event: NewtonIteration) -> None:
 					outer.append(event)
 					if len(outer) == 1:
-						simulate(problem, replace(method, newton_observer=inner.append), _request())
-				result = simulate(problem, replace(method, newton_observer=observe, step_observer=steps.append), _request())
+						simulate(problem, replace(replace(method, newton_observer=inner.append), step=(0.34 - 0.3) / 2), _request())
+				result = simulate(problem, replace(replace(method, newton_observer=observe, step_observer=steps.append), step=(0.34 - 0.3) / 2), _request())
 				self.assertEqual(len(outer), len(inner))
 				self.assertEqual(len(outer), np.sum(result.diagnostics['residual_evaluations']))
 				before = len(outer)
@@ -105,7 +105,7 @@ class NewtonObservationTests(unittest.TestCase):
 	def test_history_is_explicit_and_matches_projection_statistics(self) -> None:
 		from studies.poincare_batch_runtime.newton_diagnostics import NewtonHistory
 		history = NewtonHistory(expected_steps=2, progress_every=0)
-		result = simulate(_problem(), BM4Implicit(newton_observer=history), _request())
+		result = simulate(_problem(), BM4Implicit(step=(0.34 - 0.3) / 2, newton_observer=history), _request())
 		arrays = history.arrays()
 		np.testing.assert_array_equal(np.diff(arrays['offsets']), result.diagnostics['nonlinear_iterations'] + 1)
 		final = arrays['offsets'][1:] - 1
@@ -114,7 +114,7 @@ class NewtonObservationTests(unittest.TestCase):
 
 	def test_shadow_solves_are_visible_and_broyden_callbacks_are_rejected(self) -> None:
 		events: list[NewtonIteration] = []
-		simulate(_problem(), BM4Implicit(newton_observer=events.append), _request(dense=True))
+		simulate(_problem(), BM4Implicit(step=(0.34 - 0.3) / 2, newton_observer=events.append), _request(dense=True))
 		initial_guesses = [event for event in events if event.iteration == 0]
 		self.assertEqual(len(initial_guesses), 3)
 		self.assertTrue(any(abs(event.duration - .01) < 1e-15 for event in initial_guesses))
@@ -134,20 +134,20 @@ class NewtonObservationTests(unittest.TestCase):
 		problem = _problem(1)
 		for method in (BM4Implicit(), ABBA2Implicit(), GaussLegendre4(), SDIRK4()):
 			with self.subTest(method=type(method).__name__):
-				plain = simulate(problem, method, _request())
+				plain = simulate(problem, replace(method, step=(0.34 - 0.3) / 2), _request())
 				def mutate(event: NewtonIteration) -> None:
 					# Even deliberately re-enabling writes can only change owned copies.
 					for vector in (event.unknown, event.residual, event.multiplier):
 						if vector is not None:
 							vector.setflags(write=True)
 							vector[:] = 999
-				observed = simulate(problem, replace(method, newton_observer=mutate), _request())
+				observed = simulate(problem, replace(replace(method, newton_observer=mutate), step=(0.34 - 0.3) / 2), _request())
 				np.testing.assert_array_equal(observed.states, plain.states)
 				def fail(event: NewtonIteration) -> None:
 					raise RuntimeError('Observer failed deliberately.')
 				with self.assertRaisesRegex(RuntimeError, 'Observer failed deliberately'):
-					simulate(problem, replace(method, newton_observer=fail), _request())
-				after_failure = simulate(problem, method, _request())
+					simulate(problem, replace(replace(method, newton_observer=fail), step=(0.34 - 0.3) / 2), _request())
+				after_failure = simulate(problem, replace(method, step=(0.34 - 0.3) / 2), _request())
 				np.testing.assert_array_equal(after_failure.states, plain.states)
 
 
@@ -173,7 +173,7 @@ class ParticleLinearSystemTests(unittest.TestCase):
 		for count in (1, 2, 3, 4):
 			for method in (GaussLegendre4(), SDIRK4(), BM4Implicit(), ABBA2Implicit(projection_formulation='simultaneous_state_multiplier')):
 				with self.subTest(count=count, method=method), patch('numpy.linalg.solve', side_effect=require_explicit_rhs):
-					simulate(_problem(count), method, _request())
+					simulate(_problem(count), replace(method, step=(0.34 - 0.3) / 2), _request())
 
 
 if __name__ == '__main__':

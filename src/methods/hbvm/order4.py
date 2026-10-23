@@ -10,8 +10,8 @@ import numpy as np
 
 from contracts.dynamics.protocols import GuidingCenterJacobianSystem
 
-from formulations.state import PhysicalFormulation
-from methods.base import IntegrationMethod
+from formulations.state import SingleFormulation
+from methods.base import FixedStepMethod
 from contracts.methods.step import StepInfo, StepResult
 from contracts.methods.observation import IntegrationStep, StepObserver
 from problem import InitialValueProblem
@@ -354,7 +354,7 @@ def _advance_hbvm42(
 
 
 @dataclass(slots=True)
-class HBVM42(IntegrationMethod[_HBVMStepResult]):
+class HBVM42(FixedStepMethod[_HBVMStepResult]):
 	"""Fourth-order energy-preserving HBVM(4,2).
 
 	The four Gauss--Legendre nodes approximate the Hamiltonian line integral,
@@ -380,6 +380,7 @@ class HBVM42(IntegrationMethod[_HBVMStepResult]):
 
 	def __post_init__(self) -> None:
 		"""Validate nonlinear controls and normalize scalar fields."""
+		FixedStepMethod.__post_init__(self)
 		if self.solver is not None:
 			validate_solver(self.solver, newton_only=True)
 			self.absolute_tolerance = self.solver.absolute_tolerance
@@ -398,12 +399,12 @@ class HBVM42(IntegrationMethod[_HBVMStepResult]):
 			self.jacobian_relative_step, "jacobian_relative_step", allow_boolean=True,
 		)
 
-	state_formulation: PhysicalFormulation = field(init=False, repr=False, compare=False)
+	state_formulation: SingleFormulation = field(init=False, repr=False, compare=False)
 
 	def initialize(self, problem: InitialValueProblem, request: SimulationRequest) -> None:
 		"""Bind the HBVM coefficient solve and optional physical observation."""
-		self.state_formulation = PhysicalFormulation(problem, request.t_span[0], self.track_energy)
-		self.initial_state = self.state_formulation.initial_state
+		self.state_formulation = SingleFormulation(problem.layout, problem.particle_count, self.track_energy)
+		self.initial_state = self._initialize_state(problem, request)
 		self.metadata = {'method_order': 4, 'quadrature_stage_count': 4, 'legendre_rank': 2,
 							  'jacobian_method': self.jacobian_method}
 
@@ -423,9 +424,9 @@ class HBVM42(IntegrationMethod[_HBVMStepResult]):
 		)
 		increment = None
 		if self.track_energy:
-			increment = step * sum(weight * self.state_formulation.momentum_rate(time + step * node, stage)
+			increment = step * sum(weight * self._momentum_rate(time + step * node, stage)
 			    for node, weight, stage in zip(_HBVM42_NODES, _HBVM42_WEIGHTS, result.stage_states))
-		after: np.ndarray = self.state_formulation.finish(state, result.state, time + step, increment)
+		after: np.ndarray = self._finish_state(state, result.state, time + step, increment)
 		return StepResult(after, {
 			'nonlinear_iterations': result.iterations,
 			'nonlinear_residual_norms': result.residual_norm,
@@ -438,8 +439,8 @@ class HBVM42(IntegrationMethod[_HBVMStepResult]):
 
 	def build_observation(self, info: StepInfo, result: StepResult[_HBVMStepResult]) -> IntegrationStep:
 		def map_state(candidate: np.ndarray) -> np.ndarray:
-			internal: np.ndarray = self.state_formulation.pack(candidate, info.time, self.state_formulation.momentum(info.state_before))
-			return self.state_formulation.physical(self.advance(info.time, internal, info.duration).state)
+			internal: np.ndarray = self.state_formulation.pack(self.state_formulation.lift(candidate), info.time, self.state_formulation.momentum(info.state_before))
+			return np.asarray(self.state_formulation.physical(self.advance(info.time, internal, info.duration).state))
 		return IntegrationStep(
 			dynamics_name=type(self.problem.dynamics).__name__, method_name=type(self).__name__,
 			step_index=info.index, start_time=info.time, time=info.time + info.duration,

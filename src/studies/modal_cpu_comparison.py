@@ -88,7 +88,7 @@ def build_star_problem(potential: Potential, config: ModalCPUStarConfig) -> tupl
                           first_angle=config.first_angle)
     problem: InitialValueProblem = InitialValueProblem(GuidingCenterDynamics(potential, rho=config.rho), initial, layout=GCStateLayout())
     steps = config.cycles * config.steps_per_cycle
-    request: SimulationRequest = SimulationRequest((0., float(config.cycles)), 1. / config.steps_per_cycle,
+    request: SimulationRequest = SimulationRequest((0., float(config.cycles)),
                                 np.arange(steps + 1, dtype=float) / config.steps_per_cycle)
     return problem, request
 
@@ -111,7 +111,7 @@ def run_cpu_star_comparison(
     problem: InitialValueProblem
     request: SimulationRequest
     problem, request = build_star_problem(potential, config)
-    method: BM4Midpoint = BM4Midpoint(track_energy=False,
+    method: BM4Midpoint = BM4Midpoint(step=1.0 / config.steps_per_cycle, track_energy=False,
                          progress=False, step_observer=None)
     options: ExecutionOptions = ExecutionOptions(backend='jax', device='cpu')
     solutions: dict[int, States]

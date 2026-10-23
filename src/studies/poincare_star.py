@@ -4,7 +4,7 @@ from studies._validation import require_uncoupled_bm4
 
 from formulations.layout import GCStateLayout
 
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from hashlib import sha256
 from pathlib import Path
 from time import perf_counter
@@ -93,13 +93,13 @@ def run_poincare_star(source: str | Path, config: PoincareStarConfig, *,
                           first_angle=config.first_angle)
     problem: InitialValueProblem = InitialValueProblem(GuidingCenterDynamics(field.stream, rho=rho_m), initial, layout=GCStateLayout())
     request: SimulationRequest = SimulationRequest(
-        t_span=(0.0, float(config.cycles)), max_step=1.0 / config.steps_per_cycle,
+        t_span=(0.0, float(config.cycles)),
         output_times=np.arange(config.cycles + 1, dtype=float),
     )
     method: BM4Midpoint = BM4Midpoint(
                          track_energy=False, progress=False, step_observer=None)
     start: float = perf_counter()
-    solution: States = simulate(problem, method, request, options=execution)
+    solution: States = simulate(problem, replace(method, step=1.0 / config.steps_per_cycle), request, options=execution)
     elapsed = perf_counter() - start
     particles = config.arms * config.particles_per_arm
     if (solution.states.shape != (2 * particles, config.cycles + 1)

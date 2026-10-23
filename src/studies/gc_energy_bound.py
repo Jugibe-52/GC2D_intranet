@@ -21,7 +21,7 @@ from potential import Potential
 from methods.extended.bm4 import BM4Implicit
 from methods.classical.rk4 import RK4
 from problem import InitialValueProblem
-from contracts.methods.base import NumericalMethod
+from methods.base import FixedStepMethod
 from request import SimulationRequest
 from simulation.runner import simulate
 from ._trajectory_distances import particle_distances
@@ -168,7 +168,7 @@ def run_gc_energy_bound_study(
         newton_jacobian_relative_step=config.jacobian_relative_step,
         newton_jacobian_method="analytic", nonlinear_solver="newton",
     )
-    methods: dict[str, NumericalMethod] = {"BM4Implicit": bm4, "RK4": RK4()}
+    methods: dict[str, FixedStepMethod[Any]] = {"BM4Implicit": bm4, "RK4": RK4()}
 
     def log(message: str) -> None:
         if config.progress:
@@ -177,7 +177,7 @@ def run_gc_energy_bound_study(
     with threadpool_limits(limits=1):
         for level, step in enumerate(config.steps):
             count: int = integer_ratio(config.t_span[1]-config.t_span[0], step, "duration / step")
-            request: SimulationRequest = SimulationRequest.uniform(t_span=config.t_span, max_step=step, sample_count=count+1)
+            request: SimulationRequest = SimulationRequest.uniform(t_span=config.t_span,  sample_count=count+1)
             times = request.output_times
             method_indices: np.ndarray
             reference_indices: np.ndarray
@@ -196,7 +196,7 @@ def run_gc_energy_bound_study(
             for repeat in range(config.timing_repeats):
                 for name in METHODS if repeat % 2 == 0 else METHODS[::-1]:
                     started: float = perf_counter()
-                    solution: States = simulate(problem, methods[name], request)
+                    solution: States = simulate(problem, replace(methods[name], step=step), request)
                     elapsed = perf_counter()-started
                     assert solution.diagnostics["step_count"] == count
                     assert solution.states.shape == (2, count+1)
@@ -207,8 +207,8 @@ def run_gc_energy_bound_study(
             observer: GCGeneralizedEnergyObserver = GCGeneralizedEnergyObserver(
                 dynamics, initial_time=config.t_span[0], initial_state=problem.initial_state)
             log("  Collecting energy at every accepted step in untimed replays.")
-            observed_bm4: States = simulate(problem, replace(bm4, step_observer=observer), request)
-            observed_rk4: States = simulate(problem, RK4(track_energy=True), request)
+            observed_bm4: States = simulate(problem, replace(replace(bm4, step_observer=observer), step=step), request)
+            observed_rk4: States = simulate(problem, RK4(step=step, track_energy=True), request)
             np.testing.assert_array_equal(observed_bm4.states, solutions["BM4Implicit"].states)
             np.testing.assert_allclose(observed_rk4.states, solutions["RK4"].states, rtol=1e-13, atol=1e-13)
             assert len(observer.records) == count+1
@@ -365,7 +365,7 @@ def audit_initial_step_geometry(
         raise ValueError("The local geometry audit requires one planar trajectory.")
     h = config.steps[0]
     request: SimulationRequest = SimulationRequest.uniform(t_span=(config.t_span[0], config.t_span[0]+h),
-                                        max_step=h, sample_count=2)
+                                         sample_count=2)
     rows: list[dict[str, Any]] = []
     form: np.ndarray = gc_physical_symplectic_form(1)
     for name in METHODS:
@@ -375,7 +375,7 @@ def audit_initial_step_geometry(
             newton_max_iterations=config.newton_max_iterations, newton_jacobian_method="analytic",
             newton_jacobian_relative_step=config.jacobian_relative_step, step_observer=events.append)
             if name == "BM4Implicit" else RK4(step_observer=events.append))
-        simulate(problem, method, request)
+        simulate(problem, replace(method, step=h), request)
         assert len(events) == 1
         event = events[0]
         if name == "BM4Implicit":

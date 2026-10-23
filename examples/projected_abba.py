@@ -28,12 +28,11 @@ configuration = InitialConditions.gc(x=[1.0], y=[1.2])
 problem = InitialValueProblem(GuidingCenterDynamics(potential, rho=0.05), configuration)
 request = SimulationRequest.uniform(
 	t_span=(0.0, 0.2),
-	max_step=0.05,
 	sample_count=5,
 )
 solution = simulate(
 	problem,
-	ABBA2Implicit(projection_formulation=ReducedProjection(), solver=NewtonSolver()),
+	ABBA2Implicit(step=0.05, projection_formulation=ReducedProjection(), solver=NewtonSolver()),
 	request,
 )
 

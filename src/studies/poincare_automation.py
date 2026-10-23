@@ -264,7 +264,7 @@ def prepare_automation_case(config: AutomationConfig, case: AutomationCase,
 	problem: InitialValueProblem = InitialValueProblem(dynamics, initial, layout=GCStateLayout())
 	times = cycle_duration * np.arange(config.cycles + 1, dtype=float)
 	request: SimulationRequest = SimulationRequest(t_span=(0., float(times[-1])),
-		max_step=cycle_duration/config.steps_per_cycle, output_times=times)
+		 output_times=times)
 	metadata: dict[str, Any] = dict(schema_version=1, study="poincare_automation", particle_set=PARTICLE_SET,
 		config=config.to_dict(), case=asdict(case), source_sha256=field.source_sha256,
 		source_path=str(field.source_path), source_field_indices=m.source_field_indices.tolist(),
@@ -290,12 +290,13 @@ def automation_method(prepared: PreparedAutomationCase) -> NumericalMethod:
 	c: AutomationConfig
 	name: str
 	c, name = prepared.config, prepared.case.method
+	step: float = float(prepared.metadata["runtime_cycle_duration"]) / c.steps_per_cycle
 	# Historical configurations remain readable, but cannot select new coupled runs.
 	require_uncoupled_bm4(c.coupling_frequency)
 	if name == "RK4":
-		return RK4()
+		return RK4(step=step)
 	if name == "BM4Midpoint":
-		return BM4Midpoint()
+		return BM4Midpoint(step=step)
 	kwargs: _NewtonControls = dict(newton_absolute_tolerance=c.newton_absolute_tolerance,
 		newton_relative_tolerance=c.newton_relative_tolerance,
 		newton_max_iterations=c.newton_max_iterations,
@@ -303,8 +304,8 @@ def automation_method(prepared: PreparedAutomationCase) -> NumericalMethod:
 		newton_jacobian_method="analytic")
 	# Explicit branches keep each constructor's numerical contract visible.
 	if name == "BM4Implicit":
-		return BM4Implicit(**kwargs)
-	return GaussLegendre4(**kwargs)
+		return BM4Implicit(step=step, **kwargs)
+	return GaussLegendre4(step=step, **kwargs)
 
 
 def validate_automation_solution(solution: States, prepared: PreparedAutomationCase) -> None:

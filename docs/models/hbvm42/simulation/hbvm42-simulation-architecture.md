@@ -35,11 +35,13 @@ one scalar time. The formulation owns clock validation and output alignment.
 The physical output always has its original size.
 Accepted duplicated copies are equal. They separate only inside the numerical map.
 
-`PhysicalFormulation` and `DoubledFormulation` are constructed directly from the
-problem, initial time and tracking flag. They are defined in
-`src/formulations/state.py`. BM4 additionally uses directly bound
-`GCDoubledMaps` for its spatial direct/adjoint stages; its legacy configuration
-factory is only a compatibility entry point.
+`SingleFormulation` and `DoubleFormulation` receive a structural layout,
+particle count and tracking flag in `src/formulations/state.py`. They retain no
+problem, initial values, dynamics or solver. The method calls `lift` to prepare
+physical copies and `pack` to append its prescribed time and passive momentum.
+It owns run initialization, step preparation, projection and energy evaluation.
+BM4's `GCDoubledMaps` retains its specialized elementary flows and delegates
+copy operations to the generic representation.
 
 ## Energy and nonlinear work
 
@@ -76,7 +78,7 @@ The host worker advances and samples through the method's controller. Each
 `advance` returns an internal state, work counters and accepted details.
 The controller owns `IntegrationState(time, values)`. Requested samples are
 extracted into physical coordinates and copied into `States`; step counters keep
-their separate axis. The formulation diagnoses the saved physical history.
+their separate axis. The method evaluates the saved physical Hamiltonian; the formulation combines it with stored momentum for output.
 Execution finalizes the same recorder once and closes the run on success or
 failure. Configured methods remain reusable with isolated run resources.
 
@@ -177,3 +179,21 @@ This method accepts `solver=NewtonSolver(...)`; omission preserves all previous
 stopping controls. Method-specific equations and Jacobians remain here; shared
 iteration belongs to `solvers`. Broyden is not enabled for this method.
 HBVM retains its matrix infinity norm and Newton backtracking.
+
+## State representation and step preparation
+
+The method initializes its internal state from physical input and the request's
+time. `SingleFormulation`/`DoubleFormulation` retain only layout, particle count
+and tracking settings. Their `lift` operation prepares physical copies; `pack`
+adds caller-supplied time and momentum. The method selects projection and solver,
+updates passive momentum, and supplies Hamiltonian values for output diagnostics.
+Accepted doubled copies stay equal, with no additional copies across steps.
+See [representation operations](../../../simulation/initial-solvers-formulations.md#state-representations).
+
+## Integration step
+
+This method owns its positive `step` (default 0.1 in runtime time units).
+Complete steps retain that size; only the final accepted step is shortened.
+`advance` receives the effective duration without modifying the configured value.
+See the [shared scheduling contract](../../../simulation/execution.md#method-owned-integration-step)
+for independent output sampling and the common CPU/JAX grid.

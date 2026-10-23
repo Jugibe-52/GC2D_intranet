@@ -9,10 +9,10 @@ import numpy as np
 
 from contracts.dynamics.protocols import DynamicalSystem, HamiltonianSystem, GuidingCenterJacobianSystem
 
-from methods.base import IntegrationMethod
+from methods.base import FixedStepMethod
 from contracts.methods.step import StepInfo, StepResult
 from contracts.states.history import DiagnosticValue
-from formulations.state import PhysicalFormulation
+from formulations.state import SingleFormulation
 from contracts.methods.observation import IntegrationStep, StepObserver
 from contracts.solvers.nonlinear import NewtonObserver
 from problem import InitialValueProblem
@@ -264,7 +264,7 @@ def _solve_sdirk_step(
 
 
 @dataclass(slots=True)
-class SDIRK4(IntegrationMethod[_SDIRKStepResult]):
+class SDIRK4(FixedStepMethod[_SDIRKStepResult]):
 	"""Skvortsov S54b: five-stage, fourth-order non-geometric SDIRK."""
 
 	jax_mode = "device_resident"
@@ -282,13 +282,14 @@ class SDIRK4(IntegrationMethod[_SDIRKStepResult]):
 	newton_observer: NewtonObserver | None = field(default=None, kw_only=True)
 
 	# Resources owned by one run; excluded from constructor options.
-	state_formulation: PhysicalFormulation = field(init=False, repr=False, compare=False)
+	state_formulation: SingleFormulation = field(init=False, repr=False, compare=False)
 	dynamics: DynamicalSystem = field(init=False, repr=False, compare=False)
 	physical_size: int = field(init=False, repr=False, compare=False)
 	resolved_jacobian_method: ResolvedSDIRKJacobianMethod = field(init=False, repr=False, compare=False)
 
 	def __post_init__(self) -> None:
 		"""Validate nonlinear and differentiation controls before integration."""
+		FixedStepMethod.__post_init__(self)
 		(self.newton_absolute_tolerance, self.newton_relative_tolerance,
 		 self.newton_jacobian_relative_step, self.newton_max_iterations) = _prepared_newton_controls(
 			self.solver,
@@ -302,7 +303,8 @@ class SDIRK4(IntegrationMethod[_SDIRKStepResult]):
 	def initialize(self, problem: InitialValueProblem, request: SimulationRequest) -> None:
 		"""Bind the nonlinear map, physical observation and energy exporter."""
 		self.dynamics = problem.dynamics
-		self.state_formulation = PhysicalFormulation(problem, request.t_span[0], self.track_energy)
+		self.state_formulation = SingleFormulation(problem.layout, problem.particle_count, self.track_energy)
+		initial_state: np.ndarray = self._initialize_state(problem, request)
 		physical_initial = problem.initial_state
 		self.resolved_jacobian_method = _resolved_jacobian_method(
 			self.dynamics,
@@ -311,7 +313,6 @@ class SDIRK4(IntegrationMethod[_SDIRKStepResult]):
 			initial_state=physical_initial,
 		)
 		self.physical_size = physical_initial.size
-		initial_state = self.state_formulation.initial_state
 		metadata: dict[str, DiagnosticValue] = {
 			'stage_count': _STAGE_COUNT,
 			'designed_order': 4,
@@ -369,7 +370,7 @@ class SDIRK4(IntegrationMethod[_SDIRKStepResult]):
 		if not self.track_energy:
 			return StepResult(result.state, statistics, result)
 		momentum_derivatives: tuple[np.ndarray, ...] = tuple(
-			self.state_formulation.momentum_rate(
+			self._momentum_rate(
 				time + step * SDIRK4_TABLEAU_C[index], result.stage_states[index],
 			)
 			for index in range(_STAGE_COUNT)
@@ -378,7 +379,7 @@ class SDIRK4(IntegrationMethod[_SDIRKStepResult]):
 			SDIRK4_TABLEAU_B[index] * momentum_derivatives[index]
 			for index in range(_STAGE_COUNT)
 		)
-		after: np.ndarray = self.state_formulation.finish(value, result.state, time + step, increment)
+		after: np.ndarray = self._finish_state(value, result.state, time + step, increment)
 		return StepResult(after, statistics, result)
 
 	def build_observation(self, info: StepInfo, step: StepResult[_SDIRKStepResult]) -> IntegrationStep:

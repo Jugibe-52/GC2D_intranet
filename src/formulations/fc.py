@@ -12,6 +12,7 @@ import numpy as np
 from contracts.dynamics.protocols import CyclotronSplitSystem, HamiltonianSystem
 from contracts.formulations.layout import StateLayout
 from formulations.layout import FCState, FCStateLayout
+from formulations.state import SingleFormulation
 
 from typing import TYPE_CHECKING
 
@@ -32,15 +33,17 @@ class _FCExtendedState:
 	physical: FCState
 	momentum: np.ndarray | None = None
 
-	def pack(self) -> np.ndarray:
+	def pack(self, representation: SingleFormulation) -> np.ndarray:
 		physical: np.ndarray = FCStateLayout.pack_components(*self.physical)
-		return self.pack_array(physical)
+		return self.pack_array(physical, representation)
 
-	def pack_array(self, physical: np.ndarray) -> np.ndarray:
+	def pack_array(self, physical: np.ndarray, representation: SingleFormulation) -> np.ndarray:
+		"""Use the common physical representation before adding map momentum."""
+		spatial: np.ndarray = representation.lift(physical)
 		return (
-			physical
+			spatial
 			if self.momentum is None
-			else np.concatenate((physical, self.momentum))
+			else np.concatenate((spatial, self.momentum))
 		)
 
 
@@ -56,6 +59,7 @@ class _PreparedFC:
 	dynamics: CyclotronSplitSystem
 	configuration: np.ndarray
 	layout: StateLayout
+	state_formulation: SingleFormulation
 	physical_size: int
 	particle_count: int
 	track_energy: bool
@@ -68,7 +72,8 @@ class _PreparedFC:
 		)
 		if value.ndim == 0 or value.shape[0] != expected:
 			raise ValueError("The FC split map changed the internal state shape.")
-		physical: FCState = FCState(*self.layout.split(value[: self.physical_size]))
+		spatial: np.ndarray = self.state_formulation.split_copies(value[:self.physical_size])[0]
+		physical: FCState = FCState(*self.layout.split(spatial))
 		momentum = value[self.physical_size :] if self.track_energy else None
 		return _FCExtendedState(physical=physical, momentum=momentum)
 
@@ -123,7 +128,7 @@ class _PreparedFC:
 			t,
 			physical_array,
 		)
-		return _FCExtendedState(physical, momentum).pack_array(physical_array)
+		return _FCExtendedState(physical, momentum).pack_array(physical_array, self.state_formulation)
 
 	def adjoint_map(
 		self,
@@ -157,7 +162,7 @@ class _PreparedFC:
 				pre_cyclotron,
 			)
 		physical = self._cyclotron_step(physical, duration)
-		return _FCExtendedState(physical, momentum).pack()
+		return _FCExtendedState(physical, momentum).pack(self.state_formulation)
 
 	def project(self, internal_history: np.ndarray) -> Projection:
 		"""Strip optional extended momentum from the physical FC history."""
@@ -194,16 +199,18 @@ class FCSplitFormulation:
 			raise TypeError("Energy tracking requires HamiltonianSystem.")
 		physical = problem.initial_state
 		particle_count = problem.particle_count
+		representation: SingleFormulation = SingleFormulation(layout, particle_count)
 		initial: _FCExtendedState = _FCExtendedState(
 			physical=FCState(*layout.split(physical)),
 			momentum=np.zeros(particle_count) if track_energy else None,
 		)
-		initial_internal_state: np.ndarray = initial.pack()
+		initial_internal_state: np.ndarray = initial.pack(representation)
 		initial_internal_state.setflags(write=False)
 		return _PreparedFC(
 			dynamics=problem.dynamics,
 			configuration=problem.initial_state,
 			layout=layout,
+			state_formulation=representation,
 			physical_size=physical.size,
 			particle_count=particle_count,
 			track_energy=bool(track_energy),

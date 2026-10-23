@@ -17,7 +17,7 @@ from methods.extended import (
 	ProjectionFormulation,
 	StateExtension,
 )
-from methods.base import IntegrationMethod
+from methods.base import FixedStepMethod, IntegrationMethod
 from contracts.methods.base import NumericalMethod
 from methods.classical import (
 	ExplicitEuler,
@@ -57,6 +57,7 @@ __all__ = [
 	"NonlinearSolver",
 	"NumericalMethod",
 	"IntegrationMethod",
+	"FixedStepMethod",
 	"ProjectionPlacement",
 	"ProjectionFormulation",
 	"StateExtension",

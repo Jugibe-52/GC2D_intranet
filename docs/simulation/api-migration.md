@@ -33,8 +33,8 @@ from simulation import ABBA4Implicit, InitialValueProblem, SimulationRequest, si
 
 configuration = GCStateLayout().pack_components(x0, y0)
 problem = InitialValueProblem(GuidingCenterDynamics(potential, rho=0.3), configuration)
-request = SimulationRequest.uniform(t_span=(0.0, 1.0), max_step=0.01, sample_count=101)
-solution = simulate(problem, ABBA4Implicit(track_energy=True), request)
+request = SimulationRequest.uniform(t_span=(0.0, 1.0), sample_count=101)
+solution = simulate(problem, ABBA4Implicit(step=0.01, track_energy=True), request)
 ```
 
 The current method projects only the two spatial copies. Energy tracking is
@@ -185,3 +185,33 @@ as `methods.base.IntegrationMethod` and `execution._host.FixedStepController`
 stay in their domains. Numerical archives keep their schemas; old Python pickles
 with removed module paths are not portable archives. Regenerate those objects
 with the current source before process or remote execution.
+
+## Independent state representations
+
+`PhysicalFormulation` is replaced by `SingleFormulation`; `DoubledFormulation`
+by `DoubleFormulation`. Import the new names from `formulations.state`,
+`formulations` or `simulation`; the former names have no aliases. Construct with
+`(layout, particle_count, track_energy=False)`, not a problem and initial time.
+Methods now own initial values, zero passive momentum and step preparation.
+Use `lift(physical)` for copies and `pack(copies, time, momentum)` for the full
+internal state. Call `join_copies(first, second)` for shifted doubled inputs.
+History export receives pre-evaluated `energy=` values when tracking is enabled.
+Method constructors, projection/solver choices and saved schemas are unchanged.
+See [representation details](initial-solvers-formulations.md#state-representations).
+
+## Method-owned integration step
+
+Configure fixed methods with `step`, for example `RK4(step=0.03)` (default 0.1
+in runtime time units). `SimulationRequest` supplies only the interval and
+output times. Complete main steps use the configured value; only the last step
+is shortened to reach the final time. The method's `step` remains unchanged.
+Independent shadow samples may use shorter durations without moving the main
+trajectory. Host and JAX use the same schedule and record effective durations
+in `step_sizes`. `advance` remains the numerical operation.
+
+DOP853/Radau instead own `max_step` (default 0.1), an upper bound for their
+adaptive controller. Move former request `max_step` arguments to the method:
+`step` for fixed methods, `max_step` for adaptive methods. Requests no longer
+accept a step argument. A non-divisible interval intentionally gives a different
+main grid from the former uniform rescaling policy; old saved results retain
+their recorded grids.

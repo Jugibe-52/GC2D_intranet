@@ -1,5 +1,7 @@
 """Single-run energy-balance and trajectory study with a DOP853 reference."""
 
+from dataclasses import replace
+
 from studies._validation import require_uncoupled_bm4
 
 from formulations.layout import GCStateLayout
@@ -9,7 +11,7 @@ from typing import Any, TYPE_CHECKING
 import numpy as np
 from potential import Potential
 from methods.adaptive.scipy import DOP853
-from contracts.methods.base import NumericalMethod
+from methods.base import FixedStepMethod
 from dynamics import GuidingCenterDynamics
 
 from problem import InitialValueProblem
@@ -59,11 +61,11 @@ def run_energy_balance(potential: Potential, configuration: np.ndarray, config: 
     n = z0.size//2
     if n != 3:
         raise ValueError("This study requires three particles.")
-    request: SimulationRequest = SimulationRequest((0., duration), h, times)
+    request: SimulationRequest = SimulationRequest((0., duration),  times)
     arrays = {'times': times, 'initial_state': z0,
               'domain': np.array([potential.grid.xmin, potential.grid.ymin, potential.grid.period])}
     print('Starting DOP853', flush=True)
-    reference: States = simulate(problem, DOP853(track_energy=True,
+    reference: States = simulate(problem, DOP853(max_step=h, track_energy=True,
         relative_tolerance=config['reference_rtol'], absolute_tolerance=config['reference_atol']), request)
     arrays['DOP853.states'] = reference.states
     arrays['DOP853.kappa'] = np.asarray(reference.diagnostics['extended_momentum'])
@@ -73,14 +75,14 @@ def run_energy_balance(potential: Potential, configuration: np.ndarray, config: 
                   newton_jacobian_method='analytic',
                   newton_jacobian_relative_step=config['jacobian_relative_step'])
     observer: BM4EnergyBalanceObserver = BM4EnergyBalanceObserver(dynamics, n, steps//saves)
-    methods: dict[str, NumericalMethod] = {
+    methods: dict[str, FixedStepMethod[Any]] = {
         'BM4Implicit': BM4Implicit(**common, step_observer=observer),
         'GaussLegendre4': GaussLegendre4(**common, track_energy=True),
         'RK4': RK4(track_energy=True),
     }
     for name, method in methods.items():
         print(f'Starting {name}', flush=True)
-        solution: States = simulate(problem, method, request)
+        solution: States = simulate(problem, replace(method, step=h), request)
         assert solution.diagnostics['step_count'] == cycles*steps
         arrays[name+'.states'] = solution.states
         if name == 'BM4Implicit':

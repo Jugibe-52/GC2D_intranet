@@ -10,7 +10,7 @@ available through explicit exports. See the
 [compact architecture](bm4-simulation-architecture.md), and
 [shared family contract](../../extended/simulation/extended-simulation-architecture.md).
 
-1. `initialize` binds `GCDoubledMaps`, `DoubledFormulation`, the twelve-stage
+1. `initialize` binds `GCDoubledMaps`, `DoubleFormulation`, the twelve-stage
    `BM4` recipe and `solve_projection` with the existing solver options.
 2. `advance` calls that bound projection directly. `solve_projection` embeds
    `z` as `(z+mu,z-mu)` and evaluates the complete recipe with `compose`.
@@ -40,3 +40,13 @@ for ownership, array shapes and unchanged request/result boundaries.
 BM4 uses `ReducedProjection` for its existing 2N multiplier system and accepts
 `solver=NewtonSolver(...)` or `solver=BroydenSolver(...)`. Composition,
 physical scaling and the single outer projection remain unchanged.
+
+## State representation and step preparation
+
+The method initializes its internal state from physical input and the request's
+time. `SingleFormulation`/`DoubleFormulation` retain only layout, particle count
+and tracking settings. Their `lift` operation prepares physical copies; `pack`
+adds caller-supplied time and momentum. The method selects projection and solver,
+updates passive momentum, and supplies Hamiltonian values for output diagnostics.
+Accepted doubled copies stay equal, with no additional copies across steps.
+See [representation operations](../../../simulation/initial-solvers-formulations.md#state-representations).

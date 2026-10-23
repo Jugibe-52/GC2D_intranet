@@ -19,7 +19,7 @@ from dynamics.gc import GuidingCenterDynamics
 from potential.potential import Potential
 from studies.poincare_automation import (
 	AutomationConfig, METHODS, fixed_particle_fractions, load_automation_field,
-	prepare_automation_case, run_automation_case, validate_saved_automation,
+	prepare_automation_case, run_automation_case, validate_saved_automation, automation_method,
 )
 from studies.poincare_automation_io import (
 	case_key, prepare_automation, read_automation, run_automation, load_completed_case,
@@ -64,7 +64,7 @@ class AutomationTests(unittest.TestCase):
 			[.4317,.3856],[.4376,.3814],[.5749,.3911],[.579,.3918]])
 		config = AutomationConfig(rhos=(0.,.3), methods=('BM4Midpoint',), source=str(self.source), source_index=1)
 		p = self.prepared(config)
-		self.assertEqual(p.request.max_step, 1/50)
+		self.assertEqual(automation_method(p).step, 1/50)
 		self.assertEqual(p.metadata['expected_step_count'], 250000)
 		np.testing.assert_array_equal(p.request.output_times, np.arange(5001))
 		self.assertEqual(p.problem.initial_state.shape, (96,))
