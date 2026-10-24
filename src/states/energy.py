@@ -9,7 +9,7 @@ def energy_diagnostics(times: np.ndarray, physical: np.ndarray,
 ) -> dict[str, DiagnosticValue]:
 	"""Assemble energy diagnostics from physical values evaluated by the caller.
 
-	This output conversion evaluates no dynamics. The method supplies H on
+	This output conversion evaluates no dynamics. The energy observer supplies H on
 	the saved states; this output helper only combines H with stored kappa.
 	"""
 	momentum: np.ndarray | None = auxiliary.get("extended_momentum")

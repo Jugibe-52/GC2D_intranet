@@ -191,7 +191,8 @@ restored_problem = pickle.loads(pickle.dumps(problem))
 np.testing.assert_array_equal(restored_problem.initial_state, problem.initial_state)
 for method in (RK4(step=.01), DOP853(max_step=.01)):
     restored = pickle.loads(pickle.dumps(method))
-    run = restored.new_run(problem, request)
+    run = restored.new_run(problem.dynamics.vector_field, problem.initial_conditions, request,
+        jacobian=problem.dynamics.particle_vector_field_jacobians, jacobian_structure='particle')
     assert isinstance(run, IntegrationMethod)
     result = Execution().run(problem, restored, request)
     np.testing.assert_array_equal(result.times, request.output_times)
@@ -276,7 +277,7 @@ assert not any(name.split(".")[0] in ("jax", "modal", "integration")
 
 	def test_retired_public_interfaces_are_absent(self) -> None:
 		for package, names in {
-			"simulation": ("SimulationRunner", "ABBA4ImplicitSingleProjection",
+			"simulation": ("SingleFormulation", "SimulationRunner", "ABBA4ImplicitSingleProjection",
 				"FullyExtendedImplicitIntegrationStep", "FullyExtendedBaseMap"),
 			"states": ("Trajectory", "TrajectoryGC", "TrajectoryFC"),
 			"studies": ("run_fully_extended_implicit_study", "centered_gc_trajectory",
@@ -286,6 +287,22 @@ assert not any(name.split(".")[0] in ("jax", "modal", "integration")
 			for name in names:
 				with self.subTest(package=package, name=name):
 					self.assertFalse(hasattr(module, name))
+
+	def test_methods_and_formulations_keep_function_and_workspace_boundaries(self) -> None:
+		root = Path(__file__).resolve().parents[1] / 'src'
+		for package in ('methods', 'formulations'):
+			for path in (root / package).rglob('*.py'):
+				for node in ast.walk(ast.parse(path.read_text())):
+					if isinstance(node, ast.ImportFrom):
+						module = node.module or ''
+						self.assertFalse(module.startswith('dynamics.') or module == 'contracts.dynamics.protocols', str(path))
+						if package == 'methods':
+							self.assertFalse(module.startswith('diagnostics'), str(path))
+						else:
+							self.assertNotIn(module.split('.')[0], ('execution', 'methods', 'solvers'), str(path))
+					if isinstance(node, ast.Attribute):
+						self.assertNotEqual(node.attr, '__self__', str(path))
+		self.assertFalse(hasattr(formulations, 'SingleFormulation'))
 
 	def test_core_packages_do_not_require_matplotlib(self) -> None:
 		project_root = Path(__file__).resolve().parents[1]

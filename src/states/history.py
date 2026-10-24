@@ -189,7 +189,7 @@ class States:
 		self._diagnostics = _owned_diagnostics(combined)
 		self._values.setflags(write=False)
 		self._times.setflags(write=False)
-		self._auxiliary = {}  # Formulation diagnostics now own needed auxiliary data.
+		self._auxiliary = {}  # Completed diagnostics own the saved auxiliary data.
 		self._rows = {}
 		self._shapes = {}
 		self._starts = []

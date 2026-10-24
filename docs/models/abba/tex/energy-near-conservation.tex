@@ -397,7 +397,7 @@ The internal $k$ stages need not be solved because neither the physical field
 nor $-H_t$ depends on $k$.  Thus the triangular implementation of
 \eqref{eq:gauss-momentum-update} is algebraically the Gauss method on the full
 extended system.  This is the extended map represented by
-\texttt{GaussLegendre4(track\_energy=True)} in the project implementation.
+\texttt{GaussLegendre4()} with an \texttt{EnergyObserver} in the project implementation.
 
 Gauss coefficients satisfy the symplectic Runge--Kutta identities
 \begin{equation}

@@ -10,21 +10,12 @@ available through explicit exports. See the
 [compact architecture](bm4-simulation-architecture.md), and
 [shared family contract](../../extended/simulation/extended-simulation-architecture.md).
 
-1. `initialize` binds `GCDoubledMaps`, `DoubleFormulation`, the twelve-stage
-   `BM4` recipe and `solve_projection` with the existing solver options.
-2. `advance` calls that bound projection directly. `solve_projection` embeds
-   `z` as `(z+mu,z-mu)` and evaluates the complete recipe with `compose`.
-3. The spatial residual is `u_final-v_final+2*mu`. Newton forms its tangent
-   using the retained shear sources, or centered differences when selected.
-   Broyden starts from `4I` and updates by secants. Both use `solvers.nonlinear`.
-4. Only the converged trace is accepted. Its corrected copies are averaged;
-   optional `momentum_increment` accumulates signed shear quadrature once,
-   normalized by one half. No time or momentum variable enters the root.
-5. `advance` returns the accepted workspace and existing work counters. When
-   requested, `build_observation` copies the retained stages into the existing
-   `ImplicitBM4IntegrationStep`; it no longer replays the composition.
-6. The common integration coordinator collects main steps and handles shadow
-   output samples without adding main-step observations or work records.
+1. Execution injects `f` and the optional physical Jacobian into a fresh run. `initialize` prepares `GCDoubledMaps`, `DoubleFormulation`, the `BM4` recipe and projection with the configured solver.
+2. `advance` solves `u_final-v_final+2*mu=0`, evaluating `compose` from `(z+mu,z-mu)`.
+3. Newton uses retained tangents or centered differences; Broyden starts from `4I` and updates by secants. The solver owns tolerances, differentiation, iteration limits and callbacks.
+4. Only the converged trace is accepted. Its corrected copies are averaged, and quadrature points and weights are described when an observer needs them. Neither time nor momentum enters the root.
+5. `advance` returns physical state and statistics. `build_observation` copies accepted stages without replaying the composition.
+6. Execution supplies quadrature to `EnergyObserver`, which owns momentum and diagnostics. Shadow samples do not commit this state or main-step statistics.
 
 The analytic path solves independent 2-by-2 reduced particle blocks. The
 finite-difference path retains its dense complete-map differentiation. Neither
@@ -43,10 +34,10 @@ physical scaling and the single outer projection remain unchanged.
 
 ## State representation and step preparation
 
-`SingleFormulation(physical_size)` and `DoubleFormulation(physical_size)` retain only a positive physical vector size. They prepare one or two temporary copies through `lift`, `join_copies` and `split_copies`. Shapes are `(d*N,*samples)` and `(copies*d*N,*samples)`; shifted copies remain distinct until the method projects them. NumPy/JAX backends and complete FC velocity blocks are preserved. There is no layout, particle count, tracking flag, clock, momentum, initial state, projection or solver in either representation.
+`DoubleFormulation(physical_size)` is the only state formulation. It prepares temporary copies through `lift`, `join_copies` and `split_copies`, preserving NumPy/JAX arrays and complete component blocks. Classical, HBVM and adaptive methods use the physical vector directly and instantiate no formulation. The doubled representation stores only a positive physical size; it contains no dynamics, solver or diagnostic state.
 
-Every accepted snapshot is `IntegrationState(time, values, momentum=None)`: scalar time, physical `values` of shape `(d*N,)`, and optional physical `momentum` of shape `(N,)`. GC remains 2N and FC 4N with or without tracking. Doubled GC work has 4N entries; generic doubled FC work has 8N. Workspaces are temporary and never become accepted states. This generic support does not extend GC numerical methods to FC.
+Every accepted snapshot is `IntegrationState(time, values)`: scalar time and a physical vector of shape `(d*N,)`. GC remains 2N and FC 4N with or without energy observation. Temporary doubled GC work has 4N entries; generic doubled FC work has 8N. These workspaces never become accepted states. This generic copy support does not extend GC numerical methods to FC.
 
-The method initializes zero momentum, prepares copies, selects projection equations and solver, and integrates momentum from accepted stages. `advance(t, Z, h, momentum=kappa)` returns physical `StepResult.state` and separate `StepResult.momentum`. `StepInfo.momentum_before` records the incoming auxiliary. Shadow samples start from the same accepted physical state and momentum. JAX carries separate arrays through the compiled loop.
+Execution binds the physical functions and calls `new_run(f, initial_conditions, request, jacobian=..., jacobian_structure=...)`. The method receives no `DynamicalSystem` or problem. `advance(t, Z, h)` returns physical state, statistics, optional details and optional quadrature data. `EnergyObserver` owns its independent momentum and accumulates only accepted quadrature; shadow samples derive from the accepted observer state without committing it. Step callbacks are passed through `simulate(..., observers=(...,))`.
 
-Methods evaluate saved physical H once. `states.energy.energy_diagnostics` combines supplied H and physical kappa without dynamics evaluation. Existing energy labels and `(N,T)` auxiliary histories remain unchanged; `extended_time` is broadcast from scalar sample times. Numerical archives require no migration; old pickled configured objects should be recreated.
+Enable passive energy with `simulate(..., observers=(EnergyObserver(),))`, importing `EnergyObserver` from `diagnostics.methods.energy`. Execution supplies the observer with H and `-partial_t H`. It evaluates saved physical H once and constructs the existing diagnostics. Energy labels and `(N,T)` auxiliary histories remain unchanged; `extended_time` is broadcast from scalar sample times. Old configured Python objects must be recreated; saved numerical archives retain their schemas.

@@ -6,7 +6,7 @@ from methods.extended.observations import abba_pairs
 from methods.extended.core.projection import solve_projection
 from methods.extended.core.composition import ABBA4
 from tests._extended_reference.abba_maps import uncoupled_maps
-from solvers.nonlinear import SolverOptions
+from solvers import NewtonSolver, BroydenSolver
 from contracts.dynamics.protocols import GuidingCenterJacobianSystem
 from solvers.nonlinear import NonlinearSolver, _solve_broyden, _solve_newton
 from methods.extended.core.composition import _ABBA4_COEFFICIENTS
@@ -240,7 +240,7 @@ def _solve_reduced_abba4_single_projection_step(
 ) -> _ABBA4SingleProjectionStep:
     """Adapt the common outer projection to the existing ABBA4 diagnostic view."""
     result = solve_projection(uncoupled_maps(dynamics, state), ABBA4,
-        SolverOptions(nonlinear_solver, absolute_tolerance, relative_tolerance, max_iterations),
+        (NewtonSolver if nonlinear_solver == 'newton' else BroydenSolver)(absolute_tolerance, relative_tolerance, max_iterations, jacobian_method='analytic'),
         'reduced_multiplier', t, state, step)
     return _ABBA4SingleProjectionStep(result.state, result.multiplier,
         tuple(m.stages for m in abba_pairs(result.trace)), result.iterations,
@@ -302,7 +302,7 @@ def _solve_simultaneous_abba4_single_projection_step(
 ) -> _ABBA4SingleProjectionStep:
     """Adapt the common outer projection to the existing ABBA4 diagnostic view."""
     result = solve_projection(uncoupled_maps(dynamics, state), ABBA4,
-        SolverOptions(nonlinear_solver, absolute_tolerance, relative_tolerance, max_iterations),
+        (NewtonSolver if nonlinear_solver == 'newton' else BroydenSolver)(absolute_tolerance, relative_tolerance, max_iterations, jacobian_method='analytic'),
         'simultaneous_state_multiplier', t, state, step)
     return _ABBA4SingleProjectionStep(result.state, result.multiplier,
         tuple(m.stages for m in abba_pairs(result.trace)), result.iterations,

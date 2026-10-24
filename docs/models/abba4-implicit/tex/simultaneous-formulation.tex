@@ -72,7 +72,7 @@ particle, it solves three $6\times6$ nonlinear systems rather than three
 $2\times2$ reduced Schur-complement systems.
 
 This note describes the physical-state branch.  Setting
-\texttt{track\_energy=True} uses the same physical projected solves and adds a
+An \texttt{EnergyObserver} uses the same physical projected solves and adds a
 triangular auxiliary update of $\kappa=k/2$ from the accepted stages; it does
 not change the dimensions below.  The \texttt{fully\_extended} branch
 duplicates the complete autonomous state and therefore uses different

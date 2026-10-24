@@ -1,5 +1,7 @@
 """Audited accuracy, serial timings and multipliers for the two BM4 methods."""
 
+from solvers.nonlinear import NewtonSolver
+
 from diagnostics.studies.comparison import final_rms_floor, time_integrated_rms_floor
 
 from dynamics.gc import GuidingCenterDynamics
@@ -193,11 +195,8 @@ def run_bm4_projection_comparison(
 	times = request.output_times
 	period = potential.grid.period if config.distance_convention == "periodic" else None
 	implicit: BM4Implicit = BM4Implicit(
-		newton_absolute_tolerance=config.absolute_tolerance,
-		newton_relative_tolerance=config.relative_tolerance,
-		newton_max_iterations=config.max_iterations,
-		newton_jacobian_relative_step=config.jacobian_relative_step,
-		newton_jacobian_method="analytic")
+		solver=NewtonSolver(absolute_tolerance=config.absolute_tolerance, relative_tolerance=config.relative_tolerance, max_iterations=config.max_iterations, jacobian_relative_step=config.jacobian_relative_step, jacobian_method='analytic'),
+	)
 	methods: dict[str, FixedStepMethod[Any]] = {
 		"BM4Midpoint": BM4Midpoint(),
 		"BM4Implicit": implicit,
@@ -270,7 +269,7 @@ def run_bm4_projection_comparison(
 			assert len(event.base_stages) == 12
 			multipliers.append(event.multiplier.copy())
 		log("Capturing signed per-particle multipliers in an untimed replay.")
-		replay: States = simulate(problem, replace(replace(implicit, step_observer=observe), step=config.integration_step), request)
+		replay: States = simulate(problem, replace(implicit, step=config.integration_step), request, observers=(observe,))
 		np.testing.assert_array_equal(replay.states, solutions["BM4Implicit"].states)
 		arrays["BM4Implicit.mu"] = np.stack(multipliers, axis=1)
 

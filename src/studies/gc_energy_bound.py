@@ -14,6 +14,8 @@ import numpy as np
 from threadpoolctl import threadpool_limits
 
 from diagnostics.methods.extended.energy.observer import GCGeneralizedEnergyObserver
+from diagnostics.methods.energy import EnergyObserver
+from solvers.nonlinear import NewtonSolver
 from diagnostics.studies.reference_trajectory import StoredReferenceTrajectory
 from dynamics import GuidingCenterDynamics
 
@@ -162,11 +164,9 @@ def run_gc_energy_bound_study(
     envelopes: list[dict[str, Any]] = []
     blocks: list[dict[str, Any]] = []
     bm4: BM4Implicit = BM4Implicit(
-        newton_absolute_tolerance=config.newton_atol,
-        newton_relative_tolerance=config.newton_rtol,
-        newton_max_iterations=config.newton_max_iterations,
-        newton_jacobian_relative_step=config.jacobian_relative_step,
-        newton_jacobian_method="analytic", nonlinear_solver="newton",
+        solver=NewtonSolver(absolute_tolerance=config.newton_atol,
+            relative_tolerance=config.newton_rtol, max_iterations=config.newton_max_iterations,
+            jacobian_relative_step=config.jacobian_relative_step, jacobian_method="analytic"),
     )
     methods: dict[str, FixedStepMethod[Any]] = {"BM4Implicit": bm4, "RK4": RK4()}
 
@@ -207,8 +207,8 @@ def run_gc_energy_bound_study(
             observer: GCGeneralizedEnergyObserver = GCGeneralizedEnergyObserver(
                 dynamics, initial_time=config.t_span[0], initial_state=problem.initial_state)
             log("  Collecting energy at every accepted step in untimed replays.")
-            observed_bm4: States = simulate(problem, replace(replace(bm4, step_observer=observer), step=step), request)
-            observed_rk4: States = simulate(problem, RK4(step=step, track_energy=True), request)
+            observed_bm4: States = simulate(problem, replace(bm4, step=step), request, observers=(observer,))
+            observed_rk4: States = simulate(problem, RK4(step=step), request, observers=(EnergyObserver(),))
             np.testing.assert_array_equal(observed_bm4.states, solutions["BM4Implicit"].states)
             np.testing.assert_allclose(observed_rk4.states, solutions["RK4"].states, rtol=1e-13, atol=1e-13)
             assert len(observer.records) == count+1
@@ -371,11 +371,11 @@ def audit_initial_step_geometry(
     for name in METHODS:
         events: list[IntegrationStep] = []
         method: BM4Implicit | RK4 = (BM4Implicit(
-            newton_absolute_tolerance=config.newton_atol, newton_relative_tolerance=config.newton_rtol,
-            newton_max_iterations=config.newton_max_iterations, newton_jacobian_method="analytic",
-            newton_jacobian_relative_step=config.jacobian_relative_step, step_observer=events.append)
-            if name == "BM4Implicit" else RK4(step_observer=events.append))
-        simulate(problem, replace(method, step=h), request)
+            solver=NewtonSolver(absolute_tolerance=config.newton_atol,
+                relative_tolerance=config.newton_rtol, max_iterations=config.newton_max_iterations,
+                jacobian_method="analytic", jacobian_relative_step=config.jacobian_relative_step))
+            if name == "BM4Implicit" else RK4())
+        simulate(problem, replace(method, step=h), request, observers=(events.append,))
         assert len(events) == 1
         event = events[0]
         if name == "BM4Implicit":

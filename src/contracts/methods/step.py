@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Generic, TypeVar
+from contracts.methods.quadrature import QuadratureData
 
 import numpy as np
 
@@ -17,26 +18,25 @@ StepValue = np.ndarray | float | int
 class StepResult(Generic[Detail]):
 	"""One complete physical-state map and its observer-free metrics.
 
-	``state`` contains one physical copy; optional momentum is separate. ``details`` belongs
+	``state`` contains one physical copy; optional quadrature is diagnostic data. ``details`` belongs
 	to that method and is never interpreted or retained by States.
 	"""
 
 	state: np.ndarray
 	statistics: Mapping[str, StepValue]
 	details: Detail
-	momentum: np.ndarray | None = None
+	quadrature: QuadratureData | None = None
 
 
 @dataclass(frozen=True, slots=True)
 class StepInfo:
-	"""Accepted interval and an independent physical/auxiliary input snapshot."""
+	"""Accepted interval and an independent physical input snapshot."""
 
 	index: int
 	time: float
 	duration: float
 	end_time: float
 	state_before: np.ndarray
-	momentum_before: np.ndarray | None = None
 
 
 __all__ = ["StepInfo", "StepResult", "StepValue"]

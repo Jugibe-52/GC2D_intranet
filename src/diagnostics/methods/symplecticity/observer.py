@@ -133,9 +133,8 @@ class SymplecticityObserver:
 	A selected complete BM4 step contributes all twelve direct/adjoint stages.
 	``sample_every`` selects complete steps, while ``chunk_size`` limits the number
 	of full matrices held in memory before a synchronized CSV/NPZ/JSON block is
-	written. This observer expects ``track_energy=False`` because the GC diagnostic
-	form covers the two physical copies, not the optional momentum without its
-	explicit time coordinate.
+	written. The GC diagnostic form covers the two physical copies; energy
+	observer auxiliaries remain separate from these numerical stage arrays.
 	"""
 
 	def __init__(
@@ -215,7 +214,7 @@ class SymplecticityObserver:
 		if state.ndim != 1 or state.size != 4 * self.particle_count:
 			raise ValueError(
 				"GC symplecticity requires the 4N doubled physical state; "
-				"run the method with `track_energy=False`."
+				"exclude observer auxiliaries from the numerical map input."
 			)
 		jacobian: np.ndarray = central_difference_jacobian(
 			stage.map_state,

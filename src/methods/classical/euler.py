@@ -2,73 +2,50 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-
+from dataclasses import dataclass
 import numpy as np
 
-from contracts.dynamics.protocols import DynamicalSystem
-
-from formulations.state import SingleFormulation
 from methods.base import FixedStepMethod
 from contracts.methods.step import StepInfo, StepResult
-from contracts.methods.observation import IntegrationStep, StepObserver
-from problem import InitialValueProblem
+from contracts.methods.observation import IntegrationStep
+from contracts.methods.quadrature import StageQuadrature
 from request import SimulationRequest
-
-
-def _checked_vector_field(
-	dynamics: DynamicalSystem,
-	time: float,
-	state: np.ndarray,
-) -> np.ndarray:
-	"""Evaluate one finite vector field with the physical state shape."""
-	derivative: np.ndarray = np.asarray(dynamics.vector_field(time, state), dtype=float)
-	if derivative.shape != state.shape or not np.all(np.isfinite(derivative)):
-		raise ValueError("The vector field changed shape or became non-finite.")
-	return derivative
+from methods.classical._jacobians import _checked_vector_field
 
 
 @dataclass(slots=True)
 class ExplicitEuler(FixedStepMethod[None]):
 	"""Classical forward Euler, ``z_next = z + h f(t, z)``."""
 
-	jax_mode = "device_resident"
-
-	track_energy: bool = False
+	jax_mode = 'device_resident'
 	progress: bool = False
-	step_observer: StepObserver | None = None
 
-	# Resources owned by one run; excluded from constructor options.
-	state_formulation: SingleFormulation = field(init=False, repr=False, compare=False)
-	dynamics: DynamicalSystem = field(init=False, repr=False, compare=False)
-
-	def initialize(self, problem: InitialValueProblem, request: SimulationRequest) -> None:
-		"""Bind the Euler map, its physical observation and output extraction."""
-		self.dynamics = problem.dynamics
-		self.state_formulation = SingleFormulation(problem.initial_state.size)
-		self.initial_state = self._initialize_state(problem, request)
+	def initialize(self, request: SimulationRequest) -> None:
+		"""Euler needs no prepared resources beyond the supplied field."""
 
 	def _apply_step(self, time: float, state: np.ndarray, step: float) -> np.ndarray:
 		"""Apply one forward Euler step to an independent physical state."""
 		value: np.ndarray = np.asarray(state, dtype=float)
-		return np.asarray(value + step * _checked_vector_field(self.dynamics, time, value), dtype=float)
+		return np.asarray(value + step * _checked_vector_field(self.f, time, value), dtype=float)
 
-	def advance(self, time: float, state: np.ndarray, step: float, *, momentum: np.ndarray | None = None) -> StepResult[None]:
-		"""Return one forward Euler step without collection or observation."""
-		physical: np.ndarray = self._checked_state(state, momentum)
-		increment: np.ndarray | None = step * self._momentum_rate(time, physical) if self.track_energy else None
+	def advance(self, time: float, state: np.ndarray, step: float, *, observe: bool = True) -> StepResult[None]:
+		"""Return a physical step and its optional passive quadrature point."""
+		physical: np.ndarray = self._checked_state(state)
 		after: np.ndarray = self._apply_step(time, physical, step)
-		return StepResult(after, {}, None, self._finish_momentum(momentum, increment))
+		quadrature: StageQuadrature | None = (
+			StageQuadrature((time,), (physical,), (step,)) if self.capture_quadrature else None
+		)
+		return StepResult(after, {}, None, quadrature)
 
 	def build_observation(self, info: StepInfo, result: StepResult[None]) -> IntegrationStep:
 		def map_state(candidate: np.ndarray) -> np.ndarray:
 			return self._apply_step(info.time, candidate, info.duration)
 		return IntegrationStep(
-			dynamics_name=type(self.dynamics).__name__, method_name=type(self).__name__,
+			dynamics_name='', method_name=type(self).__name__,
 			step_index=info.index, start_time=info.time, time=info.time + info.duration,
 			duration=info.duration, state_before=info.state_before.copy(),
-			state_after=result.state.copy(), map_state=map_state, dynamics=self.dynamics,
+			state_after=result.state.copy(), map_state=map_state,
 		)
 
 
-__all__ = ["ExplicitEuler"]
+__all__ = ['ExplicitEuler']

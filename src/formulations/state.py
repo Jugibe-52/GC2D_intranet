@@ -14,11 +14,11 @@ if TYPE_CHECKING:
 
 
 @dataclass(frozen=True, slots=True)
-class SingleFormulation:
-	"""One temporary copy of a physical array with shape (physical_size, *samples)."""
+class DoubleFormulation:
+	"""Two temporary copies of a physical array with shape (physical_size, *samples)."""
 
 	physical_size: int
-	copies: ClassVar[int] = 1
+	copies: ClassVar[int] = 2
 
 	def __post_init__(self) -> None:
 		if isinstance(self.physical_size, bool) or not isinstance(self.physical_size, Integral) or self.physical_size <= 0:
@@ -38,7 +38,7 @@ class SingleFormulation:
 		return value
 
 	def lift(self, physical: Any) -> Any:
-		"""Build one or two equal physical copies, without auxiliary coordinates.
+		"""Build two equal physical copies, without auxiliary coordinates.
 
 	The input has shape ``(d*N, *sample_axes)``. NumPy output owns its data,
 	and its copy blocks can be mutated independently; JAX remains functional.
@@ -63,11 +63,4 @@ class SingleFormulation:
 			for index in range(self.copies))
 
 
-@dataclass(frozen=True, slots=True)
-class DoubleFormulation(SingleFormulation):
-	"""Two independent temporary copies; projection belongs to the method."""
-
-	copies: ClassVar[int] = 2
-
-
-__all__ = ['SingleFormulation', 'DoubleFormulation']
+__all__ = ['DoubleFormulation']

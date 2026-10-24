@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dynamics.gc import GuidingCenterDynamics
+from dataclasses import fields, replace
 
 import unittest
 
@@ -17,9 +17,11 @@ from diagnostics import (
 from dynamics import GuidingCenterDynamics
 
 from potential import Potential
+from diagnostics.methods.energy import EnergyObserver
+from contracts.methods.observation import IntegrationStep
+from solvers.nonlinear import NewtonSolver
 from simulation import (
 	BM4Implicit,
-	GCDoubledMaps,
 	ImplicitBM4IntegrationStep,
 	InitialValueProblem,
 	SimulationRequest,
@@ -57,20 +59,20 @@ def _problem() -> tuple[Potential, np.ndarray, InitialValueProblem]:
 class GeneralizedEnergyObserverTests(unittest.TestCase):
 	"""Audit the stage reconstruction against energy-augmented BM4 maps."""
 
-	def test_bm4_kappa_matches_replayed_energy_augmented_stages(self) -> None:
+	def test_bm4_kappa_matches_independent_signed_shear_reconstruction(self) -> None:
 		_, configuration, problem = _problem()
 		events: list[ImplicitBM4IntegrationStep] = []
-		simulate(
+		solution = simulate(
 			problem,
 			BM4Implicit(step=0.1,
-				newton_absolute_tolerance=1e-14,
-				newton_relative_tolerance=1e-14,
-				step_observer=events.append,
+				solver=NewtonSolver(absolute_tolerance=1e-14,
+					relative_tolerance=1e-14, jacobian_method="analytic"),
 			),
 			SimulationRequest.uniform(
 				t_span=(0.0, 0.1),
 				sample_count=2,
 			),
+			observers=(EnergyObserver(), events.append),
 		)
 		self.assertEqual(len(events), 1)
 		event = events[0]
@@ -79,26 +81,35 @@ class GeneralizedEnergyObserverTests(unittest.TestCase):
 			initial_time=0.0,
 			initial_state=problem.initial_state,
 		)
+		with self.assertRaisesRegex(ValueError, "twelve stages"):
+			observer(replace(event, base_stages=event.base_stages[:-1]))
+		plain = IntegrationStep(**{item.name: getattr(event, item.name) for item in fields(IntegrationStep)})
+		with self.assertRaisesRegex(TypeError, "supports ABBA2Implicit"):
+			observer(plain)
+		self.assertEqual(len(observer.records), 1)
 		observer(event)
 
-		prepared = GCDoubledMaps(problem.dynamics, problem.initial_state.size,
-			coupling_frequency=event.coupling_frequency, track_energy=True)
-		augmented = np.concatenate((event.base_stages[0].state_before, [0.0]))
+		# Independently reconstruct the two signed shears in each accepted map.
+		kappa = 0.
+		self.assertEqual(event.coupling_frequency, 0.)
 		for stage in event.base_stages:
-			mapper = (
-				prepared.direct_map
-				if stage.flow_name == "flow"
-				else prepared.adjoint_map
-			)
-			augmented = mapper(stage.duration, stage.time, augmented)
-			np.testing.assert_allclose(
-				augmented[:4],
-				stage.state_after,
-				rtol=2e-14,
-				atol=2e-14,
-			)
-		self.assertEqual(GuidingCenterDynamics.coordinates.particle_count(problem.initial_state), 1)
-		self.assertAlmostEqual(observer.records[-1].kappa, augmented[-1] / 2.0)
+			first, second = np.split(stage.state_before, 2)
+			duration, time = stage.duration, stage.time
+			if stage.flow_name == "flow":
+				second_after = second + duration * problem.dynamics.vector_field(time, first)
+				first_after = first + duration * problem.dynamics.vector_field(time, second_after)
+				sources = (first, second_after)
+			else:
+				first_after = first + duration * problem.dynamics.vector_field(time, second)
+				second_after = second + duration * problem.dynamics.vector_field(time, first_after)
+				sources = (second, first_after)
+			kappa += duration * sum(float(problem.dynamics.extended_momentum_derivative(
+				time, state)[0]) for state in sources) / 2
+			np.testing.assert_allclose(np.concatenate((first_after, second_after)),
+				stage.state_after, rtol=2e-14, atol=2e-14)
+		self.assertAlmostEqual(observer.records[-1].kappa, kappa)
+		self.assertAlmostEqual(float(solution.diagnostics["extended_momentum"][0, -1]), kappa)
+
 
 
 class ImplicitGeneralizedEnergyStudyTests(unittest.TestCase):

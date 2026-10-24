@@ -6,7 +6,7 @@ import sys
 import unittest
 import numpy as np
 from dynamics.coordinates import PhysicalCoordinates
-from formulations.state import SingleFormulation, DoubleFormulation
+from formulations.state import DoubleFormulation
 from simulation import ABBA2Implicit, ABBA2Midpoint, BroydenSolver, NewtonSolver, InitialValueProblem, SimulationRequest
 from states.energy import energy_diagnostics
 from tests.test_method_integration import _problem
@@ -20,7 +20,7 @@ class IndependentFormulationTests(unittest.TestCase):
 					shape = (dimension * count, *samples)
 					physical = np.arange(np.prod(shape), dtype=float).reshape(shape)
 					before = physical.copy()
-					for cls in (SingleFormulation, DoubleFormulation):
+					for cls in (DoubleFormulation,):
 						form = cls(shape[0])
 						spatial = form.lift(physical)
 						self.assertEqual(spatial.shape, (form.copies * shape[0], *samples))
@@ -50,7 +50,7 @@ class IndependentFormulationTests(unittest.TestCase):
 		for name in ('layout', 'particle_count', 'track_energy', 'problem', 'initial_state', 'initial_time', 'solver', 'projection', 'momentum', 'pack', 'physical'):
 			self.assertFalse(hasattr(form, name), name)
 		result = subprocess.run([sys.executable, '-B', '-c',
-			'from formulations import SingleFormulation, DoubleFormulation; import sys; '
+			'from formulations import DoubleFormulation; import sys; '
 			'assert not any(x in sys.modules for x in ("dynamics", "methods", "execution", "solvers", "jax"))'], capture_output=True, text=True)
 		self.assertEqual(result.returncode, 0, result.stderr)
 
@@ -68,7 +68,7 @@ class IndependentFormulationTests(unittest.TestCase):
 		import jax
 		import jax.numpy as jnp
 		for size in (6, 9, 12):
-			for cls in (SingleFormulation, DoubleFormulation):
+			for cls in (DoubleFormulation,):
 				form = cls(size)
 				physical = jnp.arange(size * 2, dtype=float).reshape(size, 2)
 				packed = jax.jit(form.lift)(physical)
@@ -78,22 +78,31 @@ class IndependentFormulationTests(unittest.TestCase):
 				if cls is DoubleFormulation:
 					self.assertIsInstance(form.join_copies(np.asarray(physical), physical), jax.Array)
 
-	def test_methods_prepare_supplied_states_and_preserve_nonzero_momentum(self):
+	def test_methods_prepare_supplied_states_and_optional_quadrature(self):
 		problem = _problem(); request = SimulationRequest.uniform(t_span=(.3, .36))
 		for method in (ABBA2Midpoint(), ABBA2Implicit(solver=NewtonSolver()), ABBA2Implicit(solver=BroydenSolver())):
 			for tracking in (False, True):
-				run = replace(method, step=.02, track_energy=tracking).new_run(problem, request)
-				momentum = np.full(problem.particle_count, .17) if tracking else None
-				first = run.advance(.3, run.initial_state, .02, momentum=momentum)
+				run = replace(method, step=.02).new_run(problem.dynamics.vector_field,
+					problem.initial_conditions, request, jacobian=problem.dynamics.particle_vector_field_jacobians,
+					jacobian_structure='particle', capture_quadrature=tracking)
+				first = run.advance(.3, run.initial_state, .02)
 				self.assertEqual(first.state.shape, problem.initial_state.shape)
 				for offset, duration in ((0., .02), (.03, .007)):
 					candidate = first.state + offset; before = candidate.copy()
-					actual = run.advance(.32, candidate, duration, momentum=first.momentum)
+					actual = run.advance(.32, candidate, duration)
 					np.testing.assert_array_equal(candidate, before)
-					fresh = replace(method, track_energy=tracking).new_run(InitialValueProblem(problem.dynamics, candidate), SimulationRequest.uniform(t_span=(.32, .36)))
-					expected = fresh.advance(.32, fresh.initial_state, duration, momentum=first.momentum)
+					fresh_initial = type(problem.initial_conditions)(candidate, layout=problem.layout)
+					fresh = method.new_run(problem.dynamics.vector_field, fresh_initial,
+						SimulationRequest.uniform(t_span=(.32, .36)),
+						jacobian=problem.dynamics.particle_vector_field_jacobians,
+						jacobian_structure='particle', capture_quadrature=tracking)
+					expected = fresh.advance(.32, fresh.initial_state, duration)
 					np.testing.assert_array_equal(actual.state, expected.state)
-					if tracking: np.testing.assert_array_equal(actual.momentum, expected.momentum)
+					self.assertEqual(actual.quadrature is not None, tracking)
+					if tracking:
+						np.testing.assert_array_equal(actual.quadrature.times, expected.quadrature.times)
+						np.testing.assert_array_equal(actual.quadrature.states, expected.quadrature.states)
+						np.testing.assert_array_equal(actual.quadrature.weights, expected.quadrature.weights)
 					mu = actual.details.multiplier if isinstance(method, ABBA2Implicit) else np.zeros_like(candidate)
 					np.testing.assert_array_equal(actual.details.trace.state_before, np.concatenate((candidate + mu, candidate - mu)))
 					self.assertFalse(np.shares_memory(actual.state, actual.details.trace.state))

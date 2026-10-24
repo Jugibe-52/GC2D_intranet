@@ -17,10 +17,9 @@ from methods.extended.configuration import ABBA_PROJECTION_FORMULATIONS
 from contracts.methods.extended.abba import ABBA4ImplicitIntegrationStep, ABBA2ImplicitIntegrationStep
 from contracts.methods.observation import IntegrationStep
 from solvers.nonlinear import NONLINEAR_SOLVERS, NonlinearSolver
-from solvers.nonlinear import SolverOptions
+from solvers.nonlinear import NewtonSolver, BroydenSolver, AlgebraicSolver
 from methods.extended.configuration import _validate_projection_formulation
 from methods.extended.observations import bind_event_builder
-from problem import InitialValueProblem
 from methods.extended.maps import GCDoubledMaps
 
 from methods.extended.core.composition import ABBA2, ABBA4, ABBA6
@@ -180,21 +179,22 @@ class ImplicitABBAReversibilityObserver:
 		verbose: bool = False,
 	) -> None:
 		"""Configure independent reverse solves and in-memory observations."""
-		self.newton_absolute_tolerance = _positive_finite(
+		absolute_tolerance = _positive_finite(
 			newton_absolute_tolerance,
 			"newton_absolute_tolerance",
 		)
-		self.newton_relative_tolerance = _positive_finite(
+		relative_tolerance = _positive_finite(
 			newton_relative_tolerance,
 			"newton_relative_tolerance",
 		)
-		self.newton_max_iterations = _positive_integer(
+		max_iterations = _positive_integer(
 			newton_max_iterations,
 			"newton_max_iterations",
 		)
 		if nonlinear_solver not in NONLINEAR_SOLVERS:
 			raise ValueError("Unknown nonlinear solver for implicit ABBA reversibility.")
-		self.nonlinear_solver = nonlinear_solver
+		self.solver: AlgebraicSolver = (NewtonSolver if nonlinear_solver == 'newton' else BroydenSolver)(
+			absolute_tolerance, relative_tolerance, max_iterations, jacobian_method='analytic')
 		self.sample_every = _positive_integer(sample_every, "sample_every")
 		self.verbose = bool(verbose)
 		self._expected_step = 0
@@ -218,18 +218,17 @@ class ImplicitABBAReversibilityObserver:
 			recipe, order = ABBA4, 4
 		elif isinstance(step, ABBA6ImplicitIntegrationStep):
 			recipe, order = ABBA6, 6
-		problem: InitialValueProblem = InitialValueProblem(dynamics, np.array(step.state_after, dtype=float, copy=True), layout=GuidingCenterDynamics.coordinates)
-		options: SolverOptions = SolverOptions(self.nonlinear_solver, self.newton_absolute_tolerance,
-			self.newton_relative_tolerance, self.newton_max_iterations)
-		project: partial[ProjectedMapResult] = partial(solve_projection, GCDoubledMaps(problem.dynamics, problem.initial_state.size, coordinates=problem.layout, coupling_frequency=None),
-			recipe, options, formulation)
+		maps: GCDoubledMaps = GCDoubledMaps(dynamics.vector_field, step.state_after.size,
+			coordinates=GuidingCenterDynamics.coordinates, jacobian=dynamics.particle_vector_field_jacobians,
+			jacobian_structure='particle', coupling_frequency=None)
+		project: partial[ProjectedMapResult] = partial(solve_projection, maps, recipe, self.solver, formulation)
 		result: ProjectedMapResult = project(step.time, step.state_after, -step.duration)
-		builder: Callable[[float, float, int, np.ndarray, ProjectedMapResult], IntegrationStep] = bind_event_builder(dynamics, step.method_name, formulation, order=order,
+		builder: Callable[[float, float, int, np.ndarray, ProjectedMapResult], IntegrationStep] = bind_event_builder(step.method_name, formulation, order=order,
 			coefficients=tuple(2 * c for c in recipe.coefficients[::2]), project=project)
 		event: IntegrationStep = builder(step.time, -step.duration, step.step_index, step.state_after, result)
 		assert isinstance(event, (ABBA2ImplicitIntegrationStep, ABBA4ImplicitIntegrationStep,
 			ABBA6ImplicitIntegrationStep))
-		return replace(event, time=float(step.start_time))
+		return replace(event, time=float(step.start_time), dynamics=dynamics, dynamics_name=type(dynamics).__name__)
 
 	def __call__(self, step: IntegrationStep) -> None:
 		"""Observe one consecutive accepted implicit-ABBA step."""
@@ -246,7 +245,7 @@ class ImplicitABBAReversibilityObserver:
 		self._expected_step += 1
 		if step.step_index % self.sample_every:
 			return
-		if step.nonlinear_solver != self.nonlinear_solver:
+		if step.nonlinear_solver != self.solver.name:
 			raise ValueError(
 				"Forward and backward ABBA steps must use the same nonlinear solver."
 			)

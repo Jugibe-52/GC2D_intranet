@@ -153,7 +153,8 @@ reduced Newton blocks, and $6\times6$ simultaneous blocks. BM4 also retains
 its optional dense centered-difference differentiation of the complete map.
 
 \section{Passive energy from accepted stages}
-The dynamics supply $H(t,z)$ and $-\partial_tH(t,z)$. For the accepted spatial
+Execution supplies $H(t,z)$ and $-\partial_tH(t,z)$ to an energy observer.
+The method supplies only numerical quadrature data. For the accepted spatial
 trace, let $(t_j,s_j,z_j)$ denote the evaluation time, signed duration and
 physical source state of each individual shear. The shared quadrature is
 \[
@@ -173,7 +174,11 @@ physical Hamiltonian is conserved. Tracking does not modify spatial states,
 nonlinear unknown dimensions or stopping scales.
 
 \section{Execution and organization}
-Initialization binds the method's recipe and projection options once. The
+Execution injects the vector field and its optional Jacobian into a fresh run;
+no method retains the dynamics object. Initialization binds the method's recipe,
+\texttt{DoubleFormulation} and configured algebraic solver once. Solver controls
+include tolerances, iteration limits, differentiation and iteration callbacks.
+The independent energy observer owns momentum and its sampled history. The
 ordinary implicit execution is
 \[
  \texttt{advance}\;\longrightarrow\;\texttt{solve\_projection}

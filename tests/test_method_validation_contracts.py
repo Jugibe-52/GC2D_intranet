@@ -13,7 +13,7 @@ import numpy as np
 from problem import InitialValueProblem
 from request import SimulationRequest
 
-from solvers.nonlinear import _solve_broyden, _solve_newton
+from solvers.nonlinear import _solve_broyden, _solve_newton, NewtonSolver
 from methods.adaptive.scipy import DOP853, Radau
 from methods.classical.gauss_legendre import GaussLegendre4
 from methods.classical.rk4 import RK4
@@ -43,33 +43,22 @@ class _ArrayMetadataRK4(RK4):
 
 	probe: np.ndarray = field(default_factory=lambda: np.asarray((1.0, 2.0)))
 
-	def initialize(self, problem: InitialValueProblem, request: SimulationRequest) -> None:
-		RK4.initialize(self, problem, request)
+	def initialize(self, request: SimulationRequest) -> None:
+		RK4.initialize(self, request)
 		self.metadata = {"probe": self.probe}
 
 
 class MethodValidationContractTests(unittest.TestCase):
 	"""Verify behavior that generic numeric validators must not silently change."""
 
-	def test_boolean_tolerance_policy_remains_method_specific(self) -> None:
-		permissive: tuple[tuple[type[Any], str], ...] = (
-			(GaussLegendre4, "newton_absolute_tolerance"),
-			(SDIRK4, "newton_absolute_tolerance"),
-			(HBVM42, "absolute_tolerance"),
-			(DOP853, "absolute_tolerance"),
-			(Radau, "absolute_tolerance"),
-		)
-		for constructor, name in permissive:
-			for value in (True, np.bool_(True)):
-				with self.subTest(method=constructor.__name__, value=type(value)):
-					method = constructor(**{name: value})
-					self.assertEqual(getattr(method, name), 1.0)
-					self.assertIs(type(getattr(method, name)), float)
-		for constructor in (ABBA2Implicit, ABBA4Implicit, ABBA6Implicit, BM4Implicit):
-			for value in (True, np.bool_(True)):
-				with self.subTest(method=constructor.__name__, value=type(value)):
-					with self.assertRaisesRegex(ValueError, "`newton_absolute_tolerance` must be positive and finite"):
-						constructor(newton_absolute_tolerance=value)
+	def test_algebraic_and_adaptive_tolerances_have_explicit_owners(self) -> None:
+		for value in (True, np.bool_(True)):
+			with self.assertRaises(ValueError):
+				NewtonSolver(absolute_tolerance=value)
+			for constructor in (DOP853, Radau):
+				method = constructor(absolute_tolerance=value)
+				self.assertEqual(method.absolute_tolerance, 1.)
+				self.assertIs(type(method.absolute_tolerance), float)
 
 	def test_removed_coupling_and_optional_first_step_controls(self) -> None:
 		for constructor in (BM4Midpoint, BM4Implicit):
@@ -82,28 +71,21 @@ class MethodValidationContractTests(unittest.TestCase):
 			with self.assertRaisesRegex(ValueError, "first_step must be finite and positive"):
 				constructor(first_step=False)
 
-	def test_iteration_limits_keep_integer_normalization_and_reject_booleans(self) -> None:
-		constructors: tuple[tuple[type[Any], str], ...] = (
-			(GaussLegendre4, "newton_max_iterations"), (SDIRK4, "newton_max_iterations"),
-			(HBVM42, "max_iterations"), (ABBA2Implicit, "newton_max_iterations"),
-			(BM4Implicit, "newton_max_iterations"),
-		)
-		for constructor, name in constructors:
-			with self.subTest(method=constructor.__name__):
-				self.assertIs(type(getattr(constructor(**{name: np.int64(3)}), name)), int)
-				for value in (True, np.bool_(True), 3.0, 0):
-					with self.assertRaisesRegex(ValueError, f"`{name}` must be a positive integer"):
-						constructor(**{name: value})
+	def test_iteration_limits_are_validated_once_by_the_solver(self) -> None:
+		solver = NewtonSolver(max_iterations=np.int64(3))
+		self.assertIs(type(solver.max_iterations), int)
+		for value in (True, np.bool_(True), 3.0, 0):
+			with self.assertRaises(ValueError):
+				NewtonSolver(max_iterations=value)
+		for constructor in (GaussLegendre4, SDIRK4, HBVM42, ABBA2Implicit, BM4Implicit):
+			self.assertIs(constructor(solver=solver).solver, solver)
 
-	def test_invalid_controls_keep_the_original_first_error(self) -> None:
-		for constructor in (GaussLegendre4, SDIRK4):
-			with self.assertRaisesRegex(ValueError, "`newton_jacobian_relative_step` must be positive and finite"):
-				constructor(newton_jacobian_relative_step=0.0, newton_max_iterations=0)
-		with self.assertRaisesRegex(ValueError, "`max_iterations` must be a positive integer"):
-			HBVM42(max_iterations=0, jacobian_relative_step=0.0)
+	def test_invalid_controls_are_reported_by_their_owner(self) -> None:
+		with self.assertRaisesRegex(ValueError, 'jacobian_relative_step'):
+			NewtonSolver(jacobian_relative_step=0., max_iterations=0)
 		for constructor in (DOP853, Radau):
-			with self.assertRaisesRegex(ValueError, "relative_tolerance must be finite and positive"):
-				constructor(relative_tolerance=0.0, absolute_tolerance=0.0)
+			with self.assertRaisesRegex(ValueError, 'relative_tolerance must be finite and positive'):
+				constructor(relative_tolerance=0., absolute_tolerance=0.)
 
 	def test_request_snaps_owned_endpoints_and_rechecks_increasing_times(self) -> None:
 		times = np.asarray((np.nextafter(0.0, -np.inf), 0.5, np.nextafter(1.0, np.inf)))
@@ -138,7 +120,7 @@ class MethodValidationContractTests(unittest.TestCase):
 		problem = InitialValueProblem(_CountingDynamics(), np.array(np.asarray((1.0, 0.0)), dtype=float, copy=True), layout=GuidingCenterDynamics.coordinates)
 		request = SimulationRequest.uniform(t_span=(0.0, 0.1), sample_count=2)
 		method = _ArrayMetadataRK4()
-		run = replace(method, step=0.1).new_run(problem, request)
+		run = replace(method, step=0.1).new_run(problem.dynamics.vector_field, problem.initial_conditions, request)
 		self.assertFalse(run.initial_state.flags.writeable)
 		stored = np.asarray(run.metadata["probe"])
 		self.assertFalse(stored.flags.writeable)
@@ -179,9 +161,9 @@ class MethodValidationContractTests(unittest.TestCase):
 		dynamics = _CountingDynamics()
 		problem = InitialValueProblem(dynamics, np.array(np.asarray((1.0, 0.0)), dtype=float, copy=True), layout=GuidingCenterDynamics.coordinates)
 		request = SimulationRequest.uniform(t_span=(0.0, 0.1), sample_count=2)
-		run = HBVM42(step=0.1, jacobian_method="analytic").new_run(problem, request)
+		run = HBVM42(step=.1, solver=NewtonSolver(jacobian_method="analytic", backtracking=True)).new_run(problem.dynamics.vector_field, problem.initial_conditions, request)
 		self.assertEqual(dynamics.evaluations, 0)
-		with self.assertRaisesRegex(TypeError, "Analytic HBVM Jacobians require GuidingCenterJacobianSystem dynamics"):
+		with self.assertRaisesRegex(TypeError, "Analytic differentiation requires a Jacobian function"):
 			run.advance(0.0, run.initial_state, 0.1)
 		self.assertEqual(dynamics.evaluations, 9)
 

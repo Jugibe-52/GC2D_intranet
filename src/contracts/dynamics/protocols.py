@@ -24,7 +24,7 @@ class DynamicalSystem(Protocol):
 class HamiltonianSystem(DynamicalSystem, Protocol):
 	"""Physical dynamics supporting optional energy-balance tracking.
 
-	Formulations enable tracking with ``track_energy``. The dynamics supplies
+	Execution binds an optional energy observer. The dynamics supplies
 	both physical Hamiltonian values and ``-partial_t H`` in the same energy
 	normalization; autonomous systems must provide an explicit zero derivative.
 	"""

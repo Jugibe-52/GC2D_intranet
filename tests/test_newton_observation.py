@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-from dynamics.gc import GuidingCenterDynamics
 
+from dynamics import GuidingCenterDynamics
+from solvers import BroydenSolver, NewtonSolver
 from dataclasses import replace
 import unittest
 from unittest.mock import patch
@@ -48,7 +49,7 @@ class NewtonObservationTests(unittest.TestCase):
 					plain = simulate(problem, replace(method, step=(0.34 - 0.3) / 2), _request())
 					plain_calls = field.call_count
 					field.reset_mock()
-					observed = simulate(problem, replace(replace(method, newton_observer=events.append), step=(0.34 - 0.3) / 2), _request())
+					observed = simulate(problem, replace(replace(method, solver=replace(method.solver, iteration_observer=events.append)), step=(0.34 - 0.3) / 2), _request())
 					self.assertEqual(field.call_count, plain_calls)
 				np.testing.assert_array_equal(plain.states, observed.states)
 				for name in plain.diagnostics:
@@ -77,8 +78,8 @@ class NewtonObservationTests(unittest.TestCase):
 				def observe(event: NewtonIteration) -> None:
 					outer.append(event)
 					if len(outer) == 1:
-						simulate(problem, replace(replace(method, newton_observer=inner.append), step=(0.34 - 0.3) / 2), _request())
-				result = simulate(problem, replace(replace(method, newton_observer=observe, step_observer=steps.append), step=(0.34 - 0.3) / 2), _request())
+						simulate(problem, replace(replace(method, solver=replace(method.solver, iteration_observer=inner.append)), step=(0.34 - 0.3) / 2), _request())
+				result = simulate(problem, replace(replace(method, solver=replace(method.solver, iteration_observer=observe)), step=(0.34 - 0.3) / 2), _request(), observers=(steps.append,))
 				self.assertEqual(len(outer), len(inner))
 				self.assertEqual(len(outer), np.sum(result.diagnostics['residual_evaluations']))
 				before = len(outer)
@@ -104,7 +105,7 @@ class NewtonObservationTests(unittest.TestCase):
 	def test_history_is_explicit_and_matches_projection_statistics(self) -> None:
 		from studies.poincare_batch_runtime.newton_diagnostics import NewtonHistory
 		history = NewtonHistory(expected_steps=2, progress_every=0)
-		result = simulate(_problem(), BM4Implicit(step=(0.34 - 0.3) / 2, newton_observer=history), _request())
+		result = simulate(_problem(), BM4Implicit(step=(0.34 - 0.3) / 2, solver=NewtonSolver(jacobian_method='analytic', iteration_observer=history)), _request())
 		arrays = history.arrays()
 		np.testing.assert_array_equal(np.diff(arrays['offsets']), result.diagnostics['nonlinear_iterations'] + 1)
 		final = arrays['offsets'][1:] - 1
@@ -113,20 +114,20 @@ class NewtonObservationTests(unittest.TestCase):
 
 	def test_shadow_solves_are_visible_and_broyden_callbacks_are_rejected(self) -> None:
 		events: list[NewtonIteration] = []
-		simulate(_problem(), BM4Implicit(step=(0.34 - 0.3) / 2, newton_observer=events.append), _request(dense=True))
+		simulate(_problem(), BM4Implicit(step=(0.34 - 0.3) / 2, solver=NewtonSolver(jacobian_method='analytic', iteration_observer=events.append)), _request(dense=True))
 		initial_guesses = [event for event in events if event.iteration == 0]
 		self.assertEqual(len(initial_guesses), 3)
 		self.assertTrue(any(abs(event.duration - .01) < 1e-15 for event in initial_guesses))
 		for method in (BM4Implicit, ABBA2Implicit, ABBA4Implicit, ABBA6Implicit):
-			with self.assertRaisesRegex(ValueError, 'newton_observer requires'):
-				method(nonlinear_solver='broyden', newton_observer=events.append)
+			with self.assertRaisesRegex(ValueError, 'BroydenSolver does not support'):
+				method(solver=BroydenSolver(iteration_observer=events.append))
 
 	def test_remote_callbacks_are_rejected_before_serialization(self) -> None:
 		from execution._modal_worker import encode_job
 		problem = _problem(1)
 		with patch('execution._modal_worker.pickle.dumps') as serialize:
-			with self.assertRaisesRegex(NotImplementedError, 'newton_observer=None'):
-				encode_job(problem, BM4Implicit(newton_observer=lambda event: None), _request(), None)
+			with self.assertRaisesRegex(NotImplementedError, 'iteration callbacks'):
+				encode_job(problem, BM4Implicit(solver=NewtonSolver(jacobian_method='analytic', iteration_observer=lambda event: None)), _request(), None)
 			serialize.assert_not_called()
 
 	def test_snapshot_mutation_and_callback_failure_leave_other_runs_unchanged(self) -> None:
@@ -140,12 +141,12 @@ class NewtonObservationTests(unittest.TestCase):
 						if vector is not None:
 							vector.setflags(write=True)
 							vector[:] = 999
-				observed = simulate(problem, replace(replace(method, newton_observer=mutate), step=(0.34 - 0.3) / 2), _request())
+				observed = simulate(problem, replace(replace(method, solver=replace(method.solver, iteration_observer=mutate)), step=(0.34 - 0.3) / 2), _request())
 				np.testing.assert_array_equal(observed.states, plain.states)
 				def fail(event: NewtonIteration) -> None:
 					raise RuntimeError('Observer failed deliberately.')
 				with self.assertRaisesRegex(RuntimeError, 'Observer failed deliberately'):
-					simulate(problem, replace(replace(method, newton_observer=fail), step=(0.34 - 0.3) / 2), _request())
+					simulate(problem, replace(replace(method, solver=replace(method.solver, iteration_observer=fail)), step=(0.34 - 0.3) / 2), _request())
 				after_failure = simulate(problem, replace(method, step=(0.34 - 0.3) / 2), _request())
 				np.testing.assert_array_equal(after_failure.states, plain.states)
 

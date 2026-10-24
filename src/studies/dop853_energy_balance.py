@@ -21,6 +21,8 @@ from methods.classical.gauss_legendre import GaussLegendre4
 from methods.classical.rk4 import RK4
 from simulation.runner import simulate
 from diagnostics.methods.extended.bm4_energy_balance import BM4EnergyBalanceObserver
+from diagnostics.methods.energy import EnergyObserver
+from solvers.nonlinear import NewtonSolver
 
 
 if TYPE_CHECKING:
@@ -43,7 +45,8 @@ def horizontal_configuration(potential: Potential, x_fractions: Sequence[float],
 def run_energy_balance(potential: Potential, configuration: np.ndarray, config: Mapping[str, Any]) -> dict[str, np.ndarray]:
     """Integrate each method once; advance energy at stages, then save sparsely.
 
-    DOP853 controls the augmented (x,y,kappa) system adaptively with max_step=h.
+    DOP853 controls the physical state adaptively with max_step=h; its passive
+    energy observer integrates along accepted dense output.
     Fixed methods take exactly h. All persisted arrays use the same output grid.
     """
     require_uncoupled_bm4(config.get('coupling_frequency', 0.0))
@@ -65,24 +68,24 @@ def run_energy_balance(potential: Potential, configuration: np.ndarray, config: 
     arrays = {'times': times, 'initial_state': z0,
               'domain': np.array([potential.grid.xmin, potential.grid.ymin, potential.grid.period])}
     print('Starting DOP853', flush=True)
-    reference: States = simulate(problem, DOP853(max_step=h, track_energy=True,
-        relative_tolerance=config['reference_rtol'], absolute_tolerance=config['reference_atol']), request)
+    reference: States = simulate(problem, DOP853(max_step=h,
+        relative_tolerance=config['reference_rtol'], absolute_tolerance=config['reference_atol']),
+        request, observers=(EnergyObserver(),))
     arrays['DOP853.states'] = reference.states
     arrays['DOP853.kappa'] = np.asarray(reference.diagnostics['extended_momentum'])
-    common: dict[str, Any] = dict(newton_absolute_tolerance=config['newton_atol'],
-                  newton_relative_tolerance=config['newton_rtol'],
-                  newton_max_iterations=config['newton_max_iterations'],
-                  newton_jacobian_method='analytic',
-                  newton_jacobian_relative_step=config['jacobian_relative_step'])
+    solver = NewtonSolver(absolute_tolerance=config['newton_atol'],
+        relative_tolerance=config['newton_rtol'], max_iterations=config['newton_max_iterations'],
+        jacobian_method='analytic', jacobian_relative_step=config['jacobian_relative_step'])
     observer: BM4EnergyBalanceObserver = BM4EnergyBalanceObserver(dynamics, n, steps//saves)
     methods: dict[str, FixedStepMethod[Any]] = {
-        'BM4Implicit': BM4Implicit(**common, step_observer=observer),
-        'GaussLegendre4': GaussLegendre4(**common, track_energy=True),
-        'RK4': RK4(track_energy=True),
+        'BM4Implicit': BM4Implicit(solver=solver),
+        'GaussLegendre4': GaussLegendre4(solver=solver),
+        'RK4': RK4(),
     }
     for name, method in methods.items():
         print(f'Starting {name}', flush=True)
-        solution: States = simulate(problem, replace(method, step=h), request)
+        solution: States = simulate(problem, replace(method, step=h), request,
+            observers=(observer,) if name == 'BM4Implicit' else (EnergyObserver(),))
         assert solution.diagnostics['step_count'] == cycles*steps
         arrays[name+'.states'] = solution.states
         if name == 'BM4Implicit':

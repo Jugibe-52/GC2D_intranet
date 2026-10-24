@@ -185,7 +185,7 @@ in the NPZ arrays but are not assigned real line angles. The observer does not
 accumulate tangent maps and does not calculate area or symplecticity metrics.
 
 `diagnostics.methods.symplecticity.SymplecticityObserver` studies the two-copy GC
-state with `track_energy=False`. It writes indexed blocks below:
+state without requiring `EnergyObserver`. It writes indexed blocks below:
 
 ```text
 outputs/<notebook folder>/<notebook stem>/<YYYY-MM-DD>/
@@ -257,3 +257,22 @@ saved time weights; `final_rms_floor(reference)` uses the final saved node.
 independent read-only `(particles, samples)` array using minimum-image spatial
 distance and exact zero at the initial sample. These calculations do not mutate
 the records or execute integrations. See [the API migration](../../docs/simulation/api-migration.md).
+
+## Passive energy observation
+
+```python
+from diagnostics import EnergyObserver
+from methods import RK4
+from simulation import simulate
+
+result = simulate(problem, RK4(step=0.01), request,
+                  observers=(EnergyObserver(),))
+```
+
+`EnergyObserver` is reusable immutable configuration. Execution supplies H and `-partial_t H` and prepares a fresh accumulator for each run. Physical momentum starts at zero unless `initial_momentum` explicitly provides one value per particle. Numerical methods receive no energy functions, flags or momentum arrays.
+
+`contracts.methods.quadrature.StageQuadrature` contains current-step times, physical states and signed physical weights. Weights include duration and the GC factor one half. `reduction_scale=2` for doubled GC preserves the original sum-before-normalization arithmetic and overflow behavior; the default is one. Adaptive methods supply `InterpolantQuadrature` for the accepted interval; the observer retains the established eight-node Gauss rule. Rejected iterations and output-only shadows never advance the accepted accumulator.
+
+A main step updates momentum once. Every interior output query starts from that interval's accepted left momentum; repeated queries do not accumulate. Endpoints reuse stored values. Fixed shadows provide their own shortened quadrature, and adaptive samples use the accepted interpolant. Only the current interval is retained. Saved H is evaluated once and `states.energy.energy_diagnostics` preserves the existing `(N,T)` histories and `physical_kappa` normalization.
+
+Register accepted-step callbacks through the same `observers` sequence. Their identity, order and caller-owned lifecycle are preserved. Existing GC/BM4 energy callbacks declare `requires_quadrature=True` and use `PreparedEnergyObserver` with accepted stages, avoiding reconstructed dynamics or replayed spatial maps. Built-in energy configuration works in host, JAX and remote execution; arbitrary callbacks retain their documented host restrictions.

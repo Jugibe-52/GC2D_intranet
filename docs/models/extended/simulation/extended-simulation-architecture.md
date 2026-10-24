@@ -41,22 +41,22 @@ collection. No per-order forwarding modules or separate ABBA composition drivers
 remain. Diagnostic analysis consumes accepted events; independent residual
 equations used only for verification live under `tests/_extended_reference/`.
 
-Constructors validate method selectors and solver controls. `SolverOptions`
-stores those controls; it does not replace the nonlinear-solver name check.
+Constructors validate method selectors. The configured algebraic solver
+validates its controls without duplicating them on the method.
 `IntegrationMethod.new_run` owns the immutable initial state and metadata
 snapshots. BM4 reports the accepted tolerance directly from `SolveStats`, so
 observation and integration use the same convergence threshold.
 
 | Module or component | Responsibility |
 |---|---|
-| `extended/palindromic.py` | Common method inheritance, preparation, implicit/midpoint advancement and passive finishing |
+| `extended/palindromic.py` | Common method inheritance, preparation, implicit/midpoint advancement and quadrature description |
 | `extended/core/operations.py` | Immutable A/B/T/C operation coefficients |
 | `extended/core/composition.py` | Complete validated operation palindromes and their chronological execution |
 | `extended/core/projection.py` | Bind a composition, projection equations and algebraic solver |
 | `methods/projection.py` | Reduced and simultaneous residuals, Jacobians, guesses and reconstruction |
 | `solvers/nonlinear.py` | Shared Newton/Broyden convergence, iteration limits and counters |
 | `extended/core/jacobians.py` | Exact ordered particle-block tangents and centered-difference fallback |
-| `extended/core/energy.py` | Passive normalized momentum quadrature from accepted shear inputs |
+| `diagnostics/methods/energy.py` | Observer-owned passive momentum and energy diagnostics |
 | `extended/core/records.py` | Numerical stage traces, projection results and per-solve statistics |
 | `extended/core/midpoint.py` | Explicit arithmetic projection after the complete composition |
 | `extended/abba.py`, `extended/bm4.py` | Preset recipes, public controls and observation adapters |
@@ -82,7 +82,6 @@ extended/
     projection.py
     midpoint.py
     jacobians.py
-    energy.py
     records.py
 ```
 
@@ -120,7 +119,7 @@ An arithmetic mean does not imply exact symplecticity or reversibility.
 
 ## State, projection and derivatives
 
-For N planar particles the accepted state has 2N physical components. Time is scalar and optional physical momentum has N separate entries. The composition prepares two temporary spatial copies with 4N components, then returns a single physical state. Time and momentum never enter a nonlinear root.
+For N planar particles the accepted state has 2N physical components. Time is scalar; an optional energy observer owns N separate physical momentum entries. The composition prepares two temporary spatial copies with 4N components, then returns a single physical state. Time and momentum never enter a nonlinear root.
 
 With `E z = (z,z)`, `G = [I,-I]` and `N = G.T`, the reduced equation is
 `r(mu) = G Psi_h(E z + N mu) + 2 mu = 0`. Its Jacobian is
@@ -138,7 +137,7 @@ All roots retain the physical scale `atol + rtol * max(1, ||z||_inf)`.
 ## Energy, sampling and observation
 
 Implicit ABBA steps, like BM4 steps, place one `ProjectedMapResult` directly in
-`contracts.methods.step.StepResult.details`. The common step contract owns the physical result and separate momentum; the projection record owns the physical state, solver statistics and
+`contracts.methods.step.StepResult.details`. The common step contract owns the physical result and optional quadrature data; the projection record owns the physical state, solver statistics and
 accepted composition trace. The redundant private `core.records.StepResult`
 and its projection tuple have been removed. Observers and reverse-step diagnostics
 consume the projection record directly. Published diagnostic names and shapes,
@@ -231,32 +230,11 @@ Built-in dynamics keep physical parameters immutable. A new problem is required 
 
 ## Explicit Newton iteration observation
 
-Implicit ABBA and BM4 constructors accept the optional keyword-only
-`newton_observer` callback. It receives `contracts.solvers.nonlinear.NewtonIteration`
-records for every evaluated Newton iterate, including the initial guess, the
-accepted root, and the final unsuccessful iterate if the correction limit is
-reached. Residuals are observed after their normal evaluation; recording adds no
-field, residual, or Jacobian evaluations. The reduced and simultaneous layouts
-both expose their physical `multiplier` explicitly. The packed `unknown`,
-`residual`, and optional `multiplier` arrays are independent read-only copies.
+Configure callbacks on `NewtonSolver(iteration_observer=callback)` and pass it as `solver=` to the method. The solver also owns absolute and relative tolerances, correction limits, Jacobian selection, finite-difference scale and backtracking. Method constructors retain only numerical equations, coefficients and integration policy.
 
-The callback belongs to that method instance and its prepared runs. There is no
-module replacement or inspection of closure variables. A callback also sees
-solves made by `advance` for off-grid output samples. In contrast, `map_state`
-functions exported to step observers omit this callback, so subsequent
-reversibility or Jacobian analysis cannot append to the integration history.
-Use aligned complete-step outputs when recording one history per main step.
-The portable Poincare runtime passes its `NewtonHistory` directly to
-`BM4Implicit` or `solve_projection`, including checkpoint chunks.
-New portable bundles must freeze the matching numerical source, including
-`contracts.solvers.nonlinear`; the updated driver must not be combined with an older
-snapshot that predates `newton_observer`. Historical immutable bundles remain
-self-contained and are not rewritten.
+The callback receives independent read-only `contracts.solvers.nonlinear.NewtonIteration` records for already evaluated iterates: initial guess, accepted root and a final failed iterate when applicable. Unknowns, residuals and any projection multiplier are copied; observation adds no field, residual or Jacobian evaluations. The callback belongs to the configured solver, without global instrumentation.
 
-Iteration callbacks require `nonlinear_solver="newton"`. Python callbacks are
-unsupported for compiled JAX and remote Modal execution and are rejected rather
-than silently discarded. Observer exceptions propagate out of the run; no
-global restoration is needed, and other method instances remain independent.
+Direct advances and off-grid output solves emit iterates. Diagnostic `map_state` replay explicitly disables them. Use aligned complete-step outputs when collecting one history per main step. Broyden, compiled JAX and remote Modal execution reject unsupported Python iteration callbacks. Exceptions propagate from the run. Portable source bundles must include the matching solver and contracts; historical immutable bundles remain unchanged.
 
 Gauss, SDIRK, and analytic spatial projection share
 `solvers.linear._solve_particle_systems`: matrices have shape `(N,d,d)` and
@@ -293,18 +271,18 @@ for ownership, array shapes and unchanged request/result boundaries.
 ABBA separates `ReducedProjection` and `SimultaneousProjection` in
 `methods.projection`; the method provides the composition and its derivative.
 The equation object owns the 2N/6N residual and reconstruction. `solver=` accepts
-NewtonSolver or BroydenSolver; the existing string choices and tolerance keywords
-remain supported. CPU and JAX use the same equation classes.
+`NewtonSolver(...)` or `BroydenSolver(...)`; nonlinear tolerances and derivative
+options belong exclusively to those objects. CPU and JAX use the same equation classes.
 
 ## State representation and step preparation
 
-`SingleFormulation(physical_size)` and `DoubleFormulation(physical_size)` retain only a positive physical vector size. They prepare one or two temporary copies through `lift`, `join_copies` and `split_copies`. Shapes are `(d*N,*samples)` and `(copies*d*N,*samples)`; shifted copies remain distinct until the method projects them. NumPy/JAX backends and complete FC velocity blocks are preserved. There is no layout, particle count, tracking flag, clock, momentum, initial state, projection or solver in either representation.
+`DoubleFormulation(physical_size)` is the only state formulation. It prepares temporary copies through `lift`, `join_copies` and `split_copies`, preserving NumPy/JAX arrays and complete component blocks. Classical, HBVM and adaptive methods use the physical vector directly and instantiate no formulation. The doubled representation stores only a positive physical size; it contains no dynamics, solver or diagnostic state.
 
-Every accepted snapshot is `IntegrationState(time, values, momentum=None)`: scalar time, physical `values` of shape `(d*N,)`, and optional physical `momentum` of shape `(N,)`. GC remains 2N and FC 4N with or without tracking. Doubled GC work has 4N entries; generic doubled FC work has 8N. Workspaces are temporary and never become accepted states. This generic support does not extend GC numerical methods to FC.
+Every accepted snapshot is `IntegrationState(time, values)`: scalar time and a physical vector of shape `(d*N,)`. GC remains 2N and FC 4N with or without energy observation. Temporary doubled GC work has 4N entries; generic doubled FC work has 8N. These workspaces never become accepted states. This generic copy support does not extend GC numerical methods to FC.
 
-The method initializes zero momentum, prepares copies, selects projection equations and solver, and integrates momentum from accepted stages. `advance(t, Z, h, momentum=kappa)` returns physical `StepResult.state` and separate `StepResult.momentum`. `StepInfo.momentum_before` records the incoming auxiliary. Shadow samples start from the same accepted physical state and momentum. JAX carries separate arrays through the compiled loop.
+Execution binds the physical functions and calls `new_run(f, initial_conditions, request, jacobian=..., jacobian_structure=...)`. The method receives no `DynamicalSystem` or problem. `advance(t, Z, h)` returns physical state, statistics, optional details and optional quadrature data. `EnergyObserver` owns its independent momentum and accumulates only accepted quadrature; shadow samples derive from the accepted observer state without committing it. Step callbacks are passed through `simulate(..., observers=(...,))`.
 
-Methods evaluate saved physical H once. `states.energy.energy_diagnostics` combines supplied H and physical kappa without dynamics evaluation. Existing energy labels and `(N,T)` auxiliary histories remain unchanged; `extended_time` is broadcast from scalar sample times. Numerical archives require no migration; old pickled configured objects should be recreated.
+Enable passive energy with `simulate(..., observers=(EnergyObserver(),))`, importing `EnergyObserver` from `diagnostics.methods.energy`. Execution supplies the observer with H and `-partial_t H`. It evaluates saved physical H once and constructs the existing diagnostics. Energy labels and `(N,T)` auxiliary histories remain unchanged; `extended_time` is broadcast from scalar sample times. Old configured Python objects must be recreated; saved numerical archives retain their schemas.
 
 ## Integration step
 

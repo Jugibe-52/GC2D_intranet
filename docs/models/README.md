@@ -9,6 +9,8 @@ Physical dynamics and potential contracts live under [dynamics](../dynamics/).
 physical history for local validation and persistence. The numerical methods
 keep their existing algorithms; see the [Modal executor contract](../simulation/modal-execution.md).
 
+Execution injects `f(t, z)` and optional derivatives into every method. Classical, HBVM and adaptive methods work directly on physical state; only doubled methods use `DoubleFormulation`. Nonlinear controls belong to `NewtonSolver` or `BroydenSolver`. Energy and step callbacks are supplied through `simulate(..., observers=(EnergyObserver(), callback))`, independently of numerical method configuration.
+
 | Public method | Canonical theory | Simulation architecture | Numerical scope |
 |---|---|---|---|
 | `BM4Implicit` | [source](bm4-implicit/tex/theory.tex) · [PDF](bm4-implicit/tex/theory.pdf) | [runtime guide](bm4-implicit/simulation/bm4-simulation-architecture.md) | Fixed; twelve signed stages, one symmetric projection |

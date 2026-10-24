@@ -76,6 +76,21 @@ class FullCyclotronDynamics:
 		ex, ey = self.potential.electric_field(t, x, y)
 		return self.electric_scale * ex, self.electric_scale * ey
 
+	def cyclotron_flow(self, t: Any, state: Any, duration: Any) -> Any:
+		"""Exact field-free flow in the physical FC normalization."""
+		x, y, vx, vy = self.coordinates.split(state)
+		xp = array_namespace(state, duration)
+		rotation = xp.exp(-1j * duration * self.larmor_frequency)
+		position = x + 1j * y + 1j * self.rho * np.sign(self.eta) * (rotation - 1) * (vx + 1j * vy)
+		velocity = rotation * (vx + 1j * vy)
+		return self.coordinates.pack_components(position.real, position.imag, velocity.real, velocity.imag)
+
+	def electric_kick(self, t: Any, state: Any, duration: Any) -> Any:
+		"""Exact electric kick at a fixed time and position."""
+		x, y, vx, vy = self.coordinates.split(state)
+		ax, ay = self.electric_acceleration(t, x, y)
+		return self.coordinates.pack_components(x, y, vx + duration * ax, vy + duration * ay)
+
 	def vector_field(self, t: Any, state: Any) -> Any:
 		"""Evaluate FC equations in packed ``[x, y, vx, vy]`` order."""
 		x: BackendArray

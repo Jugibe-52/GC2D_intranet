@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from solvers.nonlinear import NewtonSolver
+
 from studies._validation import require_uncoupled_bm4
 
 from dynamics.gc import GuidingCenterDynamics
@@ -111,12 +113,8 @@ def _run_particle(particle: int) -> _ParticlePayload:
 	problem: InitialValueProblem = InitialValueProblem(context.dynamics, initial_configuration, layout=GuidingCenterDynamics.coordinates)
 	method: BM4Implicit = BM4Implicit(
 		step=context.config.integration_step,
-		newton_absolute_tolerance=context.config.absolute_tolerance,
-		newton_relative_tolerance=context.config.relative_tolerance,
-		newton_max_iterations=context.config.max_iterations,
-		newton_jacobian_method="analytic",
-		newton_jacobian_relative_step=context.config.jacobian_relative_step,
 		progress=False,
+		solver=NewtonSolver(absolute_tolerance=context.config.absolute_tolerance, relative_tolerance=context.config.relative_tolerance, max_iterations=context.config.max_iterations, jacobian_method='analytic', jacobian_relative_step=context.config.jacobian_relative_step),
 	)
 	started: float = perf_counter()
 	solution: States = simulate(problem, method, context.request)

@@ -7,7 +7,7 @@ from methods.extended.observations import abba_pairs
 from methods.extended.core.projection import solve_projection
 from methods.extended.core.composition import ABBA2
 from tests._extended_reference.abba_maps import uncoupled_maps
-from solvers.nonlinear import SolverOptions
+from solvers import NewtonSolver, BroydenSolver
 
 from contracts.dynamics.protocols import GuidingCenterJacobianSystem
 
@@ -71,7 +71,7 @@ def _solve_reduced_multiplier_step(
 ) -> _ProjectedStep:
     """Expose the shared solver result for independent residual checks."""
     result = solve_projection(uncoupled_maps(dynamics, state), ABBA2,
-        SolverOptions(nonlinear_solver, absolute_tolerance, relative_tolerance, max_iterations),
+        (NewtonSolver if nonlinear_solver == 'newton' else BroydenSolver)(absolute_tolerance, relative_tolerance, max_iterations, jacobian_method='analytic'),
         'reduced_multiplier', t, state, step)
     return _ProjectedStep(result.state, result.multiplier, abba_pairs(result.trace)[0].stages,
                           result.iterations, result.residual_evaluations, result.residual_norm)

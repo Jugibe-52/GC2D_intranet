@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from dynamics.gc import GuidingCenterDynamics
+from diagnostics.methods.energy import EnergyObserver
+from solvers import NewtonSolver
 
 import json
 from pathlib import Path
@@ -87,41 +88,26 @@ class ABBA2MidpointTests(unittest.TestCase):
 
 	def test_configuration_has_spatial_duplication_and_optional_energy(self) -> None:
 		self.assertEqual(ABBA_STATE_EXTENSIONS, ("physical",))
-		for tracking in (False, True):
-			self.assertIs(ABBA2Midpoint(track_energy=tracking).track_energy, tracking)
-		with self.assertRaisesRegex(ValueError, "track_energy=True"):
+		self.assertFalse(hasattr(ABBA2Midpoint(), "track_energy"))
+		with self.assertRaisesRegex(ValueError, "energy observer"):
 			ABBA2Midpoint(state_extension="fully_extended")
 		with self.assertRaises(TypeError):
 			ABBA2Midpoint(projection_formulation="reduced_multiplier")
 		with self.assertRaises(TypeError):
-			ABBA2Midpoint(nonlinear_solver="newton")
+			ABBA2Midpoint(solver=NewtonSolver(jacobian_method='analytic'))
 
 	def test_energy_tracking_requires_extended_hamiltonian_capability(self) -> None:
 		dynamics = _TimeOnlyPlanarDynamics()
 		problem = InitialValueProblem(dynamics, np.array(np.asarray([1.0, 1.2]), dtype=float, copy=True), layout=GuidingCenterDynamics.coordinates)
 		with self.assertRaisesRegex(TypeError, "HamiltonianSystem"):
-			simulate(
-				problem,
-				ABBA2Midpoint(step=0.1, track_energy=True),
-				SimulationRequest.uniform(
-					t_span=(0.0, 0.1),
-					sample_count=2,
-				),
-			)
+			simulate(problem, ABBA2Midpoint(step=0.1), SimulationRequest.uniform(t_span=(0.0, 0.1), sample_count=2), observers=(EnergyObserver(),))
 
 	def test_non_autonomous_stages_use_both_step_endpoints(self) -> None:
 		dynamics = _TimeOnlyPlanarDynamics()
 		initial_state = np.asarray([1.0, 1.2])
 		start = 0.2
 		step = 0.1
-		solution = simulate(
-			InitialValueProblem(dynamics, np.array(initial_state, dtype=float, copy=True), layout=GuidingCenterDynamics.coordinates),
-			ABBA2Midpoint(step=step),
-			SimulationRequest.uniform(
-				t_span=(start, start + step),
-				sample_count=2,
-			),
-		)
+		solution = simulate(InitialValueProblem(dynamics, np.array(initial_state, dtype=float, copy=True), layout=GuidingCenterDynamics.coordinates), ABBA2Midpoint(step=step), SimulationRequest.uniform(t_span=(start, start + step), sample_count=2))
 		expected_increment = step / 2 * np.asarray(
 			[start + start + step, start**2 + (start + step) ** 2]
 		)
@@ -163,14 +149,7 @@ class ABBA2MidpointTests(unittest.TestCase):
 
 		def final_state(step: float) -> np.ndarray:
 			"""Return one final state on a fixed integration interval."""
-			return simulate(
-				problem,
-				ABBA2Midpoint(step=step),
-				SimulationRequest.uniform(
-					t_span=(0.0, 0.4),
-					sample_count=2,
-				),
-			).states[:, -1]
+			return simulate(problem, ABBA2Midpoint(step=step), SimulationRequest.uniform(t_span=(0.0, 0.4), sample_count=2)).states[:, -1]
 
 		reference = final_state(5e-4)
 		coarse_error = float(np.linalg.norm(final_state(0.1) - reference))
@@ -181,22 +160,8 @@ class ABBA2MidpointTests(unittest.TestCase):
 	def test_observations_and_diagnostics_ignore_shadow_steps(self) -> None:
 		problem = InitialValueProblem(_deterministic_gc_dynamics(), np.array(np.asarray([1.0, 1.2]), dtype=float, copy=True), layout=GuidingCenterDynamics.coordinates)
 		events = []
-		observed = simulate(
-			problem,
-			ABBA2Midpoint(step=0.02, step_observer=events.append),
-			SimulationRequest.uniform(
-				t_span=(0.0, 0.05),
-				sample_count=11,
-			),
-		)
-		sparse = simulate(
-			problem,
-			ABBA2Midpoint(step=0.02),
-			SimulationRequest.uniform(
-				t_span=(0.0, 0.05),
-				sample_count=3,
-			),
-		)
+		observed = simulate(problem, ABBA2Midpoint(step=0.02), SimulationRequest.uniform(t_span=(0.0, 0.05), sample_count=11), observers=(events.append,))
+		sparse = simulate(problem, ABBA2Midpoint(step=0.02), SimulationRequest.uniform(t_span=(0.0, 0.05), sample_count=3))
 		self.assertEqual(len(events), observed.n_steps)
 		self.assertEqual(
 			observed.diagnostics["copy_separation_norms"].shape,

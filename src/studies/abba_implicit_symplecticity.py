@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from solvers.nonlinear import NewtonSolver
+
 from dataclasses import dataclass, replace
 from pathlib import Path
 import re
@@ -244,13 +246,10 @@ def run_abba2_reduced_multiplier_symplecticity_study(
 		area,
 		notebook_path=notebook_path,
 		config=method_config,
-		method_factory=lambda observer: ABBA2Implicit(
-			projection_formulation="reduced_multiplier",
-			newton_absolute_tolerance=config.newton_absolute_tolerance,
-			newton_relative_tolerance=config.newton_relative_tolerance,
-			newton_max_iterations=config.newton_max_iterations,
+		method_factory=lambda: ABBA2Implicit(
+			projection_formulation='reduced_multiplier',
 			progress=config.progress,
-			step_observer=observer,
+			solver=NewtonSolver(absolute_tolerance=config.newton_absolute_tolerance, relative_tolerance=config.newton_relative_tolerance, max_iterations=config.newton_max_iterations, jacobian_method='analytic'),
 		),
 		result_type=ABBA2ReducedMultiplierSymplecticityResult,
 		project_root=project_root,
@@ -294,13 +293,10 @@ def run_abba2_simultaneous_state_multiplier_symplecticity_study(
 		area,
 		notebook_path=notebook_path,
 		config=method_config,
-		method_factory=lambda observer: ABBA2Implicit(
-			projection_formulation="simultaneous_state_multiplier",
-			newton_absolute_tolerance=config.newton_absolute_tolerance,
-			newton_relative_tolerance=config.newton_relative_tolerance,
-			newton_max_iterations=config.newton_max_iterations,
+		method_factory=lambda: ABBA2Implicit(
+			projection_formulation='simultaneous_state_multiplier',
 			progress=config.progress,
-			step_observer=observer,
+			solver=NewtonSolver(absolute_tolerance=config.newton_absolute_tolerance, relative_tolerance=config.newton_relative_tolerance, max_iterations=config.newton_max_iterations, jacobian_method='analytic'),
 		),
 		result_type=ABBA2SimultaneousStateMultiplierSymplecticityResult,
 		project_root=project_root,
@@ -344,13 +340,10 @@ def _run_formulation_observers(
 			area,
 			notebook_path=notebook_path,
 			config=method_config,
-			method_factory=lambda observer: ABBA2Implicit(
+			method_factory=lambda: ABBA2Implicit(
 				projection_formulation=formulation,
-				newton_absolute_tolerance=config.newton_absolute_tolerance,
-				newton_relative_tolerance=config.newton_relative_tolerance,
-				newton_max_iterations=config.newton_max_iterations,
 				progress=config.progress,
-				step_observer=observer,
+				solver=NewtonSolver(absolute_tolerance=config.newton_absolute_tolerance, relative_tolerance=config.newton_relative_tolerance, max_iterations=config.newton_max_iterations, jacobian_method='analytic'),
 			),
 			result_type=ABBA2ReducedMultiplierSymplecticityResult,
 			project_root=project_root,
@@ -362,13 +355,10 @@ def _run_formulation_observers(
 		area,
 		notebook_path=notebook_path,
 		config=method_config,
-		method_factory=lambda observer: ABBA2Implicit(
+		method_factory=lambda: ABBA2Implicit(
 			projection_formulation=formulation,
-			newton_absolute_tolerance=config.newton_absolute_tolerance,
-			newton_relative_tolerance=config.newton_relative_tolerance,
-			newton_max_iterations=config.newton_max_iterations,
 			progress=config.progress,
-			step_observer=observer,
+			solver=NewtonSolver(absolute_tolerance=config.newton_absolute_tolerance, relative_tolerance=config.newton_relative_tolerance, max_iterations=config.newton_max_iterations, jacobian_method='analytic'),
 		),
 		result_type=ABBA2SimultaneousStateMultiplierSymplecticityResult,
 		project_root=project_root,

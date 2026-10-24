@@ -89,8 +89,8 @@ class AlgebraicSolverTests(unittest.TestCase):
 		def evaluate(value: np.ndarray) -> tuple[np.ndarray, object]:
 			calls.append(value.copy())
 			return value ** 3 - 1, None
-		result = NewtonSolver(1e-12, 1e-12, 30).solve(evaluate, np.array([.1]), scale=np.ones(1),
-			jacobian=lambda u: np.diag(3 * u ** 2), backtracking=True)
+		result = NewtonSolver(1e-12, 1e-12, 30, backtracking=True).solve(evaluate, np.array([.1]), scale=np.ones(1),
+			jacobian=lambda u: np.diag(3 * u ** 2))
 		np.testing.assert_allclose(result.unknown, 1., atol=1e-11)
 		self.assertEqual(result.residual_evaluations, len(calls))
 		self.assertGreater(result.residual_evaluations, result.iterations + 1)
@@ -121,20 +121,18 @@ class ConfiguredIntegrationTests(unittest.TestCase):
 		self.problem = InitialValueProblem(self.dynamics, self.initial)
 		self.request = SimulationRequest.uniform(t_span=(.2, .28),  sample_count=7)
 
-	def test_solver_objects_match_existing_controls_and_can_be_reused(self) -> None:
+	def test_solver_objects_can_be_shared_across_isolated_runs(self) -> None:
 		solver = NewtonSolver(1e-12, 1e-11, 30)
-		controls = dict(newton_absolute_tolerance=1e-12, newton_relative_tolerance=1e-11, newton_max_iterations=30)
-		cases = [(kind(**controls), kind(solver=solver)) for kind in (GaussLegendre4, SDIRK4, BM4Implicit)]
-		cases += [(ABBA4Implicit(projection_formulation=name, **controls),
-			ABBA4Implicit(projection_formulation=equation, solver=solver)) for name,equation in
-			[('reduced_multiplier', ReducedProjection()), ('simultaneous_state_multiplier', SimultaneousProjection())]]
-		cases += [(HBVM42(absolute_tolerance=1e-12, relative_tolerance=1e-11, max_iterations=30), HBVM42(solver=solver))]
-		cases += [(ABBA4Implicit(nonlinear_solver='broyden', **controls), ABBA4Implicit(solver=BroydenSolver(1e-12, 1e-11, 30)))]
-		for legacy, configured in cases:
-			with self.subTest(method=type(configured).__name__, projection=getattr(configured, 'projection_formulation', None)):
-				expected = simulate(self.problem, replace(legacy, step=0.02), self.request)
+		cases = [kind(solver=solver) for kind in (GaussLegendre4, SDIRK4, BM4Implicit)]
+		cases += [ABBA4Implicit(projection_formulation=equation, solver=solver)
+			for equation in (ReducedProjection(), SimultaneousProjection())]
+		cases += [HBVM42(solver=replace(solver, backtracking=True)),
+			ABBA4Implicit(solver=BroydenSolver(1e-12, 1e-11, 30))]
+		for configured in cases:
+			with self.subTest(method=type(configured).__name__):
+				expected = simulate(self.problem, replace(configured, step=.02), self.request)
 				for unused in range(2):
-					actual = simulate(self.problem, replace(configured, step=0.02), self.request)
+					actual = simulate(self.problem, replace(configured, step=.02), self.request)
 					np.testing.assert_array_equal(actual.states, expected.states)
 					for key in ('nonlinear_iterations', 'residual_evaluations'):
 						np.testing.assert_array_equal(actual.diagnostics[key], expected.diagnostics[key])
@@ -171,7 +169,7 @@ class ConfiguredIntegrationTests(unittest.TestCase):
 		method = ABBA4Implicit(step=.02, projection_formulation=equation, solver=NewtonSolver())
 		self.assertIs(method.projection_formulation, equation)
 		payload = encode_job(self.problem, method, self.request, None)
-		problem, restored, request, options = decode_job(payload)
+		problem, restored, request, options, observers = decode_job(payload)
 		self.assertIsInstance(restored.projection_formulation, SimultaneousProjection)
 		self.assertIsInstance(problem.initial_conditions, InitialConditions)
 		expected = simulate(self.problem, replace(method, step=0.02), self.request)

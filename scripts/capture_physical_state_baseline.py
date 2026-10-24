@@ -14,6 +14,7 @@ from simulation import (InitialValueProblem, SimulationRequest, simulate, Explic
     ABBA4Implicit, ABBA6Implicit, BM4Implicit, BM4Midpoint, NewtonSolver, BroydenSolver,
     ReducedProjection, SimultaneousProjection)
 from execution.options import ExecutionOptions
+from diagnostics.methods.energy import EnergyObserver
 
 parser = argparse.ArgumentParser()
 parser.add_argument('output')
@@ -27,14 +28,14 @@ arrays = {}; records = {}
 for model, dynamics, initial in models:
     problem = InitialValueProblem(dynamics, initial)
     for energy in (False, True):
-        options = dict(track_energy=energy, step=.02)
+        options = dict(step=.02)
         cases = [(cls.__name__, cls(**options)) for cls in (ExplicitEuler,RK4,GaussLegendre4,SDIRK4,HBVM42)]
-        cases += [(cls.__name__, cls(track_energy=energy, max_step=.02)) for cls in (DOP853,Radau)]
+        cases += [(cls.__name__, cls(max_step=.02)) for cls in (DOP853,Radau)]
         if model == 'gc':
             cases += [(cls.__name__, cls(**options)) for cls in (ABBA2Midpoint,BM4Midpoint,ABBA6Implicit)]
             for cls in (ABBA2Implicit,ABBA4Implicit,BM4Implicit):
-                for solver in (NewtonSolver(absolute_tolerance=1e-12,relative_tolerance=1e-11,max_iterations=40),
-                               BroydenSolver(absolute_tolerance=1e-12,relative_tolerance=1e-11,max_iterations=40)):
+                for solver in (NewtonSolver(absolute_tolerance=1e-12,relative_tolerance=1e-11,max_iterations=40,jacobian_method="analytic"),
+                               BroydenSolver(absolute_tolerance=1e-12,relative_tolerance=1e-11,max_iterations=40,jacobian_method="analytic")):
                     projections = (ReducedProjection(), SimultaneousProjection()) if cls != BM4Implicit else (None,)
                     for projection in projections:
                         extra = dict(solver=solver)
@@ -42,7 +43,8 @@ for model, dynamics, initial in models:
                         cases.append((f'{cls.__name__}_{solver.name}_{projection.name if projection else "reduced"}',cls(**options,**extra)))
         for name, method in cases:
             key = f'{model}_{name}_energy{int(energy)}'
-            result = simulate(problem, method, request, options=ExecutionOptions(backend=args.backend))
+            result = simulate(problem, method, request, options=ExecutionOptions(backend=args.backend),
+                observers=(EnergyObserver(),) if energy else ())
             arrays[key + '/values'] = result.values
             arrays[key + '/times'] = result.times
             record = {}

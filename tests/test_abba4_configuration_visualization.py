@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from dynamics.gc import GuidingCenterDynamics
 
+from dynamics import GuidingCenterDynamics
 from types import SimpleNamespace
 import unittest
 

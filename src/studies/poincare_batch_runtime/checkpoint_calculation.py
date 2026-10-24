@@ -6,6 +6,7 @@ from dynamics.gc import GuidingCenterDynamics
 
 from typing import Any, TYPE_CHECKING
 from pathlib import Path
+from dataclasses import replace
 import hashlib
 import json
 import os
@@ -49,17 +50,21 @@ def calculate_checkpointed_group(
     from methods.extended.core.composition import BM4
     from methods.extended.core.projection import solve_projection
     from methods.extended.core.midpoint import midpoint_step
-    from solvers.nonlinear import SolverOptions
+    from solvers.nonlinear import NewtonSolver
     import parallel_calculation
 
     indices = np.asarray(indices, dtype=int)
     xy0 = np.asarray(initial_xy, dtype=float)[indices]
     initial: np.ndarray = GuidingCenterDynamics.coordinates.pack_components(xy0[:, 0], xy0[:, 1])
-    problem: InitialValueProblem = InitialValueProblem(GuidingCenterDynamics(potential, rho=settings['rho']), initial, layout=GuidingCenterDynamics.coordinates)
-    prepared: GCDoubledMaps = GCDoubledMaps(problem.dynamics, problem.initial_state.size, coordinates=problem.layout, coupling_frequency=None)
+    dynamics = GuidingCenterDynamics(potential, rho=settings['rho'])
+    problem: InitialValueProblem = InitialValueProblem(dynamics, initial, layout=GuidingCenterDynamics.coordinates)
+    prepared: GCDoubledMaps = GCDoubledMaps(dynamics.vector_field,
+        problem.initial_state.size, coordinates=problem.layout, coupling_frequency=None,
+        jacobian=dynamics.particle_vector_field_jacobians)
     implicit = settings['method'] == 'BM4Implicit'
-    solver: SolverOptions = SolverOptions('newton', settings['newton_atol'], settings['newton_rtol'],
-                           settings['newton_max_iterations'])
+    solver = NewtonSolver(settings['newton_atol'], settings['newton_rtol'],
+        settings['newton_max_iterations'], jacobian_method='analytic',
+        jacobian_relative_step=settings['jacobian_relative_step'])
     particle_ids = np.asarray(settings['particle_ids'])[indices]
     n = settings['n_steps']
     t0: Any
@@ -115,14 +120,14 @@ def calculate_checkpointed_group(
             tolerances: np.ndarray = np.empty(length)
             mu: np.ndarray = np.empty(length)
             history: Any | None = NewtonHistory(length, progress_every=0) if implicit else None
+            chunk_solver = replace(solver, iteration_observer=history)
             for local, k in enumerate(range(completed, end)):
                 if implicit:
                     threshold = settings['newton_atol'] + settings['newton_rtol'] * max(
                         1.0, float(np.linalg.norm(value, ord=np.inf)))
                     result: ProjectedMapResult = solve_projection(
-                        prepared, BM4, solver, 'reduced_multiplier', t0 + k * h, value, h,
-                        jacobian_relative_step=settings['jacobian_relative_step'],
-                        jacobian_method='analytic', newton_observer=history)
+                        prepared, BM4, chunk_solver, 'reduced_multiplier', t0 + k * h, value, h,
+                        observe=True)
                     value = result.state
                     assert np.isfinite(value).all() and result.residual_norm <= threshold
                     states[:, local + 1] = value

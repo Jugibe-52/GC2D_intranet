@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
+from solvers import NewtonSolver
 from states import generators as state_generators
-from dynamics.gc import GuidingCenterDynamics
 
 import json
 from pathlib import Path
@@ -96,16 +96,7 @@ class ImplicitABBAJacobianTests(unittest.TestCase):
 
 		for formulation in ABBA_PROJECTION_FORMULATIONS:
 			events = []
-			solution = simulate(
-				problem,
-				ABBA2Implicit(step=0.05,
-					projection_formulation=formulation,
-					newton_absolute_tolerance=1e-14,
-					newton_relative_tolerance=1e-14,
-					step_observer=events.append,
-				),
-				request,
-			)
+			solution = simulate(problem, ABBA2Implicit(step=0.05, projection_formulation=formulation, solver=NewtonSolver(jacobian_method='analytic', absolute_tolerance=1e-14, relative_tolerance=1e-14)), request, observers=(events.append,))
 			self.assertEqual(len(events), 1)
 			step = events[0]
 			implicit_function = implicit_function_step_jacobian(step)
@@ -157,14 +148,7 @@ class ImplicitABBAJacobianTests(unittest.TestCase):
 		start = 0.2
 		duration = 0.1
 		events = []
-		simulate(
-			InitialValueProblem(dynamics, np.array(np.asarray([1.0, 1.2]), dtype=float, copy=True), layout=GuidingCenterDynamics.coordinates),
-			ABBA2Implicit(step=duration, step_observer=events.append),
-			SimulationRequest.uniform(
-				t_span=(start, start + duration),
-				sample_count=2,
-			),
-		)
+		simulate(InitialValueProblem(dynamics, np.array(np.asarray([1.0, 1.2]), dtype=float, copy=True), layout=GuidingCenterDynamics.coordinates), ABBA2Implicit(step=duration), SimulationRequest.uniform(t_span=(start, start + duration), sample_count=2), observers=(events.append,))
 		self.assertEqual(len(events), 1)
 		self.assertEqual(events[0].start_time, start)
 		for calculator in (

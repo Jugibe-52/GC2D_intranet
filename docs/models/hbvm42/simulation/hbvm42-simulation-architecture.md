@@ -6,24 +6,28 @@ The canonical theoretical source is [theory.tex](../tex/theory.tex), with its
 compiled [theory.pdf](../tex/theory.pdf). The physical-state contract below
 supersedes earlier diagrams showing a duplicated clock or full time/momentum projection.
 
+![Functions, numerical method and observers](hbvm42-simulation-architecture.svg)
+
 ## Responsibilities
 
 | Component | Owns |
 |---|---|
 | Dynamics | Physical vector field, Hamiltonian and required derivatives |
-| Formulation | Size-checked temporary spatial copies |
-| Method | Stages, signed coefficients, spatial projection and passive quadrature |
-| Integration | Accepted intervals, sampling, observation and output collection |
+| Formulation | Optional doubled spatial copies |
+| Method | Physical stages, projection equations and optional quadrature data |
+| Solver | Nonlinear tolerances, iteration limits, derivatives and callbacks |
+| EnergyObserver | Independent momentum and energy histories |
+| Execution | Function injection, accepted intervals, sampling, observation and output collection |
 
 ## State contract
 
-`SingleFormulation(physical_size)` and `DoubleFormulation(physical_size)` retain only a positive physical vector size. They prepare one or two temporary copies through `lift`, `join_copies` and `split_copies`. Shapes are `(d*N,*samples)` and `(copies*d*N,*samples)`; shifted copies remain distinct until the method projects them. NumPy/JAX backends and complete FC velocity blocks are preserved. There is no layout, particle count, tracking flag, clock, momentum, initial state, projection or solver in either representation.
+`DoubleFormulation(physical_size)` is the only state formulation. It prepares temporary copies through `lift`, `join_copies` and `split_copies`, preserving NumPy/JAX arrays and complete component blocks. Classical, HBVM and adaptive methods use the physical vector directly and instantiate no formulation. The doubled representation stores only a positive physical size; it contains no dynamics, solver or diagnostic state.
 
-Every accepted snapshot is `IntegrationState(time, values, momentum=None)`: scalar time, physical `values` of shape `(d*N,)`, and optional physical `momentum` of shape `(N,)`. GC remains 2N and FC 4N with or without tracking. Doubled GC work has 4N entries; generic doubled FC work has 8N. Workspaces are temporary and never become accepted states. This generic support does not extend GC numerical methods to FC.
+Every accepted snapshot is `IntegrationState(time, values)`: scalar time and a physical vector of shape `(d*N,)`. GC remains 2N and FC 4N with or without energy observation. Temporary doubled GC work has 4N entries; generic doubled FC work has 8N. These workspaces never become accepted states. This generic copy support does not extend GC numerical methods to FC.
 
-The method initializes zero momentum, prepares copies, selects projection equations and solver, and integrates momentum from accepted stages. `advance(t, Z, h, momentum=kappa)` returns physical `StepResult.state` and separate `StepResult.momentum`. `StepInfo.momentum_before` records the incoming auxiliary. Shadow samples start from the same accepted physical state and momentum. JAX carries separate arrays through the compiled loop.
+Execution binds the physical functions and calls `new_run(f, initial_conditions, request, jacobian=..., jacobian_structure=...)`. The method receives no `DynamicalSystem` or problem. `advance(t, Z, h)` returns physical state, statistics, optional details and optional quadrature data. `EnergyObserver` owns its independent momentum and accumulates only accepted quadrature; shadow samples derive from the accepted observer state without committing it. Step callbacks are passed through `simulate(..., observers=(...,))`.
 
-Methods evaluate saved physical H once. `states.energy.energy_diagnostics` combines supplied H and physical kappa without dynamics evaluation. Existing energy labels and `(N,T)` auxiliary histories remain unchanged; `extended_time` is broadcast from scalar sample times. Numerical archives require no migration; old pickled configured objects should be recreated.
+Enable passive energy with `simulate(..., observers=(EnergyObserver(),))`, importing `EnergyObserver` from `diagnostics.methods.energy`. Execution supplies the observer with H and `-partial_t H`. It evaluates saved physical H once and constructs the existing diagnostics. Energy labels and `(N,T)` auxiliary histories remain unchanged; `extended_time` is broadcast from scalar sample times. Old configured Python objects must be recreated; saved numerical archives retain their schemas.
 
 ## Energy and nonlinear work
 
@@ -57,10 +61,10 @@ counts are unchanged. Convergence and linear-solve guards remain in the algorith
 By default, `simulate(problem, method, request)` delegates to `Execution.run`,
 which prepares a fresh run via `new_run` and allocates one physical recorder.
 The host worker advances and samples through the method's controller. Each
-`advance` returns a physical state and separate momentum, work counters and accepted details.
-The controller owns `IntegrationState(time, values, momentum=None)`. Requested samples are
+`advance` returns a physical state, work counters, accepted details and optional quadrature data.
+The controller owns `IntegrationState(time, values)`. Requested samples are
 extracted into physical coordinates and copied into `States`; step counters keep
-their separate axis. The method evaluates the saved physical Hamiltonian; the formulation combines it with stored momentum for output.
+their separate axis. The energy observer evaluates the saved physical Hamiltonian and combines it with its own momentum history.
 Execution finalizes the same recorder once and closes the run on success or
 failure. Configured methods remain reusable with isolated run resources.
 
@@ -81,7 +85,7 @@ maximum absolute sampled balance error over all particles.
 ## Migration and verification
 
 `state_extension="fully_extended"` no longer runs a time/momentum projection.
-It raises explicit migration guidance. Use `track_energy=True` with spatial
+It raises explicit migration guidance. Use `observers=(EnergyObserver(),)` with spatial
 projection. The historical full-state symplecticity study is retired because it
 measured a different map; existing saved artifacts can still be read.
 

@@ -1,22 +1,22 @@
 """Fourth-order HBVM(4,2) with a reduced Legendre-stage solve."""
 
 from __future__ import annotations
-from solvers.nonlinear import NewtonSolver, AlgebraicSolver, validate_solver
+from solvers.nonlinear import NewtonSolver, validate_solver
+from solvers.derivatives import centered_difference, packed_particle_jacobian
 
 from dataclasses import dataclass, field
 from typing import Literal, TYPE_CHECKING, TypeAlias
 
 import numpy as np
 
-from contracts.dynamics.protocols import GuidingCenterJacobianSystem
+from contracts.methods.functions import VectorField, JacobianStructure
+from contracts.methods.quadrature import StageQuadrature
+from methods.classical._jacobians import _checked_vector_field, _checked_analytic_jacobians, _resolved_jacobian_method
 
-from formulations.state import SingleFormulation
 from methods.base import FixedStepMethod
 from contracts.methods.step import StepInfo, StepResult
-from contracts.methods.observation import IntegrationStep, StepObserver
-from problem import InitialValueProblem
+from contracts.methods.observation import IntegrationStep
 from request import SimulationRequest
-from methods._validation import _positive_finite, _positive_integer
 
 
 if TYPE_CHECKING:
@@ -91,117 +91,29 @@ class _EvaluationCounter:
 	vector_field_evaluations: int = 0
 
 
-def _validated_jacobian_method(value: str) -> HBVMJacobianMethod:
-	"""Return one supported HBVM Jacobian strategy."""
-	if value not in ("auto", "analytic", "finite_difference"):
-		raise ValueError(
-			"`jacobian_method` must be 'auto', 'analytic', or 'finite_difference'."
-		)
-	return value  # type: ignore[return-value]
-
-
-def _resolved_jacobian_method(
-	dynamics: object,
-	requested: HBVMJacobianMethod,
-) -> HBVMJacobianMethod:
-	"""Resolve HBVM's capability-based strategy without probing field Jacobians."""
-	selected: HBVMJacobianMethod = requested
-	if selected == "auto":
-		selected = (
-			"analytic"
-			if isinstance(dynamics, GuidingCenterJacobianSystem)
-			else "finite_difference"
-		)
-	if selected == "analytic" and not isinstance(dynamics, GuidingCenterJacobianSystem):
-		raise TypeError(
-			"Analytic HBVM Jacobians require GuidingCenterJacobianSystem dynamics."
-		)
-	return selected
-
-
-def _evaluate_vector_field(
-	dynamics: object,
-	time: float,
-	state: np.ndarray,
-	counter: _EvaluationCounter,
-) -> np.ndarray:
-	"""Evaluate one shape-preserving finite vector field and update its counter."""
-	evaluate: Any | None = getattr(dynamics, "vector_field", None)
-	if not callable(evaluate):
-		raise TypeError("HBVM42 requires dynamics with a callable vector field.")
-	value: np.ndarray = np.asarray(evaluate(time, state), dtype=float)
+def _evaluate_vector_field(f: VectorField, time: float, state: np.ndarray,
+                           counter: _EvaluationCounter) -> np.ndarray:
+	"""Count one validated field evaluation, including derivative probes."""
+	value: np.ndarray = _checked_vector_field(f, time, state)
 	counter.vector_field_evaluations += 1
-	if value.shape != state.shape or not np.all(np.isfinite(value)):
-		raise ValueError(
-			"The vector field must return a finite array matching the state shape."
-		)
 	return value
 
 
-def _complete_particle_jacobian(
-	particle_blocks: np.ndarray,
-	state_size: int,
-) -> np.ndarray:
-	"""Assemble component-major particle blocks into one dense Jacobian."""
-	if state_size % 2:
-		raise ValueError("Analytic HBVM Jacobians require an even physical state size.")
-	particle_count = state_size // 2
-	blocks: np.ndarray = np.asarray(particle_blocks, dtype=float)
-	if blocks.shape != (particle_count, 2, 2) or not np.all(np.isfinite(blocks)):
-		raise ValueError(
-			"Particle vector-field Jacobians must have shape (particle_count, 2, 2)."
-		)
-	result: np.ndarray = np.zeros((state_size, state_size), dtype=float)
-	particles: np.ndarray = np.arange(particle_count)
-	x_indices = particles
-	y_indices = particle_count + particles
-	result[x_indices, x_indices] = blocks[:, 0, 0]
-	result[x_indices, y_indices] = blocks[:, 0, 1]
-	result[y_indices, x_indices] = blocks[:, 1, 0]
-	result[y_indices, y_indices] = blocks[:, 1, 1]
-	return result
-
-
-def _analytic_stage_jacobians(
-	dynamics: GuidingCenterJacobianSystem,
-	times: np.ndarray,
-	stages: np.ndarray,
-) -> tuple[np.ndarray, ...]:
-	"""Return exact dense field Jacobians for the four quadrature stages."""
-	return tuple(
-		_complete_particle_jacobian(
-			dynamics.particle_vector_field_jacobians(float(time), stage),
-			stage.size,
-		)
-		for time, stage in zip(times, stages, strict=True)
-	)
+def _analytic_stage_jacobians(jacobian: VectorField, structure: JacobianStructure,
+                              times: np.ndarray, stages: np.ndarray) -> tuple[np.ndarray, ...]:
+	"""Return dense field derivatives for the four quadrature stages."""
+	blocks: tuple[np.ndarray, ...] = tuple(_checked_analytic_jacobians(jacobian,
+		float(time), stage, structure) for time, stage in zip(times, stages, strict=True))
+	return tuple(packed_particle_jacobian(block) for block in blocks) if structure == 'particle' else blocks
 
 
 def _finite_difference_stage_jacobians(
-	dynamics: object,
-	times: np.ndarray,
-	stages: np.ndarray,
-	*,
-	relative_step: float,
-	counter: _EvaluationCounter,
+	f: VectorField, times: np.ndarray, stages: np.ndarray, *,
+	relative_step: float, counter: _EvaluationCounter,
 ) -> tuple[np.ndarray, ...]:
-	"""Differentiate each stage field by centered component perturbations."""
-	jacobians: list[np.ndarray] = []
-	for time, stage in zip(times, stages, strict=True):
-		state_size = stage.size
-		jacobian: np.ndarray = np.empty((state_size, state_size), dtype=float)
-		for column in range(state_size):
-			increment = relative_step * max(1.0, abs(float(stage[column])))
-			plus: Any = stage.copy()
-			minus: Any = stage.copy()
-			plus[column] += increment
-			minus[column] -= increment
-			jacobian[:, column] = (
-				_evaluate_vector_field(dynamics, float(time), plus, counter)
-				- _evaluate_vector_field(dynamics, float(time), minus, counter)
-			) / (2.0 * increment)
-		jacobians.append(jacobian)
-	return tuple(jacobians)
+	"""Differentiate each field while retaining HBVM's evaluation accounting."""
+	return tuple(centered_difference(lambda value: _evaluate_vector_field(f, float(time), value, counter),
+		stage, relative_step=relative_step) for time, stage in zip(times, stages, strict=True))
 
 
 def _reduced_residual_jacobian(
@@ -231,17 +143,9 @@ def _reduced_residual_jacobian(
 
 
 def _advance_hbvm42(
-	dynamics: object,
-	time: float,
-	state: np.ndarray,
-	step: float,
-	*,
-	absolute_tolerance: float,
-	relative_tolerance: float,
-	max_iterations: int,
-	jacobian_method: HBVMJacobianMethod,
-	jacobian_relative_step: float,
-	solver: NewtonSolver | None = None,
+	f: VectorField, time: float, state: np.ndarray, step: float, *,
+	solver: NewtonSolver, jacobian: VectorField | None,
+	jacobian_structure: JacobianStructure, observe: bool = True,
 ) -> _HBVMStepResult:
 	"""Solve the two-coefficient HBVM(4,2) equation for one complete step."""
 	initial_state: np.ndarray = np.asarray(state, dtype=float)
@@ -251,14 +155,14 @@ def _advance_hbvm42(
 
 	# A first-order stage predictor supplies a substantially better Legendre
 	# initial guess than (f(y_n), 0) while retaining a small fixed setup cost.
-	initial_field: np.ndarray = _evaluate_vector_field(dynamics, time, initial_state, counter)
+	initial_field: np.ndarray = _evaluate_vector_field(f, time, initial_state, counter)
 	predicted_stages = initial_state + step * np.outer(
 		_HBVM42_NODES,
 		initial_field,
 	)
 	predicted_fields: np.ndarray = np.stack(
 		[
-			_evaluate_vector_field(dynamics, float(stage_time), stage, counter)
+			_evaluate_vector_field(f, float(stage_time), stage, counter)
 			for stage_time, stage in zip(
 				stage_times,
 				predicted_stages,
@@ -270,10 +174,7 @@ def _advance_hbvm42(
 	coefficients = _HBVM42_LEGENDRE.T @ (
 		_HBVM42_WEIGHTS[:, None] * predicted_fields
 	)
-	tolerance = absolute_tolerance + relative_tolerance * max(
-		1.0,
-		float(np.linalg.norm(initial_state, ord=np.inf)),
-	)
+	tolerance = solver.tolerance(initial_state)
 	residual_evaluations = 0
 	jacobian_evaluations = 0
 
@@ -285,7 +186,7 @@ def _advance_hbvm42(
 		stages = initial_state + step * (_HBVM42_INTEGRALS @ candidate)
 		fields: np.ndarray = np.stack(
 			[
-				_evaluate_vector_field(dynamics, float(stage_time), stage, counter)
+				_evaluate_vector_field(f, float(stage_time), stage, counter)
 				for stage_time, stage in zip(stage_times, stages, strict=True)
 			],
 			axis=0,
@@ -304,31 +205,32 @@ def _advance_hbvm42(
 
 	# Preserve the established capability-check boundary after the first residual.
 	cached: tuple[np.ndarray, _ResidualPayload] = evaluate_flat(coefficients.reshape(-1))
-	selected_jacobian_method: Literal['auto'] | Literal['analytic'] | Literal['finite_difference'] = _resolved_jacobian_method(dynamics, jacobian_method)
+	selected_jacobian_method = _resolved_jacobian_method(jacobian, solver.jacobian_method,
+		initial_time=time, initial_state=initial_state, structure=jacobian_structure, probe=False)
 
 	def correction(unknown: np.ndarray, current_residual: np.ndarray, payload: _ResidualPayload) -> np.ndarray:
 		"""Keep HBVM's stage Jacobian and field counters beside its equations."""
 		nonlocal jacobian_evaluations
 		if selected_jacobian_method == "analytic":
-			assert isinstance(dynamics, GuidingCenterJacobianSystem)
+			assert jacobian is not None
 			stage_jacobians: tuple[np.ndarray, ...] = _analytic_stage_jacobians(
-				dynamics,
+				jacobian, jacobian_structure,
 				stage_times,
 				payload.stages,
 			)
 		else:
 			stage_jacobians = _finite_difference_stage_jacobians(
-				dynamics,
+				f,
 				stage_times,
 				payload.stages,
-				relative_step=jacobian_relative_step,
+				relative_step=solver.jacobian_relative_step,
 				counter=counter,
 			)
 		jacobian_evaluations += 1
-		jacobian: np.ndarray = _reduced_residual_jacobian(stage_jacobians, step)
+		residual_jacobian: np.ndarray = _reduced_residual_jacobian(stage_jacobians, step)
 		try:
 			correction: np.ndarray = np.linalg.solve(
-				jacobian,
+				residual_jacobian,
 				-current_residual,
 			)
 		except np.linalg.LinAlgError as exc:
@@ -338,12 +240,11 @@ def _advance_hbvm42(
 
 		return np.asarray(correction)
 
-	selected_solver = solver or NewtonSolver(absolute_tolerance, relative_tolerance, max_iterations)
-	root: _NonlinearResult[_ResidualPayload] = selected_solver.solve(evaluate_flat, coefficients.reshape(-1), correction,
+	root: _NonlinearResult[_ResidualPayload] = solver.solve(evaluate_flat, coefficients.reshape(-1), correction,
 		scale=initial_state, context=f"HBVM42 at t={time:.8g}",
 		initial_evaluation=cached,
 		norm=lambda r: float(np.linalg.norm(r.reshape(2, state_size), ord=np.inf)),
-		backtracking=True, update_returns_correction=True)
+		update_returns_correction=True, time=time, duration=step, observe=observe)
 	payload = root.payload
 	accepted = initial_state + step * payload.projected_coefficients[0]
 	return _HBVMStepResult(state=np.asarray(accepted), stage_states=payload.stages,
@@ -355,79 +256,39 @@ def _advance_hbvm42(
 
 @dataclass(slots=True)
 class HBVM42(FixedStepMethod[_HBVMStepResult]):
-	"""Fourth-order energy-preserving HBVM(4,2).
+	"""Fourth-order HBVM(4,2) with four quadrature nodes and two coefficients.
 
-	The four Gauss--Legendre nodes approximate the Hamiltonian line integral,
-	while two shifted-Legendre coefficients form the nonlinear unknown. The
-	method has classical order four. For autonomous polynomial Hamiltonians of
-	degree at most four it preserves energy up to nonlinear-solver and round-off
-	error. Unlike the Gauss method HBVM(2,2), HBVM(4,2) is not generally
-	symplectic.
+	For autonomous polynomial Hamiltonians of degree at most four, energy is
+	preserved up to algebraic and round-off error. The method is not generally
+	symplectic. Its default solver retains damped Newton corrections.
 	"""
 
-	jax_mode = "device_resident"
-
-	solver: AlgebraicSolver | None = field(default=None, kw_only=True)
-
-	absolute_tolerance: float = 1e-13
-	relative_tolerance: float = 1e-12
-	max_iterations: int = 12
-	jacobian_method: HBVMJacobianMethod = "auto"
-	jacobian_relative_step: float = float(np.cbrt(np.finfo(float).eps))
-	track_energy: bool = False
+	jax_mode = 'device_resident'
+	solver: NewtonSolver = field(default_factory=lambda: NewtonSolver(backtracking=True), kw_only=True)
 	progress: bool = False
-	step_observer: StepObserver | None = None
 
 	def __post_init__(self) -> None:
-		"""Validate nonlinear controls and normalize scalar fields."""
 		FixedStepMethod.__post_init__(self)
-		if self.solver is not None:
-			validate_solver(self.solver, newton_only=True)
-			self.absolute_tolerance = self.solver.absolute_tolerance
-			self.relative_tolerance = self.solver.relative_tolerance
-			self.max_iterations = self.solver.max_iterations
+		validate_solver(self.solver, newton_only=True)
 
-		self.absolute_tolerance = _positive_finite(
-			self.absolute_tolerance, "absolute_tolerance", allow_boolean=True,
-		)
-		self.relative_tolerance = _positive_finite(
-			self.relative_tolerance, "relative_tolerance", allow_boolean=True,
-		)
-		self.max_iterations = _positive_integer(self.max_iterations, "max_iterations")
-		self.jacobian_method = _validated_jacobian_method(self.jacobian_method)
-		self.jacobian_relative_step = _positive_finite(
-			self.jacobian_relative_step, "jacobian_relative_step", allow_boolean=True,
-		)
+	def initialize(self, request: SimulationRequest) -> None:
+		"""Record the method identity without probing deferred derivatives."""
+		self.metadata = {'method_order': 4, 'quadrature_stage_count': 4,
+			'legendre_rank': 2, 'jacobian_method': self.solver.jacobian_method}
 
-	state_formulation: SingleFormulation = field(init=False, repr=False, compare=False)
+	def _solve_physical(self, time: float, state: np.ndarray, step: float,
+	                    *, observe: bool = True) -> _HBVMStepResult:
+		return _advance_hbvm42(self.f, time, state, step, solver=self.solver,
+			jacobian=self.jacobian, jacobian_structure=self.jacobian_structure, observe=observe)
 
-	def initialize(self, problem: InitialValueProblem, request: SimulationRequest) -> None:
-		"""Bind the HBVM coefficient solve and optional physical observation."""
-		self.state_formulation = SingleFormulation(problem.initial_state.size)
-		self.initial_state = self._initialize_state(problem, request)
-		self.metadata = {'method_order': 4, 'quadrature_stage_count': 4, 'legendre_rank': 2,
-							  'jacobian_method': self.jacobian_method}
-
-	def advance(self, time: float, state: np.ndarray, step: float, *, momentum: np.ndarray | None = None) -> StepResult[_HBVMStepResult]:
-		"""Return one accepted coefficient solve and its local work counters."""
-		assert self.solver is None or isinstance(self.solver, NewtonSolver)
-		result: _HBVMStepResult = _advance_hbvm42(
-			self.problem.dynamics,
-			time,
-			self._checked_state(state, momentum),
-			step,
-			absolute_tolerance=self.absolute_tolerance,
-			relative_tolerance=self.relative_tolerance,
-			max_iterations=self.max_iterations,
-			jacobian_method=self.jacobian_method,
-			jacobian_relative_step=self.jacobian_relative_step, solver=self.solver,
-		)
-		increment = None
-		if self.track_energy:
-			increment = step * sum(weight * self._momentum_rate(time + step * node, stage)
-			    for node, weight, stage in zip(_HBVM42_NODES, _HBVM42_WEIGHTS, result.stage_states))
-		after: np.ndarray = result.state
-		return StepResult(after, {
+	def advance(self, time: float, state: np.ndarray, step: float, *, observe: bool = True) -> StepResult[_HBVMStepResult]:
+		"""Return a coefficient solve, work counters and optional stage quadrature."""
+		result: _HBVMStepResult = self._solve_physical(time, self._checked_state(state), step, observe=observe)
+		quadrature: StageQuadrature | None = None
+		if self.capture_quadrature:
+			quadrature = StageQuadrature(tuple(time + step * _HBVM42_NODES),
+				tuple(result.stage_states), tuple(step * _HBVM42_WEIGHTS))
+		return StepResult(result.state, {
 			'nonlinear_iterations': result.iterations,
 			'nonlinear_residual_norms': result.residual_norm,
 			'nonlinear_tolerances': result.tolerance,
@@ -435,18 +296,17 @@ class HBVM42(FixedStepMethod[_HBVMStepResult]):
 			'residual_evaluations_per_step': result.residual_evaluations,
 			'jacobian_evaluations_per_step': result.jacobian_evaluations,
 			'vector_field_evaluations_per_step': result.vector_field_evaluations,
-		}, result, self._finish_momentum(momentum, increment))
+		}, result, quadrature)
 
 	def build_observation(self, info: StepInfo, result: StepResult[_HBVMStepResult]) -> IntegrationStep:
 		def map_state(candidate: np.ndarray) -> np.ndarray:
-			return self.advance(info.time, candidate, info.duration, momentum=info.momentum_before).state
-
+			return self._solve_physical(info.time, candidate, info.duration, observe=False).state
 		return IntegrationStep(
-			dynamics_name=type(self.problem.dynamics).__name__, method_name=type(self).__name__,
+			dynamics_name='', method_name=type(self).__name__,
 			step_index=info.index, start_time=info.time, time=info.time + info.duration,
 			duration=info.duration, state_before=info.state_before.copy(),
-			state_after=result.state.copy(), map_state=map_state, dynamics=self.problem.dynamics,
+			state_after=result.state.copy(), map_state=map_state,
 		)
 
 
-__all__ = ["HBVM42", "HBVMJacobianMethod"]
+__all__ = ['HBVM42', 'HBVMJacobianMethod']

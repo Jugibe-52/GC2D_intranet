@@ -17,6 +17,8 @@ from request import SimulationRequest
 
 from methods.classical.gauss_legendre import GaussLegendre4
 from methods.classical.rk4 import RK4
+from solvers.nonlinear import NewtonSolver
+from diagnostics.methods.energy import EnergyObserver
 from potential.potential import Potential
 
 
@@ -35,10 +37,17 @@ class CompiledStepContractTests(unittest.TestCase):
 		self.request = SimulationRequest((0., .2),  np.array([0., .03, .1, .2]))
 		self.execution = ExecutionOptions(backend="jax")
 
+	def prepare_run(self, method, problem=None):
+		from execution._jax import prepare_dynamics
+		problem = self.problem if problem is None else problem
+		dynamics = prepare_dynamics(problem.dynamics)
+		return method.new_run(dynamics.vector_field, problem.initial_conditions, self.request,
+			jacobian=dynamics.particle_vector_field_jacobians, jacobian_structure='particle')
+
 	def prepare_kernel(self, run):
-		from execution._jax import prepare_dynamics, resolve_device
+		from execution._jax import resolve_device
 		from methods._jax_dispatch import prepare_step
-		return prepare_step(run, prepare_dynamics(run.problem.dynamics), resolve_device(self.execution))
+		return prepare_step(run, resolve_device(self.execution))
 
 	def test_coordinator_accepts_an_independent_prepared_map(self) -> None:
 		import jax.numpy as jnp
@@ -50,16 +59,12 @@ class CompiledStepContractTests(unittest.TestCase):
 			device: Any
 			physical_dimension: ClassVar[int] = 2
 			copies: ClassVar[int] = 1
-			track_energy: ClassVar[bool] = False
 			finite_difference: ClassVar[bool] = False
 
-			def __call__(self, time: Any, state: Any, step: Any, momentum: Any = None) -> tuple[Any, Any, dict[str, Any], Any]:
-				return state + step * jnp.array([2., -1.]), momentum, {}, jnp.array(True)
+			def __call__(self, time: Any, state: Any, step: Any) -> tuple[Any, Any, dict[str, Any], Any]:
+				return state + step * jnp.array([2., -1.]), None, {}, jnp.array(True)
 
-			def energy(self, times: Any, physical: Any) -> Any:
-				raise AssertionError("An untracked map must not evaluate energy.")
-
-		run = RK4(step=0.1).new_run(self.problem, self.request)
+		run = self.prepare_run(RK4(step=0.1))
 		with patch.object(RK4, "new_run", return_value=run):
 			with patch("methods._jax_dispatch.prepare_step", return_value=ConstantDrift(self.jax.devices("cpu")[0])):
 				data = Execution().run(self.problem, RK4(step=0.1), self.request, options=self.execution)
@@ -72,7 +77,7 @@ class CompiledStepContractTests(unittest.TestCase):
 	def test_fixed_and_hybrid_runs_finalize_the_allocated_result_once(self) -> None:
 		from methods.adaptive.scipy import Radau
 		from states import States
-		for method in (RK4(track_energy=True), Radau(track_energy=True)):
+		for method in (RK4(), Radau()):
 			with self.subTest(method=type(method).__name__):
 				recorders, finalized, runs = [], [], []
 				prepare, finalize, new_run = States.prepare, States.finalize, method.new_run
@@ -91,7 +96,7 @@ class CompiledStepContractTests(unittest.TestCase):
 					return run
 				with patch.object(States, "prepare", side_effect=allocate), patch.object(States, "finalize", finish):
 					with patch.object(type(method), "new_run", side_effect=prepare_run):
-						result = Execution().run(self.problem, method, self.request, options=self.execution)
+						result = Execution().run(self.problem, method, self.request, options=self.execution, observers=(EnergyObserver(),))
 				self.assertEqual(len(recorders), 1)
 				self.assertEqual(len(finalized), 1)
 				self.assertIs(recorders[0], result)
@@ -102,11 +107,10 @@ class CompiledStepContractTests(unittest.TestCase):
 	def test_prepared_controls_do_not_follow_mutable_method_options(self) -> None:
 		from methods._jax_dispatch import prepare_step
 
-		run = GaussLegendre4(step=0.1).new_run(self.problem, self.request)
+		run = self.prepare_run(GaussLegendre4(step=0.1))
 		kernel = self.prepare_kernel(run)
 		state, _, statistics, converged = kernel(0., run.initial_state, .01)
-		run.newton_absolute_tolerance = 1e3
-		run.newton_relative_tolerance = 1e3
+		run.solver = NewtonSolver(1e3, 1e3)
 		again, _, repeated, _ = kernel(0., run.initial_state, .01)
 		np.testing.assert_array_equal(again, state)
 		np.testing.assert_array_equal(repeated["nonlinear_tolerances"], statistics["nonlinear_tolerances"])
@@ -119,38 +123,37 @@ class CompiledStepContractTests(unittest.TestCase):
 
 		_compiled_integrator.cache_clear()
 		self.addCleanup(_compiled_integrator.cache_clear)
-		run = RK4(step=0.1).new_run(self.problem, self.request)
+		run = self.prepare_run(RK4(step=0.1))
 		kernel = self.prepare_kernel(run)
 		self.assertIsInstance(kernel, PreparedJaxStep)
 		assert isinstance(kernel, PreparedJaxStep)
-		self.assertIs(kernel.dynamics, prepare_dynamics(self.problem.dynamics))
-		self.assertIsNot(kernel.dynamics, self.problem.dynamics)
-		compiled = _compiled_integrator(kernel)
-		repeated = RK4(step=0.1).new_run(self.problem, self.request)
-		self.assertIs(_compiled_integrator(self.prepare_kernel(repeated)), compiled)
+		self.assertEqual(kernel.f, prepare_dynamics(self.problem.dynamics).vector_field)
+		self.assertFalse(hasattr(kernel, "dynamics"))
+		compiled = _compiled_integrator(kernel, None, None)
+		repeated = self.prepare_run(RK4(step=0.1))
+		self.assertIs(_compiled_integrator(self.prepare_kernel(repeated), None, None), compiled)
 
 		# New physical objects must not retain an unbounded list of JIT closures.
 		for _ in range(17):
 			problem = InitialValueProblem(GuidingCenterDynamics(self.problem.dynamics.potential), self.problem.initial_state, layout=GuidingCenterDynamics.coordinates)
-			run = RK4(step=0.1).new_run(problem, self.request)
-			_compiled_integrator(self.prepare_kernel(run))
+			run = self.prepare_run(RK4(step=0.1), problem)
+			_compiled_integrator(self.prepare_kernel(run), None, None)
 		self.assertEqual(_compiled_integrator.cache_info().currsize, 16)
-		self.assertIsNot(_compiled_integrator(kernel), compiled)
+		self.assertIsNot(_compiled_integrator(kernel, None, None), compiled)
 
 	def test_device_index_is_validated_before_compilation(self) -> None:
 		from methods._jax_dispatch import prepare_step
 
 		execution = ExecutionOptions(backend="jax", device_index=len(self.jax.devices("cpu")))
-		run = RK4(step=0.1).new_run(self.problem, self.request)
+		run = self.prepare_run(RK4(step=0.1))
 		with self.assertRaisesRegex(ValueError, "device index.*unavailable"):
 			Execution().run(self.problem, RK4(step=0.1), self.request, options=execution)
 
 	def test_python_newton_callbacks_are_rejected_before_compilation(self) -> None:
 		events = []
-		run = GaussLegendre4(step=0.1, newton_observer=events.append).new_run(
-			self.problem, self.request)
+		run = self.prepare_run(GaussLegendre4(step=0.1, solver=NewtonSolver(1e-14, 1e-13, 20, iteration_observer=events.append)))
 		with patch.object(GaussLegendre4, "new_run", return_value=run):
-			with self.assertRaisesRegex(NotImplementedError, "newton_observer"):
+			with self.assertRaisesRegex(NotImplementedError, "iteration callbacks"):
 				Execution().run(self.problem, GaussLegendre4(step=0.1), self.request, options=self.execution)
 			self.assertEqual(run._status, "finished")
 			with self.assertRaisesRegex(TypeError, "fresh"):

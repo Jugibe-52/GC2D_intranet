@@ -1,5 +1,5 @@
 """Generic temporary physical-copy workspaces."""
 
-from formulations.state import SingleFormulation, DoubleFormulation
+from formulations.state import DoubleFormulation
 
-__all__ = ['SingleFormulation', 'DoubleFormulation']
+__all__ = ['DoubleFormulation']

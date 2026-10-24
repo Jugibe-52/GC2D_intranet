@@ -9,6 +9,7 @@ from studies.historical_h5 import historical_h5_hamiltonian, sample_study_grid
 from pathlib import Path
 import tempfile
 import unittest
+from solvers.nonlinear import NewtonSolver
 
 import h5py
 import numpy as np
@@ -629,7 +630,7 @@ class GC2DH5ImportTests(unittest.TestCase):
 
 		solution = simulate(
 			InitialValueProblem(dynamics, configuration, layout=GuidingCenterDynamics.coordinates),
-			ABBA4Implicit(step=0.0005 / (2.0 * np.pi), newton_max_iterations=20),
+			ABBA4Implicit(step=0.0005 / (2.0 * np.pi), solver=NewtonSolver(max_iterations=20, jacobian_method='analytic')),
 			SimulationRequest.uniform(
 				t_span=(0.0, 1e-3 / (2.0 * np.pi)),
 				sample_count=3,

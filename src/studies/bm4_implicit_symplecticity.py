@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from solvers.nonlinear import NewtonSolver
+
 from studies._validation import require_uncoupled_bm4
 
 from dataclasses import dataclass
@@ -108,13 +110,9 @@ def run_bm4_implicit_symplecticity_study(
 		area,
 		notebook_path=notebook_path,
 		config=config,
-		method_factory=lambda observer: BM4Implicit(
-			newton_absolute_tolerance=config.newton_absolute_tolerance,
-			newton_relative_tolerance=config.newton_relative_tolerance,
-			newton_max_iterations=config.newton_max_iterations,
-			newton_jacobian_relative_step=config.newton_jacobian_relative_step,
+		method_factory=lambda: BM4Implicit(
 			progress=config.progress,
-			step_observer=observer,
+			solver=NewtonSolver(absolute_tolerance=config.newton_absolute_tolerance, relative_tolerance=config.newton_relative_tolerance, max_iterations=config.newton_max_iterations, jacobian_relative_step=config.newton_jacobian_relative_step, jacobian_method='analytic'),
 		),
 		result_type=BM4ImplicitSymplecticityResult,
 		project_root=project_root,

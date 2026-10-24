@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from diagnostics.methods.energy import EnergyObserver
+
 from dynamics.gc import GuidingCenterDynamics
 
 from dataclasses import asdict, dataclass
@@ -69,7 +71,7 @@ def run_persistence_demo(
     dynamics: GuidingCenterDynamics = GuidingCenterDynamics(potential, rho=config.rho)
     request: SimulationRequest = SimulationRequest.uniform(t_span=config.t_span,
                                         sample_count=config.sample_count)
-    solution: States = simulate(InitialValueProblem(dynamics, initial, layout=GuidingCenterDynamics.coordinates), RK4(step=config.max_step, track_energy=True), request)
+    solution: States = simulate(InitialValueProblem(dynamics, initial, layout=GuidingCenterDynamics.coordinates), RK4(step=config.max_step), request, observers=(EnergyObserver(),))
     # Hash the source used for this run, including uncommitted implementation
     # changes; a Git commit alone would not identify a local development run.
     source_root = Path(__file__).resolve().parents[1]

@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from typing import Callable, Literal, TypeAlias
 import numpy as np
 from contracts.dynamics.protocols import DynamicalSystem
+from contracts.methods.quadrature import StageQuadrature
 
 
 StateMap: TypeAlias = Callable[[np.ndarray], np.ndarray]
@@ -64,6 +65,7 @@ class IntegrationStep:
 	state_after: np.ndarray
 	map_state: StateMap = field(repr=False, compare=False)
 	start_time: float = field(default=float("nan"), kw_only=True)
+	quadrature: StageQuadrature | None = field(default=None, repr=False, compare=False, kw_only=True)
 	dynamics: DynamicalSystem | None = field(
 		default=None,
 		repr=False,

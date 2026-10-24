@@ -102,7 +102,7 @@ class ProjectedSymplecticityAreaObserver:
 
 	All stage Jacobians must be evaluated to propagate the cumulative tangent.
 	``record_every`` reduces only persisted observations, not differentiation cost.
-	The observer requires ``track_energy=False`` and an GC np.ndarray with ordered boundary vertices.
+	The observer requires a physical GC array with ordered boundary vertices.
 	"""
 
 	def __init__(
@@ -277,7 +277,7 @@ class ProjectedSymplecticityAreaObserver:
 		):
 			raise ValueError(
 				"Projected GC diagnostics require the finite 4N doubled state; "
-				"run the method with `track_energy=False`."
+				"exclude observer auxiliaries from the numerical map input."
 			)
 		return value
 

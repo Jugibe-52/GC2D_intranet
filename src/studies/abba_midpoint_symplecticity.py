@@ -176,10 +176,7 @@ def run_abba2_midpoint_symplecticity_study(
 		area,
 		notebook_path=notebook_path,
 		config=config,
-		method_factory=lambda observer: ABBA2Midpoint(
-			progress=config.progress,
-			step_observer=observer,
-		),
+		method_factory=lambda: ABBA2Midpoint(progress=config.progress),
 		result_type=ABBA2MidpointSymplecticityResult,
 		project_root=project_root,
 		metadata=study_metadata,

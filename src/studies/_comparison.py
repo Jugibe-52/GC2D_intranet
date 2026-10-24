@@ -1,6 +1,8 @@
 """Shared operations for the three-, four-, and five-method comparison families."""
 from __future__ import annotations
 
+from solvers.nonlinear import NewtonSolver
+
 from diagnostics.studies.comparison import rms_error, time_integrated_rms_floor
 
 from studies._validation import require_uncoupled_bm4
@@ -356,42 +358,32 @@ def comparison_method(
 ) -> FixedStepMethod[Any]:
 	"""Build one method with the common analytic-Newton controls."""
 	if method_name == "ABBA4Implicit":
-		return ABBA4Implicit(step=config.integration_step,
-			projection_placement="around_complete_composition",
-			projection_formulation="reduced_multiplier",
-			state_extension="physical",
-			newton_absolute_tolerance=config.absolute_tolerance,
-			newton_relative_tolerance=config.relative_tolerance,
-			newton_max_iterations=config.max_iterations,
-			nonlinear_solver="newton",
+		return ABBA4Implicit(
+			step=config.integration_step,
+			projection_placement='around_complete_composition',
+			projection_formulation='reduced_multiplier',
+			state_extension='physical',
 			progress=config.progress,
+			solver=NewtonSolver(absolute_tolerance=config.absolute_tolerance, relative_tolerance=config.relative_tolerance, max_iterations=config.max_iterations, jacobian_method='analytic'),
 		)
 	if method_name == "GaussLegendre4":
-		return GaussLegendre4(step=config.integration_step,
-			newton_absolute_tolerance=config.absolute_tolerance,
-			newton_relative_tolerance=config.relative_tolerance,
-			newton_max_iterations=config.max_iterations,
-			newton_jacobian_method="analytic",
-			newton_jacobian_relative_step=config.jacobian_relative_step,
+		return GaussLegendre4(
+			step=config.integration_step,
 			progress=config.progress,
+			solver=NewtonSolver(absolute_tolerance=config.absolute_tolerance, relative_tolerance=config.relative_tolerance, max_iterations=config.max_iterations, jacobian_method='analytic', jacobian_relative_step=config.jacobian_relative_step),
 		)
 	if method_name == "BM4Implicit":
-		return BM4Implicit(step=config.integration_step,
-			newton_absolute_tolerance=config.absolute_tolerance,
-			newton_relative_tolerance=config.relative_tolerance,
-			newton_max_iterations=config.max_iterations,
-			newton_jacobian_method="analytic",
-			newton_jacobian_relative_step=config.jacobian_relative_step,
-			nonlinear_solver="newton",
+		return BM4Implicit(
+			step=config.integration_step,
 			progress=config.progress,
+			solver=NewtonSolver(absolute_tolerance=config.absolute_tolerance, relative_tolerance=config.relative_tolerance, max_iterations=config.max_iterations, jacobian_method='analytic', jacobian_relative_step=config.jacobian_relative_step),
 		)
 	if method_name == "SDIRK4":
-		return SDIRK4(step=config.integration_step, newton_absolute_tolerance=config.absolute_tolerance,
-			newton_relative_tolerance=config.relative_tolerance,
-			newton_max_iterations=config.max_iterations,
-			newton_jacobian_method="analytic",
-			newton_jacobian_relative_step=config.jacobian_relative_step,
-			progress=config.progress)
+		return SDIRK4(
+			step=config.integration_step,
+			progress=config.progress,
+			solver=NewtonSolver(absolute_tolerance=config.absolute_tolerance, relative_tolerance=config.relative_tolerance, max_iterations=config.max_iterations, jacobian_method='analytic', jacobian_relative_step=config.jacobian_relative_step),
+		)
 	if method_name == "RK4":
 		return RK4(step=config.integration_step, progress=config.progress)
 	raise ValueError(f"Unknown comparison method {method_name!r}.")

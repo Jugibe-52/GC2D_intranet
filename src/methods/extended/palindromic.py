@@ -1,58 +1,47 @@
 """Common lifecycle and exterior projections for explicit operation palindromes."""
-
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 from functools import partial
 import json
-from typing import Generic, Literal, TypeVar
+from typing import Generic, TypeVar
 
 import numpy as np
 
-from contracts.solvers.nonlinear import NewtonObserver
-from contracts.methods.observation import IntegrationStep, StepObserver
-from problem import InitialValueProblem
+from contracts.methods.observation import IntegrationStep
 from contracts.states.history import DiagnosticValue
 from contracts.methods.step import StepInfo, StepResult
-from contracts.dynamics.protocols import DynamicalSystem, GuidingCenterJacobianSystem
-from methods.extended.maps import GCDoubledMaps, HarmonicCoupling, _EnergyQuadraturePoint
+from methods.extended.maps import GCDoubledMaps, HarmonicCoupling
 from methods.projection import ProjectionChoice, resolve_projection
-from formulations.state import DoubleFormulation
-from methods._validation import _positive_finite, _positive_integer
 from methods.base import FixedStepMethod
 from methods.extended.configuration import StateExtension, _state_dimension_diagnostics, _validate_state_extension
 from methods.extended.core.composition import Composition
-from methods.extended.core.energy import momentum_increment
 from methods.extended.core.jacobians import _checked_vector_field_jacobian
 from methods.extended.core.midpoint import MidpointResult, midpoint_step
 from methods.extended.core.projection import solve_projection
 from contracts.methods.extended.core.records import ProjectedMap
 from methods.extended.core.records import ProjectedMapResult, step_statistics
 from request import SimulationRequest
-from solvers.nonlinear import AlgebraicSolver, NonlinearSolver, SolverOptions, _validate_nonlinear_solver, validate_solver
+from solvers.derivatives import ResolvedJacobianMethod
+from solvers.nonlinear import AlgebraicSolver, NewtonSolver, validate_solver
 
 Detail = TypeVar('Detail')
 
 
 class PalindromicMethod(FixedStepMethod[Detail], Generic[Detail]):
-	"""Shared run preparation and passive finishing; subclasses select a recipe.
-
-	The recipe owns every time translation. Projection policies act outside the
-	complete palindrome; physical momentum is accumulated only after acceptance.
-	"""
+	"""Bind physical functions to a recipe and temporary doubled workspaces."""
 
 	jax_mode = 'device_resident'
+	copies = 2
+	requires_planar = True
 	recipe: Composition
-	track_energy: bool
-	state_formulation: DoubleFormulation
 	formulation: GCDoubledMaps
-	dynamics: DynamicalSystem
 
 	def _configured_coupling(self) -> HarmonicCoupling | None:
 		return None
 
-	def _prepare_maps(self, problem: InitialValueProblem, request: SimulationRequest) -> None:
-		"""Bind fresh spatial maps and require C and its rate to be explicit together."""
+	def _prepare_maps(self) -> None:
+		"""Require explicit C operations and their independent rate together."""
 		if not isinstance(self.recipe, Composition):
 			raise TypeError('A palindromic method requires a Composition.')
 		coupling: HarmonicCoupling | None = self._configured_coupling()
@@ -60,87 +49,77 @@ class PalindromicMethod(FixedStepMethod[Detail], Generic[Detail]):
 			raise TypeError('Coupling must be a HarmonicCoupling or None.')
 		if self.recipe.has_coupling != (coupling is not None):
 			raise ValueError('Explicit C operations and a HarmonicCoupling must be configured together.')
-		self.dynamics = problem.dynamics
-		self.state_formulation = DoubleFormulation(problem.initial_state.size)
-		self.formulation = GCDoubledMaps(problem.dynamics, problem.initial_state.size, coordinates=problem.layout, coupling_frequency=None if coupling is None else coupling.frequency)
-		self.initial_state = self._initialize_state(problem, request)
+		self.formulation = GCDoubledMaps(self.f, self.physical_size, coordinates=self.layout,
+			jacobian=self.jacobian, jacobian_structure=self.jacobian_structure,
+			coupling_frequency=None if coupling is None else coupling.frequency)
 
 	def _operation_metadata(self) -> dict[str, DiagnosticValue]:
 		coupling: HarmonicCoupling | None = self._configured_coupling()
 		return {
 			'composition_name': self.recipe.name,
 			'operation_sequence': ''.join(op.name for op in self.recipe.operations),
-			# Configuration is scalar metadata; arrays are reserved by some block
-			# consumers for histories aligned with accepted integration steps.
 			'operation_coefficients': json.dumps([op.coefficient for op in self.recipe.operations], allow_nan=False),
 			'operation_count': len(self.recipe.operations),
 			'coupling_frequency': 0.0 if coupling is None else coupling.frequency,
 		}
 
-	def _finish(self, momentum: np.ndarray | None,
-	            points: tuple[_EnergyQuadraturePoint, ...]) -> np.ndarray | None:
-		"""Accumulate physical kappa from the accepted composition's stage sources."""
-		increment: np.ndarray | None = momentum_increment(self.problem.particle_count, self._momentum_rate, points) if self.track_energy else None
-		return self._finish_momentum(momentum, increment)
-
 
 class ProjectedPalindromicMethod(PalindromicMethod[ProjectedMapResult]):
-	"""One Hairer solve around any consistent operation palindrome."""
+	"""Assemble one Hairer equation around a complete operation palindrome."""
 
-	solver: AlgebraicSolver | None
-	newton_absolute_tolerance: float
-	newton_relative_tolerance: float
-	newton_max_iterations: int
-	nonlinear_solver: NonlinearSolver
-	newton_observer: NewtonObserver | None
+	solver: AlgebraicSolver
 	project: ProjectedMap
+	resolved_jacobian_method: ResolvedJacobianMethod
 
 	def _validate_solver_controls(self) -> None:
-		"""Normalize legacy controls, giving an explicit solver configuration priority."""
-		if self.solver is not None:
-			validate_solver(self.solver, newton_only=False)
-			self.newton_absolute_tolerance = self.solver.absolute_tolerance
-			self.newton_relative_tolerance = self.solver.relative_tolerance
-			self.newton_max_iterations = self.solver.max_iterations
-			self.nonlinear_solver = self.solver.name
-		self.newton_absolute_tolerance = _positive_finite(self.newton_absolute_tolerance, 'newton_absolute_tolerance')
-		self.newton_relative_tolerance = _positive_finite(self.newton_relative_tolerance, 'newton_relative_tolerance')
-		self.newton_max_iterations = _positive_integer(self.newton_max_iterations, 'newton_max_iterations')
-		self.nonlinear_solver = _validate_nonlinear_solver(self.nonlinear_solver)
-		if self.newton_observer is not None and self.nonlinear_solver != 'newton':
-			raise ValueError('A newton_observer requires nonlinear_solver="newton".')
+		validate_solver(self.solver)
 
-	def _prepare_projection(self, problem: InitialValueProblem, request: SimulationRequest,
-	                        projection: ProjectionChoice, *,
-	                        jacobian: Literal['analytic', 'finite_difference'] = 'analytic',
-	                        relative_step: float = float(np.cbrt(np.finfo(float).eps))) -> SolverOptions:
-		"""Bind one exterior spatial projection without advancing the initial state."""
-		self._prepare_maps(problem, request)
-		options: SolverOptions = SolverOptions(self.nonlinear_solver, self.newton_absolute_tolerance,
-		                        self.newton_relative_tolerance, self.newton_max_iterations)
-		self.project = partial(solve_projection, self.formulation, self.recipe, options, projection,
-		                       solver=self.solver, jacobian_method=jacobian,
-		                       jacobian_relative_step=relative_step, retain_energy_points=self.track_energy)
-		return options
+	def _prepare_projection(self, request: SimulationRequest, projection: ProjectionChoice,
+	                        *, probe_analytic: bool = False) -> None:
+		"""Resolve capabilities once while leaving controls with the solver."""
+		self._prepare_maps()
+		requested = self.solver.jacobian_method
+		resolved: ResolvedJacobianMethod = ('analytic' if self.jacobian is not None else 'finite_difference') if requested == 'auto' else requested
+		if isinstance(self.solver, NewtonSolver) and resolved == 'analytic' and (probe_analytic or requested == 'auto'):
+			try:
+				_checked_vector_field_jacobian(self.formulation, request.t_span[0], self.initial_state)
+			except (TypeError, ValueError, NotImplementedError):
+				if requested != 'auto':
+					raise
+				resolved = 'finite_difference'
+		self.resolved_jacobian_method = resolved
+		self.project = partial(solve_projection, self.formulation, self.recipe, self.solver,
+		                       projection, jacobian_method=resolved)
+
+	def _projection_metadata(self, projection: ProjectionChoice) -> dict[str, DiagnosticValue]:
+		return {
+			'nonlinear_solves_per_step': 1, 'nonlinear_solver': self.solver.name,
+			'nonlinear_absolute_tolerance': self.solver.absolute_tolerance,
+			'nonlinear_relative_tolerance': self.solver.relative_tolerance,
+			'nonlinear_max_iterations': self.solver.max_iterations,
+			'newton_jacobian_method': self.resolved_jacobian_method,
+			'newton_jacobian_relative_step': self.solver.jacobian_relative_step,
+			'projection_formulation': resolve_projection(projection).name,
+			'projection_placement': 'around_complete_composition',
+			**_state_dimension_diagnostics(resolve_projection(projection).name, particle_count=self.particle_count),
+			**self._operation_metadata(),
+		}
 
 	def _publish_substeps(self) -> bool:
 		return False
 
-	def advance(self, t: float, state: np.ndarray, h: float, *, momentum: np.ndarray | None = None) -> StepResult[ProjectedMapResult]:
-		"""Project the complete palindrome and finish passive state after convergence."""
-		physical: np.ndarray = self._checked_state(state, momentum)
-		result: ProjectedMapResult = self.project(t, physical, h, newton_observer=self.newton_observer)
-		after: np.ndarray = result.state
-		return StepResult(after, step_statistics(result, include_substeps=self._publish_substeps()), result, self._finish(momentum, result.energy_points))
+	def advance(self, t: float, state: np.ndarray, h: float, *, observe: bool = True) -> StepResult[ProjectedMapResult]:
+		"""Return the converged physical map and optional accepted-stage quadrature."""
+		result: ProjectedMapResult = self.project(t, self._checked_state(state), h, observe=observe)
+		return StepResult(result.state, step_statistics(result, include_substeps=self._publish_substeps()),
+		                  result, result.trace.quadrature if self.capture_quadrature else None)
 
 	def build_observation(self, info: StepInfo, step: StepResult[ProjectedMapResult]) -> IntegrationStep:
-		"""Generic physical observation; named presets may supply richer adapters."""
 		def map_state(candidate: np.ndarray) -> np.ndarray:
 			return self.project(info.time, candidate, info.duration).state
-		return IntegrationStep(dynamics_name=type(self.dynamics).__name__, method_name=self.method_name,
+		return IntegrationStep(dynamics_name='', method_name=self.method_name,
 			step_index=info.index, start_time=info.time, time=info.end_time, duration=info.duration,
-			state_before=info.state_before.copy(),
-			state_after=step.details.state.copy(), map_state=map_state, dynamics=self.dynamics)
+			state_before=info.state_before.copy(), state_after=step.details.state.copy(), map_state=map_state)
 
 
 class MidpointPalindromicMethod(PalindromicMethod[MidpointResult]):
@@ -151,36 +130,29 @@ class MidpointPalindromicMethod(PalindromicMethod[MidpointResult]):
 	def __post_init__(self) -> None:
 		FixedStepMethod.__post_init__(self)
 		self.state_extension = _validate_state_extension(self.state_extension)
-		self.track_energy = bool(self.track_energy)
 
 	def _preset_metadata(self) -> dict[str, DiagnosticValue]:
 		return {}
 
-	def initialize(self, problem: InitialValueProblem, request: SimulationRequest) -> None:
-		"""Prepare fresh doubled maps and describe the arithmetic projection."""
-		self._prepare_maps(problem, request)
+	def initialize(self, request: SimulationRequest) -> None:
+		self._prepare_maps()
 		self.metadata = {
 			'projection_kind': 'arithmetic_mean', 'state_extension': self.state_extension,
-			'track_energy': self.track_energy, 'nonlinear_unknown_dimension': 0,
-			'vector_field_evaluations_per_step': self.recipe.shear_count,
-			**_state_dimension_diagnostics(particle_count=problem.particle_count),
+			'nonlinear_unknown_dimension': 0, 'vector_field_evaluations_per_step': self.recipe.shear_count,
 			**self._operation_metadata(), **self._preset_metadata(),
 		}
 
-	def advance(self, t: float, state: np.ndarray, h: float, *, momentum: np.ndarray | None = None) -> StepResult[MidpointResult]:
-		"""Average the copies once, after all explicit operations have executed."""
-		result: MidpointResult = midpoint_step(self.formulation, self.recipe, t, self._checked_state(state, momentum), h)
-		after: np.ndarray = result.state
-		return StepResult(after, {'copy_separation_norms': result.copy_separation_norm}, result, self._finish(momentum, result.trace.energy_points))
+	def advance(self, t: float, state: np.ndarray, h: float, *, observe: bool = True) -> StepResult[MidpointResult]:
+		result: MidpointResult = midpoint_step(self.formulation, self.recipe, t, self._checked_state(state), h)
+		return StepResult(result.state, {'copy_separation_norms': result.copy_separation_norm}, result,
+		                  result.trace.quadrature if self.capture_quadrature else None)
 
 	def build_observation(self, info: StepInfo, step: StepResult[MidpointResult]) -> IntegrationStep:
-		"""Expose the accepted physical map to the shared observation interface."""
 		def map_state(candidate: np.ndarray) -> np.ndarray:
 			return midpoint_step(self.formulation, self.recipe, info.time, candidate, info.duration).state
-		return IntegrationStep(dynamics_name=type(self.dynamics).__name__, method_name=self.method_name,
+		return IntegrationStep(dynamics_name='', method_name=self.method_name,
 			step_index=info.index, start_time=info.time, time=info.end_time, duration=info.duration,
-			state_before=info.state_before.copy(),
-			state_after=step.details.state.copy(), map_state=map_state, dynamics=self.dynamics)
+			state_before=info.state_before.copy(), state_after=step.details.state.copy(), map_state=map_state)
 
 
 @dataclass(slots=True)
@@ -190,8 +162,6 @@ class PalindromicMidpoint(MidpointPalindromicMethod):
 	recipe: Composition
 	state_extension: StateExtension = 'physical'
 	progress: bool = False
-	step_observer: StepObserver | None = None
-	track_energy: bool = False
 	coupling: HarmonicCoupling | None = field(default=None, kw_only=True)
 
 	def _configured_coupling(self) -> HarmonicCoupling | None:
@@ -204,51 +174,21 @@ class PalindromicImplicit(ProjectedPalindromicMethod):
 
 	recipe: Composition
 	projection_formulation: ProjectionChoice = 'reduced_multiplier'
-	newton_absolute_tolerance: float = 1e-13
-	newton_relative_tolerance: float = 1e-12
-	newton_max_iterations: int = 12
-	newton_jacobian_method: Literal['analytic', 'finite_difference'] = 'analytic'
-	newton_jacobian_relative_step: float = float(np.cbrt(np.finfo(float).eps))
-	nonlinear_solver: NonlinearSolver = 'newton'
-	track_energy: bool = False
 	progress: bool = False
-	step_observer: StepObserver | None = None
-	solver: AlgebraicSolver | None = field(default=None, kw_only=True)
-	newton_observer: NewtonObserver | None = field(default=None, kw_only=True)
+	solver: AlgebraicSolver = field(default_factory=lambda: NewtonSolver(jacobian_method='analytic'), kw_only=True)
 	coupling: HarmonicCoupling | None = field(default=None, kw_only=True)
 
 	def __post_init__(self) -> None:
 		FixedStepMethod.__post_init__(self)
 		self._validate_solver_controls()
 		resolve_projection(self.projection_formulation)
-		if self.newton_jacobian_method not in ('analytic', 'finite_difference'):
-			raise ValueError('Jacobian method must be analytic or finite_difference.')
-		self.newton_jacobian_relative_step = _positive_finite(self.newton_jacobian_relative_step, 'newton_jacobian_relative_step')
 
 	def _configured_coupling(self) -> HarmonicCoupling | None:
 		return self.coupling
 
-	def initialize(self, problem: InitialValueProblem, request: SimulationRequest) -> None:
-		"""Bind the selected equation and verify the requested derivative contract."""
-		options: SolverOptions = self._prepare_projection(problem, request, self.projection_formulation,
-			jacobian=self.newton_jacobian_method, relative_step=self.newton_jacobian_relative_step)
-		if self.nonlinear_solver == 'newton' and self.newton_jacobian_method == 'analytic':
-			if not isinstance(self.dynamics, GuidingCenterJacobianSystem):
-				raise TypeError('Analytic palindromic projection requires GC particle Jacobians.')
-			_checked_vector_field_jacobian(self.dynamics, request.t_span[0], problem.initial_state)
-		self.metadata = {
-			'nonlinear_solves_per_step': 1, 'nonlinear_solver': options.solver,
-			'nonlinear_absolute_tolerance': options.absolute_tolerance,
-			'nonlinear_relative_tolerance': options.relative_tolerance,
-			'nonlinear_max_iterations': options.max_iterations,
-			'newton_jacobian_method': self.newton_jacobian_method,
-			'newton_jacobian_relative_step': self.newton_jacobian_relative_step,
-			'projection_formulation': resolve_projection(self.projection_formulation).name,
-			'projection_placement': 'around_complete_composition',
-			**_state_dimension_diagnostics(resolve_projection(self.projection_formulation).name,
-			                              particle_count=problem.particle_count),
-			**self._operation_metadata(),
-		}
+	def initialize(self, request: SimulationRequest) -> None:
+		self._prepare_projection(request, self.projection_formulation, probe_analytic=True)
+		self.metadata = self._projection_metadata(self.projection_formulation)
 
 
 __all__ = ['PalindromicMethod', 'PalindromicImplicit', 'PalindromicMidpoint']

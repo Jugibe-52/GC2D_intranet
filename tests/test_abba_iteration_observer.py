@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from dynamics.gc import GuidingCenterDynamics
 
 import json
 from pathlib import Path
@@ -77,14 +76,7 @@ class ImplicitABBAIterationObserverTests(unittest.TestCase):
 					project_root=root,
 					chunk_size=2,
 				) as observer:
-					solution = simulate(
-						InitialValueProblem(GuidingCenterDynamics(_potential(), rho=0.05), _configuration(), layout=GuidingCenterDynamics.coordinates),
-						ABBA2Implicit(step=0.02,
-							projection_formulation=formulation,
-							step_observer=observer,
-						),
-						request,
-					)
+					solution = simulate(InitialValueProblem(GuidingCenterDynamics(_potential(), rho=0.05), _configuration(), layout=GuidingCenterDynamics.coordinates), ABBA2Implicit(step=0.02, projection_formulation=formulation), request, observers=tuple((o for o in (observer,) if o is not None)))
 
 				self.assertEqual(len(observer.records), solution.n_steps)
 				iterations = np.asarray(

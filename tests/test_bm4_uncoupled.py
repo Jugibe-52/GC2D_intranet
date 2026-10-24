@@ -1,5 +1,7 @@
 """BM4 excludes C while the independent exact harmonic flow remains usable."""
 
+from diagnostics.methods.energy import EnergyObserver
+from solvers import NewtonSolver
 from dataclasses import replace
 
 import unittest
@@ -11,7 +13,6 @@ from methods.extended.maps import HarmonicCoupling
 from methods.extended.maps import GCDoubledMaps
 from methods.extended.core.composition import BM4, compose
 from methods.extended.core.projection import solve_projection
-from solvers.nonlinear import SolverOptions
 from simulation import BM4Implicit, BM4Midpoint, SimulationRequest, simulate
 from tests.test_extended_family import problem
 
@@ -23,11 +24,11 @@ class UncoupledBM4Tests(unittest.TestCase):
 		p = problem(3)
 		h, t = .15, .3
 		request = SimulationRequest.uniform(t_span=(t, t + h),  sample_count=2)
-		old_maps = GCDoubledMaps(p.dynamics, p.initial_state.size, coordinates=p.layout, coupling_frequency=0.)
+		old_maps = GCDoubledMaps(p.dynamics.vector_field, p.initial_state.size, coordinates=p.layout, coupling_frequency=0.0, jacobian=getattr(p.dynamics, 'particle_vector_field_jacobians', None))
 		trace = compose(old_maps, BM4, t, np.tile(p.initial_state, 2), h)
 		size = p.initial_state.size
 		references = (
-			solve_projection(old_maps, BM4, SolverOptions('newton', 1e-13, 1e-12, 12),
+			solve_projection(old_maps, BM4, NewtonSolver(1e-13, 1e-12, 12, jacobian_method='analytic'),
 				'reduced_multiplier', t, p.initial_state, h).state,
 			(trace.state[:size] + trace.state[size:]) / 2,
 		)
@@ -36,9 +37,9 @@ class UncoupledBM4Tests(unittest.TestCase):
 				with self.assertRaises(TypeError):
 					constructor(coupling_frequency=0.)
 				with patch.object(HarmonicCoupling, 'apply', side_effect=AssertionError('BM4 invoked C')):
-					run = replace(constructor(track_energy=True), step=h).new_run(p, request)
+					run = replace(constructor(), step=h).new_run(p.dynamics.vector_field, p.initial_conditions, request, jacobian=getattr(p.dynamics, 'particle_vector_field_jacobians', None), jacobian_structure='particle', observe=True)
 					self.assertIsNone(run.formulation.coupling)
-					actual = simulate(p, replace(constructor(track_energy=True), step=h), request)
+					actual = simulate(p, replace(constructor(), step=h), request, observers=(EnergyObserver(),))
 				np.testing.assert_allclose(actual.states[:, -1], expected, rtol=0., atol=3e-15)
 				self.assertEqual(actual.diagnostics['coupling_frequency'], 0.)
 

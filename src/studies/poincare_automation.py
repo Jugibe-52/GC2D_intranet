@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from contracts.studies.poincare_automation import _NewtonControls
+from solvers.nonlinear import NewtonSolver
 
 from studies._validation import require_uncoupled_bm4
 
@@ -296,15 +296,15 @@ def automation_method(prepared: PreparedAutomationCase) -> NumericalMethod:
 		return RK4(step=step)
 	if name == "BM4Midpoint":
 		return BM4Midpoint(step=step)
-	kwargs: _NewtonControls = dict(newton_absolute_tolerance=c.newton_absolute_tolerance,
-		newton_relative_tolerance=c.newton_relative_tolerance,
-		newton_max_iterations=c.newton_max_iterations,
-		newton_jacobian_relative_step=c.newton_jacobian_relative_step,
-		newton_jacobian_method="analytic")
+	solver = NewtonSolver(absolute_tolerance=c.newton_absolute_tolerance,
+		relative_tolerance=c.newton_relative_tolerance,
+		max_iterations=c.newton_max_iterations,
+		jacobian_relative_step=c.newton_jacobian_relative_step,
+		jacobian_method="analytic")
 	# Explicit branches keep each constructor's numerical contract visible.
 	if name == "BM4Implicit":
-		return BM4Implicit(step=step, **kwargs)
-	return GaussLegendre4(step=step, **kwargs)
+		return BM4Implicit(step=step, solver=solver)
+	return GaussLegendre4(step=step, solver=solver)
 
 
 def validate_automation_solution(solution: States, prepared: PreparedAutomationCase) -> None:

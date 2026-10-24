@@ -103,7 +103,7 @@ for a required scale.
 ## Input preparation and plotting
 
 Keep constructor-specific conversion policies, error order and array ownership
-when extracting typed helpers. Gauss/SDIRK share methods.classical._configuration;
+when extracting typed helpers. Algebraic controls are validated by the solver;
 Poincare automation deliberately has stricter numeric/count policies. Validate
 every plot series before creating a figure, including later invalid entries.
 See docs/simulation/integration-architecture.md and the plot-input and prepared-
@@ -204,20 +204,19 @@ cases remain explicit. See `docs/studies/poincare-automation.md`.
 
 ## Current state and saved physical states
 
-`dynamics.coordinates.PhysicalCoordinates` stores immutable component names and position/velocity roles. Dynamics declare `coordinates`; otherwise an explicit layout is required. Never infer GC/FC from dimension. InitialConditions, problems and States own structural data and arrays without retaining field physics; validate coordinate order and roles, not size alone.
-`SingleFormulation(physical_size)` and `DoubleFormulation(physical_size)` retain only size. lift/join_copies/split_copies build temporary complete copies, including shifted projection candidates and FC velocities, preserving NumPy/JAX. No clock, momentum, tracking or model data belongs in them.
-Every accepted IntegrationState(time, values, momentum=None) contains one physical Z (d*N), scalar time and optional separate physical kappa (N). Methods initialize zero kappa, prepare workspaces, project and return physical StepResult.state plus separate momentum. StepInfo carries momentum_before. Never persist equal duplicate copies between steps.
-Methods evaluate physical H once; states.energy combines supplied H and kappa. GC map work uses summed momentum and divides by two on projection. Physical auxiliaries and archive labels retain their previous normalization.
+`dynamics.coordinates.PhysicalCoordinates` stores immutable component names and position/velocity roles. Dynamics declare `coordinates`; otherwise an explicit layout is required. Never infer GC/FC from dimension. InitialConditions and States own structural data and arrays; InitialValueProblem associates them with dynamics. Validate coordinate order and roles, not size alone.
+`DoubleFormulation(physical_size)` alone builds temporary copies with lift/join_copies/split_copies, preserving NumPy/JAX and shifted projection candidates. It retains only size; SingleFormulation is removed.
+Accepted IntegrationState stores one physical Z (d*N) and scalar time. StepResult carries optional numerical StageQuadrature or an accepted interpolant, never momentum. Only sampling snapshots may carry transient quadrature. Never persist equal duplicate copies between steps.
+EnergyObserver from diagnostics owns separate physical kappa (N), initially zero or explicitly supplied. Execution binds H and -partial_t H, accepts each main step once and records saved auxiliaries; states.energy combines supplied H and kappa. GC weights include one half with reduction_scale=2 to preserve the original summed-map arithmetic and overflow guard. Adaptive quadrature uses eight Gauss nodes; saved-time sparsity never changes accepted accumulation.
 Fixed methods own positive step (default 0.1); CPU/JAX clip only the last main step. Adaptive methods own max_step. Requests own interval/output times, never step controls. Shadow samples start independently from an accepted interval's left Z and kappa, and never replace the main state. JAX carries separate functional arrays.
 States records physical samples and separate accepted-step statistics, then becomes the read-only result returned by simulate. Archives keep schemas and save_solution/load_solution; legacy archives can lack initial data. Recreate old configured-object pickles after this API change.
-Generic packing does not extend GC-only methods to FC. GC/FC map operations belong to methods.extended.maps and methods.splitting, projection observation to diagnostics.methods.projection. Retired layout/state/wrapper classes and modules have no aliases.
+Generic packing does not extend GC-only methods to FC. GC maps receive f and derivatives; FC maps compose supplied exact flows whose equations live in FullCyclotronDynamics. Projection observation belongs to diagnostics.methods.projection. Retired layout/state/wrapper classes and modules have no aliases.
 See docs/simulation/initial-solvers-formulations.md, docs/simulation/api-migration.md and specs/current/states.md.
 
 ## Reusable solvers and projection equations
 
 `solvers` owns immutable NewtonSolver/BroydenSolver configurations and shared
-algebraic operations; each solve owns its work arrays. Explicit solver= controls
-tolerances and iteration limits; omitted solvers retain legacy method defaults.
+algebraic operations; each solve owns its work arrays. The solver alone owns tolerances, iteration limits, Jacobian strategy/difference scale, backtracking and iteration_observer. Explicit solver= is authoritative; omitted solvers retain family defaults. JAX derives controls without separate defaults.
 Gauss, SDIRK and HBVM accept Newton; ABBA/BM4 also accept Broyden. Preserve HBVM's
 matrix infinity norm, damping and initial-residual-before-Jacobian validation.
 `methods.projection` owns ReducedProjection (2N unknowns) and
@@ -235,9 +234,9 @@ the job and completed result. Host and JAX run_steps workers fill that open reco
 Use States.record_history for complete bulk physical arrays from JAX; it requires an empty recorder and validates before writing. Preserve independent shadow
 samples.
 
-contracts.methods.base.NumericalMethod exposes new_run(problem, request, evaluated_dynamics=...) and jax_mode; methods.base.IntegrationMethod retains numerical preparation,
+contracts.methods.base.NumericalMethod exposes new_run(f, initial_conditions, request, *, jacobian=None, jacobian_structure="dense", observe=False, capture_quadrature=False) and jax_mode. Methods retain no problem/dynamics or energy functions and never inspect callable owners. Execution binds physical/backend capabilities and attaches original source identity to events. methods.base.IntegrationMethod retains numerical preparation,
 advancement, observations and controller access. Keep exact-type JAX adapters beside algorithms; do not repeat their fixed-method support list. Unknown
-overrides fail explicitly. Configured methods are reusable; consumed runs finish on success and failure.
+overrides fail explicitly. Configured methods are reusable; consumed runs finish on success and failure. Register EnergyObserver and caller-owned step callbacks via observers= on simulate/execution; each energy run is fresh. Newton iteration callbacks retain shadow-solve events; diagnostic replay is silent. Modal payload version 2 includes observer configurations, rejects arbitrary callbacks, and supports local worker validation.
 
 execution._jax owns optional environment preparation and the cached SciPy/JAX host adapter. Dynamics has no dependency on execution. JaxPotential stays
 independently usable, with its own precision guards and tracing-safe concrete caches; executor preparation shares physical samples/splines without refitting or

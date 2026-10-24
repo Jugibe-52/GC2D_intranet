@@ -61,7 +61,7 @@ Both C in the recipe and the coupling object are required. BM4 presets have neit
 
 The standard ABBA2, ABBA4, ABBA6 and BM4 recipes are unchanged numerically. `Composition.from_direct_adjoint` expands each former adjoint stage into A,B,T and each direct stage into T,B,A with the original signed stage weight. Explicit coupled generic recipes can additionally expand C,A,B,T and its reverse. Execution never decides operations from a stage's parity; it traverses the expanded sequence. Only T changes time.
 
-`ProjectedPalindromicMethod` owns the common implicit advance and one exterior spatial Hairer solve. `MidpointPalindromicMethod` owns the final arithmetic mean. Both inherit common run preparation and passive state finishing from `PalindromicMethod`. Preset-specific code retains public controls, metadata and established observation adapters; no preset defines its own advancement loop.
+`ProjectedPalindromicMethod` owns the common implicit advance and one exterior spatial Hairer solve. `MidpointPalindromicMethod` owns the final arithmetic mean. Both inherit common run preparation and quadrature description from `PalindromicMethod`. Preset-specific code retains public controls, metadata and established observation adapters; no preset defines its own advancement loop.
 
 The implicit generic method accepts reduced or simultaneous equations, Newton/Broyden, and analytic or centered-difference Jacobians. Time and passive momentum remain outside the nonlinear unknowns. The stopping scale remains `atol + rtol*max(1, ||z||_inf)`.
 

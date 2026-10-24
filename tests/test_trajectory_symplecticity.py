@@ -28,6 +28,7 @@ from diagnostics import (
 from dynamics import GuidingCenterDynamics
 
 from potential import Potential
+from solvers import NewtonSolver
 from simulation import (
 	BM4Implicit,
 	ABBA2Implicit,
@@ -90,13 +91,14 @@ class ExactTrajectoryJacobianTests(unittest.TestCase):
 		for method_type, calculator in cases:
 			with self.subTest(method=method_type.__name__):
 				events: list[IntegrationStep] = []
-				kwargs: dict[str, object] = {"step_observer": events.append}
+				kwargs: dict[str, object] = {}
 				if method_type in (ABBA2Implicit, BM4Implicit):
 					kwargs.update(
-						newton_absolute_tolerance=1e-14,
-						newton_relative_tolerance=1e-14,
+						solver=NewtonSolver(absolute_tolerance=1e-14,
+							relative_tolerance=1e-14, jacobian_method="analytic"),
 					)
-				simulate(problem, replace(method_type(**kwargs), step=0.1), request)
+				simulate(problem, replace(method_type(**kwargs), step=0.1), request,
+					observers=(events.append,))
 				self.assertEqual(len(events), 1)
 				event = events[0]
 				exact = _dense(calculator(event))

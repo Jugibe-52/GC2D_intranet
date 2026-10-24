@@ -15,6 +15,7 @@ import numpy as np
 from states.history import States
 from contracts.states.history import DiagnosticValue
 from contracts.methods.compiled import CompiledStep
+from diagnostics.methods.energy import PreparedEnergyObserver, EnergyFunction, momentum_increment
 from execution._host import _fixed_schedule, _time_tolerance
 
 if TYPE_CHECKING:
@@ -24,7 +25,7 @@ if TYPE_CHECKING:
 def _integrate(
     initial: Any, initial_momentum: Any, starts: Any, steps: Any, times: Any,
     offsets: Any, modes: Any, durations: Any, *,
-    kernel: CompiledStep,
+    kernel: CompiledStep, hamiltonian: EnergyFunction | None, momentum_rate: EnergyFunction | None,
 ) -> tuple[Any, Any, Any, Any, Any, Any]:
     """Collect O(N * saved_times) storage without retaining every main state.
 
@@ -39,7 +40,8 @@ def _integrate(
         value: Any
         auxiliary: Any
         valid: Any
-        value, auxiliary, _, valid = kernel(time, state, duration, momentum)
+        value, quadrature, _, valid = kernel(time, state, duration)
+        auxiliary = momentum if momentum_rate is None else momentum + momentum_increment(momentum_rate, quadrature, momentum.size)
         return value, auxiliary, valid
 
     def accepted(carry: Any, index: Any) -> tuple[Any, Any]:
@@ -54,7 +56,8 @@ def _integrate(
         momentum_after: Any
         statistics: dict[str, Any]
         solved: Any
-        after, momentum_after, statistics, solved = kernel(starts[index], before, steps[index], momentum_before)
+        after, quadrature, statistics, solved = kernel(starts[index], before, steps[index])
+        momentum_after = momentum_before if momentum_rate is None else momentum_before + momentum_increment(momentum_rate, quadrature, momentum_before.size)
         converged = converged & solved
         valid = valid & jnp.all(jnp.isfinite(after)) & jnp.all(jnp.isfinite(momentum_after))
 
@@ -86,19 +89,19 @@ def _integrate(
     (_, _, history, momenta, valid, converged), statistics = jax.lax.scan(
         accepted, (initial, initial_momentum, history, momenta, jnp.array(True), jnp.array(True)), jnp.arange(starts.size),
     )
-    energy: Any | jax.Array = (kernel.energy(times, history)
-              if kernel.track_energy else jnp.empty((0,), dtype=initial.dtype))
+    energy: Any | jax.Array = (hamiltonian(times, history)
+              if hamiltonian is not None else jnp.empty((0,), dtype=initial.dtype))
     return history, momenta, energy, valid & jnp.all(jnp.isfinite(energy)), converged, statistics
 
 
 @lru_cache(maxsize=16)
-def _compiled_integrator(kernel: CompiledStep) -> Callable[..., Any]:
+def _compiled_integrator(kernel: CompiledStep, hamiltonian: EnergyFunction | None, momentum_rate: EnergyFunction | None) -> Callable[..., Any]:
     """Bound compilation reuse by physical dynamics, device and step controls."""
-    return jax.jit(partial(_integrate, kernel=kernel))
+    return jax.jit(partial(_integrate, kernel=kernel, hamiltonian=hamiltonian, momentum_rate=momentum_rate))
 
 
 def run_steps(method: "IntegrationMethod[Any]", kernel: CompiledStep,
-              saved: States) -> dict[str, DiagnosticValue]:
+              saved: States, *, energy: PreparedEnergyObserver | None = None) -> dict[str, DiagnosticValue]:
     """Advance a prepared map and record its complete physical history in bulk.
 
     The executor validates host-only callbacks and progress before
@@ -127,26 +130,26 @@ def run_steps(method: "IntegrationMethod[Any]", kernel: CompiledStep,
     durations = times - starts[owners]
     offsets: np.ndarray = np.concatenate(([1], 1 + np.searchsorted(times[1:], ends + tolerance, side="right")))
     device = kernel.device
-    inputs = (method.initial_state, method.initial_momentum if method.initial_momentum is not None else np.empty(0), starts, steps, times,
+    inputs = (method.initial_state, energy.momentum if energy is not None else np.empty(0), starts, steps, times,
               offsets.astype(np.int32), modes.astype(np.int32), durations)
     # Inputs select the execution device; spline constants follow compilation.
     # device_get synchronizes timing and copies only completed output.
     history: Any
     momenta: Any
-    energy: Any
+    energy_history: Any
     valid: Any
     converged: Any
     statistics: Any
-    history, momenta, energy, valid, converged, statistics = jax.device_get(_compiled_integrator(kernel)(
+    history, momenta, energy_history, valid, converged, statistics = jax.device_get(_compiled_integrator(
+        kernel, energy.hamiltonian if energy is not None else None, energy.momentum_rate if energy is not None else None)(
         *(jax.device_put(value, device) for value in inputs),
     ))
     if not bool(valid):
         raise ValueError("A numerical step or output sample became non-finite.")
     if not bool(converged):
         raise RuntimeError(f"{method.method_name} nonlinear solve did not converge within its tolerance and iteration limit.")
-    auxiliary: dict[str, DiagnosticValue] = method.diagnose_history(
-        times, history, {'extended_momentum': momenta} if kernel.track_energy else {},
-        energy=energy if kernel.track_energy else None,
+    auxiliary: dict[str, DiagnosticValue] = {} if energy is None else energy.diagnose_history(
+        times, history, {'extended_momentum': momenta}, energy=energy_history,
     )
     diagnostics: dict[str, DiagnosticValue] = {}
     diagnostics.update({

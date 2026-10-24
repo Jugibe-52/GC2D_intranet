@@ -7,11 +7,7 @@ accepted intervals and collects output.
 
 `problem.py` owns physical initial-value problems; `request.py` owns the interval and output times; `contracts/` owns shared interfaces, step records and array compatibility. `dynamics.coordinates` owns physical structural descriptions, while reusable formulations prepare temporary copies. `methods/` implements numerical steps. `execution/` owns preparation, accepted `IntegrationState` snapshots, sampling and host/device loops; `methods.base` owns numerical preparation. `states/` owns the physical recording container and completed result. `simulation/runner.py` validates that result against the inputs and returns the same object. Internal consumers import directly from each defining module.
 
-Validation follows the same ownership: `InitialValueProblem` checks the dynamics
-protocol and compatible initial layout; methods check the Hamiltonian
-capability needed for energy tracking and their numerical
-options. Methods reuse these validated inputs instead of repeating the same
-capability checks. `IntegrationMethod.new_run` owns immutable run snapshots.
+Validation follows the same ownership: `InitialValueProblem` checks the dynamics protocol and compatible initial layout; execution resolves physical capabilities and checks energy functions only when requested by an observer. Methods validate numerical options and receive explicit functions. `IntegrationMethod.new_run` owns immutable initial snapshots without retaining the problem or dynamics.
 
 Long validation blocks are organized as private preparation functions within
 their owning modules. `SimulationRequest` separates interval validation from
@@ -36,10 +32,7 @@ without repeating a cached evaluation. Checks on convergence, singular systems,
 accepted-step continuity, and newly computed non-finite values remain next to
 the numerical operation that produces them. These validation helpers do not alter the numerical algorithms.
 
-Gauss--Legendre and SDIRK share constructor normalization in
-`methods.classical._configuration`: supplied Newton solvers take precedence,
-Boolean tolerances remain accepted, and Jacobian scale is checked before the
-iteration count. Other method families retain their own policies.
+Immutable NewtonSolver/BroydenSolver configurations validate their own controls. Methods select family defaults and reject unsupported solver combinations; there is no second method-level tolerance/Jacobian configuration or precedence merge. Shared derivative preparation lives in `solvers.derivatives`, while each method retains its stage equations and residual assembly.
 
 The downstream packages follow the same ownership convention. Studies share
 scalar and sampling rules in `studies._validation` and aligned comparison
@@ -75,11 +68,11 @@ with its [SVG](integration-architecture_old.svg) and
 
 The diagram is a historical rendering, retained without regeneration. Its collector/result split and old module routes have been superseded. The current flow is:
 
-1. Build `InitialValueProblem` from dynamics, a physical array and its layout. Set t0 and output times in `SimulationRequest`.
-2. The executor prepares the environment and asks the method for a fresh run and formulation. The controller initializes `IntegrationState(t0, physical_values, momentum)`; `States.prepare(...)` reserves physical output columns.
-3. Advance one main interval and retain both accepted endpoint snapshots. Record accepted-step statistics on their own axis.
-4. For each requested time in that interval, reuse an endpoint or calculate an independent shadow/dense sample. The sample snapshot supplies physical values and optional momentum; `States.record` copies them.
-5. Evaluate energy diagnostics over the saved physical history and auxiliary data. `States.finalize` checks completeness and seals this same object.
+1. Build `InitialValueProblem` from dynamics and independent initial data; supply times in `SimulationRequest`.
+2. Execution resolves the environment and prepares a numerical run from `f`, initial data and optional Jacobian. The controller owns `IntegrationState(t0, physical_values)`; `States.prepare(...)` reserves physical output.
+3. Advance one main interval and retain both physical endpoints. An energy observer accumulates accepted quadrature once. Record step statistics on their own axis.
+4. Reuse an endpoint or calculate each independent shadow/dense sample from the accepted left endpoint; record physical values and the observer's independent auxiliary sample.
+5. The energy observer evaluates saved H once, and `states.energy` combines supplied arrays. `States.finalize` checks completeness and seals this same object.
 6. `Execution.run` returns it to `simulate`, which checks request and initial-data agreement and returns it directly.
 
 The initial state and a saved sample can have identical values while serving different roles. No sample becomes the next main state. Formulations are shared across methods; layout, time control and numerical stepping remain separate responsibilities. JAX retains functional device arrays inside compiled loops and records its exported physical history with `States.record_history`. `Execution.run` owns the single allocation and finalization boundary for both workers.
@@ -110,7 +103,7 @@ The following old routes have been removed after migrating supported consumers:
 | `simulation.solution`, `solution` | `states.history` |
 | `methods.abba.*`, `methods.bm4.*` | `methods.extended` public exports and their defining modules |
 | `methods._abba_coefficients` | `methods.extended.core.composition` |
-| Full time/momentum projection modules | Removed; use spatial projection with `track_energy=True` for new studies |
+| Full time/momentum projection modules | Removed; use spatial projection with `EnergyObserver()` for new studies |
 | `methods.extended.order4_implicit_single_projection` | `methods.extended.abba.ABBA4Implicit`; shared projection in `methods.extended.core.projection` |
 
 No import hooks or `sys.modules` aliases recreate those paths. Deprecated
@@ -135,29 +128,17 @@ driver; DOP853/Radau receive prepared field/energy callbacks and retain SciPy co
 Both return NumPy `States`. Omitting options preserves the default CPU controller.
 See the [JAX execution contract](jax-execution.md) for scope and limitations.
 
-Gauss--Legendre and SDIRK share field validation, analytic particle Jacobians,
-centered finite differences and Jacobian selection in
-`src/methods/classical/_jacobians.py`. Their stage equations and nonlinear solves
-remain defined by each method. GC and FC split maps share the optional momentum
-update in `src/methods/_momentum.py`.
+Gauss--Legendre and SDIRK retain their stage equations and assembly adapters in `methods.classical._jacobians`; field validation, particle/dense Jacobians and finite differences are shared through `solvers.derivatives`. Physical split maps return optional weighted stage data. Passive energy arithmetic belongs to `diagnostics.methods.energy`; `methods._momentum` and `methods.extended.core.energy` are removed.
 
-`SingleFormulation(physical_size)` and `DoubleFormulation(physical_size)` retain only a positive physical vector size. They prepare one or two temporary copies through `lift`, `join_copies` and `split_copies`. Shapes are `(d*N,*samples)` and `(copies*d*N,*samples)`; shifted copies remain distinct until the method projects them. NumPy/JAX backends and complete FC velocity blocks are preserved. There is no layout, particle count, tracking flag, clock, momentum, initial state, projection or solver in either representation.
+`DoubleFormulation(physical_size)` is the only state formulation. It prepares two temporary physical copies through `lift`, `join_copies` and `split_copies`, preserving NumPy/JAX backends and complete FC velocity blocks. It stores only a positive vector size; it owns no dynamics, layout, time, momentum, solver or projection. Methods using ordinary physical arrays need no formulation; `SingleFormulation` is removed.
 
-Every accepted snapshot is `IntegrationState(time, values, momentum=None)`: scalar time, physical `values` of shape `(d*N,)`, and optional physical `momentum` of shape `(N,)`. GC remains 2N and FC 4N with or without tracking. Doubled GC work has 4N entries; generic doubled FC work has 8N. Workspaces are temporary and never become accepted states. This generic support does not extend GC numerical methods to FC.
+Every accepted snapshot is `IntegrationState(time, values)`: scalar time and physical `values` of shape `(d*N,)`. GC remains 2N and FC 4N with or without energy observation. Doubled GC work has 4N entries; generic doubled FC work has 8N. Workspaces are temporary and never become accepted states. Optional quadrature accompanies a sample without storing energy momentum. Generic copy support does not extend GC numerical methods to FC.
 
-The method initializes zero momentum, prepares copies, selects projection equations and solver, and integrates momentum from accepted stages. `advance(t, Z, h, momentum=kappa)` returns physical `StepResult.state` and separate `StepResult.momentum`. `StepInfo.momentum_before` records the incoming auxiliary. Shadow samples start from the same accepted physical state and momentum. JAX carries separate arrays through the compiled loop.
+Execution supplies `f(t, z)`, independent initial data and an optional Jacobian to the numerical method. `advance(t, z, h)` returns physical `StepResult.state`, numerical work and optional quadrature. `EnergyObserver`, supplied through `simulate(..., observers=(EnergyObserver(),))`, owns a fresh passive accumulator for each run. Accepted steps update it once; each shadow sample starts independently from the accepted left endpoint. JAX carries a separate functional accumulator through the compiled loop.
 
-Methods evaluate saved physical H once. `states.energy.energy_diagnostics` combines supplied H and physical kappa without dynamics evaluation. Existing energy labels and `(N,T)` auxiliary histories remain unchanged; `extended_time` is broadcast from scalar sample times. Numerical archives require no migration; old pickled configured objects should be recreated.
+Execution gives the energy observer H and `-partial_t H`. The observer evaluates saved physical H once; `states.energy.energy_diagnostics` combines supplied H and physical kappa without evaluating dynamics. Existing energy labels and `(N,T)` auxiliary histories remain unchanged; `extended_time` is broadcast from scalar sample times. The default initial kappa is zero; `EnergyObserver(initial_momentum=...)` accepts an explicit physical value per particle. Numerical archives require no migration; old pickled configured objects should be recreated.
 
-Tracking does not affect physical stages, Newton/Broyden scales or adaptive error
-control. DOP853 and Radau own physical-only SciPy solvers and use eight-point
-Gauss quadrature over accepted dense output for passive momentum. This quadrature
-has no independent error tolerance; audit it by refinement. Radau's optional
-Jacobian always differentiates physical coordinates only. Diagnostic interpolation
-work and energy-derivative evaluations are excluded from physical work counters.
-BM4 reuses the converged residual's shear states for passive quadrature without
-repeating spatial maps. Adaptive energy samples reuse their accepted interval's
-endpoint momenta; only interior queries require partial-interval quadrature.
+Energy observation does not affect physical stages, Newton/Broyden scales or adaptive error control. DOP853/Radau retain physical-only SciPy solvers; the independent observer uses eight-point Gauss quadrature over accepted dense output, reusing endpoint momenta and evaluating only partial intervals for interior queries. This quadrature has no independent error tolerance; audit it by refinement. Radau Jacobians remain physical. Diagnostic quadrature is excluded from physical work counters, and BM4 exposes converged shear states without replaying maps.
 
 Fixed controllers reuse accepted endpoint states and compute off-grid samples with
 independent shortened maps; adaptive controllers evaluate accepted dense output.

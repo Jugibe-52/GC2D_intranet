@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from dynamics.gc import GuidingCenterDynamics
 
 import json
 from pathlib import Path
@@ -112,14 +111,7 @@ class ImplicitABBAJacobianObserverTests(unittest.TestCase):
 					chunk_size=2,
 					verbose=False,
 				) as observer:
-					solution = simulate(
-						InitialValueProblem(GuidingCenterDynamics(_potential(), rho=0.05), configuration, layout=GuidingCenterDynamics.coordinates),
-						ABBA2Implicit(step=0.02,
-							projection_formulation=formulation,
-							step_observer=observer,
-						),
-						request,
-					)
+					solution = simulate(InitialValueProblem(GuidingCenterDynamics(_potential(), rho=0.05), configuration, layout=GuidingCenterDynamics.coordinates), ABBA2Implicit(step=0.02, projection_formulation=formulation), request, observers=tuple((o for o in (observer,) if o is not None)))
 				self.assertEqual(len(observer.samples), solution.n_steps)
 				self.assertEqual(len(observer.records), 2 * solution.n_steps)
 				self.assertEqual(observer.samples[0].jacobian.shape, (4, 4))

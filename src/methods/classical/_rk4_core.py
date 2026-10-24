@@ -1,4 +1,4 @@
-"""Backend-independent classical RK4 stages and passive quadrature."""
+"""Backend-independent classical RK4 physical stages."""
 
 from collections.abc import Callable
 from typing import Any, TYPE_CHECKING
@@ -20,12 +20,6 @@ def physical_step(field: Callable[..., Any], time: Any, state: Any,
     k4: BackendArray = field(time + step, z4)
     return state + step * (k1 + 2 * k2 + 2 * k3 + k4) / 6, (state, z2, z3, z4)
 
-
-def momentum_increment(rate: Callable[..., Any], time: Any, step: Any,
-                       stages: tuple[Any, ...]) -> Any:
-    """Integrate -partial_t H with the accepted physical RK4 stage states."""
-    rates = [rate(time + c * step, z) for c, z in zip((0., .5, .5, 1.), stages)]
-    return step * (rates[0] + 2 * rates[1] + 2 * rates[2] + rates[3]) / 6
 
 
 __all__: list[str] = []

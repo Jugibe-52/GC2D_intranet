@@ -50,7 +50,7 @@ def _validate_state_extension(value: str) -> StateExtension:
 	if value not in ABBA_STATE_EXTENSIONS:
 		raise ValueError(
 			"Only spatial duplication is supported. Use state_extension='physical' "
-			"and track_energy=True for time and passive momentum per particle; "
+			"and register an energy observer for passive momentum per particle; "
 			"the former fully_extended time/momentum projection has been removed."
 		)
 	return value

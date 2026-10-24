@@ -35,13 +35,13 @@ their existing roles. Saved result archive formats are unchanged.
 
 ## State representations
 
-`SingleFormulation(physical_size)` and `DoubleFormulation(physical_size)` retain only a positive physical vector size. They prepare one or two temporary copies through `lift`, `join_copies` and `split_copies`. Shapes are `(d*N,*samples)` and `(copies*d*N,*samples)`; shifted copies remain distinct until the method projects them. NumPy/JAX backends and complete FC velocity blocks are preserved. There is no layout, particle count, tracking flag, clock, momentum, initial state, projection or solver in either representation.
+`DoubleFormulation(physical_size)` is the only state formulation. It prepares two temporary physical copies through `lift`, `join_copies` and `split_copies`, preserving NumPy/JAX backends and complete FC velocity blocks. It stores only a positive vector size; it owns no dynamics, layout, time, momentum, solver or projection. Methods using ordinary physical arrays need no formulation; `SingleFormulation` is removed.
 
-Every accepted snapshot is `IntegrationState(time, values, momentum=None)`: scalar time, physical `values` of shape `(d*N,)`, and optional physical `momentum` of shape `(N,)`. GC remains 2N and FC 4N with or without tracking. Doubled GC work has 4N entries; generic doubled FC work has 8N. Workspaces are temporary and never become accepted states. This generic support does not extend GC numerical methods to FC.
+Every accepted snapshot is `IntegrationState(time, values)`: scalar time and physical `values` of shape `(d*N,)`. GC remains 2N and FC 4N with or without energy observation. Doubled GC work has 4N entries; generic doubled FC work has 8N. Workspaces are temporary and never become accepted states. Optional quadrature accompanies a sample without storing energy momentum. Generic copy support does not extend GC numerical methods to FC.
 
-The method initializes zero momentum, prepares copies, selects projection equations and solver, and integrates momentum from accepted stages. `advance(t, Z, h, momentum=kappa)` returns physical `StepResult.state` and separate `StepResult.momentum`. `StepInfo.momentum_before` records the incoming auxiliary. Shadow samples start from the same accepted physical state and momentum. JAX carries separate arrays through the compiled loop.
+Execution supplies `f(t, z)`, independent initial data and an optional Jacobian to the numerical method. `advance(t, z, h)` returns physical `StepResult.state`, numerical work and optional quadrature. `EnergyObserver`, supplied through `simulate(..., observers=(EnergyObserver(),))`, owns a fresh passive accumulator for each run. Accepted steps update it once; each shadow sample starts independently from the accepted left endpoint. JAX carries a separate functional accumulator through the compiled loop.
 
-Methods evaluate saved physical H once. `states.energy.energy_diagnostics` combines supplied H and physical kappa without dynamics evaluation. Existing energy labels and `(N,T)` auxiliary histories remain unchanged; `extended_time` is broadcast from scalar sample times. Numerical archives require no migration; old pickled configured objects should be recreated.
+Execution gives the energy observer H and `-partial_t H`. The observer evaluates saved physical H once; `states.energy.energy_diagnostics` combines supplied H and physical kappa without evaluating dynamics. Existing energy labels and `(N,T)` auxiliary histories remain unchanged; `extended_time` is broadcast from scalar sample times. The default initial kappa is zero; `EnergyObserver(initial_momentum=...)` accepts an explicit physical value per particle. Numerical archives require no migration; old pickled configured objects should be recreated.
 
 ## Choosing equations and solver independently
 
@@ -57,15 +57,7 @@ result = simulate(problem, method, request)
 gauss = GaussLegendre4(step=0.02, solver=solver)
 ```
 
-`ReducedProjection` solves for mu in R^(2N). `SimultaneousProjection` solves for
-(u, v, mu) in R^(6N). Both implement `contracts.methods.projection.ProjectionFormulation`
-and own the initial guess, residual, Jacobian assembly and physical reconstruction.
-The method supplies its doubled composition and derivative; these equations belong to methods. Their array operations serve NumPy and JAX. ABBA accepts either
-class or the existing `reduced_multiplier`/`simultaneous_state_multiplier` strings;
-BM4 retains the reduced equations. Gauss stage equations remain method-specific.
-The older `methods.ProjectionFormulation` and `simulation.ProjectionFormulation`
-exports remain the string-name type alias; import the equation protocol from
-`methods.projection` when defining its type.
+`ReducedProjection` solves for mu in R^(2N); `SimultaneousProjection` solves for (u, v, mu) in R^(6N). Both implement `contracts.methods.projection.ProjectionFormulation` and own the initial guess, residual, Jacobian assembly and physical reconstruction. The method supplies its doubled composition and derivative; these equations belong to methods and work with NumPy/JAX. ABBA accepts either class or the existing `reduced_multiplier`/`simultaneous_state_multiplier` names; BM4 retains reduced equations. Gauss stage equations remain method-specific. The `methods.ProjectionFormulation` and `simulation.ProjectionFormulation` exports remain the string-name type alias; import the equation protocol from `methods.projection`.
 
 NewtonSolver supports Gauss, SDIRK, HBVM, ABBA and BM4. BroydenSolver supports the
 existing ABBA/BM4 projection routes. Explicit methods have no algebraic solver;
@@ -74,14 +66,7 @@ are immutable configurations with no per-run work arrays. Unsupported solver
 classes, subclass overrides and unsupported method/solver combinations fail before
 backend preparation. Each solve is independent, including repeated simulations.
 
-An explicit `solver=` supplies its tolerances and iteration limit. When omitted,
-all existing method defaults and tolerance keywords retain their meaning. The
-relative threshold uses the physical state scale, not the projection multiplier.
-Newton accepts a residual function and a Jacobian or specialized update operation;
-Broyden receives its initial Jacobian estimate. Reuse cached residual payloads and
-particle blocks. HBVM retains its matrix infinity norm and damped Newton updates;
-other methods retain full Newton. Requested tolerances bound the accepted residual,
-not the trajectory error.
+`solver=` is the sole owner of `absolute_tolerance`, `relative_tolerance`, `max_iterations`, `jacobian_method`, `jacobian_relative_step`, `backtracking` and `iteration_observer`. The method-level `newton_*`, `nonlinear_solver` and `SolverOptions` routes are removed. Omission selects the family default: Gauss/SDIRK use 1e-14, 1e-13 and 20 iterations; ABBA/BM4/HBVM use 1e-13, 1e-12 and 12 iterations. HBVM defaults to backtracking. An explicit solver owns its complete configuration, including these defaults. Relative thresholds use physical state scales. HBVM retains its matrix infinity norm and evaluates the first residual before its Jacobian. Requested tolerances bound the accepted residual, not the trajectory error.
 
 Shared implementations are `solvers.nonlinear`, `solvers.linear` and optional
 `solvers._jax`. The private `methods._nonlinear`, `methods._linear` and

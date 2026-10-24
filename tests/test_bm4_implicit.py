@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-from dynamics.gc import GuidingCenterDynamics
 
+from diagnostics.methods.energy import EnergyObserver
+from solvers import BroydenSolver, NewtonSolver
 from pathlib import Path
 import tempfile
 import unittest
@@ -21,8 +22,7 @@ from simulation import (
 	SimulationRequest,
 	simulate,
 )
-from methods.extended.maps import GCDoubledMaps
-from methods.extended.core.composition import BM4, compose
+from methods.extended.core.composition import BM4
 from studies import (
 	AreaStep,
 	BM4ImplicitSymplecticityConfig,
@@ -54,42 +54,48 @@ class BM4ImplicitMethodTests(unittest.TestCase):
 	"""Verify state space, order, observations and parameter validation."""
 
 	def test_energy_reuses_converged_shears_without_extra_spatial_work(self) -> None:
-		"""Compare traced quadrature with an independent energy-augmented replay."""
-		for particles, coupling in ((1, 0.0), (3, 0.0)):
+		"""Compare accepted quadrature with an independent augmented shear replay."""
+		for particles in (1, 3):
 			problem = InitialValueProblem(GuidingCenterDynamics(_potential(), rho=0.05), GuidingCenterDynamics.coordinates.pack_components(np.linspace(1.0, 1.2, particles), np.linspace(1.2, 1.4, particles)), layout=GuidingCenterDynamics.coordinates)
-			request = SimulationRequest.uniform(t_span=(0.3, 0.5),  sample_count=2)
+			request = SimulationRequest.uniform(t_span=(0.3, 0.5), sample_count=2)
 			for solver, jacobian in (('newton', 'analytic'), ('newton', 'finite_difference'), ('broyden', 'analytic')):
 				for step in (0.2, -0.2):
-					with self.subTest(particles=particles, coupling=coupling, solver=solver, jacobian=jacobian, step=step):
-						results = []
-						field_counts = []
+					with self.subTest(particles=particles, solver=solver, jacobian=jacobian, step=step):
+						results, momenta, field_counts = [], [], []
 						for tracking in (False, True):
-							run = BM4Implicit(step=0.2,
-								track_energy=tracking,
-								nonlinear_solver=solver, newton_jacobian_method=jacobian,
-								newton_absolute_tolerance=1e-14, newton_relative_tolerance=1e-14,
-							).new_run(problem, request)
 							with patch.object(type(problem.dynamics), 'vector_field', autospec=True, side_effect=type(problem.dynamics).vector_field) as vector_field, \
 							     patch.object(type(problem.dynamics), 'extended_momentum_derivative', autospec=True, side_effect=type(problem.dynamics).extended_momentum_derivative) as energy_rate:
-								result = run.advance(0.3, run.initial_state, step, momentum=run.initial_momentum)
+								run = BM4Implicit(step=0.2, solver=(NewtonSolver if solver == 'newton' else BroydenSolver)(jacobian_method=jacobian, absolute_tolerance=1e-14, relative_tolerance=1e-14)).new_run(problem.dynamics.vector_field, problem.initial_conditions, request, jacobian=problem.dynamics.particle_vector_field_jacobians, jacobian_structure='particle', observe=True, capture_quadrature=tracking)
+								result = run.advance(0.3, run.initial_state, step)
 								field_counts.append(vector_field.call_count)
+								if tracking:
+									energy = EnergyObserver().new_run(problem.dynamics.hamiltonian, problem.dynamics.extended_momentum_derivative, particle_count=particles, initial_time=.3)
+									momenta.append(energy.accept(0, .3, .3 + step, result.quadrature))
 								self.assertEqual(energy_rate.call_count, 24 if tracking else 0)
-							self.assertEqual(len(result.details.energy_points), 24 if tracking else 0)
+							self.assertEqual(0 if result.quadrature is None else len(result.quadrature.states), 24 if tracking else 0)
 							results.append(result)
 						plain, tracked = results
+						self.assertGreater(field_counts[0], 0)
 						self.assertEqual(field_counts[0], field_counts[1])
 						np.testing.assert_array_equal(plain.details.state, tracked.details.state)
 						np.testing.assert_array_equal(plain.details.multiplier, tracked.details.multiplier)
 						self.assertEqual(plain.statistics, tracked.statistics)
 						self.assertGreater(tracked.details.iterations, 0)
-						prepared = GCDoubledMaps(problem.dynamics, problem.initial_state.size, coupling_frequency=coupling, coordinates=problem.layout, track_energy=True)
-						replayed = compose(
-							prepared, BM4, 0.3,
-							np.concatenate((tracked.details.internal_input, np.zeros(particles))), step,
-						).state
-						np.testing.assert_array_equal(
-							tracked.momentum, replayed[-particles:] / 2.0,
-						)
+						# Replay the explicit recipe independently, accumulating the original
+						# doubled momentum before its final physical normalization.
+						work = tracked.details.internal_input.copy()
+						clock, size = .3, problem.initial_state.size
+						raw_momentum = np.zeros(particles)
+						for operation in BM4.operations:
+							duration = operation.coefficient * step
+							if operation.name == 'T':
+								clock += duration
+								continue
+							target = slice(0, size) if operation.name == 'A' else slice(size, 2 * size)
+							source = work[size:] if operation.name == 'A' else work[:size]
+							raw_momentum += duration * problem.dynamics.extended_momentum_derivative(clock, source)
+							work[target] += duration * problem.dynamics.vector_field(clock, source)
+						np.testing.assert_array_equal(momenta[0], raw_momentum / 2.)
 
 	def test_one_cycle_uses_the_reduced_physical_hairer_projection(self) -> None:
 		problem = _problem()
@@ -98,15 +104,7 @@ class BM4ImplicitMethodTests(unittest.TestCase):
 			t_span=(0.0, 0.2),
 			sample_count=2,
 		)
-		solution = simulate(
-			problem,
-			BM4Implicit(step=0.2,
-				newton_absolute_tolerance=1e-14,
-				newton_relative_tolerance=1e-14,
-				step_observer=events.append,
-			),
-			request,
-		)
+		solution = simulate(problem, BM4Implicit(step=0.2, solver=NewtonSolver(jacobian_method='analytic', absolute_tolerance=1e-14, relative_tolerance=1e-14)), request, observers=(events.append,))
 
 		self.assertEqual(solution.states.shape, (2, 2))
 		self.assertEqual(len(events), 1)
@@ -152,17 +150,7 @@ class BM4ImplicitMethodTests(unittest.TestCase):
 		problem = _problem()
 
 		def final_state(step: float) -> np.ndarray:
-			return simulate(
-				problem,
-				BM4Implicit(step=step,
-					newton_absolute_tolerance=1e-14,
-					newton_relative_tolerance=1e-14,
-				),
-				SimulationRequest.uniform(
-					t_span=(0.0, 0.4),
-					sample_count=2,
-				),
-			).states[:, -1]
+			return simulate(problem, BM4Implicit(step=step, solver=NewtonSolver(jacobian_method='analytic', absolute_tolerance=1e-14, relative_tolerance=1e-14)), SimulationRequest.uniform(t_span=(0.0, 0.4), sample_count=2)).states[:, -1]
 
 		reference = final_state(0.00625)
 		coarse_error = float(np.linalg.norm(final_state(0.1) - reference))
@@ -177,19 +165,11 @@ class BM4ImplicitMethodTests(unittest.TestCase):
 			sample_count=3,
 		)
 		common = {
-			"newton_absolute_tolerance": 1e-14,
-			"newton_relative_tolerance": 1e-14,
+			"absolute_tolerance": 1e-14,
+			"relative_tolerance": 1e-14,
 		}
-		analytic = simulate(
-			problem,
-			BM4Implicit(step=0.05, **common, newton_jacobian_method="analytic"),
-			request,
-		)
-		finite_difference = simulate(
-			problem,
-			BM4Implicit(step=0.05, **common, newton_jacobian_method="finite_difference"),
-			request,
-		)
+		analytic = simulate(problem, BM4Implicit(step=0.05, solver=NewtonSolver(**common, jacobian_method='analytic')), request)
+		finite_difference = simulate(problem, BM4Implicit(step=0.05, solver=NewtonSolver(**common, jacobian_method='finite_difference')), request)
 
 		np.testing.assert_allclose(
 			analytic.states,
@@ -205,14 +185,7 @@ class BM4ImplicitMethodTests(unittest.TestCase):
 
 	def test_step_observer_receives_only_main_grid_steps(self) -> None:
 		events = []
-		solution = simulate(
-			_problem(),
-			BM4Implicit(step=0.02, step_observer=events.append),
-			SimulationRequest.uniform(
-				t_span=(0.0, 0.05),
-				sample_count=11,
-			),
-		)
+		solution = simulate(_problem(), BM4Implicit(step=0.02), SimulationRequest.uniform(t_span=(0.0, 0.05), sample_count=11), observers=(events.append,))
 		self.assertEqual(len(events), solution.n_steps)
 		for event in events:
 			np.testing.assert_allclose(
@@ -226,13 +199,13 @@ class BM4ImplicitMethodTests(unittest.TestCase):
 		with self.assertRaises(TypeError):
 			BM4Implicit(coupling_frequency=0.0)
 		with self.assertRaises(ValueError):
-			BM4Implicit(newton_absolute_tolerance=0.0)
+			BM4Implicit(solver=NewtonSolver(jacobian_method='analytic', absolute_tolerance=0.0))
 		with self.assertRaises(ValueError):
-			BM4Implicit(newton_max_iterations=0)
+			BM4Implicit(solver=NewtonSolver(jacobian_method='analytic', max_iterations=0))
 		with self.assertRaises(ValueError):
-			BM4Implicit(newton_jacobian_relative_step=np.inf)
+			BM4Implicit(solver=NewtonSolver(jacobian_method='analytic', jacobian_relative_step=np.inf))
 		with self.assertRaises(ValueError):
-			BM4Implicit(newton_jacobian_method="complex_step")  # type: ignore[arg-type]
+			BM4Implicit(solver=NewtonSolver(jacobian_method='complex_step'))  # type: ignore[arg-type]
 
 
 class BM4ImplicitStudyTests(unittest.TestCase):

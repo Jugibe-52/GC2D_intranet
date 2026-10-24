@@ -3,23 +3,15 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import ClassVar
 
 import numpy as np
 
 from dynamics import GuidingCenterDynamics
-from contracts.methods.extended.abba import (
-	ABBA4ImplicitIntegrationStep,
-	UnprojectedABBAIntegrationStep,
-	ABBA2ImplicitIntegrationStep,
-)
+from contracts.methods.extended.abba import ABBA2ImplicitIntegrationStep, ABBA4ImplicitIntegrationStep
 from contracts.methods.extended.bm4 import ImplicitBM4IntegrationStep
-from contracts.methods.observation import IntegrationStage, IntegrationStep
-from methods.extended.maps import gc_coupling_matrix
-
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-	from typing import Any
+from contracts.methods.observation import IntegrationStep
+from diagnostics.methods.energy import EnergyObserver
 
 
 def _scalar_value(value: np.ndarray, name: str) -> float:
@@ -29,112 +21,6 @@ def _scalar_value(value: np.ndarray, name: str) -> float:
 		raise ValueError(f"The one-particle {name} must be one finite scalar.")
 	return float(array.reshape(-1)[0])
 
-
-def _momentum_derivative(
-	dynamics: GuidingCenterDynamics,
-	time: float,
-	state: np.ndarray,
-) -> float:
-	"""Evaluate ``-partial_t h`` for one physical GC state."""
-	return _scalar_value(
-		dynamics.extended_momentum_derivative(float(time), np.asarray(state)),
-		"extended-momentum derivative",
-	)
-
-
-def _abba_kappa_increment(
-	record: ABBA2ImplicitIntegrationStep | UnprojectedABBAIntegrationStep,
-	dynamics: GuidingCenterDynamics,
-) -> float:
-	"""Reconstruct the normalized momentum increment of four ABBA shears."""
-	half_step = record.duration / 2.0
-	start = record.start_time
-	stop = record.time
-	doubled_increment = half_step * (
-		_momentum_derivative(dynamics, start, record.v_initial)
-		+ _momentum_derivative(dynamics, start, record.u_first)
-		+ _momentum_derivative(dynamics, stop, record.u_first)
-		+ _momentum_derivative(dynamics, stop, record.v_final)
-	)
-	# The duplicated Hamiltonian contains h(u) + h(v) + k. Projection onto
-	# u=v exposes the physical conjugate variable kappa=k/2.
-	return doubled_increment / 2.0
-
-
-def _split_doubled_state(state: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-	"""Split one duplicated one-particle GC state into its two physical copies."""
-	value: np.ndarray = np.asarray(state, dtype=float)
-	if value.shape != (4,) or not np.all(np.isfinite(value)):
-		raise ValueError("A one-particle doubled GC state must have shape (4,).")
-	return value[:2], value[2:]
-
-
-def _bm4_stage_kappa_increment(
-	stage: IntegrationStage,
-	dynamics: GuidingCenterDynamics,
-	*,
-	coupling_frequency: float,
-) -> float:
-	"""Reconstruct ``Delta kappa`` for one direct or adjoint BM4 stage."""
-	first: np.ndarray
-	second: np.ndarray
-	first, second = _split_doubled_state(stage.state_before)
-	duration = stage.duration
-	time = stage.time
-	if stage.flow_name == "flow":
-		second_after = second + duration * dynamics.vector_field(time, first)
-		doubled_increment = duration * (
-			_momentum_derivative(dynamics, time, first)
-			+ _momentum_derivative(dynamics, time, second_after)
-		)
-	elif stage.flow_name == "adjoint_flow":
-		blocks = gc_coupling_matrix(duration, coupling_frequency) @ np.concatenate(
-			(first, second)
-		)
-		coupled_first: Any
-		coupled_second: Any
-		coupled_first, coupled_second = blocks[:2], blocks[2:]
-		first_after = coupled_first + duration * dynamics.vector_field(
-			time,
-			coupled_second,
-		)
-		doubled_increment = duration * (
-			_momentum_derivative(dynamics, time, coupled_second)
-			+ _momentum_derivative(dynamics, time, first_after)
-		)
-	else:
-		raise ValueError(f"Unsupported BM4 flow name {stage.flow_name!r}.")
-	return doubled_increment / 2.0
-
-
-def _kappa_increment(
-	record: IntegrationStep,
-	dynamics: GuidingCenterDynamics,
-) -> float:
-	"""Dispatch the accepted-step momentum reconstruction by record type."""
-	if isinstance(record, ABBA4ImplicitIntegrationStep):
-		return float(
-			sum(_abba_kappa_increment(substep, dynamics) for substep in record.substeps)
-		)
-	if isinstance(record, ABBA2ImplicitIntegrationStep):
-		return _abba_kappa_increment(record, dynamics)
-	if isinstance(record, ImplicitBM4IntegrationStep):
-		if len(record.base_stages) != 12:
-			raise ValueError("An accepted implicit BM4 step must expose twelve stages.")
-		return float(
-			sum(
-				_bm4_stage_kappa_increment(
-					stage,
-					dynamics,
-					coupling_frequency=record.coupling_frequency,
-				)
-				for stage in record.base_stages
-			)
-		)
-	raise TypeError(
-		"Generalized-energy reconstruction supports ABBA2Implicit, "
-		"ABBA4Implicit, and BM4Implicit step records."
-	)
 
 
 @dataclass(frozen=True, slots=True)
@@ -152,13 +38,14 @@ class GCGeneralizedEnergyRecord:
 
 
 class GCGeneralizedEnergyObserver:
-	"""Accumulate ``kappa`` and ``K=h+kappa`` from accepted implicit stages.
+	"""Accumulate ``kappa`` and ``K=h+kappa`` from accepted quadrature data.
 
 	The observer is deliberately restricted to one GC particle. The implicit
 	methods evolve only the projected physical state, so the conjugate variable is
-	reconstructed from the exact accepted stage snapshots without perturbing the
+	integrated by the shared observer from accepted stage data without perturbing the
 	trajectory or adding shadow-step observations.
 	"""
+	requires_quadrature: ClassVar[bool] = True
 
 	def __init__(
 		self,
@@ -183,7 +70,8 @@ class GCGeneralizedEnergyObserver:
 		self._dynamics = dynamics
 		self._initial_energy = hamiltonian
 		self._energy_scale = max(abs(hamiltonian), float(np.finfo(float).eps))
-		self._kappa = 0.0
+		self._energy = EnergyObserver().new_run(dynamics.hamiltonian,
+			dynamics.extended_momentum_derivative, particle_count=1, initial_time=time)
 		self._records: list[GCGeneralizedEnergyRecord] = [
 			GCGeneralizedEnergyRecord(
 				step_index=-1,
@@ -208,33 +96,30 @@ class GCGeneralizedEnergyObserver:
 			raise TypeError("The energy observer requires an IntegrationStep record.")
 		if record.dynamics is not self._dynamics:
 			raise ValueError("The observed step belongs to a different GC system.")
-		expected_index = len(self._records) - 1
-		if record.step_index != expected_index:
-			raise ValueError("Energy records must arrive in sequential step order.")
-		previous_time = self._records[-1].time
-		tolerance = float(64.0 * np.finfo(float).eps) * max(
-			1.0,
-			abs(previous_time),
-			abs(record.start_time),
-		)
-		if not np.isclose(
-			record.start_time,
-			previous_time,
-			rtol=0.0,
-			atol=tolerance,
-		):
-			raise ValueError("Energy records must describe a continuous time grid.")
+		if not isinstance(record, (ABBA2ImplicitIntegrationStep, ABBA4ImplicitIntegrationStep, ImplicitBM4IntegrationStep)):
+			raise TypeError("Generalized-energy reconstruction supports ABBA2Implicit, "
+				"ABBA4Implicit, and BM4Implicit step records.")
+		if isinstance(record, ImplicitBM4IntegrationStep):
+			if len(record.base_stages) != 12:
+				raise ValueError("An accepted implicit BM4 step must expose twelve stages.")
+			for stage in record.base_stages:
+				if stage.flow_name not in ("flow", "adjoint_flow"):
+					raise ValueError(f"Unsupported BM4 flow name {stage.flow_name!r}.")
+		if record.quadrature is None:
+			raise ValueError("Energy observation requires accepted-stage quadrature.")
 
 	def __call__(self, record: IntegrationStep) -> None:
-		"""Consume one sequential accepted implicit integration step."""
+		"""Consume one sequential accepted integration step without replaying its maps."""
 		self._validate_next_record(record)
 
-		self._kappa += _kappa_increment(record, self._dynamics)
+		assert record.quadrature is not None
+		kappa = float(self._energy.accept(record.step_index, record.start_time,
+			record.time, record.quadrature)[0])
 		hamiltonian: float = _scalar_value(
 			self._dynamics.hamiltonian(record.time, record.state_after),
 			"Hamiltonian",
 		)
-		generalized_energy = hamiltonian + self._kappa
+		generalized_energy = hamiltonian + kappa
 		error = generalized_energy - self._initial_energy
 		self._records.append(
 			GCGeneralizedEnergyRecord(
@@ -242,7 +127,7 @@ class GCGeneralizedEnergyObserver:
 				time=float(record.time),
 				duration=float(record.duration),
 				hamiltonian=hamiltonian,
-				kappa=self._kappa,
+				kappa=kappa,
 				generalized_energy=generalized_energy,
 				energy_error=error,
 				relative_error=error / self._energy_scale,

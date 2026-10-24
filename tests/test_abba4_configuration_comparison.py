@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from dynamics.gc import GuidingCenterDynamics
 
 from contextlib import redirect_stderr
 from dataclasses import replace

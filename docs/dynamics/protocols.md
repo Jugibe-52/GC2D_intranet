@@ -13,14 +13,14 @@ value per particle; Hamiltonian evaluation also supports saved time histories.
 The momentum derivative is `-partial_t H` with the same energy normalization
 as `hamiltonian`. Autonomous systems provide an explicit zero derivative.
 
-The method's `track_energy` flag selects optional Hamiltonian capabilities. Tracking integrates separate per-particle physical momentum and measures `H + kappa`; it changes neither physical states nor integration decisions.
+Registering `EnergyObserver()` through `observers=` selects optional Hamiltonian capabilities in execution. Tracking integrates separate per-particle physical momentum and measures `H + kappa`; it changes neither physical states nor integration decisions.
 
 `GuidingCenterJacobianSystem` and `CyclotronSplitSystem` remain separate,
 specialized contracts for analytic Jacobians and cyclotron splitting. They are
 independent of the energy-tracking choice.
 
 The former `ExtendedHamiltonianSystem` protocol has been removed. Import
-`HamiltonianSystem` for energy-tracked formulations. A custom implementation
+`HamiltonianSystem` when preparing energy observers. A custom implementation
 that previously supplied only `hamiltonian` must also supply the basic dynamics
 members and `extended_momentum_derivative` to satisfy the unified contract.
 Evaluating a Hamiltonian directly remains possible without enabling tracking.
@@ -53,10 +53,37 @@ Built-in dynamics keep physical parameters immutable. A new problem is required 
 
 ## Dynamics-independent state representation
 
-`SingleFormulation(physical_size)` and `DoubleFormulation(physical_size)` retain only a positive physical vector size. They prepare one or two temporary copies through `lift`, `join_copies` and `split_copies`. Shapes are `(d*N,*samples)` and `(copies*d*N,*samples)`; shifted copies remain distinct until the method projects them. NumPy/JAX backends and complete FC velocity blocks are preserved. There is no layout, particle count, tracking flag, clock, momentum, initial state, projection or solver in either representation.
+`DoubleFormulation(physical_size)` retains only a positive physical vector size.
+It prepares two temporary copies through `lift`, `join_copies` and `split_copies`.
+Shapes are `(d*N,*samples)` and `(2*d*N,*samples)`; shifted copies remain distinct
+until projection. NumPy/JAX backends and complete FC velocity blocks are preserved.
+The helper has no layout, particle count, tracking flag, clock, momentum, initial
+state, projection or solver. Ordinary methods use physical arrays directly;
+`SingleFormulation` is removed.
 
-Every accepted snapshot is `IntegrationState(time, values, momentum=None)`: scalar time, physical `values` of shape `(d*N,)`, and optional physical `momentum` of shape `(N,)`. GC remains 2N and FC 4N with or without tracking. Doubled GC work has 4N entries; generic doubled FC work has 8N. Workspaces are temporary and never become accepted states. This generic support does not extend GC numerical methods to FC.
+Each accepted `IntegrationState(time, values)` contains scalar time and physical
+`values` of shape `(d*N,)`. GC remains 2N and FC 4N with or without observation.
+Doubled GC work has 4N entries; generic doubled FC work has 8N. Workspaces are
+temporary and never become accepted states. Generic packing does not extend
+GC numerical methods to FC.
 
-The method initializes zero momentum, prepares copies, selects projection equations and solver, and integrates momentum from accepted stages. `advance(t, Z, h, momentum=kappa)` returns physical `StepResult.state` and separate `StepResult.momentum`. `StepInfo.momentum_before` records the incoming auxiliary. Shadow samples start from the same accepted physical state and momentum. JAX carries separate arrays through the compiled loop.
+Execution retains the problem's source identity and binds `f(t, Z)` and optional
+analytic derivatives before calling `new_run(f, initial_conditions, request, *,
+jacobian=None)`. Derivatives explicitly distinguish dense matrices from
+independent-particle blocks. Methods do not retain dynamics or inspect bound
+function owners. FC splitting composes the supplied `cyclotron_flow(t, state,
+duration)` and `electric_kick(t, state, duration)` functions; their physical
+equations belong to `FullCyclotronDynamics`.
 
-Methods evaluate saved physical H once. `states.energy.energy_diagnostics` combines supplied H and physical kappa without dynamics evaluation. Existing energy labels and `(N,T)` auxiliary histories remain unchanged; `extended_time` is broadcast from scalar sample times. Numerical archives require no migration; old pickled configured objects should be recreated.
+The method prepares copies, projection equations and physical stages.
+`advance(t, Z, h)` returns physical `StepResult.state` and optional numerical
+quadrature data. The energy observer owns separate zero or supplied initial
+momentum, advances it once after acceptance, and evaluates saved H once.
+Fixed shadow samples use shortened-map quadrature from the left observer state;
+adaptive samples use the accepted interpolant. JAX carries a separate functional
+energy accumulator through the compiled execution loop.
+
+`states.energy.energy_diagnostics` combines supplied H and physical kappa without
+dynamics evaluation. Existing energy labels and `(N,T)` auxiliary histories stay
+unchanged; `extended_time` is broadcast from scalar sample times. Numerical
+archives require no migration; old pickled configured objects should be recreated.

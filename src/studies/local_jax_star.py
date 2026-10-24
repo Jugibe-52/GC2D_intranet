@@ -105,8 +105,7 @@ def integrate_local_star(
     block_seconds: list[float]
     block_ends: list[int]
     block_seconds, block_ends = [], []
-    method: BM4Midpoint = BM4Midpoint(track_energy=False,
-                         progress=False, step_observer=None)
+    method: BM4Midpoint = BM4Midpoint(progress=False)
     executor: Execution
     options: ExecutionOptions
     executor, options = Execution(), ExecutionOptions(backend='jax', device='cpu')

@@ -95,8 +95,7 @@ def run_poincare_star(source: str | Path, config: PoincareStarConfig, *,
         t_span=(0.0, float(config.cycles)),
         output_times=np.arange(config.cycles + 1, dtype=float),
     )
-    method: BM4Midpoint = BM4Midpoint(
-                         track_energy=False, progress=False, step_observer=None)
+    method: BM4Midpoint = BM4Midpoint(progress=False)
     start: float = perf_counter()
     solution: States = simulate(problem, replace(method, step=1.0 / config.steps_per_cycle), request, options=execution)
     elapsed = perf_counter() - start

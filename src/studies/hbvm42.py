@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+from diagnostics.methods.energy import EnergyObserver
+
+from solvers.nonlinear import NewtonSolver
+
 from studies._validation import require_uncoupled_bm4
 
 from dynamics.gc import GuidingCenterDynamics
@@ -18,7 +22,7 @@ from contracts.dynamics.protocols import DynamicalSystem, HamiltonianSystem
 from dynamics import GuidingCenterDynamics
 
 from methods.extended.bm4 import BM4Implicit
-from methods.hbvm.order4 import HBVM42, HBVMJacobianMethod, _validated_jacobian_method
+from methods.hbvm.order4 import HBVM42, HBVMJacobianMethod
 from problem import InitialValueProblem
 from methods.base import FixedStepMethod
 from request import SimulationRequest
@@ -182,7 +186,7 @@ class HBVM42EvaluationConfig:
 		object.__setattr__(
 			self,
 			"jacobian_method",
-			_validated_jacobian_method(self.jacobian_method),
+			NewtonSolver(jacobian_method=self.jacobian_method).jacobian_method,
 		)
 		object.__setattr__(self, "runtime_warmups", nonnegative_integer(self.runtime_warmups, "runtime_warmups"))
 		object.__setattr__(self, "runtime_repeats", positive_integer(self.runtime_repeats, "runtime_repeats"))
@@ -291,7 +295,7 @@ class HBVM42BM4ComparisonConfig:
 		object.__setattr__(
 			self,
 			"jacobian_method",
-			_validated_jacobian_method(self.jacobian_method),
+			NewtonSolver(jacobian_method=self.jacobian_method).jacobian_method,
 		)
 		frequency: float = float(self.coupling_frequency)
 		if not np.isfinite(frequency) or frequency < 0.0:
@@ -369,18 +373,11 @@ def _reference_solution(
 
 def _hbvm_method(
 	config: HBVM42EvaluationConfig | HBVM42BM4ComparisonConfig,
-	*,
-	track_energy: bool,
 ) -> HBVM42:
 	"""Construct one identically configured HBVM instance."""
 	return HBVM42(
-		absolute_tolerance=config.absolute_tolerance,
-		relative_tolerance=config.relative_tolerance,
-		max_iterations=config.max_iterations,
-		jacobian_method=config.jacobian_method,
-		jacobian_relative_step=config.jacobian_relative_step,
-		track_energy=track_energy,
 		progress=config.progress,
+		solver=NewtonSolver(absolute_tolerance=config.absolute_tolerance, relative_tolerance=config.relative_tolerance, max_iterations=config.max_iterations, jacobian_method=config.jacobian_method, jacobian_relative_step=config.jacobian_relative_step, backtracking=True),
 	)
 
 
@@ -493,7 +490,7 @@ def run_hbvm42_evaluation(
 			t_span=config.t_span,
 			output_times=times,
 		)
-		solution: States = simulate(problem, replace(_hbvm_method(config, track_energy=True), step=step), request)
+		solution: States = simulate(problem, replace(_hbvm_method(config), step=step), request, observers=(EnergyObserver(),))
 		solutions[step] = solution
 		differences = solution.states - reference_states
 		distances: np.ndarray = np.linalg.norm(differences, axis=0)
@@ -513,7 +510,7 @@ def run_hbvm42_evaluation(
 		minimum_runtime: float
 		median_runtime, minimum_runtime, _ = _timed_simulations(
 			problem,
-			lambda: _hbvm_method(config, track_energy=False),
+			lambda: _hbvm_method(config),
 			benchmark_request,
 			step=step, warmups=config.runtime_warmups,
 			repeats=config.runtime_repeats,
@@ -521,14 +518,14 @@ def run_hbvm42_evaluation(
 
 		local_jacobian: np.ndarray = _flow_jacobian(
 			problem,
-			lambda: _hbvm_method(config, track_energy=False),
+			lambda: _hbvm_method(config),
 			t_span=(config.t_span[0], config.t_span[0] + step),
 			step=step,
 			relative_step=config.symplecticity_relative_step,
 		)
 		flow_jacobian: np.ndarray = _flow_jacobian(
 			problem,
-			lambda: _hbvm_method(config, track_energy=False),
+			lambda: _hbvm_method(config),
 			t_span=config.t_span,
 			step=step,
 			relative_step=config.symplecticity_relative_step,
@@ -631,17 +628,12 @@ def run_hbvm42_bm4_comparison(
 		"analytic" if config.jacobian_method == "auto" else config.jacobian_method
 	)
 	method_factories: tuple[tuple[str, Callable[[], FixedStepMethod[Any]]], ...] = (
-		(HBVM42_LABEL, lambda: _hbvm_method(config, track_energy=False)),
+		(HBVM42_LABEL, lambda: _hbvm_method(config)),
 		(
 			BM4_LABEL,
 			lambda: BM4Implicit(
-				newton_absolute_tolerance=config.absolute_tolerance,
-				newton_relative_tolerance=config.relative_tolerance,
-				newton_max_iterations=config.max_iterations,
-				newton_jacobian_method=bm4_jacobian_method,
-				newton_jacobian_relative_step=config.jacobian_relative_step,
-				nonlinear_solver="newton",
 				progress=config.progress,
+				solver=NewtonSolver(absolute_tolerance=config.absolute_tolerance, relative_tolerance=config.relative_tolerance, max_iterations=config.max_iterations, jacobian_method=bm4_jacobian_method, jacobian_relative_step=config.jacobian_relative_step),
 			),
 		),
 	)

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from solvers.nonlinear import NewtonSolver
+
 from studies._validation import require_uncoupled_bm4
 
 from dynamics.gc import GuidingCenterDynamics
@@ -307,7 +309,7 @@ class TrajectorySymplecticityResult:
 			)
 
 
-_MethodFactory = Callable[[StepObserver], FixedStepMethod[Any]]
+_MethodFactory = Callable[[], FixedStepMethod[Any]]
 
 
 def _run_trajectory_symplecticity_study(
@@ -384,7 +386,7 @@ def _run_trajectory_symplecticity_study(
 			sample_count=config.output_sample_count,
 		)
 		with observer:
-			solution: States = simulate(problem, replace(method_factory(observer), step=step.value), request)
+			solution: States = simulate(problem, replace(method_factory(), step=step.value), request, observers=(observer,))
 		solutions[step.label] = solution
 		records[step.label] = observer.records
 		output_directories[step.label] = observer.output_directory
@@ -420,10 +422,7 @@ def run_abba2_midpoint_trajectory_symplecticity_study(
 		method_slug="abba2_midpoint",
 		jacobian_method="abba2_midpoint_stage_chain",
 		jacobian_calculator=abba2_midpoint_step_particle_jacobians,
-		method_factory=lambda observer: ABBA2Midpoint(
-			progress=config.progress,
-			step_observer=observer,
-		),
+		method_factory=lambda: ABBA2Midpoint(progress=config.progress),
 		project_root=project_root,
 		metadata={
 			**dict(metadata or {}),
@@ -452,13 +451,10 @@ def run_abba2_reduced_multiplier_trajectory_symplecticity_study(
 		method_slug="abba2_implicit_reduced_multiplier",
 		jacobian_method="explicit_implicit_function_theorem",
 		jacobian_calculator=abba2_implicit_step_particle_jacobians,
-		method_factory=lambda observer: ABBA2Implicit(
-			projection_formulation="reduced_multiplier",
-			newton_absolute_tolerance=config.newton_absolute_tolerance,
-			newton_relative_tolerance=config.newton_relative_tolerance,
-			newton_max_iterations=config.newton_max_iterations,
+		method_factory=lambda: ABBA2Implicit(
+			projection_formulation='reduced_multiplier',
 			progress=config.progress,
-			step_observer=observer,
+			solver=NewtonSolver(absolute_tolerance=config.newton_absolute_tolerance, relative_tolerance=config.newton_relative_tolerance, max_iterations=config.newton_max_iterations, jacobian_method='analytic'),
 		),
 		project_root=project_root,
 		metadata={
@@ -491,12 +487,9 @@ def run_abba4_implicit_trajectory_symplecticity_study(
 		method_slug="abba4_implicit",
 		jacobian_method="three_substep_explicit_implicit_function_theorem",
 		jacobian_calculator=abba4_implicit_step_particle_jacobians,
-		method_factory=lambda observer: ABBA4Implicit(
-			newton_absolute_tolerance=config.newton_absolute_tolerance,
-			newton_relative_tolerance=config.newton_relative_tolerance,
-			newton_max_iterations=config.newton_max_iterations,
+		method_factory=lambda: ABBA4Implicit(
 			progress=config.progress,
-			step_observer=observer,
+			solver=NewtonSolver(absolute_tolerance=config.newton_absolute_tolerance, relative_tolerance=config.newton_relative_tolerance, max_iterations=config.newton_max_iterations, jacobian_method='analytic'),
 		),
 		project_root=project_root,
 		metadata={
@@ -533,13 +526,9 @@ def run_bm4_implicit_trajectory_symplecticity_study(
 			"explicit_coupled_bm4_stages_and_implicit_function_theorem"
 		),
 		jacobian_calculator=bm4_implicit_step_particle_jacobians,
-		method_factory=lambda observer: BM4Implicit(
-			newton_absolute_tolerance=config.newton_absolute_tolerance,
-			newton_relative_tolerance=config.newton_relative_tolerance,
-			newton_max_iterations=config.newton_max_iterations,
-			newton_jacobian_relative_step=config.newton_jacobian_relative_step,
+		method_factory=lambda: BM4Implicit(
 			progress=config.progress,
-			step_observer=observer,
+			solver=NewtonSolver(absolute_tolerance=config.newton_absolute_tolerance, relative_tolerance=config.newton_relative_tolerance, max_iterations=config.newton_max_iterations, jacobian_relative_step=config.newton_jacobian_relative_step, jacobian_method='analytic'),
 		),
 		project_root=project_root,
 		metadata={

@@ -1,7 +1,8 @@
 """Structural and numerical contracts of the common extended-space engine."""
 from __future__ import annotations
 
-from dynamics.gc import GuidingCenterDynamics
+from diagnostics.methods.energy import EnergyObserver
+from solvers import BroydenSolver
 
 from dataclasses import replace
 import importlib
@@ -16,7 +17,8 @@ from simulation import (ABBA2Implicit, ABBA4Implicit, ABBA6Implicit, ABBA2Midpoi
                         BM4Implicit, BM4Midpoint, InitialValueProblem, SimulationRequest, simulate)
 from methods.extended.maps import GCDoubledMaps
 from methods.extended.core.composition import ABBA2, ABBA4, ABBA6, BM4, Composition, compose
-from methods.extended.core.jacobians import central_difference_jacobian, packed_jacobian, particle_jacobians
+from methods.extended.core.jacobians import composition_jacobian
+from solvers.derivatives import centered_difference, packed_particle_jacobian
 from methods.extended.core.projection import solve_projection
 
 
@@ -43,7 +45,7 @@ class ExtendedFamilyTests(unittest.TestCase):
         request = SimulationRequest.uniform(t_span=(.3, .34),  sample_count=3)
         for cls, recipe, solves in ((ABBA2Implicit, ABBA2, 1), (ABBA4Implicit, ABBA4, 1),
                                    (ABBA6Implicit, ABBA6, 1), (BM4Implicit, BM4, 1)):
-            run = replace(cls(), step=(0.34 - 0.3) / 2).new_run(p, request)
+            run = replace(cls(), step=(0.34 - 0.3) / 2).new_run(p.dynamics.vector_field, p.initial_conditions, request, jacobian=getattr(p.dynamics, 'particle_vector_field_jacobians', None), jacobian_structure='particle', observe=True)
             self.assertIs(run.project.func, solve_projection)
             self.assertIs(run.project.args[1], recipe)
             self.assertEqual(run.metadata['nonlinear_solves_per_step'], solves)
@@ -56,7 +58,7 @@ class ExtendedFamilyTests(unittest.TestCase):
 
     def test_abba_pairs_match_independent_endpoint_shear_equations(self) -> None:
         p = problem()
-        maps = GCDoubledMaps(p.dynamics, p.initial_state.size, coordinates=p.layout, coupling_frequency=None)
+        maps = GCDoubledMaps(p.dynamics.vector_field, p.initial_state.size, coordinates=p.layout, coupling_frequency=None, jacobian=getattr(p.dynamics, 'particle_vector_field_jacobians', None))
         z = p.initial_state
         for h in (.2, -.2):
             u, v = z + .003, z - .003
@@ -71,14 +73,14 @@ class ExtendedFamilyTests(unittest.TestCase):
         p = problem()
         initial = np.concatenate((p.initial_state + .003, p.initial_state - .003))
         for recipe, coupling in ((ABBA2, None), (ABBA4, None), (ABBA6, None), (BM4, 0.), (Composition.from_direct_adjoint('coupled-BM4', BM4.coefficients, coupled=True), .4)):
-            maps = GCDoubledMaps(p.dynamics, p.initial_state.size, coordinates=p.layout, coupling_frequency=coupling)
+            maps = GCDoubledMaps(p.dynamics.vector_field, p.initial_state.size, coordinates=p.layout, coupling_frequency=coupling, jacobian=getattr(p.dynamics, 'particle_vector_field_jacobians', None))
             for h in (.15, -.15):
                 with self.subTest(recipe=recipe.name, coupling=coupling, h=h):
                     trace = compose(maps, recipe, .3, initial, h)
                     reverse = compose(maps, recipe, .3 + h, trace.state, -h)
                     np.testing.assert_allclose(reverse.state, initial, rtol=0, atol=5e-15)
-                    exact = packed_jacobian(particle_jacobians(maps, trace))
-                    numeric = central_difference_jacobian(
+                    exact = packed_particle_jacobian(composition_jacobian(maps, trace))
+                    numeric = centered_difference(
                         lambda z: compose(maps, recipe, .3, z, h).state, initial,
                         relative_step=float(np.cbrt(np.finfo(float).eps)))
                     np.testing.assert_allclose(exact, numeric, rtol=2e-8, atol=2e-9)
@@ -91,16 +93,15 @@ class ExtendedFamilyTests(unittest.TestCase):
     def test_tracking_and_observers_add_no_spatial_work_or_broyden_jacobians(self) -> None:
         p = problem()
         request = SimulationRequest.uniform(t_span=(.3, .34),  sample_count=3)
-        for method in (ABBA2Implicit(nonlinear_solver='broyden'), ABBA4Implicit(nonlinear_solver='broyden'),
-                       ABBA6Implicit(nonlinear_solver='broyden'), BM4Implicit(nonlinear_solver='broyden'),
+        for method in (ABBA2Implicit(solver=BroydenSolver(jacobian_method='analytic')), ABBA4Implicit(solver=BroydenSolver(jacobian_method='analytic')),
+                       ABBA6Implicit(solver=BroydenSolver(jacobian_method='analytic')), BM4Implicit(solver=BroydenSolver(jacobian_method='analytic')),
                        ABBA2Midpoint(), BM4Midpoint()):
             results, counts = [], []
             for enabled in (False, True):
                 observed = []
                 with patch.object(type(p.dynamics), 'vector_field', autospec=True, side_effect=type(p.dynamics).vector_field) as field, \
                      patch.object(type(p.dynamics), 'particle_vector_field_jacobians', autospec=True, side_effect=AssertionError('Unexpected Jacobian')):
-                    results.append(simulate(p, replace(replace(method, track_energy=enabled,
-                                                      step_observer=observed.append if enabled else None), step=(0.34 - 0.3) / 2), request))
+                    results.append(simulate(p, replace(replace(method), step=(0.34 - 0.3) / 2), request, observers=((EnergyObserver(),) if enabled else ()) + tuple((o for o in (observed.append if enabled else None,) if o is not None))))
                     counts.append(field.call_count)
                 if enabled:
                     self.assertEqual(len(observed), 2)

@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+from diagnostics.methods.energy import EnergyObserver
+from solvers import BroydenSolver, NewtonSolver
 from dataclasses import replace
 
-from dynamics.gc import GuidingCenterDynamics
 
 from itertools import product
 import unittest
@@ -116,32 +117,13 @@ class ABBAConfigurationCubeTests(unittest.TestCase):
 				track_energy,
 			)
 			try:
-				cls.implicit_solutions[key] = simulate(
-					problem,
-					replace(method_type(
-						projection_formulation=formulation,
-						nonlinear_solver=solver,
-						state_extension=extension,
-						track_energy=track_energy,
-						newton_absolute_tolerance=1e-12,
-						newton_relative_tolerance=1e-12,
-						newton_max_iterations=50,
-					), step=0.02),
-					request,
-				)
+				cls.implicit_solutions[key] = simulate(problem, replace(method_type(projection_formulation=formulation, state_extension=extension, solver=(NewtonSolver if solver == 'newton' else BroydenSolver)(jacobian_method='analytic', absolute_tolerance=1e-12, relative_tolerance=1e-12, max_iterations=50)), step=0.02), request, observers=(EnergyObserver(),) if track_energy else ())
 			except Exception as exc:  # pragma: no cover - reported by the smoke test
 				cls.configuration_failures[key] = exc
 		for method_type, extension, track_energy in _MIDPOINT_CONFIGURATIONS:
 			key = (method_type.__name__, extension, track_energy)
 			try:
-				cls.midpoint_solutions[(extension, track_energy)] = simulate(
-					problem,
-					replace(method_type(
-						state_extension=extension,
-						track_energy=track_energy,
-					), step=0.02),
-					request,
-				)
+				cls.midpoint_solutions[(extension, track_energy)] = simulate(problem, replace(method_type(state_extension=extension), step=0.02), request, observers=(EnergyObserver(),) if track_energy else ())
 			except Exception as exc:  # pragma: no cover - reported by the smoke test
 				cls.configuration_failures[key] = exc
 
@@ -409,11 +391,7 @@ class ABBAConfigurationCubeTests(unittest.TestCase):
 			("reduced_multiplier", 6),
 			("simultaneous_state_multiplier", 18),
 		):
-			solution = simulate(
-				problem,
-				ABBA2Implicit(step=0.02, projection_formulation=formulation),
-				_request(),
-			)
+			solution = simulate(problem, ABBA2Implicit(step=0.02, projection_formulation=formulation), _request())
 			diagnostics = solution.diagnostics
 			self.assertEqual(diagnostics["accepted_internal_state_dimension"], 6)
 			self.assertEqual(diagnostics["base_splitting_state_dimension"], 12)
@@ -465,17 +443,7 @@ class ABBAConfigurationCubeTests(unittest.TestCase):
 			),
 		):
 			events = []
-			simulate(
-				physical_problem,
-				replace(method_type(
-					projection_formulation="simultaneous_state_multiplier",
-					state_extension="physical",
-					newton_absolute_tolerance=1e-13,
-					newton_relative_tolerance=1e-13,
-					step_observer=events.append,
-				), step=0.02),
-				_request(),
-			)
+			simulate(physical_problem, replace(method_type(projection_formulation='simultaneous_state_multiplier', state_extension='physical', solver=NewtonSolver(jacobian_method='analytic', absolute_tolerance=1e-13, relative_tolerance=1e-13)), step=0.02), _request(), observers=(events.append,))
 			with self.subTest(method=method_type.__name__, extension="physical"):
 				self.assertEqual(len(events), 1)
 				event = events[0]
@@ -495,8 +463,7 @@ class ABBAConfigurationCubeTests(unittest.TestCase):
 
 		# The energy variant exposes the same physical Jacobian domain.
 		events = []
-		simulate(_problem(), ABBA4Implicit(step=0.02, track_energy=True,
-		    projection_formulation="simultaneous_state_multiplier", step_observer=events.append), _request())
+		simulate(_problem(), ABBA4Implicit(step=0.02, projection_formulation='simultaneous_state_multiplier'), _request(), observers=(EnergyObserver(),) + (events.append,))
 		self.assertEqual(events[0].state_before.shape, (2,))
 		analytic = _dense_component_major_jacobian(abba4_implicit_step_particle_jacobians(events[0]))
 		numerical = central_difference_jacobian(events[0].map_state, events[0].state_before, relative_step=1e-5)

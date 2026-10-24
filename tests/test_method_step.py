@@ -7,6 +7,7 @@ import numpy as np
 
 from dynamics import GuidingCenterDynamics
 from execution.options import ExecutionOptions
+from diagnostics.methods.energy import EnergyObserver
 from execution._host import _fixed_schedule
 from potential import Potential
 from simulation import (
@@ -49,16 +50,16 @@ class MethodStepTests(unittest.TestCase):
 	def test_only_last_main_step_is_shortened_and_configuration_is_reusable(self) -> None:
 		p = InitialValueProblem(TimeField(), np.array([0., 0.]))
 		events = []
-		method = ExplicitEuler(step=.3, step_observer=events.append)
+		method = ExplicitEuler(step=.3)
 		r = SimulationRequest((0., 1.), np.array([0., .1, .3, .55, .9, 1.]))
-		result = simulate(p, method, r)
+		result = simulate(p, method, r, observers=(events.append,))
 		np.testing.assert_allclose(result.diagnostics['step_sizes'], [.3, .3, .3, .1], atol=2e-16, rtol=0)
 		np.testing.assert_allclose(result.diagnostics['step_times'], [.3, .6, .9, 1.], atol=2e-16, rtol=0)
 		np.testing.assert_allclose(result.states[:, -1], [.36, 1.], atol=2e-16, rtol=0)
 		self.assertEqual(result.diagnostics['step_times'][-1], 1.)
 		self.assertEqual(len(events), 4)
 		self.assertEqual(method.step, .3)
-		sparse = simulate(p, replace(method, step_observer=None), SimulationRequest((0., 1.), np.array([0., 1.])))
+		sparse = simulate(p, method, SimulationRequest((0., 1.), np.array([0., 1.])))
 		np.testing.assert_array_equal(sparse.states[:, -1], result.states[:, -1])
 		short = simulate(p, method, SimulationRequest((2., 2.1), np.array([2., 2.1])))
 		self.assertEqual(short.diagnostics['step_count'], 1)
@@ -84,9 +85,9 @@ class MethodStepTests(unittest.TestCase):
 		with jax.experimental.enable_x64():
 			for cls in FIXED:
 				with self.subTest(method=cls.__name__):
-					method = cls(step=.02, track_energy=True)
-					host = simulate(p, method, r)
-					device = simulate(p, method, r, options=ExecutionOptions(backend='jax'))
+					method = cls(step=.02)
+					host = simulate(p, method, r, observers=(EnergyObserver(),))
+					device = simulate(p, method, r, options=ExecutionOptions(backend='jax'), observers=(EnergyObserver(),))
 					np.testing.assert_allclose(host.diagnostics['step_sizes'], [.02, .02, .015], atol=1e-16, rtol=0)
 					for key in ('step_start_times', 'step_times', 'step_sizes'):
 						np.testing.assert_array_equal(host.diagnostics[key], device.diagnostics[key])

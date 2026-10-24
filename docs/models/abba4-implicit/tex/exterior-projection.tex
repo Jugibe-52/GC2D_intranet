@@ -59,14 +59,17 @@ Every residual evaluation traverses all three ABBA factors.
 
 \section{Configurations}
 
-The sole implementation of \texttt{ABBA4Implicit} exposes two projection formulations, Newton or Broyden, physical or
-fully extended state, and optional physical energy tracking.  Fully extended
-execution always enables energy evolution.  The selected values are global to
-the outer step.
+The sole implementation of \texttt{ABBA4Implicit} exposes reduced or
+simultaneous spatial projection with a configured \texttt{NewtonSolver} or
+\texttt{BroydenSolver}. Only physical coordinates are duplicated. Execution
+injects the vector field and optional derivative; the method prepares a
+\texttt{DoubleFormulation} and one outer equation. The solver owns tolerances,
+differentiation policy and iteration controls.
 In the simultaneous formulation the corrected doubled output joins $\mu$ in
-the unknown; elimination gives the reduced residual above.  State extension
-changes what is duplicated, while physical tracking adds only a triangular
-$\kappa=k/2$ sidecar.  Neither choice introduces intermediate projection.
+the unknown; elimination gives the reduced residual above. Optional
+\texttt{EnergyObserver} quadrature owns physical $\kappa$ separately and uses
+the accepted signed shear trace. Neither time nor momentum enters a projection
+root, and neither projection choice introduces intermediate projection.
 
 \section{Removed per-map implementation}
 
@@ -75,8 +78,8 @@ The current default uses one outer projection. The former
 intermediate diagonal re-embedding, has been removed. It defined a different
 numerical map, since projection and factor evolution do not commute.
 An explicit request for that placement now raises an error.
-The legacy single-projection constructor is a compatibility factory for the
-current default and does not define another method.
+The legacy single-projection factory is removed. Use \texttt{ABBA4Implicit}
+for the single outer-projection method.
 
 \section{Properties and limitations}
 
@@ -89,10 +92,11 @@ the three ordered factors so the accepted-map tangent can be reconstructed.
 \section{Implementation correspondence}
 
 The public \texttt{ABBA4Implicit} configuration is in
-\path{src/methods/extended/order4_implicit.py}; the exterior-projection
-residual and numerical kernel are in
-\path{src/methods/extended/projection.py}.
-The diagnostic helpers live in \path{src/methods/extended/abba_outer.py}.
+\path{src/methods/extended/abba.py}. Its shared advance lives in
+\path{src/methods/extended/palindromic.py}; the outer equation is in
+\path{src/methods/projection.py}, bound to the composition by
+\path{src/methods/extended/core/projection.py}. Diagnostic observation consumes
+accepted records through \path{src/diagnostics/methods/}.
 The older single-projection import adapter and deprecated factory have been
 removed. Use \texttt{ABBA4Implicit} and its canonical observation record.  The canonical architecture document
 \path{../simulation/abba4-implicit-simulation-architecture.md} gives the

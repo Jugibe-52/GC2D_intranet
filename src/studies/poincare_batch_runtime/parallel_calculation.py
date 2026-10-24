@@ -6,6 +6,8 @@ is unchanged; each group uses its own state norm for Newton's stopping rule.
 
 from __future__ import annotations
 
+from solvers.nonlinear import NewtonSolver
+
 from studies._validation import require_uncoupled_bm4
 
 from dynamics.gc import GuidingCenterDynamics
@@ -68,12 +70,8 @@ def calculate_group(
     history: Any | None = (NewtonHistory(settings['n_steps'], settings.get('progress_every', 1000))
                if settings.get('record_newton_history', True) else None)
     method: BM4Implicit = BM4Implicit(
-        newton_absolute_tolerance=settings['newton_atol'],
-        newton_relative_tolerance=settings['newton_rtol'],
-        newton_max_iterations=settings['newton_max_iterations'],
-        newton_jacobian_relative_step=settings['jacobian_relative_step'],
-        newton_jacobian_method='analytic', nonlinear_solver='newton', progress=False,
-        newton_observer=history,
+        progress=False,
+        solver=NewtonSolver(absolute_tolerance=settings['newton_atol'], relative_tolerance=settings['newton_rtol'], max_iterations=settings['newton_max_iterations'], jacobian_relative_step=settings['jacobian_relative_step'], jacobian_method='analytic', iteration_observer=history),
     )
     with threadpool_limits(limits=1):
         pools: Any = threadpool_info()

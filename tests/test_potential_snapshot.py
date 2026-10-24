@@ -6,6 +6,7 @@ from pathlib import Path
 import pickle
 import tempfile
 import unittest
+from solvers.nonlinear import NewtonSolver
 
 import numpy as np
 
@@ -104,9 +105,7 @@ class PotentialSnapshotTests(unittest.TestCase):
 				solution = simulate(
 					problem,
 					BM4Implicit(step=config.integration_step,
-						newton_absolute_tolerance=config.absolute_tolerance,
-						newton_relative_tolerance=config.relative_tolerance,
-						newton_max_iterations=config.max_iterations,
+						solver=NewtonSolver(config.absolute_tolerance, config.relative_tolerance, config.max_iterations, jacobian_method='analytic'),
 					),
 					request,
 				)

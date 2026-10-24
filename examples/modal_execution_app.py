@@ -21,7 +21,7 @@ image = (
     .add_local_file(PROJECT_ROOT / "constraints.txt", "/tmp/gc2d-constraints.txt", copy=True)
     .pip_install_from_pyproject(str(PROJECT_ROOT / "pyproject.toml"),
                                extra_options="-c /tmp/gc2d-constraints.txt")
-    .add_local_python_source("contracts", "dynamics", "execution", "formulations",
+    .add_local_python_source("contracts", "diagnostics", "dynamics", "execution", "formulations",
                              "states", "methods", "potential", "solvers", "problem", "request")
 )
 app = modal.App("gc2d-execution")

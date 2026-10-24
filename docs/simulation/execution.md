@@ -23,12 +23,13 @@ The default is NumPy/SciPy on the host CPU; a single physical core is not enforc
 
 ## Job and result boundary
 
-`run(problem, method, request, *, options=None)` receives:
+`run(problem, method, request, *, options=None, observers=())` receives:
 
 - `InitialValueProblem`: physical dynamics, initial array and layout.
 - `NumericalMethod`: a reusable provider of fresh numerical runs and capabilities.
 - `SimulationRequest`: time interval and requested saved times.
 - Optional `ExecutionOptions`: backend and device selection for this job.
+- `observers`: passive energy configuration and accepted-step callbacks.
 
 The executor calls `method.new_run`, validates the fresh run once and owns its
 running/finished transitions, including kernel preparation and result failures.
@@ -77,22 +78,11 @@ Neither potential class accepts execution options. Existing study helpers keep
 
 ## Method preparation contract
 
-`NumericalMethod` requires `new_run(problem, request, *, evaluated_dynamics=None)`
-and a `jax_mode` capability: `"unsupported"`, `"device_resident"` or
-`"hybrid_scipy_controller"`. `new_run` returns a fresh, ready `IntegrationMethod`
-with independent resources, an immutable initial snapshot and numerical metadata.
-The base implementation copies dataclass constructor options and calls `initialize`.
-The optional evaluated dynamics is an environment-prepared evaluation interface;
-the physical problem remains unchanged. CPU extensions can inherit `FixedStepMethod` for the default fixed controller,
-or `IntegrationMethod` with their own controller. Structural providers return
-a supported prepared run.
+`NumericalMethod.new_run(f, initial_conditions, request, *, jacobian=None, jacobian_structure="dense", observe=False, capture_quadrature=False)` receives a physical vector field and independent initial data. Execution resolves dynamics capabilities and supplies any physical Jacobian explicitly. The prepared run retains no `InitialValueProblem` or `DynamicalSystem`. `jacobian_structure` distinguishes dense matrices from independent particle blocks; it does not identify a physical model.
 
-`IntegrationMethod` retains `initialize`, `advance`, `build_observation`,
-`diagnose_history` and `controller`. The default JAX capability is unsupported.
-Built-in fixed methods declare device-resident execution; adaptive methods declare
-hybrid control. Numerical family adapters retain explicit supported-type checks,
-so declaring a mode alone does not authorize compiling unknown subclass overrides.
-Executors use capabilities rather than branches on concrete numerical methods.
+`new_run` returns a fresh ready `IntegrationMethod`, copying constructor configuration and initializing owned physical snapshots. `initialize`, `advance`, `build_observation` and `controller` define its numerical behavior. Methods have no energy accumulator or history diagnosis. `jax_mode` declares `"unsupported"`, `"device_resident"` or `"hybrid_scipy_controller"`; declaring a capability does not bypass supported-type checks. CPU extensions can inherit `FixedStepMethod` or supply their own controller.
+
+Execution registers `observers=()` separately from the method. `EnergyObserver()` is immutable configuration for a fresh per-run accumulator; ordinary callbacks keep their supplied identity and caller-owned lifecycle. Execution attaches the original dynamics identity to accepted events and calls each callback once per main step, in registration order. Shadow samples do not emit accepted events. A callback declaring `requires_quadrature=True` requests current-step quadrature without enabling saved energy histories.
 
 ## Extending execution
 
@@ -117,11 +107,7 @@ Replace `method.integrate(problem, request, execution=options)` with
 backend selection belongs to the executor. External integrate-only methods must
 implement the preparation protocol. No compatibility aliases are retained.
 
-The older `contracts.execution.Execution` configuration class remains removed.
-Use `Execution` for the executor and `ExecutionOptions` from
-`execution.options` for backend choices. The signatures of `simulate`,
-executors and archive formats are unchanged by the execution migration.
-Method step controls follow the configuration contract below. Supported direct callers are migrated; no long notebook run is required.
+The older `contracts.execution.Execution` configuration class remains removed. Use `Execution` for complete jobs and `ExecutionOptions` from `execution.options` for backend choices. `simulate` and executors additionally accept `observers=()`; method constructors use `solver=` for algebraic controls. Numerical archive formats remain unchanged. See [API migration](api-migration.md) for removed keywords.
 
 ## Unified execution package
 
@@ -161,10 +147,7 @@ belongs to `execution._jax`.
 
 ## Explicit initial, solver and projection objects
 
-See [initial data and numerical components](initial-solvers-formulations.md) for
-`InitialConditions`, reusable NewtonSolver/BroydenSolver configurations and the
-two projection classes. Existing array inputs, method names, tolerance controls,
-simulate/executor signatures and stored result formats remain supported.
+See [initial data and numerical components](initial-solvers-formulations.md) for `InitialConditions`, reusable NewtonSolver/BroydenSolver configurations and the two projection classes. Array inputs, method names and stored result formats remain supported. Move method `newton_*` controls into `solver=...`, and energy/step observers into `simulate(..., observers=...)`; the retired keywords have no compatibility aliases.
 
 ## Visible preparation results
 

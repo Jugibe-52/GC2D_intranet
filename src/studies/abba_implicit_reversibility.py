@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from solvers.nonlinear import BroydenSolver, NewtonSolver
+
 from dataclasses import dataclass, replace
 from time import perf_counter
 from typing import Literal, TypeAlias
@@ -151,33 +153,21 @@ def run_implicit_abba_reversibility_study(
 	)
 	method: ABBA4Implicit | ABBA2Implicit = (
 		ABBA4Implicit(
-			newton_absolute_tolerance=config.newton_absolute_tolerance,
-			newton_relative_tolerance=config.newton_relative_tolerance,
-			newton_max_iterations=config.newton_max_iterations,
-			nonlinear_solver=config.nonlinear_solver,
 			progress=config.progress,
-			step_observer=observer,
+			solver=(NewtonSolver if config.nonlinear_solver == 'newton' else BroydenSolver)(absolute_tolerance=config.newton_absolute_tolerance, relative_tolerance=config.newton_relative_tolerance, max_iterations=config.newton_max_iterations, jacobian_method='analytic'),
 		)
 		if config.formulation == "abba4_implicit"
 		else (
 			ABBA2Implicit(
-				projection_formulation="reduced_multiplier",
-				newton_absolute_tolerance=config.newton_absolute_tolerance,
-				newton_relative_tolerance=config.newton_relative_tolerance,
-				newton_max_iterations=config.newton_max_iterations,
-				nonlinear_solver=config.nonlinear_solver,
+				projection_formulation='reduced_multiplier',
 				progress=config.progress,
-				step_observer=observer,
+				solver=(NewtonSolver if config.nonlinear_solver == 'newton' else BroydenSolver)(absolute_tolerance=config.newton_absolute_tolerance, relative_tolerance=config.newton_relative_tolerance, max_iterations=config.newton_max_iterations, jacobian_method='analytic'),
 			)
 			if config.formulation == "reduced_multiplier"
 			else ABBA2Implicit(
-				projection_formulation="simultaneous_state_multiplier",
-				newton_absolute_tolerance=config.newton_absolute_tolerance,
-				newton_relative_tolerance=config.newton_relative_tolerance,
-				newton_max_iterations=config.newton_max_iterations,
-				nonlinear_solver=config.nonlinear_solver,
+				projection_formulation='simultaneous_state_multiplier',
 				progress=config.progress,
-				step_observer=observer,
+				solver=(NewtonSolver if config.nonlinear_solver == 'newton' else BroydenSolver)(absolute_tolerance=config.newton_absolute_tolerance, relative_tolerance=config.newton_relative_tolerance, max_iterations=config.newton_max_iterations, jacobian_method='analytic'),
 			)
 		)
 	)
@@ -185,8 +175,7 @@ def run_implicit_abba_reversibility_study(
 	solution: States = simulate(
 		problem,
 		replace(method, step=config.max_step),
-		request,
-	)
+		request, observers=(observer,))
 	runtime_seconds = perf_counter() - started
 	return ImplicitABBAReversibilityStudyResult(
 		config=config,

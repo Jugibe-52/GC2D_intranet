@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+from diagnostics.methods.energy import EnergyObserver
+
+from solvers.nonlinear import BroydenSolver, NewtonSolver
+
 from dynamics.gc import GuidingCenterDynamics
 
 from collections.abc import Mapping
@@ -537,15 +541,12 @@ def _method_for_variant(
 	config: ABBA4ConfigurationComparisonConfig,
 ) -> NumericalMethod:
 	"""Construct one numerical method with common nonlinear controls."""
-	return ABBA4Implicit(step=config.integration_step,
+	return ABBA4Implicit(
+		step=config.integration_step,
 		state_extension=variant.state_extension,
-		track_energy=True,
 		projection_formulation=variant.projection_formulation,
-		nonlinear_solver=variant.nonlinear_solver,
-		newton_absolute_tolerance=config.absolute_tolerance,
-		newton_relative_tolerance=config.relative_tolerance,
-		newton_max_iterations=config.max_iterations,
 		progress=config.progress,
+		solver=(NewtonSolver if variant.nonlinear_solver == 'newton' else BroydenSolver)(absolute_tolerance=config.absolute_tolerance, relative_tolerance=config.relative_tolerance, max_iterations=config.max_iterations, jacobian_method='analytic'),
 	)
 
 
@@ -659,8 +660,7 @@ def _run_abba4_trajectory_task(
 	solution: States = simulate(
 		context.problems[task.particle],
 		context.methods[task.variant_key],
-		context.request,
-	)
+		context.request, observers=(EnergyObserver(),))
 	runtime_seconds = perf_counter() - started
 	_generalized_energy_history(context.dynamics, variant, solution)
 	return _ABBA4TrajectoryPayload(
@@ -894,8 +894,7 @@ def _run_sequential_trajectories(
 		solution: States = simulate(
 			problems[task.particle],
 			methods[task.variant_key],
-			request,
-		)
+			request, observers=(EnergyObserver(),))
 		runtime_seconds = perf_counter() - started
 		_generalized_energy_history(dynamics, variant, solution)
 		runtime_rows[task.variant_key][task.particle] = runtime_seconds

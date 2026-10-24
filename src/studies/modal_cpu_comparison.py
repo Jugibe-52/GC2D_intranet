@@ -110,8 +110,7 @@ def run_cpu_star_comparison(
     problem: InitialValueProblem
     request: SimulationRequest
     problem, request = build_star_problem(potential, config)
-    method: BM4Midpoint = BM4Midpoint(step=1.0 / config.steps_per_cycle, track_energy=False,
-                         progress=False, step_observer=None)
+    method: BM4Midpoint = BM4Midpoint(step=1.0 / config.steps_per_cycle, progress=False)
     options: ExecutionOptions = ExecutionOptions(backend='jax', device='cpu')
     solutions: dict[int, States]
     records: dict[str, dict[str, Any]]

@@ -1,34 +1,18 @@
 """Hashable family-specific controls resolved before JAX traces a time loop."""
 
 from dataclasses import dataclass
-from typing import Any, ClassVar, Literal
+from typing import ClassVar, Literal
 
-import jax.numpy as jnp
+from solvers._jax import NonlinearOptions
 
 from methods.extended.core.composition import Composition
 
 
 @dataclass(frozen=True)
-class NonlinearOptions:
-	"""Stopping and Jacobian controls for one physical nonlinear problem."""
-
-	atol: float
-	rtol: float
-	max_iterations: int
-	jacobian: Literal["analytic", "finite_difference"]
-	relative_step: float
-	solver: Literal["newton", "broyden"] = "newton"
-
-	def tolerance(self, state: Any) -> Any:
-		"""Preserve the CPU's global physical-state infinity-norm scaling."""
-		return self.atol + self.rtol * jnp.maximum(1., jnp.max(jnp.abs(state)))
-
-
-@dataclass(frozen=True)
 class ExplicitOptions:
-	"""Explicit physical maps need only the passive-energy selection."""
+	"""Explicit physical maps need only the optional quadrature selection."""
 
-	track_energy: bool
+	capture_quadrature: bool
 	copies: ClassVar[int] = 1
 
 
@@ -36,7 +20,7 @@ class ExplicitOptions:
 class ImplicitOptions:
 	"""Classical implicit methods carry one resolved nonlinear configuration."""
 
-	track_energy: bool
+	capture_quadrature: bool
 	solve: NonlinearOptions
 	copies: ClassVar[int] = 1
 
@@ -45,7 +29,7 @@ class ImplicitOptions:
 class CompositionOptions:
 	"""A signed recipe with arithmetic averaging or one outer nonlinear solve."""
 
-	track_energy: bool
+	capture_quadrature: bool
 	recipe: Composition
 	coupling: float | None
 	projection: Literal["reduced_multiplier", "simultaneous_state_multiplier"]

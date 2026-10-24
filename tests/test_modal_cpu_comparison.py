@@ -82,10 +82,10 @@ class ModalCPUComparisonTests(unittest.TestCase):
                 self.last_call_id = f'fc-{self.cores}'
                 self.last_record_path = Path(record_directory) / f'{self.cores}.json'
 
-            def run(self, problem, method, request, *, options):
+            def run(self, problem, method, request, *, options=None, observers=()):
                 # Numerical work uses the real local NumPy method; only the
                 # transport and timer are substituted in this orchestration test.
-                data = Execution().run(problem, method, request)
+                data = Execution().run(problem, method, request, observers=observers)
                 diagnostics = dict(data.diagnostics)
                 diagnostics.update(benchmark_cpu_cores=self.cores, benchmark_repetitions=3,
                                    benchmark_wall_seconds=np.array([3., 2., 4.]) / self.cores,

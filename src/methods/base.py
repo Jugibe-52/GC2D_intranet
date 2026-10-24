@@ -1,31 +1,26 @@
-"""Contract implemented by reusable numerical methods."""
+"""Reusable numerical algorithms bound to functions and physical initial data."""
 
 from __future__ import annotations
 
-from contracts.methods.base import NumericalMethod
-
 from abc import ABC, abstractmethod
-from collections.abc import Callable, Mapping
+from collections.abc import Mapping
 from dataclasses import dataclass, is_dataclass, replace
 from types import MappingProxyType
 from typing import Any, ClassVar, Generic, Literal, Self, TYPE_CHECKING, TypeVar
 
 import numpy as np
 
-from contracts.states.history import DiagnosticValue
+from contracts.dynamics.coordinates import StateLayout
+from contracts.methods.base import NumericalMethod
+from contracts.methods.functions import JacobianStructure, VectorField
 from contracts.methods.step import StepInfo, StepResult
-from formulations.state import SingleFormulation
-from states.energy import energy_diagnostics
-from contracts.dynamics.protocols import HamiltonianSystem
-
-from problem import InitialValueProblem
-from contracts.dynamics.protocols import DynamicalSystem
+from contracts.states.history import DiagnosticValue
+from states.initial import InitialConditions
 from request import DEFAULT_INTEGRATION_STEP, SimulationRequest
 from methods._validation import _positive_finite
 
 if TYPE_CHECKING:
 	from contracts.execution.controllers import StepController
-
 
 Detail = TypeVar("Detail")
 
@@ -52,147 +47,93 @@ def _readonly_metadata(metadata: Mapping[str, DiagnosticValue]) -> Mapping[str, 
 
 
 class IntegrationMethod(ABC, Generic[Detail]):
-	"""A numerical algorithm whose run instances own their formulation and resources.
+	"""A numerical algorithm with fresh resources for each function binding."""
 
-	Public dataclass constructors describe reusable controls. ``new_run`` creates
-	another instance of the same class and initializes it for one problem. No
-	context object or collection of bound callbacks sits between it and the driver.
-	"""
-
+	f: VectorField
+	jacobian: VectorField | None
+	jacobian_structure: JacobianStructure
 	initial_state: np.ndarray
-	initial_momentum: np.ndarray | None = None
-	track_energy: bool = False
+	layout: StateLayout
+	physical_size: int
+	particle_count: int
 	metadata: Mapping[str, DiagnosticValue]
-	problem: InitialValueProblem
 	request: SimulationRequest
 	progress: bool
-	step_observer: Callable[[Any], None] | None
+	observe: bool = False
+	capture_quadrature: bool = False
 	_status: str = "configuration"
-	state_formulation: SingleFormulation | None = None
-	_energy_dynamics: HamiltonianSystem | None = None
-	# Capabilities select a driver; methods never resolve an execution device.
+	copies: ClassVar[int] = 1
+	requires_planar: ClassVar[bool] = False
 	jax_mode: ClassVar[Literal["unsupported", "device_resident", "hybrid_scipy_controller"]] = "unsupported"
-	evaluated_dynamics: DynamicalSystem
 
 	@property
 	def method_name(self) -> str:
 		return type(self).__name__
 
-	def new_run(self, problem: InitialValueProblem, request: SimulationRequest,
-	            *, evaluated_dynamics: DynamicalSystem | None = None) -> Self:
-		"""Create an isolated run of this class, copying only constructor options.
-
-		Dataclass replacement reconstructs the configuration and excludes all
-		``init=False`` resources. Observers and immutable problem data are shared
-		intentionally; solver state and accumulated histories are never copied.
-		"""
+	def new_run(
+		self, f: VectorField, initial_conditions: InitialConditions, request: SimulationRequest,
+		*, jacobian: VectorField | None = None, jacobian_structure: JacobianStructure = "dense",
+		observe: bool = False, capture_quadrature: bool = False,
+	) -> Self:
+		"""Copy constructor controls and own physical input; never retain a problem."""
 		if not is_dataclass(self):
 			raise TypeError("Numerical methods must declare their options as dataclass fields.")
+		if not callable(f) or (jacobian is not None and not callable(jacobian)):
+			raise TypeError("Supply a field function and an optional Jacobian function.")
+		if not isinstance(initial_conditions, InitialConditions):
+			raise TypeError("Supply physical InitialConditions for method preparation.")
+		if jacobian_structure not in ("dense", "particle"):
+			raise ValueError("Jacobian structure must be dense or particle.")
 		method: Self = replace(self)
-		method.evaluated_dynamics = problem.dynamics if evaluated_dynamics is None else evaluated_dynamics
-		method.problem = problem
+		method.f = f
+		method.jacobian = jacobian if jacobian is not None else getattr(method, "jacobian", None)
+		method.jacobian_structure = jacobian_structure
+		method.layout = initial_conditions.layout
+		method.initial_state = _readonly_initial_state(initial_conditions.values)
+		method.physical_size = method.initial_state.size
+		method.particle_count = initial_conditions.particle_count
 		method.request = request
+		method.observe, method.capture_quadrature = bool(observe), bool(capture_quadrature)
 		method.metadata = {}
-		method.initialize(problem, request)
-		if method.state_formulation is not None:
-			# Report accepted physical size separately from temporary workspace size.
-			method.metadata = {**method.metadata, **method._state_metadata()}
-		method.initial_state = _readonly_initial_state(method.initial_state)
-		if method.initial_momentum is not None:
-			method.initial_momentum = _readonly_initial_state(method.initial_momentum)
-		method.metadata = _readonly_metadata(method.metadata)
+		method.initialize(request)
+		method.metadata = _readonly_metadata({**method.metadata, **method._state_metadata()})
 		method._status = "ready"
 		return method
 
 	@abstractmethod
-	def initialize(self, problem: InitialValueProblem, request: SimulationRequest) -> None:
-		"""Initialize this run's formulation and initial state; called by new_run."""
+	def initialize(self, request: SimulationRequest) -> None:
+		"""Prepare method-specific work after the common function binding."""
 
 	@abstractmethod
-	def advance(self, time: float, state: np.ndarray, step: float, *, momentum: np.ndarray | None = None) -> StepResult[Detail]:
-		"""Advance without observing or collecting; return local work and details.
-
-		Fixed methods evaluate a map of duration ``step`` on the supplied state.
-		Adaptive methods advance their live solver with ``step`` as an upper bound;
-		their controller reports the actual accepted endpoint.
-		"""
+	def advance(self, time: float, state: np.ndarray, step: float, *, observe: bool = True) -> StepResult[Detail]:
+		"""Return a physical step and optional quadrature data without observing it."""
 
 	@abstractmethod
 	def build_observation(self, info: StepInfo, result: StepResult[Detail]) -> Any:
-		"""Construct an independent method-specific event for an accepted step."""
+		"""Build numerical snapshots; execution supplies physical provenance."""
 
 	def _state_metadata(self) -> dict[str, DiagnosticValue]:
-		"""Describe actual accepted storage, temporary work and separate auxiliaries."""
-		assert self.state_formulation is not None
-		name: str = 'physical' if self.state_formulation.copies == 1 else 'duplicated'
+		"""Describe physical storage and temporary copies independently of observers."""
 		return {
-			'state_formulation': name + ('_with_energy' if self.track_energy else ''),
-			'track_energy': self.track_energy,
-			'accepted_internal_state_dimension': self.state_formulation.physical_size,
-			'base_splitting_state_dimension': self.state_formulation.spatial_size,
-			'spatial_state_dimension': self.state_formulation.spatial_size,
-			'workspace_state_dimension': self.state_formulation.spatial_size,
+			'state_formulation': 'physical' if self.copies == 1 else 'duplicated',
+			'accepted_internal_state_dimension': self.physical_size,
+			'base_splitting_state_dimension': self.copies * self.physical_size,
+			'spatial_state_dimension': self.copies * self.physical_size,
+			'workspace_state_dimension': self.copies * self.physical_size,
 			'time_state_dimension': 1,
-			'momentum_state_dimension': self.problem.particle_count if self.track_energy else 0,
-			'observer_state_dimension': self.state_formulation.physical_size,
+			'observer_state_dimension': self.physical_size,
 			'observer_state_kind': 'physical_map', 'energy_feedback': False,
 		}
 
-	def _initialize_state(self, problem: InitialValueProblem, request: SimulationRequest,
-		*, energy_dynamics: DynamicalSystem | None = None,
-	) -> np.ndarray:
-		"""Own physical initial values and a separate zero physical momentum."""
-		dynamics: DynamicalSystem = problem.dynamics if energy_dynamics is None else energy_dynamics
-		self._energy_dynamics = None
-		self.initial_momentum = None
-		if self.track_energy:
-			if not isinstance(dynamics, HamiltonianSystem):
-				raise TypeError('Energy tracking requires HamiltonianSystem.')
-			self._energy_dynamics = dynamics
-			self.initial_momentum = np.zeros(problem.particle_count)
-		return problem.initial_state
-
-	def _checked_state(self, state: np.ndarray, momentum: np.ndarray | None) -> np.ndarray:
-		"""Reject packed copies or missing auxiliaries before numerical work."""
+	def _checked_state(self, state: np.ndarray) -> np.ndarray:
+		"""Reject packed workspaces and nonfinite physical inputs."""
 		physical: np.ndarray = np.asarray(state)
 		if physical.shape != self.initial_state.shape or not np.all(np.isfinite(physical)):
 			raise ValueError('A step requires a finite physical vector with the initial shape.')
-		if self.track_energy:
-			if momentum is None or momentum.shape != (self.problem.particle_count,) or not np.all(np.isfinite(momentum)):
-				raise ValueError('Supply finite momentum with one value per particle for an energy-tracked step.')
-		elif momentum is not None:
-			raise ValueError('Momentum requires energy tracking.')
 		return physical
 
-	def _momentum_rate(self, time: float, physical: np.ndarray) -> np.ndarray:
-		"""Evaluate -partial_t H in the physical Hamiltonian normalization."""
-		assert self._energy_dynamics is not None
-		rate: np.ndarray = np.asarray(self._energy_dynamics.extended_momentum_derivative(time, physical), dtype=float)
-		if rate.shape != (self.problem.particle_count,) or not np.all(np.isfinite(rate)):
-			raise ValueError('The momentum derivative must be finite with one value per particle.')
-		return rate
-
-	def _finish_momentum(self, momentum: np.ndarray | None, increment: np.ndarray | None) -> np.ndarray | None:
-		"""Accumulate accepted-stage quadrature without retaining mutable run state."""
-		if not self.track_energy:
-			return None
-		if momentum is None or increment is None:
-			raise ValueError('An energy-tracked step requires momentum and its increment.')
-		return np.asarray(momentum + increment)
-
-	def diagnose_history(self, times: np.ndarray, physical: np.ndarray,
-		auxiliary: dict[str, np.ndarray], *, energy: np.ndarray | None = None,
-	) -> dict[str, DiagnosticValue]:
-		"""Evaluate saved physical energy once and assemble supplied auxiliaries."""
-		if 'extended_momentum' not in auxiliary:
-			return {}
-		if energy is None:
-			assert self._energy_dynamics is not None
-			energy = np.asarray(self._energy_dynamics.hamiltonian(times, physical), dtype=float)
-		return energy_diagnostics(times, physical, auxiliary, energy=energy)
-
 	def controller(self) -> StepController[Detail]:
-		"""Select fixed scheduling; adaptive methods override this operation."""
+		"""Select fixed scheduling; adaptive methods supply their live controller."""
 		from execution._host import FixedStepController
 		return FixedStepController()
 

@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+from diagnostics.methods.energy import EnergyObserver
+from solvers import BroydenSolver, NewtonSolver
 from dataclasses import replace
 
-from dynamics.gc import GuidingCenterDynamics
 
 from itertools import product
 import unittest
@@ -49,12 +50,10 @@ class SharedABBARuntimeTests(unittest.TestCase):
 		):
 			with self.subTest(method=method_type.__name__, formulation=formulation,
 				solver=solver, track_energy=track_energy):
-				method = method_type(projection_formulation=formulation,
-					nonlinear_solver=solver, track_energy=track_energy,
-					newton_max_iterations=50, step_observer=lambda event: None)
-				prepared = replace(method, step=0.02).new_run(problem, request)
+				method = method_type(projection_formulation=formulation, solver=(NewtonSolver if solver == 'newton' else BroydenSolver)(jacobian_method='analytic', max_iterations=50))
+				prepared = replace(method, step=0.02).new_run(problem.dynamics.vector_field, problem.initial_conditions, request, jacobian=getattr(problem.dynamics, 'particle_vector_field_jacobians', None), jacobian_structure='particle', observe=True, capture_quadrature=track_energy)
 				state = prepared.initial_state
-				step = prepared.advance(0.0, prepared.initial_state, 0.02, momentum=prepared.initial_momentum)
+				step = prepared.advance(0.0, prepared.initial_state, 0.02)
 				result = step.details
 				self.assertIsInstance(result, ProjectedMapResult)
 				self.assertIsInstance(result.trace, CompositionTrace)
@@ -92,13 +91,10 @@ class SharedABBARuntimeTests(unittest.TestCase):
 			("around_complete_composition",),
 		):
 			with self.subTest(extension=extension, solver=solver, placement=placement):
-				options = dict(state_extension=extension, nonlinear_solver=solver,
-					projection_placement=placement, track_energy=True, newton_max_iterations=50)
+				options = dict(state_extension=extension, solver=(NewtonSolver if solver == 'newton' else BroydenSolver)(max_iterations=50, jacobian_method='analytic'), projection_placement=placement)
 				main_events, dense_events = [], []
-				main = simulate(problem, ABBA4Implicit(step=0.02, **options, step_observer=main_events.append),
-					_request([0.0, 0.02, 0.04]))
-				dense = simulate(problem, ABBA4Implicit(step=0.02, **options, step_observer=dense_events.append),
-					_request([0.0, 0.009, 0.02, 0.031, 0.04]))
+				main = simulate(problem, ABBA4Implicit(step=0.02, **options), _request([0.0, 0.02, 0.04]), observers=(EnergyObserver(), main_events.append))
+				dense = simulate(problem, ABBA4Implicit(step=0.02, **options), _request([0.0, 0.009, 0.02, 0.031, 0.04]), observers=(EnergyObserver(), dense_events.append))
 				np.testing.assert_array_equal(main.states, dense.states[:, [0, 2, 4]])
 				for key in ("nonlinear_iterations", "residual_evaluations", "nonlinear_residual_norms",
 					"nonlinear_tolerances", "projection_multiplier_norms"):
@@ -122,7 +118,7 @@ class SharedABBARuntimeTests(unittest.TestCase):
 	def test_observer_snapshots_cannot_mutate_state_or_tracked_energy(self) -> None:
 		problem = _problem()
 		request = _request([0.0, 0.02, 0.04])
-		expected = simulate(problem, ABBA4Implicit(step=0.02, track_energy=True), request)
+		expected = simulate(problem, ABBA4Implicit(step=0.02), request, observers=(EnergyObserver(),))
 
 		def mutate_snapshot(event):
 			event.state_after[:] = 999.0
@@ -131,7 +127,7 @@ class SharedABBARuntimeTests(unittest.TestCase):
 				substep.u_first[:] = 888.0
 				substep.u_initial[:] = 888.0
 
-		actual = simulate(problem, ABBA4Implicit(step=0.02, track_energy=True, step_observer=mutate_snapshot), request)
+		actual = simulate(problem, ABBA4Implicit(step=0.02), request, observers=(EnergyObserver(),) + tuple((o for o in (mutate_snapshot,) if o is not None)))
 		np.testing.assert_array_equal(expected.states, actual.states)
 		np.testing.assert_array_equal(
 			expected.diagnostics["extended_momentum"], actual.diagnostics["extended_momentum"],

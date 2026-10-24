@@ -8,7 +8,7 @@ from dynamics.gc import GuidingCenterDynamics
 
 from dataclasses import dataclass, replace
 from types import MappingProxyType
-from typing import Callable, Literal, Mapping, TYPE_CHECKING
+from typing import Literal, Mapping, TYPE_CHECKING
 
 import numpy as np
 
@@ -36,8 +36,8 @@ from problem import InitialValueProblem
 from methods.base import FixedStepMethod
 from request import SimulationRequest
 from states.history import States
-from contracts.methods.observation import IntegrationStep
 from simulation.runner import simulate
+from solvers.nonlinear import NewtonSolver
 
 
 if TYPE_CHECKING:
@@ -439,34 +439,18 @@ class ImplicitGeneralizedEnergyResult:
 def _method_for_run(
 	method: ImplicitEnergyMethod,
 	config: ImplicitGeneralizedEnergyConfig,
-	observer: Callable[[IntegrationStep], None],
 ) -> FixedStepMethod[Any]:
-	"""Construct one implicit method with one accepted-step observer."""
+	"""Construct the physical method with its effective algebraic controls."""
+	solver = NewtonSolver(absolute_tolerance=config.newton_absolute_tolerance,
+		relative_tolerance=config.newton_relative_tolerance,
+		max_iterations=config.newton_max_iterations, jacobian_method="analytic")
 	if method == "abba2_implicit_reduced_multiplier":
-		return ABBA2Implicit(
-			projection_formulation="reduced_multiplier",
-			newton_absolute_tolerance=config.newton_absolute_tolerance,
-			newton_relative_tolerance=config.newton_relative_tolerance,
-			newton_max_iterations=config.newton_max_iterations,
-			progress=config.progress,
-			step_observer=observer,
-		)
+		return ABBA2Implicit(projection_formulation="reduced_multiplier",
+			solver=solver, progress=config.progress)
 	if method == "abba4_implicit":
-		return ABBA4Implicit(
-			newton_absolute_tolerance=config.newton_absolute_tolerance,
-			newton_relative_tolerance=config.newton_relative_tolerance,
-			newton_max_iterations=config.newton_max_iterations,
-			progress=config.progress,
-			step_observer=observer,
-		)
-	return BM4Implicit(
-		newton_absolute_tolerance=config.newton_absolute_tolerance,
-		newton_relative_tolerance=config.newton_relative_tolerance,
-		newton_max_iterations=config.newton_max_iterations,
-		newton_jacobian_relative_step=config.newton_jacobian_relative_step,
-		progress=config.progress,
-		step_observer=observer,
-	)
+		return ABBA4Implicit(solver=solver, progress=config.progress)
+	return BM4Implicit(solver=replace(solver, jacobian_relative_step=config.newton_jacobian_relative_step),
+		progress=config.progress)
 
 
 def run_implicit_generalized_energy_study(
@@ -521,12 +505,12 @@ def run_implicit_generalized_energy_study(
 				replace(_method_for_run(
 					method_name,
 					config,
-					candidate_energy_observer,
 				), step=duration),
 				SimulationRequest.uniform(
 					t_span=(start_time, start_time + duration),
 					sample_count=2,
 				),
+				observers=(candidate_energy_observer,),
 			)
 			return (
 				np.asarray(candidate_solution.states[:, -1], dtype=float),
@@ -541,19 +525,15 @@ def run_implicit_generalized_energy_study(
 			)
 		)
 
-		def observer(record: IntegrationStep) -> None:
-			energy_observer(record)
-			symplecticity_observer(record)
-			reduced_symplecticity_observer(record)
-
 		request: SimulationRequest = SimulationRequest.uniform(
 			t_span=config.t_span,
 			sample_count=config.output_sample_count,
 		)
 		solution: States = simulate(
 			problem,
-			replace(_method_for_run(method_name, config, observer), step=step),
+			replace(_method_for_run(method_name, config), step=step),
 			request,
+			observers=(energy_observer, symplecticity_observer, reduced_symplecticity_observer),
 		)
 		records = energy_observer.records
 		if len(records) != solution.n_steps + 1:

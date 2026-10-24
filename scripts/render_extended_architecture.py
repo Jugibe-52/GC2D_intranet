@@ -25,6 +25,7 @@ class Model:
     recipe: str
     placement: str
     implicit: bool = True
+    doubled: bool = True
 
 
 MODELS = (
@@ -52,6 +53,20 @@ MODELS = (
     Model('bm4-midpoint', 'bm4-midpoint-simulation-architecture', 'BM4Midpoint',
           'Twelve alternating signed stages\nNo harmonic coupling',
           'Arithmetic mean after the full cycle\nNo nonlinear solve', False),
+    Model('explicit-euler', 'explicit-euler-simulation-architecture', 'ExplicitEuler',
+          'One physical slope at the interval start', 'Explicit first-order update', False, False),
+    Model('rk4', 'rk4-simulation-architecture', 'RK4',
+          'Four physical stages; classical weights', 'Explicit fourth-order update', False, False),
+    Model('gauss-legendre4', 'gauss-legendre4-simulation-architecture', 'GaussLegendre4',
+          'Two Gauss collocation stages', 'One joint Newton system per step', True, False),
+    Model('sdirk4', 'sdirk4-simulation-architecture', 'SDIRK4',
+          'Five diagonally implicit stages', 'One Newton system per stage', True, False),
+    Model('hbvm42', 'hbvm42-simulation-architecture', 'HBVM42',
+          'Two Legendre modes; four Gauss nodes', 'Newton with matrix norm and backtracking', True, False),
+    Model('dop853', 'dop853-simulation-architecture', 'DOP853',
+          'SciPy adaptive explicit stages', 'Live physical solver and dense output', False, False),
+    Model('radau', 'radau-simulation-architecture', 'Radau',
+          'SciPy adaptive Radau IIA stages', 'Live physical solver and dense output', True, False),
 )
 
 
@@ -63,34 +78,55 @@ def render(model: Model) -> None:
     nodes = {
         'recipe': (2.3, 8.0, 'Composition recipe', model.recipe, '#fff0d9'),
         'method': (7.0, 8.0, model.name, 'Exports: simulation / methods.extended\nFixed step belongs to the method', '#e5ecfa'),
-        'driver': (11.7, 8.0, 'Simulation + execution', 'src/simulation/runner.py and src/execution/\nMain steps (final clipped), sampling, collection', '#e5ecfa'),
+        'driver': (11.7, 8.0, 'Simulation + execution', 'Bind f / derivatives and observer functions\nAccepted intervals, samples and collection', '#e5ecfa'),
         'state': (2.3, 6.5, 'DoubleFormulation', 'Physical size only; lift / join / split\nTemporary copies; no time or momentum', '#e5ecfa'),
-        'advance': (7.0, 6.5, 'Common advance', 'Prepare copies; solve or average\nAccept physical Z and separate momentum', '#e5ecfa'),
-        'energy': (11.7, 6.5, 'Passive energy and outputs', 'core/energy.py: accepted shear quadrature\nH + kappa; no feedback into the root', '#e1f0e6'),
+        'advance': (7.0, 6.5, 'Common advance', 'Prepare copies; solve or average\nPhysical Z, work and optional quadrature', '#e5ecfa'),
+        'energy': (11.7, 6.5, 'EnergyObserver', 'Own momentum; consume accepted quadrature\nBind H and -partial_t H through execution', '#e1f0e6'),
         'observe': (2.3, 5.0, 'Optional observations', 'extended/observations.py: event adapters\nPublic records: contracts/methods/', '#f0e5f5'),
         'projection': (7.0, 5.0, projection[0], projection[1], '#e1f0e6'),
         'solver': (11.7, 5.0, 'Newton / Broyden' if model.implicit else 'Explicit projection',
-                   'solvers/nonlinear.py: convergence and work\nTime and momentum excluded from roots' if model.implicit else 'Average the two final copies\nNo Newton / Broyden calls', '#fff0d9'),
+                   'Own tolerances, derivatives and iterations\nBacktracking and iteration callbacks' if model.implicit else 'Average the two final copies\nNo Newton / Broyden calls', '#fff0d9'),
         'placement': (2.3, 3.5, 'Method identity', model.placement, '#fff0d9'),
         'compose': (7.0, 3.5, 'compose', 'core/composition.py: explicit A/B/T/C\nAccepted trace reused by all consumers', '#e1f0e6'),
         'tangent': (11.7, 3.5, 'Analytic tangents' if model.implicit else 'Accepted stage trace',
                     'core/jacobians.py: ordered particle tangents\nBroyden does not evaluate Jacobians' if model.implicit else 'Signed times, durations and shear inputs\nEnergy evaluated after the spatial map', '#e1f0e6'),
         'maps': (7.0, 2.0, 'GCDoubledMaps', 'apply_spatial(A / B / C)\nOnly T changes the clock\nBM4 has no C operation', '#e1f0e6'),
-        'dynamics': (7.0, .5, 'Physical dynamics', 'Vector field, analytic derivatives, H and partial_t H\nExisting dynamics and potential contracts', '#e5ecfa'),
+        'dynamics': (7.0, .5, 'Injected physical functions', 'f(t, Z) and optional Jacobian\nMethod and maps retain no dynamics object', '#e5ecfa'),
     }
     if model.directory in ('extended', 'abba'):
         nodes['projection'] = (7.0, 5.0, 'Spatial projection',
             'solve_projection / midpoint_step\nHairer equation or arithmetic mean', '#e1f0e6')
         nodes['solver'] = (11.7, 5.0, 'Newton / Broyden',
-            'Implicit variants only; shared convergence\nTime and momentum excluded from roots', '#fff0d9')
+            'Implicit variants only; own solver controls\nTolerances, derivatives and callbacks', '#fff0d9')
     edges = [('recipe','method'),('method','driver'),('driver','advance'),('state','advance'),
-             ('advance','projection'),('advance','energy'),('advance','observe'),
+             ('advance','projection'),('driver','energy'),('advance','energy'),('advance','observe'),
              ('projection','compose'),('projection','solver'),('compose','tangent'),
              ('compose','maps'),('maps','dynamics')]
+    if not model.doubled:
+        adaptive = model.directory in ('dop853', 'radau')
+        nodes['method'] = (7.0, 8.0, model.name, 'Exports: simulation / methods\nAdaptive tolerances and step bounds' if adaptive else 'Exports: simulation / methods\nFixed integration step belongs to the method', '#e5ecfa')
+        nodes['recipe'] = (2.3, 8.0, 'Numerical scheme', model.recipe, '#fff0d9')
+        nodes['state'] = (2.3, 6.5, 'Physical state', 'InitialConditions: values and layout\nNo formulation or auxiliary coordinates', '#e5ecfa')
+        nodes['advance'] = (7.0, 6.5, 'Physical advance', 'Evaluate injected f and optional derivatives\nReturn Z, work and optional quadrature', '#e5ecfa')
+        nodes['projection'] = (7.0, 5.0, 'Adaptive step' if adaptive else 'Stage equations', 'One retained SciPy numerical session' if adaptive else 'Method owns tableau and equation assembly', '#e1f0e6')
+        nodes['compose'] = (7.0, 3.5, 'Physical evaluations', 'Physical vector-field and optional derivative calls\nNo Hamiltonian or momentum evaluation', '#e1f0e6')
+        nodes['maps'] = (7.0, 2.0, 'Accepted numerical data', 'Dense interpolant for passive quadrature' if adaptive else 'Retained stage times, states and weights', '#e1f0e6')
+        nodes['tangent'] = (11.7, 3.5, 'Sampling', 'Accepted dense output' if adaptive else 'Independent shortened physical steps\nShadow quadrature never commits observer state', '#e1f0e6')
+        nodes['observe'] = (2.3, 5.0, 'Step callbacks', 'Passed through simulate(observers=...)\nExecution supplies physical provenance', '#f0e5f5')
+        if adaptive:
+            nodes['solver'] = (11.7, 5.0, 'SciPy adaptive control', 'Method owns atol / rtol and step bounds\nPhysical-only error and acceptance', '#fff0d9')
+        elif model.implicit:
+            nodes['solver'] = (11.7, 5.0, 'NewtonSolver', 'Own tolerances, derivatives and iterations\nBacktracking and iteration callbacks', '#fff0d9')
+        elif not model.implicit:
+            nodes['solver'] = (11.7, 5.0, 'Explicit update', 'No nonlinear solver\nMethod owns its fixed integration step', '#fff0d9')
+        edges = [('recipe','method'),('method','driver'),('driver','advance'),('state','advance'),
+                 ('advance','projection'),('driver','energy'),('advance','energy'),('advance','observe'),
+                 ('projection','compose'),('projection','solver'),('compose','tangent'),
+                 ('compose','maps'),('maps','dynamics')]
     fig, ax = plt.subplots(figsize=(16, 10))
     fig.patch.set_facecolor('#f8fafc'); ax.set_facecolor('#f8fafc')
     ax.set(xlim=(0,14), ylim=(-.3,9.4)); ax.axis('off')
-    ax.text(.35,9.15,f'{model.name} | shared extended-space architecture',fontsize=19,weight='bold',color='#18324d')
+    ax.text(.35,9.15,f'{model.name} | functions, numerical method and observers',fontsize=19,weight='bold',color='#18324d')
     ax.text(.35,8.78,'Blue: lifecycle and state    Green: numerical operations    Orange: recipe and solver    Purple: observation',fontsize=10,color='#53657a')
     width, height = 4.05, 1.04
     for source, target in edges:

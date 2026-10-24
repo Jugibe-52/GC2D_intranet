@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from solvers.nonlinear import NewtonSolver
+
 from studies._validation import require_uncoupled_bm4
 
 from dynamics.gc import GuidingCenterDynamics
@@ -237,30 +239,20 @@ def _configured_method(
 	"""Construct one Newton-solved method with the common tolerances."""
 	if method_name == "ABBA2Implicit[reduced_multiplier]":
 		return ABBA2Implicit(
-			projection_formulation="reduced_multiplier",
-			newton_absolute_tolerance=config.absolute_tolerance,
-			newton_relative_tolerance=config.relative_tolerance,
-			newton_max_iterations=config.max_iterations,
-			nonlinear_solver="newton",
+			projection_formulation='reduced_multiplier',
 			progress=config.progress,
+			solver=NewtonSolver(absolute_tolerance=config.absolute_tolerance, relative_tolerance=config.relative_tolerance, max_iterations=config.max_iterations, jacobian_method='analytic'),
 		)
 	if method_name == "ABBA4Implicit":
 		return ABBA4Implicit(
-			projection_placement="around_complete_composition",
-			newton_absolute_tolerance=config.absolute_tolerance,
-			newton_relative_tolerance=config.relative_tolerance,
-			newton_max_iterations=config.max_iterations,
-			nonlinear_solver="newton",
+			projection_placement='around_complete_composition',
 			progress=config.progress,
+			solver=NewtonSolver(absolute_tolerance=config.absolute_tolerance, relative_tolerance=config.relative_tolerance, max_iterations=config.max_iterations, jacobian_method='analytic'),
 		)
 	if method_name == "BM4Implicit":
 		return BM4Implicit(
-			newton_absolute_tolerance=config.absolute_tolerance,
-			newton_relative_tolerance=config.relative_tolerance,
-			newton_max_iterations=config.max_iterations,
-			newton_jacobian_relative_step=config.newton_jacobian_relative_step,
-			nonlinear_solver="newton",
 			progress=config.progress,
+			solver=NewtonSolver(absolute_tolerance=config.absolute_tolerance, relative_tolerance=config.relative_tolerance, max_iterations=config.max_iterations, jacobian_relative_step=config.newton_jacobian_relative_step, jacobian_method='analytic'),
 		)
 	assert False, f"Unknown implicit accuracy method {method_name!r}."
 

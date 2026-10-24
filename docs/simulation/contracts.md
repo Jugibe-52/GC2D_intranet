@@ -1,11 +1,6 @@
 # Contracts by source domain
 
-`src/contracts/` mirrors the source domains and their relevant subdirectories.
-It contains all 40 existing Protocol interfaces and two TypedDict declarations,
-along with the shared records, aliases, and validation already owned by contracts.
-The reorganization relocated 37 protocols and two typed dictionaries from other
-packages. Their numerical, plotting, persistence, and orchestration code remains
-in those packages.
+`src/contracts/` mirrors source domains and their relevant subdirectories. It contains pure interfaces, shared records, aliases and contract validation. Numerical, plotting, persistence and orchestration implementations remain in their owning packages. `methods.functions` declares the supplied vector field and derivative structure; `methods.quadrature` declares weighted stage data and accepted interpolants.
 
 ```text
 src/contracts/
@@ -19,6 +14,8 @@ src/contracts/
 │   ├── projection.py
 │   ├── base.py
 │   ├── compiled.py
+│   ├── functions.py
+│   ├── quadrature.py
 │   ├── observation.py
 │   ├── step.py
 │   ├── adaptive/scipy.py
@@ -35,7 +32,6 @@ src/contracts/
 │   ├── bm4_parallel_recurrence.py
 │   ├── comparison.py
 │   ├── gc_energy_bound.py
-│   ├── poincare_automation.py
 │   └── poincare_batch_runtime/
 │       ├── cloud_job.py
 │       └── newton_diagnostics.py
@@ -59,7 +55,7 @@ to avoid runtime cycles.
 |---|---|
 | `dynamics` | Physical, Hamiltonian, Jacobian, and cyclotron capability interfaces. |
 | `execution` | `StepController`; fixed and adaptive controllers stay with their implementations. |
-| `methods` | `NumericalMethod`, `CompiledStep`, step records, and family-specific observations. |
+| `methods` | `NumericalMethod`, function types, `CompiledStep`, quadrature, step records and family-specific observations. |
 | `solvers` | `NewtonIteration` and `NewtonObserver`. |
 | `states` | The `DiagnosticValue` alias used by physical histories. |
 | `studies` | Comparison and archive records, validation, reference-configuration views, and worker dictionaries/interfaces. |

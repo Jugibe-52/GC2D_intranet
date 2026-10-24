@@ -289,7 +289,7 @@ def _summary_solver_values(
 	return max_iterations, mean_iterations, max_residual, max_multiplier
 
 
-_MethodFactory = Callable[[StepObserver], FixedStepMethod[Any]]
+_MethodFactory = Callable[[], FixedStepMethod[Any]]
 _ResultT = TypeVar("_ResultT", bound=GCSymplecticityResult)
 
 
@@ -364,9 +364,8 @@ def _run_gc_symplecticity_study(
 			started: float = perf_counter()
 			solution: States = simulate(
 				problem,
-				replace(method_factory(timed_observer), step=step.value),
-				request,
-			)
+				replace(method_factory(), step=step.value),
+				request, observers=(timed_observer,))
 			total_simulation_time = perf_counter() - started
 			method_runtime = total_simulation_time - timed_observer.elapsed_seconds
 			if method_runtime <= 0:
@@ -490,7 +489,7 @@ def _run_gc_symplecticity_observers(
 			)
 			fanout: _StepObserverFanout = _StepObserverFanout(tuple(timed_observers.values()))
 			started: float = perf_counter()
-			solution: States = simulate(problem, replace(method_factory(fanout), step=step.value), request)
+			solution: States = simulate(problem, replace(method_factory(), step=step.value), request, observers=(fanout,))
 			total_simulation_time = perf_counter() - started
 			observer_time: float | Literal[0] = sum(
 				timed.elapsed_seconds for timed in timed_observers.values()

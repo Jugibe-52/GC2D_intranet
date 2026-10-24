@@ -30,19 +30,16 @@ and capabilities rather than extra execution stages.
 
 ## Runtime sequence
 
-1. The caller builds dynamics and a physical initial array with its layout, then supplies a method and `request.SimulationRequest`.
-2. `simulate` delegates to `Execution.run`, which prepares the environment and a fresh run through `method.new_run`, then allocates `States` and owns the running/finished transitions.
-3. On the host, the controller manages `IntegrationState(time, values, momentum=None)` for accepted endpoints and the worker records the initial physical sample.
-4. Each accepted interval produces statistics and requested samples. Fixed shadow maps start independently from its left endpoint; adaptive methods evaluate accepted dense output. The formulation extracts physical values before recording. JAX computes on the device and records its physical history in bulk with `States.record_history`.
-5. Methods evaluate saved physical energy; formulations combine the supplied arrays with auxiliaries. `Execution.run` combines those diagnostics with metadata and calls `States.finalize` once on its recorder.
-6. `simulate` verifies time, layout dimension and initial-state agreement and returns the completed `States` directly.
+1. The caller supplies a physical problem, numerical method, `SimulationRequest` and optional observers.
+2. `Execution.run` resolves physical functions and prepares the method from `f`, independent initial data and an optional Jacobian; it allocates `States` and owns run transitions.
+3. The controller manages physical `IntegrationState(time, values)` endpoints; an independent observer owns energy momentum.
+4. Each accepted interval produces statistics and requested samples. Fixed shadows start from its left endpoint; adaptive methods evaluate accepted dense output. No formulation extracts accepted output. JAX records its physical history in bulk.
+5. The energy observer evaluates saved H; `states.energy` combines supplied arrays. Execution combines diagnostics and calls `States.finalize` once.
+6. `simulate` validates time, layout and initial-state agreement and returns the completed `States`.
 
 ## Extended-family detail
 
-ABBA and BM4 use `DoubleFormulation` for accepted state and output extraction,
-and `GCDoubledMaps` for spatial `direct_map` and `adjoint_map` operations. Their
-shared composition engine traverses signed palindromic recipes: 2 stages for
-ABBA2, 6 for ABBA4, 14 for ABBA6, and 12 for BM4.
+ABBA and BM4 use `DoubleFormulation` only for temporary spatial copies and `GCDoubledMaps` for physical direct/adjoint maps. Their shared composition traverses signed palindromic recipes: 2 stages for ABBA2, 6 for ABBA4, 14 for ABBA6 and 12 for BM4. Accepted states are physical arrays.
 
 The implicit methods apply one outer Hairer projection around the complete
 recipe. ABBA4 and ABBA6 share this execution structure; their intermediate ABBA
@@ -50,10 +47,7 @@ pairs are unprojected. Midpoint variants apply one arithmetic average after the
 composition. Newton/Broyden support, analytic tangents and passive energy
 quadrature reuse the shared numerical implementation and accepted stage data.
 
-For planar guiding-center particles, physical formulations use `2N` coordinates
-or `4N` with energy tracking; doubled formulations use `4N` or `6N`, respectively.
-Only spatial variables enter the projection. Public result states remain
-physical, while auxiliary time, momentum and energy values are diagnostics.
+For planar guiding-center particles, physical states always have `2N` coordinates and doubled workspaces `4N`. Only spatial variables enter projection. Passive physical momentum has `N` entries in the observer and saved `(N,T)` diagnostics; it never enlarges a physical state or nonlinear unknown.
 
 For method-specific details, see the
 [extended-family architecture](../models/extended/simulation/extended-simulation-architecture.md)

@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-from dynamics.gc import GuidingCenterDynamics
 
+from dynamics import GuidingCenterDynamics
+from solvers import BroydenSolver, NewtonSolver
 from pathlib import Path
 import tempfile
 import unittest
@@ -78,11 +79,7 @@ class ABBA6MethodTests(unittest.TestCase):
 				with self.subTest(formulation=formulation, solver=solver):
 					errors = []
 					for h in (0.2, 0.1, 0.05):
-						result = simulate(problem, ABBA6Implicit(step=h,
-							projection_formulation=formulation, nonlinear_solver=solver,
-							newton_absolute_tolerance=1e-14, newton_relative_tolerance=1e-14,
-							newton_max_iterations=40), SimulationRequest.uniform(
-								t_span=(0.0, 0.8),  sample_count=2))
+						result = simulate(problem, ABBA6Implicit(step=h, projection_formulation=formulation, solver=(NewtonSolver if solver == 'newton' else BroydenSolver)(jacobian_method='analytic', absolute_tolerance=1e-14, relative_tolerance=1e-14, max_iterations=40)), SimulationRequest.uniform(t_span=(0.0, 0.8), sample_count=2))
 						errors.append(np.linalg.norm(result.states[:, -1] - reference.y[:, -1]))
 						self.assertEqual(result.diagnostics["nonlinear_solves_per_step"], 1)
 						self.assertTrue(np.all(result.diagnostics["nonlinear_residual_norms"]
@@ -99,10 +96,7 @@ class ABBA6MethodTests(unittest.TestCase):
 			for solver in ("newton", "broyden"):
 				with self.subTest(formulation=formulation, solver=solver):
 					events = []
-					simulate(problem, ABBA6Implicit(step=0.2, projection_formulation=formulation,
-						nonlinear_solver=solver, newton_absolute_tolerance=1e-14,
-						newton_relative_tolerance=1e-14, newton_max_iterations=40,
-						step_observer=events.append), request)
+					simulate(problem, ABBA6Implicit(step=0.2, projection_formulation=formulation, solver=(NewtonSolver if solver == 'newton' else BroydenSolver)(jacobian_method='analytic', absolute_tolerance=1e-14, relative_tolerance=1e-14, max_iterations=40)), request, observers=(events.append,))
 					event = events[0]
 					blocks = abba6_implicit_step_particle_jacobians(event)
 					numeric = central_difference_jacobian(event.map_state, event.state_before)
@@ -129,18 +123,7 @@ class ABBA6MethodTests(unittest.TestCase):
 		self.assertAlmostEqual(float(np.sum(coefficients**3)), 0.0, places=15)
 		self.assertAlmostEqual(float(np.sum(coefficients**5)), 0.0, places=15)
 		events = []
-		solution = simulate(
-			_rotation_problem(),
-			ABBA6Implicit(step=0.1,
-				newton_absolute_tolerance=1e-14,
-				newton_relative_tolerance=1e-14,
-				step_observer=events.append,
-			),
-			SimulationRequest.uniform(
-				t_span=(0.0, 0.2),
-				sample_count=3,
-			),
-		)
+		solution = simulate(_rotation_problem(), ABBA6Implicit(step=0.1, solver=NewtonSolver(jacobian_method='analytic', absolute_tolerance=1e-14, relative_tolerance=1e-14)), SimulationRequest.uniform(t_span=(0.0, 0.2), sample_count=3), observers=(events.append,))
 		self.assertEqual(len(events), 2)
 		step = events[0]
 		self.assertIsInstance(step, ABBA6ImplicitIntegrationStep)
@@ -186,25 +169,14 @@ class ABBA6MethodTests(unittest.TestCase):
 		exact = np.asarray([np.cos(0.8), np.sin(0.8)])
 		errors = []
 		for step in (0.2, 0.1, 0.05):
-			solution = simulate(
-				problem,
-				ABBA6Implicit(step=step,
-					newton_absolute_tolerance=1e-14,
-					newton_relative_tolerance=1e-14,
-				),
-				SimulationRequest.uniform(
-					t_span=(0.0, 0.8),
-					sample_count=2,
-				),
-			)
+			solution = simulate(problem, ABBA6Implicit(step=step, solver=NewtonSolver(jacobian_method='analytic', absolute_tolerance=1e-14, relative_tolerance=1e-14)), SimulationRequest.uniform(t_span=(0.0, 0.8), sample_count=2))
 			errors.append(float(np.linalg.norm(solution.states[:, -1] - exact)))
 		for gain in np.asarray(errors[:-1]) / np.asarray(errors[1:]):
 			self.assertGreater(float(gain), 60.0)
 			self.assertLess(float(gain), 68.0)
 
 		state = np.asarray([1.0, 0.2])
-		run = ABBA6Implicit(step=0.2, newton_absolute_tolerance=1e-14, newton_relative_tolerance=1e-14).new_run(
-			problem, SimulationRequest.uniform(t_span=(0.3, 0.5),  sample_count=2))
+		run = ABBA6Implicit(step=0.2, solver=NewtonSolver(jacobian_method='analytic', absolute_tolerance=1e-14, relative_tolerance=1e-14)).new_run(problem.dynamics.vector_field, problem.initial_conditions, SimulationRequest.uniform(t_span=(0.3, 0.5), sample_count=2), jacobian=getattr(problem.dynamics, 'particle_vector_field_jacobians', None), jacobian_structure='particle', observe=True)
 		forward = run.project(0.3, state, 0.2)
 		backward = run.project(0.5, forward.state, -0.2)
 
@@ -215,17 +187,7 @@ class ABBA6MethodTests(unittest.TestCase):
 		problem = InitialValueProblem(_SixthDegreeTimeDynamics(), configuration, layout=GuidingCenterDynamics.coordinates)
 		errors = []
 		for step in (0.25, 0.125, 0.0625):
-			solution = simulate(
-				problem,
-				ABBA6Implicit(step=step,
-					newton_absolute_tolerance=1e-14,
-					newton_relative_tolerance=1e-14,
-				),
-				SimulationRequest.uniform(
-					t_span=(0.0, 1.0),
-					sample_count=2,
-				),
-			)
+			solution = simulate(problem, ABBA6Implicit(step=step, solver=NewtonSolver(jacobian_method='analytic', absolute_tolerance=1e-14, relative_tolerance=1e-14)), SimulationRequest.uniform(t_span=(0.0, 1.0), sample_count=2))
 			errors.append(abs(float(solution.states[0, -1]) - 1.0 / 7.0))
 		for gain in np.asarray(errors[:-1]) / np.asarray(errors[1:]):
 			self.assertGreater(float(gain), 63.9)

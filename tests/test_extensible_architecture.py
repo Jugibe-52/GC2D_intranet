@@ -77,7 +77,7 @@ class _FixedOutputExecution(Execution):
 		_problem: InitialValueProblem,
 		method,
 		request: SimulationRequest,
-		*, options=None,
+		*, options=None, observers=(),
 	) -> States:
 		return States(layout=_problem.layout, initial_state=_problem.initial_state,
 			t=request.output_times if self.times is None else self.times,
@@ -197,11 +197,12 @@ class ExtensibleArchitectureTests(unittest.TestCase):
 		events = []
 		solution = simulate(
 			problem,
-			RK4(step=0.01, step_observer=events.append),
+			RK4(step=0.01),
 			SimulationRequest.uniform(
 				t_span=(0.0, 0.02),
 				sample_count=5,
 			),
+			observers=(events.append,),
 		)
 
 		self.assertEqual(solution.n_steps, 2)
@@ -257,9 +258,9 @@ class ExtensibleArchitectureTests(unittest.TestCase):
 		with self.assertRaises(TypeError):
 			InitialValueProblem(gc_dynamics, fc_source, layout=FullCyclotronDynamics.coordinates)
 		with self.assertRaises(TypeError):
-			GCDoubledMaps(fc_dynamics, fc_source.size)
+			GCDoubledMaps(fc_dynamics.vector_field, fc_source.size, coordinates=fc_dynamics.coordinates)
 		with self.assertRaises(TypeError):
-			FCSplitMaps(gc_dynamics, gc_source.size)
+			FCSplitMaps(fc_dynamics.cyclotron_flow, fc_dynamics.electric_kick, gc_source.size, coordinates=gc_dynamics.coordinates)
 
 		problem = InitialValueProblem(GuidingCenterDynamics(potential, rho=0.2), gc_source, layout=GuidingCenterDynamics.coordinates)
 		self.assertEqual(problem.dynamics.rho, 0.2)
@@ -337,7 +338,7 @@ class ExtensibleArchitectureTests(unittest.TestCase):
 				with self.assertRaises(ValueError):
 					simulate(problem, RK4(step=0.1), request, execution=_FixedOutputExecution(states, times))
 
-	def test_gc_and_fc_split_maps_preserve_physical_motion_and_reverse_momentum(self) -> None:
+	def test_gc_and_fc_split_maps_preserve_physical_motion_and_reverse_signed_steps(self) -> None:
 		potential = deterministic_potential()
 		cases = (
 			(
@@ -352,18 +353,16 @@ class ExtensibleArchitectureTests(unittest.TestCase):
 			),
 		)
 		for formulation, dynamics, source in cases:
-			problem = InitialValueProblem(dynamics, source)
-			tracked = formulation(dynamics, source.size, track_energy=True)
-			physical = formulation(dynamics, source.size, track_energy=False)
+			maps = (GCDoubledMaps(dynamics.vector_field, source.size, coordinates=dynamics.coordinates)
+				if formulation is GCDoubledMaps else FCSplitMaps(dynamics.cyclotron_flow,
+					dynamics.electric_kick, source.size, coordinates=dynamics.coordinates))
 			for forward, reverse in (("direct_map", "adjoint_map"), ("adjoint_map", "direct_map")):
-				with self.subTest(formulation=type(formulation).__name__, forward=forward):
-					work = np.tile(source, 2) if formulation is GCDoubledMaps else source.copy()
-					initial = np.r_[work, np.zeros(problem.particle_count)]
-					advanced = getattr(tracked, forward)(0.01, 0.23, initial)
-					untracked = getattr(physical, forward)(0.01, 0.23, work)
-					np.testing.assert_array_equal(advanced[:untracked.size], untracked)
-					self.assertTrue(np.any(advanced[untracked.size:] != 0.0))
-					restored = getattr(tracked, reverse)(-0.01, 0.23, advanced)
+				with self.subTest(formulation=formulation.__name__, forward=forward):
+					initial = np.tile(source, 2) if formulation is GCDoubledMaps else source.copy()
+					advanced = getattr(maps, forward)(0.01, 0.23, initial)
+					restored = getattr(maps, reverse)(-0.01, 0.23, advanced)
+					self.assertEqual(advanced.shape, initial.shape)
+					self.assertFalse(hasattr(maps, 'dynamics'))
 					np.testing.assert_allclose(restored, initial, rtol=0, atol=2e-14)
 
 	def test_request_revalidates_normalized_endpoints(self) -> None:

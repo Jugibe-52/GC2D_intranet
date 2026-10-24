@@ -25,6 +25,7 @@ from problem import InitialValueProblem
 from request import SimulationRequest
 from states.history import States
 from simulation.runner import simulate
+from solvers.nonlinear import NewtonSolver
 
 from typing import TYPE_CHECKING
 
@@ -185,16 +186,17 @@ def run_generalized_energy_comparison(
 			initial_state=initial_state,
 		)
 		method: BM4Implicit = BM4Implicit(
-			newton_absolute_tolerance=config.newton_absolute_tolerance,
-			newton_relative_tolerance=config.newton_relative_tolerance,
-			newton_max_iterations=config.newton_max_iterations,
-			newton_jacobian_relative_step=config.newton_jacobian_relative_step,
-			newton_jacobian_method="analytic",
-			nonlinear_solver="newton",
+			solver=NewtonSolver(
+				absolute_tolerance=config.newton_absolute_tolerance,
+				relative_tolerance=config.newton_relative_tolerance,
+				max_iterations=config.newton_max_iterations,
+				jacobian_relative_step=config.newton_jacobian_relative_step,
+				jacobian_method="analytic",
+			),
 			progress=config.progress,
-			step_observer=energy_observer,
 		)
-		raw_solution: States = simulate(problem, replace(method, step=step), request)
+		raw_solution: States = simulate(problem, replace(method, step=step), request,
+			observers=(energy_observer,))
 		records = energy_observer.records
 		if len(records) != raw_solution.n_steps + 1:
 			raise RuntimeError(

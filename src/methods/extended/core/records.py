@@ -6,9 +6,10 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from contracts.solvers.nonlinear import NewtonObserver
 from solvers.nonlinear import SolveStats
-from methods.extended.maps import _EnergyQuadraturePoint
+from contracts.methods.quadrature import StageQuadrature
+
+QuadraturePoint = tuple[float, float, np.ndarray]
 from methods.extended.core.operations import OperationName
 
 
@@ -38,7 +39,7 @@ class MapStage:
     direct: bool
     state_before: np.ndarray
     state_after: np.ndarray
-    energy_points: tuple[_EnergyQuadraturePoint, ...]
+    quadrature_points: tuple[QuadraturePoint, ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -54,10 +55,17 @@ class CompositionTrace:
     time: float
 
     @property
-    def energy_points(self) -> tuple[_EnergyQuadraturePoint, ...]:
+    def quadrature_points(self) -> tuple[QuadraturePoint, ...]:
         """Expose signed shear inputs in their original execution order."""
         return tuple((stage.time, stage.duration, stage.source)
                      for stage in self.operations if stage.source is not None)
+
+    @property
+    def quadrature(self) -> StageQuadrature:
+        """Normalize signed doubled shear weights to one physical copy."""
+        points = self.quadrature_points
+        return StageQuadrature(tuple(p[0] for p in points), tuple(p[2] for p in points),
+                               tuple(p[1] / 2 for p in points), reduction_scale=2.)
 
 
 @dataclass(frozen=True, slots=True)
@@ -71,7 +79,6 @@ class ProjectedMapResult:
     multiplier: np.ndarray
     stats: SolveStats
     trace: CompositionTrace
-    retain_energy_points: bool = False
 
     @property
     def internal_input(self) -> np.ndarray:
@@ -80,10 +87,6 @@ class ProjectedMapResult:
     @property
     def mapped(self) -> np.ndarray:
         return self.trace.state
-
-    @property
-    def energy_points(self) -> tuple[_EnergyQuadraturePoint, ...]:
-        return self.trace.energy_points if self.retain_energy_points else ()
 
     @property
     def iterations(self) -> int:

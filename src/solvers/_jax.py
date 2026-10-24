@@ -1,6 +1,8 @@
 """Optional device-side nonlinear control and independent particle Jacobians."""
 
-from typing import Any, Callable, NamedTuple
+from typing import Any, Callable, NamedTuple, Literal
+from dataclasses import dataclass
+from solvers.nonlinear import NewtonSolver, BroydenSolver
 
 import jax
 import jax.numpy as jnp
@@ -163,3 +165,26 @@ def solve_particle_blocks(matrix: Any, residual: Any) -> Any:
 
 
 __all__: list[str] = []
+
+
+@dataclass(frozen=True)
+class NonlinearOptions:
+	"""Stopping and Jacobian controls for one physical nonlinear problem."""
+
+	atol: float
+	rtol: float
+	max_iterations: int
+	jacobian: Literal["analytic", "finite_difference"]
+	relative_step: float
+	solver: Literal["newton", "broyden"]
+	backtracking: bool
+
+	@classmethod
+	def from_solver(cls, solver: NewtonSolver | BroydenSolver, jacobian: Literal["analytic", "finite_difference"]) -> "NonlinearOptions":
+		"""Derive compiled controls without a second set of defaults or validation."""
+		return cls(solver.absolute_tolerance, solver.relative_tolerance, solver.max_iterations,
+			jacobian, solver.jacobian_relative_step, solver.name, solver.backtracking)
+
+	def tolerance(self, state: Any) -> Any:
+		"""Preserve the CPU's global physical-state infinity-norm scaling."""
+		return self.atol + self.rtol * jnp.maximum(1., jnp.max(jnp.abs(state)))

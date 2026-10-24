@@ -14,6 +14,7 @@ import numpy as np
 from contracts.methods.observation import IntegrationStep
 from diagnostics.methods.extended.abba_reversibility import ImplicitABBAReversibilityObserver
 from diagnostics.methods.extended.energy.observer import GCGeneralizedEnergyObserver
+from diagnostics.methods.energy import EnergyObserver
 from diagnostics.studies.five_method_comparison_csv import load_five_method_comparison_csv
 from diagnostics.studies.reference_trajectory import ReferenceTrajectoryPaths, StoredReferenceTrajectory
 from diagnostics.methods.symplecticity.observer import SymplecticityObserver, gc_physical_symplectic_form
@@ -79,8 +80,9 @@ class DiagnosticValidationContracts(unittest.TestCase):
 		events: list[IntegrationStep] = []
 		simulate(
 			InitialValueProblem(dynamics, configuration, layout=GuidingCenterDynamics.coordinates),
-			ABBA2Implicit(step=0.01, step_observer=events.append),
+			ABBA2Implicit(step=0.01),
 			SimulationRequest.uniform(t_span=(0.0, 0.02),  sample_count=3),
+			observers=(EnergyObserver(), events.append),
 		)
 		reversibility = ImplicitABBAReversibilityObserver(sample_every=2)
 		reversibility(events[0])
@@ -92,7 +94,7 @@ class DiagnosticValidationContracts(unittest.TestCase):
 			reversibility(events[1])
 
 		energy = GCGeneralizedEnergyObserver(dynamics, initial_time=0.0, initial_state=events[0].state_before)
-		with self.assertRaisesRegex(ValueError, "continuous time grid"):
+		with self.assertRaisesRegex(ValueError, "continuous order"):
 			energy(replace(events[0], start_time=1.0))
 		self.assertEqual(len(energy.records), 1)
 		energy(events[0])

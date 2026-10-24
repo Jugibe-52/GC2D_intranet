@@ -9,6 +9,9 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import matplotlib.pyplot as plt
+from solvers.nonlinear import NewtonSolver
+from diagnostics.methods.energy import EnergyObserver
+
 import numpy as np
 from scipy.integrate import solve_ivp
 
@@ -97,19 +100,7 @@ class HBVM42MethodTests(unittest.TestCase):
 		).y[:, -1]
 		errors: list[float] = []
 		for step in (0.2, 0.1):
-			solution = simulate(
-				self.problem,
-				HBVM42(step=step,
-					absolute_tolerance=1e-14,
-					relative_tolerance=1e-13,
-					jacobian_method="analytic",
-					track_energy=True,
-				),
-				SimulationRequest.uniform(
-					t_span=(0.0, 2.0),
-					sample_count=11,
-				),
-			)
+			solution = simulate(self.problem, HBVM42(step=step, solver=NewtonSolver(max_iterations=12, backtracking=True, absolute_tolerance=1e-14, relative_tolerance=1e-13, jacobian_method='analytic')), SimulationRequest.uniform(t_span=(0.0, 2.0), sample_count=11), observers=(EnergyObserver(),))
 			errors.append(float(np.linalg.norm(solution.states[:, -1] - reference)))
 			self.assertLess(float(solution.diagnostics["energy_error"]), 2e-13)
 			self.assertEqual(
@@ -121,28 +112,14 @@ class HBVM42MethodTests(unittest.TestCase):
 
 	def test_auto_jacobian_falls_back_to_centered_finite_differences(self) -> None:
 		problem = InitialValueProblem(_QuarticWithoutJacobian(), self.configuration, layout=GuidingCenterDynamics.coordinates)
-		solution = simulate(
-			problem,
-			HBVM42(step=0.1, jacobian_method="auto", track_energy=True),
-			SimulationRequest.uniform(
-				t_span=(0.0, 0.2),
-				sample_count=3,
-			),
-		)
+		solution = simulate(problem, HBVM42(step=0.1, solver=NewtonSolver(absolute_tolerance=1e-13, relative_tolerance=1e-12, max_iterations=12, backtracking=True, jacobian_method='auto')), SimulationRequest.uniform(t_span=(0.0, 0.2), sample_count=3), observers=(EnergyObserver(),))
 		field_counts = np.asarray(
 			solution.diagnostics["vector_field_evaluations_per_step"]
 		)
 		self.assertEqual(field_counts.shape, (2,))
 		self.assertTrue(np.all(field_counts > 17))
-		with self.assertRaisesRegex(TypeError, "Analytic HBVM Jacobians"):
-			simulate(
-				problem,
-				HBVM42(step=0.1, jacobian_method="analytic"),
-				SimulationRequest.uniform(
-					t_span=(0.0, 0.1),
-					sample_count=2,
-				),
-			)
+		with self.assertRaisesRegex(TypeError, "Analytic differentiation"):
+			simulate(problem, HBVM42(step=0.1, solver=NewtonSolver(absolute_tolerance=1e-13, relative_tolerance=1e-12, max_iterations=12, backtracking=True, jacobian_method='analytic')), SimulationRequest.uniform(t_span=(0.0, 0.1), sample_count=2))
 
 	def test_exact_and_finite_difference_jacobians_agree_for_gc_dynamics(self) -> None:
 		"""Exercise HBVM on the repository's nonautonomous guiding-center model."""
@@ -161,12 +138,8 @@ class HBVM42MethodTests(unittest.TestCase):
 			t_span=(0.0, 0.2),
 			sample_count=5,
 		)
-		analytic = simulate(problem, HBVM42(step=0.05, jacobian_method="analytic"), request)
-		finite_difference = simulate(
-			problem,
-			HBVM42(step=0.05, jacobian_method="finite_difference"),
-			request,
-		)
+		analytic = simulate(problem, HBVM42(step=0.05, solver=NewtonSolver(absolute_tolerance=1e-13, relative_tolerance=1e-12, max_iterations=12, backtracking=True, jacobian_method='analytic')), request)
+		finite_difference = simulate(problem, HBVM42(step=0.05, solver=NewtonSolver(absolute_tolerance=1e-13, relative_tolerance=1e-12, max_iterations=12, backtracking=True, jacobian_method='finite_difference')), request)
 		np.testing.assert_allclose(
 			analytic.states,
 			finite_difference.states,

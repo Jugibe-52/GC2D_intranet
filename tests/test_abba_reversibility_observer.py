@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from dynamics.gc import GuidingCenterDynamics
+from dynamics import GuidingCenterDynamics
+from solvers import NewtonSolver
 
 from dataclasses import replace
 import unittest
@@ -51,17 +52,13 @@ class ImplicitABBAReversibilityObserverTests(unittest.TestCase):
 			"newton_max_iterations": 12,
 		}
 		methods = [
-			ABBA2Implicit(projection_formulation=formulation, **solver)
+			ABBA2Implicit(projection_formulation=formulation, solver=NewtonSolver(absolute_tolerance=solver['newton_absolute_tolerance'], relative_tolerance=solver['newton_relative_tolerance'], max_iterations=solver['newton_max_iterations'], jacobian_method='analytic'))
 			for formulation in ABBA_PROJECTION_FORMULATIONS
 		]
-		methods.append(ABBA4Implicit(**solver))
+		methods.append(ABBA4Implicit(solver=NewtonSolver(absolute_tolerance=solver['newton_absolute_tolerance'], relative_tolerance=solver['newton_relative_tolerance'], max_iterations=solver['newton_max_iterations'], jacobian_method='analytic')))
 		for method in methods:
 			observer = ImplicitABBAReversibilityObserver(**solver)
-			solution = simulate(
-				problem,
-				replace(replace(method, step_observer=observer), step=0.07),
-				request,
-			)
+			solution = simulate(problem, replace(replace(method), step=0.07), request, observers=tuple((o for o in (observer,) if o is not None)))
 			self.assertEqual(len(observer.samples), solution.n_steps)
 			for sample in observer.samples:
 				identity = np.eye(2)

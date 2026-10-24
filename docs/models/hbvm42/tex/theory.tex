@@ -57,21 +57,21 @@ canonical defect independently of its energy behavior.
 
 \section{Nonlinear configurations}
 
-Newton acts on the reduced residual $(R_0,R_1)$.  The public
-\texttt{jacobian\_method} values are \texttt{analytic},
-\texttt{finite\_difference}, and \texttt{auto}.  Analytic mode assembles exact
-guiding-centre particle blocks at the four stages; finite-difference mode
-differentiates the stage fields; auto selects the available capability.  A
-backtracking correction is used only when the full Newton update increases the
-residual.  The stopping scale is
+Newton acts on the reduced residual $(R_0,R_1)$. Pass
+\texttt{solver=NewtonSolver(...)}; its \texttt{jacobian\_method} selects
+differentiation. \texttt{analytic} uses the dense or particle-block Jacobian supplied by execution;
+\texttt{finite\_difference} differentiates stage fields; \texttt{auto} uses the
+supplied derivative when available. The solver owns tolerances and iteration
+limits. HBVM defaults to \texttt{backtracking=True}, which shortens corrections
+when the full Newton update increases the residual. The stopping scale is
 \[
 \varepsilon_{\rm abs}+\varepsilon_{\rm rel}
 \max(1,\lVert y_n\rVert_\infty).
 \]
 
-With \texttt{track\_energy=True}, the implementation stores the physical
-Hamiltonian and its drift at saved times.  For explicitly time-dependent
-systems this is a diagnostic, not an invariant claim.
+An optional \texttt{EnergyObserver} stores the physical Hamiltonian and the
+passive balance $H+\kappa-H(t_0,z_0)$ at saved times. For explicitly
+time-dependent systems this does not claim conservation of physical $H$.
 
 \section{Implementation correspondence}
 
@@ -83,8 +83,9 @@ tree.
 
 \section{Physical accepted states and passive energy tracking}
 For $N$ particles with $d$ physical components, every accepted snapshot contains
-$Z\in\mathbb{R}^{dN}$, one scalar time $t$, and optional separate physical
-momentum $\kappa\in\mathbb{R}^{N}$. Thus GC accepted vectors have $2N$
+$Z\in\mathbb{R}^{dN}$ and one scalar time $t$. An optional energy observer
+owns separate physical momentum $\kappa\in\mathbb{R}^{N}$.
+Thus GC accepted vectors have $2N$
 components and FC vectors have $4N$, whether energy is tracked or not.
 A doubled method prepares temporary $(u,v)\in\mathbb{R}^{2dN}$ copies,
 allows them to separate, and projects to one physical result before acceptance.
@@ -106,10 +107,17 @@ and ABBA's simultaneous spatial solve has $6N$ unknowns. Neither $t$ nor
 $\kappa$ is projected. The former eight-component projection is retired.
 Dynamics declare component order and position/velocity roles through immutable
 structural data; initial conditions and results retain those data independently.
-Methods own maps, projection equations and momentum updates. Generic copy
-operations live in \path{src/formulations/state.py}.
+Execution injects $f(t,Z)$ and optional physical derivatives into a fresh method
+run. Methods own physical stages and projection equations, without retaining the
+dynamics object. Nonlinear tolerances, iteration limits, differentiation and
+iteration callbacks belong to the configured algebraic solver. Generic doubled
+copy operations live in \path{src/formulations/state.py}; classical, HBVM and
+adaptive methods need no state formulation.
 
-Controllers and compiled JAX loops carry physical values and momentum separately.
+Methods optionally return retained stage quadrature or a dense interpolant.
+The energy observer integrates momentum independently, using Hamiltonian
+functions supplied by execution. Controllers keep only physical accepted states;
+compiled JAX loops carry the observer accumulator separately.
 Observers receive physical states. Energy histories in \texttt{States.diagnostics}
 retain their existing labels; \texttt{extended\_time} has shape
 $(N,n_{\rm samples})$ and is broadcast from scalar sample times.
@@ -123,20 +131,14 @@ The four converged stage states and Gauss weights integrate the passive momentum
 
 \section{Optional JAX execution}
 
-An optional JAX driver executes the same numerical map on one selected CPU
-or GPU, with particle operations batched inside a compiled sequential time
-loop. It reuses the canonical coefficients and prepared potential splines.
-Physical-state tolerance scaling, signed stage times, passive energy weights
-and independent shortened output maps retain their definitions above.
-Applicable Newton systems use independent particle blocks; an explicitly
-selected Broyden iteration retains its global secant matrix. Nonlinear
-iteration limits and failure checks remain active on the device.
-
-Both execution routes use double precision and return the same physical
-solution layout. Floating-point reassociation can produce round-off
-differences without changing the designed order or geometric properties.
-First-call compilation is separate from warmed integration timings, which
-include transfers and output construction. The sibling runtime document and
-shared execution contract specify supported callbacks and exact device scope.
+The optional JAX driver executes the same map in double precision on one
+selected CPU or GPU, batching particles inside a compiled sequential time loop.
+It preserves coefficients, physical tolerance scaling, signed stage times,
+passive quadrature, independent shortened output maps and convergence failures.
+Newton uses the supplied particle-block structure. Both routes return the same
+physical solution layout; floating-point reassociation can change round-off
+without changing the designed order or geometric properties. First-call
+compilation is separate from warmed timings, which include transfers and output.
+The shared execution contract specifies callbacks and device scope.
 
 \end{document}

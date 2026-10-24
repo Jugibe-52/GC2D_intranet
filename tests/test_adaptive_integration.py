@@ -10,6 +10,7 @@ import numpy as np
 from scipy.integrate import solve_ivp
 
 from diagnostics import AdaptiveTrajectoryObserver
+from diagnostics.methods.energy import EnergyObserver
 
 from simulation import (
     DOP853, Radau, ABBA2Implicit, ABBA2Midpoint, ABBA4Implicit, ABBA6Implicit,
@@ -43,19 +44,22 @@ class AdaptiveIntegrationTests(unittest.TestCase):
                 source = _problem()
                 problem = InitialValueProblem(source.dynamics, GuidingCenterDynamics.coordinates.pack_components([1., 1.1, 1.2], [1.2, 1.3, 1.4]), layout=GuidingCenterDynamics.coordinates)
                 request = SimulationRequest.uniform(t_span=(.3, .34),  sample_count=3)
-                run = replace(cls(track_energy=True, first_step=.02), max_step=0.02).new_run(problem, request)
+                run = replace(cls(first_step=.02), max_step=0.02).new_run(problem.dynamics.vector_field, problem.initial_conditions, request, capture_quadrature=True)
                 with patch.object(type(problem.dynamics), 'extended_momentum_derivative', autospec=True,
                                   side_effect=type(problem.dynamics).extended_momentum_derivative) as rate:
-                    result = run.advance(.3, run.initial_state, .02, momentum=run.initial_momentum)
+                    energy = EnergyObserver().new_run(problem.dynamics.hamiltonian,
+                        problem.dynamics.extended_momentum_derivative, particle_count=problem.particle_count, initial_time=.3)
+                    result = run.advance(.3, run.initial_state, .02)
+                    energy.accept(0, .3, float(run.solver.t), result.quadrature)
                     end = float(run.solver.t)
                     self.assertEqual(rate.call_count, 8)
                     dense = result.details.dense_state
-                    dense_momentum = result.details.dense_momentum
+                    dense_momentum = energy.sample
                     queries = np.array([.3, end, end, .3])
                     history = dense(queries)
                     momenta = dense_momentum(queries)
-                    initial = run.initial_momentum
-                    final = result.momentum.copy()
+                    initial = np.zeros(problem.particle_count)
+                    final = energy.momentum
                     expected = np.stack((initial, final, final, initial), axis=-1)
                     np.testing.assert_array_equal(momenta, expected)
                     self.assertEqual(rate.call_count, 8)
@@ -66,8 +70,8 @@ class AdaptiveIntegrationTests(unittest.TestCase):
                     interior = dense_momentum(midpoint)
                     self.assertEqual(rate.call_count, 16)
                     self.assertTrue(np.all(np.isfinite(interior)))
-                    # An old interpolant keeps its own endpoint values after the run advances.
-                    run.advance(end, result.state, .02, momentum=result.momentum)
+                    # Advancing the physical solver alone cannot mutate the energy accumulator.
+                    run.advance(end, result.state, .02)
                     count = rate.call_count
                     np.testing.assert_array_equal(dense_momentum(end), final)
                     self.assertEqual(rate.call_count, count)
@@ -80,7 +84,7 @@ class AdaptiveIntegrationTests(unittest.TestCase):
                 request = SimulationRequest.uniform(t_span=(.3, .32),  sample_count=2)
                 with patch.object(type(problem.dynamics), 'extended_momentum_derivative', autospec=True,
                                   side_effect=type(problem.dynamics).extended_momentum_derivative) as rate:
-                    result = simulate(problem, replace(cls(track_energy=True, first_step=step), max_step=step), request)
+                    result = simulate(problem, replace(cls(first_step=step), max_step=step), request, observers=(EnergyObserver(),))
                 self.assertEqual(result.n_steps, 1)
                 self.assertEqual(rate.call_count, 8)
 
@@ -101,7 +105,7 @@ class AdaptiveIntegrationTests(unittest.TestCase):
                         max_step=.08, rtol=1e-10, atol=1e-12)
                     events = []
                     plain = simulate(self.problem, cls(max_step=.08), request)
-                    observed = simulate(self.problem, cls(max_step=.08, step_observer=events.append), request)
+                    observed = simulate(self.problem, cls(max_step=.08), request, observers=(events.append,))
                     np.testing.assert_array_equal(plain.states, reference.y)
                     np.testing.assert_array_equal(observed.states, plain.states)
                     for key, total in zip(('function_evaluations', 'jacobian_evaluations', 'lu_decompositions'),
@@ -130,13 +134,13 @@ class AdaptiveIntegrationTests(unittest.TestCase):
                 event.dense_state(time)[:] = 999
                 np.testing.assert_array_equal(event.dense_state(time), expected)
                 events.append(event)
-            run = replace(cls(step_observer=mutate), max_step=0.08).new_run(self.problem, self.request)
+            run = replace(cls(), max_step=0.08).new_run(self.problem.dynamics.vector_field, self.problem.initial_conditions, self.request, observe=True)
             self.assertEqual(events, [])
             plain = simulate(self.problem, replace(cls(), max_step=0.08), self.request)
             with patch.object(cls, "new_run", return_value=run):
-                first = Execution().run(self.problem, replace(run, max_step=0.08), self.request)
+                first = Execution().run(self.problem, replace(run, max_step=0.08), self.request, observers=(mutate,))
             count = len(events)
-            second = simulate(self.problem, replace(cls(step_observer=mutate), max_step=0.08), self.request)
+            second = simulate(self.problem, replace(cls(), max_step=0.08), self.request, observers=(mutate,))
             self.assertEqual(len(events), 2 * count)
             np.testing.assert_array_equal(first.states, plain.states)
             np.testing.assert_array_equal(second.states, first.states)
@@ -144,8 +148,8 @@ class AdaptiveIntegrationTests(unittest.TestCase):
     def test_dense_retention_matches_scipy_at_unscheduled_times(self):
         for cls in (DOP853, Radau):
             observer = AdaptiveTrajectoryObserver()
-            configured = cls(dense_output=True, step_observer=observer)
-            actual = simulate(self.problem, replace(configured, max_step=0.08), self.request)
+            configured = cls(dense_output=True)
+            actual = simulate(self.problem, replace(configured, max_step=0.08), self.request, observers=(observer,))
             reference = solve_ivp(self.problem.dynamics.vector_field, self.request.t_span,
                 self.problem.initial_state, method=cls.__name__, max_step=.08,
                 rtol=1e-10, atol=1e-12, dense_output=True)
@@ -166,7 +170,7 @@ class AdaptiveIntegrationTests(unittest.TestCase):
             request = SimulationRequest.uniform(t_span=(.3, .34),  sample_count=5)
             reference = solve_ivp(derivative, request.t_span, np.r_[problem.initial_state, 0.],
                 method='DOP853', rtol=1e-13, atol=1e-15, max_step=.001, t_eval=request.output_times)
-            actual = simulate(problem, replace(cls(track_energy=True), max_step=0.02), request)
+            actual = simulate(problem, replace(cls(), max_step=0.02), request, observers=(EnergyObserver(),))
             plain = simulate(problem, replace(cls(), max_step=0.02), request)
             np.testing.assert_array_equal(actual.states, plain.states)
             for key in ('step_times', 'function_evaluations', 'jacobian_evaluations', 'lu_decompositions'):
@@ -176,8 +180,8 @@ class AdaptiveIntegrationTests(unittest.TestCase):
 
     def test_advance_keeps_one_live_solver_and_independent_runs(self):
         for cls in (DOP853, Radau):
-            first = replace(cls(dense_output=True), max_step=0.08).new_run(self.problem, self.request)
-            second = replace(cls(dense_output=True), max_step=0.08).new_run(self.problem, self.request)
+            first = replace(cls(dense_output=True), max_step=0.08).new_run(self.problem.dynamics.vector_field, self.problem.initial_conditions, self.request, observe=True)
+            second = replace(cls(dense_output=True), max_step=0.08).new_run(self.problem.dynamics.vector_field, self.problem.initial_conditions, self.request, observe=True)
             self.assertIsNot(first.solver, second.solver)
             solver = first.solver
             reference = cls.solver_type(self.problem.dynamics.vector_field, .3,
@@ -206,7 +210,7 @@ class AdaptiveIntegrationTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     cls(**options)
             with self.assertRaises(TypeError):
-                replace(cls(track_energy=True), max_step=0.08).new_run(self.problem, self.request)
+                simulate(self.problem, cls(max_step=.08), self.request, observers=(EnergyObserver(),))
             def fail(solver):
                 solver.status = 'failed'
                 return 'injected failure'

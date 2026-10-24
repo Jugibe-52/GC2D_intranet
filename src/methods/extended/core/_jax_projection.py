@@ -5,10 +5,10 @@ from typing import Any, TYPE_CHECKING
 import jax
 import jax.numpy as jnp
 
-from contracts.dynamics.protocols import HamiltonianSystem, GuidingCenterJacobianSystem
+from contracts.methods.functions import VectorField
+from contracts.methods.quadrature import StageQuadrature
 from methods.extended.maps import _COUPLING_BASE, _COUPLING_COS, _COUPLING_SIN
 from methods.projection import resolve_projection
-from dynamics.gc import GuidingCenterDynamics
 from formulations.state import DoubleFormulation
 from methods._jax_options import CompositionOptions
 from solvers._jax import (
@@ -31,7 +31,7 @@ def coupling_matrix(duration: Any, frequency: float | None) -> Any:
             + jnp.sin(angle) * jnp.asarray(_COUPLING_SIN)) / 2
 
 
-def compose(time: Any, state: Any, step: Any, dynamics: HamiltonianSystem,
+def compose(time: Any, state: Any, step: Any, f: VectorField,
             options: CompositionOptions) -> tuple[Any, Any]:
     """Execute the same explicit A/B/T/C recipe as NumPy inside one scan.
 
@@ -53,11 +53,11 @@ def compose(time: Any, state: Any, step: Any, dynamics: HamiltonianSystem,
         empty: jax.Array = jnp.zeros(size)
         def shear_a() -> Any:
             source = current[size:]
-            first = current[:size] + duration * dynamics.vector_field(clock, source)
+            first = current[:size] + duration * f(clock, source)
             return jnp.concatenate((first, source)), clock, source
         def shear_b() -> Any:
             source = current[:size]
-            second = current[size:] + duration * dynamics.vector_field(clock, source)
+            second = current[size:] + duration * f(clock, source)
             return jnp.concatenate((source, second)), clock, source
         def translate() -> Any:
             return current, clock + duration, empty
@@ -75,10 +75,10 @@ def compose(time: Any, state: Any, step: Any, dynamics: HamiltonianSystem,
     return after, trace
 
 
-def composition_jacobian(trace: Any, dynamics: HamiltonianSystem, options: CompositionOptions) -> Any:
+def composition_jacobian(trace: Any, jacobian: VectorField | None, options: CompositionOptions) -> Any:
     """Differentiate each elementary flow in its actual execution order."""
-    if not isinstance(dynamics, GuidingCenterJacobianSystem):
-        raise TypeError('Analytic particle Jacobians require GC dynamics.')
+    if jacobian is None:
+        raise TypeError('Analytic particle Jacobians require a supplied derivative.')
     times: jax.Array
     durations: jax.Array
     sources: jax.Array
@@ -93,10 +93,10 @@ def composition_jacobian(trace: Any, dynamics: HamiltonianSystem, options: Compo
         source: jax.Array
         code, time, duration, source = inputs
         def shear_a() -> Any:
-            field = duration * dynamics.particle_vector_field_jacobians(time, source)
+            field = duration * jacobian(time, source)
             return identity.at[:, :2, 2:].set(field)
         def shear_b() -> Any:
-            field = duration * dynamics.particle_vector_field_jacobians(time, source)
+            field = duration * jacobian(time, source)
             return identity.at[:, 2:, :2].set(field)
         def translate() -> Any:
             return identity
@@ -109,24 +109,15 @@ def composition_jacobian(trace: Any, dynamics: HamiltonianSystem, options: Compo
     return total
 
 
-def energy_increment(trace: Any, dynamics: HamiltonianSystem, options: CompositionOptions) -> Any:
-    """Accumulate accepted A/B sources with the physical momentum factor 1/2."""
-    times: jax.Array
-    durations: jax.Array
-    sources: jax.Array
+def stage_quadrature(trace: Any, options: CompositionOptions) -> StageQuadrature:
+    """Expose signed A/B source weights with the doubled-map factor one half."""
     times, durations, sources = trace
-    indices: jax.Array = jnp.asarray(tuple(i for i, op in enumerate(options.recipe.operations) if op.name in ('A', 'B')))
-    times, durations, sources = times[indices], durations[indices], sources[indices]
-    rates: jax.Array = jax.vmap(dynamics.extended_momentum_derivative)(times, sources)
-    contributions = durations[:, None] * rates
-    def add(total: Any, value: Any) -> Any:
-        return total + value, None
-    total: jax.Array
-    total, _ = jax.lax.scan(add, jnp.zeros(contributions.shape[-1]), contributions)
-    return total / 2
+    indices = tuple(i for i, op in enumerate(options.recipe.operations) if op.name in ('A', 'B'))
+    return StageQuadrature(tuple(times[i] for i in indices), tuple(sources[i] for i in indices),
+                           tuple(durations[i] / 2 for i in indices), reduction_scale=2.)
 
 
-def extended_step(time: Any, state: Any, step: Any, dynamics: HamiltonianSystem,
+def extended_step(time: Any, state: Any, step: Any, f: VectorField, jacobian: VectorField | None, dimension: int,
                   options: CompositionOptions) -> tuple[Any, Any, dict[str, Any], Any]:
     """Project a complete recipe without changing its residual or solver axis."""
     size: int
@@ -138,13 +129,13 @@ def extended_step(time: Any, state: Any, step: Any, dynamics: HamiltonianSystem,
         mu: jax.Array = equations.multiplier(unknown, size)
         mapped: jax.Array
         trace: Any
-        mapped, trace = compose(time, representation.join_copies(state + mu, state - mu), step, dynamics, options)
+        mapped, trace = compose(time, representation.join_copies(state + mu, state - mu), step, f, options)
         residual: jax.Array = equations.residual(unknown, mapped, size)
         return residual, (mapped, trace)
     if options.solve is None:
         mapped: jax.Array
         trace: Any
-        mapped, trace = compose(time, representation.lift(state), step, dynamics, options)
+        mapped, trace = compose(time, representation.lift(state), step, f, options)
         after: jax.Array = (mapped[:size] + mapped[size:]) / 2
         statistics = {'copy_separation_norms': infinity_norm(mapped[:size] - mapped[size:])}
         valid: jax.Array = jnp.array(True)
@@ -155,18 +146,18 @@ def extended_step(time: Any, state: Any, step: Any, dynamics: HamiltonianSystem,
             trace: Any
             _, trace = payload
             if solve.jacobian == 'analytic':
-                base: jax.Array = composition_jacobian(trace, dynamics, options)
+                base: jax.Array = composition_jacobian(trace, jacobian, options)
             else:
                 mu: jax.Array = equations.multiplier(unknown, size)
                 initial: jax.Array = representation.join_copies(state + mu, state - mu)
-                base = particle_finite_difference(lambda z: compose(time, z, step, dynamics, options)[0],
+                base = particle_finite_difference(lambda z: compose(time, z, step, f, options)[0],
                                                  initial, 4, solve.relative_step)
             matrix: jax.Array = equations.particle_jacobian(base)
             return solve_particle_blocks(matrix, -residual)
         def initial_map(candidate: Any) -> Any:
             mapped: jax.Array
             trace: Any
-            mapped, trace = compose(time, candidate, step, dynamics, options)
+            mapped, trace = compose(time, candidate, step, f, options)
             return mapped, (mapped, trace)
         initial: jax.Array
         cached: Any
@@ -175,7 +166,7 @@ def extended_step(time: Any, state: Any, step: Any, dynamics: HamiltonianSystem,
             matrix: jax.Array = equations.initial_jacobian(state)
             root: Root = broyden(evaluate, initial, matrix, tolerance, solve.max_iterations, initial_evaluation=cached)
         else:
-            root = newton(evaluate, initial, correction, tolerance, solve.max_iterations, initial_evaluation=cached)
+            root = newton(evaluate, initial, correction, tolerance, solve.max_iterations, initial_evaluation=cached, backtracking=solve.backtracking)
         mapped, trace = root.payload
         mu: jax.Array = equations.multiplier(root.unknown, size)
         after = equations.reconstruct(root.unknown, mapped, size)
@@ -185,8 +176,8 @@ def extended_step(time: Any, state: Any, step: Any, dynamics: HamiltonianSystem,
         if options.publish_substeps:
             statistics.update({f'substep_{key}': jnp.reshape(value, (1,)) for key, value in statistics.items()})
         valid = root.converged
-    increment: jax.Array = energy_increment(trace, dynamics, options) if options.track_energy else jnp.zeros(n)
-    return after, increment, statistics, valid
+    quadrature = stage_quadrature(trace, options) if options.capture_quadrature else None
+    return after, quadrature, statistics, valid
 
 
 __all__: list[str] = []

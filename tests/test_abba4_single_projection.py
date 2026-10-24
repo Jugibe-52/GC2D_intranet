@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-from dynamics.gc import GuidingCenterDynamics
 
+from dynamics import GuidingCenterDynamics
+from solvers import BroydenSolver, NewtonSolver
 from pathlib import Path
 import tempfile
 import unittest
@@ -147,18 +148,7 @@ class ABBA4ImplicitSingleProjectionTests(unittest.TestCase):
 		)
 		errors = []
 		for step in (0.2, 0.1, 0.05):
-			solution = simulate(
-				problem,
-				ABBA4Implicit(step=step,
-					projection_placement="around_complete_composition",
-					newton_absolute_tolerance=1e-14,
-					newton_relative_tolerance=1e-14,
-				),
-				SimulationRequest.uniform(
-					t_span=(start, end),
-					sample_count=2,
-				),
-			)
+			solution = simulate(problem, ABBA4Implicit(step=step, projection_placement='around_complete_composition', solver=NewtonSolver(jacobian_method='analytic', absolute_tolerance=1e-14, relative_tolerance=1e-14)), SimulationRequest.uniform(t_span=(start, end), sample_count=2))
 			errors.append(float(np.linalg.norm(solution.states[:, -1] - exact)))
 		for gain in np.asarray(errors[:-1]) / np.asarray(errors[1:]):
 			self.assertGreater(float(gain), 14.0)
@@ -166,23 +156,7 @@ class ABBA4ImplicitSingleProjectionTests(unittest.TestCase):
 
 	def test_outer_step_uses_one_nonlinear_solve(self) -> None:
 		events = []
-		solution = simulate(
-			_problem(
-				_NonlinearHamiltonianDynamics(),
-				x=np.asarray([0.8]),
-				y=np.asarray([0.3]),
-			),
-			ABBA4Implicit(step=0.1,
-				projection_placement="around_complete_composition",
-				newton_absolute_tolerance=1e-14,
-				newton_relative_tolerance=1e-14,
-				step_observer=events.append,
-			),
-			SimulationRequest.uniform(
-				t_span=(0.0, 0.2),
-				sample_count=3,
-			),
-		)
+		solution = simulate(_problem(_NonlinearHamiltonianDynamics(), x=np.asarray([0.8]), y=np.asarray([0.3])), ABBA4Implicit(step=0.1, projection_placement='around_complete_composition', solver=NewtonSolver(jacobian_method='analytic', absolute_tolerance=1e-14, relative_tolerance=1e-14)), SimulationRequest.uniform(t_span=(0.0, 0.2), sample_count=3), observers=(events.append,))
 		self.assertEqual(solution.diagnostics["nonlinear_solves_per_step"], 1)
 		self.assertEqual(
 			solution.diagnostics["projection_placement"],
@@ -294,13 +268,7 @@ class ABBA4ImplicitSingleProjectionTests(unittest.TestCase):
 			sample_count=2,
 		)
 		old = simulate(problem, ABBA4Implicit(step=0.15), request).states[:, -1]
-		new = simulate(
-			problem,
-			ABBA4Implicit(step=0.15,
-				projection_placement="around_complete_composition",
-			),
-			request,
-		).states[:, -1]
+		new = simulate(problem, ABBA4Implicit(step=0.15, projection_placement='around_complete_composition'), request).states[:, -1]
 		np.testing.assert_array_equal(new, old)
 
 	def test_broyden_matches_the_newton_root(self) -> None:
@@ -313,21 +281,8 @@ class ABBA4ImplicitSingleProjectionTests(unittest.TestCase):
 			t_span=(0.0, 0.2),
 			sample_count=3,
 		)
-		newton = simulate(
-			problem,
-			ABBA4Implicit(step=0.1,
-				projection_placement="around_complete_composition",
-			),
-			request,
-		)
-		broyden = simulate(
-			problem,
-			ABBA4Implicit(step=0.1,
-				projection_placement="around_complete_composition",
-				nonlinear_solver="broyden",
-			),
-			request,
-		)
+		newton = simulate(problem, ABBA4Implicit(step=0.1, projection_placement='around_complete_composition'), request)
+		broyden = simulate(problem, ABBA4Implicit(step=0.1, projection_placement='around_complete_composition', solver=BroydenSolver(jacobian_method='analytic')), request)
 		self.assertEqual(broyden.diagnostics["nonlinear_solver"], "broyden")
 		np.testing.assert_allclose(
 			broyden.states,

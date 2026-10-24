@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from solvers.nonlinear import BroydenSolver, NewtonSolver
+
 from dynamics.gc import GuidingCenterDynamics
 
 from dataclasses import dataclass
@@ -353,12 +355,10 @@ def run_abba4_implicit_accuracy_study(
 		started: float = perf_counter()
 		solution: States = simulate(
 			problem,
-			ABBA4Implicit(step=step,
-				newton_absolute_tolerance=config.absolute_tolerance,
-				newton_relative_tolerance=config.relative_tolerance,
-				newton_max_iterations=config.max_iterations,
-				nonlinear_solver=config.nonlinear_solver,
+			ABBA4Implicit(
+				step=step,
 				progress=config.progress,
+				solver=(NewtonSolver if config.nonlinear_solver == 'newton' else BroydenSolver)(absolute_tolerance=config.absolute_tolerance, relative_tolerance=config.relative_tolerance, max_iterations=config.max_iterations, jacobian_method='analytic'),
 			),
 			request,
 		)

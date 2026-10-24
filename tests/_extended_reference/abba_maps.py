@@ -153,7 +153,7 @@ __all__: list[str] = []
 
 def uncoupled_maps(dynamics: DynamicalSystem, state: np.ndarray) -> GCDoubledMaps:
     """Bind canonical maps for independent residual-equation verification."""
-    return GCDoubledMaps(dynamics, state.size, coordinates=GuidingCenterDynamics.coordinates, coupling_frequency=None)
+    return GCDoubledMaps(dynamics.vector_field, state.size, jacobian=getattr(dynamics, 'particle_vector_field_jacobians', None), coordinates=GuidingCenterDynamics.coordinates, coupling_frequency=None)
 
 
 @dataclass(frozen=True, slots=True)

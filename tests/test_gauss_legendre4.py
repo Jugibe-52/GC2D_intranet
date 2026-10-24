@@ -8,6 +8,9 @@ from dynamics.gc import GuidingCenterDynamics
 
 import unittest
 
+from solvers.nonlinear import NewtonSolver
+from diagnostics.methods.energy import EnergyObserver
+
 import numpy as np
 
 from diagnostics import (
@@ -134,24 +137,17 @@ class GaussLegendre4Tests(unittest.TestCase):
 			("auto", "analytic", "finite_difference"),
 		)
 		with self.assertRaises(ValueError):
-			GaussLegendre4(newton_absolute_tolerance=0.0)
+			GaussLegendre4(solver=NewtonSolver(relative_tolerance=1e-13, max_iterations=20, absolute_tolerance=0.0))
 		with self.assertRaises(ValueError):
-			GaussLegendre4(newton_max_iterations=0)
+			GaussLegendre4(solver=NewtonSolver(absolute_tolerance=1e-14, relative_tolerance=1e-13, max_iterations=0))
 		with self.assertRaises(ValueError):
-			GaussLegendre4(newton_jacobian_method="complex_step")  # type: ignore[arg-type]
+			GaussLegendre4(solver=NewtonSolver(absolute_tolerance=1e-14, relative_tolerance=1e-13, max_iterations=20, jacobian_method='complex_step'))  # type: ignore[arg-type]
 
 	def test_fourth_order_rotation_convergence(self) -> None:
 		problem = _rotation_problem()
 		errors: list[float] = []
 		for step in (0.2, 0.1, 0.05):
-			solution = simulate(
-				problem,
-				GaussLegendre4(step=step, newton_jacobian_method="analytic"),
-				SimulationRequest.uniform(
-					t_span=(0.0, 1.0),
-					sample_count=2,
-				),
-			)
+			solution = simulate(problem, GaussLegendre4(step=step, solver=NewtonSolver(absolute_tolerance=1e-14, relative_tolerance=1e-13, max_iterations=20, jacobian_method='analytic')), SimulationRequest.uniform(t_span=(0.0, 1.0), sample_count=2))
 			expected = np.asarray((np.cos(1.0), np.sin(1.0)))
 			errors.append(float(np.linalg.norm(solution.states[:, -1] - expected)))
 		for coarse, fine in zip(errors, errors[1:]):
@@ -160,28 +156,14 @@ class GaussLegendre4Tests(unittest.TestCase):
 
 	def test_generic_time_dependent_field_uses_gauss_stage_times(self) -> None:
 		problem = InitialValueProblem(_CubicTimeField(), np.array(np.zeros(2), dtype=float, copy=True), layout=GuidingCenterDynamics.coordinates)
-		solution = simulate(
-			problem,
-			GaussLegendre4(step=1.0, newton_jacobian_method="auto"),
-			SimulationRequest.uniform(
-				t_span=(0.0, 1.0),
-				sample_count=2,
-			),
-		)
+		solution = simulate(problem, GaussLegendre4(step=1.0, solver=NewtonSolver(absolute_tolerance=1e-14, relative_tolerance=1e-13, max_iterations=20, jacobian_method='auto')), SimulationRequest.uniform(t_span=(0.0, 1.0), sample_count=2))
 		np.testing.assert_allclose(solution.states[:, -1], (0.25, 0.0), atol=2e-14)
 		self.assertEqual(
 			solution.diagnostics["newton_jacobian_method"],
 			"finite_difference",
 		)
 		with self.assertRaises(TypeError):
-			simulate(
-				problem,
-				GaussLegendre4(step=1.0, newton_jacobian_method="analytic"),
-				SimulationRequest.uniform(
-					t_span=(0.0, 1.0),
-					sample_count=2,
-				),
-			)
+			simulate(problem, GaussLegendre4(step=1.0, solver=NewtonSolver(absolute_tolerance=1e-14, relative_tolerance=1e-13, max_iterations=20, jacobian_method='analytic')), SimulationRequest.uniform(t_span=(0.0, 1.0), sample_count=2))
 
 	def test_auto_falls_back_when_gc_hessians_are_unavailable(self) -> None:
 		potential = Potential.random(
@@ -204,25 +186,11 @@ class GaussLegendre4Tests(unittest.TestCase):
 			"finite_difference",
 		)
 		with self.assertRaises(ValueError):
-			simulate(
-				problem,
-				GaussLegendre4(step=0.01, newton_jacobian_method="analytic"),
-				request,
-			)
+			simulate(problem, GaussLegendre4(step=0.01, solver=NewtonSolver(absolute_tolerance=1e-14, relative_tolerance=1e-13, max_iterations=20, jacobian_method='analytic')), request)
 
 	def test_exact_step_jacobian_is_symplectic_and_matches_map_audit(self) -> None:
 		events: list[GaussLegendre4IntegrationStep] = []
-		simulate(
-			_rotation_problem(particles=2),
-			GaussLegendre4(step=0.1,
-				newton_jacobian_method="analytic",
-				step_observer=events.append,
-			),
-			SimulationRequest.uniform(
-				t_span=(0.0, 0.1),
-				sample_count=2,
-			),
-		)
+		simulate(_rotation_problem(particles=2), GaussLegendre4(step=0.1, solver=NewtonSolver(absolute_tolerance=1e-14, relative_tolerance=1e-13, max_iterations=20, jacobian_method='analytic')), SimulationRequest.uniform(t_span=(0.0, 0.1), sample_count=2), observers=(events.append,))
 		self.assertEqual(len(events), 1)
 		step = events[0]
 		analytic = calculate_step_jacobian(step, method="implicit_function")
@@ -244,19 +212,7 @@ class GaussLegendre4Tests(unittest.TestCase):
 		)
 		problem = InitialValueProblem(GuidingCenterDynamics(potential, rho=0.05), np.array(np.asarray((1.0, 2.0, 1.2, 2.1)), dtype=float, copy=True), layout=GuidingCenterDynamics.coordinates)
 		events: list[GaussLegendre4IntegrationStep] = []
-		simulate(
-			problem,
-			GaussLegendre4(step=0.03,
-				newton_absolute_tolerance=1e-15,
-				newton_relative_tolerance=1e-14,
-				newton_jacobian_method="analytic",
-				step_observer=events.append,
-			),
-			SimulationRequest.uniform(
-				t_span=(0.0, 0.03),
-				sample_count=2,
-			),
-		)
+		simulate(problem, GaussLegendre4(step=0.03, solver=NewtonSolver(max_iterations=20, absolute_tolerance=1e-15, relative_tolerance=1e-14, jacobian_method='analytic')), SimulationRequest.uniform(t_span=(0.0, 0.03), sample_count=2), observers=(events.append,))
 		analytic = calculate_step_jacobian(events[0], method="implicit_function")
 		numerical = central_difference_jacobian(
 			events[0].map_state,
@@ -275,7 +231,7 @@ class GaussLegendre4Tests(unittest.TestCase):
 			sample_count=11,
 		)
 		plain = simulate(problem, GaussLegendre4(step=0.1), request)
-		tracked = simulate(problem, GaussLegendre4(step=0.1, track_energy=True), request)
+		tracked = simulate(problem, GaussLegendre4(step=0.1), request, observers=(EnergyObserver(),))
 		np.testing.assert_array_equal(plain.states, tracked.states)
 		assert tracked.k is not None
 		self.assertEqual(tracked.k.shape, (2, 11))
@@ -289,17 +245,7 @@ class GaussLegendre4Tests(unittest.TestCase):
 		errors: list[float] = []
 		finest = None
 		for step in (0.2, 0.1, 0.05):
-			finest = simulate(
-				problem,
-				GaussLegendre4(step=step,
-					track_energy=True,
-					newton_jacobian_method="analytic",
-				),
-				SimulationRequest.uniform(
-					t_span=(0.0, 1.0),
-					sample_count=int(round(1.0 / step)) + 1,
-				),
-			)
+			finest = simulate(problem, GaussLegendre4(step=step, solver=NewtonSolver(absolute_tolerance=1e-14, relative_tolerance=1e-13, max_iterations=20, jacobian_method='analytic')), SimulationRequest.uniform(t_span=(0.0, 1.0), sample_count=int(round(1.0 / step)) + 1), observers=(EnergyObserver(),))
 			assert finest.err is not None
 			errors.append(float(finest.err))
 		for coarse, fine in zip(errors, errors[1:]):
@@ -329,14 +275,7 @@ class GaussLegendre4Tests(unittest.TestCase):
 		)
 		problem = InitialValueProblem(GuidingCenterDynamics(potential, rho=0.05), np.array(np.asarray((1.0, 1.2)), dtype=float, copy=True), layout=GuidingCenterDynamics.coordinates)
 		events: list[GaussLegendre4IntegrationStep] = []
-		solution = simulate(
-			problem,
-			GaussLegendre4(step=0.01, step_observer=events.append),
-			SimulationRequest.uniform(
-				t_span=(0.0, 0.02),
-				sample_count=5,
-			),
-		)
+		solution = simulate(problem, GaussLegendre4(step=0.01), SimulationRequest.uniform(t_span=(0.0, 0.02), sample_count=5), observers=(events.append,))
 		self.assertEqual(solution.n_steps, 2)
 		self.assertEqual(len(events), 2)
 		for name in (

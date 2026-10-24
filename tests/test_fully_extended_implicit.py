@@ -1,5 +1,6 @@
 """Migration safeguards for the retired time/momentum projection mode."""
 import unittest
+from diagnostics.methods.energy import EnergyObserver
 from simulation import ABBA2Implicit, ABBA4Implicit, ABBA6Implicit, simulate
 from tests.test_method_integration import _problem, _request
 
@@ -7,15 +8,14 @@ from tests.test_method_integration import _problem, _request
 class FormerFullProjectionTests(unittest.TestCase):
     def test_former_eight_component_mode_requires_explicit_migration(self):
         for cls in (ABBA2Implicit, ABBA4Implicit, ABBA6Implicit):
-            with self.assertRaisesRegex(ValueError, "track_energy=True"):
+            with self.assertRaisesRegex(ValueError, "energy observer"):
                 cls(state_extension="fully_extended")
 
     def test_energy_tracking_projects_only_space(self):
         for cls in (ABBA2Implicit, ABBA4Implicit, ABBA6Implicit):
             for formulation in ("reduced_multiplier", "simultaneous_state_multiplier"):
                 events=[]
-                result=simulate(_problem(), cls(track_energy=True, projection_formulation=formulation,
-                    step_observer=events.append), _request())
+                result=simulate(_problem(), cls(projection_formulation=formulation), _request(), observers=(EnergyObserver(),) + (events.append,))
                 self.assertEqual(result.diagnostics["accepted_internal_state_dimension"],2)
                 self.assertEqual(result.diagnostics["nonlinear_unknown_dimension"],
                     2 if formulation=="reduced_multiplier" else 6)

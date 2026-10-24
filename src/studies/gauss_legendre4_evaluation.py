@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+from diagnostics.methods.energy import EnergyObserver
+
+from solvers.nonlinear import NewtonSolver
+
 from diagnostics.studies.comparison import final_rms_floor, time_integrated_rms_floor
 
 from dynamics.gc import GuidingCenterDynamics
@@ -562,15 +566,10 @@ def run_gauss_legendre4_evaluation(
 			),
 		)
 		method: GaussLegendre4 = GaussLegendre4(
-			track_energy=False,
-			newton_absolute_tolerance=config.absolute_tolerance,
-			newton_relative_tolerance=config.relative_tolerance,
-			newton_max_iterations=config.max_iterations,
-			newton_jacobian_method="analytic",
 			progress=config.progress,
-			step_observer=collector,
+			solver=NewtonSolver(absolute_tolerance=config.absolute_tolerance, relative_tolerance=config.relative_tolerance, max_iterations=config.max_iterations, jacobian_method='analytic'),
 		)
-		solution: States = simulate(problem, replace(method, step=step), step_request)
+		solution: States = simulate(problem, replace(method, step=step), step_request, observers=(collector,))
 		solutions[step] = solution
 		accuracy_by_step[step] = accuracy_series(
 			"GaussLegendre4",
@@ -592,16 +591,12 @@ def run_gauss_legendre4_evaluation(
 		)
 		energy_solution: States = simulate(
 			problem,
-			GaussLegendre4(step=step,
-				track_energy=True,
-				newton_absolute_tolerance=config.absolute_tolerance,
-				newton_relative_tolerance=config.relative_tolerance,
-				newton_max_iterations=config.max_iterations,
-				newton_jacobian_method="analytic",
+			GaussLegendre4(
+				step=step,
 				progress=False,
+				solver=NewtonSolver(absolute_tolerance=config.absolute_tolerance, relative_tolerance=config.relative_tolerance, max_iterations=config.max_iterations, jacobian_method='analytic'),
 			),
-			energy_request,
-		)
+			energy_request, observers=(EnergyObserver(),))
 		momentum = energy_solution.k
 		if momentum is None:
 			raise RuntimeError("Gauss4 energy tracking did not return momentum.")
@@ -613,19 +608,10 @@ def run_gauss_legendre4_evaluation(
 		geometry_by_step[step] = collector.result()
 		newton_audit_solution: States = simulate(
 			problem,
-			GaussLegendre4(step=step,
-				track_energy=False,
-				newton_absolute_tolerance=(
-					config.absolute_tolerance
-					* config.newton_audit_tolerance_factor
-				),
-				newton_relative_tolerance=(
-					config.relative_tolerance
-					* config.newton_audit_tolerance_factor
-				),
-				newton_max_iterations=config.max_iterations,
-				newton_jacobian_method="analytic",
+			GaussLegendre4(
+				step=step,
 				progress=False,
+				solver=NewtonSolver(absolute_tolerance=config.absolute_tolerance * config.newton_audit_tolerance_factor, relative_tolerance=config.relative_tolerance * config.newton_audit_tolerance_factor, max_iterations=config.max_iterations, jacobian_method='analytic'),
 			),
 			step_request,
 		)
@@ -649,12 +635,8 @@ def run_gauss_legendre4_evaluation(
 		)
 
 		timing_method: GaussLegendre4 = GaussLegendre4(
-			track_energy=False,
-			newton_absolute_tolerance=config.absolute_tolerance,
-			newton_relative_tolerance=config.relative_tolerance,
-			newton_max_iterations=config.max_iterations,
-			newton_jacobian_method="analytic",
 			progress=False,
+			solver=NewtonSolver(absolute_tolerance=config.absolute_tolerance, relative_tolerance=config.relative_tolerance, max_iterations=config.max_iterations, jacobian_method='analytic'),
 		)
 		for _ in range(config.timing_warmups):
 			simulate(problem, replace(timing_method, step=step), step_request)

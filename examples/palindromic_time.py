@@ -1,5 +1,7 @@
 """Compare explicit center/end time translations in a small GC simulation."""
 
+from diagnostics.methods.energy import EnergyObserver
+
 from dataclasses import replace
 
 import numpy as np
@@ -20,7 +22,7 @@ def main() -> None:
 	request = SimulationRequest.uniform(t_span=(0., .1),  sample_count=3)
 	for method in (PalindromicImplicit, PalindromicMidpoint):
 		for recipe in (center, edges):
-			result = simulate(problem, replace(method(recipe, track_energy=True), step=0.01), request)
+			result = simulate(problem, replace(method(recipe), step=0.01), request, observers=(EnergyObserver(),))
 			operations = ' '.join(f'{op.name}({op.coefficient:g})' for op in recipe.operations)
 			print(f'{method.__name__}, {recipe.name}: {operations}')
 			print(f'Final physical state: {result.states[:, -1]}')

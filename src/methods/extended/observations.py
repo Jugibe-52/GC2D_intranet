@@ -10,7 +10,6 @@ from collections.abc import Callable
 from typing import Any, Literal, TypeAlias
 
 import numpy as np
-from contracts.dynamics.protocols import DynamicalSystem
 
 from contracts.methods.extended.abba import (
 	ABBA2ImplicitIntegrationStep,
@@ -58,7 +57,7 @@ def abba_pairs(trace: CompositionTrace) -> tuple[PhysicalBaseMapTrace, ...]:
         uf: np.ndarray
         vf: np.ndarray
         uf, vf = last.state_after[:size], last.state_after[size:]
-        stages: _ABBAStages = _ABBAStages(u0, v0, first.energy_points[1][2], vf, uf, uf - vf)
+        stages: _ABBAStages = _ABBAStages(u0, v0, first.quadrature_points[1][2], vf, uf, uf - vf)
         pairs.append(PhysicalBaseMapTrace(first.start_time, first.duration + last.duration, stages))
     return tuple(pairs)
 
@@ -81,7 +80,6 @@ def _solve_fields(projection: ProjectedMapResult) -> dict[str, Any]:
 
 
 def bind_event_builder(
-	dynamics: DynamicalSystem,
 	method_name: str,
 	formulation: ProjectionFormulation,
 	*,
@@ -101,11 +99,11 @@ def bind_event_builder(
 			return project(projection.start_time, candidate, projection.duration).state
 
 		return ABBA2ImplicitIntegrationStep(
-			dynamics_name=type(dynamics).__name__, method_name=method_name,
+			dynamics_name='', method_name=method_name,
 			step_index=step_index, start_time=projection.start_time,
 			time=projection.start_time + projection.duration, duration=projection.duration,
 			state_before=projection.state_before.copy(), state_after=projection.state.copy(),
-			map_state=map_state, formulation_name=formulation, dynamics=dynamics,
+			map_state=map_state, formulation_name=formulation,
 			multiplier=projection.multiplier.copy(),
 			u_initial=stages.u_initial.copy(), v_initial=stages.v_initial.copy(),
 			u_first=stages.u_first.copy(), v_final=stages.v_final.copy(),
@@ -122,11 +120,11 @@ def bind_event_builder(
 			return project(t, candidate, h).state
 
 		fields: dict[str, Any] = dict(
-			dynamics_name=type(dynamics).__name__, method_name=method_name,
+			dynamics_name='', method_name=method_name,
 			step_index=step_index, start_time=t, time=t + h, duration=h,
 			state_before=state_before.copy(),
 			state_after=result.state.copy(),
-			map_state=map_state, dynamics=dynamics, formulation_name=formulation,
+			map_state=map_state,  formulation_name=formulation,
 			**_solve_fields(result),
 		)
 		trace = result.trace
@@ -172,10 +170,10 @@ def stage_events(
             return _map(_duration, _time, candidate)
 
         events.append(IntegrationStage(
-            dynamics_name=prepared.dynamics_name, formulation_name=formulation_name,
+            dynamics_name='', formulation_name=formulation_name,
             method_name=method_name, flow_name=flow, step_index=step_index,
             stage_index=index, time=stage.time, duration=stage.duration,
             state_before=stage.state_before.copy(), state_after=stage.state_after.copy(),
-            map_state=map_state, dynamics=prepared.dynamics,
+            map_state=map_state,
         ))
     return tuple(events)

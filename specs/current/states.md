@@ -2,7 +2,7 @@
 schema_version = 1
 kind = "spec"
 id = "states"
-sources = ["src/states/initial.py", "src/execution/state.py", "src/states/history.py", "src/dynamics/coordinates.py", "src/states/generators.py", "src/diagnostics/states/geometry.py"]
+sources = ["src/contracts/methods/quadrature.py", "src/states/initial.py", "src/execution/state.py", "src/states/history.py", "src/dynamics/coordinates.py", "src/states/generators.py", "src/diagnostics/states/geometry.py"]
 documents = ["docs/simulation/initial-solvers-formulations.md", "docs/simulation/api-migration.md", "docs/dynamics/protocols.md"]
 
 [[requirements]]
@@ -40,7 +40,7 @@ Built-in dynamics keep physical parameters immutable. A new problem is required 
 
 ## STA-003: Current internal state and independent sampling
 
-`execution.state.IntegrationState(time, values, momentum=None)` owns a finite scalar time and a finite nonempty one-dimensional internal snapshot. A controller manages successive accepted states; the class has no stepping or storage algorithm. Values contain physical coordinates only; momentum is separate and optional. Sample snapshots feed physical history and separate energy diagnostics.
+`execution.state.IntegrationState(time, values, quadrature=None)` owns a finite scalar time and a finite nonempty one-dimensional physical snapshot. A controller manages successive accepted states; the class has no stepping or storage algorithm. Optional quadrature transfers sample data to an independent energy observer; no momentum belongs to the physical snapshot. Saved histories and energy diagnostics retain separate ownership.
 
 Fixed off-grid samples use independent shortened maps from the same accepted interval start, never a prior shadow or the next main state. Endpoints reuse accepted states. Adaptive sampling uses accepted dense output. Sample times and main-step statistics retain separate axes. JAX carries equivalent functional device arrays inside compiled loops and constructs completed `States` at the host boundary. Saved histories, observers and serialized results must not alias mutable solver work arrays.
 
@@ -70,13 +70,13 @@ Recording lifecycle guards remain in `States`.
 
 ## Structural internal representations
 
-`SingleFormulation(physical_size)` and `DoubleFormulation(physical_size)` retain only a positive physical vector size. They prepare one or two temporary copies through `lift`, `join_copies` and `split_copies`. Shapes are `(d*N,*samples)` and `(copies*d*N,*samples)`; shifted copies remain distinct until the method projects them. NumPy/JAX backends and complete FC velocity blocks are preserved. There is no layout, particle count, tracking flag, clock, momentum, initial state, projection or solver in either representation.
+`DoubleFormulation(physical_size)` is the only state formulation. It prepares two temporary physical copies through `lift`, `join_copies` and `split_copies`, preserving NumPy/JAX backends and complete FC velocity blocks. It stores only a positive vector size; it owns no dynamics, layout, time, momentum, solver or projection. Methods using ordinary physical arrays need no formulation; `SingleFormulation` is removed.
 
-Every accepted snapshot is `IntegrationState(time, values, momentum=None)`: scalar time, physical `values` of shape `(d*N,)`, and optional physical `momentum` of shape `(N,)`. GC remains 2N and FC 4N with or without tracking. Doubled GC work has 4N entries; generic doubled FC work has 8N. Workspaces are temporary and never become accepted states. This generic support does not extend GC numerical methods to FC.
+Every accepted snapshot is `IntegrationState(time, values)`: scalar time and physical `values` of shape `(d*N,)`. GC remains 2N and FC 4N with or without energy observation. Doubled GC work has 4N entries; generic doubled FC work has 8N. Workspaces are temporary and never become accepted states. Optional quadrature accompanies a sample without storing energy momentum. Generic copy support does not extend GC numerical methods to FC.
 
-The method initializes zero momentum, prepares copies, selects projection equations and solver, and integrates momentum from accepted stages. `advance(t, Z, h, momentum=kappa)` returns physical `StepResult.state` and separate `StepResult.momentum`. `StepInfo.momentum_before` records the incoming auxiliary. Shadow samples start from the same accepted physical state and momentum. JAX carries separate arrays through the compiled loop.
+Execution supplies `f(t, z)`, independent initial data and an optional Jacobian to the numerical method. `advance(t, z, h)` returns physical `StepResult.state`, numerical work and optional quadrature. `EnergyObserver`, supplied through `simulate(..., observers=(EnergyObserver(),))`, owns a fresh passive accumulator for each run. Accepted steps update it once; each shadow sample starts independently from the accepted left endpoint. JAX carries a separate functional accumulator through the compiled loop.
 
-Methods evaluate saved physical H once. `states.energy.energy_diagnostics` combines supplied H and physical kappa without dynamics evaluation. Existing energy labels and `(N,T)` auxiliary histories remain unchanged; `extended_time` is broadcast from scalar sample times. Numerical archives require no migration; old pickled configured objects should be recreated.
+Execution gives the energy observer H and `-partial_t H`. The observer evaluates saved physical H once; `states.energy.energy_diagnostics` combines supplied H and physical kappa without evaluating dynamics. Existing energy labels and `(N,T)` auxiliary histories remain unchanged; `extended_time` is broadcast from scalar sample times. The default initial kappa is zero; `EnergyObserver(initial_momentum=...)` accepts an explicit physical value per particle. Numerical archives require no migration; old pickled configured objects should be recreated.
 
 ## Structural declaration
 

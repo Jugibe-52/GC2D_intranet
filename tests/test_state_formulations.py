@@ -13,9 +13,11 @@ from dynamics import FullCyclotronDynamics
 from simulation import (
     ExplicitEuler, RK4, GaussLegendre4, SDIRK4, HBVM42, DOP853, Radau,
     ABBA2Midpoint, ABBA2Implicit, ABBA4Implicit, ABBA6Implicit, BM4Midpoint, BM4Implicit,
-    InitialValueProblem, SimulationRequest, simulate, SingleFormulation, DoubleFormulation,
+    InitialValueProblem, SimulationRequest, simulate, DoubleFormulation,
 )
 from tests.test_method_integration import _problem
+from diagnostics.methods.energy import EnergyObserver
+from solvers.nonlinear import NewtonSolver, BroydenSolver
 
 CLASSICAL = (ExplicitEuler, RK4, GaussLegendre4, SDIRK4, HBVM42, DOP853, Radau)
 DUPLICATED = (ABBA2Midpoint, ABBA2Implicit, ABBA4Implicit, ABBA6Implicit, BM4Midpoint, BM4Implicit)
@@ -70,11 +72,11 @@ class FourStateFormulationTests(unittest.TestCase):
             self.assertNotIsInstance(dynamics, HamiltonianSystem)
             for cls in CLASSICAL + DUPLICATED:
                 with self.subTest(method=cls.__name__, energy_members=tuple(energy_members)):
-                    plain = simulate(problem, cls(track_energy=False, **({"max_step": 0.02} if cls in (DOP853, Radau) else {"step": 0.02})), request)
+                    plain = simulate(problem, cls(**({"max_step": 0.02} if cls in (DOP853, Radau) else {"step": 0.02})), request)
                     self.assertEqual(plain.states.shape, (2, 2))
                     self.assertNotIn('physical_hamiltonian', plain.diagnostics)
                     with self.assertRaisesRegex(TypeError, 'HamiltonianSystem'):
-                        cls(track_energy=True, **({"max_step": 0.02} if cls in (DOP853, Radau) else {"step": 0.02})).new_run(problem, request)
+                        simulate(problem, cls(**({"max_step": 0.02} if cls in (DOP853, Radau) else {"step": 0.02})), request, observers=(EnergyObserver(),))
 
     def test_all_methods_have_actual_dimensions_and_passive_energy(self):
         source = _problem()
@@ -85,14 +87,16 @@ class FourStateFormulationTests(unittest.TestCase):
                 with self.subTest(method=cls.__name__, particles=particles):
                     plain = simulate(problem, cls(**({"max_step": .02} if cls in (DOP853, Radau) else {"step": .02})), request)
                     events = []
-                    method = cls(track_energy=True, step_observer=events.append)
-                    run = replace(method, **({"max_step": .02} if isinstance(method, (DOP853, Radau)) else {"step": .02})).new_run(problem, request)
+                    method = cls()
+                    run = replace(method, **({"max_step": .02} if isinstance(method, (DOP853, Radau)) else {"step": .02})).new_run(problem.dynamics.vector_field, problem.initial_conditions, request,
+                        jacobian=None if cls in (DOP853, Radau) else getattr(problem.dynamics, 'particle_vector_field_jacobians', None),
+                        jacobian_structure='particle', capture_quadrature=True)
                     spatial = (4 if cls in DUPLICATED else 2)*particles
                     self.assertEqual(run.initial_state.size, 2 * particles)
-                    np.testing.assert_array_equal(run.initial_momentum, np.zeros(particles))
+                    self.assertFalse(hasattr(run, 'initial_momentum'))
                     self.assertEqual(plain.diagnostics['accepted_internal_state_dimension'], 2 * particles)
                     self.assertEqual(plain.diagnostics['workspace_state_dimension'], spatial)
-                    tracked = simulate(problem, replace(method, **({"max_step": .02} if isinstance(method, (DOP853, Radau)) else {"step": .02})), request)
+                    tracked = simulate(problem, replace(method, **({"max_step": .02} if isinstance(method, (DOP853, Radau)) else {"step": .02})), request, observers=(EnergyObserver(), events.append))
                     np.testing.assert_array_equal(plain.states, tracked.states)
                     for key in ('step_times', 'nonlinear_iterations', 'residual_evaluations',
                                 'nonlinear_residual_norms', 'nonlinear_tolerances',
@@ -111,9 +115,10 @@ class FourStateFormulationTests(unittest.TestCase):
                         if hasattr(event, 'multiplier'):
                             self.assertEqual(event.multiplier.shape, (2*particles,))
                     if cls not in (DOP853, Radau):
-                        step = run.advance(.3, run.initial_state, .02, momentum=run.initial_momentum)
+                        step = run.advance(.3, run.initial_state, .02)
                         self.assertEqual(step.state.size, 2 * particles)
-                        self.assertEqual(step.momentum.shape, (particles,))
+                        self.assertFalse(hasattr(step, 'momentum'))
+                        self.assertIsNotNone(step.quadrature)
 
     def test_adaptive_auxiliary_does_not_change_grid_jacobian_or_work(self):
         problem = InitialValueProblem(RotatingHamiltonian(), np.array([1., .2], dtype=float, copy=True), layout=GuidingCenterDynamics.coordinates)
@@ -122,7 +127,7 @@ class FourStateFormulationTests(unittest.TestCase):
             for count in (2, 29):
                 request = SimulationRequest.uniform(t_span=(.3, 1.),  sample_count=count)
                 plain = simulate(problem, cls(max_step=.13, **options), request)
-                tracked = simulate(problem, cls(max_step=.13, track_energy=True, **options), request)
+                tracked = simulate(problem, cls(max_step=.13, **options), request, observers=(EnergyObserver(),))
                 np.testing.assert_array_equal(plain.states, tracked.states)
                 for key in ('step_times','function_evaluations','jacobian_evaluations','lu_decompositions'):
                     np.testing.assert_array_equal(plain.diagnostics[key], tracked.diagnostics[key])
@@ -132,17 +137,18 @@ class FourStateFormulationTests(unittest.TestCase):
     def test_no_projected_time_or_momentum_mode_is_silently_reinterpreted(self):
         for cls in DUPLICATED[:-1]:
             with self.subTest(method=cls.__name__):
-                with self.assertRaisesRegex(ValueError, 'track_energy=True'):
+                with self.assertRaisesRegex(ValueError, 'physical'):
                     cls(state_extension='fully_extended')
 
     def test_full_cyclotron_keeps_four_physical_coordinates_and_separate_momentum(self):
         dynamics = FullCyclotronDynamics(_problem().dynamics.potential, rho=.2, eta=.1)
         problem = InitialValueProblem(dynamics, FullCyclotronDynamics.coordinates.pack_components([1., 1.1, 1.2], [1.2, 1.3, 1.4], [.1, .2, .3], [-.1, -.2, -.3]), layout=FullCyclotronDynamics.coordinates)
         request = SimulationRequest.uniform(t_span=(.3, .34),  sample_count=5)
-        run = RK4(step=0.01, track_energy=True).new_run(problem, request)
+        run = RK4(step=0.01).new_run(problem.dynamics.vector_field, problem.initial_conditions, request,
+                        capture_quadrature=True)
         self.assertEqual(run.initial_state.shape, (12,))
-        self.assertEqual(run.initial_momentum.shape, (3,))
-        tracked = simulate(problem, RK4(step=0.01, track_energy=True), request)
+        self.assertFalse(hasattr(run, 'initial_momentum'))
+        tracked = simulate(problem, RK4(step=0.01), request, observers=(EnergyObserver(),))
         plain = simulate(problem, RK4(step=0.01), request)
         np.testing.assert_array_equal(tracked.states, plain.states)
         self.assertEqual(tracked.diagnostics['accepted_internal_state_dimension'], 12)
@@ -154,8 +160,8 @@ class FourStateFormulationTests(unittest.TestCase):
         request = SimulationRequest.uniform(t_span=(.3,.4),sample_count=6)
         for solver in ('newton','broyden'):
             events=[]
-            method=BM4Implicit(track_energy=True, nonlinear_solver=solver, step_observer=events.append)
-            result=simulate(problem,replace(method, step=(0.4 - 0.3) / 5),request)
+            method=BM4Implicit(solver=NewtonSolver(jacobian_method='analytic') if solver == 'newton' else BroydenSolver())
+            result=simulate(problem,replace(method, step=(0.4 - 0.3) / 5),request, observers=(EnergyObserver(), events.append))
             # The independent diagnostic reconstructs accepted spatial stages.
             obs=GCGeneralizedEnergyObserver(problem.dynamics, initial_state=problem.initial_state, initial_time=.3)
             for event in events: obs(event)

@@ -1,6 +1,6 @@
 """Public simulation facade over problems, methods, integration and results."""
 
-from formulations.state import SingleFormulation, DoubleFormulation
+from formulations.state import DoubleFormulation
 from contracts.dynamics.coordinates import StateLayout
 from dynamics.coordinates import PhysicalCoordinates
 from methods.extended.maps import GCDoubledMaps, HarmonicCoupling, gc_coupling_matrix
@@ -84,7 +84,6 @@ __all__ = [
 	"PhysicalCoordinates", "GCDoubledMaps", "FCSplitMaps", "HarmonicCoupling",
 	'PalindromicMethod', 'PalindromicImplicit', 'PalindromicMidpoint', 'Composition', 'Operation', 'A', 'B', 'T', 'C',
 	"InitialConditions", "NewtonSolver", "BroydenSolver", "ReducedProjection", "SimultaneousProjection",
-	"SingleFormulation",
 	"DoubleFormulation",
 	"DOP853",
 	"Radau",

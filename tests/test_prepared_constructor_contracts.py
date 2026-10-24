@@ -36,18 +36,19 @@ class PreparedConstructorContractTests(unittest.TestCase):
 		with self.assertRaisesRegex(ValueError, "`rho` must be positive"):
 			FullCyclotronDynamics(self.potential, rho=-1., eta=1.)
 
-	def test_supplied_solver_overrides_legacy_controls_before_validation(self) -> None:
+	def test_solver_is_the_only_owner_of_algebraic_controls(self) -> None:
 		solver = NewtonSolver(absolute_tolerance=1e-9, relative_tolerance=1e-8, max_iterations=7)
 		for constructor in (GaussLegendre4, SDIRK4):
 			with self.subTest(method=constructor.__name__):
-				method = constructor(solver=solver, newton_absolute_tolerance=-1.,
-					newton_relative_tolerance=np.nan, newton_max_iterations=0)
-				self.assertEqual((method.newton_absolute_tolerance, method.newton_relative_tolerance,
-					method.newton_max_iterations), (1e-9, 1e-8, 7))
-				with self.assertRaisesRegex(ValueError, "NewtonSolver only"):
-					constructor(solver=BroydenSolver(), newton_absolute_tolerance=-1.)
-				with self.assertRaisesRegex(ValueError, "newton_jacobian_relative_step"):
-					constructor(solver=solver, newton_jacobian_relative_step=0., newton_jacobian_method="invalid")
+				method = constructor(solver=solver)
+				self.assertIs(method.solver, solver)
+				self.assertFalse(hasattr(method, 'newton_absolute_tolerance'))
+				with self.assertRaises(TypeError):
+					constructor(solver=solver, newton_absolute_tolerance=-1.)
+				with self.assertRaisesRegex(ValueError, 'NewtonSolver only'):
+					constructor(solver=BroydenSolver())
+		with self.assertRaisesRegex(ValueError, 'jacobian_relative_step'):
+			NewtonSolver(jacobian_relative_step=0., jacobian_method='invalid')
 
 	def test_accuracy_records_own_arrays_and_preserve_signed_energy(self) -> None:
 		distances = np.ones((2, 3))

@@ -4,19 +4,18 @@ from __future__ import annotations
 
 from typing import Protocol, TYPE_CHECKING
 import numpy as np
-from contracts.solvers.nonlinear import NewtonObserver
 if TYPE_CHECKING:
 	from methods.extended.core.records import ProjectedMapResult
 
 
 class ProjectedMap(Protocol):
-	"""One physical projection with an explicitly scoped Newton callback."""
+	"""One physical projection with explicitly scoped iteration observation."""
 
 	def __call__(
 		self, t: float, state: np.ndarray, h: float, *,
-		newton_observer: NewtonObserver | None = None,
+		observe: bool = False,
 	) -> ProjectedMapResult:
-		"""Evaluate a map; diagnostic callers omit the optional callback."""
+		"""Evaluate a map; diagnostic callers leave iteration observation disabled."""
 
 
 __all__ = ['ProjectedMap']

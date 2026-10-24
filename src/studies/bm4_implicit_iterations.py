@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from solvers.nonlinear import BroydenSolver, NewtonSolver
+
 from studies._validation import require_uncoupled_bm4
 
 from dataclasses import asdict, dataclass
@@ -225,19 +227,12 @@ def run_bm4_implicit_iteration_study(
 		started: float = perf_counter()
 		solution: States = simulate(
 			problem,
-			BM4Implicit(step=config.max_step,
-				newton_absolute_tolerance=config.newton_absolute_tolerance,
-				newton_relative_tolerance=config.newton_relative_tolerance,
-				newton_max_iterations=config.newton_max_iterations,
-				newton_jacobian_relative_step=(
-					config.newton_jacobian_relative_step
-				),
-				nonlinear_solver=config.nonlinear_solver,
+			BM4Implicit(
+				step=config.max_step,
 				progress=config.progress,
-				step_observer=observer,
+				solver=(NewtonSolver if config.nonlinear_solver == 'newton' else BroydenSolver)(absolute_tolerance=config.newton_absolute_tolerance, relative_tolerance=config.newton_relative_tolerance, max_iterations=config.newton_max_iterations, jacobian_relative_step=config.newton_jacobian_relative_step, jacobian_method='analytic'),
 			),
-			request,
-		)
+			request, observers=(observer,))
 		runtime_seconds = perf_counter() - started
 
 	return BM4ImplicitIterationStudyResult(

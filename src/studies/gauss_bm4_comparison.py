@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from solvers.nonlinear import NewtonSolver
+
 from diagnostics.studies.comparison import final_rms_floor, time_integrated_rms_floor
 
 from studies._validation import require_uncoupled_bm4
@@ -405,20 +407,13 @@ def _method(
 	"""Build one comparison method with aligned Newton controls."""
 	if method_name == "GaussLegendre4":
 		return GaussLegendre4(
-			newton_absolute_tolerance=config.absolute_tolerance,
-			newton_relative_tolerance=config.relative_tolerance,
-			newton_max_iterations=config.max_iterations,
-			newton_jacobian_method="analytic",
 			progress=config.progress,
+			solver=NewtonSolver(absolute_tolerance=config.absolute_tolerance, relative_tolerance=config.relative_tolerance, max_iterations=config.max_iterations, jacobian_method='analytic'),
 		)
 	if method_name == "BM4Implicit":
 		return BM4Implicit(
-			newton_absolute_tolerance=config.absolute_tolerance,
-			newton_relative_tolerance=config.relative_tolerance,
-			newton_max_iterations=config.max_iterations,
-			newton_jacobian_method="analytic",
-			nonlinear_solver="newton",
 			progress=config.progress,
+			solver=NewtonSolver(absolute_tolerance=config.absolute_tolerance, relative_tolerance=config.relative_tolerance, max_iterations=config.max_iterations, jacobian_method='analytic'),
 		)
 	raise ValueError(f"Unknown Gauss/BM4 comparison method {method_name!r}.")
 

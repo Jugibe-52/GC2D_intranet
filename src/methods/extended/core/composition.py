@@ -10,7 +10,7 @@ import math
 
 import numpy as np
 
-from methods.extended.maps import GCDoubledMaps, _EnergyQuadraturePoint
+from methods.extended.maps import GCDoubledMaps
 from methods.extended.core.operations import Operation, A, B, T, C
 from methods.extended.core.records import CompositionTrace, MapStage, OperationStage
 
@@ -132,15 +132,17 @@ def compose(maps: GCDoubledMaps, recipe: Composition, t: float,
 	operations: list[OperationStage] = []
 	for operation in recipe.operations:
 		duration: float = float(operation.coefficient * h)
-		points: list[_EnergyQuadraturePoint] = []
+		source: np.ndarray | None = None
 		if operation.name == 'T':
 			after: np.ndarray = current
 		else:
-			after = maps.apply_spatial(operation.name, duration, clock, current, energy_points=points)
+			if operation.name in ('A', 'B'):
+				source = current[maps.physical_size:] if operation.name == 'A' else current[:maps.physical_size]
+			after = maps.apply_spatial(operation.name, duration, clock, current)
 		if after.shape != initial.shape or not np.all(np.isfinite(after)):
 			raise ValueError('A composition operation changed shape or became non-finite.')
 		record: OperationStage = OperationStage(operation.name, clock, duration, current, after,
-		                        points[0][2] if points else None)
+		                        source)
 		operations.append(record)
 		current, clock = after, record.end_time
 		if not np.isfinite(clock):

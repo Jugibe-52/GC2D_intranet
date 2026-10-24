@@ -1,5 +1,7 @@
 """Reproducible RK4 backend equivalence and end-to-end timing study."""
 
+from diagnostics.methods.energy import EnergyObserver
+
 from dynamics.gc import GuidingCenterDynamics
 
 from dataclasses import asdict, dataclass, replace
@@ -93,14 +95,14 @@ def run_rk4_execution_comparison(
     problem: InitialValueProblem = InitialValueProblem(GuidingCenterDynamics(potential, rho=config.rho), initial, layout=GuidingCenterDynamics.coordinates)
     request: SimulationRequest = SimulationRequest.uniform(t_span=config.t_span,
                                         sample_count=config.sample_count)
-    method: RK4 = RK4(track_energy=config.track_energy)
+    method: RK4 = RK4()
     selected = {f"{item.backend}_{item.device}_{item.device_index}": item for item in executions}
     solutions: dict[str, States] = {}
     first_calls: dict[str, float] = {}
     timings: dict[str, list[float]] = {key: [] for key in selected}
     for key, execution in selected.items():
         start: float = perf_counter()
-        solutions[key] = simulate(problem, replace(method, step=config.max_step), request, options=execution)
+        solutions[key] = simulate(problem, replace(method, step=config.max_step), request, options=execution, observers=(EnergyObserver(),) if config.track_energy else ())
         first_calls[key] = perf_counter() - start
     orders = []
     for repetition in range(config.repetitions):
@@ -108,7 +110,7 @@ def run_rk4_execution_comparison(
         orders.append(order)
         for key in order:
             start = perf_counter()
-            solutions[key] = simulate(problem, replace(method, step=config.max_step), request, options=selected[key])
+            solutions[key] = simulate(problem, replace(method, step=config.max_step), request, options=selected[key], observers=(EnergyObserver(),) if config.track_energy else ())
             timings[key].append(perf_counter() - start)
     baseline = solutions["scipy_cpu_0"]
     records: dict[str, dict[str, Any]] = {}

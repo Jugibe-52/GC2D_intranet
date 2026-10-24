@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from solvers.nonlinear import NewtonSolver
+
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from time import perf_counter
@@ -299,16 +301,13 @@ def run_implicit_abba_jacobian_study(
 		started: float = perf_counter()
 		solution: States = simulate(
 			problem,
-			ABBA2Implicit(step=config.max_step,
+			ABBA2Implicit(
+				step=config.max_step,
 				projection_formulation=config.formulation,
-				newton_absolute_tolerance=config.newton_absolute_tolerance,
-				newton_relative_tolerance=config.newton_relative_tolerance,
-				newton_max_iterations=config.newton_max_iterations,
 				progress=config.progress,
-				step_observer=observer,
+				solver=NewtonSolver(absolute_tolerance=config.newton_absolute_tolerance, relative_tolerance=config.newton_relative_tolerance, max_iterations=config.newton_max_iterations, jacobian_method='analytic'),
 			),
-			request,
-		)
+			request, observers=(observer,))
 		runtime_seconds = perf_counter() - started
 
 	return ImplicitABBAJacobianStudyResult(

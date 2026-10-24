@@ -19,7 +19,7 @@ from dynamics.gc import GuidingCenterDynamics
 from dynamics.coordinates import CoordinateValues, PhysicalCoordinates
 from methods.splitting import FCSplitMaps
 from methods.extended.maps import GCDoubledMaps
-from formulations.state import DoubleFormulation, SingleFormulation
+from formulations.state import DoubleFormulation
 
 from potential.potential import Potential
 from methods.classical.rk4 import RK4
@@ -86,28 +86,30 @@ class StateOwnershipTests(unittest.TestCase):
 		cls.potential = Potential.random(A=0.04, M=2, nx=8, ny=8)
 
 	def test_structural_sources_support_method_owned_maps(self):
-		for dynamics, layout, maps_type, copies in (
-			(GuidingCenterDynamics(self.potential), _ExternalGCLayout(), GCDoubledMaps, 2),
-			(FullCyclotronDynamics(self.potential, rho=.2, eta=-.1), _ExternalFCLayout(), FCSplitMaps, 1)):
+		for dynamics, layout, copies in (
+			(GuidingCenterDynamics(self.potential), _ExternalGCLayout(), 2),
+			(FullCyclotronDynamics(self.potential, rho=.2, eta=-.1), _ExternalFCLayout(), 1)):
 			state = np.arange(layout.state_dimension * 2, dtype=float) / 10
 			external = InitialValueProblem(dynamics, state, layout=layout)
-			for tracking in (False, True):
-				actual = maps_type(dynamics, state.size, coordinates=external.layout, track_energy=tracking)
-				expected = maps_type(dynamics, state.size, track_energy=tracking)
-				work = np.tile(state, copies)
-				if tracking: work = np.r_[work, [.1, -.2]]
-				for operation in ('direct_map', 'adjoint_map'):
-					np.testing.assert_array_equal(getattr(actual, operation)(.02, .3, work), getattr(expected, operation)(.02, .3, work))
-				self.assertFalse(hasattr(actual, 'initial_internal_state'))
-				self.assertFalse(hasattr(actual, 'configuration'))
+			def maps(coordinates):
+				if copies == 2:
+					return GCDoubledMaps(dynamics.vector_field, state.size, coordinates=coordinates)
+				return FCSplitMaps(dynamics.cyclotron_flow, dynamics.electric_kick,
+					state.size, coordinates=coordinates)
+			actual, expected = maps(external.layout), maps(dynamics.coordinates)
+			work = np.tile(state, copies)
+			for operation in ('direct_map', 'adjoint_map'):
+				np.testing.assert_array_equal(getattr(actual, operation)(.02, .3, work),
+					getattr(expected, operation)(.02, .3, work))
+			for name in ('initial_internal_state', 'configuration', 'dynamics', 'track_energy'):
+				self.assertFalse(hasattr(actual, name))
 
 	def test_problem_and_prepared_formulations_own_state_and_layout_snapshots(self) -> None:
 		state = np.array([1.0, 0.7])
 		source = _ExternalConfiguration(state, _ExternalGCLayout())
 		problem = InitialValueProblem(GuidingCenterDynamics(self.potential), source.initial_state, layout=source.layout)
-		physical = SingleFormulation(state.size)
 		doubled = DoubleFormulation(state.size)
-		maps = GCDoubledMaps(problem.dynamics, state.size)
+		maps = GCDoubledMaps(problem.dynamics.vector_field, state.size, coordinates=problem.layout)
 		initial_maps = doubled.lift(state)
 		source.state = np.array([1.0, 1.1, 0.7, 0.8])
 		source.layout.count_scale = 7
@@ -121,7 +123,6 @@ class StateOwnershipTests(unittest.TestCase):
 		np.testing.assert_array_equal(problem.initial_state, state)
 		self.assertEqual(problem.particle_count, 1)
 		self.assertEqual(problem.layout.particle_count(state), 1)
-		np.testing.assert_array_equal(physical.lift(problem.initial_state), state)
 		self.assertEqual(doubled.lift(problem.initial_state).shape, (4,))
 		np.testing.assert_array_equal(maps.state_formulation.lift(problem.initial_state), initial_maps)
 		self.assertFalse(hasattr(maps, 'initial_internal_state'))
@@ -136,7 +137,7 @@ class StateOwnershipTests(unittest.TestCase):
 		np.testing.assert_array_equal(restored.initial_state, state)
 		self.assertEqual(restored.particle_count, 1)
 		np.testing.assert_array_equal(restored.dynamics.vector_field(0.3, state), expected)
-		self.assertEqual(GCDoubledMaps(restored.dynamics, state.size).state_formulation.lift(restored.initial_state).shape, (4,))
+		self.assertEqual(GCDoubledMaps(restored.dynamics.vector_field, state.size, coordinates=restored.layout).state_formulation.lift(restored.initial_state).shape, (4,))
 
 	def test_solution_uses_problem_snapshot_and_owns_its_layout(self) -> None:
 		state = np.array([1.0, 0.7])

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from dynamics.gc import GuidingCenterDynamics
 
 from pathlib import Path
 import tempfile
@@ -61,11 +60,7 @@ class ImplicitBM4IterationObserverTests(unittest.TestCase):
 				project_root=root,
 				chunk_size=2,
 			) as observer:
-				solution = simulate(
-					InitialValueProblem(GuidingCenterDynamics(_potential(), rho=0.05), _configuration(), layout=GuidingCenterDynamics.coordinates),
-					BM4Implicit(step=0.02, step_observer=observer),
-					request,
-				)
+				solution = simulate(InitialValueProblem(GuidingCenterDynamics(_potential(), rho=0.05), _configuration(), layout=GuidingCenterDynamics.coordinates), BM4Implicit(step=0.02), request, observers=tuple((o for o in (observer,) if o is not None)))
 			iterations = np.asarray(
 				[record.newton_iterations for record in observer.records]
 			)

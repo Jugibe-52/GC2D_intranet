@@ -235,11 +235,10 @@ def _solve_adaptive(
 	if progress_callback is not None:
 		progress_callback(method, float(times[0]), 0, "started")
 	configured: DOP853 | Radau = method_type(relative_tolerance=relative_tolerance,
-		absolute_tolerance=absolute_tolerance,
-		step_observer=report if progress_callback is not None else None)
+		absolute_tolerance=absolute_tolerance)
 	problem: InitialValueProblem = InitialValueProblem(dynamics, np.array(np.asarray(initial_state, dtype=float), dtype=float, copy=True), layout=GuidingCenterDynamics.coordinates)
 	request: SimulationRequest = SimulationRequest((float(times[0]), float(times[-1])),  times)
-	result: States = simulate(problem, replace(configured, max_step=maximum_step), request)
+	result: States = simulate(problem, replace(configured, max_step=maximum_step), request, observers=(report,) if progress_callback is not None else ())
 
 	runtime = perf_counter() - started
 	states: np.ndarray = np.array(result.states, dtype=float, copy=True)

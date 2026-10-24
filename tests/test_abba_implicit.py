@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from dynamics.gc import GuidingCenterDynamics
+from dynamics import GuidingCenterDynamics
+from solvers import BroydenSolver
 
 import tempfile
 import unittest
@@ -66,16 +67,11 @@ class ImplicitABBAFormulationTests(unittest.TestCase):
 						extension=extension,
 						track_energy=track_energy,
 					):
-						method = method_type(
-							projection_formulation=formulation,
-							nonlinear_solver="broyden",
-							state_extension=extension,
-							track_energy=track_energy,
-						)
+						method = method_type(projection_formulation=formulation, state_extension=extension, solver=BroydenSolver(jacobian_method='analytic'))
 						self.assertEqual(method.projection_formulation, formulation)
-						self.assertEqual(method.nonlinear_solver, "broyden")
+						self.assertEqual(method.solver.name, "broyden")
 						self.assertEqual(method.state_extension, extension)
-						self.assertIs(method.track_energy, track_energy)
+						self.assertFalse(hasattr(method, 'track_energy'))
 			with self.assertRaisesRegex(ValueError, "projection_formulation"):
 				method_type(projection_formulation="unknown")  # type: ignore[arg-type]
 
@@ -173,11 +169,7 @@ class ImplicitABBAFormulationTests(unittest.TestCase):
 			sample_count=5,
 		)
 		solutions = {
-			formulation: simulate(
-				problem,
-				ABBA2Implicit(step=0.05, projection_formulation=formulation),
-				request,
-			)
+			formulation: simulate(problem, ABBA2Implicit(step=0.05, projection_formulation=formulation), request)
 			for formulation in ABBA_PROJECTION_FORMULATIONS
 		}
 		for formulation, solution in solutions.items():

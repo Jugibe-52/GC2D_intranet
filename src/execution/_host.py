@@ -11,8 +11,9 @@ from __future__ import annotations
 
 from contracts.execution.controllers import StepController
 
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator, Sequence
 from typing import Any, Generic, TYPE_CHECKING, TypeVar
+from dataclasses import replace
 
 import math
 import sys
@@ -21,11 +22,15 @@ import numpy as np
 
 from contracts.states.history import DiagnosticValue
 from contracts.methods.step import StepInfo, StepResult
+from contracts.methods.observation import IntegrationStep
+from contracts.methods.quadrature import StageQuadrature
+from contracts.dynamics.protocols import DynamicalSystem
 from execution.state import IntegrationState
 from request import SimulationRequest
 from states.history import States
 
 if TYPE_CHECKING:
+	from diagnostics.methods.energy import PreparedEnergyObserver
 	from methods.base import IntegrationMethod
 
 
@@ -132,11 +137,11 @@ class FixedStepController(Generic[Detail]):
 		ends: np.ndarray
 		durations: np.ndarray
 		starts, ends, durations = _fixed_schedule(request.t_span, method.step)
-		current: IntegrationState = IntegrationState(request.t_span[0], method.initial_state, method.initial_momentum)
+		current: IntegrationState = IntegrationState(request.t_span[0], method.initial_state)
 		for index, (time, end, duration) in enumerate(zip(starts, ends, durations)):
-			info: StepInfo = StepInfo(index, float(time), float(duration), float(end), current.values.copy(), None if current.momentum is None else current.momentum.copy())
-			result: StepResult[Detail] = method.advance(info.time, current.values.copy(), info.duration, momentum=None if current.momentum is None else current.momentum.copy())
-			current = IntegrationState(info.end_time, result.state, result.momentum)
+			info: StepInfo = StepInfo(index, float(time), float(duration), float(end), current.values.copy())
+			result: StepResult[Detail] = method.advance(info.time, current.values.copy(), info.duration)
+			current = IntegrationState(info.end_time, result.state)
 			yield info, result
 
 	def sample(
@@ -146,23 +151,46 @@ class FixedStepController(Generic[Detail]):
 		"""Reuse endpoints or advance an independent physical/auxiliary snapshot."""
 		tolerance: float = _time_tolerance(method.request.t_span)
 		if abs(time - info.end_time) <= tolerance:
-			return IntegrationState(time, result.state, result.momentum)
+			return IntegrationState(time, result.state, result.quadrature)
 		if abs(time - info.time) <= tolerance:
-			return IntegrationState(time, info.state_before, info.momentum_before)
-		momentum: np.ndarray | None = None if info.momentum_before is None else info.momentum_before.copy()
-		shadow: StepResult[Detail] = method.advance(info.time, info.state_before.copy(), time - info.time, momentum=momentum)
-		return IntegrationState(time, shadow.state, shadow.momentum)
+			return IntegrationState(time, info.state_before)
+		shadow: StepResult[Detail] = method.advance(info.time, info.state_before.copy(), time - info.time)
+		return IntegrationState(time, shadow.state, shadow.quadrature)
 
 
-def _record_sample(method: IntegrationMethod[Any], result: States, sample: IntegrationState) -> None:
-	"""Validate and copy physical values and explicit auxiliary momentum."""
-	method._checked_state(sample.values, sample.momentum)
-	auxiliary: dict[str, np.ndarray] = {} if sample.momentum is None else {'extended_momentum': sample.momentum}
+def _record_sample(method: IntegrationMethod[Any], result: States, sample: IntegrationState,
+	energy: PreparedEnergyObserver | None, *, sample_time: float | None = None,
+) -> None:
+	"""Record physical values and independent observer-owned auxiliaries."""
+	method._checked_state(sample.values)
+	auxiliary: dict[str, np.ndarray] = {}
+	if energy is not None:
+		quadrature = sample.quadrature if isinstance(sample.quadrature, StageQuadrature) else None
+		auxiliary['extended_momentum'] = energy.sample(sample.time if sample_time is None else sample_time, quadrature)
 	result.record(sample.time, sample.values, auxiliary=auxiliary)
 
 
+def _observation(method: IntegrationMethod[Any], info: StepInfo, result: StepResult[Any],
+	source: DynamicalSystem,
+) -> Any:
+	"""Attach source identity at the execution boundary, including nested stages."""
+	event = method.build_observation(info, result)
+	updates: dict[str, Any] = {'dynamics_name': type(source).__name__}
+	if isinstance(event, IntegrationStep):
+		quadrature = result.quadrature
+		if isinstance(quadrature, StageQuadrature):
+			quadrature = StageQuadrature(quadrature.times, tuple(np.array(value, copy=True) for value in quadrature.states), quadrature.weights, quadrature.reduction_scale)
+		updates.update(dynamics=source, quadrature=quadrature)
+		if hasattr(event, 'base_stages'):
+			updates['base_stages'] = tuple(replace(stage, dynamics=source,
+				dynamics_name=type(source).__name__) for stage in event.base_stages)
+	return replace(event, **updates)
+
+
 def run_steps(
-	method: IntegrationMethod[Detail], saved: States,
+	method: IntegrationMethod[Detail], saved: States, *,
+	source: DynamicalSystem, observers: Sequence[Callable[[Any], None]] = (),
+	energy: PreparedEnergyObserver | None = None,
 ) -> dict[str, DiagnosticValue]:
 	"""Record accepted steps and samples in the executor's open result.
 
@@ -171,7 +199,7 @@ def run_steps(
 	"""
 	request = method.request
 	selected: StepController[Detail] = method.controller()
-	_record_sample(method, saved, IntegrationState(request.t_span[0], method.initial_state, method.initial_momentum))
+	_record_sample(method, saved, IntegrationState(request.t_span[0], method.initial_state), energy)
 	t0: float
 	tf: float
 	t0, tf = request.t_span
@@ -191,10 +219,16 @@ def run_steps(
 				raise ValueError("The controller returned an invalid accepted interval.")
 			if result.state.shape != method.initial_state.shape or not np.all(np.isfinite(result.state)):
 				raise ValueError("A numerical step changed shape or became non-finite.")
-			method._checked_state(result.state, result.momentum)
+			method._checked_state(result.state)
 			saved.record_step(info, result.statistics)
-			if method.step_observer is not None:
-				method.step_observer(method.build_observation(info, result))
+			if energy is not None:
+				if result.quadrature is None:
+					raise ValueError("Energy observation requires accepted method quadrature.")
+				energy.accept(info.index, info.time, info.end_time, result.quadrature)
+			if observers:
+				event = _observation(method, info, result, source)
+				for observer in observers:
+					observer(event)
 			# One accepted step can cover several requested output times.
 			while (
 				output_index < request.output_times.size
@@ -204,7 +238,9 @@ def run_steps(
 				sample: IntegrationState = selected.sample(method, info, result, target)
 				if sample.time != target:
 					raise ValueError("The controller returned a different sample time.")
-				_record_sample(method, saved, sample)
+				query = info.end_time if abs(target - info.end_time) <= sampling_tolerance else (
+					info.time if abs(target - info.time) <= sampling_tolerance else target)
+				_record_sample(method, saved, sample, energy, sample_time=query)
 				if min(abs(target - info.time), abs(target - info.end_time)) > sampling_tolerance:
 					interior_sample_count += 1
 				output_index += 1
@@ -217,8 +253,8 @@ def run_steps(
 	if output_index != request.output_times.size or abs(previous_end - tf) > tolerance:
 		raise RuntimeError("The integration did not cover the requested interval.")
 	diagnostics: dict[str, DiagnosticValue] = {}
-	if method.state_formulation is not None:
-		diagnostics.update(method.diagnose_history(saved.times, saved.values, dict(saved.auxiliary)))
+	if energy is not None:
+		diagnostics.update(energy.diagnose_history(saved.times, saved.values, dict(saved.auxiliary)))
 	diagnostics["output_interpolation_count"] = interior_sample_count
 	return diagnostics
 

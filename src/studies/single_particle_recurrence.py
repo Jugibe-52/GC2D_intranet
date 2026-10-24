@@ -180,12 +180,12 @@ def run_single_particle_recurrence(
         started: float = perf_counter()
         observer: AdaptiveTrajectoryObserver = AdaptiveTrajectoryObserver()
         controls: dict[str, Any] = dict(relative_tolerance=options['rtol'], absolute_tolerance=options['atol'],
-                        dense_output=True, step_observer=observer)
+                        dense_output=True)
         configured: Radau | DOP853 = (Radau(**controls, jacobian=lambda t, z: dynamics.particle_vector_field_jacobians(t, z)[0])
                       if method == 'Radau' else DOP853(**controls))
         problem: InitialValueProblem = InitialValueProblem(dynamics, np.array(initial, dtype=float, copy=True), layout=GuidingCenterDynamics.coordinates)
         data: States = simulate(problem, replace(configured, max_step=options['max_step']), SimulationRequest(
-            t_span=(0.0, config.final_time),  output_times=times))
+            t_span=(0.0, config.final_time),  output_times=times), observers=(observer,))
         dense = observer.evaluate
         solutions[label] = dense
         arrays[label + ".states"] = data.states.copy()

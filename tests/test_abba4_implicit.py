@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-from dynamics.gc import GuidingCenterDynamics
 
+from dynamics import GuidingCenterDynamics
+from solvers import BroydenSolver, NewtonSolver
 from dataclasses import replace
 from pathlib import Path
 import tempfile
@@ -134,18 +135,7 @@ class ABBA4ImplicitMethodTests(unittest.TestCase):
 		self.assertAlmostEqual(float(np.sum(_ABBA4_COEFFICIENTS)), 1.0)
 		self.assertAlmostEqual(float(np.sum(_ABBA4_COEFFICIENTS**3)), 0.0)
 		events = []
-		solution = simulate(
-			_rotation_problem(),
-			ABBA4Implicit(step=0.1,
-				newton_absolute_tolerance=1e-14,
-				newton_relative_tolerance=1e-14,
-				step_observer=events.append,
-			),
-			SimulationRequest.uniform(
-				t_span=(0.0, 0.2),
-				sample_count=5,
-			),
-		)
+		solution = simulate(_rotation_problem(), ABBA4Implicit(step=0.1, solver=NewtonSolver(jacobian_method='analytic', absolute_tolerance=1e-14, relative_tolerance=1e-14)), SimulationRequest.uniform(t_span=(0.0, 0.2), sample_count=5), observers=(events.append,))
 		self.assertEqual(len(events), 2)
 		step = events[0]
 		self.assertIsInstance(step, ABBA4ImplicitIntegrationStep)
@@ -205,17 +195,7 @@ class ABBA4ImplicitMethodTests(unittest.TestCase):
 		exact = np.asarray([np.cos(0.8), np.sin(0.8)])
 		errors = []
 		for step in (0.2, 0.1, 0.05):
-			solution = simulate(
-				problem,
-				ABBA4Implicit(step=step,
-					newton_absolute_tolerance=1e-14,
-					newton_relative_tolerance=1e-14,
-				),
-				SimulationRequest.uniform(
-					t_span=(0.0, 0.8),
-					sample_count=2,
-				),
-			)
+			solution = simulate(problem, ABBA4Implicit(step=step, solver=NewtonSolver(jacobian_method='analytic', absolute_tolerance=1e-14, relative_tolerance=1e-14)), SimulationRequest.uniform(t_span=(0.0, 0.8), sample_count=2))
 			errors.append(float(np.linalg.norm(solution.states[:, -1] - exact)))
 		for gain in (errors[0] / errors[1], errors[1] / errors[2]):
 			self.assertGreater(gain, 15.0)
@@ -249,17 +229,7 @@ class ABBA4ImplicitMethodTests(unittest.TestCase):
 		problem = InitialValueProblem(_PolynomialTimeDynamics(), configuration, layout=GuidingCenterDynamics.coordinates)
 		errors = []
 		for step in (0.2, 0.1, 0.05, 0.025):
-			solution = simulate(
-				problem,
-				ABBA4Implicit(step=step,
-					newton_absolute_tolerance=1e-14,
-					newton_relative_tolerance=1e-14,
-				),
-				SimulationRequest.uniform(
-					t_span=(0.0, 1.0),
-					sample_count=2,
-				),
-			)
+			solution = simulate(problem, ABBA4Implicit(step=step, solver=NewtonSolver(jacobian_method='analytic', absolute_tolerance=1e-14, relative_tolerance=1e-14)), SimulationRequest.uniform(t_span=(0.0, 1.0), sample_count=2))
 			errors.append(abs(float(solution.states[0, -1]) - 0.2))
 		for gain in np.asarray(errors[:-1]) / np.asarray(errors[1:]):
 			self.assertGreater(float(gain), 15.9)
@@ -269,18 +239,7 @@ class ABBA4ImplicitMethodTests(unittest.TestCase):
 		configuration = GuidingCenterDynamics.coordinates.pack_components(np.asarray([1.0, 1.4]), np.asarray([0.2, 0.6]))
 		problem = InitialValueProblem(_LinearRotationDynamics(), configuration, layout=GuidingCenterDynamics.coordinates)
 		events = []
-		simulate(
-			problem,
-			ABBA4Implicit(step=0.1,
-				newton_absolute_tolerance=1e-14,
-				newton_relative_tolerance=1e-14,
-				step_observer=events.append,
-			),
-			SimulationRequest.uniform(
-				t_span=(0.0, 0.1),
-				sample_count=2,
-			),
-		)
+		simulate(problem, ABBA4Implicit(step=0.1, solver=NewtonSolver(jacobian_method='analytic', absolute_tolerance=1e-14, relative_tolerance=1e-14)), SimulationRequest.uniform(t_span=(0.0, 0.1), sample_count=2), observers=(events.append,))
 		exact = _dense(abba4_implicit_step_particle_jacobians(events[0]))
 		numerical = central_difference_jacobian(
 			events[0].map_state,
@@ -307,11 +266,7 @@ class ABBA4ImplicitMethodTests(unittest.TestCase):
 			sample_count=5,
 		)
 		newton = simulate(_rotation_problem(), ABBA4Implicit(step=0.1), request)
-		broyden = simulate(
-			_rotation_problem(),
-			ABBA4Implicit(step=0.1, nonlinear_solver="broyden"),
-			request,
-		)
+		broyden = simulate(_rotation_problem(), ABBA4Implicit(step=0.1, solver=BroydenSolver(jacobian_method='analytic')), request)
 		self.assertEqual(broyden.diagnostics["nonlinear_solver"], "broyden")
 		np.testing.assert_allclose(
 			broyden.states,

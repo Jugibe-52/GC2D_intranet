@@ -1,5 +1,7 @@
 """Compare resumed trajectories against uninterrupted frozen public integrators."""
 
+from solvers.nonlinear import NewtonSolver
+
 from dataclasses import replace
 
 from studies._validation import require_uncoupled_bm4
@@ -37,7 +39,10 @@ def baseline(indices: np.ndarray, xy: np.ndarray, meta: dict[str, Any]) -> tuple
     request: SimulationRequest=SimulationRequest.uniform(t_span=tuple(meta['t_span']),sample_count=meta['complete_steps']+1)
     method: BM4Implicit | BM4Midpoint
     if meta['method']=='BM4Implicit':
-        method=BM4Implicit(newton_absolute_tolerance=meta['newton_atol'],newton_relative_tolerance=meta['newton_rtol'],newton_max_iterations=meta['newton_max_iterations'],newton_jacobian_relative_step=meta['jacobian_relative_step'],newton_jacobian_method='analytic',nonlinear_solver='newton',progress=False)
+        method=BM4Implicit(
+            progress=False,
+            solver=NewtonSolver(absolute_tolerance=meta['newton_atol'], relative_tolerance=meta['newton_rtol'], max_iterations=meta['newton_max_iterations'], jacobian_relative_step=meta['jacobian_relative_step'], jacobian_method='analytic'),
+        )
     else:
         method=BM4Midpoint(progress=False)
     with threadpool_limits(limits=1): solution: States=simulate(problem,replace(method, step=meta['step']),request)

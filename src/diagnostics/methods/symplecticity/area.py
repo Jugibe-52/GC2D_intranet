@@ -260,7 +260,7 @@ class GCAreaSymplecticityObserver:
 		):
 			raise ValueError(
 				"Physical GC diagnostics require the finite 2N state; "
-				"run the method with `track_energy=False`."
+				"exclude observer auxiliaries from the numerical map input."
 			)
 		return value
 

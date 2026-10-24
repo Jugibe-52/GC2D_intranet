@@ -2,7 +2,7 @@
 schema_version = 1
 kind = "spec"
 id = "diagnostics"
-sources = ["src/diagnostics/__init__.py", "src/diagnostics/methods/implicit_iterations.py", "src/diagnostics/methods/projection/observer.py", "src/diagnostics/states/geometry.py", "src/diagnostics/io/persistence.py"]
+sources = ["src/diagnostics/methods/energy.py", "src/contracts/methods/quadrature.py", "src/diagnostics/__init__.py", "src/diagnostics/methods/implicit_iterations.py", "src/diagnostics/methods/projection/observer.py", "src/diagnostics/states/geometry.py", "src/diagnostics/io/persistence.py"]
 documents = ["src/diagnostics/README.md", "AGENTS.md"]
 
 [[requirements]]
@@ -15,7 +15,7 @@ tests = ["tests/test_package_layout.py::PackageLayoutTests.test_diagnostic_publi
 
 [[requirements]]
 id = "DIA-003"
-tests = ["tests/test_package_layout.py::PackageLayoutTests.test_numerical_processes_do_not_load_diagnostic_implementations", "tests/test_diagnostic_buffering.py", "tests/test_solution_persistence.py"]
+tests = ["tests/test_energy_observation.py", "tests/test_package_layout.py::PackageLayoutTests.test_numerical_processes_do_not_load_diagnostic_implementations", "tests/test_diagnostic_buffering.py", "tests/test_solution_persistence.py"]
 +++
 
 # Process-owned diagnostics
@@ -23,7 +23,7 @@ tests = ["tests/test_package_layout.py::PackageLayoutTests.test_numerical_proces
 ## DIA-001: Locate implementations by the observed process
 
 `diagnostics` follows `src` responsibilities through `execution`, `methods`,
-`methods`, `states` and `studies`; shared output and transport belong to
+`solvers`, `states` and `studies`; shared output and transport belong to
 `io`. Adaptive and extended method diagnostics have their own method-family
 packages. Complete-step iteration summaries belong to methods; future
 individual algebraic-iteration observers belong to solvers. Shared metrics have
@@ -38,8 +38,4 @@ notebook imports use the process-based paths documented in the diagnostic guide.
 
 ## DIA-003: Independent observation and unchanged artifacts
 
-Numerical processes emit neutral observations through `contracts` and do not
-depend on diagnostic implementations. The reorganization preserves observation
-timing, numerical formulas, physical conventions, diagnostic keys, output
-destinations and archive formats. Study-specific artifact formats remain
-independent of study orchestration; shared persistence writes completed `States`.
+Numerical processes emit neutral observations through `contracts` without importing diagnostic implementations. Execution registers `observers=()` and prepares each built-in `EnergyObserver` from H and `-partial_t H`, with fresh per-run momentum starting at zero unless explicitly supplied. Accepted weighted stages or an accepted adaptive interpolant update the accumulator once; independent output queries never update it. Adaptive quadrature retains eight Gauss nodes; doubled GC retains physical signed weights and its sum-before-normalization arithmetic. JAX uses a pure device reduction without host callbacks or a retained history of all stages. Existing caller-owned callbacks keep identity, order and lifecycle, receiving the original dynamics identity. `states.energy.energy_diagnostics` combines supplied saved H and kappa, preserving physical conventions, keys, output destinations and archive formats. Existing GC/BM4 energy callbacks reuse this accumulator.

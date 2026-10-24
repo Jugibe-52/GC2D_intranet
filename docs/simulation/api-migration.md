@@ -28,13 +28,14 @@ passive-energy derivatives now exercise the active dynamics directly.
 ```python
 
 from dynamics import GuidingCenterDynamics
-from dynamics import GuidingCenterDynamics
+from diagnostics import EnergyObserver
 from simulation import ABBA4Implicit, InitialValueProblem, SimulationRequest, simulate
 
 configuration = GuidingCenterDynamics.coordinates.pack_components(x0, y0)
 problem = InitialValueProblem(GuidingCenterDynamics(potential, rho=0.3), configuration)
 request = SimulationRequest.uniform(t_span=(0.0, 1.0), sample_count=101)
-solution = simulate(problem, ABBA4Implicit(step=0.01, track_energy=True), request)
+solution = simulate(problem, ABBA4Implicit(step=0.01), request,
+                    observers=(EnergyObserver(),))
 ```
 
 The current method projects only the two spatial copies. Energy tracking is
@@ -97,13 +98,7 @@ saved results and scientific diagnostics retain their existing contracts.
 
 ## Extended-family module organization and ABBA6
 
-Import public configurations from `methods.extended`, `methods`, or `simulation`.
-Their canonical definitions are `methods.extended.abba` (all ABBA variants) and
-`methods.extended.bm4` (both BM4 variants). Coefficients and compositions live in
-`methods.extended.core.composition`; projection, midpoint, Jacobians, energy and
-numerical records live in the corresponding `core` modules. Event adapters are
-in `methods.extended.observations`. Former per-order files and composition
-wrappers are removed without forwarding imports.
+Import public configurations from `methods.extended`, `methods` or `simulation`. ABBA variants are defined in `methods.extended.abba`, BM4 in `methods.extended.bm4`, and compositions in `methods.extended.core.composition`. Projection, midpoint, Jacobians and numerical records remain in the matching `core` modules; passive energy belongs to `diagnostics.methods.energy`. Event adapters live in `methods.extended.observations`. Retired per-order modules and energy implementations have no forwarding imports.
 
 `ABBA6Implicit` now takes `projection_placement="around_complete_composition"`
 and performs one projection around seven unprojected pairs. This replaces the
@@ -118,7 +113,7 @@ structure. Exact tangents are available through
 
 Initial configurations are now packed NumPy arrays. Use `from dynamics import GuidingCenterDynamics, FullCyclotronDynamics` and `GuidingCenterDynamics.coordinates.pack_components(x, y)` (FC adds vx and vy). External functions in `states.generators` return those arrays. Pass them to `InitialValueProblem(dynamics, values, layout=...)`; canonical GC/FC layouts may be omitted. Replace snapshot-method calls with explicit layout operations on arrays. Physical inputs retain their units, ordering and validation.
 
-`request.SimulationRequest` owns the initial time, integration span, maximum step and output times; its `simulation` re-export remains supported. `execution.state.IntegrationState` contains current internal time and values. `states.States` records physical samples and becomes the completed result returned by methods, executors and `simulate`. Use `.times`, `.values`, `.components()`, `.positions()` and `.velocities()`; `.t` and `.states` remain read-only aliases. `.initial_state` and `.layout` return independent snapshots. `.select(...)` keeps original sample times and whole-run diagnostics. Step statistics keep their own axes.
+`request.SimulationRequest` owns the initial time, integration span and output times; its `simulation` re-export remains supported. `execution.state.IntegrationState` contains current internal time and values. `states.States` records physical samples and becomes the completed result returned by methods, executors and `simulate`. Use `.times`, `.values`, `.components()`, `.positions()` and `.velocities()`; `.t` and `.states` remain read-only aliases. `.initial_state` and `.layout` return independent snapshots. `.select(...)` keeps original sample times and whole-run diagnostics. Step statistics keep their own axes.
 
 Remove imports of `states.State`, `solution.Solution`, `contracts.result.IntegrationData`, `integration.IntegrationCollector`, `states.layout` and `contracts.request`. There are no compatibility modules. `InitialValueProblem.initial_configuration`, result `.source`, `.y` and `.trajectory` are removed. Compare initial snapshots by value rather than object identity. An executor must return complete `States`; `simulate` validates and returns it without creating another container. For changes to diagnostic metadata, use `.with_diagnostics(...)`.
 
@@ -126,10 +121,7 @@ Remove imports of `states.State`, `solution.Solution`, `contracts.result.Integra
 
 ## Explicit initial, solver and projection objects
 
-See [initial data and numerical components](initial-solvers-formulations.md) for
-`InitialConditions`, reusable NewtonSolver/BroydenSolver configurations and the
-two projection classes. Existing array inputs, method names, tolerance controls,
-simulate/executor signatures and stored result formats remain supported.
+See [initial data and numerical components](initial-solvers-formulations.md) for `InitialConditions`, reusable NewtonSolver/BroydenSolver configurations and the two projection classes. Array inputs, method names and stored result formats remain supported. Move method `newton_*` controls into `solver=...`, and energy/step observers into `simulate(..., observers=...)`; the retired keywords have no compatibility aliases.
 
 ## Contract responsibilities (2026-10-22)
 
@@ -188,13 +180,13 @@ with the current source before process or remote execution.
 
 ## Independent state representations
 
-`SingleFormulation(physical_size)` and `DoubleFormulation(physical_size)` retain only a positive physical vector size. They prepare one or two temporary copies through `lift`, `join_copies` and `split_copies`. Shapes are `(d*N,*samples)` and `(copies*d*N,*samples)`; shifted copies remain distinct until the method projects them. NumPy/JAX backends and complete FC velocity blocks are preserved. There is no layout, particle count, tracking flag, clock, momentum, initial state, projection or solver in either representation.
+`DoubleFormulation(physical_size)` is the only state formulation. It prepares two temporary physical copies through `lift`, `join_copies` and `split_copies`, preserving NumPy/JAX backends and complete FC velocity blocks. It stores only a positive vector size; it owns no dynamics, layout, time, momentum, solver or projection. Methods using ordinary physical arrays need no formulation; `SingleFormulation` is removed.
 
-Every accepted snapshot is `IntegrationState(time, values, momentum=None)`: scalar time, physical `values` of shape `(d*N,)`, and optional physical `momentum` of shape `(N,)`. GC remains 2N and FC 4N with or without tracking. Doubled GC work has 4N entries; generic doubled FC work has 8N. Workspaces are temporary and never become accepted states. This generic support does not extend GC numerical methods to FC.
+Every accepted snapshot is `IntegrationState(time, values)`: scalar time and physical `values` of shape `(d*N,)`. GC remains 2N and FC 4N with or without energy observation. Doubled GC work has 4N entries; generic doubled FC work has 8N. Workspaces are temporary and never become accepted states. Optional quadrature accompanies a sample without storing energy momentum. Generic copy support does not extend GC numerical methods to FC.
 
-The method initializes zero momentum, prepares copies, selects projection equations and solver, and integrates momentum from accepted stages. `advance(t, Z, h, momentum=kappa)` returns physical `StepResult.state` and separate `StepResult.momentum`. `StepInfo.momentum_before` records the incoming auxiliary. Shadow samples start from the same accepted physical state and momentum. JAX carries separate arrays through the compiled loop.
+Execution supplies `f(t, z)`, independent initial data and an optional Jacobian to the numerical method. `advance(t, z, h)` returns physical `StepResult.state`, numerical work and optional quadrature. `EnergyObserver`, supplied through `simulate(..., observers=(EnergyObserver(),))`, owns a fresh passive accumulator for each run. Accepted steps update it once; each shadow sample starts independently from the accepted left endpoint. JAX carries a separate functional accumulator through the compiled loop.
 
-Methods evaluate saved physical H once. `states.energy.energy_diagnostics` combines supplied H and physical kappa without dynamics evaluation. Existing energy labels and `(N,T)` auxiliary histories remain unchanged; `extended_time` is broadcast from scalar sample times. Numerical archives require no migration; old pickled configured objects should be recreated.
+Execution gives the energy observer H and `-partial_t H`. The observer evaluates saved physical H once; `states.energy.energy_diagnostics` combines supplied H and physical kappa without evaluating dynamics. Existing energy labels and `(N,T)` auxiliary histories remain unchanged; `extended_time` is broadcast from scalar sample times. The default initial kappa is zero; `EnergyObserver(initial_momentum=...)` accepts an explicit physical value per particle. Numerical archives require no migration; old pickled configured objects should be recreated.
 
 ## Method-owned integration step
 
@@ -222,3 +214,20 @@ Dynamics declare immutable `PhysicalCoordinates(component_names, position_names=
 Built-in dynamics keep physical parameters immutable. A new problem is required for revised initial values. Saved numerical archives retain existing GC/FC schemas and can be interpreted without constructing dynamics or loading a field.
 
 The former GC/FC wrappers and internal state containers are removed without aliases. Maps belong to `methods.extended.maps.GCDoubledMaps` and `methods.splitting.FCSplitMaps`; equations to `methods.projection`; projected observation to `diagnostics.methods.projection`.
+
+## Callable methods, solver controls and observers (2026-10-24)
+
+| Retired configured interface | Current owner |
+|---|---|
+| `method.new_run(problem, request, evaluated_dynamics=...)` | `method.new_run(f, initial_conditions, request, jacobian=..., jacobian_structure=...)` |
+| Method `track_energy=True` | `simulate(..., observers=(EnergyObserver(),))`, imported from `diagnostics` |
+| Method `step_observer=callback` | `simulate(..., observers=(callback,))` |
+| Method `newton_observer=callback` | `solver=NewtonSolver(iteration_observer=callback)` |
+| Method `newton_absolute_tolerance`, `newton_relative_tolerance`, `newton_max_iterations` | Solver `absolute_tolerance`, `relative_tolerance`, `max_iterations` |
+| Method `newton_jacobian_method`, `newton_jacobian_relative_step` | Solver `jacobian_method`, `jacobian_relative_step` |
+| Method `nonlinear_solver="broyden"` | `solver=BroydenSolver(...)` |
+| `SolverOptions`, `SingleFormulation`, method momentum and `diagnose_history` | Removed; use one configured solver, physical arrays and independent energy observation |
+
+Explicit solvers supply every algebraic control. Preserve the effective family defaults when migrating only one old keyword: Gauss/SDIRK use tolerances 1e-14/1e-13 and 20 iterations; ABBA/BM4/HBVM use 1e-13/1e-12 and 12 iterations. HBVM defaults to `backtracking=True`. Set `jacobian_method` explicitly when preserving a prior analytic or finite-difference choice. Physical initial values, numerical coefficients, requested sampling and saved archive schemas are unchanged.
+
+Methods retain only the supplied field, optional derivative and independent numerical data. `DoubleFormulation` remains a small helper for temporary physical copies. Existing callbacks keep their identity and lifecycle; reusing `EnergyObserver` creates fresh built-in state for every run. No wrapper silently translates retired constructor arguments.

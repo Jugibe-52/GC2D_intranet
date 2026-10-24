@@ -105,10 +105,7 @@ def run_rk4_symplecticity_study(
 		area,
 		notebook_path=notebook_path,
 		config=config,
-		method_factory=lambda observer: RK4(
-			progress=config.progress,
-			step_observer=observer,
-		),
+		method_factory=lambda: RK4(progress=config.progress),
 		result_type=RK4SymplecticityResult,
 		project_root=project_root,
 		metadata=metadata,

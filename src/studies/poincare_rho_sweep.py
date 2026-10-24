@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from solvers.nonlinear import NewtonSolver
+
 from studies._validation import require_uncoupled_bm4
 
 from dynamics.gc import GuidingCenterDynamics
@@ -320,19 +322,13 @@ def _rho_star_method(config: RhoStarConfig) -> BM4Midpoint | BM4Implicit | RK4 |
     if config.method == "RK4":
         return RK4(step=1.0 / config.steps_per_cycle)
     if config.method == "BM4Implicit":
-        return BM4Implicit(step=1.0 / config.steps_per_cycle,
-            newton_absolute_tolerance=config.newton_absolute_tolerance,
-            newton_relative_tolerance=config.newton_relative_tolerance,
-            newton_max_iterations=config.newton_max_iterations,
-            newton_jacobian_relative_step=config.newton_jacobian_relative_step,
-            newton_jacobian_method="analytic",
+        return BM4Implicit(
+            step=1.0 / config.steps_per_cycle,
+            solver=NewtonSolver(absolute_tolerance=config.newton_absolute_tolerance, relative_tolerance=config.newton_relative_tolerance, max_iterations=config.newton_max_iterations, jacobian_relative_step=config.newton_jacobian_relative_step, jacobian_method='analytic'),
         )
-    return GaussLegendre4(step=1.0 / config.steps_per_cycle,
-        newton_absolute_tolerance=config.newton_absolute_tolerance,
-        newton_relative_tolerance=config.newton_relative_tolerance,
-        newton_max_iterations=config.newton_max_iterations,
-        newton_jacobian_relative_step=config.newton_jacobian_relative_step,
-        newton_jacobian_method="analytic",
+    return GaussLegendre4(
+        step=1.0 / config.steps_per_cycle,
+        solver=NewtonSolver(absolute_tolerance=config.newton_absolute_tolerance, relative_tolerance=config.newton_relative_tolerance, max_iterations=config.newton_max_iterations, jacobian_relative_step=config.newton_jacobian_relative_step, jacobian_method='analytic'),
     )
 
 

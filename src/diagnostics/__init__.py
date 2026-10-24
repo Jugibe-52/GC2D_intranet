@@ -1,6 +1,7 @@
 """Opt-in diagnostics built around the stable simulation core."""
 
 from diagnostics.methods.adaptive.trajectory import AdaptiveTrajectoryObserver
+from diagnostics.methods.energy import EnergyObserver
 from diagnostics.io.persistence import StoredSolution, load_solution, save_solution
 from diagnostics.io.paths import DEFAULT_RESULTS_BUCKET, solution_destination
 
@@ -95,6 +96,7 @@ __all__ = [
     "load_solution",
     "save_solution",
 	"AdaptiveTrajectoryObserver",
+	"EnergyObserver",
 	"abba4_implicit_step_particle_jacobians",
 	"abba6_implicit_step_particle_jacobians",
 	"IMPLICIT_ABBA_JACOBIAN_METHODS",

@@ -1,5 +1,8 @@
 """Independent numerical checks for explicit time/spatial palindromes."""
 
+from dynamics import GuidingCenterDynamics
+from diagnostics.methods.energy import EnergyObserver
+from solvers import BroydenSolver, NewtonSolver
 from dataclasses import dataclass, field, replace
 import importlib.util
 import json
@@ -11,9 +14,9 @@ import numpy as np
 from execution.options import ExecutionOptions
 from methods.extended.maps import HarmonicCoupling
 from methods.extended.maps import GCDoubledMaps
-from dynamics.gc import GuidingCenterDynamics
 from methods.extended.core.composition import ABBA2, ABBA4, ABBA6, BM4, compose
-from methods.extended.core.jacobians import central_difference_jacobian, packed_jacobian, particle_jacobians
+from methods.extended.core.jacobians import composition_jacobian
+from solvers.derivatives import centered_difference, packed_particle_jacobian
 from simulation import (A, B, T, C, Composition, Operation, PalindromicMethod,
 	PalindromicImplicit, PalindromicMidpoint, ABBA2Implicit, ABBA4Implicit, ABBA6Implicit,
 	ABBA2Midpoint, BM4Implicit, BM4Midpoint, InitialValueProblem, SimulationRequest, simulate)
@@ -58,7 +61,7 @@ class PalindromicOperationTests(unittest.TestCase):
 
 	def test_spatial_operations_have_no_hidden_half_or_time_advance(self):
 		p = problem(2)
-		maps = GCDoubledMaps(p.dynamics, p.initial_state.size, coordinates=p.layout, coupling_frequency=None)
+		maps = GCDoubledMaps(p.dynamics.vector_field, p.initial_state.size, coordinates=p.layout, coupling_frequency=None, jacobian=getattr(p.dynamics, 'particle_vector_field_jacobians', None))
 		u, v = p.initial_state+.01, p.initial_state-.02
 		packed = np.concatenate((u, v))
 		for operation, expected in (
@@ -78,7 +81,7 @@ class PalindromicOperationTests(unittest.TestCase):
 
 	def test_end_clock_recipe_matches_independent_midtime_shears(self):
 		p = problem(3); z = p.initial_state
-		maps = GCDoubledMaps(p.dynamics, p.initial_state.size, coordinates=p.layout, coupling_frequency=None)
+		maps = GCDoubledMaps(p.dynamics.vector_field, p.initial_state.size, coordinates=p.layout, coupling_frequency=None, jacobian=getattr(p.dynamics, 'particle_vector_field_jacobians', None))
 		for h in (.2, -.2):
 			u, v = z+.003, z-.004
 			first = u+h/2*p.dynamics.vector_field(.3+h/2, v)
@@ -92,13 +95,13 @@ class PalindromicOperationTests(unittest.TestCase):
 		p = problem(3)
 		initial = np.concatenate((p.initial_state+.01, p.initial_state-.02))
 		for recipe, rate in ((EDGES, None), (COUPLED, .7)):
-			maps = GCDoubledMaps(p.dynamics, p.initial_state.size, coordinates=p.layout, coupling_frequency=rate)
+			maps = GCDoubledMaps(p.dynamics.vector_field, p.initial_state.size, coordinates=p.layout, coupling_frequency=rate, jacobian=getattr(p.dynamics, 'particle_vector_field_jacobians', None))
 			for h in (.15, -.15):
 				trace = compose(maps, recipe, .3, initial, h)
 				reverse = compose(maps, recipe, .3+h, trace.state, -h)
 				np.testing.assert_allclose(reverse.state, initial, rtol=0, atol=3e-15)
-				analytic = packed_jacobian(particle_jacobians(maps, trace))
-				numeric = central_difference_jacobian(lambda z: compose(maps, recipe, .3, z, h).state,
+				analytic = packed_particle_jacobian(composition_jacobian(maps, trace))
+				numeric = centered_difference(lambda z: compose(maps, recipe, .3, z, h).state,
 					initial, relative_step=float(np.cbrt(np.finfo(float).eps)))
 				np.testing.assert_allclose(analytic, numeric, rtol=2e-8, atol=2e-9)
 
@@ -106,15 +109,15 @@ class PalindromicOperationTests(unittest.TestCase):
 		p = problem(); request = SimulationRequest((.3, .34),  np.array([.3, .34]))
 		for cls, recipe in ((ABBA2Implicit, ABBA2), (ABBA4Implicit, ABBA4), (ABBA6Implicit, ABBA6),
 			(BM4Implicit, BM4), (ABBA2Midpoint, ABBA2), (BM4Midpoint, BM4)):
-			method = cls(track_energy=True)
+			method = cls()
 			self.assertIsInstance(method, PalindromicMethod)
 			self.assertIs(method.recipe, recipe)
 			generic = PalindromicMidpoint if cls in (ABBA2Midpoint, BM4Midpoint) else PalindromicImplicit
 			self.assertIs(cls.advance, generic.advance)
-			actual = simulate(p, replace(method, step=0.02), request)
+			actual = simulate(p, replace(method, step=0.02), request, observers=(EnergyObserver(),))
 			self.assertEqual(json.loads(actual.diagnostics['operation_coefficients']),
 				[op.coefficient for op in recipe.operations])
-			expected = simulate(p, replace(generic(recipe, track_energy=True), step=0.02), request)
+			expected = simulate(p, replace(generic(recipe), step=0.02), request, observers=(EnergyObserver(),))
 			np.testing.assert_array_equal(actual.states, expected.states)
 			np.testing.assert_array_equal(actual.diagnostics['extended_momentum'], expected.diagnostics['extended_momentum'])
 
@@ -128,10 +131,10 @@ class PalindromicOperationTests(unittest.TestCase):
 		for method in (PalindromicMidpoint(COUPLED), PalindromicImplicit(COUPLED),
 			PalindromicMidpoint(EDGES, coupling=HarmonicCoupling(.7))):
 			with self.assertRaisesRegex(ValueError, 'configured together'):
-				replace(method, step=0.02).new_run(p, request)
+				replace(method, step=0.02).new_run(p.dynamics.vector_field, p.initial_conditions, request, jacobian=getattr(p.dynamics, 'particle_vector_field_jacobians', None), jacobian_structure='particle', observe=True)
 		with patch.object(HarmonicCoupling, 'apply', wraps=HarmonicCoupling(.7).apply) as operation:
-			run = PalindromicMidpoint(COUPLED, step=0.02, coupling=HarmonicCoupling(.7)).new_run(p, request)
-			run.advance(.3, run.initial_state, .02, momentum=run.initial_momentum)
+			run = PalindromicMidpoint(COUPLED, step=0.02, coupling=HarmonicCoupling(0.7)).new_run(p.dynamics.vector_field, p.initial_conditions, request, jacobian=getattr(p.dynamics, 'particle_vector_field_jacobians', None), jacobian_structure='particle', observe=True)
+			run.advance(.3, run.initial_state, .02)
 			self.assertEqual(operation.call_count, 2)
 
 	def test_both_time_placements_have_second_order_and_passive_balance(self):
@@ -145,7 +148,7 @@ class PalindromicOperationTests(unittest.TestCase):
 				errors, balances = [], []
 				for h in (.1, .05, .025):
 					r = SimulationRequest((0., end),  np.array([0., end]))
-					s = simulate(p, replace(cls(recipe, track_energy=True), step=h), r)
+					s = simulate(p, replace(cls(recipe), step=h), r, observers=(EnergyObserver(),))
 					errors.append(np.max(abs(s.states[:, -1]-exact)))
 					balances.append(np.max(abs(s.diagnostics['generalized_energy_error'][:, -1])))
 					if h == .1: coarse.append(s.states[:, -1])
@@ -159,20 +162,21 @@ class PalindromicOperationTests(unittest.TestCase):
 		import jax
 		p = problem(3); request = SimulationRequest((.3, .34),  np.array([.3, .305, .34]))
 		methods = (
-			PalindromicMidpoint(EDGES, track_energy=True),
-			PalindromicMidpoint(COUPLED, coupling=HarmonicCoupling(.7), track_energy=True),
-			PalindromicImplicit(EDGES, track_energy=True),
-			PalindromicImplicit(COUPLED, coupling=HarmonicCoupling(.7), track_energy=True),
+			PalindromicMidpoint(EDGES),
+			PalindromicMidpoint(COUPLED, coupling=HarmonicCoupling(0.7)),
+			PalindromicImplicit(EDGES),
+			PalindromicImplicit(COUPLED, coupling=HarmonicCoupling(0.7)),
 			PalindromicImplicit(EDGES, projection_formulation='simultaneous_state_multiplier'),
-			PalindromicImplicit(EDGES, newton_jacobian_method='finite_difference'),
-			PalindromicImplicit(EDGES, nonlinear_solver='broyden'),
+			PalindromicImplicit(EDGES, solver=NewtonSolver(jacobian_method='finite_difference')),
+			PalindromicImplicit(EDGES, solver=BroydenSolver(jacobian_method='analytic')),
 		)
 		with jax.experimental.enable_x64():
-			for method in methods:
-				cpu = simulate(p, replace(method, step=0.02), request)
-				compiled = simulate(p, replace(method, step=0.02), request, options=ExecutionOptions(backend='jax'))
+			for index, method in enumerate(methods):
+				observers = (EnergyObserver(),) if index < 4 else ()
+				cpu = simulate(p, replace(method, step=0.02), request, observers=observers)
+				compiled = simulate(p, replace(method, step=0.02), request, options=ExecutionOptions(backend='jax'), observers=observers)
 				np.testing.assert_allclose(compiled.states, cpu.states, rtol=0, atol=3e-12)
-				if method.track_energy:
+				if index < 4:
 					np.testing.assert_allclose(compiled.diagnostics['extended_momentum'],
 						cpu.diagnostics['extended_momentum'], rtol=0, atol=3e-12)
 

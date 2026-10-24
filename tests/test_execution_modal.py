@@ -28,6 +28,7 @@ from states.history import States
 from diagnostics.io.persistence import load_solution, save_solution
 from execution import Execution, Execution_Modal
 from execution._modal_worker import encode_job, execute_payload
+from diagnostics.methods.energy import EnergyObserver
 
 from methods import BM4Implicit, DOP853, RK4, Radau
 from potential.potential import Potential
@@ -206,11 +207,11 @@ class ModalExecutionTests(unittest.TestCase):
         self.function.spawn.assert_called_once()
 
     def test_unsupported_jobs_fail_before_sdk_or_submission(self):
-        for method, options in ((RK4(), ExecutionOptions(backend="jax", device="gpu")),
-                                (RK4(progress=True), None),
-                                (RK4(step_observer=lambda event: None), None)):
+        for method, options, observers in ((RK4(), ExecutionOptions(backend="jax", device="gpu"), ()),
+                                (RK4(progress=True), None, ()),
+                                (RK4(), None, (lambda event: None,))):
             with self.subTest(method=method), self.assertRaises(NotImplementedError):
-                self.executor().run(self.problem, replace(method, **({"max_step": 0.01} if isinstance(method, (DOP853, Radau)) else {"step": 0.01})), self.request, options=options)
+                self.executor().run(self.problem, replace(method, **({"max_step": 0.01} if isinstance(method, (DOP853, Radau)) else {"step": 0.01})), self.request, options=options, observers=observers)
         with self.assertRaises(TypeError):
             self.executor().run(self.problem, self.method, self.request, options="jax")
         self.loader.assert_not_called()
@@ -220,7 +221,8 @@ class ModalExecutionTests(unittest.TestCase):
         class LocalMethod:
             jax_mode = "unsupported"
 
-            def new_run(self, problem, request, *, evaluated_dynamics=None):
+            def new_run(self, f, initial_conditions, request, *, jacobian=None,
+                        jacobian_structure="dense", observe=False, capture_quadrature=False):
                 raise AssertionError("Not called")
 
         with self.assertRaises((AttributeError, pickle.PicklingError)):
@@ -285,6 +287,17 @@ class ModalWorkerTests(unittest.TestCase):
         _, _, data = pickle.loads(result.stdout)
         reference = Execution().run(problem, BM4Implicit(step=0.01), request)
         np.testing.assert_allclose(data.states, reference.states, rtol=1e-13, atol=1e-14)
+
+    def test_worker_energy_configuration_starts_fresh_with_supplied_momentum(self):
+        problem = make_problem()
+        request = SimulationRequest.uniform(t_span=(0., .02), sample_count=3)
+        observer = EnergyObserver(np.full(problem.particle_count, .7))
+        payload = encode_job(problem, RK4(), request, None, (observer,))
+        first = execute_payload(payload)[2]
+        second = execute_payload(payload)[2]
+        np.testing.assert_array_equal(first.diagnostics['extended_momentum'], second.diagnostics['extended_momentum'])
+        np.testing.assert_array_equal(first.diagnostics['extended_momentum'][:, 0], .7)
+        np.testing.assert_array_equal(first.states, second.states)
 
     def test_worker_rejects_incompatible_payload_version(self):
         with self.assertRaisesRegex(ValueError, "version"):

@@ -53,6 +53,12 @@ schedules steps, samples and collects results. `simulation/` exposes the public 
 temporal configuration. Keep experiment composition in `studies/`, observers in `diagnostics/`,
 and plotting in `visualization/`.
 
+Methods receive field/derivative functions and independent initial conditions;
+they must not import physical dynamics or retain the problem. Only doubled
+methods use `DoubleFormulation`. Solvers own algebraic controls and iteration
+callbacks; execution registers step/energy observers and binds their physical
+functions. Keep passive energy state outside numerical steps.
+
 Tests live in `tests/`, runnable examples in `examples/`, and supporting scripts
 in `scripts/`. Architecture and theory belong in `docs/`; field and trajectory
 data live in `data/`. Respect `.gitignore` when adding notebooks or outputs.

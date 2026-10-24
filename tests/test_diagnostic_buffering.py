@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from states import generators as state_generators
-from dynamics.gc import GuidingCenterDynamics
 
+from states import generators as state_generators
+from dynamics import GuidingCenterDynamics
 from collections.abc import Callable
 import csv
 import json
@@ -101,8 +101,7 @@ class DiagnosticBufferingTests(unittest.TestCase):
 		configuration = np.array(np.array([1.0, 0.7]), dtype=float, copy=True)
 		problem = InitialValueProblem(dynamics, configuration, layout=GuidingCenterDynamics.coordinates)
 		events: list[IntegrationStep] = []
-		simulate(problem, ABBA2Implicit(step=0.01, step_observer=events.append),
-			SimulationRequest.uniform(t_span=(0.0, 0.01),  sample_count=2))
+		simulate(problem, ABBA2Implicit(step=0.01), SimulationRequest.uniform(t_span=(0.0, 0.01), sample_count=2), observers=(events.append,))
 		event = events[0]
 		area = state_generators.square(center=(1.0, 0.7), side=0.1)
 		area_state = area

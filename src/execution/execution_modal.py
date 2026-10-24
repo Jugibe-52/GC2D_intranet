@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from collections.abc import Callable, Sequence
 from hashlib import sha256
 import json
 import math
@@ -10,7 +11,10 @@ import os
 from pathlib import Path
 import tempfile
 from types import ModuleType
-from typing import Any
+from typing import Any, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from diagnostics.methods.energy import EnergyObserver
 from uuid import uuid4
 
 from execution.options import ExecutionOptions
@@ -126,6 +130,7 @@ class Execution_Modal(Execution):
     def run(
         self, problem: InitialValueProblem, method: NumericalMethod, request: SimulationRequest,
         *, options: ExecutionOptions | None = None,
+        observers: Sequence[EnergyObserver | Callable[[Any], None]] = (),
     ) -> States:
         """Submit once, save its ID, then fetch the result without local fallback.
 
@@ -136,7 +141,7 @@ class Execution_Modal(Execution):
         """
         self.last_call_id = None
         self.last_record_path = None
-        payload: bytes = encode_job(problem, method, request, options)
+        payload: bytes = encode_job(problem, method, request, options, observers)
         digest: str = sha256(payload).hexdigest()
         modal: ModuleType = _modal_sdk()
         self.record_directory.mkdir(parents=True, exist_ok=True)

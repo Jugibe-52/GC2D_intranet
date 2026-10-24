@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable, Sequence
+from typing import Any, TYPE_CHECKING
 import numpy as np
+if TYPE_CHECKING:
+	from diagnostics.methods.energy import EnergyObserver
 
 from contracts.methods.base import NumericalMethod
 from execution.options import ExecutionOptions
@@ -55,6 +59,7 @@ def simulate(
 	request: SimulationRequest,
 	*, execution: Execution | None = None,
 	options: ExecutionOptions | None = None,
+	observers: Sequence[EnergyObserver | Callable[[Any], None]] = (),
 ) -> States:
 	"""Integrate one problem and verify that its solution matches the request.
 
@@ -65,7 +70,7 @@ def simulate(
 	"""
 	_validate_simulation_inputs(problem, method, request, execution)
 	executor: Execution = Execution() if execution is None else execution
-	data: States = executor.run(problem, method, request, options=options)
+	data: States = executor.run(problem, method, request, options=options, observers=observers)
 	if not isinstance(data, States) or not data.complete:
 		raise ValueError("The executor must return completed States.")
 	solution = data

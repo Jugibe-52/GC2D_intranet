@@ -7,12 +7,14 @@ independently of these options; see the [executor contract](execution.md).
 ```python
 import jax
 from execution.options import ExecutionOptions
+from diagnostics import EnergyObserver
 from methods.extended.bm4 import BM4Implicit
 from simulation.runner import simulate
 
 jax.config.update("jax_enable_x64", True)
 solution = simulate(
-    problem, BM4Implicit(track_energy=True), request,
+    problem, BM4Implicit(), request,
+    observers=(EnergyObserver(),),
     options=ExecutionOptions(backend="jax", device="cpu"),
 )
 # On a configured JAX accelerator: device="gpu", device_index=0.
@@ -107,31 +109,11 @@ field, energy and analytic-Jacobian equations as NumPy. Device preparation belon
 to execution. Arithmetic projection carries no nonlinear controls. Kernel selection
 is complete before tracing, with explicit rejection of unsupported subclass overrides.
 
-The compiled worker receives `contracts.methods.compiled.CompiledStep`, carrying the
-resolved device, a physical-state/momentum map and optional physical energy. The call returns `(state, momentum, statistics, valid)`; the loop carries separate physical and momentum arrays.
-`execution._jax_fixed` owns scheduling, sampling, convergence checks and bulk
-physical export. It does not import concrete methods or discover their attributes.
-`Execution.run` allocates the recorder, owns run status and finalizes that same
-result with execution metadata and numerical diagnostics. Prepared maps snapshot
-their controls, so later edits to a configured method do not change that map.
-The exact-type adapter branches define supported fixed methods without a second
-whitelist. The capability declaration remains part of the preparation contract.
+The compiled worker receives `contracts.methods.compiled.CompiledStep`, which binds a physical map, explicit functions and numerical controls on the resolved device. Its call returns `(state, quadrature, statistics, valid)`. Execution owns the optional energy accumulator independently: it evaluates rates with `vmap` and reduces signed weighted stages in their original order with `lax.scan`, preserving the quadrature reduction scale. No host callback or complete stage history is required. `execution._jax_fixed` owns scheduling, sampling, convergence checks and bulk physical export. `Execution.run` owns recorder allocation, run status and finalization. Prepared maps snapshot controls; exact-type adapters reject unsupported method overrides before tracing.
 
-`IntegrationMethod.new_run` creates an isolated numerical run and accepts optional
-`evaluated_dynamics` already prepared by execution. Methods store no ExecutionOptions
-and have no integration entry point. Configured instances remain reusable and do
-not retain run states. The fixed JAX driver uses `lax.scan` for accepted steps and
-independent shortened maps for off-grid output, preserving CPU endpoint matching.
-Only requested states and small accepted-step statistics are retained. Bounded
-caches reuse compiled identities across compatible fields, shapes and controls.
-`JaxPotential` reuses concrete device coefficients without refitting splines;
-traced constants are never retained in persistent caches.
+`IntegrationMethod.new_run` receives prepared `f`, independent initial data and an optional Jacobian; it retains no dynamics object, ExecutionOptions or energy functions. Configured instances remain reusable. The fixed driver uses `lax.scan` for accepted steps and independent shortened maps for off-grid output. A shortened energy sample starts from the same accepted left accumulator and never changes it. Only requested states, auxiliary samples and small accepted-step statistics are retained. Bounded caches reuse compatible compiled functions; `JaxPotential` reuses concrete device coefficients without refitting splines or persisting traced constants.
 
-Fixed JAX methods require `progress=False`, `step_observer=None` and
-`newton_observer=None`. Python
-callbacks remain available through the CPU controller. Hybrid adaptive methods
-retain their normal progress and observation contracts, since their controller
-already resides on the host.
+Fixed JAX methods require `progress=False` and `solver.iteration_observer=None`. `observers=(EnergyObserver(),)` is supported as built-in configuration; arbitrary Python callbacks are rejected before compilation and remain available through the CPU controller. Hybrid adaptive methods retain normal progress and callback contracts because their controller already resides on the host.
 
 Measure the first call separately from warmed calls. Complete `simulate` timings
 include input/output transfers, diagnostics and immutable result construction,

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from solvers.nonlinear import NewtonSolver
+
 from studies._validation import require_uncoupled_bm4
 
 from dynamics.gc import GuidingCenterDynamics
@@ -305,18 +307,10 @@ def run_area_comparison(
 				sample_count=config.output_sample_count,
 			)
 			method: BM4Implicit = BM4Implicit(
-				newton_absolute_tolerance=config.newton_absolute_tolerance,
-				newton_relative_tolerance=config.newton_relative_tolerance,
-				newton_max_iterations=config.newton_max_iterations,
-				newton_jacobian_relative_step=(
-					config.newton_jacobian_relative_step
-				),
-				newton_jacobian_method="analytic",
-				nonlinear_solver="newton",
 				progress=config.progress,
-				step_observer=observer,
+				solver=NewtonSolver(absolute_tolerance=config.newton_absolute_tolerance, relative_tolerance=config.newton_relative_tolerance, max_iterations=config.newton_max_iterations, jacobian_relative_step=config.newton_jacobian_relative_step, jacobian_method='analytic'),
 			)
-			solution: States = simulate(problem, replace(method, step=step.value), request)
+			solution: States = simulate(problem, replace(method, step=step.value), request, observers=(observer,))
 		solutions[step.label] = solution
 		records_by_label[step.label] = observer.records
 		output_directories[step.label] = observer.output_directory

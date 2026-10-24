@@ -1,26 +1,21 @@
 """Implicit two-stage, fourth-order Gauss--Legendre collocation method."""
 
 from __future__ import annotations
-from solvers.nonlinear import NewtonSolver, AlgebraicSolver
+from solvers.nonlinear import NewtonSolver, validate_solver
 
 from dataclasses import dataclass, field
 
 import numpy as np
 
-from contracts.dynamics.protocols import DynamicalSystem, HamiltonianSystem, GuidingCenterJacobianSystem
+from contracts.methods.functions import VectorField, JacobianStructure
+from contracts.methods.quadrature import StageQuadrature
 
 from methods.base import FixedStepMethod
 from contracts.methods.step import StepInfo, StepResult
 from contracts.states.history import DiagnosticValue
-from formulations.state import SingleFormulation
 from contracts.methods.classical.gauss_legendre import GaussLegendre4IntegrationStep
-from contracts.methods.observation import StepObserver
-from contracts.solvers.nonlinear import NewtonObserver
-from problem import InitialValueProblem
 from request import SimulationRequest
-from ._configuration import _prepared_newton_controls
 from solvers.linear import _solve_particle_systems
-from solvers.nonlinear import _bind_newton_observer
 from ._jacobians import (
 	JacobianMethod as GaussJacobianMethod,
 	ResolvedJacobianMethod as ResolvedGaussJacobianMethod,
@@ -77,7 +72,7 @@ class _GaussStepResult:
 
 
 def _stage_evaluation(
-	dynamics: DynamicalSystem,
+	f: VectorField,
 	time: float,
 	state: np.ndarray,
 	step: float,
@@ -86,7 +81,7 @@ def _stage_evaluation(
 	"""Evaluate both fields and coupled collocation residuals."""
 	stage_times = time + step * _GAUSS_NODES
 	fields: tuple[np.ndarray, ...] = tuple(
-		_checked_vector_field(dynamics, float(stage_time), stage_state)
+		_checked_vector_field(f, float(stage_time), stage_state)
 		for stage_time, stage_state in zip(
 			stage_times,
 			stage_states,
@@ -110,85 +105,46 @@ def _stage_evaluation(
 
 
 def _stage_jacobians(
-	dynamics: DynamicalSystem,
-	time: float,
-	step: float,
-	stage_states: tuple[np.ndarray, np.ndarray],
-	*,
-	jacobian_method: ResolvedGaussJacobianMethod,
-	jacobian_relative_step: float,
+	f: VectorField, time: float, step: float,
+	stage_states: tuple[np.ndarray, np.ndarray], *,
+	jacobian: VectorField | None, jacobian_structure: JacobianStructure,
+	jacobian_method: ResolvedGaussJacobianMethod, jacobian_relative_step: float,
 ) -> tuple[np.ndarray, np.ndarray]:
-	"""Evaluate Newton Jacobians only after a residual fails convergence."""
+	"""Evaluate stage derivatives only after a residual fails convergence."""
 	stage_times = time + step * _GAUSS_NODES
-	if jacobian_method == "analytic":
-		if not isinstance(dynamics, GuidingCenterJacobianSystem):
-			raise TypeError(
-				"Analytic Gauss Jacobians require GuidingCenterJacobianSystem."
-			)
+	if jacobian_method == 'analytic':
+		assert jacobian is not None
 		jacobians: tuple[np.ndarray, ...] = tuple(
-			_checked_analytic_jacobians(
-				dynamics,
-				float(stage_time),
-				stage_state,
-			)
-			for stage_time, stage_state in zip(
-				stage_times,
-				stage_states,
-				strict=True,
-			)
+			_checked_analytic_jacobians(jacobian, float(t), z, jacobian_structure)
+			for t, z in zip(stage_times, stage_states, strict=True)
 		)
 	else:
-		jacobians = tuple(
-			_dense_finite_difference_jacobian(
-				dynamics,
-				float(stage_time),
-				stage_state,
-				relative_step=jacobian_relative_step,
-			)
-			for stage_time, stage_state in zip(
-				stage_times,
-				stage_states,
-				strict=True,
-			)
-		)
+		jacobians = tuple(_dense_finite_difference_jacobian(f, float(t), z,
+			relative_step=jacobian_relative_step)
+			for t, z in zip(stage_times, stage_states, strict=True))
 	return jacobians[0], jacobians[1]
 
+def _particle_vectors(first: np.ndarray, second: np.ndarray, components: int) -> np.ndarray:
+	"""Gather component-major vectors into stage-major independent particles."""
+	return np.concatenate((first.reshape(components, -1).T, second.reshape(components, -1).T), axis=1)
 
-def _particle_vectors(first: np.ndarray, second: np.ndarray) -> np.ndarray:
-	"""Gather two component-major planar vectors into stage-major particles."""
-	particle_count = first.size // 2
-	return np.stack(
-		(
-			first[:particle_count],
-			first[particle_count:],
-			second[:particle_count],
-			second[particle_count:],
-		),
-		axis=-1,
-	)
-
-
-def _component_major_stage_corrections(
-	corrections: np.ndarray,
-) -> tuple[np.ndarray, np.ndarray]:
-	"""Repack batched ``[stage1 x,y, stage2 x,y]`` corrections."""
-	return (
-		np.concatenate((corrections[:, 0], corrections[:, 1])),
-		np.concatenate((corrections[:, 2], corrections[:, 3])),
-	)
-
+def _component_major_stage_corrections(corrections: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+	"""Repack the two stage corrections into component-major coordinates."""
+	components = corrections.shape[1] // 2
+	return corrections[:, :components].T.reshape(-1), corrections[:, components:].T.reshape(-1)
 
 def _analytic_newton_correction(
 	step: float,
 	evaluation: _StageEvaluation,
 	jacobians: tuple[np.ndarray, np.ndarray],
 ) -> tuple[np.ndarray, np.ndarray]:
-	"""Solve independent ``4 x 4`` Gauss Newton systems for every particle."""
+	"""Solve independent two-stage Gauss Newton systems for every particle."""
 	blocks_1: np.ndarray
 	blocks_2: np.ndarray
 	blocks_1, blocks_2 = jacobians
 	particle_count = blocks_1.shape[0]
-	identity: np.ndarray = np.broadcast_to(np.eye(2), (particle_count, 2, 2))
+	components = blocks_1.shape[1]
+	identity: np.ndarray = np.broadcast_to(np.eye(components), (particle_count, components, components))
 	top: np.ndarray = np.concatenate(
 		(
 			identity - step * _GAUSS_MATRIX[0, 0] * blocks_1,
@@ -204,7 +160,7 @@ def _analytic_newton_correction(
 		axis=-1,
 	)
 	matrix: np.ndarray = np.concatenate((top, bottom), axis=-2)
-	residual: np.ndarray = _particle_vectors(*evaluation.residuals)
+	residual: np.ndarray = _particle_vectors(*evaluation.residuals, components)
 	corrections: np.ndarray = _solve_particle_systems(
 		matrix, -residual,
 		singular_message="The per-particle Gauss Newton matrix is singular.",
@@ -244,53 +200,41 @@ def _dense_newton_correction(
 
 
 def _solve_gauss_step(
-	dynamics: DynamicalSystem,
-	time: float,
-	state: np.ndarray,
-	step: float,
-	*,
-	absolute_tolerance: float,
-	relative_tolerance: float,
-	max_iterations: int,
-	jacobian_method: ResolvedGaussJacobianMethod,
-	jacobian_relative_step: float,
-	newton_observer: NewtonObserver | None = None,
-	solver: NewtonSolver | None = None,
+	f: VectorField, time: float, state: np.ndarray, step: float, *,
+	solver: NewtonSolver, jacobian: VectorField | None,
+	jacobian_structure: JacobianStructure,
+	jacobian_method: ResolvedGaussJacobianMethod, observe: bool = True,
 ) -> _GaussStepResult:
 	"""Solve the two coupled collocation stages with full Newton corrections."""
 	value: np.ndarray = np.asarray(state, dtype=float)
 	if value.ndim != 1 or value.size == 0 or not np.all(np.isfinite(value)):
 		raise ValueError("The Gauss physical state must be a finite vector.")
-	initial_field: np.ndarray = _checked_vector_field(dynamics, time, value)
+	initial_field: np.ndarray = _checked_vector_field(f, time, value)
 	stage_states = (
 		value + step * _GAUSS_NODES[0] * initial_field,
 		value + step * _GAUSS_NODES[1] * initial_field,
-	)
-	tolerance = absolute_tolerance + relative_tolerance * max(
-		1.0,
-		float(np.linalg.norm(value, ord=np.inf)),
 	)
 	size = value.size
 
 	def evaluate(unknown: np.ndarray) -> tuple[np.ndarray, _StageEvaluation]:
 		"""Pack both stage residuals without changing their infinity norm."""
 		evaluation: _StageEvaluation = _stage_evaluation(
-			dynamics, time, value, step, (unknown[:size], unknown[size:]),
+			f, time, value, step, (unknown[:size], unknown[size:]),
 		)
 		return np.concatenate(evaluation.residuals), evaluation
 
 	def update(unknown: np.ndarray, residual: np.ndarray, evaluation: _StageEvaluation) -> np.ndarray:
 		"""Keep the collocation-specific block algebra beside its stage equations."""
 		jacobians: tuple[np.ndarray, np.ndarray] = _stage_jacobians(
-			dynamics,
+			f,
 			time,
 			step,
 			(unknown[:size], unknown[size:]),
 			jacobian_method=jacobian_method,
-			jacobian_relative_step=jacobian_relative_step,
+			jacobian_relative_step=solver.jacobian_relative_step,
+			jacobian=jacobian, jacobian_structure=jacobian_structure,
 		)
-		if jacobian_method == "analytic":
-			assert isinstance(dynamics, GuidingCenterJacobianSystem)
+		if jacobian_method == "analytic" and jacobian_structure == "particle":
 			corrections: tuple[np.ndarray, np.ndarray] = _analytic_newton_correction(
 				step,
 				evaluation,
@@ -302,13 +246,10 @@ def _solve_gauss_step(
 			raise RuntimeError("The Gauss Newton correction became non-finite.")
 		return np.asarray(unknown + np.concatenate(corrections))
 
-	selected_solver = solver or NewtonSolver(absolute_tolerance, relative_tolerance, max_iterations)
-	root: _NonlinearResult[_StageEvaluation] = selected_solver.solve(
+	root: _NonlinearResult[_StageEvaluation] = solver.solve(
 		evaluate, np.concatenate(stage_states), update, scale=value,
 		context=f"GaussLegendre4 at t={time:.16g} with h={step:.16g}",
-		iteration_observer=_bind_newton_observer(
-			newton_observer, time=time, duration=step, tolerance=tolerance,
-		),
+		time=time, duration=step, observe=observe,
 	)
 	state_after = value + step * 0.5 * (root.payload.fields[0] + root.payload.fields[1])
 	if not np.all(np.isfinite(state_after)):
@@ -325,125 +266,63 @@ def _solve_gauss_step(
 class GaussLegendre4(FixedStepMethod[_GaussStepResult]):
 	"""Two-stage, fourth-order symmetric Gauss--Legendre Runge--Kutta method."""
 
-	jax_mode = "device_resident"
-
-	solver: AlgebraicSolver | None = field(default=None, kw_only=True)
-
-	track_energy: bool = False
-	newton_absolute_tolerance: float = 1e-14
-	newton_relative_tolerance: float = 1e-13
-	newton_max_iterations: int = 20
-	newton_jacobian_method: GaussJacobianMethod = "auto"
-	newton_jacobian_relative_step: float = float(np.cbrt(np.finfo(float).eps))
+	jax_mode = 'device_resident'
+	solver: NewtonSolver = field(default_factory=lambda: NewtonSolver(1e-14, 1e-13, 20), kw_only=True)
 	progress: bool = False
-	step_observer: StepObserver | None = None
-	newton_observer: NewtonObserver | None = field(default=None, kw_only=True)
-
-	# Resources owned by one run; excluded from constructor options.
-	state_formulation: SingleFormulation = field(init=False, repr=False, compare=False)
-	dynamics: DynamicalSystem = field(init=False, repr=False, compare=False)
-	physical_size: int = field(init=False, repr=False, compare=False)
 	resolved_jacobian_method: ResolvedGaussJacobianMethod = field(init=False, repr=False, compare=False)
 
 	def __post_init__(self) -> None:
-		"""Validate nonlinear and differentiation controls before integration."""
 		FixedStepMethod.__post_init__(self)
-		(self.newton_absolute_tolerance, self.newton_relative_tolerance,
-		 self.newton_jacobian_relative_step, self.newton_max_iterations) = _prepared_newton_controls(
-			self.solver,
-			absolute_tolerance=self.newton_absolute_tolerance,
-			relative_tolerance=self.newton_relative_tolerance,
-			jacobian_relative_step=self.newton_jacobian_relative_step,
-			max_iterations=self.newton_max_iterations,
-			jacobian_method=self.newton_jacobian_method,
-		)
+		validate_solver(self.solver, newton_only=True)
 
-	def initialize(self, problem: InitialValueProblem, request: SimulationRequest) -> None:
-		"""Bind the nonlinear map, physical observation and energy exporter."""
-		self.dynamics = problem.dynamics
-		self.state_formulation = SingleFormulation(problem.initial_state.size)
-		initial_state: np.ndarray = self._initialize_state(problem, request)
-		physical_initial = problem.initial_state
-		self.resolved_jacobian_method = _resolved_jacobian_method(
-			self.dynamics,
-			self.newton_jacobian_method,
-			initial_time=request.t_span[0],
-			initial_state=physical_initial,
-		)
-		self.physical_size = physical_initial.size
-		metadata: dict[str, DiagnosticValue] = {
-			'stage_count': 2,
-			'designed_order': 4,
-			'nonlinear_solver': 'newton',
+	def initialize(self, request: SimulationRequest) -> None:
+		"""Resolve the supplied derivative without retaining physical resources."""
+		self.resolved_jacobian_method = _resolved_jacobian_method(self.jacobian,
+			self.solver.jacobian_method, initial_time=request.t_span[0],
+			initial_state=self.initial_state, structure=self.jacobian_structure)
+		self.metadata = {
+			'stage_count': 2, 'designed_order': 4, 'nonlinear_solver': 'newton',
 			'nonlinear_solves_per_step': 1,
-			'nonlinear_absolute_tolerance': self.newton_absolute_tolerance,
-			'nonlinear_relative_tolerance': self.newton_relative_tolerance,
-			'nonlinear_max_iterations': self.newton_max_iterations,
+			'nonlinear_absolute_tolerance': self.solver.absolute_tolerance,
+			'nonlinear_relative_tolerance': self.solver.relative_tolerance,
+			'nonlinear_max_iterations': self.solver.max_iterations,
 			'newton_jacobian_method': self.resolved_jacobian_method,
-			'requested_newton_jacobian_method': self.newton_jacobian_method,
-			'newton_jacobian_relative_step': self.newton_jacobian_relative_step,
+			'requested_newton_jacobian_method': self.solver.jacobian_method,
+			'newton_jacobian_relative_step': self.solver.jacobian_relative_step,
 		}
-		self.initial_state = initial_state
-		self.metadata = metadata
 
-	def _solve_physical(
-		self,
-		time: float,
-		physical: np.ndarray,
-		step: float,
-		*, newton_observer: NewtonObserver | None = None,
-	) -> _GaussStepResult:
-		assert self.solver is None or isinstance(self.solver, NewtonSolver)
-		return _solve_gauss_step(
-			self.dynamics,
-			time,
-			physical,
-			step,
-			absolute_tolerance=self.newton_absolute_tolerance,
-			relative_tolerance=self.newton_relative_tolerance,
-			max_iterations=self.newton_max_iterations,
-			jacobian_method=self.resolved_jacobian_method,
-			jacobian_relative_step=self.newton_jacobian_relative_step,
-			newton_observer=newton_observer, solver=self.solver,
-		)
+	def _solve_physical(self, time: float, physical: np.ndarray, step: float,
+	                    *, observe: bool = True) -> _GaussStepResult:
+		return _solve_gauss_step(self.f, time, physical, step, solver=self.solver,
+			jacobian=self.jacobian, jacobian_structure=self.jacobian_structure,
+			jacobian_method=self.resolved_jacobian_method, observe=observe)
 
-	def advance(self, time: float, value: np.ndarray, step: float, *, momentum: np.ndarray | None = None) -> StepResult[_GaussStepResult]:
-		"""Solve one complete physical step and finish its auxiliary state."""
-		physical_before: np.ndarray = np.asarray(self._checked_state(value, momentum), dtype=float)
-		result: _GaussStepResult = self._solve_physical(time, physical_before, step, newton_observer=self.newton_observer)
-		tolerance = self.newton_absolute_tolerance + (
-			self.newton_relative_tolerance * max(1.0, float(np.linalg.norm(physical_before, ord=np.inf)))
-		)
+	def advance(self, time: float, value: np.ndarray, step: float, *, observe: bool = True) -> StepResult[_GaussStepResult]:
+		"""Solve the physical stages and optionally expose accepted quadrature."""
+		physical: np.ndarray = np.asarray(self._checked_state(value), dtype=float)
+		result: _GaussStepResult = self._solve_physical(time, physical, step, observe=observe)
 		statistics = {
 			'nonlinear_iterations': result.iterations,
 			'residual_evaluations': result.residual_evaluations,
 			'nonlinear_residual_norms': result.residual_norm,
-			'nonlinear_tolerances': tolerance,
+			'nonlinear_tolerances': self.solver.tolerance(physical),
 		}
-		if not self.track_energy:
-			return StepResult(result.state, statistics, result)
-		momentum_derivatives: tuple[np.ndarray, ...] = tuple(
-			self._momentum_rate(
-				time + step * _GAUSS_NODES[index], result.stage_states[index],
-			)
-			for index in range(2)
-		)
-		increment = step * 0.5 * (
-			momentum_derivatives[0] + momentum_derivatives[1]
-		)
-		after: np.ndarray = result.state
-		return StepResult(after, statistics, result, self._finish_momentum(momentum, increment))
+		quadrature: StageQuadrature | None = None
+		if self.capture_quadrature:
+			quadrature = StageQuadrature(tuple(time + step * _GAUSS_NODES),
+				result.stage_states, (step * .5, step * .5))
+		return StepResult(result.state, statistics, result, quadrature)
 
 	def build_observation(self, info: StepInfo, step: StepResult[_GaussStepResult]) -> GaussLegendre4IntegrationStep:
-		"""Build independent physical snapshots from accepted solve details."""
+		"""Build independent snapshots and a replay without iteration callbacks."""
 		result = step.details
 		def map_state(candidate: np.ndarray) -> np.ndarray:
-			return self._solve_physical(info.time, candidate, info.duration).state
+			return self._solve_physical(info.time, candidate, info.duration, observe=False).state
 		return GaussLegendre4IntegrationStep(
-			dynamics_name=type(self.dynamics).__name__, method_name=type(self).__name__,
+			dynamics_name='', method_name=type(self).__name__,
 			step_index=info.index, start_time=info.time, time=info.time + info.duration,
-			duration=info.duration, state_before=info.state_before[:self.physical_size].copy(),
-			state_after=result.state.copy(), map_state=map_state, dynamics=self.dynamics,
+			duration=info.duration, state_before=info.state_before.copy(),
+			state_after=result.state.copy(), map_state=map_state,
 			first_stage_time=info.time + info.duration * _GAUSS_NODES[0],
 			second_stage_time=info.time + info.duration * _GAUSS_NODES[1],
 			newton_iterations=result.iterations, residual_evaluations=result.residual_evaluations,
@@ -453,8 +332,4 @@ class GaussLegendre4(FixedStepMethod[_GaussStepResult]):
 		)
 
 
-__all__ = [
-	"GAUSS_JACOBIAN_METHODS",
-	"GaussJacobianMethod",
-	"GaussLegendre4",
-]
+__all__ = ['GAUSS_JACOBIAN_METHODS', 'GaussJacobianMethod', 'GaussLegendre4']

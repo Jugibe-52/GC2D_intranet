@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from solvers.nonlinear import BroydenSolver, NewtonSolver
+
 from studies._validation import require_uncoupled_bm4
 
 from dataclasses import dataclass, replace
@@ -286,28 +288,18 @@ def run_implicit_trajectory_comparison(
 	)
 	methods: tuple[FixedStepMethod[Any], ...] = (
 		ABBA2Implicit(
-			projection_formulation="reduced_multiplier",
-			newton_absolute_tolerance=config.absolute_tolerance,
-			newton_relative_tolerance=config.relative_tolerance,
-			newton_max_iterations=config.max_iterations,
-			nonlinear_solver=config.nonlinear_solver,
+			projection_formulation='reduced_multiplier',
 			progress=config.progress,
+			solver=(NewtonSolver if config.nonlinear_solver == 'newton' else BroydenSolver)(absolute_tolerance=config.absolute_tolerance, relative_tolerance=config.relative_tolerance, max_iterations=config.max_iterations, jacobian_method='analytic'),
 		),
 		ABBA2Implicit(
-			projection_formulation="simultaneous_state_multiplier",
-			newton_absolute_tolerance=config.absolute_tolerance,
-			newton_relative_tolerance=config.relative_tolerance,
-			newton_max_iterations=config.max_iterations,
-			nonlinear_solver=config.nonlinear_solver,
+			projection_formulation='simultaneous_state_multiplier',
 			progress=config.progress,
+			solver=(NewtonSolver if config.nonlinear_solver == 'newton' else BroydenSolver)(absolute_tolerance=config.absolute_tolerance, relative_tolerance=config.relative_tolerance, max_iterations=config.max_iterations, jacobian_method='analytic'),
 		),
 		BM4Implicit(
-			newton_absolute_tolerance=config.absolute_tolerance,
-			newton_relative_tolerance=config.relative_tolerance,
-			newton_max_iterations=config.max_iterations,
-			newton_jacobian_relative_step=config.newton_jacobian_relative_step,
-			nonlinear_solver=config.nonlinear_solver,
 			progress=config.progress,
+			solver=(NewtonSolver if config.nonlinear_solver == 'newton' else BroydenSolver)(absolute_tolerance=config.absolute_tolerance, relative_tolerance=config.relative_tolerance, max_iterations=config.max_iterations, jacobian_relative_step=config.newton_jacobian_relative_step, jacobian_method='analytic'),
 		),
 	)
 	solutions: dict[str, States] = {}
