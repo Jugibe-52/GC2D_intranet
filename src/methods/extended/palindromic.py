@@ -15,8 +15,8 @@ from problem import InitialValueProblem
 from contracts.states.history import DiagnosticValue
 from contracts.methods.step import StepInfo, StepResult
 from contracts.dynamics.protocols import DynamicalSystem, GuidingCenterJacobianSystem
-from formulations.gc import GCDoubledMaps, HarmonicCoupling, _EnergyQuadraturePoint
-from formulations.projection import ProjectionChoice, resolve_projection
+from methods.extended.maps import GCDoubledMaps, HarmonicCoupling, _EnergyQuadraturePoint
+from methods.projection import ProjectionChoice, resolve_projection
 from formulations.state import DoubleFormulation
 from methods._validation import _positive_finite, _positive_integer
 from methods.base import FixedStepMethod
@@ -61,8 +61,8 @@ class PalindromicMethod(FixedStepMethod[Detail], Generic[Detail]):
 		if self.recipe.has_coupling != (coupling is not None):
 			raise ValueError('Explicit C operations and a HarmonicCoupling must be configured together.')
 		self.dynamics = problem.dynamics
-		self.state_formulation = DoubleFormulation(problem.layout, problem.particle_count, self.track_energy)
-		self.formulation = GCDoubledMaps(problem, coupling_frequency=None if coupling is None else coupling.frequency)
+		self.state_formulation = DoubleFormulation(problem.initial_state.size)
+		self.formulation = GCDoubledMaps(problem.dynamics, problem.initial_state.size, coordinates=problem.layout, coupling_frequency=None if coupling is None else coupling.frequency)
 		self.initial_state = self._initialize_state(problem, request)
 
 	def _operation_metadata(self) -> dict[str, DiagnosticValue]:
@@ -77,10 +77,11 @@ class PalindromicMethod(FixedStepMethod[Detail], Generic[Detail]):
 			'coupling_frequency': 0.0 if coupling is None else coupling.frequency,
 		}
 
-	def _finish(self, state: np.ndarray, physical: np.ndarray, time: float, step: float,
-	            points: tuple[_EnergyQuadraturePoint, ...]) -> np.ndarray:
-		increment: np.ndarray | None = momentum_increment(self.state_formulation.particle_count, self._momentum_rate, points) if self.track_energy else None
-		return self._finish_state(state, physical, time + step, increment)
+	def _finish(self, momentum: np.ndarray | None,
+	            points: tuple[_EnergyQuadraturePoint, ...]) -> np.ndarray | None:
+		"""Accumulate physical kappa from the accepted composition's stage sources."""
+		increment: np.ndarray | None = momentum_increment(self.problem.particle_count, self._momentum_rate, points) if self.track_energy else None
+		return self._finish_momentum(momentum, increment)
 
 
 class ProjectedPalindromicMethod(PalindromicMethod[ProjectedMapResult]):
@@ -125,12 +126,12 @@ class ProjectedPalindromicMethod(PalindromicMethod[ProjectedMapResult]):
 	def _publish_substeps(self) -> bool:
 		return False
 
-	def advance(self, t: float, state: np.ndarray, h: float) -> StepResult[ProjectedMapResult]:
+	def advance(self, t: float, state: np.ndarray, h: float, *, momentum: np.ndarray | None = None) -> StepResult[ProjectedMapResult]:
 		"""Project the complete palindrome and finish passive state after convergence."""
-		physical: np.ndarray = self.state_formulation.physical(state)
+		physical: np.ndarray = self._checked_state(state, momentum)
 		result: ProjectedMapResult = self.project(t, physical, h, newton_observer=self.newton_observer)
-		after: np.ndarray = self._finish(state, result.state, t, h, result.energy_points)
-		return StepResult(after, step_statistics(result, include_substeps=self._publish_substeps()), result)
+		after: np.ndarray = result.state
+		return StepResult(after, step_statistics(result, include_substeps=self._publish_substeps()), result, self._finish(momentum, result.energy_points))
 
 	def build_observation(self, info: StepInfo, step: StepResult[ProjectedMapResult]) -> IntegrationStep:
 		"""Generic physical observation; named presets may supply richer adapters."""
@@ -138,7 +139,7 @@ class ProjectedPalindromicMethod(PalindromicMethod[ProjectedMapResult]):
 			return self.project(info.time, candidate, info.duration).state
 		return IntegrationStep(dynamics_name=type(self.dynamics).__name__, method_name=self.method_name,
 			step_index=info.index, start_time=info.time, time=info.end_time, duration=info.duration,
-			state_before=self.state_formulation.physical(info.state_before).copy(),
+			state_before=info.state_before.copy(),
 			state_after=step.details.state.copy(), map_state=map_state, dynamics=self.dynamics)
 
 
@@ -166,11 +167,11 @@ class MidpointPalindromicMethod(PalindromicMethod[MidpointResult]):
 			**self._operation_metadata(), **self._preset_metadata(),
 		}
 
-	def advance(self, t: float, state: np.ndarray, h: float) -> StepResult[MidpointResult]:
+	def advance(self, t: float, state: np.ndarray, h: float, *, momentum: np.ndarray | None = None) -> StepResult[MidpointResult]:
 		"""Average the copies once, after all explicit operations have executed."""
-		result: MidpointResult = midpoint_step(self.formulation, self.recipe, t, self.state_formulation.physical(state), h)
-		after: np.ndarray = self._finish(state, result.state, t, h, result.trace.energy_points)
-		return StepResult(after, {'copy_separation_norms': result.copy_separation_norm}, result)
+		result: MidpointResult = midpoint_step(self.formulation, self.recipe, t, self._checked_state(state, momentum), h)
+		after: np.ndarray = result.state
+		return StepResult(after, {'copy_separation_norms': result.copy_separation_norm}, result, self._finish(momentum, result.trace.energy_points))
 
 	def build_observation(self, info: StepInfo, step: StepResult[MidpointResult]) -> IntegrationStep:
 		"""Expose the accepted physical map to the shared observation interface."""
@@ -178,7 +179,7 @@ class MidpointPalindromicMethod(PalindromicMethod[MidpointResult]):
 			return midpoint_step(self.formulation, self.recipe, info.time, candidate, info.duration).state
 		return IntegrationStep(dynamics_name=type(self.dynamics).__name__, method_name=self.method_name,
 			step_index=info.index, start_time=info.time, time=info.end_time, duration=info.duration,
-			state_before=self.state_formulation.physical(info.state_before).copy(),
+			state_before=info.state_before.copy(),
 			state_after=step.details.state.copy(), map_state=map_state, dynamics=self.dynamics)
 
 

@@ -7,13 +7,13 @@ from unittest.mock import patch
 
 import numpy as np
 
-from formulations import HarmonicCoupling
-from formulations.gc import GCDoubledMaps
+from methods.extended.maps import HarmonicCoupling
+from methods.extended.maps import GCDoubledMaps
 from methods.extended.core.composition import BM4, compose
 from methods.extended.core.projection import solve_projection
 from solvers.nonlinear import SolverOptions
 from simulation import BM4Implicit, BM4Midpoint, SimulationRequest, simulate
-from test_extended_family import problem
+from tests.test_extended_family import problem
 
 
 class UncoupledBM4Tests(unittest.TestCase):
@@ -23,7 +23,7 @@ class UncoupledBM4Tests(unittest.TestCase):
 		p = problem(3)
 		h, t = .15, .3
 		request = SimulationRequest.uniform(t_span=(t, t + h),  sample_count=2)
-		old_maps = GCDoubledMaps(p, coupling_frequency=0.)
+		old_maps = GCDoubledMaps(p.dynamics, p.initial_state.size, coordinates=p.layout, coupling_frequency=0.)
 		trace = compose(old_maps, BM4, t, np.tile(p.initial_state, 2), h)
 		size = p.initial_state.size
 		references = (

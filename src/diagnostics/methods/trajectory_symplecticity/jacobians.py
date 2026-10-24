@@ -17,7 +17,7 @@ from contracts.methods.extended.abba import (
 )
 from contracts.methods.extended.bm4 import ImplicitBM4IntegrationStep
 from contracts.methods.observation import IntegrationStage, IntegrationStep
-from formulations.gc import gc_coupling_matrix
+from methods.extended.maps import gc_coupling_matrix
 from methods.extended.core.composition import _ABBA4_COEFFICIENTS, _ABBA6_COEFFICIENTS
 
 from typing import TYPE_CHECKING
@@ -577,7 +577,7 @@ def bm4_implicit_step_particle_jacobians(
 			or stage.stage_index != stage_index
 			or stage.flow_name != expected_flow
 			or stage.method_name != step.method_name
-			or stage.formulation_name != "GCExtendedFormulation"
+			or stage.formulation_name not in {"GCDoubledMaps", "GCExtendedFormulation"}
 			or stage.dynamics is not dynamics
 		):
 			raise ValueError("Implicit BM4 stages are not one ordered base cycle.")

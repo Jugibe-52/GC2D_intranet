@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from formulations.layout import GCStateLayout
+from dynamics.gc import GuidingCenterDynamics
 
 from dataclasses import replace
 from pathlib import Path
@@ -75,10 +75,10 @@ class DiagnosticValidationContracts(unittest.TestCase):
 	def test_sampling_skips_snapshot_checks_and_energy_rejection_is_atomic(self) -> None:
 		potential = Potential.random(A=0.03, M=2, nx=8, ny=8, seed=7, interpolation_order=5)
 		dynamics = GuidingCenterDynamics(potential, rho=0.02)
-		configuration = GCStateLayout().pack_components(np.array([1.0]), np.array([1.2]))
+		configuration = GuidingCenterDynamics.coordinates.pack_components(np.array([1.0]), np.array([1.2]))
 		events: list[IntegrationStep] = []
 		simulate(
-			InitialValueProblem(dynamics, configuration, layout=GCStateLayout()),
+			InitialValueProblem(dynamics, configuration, layout=GuidingCenterDynamics.coordinates),
 			ABBA2Implicit(step=0.01, step_observer=events.append),
 			SimulationRequest.uniform(t_span=(0.0, 0.02),  sample_count=3),
 		)

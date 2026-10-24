@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from formulations.layout import GCStateLayout
+from dynamics.gc import GuidingCenterDynamics
 
 from collections.abc import Sequence
 from dataclasses import dataclass, replace
@@ -297,7 +297,7 @@ def run_ten_method_accuracy_study(
 	"""Run all seven variants and measure their periodic distance to the reference."""
 	if not isinstance(potential, Potential):
 		raise TypeError("`potential` must be a Potential instance.")
-	if not (isinstance(initial_configuration, np.ndarray) and GCStateLayout().state_dimension == 2):
+	if not (isinstance(initial_configuration, np.ndarray) and GuidingCenterDynamics.coordinates.state_dimension == 2):
 		raise TypeError("`initial_configuration` must be np.ndarray.")
 	if not isinstance(reference, StoredReferenceTrajectory):
 		raise TypeError("`reference` must be a StoredReferenceTrajectory.")

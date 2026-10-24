@@ -2,8 +2,8 @@
 
 from dataclasses import replace
 
-from formulations.layout import FCStateLayout
-from formulations.layout import GCStateLayout
+from dynamics.fc import FullCyclotronDynamics
+from dynamics.gc import GuidingCenterDynamics
 import unittest
 from types import SimpleNamespace
 import numpy as np
@@ -65,7 +65,7 @@ class FourStateFormulationTests(unittest.TestCase):
                 vector_field=source.dynamics.vector_field,
                 particle_vector_field_jacobians=source.dynamics.particle_vector_field_jacobians,
                 **energy_members)
-            problem = InitialValueProblem(dynamics, source.initial_state, layout=GCStateLayout())
+            problem = InitialValueProblem(dynamics, source.initial_state, layout=GuidingCenterDynamics.coordinates)
             self.assertIsInstance(dynamics, DynamicalSystem)
             self.assertNotIsInstance(dynamics, HamiltonianSystem)
             for cls in CLASSICAL + DUPLICATED:
@@ -80,7 +80,7 @@ class FourStateFormulationTests(unittest.TestCase):
         source = _problem()
         request = SimulationRequest.uniform(t_span=(.3, .38),  sample_count=9)
         for particles in (1, 3):
-            problem = InitialValueProblem(source.dynamics, GCStateLayout().pack_components(np.linspace(1., 1.2, particles), np.linspace(1.2, 1.4, particles)), layout=GCStateLayout())
+            problem = InitialValueProblem(source.dynamics, GuidingCenterDynamics.coordinates.pack_components(np.linspace(1., 1.2, particles), np.linspace(1.2, 1.4, particles)), layout=GuidingCenterDynamics.coordinates)
             for cls in CLASSICAL + DUPLICATED:
                 with self.subTest(method=cls.__name__, particles=particles):
                     plain = simulate(problem, cls(**({"max_step": .02} if cls in (DOP853, Radau) else {"step": .02})), request)
@@ -88,9 +88,10 @@ class FourStateFormulationTests(unittest.TestCase):
                     method = cls(track_energy=True, step_observer=events.append)
                     run = replace(method, **({"max_step": .02} if isinstance(method, (DOP853, Radau)) else {"step": .02})).new_run(problem, request)
                     spatial = (4 if cls in DUPLICATED else 2)*particles
-                    self.assertEqual(run.initial_state.size, spatial + 2 * particles)
-                    np.testing.assert_array_equal(run.state_formulation.time(run.initial_state), np.full(particles, .3))
-                    self.assertEqual(plain.diagnostics['accepted_internal_state_dimension'], spatial)
+                    self.assertEqual(run.initial_state.size, 2 * particles)
+                    np.testing.assert_array_equal(run.initial_momentum, np.zeros(particles))
+                    self.assertEqual(plain.diagnostics['accepted_internal_state_dimension'], 2 * particles)
+                    self.assertEqual(plain.diagnostics['workspace_state_dimension'], spatial)
                     tracked = simulate(problem, replace(method, **({"max_step": .02} if isinstance(method, (DOP853, Radau)) else {"step": .02})), request)
                     np.testing.assert_array_equal(plain.states, tracked.states)
                     for key in ('step_times', 'nonlinear_iterations', 'residual_evaluations',
@@ -99,7 +100,8 @@ class FourStateFormulationTests(unittest.TestCase):
                         if key in plain.diagnostics:
                             np.testing.assert_array_equal(plain.diagnostics[key], tracked.diagnostics[key])
                     np.testing.assert_array_equal(tracked.diagnostics['extended_time'], np.broadcast_to(tracked.t, (particles, 9)))
-                    self.assertEqual(tracked.diagnostics['accepted_internal_state_dimension'], spatial + 2 * particles)
+                    self.assertEqual(tracked.diagnostics['accepted_internal_state_dimension'], 2 * particles)
+                    self.assertEqual(tracked.diagnostics['momentum_state_dimension'], particles)
                     self.assertEqual(tracked.diagnostics['extended_momentum'].shape, (particles, 9))
                     self.assertEqual(tracked.diagnostics['extended_momentum_normalization'], 'physical_kappa')
                     balance = tracked.diagnostics['physical_hamiltonian'] + tracked.diagnostics['extended_momentum']
@@ -109,14 +111,12 @@ class FourStateFormulationTests(unittest.TestCase):
                         if hasattr(event, 'multiplier'):
                             self.assertEqual(event.multiplier.shape, (2*particles,))
                     if cls not in (DOP853, Radau):
-                        step = run.advance(.3, run.initial_state, .02).state
-                        self.assertEqual(step.size, spatial + 2 * particles)
-                        np.testing.assert_array_equal(run.state_formulation.time(step), np.full(particles, .3 + .02))
-                        if cls in DUPLICATED:
-                            np.testing.assert_array_equal(step[:2*particles], step[2*particles:4*particles])
+                        step = run.advance(.3, run.initial_state, .02, momentum=run.initial_momentum)
+                        self.assertEqual(step.state.size, 2 * particles)
+                        self.assertEqual(step.momentum.shape, (particles,))
 
     def test_adaptive_auxiliary_does_not_change_grid_jacobian_or_work(self):
-        problem = InitialValueProblem(RotatingHamiltonian(), np.array([1., .2], dtype=float, copy=True), layout=GCStateLayout())
+        problem = InitialValueProblem(RotatingHamiltonian(), np.array([1., .2], dtype=float, copy=True), layout=GuidingCenterDynamics.coordinates)
         for cls in (DOP853, Radau):
             options = {'jacobian': lambda t,z: np.array([[0.,-1.],[1.,0.]])} if cls is Radau else {}
             for count in (2, 29):
@@ -135,57 +135,17 @@ class FourStateFormulationTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, 'track_energy=True'):
                     cls(state_extension='fully_extended')
 
-    def test_formulation_objects_expose_four_distinct_named_configurations(self):
-        problem = _problem()
-        expected = ((SingleFormulation,False,2,'physical'),
-                    (SingleFormulation,True,4,'physical_with_energy'),
-                    (DoubleFormulation,False,4,'duplicated'),
-                    (DoubleFormulation,True,6,'duplicated_with_energy'))
-        for cls, tracking, size, name in expected:
-            form = cls(problem.layout, problem.particle_count, tracking)
-            self.assertEqual(form.dimension,size)
-            self.assertEqual(form.metadata()['state_formulation'],name)
-            self.assertEqual(form.pack(form.lift(problem.initial_state), .3, np.zeros(problem.particle_count)).size, size)
-
-    def test_uniform_components_keep_particle_coordinates_together(self):
-        source = _problem()
-        problem = InitialValueProblem(source.dynamics, GCStateLayout().pack_components([1., 2., 3.], [4., 5., 6.]), layout=GCStateLayout())
-        for cls in (SingleFormulation, DoubleFormulation):
-            for tracking in (False, True):
-                form = cls(problem.layout, problem.particle_count, tracking)
-                state = form.pack(form.lift(problem.initial_state), .4, np.array([7., 8., 9.]))
-                components = form.components(state)
-                expected = np.tile([[1., 2., 3.], [4., 5., 6.]], (form.copies, 1))
-                if tracking:
-                    expected = np.vstack((expected, [.4, .4, .4], [7., 8., 9.]))
-                np.testing.assert_array_equal(components, expected)
-
-    def test_formulation_aligns_roundoff_and_rejects_a_divergent_particle_time(self):
-        source = _problem()
-        problem = InitialValueProblem(source.dynamics, GCStateLayout().pack_components([1., 1.1, 1.2], [1.2, 1.3, 1.4]), layout=GCStateLayout())
-        times = np.array([.3, .32, .34])
-        for cls in (SingleFormulation, DoubleFormulation):
-            form = cls(problem.layout, problem.particle_count, True)
-            physical = np.repeat(problem.initial_state[:, None], times.size, axis=1)
-            history = form.pack(form.lift(physical), np.nextafter(times, np.inf), np.zeros((3, 3)))
-            before = history.copy()
-            _, diagnostics = form.extract_history(times, history, energy=problem.dynamics.hamiltonian(times, physical))
-            np.testing.assert_array_equal(diagnostics['extended_time'], np.broadcast_to(times, (3, 3)))
-            np.testing.assert_array_equal(history, before)
-            form.time(history)[1, 1] += 1e-4
-            with self.assertRaisesRegex(ValueError, 'Each particle time'):
-                form.extract_history(times, history, energy=problem.dynamics.hamiltonian(times, physical))
-
-    def test_full_cyclotron_keeps_six_coordinates_per_particle_with_energy(self):
+    def test_full_cyclotron_keeps_four_physical_coordinates_and_separate_momentum(self):
         dynamics = FullCyclotronDynamics(_problem().dynamics.potential, rho=.2, eta=.1)
-        problem = InitialValueProblem(dynamics, FCStateLayout().pack_components([1., 1.1, 1.2], [1.2, 1.3, 1.4], [.1, .2, .3], [-.1, -.2, -.3]), layout=FCStateLayout())
+        problem = InitialValueProblem(dynamics, FullCyclotronDynamics.coordinates.pack_components([1., 1.1, 1.2], [1.2, 1.3, 1.4], [.1, .2, .3], [-.1, -.2, -.3]), layout=FullCyclotronDynamics.coordinates)
         request = SimulationRequest.uniform(t_span=(.3, .34),  sample_count=5)
         run = RK4(step=0.01, track_energy=True).new_run(problem, request)
-        self.assertEqual(run.state_formulation.components(run.initial_state).shape, (6, 3))
+        self.assertEqual(run.initial_state.shape, (12,))
+        self.assertEqual(run.initial_momentum.shape, (3,))
         tracked = simulate(problem, RK4(step=0.01, track_energy=True), request)
         plain = simulate(problem, RK4(step=0.01), request)
         np.testing.assert_array_equal(tracked.states, plain.states)
-        self.assertEqual(tracked.diagnostics['accepted_internal_state_dimension'], 18)
+        self.assertEqual(tracked.diagnostics['accepted_internal_state_dimension'], 12)
         np.testing.assert_array_equal(tracked.diagnostics['extended_time'], np.broadcast_to(tracked.t, (3, 5)))
 
     def test_bm4_tracking_agrees_with_independent_stage_observer(self):

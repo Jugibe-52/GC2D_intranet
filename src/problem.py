@@ -4,8 +4,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 import numpy as np
 from contracts.dynamics.protocols import DynamicalSystem
-from contracts.formulations.layout import StateLayout
-from formulations.layout import GCStateLayout, FCStateLayout
+from contracts.dynamics.coordinates import StateLayout
+from dynamics.coordinates import PhysicalCoordinates, describe_coordinates
 from states.initial import InitialConditions
 
 
@@ -13,8 +13,8 @@ from states.initial import InitialConditions
 class InitialValueProblem:
 	"""Own physical initial data; the request independently selects its time.
 
-	Omitted layouts use the canonical GC/FC component order for dimensions 2/4.
-	Other coordinate conventions require an explicit structural layout.
+	Omitted layouts use the dynamics coordinate declaration. External systems may
+	declare coordinates or supply an explicit structural description.
 	"""
 
 	dynamics: DynamicalSystem
@@ -31,6 +31,9 @@ class InitialValueProblem:
 			initial: InitialConditions = initial_state
 		else:
 			initial = self._from_array(dynamics, initial_state, layout)
+		declared: StateLayout | None = getattr(dynamics, 'coordinates', None)
+		if declared is not None and initial.layout != describe_coordinates(declared):
+			raise TypeError('The initial coordinate order or roles are incompatible with the dynamics.')
 		if initial.layout.state_dimension != dynamics.state_dimension:
 			raise TypeError("The initial layout is incompatible with the dynamics.")
 		object.__setattr__(self, 'dynamics', dynamics)
@@ -41,12 +44,9 @@ class InitialValueProblem:
 	def _from_array(dynamics: DynamicalSystem, values: np.ndarray, layout: StateLayout | None) -> InitialConditions:
 		"""Normalize the established array constructor through the same owner."""
 		if layout is None:
-			if dynamics.state_dimension == 2:
-				layout = GCStateLayout()
-			elif dynamics.state_dimension == 4:
-				layout = FCStateLayout()
-			else:
-				raise TypeError("Supply an explicit layout for these dynamics.")
+			layout = getattr(dynamics, 'coordinates', None)
+			if layout is None:
+				raise TypeError('Supply an explicit layout or declare dynamics.coordinates.')
 		return InitialConditions(values, layout=layout)
 
 	@property
@@ -55,7 +55,7 @@ class InitialValueProblem:
 		return self.initial_conditions.values
 
 	@property
-	def layout(self) -> StateLayout:
+	def layout(self) -> PhysicalCoordinates:
 		return self.initial_conditions.layout
 
 

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from formulations.layout import GCStateLayout
+from dynamics.gc import GuidingCenterDynamics
 
 from dataclasses import asdict, dataclass, replace
 import hashlib
@@ -237,7 +237,7 @@ def _solve_adaptive(
 	configured: DOP853 | Radau = method_type(relative_tolerance=relative_tolerance,
 		absolute_tolerance=absolute_tolerance,
 		step_observer=report if progress_callback is not None else None)
-	problem: InitialValueProblem = InitialValueProblem(dynamics, np.array(np.asarray(initial_state, dtype=float), dtype=float, copy=True), layout=GCStateLayout())
+	problem: InitialValueProblem = InitialValueProblem(dynamics, np.array(np.asarray(initial_state, dtype=float), dtype=float, copy=True), layout=GuidingCenterDynamics.coordinates)
 	request: SimulationRequest = SimulationRequest((float(times[0]), float(times[-1])),  times)
 	result: States = simulate(problem, replace(configured, max_step=maximum_step), request)
 
@@ -392,7 +392,7 @@ def run_high_precision_reference_trajectory(
 	"""
 	if not isinstance(potential, Potential):
 		raise TypeError("`potential` must be a Potential instance.")
-	if not (isinstance(initial_configuration, np.ndarray) and GCStateLayout().state_dimension == 2):
+	if not (isinstance(initial_configuration, np.ndarray) and GuidingCenterDynamics.coordinates.state_dimension == 2):
 		raise TypeError("`initial_configuration` must be np.ndarray.")
 	if not isinstance(config, HighPrecisionReferenceConfig):
 		raise TypeError("`config` must be a HighPrecisionReferenceConfig.")
@@ -435,7 +435,7 @@ def run_high_precision_reference_trajectory(
 		period=potential.grid.period,
 	)
 	audit: ReferenceTrajectoryAuditSummary = _audit_summary(audit_distances, states, audit_states)
-	particle_count: int = GCStateLayout().particle_count(initial_state)
+	particle_count: int = GuidingCenterDynamics.coordinates.particle_count(initial_state)
 	output_directory: Path = reference_trajectory_output_directory(
 		notebook_path,
 		reference_name=reference_name,

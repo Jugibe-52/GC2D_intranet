@@ -204,21 +204,14 @@ cases remain explicit. See `docs/studies/poincare-automation.md`.
 
 ## Current state and saved physical states
 
-`states.initial.InitialConditions` owns physical values and a copied structural layout, with GC/FC factories and independent arrays.
-`problem.InitialValueProblem` associates it with compatible dynamics; array input and array-valued initial_state remain supported.
-`states.generators` returns arrays. `formulations.layout` owns GC/FC layouts and NumPy/JAX operations; GCState/FCState are component views.
-`SingleFormulation`/`DoubleFormulation` retain only layout, particle count and tracking. Retired PhysicalFormulation/DoubledFormulation have no aliases.
-Methods own initialization, zero passive momentum, per-step preparation, projection/solvers and energy evaluation.
-Use lift for equal complete physical copies, join_copies for shifted candidates, and pack for supplied time/momentum; auxiliaries are never duplicated.
-Accepted doubled snapshots remain diagonal; physical reads the first copy without averaging. Generic FC duplication does not extend GC-only methods.
-Formulations combine supplied energy arrays with momentum without evaluating dynamics. See docs/simulation/initial-solvers-formulations.md.
-`request.SimulationRequest` alone owns initial time and output schedule; controllers manage internal `IntegrationState(time, values)` snapshots. FixedStepMethod owns positive `step` (default 0.1); the common CPU/JAX grid clips only its last step. `advance` receives effective durations without changing configuration. Adaptive methods own `max_step`; requests no longer accept it.
-`states.States` records physical samples and separate accepted-step statistics, then becomes the read-only result returned directly by `simulate`.
-Shadow samples start independently from an accepted interval's left endpoint and never replace the main state. JAX keeps functional arrays inside JIT.
-Initial snapshots compare by value, not provider identity. Retired State, Solution and IntegrationCollector routes have no aliases.
-Archive schemas and save_solution/load_solution stay unchanged; old archives may lack initial data.
-Area remains in `diagnostics.states.geometry`, geometry labels in study metadata.
-See `docs/simulation/api-migration.md` and `specs/current/states.md`.
+`dynamics.coordinates.PhysicalCoordinates` stores immutable component names and position/velocity roles. Dynamics declare `coordinates`; otherwise an explicit layout is required. Never infer GC/FC from dimension. InitialConditions, problems and States own structural data and arrays without retaining field physics; validate coordinate order and roles, not size alone.
+`SingleFormulation(physical_size)` and `DoubleFormulation(physical_size)` retain only size. lift/join_copies/split_copies build temporary complete copies, including shifted projection candidates and FC velocities, preserving NumPy/JAX. No clock, momentum, tracking or model data belongs in them.
+Every accepted IntegrationState(time, values, momentum=None) contains one physical Z (d*N), scalar time and optional separate physical kappa (N). Methods initialize zero kappa, prepare workspaces, project and return physical StepResult.state plus separate momentum. StepInfo carries momentum_before. Never persist equal duplicate copies between steps.
+Methods evaluate physical H once; states.energy combines supplied H and kappa. GC map work uses summed momentum and divides by two on projection. Physical auxiliaries and archive labels retain their previous normalization.
+Fixed methods own positive step (default 0.1); CPU/JAX clip only the last main step. Adaptive methods own max_step. Requests own interval/output times, never step controls. Shadow samples start independently from an accepted interval's left Z and kappa, and never replace the main state. JAX carries separate functional arrays.
+States records physical samples and separate accepted-step statistics, then becomes the read-only result returned by simulate. Archives keep schemas and save_solution/load_solution; legacy archives can lack initial data. Recreate old configured-object pickles after this API change.
+Generic packing does not extend GC-only methods to FC. GC/FC map operations belong to methods.extended.maps and methods.splitting, projection observation to diagnostics.methods.projection. Retired layout/state/wrapper classes and modules have no aliases.
+See docs/simulation/initial-solvers-formulations.md, docs/simulation/api-migration.md and specs/current/states.md.
 
 ## Reusable solvers and projection equations
 
@@ -227,7 +220,7 @@ algebraic operations; each solve owns its work arrays. Explicit solver= controls
 tolerances and iteration limits; omitted solvers retain legacy method defaults.
 Gauss, SDIRK and HBVM accept Newton; ABBA/BM4 also accept Broyden. Preserve HBVM's
 matrix infinity norm, damping and initial-residual-before-Jacobian validation.
-`formulations.projection` owns ReducedProjection (2N unknowns) and
+`methods.projection` owns ReducedProjection (2N unknowns) and
 SimultaneousProjection (6N), including guesses, residuals, Jacobian assembly and
 reconstruction. Methods supply compositions/derivatives; Gauss keeps its stage
 equations. ABBA accepts both classes or legacy strings; BM4 remains reduced.
@@ -269,7 +262,7 @@ NumPy/JAX compatibility without device or execution policy.
 
 BM4Implicit and BM4Midpoint have no coupling_frequency constructor option and
 bind uncoupled maps on CPU/JAX. Keep their signed weights, endpoint clock and
-projections. HarmonicCoupling in formulations.gc (re-exported by formulations)
+projections. HarmonicCoupling in methods.extended.maps
 provides the independent spatial C flow for future compositions. Retained study
 schema rates must be zero for new calculations; never relabel or resume coupled
 historical trajectories through the current methods. Observer rates stay zero.

@@ -88,7 +88,7 @@ or `IntegrationMethod` with their own controller. Structural providers return
 a supported prepared run.
 
 `IntegrationMethod` retains `initialize`, `advance`, `build_observation`,
-`export_history` and `controller`. The default JAX capability is unsupported.
+`diagnose_history` and `controller`. The default JAX capability is unsupported.
 Built-in fixed methods declare device-resident execution; adaptive methods declare
 hybrid control. Numerical family adapters retain explicit supported-type checks,
 so declaring a mode alone does not authorize compiling unknown subclass overrides.
@@ -129,7 +129,7 @@ Method step controls follow the configuration contract below. Supported direct c
 `execution._jax` prepares the optional device environment and contains the cached
 SciPy/JAX evaluation adapter. `execution._host` owns host advancement, sampling,
 progress and shared step-count rules; `execution._jax_fixed` owns the compiled
-device loop and numerical export. `execution.state` defines accepted internal
+device loop and numerical export. `execution.state` defines accepted physical
 snapshots. Workers receive an open recorder and never own run status or finalize
 results. These are internal implementation functions, not additional executors.
 

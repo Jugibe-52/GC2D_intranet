@@ -2,7 +2,7 @@
 
 from studies._validation import require_uncoupled_bm4
 
-from formulations.layout import GCStateLayout
+from dynamics.gc import GuidingCenterDynamics
 
 from contracts.studies.gc_energy_bound import GCEnergyBoundResult, GC_ENERGY_BOUND_METHODS as METHODS
 
@@ -143,7 +143,7 @@ def run_gc_energy_bound_study(
     reproduce the timed trajectory. Reference generation is always excluded.
     """
     dynamics: GuidingCenterDynamics = GuidingCenterDynamics(potential, rho=config.rho)
-    problem: InitialValueProblem = InitialValueProblem(dynamics, configuration, layout=GCStateLayout())
+    problem: InitialValueProblem = InitialValueProblem(dynamics, configuration, layout=GuidingCenterDynamics.coordinates)
     _validate_reference(reference, dynamics, problem.initial_state, config)
     tref = reference.times
     href: np.ndarray = np.asarray(dynamics.hamiltonian(tref, reference.states)).reshape(-1)
@@ -360,7 +360,7 @@ def audit_initial_step_geometry(
     from contracts.methods.extended.bm4 import ImplicitBM4IntegrationStep
 
     dynamics: GuidingCenterDynamics = GuidingCenterDynamics(potential, rho=config.rho)
-    problem: InitialValueProblem = InitialValueProblem(dynamics, configuration, layout=GCStateLayout())
+    problem: InitialValueProblem = InitialValueProblem(dynamics, configuration, layout=GuidingCenterDynamics.coordinates)
     if problem.initial_state.shape != (2,):
         raise ValueError("The local geometry audit requires one planar trajectory.")
     h = config.steps[0]

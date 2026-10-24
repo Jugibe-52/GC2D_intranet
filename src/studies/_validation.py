@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from formulations.layout import GCStateLayout
+from dynamics.gc import GuidingCenterDynamics
 
 from contracts.studies._validation import (
 	positive_finite,
@@ -104,7 +104,7 @@ def validate_sampling_grid(
 def single_gc_state(configuration: np.ndarray, *, message: str) -> np.ndarray:
 	"""Return the one packed GC state required by single-trajectory studies."""
 	initial_state = configuration
-	if initial_state is None or GCStateLayout().particle_count(initial_state) != 1:
+	if initial_state is None or GuidingCenterDynamics.coordinates.particle_count(initial_state) != 1:
 		raise ValueError(message)
 	return initial_state
 

@@ -1,6 +1,6 @@
 """Shared-center geometry, consecutive JAX integration and progress lifecycle."""
 
-from formulations.layout import GCStateLayout
+from dynamics.gc import GuidingCenterDynamics
 
 from dataclasses import replace
 import importlib.util
@@ -39,7 +39,7 @@ class LocalJAXStarTests(unittest.TestCase):
     def test_exactly_one_shared_center_and_five_radii_per_arm(self):
         potential = field()
         problem = build_local_star(potential, settings())
-        x, y = GCStateLayout().positions(problem.initial_state)
+        x, y = GuidingCenterDynamics.coordinates.positions(problem.initial_state)
         relative = np.column_stack((x, y)) / potential.grid.period - .5
         np.testing.assert_array_equal(relative[0], [0., 0.])
         self.assertEqual(np.count_nonzero(np.all(relative == 0., axis=1)), 1)

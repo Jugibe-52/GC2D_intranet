@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from formulations.layout import GCStateLayout
+from dynamics.gc import GuidingCenterDynamics
 
 from collections.abc import Mapping
 from dataclasses import asdict, dataclass
@@ -18,9 +18,9 @@ from typing import Any
 import numpy as np
 import scipy
 
-from contracts.formulations.layout import StateLayout
+from contracts.dynamics.coordinates import StateLayout
 from contracts.states.history import DiagnosticValue
-from formulations.layout import FCStateLayout
+from dynamics.fc import FullCyclotronDynamics
 from diagnostics.io.paths import solution_destination
 from diagnostics.io.storage import ArtifactStore, StorageError
 
@@ -73,9 +73,9 @@ def _write_archive(
 ) -> None:
     """Encode physical layout, diagnostics and the actual sampled potential."""
     layout = solution.layout
-    if type(layout) is GCStateLayout:
+    if layout == GuidingCenterDynamics.coordinates:
         layout_name = "gc_component_major_xy"
-    elif type(layout) is FCStateLayout:
+    elif layout == FullCyclotronDynamics.coordinates:
         layout_name = "fc_component_major_xyvxvy"
     else:
         raise TypeError("Persistence currently supports the canonical GC and FC layouts.")
@@ -208,9 +208,9 @@ def _load_solution_arrays(directory: Path, description: Mapping[str, Any]) -> St
     with np.load(directory / "solution.npz", allow_pickle=False) as saved:
         initial = saved["initial_state"] if description["has_initial_state"] else None
         if description["layout"] == "gc_component_major_xy":
-            layout: StateLayout = GCStateLayout()
+            layout: StateLayout = GuidingCenterDynamics.coordinates
         elif description["layout"] == "fc_component_major_xyvxvy":
-            layout = FCStateLayout()
+            layout = FullCyclotronDynamics.coordinates
         else:
             raise ValueError("Unsupported saved state layout.")
         diagnostics: dict[str, DiagnosticValue] = {

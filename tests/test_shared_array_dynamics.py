@@ -8,7 +8,6 @@ import unittest
 
 import numpy as np
 
-from formulations.layout import FCStateLayout, GCStateLayout
 from dynamics.fc import FullCyclotronDynamics
 from dynamics.gc import GuidingCenterDynamics
 from execution._jax import prepare_dynamics
@@ -56,7 +55,7 @@ class SharedArrayDynamicsTests(unittest.TestCase):
 		return blocks[:dimension].reshape(-1)
 
 	def test_layout_round_trip_preserves_backend_and_sample_axes(self) -> None:
-		for layout in (GCStateLayout(), FCStateLayout()):
+		for layout in (GuidingCenterDynamics.coordinates, FullCyclotronDynamics.coordinates):
 			state = np.arange(layout.state_dimension * 12.0).reshape(-1, 3, 2)
 			for value in (state, self.jnp.asarray(state)):
 				with self.subTest(layout=type(layout).__name__, backend=type(value).__name__):
@@ -75,7 +74,7 @@ class SharedArrayDynamicsTests(unittest.TestCase):
 			self.assertIsInstance(layout.pack_components(*mixed), self.jax.Array)
 
 	def test_layout_rejects_invalid_shapes_during_tracing(self) -> None:
-		layout = GCStateLayout()
+		layout = GuidingCenterDynamics.coordinates
 		for state in (self.jnp.array(1.0), self.jnp.ones(3), self.jnp.ones((0, 2))):
 			with self.subTest(shape=state.shape), self.assertRaisesRegex(ValueError, "first state dimension"):
 				self.jax.jit(layout.as_blocks)(state)

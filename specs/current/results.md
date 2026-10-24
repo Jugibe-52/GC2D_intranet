@@ -28,7 +28,7 @@ Times have shape `(T,)` with at least one finite, strictly increasing sample. Ph
 
 ## SOL-002: Owned arrays, layout and initial snapshot
 
-Recording copies samples; completed arrays are read-only. Construction from complete arrays preserves their numerical dtype. The layout is copied, and its accessor returns an independent copy. The optional initial array is copied, dimension-checked and independently returned. Simulated results preserve the problem's initial snapshot; loaded archives may lack it. There is no retained mutable provider identity. Read-only NumPy flags describe the supported interface, not protection against deliberate low-level mutation. Pickling a completed result restores these guarantees; incomplete results cannot cross that boundary.
+Recording copies samples; completed arrays are read-only. Construction from complete arrays preserves their numerical dtype. The layout is stored and exposed as an immutable structural description. The optional initial array is copied, dimension-checked and independently returned. Simulated results preserve the problem's initial snapshot; loaded archives may lack it. There is no retained mutable provider identity. Read-only NumPy flags describe the supported interface, not protection against deliberate low-level mutation. Pickling a completed result restores these guarantees; incomplete results cannot cross that boundary.
 
 ## SOL-003: Read-only diagnostics and explicit axes
 
@@ -51,10 +51,4 @@ covered by `tests/test_study_result_contracts.py`.
 
 ## Energy extraction responsibility
 
-Host methods evaluate H on saved physical samples once. Compiled methods may
-supply their device-evaluated H directly through `export_history(..., energy=...)`.
-Single/double representations combine the supplied H with stored physical kappa;
-they never access a problem or evaluate dynamics. Energy-tracked direct
-`extract_history` requires an energy array. Preserved diagnostic names,
-normalization, saved-time alignment and independent accepted-step statistics
-require no archive migration.
+Methods evaluate saved physical H once. `states.energy.energy_diagnostics` combines supplied H and physical kappa without dynamics evaluation. Existing energy labels and `(N,T)` auxiliary histories remain unchanged; `extended_time` is broadcast from scalar sample times. Numerical archives require no migration; old pickled configured objects should be recreated.

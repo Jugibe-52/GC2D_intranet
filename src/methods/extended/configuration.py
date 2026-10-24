@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from typing import Literal, TypeAlias
-from formulations.projection import ProjectionChoice, resolve_projection
+from methods.projection import ProjectionChoice, resolve_projection
 
 
 ProjectionFormulation: TypeAlias = Literal[
@@ -65,7 +65,7 @@ def _state_dimension_diagnostics(
 	if particle_count < 1:
 		raise ValueError("`particle_count` must be a positive integer.")
 	result: dict[str, int | str] = {
-		"accepted_internal_state_dimension": 4 * particle_count,
+		"accepted_internal_state_dimension": 2 * particle_count,
 		"base_splitting_state_dimension": 4 * particle_count,
 		"observer_state_dimension": 2 * particle_count,
 		"observer_state_kind": "physical_map",

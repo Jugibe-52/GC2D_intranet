@@ -361,7 +361,7 @@ class GaussLegendre4(FixedStepMethod[_GaussStepResult]):
 	def initialize(self, problem: InitialValueProblem, request: SimulationRequest) -> None:
 		"""Bind the nonlinear map, physical observation and energy exporter."""
 		self.dynamics = problem.dynamics
-		self.state_formulation = SingleFormulation(problem.layout, problem.particle_count, self.track_energy)
+		self.state_formulation = SingleFormulation(problem.initial_state.size)
 		initial_state: np.ndarray = self._initialize_state(problem, request)
 		physical_initial = problem.initial_state
 		self.resolved_jacobian_method = _resolved_jacobian_method(
@@ -407,9 +407,9 @@ class GaussLegendre4(FixedStepMethod[_GaussStepResult]):
 			newton_observer=newton_observer, solver=self.solver,
 		)
 
-	def advance(self, time: float, value: np.ndarray, step: float) -> StepResult[_GaussStepResult]:
+	def advance(self, time: float, value: np.ndarray, step: float, *, momentum: np.ndarray | None = None) -> StepResult[_GaussStepResult]:
 		"""Solve one complete physical step and finish its auxiliary state."""
-		physical_before: np.ndarray = np.asarray(value[:self.physical_size], dtype=float)
+		physical_before: np.ndarray = np.asarray(self._checked_state(value, momentum), dtype=float)
 		result: _GaussStepResult = self._solve_physical(time, physical_before, step, newton_observer=self.newton_observer)
 		tolerance = self.newton_absolute_tolerance + (
 			self.newton_relative_tolerance * max(1.0, float(np.linalg.norm(physical_before, ord=np.inf)))
@@ -431,8 +431,8 @@ class GaussLegendre4(FixedStepMethod[_GaussStepResult]):
 		increment = step * 0.5 * (
 			momentum_derivatives[0] + momentum_derivatives[1]
 		)
-		after: np.ndarray = self._finish_state(value, result.state, time + step, increment)
-		return StepResult(after, statistics, result)
+		after: np.ndarray = result.state
+		return StepResult(after, statistics, result, self._finish_momentum(momentum, increment))
 
 	def build_observation(self, info: StepInfo, step: StepResult[_GaussStepResult]) -> GaussLegendre4IntegrationStep:
 		"""Build independent physical snapshots from accepted solve details."""

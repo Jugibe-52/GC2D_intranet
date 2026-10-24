@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from formulations.layout import GCStateLayout
+from dynamics.gc import GuidingCenterDynamics
 
 from diagnostics.states.geometry import calculate_area
 
@@ -121,7 +121,7 @@ class ProjectedSymplecticityAreaObserver:
 		metadata: Mapping[str, Any] | None = None,
 	) -> None:
 		"""Configure cumulative tangent propagation and notebook-derived output."""
-		if not (isinstance(area, np.ndarray) and GCStateLayout().state_dimension == 2 and GCStateLayout().particle_count(area) >= 3):
+		if not (isinstance(area, np.ndarray) and GuidingCenterDynamics.coordinates.state_dimension == 2 and GuidingCenterDynamics.coordinates.particle_count(area) >= 3):
 			raise TypeError("`area` must be a GC np.ndarray with at least three ordered boundary vertices.")
 		record_every = positive_integer(record_every, "record_every")
 		chunk_size = positive_integer(chunk_size, "chunk_size")
@@ -131,7 +131,7 @@ class ProjectedSymplecticityAreaObserver:
 		assert initial_state is not None
 		self.area = area
 		self.initial_state = initial_state.copy()
-		self.particle_count = GCStateLayout().particle_count(initial_state)
+		self.particle_count = GuidingCenterDynamics.coordinates.particle_count(initial_state)
 		self.physical_size = 2 * self.particle_count
 		self.extended_size = 2 * self.physical_size
 		self.period = period
@@ -141,7 +141,7 @@ class ProjectedSymplecticityAreaObserver:
 		self._extended_tangent = self.embedding.copy()
 		self._local_extended_tangent = self.embedding.copy()
 
-		self.initial_area = float(calculate_area(initial_state, period=period, layout=GCStateLayout()))
+		self.initial_area = float(calculate_area(initial_state, period=period, layout=GuidingCenterDynamics.coordinates))
 		if not np.isfinite(self.initial_area) or abs(self.initial_area) <= np.finfo(float).eps:
 			raise ValueError("The initial projected boundary must have non-zero finite area.")
 		self.output_directory = notebook_output_directory(
@@ -299,7 +299,7 @@ class ProjectedSymplecticityAreaObserver:
 			float(np.linalg.norm(projected_state)),
 			float(np.finfo(float).eps),
 		)
-		area: float = float(calculate_area(projected_state, period=self.period, layout=GCStateLayout()))
+		area: float = float(calculate_area(projected_state, period=self.period, layout=GuidingCenterDynamics.coordinates))
 		area_error = area - self.initial_area
 		local_defect = (
 			local_projected_jacobian.T

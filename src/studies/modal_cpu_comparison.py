@@ -2,7 +2,7 @@
 
 from studies._validation import require_uncoupled_bm4
 
-from formulations.layout import GCStateLayout
+from dynamics.gc import GuidingCenterDynamics
 
 from dataclasses import asdict, dataclass, field
 import json
@@ -16,7 +16,6 @@ from execution.options import ExecutionOptions
 from problem import InitialValueProblem
 from request import SimulationRequest
 from diagnostics.io.persistence import load_solution, save_solution
-from dynamics.gc import GuidingCenterDynamics
 from execution.execution_modal import Execution_Modal
 from states.generators import radial_star
 from methods.extended.bm4 import BM4Midpoint
@@ -86,7 +85,7 @@ def build_star_problem(potential: Potential, config: ModalCPUStarConfig) -> tupl
                           inner_radius=radius * config.inner_radius_fraction,
                           arms=config.arms, particles_per_arm=config.particles_per_arm,
                           first_angle=config.first_angle)
-    problem: InitialValueProblem = InitialValueProblem(GuidingCenterDynamics(potential, rho=config.rho), initial, layout=GCStateLayout())
+    problem: InitialValueProblem = InitialValueProblem(GuidingCenterDynamics(potential, rho=config.rho), initial, layout=GuidingCenterDynamics.coordinates)
     steps = config.cycles * config.steps_per_cycle
     request: SimulationRequest = SimulationRequest((0., float(config.cycles)),
                                 np.arange(steps + 1, dtype=float) / config.steps_per_cycle)

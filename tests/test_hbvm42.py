@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from formulations.layout import GCStateLayout
+from dynamics.gc import GuidingCenterDynamics
 
 import unittest
 from types import SimpleNamespace
@@ -68,7 +68,7 @@ class HBVM42MethodTests(unittest.TestCase):
 			momentum=0.0,
 		)
 		self.dynamics = QuarticOscillatorDynamics(quartic_strength=1.0)
-		self.problem = InitialValueProblem(self.dynamics, self.configuration, layout=GCStateLayout())
+		self.problem = InitialValueProblem(self.dynamics, self.configuration, layout=GuidingCenterDynamics.coordinates)
 
 	def test_public_export_and_rank_two_runge_kutta_coefficients(self) -> None:
 		self.assertIs(simulation.HBVM42, HBVM42)
@@ -120,7 +120,7 @@ class HBVM42MethodTests(unittest.TestCase):
 		self.assertLess(errors[0] / errors[1], 18.0)
 
 	def test_auto_jacobian_falls_back_to_centered_finite_differences(self) -> None:
-		problem = InitialValueProblem(_QuarticWithoutJacobian(), self.configuration, layout=GCStateLayout())
+		problem = InitialValueProblem(_QuarticWithoutJacobian(), self.configuration, layout=GuidingCenterDynamics.coordinates)
 		solution = simulate(
 			problem,
 			HBVM42(step=0.1, jacobian_method="auto", track_energy=True),
@@ -156,7 +156,7 @@ class HBVM42MethodTests(unittest.TestCase):
 					interpolation_order=5,
 				),
 				rho=0.05,
-			), GCStateLayout().pack_components(np.asarray((1.0,)), np.asarray((1.2,))), layout=GCStateLayout())
+			), GuidingCenterDynamics.coordinates.pack_components(np.asarray((1.0,)), np.asarray((1.2,))), layout=GuidingCenterDynamics.coordinates)
 		request = SimulationRequest.uniform(
 			t_span=(0.0, 0.2),
 			sample_count=5,
@@ -229,7 +229,7 @@ class HBVM42StudyTests(unittest.TestCase):
 			),
 			rho=0.05,
 		)
-		gc_configuration = GCStateLayout().pack_components(np.asarray((1.0,)), np.asarray((1.2,)))
+		gc_configuration = GuidingCenterDynamics.coordinates.pack_components(np.asarray((1.0,)), np.asarray((1.2,)))
 		comparison = run_hbvm42_bm4_comparison(
 			gc_dynamics,
 			gc_configuration,

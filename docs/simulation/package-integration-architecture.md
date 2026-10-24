@@ -16,10 +16,10 @@ remain available unchanged.
 
 ## Reading the diagram
 
-The image records the previous package organization, including the retired initial-provider, collector and result owners. Its module labels are historical. The current owners are documented in the [integration guide](integration-architecture.md): `request.py` owns temporal configuration, `formulations.layout` owns physical layouts, `execution` owns preparation and current-state control and `states` owns physical recording and results.
+The image records the previous package organization, including the retired initial-provider, collector and result owners. Its module labels are historical. The current owners are documented in the [integration guide](integration-architecture.md): `request.py` owns temporal configuration, `dynamics.coordinates` owns physical layouts, `execution` owns preparation and current-state control and `states` owns physical recording and results.
 
 The historical `contracts/` band groups shared data interfaces. Current physical capability protocols belong to
-`contracts/dynamics/protocols.py`, split-map protocols to `contracts/formulations/base.py`,
+`contracts/dynamics/protocols.py`, split-map protocols to `contracts/methods/maps.py`,
 and the public method protocol to `contracts/methods/base.py`.
 See the [current contract map](contracts.md); the diagram retains its historical labels.
 
@@ -32,7 +32,7 @@ and capabilities rather than extra execution stages.
 
 1. The caller builds dynamics and a physical initial array with its layout, then supplies a method and `request.SimulationRequest`.
 2. `simulate` delegates to `Execution.run`, which prepares the environment and a fresh run through `method.new_run`, then allocates `States` and owns the running/finished transitions.
-3. On the host, the controller manages `IntegrationState(time, values)` for accepted endpoints and the worker records the initial physical sample.
+3. On the host, the controller manages `IntegrationState(time, values, momentum=None)` for accepted endpoints and the worker records the initial physical sample.
 4. Each accepted interval produces statistics and requested samples. Fixed shadow maps start independently from its left endpoint; adaptive methods evaluate accepted dense output. The formulation extracts physical values before recording. JAX computes on the device and records its physical history in bulk with `States.record_history`.
 5. Methods evaluate saved physical energy; formulations combine the supplied arrays with auxiliaries. `Execution.run` combines those diagnostics with metadata and calls `States.finalize` once on its recorder.
 6. `simulate` verifies time, layout dimension and initial-state agreement and returns the completed `States` directly.

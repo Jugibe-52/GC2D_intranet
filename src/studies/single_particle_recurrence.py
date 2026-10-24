@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from formulations.layout import GCStateLayout
+from dynamics.gc import GuidingCenterDynamics
 
 from dataclasses import asdict, dataclass, replace
 from time import perf_counter
@@ -183,7 +183,7 @@ def run_single_particle_recurrence(
                         dense_output=True, step_observer=observer)
         configured: Radau | DOP853 = (Radau(**controls, jacobian=lambda t, z: dynamics.particle_vector_field_jacobians(t, z)[0])
                       if method == 'Radau' else DOP853(**controls))
-        problem: InitialValueProblem = InitialValueProblem(dynamics, np.array(initial, dtype=float, copy=True), layout=GCStateLayout())
+        problem: InitialValueProblem = InitialValueProblem(dynamics, np.array(initial, dtype=float, copy=True), layout=GuidingCenterDynamics.coordinates)
         data: States = simulate(problem, replace(configured, max_step=options['max_step']), SimulationRequest(
             t_span=(0.0, config.final_time),  output_times=times))
         dense = observer.evaluate

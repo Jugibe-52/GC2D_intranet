@@ -22,68 +22,73 @@ if TYPE_CHECKING:
 
 
 def _integrate(
-    initial: Any, starts: Any, steps: Any, times: Any,
+    initial: Any, initial_momentum: Any, starts: Any, steps: Any, times: Any,
     offsets: Any, modes: Any, durations: Any, *,
     kernel: CompiledStep,
-) -> tuple[Any, Any, Any, Any, Any]:
+) -> tuple[Any, Any, Any, Any, Any, Any]:
     """Collect O(N * saved_times) storage without retaining every main state.
 
     Sample modes select the start (0), end (1), or an independent shadow map
     (2). Offsets group samples by accepted interval, including sparse output.
     Only the accepted state is fed back into the following main step.
     """
-    n = initial.size // (kernel.physical_dimension * kernel.copies + (2 if kernel.track_energy else 0))
-    physical_size = n * kernel.physical_dimension
-
     history: jax.Array = jnp.zeros((initial.size, times.size), dtype=initial.dtype).at[:, 0].set(initial)
+    momenta: jax.Array = jnp.zeros((initial_momentum.size, times.size), dtype=initial.dtype).at[:, 0].set(initial_momentum)
 
-    def shadow(time: Any, state: Any, duration: Any) -> Any:
+    def shadow(time: Any, state: Any, momentum: Any, duration: Any) -> Any:
         value: Any
+        auxiliary: Any
         valid: Any
-        value, _, valid = kernel(time, state, duration)
-        return value, valid
+        value, auxiliary, _, valid = kernel(time, state, duration, momentum)
+        return value, auxiliary, valid
 
     def accepted(carry: Any, index: Any) -> tuple[Any, Any]:
         before: Any
+        momentum_before: Any
         saved: Any
+        saved_momenta: Any
         valid: Any
         converged: Any
-        before, saved, valid, converged = carry
+        before, momentum_before, saved, saved_momenta, valid, converged = carry
         after: Any
+        momentum_after: Any
         statistics: dict[str, Any]
         solved: Any
-        after, statistics, solved = kernel(starts[index], before, steps[index])
+        after, momentum_after, statistics, solved = kernel(starts[index], before, steps[index], momentum_before)
         converged = converged & solved
-        valid = valid & jnp.all(jnp.isfinite(after))
+        valid = valid & jnp.all(jnp.isfinite(after)) & jnp.all(jnp.isfinite(momentum_after))
 
         def sample(output_index: Any, collected: Any) -> Any:
             values: Any
+            auxiliaries: Any
             finite: Any
             solved: Any
-            values, finite, solved = collected
+            values, auxiliaries, finite, solved = collected
             value: Any
+            momentum: Any
             success: Any
-            value, success = jax.lax.switch(modes[output_index], (
-                lambda: (before, jnp.array(True)),
-                lambda: (after, jnp.array(True)),
-                lambda: shadow(starts[index], before, durations[output_index]),
+            value, momentum, success = jax.lax.switch(modes[output_index], (
+                lambda: (before, momentum_before, jnp.array(True)),
+                lambda: (after, momentum_after, jnp.array(True)),
+                lambda: shadow(starts[index], before, momentum_before, durations[output_index]),
             ))
             values = values.at[:, output_index].set(value)
-            return values, finite & jnp.all(jnp.isfinite(value)), solved & success
+            auxiliaries = auxiliaries.at[:, output_index].set(momentum)
+            return values, auxiliaries, finite & jnp.all(jnp.isfinite(value)) & jnp.all(jnp.isfinite(momentum)), solved & success
 
-        saved, valid, converged = jax.lax.fori_loop(
-            offsets[index], offsets[index + 1], sample, (saved, valid, converged))
-        return (after, saved, valid, converged), statistics
+        saved, saved_momenta, valid, converged = jax.lax.fori_loop(
+            offsets[index], offsets[index + 1], sample, (saved, saved_momenta, valid, converged))
+        return (after, momentum_after, saved, saved_momenta, valid, converged), statistics
 
     valid: jax.Array
     converged: jax.Array
     statistics: Any
-    (_, history, valid, converged), statistics = jax.lax.scan(
-        accepted, (initial, history, jnp.array(True), jnp.array(True)), jnp.arange(starts.size),
+    (_, _, history, momenta, valid, converged), statistics = jax.lax.scan(
+        accepted, (initial, initial_momentum, history, momenta, jnp.array(True), jnp.array(True)), jnp.arange(starts.size),
     )
-    energy: Any | jax.Array = (kernel.energy(times, history[:physical_size])
+    energy: Any | jax.Array = (kernel.energy(times, history)
               if kernel.track_energy else jnp.empty((0,), dtype=initial.dtype))
-    return history, energy, valid & jnp.all(jnp.isfinite(energy)), converged, statistics
+    return history, momenta, energy, valid & jnp.all(jnp.isfinite(energy)), converged, statistics
 
 
 @lru_cache(maxsize=16)
@@ -122,27 +127,26 @@ def run_steps(method: "IntegrationMethod[Any]", kernel: CompiledStep,
     durations = times - starts[owners]
     offsets: np.ndarray = np.concatenate(([1], 1 + np.searchsorted(times[1:], ends + tolerance, side="right")))
     device = kernel.device
-    inputs = (method.initial_state, starts, steps, times,
+    inputs = (method.initial_state, method.initial_momentum if method.initial_momentum is not None else np.empty(0), starts, steps, times,
               offsets.astype(np.int32), modes.astype(np.int32), durations)
     # Inputs select the execution device; spline constants follow compilation.
     # device_get synchronizes timing and copies only completed output.
     history: Any
+    momenta: Any
     energy: Any
     valid: Any
     converged: Any
     statistics: Any
-    history, energy, valid, converged, statistics = jax.device_get(_compiled_integrator(kernel)(
+    history, momenta, energy, valid, converged, statistics = jax.device_get(_compiled_integrator(kernel)(
         *(jax.device_put(value, device) for value in inputs),
     ))
     if not bool(valid):
         raise ValueError("A numerical step or output sample became non-finite.")
     if not bool(converged):
         raise RuntimeError(f"{method.method_name} nonlinear solve did not converge within its tolerance and iteration limit.")
-    assert method.state_formulation is not None
-    states: np.ndarray
-    auxiliary: dict[str, DiagnosticValue]
-    states, auxiliary = method.export_history(
-        times, history, energy=energy if kernel.track_energy else None,
+    auxiliary: dict[str, DiagnosticValue] = method.diagnose_history(
+        times, history, {'extended_momentum': momenta} if kernel.track_energy else {},
+        energy=energy if kernel.track_energy else None,
     )
     diagnostics: dict[str, DiagnosticValue] = {}
     diagnostics.update({
@@ -154,7 +158,7 @@ def run_steps(method: "IntegrationMethod[Any]", kernel: CompiledStep,
     diagnostics.update(auxiliary)
     if kernel.finite_difference:
         diagnostics['finite_difference_batching'] = 'independent_particle_columns'
-    saved.record_history(states)
+    saved.record_history(history)
     return diagnostics
 
 

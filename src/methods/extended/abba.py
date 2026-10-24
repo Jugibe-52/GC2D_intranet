@@ -11,7 +11,7 @@ from problem import InitialValueProblem
 from contracts.states.history import DiagnosticValue
 from contracts.methods.step import StepInfo, StepResult
 from contracts.dynamics.protocols import GuidingCenterJacobianSystem
-from formulations.projection import ProjectionChoice
+from methods.projection import ProjectionChoice
 from formulations.state import DoubleFormulation
 from request import SimulationRequest
 from solvers.nonlinear import AlgebraicSolver, NonlinearSolver
@@ -118,7 +118,7 @@ class _ABBAImplicitMethod(ProjectedPalindromicMethod):
 	def build_observation(self, info: StepInfo, step: StepResult[ProjectedMapResult]) -> IntegrationStep:
 		"""Expose physical snapshots from the accepted projection trace."""
 		assert self.build_event is not None
-		before: np.ndarray = self.state_formulation.physical(info.state_before)
+		before: np.ndarray = info.state_before
 		return self.build_event(info.time, info.duration, info.index, before, step.details)
 
 

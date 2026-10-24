@@ -2,7 +2,7 @@
 schema_version = 1
 kind = "spec"
 id = "diagnostics"
-sources = ["src/diagnostics/__init__.py", "src/diagnostics/methods/implicit_iterations.py", "src/diagnostics/formulations/projection/observer.py", "src/diagnostics/states/geometry.py", "src/diagnostics/io/persistence.py"]
+sources = ["src/diagnostics/__init__.py", "src/diagnostics/methods/implicit_iterations.py", "src/diagnostics/methods/projection/observer.py", "src/diagnostics/states/geometry.py", "src/diagnostics/io/persistence.py"]
 documents = ["src/diagnostics/README.md", "AGENTS.md"]
 
 [[requirements]]
@@ -23,7 +23,7 @@ tests = ["tests/test_package_layout.py::PackageLayoutTests.test_numerical_proces
 ## DIA-001: Locate implementations by the observed process
 
 `diagnostics` follows `src` responsibilities through `execution`, `methods`,
-`formulations`, `states` and `studies`; shared output and transport belong to
+`methods`, `states` and `studies`; shared output and transport belong to
 `io`. Adaptive and extended method diagnostics have their own method-family
 packages. Complete-step iteration summaries belong to methods; future
 individual algebraic-iteration observers belong to solvers. Shared metrics have

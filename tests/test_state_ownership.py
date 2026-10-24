@@ -14,11 +14,11 @@ import numpy as np
 
 from problem import InitialValueProblem
 from request import SimulationRequest
-from formulations.layout import FCStateLayout, GCStateLayout, PackedStateLayout
 from dynamics.fc import FullCyclotronDynamics
 from dynamics.gc import GuidingCenterDynamics
-from formulations.fc import FCSplitFormulation
-from formulations.gc import GCDoubledMaps, GCExtendedFormulation, GCStageProjectedFormulation
+from dynamics.coordinates import CoordinateValues, PhysicalCoordinates
+from methods.splitting import FCSplitMaps
+from methods.extended.maps import GCDoubledMaps
 from formulations.state import DoubleFormulation, SingleFormulation
 
 from potential.potential import Potential
@@ -54,10 +54,16 @@ class _ExternalLayout:
 
 class _ExternalGCLayout(_ExternalLayout):
 	state_dimension = 2
+	component_names = ('x', 'y')
+	position_names = ('x', 'y')
+	velocity_names = ()
 
 
 class _ExternalFCLayout(_ExternalLayout):
 	state_dimension = 4
+	component_names = ('x', 'y', 'vx', 'vy')
+	position_names = ('x', 'y')
+	velocity_names = ('vx', 'vy')
 
 
 class _ExternalConfiguration:
@@ -79,73 +85,46 @@ class StateOwnershipTests(unittest.TestCase):
 	def setUpClass(cls) -> None:
 		cls.potential = Potential.random(A=0.04, M=2, nx=8, ny=8)
 
-	def test_public_layout_routes_reexport_one_canonical_implementation(self) -> None:
-		from formulations.layout import FCStateLayout as PublicFC, GCStateLayout as PublicGC
-		from formulations.layout import PackedStateLayout as PublicPacked
-		from formulations.layout import FCStateLayout as ModuleFC
-		from formulations.layout import GCStateLayout as ModuleGC
-
-		self.assertIs(PublicFC, FCStateLayout)
-		self.assertIs(ModuleFC, FCStateLayout)
-		self.assertIs(PublicGC, GCStateLayout)
-		self.assertIs(ModuleGC, GCStateLayout)
-		self.assertIs(PublicPacked, PackedStateLayout)
-
-	def test_structural_gc_sources_support_both_split_formulations(self) -> None:
-		state = np.array([1.0, 1.2, 0.7, 0.8])
-		dynamics = GuidingCenterDynamics(self.potential, rho=0.1)
-		external = InitialValueProblem(dynamics, state, layout=_ExternalGCLayout())
-		builtin = InitialValueProblem(dynamics, np.array(state, dtype=float, copy=True), layout=GCStateLayout())
-		for formulation in (GCExtendedFormulation(), GCStageProjectedFormulation()):
+	def test_structural_sources_support_method_owned_maps(self):
+		for dynamics, layout, maps_type, copies in (
+			(GuidingCenterDynamics(self.potential), _ExternalGCLayout(), GCDoubledMaps, 2),
+			(FullCyclotronDynamics(self.potential, rho=.2, eta=-.1), _ExternalFCLayout(), FCSplitMaps, 1)):
+			state = np.arange(layout.state_dimension * 2, dtype=float) / 10
+			external = InitialValueProblem(dynamics, state, layout=layout)
 			for tracking in (False, True):
-				with self.subTest(formulation=type(formulation).__name__, tracking=tracking):
-					actual = formulation.prepare(external, track_energy=tracking)
-					expected = formulation.prepare(builtin, track_energy=tracking)
-					for method in ("direct_map", "adjoint_map"):
-						np.testing.assert_array_equal(
-							getattr(actual, method)(0.02, 0.3, actual.initial_internal_state),
-							getattr(expected, method)(0.02, 0.3, expected.initial_internal_state),
-						)
-
-	def test_structural_fc_source_supports_exact_split_maps(self) -> None:
-		state = np.array([1.0, 1.2, 0.7, 0.8, 0.1, 0.2, -0.2, 0.3])
-		dynamics = FullCyclotronDynamics(self.potential, rho=0.2, eta=-0.1)
-		external = InitialValueProblem(dynamics, state, layout=_ExternalFCLayout())
-		builtin = InitialValueProblem(dynamics, np.array(state, dtype=float, copy=True), layout=FCStateLayout())
-		for tracking in (False, True):
-			actual = FCSplitFormulation().prepare(external, track_energy=tracking)
-			expected = FCSplitFormulation().prepare(builtin, track_energy=tracking)
-			for method in ("direct_map", "adjoint_map"):
-				with self.subTest(tracking=tracking, method=method):
-					np.testing.assert_array_equal(
-						getattr(actual, method)(0.02, 0.3, actual.initial_internal_state),
-						getattr(expected, method)(0.02, 0.3, expected.initial_internal_state),
-					)
+				actual = maps_type(dynamics, state.size, coordinates=external.layout, track_energy=tracking)
+				expected = maps_type(dynamics, state.size, track_energy=tracking)
+				work = np.tile(state, copies)
+				if tracking: work = np.r_[work, [.1, -.2]]
+				for operation in ('direct_map', 'adjoint_map'):
+					np.testing.assert_array_equal(getattr(actual, operation)(.02, .3, work), getattr(expected, operation)(.02, .3, work))
+				self.assertFalse(hasattr(actual, 'initial_internal_state'))
+				self.assertFalse(hasattr(actual, 'configuration'))
 
 	def test_problem_and_prepared_formulations_own_state_and_layout_snapshots(self) -> None:
 		state = np.array([1.0, 0.7])
 		source = _ExternalConfiguration(state, _ExternalGCLayout())
 		problem = InitialValueProblem(GuidingCenterDynamics(self.potential), source.initial_state, layout=source.layout)
-		physical = SingleFormulation(problem.layout, problem.particle_count)
-		doubled = DoubleFormulation(problem.layout, problem.particle_count, True)
-		maps = GCDoubledMaps(problem)
-		initial_maps = maps.initial_internal_state.copy()
+		physical = SingleFormulation(state.size)
+		doubled = DoubleFormulation(state.size)
+		maps = GCDoubledMaps(problem.dynamics, state.size)
+		initial_maps = doubled.lift(state)
 		source.state = np.array([1.0, 1.1, 0.7, 0.8])
 		source.layout.count_scale = 7
 		returned = problem.initial_state
 		returned[:] = -100.0
 		exposed_layout = problem.layout
-		assert isinstance(exposed_layout, _ExternalLayout)
-		exposed_layout.count_scale = 9
+		with self.assertRaises(FrozenInstanceError):
+			exposed_layout.component_names = ('y', 'x')
 
 		self.assertFalse(np.shares_memory(problem.initial_state, source.state))
 		np.testing.assert_array_equal(problem.initial_state, state)
 		self.assertEqual(problem.particle_count, 1)
 		self.assertEqual(problem.layout.particle_count(state), 1)
 		np.testing.assert_array_equal(physical.lift(problem.initial_state), state)
-		self.assertEqual(doubled.pack(doubled.lift(problem.initial_state), .3, np.zeros(1)).shape, (6,))
-		np.testing.assert_array_equal(maps.initial_internal_state, initial_maps)
-		np.testing.assert_array_equal(GCDoubledMaps(problem).initial_internal_state, initial_maps)
+		self.assertEqual(doubled.lift(problem.initial_state).shape, (4,))
+		np.testing.assert_array_equal(maps.state_formulation.lift(problem.initial_state), initial_maps)
+		self.assertFalse(hasattr(maps, 'initial_internal_state'))
 
 	def test_problem_snapshot_survives_pickle_after_source_changes(self) -> None:
 		state = np.array([1.0, 0.7])
@@ -157,7 +136,7 @@ class StateOwnershipTests(unittest.TestCase):
 		np.testing.assert_array_equal(restored.initial_state, state)
 		self.assertEqual(restored.particle_count, 1)
 		np.testing.assert_array_equal(restored.dynamics.vector_field(0.3, state), expected)
-		self.assertEqual(GCDoubledMaps(restored).initial_internal_state.shape, (4,))
+		self.assertEqual(GCDoubledMaps(restored.dynamics, state.size).state_formulation.lift(restored.initial_state).shape, (4,))
 
 	def test_solution_uses_problem_snapshot_and_owns_its_layout(self) -> None:
 		state = np.array([1.0, 0.7])
@@ -170,15 +149,15 @@ class StateOwnershipTests(unittest.TestCase):
 		np.testing.assert_array_equal(solution.initial_state, state)
 		np.testing.assert_array_equal(solution.positions()[0], solution.states[:1])
 		returned_layout = solution.layout
-		assert isinstance(returned_layout, _ExternalLayout)
-		returned_layout.position_shift = 200.0
+		with self.assertRaises(FrozenInstanceError):
+			returned_layout.position_names = ('y', 'x')
 		np.testing.assert_array_equal(solution.positions()[0], solution.states[:1])
 
 	def test_saved_solution_uses_initial_snapshot_after_source_changes(self) -> None:
 		from diagnostics.io.persistence import load_solution, save_solution
 
 		state = np.array([1.0, 0.7])
-		source = _ExternalConfiguration(state, GCStateLayout())
+		source = _ExternalConfiguration(state, GuidingCenterDynamics.coordinates)
 		problem = InitialValueProblem(GuidingCenterDynamics(self.potential), source.initial_state, layout=source.layout)
 		solution = simulate(problem, RK4(step=0.1), SimulationRequest.uniform(t_span=(0.0, 0.01), sample_count=2))
 		source.state = np.array([1.0, 1.1, 0.7, 0.8])

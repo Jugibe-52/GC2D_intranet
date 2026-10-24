@@ -1,12 +1,12 @@
 """Shared endpoint-time A-B-B-A stages and exact particle-block tangents."""
 from __future__ import annotations
 
-from formulations.layout import GCStateLayout
+from dynamics.gc import GuidingCenterDynamics
 from dataclasses import dataclass
 import numpy as np
 from methods.extended.observations import abba_pairs
 from contracts.dynamics.protocols import DynamicalSystem, GuidingCenterJacobianSystem
-from formulations.gc import spatial_shear, GCDoubledMaps
+from methods.extended.maps import spatial_shear, GCDoubledMaps
 from problem import InitialValueProblem
 
 from methods.extended.core.composition import ABBA2, compose
@@ -153,7 +153,7 @@ __all__: list[str] = []
 
 def uncoupled_maps(dynamics: DynamicalSystem, state: np.ndarray) -> GCDoubledMaps:
     """Bind canonical maps for independent residual-equation verification."""
-    return GCDoubledMaps(InitialValueProblem(dynamics, np.array(state, dtype=float, copy=True), layout=GCStateLayout()), coupling_frequency=None)
+    return GCDoubledMaps(dynamics, state.size, coordinates=GuidingCenterDynamics.coordinates, coupling_frequency=None)
 
 
 @dataclass(frozen=True, slots=True)

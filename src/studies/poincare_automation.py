@@ -6,7 +6,7 @@ from contracts.studies.poincare_automation import _NewtonControls
 
 from studies._validation import require_uncoupled_bm4
 
-from formulations.layout import GCStateLayout
+from dynamics.gc import GuidingCenterDynamics
 
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass
@@ -22,7 +22,6 @@ from execution.options import ExecutionOptions
 from problem import InitialValueProblem
 from request import SimulationRequest
 from contracts.states.history import DiagnosticValue
-from dynamics.gc import GuidingCenterDynamics
 from execution.execution import Execution
 
 from states.generators import ranked_radial_star
@@ -56,7 +55,7 @@ def fixed_particle_fractions() -> np.ndarray:
 	assert star is not None
 	x: np.ndarray
 	y: np.ndarray
-	x, y = GCStateLayout().positions(star)
+	x, y = GuidingCenterDynamics.coordinates.positions(star)
 	return np.vstack((np.column_stack((x, y)), np.asarray(PROBE_FRACTIONS)))
 
 
@@ -259,9 +258,9 @@ def prepare_automation_case(config: AutomationConfig, case: AutomationCase,
 	rho_m = case.rho * config.reference_length / (2*np.pi)
 	period = 1 / float(m.source_frequencies[0])
 	cycle_duration = period / m.time_scale
-	initial: np.ndarray = GCStateLayout().pack_components(xy[:, 0], xy[:, 1])
+	initial: np.ndarray = GuidingCenterDynamics.coordinates.pack_components(xy[:, 0], xy[:, 1])
 	dynamics: GuidingCenterDynamics = GuidingCenterDynamics(p, rho=rho_m / m.spatial_scale, B=case.B)
-	problem: InitialValueProblem = InitialValueProblem(dynamics, initial, layout=GCStateLayout())
+	problem: InitialValueProblem = InitialValueProblem(dynamics, initial, layout=GuidingCenterDynamics.coordinates)
 	times = cycle_duration * np.arange(config.cycles + 1, dtype=float)
 	request: SimulationRequest = SimulationRequest(t_span=(0., float(times[-1])),
 		 output_times=times)

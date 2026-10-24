@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from formulations.layout import GCStateLayout
+from dynamics.gc import GuidingCenterDynamics
 
 from diagnostics.states.geometry import calculate_area
 
@@ -79,7 +79,7 @@ class InitializationStudyTests(unittest.TestCase):
 		self.assertIsInstance(trajectory, np.ndarray)
 		state = trajectory
 		assert state is not None
-		x, y = GCStateLayout().positions(state)
+		x, y = GuidingCenterDynamics.coordinates.positions(state)
 		np.testing.assert_allclose((x[0], y[0]), expected_center)
 
 		circle = centered_circle(
@@ -96,8 +96,8 @@ class InitializationStudyTests(unittest.TestCase):
 		)
 		self.assertIsInstance(circle, np.ndarray)
 		self.assertIsInstance(square, np.ndarray)
-		self.assertEqual(GCStateLayout().particle_count(circle), 8)
-		self.assertAlmostEqual(float(calculate_area(square, layout=GCStateLayout())), 1.0)
+		self.assertEqual(GuidingCenterDynamics.coordinates.particle_count(circle), 8)
+		self.assertAlmostEqual(float(calculate_area(square, layout=GuidingCenterDynamics.coordinates)), 1.0)
 
 	def test_latin_hypercube_conditions_are_reproducible_and_stratified(self) -> None:
 		potential = small_potential_config().build()
@@ -116,7 +116,7 @@ class InitializationStudyTests(unittest.TestCase):
 		assert first is not None
 		assert second is not None
 		np.testing.assert_array_equal(first, second)
-		x, y = GCStateLayout().positions(first)
+		x, y = GuidingCenterDynamics.coordinates.positions(first)
 		grid = potential.grid
 		domain_min = np.asarray((grid.xmin, grid.ymin))
 		domain_max = np.asarray((grid.xmax, grid.ymax))
@@ -152,8 +152,8 @@ class InitializationStudyTests(unittest.TestCase):
 		)
 		assert baseline is not None
 		assert centered is not None
-		baseline_x, baseline_y = GCStateLayout().positions(baseline)
-		centered_x, centered_y = GCStateLayout().positions(centered)
+		baseline_x, baseline_y = GuidingCenterDynamics.coordinates.positions(baseline)
+		centered_x, centered_y = GuidingCenterDynamics.coordinates.positions(centered)
 		expected = np.asarray(domain_center(potential)) + offset_fraction * potential.grid.period
 		np.testing.assert_allclose((centered_x[0], centered_y[0]), expected)
 		np.testing.assert_array_equal(centered_x[1:], baseline_x[1:])

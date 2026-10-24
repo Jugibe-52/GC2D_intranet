@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from studies._validation import require_uncoupled_bm4
 
-from formulations.layout import GCStateLayout
+from dynamics.gc import GuidingCenterDynamics
 
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -254,14 +254,14 @@ def run_area_comparison(
 	"""Run all configured GC methods and persist projected observations."""
 	if not isinstance(potential, Potential):
 		raise TypeError("`potential` must be a Potential instance.")
-	if not (isinstance(area, np.ndarray) and GCStateLayout().state_dimension == 2 and GCStateLayout().particle_count(area) >= 3):
+	if not (isinstance(area, np.ndarray) and GuidingCenterDynamics.coordinates.state_dimension == 2 and GuidingCenterDynamics.coordinates.particle_count(area) >= 3):
 		raise TypeError("`area` must be a GC np.ndarray with at least three ordered boundary vertices.")
 	if not isinstance(config, AreaComparisonConfig):
 		raise TypeError("`config` must be an AreaComparisonConfig instance.")
 
 	rho: float = resolve_rho(config.rho)
 	dynamics: GuidingCenterDynamics = GuidingCenterDynamics(potential, rho=rho)
-	problem: InitialValueProblem = InitialValueProblem(dynamics, area, layout=GCStateLayout())
+	problem: InitialValueProblem = InitialValueProblem(dynamics, area, layout=GuidingCenterDynamics.coordinates)
 	initial_state = area
 	assert initial_state is not None
 	solutions: dict[str, States] = {}
@@ -271,7 +271,7 @@ def run_area_comparison(
 	common_metadata = {
 		**dict(metadata or {}),
 		"geometry": dict(metadata or {}).get("geometry", "polygon"),
-		"particle_count": GCStateLayout().particle_count(initial_state),
+		"particle_count": GuidingCenterDynamics.coordinates.particle_count(initial_state),
 		"coupling_frequency": config.coupling_frequency,
 		"method_name": "BM4Implicit",
 		"projection_scope": "one_complete_twelve_stage_cycle",

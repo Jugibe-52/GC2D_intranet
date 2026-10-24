@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from studies._validation import require_uncoupled_bm4
 
-from formulations.layout import GCStateLayout
+from dynamics.gc import GuidingCenterDynamics
 
 from dataclasses import dataclass, replace
 from time import perf_counter
@@ -119,7 +119,7 @@ def quartic_oscillator_configuration(
 	values: np.ndarray = np.asarray((position, momentum), dtype=float)
 	if not np.all(np.isfinite(values)):
 		raise ValueError("Initial position and momentum must be finite.")
-	return np.asarray(GCStateLayout().pack_components(values[:1], values[1:]))
+	return np.asarray(GuidingCenterDynamics.coordinates.pack_components(values[:1], values[1:]))
 
 
 def _validated_steps(
@@ -345,9 +345,9 @@ def _validated_problem(
 		raise TypeError(
 			"The HBVM/BM4Implicit comparison requires GuidingCenterDynamics."
 		)
-	if not (isinstance(configuration, np.ndarray) and GCStateLayout().state_dimension == 2):
+	if not (isinstance(configuration, np.ndarray) and GuidingCenterDynamics.coordinates.state_dimension == 2):
 		raise TypeError("`configuration` must be a np.ndarray.")
-	problem: InitialValueProblem = InitialValueProblem(dynamics, configuration, layout=GCStateLayout())
+	problem: InitialValueProblem = InitialValueProblem(dynamics, configuration, layout=GuidingCenterDynamics.coordinates)
 	if problem.particle_count != 1 or problem.initial_state.size != 2:
 		raise ValueError("HBVM notebook studies require one planar trajectory.")
 	return problem
@@ -427,7 +427,7 @@ def _flow_jacobian(
 		for sign in (1.0, -1.0):
 			perturbed: np.ndarray = initial_state.copy()
 			perturbed[column] += sign * increment
-			perturbed_problem: InitialValueProblem = InitialValueProblem(problem.dynamics, np.array(perturbed, dtype=float, copy=True), layout=GCStateLayout())
+			perturbed_problem: InitialValueProblem = InitialValueProblem(problem.dynamics, np.array(perturbed, dtype=float, copy=True), layout=GuidingCenterDynamics.coordinates)
 			endpoints.append(
 				simulate(
 					perturbed_problem,

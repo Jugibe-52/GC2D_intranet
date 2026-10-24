@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 
-from formulations.layout import GCStateLayout
+from dynamics.gc import GuidingCenterDynamics
 
 import unittest
 from typing import ClassVar
@@ -77,8 +77,8 @@ def _problem(*, particle_count: int = 1) -> InitialValueProblem:
 		seed=27,
 		interpolation_order=5,
 	)
-	configuration = GCStateLayout().pack_components(np.linspace(1.0, 1.1, particle_count), np.linspace(1.2, 1.3, particle_count))
-	return InitialValueProblem(GuidingCenterDynamics(potential, rho=0.05), configuration, layout=GCStateLayout())
+	configuration = GuidingCenterDynamics.coordinates.pack_components(np.linspace(1.0, 1.1, particle_count), np.linspace(1.2, 1.3, particle_count))
+	return InitialValueProblem(GuidingCenterDynamics(potential, rho=0.05), configuration, layout=GuidingCenterDynamics.coordinates)
 
 
 def _request(*, duration: float = 0.1) -> SimulationRequest:
@@ -163,8 +163,8 @@ class ABBAStateExtensionTests(unittest.TestCase):
 	def test_physical_tracking_has_the_exact_conjugate_sign_and_factor(self) -> None:
 		particle_count = 3
 		slope = 1.75
-		configuration = GCStateLayout().pack_components(np.linspace(0.8, 1.0, particle_count), np.linspace(1.1, 1.3, particle_count))
-		problem = InitialValueProblem(_LinearTimeHamiltonian(slope), configuration, layout=GCStateLayout())
+		configuration = GuidingCenterDynamics.coordinates.pack_components(np.linspace(0.8, 1.0, particle_count), np.linspace(1.1, 1.3, particle_count))
+		problem = InitialValueProblem(_LinearTimeHamiltonian(slope), configuration, layout=GuidingCenterDynamics.coordinates)
 		request = SimulationRequest.uniform(
 			t_span=(0.2, 0.5),
 			sample_count=4,
@@ -192,8 +192,8 @@ class ABBAStateExtensionTests(unittest.TestCase):
 				)
 
 	def test_non_finite_momentum_increment_is_rejected_immediately(self) -> None:
-		configuration = GCStateLayout().pack_components(np.asarray([0.8]), np.asarray([1.1]))
-		problem = InitialValueProblem(_LinearTimeHamiltonian(float(np.finfo(float).max)), configuration, layout=GCStateLayout())
+		configuration = GuidingCenterDynamics.coordinates.pack_components(np.asarray([0.8]), np.asarray([1.1]))
+		problem = InitialValueProblem(_LinearTimeHamiltonian(float(np.finfo(float).max)), configuration, layout=GuidingCenterDynamics.coordinates)
 		with self.assertRaisesRegex(ValueError, "momentum increment became non-finite"):
 			simulate(
 				problem,

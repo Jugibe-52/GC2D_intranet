@@ -1,6 +1,6 @@
 """Projected GC symplecticity and transported-area diagnostics."""
 
-from diagnostics.formulations.projection.observer import (
+from diagnostics.methods.projection.observer import (
 	ProjectedAreaOutputBlock,
 	ProjectedAreaRecord,
 	ProjectedSymplecticityAreaObserver,

@@ -1,6 +1,6 @@
 """Prepared device maps are independent of the coordinator's method vocabulary."""
 
-from formulations.layout import GCStateLayout
+from dynamics.gc import GuidingCenterDynamics
 
 from dataclasses import dataclass
 import importlib.util
@@ -14,7 +14,6 @@ import numpy as np
 from execution.options import ExecutionOptions
 from problem import InitialValueProblem
 from request import SimulationRequest
-from dynamics.gc import GuidingCenterDynamics
 
 from methods.classical.gauss_legendre import GaussLegendre4
 from methods.classical.rk4 import RK4
@@ -32,7 +31,7 @@ class CompiledStepContractTests(unittest.TestCase):
 		jax.config.update("jax_enable_x64", True)
 		self.addCleanup(jax.config.update, "jax_enable_x64", previous)
 		potential = Potential.random(A=.1, M=2, nx=12, ny=12, seed=19)
-		self.problem = InitialValueProblem(GuidingCenterDynamics(potential), np.array(np.array([.2, .3]), dtype=float, copy=True), layout=GCStateLayout())
+		self.problem = InitialValueProblem(GuidingCenterDynamics(potential), np.array(np.array([.2, .3]), dtype=float, copy=True), layout=GuidingCenterDynamics.coordinates)
 		self.request = SimulationRequest((0., .2),  np.array([0., .03, .1, .2]))
 		self.execution = ExecutionOptions(backend="jax")
 
@@ -54,8 +53,8 @@ class CompiledStepContractTests(unittest.TestCase):
 			track_energy: ClassVar[bool] = False
 			finite_difference: ClassVar[bool] = False
 
-			def __call__(self, time: Any, state: Any, step: Any) -> tuple[Any, dict[str, Any], Any]:
-				return state + step * jnp.array([2., -1.]), {}, jnp.array(True)
+			def __call__(self, time: Any, state: Any, step: Any, momentum: Any = None) -> tuple[Any, Any, dict[str, Any], Any]:
+				return state + step * jnp.array([2., -1.]), momentum, {}, jnp.array(True)
 
 			def energy(self, times: Any, physical: Any) -> Any:
 				raise AssertionError("An untracked map must not evaluate energy.")
@@ -105,10 +104,10 @@ class CompiledStepContractTests(unittest.TestCase):
 
 		run = GaussLegendre4(step=0.1).new_run(self.problem, self.request)
 		kernel = self.prepare_kernel(run)
-		state, statistics, converged = kernel(0., run.initial_state, .01)
+		state, _, statistics, converged = kernel(0., run.initial_state, .01)
 		run.newton_absolute_tolerance = 1e3
 		run.newton_relative_tolerance = 1e3
-		again, repeated, _ = kernel(0., run.initial_state, .01)
+		again, _, repeated, _ = kernel(0., run.initial_state, .01)
 		np.testing.assert_array_equal(again, state)
 		np.testing.assert_array_equal(repeated["nonlinear_tolerances"], statistics["nonlinear_tolerances"])
 		self.assertTrue(converged)
@@ -132,7 +131,7 @@ class CompiledStepContractTests(unittest.TestCase):
 
 		# New physical objects must not retain an unbounded list of JIT closures.
 		for _ in range(17):
-			problem = InitialValueProblem(GuidingCenterDynamics(self.problem.dynamics.potential), self.problem.initial_state, layout=GCStateLayout())
+			problem = InitialValueProblem(GuidingCenterDynamics(self.problem.dynamics.potential), self.problem.initial_state, layout=GuidingCenterDynamics.coordinates)
 			run = RK4(step=0.1).new_run(problem, self.request)
 			_compiled_integrator(self.prepare_kernel(run))
 		self.assertEqual(_compiled_integrator.cache_info().currsize, 16)

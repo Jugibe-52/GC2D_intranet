@@ -49,7 +49,7 @@ For explicit C use:
 
 ```python
 from simulation import C
-from formulations import HarmonicCoupling
+from methods.extended.maps import HarmonicCoupling
 
 coupled = Composition.from_half("coupled-edges", (T(0.5), C(0.5), A(0.5), B(0.5)))
 method = PalindromicMidpoint(coupled, coupling=HarmonicCoupling(0.7))

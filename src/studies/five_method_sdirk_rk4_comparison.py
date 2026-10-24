@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from formulations.layout import GCStateLayout
+from dynamics.gc import GuidingCenterDynamics
 
 from ._comparison import (
 	COMPARISON_LABELS, ComparisonConfig, ComparisonResult, comparison_method,
@@ -110,7 +110,7 @@ def run_five_method_comparison(
 	passing a reused reference. Its times and initial states are checked here."""
 	if not isinstance(potential, Potential):
 		raise TypeError("`potential` must be a Potential instance.")
-	if not (isinstance(initial_configuration, np.ndarray) and GCStateLayout().state_dimension == 2):
+	if not (isinstance(initial_configuration, np.ndarray) and GuidingCenterDynamics.coordinates.state_dimension == 2):
 		raise TypeError("`initial_configuration` must be np.ndarray.")
 	if not isinstance(config, FiveMethodComparisonConfig):
 		raise TypeError("`config` must be FiveMethodComparisonConfig.")
@@ -121,7 +121,7 @@ def run_five_method_comparison(
 		raise ValueError("Select distinct supported comparison methods.")
 	study_started: float = perf_counter()
 	dynamics: GuidingCenterDynamics = GuidingCenterDynamics(potential, rho=config.rho)
-	problem: InitialValueProblem = InitialValueProblem(dynamics, initial_configuration, layout=GCStateLayout())
+	problem: InitialValueProblem = InitialValueProblem(dynamics, initial_configuration, layout=GuidingCenterDynamics.coordinates)
 	request: SimulationRequest = SimulationRequest.uniform(
 		t_span=config.t_span,
 		sample_count=config.output_sample_count,

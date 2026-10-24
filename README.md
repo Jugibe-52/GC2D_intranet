@@ -165,7 +165,7 @@ units, derivatives, provenance and explicit preservation of historical studies.
 
 ```python
 
-from formulations.layout import GCStateLayout
+from dynamics import GuidingCenterDynamics
 import numpy as np
 
 from dynamics import GuidingCenterDynamics
@@ -185,7 +185,7 @@ potential = Potential.random(
     seed=27,
     interpolation_order=5,
 )
-configuration = GCStateLayout().pack_components(
+configuration = GuidingCenterDynamics.coordinates.pack_components(
     np.asarray([np.pi]),
     np.asarray([np.pi]),
 )
@@ -280,31 +280,19 @@ inside one outer projection.
 The former per-map ABBA4 implementation is removed. Current ABBA4 has one
 nonlinear solve per step and three base maps per residual evaluation.
 
-### Four state formulations
+### Physical states and temporary workspaces
 
-| Formulation | One planar particle | N planar particles | Methods |
-|---|---|---:|---|
-| Physical | `(x,y)` in R2 | 2N | Classical and adaptive |
-| Physical with energy | `(x,y,t,kappa)` in R4 | 4N | Classical and adaptive |
-| Spatially duplicated | `(u,v)` in R4 | 4N | ABBA and BM4 |
-| Duplicated with energy | `(u,v,t,kappa)` in R6 | 6N | ABBA and BM4 |
+`SingleFormulation(physical_size)` and `DoubleFormulation(physical_size)` retain only a positive physical vector size. They prepare one or two temporary copies through `lift`, `join_copies` and `split_copies`. Shapes are `(d*N,*samples)` and `(copies*d*N,*samples)`; shifted copies remain distinct until the method projects them. NumPy/JAX backends and complete FC velocity blocks are preserved. There is no layout, particle count, tracking flag, clock, momentum, initial state, projection or solver in either representation.
 
-Every public method accepts `track_energy=True`, including `ExplicitEuler`,
-`HBVM42` and `BM4Implicit`. The concrete `PhysicalFormulation` and
-`DoubledFormulation` classes own the layouts. Accepted duplicated states store
-equal spatial copies. `States.states` and observer maps expose physical
-coordinates only. For FC classical methods the physical size is 4N, or 6N
-with tracking. Every component block has N entries, so
-`formulation.components(state)` has shape `(coordinates, N, *sample_axes)`.
-The time block repeats the integration time for each particle; physical maps
-continue to receive that scalar time. Clock validation and output alignment
-belong to the formulation.
+Every accepted snapshot is `IntegrationState(time, values, momentum=None)`: scalar time, physical `values` of shape `(d*N,)`, and optional physical `momentum` of shape `(N,)`. GC remains 2N and FC 4N with or without tracking. Doubled GC work has 4N entries; generic doubled FC work has 8N. Workspaces are temporary and never become accepted states. This generic support does not extend GC numerical methods to FC.
+
+The method initializes zero momentum, prepares copies, selects projection equations and solver, and integrates momentum from accepted stages. `advance(t, Z, h, momentum=kappa)` returns physical `StepResult.state` and separate `StepResult.momentum`. `StepInfo.momentum_before` records the incoming auxiliary. Shadow samples start from the same accepted physical state and momentum. JAX carries separate arrays through the compiled loop.
+
+Methods evaluate saved physical H once. `states.energy.energy_diagnostics` combines supplied H and physical kappa without dynamics evaluation. Existing energy labels and `(N,T)` auxiliary histories remain unchanged; `extended_time` is broadcast from scalar sample times. Numerical archives require no migration; old pickled configured objects should be recreated.
 
 Hairer projects spatial copies only. Its reduced multiplier remains 2N, and
 the ABBA simultaneous spatial unknown remains 6N regardless of tracking.
 The energy clock and momentum never enter the nonlinear root or stopping scale.
-The energy variant's R6 state is different from the simultaneous solver's R6
-unknown for a single particle.
 
 The auxiliary obeys `kappa'=-partial_t H`, starting from zero. Every family
 reports the same normalization: `physical_kappa`. The histories
@@ -319,8 +307,7 @@ Tracking preserves physical trajectories, nonlinear work and adaptive grids.
 DOP853/Radau integrate only physical coordinates in SciPy and evaluate passive
 eight-point Gauss quadrature along accepted dense output. Their diagnostic
 quadrature has no separate adaptive error tolerance and should be audited by
-refinement. Radau Jacobians are always physical-sized. BM4Implicit replays the
-converged spatial stages once for energy; that replay is not nonlinear work.
+refinement. Radau Jacobians are always physical-sized. BM4Implicit reuses the converged spatial stages for energy without replaying them.
 
 See the [integration contract](docs/simulation/integration-architecture.md)
 and [model index](docs/models/README.md) for current guides and compiled theory.
@@ -350,7 +337,7 @@ scalar `energy_error`, and detailed generalized-energy histories.
 `States` recorder and owns the run lifecycle and finalization. Internal host and
 JAX workers advance, sample and fill that recorder. Methods inherit
 `IntegrationMethod`; `initialize`, `advance`, `build_observation` and
-`export_history` own numerical behavior. Methods have no `integrate` or
+`diagnose_history` own numerical behavior. Methods have no `integrate` or
 `_integrate_jax` entry point. `States` stores physical samples and accepted-step
 metrics. Method-specific traces are consumed only when an observer needs them.
 See the [executor contract](docs/simulation/execution.md) for migration and
@@ -436,11 +423,11 @@ See the model-specific
 
 ```python
 
-from formulations.layout import FCStateLayout
+from dynamics import FullCyclotronDynamics
 from dynamics import FullCyclotronDynamics
 from simulation import InitialValueProblem, RK4, SimulationRequest, simulate
 
-configuration = FCStateLayout().pack_components(
+configuration = FullCyclotronDynamics.coordinates.pack_components(
     np.asarray([np.pi]),
     np.asarray([np.pi]),
     np.asarray([1.0]),
@@ -488,7 +475,7 @@ problem = InitialValueProblem(
 )
 ```
 
-`diagnostics.states.geometry.calculate_area(area, layout=GCStateLayout(), period=...)` applies the shoelace formula and can unwrap periodic boundary crossings. Geometry labels belong in study metadata, for example `metadata={"geometry": "circle"}`, and do not change the physical array.
+`diagnostics.states.geometry.calculate_area(area, layout=GuidingCenterDynamics.coordinates, period=...)` applies the shoelace formula and can unwrap periodic boundary crossings. Geometry labels belong in study metadata, for example `metadata={"geometry": "circle"}`, and do not change the physical array.
 
 ## Reusable studies
 

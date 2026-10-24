@@ -7,7 +7,7 @@ The former implicit default (zero coupling) is preserved; midpoint now uses
 no coupling instead of its former pi/8 default. Observer and archive diagnostics
 retain a fixed zero rate for compatibility with recorded metadata.
 
-Use `from formulations import HarmonicCoupling` for the independent C operation.
+Use `from methods.extended.maps import HarmonicCoupling` for the independent C operation.
 `HarmonicCoupling(frequency).apply(doubled_state, duration)` accepts a finite
 component-major vector (u_x, u_y, v_x, v_y) of length 4N and returns a new array.
 It preserves the copy mean and rotates their difference by 2*frequency*duration.

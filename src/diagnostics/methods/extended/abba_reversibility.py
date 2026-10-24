@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from formulations.layout import GCStateLayout
+from dynamics.gc import GuidingCenterDynamics
 
 from dataclasses import dataclass, replace
 from functools import partial
@@ -21,7 +21,7 @@ from solvers.nonlinear import SolverOptions
 from methods.extended.configuration import _validate_projection_formulation
 from methods.extended.observations import bind_event_builder
 from problem import InitialValueProblem
-from formulations.gc import GCDoubledMaps
+from methods.extended.maps import GCDoubledMaps
 
 from methods.extended.core.composition import ABBA2, ABBA4, ABBA6
 from methods.extended.core.projection import solve_projection
@@ -218,10 +218,10 @@ class ImplicitABBAReversibilityObserver:
 			recipe, order = ABBA4, 4
 		elif isinstance(step, ABBA6ImplicitIntegrationStep):
 			recipe, order = ABBA6, 6
-		problem: InitialValueProblem = InitialValueProblem(dynamics, np.array(step.state_after, dtype=float, copy=True), layout=GCStateLayout())
+		problem: InitialValueProblem = InitialValueProblem(dynamics, np.array(step.state_after, dtype=float, copy=True), layout=GuidingCenterDynamics.coordinates)
 		options: SolverOptions = SolverOptions(self.nonlinear_solver, self.newton_absolute_tolerance,
 			self.newton_relative_tolerance, self.newton_max_iterations)
-		project: partial[ProjectedMapResult] = partial(solve_projection, GCDoubledMaps(problem, coupling_frequency=None),
+		project: partial[ProjectedMapResult] = partial(solve_projection, GCDoubledMaps(problem.dynamics, problem.initial_state.size, coordinates=problem.layout, coupling_frequency=None),
 			recipe, options, formulation)
 		result: ProjectedMapResult = project(step.time, step.state_after, -step.duration)
 		builder: Callable[[float, float, int, np.ndarray, ProjectedMapResult], IntegrationStep] = bind_event_builder(dynamics, step.method_name, formulation, order=order,

@@ -78,11 +78,11 @@ class PackageLayoutTests(unittest.TestCase):
 			self.assertIs(getattr(extended, name), getattr(methods, name))
 		self.assertIs(classical.RK4, RK4)
 		for module in (
-			"contracts.formulations.layout", "problem", "request", "execution.options",
+			"contracts.dynamics.coordinates", "problem", "request", "execution.options",
 			"contracts.methods.observation", "contracts.states.history", "contracts.methods.step",
-			"formulations.gc", "formulations.fc", "formulations.state",
+			"methods.extended.maps", "methods.splitting", "formulations.state",
 			"execution._host", "methods.base", "methods.extended", "methods.classical",
-			"methods.adaptive", "methods.hbvm", "execution.execution", "simulation.runner", "states.history", "execution.state", "formulations.layout",
+			"methods.adaptive", "methods.hbvm", "execution.execution", "simulation.runner", "states.history", "execution.state", "dynamics.coordinates",
 		):
 			with self.subTest(module=module):
 				self.assertIsNotNone(importlib.util.find_spec(module))
@@ -115,7 +115,7 @@ class PackageLayoutTests(unittest.TestCase):
 	def test_diagnostics_follow_processes_without_retired_flat_modules(self) -> None:
 		for module in (
 			"execution.run_progress", "execution.reference_progress",
-			"formulations.projection.observer", "states.geometry",
+			"methods.projection.observer", "states.geometry",
 			"studies.comparison", "studies.bm4_recurrence", "io.buffering", "io.storage",
 		):
 			with self.subTest(module=module):

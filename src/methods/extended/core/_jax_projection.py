@@ -6,9 +6,9 @@ import jax
 import jax.numpy as jnp
 
 from contracts.dynamics.protocols import HamiltonianSystem, GuidingCenterJacobianSystem
-from formulations.gc import _COUPLING_BASE, _COUPLING_COS, _COUPLING_SIN
-from formulations.projection import resolve_projection
-from formulations.layout import GCStateLayout
+from methods.extended.maps import _COUPLING_BASE, _COUPLING_COS, _COUPLING_SIN
+from methods.projection import resolve_projection
+from dynamics.gc import GuidingCenterDynamics
 from formulations.state import DoubleFormulation
 from methods._jax_options import CompositionOptions
 from solvers._jax import (
@@ -18,7 +18,7 @@ from solvers._jax import (
 
 
 if TYPE_CHECKING:
-    from contracts.formulations.projection import ProjectionFormulation
+    from contracts.methods.projection import ProjectionFormulation
     from solvers._jax import Root
 
 
@@ -132,7 +132,7 @@ def extended_step(time: Any, state: Any, step: Any, dynamics: HamiltonianSystem,
     size: int
     n: int
     size, n = state.size, state.size // 2
-    representation: DoubleFormulation = DoubleFormulation(GCStateLayout(), n)
+    representation: DoubleFormulation = DoubleFormulation(2 * n)
     equations: ProjectionFormulation = resolve_projection(options.projection)
     def evaluate(unknown: Any) -> Any:
         mu: jax.Array = equations.multiplier(unknown, size)

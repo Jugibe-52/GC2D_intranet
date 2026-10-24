@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from studies._validation import require_uncoupled_bm4
 
-from formulations.layout import GCStateLayout
+from dynamics.gc import GuidingCenterDynamics
 
 from typing import Any, TYPE_CHECKING
 
@@ -59,8 +59,8 @@ def calculate_group(
 
     indices = np.asarray(indices, dtype=int)
     xy0 = np.asarray(initial_xy, dtype=np.float64)[indices]
-    initial: np.ndarray = GCStateLayout().pack_components(xy0[:, 0], xy0[:, 1])
-    problem: InitialValueProblem = InitialValueProblem(GuidingCenterDynamics(potential, rho=settings['rho']), initial, layout=GCStateLayout())
+    initial: np.ndarray = GuidingCenterDynamics.coordinates.pack_components(xy0[:, 0], xy0[:, 1])
+    problem: InitialValueProblem = InitialValueProblem(GuidingCenterDynamics(potential, rho=settings['rho']), initial, layout=GuidingCenterDynamics.coordinates)
     request: SimulationRequest = SimulationRequest.uniform(
         t_span=tuple(settings['t_span']),
         sample_count=settings['n_steps'] + 1,

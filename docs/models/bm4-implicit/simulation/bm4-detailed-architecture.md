@@ -22,10 +22,7 @@ composition, nonlinear solve, derivatives, passive energy and accepted records.
 
 ## One complete implicit step
 
-For `N` guiding-center particles, let `z` be the packed physical state of size
-`m = 2N`. The shared `DoubleFormulation` stores two identical accepted spatial
-copies, plus one time and one physical momentum per particle when tracking
-energy. Its accepted internal size is therefore `4N` or `6N`.
+For N planar particles the accepted state has 2N physical components. Time is scalar and optional physical momentum has N separate entries. The composition prepares two temporary spatial copies with 4N components, then returns a single physical state. Time and momentum never enter a nonlinear root.
 
 `BM4Implicit.initialize` binds `GCDoubledMaps`, the `BM4` composition recipe,
 `SolverOptions`, and the reduced `solve_projection` callable. The inherited
@@ -81,8 +78,7 @@ for acceptance, correction count, residual-evaluation count and final norm.
 After convergence, optional passive quadrature sums the 24 retained signed
 shear contributions and divides by two to recover physical `kappa` from the
 doubled momentum convention. Energy tracking neither enters the spatial root
-nor changes its stopping scale. The state formulation embeds the accepted
-physical result into both copies and appends the new time and momentum.
+nor changes its stopping scale. The method returns one accepted physical vector and separate physical momentum; temporary copies are discarded.
 
 `FixedStepController` owns the main grid. Interior output samples use independent
 shortened BM4 maps, which do not change main-step statistics or events.
@@ -190,13 +186,13 @@ older detailed diagram above remains a historical artifact.
 
 ## State representation and step preparation
 
-The method initializes its internal state from physical input and the request's
-time. `SingleFormulation`/`DoubleFormulation` retain only layout, particle count
-and tracking settings. Their `lift` operation prepares physical copies; `pack`
-adds caller-supplied time and momentum. The method selects projection and solver,
-updates passive momentum, and supplies Hamiltonian values for output diagnostics.
-Accepted doubled copies stay equal, with no additional copies across steps.
-See [representation operations](../../../simulation/initial-solvers-formulations.md#state-representations).
+`SingleFormulation(physical_size)` and `DoubleFormulation(physical_size)` retain only a positive physical vector size. They prepare one or two temporary copies through `lift`, `join_copies` and `split_copies`. Shapes are `(d*N,*samples)` and `(copies*d*N,*samples)`; shifted copies remain distinct until the method projects them. NumPy/JAX backends and complete FC velocity blocks are preserved. There is no layout, particle count, tracking flag, clock, momentum, initial state, projection or solver in either representation.
+
+Every accepted snapshot is `IntegrationState(time, values, momentum=None)`: scalar time, physical `values` of shape `(d*N,)`, and optional physical `momentum` of shape `(N,)`. GC remains 2N and FC 4N with or without tracking. Doubled GC work has 4N entries; generic doubled FC work has 8N. Workspaces are temporary and never become accepted states. This generic support does not extend GC numerical methods to FC.
+
+The method initializes zero momentum, prepares copies, selects projection equations and solver, and integrates momentum from accepted stages. `advance(t, Z, h, momentum=kappa)` returns physical `StepResult.state` and separate `StepResult.momentum`. `StepInfo.momentum_before` records the incoming auxiliary. Shadow samples start from the same accepted physical state and momentum. JAX carries separate arrays through the compiled loop.
+
+Methods evaluate saved physical H once. `states.energy.energy_diagnostics` combines supplied H and physical kappa without dynamics evaluation. Existing energy labels and `(N,T)` auxiliary histories remain unchanged; `extended_time` is broadcast from scalar sample times. Numerical archives require no migration; old pickled configured objects should be recreated.
 
 ## Integration step
 

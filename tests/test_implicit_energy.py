@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from formulations.layout import GCStateLayout
+from dynamics.gc import GuidingCenterDynamics
 
 import unittest
 
@@ -19,7 +19,7 @@ from dynamics import GuidingCenterDynamics
 from potential import Potential
 from simulation import (
 	BM4Implicit,
-	GCExtendedFormulation,
+	GCDoubledMaps,
 	ImplicitBM4IntegrationStep,
 	InitialValueProblem,
 	SimulationRequest,
@@ -49,9 +49,9 @@ def _problem() -> tuple[Potential, np.ndarray, InitialValueProblem]:
 		seed=27,
 		interpolation_order=5,
 	)
-	configuration = GCStateLayout().pack_components(np.asarray([1.0]), np.asarray([1.2]))
+	configuration = GuidingCenterDynamics.coordinates.pack_components(np.asarray([1.0]), np.asarray([1.2]))
 	dynamics = GuidingCenterDynamics(potential, rho=0.05)
-	return potential, configuration, InitialValueProblem(dynamics, configuration, layout=GCStateLayout())
+	return potential, configuration, InitialValueProblem(dynamics, configuration, layout=GuidingCenterDynamics.coordinates)
 
 
 class GeneralizedEnergyObserverTests(unittest.TestCase):
@@ -81,9 +81,8 @@ class GeneralizedEnergyObserverTests(unittest.TestCase):
 		)
 		observer(event)
 
-		prepared = GCExtendedFormulation(
-			coupling_frequency=event.coupling_frequency
-		).prepare(problem, track_energy=True)
+		prepared = GCDoubledMaps(problem.dynamics, problem.initial_state.size,
+			coupling_frequency=event.coupling_frequency, track_energy=True)
 		augmented = np.concatenate((event.base_stages[0].state_before, [0.0]))
 		for stage in event.base_stages:
 			mapper = (
@@ -98,7 +97,7 @@ class GeneralizedEnergyObserverTests(unittest.TestCase):
 				rtol=2e-14,
 				atol=2e-14,
 			)
-		self.assertEqual(GCStateLayout().particle_count(problem.initial_state), 1)
+		self.assertEqual(GuidingCenterDynamics.coordinates.particle_count(problem.initial_state), 1)
 		self.assertAlmostEqual(observer.records[-1].kappa, augmented[-1] / 2.0)
 
 

@@ -1,6 +1,6 @@
 """Checkpoint orchestration using the frozen public classical RK4 integrator."""
 
-from formulations.layout import GCStateLayout
+from dynamics.gc import GuidingCenterDynamics
 
 from typing import Any, TYPE_CHECKING
 from pathlib import Path
@@ -51,8 +51,8 @@ def calculate_checkpointed_group(indices: np.ndarray, initial_xy: np.ndarray,
         resumed=completed;new_chunks=0
         while completed<total:
             end: Any=min(total,completed+settings['checkpoint_steps']);length=end-completed
-            initial: np.ndarray=GCStateLayout().pack_components(value[:count], value[count:])
-            problem: InitialValueProblem=InitialValueProblem(field, initial, layout=GCStateLayout())
+            initial: np.ndarray=GuidingCenterDynamics.coordinates.pack_components(value[:count], value[count:])
+            problem: InitialValueProblem=InitialValueProblem(field, initial, layout=GuidingCenterDynamics.coordinates)
             request: SimulationRequest=SimulationRequest.uniform(t_span=(t0+completed*h,t0+end*h),sample_count=length+1)
             solution: States=simulate(problem,RK4(step=h, progress=False),request)
             assert solution.diagnostics['step_count']==length

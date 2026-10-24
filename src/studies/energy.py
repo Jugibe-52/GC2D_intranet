@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from studies._validation import require_uncoupled_bm4
 
-from formulations.layout import GCStateLayout
+from dynamics.gc import GuidingCenterDynamics
 
 from dataclasses import dataclass, replace
 from types import MappingProxyType
@@ -159,7 +159,7 @@ def run_generalized_energy_comparison(
 	"""Integrate one centered GC state at several steps and compare ``H + k``."""
 	if not isinstance(potential, Potential):
 		raise TypeError("`potential` must be a Potential instance.")
-	if not (isinstance(configuration, np.ndarray) and GCStateLayout().state_dimension == 2):
+	if not (isinstance(configuration, np.ndarray) and GuidingCenterDynamics.coordinates.state_dimension == 2):
 		raise TypeError(
 			"`configuration` must be a np.ndarray instance."
 		)
@@ -169,7 +169,7 @@ def run_generalized_energy_comparison(
 
 	rho: float = resolve_rho(config.rho)
 	dynamics: GuidingCenterDynamics = GuidingCenterDynamics(potential, rho=rho)
-	problem: InitialValueProblem = InitialValueProblem(dynamics, configuration, layout=GCStateLayout())
+	problem: InitialValueProblem = InitialValueProblem(dynamics, configuration, layout=GuidingCenterDynamics.coordinates)
 	solutions: dict[float, States] = {}
 	energies: dict[float, np.ndarray] = {}
 	relative_errors: dict[float, np.ndarray] = {}

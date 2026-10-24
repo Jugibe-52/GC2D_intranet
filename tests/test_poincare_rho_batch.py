@@ -1,4 +1,4 @@
-from formulations.layout import GCStateLayout
+from dynamics.gc import GuidingCenterDynamics
 """Offline checks for parallel submissions, failure isolation and batch recovery."""
 
 from dataclasses import replace
@@ -156,7 +156,7 @@ class RhoBatchTests(unittest.TestCase):
         self.assertEqual(report["measured_peak_worker_overlap"], 1)
 
     def test_worker_keeps_observations_and_times_but_removes_per_step_arrays(self):
-        data = States(np.array([0., 1.]), np.zeros((2, 2)), {"execution_backend": "jax", "corrections": np.ones(50)}, layout=GCStateLayout())
+        data = States(np.array([0., 1.]), np.zeros((2, 2)), {"execution_backend": "jax", "corrections": np.ones(50)}, layout=GuidingCenterDynamics.coordinates)
         with patch("execution._modal_worker.execute_payload", return_value=(1, "digest", data)):
             version, digest, reduced = execute_cycle_payload(b"opaque")
         self.assertEqual((version, digest), (1, "digest"))

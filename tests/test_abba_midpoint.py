@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from formulations.layout import GCStateLayout
+from dynamics.gc import GuidingCenterDynamics
 
 import json
 from pathlib import Path
@@ -98,7 +98,7 @@ class ABBA2MidpointTests(unittest.TestCase):
 
 	def test_energy_tracking_requires_extended_hamiltonian_capability(self) -> None:
 		dynamics = _TimeOnlyPlanarDynamics()
-		problem = InitialValueProblem(dynamics, np.array(np.asarray([1.0, 1.2]), dtype=float, copy=True), layout=GCStateLayout())
+		problem = InitialValueProblem(dynamics, np.array(np.asarray([1.0, 1.2]), dtype=float, copy=True), layout=GuidingCenterDynamics.coordinates)
 		with self.assertRaisesRegex(TypeError, "HamiltonianSystem"):
 			simulate(
 				problem,
@@ -115,7 +115,7 @@ class ABBA2MidpointTests(unittest.TestCase):
 		start = 0.2
 		step = 0.1
 		solution = simulate(
-			InitialValueProblem(dynamics, np.array(initial_state, dtype=float, copy=True), layout=GCStateLayout()),
+			InitialValueProblem(dynamics, np.array(initial_state, dtype=float, copy=True), layout=GuidingCenterDynamics.coordinates),
 			ABBA2Midpoint(step=step),
 			SimulationRequest.uniform(
 				t_span=(start, start + step),
@@ -159,7 +159,7 @@ class ABBA2MidpointTests(unittest.TestCase):
 		)
 
 	def test_method_has_second_order_global_accuracy(self) -> None:
-		problem = InitialValueProblem(_deterministic_gc_dynamics(), np.array(np.asarray([1.0, 1.2]), dtype=float, copy=True), layout=GCStateLayout())
+		problem = InitialValueProblem(_deterministic_gc_dynamics(), np.array(np.asarray([1.0, 1.2]), dtype=float, copy=True), layout=GuidingCenterDynamics.coordinates)
 
 		def final_state(step: float) -> np.ndarray:
 			"""Return one final state on a fixed integration interval."""
@@ -179,7 +179,7 @@ class ABBA2MidpointTests(unittest.TestCase):
 		self.assertLess(coarse_error / fine_error, 4.2)
 
 	def test_observations_and_diagnostics_ignore_shadow_steps(self) -> None:
-		problem = InitialValueProblem(_deterministic_gc_dynamics(), np.array(np.asarray([1.0, 1.2]), dtype=float, copy=True), layout=GCStateLayout())
+		problem = InitialValueProblem(_deterministic_gc_dynamics(), np.array(np.asarray([1.0, 1.2]), dtype=float, copy=True), layout=GuidingCenterDynamics.coordinates)
 		events = []
 		observed = simulate(
 			problem,

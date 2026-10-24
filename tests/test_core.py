@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from diagnostics.states.geometry import calculate_area
 from states import generators as state_generators
-from formulations.layout import GCStateLayout
+from dynamics.gc import GuidingCenterDynamics
 
 import unittest
 from states import States
@@ -16,7 +16,7 @@ from dynamics import (
 	GuidingCenterDynamics,
 )
 
-from formulations.layout import FCStateLayout
+from dynamics.fc import FullCyclotronDynamics
 from potential import Grid, Potential
 from simulation import (
 	BM4Implicit,
@@ -50,7 +50,7 @@ def gc_problem(
 ) -> InitialValueProblem:
 	"""Build a guiding-centre problem for fast simulation tests."""
 	field = random_potential() if potential is None else potential
-	return InitialValueProblem(GuidingCenterDynamics(field, rho=0.05), trajectory, layout=GCStateLayout())
+	return InitialValueProblem(GuidingCenterDynamics(field, rho=0.05), trajectory, layout=GuidingCenterDynamics.coordinates)
 
 
 def fc_problem(
@@ -59,7 +59,7 @@ def fc_problem(
 ) -> InitialValueProblem:
 	"""Build a full-cyclotron problem for fast simulation tests."""
 	field = random_potential() if potential is None else potential
-	return InitialValueProblem(FullCyclotronDynamics(field, rho=0.05, eta=0.1), trajectory, layout=GCStateLayout())
+	return InitialValueProblem(FullCyclotronDynamics(field, rho=0.05, eta=0.1), trajectory, layout=GuidingCenterDynamics.coordinates)
 
 
 def uniform_request(
@@ -173,8 +173,8 @@ class TrajectoryTests(unittest.TestCase):
 
 	def test_canonical_configurations_contain_no_physical_parameters(self) -> None:
 		"""Keep state layout independent from the selected dynamical model."""
-		gc = GCStateLayout().pack_components(np.asarray([1.0]), np.asarray([2.0]))
-		fc = FCStateLayout().pack_components(np.asarray([1.0]), np.asarray([2.0]), np.asarray([0.5]), np.asarray([-0.5]))
+		gc = GuidingCenterDynamics.coordinates.pack_components(np.asarray([1.0]), np.asarray([2.0]))
+		fc = FullCyclotronDynamics.coordinates.pack_components(np.asarray([1.0]), np.asarray([2.0]), np.asarray([0.5]), np.asarray([-0.5]))
 
 		self.assertFalse(hasattr(gc, "rho"))
 		self.assertFalse(hasattr(gc, "eta"))
@@ -191,7 +191,7 @@ class TrajectoryTests(unittest.TestCase):
 		self.assertIsNotNone(stored)
 		assert stored is not None
 		np.testing.assert_allclose(stored, [1.0, 2.0, 3.0, 4.0])
-		layout = GCStateLayout()
+		layout = GuidingCenterDynamics.coordinates
 		x, y = layout.positions(stored)
 		np.testing.assert_allclose(x, [1.0, 2.0])
 		np.testing.assert_allclose(y, [3.0, 4.0])
@@ -212,41 +212,41 @@ class TrajectoryTests(unittest.TestCase):
 		x = np.asarray([1.0, 2.0])
 		y = np.asarray([3.0, 4.0])
 		np.testing.assert_allclose(
-			GCStateLayout.pack_components(x, y),
+			GuidingCenterDynamics.coordinates.pack_components(x, y),
 			[1.0, 2.0, 3.0, 4.0],
 		)
-		gc = GCStateLayout().pack_components(x, y)
+		gc = GuidingCenterDynamics.coordinates.pack_components(x, y)
 		gc_state = gc
 		assert gc_state is not None
 		np.testing.assert_allclose(gc_state, [1.0, 2.0, 3.0, 4.0])
 
-		blocks = GCStateLayout().as_blocks(gc_state)
+		blocks = GuidingCenterDynamics.coordinates.as_blocks(gc_state)
 		self.assertEqual(blocks.shape, (2, 2))
 		self.assertTrue(np.shares_memory(blocks, gc_state))
-		flat = GCStateLayout().from_blocks(blocks)
+		flat = GuidingCenterDynamics.coordinates.from_blocks(blocks)
 		self.assertTrue(np.shares_memory(flat, blocks))
 		np.testing.assert_allclose(flat, gc_state)
 
-		fc = FCStateLayout().pack_components(x, y, np.asarray([0.5, 0.6]), np.asarray([-0.5, -0.6]))
+		fc = FullCyclotronDynamics.coordinates.pack_components(x, y, np.asarray([0.5, 0.6]), np.asarray([-0.5, -0.6]))
 		fc_state = fc
 		assert fc_state is not None
 		np.testing.assert_allclose(
 			fc_state,
 			[1.0, 2.0, 3.0, 4.0, 0.5, 0.6, -0.5, -0.6],
 		)
-		self.assertEqual(FCStateLayout().as_blocks(fc_state).shape, (4, 2))
+		self.assertEqual(FullCyclotronDynamics.coordinates.as_blocks(fc_state).shape, (4, 2))
 
 		with self.assertRaises(ValueError):
-			GCStateLayout().pack_components(x, y[:-1])
+			GuidingCenterDynamics.coordinates.pack_components(x, y[:-1])
 
 	def test_fc_state_layout_and_scales(self) -> None:
 		# FC appends velocity blocks to the GC position blocks: [x, y, vx, vy].
 		state = np.asarray([1.0, 2.0, 3.0, 4.0, 0.5, 0.6, -0.5, -0.6])
 		trajectory = np.array(state, dtype=float, copy=True)
 
-		layout = FCStateLayout()
+		layout = FullCyclotronDynamics.coordinates
 		x, y = layout.positions(state)
-		vx, vy = FCStateLayout().split(trajectory)[-2:]
+		vx, vy = FullCyclotronDynamics.coordinates.split(trajectory)[-2:]
 		np.testing.assert_allclose(x, [1.0, 2.0])
 		np.testing.assert_allclose(y, [3.0, 4.0])
 		np.testing.assert_allclose(vx, [0.5, 0.6])
@@ -264,9 +264,9 @@ class TrajectoryTests(unittest.TestCase):
 		self.assertEqual(layout.particle_count(state), 2)
 
 		with self.assertRaises(ValueError):
-			FCStateLayout.pack_components(x, y, vx)
+			FullCyclotronDynamics.coordinates.pack_components(x, y, vx)
 		with self.assertRaises(ValueError):
-			FCStateLayout.pack_components(x, y[:-1], vx, vy)
+			FullCyclotronDynamics.coordinates.pack_components(x, y[:-1], vx, vy)
 
 	def test_area_constructors_and_area_calculation(self) -> None:
 		# This center makes the unit square cross both periodic cell boundaries.
@@ -277,15 +277,15 @@ class TrajectoryTests(unittest.TestCase):
 
 		)
 		self.assertIsInstance(square, np.ndarray)
-		self.assertAlmostEqual(float(calculate_area(square, layout=GCStateLayout())), 1.0)
+		self.assertAlmostEqual(float(calculate_area(square, layout=GuidingCenterDynamics.coordinates)), 1.0)
 
 		square_state = square
 		assert square_state is not None
-		x, y = GCStateLayout().positions(square_state)
+		x, y = GuidingCenterDynamics.coordinates.positions(square_state)
 		# Force every vertex back into the base cell to exercise periodic unwrapping.
 		wrapped = np.concatenate((x % (2 * np.pi), y % (2 * np.pi)))
 		self.assertAlmostEqual(
-			float(calculate_area(wrapped, period=2 * np.pi, layout=GCStateLayout())),
+			float(calculate_area(wrapped, period=2 * np.pi, layout=GuidingCenterDynamics.coordinates)),
 			1.0,
 		)
 
@@ -293,7 +293,7 @@ class TrajectoryTests(unittest.TestCase):
 		# The sampled circle is a regular polygon, so its exact discrete area is used.
 		expected_polygon_area = 128 * 0.5**2 * np.sin(2 * np.pi / 128) / 2
 		self.assertAlmostEqual(
-			float(calculate_area(circle, layout=GCStateLayout())),
+			float(calculate_area(circle, layout=GuidingCenterDynamics.coordinates)),
 			expected_polygon_area,
 		)
 
@@ -301,7 +301,7 @@ class TrajectoryTests(unittest.TestCase):
 		assert circle_state is not None
 		# Columns are successive saved times; translation must not change the area.
 		time_series = np.column_stack((circle_state, circle_state + 0.1))
-		areas = calculate_area(time_series, layout=GCStateLayout())
+		areas = calculate_area(time_series, layout=GuidingCenterDynamics.coordinates)
 		self.assertEqual(areas.shape, (2,))
 		np.testing.assert_allclose(areas, expected_polygon_area)
 
@@ -313,7 +313,7 @@ class TrajectoryTests(unittest.TestCase):
 				sample_count=3,
 			),
 		)
-		transported_area = calculate_area(solution.values, period=2 * np.pi, layout=GCStateLayout())
+		transported_area = calculate_area(solution.values, period=2 * np.pi, layout=GuidingCenterDynamics.coordinates)
 		self.assertEqual(transported_area.shape, (3,))
 		self.assertTrue(np.all(np.isfinite(transported_area)))
 
@@ -334,7 +334,7 @@ class SimulationTests(unittest.TestCase):
 		)
 		dynamics = GuidingCenterDynamics(random_potential(), rho=0.05)
 		solution = simulate(
-			InitialValueProblem(dynamics, area, layout=GCStateLayout()),
+			InitialValueProblem(dynamics, area, layout=GuidingCenterDynamics.coordinates),
 			BM4Implicit(step=0.01),
 			uniform_request(
 				t_span=(0.0, 0.02),
@@ -353,7 +353,7 @@ class SimulationTests(unittest.TestCase):
 		artists = animation._func(2)
 		self.assertEqual(len(artists), 6)
 		self.assertEqual(artists[1].__class__.__name__, "Quiver")
-		expected_area = calculate_area(solution.values, period=2 * np.pi, layout=GCStateLayout())
+		expected_area = calculate_area(solution.values, period=2 * np.pi, layout=GuidingCenterDynamics.coordinates)
 		expected_error = (expected_area - expected_area[0]) / abs(expected_area[0])
 		np.testing.assert_allclose(artists[3].get_xdata(), solution.t)
 		np.testing.assert_allclose(artists[3].get_ydata(), expected_error)

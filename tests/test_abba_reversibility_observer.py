@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from formulations.layout import GCStateLayout
+from dynamics.gc import GuidingCenterDynamics
 
 from dataclasses import replace
 import unittest
@@ -39,8 +39,8 @@ class ImplicitABBAReversibilityObserverTests(unittest.TestCase):
 	"""Verify independently solved reverse tangents and requested vector formulas."""
 
 	def test_both_formulations_record_the_requested_quantities(self) -> None:
-		configuration = GCStateLayout().pack_components(np.asarray([1.0]), np.asarray([1.2]))
-		problem = InitialValueProblem(gc_dynamics(), configuration, layout=GCStateLayout())
+		configuration = GuidingCenterDynamics.coordinates.pack_components(np.asarray([1.0]), np.asarray([1.2]))
+		problem = InitialValueProblem(gc_dynamics(), configuration, layout=GuidingCenterDynamics.coordinates)
 		request = SimulationRequest.uniform(
 			t_span=(0.2, 0.34),
 			sample_count=3,
@@ -125,7 +125,7 @@ class ImplicitABBAReversibilityObserverTests(unittest.TestCase):
 			seed=27,
 			interpolation_order=5,
 		).build()
-		configuration = GCStateLayout().pack_components(np.asarray([1.0]), np.asarray([1.2]))
+		configuration = GuidingCenterDynamics.coordinates.pack_components(np.asarray([1.0]), np.asarray([1.2]))
 		result = run_implicit_abba_reversibility_study(
 			potential,
 			configuration,

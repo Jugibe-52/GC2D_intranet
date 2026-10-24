@@ -7,7 +7,7 @@ not establish an invariant empty region at other rho values.
 
 from __future__ import annotations
 
-from formulations.layout import GCStateLayout
+from dynamics.gc import GuidingCenterDynamics
 
 from dataclasses import asdict, dataclass, replace
 from pathlib import Path
@@ -79,8 +79,8 @@ def _replace_star_initial_positions(prepared: PreparedRhoStar, seeds: GapProbeSe
     cell: np.ndarray = np.asarray(metadata["cell_bounds_m"], dtype=float)
     physical_xy = cell[:2] + cell[2] * np.asarray(seeds.fractions)
     xy = (physical_xy - np.asarray(metadata["spatial_origin_m"])) * metadata["spatial_scale_per_m"]
-    initial: np.ndarray = GCStateLayout().pack_components(xy[:, 0], xy[:, 1])
-    problem: InitialValueProblem = InitialValueProblem(prepared.problem.dynamics, initial, layout=GCStateLayout())
+    initial: np.ndarray = GuidingCenterDynamics.coordinates.pack_components(xy[:, 0], xy[:, 1])
+    problem: InitialValueProblem = InitialValueProblem(prepared.problem.dynamics, initial, layout=GuidingCenterDynamics.coordinates)
     for name in ("star_center_m", "cell_radius_m", "initial_radii_m", "initial_radius_fraction",
                  "star_center", "initial_radii", "arm_id"):
         metadata.pop(name, None)
@@ -144,7 +144,7 @@ def validate_saved_gap_probes(stored: StoredSolution, *,
     config: RhoStarConfig
     xy: np.ndarray
     seeds, config, xy = _validated_saved_probe_geometry(metadata)
-    initial: np.ndarray = GCStateLayout().pack_components(xy[:, 0], xy[:, 1])
+    initial: np.ndarray = GuidingCenterDynamics.coordinates.pack_components(xy[:, 0], xy[:, 1])
     initial_state = initial
     assert initial_state is not None
     options: ExecutionOptions | None = None

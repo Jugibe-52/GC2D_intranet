@@ -30,8 +30,8 @@ class CompiledStep(Protocol):
 	@property
 	def finite_difference(self) -> bool: ...
 
-	def __call__(self, time: Any, state: Any, step: Any) -> tuple[Any, dict[str, Any], Any]:
-		"""Return an internal state, scalar/array work counters and convergence."""
+	def __call__(self, time: Any, state: Any, step: Any, momentum: Any = None) -> tuple[Any, Any, dict[str, Any], Any]:
+		"""Return physical values, separate momentum, work counters and convergence."""
 		...
 
 	def energy(self, times: Any, physical: Any) -> Any:

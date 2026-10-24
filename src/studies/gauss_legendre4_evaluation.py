@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from diagnostics.studies.comparison import final_rms_floor, time_integrated_rms_floor
 
-from formulations.layout import GCStateLayout
+from dynamics.gc import GuidingCenterDynamics
 
 from dataclasses import dataclass, replace
 from time import perf_counter
@@ -518,12 +518,12 @@ def run_gauss_legendre4_evaluation(
 	"""Run one complete individual Gauss4 evaluation over nested refinements."""
 	if not isinstance(potential, Potential):
 		raise TypeError("`potential` must be a Potential instance.")
-	if not (isinstance(initial_configuration, np.ndarray) and GCStateLayout().state_dimension == 2):
+	if not (isinstance(initial_configuration, np.ndarray) and GuidingCenterDynamics.coordinates.state_dimension == 2):
 		raise TypeError("`initial_configuration` must be np.ndarray.")
 	if not isinstance(config, GaussLegendre4EvaluationConfig):
 		raise TypeError("`config` must be GaussLegendre4EvaluationConfig.")
 	dynamics: GuidingCenterDynamics = GuidingCenterDynamics(potential, rho=config.rho)
-	problem: InitialValueProblem = InitialValueProblem(dynamics, initial_configuration, layout=GCStateLayout())
+	problem: InitialValueProblem = InitialValueProblem(dynamics, initial_configuration, layout=GuidingCenterDynamics.coordinates)
 	request: SimulationRequest = SimulationRequest.uniform(
 		t_span=config.t_span,
 		sample_count=config.output_sample_count,

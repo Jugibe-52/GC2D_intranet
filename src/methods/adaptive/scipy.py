@@ -44,6 +44,7 @@ class _AdaptiveDetails:
     """Dense output of one accepted step; never retained by States."""
 
     dense_state: Callable[[float | np.ndarray], np.ndarray]
+    dense_momentum: Callable[[float | np.ndarray], np.ndarray | None]
 
 
 class ScipyAdaptiveController:
@@ -57,14 +58,16 @@ class ScipyAdaptiveController:
         while method.solver.status == 'running':
             start: float = float(method.solver.t)
             before: np.ndarray = method.current_state.values.copy()
-            result: StepResult[_AdaptiveDetails] = method.advance(start, before, method.max_step)
+            momentum: np.ndarray | None = None if method.current_state.momentum is None else method.current_state.momentum.copy()
+            result: StepResult[_AdaptiveDetails] = method.advance(start, before, method.max_step, momentum=momentum)
             end: float = float(method.solver.t)
-            yield StepInfo(index, start, end - start, end, before), result
+            yield StepInfo(index, start, end - start, end, before, momentum), result
             index += 1
 
-    def sample(self, method: IntegrationMethod[_AdaptiveDetails], info: StepInfo, result: StepResult[_AdaptiveDetails], time: float) -> np.ndarray:
+    def sample(self, method: IntegrationMethod[_AdaptiveDetails], info: StepInfo, result: StepResult[_AdaptiveDetails], time: float) -> IntegrationState:
         """Evaluate accepted dense output without advancing the solver."""
-        return result.details.dense_state(time)
+        from execution.state import IntegrationState
+        return IntegrationState(time, result.details.dense_state(time), result.details.dense_momentum(time))
 
 
 @dataclass(slots=True)
@@ -117,15 +120,15 @@ class _AdaptiveMethod(IntegrationMethod[_AdaptiveDetails]):
         return {}
 
     def initialize(self, problem: InitialValueProblem, request: SimulationRequest) -> None:
-        """Initialize this run's vector field, internal state and live solver."""
+        """Initialize this run's vector field, physical snapshot and live solver."""
         from execution.state import IntegrationState
 
         self.dynamics = problem.dynamics
         self.physical_size = problem.initial_state.size
         self.particle_count = problem.particle_count
-        self.state_formulation = SingleFormulation(problem.layout, problem.particle_count, self.track_energy)
+        self.state_formulation = SingleFormulation(problem.initial_state.size)
         self.initial_state = self._initialize_state(problem, request, energy_dynamics=self.evaluated_dynamics)
-        self.current_state = IntegrationState(request.t_span[0], self.initial_state)
+        self.current_state = IntegrationState(request.t_span[0], self.initial_state, self.initial_momentum)
         self.metadata = {
             'step_control': 'adaptive', 'method_order': self.order,
             'relative_tolerance': self.relative_tolerance,
@@ -156,7 +159,7 @@ class _AdaptiveMethod(IntegrationMethod[_AdaptiveDetails]):
                                 atol=self.absolute_tolerance, max_step=max_step, first_step=self.first_step,
                                 **self._backend_options())
 
-    def advance(self, time: float, state: np.ndarray, step: float) -> StepResult[_AdaptiveDetails]:
+    def advance(self, time: float, state: np.ndarray, step: float, *, momentum: np.ndarray | None = None) -> StepResult[_AdaptiveDetails]:
         """Accept one adaptive step, with ``step`` as its upper size bound.
 
         The live solver retains rejected trials and stage reuse. The accepted
@@ -166,7 +169,7 @@ class _AdaptiveMethod(IntegrationMethod[_AdaptiveDetails]):
         from execution.state import IntegrationState
 
         solver = self.solver
-        if time != solver.t or not np.array_equal(self.state_formulation.physical(state), solver.y):
+        if time != solver.t or not np.array_equal(self._checked_state(state, momentum), solver.y):
             raise ValueError('Adaptive advance must start at the live solver state.')
         if not np.isfinite(step) or step <= 0:
             raise ValueError('The adaptive step bound must be finite and positive.')
@@ -193,7 +196,7 @@ class _AdaptiveMethod(IntegrationMethod[_AdaptiveDetails]):
 
         # Diagnostic quadrature is evaluated only after acceptance. SciPy owns
         # a purely physical state, so energy cannot affect its error norm or Newton.
-        momentum_before: np.ndarray | None = self.state_formulation.momentum(state)
+        momentum_before: np.ndarray | None = momentum
         if momentum_before is not None:
             momentum_before = momentum_before.copy()
         momentum_after: np.ndarray | None = None
@@ -224,23 +227,23 @@ class _AdaptiveMethod(IntegrationMethod[_AdaptiveDetails]):
         def dense_state(query: float | np.ndarray) -> np.ndarray:
             if interpolant is None:
                 raise RuntimeError('No dense output was requested for this interval.')
-            return np.asarray(self.state_formulation.pack(self.state_formulation.lift(np.asarray(interpolant(query))), query, momentum_at(query)))
+            return np.asarray(interpolant(query))
 
         momentum_after = momentum_at(end)
-        after: np.ndarray = self.state_formulation.pack(self.state_formulation.lift(np.asarray(solver.y)), end, momentum_after)
-        self.current_state = IntegrationState(float(self.solver.t), after)
+        after: np.ndarray = np.array(solver.y, copy=True)
+        self.current_state = IntegrationState(float(self.solver.t), after, momentum_after)
         return StepResult(after, {
             'function_evaluations': int(work[0]),
             'jacobian_evaluations': int(work[1]),
             'lu_decompositions': int(work[2]),
-        }, _AdaptiveDetails(dense_state))
+        }, _AdaptiveDetails(dense_state, momentum_at), momentum_after)
 
     def build_observation(self, info: StepInfo, result: StepResult[_AdaptiveDetails]) -> AdaptiveIntegrationStep:
         return AdaptiveIntegrationStep(
             dynamics_name=type(self.dynamics).__name__, method_name=type(self).__name__,
             step_index=info.index, start_time=info.time, time=info.end_time, duration=info.duration,
-            state_before=self.state_formulation.physical(info.state_before).copy(), state_after=self.state_formulation.physical(result.state).copy(),
-            dense_state=lambda query: self.state_formulation.physical(result.details.dense_state(query)),
+            state_before=info.state_before.copy(), state_after=result.state.copy(),
+            dense_state=result.details.dense_state,
             function_evaluations=int(result.statistics['function_evaluations']),
             jacobian_evaluations=int(result.statistics['jacobian_evaluations']),
             lu_decompositions=int(result.statistics['lu_decompositions']),

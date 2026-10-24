@@ -2,7 +2,7 @@
 
 from studies._validation import require_uncoupled_bm4
 
-from formulations.layout import GCStateLayout
+from dynamics.gc import GuidingCenterDynamics
 
 from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
@@ -17,7 +17,6 @@ from request import SimulationRequest
 from contracts.states.history import DiagnosticValue
 from diagnostics.io.persistence import save_solution
 from diagnostics.execution.run_progress import RunProgress, progress_log
-from dynamics.gc import GuidingCenterDynamics
 from execution.execution import Execution
 
 from states.generators import radial_star
@@ -80,7 +79,7 @@ def build_local_star(potential: Potential, config: LocalJAXStarConfig) -> Initia
         arm_length=outer * potential.grid.period, arms=config.arms,
         particles_per_arm=config.particles_per_arm, first_angle=config.first_angle,
         include_center=config.include_center)
-    return InitialValueProblem(GuidingCenterDynamics(potential, rho=config.rho), initial, layout=GCStateLayout())
+    return InitialValueProblem(GuidingCenterDynamics(potential, rho=config.rho), initial, layout=GuidingCenterDynamics.coordinates)
 
 
 def integrate_local_star(
@@ -121,7 +120,7 @@ def integrate_local_star(
         if first == 0:
             phase += ' (first JAX compilation included)'
         progress.phase(phase)
-        block_problem: InitialValueProblem = InitialValueProblem(problem.dynamics, np.array(states[:, first], dtype=float, copy=True), layout=GCStateLayout())
+        block_problem: InitialValueProblem = InitialValueProblem(problem.dynamics, np.array(states[:, first], dtype=float, copy=True), layout=GuidingCenterDynamics.coordinates)
         request: SimulationRequest = SimulationRequest((float(first_cycle), float(last_cycle)),
                                      times[first:last + 1])
         start: float = perf_counter()
@@ -150,7 +149,7 @@ def integrate_local_star(
                        execution_block_cycles=config.block_cycles,
                        execution_block_end_cycles=np.asarray(block_ends),
                        execution_block_wall_seconds=np.asarray(block_seconds))
-    solution: States = States(t=times, states=states, initial_state=problem.initial_state, diagnostics=diagnostics, layout=GCStateLayout())
+    solution: States = States(t=times, states=states, initial_state=problem.initial_state, diagnostics=diagnostics, layout=GuidingCenterDynamics.coordinates)
     x: np.ndarray
     y: np.ndarray
     x, y = problem.layout.positions(problem.initial_state)

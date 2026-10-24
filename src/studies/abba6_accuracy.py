@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from formulations.layout import GCStateLayout
+from dynamics.gc import GuidingCenterDynamics
 
 from dataclasses import dataclass
 from time import perf_counter
@@ -70,7 +70,7 @@ def run_abba6_accuracy_study(
 	"""Run ABBA6Implicit on nested steps and compare saved states to one reference."""
 	if not isinstance(potential, Potential):
 		raise TypeError("`potential` must be a Potential instance.")
-	if not (isinstance(initial_configuration, np.ndarray) and GCStateLayout().state_dimension == 2):
+	if not (isinstance(initial_configuration, np.ndarray) and GuidingCenterDynamics.coordinates.state_dimension == 2):
 		raise TypeError("`initial_configuration` must be np.ndarray.")
 	if not isinstance(reference, StoredReferenceTrajectory):
 		raise TypeError("`reference` must be a StoredReferenceTrajectory.")
@@ -85,7 +85,7 @@ def run_abba6_accuracy_study(
 		initial_condition_metadata=initial_condition_metadata,
 	)
 	dynamics: GuidingCenterDynamics = GuidingCenterDynamics(potential, rho=config.rho)
-	problem: InitialValueProblem = InitialValueProblem(dynamics, initial_configuration, layout=GCStateLayout())
+	problem: InitialValueProblem = InitialValueProblem(dynamics, initial_configuration, layout=GuidingCenterDynamics.coordinates)
 	solutions: dict[float, States] = {}
 	series: dict[float, TrajectoryAccuracySeries] = {}
 	runtimes: dict[float, float] = {}

@@ -4,7 +4,7 @@ from __future__ import annotations
 from collections.abc import Callable
 import numpy as np
 from contracts.dynamics.protocols import GuidingCenterJacobianSystem
-from formulations.gc import GCDoubledMaps, gc_coupling_matrix
+from methods.extended.maps import GCDoubledMaps, gc_coupling_matrix
 from methods.extended.core.records import CompositionTrace
 
 

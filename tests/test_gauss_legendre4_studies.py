@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from diagnostics.studies.comparison import time_integrated_rms_floor
 
-from formulations.layout import GCStateLayout
+from dynamics.gc import GuidingCenterDynamics
 
 import unittest
 

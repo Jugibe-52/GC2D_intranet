@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from studies._validation import require_uncoupled_bm4
 
-from formulations.layout import GCStateLayout
+from dynamics.gc import GuidingCenterDynamics
 
 from collections.abc import Mapping
 from dataclasses import asdict, dataclass
@@ -22,7 +22,6 @@ from request import SimulationRequest
 from contracts.states.history import DiagnosticValue
 from diagnostics.io.persistence import StoredSolution, load_solution, save_solution
 from diagnostics.io.storage import ArtifactStore
-from dynamics.gc import GuidingCenterDynamics
 from execution.execution import Execution
 from execution.execution_modal import Execution_Modal
 from states.generators import ranked_radial_star
@@ -131,7 +130,7 @@ def build_rho_star(field: DimensionalH5Field, config: RhoStarConfig, *,
         arms=config.arms, first_angle=config.first_angle,
     )
     assert initial is not None
-    physical_xy: np.ndarray = np.column_stack(GCStateLayout().positions(initial))
+    physical_xy: np.ndarray = np.column_stack(GuidingCenterDynamics.coordinates.positions(initial))
     # rho_hat is invariant across representations; the physical radius is meters.
     rho_m = config.rho_hat * config.characteristic_length / (2 * np.pi)
     stream: Potential
@@ -161,16 +160,16 @@ def build_rho_star(field: DimensionalH5Field, config: RhoStarConfig, *,
                            frequencies=stream.frequencies,
                            interpolation_order=stream.interpolation_order)
         xy = (physical_xy - spatial_origin) * spatial_scale
-        initial = GCStateLayout().pack_components(xy[:, 0], xy[:, 1])
+        initial = GuidingCenterDynamics.coordinates.pack_components(xy[:, 0], xy[:, 1])
         runtime_rho = config.rho_hat
-    problem: InitialValueProblem = InitialValueProblem(GuidingCenterDynamics(stream, rho=runtime_rho), initial, layout=GCStateLayout())
+    problem: InitialValueProblem = InitialValueProblem(GuidingCenterDynamics(stream, rho=runtime_rho), initial, layout=GuidingCenterDynamics.coordinates)
     request: SimulationRequest = SimulationRequest(
         t_span=(0.0, float(config.cycles)),
         output_times=np.arange(config.cycles + 1, dtype=float),
     )
     x: np.ndarray
     y: np.ndarray
-    x, y = GCStateLayout().positions(problem.initial_state)
+    x, y = GuidingCenterDynamics.coordinates.positions(problem.initial_state)
     metadata = {
         "study": ("poincare_bm4midpoint_ranked_star_rho_sweep" if config.method == "BM4Midpoint"
                   else "poincare_ranked_star_rho_sweep"),

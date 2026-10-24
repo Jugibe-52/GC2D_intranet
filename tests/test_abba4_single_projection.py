@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from formulations.layout import GCStateLayout
+from dynamics.gc import GuidingCenterDynamics
 
 from pathlib import Path
 import tempfile
@@ -105,7 +105,7 @@ def _problem(
 	y: np.ndarray,
 ) -> InitialValueProblem:
 	"""Build a packed planar initial-value problem for custom test dynamics."""
-	return InitialValueProblem(dynamics, GCStateLayout().pack_components(x, y), layout=GCStateLayout())
+	return InitialValueProblem(dynamics, GuidingCenterDynamics.coordinates.pack_components(x, y), layout=GuidingCenterDynamics.coordinates)
 
 
 def _dense_particle_blocks(blocks: np.ndarray) -> np.ndarray:

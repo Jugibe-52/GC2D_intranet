@@ -10,7 +10,7 @@ import numpy as np
 from potential.potential import Potential
 
 from contracts.arrays import array_namespace
-from formulations.layout import FCStateLayout
+from dynamics.coordinates import PhysicalCoordinates
 from ._equations import fc_velocity, fc_hamiltonian
 
 
@@ -35,6 +35,7 @@ def _validated_parameters(potential: Potential, rho: float, eta: float) -> tuple
 class FullCyclotronDynamics:
 	"""FC equations for fixed physical parameters, for NumPy or JAX arrays."""
 
+	coordinates: ClassVar[PhysicalCoordinates] = PhysicalCoordinates(('x', 'y', 'vx', 'vy'), ('x', 'y'), ('vx', 'vy'))
 	state_dimension: ClassVar[int] = 4
 
 	potential: Potential
@@ -81,11 +82,11 @@ class FullCyclotronDynamics:
 		y: BackendArray
 		vx: BackendArray
 		vy: BackendArray
-		x, y, vx, vy = FCStateLayout().split(state)
+		x, y, vx, vy = FullCyclotronDynamics.coordinates.split(state)
 		acceleration_x: BackendArray
 		acceleration_y: BackendArray
 		acceleration_x, acceleration_y = self.electric_acceleration(t, x, y)
-		return FCStateLayout.pack_components(*fc_velocity(
+		return FullCyclotronDynamics.coordinates.pack_components(*fc_velocity(
 			acceleration_x, acceleration_y, vx, vy, velocity_scale=self.velocity_scale,
 			larmor_frequency=self.larmor_frequency,
 		))
@@ -100,7 +101,7 @@ class FullCyclotronDynamics:
 		y: BackendArray
 		vx: BackendArray
 		vy: BackendArray
-		x, y, vx, vy = FCStateLayout().split(state)
+		x, y, vx, vy = FullCyclotronDynamics.coordinates.split(state)
 		return array_namespace(t, state).asarray(fc_hamiltonian(
 			self.potential.evaluate(t, x, y), vx, vy,
 			velocity_scale=self.velocity_scale, electric_scale=self.electric_scale,
@@ -114,7 +115,7 @@ class FullCyclotronDynamics:
 		"""Evaluate the time-conjugate momentum derivative."""
 		x: BackendArray
 		y: BackendArray
-		x, y, *_ = FCStateLayout().split(state)
+		x, y, *_ = FullCyclotronDynamics.coordinates.split(state)
 		return array_namespace(t, state).asarray(
 			-self.electric_scale
 			* self.potential.evaluate(t, x, y, dt=1)

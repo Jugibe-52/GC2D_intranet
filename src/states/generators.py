@@ -3,7 +3,7 @@
 import numpy as np
 
 
-from formulations.layout import GCStateLayout
+from dynamics.gc import GuidingCenterDynamics
 
 from typing import TYPE_CHECKING
 
@@ -58,7 +58,7 @@ def radial_star(*, center: tuple[float, float], arm_length: float,
     x, y = x.ravel(), y.ravel()
     if include_center:
         x, y = np.r_[origin[0], x], np.r_[origin[1], y]
-    return np.asarray(GCStateLayout().pack_components(x, y))
+    return np.asarray(GuidingCenterDynamics.coordinates.pack_components(x, y))
 
 
 def _validated_ranked_star_origin(
@@ -91,7 +91,7 @@ def ranked_radial_star(*, center: tuple[float, float], outer_radius: float,
     origin: np.ndarray = _validated_ranked_star_origin(center, outer_radius, particles, arms, first_angle)
     radii: np.ndarray = np.linspace(0.0, outer_radius, particles)
     angles = first_angle + 2 * np.pi * (np.arange(particles) % arms) / arms
-    return np.asarray(GCStateLayout().pack_components(origin[0] + radii * np.cos(angles), origin[1] + radii * np.sin(angles)))
+    return np.asarray(GuidingCenterDynamics.coordinates.pack_components(origin[0] + radii * np.cos(angles), origin[1] + radii * np.sin(angles)))
 
 
 def _validate_center(center: tuple[float, float]) -> tuple[float, float]:

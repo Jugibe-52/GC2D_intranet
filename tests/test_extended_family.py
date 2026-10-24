@@ -1,7 +1,7 @@
 """Structural and numerical contracts of the common extended-space engine."""
 from __future__ import annotations
 
-from formulations.layout import GCStateLayout
+from dynamics.gc import GuidingCenterDynamics
 
 from dataclasses import replace
 import importlib
@@ -14,7 +14,7 @@ from dynamics import GuidingCenterDynamics
 from potential import Potential
 from simulation import (ABBA2Implicit, ABBA4Implicit, ABBA6Implicit, ABBA2Midpoint,
                         BM4Implicit, BM4Midpoint, InitialValueProblem, SimulationRequest, simulate)
-from formulations.gc import GCDoubledMaps
+from methods.extended.maps import GCDoubledMaps
 from methods.extended.core.composition import ABBA2, ABBA4, ABBA6, BM4, Composition, compose
 from methods.extended.core.jacobians import central_difference_jacobian, packed_jacobian, particle_jacobians
 from methods.extended.core.projection import solve_projection
@@ -22,7 +22,7 @@ from methods.extended.core.projection import solve_projection
 
 def problem(count: int = 3) -> InitialValueProblem:
     """Small reproducible nonautonomous field with analytic spatial derivatives."""
-    return InitialValueProblem(GuidingCenterDynamics(Potential.random(A=.08, M=3, nx=16, ny=16, seed=27, interpolation_order=5), rho=.05), GCStateLayout().pack_components(np.linspace(1, 1.2, count), np.linspace(1.2, 1.4, count)), layout=GCStateLayout())
+    return InitialValueProblem(GuidingCenterDynamics(Potential.random(A=.08, M=3, nx=16, ny=16, seed=27, interpolation_order=5), rho=.05), GuidingCenterDynamics.coordinates.pack_components(np.linspace(1, 1.2, count), np.linspace(1.2, 1.4, count)), layout=GuidingCenterDynamics.coordinates)
 
 
 class ExtendedFamilyTests(unittest.TestCase):
@@ -56,7 +56,7 @@ class ExtendedFamilyTests(unittest.TestCase):
 
     def test_abba_pairs_match_independent_endpoint_shear_equations(self) -> None:
         p = problem()
-        maps = GCDoubledMaps(p, coupling_frequency=None)
+        maps = GCDoubledMaps(p.dynamics, p.initial_state.size, coordinates=p.layout, coupling_frequency=None)
         z = p.initial_state
         for h in (.2, -.2):
             u, v = z + .003, z - .003
@@ -71,7 +71,7 @@ class ExtendedFamilyTests(unittest.TestCase):
         p = problem()
         initial = np.concatenate((p.initial_state + .003, p.initial_state - .003))
         for recipe, coupling in ((ABBA2, None), (ABBA4, None), (ABBA6, None), (BM4, 0.), (Composition.from_direct_adjoint('coupled-BM4', BM4.coefficients, coupled=True), .4)):
-            maps = GCDoubledMaps(p, coupling_frequency=coupling)
+            maps = GCDoubledMaps(p.dynamics, p.initial_state.size, coordinates=p.layout, coupling_frequency=coupling)
             for h in (.15, -.15):
                 with self.subTest(recipe=recipe.name, coupling=coupling, h=h):
                     trace = compose(maps, recipe, .3, initial, h)

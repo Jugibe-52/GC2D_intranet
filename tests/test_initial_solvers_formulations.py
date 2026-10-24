@@ -8,8 +8,8 @@ import numpy as np
 
 from problem import InitialValueProblem
 from dynamics import GuidingCenterDynamics, FullCyclotronDynamics
-from formulations.layout import GCStateLayout
-from formulations.projection import ReducedProjection, SimultaneousProjection
+from dynamics.gc import GuidingCenterDynamics
+from methods.projection import ReducedProjection, SimultaneousProjection
 from methods import ABBA4Implicit, BM4Implicit, GaussLegendre4, SDIRK4, HBVM42, RK4
 from potential import Potential
 from request import SimulationRequest
@@ -46,7 +46,7 @@ class InitialConditionsTests(unittest.TestCase):
 		with self.assertRaisesRegex(TypeError, 'incompatible'):
 			InitialValueProblem(GuidingCenterDynamics(potential), initial)
 		with self.assertRaisesRegex(ValueError, 'already owns'):
-			InitialValueProblem(problem.dynamics, initial, layout=GCStateLayout())
+			InitialValueProblem(problem.dynamics, initial, layout=GuidingCenterDynamics.coordinates)
 
 	def test_invalid_initial_values(self) -> None:
 		for x,y in [([], []), ([1.], [2., 3.]), ([np.nan], [1.]), ([[1.]], [[2.]])]:

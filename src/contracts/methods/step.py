@@ -15,26 +15,28 @@ StepValue = np.ndarray | float | int
 
 @dataclass(frozen=True, slots=True)
 class StepResult(Generic[Detail]):
-	"""One complete internal-state map and its observer-free metrics.
+	"""One complete physical-state map and its observer-free metrics.
 
-	``state`` uses the method's packed internal coordinates. ``details`` belongs
+	``state`` contains one physical copy; optional momentum is separate. ``details`` belongs
 	to that method and is never interpreted or retained by States.
 	"""
 
 	state: np.ndarray
 	statistics: Mapping[str, StepValue]
 	details: Detail
+	momentum: np.ndarray | None = None
 
 
 @dataclass(frozen=True, slots=True)
 class StepInfo:
-	"""Accepted interval and an independent internal input snapshot."""
+	"""Accepted interval and an independent physical/auxiliary input snapshot."""
 
 	index: int
 	time: float
 	duration: float
 	end_time: float
 	state_before: np.ndarray
+	momentum_before: np.ndarray | None = None
 
 
 __all__ = ["StepInfo", "StepResult", "StepValue"]

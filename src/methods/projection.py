@@ -1,8 +1,8 @@
-"""Reduced and simultaneous spatial projection equations, independent of methods."""
+"""Method-owned reduced and simultaneous spatial projection equations."""
 
 from __future__ import annotations
 
-from contracts.formulations.projection import ProjectionName, MapEvaluation, ProjectionFormulation
+from contracts.methods.projection import ProjectionName, MapEvaluation, ProjectionFormulation
 
 from dataclasses import dataclass
 from typing import Any, ClassVar, TYPE_CHECKING, TypeAlias

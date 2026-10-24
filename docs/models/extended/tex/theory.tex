@@ -60,12 +60,7 @@ become unprojected pairs and its work arrays have one column per step.
 Internal imports use the defining modules. Old ABBA and BM4 import adapters
 and historical \texttt{simulation.methods} routes have been removed.
 
-For $N$ independent planar particles, the physical state $z\in\R^{2N}$ is
-packed in component-major order. The splitting acts on two copies
-$Y=(u,v)\in\R^{4N}$. Accepted copies coincide. Optional energy tracking adds
-$N$ time entries and $N$ physical conjugate momenta $\kappa$, giving a
-$6N$-component accepted internal workspace. These auxiliary variables never
-enter a spatial projection equation. Physical output remains in $\R^{2N}$.
+For $N$ independent planar particles the accepted physical state lies in $\mathbb{R}^{2N}$. Scalar time and optional $N$ physical momenta are separate. Two temporary copies in $\mathbb{R}^{4N}$ are used only inside the composition and projection; they are discarded before acceptance.
 
 \section{Direct and adjoint compositions}
 Let $\chi_s$ denote a first-order map on the extended spatial workspace, with
@@ -136,7 +131,7 @@ All spatial roots use the unchanged stopping threshold
  \mathrm{atol}+\mathrm{rtol}\max(1,\|z\|_\infty).
 \]
 The equation classes \texttt{ReducedProjection} and
-\texttt{SimultaneousProjection} in \path{src/formulations/projection.py}
+\texttt{SimultaneousProjection} in \path{src/methods/projection.py}
 construct these residuals and their Jacobians. The numerical method supplies
 its composition; the algebraic solver receives the resulting system.
 Newton and good Broyden share the convergence machinery in

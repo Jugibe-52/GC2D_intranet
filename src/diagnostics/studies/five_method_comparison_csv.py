@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from contracts.diagnostics.studies.five_method_comparison_csv import _WritableComparison
 
-from formulations.layout import GCStateLayout
+from dynamics.gc import GuidingCenterDynamics
 
 from collections.abc import Mapping
 import csv
@@ -591,7 +591,7 @@ def load_five_method_comparison_csv(path: str | Path) -> StoredFiveMethodCompari
 			if not np.array_equal(states[:, 0], source_initial_state):
 				raise ValueError("Stored method trajectories have different origins.")
 		diagnostics: dict[str, Any] = _diagnostics_from_columns(columns, payload, method_name)
-		solutions[method_name] = States(t=times, states=states, initial_state=source, diagnostics=diagnostics, layout=GCStateLayout())
+		solutions[method_name] = States(t=times, states=states, initial_state=source, diagnostics=diagnostics, layout=GuidingCenterDynamics.coordinates)
 		distances: np.ndarray = _stack_particle_columns(
 			columns,
 			scope=method_name,

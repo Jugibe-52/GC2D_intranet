@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from formulations.layout import GCStateLayout
+from dynamics.gc import GuidingCenterDynamics
 
 from pathlib import Path
 import tempfile
@@ -211,8 +211,8 @@ class ABBA6MethodTests(unittest.TestCase):
 		np.testing.assert_allclose(backward.state, state, rtol=0.0, atol=5e-15)
 
 	def test_sixth_order_composition_uses_signed_non_autonomous_times(self) -> None:
-		configuration = GCStateLayout().pack_components(np.asarray([0.0]), np.asarray([0.0]))
-		problem = InitialValueProblem(_SixthDegreeTimeDynamics(), configuration, layout=GCStateLayout())
+		configuration = GuidingCenterDynamics.coordinates.pack_components(np.asarray([0.0]), np.asarray([0.0]))
+		problem = InitialValueProblem(_SixthDegreeTimeDynamics(), configuration, layout=GuidingCenterDynamics.coordinates)
 		errors = []
 		for step in (0.25, 0.125, 0.0625):
 			solution = simulate(

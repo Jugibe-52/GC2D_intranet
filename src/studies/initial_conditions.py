@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from states import generators as state_generators
-from formulations.layout import GCStateLayout
+from dynamics.gc import GuidingCenterDynamics
 
 import numpy as np
 
@@ -48,7 +48,7 @@ def radial_gc_configuration(
 		raise ValueError("The radial angle must be finite.")
 	direction: np.ndarray = np.asarray((np.cos(angle), np.sin(angle)))
 	positions = center[:, None] + potential.grid.period * direction[:, None] * radii
-	return np.asarray(GCStateLayout().pack_components(positions[0], positions[1]))
+	return np.asarray(GuidingCenterDynamics.coordinates.pack_components(positions[0], positions[1]))
 
 
 def centered_circle(
@@ -86,7 +86,7 @@ def centered_gc_configuration(potential: Potential) -> np.ndarray:
 	center_x: float
 	center_y: float
 	center_x, center_y = domain_center(potential)
-	return np.asarray(GCStateLayout().pack_components(np.asarray([center_x]), np.asarray([center_y])))
+	return np.asarray(GuidingCenterDynamics.coordinates.pack_components(np.asarray([center_x]), np.asarray([center_y])))
 
 
 def _normalized_bounds(
@@ -141,7 +141,7 @@ def random_gc_configuration(
 		"y_bounds",
 	)
 	random: np.random.Generator = np.random.default_rng(int(seed))
-	return np.asarray(GCStateLayout().pack_components(random.uniform(*x_interval, size=int(particle_count)), random.uniform(*y_interval, size=int(particle_count))))
+	return np.asarray(GuidingCenterDynamics.coordinates.pack_components(random.uniform(*x_interval, size=int(particle_count)), random.uniform(*y_interval, size=int(particle_count))))
 
 
 def latin_hypercube_gc_configuration(
@@ -179,7 +179,7 @@ def latin_hypercube_gc_configuration(
 	unit_y = (np.arange(count) + random.random(count)) / count
 	random.shuffle(unit_x)
 	random.shuffle(unit_y)
-	return np.asarray(GCStateLayout().pack_components(sampling_min[0] + unit_x * (sampling_max[0] - sampling_min[0]), sampling_min[1] + unit_y * (sampling_max[1] - sampling_min[1])))
+	return np.asarray(GuidingCenterDynamics.coordinates.pack_components(sampling_min[0] + unit_x * (sampling_max[0] - sampling_min[0]), sampling_min[1] + unit_y * (sampling_max[1] - sampling_min[1])))
 
 
 def latin_hypercube_gc_configuration_with_near_center(
@@ -215,13 +215,13 @@ def latin_hypercube_gc_configuration_with_near_center(
 	assert state is not None
 	x: np.ndarray
 	y: np.ndarray
-	x, y = GCStateLayout().positions(state)
+	x, y = GuidingCenterDynamics.coordinates.positions(state)
 	center_x: float
 	center_y: float
 	center_x, center_y = domain_center(potential)
 	x[0] = center_x + offset_fraction[0] * potential.grid.period
 	y[0] = center_y + offset_fraction[1] * potential.grid.period
-	return np.asarray(GCStateLayout().pack_components(x, y))
+	return np.asarray(GuidingCenterDynamics.coordinates.pack_components(x, y))
 
 
 __all__ = [

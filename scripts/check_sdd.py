@@ -33,6 +33,12 @@ COMMON_FIELDS = {"schema_version", "kind", "id", "sources", "documents"}
 PREPARATION_FILES = {"goal.md", "proposal.md", "impact.md", "steps.md"}
 PLAIN_CHANGE_FILES = PREPARATION_FILES | {"results.md"}
 LEGACY_CHANGE_FILES = {"spec.md", "plan.md", "tasks.md"}
+# Historical records keep the paths that existed when their work was accepted.
+# Resolve these two retired sources only for change history, never current specs.
+HISTORICAL_SOURCE_MOVES = {
+	"src/formulations/layout.py": "src/dynamics/coordinates.py",
+	"src/contracts/formulations/layout.py": "src/contracts/dynamics/coordinates.py",
+}
 
 
 @dataclass(frozen=True)
@@ -104,6 +110,10 @@ class Checker:
 				self.error(record.path, f"{key}: expected a repository-relative file: {reference!r}")
 				continue
 			path = self.root / filename
+			if (key == "sources" and not path.exists()
+				and record.path.is_relative_to(self.root / "specs/changes")
+				and filename in HISTORICAL_SOURCE_MOVES):
+				path = self.root / HISTORICAL_SOURCE_MOVES[filename]
 			try:
 				if not path.resolve().is_relative_to(self.root) or not path.is_file():
 					self.error(record.path, f"{key}: missing or external file {reference!r}")

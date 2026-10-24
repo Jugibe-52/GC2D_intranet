@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from formulations.layout import GCStateLayout
+from dynamics.gc import GuidingCenterDynamics
 
 from types import SimpleNamespace
 import unittest
@@ -86,8 +86,8 @@ def _solution(
 	model_shift = 2e-4 * variant * time_values
 	x = x0 + 0.015 * time_values + model_shift
 	y = y0 - 0.010 * time_values - 0.5 * model_shift
-	source = GCStateLayout().pack_components(np.asarray([x0]), np.asarray([y0]))
-	return States(t=time_values, states=np.vstack((x, y)), initial_state=source, layout=GCStateLayout())
+	source = GuidingCenterDynamics.coordinates.pack_components(np.asarray([x0]), np.asarray([y0]))
+	return States(t=time_values, states=np.vstack((x, y)), initial_state=source, layout=GuidingCenterDynamics.coordinates)
 
 
 def _result(*, particle_count: int = 10) -> SimpleNamespace:

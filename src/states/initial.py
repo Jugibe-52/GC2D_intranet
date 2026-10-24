@@ -2,22 +2,23 @@
 
 from __future__ import annotations
 
-from copy import deepcopy
 from dataclasses import dataclass, field
 from typing import Any
 
 import numpy as np
 from numpy.typing import ArrayLike
 
-from contracts.formulations.layout import StateLayout
-from formulations.layout import FCStateLayout, GCStateLayout
+from contracts.dynamics.coordinates import StateLayout
+from dynamics.coordinates import PhysicalCoordinates, describe_coordinates
+from dynamics.fc import FullCyclotronDynamics
+from dynamics.gc import GuidingCenterDynamics
 
 
-def _owned_initial_values(values: ArrayLike, layout: StateLayout) -> tuple[np.ndarray, StateLayout, int]:
+def _owned_initial_values(values: ArrayLike, layout: StateLayout) -> tuple[np.ndarray, PhysicalCoordinates, int]:
 	"""Prepare a finite packed vector and its independent structural layout."""
 	if not isinstance(layout, StateLayout):
 		raise TypeError("`layout` must implement StateLayout.")
-	owned_layout: StateLayout = deepcopy(layout)
+	owned_layout: PhysicalCoordinates = describe_coordinates(layout)
 	value: np.ndarray = np.array(values, dtype=float, copy=True)
 	if value.ndim != 1 or value.size == 0 or not np.all(np.isfinite(value)):
 		raise ValueError("The initial state must be a finite non-empty vector.")
@@ -35,16 +36,16 @@ class InitialConditions:
 	"""Immutable physical input, packed as ``(d*N,)`` in its supplied units.
 
 	GC uses ``[x, y]`` blocks and FC uses ``[x, y, vx, vy]``. This object
-	contains neither a clock nor dynamics. Public arrays and layouts are copies.
+	contains neither a clock nor dynamics. Public arrays are copies; coordinate descriptions are immutable.
 	"""
 
 	_values: np.ndarray = field(repr=False)
-	_layout: StateLayout = field(repr=False)
+	_layout: PhysicalCoordinates = field(repr=False)
 	particle_count: int
 
 	def __init__(self, values: ArrayLike, *, layout: StateLayout) -> None:
 		value: np.ndarray
-		owned_layout: StateLayout
+		owned_layout: PhysicalCoordinates
 		count: int
 		value, owned_layout, count = _owned_initial_values(values, layout)
 		object.__setattr__(self, '_values', value)
@@ -54,12 +55,12 @@ class InitialConditions:
 	@classmethod
 	def gc(cls, *, x: ArrayLike, y: ArrayLike) -> InitialConditions:
 		"""Construct one-dimensional GC component arrays in their supplied units."""
-		return cls(GCStateLayout.pack_components(np.asarray(x), np.asarray(y)), layout=GCStateLayout())
+		return cls(GuidingCenterDynamics.coordinates.pack_components(np.asarray(x), np.asarray(y)), layout=GuidingCenterDynamics.coordinates)
 
 	@classmethod
 	def fc(cls, *, x: ArrayLike, y: ArrayLike, vx: ArrayLike, vy: ArrayLike) -> InitialConditions:
 		"""Construct FC position and velocity blocks without rescaling them."""
-		return cls(FCStateLayout.pack_components(*(np.asarray(v) for v in (x, y, vx, vy))), layout=FCStateLayout())
+		return cls(FullCyclotronDynamics.coordinates.pack_components(*(np.asarray(v) for v in (x, y, vx, vy))), layout=FullCyclotronDynamics.coordinates)
 
 	@property
 	def values(self) -> np.ndarray:
@@ -67,9 +68,9 @@ class InitialConditions:
 		return self._values.copy()
 
 	@property
-	def layout(self) -> StateLayout:
+	def layout(self) -> PhysicalCoordinates:
 		"""Return a structural snapshot without exposing mutable layout internals."""
-		return deepcopy(self._layout)
+		return self._layout
 
 	def components(self) -> tuple[np.ndarray, ...]:
 		"""Return independent component arrays using the owned convention."""
@@ -81,10 +82,7 @@ class InitialConditions:
 
 	def velocities(self) -> tuple[np.ndarray, np.ndarray]:
 		"""Return named velocity components; GC has no stored velocities."""
-		components: tuple[np.ndarray, ...] = self.components()
-		if not hasattr(components, 'vx') or not hasattr(components, 'vy'):
-			raise ValueError("This initial layout has no named velocity components.")
-		return np.asarray(components.vx), np.asarray(components.vy)
+		return self._layout.velocities(self.values)
 
 	def __reduce__(self) -> tuple[Any, tuple[Any, ...]]:
 		return _restore_initial, (self._values, self._layout)

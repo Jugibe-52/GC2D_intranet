@@ -108,7 +108,7 @@ to execution. Arithmetic projection carries no nonlinear controls. Kernel select
 is complete before tracing, with explicit rejection of unsupported subclass overrides.
 
 The compiled worker receives `contracts.methods.compiled.CompiledStep`, carrying the
-resolved device, internal-state map and optional physical energy.
+resolved device, a physical-state/momentum map and optional physical energy. The call returns `(state, momentum, statistics, valid)`; the loop carries separate physical and momentum arrays.
 `execution._jax_fixed` owns scheduling, sampling, convergence checks and bulk
 physical export. It does not import concrete methods or discover their attributes.
 `Execution.run` allocates the recorder, owns run status and finalizes that same

@@ -2,7 +2,7 @@
 
 from states import InitialConditions
 from solvers import NewtonSolver
-from formulations import ReducedProjection
+from methods.projection import ReducedProjection
 
 
 from dynamics import GuidingCenterDynamics

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from studies._validation import require_uncoupled_bm4
 
-from formulations.layout import GCStateLayout
+from dynamics.gc import GuidingCenterDynamics
 
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -113,8 +113,8 @@ def run_dimensional_bm4_midpoint(
     x0: float
     y0: float
     x0, y0 = (float(value) for value in initial_xy)
-    initial: np.ndarray = GCStateLayout().pack_components(np.asarray([x0]), np.asarray([y0]))
-    problem: InitialValueProblem = InitialValueProblem(GuidingCenterDynamics(field.stream, rho=rho), initial, layout=GCStateLayout())
+    initial: np.ndarray = GuidingCenterDynamics.coordinates.pack_components(np.asarray([x0]), np.asarray([y0]))
+    problem: InitialValueProblem = InitialValueProblem(GuidingCenterDynamics(field.stream, rho=rho), initial, layout=GuidingCenterDynamics.coordinates)
     count = cycles * steps_per_cycle
     request: SimulationRequest = SimulationRequest.uniform(t_span=(0.0, float(cycles)),
                                         sample_count=count + 1)

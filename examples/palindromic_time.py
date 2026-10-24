@@ -5,7 +5,6 @@ from dataclasses import replace
 import numpy as np
 
 from dynamics.gc import GuidingCenterDynamics
-from formulations.layout import GCStateLayout
 from potential.potential import Potential
 from simulation import (A, B, T, Composition, InitialValueProblem,
 	PalindromicImplicit, PalindromicMidpoint, SimulationRequest, simulate)
@@ -17,7 +16,7 @@ def main() -> None:
 	edges = Composition.from_half('ABBA-edges', (T(.5), A(.5), B(.5)))
 	potential = Potential.random(A=.08, M=3, nx=16, ny=16, seed=27)
 	problem = InitialValueProblem(GuidingCenterDynamics(potential, rho=.05),
-		np.array([1., 1.2]), layout=GCStateLayout())
+		np.array([1., 1.2]), layout=GuidingCenterDynamics.coordinates)
 	request = SimulationRequest.uniform(t_span=(0., .1),  sample_count=3)
 	for method in (PalindromicImplicit, PalindromicMidpoint):
 		for recipe in (center, edges):

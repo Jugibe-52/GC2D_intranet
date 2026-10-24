@@ -50,9 +50,9 @@ class RK4(FixedStepMethod[None]):
 	dynamics: DynamicalSystem = field(init=False, repr=False, compare=False)
 
 	def initialize(self, problem: InitialValueProblem, request: SimulationRequest) -> None:
-		"""Bind the RK4 map on the physical or energy-augmented workspace."""
+		"""Bind the physical RK4 map and optional separate momentum tracking."""
 		self.dynamics = problem.dynamics
-		self.state_formulation = SingleFormulation(problem.layout, problem.particle_count, self.track_energy)
+		self.state_formulation = SingleFormulation(problem.initial_state.size)
 		self.initial_state = self._initialize_state(problem, request)
 		self.metadata = {}
 
@@ -60,15 +60,15 @@ class RK4(FixedStepMethod[None]):
 		"""Return the physical RK4 map and its four accepted quadrature states."""
 		return physical_step(partial(_checked_vector_field, self.dynamics), t, candidate, step)
 
-	def advance(self, t: float, state: np.ndarray, step: float) -> StepResult[None]:
+	def advance(self, t: float, state: np.ndarray, step: float, *, momentum: np.ndarray | None = None) -> StepResult[None]:
 		"""Advance physical stages, then the passive energy quadrature if requested."""
 		physical: np.ndarray
 		stages: tuple[np.ndarray, ...]
-		physical, stages = self._physical_step(t, self.state_formulation.physical(state), step)
+		physical, stages = self._physical_step(t, self._checked_state(state, momentum), step)
 		increment: np.ndarray | None = None
 		if self.track_energy:
 			increment = momentum_increment(self._momentum_rate, t, step, stages)
-		return StepResult(self._finish_state(state, physical, t + step, increment), {}, None)
+		return StepResult(physical, {}, None, self._finish_momentum(momentum, increment))
 
 	def build_observation(self, info: StepInfo, result: StepResult[None]) -> IntegrationStep:
 		def map_state(candidate: np.ndarray) -> np.ndarray:
@@ -76,8 +76,8 @@ class RK4(FixedStepMethod[None]):
 		return IntegrationStep(
 			dynamics_name=type(self.dynamics).__name__, method_name=type(self).__name__,
 			step_index=info.index, start_time=info.time, time=info.time + info.duration,
-			duration=info.duration, state_before=self.state_formulation.physical(info.state_before).copy(),
-			state_after=self.state_formulation.physical(result.state).copy(), map_state=map_state, dynamics=self.dynamics,
+			duration=info.duration, state_before=info.state_before.copy(),
+			state_after=result.state.copy(), map_state=map_state, dynamics=self.dynamics,
 		)
 
 

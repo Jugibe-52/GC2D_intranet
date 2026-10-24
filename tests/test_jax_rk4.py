@@ -1,7 +1,7 @@
 """Numerical and execution contracts of device-resident classical RK4."""
 
-from formulations.layout import FCStateLayout
-from formulations.layout import GCStateLayout
+from dynamics.fc import FullCyclotronDynamics
+from dynamics.gc import GuidingCenterDynamics
 
 import importlib.util
 import subprocess
@@ -13,8 +13,6 @@ import numpy as np
 from execution.options import ExecutionOptions
 from problem import InitialValueProblem
 from request import SimulationRequest
-from dynamics.gc import GuidingCenterDynamics
-from dynamics.fc import FullCyclotronDynamics
 
 from methods.classical.rk4 import RK4
 from potential.grid import Grid
@@ -31,10 +29,10 @@ def problem(fc=False):
     x, y = np.array([-.03, 2., 6.3]), np.array([6.27, .4, -.02])
     if fc:
         dynamics = FullCyclotronDynamics(potential, rho=.3, eta=-.4)
-        initial = FCStateLayout().pack_components(x, y, x*.1, y*.05)
+        initial = FullCyclotronDynamics.coordinates.pack_components(x, y, x*.1, y*.05)
     else:
         dynamics = GuidingCenterDynamics(potential, rho=.3)
-        initial = GCStateLayout().pack_components(x, y)
+        initial = GuidingCenterDynamics.coordinates.pack_components(x, y)
     return InitialValueProblem(dynamics, initial)
 
 
@@ -122,9 +120,9 @@ class JaxRK4Tests(unittest.TestCase):
         sparse = self.assert_equivalent(p, SimulationRequest((0., .5),  nodes[[0, 2, 5]]), False)
         np.testing.assert_allclose(sampled.states[:, np.searchsorted(dense, sparse.t)], sparse.states,
                                    rtol=1e-14, atol=1e-14)
-        x, y = GCStateLayout().split(p.initial_state)
+        x, y = GuidingCenterDynamics.coordinates.split(p.initial_state)
         for i in range(3):
-            one = InitialValueProblem(p.dynamics, GCStateLayout().pack_components(x[i:i+1], y[i:i+1]), layout=GCStateLayout())
+            one = InitialValueProblem(p.dynamics, GuidingCenterDynamics.coordinates.pack_components(x[i:i+1], y[i:i+1]), layout=GuidingCenterDynamics.coordinates)
             solo = simulate(one, RK4(step=0.1), SimulationRequest((0., .5),  sparse.t))
             np.testing.assert_allclose(sparse.states[[i, i+3]], solo.states, rtol=1e-13, atol=1e-13)
 
@@ -132,7 +130,7 @@ class JaxRK4Tests(unittest.TestCase):
         grid = Grid.periodic(24, 16)
         mode = .05 * np.sin(grid.x[:, None]) * np.ones((1, grid.ny))
         potential = Potential(grid, modes=mode[None], frequencies=np.array([.7]))
-        p = InitialValueProblem(GuidingCenterDynamics(potential), GCStateLayout().pack_components(np.array([.73]), np.array([.4])), layout=GCStateLayout())
+        p = InitialValueProblem(GuidingCenterDynamics(potential), GuidingCenterDynamics.coordinates.pack_components(np.array([.73]), np.array([.4])), layout=GuidingCenterDynamics.coordinates)
         # Phi is independent of y: x stays fixed and y' is a cosine in time.
         amplitude = potential.evaluate(0., np.array([.73]), np.array([.4]), dx=1)[0]
         exact = .4 + amplitude * np.sin(2*np.pi*.7) / (2*np.pi*.7)
@@ -157,7 +155,7 @@ class JaxRK4Tests(unittest.TestCase):
         class CustomDynamics(GuidingCenterDynamics):
             def vector_field(self, time, state):
                 return np.zeros_like(state)
-        custom = InitialValueProblem(CustomDynamics(p.dynamics.potential), p.initial_state, layout=GCStateLayout())
+        custom = InitialValueProblem(CustomDynamics(p.dynamics.potential), p.initial_state, layout=GuidingCenterDynamics.coordinates)
         with self.assertRaisesRegex(TypeError, "built-in"):
             simulate(custom, RK4(), r, options=self.execution)
 
@@ -167,9 +165,9 @@ class JaxRK4Tests(unittest.TestCase):
         self.assert_equivalent(p, SimulationRequest((0., .2),  times), True)
         # A finite initial FC state can still overflow during unsaved steps.
         fc = FullCyclotronDynamics(p.dynamics.potential, rho=1., eta=1e-100)
-        initial = FCStateLayout().pack_components(np.array([0.]), np.array([0.]), np.array([1e200]), np.array([1e200]))
+        initial = FullCyclotronDynamics.coordinates.pack_components(np.array([0.]), np.array([0.]), np.array([1e200]), np.array([1e200]))
         with self.assertRaisesRegex(ValueError, "non-finite"):
-            simulate(InitialValueProblem(fc, initial, layout=FCStateLayout()), RK4(step=0.1),
+            simulate(InitialValueProblem(fc, initial, layout=FullCyclotronDynamics.coordinates), RK4(step=0.1),
                      SimulationRequest((0., 1.),  np.array([0., 1.])), options=self.execution)
 
     def test_gpu_equivalence_or_explicit_unavailability(self):

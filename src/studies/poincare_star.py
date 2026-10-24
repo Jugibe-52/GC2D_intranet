@@ -2,7 +2,7 @@
 
 from studies._validation import require_uncoupled_bm4
 
-from formulations.layout import GCStateLayout
+from dynamics.gc import GuidingCenterDynamics
 
 from dataclasses import asdict, dataclass, field, replace
 from hashlib import sha256
@@ -15,7 +15,6 @@ import numpy as np
 from execution.options import ExecutionOptions
 from problem import InitialValueProblem
 from request import SimulationRequest
-from dynamics.gc import GuidingCenterDynamics
 from states.generators import radial_star
 from methods.extended.bm4 import BM4Midpoint
 from potential.load import DEFAULT_FIELD_INDICES
@@ -91,7 +90,7 @@ def run_poincare_star(source: str | Path, config: PoincareStarConfig, *,
     initial: np.ndarray = radial_star(center=(float(center[0]), float(center[1])), arm_length=length,
                           arms=config.arms, particles_per_arm=config.particles_per_arm,
                           first_angle=config.first_angle)
-    problem: InitialValueProblem = InitialValueProblem(GuidingCenterDynamics(field.stream, rho=rho_m), initial, layout=GCStateLayout())
+    problem: InitialValueProblem = InitialValueProblem(GuidingCenterDynamics(field.stream, rho=rho_m), initial, layout=GuidingCenterDynamics.coordinates)
     request: SimulationRequest = SimulationRequest(
         t_span=(0.0, float(config.cycles)),
         output_times=np.arange(config.cycles + 1, dtype=float),
@@ -109,7 +108,7 @@ def run_poincare_star(source: str | Path, config: PoincareStarConfig, *,
         raise RuntimeError("The calculation did not preserve the configured BM4 cycle sampling.")
     x: np.ndarray
     y: np.ndarray
-    x, y = GCStateLayout().positions(problem.initial_state)
+    x, y = GuidingCenterDynamics.coordinates.positions(problem.initial_state)
     metadata = {
         "study": "poincare_star_bm4_midpoint", "config": asdict(config),
         "source": str(Path(source).resolve()), "source_sha256": sha256(resolved.read_bytes()).hexdigest(),

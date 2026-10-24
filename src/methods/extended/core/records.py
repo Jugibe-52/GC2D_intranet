@@ -8,7 +8,7 @@ import numpy as np
 
 from contracts.solvers.nonlinear import NewtonObserver
 from solvers.nonlinear import SolveStats
-from formulations.gc import _EnergyQuadraturePoint
+from methods.extended.maps import _EnergyQuadraturePoint
 from methods.extended.core.operations import OperationName
 
 

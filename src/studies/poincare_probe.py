@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from formulations.layout import GCStateLayout
+from dynamics.gc import GuidingCenterDynamics
 
 from dataclasses import asdict, dataclass
 import hashlib
@@ -115,10 +115,10 @@ def integrate_rk4_probe(potential: Potential, settings: RK4ProbeSettings, *,
     started: float = time.perf_counter()
     for start in range(0, count, settings.chunk_steps):
         end: int = min(count, start + settings.chunk_steps)
-        initial: np.ndarray = GCStateLayout().pack_components(xy[start, :, 0], xy[start, :, 1])
+        initial: np.ndarray = GuidingCenterDynamics.coordinates.pack_components(xy[start, :, 0], xy[start, :, 1])
         request: SimulationRequest = SimulationRequest.uniform(t_span=(times[start], times[end]),
                                             sample_count=end - start + 1)
-        solution: States = simulate(InitialValueProblem(dynamics, initial, layout=GCStateLayout()), RK4(step=step), request)
+        solution: States = simulate(InitialValueProblem(dynamics, initial, layout=GuidingCenterDynamics.coordinates), RK4(step=step), request)
         if solution.diagnostics['step_count'] != end - start:
             raise RuntimeError('RK4 did not preserve the requested number of steps.')
         xy[start:end + 1, 0] = solution.states.T

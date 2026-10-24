@@ -2,7 +2,7 @@
 schema_version = 1
 kind = "spec"
 id = "simulation"
-sources = ["src/formulations/state.py", "src/states/initial.py", "src/solvers/nonlinear.py", "src/formulations/projection.py", "src/simulation/runner.py", "src/problem.py", "src/request.py", "src/execution/execution.py", "src/execution/_jax.py", "src/methods/base.py", "src/execution/options.py", "src/contracts/arrays.py", "src/contracts/methods/base.py", "src/contracts/execution/controllers.py", "src/contracts/dynamics/protocols.py", "src/contracts/formulations/base.py", "src/contracts/formulations/projection.py"]
+sources = ["src/formulations/state.py", "src/states/initial.py", "src/solvers/nonlinear.py", "src/methods/projection.py", "src/simulation/runner.py", "src/problem.py", "src/request.py", "src/execution/execution.py", "src/execution/_jax.py", "src/methods/base.py", "src/execution/options.py", "src/contracts/arrays.py", "src/contracts/methods/base.py", "src/contracts/execution/controllers.py", "src/contracts/dynamics/protocols.py", "src/contracts/methods/maps.py", "src/contracts/methods/projection.py"]
 documents = ["docs/simulation/initial-solvers-formulations.md", "docs/simulation/integration-architecture.md", "docs/simulation/execution.md", "docs/simulation/jax-execution.md"]
 
 [[requirements]]
@@ -55,8 +55,7 @@ vector is finite, one-dimensional and contains complete particle blocks; its
 layout dimension matches the dynamics. InitialConditions owns copies of the
 values and layout, remains immutable after pickle, and returns independent data.
 A supplied object already carries its layout, so an additional layout argument
-is rejected. Raw arrays normalize through the same owner, using canonical GC/FC
-layouts when omitted; other dimensions require an explicit layout.
+is rejected. Raw arrays normalize through the same owner, using the declared dynamics coordinates when omitted; otherwise an explicit layout is required.
 `initial_conditions` exposes the immutable owner and `initial_state` returns a
 fresh array. The initial time belongs exclusively to `request.SimulationRequest`
 and may be nonzero. Geometry generators still return arrays. See the
@@ -64,8 +63,7 @@ and may be nonzero. Geometry generators still return arrays. See the
 
 ## SIM-002: Complete, increasing output schedule
 
-`SimulationRequest` requires finite, increasing span endpoints and a finite,
-positive, non-Boolean maximum step. Output times are a finite, strictly
+`SimulationRequest` requires finite, increasing span endpoints. Output times are a finite, strictly
 increasing vector of at least two samples, including both endpoints. Times use
 the dynamics' time convention (dimensionless characteristic periods for the
 measured-potential model).
@@ -106,7 +104,7 @@ from execution. There is no separate integration package or compatibility import
 
 ## SIM-004: Output agreement with the request and initial state
 
-Every execution, including custom executors, must return completed `States`. The runner validates exact saved times, physical state size, layout dimension, independent initial snapshot and first saved column against the request and problem. It returns the same result object without conversion to another container. Incompatible output raises `ValueError`. Structural storage guarantees are specified by [SOL-001 through SOL-003](results.md).
+Every execution, including custom executors, must return completed `States`. The runner validates exact saved times, physical state size, coordinate order and roles, independent initial snapshot and first saved column against the request and problem. It returns the same result object without conversion to another container. Incompatible output raises `ValueError`. Structural storage guarantees are specified by [SOL-001 through SOL-003](results.md).
 
 ## Configurable nonlinear resolution
 
@@ -124,7 +122,7 @@ See [component interface](../../docs/simulation/initial-solvers-formulations.md)
 
 Both BM4 constructors omit coupling_frequency and bind uncoupled CPU/JAX maps.
 Their weights, endpoint clock and projections stay unchanged. Independent C
-remains available through formulations.HarmonicCoupling. Legacy calculation
+remains available through methods.extended.maps.HarmonicCoupling. Legacy calculation
 rates must be zero; stored coupled results retain their original metadata.
 See [the migration guide](../../docs/models/extended/simulation/uncoupled-bm4.md).
 
@@ -162,13 +160,10 @@ canonical contracts, and internal consumers import their defining modules.
 
 ## Independent state formulation and method preparation
 
-`SingleFormulation` and `DoubleFormulation` describe structural layouts and one
-or two physical copies independently of GC/FC dynamics. They retain particle
-count and tracking settings, but no problem, initial values, clock or solver.
-Methods own initial-state construction, zero initial passive momentum, per-step
-copy preparation, projection and nonlinear solves. Generic `lift`, `join_copies`
-and `pack` operations preserve NumPy/JAX backends. Methods evaluate physical
-energy; representations assemble diagnostics from supplied values. Existing
-implicit `solver=None` defaults, projection equations, supported physical models
-and diagnostic labels retain their meanings. See
-[the component interface](../../docs/simulation/initial-solvers-formulations.md#state-representations).
+`SingleFormulation(physical_size)` and `DoubleFormulation(physical_size)` retain only a positive physical vector size. They prepare one or two temporary copies through `lift`, `join_copies` and `split_copies`. Shapes are `(d*N,*samples)` and `(copies*d*N,*samples)`; shifted copies remain distinct until the method projects them. NumPy/JAX backends and complete FC velocity blocks are preserved. There is no layout, particle count, tracking flag, clock, momentum, initial state, projection or solver in either representation.
+
+Every accepted snapshot is `IntegrationState(time, values, momentum=None)`: scalar time, physical `values` of shape `(d*N,)`, and optional physical `momentum` of shape `(N,)`. GC remains 2N and FC 4N with or without tracking. Doubled GC work has 4N entries; generic doubled FC work has 8N. Workspaces are temporary and never become accepted states. This generic support does not extend GC numerical methods to FC.
+
+The method initializes zero momentum, prepares copies, selects projection equations and solver, and integrates momentum from accepted stages. `advance(t, Z, h, momentum=kappa)` returns physical `StepResult.state` and separate `StepResult.momentum`. `StepInfo.momentum_before` records the incoming auxiliary. Shadow samples start from the same accepted physical state and momentum. JAX carries separate arrays through the compiled loop.
+
+Methods evaluate saved physical H once. `states.energy.energy_diagnostics` combines supplied H and physical kappa without dynamics evaluation. Existing energy labels and `(N,T)` auxiliary histories remain unchanged; `extended_time` is broadcast from scalar sample times. Numerical archives require no migration; old pickled configured objects should be recreated.

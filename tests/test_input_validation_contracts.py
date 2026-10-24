@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from formulations.layout import GCStateLayout
+from dynamics.gc import GuidingCenterDynamics
 
 from pathlib import Path
 import tempfile
@@ -84,7 +84,7 @@ class InputValidationContractsTests(unittest.TestCase):
 		star = ranked_radial_star(center=(0.0, 0.0), outer_radius=1.0, particles=4, arms=2)
 		state = star
 		assert state is not None
-		x, y = GCStateLayout().positions(state)
+		x, y = GuidingCenterDynamics.coordinates.positions(state)
 		np.testing.assert_allclose(np.hypot(x, y), np.linspace(0.0, 1.0, 4))
 
 

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from formulations.layout import GCStateLayout
+from dynamics.gc import GuidingCenterDynamics
 
 import tempfile
 import unittest
@@ -167,7 +167,7 @@ class ImplicitABBAFormulationTests(unittest.TestCase):
 	) -> None:
 		dynamics = gc_dynamics()
 		state = np.asarray([1.0, 1.4, 1.2, 1.6])
-		problem = InitialValueProblem(dynamics, np.array(state, dtype=float, copy=True), layout=GCStateLayout())
+		problem = InitialValueProblem(dynamics, np.array(state, dtype=float, copy=True), layout=GuidingCenterDynamics.coordinates)
 		request = SimulationRequest.uniform(
 			t_span=(0.0, 0.2),
 			sample_count=5,

@@ -2,7 +2,7 @@
 
 from dataclasses import replace
 
-from formulations.layout import GCStateLayout
+from dynamics.gc import GuidingCenterDynamics
 
 import unittest
 
@@ -13,7 +13,7 @@ from dynamics import GuidingCenterDynamics
 
 from potential import Potential
 from simulation import BM4Midpoint, InitialValueProblem, SimulationRequest, simulate
-from formulations import GCExtendedFormulation
+from methods.extended.maps import GCDoubledMaps
 
 
 class _Rotation:
@@ -31,7 +31,7 @@ def _gc_problem(state: np.ndarray | None = None) -> InitialValueProblem:
 	dynamics = GuidingCenterDynamics(Potential.random(
 		A=0.08, M=3, nx=16, ny=16, seed=27, interpolation_order=5,
 	), rho=0.05)
-	return InitialValueProblem(dynamics, np.array(np.asarray([1.0, 1.2]) if state is None else state, dtype=float, copy=True), layout=GCStateLayout())
+	return InitialValueProblem(dynamics, np.array(np.asarray([1.0, 1.2]) if state is None else state, dtype=float, copy=True), layout=GuidingCenterDynamics.coordinates)
 
 
 class BM4MidpointTests(unittest.TestCase):
@@ -39,7 +39,7 @@ class BM4MidpointTests(unittest.TestCase):
 
 	def test_one_step_matches_independent_twelve_stage_replay(self) -> None:
 		problem = _gc_problem()
-		prepared = GCExtendedFormulation(0.0).prepare(problem, track_energy=False)
+		prepared = GCDoubledMaps(problem.dynamics, problem.initial_state.size, coupling_frequency=0.0)
 		# Independent coefficient/order traversal catches changes to the shared
 		# cycle, time convention, and accidental projection between stages.
 		half = [0.0792036964311957, 0.1303114101821663, 0.2228614958676077,
@@ -62,7 +62,7 @@ class BM4MidpointTests(unittest.TestCase):
 		self.assertEqual(solution.diagnostics["nonlinear_unknown_dimension"], 0)
 
 	def test_fourth_order_against_exact_rotation(self) -> None:
-		problem = InitialValueProblem(_Rotation(), np.array(np.asarray([1., 0.]), dtype=float, copy=True), layout=GCStateLayout())
+		problem = InitialValueProblem(_Rotation(), np.array(np.asarray([1., 0.]), dtype=float, copy=True), layout=GuidingCenterDynamics.coordinates)
 		errors = []
 		for step in (0.2, 0.1):
 			solution = simulate(problem, BM4Midpoint(step=step), SimulationRequest.uniform(
@@ -93,7 +93,7 @@ class BM4MidpointTests(unittest.TestCase):
 		np.testing.assert_array_equal(plain.states, tracked.states)
 		for particle in range(2):
 			indices = [particle, particle + 2]
-			scalar = simulate(InitialValueProblem(problem.dynamics, np.array(problem.initial_state[indices], dtype=float, copy=True), layout=GCStateLayout()), BM4Midpoint(step=0.05, track_energy=True), request)
+			scalar = simulate(InitialValueProblem(problem.dynamics, np.array(problem.initial_state[indices], dtype=float, copy=True), layout=GuidingCenterDynamics.coordinates), BM4Midpoint(step=0.05, track_energy=True), request)
 			np.testing.assert_allclose(tracked.states[indices], scalar.states, atol=2e-15)
 			np.testing.assert_allclose(tracked.diagnostics["extended_momentum"][particle],
 				scalar.diagnostics["extended_momentum"][0], atol=2e-15)
@@ -137,7 +137,7 @@ class BM4MidpointTests(unittest.TestCase):
 			BM4Midpoint("fully_extended")
 		request = SimulationRequest.uniform(t_span=(0., 0.1),  sample_count=2)
 		with self.assertRaises(TypeError):
-			simulate(InitialValueProblem(_Rotation(), np.array(np.asarray([1., 0.]), dtype=float, copy=True), layout=GCStateLayout()),
+			simulate(InitialValueProblem(_Rotation(), np.array(np.asarray([1., 0.]), dtype=float, copy=True), layout=GuidingCenterDynamics.coordinates),
 				BM4Midpoint(step=0.1, track_energy=True), request)
 		with self.assertRaises(ValueError):
 			simulate(_gc_problem(np.asarray([1., 1.1, 1.2, 0.9])), BM4Midpoint("fully_extended", step=0.1), request)

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from formulations.layout import GCStateLayout
+from dynamics.gc import GuidingCenterDynamics
 
 from dataclasses import dataclass, field, replace
 from typing import Any
@@ -122,7 +122,7 @@ class MethodValidationContractTests(unittest.TestCase):
 		times = np.asarray((0.0, 1.0))
 		states = np.asarray(((0, 1), (1, 2)), dtype=np.int16)
 		metric = np.asarray((1, 2), dtype=np.int64)
-		solution = States(t=times, states=states, initial_state=np.array(states[:, 0], dtype=float, copy=True), diagnostics={"metric": metric}, layout=GCStateLayout())
+		solution = States(t=times, states=states, initial_state=np.array(states[:, 0], dtype=float, copy=True), diagnostics={"metric": metric}, layout=GuidingCenterDynamics.coordinates)
 		times[0], states[0, 0], metric[0] = -1.0, -1, -1
 		self.assertEqual(solution.t[0], 0.0)
 		self.assertEqual(solution.states[0, 0], 0)
@@ -135,7 +135,7 @@ class MethodValidationContractTests(unittest.TestCase):
 			solution.diagnostics["other"] = 1  # type: ignore[index]
 
 	def test_run_owns_initial_state_and_metadata_arrays(self) -> None:
-		problem = InitialValueProblem(_CountingDynamics(), np.array(np.asarray((1.0, 0.0)), dtype=float, copy=True), layout=GCStateLayout())
+		problem = InitialValueProblem(_CountingDynamics(), np.array(np.asarray((1.0, 0.0)), dtype=float, copy=True), layout=GuidingCenterDynamics.coordinates)
 		request = SimulationRequest.uniform(t_span=(0.0, 0.1), sample_count=2)
 		method = _ArrayMetadataRK4()
 		run = replace(method, step=0.1).new_run(problem, request)
@@ -177,7 +177,7 @@ class MethodValidationContractTests(unittest.TestCase):
 
 	def test_hbvm_capability_error_stays_after_initial_field_work(self) -> None:
 		dynamics = _CountingDynamics()
-		problem = InitialValueProblem(dynamics, np.array(np.asarray((1.0, 0.0)), dtype=float, copy=True), layout=GCStateLayout())
+		problem = InitialValueProblem(dynamics, np.array(np.asarray((1.0, 0.0)), dtype=float, copy=True), layout=GuidingCenterDynamics.coordinates)
 		request = SimulationRequest.uniform(t_span=(0.0, 0.1), sample_count=2)
 		run = HBVM42(step=0.1, jacobian_method="analytic").new_run(problem, request)
 		self.assertEqual(dynamics.evaluations, 0)

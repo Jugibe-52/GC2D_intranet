@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from studies._validation import require_uncoupled_bm4
 
-from formulations.layout import GCStateLayout
+from dynamics.gc import GuidingCenterDynamics
 
 from dataclasses import dataclass, replace
 from types import MappingProxyType
@@ -479,7 +479,7 @@ def run_implicit_generalized_energy_study(
 	"""Run accepted-stage generalized-energy reconstruction at several steps."""
 	if not isinstance(potential, Potential):
 		raise TypeError("`potential` must be a Potential instance.")
-	if not (isinstance(configuration, np.ndarray) and GCStateLayout().state_dimension == 2):
+	if not (isinstance(configuration, np.ndarray) and GuidingCenterDynamics.coordinates.state_dimension == 2):
 		raise TypeError("`configuration` must be a np.ndarray instance.")
 	if not isinstance(config, ImplicitGeneralizedEnergyConfig):
 		raise TypeError("`config` must be ImplicitGeneralizedEnergyConfig.")
@@ -490,7 +490,7 @@ def run_implicit_generalized_energy_study(
 		potential,
 		rho=resolve_rho(config.rho),
 	)
-	problem: InitialValueProblem = InitialValueProblem(dynamics, configuration, layout=GCStateLayout())
+	problem: InitialValueProblem = InitialValueProblem(dynamics, configuration, layout=GuidingCenterDynamics.coordinates)
 	runs: list[ImplicitGeneralizedEnergyRun] = []
 	for step in config.steps:
 		energy_observer: GCGeneralizedEnergyObserver = GCGeneralizedEnergyObserver(
@@ -509,8 +509,8 @@ def run_implicit_generalized_energy_study(
 			duration: float,
 		) -> tuple[np.ndarray, float]:
 			candidate_state: np.ndarray = np.asarray(state, dtype=float)
-			candidate_configuration: np.ndarray = GCStateLayout().pack_components(np.asarray([candidate_state[0]], dtype=float), np.asarray([candidate_state[1]], dtype=float))
-			candidate_problem: InitialValueProblem = InitialValueProblem(dynamics, candidate_configuration, layout=GCStateLayout())
+			candidate_configuration: np.ndarray = GuidingCenterDynamics.coordinates.pack_components(np.asarray([candidate_state[0]], dtype=float), np.asarray([candidate_state[1]], dtype=float))
+			candidate_problem: InitialValueProblem = InitialValueProblem(dynamics, candidate_configuration, layout=GuidingCenterDynamics.coordinates)
 			candidate_energy_observer: GCGeneralizedEnergyObserver = GCGeneralizedEnergyObserver(
 				dynamics,
 				initial_time=start_time,

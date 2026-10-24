@@ -27,11 +27,11 @@ passive-energy derivatives now exercise the active dynamics directly.
 
 ```python
 
-from formulations.layout import GCStateLayout
+from dynamics import GuidingCenterDynamics
 from dynamics import GuidingCenterDynamics
 from simulation import ABBA4Implicit, InitialValueProblem, SimulationRequest, simulate
 
-configuration = GCStateLayout().pack_components(x0, y0)
+configuration = GuidingCenterDynamics.coordinates.pack_components(x0, y0)
 problem = InitialValueProblem(GuidingCenterDynamics(potential, rho=0.3), configuration)
 request = SimulationRequest.uniform(t_span=(0.0, 1.0), sample_count=101)
 solution = simulate(problem, ABBA4Implicit(step=0.01, track_energy=True), request)
@@ -116,7 +116,7 @@ structure. Exact tangents are available through
 
 ## Current state and saved states (2026-10-20)
 
-Initial configurations are now packed NumPy arrays. Use `from formulations.layout import GCStateLayout, FCStateLayout` and `GCStateLayout().pack_components(x, y)` (FC adds vx and vy). External functions in `states.generators` return those arrays. Pass them to `InitialValueProblem(dynamics, values, layout=...)`; canonical GC/FC layouts may be omitted. Replace snapshot-method calls with explicit layout operations on arrays. Physical inputs retain their units, ordering and validation.
+Initial configurations are now packed NumPy arrays. Use `from dynamics import GuidingCenterDynamics, FullCyclotronDynamics` and `GuidingCenterDynamics.coordinates.pack_components(x, y)` (FC adds vx and vy). External functions in `states.generators` return those arrays. Pass them to `InitialValueProblem(dynamics, values, layout=...)`; canonical GC/FC layouts may be omitted. Replace snapshot-method calls with explicit layout operations on arrays. Physical inputs retain their units, ordering and validation.
 
 `request.SimulationRequest` owns the initial time, integration span, maximum step and output times; its `simulation` re-export remains supported. `execution.state.IntegrationState` contains current internal time and values. `states.States` records physical samples and becomes the completed result returned by methods, executors and `simulate`. Use `.times`, `.values`, `.components()`, `.positions()` and `.velocities()`; `.t` and `.states` remain read-only aliases. `.initial_state` and `.layout` return independent snapshots. `.select(...)` keeps original sample times and whole-run diagnostics. Step statistics keep their own axes.
 
@@ -172,7 +172,7 @@ stored results; historical conflict copies retain their original references.
 
 Import pure interfaces and shared records from the matching `contracts` domain;
 see the complete [contract map](contracts.md). For example, use
-`contracts.methods.base.NumericalMethod`, `contracts.formulations.layout.StateLayout`,
+`contracts.methods.base.NumericalMethod`, `contracts.dynamics.coordinates.StateLayout`,
 and `contracts.dynamics.protocols.DynamicalSystem`. Common events live in
 `contracts.methods.observation`; adaptive, Gauss, ABBA, and BM4 events live beside
 their matching method paths. Public `simulation`, `methods`, `formulations`,
@@ -188,16 +188,13 @@ with the current source before process or remote execution.
 
 ## Independent state representations
 
-`PhysicalFormulation` is replaced by `SingleFormulation`; `DoubledFormulation`
-by `DoubleFormulation`. Import the new names from `formulations.state`,
-`formulations` or `simulation`; the former names have no aliases. Construct with
-`(layout, particle_count, track_energy=False)`, not a problem and initial time.
-Methods now own initial values, zero passive momentum and step preparation.
-Use `lift(physical)` for copies and `pack(copies, time, momentum)` for the full
-internal state. Call `join_copies(first, second)` for shifted doubled inputs.
-History export receives pre-evaluated `energy=` values when tracking is enabled.
-Method constructors, projection/solver choices and saved schemas are unchanged.
-See [representation details](initial-solvers-formulations.md#state-representations).
+`SingleFormulation(physical_size)` and `DoubleFormulation(physical_size)` retain only a positive physical vector size. They prepare one or two temporary copies through `lift`, `join_copies` and `split_copies`. Shapes are `(d*N,*samples)` and `(copies*d*N,*samples)`; shifted copies remain distinct until the method projects them. NumPy/JAX backends and complete FC velocity blocks are preserved. There is no layout, particle count, tracking flag, clock, momentum, initial state, projection or solver in either representation.
+
+Every accepted snapshot is `IntegrationState(time, values, momentum=None)`: scalar time, physical `values` of shape `(d*N,)`, and optional physical `momentum` of shape `(N,)`. GC remains 2N and FC 4N with or without tracking. Doubled GC work has 4N entries; generic doubled FC work has 8N. Workspaces are temporary and never become accepted states. This generic support does not extend GC numerical methods to FC.
+
+The method initializes zero momentum, prepares copies, selects projection equations and solver, and integrates momentum from accepted stages. `advance(t, Z, h, momentum=kappa)` returns physical `StepResult.state` and separate `StepResult.momentum`. `StepInfo.momentum_before` records the incoming auxiliary. Shadow samples start from the same accepted physical state and momentum. JAX carries separate arrays through the compiled loop.
+
+Methods evaluate saved physical H once. `states.energy.energy_diagnostics` combines supplied H and physical kappa without dynamics evaluation. Existing energy labels and `(N,T)` auxiliary histories remain unchanged; `extended_time` is broadcast from scalar sample times. Numerical archives require no migration; old pickled configured objects should be recreated.
 
 ## Method-owned integration step
 
@@ -215,3 +212,13 @@ adaptive controller. Move former request `max_step` arguments to the method:
 accept a step argument. A non-divisible interval intentionally gives a different
 main grid from the former uniform rescaling policy; old saved results retain
 their recorded grids.
+
+## Physical coordinates and retired paths (2026-10-24)
+
+Dynamics declare immutable `PhysicalCoordinates(component_names, position_names=(), velocity_names=())` from `dynamics.coordinates`. GC declares `(x,y)`; FC declares `(x,y,vx,vy)`. Position and velocity roles are explicit. The structural protocol is `contracts.dynamics.coordinates.StateLayout`; external implementations require no inheritance.
+
+`InitialValueProblem` takes the dynamics declaration or requires an explicit layout. It never infers a physical model from dimension 2 or 4. It checks dimension, component order and position/velocity roles, even for equally sized arrays. Initial conditions and results retain an immutable structural description and owned arrays, without retaining live dynamics or a potential. Generic packing, component views and role access support `(d*N,*samples)`, `(d,N,*samples)` and `(N,*samples)` while preserving NumPy/JAX tracing. Incomplete blocks are rejected.
+
+Built-in dynamics keep physical parameters immutable. A new problem is required for revised initial values. Saved numerical archives retain existing GC/FC schemas and can be interpreted without constructing dynamics or loading a field.
+
+The former GC/FC wrappers and internal state containers are removed without aliases. Maps belong to `methods.extended.maps.GCDoubledMaps` and `methods.splitting.FCSplitMaps`; equations to `methods.projection`; projected observation to `diagnostics.methods.projection`.

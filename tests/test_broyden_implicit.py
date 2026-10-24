@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 
-from formulations.layout import GCStateLayout
+from dynamics.gc import GuidingCenterDynamics
 
 from itertools import product
 import unittest
@@ -42,8 +42,8 @@ def _problem(
 		seed=27,
 		interpolation_order=interpolation_order,
 	)
-	configuration = GCStateLayout().pack_components(np.linspace(1.0, 1.4, particle_count), np.linspace(1.2, 1.6, particle_count))
-	return InitialValueProblem(GuidingCenterDynamics(potential, rho=0.05), configuration, layout=GCStateLayout())
+	configuration = GuidingCenterDynamics.coordinates.pack_components(np.linspace(1.0, 1.4, particle_count), np.linspace(1.2, 1.6, particle_count))
+	return InitialValueProblem(GuidingCenterDynamics(potential, rho=0.05), configuration, layout=GuidingCenterDynamics.coordinates)
 
 
 def _request() -> SimulationRequest:

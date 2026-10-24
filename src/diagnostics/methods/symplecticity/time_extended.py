@@ -17,7 +17,7 @@ from contracts.methods.extended.abba import (
 )
 from contracts.methods.extended.bm4 import ImplicitBM4IntegrationStep
 from contracts.methods.observation import IntegrationStep
-from formulations.gc import gc_coupling_matrix
+from methods.extended.maps import gc_coupling_matrix
 
 from diagnostics.methods.jacobians import central_difference_jacobian
 

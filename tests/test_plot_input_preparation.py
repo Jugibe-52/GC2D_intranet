@@ -15,7 +15,7 @@ from matplotlib.figure import Figure
 from numpy.typing import ArrayLike
 
 from diagnostics.methods.implicit_iterations import ImplicitIterationRecord
-from formulations.layout import GCStateLayout
+from dynamics.gc import GuidingCenterDynamics
 from states.history import States
 from visualization.energy import (
 	plot_generalized_energy_errors, plot_time_extended_symplecticity,
@@ -33,7 +33,7 @@ from visualization.trajectory_accuracy import plot_accuracy_runtime_tradeoff
 
 def _solution(**diagnostics: np.ndarray) -> States:
 	return States(np.array([0., 1., 2.]), np.zeros((2, 3)), diagnostics,
-		layout=GCStateLayout())
+		layout=GuidingCenterDynamics.coordinates)
 
 
 def _summary(method: str, step: float, **changes: float) -> SimpleNamespace:

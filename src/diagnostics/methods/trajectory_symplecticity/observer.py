@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from formulations.layout import GCStateLayout
+from dynamics.gc import GuidingCenterDynamics
 
 from collections.abc import Callable
 from dataclasses import asdict, dataclass
@@ -115,7 +115,7 @@ def _validated_observer_initial_state(
 		raise TypeError(
 			"GCTrajectorySymplecticityObserver requires exact GC Jacobians."
 		)
-	if not (isinstance(initial_configuration, np.ndarray) and GCStateLayout().state_dimension == 2):
+	if not (isinstance(initial_configuration, np.ndarray) and GuidingCenterDynamics.coordinates.state_dimension == 2):
 		raise TypeError("`initial_configuration` must be a GC configuration.")
 	initial_state = initial_configuration
 	if initial_state is None:
@@ -157,7 +157,7 @@ class GCTrajectorySymplecticityObserver:
 		self.dynamics = dynamics
 		self.initial_configuration = initial_configuration
 		self.initial_state = np.asarray(initial_state, dtype=float).copy()
-		self.particle_count = GCStateLayout().particle_count(initial_state)
+		self.particle_count = GuidingCenterDynamics.coordinates.particle_count(initial_state)
 		self.method_name = method_name
 		self.jacobian_method = jacobian_method
 		self.jacobian_calculator = jacobian_calculator

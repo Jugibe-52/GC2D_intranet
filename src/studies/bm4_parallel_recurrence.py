@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from studies._validation import require_uncoupled_bm4
 
-from formulations.layout import GCStateLayout
+from dynamics.gc import GuidingCenterDynamics
 
 from contracts.studies.bm4_parallel_recurrence import ParallelBM4RecurrenceConfig, ParallelBM4RecurrenceResult
 
@@ -107,8 +107,8 @@ def _run_particle(particle: int) -> _ParticlePayload:
 	x: Any
 	y: Any
 	x, y = context.coordinates[particle]
-	initial_configuration: np.ndarray = GCStateLayout().pack_components(np.asarray([x], dtype=float), np.asarray([y], dtype=float))
-	problem: InitialValueProblem = InitialValueProblem(context.dynamics, initial_configuration, layout=GCStateLayout())
+	initial_configuration: np.ndarray = GuidingCenterDynamics.coordinates.pack_components(np.asarray([x], dtype=float), np.asarray([y], dtype=float))
+	problem: InitialValueProblem = InitialValueProblem(context.dynamics, initial_configuration, layout=GuidingCenterDynamics.coordinates)
 	method: BM4Implicit = BM4Implicit(
 		step=context.config.integration_step,
 		newton_absolute_tolerance=context.config.absolute_tolerance,
@@ -172,7 +172,7 @@ def run_parallel_bm4_recurrence(
 	"""Run one independent single-particle BM4 integration per process task."""
 	if not isinstance(potential, Potential):
 		raise TypeError("`potential` must be a Potential instance.")
-	if not (isinstance(initial_configuration, np.ndarray) and GCStateLayout().state_dimension == 2):
+	if not (isinstance(initial_configuration, np.ndarray) and GuidingCenterDynamics.coordinates.state_dimension == 2):
 		raise TypeError("`initial_configuration` must be np.ndarray.")
 	if not isinstance(config, ParallelBM4RecurrenceConfig):
 		raise TypeError("`config` must be ParallelBM4RecurrenceConfig.")
@@ -280,7 +280,7 @@ def _validated_campaign_coordinates(
 		raise ValueError("The initial configuration must contain an initial state.")
 	initial_x: np.ndarray
 	initial_y: np.ndarray
-	initial_x, initial_y = GCStateLayout().positions(initial_state)
+	initial_x, initial_y = GuidingCenterDynamics.coordinates.positions(initial_state)
 	if initial_x.size != particle_count:
 		raise ValueError(
 			"The initial configuration particle count must match the campaign."

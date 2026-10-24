@@ -11,7 +11,7 @@ one implementation; folders are created only for processes with diagnostics.
 | `methods` | Complete-step iteration summaries, shared step Jacobians, stage and trajectory symplecticity. |
 | `methods.adaptive` | Accepted dense trajectories (`trajectory.py`). |
 | `methods.extended` | ABBA Jacobians and reversibility, BM4 vectors and energy balance, generalized-energy reconstruction (`energy/`). |
-| `formulations.projection` | Physical projection of doubled states, transported area and projected symplecticity. |
+| `methods.projection` | Physical projection of doubled states, transported area and projected symplecticity. |
 | `states` | Polygon area of physical state arrays (`geometry.py`). |
 | `studies` | Comparison reductions, recurrence distances, and study-specific CSV/NPZ/HDF5 artifacts, including reference trajectories and Poincare returns. |
 | `io` | Shared paths, buffered blocks, output writers, storage transports and complete `States` persistence. |
@@ -44,7 +44,7 @@ from diagnostics.io.paths import solution_destination
 Imports formerly using `diagnostics.geometry`, `diagnostics.persistence`,
 `diagnostics.projection` or `diagnostics.abba_jacobian` now use
 `diagnostics.states.geometry`, `diagnostics.io.persistence`,
-`diagnostics.formulations.projection` or
+`diagnostics.methods.projection` or
 `diagnostics.methods.extended.abba_jacobian`, respectively. The package table
 also identifies the destination of the other former flat modules. Archive
 schemas, output destinations, diagnostic keys and numerical formulas are unchanged.
@@ -195,7 +195,7 @@ Each block consists of a scalar CSV summary, compressed arrays in NPZ format,
 and versioned JSON metadata. `diagnostics.io.output.write_diagnostic_block`
 provides the shared synchronized writer. Existing blocks are never overwritten.
 
-`diagnostics.formulations.projection.ProjectedSymplecticityAreaObserver` propagates the
+`diagnostics.methods.projection.ProjectedSymplecticityAreaObserver` propagates the
 tangent of the complete physical map ``P Phi E`` from the initial GC boundary.
 At every selected complete BM4 step it records the projected Jacobian, its
 symplectic defect, the separation between internal copies, and the transported

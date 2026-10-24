@@ -1,6 +1,6 @@
 """Adaptive methods share collection while preserving SciPy numerical sessions."""
 
-from formulations.layout import GCStateLayout
+from dynamics.gc import GuidingCenterDynamics
 
 from dataclasses import replace
 import unittest
@@ -18,7 +18,6 @@ from simulation import (
 )
 from methods.base import IntegrationMethod
 from execution import Execution
-from unittest.mock import patch
 from tests.test_method_integration import _problem
 
 
@@ -34,7 +33,7 @@ class TimeDependentRotation:
 
 class AdaptiveIntegrationTests(unittest.TestCase):
     def setUp(self):
-        self.problem = InitialValueProblem(TimeDependentRotation(), GCStateLayout().pack_components([1., .4, -.2], [0., .2, .5]), layout=GCStateLayout())
+        self.problem = InitialValueProblem(TimeDependentRotation(), GuidingCenterDynamics.coordinates.pack_components([1., .4, -.2], [0., .2, .5]), layout=GuidingCenterDynamics.coordinates)
         self.request = SimulationRequest.uniform(t_span=(.3, .8),  sample_count=31)
 
     def test_energy_endpoint_queries_reuse_quadrature_and_return_independent_arrays(self):
@@ -42,34 +41,35 @@ class AdaptiveIntegrationTests(unittest.TestCase):
         for cls in (DOP853, Radau):
             with self.subTest(method=cls.__name__):
                 source = _problem()
-                problem = InitialValueProblem(source.dynamics, GCStateLayout().pack_components([1., 1.1, 1.2], [1.2, 1.3, 1.4]), layout=GCStateLayout())
+                problem = InitialValueProblem(source.dynamics, GuidingCenterDynamics.coordinates.pack_components([1., 1.1, 1.2], [1.2, 1.3, 1.4]), layout=GuidingCenterDynamics.coordinates)
                 request = SimulationRequest.uniform(t_span=(.3, .34),  sample_count=3)
                 run = replace(cls(track_energy=True, first_step=.02), max_step=0.02).new_run(problem, request)
                 with patch.object(type(problem.dynamics), 'extended_momentum_derivative', autospec=True,
                                   side_effect=type(problem.dynamics).extended_momentum_derivative) as rate:
-                    result = run.advance(.3, run.initial_state, .02)
+                    result = run.advance(.3, run.initial_state, .02, momentum=run.initial_momentum)
                     end = float(run.solver.t)
                     self.assertEqual(rate.call_count, 8)
                     dense = result.details.dense_state
+                    dense_momentum = result.details.dense_momentum
                     queries = np.array([.3, end, end, .3])
                     history = dense(queries)
-                    momenta = run.state_formulation.momentum(history)
-                    initial = run.state_formulation.momentum(run.initial_state)
-                    final = run.state_formulation.momentum(result.state).copy()
+                    momenta = dense_momentum(queries)
+                    initial = run.initial_momentum
+                    final = result.momentum.copy()
                     expected = np.stack((initial, final, final, initial), axis=-1)
                     np.testing.assert_array_equal(momenta, expected)
                     self.assertEqual(rate.call_count, 8)
-                    dense(end)[:] = 999.
-                    np.testing.assert_array_equal(run.state_formulation.momentum(dense(end)), final)
+                    dense_momentum(end)[:] = 999.
+                    np.testing.assert_array_equal(dense_momentum(end), final)
                     self.assertEqual(dense(np.empty(0)).shape, (run.initial_state.size, 0))
                     midpoint = (.3 + end) / 2.
-                    interior = dense(midpoint)
+                    interior = dense_momentum(midpoint)
                     self.assertEqual(rate.call_count, 16)
                     self.assertTrue(np.all(np.isfinite(interior)))
                     # An old interpolant keeps its own endpoint values after the run advances.
-                    run.advance(end, result.state, .02)
+                    run.advance(end, result.state, .02, momentum=result.momentum)
                     count = rate.call_count
-                    np.testing.assert_array_equal(run.state_formulation.momentum(dense(end)), final)
+                    np.testing.assert_array_equal(dense_momentum(end), final)
                     self.assertEqual(rate.call_count, count)
 
     def test_saving_adaptive_endpoints_does_not_repeat_energy_quadrature(self):
@@ -215,7 +215,7 @@ class AdaptiveIntegrationTests(unittest.TestCase):
                     simulate(self.problem, replace(cls(), max_step=0.08), self.request)
 
     def test_first_step_and_optional_radau_jacobian(self):
-        problem = InitialValueProblem(TimeDependentRotation(), np.array(np.array([1., 0.]), dtype=float, copy=True), layout=GCStateLayout())
+        problem = InitialValueProblem(TimeDependentRotation(), np.array(np.array([1., 0.]), dtype=float, copy=True), layout=GuidingCenterDynamics.coordinates)
         method = Radau(first_step=.01, jacobian=lambda t, z: t * np.array([[0., -1.], [1., 0.]]))
         actual = simulate(problem, replace(method, max_step=0.08), self.request)
         reference = solve_ivp(problem.dynamics.vector_field, self.request.t_span, problem.initial_state,

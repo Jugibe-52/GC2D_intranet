@@ -1,7 +1,7 @@
 """Complete-job execution, subclass dispatch and result validation contracts."""
 
 
-from formulations.layout import GCStateLayout
+from dynamics.gc import GuidingCenterDynamics
 
 import unittest
 from unittest.mock import patch
@@ -43,7 +43,7 @@ class ReturnedExecution(Execution):
 
 class ExecutionTests(unittest.TestCase):
     def setUp(self):
-        self.problem = InitialValueProblem(RotationDynamics(), GCStateLayout().pack_components(np.array([1.]), np.array([0.])), layout=GCStateLayout())
+        self.problem = InitialValueProblem(RotationDynamics(), GuidingCenterDynamics.coordinates.pack_components(np.array([1.]), np.array([0.])), layout=GuidingCenterDynamics.coordinates)
         self.method = RK4(step=.01)
         self.request = SimulationRequest.uniform(
             t_span=(0., .2),  sample_count=3,
@@ -96,13 +96,13 @@ class ExecutionTests(unittest.TestCase):
                 simulate(self.problem, self.method, self.request, execution=ReturnedExecution(invalid))
 
     def test_executor_cannot_relabel_a_valid_physical_history(self):
-        from formulations.layout import FCStateLayout
-        problem = InitialValueProblem(RotationDynamics(), np.array([1., 0., 2., 0.]))
+        from dynamics.fc import FullCyclotronDynamics
+        problem = InitialValueProblem(RotationDynamics(), np.array([1., 0., 2., 0.]), layout=GuidingCenterDynamics.coordinates)
         # Two GC particles and one FC particle share four packed coordinates.
         values = np.repeat(problem.initial_state[:, None], self.request.output_times.size, axis=1)
-        for layout, initial in ((FCStateLayout(), problem.initial_state),
-                                (GCStateLayout(), None),
-                                (GCStateLayout(), problem.initial_state + 1)):
+        for layout, initial in ((FullCyclotronDynamics.coordinates, problem.initial_state),
+                                (GuidingCenterDynamics.coordinates, None),
+                                (GuidingCenterDynamics.coordinates, problem.initial_state + 1)):
             invalid = States(self.request.output_times, values, layout=layout, initial_state=initial)
             with self.subTest(layout=layout, initial=initial), self.assertRaises(ValueError):
                 simulate(problem, self.method, self.request, execution=ReturnedExecution(invalid))

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from formulations.layout import GCStateLayout
+from dynamics.gc import GuidingCenterDynamics
 
 from contextlib import redirect_stderr
 from dataclasses import replace
@@ -45,7 +45,7 @@ def _potential() -> Potential:
 
 def _configuration(*, particle_count: int = 10) -> np.ndarray:
 	"""Place deterministic independent guiding centers inside the base cell."""
-	return GCStateLayout().pack_components(np.linspace(0.8, 1.4, particle_count), np.linspace(1.0, 1.6, particle_count))
+	return GuidingCenterDynamics.coordinates.pack_components(np.linspace(0.8, 1.4, particle_count), np.linspace(1.0, 1.6, particle_count))
 
 
 def _reference(
@@ -58,7 +58,7 @@ def _reference(
 	"""Construct an in-memory DOP853 reference containing a longer prefix."""
 	initial_state = configuration
 	assert initial_state is not None
-	particle_count = GCStateLayout().particle_count(initial_state)
+	particle_count = GuidingCenterDynamics.coordinates.particle_count(initial_state)
 	dynamics = GuidingCenterDynamics(potential, rho=0.0)
 	times = np.linspace(0.0, 0.04, 5)
 	solve = solve_ivp(
@@ -220,7 +220,7 @@ class ABBA4ConfigurationComparisonTests(unittest.TestCase):
 		initial_state = self.configuration
 		assert initial_state is not None
 		expected = np.column_stack(
-			GCStateLayout().positions(initial_state)
+			GuidingCenterDynamics.coordinates.positions(initial_state)
 		)
 		for key in ABBA4_CONFIGURATION_KEYS:
 			actual = np.stack(
@@ -384,12 +384,12 @@ class ABBA4ConfigurationComparisonTests(unittest.TestCase):
 				)
 
 
-	def test_every_variant_reports_its_literal_r4_or_r8_dimensions(self) -> None:
+	def test_every_variant_reports_physical_and_workspace_dimensions(self) -> None:
 		"""Distinguish splitting dimensions from nonlinear workspace sizes."""
 		for variant in ABBA4_CONFIGURATION_VARIANTS:
 			diagnostics = self.result.solutions[variant.key][0].diagnostics
 			self.assertIs(diagnostics["track_energy"], True)
-			expected = (6, 6, 2 if variant.projection_formulation == "reduced_multiplier" else 6)
+			expected = (2, 4, 2 if variant.projection_formulation == "reduced_multiplier" else 6)
 			actual = tuple(
 				int(diagnostics[name])
 				for name in (
@@ -564,7 +564,7 @@ class ABBA4ConfigurationComparisonTests(unittest.TestCase):
 			),
 			interpolation_order=3,
 		)
-		configuration = GCStateLayout().pack_components(np.asarray([1.1]), np.asarray([1.3]))
+		configuration = GuidingCenterDynamics.coordinates.pack_components(np.asarray([1.1]), np.asarray([1.3]))
 		reference = _reference(
 			potential,
 			configuration,

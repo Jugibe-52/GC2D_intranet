@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from studies._validation import require_uncoupled_bm4
 
-from formulations.layout import GCStateLayout
+from dynamics.gc import GuidingCenterDynamics
 
 from collections.abc import Callable
 from dataclasses import asdict, dataclass, replace
@@ -327,7 +327,7 @@ def _run_trajectory_symplecticity_study(
 	"""Run one method on the same initial trajectories for every step size."""
 	if not isinstance(potential, Potential):
 		raise TypeError("`potential` must be a Potential instance.")
-	if not (isinstance(initial_configuration, np.ndarray) and GCStateLayout().state_dimension == 2):
+	if not (isinstance(initial_configuration, np.ndarray) and GuidingCenterDynamics.coordinates.state_dimension == 2):
 		raise TypeError("`initial_configuration` must be a GC configuration.")
 	if not isinstance(config, TrajectorySymplecticityConfig):
 		raise TypeError("`config` must be a TrajectorySymplecticityConfig.")
@@ -338,8 +338,8 @@ def _run_trajectory_symplecticity_study(
 		raise ValueError("Exact GC Jacobians require interpolation_order >= 3.")
 
 	dynamics: GuidingCenterDynamics = GuidingCenterDynamics(potential, rho=config.rho)
-	problem: InitialValueProblem = InitialValueProblem(dynamics, initial_configuration, layout=GCStateLayout())
-	trajectory_count: int = GCStateLayout().particle_count(initial_state)
+	problem: InitialValueProblem = InitialValueProblem(dynamics, initial_configuration, layout=GuidingCenterDynamics.coordinates)
+	trajectory_count: int = GuidingCenterDynamics.coordinates.particle_count(initial_state)
 	common_metadata = {
 		**dict(metadata or {}),
 		"method": method_name,

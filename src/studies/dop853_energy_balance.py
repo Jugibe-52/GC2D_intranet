@@ -4,7 +4,7 @@ from dataclasses import replace
 
 from studies._validation import require_uncoupled_bm4
 
-from formulations.layout import GCStateLayout
+from dynamics.gc import GuidingCenterDynamics
 from collections.abc import Mapping, Sequence
 from typing import Any, TYPE_CHECKING
 
@@ -37,7 +37,7 @@ def horizontal_configuration(potential: Potential, x_fractions: Sequence[float],
         raise ValueError("Use three interior x fractions and one interior y fraction.")
     if not np.all(np.diff(x) > 0) or not np.isclose(*np.diff(x)):
         raise ValueError("The three x fractions must increase with equal spacing.")
-    return np.asarray(GCStateLayout().pack_components(potential.grid.xmin + potential.grid.period*x, np.full(3, potential.grid.ymin + potential.grid.period*y_fraction)))
+    return np.asarray(GuidingCenterDynamics.coordinates.pack_components(potential.grid.xmin + potential.grid.period*x, np.full(3, potential.grid.ymin + potential.grid.period*y_fraction)))
 
 
 def run_energy_balance(potential: Potential, configuration: np.ndarray, config: Mapping[str, Any]) -> dict[str, np.ndarray]:
@@ -56,7 +56,7 @@ def run_energy_balance(potential: Potential, configuration: np.ndarray, config: 
     duration = cycles*config['cycle_duration']
     times: np.ndarray = np.linspace(0, duration, int(cycles*saves)+1)
     dynamics: GuidingCenterDynamics = GuidingCenterDynamics(potential, rho=config['rho'])
-    problem: InitialValueProblem = InitialValueProblem(dynamics, configuration, layout=GCStateLayout())
+    problem: InitialValueProblem = InitialValueProblem(dynamics, configuration, layout=GuidingCenterDynamics.coordinates)
     z0 = problem.initial_state
     n = z0.size//2
     if n != 3:

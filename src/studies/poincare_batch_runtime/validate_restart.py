@@ -4,7 +4,7 @@ from dataclasses import replace
 
 from studies._validation import require_uncoupled_bm4
 
-from formulations.layout import GCStateLayout
+from dynamics.gc import GuidingCenterDynamics
 from concurrent.futures import ProcessPoolExecutor
 import multiprocessing as mp
 import json
@@ -32,8 +32,8 @@ def baseline(indices: np.ndarray, xy: np.ndarray, meta: dict[str, Any]) -> tuple
     from problem import InitialValueProblem
     from request import SimulationRequest
     from simulation.runner import simulate
-    initial: np.ndarray=GCStateLayout().pack_components(xy[indices,0], xy[indices,1])
-    problem: InitialValueProblem=InitialValueProblem(GuidingCenterDynamics(potential,rho=meta['rho']), initial, layout=GCStateLayout())
+    initial: np.ndarray=GuidingCenterDynamics.coordinates.pack_components(xy[indices,0], xy[indices,1])
+    problem: InitialValueProblem=InitialValueProblem(GuidingCenterDynamics(potential,rho=meta['rho']), initial, layout=GuidingCenterDynamics.coordinates)
     request: SimulationRequest=SimulationRequest.uniform(t_span=tuple(meta['t_span']),sample_count=meta['complete_steps']+1)
     method: BM4Implicit | BM4Midpoint
     if meta['method']=='BM4Implicit':

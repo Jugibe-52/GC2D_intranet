@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from formulations.layout import GCStateLayout
+from dynamics.gc import GuidingCenterDynamics
 
 from dataclasses import dataclass
 from itertools import combinations
@@ -179,7 +179,7 @@ class ABBAComparisonResult:
 		"""Require one aligned result and one positive runtime per ABBA method."""
 		if not isinstance(self.potential, Potential):
 			raise TypeError("`potential` must be a Potential instance.")
-		if not (isinstance(self.area, np.ndarray) and GCStateLayout().state_dimension == 2 and GCStateLayout().particle_count(self.area) >= 3):
+		if not (isinstance(self.area, np.ndarray) and GuidingCenterDynamics.coordinates.state_dimension == 2 and GuidingCenterDynamics.coordinates.particle_count(self.area) >= 3):
 			raise TypeError("`area` must be a GC np.ndarray with at least three ordered boundary vertices.")
 		if not isinstance(self.config, ABBAComparisonConfig):
 			raise TypeError("`config` must be an ABBAComparisonConfig instance.")
@@ -319,7 +319,7 @@ def run_abba_comparison(
 	"""Run each ABBA method once and measure complete diagnostic wall time."""
 	if not isinstance(potential, Potential):
 		raise TypeError("`potential` must be a Potential instance.")
-	if not (isinstance(area, np.ndarray) and GCStateLayout().state_dimension == 2 and GCStateLayout().particle_count(area) >= 3):
+	if not (isinstance(area, np.ndarray) and GuidingCenterDynamics.coordinates.state_dimension == 2 and GuidingCenterDynamics.coordinates.particle_count(area) >= 3):
 		raise TypeError("`area` must be a GC np.ndarray with at least three ordered boundary vertices.")
 	if not isinstance(config, ABBAComparisonConfig):
 		raise TypeError("`config` must be an ABBAComparisonConfig instance.")

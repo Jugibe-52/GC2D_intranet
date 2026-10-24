@@ -11,7 +11,7 @@ from contracts.methods.observation import StepObserver
 from problem import InitialValueProblem
 from contracts.states.history import DiagnosticValue
 from contracts.methods.step import StepInfo, StepResult
-from formulations.gc import GCDoubledMaps
+from methods.extended.maps import GCDoubledMaps
 from formulations.state import DoubleFormulation
 from request import SimulationRequest
 from solvers.nonlinear import AlgebraicSolver, NonlinearSolver
@@ -127,7 +127,7 @@ class BM4Implicit(ProjectedPalindromicMethod):
 		"""Reconstruct converged stage snapshots only for a requested event."""
 		result = step.details
 		base_stages: tuple[IntegrationStage, ...] = stage_events(self.formulation, result.trace,
-		    step_index=info.index, formulation_name="GCExtendedFormulation",
+		    step_index=info.index, formulation_name="GCDoubledMaps",
 		    method_name=type(self).__name__)
 
 		def map_state(candidate: np.ndarray) -> np.ndarray:
@@ -138,7 +138,7 @@ class BM4Implicit(ProjectedPalindromicMethod):
 			dynamics_name=self.formulation.dynamics_name, method_name=type(self).__name__,
 			step_index=info.index, start_time=info.time,
 			time=info.time + info.duration, duration=info.duration,
-			state_before=self.state_formulation.physical(info.state_before).copy(), state_after=result.state.copy(),
+			state_before=info.state_before.copy(), state_after=result.state.copy(),
 			map_state=map_state, dynamics=self.formulation.dynamics,
 			formulation_name="bm4_implicit_reduced", nonlinear_solver=self.nonlinear_solver,
 			newton_iterations=result.iterations, residual_evaluations=result.residual_evaluations,

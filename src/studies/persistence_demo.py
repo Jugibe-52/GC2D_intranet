@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from formulations.layout import GCStateLayout
+from dynamics.gc import GuidingCenterDynamics
 
 from dataclasses import asdict, dataclass
 import hashlib
@@ -13,7 +13,6 @@ import numpy as np
 from problem import InitialValueProblem
 from request import SimulationRequest
 from diagnostics.io.persistence import save_solution
-from dynamics.gc import GuidingCenterDynamics
 
 from methods.classical.rk4 import RK4
 from potential.potential import Potential
@@ -66,11 +65,11 @@ def run_persistence_demo(
             or not np.isfinite(config.angle_radians)):
         raise ValueError("Use finite radial fractions in [0, 0.5) and a finite angle.")
     radii = fractions * grid.period
-    initial: np.ndarray = GCStateLayout().pack_components(grid.x0 + grid.period / 2 + radii * np.cos(config.angle_radians), grid.y0 + grid.period / 2 + radii * np.sin(config.angle_radians))
+    initial: np.ndarray = GuidingCenterDynamics.coordinates.pack_components(grid.x0 + grid.period / 2 + radii * np.cos(config.angle_radians), grid.y0 + grid.period / 2 + radii * np.sin(config.angle_radians))
     dynamics: GuidingCenterDynamics = GuidingCenterDynamics(potential, rho=config.rho)
     request: SimulationRequest = SimulationRequest.uniform(t_span=config.t_span,
                                         sample_count=config.sample_count)
-    solution: States = simulate(InitialValueProblem(dynamics, initial, layout=GCStateLayout()), RK4(step=config.max_step, track_energy=True), request)
+    solution: States = simulate(InitialValueProblem(dynamics, initial, layout=GuidingCenterDynamics.coordinates), RK4(step=config.max_step, track_energy=True), request)
     # Hash the source used for this run, including uncommitted implementation
     # changes; a Git commit alone would not identify a local development run.
     source_root = Path(__file__).resolve().parents[1]

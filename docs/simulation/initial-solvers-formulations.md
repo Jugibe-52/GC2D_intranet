@@ -35,59 +35,18 @@ their existing roles. Saved result archive formats are unchanged.
 
 ## State representations
 
-`SingleFormulation(layout, particle_count, track_energy=False)` and
-`DoubleFormulation(...)` describe one or two complete physical copies. They are
-defined in `formulations.state` and exported by `formulations` and `simulation`.
-The layout is copied; no problem, initial values, clock, dynamics or solver is
-retained. The same classes support GC, FC and external structural layouts.
+`SingleFormulation(physical_size)` and `DoubleFormulation(physical_size)` retain only a positive physical vector size. They prepare one or two temporary copies through `lift`, `join_copies` and `split_copies`. Shapes are `(d*N,*samples)` and `(copies*d*N,*samples)`; shifted copies remain distinct until the method projects them. NumPy/JAX backends and complete FC velocity blocks are preserved. There is no layout, particle count, tracking flag, clock, momentum, initial state, projection or solver in either representation.
 
-For N particles with d physical components, `lift(z)` takes `(d*N, *samples)`
-and returns `(copies*d*N, *samples)`. `join_copies(*values)` packs explicitly
-supplied copies, including `(z+mu, z-mu)` for implicit projection.
-`split_copies` reads them without projecting. Invalid dimensions or mismatched
-sample axes raise `ValueError`. NumPy outputs own independent copy blocks;
-JAX inputs remain functional arrays, including during tracing.
+Every accepted snapshot is `IntegrationState(time, values, momentum=None)`: scalar time, physical `values` of shape `(d*N,)`, and optional physical `momentum` of shape `(N,)`. GC remains 2N and FC 4N with or without tracking. Doubled GC work has 4N entries; generic doubled FC work has 8N. Workspaces are temporary and never become accepted states. This generic support does not extend GC numerical methods to FC.
 
-`pack(spatial, time, momentum)` appends auxiliaries to already prepared copies.
-Time and momentum each have shape `(N, *samples)`; time broadcasts to that shape.
-`lift` does not append them. Single/double sizes are d*N/2*d*N, plus 2*N with
-tracking. FC duplication includes positions and velocities, giving 8*N/10*N
-entries. This does not extend GC-only numerical methods to FC.
+The method initializes zero momentum, prepares copies, selects projection equations and solver, and integrates momentum from accepted stages. `advance(t, Z, h, momentum=kappa)` returns physical `StepResult.state` and separate `StepResult.momentum`. `StepInfo.momentum_before` records the incoming auxiliary. Shadow samples start from the same accepted physical state and momentum. JAX carries separate arrays through the compiled loop.
 
-```python
-import numpy as np
-from formulations import DoubleFormulation
-from formulations.layout import FCStateLayout
-
-representation = DoubleFormulation(FCStateLayout(), particle_count=2,
-                                   track_energy=True)
-z = FCStateLayout.pack_components([0.2, 0.7], [0.3, 0.6],
-                                 [0.1, 0.2], [-0.1, -0.2])
-copies = representation.lift(z)
-internal = representation.pack(copies, 0.2, np.zeros(2))
-assert copies.shape == (16,) and internal.shape == (20,)
-```
-
-Each method initializes its run from the problem and request, selects the
-representation and sets passive momentum to zero. It prepares each step's
-copies, applies projection and integrates momentum from its accepted stages.
-Shared method helpers `_initialize_state`, `_momentum_rate` and `_finish_state`
-preserve energy normalization and physical-only solver scales. Existing implicit
-method `solver=None` selects configured defaults; representations have no solver.
-
-Accepted doubled snapshots contain equal copies. `physical(state)` reads the
-first copy under that precondition; it never averages an off-diagonal input.
-Methods evaluate the saved Hamiltonian once or use values from the compiled
-kernel. `extract_history(..., energy=values)` and `diagnose_history` combine
-those supplied values with stored momentum for output; they evaluate no dynamics.
-Energy-tracked export requires energy values. Specialized GC/FC split-map
-interfaces retain caller-triggered preparation and map operations, reusing
-the generic copy helpers.
+Methods evaluate saved physical H once. `states.energy.energy_diagnostics` combines supplied H and physical kappa without dynamics evaluation. Existing energy labels and `(N,T)` auxiliary histories remain unchanged; `extended_time` is broadcast from scalar sample times. Numerical archives require no migration; old pickled configured objects should be recreated.
 
 ## Choosing equations and solver independently
 
 ```python
-from formulations import ReducedProjection, SimultaneousProjection
+from methods.projection import ReducedProjection, SimultaneousProjection
 from solvers import NewtonSolver, BroydenSolver
 from methods import ABBA4Implicit, GaussLegendre4
 
@@ -99,15 +58,14 @@ gauss = GaussLegendre4(step=0.02, solver=solver)
 ```
 
 `ReducedProjection` solves for mu in R^(2N). `SimultaneousProjection` solves for
-(u, v, mu) in R^(6N). Both implement `contracts.formulations.projection.ProjectionFormulation`
+(u, v, mu) in R^(6N). Both implement `contracts.methods.projection.ProjectionFormulation`
 and own the initial guess, residual, Jacobian assembly and physical reconstruction.
-The method supplies its doubled composition and derivative; formulations do not
-import methods. Their array operations serve NumPy and JAX. ABBA accepts either
+The method supplies its doubled composition and derivative; these equations belong to methods. Their array operations serve NumPy and JAX. ABBA accepts either
 class or the existing `reduced_multiplier`/`simultaneous_state_multiplier` strings;
 BM4 retains the reduced equations. Gauss stage equations remain method-specific.
 The older `methods.ProjectionFormulation` and `simulation.ProjectionFormulation`
 exports remain the string-name type alias; import the equation protocol from
-`formulations.projection` when defining its type.
+`methods.projection` when defining its type.
 
 NewtonSolver supports Gauss, SDIRK, HBVM, ABBA and BM4. BroydenSolver supports the
 existing ABBA/BM4 projection routes. Explicit methods have no algebraic solver;

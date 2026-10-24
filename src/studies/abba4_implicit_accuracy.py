@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from formulations.layout import GCStateLayout
+from dynamics.gc import GuidingCenterDynamics
 
 from dataclasses import dataclass
 from time import perf_counter
@@ -178,7 +178,7 @@ class ABBA4ImplicitAccuracyResult:
 		initial_state = self.initial_configuration
 		if initial_state is None:
 			raise ValueError("The initial configuration must contain an initial state.")
-		particle_count: int = GCStateLayout().particle_count(initial_state)
+		particle_count: int = GuidingCenterDynamics.coordinates.particle_count(initial_state)
 		reference_times: np.ndarray | None = None
 		for step in steps:
 			solution = self.solutions[step]
@@ -324,7 +324,7 @@ def run_abba4_implicit_accuracy_study(
 	"""Run ABBA4 on nested steps and compare every saved state to the reference."""
 	if not isinstance(potential, Potential):
 		raise TypeError("`potential` must be a Potential instance.")
-	if not (isinstance(initial_configuration, np.ndarray) and GCStateLayout().state_dimension == 2):
+	if not (isinstance(initial_configuration, np.ndarray) and GuidingCenterDynamics.coordinates.state_dimension == 2):
 		raise TypeError("`initial_configuration` must be np.ndarray.")
 	if not isinstance(reference, StoredReferenceTrajectory):
 		raise TypeError("`reference` must be a StoredReferenceTrajectory.")
@@ -339,7 +339,7 @@ def run_abba4_implicit_accuracy_study(
 		initial_condition_metadata=initial_condition_metadata,
 	)
 	dynamics: GuidingCenterDynamics = GuidingCenterDynamics(potential, rho=config.rho)
-	problem: InitialValueProblem = InitialValueProblem(dynamics, initial_configuration, layout=GCStateLayout())
+	problem: InitialValueProblem = InitialValueProblem(dynamics, initial_configuration, layout=GuidingCenterDynamics.coordinates)
 	solutions: dict[float, States] = {}
 	series: dict[float, TrajectoryAccuracySeries] = {}
 	runtimes: dict[float, float] = {}

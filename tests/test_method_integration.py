@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from formulations.layout import GCStateLayout
+from dynamics.gc import GuidingCenterDynamics
 
 from dataclasses import replace
 import unittest
@@ -37,7 +37,7 @@ def _problem() -> InitialValueProblem:
 	"""One smooth, non-autonomous particle exercises all internal state modes."""
 	return InitialValueProblem(GuidingCenterDynamics(Potential.random(
 			A=0.08, M=3, nx=16, ny=16, seed=27, interpolation_order=5,
-		), rho=0.05), GCStateLayout().pack_components([1.0], [1.2]), layout=GCStateLayout())
+		), rho=0.05), GuidingCenterDynamics.coordinates.pack_components([1.0], [1.2]), layout=GuidingCenterDynamics.coordinates)
 
 
 def _request(dense: bool = False) -> SimulationRequest:
@@ -87,11 +87,11 @@ class MethodIntegrationTests(unittest.TestCase):
 				events = []
 				run = replace(replace(method, step_observer=events.append), step=(0.34 - 0.3) / 2).new_run(problem, _request(True))
 				initial = run.initial_state.copy()
-				first = run.advance(0.3, initial, 0.02)
-				run.advance(0.3, initial, 0.005)
+				first = run.advance(0.3, initial, 0.02, momentum=run.initial_momentum)
+				run.advance(0.3, initial, 0.005, momentum=run.initial_momentum)
 				self.assertEqual(events, [])
 				np.testing.assert_array_equal(initial, run.initial_state)
-				np.testing.assert_array_equal(first.state, run.advance(0.3, initial, 0.02).state)
+				np.testing.assert_array_equal(first.state, run.advance(0.3, initial, 0.02, momentum=run.initial_momentum).state)
 				dense = _execute_prepared(run)
 				self.assertEqual(len(events), 2)
 				events.clear()
@@ -144,14 +144,14 @@ class MethodIntegrationTests(unittest.TestCase):
 		state = run.initial_state.copy()
 		for t, end in zip((0.3, 0.31, 0.33), (0.31, 0.33, 0.34)):
 			state = run.advance(t, state, end - t).state
-		np.testing.assert_array_equal(data.states[:, -1], run.state_formulation.physical(state))
+		np.testing.assert_array_equal(data.states[:, -1], state)
 		np.testing.assert_array_equal(data.diagnostics["step_times"], [0.31, 0.33, 0.34])
 		self.assertEqual(data.diagnostics["step_count"], 3)
 
 	def test_failed_step_is_not_observed_or_accepted(self) -> None:
 		events = []
 		run = BM4Implicit(step=(0.34 - 0.3) / 2, step_observer=events.append).new_run(_problem(), _request())
-		def fail(t, state, h):
+		def fail(t, state, h, *, momentum=None):
 			raise RuntimeError("Nonlinear solve failed")
 		with patch.object(run, "advance", side_effect=fail):
 			with self.assertRaisesRegex(RuntimeError, "Nonlinear solve failed"):
@@ -160,7 +160,7 @@ class MethodIntegrationTests(unittest.TestCase):
 
 	def test_run_resources_are_isolated_and_a_completed_run_cannot_be_reused(self) -> None:
 		problem = _problem()
-		other = InitialValueProblem(problem.dynamics, GCStateLayout().pack_components([1.1], [1.3]), layout=problem.layout)
+		other = InitialValueProblem(problem.dynamics, GuidingCenterDynamics.coordinates.pack_components([1.1], [1.3]), layout=problem.layout)
 		for method in _methods():
 			with self.subTest(method=method):
 				first = replace(method, step=(0.34 - 0.3) / 2).new_run(problem, _request())

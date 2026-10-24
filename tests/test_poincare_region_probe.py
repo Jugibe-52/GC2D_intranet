@@ -1,6 +1,6 @@
 """Short matched-method checks for multi-region probe studies."""
 
-from formulations.layout import GCStateLayout
+from dynamics.gc import GuidingCenterDynamics
 
 from dataclasses import replace
 from pathlib import Path
@@ -32,7 +32,7 @@ class RegionProbeTests(unittest.TestCase):
         events=[]
         actual=integrate_region_probes(self.potential,self.settings,progress=lambda a,b:events.append((a,b)))
         initial=np.asarray(self.settings.initial_xy_over_L)*self.potential.grid.period
-        problem=InitialValueProblem(GuidingCenterDynamics(self.potential,rho=0.), GCStateLayout().pack_components(initial[:,0], initial[:,1]), layout=GCStateLayout())
+        problem=InitialValueProblem(GuidingCenterDynamics(self.potential,rho=0.), GuidingCenterDynamics.coordinates.pack_components(initial[:,0], initial[:,1]), layout=GuidingCenterDynamics.coordinates)
         expected=simulate(problem,BM4Midpoint(step=0.05),
             SimulationRequest.uniform(t_span=(0,3),sample_count=61))
         np.testing.assert_array_equal(actual['xy'],np.stack(expected.positions(),axis=-1).transpose(1,0,2))

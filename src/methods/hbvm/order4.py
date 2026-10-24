@@ -403,18 +403,18 @@ class HBVM42(FixedStepMethod[_HBVMStepResult]):
 
 	def initialize(self, problem: InitialValueProblem, request: SimulationRequest) -> None:
 		"""Bind the HBVM coefficient solve and optional physical observation."""
-		self.state_formulation = SingleFormulation(problem.layout, problem.particle_count, self.track_energy)
+		self.state_formulation = SingleFormulation(problem.initial_state.size)
 		self.initial_state = self._initialize_state(problem, request)
 		self.metadata = {'method_order': 4, 'quadrature_stage_count': 4, 'legendre_rank': 2,
 							  'jacobian_method': self.jacobian_method}
 
-	def advance(self, time: float, state: np.ndarray, step: float) -> StepResult[_HBVMStepResult]:
+	def advance(self, time: float, state: np.ndarray, step: float, *, momentum: np.ndarray | None = None) -> StepResult[_HBVMStepResult]:
 		"""Return one accepted coefficient solve and its local work counters."""
 		assert self.solver is None or isinstance(self.solver, NewtonSolver)
 		result: _HBVMStepResult = _advance_hbvm42(
 			self.problem.dynamics,
 			time,
-			self.state_formulation.physical(state),
+			self._checked_state(state, momentum),
 			step,
 			absolute_tolerance=self.absolute_tolerance,
 			relative_tolerance=self.relative_tolerance,
@@ -426,7 +426,7 @@ class HBVM42(FixedStepMethod[_HBVMStepResult]):
 		if self.track_energy:
 			increment = step * sum(weight * self._momentum_rate(time + step * node, stage)
 			    for node, weight, stage in zip(_HBVM42_NODES, _HBVM42_WEIGHTS, result.stage_states))
-		after: np.ndarray = self._finish_state(state, result.state, time + step, increment)
+		after: np.ndarray = result.state
 		return StepResult(after, {
 			'nonlinear_iterations': result.iterations,
 			'nonlinear_residual_norms': result.residual_norm,
@@ -435,17 +435,17 @@ class HBVM42(FixedStepMethod[_HBVMStepResult]):
 			'residual_evaluations_per_step': result.residual_evaluations,
 			'jacobian_evaluations_per_step': result.jacobian_evaluations,
 			'vector_field_evaluations_per_step': result.vector_field_evaluations,
-		}, result)
+		}, result, self._finish_momentum(momentum, increment))
 
 	def build_observation(self, info: StepInfo, result: StepResult[_HBVMStepResult]) -> IntegrationStep:
 		def map_state(candidate: np.ndarray) -> np.ndarray:
-			internal: np.ndarray = self.state_formulation.pack(self.state_formulation.lift(candidate), info.time, self.state_formulation.momentum(info.state_before))
-			return np.asarray(self.state_formulation.physical(self.advance(info.time, internal, info.duration).state))
+			return self.advance(info.time, candidate, info.duration, momentum=info.momentum_before).state
+
 		return IntegrationStep(
 			dynamics_name=type(self.problem.dynamics).__name__, method_name=type(self).__name__,
 			step_index=info.index, start_time=info.time, time=info.time + info.duration,
-			duration=info.duration, state_before=self.state_formulation.physical(info.state_before).copy(),
-			state_after=self.state_formulation.physical(result.state).copy(), map_state=map_state, dynamics=self.problem.dynamics,
+			duration=info.duration, state_before=info.state_before.copy(),
+			state_after=result.state.copy(), map_state=map_state, dynamics=self.problem.dynamics,
 		)
 
 

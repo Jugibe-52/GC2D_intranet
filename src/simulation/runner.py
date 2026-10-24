@@ -39,7 +39,7 @@ def _validate_solution_matches_request(
 	if (
 		not np.array_equal(solution.t, request.output_times)
 		or solution.states.shape[0] != initial_state.size
-		or solution.layout.state_dimension != problem.layout.state_dimension
+		or solution.layout != problem.layout
 	):
 		raise ValueError("The numerical method returned incompatible physical output.")
 	snapshot = solution.initial_state

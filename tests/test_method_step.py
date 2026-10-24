@@ -23,6 +23,7 @@ class TimeField:
 	"""Euler exposes the exact durations and evaluation times used by its driver."""
 
 	state_dimension = 2
+	coordinates = GuidingCenterDynamics.coordinates
 
 	def vector_field(self, t: float, state: np.ndarray) -> np.ndarray:
 		return np.array([t, 1.])

@@ -1,6 +1,6 @@
 """Scientific geometry, synchronized JAX timing and archive roundtrip controls."""
 
-from formulations.layout import GCStateLayout
+from dynamics.gc import GuidingCenterDynamics
 
 from dataclasses import replace
 import importlib.util
@@ -45,7 +45,7 @@ class ModalCPUComparisonTests(unittest.TestCase):
     def test_star_spans_cell_radius_fractions_and_preserves_arm_order(self):
         potential, config = field(), settings()
         problem, request = build_star_problem(potential, config)
-        x, y = GCStateLayout().positions(problem.initial_state)
+        x, y = GuidingCenterDynamics.coordinates.positions(problem.initial_state)
         relative = np.column_stack((x, y)) / potential.grid.period - .5
         radii = np.linalg.norm(relative, axis=1).reshape(8, 6) / .5
         np.testing.assert_allclose(radii, np.tile([.05, .11, .17, .23, .29, .35], (8, 1)))
@@ -59,7 +59,7 @@ class ModalCPUComparisonTests(unittest.TestCase):
 
     def test_default_star_radii_remain_unchanged_and_invalid_inner_radius_fails(self):
         initial = radial_star(center=(0, 0), arm_length=3, arms=2, particles_per_arm=3)
-        x, y = GCStateLayout().positions(initial)
+        x, y = GuidingCenterDynamics.coordinates.positions(initial)
         np.testing.assert_allclose(np.hypot(x, y), [1, 2, 3, 1, 2, 3])
         for radius in (0., -1., 4., np.nan):
             with self.subTest(radius=radius), self.assertRaises(ValueError):

@@ -22,11 +22,8 @@ from methods.hbvm.order4 import HBVM42
 from methods.extended.abba import ABBA2Implicit, ABBA4Implicit, ABBA6Implicit, ABBA2Midpoint
 from methods.extended.bm4 import BM4Implicit, BM4Midpoint
 from methods.extended.palindromic import PalindromicImplicit, PalindromicMidpoint
-from contracts.formulations.projection import ProjectionName
-from formulations.projection import resolve_projection
-from contracts.formulations.layout import StateLayout
-from formulations.layout import GCStateLayout, FCStateLayout
-from formulations.state import SingleFormulation, DoubleFormulation
+from contracts.methods.projection import ProjectionName
+from methods.projection import resolve_projection
 
 
 Options = TypeVar("Options", ExplicitOptions, ImplicitOptions, CompositionOptions)
@@ -67,22 +64,18 @@ class PreparedJaxStep(Generic[Options]):
 	def energy(self, times: Any, physical: Any) -> Any:
 		return self.dynamics.hamiltonian(times, physical)
 
-	def __call__(self, time: Any, state: Any, step: Any) -> tuple[Any, dict[str, Any], Any]:
-		"""Finish accepted copies and passive momentum without inspecting a method."""
-		n = state.size // (self.copies * self.physical_dimension + (2 if self.track_energy else 0))
-		layout: StateLayout = GCStateLayout() if self.physical_dimension == 2 else FCStateLayout()
-		formulation_type: type[SingleFormulation] = SingleFormulation if self.copies == 1 else DoubleFormulation
-		representation: SingleFormulation = formulation_type(layout, n, self.track_energy)
-		physical: Array = representation.physical(state)
+	def __call__(self, time: Any, state: Any, step: Any, momentum: Any = None) -> tuple[Any, Any, dict[str, Any], Any]:
+		"""Return one physical copy and explicitly accumulated physical kappa."""
 		after: Array
 		increment: Array
 		statistics: dict[str, Array]
 		valid: Array
-		after, increment, statistics, valid = self.kernel(time, physical, step, self.dynamics, self.options)
-		momentum: Array | None = None
+		after, increment, statistics, valid = self.kernel(time, state, step, self.dynamics, self.options)
 		if self.track_energy:
-			momentum = representation.momentum(state) + increment
-		return representation.pack(representation.lift(after), time + step, momentum), statistics, valid
+			if momentum is None or momentum.shape != (state.size // self.physical_dimension,):
+				raise ValueError('The compiled step requires one momentum value per particle.')
+			momentum = momentum + increment
+		return after, momentum, statistics, valid
 
 
 def _explicit(method: ExplicitEuler | RK4, dynamics: HamiltonianSystem, device: Device) -> CompiledStep:

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from formulations.layout import GCStateLayout
+from dynamics.gc import GuidingCenterDynamics
 
 from pathlib import Path
 import tempfile
@@ -21,7 +21,7 @@ from simulation import (
 	SimulationRequest,
 	simulate,
 )
-from formulations.gc import GCDoubledMaps
+from methods.extended.maps import GCDoubledMaps
 from methods.extended.core.composition import BM4, compose
 from studies import (
 	AreaStep,
@@ -47,7 +47,7 @@ def _potential(*, amplitude: float = 0.08) -> Potential:
 def _problem() -> InitialValueProblem:
 	"""Build one planar guiding-centre initial-value problem."""
 	potential = _potential()
-	return InitialValueProblem(GuidingCenterDynamics(potential, rho=0.05), np.array(np.asarray([1.0, 1.2]), dtype=float, copy=True), layout=GCStateLayout())
+	return InitialValueProblem(GuidingCenterDynamics(potential, rho=0.05), np.array(np.asarray([1.0, 1.2]), dtype=float, copy=True), layout=GuidingCenterDynamics.coordinates)
 
 
 class BM4ImplicitMethodTests(unittest.TestCase):
@@ -56,7 +56,7 @@ class BM4ImplicitMethodTests(unittest.TestCase):
 	def test_energy_reuses_converged_shears_without_extra_spatial_work(self) -> None:
 		"""Compare traced quadrature with an independent energy-augmented replay."""
 		for particles, coupling in ((1, 0.0), (3, 0.0)):
-			problem = InitialValueProblem(GuidingCenterDynamics(_potential(), rho=0.05), GCStateLayout().pack_components(np.linspace(1.0, 1.2, particles), np.linspace(1.2, 1.4, particles)), layout=GCStateLayout())
+			problem = InitialValueProblem(GuidingCenterDynamics(_potential(), rho=0.05), GuidingCenterDynamics.coordinates.pack_components(np.linspace(1.0, 1.2, particles), np.linspace(1.2, 1.4, particles)), layout=GuidingCenterDynamics.coordinates)
 			request = SimulationRequest.uniform(t_span=(0.3, 0.5),  sample_count=2)
 			for solver, jacobian in (('newton', 'analytic'), ('newton', 'finite_difference'), ('broyden', 'analytic')):
 				for step in (0.2, -0.2):
@@ -71,7 +71,7 @@ class BM4ImplicitMethodTests(unittest.TestCase):
 							).new_run(problem, request)
 							with patch.object(type(problem.dynamics), 'vector_field', autospec=True, side_effect=type(problem.dynamics).vector_field) as vector_field, \
 							     patch.object(type(problem.dynamics), 'extended_momentum_derivative', autospec=True, side_effect=type(problem.dynamics).extended_momentum_derivative) as energy_rate:
-								result = run.advance(0.3, run.initial_state, step)
+								result = run.advance(0.3, run.initial_state, step, momentum=run.initial_momentum)
 								field_counts.append(vector_field.call_count)
 								self.assertEqual(energy_rate.call_count, 24 if tracking else 0)
 							self.assertEqual(len(result.details.energy_points), 24 if tracking else 0)
@@ -82,13 +82,13 @@ class BM4ImplicitMethodTests(unittest.TestCase):
 						np.testing.assert_array_equal(plain.details.multiplier, tracked.details.multiplier)
 						self.assertEqual(plain.statistics, tracked.statistics)
 						self.assertGreater(tracked.details.iterations, 0)
-						prepared = GCDoubledMaps(problem, coupling, track_energy=True)
+						prepared = GCDoubledMaps(problem.dynamics, problem.initial_state.size, coupling_frequency=coupling, coordinates=problem.layout, track_energy=True)
 						replayed = compose(
 							prepared, BM4, 0.3,
 							np.concatenate((tracked.details.internal_input, np.zeros(particles))), step,
 						).state
 						np.testing.assert_array_equal(
-							run.state_formulation.momentum(tracked.state), replayed[-particles:] / 2.0,
+							tracked.momentum, replayed[-particles:] / 2.0,
 						)
 
 	def test_one_cycle_uses_the_reduced_physical_hairer_projection(self) -> None:
@@ -171,7 +171,7 @@ class BM4ImplicitMethodTests(unittest.TestCase):
 		self.assertLess(coarse_error / fine_error, 17.0)
 
 	def test_analytic_and_finite_difference_newton_jacobians_agree(self) -> None:
-		problem = InitialValueProblem(GuidingCenterDynamics(_potential(), rho=0.05), np.array(np.asarray([1.0, 1.2, 1.1, 0.9]), dtype=float, copy=True), layout=GCStateLayout())
+		problem = InitialValueProblem(GuidingCenterDynamics(_potential(), rho=0.05), np.array(np.asarray([1.0, 1.2, 1.1, 0.9]), dtype=float, copy=True), layout=GuidingCenterDynamics.coordinates)
 		request = SimulationRequest.uniform(
 			t_span=(0.0, 0.1),
 			sample_count=3,

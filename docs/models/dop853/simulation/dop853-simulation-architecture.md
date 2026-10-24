@@ -3,7 +3,7 @@
 One retained SciPy explicit adaptive solver.
 
 The canonical theoretical source is [theory.tex](../tex/theory.tex), with its
-compiled [theory.pdf](../tex/theory.pdf). The four-formulation convention below
+compiled [theory.pdf](../tex/theory.pdf). The physical-state contract below
 supersedes earlier diagrams showing a duplicated clock or full time/momentum projection.
 
 ## Responsibilities
@@ -11,37 +11,19 @@ supersedes earlier diagrams showing a duplicated clock or full time/momentum pro
 | Component | Owns |
 |---|---|
 | Dynamics | Physical vector field, Hamiltonian and required derivatives |
-| Formulation | Internal coordinates, spatial copies and physical/energy extraction |
+| Formulation | Size-checked temporary spatial copies |
 | Method | Stages, signed coefficients, spatial projection and passive quadrature |
 | Integration | Accepted intervals, sampling, observation and output collection |
 
 ## State contract
 
-| Planar one-particle formulation | Internal coordinates | Dimension |
-|---|---|---:|
-| Physical | `(x, y)` | 2 |
-| Physical with energy | `(x, y, t, kappa)` | 4 |
-| Duplicated | `(x1, y1, x2, y2)` | 4 |
-| Duplicated with energy | `(x1, y1, x2, y2, t, kappa)` | 6 |
+`SingleFormulation(physical_size)` and `DoubleFormulation(physical_size)` retain only a positive physical vector size. They prepare one or two temporary copies through `lift`, `join_copies` and `split_copies`. Shapes are `(d*N,*samples)` and `(copies*d*N,*samples)`; shifted copies remain distinct until the method projects them. NumPy/JAX backends and complete FC velocity blocks are preserved. There is no layout, particle count, tracking flag, clock, momentum, initial state, projection or solver in either representation.
 
-DOP853 uses the **physical** rows. `track_energy=False` is the default;
-`track_energy=True` enables the energy row. With N planar particles its internal
-dimensions are 2N / 4N. There are N time entries and N energy momenta.
-Classical FC runs use their actual physical size 4N, giving 4N / 6N.
-All components remain component-major; energy states append N times, then N
-normalized momenta. Every component block has the same particle dimension.
-The time entries are copies of the integration time; physical maps still receive
-one scalar time. The formulation owns clock validation and output alignment.
-The physical output always has its original size.
-Accepted duplicated copies are equal. They separate only inside the numerical map.
+Every accepted snapshot is `IntegrationState(time, values, momentum=None)`: scalar time, physical `values` of shape `(d*N,)`, and optional physical `momentum` of shape `(N,)`. GC remains 2N and FC 4N with or without tracking. Doubled GC work has 4N entries; generic doubled FC work has 8N. Workspaces are temporary and never become accepted states. This generic support does not extend GC numerical methods to FC.
 
-`SingleFormulation` and `DoubleFormulation` receive a structural layout,
-particle count and tracking flag in `src/formulations/state.py`. They retain no
-problem, initial values, dynamics or solver. The method calls `lift` to prepare
-physical copies and `pack` to append its prescribed time and passive momentum.
-It owns run initialization, step preparation, projection and energy evaluation.
-BM4's `GCDoubledMaps` retains its specialized elementary flows and delegates
-copy operations to the generic representation.
+The method initializes zero momentum, prepares copies, selects projection equations and solver, and integrates momentum from accepted stages. `advance(t, Z, h, momentum=kappa)` returns physical `StepResult.state` and separate `StepResult.momentum`. `StepInfo.momentum_before` records the incoming auxiliary. Shadow samples start from the same accepted physical state and momentum. JAX carries separate arrays through the compiled loop.
+
+Methods evaluate saved physical H once. `states.energy.energy_diagnostics` combines supplied H and physical kappa without dynamics evaluation. Existing energy labels and `(N,T)` auxiliary histories remain unchanged; `extended_time` is broadcast from scalar sample times. Numerical archives require no migration; old pickled configured objects should be recreated.
 
 ## Energy and nonlinear work
 
@@ -81,8 +63,8 @@ adaptive execution path, where their values can change during integration.
 By default, `simulate(problem, method, request)` delegates to `Execution.run`,
 which prepares a fresh run via `new_run` and allocates one physical recorder.
 The host worker advances and samples through the method's controller. Each
-`advance` returns an internal state, work counters and accepted details.
-The controller owns `IntegrationState(time, values)`. Requested samples are
+`advance` returns a physical state and separate momentum, work counters and accepted details.
+The controller owns `IntegrationState(time, values, momentum=None)`. Requested samples are
 extracted into physical coordinates and copied into `States`; step counters keep
 their separate axis. The method evaluates the saved physical Hamiltonian; the formulation combines it with stored momentum for output.
 Execution finalizes the same recorder once and closes the run on success or
@@ -148,11 +130,11 @@ persistence; see the [Modal executor guide](../../../simulation/modal-execution.
 
 ## Initial-state ownership
 
-`InitialValueProblem(dynamics, initial_state, layout=...)` captures a validated
-physical array, particle count and independent layout. Later edits to the input
-array do not change the prepared formulation. Physical layouts belong to
-`formulations.layout`; compatible structural layouts require no inheritance. Built-in dynamics keep their physical parameters
-immutable. See the shared [layout and ownership contract](../../../dynamics/protocols.md#physical-layouts-and-problem-ownership).
+Dynamics declare immutable `PhysicalCoordinates(component_names, position_names=(), velocity_names=())` from `dynamics.coordinates`. GC declares `(x,y)`; FC declares `(x,y,vx,vy)`. Position and velocity roles are explicit. The structural protocol is `contracts.dynamics.coordinates.StateLayout`; external implementations require no inheritance.
+
+`InitialValueProblem` takes the dynamics declaration or requires an explicit layout. It never infers a physical model from dimension 2 or 4. It checks dimension, component order and position/velocity roles, even for equally sized arrays. Initial conditions and results retain an immutable structural description and owned arrays, without retaining live dynamics or a potential. Generic packing, component views and role access support `(d*N,*samples)`, `(d,N,*samples)` and `(N,*samples)` while preserving NumPy/JAX tracing. Incomplete blocks are rejected.
+
+Built-in dynamics keep physical parameters immutable. A new problem is required for revised initial values. Saved numerical archives retain existing GC/FC schemas and can be interpreted without constructing dynamics or loading a field.
 
 ## Potential evaluation boundary
 
@@ -163,7 +145,7 @@ gyroaveraged field, without refitting or mutating the source dynamics. Inherited
 electric fields follow the potential class; `evaluate_grid` remains NumPy-only. See the
 [shared potential contract](../../../dynamics/jax-potential-evaluation.md).
 
-Initial data are packed NumPy arrays, including the output of `states.generators`. `formulations.layout` supplies GC/FC layouts; `request.SimulationRequest` owns the initial time and output schedule. Controllers manage the current internal `IntegrationState`; `states.States` stores physical samples and becomes the completed result. Several methods can share a formulation. See the [migration guide](../../../simulation/api-migration.md).
+Dynamics declare immutable `PhysicalCoordinates(component_names, position_names=(), velocity_names=())` from `dynamics.coordinates`. GC declares `(x,y)`; FC declares `(x,y,vx,vy)`. Position and velocity roles are explicit. The structural protocol is `contracts.dynamics.coordinates.StateLayout`; external implementations require no inheritance.
 
 ## Initial data and numerical components
 
@@ -173,13 +155,7 @@ for ownership, array shapes and unchanged request/result boundaries.
 
 ## State representation and step preparation
 
-The method initializes its internal state from physical input and the request's
-time. `SingleFormulation`/`DoubleFormulation` retain only layout, particle count
-and tracking settings. Their `lift` operation prepares physical copies; `pack`
-adds caller-supplied time and momentum. The method selects projection and solver,
-updates passive momentum, and supplies Hamiltonian values for output diagnostics.
-Accepted doubled copies stay equal, with no additional copies across steps.
-See [representation operations](../../../simulation/initial-solvers-formulations.md#state-representations).
+See the state contract above and the [representation operations](../../../simulation/initial-solvers-formulations.md#state-representations).
 
 ## Integration step
 

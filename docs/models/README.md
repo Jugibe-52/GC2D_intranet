@@ -44,6 +44,6 @@ compiled `tex/theory.pdf`. Simulation diagrams are editable `.puml` DOT sources
 with rendered `.svg` and `.png` counterparts. The generic diagram exists because
 this cross-model architecture was explicitly requested.
 
-The current guides and canonical theory PDFs describe the four state formulations.
+The current guides and canonical theory PDFs describe physical states and temporary workspaces.
 Previously rendered diagrams with R8 time/momentum projection are historical and
 are superseded by these guides. All methods now support passive energy tracking.

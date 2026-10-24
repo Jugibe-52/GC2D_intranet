@@ -2,7 +2,7 @@
 
 from studies._validation import require_uncoupled_bm4
 
-from formulations.layout import GCStateLayout
+from dynamics.gc import GuidingCenterDynamics
 
 from typing import Any, TYPE_CHECKING
 from pathlib import Path
@@ -45,7 +45,7 @@ def calculate_checkpointed_group(
     from dynamics import GuidingCenterDynamics
     import numpy as np
     from problem import InitialValueProblem
-    from formulations.gc import GCDoubledMaps
+    from methods.extended.maps import GCDoubledMaps
     from methods.extended.core.composition import BM4
     from methods.extended.core.projection import solve_projection
     from methods.extended.core.midpoint import midpoint_step
@@ -54,9 +54,9 @@ def calculate_checkpointed_group(
 
     indices = np.asarray(indices, dtype=int)
     xy0 = np.asarray(initial_xy, dtype=float)[indices]
-    initial: np.ndarray = GCStateLayout().pack_components(xy0[:, 0], xy0[:, 1])
-    problem: InitialValueProblem = InitialValueProblem(GuidingCenterDynamics(potential, rho=settings['rho']), initial, layout=GCStateLayout())
-    prepared: GCDoubledMaps = GCDoubledMaps(problem, coupling_frequency=None)
+    initial: np.ndarray = GuidingCenterDynamics.coordinates.pack_components(xy0[:, 0], xy0[:, 1])
+    problem: InitialValueProblem = InitialValueProblem(GuidingCenterDynamics(potential, rho=settings['rho']), initial, layout=GuidingCenterDynamics.coordinates)
+    prepared: GCDoubledMaps = GCDoubledMaps(problem.dynamics, problem.initial_state.size, coordinates=problem.layout, coupling_frequency=None)
     implicit = settings['method'] == 'BM4Implicit'
     solver: SolverOptions = SolverOptions('newton', settings['newton_atol'], settings['newton_rtol'],
                            settings['newton_max_iterations'])

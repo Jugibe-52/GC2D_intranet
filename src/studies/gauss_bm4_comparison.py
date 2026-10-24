@@ -6,7 +6,7 @@ from diagnostics.studies.comparison import final_rms_floor, time_integrated_rms_
 
 from studies._validation import require_uncoupled_bm4
 
-from formulations.layout import GCStateLayout
+from dynamics.gc import GuidingCenterDynamics
 
 from dataclasses import dataclass, replace
 from time import perf_counter
@@ -432,12 +432,12 @@ def run_gauss_bm4_comparison(
 	"""Run aligned accuracy refinements and alternated robust timings."""
 	if not isinstance(potential, Potential):
 		raise TypeError("`potential` must be a Potential instance.")
-	if not (isinstance(initial_configuration, np.ndarray) and GCStateLayout().state_dimension == 2):
+	if not (isinstance(initial_configuration, np.ndarray) and GuidingCenterDynamics.coordinates.state_dimension == 2):
 		raise TypeError("`initial_configuration` must be np.ndarray.")
 	if not isinstance(config, GaussBM4ComparisonConfig):
 		raise TypeError("`config` must be GaussBM4ComparisonConfig.")
 	dynamics: GuidingCenterDynamics = GuidingCenterDynamics(potential, rho=config.rho)
-	problem: InitialValueProblem = InitialValueProblem(dynamics, initial_configuration, layout=GCStateLayout())
+	problem: InitialValueProblem = InitialValueProblem(dynamics, initial_configuration, layout=GuidingCenterDynamics.coordinates)
 	base_request: SimulationRequest = SimulationRequest.uniform(
 		t_span=config.t_span,
 		sample_count=config.output_sample_count,

@@ -9,15 +9,15 @@ from unittest.mock import patch
 import numpy as np
 
 from execution.options import ExecutionOptions
-from formulations import HarmonicCoupling
-from formulations.gc import GCDoubledMaps
-from formulations.layout import GCStateLayout
+from methods.extended.maps import HarmonicCoupling
+from methods.extended.maps import GCDoubledMaps
+from dynamics.gc import GuidingCenterDynamics
 from methods.extended.core.composition import ABBA2, ABBA4, ABBA6, BM4, compose
 from methods.extended.core.jacobians import central_difference_jacobian, packed_jacobian, particle_jacobians
 from simulation import (A, B, T, C, Composition, Operation, PalindromicMethod,
 	PalindromicImplicit, PalindromicMidpoint, ABBA2Implicit, ABBA4Implicit, ABBA6Implicit,
 	ABBA2Midpoint, BM4Implicit, BM4Midpoint, InitialValueProblem, SimulationRequest, simulate)
-from test_extended_family import problem
+from tests.test_extended_family import problem
 
 EDGES = Composition.from_half('ABBA2-edges', (T(.5), A(.5), B(.5)))
 COUPLED = Composition.from_half('coupled-edges', (T(.5), C(.5), A(.5), B(.5)))
@@ -58,7 +58,7 @@ class PalindromicOperationTests(unittest.TestCase):
 
 	def test_spatial_operations_have_no_hidden_half_or_time_advance(self):
 		p = problem(2)
-		maps = GCDoubledMaps(p, coupling_frequency=None)
+		maps = GCDoubledMaps(p.dynamics, p.initial_state.size, coordinates=p.layout, coupling_frequency=None)
 		u, v = p.initial_state+.01, p.initial_state-.02
 		packed = np.concatenate((u, v))
 		for operation, expected in (
@@ -78,7 +78,7 @@ class PalindromicOperationTests(unittest.TestCase):
 
 	def test_end_clock_recipe_matches_independent_midtime_shears(self):
 		p = problem(3); z = p.initial_state
-		maps = GCDoubledMaps(p, coupling_frequency=None)
+		maps = GCDoubledMaps(p.dynamics, p.initial_state.size, coordinates=p.layout, coupling_frequency=None)
 		for h in (.2, -.2):
 			u, v = z+.003, z-.004
 			first = u+h/2*p.dynamics.vector_field(.3+h/2, v)
@@ -92,7 +92,7 @@ class PalindromicOperationTests(unittest.TestCase):
 		p = problem(3)
 		initial = np.concatenate((p.initial_state+.01, p.initial_state-.02))
 		for recipe, rate in ((EDGES, None), (COUPLED, .7)):
-			maps = GCDoubledMaps(p, coupling_frequency=rate)
+			maps = GCDoubledMaps(p.dynamics, p.initial_state.size, coordinates=p.layout, coupling_frequency=rate)
 			for h in (.15, -.15):
 				trace = compose(maps, recipe, .3, initial, h)
 				reverse = compose(maps, recipe, .3+h, trace.state, -h)
@@ -131,11 +131,11 @@ class PalindromicOperationTests(unittest.TestCase):
 				replace(method, step=0.02).new_run(p, request)
 		with patch.object(HarmonicCoupling, 'apply', wraps=HarmonicCoupling(.7).apply) as operation:
 			run = PalindromicMidpoint(COUPLED, step=0.02, coupling=HarmonicCoupling(.7)).new_run(p, request)
-			run.advance(.3, run.initial_state, .02)
+			run.advance(.3, run.initial_state, .02, momentum=run.initial_momentum)
 			self.assertEqual(operation.call_count, 2)
 
 	def test_both_time_placements_have_second_order_and_passive_balance(self):
-		p = InitialValueProblem(TimeRotation(), np.array([1., .2]), layout=GCStateLayout())
+		p = InitialValueProblem(TimeRotation(), np.array([1., .2]), layout=GuidingCenterDynamics.coordinates)
 		end = .8
 		angle = end+end**2/2+end**3/3
 		exact = np.array([[np.cos(angle), -np.sin(angle)], [np.sin(angle), np.cos(angle)]]) @ p.initial_state

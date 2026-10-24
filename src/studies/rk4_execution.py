@@ -1,6 +1,6 @@
 """Reproducible RK4 backend equivalence and end-to-end timing study."""
 
-from formulations.layout import GCStateLayout
+from dynamics.gc import GuidingCenterDynamics
 
 from dataclasses import asdict, dataclass, replace
 from pathlib import Path
@@ -15,7 +15,6 @@ from execution.options import ExecutionOptions
 from problem import InitialValueProblem
 from request import SimulationRequest
 from diagnostics.io.persistence import load_solution, save_solution
-from dynamics.gc import GuidingCenterDynamics
 
 from methods.classical.rk4 import RK4
 from potential.potential import Potential
@@ -90,8 +89,8 @@ def run_rk4_execution_comparison(
     )
     grid = potential.grid
     rng: np.random.Generator = np.random.default_rng(config.particle_seed)
-    initial: np.ndarray = GCStateLayout().pack_components(grid.xmin + grid.period * rng.random(config.particle_count), grid.ymin + grid.period * rng.random(config.particle_count))
-    problem: InitialValueProblem = InitialValueProblem(GuidingCenterDynamics(potential, rho=config.rho), initial, layout=GCStateLayout())
+    initial: np.ndarray = GuidingCenterDynamics.coordinates.pack_components(grid.xmin + grid.period * rng.random(config.particle_count), grid.ymin + grid.period * rng.random(config.particle_count))
+    problem: InitialValueProblem = InitialValueProblem(GuidingCenterDynamics(potential, rho=config.rho), initial, layout=GuidingCenterDynamics.coordinates)
     request: SimulationRequest = SimulationRequest.uniform(t_span=config.t_span,
                                         sample_count=config.sample_count)
     method: RK4 = RK4(track_energy=config.track_energy)

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from studies._validation import require_uncoupled_bm4
 
-from formulations.layout import GCStateLayout
+from dynamics.gc import GuidingCenterDynamics
 
 from dataclasses import dataclass, replace
 from time import perf_counter
@@ -288,7 +288,7 @@ class ImplicitMethodAccuracyResult:
 		initial_state = self.initial_configuration
 		if initial_state is None:
 			raise ValueError("The initial configuration must contain an initial state.")
-		particle_count: int = GCStateLayout().particle_count(initial_state)
+		particle_count: int = GuidingCenterDynamics.coordinates.particle_count(initial_state)
 		common_times: np.ndarray | None = None
 		for method_name in IMPLICIT_ACCURACY_METHOD_NAMES:
 			if any(
@@ -581,7 +581,7 @@ def run_implicit_method_accuracy_study(
 	"""Run four Newton methods on nested steps and compare with one reference."""
 	if not isinstance(potential, Potential):
 		raise TypeError("`potential` must be a Potential instance.")
-	if not (isinstance(initial_configuration, np.ndarray) and GCStateLayout().state_dimension == 2):
+	if not (isinstance(initial_configuration, np.ndarray) and GuidingCenterDynamics.coordinates.state_dimension == 2):
 		raise TypeError("`initial_configuration` must be np.ndarray.")
 	if not isinstance(reference, StoredReferenceTrajectory):
 		raise TypeError("`reference` must be a StoredReferenceTrajectory.")
@@ -596,7 +596,7 @@ def run_implicit_method_accuracy_study(
 		initial_condition_metadata=initial_condition_metadata,
 	)
 	dynamics: GuidingCenterDynamics = GuidingCenterDynamics(potential, rho=config.rho)
-	problem: InitialValueProblem = InitialValueProblem(dynamics, initial_configuration, layout=GCStateLayout())
+	problem: InitialValueProblem = InitialValueProblem(dynamics, initial_configuration, layout=GuidingCenterDynamics.coordinates)
 	distance_convention: Literal['euclidean'] | Literal['periodic'] = reference_distance_convention(reference)
 	solutions: dict[str, dict[float, States]] = {
 		method_name: {} for method_name in IMPLICIT_ACCURACY_METHOD_NAMES

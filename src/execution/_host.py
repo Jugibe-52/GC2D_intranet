@@ -132,37 +132,33 @@ class FixedStepController(Generic[Detail]):
 		ends: np.ndarray
 		durations: np.ndarray
 		starts, ends, durations = _fixed_schedule(request.t_span, method.step)
-		current: IntegrationState = IntegrationState(request.t_span[0], method.initial_state)
+		current: IntegrationState = IntegrationState(request.t_span[0], method.initial_state, method.initial_momentum)
 		for index, (time, end, duration) in enumerate(zip(starts, ends, durations)):
-			info: StepInfo = StepInfo(index, float(time), float(duration), float(end), current.values.copy())
-			result: StepResult[Detail] = method.advance(info.time, current.values.copy(), info.duration)
-			current = IntegrationState(info.end_time, result.state)
+			info: StepInfo = StepInfo(index, float(time), float(duration), float(end), current.values.copy(), None if current.momentum is None else current.momentum.copy())
+			result: StepResult[Detail] = method.advance(info.time, current.values.copy(), info.duration, momentum=None if current.momentum is None else current.momentum.copy())
+			current = IntegrationState(info.end_time, result.state, result.momentum)
 			yield info, result
 
 	def sample(
 		self, method: IntegrationMethod[Detail], info: StepInfo,
 		result: StepResult[Detail], time: float,
-	) -> np.ndarray:
-		"""Reuse accepted endpoints or take an independent partial step."""
+	) -> IntegrationState:
+		"""Reuse endpoints or advance an independent physical/auxiliary snapshot."""
 		tolerance: float = _time_tolerance(method.request.t_span)
 		if abs(time - info.end_time) <= tolerance:
-			return result.state
+			return IntegrationState(time, result.state, result.momentum)
 		if abs(time - info.time) <= tolerance:
-			return info.state_before
-		return method.advance(info.time, info.state_before.copy(), time - info.time).state
+			return IntegrationState(time, info.state_before, info.momentum_before)
+		momentum: np.ndarray | None = None if info.momentum_before is None else info.momentum_before.copy()
+		shadow: StepResult[Detail] = method.advance(info.time, info.state_before.copy(), time - info.time, momentum=momentum)
+		return IntegrationState(time, shadow.state, shadow.momentum)
 
 
-def _record_sample(method: IntegrationMethod[Any], result: States, time: float, sample: np.ndarray) -> None:
-	"""Export a physical sample before recording; never advance the work state."""
-	if sample.shape != method.initial_state.shape or not np.all(np.isfinite(sample)):
-		raise ValueError("An output sample changed shape or became non-finite.")
-	if method.state_formulation is None:
-		result.record(time, sample)
-	else:
-		physical: np.ndarray
-		auxiliary: dict[str, np.ndarray]
-		physical, auxiliary = method.state_formulation.extract_sample(time, sample)
-		result.record(time, physical, auxiliary=auxiliary)
+def _record_sample(method: IntegrationMethod[Any], result: States, sample: IntegrationState) -> None:
+	"""Validate and copy physical values and explicit auxiliary momentum."""
+	method._checked_state(sample.values, sample.momentum)
+	auxiliary: dict[str, np.ndarray] = {} if sample.momentum is None else {'extended_momentum': sample.momentum}
+	result.record(sample.time, sample.values, auxiliary=auxiliary)
 
 
 def run_steps(
@@ -175,7 +171,7 @@ def run_steps(
 	"""
 	request = method.request
 	selected: StepController[Detail] = method.controller()
-	_record_sample(method, saved, request.t_span[0], method.initial_state)
+	_record_sample(method, saved, IntegrationState(request.t_span[0], method.initial_state, method.initial_momentum))
 	t0: float
 	tf: float
 	t0, tf = request.t_span
@@ -195,6 +191,7 @@ def run_steps(
 				raise ValueError("The controller returned an invalid accepted interval.")
 			if result.state.shape != method.initial_state.shape or not np.all(np.isfinite(result.state)):
 				raise ValueError("A numerical step changed shape or became non-finite.")
+			method._checked_state(result.state, result.momentum)
 			saved.record_step(info, result.statistics)
 			if method.step_observer is not None:
 				method.step_observer(method.build_observation(info, result))
@@ -204,8 +201,10 @@ def run_steps(
 				and request.output_times[output_index] <= info.end_time + sampling_tolerance
 			):
 				target: float = float(request.output_times[output_index])
-				sample: np.ndarray = np.asarray(selected.sample(method, info, result, target))
-				_record_sample(method, saved, target, sample)
+				sample: IntegrationState = selected.sample(method, info, result, target)
+				if sample.time != target:
+					raise ValueError("The controller returned a different sample time.")
+				_record_sample(method, saved, sample)
 				if min(abs(target - info.time), abs(target - info.end_time)) > sampling_tolerance:
 					interior_sample_count += 1
 				output_index += 1

@@ -5,7 +5,7 @@ from diagnostics.studies.comparison import rms_error, time_integrated_rms_floor
 
 from studies._validation import require_uncoupled_bm4
 
-from formulations.layout import GCStateLayout
+from dynamics.gc import GuidingCenterDynamics
 
 from dataclasses import asdict, dataclass, replace
 from time import perf_counter
@@ -23,7 +23,6 @@ from contracts.studies.comparison import (
 )
 from problem import InitialValueProblem
 from request import SimulationRequest
-from dynamics.gc import GuidingCenterDynamics
 
 from methods.base import FixedStepMethod
 from methods.extended.abba import ABBA4Implicit
@@ -271,7 +270,7 @@ class ComparisonResult:
 			raise TypeError("`potential` must be a Potential instance.")
 		if not isinstance(self.dynamics, GuidingCenterDynamics):
 			raise TypeError("`dynamics` must be GuidingCenterDynamics.")
-		if not (isinstance(self.initial_configuration, np.ndarray) and GCStateLayout().state_dimension == 2):
+		if not (isinstance(self.initial_configuration, np.ndarray) and GuidingCenterDynamics.coordinates.state_dimension == 2):
 			raise TypeError("`initial_configuration` must be np.ndarray.")
 		if not isinstance(self.config, self.config_type):
 			raise TypeError(f"`config` must be {self.config_type.__name__}.")
@@ -522,13 +521,13 @@ def run_alternating_comparison(
 	"""Run three aligned Newton integrations and an independently audited reference."""
 	if not isinstance(potential, Potential):
 		raise TypeError("`potential` must be a Potential instance.")
-	if not (isinstance(initial_configuration, np.ndarray) and GCStateLayout().state_dimension == 2):
+	if not (isinstance(initial_configuration, np.ndarray) and GuidingCenterDynamics.coordinates.state_dimension == 2):
 		raise TypeError("`initial_configuration` must be np.ndarray.")
 	if not isinstance(config, ComparisonConfig):
 		raise TypeError("`config` must be ComparisonConfig.")
 	study_started: float = perf_counter()
 	dynamics: GuidingCenterDynamics = GuidingCenterDynamics(potential, rho=config.rho)
-	problem: InitialValueProblem = InitialValueProblem(dynamics, initial_configuration, layout=GCStateLayout())
+	problem: InitialValueProblem = InitialValueProblem(dynamics, initial_configuration, layout=GuidingCenterDynamics.coordinates)
 	request: SimulationRequest = SimulationRequest.uniform(
 		t_span=config.t_span,
 		sample_count=config.output_sample_count,

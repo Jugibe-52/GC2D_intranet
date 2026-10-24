@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from formulations.layout import FCStateLayout
-from formulations.layout import GCStateLayout
+from dynamics.fc import FullCyclotronDynamics
+from dynamics.gc import GuidingCenterDynamics
 
 import json
 from pathlib import Path
@@ -176,7 +176,7 @@ class ABBA2ImplicitTests(unittest.TestCase):
 		start = 0.2
 		step = 0.1
 		solution = simulate(
-			InitialValueProblem(dynamics, np.array(initial_state, dtype=float, copy=True), layout=GCStateLayout()),
+			InitialValueProblem(dynamics, np.array(initial_state, dtype=float, copy=True), layout=GuidingCenterDynamics.coordinates),
 			ABBA2Implicit(step=step, step_observer=lambda _step: None),
 			SimulationRequest.uniform(
 				t_span=(start, start + step),
@@ -203,7 +203,7 @@ class ABBA2ImplicitTests(unittest.TestCase):
 		# Without an observer, only the capability preflight needs a Hessian.
 		unobserved_dynamics = _TimeOnlyPlanarDynamics()
 		simulate(
-			InitialValueProblem(unobserved_dynamics, np.array(initial_state, dtype=float, copy=True), layout=GCStateLayout()),
+			InitialValueProblem(unobserved_dynamics, np.array(initial_state, dtype=float, copy=True), layout=GuidingCenterDynamics.coordinates),
 			ABBA2Implicit(step=step),
 			SimulationRequest.uniform(
 				t_span=(start, start + step),
@@ -288,7 +288,7 @@ class ABBA2ImplicitTests(unittest.TestCase):
 	def test_method_has_second_order_global_accuracy(self) -> None:
 		dynamics = gc_dynamics()
 		source = np.array(np.asarray([1.0, 1.2]), dtype=float, copy=True)
-		problem = InitialValueProblem(dynamics, source, layout=GCStateLayout())
+		problem = InitialValueProblem(dynamics, source, layout=GuidingCenterDynamics.coordinates)
 
 		def final_state(step: float) -> np.ndarray:
 			return simulate(
@@ -312,7 +312,7 @@ class ABBA2ImplicitTests(unittest.TestCase):
 	def test_observation_and_diagnostics_ignore_shadow_steps(self) -> None:
 		dynamics = gc_dynamics()
 		source = np.array(np.asarray([1.0, 1.2]), dtype=float, copy=True)
-		problem = InitialValueProblem(dynamics, source, layout=GCStateLayout())
+		problem = InitialValueProblem(dynamics, source, layout=GuidingCenterDynamics.coordinates)
 		events = []
 		observed = simulate(
 			problem,
@@ -352,7 +352,7 @@ class ABBA2ImplicitTests(unittest.TestCase):
 			interpolation_order=3,
 		)
 		source = np.array(np.asarray([1.0, 1.2]), dtype=float, copy=True)
-		zero_problem = InitialValueProblem(GuidingCenterDynamics(zero_potential, rho=0.05), source, layout=GCStateLayout())
+		zero_problem = InitialValueProblem(GuidingCenterDynamics(zero_potential, rho=0.05), source, layout=GuidingCenterDynamics.coordinates)
 		solution = simulate(
 			zero_problem,
 			ABBA2Implicit(step=0.02),
@@ -379,7 +379,7 @@ class ABBA2ImplicitTests(unittest.TestCase):
 				deterministic_potential(),
 				rho=0.2,
 				eta=0.1,
-			), fc_source, layout=FCStateLayout())
+			), fc_source, layout=FullCyclotronDynamics.coordinates)
 		with self.assertRaisesRegex(TypeError, "GuidingCenterJacobianSystem"):
 			simulate(
 				fc_problem,
@@ -391,7 +391,7 @@ class ABBA2ImplicitTests(unittest.TestCase):
 			)
 
 	def test_nonconvergence_reports_time_step_and_residual(self) -> None:
-		problem = InitialValueProblem(gc_dynamics(), np.array(np.asarray([1.0, 1.2]), dtype=float, copy=True), layout=GCStateLayout())
+		problem = InitialValueProblem(gc_dynamics(), np.array(np.asarray([1.0, 1.2]), dtype=float, copy=True), layout=GuidingCenterDynamics.coordinates)
 		with self.assertRaisesRegex(
 			RuntimeError,
 			"t=.*step=.*residual norm",

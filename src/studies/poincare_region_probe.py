@@ -2,7 +2,7 @@
 
 from studies._validation import require_uncoupled_bm4
 
-from formulations.layout import GCStateLayout
+from dynamics.gc import GuidingCenterDynamics
 
 from dataclasses import asdict, dataclass, replace
 import hashlib
@@ -109,7 +109,7 @@ def integrate_region_probes(potential: Potential, settings: RegionProbeSettings,
     method: BM4Midpoint | RK4
     for start in range(0, count, batch):
         end: int = min(count, start + batch)
-        initial: np.ndarray = GCStateLayout().pack_components(xy[start, :, 0], xy[start, :, 1])
+        initial: np.ndarray = GuidingCenterDynamics.coordinates.pack_components(xy[start, :, 0], xy[start, :, 1])
         request: SimulationRequest = SimulationRequest.uniform(t_span=(times[start], times[end]),
                                             sample_count=end - start + 1)
         if settings.method == 'BM4Midpoint':
@@ -123,7 +123,7 @@ def integrate_region_probes(potential: Potential, settings: RegionProbeSettings,
                                  step_observer=report if progress else None)
         else:
             method = RK4()
-        solution: States = simulate(InitialValueProblem(dynamics, initial, layout=GCStateLayout()), replace(method, step=step), request)
+        solution: States = simulate(InitialValueProblem(dynamics, initial, layout=GuidingCenterDynamics.coordinates), replace(method, step=step), request)
         if solution.diagnostics['step_count'] != end - start or solution.diagnostics['output_interpolation_count'] != 0:
             raise RuntimeError('The method did not preserve the requested complete-step grid.')
         xy[start:end + 1] = np.stack(solution.positions(), axis=-1).transpose(1, 0, 2)

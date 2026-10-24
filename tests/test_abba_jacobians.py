@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from states import generators as state_generators
-from formulations.layout import GCStateLayout
+from dynamics.gc import GuidingCenterDynamics
 
 import json
 from pathlib import Path
@@ -87,7 +87,7 @@ class ImplicitABBAJacobianTests(unittest.TestCase):
 	def test_analytic_jacobians_match_each_other_and_finite_differences(self) -> None:
 		dynamics = GuidingCenterDynamics(deterministic_potential(), rho=0.05)
 		initial_state = np.asarray([1.0, 1.4, 1.2, 1.6])
-		problem = InitialValueProblem(dynamics, np.array(initial_state, dtype=float, copy=True), layout=GCStateLayout())
+		problem = InitialValueProblem(dynamics, np.array(initial_state, dtype=float, copy=True), layout=GuidingCenterDynamics.coordinates)
 		request = SimulationRequest.uniform(
 			t_span=(0.0, 0.05),
 			sample_count=2,
@@ -158,7 +158,7 @@ class ImplicitABBAJacobianTests(unittest.TestCase):
 		duration = 0.1
 		events = []
 		simulate(
-			InitialValueProblem(dynamics, np.array(np.asarray([1.0, 1.2]), dtype=float, copy=True), layout=GCStateLayout()),
+			InitialValueProblem(dynamics, np.array(np.asarray([1.0, 1.2]), dtype=float, copy=True), layout=GuidingCenterDynamics.coordinates),
 			ABBA2Implicit(step=duration, step_observer=events.append),
 			SimulationRequest.uniform(
 				t_span=(start, start + duration),

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from formulations.layout import GCStateLayout
+from dynamics.gc import GuidingCenterDynamics
 
 from collections.abc import Mapping
 from concurrent.futures import FIRST_COMPLETED, Future, ProcessPoolExecutor, wait
@@ -294,7 +294,7 @@ def _readonly_runtime_array(
 
 def _expected_dimensions(variant: ABBA4ConfigurationVariant) -> tuple[int, int, int]:
 	"""Return accepted, base-map, and nonlinear workspace dimensions."""
-	return (6, 6, 2 if variant.projection_formulation == "reduced_multiplier" else 6)
+	return (2, 4, 2 if variant.projection_formulation == "reduced_multiplier" else 6)
 
 
 def _generalized_energy_history(
@@ -372,6 +372,9 @@ def _validated_configuration_trajectory(
 			"nonlinear_unknown_dimension",
 		)
 	)
+	# Historical archives retain their packed-copy dimensions and labels.
+	if 'momentum_state_dimension' not in diagnostics:
+		expected_dimensions = (6, 6, expected_dimensions[2])
 	if actual_dimensions != expected_dimensions:
 		raise ValueError("A trajectory reported inconsistent state dimensions.")
 	return common_times
@@ -626,7 +629,7 @@ def _initialize_abba4_worker(
 		sample_count=config.output_sample_count,
 	)
 	particle_configurations: tuple[Any, ...] = tuple(
-		GCStateLayout().pack_components(np.asarray([x], dtype=float), np.asarray([y], dtype=float))
+		GuidingCenterDynamics.coordinates.pack_components(np.asarray([x], dtype=float), np.asarray([y], dtype=float))
 		for x, y in particle_coordinates
 	)
 	worker_config: ABBA4ConfigurationComparisonConfig = replace(config, progress=False)
@@ -925,7 +928,7 @@ def _run_parallel_trajectories(
 		assert initial_state is not None
 		x: np.ndarray
 		y: np.ndarray
-		x, y = GCStateLayout().positions(initial_state)
+		x, y = GuidingCenterDynamics.coordinates.positions(initial_state)
 		particle_coordinates.append((float(x[0]), float(y[0])))
 
 	solution_rows: dict[str, dict[int, States]]
@@ -997,7 +1000,7 @@ def _run_parallel_trajectories(
 						raise RuntimeError(
 							"An ABBA4 worker returned a trajectory for the wrong task."
 						)
-					solution_rows[task.variant_key][task.particle] = States(layout=GCStateLayout(), t=payload.times, states=payload.states, initial_state=particle_configurations[task.particle], diagnostics=payload.diagnostics)
+					solution_rows[task.variant_key][task.particle] = States(layout=GuidingCenterDynamics.coordinates, t=payload.times, states=payload.states, initial_state=particle_configurations[task.particle], diagnostics=payload.diagnostics)
 					runtime_rows[task.variant_key][task.particle] = (
 						payload.runtime_seconds
 					)
@@ -1028,14 +1031,14 @@ def run_abba4_configuration_comparison(
 	"""Run eight configurations for each configured initial condition."""
 	if not isinstance(potential, Potential):
 		raise TypeError("`potential` must be a Potential instance.")
-	if not (isinstance(initial_configuration, np.ndarray) and GCStateLayout().state_dimension == 2):
+	if not (isinstance(initial_configuration, np.ndarray) and GuidingCenterDynamics.coordinates.state_dimension == 2):
 		raise TypeError("`initial_configuration` must be np.ndarray.")
 	if not isinstance(reference, StoredReferenceTrajectory):
 		raise TypeError("`reference` must be a StoredReferenceTrajectory.")
 	if not isinstance(config, ABBA4ConfigurationComparisonConfig):
 		raise TypeError("`config` must be ABBA4ConfigurationComparisonConfig.")
 	initial_state = initial_configuration
-	if initial_state is None or GCStateLayout().particle_count(
+	if initial_state is None or GuidingCenterDynamics.coordinates.particle_count(
 		initial_state
 	) != config.particle_count:
 		raise ValueError(
@@ -1058,9 +1061,9 @@ def run_abba4_configuration_comparison(
 	)
 	initial_x: np.ndarray
 	initial_y: np.ndarray
-	initial_x, initial_y = GCStateLayout().positions(initial_state)
+	initial_x, initial_y = GuidingCenterDynamics.coordinates.positions(initial_state)
 	particle_configurations: tuple[Any, ...] = tuple(
-		GCStateLayout().pack_components(np.asarray([initial_x[particle]], dtype=float), np.asarray([initial_y[particle]], dtype=float))
+		GuidingCenterDynamics.coordinates.pack_components(np.asarray([initial_x[particle]], dtype=float), np.asarray([initial_y[particle]], dtype=float))
 		for particle in range(config.particle_count)
 	)
 	total_run_count = len(ABBA4_CONFIGURATION_VARIANTS) * config.particle_count
@@ -1134,7 +1137,7 @@ def _validate_configuration_inputs(
 		raise TypeError("`potential` must be a Potential instance.")
 	if not isinstance(dynamics, GuidingCenterDynamics):
 		raise TypeError("`dynamics` must be GuidingCenterDynamics.")
-	if not (isinstance(initial_configuration, np.ndarray) and GCStateLayout().state_dimension == 2):
+	if not (isinstance(initial_configuration, np.ndarray) and GuidingCenterDynamics.coordinates.state_dimension == 2):
 		raise TypeError("`initial_configuration` must be np.ndarray.")
 	if not isinstance(reference, StoredReferenceTrajectory):
 		raise TypeError("`reference` must be a StoredReferenceTrajectory.")
@@ -1155,7 +1158,7 @@ def _configuration_initial_positions(
 		raise ValueError("The initial configuration must contain a state.")
 	particle_count = config.particle_count
 	if (
-		GCStateLayout().particle_count(initial_state)
+		GuidingCenterDynamics.coordinates.particle_count(initial_state)
 		!= particle_count
 	):
 		raise ValueError(
@@ -1164,7 +1167,7 @@ def _configuration_initial_positions(
 		)
 	initial_x: np.ndarray
 	initial_y: np.ndarray
-	initial_x, initial_y = GCStateLayout().positions(initial_state)
+	initial_x, initial_y = GuidingCenterDynamics.coordinates.positions(initial_state)
 	return particle_count, initial_x, initial_y
 
 

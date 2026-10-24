@@ -14,7 +14,7 @@ from contracts.methods.extended.abba import (
 )
 from contracts.methods.extended.bm4 import ImplicitBM4IntegrationStep
 from contracts.methods.observation import IntegrationStage, IntegrationStep
-from formulations.gc import gc_coupling_matrix
+from methods.extended.maps import gc_coupling_matrix
 
 from typing import TYPE_CHECKING
 

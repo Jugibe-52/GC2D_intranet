@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from formulations.layout import GCStateLayout
+from dynamics.gc import GuidingCenterDynamics
 
 from dataclasses import replace
 from pathlib import Path
@@ -92,8 +92,8 @@ class _PolynomialTimeDynamics:
 
 def _rotation_problem() -> InitialValueProblem:
 	"""Return one oscillator trajectory starting from ``(1, 0)``."""
-	configuration = GCStateLayout().pack_components(np.asarray([1.0]), np.asarray([0.0]))
-	return InitialValueProblem(_LinearRotationDynamics(), configuration, layout=GCStateLayout())
+	configuration = GuidingCenterDynamics.coordinates.pack_components(np.asarray([1.0]), np.asarray([0.0]))
+	return InitialValueProblem(_LinearRotationDynamics(), configuration, layout=GuidingCenterDynamics.coordinates)
 
 
 def _dense(blocks: np.ndarray) -> np.ndarray:
@@ -245,8 +245,8 @@ class ABBA4ImplicitMethodTests(unittest.TestCase):
 		np.testing.assert_allclose(backward.state, state, rtol=0.0, atol=2e-15)
 
 	def test_fourth_order_composition_uses_signed_non_autonomous_times(self) -> None:
-		configuration = GCStateLayout().pack_components(np.asarray([0.0]), np.asarray([0.0]))
-		problem = InitialValueProblem(_PolynomialTimeDynamics(), configuration, layout=GCStateLayout())
+		configuration = GuidingCenterDynamics.coordinates.pack_components(np.asarray([0.0]), np.asarray([0.0]))
+		problem = InitialValueProblem(_PolynomialTimeDynamics(), configuration, layout=GuidingCenterDynamics.coordinates)
 		errors = []
 		for step in (0.2, 0.1, 0.05, 0.025):
 			solution = simulate(
@@ -266,8 +266,8 @@ class ABBA4ImplicitMethodTests(unittest.TestCase):
 			self.assertLess(float(gain), 16.1)
 
 	def test_exact_composed_jacobian_matches_centered_difference(self) -> None:
-		configuration = GCStateLayout().pack_components(np.asarray([1.0, 1.4]), np.asarray([0.2, 0.6]))
-		problem = InitialValueProblem(_LinearRotationDynamics(), configuration, layout=GCStateLayout())
+		configuration = GuidingCenterDynamics.coordinates.pack_components(np.asarray([1.0, 1.4]), np.asarray([0.2, 0.6]))
+		problem = InitialValueProblem(_LinearRotationDynamics(), configuration, layout=GuidingCenterDynamics.coordinates)
 		events = []
 		simulate(
 			problem,

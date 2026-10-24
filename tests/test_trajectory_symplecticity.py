@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 
-from formulations.layout import GCStateLayout
+from dynamics.gc import GuidingCenterDynamics
 
 import csv
 from pathlib import Path
@@ -59,8 +59,8 @@ def _problem() -> InitialValueProblem:
 		interpolation_order=5,
 	)
 	dynamics = GuidingCenterDynamics(potential, rho=0.05)
-	configuration = GCStateLayout().pack_components(np.asarray([1.0, 1.4]), np.asarray([1.2, 1.6]))
-	return InitialValueProblem(dynamics, configuration, layout=GCStateLayout())
+	configuration = GuidingCenterDynamics.coordinates.pack_components(np.asarray([1.0, 1.4]), np.asarray([1.2, 1.6]))
+	return InitialValueProblem(dynamics, configuration, layout=GuidingCenterDynamics.coordinates)
 
 
 def _dense(blocks: np.ndarray) -> np.ndarray:

@@ -15,6 +15,7 @@ import numpy as np
 from contracts.states.history import DiagnosticValue
 from contracts.methods.step import StepInfo, StepResult
 from formulations.state import SingleFormulation
+from states.energy import energy_diagnostics
 from contracts.dynamics.protocols import HamiltonianSystem
 
 from problem import InitialValueProblem
@@ -59,6 +60,8 @@ class IntegrationMethod(ABC, Generic[Detail]):
 	"""
 
 	initial_state: np.ndarray
+	initial_momentum: np.ndarray | None = None
+	track_energy: bool = False
 	metadata: Mapping[str, DiagnosticValue]
 	problem: InitialValueProblem
 	request: SimulationRequest
@@ -92,10 +95,11 @@ class IntegrationMethod(ABC, Generic[Detail]):
 		method.metadata = {}
 		method.initialize(problem, request)
 		if method.state_formulation is not None:
-			# Keep algorithm metadata on the method and state-layout metadata on
-			# the formulation, then expose both through this run's single mapping.
-			method.metadata = {**method.metadata, **method.state_formulation.metadata()}
+			# Report accepted physical size separately from temporary workspace size.
+			method.metadata = {**method.metadata, **method._state_metadata()}
 		method.initial_state = _readonly_initial_state(method.initial_state)
+		if method.initial_momentum is not None:
+			method.initial_momentum = _readonly_initial_state(method.initial_momentum)
 		method.metadata = _readonly_metadata(method.metadata)
 		method._status = "ready"
 		return method
@@ -105,7 +109,7 @@ class IntegrationMethod(ABC, Generic[Detail]):
 		"""Initialize this run's formulation and initial state; called by new_run."""
 
 	@abstractmethod
-	def advance(self, time: float, state: np.ndarray, step: float) -> StepResult[Detail]:
+	def advance(self, time: float, state: np.ndarray, step: float, *, momentum: np.ndarray | None = None) -> StepResult[Detail]:
 		"""Advance without observing or collecting; return local work and details.
 
 		Fixed methods evaluate a map of duration ``step`` on the supplied state.
@@ -117,64 +121,75 @@ class IntegrationMethod(ABC, Generic[Detail]):
 	def build_observation(self, info: StepInfo, result: StepResult[Detail]) -> Any:
 		"""Construct an independent method-specific event for an accepted step."""
 
+	def _state_metadata(self) -> dict[str, DiagnosticValue]:
+		"""Describe actual accepted storage, temporary work and separate auxiliaries."""
+		assert self.state_formulation is not None
+		name: str = 'physical' if self.state_formulation.copies == 1 else 'duplicated'
+		return {
+			'state_formulation': name + ('_with_energy' if self.track_energy else ''),
+			'track_energy': self.track_energy,
+			'accepted_internal_state_dimension': self.state_formulation.physical_size,
+			'base_splitting_state_dimension': self.state_formulation.spatial_size,
+			'spatial_state_dimension': self.state_formulation.spatial_size,
+			'workspace_state_dimension': self.state_formulation.spatial_size,
+			'time_state_dimension': 1,
+			'momentum_state_dimension': self.problem.particle_count if self.track_energy else 0,
+			'observer_state_dimension': self.state_formulation.physical_size,
+			'observer_state_kind': 'physical_map', 'energy_feedback': False,
+		}
+
 	def _initialize_state(self, problem: InitialValueProblem, request: SimulationRequest,
 		*, energy_dynamics: DynamicalSystem | None = None,
 	) -> np.ndarray:
-		"""Create this run's state explicitly from physical input and initial time."""
-		formulation: SingleFormulation | None = self.state_formulation
-		assert formulation is not None
+		"""Own physical initial values and a separate zero physical momentum."""
 		dynamics: DynamicalSystem = problem.dynamics if energy_dynamics is None else energy_dynamics
 		self._energy_dynamics = None
-		if formulation.track_energy:
+		self.initial_momentum = None
+		if self.track_energy:
 			if not isinstance(dynamics, HamiltonianSystem):
-				raise TypeError("Energy tracking requires HamiltonianSystem.")
+				raise TypeError('Energy tracking requires HamiltonianSystem.')
 			self._energy_dynamics = dynamics
-		momentum: np.ndarray | None = np.zeros(formulation.particle_count) if formulation.track_energy else None
-		copies: np.ndarray = formulation.lift(problem.initial_state)
-		return np.asarray(formulation.pack(copies, request.t_span[0], momentum))
+			self.initial_momentum = np.zeros(problem.particle_count)
+		return problem.initial_state
+
+	def _checked_state(self, state: np.ndarray, momentum: np.ndarray | None) -> np.ndarray:
+		"""Reject packed copies or missing auxiliaries before numerical work."""
+		physical: np.ndarray = np.asarray(state)
+		if physical.shape != self.initial_state.shape or not np.all(np.isfinite(physical)):
+			raise ValueError('A step requires a finite physical vector with the initial shape.')
+		if self.track_energy:
+			if momentum is None or momentum.shape != (self.problem.particle_count,) or not np.all(np.isfinite(momentum)):
+				raise ValueError('Supply finite momentum with one value per particle for an energy-tracked step.')
+		elif momentum is not None:
+			raise ValueError('Momentum requires energy tracking.')
+		return physical
 
 	def _momentum_rate(self, time: float, physical: np.ndarray) -> np.ndarray:
-		"""Evaluate the physical passive rate using this run's explicit capability."""
-		assert self._energy_dynamics is not None and self.state_formulation is not None
+		"""Evaluate -partial_t H in the physical Hamiltonian normalization."""
+		assert self._energy_dynamics is not None
 		rate: np.ndarray = np.asarray(self._energy_dynamics.extended_momentum_derivative(time, physical), dtype=float)
-		if rate.shape != (self.state_formulation.particle_count,) or not np.all(np.isfinite(rate)):
-			raise ValueError("The momentum derivative must be finite with one value per particle.")
+		if rate.shape != (self.problem.particle_count,) or not np.all(np.isfinite(rate)):
+			raise ValueError('The momentum derivative must be finite with one value per particle.')
 		return rate
 
-	def _finish_state(self, before: np.ndarray, physical: np.ndarray, end_time: float,
-		increment: np.ndarray | None = None,
-	) -> np.ndarray:
-		"""Accept the projected physical result and update passive momentum once."""
-		formulation: SingleFormulation | None = self.state_formulation
-		assert formulation is not None
-		momentum: np.ndarray | None = formulation.momentum(before)
-		if momentum is not None:
-			if increment is None:
-				raise ValueError("An energy-tracked step must supply its momentum increment.")
-			momentum = momentum + increment
-		return np.asarray(formulation.pack(formulation.lift(physical), end_time, momentum))
+	def _finish_momentum(self, momentum: np.ndarray | None, increment: np.ndarray | None) -> np.ndarray | None:
+		"""Accumulate accepted-stage quadrature without retaining mutable run state."""
+		if not self.track_energy:
+			return None
+		if momentum is None or increment is None:
+			raise ValueError('An energy-tracked step requires momentum and its increment.')
+		return np.asarray(momentum + increment)
 
 	def diagnose_history(self, times: np.ndarray, physical: np.ndarray,
-		auxiliary: dict[str, np.ndarray],
+		auxiliary: dict[str, np.ndarray], *, energy: np.ndarray | None = None,
 	) -> dict[str, DiagnosticValue]:
-		"""Evaluate saved physical energy once and delegate output-array assembly."""
-		if self.state_formulation is None or "extended_momentum" not in auxiliary:
+		"""Evaluate saved physical energy once and assemble supplied auxiliaries."""
+		if 'extended_momentum' not in auxiliary:
 			return {}
-		assert self._energy_dynamics is not None
-		energy: np.ndarray = np.asarray(self._energy_dynamics.hamiltonian(times, physical), dtype=float)
-		return self.state_formulation.diagnose_history(times, physical, auxiliary, energy=energy)
-
-	def export_history(self, times: np.ndarray, history: np.ndarray,
-		*, energy: np.ndarray | None = None,
-	) -> tuple[np.ndarray, dict[str, DiagnosticValue]]:
-		"""Extract physical samples and auxiliary diagnostics from internal history."""
-		if self.state_formulation is None:
-			return history, {}
-		if self.state_formulation.track_energy and energy is None:
+		if energy is None:
 			assert self._energy_dynamics is not None
-			physical: np.ndarray = self.state_formulation.physical(history)
 			energy = np.asarray(self._energy_dynamics.hamiltonian(times, physical), dtype=float)
-		return self.state_formulation.extract_history(times, history, energy=energy)
+		return energy_diagnostics(times, physical, auxiliary, energy=energy)
 
 	def controller(self) -> StepController[Detail]:
 		"""Select fixed scheduling; adaptive methods override this operation."""

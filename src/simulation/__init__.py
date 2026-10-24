@@ -1,14 +1,10 @@
 """Public simulation facade over problems, methods, integration and results."""
 
 from formulations.state import SingleFormulation, DoubleFormulation
-from contracts.formulations.layout import StateLayout
-from contracts.formulations.base import DirectAdjointFormulation, StageProjectedFormulation
-from formulations import (
-	FCSplitFormulation,
-	GCExtendedFormulation,
-	GCStageProjectedFormulation,
-	gc_coupling_matrix,
-)
+from contracts.dynamics.coordinates import StateLayout
+from dynamics.coordinates import PhysicalCoordinates
+from methods.extended.maps import GCDoubledMaps, HarmonicCoupling, gc_coupling_matrix
+from methods.splitting import FCSplitMaps
 from methods import (
 	PalindromicMethod,
 	PalindromicImplicit,
@@ -82,9 +78,10 @@ from .runner import (
 from states.history import States
 from states.initial import InitialConditions
 from solvers.nonlinear import NewtonSolver, BroydenSolver
-from formulations.projection import ReducedProjection, SimultaneousProjection
+from methods.projection import ReducedProjection, SimultaneousProjection
 
 __all__ = [
+	"PhysicalCoordinates", "GCDoubledMaps", "FCSplitMaps", "HarmonicCoupling",
 	'PalindromicMethod', 'PalindromicImplicit', 'PalindromicMidpoint', 'Composition', 'Operation', 'A', 'B', 'T', 'C',
 	"InitialConditions", "NewtonSolver", "BroydenSolver", "ReducedProjection", "SimultaneousProjection",
 	"SingleFormulation",
@@ -106,7 +103,6 @@ __all__ = [
 	"GaussLegendre4",
 	"HBVM42",
 	"HBVMJacobianMethod",
-	"DirectAdjointFormulation",
 	"DEFAULT_INTEGRATION_STEP",
 	"DEFAULT_INTEGRATION_STEPS_PER_CYCLE",
 	"DEFAULT_SAVED_STEPS_PER_CYCLE",
@@ -114,9 +110,6 @@ __all__ = [
 	"ABBA4_PROJECTION_PLACEMENTS",
 	"ABBA_PROJECTION_FORMULATIONS",
 	"ABBA_STATE_EXTENSIONS",
-	"FCSplitFormulation",
-	"GCExtendedFormulation",
-	"GCStageProjectedFormulation",
 	"gc_coupling_matrix",
 	"GaussLegendre4IntegrationStep",
 	"InitialValueProblem",
@@ -145,7 +138,6 @@ __all__ = [
 	"States",
 	"StageObserver",
 	"StepObserver",
-	"StageProjectedFormulation",
 	"StateLayout",
 	"UnprojectedABBAIntegrationStep",
 	"simulate",

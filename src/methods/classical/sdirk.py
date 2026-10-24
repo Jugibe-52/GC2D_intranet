@@ -303,7 +303,7 @@ class SDIRK4(FixedStepMethod[_SDIRKStepResult]):
 	def initialize(self, problem: InitialValueProblem, request: SimulationRequest) -> None:
 		"""Bind the nonlinear map, physical observation and energy exporter."""
 		self.dynamics = problem.dynamics
-		self.state_formulation = SingleFormulation(problem.layout, problem.particle_count, self.track_energy)
+		self.state_formulation = SingleFormulation(problem.initial_state.size)
 		initial_state: np.ndarray = self._initialize_state(problem, request)
 		physical_initial = problem.initial_state
 		self.resolved_jacobian_method = _resolved_jacobian_method(
@@ -354,9 +354,9 @@ class SDIRK4(FixedStepMethod[_SDIRKStepResult]):
 			newton_observer=newton_observer, solver=self.solver,
 		)
 
-	def advance(self, time: float, value: np.ndarray, step: float) -> StepResult[_SDIRKStepResult]:
+	def advance(self, time: float, value: np.ndarray, step: float, *, momentum: np.ndarray | None = None) -> StepResult[_SDIRKStepResult]:
 		"""Solve one complete physical step and finish its auxiliary state."""
-		physical_before: np.ndarray = np.asarray(value[:self.physical_size], dtype=float)
+		physical_before: np.ndarray = np.asarray(self._checked_state(value, momentum), dtype=float)
 		result: _SDIRKStepResult = self._solve_physical(time, physical_before, step, newton_observer=self.newton_observer)
 		statistics: dict[str, np.ndarray | float | int] = {
 			'nonlinear_iterations': int(np.sum(result.stage_iterations)),
@@ -379,8 +379,8 @@ class SDIRK4(FixedStepMethod[_SDIRKStepResult]):
 			SDIRK4_TABLEAU_B[index] * momentum_derivatives[index]
 			for index in range(_STAGE_COUNT)
 		)
-		after: np.ndarray = self._finish_state(value, result.state, time + step, increment)
-		return StepResult(after, statistics, result)
+		after: np.ndarray = result.state
+		return StepResult(after, statistics, result, self._finish_momentum(momentum, increment))
 
 	def build_observation(self, info: StepInfo, step: StepResult[_SDIRKStepResult]) -> IntegrationStep:
 		"""Build independent physical snapshots from accepted solve details."""

@@ -41,10 +41,7 @@ and the existing defaults for each public class.
 
 ## Accepted states and diagnostics
 
-For N planar particles, both methods use two spatial copies with 4N components.
-Optional passive energy adds N time entries and N physical momenta, producing
-6N accepted internal components. Physical outputs and observer snapshots remain
-2N dimensional. Time and momentum never enter a nonlinear root.
+For N planar particles the accepted state has 2N physical components. Time is scalar and optional physical momentum has N separate entries. The composition prepares two temporary spatial copies with 4N components, then returns a single physical state. Time and momentum never enter a nonlinear root.
 
 The accepted shear trace feeds common normalized momentum quadrature after the
 spatial computation. The diagnostic `H + kappa - H_initial` measures energy
@@ -100,11 +97,11 @@ persistence; see the [Modal executor guide](../../../simulation/modal-execution.
 
 ## Initial-state ownership
 
-`InitialValueProblem(dynamics, initial_state, layout=...)` captures a validated
-physical array, particle count and independent layout. Later edits to the input
-array do not change the prepared formulation. Physical layouts belong to
-`formulations.layout`; compatible structural layouts require no inheritance. Built-in dynamics keep their physical parameters
-immutable. See the shared [layout and ownership contract](../../../dynamics/protocols.md#physical-layouts-and-problem-ownership).
+Dynamics declare immutable `PhysicalCoordinates(component_names, position_names=(), velocity_names=())` from `dynamics.coordinates`. GC declares `(x,y)`; FC declares `(x,y,vx,vy)`. Position and velocity roles are explicit. The structural protocol is `contracts.dynamics.coordinates.StateLayout`; external implementations require no inheritance.
+
+`InitialValueProblem` takes the dynamics declaration or requires an explicit layout. It never infers a physical model from dimension 2 or 4. It checks dimension, component order and position/velocity roles, even for equally sized arrays. Initial conditions and results retain an immutable structural description and owned arrays, without retaining live dynamics or a potential. Generic packing, component views and role access support `(d*N,*samples)`, `(d,N,*samples)` and `(N,*samples)` while preserving NumPy/JAX tracing. Incomplete blocks are rejected.
+
+Built-in dynamics keep physical parameters immutable. A new problem is required for revised initial values. Saved numerical archives retain existing GC/FC schemas and can be interpreted without constructing dynamics or loading a field.
 
 ## Newton iterate callbacks
 
@@ -134,7 +131,7 @@ gyroaveraged field, without refitting or mutating the source dynamics. Inherited
 electric fields follow the potential class; `evaluate_grid` remains NumPy-only. See the
 [shared potential contract](../../../dynamics/jax-potential-evaluation.md).
 
-Initial data are packed NumPy arrays, including the output of `states.generators`. `formulations.layout` supplies GC/FC layouts; `request.SimulationRequest` owns the initial time and output schedule. Controllers manage the current internal `IntegrationState`; `states.States` stores physical samples and becomes the completed result. Several methods can share a formulation. See the [migration guide](../../../simulation/api-migration.md).
+Dynamics declare immutable `PhysicalCoordinates(component_names, position_names=(), velocity_names=())` from `dynamics.coordinates`. GC declares `(x,y)`; FC declares `(x,y,vx,vy)`. Position and velocity roles are explicit. The structural protocol is `contracts.dynamics.coordinates.StateLayout`; external implementations require no inheritance.
 
 ## Initial data and numerical components
 
@@ -143,20 +140,20 @@ packed-array callers remain supported. See the [component interface](../../../si
 for ownership, array shapes and unchanged request/result boundaries.
 
 ABBA separates `ReducedProjection` and `SimultaneousProjection` in
-`formulations.projection`; the method provides the composition and its derivative.
+`methods.projection`; the method provides the composition and its derivative.
 The equation object owns the 2N/6N residual and reconstruction. `solver=` accepts
 NewtonSolver or BroydenSolver; the existing string choices and tolerance keywords
 remain supported. CPU and JAX use the same equation classes.
 
 ## State representation and step preparation
 
-The method initializes its internal state from physical input and the request's
-time. `SingleFormulation`/`DoubleFormulation` retain only layout, particle count
-and tracking settings. Their `lift` operation prepares physical copies; `pack`
-adds caller-supplied time and momentum. The method selects projection and solver,
-updates passive momentum, and supplies Hamiltonian values for output diagnostics.
-Accepted doubled copies stay equal, with no additional copies across steps.
-See [representation operations](../../../simulation/initial-solvers-formulations.md#state-representations).
+`SingleFormulation(physical_size)` and `DoubleFormulation(physical_size)` retain only a positive physical vector size. They prepare one or two temporary copies through `lift`, `join_copies` and `split_copies`. Shapes are `(d*N,*samples)` and `(copies*d*N,*samples)`; shifted copies remain distinct until the method projects them. NumPy/JAX backends and complete FC velocity blocks are preserved. There is no layout, particle count, tracking flag, clock, momentum, initial state, projection or solver in either representation.
+
+Every accepted snapshot is `IntegrationState(time, values, momentum=None)`: scalar time, physical `values` of shape `(d*N,)`, and optional physical `momentum` of shape `(N,)`. GC remains 2N and FC 4N with or without tracking. Doubled GC work has 4N entries; generic doubled FC work has 8N. Workspaces are temporary and never become accepted states. This generic support does not extend GC numerical methods to FC.
+
+The method initializes zero momentum, prepares copies, selects projection equations and solver, and integrates momentum from accepted stages. `advance(t, Z, h, momentum=kappa)` returns physical `StepResult.state` and separate `StepResult.momentum`. `StepInfo.momentum_before` records the incoming auxiliary. Shadow samples start from the same accepted physical state and momentum. JAX carries separate arrays through the compiled loop.
+
+Methods evaluate saved physical H once. `states.energy.energy_diagnostics` combines supplied H and physical kappa without dynamics evaluation. Existing energy labels and `(N,T)` auxiliary histories remain unchanged; `extended_time` is broadcast from scalar sample times. Numerical archives require no migration; old pickled configured objects should be recreated.
 
 ## Integration step
 

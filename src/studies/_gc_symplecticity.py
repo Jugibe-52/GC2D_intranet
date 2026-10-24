@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from formulations.layout import GCStateLayout
+from dynamics.gc import GuidingCenterDynamics
 
 from collections.abc import Callable
 from contextlib import ExitStack
@@ -313,14 +313,14 @@ def _run_gc_symplecticity_study(
 
 	rho: float = resolve_rho(config.rho)
 	dynamics: GuidingCenterDynamics = GuidingCenterDynamics(potential, rho=rho)
-	problem: InitialValueProblem = InitialValueProblem(dynamics, area, layout=GCStateLayout())
+	problem: InitialValueProblem = InitialValueProblem(dynamics, area, layout=GuidingCenterDynamics.coordinates)
 	initial_state = area
 	assert initial_state is not None
 	common_metadata = {
 		**dict(metadata or {}),
 		"method": method_name,
 		"geometry": dict(metadata or {}).get("geometry", "polygon"),
-		"particle_count": GCStateLayout().particle_count(initial_state),
+		"particle_count": GuidingCenterDynamics.coordinates.particle_count(initial_state),
 		"rho": rho,
 	}
 	solutions: dict[str, States] = {}
@@ -418,14 +418,14 @@ def _run_gc_symplecticity_observers(
 
 	rho: float = resolve_rho(config.rho)
 	dynamics: GuidingCenterDynamics = GuidingCenterDynamics(potential, rho=rho)
-	problem: InitialValueProblem = InitialValueProblem(dynamics, area, layout=GCStateLayout())
+	problem: InitialValueProblem = InitialValueProblem(dynamics, area, layout=GuidingCenterDynamics.coordinates)
 	initial_state = area
 	assert initial_state is not None
 	common_metadata = {
 		**dict(metadata or {}),
 		"method": method_name,
 		"geometry": dict(metadata or {}).get("geometry", "polygon"),
-		"particle_count": GCStateLayout().particle_count(initial_state),
+		"particle_count": GuidingCenterDynamics.coordinates.particle_count(initial_state),
 		"rho": rho,
 	}
 	solutions: dict[str, States] = {}
@@ -534,7 +534,7 @@ def _validate_gc_study_inputs(
 	"""Check the shared physical, geometric, and study contracts of both runners."""
 	if not isinstance(potential, Potential):
 		raise TypeError("`potential` must be a Potential instance.")
-	if not (isinstance(area, np.ndarray) and GCStateLayout().state_dimension == 2 and GCStateLayout().particle_count(area) >= 3):
+	if not (isinstance(area, np.ndarray) and GuidingCenterDynamics.coordinates.state_dimension == 2 and GuidingCenterDynamics.coordinates.particle_count(area) >= 3):
 		raise TypeError("`area` must be a GC np.ndarray with at least three ordered boundary vertices.")
 	if not isinstance(config, GCSymplecticityConfig):
 		raise TypeError("`config` must be a GCSymplecticityConfig instance.")

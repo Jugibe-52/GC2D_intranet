@@ -8,7 +8,6 @@ import numpy as np
 from contracts.studies.comparison import EnergyAccuracySeries, TrajectoryAccuracySeries
 from dynamics.fc import FullCyclotronDynamics
 from dynamics.gc import GuidingCenterDynamics
-from formulations.layout import GCStateLayout
 from methods.classical.gauss_legendre import GaussLegendre4
 from methods.classical.sdirk import SDIRK4
 from potential.potential import Potential
@@ -71,7 +70,7 @@ class PreparedConstructorContractTests(unittest.TestCase):
 			EnergyAccuracySeries("", np.array([np.nan]))
 
 	def test_failed_diagnostic_preparation_does_not_seal_the_recorder(self) -> None:
-		result = States.prepare(np.array([0., 1.]), np.zeros(2), layout=GCStateLayout())
+		result = States.prepare(np.array([0., 1.]), np.zeros(2), layout=GuidingCenterDynamics.coordinates)
 		result.record_history(np.ones((2, 2)))
 		metric = np.array([3., 4.])
 		with self.assertRaisesRegex(TypeError, "scalar values or NumPy arrays"):

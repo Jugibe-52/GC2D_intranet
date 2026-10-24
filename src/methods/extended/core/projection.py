@@ -5,17 +5,17 @@ from typing import Literal, TYPE_CHECKING
 import numpy as np
 
 from contracts.solvers.nonlinear import NewtonObserver
-from formulations.gc import GCDoubledMaps
+from methods.extended.maps import GCDoubledMaps
 from solvers.linear import _solve_particle_systems
 from solvers.nonlinear import SolverOptions, SolveStats, _bind_newton_observer, configured_solver, NewtonSolver, BroydenSolver, AlgebraicSolver
 from methods.extended.core.composition import Composition, compose
-from formulations.projection import ProjectionChoice, resolve_projection
+from methods.projection import ProjectionChoice, resolve_projection
 from methods.extended.core.jacobians import central_difference_jacobian, particle_jacobians
 from methods.extended.core.records import CompositionTrace, ProjectedMapResult
 
 
 if TYPE_CHECKING:
-    from contracts.formulations.projection import ProjectionFormulation
+    from contracts.methods.projection import ProjectionFormulation
     from solvers.nonlinear import _NonlinearResult
     from typing import Any
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 
-from formulations.layout import GCStateLayout
+from dynamics.gc import GuidingCenterDynamics
 
 from itertools import product
 import unittest
@@ -24,7 +24,7 @@ from contracts.methods.step import StepInfo
 def _problem() -> InitialValueProblem:
 	"""One inexpensive smooth non-autonomous particle."""
 	potential = Potential.random(A=0.08, M=3, nx=16, ny=16, seed=27, interpolation_order=5)
-	return InitialValueProblem(GuidingCenterDynamics(potential, rho=0.05), GCStateLayout().pack_components([1.0], [1.2]), layout=GCStateLayout())
+	return InitialValueProblem(GuidingCenterDynamics(potential, rho=0.05), GuidingCenterDynamics.coordinates.pack_components([1.0], [1.2]), layout=GuidingCenterDynamics.coordinates)
 
 
 def _request(times: list[float]) -> SimulationRequest:
@@ -53,8 +53,8 @@ class SharedABBARuntimeTests(unittest.TestCase):
 					nonlinear_solver=solver, track_energy=track_energy,
 					newton_max_iterations=50, step_observer=lambda event: None)
 				prepared = replace(method, step=0.02).new_run(problem, request)
-				state = prepared.state_formulation.physical(prepared.initial_state)
-				step = prepared.advance(0.0, prepared.initial_state, 0.02)
+				state = prepared.initial_state
+				step = prepared.advance(0.0, prepared.initial_state, 0.02, momentum=prepared.initial_momentum)
 				result = step.details
 				self.assertIsInstance(result, ProjectedMapResult)
 				self.assertIsInstance(result.trace, CompositionTrace)
@@ -62,7 +62,7 @@ class SharedABBARuntimeTests(unittest.TestCase):
 				self.assertLessEqual(result.stats.residual_norm, result.stats.tolerance)
 				np.testing.assert_array_equal(result.state_before, state)
 				np.testing.assert_array_equal(
-					result.state, prepared.state_formulation.physical(step.state))
+					result.state, step.state)
 				event = prepared.build_observation(
 					StepInfo(0, 0.0, 0.02, 0.02, prepared.initial_state), step)
 				for metric, observed in (

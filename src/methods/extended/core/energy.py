@@ -2,7 +2,7 @@
 from __future__ import annotations
 from collections.abc import Callable, Iterable
 import numpy as np
-from formulations.gc import _EnergyQuadraturePoint
+from methods.extended.maps import _EnergyQuadraturePoint
 
 
 def momentum_increment(

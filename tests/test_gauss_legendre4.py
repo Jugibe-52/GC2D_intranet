@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 
-from formulations.layout import GCStateLayout
+from dynamics.gc import GuidingCenterDynamics
 
 import unittest
 
@@ -122,7 +122,7 @@ def _rotation_problem(*, particles: int = 1) -> InitialValueProblem:
 	"""Return packed independent oscillators with distinct initial phases."""
 	angles = np.linspace(0.0, 0.4, particles)
 	state = np.concatenate((np.cos(angles), np.sin(angles)))
-	return InitialValueProblem(_RotationHamiltonian(), np.array(state, dtype=float, copy=True), layout=GCStateLayout())
+	return InitialValueProblem(_RotationHamiltonian(), np.array(state, dtype=float, copy=True), layout=GuidingCenterDynamics.coordinates)
 
 
 class GaussLegendre4Tests(unittest.TestCase):
@@ -159,7 +159,7 @@ class GaussLegendre4Tests(unittest.TestCase):
 			self.assertLess(coarse / fine, 18.0)
 
 	def test_generic_time_dependent_field_uses_gauss_stage_times(self) -> None:
-		problem = InitialValueProblem(_CubicTimeField(), np.array(np.zeros(2), dtype=float, copy=True), layout=GCStateLayout())
+		problem = InitialValueProblem(_CubicTimeField(), np.array(np.zeros(2), dtype=float, copy=True), layout=GuidingCenterDynamics.coordinates)
 		solution = simulate(
 			problem,
 			GaussLegendre4(step=1.0, newton_jacobian_method="auto"),
@@ -192,7 +192,7 @@ class GaussLegendre4Tests(unittest.TestCase):
 			seed=27,
 			interpolation_order=2,
 		)
-		problem = InitialValueProblem(GuidingCenterDynamics(potential, rho=0.05), np.array(np.asarray((1.0, 1.2)), dtype=float, copy=True), layout=GCStateLayout())
+		problem = InitialValueProblem(GuidingCenterDynamics(potential, rho=0.05), np.array(np.asarray((1.0, 1.2)), dtype=float, copy=True), layout=GuidingCenterDynamics.coordinates)
 		request = SimulationRequest.uniform(
 			t_span=(0.0, 0.02),
 			sample_count=3,
@@ -242,7 +242,7 @@ class GaussLegendre4Tests(unittest.TestCase):
 			seed=27,
 			interpolation_order=5,
 		)
-		problem = InitialValueProblem(GuidingCenterDynamics(potential, rho=0.05), np.array(np.asarray((1.0, 2.0, 1.2, 2.1)), dtype=float, copy=True), layout=GCStateLayout())
+		problem = InitialValueProblem(GuidingCenterDynamics(potential, rho=0.05), np.array(np.asarray((1.0, 2.0, 1.2, 2.1)), dtype=float, copy=True), layout=GuidingCenterDynamics.coordinates)
 		events: list[GaussLegendre4IntegrationStep] = []
 		simulate(
 			problem,
@@ -285,7 +285,7 @@ class GaussLegendre4Tests(unittest.TestCase):
 
 	def test_nonautonomous_generalized_energy_converges_at_order_four(self) -> None:
 		initial_state = np.asarray((1.0, 0.0))
-		problem = InitialValueProblem(_ExponentialRotationHamiltonian(), np.array(initial_state, dtype=float, copy=True), layout=GCStateLayout())
+		problem = InitialValueProblem(_ExponentialRotationHamiltonian(), np.array(initial_state, dtype=float, copy=True), layout=GuidingCenterDynamics.coordinates)
 		errors: list[float] = []
 		finest = None
 		for step in (0.2, 0.1, 0.05):
@@ -327,7 +327,7 @@ class GaussLegendre4Tests(unittest.TestCase):
 			seed=27,
 			interpolation_order=3,
 		)
-		problem = InitialValueProblem(GuidingCenterDynamics(potential, rho=0.05), np.array(np.asarray((1.0, 1.2)), dtype=float, copy=True), layout=GCStateLayout())
+		problem = InitialValueProblem(GuidingCenterDynamics(potential, rho=0.05), np.array(np.asarray((1.0, 1.2)), dtype=float, copy=True), layout=GuidingCenterDynamics.coordinates)
 		events: list[GaussLegendre4IntegrationStep] = []
 		solution = simulate(
 			problem,

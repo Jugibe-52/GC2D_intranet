@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from contracts.formulations.base import PreparedDirectAdjointFormulation
+from contracts.methods.maps import DirectAdjointMaps
 from contracts.methods.observation import IntegrationStage
 from methods.extended.core.composition import StageMap
 from dataclasses import dataclass
@@ -153,7 +153,7 @@ __all__: list[str] = []
 
 
 def stage_events(
-    prepared: PreparedDirectAdjointFormulation, trace: CompositionTrace, *,
+    prepared: DirectAdjointMaps, trace: CompositionTrace, *,
     step_index: int, formulation_name: str, method_name: str,
     stage_maps: tuple[StageMap, StageMap] | None = None,
 ) -> tuple[IntegrationStage, ...]:

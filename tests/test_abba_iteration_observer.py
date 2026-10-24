@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from formulations.layout import GCStateLayout
+from dynamics.gc import GuidingCenterDynamics
 
 import json
 from pathlib import Path
@@ -51,7 +51,7 @@ def _potential() -> Potential:
 
 def _configuration() -> np.ndarray:
 	"""Return one planar guiding-centre particle."""
-	return GCStateLayout().pack_components(np.asarray([1.0]), np.asarray([1.2]))
+	return GuidingCenterDynamics.coordinates.pack_components(np.asarray([1.0]), np.asarray([1.2]))
 
 
 class ImplicitABBAIterationObserverTests(unittest.TestCase):
@@ -78,7 +78,7 @@ class ImplicitABBAIterationObserverTests(unittest.TestCase):
 					chunk_size=2,
 				) as observer:
 					solution = simulate(
-						InitialValueProblem(GuidingCenterDynamics(_potential(), rho=0.05), _configuration(), layout=GCStateLayout()),
+						InitialValueProblem(GuidingCenterDynamics(_potential(), rho=0.05), _configuration(), layout=GuidingCenterDynamics.coordinates),
 						ABBA2Implicit(step=0.02,
 							projection_formulation=formulation,
 							step_observer=observer,

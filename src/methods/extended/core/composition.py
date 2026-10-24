@@ -10,7 +10,7 @@ import math
 
 import numpy as np
 
-from formulations.gc import GCDoubledMaps, _EnergyQuadraturePoint
+from methods.extended.maps import GCDoubledMaps, _EnergyQuadraturePoint
 from methods.extended.core.operations import Operation, A, B, T, C
 from methods.extended.core.records import CompositionTrace, MapStage, OperationStage
 

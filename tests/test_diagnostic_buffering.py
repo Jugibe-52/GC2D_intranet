@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from states import generators as state_generators
-from formulations.layout import GCStateLayout
+from dynamics.gc import GuidingCenterDynamics
 
 from collections.abc import Callable
 import csv
@@ -23,12 +23,11 @@ from diagnostics.methods.extended.abba_jacobian.observer import ImplicitABBAJaco
 from diagnostics.io.buffering import DiagnosticBuffer
 from diagnostics.methods.implicit_iterations import ImplicitABBAIterationObserver
 from diagnostics.io.output import DiagnosticBlockPaths
-from diagnostics.formulations.projection.observer import ProjectedSymplecticityAreaObserver
+from diagnostics.methods.projection.observer import ProjectedSymplecticityAreaObserver
 from diagnostics.methods.symplecticity.area import GCAreaSymplecticityObserver
 from diagnostics.methods.symplecticity.observer import SymplecticityObserver
 from diagnostics.methods.trajectory_symplecticity.jacobians import abba2_implicit_step_particle_jacobians
 from diagnostics.methods.trajectory_symplecticity.observer import GCTrajectorySymplecticityObserver
-from dynamics.gc import GuidingCenterDynamics
 
 from methods.extended.abba import ABBA2Implicit
 from potential.potential import Potential
@@ -100,7 +99,7 @@ class DiagnosticBufferingTests(unittest.TestCase):
 		potential = Potential.random(A=0.02, M=2, nx=8, ny=8)
 		dynamics = GuidingCenterDynamics(potential)
 		configuration = np.array(np.array([1.0, 0.7]), dtype=float, copy=True)
-		problem = InitialValueProblem(dynamics, configuration, layout=GCStateLayout())
+		problem = InitialValueProblem(dynamics, configuration, layout=GuidingCenterDynamics.coordinates)
 		events: list[IntegrationStep] = []
 		simulate(problem, ABBA2Implicit(step=0.01, step_observer=events.append),
 			SimulationRequest.uniform(t_span=(0.0, 0.01),  sample_count=2))

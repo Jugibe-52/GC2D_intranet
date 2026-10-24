@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from formulations.layout import FCStateLayout, GCStateLayout
+from dynamics.fc import FullCyclotronDynamics
+from dynamics.gc import GuidingCenterDynamics
 
 from dataclasses import replace
 from hashlib import sha256
@@ -29,7 +30,7 @@ from studies.persistence_demo import PersistenceDemoConfig, run_persistence_demo
 
 class SolutionPersistenceTests(unittest.TestCase):
     def test_incomplete_recording_is_rejected_before_creating_an_archive(self) -> None:
-        result = States.prepare(np.array([0., 1.]), np.array([1., 2.]), layout=GCStateLayout())
+        result = States.prepare(np.array([0., 1.]), np.array([1., 2.]), layout=GuidingCenterDynamics.coordinates)
         result.record(0., np.array([1., 2.]))
         destination = self.directory / "partial"
         with self.assertRaisesRegex(ValueError, "completed States"):
@@ -43,7 +44,7 @@ class SolutionPersistenceTests(unittest.TestCase):
         self.field = Potential.random(A=0.1, M=2, nx=12, ny=12, seed=17)
 
     def solution(self, full: bool = False) -> States:
-        layout = FCStateLayout() if full else GCStateLayout()
+        layout = FullCyclotronDynamics.coordinates if full else GuidingCenterDynamics.coordinates
         state = np.arange(8 if full else 4, dtype=float) / 10
         return States(t=np.array([0.0, 0.1, 0.2]), states=np.column_stack([state, state + 0.01, state + 0.02]), initial_state=np.array(state, dtype=float, copy=True), diagnostics={"step_count": 2, "label": "example", "enabled": True,
                                      "error": 1e-5, "work": np.array([1, 2], dtype=np.int64),
@@ -136,7 +137,7 @@ class SolutionPersistenceTests(unittest.TestCase):
 
     def test_no_potential_and_no_initial_configuration_state(self) -> None:
         original = self.solution()
-        solution = States(t=original.t, states=original.states, initial_state=None, layout=GCStateLayout())
+        solution = States(t=original.t, states=original.states, initial_state=None, layout=GuidingCenterDynamics.coordinates)
         location = self.directory / "plain"
         save_solution(solution, location, metadata={})
         restored = load_solution(location)

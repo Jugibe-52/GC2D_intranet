@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from formulations.layout import GCStateLayout
+from dynamics.gc import GuidingCenterDynamics
 
 from pathlib import Path
 import tempfile
@@ -41,7 +41,7 @@ def _potential() -> Potential:
 
 def _configuration() -> np.ndarray:
 	"""Return one planar guiding-centre particle."""
-	return GCStateLayout().pack_components(np.asarray([1.0]), np.asarray([1.2]))
+	return GuidingCenterDynamics.coordinates.pack_components(np.asarray([1.0]), np.asarray([1.2]))
 
 
 class ImplicitBM4IterationObserverTests(unittest.TestCase):
@@ -62,7 +62,7 @@ class ImplicitBM4IterationObserverTests(unittest.TestCase):
 				chunk_size=2,
 			) as observer:
 				solution = simulate(
-					InitialValueProblem(GuidingCenterDynamics(_potential(), rho=0.05), _configuration(), layout=GCStateLayout()),
+					InitialValueProblem(GuidingCenterDynamics(_potential(), rho=0.05), _configuration(), layout=GuidingCenterDynamics.coordinates),
 					BM4Implicit(step=0.02, step_observer=observer),
 					request,
 				)

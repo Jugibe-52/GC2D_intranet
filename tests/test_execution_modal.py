@@ -2,7 +2,7 @@
 
 from dataclasses import replace
 
-from formulations.layout import GCStateLayout
+from dynamics.gc import GuidingCenterDynamics
 
 import importlib.util
 import ast
@@ -26,7 +26,6 @@ from problem import InitialValueProblem
 from request import SimulationRequest
 from states.history import States
 from diagnostics.io.persistence import load_solution, save_solution
-from dynamics.gc import GuidingCenterDynamics
 from execution import Execution, Execution_Modal
 from execution._modal_worker import encode_job, execute_payload
 
@@ -38,7 +37,7 @@ from simulation.runner import simulate
 def make_problem():
     """A small batched physical problem with reconstructible field data."""
     potential = Potential.random(A=.1, M=3, nx=16, ny=16, seed=27)
-    return InitialValueProblem(GuidingCenterDynamics(potential, rho=.3), GCStateLayout().pack_components(np.array([.2, .4]), np.array([.3, .5])), layout=GCStateLayout())
+    return InitialValueProblem(GuidingCenterDynamics(potential, rho=.3), GuidingCenterDynamics.coordinates.pack_components(np.array([.2, .4]), np.array([.3, .5])), layout=GuidingCenterDynamics.coordinates)
 
 
 class ModalExecutionTests(unittest.TestCase):
@@ -138,7 +137,7 @@ class ModalExecutionTests(unittest.TestCase):
     def test_resume_rejects_changed_method_or_physics_or_sampling(self):
         executor = self.executor()
         executor.run(self.problem, self.method, self.request)
-        other_problem = InitialValueProblem(GuidingCenterDynamics(self.problem.dynamics.potential, rho=.1), self.problem.initial_state, layout=GCStateLayout())
+        other_problem = InitialValueProblem(GuidingCenterDynamics(self.problem.dynamics.potential, rho=.1), self.problem.initial_state, layout=GuidingCenterDynamics.coordinates)
         other_request = SimulationRequest.uniform(t_span=(0., .02),  sample_count=3)
         for problem, method, request in ((other_problem, self.method, self.request),
                                          (self.problem, BM4Implicit(), self.request),

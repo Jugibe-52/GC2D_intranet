@@ -4,11 +4,11 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from typing import Protocol, TYPE_CHECKING, TypeVar
-import numpy as np
 from contracts.methods.step import StepInfo, StepResult
 if TYPE_CHECKING:
 	from methods.base import IntegrationMethod
 	from request import SimulationRequest
+	from execution.state import IntegrationState
 
 Detail = TypeVar("Detail")
 
@@ -28,7 +28,7 @@ class StepController(Protocol[Detail]):
 	def sample(
 		self, method: IntegrationMethod[Detail], info: StepInfo,
 		result: StepResult[Detail], time: float,
-	) -> np.ndarray:
+	) -> IntegrationState:
 		"""Return a state at any requested time in the interval, including its ends."""
 		...
 

@@ -65,49 +65,42 @@ The method is implemented in
 lifecycle is documented in the sibling \texttt{simulation/} directory; shared
 physical dynamics are documented outside the model tree.
 
-\section{Four state formulations and passive energy tracking}
-For one planar particle the supported internal representations are
-\[
-\begin{array}{lll}
-\text{physical} & z=(x,y) & \mathbb{R}^{2},\\
-\text{physical with energy} & (z,t,\kappa) & \mathbb{R}^{4},\\
-\text{duplicated} & (u,v),\quad u,v\in\mathbb{R}^{2} & \mathbb{R}^{4},\\
-\text{duplicated with energy} & (u,v,t,\kappa) & \mathbb{R}^{6}.
-\end{array}
-\]
-Classical methods use the physical rows; ABBA and BM4 use the duplicated rows.
-\texttt{track\_energy} selects the energy variant. For $N$ planar particles the
-respective dimensions are $2N$, $4N$, $4N$, and $6N$: one time entry and
-one momentum per particle. All time entries equal the integration time. Classical full-cyclotron runs instead use $4N$ or $6N$ entries.
-Accepted spatial copies coincide; only one physical copy is exported.
-Every coordinate block contains $N$ values in component-major order. The
-formulation validates particle times and aligns output round-off; the
-integrator does not interpret coordinate indices.
+\section{Physical accepted states and passive energy tracking}
+For $N$ particles with $d$ physical components, every accepted snapshot contains
+$Z\in\mathbb{R}^{dN}$, one scalar time $t$, and optional separate physical
+momentum $\kappa\in\mathbb{R}^{N}$. Thus GC accepted vectors have $2N$
+components and FC vectors have $4N$, whether energy is tracked or not.
+A doubled method prepares temporary $(u,v)\in\mathbb{R}^{2dN}$ copies,
+allows them to separate, and projects to one physical result before acceptance.
+The representation stores only the physical size and never owns a clock,
+momentum, physical coordinate declaration, dynamics or solver.
 
 The normalized passive balance is
 \[
-\dot\kappa=-\partial_tH(t,z),\qquad \kappa(t_0)=0,\qquad
-\Delta K(t)=H(t,z(t))+\kappa(t)-H(t_0,z_0).
+\dot\kappa=-\partial_tH(t,Z),\qquad \kappa(t_0)=0,\qquad
+\Delta K(t)=H(t,Z(t))+\kappa(t)-H(t_0,Z_0).
 \]
-Splitting accumulators from both copies are divided by two. The physical
-Hamiltonian may vary with time; $\Delta K$ measures its computed balance.
-Tracking leaves physical trajectories, nonlinear stopping rules and adaptive
-acceptance unchanged. Dynamics must supply the momentum derivative, including
-zero for an autonomous Hamiltonian.
+GC split-map contributions are summed in temporary work and divided by two
+to obtain physical momentum. Tracking leaves physical stages, nonlinear
+stopping scales and adaptive acceptance unchanged. An autonomous Hamiltonian
+supplies an explicit zero momentum derivative.
 
 Hairer's constraint is solely $u-v=0$: the reduced multiplier has $2N$ entries
 and ABBA's simultaneous spatial solve has $6N$ unknowns. Neither $t$ nor
-$\kappa$ is projected. The former eight-component projection is retired;
-\texttt{state\_extension='fully\_extended'} raises migration guidance.
+$\kappa$ is projected. The former eight-component projection is retired.
+Dynamics declare component order and position/velocity roles through immutable
+structural data; initial conditions and results retain those data independently.
+Methods own maps, projection equations and momentum updates. Generic copy
+operations live in \path{src/formulations/state.py}.
 
-Dynamics, formulation, method and integration remain separate. The shared
-state classes own layouts, diagonal embedding and history extraction in
-\begin{quote}\small\path{src/formulations/state.py}\end{quote}
-Each integration initializes a fresh method instance. Observers receive physical
-states; energy histories are in \texttt{Solution.diagnostics}.
-The \texttt{extended\_time} history has shape $(N,n_{\rm samples})$. Fixed-step shadow
-samples leave main states and counters unchanged. Adaptive energy quadrature
-uses accepted dense output; its backend state and Jacobian remain physical.
+Controllers and compiled JAX loops carry physical values and momentum separately.
+Observers receive physical states. Energy histories in \texttt{States.diagnostics}
+retain their existing labels; \texttt{extended\_time} has shape
+$(N,n_{\rm samples})$ and is broadcast from scalar sample times.
+Fixed shadow samples leave accepted states and counters unchanged. Adaptive
+quadrature uses accepted dense output and physical-only error control.
+
+
 
 
 \section{Optional JAX execution}

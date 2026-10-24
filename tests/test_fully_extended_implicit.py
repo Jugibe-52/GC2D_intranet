@@ -16,7 +16,7 @@ class FormerFullProjectionTests(unittest.TestCase):
                 events=[]
                 result=simulate(_problem(), cls(track_energy=True, projection_formulation=formulation,
                     step_observer=events.append), _request())
-                self.assertEqual(result.diagnostics["accepted_internal_state_dimension"],6)
+                self.assertEqual(result.diagnostics["accepted_internal_state_dimension"],2)
                 self.assertEqual(result.diagnostics["nonlinear_unknown_dimension"],
                     2 if formulation=="reduced_multiplier" else 6)
                 self.assertEqual(events[0].state_before.shape,(2,))

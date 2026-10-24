@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from diagnostics.studies.comparison import rms_error, running_maximum_absolute_error, time_integrated_rms_floor
 
-from formulations.layout import GCStateLayout
+from dynamics.gc import GuidingCenterDynamics
 
 import unittest
 
@@ -84,7 +84,7 @@ class ThreeMethodNewtonComparisonTests(unittest.TestCase):
 		initial_state = result.initial_configuration
 		assert initial_state is not None
 		self.assertEqual(
-			GCStateLayout().particle_count(initial_state),
+			GuidingCenterDynamics.coordinates.particle_count(initial_state),
 			3,
 		)
 		self.assertEqual(result.reference.times.size, 3)

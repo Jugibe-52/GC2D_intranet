@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from formulations.layout import GCStateLayout
+from dynamics.gc import GuidingCenterDynamics
 
 import unittest
 
@@ -60,7 +60,7 @@ class ImplicitTrajectoryComparisonTests(unittest.TestCase):
 
 		self.assertEqual(tuple(result.solutions), IMPLICIT_METHOD_NAMES)
 		self.assertEqual(
-			GCStateLayout().particle_count(configuration),
+			GuidingCenterDynamics.coordinates.particle_count(configuration),
 			10,
 		)
 		for solution in result.solutions.values():

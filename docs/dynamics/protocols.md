@@ -13,12 +13,7 @@ value per particle; Hamiltonian evaluation also supports saved time histories.
 The momentum derivative is `-partial_t H` with the same energy normalization
 as `hamiltonian`. Autonomous systems provide an explicit zero derivative.
 
-The protocols describe available capabilities. The formulation's `track_energy`
-flag selects whether to use them: `False` requires only the basic dynamics
-contract, while `True` requires `HamiltonianSystem` and appends the per-particle
-time and passive momentum `kappa`. The same dynamics instance supports either
-setting. Energy tracking measures the balance `H(t, state) + kappa` and does not
-change the physical vector field or the physical integration decisions.
+The method's `track_energy` flag selects optional Hamiltonian capabilities. Tracking integrates separate per-particle physical momentum and measures `H + kappa`; it changes neither physical states nor integration decisions.
 
 `GuidingCenterJacobianSystem` and `CyclotronSplitSystem` remain separate,
 specialized contracts for analytic Jacobians and cyclotron splitting. They are
@@ -50,27 +45,18 @@ placement, including NumPy-only `evaluate_grid` reconstruction.
 
 ## Physical layouts and problem ownership
 
-`formulations.layout` owns `PackedStateLayout`, `GCState`, `GCStateLayout`, `FCState` and `FCStateLayout`. Dynamics, formulations, generators and results share these component-major operations. `GCState` and `FCState` are named component tuples, not storage classes. The structural `StateLayout` protocol remains in `contracts.formulations.layout` and requires no inheritance from a built-in layout.
+Dynamics declare immutable `PhysicalCoordinates(component_names, position_names=(), velocity_names=())` from `dynamics.coordinates`. GC declares `(x,y)`; FC declares `(x,y,vx,vy)`. Position and velocity roles are explicit. The structural protocol is `contracts.dynamics.coordinates.StateLayout`; external implementations require no inheritance.
 
-`split` reshapes the packed vector or history into component blocks without calling the explicit validator. `validate_packed_state_layout` checks nonempty complete blocks; `as_blocks` also validates them. The inferred reshape in `split` requires nonempty sample axes. Operations preserve NumPy/JAX backends.
+`InitialValueProblem` takes the dynamics declaration or requires an explicit layout. It never infers a physical model from dimension 2 or 4. It checks dimension, component order and position/velocity roles, even for equally sized arrays. Initial conditions and results retain an immutable structural description and owned arrays, without retaining live dynamics or a potential. Generic packing, component views and role access support `(d*N,*samples)`, `(d,N,*samples)` and `(N,*samples)` while preserving NumPy/JAX tracing. Incomplete blocks are rejected.
 
-`InitialValueProblem(dynamics, initial_state, layout=...)` accepts a finite one-dimensional physical array. It captures independent array and deepcopy-compatible layout snapshots and validates particle count and dynamics dimension. GC uses `[x, y]`; FC uses `[x, y, vx, vy]`. An omitted layout selects the canonical GC/FC layout from the dynamics dimension; other dimensions require an explicit structural layout. GC doubled maps require two physical components; FC split maps require four plus `CyclotronSplitSystem`. Hamiltonian capability is independent of this layout choice.
-
-Problem accessors return independent initial-array and layout copies. `States` similarly preserves an independent initial snapshot and layout alongside its physical history. There is no retained provider identity or `source` object. Construct a new problem to use revised initial values. The initial time belongs to `request.SimulationRequest`, and the integration controller manages current internal values and time through `IntegrationState`.
-
-Built-in GC and FC dynamics freeze their physical parameters. Construct a new
-`GuidingCenterDynamics` or `FullCyclotronDynamics` for a different potential,
-`rho`, or `eta`; this keeps the GC gyroaveraged field and compiled calculations
-consistent with the declared system. These objects and problem snapshots remain
-pickle-compatible for process and Modal execution. Custom dynamical systems
-remain responsible for keeping their own physical parameters stable during a run.
+Built-in dynamics keep physical parameters immutable. A new problem is required for revised initial values. Saved numerical archives retain existing GC/FC schemas and can be interpreted without constructing dynamics or loading a field.
 
 ## Dynamics-independent state representation
 
-`SingleFormulation` and `DoubleFormulation` take structural layout and particle
-count, with optional energy tracking; neither retains dynamics or initial data.
-GC and FC therefore share the representation operations, while their elementary
-flows and method compatibility remain distinct. Methods validate the Hamiltonian
-capability, integrate passive momentum and evaluate saved physical energy.
-Representations assemble diagnostics only from supplied energy arrays. See
-[state representations](../simulation/initial-solvers-formulations.md#state-representations).
+`SingleFormulation(physical_size)` and `DoubleFormulation(physical_size)` retain only a positive physical vector size. They prepare one or two temporary copies through `lift`, `join_copies` and `split_copies`. Shapes are `(d*N,*samples)` and `(copies*d*N,*samples)`; shifted copies remain distinct until the method projects them. NumPy/JAX backends and complete FC velocity blocks are preserved. There is no layout, particle count, tracking flag, clock, momentum, initial state, projection or solver in either representation.
+
+Every accepted snapshot is `IntegrationState(time, values, momentum=None)`: scalar time, physical `values` of shape `(d*N,)`, and optional physical `momentum` of shape `(N,)`. GC remains 2N and FC 4N with or without tracking. Doubled GC work has 4N entries; generic doubled FC work has 8N. Workspaces are temporary and never become accepted states. This generic support does not extend GC numerical methods to FC.
+
+The method initializes zero momentum, prepares copies, selects projection equations and solver, and integrates momentum from accepted stages. `advance(t, Z, h, momentum=kappa)` returns physical `StepResult.state` and separate `StepResult.momentum`. `StepInfo.momentum_before` records the incoming auxiliary. Shadow samples start from the same accepted physical state and momentum. JAX carries separate arrays through the compiled loop.
+
+Methods evaluate saved physical H once. `states.energy.energy_diagnostics` combines supplied H and physical kappa without dynamics evaluation. Existing energy labels and `(N,T)` auxiliary histories remain unchanged; `extended_time` is broadcast from scalar sample times. Numerical archives require no migration; old pickled configured objects should be recreated.

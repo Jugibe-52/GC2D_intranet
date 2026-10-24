@@ -2,7 +2,7 @@
 
 from diagnostics.studies.comparison import final_rms_floor, time_integrated_rms_floor
 
-from formulations.layout import GCStateLayout
+from dynamics.gc import GuidingCenterDynamics
 
 from dataclasses import dataclass, replace
 from collections.abc import Mapping
@@ -103,7 +103,7 @@ def radial_configuration(
 		raise ValueError("Use finite increasing radius fractions in [0,1) and a finite angle.")
 	grid = potential.grid
 	radii = radii * grid.period / 2.0
-	return np.asarray(GCStateLayout().pack_components(grid.xmin + grid.period / 2 + radii * np.cos(angle), grid.ymin + grid.period / 2 + radii * np.sin(angle)))
+	return np.asarray(GuidingCenterDynamics.coordinates.pack_components(grid.xmin + grid.period / 2 + radii * np.cos(angle), grid.ymin + grid.period / 2 + radii * np.sin(angle)))
 
 
 def _rms(values: np.ndarray, times: np.ndarray) -> float:
@@ -187,7 +187,7 @@ def run_bm4_projection_comparison(
 	order. Arrays retain all accepted step diagnostics and saved trajectories.
 	"""
 	dynamics: GuidingCenterDynamics = GuidingCenterDynamics(potential, rho=config.rho)
-	problem: InitialValueProblem = InitialValueProblem(dynamics, configuration, layout=GCStateLayout())
+	problem: InitialValueProblem = InitialValueProblem(dynamics, configuration, layout=GuidingCenterDynamics.coordinates)
 	request: SimulationRequest = SimulationRequest.uniform(t_span=config.t_span,
 		sample_count=config.output_sample_count)
 	times = request.output_times

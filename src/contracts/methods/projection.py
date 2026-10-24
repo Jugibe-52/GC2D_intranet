@@ -1,4 +1,4 @@
-"""Structural contracts consumed by formulations.projection."""
+"""Structural contracts consumed by methods.projection."""
 
 from __future__ import annotations
 

@@ -45,7 +45,7 @@ class ExplicitEuler(FixedStepMethod[None]):
 	def initialize(self, problem: InitialValueProblem, request: SimulationRequest) -> None:
 		"""Bind the Euler map, its physical observation and output extraction."""
 		self.dynamics = problem.dynamics
-		self.state_formulation = SingleFormulation(problem.layout, problem.particle_count, self.track_energy)
+		self.state_formulation = SingleFormulation(problem.initial_state.size)
 		self.initial_state = self._initialize_state(problem, request)
 
 	def _apply_step(self, time: float, state: np.ndarray, step: float) -> np.ndarray:
@@ -53,12 +53,12 @@ class ExplicitEuler(FixedStepMethod[None]):
 		value: np.ndarray = np.asarray(state, dtype=float)
 		return np.asarray(value + step * _checked_vector_field(self.dynamics, time, value), dtype=float)
 
-	def advance(self, time: float, state: np.ndarray, step: float) -> StepResult[None]:
+	def advance(self, time: float, state: np.ndarray, step: float, *, momentum: np.ndarray | None = None) -> StepResult[None]:
 		"""Return one forward Euler step without collection or observation."""
-		physical: np.ndarray = self.state_formulation.physical(state)
+		physical: np.ndarray = self._checked_state(state, momentum)
 		increment: np.ndarray | None = step * self._momentum_rate(time, physical) if self.track_energy else None
-		after: np.ndarray = self._finish_state(state, self._apply_step(time, physical, step), time + step, increment)
-		return StepResult(after, {}, None)
+		after: np.ndarray = self._apply_step(time, physical, step)
+		return StepResult(after, {}, None, self._finish_momentum(momentum, increment))
 
 	def build_observation(self, info: StepInfo, result: StepResult[None]) -> IntegrationStep:
 		def map_state(candidate: np.ndarray) -> np.ndarray:
@@ -66,8 +66,8 @@ class ExplicitEuler(FixedStepMethod[None]):
 		return IntegrationStep(
 			dynamics_name=type(self.dynamics).__name__, method_name=type(self).__name__,
 			step_index=info.index, start_time=info.time, time=info.time + info.duration,
-			duration=info.duration, state_before=self.state_formulation.physical(info.state_before).copy(),
-			state_after=self.state_formulation.physical(result.state).copy(), map_state=map_state, dynamics=self.dynamics,
+			duration=info.duration, state_before=info.state_before.copy(),
+			state_after=result.state.copy(), map_state=map_state, dynamics=self.dynamics,
 		)
 
 

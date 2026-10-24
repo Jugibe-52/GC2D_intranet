@@ -1,11 +1,11 @@
-# Integration and the four state formulations
+# Integration, physical states and temporary workspaces
 
 All 13 public methods use executor-owned preparation through `IntegrationMethod.new_run`.
-Execution selects the host or device driver. Dynamics defines physics; formulation
-defines coordinates; the method defines numerical operations; execution controls
+Execution selects the host or device driver. Dynamics defines physics and coordinate roles; formulation
+prepares temporary copies; the method defines numerical operations; execution controls
 accepted intervals and collects output.
 
-`problem.py` owns physical initial-value problems; `request.py` owns the interval and output times; `contracts/` owns shared interfaces, step records and array compatibility. `formulations.layout` owns physical layouts, while reusable formulations define internal coordinates and extraction independently of method choice. `methods/` implements numerical steps. `execution/` owns preparation, accepted `IntegrationState` snapshots, sampling and host/device loops; `methods.base` owns numerical preparation. `states/` owns the physical recording container and completed result. `simulation/runner.py` validates that result against the inputs and returns the same object. Internal consumers import directly from each defining module.
+`problem.py` owns physical initial-value problems; `request.py` owns the interval and output times; `contracts/` owns shared interfaces, step records and array compatibility. `dynamics.coordinates` owns physical structural descriptions, while reusable formulations prepare temporary copies. `methods/` implements numerical steps. `execution/` owns preparation, accepted `IntegrationState` snapshots, sampling and host/device loops; `methods.base` owns numerical preparation. `states/` owns the physical recording container and completed result. `simulation/runner.py` validates that result against the inputs and returns the same object. Internal consumers import directly from each defining module.
 
 Validation follows the same ownership: `InitialValueProblem` checks the dynamics
 protocol and compatible initial layout; methods check the Hamiltonian
@@ -76,9 +76,9 @@ with its [SVG](integration-architecture_old.svg) and
 The diagram is a historical rendering, retained without regeneration. Its collector/result split and old module routes have been superseded. The current flow is:
 
 1. Build `InitialValueProblem` from dynamics, a physical array and its layout. Set t0 and output times in `SimulationRequest`.
-2. The executor prepares the environment and asks the method for a fresh run and formulation. The controller initializes `IntegrationState(t0, internal_values)`; `States.prepare(...)` reserves physical output columns.
+2. The executor prepares the environment and asks the method for a fresh run and formulation. The controller initializes `IntegrationState(t0, physical_values, momentum)`; `States.prepare(...)` reserves physical output columns.
 3. Advance one main interval and retain both accepted endpoint snapshots. Record accepted-step statistics on their own axis.
-4. For each requested time in that interval, reuse an endpoint or calculate an independent shadow/dense sample. The formulation extracts physical values and optional momentum; `States.record` copies them.
+4. For each requested time in that interval, reuse an endpoint or calculate an independent shadow/dense sample. The sample snapshot supplies physical values and optional momentum; `States.record` copies them.
 5. Evaluate energy diagnostics over the saved physical history and auxiliary data. `States.finalize` checks completeness and seals this same object.
 6. `Execution.run` returns it to `simulate`, which checks request and initial-data agreement and returns it directly.
 
@@ -139,38 +139,15 @@ Gauss--Legendre and SDIRK share field validation, analytic particle Jacobians,
 centered finite differences and Jacobian selection in
 `src/methods/classical/_jacobians.py`. Their stage equations and nonlinear solves
 remain defined by each method. GC and FC split maps share the optional momentum
-update in `src/formulations/base.py`.
+update in `src/methods/_momentum.py`.
 
-| Formulation | One planar particle | N planar particles |
-|---|---:|---:|
-| Physical | 2 | 2N |
-| Physical with energy | 4 | 4N |
-| Spatially duplicated | 4 | 4N |
-| Spatially duplicated with energy | 6 | 6N |
+`SingleFormulation(physical_size)` and `DoubleFormulation(physical_size)` retain only a positive physical vector size. They prepare one or two temporary copies through `lift`, `join_copies` and `split_copies`. Shapes are `(d*N,*samples)` and `(copies*d*N,*samples)`; shifted copies remain distinct until the method projects them. NumPy/JAX backends and complete FC velocity blocks are preserved. There is no layout, particle count, tracking flag, clock, momentum, initial state, projection or solver in either representation.
 
-Use `track_energy=True` on any public method. Classical methods use
-`SingleFormulation`; ABBA and BM4 use `DoubleFormulation`. These concrete
-objects live in `src/formulations/state.py`. Energy variants append one
-time entry and one normalized momentum per particle. Projected methods
-store diagonal accepted copies and project spatial variables only. Every
-component block has N entries, and `components(state)` exposes a uniform
-`(coordinates, N, *sample_axes)` view. The time entries repeat the scalar
-integration time. `extended_time` has shape `(N, saved_times)`; `States.t`
-remains the one-dimensional grid.
+Every accepted snapshot is `IntegrationState(time, values, momentum=None)`: scalar time, physical `values` of shape `(d*N,)`, and optional physical `momentum` of shape `(N,)`. GC remains 2N and FC 4N with or without tracking. Doubled GC work has 4N entries; generic doubled FC work has 8N. Workspaces are temporary and never become accepted states. This generic support does not extend GC numerical methods to FC.
 
-Both representations take `(layout, particle_count, track_energy=False)` and
-retain no problem, initial values or dynamics. Methods construct initial states
-and prepare each step using `lift` or `join_copies`, then `pack` supplied time
-and momentum. FC uses the same rules for all four physical components: single
-states have 4N/6N entries and doubled states 8N/10N. See the
-[representation operations](initial-solvers-formulations.md#state-representations).
+The method initializes zero momentum, prepares copies, selects projection equations and solver, and integrates momentum from accepted stages. `advance(t, Z, h, momentum=kappa)` returns physical `StepResult.state` and separate `StepResult.momentum`. `StepInfo.momentum_before` records the incoming auxiliary. Shadow samples start from the same accepted physical state and momentum. JAX carries separate arrays through the compiled loop.
 
-`StepResult` and `StepInfo` live in `src/contracts/methods/step.py`. Their states are
-internal; `States.states` and observer states are physical.
-`StepResult.statistics` contains accepted physical work. Details are transient
-unless an observer explicitly retains a copied event. `extract_sample` produces each physical column. Methods evaluate the saved Hamiltonian;
-`diagnose_history` combines supplied energy and momentum after recording.
-`extract_history` supports bulk JAX export using pre-evaluated energy.
+Methods evaluate saved physical H once. `states.energy.energy_diagnostics` combines supplied H and physical kappa without dynamics evaluation. Existing energy labels and `(N,T)` auxiliary histories remain unchanged; `extended_time` is broadcast from scalar sample times. Numerical archives require no migration; old pickled configured objects should be recreated.
 
 Tracking does not affect physical stages, Newton/Broyden scales or adaptive error
 control. DOP853 and Radau own physical-only SciPy solvers and use eight-point
@@ -184,8 +161,7 @@ endpoint momenta; only interior queries require partial-interval quadrature.
 
 Fixed controllers reuse accepted endpoint states and compute off-grid samples with
 independent shortened maps; adaptive controllers evaluate accepted dense output.
-The formulation validates each
-particle time and aligns diagnostic times to the requested grid within round-off.
+Diagnostic times come directly from each scalar sample time.
 The coordinator and `States` do not inspect clock indices or tracking flags.
 Observer snapshots cannot mutate
 samples or counters. Repeated runs own fresh solver resources.

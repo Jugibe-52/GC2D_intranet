@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from copy import deepcopy
 from types import MappingProxyType
 from typing import Any
 
 import numpy as np
 
-from contracts.formulations.layout import StateLayout
+from contracts.dynamics.coordinates import StateLayout
+from dynamics.coordinates import PhysicalCoordinates, describe_coordinates
 from contracts.states.history import DiagnosticValue
 from contracts.methods.step import StepInfo, StepValue
 
@@ -22,14 +22,14 @@ def _readonly(value: np.ndarray) -> np.ndarray:
 
 def _prepared_recording_inputs(
 	times: np.ndarray, layout: StateLayout, state_size: int, initial: np.ndarray | None,
-) -> tuple[np.ndarray, StateLayout]:
+) -> tuple[np.ndarray, PhysicalCoordinates]:
 	"""Own the ordered schedule and validate the independent packed layout."""
 	if not isinstance(layout, StateLayout):
 		raise TypeError("`layout` must implement StateLayout.")
 	t: np.ndarray = np.array(times, dtype=float, copy=True)
 	if t.ndim != 1 or not t.size or not np.all(np.isfinite(t)) or np.any(np.diff(t) <= 0):
 		raise ValueError("Sample times must be a finite non-empty increasing vector.")
-	owned_layout: StateLayout = deepcopy(layout)
+	owned_layout: PhysicalCoordinates = describe_coordinates(layout)
 	owned_layout.validate_packed_state_layout(
 		np.asarray(initial) if initial is not None else np.zeros(state_size)
 	)
@@ -89,7 +89,7 @@ class States:
 	def _allocate(self, times: np.ndarray, layout: StateLayout, dtype: Any,
 	              state_size: int, initial: np.ndarray | None) -> None:
 		t: np.ndarray
-		owned_layout: StateLayout
+		owned_layout: PhysicalCoordinates
 		t, owned_layout = _prepared_recording_inputs(times, layout, state_size, initial)
 		self._times = t
 		self._values = np.empty((state_size, t.size), dtype=dtype)
@@ -226,8 +226,8 @@ class States:
 		return self.values
 
 	@property
-	def layout(self) -> StateLayout:
-		return deepcopy(self._layout)
+	def layout(self) -> PhysicalCoordinates:
+		return self._layout
 
 	@property
 	def initial_state(self) -> np.ndarray | None:
@@ -239,7 +239,7 @@ class States:
 
 	@property
 	def auxiliary(self) -> Mapping[str, np.ndarray]:
-		"""Independent recorded auxiliaries for formulation-level diagnostics."""
+		"""Independent recorded auxiliaries for output energy diagnostics."""
 		return MappingProxyType({key: _readonly(value[..., :self._count]) for key, value in self._auxiliary.items()})
 
 	@property
@@ -248,7 +248,7 @@ class States:
 
 	def components(self, layout: StateLayout | None = None) -> tuple[np.ndarray, ...]:
 		selected = self._layout if layout is None else layout
-		if not isinstance(selected, StateLayout) or selected.state_dimension != self._layout.state_dimension:
+		if not isinstance(selected, StateLayout) or describe_coordinates(selected) != self._layout:
 			raise TypeError("The supplied layout is incompatible with these states.")
 		return selected.split(self.values)
 
@@ -259,10 +259,9 @@ class States:
 		return self._layout.positions(self.values)
 
 	def velocities(self) -> tuple[np.ndarray, np.ndarray]:
-		components: Any = self.components()
-		if not hasattr(components, 'vx') or not hasattr(components, 'vy'):
-			raise TypeError("This layout does not define velocity components.")
-		return components.vx, components.vy
+		if not self._layout.velocity_names:
+			raise TypeError('This layout does not define velocity components.')
+		return self._layout.velocities(self.values)
 
 	def select(self, indices: Any) -> States:
 		"""Select increasing samples, retaining their original times and layout.

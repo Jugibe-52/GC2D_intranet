@@ -10,7 +10,7 @@ import numpy as np
 from potential.potential import Potential
 
 from contracts.arrays import array_namespace
-from formulations.layout import GCStateLayout
+from dynamics.coordinates import PhysicalCoordinates
 from ._equations import gc_velocity
 
 
@@ -36,6 +36,7 @@ def _validated_parameters(potential: Potential, rho: float, B: float) -> tuple[f
 class GuidingCenterDynamics:
 	"""GC equations over a fixed gyroaveraged potential, for NumPy or JAX arrays."""
 
+	coordinates: ClassVar[PhysicalCoordinates] = PhysicalCoordinates(('x', 'y'), ('x', 'y'), ())
 	state_dimension: ClassVar[int] = 2
 
 	potential: Potential
@@ -61,7 +62,7 @@ class GuidingCenterDynamics:
 		"""Evaluate GC drift at one time or broadcast times over a packed history."""
 		x: BackendArray
 		y: BackendArray
-		x, y = GCStateLayout().split(state)
+		x, y = GuidingCenterDynamics.coordinates.split(state)
 		ex: BackendArray
 		ey: BackendArray
 		ex, ey = self.effective_potential.electric_field(
@@ -69,7 +70,7 @@ class GuidingCenterDynamics:
 			x,
 			y,
 		)
-		return GCStateLayout.pack_components(*gc_velocity(ex, ey))
+		return GuidingCenterDynamics.coordinates.pack_components(*gc_velocity(ex, ey))
 
 	def particle_vector_field_jacobians(
 		self,
@@ -86,7 +87,7 @@ class GuidingCenterDynamics:
 		"""
 		x: BackendArray
 		y: BackendArray
-		x, y = GCStateLayout().split(state)
+		x, y = GuidingCenterDynamics.coordinates.split(state)
 		potential = self.effective_potential
 		if potential.interpolation_order < 3:
 			raise ValueError(
@@ -112,7 +113,7 @@ class GuidingCenterDynamics:
 		"""Evaluate gyroaveraged Hamiltonian values."""
 		x: BackendArray
 		y: BackendArray
-		x, y = GCStateLayout().split(state)
+		x, y = GuidingCenterDynamics.coordinates.split(state)
 		return self.effective_potential.evaluate(t, x, y)
 
 	def extended_momentum_derivative(
@@ -123,7 +124,7 @@ class GuidingCenterDynamics:
 		"""Evaluate the time-conjugate momentum derivative."""
 		x: BackendArray
 		y: BackendArray
-		x, y = GCStateLayout().split(state)
+		x, y = GuidingCenterDynamics.coordinates.split(state)
 		return -self.effective_potential.evaluate(
 			t,
 			x,

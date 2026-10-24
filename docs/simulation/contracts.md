@@ -10,13 +10,13 @@ in those packages.
 ```text
 src/contracts/
 ├── arrays.py
-├── dynamics/protocols.py
+├── dynamics/
+│   ├── protocols.py
+│   └── coordinates.py
 ├── execution/controllers.py
-├── formulations/
-│   ├── base.py
-│   ├── layout.py
-│   └── projection.py
 ├── methods/
+│   ├── maps.py
+│   ├── projection.py
 │   ├── base.py
 │   ├── compiled.py
 │   ├── observation.py
@@ -59,7 +59,6 @@ to avoid runtime cycles.
 |---|---|
 | `dynamics` | Physical, Hamiltonian, Jacobian, and cyclotron capability interfaces. |
 | `execution` | `StepController`; fixed and adaptive controllers stay with their implementations. |
-| `formulations` | Direct/adjoint and projection interfaces, plus `StateLayout`. |
 | `methods` | `NumericalMethod`, `CompiledStep`, step records, and family-specific observations. |
 | `solvers` | `NewtonIteration` and `NewtonObserver`. |
 | `states` | The `DiagnosticValue` alias used by physical histories. |
@@ -85,3 +84,5 @@ shadowing scientific modules with a partial package. The transfer environment
 imports only the lightweight worker contracts and can load them without the
 installed project, NumPy, or plotting packages. Frozen study snapshots retain
 their historical source and are not migrated in place.
+
+Map and projection contracts belong to `contracts.methods`; `StateLayout` belongs to `contracts.dynamics.coordinates`.
