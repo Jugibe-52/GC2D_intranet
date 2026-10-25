@@ -104,6 +104,27 @@ class CompiledStepContractTests(unittest.TestCase):
 				self.assertEqual(runs[0]._status, "finished")
 				self.assertEqual(method._status, "configuration")
 
+	def test_compiled_step_preparation_failure_consumes_only_the_fresh_run(self) -> None:
+		from states.history import States
+
+		method = RK4()
+		run = self.prepare_run(method)
+		def fail_preparation(*args, **kwargs):
+			self.assertEqual(run._status, "running")
+			raise RuntimeError("Compiled step unavailable")
+		with patch.object(RK4, "new_run", return_value=run):
+			with patch("methods._jax_dispatch.prepare_step", side_effect=fail_preparation) as compile_step:
+				with patch.object(States, "prepare") as allocate:
+					with self.assertRaisesRegex(RuntimeError, "Compiled step unavailable"):
+						Execution().run(self.problem, method, self.request, options=self.execution)
+					allocate.assert_not_called()
+				compile_step.assert_called_once()
+			self.assertEqual(run._status, "finished")
+			with self.assertRaisesRegex(TypeError, "fresh"):
+				Execution().run(self.problem, method, self.request, options=self.execution)
+		self.assertEqual(method._status, "configuration")
+		self.assertTrue(Execution().run(self.problem, method, self.request, options=self.execution).complete)
+
 	def test_prepared_controls_do_not_follow_mutable_method_options(self) -> None:
 		from methods._jax_dispatch import prepare_step
 

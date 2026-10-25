@@ -43,6 +43,20 @@ Numerical formulas, nonlinear solves, observations and convergence checks retain
 their owners. The executor does not call `simulate`. Failures propagate without
 a local fallback, and consumed runs become finished.
 
+Preparation is split into four private functions in the same module:
+
+- `_prepare_backend` resolves dynamics, device and execution metadata, importing JAX only when selected.
+- `_prepare_observers` binds a fresh energy accumulator and preserves callback identity and order.
+- `_prepare_numerical_run` supplies the Jacobian and quadrature requirements, validates a fresh run and returns its observation metadata.
+- `_prepare_compiled_step` checks fixed JAX restrictions and prepares its device step; other modes use the host controller.
+
+`Execution.run` keeps argument validation, status transitions, allocation,
+worker selection and finalization visible together. Compiled-step preparation
+remains inside its `try/finally`, so preparation failures also finish the consumed
+run. Helpers receive explicit inputs and return typed results; no per-run data
+is stored on the executor. Method metadata is combined with execution metadata
+and then step diagnostics, preserving the existing precedence and aliases.
+
 The returned `states.States` contains physical arrays of shape
 `(physical_state_size, saved_time_count)`, saved times, an independent layout and
 initial snapshot, and read-only diagnostics. `simulate` calls the executor once,
