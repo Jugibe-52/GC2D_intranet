@@ -140,20 +140,26 @@ class JaxExecutionTests(unittest.TestCase):
     def test_preparation_shares_splines_and_preserves_original_dynamics(self) -> None:
         from dynamics.gc import GuidingCenterDynamics
         from dynamics.fc import FullCyclotronDynamics
+        from dynamics.jax_dynamics import JaxFullCyclotronDynamics, JaxGuidingCenterDynamics
         from execution._jax import prepare_dynamics
 
         potential = _field()
         for source in (GuidingCenterDynamics(potential, rho=0.3, B=1.7),
-                       FullCyclotronDynamics(potential, rho=0.3, eta=-0.4)):
-            with patch("potential.potential._build_periodic_spline", side_effect=AssertionError("Refitted spline")):
+                       FullCyclotronDynamics(potential, rho=0.3, eta=-0.4),
+                       JaxGuidingCenterDynamics(potential, rho=0.3, B=-1.7),
+                       JaxFullCyclotronDynamics(potential, rho=0.3, eta=0.4)):
+            with patch("potential.potential._build_periodic_spline", side_effect=AssertionError("Refitted spline")), \
+                    patch.object(Potential, "gyroaverage", side_effect=AssertionError("Repeated gyroaverage")):
                 prepared = prepare_dynamics(source)
                 self.assertIs(prepare_dynamics(source), prepared)
+                self.assertIs(prepare_dynamics(prepared), prepared)
             self.assertIs(source.potential, potential)
             self.assertIsInstance(prepared.potential, JaxPotential)
             self.assertIs(prepared.potential._splines, potential._splines)
             self.assertIs(prepared.potential.mean, potential.mean)
             self.assertIsNot(prepared.potential._jax_buffers, potential._jax_buffers)
             if isinstance(source, GuidingCenterDynamics):
+                self.assertIs(type(prepared), JaxGuidingCenterDynamics)
                 self.assertIs(prepared.effective_potential._splines, source.effective_potential._splines)
                 self.assertEqual(prepared.rho, source.rho)
                 self.assertEqual(prepared.B, source.B)
@@ -161,14 +167,23 @@ class JaxExecutionTests(unittest.TestCase):
                 np.testing.assert_allclose(prepared.vector_field(.3, state),
                                            source.vector_field(.3, state), rtol=1e-10, atol=1e-10)
             else:
+                self.assertIs(type(prepared), JaxFullCyclotronDynamics)
                 self.assertEqual((prepared.rho, prepared.eta), (source.rho, source.eta))
-        explicit = GuidingCenterDynamics(_field(JaxPotential), rho=0.3)
-        self.assertIs(prepare_dynamics(explicit), explicit)
+        for explicit in (JaxGuidingCenterDynamics(_field(JaxPotential), rho=0.3),
+                         JaxFullCyclotronDynamics(_field(JaxPotential), rho=0.3, eta=-0.4)):
+            self.assertIs(prepare_dynamics(explicit), explicit)
+        legacy = GuidingCenterDynamics(_field(JaxPotential), rho=0.3)
+        self.assertIsInstance(prepare_dynamics(legacy), JaxGuidingCenterDynamics)
+        self.assertIs(prepare_dynamics(legacy).effective_potential, legacy.effective_potential)
         class CustomPotential(Potential):
             def evaluate(self, *args, **kwargs):
                 return 0.0
         with self.assertRaisesRegex(TypeError, "subclass overrides"):
             prepare_dynamics(GuidingCenterDynamics(CustomPotential(potential.grid)))
+        class CustomJaxDynamics(JaxGuidingCenterDynamics):
+            pass
+        with self.assertRaisesRegex(TypeError, "built-in"):
+            prepare_dynamics(CustomJaxDynamics(potential))
 
     def test_repeated_device_calls_share_coefficients_without_refitting(self) -> None:
         from dynamics.gc import GuidingCenterDynamics

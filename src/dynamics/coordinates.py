@@ -1,11 +1,11 @@
-"""Immutable physical coordinate descriptions and backend-preserving packing."""
+"""Immutable physical coordinate descriptions and NumPy component operations."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, TYPE_CHECKING
+from typing import Any, ClassVar, TYPE_CHECKING
 
-from contracts.arrays import array_namespace
+import numpy as np
 
 if TYPE_CHECKING:
 	from types import ModuleType
@@ -44,6 +44,7 @@ class PhysicalCoordinates:
 	component_names: tuple[str, ...]
 	position_names: tuple[str, ...] = ()
 	velocity_names: tuple[str, ...] = ()
+	array_namespace: ClassVar[ModuleType] = np
 
 	def __post_init__(self) -> None:
 		for name in ('component_names', 'position_names', 'velocity_names'):
@@ -63,7 +64,7 @@ class PhysicalCoordinates:
 
 	def validate_packed_state_layout(self, state: Any) -> Any:
 		"""Require complete, nonempty component-major particle blocks."""
-		value: BackendArray = array_namespace(state).asarray(state)
+		value: BackendArray = self.array_namespace.asarray(state)
 		if value.ndim == 0 or not value.shape[0] or value.shape[0] % self.state_dimension:
 			raise ValueError(f'The first state dimension must be divisible by {self.state_dimension}.')
 		return value
@@ -74,12 +75,12 @@ class PhysicalCoordinates:
 		return value.reshape(self.state_dimension, value.shape[0] // self.state_dimension, *value.shape[1:])
 
 	def split(self, state: Any) -> CoordinateValues:
-		"""Return component views with named access, preserving NumPy/JAX arrays."""
+		"""Return named component views using this coordinate class's array library."""
 		return CoordinateValues(self.component_names, tuple(self.as_blocks(state)))
 
 	def from_blocks(self, blocks: Any) -> Any:
 		"""Flatten complete component and particle axes without changing order."""
-		value: BackendArray = array_namespace(blocks).asarray(blocks)
+		value: BackendArray = self.array_namespace.asarray(blocks)
 		if value.ndim < 2 or value.shape[0] != self.state_dimension or not value.shape[1]:
 			raise ValueError(f'Blocks must have shape ({self.state_dimension}, N, *sample_axes), N > 0.')
 		return value.reshape(self.state_dimension * value.shape[1], *value.shape[2:])
@@ -88,7 +89,7 @@ class PhysicalCoordinates:
 		"""Own a packed array from equal-shaped component blocks."""
 		if len(components) != self.state_dimension:
 			raise ValueError(f'This coordinate description requires {self.state_dimension} components.')
-		xp: ModuleType = array_namespace(*components)
+		xp: ModuleType = self.array_namespace
 		values: tuple[Any, ...] = tuple(xp.asarray(component) for component in components)
 		if values[0].ndim == 0 or not values[0].shape[0]:
 			raise ValueError('Physical components must be non-empty arrays.')

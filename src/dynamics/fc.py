@@ -9,13 +9,13 @@ import numpy as np
 
 from potential.potential import Potential
 
-from contracts.arrays import array_namespace
 from dynamics.coordinates import PhysicalCoordinates
 from ._equations import fc_velocity, fc_hamiltonian
 
 
 if TYPE_CHECKING:
 	from contracts.arrays import BackendArray
+	from types import ModuleType
 
 
 def _validated_parameters(potential: Potential, rho: float, eta: float) -> tuple[float, float]:
@@ -33,7 +33,7 @@ def _validated_parameters(potential: Potential, rho: float, eta: float) -> tuple
 
 @dataclass(frozen=True, init=False, eq=False)
 class FullCyclotronDynamics:
-	"""FC equations for fixed physical parameters, for NumPy or JAX arrays."""
+	"""FC equations for fixed physical parameters and declared coordinates."""
 
 	coordinates: ClassVar[PhysicalCoordinates] = PhysicalCoordinates(('x', 'y', 'vx', 'vy'), ('x', 'y'), ('vx', 'vy'))
 	state_dimension: ClassVar[int] = 4
@@ -78,16 +78,26 @@ class FullCyclotronDynamics:
 
 	def cyclotron_flow(self, t: Any, state: Any, duration: Any) -> Any:
 		"""Exact field-free flow in the physical FC normalization."""
+		x: BackendArray
+		y: BackendArray
+		vx: BackendArray
+		vy: BackendArray
 		x, y, vx, vy = self.coordinates.split(state)
-		xp = array_namespace(state, duration)
-		rotation = xp.exp(-1j * duration * self.larmor_frequency)
-		position = x + 1j * y + 1j * self.rho * np.sign(self.eta) * (rotation - 1) * (vx + 1j * vy)
-		velocity = rotation * (vx + 1j * vy)
+		xp: ModuleType = self.coordinates.array_namespace
+		rotation: BackendArray = xp.exp(-1j * duration * self.larmor_frequency)
+		position: BackendArray = x + 1j * y + 1j * self.rho * np.sign(self.eta) * (rotation - 1) * (vx + 1j * vy)
+		velocity: BackendArray = rotation * (vx + 1j * vy)
 		return self.coordinates.pack_components(position.real, position.imag, velocity.real, velocity.imag)
 
 	def electric_kick(self, t: Any, state: Any, duration: Any) -> Any:
 		"""Exact electric kick at a fixed time and position."""
+		x: BackendArray
+		y: BackendArray
+		vx: BackendArray
+		vy: BackendArray
 		x, y, vx, vy = self.coordinates.split(state)
+		ax: BackendArray
+		ay: BackendArray
 		ax, ay = self.electric_acceleration(t, x, y)
 		return self.coordinates.pack_components(x, y, vx + duration * ax, vy + duration * ay)
 
@@ -97,11 +107,11 @@ class FullCyclotronDynamics:
 		y: BackendArray
 		vx: BackendArray
 		vy: BackendArray
-		x, y, vx, vy = FullCyclotronDynamics.coordinates.split(state)
+		x, y, vx, vy = self.coordinates.split(state)
 		acceleration_x: BackendArray
 		acceleration_y: BackendArray
 		acceleration_x, acceleration_y = self.electric_acceleration(t, x, y)
-		return FullCyclotronDynamics.coordinates.pack_components(*fc_velocity(
+		return self.coordinates.pack_components(*fc_velocity(
 			acceleration_x, acceleration_y, vx, vy, velocity_scale=self.velocity_scale,
 			larmor_frequency=self.larmor_frequency,
 		))
@@ -116,8 +126,8 @@ class FullCyclotronDynamics:
 		y: BackendArray
 		vx: BackendArray
 		vy: BackendArray
-		x, y, vx, vy = FullCyclotronDynamics.coordinates.split(state)
-		return array_namespace(t, state).asarray(fc_hamiltonian(
+		x, y, vx, vy = self.coordinates.split(state)
+		return self.coordinates.array_namespace.asarray(fc_hamiltonian(
 			self.potential.evaluate(t, x, y), vx, vy,
 			velocity_scale=self.velocity_scale, electric_scale=self.electric_scale,
 		))
@@ -130,8 +140,8 @@ class FullCyclotronDynamics:
 		"""Evaluate the time-conjugate momentum derivative."""
 		x: BackendArray
 		y: BackendArray
-		x, y, *_ = FullCyclotronDynamics.coordinates.split(state)
-		return array_namespace(t, state).asarray(
+		x, y, *_ = self.coordinates.split(state)
+		return self.coordinates.array_namespace.asarray(
 			-self.electric_scale
 			* self.potential.evaluate(t, x, y, dt=1)
 		)

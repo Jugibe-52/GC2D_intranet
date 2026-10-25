@@ -132,7 +132,8 @@ class StateTests(unittest.TestCase):
 	def test_layout_operations_remain_traceable(self) -> None:
 		import jax
 		import jax.numpy as jnp
-		for layout in (GuidingCenterDynamics.coordinates, FullCyclotronDynamics.coordinates):
+		from dynamics.jax_dynamics import JaxGuidingCenterDynamics, JaxFullCyclotronDynamics
+		for layout in (JaxGuidingCenterDynamics.coordinates, JaxFullCyclotronDynamics.coordinates):
 			values=jnp.arange(layout.state_dimension*6.,dtype=jnp.float32).reshape(-1,3)
 			@jax.jit
 			def roundtrip(value):return layout.from_blocks(layout.as_blocks(layout.pack_components(*layout.split(value))))

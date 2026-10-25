@@ -54,6 +54,13 @@ from simulation.runner import simulate
 from diagnostics.methods.energy import EnergyObserver
 p, r = problem(), SimulationRequest.uniform(t_span=(0., .01))
 simulate(p, RK4(), r, options=ExecutionOptions())
+assert "jax" not in sys.modules
+try:
+    from dynamics.jax_coordinates import JaxPhysicalCoordinates
+except ImportError as error:
+    assert "optional" in str(error)
+else:
+    raise AssertionError("Missing coordinate dependency was ignored")
 try:
     simulate(p, RK4(), r, options=ExecutionOptions(backend="jax"))
 except ImportError as error:

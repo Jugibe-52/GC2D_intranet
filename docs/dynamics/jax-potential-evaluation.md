@@ -125,25 +125,28 @@ and periodic seams. Traced time works even when both coordinates are NumPy array
 
 ## Shared dynamics and simulation lifecycle
 
-`GuidingCenterDynamics` and `FullCyclotronDynamics` support NumPy and JAX using
-the same methods and physical equations. State layouts preserve the backend
-while separating or packing component-major states. Vector fields,
-Hamiltonians, passive momentum derivatives and analytic particle Jacobians do
-not force JAX states back to NumPy.
+`GuidingCenterDynamics` and `FullCyclotronDynamics` own the physical equations
+and use `PhysicalCoordinates` for NumPy operations. Their explicit subclasses
+`JaxGuidingCenterDynamics` and `JaxFullCyclotronDynamics` declare only
+`JaxPhysicalCoordinates`; every constructor, vector field, Hamiltonian,
+passive momentum derivative, GC Jacobian and FC split flow is inherited.
+The coordinate class supplies the array namespace; physical formulas stay in
+the dynamics. Direct compiled evaluation pairs a JAX dynamics class with
+`JaxPotential`. See the [coordinate and dynamics examples](protocols.md).
 
-Execution preparation selects the device and binds these shared methods to
-`JaxPotential` instances. For a base `Potential`, it shares the read-only samples
-and existing splines in a separate instance, including the GC gyroaveraged
-potential. It neither refits splines nor mutates the original dynamics; repeated
-runs reuse the prepared dynamics through a bounded cache.
-It reuses compiled function identities through bounded caches; a parallel
-`JaxDynamics` physical implementation is no longer needed. The compiled driver
-still rejects arbitrary custom dynamics and subclass overrides explicitly.
-DOP853/Radau retain an explicit host/device adapter for their SciPy controller.
+Execution preparation selects the device and creates the corresponding JAX
+subclass with JAX potentials sharing the original read-only samples and existing
+splines, including the GC effective potential. It neither refits splines,
+repeats gyroaveraging nor mutates the original dynamics. Already compatible
+JAX dynamics are reused; bounded caches retain prepared objects and compiled
+functions. The driver accepts the exact base and explicit JAX dynamics types
+and rejects arbitrary custom subclasses. DOP853/Radau retain their explicit
+host/device adapter for the SciPy controller.
 
-A standalone JAX evaluation does not change simulation defaults. Pass
+Standalone JAX evaluation does not change simulation defaults. Pass
 `options=ExecutionOptions(backend="jax", device="cpu")` to `simulate` to select
-JAX execution. Every route exports the usual NumPy `States`; see the
+JAX execution; callers can retain ordinary physical dynamics and `Potential`.
+Every route exports the usual NumPy `States`; see the
 [execution guide](../simulation/jax-execution.md).
 
 ## Timing and validation

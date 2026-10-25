@@ -18,7 +18,7 @@ method. The following interfaces have been removed, including their exports:
 | `PreparedPotential` and `potential.prepared` | Read-only physical properties and canonical splines owned directly by `Potential` |
 | `ScipyPotentialEvaluator`, `JaxPotentialEvaluator`, and `PotentialEvaluator` | `Potential.evaluate` uses NumPy/SciPy; construct `JaxPotential` for JAX and place inputs with `jax.device_put` |
 | JAX evaluator grid methods | `evaluate_grid` stays NumPy-only; inherited `electric_field` follows the potential class, also on the full grid |
-| Internal `dynamics._jax.JaxDynamics` | Shared GC/FC dynamics; execution preparation owns device selection and compilation |
+| Internal `dynamics._jax.JaxDynamics` | `dynamics.jax_dynamics.JaxGuidingCenterDynamics` / `JaxFullCyclotronDynamics` inherit GC/FC equations and only declare JAX coordinates; execution prepares potentials and devices |
 
 The unused BM4 map/Jacobian wrappers, full-state projection implementations,
 full-state energy/symplecticity observers, and retired full-state and per-factor
@@ -209,7 +209,7 @@ their recorded grids.
 
 Dynamics declare immutable `PhysicalCoordinates(component_names, position_names=(), velocity_names=())` from `dynamics.coordinates`. GC declares `(x,y)`; FC declares `(x,y,vx,vy)`. Position and velocity roles are explicit. The structural protocol is `contracts.dynamics.coordinates.StateLayout`; external implementations require no inheritance.
 
-`InitialValueProblem` takes the dynamics declaration or requires an explicit layout. It never infers a physical model from dimension 2 or 4. It checks dimension, component order and position/velocity roles, even for equally sized arrays. Initial conditions and results retain an immutable structural description and owned arrays, without retaining live dynamics or a potential. Generic packing, component views and role access support `(d*N,*samples)`, `(d,N,*samples)` and `(N,*samples)` while preserving NumPy/JAX tracing. Incomplete blocks are rejected.
+`InitialValueProblem` takes the dynamics declaration or requires an explicit layout. It never infers a physical model from dimension 2 or 4. It checks dimension, component order and position/velocity roles, even for equally sized arrays. Initial conditions and results retain an immutable structural description and owned arrays, without retaining live dynamics or a potential. Generic packing, component views and role access support `(d*N,*samples)`, `(d,N,*samples)` and `(N,*samples)` using the explicitly selected array library. Only `JaxPhysicalCoordinates` supports JAX tracing; saved layouts remain structural NumPy snapshots. Incomplete blocks are rejected.
 
 Built-in dynamics keep physical parameters immutable. A new problem is required for revised initial values. Saved numerical archives retain existing GC/FC schemas and can be interpreted without constructing dynamics or loading a field.
 
@@ -231,3 +231,20 @@ The former GC/FC wrappers and internal state containers are removed without alia
 Explicit solvers supply every algebraic control. Preserve the effective family defaults when migrating only one old keyword: Gauss/SDIRK use tolerances 1e-14/1e-13 and 20 iterations; ABBA/BM4/HBVM use 1e-13/1e-12 and 12 iterations. HBVM defaults to `backtracking=True`. Set `jacobian_method` explicitly when preserving a prior analytic or finite-difference choice. Physical initial values, numerical coefficients, requested sampling and saved archive schemas are unchanged.
 
 Methods retain only the supplied field, optional derivative and independent numerical data. `DoubleFormulation` remains a small helper for temporary physical copies. Existing callbacks keep their identity and lifecycle; reusing `EnergyObserver` creates fresh built-in state for every run. No wrapper silently translates retired constructor arguments.
+
+## Explicit JAX physical coordinates (2026-10-25)
+
+`PhysicalCoordinates` now consistently uses NumPy. For direct JIT, vmap or
+automatic differentiation, use `dynamics.jax_coordinates.JaxPhysicalCoordinates`.
+The same shapes, names, roles and validation are inherited. `describe_coordinates`
+continues producing a structural NumPy snapshot for initial conditions and results.
+
+Direct compiled GC/FC calls use `JaxGuidingCenterDynamics` or
+`JaxFullCyclotronDynamics` from `dynamics.jax_dynamics` with `JaxPotential`.
+Import the JAX classes from their explicit modules; the base package remains
+independent of optional JAX. The base dynamics with a JAX potential alone
+are no longer the compiled interface. Normal `simulate` calls need no changes:
+`ExecutionOptions(backend="jax")` prepares both JAX coordinates and potentials,
+without refitting splines or modifying the original objects. The old internal
+`dynamics._jax.JaxDynamics` route remains removed. Saved numerical archives and
+physical equations do not change. See the [examples](../dynamics/protocols.md).

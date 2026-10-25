@@ -169,8 +169,17 @@ the evaluation backend, including scalar/NumPy inputs. Inherited `electric_field
 calls `self.evaluate`, including omitted coordinates. `evaluate_grid` stays
 NumPy-only and rejects JAX time. `load`, `random` and `gyroaverage` preserve the
 class. There is no `execution=` keyword or separate prepared/evaluator class.
-JAX execution preparation binds shared GC/FC equations to JAX potentials sharing
-existing samples and splines without refitting or mutating the source dynamics.
+`PhysicalCoordinates` selects NumPy; `JaxPhysicalCoordinates` in
+`dynamics.jax_coordinates` only sets `array_namespace: ClassVar[ModuleType]`
+to `jnp` instead of `np`: no property or input inspection per operation. Import
+JAX classes from their explicit modules; base dynamics imports never load JAX.
+Shared GC/FC equations use `self.coordinates` and that namespace. The classes
+`JaxGuidingCenterDynamics` and `JaxFullCyclotronDynamics` in
+`dynamics.jax_dynamics` only declare JAX coordinates and inherit all physical
+methods and constructors. Direct compiled calls also require `JaxPotential`.
+Execution prepares these exact subclasses, sharing samples, splines and the GC
+effective field without refitting, repeating gyroaveraging or mutating sources.
+Initial conditions and results keep structural NumPy coordinate snapshots.
 
 Execution preparation selects devices and caches compiled runs; DOP853/Radau
 retain an explicit NumPy/JAX boundary. Reuse spline coefficients without

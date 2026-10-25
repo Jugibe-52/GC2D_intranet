@@ -54,8 +54,11 @@ it does not claim that the complete adaptive solver runs on GPU.
 All routes return the same immutable NumPy `States`, with component-major
 physical states and canonical energy histories. Initial field preparation,
 gyroaveraging and spline fitting stay on CPU. `Potential` owns the canonical
-splines. Preparation binds the shared equations to `JaxPotential` instances
-sharing those knots and coefficients without refitting or mutating the source. Built-in GC dynamics are supported by every
+splines. Preparation creates `JaxGuidingCenterDynamics` or
+`JaxFullCyclotronDynamics` with `JaxPhysicalCoordinates` and `JaxPotential`,
+sharing those knots and coefficients without refitting, repeating gyroaveraging
+or mutating the source. The subclasses only declare coordinates; all physical
+methods are inherited. Built-in GC dynamics are supported by every
 method. FC dynamics are supported by the classical and adaptive methods;
 ABBA/BM4 retain their existing planar-GC restriction. Custom dynamics and method
 subclasses are rejected rather than silently replacing their equations.
@@ -104,8 +107,8 @@ adaptive methods declare `"hybrid_scipy_controller"`. The executor resolves the
 device and prepares shared GC/FC dynamics, then calls a typed family adapter in
 `methods._jax_dispatch`. The adapter binds numerical kernels and immutable controls;
 explicit, classical implicit and composition methods have separate option types.
-Layouts and dynamics preserve the array backend, so compiled kernels use the same
-field, energy and analytic-Jacobian equations as NumPy. Device preparation belongs
+The coordinate class explicitly selects NumPy or JAX, so compiled kernels use
+the same inherited field, energy and analytic-Jacobian equations as NumPy. Device preparation belongs
 to execution. Arithmetic projection carries no nonlinear controls. Kernel selection
 is complete before tracing, with explicit rejection of unsupported subclass overrides.
 

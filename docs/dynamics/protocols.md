@@ -27,27 +27,52 @@ Evaluating a Hamiltonian directly remains possible without enabling tracking.
 
 ## NumPy and JAX arrays
 
-Built-in GC/FC equations work with either potential class. Direct compiled or
-differentiated calls require dynamics constructed with `JaxPotential`.
-`Potential` supplies the NumPy/SciPy evaluation path. JAX simulation preparation
-binds the equations to JAX potentials sharing the same fitted splines, without
-mutating the original dynamics. NumPy calls remain independent of the optional
-JAX installation.
+`GuidingCenterDynamics` and `FullCyclotronDynamics` use NumPy coordinates and
+normally a `Potential`. `JaxGuidingCenterDynamics` and `JaxFullCyclotronDynamics`
+from `dynamics.jax_dynamics` inherit all physical methods and constructors,
+declaring only `JaxPhysicalCoordinates`. Import these classes from their explicit
+module; the base `dynamics` package does not load JAX. Direct compiled or
+differentiated calls also require `JaxPotential`.
 
-State layouts preserve the array backend when reshaping, splitting and packing
-component-major blocks. The physical dimensions and ordering do not change.
-Integration preparation selects devices and compilation; the dynamics do not
-accept execution options or own a second JAX implementation. The SciPy adaptive
-controller has an explicit adapter for transfers when JAX execution is selected.
-Saved `States` arrays remain NumPy. See the
-[shared potential contract](jax-potential-evaluation.md) for class selection and device
-placement, including NumPy-only `evaluate_grid` reconstruction.
+`PhysicalCoordinates` declares `array_namespace: ClassVar[ModuleType] = np`;
+`JaxPhysicalCoordinates` declares the same attribute with `jnp`. These are fixed
+module references, selected at class definition, without a property or runtime
+input inspection. Importing `dynamics.jax_coordinates` explicitly loads optional
+JAX; its inherited array operations do not import or choose a library.
+Conversion, packing, shape validation and named component access share the same
+implementation. Dynamics access `self.coordinates`; GC Jacobian stacking and
+FC rotation use that coordinate namespace, while the physical equations remain
+in the dynamics. Backend choice no longer depends on input array types.
+
+```python
+import jax
+import numpy as np
+from dynamics.jax_dynamics import JaxGuidingCenterDynamics, JaxFullCyclotronDynamics
+from potential import JaxPotential
+
+jax.config.update("jax_enable_x64", True)
+potential = JaxPotential.random(A=0.1, M=2, nx=12, ny=14, seed=27)
+gc = JaxGuidingCenterDynamics(potential, rho=0.3, B=1.5)
+fc = JaxFullCyclotronDynamics(potential, rho=0.3, eta=-0.4)
+gc_field = jax.jit(gc.vector_field)(0.2, np.array([0.4, 0.5]))
+fc_field = jax.jit(fc.vector_field)(0.2, np.array([0.4, 0.5, 0.1, -0.2]))
+```
+
+JAX simulation preparation constructs the explicit JAX subclasses and binds
+JAX potentials sharing existing samples and fitted splines, including the GC
+effective field. It neither repeats gyroaveraging nor modifies the source.
+Preparing an already compatible JAX object reuses it. Exact built-in types are
+supported; arbitrary subclass overrides remain rejected. Device selection,
+bounded preparation/compilation caches and the SciPy adaptive host adapter
+remain in execution. Base NumPy imports never load optional JAX. Initial data
+and saved `States` keep structural NumPy coordinate snapshots and unchanged
+component order. See the [potential contract](jax-potential-evaluation.md).
 
 ## Physical layouts and problem ownership
 
-Dynamics declare immutable `PhysicalCoordinates(component_names, position_names=(), velocity_names=())` from `dynamics.coordinates`. GC declares `(x,y)`; FC declares `(x,y,vx,vy)`. Position and velocity roles are explicit. The structural protocol is `contracts.dynamics.coordinates.StateLayout`; external implementations require no inheritance.
+Dynamics declare immutable `PhysicalCoordinates(component_names, position_names=(), velocity_names=())` from `dynamics.coordinates`. GC declares `(x,y)`; FC declares `(x,y,vx,vy)`. Position and velocity roles are explicit. `PhysicalCoordinates` selects NumPy; `JaxPhysicalCoordinates` from `dynamics.jax_coordinates` inherits the same structure and selects JAX through `array_namespace`. The structural protocol is `contracts.dynamics.coordinates.StateLayout`; external implementations require no inheritance.
 
-`InitialValueProblem` takes the dynamics declaration or requires an explicit layout. It never infers a physical model from dimension 2 or 4. It checks dimension, component order and position/velocity roles, even for equally sized arrays. Initial conditions and results retain an immutable structural description and owned arrays, without retaining live dynamics or a potential. Generic packing, component views and role access support `(d*N,*samples)`, `(d,N,*samples)` and `(N,*samples)` while preserving NumPy/JAX tracing. Incomplete blocks are rejected.
+`InitialValueProblem` takes the dynamics declaration or requires an explicit layout. It never infers a physical model from dimension 2 or 4. It checks dimension, component order and position/velocity roles, even for equally sized arrays. Initial conditions and results retain an immutable structural description and owned arrays, without retaining live dynamics or a potential. Generic packing, component views and role access support `(d*N,*samples)`, `(d,N,*samples)` and `(N,*samples)` using the explicitly selected array library. Only `JaxPhysicalCoordinates` supports JAX tracing; saved layouts remain structural NumPy snapshots. Incomplete blocks are rejected.
 
 Built-in dynamics keep physical parameters immutable. A new problem is required for revised initial values. Saved numerical archives retain existing GC/FC schemas and can be interpreted without constructing dynamics or loading a field.
 

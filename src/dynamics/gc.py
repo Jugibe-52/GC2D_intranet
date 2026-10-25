@@ -9,7 +9,6 @@ import numpy as np
 
 from potential.potential import Potential
 
-from contracts.arrays import array_namespace
 from dynamics.coordinates import PhysicalCoordinates
 from ._equations import gc_velocity
 
@@ -34,7 +33,7 @@ def _validated_parameters(potential: Potential, rho: float, B: float) -> tuple[f
 
 @dataclass(frozen=True, init=False, eq=False)
 class GuidingCenterDynamics:
-	"""GC equations over a fixed gyroaveraged potential, for NumPy or JAX arrays."""
+	"""GC equations over a fixed gyroaveraged potential and declared coordinates."""
 
 	coordinates: ClassVar[PhysicalCoordinates] = PhysicalCoordinates(('x', 'y'), ('x', 'y'), ())
 	state_dimension: ClassVar[int] = 2
@@ -62,7 +61,7 @@ class GuidingCenterDynamics:
 		"""Evaluate GC drift at one time or broadcast times over a packed history."""
 		x: BackendArray
 		y: BackendArray
-		x, y = GuidingCenterDynamics.coordinates.split(state)
+		x, y = self.coordinates.split(state)
 		ex: BackendArray
 		ey: BackendArray
 		ex, ey = self.effective_potential.electric_field(
@@ -70,7 +69,7 @@ class GuidingCenterDynamics:
 			x,
 			y,
 		)
-		return GuidingCenterDynamics.coordinates.pack_components(*gc_velocity(ex, ey))
+		return self.coordinates.pack_components(*gc_velocity(ex, ey))
 
 	def particle_vector_field_jacobians(
 		self,
@@ -87,7 +86,7 @@ class GuidingCenterDynamics:
 		"""
 		x: BackendArray
 		y: BackendArray
-		x, y = GuidingCenterDynamics.coordinates.split(state)
+		x, y = self.coordinates.split(state)
 		potential = self.effective_potential
 		if potential.interpolation_order < 3:
 			raise ValueError(
@@ -96,7 +95,7 @@ class GuidingCenterDynamics:
 		phi_xx: BackendArray = potential.evaluate(t, x, y, dx=2)
 		phi_xy: BackendArray = potential.evaluate(t, x, y, dx=1, dy=1)
 		phi_yy: BackendArray = potential.evaluate(t, x, y, dy=2)
-		xp: ModuleType = array_namespace(t, state)
+		xp: ModuleType = self.coordinates.array_namespace
 		return xp.stack(
 			(
 				xp.stack((-phi_xy, -phi_yy), axis=-1),
@@ -113,7 +112,7 @@ class GuidingCenterDynamics:
 		"""Evaluate gyroaveraged Hamiltonian values."""
 		x: BackendArray
 		y: BackendArray
-		x, y = GuidingCenterDynamics.coordinates.split(state)
+		x, y = self.coordinates.split(state)
 		return self.effective_potential.evaluate(t, x, y)
 
 	def extended_momentum_derivative(
@@ -124,7 +123,7 @@ class GuidingCenterDynamics:
 		"""Evaluate the time-conjugate momentum derivative."""
 		x: BackendArray
 		y: BackendArray
-		x, y = GuidingCenterDynamics.coordinates.split(state)
+		x, y = self.coordinates.split(state)
 		return -self.effective_potential.evaluate(
 			t,
 			x,

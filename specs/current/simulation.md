@@ -2,7 +2,7 @@
 schema_version = 1
 kind = "spec"
 id = "simulation"
-sources = ["src/contracts/methods/functions.py", "src/contracts/methods/quadrature.py", "src/diagnostics/methods/energy.py", "src/solvers/derivatives.py", "src/formulations/state.py", "src/states/initial.py", "src/solvers/nonlinear.py", "src/methods/projection.py", "src/simulation/runner.py", "src/problem.py", "src/request.py", "src/execution/execution.py", "src/execution/_jax.py", "src/methods/base.py", "src/execution/options.py", "src/contracts/arrays.py", "src/contracts/methods/base.py", "src/contracts/execution/controllers.py", "src/contracts/dynamics/protocols.py", "src/contracts/methods/maps.py", "src/contracts/methods/projection.py"]
+sources = ["src/contracts/methods/functions.py", "src/contracts/methods/quadrature.py", "src/diagnostics/methods/energy.py", "src/solvers/derivatives.py", "src/formulations/state.py", "src/states/initial.py", "src/solvers/nonlinear.py", "src/methods/projection.py", "src/simulation/runner.py", "src/problem.py", "src/request.py", "src/execution/execution.py", "src/execution/_jax.py", "src/dynamics/jax_dynamics.py", "src/dynamics/jax_coordinates.py", "src/methods/base.py", "src/execution/options.py", "src/contracts/arrays.py", "src/contracts/methods/base.py", "src/contracts/execution/controllers.py", "src/contracts/dynamics/protocols.py", "src/contracts/methods/maps.py", "src/contracts/methods/projection.py"]
 documents = ["docs/simulation/initial-solvers-formulations.md", "docs/simulation/integration-architecture.md", "docs/simulation/execution.md", "docs/simulation/jax-execution.md"]
 
 [[requirements]]
@@ -152,8 +152,26 @@ are checked by `tests/test_package_layout.py`.
 
 `contracts.arrays` retains the shared NumPy/JAX compatibility rules, including
 mixed arrays, nested sequences and tracers, without device selection or eager
-JAX imports. `tests/test_shared_array_dynamics.py` checks layout and dynamics
-behavior; this ownership change does not modify those numerical operations.
+JAX imports for generic formulation operations. Physical coordinate operations
+instead select an explicit library: `PhysicalCoordinates` uses NumPy and
+`dynamics.jax_coordinates.JaxPhysicalCoordinates` overrides only the
+`array_namespace: ClassVar[ModuleType]` attribute with `jnp` instead of `np`.
+The module is selected at class definition, without a property or per-operation
+input inspection. JAX classes are imported from their explicit modules; base
+imports stay independent of JAX. Shared validation, names, roles and shapes
+are unchanged.
+
+`dynamics.jax_dynamics.JaxGuidingCenterDynamics` and `JaxFullCyclotronDynamics`
+inherit their complete physical implementations and only declare JAX coordinates.
+Shared methods use `self.coordinates` and its namespace, including GC Jacobians
+and FC split flows. Execution prepares these exact classes with `JaxPotential`,
+reusing existing physical data and splines without repeating gyroaveraging or
+mutating the source. Already compatible objects and bounded compilation caches
+are reused. Arbitrary subclass overrides remain unsupported by JAX execution.
+Direct compiled calls require both the JAX dynamics class and `JaxPotential`.
+Initial conditions and results retain structural NumPy layouts and array storage.
+`tests/test_shared_array_dynamics.py` and `tests/test_potential_execution.py`
+cover explicit backends, inherited methods, numerical equivalence and preparation.
 
 ## Domain contract ownership
 

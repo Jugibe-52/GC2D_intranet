@@ -1,6 +1,5 @@
 """Optional JAX device preparation shared by fixed and hybrid integrations."""
 
-from copy import copy
 from functools import lru_cache
 from types import ModuleType
 from typing import Any, ClassVar, TYPE_CHECKING
@@ -10,6 +9,7 @@ import numpy as np
 from execution.options import ExecutionOptions
 from dynamics.fc import FullCyclotronDynamics
 from dynamics.gc import GuidingCenterDynamics
+from dynamics.jax_dynamics import JaxFullCyclotronDynamics, JaxGuidingCenterDynamics
 from contracts.dynamics.protocols import DynamicalSystem, HamiltonianSystem
 from contracts.methods.base import NumericalMethod
 from potential.potential import Potential
@@ -61,9 +61,10 @@ def resolve_device(execution: ExecutionOptions) -> "Device":
 
 def require_builtin_dynamics(dynamics: DynamicalSystem) -> GuidingCenterDynamics | FullCyclotronDynamics:
 	"""Keep the original equations and refuse unknown subclass overrides."""
-	if type(dynamics) is GuidingCenterDynamics or type(dynamics) is FullCyclotronDynamics:
+	if (type(dynamics) is GuidingCenterDynamics or type(dynamics) is FullCyclotronDynamics
+			or type(dynamics) is JaxGuidingCenterDynamics or type(dynamics) is JaxFullCyclotronDynamics):
 		return dynamics
-	raise TypeError("JAX execution requires built-in GuidingCenterDynamics or FullCyclotronDynamics.")
+	raise TypeError("JAX execution requires built-in GuidingCenterDynamics or FullCyclotronDynamics, or their explicit JAX classes.")
 
 
 def _jax_potential(potential: Potential) -> JaxPotential:
@@ -80,7 +81,7 @@ def _jax_potential(potential: Potential) -> JaxPotential:
 	return prepared
 
 
-def prepare_dynamics(dynamics: DynamicalSystem) -> GuidingCenterDynamics | FullCyclotronDynamics:
+def prepare_dynamics(dynamics: DynamicalSystem) -> JaxGuidingCenterDynamics | JaxFullCyclotronDynamics:
 	"""Validate the physical type before entering the identity-based cache."""
 	return _prepare_dynamics(require_builtin_dynamics(dynamics))
 
@@ -88,20 +89,24 @@ def prepare_dynamics(dynamics: DynamicalSystem) -> GuidingCenterDynamics | FullC
 @lru_cache(maxsize=16)
 def _prepare_dynamics(
 	physical: GuidingCenterDynamics | FullCyclotronDynamics,
-) -> GuidingCenterDynamics | FullCyclotronDynamics:
+) -> JaxGuidingCenterDynamics | JaxFullCyclotronDynamics:
 	"""Bind shared GC/FC equations to JAX potentials without mutating the source."""
 	potential: JaxPotential = _jax_potential(physical.potential)
-	prepared: GuidingCenterDynamics | FullCyclotronDynamics
+	# Only the supported representation is copied. Calling the GC constructor
+	# again would repeat gyroaveraging and fit the effective field a second time.
+	prepared: JaxGuidingCenterDynamics | JaxFullCyclotronDynamics
 	if isinstance(physical, GuidingCenterDynamics):
 		effective: JaxPotential = potential if physical.effective_potential is physical.potential else _jax_potential(physical.effective_potential)
-		if potential is physical.potential and effective is physical.effective_potential:
+		if isinstance(physical, JaxGuidingCenterDynamics) and potential is physical.potential and effective is physical.effective_potential:
 			return physical
-		prepared = copy(physical)
+		prepared = object.__new__(JaxGuidingCenterDynamics)
+		prepared.__dict__.update(physical.__dict__)
 		object.__setattr__(prepared, "effective_potential", effective)
 	else:
-		if potential is physical.potential:
+		if isinstance(physical, JaxFullCyclotronDynamics) and potential is physical.potential:
 			return physical
-		prepared = copy(physical)
+		prepared = object.__new__(JaxFullCyclotronDynamics)
+		prepared.__dict__.update(physical.__dict__)
 	object.__setattr__(prepared, "potential", potential)
 	return prepared
 

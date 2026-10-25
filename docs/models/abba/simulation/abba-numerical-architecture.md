@@ -107,8 +107,11 @@ See [JAX execution](../../../simulation/jax-execution.md).
 ## Potential evaluation boundary
 
 `Potential.evaluate` uses NumPy/SciPy; `JaxPotential` inherits its representation
-and overrides only `evaluate` with JAX. Simulation preparation binds the shared
-GC/FC equations to JAX potentials sharing the existing splines, including the
+and overrides only `evaluate` with JAX. Simulation preparation constructs
+`JaxGuidingCenterDynamics` or `JaxFullCyclotronDynamics` from
+`dynamics.jax_dynamics`; these subclasses only declare `JaxPhysicalCoordinates`
+and inherit all physical methods. It supplies JAX potentials sharing the existing
+splines, including the
 gyroaveraged field, without refitting or mutating the source dynamics. Inherited
 electric fields follow the potential class; `evaluate_grid` remains NumPy-only. See the
 [shared potential contract](../../../dynamics/jax-potential-evaluation.md).

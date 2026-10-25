@@ -9,9 +9,10 @@ from typing import Any, ClassVar, Protocol, runtime_checkable
 class DynamicalSystem(Protocol):
 	"""Physical equations consumable by a general ODE method.
 
-	Array inputs and outputs may be NumPy arrays or JAX arrays/tracers. Built-in
-	dynamics use their potential class for field evaluation. JAX execution
-	binds those equations to JaxPotential before tracing.
+	Array inputs and outputs follow the implementation's declared backend.
+	Built-in dynamics use their coordinate and potential classes for array and
+	field operations. JAX execution prepares the explicit JAX subclasses with
+	JaxPhysicalCoordinates and JaxPotential before tracing.
 	"""
 
 	state_dimension: ClassVar[int]
